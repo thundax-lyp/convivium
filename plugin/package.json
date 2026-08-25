@@ -48,6 +48,10 @@
     "typecheck:host": "tsc -p tsconfig.json --noEmit",
     "typecheck:client": "tsc -p tsconfig.client.json --noEmit",
     "typecheck": "pnpm typecheck:host && pnpm typecheck:client",
+    "test": "vitest run",
+    "test:integration": "vitest run tests/integration --passWithNoTests && node -e \"console.log('Not Covered: integration tests')\"",
+    "test:recovery": "vitest run tests/recovery --passWithNoTests && node -e \"console.log('Not Covered: recovery tests')\"",
+    "test:stress": "vitest run tests/stress --passWithNoTests && node -e \"console.log('Not Covered: stress tests')\"",
     "verify": "pnpm typecheck && pnpm build"
   },
   "peerDependencies": {

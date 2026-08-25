@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F3.1 / plugin Vitest environments`：建立 Host、Client 和 contract 测试环境
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.3、§6.5
-    - 前置任务：`F2.3`
-    - 关联文件：`plugin/vitest.config.ts`、`plugin/package.json`
-    - 处理动作：配置 Node Host、browser-compatible Client 和 contract 测试选择规则及基础 scripts。
-    - 验收点：三类测试可被独立选择；Client 环境不继承 Node globals；空的 integration、recovery、stress 明确报告未覆盖而非伪造测试。
-    - 主验证：`pnpm --dir plugin test`
-    - 停止条件：测试只能在统一 jsdom + Node globals 环境运行时停止并修复环境隔离。
-
 - [ ] `F3.2 / plugin framework tests`：实现模块边界、package manifest 和 Client entry 测试
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.5
     - 前置任务：`F3.1`
