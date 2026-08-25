@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F2.2 / plugin Host modules`：创建 Host 基础设施空模块
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.1、§4.4
-    - 前置任务：`F1.4`
-    - 关联文件：`plugin/src/repository/index.ts`、`plugin/src/runtime/index.ts`、`plugin/src/dsh/index.ts`、`plugin/src/tools/index.ts`、`plugin/src/http/index.ts`、`plugin/src/projection/index.ts`
-    - 处理动作：按设计创建六个最小 barrel，不在模块中实现业务接口、存储或 DSH 调用。
-    - 验收点：所有目录可跟踪并通过 Host typecheck；每个空模块只导出真实存在内容或 `export {}`；无 `not implemented` 产品入口。
-    - 主验证：`pnpm --dir plugin typecheck`
-    - 停止条件：目录职责无法按 Implementation Design 判断时停止，不自行重划模块边界。
-
 - [ ] `F2.3 / plugin module boundary gate`：把模块依赖矩阵实现为可失败检查
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.4、§8 T2
     - 前置任务：`F2.1`、`F2.2`
