@@ -48,6 +48,7 @@ plugin/
 ├── src/
 │   ├── index.ts                    # Host entry
 │   ├── config.ts
+│   ├── protocol/
 │   ├── domain/
 │   ├── repository/
 │   ├── runtime/
@@ -96,32 +97,36 @@ Convivium 是一个职责闭合的树外 DSH bundle，因此保持单 package，
 ### Dependency direction
 
 ```text
+client ──> protocol
 client ──HTTP contract──> http ──> runtime ──> domain
                                │       │
-tools ──caller context─────────┘       ├──> repository
-                                       ├──> dsh
+tools ──> protocol             │       ├──> repository
+tools ──caller context─────────┘       ├──> dsh
                                        └──> projection
 
 repository ──> domain types
 dsh        ──> domain ports
-projection ──> domain read models
+projection ──> domain read models + protocol projections
+protocol   ──> no infrastructure or domain module
 domain     ──> no infrastructure module
 ```
 
 依赖规则：
 
-1. `domain/` 不导入 DSH、SQLite、HTTP、React 或文件系统模块。
-2. `repository/` 不调用 DSH，也不选择 speaker 或判断会议完成。
-3. `dsh/` 只实现 Runtime 所需 port，不写 Meeting 领域状态。
-4. `tools/` 和 `http/` 只做 transport 解析、caller binding、调用 Runtime 和结果编码。
-5. `client/` 只使用 Interface 定义的 Web projection，不导入 host 代码或数据库类型。
-6. `projection/` 只能读取已提交事实；Markdown 和 UI projection 都不能反向驱动状态转换。
+1. `protocol/` 只保存 Host/Client 共享的 transport-neutral 类型、常量和无副作用 codec，不导入 domain 或 infrastructure。
+2. `domain/` 不导入 protocol、DSH、SQLite、HTTP、React 或文件系统模块。
+3. `repository/` 不调用 DSH，也不选择 speaker 或判断会议完成。
+4. `dsh/` 只实现 Runtime 所需 port，不写 Meeting 领域状态。
+5. `tools/` 和 `http/` 只做 transport 解析、caller binding、调用 Runtime 和结果编码。
+6. `client/` 只使用 `protocol/` 定义的 Web projection，不导入 host 代码、domain aggregate 或数据库类型。
+7. `projection/` 只能读取已提交事实并映射为 protocol projection；Markdown 和 UI projection 都不能反向驱动状态转换。
 
 ### Module map
 
 | Path | Required responsibility |
 |---|---|
 | `src/config.ts` | 插件配置 Schema、默认值和启动期能力检查 |
+| `src/protocol/*` | Interface 对应的 Host/Client 共享 transport 类型、常量和无副作用 codec |
 | `src/domain/model.ts` | Meeting 聚合、值对象和领域 read model |
 | `src/domain/transitions.ts` | 唯一领域状态转换集合 |
 | `src/domain/planning.ts` | candidate filtering、selection mode、turn plan 校验 |
