@@ -52,6 +52,7 @@
     "test:integration": "vitest run tests/integration --passWithNoTests && node -e \"console.log('Not Covered: integration tests')\"",
     "test:recovery": "vitest run tests/recovery --passWithNoTests && node -e \"console.log('Not Covered: recovery tests')\"",
     "test:stress": "vitest run tests/stress --passWithNoTests && node -e \"console.log('Not Covered: stress tests')\"",
+    "verify:package": "node scripts/verify-package.mjs",
     "verify": "pnpm typecheck && pnpm build"
   },
   "peerDependencies": {

@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F3.3 / plugin package verifier`：实现磁盘产物验证脚本
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.4
-    - 前置任务：`F1.5`、`F3.2`
-    - 关联文件：`plugin/scripts/verify-package.mjs`、`plugin/package.json`
-    - 处理动作：从真实 package manifest、patch 和 build 产物计算 `PackageVerificationResult`，任一失败字段使进程非零退出。
-    - 验收点：正确产物通过；缺少 `lib/client.js`、错误 patch name、开放式 files allowlist 三种故障分别失败，且每次都恢复文件。
-    - 主验证：`pnpm --dir plugin verify:package`
-    - 停止条件：验证器依赖复制的期望 manifest 或固定成功返回时停止并改为读取磁盘事实。
-
 - [ ] `F3.4 / plugin verify composition`：建立统一且不夸大覆盖的验证入口
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.3、§8 T3
     - 前置任务：`F3.3`
