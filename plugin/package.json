@@ -44,8 +44,10 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.client.json",
+    "typecheck:host": "tsc -p tsconfig.json --noEmit",
+    "typecheck:client": "tsc -p tsconfig.client.json --noEmit",
+    "typecheck": "pnpm typecheck:host && pnpm typecheck:client",
     "verify": "pnpm typecheck && pnpm build"
   },
   "peerDependencies": {

@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F1.4 / plugin TypeScript faces`：分离 Host 与 Client 类型检查和声明输出
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.1
-    - 前置任务：`F1.3`
-    - 关联文件：`plugin/tsconfig.json`、`plugin/tsconfig.client.json`、`plugin/package.json`
-    - 处理动作：配置 Node Host 与 DOM Client 两套 TypeScript face，并建立独立 typecheck scripts。
-    - 验收点：Host 排除 Client 和 tests；Client 只包含 `client` 与 `protocol`，且无 Node types；声明分别输出到 RUNBOOK 指定目录。
-    - 主验证：`pnpm --dir plugin typecheck`
-    - 停止条件：只能通过给 Client 增加 Node globals 才能通过时停止，修复越界 import。
-
 - [ ] `F1.5 / plugin bundles`：生成 Host 与 Client 两个独立 bundle
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.2
     - 前置任务：`F1.4`

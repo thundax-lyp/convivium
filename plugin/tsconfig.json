@@ -4,11 +4,15 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationDir": "lib/types",
     "outDir": "lib",
     "rootDir": "src",
+    "types": ["node"],
     "strict": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/client/**", "tests/**"]
 }
