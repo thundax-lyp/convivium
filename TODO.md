@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F2.3 / plugin module boundary gate`：把模块依赖矩阵实现为可失败检查
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.4、§8 T2
-    - 前置任务：`F2.1`、`F2.2`
-    - 关联文件：`plugin/tests/unit/module-boundaries.spec.ts`
-    - 处理动作：编码 `ModuleName`、`ModuleBoundary` 和允许/禁止 import 矩阵，并扫描当前 `src` import。
-    - 验收点：当前源码通过；临时给 Client 加入一个 Host import 后检查失败；恢复后再次通过。
-    - 主验证：`pnpm --dir plugin exec vitest run tests/unit/module-boundaries.spec.ts --environment node`；`F3.1` 完成后改用正式 test script。
-    - 停止条件：矩阵与 Implementation Design 冲突时停止并修订设计，不修改测试白名单适配代码。
-
 - [ ] `F3.1 / plugin Vitest environments`：建立 Host、Client 和 contract 测试环境
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.3、§6.5
     - 前置任务：`F2.3`
