@@ -2,14 +2,14 @@
 
 ## Scope
 
-本证据覆盖 Convivium DSH 插件工程框架从 `F0.1` 到 `F4.2` 的可安装 manifest、lockfile、Host/Client 类型面、bundle、模块边界、framework tests、package verifier、统一验证入口、CI workflow 和 PR 治理口径。
+本证据覆盖 Convivium DSH 插件工程框架从依赖 manifest 到 PR 治理的可安装 package、lockfile、Host/Client 类型面、bundle、模块边界、framework tests、package verifier、统一验证入口和 CI workflow。
 
 本证据不代表会议运行时、会议协议、SQLite repository 或真实 DSH AgentSession 已实现。
 
 ## Validated Contract
 
 - 插件 package name 为 `@convivium/dsh-plugin`，具备 Host `.` 与 Client `./client` 两个发布入口。
-- Cordis 使用公开可解析的最高稳定版本 `4.0.1`；其他当前列出的 DSH packages 使用 `0.1.1-rc.1`。
+- Cordis 使用公开可解析的最高稳定版本 `4.0.1`；当前列出的其他 DSH packages 使用 registry 可见最高版本 `0.1.1-rc.2`。
 - frozen install 可在独立 `plugin/` checkout 解析 lockfile；lockfile 未包含 workspace、Git dependency、本机绝对路径或相邻 checkout。
 - Host 与 Client 分别进行 TypeScript typecheck，并输出 `lib/types/index.d.ts` 与 `lib/types/client/index.d.ts`。
 - bundle 产物为 `lib/index.js` 与 `lib/client.js`；Client bundle 未包含 Node builtin 或第二份 React/DSH runtime。
@@ -21,7 +21,7 @@
 
 验证日期：2026-08-25
 环境：Node `v22.23.2`，pnpm `10.7.0`，macOS 本地工作区
-实现边界：`fef0d1c..fca7386`（`F0.1` 至 `F4.2` 完成提交）；证据在后续 readiness commit 中收口。
+实现边界：`fef0d1c..fca7386`（依赖 manifest 至 PR 治理的实现提交）；证据在后续 readiness commit 中收口。
 
 | 命令或检查 | 结果 | 证据 |
 | --- | --- | --- |
@@ -37,7 +37,7 @@
 | workflow YAML/job comparison | Pass | 五个 job display name、Node、pnpm、frozen install、Build→Package dependency 符合 CI 契约 |
 | `git diff --check`、最终 `git status --short` | Pass | 无 whitespace error；无未提交工作区修改 |
 
-`pnpm 10.7.0` 不支持 RUNBOOK 中写出的 `pnpm pack --dry-run` 参数；已使用该版本支持的临时目录实际打包 JSON 清单替代检查，并确认发布清单未包含 `src/`、`tests/` 或 `docs/`。
+`pnpm 10.7.0` 不支持原执行手册写出的 `pnpm pack --dry-run` 参数；已使用该版本支持的临时目录实际打包 JSON 清单替代检查，并确认发布清单未包含 `src/`、`tests/` 或 `docs/`。
 
 ## Not Covered
 
