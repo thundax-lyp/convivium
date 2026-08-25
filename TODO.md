@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F0.2 / plugin lockfile`：生成并验证可重复安装的 lockfile
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §5、§8 T0
-    - 前置任务：`F0.1`
-    - 关联文件：`plugin/pnpm-lock.yaml`
-    - 处理动作：使用 Node 22.19+ 和项目 pnpm 版本生成 lockfile，检查 Cordis、React 和 DSH 依赖解析结果。
-    - 验收点：frozen install 成功；lockfile 不包含本机绝对路径、Git dependency 或相邻 DSH checkout；`pnpm why` 没有非预期的共享 runtime 版本。
-    - 主验证：`pnpm --dir plugin install --frozen-lockfile`
-    - 停止条件：解析结果与 `F0.1` manifest 不一致时停止，不手工编辑 lockfile。
-
 - [ ] `F1.1 / plugin publication manifest`：定义 DSH bundle 和发布文件契约
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.2
     - 前置任务：`F0.2`
