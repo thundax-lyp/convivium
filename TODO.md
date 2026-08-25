@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F4.1 / repository plugin CI`：为四个插件 gate 建立独立 CI jobs
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §7
-    - 前置任务：`F3.4`
-    - 关联文件：`.github/workflows/pr-verify.yml`
-    - 处理动作：保留 Governance，新增 Plugin Typecheck、Plugin Test、Plugin Build 和 Package Contract；Package Contract 显式依赖 Build。
-    - 验收点：五类 job 名称稳定且独立可见；使用 Node 22.19+、frozen lockfile；每个 plugin job 只公开执行对应 gate。
-    - 主验证：解析 workflow YAML，并在可用 PR 上确认全部 jobs 至少启动一次。
-    - 停止条件：远端不可用时仅记录未验证，不声称 CI 或 Ruleset 已生效。
-
 - [ ] `F4.2 / repository PR governance`：同步 CI 覆盖与分支保护口径
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §7；`docs/00-governance/PR-RULES.md`
     - 前置任务：`F4.1`
