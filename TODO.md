@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F3.4 / plugin verify composition`：建立统一且不夸大覆盖的验证入口
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.3、§8 T3
-    - 前置任务：`F3.3`
-    - 关联文件：`plugin/package.json`
-    - 处理动作：组装 `typecheck`、`test`、`build`、`verify:package` 和 `verify`，并保留 integration、recovery、stress 入口。
-    - 验收点：`verify` 按顺序运行所有真实 gate；空业务测试明确为未覆盖；删除一个产物或制造类型错误会使 `verify` 失败。
-    - 主验证：`pnpm --dir plugin verify`
-    - 停止条件：任一子命令失败时停止并修复该子任务，不用 `|| true`、跳过或假测试绕过。
-
 - [ ] `F4.1 / repository plugin CI`：为四个插件 gate 建立独立 CI jobs
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §7
     - 前置任务：`F3.4`

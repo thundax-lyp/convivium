@@ -53,7 +53,7 @@
     "test:recovery": "vitest run tests/recovery --passWithNoTests && node -e \"console.log('Not Covered: recovery tests')\"",
     "test:stress": "vitest run tests/stress --passWithNoTests && node -e \"console.log('Not Covered: stress tests')\"",
     "verify:package": "node scripts/verify-package.mjs",
-    "verify": "pnpm typecheck && pnpm build"
+    "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm verify:package"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
