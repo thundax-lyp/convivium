@@ -1,11 +1,11 @@
 {
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": [],
-    "declarationDir": "lib/types",
-    "rootDir": "src"
-  },
-  "include": ["src/client/**/*.tsx", "src/protocol/**/*.ts"],
-  "exclude": ["tests/**"]
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "types": [],
+        "declarationDir": "lib/types",
+        "rootDir": "src"
+    },
+    "include": ["src/client/**/*.tsx", "src/protocol/**/*.ts"],
+    "exclude": ["tests/**"]
 }
