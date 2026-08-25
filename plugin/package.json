@@ -44,7 +44,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.client.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.client.json && tsdown --config tsdown.config.ts",
     "typecheck:host": "tsc -p tsconfig.json --noEmit",
     "typecheck:client": "tsc -p tsconfig.client.json --noEmit",
     "typecheck": "pnpm typecheck:host && pnpm typecheck:client",

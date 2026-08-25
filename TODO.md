@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F1.5 / plugin bundles`：生成 Host 与 Client 两个独立 bundle
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.2
-    - 前置任务：`F1.4`
-    - 关联文件：`plugin/tsdown.config.ts`、`plugin/package.json`
-    - 处理动作：建立声明构建和 tsdown 双入口，externalize Cordis、React 与 DSH Client runtime。
-    - 验收点：产生 `lib/index.js`、`lib/client.js` 和两组声明；Client bundle 不包含 Node builtin 或第二份共享 runtime。
-    - 主验证：`pnpm --dir plugin build`
-    - 停止条件：shared runtime 无法 externalize 时对照官方 DSH Client 配置，不内联绕过。
-
 - [ ] `F2.1 / plugin pure modules`：创建 `protocol` 与 `domain` 空模块
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.1、§4.4
     - 前置任务：`F1.4`
