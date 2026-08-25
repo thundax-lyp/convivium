@@ -1,12 +1,21 @@
 import type { Context } from '@deepseek-ai/cordis'
-import z from '@deepseek-ai/schemastery'
+import { Config, type Config as ConfigType } from './config.js'
+
+export { Config }
+export type { Config as ConfigType } from './config.js'
 
 export const name = 'convivium'
 
-export interface Config {}
+export const inject = [
+  '@deepseek-ai/dsh-agent',
+  '@deepseek-ai/dsh-session',
+  '@deepseek-ai/dsh-subagent',
+  '@deepseek-ai/dsh-system-prompt',
+  '@deepseek-ai/dsh-tools',
+  '@deepseek-ai/dsh-workspace',
+  '@deepseek-ai/dsh-host-webserver',
+] as const
 
-export const Config: z<Config> = z.object({})
-
-export function apply(_ctx: Context, _config: Config): void {
+export function apply(_ctx: Context, _config: ConfigType): void {
   // Meeting runtime registration will be added with its implementation.
 }

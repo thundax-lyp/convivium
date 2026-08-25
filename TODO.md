@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F1.2 / plugin Host entry`：建立最小 Host 插件入口
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.3
-    - 前置任务：`F1.1`
-    - 关联文件：`plugin/src/index.ts`、`plugin/src/config.ts`
-    - 处理动作：实现 Host 的 `name`、`inject`、`Config` 和 `apply()` 空组合入口，Config 只在 `config.ts` 定义。
-    - 验收点：入口可被 TypeScript 编译；不注册工具、路由或 UI；不输出“会议已可用”；不存在可调用的假实现。
-    - 主验证：`pnpm --dir plugin exec tsc --noEmit -p tsconfig.json`
-    - 停止条件：需要引入未列入 RUNBOOK 的 DSH service 时停止并校准设计。
-
 - [ ] `F1.3 / plugin Client entry`：建立最小 browser Client 插件入口
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.3
     - 前置任务：`F1.2`
