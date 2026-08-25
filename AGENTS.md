@@ -12,15 +12,15 @@
 
 ## Current State
 
-- Convivium 当前处于产品讨论和工程治理初始化阶段。
-- 尚未初始化应用脚手架，也没有可执行的构建、测试或启动命令。
+- Convivium 已在 `plugin/` 初始化独立的 DSH 插件工程。
+- `plugin/` 提供最小构建和类型检查入口；会议能力尚未实现，不得把工程骨架描述为产品已完成。
 - 不得根据讨论稿自行确定未决产品范围、框架、数据库、通信方式或部署形态。
 
 ## Project Direction
 
-- Convivium 是独立的 Electron 桌面应用，核心代码使用 TypeScript。
-- Renderer 不得直接管理 ACP Agent 进程、会议运行时、任意文件访问或敏感权限。
-- 每个 Agent 在具体会议身份下使用独立 ACP Session；不得跨身份共享会话状态。
+- Convivium 是使用 TypeScript 独立实现的纯 DSH 插件。外部项目只能作为只读调研材料，不是源码基线、运行依赖或兼容目标。
+- 插件前端不得直接管理 Agent Session、会议运行时、任意文件访问或敏感权限；这些能力只能由插件后端通过受控工具和路由提供。
+- 每个 Agent 在具体会议身份下使用独立 DSH continuable AgentSession；不得跨身份共享会话状态。
 - 后续新增顶层工程目录前，必须先在架构文档中明确其职责、依赖方向和验证入口。
 
 ## Documentation Governance
