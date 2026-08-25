@@ -10,6 +10,12 @@
 ## Verification Evidence
 
 - [ ] PR workflow: `Governance`
+- [ ] PR workflow: `Plugin Format`
+- [ ] PR workflow: `Plugin Lint`
+- [ ] PR workflow: `Plugin Typecheck`
+- [ ] PR workflow: `Plugin Test`
+- [ ] PR workflow: `Plugin Build`
+- [ ] PR workflow: `Package Contract`
 - [ ] `git diff --check`
 - Documentation navigation check：结果或 `N/A` 及原因。
 - Relevant automated checks：命令与结果，或 `N/A` 及原因。
