@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F3.2 / plugin framework tests`：实现模块边界、package manifest 和 Client entry 测试
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.5
-    - 前置任务：`F3.1`
-    - 关联文件：`plugin/tests/unit/module-boundaries.spec.ts`、`plugin/tests/contract/package-contract.spec.ts`、`plugin/tests/client/client-entry.client.spec.ts`
-    - 处理动作：让三类测试分别验证边界矩阵、静态 package 契约和 Client 加载/dispose。
-    - 验收点：三个测试文件均至少包含一个能因真实输入错误而失败的断言；名称不声称会议、恢复或 UI 业务已经可用。
-    - 主验证：`pnpm --dir plugin test`
-    - 停止条件：测试需要伪造会议结果才能通过时删除该断言，只保留框架覆盖。
-
 - [ ] `F3.3 / plugin package verifier`：实现磁盘产物验证脚本
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.4
     - 前置任务：`F1.5`、`F3.2`
