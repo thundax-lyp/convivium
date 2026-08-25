@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F1.3 / plugin Client entry`：建立最小 browser Client 插件入口
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.3
-    - 前置任务：`F1.2`
-    - 关联文件：`plugin/src/client/index.tsx`
-    - 处理动作：实现 Client 的 `name`、`inject` 和空 `apply()`，只证明 browser roster 可以解析入口。
-    - 验收点：Client 不导入 Host entry、Node builtin、SQLite、repository、runtime、dsh、tools 或 http。
-    - 主验证：使用 `rg` 检查 Client entry 不含 Host 相对路径、`node:`、SQLite 和 Host module import；`F1.4` 完成后再执行正式 Client typecheck。
-    - 停止条件：入口需要 Host 实现类型才能编译时停止，改为通过 `protocol` 建立边界。
-
 - [ ] `F1.4 / plugin TypeScript faces`：分离 Host 与 Client 类型检查和声明输出
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §6.1
     - 前置任务：`F1.3`
