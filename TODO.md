@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F0.1 / plugin manifest`：声明插件运行时和开发依赖
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §5
-    - 前置任务：无
-    - 关联文件：`plugin/package.json`
-    - 处理动作：按 RUNBOOK 分类写入 DSH peers、开发期 DSH packages、React、Schemastery 和构建测试工具；不要生成 lockfile。
-    - 验收点：DSH peer range 为 `^0.1.1-rc.1`，开发期 DSH 版本为 `0.1.1-rc.1`，React 主版本为 `18`；不存在 `workspace:`、Git dependency、本地路径、SQLite driver 或工作流框架。
-    - 主验证：在 `plugin/` 执行 `pnpm install --lockfile-only`，只确认 manifest 可解析。
-    - 停止条件：任一指定 package 无法解析时记录准确包名和错误，不调整版本策略。
-
 - [ ] `F0.2 / plugin lockfile`：生成并验证可重复安装的 lockfile
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §5、§8 T0
     - 前置任务：`F0.1`
