@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F2.1 / plugin pure modules`：创建 `protocol` 与 `domain` 空模块
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.1、§4.4
-    - 前置任务：`F1.4`
-    - 关联文件：`plugin/src/protocol/index.ts`、`plugin/src/domain/index.ts`
-    - 处理动作：创建可跟踪的最小 barrel；无正式类型时只写 `export {}`。
-    - 验收点：`protocol` 不导入 Node、React、DSH 或数据库；`domain` 不导入 protocol 或基础设施；没有复制完整业务协议或创建假模型。
-    - 主验证：`pnpm --dir plugin typecheck`
-    - 停止条件：需要新增正式协议字段时停止，该内容属于后续接口实现任务。
-
 - [ ] `F2.2 / plugin Host modules`：创建 Host 基础设施空模块
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.1、§4.4
     - 前置任务：`F1.4`
