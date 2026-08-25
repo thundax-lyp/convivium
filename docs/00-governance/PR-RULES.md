@@ -19,6 +19,7 @@
 | Job | 覆盖范围 | 当前状态 |
 | --- | --- | --- |
 | `Governance` | 治理结构和 PR diff 格式 | workflow 已定义；Ruleset 当前要求 |
+| `Plugin Format` | `plugin/` Prettier 格式检查 | workflow 已定义；远端运行未在本地确认 |
 | `Plugin Typecheck` | `plugin/` Host 与 Client TypeScript faces | workflow 已定义；远端运行未在本地确认 |
 | `Plugin Test` | `plugin/` framework、package 和 Client entry tests | workflow 已定义；会议 integration/recovery/stress 为 `Not Covered` |
 | `Plugin Build` | Host/Client declarations 与 bundle artifacts | workflow 已定义；远端运行未在本地确认 |
@@ -74,7 +75,7 @@ PR 描述固定覆盖：
 
 ## Verification Rules
 
-- 当前 workflow 的必需检查候选为 `Governance`、`Plugin Typecheck`、`Plugin Test`、`Plugin Build` 和 `Package Contract`，由 `.github/workflows/pr-verify.yml` 分别定义。
+- 当前 workflow 的必需检查候选为 `Governance`、`Plugin Format`、`Plugin Typecheck`、`Plugin Test`、`Plugin Build` 和 `Package Contract`，由 `.github/workflows/pr-verify.yml` 分别定义。
 - `Governance` 检查治理入口和文档目录存在，并对 PR diff 执行 `git diff --check`；当前 Ruleset 的实际强制项仍以 `Governance` 为准。
 - `Plugin Typecheck` 执行 `pnpm typecheck`，`Plugin Test` 执行 `pnpm test`，`Plugin Build` 执行 `pnpm build`，`Package Contract` 下载并检查 `Plugin Build` 产物后执行 `pnpm verify:package`。
 - 只记录实际执行过的验证；未运行、被阻塞或无法复现的检查不能标记为通过。
@@ -82,7 +83,7 @@ PR 描述固定覆盖：
 - 自动化检查通过是证据，不自动证明业务行为、生命周期、权限和恢复流程正确。
 - 涉及用户流程、ACP Agent 生命周期、权限或恢复能力时，应记录必要的运行时或人工验证。
 - 不能执行的验证应写入 `Not Covered`，说明原因和影响，不把阻塞检查描述为绿色。
-- 当前已接入真实的 TypeScript、framework test、bundle build 和 package contract gates；尚未接入独立 lint、会议 integration/recovery/stress 业务测试，也未在本地观察远端 PR job 启动结果。
+- 当前已接入真实的 Prettier、TypeScript、framework test、bundle build 和 package contract gates；尚未接入独立 lint、会议 integration/recovery/stress 业务测试，也未在本地观察远端 PR job 启动结果。
 
 ## Documentation And Task Closure
 
