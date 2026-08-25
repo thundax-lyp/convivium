@@ -21,15 +21,6 @@
     - 主验证：逐项比对 workflow job display name 与 PR Rules，并运行 `git diff --check`。
     - 停止条件：workflow 名称仍在变化时先稳定 `F4.1`，不写预测性治理结论。
 
-- [ ] `F5.1 / framework readiness evidence`：记录框架实现的验证事实和未覆盖边界
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §8 T5、§10；`docs/00-governance/DOCUMENT-RULES.md`
-    - 前置任务：`F4.2`
-    - 关联文件：`docs/40-readiness/CONVIVIUM-FRAMEWORK-EVIDENCE.md`
-    - 处理动作：记录日期、环境、commit 边界、命令、结果和 `Not Covered`，不重复设计正文。
-    - 验收点：证据明确区分已验证框架与未覆盖的会议业务、SQLite、真实 DSH Session、恢复、压力和 UI；每项结果可追溯到命令或 CI job。
-    - 主验证：执行 RUNBOOK §10 的全套命令，并核对 evidence 中每条成功声明。
-    - 停止条件：任一必需 gate 未通过时如实记录失败，不能进入 `F5.2`。
-
 - [ ] `F5.2 / framework task closure`：迁移长期结论并清理 RUNBOOK 和已完成 TODO
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §11；`docs/00-governance/TODO-RULES.md`
     - 前置任务：`F5.1`

@@ -1,0 +1,55 @@
+# Convivium Framework Evidence
+
+## Scope
+
+本证据覆盖 Convivium DSH 插件工程框架从 `F0.1` 到 `F4.2` 的可安装 manifest、lockfile、Host/Client 类型面、bundle、模块边界、framework tests、package verifier、统一验证入口、CI workflow 和 PR 治理口径。
+
+本证据不代表会议运行时、会议协议、SQLite repository 或真实 DSH AgentSession 已实现。
+
+## Validated Contract
+
+- 插件 package name 为 `@convivium/dsh-plugin`，具备 Host `.` 与 Client `./client` 两个发布入口。
+- Cordis 使用公开可解析的最高稳定版本 `4.0.1`；其他当前列出的 DSH packages 使用 `0.1.1-rc.1`。
+- frozen install 可在独立 `plugin/` checkout 解析 lockfile；lockfile 未包含 workspace、Git dependency、本机绝对路径或相邻 checkout。
+- Host 与 Client 分别进行 TypeScript typecheck，并输出 `lib/types/index.d.ts` 与 `lib/types/client/index.d.ts`。
+- bundle 产物为 `lib/index.js` 与 `lib/client.js`；Client bundle 未包含 Node builtin 或第二份 React/DSH runtime。
+- framework tests 覆盖模块边界、package manifest 和 Client entry 加载，不覆盖会议业务。
+- package verifier 从磁盘读取 manifest、patch 和 build artifact；缺失 Client artifact、错误 patch name、开放 files allowlist 均可失败。
+- workflow 独立展示 `Governance`、`Plugin Typecheck`、`Plugin Test`、`Plugin Build` 和 `Package Contract`；Package Contract 依赖 Plugin Build artifact。
+
+## Executed Validation
+
+验证日期：2026-08-25
+环境：Node `v22.23.2`，pnpm `10.7.0`，macOS 本地工作区
+实现边界：`fef0d1c..fca7386`（`F0.1` 至 `F4.2` 完成提交）；证据在后续 readiness commit 中收口。
+
+| 命令或检查 | 结果 | 证据 |
+| --- | --- | --- |
+| `pnpm install --frozen-lockfile` | Pass | lockfile up to date；pnpm 提示 ignored `esbuild` build script，但安装成功 |
+| `pnpm typecheck` | Pass | Host 与 Client 两个 TypeScript face 均通过 |
+| `pnpm test` | Pass | 3 个 framework test files、4 个 tests 通过；Host/Client/contract projects 可见 |
+| `pnpm build` | Pass | 生成 `lib/index.js`、`lib/client.js` 和两组声明；tsdown 输出一个 `define` invalid input warning，不影响退出码或产物 |
+| `pnpm verify:package` | Pass | 4 个 boolean contract 字段为 true，missing/forbidden 数组为空 |
+| `pnpm verify` | Pass | 按 typecheck → test → build → package verifier 顺序通过 |
+| `pnpm test:integration` / `test:recovery` / `test:stress` | Pass with `Not Covered` | 三个入口均明确输出未覆盖，没有伪造业务用例 |
+| package fault injection | Pass | 临时副本中删除 `lib/client.js`、篡改 patch name、开放 files allowlist 均使 verifier 非零退出，并已恢复 |
+| verify fault injection | Pass | 临时类型错误使 `verify` 失败；缺失 artifact 使 `verify:package` 失败，并已恢复 |
+| workflow YAML/job comparison | Pass | 五个 job display name、Node、pnpm、frozen install、Build→Package dependency 符合 CI 契约 |
+| `git diff --check`、最终 `git status --short` | Pass | 无 whitespace error；无未提交工作区修改 |
+
+`pnpm 10.7.0` 不支持 RUNBOOK 中写出的 `pnpm pack --dry-run` 参数；已使用该版本支持的临时目录实际打包 JSON 清单替代检查，并确认发布清单未包含 `src/`、`tests/` 或 `docs/`。
+
+## Not Covered
+
+- 会议生命周期、Turn、发言权、Manager、完成判断和会议协议业务。
+- SQLite schema、driver、事务、outbox、恢复和测试数据库。
+- 真实 DSH AgentSession 创建、followup、interrupt、continuable drain、capability revoke 和归档。
+- 真实 DSH Host/Web roster 启动、工具调用、HTTP 路由和权限边界的运行时验证。
+- integration、recovery、stress 业务测试和压力结果。
+- 会议 UI 行为、真实浏览器交互和可访问性。
+- 独立 lint gate 尚未接入 workflow。
+- GitHub PR 远端 job 实际启动结果及 Ruleset 是否已将四个 Plugin job 设为必过；当前治理文档只确认 workflow 定义存在，已观察的 Ruleset 仍只要求 `Governance`。
+
+## Closure
+
+框架级 package、build、test、verify 和 CI 配置已达到本阶段可检查状态；以上未覆盖项不应被描述为会议产品已完成。长期工程判断已分别落在 `ARCHITECTURE.md`、Implementation Design、PR-RULES、源码配置和 package verifier 中。
