@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F1.1 / plugin publication manifest`：定义 DSH bundle 和发布文件契约
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.2
-    - 前置任务：`F0.2`
-    - 关联文件：`plugin/package.json`、`plugin/cordis.patch.yml`
-    - 处理动作：配置 `bundle.patch`、`client`、exports 和 files allowlist，使 package 名与 patch 内容一致。
-    - 验收点：只导出 `.`, `./client`, `./cordis.patch.yml`, `./package.json`；files 只包含 `lib`, `cordis.patch.yml`, `README.md`；patch 引用当前 package。
-    - 主验证：`pnpm --dir plugin pack --dry-run`
-    - 停止条件：dry-run 包含 `src/`、`tests/` 或 `docs/` 时停止并收紧 allowlist。
-
 - [ ] `F1.2 / plugin Host entry`：建立最小 Host 插件入口
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §4.3
     - 前置任务：`F1.1`
