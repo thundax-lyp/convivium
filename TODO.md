@@ -12,15 +12,6 @@
 
 以下任务按编号顺序执行。`F2.1` 与 `F2.2` 可在 `F1.4` 完成后分别实施，但 `F2.3` 必须等待两者完成；其他任务不得跳过前置项。每项只完成列出的主要目标，不顺带实现会议业务。
 
-- [ ] `F4.2 / repository PR governance`：同步 CI 覆盖与分支保护口径
-    - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §7；`docs/00-governance/PR-RULES.md`
-    - 前置任务：`F4.1`
-    - 关联文件：`docs/00-governance/PR-RULES.md`
-    - 处理动作：记录实际 CI job 名称、覆盖边界和 Ruleset 未覆盖项，删除“尚未执行插件检查”的旧口径。
-    - 验收点：治理文档与 workflow 一一对应；未观察到的远端行为明确标为 `Not Covered`；不把 job 存在等同于必过保护。
-    - 主验证：逐项比对 workflow job display name 与 PR Rules，并运行 `git diff --check`。
-    - 停止条件：workflow 名称仍在变化时先稳定 `F4.1`，不写预测性治理结论。
-
 - [ ] `F5.2 / framework task closure`：迁移长期结论并清理 RUNBOOK 和已完成 TODO
     - 依据文档：`docs/30-designs/RUNBOOK-IMPLEMENT-CONVIVIUM-FRAMEWORK.md` §11；`docs/00-governance/TODO-RULES.md`
     - 前置任务：`F5.1`
