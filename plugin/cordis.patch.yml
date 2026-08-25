@@ -1,0 +1,4 @@
+- insert:
+    - id: convivium
+      name: '@convivium/dsh-plugin'
+      config: {}
