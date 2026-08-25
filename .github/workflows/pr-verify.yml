@@ -94,6 +94,60 @@ jobs:
         working-directory: plugin
         run: pnpm typecheck
 
+  plugin-format:
+    name: Plugin Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: pnpm
+          cache-dependency-path: plugin/pnpm-lock.yaml
+
+      - name: Install plugin dependencies
+        working-directory: plugin
+        run: pnpm install --frozen-lockfile
+
+      - name: Check plugin formatting
+        working-directory: plugin
+        run: pnpm format:check
+
+  plugin-lint:
+    name: Plugin Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.7.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: pnpm
+          cache-dependency-path: plugin/pnpm-lock.yaml
+
+      - name: Install plugin dependencies
+        working-directory: plugin
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint plugin sources
+        working-directory: plugin
+        run: pnpm lint
+
   plugin-test:
     name: Plugin Test
     runs-on: ubuntu-latest

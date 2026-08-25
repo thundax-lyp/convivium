@@ -15,7 +15,7 @@
 - bundle 产物为 `lib/index.js` 与 `lib/client.js`；Client bundle 未包含 Node builtin 或第二份 React/DSH runtime。
 - framework tests 覆盖模块边界、package manifest 和 Client entry 加载，不覆盖会议业务。
 - package verifier 从磁盘读取 manifest、patch 和 build artifact；缺失 Client artifact、错误 patch name、开放 files allowlist 均可失败。
-- workflow 独立展示 `Governance`、`Plugin Typecheck`、`Plugin Test`、`Plugin Build` 和 `Package Contract`；Package Contract 依赖 Plugin Build artifact。
+- workflow 独立展示 `Governance`、`Plugin Format`、`Plugin Lint`、`Plugin Typecheck`、`Plugin Test`、`Plugin Build` 和 `Package Contract`；Package Contract 依赖 Plugin Build artifact。
 
 ## Executed Validation
 
@@ -30,11 +30,12 @@
 | `pnpm test` | Pass | 3 个 framework test files、4 个 tests 通过；Host/Client/contract projects 可见 |
 | `pnpm build` | Pass | 生成 `lib/index.js`、`lib/client.js` 和两组声明；tsdown 输出一个 `define` invalid input warning，不影响退出码或产物 |
 | `pnpm verify:package` | Pass | 4 个 boolean contract 字段为 true，missing/forbidden 数组为空 |
-| `pnpm verify` | Pass | 按 typecheck → test → build → package verifier 顺序通过 |
+| `pnpm lint` | Pass | JavaScript、TypeScript 与 TSX 静态规则检查通过 |
+| `pnpm verify` | Pass | 按 lint → typecheck → test → build → environment → plugin contract → package verifier 顺序通过 |
 | `pnpm test:integration` / `test:recovery` / `test:stress` | Pass with `Not Covered` | 三个入口均明确输出未覆盖，没有伪造业务用例 |
 | package fault injection | Pass | 临时副本中删除 `lib/client.js`、篡改 patch name、开放 files allowlist 均使 verifier 非零退出，并已恢复 |
 | verify fault injection | Pass | 临时类型错误使 `verify` 失败；缺失 artifact 使 `verify:package` 失败，并已恢复 |
-| workflow YAML/job comparison | Pass | 五个 job display name、Node、pnpm、frozen install、Build→Package dependency 符合 CI 契约 |
+| workflow YAML/job comparison | Pass | 七个 job display name、Node、pnpm、frozen install、Build→Package dependency 符合 CI 契约 |
 | `git diff --check`、最终 `git status --short` | Pass | 无 whitespace error；无未提交工作区修改 |
 
 `pnpm 10.7.0` 不支持原执行手册写出的 `pnpm pack --dry-run` 参数；已使用该版本支持的临时目录实际打包 JSON 清单替代检查，并确认发布清单未包含 `src/`、`tests/` 或 `docs/`。
@@ -47,8 +48,7 @@
 - 真实 DSH Host/Web roster 启动、工具调用、HTTP 路由和权限边界的运行时验证。
 - integration、recovery、stress 业务测试和压力结果。
 - 会议 UI 行为、真实浏览器交互和可访问性。
-- 独立 lint gate 尚未接入 workflow。
-- GitHub PR 远端 job 实际启动结果及 Ruleset 是否已将四个 Plugin job 设为必过；当前治理文档只确认 workflow 定义存在，已观察的 Ruleset 仍只要求 `Governance`。
+- GitHub PR 远端 job 实际启动结果及 Ruleset 是否已将六个 Plugin checks 设为必过；当前治理文档只确认 workflow 定义存在，已观察的 Ruleset 仍只要求 `Governance`。
 
 ## Closure
 

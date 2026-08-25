@@ -1,0 +1,18 @@
+{
+  "description": "Format Convivium plugin TypeScript files after Codex edits when a formatter is configured.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "repository_root=$(git rev-parse --show-toplevel) && node \"$repository_root/.codex/hooks/format_after_edit.mjs\"",
+            "timeout": 60,
+            "statusMessage": "Formatting modified Convivium plugin files"
+          }
+        ]
+      }
+    ]
+  }
+}
