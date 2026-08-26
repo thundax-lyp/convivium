@@ -20,12 +20,6 @@
   - 处理动作：运行 `verify:environment`、`verify:contract`、`typecheck` 和 `test`。
   - 验收点：四个命令均通过并记录输出。
 
-- [ ] `plugin/profile`：建立临时 DSH profile
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T1
-  - 处理动作：在临时 profile 中组合 provider 与 Convivium bundle，并配置临时 workspace、端口和日志目录。
-  - 验收点：profile 文件和所有临时路径可定位，未修改用户 profile。
-
 - [ ] `plugin/profile`：验证 provider 的 `prepareContinuable` 能力
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 确认 provider 是正式接入前置条件；T1
