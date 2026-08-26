@@ -1,7 +1,10 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { describe, expect, it } from "vitest";
-import { registerCreateAndStatusTools } from "../../src/tools/index.js";
+import {
+    registerCreateAndStatusTools,
+    registerSubmitAndControlTools
+} from "../../src/tools/index.js";
 
 describe("meeting tool registration", () => {
     it("registers create and status with mandatory canonical outputs", () => {
@@ -23,13 +26,78 @@ describe("meeting tool registration", () => {
                     code: "MEETING_NOT_FOUND",
                     message: "not found",
                     retryable: false
+                }),
+                submitTurn: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                }),
+                pause: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                }),
+                resume: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                })
+            }
+        });
+        registerSubmitAndControlTools({
+            registry: { register: (definition) => (definitions.push(definition), () => undefined) },
+            callers: { resolve: async () => ({ sessionId: "captain-session", kind: "captain" }) },
+            runtime: {
+                createMeeting: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                }),
+                getStatus: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                }),
+                submitTurn: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                }),
+                pause: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                }),
+                resume: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
                 })
             }
         });
 
         expect(definitions.map((definition) => definition.name)).toEqual([
             "convivium_create_meeting",
-            "convivium_meeting_status"
+            "convivium_meeting_status",
+            "convivium_submit_turn",
+            "convivium_pause_meeting",
+            "convivium_resume_meeting"
         ]);
         expect(definitions.every((definition) => definition.output !== undefined)).toBe(true);
     });
@@ -56,11 +124,34 @@ describe("meeting tool registration", () => {
                     code: "MEETING_NOT_FOUND",
                     message: "not found",
                     retryable: false
+                }),
+                submitTurn: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                }),
+                pause: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                }),
+                resume: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
                 })
             }
         });
 
-        const status = definitions.find((definition) => definition.name === "convivium_meeting_status");
+        const status = definitions.find(
+            (definition) => definition.name === "convivium_meeting_status"
+        );
         expect(status).toBeDefined();
         const outcome = await status?.execute(
             { input: { protocolVersion: 1, meetingId: "meeting-1", caller: "forged" } },
@@ -85,11 +176,25 @@ describe("meeting tool registration", () => {
                 getStatus: async () => {
                     runtimeCalls += 1;
                     throw new Error("must not run");
+                },
+                submitTurn: async () => {
+                    runtimeCalls += 1;
+                    throw new Error("must not run");
+                },
+                pause: async () => {
+                    runtimeCalls += 1;
+                    throw new Error("must not run");
+                },
+                resume: async () => {
+                    runtimeCalls += 1;
+                    throw new Error("must not run");
                 }
             }
         });
 
-        const status = definitions.find((definition) => definition.name === "convivium_meeting_status");
+        const status = definitions.find(
+            (definition) => definition.name === "convivium_meeting_status"
+        );
         const outcome = await status?.execute(
             { input: { protocolVersion: 1, meetingId: "meeting-1" } },
             { signal: new AbortController().signal } as ToolRunContext
