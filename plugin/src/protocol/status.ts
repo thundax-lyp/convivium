@@ -357,9 +357,18 @@ const archived = Schema.object({
     }).required()
 });
 
-export const MeetingStatusResultSchema: Schema<Record<string, unknown>> = Schema.union([
-    active,
-    terminal,
-    archiving,
-    archived
-]);
+const structuralMeetingStatusResultSchema = Schema.union([active, terminal, archiving, archived]);
+
+export const MeetingStatusResultSchema: Schema<Record<string, unknown>> = Schema.transform(
+    structuralMeetingStatusResultSchema,
+    (value) => {
+        if (
+            (value.status === "archiving" || value.status === "archived") &&
+            (value.archive as { package: { meetingId: string } }).package.meetingId !==
+                value.meetingId
+        ) {
+            throw new TypeError("archive package meetingId does not match meetingId");
+        }
+        return value;
+    }
+);
