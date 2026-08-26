@@ -20,6 +20,14 @@
 
 ## Executed Validation
 
+### DSH Runtime 执行基线（2026-08-26）
+
+- 基线分支：`codex/dsh-runtime-integration`。
+- 基线提交：`9fe99ac`；该提交前的工作区无未提交或未跟踪工程改动。
+- 环境：Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`。
+- 分支职责：该分支汇合已验证的 provider T1 取证、Host service-key 注入、canonical domain/SQLite 基础，以及 Tool/projection 契约；`main` 未承载这些未 PR 的开发提交。
+- 可回溯边界：本节只记录执行起点，不宣称 Runtime 会议创建或 Turn 已完成；剩余可执行工作以根 `TODO.md` 为准。
+
 历史框架验证日期：2026-08-25
 环境：Node `v22.23.2`，pnpm `10.7.0`，macOS 本地工作区
 实现边界：`fef0d1c..fca7386`（依赖 manifest 至 PR 治理的实现提交）；证据在后续 readiness commit 中收口。

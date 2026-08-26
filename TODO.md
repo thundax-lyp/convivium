@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/`：建立 DSH Runtime 执行基线
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T0
-  - 处理动作：创建独立 `codex/` 分支，记录工作区、Node、pnpm 和 DSH 版本。
-  - 验收点：基线状态可回溯，工作区无无关改动。
-
 - [ ] `plugin/`：通过现有静态基线验证
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T0
