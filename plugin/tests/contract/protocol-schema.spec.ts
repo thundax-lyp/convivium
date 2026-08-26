@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    CreateMeetingResultSchema,
     CreateMeetingInputSchema,
     validateProtocolError,
     validateProtocolSuccessEnvelope,
@@ -119,5 +120,25 @@ describe("protocol envelope schemas", () => {
                 ]
             })
         ).toMatchObject({ protocolVersion: 1 });
+    });
+
+    it("validates command results", () => {
+        expect(
+            CreateMeetingResultSchema({
+                meetingId: "meeting-1",
+                meetingVersion: 1,
+                status: "created",
+                participants: [{ participantKey: "reviewer", participantId: "participant-1" }]
+            })
+        ).toMatchObject({ meetingId: "meeting-1", status: "created" });
+
+        expect(() =>
+            CreateMeetingResultSchema({
+                meetingId: "meeting-1",
+                meetingVersion: 1,
+                status: "unknown",
+                participants: []
+            })
+        ).toThrow();
     });
 });
