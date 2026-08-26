@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/index.ts`：绑定插件注册与卸载 disposer
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T2
-  - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
-  - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
-
 - [ ] `plugin/tests/integration/dsh`：验证 provider adapter 与 provisioning
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
