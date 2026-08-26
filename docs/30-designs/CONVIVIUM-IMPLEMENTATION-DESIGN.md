@@ -76,6 +76,8 @@ plugin/
 
 Convivium 是一个职责闭合的树外 DSH bundle，因此保持单 package，不复制 DSH 仓库内部的 `packages/<group>/<pkg>` monorepo 布局。只有出现能够独立演进、独立发布且具有稳定 service definition/provider 边界的第二项能力时，才可以提出拆包设计。
 
+会议运行依赖宿主组合中的 continuable subagent provider。`@deepseek-ai/dsh-subagent` 只提供 `ctx.subagents` service definition；它不自动提供具备 `prepareContinuable` 能力的 provider。选定 provider 包、宿主 profile 组合和最终分发方式前，不能将会议 Session 创建描述为可运行；`smoke:profile` 必须在独立 profile 中验证 provider、`startContinuable()`、冷恢复和释放链路。
+
 同一个 package 提供两个构建面：
 
 | Face | Source entry | Published entry | Runtime |

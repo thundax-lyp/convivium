@@ -1158,7 +1158,7 @@ Convivium 权限只能收窄会议操作，不能扩大 DSH、Sandbox、Approval
 
 ## Compatibility
 
-Convivium 要求 DSH `>=0.1.1-rc.1`，并以该版本的 `dsh-subagent` 公开契约为最低能力基线。Meeting Runtime 可以使用 `listChildren`/`listDescendants` 枚举持久子 Session，使用 `interrupt` 停止当前 turn，并使用 `drainContinuableChildren` 等待指定 resident Activation 释放。`drainContinuableChildren` 不删除持久 Session，也不永久禁止 cold resume；持久的不可继续语义必须由 Meeting Runtime 撤销会议 capability，并在任何 meeting followup 前验证。
+Convivium 要求 DSH `>=0.1.1-rc.2`，并以该版本的 `dsh-subagent` 公开契约为最低能力基线。Meeting Runtime 可以使用 `listChildren`/`listDescendants` 枚举持久子 Session，使用 `interrupt` 停止当前 turn，并使用 `drainContinuableChildren` 等待指定 resident Activation 释放。`drainContinuableChildren` 不删除持久 Session，也不永久禁止 cold resume；持久的不可继续语义必须由 Meeting Runtime 撤销会议 capability，并在任何 meeting followup 前验证。
 
 插件装配发现 DSH 或 `dsh-subagent` 低于该能力基线时必须拒绝加载会议能力并报告兼容错误，不得静默退化为只调用 `interrupt`。归档、恢复和权限判断不得依赖 DSH 物理删除 Session 数据。
 

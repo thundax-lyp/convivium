@@ -95,7 +95,7 @@
 
 - Convivium MUST 作为 DSH 插件加载和运行。
 - 仓库顶层 `plugin/` 是唯一产品工程。它独立实现全部产品模块，不使用 submodule、不依赖相邻参考项目工作区，也不建设独立应用壳或通用 ACP adapter。
-- 最低 DSH 版本为 `0.1.1-rc.1`。插件依赖该版本 `dsh-subagent` 提供的 `listChildren`、`listDescendants`、`drainContinuableChildren` 和 `drainContinuableDescendants`；缺失这些能力时插件加载失败，不提供弱化的会议生命周期。
+- 最低 DSH 版本为 `0.1.1-rc.2`。插件依赖该版本 `dsh-subagent` 提供的 `listChildren`、`listDescendants`、`drainContinuableChildren` 和 `drainContinuableDescendants`；缺失这些能力时插件加载失败，不提供弱化的会议生命周期。
 - 插件后端拥有 Meeting Runtime、SQLite、AgentSession 生命周期、工具、Web 路由和会议领域事件。
 - `client/*` 作为 DSH 插件前端，只消费插件后端 projection，不拥有会议领域状态。
 - 外部参考源码、文档、发布记录、品牌、协议名和持久化格式不得复制到 `plugin/`。
@@ -938,7 +938,7 @@ create 命令的成功边界是 bootstrap 已转为 `ready` 且完整初始 Meet
 本设计不引入 `provisioning` MeetingStatus、Session spawn outbox 或跨 DSH/SQLite 的持久化 saga。该简化基于以下前提：
 
 - Convivium 运行在单一 DSH 插件宿主中；
-- DSH `0.1.1-rc.1` 能通过 `listChildren`/`listDescendants` 枚举持久 continuable Sessions，并通过 `drainContinuableChildren` 释放指定 resident Activation；Convivium 另行持久撤销会议 capability，二者共同构成本文的 Session close；
+- DSH `0.1.1-rc.2` 能通过 `listChildren`/`listDescendants` 枚举持久 continuable Sessions，并通过 `drainContinuableChildren` 释放指定 resident Activation；Convivium 另行持久撤销会议 capability，二者共同构成本文的 Session close；
 - Session label/metadata 能稳定保存 Convivium ownership；
 - 冷启动对账先于 scheduler、outbox worker 和新会议请求运行。
 

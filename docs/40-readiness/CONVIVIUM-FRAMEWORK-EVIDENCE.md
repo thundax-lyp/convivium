@@ -48,6 +48,7 @@
 - 会议生命周期、Turn、发言权、Manager、完成判断和会议运行时业务。
 - 完整 MeetingState 与 SQLite repository 的类型化集成、业务 schema 语义和冷恢复。
 - 真实 DSH AgentSession 创建、followup、interrupt、continuable drain、capability revoke 和归档。
+- 宿主组合中 continuable subagent provider 的声明与选择、`prepareContinuable` 能力及 `startContinuable()` 独立 profile 验证。
 - 真实 DSH Host/Web roster 启动、工具调用、HTTP 路由和权限边界的运行时验证。
 - integration、recovery、stress 业务测试和压力结果。
 - 会议 UI 行为、真实浏览器交互和可访问性。
