@@ -68,12 +68,6 @@
   - 处理动作：生成包含 meeting/team/role/participant 和 `capability='none'` 的确定性首次 prompt。
   - 验收点：Manager/Participant envelope 可验证；内容不授予 planning/speaker capability，不进入 MeetingState。
 
-- [ ] `plugin/src/repository/index.ts`：实现 Session ownership 写入规则
-  - 依据文档：`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 同意 review 建议；T3
-  - 处理动作：持久化 immutable parent/provider/identity，并允许首次补写 initialMessageId、lifecycle 前进和 capability revoke。
-  - 验收点：非法字段变更、生命周期回退、第二个 initialMessageId 和跨 Meeting 写入均被拒绝。
-
 - [ ] `plugin/src/dsh/caller-resolver.ts`：绑定 Captain direct parent
   - 依据文档：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
