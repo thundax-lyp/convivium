@@ -1,0 +1,7 @@
+interface:
+  display_name: "Convivium Codex Comment Fix"
+  short_description: "Fix and close Codex review comments on a PR."
+  default_prompt: "Use $convivium-codex-comment-fix to process Codex comments for PR #5 or 5."
+
+policy:
+  allow_implicit_invocation: false

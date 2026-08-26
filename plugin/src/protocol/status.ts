@@ -357,9 +357,45 @@ const archived = Schema.object({
     }).required()
 });
 
-export const MeetingStatusResultSchema: Schema<Record<string, unknown>> = Schema.union([
-    active,
-    terminal,
-    archiving,
-    archived
-]);
+const structuralMeetingStatusResultSchema = Schema.union([active, terminal, archiving, archived]);
+
+export const MeetingStatusResultSchema: Schema<Record<string, unknown>> = Schema.transform(
+    structuralMeetingStatusResultSchema,
+    (value) => {
+        if (
+            (value.status === "archiving" || value.status === "archived") &&
+            (value.archive as { package: { meetingId: string } }).package.meetingId !==
+                value.meetingId
+        ) {
+            throw new TypeError("archive package meetingId does not match meetingId");
+        }
+        if (value.status === "paused") {
+            const pauseControl = value.pauseControl as {
+                action: string;
+                pausedAt?: number;
+                pausedBy?: unknown;
+                reason?: string;
+            };
+            if (pauseControl.action !== "resume") {
+                throw new TypeError("paused status has an invalid pause control action");
+            }
+            if (
+                pauseControl.pausedAt === undefined ||
+                pauseControl.pausedBy === undefined ||
+                !pauseControl.reason?.trim()
+            ) {
+                throw new TypeError("paused status requires complete pause metadata");
+            }
+        }
+        const expectedPauseAction =
+            value.status === "paused"
+                ? "resume"
+                : ["created", "running", "waiting"].includes(value.status as string)
+                  ? "pause"
+                  : "none";
+        if ((value.pauseControl as { action: string }).action !== expectedPauseAction) {
+            throw new TypeError(`${value.status} status has an invalid pause control action`);
+        }
+        return value;
+    }
+);
