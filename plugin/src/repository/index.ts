@@ -160,6 +160,9 @@ export interface RecoveryResult {
 
 export interface MeetingBootstrap {
     status: "pending" | "provisioning" | "ready" | "failed";
+    createRequestId?: string;
+    requestHash?: string;
+    createResult?: CreateMeetingResult;
     createdAt: number;
     updatedAt: number;
     failureCode?: string;
@@ -215,6 +218,9 @@ interface OutboxRow {
 
 interface BootstrapRow {
     status: MeetingBootstrap["status"];
+    create_request_id: string | null;
+    request_hash: string | null;
+    result_json: string | null;
     created_at: number;
     updated_at: number;
     failure_code: string | null;
@@ -257,6 +263,11 @@ function toSnapshot(row: MeetingRow): MeetingSnapshot {
 function toBootstrap(row: BootstrapRow): MeetingBootstrap {
     return {
         status: row.status,
+        ...(row.create_request_id ? { createRequestId: row.create_request_id } : {}),
+        ...(row.request_hash ? { requestHash: row.request_hash } : {}),
+        ...(row.result_json
+            ? { createResult: JSON.parse(row.result_json) as CreateMeetingResult }
+            : {}),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         ...(row.failure_code ? { failureCode: row.failure_code } : {})
@@ -308,6 +319,37 @@ function row<T>(value: unknown): T | undefined {
     return value as T | undefined;
 }
 
+function validateDatabaseIdentity(db: DatabaseSync, teamId: string, meetingId: string): void {
+    const meetings = db
+        .prepare("SELECT team_id, meeting_id FROM meetings")
+        .all() as unknown as Array<{ team_id: string; meeting_id: string }>;
+    if (meetings.length === 0) return;
+    const bootstrap = db
+        .prepare("SELECT meeting_id FROM meeting_bootstrap")
+        .all() as unknown as Array<{ meeting_id: string }>;
+    const ownership = db
+        .prepare("SELECT meeting_id, session_label FROM session_ownership")
+        .all() as unknown as Array<{ meeting_id: string; session_label: string }>;
+    const identityMatches =
+        meetings.length === 1 &&
+        meetings[0]?.team_id === teamId &&
+        meetings[0]?.meeting_id === meetingId &&
+        bootstrap.length === 1 &&
+        bootstrap[0]?.meeting_id === meetingId &&
+        ownership.every(
+            (session) =>
+                session.meeting_id === meetingId && session.session_label.includes(meetingId)
+        );
+    if (!identityMatches) {
+        throw new RepositoryError(
+            "CORRUPT_DATABASE",
+            false,
+            meetingId,
+            "Database identity does not match the requested meeting"
+        );
+    }
+}
+
 export class MeetingRepository {
     private closed = false;
 
@@ -331,6 +373,7 @@ export class MeetingRepository {
                 "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 2500;"
             );
             migrate(db);
+            validateDatabaseIdentity(db, input.teamId, input.meetingId);
             return new MeetingRepository(
                 db,
                 input.authorizationValidator,
@@ -440,21 +483,21 @@ export class MeetingRepository {
                     "INSERT INTO meetings(team_id, meeting_id, version, state_json, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?)"
                 )
                 .run(this.teamId, this.meetingId, json(input.initialState), now, now);
+            const result = {
+                meetingId: this.meetingId,
+                meetingVersion: 0
+            } satisfies CreateMeetingResult;
             this.db
                 .prepare(
-                    "INSERT INTO meeting_bootstrap(meeting_id, status, created_at, updated_at) VALUES (?, 'pending', ?, ?)"
+                    "INSERT INTO meeting_bootstrap(meeting_id, status, create_request_id, request_hash, result_json, created_at, updated_at) VALUES (?, 'pending', ?, ?, ?, ?, ?)"
                 )
-                .run(this.meetingId, now, now);
+                .run(this.meetingId, input.requestId, input.requestHash, json(result), now, now);
             const eventSeq = this.insertEvent(
                 { type: "meeting.created", payload: { meetingId: this.meetingId } },
                 0,
                 now
             );
             for (const item of input.outbox ?? []) this.insertOutbox(item, now);
-            const result = {
-                meetingId: this.meetingId,
-                meetingVersion: 0
-            } satisfies CreateMeetingResult;
             this.insertReceipt(
                 input.requestId,
                 "create_meeting",
@@ -519,7 +562,7 @@ export class MeetingRepository {
             this.getMeeting();
             this.db
                 .prepare(
-                    "INSERT INTO session_ownership(session_id, meeting_id, session_label, role, participant_id, lifecycle_status, capability_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    "INSERT INTO session_ownership(session_id, meeting_id, session_label, role, participant_id, lifecycle_status, capability_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET session_label = excluded.session_label, role = excluded.role, participant_id = excluded.participant_id, lifecycle_status = excluded.lifecycle_status, capability_status = excluded.capability_status, updated_at = excluded.updated_at"
                 )
                 .run(
                     input.sessionId,
@@ -598,6 +641,14 @@ export class MeetingRepository {
                 );
             }
             const transition = command.transition(snapshot);
+            if (transition.events.length === 0) {
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "State transitions must emit at least one domain event"
+                );
+            }
             const nextVersion = snapshot.version + 1;
             this.db
                 .prepare(

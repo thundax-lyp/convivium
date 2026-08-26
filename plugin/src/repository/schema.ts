@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export const CURRENT_SCHEMA = `
 CREATE TABLE IF NOT EXISTS meetings (
@@ -52,6 +52,9 @@ CREATE INDEX IF NOT EXISTS outbox_claim_order ON outbox(status, available_at, le
 CREATE TABLE IF NOT EXISTS meeting_bootstrap (
   meeting_id TEXT PRIMARY KEY REFERENCES meetings(meeting_id),
   status TEXT NOT NULL CHECK (status IN ('pending', 'provisioning', 'ready', 'failed')),
+  create_request_id TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  result_json TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   failure_code TEXT

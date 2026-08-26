@@ -11,6 +11,7 @@ import {
     type RepositoryAuthorizationValidator,
     type RepositoryCommand
 } from "../../src/repository/index.js";
+import { migrate } from "../../src/repository/migrations.js";
 
 const roots: string[] = [];
 const authorization: CommandAuthorization = {
@@ -216,15 +217,40 @@ describe("MeetingRepository", () => {
                 sessionId: "session-1",
                 sessionLabel: "convivium/team-1/meeting-1/manager",
                 role: "manager",
-                lifecycleStatus: "active",
+                lifecycleStatus: "provisioning",
                 capabilityStatus: "active"
             },
             12
         );
+        await repository.recordSessionOwnership(
+            {
+                sessionId: "session-1",
+                sessionLabel: "convivium/team-1/meeting-1/manager",
+                role: "manager",
+                lifecycleStatus: "closed",
+                capabilityStatus: "revoked"
+            },
+            13
+        );
 
-        await expect(repository.recover({ now: 13 })).resolves.toMatchObject({
-            bootstrap: { status: "provisioning", createdAt: 10, updatedAt: 11 },
-            sessionOwnership: [{ sessionId: "session-1", lifecycleStatus: "active" }]
+        await expect(repository.recover({ now: 14 })).resolves.toMatchObject({
+            bootstrap: {
+                status: "provisioning",
+                createRequestId: "create",
+                requestHash: "create-hash",
+                createResult: { meetingId: "meeting-1", meetingVersion: 0 },
+                createdAt: 10,
+                updatedAt: 11
+            },
+            sessionOwnership: [
+                {
+                    sessionId: "session-1",
+                    lifecycleStatus: "closed",
+                    capabilityStatus: "revoked",
+                    createdAt: 12,
+                    updatedAt: 13
+                }
+            ]
         });
         await repository.close();
     });
@@ -290,5 +316,109 @@ describe("MeetingRepository", () => {
                 authorizationValidator: allowAuthorization
             })
         ).rejects.toMatchObject<RepositoryError>({ code: "SCHEMA_VERSION_UNSUPPORTED" });
+    });
+
+    it("upgrades a version-two bootstrap without replaying current schema DDL", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
+        roots.push(root);
+        const db = new DatabaseSync(join(root, "meeting.sqlite"));
+        db.exec(`
+CREATE TABLE meetings (meeting_id TEXT PRIMARY KEY, updated_at INTEGER NOT NULL);
+CREATE TABLE idempotency_receipts (
+  request_id TEXT NOT NULL,
+  command_kind TEXT NOT NULL,
+  caller_binding TEXT NOT NULL,
+  result_json TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  meeting_version INTEGER NOT NULL,
+  event_seqs_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY(request_id, command_kind, caller_binding)
+);
+CREATE TABLE meeting_bootstrap (
+  meeting_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  failure_code TEXT
+);
+INSERT INTO meetings VALUES ('meeting-1', 10);
+INSERT INTO meeting_bootstrap VALUES ('meeting-1', 'pending', 10, 10, NULL);
+INSERT INTO idempotency_receipts VALUES ('create', 'create_meeting', 'captain:1', '{"meetingId":"meeting-1","meetingVersion":0}', 'create-hash', 0, '[1]', 10);
+PRAGMA user_version = 2;
+`);
+
+        migrate(db);
+        expect(db.prepare("PRAGMA user_version").get() as { user_version: number }).toMatchObject({
+            user_version: 3
+        });
+        expect(
+            db
+                .prepare(
+                    "SELECT create_request_id, request_hash, result_json FROM meeting_bootstrap WHERE meeting_id = ?"
+                )
+                .get("meeting-1")
+        ).toMatchObject({
+            create_request_id: "create",
+            request_hash: "create-hash",
+            result_json: '{"meetingId":"meeting-1","meetingVersion":0}'
+        });
+        db.close();
+    });
+
+    it("isolates a database whose stored identity differs from the requested meeting", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
+        roots.push(root);
+        const databasePath = join(root, "meeting.sqlite");
+        const original = await MeetingRepository.open({
+            databasePath,
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            authorizationValidator: allowAuthorization
+        });
+        await original.create({
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" }
+        });
+        await original.close();
+
+        await expect(
+            MeetingRepository.open({
+                databasePath,
+                teamId: "team-2",
+                meetingId: "meeting-2",
+                authorizationValidator: allowAuthorization
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "CORRUPT_DATABASE" });
+    });
+
+    it("rejects a state transition that has no domain event", async () => {
+        const repository = await openRepository();
+        await repository.create({
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { count: 0 }
+        });
+
+        await expect(
+            repository.execute({
+                requestId: "eventless",
+                commandKind: "increment",
+                authorization,
+                requestHash: "eventless-hash",
+                expectedMeetingVersion: 0,
+                transition: () => ({
+                    state: { count: 1 },
+                    result: { count: 1 },
+                    events: [],
+                    outbox: []
+                })
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_STATE" });
+        expect(await repository.read()).toMatchObject({ version: 0, state: { count: 0 } });
+        await repository.close();
     });
 });

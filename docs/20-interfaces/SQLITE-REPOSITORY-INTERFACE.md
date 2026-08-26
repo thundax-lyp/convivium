@@ -28,7 +28,7 @@ interface MeetingRepository {
 }
 ```
 
-`create` 是 bootstrap 专用写入口；Meeting 创建、`meeting.created`、初始 receipt 和初始 outbox 必须在同一 SQLite 事务中完成。创建请求与普通 command 使用相同的幂等规则。
+`create` 是 bootstrap 专用写入口；Meeting 创建、`meeting.created`、初始 receipt、初始 outbox 以及包含 `createRequestId`、`requestHash`、`createResult` 的 bootstrap correlation 必须在同一 SQLite 事务中完成。创建请求与普通 command 使用相同的幂等规则。
 
 ## Data And State Contract
 
@@ -66,7 +66,7 @@ interface TransitionResult<T> {
 
 ### Events and sequence
 
-`DomainEventInput.type` 必须来自集中注册的 `MeetingEventType`；Repository 负责写入 `eventSeq`、提交后的 `meetingVersion` 和时间戳。单个事务的事件序号连续递增，事务内顺序与输入顺序一致。校验失败、回滚和幂等命中不新增领域事件。
+`DomainEventInput.type` 必须来自集中注册的 `MeetingEventType`；每个改变 Meeting 状态的成功 transition 至少提供一个 event，Repository 负责写入 `eventSeq`、提交后的 `meetingVersion` 和时间戳。单个事务的事件序号连续递增，事务内顺序与输入顺序一致。校验失败、回滚和幂等命中不新增领域事件。
 
 ### Outbox
 
@@ -76,13 +76,13 @@ interface TransitionResult<T> {
 
 ### Recovery
 
-`recover` 只处理当前 Meeting 数据库：回收过期 lease，并返回当前 snapshot、bootstrap record 和已证明的 Session ownership。workspace 目录扫描、跨 Meeting 隔离和 DSH orphan Session 处理属于上层 `RecoveryCoordinator`，不由 Repository 隐式完成。
+`open` 必须先验证数据库中仅有一个 Meeting，且 `teamId`、`meetingId`、bootstrap ID 与所有 Session ownership label 都和请求身份一致；不一致时以 `CORRUPT_DATABASE` 隔离。`recover` 只处理当前 Meeting 数据库：回收过期 lease，并返回当前 snapshot、带创建 correlation 的 bootstrap record 和已证明的 Session ownership。workspace 目录扫描、跨 Meeting 隔离和 DSH orphan Session 处理属于上层 `RecoveryCoordinator`，不由 Repository 隐式完成。
 
 ### Schema and migration
 
 `schema.ts` 是完整当前 DDL 真相源，`PRAGMA user_version` 是已应用版本。migration 必须连续前进，并与 version 更新处于同一事务；未知新版本、降级和 migration 失败都拒绝打开当前 Meeting。
 
-当前 schema 至少包含：`meetings`、`meeting_events`、`idempotency_receipts`、`outbox`、`meeting_bootstrap` 和 `session_ownership`。JSON 字段必须带稳定对象结构，由上层 transition 负责领域 schema 校验。空库才可从 `user_version=0` 初始化；非空 version-zero 数据库必须隔离，不得用 `CREATE TABLE IF NOT EXISTS` 猜测其结构。
+当前 schema 至少包含：`meetings`、`meeting_events`、`idempotency_receipts`、`outbox`、`meeting_bootstrap` 和 `session_ownership`。`meeting_bootstrap` 保存创建 correlation；`session_ownership` 以 `sessionId` upsert 更新生命周期与 capability 状态，同时保留首次创建时间。JSON 字段必须带稳定对象结构，由上层 transition 负责领域 schema 校验。空库直接使用当前 DDL 初始化为当前 `user_version`；非空 version-zero 数据库必须隔离，不得用 `CREATE TABLE IF NOT EXISTS` 猜测其结构；已发布版本只能执行不可变的相邻 migration。
 
 ## Error And Permission Semantics
 

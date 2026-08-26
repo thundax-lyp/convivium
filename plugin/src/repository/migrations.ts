@@ -12,13 +12,6 @@ export interface Migration {
 
 export const migrations: readonly Migration[] = [
     {
-        from: 0,
-        to: 1,
-        apply(db) {
-            db.exec(CURRENT_SCHEMA);
-        }
-    },
-    {
         from: 1,
         to: 2,
         apply(db) {
@@ -48,6 +41,37 @@ SELECT meeting_id, 'failed', updated_at, updated_at, 'MIGRATED_WITHOUT_BOOTSTRAP
 FROM meetings;
 `);
         }
+    },
+    {
+        from: 2,
+        to: 3,
+        apply(db) {
+            db.exec(`
+ALTER TABLE meeting_bootstrap ADD COLUMN create_request_id TEXT;
+ALTER TABLE meeting_bootstrap ADD COLUMN request_hash TEXT;
+ALTER TABLE meeting_bootstrap ADD COLUMN result_json TEXT;
+UPDATE meeting_bootstrap
+SET
+  create_request_id = (
+    SELECT request_id FROM idempotency_receipts
+    WHERE command_kind = 'create_meeting'
+    ORDER BY created_at
+    LIMIT 1
+  ),
+  request_hash = (
+    SELECT request_hash FROM idempotency_receipts
+    WHERE command_kind = 'create_meeting'
+    ORDER BY created_at
+    LIMIT 1
+  ),
+  result_json = (
+    SELECT result_json FROM idempotency_receipts
+    WHERE command_kind = 'create_meeting'
+    ORDER BY created_at
+    LIMIT 1
+  );
+`);
+        }
     }
 ];
 
@@ -63,7 +87,6 @@ export function migrate(db: DatabaseSync): void {
             "Database schema is newer than this plugin"
         );
     }
-    if (version === CURRENT_SCHEMA_VERSION) return;
     if (version === 0) {
         const existingObjects = db
             .prepare(
@@ -78,7 +101,22 @@ export function migrate(db: DatabaseSync): void {
                 "Cannot initialize a non-empty SQLite database with schema version 0"
             );
         }
+        db.exec("BEGIN IMMEDIATE");
+        try {
+            db.exec(CURRENT_SCHEMA);
+            db.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
+            db.exec("COMMIT");
+            return;
+        } catch (error) {
+            try {
+                db.exec("ROLLBACK");
+            } catch {
+                // Preserve the original initialization failure.
+            }
+            throw error;
+        }
     }
+    if (version === CURRENT_SCHEMA_VERSION) return;
     db.exec("BEGIN IMMEDIATE");
     try {
         let current = version;
