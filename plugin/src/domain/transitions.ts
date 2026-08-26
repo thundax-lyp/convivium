@@ -417,7 +417,7 @@ export function transitionMeeting(
                   pausedBy: pause ? { ...pause.by } : undefined
               }
             : {}),
-        ...(context.termination ? { termination: context.termination } : {}),
+        ...(context.termination ? { termination: structuredClone(context.termination) } : {}),
         ...(pausedWork ? { currentTurn: pausedWork.currentTurn, manager: pausedWork.manager } : {}),
         ...(to === "archiving" && isArchiveInput(context.archive)
             ? { archive: snapshotArchive(context.archive) }

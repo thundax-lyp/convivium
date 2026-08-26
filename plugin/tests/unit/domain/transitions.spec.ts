@@ -78,7 +78,7 @@ function archivePackage(): ArchivePackage {
         teamId: "team-1",
         objectiveContract: meeting().objectiveContract,
         finalSummary: "summary",
-        artifacts: [],
+        artifactRefs: [],
         acceptedDecisions: [],
         proposals: [],
         completionFacts: [],
@@ -88,7 +88,6 @@ function archivePackage(): ArchivePackage {
         parkingLot: [],
         formalTranscript: [],
         participantProvenance: [],
-        managerPromptVersion: "v1",
         termination: {
             code: "objective_satisfied",
             reason: "done",
@@ -314,6 +313,28 @@ describe("meeting transitions", () => {
                 }
             )
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
+    it("snapshots termination facts before returning the terminal state", () => {
+        const termination = {
+            code: "objective_satisfied" as const,
+            reason: "done",
+            decisionIds: [] as string[],
+            unresolvedQuestionIds: [] as string[],
+            dissentingPositionIds: [] as string[],
+            blockingAgendaItemIds: [] as string[],
+            finalMessage: "done",
+            endedAt: now
+        };
+        const result = transitionMeeting(meeting("running"), "completed", {
+            now,
+            termination
+        });
+
+        termination.decisionIds.push("mutated-after-transition");
+        termination.finalMessage = "mutated-after-transition";
+        expect(result.state.termination?.decisionIds).toEqual([]);
+        expect(result.state.termination?.finalMessage).toBe("done");
     });
 
     it("snapshots the archive so later input mutation cannot change committed state", () => {

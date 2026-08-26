@@ -216,23 +216,131 @@ export interface ArchiveParticipantProvenance {
     templateVersion?: string;
 }
 
+export interface ArchiveDecision {
+    id: string;
+    agendaItemId: string;
+    proposalId: string;
+    proposalRevision: number;
+    statement: string;
+    rationale: string;
+    status: "accepted" | "superseded" | "revoked";
+    acceptedBy: readonly string[];
+    dissentingPositionIds: readonly string[];
+}
+
+export interface ArchiveProposal {
+    id: string;
+    agendaItemId: string;
+    title: string;
+    description: string;
+    revision: number;
+    status: "draft" | "under_review" | "accepted" | "rejected" | "superseded";
+    positions: readonly {
+        id: string;
+        participantId: string;
+        position: "support" | "accept" | "object" | "needs_revision" | "abstain";
+        reason?: string;
+        blocking: boolean;
+        proposalRevision: number;
+    }[];
+}
+
+export interface ArchiveCompletionFact {
+    id: string;
+    kind: string;
+    subjectId: string;
+    assertedBy: string;
+    authority?: string;
+    result: string;
+    evidenceMessageIds: readonly string[];
+    taskIds: readonly string[];
+    reason?: string;
+    status: "active" | "superseded" | "revoked";
+}
+
+export interface ArchiveAgendaItem {
+    id: string;
+    title: string;
+    objective: string;
+    inScope: readonly string[];
+    outOfScope: readonly string[];
+    completionCriteria: readonly string[];
+    owner?: string;
+    requiredParticipants: readonly string[];
+    relatedTaskIds: readonly string[];
+    status: "pending" | "discussing" | "waiting" | "resolved" | "deferred" | "blocked";
+    resolution?: string;
+}
+
+export interface ArchiveIssue {
+    id: string;
+    title: string;
+    description: string;
+    disposition: "blocking" | "follow_up" | "parking_lot" | "accepted_risk" | "out_of_scope";
+    status: "open" | "waiting" | "resolved" | "accepted" | "deferred";
+    rationale: string;
+    ownerId?: string;
+    relatedTaskIds: readonly string[];
+}
+
+export interface ArchiveQuestion {
+    id: string;
+    text: string;
+    askedBy: string;
+    directedTo?: string;
+    agendaItemId: string;
+    blocking: boolean;
+    status: "open" | "answered" | "withdrawn" | "deferred";
+    answerMessageId?: string;
+}
+
+export interface ArchiveParkingLotItem {
+    id: string;
+    title: string;
+    reason: string;
+    status: "pending" | "promoted" | "parked" | "rejected";
+}
+
+export interface ArchiveMessage {
+    id: string;
+    seq: number;
+    turnId: string;
+    stepId: string;
+    speaker: string;
+    agendaItemId: string;
+    kind:
+        | "statement"
+        | "question"
+        | "answer"
+        | "proposal"
+        | "objection"
+        | "evidence"
+        | "review"
+        | "summary"
+        | "decision";
+    content: string;
+    mentions: readonly string[];
+    replyTo?: string;
+    taskIds: readonly string[];
+    createdAt: number;
+}
+
 export interface ArchivePackage {
     schemaVersion: 1;
     meetingId: string;
     teamId: string;
     objectiveContract: MeetingObjectiveContract;
     finalSummary: string;
-    artifacts: ArchiveArtifactRef[];
-    acceptedDecisions: MeetingDecision[];
-    proposals: MeetingProposal[];
-    completionFacts: CompletionFact[];
-    agenda: MeetingAgendaItem[];
-    issues: MeetingIssue[];
-    unresolvedQuestions: MeetingQuestion[];
-    parkingLot: string[];
-    formalTranscript: MeetingMessage[];
+    artifactRefs: readonly ArchiveArtifactRef[];
+    acceptedDecisions: readonly ArchiveDecision[];
+    proposals: readonly ArchiveProposal[];
+    completionFacts: readonly ArchiveCompletionFact[];
+    agenda: readonly ArchiveAgendaItem[];
+    issues: readonly ArchiveIssue[];
+    unresolvedQuestions: readonly ArchiveQuestion[];
+    parkingLot: readonly ArchiveParkingLotItem[];
+    formalTranscript: readonly ArchiveMessage[];
     participantProvenance: ArchiveParticipantProvenance[];
-    managerPromptVersion: string;
     termination: MeetingTermination;
     endedAt: number;
     materializedAt: number;
