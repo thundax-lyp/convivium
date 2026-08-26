@@ -249,6 +249,7 @@ describe("protocol envelope schemas", () => {
     });
 
     it("rejects terminal status with active meeting fields", () => {
+        const archivePackage = validArchivePackage();
         expect(() =>
             MeetingStatusResultSchema({
                 meetingId: "meeting-1",
@@ -268,7 +269,7 @@ describe("protocol envelope schemas", () => {
                     decisionIds: [],
                     unresolvedQuestionIds: []
                 },
-                archive: { package: {}, archivedAt: 1 }
+                archive: { package: archivePackage, archivedAt: 1 }
             })
         ).toThrow();
     });
@@ -289,9 +290,10 @@ describe("protocol envelope schemas", () => {
                 decisionIds: [],
                 unresolvedQuestionIds: []
             },
-            archive: { package: {}, archivedAt: 1 }
+            archive: { package: validArchivePackage(), archivedAt: 1 }
         };
 
+        expect(() => MeetingStatusResultSchema({ ...base, status: "archived" })).not.toThrow();
         expect(() => MeetingStatusResultSchema({ ...base, status: "running" })).toThrow();
         expect(() =>
             MeetingStatusResultSchema({ ...base, status: "completed", archive: undefined })
@@ -305,9 +307,125 @@ describe("protocol envelope schemas", () => {
     });
 
     it("requires archive completion basis objects", () => {
+        const archivePackage = validArchivePackage();
+        expect(() => MeetingArchivePackageSchema(archivePackage)).not.toThrow();
         expect(() => MeetingArchivePackageSchema({})).toThrow();
         expect(() =>
-            MeetingArchivePackageSchema({ objectiveContract: undefined, termination: undefined })
+            MeetingArchivePackageSchema({
+                ...archivePackage,
+                objectiveContract: undefined,
+                termination: undefined
+            })
         ).toThrow();
     });
+
+    it("requires the archive package to belong to the projected meeting", () => {
+        expect(() =>
+            MeetingStatusResultSchema({
+                ...validArchivedProjection(),
+                archive: { package: validArchivePackage("meeting-2"), archivedAt: 1 }
+            })
+        ).toThrow(/meetingId/);
+    });
+
+    it("requires complete pause metadata for a paused projection", () => {
+        expect(() =>
+            MeetingStatusResultSchema({
+                meetingId: "meeting-1",
+                meetingVersion: 1,
+                topic: "Release",
+                objective: "Decide scope",
+                continuationMaterials: [],
+                limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
+                activeAgendaItem: undefined,
+                messages: [],
+                acceptedDecisions: [],
+                blockingFacts: [],
+                status: "paused",
+                pendingHandRaises: [],
+                pauseControl: { action: "resume" }
+            })
+        ).toThrow(/pause metadata/);
+    });
+
+    it("maps paused projections to the resume action", () => {
+        expect(() =>
+            MeetingStatusResultSchema({
+                meetingId: "meeting-1",
+                meetingVersion: 1,
+                topic: "Release",
+                objective: "Decide scope",
+                continuationMaterials: [],
+                limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
+                activeAgendaItem: undefined,
+                messages: [],
+                acceptedDecisions: [],
+                blockingFacts: [],
+                status: "paused",
+                pendingHandRaises: [],
+                pauseControl: {
+                    action: "pause",
+                    pausedAt: 1,
+                    pausedBy: { kind: "user", actorId: "user-1" },
+                    reason: "manual pause"
+                }
+            })
+        ).toThrow(/pause control action/);
+    });
 });
+
+function validArchivePackage(meetingId = "meeting-1") {
+    return {
+        schemaVersion: 1,
+        meetingId,
+        teamId: "team-1",
+        objectiveContract: {
+            requiredOutputs: [],
+            acceptanceCriteria: [],
+            hardConstraints: [],
+            requiredReviewers: [],
+            riskAcceptanceAuthority: [],
+            acceptableRiskLevel: "low"
+        },
+        finalSummary: "done",
+        artifactRefs: [],
+        acceptedDecisions: [],
+        proposals: [],
+        completionFacts: [],
+        agenda: [],
+        issues: [],
+        unresolvedQuestions: [],
+        parkingLot: [],
+        formalTranscript: [],
+        participantProvenance: [],
+        termination: {
+            code: "completed",
+            reason: "done",
+            decisionIds: [],
+            unresolvedQuestionIds: []
+        },
+        endedAt: 1,
+        materializedAt: 1
+    };
+}
+
+function validArchivedProjection() {
+    return {
+        meetingId: "meeting-1",
+        meetingVersion: 1,
+        topic: "Release",
+        objective: "Decide scope",
+        continuationMaterials: [],
+        limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
+        status: "archived",
+        pendingHandRaises: [],
+        pauseControl: { action: "none" },
+        termination: {
+            code: "completed",
+            reason: "done",
+            decisionIds: [],
+            unresolvedQuestionIds: []
+        },
+        archive: { package: validArchivePackage(), archivedAt: 1 }
+    };
+}
