@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/runtime/recovery.ts`：实现 Captain live parent rebind
-  - 依据文档：`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 同意 review 建议；T6
-  - 处理动作：重启后等待相同 Captain Session 的 Tool caller，校验 parentSessionId 后重新绑定 exact live Agent。
-  - 验收点：parent 缺席时不 followup/drain；错误 Captain 不能接管；正确 caller 能恢复后续调度。
-
 - [ ] `plugin/tests/integration/dsh`：验证 provider adapter 与 provisioning
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3

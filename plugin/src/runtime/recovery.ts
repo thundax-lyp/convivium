@@ -50,6 +50,30 @@ export interface ResumeRecoveryDependencies {
     readonly now?: () => number;
 }
 
+export interface CaptainRebindDependencies {
+    readonly parent: Agent;
+    readonly expectedParentSessionId: string;
+    readonly meetingId: string;
+    readonly ownerships: RecoveryResult["sessionOwnership"];
+    readonly inspection: ContinuableInspectionRuntime;
+    readonly signal: AbortSignal;
+}
+
+export async function rebindCaptainParent(
+    dependencies: CaptainRebindDependencies
+): Promise<OwnedSessionInspection> {
+    if (String(dependencies.parent.id) !== dependencies.expectedParentSessionId) {
+        throw new Error("Captain parent rebind requires the exact persisted parent Session.");
+    }
+    return inspectOwnedSessions({
+        runtime: dependencies.inspection,
+        parentSessionId: dependencies.expectedParentSessionId as never,
+        meetingId: dependencies.meetingId,
+        ownerships: dependencies.ownerships,
+        signal: dependencies.signal
+    });
+}
+
 function ownershipForRevocation(ownership: SessionOwnership): SessionOwnership {
     return { ...ownership, capabilityStatus: "revoked" };
 }
