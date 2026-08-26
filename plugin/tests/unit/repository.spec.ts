@@ -206,7 +206,9 @@ describe("MeetingRepository", () => {
             initialState: { count: 0 }
         });
 
-        const submitSpeaker = (authorizationOverride: CommandAuthorization): RepositoryCommand<{
+        const submitSpeaker = (
+            authorizationOverride: CommandAuthorization
+        ): RepositoryCommand<{
             committed: string;
         }> => ({
             requestId: "speaker-attempt-1",

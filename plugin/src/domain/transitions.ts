@@ -104,7 +104,7 @@ function turnEventType(to: TurnStatus): DomainEventType {
 }
 
 function stepEventType(to: StepStatus): DomainEventType {
-    return to === "assigned" ? "speaker.assigned" : `speaker.${to}` as DomainEventType;
+    return to === "assigned" ? "speaker.assigned" : (`speaker.${to}` as DomainEventType);
 }
 
 function attemptEventType(to: AttemptStatus): DomainEventType {
