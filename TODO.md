@@ -20,12 +20,6 @@
   - 处理动作：运行 `verify:environment`、`verify:contract`、`typecheck` 和 `test`。
   - 验收点：四个命令均通过并记录输出。
 
-- [ ] `plugin/profile`：验证 provider 的 `prepareContinuable` 能力
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 确认 provider 是正式接入前置条件；T1
-  - 处理动作：运行 `dsh --profile <temporary-profile> --dump-config`，证明 provider 注册先于 Convivium capability gate，并用公开 registry 检查能力。
-  - 验收点：dump-config 显示 provider；运行时 `getProvider(name)` 可解析且 `prepareContinuable` 是函数；没有 sibling registration race。
-
 - [ ] `plugin/profile`：验证 continuable child 的完整生命周期
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T1

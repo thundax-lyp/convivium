@@ -1,6 +1,6 @@
 # DSH Provider T1 调研记录
 
-状态：候选已取证，尚未获得用户 tuple 确认。
+状态：候选与 profile capability 已取证，尚未获得用户 tuple 确认。
 
 ## Scope
 
@@ -52,15 +52,33 @@ DSH_HOME=<temporary-home> dsh --profile web --dump-config
 
 临时 workspace 是该 `mktemp` 根，临时 profile 的 session/log root 位于该 `DSH_HOME` 下，Web bundle 默认端口为 `3080`。后续 smoke 必须改用显式可用临时端口，且无论成功或失败均删除精确的 `mktemp` 根。
 
-## Observed Composition Blocker
+## Verified Provider Capability
 
-该 profile 的实际 boot 当前失败，原因不是 provider 缺失：`plugin/src/index.ts` 的 `inject` 导出声明的是 package names（如 `@deepseek-ai/dsh-agent`），而 profile 提供的是 DSH Context service keys。因此 Loader 报 Convivium `pending`，列出全部七个 package-name inject。T1 不跨线修改该启动期实现；在其修正前，不能从该 profile 调用 registry 或创建 live parent。
+Host inject service-key 问题由 integrated commit `8eca538` 修正后，使用当前 worktree 的 `pnpm pack` 产物重建上述临时 profile。临时观察 bundle 只消费官方 `ctx.subagents`、`ctx.agents`，不注册或替代 provider；它等待 DSH `subagent/provider-added` 事件后才读取 registry，避免 sibling effect 的注册竞态。
+
+执行：
+
+```sh
+DSH_HOME=<temporary-home> dsh --profile web --dump-config
+DSH_HOME=<temporary-home> CONVIVIUM_T1_OUTPUT=<temporary-result> \
+  dsh --profile web --no-open
+```
+
+`dump-config` 同时显示 `@convivium/dsh-plugin`、`@convivium/t1-continuable-probe` 和 `@deepseek-ai/dsh-subagent-spawn-in-process`，其配置为 `providerName: spawn`。真实 boot 的结构化结果为：
+
+```json
+{
+  "providerResolved": "spawn",
+  "prepareContinuableType": "function"
+}
+```
+
+该结果证明实际 registry 在 provider registration 完成后能解析 `spawn`，且公开 provider 对象具备 `prepareContinuable`。没有使用 mock、自制 provider、隐式 provider 或 fallback。
 
 ## Not Yet Proven
 
 - 候选尚未获得用户对 package/name/version/安装来源的确认。
-- 未完成真实 parent 上的 `startContinuable`、followup、cold resume、interrupt、`drainContinuableChildren` 与精确 cleanup 验证。
-- 真实 boot 被上述 plugin activation blocker 阻止；尚未检查临时 profile 中的模型凭据或发起模型调用。
+- 生命周期 probe 和临时资源 cleanup 的完整结果待下一条 T1 evidence 记录。
 - 未据此修改 `plugin/package.json` 或 `plugin/pnpm-lock.yaml`；provider 仍由宿主 profile 管理。
 
 ## Related Documents
