@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     followupParticipantSession,
+    interruptAndDrainOwnedSessions,
     startManagerSession,
     startParticipantSession
 } from "../../../src/dsh/session-adapter.js";
@@ -234,5 +235,72 @@ describe("followupParticipantSession", () => {
             })
         ).rejects.toThrow("CAPABILITY_REVOKED");
         expect(checks).toBe(2);
+    });
+});
+
+describe("interruptAndDrainOwnedSessions", () => {
+    it("interrupts and drains only the selected direct children of the exact Captain", async () => {
+        const interrupted: unknown[] = [];
+        let drained: unknown;
+        await interruptAndDrainOwnedSessions({
+            runtime: {
+                interrupt: (...args) => interrupted.push(args),
+                drainContinuableChildren: async (...args) => {
+                    drained = args;
+                }
+            },
+            parent: { id: "captain-session" } as never,
+            ownerships: [
+                participantOwnership(),
+                participantOwnership({ sessionId: "participant-session-2" })
+            ]
+        });
+
+        expect(interrupted).toEqual([
+            ["participant-session", { kind: "ancestor", agent: { id: "captain-session" } }],
+            ["participant-session-2", { kind: "ancestor", agent: { id: "captain-session" } }]
+        ]);
+        expect(drained).toEqual([
+            { id: "captain-session" },
+            ["participant-session", "participant-session-2"]
+        ]);
+    });
+
+    it("does not interrupt or drain a child whose persisted parent differs", async () => {
+        let interrupted = false;
+        let drained = false;
+        await expect(
+            interruptAndDrainOwnedSessions({
+                runtime: {
+                    interrupt: () => {
+                        interrupted = true;
+                    },
+                    drainContinuableChildren: async () => {
+                        drained = true;
+                    }
+                },
+                parent: { id: "captain-session" } as never,
+                ownerships: [participantOwnership({ parentSessionId: "other-captain" })]
+            })
+        ).rejects.toThrow(/exact owned Captain parent/);
+        expect(interrupted).toBe(false);
+        expect(drained).toBe(false);
+    });
+
+    it("does not let duplicate ownership broaden the cleanup target", async () => {
+        let interrupted = false;
+        await expect(
+            interruptAndDrainOwnedSessions({
+                runtime: {
+                    interrupt: () => {
+                        interrupted = true;
+                    },
+                    drainContinuableChildren: async () => undefined
+                },
+                parent: { id: "captain-session" } as never,
+                ownerships: [participantOwnership(), participantOwnership()]
+            })
+        ).rejects.toThrow(/twice/);
+        expect(interrupted).toBe(false);
     });
 });

@@ -3,6 +3,7 @@ import type {
     ContinuableStart,
     ContinuableStartSpec,
     SubagentFollowupOptions,
+    SubagentInterruptAuthority,
     SubagentProvider
 } from "@deepseek-ai/dsh-subagent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
@@ -220,4 +221,48 @@ export async function followupParticipantSession(
     );
     await input.authorize(authorization);
     return messageId;
+}
+
+export interface ContinuableLifecycleRuntime {
+    interrupt(targetSessionId: SessionId, authority: SubagentInterruptAuthority): void;
+    drainContinuableChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void>;
+}
+
+export interface InterruptAndDrainOwnedSessionsInput {
+    readonly runtime: ContinuableLifecycleRuntime;
+    readonly parent: Agent;
+    readonly ownerships: readonly MeetingOwnershipRecord[];
+}
+
+function assertOwnedChildren(
+    parent: Agent,
+    ownerships: readonly MeetingOwnershipRecord[]
+): readonly SessionId[] {
+    const parentSessionId = String(parent.id);
+    const childIds = new Set<string>();
+    for (const ownership of ownerships) {
+        if (ownership.parentSessionId !== parentSessionId) {
+            throw new Error("Continuable cleanup requires the exact owned Captain parent.");
+        }
+        if (childIds.has(ownership.sessionId)) {
+            throw new Error("Continuable cleanup cannot target one owned Session twice.");
+        }
+        childIds.add(ownership.sessionId);
+    }
+    return [...childIds] as SessionId[];
+}
+
+/**
+ * Stops only explicitly verified direct children. DSH retains durable Session
+ * data; Meeting Runtime separately revokes capability before requesting this
+ * cleanup, so a future cold resume cannot regain meeting authority.
+ */
+export async function interruptAndDrainOwnedSessions(
+    input: InterruptAndDrainOwnedSessionsInput
+): Promise<void> {
+    const childIds = assertOwnedChildren(input.parent, input.ownerships);
+    for (const childId of childIds) {
+        input.runtime.interrupt(childId, { kind: "ancestor", agent: input.parent });
+    }
+    await input.runtime.drainContinuableChildren(input.parent, childIds);
 }
