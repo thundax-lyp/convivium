@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/runtime/turn-runner.ts`：实现单 active attempt 调度
-  - 依据文档：`docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4
-  - 处理动作：固定 agenda/context range，提交 delivery 后逐步 followup A、B、C，等待合法 submit 后再推进。
-  - 验收点：A 后才请求 B，B 看到 A，C 看到 A+B；active attempt 始终不超过一个。
-
 - [ ] `plugin/src/runtime/outbox-worker.ts`：实现提交后 DSH dispatch
   - 依据文档：`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4/T6
