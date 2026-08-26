@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ContinuableStarter } from "../dsh/index.js";
+import { submitSpeakerAttempt, transitionMeeting, type MeetingState } from "../domain/index.js";
 import { createMeetingRuntime, type MeetingCreationRuntimeDependencies } from "../runtime/index.js";
 import { projectMeetingStatus } from "../projection/index.js";
 import type {
@@ -9,11 +10,18 @@ import type {
     CreateMeetingResultV1,
     MeetingStatusInputV1,
     MeetingStatusResultV1,
+    MeetingControlResultV1,
+    TurnSubmissionResultV1,
     ProtocolErrorV1,
     ProtocolSuccessV1
 } from "../protocol/index.js";
-import { MeetingRepository, type RepositoryAuthorizationValidator } from "../repository/index.js";
-import type { MeetingToolRuntime } from "./register-tools.js";
+import {
+    MeetingRepository,
+    type DomainEventInput,
+    type JsonObject,
+    type RepositoryAuthorizationValidator
+} from "../repository/index.js";
+import type { MeetingToolCaller, MeetingToolRuntime } from "./register-tools.js";
 
 export interface CreateStatusRuntimeOptions {
     readonly dataRoot: string;
@@ -55,6 +63,27 @@ function participantResult(input: CreateMeetingInputV1, meetingId: string): Crea
             participantId: `participant-${participantKey}`
         }))
     };
+}
+
+function commandError(error: unknown, fallback: ProtocolErrorV1["code"], message: string) {
+    const code =
+        error && typeof error === "object" && "code" in error
+            ? (error as { code?: unknown }).code
+            : undefined;
+    return failure(
+        typeof code === "string" ? code : fallback,
+        message,
+        code === "VERSION_CONFLICT"
+    );
+}
+
+function hasUnsupportedClaims(input: { changes: object; completionClaims?: object }): boolean {
+    return (
+        Object.values(input.changes as Record<string, unknown>).some(
+            (value) => Array.isArray(value) && value.length > 0
+        ) ||
+        (input.completionClaims !== undefined && Object.keys(input.completionClaims).length > 0)
+    );
 }
 
 export function createCreateStatusRuntime(options: CreateStatusRuntimeOptions): MeetingToolRuntime {
@@ -123,17 +152,161 @@ export function createCreateStatusRuntime(options: CreateStatusRuntimeOptions): 
             }
         },
 
-        async submitTurn() {
-            return failure(
-                "UNSUPPORTED_CAPABILITY",
-                "Turn submission is not wired in this runtime."
-            );
+        async submitTurn(input, caller) {
+            if (
+                caller.kind !== "participant" ||
+                caller.meetingId !== input.meetingId ||
+                caller.participantId === undefined
+            ) {
+                return failure("UNAUTHORIZED_CALLER", "Only the matching Participant can submit.");
+            }
+            if (hasUnsupportedClaims(input)) {
+                return failure(
+                    "UNSUPPORTED_CAPABILITY",
+                    "Structured claims are outside this runtime slice."
+                );
+            }
+            const stored = meetings.get(input.meetingId);
+            if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            const messageId = `message-${input.deliveryId}`;
+            try {
+                const current = await stored.repository.read();
+                const committed = await stored.repository.execute({
+                    requestId: input.deliveryId,
+                    commandKind: "submit_turn",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `participant:${caller.sessionId}`,
+                        attemptId: input.attemptId
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: current.version,
+                    transition: (snapshot) => {
+                        const state = snapshot.state as unknown as MeetingState;
+                        const transition = submitSpeakerAttempt(
+                            state,
+                            caller.participantId!,
+                            snapshot.version,
+                            {
+                                meetingId: input.meetingId,
+                                participantId: caller.participantId!,
+                                turnId: input.turnId,
+                                stepId: input.stepId,
+                                attemptId: input.attemptId,
+                                deliveryId: input.deliveryId,
+                                agendaItemId: input.agendaItemId,
+                                message: {
+                                    id: messageId,
+                                    content: input.content,
+                                    kind: input.kind,
+                                    mentions: input.mentions,
+                                    ...(input.replyTo === undefined
+                                        ? {}
+                                        : { replyTo: input.replyTo }),
+                                    taskIds: input.taskIds,
+                                    createdAt: Date.now()
+                                }
+                            }
+                        );
+                        const nextStep =
+                            transition.state.currentTurn?.steps[
+                                transition.state.currentTurn.currentStepIndex
+                            ];
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: {
+                                messageId,
+                                messageSeq: transition.state.messageSeq,
+                                turnStatus:
+                                    transition.state.currentTurn?.status === "completed"
+                                        ? "completed"
+                                        : "running",
+                                ...(nextStep === undefined ? {} : { nextStepId: nextStep.id }),
+                                meetingStatus: transition.state.status
+                            },
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox: []
+                        };
+                    }
+                });
+                return success<TurnSubmissionResultV1>(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as TurnSubmissionResultV1
+                );
+            } catch (error) {
+                return commandError(error, "STALE_ATTEMPT", "The speaker attempt is stale.");
+            }
         },
-        async pause() {
-            return failure("UNSUPPORTED_CAPABILITY", "Pause is not wired in this runtime.");
+        async pause(input, caller) {
+            if (caller.kind !== "captain" || caller.meetingId !== input.meetingId)
+                return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can pause it.");
+            return transitionMeetingStatus(input, caller, "paused");
         },
-        async resume() {
-            return failure("UNSUPPORTED_CAPABILITY", "Resume is not wired in this runtime.");
+        async resume(input, caller) {
+            if (caller.kind !== "captain" || caller.meetingId !== input.meetingId)
+                return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can resume it.");
+            return transitionMeetingStatus(input, caller, "running");
         }
     };
+
+    async function transitionMeetingStatus(
+        input: {
+            meetingId: string;
+            expectedMeetingVersion: number;
+            requestId: string;
+            reason?: string;
+        },
+        caller: MeetingToolCaller,
+        target: "paused" | "running"
+    ) {
+        const stored = meetings.get(input.meetingId);
+        if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+        try {
+            const committed = await stored.repository.execute({
+                requestId: input.requestId,
+                commandKind: target === "paused" ? "pause_meeting" : "resume_meeting",
+                authorization: {
+                    callerBinding: `session:${caller.sessionId}`,
+                    capabilityId: `captain:${caller.sessionId}`
+                },
+                requestHash: JSON.stringify(input),
+                expectedMeetingVersion: input.expectedMeetingVersion,
+                transition: (snapshot) => {
+                    const transition = transitionMeeting(
+                        snapshot.state as unknown as MeetingState,
+                        target,
+                        {
+                            now: options.now?.() ?? Date.now(),
+                            reason: input.reason ?? `captain ${target} meeting`,
+                            ...(target === "paused"
+                                ? {
+                                      pause: {
+                                          at: options.now?.() ?? Date.now(),
+                                          by: {
+                                              kind: "captain" as const,
+                                              actorId: caller.sessionId
+                                          }
+                                      }
+                                  }
+                                : {})
+                        }
+                    );
+                    return {
+                        state: transition.state as unknown as JsonObject,
+                        result: { status: target, changed: true },
+                        events: transition.effect.events as unknown as DomainEventInput[],
+                        outbox: []
+                    };
+                }
+            });
+            return success<MeetingControlResultV1>(
+                input.meetingId,
+                committed.meetingVersion,
+                committed.result as MeetingControlResultV1
+            );
+        } catch (error) {
+            return commandError(error, "INTERNAL_ERROR", `The meeting could not be ${target}.`);
+        }
+    }
 }
