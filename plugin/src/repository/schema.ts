@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS idempotency_receipts (
   command_kind TEXT NOT NULL,
   caller_binding TEXT NOT NULL,
   result_json TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
   meeting_version INTEGER NOT NULL,
   event_seqs_json TEXT NOT NULL,
   created_at INTEGER NOT NULL,

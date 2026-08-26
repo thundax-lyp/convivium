@@ -16,14 +16,21 @@ export const migrations: readonly Migration[] = [
         to: 1,
         apply(db) {
             db.exec(CURRENT_SCHEMA);
-        },
-    },
+        }
+    }
 ];
 
 export function migrate(db: DatabaseSync): void {
-    const version = Number((db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version);
+    const version = Number(
+        (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version
+    );
     if (version > CURRENT_SCHEMA_VERSION) {
-        throw new RepositoryError("SCHEMA_VERSION_UNSUPPORTED", false, "unknown", "Database schema is newer than this plugin");
+        throw new RepositoryError(
+            "SCHEMA_VERSION_UNSUPPORTED",
+            false,
+            "unknown",
+            "Database schema is newer than this plugin"
+        );
     }
     if (version === CURRENT_SCHEMA_VERSION) return;
     db.exec("BEGIN IMMEDIATE");
@@ -36,7 +43,12 @@ export function migrate(db: DatabaseSync): void {
             db.exec(`PRAGMA user_version = ${current}`);
         }
         if (current !== CURRENT_SCHEMA_VERSION) {
-            throw new RepositoryError("SCHEMA_VERSION_UNSUPPORTED", false, "unknown", "Missing contiguous SQLite migration");
+            throw new RepositoryError(
+                "SCHEMA_VERSION_UNSUPPORTED",
+                false,
+                "unknown",
+                "Missing contiguous SQLite migration"
+            );
         }
         db.exec("COMMIT");
     } catch (error) {
