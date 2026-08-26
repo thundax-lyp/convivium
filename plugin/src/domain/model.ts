@@ -48,6 +48,8 @@ export interface MeetingParticipant {
     consecutiveSpeeches: number;
     consecutiveAttemptFailures: number;
     totalSpeeches: number;
+    lastDeliveredSeq: number;
+    lastAcknowledgedSeq: number;
 }
 
 export interface MeetingManagerRuntime {
@@ -57,6 +59,10 @@ export interface MeetingManagerRuntime {
 
 export interface ManagerPlanningAttempt {
     id: string;
+    meetingId: string;
+    observedMeetingVersion: number;
+    sessionId: string;
+    deliveryId: string;
     status: "pending" | "running" | "submitted" | "revoked" | "failed";
 }
 
@@ -75,10 +81,12 @@ export interface SpeakerStep {
 
 export interface SpeakerAttempt {
     attemptId: string;
+    participantId: string;
     meetingId: string;
     turnId: string;
     stepId: string;
     deliveryId: string;
+    contextThroughSeq: number;
     status: AttemptStatus;
     deliveryStatus: "pending" | "accepted" | "acknowledged" | "failed";
 }
@@ -125,6 +133,7 @@ export interface MeetingProposal {
     title: string;
     revision: number;
     status: "draft" | "under_review" | "accepted" | "rejected" | "superseded";
+    positions?: readonly { id: string; participantId: string; proposalRevision: number }[];
 }
 
 export interface MeetingDecision {
@@ -138,6 +147,8 @@ export interface MeetingQuestion {
     id: string;
     text: string;
     status: "open" | "answered" | "withdrawn" | "deferred";
+    askedBy?: string;
+    agendaItemId?: string;
 }
 
 export interface MeetingHandRaise {
@@ -396,6 +407,7 @@ export interface MeetingState {
     openQuestions: MeetingQuestion[];
     handRaises: MeetingHandRaise[];
     completionFacts: CompletionFact[];
+    artifactRefs: ArchiveArtifactRef[];
     continuationMaterials: ContinuationMaterial[];
     turnSeq: number;
     messageSeq: number;
@@ -428,9 +440,18 @@ export interface TransitionContext {
 }
 
 export interface AttemptTransitionContext {
+    attemptId: string;
+    participantId: string;
     meetingId: string;
     turnId: string;
     stepId: string;
+    deliveryId: string;
+}
+
+export interface ManagerAttemptTransitionContext {
+    attemptId: string;
+    meetingId: string;
+    sessionId: string;
     deliveryId: string;
 }
 

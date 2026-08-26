@@ -3,6 +3,7 @@ import {
     DomainError,
     type ArchivePackage,
     type MeetingState,
+    submitSpeakerAttempt,
     transitionAttempt,
     transitionManagerAttempt,
     transitionMeeting,
@@ -38,6 +39,7 @@ function meeting(status: MeetingState["status"] = "created"): MeetingState {
         openQuestions: [],
         handRaises: [],
         completionFacts: [],
+        artifactRefs: [],
         continuationMaterials: [],
         turnSeq: 0,
         messageSeq: 0,
@@ -179,19 +181,28 @@ describe("meeting transitions", () => {
                     status: "running",
                     attempt: {
                         attemptId: "attempt-1",
+                        participantId: "participant-1",
                         meetingId: "meeting-1",
                         turnId: "turn-1",
                         stepId: "step-1",
                         deliveryId: "delivery-1",
                         status: "running",
-                        deliveryStatus: "pending"
+                        deliveryStatus: "pending",
+                        contextThroughSeq: 0
                     }
                 }
             ]
         };
         state.manager = {
             status: "planning",
-            currentPlanningAttempt: { id: "plan-1", status: "running" }
+            currentPlanningAttempt: {
+                id: "plan-1",
+                meetingId: "meeting-1",
+                observedMeetingVersion: 3,
+                sessionId: "manager-session-1",
+                deliveryId: "manager-delivery-1",
+                status: "running"
+            }
         };
 
         const result = transitionMeeting(state, "paused", {
@@ -322,6 +333,46 @@ describe("meeting transitions", () => {
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
 
+    it("rejects archive cross-references that are not meeting facts", () => {
+        const archive = archivePackage();
+        archive.proposals = [
+            {
+                id: "proposal-1",
+                agendaItemId: "missing-agenda",
+                title: "proposal",
+                description: "proposal",
+                revision: 1,
+                status: "draft",
+                positions: []
+            }
+        ];
+        expect(() =>
+            transitionMeeting(meeting("completed"), "archiving", {
+                now,
+                archive: { package: archive }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
+    it("rejects termination references to unknown positions and agenda items", () => {
+        const state = meeting("running");
+        expect(() =>
+            transitionMeeting(state, "completed", {
+                now,
+                termination: {
+                    code: "objective_satisfied",
+                    reason: "done",
+                    decisionIds: [],
+                    unresolvedQuestionIds: [],
+                    dissentingPositionIds: ["missing-position"],
+                    blockingAgendaItemIds: ["missing-agenda"],
+                    finalMessage: "done",
+                    endedAt: now
+                }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
     it("rejects archive facts from another meeting or team", () => {
         const archive = archivePackage();
         archive.meetingId = "meeting-2";
@@ -352,12 +403,14 @@ describe("meeting transitions", () => {
                     status: "running",
                     attempt: {
                         attemptId: "attempt-1",
+                        participantId: "participant-1",
                         meetingId: "meeting-1",
                         turnId: "turn-1",
                         stepId: "step-1",
                         deliveryId: "delivery-1",
                         status: "running",
-                        deliveryStatus: "acknowledged"
+                        deliveryStatus: "acknowledged",
+                        contextThroughSeq: 0
                     }
                 }
             ]
@@ -435,10 +488,12 @@ describe("turn, step and attempt transitions", () => {
         const attempt = transitionAttempt(
             {
                 attemptId: "attempt-1",
+                participantId: "participant-1",
                 meetingId: "meeting-1",
                 turnId: "turn-1",
                 stepId: "step-1",
                 deliveryId: "delivery-1",
+                contextThroughSeq: 0,
                 status: "assigned",
                 deliveryStatus: "pending"
             },
@@ -465,22 +520,96 @@ describe("turn, step and attempt transitions", () => {
 
     it("uses the same lifecycle rule for manager planning attempts", () => {
         const running = transitionManagerAttempt(
-            { id: "plan-1", status: "pending" },
+            {
+                id: "plan-1",
+                meetingId: "meeting-1",
+                observedMeetingVersion: 1,
+                sessionId: "manager-session-1",
+                deliveryId: "manager-delivery-1",
+                status: "pending"
+            },
             "running",
-            1
+            1,
+            managerAttemptContext()
         ).state;
-        expect(transitionManagerAttempt(running, "submitted", 2).state.status).toBe("submitted");
-        expect(() => transitionManagerAttempt(running, "pending", 2)).toThrowError(
-            expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+        expect(
+            transitionManagerAttempt(running, "submitted", 1, managerAttemptContext()).state.status
+        ).toBe("submitted");
+        expect(() =>
+            transitionManagerAttempt(running, "pending", 2, managerAttemptContext())
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+        expect(() =>
+            transitionManagerAttempt(running, "submitted", 2, managerAttemptContext())
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
+    it("acknowledges a speaker submission and advances participant cursors", () => {
+        const state = meeting("running");
+        state.participants = [
+            {
+                id: "participant-1",
+                displayName: "Participant",
+                status: "available",
+                consecutiveSpeeches: 0,
+                consecutiveAttemptFailures: 0,
+                totalSpeeches: 0,
+                lastDeliveredSeq: 2,
+                lastAcknowledgedSeq: 1
+            }
+        ];
+        state.currentTurn = {
+            id: "turn-1",
+            status: "running",
+            currentStepIndex: 0,
+            steps: [
+                {
+                    id: "step-1",
+                    status: "running",
+                    attempt: {
+                        attemptId: "attempt-1",
+                        participantId: "participant-1",
+                        meetingId: "meeting-1",
+                        turnId: "turn-1",
+                        stepId: "step-1",
+                        deliveryId: "delivery-1",
+                        contextThroughSeq: 5,
+                        status: "running",
+                        deliveryStatus: "accepted"
+                    }
+                }
+            ]
+        };
+
+        const result = submitSpeakerAttempt(
+            state,
+            "participant-1",
+            state.version,
+            attemptContext()
         );
+
+        expect(result.state.currentTurn?.steps[0].attempt?.status).toBe("submitted");
+        expect(result.state.currentTurn?.steps[0].attempt?.deliveryStatus).toBe("acknowledged");
+        expect(result.state.participants[0].lastDeliveredSeq).toBe(5);
+        expect(result.state.participants[0].lastAcknowledgedSeq).toBe(5);
     });
 });
 
 function attemptContext() {
     return {
+        attemptId: "attempt-1",
+        participantId: "participant-1",
         meetingId: "meeting-1",
         turnId: "turn-1",
         stepId: "step-1",
         deliveryId: "delivery-1"
+    };
+}
+
+function managerAttemptContext() {
+    return {
+        attemptId: "plan-1",
+        meetingId: "meeting-1",
+        sessionId: "manager-session-1",
+        deliveryId: "manager-delivery-1"
     };
 }

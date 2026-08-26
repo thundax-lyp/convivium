@@ -10,6 +10,7 @@ import type {
     MeetingStatus,
     MeetingTurn,
     ManagerPlanningAttempt,
+    ManagerAttemptTransitionContext,
     SpeakerAttempt,
     SpeakerStep,
     StepStatus,
@@ -241,12 +242,109 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
             }
         );
     }
+    if (!terminationReferencesBelongToMeeting(state, archivePackage.termination)) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `archive references facts outside meeting ${state.id}`,
+            {
+                entityType: "meeting",
+                entityId: state.id,
+                to: "archiving",
+                meetingVersion: state.version
+            }
+        );
+    }
+    const decisionById = new Map(state.decisions.map((decision) => [decision.id, decision]));
+    const agendaIds = new Set(state.agenda.map((item) => item.id));
+    const issueIds = new Set(state.issues.map((issue) => issue.id));
+    const questionIds = new Set(state.openQuestions.map((question) => question.id));
+    const participantIds = new Set(state.participants.map((participant) => participant.id));
+    const transcriptIds = new Set(state.transcript.map((message) => message.id));
+    const artifactById = new Map(
+        state.artifactRefs.map((artifact) => [artifact.artifactId, artifact])
+    );
+    const proposalById = new Map(state.proposals.map((proposal) => [proposal.id, proposal]));
+    const completionSubjectIds = new Set([
+        ...state.objectiveContract.requiredOutputs.map((output) => output.id),
+        ...state.objectiveContract.acceptanceCriteria.map((criterion) => criterion.id),
+        ...agendaIds,
+        ...issueIds,
+        ...state.completionFacts.map((fact) => fact.subjectId)
+    ]);
     if (
-        archivePackage.termination.decisionIds.some(
-            (id) => !state.decisions.some((decision) => decision.id === id)
+        archivePackage.artifactRefs.some((artifact) => {
+            const source = artifactById.get(artifact.artifactId);
+            return (
+                !source ||
+                source.title !== artifact.title ||
+                source.version !== artifact.version ||
+                source.checksum !== artifact.checksum
+            );
+        }) ||
+        archivePackage.acceptedDecisions.some(
+            (decision) =>
+                !agendaIds.has(decision.agendaItemId) ||
+                !decisionById.has(decision.id) ||
+                decisionById.get(decision.id)?.proposalId !== decision.proposalId ||
+                decisionById.get(decision.id)?.proposalRevision !== decision.proposalRevision ||
+                decision.acceptedBy.some((id) => !participantIds.has(id)) ||
+                decision.dissentingPositionIds.some(
+                    (id) =>
+                        !state.proposals.some((proposal) =>
+                            proposal.positions?.some((position) => position.id === id)
+                        )
+                )
         ) ||
-        archivePackage.termination.unresolvedQuestionIds.some(
-            (id) => !state.openQuestions.some((question) => question.id === id)
+        archivePackage.proposals.some(
+            (proposal) =>
+                !agendaIds.has(proposal.agendaItemId) ||
+                proposalById.get(proposal.id)?.revision !== proposal.revision ||
+                proposalById.get(proposal.id)?.status !== proposal.status ||
+                proposal.positions.some(
+                    (position) =>
+                        !participantIds.has(position.participantId) ||
+                        position.proposalRevision !== proposal.revision ||
+                        (proposalById.get(proposal.id)?.positions !== undefined &&
+                            !proposalById
+                                .get(proposal.id)
+                                ?.positions?.some(
+                                    (source) =>
+                                        source.id === position.id &&
+                                        source.participantId === position.participantId
+                                ))
+                )
+        ) ||
+        archivePackage.completionFacts.some(
+            (fact) =>
+                !completionSubjectIds.has(fact.subjectId) ||
+                !participantIds.has(fact.assertedBy) ||
+                fact.evidenceMessageIds.some((id) => !transcriptIds.has(id))
+        ) ||
+        archivePackage.agenda.some(
+            (item) =>
+                !agendaIds.has(item.id) ||
+                (item.owner !== undefined && !participantIds.has(item.owner)) ||
+                item.requiredParticipants.some((id) => !participantIds.has(id))
+        ) ||
+        archivePackage.issues.some(
+            (issue) =>
+                !issueIds.has(issue.id) ||
+                (issue.ownerId !== undefined && !participantIds.has(issue.ownerId))
+        ) ||
+        archivePackage.unresolvedQuestions.some(
+            (question) =>
+                !questionIds.has(question.id) ||
+                !agendaIds.has(question.agendaItemId) ||
+                !participantIds.has(question.askedBy) ||
+                (question.directedTo !== undefined && !participantIds.has(question.directedTo)) ||
+                (question.answerMessageId !== undefined &&
+                    !transcriptIds.has(question.answerMessageId))
+        ) ||
+        archivePackage.formalTranscript.some(
+            (message) => !transcriptIds.has(message.id) || !agendaIds.has(message.agendaItemId)
+        ) ||
+        archivePackage.participantProvenance.some(
+            (participant) => !participantIds.has(participant.participantId)
         )
     ) {
         throw new DomainError(
@@ -260,6 +358,29 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
             }
         );
     }
+}
+
+function terminationReferencesBelongToMeeting(
+    state: MeetingState,
+    termination: MeetingState["termination"]
+): boolean {
+    return Boolean(
+        termination &&
+        termination.decisionIds.every((id) =>
+            state.decisions.some((decision) => decision.id === id)
+        ) &&
+        termination.unresolvedQuestionIds.every((id) =>
+            state.openQuestions.some((question) => question.id === id)
+        ) &&
+        termination.blockingAgendaItemIds.every((id) =>
+            state.agenda.some((item) => item.id === id)
+        ) &&
+        termination.dissentingPositionIds.every((id) =>
+            state.proposals.some((proposal) =>
+                proposal.positions?.some((position) => position.id === id)
+            )
+        )
+    );
 }
 
 export function transitionMeeting(
@@ -323,14 +444,7 @@ export function transitionMeeting(
                 { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
             );
         }
-        if (
-            context.termination.decisionIds.some(
-                (id) => !state.decisions.some((decision) => decision.id === id)
-            ) ||
-            context.termination.unresolvedQuestionIds.some(
-                (id) => !state.openQuestions.some((question) => question.id === id)
-            )
-        ) {
+        if (!terminationReferencesBelongToMeeting(state, context.termination)) {
             throw new DomainError(
                 "INVALID_ENTITY_STATE",
                 `termination references facts outside meeting ${state.id}`,
@@ -512,6 +626,8 @@ export function transitionAttempt(
         meetingVersion
     );
     if (
+        attempt.attemptId !== context.attemptId ||
+        attempt.participantId !== context.participantId ||
         attempt.meetingId !== context.meetingId ||
         attempt.turnId !== context.turnId ||
         attempt.stepId !== context.stepId ||
@@ -549,10 +665,63 @@ export function transitionAttempt(
     };
 }
 
+export function submitSpeakerAttempt(
+    state: MeetingState,
+    participantId: string,
+    meetingVersion: number,
+    context: AttemptTransitionContext
+): TransitionResult<MeetingState> {
+    const participant = state.participants.find(({ id }) => id === participantId);
+    const step = state.currentTurn?.steps.find(
+        ({ attempt }) => attempt?.attemptId === context.attemptId
+    );
+    const attempt = step?.attempt;
+    if (!participant || !attempt || attempt.participantId !== participantId) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `attempt ${context.attemptId} is not active in meeting ${state.id}`,
+            { entityType: "attempt", entityId: context.attemptId, meetingVersion }
+        );
+    }
+    const result = transitionAttempt(attempt, "submitted", meetingVersion, context);
+    return {
+        state: {
+            ...state,
+            participants: state.participants.map((candidate) =>
+                candidate.id === participantId
+                    ? {
+                          ...candidate,
+                          lastDeliveredSeq: Math.max(
+                              candidate.lastDeliveredSeq,
+                              attempt.contextThroughSeq
+                          ),
+                          lastAcknowledgedSeq: Math.max(
+                              candidate.lastAcknowledgedSeq,
+                              attempt.contextThroughSeq
+                          )
+                      }
+                    : candidate
+            ),
+            currentTurn: state.currentTurn
+                ? {
+                      ...state.currentTurn,
+                      steps: state.currentTurn.steps.map((candidate) =>
+                          candidate.attempt?.attemptId === attempt.attemptId
+                              ? { ...candidate, attempt: result.state }
+                              : candidate
+                      )
+                  }
+                : undefined
+        },
+        effect: result.effect
+    };
+}
+
 export function transitionManagerAttempt(
     attempt: ManagerPlanningAttempt,
     to: ManagerPlanningAttempt["status"],
-    meetingVersion: number
+    meetingVersion: number,
+    context: ManagerAttemptTransitionContext
 ): TransitionResult<ManagerPlanningAttempt> {
     assertTransition(
         "manager_attempt",
@@ -562,6 +731,19 @@ export function transitionManagerAttempt(
         managerAttemptTransitions,
         meetingVersion
     );
+    if (
+        attempt.id !== context.attemptId ||
+        attempt.meetingId !== context.meetingId ||
+        attempt.sessionId !== context.sessionId ||
+        attempt.deliveryId !== context.deliveryId ||
+        (to === "submitted" && attempt.observedMeetingVersion !== meetingVersion)
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `manager attempt ${attempt.id} is stale or bound to another context`,
+            { entityType: "manager_attempt", entityId: attempt.id, meetingVersion }
+        );
+    }
     return {
         state: { ...attempt, status: to },
         effect: event("manager_attempt.status_changed", {
