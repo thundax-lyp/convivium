@@ -1,6 +1,8 @@
 import { DomainError, invalidStateTransition } from "./errors.js";
 import type {
     AttemptStatus,
+    ArchiveInput,
+    ArchiveRecord,
     DomainEffect,
     MeetingState,
     MeetingStatus,
@@ -107,6 +109,26 @@ function requireReason(context: TransitionContext, state: MeetingState, to: Meet
     return context.reason;
 }
 
+function sameTermination(
+    left: MeetingState["termination"],
+    right: MeetingState["termination"]
+): boolean {
+    return (
+        left !== undefined &&
+        right !== undefined &&
+        left.code === right.code &&
+        left.reason === right.reason &&
+        left.endedAt === right.endedAt
+    );
+}
+
+function snapshotArchive(input: ArchiveInput): ArchiveRecord {
+    return {
+        package: structuredClone(input.package),
+        archivedAt: input.archivedAt
+    };
+}
+
 export function transitionMeeting(
     state: MeetingState,
     to: MeetingStatus,
@@ -181,6 +203,26 @@ export function transitionMeeting(
         );
     }
 
+    if (to === "archived") {
+        const archivePackage = context.archive?.package;
+        if (
+            archivePackage?.meetingId !== state.id ||
+            archivePackage.teamId !== state.teamId ||
+            !sameTermination(state.termination, archivePackage.termination)
+        ) {
+            throw new DomainError(
+                "INVALID_ENTITY_STATE",
+                `archive facts do not belong to meeting ${state.id}`,
+                {
+                    entityType: "meeting",
+                    entityId: state.id,
+                    to,
+                    meetingVersion: state.version
+                }
+            );
+        }
+    }
+
     const next: MeetingState = {
         ...state,
         status: to,
@@ -193,7 +235,7 @@ export function transitionMeeting(
               }
             : {}),
         ...(context.termination ? { termination: context.termination } : {}),
-        ...(context.archive ? { archive: context.archive } : {})
+        ...(context.archive ? { archive: snapshotArchive(context.archive) } : {})
     };
 
     return {

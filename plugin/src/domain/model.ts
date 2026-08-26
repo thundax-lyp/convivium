@@ -204,7 +204,22 @@ export interface ArchivePackage {
     materializedAt: number;
 }
 
+type DeepReadonly<T> = T extends (...args: never[]) => unknown
+    ? T
+    : T extends readonly (infer U)[]
+      ? readonly DeepReadonly<U>[]
+      : T extends object
+        ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+        : T;
+
+export type ImmutableArchivePackage = DeepReadonly<ArchivePackage>;
+
 export interface ArchiveRecord {
+    readonly package: ImmutableArchivePackage;
+    readonly archivedAt?: number;
+}
+
+export interface ArchiveInput {
     package: ArchivePackage;
     archivedAt?: number;
 }
@@ -250,7 +265,7 @@ export interface TransitionContext {
     now: number;
     reason?: string;
     termination?: MeetingTermination;
-    archive?: ArchiveRecord;
+    archive?: ArchiveInput;
 }
 
 export interface DomainEvent {

@@ -48,7 +48,11 @@ function meeting(status: MeetingState["status"] = "created"): MeetingState {
         limits: { maxTurns: 10, maxSpeakersPerTurn: 5, maxMessages: 100 },
         version: 3,
         createdAt: now - 1000,
-        updatedAt: now - 1000
+        updatedAt: now - 1000,
+        termination:
+            status === "archiving"
+                ? { code: "objective_satisfied", reason: "done", endedAt: now }
+                : undefined
     };
 }
 
@@ -146,7 +150,8 @@ describe("meeting transitions", () => {
     });
 
     it("requires a materialized archive before archived", () => {
-        expect(() => transitionMeeting(meeting("archiving"), "archived", { now })).toThrowError(
+        const archivingMeeting = meeting("archiving");
+        expect(() => transitionMeeting(archivingMeeting, "archived", { now })).toThrowError(
             expect.objectContaining({ code: "MISSING_ARCHIVE" })
         );
 
@@ -156,6 +161,25 @@ describe("meeting transitions", () => {
         });
         expect(result.state.archive?.package.meetingId).toBe("meeting-1");
         expect(result.state.archive?.archivedAt).toBe(now);
+    });
+
+    it("rejects archive facts from another meeting or team", () => {
+        const archive = archivePackage();
+        archive.meetingId = "meeting-2";
+        expect(() =>
+            transitionMeeting(meeting("archiving"), "archived", {
+                now,
+                archive: { package: archive, archivedAt: now }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
+    it("snapshots the archive so later input mutation cannot change committed state", () => {
+        const input = { package: archivePackage(), archivedAt: now };
+        const result = transitionMeeting(meeting("archiving"), "archived", { now, archive: input });
+
+        input.package.finalSummary = "mutated after transition";
+        expect(result.state.archive?.package.finalSummary).toBe("summary");
     });
 });
 
