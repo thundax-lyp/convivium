@@ -1,5 +1,4 @@
 export {
-    BackgroundTaskRequestSchema,
     CaptainRiskDispositionInputSchema,
     CreateMeetingInputSchema,
     EndMeetingInputSchema,
@@ -8,13 +7,13 @@ export {
     MeetingScopedMailSchema,
     MeetingStatusInputSchema,
     PauseMeetingInputSchema,
-    ReassignTurnInputSchema,
     ResumeMeetingInputSchema,
     TurnSubmissionSchema,
     validateBackgroundTaskRequest,
     validateCommandInput,
     validateReassignTurnInput
 } from "./commands.js";
+export { MeetingStatusResultSchema } from "./status.js";
 export {
     BackgroundTaskResultSchema,
     CaptainRiskDispositionResultSchema,
@@ -31,7 +30,7 @@ export {
     ProtocolErrorSchema,
     MeetingProtocolErrorCodeSchema,
     ProtocolMetaSchema,
-    ProtocolSuccessEnvelopeSchema,
+    createProtocolSuccessEnvelopeSchema,
     ProtocolVersionSchema,
     validateProtocolError,
     validateProtocolSuccessEnvelope

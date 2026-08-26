@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     CreateMeetingResultSchema,
     CreateMeetingInputSchema,
+    MeetingStatusResultSchema,
     validateProtocolError,
     validateProtocolSuccessEnvelope,
     validateBackgroundTaskRequest,
@@ -11,30 +12,50 @@ import {
 describe("protocol envelope schemas", () => {
     it("accepts a versioned success envelope", () => {
         expect(
-            validateProtocolSuccessEnvelope({
+            validateProtocolSuccessEnvelope(CreateMeetingResultSchema, {
                 protocolVersion: 1,
                 ok: true,
                 meetingId: "meeting-1",
                 meetingVersion: 3,
-                result: { status: "running" }
+                result: {
+                    meetingId: "meeting-1",
+                    meetingVersion: 3,
+                    status: "running",
+                    participants: []
+                }
             })
         ).toEqual({
             protocolVersion: 1,
             ok: true,
             meetingId: "meeting-1",
             meetingVersion: 3,
-            result: { status: "running" }
+            result: {
+                meetingId: "meeting-1",
+                meetingVersion: 3,
+                status: "running",
+                participants: []
+            }
         });
     });
 
     it("rejects an unsupported protocol version", () => {
         expect(() =>
-            validateProtocolSuccessEnvelope({
+            validateProtocolSuccessEnvelope(CreateMeetingResultSchema, {
                 protocolVersion: 2,
                 ok: true,
                 meetingId: "meeting-1",
                 meetingVersion: 3,
                 result: {}
+            })
+        ).toThrow();
+
+        expect(() =>
+            validateProtocolSuccessEnvelope(CreateMeetingResultSchema, {
+                protocolVersion: 1,
+                ok: true,
+                meetingId: "meeting-1",
+                meetingVersion: 3,
+                result: { status: "not-a-create-result" }
             })
         ).toThrow();
     });
@@ -74,6 +95,20 @@ describe("protocol envelope schemas", () => {
         ).toThrow();
 
         expect(() =>
+            validateBackgroundTaskRequest({
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                attemptId: "attempt-1",
+                requestId: "request-1",
+                action: "create",
+                title: "task",
+                description: "work",
+                existingTaskId: "",
+                blocking: false
+            })
+        ).toThrow();
+
+        expect(() =>
             validateReassignTurnInput({
                 protocolVersion: 1,
                 meetingId: "meeting-1",
@@ -81,6 +116,19 @@ describe("protocol envelope schemas", () => {
                 currentAttemptId: "attempt-1",
                 action: "skip",
                 replacementParticipantId: "participant-2",
+                reason: "unavailable",
+                requestId: "request-1"
+            })
+        ).toThrow();
+
+        expect(() =>
+            validateReassignTurnInput({
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                currentAttemptId: "attempt-1",
+                action: "skip",
+                replacementParticipantId: "",
                 reason: "unavailable",
                 requestId: "request-1"
             })
@@ -138,6 +186,31 @@ describe("protocol envelope schemas", () => {
                 meetingVersion: 1,
                 status: "unknown",
                 participants: []
+            })
+        ).toThrow();
+    });
+
+    it("rejects terminal status with active meeting fields", () => {
+        expect(() =>
+            MeetingStatusResultSchema({
+                meetingId: "meeting-1",
+                meetingVersion: 4,
+                topic: "Release",
+                objective: "Decide scope",
+                continuationMaterials: [],
+                limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
+                status: "archived",
+                currentTurn: { id: "turn-1" },
+                currentSpeakerId: "participant-1",
+                pendingHandRaises: [],
+                pauseControl: { action: "none" },
+                termination: {
+                    code: "completed",
+                    reason: "done",
+                    decisionIds: [],
+                    unresolvedQuestionIds: []
+                },
+                archive: { package: {}, archivedAt: 1 }
             })
         ).toThrow();
     });

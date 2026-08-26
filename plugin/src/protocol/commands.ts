@@ -1,43 +1,43 @@
-import z from "@deepseek-ai/schemastery";
+import Schema from "@deepseek-ai/schemastery";
 import { ProtocolVersionSchema } from "./schema.js";
 
-const string = () => z.string().required();
-const number = () => z.number().required();
-const boolean = () => z.boolean().required();
-const array = <T>(schema: z<T>) => z.array(schema).required();
-const enumOf = <T extends string>(values: readonly T[]) => z.union(values).required();
-const optionalEnumOf = <T extends string>(values: readonly T[]) => z.union(values);
-const optionalObject = <T>(schema: z<T>) => z.union([schema, z.const(undefined)]);
+const string = () => Schema.string().required();
+const number = () => Schema.number().required();
+const boolean = () => Schema.boolean().required();
+const array = <T>(schema: Schema<T>) => Schema.array(schema).required();
+const enumOf = <T extends string>(values: readonly T[]) => Schema.union(values).required();
+const optionalEnumOf = <T extends string>(values: readonly T[]) => Schema.union(values);
+const optionalObject = <T>(schema: Schema<T>) => Schema.union([schema, Schema.const(undefined)]);
 
-const participantSpec = z.object({
+const participantSpec = Schema.object({
     participantKey: string(),
-    sourceMemberName: z.string(),
+    sourceMemberName: Schema.string(),
     displayName: string(),
-    role: z.string()
+    role: Schema.string()
 });
 
-const objectiveContractSpec = z.object({
-    requiredOutputs: array(z.object({ key: string(), description: string() })),
-    acceptanceCriteria: array(z.object({ key: string(), description: string() })),
-    hardConstraints: array(z.object({ key: string(), description: string() })),
+const objectiveContractSpec = Schema.object({
+    requiredOutputs: array(Schema.object({ key: string(), description: string() })),
+    acceptanceCriteria: array(Schema.object({ key: string(), description: string() })),
+    hardConstraints: array(Schema.object({ key: string(), description: string() })),
     requiredReviewerKeys: array(string()),
     riskAcceptanceAuthorityKeys: array(string()),
     acceptableRiskLevel: enumOf(["low", "medium", "high"] as const)
 });
 
-const agendaItemSpec = z.object({
+const agendaItemSpec = Schema.object({
     key: string(),
     title: string(),
     objective: string(),
     inScope: array(string()),
     outOfScope: array(string()),
     completionCriteria: array(string()),
-    ownerKey: z.string(),
+    ownerKey: Schema.string(),
     requiredParticipantKeys: array(string()),
-    relatedTaskIds: z.array(string())
+    relatedTaskIds: Schema.array(string())
 });
 
-const continuationSelection = z.object({
+const continuationSelection = Schema.object({
     sourceMeetingId: string(),
     includeFinalSummary: boolean(),
     decisionIds: array(string()),
@@ -47,16 +47,16 @@ const continuationSelection = z.object({
     artifactIds: array(string())
 });
 
-const publicLimits = z.object({
+const publicLimits = Schema.object({
     maxTurns: number(),
     maxSpeakersPerTurn: number(),
     maxTotalMessages: number(),
-    maxDurationMs: z.number(),
-    speakerAttemptTimeoutMs: z.number(),
-    mailHandlingTimeoutMs: z.number()
+    maxDurationMs: Schema.number(),
+    speakerAttemptTimeoutMs: Schema.number(),
+    mailHandlingTimeoutMs: Schema.number()
 });
 
-export const CreateMeetingInputSchema = z.object({
+export const CreateMeetingInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     requestId: string(),
     teamId: string(),
@@ -70,12 +70,12 @@ export const CreateMeetingInputSchema = z.object({
     limits: optionalObject(publicLimits)
 });
 
-export const MeetingStatusInputSchema = z.object({
+export const MeetingStatusInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string()
 });
 
-export const PauseMeetingInputSchema = z.object({
+export const PauseMeetingInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string(),
     expectedMeetingVersion: number(),
@@ -83,14 +83,14 @@ export const PauseMeetingInputSchema = z.object({
     reason: string()
 });
 
-export const ResumeMeetingInputSchema = z.object({
+export const ResumeMeetingInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string(),
     expectedMeetingVersion: number(),
     requestId: string()
 });
 
-export const CaptainRiskDispositionInputSchema = z.object({
+export const CaptainRiskDispositionInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string(),
     expectedMeetingVersion: number(),
@@ -101,18 +101,18 @@ export const CaptainRiskDispositionInputSchema = z.object({
     evidenceMessageIds: array(string())
 });
 
-export const ReassignTurnInputSchema = z.object({
+const reassignTurnInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string(),
     expectedMeetingVersion: number(),
     currentAttemptId: string(),
     action: enumOf(["reassign", "skip"] as const),
-    replacementParticipantId: z.string(),
+    replacementParticipantId: Schema.string(),
     reason: string(),
     requestId: string()
 });
 
-export const EndMeetingInputSchema = z.object({
+export const EndMeetingInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string(),
     expectedMeetingVersion: number(),
@@ -121,7 +121,7 @@ export const EndMeetingInputSchema = z.object({
     acceptedDecisionIds: array(string()),
     deferredAgendaItemIds: array(string()),
     waivers: array(
-        z.object({
+        Schema.object({
             subjectId: string(),
             kind: enumOf(["required_review", "agenda_item"] as const),
             reason: string()
@@ -130,15 +130,15 @@ export const EndMeetingInputSchema = z.object({
     requestId: string()
 });
 
-export const BackgroundTaskRequestSchema = z.object({
+const backgroundTaskRequestSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string(),
     attemptId: string(),
     requestId: string(),
     action: enumOf(["create", "associate"] as const),
-    title: z.string(),
-    description: z.string(),
-    existingTaskId: z.string(),
+    title: Schema.string(),
+    description: Schema.string(),
+    existingTaskId: Schema.string(),
     blocking: boolean()
 });
 
@@ -154,28 +154,28 @@ const publicMessageKind = enumOf([
     "decision"
 ] as const);
 
-const questionClaim = z.object({
+const questionClaim = Schema.object({
     text: string(),
-    directedTo: z.string(),
+    directedTo: Schema.string(),
     blocking: boolean()
 });
 
-const proposalClaim = z.object({
-    proposalId: z.string(),
-    expectedRevision: z.number(),
+const proposalClaim = Schema.object({
+    proposalId: Schema.string(),
+    expectedRevision: Schema.number(),
     title: string(),
     description: string()
 });
 
-const positionClaim = z.object({
+const positionClaim = Schema.object({
     proposalId: string(),
     proposalRevision: number(),
     position: enumOf(["support", "accept", "object", "needs_revision", "abstain"] as const),
-    reason: z.string(),
+    reason: Schema.string(),
     blocking: boolean()
 });
 
-const issueClaim = z.object({
+const issueClaim = Schema.object({
     title: string(),
     description: string(),
     affectedOutputIds: array(string()),
@@ -186,14 +186,14 @@ const issueClaim = z.object({
     safeDefaultAvailable: boolean()
 });
 
-const decisionProposalClaim = z.object({
+const decisionProposalClaim = Schema.object({
     proposalId: string(),
     proposalRevision: number(),
     statement: string(),
     rationale: string()
 });
 
-const agendaCandidateClaim = z.object({
+const agendaCandidateClaim = Schema.object({
     title: string(),
     reason: string(),
     relationToActiveAgenda: enumOf(["related", "adjacent", "unrelated"] as const),
@@ -201,48 +201,50 @@ const agendaCandidateClaim = z.object({
     suggestedParticipants: array(string())
 });
 
-const meetingChanges = z.object({
-    questions: z.array(questionClaim),
-    proposals: z.array(proposalClaim),
-    positions: z.array(positionClaim),
-    issues: z.array(issueClaim),
-    decisionProposals: z.array(decisionProposalClaim),
-    agendaCandidates: z.array(agendaCandidateClaim)
+const meetingChanges = Schema.object({
+    questions: Schema.array(questionClaim),
+    proposals: Schema.array(proposalClaim),
+    positions: Schema.array(positionClaim),
+    issues: Schema.array(issueClaim),
+    decisionProposals: Schema.array(decisionProposalClaim),
+    agendaCandidates: Schema.array(agendaCandidateClaim)
 });
 
-const completionClaims = z.object({
-    outputClaims: z.array(
-        z.object({
+const completionClaims = Schema.object({
+    outputClaims: Schema.array(
+        Schema.object({
             subjectId: string(),
             evidenceMessageIds: array(string()),
             taskIds: array(string())
         })
     ),
-    criterionClaims: z.array(
-        z.object({
+    criterionClaims: Schema.array(
+        Schema.object({
             subjectId: string(),
             evidenceMessageIds: array(string()),
             taskIds: array(string())
         })
     ),
     agendaResolution: optionalObject(
-        z.object({
+        Schema.object({
             agendaItemId: string(),
             resolution: string(),
             evidenceMessageIds: array(string())
         })
     ),
     review: optionalObject(
-        z.object({
+        Schema.object({
             outputId: string(),
             result: enumOf(["approved", "changes_required"] as const),
             reason: string(),
             evidenceMessageIds: array(string())
         })
     ),
-    questionResolutions: z.array(z.object({ questionId: string(), answerMessageId: string() })),
+    questionResolutions: Schema.array(
+        Schema.object({ questionId: string(), answerMessageId: string() })
+    ),
     riskAcceptance: optionalObject(
-        z.object({
+        Schema.object({
             issueId: string(),
             decision: enumOf(["accept", "reject"] as const),
             reason: string(),
@@ -251,7 +253,7 @@ const completionClaims = z.object({
     )
 });
 
-export const ManagerPlanSubmissionSchema = z.object({
+export const ManagerPlanSubmissionSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string(),
     planningAttemptId: string(),
@@ -262,10 +264,12 @@ export const ManagerPlanSubmissionSchema = z.object({
     objective: string(),
     expectedOutputs: array(string()),
     prohibitedTopics: array(string()),
-    steps: array(z.object({ participantId: string(), instruction: string(), reason: string() }))
+    steps: array(
+        Schema.object({ participantId: string(), instruction: string(), reason: string() })
+    )
 });
 
-export const TurnSubmissionSchema: z<Record<string, unknown>> = z.object({
+export const TurnSubmissionSchema: Schema<Record<string, unknown>> = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string(),
     turnId: string(),
@@ -276,7 +280,7 @@ export const TurnSubmissionSchema: z<Record<string, unknown>> = z.object({
     kind: publicMessageKind,
     content: string(),
     mentions: array(string()),
-    replyTo: z.string(),
+    replyTo: Schema.string(),
     taskIds: array(string()),
     agendaRelation: enumOf([
         "on_topic",
@@ -288,7 +292,7 @@ export const TurnSubmissionSchema: z<Record<string, unknown>> = z.object({
     completionClaims: optionalObject(completionClaims)
 });
 
-export const HandRaiseSubmissionSchema = z.object({
+export const HandRaiseSubmissionSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string(),
     requestId: string(),
@@ -302,43 +306,43 @@ export const HandRaiseSubmissionSchema = z.object({
     ] as const),
     summary: string(),
     taskIds: array(string()),
-    replyToMessageId: z.string(),
-    agendaItemId: z.string(),
+    replyToMessageId: Schema.string(),
+    agendaItemId: Schema.string(),
     priority: enumOf(["normal", "high", "blocking"] as const)
 });
 
-export const MeetingScopedMailSchema = z.object({
-    recipient: z.object({
-        kind: z.const("meeting_participant").required(),
+export const MeetingScopedMailSchema = Schema.object({
+    recipient: Schema.object({
+        kind: Schema.const("meeting_participant").required(),
         meetingId: string(),
         participantId: string()
     }),
-    meetingContext: z.object({
+    meetingContext: Schema.object({
         meetingId: string(),
-        agendaItemId: z.string(),
+        agendaItemId: Schema.string(),
         contextFromSeq: number(),
         contextThroughSeq: number(),
         relevantMessageIds: array(string()),
-        snapshotSummary: z.string()
+        snapshotSummary: Schema.string()
     }),
-    replyToMailId: z.string()
+    replyToMailId: Schema.string()
 });
 
-export function validateCommandInput<T>(schema: z<T>, value: unknown): T {
+export function validateCommandInput<T>(schema: Schema<T>, value: unknown): T {
     return schema(value as T);
 }
 
 export function validateBackgroundTaskRequest(value: unknown) {
-    const result = validateCommandInput(BackgroundTaskRequestSchema, value);
-    if (
-        result.action === "create" &&
-        (!result.title || !result.description || result.existingTaskId)
-    ) {
+    const result = validateCommandInput(backgroundTaskRequestSchema, value);
+    const hasExistingTaskId = Object.prototype.hasOwnProperty.call(result, "existingTaskId");
+    const hasTitle = Object.prototype.hasOwnProperty.call(result, "title");
+    const hasDescription = Object.prototype.hasOwnProperty.call(result, "description");
+    if (result.action === "create" && (!result.title || !result.description || hasExistingTaskId)) {
         throw new TypeError("create background task requires title and description only");
     }
     if (
         result.action === "associate" &&
-        (!result.existingTaskId || result.title || result.description)
+        (!result.existingTaskId || hasTitle || hasDescription || !hasExistingTaskId)
     ) {
         throw new TypeError("associate background task requires existingTaskId only");
     }
@@ -346,11 +350,18 @@ export function validateBackgroundTaskRequest(value: unknown) {
 }
 
 export function validateReassignTurnInput(value: unknown) {
-    const result = validateCommandInput(ReassignTurnInputSchema, value);
-    if (result.action === "reassign" && !result.replacementParticipantId) {
+    const result = validateCommandInput(reassignTurnInputSchema, value);
+    const hasReplacementParticipantId = Object.prototype.hasOwnProperty.call(
+        result,
+        "replacementParticipantId"
+    );
+    if (
+        result.action === "reassign" &&
+        (!hasReplacementParticipantId || !result.replacementParticipantId)
+    ) {
         throw new TypeError("reassign requires replacementParticipantId");
     }
-    if (result.action === "skip" && result.replacementParticipantId) {
+    if (result.action === "skip" && hasReplacementParticipantId) {
         throw new TypeError("skip must not provide replacementParticipantId");
     }
     return result;

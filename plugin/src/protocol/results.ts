@@ -1,19 +1,19 @@
-import z from "@deepseek-ai/schemastery";
+import Schema from "@deepseek-ai/schemastery";
 import { MeetingProtocolErrorCodeSchema, ProtocolVersionSchema } from "./schema.js";
 
-const string = () => z.string().required();
-const number = () => z.number().required();
-const array = <T>(schema: z<T>) => z.array(schema).required();
-const enumOf = <T extends string>(values: readonly T[]) => z.union(values).required();
+const string = () => Schema.string().required();
+const number = () => Schema.number().required();
+const array = <T>(schema: Schema<T>) => Schema.array(schema).required();
+const enumOf = <T extends string>(values: readonly T[]) => Schema.union(values).required();
 
-export const CreateMeetingResultSchema = z.object({
+export const CreateMeetingResultSchema = Schema.object({
     meetingId: string(),
     meetingVersion: number(),
     status: enumOf(["created", "running"] as const),
-    participants: array(z.object({ participantKey: string(), participantId: string() }))
+    participants: array(Schema.object({ participantKey: string(), participantId: string() }))
 });
 
-export const ManagerPlanResultSchema = z.object({
+export const ManagerPlanResultSchema = Schema.object({
     turnId: string(),
     firstStepId: string(),
     firstAttemptId: string()
@@ -34,25 +34,25 @@ const meetingStatus = enumOf([
     "archived"
 ] as const);
 
-export const TurnSubmissionResultSchema = z.object({
+export const TurnSubmissionResultSchema = Schema.object({
     messageId: string(),
     messageSeq: number(),
     turnStatus: enumOf(["running", "completed", "truncated"] as const),
-    nextStepId: z.string(),
+    nextStepId: Schema.string(),
     meetingStatus: meetingStatus
 });
 
-export const HandRaiseResultSchema = z.object({
+export const HandRaiseResultSchema = Schema.object({
     handRaiseId: string(),
     status: enumOf(["pending", "accepted", "deferred", "consumed", "rejected"] as const)
 });
 
-export const MeetingControlResultSchema = z.object({
+export const MeetingControlResultSchema = Schema.object({
     status: enumOf(["paused", "running", "waiting"] as const),
-    changed: z.boolean().required()
+    changed: Schema.boolean().required()
 });
 
-export const CaptainRiskDispositionResultSchema = z.object({
+export const CaptainRiskDispositionResultSchema = Schema.object({
     requestId: string(),
     issueId: string(),
     disposition: enumOf(["accepted", "rejected"] as const),
@@ -60,18 +60,18 @@ export const CaptainRiskDispositionResultSchema = z.object({
     meetingStatus: meetingStatus
 });
 
-export const ReassignTurnResultSchema = z.object({
+export const ReassignTurnResultSchema = Schema.object({
     revokedAttemptId: string(),
-    replacementAttemptId: z.string(),
+    replacementAttemptId: Schema.string(),
     action: enumOf(["reassign", "skip"] as const)
 });
 
-export const EndMeetingResultSchema = z.object({
+export const EndMeetingResultSchema = Schema.object({
     status: enumOf(["completed", "partial", "no_consensus", "cancelled"] as const),
     terminationCode: string()
 });
 
-export const BackgroundTaskResultSchema = z.object({
+export const BackgroundTaskResultSchema = Schema.object({
     requestId: string(),
     taskId: string(),
     taskAttemptId: string(),
@@ -81,10 +81,10 @@ export const BackgroundTaskResultSchema = z.object({
     originatingSpeakerAttemptId: string()
 });
 
-export const ProtocolErrorResultSchema = z.object({
+export const ProtocolErrorResultSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
-    ok: z.const(false).required(),
+    ok: Schema.const(false).required(),
     code: MeetingProtocolErrorCodeSchema,
     message: string(),
-    retryable: z.boolean().required()
+    retryable: Schema.boolean().required()
 });
