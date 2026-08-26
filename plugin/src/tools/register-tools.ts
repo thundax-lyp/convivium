@@ -29,6 +29,7 @@ import {
 
 export interface MeetingToolCaller {
     readonly sessionId: string;
+    readonly agent?: Agent;
     readonly kind: "captain" | "manager" | "participant";
     readonly meetingId?: string;
     readonly participantId?: string;
