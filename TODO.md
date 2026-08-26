@@ -176,12 +176,6 @@
   - 处理动作：注册当前 Participant 的 `convivium_submit_turn` 与 Captain 的 pause/resume tools。
   - 验收点：权限矩阵、mandatory output、错误 envelope 和幂等语义均通过 contract tests。
 
-- [ ] `plugin/src/projection/status.ts`：实现 caller-specific status projection
-  - 依据文档：`docs/00-governance/ARCHITECTURE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T5
-  - 处理动作：从完整 canonical MeetingState 生成 Captain/Manager/Participant 可见状态，不读取隐藏 Session 内容。
-  - 验收点：所有 required projection 字段存在；不包含 capability、隐藏 prompt、私有工具输出或原始 DSH payload。
-
 - [ ] `plugin/tests/contract`：锁定本竖切不注册 Meeting HTTP route
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 明确采用待讨论项建议；T5
