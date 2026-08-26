@@ -4,6 +4,7 @@ export type DomainErrorCode =
     | "MISSING_ARCHIVE"
     | "INVALID_ENTITY_STATE"
     | "INVALID_CREATE_INPUT"
+    | "STALE_ATTEMPT"
     | "UNSUPPORTED_CAPABILITY";
 
 export class DomainError extends Error {

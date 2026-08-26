@@ -592,6 +592,14 @@ export interface AttemptTransitionContext {
     deliveryId: string;
 }
 
+export interface SpeakerSubmissionContext extends AttemptTransitionContext {
+    agendaItemId: string;
+    message: Pick<
+        MeetingMessage,
+        "id" | "content" | "kind" | "mentions" | "replyTo" | "taskIds" | "createdAt"
+    >;
+}
+
 export interface ManagerAttemptTransitionContext {
     attemptId: string;
     meetingId: string;
