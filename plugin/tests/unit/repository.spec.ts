@@ -75,6 +75,30 @@ describe("MeetingRepository", () => {
         await repository.close();
     });
 
+    it("allows a separately authorized caller to complete the bootstrap", async () => {
+        const repository = await openRepository();
+        const creator = {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" as const }
+        };
+        const completer = {
+            ...creator,
+            authorization: {
+                callerBinding: "captain:2",
+                capabilityId: "capability:2"
+            }
+        };
+
+        await repository.create(creator);
+        const result = await repository.completeCreate(completer);
+
+        expect(result.result).toEqual({ meetingId: "meeting-1", meetingVersion: 0 });
+        expect(await repository.read()).toMatchObject({ version: 0, state: { status: "created" } });
+        await repository.close();
+    });
+
     it("recovers a creating bootstrap without requiring a public meeting", async () => {
         const repository = await openRepository();
         await repository.create({

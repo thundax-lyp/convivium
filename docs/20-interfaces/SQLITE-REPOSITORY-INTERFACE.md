@@ -31,9 +31,9 @@ interface MeetingRepository {
 }
 ```
 
-`create` 是 bootstrap 专用写入口：它先持久化 `creating` bootstrap、`createRequestId` 与 `requestHash`，但不创建公开 Meeting、领域事件或成功 receipt。此时 Runtime 可以安全创建并通过 `recordSessionOwnership` 记录 DSH Session ownership；崩溃恢复可据此识别未完成创建，且不能把它当作可运行 Meeting。`updateBootstrap` 只允许把 `creating` 转为 `creation_failed`，并保留安全失败码。
+`create` 是 bootstrap 专用写入口：它先实时校验当前 caller，然后持久化 `creating` bootstrap、`createRequestId` 与 `requestHash`，但不创建公开 Meeting、领域事件或成功 receipt。Bootstrap 只保存创建 correlation，不保存 caller ownership；Runtime 可以安全创建并通过 `recordSessionOwnership` 记录 DSH Session ownership。崩溃恢复可据此识别未完成创建，且不能把它当作可运行 Meeting。`updateBootstrap` 只允许把 `creating` 转为 `creation_failed`，并保留安全失败码。
 
-全部必需 Session 已创建后，Runtime 使用同一原始创建输入调用 `completeCreate`。该方法在一个 SQLite 事务中创建 `meetings`、写入 `meeting.created`、初始 outbox 和成功 receipt，保存 `createResult` 并把 bootstrap 转为 `ready`。只有 `ready` bootstrap 对应公开 Meeting；`creation_failed` 不生成公开 Meeting。重复 `create` 只接受相同 request ID/hash，重复 `completeCreate` 返回原 receipt。
+全部必需 Session 已创建后，Runtime 使用同一原始创建输入调用 `completeCreate`。该方法重新校验当前 caller，在一个 SQLite 事务中创建 `meetings`、写入 `meeting.created`、初始 outbox 和成功 receipt，保存 `createResult` 并把 bootstrap 转为 `ready`。不要求当前 caller 与 `create` caller 相同；只有 `completeCreate` 当前 caller 通过授权校验且 request ID/hash 匹配时才能创建公开 Meeting。只有 `ready` bootstrap 对应公开 Meeting；`creation_failed` 不生成公开 Meeting。重复 `create` 只接受相同 request ID/hash，重复 `completeCreate` 返回原 receipt。
 
 ## Data And State Contract
 

@@ -742,6 +742,8 @@ SQLite 是 Meeting Runtime 的唯一状态真相。不再维护 `meeting.json` �
 
 `meeting_bootstrap` 不能并入普通 `meetings` row：它必须在 Meeting 领域对象和 Session 存在前保存 create identity、幂等 hash 和失败诊断，并且 `creating|creation_failed` 不属于公开 Meeting 生命周期。该 table 只承担创建事务外壳，不复制 MeetingState。
 
+Bootstrap 不承担 caller ownership。`create` 和 `completeCreate` 都必须实时校验当前 caller，但不要求两次调用来自同一 caller；只有通过 `completeCreate` 当前授权校验且 correlation 匹配时才创建公开 Meeting。
+
 实现 MUST 为所有 `meeting_id` 增加 foreign key 和必要索引。`state_json` 用于恢复当前状态；events 用于审计和诊断，不用于单独重建另一份当前状态。
 
 SQLite 是唯一事实依据。Markdown 文件不参加数据库事务，不被 Runtime 解析为 MeetingState，也不用于权限、幂等、恢复或完成判断。文件缺失、损坏或被人工编辑时，只能由 SQLite projection 重新生成。
