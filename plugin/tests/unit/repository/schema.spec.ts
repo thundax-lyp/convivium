@@ -8,9 +8,10 @@ describe("current repository schema", () => {
         const database = new DatabaseSync(":memory:");
         database.exec(CURRENT_SCHEMA);
 
-        const columns = database
-            .prepare("PRAGMA table_info(session_ownership)")
-            .all() as Array<{ name: string; notnull: number }>;
+        const columns = database.prepare("PRAGMA table_info(session_ownership)").all() as Array<{
+            name: string;
+            notnull: number;
+        }>;
 
         expect(CURRENT_SCHEMA_VERSION).toBe(5);
         expect(columns).toEqual(

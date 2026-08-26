@@ -14,7 +14,7 @@ const turn: MeetingTurn = {
     status: "planned",
     currentStepIndex: 0,
     createdAt: 1,
-    steps: ["a", "b", "c"].map((speaker, index) => ({
+    steps: ["a", "b", "c"].map((speaker, _index) => ({
         id: `step-${speaker}`,
         speaker,
         instruction: `speak-${speaker}`,

@@ -30,9 +30,7 @@ describe("session ownership migration", () => {
         migrate(database, "meeting-1");
 
         expect(database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 5 });
-        expect(
-            database.prepare("PRAGMA table_info(session_ownership)").all()
-        ).toEqual(
+        expect(database.prepare("PRAGMA table_info(session_ownership)").all()).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({ name: "parent_session_id", notnull: 1 }),
                 expect.objectContaining({ name: "provider", notnull: 1 }),
@@ -45,9 +43,7 @@ describe("session ownership migration", () => {
     it("isolates legacy ownership whose direct parent and provider cannot be inferred", () => {
         const database = legacyOwnershipDatabase();
         database
-            .prepare(
-                "INSERT INTO session_ownership VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            )
+            .prepare("INSERT INTO session_ownership VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
             .run(
                 "session-1",
                 "meeting-1",

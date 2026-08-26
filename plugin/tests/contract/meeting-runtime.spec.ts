@@ -68,7 +68,7 @@ describe("create/status meeting runtime", () => {
         const created = await runtime.createMeeting(input, captain, new AbortController().signal);
         expect(created).toMatchObject({
             ok: true,
-            result: { meetingVersion: 0, status: "created" }
+            result: { meetingVersion: 1, status: "running" }
         });
         if (!created.ok) throw new Error("create failed");
 
@@ -78,13 +78,13 @@ describe("create/status meeting runtime", () => {
         );
         expect(status).toMatchObject({
             ok: true,
-            result: { status: "created", meetingVersion: 0 }
+            result: { status: "running", meetingVersion: 1 }
         });
 
         await expect(
             runtime.getStatus(
                 { protocolVersion: 1, meetingId: created.result.meetingId },
-                { ...captain, meetingId: "other-meeting" }
+                { ...captain, sessionId: "other-captain" }
             )
         ).resolves.toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
     });

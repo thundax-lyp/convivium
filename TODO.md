@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/package.json`：接入分层 Runtime 验证入口
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T7/T8
-  - 处理动作：让默认 `verify` 确定性覆盖 format/lint/typecheck/tests/build/package checks；增加独立 `smoke:profile`，并可增加显式 `verify:runtime` 顺序组合两层。
-  - 验收点：`pnpm verify` 不要求模型凭据且不使用空测试占位；`pnpm smoke:profile`/`verify:runtime` 不隐藏外部验证失败。
-
 - [ ] `docs/40-readiness/`：记录 DSH Runtime 竖切 readiness 证据
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`、`docs/40-readiness/CONVIVIUM-FRAMEWORK-EVIDENCE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T8
