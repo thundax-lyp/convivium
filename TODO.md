@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/dsh/session-adapter.ts`：实现 provider capability adapter
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
-  - 处理动作：封装 `getProvider()`、provider name 和 `prepareContinuable` 方法检查。
-  - 验收点：检查本身不创建 Session；能力缺失明确失败；真实启动只在创建方法和 T1 smoke 中发生。
-
 - [ ] `plugin/src/dsh/session-adapter.ts`：实现 Manager Session 创建
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3

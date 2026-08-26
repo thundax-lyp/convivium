@@ -18,3 +18,4 @@ export {
     serializeSessionProvisioningEnvelope,
     type SessionProvisioningEnvelope
 } from "./provisioning.js";
+export { requireContinuableProvider, type SubagentProviderRegistry } from "./session-adapter.js";

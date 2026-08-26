@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { apply, assertContinuableProvider, inject } from "../../src/index.js";
+import { requireContinuableProvider } from "../../src/dsh/index.js";
 
 const config = {
     provider: "spawn",
@@ -68,5 +69,12 @@ describe("Convivium continuable provider gate", () => {
 
         expect(assertContinuableProvider(ctx as never, "spawn")).toBe(provider);
         expect(() => apply(ctx as never, config)).not.toThrow();
+    });
+
+    it("exposes the same non-creating capability gate through the session adapter", () => {
+        const provider = { name: "spawn", prepareContinuable: async () => ({}) };
+        expect(requireContinuableProvider({ getProvider: () => provider } as never, "spawn")).toBe(
+            provider
+        );
     });
 });
