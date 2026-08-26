@@ -20,12 +20,6 @@
   - 处理动作：运行 `verify:environment`、`verify:contract`、`typecheck` 和 `test`。
   - 验收点：四个命令均通过并记录输出。
 
-- [ ] `plugin/profile`：定位 continuable provider 候选
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 确认 provider 是正式接入前置条件；T1
-  - 处理动作：从当前 DSH 安装、官方文档和类型/源码确定 provider package、provider name 和版本。
-  - 验收点：候选均有官方 package/source/version 依据；不使用 mock、自制 provider 或仅凭包名猜测。
-
 - [ ] `plugin/profile`：建立临时 DSH profile
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T1
