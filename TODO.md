@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/runtime/outbox-worker.ts`：实现提交后 DSH dispatch
-  - 依据文档：`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4/T6
-  - 处理动作：使用 bounded poll、lease、deliveryId 和 retry 状态在 transaction commit 后执行 DSH 副作用。
-  - 验收点：DSH 调用不在 SQLite transaction 内；重复 claim、lease expiry 和 retry 不造成重复 transcript。
-
 - [ ] `plugin/src/tools/register-tools.ts`：注册 create/status tools
   - 依据文档：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；2026-08-26 history audit
