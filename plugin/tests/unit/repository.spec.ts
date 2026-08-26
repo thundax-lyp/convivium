@@ -11,7 +11,7 @@ import {
     type RepositoryAuthorizationValidator,
     type RepositoryCommand
 } from "../../src/repository/index.js";
-import { migrate } from "../../src/repository/migrations.js";
+import { CURRENT_SCHEMA_VERSION, migrate } from "../../src/repository/migrations.js";
 
 const roots: string[] = [];
 const authorization: CommandAuthorization = {
@@ -111,7 +111,9 @@ describe("MeetingRepository", () => {
         await repository.recordSessionOwnership(
             {
                 sessionId: "session-1",
+                parentSessionId: "captain-session-1",
                 sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+                provider: "test-continuable-provider",
                 role: "manager",
                 lifecycleStatus: "provisioning",
                 capabilityStatus: "active"
@@ -379,7 +381,9 @@ describe("MeetingRepository", () => {
         await repository.recordSessionOwnership(
             {
                 sessionId: "session-1",
+                parentSessionId: "captain-session-1",
                 sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+                provider: "test-continuable-provider",
                 role: "manager",
                 lifecycleStatus: "provisioning",
                 capabilityStatus: "active"
@@ -389,7 +393,9 @@ describe("MeetingRepository", () => {
         await repository.recordSessionOwnership(
             {
                 sessionId: "session-1",
+                parentSessionId: "captain-session-1",
                 sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+                provider: "test-continuable-provider",
                 role: "manager",
                 lifecycleStatus: "closed",
                 capabilityStatus: "revoked"
@@ -400,7 +406,9 @@ describe("MeetingRepository", () => {
             repository.recordSessionOwnership(
                 {
                     sessionId: "session-1",
+                    parentSessionId: "captain-session-1",
                     sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+                    provider: "test-continuable-provider",
                     role: "manager",
                     lifecycleStatus: "active",
                     capabilityStatus: "active"
@@ -584,7 +592,7 @@ PRAGMA user_version = 2;
 
         migrate(db);
         expect(db.prepare("PRAGMA user_version").get() as { user_version: number }).toMatchObject({
-            user_version: 4
+            user_version: CURRENT_SCHEMA_VERSION
         });
         expect(
             db
@@ -646,7 +654,10 @@ PRAGMA user_version = 2;
         });
         await repository.recordSessionOwnership({
             sessionId: "session-1",
+            parentSessionId: "captain-session-1",
             sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+            provider: "test-continuable-provider",
+            initialMessageId: "initial-message-1",
             role: "manager",
             lifecycleStatus: "active",
             capabilityStatus: "active"
@@ -679,7 +690,9 @@ PRAGMA user_version = 2;
         });
         await repository.recordSessionOwnership({
             sessionId: "session-1",
+            parentSessionId: "captain-session-1",
             sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+            provider: "test-continuable-provider",
             role: "manager",
             lifecycleStatus: "provisioning",
             capabilityStatus: "active"
@@ -688,7 +701,10 @@ PRAGMA user_version = 2;
         await expect(
             repository.recordSessionOwnership({
                 sessionId: "session-1",
+                parentSessionId: "captain-session-1",
                 sessionLabel: "convivium:meeting-participant:team-1:meeting-1:participant-1",
+                provider: "test-continuable-provider",
+                initialMessageId: "initial-message-1",
                 role: "participant",
                 participantId: "participant-1",
                 lifecycleStatus: "active",
