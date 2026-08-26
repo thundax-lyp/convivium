@@ -21,7 +21,9 @@ export {
 export {
     requireContinuableProvider,
     startManagerSession,
+    startParticipantSession,
     type ContinuableStarter,
     type StartManagerSessionInput,
+    type StartParticipantSessionInput,
     type SubagentProviderRegistry
 } from "./session-adapter.js";

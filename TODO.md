@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/dsh/session-adapter.ts`：实现 Participant Session 创建
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
-  - 处理动作：使用预留 childId、Captain parent、provider 和 provisioning envelope 创建独立 Participant Session。
-  - 验收点：三个 session id 唯一并与 participantId 一一绑定；首次消息不授予 speaker capability。
-
 - [ ] `plugin/src/dsh/session-adapter.ts`：实现 continuable followup
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3

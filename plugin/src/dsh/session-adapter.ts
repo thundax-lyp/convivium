@@ -88,3 +88,51 @@ export async function startManagerSession(
     }
     return started;
 }
+
+export interface StartParticipantSessionInput {
+    readonly runtime: ContinuableStarter;
+    readonly provider: string;
+    readonly parent: Agent;
+    readonly childId: SessionId;
+    readonly teamId: string;
+    readonly meetingId: string;
+    readonly participantId: string;
+    readonly signal: AbortSignal;
+}
+
+export async function startParticipantSession(
+    input: StartParticipantSessionInput
+): Promise<ContinuableStart> {
+    const label = encodeMeetingSessionLabel({
+        role: "participant",
+        teamId: input.teamId,
+        meetingId: input.meetingId,
+        participantId: input.participantId
+    });
+    const prompt: ContinuableStartSpec["request"]["prompt"] = [
+        {
+            type: "text",
+            text: serializeSessionProvisioningEnvelope(
+                createSessionProvisioningEnvelope({
+                    role: "participant",
+                    teamId: input.teamId,
+                    meetingId: input.meetingId,
+                    participantId: input.participantId
+                })
+            )
+        }
+    ];
+    const started = await input.runtime.startContinuable({
+        provider: input.provider,
+        label,
+        childId: input.childId,
+        request: { parent: input.parent, prompt },
+        signal: input.signal
+    });
+    if (started.childId !== input.childId) {
+        throw new Error(
+            "Continuable provider returned a Participant childId different from ownership."
+        );
+    }
+    return started;
+}
