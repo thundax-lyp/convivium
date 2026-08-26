@@ -224,6 +224,10 @@ export interface ArchiveInput {
     archivedAt?: number;
 }
 
+export interface ArchiveFinalizeInput {
+    archivedAt: number;
+}
+
 export interface MeetingState {
     id: string;
     teamId: string;
@@ -265,7 +269,7 @@ export interface TransitionContext {
     now: number;
     reason?: string;
     termination?: MeetingTermination;
-    archive?: ArchiveInput;
+    archive?: ArchiveInput | ArchiveFinalizeInput;
 }
 
 export interface DomainEvent {

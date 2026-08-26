@@ -81,6 +81,71 @@ function event(type: string, payload: Record<string, unknown>): DomainEffect {
     return { events: [{ type, payload }] };
 }
 
+function meetingEventType(from: MeetingStatus, to: MeetingStatus): string {
+    if (to === "paused") return "meeting.paused";
+    if (to === "waiting") return "meeting.waiting";
+    if (to === "running") return from === "paused" ? "meeting.resumed" : "meeting.replanned";
+    if (to === "converging") return "meeting.replanned";
+    if (["completed", "partial", "no_consensus", "cancelled", "failed"].includes(to))
+        return "meeting.ended";
+    if (to === "archiving") return "meeting.archiving";
+    if (to === "archived") return "meeting.archived";
+    return "meeting.created";
+}
+
+function isArchiveInput(archive: TransitionContext["archive"]): archive is ArchiveInput {
+    return Boolean(archive && "package" in archive);
+}
+
+function revokeActiveAttempts(state: MeetingState): {
+    currentTurn: MeetingTurn | undefined;
+    manager: MeetingState["manager"];
+    events: DomainEffect["events"];
+} {
+    const events: DomainEffect["events"] = [];
+    const currentTurn = state.currentTurn
+        ? {
+              ...state.currentTurn,
+              status:
+                  state.currentTurn.status === "planned" || state.currentTurn.status === "running"
+                      ? ("truncated" as const)
+                      : state.currentTurn.status,
+              steps: state.currentTurn.steps.map((step) => {
+                  const attempt = step.attempt;
+                  if (!attempt || !["assigned", "running"].includes(attempt.status)) return step;
+                  events.push({
+                      type: "speaker_attempt.revoked",
+                      payload: { attemptId: attempt.attemptId, meetingId: state.id }
+                  });
+                  return {
+                      ...step,
+                      status: ["assigned", "running"].includes(step.status)
+                          ? ("revoked" as const)
+                          : step.status,
+                      attempt: { ...attempt, status: "revoked" as const }
+                  };
+              })
+          }
+        : undefined;
+    const planningAttempt = state.manager.currentPlanningAttempt;
+    const activePlanning =
+        planningAttempt && ["pending", "running"].includes(planningAttempt.status);
+    const manager = activePlanning
+        ? {
+              ...state.manager,
+              status: "idle" as const,
+              currentPlanningAttempt: { ...planningAttempt, status: "revoked" as const }
+          }
+        : state.manager;
+    if (activePlanning) {
+        events.push({
+            type: "manager_attempt.revoked",
+            payload: { planningAttemptId: planningAttempt.id, meetingId: state.id }
+        });
+    }
+    return { currentTurn, manager, events };
+}
+
 function assertTransition<T extends string>(
     entityType: "meeting" | "turn" | "step" | "attempt" | "manager_attempt",
     entityId: string,
@@ -122,6 +187,21 @@ function sameTermination(
     );
 }
 
+const terminationCodesByStatus: Readonly<Record<MeetingStatus, readonly string[]>> = {
+    created: [],
+    running: [],
+    waiting: [],
+    paused: [],
+    converging: [],
+    completed: ["objective_satisfied"],
+    partial: ["captain_accepted", "max_turns", "message_limit", "time_limit"],
+    no_consensus: ["no_consensus"],
+    cancelled: ["user_cancelled"],
+    failed: ["all_participants_unavailable", "internal_error"],
+    archiving: [],
+    archived: []
+};
+
 function snapshotArchive(input: ArchiveInput): ArchiveRecord {
     return {
         package: structuredClone(input.package),
@@ -157,10 +237,10 @@ export function transitionMeeting(
         );
     }
 
-    if (context.archive && to !== "archived") {
+    if (context.archive && to !== "archiving" && to !== "archived") {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
-            `archive is only valid when entering archived`,
+            `archive is only valid when materializing or finalizing archived`,
             {
                 entityType: "meeting",
                 entityId: state.id,
@@ -183,13 +263,31 @@ export function transitionMeeting(
                 }
             );
         }
+        if (!terminationCodesByStatus[to].includes(context.termination.code)) {
+            throw new DomainError(
+                "INVALID_ENTITY_STATE",
+                `termination code ${context.termination.code} does not match ${to}`,
+                { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
+            );
+        }
     }
 
     if (to === "paused") requireReason(context, state, to);
 
     if (
+        to === "archiving" &&
+        (!isArchiveInput(context.archive) || context.archive.archivedAt !== undefined)
+    ) {
+        throw new DomainError(
+            "MISSING_ARCHIVE",
+            `meeting ${state.id} requires a materialized archive`,
+            { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
+        );
+    }
+
+    if (
         to === "archived" &&
-        (!context.archive?.package || context.archive.archivedAt === undefined)
+        (!state.archive?.package || context.archive?.archivedAt === undefined)
     ) {
         throw new DomainError(
             "MISSING_ARCHIVE",
@@ -204,7 +302,9 @@ export function transitionMeeting(
     }
 
     if (to === "archived") {
-        const archivePackage = context.archive?.package;
+        const archivePackage = isArchiveInput(context.archive)
+            ? context.archive.package
+            : state.archive?.package;
         if (
             archivePackage?.meetingId !== state.id ||
             archivePackage.teamId !== state.teamId ||
@@ -223,6 +323,7 @@ export function transitionMeeting(
         }
     }
 
+    const pausedWork = to === "paused" ? revokeActiveAttempts(state) : undefined;
     const next: MeetingState = {
         ...state,
         status: to,
@@ -235,18 +336,37 @@ export function transitionMeeting(
               }
             : {}),
         ...(context.termination ? { termination: context.termination } : {}),
-        ...(context.archive ? { archive: snapshotArchive(context.archive) } : {})
+        ...(pausedWork ? { currentTurn: pausedWork.currentTurn, manager: pausedWork.manager } : {}),
+        ...(to === "archiving" && isArchiveInput(context.archive)
+            ? { archive: snapshotArchive(context.archive) }
+            : {}),
+        ...(to === "archived" && state.archive?.package
+            ? {
+                  archive: {
+                      package: state.archive.package,
+                      archivedAt: context.archive?.archivedAt
+                  }
+              }
+            : {})
     };
 
     return {
         state: next,
-        effect: event("meeting.status_changed", {
-            meetingId: state.id,
-            from: state.status,
-            to,
-            meetingVersion: next.version,
-            reason: context.reason
-        })
+        effect: {
+            events: [
+                {
+                    type: meetingEventType(state.status, to),
+                    payload: {
+                        meetingId: state.id,
+                        from: state.status,
+                        to,
+                        meetingVersion: next.version,
+                        reason: context.reason
+                    }
+                },
+                ...(pausedWork?.events ?? [])
+            ]
+        }
     };
 }
 

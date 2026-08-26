@@ -49,10 +49,16 @@ function meeting(status: MeetingState["status"] = "created"): MeetingState {
         version: 3,
         createdAt: now - 1000,
         updatedAt: now - 1000,
-        termination:
-            status === "archiving"
-                ? { code: "objective_satisfied", reason: "done", endedAt: now }
-                : undefined
+        termination: [
+            "completed",
+            "partial",
+            "no_consensus",
+            "cancelled",
+            "failed",
+            "archiving"
+        ].includes(status)
+            ? { code: "objective_satisfied", reason: "done", endedAt: now }
+            : undefined
     };
 }
 
@@ -89,7 +95,7 @@ describe("meeting transitions", () => {
         expect(result.state.updatedAt).toBe(now);
         expect(result.effect.events).toEqual([
             {
-                type: "meeting.status_changed",
+                type: "meeting.replanned",
                 payload: {
                     meetingId: "meeting-1",
                     from: "created",
@@ -120,6 +126,42 @@ describe("meeting transitions", () => {
         expect(result.state.pauseReason).toBe("captain request");
     });
 
+    it("revokes active speaker and manager attempts while truncating the turn", () => {
+        const state = meeting("running");
+        state.currentTurn = {
+            id: "turn-1",
+            status: "running",
+            currentStepIndex: 0,
+            steps: [
+                {
+                    id: "step-1",
+                    status: "running",
+                    attempt: {
+                        attemptId: "attempt-1",
+                        status: "running",
+                        deliveryStatus: "pending"
+                    }
+                }
+            ]
+        };
+        state.manager = {
+            status: "planning",
+            currentPlanningAttempt: { id: "plan-1", status: "running" }
+        };
+
+        const result = transitionMeeting(state, "paused", { now, reason: "captain request" });
+
+        expect(result.state.currentTurn?.status).toBe("truncated");
+        expect(result.state.currentTurn?.steps[0].status).toBe("revoked");
+        expect(result.state.currentTurn?.steps[0].attempt?.status).toBe("revoked");
+        expect(result.state.manager.currentPlanningAttempt?.status).toBe("revoked");
+        expect(result.effect.events.map(({ type }) => type)).toEqual([
+            "meeting.paused",
+            "speaker_attempt.revoked",
+            "manager_attempt.revoked"
+        ]);
+    });
+
     it("does not attach termination or archive data to non-matching transitions", () => {
         const termination = { code: "user_cancelled" as const, reason: "cancelled", endedAt: now };
         expect(() =>
@@ -147,6 +189,12 @@ describe("meeting transitions", () => {
             }
         });
         expect(result.state.termination?.code).toBe("objective_satisfied");
+        expect(() =>
+            transitionMeeting(meeting("running"), "completed", {
+                now,
+                termination: { code: "user_cancelled", reason: "cancelled", endedAt: now }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
 
     it("requires a materialized archive before archived", () => {
@@ -155,9 +203,13 @@ describe("meeting transitions", () => {
             expect.objectContaining({ code: "MISSING_ARCHIVE" })
         );
 
-        const result = transitionMeeting(meeting("archiving"), "archived", {
+        const materialized = transitionMeeting(meeting("completed"), "archiving", {
             now,
-            archive: { package: archivePackage(), archivedAt: now }
+            archive: { package: archivePackage() }
+        }).state;
+        const result = transitionMeeting(materialized, "archived", {
+            now,
+            archive: { archivedAt: now }
         });
         expect(result.state.archive?.package.meetingId).toBe("meeting-1");
         expect(result.state.archive?.archivedAt).toBe(now);
@@ -167,16 +219,30 @@ describe("meeting transitions", () => {
         const archive = archivePackage();
         archive.meetingId = "meeting-2";
         expect(() =>
-            transitionMeeting(meeting("archiving"), "archived", {
-                now,
-                archive: { package: archive, archivedAt: now }
-            })
+            transitionMeeting(
+                transitionMeeting(meeting("completed"), "archiving", {
+                    now,
+                    archive: { package: archivePackage() }
+                }).state,
+                "archived",
+                {
+                    now,
+                    archive: { package: archive, archivedAt: now }
+                }
+            )
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
 
     it("snapshots the archive so later input mutation cannot change committed state", () => {
         const input = { package: archivePackage(), archivedAt: now };
-        const result = transitionMeeting(meeting("archiving"), "archived", { now, archive: input });
+        const materialized = transitionMeeting(meeting("completed"), "archiving", {
+            now,
+            archive: { package: input.package }
+        }).state;
+        const result = transitionMeeting(materialized, "archived", {
+            now,
+            archive: { archivedAt: now }
+        });
 
         input.package.finalSummary = "mutated after transition";
         expect(result.state.archive?.package.finalSummary).toBe("summary");
