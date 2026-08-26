@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     DomainError,
     createMeetingState,
+    planRoundRobinTurn,
     type CanonicalIdAllocator,
     type CreateMeetingSpec
 } from "../../../src/domain/index.js";
@@ -146,5 +147,54 @@ describe("canonical meeting creation", () => {
         }
 
         expect(allocations).toBe(0);
+    });
+
+    it("plans a canonical round-robin turn in participant order", () => {
+        const state = createMeetingState(input({ selectionMode: "round_robin" }), ids);
+        state.activeAgendaItemId = "agenda:agenda-1";
+        state.participants.push({
+            id: "participant:participant-3",
+            displayName: "Three",
+            status: "available",
+            consecutiveSpeeches: 0,
+            consecutiveAttemptFailures: 0,
+            totalSpeeches: 0,
+            lastDeliveredSeq: 0,
+            lastAcknowledgedSeq: 0
+        });
+
+        const plan = planRoundRobinTurn(
+            state,
+            { turnId: "turn-1", stepId: (participantId) => `step:${participantId}` },
+            200
+        );
+
+        expect(plan).toMatchObject({
+            id: "turn-1",
+            seq: 1,
+            agendaItemId: "agenda:agenda-1",
+            intent: "explore",
+            objective: "Resolve it",
+            expectedOutputs: ["done"],
+            prohibitedTopics: ["outside"],
+            plan: ["participant:participant-1", "participant:participant-2"],
+            createdAt: 200
+        });
+        expect(plan.steps).toEqual([
+            {
+                id: "step:participant:participant-1",
+                speaker: "participant:participant-1",
+                instruction: "Address the active agenda: Resolve it",
+                reason: "round_robin_fallback",
+                status: "pending"
+            },
+            {
+                id: "step:participant:participant-2",
+                speaker: "participant:participant-2",
+                instruction: "Address the active agenda: Resolve it",
+                reason: "round_robin_fallback",
+                status: "pending"
+            }
+        ]);
     });
 });

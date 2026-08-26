@@ -74,12 +74,6 @@
   - 处理动作：使用持久 parentSessionId 调用 `listChildren`/`listDescendants`，与 repository-bound meetingId、ownership 和完整 label 交叉校验。
   - 验收点：缺少任一归属证明的 Session 只记录诊断、不执行 followup、interrupt 或 drain。
 
-- [ ] `plugin/src/domain/planning.ts`：实现 round-robin Turn plan
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4
-  - 处理动作：为 active agenda 和 Participant 顺序生成 canonical Turn、SpeakerStep 和 instruction。
-  - 验收点：Turn 含 agendaItemId/intent/objective/expectedOutputs/prohibitedTopics；计划固定且无重复。
-
 - [ ] `plugin/src/domain/transitions.ts`：补齐 speaker assign/submit 转换
   - 依据文档：`docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4
