@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/runtime/meeting-runtime.ts`：实现会议创建应用服务
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4
-  - 处理动作：执行 bootstrap → 四条 provisioning ownership → 四个 Session start → `completeCreate()`，并只用 provisioning envelope 作为首次 prompt。
-  - 验收点：成功时公开 Meeting 与四条 active ownership 同时可读；失败时不形成部分可用 Meeting。
-
 - [ ] `plugin/src/runtime/turn-runner.ts`：实现单 active attempt 调度
   - 依据文档：`docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4
