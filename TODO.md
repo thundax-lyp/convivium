@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/index.ts`：实现启动期 DSH 版本与 provider 检查
-  - 依据文档：`docs/00-governance/ARCHITECTURE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T2
-  - 处理动作：在 T1 已证明的注册顺序下使用 `getProvider()` 检查 provider 与 `prepareContinuable`；激活期不调用 `startContinuable()`。
-  - 验收点：能力缺失时不注册会议 tools；错误包含版本或 provider 原因；不会创建探针 Session。
-
 - [ ] `plugin/src/index.ts`：绑定插件注册与卸载 disposer
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T2
