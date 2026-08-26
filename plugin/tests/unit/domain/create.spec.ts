@@ -197,4 +197,42 @@ describe("canonical meeting creation", () => {
             }
         ]);
     });
+
+    it("plans only available unique speakers and refuses a second active plan", () => {
+        const state = createMeetingState(input(), ids);
+        state.activeAgendaItemId = "agenda:agenda-1";
+        state.participants[1].status = "busy";
+        const plan = planRoundRobinTurn(
+            state,
+            {
+                turnId: "turn-1",
+                stepId: (participantId, index) => `step:${index}:${participantId}`
+            },
+            200
+        );
+
+        expect(plan.plan).toEqual(["participant:participant-1"]);
+        expect(plan.steps).toHaveLength(1);
+        state.currentTurn = plan;
+        expect(() =>
+            planRoundRobinTurn(state, { turnId: "turn-2", stepId: () => "step" }, 201)
+        ).toThrow(expect.objectContaining<Partial<DomainError>>({ code: "INVALID_ENTITY_STATE" }));
+    });
+
+    it("requires an active agenda and at least one available speaker", () => {
+        const state = createMeetingState(input(), ids);
+        expect(() =>
+            planRoundRobinTurn(state, { turnId: "turn-1", stepId: () => "step" }, 200)
+        ).toThrowError(
+            expect.objectContaining<Partial<DomainError>>({ code: "INVALID_ENTITY_STATE" })
+        );
+
+        state.activeAgendaItemId = "agenda:agenda-1";
+        for (const participant of state.participants) participant.status = "unavailable";
+        expect(() =>
+            planRoundRobinTurn(state, { turnId: "turn-1", stepId: () => "step" }, 200)
+        ).toThrowError(
+            expect.objectContaining<Partial<DomainError>>({ code: "INVALID_ENTITY_STATE" })
+        );
+    });
 });

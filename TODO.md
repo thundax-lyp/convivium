@@ -50,12 +50,6 @@
   - 处理动作：覆盖 capability check、reserved childId、首次 prompt、followup、interrupt、drain 和 inspection。
   - 验收点：成功、provider 缺失、错误 parent、错误 label、revoked ownership 和精确清理均有断言。
 
-- [ ] `plugin/tests/unit/domain`：验证 canonical create 与 round-robin
-  - 依据文档：`docs/30-designs/DOMAIN-MODEL-DESIGN.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 同意 review 建议；T4
-  - 处理动作：覆盖完整 create mapping、agenda selection、A/B/C plan 和 unsupported capability。
-  - 验收点：canonical required fields 完整；unsupported 输入无 effect；plan 有序无重复。
-
 - [ ] `plugin/tests/integration/runtime`：验证创建与串行 Turn
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4
