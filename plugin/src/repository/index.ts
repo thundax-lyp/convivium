@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { RepositoryError } from "./errors.js";
 import { CURRENT_SCHEMA_VERSION, migrate } from "./migrations.js";
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -14,6 +15,9 @@ export type MeetingEventType =
     | "speaker.assigned"
     | "speaker_attempt.revoked"
     | "message.added"
+    | "hand_raise.created"
+    | "background_task.linked"
+    | "decision.added"
     | "meeting.paused"
     | "meeting.waiting"
     | "meeting.resumed"
@@ -57,15 +61,33 @@ export interface TransitionResult<T> {
 export interface RepositoryCommand<T> {
     requestId: string;
     commandKind: string;
-    callerBinding: string;
+    authorization: CommandAuthorization;
     requestHash: string;
     expectedMeetingVersion: number;
     transition: (snapshot: MeetingSnapshot) => TransitionResult<T>;
 }
 
+export interface CommandAuthorization {
+    callerBinding: string;
+    capabilityId: string;
+    attemptId?: string;
+}
+
+export interface RepositoryAuthorizationValidator {
+    validateCreate(input: {
+        teamId: string;
+        meetingId: string;
+        authorization: CommandAuthorization;
+    }): void;
+    validateCommand(input: {
+        snapshot: MeetingSnapshot;
+        command: Pick<RepositoryCommand<unknown>, "commandKind" | "authorization">;
+    }): void;
+}
+
 export interface CreateMeetingInput {
     requestId: string;
-    callerBinding: string;
+    authorization: CommandAuthorization;
     requestHash: string;
     initialState: JsonObject;
     outbox?: OutboxInput[];
@@ -116,6 +138,7 @@ export interface CompleteOutboxInput {
     leaseOwner: string;
     leaseToken: string;
     completion: OutboxCompletion;
+    now?: number;
 }
 
 export interface OutboxCompletionResult {
@@ -129,34 +152,37 @@ export interface RecoverInput {
 
 export interface RecoveryResult {
     snapshot: MeetingSnapshot;
+    bootstrap: MeetingBootstrap;
+    sessionOwnership: SessionOwnership[];
     reclaimedOutbox: number;
     pendingOutbox: number;
 }
 
-export type RepositoryErrorCode =
-    | "MEETING_NOT_FOUND"
-    | "MEETING_EXISTS"
-    | "VERSION_CONFLICT"
-    | "IDEMPOTENCY_CONFLICT"
-    | "SQLITE_BUSY"
-    | "SCHEMA_VERSION_UNSUPPORTED"
-    | "CORRUPT_DATABASE"
-    | "LEASE_LOST"
-    | "OUTBOX_NOT_FOUND"
-    | "INVALID_STATE"
-    | "CLOSED";
+export interface MeetingBootstrap {
+    status: "pending" | "provisioning" | "ready" | "failed";
+    createdAt: number;
+    updatedAt: number;
+    failureCode?: string;
+}
 
-export class RepositoryError extends Error {
-    readonly name = "RepositoryError";
+export interface SessionOwnership {
+    sessionId: string;
+    sessionLabel: string;
+    role: "manager" | "participant";
+    participantId?: string;
+    lifecycleStatus: "provisioning" | "active" | "closed";
+    capabilityStatus: "active" | "revoked";
+    createdAt: number;
+    updatedAt: number;
+}
 
-    constructor(
-        readonly code: RepositoryErrorCode,
-        readonly retryable: boolean,
-        readonly meetingId: string,
-        message: string
-    ) {
-        super(message);
-    }
+export interface SessionOwnershipInput {
+    sessionId: string;
+    sessionLabel: string;
+    role: "manager" | "participant";
+    participantId?: string;
+    lifecycleStatus: SessionOwnership["lifecycleStatus"];
+    capabilityStatus: SessionOwnership["capabilityStatus"];
 }
 
 interface MeetingRow {
@@ -187,6 +213,24 @@ interface OutboxRow {
     lease_deadline: number | null;
 }
 
+interface BootstrapRow {
+    status: MeetingBootstrap["status"];
+    created_at: number;
+    updated_at: number;
+    failure_code: string | null;
+}
+
+interface SessionOwnershipRow {
+    session_id: string;
+    session_label: string;
+    role: SessionOwnership["role"];
+    participant_id: string | null;
+    lifecycle_status: SessionOwnership["lifecycleStatus"];
+    capability_status: SessionOwnership["capabilityStatus"];
+    created_at: number;
+    updated_at: number;
+}
+
 function json(value: JsonValue | unknown): string {
     return JSON.stringify(value);
 }
@@ -210,10 +254,52 @@ function toSnapshot(row: MeetingRow): MeetingSnapshot {
     };
 }
 
+function toBootstrap(row: BootstrapRow): MeetingBootstrap {
+    return {
+        status: row.status,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        ...(row.failure_code ? { failureCode: row.failure_code } : {})
+    };
+}
+
+function toSessionOwnership(row: SessionOwnershipRow): SessionOwnership {
+    return {
+        sessionId: row.session_id,
+        sessionLabel: row.session_label,
+        role: row.role,
+        ...(row.participant_id ? { participantId: row.participant_id } : {}),
+        lifecycleStatus: row.lifecycle_status,
+        capabilityStatus: row.capability_status,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+    };
+}
+
 function sqliteError(error: unknown, meetingId: string): RepositoryError {
     const message = error instanceof Error ? error.message : String(error);
     if (/busy|locked/i.test(message)) {
         return new RepositoryError("SQLITE_BUSY", true, meetingId, "SQLite is busy");
+    }
+    if (
+        /UNIQUE constraint failed|CHECK constraint failed|FOREIGN KEY constraint failed/i.test(
+            message
+        )
+    ) {
+        return new RepositoryError(
+            "CONSTRAINT_VIOLATION",
+            false,
+            meetingId,
+            "SQLite constraint rejected the operation"
+        );
+    }
+    if (/cannot be bound|NOT NULL constraint failed|datatype mismatch/i.test(message)) {
+        return new RepositoryError(
+            "INVALID_INPUT",
+            false,
+            meetingId,
+            "Repository input is invalid"
+        );
     }
     return new RepositoryError("CORRUPT_DATABASE", false, meetingId, "SQLite operation failed");
 }
@@ -227,6 +313,7 @@ export class MeetingRepository {
 
     private constructor(
         private readonly db: DatabaseSync,
+        private readonly authorizationValidator: RepositoryAuthorizationValidator,
         readonly teamId: string,
         readonly meetingId: string
     ) {}
@@ -235,6 +322,7 @@ export class MeetingRepository {
         databasePath: string;
         teamId: string;
         meetingId: string;
+        authorizationValidator: RepositoryAuthorizationValidator;
     }): Promise<MeetingRepository> {
         await mkdir(dirname(input.databasePath), { recursive: true });
         const db = new DatabaseSync(input.databasePath);
@@ -243,7 +331,12 @@ export class MeetingRepository {
                 "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 2500;"
             );
             migrate(db);
-            return new MeetingRepository(db, input.teamId, input.meetingId);
+            return new MeetingRepository(
+                db,
+                input.authorizationValidator,
+                input.teamId,
+                input.meetingId
+            );
         } catch (error) {
             db.close();
             if (error instanceof RepositoryError) throw error;
@@ -272,17 +365,49 @@ export class MeetingRepository {
         return toSnapshot(meeting);
     }
 
+    private getBootstrap(): MeetingBootstrap {
+        const bootstrap = row<BootstrapRow>(
+            this.db
+                .prepare("SELECT * FROM meeting_bootstrap WHERE meeting_id = ?")
+                .get(this.meetingId)
+        );
+        if (!bootstrap) {
+            throw new RepositoryError(
+                "CORRUPT_DATABASE",
+                false,
+                this.meetingId,
+                "Meeting bootstrap record does not exist"
+            );
+        }
+        return toBootstrap(bootstrap);
+    }
+
+    private listSessionOwnership(): SessionOwnership[] {
+        return (
+            this.db
+                .prepare(
+                    "SELECT * FROM session_ownership WHERE meeting_id = ? ORDER BY created_at, session_id"
+                )
+                .all(this.meetingId) as unknown as SessionOwnershipRow[]
+        ).map(toSessionOwnership);
+    }
+
     async create(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>> {
         this.ensureOpen();
         const now = input.createdAt ?? Date.now();
         try {
             this.db.exec("BEGIN IMMEDIATE");
+            this.authorizationValidator.validateCreate({
+                teamId: this.teamId,
+                meetingId: this.meetingId,
+                authorization: input.authorization
+            });
             const existing = row<ReceiptRow>(
                 this.db
                     .prepare(
                         "SELECT * FROM idempotency_receipts WHERE request_id = ? AND command_kind = ? AND caller_binding = ?"
                     )
-                    .get(input.requestId, "create_meeting", input.callerBinding)
+                    .get(input.requestId, "create_meeting", input.authorization.callerBinding)
             );
             if (existing) {
                 if (existing.request_hash !== input.requestHash) {
@@ -315,6 +440,11 @@ export class MeetingRepository {
                     "INSERT INTO meetings(team_id, meeting_id, version, state_json, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?)"
                 )
                 .run(this.teamId, this.meetingId, json(input.initialState), now, now);
+            this.db
+                .prepare(
+                    "INSERT INTO meeting_bootstrap(meeting_id, status, created_at, updated_at) VALUES (?, 'pending', ?, ?)"
+                )
+                .run(this.meetingId, now, now);
             const eventSeq = this.insertEvent(
                 { type: "meeting.created", payload: { meetingId: this.meetingId } },
                 0,
@@ -328,7 +458,7 @@ export class MeetingRepository {
             this.insertReceipt(
                 input.requestId,
                 "create_meeting",
-                input.callerBinding,
+                input.authorization.callerBinding,
                 input.requestHash,
                 result,
                 [eventSeq],
@@ -354,17 +484,98 @@ export class MeetingRepository {
         return this.getMeeting();
     }
 
+    async updateBootstrap(input: {
+        status: MeetingBootstrap["status"];
+        failureCode?: string;
+        now?: number;
+    }): Promise<MeetingBootstrap> {
+        this.ensureOpen();
+        const now = input.now ?? Date.now();
+        try {
+            this.db.exec("BEGIN IMMEDIATE");
+            this.getMeeting();
+            this.db
+                .prepare(
+                    "UPDATE meeting_bootstrap SET status = ?, updated_at = ?, failure_code = ? WHERE meeting_id = ?"
+                )
+                .run(input.status, now, input.failureCode ?? null, this.meetingId);
+            const bootstrap = this.getBootstrap();
+            this.db.exec("COMMIT");
+            return bootstrap;
+        } catch (error) {
+            this.rollback();
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
+    async recordSessionOwnership(
+        input: SessionOwnershipInput,
+        now = Date.now()
+    ): Promise<SessionOwnership> {
+        this.ensureOpen();
+        try {
+            this.db.exec("BEGIN IMMEDIATE");
+            this.getMeeting();
+            this.db
+                .prepare(
+                    "INSERT INTO session_ownership(session_id, meeting_id, session_label, role, participant_id, lifecycle_status, capability_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                )
+                .run(
+                    input.sessionId,
+                    this.meetingId,
+                    input.sessionLabel,
+                    input.role,
+                    input.participantId ?? null,
+                    input.lifecycleStatus,
+                    input.capabilityStatus,
+                    now,
+                    now
+                );
+            const record = row<SessionOwnershipRow>(
+                this.db
+                    .prepare("SELECT * FROM session_ownership WHERE session_id = ?")
+                    .get(input.sessionId)
+            );
+            this.db.exec("COMMIT");
+            if (!record)
+                throw new RepositoryError(
+                    "CORRUPT_DATABASE",
+                    false,
+                    this.meetingId,
+                    "Session ownership was not persisted"
+                );
+            return toSessionOwnership(record);
+        } catch (error) {
+            this.rollback();
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
     async execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>> {
         this.ensureOpen();
         const now = Date.now();
         try {
             this.db.exec("BEGIN IMMEDIATE");
+            const snapshot = this.getMeeting();
+            this.authorizationValidator.validateCommand({
+                snapshot,
+                command: {
+                    commandKind: command.commandKind,
+                    authorization: command.authorization
+                }
+            });
             const existing = row<ReceiptRow>(
                 this.db
                     .prepare(
                         "SELECT * FROM idempotency_receipts WHERE request_id = ? AND command_kind = ? AND caller_binding = ?"
                     )
-                    .get(command.requestId, command.commandKind, command.callerBinding)
+                    .get(
+                        command.requestId,
+                        command.commandKind,
+                        command.authorization.callerBinding
+                    )
             );
             if (existing) {
                 if (existing.request_hash !== command.requestHash) {
@@ -378,7 +589,6 @@ export class MeetingRepository {
                 this.db.exec("COMMIT");
                 return this.receiptResult(existing) as CommittedResult<T>;
             }
-            const snapshot = this.getMeeting();
             if (snapshot.version !== command.expectedMeetingVersion) {
                 throw new RepositoryError(
                     "VERSION_CONFLICT",
@@ -401,7 +611,7 @@ export class MeetingRepository {
             this.insertReceipt(
                 command.requestId,
                 command.commandKind,
-                command.callerBinding,
+                command.authorization.callerBinding,
                 command.requestHash,
                 transition.result,
                 eventSeqs,
@@ -463,7 +673,7 @@ export class MeetingRepository {
 
     async completeOutbox(input: CompleteOutboxInput): Promise<OutboxCompletionResult> {
         this.ensureOpen();
-        const now = Date.now();
+        const now = input.now ?? Date.now();
         try {
             this.db.exec("BEGIN IMMEDIATE");
             const current = row<OutboxRow>(
@@ -478,7 +688,9 @@ export class MeetingRepository {
                 );
             if (
                 current.lease_owner !== input.leaseOwner ||
-                current.lease_token !== input.leaseToken
+                current.lease_token !== input.leaseToken ||
+                current.lease_deadline === null ||
+                current.lease_deadline <= now
             ) {
                 throw new RepositoryError(
                     "LEASE_LOST",
@@ -534,9 +746,13 @@ export class MeetingRepository {
                     .get()
             );
             const snapshot = this.getMeeting();
+            const bootstrap = this.getBootstrap();
+            const sessionOwnership = this.listSessionOwnership();
             this.db.exec("COMMIT");
             return {
                 snapshot,
+                bootstrap,
+                sessionOwnership,
                 reclaimedOutbox: Number(reclaimed),
                 pendingOutbox: pending?.count ?? 0
             };
@@ -636,3 +852,4 @@ export class MeetingRepository {
 }
 
 export { CURRENT_SCHEMA_VERSION };
+export { RepositoryError, type RepositoryErrorCode } from "./errors.js";

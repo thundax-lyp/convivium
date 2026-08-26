@@ -1,15 +1,27 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import { afterEach, describe, expect, it } from "vitest";
 import {
     MeetingRepository,
     RepositoryError,
+    type CommandAuthorization,
+    type RepositoryAuthorizationValidator,
     type RepositoryCommand
 } from "../../src/repository/index.js";
 
 const roots: string[] = [];
+const authorization: CommandAuthorization = {
+    callerBinding: "captain:1",
+    capabilityId: "capability:1",
+    attemptId: "attempt:1"
+};
+const allowAuthorization: RepositoryAuthorizationValidator = {
+    validateCreate: () => undefined,
+    validateCommand: () => undefined
+};
 
 async function openRepository() {
     const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
@@ -17,7 +29,8 @@ async function openRepository() {
     return MeetingRepository.open({
         databasePath: join(root, "meeting.sqlite"),
         teamId: "team-1",
-        meetingId: "meeting-1"
+        meetingId: "meeting-1",
+        authorizationValidator: allowAuthorization
     });
 }
 
@@ -30,7 +43,7 @@ describe("MeetingRepository", () => {
         const repository = await openRepository();
         const input = {
             requestId: "request-1",
-            callerBinding: "captain:1",
+            authorization,
             requestHash: "hash-1",
             initialState: { status: "created" as const }
         };
@@ -47,7 +60,7 @@ describe("MeetingRepository", () => {
         const repository = await openRepository();
         await repository.create({
             requestId: "create",
-            callerBinding: "captain:1",
+            authorization,
             requestHash: "create-hash",
             initialState: { count: 0 }
         });
@@ -55,7 +68,7 @@ describe("MeetingRepository", () => {
         const command: RepositoryCommand<{ count: number }> = {
             requestId: "command-1",
             commandKind: "increment",
-            callerBinding: "captain:1",
+            authorization,
             requestHash: "command-hash",
             expectedMeetingVersion: 0,
             transition: (snapshot) => ({
@@ -81,7 +94,7 @@ describe("MeetingRepository", () => {
         const repository = await openRepository();
         await repository.create({
             requestId: "create",
-            callerBinding: "captain:1",
+            authorization,
             requestHash: "create-hash",
             initialState: { count: 0 }
         });
@@ -90,7 +103,7 @@ describe("MeetingRepository", () => {
             repository.execute({
                 requestId: "bad-command",
                 commandKind: "bad",
-                callerBinding: "captain:1",
+                authorization,
                 requestHash: "bad-hash",
                 expectedMeetingVersion: 0,
                 transition: () => ({
@@ -103,7 +116,7 @@ describe("MeetingRepository", () => {
                     ]
                 })
             })
-        ).rejects.toMatchObject<RepositoryError>({ code: "CORRUPT_DATABASE" });
+        ).rejects.toMatchObject<RepositoryError>({ code: "CONSTRAINT_VIOLATION" });
 
         expect(await repository.read()).toMatchObject({ version: 0, state: { count: 0 } });
         await repository.close();
@@ -113,7 +126,7 @@ describe("MeetingRepository", () => {
         const repository = await openRepository();
         await repository.create({
             requestId: "create",
-            callerBinding: "captain:1",
+            authorization,
             requestHash: "create-hash",
             initialState: { status: "created" },
             createdAt: 0,
@@ -150,9 +163,132 @@ describe("MeetingRepository", () => {
                 id: second[0].id,
                 leaseOwner: second[0].leaseOwner,
                 leaseToken: second[0].leaseToken,
-                completion: { status: "delivered" }
+                completion: { status: "delivered" },
+                now: 112
             })
         ).resolves.toMatchObject({ status: "delivered" });
         await repository.close();
+    });
+
+    it("rejects completion after expiry even before another worker claims the item", async () => {
+        const repository = await openRepository();
+        await repository.create({
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" },
+            createdAt: 0,
+            outbox: [
+                { deliveryId: "delivery-1", kind: "dispatch", payload: { meetingId: "meeting-1" } }
+            ]
+        });
+        const [lease] = await repository.claimOutbox({
+            owner: "worker-a",
+            ttlMs: 10,
+            batchSize: 1,
+            now: 100
+        });
+
+        await expect(
+            repository.completeOutbox({
+                id: lease.id,
+                leaseOwner: lease.leaseOwner,
+                leaseToken: lease.leaseToken,
+                completion: { status: "delivered" },
+                now: 111
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "LEASE_LOST" });
+        await repository.close();
+    });
+
+    it("persists bootstrap and session ownership for recovery", async () => {
+        const repository = await openRepository();
+        await repository.create({
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" },
+            createdAt: 10
+        });
+        await repository.updateBootstrap({ status: "provisioning", now: 11 });
+        await repository.recordSessionOwnership(
+            {
+                sessionId: "session-1",
+                sessionLabel: "convivium/team-1/meeting-1/manager",
+                role: "manager",
+                lifecycleStatus: "active",
+                capabilityStatus: "active"
+            },
+            12
+        );
+
+        await expect(repository.recover({ now: 13 })).resolves.toMatchObject({
+            bootstrap: { status: "provisioning", createdAt: 10, updatedAt: 11 },
+            sessionOwnership: [{ sessionId: "session-1", lifecycleStatus: "active" }]
+        });
+        await repository.close();
+    });
+
+    it("requires the authorization validator before a new command commits", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
+        roots.push(root);
+        const repository = await MeetingRepository.open({
+            databasePath: join(root, "meeting.sqlite"),
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => {
+                    throw new RepositoryError(
+                        "INVALID_STATE",
+                        false,
+                        "meeting-1",
+                        "Capability is revoked"
+                    );
+                }
+            }
+        });
+        await repository.create({
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { count: 0 }
+        });
+
+        await expect(
+            repository.execute({
+                requestId: "command",
+                commandKind: "increment",
+                authorization,
+                requestHash: "command-hash",
+                expectedMeetingVersion: 0,
+                transition: () => ({
+                    state: { count: 1 },
+                    result: { count: 1 },
+                    events: [{ type: "hand_raise.created", payload: { handRaiseId: "hand-1" } }],
+                    outbox: []
+                })
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_STATE" });
+        expect(await repository.read()).toMatchObject({ version: 0, state: { count: 0 } });
+        await repository.close();
+    });
+
+    it("rejects a non-empty version-zero database instead of treating it as fresh", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
+        roots.push(root);
+        const databasePath = join(root, "meeting.sqlite");
+        const db = new DatabaseSync(databasePath);
+        db.exec("CREATE TABLE stray_data(value TEXT)");
+        db.close();
+
+        await expect(
+            MeetingRepository.open({
+                databasePath,
+                teamId: "team-1",
+                meetingId: "meeting-1",
+                authorizationValidator: allowAuthorization
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "SCHEMA_VERSION_UNSUPPORTED" });
     });
 });

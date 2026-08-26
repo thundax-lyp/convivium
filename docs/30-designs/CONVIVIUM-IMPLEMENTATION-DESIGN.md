@@ -207,7 +207,7 @@ interface MeetingRepository {
 
 `execute` 是正式会议事实的唯一写入口。它在一个事务中完成：
 
-1. 校验 `expectedMeetingVersion`、caller binding、capability 和当前 attempt。
+1. Runtime 先通过 `RepositoryAuthorizationValidator` 校验真实 caller binding、capability 和当前 attempt；Repository 在 transition 前调用该端口，并校验 `expectedMeetingVersion`。
 2. 调用纯 `domain/transitions.ts` 得到新聚合和 effects。
 3. 写入聚合状态、不可变 `meeting_events`、幂等 receipt 和 outbox。
 4. 单调递增 meeting version 与 event sequence。

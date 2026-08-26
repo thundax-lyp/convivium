@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export const CURRENT_SCHEMA = `
 CREATE TABLE IF NOT EXISTS meetings (
@@ -49,4 +49,24 @@ CREATE TABLE IF NOT EXISTS outbox (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS outbox_claim_order ON outbox(status, available_at, lease_deadline, created_at);
+CREATE TABLE IF NOT EXISTS meeting_bootstrap (
+  meeting_id TEXT PRIMARY KEY REFERENCES meetings(meeting_id),
+  status TEXT NOT NULL CHECK (status IN ('pending', 'provisioning', 'ready', 'failed')),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  failure_code TEXT
+);
+CREATE TABLE IF NOT EXISTS session_ownership (
+  session_id TEXT PRIMARY KEY,
+  meeting_id TEXT NOT NULL REFERENCES meetings(meeting_id),
+  session_label TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('manager', 'participant')),
+  participant_id TEXT,
+  lifecycle_status TEXT NOT NULL CHECK (lifecycle_status IN ('provisioning', 'active', 'closed')),
+  capability_status TEXT NOT NULL CHECK (capability_status IN ('active', 'revoked')),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(meeting_id, session_label)
+);
+CREATE INDEX IF NOT EXISTS session_ownership_meeting ON session_ownership(meeting_id, lifecycle_status, capability_status);
 `;
