@@ -95,7 +95,17 @@ PR 创建或更新后观察最多 5 分钟；每 20–30 秒检查 PR 状态、G
 - `Question`：依据当前代码、文档和验证如实解释；
 - `Non-actionable`：说明不修改的具体依据，不只回复“done”。
 
-每轮 push 后重新检查 diff、CI 和未处理的 actionable 评论。无法处理的评论要明确记录 blocker 和需要用户决策的内容。
+对需要处理的 review thread，按以下顺序收口：
+
+```text
+[(accept: 👍 -> fix) | (reject/defer: 👎)] -> reply -> resolve
+```
+
+- 接受的 `Actionable` finding 先添加 👍，再修复并运行最小验证；取得对应授权后 commit、push，并在回复中说明提交和验证结果。
+- 不接受或暂缓的 finding 添加 👎，不修改代码；回复具体依据、范围或需要的用户决策。
+- 上述两条路径都必须先成功发布 reply，才能 resolve review thread；不能只用 reaction 或 resolve 代替解释。
+- reaction 只表达对 finding 的处理决定，不授予 commit、push、回复或 merge 权限；这些操作仍遵守本 Skill 的授权边界。
+- 每轮 push 后重新检查 diff、CI 和未处理的 actionable 评论。无法处理的评论要明确记录 blocker 和需要用户决策的内容。
 
 ## 完成标准
 
