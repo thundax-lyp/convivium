@@ -190,6 +190,9 @@ interface Migration {
 
 Runtime 只通过以下语义级 API 读写：
 
+完整的类型、幂等、lease、错误和 migration 契约见
+`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`。本设计只保留模块边界和事务约束。
+
 ```ts
 interface MeetingRepository {
   create(input: CreateMeetingRecord): Promise<MeetingSnapshot>
