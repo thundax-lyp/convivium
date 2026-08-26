@@ -11,13 +11,27 @@ import {
     startParticipantSession,
     type ContinuableStarter
 } from "../dsh/index.js";
-import type {
-    CommandAuthorization,
-    CreateMeetingInput,
-    JsonObject,
-    MeetingRepository
+import {
+    MeetingRepository,
+    type CommandAuthorization,
+    type CreateMeetingInput,
+    type JsonObject,
+    type MeetingRepository as MeetingRepositoryType
 } from "../repository/index.js";
+import type { DomainEventInput } from "../repository/index.js";
 import type { CreateMeetingInputV1 } from "../protocol/index.js";
+
+export type MeetingRepositoryOpenInput = Parameters<typeof MeetingRepository.open>[0];
+export type MeetingRepositoryRuntime = MeetingRepositoryType;
+export type RepositoryAuthorizationValidator =
+    import("../repository/index.js").RepositoryAuthorizationValidator;
+export type { DomainEventInput, JsonObject };
+
+export async function openMeetingRepository(
+    input: MeetingRepositoryOpenInput
+): Promise<MeetingRepository> {
+    return MeetingRepository.open(input);
+}
 
 export interface MeetingCreationRuntimeDependencies {
     readonly repository: Pick<

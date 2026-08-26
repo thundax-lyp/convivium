@@ -1,5 +1,12 @@
-export { createMeetingRuntime } from "./meeting-runtime.js";
-export type { MeetingCreationRuntimeDependencies } from "./meeting-runtime.js";
+export { createMeetingRuntime, openMeetingRepository } from "./meeting-runtime.js";
+export type {
+    DomainEventInput,
+    JsonObject,
+    MeetingCreationRuntimeDependencies,
+    MeetingRepositoryOpenInput,
+    MeetingRepositoryRuntime,
+    RepositoryAuthorizationValidator
+} from "./meeting-runtime.js";
 export { createTurnRunner } from "./turn-runner.js";
 export type { TurnAttemptInput, TurnRunnerDependencies, TurnRunnerResult } from "./turn-runner.js";
 export { createOutboxWorker } from "./outbox-worker.js";

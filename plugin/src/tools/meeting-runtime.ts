@@ -3,7 +3,15 @@ import { join } from "node:path";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ContinuableStarter } from "../dsh/index.js";
 import { submitSpeakerAttempt, transitionMeeting, type MeetingState } from "../domain/index.js";
-import { createMeetingRuntime, type MeetingCreationRuntimeDependencies } from "../runtime/index.js";
+import {
+    createMeetingRuntime,
+    openMeetingRepository,
+    type DomainEventInput,
+    type JsonObject,
+    type MeetingCreationRuntimeDependencies,
+    type MeetingRepositoryRuntime,
+    type RepositoryAuthorizationValidator
+} from "../runtime/index.js";
 import { projectMeetingStatus } from "../projection/index.js";
 import type {
     CreateMeetingInputV1,
@@ -15,12 +23,6 @@ import type {
     ProtocolErrorV1,
     ProtocolSuccessV1
 } from "../protocol/index.js";
-import {
-    MeetingRepository,
-    type DomainEventInput,
-    type JsonObject,
-    type RepositoryAuthorizationValidator
-} from "../repository/index.js";
 import type { MeetingToolCaller, MeetingToolRuntime } from "./register-tools.js";
 
 export interface CreateStatusRuntimeOptions {
@@ -34,7 +36,7 @@ export interface CreateStatusRuntimeOptions {
 
 interface StoredMeeting {
     readonly teamId: string;
-    readonly repository: MeetingRepository;
+    readonly repository: MeetingRepositoryRuntime;
 }
 
 function success<T>(meetingId: string, meetingVersion: number, result: T): ProtocolSuccessV1<T> {
@@ -99,7 +101,7 @@ export function createCreateStatusRuntime(options: CreateStatusRuntimeOptions): 
                 );
             }
             const meetingId = `meeting-${randomUUID()}`;
-            const repository = await MeetingRepository.open({
+            const repository = await openMeetingRepository({
                 databasePath: repositoryPath(options.dataRoot, input.teamId, meetingId),
                 teamId: input.teamId,
                 meetingId,
