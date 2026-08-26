@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/runtime/recovery.ts`：实现 pause/resume 与 stale result 隔离
-  - 依据文档：`docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T6
-  - 处理动作：pause 撤销 delivery capability 并 interrupt 运行中 Session；resume 从最新 SQLite 事实重新安排动作。
-  - 验收点：旧 attempt 迟到提交返回 `STALE_ATTEMPT`；resume 不复用旧 attempt。
-
 - [ ] `plugin/src/runtime/recovery.ts`：实现 Captain live parent rebind
   - 依据文档：`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 同意 review 建议；T6
