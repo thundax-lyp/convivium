@@ -203,4 +203,121 @@ describe("meeting tool registration", () => {
         expect(outcome).toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
         expect(runtimeCalls).toBe(0);
     });
+
+    it("forwards the DSH-bound caller to each command and preserves runtime authorization errors", async () => {
+        const definitions: ToolDefinition[] = [];
+        const calls: string[] = [];
+        const agent = {} as Agent;
+        const denied = () => ({
+            protocolVersion: 1 as const,
+            ok: false as const,
+            code: "UNAUTHORIZED_CALLER",
+            message: "caller cannot perform this operation",
+            retryable: false
+        });
+        const dependencies = {
+            registry: {
+                register: (definition: ToolDefinition) => (
+                    definitions.push(definition),
+                    () => undefined
+                )
+            },
+            callers: {
+                resolve: async () => ({
+                    sessionId: "participant-session",
+                    kind: "participant" as const,
+                    participantId: "participant-1"
+                })
+            },
+            runtime: {
+                createMeeting: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`create:${caller.kind}`),
+                    denied()
+                ),
+                getStatus: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`status:${caller.kind}`),
+                    denied()
+                ),
+                submitTurn: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`submit:${caller.kind}`),
+                    denied()
+                ),
+                pause: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`pause:${caller.kind}`),
+                    denied()
+                ),
+                resume: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`resume:${caller.kind}`),
+                    denied()
+                )
+            }
+        };
+        registerCreateAndStatusTools(dependencies);
+        registerSubmitAndControlTools(dependencies);
+
+        const commands: Record<string, unknown> = {
+            convivium_create_meeting: {
+                protocolVersion: 1,
+                requestId: "request-1",
+                teamId: "team-1",
+                topic: "Release",
+                objective: "Decide scope",
+                objectiveContract: {
+                    requiredOutputs: [],
+                    acceptanceCriteria: [],
+                    hardConstraints: [],
+                    requiredReviewerKeys: [],
+                    riskAcceptanceAuthorityKeys: [],
+                    acceptableRiskLevel: "low"
+                },
+                agenda: [],
+                participants: []
+            },
+            convivium_meeting_status: { protocolVersion: 1, meetingId: "meeting-1" },
+            convivium_submit_turn: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                turnId: "turn-1",
+                stepId: "step-1",
+                attemptId: "attempt-1",
+                deliveryId: "delivery-1",
+                agendaItemId: "agenda-1",
+                kind: "statement",
+                content: "message",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic",
+                changes: {}
+            },
+            convivium_pause_meeting: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                requestId: "request-1",
+                reason: "pause"
+            },
+            convivium_resume_meeting: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                requestId: "request-1"
+            }
+        };
+
+        for (const definition of definitions) {
+            const outcome = await definition.execute({ input: commands[definition.name] }, {
+                agent,
+                signal: new AbortController().signal
+            } as ToolRunContext);
+            expect(outcome).toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
+        }
+
+        expect(calls).toEqual([
+            "create:participant",
+            "status:participant",
+            "submit:participant",
+            "pause:participant",
+            "resume:participant"
+        ]);
+    });
 });
