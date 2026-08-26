@@ -48,9 +48,9 @@ const continuationSelection = Schema.object({
 });
 
 const publicLimits = Schema.object({
-    maxTurns: number(),
-    maxSpeakersPerTurn: number(),
-    maxTotalMessages: number(),
+    maxTurns: Schema.number(),
+    maxSpeakersPerTurn: Schema.number(),
+    maxTotalMessages: Schema.number(),
     maxDurationMs: Schema.number(),
     speakerAttemptTimeoutMs: Schema.number(),
     mailHandlingTimeoutMs: Schema.number()
@@ -316,7 +316,7 @@ export const MeetingScopedMailSchema = Schema.object({
         kind: Schema.const("meeting_participant").required(),
         meetingId: string(),
         participantId: string()
-    }),
+    }).required(),
     meetingContext: Schema.object({
         meetingId: string(),
         agendaItemId: Schema.string(),
@@ -324,7 +324,7 @@ export const MeetingScopedMailSchema = Schema.object({
         contextThroughSeq: number(),
         relevantMessageIds: array(string()),
         snapshotSummary: Schema.string()
-    }),
+    }).required(),
     replyToMailId: Schema.string()
 });
 

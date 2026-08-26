@@ -736,7 +736,7 @@ export interface EndMeetingResultV1 {
     terminationCode: string;
 }
 
-export type MeetingProtocolErrorCodeV1 =
+export type KnownMeetingProtocolErrorCodeV1 =
     | "INVALID_ARGUMENT"
     | "MEETING_NOT_FOUND"
     | "UNAUTHORIZED_CALLER"
@@ -753,6 +753,8 @@ export type MeetingProtocolErrorCodeV1 =
     | "MANAGER_PLAN_INVALID"
     | "DELIVERY_RETRY_EXHAUSTED"
     | "INTERNAL_ERROR";
+
+export type MeetingProtocolErrorCodeV1 = KnownMeetingProtocolErrorCodeV1 | (string & {});
 
 export interface ProtocolErrorV1 {
     protocolVersion: ProtocolVersion;

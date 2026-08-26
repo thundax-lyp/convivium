@@ -1,11 +1,12 @@
 import Schema from "@deepseek-ai/schemastery";
+import type { KnownMeetingProtocolErrorCodeV1 } from "./types.js";
 
 const requiredString = () => Schema.string().required();
 const requiredNumber = () => Schema.number().required();
 
 export const ProtocolVersionSchema = Schema.const(1).required();
 
-export const MeetingProtocolErrorCodeSchema = Schema.union([
+const knownErrorCodes = [
     "INVALID_ARGUMENT",
     "MEETING_NOT_FOUND",
     "UNAUTHORIZED_CALLER",
@@ -22,7 +23,16 @@ export const MeetingProtocolErrorCodeSchema = Schema.union([
     "MANAGER_PLAN_INVALID",
     "DELIVERY_RETRY_EXHAUSTED",
     "INTERNAL_ERROR"
-]).required();
+] as const;
+
+export const KnownMeetingProtocolErrorCodeSchema = Schema.union(knownErrorCodes).required();
+export const MeetingProtocolErrorCodeSchema = Schema.string().required();
+
+export function isKnownMeetingProtocolErrorCode(
+    value: string
+): value is KnownMeetingProtocolErrorCodeV1 {
+    return (knownErrorCodes as readonly string[]).includes(value);
+}
 
 export const ProtocolMetaSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,

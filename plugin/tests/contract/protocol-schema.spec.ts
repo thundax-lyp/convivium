@@ -4,6 +4,7 @@ import {
     CreateMeetingInputSchema,
     MeetingStatusResultSchema,
     validateProtocolError,
+    isKnownMeetingProtocolErrorCode,
     validateProtocolSuccessEnvelope,
     validateBackgroundTaskRequest,
     validateReassignTurnInput
@@ -70,7 +71,7 @@ describe("protocol envelope schemas", () => {
             })
         ).toThrow();
 
-        expect(() =>
+        expect(
             validateProtocolError({
                 protocolVersion: 1,
                 ok: false,
@@ -78,7 +79,9 @@ describe("protocol envelope schemas", () => {
                 message: "invalid request",
                 retryable: false
             })
-        ).toThrow();
+        ).toMatchObject({ code: "UNKNOWN_ERROR", retryable: false });
+        expect(isKnownMeetingProtocolErrorCode("INVALID_ARGUMENT")).toBe(true);
+        expect(isKnownMeetingProtocolErrorCode("UNKNOWN_ERROR")).toBe(false);
     });
 
     it("validates command discriminants beyond field types", () => {
@@ -162,12 +165,34 @@ describe("protocol envelope schemas", () => {
                         requiredParticipantKeys: ["reviewer"]
                     }
                 ],
+                limits: { maxDurationMs: 60_000 },
                 participants: [
                     { participantKey: "reviewer", displayName: "Reviewer" },
                     { participantKey: "captain", displayName: "Captain" }
                 ]
             })
         ).toMatchObject({ protocolVersion: 1 });
+
+        expect(() =>
+            CreateMeetingInputSchema({
+                protocolVersion: 1,
+                requestId: "request-1",
+                teamId: "team-1",
+                topic: "Release",
+                objective: "Decide release scope",
+                objectiveContract: {
+                    requiredOutputs: [],
+                    acceptanceCriteria: [],
+                    hardConstraints: [],
+                    requiredReviewerKeys: [],
+                    riskAcceptanceAuthorityKeys: [],
+                    acceptableRiskLevel: "low"
+                },
+                agenda: [],
+                participants: [],
+                limits: { maxTurns: 3 }
+            })
+        ).not.toThrow();
     });
 
     it("validates command results", () => {
@@ -213,5 +238,30 @@ describe("protocol envelope schemas", () => {
                 archive: { package: {}, archivedAt: 1 }
             })
         ).toThrow();
+    });
+
+    it("requires lifecycle projection objects", () => {
+        const base = {
+            meetingId: "meeting-1",
+            meetingVersion: 1,
+            topic: "Release",
+            objective: "Decide scope",
+            continuationMaterials: [],
+            limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
+            pendingHandRaises: [],
+            pauseControl: { action: "none" },
+            termination: {
+                code: "completed",
+                reason: "done",
+                decisionIds: [],
+                unresolvedQuestionIds: []
+            },
+            archive: { package: {}, archivedAt: 1 }
+        };
+
+        expect(() => MeetingStatusResultSchema({ ...base, status: "running" })).toThrow();
+        expect(() => MeetingStatusResultSchema({ ...base, status: "completed", archive: undefined })).toThrow();
+        expect(() => MeetingStatusResultSchema({ ...base, status: "archiving", termination: undefined })).toThrow();
+        expect(() => MeetingStatusResultSchema({ ...base, status: "archived", limits: undefined })).toThrow();
     });
 });

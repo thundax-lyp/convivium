@@ -180,7 +180,7 @@ const active = Schema.object({
     topic: requiredString(),
     objective: requiredString(),
     continuationMaterials: requiredArray(continuationMaterial),
-    limits: meetingLimits,
+    limits: meetingLimits.required(),
     activeAgendaItem: optionalObject(agendaItem),
     messages: requiredArray(message),
     acceptedDecisions: requiredArray(decision),
@@ -200,7 +200,7 @@ const active = Schema.object({
             })
         ),
         reason: Schema.string()
-    }),
+    }).required(),
     termination: Schema.never(),
     archive: Schema.never()
 });
@@ -211,7 +211,7 @@ const terminal = Schema.object({
     topic: requiredString(),
     objective: requiredString(),
     continuationMaterials: requiredArray(continuationMaterial),
-    limits: meetingLimits,
+    limits: meetingLimits.required(),
     activeAgendaItem: optionalObject(agendaItem),
     messages: requiredArray(message),
     acceptedDecisions: requiredArray(decision),
@@ -220,8 +220,8 @@ const terminal = Schema.object({
     currentTurn: Schema.never(),
     currentSpeakerId: Schema.never(),
     pendingHandRaises: Schema.tuple([]).required(),
-    pauseControl: Schema.object({ action: Schema.const("none").required() }),
-    termination: termination,
+    pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
+    termination: termination.required(),
     archive: Schema.never()
 });
 
@@ -325,14 +325,14 @@ const archiving = Schema.object({
     topic: requiredString(),
     objective: requiredString(),
     continuationMaterials: requiredArray(continuationMaterial),
-    limits: meetingLimits,
+    limits: meetingLimits.required(),
     status: Schema.const("archiving").required(),
     currentTurn: Schema.never(),
     currentSpeakerId: Schema.never(),
     pendingHandRaises: Schema.tuple([]).required(),
-    pauseControl: Schema.object({ action: Schema.const("none").required() }),
-    termination,
-    archive: Schema.object({ package: archivePackage, archivedAt: Schema.never() })
+    pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
+    termination: termination.required(),
+    archive: Schema.object({ package: archivePackage.required(), archivedAt: Schema.never() }).required()
 });
 
 const archived = Schema.object({
@@ -341,14 +341,14 @@ const archived = Schema.object({
     topic: requiredString(),
     objective: requiredString(),
     continuationMaterials: requiredArray(continuationMaterial),
-    limits: meetingLimits,
+    limits: meetingLimits.required(),
     status: Schema.const("archived").required(),
     currentTurn: Schema.never(),
     currentSpeakerId: Schema.never(),
     pendingHandRaises: Schema.tuple([]).required(),
-    pauseControl: Schema.object({ action: Schema.const("none").required() }),
-    termination,
-    archive: Schema.object({ package: archivePackage, archivedAt: requiredNumber() })
+    pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
+    termination: termination.required(),
+    archive: Schema.object({ package: archivePackage.required(), archivedAt: requiredNumber() }).required()
 });
 
 export const MeetingStatusResultSchema: Schema<Record<string, unknown>> = Schema.union([

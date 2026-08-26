@@ -28,11 +28,13 @@ export {
 } from "./results.js";
 export {
     ProtocolErrorSchema,
+    KnownMeetingProtocolErrorCodeSchema,
     MeetingProtocolErrorCodeSchema,
     ProtocolMetaSchema,
     createProtocolSuccessEnvelopeSchema,
     ProtocolVersionSchema,
     validateProtocolError,
+    isKnownMeetingProtocolErrorCode,
     validateProtocolSuccessEnvelope
 } from "./schema.js";
 export * from "./types.js";
