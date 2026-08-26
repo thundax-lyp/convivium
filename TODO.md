@@ -20,12 +20,6 @@
   - 处理动作：覆盖 capability check、reserved childId、首次 prompt、followup、interrupt、drain 和 inspection。
   - 验收点：成功、provider 缺失、错误 parent、错误 label、revoked ownership 和精确清理均有断言。
 
-- [ ] `plugin/tests/recovery`：验证 pause/resume 与 parent rebind
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T6
-  - 处理动作：覆盖 stale result、重复控制、重启、错误 Captain、正确 parent rebind 和 orphan isolation。
-  - 验收点：旧 capability 不复活；parent 缺席不 dispatch；跨 Meeting/未知 Session 不受影响。
-
 - [ ] `plugin/scripts/smoke-profile.mjs`：实现临时 profile 生命周期脚本
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求下一个范围必须可在 DSH 中执行；T7
