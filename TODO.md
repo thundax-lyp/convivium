@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/dsh/provisioning.ts`：生成 Session provisioning envelope
-  - 依据文档：`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 同意 review 建议；T3
-  - 处理动作：生成包含 meeting/team/role/participant 和 `capability='none'` 的确定性首次 prompt。
-  - 验收点：Manager/Participant envelope 可验证；内容不授予 planning/speaker capability，不进入 MeetingState。
-
 - [ ] `plugin/src/dsh/caller-resolver.ts`：绑定 Captain direct parent
   - 依据文档：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
