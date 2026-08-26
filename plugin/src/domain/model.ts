@@ -75,16 +75,28 @@ export interface MeetingParticipant {
 }
 
 export interface MeetingManagerRuntime {
+    promptVersion: string;
     status: "creating" | "idle" | "planning" | "failed" | "closed";
     currentPlanningAttempt?: ManagerPlanningAttempt;
+    lastDecisionMeetingVersion?: number;
 }
 
 export interface ManagerPlanningAttempt {
     id: string;
     meetingId: string;
     observedMeetingVersion: number;
+    reason:
+        | "initial_plan"
+        | "next_turn"
+        | "semantic_arbitration"
+        | "refocus"
+        | "stall"
+        | "replan"
+        | "termination_review";
     deliveryId: string;
     status: "pending" | "running" | "submitted" | "revoked" | "failed";
+    createdAt: number;
+    deadlineAt?: number;
 }
 
 export interface MeetingTurn {
@@ -95,6 +107,7 @@ export interface MeetingTurn {
     objective: string;
     expectedOutputs: string[];
     prohibitedTopics: string[];
+    plan: readonly string[];
     status: TurnStatus;
     currentStepIndex: number;
     steps: SpeakerStep[];
@@ -176,7 +189,16 @@ export interface AgendaCandidate {
 
 export interface MeetingAgendaItem {
     id: string;
+    title: string;
+    objective: string;
+    inScope: readonly string[];
+    outOfScope: readonly string[];
+    completionCriteria: readonly string[];
+    owner?: string;
+    requiredParticipants: readonly string[];
+    relatedTaskIds: readonly string[];
     status: "pending" | "discussing" | "waiting" | "resolved" | "deferred" | "blocked";
+    resolution?: string;
 }
 
 export interface MeetingObjectiveContract {
@@ -195,28 +217,41 @@ export interface MeetingObjectiveContract {
 export interface MeetingMessage {
     id: string;
     seq: number;
+    turnSeq: number;
     turnId: string;
     stepId: string;
     attemptId: string;
     speaker: string;
     agendaItemId: string;
+    agendaRelation: "active" | "related" | "unrelated";
     content: string;
-    kind?: ArchiveMessage["kind"];
-    mentions?: readonly string[];
+    kind: ArchiveMessage["kind"];
+    mentions: readonly string[];
     replyTo?: string;
-    taskIds?: readonly string[];
-    createdAt?: number;
+    taskIds: readonly string[];
+    createdAt: number;
 }
 
 export interface MeetingIssue {
     id: string;
     title: string;
     description: string;
+    sourceMessageId: string;
+    agendaItemId?: string;
+    affectedOutputIds: readonly string[];
+    affectedCriterionIds: readonly string[];
+    violatedConstraintIds: readonly string[];
+    blockingObjectionIds: readonly string[];
     blocking: boolean;
+    impact: string;
+    urgency: "now" | "before_release" | "later";
+    reversibility: "reversible" | "partially_reversible" | "irreversible";
+    safeDefaultAvailable: boolean;
+    disposition: ArchiveIssue["disposition"];
     status: "open" | "resolved" | "deferred" | "accepted_risk" | "out_of_scope";
-    disposition?: ArchiveIssue["disposition"];
     rationale?: string;
     ownerId?: string;
+    relatedTaskIds: readonly string[];
 }
 
 export interface MeetingProposal {

@@ -100,19 +100,25 @@ function meetingEventType(from: MeetingStatus, to: MeetingStatus): DomainEventTy
 }
 
 function turnEventType(to: TurnStatus): DomainEventType {
-    return `turn.${to}` as Extract<DomainEventType, `turn.${string}`>;
+    return to === "running" ? "turn.started" : (`turn.${to}` as DomainEventType);
 }
 
 function stepEventType(to: StepStatus): DomainEventType {
-    return to === "assigned" ? "speaker.assigned" : (`speaker.${to}` as DomainEventType);
+    if (to === "assigned") return "speaker.assigned";
+    if (to === "running") return "speaker.started";
+    return `speaker.${to}` as DomainEventType;
 }
 
 function attemptEventType(to: AttemptStatus): DomainEventType {
-    return `speaker_attempt.${to}` as Extract<DomainEventType, `speaker_attempt.${string}`>;
+    return to === "running"
+        ? "speaker_attempt.started"
+        : (`speaker_attempt.${to}` as DomainEventType);
 }
 
 function managerPlanEventType(status: ManagerPlanningAttempt["status"]): DomainEventType {
-    return `manager_plan.${status}` as Extract<DomainEventType, `manager_plan.${string}`>;
+    return status === "running"
+        ? "manager_plan.started"
+        : (`manager_plan.${status}` as DomainEventType);
 }
 
 function isArchiveInput(archive: TransitionContext["archive"]): archive is ArchiveInput {
@@ -706,7 +712,9 @@ export function transitionMeeting(
             ? { currentTurn: lifecycleCleanup.currentTurn, manager: lifecycleCleanup.manager }
             : {}),
         ...(isExecutionTerminal ? { currentTurn: undefined } : {}),
-        ...(to === "waiting" && context.wait ? { waitState: structuredClone(context.wait) } : {}),
+        ...(to === "waiting" && context.wait
+            ? { waitState: structuredClone(context.wait) }
+            : { waitState: undefined }),
         ...(to === "archiving" && isArchiveInput(context.archive)
             ? { archive: snapshotArchive(context.archive) }
             : {}),

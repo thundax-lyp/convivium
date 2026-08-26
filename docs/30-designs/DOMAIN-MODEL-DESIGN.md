@@ -83,7 +83,7 @@ status 为 available、busy、speaking、unavailable、failed 或 removed。Part
 
 ### MeetingManagerRuntime
 
-必须包含 promptVersion、status、currentPlanningAttempt? 和 lastDecisionMeetingVersion?。Manager 与 meeting-owned AgentSession 的绑定属于 Runtime。
+必须包含 `promptVersion: string`、status、currentPlanningAttempt? 和 `lastDecisionMeetingVersion?: number`。Manager 与 meeting-owned AgentSession 的绑定属于 Runtime。
 
 status 为 creating、idle、planning、failed 或 closed。Manager 是会议控制身份，不代表任何 Participant，不直接拥有 transcript、Decision、risk 或 TeamTask 的写入权。
 
@@ -104,6 +104,10 @@ required output 初始为 pending；acceptance criterion 初始为 satisfied=fal
 ### AgendaItem
 
 必须包含 id、title、objective、inScope、outOfScope、completionCriteria、owner?、requiredParticipants、relatedTaskIds、status 和 resolution?。
+
+### AgendaRelation
+
+MeetingMessage 的 agendaRelation 必须为 active、related 或 unrelated；plan 是按执行顺序排列的只读计划项字符串集合。
 
 ### MeetingIssue
 
