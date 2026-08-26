@@ -270,9 +270,33 @@ export function transitionMeeting(
                 { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
             );
         }
+        if (
+            context.termination.decisionIds.some(
+                (id) => !state.decisions.some((decision) => decision.id === id)
+            ) ||
+            context.termination.unresolvedQuestionIds.some(
+                (id) => !state.openQuestions.some((question) => question.id === id)
+            )
+        ) {
+            throw new DomainError(
+                "INVALID_ENTITY_STATE",
+                `termination references facts outside meeting ${state.id}`,
+                { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
+            );
+        }
     }
 
-    if (to === "paused") requireReason(context, state, to);
+    if (to === "paused") {
+        requireReason(context, state, to);
+        if (!context.pause) {
+            throw new DomainError(
+                "INVALID_ENTITY_STATE",
+                `meeting ${state.id} requires pause actor metadata`,
+                { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
+            );
+        }
+    }
+    const pause = context.pause;
 
     if (
         to === "archiving" &&
@@ -332,7 +356,9 @@ export function transitionMeeting(
         ...(to === "paused"
             ? {
                   pausedFromStatus: state.status as "created" | "running" | "waiting",
-                  pauseReason: context.reason
+                  pauseReason: context.reason,
+                  pausedAt: pause?.at,
+                  pausedBy: pause ? { ...pause.by } : undefined
               }
             : {}),
         ...(context.termination ? { termination: context.termination } : {}),
@@ -417,12 +443,20 @@ export function transitionAttempt(
         attemptTransitions,
         meetingVersion
     );
+    const acknowledged =
+        to === "submitted" &&
+        (attempt.deliveryStatus === "pending" || attempt.deliveryStatus === "accepted");
     return {
-        state: { ...attempt, status: to },
+        state: {
+            ...attempt,
+            status: to,
+            ...(acknowledged ? { deliveryStatus: "acknowledged" as const } : {})
+        },
         effect: event("attempt.status_changed", {
             attemptId: attempt.attemptId,
             from: attempt.status,
             to,
+            deliveryStatus: acknowledged ? "acknowledged" : attempt.deliveryStatus,
             meetingVersion
         })
     };

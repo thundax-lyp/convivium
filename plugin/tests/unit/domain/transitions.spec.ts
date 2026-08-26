@@ -80,7 +80,13 @@ function archivePackage(): ArchivePackage {
         formalTranscript: [],
         participantProvenance: [],
         managerPromptVersion: "v1",
-        termination: { code: "objective_satisfied", reason: "done", endedAt: now },
+        termination: {
+            code: "objective_satisfied",
+            reason: "done",
+            decisionIds: [],
+            unresolvedQuestionIds: [],
+            endedAt: now
+        },
         endedAt: now,
         materializedAt: now
     };
@@ -120,10 +126,13 @@ describe("meeting transitions", () => {
 
         const result = transitionMeeting(meeting("waiting"), "paused", {
             now,
-            reason: "captain request"
+            reason: "captain request",
+            pause: { at: now, by: { kind: "captain", actorId: "captain-1" } }
         });
         expect(result.state.pausedFromStatus).toBe("waiting");
         expect(result.state.pauseReason).toBe("captain request");
+        expect(result.state.pausedAt).toBe(now);
+        expect(result.state.pausedBy?.actorId).toBe("captain-1");
     });
 
     it("revokes active speaker and manager attempts while truncating the turn", () => {
@@ -149,7 +158,11 @@ describe("meeting transitions", () => {
             currentPlanningAttempt: { id: "plan-1", status: "running" }
         };
 
-        const result = transitionMeeting(state, "paused", { now, reason: "captain request" });
+        const result = transitionMeeting(state, "paused", {
+            now,
+            reason: "captain request",
+            pause: { at: now, by: { kind: "captain", actorId: "captain-1" } }
+        });
 
         expect(result.state.currentTurn?.status).toBe("truncated");
         expect(result.state.currentTurn?.steps[0].status).toBe("revoked");
@@ -163,14 +176,38 @@ describe("meeting transitions", () => {
     });
 
     it("does not attach termination or archive data to non-matching transitions", () => {
-        const termination = { code: "user_cancelled" as const, reason: "cancelled", endedAt: now };
+        const termination = {
+            code: "user_cancelled" as const,
+            reason: "cancelled",
+            decisionIds: [],
+            unresolvedQuestionIds: [],
+            endedAt: now
+        };
         expect(() =>
-            transitionMeeting(meeting("running"), "paused", { now, reason: "pause", termination })
+            transitionMeeting(meeting("running"), "paused", {
+                now,
+                reason: "pause",
+                termination,
+                pause: { at: now, by: { kind: "captain", actorId: "captain-1" } }
+            })
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
         expect(() =>
             transitionMeeting(meeting("running"), "waiting", {
                 now,
                 archive: { package: archivePackage() }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+
+        expect(() =>
+            transitionMeeting(meeting("running"), "completed", {
+                now,
+                termination: {
+                    code: "objective_satisfied",
+                    reason: "done",
+                    decisionIds: ["missing-decision"],
+                    unresolvedQuestionIds: [],
+                    endedAt: now
+                }
             })
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
@@ -185,6 +222,8 @@ describe("meeting transitions", () => {
             termination: {
                 code: "objective_satisfied",
                 reason: "all outputs accepted",
+                decisionIds: [],
+                unresolvedQuestionIds: [],
                 endedAt: now
             }
         });
@@ -192,7 +231,13 @@ describe("meeting transitions", () => {
         expect(() =>
             transitionMeeting(meeting("running"), "completed", {
                 now,
-                termination: { code: "user_cancelled", reason: "cancelled", endedAt: now }
+                termination: {
+                    code: "user_cancelled",
+                    reason: "cancelled",
+                    decisionIds: [],
+                    unresolvedQuestionIds: [],
+                    endedAt: now
+                }
             })
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
@@ -275,6 +320,9 @@ describe("turn, step and attempt transitions", () => {
             "running",
             2
         ).state;
+        const submitted = transitionAttempt(attempt, "submitted", 3);
+        expect(submitted.state.status).toBe("submitted");
+        expect(submitted.state.deliveryStatus).toBe("acknowledged");
         expect(transitionAttempt(attempt, "failed", 3).state.status).toBe("failed");
         expect(() => transitionAttempt(attempt, "assigned", 3)).toThrowError(
             expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })

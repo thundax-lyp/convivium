@@ -165,7 +165,15 @@ export interface MeetingTermination {
         | "user_cancelled"
         | "internal_error";
     reason: string;
+    decisionIds: readonly string[];
+    unresolvedQuestionIds: readonly string[];
     endedAt: number;
+}
+
+export interface PauseActor {
+    kind: "user" | "captain";
+    actorId: string;
+    displayName?: string;
 }
 
 export interface ArchiveArtifactRef {
@@ -263,11 +271,14 @@ export interface MeetingState {
     archive?: ArchiveRecord;
     pausedFromStatus?: "created" | "running" | "waiting";
     pauseReason?: string;
+    pausedAt?: number;
+    pausedBy?: PauseActor;
 }
 
 export interface TransitionContext {
     now: number;
     reason?: string;
+    pause?: { at: number; by: PauseActor };
     termination?: MeetingTermination;
     archive?: ArchiveInput | ArchiveFinalizeInput;
 }
