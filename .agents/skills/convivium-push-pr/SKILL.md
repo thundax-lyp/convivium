@@ -10,7 +10,7 @@ description: Human-invoked workflow for publishing completed Convivium branch wo
 ## 授权边界
 
 - `commit`、`push`、创建或更新 PR、回复评论、提交修复和 `merge` 是不同操作；只执行用户明确授权的操作。
-- 用户要求 push 或创建/更新 PR 时，可以执行该流程中的必要 `commit`、`push` 和 PR 写操作，但仍不得自动 merge。
+- 用户要求 push 或创建/更新 PR 时，可以执行相应的 `push` 和 PR 写操作；如果需要创建 `commit`，必须先取得明确的 commit 授权，仍不得自动 merge。
 - 不要 squash merge；不要把改动直接 push 到 `main`。
 - 只有在首次发布前、能够证明尚未发布且用户明确确认后，才可以整理本地 commit 历史；不得隐式 amend、rebase、force push 或改写远端历史。
 - 保留用户已有改动；无法判断归属的改动不得混入本 PR。
@@ -91,7 +91,7 @@ PR 创建或更新后观察最多 5 分钟；每 20–30 秒检查 PR 状态、G
 
 将评论分类为：
 
-- `Actionable`：读取上下文，修复、运行最小验证、提交并 push，然后回复改动和验证结果；
+- `Actionable`：读取上下文，修复并运行最小验证；只有取得对应的 commit、push 和回复评论授权后，才执行这些写操作，并说明改动和验证结果；
 - `Question`：依据当前代码、文档和验证如实解释；
 - `Non-actionable`：说明不修改的具体依据，不只回复“done”。
 
