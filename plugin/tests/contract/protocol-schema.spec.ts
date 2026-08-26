@@ -260,8 +260,14 @@ describe("protocol envelope schemas", () => {
         };
 
         expect(() => MeetingStatusResultSchema({ ...base, status: "running" })).toThrow();
-        expect(() => MeetingStatusResultSchema({ ...base, status: "completed", archive: undefined })).toThrow();
-        expect(() => MeetingStatusResultSchema({ ...base, status: "archiving", termination: undefined })).toThrow();
-        expect(() => MeetingStatusResultSchema({ ...base, status: "archived", limits: undefined })).toThrow();
+        expect(() =>
+            MeetingStatusResultSchema({ ...base, status: "completed", archive: undefined })
+        ).toThrow();
+        expect(() =>
+            MeetingStatusResultSchema({ ...base, status: "archiving", termination: undefined })
+        ).toThrow();
+        expect(() =>
+            MeetingStatusResultSchema({ ...base, status: "archived", limits: undefined })
+        ).toThrow();
     });
 });

@@ -332,7 +332,10 @@ const archiving = Schema.object({
     pendingHandRaises: Schema.tuple([]).required(),
     pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
     termination: termination.required(),
-    archive: Schema.object({ package: archivePackage.required(), archivedAt: Schema.never() }).required()
+    archive: Schema.object({
+        package: archivePackage.required(),
+        archivedAt: Schema.never()
+    }).required()
 });
 
 const archived = Schema.object({
@@ -348,7 +351,10 @@ const archived = Schema.object({
     pendingHandRaises: Schema.tuple([]).required(),
     pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
     termination: termination.required(),
-    archive: Schema.object({ package: archivePackage.required(), archivedAt: requiredNumber() }).required()
+    archive: Schema.object({
+        package: archivePackage.required(),
+        archivedAt: requiredNumber()
+    }).required()
 });
 
 export const MeetingStatusResultSchema: Schema<Record<string, unknown>> = Schema.union([
