@@ -82,7 +82,7 @@ interface TransitionResult<T> {
 
 ### Recovery
 
-`open` 必须在 migration 和任何持久 PRAGMA（包括 `journal_mode`）前对已知 schema 只读验证数据库中仅有一个 Meeting，且 `teamId`、`meetingId`、bootstrap ID 与所有完整解析的 Session ownership label 一致；不一致时以 `CORRUPT_DATABASE` 隔离且不得写入该数据库。Session ownership 的 session ID、label、role 与 participant identity 首次写入后不可变；只允许生命周期前进（`provisioning → active → closed`）和 capability 的不可逆 revoke。`read` 与其他公开方法把损坏 JSON 或 SQLite 数据统一映射为带当前 `meetingId` 的非重试 `CORRUPT_DATABASE`。`recover` 只处理当前 Meeting 数据库：回收过期 lease，并返回带创建 correlation 的 bootstrap record 和已证明的 Session ownership。只有 `ready` bootstrap 才返回公开 Meeting `snapshot`；`creating` 或 `creation_failed` 返回时不得包含 snapshot，使上层 `RecoveryCoordinator` 能恢复或安全关闭中断创建的 Session。workspace 目录扫描、跨 Meeting 隔离和 DSH orphan Session 处理属于上层 `RecoveryCoordinator`，不由 Repository 隐式完成。
+`open` 必须在 migration 和任何持久 PRAGMA（包括 `journal_mode`）前对已知 schema 只读验证数据库中仅有一个 Meeting，且 `teamId`、`meetingId`、bootstrap ID 与所有完整解析的 Session ownership label 一致；不一致时以 `CORRUPT_DATABASE` 隔离且不得写入该数据库。Session ownership 的 session ID、parent session ID、provider、label、role 与 participant identity 首次写入后不可变；只允许首次补写稳定 `initialMessageId`、生命周期前进（`provisioning → active → closed`）和 capability 的不可逆 revoke。`read` 与其他公开方法把损坏 JSON 或 SQLite 数据统一映射为带当前 `meetingId` 的非重试 `CORRUPT_DATABASE`。`recover` 只处理当前 Meeting 数据库：回收过期 lease，并返回带创建 correlation 的 bootstrap record 和已证明的 Session ownership。只有 `ready` bootstrap 才返回公开 Meeting `snapshot`；`creating` 或 `creation_failed` 返回时不得包含 snapshot，使上层 `RecoveryCoordinator` 能恢复或安全关闭中断创建的 Session。workspace 目录扫描、跨 Meeting 隔离和 DSH orphan Session 处理属于上层 `RecoveryCoordinator`，不由 Repository 隐式完成。
 
 `SessionOwnershipInput` 的 `sessionLabel` 只接受以下稳定格式：
 
@@ -91,11 +91,33 @@ convivium:meeting-manager:<teamId>:<meetingId>
 convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
 ```
 
+`SessionOwnership` 和 `SessionOwnershipInput` 使用以下字段；Repository 实现不得另建同义 ownership 结构：
+
+```ts
+interface SessionOwnership {
+  sessionId: string
+  parentSessionId: string
+  sessionLabel: string
+  provider: string
+  initialMessageId?: string
+  role: 'manager' | 'participant'
+  participantId?: string
+  lifecycleStatus: 'provisioning' | 'active' | 'closed'
+  capabilityStatus: 'active' | 'revoked'
+  createdAt: number
+  updatedAt: number
+}
+```
+
+`parentSessionId` 是创建 meeting-owned Session 时使用的精确 DSH direct parent Session；当前会议树中必须等于创建会议的 Captain Session。`provider` 是首次创建时解析的 continuable provider name。两者与 `sessionId`、`sessionLabel`、`role`、`participantId` 一样，首次写入后不可修改。
+
+Runtime 可以在调用 `startContinuable()` 前使用 caller-reserved `sessionId` 写入 `provisioning` ownership。DSH 接受首次 prompt 后，Runtime 把返回的 `initialMessageId` 写入同一 ownership 并将 lifecycle 前进为 `active`；`initialMessageId` 只允许从缺失变为一个稳定值，写入后不可修改。恢复只能通过 `parentSessionId`、DSH 持久 parent-child 关系、完整 label 和当前 Meeting 目录/SQLite identity 的共同证明操作 Session。
+
 ### Schema and migration
 
 `schema.ts` 是完整当前 DDL 真相源，`PRAGMA user_version` 是已应用版本。migration 必须连续前进，并与 version 更新处于同一事务；未知新版本、降级和 migration 失败都拒绝打开当前 Meeting。
 
-当前 schema 至少包含：`meetings`、`meeting_events`、`idempotency_receipts`、`outbox`、`meeting_bootstrap` 和 `session_ownership`。`meeting_bootstrap` 是创建前唯一允许不引用公开 Meeting 的根记录；预创建 session ownership 与 outbox 通过 `meeting_bootstrap.meeting_id` 关联。`session_ownership` 以 `sessionId` 仅更新生命周期与 capability，同时保留首次 identity 和创建时间。JSON 字段必须带稳定对象结构，由上层 transition 负责领域 schema 校验。空库直接使用当前 DDL 初始化为当前 `user_version`；非空 version-zero 数据库必须隔离，不得用 `CREATE TABLE IF NOT EXISTS` 猜测其结构；已发布版本只能执行不可变的相邻 migration。
+当前 schema 至少包含：`meetings`、`meeting_events`、`idempotency_receipts`、`outbox`、`meeting_bootstrap` 和 `session_ownership`。`meeting_bootstrap` 是创建前唯一允许不引用公开 Meeting 的根记录；预创建 session ownership 与 outbox 通过 `meeting_bootstrap.meeting_id` 关联。`session_ownership` 以 `sessionId` 仅更新生命周期、capability 和首次 `initialMessageId`，同时保留不可变的 parent、provider、identity 和创建时间。JSON 字段必须带稳定对象结构，由上层 transition 负责领域 schema 校验。空库直接使用当前 DDL 初始化为当前 `user_version`；非空 version-zero 数据库必须隔离，不得用 `CREATE TABLE IF NOT EXISTS` 猜测其结构；已发布版本只能执行不可变的相邻 migration。
 
 ## Error And Permission Semantics
 

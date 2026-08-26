@@ -1129,8 +1129,11 @@ type MeetingProtocolErrorCodeV1 =
   | 'REQUIRED_SPEAKER_UNAVAILABLE'
   | 'MANAGER_PLAN_INVALID'
   | 'DELIVERY_RETRY_EXHAUSTED'
+  | 'UNSUPPORTED_CAPABILITY'
   | 'INTERNAL_ERROR'
 ```
+
+`UNSUPPORTED_CAPABILITY` 表示输入在完整协议中合法，但当前已声明的插件运行范围尚未提供对应 capability，例如只启用 `round_robin` 的竖切收到 `manager` selection mode。该错误必须是 `retryable: false`，且在任何目录、bootstrap、Session、Meeting state、event、receipt 或 outbox 副作用前返回。实现缺陷、provider/SQLite 故障和未知异常仍使用 `INTERNAL_ERROR`，不得用它伪装明确的范围限制。
 
 ### Permission matrix
 
@@ -1178,4 +1181,4 @@ Convivium 要求 DSH `>=0.1.1-rc.2`，并以该版本的 `dsh-subagent` 公开�
 - 产品需求：[`../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
 - 实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
 
-Plugin Frontend 的 Web route 和 UI projection 不属于本协议；进入实现范围时应另建对应接口文档。
+本文定义 Plugin Frontend Meeting route 的路径、payload 和共享状态 projection 语义，但不定义如何从 DSH Web 请求取得当前用户及 Team read/control 权限。该 Host authorization transport 进入实现范围前必须另建接口文档并以当前 DSH 公开 API 取证；缺少该契约时不得注册无授权 Meeting route。
