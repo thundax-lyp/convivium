@@ -1,4 +1,21 @@
 export {
+    BackgroundTaskRequestSchema,
+    CaptainRiskDispositionInputSchema,
+    CreateMeetingInputSchema,
+    EndMeetingInputSchema,
+    HandRaiseSubmissionSchema,
+    ManagerPlanSubmissionSchema,
+    MeetingScopedMailSchema,
+    MeetingStatusInputSchema,
+    PauseMeetingInputSchema,
+    ReassignTurnInputSchema,
+    ResumeMeetingInputSchema,
+    TurnSubmissionSchema,
+    validateBackgroundTaskRequest,
+    validateCommandInput,
+    validateReassignTurnInput
+} from "./commands.js";
+export {
     ProtocolErrorSchema,
     ProtocolMetaSchema,
     ProtocolSuccessEnvelopeSchema,
