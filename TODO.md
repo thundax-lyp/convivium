@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/dsh/session-adapter.ts`：实现 owned Session inspection
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
-  - 处理动作：使用持久 parentSessionId 调用 `listChildren`/`listDescendants`，与 repository-bound meetingId、ownership 和完整 label 交叉校验。
-  - 验收点：缺少任一归属证明的 Session 只记录诊断、不执行 followup、interrupt 或 drain。
-
 - [ ] `plugin/src/domain/transitions.ts`：补齐 pause/resume 转换
   - 依据文档：`docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4/T6

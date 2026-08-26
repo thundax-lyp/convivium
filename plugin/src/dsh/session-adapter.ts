@@ -2,13 +2,14 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type {
     ContinuableStart,
     ContinuableStartSpec,
+    SubagentDescendantListEntry,
     SubagentFollowupOptions,
     SubagentInterruptAuthority,
     SubagentProvider
 } from "@deepseek-ai/dsh-subagent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { MeetingOwnershipRecord } from "./caller-resolver.js";
-import { encodeMeetingSessionLabel } from "./labels.js";
+import { decodeMeetingSessionLabel, encodeMeetingSessionLabel } from "./labels.js";
 import {
     createSessionProvisioningEnvelope,
     serializeSessionProvisioningEnvelope
@@ -265,4 +266,135 @@ export async function interruptAndDrainOwnedSessions(
         input.runtime.interrupt(childId, { kind: "ancestor", agent: input.parent });
     }
     await input.runtime.drainContinuableChildren(input.parent, childIds);
+}
+
+export interface OwnedSessionObservation {
+    readonly sessionId: string;
+    readonly parentSessionId: string;
+    readonly meetingId: string;
+    readonly sessionLabel: string;
+    readonly provider: string;
+    readonly initialMessageId?: string;
+    readonly role: "manager" | "participant";
+    readonly participantId?: string;
+    readonly lifecycleStatus: MeetingOwnershipRecord["lifecycleStatus"];
+    readonly capabilityStatus: MeetingOwnershipRecord["capabilityStatus"];
+}
+
+export interface OwnedSessionDiagnostic {
+    readonly kind: "diagnostic";
+    readonly sessionId: string;
+    readonly reason:
+        | "missing-dsh-entry"
+        | "not-continuable"
+        | "wrong-parent"
+        | "label-mismatch"
+        | "unowned-dsh-child";
+}
+
+export interface OwnedSessionInspection {
+    readonly observations: readonly OwnedSessionObservation[];
+    readonly diagnostics: readonly OwnedSessionDiagnostic[];
+}
+
+export interface ContinuableInspectionRuntime {
+    listDescendants(
+        rootSessionId: SessionId,
+        signal: AbortSignal
+    ): Promise<SubagentDescendantListEntry[]>;
+}
+
+export interface InspectOwnedSessionsInput {
+    readonly runtime: ContinuableInspectionRuntime;
+    readonly parentSessionId: SessionId;
+    readonly meetingId: string;
+    readonly ownerships: readonly MeetingOwnershipRecord[];
+    readonly signal: AbortSignal;
+}
+
+function observationFromOwnership(
+    ownership: MeetingOwnershipRecord,
+    meetingId: string
+): OwnedSessionObservation {
+    return {
+        sessionId: ownership.sessionId,
+        parentSessionId: ownership.parentSessionId,
+        meetingId,
+        sessionLabel: ownership.sessionLabel,
+        provider: ownership.provider,
+        ...(ownership.initialMessageId ? { initialMessageId: ownership.initialMessageId } : {}),
+        role: ownership.role,
+        ...(ownership.participantId ? { participantId: ownership.participantId } : {}),
+        lifecycleStatus: ownership.lifecycleStatus,
+        capabilityStatus: ownership.capabilityStatus
+    };
+}
+
+export async function inspectOwnedSessions(
+    input: InspectOwnedSessionsInput
+): Promise<OwnedSessionInspection> {
+    const entries = await input.runtime.listDescendants(input.parentSessionId, input.signal);
+    const expected = new Map(input.ownerships.map((ownership) => [ownership.sessionId, ownership]));
+    const observations: OwnedSessionObservation[] = [];
+    const diagnostics: OwnedSessionDiagnostic[] = [];
+    const observed = new Set<string>();
+
+    for (const entry of entries) {
+        if (entry.kind === "diagnostic") {
+            diagnostics.push({
+                kind: "diagnostic",
+                sessionId: String(entry.id),
+                reason: "not-continuable"
+            });
+            continue;
+        }
+        if (entry.mode !== "continuable") {
+            diagnostics.push({
+                kind: "diagnostic",
+                sessionId: String(entry.id),
+                reason: "not-continuable"
+            });
+            continue;
+        }
+        const sessionId = String(entry.id);
+        const ownership = expected.get(sessionId);
+        if (ownership === undefined) {
+            diagnostics.push({ kind: "diagnostic", sessionId, reason: "unowned-dsh-child" });
+            continue;
+        }
+        observed.add(sessionId);
+        if (String(entry.parentId) !== String(input.parentSessionId)) {
+            diagnostics.push({ kind: "diagnostic", sessionId, reason: "wrong-parent" });
+            continue;
+        }
+        const label = entry.label ? decodeMeetingSessionLabel(entry.label) : undefined;
+        const expectedLabel = decodeMeetingSessionLabel(ownership.sessionLabel);
+        if (
+            label === undefined ||
+            expectedLabel === undefined ||
+            entry.label !== ownership.sessionLabel ||
+            label.role !== expectedLabel.role ||
+            label.teamId !== expectedLabel.teamId ||
+            label.meetingId !== expectedLabel.meetingId ||
+            (label.role === "participant" &&
+                (expectedLabel.role !== "participant" ||
+                    label.participantId !== expectedLabel.participantId)) ||
+            expectedLabel.meetingId !== input.meetingId
+        ) {
+            diagnostics.push({ kind: "diagnostic", sessionId, reason: "label-mismatch" });
+            continue;
+        }
+        observations.push(observationFromOwnership(ownership, input.meetingId));
+    }
+
+    for (const ownership of input.ownerships) {
+        if (!observed.has(ownership.sessionId)) {
+            diagnostics.push({
+                kind: "diagnostic",
+                sessionId: ownership.sessionId,
+                reason: "missing-dsh-entry"
+            });
+        }
+    }
+    return { observations, diagnostics };
 }

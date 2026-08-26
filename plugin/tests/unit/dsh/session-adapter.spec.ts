@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     followupParticipantSession,
+    inspectOwnedSessions,
     interruptAndDrainOwnedSessions,
     startManagerSession,
     startParticipantSession
@@ -302,5 +303,95 @@ describe("interruptAndDrainOwnedSessions", () => {
             })
         ).rejects.toThrow(/twice/);
         expect(interrupted).toBe(false);
+    });
+});
+
+describe("inspectOwnedSessions", () => {
+    it("returns only fully matched continuable ownerships and records diagnostics", async () => {
+        const ownership = participantOwnership();
+        const result = await inspectOwnedSessions({
+            runtime: {
+                listDescendants: async () =>
+                    [
+                        {
+                            kind: "child",
+                            id: "participant-session" as never,
+                            activity: "inactive",
+                            mode: "continuable",
+                            label: ownership.sessionLabel,
+                            hasChildren: false,
+                            parentId: "captain-session" as never,
+                            depth: 1
+                        },
+                        {
+                            kind: "child",
+                            id: "foreign-session" as never,
+                            activity: "inactive",
+                            mode: "continuable",
+                            label: "convivium:meeting-participant:team-1:other-meeting:foreign",
+                            hasChildren: false,
+                            parentId: "captain-session" as never,
+                            depth: 1
+                        },
+                        {
+                            kind: "child",
+                            id: "one-shot" as never,
+                            activity: "inactive",
+                            mode: "one-shot",
+                            label: "unrelated",
+                            hasChildren: false,
+                            parentId: "captain-session" as never,
+                            depth: 1
+                        }
+                    ] as never
+            },
+            parentSessionId: "captain-session" as never,
+            meetingId: "meeting-1",
+            ownerships: [ownership],
+            signal: new AbortController().signal
+        });
+
+        expect(result.observations).toEqual([
+            expect.objectContaining({
+                sessionId: "participant-session",
+                meetingId: "meeting-1",
+                provider: "spawn"
+            })
+        ]);
+        expect(result.diagnostics).toEqual([
+            { kind: "diagnostic", sessionId: "foreign-session", reason: "unowned-dsh-child" },
+            { kind: "diagnostic", sessionId: "one-shot", reason: "not-continuable" }
+        ]);
+    });
+
+    it("diagnoses wrong parent and missing DSH entries without returning them as operable", async () => {
+        const ownership = participantOwnership();
+        const result = await inspectOwnedSessions({
+            runtime: {
+                listDescendants: async () =>
+                    [
+                        {
+                            kind: "child",
+                            id: ownership.sessionId as never,
+                            activity: "running",
+                            mode: "continuable",
+                            label: ownership.sessionLabel,
+                            hasChildren: false,
+                            parentId: "other-captain" as never,
+                            depth: 2
+                        }
+                    ] as never
+            },
+            parentSessionId: "captain-session" as never,
+            meetingId: "meeting-1",
+            ownerships: [ownership, participantOwnership({ sessionId: "missing-session" })],
+            signal: new AbortController().signal
+        });
+
+        expect(result.observations).toEqual([]);
+        expect(result.diagnostics).toEqual([
+            { kind: "diagnostic", sessionId: "participant-session", reason: "wrong-parent" },
+            { kind: "diagnostic", sessionId: "missing-session", reason: "missing-dsh-entry" }
+        ]);
     });
 });
