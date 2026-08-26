@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/dsh/caller-resolver.ts`：解析 Manager/Participant caller
-  - 依据文档：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
-  - 处理动作：将 `exec.agent` 与完整 ownership、meetingId、role、participantId 和 capability 绑定。
-  - 验收点：错误 caller、provisioning caller 和 revoked caller 返回稳定授权错误。
-
 - [ ] `plugin/src/dsh/session-adapter.ts`：实现 provider capability adapter
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
