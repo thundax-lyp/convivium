@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createConnection, createServer } from "node:net";
 import { constants, createWriteStream } from "node:fs";
-import { access, mkdir, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
 import { spawn } from "node:child_process";
@@ -12,6 +12,7 @@ const PROFILE = "web";
 const PROVIDER = "spawn";
 const DSH_PACKAGE = `@deepseek-ai/dsh@${DSH_VERSION}`;
 const CONVIVIUM_PACKAGE = "@convivium/dsh-plugin";
+const PROBE_PACKAGE = "@convivium/smoke-profile-probe";
 const HOST = "127.0.0.1";
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "30000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
@@ -162,8 +163,186 @@ async function writeSmokePatch(path) {
     await writeFile(path, patch, "utf8");
 }
 
+async function writeProbePackage(probeDir) {
+    await mkdir(probeDir, { recursive: true });
+    await writeFile(
+        join(probeDir, "package.json"),
+        JSON.stringify(
+            {
+                name: PROBE_PACKAGE,
+                version: "0.0.0",
+                private: true,
+                type: "module",
+                main: "index.js",
+                dsh: { bundle: { patch: "./cordis.patch.yml" } }
+            },
+            null,
+            2
+        ) + "\n",
+        "utf8"
+    );
+    await writeFile(
+        join(probeDir, "cordis.patch.yml"),
+        "- insert:\n    - id: convivium-smoke-profile-probe\n      name: '@convivium/smoke-profile-probe'\n",
+        "utf8"
+    );
+    await writeFile(
+        join(probeDir, "index.js"),
+        String.raw`
+export const name = "convivium-smoke-profile-probe";
+export const inject = ["agents", "tools"];
+
+const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
+
+function assert(condition, message) {
+    if (!condition) throw new Error(message);
+}
+
+async function callTool(ctx, agent, name, input, index) {
+    const result = await ctx.tools.execute({
+        callId: "convivium-smoke-" + index,
+        name,
+        arguments: { input },
+        agent,
+        signal: new AbortController().signal
+    });
+    if (result.isError) throw new Error(result.error.message);
+    if (!result.value?.ok) throw new Error(name + " failed: " + JSON.stringify(result.value));
+    return result.value;
+}
+
+function createInput() {
+    return {
+        protocolVersion: 1,
+        requestId: "smoke-create-1",
+        teamId: "smoke-team",
+        topic: "Runtime smoke",
+        objective: "Verify Convivium tool sequencing",
+        objectiveContract: {
+            requiredOutputs: [],
+            acceptanceCriteria: [],
+            hardConstraints: [],
+            requiredReviewerKeys: [],
+            riskAcceptanceAuthorityKeys: [],
+            acceptableRiskLevel: "low"
+        },
+        agenda: [{
+            key: "agenda-1",
+            title: "Smoke order",
+            objective: "Commit A then B then C",
+            inScope: ["tool execution"],
+            outOfScope: ["Meeting HTTP route"],
+            completionCriteria: ["A/B/C committed"],
+            requiredParticipantKeys: ["a", "b", "c"]
+        }],
+        participants: [
+            { participantKey: "a", displayName: "A" },
+            { participantKey: "b", displayName: "B" },
+            { participantKey: "c", displayName: "C" }
+        ]
+    };
+}
+
+async function writeResult(value) {
+    if (!outputPath) return;
+    const fs = await import("node:fs/promises");
+    await fs.writeFile(outputPath, JSON.stringify(value, null, 2));
+}
+
+async function run(ctx) {
+    if (!outputPath) return;
+    let captain;
+    try {
+        captain = await ctx.agents.create({
+            sessionId: "convivium-smoke-captain",
+            meta: { cwd: process.cwd() }
+        });
+        const created = await callTool(ctx, captain.agent, "convivium_create_meeting", createInput(), 0);
+        const meetingId = created.result.meetingId;
+        const participants = created.result.participants.map((participant) => participant.participantId);
+        const messages = [];
+        for (let index = 0; index < participants.length; index += 1) {
+            const participantId = participants[index];
+            const agent = ctx.agents.get(meetingId + "-participant-" + participantId);
+            assert(agent, "participant agent not found: " + participantId);
+            const submitted = await callTool(ctx, agent, "convivium_submit_turn", {
+                protocolVersion: 1,
+                meetingId,
+                turnId: "turn-1",
+                stepId: "step-" + participantId + "-" + index,
+                attemptId: "attempt-" + index,
+                deliveryId: "delivery-" + index,
+                agendaItemId: "agenda-agenda-1",
+                kind: "statement",
+                content: String.fromCharCode(65 + index),
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "active",
+                changes: {}
+            }, index + 1);
+            messages.push(submitted.result.messageId);
+        }
+        const status = await callTool(ctx, captain.agent, "convivium_meeting_status", {
+            protocolVersion: 1,
+            meetingId
+        }, 10);
+        const transcript = status.result.transcript;
+        assert(transcript.map((message) => message.content).join("") === "ABC", "transcript order is not ABC");
+        const pause = await callTool(ctx, captain.agent, "convivium_pause_meeting", {
+            protocolVersion: 1,
+            meetingId,
+            expectedMeetingVersion: status.meetingVersion,
+            requestId: "smoke-pause-1",
+            reason: "profile smoke"
+        }, 11);
+        const resume = await callTool(ctx, captain.agent, "convivium_resume_meeting", {
+            protocolVersion: 1,
+            meetingId,
+            expectedMeetingVersion: pause.meetingVersion,
+            requestId: "smoke-resume-1"
+        }, 12);
+        await writeResult({
+            ok: true,
+            meetingId,
+            participants,
+            messages,
+            transcript: transcript.map((message) => ({
+                id: message.id,
+                seq: message.seq,
+                content: message.content,
+                speaker: message.speaker
+            })),
+            pause: pause.result,
+            resume: resume.result,
+            httpRouteUsed: false
+        });
+    } catch (error) {
+        await writeResult({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error)
+        });
+    } finally {
+        await captain?.dispose();
+    }
+}
+
+export function apply(ctx) {
+    ctx.effect(() => {
+        void run(ctx);
+    }, "convivium-smoke-profile-probe");
+}
+`,
+        "utf8"
+    );
+}
+
 async function installArtifact(env, artifact) {
     const dsh = dshCommand(["plugin", "--profile", PROFILE, "add", artifact]);
+    await runCommand(dsh.command, dsh.args, { env });
+}
+
+async function installProbe(env, probeDir) {
+    const dsh = dshCommand(["plugin", "--profile", PROFILE, "add", probeDir]);
     await runCommand(dsh.command, dsh.args, { env });
 }
 
@@ -225,6 +404,17 @@ async function bootHost(env, patchPath, workspaceDir, logsDir, port) {
     return { stdoutPath, stderrPath };
 }
 
+async function waitForJson(path, timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        if (await pathExists(path)) {
+            return JSON.parse(await readFile(path, "utf8"));
+        }
+        await new Promise((resolveWait) => setTimeout(resolveWait, 250));
+    }
+    throw new Error(`Timed out waiting for smoke result at ${path}.`);
+}
+
 async function stopHost() {
     if (bootProcess === undefined) return;
     const child = bootProcess;
@@ -269,23 +459,32 @@ async function main() {
     const workspaceDir = join(tempRoot, "workspace");
     const logsDir = join(tempRoot, "logs");
     const artifactDir = join(tempRoot, "artifact");
+    const probeDir = join(tempRoot, "probe");
     const patchPath = join(tempRoot, "convivium-smoke.patch.yml");
+    const resultPath = join(tempRoot, "smoke-result.json");
     await mkdir(dshHome, { recursive: true });
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(logsDir, { recursive: true });
     await mkdir(artifactDir, { recursive: true });
     await writeSmokePatch(patchPath);
+    await writeProbePackage(probeDir);
 
     const env = {
         DSH_HOME: dshHome,
         DSH_TELEMETRY_DISABLED: "1",
-        DSH_PERMISSION_MODE: "workspace-write"
+        DSH_PERMISSION_MODE: "workspace-write",
+        CONVIVIUM_SMOKE_RESULT: resultPath
     };
     const port = await allocatePort();
     const artifact = await packArtifact(artifactDir);
     await installArtifact(env, artifact);
+    await installProbe(env, probeDir);
     const dumpPath = await dumpConfig(env, patchPath, logsDir);
     const bootLogs = await bootHost(env, patchPath, workspaceDir, logsDir, port);
+    const probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
+    if (!probeResult.ok) {
+        throw new Error(`smoke probe failed: ${probeResult.error ?? "unknown error"}`);
+    }
 
     await stat(dumpPath);
     console.log(
@@ -296,6 +495,7 @@ async function main() {
                 provider: PROVIDER,
                 port,
                 artifact: basename(artifact),
+                probe: probeResult,
                 dumpConfig: dumpPath,
                 bootLogs
             },

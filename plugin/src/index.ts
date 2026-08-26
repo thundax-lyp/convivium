@@ -1,7 +1,17 @@
+import { resolve } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import { Config, type Config as ConfigType } from "./config.js";
-import { requireContinuableProvider } from "./dsh/session-adapter.js";
+import {
+    bindCaptainParent,
+    requireContinuableProvider,
+    resolveMeetingCaller
+} from "./dsh/index.js";
+import {
+    createCreateStatusRuntime,
+    registerCreateAndStatusTools,
+    registerSubmitAndControlTools
+} from "./tools/index.js";
 
 export { Config };
 export type { Config as ConfigType } from "./config.js";
@@ -74,5 +84,35 @@ export function apply(ctx: Context, config: ConfigType): void {
     const lifecycle = createPluginDisposerRegistry();
     if (typeof ctx.effect === "function") {
         ctx.effect(() => lifecycle.dispose, "convivium:lifecycle");
+    }
+
+    if (
+        typeof ctx.tools?.register !== "function" ||
+        typeof ctx.subagents?.startContinuable !== "function"
+    ) {
+        return;
+    }
+
+    const runtime = createCreateStatusRuntime({
+        dataRoot: resolve(process.cwd(), config.dataRoot ?? ".convivium"),
+        provider: config.provider,
+        continuable: ctx.subagents,
+        authorizationValidator: {
+            validateCreate: () => undefined,
+            validateCommand: () => undefined
+        }
+    });
+    const callers = {
+        async resolve(agent: Parameters<typeof resolveMeetingCaller>[0], signal: AbortSignal) {
+            const meetingCaller = await resolveMeetingCaller(agent, runtime, signal);
+            if ("ok" in meetingCaller) return { ...bindCaptainParent(agent), agent };
+            return { ...meetingCaller, agent };
+        }
+    };
+    for (const dispose of [
+        ...registerCreateAndStatusTools({ registry: ctx.tools, runtime, callers }),
+        ...registerSubmitAndControlTools({ registry: ctx.tools, runtime, callers })
+    ]) {
+        lifecycle.add(dispose);
     }
 }

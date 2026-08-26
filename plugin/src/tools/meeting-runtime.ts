@@ -2,7 +2,13 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ContinuableStarter } from "../dsh/index.js";
-import { submitSpeakerAttempt, transitionMeeting, type MeetingState } from "../domain/index.js";
+import {
+    planRoundRobinTurn,
+    submitSpeakerAttempt,
+    transitionMeeting,
+    type MeetingState,
+    type MeetingTurn
+} from "../domain/index.js";
 import {
     createMeetingRuntime,
     openMeetingRepository,
@@ -24,6 +30,7 @@ import type {
     ProtocolSuccessV1
 } from "../protocol/index.js";
 import type { MeetingToolCaller, MeetingToolRuntime } from "./register-tools.js";
+import type { MeetingOwnershipLookup } from "../dsh/index.js";
 
 export interface CreateStatusRuntimeOptions {
     readonly dataRoot: string;
@@ -34,8 +41,11 @@ export interface CreateStatusRuntimeOptions {
     readonly now?: () => number;
 }
 
+export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime & MeetingOwnershipLookup;
+
 interface StoredMeeting {
     readonly teamId: string;
+    readonly captainSessionId: string;
     readonly repository: MeetingRepositoryRuntime;
 }
 
@@ -88,7 +98,9 @@ function hasUnsupportedClaims(input: { changes: object; completionClaims?: objec
     );
 }
 
-export function createCreateStatusRuntime(options: CreateStatusRuntimeOptions): MeetingToolRuntime {
+export function createCreateStatusRuntime(
+    options: CreateStatusRuntimeOptions
+): MeetingRuntimeWithCallerLookup {
     const meetings = new Map<string, StoredMeeting>();
     const signal = options.signal ?? new AbortController().signal;
 
@@ -122,8 +134,17 @@ export function createCreateStatusRuntime(options: CreateStatusRuntimeOptions): 
             };
             try {
                 await createMeetingRuntime(input, dependencies);
-                meetings.set(meetingId, { teamId: input.teamId, repository });
-                return success(meetingId, 0, participantResult(input, meetingId));
+                await initializeFirstTurn(repository, options.now?.() ?? Date.now());
+                meetings.set(meetingId, {
+                    teamId: input.teamId,
+                    captainSessionId: caller.sessionId,
+                    repository
+                });
+                return success(meetingId, 1, {
+                    ...participantResult(input, meetingId),
+                    meetingVersion: 1,
+                    status: "running"
+                });
             } catch (error) {
                 await repository.close();
                 if (error && typeof error === "object" && "code" in error) {
@@ -136,11 +157,11 @@ export function createCreateStatusRuntime(options: CreateStatusRuntimeOptions): 
         },
 
         async getStatus(input: MeetingStatusInputV1, caller) {
-            if (caller.meetingId !== input.meetingId) {
-                return failure("UNAUTHORIZED_CALLER", "The caller is not bound to this meeting.");
-            }
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            if (!isAuthorizedForMeeting(caller, stored, input.meetingId)) {
+                return failure("UNAUTHORIZED_CALLER", "The caller is not bound to this meeting.");
+            }
             try {
                 const snapshot = await stored.repository.read();
                 const state = JSON.parse(JSON.stringify(snapshot.state));
@@ -214,17 +235,22 @@ export function createCreateStatusRuntime(options: CreateStatusRuntimeOptions): 
                             transition.state.currentTurn?.steps[
                                 transition.state.currentTurn.currentStepIndex
                             ];
+                        const prepared = prepareNextAttempt(
+                            transition.state,
+                            transition.state.currentTurn?.currentStepIndex ?? 0,
+                            options.now?.() ?? Date.now()
+                        );
                         return {
-                            state: transition.state as unknown as JsonObject,
+                            state: prepared as unknown as JsonObject,
                             result: {
                                 messageId,
-                                messageSeq: transition.state.messageSeq,
+                                messageSeq: prepared.messageSeq,
                                 turnStatus:
-                                    transition.state.currentTurn?.status === "completed"
+                                    prepared.currentTurn?.status === "completed"
                                         ? "completed"
                                         : "running",
                                 ...(nextStep === undefined ? {} : { nextStepId: nextStep.id }),
-                                meetingStatus: transition.state.status
+                                meetingStatus: prepared.status
                             },
                             events: transition.effect.events as unknown as DomainEventInput[],
                             outbox: []
@@ -241,16 +267,40 @@ export function createCreateStatusRuntime(options: CreateStatusRuntimeOptions): 
             }
         },
         async pause(input, caller) {
-            if (caller.kind !== "captain" || caller.meetingId !== input.meetingId)
+            const stored = meetings.get(input.meetingId);
+            if (
+                stored === undefined ||
+                caller.kind !== "captain" ||
+                caller.sessionId !== stored.captainSessionId
+            )
                 return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can pause it.");
             return transitionMeetingStatus(input, caller, "paused");
         },
         async resume(input, caller) {
-            if (caller.kind !== "captain" || caller.meetingId !== input.meetingId)
+            const stored = meetings.get(input.meetingId);
+            if (
+                stored === undefined ||
+                caller.kind !== "captain" ||
+                caller.sessionId !== stored.captainSessionId
+            )
                 return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can resume it.");
             return transitionMeetingStatus(input, caller, "running");
+        },
+
+        async findBySessionId(sessionId, lookupSignal) {
+            if (lookupSignal.aborted) throw lookupSignal.reason;
+            for (const [meetingId, stored] of meetings) {
+                const recovered = await stored.repository.recover();
+                const ownership = recovered.sessionOwnership.find(
+                    (candidate) => candidate.sessionId === sessionId
+                );
+                if (ownership !== undefined) {
+                    return { teamId: stored.teamId, meetingId, ownership };
+                }
+            }
+            return undefined;
         }
-    };
+    } satisfies MeetingRuntimeWithCallerLookup;
 
     async function transitionMeetingStatus(
         input: {
@@ -311,4 +361,122 @@ export function createCreateStatusRuntime(options: CreateStatusRuntimeOptions): 
             return commandError(error, "INTERNAL_ERROR", `The meeting could not be ${target}.`);
         }
     }
+}
+
+function isAuthorizedForMeeting(
+    caller: MeetingToolCaller,
+    stored: StoredMeeting,
+    meetingId: string
+): boolean {
+    if (caller.kind === "captain") return caller.sessionId === stored.captainSessionId;
+    return caller.meetingId === meetingId;
+}
+
+function assignAttempt(
+    state: MeetingState,
+    turn: MeetingTurn,
+    index: number,
+    now: number
+): MeetingTurn {
+    const step = turn.steps[index];
+    if (step === undefined) return turn;
+    const attempt = {
+        attemptId: `attempt-${index}`,
+        participantId: step.speaker,
+        meetingId: state.id,
+        turnId: turn.id,
+        stepId: step.id,
+        deliveryId: `delivery-${index}`,
+        contextFromSeq: 0,
+        contextThroughSeq: state.messageSeq,
+        taskSnapshots: [],
+        assignedAt: now,
+        startedAt: now,
+        status: "running" as const,
+        deliveryStatus: "accepted" as const
+    };
+    return {
+        ...turn,
+        status: "running",
+        steps: turn.steps.map((candidate, candidateIndex) =>
+            candidateIndex === index ? { ...candidate, status: "running", attempt } : candidate
+        )
+    };
+}
+
+function prepareNextAttempt(state: MeetingState, index: number, now: number): MeetingState {
+    const turn = state.currentTurn;
+    if (turn === undefined || turn.status === "completed") return state;
+    const nextStep = turn.steps[index];
+    if (nextStep === undefined || nextStep.status !== "pending") return state;
+    const preparedTurn = assignAttempt(state, turn, index, now);
+    return {
+        ...state,
+        currentTurn: preparedTurn,
+        participants: state.participants.map((participant) =>
+            participant.id === nextStep.speaker
+                ? { ...participant, status: "speaking" as const }
+                : participant
+        )
+    };
+}
+
+async function initializeFirstTurn(repository: MeetingRepositoryRuntime, now: number) {
+    const current = await repository.read();
+    const currentState = current.state as unknown as MeetingState;
+    const firstAgenda = currentState.agenda[0];
+    if (firstAgenda === undefined) return;
+    const activeState: MeetingState = {
+        ...currentState,
+        status: "running",
+        activeAgendaItemId: currentState.activeAgendaItemId ?? firstAgenda.id,
+        agenda: currentState.agenda.map((agenda, index) =>
+            index === 0 ? { ...agenda, status: "discussing" } : agenda
+        )
+    };
+    const planned = planRoundRobinTurn(
+        activeState,
+        {
+            turnId: "turn-1",
+            stepId: (participantId, index) => `step-${participantId}-${index}`
+        },
+        now
+    );
+    const running = assignAttempt(activeState, planned, 0, now);
+    const speaker = running.steps[0]?.speaker;
+    const events: DomainEventInput[] = [
+        { type: "meeting.started", payload: { meetingId: activeState.id } },
+        { type: "turn.started", payload: { turnId: running.id } },
+        {
+            type: "speaker_attempt.started",
+            payload: { attemptId: running.steps[0]?.attempt?.attemptId ?? "attempt-0" }
+        }
+    ];
+    await repository.execute({
+        requestId: "runtime-initialize-turn-1",
+        commandKind: "start_turn",
+        authorization: {
+            callerBinding: "runtime:convivium",
+            capabilityId: "runtime:turn"
+        },
+        requestHash: "runtime-initialize-turn-1",
+        expectedMeetingVersion: current.version,
+        transition: () => ({
+            state: {
+                ...activeState,
+                currentTurn: running,
+                participants: activeState.participants.map((participant) =>
+                    participant.id === speaker
+                        ? { ...participant, status: "speaking" as const }
+                        : participant
+                ),
+                turnSeq: running.seq,
+                version: activeState.version + 1,
+                updatedAt: now
+            } as unknown as JsonObject,
+            result: { turnId: running.id, firstStepId: running.steps[0]?.id },
+            events,
+            outbox: []
+        })
+    });
 }

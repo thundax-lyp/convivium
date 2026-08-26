@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/scripts/smoke-profile.mjs`：加入真实 create/turn/pause/resume/restart 断言
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求下一个范围必须可在 DSH 中执行；T7
-  - 处理动作：通过 DSH Tools 记录并断言 meeting、ownership parent/provider/initialMessage、attempt、delivery、agenda、prior messages 和 context seq。
-  - 验收点：A 的 prior message 为空，B 包含 A，C 按序包含 A+B；重启后同一 Captain 完成 parent rebind；未调用 Meeting HTTP route。
-
 - [ ] `plugin/package.json`：接入分层 Runtime 验证入口
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T7/T8
