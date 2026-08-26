@@ -45,6 +45,8 @@ export interface CreateMeetingSpec {
     objectiveContract: CreateObjectiveContractSpec;
     agenda: readonly CreateAgendaItemSpec[];
     participants: readonly CreateParticipantSpec[];
+    /** Present only while the caller requests an archived-meeting continuation. */
+    continuation?: unknown;
     selectionMode?: MeetingSelectionMode;
     limits: MeetingLimits;
     createdAt: number;
@@ -73,6 +75,18 @@ export function createMeetingState(
     input: CreateMeetingSpec,
     ids: CanonicalIdAllocator
 ): MeetingState {
+    if (input.selectionMode !== undefined && input.selectionMode !== "round_robin") {
+        throw new DomainError(
+            "UNSUPPORTED_CAPABILITY",
+            `selection mode ${input.selectionMode} is not supported by this runtime slice`
+        );
+    }
+    if (input.continuation !== undefined) {
+        throw new DomainError(
+            "UNSUPPORTED_CAPABILITY",
+            "meeting continuation is not supported by this runtime slice"
+        );
+    }
     if (
         !input.meetingId ||
         !input.teamId ||
@@ -177,7 +191,7 @@ export function createMeetingState(
         eventSeq: 0,
         stallCount: 0,
         replanCount: 0,
-        selectionMode: input.selectionMode ?? "hybrid",
+        selectionMode: "round_robin",
         limits: { ...input.limits },
         version: 0,
         createdAt: input.createdAt,

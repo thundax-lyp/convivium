@@ -3,7 +3,8 @@ export type DomainErrorCode =
     | "MISSING_TERMINATION"
     | "MISSING_ARCHIVE"
     | "INVALID_ENTITY_STATE"
-    | "INVALID_CREATE_INPUT";
+    | "INVALID_CREATE_INPUT"
+    | "UNSUPPORTED_CAPABILITY";
 
 export class DomainError extends Error {
     readonly name = "DomainError";
@@ -11,7 +12,8 @@ export class DomainError extends Error {
     constructor(
         readonly code: DomainErrorCode,
         message: string,
-        readonly details: Readonly<Record<string, string | number | undefined>> = {}
+        readonly details: Readonly<Record<string, string | number | undefined>> = {},
+        readonly retryable = false
     ) {
         super(message);
     }

@@ -65,7 +65,7 @@ describe("canonical meeting creation", () => {
             id: "meeting-1",
             status: "created",
             version: 0,
-            selectionMode: "hybrid",
+            selectionMode: "round_robin",
             manager: { promptVersion: "v1", status: "creating" },
             participants: [
                 { id: "participant:participant-1", status: "available" },
@@ -122,5 +122,29 @@ describe("canonical meeting creation", () => {
         ).toThrowError(
             expect.objectContaining<Partial<DomainError>>({ code: "INVALID_CREATE_INPUT" })
         );
+    });
+
+    it("rejects unsupported create capabilities before allocating any canonical id", () => {
+        let allocations = 0;
+        const recordingIds: CanonicalIdAllocator = {
+            allocate: (kind, key) => {
+                allocations += 1;
+                return `${kind}:${key}`;
+            }
+        };
+
+        for (const unsupported of [
+            input({ selectionMode: "manager" }),
+            input({ continuation: { sourceMeetingId: "archived-meeting" } })
+        ]) {
+            expect(() => createMeetingState(unsupported, recordingIds)).toThrowError(
+                expect.objectContaining<Partial<DomainError>>({
+                    code: "UNSUPPORTED_CAPABILITY",
+                    retryable: false
+                })
+            );
+        }
+
+        expect(allocations).toBe(0);
     });
 });

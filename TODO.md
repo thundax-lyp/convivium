@@ -74,12 +74,6 @@
   - 处理动作：使用持久 parentSessionId 调用 `listChildren`/`listDescendants`，与 repository-bound meetingId、ownership 和完整 label 交叉校验。
   - 验收点：缺少任一归属证明的 Session 只记录诊断、不执行 followup、interrupt 或 drain。
 
-- [ ] `plugin/src/domain/`：拒绝本竖切未支持的 create capability
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 同意 review 建议；T4
-  - 处理动作：对非 `round_robin` selection mode 和 continuation 返回无副作用 `UNSUPPORTED_CAPABILITY`。
-  - 验收点：错误 `retryable=false`；不创建目录、bootstrap、Session 或 Meeting。
-
 - [ ] `plugin/src/domain/planning.ts`：实现 round-robin Turn plan
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4
