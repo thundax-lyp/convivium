@@ -265,7 +265,7 @@ export const ManagerPlanSubmissionSchema = z.object({
     steps: array(z.object({ participantId: string(), instruction: string(), reason: string() }))
 });
 
-export const TurnSubmissionSchema: z<any> = z.object({
+export const TurnSubmissionSchema: z<Record<string, unknown>> = z.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string(),
     turnId: string(),
