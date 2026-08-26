@@ -48,7 +48,7 @@ git diff --stat main...HEAD
 git remote -v
 ```
 
-确认当前分支、未提交改动、相对 `main` 的提交和文件范围、upstream/远端同名分支，以及当前分支或相关 commit 是否已有 open PR。其他无关分支和 commit 的 open PR 不计入此判断。工作区有改动时，先区分本任务改动、用户已有改动和归属不明改动。
+确认当前分支、未提交改动、相对 `main` 的提交和文件范围、upstream/远端同名分支，以及当前分支或相关 commit 是否已有 open PR。其他无关分支和 commit 的 open PR 不计入此判断。发现当前分支已有 open PR 时，先确认其 base 为 `main`；如果 base 不是 `main`，停止并请求用户决定 retarget 或另建 PR。工作区有改动时，先区分本任务改动、用户已有改动和归属不明改动。
 
 ### 2. 分支安全
 
@@ -80,7 +80,7 @@ git remote -v
 ### 5. Push 与 PR
 
 - 仅 push 非 `main` 分支；无 upstream 时使用 `git push -u origin <branch>`。
-- 当前分支有 open PR 时更新它；没有时创建目标为 `main` 的 PR。只关注当前分支或相关 commit 的 PR，不把无关 PR 当作当前交付的 PR。
+- 当前分支有且 base 为 `main` 的 open PR 时更新它；没有时创建目标为 `main` 的 PR。只关注当前分支或相关 commit 的 PR，不把无关 PR 当作当前交付的 PR；base 不是 `main` 时停止并请求用户决定 retarget 或另建 PR。
 - 标题使用 `Type(<project>[/<module>]): <阶段性交付结论>`，其中 project 必须来自已读取的 `COMMIT-RULES.md` Project Registry。
 - 描述必须严格使用 `.github/pull_request_template.md` 的当前字段：`Closure`、`Scope`、`Verification Evidence`、`Not Covered`、`Cross-boundary Impact`、`Documentation And Task Closure`、`Risks`。
 - PR 描述以最终远端 commit、diff 和 checks 为准；每轮修复 push 后，只在内容、验证、未覆盖项或风险变化时同步更新描述。
@@ -101,7 +101,7 @@ PR 创建或更新后观察最多 5 分钟；每 20–30 秒检查 PR 状态、G
 
 只有在以下事实都确认后才报告 PR 已收口：
 
-- 工作区干净，非 `main` 分支已 push；
+- 本 PR 相关改动已提交，非 `main` 分支已 push；无关的用户工作区改动可以保留，但必须在结果中单独披露；
 - PR 已创建或更新并有 URL；
 - 标题和描述符合当前模板及 PR 规则；
 - 本地验证已运行，或未运行原因已记录；
