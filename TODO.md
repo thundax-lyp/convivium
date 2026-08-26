@@ -176,12 +176,6 @@
   - 处理动作：注册当前 Participant 的 `convivium_submit_turn` 与 Captain 的 pause/resume tools。
   - 验收点：权限矩阵、mandatory output、错误 envelope 和幂等语义均通过 contract tests。
 
-- [ ] `plugin/tests/contract`：锁定本竖切不注册 Meeting HTTP route
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 明确采用待讨论项建议；T5
-  - 处理动作：验证 Host 只注册五个会议 Tools，未注册 status/pause/resume Meeting Web routes。
-  - 验收点：没有 DSH Web user authorization adapter 时，构建产物不存在无授权 HTTP 控制面。
-
 - [ ] `plugin/src/runtime/recovery.ts`：实现 pause/resume 与 stale result 隔离
   - 依据文档：`docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T6
