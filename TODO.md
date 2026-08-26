@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/dsh/labels.ts`：实现 meeting Session label 编解码
-  - 依据文档：`docs/00-governance/ARCHITECTURE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
-  - 处理动作：生成并严格解析 Manager/Participant label，拒绝模糊前缀和非法 identity。
-  - 验收点：合法 label 可往返解析；跨 team/meeting/participant label 被拒绝。
-
 - [ ] `plugin/src/dsh/provisioning.ts`：生成 Session provisioning envelope
   - 依据文档：`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 同意 review 建议；T3
