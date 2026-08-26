@@ -190,6 +190,9 @@ interface Migration {
 
 Runtime 只通过以下语义级 API 读写：
 
+完整的类型、幂等、lease、错误和 migration 契约见
+`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`。本设计只保留模块边界和事务约束。
+
 ```ts
 interface MeetingRepository {
   create(input: CreateMeetingRecord): Promise<MeetingSnapshot>
@@ -204,7 +207,7 @@ interface MeetingRepository {
 
 `execute` 是正式会议事实的唯一写入口。它在一个事务中完成：
 
-1. 校验 `expectedMeetingVersion`、caller binding、capability 和当前 attempt。
+1. Runtime 先通过 `RepositoryAuthorizationValidator` 校验真实 caller binding、capability 和当前 attempt；Repository 在 transition 前调用该端口，并校验 `expectedMeetingVersion`。
 2. 调用纯 `domain/transitions.ts` 得到新聚合和 effects。
 3. 写入聚合状态、不可变 `meeting_events`、幂等 receipt 和 outbox。
 4. 单调递增 meeting version 与 event sequence。
@@ -222,7 +225,7 @@ interface MeetingRepository {
 4. 通过 outbox 创建 Manager 和 Participant Sessions。
 5. Session 创建成功后回写 ownership；全部 required Sessions 就绪后会议才可进入 `running`。
 
-进程在第 2 至 5 步中断时，冷恢复根据 bootstrap record 和 Session label 修复归属。不存在 bootstrap record 的空目录可以清理；有 bootstrap record 的 Meeting 必须恢复或进入结构化 `failed`，不能成为部分可用会议。
+进程在第 2 至 5 步中断时，冷恢复根据 bootstrap record 和 Session label 修复归属。Repository 对 `creating` 或 `creation_failed` bootstrap 返回 ownership 但不返回公开 Meeting snapshot，使上层能恢复或安全关闭 Session。不存在 bootstrap record 的空目录可以清理；有 bootstrap record 的 Meeting 必须恢复或进入结构化 `failed`，不能成为部分可用会议。
 
 ## Meeting Session Adapter
 
