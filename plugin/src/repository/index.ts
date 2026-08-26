@@ -5,27 +5,12 @@ import { DatabaseSync } from "node:sqlite";
 
 import { RepositoryError } from "./errors.js";
 import { CURRENT_SCHEMA_VERSION, migrate } from "./migrations.js";
+import type { DomainEventType } from "../domain/model.js";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
-export type MeetingEventType =
-    | "meeting.created"
-    | "turn.planned"
-    | "speaker.assigned"
-    | "speaker_attempt.revoked"
-    | "message.added"
-    | "hand_raise.created"
-    | "background_task.linked"
-    | "decision.added"
-    | "meeting.paused"
-    | "meeting.waiting"
-    | "meeting.resumed"
-    | "meeting.replanned"
-    | "meeting.ended"
-    | "meeting.archiving"
-    | "archive.sessions_closed"
-    | "meeting.archived";
+export type MeetingEventType = DomainEventType;
 
 export const OUTBOX_KINDS = ["dispatch"] as const;
 export type OutboxKind = (typeof OUTBOX_KINDS)[number];

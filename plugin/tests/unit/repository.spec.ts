@@ -75,6 +75,30 @@ describe("MeetingRepository", () => {
         await repository.close();
     });
 
+    it("allows a separately authorized caller to complete the bootstrap", async () => {
+        const repository = await openRepository();
+        const creator = {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" as const }
+        };
+        const completer = {
+            ...creator,
+            authorization: {
+                callerBinding: "captain:2",
+                capabilityId: "capability:2"
+            }
+        };
+
+        await repository.create(creator);
+        const result = await repository.completeCreate(completer);
+
+        expect(result.result).toEqual({ meetingId: "meeting-1", meetingVersion: 0 });
+        expect(await repository.read()).toMatchObject({ version: 0, state: { status: "created" } });
+        await repository.close();
+    });
+
     it("recovers a creating bootstrap without requiring a public meeting", async () => {
         const repository = await openRepository();
         await repository.create({
@@ -170,6 +194,65 @@ describe("MeetingRepository", () => {
             repository.execute({ ...command, requestId: "command-2" })
         ).rejects.toMatchObject<RepositoryError>({ code: "VERSION_CONFLICT" });
         expect((await repository.read()).version).toBe(1);
+        await repository.close();
+    });
+
+    it("uses the generic receipt for speaker attempts and manager plans", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { count: 0 }
+        });
+
+        const submitSpeaker = (
+            authorizationOverride: CommandAuthorization
+        ): RepositoryCommand<{
+            committed: string;
+        }> => ({
+            requestId: "speaker-attempt-1",
+            commandKind: "submit_speaker_attempt",
+            authorization: authorizationOverride,
+            requestHash: "speaker-hash",
+            expectedMeetingVersion: 0,
+            transition: (snapshot) => ({
+                state: { count: Number(snapshot.state.count) + 1 },
+                result: { committed: "speaker-attempt-1" },
+                events: [{ type: "message.added", payload: { count: 1 } }],
+                outbox: []
+            })
+        });
+
+        const speakerFirst = await repository.execute(submitSpeaker(authorization));
+        const speakerDuplicate = await repository.execute(
+            submitSpeaker({ ...authorization, attemptId: "different-attempt" })
+        );
+        expect(speakerDuplicate).toEqual(speakerFirst);
+
+        const managerAuthorization = {
+            ...authorization,
+            attemptId: undefined,
+            callerBinding: "manager:1"
+        } satisfies CommandAuthorization;
+        const submitManagerPlan: RepositoryCommand<{ committed: string }> = {
+            requestId: "manager-plan-1",
+            commandKind: "submit_manager_plan",
+            authorization: managerAuthorization,
+            requestHash: "manager-hash",
+            expectedMeetingVersion: 1,
+            transition: (snapshot) => ({
+                state: { count: Number(snapshot.state.count) + 1 },
+                result: { committed: "manager-plan-1" },
+                events: [{ type: "turn.planned", payload: { turnId: "turn-1" } }],
+                outbox: []
+            })
+        };
+
+        const managerFirst = await repository.execute(submitManagerPlan);
+        const managerDuplicate = await repository.execute(submitManagerPlan);
+        expect(managerDuplicate).toEqual(managerFirst);
+        expect((await repository.read()).version).toBe(2);
         await repository.close();
     });
 

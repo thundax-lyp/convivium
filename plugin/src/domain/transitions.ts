@@ -88,7 +88,7 @@ function meetingEventType(from: MeetingStatus, to: MeetingStatus): DomainEventTy
     if (to === "paused") return "meeting.paused";
     if (to === "waiting") return "meeting.waiting";
     if (to === "running") {
-        if (from === "created") return "meeting.created";
+        if (from === "created") return "meeting.started";
         return from === "paused" ? "meeting.resumed" : "meeting.replanned";
     }
     if (to === "converging") return "meeting.replanned";
@@ -97,6 +97,28 @@ function meetingEventType(from: MeetingStatus, to: MeetingStatus): DomainEventTy
     if (to === "archiving") return "meeting.archiving";
     if (to === "archived") return "meeting.archived";
     return "meeting.created";
+}
+
+function turnEventType(to: TurnStatus): DomainEventType {
+    return to === "running" ? "turn.started" : (`turn.${to}` as DomainEventType);
+}
+
+function stepEventType(to: StepStatus): DomainEventType {
+    if (to === "assigned") return "speaker.assigned";
+    if (to === "running") return "speaker.started";
+    return `speaker.${to}` as DomainEventType;
+}
+
+function attemptEventType(to: AttemptStatus): DomainEventType {
+    return to === "running"
+        ? "speaker_attempt.started"
+        : (`speaker_attempt.${to}` as DomainEventType);
+}
+
+function managerPlanEventType(status: ManagerPlanningAttempt["status"]): DomainEventType {
+    return status === "running"
+        ? "manager_plan.started"
+        : (`manager_plan.${status}` as DomainEventType);
 }
 
 function isArchiveInput(archive: TransitionContext["archive"]): archive is ArchiveInput {
@@ -147,7 +169,7 @@ function revokeActiveAttempts(state: MeetingState): {
         : state.manager;
     if (activePlanning) {
         events.push({
-            type: "manager_attempt.revoked",
+            type: "manager_plan.revoked",
             payload: { planningAttemptId: planningAttempt.id, meetingId: state.id }
         });
     }
@@ -690,7 +712,9 @@ export function transitionMeeting(
             ? { currentTurn: lifecycleCleanup.currentTurn, manager: lifecycleCleanup.manager }
             : {}),
         ...(isExecutionTerminal ? { currentTurn: undefined } : {}),
-        ...(to === "waiting" && context.wait ? { waiting: structuredClone(context.wait) } : {}),
+        ...(to === "waiting" && context.wait
+            ? { waitState: structuredClone(context.wait) }
+            : { waitState: undefined }),
         ...(to === "archiving" && isArchiveInput(context.archive)
             ? { archive: snapshotArchive(context.archive) }
             : {}),
@@ -732,7 +756,7 @@ export function transitionTurn(
     assertTransition("turn", turn.id, turn.status, to, turnTransitions, meetingVersion);
     return {
         state: { ...turn, status: to },
-        effect: event("turn.status_changed", {
+        effect: event(turnEventType(to), {
             turnId: turn.id,
             from: turn.status,
             to,
@@ -749,7 +773,7 @@ export function transitionStep(
     assertTransition("step", step.id, step.status, to, stepTransitions, meetingVersion);
     return {
         state: { ...step, status: to },
-        effect: event("step.status_changed", {
+        effect: event(stepEventType(to), {
             stepId: step.id,
             from: step.status,
             to,
@@ -802,7 +826,7 @@ export function transitionAttempt(
             status: to,
             ...(acknowledged ? { deliveryStatus: "acknowledged" as const } : {})
         },
-        effect: event("attempt.status_changed", {
+        effect: event(attemptEventType(to), {
             attemptId: attempt.attemptId,
             from: attempt.status,
             to,
@@ -881,7 +905,6 @@ export function transitionManagerAttempt(
     if (
         attempt.id !== context.attemptId ||
         attempt.meetingId !== context.meetingId ||
-        attempt.sessionId !== context.sessionId ||
         attempt.deliveryId !== context.deliveryId ||
         (to === "submitted" && attempt.observedMeetingVersion !== meetingVersion)
     ) {
@@ -893,7 +916,7 @@ export function transitionManagerAttempt(
     }
     return {
         state: { ...attempt, status: to },
-        effect: event("manager_attempt.status_changed", {
+        effect: event(managerPlanEventType(to), {
             planningAttemptId: attempt.id,
             from: attempt.status,
             to,

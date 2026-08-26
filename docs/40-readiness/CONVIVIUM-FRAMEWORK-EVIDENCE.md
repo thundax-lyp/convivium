@@ -4,7 +4,7 @@
 
 本证据覆盖 Convivium DSH 插件工程框架从依赖 manifest 到 PR 治理的可安装 package、lockfile、Host/Client 类型面、bundle、模块边界、framework tests、package verifier、统一验证入口和 CI workflow。
 
-本证据不代表会议运行时、会议协议、SQLite repository 或真实 DSH AgentSession 已实现。
+本证据不代表会议运行时、真实 DSH AgentSession 或会议业务已完成。当前领域状态机和 SQLite repository 基础已经存在；会议运行时、DSH lifecycle 和集成验证仍未覆盖。
 
 ## Validated Contract
 
@@ -16,10 +16,11 @@
 - framework tests 覆盖模块边界、package manifest 和 Client entry 加载，不覆盖会议业务。
 - package verifier 从磁盘读取 manifest、patch 和 build artifact；缺失 Client artifact、错误 patch name、开放 files allowlist 均可失败。
 - workflow 独立展示 `Governance`、`Plugin Format`、`Plugin Lint`、`Plugin Typecheck`、`Plugin Test`、`Plugin Build` 和 `Package Contract`；Package Contract 依赖 Plugin Build artifact。
+- 当前代码—需求—设计漂移和未实现模块以本文件的 `Not Covered` 与相关正式需求、接口和设计文档为准。
 
 ## Executed Validation
 
-验证日期：2026-08-25
+历史框架验证日期：2026-08-25
 环境：Node `v22.23.2`，pnpm `10.7.0`，macOS 本地工作区
 实现边界：`fef0d1c..fca7386`（依赖 manifest 至 PR 治理的实现提交）；证据在后续 readiness commit 中收口。
 
@@ -40,10 +41,12 @@
 
 `pnpm 10.7.0` 不支持原执行手册写出的 `pnpm pack --dry-run` 参数；已使用该版本支持的临时目录实际打包 JSON 清单替代检查，并确认发布清单未包含 `src/`、`tests/` 或 `docs/`。
 
+当前基线复核：2026-08-26，基线为本分支最新提交，`pnpm verify` 通过，6 个测试文件、62 个测试通过；领域和 Repository 单元测试已纳入当前代码。`test:integration`、`test:recovery` 和 `test:stress` 仍无测试文件，均明确输出 `Not Covered`。尚未实现能力记录在本文件的 `Not Covered`。
+
 ## Not Covered
 
-- 会议生命周期、Turn、发言权、Manager、完成判断和会议协议业务。
-- SQLite schema、driver、事务、outbox、恢复和测试数据库。
+- 会议生命周期、Turn、发言权、Manager、完成判断和会议运行时业务。
+- 完整 MeetingState 与 SQLite repository 的类型化集成、业务 schema 语义和冷恢复。
 - 真实 DSH AgentSession 创建、followup、interrupt、continuable drain、capability revoke 和归档。
 - 真实 DSH Host/Web roster 启动、工具调用、HTTP 路由和权限边界的运行时验证。
 - integration、recovery、stress 业务测试和压力结果。

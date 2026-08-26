@@ -36,6 +36,7 @@
 - 仓库级边界：[`../00-governance/ARCHITECTURE.md`](../00-governance/ARCHITECTURE.md)。
 - 正式需求：[`../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)。
 - Agent 间会议协议：[`../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)。
+- Domain 数据结构唯一真相源：[`DOMAIN-MODEL-DESIGN.md`](./DOMAIN-MODEL-DESIGN.md)。
 - 源码落点与接线：[`CONVIVIUM-IMPLEMENTATION-DESIGN.md`](./CONVIVIUM-IMPLEMENTATION-DESIGN.md)。
 - Interface 已定义 Plugin Frontend 的最小状态读取及暂停/恢复路由；组件结构、视觉样式和非会议控制路由不属于本文。
 - 外部协作插件只能作为只读调研材料，不是本设计的源码基线、依赖或兼容目标。
@@ -159,6 +160,8 @@ convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
 这些 label 同时是冷恢复时的 ownership 证明。Runtime 只能操作由上述命名空间创建、且能够解析出完整 `teamId`、`meetingId` 和身份 ID 的 Session；不得根据模糊前缀或显示名称中断、关闭 Session 或撤销 capability。
 
 ## 5. Runtime Model
+
+本节的核心 Domain 数据结构唯一真相源为 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md)。本设计只描述状态转换、调度、持久化、恢复、归档和跨边界流程。
 
 以下类型表达必须持久化的语义；实现可以拆分文件，但不能改变所有权和不变量。
 
@@ -559,38 +562,7 @@ Question、Proposal 和 Decision MUST 拥有稳定 ID。Proposal revision 变化
 
 ### 6.1 Objective contract
 
-```ts
-interface MeetingObjectiveContract {
-  requiredOutputs: Array<{
-    id: string
-    description: string
-    status: 'pending' | 'ready' | 'accepted'
-  }>
-  acceptanceCriteria: Array<{
-    id: string
-    description: string
-    satisfied: boolean
-  }>
-  hardConstraints: Array<{ id: string; description: string }>
-  requiredReviewers: string[]
-  riskAcceptanceAuthority: string[]
-  acceptableRiskLevel: 'low' | 'medium' | 'high'
-}
-
-interface AgendaItem {
-  id: string
-  title: string
-  objective: string
-  inScope: string[]
-  outOfScope: string[]
-  completionCriteria: string[]
-  owner?: string
-  requiredParticipants: string[]
-  relatedTaskIds: string[]
-  status: 'pending' | 'discussing' | 'waiting' | 'resolved' | 'deferred' | 'blocked'
-  resolution?: string
-}
-```
+ObjectiveContract 和 AgendaItem 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md) 为准。本节仅定义其在目标收敛和议题调度中的行为约束。
 
 同一时刻最多一个 `activeAgendaItemId`。一个 Turn 默认只服务于 active agenda。议题切换 MUST 在 turn 边界显式提交，并记录 from、to、reason、批准者和 meeting version。
 
@@ -753,76 +725,13 @@ SQLite 是 Meeting Runtime 的唯一状态真相。不再维护 `meeting.json` �
 
 ### 8.2 Required tables
 
-```sql
-CREATE TABLE meeting_bootstrap (
-  meeting_id TEXT PRIMARY KEY,
-  create_request_id TEXT NOT NULL,
-  request_hash TEXT NOT NULL,
-  phase TEXT NOT NULL,
-  safe_error_code TEXT,
-  result_json TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
 
-CREATE TABLE meetings (
-  id TEXT PRIMARY KEY,
-  team_id TEXT NOT NULL,
-  status TEXT NOT NULL,
-  version INTEGER NOT NULL,
-  state_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
 
-CREATE TABLE meeting_events (
-  meeting_id TEXT NOT NULL,
-  event_seq INTEGER NOT NULL,
-  meeting_version INTEGER NOT NULL,
-  event_type TEXT NOT NULL,
-  payload_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
-  PRIMARY KEY (meeting_id, event_seq)
-);
 
-CREATE TABLE committed_speaker_attempts (
-  attempt_id TEXT PRIMARY KEY,
-  meeting_id TEXT NOT NULL,
-  turn_id TEXT NOT NULL,
-  step_id TEXT NOT NULL,
-  request_hash TEXT NOT NULL,
-  committed_version INTEGER NOT NULL,
-  result_json TEXT NOT NULL,
-  committed_at INTEGER NOT NULL
-);
 
-CREATE TABLE committed_manager_plans (
-  planning_attempt_id TEXT PRIMARY KEY,
-  meeting_id TEXT NOT NULL,
-  manager_session_id TEXT NOT NULL,
-  observed_meeting_version INTEGER NOT NULL,
-  request_hash TEXT NOT NULL,
-  committed_version INTEGER NOT NULL,
-  result_json TEXT NOT NULL,
-  committed_at INTEGER NOT NULL
-);
+`plugin/src/repository/schema.ts` 是当前完整 DDL 真相源。本设计只固定逻辑表及其职责，不复制第二份可能漂移的 SQL：`meeting_bootstrap`、`meetings`、`meeting_events`、`idempotency_receipts`、`outbox` 和 `session_ownership`。
 
-CREATE TABLE meeting_outbox (
-  id TEXT PRIMARY KEY,
-  delivery_id TEXT NOT NULL UNIQUE,
-  meeting_id TEXT NOT NULL,
-  meeting_version INTEGER NOT NULL,
-  kind TEXT NOT NULL,
-  payload_json TEXT NOT NULL,
-  status TEXT NOT NULL,
-  attempt_count INTEGER NOT NULL DEFAULT 0,
-  available_at INTEGER NOT NULL,
-  delivered_at INTEGER
-);
-
-```
-
-`meeting_bootstrap.phase` 只允许 `creating | ready | creation_failed`：
+`meeting_bootstrap.status` 只允许 `creating | ready | creation_failed`：
 
 - 创建目录和 SQLite 后，在任何 Session 创建前写入 `create_request_id`、规范化 `request_hash` 和 `creating`；
 - 全部必需 Session 创建且 Meeting 初始事实提交成功后，在同一 SQLite 事务中写入 `meetings`、`meeting.created`、成功 `result_json` 并转为 `ready`；
@@ -832,6 +741,8 @@ CREATE TABLE meeting_outbox (
 同一 Team 的 create 命令在进入副作用前，必须在进程内取得以 `teamId + requestId` 为 key 的互斥锁，并扫描该 Team 的 Meeting bootstrap records：相同 request ID 和相同 hash 返回或恢复原创建；相同 request ID 和不同 hash 返回 `IDEMPOTENCY_CONFLICT`。Convivium 当前是单 DSH 插件进程，因此不引入跨进程唯一索引；若该部署前提改变，必须先升级 create correlation 的持久化协调方式。
 
 `meeting_bootstrap` 不能并入普通 `meetings` row：它必须在 Meeting 领域对象和 Session 存在前保存 create identity、幂等 hash 和失败诊断，并且 `creating|creation_failed` 不属于公开 Meeting 生命周期。该 table 只承担创建事务外壳，不复制 MeetingState。
+
+Bootstrap 不承担 caller ownership。`create` 和 `completeCreate` 都必须实时校验当前 caller，但不要求两次调用来自同一 caller；只有通过 `completeCreate` 当前授权校验且 correlation 匹配时才创建公开 Meeting。
 
 实现 MUST 为所有 `meeting_id` 增加 foreign key 和必要索引。`state_json` 用于恢复当前状态；events 用于审计和诊断，不用于单独重建另一份当前状态。
 
@@ -866,7 +777,7 @@ generatedAt: 2026-08-25T12:00:00Z
 ```text
 BEGIN IMMEDIATE
 → SELECT meeting and validate version
-→ lookup committed_speaker_attempts
+→ lookup idempotency_receipts by requestId, commandKind and callerBinding
 → validate meeting/turn/step/attempt/delivery/speaker/status
 → atomically promote matching delivery to accepted when still pending
 → apply message and structured changes
@@ -875,9 +786,9 @@ BEGIN IMMEDIATE
 → update counters
 → advance step or finish turn
 → UPDATE meetings WHERE id = ? AND version = ?
-→ INSERT committed_speaker_attempts
+→ INSERT idempotency_receipts with result and event sequence
 → INSERT meeting_events
-→ INSERT meeting_outbox when needed
+→ INSERT outbox when needed
 → COMMIT
 ```
 
@@ -885,12 +796,13 @@ BEGIN IMMEDIATE
 
 ### 8.5 Manager commit
 
-Manager plan 使用相同事务结构，并额外校验 caller Session、planning attempt 和 observed meeting version。合法提交写 `committed_manager_plans`，再创建 MeetingTurn 和第一个 speaker outbox。
+Manager plan 使用相同事务结构，并额外校验 caller Session、planning attempt 和 observed meeting version。合法提交写入带有 command kind、caller binding、request hash、result 和 event sequence 的通用 `idempotency_receipts`，再创建 MeetingTurn 和第一个 speaker outbox。
 
 ### 8.6 Idempotency
 
-- 相同 attempt ID 和相同 request hash：返回首次 result。
-- 相同 attempt ID 和不同 request hash：`IDEMPOTENCY_CONFLICT`。
+- Repository 以 `requestId + commandKind + callerBinding` 作为唯一幂等键。`attemptId` 和 `planningAttemptId` 只参与授权、状态和 transition 校验，不作为 receipt 查询键；Repository 不提供按这些 ID 反查提交结果的要求。
+- 相同幂等键和相同 request hash：返回首次 result。
+- 相同幂等键和不同 request hash：`IDEMPOTENCY_CONFLICT`。
 - 已撤销或过期 speaker attempt：`STALE_ATTEMPT`。
 - 已撤销或过期 Manager attempt：`STALE_MANAGER_ATTEMPT`。
 - 执行终态 Meeting：`IMMUTABLE_MEETING`。
@@ -1108,22 +1020,7 @@ current Participant Session
 
 关联现有 TeamTask 时必须验证它属于同一 Team，并验证 Participant 对任务及其结果的访问权限。任务状态和结果仍归 DSH 所有；Meeting Runtime 只保存已授权 snapshot，并在进入 speaker context、HandRaise 或 CompletionFact 前再次检查关联和投影范围。
 
-```ts
-interface MeetingHandRaise {
-  id: string
-  participant: string
-  reason: 'task_completed' | 'new_evidence' | 'answer_ready'
-    | 'blocking_objection' | 'correction' | 'user_requested'
-  summary: string
-  taskIds: string[]
-  replyToMessageId?: string
-  agendaItemId?: string
-  priority: 'normal' | 'high' | 'blocking'
-  status: 'pending' | 'accepted' | 'deferred' | 'withdrawn' | 'consumed' | 'rejected'
-  createdAt: number
-  resolvedAt?: number
-}
-```
+MeetingHandRaise 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md) 为准。本节仅定义异步工作、举手和 Mail Processor 的行为。
 
 - HandRaise 是调度输入，不是正式发言。
 - 相同 participant/task/reason 的 pending HandRaise MUST 去重。
@@ -1321,21 +1218,7 @@ Proposal 产生新 revision 后，旧 revision 的 Position 和 acceptance 不�
 
 ### 13.5 Limits and termination
 
-```ts
-interface MeetingLimits {
-  maxTurns: number
-  maxSpeakersPerTurn: number
-  maxTotalMessages: number
-  maxDurationMs?: number
-  maxConsecutiveSpeechesPerSpeaker: number
-  maxConsecutiveAttemptFailuresPerParticipant: number
-  maxDeliveryRetries: number
-  maxStalls: number
-  maxReplans: number
-  speakerAttemptTimeoutMs?: number
-  mailHandlingTimeoutMs?: number
-}
-```
+MeetingLimits 和 MeetingTermination 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md) 为准。本节仅定义限制检查、终止判定和收尾行为。
 
 Agent 内部工具失败不进入 limits。SpeakerAttempt 超时、Session 崩溃或无合法提交时递增 `consecutiveAttemptFailures`；成功提交清零；用户主动撤销或改派不计失败。MailHandlingAttempt 超时只终止该私聊处理并释放 Session 队列，不递增会议级 speaker failure 或直接使 Meeting 失败。
 
@@ -1618,6 +1501,8 @@ flowchart LR
 
 SQLite `meeting_events` 至少保存以下领域事件类型：
 
+完整事件词汇以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md) 和 Domain 的 `DomainEventTypes` 为准；以下列出会议审计路径中必须出现的核心事实事件。
+
 ```text
 meeting.created
 turn.planned
@@ -1637,7 +1522,7 @@ archive.sessions_closed
 meeting.archived
 ```
 
-事件类型应描述已发生的领域事实，而不是命令名称或 UI 操作。所有允许写入的类型必须在 `MeetingEventType` 中集中注册；新增类型遵循接口兼容和数据迁移规则，不能通过任意字符串静默扩展。失败尝试、投递重试、Session 关闭失败或 capability 撤销失败如果没有改变 Meeting 领域状态，只进入结构化日志、指标或 outbox 状态，不伪装为已完成的领域事实。
+事件类型应描述已发生的领域事实，而不是命令名称或 UI 操作。`DomainEventType` 是事件语义的唯一来源，Repository 的 `MeetingEventType` 必须直接复用它；新增类型遵循接口兼容和数据迁移规则，不能通过任意字符串静默扩展。失败尝试、投递重试、Session 关闭失败或 capability 撤销失败如果没有改变 Meeting 领域状态，只进入结构化日志、指标或 outbox 状态，不伪装为已完成的领域事实。
 
 这些类型是 Meeting Runtime 的 SQLite 领域事件，不加入 DSH `SessionEventMap`，也不写入 Agent Session。`state_json` 是当前状态快照；`meeting_events` 用于有序审计和诊断，恢复当前状态必须读取 `state_json`，不得仅通过重放事件另建第二份状态。
 
