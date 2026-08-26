@@ -17,7 +17,7 @@
 - Convivium 使用 TypeScript 独立实现，不导入或派生外部参考项目源码。
 - 唯一可构建产品工程位于仓库顶层 `plugin/`。该目录不使用 Git submodule，也不在构建或运行时引用相邻参考项目工作区。
 - Convivium 支持的最低 DSH 版本为 `0.1.1-rc.2`；实现可以依赖该版本 `dsh-subagent` 提供的持久子 Session 枚举和 continuable Activation drain 能力。
-- Convivium 正式运行会议前，宿主组合必须提供一个具备 `prepareContinuable` 能力的 continuable subagent provider；仅声明或注入 `dsh-subagent` service 不构成该能力。插件必须在独立 DSH profile 中验证该 provider 与 `startContinuable()` 的实际创建链路。具体 provider 包、profile 组织方式和分发方式仍待确定。
+- Convivium 正式运行会议前，宿主组合必须提供一个具备 `prepareContinuable` 能力的 continuable subagent provider；仅声明或注入 `dsh-subagent` service 不构成该能力。当前确认的宿主 profile provider 是 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.1-rc.2`，provider name 为 `spawn`，由 profile 作为组合依赖管理，不由 Convivium 自行实现、隐式携带或写入插件 package manifest。插件必须在独立 DSH profile 中验证该 provider 与 `startContinuable()` 的实际创建链路。
 - 插件依赖 DSH 提供 AgentSession、continuable Agent、工具注册、Web 路由、DSH 原生 Session Event 和插件 UI 宿主能力。
 - 插件包含清晰分离的插件前端和插件后端会议运行时。
 - 每个 Meeting 在任何会议副作用前获得稳定 `meetingId` 和独立目录；状态、事件、幂等收据和 outbox 写入该目录内独立 `meeting.sqlite`。

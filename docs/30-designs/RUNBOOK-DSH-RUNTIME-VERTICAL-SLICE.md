@@ -137,7 +137,17 @@ Provider 必须满足：
 
 当前不能从插件仓库直接推断具体 provider 包。若 profile 无法提供上述能力，停止后续实现，记录阻塞原因，不添加自制 provider 或 mock provider 伪造通过。
 
-T1 取证完成后必须暂停，把上述完整记录提交给用户确认具体 provider package/name/exact version、安装来源和 profile manifest。只有确认结果写回本 RUNBOOK 或正式兼容性文档后才能进入 T2；“发现一个可能可用的 provider”不等于获得选型许可。
+已确认的 provider tuple：
+
+```text
+Package: @deepseek-ai/dsh-subagent-spawn-in-process
+Provider name: spawn
+Exact version: 0.1.1-rc.2
+Installation source: npm registry tarball
+Profile composition: host DSH web profile with @deepseek-ai/dsh-base + @deepseek-ai/dsh-web-app
+```
+
+该 provider 仍由宿主 profile 管理；Convivium 不将其加入 `plugin/package.json` 或 lockfile。T1 的 profile capability、完整 lifecycle 与 cleanup 证据记录在 `docs/60-human/DSH-PROVIDER-T1-RESEARCH.md`。此确认允许进入 T2；任何后续版本、provider name 或分发边界变更必须重新取证并获得确认。
 
 ## 5. 数据结构
 

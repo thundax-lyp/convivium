@@ -1,6 +1,6 @@
 # DSH Provider T1 调研记录
 
-状态：候选、profile capability 与 continuable 生命周期已取证，尚未获得用户 tuple 确认。
+状态：已取证并于 2026-08-26 获得用户 tuple 确认；长期工程结论以 `ARCHITECTURE.md` 与 RUNBOOK 为准。
 
 ## Scope
 
@@ -120,10 +120,10 @@ dsh --profile web --no-open
 
 probe 已先 drain target/control child，再 dispose 两个 parent。随后只将本次 `mktemp` 创建的根移入系统废纸篓，并断言该精确路径不存在；未读取、修改或删除用户 DSH profile、workspace、Session 或进程。
 
-## Pending User Confirmation
+## Confirmation Result
 
-- 候选尚未获得用户对 package/name/version/安装来源的确认。
-- 未据此修改 `plugin/package.json` 或 `plugin/pnpm-lock.yaml`；provider 仍由宿主 profile 管理。
+- 用户于 2026-08-26 确认 package/name/version/安装来源 tuple。
+- provider 继续由宿主 profile 管理；未据此修改 `plugin/package.json` 或 `plugin/pnpm-lock.yaml`。
 
 ## Related Documents
 

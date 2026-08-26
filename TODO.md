@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/profile`：完成 provider 人工确认门
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 明确采用待讨论项建议；T1
-  - 处理动作：提交 provider package/name、exact version、安装来源、profile manifest、`prepareContinuable`、启动和清理证据，暂停等待用户确认。
-  - 验收点：用户确认 exact provider tuple，结论写入正式文档，待讨论项删除；确认前不执行 T2。
-
 - [ ] `plugin/src/config.ts`：定义 Runtime 配置 Schema
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T2
