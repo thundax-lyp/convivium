@@ -43,7 +43,9 @@ export type DomainEventType = (typeof DomainEventTypes)[number];
 
 export interface MeetingParticipant {
     id: string;
+    sourceMemberName?: string;
     displayName: string;
+    role?: string;
     status: "available" | "busy" | "speaking" | "unavailable" | "failed" | "removed";
     consecutiveSpeeches: number;
     consecutiveAttemptFailures: number;
@@ -61,23 +63,57 @@ export interface ManagerPlanningAttempt {
     id: string;
     meetingId: string;
     observedMeetingVersion: number;
-    sessionId: string;
     deliveryId: string;
     status: "pending" | "running" | "submitted" | "revoked" | "failed";
 }
 
 export interface MeetingTurn {
     id: string;
+    seq: number;
+    agendaItemId: string;
+    intent: TurnIntent;
+    objective: string;
+    expectedOutputs: string[];
+    prohibitedTopics: string[];
     status: TurnStatus;
     currentStepIndex: number;
     steps: SpeakerStep[];
+    createdAt: number;
+    completedAt?: number;
 }
+
+export type TurnIntent =
+    | "explore"
+    | "clarify"
+    | "challenge"
+    | "review"
+    | "resolve_objection"
+    | "synthesize"
+    | "decide"
+    | "report_task_result"
+    | "refocus";
 
 export interface SpeakerStep {
     id: string;
+    speaker: string;
+    instruction: string;
+    reason: SpeakerSelectionReason;
     status: StepStatus;
     attempt?: SpeakerAttempt;
 }
+
+export type SpeakerSelectionReason =
+    | "explicit_mention"
+    | "direct_question"
+    | "required_reviewer"
+    | "agenda_owner"
+    | "task_result_owner"
+    | "blocking_objection_owner"
+    | "hand_raise"
+    | "rule_score"
+    | "manager_selected"
+    | "round_robin_fallback"
+    | "captain_summary";
 
 export interface SpeakerAttempt {
     attemptId: string;
@@ -86,9 +122,36 @@ export interface SpeakerAttempt {
     turnId: string;
     stepId: string;
     deliveryId: string;
+    contextFromSeq: number;
     contextThroughSeq: number;
+    taskSnapshots: MeetingTaskSnapshot[];
+    assignedAt: number;
+    startedAt?: number;
+    completedAt?: number;
+    deadlineAt?: number;
     status: AttemptStatus;
     deliveryStatus: "pending" | "accepted" | "acknowledged" | "failed";
+}
+
+export interface MeetingTaskSnapshot {
+    taskId: string;
+    taskAttemptId?: string;
+    status: "pending" | "running" | "completed" | "failed" | "cancelled" | "unknown";
+    output?: string;
+    observedAt: number;
+}
+
+export interface AgendaCandidate {
+    id: string;
+    proposedBy: string;
+    sourceMessageId: string;
+    title: string;
+    reason: string;
+    relationToActiveAgenda: "related" | "adjacent" | "unrelated";
+    urgency: "now" | "before_release" | "later";
+    suggestedParticipants: string[];
+    status: "pending" | "promoted" | "parked" | "rejected";
+    createdAt: number;
 }
 
 export interface MeetingAgendaItem {
@@ -197,7 +260,15 @@ export interface ContinuationMaterial {
 export interface MeetingLimits {
     maxTurns: number;
     maxSpeakersPerTurn: number;
-    maxMessages: number;
+    maxTotalMessages: number;
+    maxDurationMs?: number;
+    maxConsecutiveSpeechesPerSpeaker: number;
+    maxConsecutiveAttemptFailuresPerParticipant: number;
+    maxDeliveryRetries: number;
+    maxStalls: number;
+    maxReplans: number;
+    speakerAttemptTimeoutMs?: number;
+    mailHandlingTimeoutMs?: number;
 }
 
 export type MeetingSelectionMode = "round_robin" | "rule_based" | "manager" | "hybrid";
@@ -408,6 +479,7 @@ export interface ArchiveFinalizeInput {
 export interface MeetingState {
     id: string;
     teamId: string;
+    sourceMeetingId?: string;
     status: MeetingStatus;
     participants: MeetingParticipant[];
     manager: MeetingManagerRuntime;
@@ -416,7 +488,8 @@ export interface MeetingState {
     objective: string;
     objectiveContract: MeetingObjectiveContract;
     issues: MeetingIssue[];
-    agendaCandidates: string[];
+    agendaCandidates: AgendaCandidate[];
+    activeAgendaItemId?: string;
     transcript: MeetingMessage[];
     proposals: MeetingProposal[];
     decisions: MeetingDecision[];
@@ -443,7 +516,7 @@ export interface MeetingState {
     pauseReason?: string;
     pausedAt?: number;
     pausedBy?: PauseActor;
-    waiting?: MeetingWaitState;
+    waitState?: MeetingWaitState;
 }
 
 export interface TransitionContext {
@@ -467,7 +540,6 @@ export interface AttemptTransitionContext {
 export interface ManagerAttemptTransitionContext {
     attemptId: string;
     meetingId: string;
-    sessionId: string;
     deliveryId: string;
 }
 

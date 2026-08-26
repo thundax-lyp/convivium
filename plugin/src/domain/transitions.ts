@@ -690,7 +690,7 @@ export function transitionMeeting(
             ? { currentTurn: lifecycleCleanup.currentTurn, manager: lifecycleCleanup.manager }
             : {}),
         ...(isExecutionTerminal ? { currentTurn: undefined } : {}),
-        ...(to === "waiting" && context.wait ? { waiting: structuredClone(context.wait) } : {}),
+        ...(to === "waiting" && context.wait ? { waitState: structuredClone(context.wait) } : {}),
         ...(to === "archiving" && isArchiveInput(context.archive)
             ? { archive: snapshotArchive(context.archive) }
             : {}),
@@ -881,7 +881,6 @@ export function transitionManagerAttempt(
     if (
         attempt.id !== context.attemptId ||
         attempt.meetingId !== context.meetingId ||
-        attempt.sessionId !== context.sessionId ||
         attempt.deliveryId !== context.deliveryId ||
         (to === "submitted" && attempt.observedMeetingVersion !== meetingVersion)
     ) {

@@ -47,7 +47,16 @@ function meeting(status: MeetingState["status"] = "created"): MeetingState {
         stallCount: 0,
         replanCount: 0,
         selectionMode: "hybrid",
-        limits: { maxTurns: 10, maxSpeakersPerTurn: 5, maxMessages: 100 },
+        limits: {
+            maxTurns: 10,
+            maxSpeakersPerTurn: 5,
+            maxTotalMessages: 100,
+            maxConsecutiveSpeechesPerSpeaker: 2,
+            maxConsecutiveAttemptFailuresPerParticipant: 3,
+            maxDeliveryRetries: 5,
+            maxStalls: 3,
+            maxReplans: 1
+        },
         version: 3,
         createdAt: now - 1000,
         updatedAt: now - 1000,
@@ -160,7 +169,7 @@ describe("meeting transitions", () => {
             }
         });
 
-        expect(result.state.waiting).toEqual({
+        expect(result.state.waitState).toEqual({
             reason: "required task is still running",
             taskIds: ["task-1"],
             participantIds: ["participant-1"],
@@ -199,7 +208,6 @@ describe("meeting transitions", () => {
                 id: "plan-1",
                 meetingId: "meeting-1",
                 observedMeetingVersion: 3,
-                sessionId: "manager-session-1",
                 deliveryId: "manager-delivery-1",
                 status: "running"
             }
@@ -630,7 +638,6 @@ describe("turn, step and attempt transitions", () => {
                 id: "plan-1",
                 meetingId: "meeting-1",
                 observedMeetingVersion: 1,
-                sessionId: "manager-session-1",
                 deliveryId: "manager-delivery-1",
                 status: "pending"
             },
@@ -715,7 +722,6 @@ function managerAttemptContext() {
     return {
         attemptId: "plan-1",
         meetingId: "meeting-1",
-        sessionId: "manager-session-1",
         deliveryId: "manager-delivery-1"
     };
 }

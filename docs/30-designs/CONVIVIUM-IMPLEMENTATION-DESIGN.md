@@ -28,6 +28,7 @@
 - [Architecture](../00-governance/ARCHITECTURE.md)
 - [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
 - [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)
+- [Domain Model Design](./DOMAIN-MODEL-DESIGN.md)
 - [Meeting Orchestration Design](./MEETING-ORCHESTRATION-DESIGN.md)
 
 发生冲突时，Architecture、Requirements 和 Interface 优先；本文不得通过实现便利改变公开语义。

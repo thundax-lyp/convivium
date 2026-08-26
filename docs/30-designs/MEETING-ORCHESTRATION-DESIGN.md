@@ -36,6 +36,7 @@
 - 仓库级边界：[`../00-governance/ARCHITECTURE.md`](../00-governance/ARCHITECTURE.md)。
 - 正式需求：[`../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)。
 - Agent 间会议协议：[`../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)。
+- Domain 数据结构唯一真相源：[`DOMAIN-MODEL-DESIGN.md`](./DOMAIN-MODEL-DESIGN.md)。
 - 源码落点与接线：[`CONVIVIUM-IMPLEMENTATION-DESIGN.md`](./CONVIVIUM-IMPLEMENTATION-DESIGN.md)。
 - Interface 已定义 Plugin Frontend 的最小状态读取及暂停/恢复路由；组件结构、视觉样式和非会议控制路由不属于本文。
 - 外部协作插件只能作为只读调研材料，不是本设计的源码基线、依赖或兼容目标。
@@ -159,6 +160,8 @@ convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
 这些 label 同时是冷恢复时的 ownership 证明。Runtime 只能操作由上述命名空间创建、且能够解析出完整 `teamId`、`meetingId` 和身份 ID 的 Session；不得根据模糊前缀或显示名称中断、关闭 Session 或撤销 capability。
 
 ## 5. Runtime Model
+
+本节的核心 Domain 数据结构唯一真相源为 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md)。本设计只描述状态转换、调度、持久化、恢复、归档和跨边界流程。
 
 以下类型表达必须持久化的语义；实现可以拆分文件，但不能改变所有权和不变量。
 
@@ -559,38 +562,7 @@ Question、Proposal 和 Decision MUST 拥有稳定 ID。Proposal revision 变化
 
 ### 6.1 Objective contract
 
-```ts
-interface MeetingObjectiveContract {
-  requiredOutputs: Array<{
-    id: string
-    description: string
-    status: 'pending' | 'ready' | 'accepted'
-  }>
-  acceptanceCriteria: Array<{
-    id: string
-    description: string
-    satisfied: boolean
-  }>
-  hardConstraints: Array<{ id: string; description: string }>
-  requiredReviewers: string[]
-  riskAcceptanceAuthority: string[]
-  acceptableRiskLevel: 'low' | 'medium' | 'high'
-}
-
-interface AgendaItem {
-  id: string
-  title: string
-  objective: string
-  inScope: string[]
-  outOfScope: string[]
-  completionCriteria: string[]
-  owner?: string
-  requiredParticipants: string[]
-  relatedTaskIds: string[]
-  status: 'pending' | 'discussing' | 'waiting' | 'resolved' | 'deferred' | 'blocked'
-  resolution?: string
-}
-```
+ObjectiveContract 和 AgendaItem 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md) 为准。本节仅定义其在目标收敛和议题调度中的行为约束。
 
 同一时刻最多一个 `activeAgendaItemId`。一个 Turn 默认只服务于 active agenda。议题切换 MUST 在 turn 边界显式提交，并记录 from、to、reason、批准者和 meeting version。
 
@@ -1108,22 +1080,7 @@ current Participant Session
 
 关联现有 TeamTask 时必须验证它属于同一 Team，并验证 Participant 对任务及其结果的访问权限。任务状态和结果仍归 DSH 所有；Meeting Runtime 只保存已授权 snapshot，并在进入 speaker context、HandRaise 或 CompletionFact 前再次检查关联和投影范围。
 
-```ts
-interface MeetingHandRaise {
-  id: string
-  participant: string
-  reason: 'task_completed' | 'new_evidence' | 'answer_ready'
-    | 'blocking_objection' | 'correction' | 'user_requested'
-  summary: string
-  taskIds: string[]
-  replyToMessageId?: string
-  agendaItemId?: string
-  priority: 'normal' | 'high' | 'blocking'
-  status: 'pending' | 'accepted' | 'deferred' | 'withdrawn' | 'consumed' | 'rejected'
-  createdAt: number
-  resolvedAt?: number
-}
-```
+MeetingHandRaise 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md) 为准。本节仅定义异步工作、举手和 Mail Processor 的行为。
 
 - HandRaise 是调度输入，不是正式发言。
 - 相同 participant/task/reason 的 pending HandRaise MUST 去重。
@@ -1321,21 +1278,7 @@ Proposal 产生新 revision 后，旧 revision 的 Position 和 acceptance 不�
 
 ### 13.5 Limits and termination
 
-```ts
-interface MeetingLimits {
-  maxTurns: number
-  maxSpeakersPerTurn: number
-  maxTotalMessages: number
-  maxDurationMs?: number
-  maxConsecutiveSpeechesPerSpeaker: number
-  maxConsecutiveAttemptFailuresPerParticipant: number
-  maxDeliveryRetries: number
-  maxStalls: number
-  maxReplans: number
-  speakerAttemptTimeoutMs?: number
-  mailHandlingTimeoutMs?: number
-}
-```
+MeetingLimits 和 MeetingTermination 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md) 为准。本节仅定义限制检查、终止判定和收尾行为。
 
 Agent 内部工具失败不进入 limits。SpeakerAttempt 超时、Session 崩溃或无合法提交时递增 `consecutiveAttemptFailures`；成功提交清零；用户主动撤销或改派不计失败。MailHandlingAttempt 超时只终止该私聊处理并释放 Session 队列，不递增会议级 speaker failure 或直接使 Meeting 失败。
 
