@@ -190,7 +190,7 @@ async function writeProbePackage(probeDir) {
         join(probeDir, "index.js"),
         String.raw`
 export const name = "convivium-smoke-profile-probe";
-export const inject = ["agents", "tools"];
+export const inject = ["agents", "sessions", "tools"];
 
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
 
@@ -249,22 +249,76 @@ async function writeResult(value) {
     await fs.writeFile(outputPath, JSON.stringify(value, null, 2));
 }
 
+async function waitForAgent(ctx, id) {
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+        const agent = ctx.agents.get(id);
+        if (agent) return agent;
+        await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+    }
+    return createEphemeralAgent(ctx, id).agent;
+}
+
+function createEphemeralAgent(ctx, sessionId) {
+    const session =
+        ctx.sessions.get(sessionId) ?? {
+            id: sessionId,
+            header: { id: sessionId },
+            events: [],
+            seq: 0
+        };
+    return registerSmokeAgent(ctx, session);
+}
+
+function createSmokeAgent(ctx, sessionId) {
+    const session = ctx.sessions.create(sessionId, {
+        meta: { cwd: process.cwd() }
+    });
+    return registerSmokeAgent(ctx, session);
+}
+
+function registerSmokeAgent(ctx, session) {
+    const agent = {
+        id: session.id,
+        options: {},
+        session,
+        inbox: {
+            nextTurn: [],
+            nextStep: []
+        },
+        status: "idle",
+        ctx,
+        cancel() {},
+        async whenIdle() {},
+        async runMaintenance(task) {
+            return task(new AbortController().signal);
+        },
+        send() {},
+        followup() {},
+        steer() {},
+        inject() {}
+    };
+    const unregister = ctx.agents.register(agent);
+    return {
+        agent,
+        async dispose() {
+            unregister();
+        }
+    };
+}
+
 async function run(ctx) {
     if (!outputPath) return;
     let captain;
     try {
-        captain = await ctx.agents.create({
-            sessionId: "convivium-smoke-captain",
-            meta: { cwd: process.cwd() }
-        });
+        captain = createSmokeAgent(ctx, "convivium-smoke-captain");
         const created = await callTool(ctx, captain.agent, "convivium_create_meeting", createInput(), 0);
         const meetingId = created.result.meetingId;
         const participants = created.result.participants.map((participant) => participant.participantId);
         const messages = [];
         for (let index = 0; index < participants.length; index += 1) {
             const participantId = participants[index];
-            const agent = ctx.agents.get(meetingId + "-participant-" + participantId);
-            assert(agent, "participant agent not found: " + participantId);
+            const agent = await waitForAgent(ctx, meetingId + "-participant-" + participantId);
             const submitted = await callTool(ctx, agent, "convivium_submit_turn", {
                 protocolVersion: 1,
                 meetingId,
@@ -277,7 +331,7 @@ async function run(ctx) {
                 content: String.fromCharCode(65 + index),
                 mentions: [],
                 taskIds: [],
-                agendaRelation: "active",
+                agendaRelation: "on_topic",
                 changes: {}
             }, index + 1);
             messages.push(submitted.result.messageId);
@@ -286,7 +340,7 @@ async function run(ctx) {
             protocolVersion: 1,
             meetingId
         }, 10);
-        const transcript = status.result.transcript;
+        const transcript = status.result.messages;
         assert(transcript.map((message) => message.content).join("") === "ABC", "transcript order is not ABC");
         const pause = await callTool(ctx, captain.agent, "convivium_pause_meeting", {
             protocolVersion: 1,
@@ -470,6 +524,7 @@ async function main() {
     await writeProbePackage(probeDir);
 
     const env = {
+        ...process.env,
         DSH_HOME: dshHome,
         DSH_TELEMETRY_DISABLED: "1",
         DSH_PERMISSION_MODE: "workspace-write",

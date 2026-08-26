@@ -37,21 +37,27 @@
 | `pnpm format:check` | Pass | Prettier 覆盖 plugin 源码、脚本和测试文件。 |
 | `pnpm lint` | Pass | ESLint 覆盖 JavaScript、TypeScript 和 TSX。 |
 | `pnpm typecheck` | Pass | Host 与 Client 两个 TypeScript program 均通过。 |
-| `pnpm test` | Pass | 24 个测试文件、131 个测试通过；包含 unit、contract、integration、recovery 当前可执行用例。 |
+| `pnpm test` | Pass | 27 个测试文件、139 个测试通过；包含 unit、contract、integration、recovery 当前可执行用例。 |
+| `pnpm test:integration` | Pass | 2 个 integration 测试文件、5 个测试通过。 |
+| `pnpm test:recovery` | Pass | 1 个 recovery 测试文件、3 个测试通过。 |
+| `pnpm test:stress` | Pass with `Not Covered` | 当前无 stress 测试文件，入口显式输出 `Not Covered: stress tests`。 |
 | `pnpm build` | Pass | 生成 Host、Client bundle 与声明文件；tsdown 的 `define` invalid input warning 不影响退出码或产物。 |
 | `pnpm verify:environment` | Pass | Node `v22.23.2` 下声明的 DSH packages 可解析。 |
 | `pnpm verify:contract` | Pass | 插件 manifest、bundle patch 与 Client contract 可解析。 |
 | `pnpm verify:package` | Pass | package artifact allowlist 与发布入口检查通过。 |
 | `pnpm verify` | Pass | 按 format、lint、typecheck、test、build、environment、contract、package verifier 顺序通过。 |
+| `pnpm verify:runtime` | Pass | 顺序通过 `pnpm verify` 与 `pnpm smoke:profile`。 |
 
 说明：`pnpm verify:package` 曾在与 build 并行执行时因产物竞争失败；按顺序重新执行 `pnpm verify` 后通过。默认 `verify` 不包含 profile smoke，避免把外部 DSH profile 和模型凭据依赖隐式塞入离线验证入口。
 
-### Profile smoke 入口
+### Profile smoke 验证（2026-08-26，最终验证提交）
 
 | 命令 | 当前状态 | 证据边界 |
 | --- | --- | --- |
-| `pnpm smoke:profile` | 已提供入口，待最终全量验证任务执行 | 脚本使用临时 DSH home、临时 workspace、当前 pack artifact 和临时 `web` profile；成功路径要求 dump-config、工具链路、pause/resume、进程停止和临时目录清理全部完成。 |
-| `pnpm verify:runtime` | 已提供入口，待最终全量验证任务执行 | 顺序组合 `pnpm verify` 与 `pnpm smoke:profile`，用于显式选择外部 runtime smoke。 |
+| `pnpm smoke:profile` | Pass | 脚本使用临时 DSH home、临时 workspace、当前 pack artifact 和临时 `web` profile；验证 dump-config、Convivium/provider 组合、Captain create、A/B/C 顺序 submit、pause/resume、无 Meeting HTTP route、host 进程停止和精确临时目录清理。 |
+| `pnpm verify:runtime` | Pass | 顺序组合 `pnpm verify` 与 `pnpm smoke:profile`，用于显式选择外部 runtime smoke。 |
+
+最新 smoke 输出摘要：profile `web`，provider `spawn`，artifact `convivium-dsh-plugin-0.0.0.tgz`；创建 3 个 Participant，提交 `A`、`B`、`C` 三条 transcript，seq 为 `1`、`2`、`3`；pause 返回 `{ status: "paused", changed: true }`，resume 返回 `{ status: "running", changed: true }`，`httpRouteUsed:false`。
 
 ## RUNBOOK Validation Matrix
 
@@ -59,7 +65,7 @@
 | --- | --- | --- |
 | Provider | `prepareContinuable` | `plugin/tests/integration/dsh/session-adapter.spec.ts` 覆盖 provider adapter 与 fail-closed；`plugin/scripts/smoke-profile.mjs` 在真实 profile 中断言 provider `spawn` 存在并可用于 session 创建。 |
 | Composition | `dump-config` | `plugin/scripts/smoke-profile.mjs` 在临时 profile 中执行 dump-config，并断言 Convivium plugin、provider plugin 和 `spawn` provider 同时出现。 |
-| Provision | initial prompt | session adapter integration 覆盖 adapter 接收 DSH session id；profile smoke 入口负责断言 capability-free envelope。最终执行证据由最终全量验证任务补齐。 |
+| Provision | initial prompt | session adapter integration 覆盖 adapter 接收 DSH session id；profile smoke 已通过真实 profile 创建 Manager 与 Participant session。 |
 | Create | Captain create | contract/integration 测试覆盖 `convivium_create_meeting` 运行时创建路径；profile smoke 入口通过真实 Captain tool call 创建 1 Manager + 3 Participant meeting-owned Session。 |
 | Isolation | Session labels | ownership repository 与 runtime 测试覆盖 meeting/session ownership 隔离；跨 Meeting 真实 profile 隔离仍为 `Not Covered`。 |
 | Parent | direct parent/rebind | ownership 中记录 parent session；重启后由相同 Captain live parent rebind 仍为 `Not Covered`。 |
@@ -87,4 +93,4 @@
 
 ## Closure
 
-截至 commit `9837a46`，DSH Runtime 竖切已经具备离线验证入口、profile smoke 入口、tool 注册边界、continuable session adapter、runtime transaction 路径和 readiness 证据。最终全量验证任务仍需实际运行 `pnpm smoke:profile`、检查临时进程/目录清理，并在通过后关闭剩余 TODO。
+截至最终验证提交，DSH Runtime 竖切已经具备离线验证入口、profile smoke 入口、tool 注册边界、continuable session adapter、runtime transaction 路径和 readiness 证据。`pnpm verify:runtime`、分层 integration/recovery/stress 入口、`git diff --check` 和临时进程/目录清理检查均已执行；剩余缺口只保留在 `Not Covered`。

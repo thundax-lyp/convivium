@@ -26,6 +26,22 @@ export default defineConfig({
                     include: ["tests/contract/**/*.spec.ts"],
                     environment: "node"
                 }
+            },
+            {
+                extends: true,
+                test: {
+                    name: "integration",
+                    include: ["tests/integration/**/*.spec.ts"],
+                    environment: "node"
+                }
+            },
+            {
+                extends: true,
+                test: {
+                    name: "recovery",
+                    include: ["tests/recovery/**/*.spec.ts"],
+                    environment: "node"
+                }
             }
         ]
     }

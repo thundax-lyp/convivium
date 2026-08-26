@@ -180,7 +180,7 @@ describe("DSH session adapter composition", () => {
             },
             parentSessionId: "captain-session" as never,
             meetingId: "meeting-1",
-            ownerships: [ownership()],
+            ownerships: [ownership(), ownership({ sessionId: "participant-b-session" })],
             signal
         });
         expect(inspection.diagnostics.map((diagnostic) => diagnostic.reason)).toEqual([
