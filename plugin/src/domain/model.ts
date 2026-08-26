@@ -202,6 +202,14 @@ export interface PauseActor {
     displayName?: string;
 }
 
+export interface MeetingWaitState {
+    reason: string;
+    taskIds: readonly string[];
+    participantIds: readonly string[];
+    deadlineAt?: number;
+    resumeAgendaItemId?: string;
+}
+
 export interface ArchiveArtifactRef {
     artifactId: string;
     title: string;
@@ -407,12 +415,14 @@ export interface MeetingState {
     pauseReason?: string;
     pausedAt?: number;
     pausedBy?: PauseActor;
+    waiting?: MeetingWaitState;
 }
 
 export interface TransitionContext {
     now: number;
     reason?: string;
     pause?: { at: number; by: PauseActor };
+    wait?: MeetingWaitState;
     termination?: MeetingTermination;
     archive?: ArchiveInput | ArchiveFinalizeInput;
 }

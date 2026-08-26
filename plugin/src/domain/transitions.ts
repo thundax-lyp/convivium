@@ -403,7 +403,15 @@ export function transitionMeeting(
         }
     }
 
-    const pausedWork = to === "paused" ? revokeActiveAttempts(state) : undefined;
+    if (to === "waiting" && (!context.wait || !context.wait.reason.trim())) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `meeting ${state.id} requires wait metadata`,
+            { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
+        );
+    }
+    const lifecycleCleanup =
+        to === "paused" || to === "archiving" ? revokeActiveAttempts(state) : undefined;
     const next: MeetingState = {
         ...state,
         status: to,
@@ -418,7 +426,10 @@ export function transitionMeeting(
               }
             : {}),
         ...(context.termination ? { termination: structuredClone(context.termination) } : {}),
-        ...(pausedWork ? { currentTurn: pausedWork.currentTurn, manager: pausedWork.manager } : {}),
+        ...(lifecycleCleanup
+            ? { currentTurn: lifecycleCleanup.currentTurn, manager: lifecycleCleanup.manager }
+            : {}),
+        ...(to === "waiting" && context.wait ? { waiting: structuredClone(context.wait) } : {}),
         ...(to === "archiving" && isArchiveInput(context.archive)
             ? { archive: snapshotArchive(context.archive) }
             : {}),
@@ -446,7 +457,7 @@ export function transitionMeeting(
                         reason: context.reason
                     }
                 },
-                ...(pausedWork?.events ?? [])
+                ...(lifecycleCleanup?.events ?? [])
             ]
         }
     };

@@ -146,6 +146,27 @@ describe("meeting transitions", () => {
         expect(result.state.pausedBy?.actorId).toBe("captain-1");
     });
 
+    it("persists structured waiting metadata", () => {
+        const result = transitionMeeting(meeting("running"), "waiting", {
+            now,
+            wait: {
+                reason: "required task is still running",
+                taskIds: ["task-1"],
+                participantIds: ["participant-1"],
+                deadlineAt: now + 1_000,
+                resumeAgendaItemId: "agenda-1"
+            }
+        });
+
+        expect(result.state.waiting).toEqual({
+            reason: "required task is still running",
+            taskIds: ["task-1"],
+            participantIds: ["participant-1"],
+            deadlineAt: now + 1_000,
+            resumeAgendaItemId: "agenda-1"
+        });
+    });
+
     it("revokes active speaker and manager attempts while truncating the turn", () => {
         const state = meeting("running");
         state.currentTurn = {
@@ -158,6 +179,10 @@ describe("meeting transitions", () => {
                     status: "running",
                     attempt: {
                         attemptId: "attempt-1",
+                        meetingId: "meeting-1",
+                        turnId: "turn-1",
+                        stepId: "step-1",
+                        deliveryId: "delivery-1",
                         status: "running",
                         deliveryStatus: "pending"
                     }
@@ -313,6 +338,39 @@ describe("meeting transitions", () => {
                 }
             )
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
+    it("revokes active attempts before entering archiving", () => {
+        const state = meeting("completed");
+        state.currentTurn = {
+            id: "turn-1",
+            status: "running",
+            currentStepIndex: 0,
+            steps: [
+                {
+                    id: "step-1",
+                    status: "running",
+                    attempt: {
+                        attemptId: "attempt-1",
+                        meetingId: "meeting-1",
+                        turnId: "turn-1",
+                        stepId: "step-1",
+                        deliveryId: "delivery-1",
+                        status: "running",
+                        deliveryStatus: "acknowledged"
+                    }
+                }
+            ]
+        };
+
+        const result = transitionMeeting(state, "archiving", {
+            now,
+            archive: { package: archivePackage() }
+        });
+
+        expect(result.state.currentTurn?.status).toBe("truncated");
+        expect(result.state.currentTurn?.steps[0].attempt?.status).toBe("revoked");
+        expect(result.effect.events.map(({ type }) => type)).toContain("speaker_attempt.revoked");
     });
 
     it("snapshots termination facts before returning the terminal state", () => {
