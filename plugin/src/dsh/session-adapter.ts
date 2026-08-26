@@ -2,9 +2,11 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type {
     ContinuableStart,
     ContinuableStartSpec,
+    SubagentFollowupOptions,
     SubagentProvider
 } from "@deepseek-ai/dsh-subagent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
+import type { MeetingOwnershipRecord } from "./caller-resolver.js";
 import { encodeMeetingSessionLabel } from "./labels.js";
 import {
     createSessionProvisioningEnvelope,
@@ -135,4 +137,87 @@ export async function startParticipantSession(
         );
     }
     return started;
+}
+
+export interface ContinuableFollowupRuntime {
+    followup(
+        parent: Agent,
+        childId: SessionId,
+        content: ContinuableStartSpec["request"]["prompt"],
+        options: SubagentFollowupOptions
+    ): Promise<ContinuableStart["messageId"]>;
+}
+
+export interface SpeakerFollowupAttempt {
+    readonly attemptId: string;
+    readonly deliveryId: string;
+    readonly participantId: string;
+}
+
+export interface AuthorizeSpeakerFollowupInput {
+    readonly ownership: MeetingOwnershipRecord;
+    readonly attempt: SpeakerFollowupAttempt;
+    readonly signal: AbortSignal;
+}
+
+/**
+ * The runtime supplies a transactionally current authorization check. It is
+ * called immediately before and after inbox acceptance so a delivery that
+ * races with capability revocation cannot be treated as a meeting fact.
+ */
+export type AuthorizeSpeakerFollowup = (input: AuthorizeSpeakerFollowupInput) => Promise<void>;
+
+export interface FollowupParticipantSessionInput {
+    readonly runtime: ContinuableFollowupRuntime;
+    readonly parent: Agent;
+    readonly ownership: MeetingOwnershipRecord;
+    readonly attempt: SpeakerFollowupAttempt;
+    readonly prompt: ContinuableStartSpec["request"]["prompt"];
+    readonly signal: AbortSignal;
+    readonly authorize: AuthorizeSpeakerFollowup;
+}
+
+function assertSpeakerFollowupOwnership(input: FollowupParticipantSessionInput): void {
+    if (String(input.parent.id) !== input.ownership.parentSessionId) {
+        throw new Error("Continuable followup requires the exact live Captain parent.");
+    }
+    if (
+        input.ownership.role !== "participant" ||
+        input.ownership.participantId !== input.attempt.participantId
+    ) {
+        throw new Error("Continuable followup ownership does not match the speaker attempt.");
+    }
+    if (input.ownership.lifecycleStatus !== "active") {
+        throw new Error("Continuable followup requires an active owned Session.");
+    }
+    if (input.ownership.capabilityStatus !== "active") {
+        throw new Error("Continuable followup requires a non-revoked Session capability.");
+    }
+}
+
+export async function followupParticipantSession(
+    input: FollowupParticipantSessionInput
+): Promise<ContinuableStart["messageId"]> {
+    assertSpeakerFollowupOwnership(input);
+    const authorization = {
+        ownership: input.ownership,
+        attempt: input.attempt,
+        signal: input.signal
+    };
+    await input.authorize(authorization);
+    const messageId = await input.runtime.followup(
+        input.parent,
+        input.ownership.sessionId as SessionId,
+        input.prompt,
+        {
+            source: {
+                kind: "coordinator",
+                form: "relay",
+                senderSessionId: input.parent.id as SessionId
+            },
+            signal: input.signal
+        }
+    );
+    await input.authorize(authorization);
+    return messageId;
 }

@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/dsh/session-adapter.ts`：实现 continuable followup
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
-  - 处理动作：使用精确 live Captain parent 封装 followup，并在调用前后重新校验 capability、attempt 和 ownership。
-  - 验收点：parent 缺席、迟到或 revoked 调用不被投递，也不形成会议事实。
-
 - [ ] `plugin/src/dsh/session-adapter.ts`：实现 continuable interrupt/drain
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3

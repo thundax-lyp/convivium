@@ -22,7 +22,13 @@ export {
     requireContinuableProvider,
     startManagerSession,
     startParticipantSession,
+    followupParticipantSession,
+    type AuthorizeSpeakerFollowup,
+    type AuthorizeSpeakerFollowupInput,
+    type ContinuableFollowupRuntime,
     type ContinuableStarter,
+    type FollowupParticipantSessionInput,
+    type SpeakerFollowupAttempt,
     type StartManagerSessionInput,
     type StartParticipantSessionInput,
     type SubagentProviderRegistry
