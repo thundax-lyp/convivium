@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/repository/index.ts`：接入 Runtime command transaction
-  - 依据文档：`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4/T6
-  - 处理动作：将 expected version、transition、state、event、receipt 和 outbox 绑定到同一 SQLite transaction。
-  - 验收点：commit 前不调用 DSH；失败事务不留下部分状态；receipt 可重放。
-
 - [ ] `plugin/src/runtime/meeting-runtime.ts`：实现会议创建应用服务
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4
