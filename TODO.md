@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/dsh/caller-resolver.ts`：绑定 Captain direct parent
-  - 依据文档：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
-  - 处理动作：将 create caller 的 `exec.agent` 绑定为四个 meeting-owned Session 的精确 Captain parent。
-  - 验收点：ownership 中 parentSessionId 与真实 Captain Session 一致；显示名或 payload Session ID 不能替代绑定。
-
 - [ ] `plugin/src/dsh/caller-resolver.ts`：解析 Manager/Participant caller
   - 依据文档：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3

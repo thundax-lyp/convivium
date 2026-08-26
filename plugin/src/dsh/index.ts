@@ -5,6 +5,7 @@ export {
     type MeetingSessionLabel,
     type ParticipantSessionLabel
 } from "./labels.js";
+export { bindCaptainParent, type CaptainParentBinding } from "./caller-resolver.js";
 export {
     createSessionProvisioningEnvelope,
     serializeSessionProvisioningEnvelope,
