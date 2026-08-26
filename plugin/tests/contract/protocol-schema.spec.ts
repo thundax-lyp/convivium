@@ -47,6 +47,16 @@ describe("protocol envelope schemas", () => {
                 message: "invalid request"
             })
         ).toThrow();
+
+        expect(() =>
+            validateProtocolError({
+                protocolVersion: 1,
+                ok: false,
+                code: "UNKNOWN_ERROR",
+                message: "invalid request",
+                retryable: false
+            })
+        ).toThrow();
     });
 
     it("validates command discriminants beyond field types", () => {

@@ -17,6 +17,7 @@ export {
 } from "./commands.js";
 export {
     ProtocolErrorSchema,
+    MeetingProtocolErrorCodeSchema,
     ProtocolMetaSchema,
     ProtocolSuccessEnvelopeSchema,
     ProtocolVersionSchema,
