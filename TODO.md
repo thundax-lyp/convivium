@@ -14,12 +14,6 @@
   - 处理动作：为 Runtime、worker、tools 和 timers 建立结构化生命周期清理。
   - 验收点：正常卸载后无 tool、timer、worker 或未处理 rejection 残留。
 
-- [ ] `plugin/src/domain/transitions.ts`：补齐 pause/resume 转换
-  - 依据文档：`docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4/T6
-  - 处理动作：实现 attempt/Turn revoke、暂停事实、重新规划和幂等恢复规则。
-  - 验收点：pause 不回滚正式事实；resume 不复活旧 Turn/attempt/capability。
-
 - [ ] `plugin/src/repository/index.ts`：接入 Runtime command transaction
   - 依据文档：`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4/T6

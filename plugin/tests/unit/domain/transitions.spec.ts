@@ -181,6 +181,47 @@ describe("meeting transitions", () => {
         expect(resumed.state.waitState).toBeUndefined();
     });
 
+    it("does not revive the paused Turn or planning attempt on resume", () => {
+        const paused = transitionMeeting(meeting("running"), "paused", {
+            now,
+            reason: "captain request",
+            pause: { at: now, by: { kind: "captain", actorId: "captain-1" } }
+        }).state;
+        paused.currentTurn = {
+            id: "old-turn",
+            seq: 1,
+            agendaItemId: "agenda-1",
+            intent: "explore",
+            objective: "objective",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            plan: [],
+            status: "truncated",
+            currentStepIndex: 0,
+            steps: []
+        };
+        paused.manager = {
+            promptVersion: "test",
+            status: "planning",
+            currentPlanningAttempt: {
+                id: "old-plan",
+                meetingId: "meeting-1",
+                observedMeetingVersion: paused.version,
+                reason: "old",
+                deliveryId: "old-delivery",
+                status: "revoked",
+                createdAt: now
+            }
+        };
+
+        const resumed = transitionMeeting(paused, "running", { now: now + 1 });
+
+        expect(resumed.state.currentTurn).toBeUndefined();
+        expect(resumed.state.manager).toMatchObject({ status: "idle" });
+        expect(resumed.state.manager.currentPlanningAttempt).toBeUndefined();
+        expect(resumed.state.transcript).toEqual([]);
+    });
+
     it("revokes active speaker and manager attempts while truncating the turn", () => {
         const state = meeting("running");
         state.currentTurn = {

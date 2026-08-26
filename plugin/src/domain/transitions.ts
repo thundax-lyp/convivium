@@ -691,6 +691,7 @@ export function transitionMeeting(
             { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
         );
     }
+    const resumingFromPause = state.status === "paused" && (to === "running" || to === "waiting");
     const lifecycleCleanup =
         to === "paused" || to === "archiving" || isExecutionTerminal
             ? revokeActiveAttempts(state)
@@ -711,6 +712,16 @@ export function transitionMeeting(
         ...(context.termination ? { termination: structuredClone(context.termination) } : {}),
         ...(lifecycleCleanup
             ? { currentTurn: lifecycleCleanup.currentTurn, manager: lifecycleCleanup.manager }
+            : {}),
+        ...(resumingFromPause
+            ? {
+                  currentTurn: undefined,
+                  manager: {
+                      ...state.manager,
+                      status: "idle" as const,
+                      currentPlanningAttempt: undefined
+                  }
+              }
             : {}),
         ...(isExecutionTerminal ? { currentTurn: undefined } : {}),
         ...(to === "waiting" && context.wait
