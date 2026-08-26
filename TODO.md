@@ -116,12 +116,6 @@
   - 处理动作：使用持久 parentSessionId 调用 `listChildren`/`listDescendants`，与 repository-bound meetingId、ownership 和完整 label 交叉校验。
   - 验收点：缺少任一归属证明的 Session 只记录诊断、不执行 followup、interrupt 或 drain。
 
-- [ ] `plugin/src/domain/`：映射 canonical create input
-  - 依据文档：`docs/30-designs/DOMAIN-MODEL-DESIGN.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 同意 review 建议；T4
-  - 处理动作：把 objectiveContract、agenda、participants、limits 和 selection mode 映射为完整 canonical MeetingState。
-  - 验收点：正式 ID、引用和 defaults 完整；没有裁剪版 MeetingState 或第二套字段。
-
 - [ ] `plugin/src/domain/`：拒绝本竖切未支持的 create capability
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 同意 review 建议；T4

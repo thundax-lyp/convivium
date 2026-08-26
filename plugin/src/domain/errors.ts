@@ -1,5 +1,9 @@
 export type DomainErrorCode =
-    "INVALID_STATE_TRANSITION" | "MISSING_TERMINATION" | "MISSING_ARCHIVE" | "INVALID_ENTITY_STATE";
+    | "INVALID_STATE_TRANSITION"
+    | "MISSING_TERMINATION"
+    | "MISSING_ARCHIVE"
+    | "INVALID_ENTITY_STATE"
+    | "INVALID_CREATE_INPUT";
 
 export class DomainError extends Error {
     readonly name = "DomainError";
