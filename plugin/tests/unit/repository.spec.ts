@@ -107,6 +107,38 @@ describe("MeetingRepository", () => {
         await repository.close();
     });
 
+    it("rejects a second repository claiming the same initially empty database", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
+        roots.push(root);
+        const databasePath = join(root, "meeting.sqlite");
+        const first = await MeetingRepository.open({
+            databasePath,
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            authorizationValidator: allowAuthorization
+        });
+        const second = await MeetingRepository.open({
+            databasePath,
+            teamId: "team-2",
+            meetingId: "meeting-2",
+            authorizationValidator: allowAuthorization
+        });
+        const input = {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" }
+        };
+
+        await first.create(input);
+        await expect(second.create(input)).rejects.toMatchObject<RepositoryError>({
+            code: "CORRUPT_DATABASE",
+            meetingId: "meeting-2"
+        });
+        await first.close();
+        await second.close();
+    });
+
     it("rejects a conflicting idempotency hash and stale version", async () => {
         const repository = await openRepository();
         await createMeeting(repository, {
@@ -385,6 +417,27 @@ describe("MeetingRepository", () => {
                 authorizationValidator: allowAuthorization
             })
         ).rejects.toMatchObject<RepositoryError>({ code: "SCHEMA_VERSION_UNSUPPORTED" });
+    });
+
+    it("reports the requested meeting for an unsupported schema version", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
+        roots.push(root);
+        const databasePath = join(root, "meeting.sqlite");
+        const db = new DatabaseSync(databasePath);
+        db.exec("PRAGMA user_version = 999");
+        db.close();
+
+        await expect(
+            MeetingRepository.open({
+                databasePath,
+                teamId: "team-1",
+                meetingId: "meeting-1",
+                authorizationValidator: allowAuthorization
+            })
+        ).rejects.toMatchObject<RepositoryError>({
+            code: "SCHEMA_VERSION_UNSUPPORTED",
+            meetingId: "meeting-1"
+        });
     });
 
     it("upgrades a version-two bootstrap without replaying current schema DDL", async () => {

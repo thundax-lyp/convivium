@@ -463,7 +463,7 @@ export class MeetingRepository {
         try {
             validateDatabaseIdentityBeforeMigration(db, input.teamId, input.meetingId);
             db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 2500;");
-            migrate(db);
+            migrate(db, input.meetingId);
             validateDatabaseIdentity(db, input.teamId, input.meetingId, CURRENT_SCHEMA_VERSION);
             db.exec("PRAGMA journal_mode = WAL;");
             return new MeetingRepository(
@@ -541,6 +541,7 @@ export class MeetingRepository {
                 meetingId: this.meetingId,
                 authorization: input.authorization
             });
+            validateDatabaseIdentity(this.db, this.teamId, this.meetingId, CURRENT_SCHEMA_VERSION);
             const existing = row<BootstrapRow>(
                 this.db
                     .prepare("SELECT * FROM meeting_bootstrap WHERE meeting_id = ?")

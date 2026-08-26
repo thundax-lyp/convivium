@@ -151,7 +151,7 @@ CREATE INDEX outbox_claim_order ON outbox(status, available_at, lease_deadline, 
     }
 ];
 
-export function migrate(db: DatabaseSync): void {
+export function migrate(db: DatabaseSync, meetingId = "unknown"): void {
     const version = Number(
         (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version
     );
@@ -159,7 +159,7 @@ export function migrate(db: DatabaseSync): void {
         throw new RepositoryError(
             "SCHEMA_VERSION_UNSUPPORTED",
             false,
-            "unknown",
+            meetingId,
             "Database schema is newer than this plugin"
         );
     }
@@ -173,7 +173,7 @@ export function migrate(db: DatabaseSync): void {
             throw new RepositoryError(
                 "SCHEMA_VERSION_UNSUPPORTED",
                 false,
-                "unknown",
+                meetingId,
                 "Cannot initialize a non-empty SQLite database with schema version 0"
             );
         }
@@ -207,7 +207,7 @@ export function migrate(db: DatabaseSync): void {
             throw new RepositoryError(
                 "SCHEMA_VERSION_UNSUPPORTED",
                 false,
-                "unknown",
+                meetingId,
                 "Missing contiguous SQLite migration"
             );
         }
