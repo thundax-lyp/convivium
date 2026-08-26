@@ -98,4 +98,48 @@ describe("session ownership", () => {
         ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_STATE" });
         await repository.close();
     });
+
+    it("rejects labels and participant identities that cross the repository boundary", async () => {
+        const repository = await openRepository();
+        await expect(
+            repository.recordSessionOwnership(
+                ownership({ sessionLabel: "convivium:meeting-manager:other-team:meeting-1" })
+            )
+        ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_INPUT" });
+        await expect(
+            repository.recordSessionOwnership(
+                ownership({
+                    sessionId: "participant-session",
+                    sessionLabel: "convivium:meeting-participant:team-1:meeting-1:participant-1",
+                    role: "participant",
+                    participantId: "participant-1"
+                })
+            )
+        ).resolves.toMatchObject({ participantId: "participant-1" });
+        await expect(
+            repository.recordSessionOwnership(
+                ownership({
+                    sessionId: "participant-session",
+                    sessionLabel: "convivium:meeting-participant:team-1:meeting-1:participant-1",
+                    role: "participant",
+                    participantId: "participant-2"
+                })
+            )
+        ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_STATE" });
+        await repository.close();
+    });
+
+    it("does not reactivate a revoked capability or reopen a closed session", async () => {
+        const repository = await openRepository();
+        await repository.recordSessionOwnership(ownership({ initialMessageId: "message-1" }));
+        await repository.recordSessionOwnership(
+            ownership({ lifecycleStatus: "closed", capabilityStatus: "revoked" })
+        );
+        await expect(
+            repository.recordSessionOwnership(
+                ownership({ lifecycleStatus: "active", capabilityStatus: "active" })
+            )
+        ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_STATE" });
+        await repository.close();
+    });
 });

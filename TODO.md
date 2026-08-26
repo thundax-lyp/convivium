@@ -50,12 +50,6 @@
   - 处理动作：覆盖 capability check、reserved childId、首次 prompt、followup、interrupt、drain 和 inspection。
   - 验收点：成功、provider 缺失、错误 parent、错误 label、revoked ownership 和精确清理均有断言。
 
-- [ ] `plugin/tests/unit/repository`：验证 ownership schema 与 migration
-  - 依据文档：`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 同意 review 建议；T3
-  - 处理动作：覆盖 parent/provider immutable、首次 initialMessageId、lifecycle、revoke、迁移和损坏隔离。
-  - 验收点：所有合法单调转换通过，所有身份漂移和未知 schema 被拒绝。
-
 - [ ] `plugin/tests/unit/domain`：验证 canonical create 与 round-robin
   - 依据文档：`docs/30-designs/DOMAIN-MODEL-DESIGN.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 同意 review 建议；T4
