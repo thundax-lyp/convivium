@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `docs/40-readiness/`：记录 DSH Runtime 竖切 readiness 证据
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`、`docs/40-readiness/CONVIVIUM-FRAMEWORK-EVIDENCE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T8
-  - 处理动作：记录 DSH、provider、profile、Node、pnpm、package version、commit、命令结果和未覆盖边界。
-  - 验收点：RUNBOOK 验证矩阵逐项有证据；TeamTask、mail、archive、完整 UI 等仍标为 `Not Covered`。
-
 - [ ] `plugin/`：执行最终全量验证并检查清理
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`、`docs/00-governance/TODO-RULES.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T8

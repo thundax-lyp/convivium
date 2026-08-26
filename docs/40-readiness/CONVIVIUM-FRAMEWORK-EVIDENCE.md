@@ -6,6 +6,8 @@
 
 本证据不代表会议运行时、真实 DSH AgentSession 或会议业务已完成。当前领域状态机和 SQLite repository 基础已经存在；会议运行时、DSH lifecycle 和集成验证仍未覆盖。
 
+DSH Runtime 竖切的独立证据见 `docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`。
+
 ## Validated Contract
 
 - 插件 package name 为 `@convivium/dsh-plugin`，具备 Host `.` 与 Client `./client` 两个发布入口。
