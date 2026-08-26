@@ -10,7 +10,7 @@ export default defineConfig([
         target: "node22.19.0",
         clean: false,
         dts: false,
-        external: sharedExternal,
+        deps: { neverBundle: sharedExternal },
         tsconfig: "tsconfig.json"
     },
     {
@@ -20,7 +20,7 @@ export default defineConfig([
         target: "es2022",
         clean: false,
         dts: false,
-        external: sharedExternal,
+        deps: { neverBundle: sharedExternal },
         tsconfig: "tsconfig.client.json"
     }
 ]);
