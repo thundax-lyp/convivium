@@ -26,12 +26,6 @@
   - 处理动作：pause 撤销 delivery capability 并 interrupt 运行中 Session；resume 从最新 SQLite 事实重新安排动作。
   - 验收点：旧 attempt 迟到提交返回 `STALE_ATTEMPT`；resume 不复用旧 attempt。
 
-- [ ] `plugin/src/runtime/recovery.ts`：实现 bootstrap、ownership 和 outbox recovery
-  - 依据文档：`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T6
-  - 处理动作：处理 `creating`、`ready`、active attempt、paused、过期 lease，并用四方归属证明检查 orphan Session。
-  - 验收点：重启后状态和 transcript 保留；未知归属 Session 不被操作；可恢复 outbox 可重新领取。
-
 - [ ] `plugin/src/runtime/recovery.ts`：实现 Captain live parent rebind
   - 依据文档：`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 同意 review 建议；T6
