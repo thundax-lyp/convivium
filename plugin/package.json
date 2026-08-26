@@ -25,7 +25,7 @@
         "README.md"
     ],
     "engines": {
-        "node": "^22.19.0 || >=24"
+        "node": "^22.19.0 || >=24.11.0"
     },
     "dsh": {
         "bundle": {
@@ -48,7 +48,7 @@
         "format:check": "prettier . --check",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
-        "build": "tsc -p tsconfig.json && tsc -p tsconfig.client.json && tsdown --config tsdown.config.ts",
+        "build": "rm -rf lib && tsc -p tsconfig.json && tsc -p tsconfig.client.json && tsdown --config tsdown.config.ts",
         "typecheck:host": "tsc -p tsconfig.json --noEmit",
         "typecheck:client": "tsc -p tsconfig.client.json --noEmit",
         "typecheck": "pnpm typecheck:host && pnpm typecheck:client",

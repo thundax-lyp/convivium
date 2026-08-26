@@ -225,7 +225,7 @@ interface MeetingRepository {
 4. 通过 outbox 创建 Manager 和 Participant Sessions。
 5. Session 创建成功后回写 ownership；全部 required Sessions 就绪后会议才可进入 `running`。
 
-进程在第 2 至 5 步中断时，冷恢复根据 bootstrap record 和 Session label 修复归属。不存在 bootstrap record 的空目录可以清理；有 bootstrap record 的 Meeting 必须恢复或进入结构化 `failed`，不能成为部分可用会议。
+进程在第 2 至 5 步中断时，冷恢复根据 bootstrap record 和 Session label 修复归属。Repository 对 `creating` 或 `creation_failed` bootstrap 返回 ownership 但不返回公开 Meeting snapshot，使上层能恢复或安全关闭 Session。不存在 bootstrap record 的空目录可以清理；有 bootstrap record 的 Meeting 必须恢复或进入结构化 `failed`，不能成为部分可用会议。
 
 ## Meeting Session Adapter
 

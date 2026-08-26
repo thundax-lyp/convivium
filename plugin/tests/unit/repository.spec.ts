@@ -75,6 +75,38 @@ describe("MeetingRepository", () => {
         await repository.close();
     });
 
+    it("recovers a creating bootstrap without requiring a public meeting", async () => {
+        const repository = await openRepository();
+        await repository.create({
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" },
+            createdAt: 10
+        });
+        await repository.recordSessionOwnership(
+            {
+                sessionId: "session-1",
+                sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+                role: "manager",
+                lifecycleStatus: "provisioning",
+                capabilityStatus: "active"
+            },
+            11
+        );
+
+        const recovery = await repository.recover({ now: 12 });
+
+        expect(recovery).toMatchObject({
+            bootstrap: { status: "creating" },
+            sessionOwnership: [{ sessionId: "session-1" }],
+            reclaimedOutbox: 0,
+            pendingOutbox: 0
+        });
+        expect(recovery).not.toHaveProperty("snapshot");
+        await repository.close();
+    });
+
     it("rejects a conflicting idempotency hash and stale version", async () => {
         const repository = await openRepository();
         await createMeeting(repository, {
@@ -232,7 +264,7 @@ describe("MeetingRepository", () => {
         await repository.recordSessionOwnership(
             {
                 sessionId: "session-1",
-                sessionLabel: "convivium/team-1/meeting-1/manager",
+                sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
                 role: "manager",
                 lifecycleStatus: "provisioning",
                 capabilityStatus: "active"
@@ -242,7 +274,7 @@ describe("MeetingRepository", () => {
         await repository.recordSessionOwnership(
             {
                 sessionId: "session-1",
-                sessionLabel: "convivium/team-1/meeting-1/manager",
+                sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
                 role: "manager",
                 lifecycleStatus: "closed",
                 capabilityStatus: "revoked"
@@ -253,7 +285,7 @@ describe("MeetingRepository", () => {
             repository.recordSessionOwnership(
                 {
                     sessionId: "session-1",
-                    sessionLabel: "convivium/team-1/meeting-1/manager",
+                    sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
                     role: "manager",
                     lifecycleStatus: "active",
                     capabilityStatus: "active"
@@ -478,7 +510,7 @@ PRAGMA user_version = 2;
         });
         await repository.recordSessionOwnership({
             sessionId: "session-1",
-            sessionLabel: "convivium/team-1/meeting-1/manager",
+            sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
             role: "manager",
             lifecycleStatus: "active",
             capabilityStatus: "active"
@@ -486,7 +518,7 @@ PRAGMA user_version = 2;
         await repository.close();
         const db = new DatabaseSync(databasePath);
         db.prepare("UPDATE session_ownership SET session_label = ? WHERE session_id = ?").run(
-            "convivium/team-1/meeting-10/manager",
+            "convivium:meeting-manager:team-1:meeting-10",
             "session-1"
         );
         db.close();
@@ -511,7 +543,7 @@ PRAGMA user_version = 2;
         });
         await repository.recordSessionOwnership({
             sessionId: "session-1",
-            sessionLabel: "convivium/team-1/meeting-1/manager",
+            sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
             role: "manager",
             lifecycleStatus: "provisioning",
             capabilityStatus: "active"
@@ -520,7 +552,7 @@ PRAGMA user_version = 2;
         await expect(
             repository.recordSessionOwnership({
                 sessionId: "session-1",
-                sessionLabel: "convivium/team-1/meeting-1/participant-1",
+                sessionLabel: "convivium:meeting-participant:team-1:meeting-1:participant-1",
                 role: "participant",
                 participantId: "participant-1",
                 lifecycleStatus: "active",

@@ -20,6 +20,8 @@ interface MeetingRepository {
   readonly meetingId: string
   create(input: CreateMeetingInput): Promise<MeetingBootstrap>
   completeCreate(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>>
+  updateBootstrap(input: UpdateBootstrapInput): Promise<MeetingBootstrap>
+  recordSessionOwnership(input: SessionOwnershipInput): Promise<SessionOwnership>
   read(): Promise<MeetingSnapshot>
   execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>
   claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>
@@ -29,7 +31,7 @@ interface MeetingRepository {
 }
 ```
 
-`create` 是 bootstrap 专用写入口：它先持久化 `creating` bootstrap、`createRequestId` 与 `requestHash`，但不创建公开 Meeting、领域事件或成功 receipt。此时 Runtime 可以安全创建并记录 DSH Session ownership；崩溃恢复可据此识别未完成创建，且不能把它当作可运行 Meeting。
+`create` 是 bootstrap 专用写入口：它先持久化 `creating` bootstrap、`createRequestId` 与 `requestHash`，但不创建公开 Meeting、领域事件或成功 receipt。此时 Runtime 可以安全创建并通过 `recordSessionOwnership` 记录 DSH Session ownership；崩溃恢复可据此识别未完成创建，且不能把它当作可运行 Meeting。`updateBootstrap` 只允许把 `creating` 转为 `creation_failed`，并保留安全失败码。
 
 全部必需 Session 已创建后，Runtime 使用同一原始创建输入调用 `completeCreate`。该方法在一个 SQLite 事务中创建 `meetings`、写入 `meeting.created`、初始 outbox 和成功 receipt，保存 `createResult` 并把 bootstrap 转为 `ready`。只有 `ready` bootstrap 对应公开 Meeting；`creation_failed` 不生成公开 Meeting。重复 `create` 只接受相同 request ID/hash，重复 `completeCreate` 返回原 receipt。
 
@@ -79,7 +81,14 @@ interface TransitionResult<T> {
 
 ### Recovery
 
-`open` 必须在 migration 和任何持久 PRAGMA（包括 `journal_mode`）前对已知 schema 只读验证数据库中仅有一个 Meeting，且 `teamId`、`meetingId`、bootstrap ID 与所有完整解析的 `convivium/<teamId>/<meetingId>/<identity...>` Session ownership label 一致；不一致时以 `CORRUPT_DATABASE` 隔离且不得写入该数据库。Session ownership 的 session ID、label、role 与 participant identity 首次写入后不可变；只允许生命周期前进（`provisioning → active → closed`）和 capability 的不可逆 revoke。`read` 与其他公开方法把损坏 JSON 或 SQLite 数据统一映射为带当前 `meetingId` 的非重试 `CORRUPT_DATABASE`。`recover` 只处理当前 Meeting 数据库：回收过期 lease，并返回当前 snapshot、带创建 correlation 的 bootstrap record 和已证明的 Session ownership。workspace 目录扫描、跨 Meeting 隔离和 DSH orphan Session 处理属于上层 `RecoveryCoordinator`，不由 Repository 隐式完成。
+`open` 必须在 migration 和任何持久 PRAGMA（包括 `journal_mode`）前对已知 schema 只读验证数据库中仅有一个 Meeting，且 `teamId`、`meetingId`、bootstrap ID 与所有完整解析的 Session ownership label 一致；不一致时以 `CORRUPT_DATABASE` 隔离且不得写入该数据库。Session ownership 的 session ID、label、role 与 participant identity 首次写入后不可变；只允许生命周期前进（`provisioning → active → closed`）和 capability 的不可逆 revoke。`read` 与其他公开方法把损坏 JSON 或 SQLite 数据统一映射为带当前 `meetingId` 的非重试 `CORRUPT_DATABASE`。`recover` 只处理当前 Meeting 数据库：回收过期 lease，并返回带创建 correlation 的 bootstrap record 和已证明的 Session ownership。只有 `ready` bootstrap 才返回公开 Meeting `snapshot`；`creating` 或 `creation_failed` 返回时不得包含 snapshot，使上层 `RecoveryCoordinator` 能恢复或安全关闭中断创建的 Session。workspace 目录扫描、跨 Meeting 隔离和 DSH orphan Session 处理属于上层 `RecoveryCoordinator`，不由 Repository 隐式完成。
+
+`SessionOwnershipInput` 的 `sessionLabel` 只接受以下稳定格式：
+
+```text
+convivium:meeting-manager:<teamId>:<meetingId>
+convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
+```
 
 ### Schema and migration
 

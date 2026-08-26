@@ -154,7 +154,7 @@ export interface RecoverInput {
 }
 
 export interface RecoveryResult {
-    snapshot: MeetingSnapshot;
+    snapshot?: MeetingSnapshot;
     bootstrap: MeetingBootstrap;
     sessionOwnership: SessionOwnership[];
     reclaimedOutbox: number;
@@ -189,6 +189,12 @@ export interface SessionOwnershipInput {
     participantId?: string;
     lifecycleStatus: SessionOwnership["lifecycleStatus"];
     capabilityStatus: SessionOwnership["capabilityStatus"];
+}
+
+export interface UpdateBootstrapInput {
+    status: "creation_failed";
+    failureCode?: string;
+    now?: number;
 }
 
 interface MeetingRow {
@@ -327,17 +333,21 @@ function row<T>(value: unknown): T | undefined {
 }
 
 function parseSessionLabel(label: string): { teamId: string; meetingId: string } | undefined {
-    const [namespace, teamId, meetingId, ...identity] = label.split("/");
-    if (
-        namespace !== "convivium" ||
-        !teamId ||
-        !meetingId ||
-        identity.length === 0 ||
-        identity.some((segment) => !segment)
-    ) {
-        return undefined;
+    const parts = label.split(":");
+    if (parts[0] !== "convivium") return undefined;
+    if (parts[1] === "meeting-manager" && parts.length === 4 && parts[2] && parts[3]) {
+        return { teamId: parts[2], meetingId: parts[3] };
     }
-    return { teamId, meetingId };
+    if (
+        parts[1] === "meeting-participant" &&
+        parts.length === 5 &&
+        parts[2] &&
+        parts[3] &&
+        parts[4]
+    ) {
+        return { teamId: parts[2], meetingId: parts[3] };
+    }
+    return undefined;
 }
 
 function databaseVersion(db: DatabaseSync): number {
@@ -675,11 +685,7 @@ export class MeetingRepository {
         }
     }
 
-    async updateBootstrap(input: {
-        status: MeetingBootstrap["status"];
-        failureCode?: string;
-        now?: number;
-    }): Promise<MeetingBootstrap> {
+    async updateBootstrap(input: UpdateBootstrapInput): Promise<MeetingBootstrap> {
         this.ensureOpen();
         const now = input.now ?? Date.now();
         try {
@@ -989,12 +995,12 @@ export class MeetingRepository {
                     )
                     .get()
             );
-            const snapshot = this.getMeeting();
             const bootstrap = this.getBootstrap();
+            const snapshot = bootstrap.status === "ready" ? this.getMeeting() : undefined;
             const sessionOwnership = this.listSessionOwnership();
             this.db.exec("COMMIT");
             return {
-                snapshot,
+                ...(snapshot ? { snapshot } : {}),
                 bootstrap,
                 sessionOwnership,
                 reclaimedOutbox: Number(reclaimed),
