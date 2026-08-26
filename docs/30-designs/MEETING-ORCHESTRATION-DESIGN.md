@@ -725,76 +725,13 @@ SQLite 是 Meeting Runtime 的唯一状态真相。不再维护 `meeting.json` �
 
 ### 8.2 Required tables
 
-```sql
-CREATE TABLE meeting_bootstrap (
-  meeting_id TEXT PRIMARY KEY,
-  create_request_id TEXT NOT NULL,
-  request_hash TEXT NOT NULL,
-  phase TEXT NOT NULL,
-  safe_error_code TEXT,
-  result_json TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
 
-CREATE TABLE meetings (
-  id TEXT PRIMARY KEY,
-  team_id TEXT NOT NULL,
-  status TEXT NOT NULL,
-  version INTEGER NOT NULL,
-  state_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
 
-CREATE TABLE meeting_events (
-  meeting_id TEXT NOT NULL,
-  event_seq INTEGER NOT NULL,
-  meeting_version INTEGER NOT NULL,
-  event_type TEXT NOT NULL,
-  payload_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
-  PRIMARY KEY (meeting_id, event_seq)
-);
 
-CREATE TABLE committed_speaker_attempts (
-  attempt_id TEXT PRIMARY KEY,
-  meeting_id TEXT NOT NULL,
-  turn_id TEXT NOT NULL,
-  step_id TEXT NOT NULL,
-  request_hash TEXT NOT NULL,
-  committed_version INTEGER NOT NULL,
-  result_json TEXT NOT NULL,
-  committed_at INTEGER NOT NULL
-);
 
-CREATE TABLE committed_manager_plans (
-  planning_attempt_id TEXT PRIMARY KEY,
-  meeting_id TEXT NOT NULL,
-  manager_session_id TEXT NOT NULL,
-  observed_meeting_version INTEGER NOT NULL,
-  request_hash TEXT NOT NULL,
-  committed_version INTEGER NOT NULL,
-  result_json TEXT NOT NULL,
-  committed_at INTEGER NOT NULL
-);
+`plugin/src/repository/schema.ts` 是当前完整 DDL 真相源。本设计只固定逻辑表及其职责，不复制第二份可能漂移的 SQL：`meeting_bootstrap`、`meetings`、`meeting_events`、`idempotency_receipts`、`outbox` 和 `session_ownership`。
 
-CREATE TABLE meeting_outbox (
-  id TEXT PRIMARY KEY,
-  delivery_id TEXT NOT NULL UNIQUE,
-  meeting_id TEXT NOT NULL,
-  meeting_version INTEGER NOT NULL,
-  kind TEXT NOT NULL,
-  payload_json TEXT NOT NULL,
-  status TEXT NOT NULL,
-  attempt_count INTEGER NOT NULL DEFAULT 0,
-  available_at INTEGER NOT NULL,
-  delivered_at INTEGER
-);
-
-```
-
-`meeting_bootstrap.phase` 只允许 `creating | ready | creation_failed`：
+`meeting_bootstrap.status` 只允许 `creating | ready | creation_failed`：
 
 - 创建目录和 SQLite 后，在任何 Session 创建前写入 `create_request_id`、规范化 `request_hash` 和 `creating`；
 - 全部必需 Session 创建且 Meeting 初始事实提交成功后，在同一 SQLite 事务中写入 `meetings`、`meeting.created`、成功 `result_json` 并转为 `ready`；
@@ -838,7 +775,7 @@ generatedAt: 2026-08-25T12:00:00Z
 ```text
 BEGIN IMMEDIATE
 → SELECT meeting and validate version
-→ lookup committed_speaker_attempts
+→ lookup idempotency_receipts by requestId, commandKind and callerBinding
 → validate meeting/turn/step/attempt/delivery/speaker/status
 → atomically promote matching delivery to accepted when still pending
 → apply message and structured changes
@@ -847,9 +784,9 @@ BEGIN IMMEDIATE
 → update counters
 → advance step or finish turn
 → UPDATE meetings WHERE id = ? AND version = ?
-→ INSERT committed_speaker_attempts
+→ INSERT idempotency_receipts with result and event sequence
 → INSERT meeting_events
-→ INSERT meeting_outbox when needed
+→ INSERT outbox when needed
 → COMMIT
 ```
 
@@ -857,12 +794,13 @@ BEGIN IMMEDIATE
 
 ### 8.5 Manager commit
 
-Manager plan 使用相同事务结构，并额外校验 caller Session、planning attempt 和 observed meeting version。合法提交写 `committed_manager_plans`，再创建 MeetingTurn 和第一个 speaker outbox。
+Manager plan 使用相同事务结构，并额外校验 caller Session、planning attempt 和 observed meeting version。合法提交写入带有 command kind、caller binding、request hash、result 和 event sequence 的通用 `idempotency_receipts`，再创建 MeetingTurn 和第一个 speaker outbox。
 
 ### 8.6 Idempotency
 
-- 相同 attempt ID 和相同 request hash：返回首次 result。
-- 相同 attempt ID 和不同 request hash：`IDEMPOTENCY_CONFLICT`。
+- Repository 以 `requestId + commandKind + callerBinding` 作为唯一幂等键。`attemptId` 和 `planningAttemptId` 只参与授权、状态和 transition 校验，不作为 receipt 查询键；Repository 不提供按这些 ID 反查提交结果的要求。
+- 相同幂等键和相同 request hash：返回首次 result。
+- 相同幂等键和不同 request hash：`IDEMPOTENCY_CONFLICT`。
 - 已撤销或过期 speaker attempt：`STALE_ATTEMPT`。
 - 已撤销或过期 Manager attempt：`STALE_MANAGER_ATTEMPT`。
 - 执行终态 Meeting：`IMMUTABLE_MEETING`。

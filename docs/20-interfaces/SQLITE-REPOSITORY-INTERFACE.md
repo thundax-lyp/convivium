@@ -63,10 +63,11 @@ interface TransitionResult<T> {
 
 ### Idempotency
 
-幂等键为 `requestId + commandKind + callerBinding`，`requestHash` 是规范化请求内容的 hash。
+幂等键为 `requestId + commandKind + callerBinding`，其中 `requestId` 是调用方提供的稳定幂等身份；`requestHash` 是规范化请求内容的 hash。`attemptId`、`planningAttemptId` 等领域对象 ID 不参与 receipt 查询，也不要求 Repository 提供按这些 ID 反查提交结果的能力。
 
 - 相同幂等键和相同 hash：返回原 receipt，不再次运行 transition。
 - 相同幂等键和不同 hash：返回 `IDEMPOTENCY_CONFLICT`。
+- 相同 `requestId` 在不同领域 attempt 标识下仍由 command kind 和 caller binding 区分；同一幂等键不得产生第二份提交。
 - receipt 必须保存 result、meetingVersion、message IDs 和创建时间。
 
 ### Events and sequence
