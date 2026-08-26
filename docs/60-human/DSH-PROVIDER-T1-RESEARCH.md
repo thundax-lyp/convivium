@@ -1,6 +1,6 @@
 # DSH Provider T1 调研记录
 
-状态：候选与 profile capability 已取证，尚未获得用户 tuple 确认。
+状态：候选、profile capability 与 continuable 生命周期已取证，尚未获得用户 tuple 确认。
 
 ## Scope
 
@@ -26,7 +26,7 @@ Installation source: npm registry tarball
 
 ## Temporary Profile Composition
 
-已在一次性 `mktemp -d /tmp/convivium-dsh-t1.XXXXXX` 根下创建独立 `DSH_HOME`，未读取或修改用户 profile。profile 使用 DSH CLI 自动初始化的 `web` manifest：
+已在一次性 `mktemp -d` 创建的临时根下建立独立 `DSH_HOME`，未读取或修改用户 profile。profile 使用 DSH CLI 自动初始化的 `web` manifest：
 
 ```json
 {
@@ -75,10 +75,54 @@ DSH_HOME=<temporary-home> CONVIVIUM_T1_OUTPUT=<temporary-result> \
 
 该结果证明实际 registry 在 provider registration 完成后能解析 `spawn`，且公开 provider 对象具备 `prepareContinuable`。没有使用 mock、自制 provider、隐式 provider 或 fallback。
 
-## Not Yet Proven
+## Verified Continuable Lifecycle
+
+在同一临时 `web` profile 中，观察 bundle 仅调用实际 DSH `ctx.agents` 和 `ctx.subagents`。它创建两个独立 live parent；第一个 parent 只拥有 target child，第二个 parent 只拥有 control child。没有 mock、自制 provider、fallback 或直接 Session 操作。
+
+执行：
+
+```sh
+DSH_HOME=<temporary-home> \
+CONVIVIUM_T1_OUTPUT=<temporary-result> \
+DSH_TELEMETRY_MODE=DISABLED \
+DSH_PERMISSION_MODE=workspace-write \
+dsh --profile web --no-open
+```
+
+命令退出码为 `0`，stderr 为空。结构化结果如下（ID 为该次临时运行产生的 DSH identity）：
+
+```json
+{
+  "providerResolved": "spawn",
+  "prepareContinuableType": "function",
+  "targetStart": {
+    "childId": "9118640f-6b6d-4342-a11c-3ef52af86d07",
+    "messageId": "90110999-d25e-4ce1-a4b3-d2f24600200b"
+  },
+  "residentFollowupMessageId": "65463d1a-de76-4ef8-ab59-a56be77bb706",
+  "targetDrainedBeforeColdResume": true,
+  "coldResumeFollowupMessageId": "704c7b63-2d6d-428c-bd25-3ade70e7386a",
+  "targetLiveAfterColdResume": true,
+  "interruptIssued": true,
+  "targetDrainedAfterInterrupt": true,
+  "controlPersistedBeforeTargetDrain": true,
+  "controlPersistedAfterTargetDrain": true,
+  "controlPersistedAfterSecondTargetDrain": true,
+  "controlDrained": true,
+  "parentDisposed": true,
+  "controlParentDisposed": true
+}
+```
+
+`subagent/start` 为 target child 记录两次 `provider: "spawn", local: true` event：首次创建与 drain 后的 cold resume 各一次。`controlPersisted*` 通过第二个 parent 的 `listChildren()` 在 target 的两次 `drainContinuableChildren()` 前后均找到 control child，证明 target cleanup 未删除不属于该 parent 的 child identity。
+
+### Cleanup
+
+probe 已先 drain target/control child，再 dispose 两个 parent。随后只将本次 `mktemp` 创建的根移入系统废纸篓，并断言该精确路径不存在；未读取、修改或删除用户 DSH profile、workspace、Session 或进程。
+
+## Pending User Confirmation
 
 - 候选尚未获得用户对 package/name/version/安装来源的确认。
-- 生命周期 probe 和临时资源 cleanup 的完整结果待下一条 T1 evidence 记录。
 - 未据此修改 `plugin/package.json` 或 `plugin/pnpm-lock.yaml`；provider 仍由宿主 profile 管理。
 
 ## Related Documents

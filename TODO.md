@@ -20,12 +20,6 @@
   - 处理动作：运行 `verify:environment`、`verify:contract`、`typecheck` 和 `test`。
   - 验收点：四个命令均通过并记录输出。
 
-- [ ] `plugin/profile`：验证 continuable child 的完整生命周期
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T1
-  - 处理动作：使用专用 live parent Agent 执行 `startContinuable`、followup、cold resume、interrupt 和 `drainContinuableChildren` 探针。
-  - 验收点：返回 `{ childId, messageId }`；followup 与 cold resume 可接受；interrupt/drain 只清理目标 child tree。
-
 - [ ] `plugin/profile`：完成 provider 人工确认门
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 明确采用待讨论项建议；T1
