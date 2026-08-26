@@ -20,12 +20,6 @@
   - 处理动作：覆盖 capability check、reserved childId、首次 prompt、followup、interrupt、drain 和 inspection。
   - 验收点：成功、provider 缺失、错误 parent、错误 label、revoked ownership 和精确清理均有断言。
 
-- [ ] `plugin/tests/integration/runtime`：验证创建与串行 Turn
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T4
-  - 处理动作：覆盖 bootstrap/create、provisioning 隔离、single active attempt、A→B→C context 和 outbox retry。
-  - 验收点：provisioning 输出不成事实；后续 speaker 只读取已提交前缀；无重复 transcript。
-
 - [ ] `plugin/tests/contract`：验证 Tool 权限与 projection
   - 依据文档：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；2026-08-26 history audit
