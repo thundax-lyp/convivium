@@ -28,6 +28,19 @@
 - 分支职责：该分支汇合已验证的 provider T1 取证、Host service-key 注入、canonical domain/SQLite 基础，以及 Tool/projection 契约；`main` 未承载这些未 PR 的开发提交。
 - 可回溯边界：本节只记录执行起点，不宣称 Runtime 会议创建或 Turn 已完成；剩余可执行工作以根 `TODO.md` 为准。
 
+### DSH Runtime 静态基线验证（2026-08-26）
+
+验证范围：`codex/dsh-runtime-integration` 的 T1 取证、domain/repository 基础与 Tool/projection 契约整合结果。
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm verify:environment` | Pass；Node `v22.23.2` 下 15 个声明的 DSH packages 均已安装。 |
+| `pnpm verify:contract` | Pass；插件 manifest、bundle patch 与 Client contract 可解析。 |
+| `pnpm typecheck` | Pass；Host 与 Client TypeScript face 均通过。 |
+| `pnpm test` | Pass；14 个测试文件、77 个测试通过。 |
+
+`pnpm verify` 随后也完整通过，但不替代本表中每个 T0 静态入口的独立结果。真实 profile lifecycle 的外部依赖验证见 T1 evidence；会议 Runtime 业务验证仍未覆盖。
+
 历史框架验证日期：2026-08-25
 环境：Node `v22.23.2`，pnpm `10.7.0`，macOS 本地工作区
 实现边界：`fef0d1c..fca7386`（依赖 manifest 至 PR 治理的实现提交）；证据在后续 readiness commit 中收口。

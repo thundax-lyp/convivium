@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/`：通过现有静态基线验证
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T0
-  - 处理动作：运行 `verify:environment`、`verify:contract`、`typecheck` 和 `test`。
-  - 验收点：四个命令均通过并记录输出。
-
 - [ ] `plugin/profile`：完成 provider 人工确认门
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 明确采用待讨论项建议；T1
