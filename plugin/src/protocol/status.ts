@@ -376,14 +376,25 @@ export const MeetingStatusResultSchema: Schema<Record<string, unknown>> = Schema
                 pausedBy?: unknown;
                 reason?: string;
             };
+            if (pauseControl.action !== "resume") {
+                throw new TypeError("paused status has an invalid pause control action");
+            }
             if (
-                pauseControl.action !== "pause" ||
                 pauseControl.pausedAt === undefined ||
                 pauseControl.pausedBy === undefined ||
                 !pauseControl.reason?.trim()
             ) {
                 throw new TypeError("paused status requires complete pause metadata");
             }
+        }
+        const expectedPauseAction =
+            value.status === "paused"
+                ? "resume"
+                : ["created", "running", "waiting"].includes(value.status as string)
+                  ? "pause"
+                  : "none";
+        if ((value.pauseControl as { action: string }).action !== expectedPauseAction) {
+            throw new TypeError(`${value.status} status has an invalid pause control action`);
         }
         return value;
     }

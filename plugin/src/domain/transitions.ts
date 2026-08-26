@@ -113,9 +113,11 @@ function revokeActiveAttempts(state: MeetingState): {
         ? {
               ...state.currentTurn,
               status:
-                  state.currentTurn.status === "planned" || state.currentTurn.status === "running"
-                      ? ("truncated" as const)
-                      : state.currentTurn.status,
+                  state.currentTurn.status === "planned"
+                      ? ("cancelled" as const)
+                      : state.currentTurn.status === "running"
+                        ? ("truncated" as const)
+                        : state.currentTurn.status,
               steps: state.currentTurn.steps.map((step) => {
                   const attempt = step.attempt;
                   if (!attempt || !["assigned", "running"].includes(attempt.status)) return step;
@@ -280,9 +282,50 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
     ]);
     const sourceMessageById = new Map(state.transcript.map((message) => [message.id, message]));
     const sourceCompletionById = new Map(state.completionFacts.map((fact) => [fact.id, fact]));
+    const archiveIds = (values: readonly { id: string }[]) => new Set(values.map(({ id }) => id));
+    const containsEvery = (sourceIds: readonly string[], archivedIds: Set<string>) =>
+        sourceIds.every((id) => archivedIds.has(id));
+    const acceptedDecisionIds = state.decisions
+        .filter((decision) => decision.status === "accepted")
+        .map((decision) => decision.id);
+    const unresolvedQuestionIds = state.openQuestions
+        .filter((question) => question.status === "open" || question.status === "deferred")
+        .map((question) => question.id);
     if (
         JSON.stringify(archivePackage.objectiveContract) !==
             JSON.stringify(state.objectiveContract) ||
+        !containsEvery(
+            state.artifactRefs.map((artifact) => artifact.artifactId),
+            new Set(archivePackage.artifactRefs.map((artifact) => artifact.artifactId))
+        ) ||
+        !containsEvery(acceptedDecisionIds, archiveIds(archivePackage.acceptedDecisions)) ||
+        !containsEvery(
+            state.proposals.map((proposal) => proposal.id),
+            archiveIds(archivePackage.proposals)
+        ) ||
+        !containsEvery(
+            state.completionFacts.map((fact) => fact.id),
+            archiveIds(archivePackage.completionFacts)
+        ) ||
+        !containsEvery(
+            state.agenda.map((item) => item.id),
+            archiveIds(archivePackage.agenda)
+        ) ||
+        !containsEvery(
+            state.issues.map((issue) => issue.id),
+            archiveIds(archivePackage.issues)
+        ) ||
+        !containsEvery(unresolvedQuestionIds, archiveIds(archivePackage.unresolvedQuestions)) ||
+        !containsEvery(
+            state.transcript.map((message) => message.id),
+            archiveIds(archivePackage.formalTranscript)
+        ) ||
+        !containsEvery(
+            state.participants.map((participant) => participant.id),
+            new Set(
+                archivePackage.participantProvenance.map((participant) => participant.participantId)
+            )
+        ) ||
         archivePackage.artifactRefs.some((artifact) => {
             const source = artifactById.get(artifact.artifactId);
             return (
@@ -438,6 +481,18 @@ function assertCompletionReady(state: MeetingState, to: MeetingStatus): void {
                     fact.status === "active" &&
                     fact.result === "approved"
             )
+        ) &&
+        state.agenda.every((item) => item.status === "resolved" || item.status === "deferred") &&
+        state.issues.every(
+            (issue) =>
+                !issue.blocking ||
+                ["resolved", "deferred", "accepted_risk", "out_of_scope"].includes(issue.status)
+        ) &&
+        state.openQuestions.every(
+            (question) =>
+                question.status === "answered" ||
+                question.status === "withdrawn" ||
+                question.status === "deferred"
         );
     if (!ready) {
         throw new DomainError(
@@ -614,7 +669,9 @@ export function transitionMeeting(
         );
     }
     const lifecycleCleanup =
-        to === "paused" || to === "archiving" ? revokeActiveAttempts(state) : undefined;
+        to === "paused" || to === "archiving" || isExecutionTerminal
+            ? revokeActiveAttempts(state)
+            : undefined;
     const next: MeetingState = {
         ...state,
         status: to,
@@ -632,6 +689,7 @@ export function transitionMeeting(
         ...(lifecycleCleanup
             ? { currentTurn: lifecycleCleanup.currentTurn, manager: lifecycleCleanup.manager }
             : {}),
+        ...(isExecutionTerminal ? { currentTurn: undefined } : {}),
         ...(to === "waiting" && context.wait ? { waiting: structuredClone(context.wait) } : {}),
         ...(to === "archiving" && isArchiveInput(context.archive)
             ? { archive: snapshotArchive(context.archive) }

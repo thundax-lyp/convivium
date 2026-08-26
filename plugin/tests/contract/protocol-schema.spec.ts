@@ -343,9 +343,34 @@ describe("protocol envelope schemas", () => {
                 blockingFacts: [],
                 status: "paused",
                 pendingHandRaises: [],
-                pauseControl: { action: "none" }
+                pauseControl: { action: "resume" }
             })
         ).toThrow(/pause metadata/);
+    });
+
+    it("maps paused projections to the resume action", () => {
+        expect(() =>
+            MeetingStatusResultSchema({
+                meetingId: "meeting-1",
+                meetingVersion: 1,
+                topic: "Release",
+                objective: "Decide scope",
+                continuationMaterials: [],
+                limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
+                activeAgendaItem: undefined,
+                messages: [],
+                acceptedDecisions: [],
+                blockingFacts: [],
+                status: "paused",
+                pendingHandRaises: [],
+                pauseControl: {
+                    action: "pause",
+                    pausedAt: 1,
+                    pausedBy: { kind: "user", actorId: "user-1" },
+                    reason: "manual pause"
+                }
+            })
+        ).toThrow(/pause control action/);
     });
 });
 

@@ -222,6 +222,32 @@ describe("meeting transitions", () => {
         ]);
     });
 
+    it("cancels planned turns and clears active work on terminal transitions", () => {
+        const state = meeting("running");
+        state.currentTurn = {
+            id: "turn-1",
+            status: "planned",
+            currentStepIndex: 0,
+            steps: []
+        };
+
+        const result = transitionMeeting(state, "cancelled", {
+            now,
+            termination: {
+                code: "user_cancelled",
+                reason: "cancelled",
+                decisionIds: [],
+                unresolvedQuestionIds: [],
+                dissentingPositionIds: [],
+                blockingAgendaItemIds: [],
+                finalMessage: "cancelled",
+                endedAt: now
+            }
+        });
+
+        expect(result.state.currentTurn).toBeUndefined();
+    });
+
     it("does not attach termination or archive data to non-matching transitions", () => {
         const termination = {
             code: "user_cancelled" as const,
@@ -327,6 +353,37 @@ describe("meeting transitions", () => {
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
 
+    it("requires agenda and blocking facts to be settled before completion", () => {
+        const state = meeting("running");
+        state.agenda = [{ id: "agenda-1", status: "pending" }];
+        state.issues = [
+            {
+                id: "issue-1",
+                title: "blocker",
+                description: "blocker",
+                blocking: true,
+                status: "open"
+            }
+        ];
+        state.openQuestions = [{ id: "question-1", text: "question", status: "open" }];
+
+        expect(() =>
+            transitionMeeting(state, "completed", {
+                now,
+                termination: {
+                    code: "objective_satisfied",
+                    reason: "done",
+                    decisionIds: [],
+                    unresolvedQuestionIds: [],
+                    dissentingPositionIds: [],
+                    blockingAgendaItemIds: [],
+                    finalMessage: "done",
+                    endedAt: now
+                }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
     it("requires a materialized archive before archived", () => {
         const archivingMeeting = meeting("archiving");
         expect(() => transitionMeeting(archivingMeeting, "archived", { now })).toThrowError(
@@ -355,6 +412,29 @@ describe("meeting transitions", () => {
             transitionMeeting(meeting("completed"), "archiving", {
                 now,
                 archive: { package: archive }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
+    it("requires archive packages to include committed facts", () => {
+        const state = meeting("completed");
+        state.transcript = [
+            {
+                id: "message-1",
+                seq: 1,
+                turnId: "turn-1",
+                stepId: "step-1",
+                attemptId: "attempt-1",
+                speaker: "participant-1",
+                agendaItemId: "agenda-1",
+                content: "committed fact"
+            }
+        ];
+
+        expect(() =>
+            transitionMeeting(state, "archiving", {
+                now,
+                archive: { package: archivePackage() }
             })
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
