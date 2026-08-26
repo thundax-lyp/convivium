@@ -88,4 +88,44 @@ describe("create/status meeting runtime", () => {
             )
         ).resolves.toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
     });
+
+    it("rejects non-Captain creation and mismatched control callers before SQLite access", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-auth-"));
+        roots.push(root);
+        let starts = 0;
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => {
+                    starts += 1;
+                    return { childId: spec.childId!, messageId: "initial" as never };
+                }
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        const participant = { sessionId: "participant-1", kind: "participant" as const };
+        await expect(
+            runtime.createMeeting(input, participant, new AbortController().signal)
+        ).resolves.toMatchObject({
+            ok: false,
+            code: "UNAUTHORIZED_CALLER"
+        });
+        await expect(
+            runtime.pause(
+                {
+                    protocolVersion: 1,
+                    meetingId: "meeting-1",
+                    expectedMeetingVersion: 0,
+                    requestId: "pause-1",
+                    reason: "stop"
+                },
+                { sessionId: "captain-1", kind: "captain", meetingId: "other-meeting" }
+            )
+        ).resolves.toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
+        expect(starts).toBe(0);
+    });
 });
