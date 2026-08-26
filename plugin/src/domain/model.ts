@@ -65,6 +65,93 @@ export interface MeetingAgendaItem {
     status: "pending" | "discussing" | "waiting" | "resolved" | "deferred" | "blocked";
 }
 
+export interface MeetingObjectiveContract {
+    requiredOutputs: Array<{
+        id: string;
+        description: string;
+        status: "pending" | "ready" | "accepted";
+    }>;
+    acceptanceCriteria: Array<{ id: string; description: string; satisfied: boolean }>;
+    hardConstraints: Array<{ id: string; description: string }>;
+    requiredReviewers: string[];
+    riskAcceptanceAuthority: string[];
+    acceptableRiskLevel: "low" | "medium" | "high";
+}
+
+export interface MeetingMessage {
+    id: string;
+    seq: number;
+    turnId: string;
+    stepId: string;
+    attemptId: string;
+    speaker: string;
+    agendaItemId: string;
+    content: string;
+}
+
+export interface MeetingIssue {
+    id: string;
+    title: string;
+    description: string;
+    blocking: boolean;
+    status: "open" | "resolved" | "deferred" | "accepted_risk" | "out_of_scope";
+}
+
+export interface MeetingProposal {
+    id: string;
+    title: string;
+    revision: number;
+    status: "draft" | "under_review" | "accepted" | "rejected" | "superseded";
+}
+
+export interface MeetingDecision {
+    id: string;
+    proposalId: string;
+    proposalRevision: number;
+    status: "accepted" | "superseded" | "revoked";
+}
+
+export interface MeetingQuestion {
+    id: string;
+    text: string;
+    status: "open" | "answered" | "withdrawn" | "deferred";
+}
+
+export interface MeetingHandRaise {
+    id: string;
+    participant: string;
+    status: "pending" | "accepted" | "deferred" | "withdrawn" | "consumed" | "rejected";
+}
+
+export interface CompletionFact {
+    id: string;
+    subjectId: string;
+    result:
+        | "supported"
+        | "approved"
+        | "changes_required"
+        | "accepted"
+        | "rejected"
+        | "resolved"
+        | "deferred"
+        | "waived";
+    status: "active" | "superseded" | "revoked";
+}
+
+export interface ContinuationMaterial {
+    sourceMeetingId: string;
+    sourceKind: "final_summary" | "decision" | "issue" | "risk" | "evidence" | "artifact";
+    summary: string;
+}
+
+export interface MeetingLimits {
+    maxTurns: number;
+    maxSpeakersPerTurn: number;
+    maxMessages: number;
+}
+
+export type MeetingSelectionMode = "round_robin" | "rule_based" | "manager" | "hybrid";
+
 export interface MeetingTermination {
     code:
         | "objective_satisfied"
@@ -81,9 +168,45 @@ export interface MeetingTermination {
     endedAt: number;
 }
 
+export interface ArchiveArtifactRef {
+    artifactId: string;
+    title: string;
+    version?: string;
+    checksum?: string;
+}
+
+export interface ArchiveParticipantProvenance {
+    participantId: string;
+    displayName: string;
+    role?: string;
+    templateVersion?: string;
+}
+
+export interface ArchivePackage {
+    schemaVersion: 1;
+    meetingId: string;
+    teamId: string;
+    objectiveContract: MeetingObjectiveContract;
+    finalSummary: string;
+    artifacts: ArchiveArtifactRef[];
+    acceptedDecisions: MeetingDecision[];
+    proposals: MeetingProposal[];
+    completionFacts: CompletionFact[];
+    agenda: MeetingAgendaItem[];
+    issues: MeetingIssue[];
+    unresolvedQuestions: MeetingQuestion[];
+    parkingLot: string[];
+    formalTranscript: MeetingMessage[];
+    participantProvenance: ArchiveParticipantProvenance[];
+    managerPromptVersion: string;
+    termination: MeetingTermination;
+    endedAt: number;
+    materializedAt: number;
+}
+
 export interface ArchiveRecord {
+    package: ArchivePackage;
     archivedAt?: number;
-    packageMaterialized: boolean;
 }
 
 export interface MeetingState {
@@ -93,6 +216,26 @@ export interface MeetingState {
     participants: MeetingParticipant[];
     manager: MeetingManagerRuntime;
     agenda: MeetingAgendaItem[];
+    topic: string;
+    objective: string;
+    objectiveContract: MeetingObjectiveContract;
+    issues: MeetingIssue[];
+    agendaCandidates: string[];
+    transcript: MeetingMessage[];
+    proposals: MeetingProposal[];
+    decisions: MeetingDecision[];
+    openQuestions: MeetingQuestion[];
+    handRaises: MeetingHandRaise[];
+    completionFacts: CompletionFact[];
+    continuationMaterials: ContinuationMaterial[];
+    turnSeq: number;
+    messageSeq: number;
+    eventSeq: number;
+    progressFingerprint?: string;
+    stallCount: number;
+    replanCount: number;
+    selectionMode: MeetingSelectionMode;
+    limits: MeetingLimits;
     version: number;
     createdAt: number;
     updatedAt: number;

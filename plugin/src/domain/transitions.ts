@@ -114,7 +114,41 @@ export function transitionMeeting(
 ): TransitionResult<MeetingState> {
     assertTransition("meeting", state.id, state.status, to, meetingTransitions, state.version);
 
-    if (["completed", "partial", "no_consensus", "cancelled", "failed"].includes(to)) {
+    const isExecutionTerminal = [
+        "completed",
+        "partial",
+        "no_consensus",
+        "cancelled",
+        "failed"
+    ].includes(to);
+
+    if (context.termination && !isExecutionTerminal) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `termination is only valid for execution terminal states`,
+            {
+                entityType: "meeting",
+                entityId: state.id,
+                to,
+                meetingVersion: state.version
+            }
+        );
+    }
+
+    if (context.archive && to !== "archived") {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `archive is only valid when entering archived`,
+            {
+                entityType: "meeting",
+                entityId: state.id,
+                to,
+                meetingVersion: state.version
+            }
+        );
+    }
+
+    if (isExecutionTerminal) {
         if (!context.termination) {
             throw new DomainError(
                 "MISSING_TERMINATION",
@@ -133,7 +167,7 @@ export function transitionMeeting(
 
     if (
         to === "archived" &&
-        (!context.archive?.packageMaterialized || context.archive.archivedAt === undefined)
+        (!context.archive?.package || context.archive.archivedAt === undefined)
     ) {
         throw new DomainError(
             "MISSING_ARCHIVE",

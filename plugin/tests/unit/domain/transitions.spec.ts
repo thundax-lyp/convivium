@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     DomainError,
+    type ArchivePackage,
     type MeetingState,
     transitionAttempt,
     transitionManagerAttempt,
@@ -19,9 +20,59 @@ function meeting(status: MeetingState["status"] = "created"): MeetingState {
         participants: [],
         manager: { status: "idle" },
         agenda: [],
+        topic: "topic",
+        objective: "objective",
+        objectiveContract: {
+            requiredOutputs: [],
+            acceptanceCriteria: [],
+            hardConstraints: [],
+            requiredReviewers: [],
+            riskAcceptanceAuthority: [],
+            acceptableRiskLevel: "low"
+        },
+        issues: [],
+        agendaCandidates: [],
+        transcript: [],
+        proposals: [],
+        decisions: [],
+        openQuestions: [],
+        handRaises: [],
+        completionFacts: [],
+        continuationMaterials: [],
+        turnSeq: 0,
+        messageSeq: 0,
+        eventSeq: 0,
+        stallCount: 0,
+        replanCount: 0,
+        selectionMode: "hybrid",
+        limits: { maxTurns: 10, maxSpeakersPerTurn: 5, maxMessages: 100 },
         version: 3,
         createdAt: now - 1000,
         updatedAt: now - 1000
+    };
+}
+
+function archivePackage(): ArchivePackage {
+    return {
+        schemaVersion: 1,
+        meetingId: "meeting-1",
+        teamId: "team-1",
+        objectiveContract: meeting().objectiveContract,
+        finalSummary: "summary",
+        artifacts: [],
+        acceptedDecisions: [],
+        proposals: [],
+        completionFacts: [],
+        agenda: [],
+        issues: [],
+        unresolvedQuestions: [],
+        parkingLot: [],
+        formalTranscript: [],
+        participantProvenance: [],
+        managerPromptVersion: "v1",
+        termination: { code: "objective_satisfied", reason: "done", endedAt: now },
+        endedAt: now,
+        materializedAt: now
     };
 }
 
@@ -65,6 +116,19 @@ describe("meeting transitions", () => {
         expect(result.state.pauseReason).toBe("captain request");
     });
 
+    it("does not attach termination or archive data to non-matching transitions", () => {
+        const termination = { code: "user_cancelled" as const, reason: "cancelled", endedAt: now };
+        expect(() =>
+            transitionMeeting(meeting("running"), "paused", { now, reason: "pause", termination })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+        expect(() =>
+            transitionMeeting(meeting("running"), "waiting", {
+                now,
+                archive: { package: archivePackage() }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
     it("requires termination details for execution terminal states", () => {
         expect(() => transitionMeeting(meeting("running"), "completed", { now })).toThrowError(
             expect.objectContaining({ code: "MISSING_TERMINATION" })
@@ -88,9 +152,9 @@ describe("meeting transitions", () => {
 
         const result = transitionMeeting(meeting("archiving"), "archived", {
             now,
-            archive: { packageMaterialized: true, archivedAt: now }
+            archive: { package: archivePackage(), archivedAt: now }
         });
-        expect(result.state.archive?.packageMaterialized).toBe(true);
+        expect(result.state.archive?.package.meetingId).toBe("meeting-1");
         expect(result.state.archive?.archivedAt).toBe(now);
     });
 });
