@@ -13,7 +13,28 @@ description: Explicitly invoked workflow for processing unresolved Codex review 
 - 如果未提供参数且当前分支没有已提交的 open PR，必须立即提示“当前分支没有已提交 PR，请先创建 PR 后再处理 Codex 评论”，停止后续操作；不得自行创建 PR。
 - 如果提供的 PR 号不存在、已关闭或 base 不是 `main`，必须提示具体原因并停止；其 head 不是当前分支时可以读取和回复该 `comment PR`，但只能把修复归属到实际产生 `fix commit` 的分支/PR，不能自动推送到其他分支。
 - 只处理该 PR 中未解决的 Codex review threads，不处理普通 issue comments 或已关闭 threads。
-- 目标终点是：每条评论已分类、已 reaction、已修复或说明不采纳、已回复并 resolved；代码修复必须形成 commit。
+- 目标终点是：每条评论已分类、已 reaction、已修复或说明不采纳、已回复并 resolved；仅报告审查额度不足的冗余 Codex 评论直接删除。代码修复必须形成 commit。
+
+## 冗余额度提示
+
+在分类前，自动删除仅表示 Codex 无法完成审查的额度提示。它不是 finding，不添加 reaction、不回复、不提交代码，也不 resolve。
+
+只要已确认作者是 Codex，正文包含以下精确提示就必须直接删除该条评论：
+
+```text
+You have reached your Codex usage limits for code reviews.
+```
+
+该精确提示是无条件冗余通知；即使同一 thread 还有其他评论，也只删除这条提示，再继续处理其余评论。它不适用下方的“thread 中不存在其他需要保留的评论”限制。
+
+只有同时满足以下条件才可删除：
+
+- 原评论作者已确认是 Codex；
+- 评论正文仅报告审查 token / review budget / 额度或预算不足、耗尽或无法继续审查；
+- 正文不包含具体文件、行号、错误触发条件、影响或修复建议；
+- 对于非上述精确提示，thread 中不存在其他需要保留的评论。
+
+判定必须保守：正文同时出现额度提示和任何可执行技术内容时，按普通 Codex finding 处理，绝不删除。删除使用 GitHub REST `DELETE /repos/{owner}/{repo}/pulls/comments/{comment-id}`；成功后重新读取 threads 确认其已消失或不再未解决。删除失败、作者不确定或正文不完全匹配时保留评论并在最终输出说明，不能改为 resolve。
 
 ## 评论来源与修复归属
 
@@ -29,7 +50,7 @@ description: Explicitly invoked workflow for processing unresolved Codex review 
 
 1. 读取当前分支、工作区、PR head/base 和未解决 threads；确认 PR 属于当前仓库、状态为 open、base 是 `main`。在确认 PR 存在前不得添加 reaction、修改代码、commit 或 push。指定其他 PR 时，`comment PR` 的 head 可以不是当前分支，但不得把当前分支的 commit 冒充为该 PR 的修复。
 2. 读取 `docs/AGENTS.md`、`docs/00-governance/ARCHITECTURE.md`、`PR-RULES.md`、`COMMIT-RULES.md`，并按评论涉及范围读取需求、接口和设计文档。
-3. 对每条 Codex finding 建立触发条件和代码证据：
+3. 先按“冗余额度提示”规则删除可确认的额度提示，并重新读取 threads；再对每条剩余 Codex finding 建立触发条件和代码证据：
    - 可执行 finding：先对原评论添加 👍，再实现修复和回归测试。
    - 不采纳、重复或需要产品决策：添加 👎，不修改代码，并在回复中说明具体依据。
 4. 对修复运行与改动匹配的最窄验证；跨边界、状态机、协议或生命周期变更运行 `plugin/` 的完整 `pnpm verify`。
@@ -46,11 +67,13 @@ description: Explicitly invoked workflow for processing unresolved Codex review 
 - 没有可用的已提交 PR 时，只输出创建 PR 的提示；因为 reply 必须引用实际 commit/PR，不能用假设的 PR 号或本地 commit 继续流程。
 - 对已接受的 actionable finding，没有可引用的 `fix commit` 时，只允许发布 follow-up 说明，不得声称已修复或 resolve；对不采纳的 finding，不需要 `fix commit`，回复具体依据后可以 resolve；对暂缓到后续修改的 finding，保留未 resolve，待产生 `fix commit` 后回链。没有可引用的 `fix PR` 时，不得把本地 commit 描述成已进入某个 PR。
 - 没有未关闭 Codex threads 时不创建空 commit；仅报告 PR 已无待处理评论。
+- 不删除普通 issue comment、非 Codex 评论、包含任何可执行 finding 的评论，或存在其他保留回复的 thread；但精确的 Codex usage-limit 提示例外，只删除该提示本身。额度提示的删除失败时不 resolve。
 - 如果同一轮新评论持续产生，最多处理两轮并报告剩余项，避免无限循环。
 
 ## GitHub 操作
 
 - 用 GitHub REST API 获取 PR review comments，用 GraphQL `reviewThreads` 判断 `isResolved`，用 reaction API 添加 `+1` 或 `-1`。
+- 对满足“冗余额度提示”全部条件的 Codex review comment，用 REST `DELETE /repos/{owner}/{repo}/pulls/comments/{comment-id}` 删除，并重新读取 thread；不得用 delete 代替处理真实 finding。
 - resolve 必须使用 GraphQL `resolveReviewThread`，且必须在 reply 成功之后执行。
 - 评论作者应通过 GitHub author/login 识别为 Codex；不确定时不要误处理其他 reviewer 的评论。
 
@@ -66,4 +89,4 @@ Refs: PR #4, Codex comment #3859728727
 
 ## 输出
 
-汇报 PR、分支、处理的 threads、reaction、commit、push、验证、CI 状态和剩余风险。明确说明没有修改、没有提交、没有推送或未 resolve 的原因。
+汇报 PR、分支、删除的额度提示、处理的 threads、reaction、commit、push、验证、CI 状态和剩余风险。明确说明没有修改、没有提交、没有推送或未 resolve 的原因。
