@@ -1561,6 +1561,8 @@ flowchart LR
 
 SQLite `meeting_events` 至少保存以下领域事件类型：
 
+完整事件词汇以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md) 和 Domain 的 `DomainEventTypes` 为准；以下列出会议审计路径中必须出现的核心事实事件。
+
 ```text
 meeting.created
 turn.planned
@@ -1580,7 +1582,7 @@ archive.sessions_closed
 meeting.archived
 ```
 
-事件类型应描述已发生的领域事实，而不是命令名称或 UI 操作。所有允许写入的类型必须在 `MeetingEventType` 中集中注册；新增类型遵循接口兼容和数据迁移规则，不能通过任意字符串静默扩展。失败尝试、投递重试、Session 关闭失败或 capability 撤销失败如果没有改变 Meeting 领域状态，只进入结构化日志、指标或 outbox 状态，不伪装为已完成的领域事实。
+事件类型应描述已发生的领域事实，而不是命令名称或 UI 操作。`DomainEventType` 是事件语义的唯一来源，Repository 的 `MeetingEventType` 必须直接复用它；新增类型遵循接口兼容和数据迁移规则，不能通过任意字符串静默扩展。失败尝试、投递重试、Session 关闭失败或 capability 撤销失败如果没有改变 Meeting 领域状态，只进入结构化日志、指标或 outbox 状态，不伪装为已完成的领域事实。
 
 这些类型是 Meeting Runtime 的 SQLite 领域事件，不加入 DSH `SessionEventMap`，也不写入 Agent Session。`state_json` 是当前状态快照；`meeting_events` 用于有序审计和诊断，恢复当前状态必须读取 `state_json`，不得仅通过重放事件另建第二份状态。
 

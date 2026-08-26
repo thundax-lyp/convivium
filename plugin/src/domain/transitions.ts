@@ -88,7 +88,7 @@ function meetingEventType(from: MeetingStatus, to: MeetingStatus): DomainEventTy
     if (to === "paused") return "meeting.paused";
     if (to === "waiting") return "meeting.waiting";
     if (to === "running") {
-        if (from === "created") return "meeting.created";
+        if (from === "created") return "meeting.started";
         return from === "paused" ? "meeting.resumed" : "meeting.replanned";
     }
     if (to === "converging") return "meeting.replanned";
@@ -97,6 +97,22 @@ function meetingEventType(from: MeetingStatus, to: MeetingStatus): DomainEventTy
     if (to === "archiving") return "meeting.archiving";
     if (to === "archived") return "meeting.archived";
     return "meeting.created";
+}
+
+function turnEventType(to: TurnStatus): DomainEventType {
+    return `turn.${to}` as Extract<DomainEventType, `turn.${string}`>;
+}
+
+function stepEventType(to: StepStatus): DomainEventType {
+    return to === "assigned" ? "speaker.assigned" : `speaker.${to}` as DomainEventType;
+}
+
+function attemptEventType(to: AttemptStatus): DomainEventType {
+    return `speaker_attempt.${to}` as Extract<DomainEventType, `speaker_attempt.${string}`>;
+}
+
+function managerPlanEventType(status: ManagerPlanningAttempt["status"]): DomainEventType {
+    return `manager_plan.${status}` as Extract<DomainEventType, `manager_plan.${string}`>;
 }
 
 function isArchiveInput(archive: TransitionContext["archive"]): archive is ArchiveInput {
@@ -147,7 +163,7 @@ function revokeActiveAttempts(state: MeetingState): {
         : state.manager;
     if (activePlanning) {
         events.push({
-            type: "manager_attempt.revoked",
+            type: "manager_plan.revoked",
             payload: { planningAttemptId: planningAttempt.id, meetingId: state.id }
         });
     }
@@ -732,7 +748,7 @@ export function transitionTurn(
     assertTransition("turn", turn.id, turn.status, to, turnTransitions, meetingVersion);
     return {
         state: { ...turn, status: to },
-        effect: event("turn.status_changed", {
+        effect: event(turnEventType(to), {
             turnId: turn.id,
             from: turn.status,
             to,
@@ -749,7 +765,7 @@ export function transitionStep(
     assertTransition("step", step.id, step.status, to, stepTransitions, meetingVersion);
     return {
         state: { ...step, status: to },
-        effect: event("step.status_changed", {
+        effect: event(stepEventType(to), {
             stepId: step.id,
             from: step.status,
             to,
@@ -802,7 +818,7 @@ export function transitionAttempt(
             status: to,
             ...(acknowledged ? { deliveryStatus: "acknowledged" as const } : {})
         },
-        effect: event("attempt.status_changed", {
+        effect: event(attemptEventType(to), {
             attemptId: attempt.attemptId,
             from: attempt.status,
             to,
@@ -892,7 +908,7 @@ export function transitionManagerAttempt(
     }
     return {
         state: { ...attempt, status: to },
-        effect: event("manager_attempt.status_changed", {
+        effect: event(managerPlanEventType(to), {
             planningAttemptId: attempt.id,
             from: attempt.status,
             to,

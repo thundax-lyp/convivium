@@ -10,6 +10,16 @@
 
 本文不定义调度算法、状态转换流程、SQLite 表结构、DSH 调用、HTTP、工具、UI 或 Agent 内部能力。
 
+## Domain Event Ownership
+
+Domain event 是 Convivium 会议事实的唯一事件语义来源。`DomainEventType` 和 `DomainEvent` 由 Domain 定义，描述已经发生的会议事实；Repository 只原样持久化 Domain event，并附加 `eventSeq`、`meetingVersion`、时间和索引字段等存储元数据。
+
+Repository 不维护独立的事件词汇，不把 Domain event 通过字符串转换为另一种事件。Domain transition 中仅有内部状态变化、没有独立会议事实的变化，不产生持久化 Domain event。
+
+DSH `tool/call`、`tool/result`、Session lifecycle 和其他 DSH-owned Session Event 不属于 Domain event。它们由 DSH 定义和持久化，不能写入 Convivium 的 `meeting_events`。
+
+当前 Domain event 词汇包括会议生命周期（`meeting.*`）、Turn 生命周期（`turn.*`）、speaker 分配与执行（`speaker.*`、`speaker_attempt.*`）、Manager plan（`manager_plan.*`）以及正式会议事实（`message.added`、`hand_raise.created`、`background_task.linked`、`decision.added`、`archive.sessions_closed`）。具体允许值由 `plugin/src/domain/model.ts` 的 `DomainEventTypes` 集中定义。
+
 ## Authority And Boundaries
 
 - MeetingState 是 Meeting Domain 的完整当前事实模型。

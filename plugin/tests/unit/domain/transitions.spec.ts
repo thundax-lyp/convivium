@@ -123,7 +123,7 @@ describe("meeting transitions", () => {
         expect(result.state.updatedAt).toBe(now);
         expect(result.effect.events).toEqual([
             {
-                type: "meeting.created",
+                type: "meeting.started",
                 payload: {
                     meetingId: "meeting-1",
                     from: "created",
@@ -226,7 +226,7 @@ describe("meeting transitions", () => {
         expect(result.effect.events.map(({ type }) => type)).toEqual([
             "meeting.paused",
             "speaker_attempt.revoked",
-            "manager_attempt.revoked"
+            "manager_plan.revoked"
         ]);
     });
 
