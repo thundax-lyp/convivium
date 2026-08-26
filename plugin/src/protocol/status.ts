@@ -290,12 +290,12 @@ const archiveAgendaCandidate = Schema.object({
     status: enumOf(["pending", "promoted", "parked", "rejected"] as const)
 });
 
-const archivePackage = Schema.object({
+export const MeetingArchivePackageSchema = Schema.object({
     schemaVersion: Schema.const(1).required(),
     meetingId: requiredString(),
     teamId: requiredString(),
     sourceMeetingId: Schema.string(),
-    objectiveContract,
+    objectiveContract: objectiveContract.required(),
     finalSummary: requiredString(),
     artifactRefs: requiredArray(artifactRef),
     acceptedDecisions: requiredArray(decision),
@@ -314,7 +314,7 @@ const archivePackage = Schema.object({
             templateVersion: Schema.string()
         })
     ),
-    termination,
+    termination: termination.required(),
     endedAt: requiredNumber(),
     materializedAt: requiredNumber()
 });
@@ -333,7 +333,7 @@ const archiving = Schema.object({
     pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
     termination: termination.required(),
     archive: Schema.object({
-        package: archivePackage.required(),
+        package: MeetingArchivePackageSchema.required(),
         archivedAt: Schema.never()
     }).required()
 });
@@ -352,7 +352,7 @@ const archived = Schema.object({
     pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
     termination: termination.required(),
     archive: Schema.object({
-        package: archivePackage.required(),
+        package: MeetingArchivePackageSchema.required(),
         archivedAt: requiredNumber()
     }).required()
 });

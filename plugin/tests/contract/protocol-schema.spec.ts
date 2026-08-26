@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     CreateMeetingResultSchema,
     CreateMeetingInputSchema,
+    MeetingArchivePackageSchema,
     MeetingStatusResultSchema,
     validateProtocolError,
     isKnownMeetingProtocolErrorCode,
@@ -57,6 +58,38 @@ describe("protocol envelope schemas", () => {
                 meetingId: "meeting-1",
                 meetingVersion: 3,
                 result: { status: "not-a-create-result" }
+            })
+        ).toThrow();
+    });
+
+    it("rejects inconsistent success envelope metadata", () => {
+        expect(() =>
+            validateProtocolSuccessEnvelope(CreateMeetingResultSchema, {
+                protocolVersion: 1,
+                ok: true,
+                meetingId: "meeting-1",
+                meetingVersion: 3,
+                result: {
+                    meetingId: "meeting-2",
+                    meetingVersion: 3,
+                    status: "running",
+                    participants: []
+                }
+            })
+        ).toThrow();
+
+        expect(() =>
+            validateProtocolSuccessEnvelope(CreateMeetingResultSchema, {
+                protocolVersion: 1,
+                ok: true,
+                meetingId: "meeting-1",
+                meetingVersion: 3,
+                result: {
+                    meetingId: "meeting-1",
+                    meetingVersion: 4,
+                    status: "running",
+                    participants: []
+                }
             })
         ).toThrow();
     });
@@ -268,6 +301,13 @@ describe("protocol envelope schemas", () => {
         ).toThrow();
         expect(() =>
             MeetingStatusResultSchema({ ...base, status: "archived", limits: undefined })
+        ).toThrow();
+    });
+
+    it("requires archive completion basis objects", () => {
+        expect(() => MeetingArchivePackageSchema({})).toThrow();
+        expect(() =>
+            MeetingArchivePackageSchema({ objectiveContract: undefined, termination: undefined })
         ).toThrow();
     });
 });

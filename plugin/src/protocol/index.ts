@@ -13,7 +13,7 @@ export {
     validateCommandInput,
     validateReassignTurnInput
 } from "./commands.js";
-export { MeetingStatusResultSchema } from "./status.js";
+export { MeetingArchivePackageSchema, MeetingStatusResultSchema } from "./status.js";
 export {
     BackgroundTaskResultSchema,
     CaptainRiskDispositionResultSchema,

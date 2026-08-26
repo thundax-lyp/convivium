@@ -70,5 +70,14 @@ export function validateProtocolError(value: unknown) {
 }
 
 export function validateProtocolSuccessEnvelope<T>(resultSchema: Schema<T>, value: unknown) {
-    return createProtocolSuccessEnvelopeSchema(resultSchema)(value as Record<string, unknown>);
+    const envelope = createProtocolSuccessEnvelopeSchema(resultSchema)(
+        value as Record<string, unknown>
+    );
+    const result = envelope.result as Record<string, unknown>;
+    for (const key of ["meetingId", "meetingVersion"] as const) {
+        if (Object.prototype.hasOwnProperty.call(result, key) && result[key] !== envelope[key]) {
+            throw new TypeError(`success envelope ${key} does not match result metadata`);
+        }
+    }
+    return envelope;
 }
