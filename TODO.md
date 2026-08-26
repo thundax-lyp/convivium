@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/scripts/smoke-profile.mjs`：实现临时 profile 生命周期脚本
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求下一个范围必须可在 DSH 中执行；T7
-  - 处理动作：以实际 package artifact 执行 prepare、dump-config、boot、精确停止和 restore。
-  - 验收点：脚本失败也执行清理；不读取或删除用户 profile、workspace 和进程。
-
 - [ ] `plugin/scripts/smoke-profile.mjs`：加入真实 create/turn/pause/resume/restart 断言
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求下一个范围必须可在 DSH 中执行；T7
