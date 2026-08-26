@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/config.ts`：定义 Runtime 配置 Schema
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T2
-  - 处理动作：实现 provider、data root、participant 上限、speaker timeout 和 outbox poll 配置及校验。
-  - 验收点：缺失 provider、非法路径和非正时间值被拒绝；合法 profile 配置可解析。
-
 - [ ] `plugin/src/index.ts`：实现启动期 DSH 版本与 provider 检查
   - 依据文档：`docs/00-governance/ARCHITECTURE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T2
