@@ -148,6 +148,43 @@ ALTER TABLE outbox_next RENAME TO outbox;
 CREATE INDEX outbox_claim_order ON outbox(status, available_at, lease_deadline, created_at);
 `);
         }
+    },
+    {
+        from: 4,
+        to: 5,
+        apply(db) {
+            const ownershipCount = db
+                .prepare("SELECT COUNT(*) AS count FROM session_ownership")
+                .get() as { count: number };
+            if (Number(ownershipCount.count) !== 0) {
+                throw new RepositoryError(
+                    "SCHEMA_VERSION_UNSUPPORTED",
+                    false,
+                    "unknown",
+                    "Cannot infer session parent or provider from an existing ownership record"
+                );
+            }
+            db.exec(`
+CREATE TABLE session_ownership_next (
+  session_id TEXT PRIMARY KEY,
+  meeting_id TEXT NOT NULL REFERENCES meeting_bootstrap(meeting_id),
+  parent_session_id TEXT NOT NULL,
+  session_label TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  initial_message_id TEXT,
+  role TEXT NOT NULL CHECK (role IN ('manager', 'participant')),
+  participant_id TEXT,
+  lifecycle_status TEXT NOT NULL CHECK (lifecycle_status IN ('provisioning', 'active', 'closed')),
+  capability_status TEXT NOT NULL CHECK (capability_status IN ('active', 'revoked')),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(meeting_id, session_label)
+);
+DROP TABLE session_ownership;
+ALTER TABLE session_ownership_next RENAME TO session_ownership;
+CREATE INDEX session_ownership_meeting ON session_ownership(meeting_id, lifecycle_status, capability_status);
+`);
+        }
     }
 ];
 
@@ -217,6 +254,9 @@ export function migrate(db: DatabaseSync, meetingId = "unknown"): void {
             db.exec("ROLLBACK");
         } catch {
             // Preserve the original migration failure.
+        }
+        if (error instanceof RepositoryError && error.meetingId === "unknown") {
+            throw new RepositoryError(error.code, error.retryable, meetingId, error.message);
         }
         throw error;
     } finally {

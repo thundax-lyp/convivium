@@ -68,12 +68,6 @@
   - 处理动作：生成包含 meeting/team/role/participant 和 `capability='none'` 的确定性首次 prompt。
   - 验收点：Manager/Participant envelope 可验证；内容不授予 planning/speaker capability，不进入 MeetingState。
 
-- [ ] `plugin/src/repository/migrations.ts`：迁移 Session ownership 字段
-  - 依据文档：`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 同意 review 建议；T3
-  - 处理动作：增加连续 schema migration，迁移或隔离缺少不可推断 ownership 字段的旧库。
-  - 验收点：空库和已知旧版本可按契约处理；未知/不可推断数据 fail loud，不猜测 parent/provider。
-
 - [ ] `plugin/src/repository/index.ts`：实现 Session ownership 写入规则
   - 依据文档：`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 同意 review 建议；T3
