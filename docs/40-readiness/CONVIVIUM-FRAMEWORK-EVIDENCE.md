@@ -4,7 +4,7 @@
 
 本证据覆盖 Convivium DSH 插件工程框架从依赖 manifest 到 PR 治理的可安装 package、lockfile、Host/Client 类型面、bundle、模块边界、framework tests、package verifier、统一验证入口和 CI workflow。
 
-本证据不代表会议运行时、真实 DSH AgentSession 或会议业务已完成。当前领域状态机和 SQLite repository 基础已经存在，但其与需求/设计的漂移及未覆盖范围记录在 [CONVIVIUM-DRIFT-EVIDENCE.md](./CONVIVIUM-DRIFT-EVIDENCE.md)。
+本证据不代表会议运行时、真实 DSH AgentSession 或会议业务已完成。当前领域状态机和 SQLite repository 基础已经存在；会议运行时、DSH lifecycle 和集成验证仍未覆盖。
 
 ## Validated Contract
 
@@ -16,7 +16,7 @@
 - framework tests 覆盖模块边界、package manifest 和 Client entry 加载，不覆盖会议业务。
 - package verifier 从磁盘读取 manifest、patch 和 build artifact；缺失 Client artifact、错误 patch name、开放 files allowlist 均可失败。
 - workflow 独立展示 `Governance`、`Plugin Format`、`Plugin Lint`、`Plugin Typecheck`、`Plugin Test`、`Plugin Build` 和 `Package Contract`；Package Contract 依赖 Plugin Build artifact。
-- 当前代码—需求—设计漂移、未实现模块和建议收敛顺序见 [CONVIVIUM-DRIFT-EVIDENCE.md](./CONVIVIUM-DRIFT-EVIDENCE.md)。
+- 当前代码—需求—设计漂移和未实现模块以本文件的 `Not Covered` 与相关正式需求、接口和设计文档为准。
 
 ## Executed Validation
 
@@ -41,7 +41,7 @@
 
 `pnpm 10.7.0` 不支持原执行手册写出的 `pnpm pack --dry-run` 参数；已使用该版本支持的临时目录实际打包 JSON 清单替代检查，并确认发布清单未包含 `src/`、`tests/` 或 `docs/`。
 
-当前基线复核：2026-08-26，`pnpm verify` 通过，6 个测试文件、60 个测试通过；领域和 Repository 单元测试已纳入当前代码。`test:integration`、`test:recovery` 和 `test:stress` 仍无测试文件，均明确输出 `Not Covered`。当前代码—需求—设计漂移见 [CONVIVIUM-DRIFT-EVIDENCE.md](./CONVIVIUM-DRIFT-EVIDENCE.md)。
+当前基线复核：2026-08-26，基线为本分支最新提交，`pnpm verify` 通过，6 个测试文件、62 个测试通过；领域和 Repository 单元测试已纳入当前代码。`test:integration`、`test:recovery` 和 `test:stress` 仍无测试文件，均明确输出 `Not Covered`。尚未实现能力记录在本文件的 `Not Covered`。
 
 ## Not Covered
 
