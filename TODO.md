@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/tests/integration/dsh`：验证 provider adapter 与 provisioning
-  - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T3
-  - 处理动作：覆盖 capability check、reserved childId、首次 prompt、followup、interrupt、drain 和 inspection。
-  - 验收点：成功、provider 缺失、错误 parent、错误 label、revoked ownership 和精确清理均有断言。
-
 - [ ] `plugin/scripts/smoke-profile.mjs`：实现临时 profile 生命周期脚本
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 要求下一个范围必须可在 DSH 中执行；T7
