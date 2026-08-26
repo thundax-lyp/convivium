@@ -1,4 +1,15 @@
-import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
+import type { Agent } from "@deepseek-ai/dsh-agent";
+import type {
+    ContinuableStart,
+    ContinuableStartSpec,
+    SubagentProvider
+} from "@deepseek-ai/dsh-subagent";
+import type { SessionId } from "@deepseek-ai/dsh-session";
+import { encodeMeetingSessionLabel } from "./labels.js";
+import {
+    createSessionProvisioningEnvelope,
+    serializeSessionProvisioningEnvelope
+} from "./provisioning.js";
 
 export interface SubagentProviderRegistry {
     getProvider(name: string): SubagentProvider | undefined;
@@ -27,4 +38,53 @@ export function requireContinuableProvider(
         );
     }
     return provider;
+}
+
+export interface ContinuableStarter {
+    startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart>;
+}
+
+export interface StartManagerSessionInput {
+    readonly runtime: ContinuableStarter;
+    readonly provider: string;
+    readonly parent: Agent;
+    readonly childId: SessionId;
+    readonly teamId: string;
+    readonly meetingId: string;
+    readonly signal: AbortSignal;
+}
+
+export async function startManagerSession(
+    input: StartManagerSessionInput
+): Promise<ContinuableStart> {
+    const label = encodeMeetingSessionLabel({
+        role: "manager",
+        teamId: input.teamId,
+        meetingId: input.meetingId
+    });
+    const prompt: ContinuableStartSpec["request"]["prompt"] = [
+        {
+            type: "text",
+            text: serializeSessionProvisioningEnvelope(
+                createSessionProvisioningEnvelope({
+                    role: "manager",
+                    teamId: input.teamId,
+                    meetingId: input.meetingId
+                })
+            )
+        }
+    ];
+    const started = await input.runtime.startContinuable({
+        provider: input.provider,
+        label,
+        childId: input.childId,
+        request: { parent: input.parent, prompt },
+        signal: input.signal
+    });
+    if (started.childId !== input.childId) {
+        throw new Error(
+            "Continuable provider returned a Manager childId different from ownership."
+        );
+    }
+    return started;
 }
