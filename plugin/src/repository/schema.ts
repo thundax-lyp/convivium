@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export const CURRENT_SCHEMA = `
 CREATE TABLE IF NOT EXISTS meetings (
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS idempotency_receipts (
 );
 CREATE TABLE IF NOT EXISTS outbox (
   id TEXT PRIMARY KEY,
-  meeting_id TEXT NOT NULL REFERENCES meetings(meeting_id),
+  meeting_id TEXT NOT NULL REFERENCES meeting_bootstrap(meeting_id),
   delivery_id TEXT NOT NULL UNIQUE,
   kind TEXT NOT NULL,
   payload_json TEXT NOT NULL,
@@ -50,18 +50,18 @@ CREATE TABLE IF NOT EXISTS outbox (
 );
 CREATE INDEX IF NOT EXISTS outbox_claim_order ON outbox(status, available_at, lease_deadline, created_at);
 CREATE TABLE IF NOT EXISTS meeting_bootstrap (
-  meeting_id TEXT PRIMARY KEY REFERENCES meetings(meeting_id),
-  status TEXT NOT NULL CHECK (status IN ('pending', 'provisioning', 'ready', 'failed')),
+  meeting_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL CHECK (status IN ('creating', 'ready', 'creation_failed')),
   create_request_id TEXT NOT NULL,
   request_hash TEXT NOT NULL,
-  result_json TEXT NOT NULL,
+  result_json TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   failure_code TEXT
 );
 CREATE TABLE IF NOT EXISTS session_ownership (
   session_id TEXT PRIMARY KEY,
-  meeting_id TEXT NOT NULL REFERENCES meetings(meeting_id),
+  meeting_id TEXT NOT NULL REFERENCES meeting_bootstrap(meeting_id),
   session_label TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('manager', 'participant')),
   participant_id TEXT,

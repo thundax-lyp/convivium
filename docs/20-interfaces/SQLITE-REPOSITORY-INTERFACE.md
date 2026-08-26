@@ -18,7 +18,8 @@
 interface MeetingRepository {
   readonly teamId: string
   readonly meetingId: string
-  create(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>>
+  create(input: CreateMeetingInput): Promise<MeetingBootstrap>
+  completeCreate(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>>
   read(): Promise<MeetingSnapshot>
   execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>
   claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>
@@ -28,7 +29,9 @@ interface MeetingRepository {
 }
 ```
 
-`create` 是 bootstrap 专用写入口；Meeting 创建、`meeting.created`、初始 receipt、初始 outbox 以及包含 `createRequestId`、`requestHash`、`createResult` 的 bootstrap correlation 必须在同一 SQLite 事务中完成。创建请求与普通 command 使用相同的幂等规则。
+`create` 是 bootstrap 专用写入口：它先持久化 `creating` bootstrap、`createRequestId` 与 `requestHash`，但不创建公开 Meeting、领域事件或成功 receipt。此时 Runtime 可以安全创建并记录 DSH Session ownership；崩溃恢复可据此识别未完成创建，且不能把它当作可运行 Meeting。
+
+全部必需 Session 已创建后，Runtime 使用同一原始创建输入调用 `completeCreate`。该方法在一个 SQLite 事务中创建 `meetings`、写入 `meeting.created`、初始 outbox 和成功 receipt，保存 `createResult` 并把 bootstrap 转为 `ready`。只有 `ready` bootstrap 对应公开 Meeting；`creation_failed` 不生成公开 Meeting。重复 `create` 只接受相同 request ID/hash，重复 `completeCreate` 返回原 receipt。
 
 ## Data And State Contract
 
@@ -76,13 +79,13 @@ interface TransitionResult<T> {
 
 ### Recovery
 
-`open` 必须在 migration 前对已知 schema 只读验证数据库中仅有一个 Meeting，且 `teamId`、`meetingId`、bootstrap ID 与所有完整解析的 `convivium/<teamId>/<meetingId>/<identity...>` Session ownership label 一致；不一致时以 `CORRUPT_DATABASE` 隔离且不得写入该数据库。Session ownership 生命周期只可前进（`provisioning → active → closed`），capability revoke 不可逆。`recover` 只处理当前 Meeting 数据库：回收过期 lease，并返回当前 snapshot、带创建 correlation 的 bootstrap record 和已证明的 Session ownership。workspace 目录扫描、跨 Meeting 隔离和 DSH orphan Session 处理属于上层 `RecoveryCoordinator`，不由 Repository 隐式完成。
+`open` 必须在 migration 和任何持久 PRAGMA（包括 `journal_mode`）前对已知 schema 只读验证数据库中仅有一个 Meeting，且 `teamId`、`meetingId`、bootstrap ID 与所有完整解析的 `convivium/<teamId>/<meetingId>/<identity...>` Session ownership label 一致；不一致时以 `CORRUPT_DATABASE` 隔离且不得写入该数据库。Session ownership 的 session ID、label、role 与 participant identity 首次写入后不可变；只允许生命周期前进（`provisioning → active → closed`）和 capability 的不可逆 revoke。`read` 与其他公开方法把损坏 JSON 或 SQLite 数据统一映射为带当前 `meetingId` 的非重试 `CORRUPT_DATABASE`。`recover` 只处理当前 Meeting 数据库：回收过期 lease，并返回当前 snapshot、带创建 correlation 的 bootstrap record 和已证明的 Session ownership。workspace 目录扫描、跨 Meeting 隔离和 DSH orphan Session 处理属于上层 `RecoveryCoordinator`，不由 Repository 隐式完成。
 
 ### Schema and migration
 
 `schema.ts` 是完整当前 DDL 真相源，`PRAGMA user_version` 是已应用版本。migration 必须连续前进，并与 version 更新处于同一事务；未知新版本、降级和 migration 失败都拒绝打开当前 Meeting。
 
-当前 schema 至少包含：`meetings`、`meeting_events`、`idempotency_receipts`、`outbox`、`meeting_bootstrap` 和 `session_ownership`。`meeting_bootstrap` 保存创建 correlation；`session_ownership` 以 `sessionId` upsert 更新生命周期与 capability 状态，同时保留首次创建时间。JSON 字段必须带稳定对象结构，由上层 transition 负责领域 schema 校验。空库直接使用当前 DDL 初始化为当前 `user_version`；非空 version-zero 数据库必须隔离，不得用 `CREATE TABLE IF NOT EXISTS` 猜测其结构；已发布版本只能执行不可变的相邻 migration。
+当前 schema 至少包含：`meetings`、`meeting_events`、`idempotency_receipts`、`outbox`、`meeting_bootstrap` 和 `session_ownership`。`meeting_bootstrap` 是创建前唯一允许不引用公开 Meeting 的根记录；预创建 session ownership 与 outbox 通过 `meeting_bootstrap.meeting_id` 关联。`session_ownership` 以 `sessionId` 仅更新生命周期与 capability，同时保留首次 identity 和创建时间。JSON 字段必须带稳定对象结构，由上层 transition 负责领域 schema 校验。空库直接使用当前 DDL 初始化为当前 `user_version`；非空 version-zero 数据库必须隔离，不得用 `CREATE TABLE IF NOT EXISTS` 猜测其结构；已发布版本只能执行不可变的相邻 migration。
 
 ## Error And Permission Semantics
 

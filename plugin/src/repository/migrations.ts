@@ -72,6 +72,82 @@ SET
   );
 `);
         }
+    },
+    {
+        from: 3,
+        to: 4,
+        apply(db) {
+            db.exec(`
+CREATE TABLE meeting_bootstrap_next (
+  meeting_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL CHECK (status IN ('creating', 'ready', 'creation_failed')),
+  create_request_id TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  result_json TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  failure_code TEXT
+);
+INSERT INTO meeting_bootstrap_next(
+  meeting_id, status, create_request_id, request_hash, result_json, created_at, updated_at, failure_code
+)
+SELECT
+  meeting_id,
+  CASE status
+    WHEN 'ready' THEN 'ready'
+    WHEN 'failed' THEN 'creation_failed'
+    ELSE 'creating'
+  END,
+  create_request_id,
+  request_hash,
+  result_json,
+  created_at,
+  updated_at,
+  failure_code
+FROM meeting_bootstrap;
+DROP TABLE meeting_bootstrap;
+ALTER TABLE meeting_bootstrap_next RENAME TO meeting_bootstrap;
+
+CREATE TABLE session_ownership_next (
+  session_id TEXT PRIMARY KEY,
+  meeting_id TEXT NOT NULL REFERENCES meeting_bootstrap(meeting_id),
+  session_label TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('manager', 'participant')),
+  participant_id TEXT,
+  lifecycle_status TEXT NOT NULL CHECK (lifecycle_status IN ('provisioning', 'active', 'closed')),
+  capability_status TEXT NOT NULL CHECK (capability_status IN ('active', 'revoked')),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(meeting_id, session_label)
+);
+INSERT INTO session_ownership_next SELECT * FROM session_ownership;
+DROP TABLE session_ownership;
+ALTER TABLE session_ownership_next RENAME TO session_ownership;
+CREATE INDEX session_ownership_meeting ON session_ownership(meeting_id, lifecycle_status, capability_status);
+
+CREATE TABLE outbox_next (
+  id TEXT PRIMARY KEY,
+  meeting_id TEXT NOT NULL REFERENCES meeting_bootstrap(meeting_id),
+  delivery_id TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'leased', 'delivered', 'failed')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  available_at INTEGER NOT NULL,
+  lease_owner TEXT,
+  lease_token TEXT,
+  lease_deadline INTEGER,
+  delivered_at INTEGER,
+  failed_at INTEGER,
+  last_error TEXT,
+  created_at INTEGER NOT NULL
+);
+INSERT INTO outbox_next SELECT * FROM outbox;
+DROP TABLE outbox;
+ALTER TABLE outbox_next RENAME TO outbox;
+CREATE INDEX outbox_claim_order ON outbox(status, available_at, lease_deadline, created_at);
+`);
+        }
     }
 ];
 
@@ -117,6 +193,7 @@ export function migrate(db: DatabaseSync): void {
         }
     }
     if (version === CURRENT_SCHEMA_VERSION) return;
+    db.exec("PRAGMA foreign_keys = OFF");
     db.exec("BEGIN IMMEDIATE");
     try {
         let current = version;
@@ -142,5 +219,7 @@ export function migrate(db: DatabaseSync): void {
             // Preserve the original migration failure.
         }
         throw error;
+    } finally {
+        db.exec("PRAGMA foreign_keys = ON");
     }
 }

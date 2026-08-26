@@ -162,9 +162,9 @@ export interface RecoveryResult {
 }
 
 export interface MeetingBootstrap {
-    status: "pending" | "provisioning" | "ready" | "failed";
-    createRequestId?: string;
-    requestHash?: string;
+    status: "creating" | "ready" | "creation_failed";
+    createRequestId: string;
+    requestHash: string;
     createResult?: CreateMeetingResult;
     createdAt: number;
     updatedAt: number;
@@ -265,10 +265,13 @@ function toSnapshot(row: MeetingRow): MeetingSnapshot {
 }
 
 function toBootstrap(row: BootstrapRow): MeetingBootstrap {
+    if (!row.create_request_id || !row.request_hash) {
+        throw new Error("Bootstrap correlation is missing");
+    }
     return {
         status: row.status,
-        ...(row.create_request_id ? { createRequestId: row.create_request_id } : {}),
-        ...(row.request_hash ? { requestHash: row.request_hash } : {}),
+        createRequestId: row.create_request_id,
+        requestHash: row.request_hash,
         ...(row.result_json
             ? { createResult: JSON.parse(row.result_json) as CreateMeetingResult }
             : {}),
@@ -352,12 +355,13 @@ function validateDatabaseIdentity(
     const meetings = db
         .prepare("SELECT team_id, meeting_id FROM meetings")
         .all() as unknown as Array<{ team_id: string; meeting_id: string }>;
-    if (meetings.length === 0) return;
+    const hasMeeting = meetings.length > 0;
     let identityMatches =
-        meetings.length === 1 &&
-        meetings[0]?.team_id === teamId &&
-        meetings[0]?.meeting_id === meetingId;
-    if (identityMatches && schemaVersion >= 2) {
+        !hasMeeting ||
+        (meetings.length === 1 &&
+            meetings[0]?.team_id === teamId &&
+            meetings[0]?.meeting_id === meetingId);
+    if (schemaVersion >= 2) {
         const bootstrap = db
             .prepare("SELECT meeting_id FROM meeting_bootstrap")
             .all() as unknown as Array<{ meeting_id: string }>;
@@ -365,8 +369,10 @@ function validateDatabaseIdentity(
             .prepare("SELECT meeting_id, session_label FROM session_ownership")
             .all() as unknown as Array<{ meeting_id: string; session_label: string }>;
         identityMatches =
-            bootstrap.length === 1 &&
-            bootstrap[0]?.meeting_id === meetingId &&
+            identityMatches &&
+            bootstrap.length <= 1 &&
+            (!hasMeeting || bootstrap.length === 1) &&
+            (bootstrap.length === 0 || bootstrap[0]?.meeting_id === meetingId) &&
             ownership.every((session) => {
                 const label = parseSessionLabel(session.session_label);
                 return (
@@ -445,12 +451,11 @@ export class MeetingRepository {
         await mkdir(dirname(input.databasePath), { recursive: true });
         const db = new DatabaseSync(input.databasePath);
         try {
-            db.exec(
-                "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 2500;"
-            );
             validateDatabaseIdentityBeforeMigration(db, input.teamId, input.meetingId);
+            db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 2500;");
             migrate(db);
             validateDatabaseIdentity(db, input.teamId, input.meetingId, CURRENT_SCHEMA_VERSION);
+            db.exec("PRAGMA journal_mode = WAL;");
             return new MeetingRepository(
                 db,
                 input.authorizationValidator,
@@ -482,7 +487,11 @@ export class MeetingRepository {
                 this.meetingId,
                 "Meeting does not exist"
             );
-        return toSnapshot(meeting);
+        try {
+            return toSnapshot(meeting);
+        } catch (error) {
+            throw sqliteError(error, this.meetingId);
+        }
     }
 
     private getBootstrap(): MeetingBootstrap {
@@ -512,7 +521,7 @@ export class MeetingRepository {
         ).map(toSessionOwnership);
     }
 
-    async create(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>> {
+    async create(input: CreateMeetingInput): Promise<MeetingBootstrap> {
         this.ensureOpen();
         const now = input.createdAt ?? Date.now();
         try {
@@ -522,15 +531,16 @@ export class MeetingRepository {
                 meetingId: this.meetingId,
                 authorization: input.authorization
             });
-            const existing = row<ReceiptRow>(
+            const existing = row<BootstrapRow>(
                 this.db
-                    .prepare(
-                        "SELECT * FROM idempotency_receipts WHERE request_id = ? AND command_kind = ? AND caller_binding = ?"
-                    )
-                    .get(input.requestId, "create_meeting", input.authorization.callerBinding)
+                    .prepare("SELECT * FROM meeting_bootstrap WHERE meeting_id = ?")
+                    .get(this.meetingId)
             );
             if (existing) {
-                if (existing.request_hash !== input.requestHash) {
+                if (
+                    existing.create_request_id !== input.requestId ||
+                    existing.request_hash !== input.requestHash
+                ) {
                     throw new RepositoryError(
                         "IDEMPOTENCY_CONFLICT",
                         false,
@@ -539,7 +549,7 @@ export class MeetingRepository {
                     );
                 }
                 this.db.exec("COMMIT");
-                return this.receiptResult(existing);
+                return toBootstrap(existing);
             }
             if (
                 row(
@@ -557,18 +567,69 @@ export class MeetingRepository {
             }
             this.db
                 .prepare(
-                    "INSERT INTO meetings(team_id, meeting_id, version, state_json, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?)"
+                    "INSERT INTO meeting_bootstrap(meeting_id, status, create_request_id, request_hash, created_at, updated_at) VALUES (?, 'creating', ?, ?, ?, ?)"
                 )
-                .run(this.teamId, this.meetingId, json(input.initialState), now, now);
+                .run(this.meetingId, input.requestId, input.requestHash, now, now);
+            const bootstrap = this.getBootstrap();
+            this.db.exec("COMMIT");
+            return bootstrap;
+        } catch (error) {
+            this.rollback();
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
+    async completeCreate(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>> {
+        this.ensureOpen();
+        const now = input.createdAt ?? Date.now();
+        try {
+            this.db.exec("BEGIN IMMEDIATE");
+            this.authorizationValidator.validateCreate({
+                teamId: this.teamId,
+                meetingId: this.meetingId,
+                authorization: input.authorization
+            });
+            const bootstrap = this.getBootstrap();
+            if (
+                bootstrap.createRequestId !== input.requestId ||
+                bootstrap.requestHash !== input.requestHash
+            ) {
+                throw new RepositoryError(
+                    "IDEMPOTENCY_CONFLICT",
+                    false,
+                    this.meetingId,
+                    "Request hash conflicts with bootstrap"
+                );
+            }
+            const existing = row<ReceiptRow>(
+                this.db
+                    .prepare(
+                        "SELECT * FROM idempotency_receipts WHERE request_id = ? AND command_kind = ? AND caller_binding = ?"
+                    )
+                    .get(input.requestId, "create_meeting", input.authorization.callerBinding)
+            );
+            if (existing) {
+                this.db.exec("COMMIT");
+                return this.receiptResult(existing);
+            }
+            if (bootstrap.status !== "creating") {
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "Meeting bootstrap cannot be completed"
+                );
+            }
             const result = {
                 meetingId: this.meetingId,
                 meetingVersion: 0
             } satisfies CreateMeetingResult;
             this.db
                 .prepare(
-                    "INSERT INTO meeting_bootstrap(meeting_id, status, create_request_id, request_hash, result_json, created_at, updated_at) VALUES (?, 'pending', ?, ?, ?, ?, ?)"
+                    "INSERT INTO meetings(team_id, meeting_id, version, state_json, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?)"
                 )
-                .run(this.meetingId, input.requestId, input.requestHash, json(result), now, now);
+                .run(this.teamId, this.meetingId, json(input.initialState), now, now);
             const eventSeq = this.insertEvent(
                 { type: "meeting.created", payload: { meetingId: this.meetingId } },
                 0,
@@ -584,6 +645,11 @@ export class MeetingRepository {
                 [eventSeq],
                 now
             );
+            this.db
+                .prepare(
+                    "UPDATE meeting_bootstrap SET status = 'ready', result_json = ?, updated_at = ?, failure_code = NULL WHERE meeting_id = ?"
+                )
+                .run(json(result), now, this.meetingId);
             this.db.exec("COMMIT");
             return {
                 requestId: input.requestId,
@@ -601,7 +667,12 @@ export class MeetingRepository {
 
     async read(): Promise<MeetingSnapshot> {
         this.ensureOpen();
-        return this.getMeeting();
+        try {
+            return this.getMeeting();
+        } catch (error) {
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
     }
 
     async updateBootstrap(input: {
@@ -613,15 +684,23 @@ export class MeetingRepository {
         const now = input.now ?? Date.now();
         try {
             this.db.exec("BEGIN IMMEDIATE");
-            this.getMeeting();
+            const bootstrap = this.getBootstrap();
+            if (input.status !== "creation_failed" || bootstrap.status !== "creating") {
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "Only an in-progress bootstrap can be marked as creation failed"
+                );
+            }
             this.db
                 .prepare(
                     "UPDATE meeting_bootstrap SET status = ?, updated_at = ?, failure_code = ? WHERE meeting_id = ?"
                 )
                 .run(input.status, now, input.failureCode ?? null, this.meetingId);
-            const bootstrap = this.getBootstrap();
+            const updatedBootstrap = this.getBootstrap();
             this.db.exec("COMMIT");
-            return bootstrap;
+            return updatedBootstrap;
         } catch (error) {
             this.rollback();
             if (error instanceof RepositoryError) throw error;
@@ -636,7 +715,7 @@ export class MeetingRepository {
         this.ensureOpen();
         try {
             this.db.exec("BEGIN IMMEDIATE");
-            this.getMeeting();
+            this.getBootstrap();
             const label = parseSessionLabel(input.sessionLabel);
             if (label?.teamId !== this.teamId || label.meetingId !== this.meetingId) {
                 throw new RepositoryError(
@@ -661,18 +740,21 @@ export class MeetingRepository {
                     !isCapabilityTransitionAllowed(
                         existing.capability_status,
                         input.capabilityStatus
-                    ))
+                    ) ||
+                    existing.session_label !== input.sessionLabel ||
+                    existing.role !== input.role ||
+                    existing.participant_id !== (input.participantId ?? null))
             ) {
                 throw new RepositoryError(
                     "INVALID_STATE",
                     false,
                     this.meetingId,
-                    "Session ownership lifecycle or capability cannot move backward"
+                    "Session ownership identity, lifecycle or capability cannot move backward"
                 );
             }
             this.db
                 .prepare(
-                    "INSERT INTO session_ownership(session_id, meeting_id, session_label, role, participant_id, lifecycle_status, capability_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET session_label = excluded.session_label, role = excluded.role, participant_id = excluded.participant_id, lifecycle_status = excluded.lifecycle_status, capability_status = excluded.capability_status, updated_at = excluded.updated_at"
+                    "INSERT INTO session_ownership(session_id, meeting_id, session_label, role, participant_id, lifecycle_status, capability_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET lifecycle_status = excluded.lifecycle_status, capability_status = excluded.capability_status, updated_at = excluded.updated_at"
                 )
                 .run(
                     input.sessionId,

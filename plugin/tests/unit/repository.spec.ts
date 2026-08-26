@@ -35,6 +35,14 @@ async function openRepository() {
     });
 }
 
+async function createMeeting(
+    repository: MeetingRepository,
+    input: Parameters<MeetingRepository["completeCreate"]>[0]
+) {
+    await repository.create(input);
+    return repository.completeCreate(input);
+}
+
 afterEach(async () => {
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
@@ -49,8 +57,18 @@ describe("MeetingRepository", () => {
             initialState: { status: "created" as const }
         };
 
-        const first = await repository.create(input);
-        const duplicate = await repository.create(input);
+        const bootstrap = await repository.create(input);
+        expect(bootstrap).toMatchObject({
+            status: "creating",
+            createRequestId: "request-1",
+            requestHash: "hash-1"
+        });
+        await expect(repository.read()).rejects.toMatchObject<RepositoryError>({
+            code: "MEETING_NOT_FOUND"
+        });
+        await expect(repository.create(input)).resolves.toEqual(bootstrap);
+        const first = await repository.completeCreate(input);
+        const duplicate = await repository.completeCreate(input);
 
         expect(first).toEqual(duplicate);
         expect(await repository.read()).toMatchObject({ version: 0, state: { status: "created" } });
@@ -59,7 +77,7 @@ describe("MeetingRepository", () => {
 
     it("rejects a conflicting idempotency hash and stale version", async () => {
         const repository = await openRepository();
-        await repository.create({
+        await createMeeting(repository, {
             requestId: "create",
             authorization,
             requestHash: "create-hash",
@@ -93,7 +111,7 @@ describe("MeetingRepository", () => {
 
     it("rolls back state, events and outbox when a transition write fails", async () => {
         const repository = await openRepository();
-        await repository.create({
+        await createMeeting(repository, {
             requestId: "create",
             authorization,
             requestHash: "create-hash",
@@ -125,7 +143,7 @@ describe("MeetingRepository", () => {
 
     it("rejects stale outbox completion after lease expiry and reclaims the item", async () => {
         const repository = await openRepository();
-        await repository.create({
+        await createMeeting(repository, {
             requestId: "create",
             authorization,
             requestHash: "create-hash",
@@ -173,7 +191,7 @@ describe("MeetingRepository", () => {
 
     it("rejects completion after expiry even before another worker claims the item", async () => {
         const repository = await openRepository();
-        await repository.create({
+        await createMeeting(repository, {
             requestId: "create",
             authorization,
             requestHash: "create-hash",
@@ -211,7 +229,6 @@ describe("MeetingRepository", () => {
             initialState: { status: "created" },
             createdAt: 10
         });
-        await repository.updateBootstrap({ status: "provisioning", now: 11 });
         await repository.recordSessionOwnership(
             {
                 sessionId: "session-1",
@@ -245,14 +262,22 @@ describe("MeetingRepository", () => {
             )
         ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_STATE" });
 
+        await repository.completeCreate({
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" },
+            createdAt: 14
+        });
+
         await expect(repository.recover({ now: 15 })).resolves.toMatchObject({
             bootstrap: {
-                status: "provisioning",
+                status: "ready",
                 createRequestId: "create",
                 requestHash: "create-hash",
                 createResult: { meetingId: "meeting-1", meetingVersion: 0 },
                 createdAt: 10,
-                updatedAt: 11
+                updatedAt: 14
             },
             sessionOwnership: [
                 {
@@ -286,7 +311,7 @@ describe("MeetingRepository", () => {
                 }
             }
         });
-        await repository.create({
+        await createMeeting(repository, {
             requestId: "create",
             authorization,
             requestHash: "create-hash",
@@ -354,6 +379,35 @@ CREATE TABLE meeting_bootstrap (
   updated_at INTEGER NOT NULL,
   failure_code TEXT
 );
+CREATE TABLE session_ownership (
+  session_id TEXT PRIMARY KEY,
+  meeting_id TEXT NOT NULL,
+  session_label TEXT NOT NULL,
+  role TEXT NOT NULL,
+  participant_id TEXT,
+  lifecycle_status TEXT NOT NULL,
+  capability_status TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(meeting_id, session_label)
+);
+CREATE TABLE outbox (
+  id TEXT PRIMARY KEY,
+  meeting_id TEXT NOT NULL,
+  delivery_id TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  status TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  available_at INTEGER NOT NULL,
+  lease_owner TEXT,
+  lease_token TEXT,
+  lease_deadline INTEGER,
+  delivered_at INTEGER,
+  failed_at INTEGER,
+  last_error TEXT,
+  created_at INTEGER NOT NULL
+);
 INSERT INTO meetings VALUES ('meeting-1', 10);
 INSERT INTO meeting_bootstrap VALUES ('meeting-1', 'pending', 10, 10, NULL);
 INSERT INTO idempotency_receipts VALUES ('create', 'create_meeting', 'captain:1', '{"meetingId":"meeting-1","meetingVersion":0}', 'create-hash', 0, '[1]', 10);
@@ -362,7 +416,7 @@ PRAGMA user_version = 2;
 
         migrate(db);
         expect(db.prepare("PRAGMA user_version").get() as { user_version: number }).toMatchObject({
-            user_version: 3
+            user_version: 4
         });
         expect(
             db
@@ -388,7 +442,7 @@ PRAGMA user_version = 2;
             meetingId: "meeting-1",
             authorizationValidator: allowAuthorization
         });
-        await original.create({
+        await createMeeting(original, {
             requestId: "create",
             authorization,
             requestHash: "create-hash",
@@ -416,7 +470,7 @@ PRAGMA user_version = 2;
             meetingId: "meeting-1",
             authorizationValidator: allowAuthorization
         });
-        await repository.create({
+        await createMeeting(repository, {
             requestId: "create",
             authorization,
             requestHash: "create-hash",
@@ -447,6 +501,95 @@ PRAGMA user_version = 2;
         ).rejects.toMatchObject<RepositoryError>({ code: "CORRUPT_DATABASE" });
     });
 
+    it("rejects attempts to rewrite immutable session ownership identity", async () => {
+        const repository = await openRepository();
+        await repository.create({
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" }
+        });
+        await repository.recordSessionOwnership({
+            sessionId: "session-1",
+            sessionLabel: "convivium/team-1/meeting-1/manager",
+            role: "manager",
+            lifecycleStatus: "provisioning",
+            capabilityStatus: "active"
+        });
+
+        await expect(
+            repository.recordSessionOwnership({
+                sessionId: "session-1",
+                sessionLabel: "convivium/team-1/meeting-1/participant-1",
+                role: "participant",
+                participantId: "participant-1",
+                lifecycleStatus: "active",
+                capabilityStatus: "active"
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_STATE" });
+        await repository.close();
+    });
+
+    it("keeps an untrusted database in rollback journal mode before identity validation", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
+        roots.push(root);
+        const databasePath = join(root, "meeting.sqlite");
+        const db = new DatabaseSync(databasePath);
+        db.exec("CREATE TABLE meetings(team_id TEXT, meeting_id TEXT)");
+        db.exec("INSERT INTO meetings VALUES ('other-team', 'other-meeting')");
+        db.exec("PRAGMA user_version = 1");
+        expect(db.prepare("PRAGMA journal_mode").get()).toMatchObject({ journal_mode: "delete" });
+        db.close();
+
+        await expect(
+            MeetingRepository.open({
+                databasePath,
+                teamId: "team-1",
+                meetingId: "meeting-1",
+                authorizationValidator: allowAuthorization
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "CORRUPT_DATABASE" });
+        const verificationDb = new DatabaseSync(databasePath);
+        expect(verificationDb.prepare("PRAGMA journal_mode").get()).toMatchObject({
+            journal_mode: "delete"
+        });
+        verificationDb.close();
+    });
+
+    it("maps corrupted persisted state to RepositoryError", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
+        roots.push(root);
+        const databasePath = join(root, "meeting.sqlite");
+        const repository = await MeetingRepository.open({
+            databasePath,
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            authorizationValidator: allowAuthorization
+        });
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" }
+        });
+        await repository.close();
+        const db = new DatabaseSync(databasePath);
+        db.prepare("UPDATE meetings SET state_json = ? WHERE meeting_id = ?").run("{", "meeting-1");
+        db.close();
+        const reopened = await MeetingRepository.open({
+            databasePath,
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            authorizationValidator: allowAuthorization
+        });
+        await expect(reopened.read()).rejects.toMatchObject<RepositoryError>({
+            code: "CORRUPT_DATABASE",
+            meetingId: "meeting-1",
+            retryable: false
+        });
+        await reopened.close();
+    });
+
     it("rejects a mismatched version-two database before migration writes it", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
         roots.push(root);
@@ -457,7 +600,7 @@ PRAGMA user_version = 2;
             meetingId: "meeting-1",
             authorizationValidator: allowAuthorization
         });
-        await repository.create({
+        await createMeeting(repository, {
             requestId: "create",
             authorization,
             requestHash: "create-hash",
@@ -490,7 +633,7 @@ PRAGMA user_version = 2;
     it("rejects unregistered outbox kinds before committing a create", async () => {
         const repository = await openRepository();
         await expect(
-            repository.create({
+            createMeeting(repository, {
                 requestId: "create",
                 authorization,
                 requestHash: "create-hash",
@@ -509,7 +652,7 @@ PRAGMA user_version = 2;
 
     it("rejects a state transition that has no domain event", async () => {
         const repository = await openRepository();
-        await repository.create({
+        await createMeeting(repository, {
             requestId: "create",
             authorization,
             requestHash: "create-hash",
