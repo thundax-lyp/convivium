@@ -82,15 +82,15 @@
 
 - [ ] `plugin/src/tools/register-tools.ts`：注册 create/status tools
   - 依据文档：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T5
-  - 处理动作：使用 `defineTool`、canonical output 和 `exec.agent` 注册 `convivium_create_meeting` 与 `convivium_meeting_status`。
-  - 验收点：Captain 可创建和读取会议；未授权 caller 不进入 Runtime 写入口。
+  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；2026-08-26 history audit
+  - 处理动作：将已注册的 `convivium_create_meeting` 与 `convivium_meeting_status` 绑定到真实 Meeting Runtime。
+  - 验收点：真实 Captain 可创建并读取会议；未授权 caller 不进入 Runtime 写入口。
 
 - [ ] `plugin/src/tools/register-tools.ts`：注册 submit/pause/resume tools
   - 依据文档：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T5
-  - 处理动作：注册当前 Participant 的 `convivium_submit_turn` 与 Captain 的 pause/resume tools。
-  - 验收点：权限矩阵、mandatory output、错误 envelope 和幂等语义均通过 contract tests。
+  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；2026-08-26 history audit
+  - 处理动作：将已注册的 submit/pause/resume tools 绑定到真实 Meeting Runtime。
+  - 验收点：真实 caller 权限矩阵、mandatory output、错误 envelope 和幂等语义均通过 contract tests。
 
 - [ ] `plugin/src/runtime/recovery.ts`：实现 pause/resume 与 stale result 隔离
   - 依据文档：`docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
@@ -136,9 +136,9 @@
 
 - [ ] `plugin/tests/contract`：验证 Tool 权限与 projection
   - 依据文档：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；T5
-  - 处理动作：覆盖五个 Tool 的 caller matrix、canonical output/error 和 projection required fields。
-  - 验收点：Captain/Participant 权限正确；未授权 caller 无写入；敏感字段不可见。
+  - 确认依据：用户于 2026-08-26 要求实现全部 RUNBOOK 内容；2026-08-26 history audit
+  - 处理动作：使用真实 Meeting Runtime 覆盖五个 Tool 的 caller matrix、canonical output/error 和 projection required fields。
+  - 验收点：Captain/Participant 权限正确；未授权 caller 无 SQLite 写入；敏感字段不可见。
 
 - [ ] `plugin/tests/recovery`：验证 pause/resume 与 parent rebind
   - 依据文档：`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
