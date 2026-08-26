@@ -68,12 +68,6 @@
   - 处理动作：生成包含 meeting/team/role/participant 和 `capability='none'` 的确定性首次 prompt。
   - 验收点：Manager/Participant envelope 可验证；内容不授予 planning/speaker capability，不进入 MeetingState。
 
-- [ ] `plugin/src/repository/schema.ts`：扩展 Session ownership DDL
-  - 依据文档：`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
-  - 确认依据：用户于 2026-08-26 同意 review 建议；T3
-  - 处理动作：为 ownership 增加 `parentSessionId`、provider 和可选 `initialMessageId` 列及约束。
-  - 验收点：新库 DDL 完整；字段不可空性和 lifecycle 约束与正式接口一致。
-
 - [ ] `plugin/src/repository/migrations.ts`：迁移 Session ownership 字段
   - 依据文档：`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`、`docs/30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md`
   - 确认依据：用户于 2026-08-26 同意 review 建议；T3
