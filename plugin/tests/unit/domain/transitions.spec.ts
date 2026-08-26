@@ -301,6 +301,32 @@ describe("meeting transitions", () => {
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
 
+    it("requires verified outputs, criteria, and reviews before completion", () => {
+        const state = meeting("running");
+        state.objectiveContract.requiredOutputs = [
+            { id: "output-1", description: "output", status: "pending" }
+        ];
+        state.objectiveContract.acceptanceCriteria = [
+            { id: "criterion-1", description: "criterion", satisfied: false }
+        ];
+        state.objectiveContract.requiredReviewers = ["reviewer-1"];
+        expect(() =>
+            transitionMeeting(state, "completed", {
+                now,
+                termination: {
+                    code: "objective_satisfied",
+                    reason: "done",
+                    decisionIds: [],
+                    unresolvedQuestionIds: [],
+                    dissentingPositionIds: [],
+                    blockingAgendaItemIds: [],
+                    finalMessage: "done",
+                    endedAt: now
+                }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
     it("requires a materialized archive before archived", () => {
         const archivingMeeting = meeting("archiving");
         expect(() => transitionMeeting(archivingMeeting, "archived", { now })).toThrowError(

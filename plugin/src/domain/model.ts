@@ -118,6 +118,11 @@ export interface MeetingMessage {
     speaker: string;
     agendaItemId: string;
     content: string;
+    kind?: ArchiveMessage["kind"];
+    mentions?: readonly string[];
+    replyTo?: string;
+    taskIds?: readonly string[];
+    createdAt?: number;
 }
 
 export interface MeetingIssue {
@@ -126,6 +131,9 @@ export interface MeetingIssue {
     description: string;
     blocking: boolean;
     status: "open" | "resolved" | "deferred" | "accepted_risk" | "out_of_scope";
+    disposition?: ArchiveIssue["disposition"];
+    rationale?: string;
+    ownerId?: string;
 }
 
 export interface MeetingProposal {
@@ -133,6 +141,8 @@ export interface MeetingProposal {
     title: string;
     revision: number;
     status: "draft" | "under_review" | "accepted" | "rejected" | "superseded";
+    agendaItemId?: string;
+    description?: string;
     positions?: readonly { id: string; participantId: string; proposalRevision: number }[];
 }
 
@@ -141,6 +151,11 @@ export interface MeetingDecision {
     proposalId: string;
     proposalRevision: number;
     status: "accepted" | "superseded" | "revoked";
+    agendaItemId?: string;
+    statement?: string;
+    rationale?: string;
+    acceptedBy?: readonly string[];
+    dissentingPositionIds?: readonly string[];
 }
 
 export interface MeetingQuestion {
@@ -170,6 +185,7 @@ export interface CompletionFact {
         | "deferred"
         | "waived";
     status: "active" | "superseded" | "revoked";
+    reviewerId?: string;
 }
 
 export interface ContinuationMaterial {

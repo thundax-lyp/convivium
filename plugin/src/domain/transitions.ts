@@ -184,19 +184,26 @@ function sameTermination(
     left: MeetingState["termination"],
     right: MeetingState["termination"]
 ): boolean {
+    const sameReferences = (leftIds: readonly string[], rightIds: readonly string[]) => {
+        if (leftIds.length !== rightIds.length) return false;
+        const counts = new Map<string, number>();
+        for (const id of leftIds) counts.set(id, (counts.get(id) ?? 0) + 1);
+        for (const id of rightIds) {
+            const count = counts.get(id) ?? 0;
+            if (count === 0) return false;
+            counts.set(id, count - 1);
+        }
+        return true;
+    };
     return (
         left !== undefined &&
         right !== undefined &&
         left.code === right.code &&
         left.reason === right.reason &&
-        left.decisionIds.length === right.decisionIds.length &&
-        left.decisionIds.every((id) => right.decisionIds.includes(id)) &&
-        left.unresolvedQuestionIds.length === right.unresolvedQuestionIds.length &&
-        left.unresolvedQuestionIds.every((id) => right.unresolvedQuestionIds.includes(id)) &&
-        left.dissentingPositionIds.length === right.dissentingPositionIds.length &&
-        left.dissentingPositionIds.every((id) => right.dissentingPositionIds.includes(id)) &&
-        left.blockingAgendaItemIds.length === right.blockingAgendaItemIds.length &&
-        left.blockingAgendaItemIds.every((id) => right.blockingAgendaItemIds.includes(id)) &&
+        sameReferences(left.decisionIds, right.decisionIds) &&
+        sameReferences(left.unresolvedQuestionIds, right.unresolvedQuestionIds) &&
+        sameReferences(left.dissentingPositionIds, right.dissentingPositionIds) &&
+        sameReferences(left.blockingAgendaItemIds, right.blockingAgendaItemIds) &&
         left.finalMessage === right.finalMessage &&
         left.endedAt === right.endedAt
     );
@@ -271,7 +278,11 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
         ...issueIds,
         ...state.completionFacts.map((fact) => fact.subjectId)
     ]);
+    const sourceMessageById = new Map(state.transcript.map((message) => [message.id, message]));
+    const sourceCompletionById = new Map(state.completionFacts.map((fact) => [fact.id, fact]));
     if (
+        JSON.stringify(archivePackage.objectiveContract) !==
+            JSON.stringify(state.objectiveContract) ||
         archivePackage.artifactRefs.some((artifact) => {
             const source = artifactById.get(artifact.artifactId);
             return (
@@ -287,6 +298,19 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
                 !decisionById.has(decision.id) ||
                 decisionById.get(decision.id)?.proposalId !== decision.proposalId ||
                 decisionById.get(decision.id)?.proposalRevision !== decision.proposalRevision ||
+                decisionById.get(decision.id)?.status !== decision.status ||
+                (decisionById.get(decision.id)?.agendaItemId !== undefined &&
+                    decisionById.get(decision.id)?.agendaItemId !== decision.agendaItemId) ||
+                (decisionById.get(decision.id)?.statement !== undefined &&
+                    decisionById.get(decision.id)?.statement !== decision.statement) ||
+                (decisionById.get(decision.id)?.rationale !== undefined &&
+                    decisionById.get(decision.id)?.rationale !== decision.rationale) ||
+                (decisionById.get(decision.id)?.acceptedBy !== undefined &&
+                    JSON.stringify(decisionById.get(decision.id)?.acceptedBy) !==
+                        JSON.stringify(decision.acceptedBy)) ||
+                (decisionById.get(decision.id)?.dissentingPositionIds !== undefined &&
+                    JSON.stringify(decisionById.get(decision.id)?.dissentingPositionIds) !==
+                        JSON.stringify(decision.dissentingPositionIds)) ||
                 decision.acceptedBy.some((id) => !participantIds.has(id)) ||
                 decision.dissentingPositionIds.some(
                     (id) =>
@@ -300,6 +324,11 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
                 !agendaIds.has(proposal.agendaItemId) ||
                 proposalById.get(proposal.id)?.revision !== proposal.revision ||
                 proposalById.get(proposal.id)?.status !== proposal.status ||
+                (proposalById.get(proposal.id)?.agendaItemId !== undefined &&
+                    proposalById.get(proposal.id)?.agendaItemId !== proposal.agendaItemId) ||
+                proposalById.get(proposal.id)?.title !== proposal.title ||
+                (proposalById.get(proposal.id)?.description !== undefined &&
+                    proposalById.get(proposal.id)?.description !== proposal.description) ||
                 proposal.positions.some(
                     (position) =>
                         !participantIds.has(position.participantId) ||
@@ -318,17 +347,30 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
             (fact) =>
                 !completionSubjectIds.has(fact.subjectId) ||
                 !participantIds.has(fact.assertedBy) ||
+                (sourceCompletionById.get(fact.id)?.subjectId !== undefined &&
+                    sourceCompletionById.get(fact.id)?.subjectId !== fact.subjectId) ||
+                (sourceCompletionById.get(fact.id)?.result !== undefined &&
+                    sourceCompletionById.get(fact.id)?.result !== fact.result) ||
+                (sourceCompletionById.get(fact.id)?.status !== undefined &&
+                    sourceCompletionById.get(fact.id)?.status !== fact.status) ||
                 fact.evidenceMessageIds.some((id) => !transcriptIds.has(id))
         ) ||
         archivePackage.agenda.some(
             (item) =>
                 !agendaIds.has(item.id) ||
+                state.agenda.find((source) => source.id === item.id)?.status !== item.status ||
                 (item.owner !== undefined && !participantIds.has(item.owner)) ||
                 item.requiredParticipants.some((id) => !participantIds.has(id))
         ) ||
         archivePackage.issues.some(
             (issue) =>
                 !issueIds.has(issue.id) ||
+                state.issues.find((source) => source.id === issue.id)?.title !== issue.title ||
+                state.issues.find((source) => source.id === issue.id)?.description !==
+                    issue.description ||
+                (state.issues.find((source) => source.id === issue.id)?.rationale !== undefined &&
+                    state.issues.find((source) => source.id === issue.id)?.rationale !==
+                        issue.rationale) ||
                 (issue.ownerId !== undefined && !participantIds.has(issue.ownerId))
         ) ||
         archivePackage.unresolvedQuestions.some(
@@ -336,13 +378,37 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
                 !questionIds.has(question.id) ||
                 !agendaIds.has(question.agendaItemId) ||
                 !participantIds.has(question.askedBy) ||
+                state.openQuestions.find((source) => source.id === question.id)?.text !==
+                    question.text ||
+                state.openQuestions.find((source) => source.id === question.id)?.status !==
+                    question.status ||
+                (state.openQuestions.find((source) => source.id === question.id)?.askedBy !==
+                    undefined &&
+                    state.openQuestions.find((source) => source.id === question.id)?.askedBy !==
+                        question.askedBy) ||
+                (state.openQuestions.find((source) => source.id === question.id)?.agendaItemId !==
+                    undefined &&
+                    state.openQuestions.find((source) => source.id === question.id)
+                        ?.agendaItemId !== question.agendaItemId) ||
                 (question.directedTo !== undefined && !participantIds.has(question.directedTo)) ||
                 (question.answerMessageId !== undefined &&
                     !transcriptIds.has(question.answerMessageId))
         ) ||
-        archivePackage.formalTranscript.some(
-            (message) => !transcriptIds.has(message.id) || !agendaIds.has(message.agendaItemId)
-        ) ||
+        archivePackage.formalTranscript.some((message) => {
+            const source = sourceMessageById.get(message.id);
+            return (
+                !source ||
+                !agendaIds.has(message.agendaItemId) ||
+                source.seq !== message.seq ||
+                source.turnId !== message.turnId ||
+                source.stepId !== message.stepId ||
+                source.speaker !== message.speaker ||
+                source.agendaItemId !== message.agendaItemId ||
+                source.content !== message.content ||
+                (source.kind !== undefined && source.kind !== message.kind) ||
+                (source.createdAt !== undefined && source.createdAt !== message.createdAt)
+            );
+        }) ||
         archivePackage.participantProvenance.some(
             (participant) => !participantIds.has(participant.participantId)
         )
@@ -356,6 +422,28 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
                 to: "archiving",
                 meetingVersion: state.version
             }
+        );
+    }
+}
+
+function assertCompletionReady(state: MeetingState, to: MeetingStatus): void {
+    if (to !== "completed") return;
+    const ready =
+        state.objectiveContract.requiredOutputs.every((output) => output.status === "accepted") &&
+        state.objectiveContract.acceptanceCriteria.every((criterion) => criterion.satisfied) &&
+        state.objectiveContract.requiredReviewers.every((reviewerId) =>
+            state.completionFacts.some(
+                (fact) =>
+                    fact.reviewerId === reviewerId &&
+                    fact.status === "active" &&
+                    fact.result === "approved"
+            )
+        );
+    if (!ready) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `meeting ${state.id} is not ready to complete`,
+            { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
         );
     }
 }
@@ -451,6 +539,7 @@ export function transitionMeeting(
                 { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
             );
         }
+        assertCompletionReady(state, to);
     }
 
     if (to === "paused") {
