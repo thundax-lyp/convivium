@@ -1,9 +1,11 @@
 import { DomainError, invalidStateTransition } from "./errors.js";
 import type {
     AttemptStatus,
+    AttemptTransitionContext,
     ArchiveInput,
     ArchiveRecord,
     DomainEffect,
+    DomainEventType,
     MeetingState,
     MeetingStatus,
     MeetingTurn,
@@ -77,14 +79,17 @@ const managerAttemptTransitions: Readonly<
     failed: []
 };
 
-function event(type: string, payload: Record<string, unknown>): DomainEffect {
+function event(type: DomainEventType, payload: Record<string, unknown>): DomainEffect {
     return { events: [{ type, payload }] };
 }
 
-function meetingEventType(from: MeetingStatus, to: MeetingStatus): string {
+function meetingEventType(from: MeetingStatus, to: MeetingStatus): DomainEventType {
     if (to === "paused") return "meeting.paused";
     if (to === "waiting") return "meeting.waiting";
-    if (to === "running") return from === "paused" ? "meeting.resumed" : "meeting.replanned";
+    if (to === "running") {
+        if (from === "created") return "meeting.created";
+        return from === "paused" ? "meeting.resumed" : "meeting.replanned";
+    }
     if (to === "converging") return "meeting.replanned";
     if (["completed", "partial", "no_consensus", "cancelled", "failed"].includes(to))
         return "meeting.ended";
@@ -183,6 +188,15 @@ function sameTermination(
         right !== undefined &&
         left.code === right.code &&
         left.reason === right.reason &&
+        left.decisionIds.length === right.decisionIds.length &&
+        left.decisionIds.every((id) => right.decisionIds.includes(id)) &&
+        left.unresolvedQuestionIds.length === right.unresolvedQuestionIds.length &&
+        left.unresolvedQuestionIds.every((id) => right.unresolvedQuestionIds.includes(id)) &&
+        left.dissentingPositionIds.length === right.dissentingPositionIds.length &&
+        left.dissentingPositionIds.every((id) => right.dissentingPositionIds.includes(id)) &&
+        left.blockingAgendaItemIds.length === right.blockingAgendaItemIds.length &&
+        left.blockingAgendaItemIds.every((id) => right.blockingAgendaItemIds.includes(id)) &&
+        left.finalMessage === right.finalMessage &&
         left.endedAt === right.endedAt
     );
 }
@@ -207,6 +221,45 @@ function snapshotArchive(input: ArchiveInput): ArchiveRecord {
         package: structuredClone(input.package),
         archivedAt: input.archivedAt
     };
+}
+
+function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveInput): void {
+    const archivePackage = input.package;
+    if (
+        archivePackage.meetingId !== state.id ||
+        archivePackage.teamId !== state.teamId ||
+        !sameTermination(state.termination, archivePackage.termination)
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `archive facts do not belong to meeting ${state.id}`,
+            {
+                entityType: "meeting",
+                entityId: state.id,
+                to: "archiving",
+                meetingVersion: state.version
+            }
+        );
+    }
+    if (
+        archivePackage.termination.decisionIds.some(
+            (id) => !state.decisions.some((decision) => decision.id === id)
+        ) ||
+        archivePackage.termination.unresolvedQuestionIds.some(
+            (id) => !state.openQuestions.some((question) => question.id === id)
+        )
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `archive references facts outside meeting ${state.id}`,
+            {
+                entityType: "meeting",
+                entityId: state.id,
+                to: "archiving",
+                meetingVersion: state.version
+            }
+        );
+    }
 }
 
 export function transitionMeeting(
@@ -307,6 +360,9 @@ export function transitionMeeting(
             `meeting ${state.id} requires a materialized archive`,
             { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
         );
+    }
+    if (to === "archiving" && isArchiveInput(context.archive)) {
+        assertArchivePackageMatchesMeeting(state, context.archive);
     }
 
     if (
@@ -433,7 +489,8 @@ export function transitionStep(
 export function transitionAttempt(
     attempt: SpeakerAttempt,
     to: AttemptStatus,
-    meetingVersion: number
+    meetingVersion: number,
+    context: AttemptTransitionContext
 ): TransitionResult<SpeakerAttempt> {
     assertTransition(
         "attempt",
@@ -443,6 +500,25 @@ export function transitionAttempt(
         attemptTransitions,
         meetingVersion
     );
+    if (
+        attempt.meetingId !== context.meetingId ||
+        attempt.turnId !== context.turnId ||
+        attempt.stepId !== context.stepId ||
+        attempt.deliveryId !== context.deliveryId
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `attempt ${attempt.attemptId} context does not match its submission`,
+            { entityType: "attempt", entityId: attempt.attemptId, meetingVersion }
+        );
+    }
+    if (to === "submitted" && attempt.deliveryStatus === "failed") {
+        throw new DomainError("INVALID_ENTITY_STATE", `failed delivery cannot be acknowledged`, {
+            entityType: "attempt",
+            entityId: attempt.attemptId,
+            meetingVersion
+        });
+    }
     const acknowledged =
         to === "submitted" &&
         (attempt.deliveryStatus === "pending" || attempt.deliveryStatus === "accepted");

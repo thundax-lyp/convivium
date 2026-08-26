@@ -57,7 +57,16 @@ function meeting(status: MeetingState["status"] = "created"): MeetingState {
             "failed",
             "archiving"
         ].includes(status)
-            ? { code: "objective_satisfied", reason: "done", endedAt: now }
+            ? {
+                  code: "objective_satisfied",
+                  reason: "done",
+                  decisionIds: [],
+                  unresolvedQuestionIds: [],
+                  dissentingPositionIds: [],
+                  blockingAgendaItemIds: [],
+                  finalMessage: "done",
+                  endedAt: now
+              }
             : undefined
     };
 }
@@ -85,6 +94,9 @@ function archivePackage(): ArchivePackage {
             reason: "done",
             decisionIds: [],
             unresolvedQuestionIds: [],
+            dissentingPositionIds: [],
+            blockingAgendaItemIds: [],
+            finalMessage: "done",
             endedAt: now
         },
         endedAt: now,
@@ -101,7 +113,7 @@ describe("meeting transitions", () => {
         expect(result.state.updatedAt).toBe(now);
         expect(result.effect.events).toEqual([
             {
-                type: "meeting.replanned",
+                type: "meeting.created",
                 payload: {
                     meetingId: "meeting-1",
                     from: "created",
@@ -181,6 +193,9 @@ describe("meeting transitions", () => {
             reason: "cancelled",
             decisionIds: [],
             unresolvedQuestionIds: [],
+            dissentingPositionIds: [],
+            blockingAgendaItemIds: [],
+            finalMessage: "cancelled",
             endedAt: now
         };
         expect(() =>
@@ -206,6 +221,9 @@ describe("meeting transitions", () => {
                     reason: "done",
                     decisionIds: ["missing-decision"],
                     unresolvedQuestionIds: [],
+                    dissentingPositionIds: [],
+                    blockingAgendaItemIds: [],
+                    finalMessage: "done",
                     endedAt: now
                 }
             })
@@ -224,6 +242,9 @@ describe("meeting transitions", () => {
                 reason: "all outputs accepted",
                 decisionIds: [],
                 unresolvedQuestionIds: [],
+                dissentingPositionIds: [],
+                blockingAgendaItemIds: [],
+                finalMessage: "done",
                 endedAt: now
             }
         });
@@ -236,6 +257,9 @@ describe("meeting transitions", () => {
                     reason: "cancelled",
                     decisionIds: [],
                     unresolvedQuestionIds: [],
+                    dissentingPositionIds: [],
+                    blockingAgendaItemIds: [],
+                    finalMessage: "cancelled",
                     endedAt: now
                 }
             })
@@ -258,6 +282,20 @@ describe("meeting transitions", () => {
         });
         expect(result.state.archive?.package.meetingId).toBe("meeting-1");
         expect(result.state.archive?.archivedAt).toBe(now);
+    });
+
+    it("rejects an archive package that disagrees with the terminal facts", () => {
+        const archive = archivePackage();
+        archive.termination = {
+            ...archive.termination,
+            finalMessage: "different"
+        };
+        expect(() =>
+            transitionMeeting(meeting("completed"), "archiving", {
+                now,
+                archive: { package: archive }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
 
     it("rejects archive facts from another meeting or team", () => {
@@ -316,15 +354,32 @@ describe("turn, step and attempt transitions", () => {
         );
 
         const attempt = transitionAttempt(
-            { attemptId: "attempt-1", status: "assigned", deliveryStatus: "pending" },
+            {
+                attemptId: "attempt-1",
+                meetingId: "meeting-1",
+                turnId: "turn-1",
+                stepId: "step-1",
+                deliveryId: "delivery-1",
+                status: "assigned",
+                deliveryStatus: "pending"
+            },
             "running",
-            2
+            2,
+            attemptContext()
         ).state;
-        const submitted = transitionAttempt(attempt, "submitted", 3);
+        const submitted = transitionAttempt(attempt, "submitted", 3, attemptContext());
         expect(submitted.state.status).toBe("submitted");
         expect(submitted.state.deliveryStatus).toBe("acknowledged");
-        expect(transitionAttempt(attempt, "failed", 3).state.status).toBe("failed");
-        expect(() => transitionAttempt(attempt, "assigned", 3)).toThrowError(
+        expect(() =>
+            transitionAttempt(attempt, "submitted", 3, {
+                ...attemptContext(),
+                deliveryId: "stale-delivery"
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+        expect(transitionAttempt(attempt, "failed", 3, attemptContext()).state.status).toBe(
+            "failed"
+        );
+        expect(() => transitionAttempt(attempt, "assigned", 3, attemptContext())).toThrowError(
             expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
         );
     });
@@ -341,3 +396,12 @@ describe("turn, step and attempt transitions", () => {
         );
     });
 });
+
+function attemptContext() {
+    return {
+        meetingId: "meeting-1",
+        turnId: "turn-1",
+        stepId: "step-1",
+        deliveryId: "delivery-1"
+    };
+}

@@ -22,6 +22,25 @@ export type StepStatus =
 
 export type AttemptStatus = "assigned" | "running" | "submitted" | "revoked" | "failed";
 
+export const DomainEventTypes = [
+    "meeting.created",
+    "meeting.paused",
+    "meeting.waiting",
+    "meeting.resumed",
+    "meeting.replanned",
+    "meeting.ended",
+    "meeting.archiving",
+    "meeting.archived",
+    "turn.status_changed",
+    "step.status_changed",
+    "attempt.status_changed",
+    "manager_attempt.status_changed",
+    "speaker_attempt.revoked",
+    "manager_attempt.revoked"
+] as const;
+
+export type DomainEventType = (typeof DomainEventTypes)[number];
+
 export interface MeetingParticipant {
     id: string;
     displayName: string;
@@ -56,6 +75,10 @@ export interface SpeakerStep {
 
 export interface SpeakerAttempt {
     attemptId: string;
+    meetingId: string;
+    turnId: string;
+    stepId: string;
+    deliveryId: string;
     status: AttemptStatus;
     deliveryStatus: "pending" | "accepted" | "acknowledged" | "failed";
 }
@@ -167,6 +190,9 @@ export interface MeetingTermination {
     reason: string;
     decisionIds: readonly string[];
     unresolvedQuestionIds: readonly string[];
+    dissentingPositionIds: readonly string[];
+    blockingAgendaItemIds: readonly string[];
+    finalMessage: string;
     endedAt: number;
 }
 
@@ -283,8 +309,15 @@ export interface TransitionContext {
     archive?: ArchiveInput | ArchiveFinalizeInput;
 }
 
+export interface AttemptTransitionContext {
+    meetingId: string;
+    turnId: string;
+    stepId: string;
+    deliveryId: string;
+}
+
 export interface DomainEvent {
-    type: string;
+    type: DomainEventType;
     payload: Record<string, unknown>;
 }
 

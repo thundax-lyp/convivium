@@ -327,6 +327,26 @@ describe("protocol envelope schemas", () => {
             })
         ).toThrow(/meetingId/);
     });
+
+    it("requires complete pause metadata for a paused projection", () => {
+        expect(() =>
+            MeetingStatusResultSchema({
+                meetingId: "meeting-1",
+                meetingVersion: 1,
+                topic: "Release",
+                objective: "Decide scope",
+                continuationMaterials: [],
+                limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
+                activeAgendaItem: undefined,
+                messages: [],
+                acceptedDecisions: [],
+                blockingFacts: [],
+                status: "paused",
+                pendingHandRaises: [],
+                pauseControl: { action: "none" }
+            })
+        ).toThrow(/pause metadata/);
+    });
 });
 
 function validArchivePackage(meetingId = "meeting-1") {

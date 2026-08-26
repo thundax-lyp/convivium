@@ -369,6 +369,22 @@ export const MeetingStatusResultSchema: Schema<Record<string, unknown>> = Schema
         ) {
             throw new TypeError("archive package meetingId does not match meetingId");
         }
+        if (value.status === "paused") {
+            const pauseControl = value.pauseControl as {
+                action: string;
+                pausedAt?: number;
+                pausedBy?: unknown;
+                reason?: string;
+            };
+            if (
+                pauseControl.action !== "pause" ||
+                pauseControl.pausedAt === undefined ||
+                pauseControl.pausedBy === undefined ||
+                !pauseControl.reason?.trim()
+            ) {
+                throw new TypeError("paused status requires complete pause metadata");
+            }
+        }
         return value;
     }
 );
