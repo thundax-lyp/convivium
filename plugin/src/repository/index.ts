@@ -27,6 +27,9 @@ export type MeetingEventType =
     | "archive.sessions_closed"
     | "meeting.archived";
 
+export const OUTBOX_KINDS = ["dispatch"] as const;
+export type OutboxKind = (typeof OUTBOX_KINDS)[number];
+
 export interface MeetingSnapshot {
     teamId: string;
     meetingId: string;
@@ -46,7 +49,7 @@ export interface DomainEventInput {
 export interface OutboxInput {
     id?: string;
     deliveryId: string;
-    kind: string;
+    kind: OutboxKind;
     payload: JsonObject;
     availableAt?: number;
 }
@@ -120,7 +123,7 @@ export interface ClaimOutboxInput extends WorkerLease {
 export interface OutboxItem {
     id: string;
     deliveryId: string;
-    kind: string;
+    kind: OutboxKind;
     payload: JsonObject;
     attempts: number;
     leaseOwner: string;
@@ -228,6 +231,7 @@ interface BootstrapRow {
 
 interface SessionOwnershipRow {
     session_id: string;
+    meeting_id: string;
     session_label: string;
     role: SessionOwnership["role"];
     participant_id: string | null;
@@ -319,27 +323,59 @@ function row<T>(value: unknown): T | undefined {
     return value as T | undefined;
 }
 
-function validateDatabaseIdentity(db: DatabaseSync, teamId: string, meetingId: string): void {
+function parseSessionLabel(label: string): { teamId: string; meetingId: string } | undefined {
+    const [namespace, teamId, meetingId, ...identity] = label.split("/");
+    if (
+        namespace !== "convivium" ||
+        !teamId ||
+        !meetingId ||
+        identity.length === 0 ||
+        identity.some((segment) => !segment)
+    ) {
+        return undefined;
+    }
+    return { teamId, meetingId };
+}
+
+function databaseVersion(db: DatabaseSync): number {
+    return Number(
+        (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version
+    );
+}
+
+function validateDatabaseIdentity(
+    db: DatabaseSync,
+    teamId: string,
+    meetingId: string,
+    schemaVersion: number
+): void {
     const meetings = db
         .prepare("SELECT team_id, meeting_id FROM meetings")
         .all() as unknown as Array<{ team_id: string; meeting_id: string }>;
     if (meetings.length === 0) return;
-    const bootstrap = db
-        .prepare("SELECT meeting_id FROM meeting_bootstrap")
-        .all() as unknown as Array<{ meeting_id: string }>;
-    const ownership = db
-        .prepare("SELECT meeting_id, session_label FROM session_ownership")
-        .all() as unknown as Array<{ meeting_id: string; session_label: string }>;
-    const identityMatches =
+    let identityMatches =
         meetings.length === 1 &&
         meetings[0]?.team_id === teamId &&
-        meetings[0]?.meeting_id === meetingId &&
-        bootstrap.length === 1 &&
-        bootstrap[0]?.meeting_id === meetingId &&
-        ownership.every(
-            (session) =>
-                session.meeting_id === meetingId && session.session_label.includes(meetingId)
-        );
+        meetings[0]?.meeting_id === meetingId;
+    if (identityMatches && schemaVersion >= 2) {
+        const bootstrap = db
+            .prepare("SELECT meeting_id FROM meeting_bootstrap")
+            .all() as unknown as Array<{ meeting_id: string }>;
+        const ownership = db
+            .prepare("SELECT meeting_id, session_label FROM session_ownership")
+            .all() as unknown as Array<{ meeting_id: string; session_label: string }>;
+        identityMatches =
+            bootstrap.length === 1 &&
+            bootstrap[0]?.meeting_id === meetingId &&
+            ownership.every((session) => {
+                const label = parseSessionLabel(session.session_label);
+                return (
+                    session.meeting_id === meetingId &&
+                    label?.teamId === teamId &&
+                    label.meetingId === meetingId
+                );
+            });
+    }
     if (!identityMatches) {
         throw new RepositoryError(
             "CORRUPT_DATABASE",
@@ -348,6 +384,46 @@ function validateDatabaseIdentity(db: DatabaseSync, teamId: string, meetingId: s
             "Database identity does not match the requested meeting"
         );
     }
+}
+
+function validateDatabaseIdentityBeforeMigration(
+    db: DatabaseSync,
+    teamId: string,
+    meetingId: string
+): void {
+    const version = databaseVersion(db);
+    if (version >= 1 && version <= CURRENT_SCHEMA_VERSION) {
+        validateDatabaseIdentity(db, teamId, meetingId, version);
+    }
+}
+
+function assertOutboxKind(kind: string, meetingId: string): asserts kind is OutboxKind {
+    if (!(OUTBOX_KINDS as readonly string[]).includes(kind)) {
+        throw new RepositoryError(
+            "INVALID_INPUT",
+            false,
+            meetingId,
+            "Outbox kind is not registered"
+        );
+    }
+}
+
+function isLifecycleTransitionAllowed(
+    from: SessionOwnership["lifecycleStatus"],
+    to: SessionOwnership["lifecycleStatus"]
+): boolean {
+    return (
+        from === to ||
+        (from === "provisioning" && (to === "active" || to === "closed")) ||
+        (from === "active" && to === "closed")
+    );
+}
+
+function isCapabilityTransitionAllowed(
+    from: SessionOwnership["capabilityStatus"],
+    to: SessionOwnership["capabilityStatus"]
+): boolean {
+    return from === to || (from === "active" && to === "revoked");
 }
 
 export class MeetingRepository {
@@ -372,8 +448,9 @@ export class MeetingRepository {
             db.exec(
                 "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 2500;"
             );
+            validateDatabaseIdentityBeforeMigration(db, input.teamId, input.meetingId);
             migrate(db);
-            validateDatabaseIdentity(db, input.teamId, input.meetingId);
+            validateDatabaseIdentity(db, input.teamId, input.meetingId, CURRENT_SCHEMA_VERSION);
             return new MeetingRepository(
                 db,
                 input.authorizationValidator,
@@ -560,6 +637,39 @@ export class MeetingRepository {
         try {
             this.db.exec("BEGIN IMMEDIATE");
             this.getMeeting();
+            const label = parseSessionLabel(input.sessionLabel);
+            if (label?.teamId !== this.teamId || label.meetingId !== this.meetingId) {
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Session label does not match the repository identity"
+                );
+            }
+            const existing = row<SessionOwnershipRow>(
+                this.db
+                    .prepare("SELECT * FROM session_ownership WHERE session_id = ?")
+                    .get(input.sessionId)
+            );
+            if (
+                existing &&
+                (existing.meeting_id !== this.meetingId ||
+                    !isLifecycleTransitionAllowed(
+                        existing.lifecycle_status,
+                        input.lifecycleStatus
+                    ) ||
+                    !isCapabilityTransitionAllowed(
+                        existing.capability_status,
+                        input.capabilityStatus
+                    ))
+            ) {
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "Session ownership lifecycle or capability cannot move backward"
+                );
+            }
             this.db
                 .prepare(
                     "INSERT INTO session_ownership(session_id, meeting_id, session_label, role, participant_id, lifecycle_status, capability_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET session_label = excluded.session_label, role = excluded.role, participant_id = excluded.participant_id, lifecycle_status = excluded.lifecycle_status, capability_status = excluded.capability_status, updated_at = excluded.updated_at"
@@ -696,6 +806,7 @@ export class MeetingRepository {
                 )
                 .all(now, now) as unknown as OutboxRow[];
             const items = rows.map((item) => {
+                assertOutboxKind(item.kind, this.meetingId);
                 const token = randomUUID();
                 this.db
                     .prepare(
@@ -843,6 +954,7 @@ export class MeetingRepository {
     }
 
     private insertOutbox(item: OutboxInput, createdAt: number): void {
+        assertOutboxKind(item.kind, this.meetingId);
         this.db
             .prepare(
                 "INSERT INTO outbox(id, meeting_id, delivery_id, kind, payload_json, status, attempts, available_at, created_at) VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, ?)"

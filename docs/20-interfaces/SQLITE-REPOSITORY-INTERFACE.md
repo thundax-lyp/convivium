@@ -70,13 +70,13 @@ interface TransitionResult<T> {
 
 ### Outbox
 
-每个 outbox item 具有稳定 `id`、`deliveryId`、`kind`、JSON payload、attempt count、状态、lease owner、lease token、lease deadline、retry time 和最后错误。claim 在事务内原子取得 lease；completion 必须带回同一 owner/token，且当前时间严格早于 lease deadline。过期或旧 lease 的 completion 返回 `LEASE_LOST`，不得覆盖新 worker 的状态。
+每个 outbox item 具有稳定 `id`、`deliveryId`、集中注册的 `kind`（当前为 `dispatch`）、JSON payload、attempt count、状态、lease owner、lease token、lease deadline、retry time 和最后错误。Repository 在写入和 lease 前拒绝未注册 kind；claim 在事务内原子取得 lease；completion 必须带回同一 owner/token，且当前时间严格早于 lease deadline。过期或旧 lease 的 completion 返回 `LEASE_LOST`，不得覆盖新 worker 的状态。
 
 外部调用不在 SQLite 事务内执行。成功、可重试失败和终止失败都通过独立事务完成；相同 `deliveryId` 重投不得产生重复领域事实。
 
 ### Recovery
 
-`open` 必须先验证数据库中仅有一个 Meeting，且 `teamId`、`meetingId`、bootstrap ID 与所有 Session ownership label 都和请求身份一致；不一致时以 `CORRUPT_DATABASE` 隔离。`recover` 只处理当前 Meeting 数据库：回收过期 lease，并返回当前 snapshot、带创建 correlation 的 bootstrap record 和已证明的 Session ownership。workspace 目录扫描、跨 Meeting 隔离和 DSH orphan Session 处理属于上层 `RecoveryCoordinator`，不由 Repository 隐式完成。
+`open` 必须在 migration 前对已知 schema 只读验证数据库中仅有一个 Meeting，且 `teamId`、`meetingId`、bootstrap ID 与所有完整解析的 `convivium/<teamId>/<meetingId>/<identity...>` Session ownership label 一致；不一致时以 `CORRUPT_DATABASE` 隔离且不得写入该数据库。Session ownership 生命周期只可前进（`provisioning → active → closed`），capability revoke 不可逆。`recover` 只处理当前 Meeting 数据库：回收过期 lease，并返回当前 snapshot、带创建 correlation 的 bootstrap record 和已证明的 Session ownership。workspace 目录扫描、跨 Meeting 隔离和 DSH orphan Session 处理属于上层 `RecoveryCoordinator`，不由 Repository 隐式完成。
 
 ### Schema and migration
 

@@ -113,7 +113,7 @@ describe("MeetingRepository", () => {
                     events: [{ type: "message.added", payload: { ok: true } }],
                     outbox: [
                         { deliveryId: "delivery-1", kind: "dispatch", payload: { ok: true } },
-                        { deliveryId: "delivery-1", kind: "duplicate", payload: { ok: true } }
+                        { deliveryId: "delivery-1", kind: "dispatch", payload: { ok: true } }
                     ]
                 })
             })
@@ -232,8 +232,20 @@ describe("MeetingRepository", () => {
             },
             13
         );
+        await expect(
+            repository.recordSessionOwnership(
+                {
+                    sessionId: "session-1",
+                    sessionLabel: "convivium/team-1/meeting-1/manager",
+                    role: "manager",
+                    lifecycleStatus: "active",
+                    capabilityStatus: "active"
+                },
+                14
+            )
+        ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_STATE" });
 
-        await expect(repository.recover({ now: 14 })).resolves.toMatchObject({
+        await expect(repository.recover({ now: 15 })).resolves.toMatchObject({
             bootstrap: {
                 status: "provisioning",
                 createRequestId: "create",
@@ -392,6 +404,107 @@ PRAGMA user_version = 2;
                 authorizationValidator: allowAuthorization
             })
         ).rejects.toMatchObject<RepositoryError>({ code: "CORRUPT_DATABASE" });
+    });
+
+    it("rejects a session label whose meeting segment only contains the requested id", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
+        roots.push(root);
+        const databasePath = join(root, "meeting.sqlite");
+        const repository = await MeetingRepository.open({
+            databasePath,
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            authorizationValidator: allowAuthorization
+        });
+        await repository.create({
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" }
+        });
+        await repository.recordSessionOwnership({
+            sessionId: "session-1",
+            sessionLabel: "convivium/team-1/meeting-1/manager",
+            role: "manager",
+            lifecycleStatus: "active",
+            capabilityStatus: "active"
+        });
+        await repository.close();
+        const db = new DatabaseSync(databasePath);
+        db.prepare("UPDATE session_ownership SET session_label = ? WHERE session_id = ?").run(
+            "convivium/team-1/meeting-10/manager",
+            "session-1"
+        );
+        db.close();
+
+        await expect(
+            MeetingRepository.open({
+                databasePath,
+                teamId: "team-1",
+                meetingId: "meeting-1",
+                authorizationValidator: allowAuthorization
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "CORRUPT_DATABASE" });
+    });
+
+    it("rejects a mismatched version-two database before migration writes it", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
+        roots.push(root);
+        const databasePath = join(root, "meeting.sqlite");
+        const repository = await MeetingRepository.open({
+            databasePath,
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            authorizationValidator: allowAuthorization
+        });
+        await repository.create({
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" }
+        });
+        await repository.close();
+        const db = new DatabaseSync(databasePath);
+        db.prepare("UPDATE meetings SET team_id = ? WHERE meeting_id = ?").run(
+            "team-2",
+            "meeting-1"
+        );
+        db.exec("PRAGMA user_version = 2");
+        db.close();
+
+        await expect(
+            MeetingRepository.open({
+                databasePath,
+                teamId: "team-1",
+                meetingId: "meeting-1",
+                authorizationValidator: allowAuthorization
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "CORRUPT_DATABASE" });
+        const verificationDb = new DatabaseSync(databasePath);
+        expect(
+            verificationDb.prepare("PRAGMA user_version").get() as { user_version: number }
+        ).toMatchObject({ user_version: 2 });
+        verificationDb.close();
+    });
+
+    it("rejects unregistered outbox kinds before committing a create", async () => {
+        const repository = await openRepository();
+        await expect(
+            repository.create({
+                requestId: "create",
+                authorization,
+                requestHash: "create-hash",
+                initialState: { status: "created" },
+                outbox: [
+                    {
+                        deliveryId: "delivery-1",
+                        kind: "unknown" as never,
+                        payload: { meetingId: "meeting-1" }
+                    }
+                ]
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_INPUT" });
+        await repository.close();
     });
 
     it("rejects a state transition that has no domain event", async () => {
