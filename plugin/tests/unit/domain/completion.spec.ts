@@ -408,4 +408,43 @@ describe("applyCompletionClaims", () => {
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
         expect(source.issues[0]?.status).toBe("open");
     });
+
+    it("restores a blocking issue when risk acceptance is later rejected", () => {
+        const accepted = applyCompletionClaims(completionState(), {
+            participantId: "reviewer-1",
+            authorizedTaskIds: [],
+            now,
+            factId,
+            claims: {
+                riskAcceptance: {
+                    issueId: "risk-1",
+                    decision: "accept",
+                    reason: "Accepted temporarily",
+                    evidenceMessageIds: ["message-1"]
+                }
+            }
+        });
+        const rejected = applyCompletionClaims(accepted.state, {
+            participantId: "reviewer-1",
+            authorizedTaskIds: [],
+            now: now + 1,
+            factId,
+            claims: {
+                riskAcceptance: {
+                    issueId: "risk-1",
+                    decision: "reject",
+                    reason: "Rejection supersedes acceptance",
+                    evidenceMessageIds: ["message-1"]
+                }
+            }
+        });
+
+        expect(rejected.state.issues[0]).toMatchObject({
+            status: "open",
+            disposition: "blocking"
+        });
+        expect(rejected.state.completionFacts).toContainEqual(
+            expect.objectContaining({ result: "rejected", status: "active" })
+        );
+    });
 });

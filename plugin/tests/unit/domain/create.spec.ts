@@ -21,7 +21,7 @@ function input(overrides: Partial<CreateMeetingSpec> = {}): CreateMeetingSpec {
         promptVersion: "v1",
         objectiveContract: {
             requiredOutputs: [{ key: "output-1", description: "Output" }],
-            acceptanceCriteria: [{ key: "criterion-1", description: "Criterion" }],
+            acceptanceCriteria: [{ key: "criterion-1", description: "done" }],
             hardConstraints: [{ key: "constraint-1", description: "Constraint" }],
             requiredReviewerKeys: ["participant-1"],
             riskAcceptanceAuthorityKeys: ["participant-2"],
@@ -34,7 +34,7 @@ function input(overrides: Partial<CreateMeetingSpec> = {}): CreateMeetingSpec {
                 objective: "Resolve it",
                 inScope: ["scope"],
                 outOfScope: ["outside"],
-                completionCriteria: ["done"],
+                completionCriteria: ["criterion-1"],
                 ownerKey: "participant-1",
                 requiredParticipantKeys: ["participant-1", "participant-2"]
             }
@@ -100,6 +100,7 @@ describe("canonical meeting creation", () => {
             eventSeq: 0,
             transcript: []
         });
+        expect(state.agenda[0]?.completionCriteria).toEqual(["criterion:criterion-1"]);
     });
 
     it("rejects duplicate keys and unresolved participant references before state exists", () => {
@@ -201,7 +202,7 @@ describe("canonical meeting creation", () => {
             agendaItemId: "agenda:agenda-1",
             intent: "explore",
             objective: "Resolve it",
-            expectedOutputs: ["done"],
+            expectedOutputs: ["criterion:criterion-1"],
             prohibitedTopics: ["outside"],
             plan: ["participant:participant-1", "participant:participant-2"],
             createdAt: 200

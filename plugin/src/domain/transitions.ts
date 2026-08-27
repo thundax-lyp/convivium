@@ -468,7 +468,13 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
         archivePackage.completionFacts.some(
             (fact) =>
                 !completionSubjectIds.has(fact.subjectId) ||
-                !participantIds.has(fact.assertedBy) ||
+                !(
+                    participantIds.has(fact.assertedBy) ||
+                    (fact.authority === "captain" &&
+                        fact.assertedBy.startsWith("captain:") &&
+                        sourceCompletionById.get(fact.id)?.authority === "captain" &&
+                        sourceCompletionById.get(fact.id)?.assertedBy === fact.assertedBy)
+                ) ||
                 (sourceCompletionById.get(fact.id)?.subjectId !== undefined &&
                     sourceCompletionById.get(fact.id)?.subjectId !== fact.subjectId) ||
                 (sourceCompletionById.get(fact.id)?.result !== undefined &&

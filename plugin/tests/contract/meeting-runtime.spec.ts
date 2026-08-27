@@ -13,7 +13,7 @@ const input = {
     objective: "Decide scope",
     objectiveContract: {
         requiredOutputs: [],
-        acceptanceCriteria: [],
+        acceptanceCriteria: [{ key: "reviewed", description: "Reviewed" }],
         hardConstraints: [],
         requiredReviewerKeys: [],
         riskAcceptanceAuthorityKeys: [],

@@ -318,6 +318,10 @@ export function applyCompletionClaims(
             issue.status = "accepted_risk";
             issue.disposition = "accepted_risk";
             issue.rationale = riskAcceptance.reason;
+        } else {
+            issue.status = "open";
+            issue.disposition = "blocking";
+            issue.rationale = riskAcceptance.reason;
         }
         addFact(
             fact(

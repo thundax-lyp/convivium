@@ -1359,6 +1359,34 @@ describe("meeting transitions", () => {
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
 
+    it("accepts Captain waiver facts during archive validation", () => {
+        const state = meeting("partial");
+        const waiver: CompletionFact = {
+            id: "waiver-1",
+            kind: "waiver",
+            subjectId: "agenda-1",
+            assertedBy: "captain:captain-1",
+            authority: "captain",
+            result: "waived",
+            evidenceMessageIds: [],
+            taskIds: [],
+            reason: "Captain accepts the partial result",
+            status: "active",
+            createdAt: now
+        };
+        state.completionFacts = [waiver];
+        const archive = archivePackage();
+        archive.termination = state.termination!;
+        archive.completionFacts = [waiver];
+
+        expect(() =>
+            transitionMeeting(state, "archiving", {
+                now,
+                archive: { package: archive }
+            })
+        ).not.toThrow();
+    });
+
     it("rejects archive cross-references that are not meeting facts", () => {
         const archive = archivePackage();
         archive.proposals = [

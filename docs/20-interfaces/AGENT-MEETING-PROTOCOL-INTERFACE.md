@@ -176,6 +176,8 @@ interface AgendaItemSpecV1 {
   objective: string
   inScope: readonly string[]
   outOfScope: readonly string[]
+  // Each reference is an output/criterion key, description, or canonical ID;
+  // creation stores the resolved canonical ID.
   completionCriteria: readonly string[]
   ownerKey?: string
   requiredParticipantKeys: readonly string[]
@@ -499,6 +501,7 @@ interface PublicAgendaItemV1 {
   objective: string
   inScope: readonly string[]
   outOfScope: readonly string[]
+  // Public projection contains the canonical IDs resolved during creation.
   completionCriteria: readonly string[]
   owner?: string
   requiredParticipants: readonly string[]
