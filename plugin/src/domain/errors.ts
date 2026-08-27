@@ -5,7 +5,10 @@ export type DomainErrorCode =
     | "INVALID_ENTITY_STATE"
     | "INVALID_CREATE_INPUT"
     | "STALE_ATTEMPT"
-    | "UNSUPPORTED_CAPABILITY";
+    | "STALE_MANAGER_ATTEMPT"
+    | "UNSUPPORTED_CAPABILITY"
+    | "REQUIRED_SPEAKER_UNAVAILABLE"
+    | "MANAGER_PLAN_INVALID";
 
 export class DomainError extends Error {
     readonly name = "DomainError";

@@ -2,6 +2,7 @@ import Schema from "@deepseek-ai/schemastery";
 import { MeetingProtocolErrorCodeSchema, ProtocolVersionSchema } from "./schema.js";
 
 const string = () => Schema.string().required();
+const nonEmptyString = () => Schema.string().pattern(/\S/).required();
 const number = () => Schema.number().required();
 const array = <T>(schema: Schema<T>) => Schema.array(schema).required();
 const enumOf = <T extends string>(values: readonly T[]) => Schema.union(values).required();
@@ -14,9 +15,9 @@ export const CreateMeetingResultSchema = Schema.object({
 });
 
 export const ManagerPlanResultSchema = Schema.object({
-    turnId: string(),
-    firstStepId: string(),
-    firstAttemptId: string()
+    turnId: nonEmptyString(),
+    firstStepId: nonEmptyString(),
+    firstAttemptId: nonEmptyString()
 });
 
 const meetingStatus = enumOf([

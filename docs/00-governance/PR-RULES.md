@@ -86,6 +86,14 @@ PR 描述固定覆盖：
 - 不能执行的验证应写入 `Not Covered`，说明原因和影响，不把阻塞检查描述为绿色。
 - 当前已接入真实的 Prettier、ESLint、TypeScript、framework test、bundle build 和 package contract gates；尚未接入会议 integration/recovery/stress 业务测试，也未在本地观察本分支远端 PR job 启动结果。
 
+## GitHub Tooling And Authorization
+
+- GitHub Connector 与本机 GitHub CLI（`gh`）使用的凭据和授权范围可能不同；Connector 返回 `integration forbidden` 或不支持目标操作时，可以切换到本机已认证的 `gh`，不应仅据此判定 GitHub 操作失败。
+- 切换调用通道不得扩大原始用户授权范围。尤其是 resolve、reply、reaction、删除评论、push、关闭或合并等写操作，必须仍然逐项对应用户请求和本规则。
+- 使用 `gh` 前必须核对仓库、PR、线程或评论 ID，并确认 `gh auth status` 具备目标仓库访问权限。
+- 每次 GitHub 写操作后必须回读对应资源确认最终状态；CLI 命令成功返回不能替代状态确认。
+- 可重复的 Skill 应在其自身说明中引用本节，并记录实际使用的调用通道、权限失败原因（如有）、回读结果和未完成项。
+
 ## Documentation And Task Closure
 
 PR 合并前必须检查：

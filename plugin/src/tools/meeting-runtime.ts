@@ -3,19 +3,24 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import {
+    followupManagerSession,
     followupParticipantSession,
     type ContinuableFollowupRuntime,
+    type ContinuableInspectionRuntime,
     type ContinuableStarter
 } from "../dsh/index.js";
 import {
     planRoundRobinTurn,
-    submitSpeakerAttempt,
+    startManagerPlanning,
+    submitManagerPlan as submitManagerPlanTransition,
+    submitSpeakerAndAdvanceMeeting,
     transitionMeeting,
     type MeetingState,
     type MeetingTurn
 } from "../domain/index.js";
 import {
     createMeetingRuntime,
+    createOutboxWorker,
     openMeetingRepository,
     type DomainEventInput,
     type JsonObject,
@@ -23,12 +28,14 @@ import {
     type MeetingRepositoryRuntime,
     type RepositoryAuthorizationValidator
 } from "../runtime/index.js";
-import { projectMeetingStatus } from "../projection/index.js";
+import { projectManagerMeetingContext, projectMeetingStatus } from "../projection/index.js";
 import type {
     CreateMeetingInputV1,
     CreateMeetingResultV1,
     MeetingStatusInputV1,
     MeetingStatusResultV1,
+    ManagerPlanResultV1,
+    ManagerPlanSubmissionV1,
     MeetingControlResultV1,
     TurnSubmissionResultV1,
     ProtocolErrorV1,
@@ -41,20 +48,36 @@ import { interruptAndDrainOwnedSessions } from "../dsh/index.js";
 export interface CreateStatusRuntimeOptions {
     readonly dataRoot: string;
     readonly provider: string;
-    readonly continuable: ContinuableStarter & ContinuableFollowupRuntime;
+    readonly continuable: ContinuableStarter &
+        ContinuableFollowupRuntime &
+        ContinuableInspectionRuntime;
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly maxParticipants?: number;
+    readonly outboxPollMs?: number;
     readonly signal?: AbortSignal;
     readonly now?: () => number;
 }
 
-export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime & MeetingOwnershipLookup;
+interface ClaimedOutboxItem {
+    id: string;
+    deliveryId: string;
+    payload: JsonObject;
+    leaseOwner: string;
+    leaseToken: string;
+}
+
+export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
+    MeetingOwnershipLookup & { dispose(): Promise<void> };
 
 interface StoredMeeting {
     readonly teamId: string;
     readonly captainSessionId: string;
     readonly repository: MeetingRepositoryRuntime;
     readonly parent?: Agent;
+}
+
+function terminalDispatchError(code: string, message: string): Error {
+    return Object.assign(new Error(message), { code, retryable: false });
 }
 
 function success<T>(meetingId: string, meetingVersion: number, result: T): ProtocolSuccessV1<T> {
@@ -99,22 +122,32 @@ function participantResult(input: CreateMeetingInputV1, meetingId: string): Crea
     };
 }
 
+function runningCreateResult(
+    input: CreateMeetingInputV1,
+    meetingId: string,
+    meetingVersion: number
+): CreateMeetingResultV1 {
+    return {
+        ...participantResult(input, meetingId),
+        meetingVersion,
+        status: "running"
+    };
+}
+
 function commandError(
     error: unknown,
     fallback: ProtocolErrorV1["code"],
     message: string,
-    context?: Partial<ProtocolErrorV1>
+    context?: Partial<ProtocolErrorV1>,
+    codeMap: Readonly<Record<string, ProtocolErrorV1["code"]>> = {}
 ) {
     const code =
         error && typeof error === "object" && "code" in error
             ? (error as { code?: unknown }).code
             : undefined;
+    const mappedCode = typeof code === "string" ? (codeMap[code] ?? code) : fallback;
     return {
-        ...failure(
-            typeof code === "string" ? code : fallback,
-            message,
-            code === "VERSION_CONFLICT"
-        ),
+        ...failure(mappedCode, message, mappedCode === "VERSION_CONFLICT"),
         ...context,
         ...(error && typeof error === "object" && "meetingId" in error
             ? { meetingId: String((error as { meetingId: unknown }).meetingId) }
@@ -135,7 +168,12 @@ export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
 ): MeetingRuntimeWithCallerLookup {
     const meetings = new Map<string, StoredMeeting>();
-    const signal = options.signal ?? new AbortController().signal;
+    const workers = new Map<string, ReturnType<typeof createOutboxWorker>>();
+    const runtimeController = new AbortController();
+    const signal =
+        options.signal === undefined
+            ? runtimeController.signal
+            : AbortSignal.any([options.signal, runtimeController.signal]);
 
     async function rehydrate() {
         const teams = await readdir(options.dataRoot, { withFileTypes: true }).catch(() => []);
@@ -145,7 +183,10 @@ export function createCreateStatusRuntime(
             for (const file of files) {
                 if (!file.endsWith(".sqlite")) continue;
                 const meetingId = decodeURIComponent(file.slice(0, -7));
-                if (meetings.has(meetingId)) continue;
+                const stored = meetings.get(meetingId);
+                if (stored !== undefined) {
+                    continue;
+                }
                 try {
                     const repository = await openMeetingRepository({
                         databasePath: join(options.dataRoot, team.name, file),
@@ -163,11 +204,12 @@ export function createCreateStatusRuntime(
                         await repository.close();
                         continue;
                     }
-                    meetings.set(meetingId, {
+                    const recoveredMeeting: StoredMeeting = {
                         teamId: decodeURIComponent(team.name),
                         captainSessionId: parentSessionId,
                         repository
-                    });
+                    };
+                    meetings.set(meetingId, recoveredMeeting);
                 } catch {
                     // Ignore unrelated or incomplete databases during startup discovery.
                 }
@@ -179,16 +221,10 @@ export function createCreateStatusRuntime(
         repository: MeetingRepositoryRuntime,
         parent: Agent,
         meetingId: string,
-        commandSignal: AbortSignal
+        commandSignal: AbortSignal,
+        item: ClaimedOutboxItem
     ) {
         const recovered = await repository.recover();
-        const [item] = await repository.claimOutbox({
-            owner: `runtime:${meetingId}`,
-            ttlMs: 60_000,
-            batchSize: 1,
-            now: options.now?.() ?? Date.now()
-        });
-        if (item === undefined) return;
         const payload = item.payload as unknown as {
             participantId: string;
             attemptId: string;
@@ -198,67 +234,173 @@ export function createCreateStatusRuntime(
             (candidate) => candidate.participantId === payload.participantId
         );
         if (ownership === undefined)
-            throw new Error("Initial speaker Session ownership is missing.");
-        try {
-            await followupParticipantSession({
-                runtime: options.continuable,
-                parent,
-                ownership,
-                attempt: {
-                    attemptId: payload.attemptId,
-                    deliveryId: item.deliveryId,
-                    participantId: payload.participantId
-                },
-                prompt: [
-                    {
-                        type: "text",
-                        text: `Meeting ${meetingId} turn ${payload.turnId}: submit your statement.`
-                    }
-                ],
-                signal: commandSignal,
-                authorize: async ({ attempt }) => {
-                    const latest = await repository.recover();
-                    const current = latest.snapshot?.state as unknown as MeetingState | undefined;
-                    const active = current?.currentTurn?.steps.find(
-                        (step) => step.attempt?.attemptId === attempt.attemptId
-                    )?.attempt;
-                    if (
-                        active?.deliveryId !== attempt.deliveryId ||
-                        active.status !== "running" ||
-                        active.deliveryStatus !== "accepted"
-                    ) {
-                        throw new Error("Speaker attempt is no longer authorized.");
-                    }
-                    const owned = latest.sessionOwnership.find(
-                        (candidate) => candidate.sessionId === ownership.sessionId
-                    );
-                    if (
-                        owned?.lifecycleStatus !== "active" ||
-                        owned.capabilityStatus !== "active"
-                    ) {
-                        throw new Error("Speaker Session capability is no longer active.");
-                    }
-                }
-            });
-            await repository.completeOutbox({
-                id: item.id,
-                leaseOwner: item.leaseOwner,
-                leaseToken: item.leaseToken,
-                completion: { status: "delivered" }
-            });
-        } catch (error) {
-            await repository.completeOutbox({
-                id: item.id,
-                leaseOwner: item.leaseOwner,
-                leaseToken: item.leaseToken,
-                completion: {
-                    status: "retry",
-                    availableAt: Date.now(),
-                    errorCode: "DISPATCH_FAILED"
-                }
-            });
-            throw error;
+            throw terminalDispatchError(
+                "SESSION_OWNERSHIP_MISSING",
+                "Initial speaker Session ownership is missing."
+            );
+        if (
+            ownership.parentSessionId !== String(parent.id) ||
+            ownership.lifecycleStatus !== "active" ||
+            ownership.capabilityStatus !== "active"
+        ) {
+            throw terminalDispatchError(
+                "SESSION_CAPABILITY_REVOKED",
+                "Speaker Session ownership is no longer authorized."
+            );
         }
+        await followupParticipantSession({
+            runtime: options.continuable,
+            parent,
+            ownership,
+            attempt: {
+                attemptId: payload.attemptId,
+                deliveryId: item.deliveryId,
+                participantId: payload.participantId
+            },
+            prompt: [
+                {
+                    type: "text",
+                    text: `Meeting ${meetingId} turn ${payload.turnId}: submit your statement.`
+                }
+            ],
+            signal: commandSignal,
+            authorize: async ({ attempt }) => {
+                const latest = await repository.recover();
+                const current = latest.snapshot?.state as unknown as MeetingState | undefined;
+                const active = current?.currentTurn?.steps.find(
+                    (step) => step.attempt?.attemptId === attempt.attemptId
+                )?.attempt;
+                if (
+                    active?.deliveryId !== attempt.deliveryId ||
+                    active.status !== "running" ||
+                    !["pending", "accepted"].includes(active.deliveryStatus)
+                ) {
+                    throw terminalDispatchError(
+                        "STALE_SPEAKER_ATTEMPT",
+                        "Speaker attempt is no longer authorized."
+                    );
+                }
+                const owned = latest.sessionOwnership.find(
+                    (candidate) => candidate.sessionId === ownership.sessionId
+                );
+                if (owned?.lifecycleStatus !== "active" || owned.capabilityStatus !== "active") {
+                    throw terminalDispatchError(
+                        "SESSION_CAPABILITY_REVOKED",
+                        "Speaker Session capability is no longer active."
+                    );
+                }
+            }
+        });
+    }
+
+    async function dispatchManagerPlanningDelivery(
+        repository: MeetingRepositoryRuntime,
+        parent: Agent,
+        meetingId: string,
+        commandSignal: AbortSignal,
+        item: ClaimedOutboxItem
+    ) {
+        const recovered = await repository.recover();
+        const payload = item.payload as unknown as {
+            role: "manager";
+            planningAttemptId: string;
+        };
+        const ownership = recovered.sessionOwnership.find(
+            (candidate) => candidate.role === "manager"
+        );
+        if (ownership === undefined)
+            throw terminalDispatchError(
+                "SESSION_OWNERSHIP_MISSING",
+                "Manager Session ownership is missing."
+            );
+        if (
+            ownership.parentSessionId !== String(parent.id) ||
+            ownership.lifecycleStatus !== "active" ||
+            ownership.capabilityStatus !== "active"
+        ) {
+            throw terminalDispatchError(
+                "SESSION_CAPABILITY_REVOKED",
+                "Manager Session ownership is no longer authorized."
+            );
+        }
+        const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+        if (state === undefined) {
+            throw terminalDispatchError("MEETING_NOT_FOUND", "Meeting state is missing.");
+        }
+        const dispatchableParticipantIds = state.participants
+            .filter(
+                (participant) =>
+                    participant.status === "available" &&
+                    recovered.sessionOwnership.some(
+                        (candidate) =>
+                            candidate.role === "participant" &&
+                            candidate.participantId === participant.id &&
+                            candidate.lifecycleStatus === "active" &&
+                            candidate.capabilityStatus === "active"
+                    )
+            )
+            .map((participant) => participant.id);
+        const managerContext = projectManagerMeetingContext(state, dispatchableParticipantIds);
+        await followupManagerSession({
+            runtime: options.continuable,
+            parent,
+            ownership,
+            attempt: {
+                planningAttemptId: payload.planningAttemptId,
+                deliveryId: item.deliveryId
+            },
+            prompt: [{ type: "text", text: JSON.stringify(managerContext) }],
+            signal: commandSignal,
+            authorize: async ({ attempt }) => {
+                const latest = await repository.recover();
+                const current = latest.snapshot?.state as unknown as MeetingState | undefined;
+                const active = current?.manager.currentPlanningAttempt;
+                if (
+                    active?.id !== attempt.planningAttemptId ||
+                    active.deliveryId !== attempt.deliveryId ||
+                    active.status !== "running"
+                )
+                    throw terminalDispatchError(
+                        "STALE_MANAGER_ATTEMPT",
+                        "Manager planning attempt is no longer authorized."
+                    );
+            }
+        });
+    }
+
+    function ensureWorker(stored: StoredMeeting): void {
+        const meetingId = stored.repository.meetingId;
+        if (stored.parent === undefined || workers.has(meetingId)) return;
+        const worker = createOutboxWorker({
+            repository: stored.repository,
+            owner: `worker:${meetingId}`,
+            ttlMs: 60_000,
+            batchSize: 1,
+            pollMs: options.outboxPollMs ?? 1_000,
+            dispatch: async (item, workerSignal) => {
+                const dispatchSignal = AbortSignal.any([signal, workerSignal]);
+                const payload = item.payload as unknown as { role?: "manager" | "participant" };
+                if (payload.role === "manager")
+                    await dispatchManagerPlanningDelivery(
+                        stored.repository,
+                        stored.parent!,
+                        meetingId,
+                        dispatchSignal,
+                        item
+                    );
+                else
+                    await dispatchInitialDelivery(
+                        stored.repository,
+                        stored.parent!,
+                        meetingId,
+                        dispatchSignal,
+                        item
+                    );
+            },
+            now: options.now
+        });
+        workers.set(meetingId, worker);
+        void worker.start().catch(() => undefined);
     }
 
     return {
@@ -274,6 +416,9 @@ export function createCreateStatusRuntime(
                 input.participants.length > options.maxParticipants
             ) {
                 return failure("INVALID_ARGUMENT", "The participant limit was exceeded.");
+            }
+            if (input.agenda.length === 0) {
+                return failure("INVALID_ARGUMENT", "At least one agenda item is required.");
             }
             await rehydrate();
             const meetingId = stableMeetingId(input);
@@ -333,6 +478,7 @@ export function createCreateStatusRuntime(
             };
             try {
                 const existing = await repository.recover().catch(() => undefined);
+                let resumeReadyCreate = false;
                 if (
                     existing?.bootstrap.status === "ready" &&
                     existing.bootstrap.createResult !== undefined
@@ -352,37 +498,108 @@ export function createCreateStatusRuntime(
                             "Only the original meeting Captain can replay creation."
                         );
                     }
+                    const resident = meetings.get(meetingId);
+                    if (resident?.parent !== undefined) {
+                        await repository.close();
+                        const persisted = existing.bootstrap.createResult;
+                        return success(
+                            meetingId,
+                            persisted.meetingVersion,
+                            persisted as CreateMeetingResultV1
+                        );
+                    }
+                    if (resident !== undefined) {
+                        await resident.repository.close();
+                        meetings.delete(meetingId);
+                    }
+                    const replayedMeeting: StoredMeeting = {
+                        teamId: input.teamId,
+                        captainSessionId: caller.sessionId,
+                        repository
+                    };
+                    meetings.set(meetingId, replayedMeeting);
+                    ensureWorker(replayedMeeting);
+                    const persisted = existing.bootstrap.createResult;
+                    if (persisted.status === "running" && persisted.participants !== undefined) {
+                        return success(
+                            meetingId,
+                            persisted.meetingVersion,
+                            persisted as CreateMeetingResultV1
+                        );
+                    }
+                    resumeReadyCreate = true;
+                }
+                if (!resumeReadyCreate) await createMeetingRuntime(input, dependencies);
+                if (input.selectionMode === "manager") {
+                    const started = await repository.execute({
+                        requestId: `${input.requestId}:start-manager-planning`,
+                        commandKind: "start_manager_planning",
+                        authorization: dependencies.authorization,
+                        requestHash: `${requestHash(input)}:start-manager-planning`,
+                        expectedMeetingVersion: 0,
+                        transition: (snapshot) => {
+                            const transition = startManagerPlanning(
+                                snapshot.state as unknown as MeetingState,
+                                {
+                                    meetingId,
+                                    planningAttemptId: `${meetingId}-planning-1`,
+                                    deliveryId: `${meetingId}-planning-delivery-1`,
+                                    reason: "initial_plan",
+                                    now: options.now?.() ?? Date.now()
+                                }
+                            );
+                            return {
+                                state: transition.state as unknown as JsonObject,
+                                result: { status: "planning" },
+                                events: transition.effect.events as unknown as DomainEventInput[],
+                                outbox: [
+                                    {
+                                        deliveryId: `${meetingId}-planning-delivery-1`,
+                                        kind: "dispatch",
+                                        payload: {
+                                            role: "manager",
+                                            planningAttemptId: `${meetingId}-planning-1`
+                                        }
+                                    }
+                                ]
+                            };
+                        }
+                    });
+                    const result = runningCreateResult(input, meetingId, started.meetingVersion);
+                    await repository.updateCreateResult({
+                        expectedMeetingVersion: started.meetingVersion,
+                        result,
+                        now: options.now?.()
+                    });
                     meetings.set(meetingId, {
                         teamId: input.teamId,
                         captainSessionId: caller.sessionId,
                         repository,
                         parent: caller.agent
                     });
-                    return success(meetingId, existing.snapshot?.version ?? 1, {
-                        ...participantResult(input, meetingId),
-                        meetingVersion: existing.snapshot?.version ?? 1,
-                        status: "running"
-                    });
+                    ensureWorker(meetings.get(meetingId)!);
+                    workers.get(meetingId)?.wake();
+                    return success(meetingId, started.meetingVersion, result);
                 }
-                await createMeetingRuntime(input, dependencies);
-                await initializeFirstTurn(repository, options.now?.() ?? Date.now());
+                const meetingVersion = await initializeFirstTurn(
+                    repository,
+                    options.now?.() ?? Date.now()
+                );
+                const result = runningCreateResult(input, meetingId, meetingVersion);
+                await repository.updateCreateResult({
+                    expectedMeetingVersion: meetingVersion,
+                    result,
+                    now: options.now?.()
+                });
                 meetings.set(meetingId, {
                     teamId: input.teamId,
                     captainSessionId: caller.sessionId,
                     repository,
                     parent: caller.agent
                 });
-                await dispatchInitialDelivery(
-                    repository,
-                    caller.agent as Agent,
-                    meetingId,
-                    commandSignal ?? signal
-                );
-                return success(meetingId, 1, {
-                    ...participantResult(input, meetingId),
-                    meetingVersion: 1,
-                    status: "running"
-                });
+                ensureWorker(meetings.get(meetingId)!);
+                workers.get(meetingId)?.wake();
+                return success(meetingId, meetingVersion, result);
             } catch (error) {
                 await repository.close();
                 if (error && typeof error === "object" && "code" in error) {
@@ -414,7 +631,7 @@ export function createCreateStatusRuntime(
             }
         },
 
-        async submitTurn(input, caller, commandSignal) {
+        async submitTurn(input, caller, _commandSignal) {
             await rehydrate();
             if (
                 caller.kind !== "participant" ||
@@ -431,6 +648,13 @@ export function createCreateStatusRuntime(
             }
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            if (stored.parent === undefined) {
+                return failure(
+                    "INTERNAL_ERROR",
+                    "The live Captain parent is unavailable for dispatch.",
+                    true
+                );
+            }
             const messageId = `message-${input.deliveryId}`;
             try {
                 const current = await stored.repository.read();
@@ -446,10 +670,9 @@ export function createCreateStatusRuntime(
                     expectedMeetingVersion: current.version,
                     transition: (snapshot) => {
                         const state = snapshot.state as unknown as MeetingState;
-                        const transition = submitSpeakerAttempt(
+                        const transition = submitSpeakerAndAdvanceMeeting(
                             state,
                             caller.participantId!,
-                            snapshot.version,
                             {
                                 meetingId: input.meetingId,
                                 participantId: caller.participantId!,
@@ -467,75 +690,67 @@ export function createCreateStatusRuntime(
                                         ? {}
                                         : { replyTo: input.replyTo }),
                                     taskIds: input.taskIds,
+                                    agendaRelation: input.agendaRelation,
                                     createdAt: Date.now()
-                                }
+                                },
+                                now: options.now?.() ?? Date.now(),
+                                nextPlanningAttemptId: `${state.id}-planning-${state.turnSeq + 1}`,
+                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.turnSeq + 1}`
                             }
                         );
                         const nextStep =
                             transition.state.currentTurn?.steps[
                                 transition.state.currentTurn.currentStepIndex
                             ];
-                        const prepared = prepareNextAttempt(
-                            transition.state,
-                            transition.state.currentTurn?.currentStepIndex ?? 0,
-                            options.now?.() ?? Date.now()
-                        );
+                        const submittedTurn = transition.state.currentTurn;
+                        const turnStatus =
+                            submittedTurn?.status ??
+                            (transition.state.status === "partial" ? "truncated" : "completed");
                         return {
-                            state: prepared as unknown as JsonObject,
+                            state: transition.state as unknown as JsonObject,
                             result: {
                                 messageId,
-                                messageSeq: prepared.messageSeq,
-                                turnStatus:
-                                    prepared.currentTurn?.status === "completed"
-                                        ? "completed"
-                                        : "running",
+                                messageSeq: transition.state.messageSeq,
+                                turnStatus,
                                 ...(nextStep === undefined ? {} : { nextStepId: nextStep.id }),
-                                meetingStatus: prepared.status
+                                meetingStatus: transition.state.status
                             },
                             events: transition.effect.events as unknown as DomainEventInput[],
                             outbox:
-                                prepared.currentTurn?.status === "running" &&
-                                prepared.currentTurn.steps[prepared.currentTurn.currentStepIndex]
-                                    ?.attempt
+                                submittedTurn?.status === "running" && nextStep?.attempt
                                     ? [
                                           {
-                                              deliveryId:
-                                                  prepared.currentTurn.steps[
-                                                      prepared.currentTurn.currentStepIndex
-                                                  ]!.attempt!.deliveryId,
+                                              deliveryId: nextStep.attempt.deliveryId,
                                               kind: "dispatch",
                                               payload: {
-                                                  participantId:
-                                                      prepared.currentTurn.steps[
-                                                          prepared.currentTurn.currentStepIndex
-                                                      ]!.attempt!.participantId,
-                                                  attemptId:
-                                                      prepared.currentTurn.steps[
-                                                          prepared.currentTurn.currentStepIndex
-                                                      ]!.attempt!.attemptId,
-                                                  turnId: prepared.currentTurn.id,
-                                                  stepId: prepared.currentTurn.steps[
-                                                      prepared.currentTurn.currentStepIndex
-                                                  ]!.id
+                                                  role: "participant",
+                                                  participantId: nextStep.attempt.participantId,
+                                                  attemptId: nextStep.attempt.attemptId,
+                                                  turnId: submittedTurn.id,
+                                                  stepId: nextStep.id
                                               }
                                           }
                                       ]
-                                    : []
+                                    : transition.state.manager.currentPlanningAttempt
+                                      ? [
+                                            {
+                                                deliveryId:
+                                                    transition.state.manager.currentPlanningAttempt
+                                                        .deliveryId,
+                                                kind: "dispatch",
+                                                payload: {
+                                                    role: "manager",
+                                                    planningAttemptId:
+                                                        transition.state.manager
+                                                            .currentPlanningAttempt.id
+                                                }
+                                            }
+                                        ]
+                                      : []
                         };
                     }
                 });
-                if (
-                    stored.parent !== undefined &&
-                    committed.result &&
-                    "nextStepId" in committed.result
-                ) {
-                    await dispatchInitialDelivery(
-                        stored.repository,
-                        stored.parent,
-                        input.meetingId,
-                        commandSignal ?? signal
-                    );
-                }
+                if (committed.result) workers.get(input.meetingId)?.wake();
                 return success<TurnSubmissionResultV1>(
                     input.meetingId,
                     committed.meetingVersion,
@@ -550,6 +765,122 @@ export function createCreateStatusRuntime(
                     deliveryId: input.deliveryId,
                     participantId: caller.participantId
                 });
+            }
+        },
+        async submitManagerPlan(input: ManagerPlanSubmissionV1, caller, _commandSignal) {
+            await rehydrate();
+            if (caller.kind !== "manager" || caller.meetingId !== input.meetingId)
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "Only the matching Manager can submit a plan."
+                );
+            const stored = meetings.get(input.meetingId);
+            if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            if (stored.parent === undefined) {
+                return failure(
+                    "INTERNAL_ERROR",
+                    "The live Captain parent is unavailable for dispatch.",
+                    true
+                );
+            }
+            try {
+                const current = await stored.repository.read();
+                const recovered = await stored.repository.recover();
+                const state = current.state as unknown as MeetingState;
+                const dispatchableParticipantIds = state.participants
+                    .filter((participant) => participant.status === "available")
+                    .filter((participant) =>
+                        recovered.sessionOwnership.some(
+                            (ownership) =>
+                                ownership.role === "participant" &&
+                                ownership.participantId === participant.id &&
+                                ownership.lifecycleStatus === "active" &&
+                                ownership.capabilityStatus === "active"
+                        )
+                    )
+                    .map((participant) => participant.id);
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "submit_manager_plan",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `manager:${caller.sessionId}`,
+                        attemptId: input.planningAttemptId
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: input.observedMeetingVersion,
+                    transition: (snapshot) => {
+                        const snapshotState = snapshot.state as unknown as MeetingState;
+                        const transition = submitManagerPlanTransition(
+                            snapshotState,
+                            input,
+                            {
+                                meetingId: input.meetingId,
+                                planningAttemptId: input.planningAttemptId,
+                                deliveryId:
+                                    snapshotState.manager.currentPlanningAttempt?.deliveryId ?? "",
+                                observedMeetingVersion: input.observedMeetingVersion,
+                                dispatchableParticipantIds,
+                                now: options.now?.() ?? Date.now()
+                            },
+                            {
+                                turnId: `turn-${snapshotState.turnSeq + 1}`,
+                                stepId: (index) => `step-turn-${snapshotState.turnSeq + 1}-${index}`
+                            }
+                        );
+                        const turn = transition.state.currentTurn;
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result:
+                                turn === undefined
+                                    ? { waiting: true }
+                                    : {
+                                          turnId: turn.id,
+                                          firstStepId: turn.steps[0]!.id,
+                                          firstAttemptId: turn.steps[0]!.attempt!.attemptId
+                                      },
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox:
+                                turn === undefined
+                                    ? []
+                                    : [
+                                          {
+                                              deliveryId: turn.steps[0]!.attempt!.deliveryId,
+                                              kind: "dispatch",
+                                              payload: {
+                                                  role: "participant",
+                                                  participantId:
+                                                      turn.steps[0]!.attempt!.participantId,
+                                                  attemptId: turn.steps[0]!.attempt!.attemptId,
+                                                  turnId: turn.id,
+                                                  stepId: turn.steps[0]!.id
+                                              }
+                                          }
+                                      ]
+                        };
+                    }
+                });
+                if ("waiting" in committed.result)
+                    return failure(
+                        "REQUIRED_SPEAKER_UNAVAILABLE",
+                        "A required speaker is unavailable."
+                    );
+                return success<ManagerPlanResultV1>(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as ManagerPlanResultV1
+                );
+            } catch (error) {
+                return commandError(
+                    error,
+                    "MANAGER_PLAN_INVALID",
+                    "The Manager plan is invalid.",
+                    {
+                        meetingId: input.meetingId,
+                        meetingVersion: input.observedMeetingVersion
+                    },
+                    { VERSION_CONFLICT: "STALE_MANAGER_ATTEMPT" }
+                );
             }
         },
         async pause(input, caller) {
@@ -588,6 +919,14 @@ export function createCreateStatusRuntime(
                 }
             }
             return undefined;
+        },
+        async dispose() {
+            runtimeController.abort(new Error("Meeting runtime disposed"));
+            for (const worker of workers.values()) worker.stop();
+            await Promise.all([...workers.values()].map((worker) => worker.wait()));
+            workers.clear();
+            await Promise.all([...meetings.values()].map((stored) => stored.repository.close()));
+            meetings.clear();
         }
     } satisfies MeetingRuntimeWithCallerLookup;
 
@@ -603,6 +942,13 @@ export function createCreateStatusRuntime(
     ) {
         const stored = meetings.get(input.meetingId);
         if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+        if (target === "running" && stored.parent === undefined) {
+            return failure(
+                "INTERNAL_ERROR",
+                "The live Captain parent is unavailable for resume dispatch.",
+                true
+            );
+        }
         try {
             const committed = await stored.repository.execute({
                 requestId: input.requestId,
@@ -649,6 +995,52 @@ export function createCreateStatusRuntime(
                                     : participant
                             )
                         };
+                        if (nextState.selectionMode === "manager") {
+                            const planningAttemptId = `${nextState.id}-planning-${nextState.version}`;
+                            const planningDeliveryId = `${nextState.id}-planning-delivery-${nextState.version}`;
+                            nextState = {
+                                ...nextState,
+                                manager: {
+                                    ...nextState.manager,
+                                    status: "planning",
+                                    currentPlanningAttempt: {
+                                        id: planningAttemptId,
+                                        meetingId: nextState.id,
+                                        observedMeetingVersion: nextState.version,
+                                        reason: "next_turn",
+                                        deliveryId: planningDeliveryId,
+                                        status: "running",
+                                        createdAt: options.now?.() ?? Date.now()
+                                    }
+                                }
+                            };
+                            outbox = [
+                                {
+                                    deliveryId: planningDeliveryId,
+                                    kind: "dispatch",
+                                    payload: { role: "manager", planningAttemptId }
+                                }
+                            ];
+                            extraEvents = [
+                                {
+                                    type: "manager_plan.started",
+                                    payload: {
+                                        meetingId: nextState.id,
+                                        planningAttemptId,
+                                        meetingVersion: nextState.version
+                                    }
+                                }
+                            ];
+                            return {
+                                state: nextState as unknown as JsonObject,
+                                result: { status: target, changed: true },
+                                events: [
+                                    ...(transition.effect.events as unknown as DomainEventInput[]),
+                                    ...extraEvents
+                                ],
+                                outbox
+                            };
+                        }
                         const planned = planRoundRobinTurn(
                             nextState,
                             {
@@ -712,12 +1104,8 @@ export function createCreateStatusRuntime(
                 }
             });
             if (target === "running" && stored.parent !== undefined) {
-                await dispatchInitialDelivery(
-                    stored.repository,
-                    stored.parent,
-                    input.meetingId,
-                    options.signal ?? signal
-                );
+                ensureWorker(stored);
+                workers.get(input.meetingId)?.wake();
             }
             return success<MeetingControlResultV1>(
                 input.meetingId,
@@ -779,28 +1167,14 @@ function assignAttempt(
     };
 }
 
-function prepareNextAttempt(state: MeetingState, index: number, now: number): MeetingState {
-    const turn = state.currentTurn;
-    if (turn === undefined || turn.status === "completed") return state;
-    const nextStep = turn.steps[index];
-    if (nextStep === undefined || nextStep.status !== "pending") return state;
-    const preparedTurn = assignAttempt(state, turn, index, now);
-    return {
-        ...state,
-        currentTurn: preparedTurn,
-        participants: state.participants.map((participant) =>
-            participant.id === nextStep.speaker
-                ? { ...participant, status: "speaking" as const }
-                : participant
-        )
-    };
-}
-
-async function initializeFirstTurn(repository: MeetingRepositoryRuntime, now: number) {
+async function initializeFirstTurn(
+    repository: MeetingRepositoryRuntime,
+    now: number
+): Promise<number> {
     const current = await repository.read();
     const currentState = current.state as unknown as MeetingState;
     const firstAgenda = currentState.agenda[0];
-    if (firstAgenda === undefined) return;
+    if (firstAgenda === undefined) throw new Error("At least one agenda item is required.");
     const activeState: MeetingState = {
         ...currentState,
         status: "running",
@@ -827,7 +1201,7 @@ async function initializeFirstTurn(repository: MeetingRepositoryRuntime, now: nu
             payload: { attemptId: running.steps[0]?.attempt?.attemptId ?? "attempt-0" }
         }
     ];
-    await repository.execute({
+    const committed = await repository.execute({
         requestId: "runtime-initialize-turn-1",
         commandKind: "start_turn",
         authorization: {
@@ -868,4 +1242,5 @@ async function initializeFirstTurn(repository: MeetingRepositoryRuntime, now: nu
                       ]
         })
     });
+    return committed.meetingVersion;
 }

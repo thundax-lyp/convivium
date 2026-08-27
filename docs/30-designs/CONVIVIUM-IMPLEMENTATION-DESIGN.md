@@ -199,6 +199,7 @@ Runtime 只通过以下语义级 API 读写：
 ```ts
 interface MeetingRepository {
   create(input: CreateMeetingRecord): Promise<MeetingSnapshot>
+  updateCreateResult(input: UpdateCreateResultInput): Promise<CreateMeetingResult>
   read(meetingId: string): Promise<MeetingSnapshot>
   execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>
   claimOutbox(batchSize: number, lease: WorkerLease): Promise<OutboxItem[]>
@@ -207,6 +208,8 @@ interface MeetingRepository {
   close(): Promise<void>
 }
 ```
+
+`updateCreateResult` 只在创建链路首次成功响应前，把首个 planning/Turn 提交后的公开创建结果同步写入 bootstrap 与 `create_meeting` receipt；它不修改领域状态。后续 create replay 必须直接返回该持久结果，不能根据当前 Meeting snapshot 重新合成。
 
 `execute` 是正式会议事实的唯一写入口。它在一个事务中完成：
 

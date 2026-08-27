@@ -33,7 +33,7 @@ function message(attempt: string, step: string, speaker: string, seq: number): M
         attemptId: attempt,
         speaker,
         agendaItemId: "agenda-1",
-        agendaRelation: "active",
+        agendaRelation: "on_topic",
         content: speaker,
         kind: "comment",
         mentions: [],

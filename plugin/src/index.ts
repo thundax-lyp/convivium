@@ -97,8 +97,10 @@ export function apply(ctx: Context, config: ConfigType): void {
             validateCreate: () => undefined,
             validateCommand: () => undefined
         },
-        maxParticipants: config.maxParticipants
+        maxParticipants: config.maxParticipants,
+        outboxPollMs: config.outboxPollMs
     });
+    lifecycle.add(() => runtime.dispose());
     const callers = {
         async resolve(agent: Parameters<typeof resolveMeetingCaller>[0], signal: AbortSignal) {
             const meetingCaller = await resolveMeetingCaller(agent, runtime, signal);

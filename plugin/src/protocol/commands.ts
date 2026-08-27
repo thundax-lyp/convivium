@@ -1,7 +1,9 @@
 import Schema from "@deepseek-ai/schemastery";
 import { ProtocolVersionSchema } from "./schema.js";
+import type { CreateMeetingInputV1 } from "./types.js";
 
 const string = () => Schema.string().required();
+const nonEmptyString = () => Schema.string().pattern(/\S/).required();
 const number = () => Schema.number().required();
 const boolean = () => Schema.boolean().required();
 const array = <T>(schema: Schema<T>) => Schema.array(schema).required();
@@ -56,7 +58,7 @@ const publicLimits = Schema.object({
     mailHandlingTimeoutMs: Schema.number()
 });
 
-export const CreateMeetingInputSchema = Schema.object({
+const createMeetingInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     requestId: string(),
     teamId: string(),
@@ -69,6 +71,16 @@ export const CreateMeetingInputSchema = Schema.object({
     selectionMode: optionalEnumOf(["round_robin", "rule_based", "manager", "hybrid"] as const),
     limits: optionalObject(publicLimits)
 });
+
+export const CreateMeetingInputSchema: Schema<unknown, CreateMeetingInputV1> = Schema.transform(
+    createMeetingInputSchema,
+    (value) => {
+        if (!Array.isArray(value.agenda) || value.agenda.length === 0) {
+            throw new TypeError("At least one agenda item is required");
+        }
+        return value as CreateMeetingInputV1;
+    }
+) as Schema<unknown, CreateMeetingInputV1>;
 
 export const MeetingStatusInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
@@ -253,20 +265,26 @@ const completionClaims = Schema.object({
     )
 });
 
+const managerPlanStep = Schema.object({
+    participantId: nonEmptyString(),
+    instruction: nonEmptyString(),
+    reason: nonEmptyString()
+});
+// Schemastery skips array minimum checks when an object element has its default {}.
+managerPlanStep.meta.default = undefined;
+
 export const ManagerPlanSubmissionSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
-    meetingId: string(),
-    planningAttemptId: string(),
+    meetingId: nonEmptyString(),
+    planningAttemptId: nonEmptyString(),
     observedMeetingVersion: number(),
-    requestId: string(),
-    agendaItemId: string(),
-    intent: string(),
-    objective: string(),
+    requestId: nonEmptyString(),
+    agendaItemId: nonEmptyString(),
+    intent: nonEmptyString(),
+    objective: nonEmptyString(),
     expectedOutputs: array(string()),
     prohibitedTopics: array(string()),
-    steps: array(
-        Schema.object({ participantId: string(), instruction: string(), reason: string() })
-    )
+    steps: array(managerPlanStep).min(1)
 });
 
 export const TurnSubmissionSchema: Schema<Record<string, unknown>> = Schema.object({

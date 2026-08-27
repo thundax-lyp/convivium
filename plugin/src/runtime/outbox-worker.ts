@@ -22,7 +22,7 @@ export interface OutboxWorkerOptions {
     readonly pollMs: number;
     readonly maxAttempts?: number;
     readonly retryDelayMs?: number;
-    readonly dispatch: (item: OutboxItem) => Promise<void>;
+    readonly dispatch: (item: OutboxItem, signal: AbortSignal) => Promise<void>;
     readonly now?: () => number;
     readonly sleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
 }
@@ -59,6 +59,15 @@ function errorCode(error: unknown): string {
     return "DSH_DISPATCH_FAILED";
 }
 
+function isRetryable(error: unknown): boolean {
+    return !(
+        error &&
+        typeof error === "object" &&
+        "retryable" in error &&
+        (error as { retryable?: unknown }).retryable === false
+    );
+}
+
 export function createOutboxWorker(options: OutboxWorkerOptions) {
     if (options.batchSize < 1 || options.ttlMs < 1 || options.pollMs < 1) {
         throw new Error("Outbox worker batchSize, ttlMs and pollMs must be positive");
@@ -68,8 +77,11 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
     const maxAttempts = options.maxAttempts ?? 5;
     const retryDelayMs = options.retryDelayMs ?? options.pollMs;
     const controller = new AbortController();
+    let wake: (() => void) | undefined;
+    let running: Promise<void> | undefined;
 
     async function runOnce(at = now()): Promise<OutboxPollResult> {
+        if (controller.signal.aborted) return { claimed: 0, delivered: 0, retried: 0, failed: 0 };
         const items = await options.repository.claimOutbox({
             owner: options.owner,
             ttlMs: options.ttlMs,
@@ -83,7 +95,9 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
             try {
                 // deliveryId is supplied by the committed outbox record. The dispatch adapter
                 // must pass it unchanged so a lease retry cannot create another meeting fact.
-                await options.dispatch(item);
+                await options.dispatch(item, controller.signal);
+                if (controller.signal.aborted)
+                    return { claimed: items.length, delivered, retried, failed };
                 await options.repository.completeOutbox({
                     id: item.id,
                     leaseOwner: item.leaseOwner,
@@ -93,8 +107,10 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
                 });
                 delivered += 1;
             } catch (error) {
+                if (controller.signal.aborted)
+                    return { claimed: items.length, delivered, retried, failed };
                 const code = errorCode(error);
-                const terminal = item.attempts >= maxAttempts;
+                const terminal = !isRetryable(error) || item.attempts >= maxAttempts;
                 await options.repository.completeOutbox({
                     id: item.id,
                     leaseOwner: item.leaseOwner,
@@ -112,15 +128,41 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
     }
 
     async function start(): Promise<void> {
-        while (!controller.signal.aborted) {
-            await runOnce();
-            if (!controller.signal.aborted) await sleep(options.pollMs, controller.signal);
+        running = (async () => {
+            while (!controller.signal.aborted) {
+                try {
+                    await runOnce();
+                } catch (error) {
+                    if (!isRetryable(error)) throw error;
+                }
+                if (!controller.signal.aborted) {
+                    const wakePromise = new Promise<void>((resolve) => {
+                        wake = resolve;
+                    });
+                    await Promise.race([sleep(options.pollMs, controller.signal), wakePromise]);
+                    wake = undefined;
+                }
+            }
+        })();
+        try {
+            await running;
+        } catch (error) {
+            if (!controller.signal.aborted) throw error;
         }
     }
 
     function stop(): void {
         controller.abort(new Error("Outbox worker stopped"));
+        wake?.();
     }
 
-    return { runOnce, start, stop, signal: controller.signal };
+    async function wait(): Promise<void> {
+        try {
+            await running;
+        } catch (error) {
+            if (!controller.signal.aborted) throw error;
+        }
+    }
+
+    return { runOnce, start, stop, wait, wake: () => wake?.(), signal: controller.signal };
 }

@@ -3,6 +3,8 @@ import {
     CreateMeetingResultSchema,
     CreateMeetingInputSchema,
     MeetingArchivePackageSchema,
+    ManagerPlanResultSchema,
+    ManagerPlanSubmissionSchema,
     MeetingStatusResultSchema,
     validateProtocolError,
     isKnownMeetingProtocolErrorCode,
@@ -12,6 +14,54 @@ import {
 } from "../../src/protocol/index.js";
 
 describe("protocol envelope schemas", () => {
+    it("validates Manager plan input and result shapes", () => {
+        const input = {
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            planningAttemptId: "planning-1",
+            observedMeetingVersion: 2,
+            requestId: "request-1",
+            agendaItemId: "agenda-1",
+            intent: "review",
+            objective: "Review the proposal",
+            expectedOutputs: ["review"],
+            prohibitedTopics: [],
+            steps: [
+                {
+                    participantId: "participant-1",
+                    instruction: "Review the proposal",
+                    reason: "required_reviewer"
+                }
+            ]
+        };
+
+        expect(ManagerPlanSubmissionSchema(input)).toEqual(input);
+        expect(
+            ManagerPlanResultSchema({
+                turnId: "turn-1",
+                firstStepId: "step-1",
+                firstAttemptId: "attempt-1"
+            })
+        ).toEqual({ turnId: "turn-1", firstStepId: "step-1", firstAttemptId: "attempt-1" });
+
+        expect(() => ManagerPlanSubmissionSchema({ ...input, protocolVersion: 2 })).toThrow();
+        expect(() => ManagerPlanSubmissionSchema({ ...input, steps: [] })).toThrow();
+        expect(() =>
+            ManagerPlanSubmissionSchema({
+                ...input,
+                steps: [{ ...input.steps[0], instruction: "" }]
+            })
+        ).toThrow();
+        expect(() => ManagerPlanSubmissionSchema({ ...input, steps: "not-an-array" })).toThrow();
+        expect(() =>
+            ManagerPlanResultSchema({
+                turnId: "",
+                firstStepId: "step-1",
+                firstAttemptId: "attempt-1"
+            })
+        ).toThrow();
+    });
+
     it("accepts a versioned success envelope", () => {
         expect(
             validateProtocolSuccessEnvelope(CreateMeetingResultSchema, {
@@ -238,7 +288,7 @@ describe("protocol envelope schemas", () => {
                 participants: [],
                 limits: { maxTurns: 3 }
             })
-        ).not.toThrow();
+        ).toThrow(/agenda item/);
     });
 
     it("validates command results", () => {

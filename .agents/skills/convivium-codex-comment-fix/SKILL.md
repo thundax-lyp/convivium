@@ -72,7 +72,13 @@ You have reached your Codex usage limits for code reviews.
 
 ## GitHub 操作
 
-- 用 GitHub REST API 获取 PR reviews、PR review comments 和 issue comments，用 GraphQL `reviewThreads` 判断 `isResolved`，用 reaction API 添加 `+1` 或 `-1`。
+- GitHub 操作按以下通道策略执行：
+  1. 优先使用已连接的 GitHub 工具完成读取和写入。
+  2. 如果工具返回 `integration forbidden`、权限不足，或明确不支持目标操作，改用本机已认证的 GitHub CLI（`gh`）；这属于连接器与本机凭据的权限差异，不得直接判定任务失败。
+  3. 使用 `gh` 前确认当前仓库、PR 编号、线程/评论 ID 与目标一致，并确认 `gh auth status` 显示可用账号和仓库访问权限。
+  4. 每次写操作后必须通过 GitHub API 或 `gh` 回读对应资源确认结果；命令返回成功不等于 GitHub 状态已完成。
+  5. fallback 只改变调用通道，不扩大用户已授权的操作范围；不得借此自动执行额外的删除、关闭、合并、push 或其他写操作。
+- 用 GitHub REST API 获取 PR reviews、PR review comments 和 issue comments，用 GraphQL `reviewThreads` 判断 `isResolved`，用 reaction API 添加 `+1` 或 `-1`；这些读取和写入也可在上述 fallback 条件满足时通过 `gh api` 完成。
 - 对满足“冗余额度提示”全部条件的 Codex comment，按其资源调用对应的 REST DELETE endpoint，并重新读取该来源；不得用 delete 代替处理真实 finding。
 - resolve 必须使用 GraphQL `resolveReviewThread`，且必须在 reply 成功之后执行。
 - 评论作者应通过 GitHub author/login 识别为 Codex；不确定时不要误处理其他 reviewer 的评论。

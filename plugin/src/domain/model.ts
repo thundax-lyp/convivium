@@ -223,7 +223,8 @@ export interface MeetingMessage {
     attemptId: string;
     speaker: string;
     agendaItemId: string;
-    agendaRelation: "active" | "related" | "unrelated";
+    agendaRelation:
+        "on_topic" | "supporting_context" | "new_topic_candidate" | "blocking_interrupt";
     content: string;
     kind: ArchiveMessage["kind"];
     mentions: readonly string[];
@@ -606,7 +607,14 @@ export interface SpeakerSubmissionContext extends AttemptTransitionContext {
     agendaItemId: string;
     message: Pick<
         MeetingMessage,
-        "id" | "content" | "kind" | "mentions" | "replyTo" | "taskIds" | "createdAt"
+        | "id"
+        | "content"
+        | "kind"
+        | "mentions"
+        | "replyTo"
+        | "taskIds"
+        | "agendaRelation"
+        | "createdAt"
     >;
 }
 

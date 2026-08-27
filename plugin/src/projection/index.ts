@@ -1,1 +1,5 @@
-export { projectMeetingStatus, type MeetingProjectionCaller } from "./status.js";
+export {
+    projectManagerMeetingContext,
+    projectMeetingStatus,
+    type MeetingProjectionCaller
+} from "./status.js";

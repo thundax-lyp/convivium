@@ -179,6 +179,29 @@ export interface FollowupParticipantSessionInput {
     readonly authorize: AuthorizeSpeakerFollowup;
 }
 
+export interface ManagerFollowupAttempt {
+    readonly planningAttemptId: string;
+    readonly deliveryId: string;
+}
+
+export interface AuthorizeManagerFollowupInput {
+    readonly ownership: MeetingOwnershipRecord;
+    readonly attempt: ManagerFollowupAttempt;
+    readonly signal: AbortSignal;
+}
+
+export type AuthorizeManagerFollowup = (input: AuthorizeManagerFollowupInput) => Promise<void>;
+
+export interface FollowupManagerSessionInput {
+    readonly runtime: ContinuableFollowupRuntime;
+    readonly parent: Agent;
+    readonly ownership: MeetingOwnershipRecord;
+    readonly attempt: ManagerFollowupAttempt;
+    readonly prompt: ContinuableStartSpec["request"]["prompt"];
+    readonly signal: AbortSignal;
+    readonly authorize: AuthorizeManagerFollowup;
+}
+
 function assertSpeakerFollowupOwnership(input: FollowupParticipantSessionInput): void {
     if (String(input.parent.id) !== input.ownership.parentSessionId) {
         throw new Error("Continuable followup requires the exact live Captain parent.");
@@ -201,6 +224,41 @@ export async function followupParticipantSession(
     input: FollowupParticipantSessionInput
 ): Promise<ContinuableStart["messageId"]> {
     assertSpeakerFollowupOwnership(input);
+    const authorization = {
+        ownership: input.ownership,
+        attempt: input.attempt,
+        signal: input.signal
+    };
+    await input.authorize(authorization);
+    const messageId = await input.runtime.followup(
+        input.parent,
+        input.ownership.sessionId as SessionId,
+        input.prompt,
+        {
+            source: {
+                kind: "coordinator",
+                form: "relay",
+                senderSessionId: input.parent.id as SessionId
+            },
+            signal: input.signal
+        }
+    );
+    await input.authorize(authorization);
+    return messageId;
+}
+
+export async function followupManagerSession(
+    input: FollowupManagerSessionInput
+): Promise<ContinuableStart["messageId"]> {
+    if (String(input.parent.id) !== input.ownership.parentSessionId)
+        throw new Error("Continuable followup requires the exact live Captain parent.");
+    if (input.ownership.role !== "manager" || input.ownership.participantId !== undefined)
+        throw new Error("Continuable followup ownership does not match the Manager attempt.");
+    if (input.ownership.lifecycleStatus !== "active")
+        throw new Error("Continuable followup requires an active owned Session.");
+    if (input.ownership.capabilityStatus !== "active")
+        throw new Error("Continuable followup requires a non-revoked Session capability.");
+
     const authorization = {
         ownership: input.ownership,
         attempt: input.attempt,

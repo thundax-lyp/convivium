@@ -38,6 +38,7 @@
 - Agent 间会议协议：[`../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)。
 - Domain 数据结构唯一真相源：[`DOMAIN-MODEL-DESIGN.md`](./DOMAIN-MODEL-DESIGN.md)。
 - 源码落点与接线：[`CONVIVIUM-IMPLEMENTATION-DESIGN.md`](./CONVIVIUM-IMPLEMENTATION-DESIGN.md)。
+- 增量实现的范围控制：[`MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md`](./MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md)。
 - Interface 已定义 Plugin Frontend 的最小状态读取及暂停/恢复路由；组件结构、视觉样式和非会议控制路由不属于本文。
 - 外部协作插件只能作为只读调研材料，不是本设计的源码基线、依赖或兼容目标。
 - Convivium 不提供独立 Electron、ACP adapter 或脱离 DSH 的运行模式。

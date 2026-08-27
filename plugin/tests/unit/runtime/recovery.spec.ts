@@ -36,6 +36,37 @@ const recovered = {
 };
 
 describe("meeting recovery", () => {
+    it("does not create or dispatch a new Manager plan during cold recovery", async () => {
+        let inspected = false;
+        const result = await recoverMeetingRuntime({
+            repository: {
+                recover: async () => ({
+                    ...recovered,
+                    snapshot: {
+                        ...recovered.snapshot,
+                        state: {
+                            manager: {
+                                status: "planning",
+                                currentPlanningAttempt: { id: "planning-1", status: "running" }
+                            },
+                            currentTurn: undefined
+                        }
+                    }
+                })
+            },
+            inspection: {
+                listDescendants: async () => {
+                    inspected = true;
+                    return [];
+                }
+            },
+            signal: new AbortController().signal
+        });
+        expect(result.parentStatus).toBe("absent");
+        expect(result.pendingOutbox).toBe(1);
+        expect(inspected).toBe(false);
+    });
+
     it("reclaims repository state but does not dispatch without the live Captain parent", async () => {
         let inspected = false;
         const result = await recoverMeetingRuntime({

@@ -20,6 +20,7 @@
 - Documentation navigation check：结果或 `N/A` 及原因。
 - Relevant automated checks：命令与结果，或 `N/A` 及原因。
 - Manual or runtime verification：步骤与结果，或 `N/A` 及原因。
+- GitHub 操作通道：Connector、`gh` 或 `N/A`；如发生 fallback，记录原因与回读确认结果。
 
 ## Not Covered
 

@@ -4,6 +4,9 @@ import {
     type ArchivePackage,
     type MeetingState,
     submitSpeakerAttempt,
+    submitSpeakerAndAdvanceMeeting,
+    startManagerPlanning,
+    submitManagerPlan,
     transitionAttempt,
     transitionManagerAttempt,
     transitionMeeting,
@@ -115,6 +118,529 @@ function archivePackage(): ArchivePackage {
 }
 
 describe("meeting transitions", () => {
+    it("submits one speaker and creates only the next ordered attempt", () => {
+        const participant = {
+            id: "a",
+            displayName: "A",
+            status: "speaking" as const,
+            consecutiveSpeeches: 0,
+            consecutiveAttemptFailures: 0,
+            totalSpeeches: 0,
+            lastDeliveredSeq: 0,
+            lastAcknowledgedSeq: 0
+        };
+        const state = {
+            ...meeting("running"),
+            participants: [participant],
+            currentTurn: {
+                id: "turn-1",
+                seq: 1,
+                agendaItemId: "agenda-1",
+                intent: "explore" as const,
+                objective: "objective",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                plan: ["a", "b"],
+                status: "running" as const,
+                currentStepIndex: 0,
+                steps: [
+                    {
+                        id: "step-0",
+                        speaker: "a",
+                        instruction: "A",
+                        reason: "manager_selected" as const,
+                        status: "running" as const,
+                        attempt: {
+                            attemptId: "attempt-0",
+                            participantId: "a",
+                            meetingId: "meeting-1",
+                            turnId: "turn-1",
+                            stepId: "step-0",
+                            deliveryId: "delivery-0",
+                            contextFromSeq: 0,
+                            contextThroughSeq: 0,
+                            taskSnapshots: [],
+                            assignedAt: now,
+                            status: "running" as const,
+                            deliveryStatus: "pending" as const
+                        }
+                    },
+                    {
+                        id: "step-1",
+                        speaker: "b",
+                        instruction: "B",
+                        reason: "manager_selected" as const,
+                        status: "pending" as const
+                    }
+                ],
+                createdAt: now
+            }
+        };
+        const result = submitSpeakerAndAdvanceMeeting(state, "a", {
+            meetingId: "meeting-1",
+            participantId: "a",
+            turnId: "turn-1",
+            stepId: "step-0",
+            attemptId: "attempt-0",
+            deliveryId: "delivery-0",
+            agendaItemId: "agenda-1",
+            message: {
+                id: "message-1",
+                content: "answer",
+                kind: "statement",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "supporting_context",
+                createdAt: now
+            },
+            now,
+            nextPlanningAttemptId: "planning-2",
+            nextPlanningDeliveryId: "planning-delivery-2"
+        });
+        expect(result.state.version).toBe(state.version + 1);
+        expect(result.state.currentTurn?.steps[1]?.attempt?.participantId).toBe("b");
+        expect(result.state.currentTurn?.steps.filter((step) => step.attempt).length).toBe(2);
+        expect(result.state.messageSeq).toBe(1);
+        expect(result.state.eventSeq).toBe(state.eventSeq + result.effect.events.length);
+    });
+
+    it("starts the next deterministic round-robin turn without Manager planning", () => {
+        const state = meeting("running");
+        state.selectionMode = "round_robin";
+        state.activeAgendaItemId = "agenda-1";
+        state.agenda = [
+            {
+                id: "agenda-1",
+                title: "Agenda",
+                objective: "Objective",
+                inScope: [],
+                outOfScope: [],
+                completionCriteria: ["output-1"],
+                requiredParticipants: ["a"],
+                relatedTaskIds: [],
+                status: "discussing"
+            }
+        ];
+        state.objectiveContract.requiredOutputs = [
+            { id: "output-1", description: "Output", status: "pending" }
+        ];
+        state.participants = [
+            {
+                id: "a",
+                displayName: "A",
+                status: "speaking",
+                consecutiveSpeeches: 0,
+                consecutiveAttemptFailures: 0,
+                totalSpeeches: 0,
+                lastDeliveredSeq: 0,
+                lastAcknowledgedSeq: 0
+            }
+        ];
+        state.turnSeq = 1;
+        state.currentTurn = {
+            id: "turn-1",
+            seq: 1,
+            agendaItemId: "agenda-1",
+            intent: "explore",
+            objective: "Objective",
+            expectedOutputs: ["output-1"],
+            prohibitedTopics: [],
+            plan: ["a"],
+            status: "running",
+            currentStepIndex: 0,
+            createdAt: now,
+            steps: [
+                {
+                    id: "step-a-0",
+                    speaker: "a",
+                    instruction: "Speak",
+                    reason: "round_robin_fallback",
+                    status: "running",
+                    attempt: {
+                        attemptId: "attempt-0",
+                        participantId: "a",
+                        meetingId: "meeting-1",
+                        turnId: "turn-1",
+                        stepId: "step-a-0",
+                        deliveryId: "delivery-0",
+                        contextFromSeq: 0,
+                        contextThroughSeq: 0,
+                        taskSnapshots: [],
+                        assignedAt: now,
+                        status: "running",
+                        deliveryStatus: "pending"
+                    }
+                }
+            ]
+        };
+
+        const result = submitSpeakerAndAdvanceMeeting(state, "a", {
+            meetingId: "meeting-1",
+            participantId: "a",
+            turnId: "turn-1",
+            stepId: "step-a-0",
+            attemptId: "attempt-0",
+            deliveryId: "delivery-0",
+            agendaItemId: "agenda-1",
+            message: {
+                id: "message-1",
+                content: "Still incomplete",
+                kind: "statement",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic",
+                createdAt: now
+            },
+            now,
+            nextPlanningAttemptId: "unused-planning-2",
+            nextPlanningDeliveryId: "unused-planning-delivery-2"
+        });
+
+        expect(result.state.currentTurn).toMatchObject({
+            id: "turn-2",
+            seq: 2,
+            status: "running",
+            steps: [
+                {
+                    id: "step-turn-2-0",
+                    speaker: "a",
+                    status: "running",
+                    attempt: {
+                        attemptId: "turn-2-attempt-0",
+                        deliveryId: "turn-2-delivery-0"
+                    }
+                }
+            ]
+        });
+        expect(result.state.manager.currentPlanningAttempt).toBeUndefined();
+        expect(result.effect.events.map(({ type }) => type)).toContain("turn.planned");
+        expect(result.effect.events.map(({ type }) => type)).not.toContain("manager_plan.started");
+        expect(result.state.eventSeq).toBe(state.eventSeq + result.effect.events.length);
+    });
+
+    it("ends a completed turn from the committed running state", () => {
+        const state = meeting("running");
+        state.participants = [
+            {
+                id: "a",
+                displayName: "A",
+                status: "speaking",
+                consecutiveSpeeches: 0,
+                consecutiveAttemptFailures: 0,
+                totalSpeeches: 0,
+                lastDeliveredSeq: 0,
+                lastAcknowledgedSeq: 0
+            }
+        ];
+        state.currentTurn = {
+            id: "turn-1",
+            seq: 1,
+            agendaItemId: "agenda-1",
+            intent: "explore",
+            objective: "objective",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            plan: ["a"],
+            status: "running",
+            currentStepIndex: 0,
+            createdAt: now,
+            steps: [
+                {
+                    id: "step-0",
+                    speaker: "a",
+                    instruction: "A",
+                    reason: "manager_selected",
+                    status: "running",
+                    attempt: {
+                        attemptId: "attempt-0",
+                        participantId: "a",
+                        meetingId: "meeting-1",
+                        turnId: "turn-1",
+                        stepId: "step-0",
+                        deliveryId: "delivery-0",
+                        contextFromSeq: 0,
+                        contextThroughSeq: 0,
+                        taskSnapshots: [],
+                        assignedAt: now,
+                        status: "running",
+                        deliveryStatus: "pending"
+                    }
+                }
+            ]
+        };
+        const result = submitSpeakerAndAdvanceMeeting(state, "a", {
+            meetingId: "meeting-1",
+            participantId: "a",
+            turnId: "turn-1",
+            stepId: "step-0",
+            attemptId: "attempt-0",
+            deliveryId: "delivery-0",
+            agendaItemId: "agenda-1",
+            message: {
+                id: "message-1",
+                content: "answer",
+                kind: "statement",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic",
+                createdAt: now
+            },
+            now,
+            nextPlanningAttemptId: "planning-2",
+            nextPlanningDeliveryId: "planning-delivery-2"
+        });
+        expect(result.state.status).toBe("completed");
+        expect(result.effect.events).toContainEqual({
+            type: "meeting.ended",
+            payload: expect.objectContaining({ from: "running", to: "completed" })
+        });
+    });
+
+    it("submits a manager plan and starts only the first speaker", () => {
+        const state = {
+            ...meeting(),
+            selectionMode: "manager" as const,
+            activeAgendaItemId: "agenda-1",
+            agenda: [
+                {
+                    id: "agenda-1",
+                    title: "Agenda",
+                    objective: "Objective",
+                    inScope: [],
+                    outOfScope: [],
+                    completionCriteria: [],
+                    requiredParticipants: [],
+                    relatedTaskIds: [],
+                    status: "discussing" as const
+                }
+            ],
+            manager: {
+                promptVersion: "test",
+                status: "planning" as const,
+                currentPlanningAttempt: {
+                    id: "planning-1",
+                    meetingId: "meeting-1",
+                    observedMeetingVersion: 3,
+                    reason: "initial_plan" as const,
+                    deliveryId: "planning-delivery-1",
+                    status: "running" as const,
+                    createdAt: now
+                }
+            },
+            participants: [
+                {
+                    id: "a",
+                    displayName: "A",
+                    status: "available" as const,
+                    consecutiveSpeeches: 0,
+                    consecutiveAttemptFailures: 0,
+                    totalSpeeches: 0,
+                    lastDeliveredSeq: 0,
+                    lastAcknowledgedSeq: 0
+                },
+                {
+                    id: "c",
+                    displayName: "C",
+                    status: "available" as const,
+                    consecutiveSpeeches: 0,
+                    consecutiveAttemptFailures: 0,
+                    totalSpeeches: 0,
+                    lastDeliveredSeq: 0,
+                    lastAcknowledgedSeq: 0
+                },
+                {
+                    id: "b",
+                    displayName: "B",
+                    status: "available" as const,
+                    consecutiveSpeeches: 0,
+                    consecutiveAttemptFailures: 0,
+                    totalSpeeches: 0,
+                    lastDeliveredSeq: 0,
+                    lastAcknowledgedSeq: 0
+                }
+            ]
+        };
+        const result = submitManagerPlan(
+            state,
+            {
+                agendaItemId: "agenda-1",
+                intent: "explore",
+                objective: "Objective",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                steps: [
+                    { participantId: "a", instruction: "A", reason: "manager_selected" },
+                    { participantId: "c", instruction: "C", reason: "manager_selected" },
+                    { participantId: "b", instruction: "B", reason: "manager_selected" }
+                ]
+            },
+            {
+                meetingId: "meeting-1",
+                planningAttemptId: "planning-1",
+                deliveryId: "planning-delivery-1",
+                observedMeetingVersion: 3,
+                dispatchableParticipantIds: ["a", "c", "b"],
+                now
+            },
+            { turnId: "turn-1", stepId: (index) => `step-${index}` }
+        );
+        expect(result.state.currentTurn?.steps.map((step) => step.speaker)).toEqual([
+            "a",
+            "c",
+            "b"
+        ]);
+        expect(result.state.currentTurn?.steps.filter((step) => step.attempt).length).toBe(1);
+        expect(result.state.currentTurn?.steps[0]?.attempt?.deliveryStatus).toBe("pending");
+        expect(result.state.manager.currentPlanningAttempt).toBeUndefined();
+        expect(result.state.version).toBe(4);
+        expect(result.effect.events.every((item) => item.payload.meetingVersion === 4)).toBe(true);
+    });
+
+    it("waits without creating a turn when a required speaker is unavailable", () => {
+        const state = {
+            ...meeting(),
+            selectionMode: "manager" as const,
+            activeAgendaItemId: "agenda-1",
+            agenda: [
+                {
+                    id: "agenda-1",
+                    title: "Agenda",
+                    objective: "Objective",
+                    inScope: [],
+                    outOfScope: [],
+                    completionCriteria: [],
+                    requiredParticipants: ["a"],
+                    relatedTaskIds: [],
+                    status: "discussing" as const
+                }
+            ],
+            manager: {
+                promptVersion: "test",
+                status: "planning" as const,
+                currentPlanningAttempt: {
+                    id: "planning-1",
+                    meetingId: "meeting-1",
+                    observedMeetingVersion: 3,
+                    reason: "initial_plan" as const,
+                    deliveryId: "planning-delivery-1",
+                    status: "running" as const,
+                    createdAt: now
+                }
+            }
+        };
+        const result = submitManagerPlan(
+            state,
+            {
+                agendaItemId: "agenda-1",
+                intent: "explore",
+                objective: "Objective",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                steps: [{ participantId: "a", instruction: "A", reason: "manager_selected" }]
+            },
+            {
+                meetingId: "meeting-1",
+                planningAttemptId: "planning-1",
+                deliveryId: "planning-delivery-1",
+                observedMeetingVersion: 3,
+                dispatchableParticipantIds: [],
+                now
+            },
+            { turnId: "turn-1", stepId: (index) => `step-${index}` }
+        );
+        expect(result.state.status).toBe("waiting");
+        expect(result.state.currentTurn).toBeUndefined();
+        expect(result.state.manager.currentPlanningAttempt?.status).toBe("failed");
+        expect(result.state.waitState?.participantIds).toEqual(["a"]);
+        expect(result.effect.events.map((item) => item.type)).toEqual([
+            "manager_plan.failed",
+            "meeting.waiting"
+        ]);
+    });
+    it("starts one manager planning attempt after entering running", () => {
+        const state = {
+            ...meeting(),
+            selectionMode: "manager" as const,
+            agenda: [
+                {
+                    id: "agenda-1",
+                    title: "Agenda",
+                    objective: "Objective",
+                    inScope: [],
+                    outOfScope: [],
+                    completionCriteria: [],
+                    requiredParticipants: [],
+                    relatedTaskIds: [],
+                    status: "pending" as const
+                }
+            ]
+        };
+
+        const result = startManagerPlanning(state, {
+            meetingId: state.id,
+            planningAttemptId: "planning-1",
+            deliveryId: "delivery-1",
+            reason: "initial_plan",
+            now
+        });
+
+        expect(result.state.status).toBe("running");
+        expect(result.state.version).toBe(state.version + 1);
+        expect(result.state.currentTurn).toBeUndefined();
+        expect(result.state.manager.status).toBe("planning");
+        expect(result.state.manager.currentPlanningAttempt).toEqual({
+            id: "planning-1",
+            meetingId: state.id,
+            observedMeetingVersion: state.version + 1,
+            reason: "initial_plan",
+            deliveryId: "delivery-1",
+            status: "running",
+            createdAt: now
+        });
+        expect(result.effect.events.map((item) => item.type)).toEqual([
+            "meeting.started",
+            "manager_plan.started"
+        ]);
+    });
+
+    it("rejects round-robin meetings and duplicate planning state", () => {
+        expect(() =>
+            startManagerPlanning(meeting(), {
+                meetingId: "meeting-1",
+                planningAttemptId: "planning-1",
+                deliveryId: "delivery-1",
+                reason: "initial_plan",
+                now
+            })
+        ).toThrowError(expect.objectContaining({ code: "UNSUPPORTED_CAPABILITY" }));
+
+        const state = {
+            ...meeting(),
+            selectionMode: "manager" as const,
+            manager: {
+                ...meeting().manager,
+                currentPlanningAttempt: {
+                    id: "planning-existing",
+                    meetingId: "meeting-1",
+                    observedMeetingVersion: 3,
+                    reason: "initial_plan" as const,
+                    deliveryId: "delivery-existing",
+                    status: "running" as const,
+                    createdAt: now
+                }
+            }
+        };
+        expect(() =>
+            startManagerPlanning(state, {
+                meetingId: state.id,
+                planningAttemptId: "planning-1",
+                deliveryId: "delivery-1",
+                reason: "initial_plan",
+                now
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
     it("increments version and records the status change", () => {
         const result = transitionMeeting(meeting(), "running", { now });
 
@@ -522,7 +1048,7 @@ describe("meeting transitions", () => {
                 attemptId: "attempt-1",
                 speaker: "participant-1",
                 agendaItemId: "agenda-1",
-                agendaRelation: "active",
+                agendaRelation: "on_topic",
                 kind: "statement",
                 mentions: [],
                 taskIds: [],
@@ -861,6 +1387,7 @@ describe("turn, step and attempt transitions", () => {
                 kind: "statement",
                 mentions: [],
                 taskIds: [],
+                agendaRelation: "blocking_interrupt",
                 createdAt: now
             }
         });
@@ -878,7 +1405,8 @@ describe("turn, step and attempt transitions", () => {
                 stepId: "step-1",
                 attemptId: "attempt-1",
                 speaker: "participant-1",
-                agendaItemId: "agenda-1"
+                agendaItemId: "agenda-1",
+                agendaRelation: "blocking_interrupt"
             }
         ]);
         expect(result.state.participants[0].lastDeliveredSeq).toBe(5);
@@ -951,6 +1479,7 @@ describe("turn, step and attempt transitions", () => {
                 kind: "statement" as const,
                 mentions: [],
                 taskIds: [],
+                agendaRelation: "on_topic" as const,
                 createdAt: now
             }
         };

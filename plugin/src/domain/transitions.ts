@@ -1,4 +1,11 @@
 import { DomainError, invalidStateTransition } from "./errors.js";
+import { judgeTurnCompletion } from "./completion.js";
+import {
+    planManagerTurn,
+    planRoundRobinTurn,
+    type ManagerPlanIds,
+    type ManagerPlanInput
+} from "./planning.js";
 import type {
     AttemptStatus,
     AttemptTransitionContext,
@@ -19,6 +26,29 @@ import type {
     TransitionResult,
     TurnStatus
 } from "./model.js";
+
+export interface StartManagerPlanningContext {
+    meetingId: string;
+    planningAttemptId: string;
+    deliveryId: string;
+    reason: ManagerPlanningAttempt["reason"];
+    now: number;
+}
+
+export interface SubmitManagerPlanContext {
+    meetingId: string;
+    planningAttemptId: string;
+    deliveryId: string;
+    observedMeetingVersion: number;
+    dispatchableParticipantIds: readonly string[];
+    now: number;
+}
+
+export interface SubmitSpeakerAdvanceContext extends SpeakerSubmissionContext {
+    now: number;
+    nextPlanningAttemptId: string;
+    nextPlanningDeliveryId: string;
+}
 
 const meetingTransitions: Readonly<Record<MeetingStatus, readonly MeetingStatus[]>> = {
     created: ["running", "paused", "cancelled", "failed"],
@@ -760,6 +790,253 @@ export function transitionMeeting(
     };
 }
 
+export function startManagerPlanning(
+    state: MeetingState,
+    context: StartManagerPlanningContext
+): TransitionResult<MeetingState> {
+    if (context.meetingId !== state.id) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `planning context does not belong to meeting ${state.id}`,
+            { entityType: "meeting", entityId: state.id, meetingVersion: state.version }
+        );
+    }
+    if (state.selectionMode !== "manager") {
+        throw new DomainError(
+            "UNSUPPORTED_CAPABILITY",
+            `meeting ${state.id} does not use manager selection`,
+            { entityType: "meeting", entityId: state.id, meetingVersion: state.version }
+        );
+    }
+    if (state.currentTurn !== undefined || state.manager.currentPlanningAttempt !== undefined) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `meeting ${state.id} already has active execution state`,
+            { entityType: "meeting", entityId: state.id, meetingVersion: state.version }
+        );
+    }
+    if (state.status !== "created" && state.status !== "waiting") {
+        throw invalidStateTransition("meeting", state.id, state.status, "running", state.version);
+    }
+
+    const meeting = transitionMeeting(state, "running", {
+        now: context.now,
+        reason: context.reason
+    });
+    const planningAttempt: ManagerPlanningAttempt = {
+        id: context.planningAttemptId,
+        meetingId: state.id,
+        observedMeetingVersion: meeting.state.version,
+        reason: context.reason,
+        deliveryId: context.deliveryId,
+        status: "running",
+        createdAt: context.now
+    };
+    const nextState: MeetingState = {
+        ...meeting.state,
+        activeAgendaItemId: meeting.state.activeAgendaItemId ?? meeting.state.agenda[0]?.id,
+        agenda: meeting.state.agenda.map((item, index) =>
+            index === 0 && item.status === "pending"
+                ? { ...item, status: "discussing" as const }
+                : item
+        ),
+        manager: {
+            ...meeting.state.manager,
+            status: "planning",
+            currentPlanningAttempt: planningAttempt
+        }
+    };
+    return {
+        state: nextState,
+        effect: {
+            events: [
+                ...meeting.effect.events,
+                {
+                    type: "manager_plan.started",
+                    payload: {
+                        meetingId: state.id,
+                        planningAttemptId: planningAttempt.id,
+                        deliveryId: planningAttempt.deliveryId,
+                        reason: planningAttempt.reason,
+                        meetingVersion: nextState.version,
+                        observedMeetingVersion: planningAttempt.observedMeetingVersion
+                    }
+                }
+            ]
+        }
+    };
+}
+
+export function submitManagerPlan(
+    state: MeetingState,
+    input: ManagerPlanInput,
+    context: SubmitManagerPlanContext,
+    ids: ManagerPlanIds
+): TransitionResult<MeetingState> {
+    const planningAttempt = state.manager.currentPlanningAttempt;
+    if (
+        context.meetingId !== state.id ||
+        context.planningAttemptId !== planningAttempt?.id ||
+        context.deliveryId !== planningAttempt?.deliveryId ||
+        context.observedMeetingVersion !== state.version ||
+        planningAttempt?.observedMeetingVersion !== state.version ||
+        planningAttempt.status !== "running"
+    ) {
+        throw new DomainError(
+            "STALE_MANAGER_ATTEMPT",
+            `manager planning attempt is stale in meeting ${state.id}`,
+            {
+                entityType: "manager_attempt",
+                entityId: context.planningAttemptId,
+                meetingVersion: state.version
+            }
+        );
+    }
+    const activeAgenda = state.agenda.find((item) => item.id === state.activeAgendaItemId);
+    const dispatchable = new Set(context.dispatchableParticipantIds);
+    const unavailableRequired = (activeAgenda?.requiredParticipants ?? []).filter(
+        (participantId) => !dispatchable.has(participantId)
+    );
+    if (unavailableRequired.length > 0) {
+        const nextVersion = state.version + 1;
+        const nextState: MeetingState = {
+            ...state,
+            status: "waiting",
+            version: nextVersion,
+            updatedAt: context.now,
+            manager: {
+                ...state.manager,
+                status: "idle",
+                currentPlanningAttempt: { ...planningAttempt, status: "failed" }
+            },
+            waitState: {
+                reason: "required speaker unavailable",
+                taskIds: [],
+                participantIds: unavailableRequired,
+                resumeAgendaItemId: state.activeAgendaItemId
+            }
+        };
+        return {
+            state: nextState,
+            effect: {
+                events: [
+                    {
+                        type: "manager_plan.failed",
+                        payload: {
+                            meetingId: state.id,
+                            planningAttemptId: planningAttempt.id,
+                            from: planningAttempt.status,
+                            to: "failed",
+                            meetingVersion: nextVersion,
+                            reason: "required_speaker_unavailable"
+                        }
+                    },
+                    {
+                        type: "meeting.waiting",
+                        payload: {
+                            meetingId: state.id,
+                            from: state.status,
+                            to: "waiting",
+                            meetingVersion: nextVersion,
+                            reason: "required speaker unavailable"
+                        }
+                    }
+                ]
+            }
+        };
+    }
+
+    const selectedUnavailable = input.steps
+        .map((step) => step.participantId)
+        .filter((participantId) => !dispatchable.has(participantId));
+    if (selectedUnavailable.length > 0) {
+        throw new DomainError(
+            "MANAGER_PLAN_INVALID",
+            `manager plan selects unavailable participant ${selectedUnavailable[0]}`,
+            {
+                entityType: "manager_attempt",
+                entityId: planningAttempt.id,
+                meetingVersion: state.version
+            }
+        );
+    }
+    const planned = planManagerTurn(state, input, ids, context.now);
+    const submitted = transitionManagerAttempt(planningAttempt, "submitted", state.version, {
+        attemptId: context.planningAttemptId,
+        meetingId: context.meetingId,
+        deliveryId: context.deliveryId
+    });
+    const firstStep = planned.steps[0]!;
+    const firstAttempt = {
+        attemptId: `${planned.id}-attempt-0`,
+        participantId: firstStep.speaker,
+        meetingId: state.id,
+        turnId: planned.id,
+        stepId: firstStep.id,
+        deliveryId: `${planned.id}-delivery-0`,
+        contextFromSeq: 0,
+        contextThroughSeq: state.messageSeq,
+        taskSnapshots: [],
+        assignedAt: context.now,
+        status: "running" as const,
+        deliveryStatus: "pending" as const
+    };
+    const runningTurn: MeetingTurn = {
+        ...planned,
+        status: "running",
+        steps: planned.steps.map((step, index) =>
+            index === 0 ? { ...step, status: "running", attempt: firstAttempt } : step
+        )
+    };
+    const nextState: MeetingState = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: context.now,
+        manager: { ...state.manager, status: "idle", currentPlanningAttempt: undefined },
+        currentTurn: runningTurn,
+        turnSeq: runningTurn.seq,
+        participants: state.participants.map((participant) =>
+            participant.id === firstStep.speaker
+                ? { ...participant, status: "speaking" as const }
+                : participant
+        )
+    };
+    const meetingVersion = nextState.version;
+    return {
+        state: nextState,
+        effect: {
+            events: [
+                ...submitted.effect.events.map((item) => ({
+                    ...item,
+                    payload: { ...item.payload, meetingVersion }
+                })),
+                { type: "turn.planned", payload: { turnId: planned.id, meetingVersion } },
+                { type: "turn.started", payload: { turnId: planned.id, meetingVersion } },
+                {
+                    type: "speaker.assigned",
+                    payload: {
+                        meetingId: state.id,
+                        turnId: planned.id,
+                        stepId: firstStep.id,
+                        participantId: firstStep.speaker,
+                        attemptId: firstAttempt.attemptId,
+                        deliveryId: firstAttempt.deliveryId,
+                        meetingVersion
+                    }
+                },
+                {
+                    type: "speaker.started",
+                    payload: { stepId: firstStep.id, meetingVersion }
+                },
+                {
+                    type: "speaker_attempt.started",
+                    payload: { attemptId: firstAttempt.attemptId, meetingVersion }
+                }
+            ]
+        }
+    };
+}
+
 export function transitionTurn(
     turn: MeetingTurn,
     to: TurnStatus,
@@ -913,8 +1190,7 @@ export function submitSpeakerAttempt(
         stepId: step.id,
         attemptId: attempt.attemptId,
         speaker: participantId,
-        agendaItemId: turn.agendaItemId,
-        agendaRelation: "active" as const
+        agendaItemId: turn.agendaItemId
     };
     const events = [
         ...attemptResult.effect.events,
@@ -991,6 +1267,272 @@ export function submitSpeakerAttempt(
         },
         effect: { events }
     };
+}
+
+export function submitSpeakerAndAdvanceMeeting(
+    state: MeetingState,
+    participantId: string,
+    context: SubmitSpeakerAdvanceContext
+): TransitionResult<MeetingState> {
+    const submitted = submitSpeakerAttempt(state, participantId, state.version, context);
+    const version = submitted.state.version;
+    const turn = submitted.state.currentTurn;
+    if (turn === undefined) return submitted;
+
+    let nextState = submitted.state;
+    let events = submitted.effect.events.filter((item) => item.type !== "meeting.waiting");
+    const result = (): TransitionResult<MeetingState> => ({
+        state: { ...nextState, eventSeq: state.eventSeq + events.length },
+        effect: { events }
+    });
+    const nextStep = turn.steps[turn.currentStepIndex];
+    if (turn.status === "running" && nextStep !== undefined) {
+        const limitReached =
+            submitted.state.messageSeq >= submitted.state.limits.maxTotalMessages ||
+            (submitted.state.limits.maxDurationMs !== undefined &&
+                context.now - submitted.state.createdAt >= submitted.state.limits.maxDurationMs);
+        if (!limitReached) {
+            const attempt = {
+                attemptId: `${turn.id}-attempt-${turn.currentStepIndex}`,
+                participantId: nextStep.speaker,
+                meetingId: state.id,
+                turnId: turn.id,
+                stepId: nextStep.id,
+                deliveryId: `${turn.id}-delivery-${turn.currentStepIndex}`,
+                contextFromSeq: 0,
+                contextThroughSeq: submitted.state.messageSeq,
+                taskSnapshots: [],
+                assignedAt: context.now,
+                status: "running" as const,
+                deliveryStatus: "pending" as const
+            };
+            nextState = {
+                ...submitted.state,
+                currentTurn: {
+                    ...turn,
+                    steps: turn.steps.map((step, index) =>
+                        index === turn.currentStepIndex
+                            ? { ...step, status: "running" as const, attempt }
+                            : step
+                    )
+                },
+                participants: submitted.state.participants.map((participant) =>
+                    participant.id === nextStep.speaker
+                        ? { ...participant, status: "speaking" as const }
+                        : participant
+                )
+            };
+            events = [
+                ...events,
+                {
+                    type: "speaker.assigned",
+                    payload: {
+                        meetingId: state.id,
+                        turnId: turn.id,
+                        stepId: nextStep.id,
+                        participantId: nextStep.speaker,
+                        attemptId: attempt.attemptId,
+                        deliveryId: attempt.deliveryId,
+                        meetingVersion: version
+                    }
+                },
+                {
+                    type: "speaker.started",
+                    payload: { stepId: nextStep.id, meetingVersion: version }
+                },
+                {
+                    type: "speaker_attempt.started",
+                    payload: { attemptId: attempt.attemptId, meetingVersion: version }
+                }
+            ];
+            return result();
+        }
+
+        const skippedSteps = turn.steps.map((step, index) =>
+            index >= turn.currentStepIndex && step.status === "pending"
+                ? { ...step, status: "skipped" as const }
+                : step
+        );
+        nextState = {
+            ...submitted.state,
+            currentTurn: {
+                ...turn,
+                status: "truncated",
+                currentStepIndex: skippedSteps.length,
+                steps: skippedSteps,
+                completedAt: context.now
+            }
+        };
+        events = [
+            ...events,
+            ...skippedSteps.slice(turn.currentStepIndex).map((step) => ({
+                type: "speaker.skipped" as const,
+                payload: { stepId: step.id, meetingVersion: version }
+            })),
+            { type: "turn.truncated", payload: { turnId: turn.id, meetingVersion: version } }
+        ];
+    }
+
+    if (
+        nextState.currentTurn?.status !== "completed" &&
+        nextState.currentTurn?.status !== "truncated"
+    ) {
+        return result();
+    }
+    const judgment = judgeTurnCompletion(nextState, context.now);
+    if (judgment.kind === "completed" || judgment.kind === "partial") {
+        const terminalStatus = judgment.kind === "completed" ? "completed" : "partial";
+        const terminationCode = judgment.reason as
+            "objective_satisfied" | "max_turns" | "message_limit" | "time_limit";
+        nextState = {
+            ...nextState,
+            status: terminalStatus,
+            currentTurn: undefined,
+            termination: {
+                code: terminationCode,
+                reason: judgment.reason,
+                decisionIds: [],
+                unresolvedQuestionIds: nextState.openQuestions
+                    .filter(
+                        (question) => question.status === "open" || question.status === "deferred"
+                    )
+                    .map((question) => question.id),
+                dissentingPositionIds: [],
+                blockingAgendaItemIds: nextState.agenda
+                    .filter((item) => item.status === "blocked")
+                    .map((item) => item.id),
+                finalMessage: judgment.reason,
+                endedAt: context.now
+            },
+            waitState: undefined
+        };
+        events = [
+            ...events,
+            {
+                type: "meeting.ended",
+                payload: {
+                    meetingId: state.id,
+                    from: state.status,
+                    to: terminalStatus,
+                    meetingVersion: version,
+                    reason: judgment.reason
+                }
+            }
+        ];
+        return result();
+    }
+
+    if (nextState.selectionMode === "round_robin") {
+        const planned = planRoundRobinTurn(
+            { ...nextState, currentTurn: undefined },
+            {
+                turnId: `turn-${nextState.turnSeq + 1}`,
+                stepId: (_nextParticipantId, index) => `step-turn-${nextState.turnSeq + 1}-${index}`
+            },
+            context.now
+        );
+        const firstStep = planned.steps[0]!;
+        const firstAttempt: SpeakerAttempt = {
+            attemptId: `${planned.id}-attempt-0`,
+            participantId: firstStep.speaker,
+            meetingId: state.id,
+            turnId: planned.id,
+            stepId: firstStep.id,
+            deliveryId: `${planned.id}-delivery-0`,
+            contextFromSeq: 0,
+            contextThroughSeq: nextState.messageSeq,
+            taskSnapshots: [],
+            assignedAt: context.now,
+            status: "running",
+            deliveryStatus: "pending"
+        };
+        const runningTurn: MeetingTurn = {
+            ...planned,
+            status: "running",
+            steps: planned.steps.map((step, index) =>
+                index === 0 ? { ...step, status: "running", attempt: firstAttempt } : step
+            )
+        };
+        nextState = {
+            ...nextState,
+            currentTurn: runningTurn,
+            turnSeq: runningTurn.seq,
+            status: "running",
+            waitState: undefined,
+            manager: {
+                ...nextState.manager,
+                status: "idle",
+                currentPlanningAttempt: undefined
+            },
+            participants: nextState.participants.map((participant) =>
+                participant.id === firstStep.speaker
+                    ? { ...participant, status: "speaking" }
+                    : participant
+            )
+        };
+        events = [
+            ...events,
+            { type: "turn.planned", payload: { turnId: planned.id, meetingVersion: version } },
+            { type: "turn.started", payload: { turnId: planned.id, meetingVersion: version } },
+            {
+                type: "speaker.assigned",
+                payload: {
+                    meetingId: state.id,
+                    turnId: planned.id,
+                    stepId: firstStep.id,
+                    participantId: firstStep.speaker,
+                    attemptId: firstAttempt.attemptId,
+                    deliveryId: firstAttempt.deliveryId,
+                    meetingVersion: version
+                }
+            },
+            {
+                type: "speaker.started",
+                payload: { stepId: firstStep.id, meetingVersion: version }
+            },
+            {
+                type: "speaker_attempt.started",
+                payload: { attemptId: firstAttempt.attemptId, meetingVersion: version }
+            }
+        ];
+        return result();
+    }
+
+    const planningAttempt: ManagerPlanningAttempt = {
+        id: context.nextPlanningAttemptId,
+        meetingId: state.id,
+        observedMeetingVersion: version,
+        reason: "next_turn",
+        deliveryId: context.nextPlanningDeliveryId,
+        status: "running",
+        createdAt: context.now
+    };
+    nextState = {
+        ...nextState,
+        currentTurn: undefined,
+        status: "running",
+        waitState: undefined,
+        manager: {
+            ...nextState.manager,
+            status: "planning",
+            currentPlanningAttempt: planningAttempt
+        }
+    };
+    events = [
+        ...events,
+        {
+            type: "manager_plan.started",
+            payload: {
+                meetingId: state.id,
+                planningAttemptId: planningAttempt.id,
+                deliveryId: planningAttempt.deliveryId,
+                reason: planningAttempt.reason,
+                meetingVersion: version,
+                observedMeetingVersion: version
+            }
+        }
+    ];
+    return result();
 }
 
 export function transitionManagerAttempt(

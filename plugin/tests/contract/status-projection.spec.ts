@@ -17,7 +17,15 @@ const state = {
     decisions: [],
     issues: [],
     handRaises: [],
-    currentTurn: undefined
+    currentTurn: undefined,
+    manager: {
+        status: "planning",
+        currentPlanningAttempt: {
+            id: "planning-1",
+            deliveryId: "delivery-1"
+        }
+    },
+    outbox: { leaseToken: "secret" }
 } as unknown as MeetingState;
 
 describe("meeting status projection", () => {
@@ -37,5 +45,21 @@ describe("meeting status projection", () => {
         expect(JSON.stringify(projected)).not.toContain("session-1");
         expect(JSON.stringify(projected)).not.toContain("capability");
         expect(JSON.stringify(projected)).not.toContain("prompt");
+        expect(projected).not.toHaveProperty("currentTurn");
+        expect(projected).not.toHaveProperty("currentSpeakerId");
+        expect(JSON.stringify(projected)).not.toContain("planning-1");
+        expect(JSON.stringify(projected)).not.toContain("leaseToken");
+    });
+
+    it("keeps pause available while an active meeting is waiting", () => {
+        const projected = projectMeetingStatus({ ...state, status: "waiting" } as MeetingState, {
+            kind: "captain",
+            sessionId: "captain-1"
+        });
+
+        expect(projected).toMatchObject({
+            status: "waiting",
+            pauseControl: { action: "pause" }
+        });
     });
 });
