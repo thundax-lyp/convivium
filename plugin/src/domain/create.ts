@@ -194,6 +194,7 @@ export function createMeetingState(
         decisions: [],
         openQuestions: [],
         handRaises: [],
+        meetingTasks: [],
         completionFacts: [],
         artifactRefs: [],
         continuationMaterials: [],

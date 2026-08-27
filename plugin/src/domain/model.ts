@@ -54,7 +54,12 @@ export const DomainEventTypes = [
     "manager_plan.failed",
     "message.added",
     "hand_raise.created",
-    "background_task.linked",
+    "meeting_task.created",
+    "meeting_task.queued",
+    "meeting_task.started",
+    "meeting_task.completed",
+    "meeting_task.failed",
+    "meeting_task.cancelled",
     "decision.added",
     "archive.sessions_closed"
 ] as const;
@@ -167,11 +172,31 @@ export interface SpeakerAttempt {
 }
 
 export interface MeetingTaskSnapshot {
-    taskId: string;
-    taskAttemptId?: string;
-    status: "pending" | "running" | "completed" | "failed" | "cancelled" | "unknown";
-    output?: string;
+    meetingTaskId: string;
+    status: MeetingTaskStatus;
+    resultSummary?: string;
     observedAt: number;
+}
+
+export type MeetingTaskStatus =
+    "requested" | "queued" | "running" | "completed" | "failed" | "cancelled";
+
+export interface MeetingTask {
+    meetingTaskId: string;
+    participantId: string;
+    originatingSpeakerAttemptId: string;
+    executionId: string;
+    deliveryId: string;
+    title: string;
+    description: string;
+    blocking: boolean;
+    status: MeetingTaskStatus;
+    createdAt: number;
+    resultSummary?: string;
+    failureReason?: string;
+    queuedAt?: number;
+    startedAt?: number;
+    finishedAt?: number;
 }
 
 export interface AgendaCandidate {
@@ -298,7 +323,7 @@ export interface MeetingQuestion {
 export interface MeetingHandRaise {
     id: string;
     participant: string;
-    status: "pending" | "accepted" | "deferred" | "withdrawn" | "consumed" | "rejected";
+    status: "pending" | "accepted" | "deferred" | "consumed" | "rejected";
 }
 
 export interface CompletionFact {
@@ -561,6 +586,7 @@ export interface MeetingState {
     decisions: MeetingDecision[];
     openQuestions: MeetingQuestion[];
     handRaises: MeetingHandRaise[];
+    meetingTasks: MeetingTask[];
     completionFacts: CompletionFact[];
     artifactRefs: ArchiveArtifactRef[];
     continuationMaterials: ContinuationMaterial[];

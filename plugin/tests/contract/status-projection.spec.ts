@@ -17,6 +17,7 @@ const state = {
     decisions: [],
     issues: [],
     handRaises: [],
+    meetingTasks: [],
     currentTurn: undefined,
     manager: {
         status: "planning",
