@@ -1,4 +1,13 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { endMeeting, type MeetingState } from "../../src/domain/index.js";
+import {
+    MeetingRepository,
+    type JsonObject,
+    type RepositoryCommand
+} from "../../src/repository/index.js";
 import {
     pauseMeetingRuntime,
     rebindCaptainParent,
@@ -82,5 +91,147 @@ describe("recovery controls", () => {
                 signal: new AbortController().signal
             })
         ).rejects.toThrow(/exact persisted parent/);
+    });
+
+    it("reopens the same complete terminal snapshot and receipt from SQLite", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-completion-recovery-"));
+        const databasePath = join(root, "meeting.sqlite");
+        const authorization = {
+            callerBinding: "session:captain-1",
+            capabilityId: "captain:captain-1"
+        };
+        const validator = {
+            validateCreate: () => undefined,
+            validateCommand: () => undefined
+        };
+        const initialState = {
+            id: "meeting-1",
+            teamId: "team-1",
+            status: "converging",
+            participants: [],
+            manager: { promptVersion: "test", status: "idle" },
+            agenda: [],
+            topic: "Topic",
+            objective: "Objective",
+            objectiveContract: {
+                requiredOutputs: [],
+                acceptanceCriteria: [],
+                hardConstraints: [],
+                requiredReviewers: [],
+                riskAcceptanceAuthority: [],
+                acceptableRiskLevel: "low"
+            },
+            issues: [],
+            agendaCandidates: [],
+            transcript: [],
+            proposals: [],
+            decisions: [],
+            openQuestions: [],
+            handRaises: [],
+            completionFacts: [],
+            artifactRefs: [],
+            continuationMaterials: [],
+            turnSeq: 1,
+            messageSeq: 1,
+            eventSeq: 1,
+            stallCount: 0,
+            replanCount: 0,
+            selectionMode: "round_robin",
+            limits: {
+                maxTurns: 10,
+                maxSpeakersPerTurn: 5,
+                maxTotalMessages: 100,
+                maxConsecutiveSpeechesPerSpeaker: 2,
+                maxConsecutiveAttemptFailuresPerParticipant: 3,
+                maxDeliveryRetries: 5,
+                maxStalls: 3,
+                maxReplans: 1
+            },
+            version: 1,
+            createdAt: 10,
+            updatedAt: 20
+        } as MeetingState;
+        const command: RepositoryCommand<{ status: string; terminationCode: string }> = {
+            requestId: "end-1",
+            commandKind: "end_meeting",
+            authorization,
+            requestHash: "end-hash",
+            expectedMeetingVersion: 0,
+            transition: (snapshot) => {
+                const transition = endMeeting(snapshot.state as unknown as MeetingState, {
+                    meetingId: "meeting-1",
+                    captainBinding: "captain:captain-1",
+                    outcome: "completed",
+                    reason: "Objective satisfied",
+                    acceptedDecisionIds: [],
+                    deferredAgendaItemIds: [],
+                    waivers: [],
+                    now: 30,
+                    factId: (index) => `waiver-${index}`
+                });
+                return {
+                    state: transition.state as unknown as JsonObject,
+                    result: {
+                        status: transition.state.status,
+                        terminationCode: transition.state.termination!.code
+                    },
+                    events: transition.effect.events as never,
+                    outbox: []
+                };
+            }
+        };
+        let first: MeetingRepository | undefined;
+        let reopened: MeetingRepository | undefined;
+
+        try {
+            first = await MeetingRepository.open({
+                databasePath,
+                teamId: "team-1",
+                meetingId: "meeting-1",
+                authorizationValidator: validator
+            });
+            await first.create({
+                requestId: "create-1",
+                authorization,
+                requestHash: "create-hash",
+                initialState: initialState as unknown as JsonObject,
+                createdAt: 10
+            });
+            await first.completeCreate({
+                requestId: "create-1",
+                authorization,
+                requestHash: "create-hash",
+                initialState: initialState as unknown as JsonObject,
+                createdAt: 10
+            });
+            const ended = await first.execute(command);
+            await first.close();
+
+            reopened = await MeetingRepository.open({
+                databasePath,
+                teamId: "team-1",
+                meetingId: "meeting-1",
+                authorizationValidator: validator
+            });
+            const recovered = await reopened.recover({ now: 40 });
+            expect(recovered.snapshot).toMatchObject({
+                version: 1,
+                state: {
+                    status: "completed",
+                    termination: {
+                        code: "objective_satisfied",
+                        reason: "Objective satisfied",
+                        endedAt: 30
+                    }
+                }
+            });
+            await expect(reopened.execute(command)).resolves.toEqual(ended);
+            expect((await reopened.read()).version).toBe(1);
+            await reopened.close();
+        } finally {
+            await reopened?.close();
+            await first?.close();
+            await rm(root, { recursive: true, force: true });
+        }
     });
 });

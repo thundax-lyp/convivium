@@ -11,6 +11,7 @@ import {
 } from "../dsh/index.js";
 import {
     planRoundRobinTurn,
+    endMeeting as endMeetingTransition,
     startManagerPlanning,
     submitManagerPlan as submitManagerPlanTransition,
     submitSpeakerAndAdvanceMeeting,
@@ -26,12 +27,16 @@ import {
     type JsonObject,
     type MeetingCreationRuntimeDependencies,
     type MeetingRepositoryRuntime,
-    type RepositoryAuthorizationValidator
+    type RepositoryAuthorizationValidator,
+    rejectUnsupportedTaskEvidence,
+    type AuthorizedTaskEvidenceResolver
 } from "../runtime/index.js";
 import { projectManagerMeetingContext, projectMeetingStatus } from "../projection/index.js";
 import type {
     CreateMeetingInputV1,
     CreateMeetingResultV1,
+    EndMeetingInputV1,
+    EndMeetingResultV1,
     MeetingStatusInputV1,
     MeetingStatusResultV1,
     ManagerPlanResultV1,
@@ -56,6 +61,7 @@ export interface CreateStatusRuntimeOptions {
     readonly outboxPollMs?: number;
     readonly signal?: AbortSignal;
     readonly now?: () => number;
+    readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
 }
 
 interface ClaimedOutboxItem {
@@ -155,13 +161,24 @@ function commandError(
     };
 }
 
-function hasUnsupportedClaims(input: { changes: object; completionClaims?: object }): boolean {
-    return (
-        Object.values(input.changes as Record<string, unknown>).some(
-            (value) => Array.isArray(value) && value.length > 0
-        ) ||
-        (input.completionClaims !== undefined && Object.keys(input.completionClaims).length > 0)
+function hasUnsupportedChanges(input: { changes: object }): boolean {
+    return Object.values(input.changes as Record<string, unknown>).some(
+        (value) => Array.isArray(value) && value.length > 0
     );
+}
+
+function completionTaskIds(input: {
+    completionClaims?: {
+        outputClaims?: readonly { taskIds: readonly string[] }[];
+        criterionClaims?: readonly { taskIds: readonly string[] }[];
+    };
+}): string[] {
+    return [
+        ...(input.completionClaims?.outputClaims ?? []),
+        ...(input.completionClaims?.criterionClaims ?? [])
+    ]
+        .flatMap((claim) => claim.taskIds)
+        .filter((taskId, index, all) => all.indexOf(taskId) === index);
 }
 
 export function createCreateStatusRuntime(
@@ -174,6 +191,7 @@ export function createCreateStatusRuntime(
         options.signal === undefined
             ? runtimeController.signal
             : AbortSignal.any([options.signal, runtimeController.signal]);
+    const taskEvidenceResolver = options.taskEvidenceResolver ?? rejectUnsupportedTaskEvidence;
 
     async function rehydrate() {
         const teams = await readdir(options.dataRoot, { withFileTypes: true }).catch(() => []);
@@ -640,7 +658,7 @@ export function createCreateStatusRuntime(
             ) {
                 return failure("UNAUTHORIZED_CALLER", "Only the matching Participant can submit.");
             }
-            if (hasUnsupportedClaims(input)) {
+            if (hasUnsupportedChanges(input)) {
                 return failure(
                     "UNSUPPORTED_CAPABILITY",
                     "Structured claims are outside this runtime slice."
@@ -670,6 +688,16 @@ export function createCreateStatusRuntime(
                     expectedMeetingVersion: current.version,
                     transition: (snapshot) => {
                         const state = snapshot.state as unknown as MeetingState;
+                        const now = options.now?.() ?? Date.now();
+                        const taskEvidence =
+                            input.completionClaims === undefined
+                                ? []
+                                : taskEvidenceResolver.resolve({
+                                      state,
+                                      meetingId: input.meetingId,
+                                      participantId: caller.participantId!,
+                                      taskIds: completionTaskIds(input)
+                                  });
                         const transition = submitSpeakerAndAdvanceMeeting(
                             state,
                             caller.participantId!,
@@ -691,11 +719,23 @@ export function createCreateStatusRuntime(
                                         : { replyTo: input.replyTo }),
                                     taskIds: input.taskIds,
                                     agendaRelation: input.agendaRelation,
-                                    createdAt: Date.now()
+                                    createdAt: now
                                 },
-                                now: options.now?.() ?? Date.now(),
+                                now,
                                 nextPlanningAttemptId: `${state.id}-planning-${state.turnSeq + 1}`,
-                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.turnSeq + 1}`
+                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.turnSeq + 1}`,
+                                ...(input.completionClaims === undefined
+                                    ? {}
+                                    : {
+                                          completion: {
+                                              claims: input.completionClaims,
+                                              authorizedTaskIds: taskEvidence.map(
+                                                  (evidence) => evidence.taskId
+                                              ),
+                                              factId: (kind: string, index: number) =>
+                                                  `completion-${input.deliveryId}-${kind}-${index}`
+                                          }
+                                      })
                             }
                         );
                         const nextStep =
@@ -757,14 +797,20 @@ export function createCreateStatusRuntime(
                     committed.result as TurnSubmissionResultV1
                 );
             } catch (error) {
-                return commandError(error, "STALE_ATTEMPT", "The speaker attempt is stale.", {
-                    meetingId: input.meetingId,
-                    turnId: input.turnId,
-                    stepId: input.stepId,
-                    attemptId: input.attemptId,
-                    deliveryId: input.deliveryId,
-                    participantId: caller.participantId
-                });
+                return commandError(
+                    error,
+                    "STALE_ATTEMPT",
+                    "The speaker attempt is stale.",
+                    {
+                        meetingId: input.meetingId,
+                        turnId: input.turnId,
+                        stepId: input.stepId,
+                        attemptId: input.attemptId,
+                        deliveryId: input.deliveryId,
+                        participantId: caller.participantId
+                    },
+                    { INVALID_ENTITY_STATE: "INVALID_ARGUMENT" }
+                );
             }
         },
         async submitManagerPlan(input: ManagerPlanSubmissionV1, caller, _commandSignal) {
@@ -904,6 +950,75 @@ export function createCreateStatusRuntime(
             )
                 return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can resume it.");
             return transitionMeetingStatus(input, caller, "running");
+        },
+        async endMeeting(input: EndMeetingInputV1, caller) {
+            await rehydrate();
+            const stored = meetings.get(input.meetingId);
+            if (
+                stored === undefined ||
+                caller.kind !== "captain" ||
+                caller.sessionId !== stored.captainSessionId ||
+                (caller.meetingId !== undefined && caller.meetingId !== input.meetingId)
+            ) {
+                return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can end it.");
+            }
+            try {
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "end_meeting",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `captain:${caller.sessionId}`
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: input.expectedMeetingVersion,
+                    transition: (snapshot) => {
+                        const transition = endMeetingTransition(
+                            snapshot.state as unknown as MeetingState,
+                            {
+                                meetingId: input.meetingId,
+                                captainBinding: `captain:${caller.sessionId}`,
+                                outcome: input.outcome,
+                                reason: input.reason,
+                                acceptedDecisionIds: input.acceptedDecisionIds,
+                                deferredAgendaItemIds: input.deferredAgendaItemIds,
+                                waivers: input.waivers,
+                                now: options.now?.() ?? Date.now(),
+                                factId: (index) => `completion-${input.requestId}-waiver-${index}`
+                            }
+                        );
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: {
+                                status: transition.state.status,
+                                terminationCode: transition.state.termination!.code
+                            },
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox: []
+                        };
+                    }
+                });
+                workers.get(input.meetingId)?.wake();
+                return success<EndMeetingResultV1>(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as EndMeetingResultV1
+                );
+            } catch (error) {
+                return commandError(
+                    error,
+                    "INVALID_ARGUMENT",
+                    error instanceof Error ? error.message : "The meeting could not be ended.",
+                    {
+                        meetingId: input.meetingId,
+                        meetingVersion: input.expectedMeetingVersion
+                    },
+                    {
+                        INVALID_ENTITY_STATE: "INVALID_ARGUMENT",
+                        INVALID_STATE_TRANSITION: "INVALID_ARGUMENT"
+                    }
+                );
+            }
         },
 
         async findBySessionId(sessionId, lookupSignal) {

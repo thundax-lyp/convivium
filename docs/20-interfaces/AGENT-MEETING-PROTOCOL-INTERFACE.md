@@ -829,6 +829,13 @@ interface PublicTerminationV1 {
   unresolvedQuestionIds: readonly string[]
 }
 
+interface PublicExecutionTerminationV1 extends PublicTerminationV1 {
+  dissentingPositionIds: readonly string[]
+  blockingAgendaItemIds: readonly string[]
+  finalMessage: string
+  endedAt: number
+}
+
 interface MeetingStatusBaseV1 {
   meetingId: string
   meetingVersion: number
@@ -870,7 +877,8 @@ interface ExecutionTerminalMeetingStatusResultV1 extends DiscussionMeetingStatus
   currentSpeakerId?: never
   pendingHandRaises: readonly []
   pauseControl: { action: 'none' }
-  termination: PublicTerminationV1
+  termination: PublicExecutionTerminationV1
+  completionFactIds: readonly string[]
   archive?: never
 }
 
@@ -1120,6 +1128,7 @@ type MeetingProtocolErrorCodeV1 =
   | 'INVALID_STATE_TRANSITION'
   | 'STALE_ATTEMPT'
   | 'STALE_MANAGER_ATTEMPT'
+  | 'VERSION_CONFLICT'
   | 'IDEMPOTENCY_CONFLICT'
   | 'IMMUTABLE_MEETING'
   | 'ARCHIVED_MEETING'
@@ -1134,6 +1143,8 @@ type MeetingProtocolErrorCodeV1 =
 ```
 
 `UNSUPPORTED_CAPABILITY` 表示输入在完整协议中合法，但当前已声明的插件运行范围尚未提供对应 capability，例如只启用 `round_robin` 的竖切收到 `manager` selection mode。该错误必须是 `retryable: false`，且在任何目录、bootstrap、Session、Meeting state、event、receipt 或 outbox 副作用前返回。实现缺陷、provider/SQLite 故障和未知异常仍使用 `INTERNAL_ERROR`，不得用它伪装明确的范围限制。
+
+`VERSION_CONFLICT` 表示 command 的 expected Meeting version 已过期，必须是 `retryable: true`，且不得写入 state、event、receipt 或 outbox。
 
 ### Permission matrix
 

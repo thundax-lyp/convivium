@@ -1,5 +1,6 @@
 import type { MeetingState } from "../domain/model.js";
 import type {
+    ExecutionTerminalMeetingStatusResultV1,
     ManagerMeetingContextV1,
     MeetingStatusResultV1,
     PublicAgendaItemV1,
@@ -75,6 +76,27 @@ function termination(state: MeetingState) {
         decisionIds: state.termination.decisionIds,
         unresolvedQuestionIds: state.termination.unresolvedQuestionIds
     };
+}
+
+function executionTermination(
+    state: MeetingState
+): ExecutionTerminalMeetingStatusResultV1["termination"] {
+    if (state.termination === undefined) {
+        throw new TypeError("terminal MeetingState must include termination");
+    }
+    return {
+        ...termination(state),
+        dissentingPositionIds: state.termination.dissentingPositionIds,
+        blockingAgendaItemIds: state.termination.blockingAgendaItemIds,
+        finalMessage: state.termination.finalMessage,
+        endedAt: state.termination.endedAt
+    };
+}
+
+function isExecutionTerminalStatus(
+    status: MeetingState["status"]
+): status is ExecutionTerminalMeetingStatusResultV1["status"] {
+    return ["completed", "partial", "no_consensus", "cancelled", "failed"].includes(status);
 }
 
 /**
@@ -179,14 +201,18 @@ export function projectMeetingStatus(
             }))
     };
 
-    if (["completed", "partial", "no_consensus", "cancelled", "failed"].includes(state.status)) {
-        return {
+    if (isExecutionTerminalStatus(state.status)) {
+        const terminal: ExecutionTerminalMeetingStatusResultV1 = {
             ...discussion,
             status: state.status,
             pendingHandRaises: [],
             pauseControl: { action: "none" },
-            termination: termination(state)
-        } as MeetingStatusResultV1;
+            termination: executionTermination(state),
+            completionFactIds: state.completionFacts
+                .filter((fact) => fact.status === "active")
+                .map((fact) => fact.id)
+        };
+        return terminal;
     }
 
     const currentTurn = state.currentTurn === undefined ? undefined : turn(state.currentTurn);

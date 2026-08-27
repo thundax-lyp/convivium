@@ -536,6 +536,13 @@ export interface PublicTerminationV1 {
     unresolvedQuestionIds: readonly string[];
 }
 
+export interface PublicExecutionTerminationV1 extends PublicTerminationV1 {
+    dissentingPositionIds: readonly string[];
+    blockingAgendaItemIds: readonly string[];
+    finalMessage: string;
+    endedAt: number;
+}
+
 export interface MeetingStatusBaseV1 {
     meetingId: string;
     meetingVersion: number;
@@ -577,7 +584,8 @@ export interface ExecutionTerminalMeetingStatusResultV1 extends DiscussionMeetin
     currentSpeakerId?: never;
     pendingHandRaises: readonly [];
     pauseControl: { action: "none" };
-    termination: PublicTerminationV1;
+    termination: PublicExecutionTerminationV1;
+    completionFactIds: readonly string[];
     archive?: never;
 }
 
@@ -743,6 +751,7 @@ export type KnownMeetingProtocolErrorCodeV1 =
     | "INVALID_STATE_TRANSITION"
     | "STALE_ATTEMPT"
     | "STALE_MANAGER_ATTEMPT"
+    | "VERSION_CONFLICT"
     | "IDEMPOTENCY_CONFLICT"
     | "IMMUTABLE_MEETING"
     | "ARCHIVED_MEETING"
