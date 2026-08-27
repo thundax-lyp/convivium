@@ -34,6 +34,13 @@ describe("meeting tool registration", () => {
                     message: "not exercised",
                     retryable: false
                 }),
+                submitManagerPlan: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                }),
                 pause: async () => ({
                     protocolVersion: 1,
                     ok: false,
@@ -75,6 +82,13 @@ describe("meeting tool registration", () => {
                     message: "not exercised",
                     retryable: false
                 }),
+                submitManagerPlan: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                }),
                 pause: async () => ({
                     protocolVersion: 1,
                     ok: false,
@@ -95,6 +109,7 @@ describe("meeting tool registration", () => {
         expect(definitions.map((definition) => definition.name)).toEqual([
             "convivium_create_meeting",
             "convivium_meeting_status",
+            "convivium_submit_manager_plan",
             "convivium_submit_turn",
             "convivium_pause_meeting",
             "convivium_resume_meeting"
@@ -126,6 +141,13 @@ describe("meeting tool registration", () => {
                     retryable: false
                 }),
                 submitTurn: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
+                }),
+                submitManagerPlan: async () => ({
                     protocolVersion: 1,
                     ok: false,
                     code: "UNSUPPORTED_CAPABILITY",
@@ -178,6 +200,10 @@ describe("meeting tool registration", () => {
                     throw new Error("must not run");
                 },
                 submitTurn: async () => {
+                    runtimeCalls += 1;
+                    throw new Error("must not run");
+                },
+                submitManagerPlan: async () => {
                     runtimeCalls += 1;
                     throw new Error("must not run");
                 },
@@ -242,6 +268,10 @@ describe("meeting tool registration", () => {
                     calls.push(`submit:${caller.kind}`),
                     denied()
                 ),
+                submitManagerPlan: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`manager-plan:${caller.kind}`),
+                    denied()
+                ),
                 pause: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`pause:${caller.kind}`),
                     denied()
@@ -289,6 +319,25 @@ describe("meeting tool registration", () => {
                 agendaRelation: "on_topic",
                 changes: {}
             },
+            convivium_submit_manager_plan: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                planningAttemptId: "planning-1",
+                observedMeetingVersion: 1,
+                requestId: "request-1",
+                agendaItemId: "agenda-1",
+                intent: "review",
+                objective: "Review scope",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                steps: [
+                    {
+                        participantId: "participant-1",
+                        instruction: "Review scope",
+                        reason: "required_reviewer"
+                    }
+                ]
+            },
             convivium_pause_meeting: {
                 protocolVersion: 1,
                 meetingId: "meeting-1",
@@ -315,6 +364,7 @@ describe("meeting tool registration", () => {
         expect(calls).toEqual([
             "create:participant",
             "status:participant",
+            "manager-plan:participant",
             "submit:participant",
             "pause:participant",
             "resume:participant"

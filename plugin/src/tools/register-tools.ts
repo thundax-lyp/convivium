@@ -11,6 +11,8 @@ import type {
     MeetingStatusInputV1,
     MeetingStatusResultV1,
     MeetingControlResultV1,
+    ManagerPlanResultV1,
+    ManagerPlanSubmissionV1,
     PauseMeetingInputV1,
     ProtocolErrorV1,
     ProtocolSuccessV1,
@@ -23,6 +25,7 @@ import {
     MeetingStatusInputSchema,
     PauseMeetingInputSchema,
     ResumeMeetingInputSchema,
+    ManagerPlanSubmissionSchema,
     TurnSubmissionSchema,
     validateProtocolError
 } from "../protocol/index.js";
@@ -55,6 +58,11 @@ export interface MeetingToolRuntime {
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<TurnSubmissionResultV1> | ProtocolErrorV1>;
+    submitManagerPlan(
+        input: ManagerPlanSubmissionV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ManagerPlanResultV1> | ProtocolErrorV1>;
     pause(
         input: PauseMeetingInputV1,
         caller: MeetingToolCaller,
@@ -198,6 +206,30 @@ export function registerSubmitAndControlTools(
     dependencies: SubmitAndControlToolDependencies
 ): readonly (() => void)[] {
     return [
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_submit_manager_plan",
+                description:
+                    "Submit one ordered Manager turn plan only from the current meeting Manager Session.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                ManagerPlanSubmissionSchema(
+                                    value as never
+                                ) as ManagerPlanSubmissionV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.submitManagerPlan.bind(
+                                dependencies.runtime
+                            ),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
         dependencies.registry.register(
             defineTool({
                 name: "convivium_submit_turn",

@@ -552,6 +552,12 @@ export function createCreateStatusRuntime(
                 });
             }
         },
+        async submitManagerPlan() {
+            return failure(
+                "UNSUPPORTED_CAPABILITY",
+                "Manager planning is not wired into the runtime yet."
+            );
+        },
         async pause(input, caller) {
             await rehydrate();
             const stored = meetings.get(input.meetingId);

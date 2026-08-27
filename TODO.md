@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/tools/register-tools.ts`：注册 `convivium_submit_manager_plan`
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 5.2、6.3、9.1。
-  - 确认依据：2026-08-27 用户确认 Manager planning 与 Turn 生命周期闭环。
-  - 处理动作：扩展 `MeetingToolRuntime` 并注册 Manager plan tool，沿用 DSH caller resolver 和统一协议错误输出。
-  - 验收点：`plugin/tests/contract/tool-registration.spec.ts` 证明 tool 已注册、Schema 生效并将 DSH resolver 得到的 caller 原样交给 Runtime；caller 权限由 Runtime 测试覆盖。
-
 - [ ] `plugin/src/domain/planning.ts`：实现 Manager plan 结构校验与 Turn 转换
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 5.3、6.3、7.1。
   - 确认依据：2026-08-27 用户确认 Manager 可提交非 `round_robin` 的受控有序计划。
