@@ -1,6 +1,6 @@
 # MeetingTask 方案取证（历史：DSH TeamTask 不可用）
 
-> 本文保留 2026-08-27 对 DSH Agent Teams/TeamTask 的取证结果，作为 MeetingTask 方案的历史依据，不再作为当前实现 blocker。当前实现依据是 `RUNBOOK-MEETINGTASK-HAND-RAISE.md`。
+> 本文保留 2026-08-27 对 DSH Agent Teams/TeamTask 的取证结果，作为 MeetingTask 方案的历史依据，不再作为当前实现 blocker。当前实现依据是正式需求、接口和领域设计文档。
 
 ## Scope
 
@@ -83,6 +83,6 @@ DSH 官方仓库 `master` 中存在 experimental Agent Teams：
 
 结论：旧 DSH TeamTask 路径为 `UNSUPPORTED_CAPABILITY`；该结论保留为历史取证，不适用于当前 MeetingTask 方案。
 
-旧 `B-01` 取证曾触发停止条件。当前不再执行旧 TeamTask `B-02` 至 `B-07`，改按 `RUNBOOK-MEETINGTASK-HAND-RAISE.md` 的 `B-00` 至 `B-06` 执行。
+旧 `B-01` 取证曾触发停止条件。当前不再执行旧 TeamTask `B-02` 至 `B-07`；MeetingTask 已按正式需求和接口完成实现与验证。
 
 MeetingTask 不依赖可安装的 DSH TeamTask service、外部 association 或跨系统 create correlation；其 canonical state、幂等、恢复和结果投影由 Convivium MeetingState 与既有 DSH Participant continuable Session 边界负责。

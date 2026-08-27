@@ -10,10 +10,5 @@
 
 ## 待审阅任务项
 
-- [ ] `B-06 / MeetingTask 验证与收口`：完成真实 DSH 运行证据和临时文档迁移
-    - 依据文档：`docs/30-designs/RUNBOOK-MEETINGTASK-HAND-RAISE.md` 第 10 至 13 节；`docs/00-governance/TODO-RULES.md`
-    - 确认依据：`B-05` 完成并单独提交后执行
-    - 处理动作：运行完整插件验证与独立 DSH profile smoke，证明 Participant continuable Session FIFO、submit-release、task execute、finish+raise、两种 planning、pause/waiting/end race 和恢复；记录 readiness，迁移长期结论并删除临时 RUNBOOK 和已完成 TODO。
-    - 验收点：RUNBOOK 验证矩阵均有自动化或真实运行证据；若无法证明同一 Participant Session FIFO，则按停止条件记录 blocker且不引入 execution lease；失败项、Not Covered、环境、commit 和清理结果完整。
 
 ## 待讨论项
