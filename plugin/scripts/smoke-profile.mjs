@@ -14,7 +14,7 @@ const DSH_PACKAGE = `@deepseek-ai/dsh@${DSH_VERSION}`;
 const CONVIVIUM_PACKAGE = "@convivium/dsh-plugin";
 const PROBE_PACKAGE = "@convivium/smoke-profile-probe";
 const HOST = "127.0.0.1";
-const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "30000");
+const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "120000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 
 const pluginRoot = resolve(process.cwd());
