@@ -1,5 +1,6 @@
 import { DomainError, invalidStateTransition } from "./errors.js";
 import { judgeTurnCompletion } from "./completion.js";
+import { cancelNonTerminalMeetingTasks, queueMeetingTasks } from "./meeting-task.js";
 import {
     planManagerTurn,
     planRoundRobinTurn,
@@ -1274,7 +1275,14 @@ export function submitSpeakerAndAdvanceMeeting(
     participantId: string,
     context: SubmitSpeakerAdvanceContext
 ): TransitionResult<MeetingState> {
-    const submitted = submitSpeakerAttempt(state, participantId, state.version, context);
+    const submittedAttempt = submitSpeakerAttempt(state, participantId, state.version, context);
+    const queued = context.message.taskIds.length
+        ? queueMeetingTasks(submittedAttempt.state, context.message.taskIds, context.now)
+        : { state: submittedAttempt.state, effect: { events: [] } };
+    const submitted: TransitionResult<MeetingState> = {
+        state: queued.state,
+        effect: { events: [...submittedAttempt.effect.events, ...queued.effect.events] }
+    };
     const version = submitted.state.version;
     const turn = submitted.state.currentTurn;
     if (turn === undefined) return submitted;
@@ -1286,6 +1294,42 @@ export function submitSpeakerAndAdvanceMeeting(
         effect: { events }
     });
     const nextStep = turn.steps[turn.currentStepIndex];
+
+    const blockingTaskIds = (submitted.state.meetingTasks ?? [])
+        .filter(
+            (task) =>
+                task.status === "queued" &&
+                task.blocking &&
+                task.originatingSpeakerAttemptId === context.attemptId
+        )
+        .map((task) => task.meetingTaskId);
+    if (blockingTaskIds.length > 0) {
+        nextState = {
+            ...submitted.state,
+            status: "waiting",
+            waitState: {
+                reason: "blocking MeetingTask queued",
+                taskIds: blockingTaskIds,
+                participantIds: [participantId],
+                resumeAgendaItemId: context.agendaItemId
+            }
+        };
+        events = [
+            ...events,
+            {
+                type: "meeting.waiting",
+                payload: {
+                    meetingId: state.id,
+                    from: submitted.state.status,
+                    to: "waiting",
+                    meetingVersion: version,
+                    reason: "blocking MeetingTask queued"
+                }
+            }
+        ];
+        return result();
+    }
+
     if (turn.status === "running" && nextStep !== undefined) {
         const limitReached =
             submitted.state.messageSeq >= submitted.state.limits.maxTotalMessages ||
@@ -1384,8 +1428,9 @@ export function submitSpeakerAndAdvanceMeeting(
         const terminalStatus = judgment.kind === "completed" ? "completed" : "partial";
         const terminationCode = judgment.reason as
             "objective_satisfied" | "max_turns" | "message_limit" | "time_limit";
+        const cancelled = cancelNonTerminalMeetingTasks(nextState, context.now);
         nextState = {
-            ...nextState,
+            ...cancelled.state,
             status: terminalStatus,
             currentTurn: undefined,
             termination: {
@@ -1408,6 +1453,7 @@ export function submitSpeakerAndAdvanceMeeting(
         };
         events = [
             ...events,
+            ...cancelled.effect.events,
             {
                 type: "meeting.ended",
                 payload: {

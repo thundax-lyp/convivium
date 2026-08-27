@@ -703,6 +703,27 @@ export function createCreateStatusRuntime(
                                 transition.state.currentTurn.currentStepIndex
                             ];
                         const submittedTurn = transition.state.currentTurn;
+                        const taskOutbox: Array<{
+                            deliveryId: string;
+                            kind: "dispatch";
+                            payload: JsonObject;
+                        }> = transition.state.meetingTasks
+                            .filter(
+                                (task) =>
+                                    task.status === "queued" &&
+                                    task.originatingSpeakerAttemptId === input.attemptId &&
+                                    input.taskIds.includes(task.meetingTaskId)
+                            )
+                            .map((task) => ({
+                                deliveryId: task.deliveryId,
+                                kind: "dispatch" as const,
+                                payload: {
+                                    role: "meeting_task",
+                                    meetingTaskId: task.meetingTaskId,
+                                    participantId: task.participantId,
+                                    executionId: task.executionId
+                                }
+                            }));
                         const turnStatus =
                             submittedTurn?.status ??
                             (transition.state.status === "partial" ? "truncated" : "completed");
@@ -716,12 +737,13 @@ export function createCreateStatusRuntime(
                                 meetingStatus: transition.state.status
                             },
                             events: transition.effect.events as unknown as DomainEventInput[],
-                            outbox:
-                                submittedTurn?.status === "running" && nextStep?.attempt
+                            outbox: [
+                                ...taskOutbox,
+                                ...(submittedTurn?.status === "running" && nextStep?.attempt
                                     ? [
                                           {
                                               deliveryId: nextStep.attempt.deliveryId,
-                                              kind: "dispatch",
+                                              kind: "dispatch" as const,
                                               payload: {
                                                   role: "participant",
                                                   participantId: nextStep.attempt.participantId,
@@ -737,7 +759,7 @@ export function createCreateStatusRuntime(
                                                 deliveryId:
                                                     transition.state.manager.currentPlanningAttempt
                                                         .deliveryId,
-                                                kind: "dispatch",
+                                                kind: "dispatch" as const,
                                                 payload: {
                                                     role: "manager",
                                                     planningAttemptId:
@@ -746,7 +768,12 @@ export function createCreateStatusRuntime(
                                                 }
                                             }
                                         ]
-                                      : []
+                                      : [])
+                            ] as Array<{
+                                deliveryId: string;
+                                kind: "dispatch";
+                                payload: JsonObject;
+                            }>
                         };
                     }
                 });

@@ -10,18 +10,6 @@
 
 ## 待审阅任务项
 
-- [x] `B-01 / MeetingTask 领域与协议`：实现 canonical state、投影、事件和五个工具 schema
-    - 依据文档：`docs/30-designs/RUNBOOK-MEETINGTASK-HAND-RAISE.md` 第 4、5、9/T1 节
-    - 确认依据：`B-00` 完成并单独提交后执行
-    - 处理动作：定义 MeetingTask、ExecutionEnvelope、MeetingTaskProjection、HandRaise，以及 create/status/start/finish/raise-hand 输入输出；MeetingTask 只保存 participantId 和 originatingSpeakerAttemptId，不保存 meetingId、Session ID 或外部 task association；start receipt 不可变，status read 不使用 receipt。
-    - 验收点：协议文档、TypeScript 类型和 schema 一致；同 request start 完整返回首次 result，status 可返回不同 observedMeetingVersion；事件只追加 B 专属值；contract tests、format 和 typecheck 通过。
-
-- [ ] `B-02 / MeetingTask transition 与 submit 集成`：实现状态机、终态取消和 submit 优先级
-    - 依据文档：`docs/30-designs/RUNBOOK-MEETINGTASK-HAND-RAISE.md` 第 4.2、5.1、5.2、8、9/T2 节
-    - 确认依据：`B-01` 完成并单独提交后执行
-    - 处理动作：实现纯 MeetingTask create/queue/start/finish transitions 和 `cancelNonTerminalMeetingTasks`；只在 submit transition 中按 hard-limit terminal、blocking waiting、non-blocking judge/planning 的固定顺序合并 requested→queued，submit 内 hard-limit 调用 cancellation helper；继续生成既有 `kind='dispatch'`、`payload.role='meeting_task'` outbox，不注册工具或编排 Runtime command。
-    - 验收点：hard-limit 同事务取消 task 且无 task outbox；blocking 跳过 judge/next plan；non-blocking 可继续 converging/planning；纯 transition、submit rollback、同版本竞争和 submit 内 hard-limit tests 通过。
-
 - [ ] `B-03 / MeetingTask Session 执行`：实现授权 status、start/finish 与 FIFO task dispatch
     - 依据文档：`docs/30-designs/RUNBOOK-MEETINGTASK-HAND-RAISE.md` 第 5.3、5.4、6、9/T3 节
     - 确认依据：`B-02` 完成并单独提交后执行

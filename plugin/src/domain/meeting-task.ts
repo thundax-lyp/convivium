@@ -1,0 +1,194 @@
+import { DomainError } from "./errors.js";
+import type { MeetingState, MeetingTask, MeetingTaskStatus, TransitionResult } from "./model.js";
+
+const activeStatuses: readonly MeetingTaskStatus[] = ["requested", "queued", "running"];
+
+function taskEvent(
+    meetingId: string,
+    type:
+        | "meeting_task.created"
+        | "meeting_task.queued"
+        | "meeting_task.started"
+        | "meeting_task.completed"
+        | "meeting_task.failed"
+        | "meeting_task.cancelled",
+    task: MeetingTask
+) {
+    return {
+        type,
+        payload: {
+            meetingId,
+            meetingTaskId: task.meetingTaskId,
+            participantId: task.participantId,
+            status: task.status
+        }
+    } as const;
+}
+
+function requireTask(state: MeetingState, meetingTaskId: string): MeetingTask {
+    const task = (state.meetingTasks ?? []).find(
+        (candidate) => candidate.meetingTaskId === meetingTaskId
+    );
+    if (!task) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `meeting task ${meetingTaskId} was not found`
+        );
+    }
+    return task;
+}
+
+export interface CreateMeetingTaskInput {
+    meetingTaskId: string;
+    executionId: string;
+    deliveryId: string;
+    participantId: string;
+    originatingSpeakerAttemptId: string;
+    title: string;
+    description: string;
+    blocking: boolean;
+    now: number;
+}
+
+export function createMeetingTask(
+    state: MeetingState,
+    input: CreateMeetingTaskInput
+): TransitionResult<MeetingState> {
+    if ((state.meetingTasks ?? []).some((task) => task.meetingTaskId === input.meetingTaskId)) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `meeting task ${input.meetingTaskId} already exists`
+        );
+    }
+    if (
+        (state.meetingTasks ?? []).some(
+            (task) =>
+                task.participantId === input.participantId && activeStatuses.includes(task.status)
+        )
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `participant ${input.participantId} already owns an active meeting task`
+        );
+    }
+    const task: MeetingTask = { ...input, status: "requested", createdAt: input.now };
+    return {
+        state: { ...state, meetingTasks: [...(state.meetingTasks ?? []), task] },
+        effect: { events: [taskEvent(state.id, "meeting_task.created", task)] }
+    };
+}
+
+export function queueMeetingTasks(
+    state: MeetingState,
+    meetingTaskIds: readonly string[],
+    now: number
+): TransitionResult<MeetingState> {
+    const uniqueIds = [...new Set(meetingTaskIds)];
+    const tasks = uniqueIds.map((id) => requireTask(state, id));
+    if (tasks.some((task) => task.status !== "requested")) {
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            "only requested MeetingTasks can be queued"
+        );
+    }
+    const queued = new Set(uniqueIds);
+    const nextTasks = (state.meetingTasks ?? []).map((task) =>
+        queued.has(task.meetingTaskId)
+            ? { ...task, status: "queued" as const, queuedAt: now }
+            : task
+    );
+    return {
+        state: { ...state, meetingTasks: nextTasks },
+        effect: {
+            events: tasks.map((task) =>
+                taskEvent(state.id, "meeting_task.queued", { ...task, status: "queued" })
+            )
+        }
+    };
+}
+
+export function startMeetingTask(state: MeetingState, meetingTaskId: string, now: number) {
+    const task = requireTask(state, meetingTaskId);
+    if (task.status !== "queued") {
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            `meeting task ${meetingTaskId} is not queued`
+        );
+    }
+    const next = { ...task, status: "running" as const, startedAt: now };
+    return {
+        state: {
+            ...state,
+            meetingTasks: (state.meetingTasks ?? []).map((item) =>
+                item.meetingTaskId === meetingTaskId ? next : item
+            )
+        },
+        effect: { events: [taskEvent(state.id, "meeting_task.started", next)] }
+    };
+}
+
+export function finishMeetingTask(
+    state: MeetingState,
+    meetingTaskId: string,
+    input: {
+        status: "completed" | "failed";
+        now: number;
+        resultSummary?: string;
+        failureReason?: string;
+    }
+) {
+    const task = requireTask(state, meetingTaskId);
+    if (task.status !== "running") {
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            `meeting task ${meetingTaskId} is not running`
+        );
+    }
+    const next: MeetingTask = {
+        ...task,
+        status: input.status,
+        finishedAt: input.now,
+        ...(input.resultSummary === undefined ? {} : { resultSummary: input.resultSummary }),
+        ...(input.failureReason === undefined ? {} : { failureReason: input.failureReason })
+    };
+    return {
+        state: {
+            ...state,
+            meetingTasks: (state.meetingTasks ?? []).map((item) =>
+                item.meetingTaskId === meetingTaskId ? next : item
+            )
+        },
+        effect: {
+            events: [
+                taskEvent(
+                    state.id,
+                    input.status === "completed" ? "meeting_task.completed" : "meeting_task.failed",
+                    next
+                )
+            ]
+        }
+    };
+}
+
+export function cancelNonTerminalMeetingTasks(
+    state: MeetingState,
+    now: number
+): TransitionResult<MeetingState> {
+    const cancelled = (state.meetingTasks ?? []).filter((task) =>
+        activeStatuses.includes(task.status)
+    );
+    if (cancelled.length === 0) return { state, effect: { events: [] } };
+    const nextTasks = (state.meetingTasks ?? []).map((task) =>
+        activeStatuses.includes(task.status)
+            ? { ...task, status: "cancelled" as const, finishedAt: now }
+            : task
+    );
+    return {
+        state: { ...state, meetingTasks: nextTasks },
+        effect: {
+            events: cancelled.map((task) =>
+                taskEvent(state.id, "meeting_task.cancelled", { ...task, status: "cancelled" })
+            )
+        }
+    };
+}
