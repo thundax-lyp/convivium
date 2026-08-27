@@ -57,7 +57,7 @@ const speakerSelectionReasons: readonly SpeakerSelectionReason[] = [
 ];
 
 function invalidManagerPlan(message: string): never {
-    throw new DomainError("INVALID_ENTITY_STATE", `manager plan is invalid: ${message}`);
+    throw new DomainError("MANAGER_PLAN_INVALID", `manager plan is invalid: ${message}`);
 }
 
 function requireNonEmpty(value: string, field: string): void {

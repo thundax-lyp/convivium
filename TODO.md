@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/domain/transitions.ts`：实现 Manager plan 提交转换
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 6.3、7.1、8。
-  - 确认依据：2026-08-27 用户确认 Manager plan 到首位 Speaker dispatch 的原子边界。
-  - 处理动作：生成已提交 planning attempt、Turn、首个 `SpeakerAttempt` 和事件；required speaker 不可调度时生成完整 `waiting` 结果；repository outbox 由 Runtime command 原子组装。
-  - 验收点：`plugin/tests/unit/domain/transitions.spec.ts` 证明只产生首位 delivery descriptor、全部事件共享 commit version，失败分支没有部分 Turn 或 delivery effect。
-
 - [ ] `plugin/src/domain/completion.ts`：实现确定性 Turn 完成判断
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 4.6、6.5、9.2。
   - 确认依据：2026-08-27 用户确认 Turn 完成后确定性判断完成或下一 Turn。

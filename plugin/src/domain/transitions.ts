@@ -1,4 +1,5 @@
 import { DomainError, invalidStateTransition } from "./errors.js";
+import { planManagerTurn, type ManagerPlanIds, type ManagerPlanInput } from "./planning.js";
 import type {
     AttemptStatus,
     AttemptTransitionContext,
@@ -25,6 +26,15 @@ export interface StartManagerPlanningContext {
     planningAttemptId: string;
     deliveryId: string;
     reason: ManagerPlanningAttempt["reason"];
+    now: number;
+}
+
+export interface SubmitManagerPlanContext {
+    meetingId: string;
+    planningAttemptId: string;
+    deliveryId: string;
+    observedMeetingVersion: number;
+    dispatchableParticipantIds: readonly string[];
     now: number;
 }
 
@@ -833,6 +843,176 @@ export function startManagerPlanning(
                         meetingVersion: nextState.version,
                         observedMeetingVersion: planningAttempt.observedMeetingVersion
                     }
+                }
+            ]
+        }
+    };
+}
+
+export function submitManagerPlan(
+    state: MeetingState,
+    input: ManagerPlanInput,
+    context: SubmitManagerPlanContext,
+    ids: ManagerPlanIds
+): TransitionResult<MeetingState> {
+    const planningAttempt = state.manager.currentPlanningAttempt;
+    if (
+        context.meetingId !== state.id ||
+        context.planningAttemptId !== planningAttempt?.id ||
+        context.deliveryId !== planningAttempt?.deliveryId ||
+        context.observedMeetingVersion !== state.version ||
+        planningAttempt?.observedMeetingVersion !== state.version ||
+        planningAttempt.status !== "running"
+    ) {
+        throw new DomainError(
+            "STALE_ATTEMPT",
+            `manager planning attempt is stale in meeting ${state.id}`,
+            {
+                entityType: "manager_attempt",
+                entityId: context.planningAttemptId,
+                meetingVersion: state.version
+            }
+        );
+    }
+    const activeAgenda = state.agenda.find((item) => item.id === state.activeAgendaItemId);
+    const dispatchable = new Set(context.dispatchableParticipantIds);
+    const unavailableRequired = (activeAgenda?.requiredParticipants ?? []).filter(
+        (participantId) => !dispatchable.has(participantId)
+    );
+    if (unavailableRequired.length > 0) {
+        const nextVersion = state.version + 1;
+        const nextState: MeetingState = {
+            ...state,
+            status: "waiting",
+            version: nextVersion,
+            updatedAt: context.now,
+            manager: {
+                ...state.manager,
+                status: "idle",
+                currentPlanningAttempt: { ...planningAttempt, status: "failed" }
+            },
+            waitState: {
+                reason: "required speaker unavailable",
+                taskIds: [],
+                participantIds: unavailableRequired,
+                resumeAgendaItemId: state.activeAgendaItemId
+            }
+        };
+        return {
+            state: nextState,
+            effect: {
+                events: [
+                    {
+                        type: "manager_plan.failed",
+                        payload: {
+                            meetingId: state.id,
+                            planningAttemptId: planningAttempt.id,
+                            from: planningAttempt.status,
+                            to: "failed",
+                            meetingVersion: nextVersion,
+                            reason: "required_speaker_unavailable"
+                        }
+                    },
+                    {
+                        type: "meeting.waiting",
+                        payload: {
+                            meetingId: state.id,
+                            from: state.status,
+                            to: "waiting",
+                            meetingVersion: nextVersion,
+                            reason: "required speaker unavailable"
+                        }
+                    }
+                ]
+            }
+        };
+    }
+
+    const selectedUnavailable = input.steps
+        .map((step) => step.participantId)
+        .filter((participantId) => !dispatchable.has(participantId));
+    if (selectedUnavailable.length > 0) {
+        throw new DomainError(
+            "MANAGER_PLAN_INVALID",
+            `manager plan selects unavailable participant ${selectedUnavailable[0]}`,
+            {
+                entityType: "manager_attempt",
+                entityId: planningAttempt.id,
+                meetingVersion: state.version
+            }
+        );
+    }
+    const planned = planManagerTurn(state, input, ids, context.now);
+    const submitted = transitionManagerAttempt(planningAttempt, "submitted", state.version, {
+        attemptId: context.planningAttemptId,
+        meetingId: context.meetingId,
+        deliveryId: context.deliveryId
+    });
+    const firstStep = planned.steps[0]!;
+    const firstAttempt = {
+        attemptId: `${planned.id}-attempt-0`,
+        participantId: firstStep.speaker,
+        meetingId: state.id,
+        turnId: planned.id,
+        stepId: firstStep.id,
+        deliveryId: `${planned.id}-delivery-0`,
+        contextFromSeq: 0,
+        contextThroughSeq: state.messageSeq,
+        taskSnapshots: [],
+        assignedAt: context.now,
+        status: "running" as const,
+        deliveryStatus: "pending" as const
+    };
+    const runningTurn: MeetingTurn = {
+        ...planned,
+        status: "running",
+        steps: planned.steps.map((step, index) =>
+            index === 0 ? { ...step, status: "running", attempt: firstAttempt } : step
+        )
+    };
+    const nextState: MeetingState = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: context.now,
+        manager: { ...state.manager, status: "idle", currentPlanningAttempt: undefined },
+        currentTurn: runningTurn,
+        turnSeq: runningTurn.seq,
+        participants: state.participants.map((participant) =>
+            participant.id === firstStep.speaker
+                ? { ...participant, status: "speaking" as const }
+                : participant
+        )
+    };
+    const meetingVersion = nextState.version;
+    return {
+        state: nextState,
+        effect: {
+            events: [
+                ...submitted.effect.events.map((item) => ({
+                    ...item,
+                    payload: { ...item.payload, meetingVersion }
+                })),
+                { type: "turn.planned", payload: { turnId: planned.id, meetingVersion } },
+                { type: "turn.started", payload: { turnId: planned.id, meetingVersion } },
+                {
+                    type: "speaker.assigned",
+                    payload: {
+                        meetingId: state.id,
+                        turnId: planned.id,
+                        stepId: firstStep.id,
+                        participantId: firstStep.speaker,
+                        attemptId: firstAttempt.attemptId,
+                        deliveryId: firstAttempt.deliveryId,
+                        meetingVersion
+                    }
+                },
+                {
+                    type: "speaker.started",
+                    payload: { stepId: firstStep.id, meetingVersion }
+                },
+                {
+                    type: "speaker_attempt.started",
+                    payload: { attemptId: firstAttempt.attemptId, meetingVersion }
                 }
             ]
         }
