@@ -329,8 +329,9 @@ interface MeetingTurn {
   objective: string
   expectedOutputs: string[]
   prohibitedTopics: string[]
-  plan: SpeakerStep[]
+  plan: readonly string[]
   currentStepIndex: number
+  steps: SpeakerStep[]
   status: 'planned' | 'running' | 'completed' | 'truncated' | 'cancelled' | 'failed'
   createdAt: number
   completedAt?: number
@@ -363,7 +364,7 @@ interface SpeakerAttempt {
 
 interface MeetingTaskSnapshot {
   taskId: string
-  attemptId?: string
+  taskAttemptId?: string
   status: TaskStatus
   output?: string
   observedAt: number
@@ -376,10 +377,6 @@ interface MeetingTaskSnapshot {
 
 ```ts
 interface MeetingManagerRuntime {
-  sessionId: string
-  provider?: string
-  model?: string
-  reasoningEffort?: string
   promptVersion: string
   status: 'creating' | 'idle' | 'planning' | 'failed' | 'closed'
   currentPlanningAttempt?: ManagerPlanningAttempt

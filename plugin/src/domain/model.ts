@@ -257,11 +257,21 @@ export interface MeetingIssue {
 export interface MeetingProposal {
     id: string;
     title: string;
+    description: string;
+    proposedBy: string;
     revision: number;
     status: "draft" | "under_review" | "accepted" | "rejected" | "superseded";
-    agendaItemId?: string;
-    description?: string;
-    positions?: readonly { id: string; participantId: string; proposalRevision: number }[];
+    agendaItemId: string;
+    positions: readonly {
+        id: string;
+        participantId: string;
+        position: "support" | "accept" | "object" | "needs_revision" | "abstain";
+        reason?: string;
+        blocking: boolean;
+        proposalRevision: number;
+    }[];
+    createdAt: number;
+    updatedAt: number;
 }
 
 export interface MeetingDecision {
