@@ -2,6 +2,7 @@ import Schema from "@deepseek-ai/schemastery";
 import { ProtocolVersionSchema } from "./schema.js";
 
 const string = () => Schema.string().required();
+const nonEmptyString = () => Schema.string().pattern(/\S/).required();
 const number = () => Schema.number().required();
 const boolean = () => Schema.boolean().required();
 const array = <T>(schema: Schema<T>) => Schema.array(schema).required();
@@ -253,20 +254,26 @@ const completionClaims = Schema.object({
     )
 });
 
+const managerPlanStep = Schema.object({
+    participantId: nonEmptyString(),
+    instruction: nonEmptyString(),
+    reason: nonEmptyString()
+});
+// Schemastery skips array minimum checks when an object element has its default {}.
+managerPlanStep.meta.default = undefined;
+
 export const ManagerPlanSubmissionSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
-    meetingId: string(),
-    planningAttemptId: string(),
+    meetingId: nonEmptyString(),
+    planningAttemptId: nonEmptyString(),
     observedMeetingVersion: number(),
-    requestId: string(),
-    agendaItemId: string(),
-    intent: string(),
-    objective: string(),
+    requestId: nonEmptyString(),
+    agendaItemId: nonEmptyString(),
+    intent: nonEmptyString(),
+    objective: nonEmptyString(),
     expectedOutputs: array(string()),
     prohibitedTopics: array(string()),
-    steps: array(
-        Schema.object({ participantId: string(), instruction: string(), reason: string() })
-    )
+    steps: array(managerPlanStep).min(1)
 });
 
 export const TurnSubmissionSchema: Schema<Record<string, unknown>> = Schema.object({

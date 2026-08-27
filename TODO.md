@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/protocol/{commands,results,types}.ts`：闭合 Manager plan 协议 Schema
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 4.2、5.2、9.1。
-  - 确认依据：2026-08-27 用户确认 Manager planning 与 Turn 生命周期闭环。
-  - 处理动作：复用 `ManagerPlanSubmissionV1` 和 `ManagerPlanResultV1`，补齐字段、枚举、长度和 result 校验，不创建同义协议类型。
-  - 验收点：`plugin/tests/contract/protocol-schema.spec.ts` 接受完整合法样本并拒绝缺字段、未知枚举、空 steps 和越界输入。
-
 - [ ] `plugin/src/tools/register-tools.ts`：注册 `convivium_submit_manager_plan`
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 5.2、6.3、9.1。
   - 确认依据：2026-08-27 用户确认 Manager planning 与 Turn 生命周期闭环。
