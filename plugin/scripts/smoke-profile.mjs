@@ -193,6 +193,11 @@ export const name = "convivium-smoke-profile-probe";
 export const inject = ["agents", "sessions", "tools"];
 
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
+const participants = ["participant-a", "participant-c", "participant-b"];
+let captain;
+let meetingId;
+let nextCall = 1000;
+const drivingAgents = new Set();
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -310,13 +315,65 @@ function registerSmokeAgent(ctx, session) {
     };
 }
 
+async function driveParticipant(ctx, agent) {
+    if (captain === undefined || meetingId === undefined) return;
+    const participantId = "participant-" + String(agent.id).split("-").at(-1);
+    const index = participants.indexOf(participantId);
+    if (index < 0) return;
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+        if (ctx.agents.get(agent.id) !== agent) return;
+        const status = await callTool(ctx, captain.agent, "convivium_meeting_status", {
+            protocolVersion: 1,
+            meetingId
+        }, nextCall++);
+        if (status.result.messages.length >= index + 1) return;
+        if (status.result.currentSpeakerId !== participantId) {
+            await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+            continue;
+        }
+        try {
+            await callTool(ctx, agent, "convivium_submit_turn", {
+                protocolVersion: 1,
+                meetingId,
+                turnId: "turn-1",
+                stepId: "step-turn-1-" + index,
+                attemptId: "turn-1-attempt-" + index,
+                deliveryId: "turn-1-delivery-" + index,
+                agendaItemId: "agenda-agenda-1",
+                kind: "statement",
+                content: ["A", "C", "B"][index],
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic",
+                changes: {}
+            }, nextCall++);
+            return;
+        } catch (error) {
+            if (String(error).includes('"code":"STALE_ATTEMPT"')) return;
+            if (ctx.agents.get(agent.id) !== agent) return;
+            throw error;
+        }
+    }
+}
+
+function scheduleParticipant(ctx, agent) {
+    const id = String(agent.id);
+    if (drivingAgents.has(id)) return;
+    drivingAgents.add(id);
+    void driveParticipant(ctx, agent)
+        .catch((error) => {
+            console.error("participant smoke driver failed:", error);
+        })
+        .finally(() => drivingAgents.delete(id));
+}
+
 async function run(ctx) {
     if (!outputPath) return;
-    let captain;
     try {
         captain = createSmokeAgent(ctx, "convivium-smoke-captain");
         const created = await callTool(ctx, captain.agent, "convivium_create_meeting", createInput(), 0);
-        const meetingId = created.result.meetingId;
+        meetingId = created.result.meetingId;
         const manager = await waitForAgent(ctx, meetingId + "-manager-manager");
         const managerPlan = await callTool(ctx, manager, "convivium_submit_manager_plan", {
             protocolVersion: 1,
@@ -335,66 +392,20 @@ async function run(ctx) {
                 { participantId: "participant-b", instruction: "B", reason: "manager_selected" }
             ]
         }, 1);
-        const participants = ["participant-a", "participant-c", "participant-b"];
         const messages = [];
-        let statusCall = 20;
         for (let index = 0; index < participants.length; index += 1) {
             const participantId = participants[index];
             const stepDeadline = Date.now() + 30000;
-            let lastStatus;
-            let lastAgentFound = false;
             while (Date.now() < stepDeadline) {
                 const beforeSubmit = await callTool(ctx, captain.agent, "convivium_meeting_status", {
                     protocolVersion: 1,
                     meetingId
-                }, statusCall++);
-                lastStatus = beforeSubmit.result;
+                }, nextCall++);
                 if (beforeSubmit.result.messages.length >= index + 1) break;
-                if (beforeSubmit.result.currentSpeakerId !== participantId) {
-                    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
-                    continue;
-                }
-                const agent = ctx.agents.get(meetingId + "-participant-" + participantId);
-                lastAgentFound = agent !== undefined;
-                if (!agent) {
-                    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
-                    continue;
-                }
-                try {
-                    const submitted = await callTool(ctx, agent, "convivium_submit_turn", {
-                        protocolVersion: 1,
-                        meetingId,
-                        turnId: "turn-1",
-                        stepId: "step-turn-1-" + index,
-                        attemptId: "turn-1-attempt-" + index,
-                        deliveryId: "turn-1-delivery-" + index,
-                        agendaItemId: "agenda-agenda-1",
-                        kind: "statement",
-                        content: ["A", "C", "B"][index],
-                        mentions: [],
-                        taskIds: [],
-                        agendaRelation: "on_topic",
-                        changes: {}
-                    }, statusCall++);
-                    messages.push(submitted.result.messageId);
-                } catch (error) {
-                    if (!String(error).includes('"code":"STALE_ATTEMPT"')) throw error;
-                }
+                await new Promise((resolveWait) => setTimeout(resolveWait, 100));
             }
             if (Date.now() >= stepDeadline) {
-                throw new Error(
-                    "Timed out waiting for committed participant step " +
-                        index +
-                        ": " +
-                        JSON.stringify({
-                            currentSpeakerId: lastStatus?.currentSpeakerId,
-                            messageCount: lastStatus?.messages?.length,
-                            currentTurn: lastStatus?.currentTurn,
-                            agentFound: lastAgentFound,
-                            liveAgentIds: ctx.agents.list().map((candidate) => String(candidate.id)),
-                            liveSessionIds: ctx.sessions.list().map((candidate) => String(candidate.id))
-                        })
-                );
+                throw new Error("Timed out waiting for committed participant step " + index + ".");
             }
         }
         const status = await callTool(ctx, captain.agent, "convivium_meeting_status", {
@@ -431,6 +442,19 @@ async function run(ctx) {
 }
 
 export function apply(ctx) {
+    ctx.on("agent/created", ({ agent }) => {
+        if (String(agent.id).includes("-participant-")) {
+            agent.ctx.on("agent/status", () => scheduleParticipant(ctx, agent));
+            agent.ctx.on("agent/inbox/inserted", () => scheduleParticipant(ctx, agent));
+            scheduleParticipant(ctx, agent);
+        }
+    });
+    ctx.on("agent/status", ({ agent }) => {
+        if (String(agent.id).includes("-participant-")) scheduleParticipant(ctx, agent);
+    });
+    ctx.on("agent/inbox/inserted", ({ agent }) => {
+        if (String(agent.id).includes("-participant-")) scheduleParticipant(ctx, agent);
+    });
     ctx.effect(() => {
         void run(ctx);
     }, "convivium-smoke-profile-probe");

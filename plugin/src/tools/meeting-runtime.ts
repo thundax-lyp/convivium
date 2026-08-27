@@ -755,7 +755,7 @@ export function createCreateStatusRuntime(
                 });
             }
         },
-        async submitManagerPlan(input: ManagerPlanSubmissionV1, caller, commandSignal) {
+        async submitManagerPlan(input: ManagerPlanSubmissionV1, caller, _commandSignal) {
             await rehydrate();
             if (caller.kind !== "manager" || caller.meetingId !== input.meetingId)
                 return failure(
@@ -1144,23 +1144,6 @@ function assignAttempt(
         status: "running",
         steps: turn.steps.map((candidate, candidateIndex) =>
             candidateIndex === index ? { ...candidate, status: "running", attempt } : candidate
-        )
-    };
-}
-
-function prepareNextAttempt(state: MeetingState, index: number, now: number): MeetingState {
-    const turn = state.currentTurn;
-    if (turn === undefined || turn.status === "completed") return state;
-    const nextStep = turn.steps[index];
-    if (nextStep === undefined || nextStep.status !== "pending") return state;
-    const preparedTurn = assignAttempt(state, turn, index, now);
-    return {
-        ...state,
-        currentTurn: preparedTurn,
-        participants: state.participants.map((participant) =>
-            participant.id === nextStep.speaker
-                ? { ...participant, status: "speaking" as const }
-                : participant
         )
     };
 }
