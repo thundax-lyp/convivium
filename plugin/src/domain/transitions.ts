@@ -1,5 +1,10 @@
 import { DomainError, invalidStateTransition } from "./errors.js";
-import { isObjectiveSatisfied, judgeTurnCompletion } from "./completion.js";
+import {
+    applyCompletionClaims,
+    isObjectiveSatisfied,
+    judgeTurnCompletion,
+    type ApplyCompletionClaimsContext
+} from "./completion.js";
 import {
     planManagerTurn,
     planRoundRobinTurn,
@@ -48,6 +53,7 @@ export interface SubmitSpeakerAdvanceContext extends SpeakerSubmissionContext {
     now: number;
     nextPlanningAttemptId: string;
     nextPlanningDeliveryId: string;
+    completion?: Omit<ApplyCompletionClaimsContext, "participantId" | "now">;
 }
 
 const meetingTransitions: Readonly<Record<MeetingStatus, readonly MeetingStatus[]>> = {
@@ -1251,7 +1257,22 @@ export function submitSpeakerAndAdvanceMeeting(
     participantId: string,
     context: SubmitSpeakerAdvanceContext
 ): TransitionResult<MeetingState> {
-    const submitted = submitSpeakerAttempt(state, participantId, state.version, context);
+    const speakerSubmission = submitSpeakerAttempt(state, participantId, state.version, context);
+    const completion = context.completion
+        ? applyCompletionClaims(speakerSubmission.state, {
+              ...context.completion,
+              participantId,
+              now: context.now
+          })
+        : undefined;
+    const submitted = completion
+        ? {
+              state: completion.state,
+              effect: {
+                  events: [...speakerSubmission.effect.events, ...completion.effect.events]
+              }
+          }
+        : speakerSubmission;
     const version = submitted.state.version;
     const turn = submitted.state.currentTurn;
     if (turn === undefined) return submitted;

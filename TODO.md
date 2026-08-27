@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `A3 / plugin submit-turn completion`：将 completion claims 接入既有原子提交
-    - 依据文档：`docs/30-designs/RUNBOOK-COMPLETION-CLOSURE.md` 4.1、T3、T4、6.1
-    - 确认依据：2026-08-27 用户确认闭环 A RUNBOOK 待执行；`codex://threads/01a04210-fa01-7091-b554-4c94a5cf0186`
-    - 处理动作：新增最小 `plugin/src/runtime/task-evidence.ts`，并只修改 `submitTurn` completion 分支，在现有 `MeetingRepository.execute()` 的同一锁定 snapshot 内校验真实 Participant caller、evidence 和 CompletionFact；默认 resolver 对非空 `taskIds` 返回 `UNSUPPORTED_CAPABILITY` 且零副作用，其他未实现 `changes` 继续拒绝。
-    - 验收点：`pnpm exec vitest run tests/unit/runtime/meeting-runtime.spec.ts tests/contract/meeting-runtime.spec.ts` 通过，并证明越权或非法 claim 不写 transcript、fact、event 或 receipt，相同请求不重复写入，resolver 与 commit 不存在 TOCTOU。
-
 - [ ] `A4 / plugin captain-end`：实现 Captain 结束事务与活动执行收口
     - 依据文档：`docs/30-designs/RUNBOOK-COMPLETION-CLOSURE.md` T2、T3、6.2；`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md` Completion And Termination
     - 确认依据：2026-08-27 用户确认闭环 A RUNBOOK 待执行；`codex://threads/01a04210-fa01-7091-b554-4c94a5cf0186`
