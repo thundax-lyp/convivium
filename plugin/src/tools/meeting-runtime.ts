@@ -12,7 +12,7 @@ import {
     planRoundRobinTurn,
     startManagerPlanning,
     submitManagerPlan as submitManagerPlanTransition,
-    submitSpeakerAttempt,
+    submitSpeakerAndAdvanceMeeting,
     transitionMeeting,
     type MeetingState,
     type MeetingTurn
@@ -566,10 +566,9 @@ export function createCreateStatusRuntime(
                     expectedMeetingVersion: current.version,
                     transition: (snapshot) => {
                         const state = snapshot.state as unknown as MeetingState;
-                        const transition = submitSpeakerAttempt(
+                        const transition = submitSpeakerAndAdvanceMeeting(
                             state,
                             caller.participantId!,
-                            snapshot.version,
                             {
                                 meetingId: input.meetingId,
                                 participantId: caller.participantId!,
@@ -588,73 +587,85 @@ export function createCreateStatusRuntime(
                                         : { replyTo: input.replyTo }),
                                     taskIds: input.taskIds,
                                     createdAt: Date.now()
-                                }
+                                },
+                                now: options.now?.() ?? Date.now(),
+                                nextPlanningAttemptId: `${state.id}-planning-${state.turnSeq + 1}`,
+                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.turnSeq + 1}`
                             }
                         );
                         const nextStep =
                             transition.state.currentTurn?.steps[
                                 transition.state.currentTurn.currentStepIndex
                             ];
-                        const prepared = prepareNextAttempt(
-                            transition.state,
-                            transition.state.currentTurn?.currentStepIndex ?? 0,
-                            options.now?.() ?? Date.now()
-                        );
+                        const submittedTurn = transition.state.currentTurn;
+                        const turnStatus =
+                            submittedTurn?.status ??
+                            (transition.state.status === "partial" ? "truncated" : "completed");
                         return {
-                            state: prepared as unknown as JsonObject,
+                            state: transition.state as unknown as JsonObject,
                             result: {
                                 messageId,
-                                messageSeq: prepared.messageSeq,
-                                turnStatus:
-                                    prepared.currentTurn?.status === "completed"
-                                        ? "completed"
-                                        : "running",
+                                messageSeq: transition.state.messageSeq,
+                                turnStatus,
                                 ...(nextStep === undefined ? {} : { nextStepId: nextStep.id }),
-                                meetingStatus: prepared.status
+                                meetingStatus: transition.state.status
                             },
                             events: transition.effect.events as unknown as DomainEventInput[],
                             outbox:
-                                prepared.currentTurn?.status === "running" &&
-                                prepared.currentTurn.steps[prepared.currentTurn.currentStepIndex]
-                                    ?.attempt
+                                submittedTurn?.status === "running" && nextStep?.attempt
                                     ? [
                                           {
-                                              deliveryId:
-                                                  prepared.currentTurn.steps[
-                                                      prepared.currentTurn.currentStepIndex
-                                                  ]!.attempt!.deliveryId,
+                                              deliveryId: nextStep.attempt.deliveryId,
                                               kind: "dispatch",
                                               payload: {
-                                                  participantId:
-                                                      prepared.currentTurn.steps[
-                                                          prepared.currentTurn.currentStepIndex
-                                                      ]!.attempt!.participantId,
-                                                  attemptId:
-                                                      prepared.currentTurn.steps[
-                                                          prepared.currentTurn.currentStepIndex
-                                                      ]!.attempt!.attemptId,
-                                                  turnId: prepared.currentTurn.id,
-                                                  stepId: prepared.currentTurn.steps[
-                                                      prepared.currentTurn.currentStepIndex
-                                                  ]!.id
+                                                  role: "participant",
+                                                  participantId: nextStep.attempt.participantId,
+                                                  attemptId: nextStep.attempt.attemptId,
+                                                  turnId: submittedTurn.id,
+                                                  stepId: nextStep.id
                                               }
                                           }
                                       ]
-                                    : []
+                                    : transition.state.manager.currentPlanningAttempt
+                                      ? [
+                                            {
+                                                deliveryId:
+                                                    transition.state.manager.currentPlanningAttempt
+                                                        .deliveryId,
+                                                kind: "dispatch",
+                                                payload: {
+                                                    role: "manager",
+                                                    planningAttemptId:
+                                                        transition.state.manager
+                                                            .currentPlanningAttempt.id
+                                                }
+                                            }
+                                        ]
+                                      : []
                         };
                     }
                 });
                 if (
                     stored.parent !== undefined &&
                     committed.result &&
-                    "nextStepId" in committed.result
+                    ("nextStepId" in committed.result ||
+                        (committed.result.meetingStatus === "running" &&
+                            committed.result.turnStatus === "completed"))
                 ) {
-                    await dispatchInitialDelivery(
-                        stored.repository,
-                        stored.parent,
-                        input.meetingId,
-                        commandSignal ?? signal
-                    );
+                    if (committed.result.turnStatus === "running")
+                        await dispatchInitialDelivery(
+                            stored.repository,
+                            stored.parent,
+                            input.meetingId,
+                            commandSignal ?? signal
+                        );
+                    else
+                        await dispatchManagerPlanningDelivery(
+                            stored.repository,
+                            stored.parent,
+                            input.meetingId,
+                            commandSignal ?? signal
+                        );
                 }
                 return success<TurnSubmissionResultV1>(
                     input.meetingId,

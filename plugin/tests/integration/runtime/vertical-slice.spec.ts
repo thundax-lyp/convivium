@@ -102,7 +102,7 @@ describe("runtime vertical slice composition", () => {
             pollMs: 10,
             dispatch: async () => {
                 dispatchCount += 1;
-                throw new Error("provider unavailable");
+                throw Object.assign(new Error("provider unavailable"), { retryable: true });
             },
             now: () => 10
         });

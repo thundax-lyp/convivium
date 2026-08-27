@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/tools/meeting-runtime.ts` 与 `plugin/src/runtime/turn-runner.ts`：接通逐 Speaker 推进
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 6.4、6.5、8。
-  - 确认依据：2026-08-27 用户确认按计划逐 Speaker dispatch，并在 Turn 后判断下一步。
-  - 处理动作：从最新 snapshot 构造固定 context，调用统一 Speaker 转换，并在 commit 后 wake 下一 Speaker 或 next Manager planning delivery。
-  - 验收点：对应 runtime/turn-runner 单测证明 `A → C → B` 串行、后位 context 含前序已提交 message，终态不再 dispatch。
-
 - [ ] `plugin/src/tools/meeting-runtime.ts` 与 `plugin/src/index.ts`：组装每 Meeting delivery worker
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 5.4、6.2、6.4、9.2。
   - 确认依据：2026-08-27 用户确认逐步调度使用持久 outbox。
