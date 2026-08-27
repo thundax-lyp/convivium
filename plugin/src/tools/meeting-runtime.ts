@@ -17,6 +17,7 @@ import {
     participantHasActiveMeetingTask,
     finishMeetingTask as finishMeetingTaskTransition,
     planRoundRobinTurn,
+    endMeeting as endMeetingTransition,
     startMeetingTask as startMeetingTaskTransition,
     startManagerPlanning,
     submitManagerPlan as submitManagerPlanTransition,
@@ -33,7 +34,9 @@ import {
     type JsonObject,
     type MeetingCreationRuntimeDependencies,
     type MeetingRepositoryRuntime,
-    type RepositoryAuthorizationValidator
+    type RepositoryAuthorizationValidator,
+    rejectUnsupportedTaskEvidence,
+    type AuthorizedTaskEvidenceResolver
 } from "../runtime/index.js";
 import { projectManagerMeetingContext, projectMeetingStatus } from "../projection/index.js";
 import type {
@@ -41,6 +44,8 @@ import type {
     CreateMeetingResultV1,
     MeetingStatusInputV1,
     MeetingStatusResultV1,
+    EndMeetingInputV1,
+    EndMeetingResultV1,
     MeetingTaskRequestV1,
     MeetingTaskStatusInputV1,
     MeetingTaskStartInputV1,
@@ -73,6 +78,7 @@ export interface CreateStatusRuntimeOptions {
     readonly outboxPollMs?: number;
     readonly signal?: AbortSignal;
     readonly now?: () => number;
+    readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
 }
 
 interface ClaimedOutboxItem {
@@ -172,21 +178,13 @@ function commandError(
     };
 }
 
-function hasUnsupportedClaims(input: { changes: object; completionClaims?: object }): boolean {
-    return (
-        Object.values(input.changes as Record<string, unknown>).some(
-            (value) => Array.isArray(value) && value.length > 0
-        ) ||
-        (input.completionClaims !== undefined && Object.keys(input.completionClaims).length > 0)
-    );
-}
-
 export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
 ): MeetingRuntimeWithCallerLookup {
     const meetings = new Map<string, StoredMeeting>();
     const workers = new Map<string, ReturnType<typeof createOutboxWorker>>();
     const runtimeController = new AbortController();
+    const taskEvidenceResolver = options.taskEvidenceResolver ?? rejectUnsupportedTaskEvidence;
     const signal =
         options.signal === undefined
             ? runtimeController.signal
@@ -424,29 +422,6 @@ export function createCreateStatusRuntime(
                 "Task Participant Session is unavailable."
             );
         }
-        await repository.execute({
-            requestId: item.deliveryId,
-            commandKind: "start_meeting_task",
-            authorization: {
-                callerBinding: `session:${ownership.sessionId}`,
-                capabilityId: `participant:${ownership.sessionId}`
-            },
-            requestHash: JSON.stringify(payload),
-            expectedMeetingVersion: recovered.snapshot!.version,
-            transition: (snapshot) => {
-                const transition = startMeetingTaskTransition(
-                    snapshot.state as unknown as MeetingState,
-                    task.meetingTaskId,
-                    options.now?.() ?? Date.now()
-                );
-                return {
-                    state: transition.state as unknown as JsonObject,
-                    result: { meetingTaskId: task.meetingTaskId },
-                    events: transition.effect.events as unknown as DomainEventInput[],
-                    outbox: []
-                };
-            }
-        });
         await followupMeetingTaskSession({
             runtime: options.continuable,
             parent,
@@ -1089,12 +1064,6 @@ export function createCreateStatusRuntime(
             ) {
                 return failure("UNAUTHORIZED_CALLER", "Only the matching Participant can submit.");
             }
-            if (hasUnsupportedClaims(input)) {
-                return failure(
-                    "UNSUPPORTED_CAPABILITY",
-                    "Structured claims are outside this runtime slice."
-                );
-            }
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
             if (stored.parent === undefined) {
@@ -1119,6 +1088,18 @@ export function createCreateStatusRuntime(
                     expectedMeetingVersion: current.version,
                     transition: (snapshot) => {
                         const state = snapshot.state as unknown as MeetingState;
+                        const taskEvidence =
+                            input.completionClaims === undefined
+                                ? []
+                                : taskEvidenceResolver.resolve({
+                                      state,
+                                      meetingId: input.meetingId,
+                                      participantId: caller.participantId!,
+                                      taskIds:
+                                          input.completionClaims.outputClaims?.flatMap(
+                                              (claim) => claim.taskIds
+                                          ) ?? []
+                                  });
                         const transition = submitSpeakerAndAdvanceMeeting(
                             state,
                             caller.participantId!,
@@ -1144,7 +1125,19 @@ export function createCreateStatusRuntime(
                                 },
                                 now: options.now?.() ?? Date.now(),
                                 nextPlanningAttemptId: `${state.id}-planning-${state.turnSeq + 1}`,
-                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.turnSeq + 1}`
+                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.turnSeq + 1}`,
+                                ...(input.completionClaims === undefined
+                                    ? {}
+                                    : {
+                                          completion: {
+                                              claims: input.completionClaims,
+                                              authorizedTaskIds: taskEvidence.map(
+                                                  (evidence) => evidence.taskId
+                                              ),
+                                              factId: (kind: string, index: number) =>
+                                                  `completion-${input.deliveryId}-${kind}-${index}`
+                                          }
+                                      })
                             }
                         );
                         const nextStep =
@@ -1384,6 +1377,75 @@ export function createCreateStatusRuntime(
             )
                 return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can resume it.");
             return transitionMeetingStatus(input, caller, "running");
+        },
+        async endMeeting(input: EndMeetingInputV1, caller) {
+            await rehydrate();
+            const stored = meetings.get(input.meetingId);
+            if (
+                stored === undefined ||
+                caller.kind !== "captain" ||
+                caller.sessionId !== stored.captainSessionId ||
+                (caller.meetingId !== undefined && caller.meetingId !== input.meetingId)
+            ) {
+                return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can end it.");
+            }
+            try {
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "end_meeting",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `captain:${caller.sessionId}`
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: input.expectedMeetingVersion,
+                    transition: (snapshot) => {
+                        const transition = endMeetingTransition(
+                            snapshot.state as unknown as MeetingState,
+                            {
+                                meetingId: input.meetingId,
+                                captainBinding: `captain:${caller.sessionId}`,
+                                outcome: input.outcome,
+                                reason: input.reason,
+                                acceptedDecisionIds: input.acceptedDecisionIds,
+                                deferredAgendaItemIds: input.deferredAgendaItemIds,
+                                waivers: input.waivers,
+                                now: options.now?.() ?? Date.now(),
+                                factId: (index) => `completion-${input.requestId}-waiver-${index}`
+                            }
+                        );
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: {
+                                status: transition.state.status,
+                                terminationCode: transition.state.termination!.code
+                            },
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox: []
+                        };
+                    }
+                });
+                workers.get(input.meetingId)?.wake();
+                return success<EndMeetingResultV1>(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as EndMeetingResultV1
+                );
+            } catch (error) {
+                return commandError(
+                    error,
+                    "INVALID_ARGUMENT",
+                    error instanceof Error ? error.message : "The meeting could not be ended.",
+                    {
+                        meetingId: input.meetingId,
+                        meetingVersion: input.expectedMeetingVersion
+                    },
+                    {
+                        INVALID_ENTITY_STATE: "INVALID_ARGUMENT",
+                        INVALID_STATE_TRANSITION: "INVALID_ARGUMENT"
+                    }
+                );
+            }
         },
 
         async findBySessionId(sessionId, lookupSignal) {

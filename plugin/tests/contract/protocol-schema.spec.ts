@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
     CreateMeetingResultSchema,
     CreateMeetingInputSchema,
+    EndMeetingInputSchema,
+    EndMeetingResultSchema,
     MeetingArchivePackageSchema,
     ManagerPlanResultSchema,
     ManagerPlanSubmissionSchema,
@@ -164,6 +166,7 @@ describe("protocol envelope schemas", () => {
             })
         ).toMatchObject({ code: "UNKNOWN_ERROR", retryable: false });
         expect(isKnownMeetingProtocolErrorCode("INVALID_ARGUMENT")).toBe(true);
+        expect(isKnownMeetingProtocolErrorCode("VERSION_CONFLICT")).toBe(true);
         expect(isKnownMeetingProtocolErrorCode("UNSUPPORTED_CAPABILITY")).toBe(true);
         expect(isKnownMeetingProtocolErrorCode("UNKNOWN_ERROR")).toBe(false);
     });
@@ -295,6 +298,57 @@ describe("protocol envelope schemas", () => {
                 status: "unknown",
                 participants: []
             })
+        ).toThrow();
+    });
+
+    it("validates the Captain end command and terminal completion basis", () => {
+        expect(
+            EndMeetingInputSchema({
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 3,
+                outcome: "completed",
+                reason: "Objective satisfied",
+                acceptedDecisionIds: ["decision-1"],
+                deferredAgendaItemIds: [],
+                waivers: [],
+                requestId: "request-end-1"
+            })
+        ).toMatchObject({ outcome: "completed" });
+        expect(
+            EndMeetingResultSchema({ status: "completed", terminationCode: "objective_satisfied" })
+        ).toEqual({ status: "completed", terminationCode: "objective_satisfied" });
+
+        const terminal = {
+            meetingId: "meeting-1",
+            meetingVersion: 4,
+            topic: "Release",
+            objective: "Decide scope",
+            continuationMaterials: [],
+            limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
+            messages: [],
+            acceptedDecisions: [],
+            blockingFacts: [],
+            meetingTasks: [],
+            status: "completed",
+            pendingHandRaises: [],
+            pauseControl: { action: "none" },
+            termination: {
+                code: "objective_satisfied",
+                reason: "Objective satisfied",
+                decisionIds: ["decision-1"],
+                unresolvedQuestionIds: [],
+                dissentingPositionIds: [],
+                blockingAgendaItemIds: [],
+                finalMessage: "Meeting completed.",
+                endedAt: 1
+            },
+            completionFactIds: ["completion-1"]
+        };
+
+        expect(() => MeetingStatusResultSchema(terminal)).not.toThrow();
+        expect(() =>
+            MeetingStatusResultSchema({ ...terminal, completionFactIds: undefined })
         ).toThrow();
     });
 

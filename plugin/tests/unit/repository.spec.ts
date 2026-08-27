@@ -319,6 +319,74 @@ describe("MeetingRepository", () => {
         await repository.close();
     });
 
+    it("serializes Captain end against a same-version meeting fact command", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "running", completionFactIds: [] }
+        });
+        const endCommand: RepositoryCommand<{ status: string }> = {
+            requestId: "end-1",
+            commandKind: "end_meeting",
+            authorization,
+            requestHash: "end-hash",
+            expectedMeetingVersion: 0,
+            transition: (snapshot) => ({
+                state: { ...snapshot.state, status: "completed" },
+                result: { status: "completed" },
+                events: [{ type: "meeting.ended", payload: { status: "completed" } }],
+                outbox: []
+            })
+        };
+        const meetingFactCommand = (expectedMeetingVersion: number) => ({
+            requestId: `fact-${expectedMeetingVersion}`,
+            commandKind: "associate_task_snapshot",
+            authorization: { ...authorization, callerBinding: "participant:1" },
+            requestHash: `fact-hash-${expectedMeetingVersion}`,
+            expectedMeetingVersion,
+            transition: (snapshot: Awaited<ReturnType<MeetingRepository["read"]>>) => {
+                if (snapshot.state.status === "completed") {
+                    throw Object.assign(new Error("terminal meeting is immutable"), {
+                        code: "IMMUTABLE_MEETING",
+                        retryable: false
+                    });
+                }
+                return {
+                    state: { ...snapshot.state, completionFactIds: ["task-fact-1"] },
+                    result: { completionFactId: "task-fact-1" },
+                    events: [
+                        {
+                            type: "completion_fact.added" as const,
+                            payload: { completionFactId: "task-fact-1" }
+                        }
+                    ],
+                    outbox: []
+                };
+            }
+        });
+
+        const [endResult, factResult] = await Promise.allSettled([
+            repository.execute(endCommand),
+            repository.execute(meetingFactCommand(0))
+        ]);
+
+        expect(endResult.status).toBe("fulfilled");
+        expect(factResult).toMatchObject({
+            status: "rejected",
+            reason: { code: "VERSION_CONFLICT" }
+        });
+        await expect(repository.execute(meetingFactCommand(1))).rejects.toMatchObject({
+            code: "IMMUTABLE_MEETING"
+        });
+        expect(await repository.read()).toMatchObject({
+            version: 1,
+            state: { status: "completed", completionFactIds: [] }
+        });
+        await repository.close();
+    });
+
     it("rejects stale outbox completion after lease expiry and reclaims the item", async () => {
         const repository = await openRepository();
         await createMeeting(repository, {

@@ -188,6 +188,17 @@ const termination = Schema.object({
     unresolvedQuestionIds: requiredArray(requiredString())
 });
 
+const executionTermination = Schema.object({
+    code: requiredString(),
+    reason: requiredString(),
+    decisionIds: requiredArray(requiredString()),
+    unresolvedQuestionIds: requiredArray(requiredString()),
+    dissentingPositionIds: requiredArray(requiredString()),
+    blockingAgendaItemIds: requiredArray(requiredString()),
+    finalMessage: requiredString(),
+    endedAt: requiredNumber()
+});
+
 const active = Schema.object({
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
@@ -237,7 +248,8 @@ const terminal = Schema.object({
     pendingHandRaises: Schema.tuple([]).required(),
     meetingTasks: requiredArray(meetingTask),
     pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
-    termination: termination.required(),
+    termination: executionTermination.required(),
+    completionFactIds: requiredArray(requiredString()),
     archive: Schema.never()
 });
 

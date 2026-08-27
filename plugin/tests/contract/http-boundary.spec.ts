@@ -20,7 +20,8 @@ describe("T5 HTTP boundary", () => {
             'name: "convivium_submit_manager_plan"',
             'name: "convivium_submit_turn"',
             'name: "convivium_pause_meeting"',
-            'name: "convivium_resume_meeting"'
+            'name: "convivium_resume_meeting"',
+            'name: "convivium_end_meeting"'
         ]);
         expect(`${toolRegistration}\n${projection}`).not.toMatch(
             /dsh-host-webserver|ctx\.router|registerRoute|WebRoute/
