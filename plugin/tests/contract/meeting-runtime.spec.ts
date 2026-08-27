@@ -175,14 +175,52 @@ describe("create/status meeting runtime", () => {
         expect(committed).toMatchObject({
             ok: true,
             meetingVersion: 2,
-            result: { messageSeq: 1, meetingStatus: "completed" }
+            result: { messageSeq: 1, meetingStatus: "converging" }
         });
         await expect(runtime.submitTurn(validSubmission, participant)).resolves.toEqual(committed);
+        const endInput = {
+            protocolVersion: 1 as const,
+            meetingId,
+            expectedMeetingVersion: 2,
+            outcome: "completed" as const,
+            reason: "Objective contract is satisfied",
+            acceptedDecisionIds: [],
+            deferredAgendaItemIds: [],
+            waivers: [],
+            requestId: "end-1"
+        };
+        await expect(runtime.endMeeting(endInput, participant)).resolves.toMatchObject({
+            ok: false,
+            code: "UNAUTHORIZED_CALLER"
+        });
+        await expect(
+            runtime.endMeeting({ ...endInput, expectedMeetingVersion: 1 }, captain)
+        ).resolves.toMatchObject({ ok: false, code: "VERSION_CONFLICT", retryable: true });
+        const ended = await runtime.endMeeting(endInput, captain);
+        expect(ended).toMatchObject({
+            ok: true,
+            meetingVersion: 3,
+            result: { status: "completed", terminationCode: "objective_satisfied" }
+        });
+        await expect(runtime.endMeeting(endInput, captain)).resolves.toEqual(ended);
+        await expect(
+            runtime.endMeeting({ ...endInput, reason: "Different request hash" }, captain)
+        ).resolves.toMatchObject({ ok: false, code: "IDEMPOTENCY_CONFLICT" });
+        await expect(
+            runtime.submitTurn(
+                {
+                    ...submission,
+                    deliveryId: "delivery-after-terminal",
+                    content: "late write"
+                },
+                participant
+            )
+        ).resolves.toMatchObject({ ok: false, code: "IMMUTABLE_MEETING" });
         await expect(
             runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
         ).resolves.toMatchObject({
             ok: true,
-            meetingVersion: 2,
+            meetingVersion: 3,
             result: {
                 status: "completed",
                 completionFactIds: expect.arrayContaining([

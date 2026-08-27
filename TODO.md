@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `A4 / plugin captain-end`：实现 Captain 结束事务与活动执行收口
-    - 依据文档：`docs/30-designs/RUNBOOK-COMPLETION-CLOSURE.md` T2、T3、6.2；`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md` Completion And Termination
-    - 确认依据：2026-08-27 用户确认闭环 A RUNBOOK 待执行；`codex://threads/01a04210-fa01-7091-b554-4c94a5cf0186`
-    - 处理动作：只修改 completion/end 相关 domain、runtime 和 tool 分支，注册 `convivium_end_meeting`，并通过唯一 `MeetingRepository.execute()` 校验真实 Captain、version、outcome、完成条件和 Meeting 内引用，原子提交 termination/event/version/receipt、撤销活动 attempt、截断 Turn 并使旧 dispatch 授权失败；不得读取、取消或转移 TeamTask。
-    - 验收点：`pnpm exec vitest run tests/unit/domain/transitions.spec.ts tests/unit/runtime/meeting-runtime.spec.ts tests/contract/tool-registration.spec.ts tests/unit/repository.spec.ts` 通过，并覆盖四种 outcome、权限、version conflict、幂等、跨 Meeting 引用、事务回滚和终态后写入拒绝。
-
 - [ ] `A5 / plugin terminal-status`：实现 execution-terminal 状态投影
     - 依据文档：`docs/30-designs/RUNBOOK-COMPLETION-CLOSURE.md` T4、7；`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md` Authorized status projection
     - 确认依据：2026-08-27 用户确认闭环 A RUNBOOK 待执行；`codex://threads/01a04210-fa01-7091-b554-4c94a5cf0186`

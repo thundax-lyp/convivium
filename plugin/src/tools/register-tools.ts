@@ -8,6 +8,8 @@ import {
 import type {
     CreateMeetingInputV1,
     CreateMeetingResultV1,
+    EndMeetingInputV1,
+    EndMeetingResultV1,
     MeetingStatusInputV1,
     MeetingStatusResultV1,
     MeetingControlResultV1,
@@ -22,6 +24,7 @@ import type {
 } from "../protocol/index.js";
 import {
     CreateMeetingInputSchema,
+    EndMeetingInputSchema,
     MeetingStatusInputSchema,
     PauseMeetingInputSchema,
     ResumeMeetingInputSchema,
@@ -73,6 +76,11 @@ export interface MeetingToolRuntime {
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
+    endMeeting(
+        input: EndMeetingInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<EndMeetingResultV1> | ProtocolErrorV1>;
 }
 
 export interface MeetingToolRegistry {
@@ -284,6 +292,25 @@ export function registerSubmitAndControlTools(
                                 ResumeMeetingInputSchema(value as never) as ResumeMeetingInputV1,
                             callers: dependencies.callers,
                             runtime: dependencies.runtime.resume.bind(dependencies.runtime),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_end_meeting",
+                description: "End a meeting as its Captain with a structured terminal outcome.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                EndMeetingInputSchema(value as never) as EndMeetingInputV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.endMeeting.bind(dependencies.runtime),
                             exec
                         })
                     );

@@ -54,6 +54,13 @@ describe("meeting tool registration", () => {
                     code: "UNSUPPORTED_CAPABILITY",
                     message: "not exercised",
                     retryable: false
+                }),
+                endMeeting: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
                 })
             }
         });
@@ -102,6 +109,13 @@ describe("meeting tool registration", () => {
                     code: "UNSUPPORTED_CAPABILITY",
                     message: "not exercised",
                     retryable: false
+                }),
+                endMeeting: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
                 })
             }
         });
@@ -112,7 +126,8 @@ describe("meeting tool registration", () => {
             "convivium_submit_manager_plan",
             "convivium_submit_turn",
             "convivium_pause_meeting",
-            "convivium_resume_meeting"
+            "convivium_resume_meeting",
+            "convivium_end_meeting"
         ]);
         expect(definitions.every((definition) => definition.output !== undefined)).toBe(true);
     });
@@ -167,6 +182,13 @@ describe("meeting tool registration", () => {
                     code: "UNSUPPORTED_CAPABILITY",
                     message: "not exercised",
                     retryable: false
+                }),
+                endMeeting: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNSUPPORTED_CAPABILITY",
+                    message: "not exercised",
+                    retryable: false
                 })
             }
         });
@@ -212,6 +234,10 @@ describe("meeting tool registration", () => {
                     throw new Error("must not run");
                 },
                 resume: async () => {
+                    runtimeCalls += 1;
+                    throw new Error("must not run");
+                },
+                endMeeting: async () => {
                     runtimeCalls += 1;
                     throw new Error("must not run");
                 }
@@ -278,6 +304,10 @@ describe("meeting tool registration", () => {
                 ),
                 resume: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`resume:${caller.kind}`),
+                    denied()
+                ),
+                endMeeting: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`end:${caller.kind}`),
                     denied()
                 )
             }
@@ -360,6 +390,17 @@ describe("meeting tool registration", () => {
                 meetingId: "meeting-1",
                 expectedMeetingVersion: 1,
                 requestId: "request-1"
+            },
+            convivium_end_meeting: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                outcome: "cancelled",
+                reason: "cancel",
+                acceptedDecisionIds: [],
+                deferredAgendaItemIds: [],
+                waivers: [],
+                requestId: "request-1"
             }
         };
 
@@ -377,7 +418,8 @@ describe("meeting tool registration", () => {
             "manager-plan:participant",
             "submit:participant",
             "pause:participant",
-            "resume:participant"
+            "resume:participant",
+            "end:participant"
         ]);
     });
 });
