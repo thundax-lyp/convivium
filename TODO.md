@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/domain/completion.ts`：实现确定性 Turn 完成判断
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 4.6、6.5、9.2。
-  - 确认依据：2026-08-27 用户确认 Turn 完成后确定性判断完成或下一 Turn。
-  - 处理动作：仅依据 canonical facts 和 limits 返回 `completed | partial | continue`，业务完成优先于 hard limit。
-  - 验收点：`plugin/tests/unit/domain/completion.spec.ts` 覆盖 objective satisfied、开放阻塞项、`max_turns`、message/time limit、完成与限制同时命中的优先级。
-
 - [ ] `plugin/src/domain/transitions.ts`：实现 Speaker 提交与 Turn 推进转换
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 6.4、6.5、7.2。
   - 确认依据：2026-08-27 用户确认逐 Speaker dispatch 与 Turn 生命周期闭环。
