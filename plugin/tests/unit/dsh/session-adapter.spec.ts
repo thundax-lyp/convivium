@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     followupParticipantSession,
+    followupManagerSession,
     inspectOwnedSessions,
     interruptAndDrainOwnedSessions,
     startManagerSession,
@@ -236,6 +237,62 @@ describe("followupParticipantSession", () => {
             })
         ).rejects.toThrow("CAPABILITY_REVOKED");
         expect(checks).toBe(2);
+    });
+});
+
+describe("followupManagerSession", () => {
+    const ownership = {
+        ...participantOwnership(),
+        sessionId: "manager-session",
+        sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+        role: "manager" as const,
+        participantId: undefined
+    };
+
+    it("keeps the exact parent, delivery identity and authorization checks", async () => {
+        const calls: unknown[] = [];
+        const result = await followupManagerSession({
+            runtime: {
+                followup: async (...args) => {
+                    calls.push(args);
+                    return "manager-message" as never;
+                }
+            },
+            parent: { id: "captain-session" } as never,
+            ownership,
+            attempt: { planningAttemptId: "planning-1", deliveryId: "delivery-1" },
+            prompt: [{ type: "text", text: "plan" }],
+            signal: new AbortController().signal,
+            authorize: async () => undefined
+        });
+        expect(result).toBe("manager-message");
+        expect((calls[0] as unknown[])[0]).toMatchObject({ id: "captain-session" });
+        expect((calls[0] as unknown[])[1]).toBe("manager-session");
+    });
+
+    it.each([
+        ["wrong parent", { parentSessionId: "other-captain" }],
+        ["participant ownership", { role: "participant" as const, participantId: "participant-a" }],
+        ["revoked capability", { capabilityStatus: "revoked" as const }]
+    ])("fails closed for %s", async (_name, overrides) => {
+        let delivered = false;
+        await expect(
+            followupManagerSession({
+                runtime: {
+                    followup: async () => {
+                        delivered = true;
+                        return "message" as never;
+                    }
+                },
+                parent: { id: "captain-session" } as never,
+                ownership: { ...ownership, ...overrides },
+                attempt: { planningAttemptId: "planning-1", deliveryId: "delivery-1" },
+                prompt: [{ type: "text", text: "plan" }],
+                signal: new AbortController().signal,
+                authorize: async () => undefined
+            })
+        ).rejects.toThrow();
+        expect(delivered).toBe(false);
     });
 });
 

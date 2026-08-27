@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/dsh/session-adapter.ts`：增加受授权的 Manager followup
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 5.1、6.2、7.2。
-  - 确认依据：2026-08-27 用户确认使用真实 DSH Manager continuable Session。
-  - 处理动作：实现 `followupManagerSession()`，复用 exact parent、ownership、capability 和 followup 前后授权检查；保留原 `deliveryId`。
-  - 验收点：`plugin/tests/unit/dsh/session-adapter.spec.ts` 与 `plugin/tests/integration/dsh/session-adapter.spec.ts` 证明错误 parent/ownership、pre-accept stale、post-accept revoke 均 fail closed 且不会重复 followup。
-
 - [ ] `plugin/src/runtime/outbox-worker.ts`：补齐 delivery worker 生命周期与重试分类
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 4.5、5.4、6.2、6.4、7.2。
   - 确认依据：2026-08-27 用户确认逐步调度使用持久 outbox。
