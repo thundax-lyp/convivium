@@ -36,7 +36,12 @@ export async function openMeetingRepository(
 export interface MeetingCreationRuntimeDependencies {
     readonly repository: Pick<
         MeetingRepository,
-        "meetingId" | "create" | "completeCreate" | "updateBootstrap" | "recordSessionOwnership"
+        | "meetingId"
+        | "create"
+        | "completeCreate"
+        | "updateBootstrap"
+        | "recordSessionOwnership"
+        | "recover"
     >;
     readonly continuable: ContinuableStarter;
     readonly parent: Agent;

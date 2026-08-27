@@ -96,7 +96,8 @@ export function apply(ctx: Context, config: ConfigType): void {
         authorizationValidator: {
             validateCreate: () => undefined,
             validateCommand: () => undefined
-        }
+        },
+        maxParticipants: config.maxParticipants
     });
     const callers = {
         async resolve(agent: Parameters<typeof resolveMeetingCaller>[0], signal: AbortSignal) {
