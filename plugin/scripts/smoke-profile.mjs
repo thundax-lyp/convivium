@@ -341,17 +341,21 @@ async function run(ctx) {
         for (let index = 0; index < participants.length; index += 1) {
             const participantId = participants[index];
             const stepDeadline = Date.now() + 30000;
+            let lastStatus;
+            let lastAgentFound = false;
             while (Date.now() < stepDeadline) {
                 const beforeSubmit = await callTool(ctx, captain.agent, "convivium_meeting_status", {
                     protocolVersion: 1,
                     meetingId
                 }, statusCall++);
+                lastStatus = beforeSubmit.result;
                 if (beforeSubmit.result.messages.length >= index + 1) break;
                 if (beforeSubmit.result.currentSpeakerId !== participantId) {
                     await new Promise((resolveWait) => setTimeout(resolveWait, 100));
                     continue;
                 }
                 const agent = ctx.agents.get(meetingId + "-participant-" + participantId);
+                lastAgentFound = agent !== undefined;
                 if (!agent) {
                     await new Promise((resolveWait) => setTimeout(resolveWait, 100));
                     continue;
@@ -378,7 +382,19 @@ async function run(ctx) {
                 }
             }
             if (Date.now() >= stepDeadline) {
-                throw new Error("Timed out waiting for committed participant step " + index + ".");
+                throw new Error(
+                    "Timed out waiting for committed participant step " +
+                        index +
+                        ": " +
+                        JSON.stringify({
+                            currentSpeakerId: lastStatus?.currentSpeakerId,
+                            messageCount: lastStatus?.messages?.length,
+                            currentTurn: lastStatus?.currentTurn,
+                            agentFound: lastAgentFound,
+                            liveAgentIds: ctx.agents.list().map((candidate) => String(candidate.id)),
+                            liveSessionIds: ctx.sessions.list().map((candidate) => String(candidate.id))
+                        })
+                );
             }
         }
         const status = await callTool(ctx, captain.agent, "convivium_meeting_status", {

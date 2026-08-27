@@ -13,6 +13,7 @@
   - 确认依据：2026-08-27 用户要求补真实 DSH profile 验证。
   - 处理动作：用隔离 profile 和 `spawn` provider 跑一个 `manager`、`maxTurns = 2` 的 `A → C → B → next planning` 代表路径，并精确清理临时资源。
   - 验收点：`pnpm smoke:profile` 和 `pnpm verify:runtime` 通过；输出证明真实 Session 顺序、transcript seq、next planning 与 host 正常停止。
+  - 当前阻塞：2026-08-27 使用 `@deepseek-ai/dsh@0.1.1-rc.2` 的真实 `web` profile 重复运行时，Manager plan、A/C 提交和 C→B 调度事件已产生，但 B（部分运行中 C）不出现在 `ctx.agents.list()` 或 `ctx.sessions.list()`，无法取得真实 Participant caller；因此 smoke 未通过，不能关闭本项。
 
 - [ ] `docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`：记录验证并收口 RUNBOOK
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 11、12；`docs/00-governance/TODO-RULES.md` Closure Rules。
