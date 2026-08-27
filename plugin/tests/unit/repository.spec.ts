@@ -199,6 +199,36 @@ describe("MeetingRepository", () => {
         await repository.close();
     });
 
+    it("keeps the embedded MeetingState version in sync for plain commands", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created", version: 0, updatedAt: 1 }
+        });
+
+        await repository.execute({
+            requestId: "plain-command",
+            commandKind: "raise_hand",
+            authorization,
+            requestHash: "plain-command-hash",
+            expectedMeetingVersion: 0,
+            transition: (snapshot) => ({
+                state: { ...snapshot.state, status: "waiting" },
+                result: { status: "waiting" },
+                events: [{ type: "hand_raise.created", payload: {} }],
+                outbox: []
+            })
+        });
+
+        expect(await repository.read()).toMatchObject({
+            version: 1,
+            state: { version: 1, status: "waiting" }
+        });
+        await repository.close();
+    });
+
     it("rolls back and preserves a transition validation error", async () => {
         const repository = await openRepository();
         await createMeeting(repository, {

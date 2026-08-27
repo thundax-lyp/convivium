@@ -946,11 +946,15 @@ export class MeetingRepository {
                 );
             }
             const nextVersion = snapshot.version + 1;
+            const nextState =
+                transition.state.version === snapshot.state.version
+                    ? { ...transition.state, version: nextVersion, updatedAt: now }
+                    : transition.state;
             this.db
                 .prepare(
                     "UPDATE meetings SET version = ?, state_json = ?, updated_at = ? WHERE meeting_id = ?"
                 )
-                .run(nextVersion, json(transition.state), now, this.meetingId);
+                .run(nextVersion, json(nextState), now, this.meetingId);
             const eventSeqs = transition.events.map((event) =>
                 this.insertEvent(event, nextVersion, now)
             );

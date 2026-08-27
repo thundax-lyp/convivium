@@ -25,12 +25,26 @@ export function createHandRaise(
     if (state.handRaises.some((raise) => raise.id === input.id)) {
         throw new DomainError("INVALID_ENTITY_STATE", `hand raise ${input.id} already exists`);
     }
+    for (const taskId of input.taskIds) {
+        const task = (state.meetingTasks ?? []).find(
+            (candidate) => candidate.meetingTaskId === taskId
+        );
+        if (task === undefined || task.participantId !== input.participantId) {
+            throw new DomainError(
+                "INVALID_ENTITY_STATE",
+                `meeting task ${taskId} is not owned by participant ${input.participantId}`
+            );
+        }
+    }
     const duplicate = state.handRaises.some(
         (raise) =>
             raise.status === "pending" &&
             raise.participant === input.participantId &&
             raise.reason === input.reason &&
-            raise.taskIds.join(",") === input.taskIds.join(",")
+            raise.taskIds.join(",") === input.taskIds.join(",") &&
+            raise.summary === input.summary &&
+            raise.agendaItemId === input.agendaItemId &&
+            raise.priority === input.priority
     );
     if (duplicate) return { state, effect: { events: [] } };
     const raise: MeetingHandRaise = {

@@ -454,7 +454,9 @@ export function createCreateStatusRuntime(
                     phase === "before"
                         ? !meetingTerminal && currentTask?.status === "queued"
                         : !meetingTerminal &&
-                          ["running", "completed", "failed"].includes(currentTask?.status ?? "");
+                          ["queued", "running", "completed", "failed"].includes(
+                              currentTask?.status ?? ""
+                          );
                 if (!allowed)
                     throw terminalDispatchError(
                         "MEETING_TASK_NOT_EXECUTABLE",
