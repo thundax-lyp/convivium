@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/projection/status.ts`：保持 Manager planning 状态投影最小化
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 8、9.1。
-  - 确认依据：2026-08-27 用户确认 planning、Turn 和完成判断必须可审计。
-  - 处理动作：保持 `MeetingStatusResultV1` 不扩展，planning 时输出 `status = "running"` 并省略 current Turn/Speaker，不暴露 planning attempt 私有细节。
-  - 验收点：`plugin/tests/contract/status-projection.spec.ts` 证明 Captain/Manager/Participant projection 合法，且无 Session/capability/outbox/prompt 字段泄漏。
-
 - [ ] `plugin/tests/integration/runtime/vertical-slice.spec.ts`：覆盖 Manager 到下一 Turn 的集成闭环
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 9.2。
   - 确认依据：2026-08-27 用户确认实现第一条真正闭环并补确定性验证。
