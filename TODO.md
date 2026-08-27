@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/tests/integration/runtime/vertical-slice.spec.ts`：覆盖 Manager 到下一 Turn 的集成闭环
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 9.2。
-  - 确认依据：2026-08-27 用户确认实现第一条真正闭环并补确定性验证。
-  - 处理动作：覆盖 Manager plan、`A → C → B` committed prefix、next planning、completed/partial、并发 submit 和 retry exhaustion 的跨模块行为。
-  - 验收点：`pnpm test:integration` 通过，且上述分支各有唯一测试用例，不依赖真实 profile 重复证明确定性状态分支。
-
 - [ ] `plugin/tests/recovery/recovery.spec.ts`：覆盖 pause 与 restart recovery
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 7.3、7.4、9.2。
   - 确认依据：2026-08-27 用户确认闭环需要 pause、retry 和 restart recovery 测试。

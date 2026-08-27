@@ -11,11 +11,11 @@ const turn: MeetingTurn = {
     objective: "resolve",
     expectedOutputs: [],
     prohibitedTopics: [],
-    plan: ["a", "b", "c"],
+    plan: ["a", "c", "b"],
     status: "planned",
     currentStepIndex: 0,
     createdAt: 1,
-    steps: ["a", "b", "c"].map((speaker) => ({
+    steps: ["a", "c", "b"].map((speaker) => ({
         id: `step-${speaker}`,
         speaker,
         instruction: `address-${speaker}`,
@@ -71,7 +71,7 @@ describe("runtime vertical slice composition", () => {
                 ),
             commitSubmission: async (_, message) => committed.push(message)
         });
-        expect(contexts).toEqual([[], ["message-a"], ["message-a", "message-b"]]);
+        expect(contexts).toEqual([[], ["message-a"], ["message-a", "message-c"]]);
     });
 
     it("keeps outbox retry state separate from the DSH dispatch callback", async () => {
