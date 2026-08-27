@@ -58,7 +58,10 @@ describe("outbox worker", () => {
             retryDelayMs: 50,
             maxAttempts: 2,
             dispatch: async () => {
-                throw Object.assign(new Error("unavailable"), { code: "DSH_UNAVAILABLE" });
+                throw Object.assign(new Error("unavailable"), {
+                    code: "DSH_UNAVAILABLE",
+                    retryable: true
+                });
             },
             now: () => 10
         });
@@ -91,5 +94,27 @@ describe("outbox worker", () => {
             status: "failed",
             errorCode: "DSH_DISPATCH_FAILED"
         });
+    });
+
+    it("does not retry a deterministic dispatch failure", async () => {
+        const completions: { status: string }[] = [];
+        const worker = createOutboxWorker({
+            repository: {
+                claimOutbox: async () => [item()],
+                completeOutbox: async (input) => {
+                    completions.push(input.completion);
+                    return { id: input.id, status: input.completion.status };
+                }
+            },
+            owner: "worker-1",
+            ttlMs: 100,
+            batchSize: 1,
+            pollMs: 10,
+            dispatch: async () => {
+                throw Object.assign(new Error("stale"), { code: "STALE", retryable: false });
+            }
+        });
+        await worker.runOnce();
+        expect(completions[0]).toMatchObject({ status: "failed", errorCode: "STALE" });
     });
 });
