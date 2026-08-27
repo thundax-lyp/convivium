@@ -20,6 +20,14 @@ import type {
     TurnStatus
 } from "./model.js";
 
+export interface StartManagerPlanningContext {
+    meetingId: string;
+    planningAttemptId: string;
+    deliveryId: string;
+    reason: ManagerPlanningAttempt["reason"];
+    now: number;
+}
+
 const meetingTransitions: Readonly<Record<MeetingStatus, readonly MeetingStatus[]>> = {
     created: ["running", "paused", "cancelled", "failed"],
     running: [
@@ -755,6 +763,77 @@ export function transitionMeeting(
                     }
                 },
                 ...(lifecycleCleanup?.events ?? [])
+            ]
+        }
+    };
+}
+
+export function startManagerPlanning(
+    state: MeetingState,
+    context: StartManagerPlanningContext
+): TransitionResult<MeetingState> {
+    if (context.meetingId !== state.id) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `planning context does not belong to meeting ${state.id}`,
+            { entityType: "meeting", entityId: state.id, meetingVersion: state.version }
+        );
+    }
+    if (state.selectionMode !== "manager") {
+        throw new DomainError(
+            "UNSUPPORTED_CAPABILITY",
+            `meeting ${state.id} does not use manager selection`,
+            { entityType: "meeting", entityId: state.id, meetingVersion: state.version }
+        );
+    }
+    if (state.currentTurn !== undefined || state.manager.currentPlanningAttempt !== undefined) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `meeting ${state.id} already has active execution state`,
+            { entityType: "meeting", entityId: state.id, meetingVersion: state.version }
+        );
+    }
+    if (state.status !== "created" && state.status !== "waiting") {
+        throw invalidStateTransition("meeting", state.id, state.status, "running", state.version);
+    }
+
+    const meeting = transitionMeeting(state, "running", {
+        now: context.now,
+        reason: context.reason
+    });
+    const planningAttempt: ManagerPlanningAttempt = {
+        id: context.planningAttemptId,
+        meetingId: state.id,
+        observedMeetingVersion: meeting.state.version,
+        reason: context.reason,
+        deliveryId: context.deliveryId,
+        status: "running",
+        createdAt: context.now
+    };
+    const nextState: MeetingState = {
+        ...meeting.state,
+        manager: {
+            ...meeting.state.manager,
+            status: "planning",
+            currentPlanningAttempt: planningAttempt
+        }
+    };
+    return {
+        state: nextState,
+        effect: {
+            events: [
+                ...meeting.effect.events,
+                {
+                    type: "manager_plan.started",
+                    payload: {
+                        meetingId: state.id,
+                        planningAttemptId: planningAttempt.id,
+                        deliveryId: planningAttempt.deliveryId,
+                        reason: planningAttempt.reason,
+                        meetingVersion: nextState.version,
+                        observedMeetingVersion: planningAttempt.observedMeetingVersion
+                    }
+                }
             ]
         }
     };

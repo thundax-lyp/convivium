@@ -4,6 +4,7 @@ import {
     type ArchivePackage,
     type MeetingState,
     submitSpeakerAttempt,
+    startManagerPlanning,
     transitionAttempt,
     transitionManagerAttempt,
     transitionMeeting,
@@ -115,6 +116,90 @@ function archivePackage(): ArchivePackage {
 }
 
 describe("meeting transitions", () => {
+    it("starts one manager planning attempt after entering running", () => {
+        const state = {
+            ...meeting(),
+            selectionMode: "manager" as const,
+            agenda: [
+                {
+                    id: "agenda-1",
+                    title: "Agenda",
+                    objective: "Objective",
+                    inScope: [],
+                    outOfScope: [],
+                    completionCriteria: [],
+                    requiredParticipants: [],
+                    relatedTaskIds: [],
+                    status: "pending" as const
+                }
+            ]
+        };
+
+        const result = startManagerPlanning(state, {
+            meetingId: state.id,
+            planningAttemptId: "planning-1",
+            deliveryId: "delivery-1",
+            reason: "initial_plan",
+            now
+        });
+
+        expect(result.state.status).toBe("running");
+        expect(result.state.version).toBe(state.version + 1);
+        expect(result.state.currentTurn).toBeUndefined();
+        expect(result.state.manager.status).toBe("planning");
+        expect(result.state.manager.currentPlanningAttempt).toEqual({
+            id: "planning-1",
+            meetingId: state.id,
+            observedMeetingVersion: state.version + 1,
+            reason: "initial_plan",
+            deliveryId: "delivery-1",
+            status: "running",
+            createdAt: now
+        });
+        expect(result.effect.events.map((item) => item.type)).toEqual([
+            "meeting.started",
+            "manager_plan.started"
+        ]);
+    });
+
+    it("rejects round-robin meetings and duplicate planning state", () => {
+        expect(() =>
+            startManagerPlanning(meeting(), {
+                meetingId: "meeting-1",
+                planningAttemptId: "planning-1",
+                deliveryId: "delivery-1",
+                reason: "initial_plan",
+                now
+            })
+        ).toThrowError(expect.objectContaining({ code: "UNSUPPORTED_CAPABILITY" }));
+
+        const state = {
+            ...meeting(),
+            selectionMode: "manager" as const,
+            manager: {
+                ...meeting().manager,
+                currentPlanningAttempt: {
+                    id: "planning-existing",
+                    meetingId: "meeting-1",
+                    observedMeetingVersion: 3,
+                    reason: "initial_plan" as const,
+                    deliveryId: "delivery-existing",
+                    status: "running" as const,
+                    createdAt: now
+                }
+            }
+        };
+        expect(() =>
+            startManagerPlanning(state, {
+                meetingId: state.id,
+                planningAttemptId: "planning-1",
+                deliveryId: "delivery-1",
+                reason: "initial_plan",
+                now
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
     it("increments version and records the status change", () => {
         const result = transitionMeeting(meeting(), "running", { now });
 
