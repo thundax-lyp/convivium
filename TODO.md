@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/tools/meeting-runtime.ts`：补齐 Manager pause/resume
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 7.3、9.2。
-  - 确认依据：2026-08-27 用户确认闭环需要 pause/resume 测试。
-  - 处理动作：pause 撤销 active planning attempt 和 pending outbox，resume 从最新事实创建新的 planning attempt、attempt ID 和 delivery ID；保持 `round_robin` 行为不变。
-  - 验收点：`plugin/tests/unit/runtime/meeting-runtime.spec.ts` 证明旧 attempt fail closed、resume 不复用 ID，且 pause 不永久 revoke meeting-owned Session capability。
-
 - [ ] `plugin/src/runtime/recovery.ts`：恢复 Manager/Turn 持久状态
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 7.4、9.2。
   - 确认依据：2026-08-27 用户确认闭环需要 restart recovery 测试。

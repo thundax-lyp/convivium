@@ -908,6 +908,7 @@ export function createCreateStatusRuntime(
     ) {
         const stored = meetings.get(input.meetingId);
         if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+        let dispatchManager = false;
         try {
             const committed = await stored.repository.execute({
                 requestId: input.requestId,
@@ -954,6 +955,53 @@ export function createCreateStatusRuntime(
                                     : participant
                             )
                         };
+                        if (nextState.selectionMode === "manager") {
+                            const planningAttemptId = `${nextState.id}-planning-${nextState.version}`;
+                            const planningDeliveryId = `${nextState.id}-planning-delivery-${nextState.version}`;
+                            nextState = {
+                                ...nextState,
+                                manager: {
+                                    ...nextState.manager,
+                                    status: "planning",
+                                    currentPlanningAttempt: {
+                                        id: planningAttemptId,
+                                        meetingId: nextState.id,
+                                        observedMeetingVersion: nextState.version,
+                                        reason: "next_turn",
+                                        deliveryId: planningDeliveryId,
+                                        status: "running",
+                                        createdAt: options.now?.() ?? Date.now()
+                                    }
+                                }
+                            };
+                            dispatchManager = true;
+                            outbox = [
+                                {
+                                    deliveryId: planningDeliveryId,
+                                    kind: "dispatch",
+                                    payload: { role: "manager", planningAttemptId }
+                                }
+                            ];
+                            extraEvents = [
+                                {
+                                    type: "manager_plan.started",
+                                    payload: {
+                                        meetingId: nextState.id,
+                                        planningAttemptId,
+                                        meetingVersion: nextState.version
+                                    }
+                                }
+                            ];
+                            return {
+                                state: nextState as unknown as JsonObject,
+                                result: { status: target, changed: true },
+                                events: [
+                                    ...(transition.effect.events as unknown as DomainEventInput[]),
+                                    ...extraEvents
+                                ],
+                                outbox
+                            };
+                        }
                         const planned = planRoundRobinTurn(
                             nextState,
                             {
@@ -1017,12 +1065,20 @@ export function createCreateStatusRuntime(
                 }
             });
             if (target === "running" && stored.parent !== undefined) {
-                await dispatchInitialDelivery(
-                    stored.repository,
-                    stored.parent,
-                    input.meetingId,
-                    options.signal ?? signal
-                );
+                if (dispatchManager)
+                    await dispatchManagerPlanningDelivery(
+                        stored.repository,
+                        stored.parent,
+                        input.meetingId,
+                        options.signal ?? signal
+                    );
+                else
+                    await dispatchInitialDelivery(
+                        stored.repository,
+                        stored.parent,
+                        input.meetingId,
+                        options.signal ?? signal
+                    );
             }
             return success<MeetingControlResultV1>(
                 input.meetingId,
