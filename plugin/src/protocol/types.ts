@@ -752,6 +752,7 @@ export type KnownMeetingProtocolErrorCodeV1 =
     | "REQUIRED_SPEAKER_UNAVAILABLE"
     | "MANAGER_PLAN_INVALID"
     | "DELIVERY_RETRY_EXHAUSTED"
+    | "UNSUPPORTED_CAPABILITY"
     | "INTERNAL_ERROR";
 
 export type MeetingProtocolErrorCodeV1 = KnownMeetingProtocolErrorCodeV1 | (string & {});

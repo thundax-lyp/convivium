@@ -6,6 +6,8 @@
 
 本证据不代表会议运行时、真实 DSH AgentSession 或会议业务已完成。当前领域状态机和 SQLite repository 基础已经存在；会议运行时、DSH lifecycle 和集成验证仍未覆盖。
 
+DSH Runtime 竖切的独立证据见 `docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`。
+
 ## Validated Contract
 
 - 插件 package name 为 `@convivium/dsh-plugin`，具备 Host `.` 与 Client `./client` 两个发布入口。
@@ -19,6 +21,27 @@
 - 当前代码—需求—设计漂移和未实现模块以本文件的 `Not Covered` 与相关正式需求、接口和设计文档为准。
 
 ## Executed Validation
+
+### DSH Runtime 执行基线（2026-08-26）
+
+- 基线分支：`codex/dsh-runtime-integration`。
+- 基线提交：`9fe99ac`；该提交前的工作区无未提交或未跟踪工程改动。
+- 环境：Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`。
+- 分支职责：该分支汇合已验证的 provider T1 取证、Host service-key 注入、canonical domain/SQLite 基础，以及 Tool/projection 契约；`main` 未承载这些未 PR 的开发提交。
+- 可回溯边界：本节只记录执行起点，不宣称 Runtime 会议创建或 Turn 已完成；剩余可执行工作以根 `TODO.md` 为准。
+
+### DSH Runtime 静态基线验证（2026-08-26）
+
+验证范围：`codex/dsh-runtime-integration` 的 T1 取证、domain/repository 基础与 Tool/projection 契约整合结果。
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm verify:environment` | Pass；Node `v22.23.2` 下 15 个声明的 DSH packages 均已安装。 |
+| `pnpm verify:contract` | Pass；插件 manifest、bundle patch 与 Client contract 可解析。 |
+| `pnpm typecheck` | Pass；Host 与 Client TypeScript face 均通过。 |
+| `pnpm test` | Pass；14 个测试文件、77 个测试通过。 |
+
+`pnpm verify` 随后也完整通过，但不替代本表中每个 T0 静态入口的独立结果。真实 profile lifecycle 的外部依赖验证见 T1 evidence；会议 Runtime 业务验证仍未覆盖。
 
 历史框架验证日期：2026-08-25
 环境：Node `v22.23.2`，pnpm `10.7.0`，macOS 本地工作区
@@ -48,6 +71,7 @@
 - 会议生命周期、Turn、发言权、Manager、完成判断和会议运行时业务。
 - 完整 MeetingState 与 SQLite repository 的类型化集成、业务 schema 语义和冷恢复。
 - 真实 DSH AgentSession 创建、followup、interrupt、continuable drain、capability revoke 和归档。
+- 宿主组合中 continuable subagent provider 的声明与选择、`prepareContinuable` 能力及 `startContinuable()` 独立 profile 验证。
 - 真实 DSH Host/Web roster 启动、工具调用、HTTP 路由和权限边界的运行时验证。
 - integration、recovery、stress 业务测试和压力结果。
 - 会议 UI 行为、真实浏览器交互和可访问性。

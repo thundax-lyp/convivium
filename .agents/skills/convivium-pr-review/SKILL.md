@@ -45,19 +45,19 @@ node .agents/skills/convivium-pr-review/scripts/collect-review-context.mjs snaps
 
 再按 changed files 读取相关 `docs/30-designs/`、`docs/40-readiness/`、`TODO.md` 和 `plugin/package.json`。只加载能解释当前 diff 的最小上下文。
 
-## 3. 建立审查模型
+## 3. 建立文档驱动的审查模型
 
-1. 从 diff、文档、测试和调用链归纳 1–5 条系统承诺。
-2. 从 [`references/failure-models.md`](./references/failure-models.md) 选择 1–3 个主风险模型。
-3. 读取 [`references/review-checks.md`](./references/review-checks.md)，对全部 changed hunks 先做必经基础检查，再执行实际触发的专项检查。
-4. 读取 [`references/coverage-and-output.md`](./references/coverage-and-output.md)，建立 changed-file ledger 和 contract-surface ledger。
-
-Convivium 重点承诺包括：单一有效发言权、顺序发言和迟到结果隔离；会议身份与 AgentSession 隔离；caller binding 和 capability 权限；SQLite 事务、receipt、event、outbox 幂等；TeamTask/mail/内部过程与正式会议事实隔离；暂停恢复、orphan 清理、归档和 capability revoke；完成判断与 required review；Host/Client、HTTP/tools 和 package contract。
+1. 从当前 PR 相关的需求、接口、设计、架构和 readiness 文档中提取 1–5 条系统承诺。每条承诺必须记录文档路径和章节；本 Skill 不自行定义业务结论。
+2. 根据 changed surfaces 选择相关的通用审查维度。主维度用于安排重点，但不能跳过其他实际触发的维度。读取 [`references/review-dimensions.md`](./references/review-dimensions.md)。
+3. 读取 [`references/evidence-matrix.md`](./references/evidence-matrix.md)，为每条系统承诺建立 source → producer → adapter → validator → consumer/sink 证据链，并补充负向场景、历史数据和验证证据。
+4. 读取 [`references/review-checks.md`](./references/review-checks.md)，对全部 changed hunks 执行基础检查，再执行证据矩阵实际触发的专项检查。
+5. 读取 [`references/coverage-and-output.md`](./references/coverage-and-output.md)，建立 changed-file ledger 和 contract-surface ledger。
 
 ## 4. 审查完整 diff
 
 - 逐个覆盖脚本返回的 changed files；测试、配置、迁移、脚本和文档不能因不是业务代码而跳过。
 - 对改动建立 producer → adapter → validator → consumer/sink 链路，必要时追踪 fallback、历史数据、迁移、等价路径和测试。
+- 对每条从正式文档提取的承诺，至少记录一个真实 validator、consumer/sink 或明确的终点；找不到时标记为 deferred，而不是凭经验补全规则。
 - 对当前 PR 至少推演一个异常、并发、权限、恢复、历史数据或治理失败反例。
 - 对新增、删除、替换、绕过或收窄的旧路径进行语义对账。
 - 只报告满足 finding 门槛的问题，不为了凑数量提出建议。

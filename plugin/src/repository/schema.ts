@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 4;
+export const CURRENT_SCHEMA_VERSION = 5;
 
 export const CURRENT_SCHEMA = `
 CREATE TABLE IF NOT EXISTS meetings (
@@ -62,7 +62,10 @@ CREATE TABLE IF NOT EXISTS meeting_bootstrap (
 CREATE TABLE IF NOT EXISTS session_ownership (
   session_id TEXT PRIMARY KEY,
   meeting_id TEXT NOT NULL REFERENCES meeting_bootstrap(meeting_id),
+  parent_session_id TEXT NOT NULL,
   session_label TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  initial_message_id TEXT,
   role TEXT NOT NULL CHECK (role IN ('manager', 'participant')),
   participant_id TEXT,
   lifecycle_status TEXT NOT NULL CHECK (lifecycle_status IN ('provisioning', 'active', 'closed')),

@@ -53,13 +53,15 @@
         "typecheck:client": "tsc -p tsconfig.client.json --noEmit",
         "typecheck": "pnpm typecheck:host && pnpm typecheck:client",
         "test": "vitest run",
-        "test:integration": "vitest run tests/integration --passWithNoTests && node -e \"console.log('Not Covered: integration tests')\"",
-        "test:recovery": "vitest run tests/recovery --passWithNoTests && node -e \"console.log('Not Covered: recovery tests')\"",
+        "test:integration": "vitest run --project integration",
+        "test:recovery": "vitest run --project recovery",
         "test:stress": "vitest run tests/stress --passWithNoTests && node -e \"console.log('Not Covered: stress tests')\"",
+        "smoke:profile": "node scripts/smoke-profile.mjs",
         "verify:environment": "node scripts/verify-dsh-environment.mjs",
         "verify:contract": "node scripts/verify-plugin-contract.mjs",
         "verify:package": "node scripts/verify-package.mjs",
-        "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm verify:environment && pnpm verify:contract && pnpm verify:package"
+        "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm verify:environment && pnpm verify:contract && pnpm verify:package",
+        "verify:runtime": "pnpm verify && pnpm smoke:profile"
     },
     "peerDependencies": {
         "@deepseek-ai/cordis": "^4.0.1",

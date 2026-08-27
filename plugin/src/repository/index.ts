@@ -158,7 +158,10 @@ export interface MeetingBootstrap {
 
 export interface SessionOwnership {
     sessionId: string;
+    parentSessionId: string;
     sessionLabel: string;
+    provider: string;
+    initialMessageId?: string;
     role: "manager" | "participant";
     participantId?: string;
     lifecycleStatus: "provisioning" | "active" | "closed";
@@ -169,7 +172,10 @@ export interface SessionOwnership {
 
 export interface SessionOwnershipInput {
     sessionId: string;
+    parentSessionId: string;
     sessionLabel: string;
+    provider: string;
+    initialMessageId?: string;
     role: "manager" | "participant";
     participantId?: string;
     lifecycleStatus: SessionOwnership["lifecycleStatus"];
@@ -223,7 +229,10 @@ interface BootstrapRow {
 interface SessionOwnershipRow {
     session_id: string;
     meeting_id: string;
+    parent_session_id: string;
     session_label: string;
+    provider: string;
+    initial_message_id: string | null;
     role: SessionOwnership["role"];
     participant_id: string | null;
     lifecycle_status: SessionOwnership["lifecycleStatus"];
@@ -275,7 +284,10 @@ function toBootstrap(row: BootstrapRow): MeetingBootstrap {
 function toSessionOwnership(row: SessionOwnershipRow): SessionOwnership {
     return {
         sessionId: row.session_id,
+        parentSessionId: row.parent_session_id,
         sessionLabel: row.session_label,
+        provider: row.provider,
+        ...(row.initial_message_id ? { initialMessageId: row.initial_message_id } : {}),
         role: row.role,
         ...(row.participant_id ? { participantId: row.participant_id } : {}),
         lifecycleStatus: row.lifecycle_status,
@@ -709,7 +721,12 @@ export class MeetingRepository {
             this.db.exec("BEGIN IMMEDIATE");
             this.getBootstrap();
             const label = parseSessionLabel(input.sessionLabel);
-            if (label?.teamId !== this.teamId || label.meetingId !== this.meetingId) {
+            if (
+                !input.parentSessionId ||
+                !input.provider ||
+                label?.teamId !== this.teamId ||
+                label.meetingId !== this.meetingId
+            ) {
                 throw new RepositoryError(
                     "INVALID_INPUT",
                     false,
@@ -734,24 +751,44 @@ export class MeetingRepository {
                         input.capabilityStatus
                     ) ||
                     existing.session_label !== input.sessionLabel ||
+                    existing.parent_session_id !== input.parentSessionId ||
+                    existing.provider !== input.provider ||
                     existing.role !== input.role ||
-                    existing.participant_id !== (input.participantId ?? null))
+                    existing.participant_id !== (input.participantId ?? null) ||
+                    (existing.initial_message_id !== null &&
+                        input.initialMessageId !== undefined &&
+                        existing.initial_message_id !== input.initialMessageId))
             ) {
                 throw new RepositoryError(
                     "INVALID_STATE",
                     false,
                     this.meetingId,
-                    "Session ownership identity, lifecycle or capability cannot move backward"
+                    "Session ownership identity, initial message, lifecycle or capability cannot move backward"
+                );
+            }
+            if (
+                input.lifecycleStatus === "active" &&
+                !input.initialMessageId &&
+                !existing?.initial_message_id
+            ) {
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "An active session ownership requires its initial message id"
                 );
             }
             this.db
                 .prepare(
-                    "INSERT INTO session_ownership(session_id, meeting_id, session_label, role, participant_id, lifecycle_status, capability_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET lifecycle_status = excluded.lifecycle_status, capability_status = excluded.capability_status, updated_at = excluded.updated_at"
+                    "INSERT INTO session_ownership(session_id, meeting_id, parent_session_id, session_label, provider, initial_message_id, role, participant_id, lifecycle_status, capability_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET initial_message_id = COALESCE(session_ownership.initial_message_id, excluded.initial_message_id), lifecycle_status = excluded.lifecycle_status, capability_status = excluded.capability_status, updated_at = excluded.updated_at"
                 )
                 .run(
                     input.sessionId,
                     this.meetingId,
+                    input.parentSessionId,
                     input.sessionLabel,
+                    input.provider,
+                    input.initialMessageId ?? null,
                     input.role,
                     input.participantId ?? null,
                     input.lifecycleStatus,

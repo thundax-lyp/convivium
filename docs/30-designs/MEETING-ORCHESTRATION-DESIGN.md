@@ -95,7 +95,7 @@
 
 - Convivium MUST 作为 DSH 插件加载和运行。
 - 仓库顶层 `plugin/` 是唯一产品工程。它独立实现全部产品模块，不使用 submodule、不依赖相邻参考项目工作区，也不建设独立应用壳或通用 ACP adapter。
-- 最低 DSH 版本为 `0.1.1-rc.1`。插件依赖该版本 `dsh-subagent` 提供的 `listChildren`、`listDescendants`、`drainContinuableChildren` 和 `drainContinuableDescendants`；缺失这些能力时插件加载失败，不提供弱化的会议生命周期。
+- 最低 DSH 版本为 `0.1.1-rc.2`。插件依赖该版本 `dsh-subagent` 提供的 `listChildren`、`listDescendants`、`drainContinuableChildren` 和 `drainContinuableDescendants`；缺失这些能力时插件加载失败，不提供弱化的会议生命周期。
 - 插件后端拥有 Meeting Runtime、SQLite、AgentSession 生命周期、工具、Web 路由和会议领域事件。
 - `client/*` 作为 DSH 插件前端，只消费插件后端 projection，不拥有会议领域状态。
 - 外部参考源码、文档、发布记录、品牌、协议名和持久化格式不得复制到 `plugin/`。
@@ -132,13 +132,16 @@ Captain Session
 ```ts
 createMeetingAgentSession(input: {
   parent: Agent
+  childId: SessionId
   label: string
+  initialPrompt: ContentBlock[]
   persona: string
   toolFilter: ToolFilter
-  provider?: string
+  provider: string
   model?: string
   reasoningEffort?: string
-}): Promise<{ sessionId: string }>
+  signal: AbortSignal
+}): Promise<{ sessionId: SessionId; initialMessageId: MessageId }>
 ```
 
 然后分别实现：
@@ -149,6 +152,10 @@ createMeetingParticipant(...)
 ```
 
 Meeting Runtime、tool handler、HTTP handler 和 recovery 不得绕过该 adapter 直接调用 DSH spawn、followup、interrupt 或 drain。完整 adapter 和 capability 检查规则见 `CONVIVIUM-IMPLEMENTATION-DESIGN.md`。
+
+`startContinuable()` 不提供“只创建空 Session”的模式；`initialPrompt` 是创建契约的必填部分。Meeting Runtime 必须把首次消息限定为确定性的 Session provisioning envelope：它只声明会议身份、协议版本和当前没有 Speaker/Manager planning capability，不能创建 transcript、Turn、Decision 或其他会议事实。Manager 和所有 Participant 可以在创建期接收该 provisioning prompt；只有后续带有效 attempt/delivery capability 的 followup 才是正式会议请求。Provisioning 阶段发生的模型输出或未授权工具调用不是会议事实，必须被 Runtime 权限校验拒绝。
+
+Runtime 在 DSH 调用前分配 `childId` 并持久化 `parentSessionId`、provider、label 和 `provisioning` ownership；首次消息被 DSH inbox 接受后，再持久化稳定 `initialMessageId` 并把 lifecycle 前进为 `active`。当前 Session 树中 Manager 和 Participant 都是创建会议的 Captain Session 的 direct child。进程重启后，Runtime 可以使用持久 parent-child 关系和 label 检查归属，但只有同一 Captain Session 再次成为 live Agent 时，才能恢复需要精确 parent Agent 的 followup 或 drain。
 
 Label MUST 稳定且可诊断：
 
@@ -322,8 +329,9 @@ interface MeetingTurn {
   objective: string
   expectedOutputs: string[]
   prohibitedTopics: string[]
-  plan: SpeakerStep[]
+  plan: readonly string[]
   currentStepIndex: number
+  steps: SpeakerStep[]
   status: 'planned' | 'running' | 'completed' | 'truncated' | 'cancelled' | 'failed'
   createdAt: number
   completedAt?: number
@@ -356,7 +364,7 @@ interface SpeakerAttempt {
 
 interface MeetingTaskSnapshot {
   taskId: string
-  attemptId?: string
+  taskAttemptId?: string
   status: TaskStatus
   output?: string
   observedAt: number
@@ -369,10 +377,6 @@ interface MeetingTaskSnapshot {
 
 ```ts
 interface MeetingManagerRuntime {
-  sessionId: string
-  provider?: string
-  model?: string
-  reasoningEffort?: string
   promptVersion: string
   status: 'creating' | 'idle' | 'planning' | 'failed' | 'closed'
   currentPlanningAttempt?: ManagerPlanningAttempt
@@ -938,7 +942,7 @@ create 命令的成功边界是 bootstrap 已转为 `ready` 且完整初始 Meet
 本设计不引入 `provisioning` MeetingStatus、Session spawn outbox 或跨 DSH/SQLite 的持久化 saga。该简化基于以下前提：
 
 - Convivium 运行在单一 DSH 插件宿主中；
-- DSH `0.1.1-rc.1` 能通过 `listChildren`/`listDescendants` 枚举持久 continuable Sessions，并通过 `drainContinuableChildren` 释放指定 resident Activation；Convivium 另行持久撤销会议 capability，二者共同构成本文的 Session close；
+- DSH `0.1.1-rc.2` 能通过 `listChildren`/`listDescendants` 枚举持久 continuable Sessions，并通过 `drainContinuableChildren` 释放指定 resident Activation；Convivium 另行持久撤销会议 capability，二者共同构成本文的 Session close；
 - Session label/metadata 能稳定保存 Convivium ownership；
 - 冷启动对账先于 scheduler、outbox worker 和新会议请求运行。
 

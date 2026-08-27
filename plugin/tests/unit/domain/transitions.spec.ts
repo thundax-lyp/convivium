@@ -181,6 +181,47 @@ describe("meeting transitions", () => {
         expect(resumed.state.waitState).toBeUndefined();
     });
 
+    it("does not revive the paused Turn or planning attempt on resume", () => {
+        const paused = transitionMeeting(meeting("running"), "paused", {
+            now,
+            reason: "captain request",
+            pause: { at: now, by: { kind: "captain", actorId: "captain-1" } }
+        }).state;
+        paused.currentTurn = {
+            id: "old-turn",
+            seq: 1,
+            agendaItemId: "agenda-1",
+            intent: "explore",
+            objective: "objective",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            plan: [],
+            status: "truncated",
+            currentStepIndex: 0,
+            steps: []
+        };
+        paused.manager = {
+            promptVersion: "test",
+            status: "planning",
+            currentPlanningAttempt: {
+                id: "old-plan",
+                meetingId: "meeting-1",
+                observedMeetingVersion: paused.version,
+                reason: "old",
+                deliveryId: "old-delivery",
+                status: "revoked",
+                createdAt: now
+            }
+        };
+
+        const resumed = transitionMeeting(paused, "running", { now: now + 1 });
+
+        expect(resumed.state.currentTurn).toBeUndefined();
+        expect(resumed.state.manager).toMatchObject({ status: "idle" });
+        expect(resumed.state.manager.currentPlanningAttempt).toBeUndefined();
+        expect(resumed.state.transcript).toEqual([]);
+    });
+
     it("revokes active speaker and manager attempts while truncating the turn", () => {
         const state = meeting("running");
         state.currentTurn = {
@@ -760,7 +801,7 @@ describe("turn, step and attempt transitions", () => {
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
 
-    it("acknowledges a speaker submission and advances participant cursors", () => {
+    it("commits a current speaker submission and waits after the final step", () => {
         const state = meeting("running");
         state.participants = [
             {
@@ -776,11 +817,22 @@ describe("turn, step and attempt transitions", () => {
         ];
         state.currentTurn = {
             id: "turn-1",
+            seq: 1,
+            agendaItemId: "agenda-1",
+            intent: "explore",
+            objective: "objective",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            plan: ["participant-1"],
             status: "running",
             currentStepIndex: 0,
+            createdAt: now,
             steps: [
                 {
                     id: "step-1",
+                    speaker: "participant-1",
+                    instruction: "speak",
+                    reason: "round_robin_fallback",
                     status: "running",
                     attempt: {
                         attemptId: "attempt-1",
@@ -789,7 +841,10 @@ describe("turn, step and attempt transitions", () => {
                         turnId: "turn-1",
                         stepId: "step-1",
                         deliveryId: "delivery-1",
+                        contextFromSeq: 0,
                         contextThroughSeq: 5,
+                        taskSnapshots: [],
+                        assignedAt: now,
                         status: "running",
                         deliveryStatus: "accepted"
                     }
@@ -797,17 +852,130 @@ describe("turn, step and attempt transitions", () => {
             ]
         };
 
-        const result = submitSpeakerAttempt(
-            state,
-            "participant-1",
-            state.version,
-            attemptContext()
-        );
+        const result = submitSpeakerAttempt(state, "participant-1", state.version, {
+            ...attemptContext(),
+            agendaItemId: "agenda-1",
+            message: {
+                id: "message-1",
+                content: "Formal statement",
+                kind: "statement",
+                mentions: [],
+                taskIds: [],
+                createdAt: now
+            }
+        });
 
         expect(result.state.currentTurn?.steps[0].attempt?.status).toBe("submitted");
         expect(result.state.currentTurn?.steps[0].attempt?.deliveryStatus).toBe("acknowledged");
+        expect(result.state.currentTurn?.steps[0].status).toBe("submitted");
+        expect(result.state.currentTurn?.status).toBe("completed");
+        expect(result.state.status).toBe("waiting");
+        expect(result.state.transcript).toMatchObject([
+            {
+                id: "message-1",
+                seq: 1,
+                turnId: "turn-1",
+                stepId: "step-1",
+                attemptId: "attempt-1",
+                speaker: "participant-1",
+                agendaItemId: "agenda-1"
+            }
+        ]);
         expect(result.state.participants[0].lastDeliveredSeq).toBe(5);
         expect(result.state.participants[0].lastAcknowledgedSeq).toBe(5);
+        expect(result.effect.events.map(({ type }) => type)).toEqual([
+            "speaker_attempt.submitted",
+            "speaker.submitted",
+            "message.added",
+            "turn.completed",
+            "meeting.waiting"
+        ]);
+    });
+
+    it("rejects stale, duplicate, wrong-agenda, and wrong-speaker submissions without a state effect", () => {
+        const state = meeting("running");
+        state.participants = [
+            {
+                id: "participant-1",
+                displayName: "Participant",
+                status: "available",
+                consecutiveSpeeches: 0,
+                consecutiveAttemptFailures: 0,
+                totalSpeeches: 0,
+                lastDeliveredSeq: 0,
+                lastAcknowledgedSeq: 0
+            }
+        ];
+        state.currentTurn = {
+            id: "turn-1",
+            seq: 1,
+            agendaItemId: "agenda-1",
+            intent: "explore",
+            objective: "objective",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            plan: ["participant-1"],
+            status: "running",
+            currentStepIndex: 0,
+            createdAt: now,
+            steps: [
+                {
+                    id: "step-1",
+                    speaker: "participant-1",
+                    instruction: "speak",
+                    reason: "round_robin_fallback",
+                    status: "running",
+                    attempt: {
+                        attemptId: "attempt-1",
+                        participantId: "participant-1",
+                        meetingId: "meeting-1",
+                        turnId: "turn-1",
+                        stepId: "step-1",
+                        deliveryId: "delivery-1",
+                        contextFromSeq: 0,
+                        contextThroughSeq: 0,
+                        taskSnapshots: [],
+                        assignedAt: now,
+                        status: "running",
+                        deliveryStatus: "accepted"
+                    }
+                }
+            ]
+        };
+        const submission = {
+            ...attemptContext(),
+            agendaItemId: "agenda-1",
+            message: {
+                id: "message-1",
+                content: "Formal statement",
+                kind: "statement" as const,
+                mentions: [],
+                taskIds: [],
+                createdAt: now
+            }
+        };
+
+        for (const [participantId, version, context] of [
+            ["participant-1", state.version + 1, submission],
+            ["participant-1", state.version, { ...submission, agendaItemId: "wrong-agenda" }],
+            ["participant-2", state.version, submission]
+        ] as const) {
+            expect(() => submitSpeakerAttempt(state, participantId, version, context)).toThrowError(
+                expect.objectContaining({ code: "STALE_ATTEMPT", retryable: false })
+            );
+        }
+        expect(state.transcript).toEqual([]);
+
+        const committed = submitSpeakerAttempt(
+            state,
+            "participant-1",
+            state.version,
+            submission
+        ).state;
+        expect(() =>
+            submitSpeakerAttempt(committed, "participant-1", committed.version, submission)
+        ).toThrowError(expect.objectContaining({ code: "STALE_ATTEMPT", retryable: false }));
+        expect(committed.transcript).toHaveLength(1);
     });
 });
 

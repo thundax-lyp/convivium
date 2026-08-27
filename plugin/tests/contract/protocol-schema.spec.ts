@@ -114,7 +114,20 @@ describe("protocol envelope schemas", () => {
             })
         ).toMatchObject({ code: "UNKNOWN_ERROR", retryable: false });
         expect(isKnownMeetingProtocolErrorCode("INVALID_ARGUMENT")).toBe(true);
+        expect(isKnownMeetingProtocolErrorCode("UNSUPPORTED_CAPABILITY")).toBe(true);
         expect(isKnownMeetingProtocolErrorCode("UNKNOWN_ERROR")).toBe(false);
+    });
+
+    it("preserves unsupported capabilities as non-retryable protocol errors", () => {
+        expect(
+            validateProtocolError({
+                protocolVersion: 1,
+                ok: false,
+                code: "UNSUPPORTED_CAPABILITY",
+                message: "manager selection is outside this runtime slice",
+                retryable: false
+            })
+        ).toMatchObject({ code: "UNSUPPORTED_CAPABILITY", retryable: false });
     });
 
     it("validates command discriminants beyond field types", () => {

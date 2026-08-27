@@ -12,6 +12,7 @@ import type {
     ManagerPlanningAttempt,
     ManagerAttemptTransitionContext,
     SpeakerAttempt,
+    SpeakerSubmissionContext,
     SpeakerStep,
     StepStatus,
     TransitionContext,
@@ -690,6 +691,7 @@ export function transitionMeeting(
             { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
         );
     }
+    const resumingFromPause = state.status === "paused" && (to === "running" || to === "waiting");
     const lifecycleCleanup =
         to === "paused" || to === "archiving" || isExecutionTerminal
             ? revokeActiveAttempts(state)
@@ -710,6 +712,16 @@ export function transitionMeeting(
         ...(context.termination ? { termination: structuredClone(context.termination) } : {}),
         ...(lifecycleCleanup
             ? { currentTurn: lifecycleCleanup.currentTurn, manager: lifecycleCleanup.manager }
+            : {}),
+        ...(resumingFromPause
+            ? {
+                  currentTurn: undefined,
+                  manager: {
+                      ...state.manager,
+                      status: "idle" as const,
+                      currentPlanningAttempt: undefined
+                  }
+              }
             : {}),
         ...(isExecutionTerminal ? { currentTurn: undefined } : {}),
         ...(to === "waiting" && context.wait
@@ -840,24 +852,114 @@ export function submitSpeakerAttempt(
     state: MeetingState,
     participantId: string,
     meetingVersion: number,
-    context: AttemptTransitionContext
+    context: SpeakerSubmissionContext
 ): TransitionResult<MeetingState> {
     const participant = state.participants.find(({ id }) => id === participantId);
-    const step = state.currentTurn?.steps.find(
-        ({ attempt }) => attempt?.attemptId === context.attemptId
-    );
+    const turn = state.currentTurn;
+    const step = turn?.steps[turn.currentStepIndex];
     const attempt = step?.attempt;
-    if (!participant || !attempt || attempt.participantId !== participantId) {
+    if (
+        meetingVersion !== state.version ||
+        context.meetingId !== state.id ||
+        !participant ||
+        !turn ||
+        turn.status !== "running" ||
+        turn.agendaItemId !== context.agendaItemId ||
+        !step ||
+        step.status !== "running" ||
+        !attempt ||
+        attempt.attemptId !== context.attemptId ||
+        attempt.participantId !== participantId
+    ) {
         throw new DomainError(
-            "INVALID_ENTITY_STATE",
-            `attempt ${context.attemptId} is not active in meeting ${state.id}`,
+            "STALE_ATTEMPT",
+            `attempt ${context.attemptId} is not current in meeting ${state.id}`,
             { entityType: "attempt", entityId: context.attemptId, meetingVersion }
         );
     }
-    const result = transitionAttempt(attempt, "submitted", meetingVersion, context);
+    if (state.transcript.some(({ id }) => id === context.message.id)) {
+        throw new DomainError(
+            "STALE_ATTEMPT",
+            `message ${context.message.id} was already committed`,
+            { entityType: "attempt", entityId: context.attemptId, meetingVersion }
+        );
+    }
+
+    const attemptResult = transitionAttempt(attempt, "submitted", meetingVersion, context);
+    const stepResult = transitionStep(
+        { ...step, attempt: attemptResult.state },
+        "submitted",
+        meetingVersion
+    );
+    const steps = turn.steps.map((candidate, index) =>
+        index === turn.currentStepIndex ? stepResult.state : candidate
+    );
+    const completed = steps.every(({ status }) =>
+        ["submitted", "skipped", "revoked", "failed"].includes(status)
+    );
+    const currentTurn = {
+        ...turn,
+        steps,
+        currentStepIndex: completed ? steps.length : turn.currentStepIndex + 1,
+        ...(completed
+            ? { status: "completed" as const, completedAt: context.message.createdAt }
+            : {})
+    };
+    const message = {
+        ...context.message,
+        seq: state.messageSeq + 1,
+        turnSeq: turn.seq,
+        turnId: turn.id,
+        stepId: step.id,
+        attemptId: attempt.attemptId,
+        speaker: participantId,
+        agendaItemId: turn.agendaItemId,
+        agendaRelation: "active" as const
+    };
+    const events = [
+        ...attemptResult.effect.events,
+        ...stepResult.effect.events,
+        {
+            type: "message.added" as const,
+            payload: {
+                meetingId: state.id,
+                messageId: message.id,
+                attemptId: attempt.attemptId,
+                meetingVersion: state.version + 1
+            }
+        },
+        ...(completed
+            ? [
+                  {
+                      type: "turn.completed" as const,
+                      payload: {
+                          turnId: turn.id,
+                          meetingId: state.id,
+                          meetingVersion: state.version + 1
+                      }
+                  },
+                  {
+                      type: "meeting.waiting" as const,
+                      payload: {
+                          meetingId: state.id,
+                          from: state.status,
+                          to: "waiting",
+                          meetingVersion: state.version + 1,
+                          reason: "turn completed"
+                      }
+                  }
+              ]
+            : [])
+    ];
     return {
         state: {
             ...state,
+            status: completed ? "waiting" : state.status,
+            version: state.version + 1,
+            updatedAt: context.message.createdAt,
+            messageSeq: message.seq,
+            eventSeq: state.eventSeq + events.length,
+            transcript: [...state.transcript, message],
             participants: state.participants.map((candidate) =>
                 candidate.id === participantId
                     ? {
@@ -869,22 +971,25 @@ export function submitSpeakerAttempt(
                           lastAcknowledgedSeq: Math.max(
                               candidate.lastAcknowledgedSeq,
                               attempt.contextThroughSeq
-                          )
+                          ),
+                          totalSpeeches: candidate.totalSpeeches + 1,
+                          status: "available" as const
                       }
                     : candidate
             ),
-            currentTurn: state.currentTurn
+            currentTurn,
+            ...(completed
                 ? {
-                      ...state.currentTurn,
-                      steps: state.currentTurn.steps.map((candidate) =>
-                          candidate.attempt?.attemptId === attempt.attemptId
-                              ? { ...candidate, attempt: result.state }
-                              : candidate
-                      )
+                      waitState: {
+                          reason: "turn completed",
+                          taskIds: [],
+                          participantIds: [],
+                          resumeAgendaItemId: turn.agendaItemId
+                      }
                   }
-                : undefined
+                : {})
         },
-        effect: result.effect
+        effect: { events }
     };
 }
 
