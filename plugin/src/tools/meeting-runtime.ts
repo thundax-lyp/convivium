@@ -29,7 +29,7 @@ import {
     type MeetingRepositoryRuntime,
     type RepositoryAuthorizationValidator
 } from "../runtime/index.js";
-import { projectMeetingStatus } from "../projection/index.js";
+import { projectManagerMeetingContext, projectMeetingStatus } from "../projection/index.js";
 import type {
     CreateMeetingInputV1,
     CreateMeetingResultV1,
@@ -76,6 +76,10 @@ interface StoredMeeting {
     readonly captainSessionId: string;
     readonly repository: MeetingRepositoryRuntime;
     readonly parent?: Agent;
+}
+
+function terminalDispatchError(code: string, message: string): Error {
+    return Object.assign(new Error(message), { code, retryable: false });
 }
 
 function success<T>(meetingId: string, meetingVersion: number, result: T): ProtocolSuccessV1<T> {
@@ -288,7 +292,20 @@ export function createCreateStatusRuntime(
             (candidate) => candidate.participantId === payload.participantId
         );
         if (ownership === undefined)
-            throw new Error("Initial speaker Session ownership is missing.");
+            throw terminalDispatchError(
+                "SESSION_OWNERSHIP_MISSING",
+                "Initial speaker Session ownership is missing."
+            );
+        if (
+            ownership.parentSessionId !== String(parent.id) ||
+            ownership.lifecycleStatus !== "active" ||
+            ownership.capabilityStatus !== "active"
+        ) {
+            throw terminalDispatchError(
+                "SESSION_CAPABILITY_REVOKED",
+                "Speaker Session ownership is no longer authorized."
+            );
+        }
         await followupParticipantSession({
             runtime: options.continuable,
             parent,
@@ -316,13 +333,19 @@ export function createCreateStatusRuntime(
                     active.status !== "running" ||
                     !["pending", "accepted"].includes(active.deliveryStatus)
                 ) {
-                    throw new Error("Speaker attempt is no longer authorized.");
+                    throw terminalDispatchError(
+                        "STALE_SPEAKER_ATTEMPT",
+                        "Speaker attempt is no longer authorized."
+                    );
                 }
                 const owned = latest.sessionOwnership.find(
                     (candidate) => candidate.sessionId === ownership.sessionId
                 );
                 if (owned?.lifecycleStatus !== "active" || owned.capabilityStatus !== "active") {
-                    throw new Error("Speaker Session capability is no longer active.");
+                    throw terminalDispatchError(
+                        "SESSION_CAPABILITY_REVOKED",
+                        "Speaker Session capability is no longer active."
+                    );
                 }
             }
         });
@@ -343,7 +366,39 @@ export function createCreateStatusRuntime(
         const ownership = recovered.sessionOwnership.find(
             (candidate) => candidate.role === "manager"
         );
-        if (ownership === undefined) throw new Error("Manager Session ownership is missing.");
+        if (ownership === undefined)
+            throw terminalDispatchError(
+                "SESSION_OWNERSHIP_MISSING",
+                "Manager Session ownership is missing."
+            );
+        if (
+            ownership.parentSessionId !== String(parent.id) ||
+            ownership.lifecycleStatus !== "active" ||
+            ownership.capabilityStatus !== "active"
+        ) {
+            throw terminalDispatchError(
+                "SESSION_CAPABILITY_REVOKED",
+                "Manager Session ownership is no longer authorized."
+            );
+        }
+        const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+        if (state === undefined) {
+            throw terminalDispatchError("MEETING_NOT_FOUND", "Meeting state is missing.");
+        }
+        const dispatchableParticipantIds = state.participants
+            .filter(
+                (participant) =>
+                    participant.status === "available" &&
+                    recovered.sessionOwnership.some(
+                        (candidate) =>
+                            candidate.role === "participant" &&
+                            candidate.participantId === participant.id &&
+                            candidate.lifecycleStatus === "active" &&
+                            candidate.capabilityStatus === "active"
+                    )
+            )
+            .map((participant) => participant.id);
+        const managerContext = projectManagerMeetingContext(state, dispatchableParticipantIds);
         await followupManagerSession({
             runtime: options.continuable,
             parent,
@@ -352,7 +407,7 @@ export function createCreateStatusRuntime(
                 planningAttemptId: payload.planningAttemptId,
                 deliveryId: item.deliveryId
             },
-            prompt: [{ type: "text", text: `Meeting ${meetingId}: submit one ordered turn plan.` }],
+            prompt: [{ type: "text", text: JSON.stringify(managerContext) }],
             signal: commandSignal,
             authorize: async ({ attempt }) => {
                 const latest = await repository.recover();
@@ -363,7 +418,10 @@ export function createCreateStatusRuntime(
                     active.deliveryId !== attempt.deliveryId ||
                     active.status !== "running"
                 )
-                    throw new Error("Manager planning attempt is no longer authorized.");
+                    throw terminalDispatchError(
+                        "STALE_MANAGER_ATTEMPT",
+                        "Manager planning attempt is no longer authorized."
+                    );
             }
         });
     }

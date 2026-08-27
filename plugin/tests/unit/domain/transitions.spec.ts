@@ -201,6 +201,121 @@ describe("meeting transitions", () => {
         expect(result.state.currentTurn?.steps[1]?.attempt?.participantId).toBe("b");
         expect(result.state.currentTurn?.steps.filter((step) => step.attempt).length).toBe(2);
         expect(result.state.messageSeq).toBe(1);
+        expect(result.state.eventSeq).toBe(state.eventSeq + result.effect.events.length);
+    });
+
+    it("starts the next deterministic round-robin turn without Manager planning", () => {
+        const state = meeting("running");
+        state.selectionMode = "round_robin";
+        state.activeAgendaItemId = "agenda-1";
+        state.agenda = [
+            {
+                id: "agenda-1",
+                title: "Agenda",
+                objective: "Objective",
+                inScope: [],
+                outOfScope: [],
+                completionCriteria: ["output-1"],
+                requiredParticipants: ["a"],
+                relatedTaskIds: [],
+                status: "discussing"
+            }
+        ];
+        state.objectiveContract.requiredOutputs = [
+            { id: "output-1", description: "Output", status: "pending" }
+        ];
+        state.participants = [
+            {
+                id: "a",
+                displayName: "A",
+                status: "speaking",
+                consecutiveSpeeches: 0,
+                consecutiveAttemptFailures: 0,
+                totalSpeeches: 0,
+                lastDeliveredSeq: 0,
+                lastAcknowledgedSeq: 0
+            }
+        ];
+        state.turnSeq = 1;
+        state.currentTurn = {
+            id: "turn-1",
+            seq: 1,
+            agendaItemId: "agenda-1",
+            intent: "explore",
+            objective: "Objective",
+            expectedOutputs: ["output-1"],
+            prohibitedTopics: [],
+            plan: ["a"],
+            status: "running",
+            currentStepIndex: 0,
+            createdAt: now,
+            steps: [
+                {
+                    id: "step-a-0",
+                    speaker: "a",
+                    instruction: "Speak",
+                    reason: "round_robin_fallback",
+                    status: "running",
+                    attempt: {
+                        attemptId: "attempt-0",
+                        participantId: "a",
+                        meetingId: "meeting-1",
+                        turnId: "turn-1",
+                        stepId: "step-a-0",
+                        deliveryId: "delivery-0",
+                        contextFromSeq: 0,
+                        contextThroughSeq: 0,
+                        taskSnapshots: [],
+                        assignedAt: now,
+                        status: "running",
+                        deliveryStatus: "pending"
+                    }
+                }
+            ]
+        };
+
+        const result = submitSpeakerAndAdvanceMeeting(state, "a", {
+            meetingId: "meeting-1",
+            participantId: "a",
+            turnId: "turn-1",
+            stepId: "step-a-0",
+            attemptId: "attempt-0",
+            deliveryId: "delivery-0",
+            agendaItemId: "agenda-1",
+            message: {
+                id: "message-1",
+                content: "Still incomplete",
+                kind: "statement",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic",
+                createdAt: now
+            },
+            now,
+            nextPlanningAttemptId: "unused-planning-2",
+            nextPlanningDeliveryId: "unused-planning-delivery-2"
+        });
+
+        expect(result.state.currentTurn).toMatchObject({
+            id: "turn-2",
+            seq: 2,
+            status: "running",
+            steps: [
+                {
+                    id: "step-a-0",
+                    speaker: "a",
+                    status: "running",
+                    attempt: {
+                        attemptId: "turn-2-attempt-0",
+                        deliveryId: "turn-2-delivery-0"
+                    }
+                }
+            ]
+        });
+        expect(result.state.manager.currentPlanningAttempt).toBeUndefined();
+        expect(result.effect.events.map(({ type }) => type)).toContain("turn.planned");
+        expect(result.effect.events.map(({ type }) => type)).not.toContain("manager_plan.started");
+        expect(result.state.eventSeq).toBe(state.eventSeq + result.effect.events.length);
     });
 
     it("ends a completed turn from the committed running state", () => {

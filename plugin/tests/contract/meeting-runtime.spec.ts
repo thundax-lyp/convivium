@@ -59,9 +59,7 @@ describe("create/status meeting runtime", () => {
                 followup: async () => {
                     followups += 1;
                     if (followups === 1) {
-                        throw Object.assign(new Error("provider unavailable"), {
-                            retryable: true
-                        });
+                        throw new Error("provider unavailable");
                     }
                     return "followup-message" as never;
                 }
@@ -88,6 +86,7 @@ describe("create/status meeting runtime", () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-manager-dispatch-"));
         roots.push(root);
         let followups = 0;
+        const managerContexts: Record<string, unknown>[] = [];
         const runtime = createCreateStatusRuntime({
             dataRoot: root,
             provider: "spawn",
@@ -96,9 +95,15 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async () => {
+                followup: async (_parent, _sessionId, prompt) => {
                     followups += 1;
-                    throw new Error("provider unavailable");
+                    const text = prompt[0]?.type === "text" ? prompt[0].text : undefined;
+                    if (typeof text === "string" && text.startsWith("{")) {
+                        managerContexts.push(JSON.parse(text) as Record<string, unknown>);
+                    }
+                    throw Object.assign(new Error("provider unavailable"), {
+                        retryable: false
+                    });
                 }
             },
             authorizationValidator: {
@@ -131,6 +136,16 @@ describe("create/status meeting runtime", () => {
         if (!created.ok) throw new Error("create failed");
         await vi.waitFor(() => expect(followups).toBe(1));
         const meetingId = created.result.meetingId;
+        expect(managerContexts[0]).toMatchObject({
+            protocolVersion: 1,
+            meetingId,
+            meetingVersion: 1,
+            planningAttemptId: `${meetingId}-planning-1`,
+            activeAgendaItem: { id: "agenda-agenda-1" },
+            requiredSpeakerIds: ["participant-one"],
+            dispatchableParticipantIds: ["participant-one"],
+            planningReason: "initial_plan"
+        });
         const manager = {
             sessionId: `${meetingId}-manager-manager`,
             meetingId,

@@ -60,11 +60,11 @@ function errorCode(error: unknown): string {
 }
 
 function isRetryable(error: unknown): boolean {
-    return Boolean(
+    return !(
         error &&
         typeof error === "object" &&
         "retryable" in error &&
-        (error as { retryable?: unknown }).retryable === true
+        (error as { retryable?: unknown }).retryable === false
     );
 }
 

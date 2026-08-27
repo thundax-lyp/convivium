@@ -1,5 +1,6 @@
 import type { MeetingState } from "../domain/model.js";
 import type {
+    ManagerMeetingContextV1,
     MeetingStatusResultV1,
     PublicAgendaItemV1,
     PublicMeetingMessageV1,
@@ -210,4 +211,38 @@ export function projectMeetingStatus(
                           : "none"
                   }
     } as MeetingStatusResultV1;
+}
+
+export function projectManagerMeetingContext(
+    state: MeetingState,
+    dispatchableParticipantIds: readonly string[]
+): ManagerMeetingContextV1 {
+    const planningAttempt = state.manager.currentPlanningAttempt;
+    const activeAgendaItem = state.agenda.find((item) => item.id === state.activeAgendaItemId);
+    if (planningAttempt === undefined || activeAgendaItem === undefined) {
+        throw new TypeError("Manager planning requires an active attempt and agenda item");
+    }
+    const status = projectMeetingStatus(state, {
+        kind: "manager",
+        sessionId: "manager-projection"
+    });
+    if (!("messages" in status)) {
+        throw new TypeError("Manager planning requires an active meeting projection");
+    }
+    return {
+        protocolVersion: 1,
+        meetingId: state.id,
+        meetingVersion: state.version,
+        planningAttemptId: planningAttempt.id,
+        objective: state.objective,
+        activeAgendaItem: agendaItem(activeAgendaItem),
+        requiredSpeakerIds: activeAgendaItem.requiredParticipants,
+        dispatchableParticipantIds,
+        recentPublicMessages: status.messages,
+        blockingFacts: status.blockingFacts,
+        pendingHandRaises: status.pendingHandRaises,
+        continuationMaterials: status.continuationMaterials,
+        limits: status.limits,
+        planningReason: planningAttempt.reason
+    };
 }
