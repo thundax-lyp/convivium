@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `A2 / plugin completion domain`：实现 CompletionFact 校验与确定性完成判断
-    - 依据文档：`docs/30-designs/RUNBOOK-COMPLETION-CLOSURE.md` T2、6.1；`docs/30-designs/DOMAIN-MODEL-DESIGN.md` CompletionFact
-    - 确认依据：2026-08-27 用户确认闭环 A RUNBOOK 待执行；`codex://threads/01a04210-fa01-7091-b554-4c94a5cf0186`
-    - 处理动作：只修改 `plugin/src/domain/model.ts`、`completion.ts` 和 `transitions.ts`，补齐 canonical CompletionFact，并校验 output、criterion、review、question、agenda、risk claim 的对象、状态、authority 和 message evidence；合法 claim 生成不可变事实，非法 claim 整体失败，且不得由 claim 自动派生 partial、no_consensus 或 cancelled。
-    - 验收点：`pnpm exec vitest run tests/unit/domain/completion.spec.ts tests/unit/domain/transitions.spec.ts` 通过，并覆盖合法 claim、无效或跨 Meeting ID、旧 revision、无证据、无 authority、事实替代和 objective 未满足。
-
 - [ ] `A3 / plugin submit-turn completion`：将 completion claims 接入既有原子提交
     - 依据文档：`docs/30-designs/RUNBOOK-COMPLETION-CLOSURE.md` 4.1、T3、T4、6.1
     - 确认依据：2026-08-27 用户确认闭环 A RUNBOOK 待执行；`codex://threads/01a04210-fa01-7091-b554-4c94a5cf0186`

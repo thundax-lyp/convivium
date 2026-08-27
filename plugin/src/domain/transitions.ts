@@ -1,5 +1,5 @@
 import { DomainError, invalidStateTransition } from "./errors.js";
-import { judgeTurnCompletion } from "./completion.js";
+import { isObjectiveSatisfied, judgeTurnCompletion } from "./completion.js";
 import {
     planManagerTurn,
     planRoundRobinTurn,
@@ -524,30 +524,7 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
 
 function assertCompletionReady(state: MeetingState, to: MeetingStatus): void {
     if (to !== "completed") return;
-    const ready =
-        state.objectiveContract.requiredOutputs.every((output) => output.status === "accepted") &&
-        state.objectiveContract.acceptanceCriteria.every((criterion) => criterion.satisfied) &&
-        state.objectiveContract.requiredReviewers.every((reviewerId) =>
-            state.completionFacts.some(
-                (fact) =>
-                    fact.reviewerId === reviewerId &&
-                    fact.status === "active" &&
-                    fact.result === "approved"
-            )
-        ) &&
-        state.agenda.every((item) => item.status === "resolved" || item.status === "deferred") &&
-        state.issues.every(
-            (issue) =>
-                !issue.blocking ||
-                ["resolved", "deferred", "accepted_risk", "out_of_scope"].includes(issue.status)
-        ) &&
-        state.openQuestions.every(
-            (question) =>
-                question.status === "answered" ||
-                question.status === "withdrawn" ||
-                question.status === "deferred"
-        );
-    if (!ready) {
+    if (!isObjectiveSatisfied(state)) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
             `meeting ${state.id} is not ready to complete`,

@@ -53,6 +53,7 @@ export const DomainEventTypes = [
     "manager_plan.revoked",
     "manager_plan.failed",
     "message.added",
+    "completion_fact.added",
     "hand_raise.created",
     "background_task.linked",
     "decision.added",
@@ -303,7 +304,18 @@ export interface MeetingHandRaise {
 
 export interface CompletionFact {
     id: string;
+    kind:
+        | "output_evidence"
+        | "criterion_evidence"
+        | "review"
+        | "question_resolution"
+        | "agenda_resolution"
+        | "risk_acceptance"
+        | "decision_acceptance"
+        | "waiver";
     subjectId: string;
+    assertedBy: string;
+    authority?: string;
     result:
         | "supported"
         | "approved"
@@ -314,7 +326,10 @@ export interface CompletionFact {
         | "deferred"
         | "waived";
     status: "active" | "superseded" | "revoked";
-    reviewerId?: string;
+    evidenceMessageIds: readonly string[];
+    taskIds: readonly string[];
+    reason?: string;
+    createdAt: number;
 }
 
 export interface ContinuationMaterial {
