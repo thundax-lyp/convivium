@@ -829,6 +829,12 @@ export function startManagerPlanning(
     };
     const nextState: MeetingState = {
         ...meeting.state,
+        activeAgendaItemId: meeting.state.activeAgendaItemId ?? meeting.state.agenda[0]?.id,
+        agenda: meeting.state.agenda.map((item, index) =>
+            index === 0 && item.status === "pending"
+                ? { ...item, status: "discussing" as const }
+                : item
+        ),
         manager: {
             ...meeting.state.manager,
             status: "planning",

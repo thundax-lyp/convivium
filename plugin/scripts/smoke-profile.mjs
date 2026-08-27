@@ -218,6 +218,7 @@ function createInput() {
         teamId: "smoke-team",
         topic: "Runtime smoke",
         objective: "Verify Convivium tool sequencing",
+        selectionMode: "manager",
         objectiveContract: {
             requiredOutputs: [],
             acceptanceCriteria: [],
@@ -229,10 +230,10 @@ function createInput() {
         agenda: [{
             key: "agenda-1",
             title: "Smoke order",
-            objective: "Commit A then B then C",
+            objective: "Commit A then C then B",
             inScope: ["tool execution"],
             outOfScope: ["Meeting HTTP route"],
-            completionCriteria: ["A/B/C committed"],
+            completionCriteria: ["A/C/B committed"],
             requiredParticipantKeys: ["a", "b", "c"]
         }],
         participants: [
@@ -303,47 +304,64 @@ async function run(ctx) {
         captain = createSmokeAgent(ctx, "convivium-smoke-captain");
         const created = await callTool(ctx, captain.agent, "convivium_create_meeting", createInput(), 0);
         const meetingId = created.result.meetingId;
-        const participants = created.result.participants.map((participant) => participant.participantId);
+        const manager = await waitForAgent(ctx, meetingId + "-manager-manager");
+        const managerPlan = await callTool(ctx, manager, "convivium_submit_manager_plan", {
+            protocolVersion: 1,
+            meetingId,
+            planningAttemptId: meetingId + "-planning-1",
+            observedMeetingVersion: created.meetingVersion,
+            requestId: "smoke-plan-1",
+            agendaItemId: "agenda-agenda-1",
+            intent: "explore",
+            objective: "Commit A then C then B",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            steps: [
+                { participantId: "participant-a", instruction: "A", reason: "manager_selected" },
+                { participantId: "participant-c", instruction: "C", reason: "manager_selected" },
+                { participantId: "participant-b", instruction: "B", reason: "manager_selected" }
+            ]
+        }, 1);
+        const participants = ["participant-a", "participant-c", "participant-b"];
         const messages = [];
         for (let index = 0; index < participants.length; index += 1) {
             const participantId = participants[index];
+            const beforeSubmit = await callTool(ctx, captain.agent, "convivium_meeting_status", {
+                protocolVersion: 1,
+                meetingId
+            }, 20 + index);
+            if (beforeSubmit.result.currentSpeakerId !== participantId) continue;
             const agent = await waitForAgent(ctx, meetingId + "-participant-" + participantId);
-            const submitted = await callTool(ctx, agent, "convivium_submit_turn", {
+            let submitted;
+            try {
+                submitted = await callTool(ctx, agent, "convivium_submit_turn", {
                 protocolVersion: 1,
                 meetingId,
                 turnId: "turn-1",
-                stepId: "step-" + participantId + "-" + index,
-                attemptId: "attempt-" + index,
-                deliveryId: "delivery-" + index,
+                stepId: "step-turn-1-" + index,
+                attemptId: "turn-1-attempt-" + index,
+                deliveryId: "turn-1-delivery-" + index,
                 agendaItemId: "agenda-agenda-1",
                 kind: "statement",
-                content: String.fromCharCode(65 + index),
+                content: ["A", "C", "B"][index],
                 mentions: [],
                 taskIds: [],
                 agendaRelation: "on_topic",
                 changes: {}
-            }, index + 1);
-            messages.push(submitted.result.messageId);
+                }, index + 1);
+                messages.push(submitted.result.messageId);
+            } catch (error) {
+                if (!String(error).includes('"code":"STALE_ATTEMPT"')) throw error;
+            }
         }
         const status = await callTool(ctx, captain.agent, "convivium_meeting_status", {
             protocolVersion: 1,
             meetingId
         }, 10);
         const transcript = status.result.messages;
-        assert(transcript.map((message) => message.content).join("") === "ABC", "transcript order is not ABC");
-        const pause = await callTool(ctx, captain.agent, "convivium_pause_meeting", {
-            protocolVersion: 1,
-            meetingId,
-            expectedMeetingVersion: status.meetingVersion,
-            requestId: "smoke-pause-1",
-            reason: "profile smoke"
-        }, 11);
-        const resume = await callTool(ctx, captain.agent, "convivium_resume_meeting", {
-            protocolVersion: 1,
-            meetingId,
-            expectedMeetingVersion: pause.meetingVersion,
-            requestId: "smoke-resume-1"
-        }, 12);
+        assert(transcript.map((message) => message.content).join("") === "ACB", "transcript order is not ACB");
+        assert(status.result.status === "running", "next planning did not keep meeting running");
+        assert(status.result.currentTurn === undefined, "next planning unexpectedly exposed a current turn");
         await writeResult({
             ok: true,
             meetingId,
@@ -355,8 +373,8 @@ async function run(ctx) {
                 content: message.content,
                 speaker: message.speaker
             })),
-            pause: pause.result,
-            resume: resume.result,
+            managerPlan: managerPlan.result,
+            nextPlanObserved: status.result.currentTurn === undefined,
             httpRouteUsed: false
         });
     } catch (error) {

@@ -239,7 +239,7 @@ export function createCreateStatusRuntime(
                     if (
                         active?.deliveryId !== attempt.deliveryId ||
                         active.status !== "running" ||
-                        active.deliveryStatus !== "accepted"
+                        !["pending", "accepted"].includes(active.deliveryStatus)
                     ) {
                         throw new Error("Speaker attempt is no longer authorized.");
                     }
