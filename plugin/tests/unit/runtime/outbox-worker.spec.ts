@@ -48,6 +48,60 @@ describe("outbox worker", () => {
         await expect(worker.wait()).resolves.toBeUndefined();
     });
 
+    it("continues polling after a retryable repository failure", async () => {
+        let claims = 0;
+        const worker = createOutboxWorker({
+            repository: {
+                claimOutbox: async () => {
+                    claims += 1;
+                    if (claims === 1) throw Object.assign(new Error("busy"), { retryable: true });
+                    worker.stop();
+                    return [];
+                },
+                completeOutbox: async (input) => ({
+                    id: input.id,
+                    status: input.completion.status
+                })
+            },
+            owner: "worker-1",
+            ttlMs: 100,
+            batchSize: 1,
+            pollMs: 10,
+            dispatch: async () => undefined,
+            sleep: async () => undefined
+        });
+
+        await worker.start();
+        expect(claims).toBe(2);
+    });
+
+    it("aborts an in-flight dispatch when stopped", async () => {
+        let dispatchSignal: AbortSignal | undefined;
+        const worker = createOutboxWorker({
+            repository: {
+                claimOutbox: async () => [item()],
+                completeOutbox: async (input) => ({
+                    id: input.id,
+                    status: input.completion.status
+                })
+            },
+            owner: "worker-1",
+            ttlMs: 100,
+            batchSize: 1,
+            pollMs: 10,
+            dispatch: async (_item, signal) => {
+                dispatchSignal = signal;
+                await new Promise<void>((_resolve, reject) => {
+                    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                    worker.stop();
+                });
+            }
+        });
+
+        await expect(worker.start()).resolves.toBeUndefined();
+        expect(dispatchSignal?.aborted).toBe(true);
+    });
+
     it("dispatches a claimed delivery after commit and completes the same lease", async () => {
         const completed: unknown[] = [];
         const dispatched: OutboxItem[] = [];

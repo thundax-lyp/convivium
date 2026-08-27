@@ -1427,7 +1427,7 @@ export function submitSpeakerAndAdvanceMeeting(
             { ...nextState, currentTurn: undefined },
             {
                 turnId: `turn-${nextState.turnSeq + 1}`,
-                stepId: (nextParticipantId, index) => `step-${nextParticipantId}-${index}`
+                stepId: (_nextParticipantId, index) => `step-turn-${nextState.turnSeq + 1}-${index}`
             },
             context.now
         );

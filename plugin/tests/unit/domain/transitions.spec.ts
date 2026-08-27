@@ -302,7 +302,7 @@ describe("meeting transitions", () => {
             status: "running",
             steps: [
                 {
-                    id: "step-a-0",
+                    id: "step-turn-2-0",
                     speaker: "a",
                     status: "running",
                     attempt: {

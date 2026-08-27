@@ -22,7 +22,6 @@ import {
     createMeetingRuntime,
     createOutboxWorker,
     openMeetingRepository,
-    rebindCaptainParent,
     type DomainEventInput,
     type JsonObject,
     type MeetingCreationRuntimeDependencies,
@@ -55,7 +54,6 @@ export interface CreateStatusRuntimeOptions {
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly maxParticipants?: number;
     readonly outboxPollMs?: number;
-    readonly resolveParent?: (sessionId: string) => Agent | undefined;
     readonly signal?: AbortSignal;
     readonly now?: () => number;
 }
@@ -171,44 +169,11 @@ export function createCreateStatusRuntime(
 ): MeetingRuntimeWithCallerLookup {
     const meetings = new Map<string, StoredMeeting>();
     const workers = new Map<string, ReturnType<typeof createOutboxWorker>>();
-    const signal = options.signal ?? new AbortController().signal;
-
-    async function resolveRecoveredParent(
-        meetingId: string,
-        parentSessionId: string,
-        ownerships: Awaited<ReturnType<MeetingRepositoryRuntime["recover"]>>["sessionOwnership"]
-    ): Promise<Agent | undefined> {
-        try {
-            const parent = options.resolveParent?.(parentSessionId);
-            if (parent === undefined) return undefined;
-            const activeOwnerships = ownerships.filter(
-                (ownership) =>
-                    ownership.lifecycleStatus === "active" &&
-                    ownership.capabilityStatus === "active"
-            );
-            if (activeOwnerships.length === 0) return undefined;
-            const inspection = await rebindCaptainParent({
-                parent,
-                expectedParentSessionId: parentSessionId,
-                meetingId,
-                ownerships: activeOwnerships,
-                inspection: options.continuable,
-                signal
-            });
-            const ownedDiagnostics = inspection.diagnostics.filter(
-                (diagnostic) => diagnostic.reason !== "unowned-dsh-child"
-            );
-            if (
-                ownedDiagnostics.length > 0 ||
-                inspection.observations.length !== activeOwnerships.length
-            ) {
-                return undefined;
-            }
-            return parent;
-        } catch {
-            return undefined;
-        }
-    }
+    const runtimeController = new AbortController();
+    const signal =
+        options.signal === undefined
+            ? runtimeController.signal
+            : AbortSignal.any([options.signal, runtimeController.signal]);
 
     async function rehydrate() {
         const teams = await readdir(options.dataRoot, { withFileTypes: true }).catch(() => []);
@@ -220,22 +185,6 @@ export function createCreateStatusRuntime(
                 const meetingId = decodeURIComponent(file.slice(0, -7));
                 const stored = meetings.get(meetingId);
                 if (stored !== undefined) {
-                    if (stored.parent === undefined) {
-                        const recovered = await stored.repository.recover();
-                        const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
-                        if (parentSessionId !== undefined) {
-                            const parent = await resolveRecoveredParent(
-                                meetingId,
-                                parentSessionId,
-                                recovered.sessionOwnership
-                            );
-                            if (parent !== undefined) {
-                                const rebound = { ...stored, parent };
-                                meetings.set(meetingId, rebound);
-                                ensureWorker(rebound);
-                            }
-                        }
-                    }
                     continue;
                 }
                 try {
@@ -255,19 +204,12 @@ export function createCreateStatusRuntime(
                         await repository.close();
                         continue;
                     }
-                    const parent = await resolveRecoveredParent(
-                        meetingId,
-                        parentSessionId,
-                        recovered.sessionOwnership
-                    );
                     const recoveredMeeting: StoredMeeting = {
                         teamId: decodeURIComponent(team.name),
                         captainSessionId: parentSessionId,
-                        repository,
-                        ...(parent === undefined ? {} : { parent })
+                        repository
                     };
                     meetings.set(meetingId, recoveredMeeting);
-                    ensureWorker(recoveredMeeting);
                 } catch {
                     // Ignore unrelated or incomplete databases during startup discovery.
                 }
@@ -435,14 +377,15 @@ export function createCreateStatusRuntime(
             ttlMs: 60_000,
             batchSize: 1,
             pollMs: options.outboxPollMs ?? 1_000,
-            dispatch: async (item) => {
+            dispatch: async (item, workerSignal) => {
+                const dispatchSignal = AbortSignal.any([signal, workerSignal]);
                 const payload = item.payload as unknown as { role?: "manager" | "participant" };
                 if (payload.role === "manager")
                     await dispatchManagerPlanningDelivery(
                         stored.repository,
                         stored.parent!,
                         meetingId,
-                        signal,
+                        dispatchSignal,
                         item
                     );
                 else
@@ -450,7 +393,7 @@ export function createCreateStatusRuntime(
                         stored.repository,
                         stored.parent!,
                         meetingId,
-                        signal,
+                        dispatchSignal,
                         item
                     );
             },
@@ -555,12 +498,24 @@ export function createCreateStatusRuntime(
                             "Only the original meeting Captain can replay creation."
                         );
                     }
-                    const reboundParent = meetings.get(meetingId)?.parent;
+                    const resident = meetings.get(meetingId);
+                    if (resident?.parent !== undefined) {
+                        await repository.close();
+                        const persisted = existing.bootstrap.createResult;
+                        return success(
+                            meetingId,
+                            persisted.meetingVersion,
+                            persisted as CreateMeetingResultV1
+                        );
+                    }
+                    if (resident !== undefined) {
+                        await resident.repository.close();
+                        meetings.delete(meetingId);
+                    }
                     const replayedMeeting: StoredMeeting = {
                         teamId: input.teamId,
                         captainSessionId: caller.sessionId,
-                        repository,
-                        ...(reboundParent === undefined ? {} : { parent: reboundParent })
+                        repository
                     };
                     meetings.set(meetingId, replayedMeeting);
                     ensureWorker(replayedMeeting);
@@ -966,6 +921,7 @@ export function createCreateStatusRuntime(
             return undefined;
         },
         async dispose() {
+            runtimeController.abort(new Error("Meeting runtime disposed"));
             for (const worker of workers.values()) worker.stop();
             await Promise.all([...workers.values()].map((worker) => worker.wait()));
             workers.clear();

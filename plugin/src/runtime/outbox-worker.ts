@@ -22,7 +22,7 @@ export interface OutboxWorkerOptions {
     readonly pollMs: number;
     readonly maxAttempts?: number;
     readonly retryDelayMs?: number;
-    readonly dispatch: (item: OutboxItem) => Promise<void>;
+    readonly dispatch: (item: OutboxItem, signal: AbortSignal) => Promise<void>;
     readonly now?: () => number;
     readonly sleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
 }
@@ -95,7 +95,7 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
             try {
                 // deliveryId is supplied by the committed outbox record. The dispatch adapter
                 // must pass it unchanged so a lease retry cannot create another meeting fact.
-                await options.dispatch(item);
+                await options.dispatch(item, controller.signal);
                 if (controller.signal.aborted)
                     return { claimed: items.length, delivered, retried, failed };
                 await options.repository.completeOutbox({
@@ -130,7 +130,11 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
     async function start(): Promise<void> {
         running = (async () => {
             while (!controller.signal.aborted) {
-                await runOnce();
+                try {
+                    await runOnce();
+                } catch (error) {
+                    if (!isRetryable(error)) throw error;
+                }
                 if (!controller.signal.aborted) {
                     const wakePromise = new Promise<void>((resolve) => {
                         wake = resolve;

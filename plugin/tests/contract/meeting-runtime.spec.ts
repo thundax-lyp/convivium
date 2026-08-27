@@ -2,7 +2,6 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { encodeMeetingSessionLabel } from "../../src/dsh/index.js";
 import { createCreateStatusRuntime } from "../../src/tools/meeting-runtime.js";
 
 const roots: string[] = [];
@@ -283,7 +282,7 @@ describe("create/status meeting runtime", () => {
         ).resolves.toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
     });
 
-    it("rebinds a recovered meeting to the exact live Captain before dispatch", async () => {
+    it("keeps recovered meetings unbound and does not dispatch from status", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-rebind-"));
         roots.push(root);
         const captainAgent = { id: "captain-1" } as never;
@@ -359,54 +358,17 @@ describe("create/status meeting runtime", () => {
         ).resolves.toMatchObject({ ok: false, code: "INTERNAL_ERROR", retryable: true });
         await unboundRuntime.dispose();
 
-        const descendants = [
-            {
-                role: "manager" as const,
-                sessionId: `${meetingId}-manager-manager`,
-                label: encodeMeetingSessionLabel({
-                    role: "manager",
-                    teamId: input.teamId,
-                    meetingId
-                })
-            },
-            ...input.participants.map((participant) => {
-                const participantId = `participant-${participant.participantKey}`;
-                return {
-                    role: "participant" as const,
-                    sessionId: `${meetingId}-participant-${participantId}`,
-                    label: encodeMeetingSessionLabel({
-                        role: "participant",
-                        teamId: input.teamId,
-                        meetingId,
-                        participantId
-                    })
-                };
-            })
-        ];
-        let inspections = 0;
         let followups = 0;
         const recoveredRuntime = createCreateStatusRuntime({
             dataRoot: root,
             provider: "spawn",
             outboxPollMs: 5,
-            resolveParent: (sessionId) =>
-                sessionId === captain.sessionId ? captainAgent : undefined,
             continuable: {
                 startContinuable: async () => {
                     throw new Error("recovery must not create Sessions");
                 },
                 listDescendants: async () => {
-                    inspections += 1;
-                    return descendants.map(({ sessionId, label }) => ({
-                        kind: "child" as const,
-                        id: sessionId as never,
-                        activity: "inactive" as const,
-                        mode: "continuable" as const,
-                        label,
-                        hasChildren: false,
-                        parentId: captain.sessionId as never,
-                        depth: 1
-                    }));
+                    throw new Error("cold status must not inspect descendants");
                 },
                 followup: async () => {
                     followups += 1;
@@ -421,31 +383,7 @@ describe("create/status meeting runtime", () => {
         await expect(
             recoveredRuntime.getStatus({ protocolVersion: 1, meetingId }, captain)
         ).resolves.toMatchObject({ ok: true });
-        expect(inspections).toBeGreaterThan(0);
-        await expect(
-            recoveredRuntime.pause(
-                {
-                    protocolVersion: 1,
-                    meetingId,
-                    expectedMeetingVersion: created.result.meetingVersion,
-                    requestId: "pause-recovered",
-                    reason: "test rebind"
-                },
-                captain
-            )
-        ).resolves.toMatchObject({ ok: true, result: { status: "paused" } });
-        await expect(
-            recoveredRuntime.resume(
-                {
-                    protocolVersion: 1,
-                    meetingId,
-                    expectedMeetingVersion: created.result.meetingVersion + 1,
-                    requestId: "resume-recovered"
-                },
-                captain
-            )
-        ).resolves.toMatchObject({ ok: true, result: { status: "running" } });
-        await vi.waitFor(() => expect(followups).toBe(1));
+        expect(followups).toBe(0);
         await recoveredRuntime.dispose();
     });
 
