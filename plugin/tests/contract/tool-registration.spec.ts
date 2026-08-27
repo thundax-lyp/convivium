@@ -300,7 +300,17 @@ describe("meeting tool registration", () => {
                     riskAcceptanceAuthorityKeys: [],
                     acceptableRiskLevel: "low"
                 },
-                agenda: [],
+                agenda: [
+                    {
+                        key: "agenda-1",
+                        title: "Scope",
+                        objective: "Review scope",
+                        inScope: [],
+                        outOfScope: [],
+                        completionCriteria: [],
+                        requiredParticipantKeys: []
+                    }
+                ],
                 participants: []
             },
             convivium_meeting_status: { protocolVersion: 1, meetingId: "meeting-1" },

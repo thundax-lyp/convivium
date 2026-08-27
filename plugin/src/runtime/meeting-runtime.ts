@@ -41,6 +41,7 @@ export interface MeetingCreationRuntimeDependencies {
         | "completeCreate"
         | "updateBootstrap"
         | "recordSessionOwnership"
+        | "updateCreateResult"
         | "recover"
     >;
     readonly continuable: ContinuableStarter;
@@ -79,6 +80,7 @@ function requestHash(input: CreateMeetingInputV1): string {
 function authorizationInput(
     input: CreateMeetingInputV1,
     authorization: CommandAuthorization,
+    meetingId: string,
     initialState: Record<string, unknown>,
     now: number
 ): CreateMeetingInput {
@@ -87,6 +89,15 @@ function authorizationInput(
         authorization,
         requestHash: requestHash(input),
         initialState: initialState as JsonObject,
+        createResult: {
+            meetingId,
+            meetingVersion: 0,
+            status: "created",
+            participants: input.participants.map(({ participantKey }) => ({
+                participantKey,
+                participantId: `participant-${participantKey}`
+            }))
+        },
         createdAt: now
     };
 }
@@ -125,6 +136,7 @@ export async function createMeetingRuntime(
     const createInput = authorizationInput(
         input,
         dependencies.authorization,
+        meetingId,
         state as unknown as Record<string, unknown>,
         now
     );

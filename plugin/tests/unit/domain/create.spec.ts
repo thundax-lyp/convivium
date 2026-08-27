@@ -59,6 +59,12 @@ function input(overrides: Partial<CreateMeetingSpec> = {}): CreateMeetingSpec {
 }
 
 describe("canonical meeting creation", () => {
+    it("rejects an empty agenda before any meeting state exists", () => {
+        expect(() => createMeetingState(input({ agenda: [] }), ids)).toThrowError(
+            expect.objectContaining<Partial<DomainError>>({ code: "INVALID_CREATE_INPUT" })
+        );
+    });
+
     it("maps create specs to one complete initial MeetingState", () => {
         const state = createMeetingState(input(), ids);
 

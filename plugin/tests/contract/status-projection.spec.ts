@@ -50,4 +50,16 @@ describe("meeting status projection", () => {
         expect(JSON.stringify(projected)).not.toContain("planning-1");
         expect(JSON.stringify(projected)).not.toContain("leaseToken");
     });
+
+    it("keeps pause available while an active meeting is waiting", () => {
+        const projected = projectMeetingStatus({ ...state, status: "waiting" } as MeetingState, {
+            kind: "captain",
+            sessionId: "captain-1"
+        });
+
+        expect(projected).toMatchObject({
+            status: "waiting",
+            pauseControl: { action: "pause" }
+        });
+    });
 });

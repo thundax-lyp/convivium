@@ -1,7 +1,8 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { encodeMeetingSessionLabel } from "../../src/dsh/index.js";
 import { createCreateStatusRuntime } from "../../src/tools/meeting-runtime.js";
 
 const roots: string[] = [];
@@ -42,6 +43,47 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
+    it("retries a transient dispatch through the configured outbox loop", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-outbox-retry-"));
+        roots.push(root);
+        let followups = 0;
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            outboxPollMs: 5,
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => {
+                    followups += 1;
+                    if (followups === 1) {
+                        throw Object.assign(new Error("provider unavailable"), {
+                            retryable: true
+                        });
+                    }
+                    return "followup-message" as never;
+                }
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+
+        await expect(
+            runtime.createMeeting(input, captain, new AbortController().signal)
+        ).resolves.toMatchObject({ ok: true });
+        await vi.waitFor(() => expect(followups).toBe(2));
+        await runtime.dispose();
+    });
+
     it("keeps committed Manager commands successful when asynchronous dispatch fails", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-manager-dispatch-"));
         roots.push(root);
@@ -226,6 +268,172 @@ describe("create/status meeting runtime", () => {
         ).resolves.toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
     });
 
+    it("rebinds a recovered meeting to the exact live Captain before dispatch", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-rebind-"));
+        roots.push(root);
+        const captainAgent = { id: "captain-1" } as never;
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: captainAgent
+        };
+        const firstRuntime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => "initial-followup" as never
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        const created = await firstRuntime.createMeeting(
+            input,
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        await firstRuntime.dispose();
+
+        const meetingId = created.result.meetingId;
+        const unboundRuntime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async () => {
+                    throw new Error("recovery must not create Sessions");
+                },
+                followup: async () => {
+                    throw new Error("an unbound recovery must not dispatch");
+                }
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        await expect(
+            unboundRuntime.submitTurn(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    turnId: "turn-1",
+                    stepId: "step-participant-one-0",
+                    attemptId: "turn-1-attempt-0",
+                    deliveryId: "turn-1-delivery-0",
+                    agendaItemId: "agenda-agenda-1",
+                    kind: "statement",
+                    content: "must not commit",
+                    mentions: [],
+                    taskIds: [],
+                    agendaRelation: "on_topic",
+                    changes: {}
+                },
+                {
+                    sessionId: `${meetingId}-participant-participant-one`,
+                    meetingId,
+                    participantId: "participant-one",
+                    kind: "participant"
+                }
+            )
+        ).resolves.toMatchObject({ ok: false, code: "INTERNAL_ERROR", retryable: true });
+        await unboundRuntime.dispose();
+
+        const descendants = [
+            {
+                role: "manager" as const,
+                sessionId: `${meetingId}-manager-manager`,
+                label: encodeMeetingSessionLabel({
+                    role: "manager",
+                    teamId: input.teamId,
+                    meetingId
+                })
+            },
+            ...input.participants.map((participant) => {
+                const participantId = `participant-${participant.participantKey}`;
+                return {
+                    role: "participant" as const,
+                    sessionId: `${meetingId}-participant-${participantId}`,
+                    label: encodeMeetingSessionLabel({
+                        role: "participant",
+                        teamId: input.teamId,
+                        meetingId,
+                        participantId
+                    })
+                };
+            })
+        ];
+        let inspections = 0;
+        let followups = 0;
+        const recoveredRuntime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            outboxPollMs: 5,
+            resolveParent: (sessionId) =>
+                sessionId === captain.sessionId ? captainAgent : undefined,
+            continuable: {
+                startContinuable: async () => {
+                    throw new Error("recovery must not create Sessions");
+                },
+                listDescendants: async () => {
+                    inspections += 1;
+                    return descendants.map(({ sessionId, label }) => ({
+                        kind: "child" as const,
+                        id: sessionId as never,
+                        activity: "inactive" as const,
+                        mode: "continuable" as const,
+                        label,
+                        hasChildren: false,
+                        parentId: captain.sessionId as never,
+                        depth: 1
+                    }));
+                },
+                followup: async () => {
+                    followups += 1;
+                    return "recovered-followup" as never;
+                }
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        await expect(
+            recoveredRuntime.getStatus({ protocolVersion: 1, meetingId }, captain)
+        ).resolves.toMatchObject({ ok: true });
+        expect(inspections).toBeGreaterThan(0);
+        await expect(
+            recoveredRuntime.pause(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    expectedMeetingVersion: created.result.meetingVersion,
+                    requestId: "pause-recovered",
+                    reason: "test rebind"
+                },
+                captain
+            )
+        ).resolves.toMatchObject({ ok: true, result: { status: "paused" } });
+        await expect(
+            recoveredRuntime.resume(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    expectedMeetingVersion: created.result.meetingVersion + 1,
+                    requestId: "resume-recovered"
+                },
+                captain
+            )
+        ).resolves.toMatchObject({ ok: true, result: { status: "running" } });
+        await vi.waitFor(() => expect(followups).toBe(1));
+        await recoveredRuntime.dispose();
+    });
+
     it("rejects non-Captain creation and mismatched control callers before SQLite access", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-auth-"));
         roots.push(root);
@@ -267,6 +475,41 @@ describe("create/status meeting runtime", () => {
         expect(starts).toBe(0);
     });
 
+    it("rejects an empty agenda before repository or Session provisioning", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-empty-agenda-"));
+        roots.push(root);
+        let starts = 0;
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => {
+                    starts += 1;
+                    return { childId: spec.childId!, messageId: "initial" as never };
+                },
+                followup: async () => "followup-message" as never
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        const result = await runtime.createMeeting(
+            { ...input, agenda: [] },
+            {
+                sessionId: "captain-1",
+                kind: "captain",
+                agent: { id: "captain-1" } as never
+            },
+            new AbortController().signal
+        );
+
+        expect(result).toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
+        expect(starts).toBe(0);
+        await expect(readdir(root)).resolves.toEqual([]);
+        await runtime.dispose();
+    });
+
     it("replays only the same create request for its original Captain", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-idempotency-"));
         roots.push(root);
@@ -292,11 +535,19 @@ describe("create/status meeting runtime", () => {
             agent: { id: "captain-1" } as never
         };
         const first = await runtime.createMeeting(input, captain, new AbortController().signal);
+        if (!first.ok) throw new Error("create failed");
+        await runtime.pause(
+            {
+                protocolVersion: 1,
+                meetingId: first.result.meetingId,
+                expectedMeetingVersion: first.result.meetingVersion,
+                requestId: "pause-before-create-replay",
+                reason: "verify persisted receipt"
+            },
+            captain
+        );
         const replay = await runtime.createMeeting(input, captain, new AbortController().signal);
-        expect(replay).toMatchObject({
-            ok: true,
-            result: { meetingId: first.ok ? first.result.meetingId : "" }
-        });
+        expect(replay).toEqual(first);
         expect(starts).toBe(4);
 
         const conflict = await runtime.createMeeting(

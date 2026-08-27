@@ -78,6 +78,7 @@ export interface CreateMeetingInput {
     authorization: CommandAuthorization;
     requestHash: string;
     initialState: JsonObject;
+    createResult?: CreateMeetingResult;
     outbox?: OutboxInput[];
     createdAt?: number;
 }
@@ -85,6 +86,17 @@ export interface CreateMeetingInput {
 export interface CreateMeetingResult {
     meetingId: string;
     meetingVersion: number;
+    status?: "created" | "running";
+    participants?: readonly {
+        participantKey: string;
+        participantId: string;
+    }[];
+}
+
+export interface UpdateCreateResultInput {
+    expectedMeetingVersion: number;
+    result: CreateMeetingResult;
+    now?: number;
 }
 
 export interface CommittedResult<T> {
@@ -629,10 +641,12 @@ export class MeetingRepository {
                     "Meeting bootstrap cannot be completed"
                 );
             }
-            const result = {
-                meetingId: this.meetingId,
-                meetingVersion: 0
-            } satisfies CreateMeetingResult;
+            const result =
+                input.createResult ??
+                ({
+                    meetingId: this.meetingId,
+                    meetingVersion: 0
+                } satisfies CreateMeetingResult);
             this.db
                 .prepare(
                     "INSERT INTO meetings(team_id, meeting_id, version, state_json, created_at, updated_at) VALUES (?, ?, 0, ?, ?, ?)"
@@ -666,6 +680,60 @@ export class MeetingRepository {
                 result,
                 eventSeqs: [eventSeq]
             };
+        } catch (error) {
+            this.rollback();
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
+    async updateCreateResult(input: UpdateCreateResultInput): Promise<CreateMeetingResult> {
+        this.ensureOpen();
+        const now = input.now ?? Date.now();
+        try {
+            this.db.exec("BEGIN IMMEDIATE");
+            const bootstrap = this.getBootstrap();
+            const snapshot = this.getMeeting();
+            if (bootstrap.status !== "ready") {
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "Create result can only be updated for a ready meeting"
+                );
+            }
+            if (
+                snapshot.version !== input.expectedMeetingVersion ||
+                input.result.meetingId !== this.meetingId ||
+                input.result.meetingVersion !== snapshot.version
+            ) {
+                throw new RepositoryError(
+                    "VERSION_CONFLICT",
+                    true,
+                    this.meetingId,
+                    "Create result version does not match the current meeting"
+                );
+            }
+            this.db
+                .prepare(
+                    "UPDATE meeting_bootstrap SET result_json = ?, updated_at = ? WHERE meeting_id = ?"
+                )
+                .run(json(input.result), now, this.meetingId);
+            const receipt = this.db
+                .prepare(
+                    "UPDATE idempotency_receipts SET result_json = ?, meeting_version = ? WHERE request_id = ? AND command_kind = 'create_meeting'"
+                )
+                .run(json(input.result), snapshot.version, bootstrap.createRequestId);
+            if (receipt.changes !== 1) {
+                throw new RepositoryError(
+                    "CORRUPT_DATABASE",
+                    false,
+                    this.meetingId,
+                    "Create receipt is missing or ambiguous"
+                );
+            }
+            this.db.exec("COMMIT");
+            return input.result;
         } catch (error) {
             this.rollback();
             if (error instanceof RepositoryError) throw error;

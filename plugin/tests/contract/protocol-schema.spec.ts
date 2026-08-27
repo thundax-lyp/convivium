@@ -288,7 +288,7 @@ describe("protocol envelope schemas", () => {
                 participants: [],
                 limits: { maxTurns: 3 }
             })
-        ).not.toThrow();
+        ).toThrow(/agenda item/);
     });
 
     it("validates command results", () => {

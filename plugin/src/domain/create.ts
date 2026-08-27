@@ -97,6 +97,9 @@ export function createMeetingState(
     ) {
         invalidCreateInput("Meeting identity and presentation fields are required");
     }
+    if (input.agenda.length === 0) {
+        invalidCreateInput("At least one agenda item is required");
+    }
     const participantKeys = requireUniqueKeys(input.participants, "participant");
     requireUniqueKeys(input.objectiveContract.requiredOutputs, "required output");
     requireUniqueKeys(input.objectiveContract.acceptanceCriteria, "acceptance criterion");

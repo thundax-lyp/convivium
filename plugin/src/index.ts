@@ -97,7 +97,12 @@ export function apply(ctx: Context, config: ConfigType): void {
             validateCreate: () => undefined,
             validateCommand: () => undefined
         },
-        maxParticipants: config.maxParticipants
+        maxParticipants: config.maxParticipants,
+        outboxPollMs: config.outboxPollMs,
+        resolveParent: (sessionId) => {
+            const agent = ctx.agents.get(sessionId as never);
+            return agent?.session.header.parentSession === undefined ? agent : undefined;
+        }
     });
     const callers = {
         async resolve(agent: Parameters<typeof resolveMeetingCaller>[0], signal: AbortSignal) {

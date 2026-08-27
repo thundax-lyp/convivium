@@ -204,6 +204,10 @@ export function projectMeetingStatus(
                       ...(state.pausedBy === undefined ? {} : { pausedBy: state.pausedBy }),
                       ...(state.pauseReason === undefined ? {} : { reason: state.pauseReason })
                   }
-                : { action: state.status === "running" ? "pause" : "none" }
+                : {
+                      action: ["created", "running", "waiting"].includes(state.status)
+                          ? "pause"
+                          : "none"
+                  }
     } as MeetingStatusResultV1;
 }
