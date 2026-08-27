@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/tests/recovery/recovery.spec.ts`：覆盖 pause 与 restart recovery
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 7.3、7.4、9.2。
-  - 确认依据：2026-08-27 用户确认闭环需要 pause、retry 和 restart recovery 测试。
-  - 处理动作：覆盖 pause/resume 新 IDs、pending/leased outbox 恢复、receipt 去重和 stale attempt 隔离。
-  - 验收点：`pnpm test:recovery` 通过，恢复不重复 transcript 或 planning；live parent 自动续投明确 Not Covered。
-
 - [ ] `plugin/scripts/smoke-profile.mjs`：验证真实 DSH Manager 闭环
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 9.3、10、11。
   - 确认依据：2026-08-27 用户要求补真实 DSH profile 验证。
