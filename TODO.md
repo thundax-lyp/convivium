@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/runtime/recovery.ts`：恢复 Manager/Turn 持久状态
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 7.4、9.2。
-  - 确认依据：2026-08-27 用户确认闭环需要 restart recovery 测试。
-  - 处理动作：`rehydrate()` 只恢复 ready snapshot、receipt、ownership、planning/Turn state 和 pending outbox，并回收 lease；不自动重绑 live parent 或续投。
-  - 验收点：`plugin/tests/unit/runtime/recovery.spec.ts` 证明恢复不创建新 plan/attempt、不重复会议事实，无法证明 ownership 时不操作 DSH Session。
-
 - [ ] `plugin/src/projection/status.ts`：保持 Manager planning 状态投影最小化
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 8、9.1。
   - 确认依据：2026-08-27 用户确认 planning、Turn 和完成判断必须可审计。
