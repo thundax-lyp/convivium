@@ -260,6 +260,19 @@ async function waitForAgent(ctx, id) {
     throw new Error("Timed out waiting for real participant Agent " + id + ".");
 }
 
+async function waitForCommittedMessages(ctx, captain, meetingId, count) {
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+        const status = await callTool(ctx, captain, "convivium_meeting_status", {
+            protocolVersion: 1,
+            meetingId
+        }, 100 + count);
+        if (status.result.messages.length >= count) return status;
+        await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+    }
+    throw new Error("Timed out waiting for committed participant message " + count + ".");
+}
+
 function createSmokeAgent(ctx, sessionId) {
     const session = ctx.sessions.create(sessionId, {
         meta: { cwd: process.cwd() }
@@ -324,34 +337,48 @@ async function run(ctx) {
         }, 1);
         const participants = ["participant-a", "participant-c", "participant-b"];
         const messages = [];
+        let statusCall = 20;
         for (let index = 0; index < participants.length; index += 1) {
             const participantId = participants[index];
-            const beforeSubmit = await callTool(ctx, captain.agent, "convivium_meeting_status", {
-                protocolVersion: 1,
-                meetingId
-            }, 20 + index);
-            if (beforeSubmit.result.currentSpeakerId !== participantId) continue;
-            const agent = await waitForAgent(ctx, meetingId + "-participant-" + participantId);
-            let submitted;
-            try {
-                submitted = await callTool(ctx, agent, "convivium_submit_turn", {
-                protocolVersion: 1,
-                meetingId,
-                turnId: "turn-1",
-                stepId: "step-turn-1-" + index,
-                attemptId: "turn-1-attempt-" + index,
-                deliveryId: "turn-1-delivery-" + index,
-                agendaItemId: "agenda-agenda-1",
-                kind: "statement",
-                content: ["A", "C", "B"][index],
-                mentions: [],
-                taskIds: [],
-                agendaRelation: "on_topic",
-                changes: {}
-                }, index + 1);
-                messages.push(submitted.result.messageId);
-            } catch (error) {
-                if (!String(error).includes('"code":"STALE_ATTEMPT"')) throw error;
+            const stepDeadline = Date.now() + 30000;
+            while (Date.now() < stepDeadline) {
+                const beforeSubmit = await callTool(ctx, captain.agent, "convivium_meeting_status", {
+                    protocolVersion: 1,
+                    meetingId
+                }, statusCall++);
+                if (beforeSubmit.result.messages.length >= index + 1) break;
+                if (beforeSubmit.result.currentSpeakerId !== participantId) {
+                    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+                    continue;
+                }
+                const agent = ctx.agents.get(meetingId + "-participant-" + participantId);
+                if (!agent) {
+                    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+                    continue;
+                }
+                try {
+                    const submitted = await callTool(ctx, agent, "convivium_submit_turn", {
+                        protocolVersion: 1,
+                        meetingId,
+                        turnId: "turn-1",
+                        stepId: "step-turn-1-" + index,
+                        attemptId: "turn-1-attempt-" + index,
+                        deliveryId: "turn-1-delivery-" + index,
+                        agendaItemId: "agenda-agenda-1",
+                        kind: "statement",
+                        content: ["A", "C", "B"][index],
+                        mentions: [],
+                        taskIds: [],
+                        agendaRelation: "on_topic",
+                        changes: {}
+                    }, statusCall++);
+                    messages.push(submitted.result.messageId);
+                } catch (error) {
+                    if (!String(error).includes('"code":"STALE_ATTEMPT"')) throw error;
+                }
+            }
+            if (Date.now() >= stepDeadline) {
+                throw new Error("Timed out waiting for committed participant step " + index + ".");
             }
         }
         const status = await callTool(ctx, captain.agent, "convivium_meeting_status", {
