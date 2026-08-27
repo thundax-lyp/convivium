@@ -10,6 +10,14 @@ import type {
     CreateMeetingResultV1,
     MeetingStatusInputV1,
     MeetingStatusResultV1,
+    MeetingTaskRequestV1,
+    MeetingTaskStatusInputV1,
+    MeetingTaskStartInputV1,
+    MeetingTaskFinishInputV1,
+    MeetingTaskResultV1,
+    MeetingTaskStatusResultV1,
+    MeetingTaskStartResultV1,
+    MeetingTaskFinishResultV1,
     MeetingControlResultV1,
     ManagerPlanResultV1,
     ManagerPlanSubmissionV1,
@@ -27,6 +35,10 @@ import {
     ResumeMeetingInputSchema,
     ManagerPlanSubmissionSchema,
     TurnSubmissionSchema,
+    MeetingTaskRequestSchema,
+    MeetingTaskStatusInputSchema,
+    MeetingTaskStartInputSchema,
+    MeetingTaskFinishInputSchema,
     validateProtocolError
 } from "../protocol/index.js";
 
@@ -53,6 +65,26 @@ export interface MeetingToolRuntime {
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<MeetingStatusResultV1> | ProtocolErrorV1>;
+    createMeetingTask(
+        input: MeetingTaskRequestV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<MeetingToolOutcome<MeetingTaskResultV1>>;
+    meetingTaskStatus(
+        input: MeetingTaskStatusInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<MeetingToolOutcome<MeetingTaskStatusResultV1>>;
+    startMeetingTask(
+        input: MeetingTaskStartInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<MeetingToolOutcome<MeetingTaskStartResultV1>>;
+    finishMeetingTask(
+        input: MeetingTaskFinishInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<MeetingToolOutcome<MeetingTaskFinishResultV1>>;
     submitTurn(
         input: TurnSubmissionV1,
         caller: MeetingToolCaller,
@@ -198,6 +230,28 @@ export function registerCreateAndStatusTools(
                     );
                 }
             })
+        ),
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_create_meeting_task",
+                description:
+                    "Create a Convivium-owned asynchronous task from the current SpeakerAttempt.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                MeetingTaskRequestSchema(value as never) as MeetingTaskRequestV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.createMeetingTask.bind(
+                                dependencies.runtime
+                            ),
+                            exec
+                        })
+                    );
+                }
+            })
         )
     ];
 }
@@ -206,6 +260,77 @@ export function registerSubmitAndControlTools(
     dependencies: SubmitAndControlToolDependencies
 ): readonly (() => void)[] {
     return [
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_meeting_task_status",
+                description:
+                    "Read the current authorized MeetingTask projection and execution permission.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                MeetingTaskStatusInputSchema(
+                                    value as never
+                                ) as MeetingTaskStatusInputV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.meetingTaskStatus.bind(
+                                dependencies.runtime
+                            ),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_start_meeting_task",
+                description: "Idempotently start a queued MeetingTask.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                MeetingTaskStartInputSchema(
+                                    value as never
+                                ) as MeetingTaskStartInputV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.startMeetingTask.bind(
+                                dependencies.runtime
+                            ),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_finish_meeting_task",
+                description:
+                    "Commit a terminal MeetingTask result from its owning Participant Session.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                MeetingTaskFinishInputSchema(
+                                    value as never
+                                ) as MeetingTaskFinishInputV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.finishMeetingTask.bind(
+                                dependencies.runtime
+                            ),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
         dependencies.registry.register(
             defineTool({
                 name: "convivium_submit_manager_plan",

@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `B-03 / MeetingTask Session 执行`：实现授权 status、start/finish 与 FIFO task dispatch
-    - 依据文档：`docs/30-designs/RUNBOOK-MEETINGTASK-HAND-RAISE.md` 第 5.3、5.4、6、9/T3 节
-    - 确认依据：`B-02` 完成并单独提交后执行
-    - 处理动作：注册 create/status/start/finish 工具，通过既有 `MeetingRepository.execute()` 编排 create/start/finish command；扩展 MeetingSessionAdapter 与 outbox worker 的 `role='meeting_task'` 分支；每次从 `session_ownership` 验证 caller；按 status pre-read→queued start→status post-read 执行，只有 post-read `mayExecute=true` 才允许工作。
-    - 验收点：相同 request 完整返回首次 receipt/result；hash、version 和 terminal conflict 语义正确；重复 envelope 不重复 Meeting start/finish 事实；terminal/cancelled status 明确 stop；queued/running owner 不获得并发 SpeakerAttempt；没有自动 running resume；Runtime、Session adapter、worker、ownership 和 recovery tests 通过。
-
 - [ ] `B-04 / HandRaise 与 planning`：实现 waiting 恢复、统一 eligibility 和 task snapshot
     - 依据文档：`docs/30-designs/RUNBOOK-MEETINGTASK-HAND-RAISE.md` 第 5.4、5.5、6、7.3、8、9/T4 节
     - 确认依据：`B-03` 完成并单独提交后执行

@@ -109,6 +109,10 @@ describe("meeting tool registration", () => {
         expect(definitions.map((definition) => definition.name)).toEqual([
             "convivium_create_meeting",
             "convivium_meeting_status",
+            "convivium_create_meeting_task",
+            "convivium_meeting_task_status",
+            "convivium_start_meeting_task",
+            "convivium_finish_meeting_task",
             "convivium_submit_manager_plan",
             "convivium_submit_turn",
             "convivium_pause_meeting",
@@ -264,6 +268,22 @@ describe("meeting tool registration", () => {
                     calls.push(`status:${caller.kind}`),
                     denied()
                 ),
+                createMeetingTask: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`task-create:${caller.kind}`),
+                    denied()
+                ),
+                meetingTaskStatus: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`task-status:${caller.kind}`),
+                    denied()
+                ),
+                startMeetingTask: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`task-start:${caller.kind}`),
+                    denied()
+                ),
+                finishMeetingTask: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`task-finish:${caller.kind}`),
+                    denied()
+                ),
                 submitTurn: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`submit:${caller.kind}`),
                     denied()
@@ -314,6 +334,34 @@ describe("meeting tool registration", () => {
                 participants: []
             },
             convivium_meeting_status: { protocolVersion: 1, meetingId: "meeting-1" },
+            convivium_create_meeting_task: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                attemptId: "attempt-1",
+                requestId: "task-request-1",
+                title: "Run tests",
+                description: "Run the tests",
+                blocking: false
+            },
+            convivium_meeting_task_status: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                meetingTaskId: "meeting-task-1"
+            },
+            convivium_start_meeting_task: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                meetingTaskId: "meeting-task-1",
+                requestId: "task-start-1"
+            },
+            convivium_finish_meeting_task: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                meetingTaskId: "meeting-task-1",
+                requestId: "task-finish-1",
+                executionId: "execution-1",
+                status: "completed"
+            },
             convivium_submit_turn: {
                 protocolVersion: 1,
                 meetingId: "meeting-1",
@@ -374,6 +422,10 @@ describe("meeting tool registration", () => {
         expect(calls).toEqual([
             "create:participant",
             "status:participant",
+            "task-create:participant",
+            "task-status:participant",
+            "task-start:participant",
+            "task-finish:participant",
             "manager-plan:participant",
             "submit:participant",
             "pause:participant",
