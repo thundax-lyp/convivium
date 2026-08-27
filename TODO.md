@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/domain/transitions.ts`：实现 Speaker 提交与 Turn 推进转换
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 6.4、6.5、7.2。
-  - 确认依据：2026-08-27 用户确认逐 Speaker dispatch 与 Turn 生命周期闭环。
-  - 处理动作：新增 `submitSpeakerAndAdvanceMeeting()`，在一次版本增长内提交 message、确认 delivery、创建下一 attempt，或收口为 `completed`、`partial`、next planning。
-  - 验收点：`plugin/tests/unit/domain/transitions.spec.ts` 证明每次仅有一个 active attempt、committed prefix 单调、limit truncation 正确，duplicate/stale 不重复 transcript。
-
 - [ ] `plugin/src/dsh/session-adapter.ts`：增加受授权的 Manager followup
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 5.1、6.2、7.2。
   - 确认依据：2026-08-27 用户确认使用真实 DSH Manager continuable Session。

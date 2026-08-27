@@ -4,6 +4,7 @@ import {
     type ArchivePackage,
     type MeetingState,
     submitSpeakerAttempt,
+    submitSpeakerAndAdvanceMeeting,
     startManagerPlanning,
     submitManagerPlan,
     transitionAttempt,
@@ -117,6 +118,90 @@ function archivePackage(): ArchivePackage {
 }
 
 describe("meeting transitions", () => {
+    it("submits one speaker and creates only the next ordered attempt", () => {
+        const participant = {
+            id: "a",
+            displayName: "A",
+            status: "speaking" as const,
+            consecutiveSpeeches: 0,
+            consecutiveAttemptFailures: 0,
+            totalSpeeches: 0,
+            lastDeliveredSeq: 0,
+            lastAcknowledgedSeq: 0
+        };
+        const state = {
+            ...meeting("running"),
+            participants: [participant],
+            currentTurn: {
+                id: "turn-1",
+                seq: 1,
+                agendaItemId: "agenda-1",
+                intent: "explore" as const,
+                objective: "objective",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                plan: ["a", "b"],
+                status: "running" as const,
+                currentStepIndex: 0,
+                steps: [
+                    {
+                        id: "step-0",
+                        speaker: "a",
+                        instruction: "A",
+                        reason: "manager_selected" as const,
+                        status: "running" as const,
+                        attempt: {
+                            attemptId: "attempt-0",
+                            participantId: "a",
+                            meetingId: "meeting-1",
+                            turnId: "turn-1",
+                            stepId: "step-0",
+                            deliveryId: "delivery-0",
+                            contextFromSeq: 0,
+                            contextThroughSeq: 0,
+                            taskSnapshots: [],
+                            assignedAt: now,
+                            status: "running" as const,
+                            deliveryStatus: "pending" as const
+                        }
+                    },
+                    {
+                        id: "step-1",
+                        speaker: "b",
+                        instruction: "B",
+                        reason: "manager_selected" as const,
+                        status: "pending" as const
+                    }
+                ],
+                createdAt: now
+            }
+        };
+        const result = submitSpeakerAndAdvanceMeeting(state, "a", {
+            meetingId: "meeting-1",
+            participantId: "a",
+            turnId: "turn-1",
+            stepId: "step-0",
+            attemptId: "attempt-0",
+            deliveryId: "delivery-0",
+            agendaItemId: "agenda-1",
+            message: {
+                id: "message-1",
+                content: "answer",
+                kind: "statement",
+                mentions: [],
+                taskIds: [],
+                createdAt: now
+            },
+            now,
+            nextPlanningAttemptId: "planning-2",
+            nextPlanningDeliveryId: "planning-delivery-2"
+        });
+        expect(result.state.version).toBe(state.version + 1);
+        expect(result.state.currentTurn?.steps[1]?.attempt?.participantId).toBe("b");
+        expect(result.state.currentTurn?.steps.filter((step) => step.attempt).length).toBe(2);
+        expect(result.state.messageSeq).toBe(1);
+    });
+
     it("submits a manager plan and starts only the first speaker", () => {
         const state = {
             ...meeting(),
