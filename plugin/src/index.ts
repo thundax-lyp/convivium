@@ -2,11 +2,7 @@ import { resolve } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import { Config, type Config as ConfigType } from "./config.js";
-import {
-    bindCaptainParent,
-    requireContinuableProvider,
-    resolveMeetingCaller
-} from "./dsh/index.js";
+import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
 import {
     createCreateStatusRuntime,
     registerCreateAndStatusTools,
@@ -105,8 +101,13 @@ export function apply(ctx: Context, config: ConfigType): void {
     const callers = {
         async resolve(agent: Parameters<typeof resolveMeetingCaller>[0], signal: AbortSignal) {
             const meetingCaller = await resolveMeetingCaller(agent, runtime, signal);
-            if ("ok" in meetingCaller) return { ...bindCaptainParent(agent), agent };
-            return { ...meetingCaller, agent };
+            if (!("ok" in meetingCaller)) return { ...meetingCaller, agent };
+            // DSH's Agent registry is the host-verified boundary for a top-level
+            // caller. An ownership lookup failure must never grant Captain access.
+            if (ctx.agents.get(String(agent.id) as never) === agent) {
+                return { kind: "captain" as const, sessionId: String(agent.id), agent };
+            }
+            return meetingCaller;
         }
     };
     for (const dispose of [

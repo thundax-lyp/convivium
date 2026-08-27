@@ -52,7 +52,8 @@ describe("create/status meeting runtime", () => {
                 startContinuable: async (spec) => ({
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
-                })
+                }),
+                followup: async () => "followup-message" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -100,7 +101,8 @@ describe("create/status meeting runtime", () => {
                 startContinuable: async (spec) => {
                     starts += 1;
                     return { childId: spec.childId!, messageId: "initial" as never };
-                }
+                },
+                followup: async () => "followup-message" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,

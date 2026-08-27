@@ -1,7 +1,12 @@
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
+import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { ContinuableStarter } from "../dsh/index.js";
+import {
+    followupParticipantSession,
+    type ContinuableFollowupRuntime,
+    type ContinuableStarter
+} from "../dsh/index.js";
 import {
     planRoundRobinTurn,
     submitSpeakerAttempt,
@@ -35,7 +40,7 @@ import type { MeetingOwnershipLookup } from "../dsh/index.js";
 export interface CreateStatusRuntimeOptions {
     readonly dataRoot: string;
     readonly provider: string;
-    readonly continuable: ContinuableStarter;
+    readonly continuable: ContinuableStarter & ContinuableFollowupRuntime;
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly signal?: AbortSignal;
     readonly now?: () => number;
@@ -63,6 +68,13 @@ function failure(
 
 function repositoryPath(root: string, teamId: string, meetingId: string): string {
     return join(root, encodeURIComponent(teamId), `${encodeURIComponent(meetingId)}.sqlite`);
+}
+
+function stableMeetingId(input: CreateMeetingInputV1): string {
+    return `meeting-${createHash("sha256")
+        .update(`${input.teamId}\0${input.requestId}`)
+        .digest("hex")
+        .slice(0, 32)}`;
 }
 
 function participantResult(input: CreateMeetingInputV1, meetingId: string): CreateMeetingResultV1 {
@@ -104,6 +116,108 @@ export function createCreateStatusRuntime(
     const meetings = new Map<string, StoredMeeting>();
     const signal = options.signal ?? new AbortController().signal;
 
+    async function rehydrate() {
+        const teams = await readdir(options.dataRoot, { withFileTypes: true }).catch(() => []);
+        for (const team of teams) {
+            if (!team.isDirectory()) continue;
+            const files = await readdir(join(options.dataRoot, team.name)).catch(() => []);
+            for (const file of files) {
+                if (!file.endsWith(".sqlite")) continue;
+                const meetingId = decodeURIComponent(file.slice(0, -7));
+                if (meetings.has(meetingId)) continue;
+                try {
+                    const repository = await openMeetingRepository({
+                        databasePath: join(options.dataRoot, team.name, file),
+                        teamId: decodeURIComponent(team.name),
+                        meetingId,
+                        authorizationValidator: options.authorizationValidator
+                    });
+                    const recovered = await repository.recover();
+                    const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
+                    if (
+                        recovered.bootstrap.status !== "ready" ||
+                        recovered.snapshot === undefined ||
+                        parentSessionId === undefined
+                    ) {
+                        await repository.close();
+                        continue;
+                    }
+                    meetings.set(meetingId, {
+                        teamId: decodeURIComponent(team.name),
+                        captainSessionId: parentSessionId,
+                        repository
+                    });
+                } catch {
+                    // Ignore unrelated or incomplete databases during startup discovery.
+                }
+            }
+        }
+    }
+
+    async function dispatchInitialDelivery(
+        repository: MeetingRepositoryRuntime,
+        parent: Agent,
+        meetingId: string,
+        commandSignal: AbortSignal
+    ) {
+        const recovered = await repository.recover();
+        const [item] = await repository.claimOutbox({
+            owner: `runtime:${meetingId}`,
+            ttlMs: 60_000,
+            batchSize: 1,
+            now: options.now?.() ?? Date.now()
+        });
+        if (item === undefined) return;
+        const payload = item.payload as unknown as {
+            participantId: string;
+            attemptId: string;
+            turnId: string;
+        };
+        const ownership = recovered.sessionOwnership.find(
+            (candidate) => candidate.participantId === payload.participantId
+        );
+        if (ownership === undefined)
+            throw new Error("Initial speaker Session ownership is missing.");
+        try {
+            await followupParticipantSession({
+                runtime: options.continuable,
+                parent,
+                ownership,
+                attempt: {
+                    attemptId: payload.attemptId,
+                    deliveryId: item.deliveryId,
+                    participantId: payload.participantId
+                },
+                prompt: [
+                    {
+                        type: "text",
+                        text: `Meeting ${meetingId} turn ${payload.turnId}: submit your statement.`
+                    }
+                ],
+                signal: commandSignal,
+                authorize: async () => undefined
+            });
+            await repository.completeOutbox({
+                id: item.id,
+                leaseOwner: item.leaseOwner,
+                leaseToken: item.leaseToken,
+                completion: { status: "delivered" }
+            });
+        } catch (error) {
+            await repository.completeOutbox({
+                id: item.id,
+                leaseOwner: item.leaseOwner,
+                leaseToken: item.leaseToken,
+                completion: {
+                    status: "retry",
+                    availableAt: Date.now(),
+                    errorCode: "DISPATCH_FAILED"
+                }
+            });
+            throw error;
+        }
+    }
+
     return {
         async createMeeting(input, caller, commandSignal) {
             if (caller.kind !== "captain" || caller.agent === undefined) {
@@ -112,7 +226,8 @@ export function createCreateStatusRuntime(
                     "Only a live Captain Agent can create a meeting."
                 );
             }
-            const meetingId = `meeting-${randomUUID()}`;
+            await rehydrate();
+            const meetingId = stableMeetingId(input);
             const repository = await openMeetingRepository({
                 databasePath: repositoryPath(options.dataRoot, input.teamId, meetingId),
                 teamId: input.teamId,
@@ -133,6 +248,22 @@ export function createCreateStatusRuntime(
                 now: options.now
             };
             try {
+                const existing = await repository.recover().catch(() => undefined);
+                if (
+                    existing?.bootstrap.status === "ready" &&
+                    existing.bootstrap.createResult !== undefined
+                ) {
+                    meetings.set(meetingId, {
+                        teamId: input.teamId,
+                        captainSessionId: caller.sessionId,
+                        repository
+                    });
+                    return success(meetingId, existing.snapshot?.version ?? 1, {
+                        ...participantResult(input, meetingId),
+                        meetingVersion: existing.snapshot?.version ?? 1,
+                        status: "running"
+                    });
+                }
                 await createMeetingRuntime(input, dependencies);
                 await initializeFirstTurn(repository, options.now?.() ?? Date.now());
                 meetings.set(meetingId, {
@@ -140,6 +271,12 @@ export function createCreateStatusRuntime(
                     captainSessionId: caller.sessionId,
                     repository
                 });
+                void dispatchInitialDelivery(
+                    repository,
+                    caller.agent as Agent,
+                    meetingId,
+                    commandSignal ?? signal
+                ).catch(() => undefined);
                 return success(meetingId, 1, {
                     ...participantResult(input, meetingId),
                     meetingVersion: 1,
@@ -157,6 +294,7 @@ export function createCreateStatusRuntime(
         },
 
         async getStatus(input: MeetingStatusInputV1, caller) {
+            await rehydrate();
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
             if (!isAuthorizedForMeeting(caller, stored, input.meetingId)) {
@@ -176,6 +314,7 @@ export function createCreateStatusRuntime(
         },
 
         async submitTurn(input, caller) {
+            await rehydrate();
             if (
                 caller.kind !== "participant" ||
                 caller.meetingId !== input.meetingId ||
@@ -267,6 +406,7 @@ export function createCreateStatusRuntime(
             }
         },
         async pause(input, caller) {
+            await rehydrate();
             const stored = meetings.get(input.meetingId);
             if (
                 stored === undefined ||
@@ -277,6 +417,7 @@ export function createCreateStatusRuntime(
             return transitionMeetingStatus(input, caller, "paused");
         },
         async resume(input, caller) {
+            await rehydrate();
             const stored = meetings.get(input.meetingId);
             if (
                 stored === undefined ||
@@ -289,6 +430,7 @@ export function createCreateStatusRuntime(
 
         async findBySessionId(sessionId, lookupSignal) {
             if (lookupSignal.aborted) throw lookupSignal.reason;
+            await rehydrate();
             for (const [meetingId, stored] of meetings) {
                 const recovered = await stored.repository.recover();
                 const ownership = recovered.sessionOwnership.find(
@@ -476,7 +618,21 @@ async function initializeFirstTurn(repository: MeetingRepositoryRuntime, now: nu
             } as unknown as JsonObject,
             result: { turnId: running.id, firstStepId: running.steps[0]?.id },
             events,
-            outbox: []
+            outbox:
+                speaker === undefined
+                    ? []
+                    : [
+                          {
+                              deliveryId: running.steps[0]!.attempt!.deliveryId,
+                              kind: "dispatch",
+                              payload: {
+                                  participantId: speaker,
+                                  attemptId: running.steps[0]!.attempt!.attemptId,
+                                  turnId: running.id,
+                                  stepId: running.steps[0]!.id
+                              }
+                          }
+                      ]
         })
     });
 }

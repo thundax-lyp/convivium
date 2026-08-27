@@ -250,24 +250,13 @@ async function writeResult(value) {
 }
 
 async function waitForAgent(ctx, id) {
-    const deadline = Date.now() + 5000;
+    const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
         const agent = ctx.agents.get(id);
         if (agent) return agent;
         await new Promise((resolveWait) => setTimeout(resolveWait, 100));
     }
-    return createEphemeralAgent(ctx, id).agent;
-}
-
-function createEphemeralAgent(ctx, sessionId) {
-    const session =
-        ctx.sessions.get(sessionId) ?? {
-            id: sessionId,
-            header: { id: sessionId },
-            events: [],
-            seq: 0
-        };
-    return registerSmokeAgent(ctx, session);
+    throw new Error("Timed out waiting for real participant Agent " + id + ".");
 }
 
 function createSmokeAgent(ctx, sessionId) {
