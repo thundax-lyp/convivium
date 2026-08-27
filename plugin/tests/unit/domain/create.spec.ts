@@ -125,7 +125,17 @@ describe("canonical meeting creation", () => {
         );
     });
 
-    it("rejects unsupported create capabilities before allocating any canonical id", () => {
+    it("accepts manager mode while preserving the default round-robin mode", () => {
+        expect(createMeetingState(input(), ids).selectionMode).toBe("round_robin");
+        expect(createMeetingState(input({ selectionMode: "round_robin" }), ids).selectionMode).toBe(
+            "round_robin"
+        );
+        expect(createMeetingState(input({ selectionMode: "manager" }), ids).selectionMode).toBe(
+            "manager"
+        );
+    });
+
+    it("rejects unsupported modes and oversized required speakers before allocating ids", () => {
         let allocations = 0;
         const recordingIds: CanonicalIdAllocator = {
             allocate: (kind, key) => {
@@ -135,7 +145,8 @@ describe("canonical meeting creation", () => {
         };
 
         for (const unsupported of [
-            input({ selectionMode: "manager" }),
+            input({ selectionMode: "rule_based" }),
+            input({ selectionMode: "hybrid" }),
             input({ continuation: { sourceMeetingId: "archived-meeting" } })
         ]) {
             expect(() => createMeetingState(unsupported, recordingIds)).toThrowError(
@@ -145,6 +156,15 @@ describe("canonical meeting creation", () => {
                 })
             );
         }
+
+        expect(() =>
+            createMeetingState(
+                input({ limits: { ...input().limits, maxSpeakersPerTurn: 1 } }),
+                recordingIds
+            )
+        ).toThrowError(
+            expect.objectContaining<Partial<DomainError>>({ code: "INVALID_CREATE_INPUT" })
+        );
 
         expect(allocations).toBe(0);
     });

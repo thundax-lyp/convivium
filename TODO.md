@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/domain/create.ts`：开放 `manager` selection mode
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 2、6.1、9.2。
-  - 确认依据：2026-08-27 用户确认 Manager planning 与 Turn 生命周期闭环。
-  - 处理动作：接受并原样保存省略值/`round_robin`/`manager`，在副作用前拒绝 `rule_based`、`hybrid` 和超出 `maxSpeakersPerTurn` 的 required Participants。
-  - 验收点：`plugin/tests/unit/domain/create.spec.ts` 证明三种接受路径、两种拒绝路径及现有 `round_robin` state/plan 不变。
-
 - [ ] `plugin/src/protocol/{commands,results,types}.ts`：闭合 Manager plan 协议 Schema
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 4.2、5.2、9.1。
   - 确认依据：2026-08-27 用户确认 Manager planning 与 Turn 生命周期闭环。
