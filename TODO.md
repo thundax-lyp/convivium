@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `B-05 / 闭环 A 集成`：合并 terminal cancellation 与 authorized MeetingTask evidence
-    - 依据文档：`docs/30-designs/RUNBOOK-MEETINGTASK-HAND-RAISE.md` 第 3、8、9/T2、T4 节
-    - 确认依据：`B-04` 完成且闭环 A 的公开 commits 可供语义合并后执行
-    - 处理动作：只让 Captain `endMeeting` 调用 B-owned cancellation helper；把 AuthorizedTaskEvidenceResolver 改为只读锁内 MeetingSnapshot 的 completed MeetingTask projection，删除旧 TeamTask association 字段和文案；不重复实现 B-02 已完成的 submit 内 automatic hard-limit cancellation。
-    - 验收点：Captain end 遇到 requested/queued/running task 时同事务 cancelled；同版本 task/HandRaise/planning/end 竞争只有一个成功；resolver 不访问 DSH/文件系统/外部服务；A/B 相关测试通过。
-
 - [ ] `B-06 / MeetingTask 验证与收口`：完成真实 DSH 运行证据和临时文档迁移
     - 依据文档：`docs/30-designs/RUNBOOK-MEETINGTASK-HAND-RAISE.md` 第 10 至 13 节；`docs/00-governance/TODO-RULES.md`
     - 确认依据：`B-05` 完成并单独提交后执行
