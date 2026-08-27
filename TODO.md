@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`：记录验证并收口 RUNBOOK
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 11、12；`docs/00-governance/TODO-RULES.md` Closure Rules。
-  - 确认依据：2026-08-27 用户确认以 Manager planning 和 Turn 生命周期闭环为目标。
-  - 处理动作：记录 commit、环境、命令、结果和 Not Covered；迁移长期结论，删除已完成 RUNBOOK 及残留引用。
-  - 验收点：readiness 准确区分已验证范围与 timeout、live parent 自动续投、TeamTask/mail/archive/UI 等未覆盖项，工作区无残留 RUNBOOK 引用。
-
 ## 待审阅任务项
 
 ## 待讨论项
