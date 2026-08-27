@@ -1053,7 +1053,8 @@ export function startManagerPlanning(
             ...meeting.state.manager,
             status: "planning",
             currentPlanningAttempt: planningAttempt
-        }
+        },
+        replanCount: meeting.state.replanCount + 1
     };
     return {
         state: nextState,
@@ -1826,6 +1827,7 @@ export function submitSpeakerAndAdvanceMeeting(
         currentTurn: undefined,
         status: "running",
         waitState: undefined,
+        replanCount: nextState.replanCount + 1,
         manager: {
             ...nextState.manager,
             status: "planning",

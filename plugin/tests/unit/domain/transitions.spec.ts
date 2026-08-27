@@ -879,6 +879,7 @@ describe("meeting transitions", () => {
 
         expect(result.state.status).toBe("running");
         expect(result.state.version).toBe(state.version + 1);
+        expect(result.state.replanCount).toBe(state.replanCount + 1);
         expect(result.state.currentTurn).toBeUndefined();
         expect(result.state.manager.status).toBe("planning");
         expect(result.state.manager.currentPlanningAttempt).toEqual({

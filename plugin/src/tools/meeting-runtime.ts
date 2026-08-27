@@ -1152,8 +1152,8 @@ export function createCreateStatusRuntime(
                                     createdAt: Date.now()
                                 },
                                 now: options.now?.() ?? Date.now(),
-                                nextPlanningAttemptId: `${state.id}-planning-${state.turnSeq + 1}`,
-                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.turnSeq + 1}`,
+                                nextPlanningAttemptId: `${state.id}-planning-${state.replanCount + 1}`,
+                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.replanCount + 1}`,
                                 ...(input.completionClaims === undefined
                                     ? {}
                                     : {
@@ -1566,8 +1566,9 @@ export function createCreateStatusRuntime(
                             )
                         };
                         if (nextState.selectionMode === "manager") {
-                            const planningAttemptId = `${nextState.id}-planning-${nextState.version}`;
-                            const planningDeliveryId = `${nextState.id}-planning-delivery-${nextState.version}`;
+                            const planningSequence = nextState.replanCount + 1;
+                            const planningAttemptId = `${nextState.id}-planning-${planningSequence}`;
+                            const planningDeliveryId = `${nextState.id}-planning-delivery-${planningSequence}`;
                             nextState = {
                                 ...nextState,
                                 manager: {
