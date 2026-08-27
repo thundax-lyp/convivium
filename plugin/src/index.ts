@@ -104,7 +104,10 @@ export function apply(ctx: Context, config: ConfigType): void {
             if (!("ok" in meetingCaller)) return { ...meetingCaller, agent };
             // DSH's Agent registry is the host-verified boundary for a top-level
             // caller. An ownership lookup failure must never grant Captain access.
-            if (ctx.agents.get(String(agent.id) as never) === agent) {
+            if (
+                ctx.agents.get(String(agent.id) as never) === agent &&
+                agent.session.header.parentSession === undefined
+            ) {
                 return { kind: "captain" as const, sessionId: String(agent.id), agent };
             }
             return meetingCaller;

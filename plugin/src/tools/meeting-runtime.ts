@@ -77,6 +77,10 @@ function stableMeetingId(input: CreateMeetingInputV1): string {
         .slice(0, 32)}`;
 }
 
+function requestHash(input: CreateMeetingInputV1): string {
+    return JSON.stringify(input);
+}
+
 function participantResult(input: CreateMeetingInputV1, meetingId: string): CreateMeetingResultV1 {
     return {
         meetingId,
@@ -253,6 +257,21 @@ export function createCreateStatusRuntime(
                     existing?.bootstrap.status === "ready" &&
                     existing.bootstrap.createResult !== undefined
                 ) {
+                    if (existing.bootstrap.requestHash !== requestHash(input)) {
+                        await repository.close();
+                        return failure(
+                            "IDEMPOTENCY_CONFLICT",
+                            "The create request conflicts with the persisted meeting."
+                        );
+                    }
+                    const persistedCaptain = existing.sessionOwnership[0]?.parentSessionId;
+                    if (persistedCaptain !== caller.sessionId) {
+                        await repository.close();
+                        return failure(
+                            "UNAUTHORIZED_CALLER",
+                            "Only the original meeting Captain can replay creation."
+                        );
+                    }
                     meetings.set(meetingId, {
                         teamId: input.teamId,
                         captainSessionId: caller.sessionId,
@@ -271,12 +290,12 @@ export function createCreateStatusRuntime(
                     captainSessionId: caller.sessionId,
                     repository
                 });
-                void dispatchInitialDelivery(
+                await dispatchInitialDelivery(
                     repository,
                     caller.agent as Agent,
                     meetingId,
                     commandSignal ?? signal
-                ).catch(() => undefined);
+                );
                 return success(meetingId, 1, {
                     ...participantResult(input, meetingId),
                     meetingVersion: 1,

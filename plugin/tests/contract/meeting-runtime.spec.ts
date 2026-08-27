@@ -130,4 +130,44 @@ describe("create/status meeting runtime", () => {
         ).resolves.toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
         expect(starts).toBe(0);
     });
+
+    it("replays only the same create request for its original Captain", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-idempotency-"));
+        roots.push(root);
+        let starts = 0;
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => {
+                    starts += 1;
+                    return { childId: spec.childId!, messageId: "initial" as never };
+                },
+                followup: async () => "followup-message" as never
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+        const first = await runtime.createMeeting(input, captain, new AbortController().signal);
+        const replay = await runtime.createMeeting(input, captain, new AbortController().signal);
+        expect(replay).toMatchObject({
+            ok: true,
+            result: { meetingId: first.ok ? first.result.meetingId : "" }
+        });
+        expect(starts).toBe(4);
+
+        const conflict = await runtime.createMeeting(
+            { ...input, topic: "Different" },
+            captain,
+            new AbortController().signal
+        );
+        expect(conflict).toMatchObject({ ok: false, code: "IDEMPOTENCY_CONFLICT" });
+    });
 });
