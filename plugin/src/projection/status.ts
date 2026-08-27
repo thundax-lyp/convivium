@@ -1,5 +1,6 @@
 import type { MeetingState } from "../domain/model.js";
 import type {
+    ExecutionTerminalMeetingStatusResultV1,
     ManagerMeetingContextV1,
     MeetingStatusResultV1,
     PublicAgendaItemV1,
@@ -77,7 +78,9 @@ function termination(state: MeetingState) {
     };
 }
 
-function executionTermination(state: MeetingState) {
+function executionTermination(
+    state: MeetingState
+): ExecutionTerminalMeetingStatusResultV1["termination"] {
     if (state.termination === undefined) {
         throw new TypeError("terminal MeetingState must include termination");
     }
@@ -88,6 +91,12 @@ function executionTermination(state: MeetingState) {
         finalMessage: state.termination.finalMessage,
         endedAt: state.termination.endedAt
     };
+}
+
+function isExecutionTerminalStatus(
+    status: MeetingState["status"]
+): status is ExecutionTerminalMeetingStatusResultV1["status"] {
+    return ["completed", "partial", "no_consensus", "cancelled", "failed"].includes(status);
 }
 
 /**
@@ -192,8 +201,8 @@ export function projectMeetingStatus(
             }))
     };
 
-    if (["completed", "partial", "no_consensus", "cancelled", "failed"].includes(state.status)) {
-        return {
+    if (isExecutionTerminalStatus(state.status)) {
+        const terminal: ExecutionTerminalMeetingStatusResultV1 = {
             ...discussion,
             status: state.status,
             pendingHandRaises: [],
@@ -202,7 +211,8 @@ export function projectMeetingStatus(
             completionFactIds: state.completionFacts
                 .filter((fact) => fact.status === "active")
                 .map((fact) => fact.id)
-        } as MeetingStatusResultV1;
+        };
+        return terminal;
     }
 
     const currentTurn = state.currentTurn === undefined ? undefined : turn(state.currentTurn);

@@ -1,5 +1,6 @@
 import type { MeetingState } from "../../src/domain/model.js";
 import { projectMeetingStatus } from "../../src/projection/index.js";
+import { MeetingStatusResultSchema } from "../../src/protocol/index.js";
 import { describe, expect, it } from "vitest";
 
 const state = {
@@ -62,4 +63,67 @@ describe("meeting status projection", () => {
             pauseControl: { action: "pause" }
         });
     });
+
+    it.each(["completed", "partial", "no_consensus", "cancelled", "failed"] as const)(
+        "maps %s through the execution-terminal schema without active execution data",
+        (status) => {
+            const projected = projectMeetingStatus(
+                {
+                    ...state,
+                    status,
+                    completionFacts: [
+                        { id: "fact-active", status: "active" },
+                        { id: "fact-superseded", status: "superseded" }
+                    ],
+                    termination: {
+                        code: status === "failed" ? "internal_error" : "captain_accepted",
+                        reason: "Formal terminal reason",
+                        decisionIds: ["decision-1"],
+                        unresolvedQuestionIds: ["question-1"],
+                        dissentingPositionIds: ["position-1"],
+                        blockingAgendaItemIds: ["agenda-1"],
+                        finalMessage: "Final public message",
+                        endedAt: 1_700_000_000_000
+                    },
+                    currentTurn: {
+                        id: "turn-secret",
+                        currentStepIndex: 0,
+                        steps: [
+                            {
+                                id: "step-secret",
+                                speaker: "participant-secret",
+                                attempt: { attemptId: "attempt-secret" }
+                            }
+                        ]
+                    },
+                    handRaises: [{ id: "raise-secret", status: "pending" }]
+                } as unknown as MeetingState,
+                {
+                    kind: "captain",
+                    sessionId: "session-secret"
+                }
+            );
+
+            expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
+            expect(projected).toMatchObject({
+                status,
+                pendingHandRaises: [],
+                pauseControl: { action: "none" },
+                completionFactIds: ["fact-active"],
+                termination: {
+                    decisionIds: ["decision-1"],
+                    unresolvedQuestionIds: ["question-1"],
+                    dissentingPositionIds: ["position-1"],
+                    blockingAgendaItemIds: ["agenda-1"],
+                    finalMessage: "Final public message",
+                    endedAt: 1_700_000_000_000
+                }
+            });
+            expect(projected).not.toHaveProperty("currentTurn");
+            expect(projected).not.toHaveProperty("currentSpeakerId");
+            expect(JSON.stringify(projected)).not.toMatch(
+                /session-secret|turn-secret|step-secret|attempt-secret|raise-secret/
+            );
+        }
+    );
 });

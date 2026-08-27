@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `A5 / plugin terminal-status`：实现 execution-terminal 状态投影
-    - 依据文档：`docs/30-designs/RUNBOOK-COMPLETION-CLOSURE.md` T4、7；`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md` Authorized status projection
-    - 确认依据：2026-08-27 用户确认闭环 A RUNBOOK 待执行；`codex://threads/01a04210-fa01-7091-b554-4c94a5cf0186`
-    - 处理动作：只修改 `plugin/src/projection/status.ts` 的 execution-terminal 分支，从 canonical MeetingState 显式映射 termination、decision、未解决事项和正式契约允许的完成依据，不改 active task/HandRaise 分支，不从 transcript 推断完成。
-    - 验收点：`pnpm exec vitest run tests/contract/status-projection.spec.ts` 通过，五种执行终态均通过 Schema，且不包含 current Turn、speaker、attempt、Session ID 或 pending HandRaise。
-
 - [ ] `A6 / plugin completion-closure verification`：验证并收口闭环 A
     - 依据文档：`docs/30-designs/RUNBOOK-COMPLETION-CLOSURE.md` T5、7—10；`docs/00-governance/TODO-RULES.md`
     - 确认依据：2026-08-27 用户确认闭环 A RUNBOOK 待执行；`codex://threads/01a04210-fa01-7091-b554-4c94a5cf0186`
