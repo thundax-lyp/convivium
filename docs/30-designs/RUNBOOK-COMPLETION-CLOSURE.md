@@ -1,6 +1,6 @@
 # RUNBOOK：闭环 A——会议完成与结束
 
-状态：待执行（与闭环 B 并行）
+状态：闭环 A 独立实现已完成，等待闭环 B 的 MeetingTask 集成收口
 
 ## 1. 目标
 
@@ -30,7 +30,7 @@ Participant 提交结构化 completion claims
 - `partial`、`no_consensus` 和 `cancelled` 由 Captain command、硬限制、stall 或其他正式终止条件形成，不得仅根据 completion claim 自动派生。
 - `convivium_end_meeting` 仅允许真实 Captain 调用，支持正常结束、接受 partial、无共识结束和取消结束。
 - 结束命令支持相同 request 的幂等重放、不同 hash 的 `IDEMPOTENCY_CONFLICT` 和过期 version 的 `VERSION_CONFLICT`。
-- 结束事务原子写入 state、termination、completion facts、meeting event、receipt 和必要 outbox 状态；同时撤销活动 Speaker/Manager attempt、截断活动 Turn，并确保旧 dispatch 不能继续投递；失败不得留下部分终态。
+- 结束事务原子写入 state、termination、completion facts、meeting event、receipt 和必要 outbox 状态；同时撤销活动 Speaker/Manager attempt、截断活动 Turn、取消非终态 MeetingTask，并确保旧 dispatch 不能继续投递；失败不得留下部分终态。
 - 执行终态不可继续写入会议事实，重复结束返回原始 receipt 或 `IMMUTABLE_MEETING`，语义不得漂移。
 - `meeting_status` 输出执行终态 projection，包含终止原因、未解决事项、异议、决策和完成依据；正式接口当前不能表达的字段必须先完成 T1 契约门，再进入 Runtime 实现。
 - 终态 projection 不再暴露 current turn、speaker、活动 attempt 或 pending hand raise。
@@ -39,7 +39,7 @@ Participant 提交结构化 completion claims
 ### 2.2 明确不包含
 
 - Archive、`archiving`、`archived`、Session close、capability revoke 和 continuation。
-- TeamTask、HandRaise、meeting-scoped mailbox 和异步任务。
+- MeetingTask 的创建、执行、结果提交、HandRaise 和任务调度。
 - 新增 HTTP route、完整 Plugin Frontend、Conversation Node 或视觉交互。
 - Manager 语义裁决、复杂 replan、selection mode 扩展和并行议题。
 - 通过自然语言、transcript 文本或 UI projection 直接宣布完成。
@@ -49,36 +49,35 @@ Participant 提交结构化 completion claims
 
 ### 2.3 与闭环 B 的并行边界
 
-闭环 B 由另一个 AI 并行处理，范围固定为 TeamTask 与 HandRaise：后台任务创建/关联、授权 task snapshot/result、举手，以及 Manager planning 对这些输入的消费。
+闭环 B 由另一个 AI 并行处理，范围固定为 Convivium-owned `MeetingTask` 与 HandRaise：任务创建、通过原 Participant continuable Session 投递、开始/完成、授权结果读取、举手，以及 planning 对这些输入的消费。MeetingTask 是 MeetingState 内的 canonical meeting fact，不使用 DSH/Agent Teams `TeamTask`。
 
-闭环 A 不实现、调用或测试闭环 B 的业务能力；闭环 B 不决定 completion、termination 或 Archive。两边只共享已有基础设施，不共同重构基础设施。
+闭环 A 不实现闭环 B 的任务生命周期；闭环 B 不决定 completion、termination 或 Archive。集成时 A 只调用 B 提供的纯 cancellation/round-robin helper，并把 helper 产生的 state/event 与 A transition 放进同一个既有 `MeetingRepository.execute()` 事务；不得新增 repository 回调、第二事务或通用 outbox 类型。
 
 | 共享热点 | 闭环 A 允许修改 | 闭环 A 禁止修改 |
 | --- | --- | --- |
-| `plugin/src/domain/transitions.ts` | completion claim commit、Captain end、终态 attempt/Turn 收口 | HandRaise、TeamTask、planning 算法和无关状态机重构 |
-| `plugin/src/tools/meeting-runtime.ts` | completion claim 处理、`endMeeting`、终态 dispatch 防护 | task adapter、raise-hand、Manager task input 和通用 Runtime 重构 |
-| `plugin/src/runtime/meeting-runtime.ts` | 只增加 completion/end 所需的类型化 Runtime 端口，不改 create/task reconciliation | task operation、task reconciliation、HandRaise/planning 入口 |
+| `plugin/src/domain/transitions.ts` | completion claim commit、Captain end、hard-limit/partial 终态、终态 attempt/Turn 收口；在这些终态分支调用 B 的纯 task cancellation helper | MeetingTask 生命周期、HandRaise 语义和无关状态机重构 |
+| `plugin/src/tools/meeting-runtime.ts` | completion claim 处理、`endMeeting`、终态 dispatch 防护；复用 B 的 round-robin helper | MeetingTask handler、raise-hand、任务执行和通用 Runtime 重构 |
+| `plugin/src/runtime/meeting-runtime.ts` | 只增加 completion/end 所需的类型化 Runtime 端口 | MeetingTask 投递、恢复、HandRaise/planning 入口 |
 | `plugin/src/tools/register-tools.ts` | `convivium_end_meeting` 注册及既有 submit 的 completion 部分 | background-task、raise-hand 的 Schema 与 handler |
-| `plugin/src/protocol/*` | completion、end、terminal status 相关类型和 Schema | TeamTask、HandRaise、Manager task projection 契约 |
+| `plugin/src/protocol/*` | completion、end、terminal status 相关类型和 Schema | MeetingTask、HandRaise 和 task status read 契约 |
 | `plugin/src/domain/model.ts` / `DomainEventTypes` | CompletionFact、termination，只追加 completion/end 事件 | task/hand-raise 模型与事件；重排、改名或改变既有事件语义 |
 | `plugin/src/projection/status.ts` | 只修改 execution-terminal mapper 分支 | active task/HandRaise projection |
-| `plugin/src/repository/index.ts` | 复用现有 `execute`、receipt、event、outbox 契约 | B 独占的 additive task-operation API/schema、幂等键变化、通用 outbox 行为变化 |
+| `plugin/src/repository/index.ts` | 复用现有 `execute`、receipt、event、outbox 契约 | MeetingTask 专用 repository API、幂等键变化、receipt 覆盖或通用 outbox 行为变化 |
 
 闭环 A 独占新增或专项文件：
 
 - `plugin/src/domain/completion.ts` 中的 completion 逻辑。
-- `plugin/src/runtime/task-evidence.ts` 中的 resolver port、规范化 evidence 类型和默认拒绝实现；闭环 B 只在其独占模块提供 adapter-backed 实现。
+- `plugin/src/runtime/task-evidence.ts` 中的 resolver port、规范化 evidence 类型和默认拒绝实现；闭环 B 集成时把 evidence identity 收窄为 MeetingSnapshot 内已完成 MeetingTask 的稳定 ID。
 - completion/end/status 专项测试文件。
 - 本 RUNBOOK 和闭环 A readiness evidence。
 
 闭环 A 不触碰以下闭环 B 文件：
 
-- `plugin/src/dsh/task-adapter.ts`。
-- 闭环 B 新增的 task runtime 文件。
-- `plugin/src/domain/planning.ts` 中的 HandRaise/TeamTask planning。
+- 闭环 B 新增的 MeetingTask runtime 文件。
+- `plugin/src/domain/planning.ts` 中的 HandRaise/MeetingTask eligibility；A 只复用 B 抽取的 canonical helper。
 - 闭环 B 的测试与 readiness evidence。
 
-闭环 B 可以为跨系统幂等新增 additive task-operation table/API/migration，但不得修改全局 `execute`、receipt 幂等键或通用 outbox 语义；闭环 A 不修改也不依赖该新增持久化。若闭环 A 实现必须改变 repository schema、幂等键、通用 outbox、caller binding 或 `submit_turn` 的整体流程，应停止当前切片并先与闭环 B 对齐。
+闭环 B 不新增 task-operation table、两阶段 finalize/recover API 或 `meeting_task.execute` outbox kind。任务命令继续通过既有 `execute` 原子提交 MeetingState、event、version、receipt 和现有 `dispatch` outbox；任务投递使用 payload role `meeting_task`。若集成必须改变 repository schema、幂等键、receipt 不可变语义、通用 outbox、caller binding 或 `submit_turn` 的整体流程，应停止并重新对齐。
 
 ## 3. 依据与关联文件
 
@@ -121,8 +120,8 @@ Participant 提交结构化 completion claims
 7. `MeetingTermination` 的所有 decision、question、position 和 agenda IDs 必须属于当前 Meeting；跨 Meeting 引用必须拒绝且不产生事件。
 8. 会议进入执行终态后，任何新增 transcript、claim、decision、completion fact 或 turn 写入都必须拒绝。
 9. 结束时必须撤销活动 SpeakerAttempt/ManagerPlanningAttempt、截断活动 Turn，并使已经排队或已领取的旧 dispatch 在投递前授权复查中失败；Session capability revoke 仍属于后续 Archive。
-10. Captain end 与 B 的 terminal task snapshot、HandRaise 或 Manager planning 并发时，全部通过同一 Meeting version transaction 串行化；同一版本最多一个事务成功。终态先成功后，B 写入返回 `VERSION_CONFLICT` 或 `IMMUTABLE_MEETING`，不能创建 HandRaise、task-result Meeting fact 或新 planning。
-11. 结束会议不读取、取消或转移 DSH TeamTask。终态只使旧 B outbox/dispatch/pending Meeting command 的授权复查失败；TeamTask 后续生命周期仍归 DSH，Session/task 清理由后续 Archive 处理。
+10. Captain end 与 B 的 MeetingTask start/finish、terminal result、HandRaise 或 planning 并发时，全部通过同一 Meeting version transaction 串行化；同一版本最多一个事务成功。终态先成功后，B 写入返回 `VERSION_CONFLICT` 或 `IMMUTABLE_MEETING`，不能创建 task result、HandRaise 或新 planning。
+11. Captain end 和自动 hard-limit/partial 终态必须在各自同一 transition 内调用 B 的纯 `cancelNonTerminalMeetingTasks` helper，把 `requested | queued | running` MeetingTask 标记为 `cancelled` 并追加取消事件；终态事务不得写新的 task dispatch。取消只关闭会议事实，不声称中止已经被 Session 接受的模型、工具或外部工作；迟到 start/finish/raise 由 terminal/version gate 拒绝，Session close 仍属于 Archive/lifecycle。
 12. 状态、事件、receipt 和 outbox 必须同事务提交或全部回滚；校验失败不写 `meeting_events`。
 13. 恢复读取必须从 SQLite 的 state snapshot 和 active CompletionFacts 得到与结束前一致的公开终态，不从自然语言 transcript 推断完成。
 
@@ -141,13 +140,24 @@ interface AuthorizedTaskEvidenceResolver {
 }
 ```
 
-- Runtime 只能在 `repository.execute()` 已取得写锁并读取当前 Meeting snapshot 后，在同步 transition closure 内调用 resolver；resolver 只读取该 snapshot 中已经持久化的 B association/authorized task snapshot，不调用 DSH、TeamState、文件系统或其他外部服务。
-- Resolver 输出必须携带稳定 association/task-attempt/snapshot identity；completion domain 只接收已经规范化、绑定当前 Meeting/Participant 和当前 snapshot 的 evidence，不读取 DSH task object。
+- Runtime 只能在 `repository.execute()` 已取得写锁并读取当前 Meeting snapshot 后，在同步 transition closure 内调用 resolver；resolver 只读取该 snapshot 中已经持久化且为 terminal-success 的 MeetingTask result，不调用 DSH、文件系统或其他外部服务。
+- Resolver 输出只携带 completion domain 所需的稳定 MeetingTask identity；集成时删除旧的 `taskAttemptId`、`associationId`、`snapshotObservedAt` 占位字段。completion domain 只接收已经规范化并绑定当前 Meeting/Participant 的 evidence。
 - 闭环 A 使用默认拒绝实现：空 `taskIds` 返回空 evidence，非空 `taskIds` 返回 `UNSUPPORTED_CAPABILITY`，且不产生 transcript、CompletionFact、event 或 receipt。
 - 默认拒绝策略不得硬编码进共享 `submit_turn` handler、claim commit、caller binding、request hash 或 receipt 流程。
-- 闭环 B 集成时只替换 resolver/validator 实现并提供已持久化的授权 task association/snapshot；不得在 claim transaction 中实时读取 DSH，也不得重写 completion claim commit、caller binding 或幂等语义。
+- 闭环 B 集成时只替换 resolver/validator 实现并读取当前 MeetingSnapshot 内的 terminal MeetingTask result；不得重写 completion claim commit、caller binding 或幂等语义。
 - Resolver 校验与 CompletionFact commit 使用同一个已加锁 Meeting snapshot；不存在事务前异步取证与事务内提交之间的 TOCTOU 窗口。
-- 确定性 completion judge 保留“必需 TeamTask output 已存在”的已解析输入边界，但闭环 A 单独运行时不读取 DSH、也不接受非空 `taskIds`。
+- 确定性 completion judge 保留“已授权 MeetingTask result 存在”的已解析输入边界；B 接入前默认 resolver 继续拒绝非空 `taskIds`。
+
+### 4.2 MeetingTask 调度与幂等集成边界
+
+- MeetingTask 只持久化 `participantId` 与 `originatingSpeakerAttemptId` 等 canonical meeting identity；执行命令从正式 `session_ownership` 解析 Session，不复制 `participantSessionId` 或嵌套 `meetingId`。
+- start command 的历史 receipt/result 永远不可变，只证明 start mutation 幂等，不代表当前 task 状态，也不得被 post-read 更新或覆盖。
+- 执行 envelope 必须按“授权 status pre-read → 仅 `queued` 调用 start → 授权 status post-read → 仅 Meeting active 且 task `running` 时执行”处理。动态 `currentTask`、`observedMeetingVersion` 和 `mayExecute` 来自独立 task status read，不进入 start receipt。
+- V1 不承诺外部工作的 exactly-once；Participant Session FIFO 是主要串行保证。无法证明该投递边界时停止实现，不增加 lease、generation 或隐藏恢复状态机。
+- `running` 冷恢复只暴露 stalled/diagnostic，等待显式处置；不得自动“resume once”。
+- blocking task queued 后进入 waiting，并跳过 completion judge/下一轮 planning；non-blocking task 可继续 judge，objective satisfied 时允许进入 `converging`，直至真正终态再取消仍未完成任务。
+- blocking delivery 永久失败必须在同一事务把 task 标记为 `failed` 并写诊断事件，不伪造 HandRaise。Manager mode 复用 `startManagerPlanning`；round-robin 复用 B 从现有逻辑抽取的纯 `startRoundRobinTurn`。
+- Manager 与 round-robin 共用 canonical speaker eligibility，排除拥有 `requested | queued | running` task 的 Participant。round-robin 选中有 pending HandRaise 的 Participant 时，在同一 transition 消费该 raise 并固化 terminal task snapshot；未选中的 raise 保持 pending。
 
 ## 5. 实施顺序
 
@@ -158,7 +168,7 @@ interface AuthorizedTaskEvidenceResolver {
 - 记录当前 merge base、闭环 A 文件清单和共享热点 diff；实现期间不吸收闭环 B 的未完成改动。
 - 对照协议与设计确认当前枚举、错误码、receipt 和终态 projection 是否已存在；统一使用 repository 已定义的 `VERSION_CONFLICT`，不新增 `STALE_VERSION`。
 - 当前 `PublicTerminationV1` 只能表达 `code`、`reason`、`decisionIds` 和 `unresolvedQuestionIds`，不能完整表达拆分任务要求的异议与完成依据。必须先更新 `AGENT-MEETING-PROTOCOL-INTERFACE.md` 及对应 TypeScript/Schema，明确最小公开字段，再实现 projection；不得只在 RUNBOOK 或 Runtime 内发明字段。
-- 定义同步 `AuthorizedTaskEvidenceResolver` 内部端口、默认拒绝实现和已解析 evidence 输入；该端口只读取 `execute` transition 的当前 snapshot，不得暴露或调用 DSH task object，也不得成为公开协议。
+- 定义同步 `AuthorizedTaskEvidenceResolver` 内部端口、默认拒绝实现和已解析 evidence 输入；该端口只读取 `execute` transition 的当前 MeetingSnapshot，不得成为公开协议。
 - 检查闭环 B 分支已经修改的共享热点；若双方修改同一函数或同一协议对象，先收窄为互不重叠的 helper/字段级改动，再继续实现。
 - 若当前代码与正式文档冲突，停止扩张并记录冲突，不以实现方便为准。
 
@@ -166,8 +176,8 @@ interface AuthorizedTaskEvidenceResolver {
 
 - 保持 `domain/` 不依赖 protocol、DSH、SQLite、HTTP、React 或文件系统。
 - 为每种 claim 定义纯校验结果、生成 CompletionFact 所需的最小事实和派生状态。
-- completion domain 只消费 Runtime 提供的已授权 evidence；保留 task evidence 输入 seam，但不依赖 task adapter 或 DSH 类型。
-- 在统一 transition 中实现：合法 submit、Captain end、partial/无共识/取消路径、活动 attempt/Turn 收口和终态拒绝；version 检查继续由 repository transaction 负责。
+- completion domain 只消费 Runtime 提供的已授权 evidence；保留 task evidence 输入 seam，但不依赖 MeetingTask runtime 或 DSH 类型。
+- 在统一 transition 中实现：合法 submit、Captain end、partial/无共识/取消路径、活动 attempt/Turn 收口和终态拒绝；集成时在 Captain end 与自动 hard-limit/partial 分支调用 B 的纯 task cancellation helper，version 检查继续由 repository transaction 负责。
 - 为跨 Meeting ID、旧 proposal revision、无效 evidence、无 authority 和越界字段建立明确领域错误。
 
 ### T3：Repository 原子提交
@@ -184,7 +194,7 @@ interface AuthorizedTaskEvidenceResolver {
 - completion claim 的 `taskIds` 通过注入的 `AuthorizedTaskEvidenceResolver` 在 repository transition 的当前 snapshot 上处理；shared submit handler 不包含事务外 B task 查询或硬编码数组判定。
 - `convivium_end_meeting` 只接受 Captain authority，并将正常、partial、no-consensus、cancelled 映射到协议定义的结构化输入。
 - `meeting_status` 通过独立 mapper 输出 `ExecutionTerminalMeetingStatusResultV1`，禁止直接类型断言内部 `MeetingState`。
-- 对共享 handler 只增加 completion/end 分支，不改 TeamTask/HandRaise 路径、Manager planning 输入或通用 caller resolver。
+- 对共享 handler 只增加 completion/end 分支，不改 MeetingTask/HandRaise handler、task status read 或通用 caller resolver。
 - 保持错误码、`retryable` 和公开字段与协议一致；不泄露 Session ID、隐藏推理、私有通信或任意文件路径。
 
 ### T5：验证与证据
@@ -193,9 +203,18 @@ interface AuthorizedTaskEvidenceResolver {
 - 对每个成功结束路径读取 status，并重新打开同一 `meeting.sqlite` 验证终态、termination、CompletionFacts、receipt 和 event。
 - 在测试中模拟提交前异常、重复请求、并发 stale version 和进程重启；确认无半提交状态。
 - 增加 Captain 在活动 Participant dispatch 与 Manager planning dispatch 期间结束会议的并发测试，证明旧 attempt 被撤销且投递授权失败。
-- 增加通用竞争事务测试：end 与一个模拟的同版本 B 写命令并发时只有一个 commit。真实 task snapshot/HandRaise/Manager planning 竞争测试在 A/B 集成后运行。
-- 闭环 A 单独测试只使用 resolver port 的默认拒绝 fake，不引用 task adapter、HandRaise fixture 或闭环 B 的新增 helper；完整交叉测试在两个闭环集成后运行一次。
+- 增加通用竞争事务测试：end 与一个模拟的同版本 B 写命令并发时只有一个 commit。真实 MeetingTask start/finish/result、HandRaise/planning 竞争测试在 A/B 集成后运行。
+- 闭环 A 单独测试只使用 resolver port 的默认拒绝 fake，不引用 MeetingTask runtime、HandRaise fixture 或闭环 B 的新增 helper；完整交叉测试在两个闭环集成后运行一次。
 - 将实际命令、commit、环境和未覆盖项写入 `docs/40-readiness/` 对应 evidence 文档。
+
+### T6：A/B 集成收口（闭环 B 可用后执行）
+
+1. 确认 B 已提供 MeetingTask model/transitions、`cancelNonTerminalMeetingTasks`、canonical speaker eligibility、`startRoundRobinTurn`、`convivium_meeting_task_status` 和 MeetingTask evidence resolver；缺少任一项则停止，不在 A 内补造替代实现。
+2. 解决共享文件冲突，只在 A 的 Captain end、自动 hard-limit/partial、completion resolver 和现有 round-robin 调用点接入 B helper；保留 B 的 task/HandRaise active 分支。
+3. 将 `AuthorizedTaskEvidence` 收窄为 MeetingTask 稳定 identity，移除 `taskAttemptId`、`associationId`、`snapshotObservedAt` 和旧默认错误文案；resolver 只读同一 `execute` 锁内 snapshot 的 terminal-success result。
+4. 核对 submit 优先级为 hard-limit terminal → blocking task waiting → completion judge/planning；non-blocking task 允许继续到 `converging`。Runtime 只为非终态 task 写既有 `dispatch` outbox。
+5. 核对 blocking delivery failure 的 Manager/round-robin 恢复、start receipt 不可变、独立 status pre/post-read 和 terminal/version gate；不得增加自动 running resume 或 exactly-once 机制。
+6. 运行第 7 节真实集成矩阵和完整插件验证，更新 completion readiness；将长期规则迁移到正式文档后，在收口 commit 删除本 RUNBOOK 与 A6 TODO。
 
 ## 6. 命令与状态契约检查表
 
@@ -234,8 +253,11 @@ interface AuthorizedTaskEvidenceResolver {
 | 引用其他 Meeting 的 decision/question/position | 拒绝，不写事件或终态 |
 | 终态后 submit/end/pause/resume | 按协议返回 `IMMUTABLE_MEETING` 或对应终态错误，不产生写入 |
 | 活动 Speaker/Manager dispatch 期间结束 | attempt 被撤销、Turn 被截断、旧 dispatch 授权失败 |
-| end 与 terminal task snapshot/HandRaise/Manager plan 同版本竞争 | 仅一个 transaction 成功；终态成功后 B 写入无 Meeting 事实副作用 |
-| 终态后外部 TeamTask 继续运行或结束 | A 不读取、取消或转移 task；旧 B Meeting command/outbox 授权失败 |
+| end 与 MeetingTask start/finish/result、HandRaise/planning 同版本竞争 | 仅一个 transaction 成功；终态成功后 B 写入无 Meeting 事实副作用 |
+| Captain end 或自动 hard-limit/partial 时存在非终态 MeetingTask | 同事务取消 task、追加取消事件且不写 task dispatch；迟到写入被拒绝 |
+| 已运行的 Session 工作在 MeetingTask 被取消后返回 | 不声称物理中止；迟到 finish/raise 被 terminal/version gate 拒绝 |
+| start request 在任务随后完成后重放 | start receipt 保持原值；独立授权 status read 返回当前 terminal task，receipt 不被覆盖 |
+| blocking task delivery 永久失败 | 同事务标 failed；Manager/round-robin 复用既有 planning 入口，不生成 HandRaise |
 | SQLite 在事务内失败并重启 | 不存在半完成状态；恢复后仍为原状态或完整终态 |
 | status projection 读取执行终态 | 有 termination 和完成依据；无 current turn、speaker、attempt、pending hand raise |
 
@@ -273,9 +295,9 @@ pnpm verify:package
 - 活动 Speaker/Manager attempt、Turn 和旧 dispatch 在终态转换中被确定性收口。
 - 默认 task evidence resolver 与可替换 seam 已验证；B 接入不需要重写 submit、claim commit、caller binding 或 receipt。
 - Task evidence 校验与 CompletionFact 使用同一已加锁 snapshot 原子提交；测试证明事务前后 task snapshot 变化不会形成 TOCTOU 接受。
-- A/B 同版本竞争与终态后 B 写入拒绝有集成证据，且 A 未操作外部 TeamTask 生命周期。
+- A/B 同版本竞争、非终态 MeetingTask 原子取消与终态后 B 写入拒绝有集成证据；取消没有被描述为 Session 外部工作的原子中止。
 - SQLite 原子性和重启恢复边界已验证；未覆盖项已明确记录。
-- 未混入 Archive、TeamTask、Mail、HTTP 或完整 UI。
+- 未混入 Archive、DSH TeamTask、Mail、HTTP 或完整 UI。
 - 与闭环 B 的共享热点 diff 已复核；没有覆盖 task/hand-raise/planning 改动，也没有单方面改变 repository、caller binding、幂等键或通用 outbox 契约。
 - 需求、接口、设计和 readiness 文档已按实际变化同步。
 - 本 RUNBOOK 中仍有长期有效的规则已迁移到正式文档后，删除本文件及残留引用。
