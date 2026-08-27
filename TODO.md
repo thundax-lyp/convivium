@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/domain/planning.ts`：实现 Manager plan 结构校验与 Turn 转换
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 5.3、6.3、7.1。
-  - 确认依据：2026-08-27 用户确认 Manager 可提交非 `round_robin` 的受控有序计划。
-  - 处理动作：纯校验 active agenda、Participant membership、required speaker 完整性、顺序、人数及 enum，并按输入顺序构造 `MeetingTurn` 和 `SpeakerStep[]`；不读取 ownership 或写状态。
-  - 验收点：`plugin/tests/unit/domain/planning.spec.ts` 覆盖 `A → C → B` 保序及重复、未知、遗漏 required speaker 的失败语义；ownership dispatchability 由 Runtime command 覆盖。
-
 - [ ] `plugin/src/domain/transitions.ts`：实现 Manager planning 启动转换
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 4.1、6.1、8。
   - 确认依据：2026-08-27 用户确认 Meeting 创建后先进入 Manager planning。
