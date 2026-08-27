@@ -16,6 +16,38 @@ function item(attempts = 1): OutboxItem {
 }
 
 describe("outbox worker", () => {
+    it("stops and waits without exposing the expected abort", async () => {
+        let sleeping!: () => void;
+        const enteredSleep = new Promise<void>((resolve) => {
+            sleeping = resolve;
+        });
+        const worker = createOutboxWorker({
+            repository: {
+                claimOutbox: async () => [],
+                completeOutbox: async (input) => ({
+                    id: input.id,
+                    status: input.completion.status
+                })
+            },
+            owner: "worker-1",
+            ttlMs: 100,
+            batchSize: 1,
+            pollMs: 10,
+            dispatch: async () => undefined,
+            sleep: async (_delay, signal) => {
+                sleeping();
+                await new Promise<void>((_resolve, reject) => {
+                    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                });
+            }
+        });
+        const started = worker.start();
+        await enteredSleep;
+        worker.stop();
+        await expect(started).resolves.toBeUndefined();
+        await expect(worker.wait()).resolves.toBeUndefined();
+    });
+
     it("dispatches a claimed delivery after commit and completes the same lease", async () => {
         const completed: unknown[] = [];
         const dispatched: OutboxItem[] = [];

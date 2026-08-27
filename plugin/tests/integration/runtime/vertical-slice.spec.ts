@@ -39,7 +39,7 @@ function submittedMessage(
         attemptId,
         speaker,
         agendaItemId: turn.agendaItemId,
-        agendaRelation: "active",
+        agendaRelation: "on_topic",
         content: speaker,
         kind: "statement",
         mentions: [],

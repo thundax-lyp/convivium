@@ -199,6 +199,35 @@ describe("MeetingRepository", () => {
         await repository.close();
     });
 
+    it("rolls back and preserves a transition validation error", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { count: 0 }
+        });
+        const validationError = Object.assign(new Error("stale manager attempt"), {
+            code: "STALE_MANAGER_ATTEMPT",
+            retryable: false
+        });
+
+        await expect(
+            repository.execute({
+                requestId: "invalid-transition",
+                commandKind: "submit_manager_plan",
+                authorization,
+                requestHash: "invalid-transition-hash",
+                expectedMeetingVersion: 0,
+                transition: () => {
+                    throw validationError;
+                }
+            })
+        ).rejects.toBe(validationError);
+        expect((await repository.read()).version).toBe(0);
+        await repository.close();
+    });
+
     it("uses the generic receipt for speaker attempts and manager plans", async () => {
         const repository = await openRepository();
         await createMeeting(repository, {

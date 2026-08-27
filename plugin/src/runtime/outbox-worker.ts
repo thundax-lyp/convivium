@@ -153,7 +153,11 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
     }
 
     async function wait(): Promise<void> {
-        await running;
+        try {
+            await running;
+        } catch (error) {
+            if (!controller.signal.aborted) throw error;
+        }
     }
 
     return { runOnce, start, stop, wait, wake: () => wake?.(), signal: controller.signal };

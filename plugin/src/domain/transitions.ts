@@ -878,7 +878,7 @@ export function submitManagerPlan(
         planningAttempt.status !== "running"
     ) {
         throw new DomainError(
-            "STALE_ATTEMPT",
+            "STALE_MANAGER_ATTEMPT",
             `manager planning attempt is stale in meeting ${state.id}`,
             {
                 entityType: "manager_attempt",
@@ -1185,8 +1185,7 @@ export function submitSpeakerAttempt(
         stepId: step.id,
         attemptId: attempt.attemptId,
         speaker: participantId,
-        agendaItemId: turn.agendaItemId,
-        agendaRelation: "active" as const
+        agendaItemId: turn.agendaItemId
     };
     const events = [
         ...attemptResult.effect.events,
@@ -1404,7 +1403,7 @@ export function submitSpeakerAndAdvanceMeeting(
                 type: "meeting.ended",
                 payload: {
                     meetingId: state.id,
-                    from: submitted.state.status,
+                    from: state.status,
                     to: terminalStatus,
                     meetingVersion: version,
                     reason: judgment.reason

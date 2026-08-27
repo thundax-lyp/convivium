@@ -107,7 +107,7 @@ required output 初始为 pending；acceptance criterion 初始为 satisfied=fal
 
 ### AgendaRelation
 
-MeetingMessage 的 agendaRelation 必须为 active、related 或 unrelated；plan 是按执行顺序排列的只读计划项字符串集合。
+MeetingMessage 的 agendaRelation 必须为 on_topic、supporting_context、new_topic_candidate 或 blocking_interrupt；plan 是按执行顺序排列的只读计划项字符串集合。
 
 ### MeetingIssue
 

@@ -118,18 +118,16 @@ function commandError(
     error: unknown,
     fallback: ProtocolErrorV1["code"],
     message: string,
-    context?: Partial<ProtocolErrorV1>
+    context?: Partial<ProtocolErrorV1>,
+    codeMap: Readonly<Record<string, ProtocolErrorV1["code"]>> = {}
 ) {
     const code =
         error && typeof error === "object" && "code" in error
             ? (error as { code?: unknown }).code
             : undefined;
+    const mappedCode = typeof code === "string" ? (codeMap[code] ?? code) : fallback;
     return {
-        ...failure(
-            typeof code === "string" ? code : fallback,
-            message,
-            code === "VERSION_CONFLICT"
-        ),
+        ...failure(mappedCode, message, mappedCode === "VERSION_CONFLICT"),
         ...context,
         ...(error && typeof error === "object" && "meetingId" in error
             ? { meetingId: String((error as { meetingId: unknown }).meetingId) }
@@ -196,21 +194,9 @@ export function createCreateStatusRuntime(
         parent: Agent,
         meetingId: string,
         commandSignal: AbortSignal,
-        claimedItem?: ClaimedOutboxItem,
-        completeClaimed = true
+        item: ClaimedOutboxItem
     ) {
         const recovered = await repository.recover();
-        const item =
-            claimedItem ??
-            (
-                await repository.claimOutbox({
-                    owner: `runtime:${meetingId}`,
-                    ttlMs: 60_000,
-                    batchSize: 1,
-                    now: options.now?.() ?? Date.now()
-                })
-            )[0];
-        if (item === undefined) return;
         const payload = item.payload as unknown as {
             participantId: string;
             attemptId: string;
@@ -221,68 +207,43 @@ export function createCreateStatusRuntime(
         );
         if (ownership === undefined)
             throw new Error("Initial speaker Session ownership is missing.");
-        try {
-            await followupParticipantSession({
-                runtime: options.continuable,
-                parent,
-                ownership,
-                attempt: {
-                    attemptId: payload.attemptId,
-                    deliveryId: item.deliveryId,
-                    participantId: payload.participantId
-                },
-                prompt: [
-                    {
-                        type: "text",
-                        text: `Meeting ${meetingId} turn ${payload.turnId}: submit your statement.`
-                    }
-                ],
-                signal: commandSignal,
-                authorize: async ({ attempt }) => {
-                    const latest = await repository.recover();
-                    const current = latest.snapshot?.state as unknown as MeetingState | undefined;
-                    const active = current?.currentTurn?.steps.find(
-                        (step) => step.attempt?.attemptId === attempt.attemptId
-                    )?.attempt;
-                    if (
-                        active?.deliveryId !== attempt.deliveryId ||
-                        active.status !== "running" ||
-                        !["pending", "accepted"].includes(active.deliveryStatus)
-                    ) {
-                        throw new Error("Speaker attempt is no longer authorized.");
-                    }
-                    const owned = latest.sessionOwnership.find(
-                        (candidate) => candidate.sessionId === ownership.sessionId
-                    );
-                    if (
-                        owned?.lifecycleStatus !== "active" ||
-                        owned.capabilityStatus !== "active"
-                    ) {
-                        throw new Error("Speaker Session capability is no longer active.");
-                    }
+        await followupParticipantSession({
+            runtime: options.continuable,
+            parent,
+            ownership,
+            attempt: {
+                attemptId: payload.attemptId,
+                deliveryId: item.deliveryId,
+                participantId: payload.participantId
+            },
+            prompt: [
+                {
+                    type: "text",
+                    text: `Meeting ${meetingId} turn ${payload.turnId}: submit your statement.`
                 }
-            });
-            if (completeClaimed)
-                await repository.completeOutbox({
-                    id: item.id,
-                    leaseOwner: item.leaseOwner,
-                    leaseToken: item.leaseToken,
-                    completion: { status: "delivered" }
-                });
-        } catch (error) {
-            if (completeClaimed)
-                await repository.completeOutbox({
-                    id: item.id,
-                    leaseOwner: item.leaseOwner,
-                    leaseToken: item.leaseToken,
-                    completion: {
-                        status: "retry",
-                        availableAt: Date.now(),
-                        errorCode: "DISPATCH_FAILED"
-                    }
-                });
-            throw error;
-        }
+            ],
+            signal: commandSignal,
+            authorize: async ({ attempt }) => {
+                const latest = await repository.recover();
+                const current = latest.snapshot?.state as unknown as MeetingState | undefined;
+                const active = current?.currentTurn?.steps.find(
+                    (step) => step.attempt?.attemptId === attempt.attemptId
+                )?.attempt;
+                if (
+                    active?.deliveryId !== attempt.deliveryId ||
+                    active.status !== "running" ||
+                    !["pending", "accepted"].includes(active.deliveryStatus)
+                ) {
+                    throw new Error("Speaker attempt is no longer authorized.");
+                }
+                const owned = latest.sessionOwnership.find(
+                    (candidate) => candidate.sessionId === ownership.sessionId
+                );
+                if (owned?.lifecycleStatus !== "active" || owned.capabilityStatus !== "active") {
+                    throw new Error("Speaker Session capability is no longer active.");
+                }
+            }
+        });
     }
 
     async function dispatchManagerPlanningDelivery(
@@ -290,21 +251,9 @@ export function createCreateStatusRuntime(
         parent: Agent,
         meetingId: string,
         commandSignal: AbortSignal,
-        claimedItem?: ClaimedOutboxItem,
-        completeClaimed = true
+        item: ClaimedOutboxItem
     ) {
         const recovered = await repository.recover();
-        const item =
-            claimedItem ??
-            (
-                await repository.claimOutbox({
-                    owner: `runtime:${meetingId}`,
-                    ttlMs: 60_000,
-                    batchSize: 1,
-                    now: options.now?.() ?? Date.now()
-                })
-            )[0];
-        if (item === undefined) return;
         const payload = item.payload as unknown as {
             role: "manager";
             planningAttemptId: string;
@@ -313,52 +262,28 @@ export function createCreateStatusRuntime(
             (candidate) => candidate.role === "manager"
         );
         if (ownership === undefined) throw new Error("Manager Session ownership is missing.");
-        try {
-            await followupManagerSession({
-                runtime: options.continuable,
-                parent,
-                ownership,
-                attempt: {
-                    planningAttemptId: payload.planningAttemptId,
-                    deliveryId: item.deliveryId
-                },
-                prompt: [
-                    { type: "text", text: `Meeting ${meetingId}: submit one ordered turn plan.` }
-                ],
-                signal: commandSignal,
-                authorize: async ({ attempt }) => {
-                    const latest = await repository.recover();
-                    const current = latest.snapshot?.state as unknown as MeetingState | undefined;
-                    const active = current?.manager.currentPlanningAttempt;
-                    if (
-                        active?.id !== attempt.planningAttemptId ||
-                        active.deliveryId !== attempt.deliveryId ||
-                        active.status !== "running"
-                    )
-                        throw new Error("Manager planning attempt is no longer authorized.");
-                }
-            });
-            if (completeClaimed)
-                await repository.completeOutbox({
-                    id: item.id,
-                    leaseOwner: item.leaseOwner,
-                    leaseToken: item.leaseToken,
-                    completion: { status: "delivered" }
-                });
-        } catch (error) {
-            if (completeClaimed)
-                await repository.completeOutbox({
-                    id: item.id,
-                    leaseOwner: item.leaseOwner,
-                    leaseToken: item.leaseToken,
-                    completion: {
-                        status: "retry",
-                        availableAt: Date.now(),
-                        errorCode: "DISPATCH_FAILED"
-                    }
-                });
-            throw error;
-        }
+        await followupManagerSession({
+            runtime: options.continuable,
+            parent,
+            ownership,
+            attempt: {
+                planningAttemptId: payload.planningAttemptId,
+                deliveryId: item.deliveryId
+            },
+            prompt: [{ type: "text", text: `Meeting ${meetingId}: submit one ordered turn plan.` }],
+            signal: commandSignal,
+            authorize: async ({ attempt }) => {
+                const latest = await repository.recover();
+                const current = latest.snapshot?.state as unknown as MeetingState | undefined;
+                const active = current?.manager.currentPlanningAttempt;
+                if (
+                    active?.id !== attempt.planningAttemptId ||
+                    active.deliveryId !== attempt.deliveryId ||
+                    active.status !== "running"
+                )
+                    throw new Error("Manager planning attempt is no longer authorized.");
+            }
+        });
     }
 
     function ensureWorker(stored: StoredMeeting): void {
@@ -378,8 +303,7 @@ export function createCreateStatusRuntime(
                         stored.parent!,
                         meetingId,
                         signal,
-                        item,
-                        false
+                        item
                     );
                 else
                     await dispatchInitialDelivery(
@@ -387,8 +311,7 @@ export function createCreateStatusRuntime(
                         stored.parent!,
                         meetingId,
                         signal,
-                        item,
-                        false
+                        item
                     );
             },
             now: options.now
@@ -537,12 +460,6 @@ export function createCreateStatusRuntime(
                             };
                         }
                     });
-                    await dispatchManagerPlanningDelivery(
-                        repository,
-                        caller.agent as Agent,
-                        meetingId,
-                        commandSignal ?? signal
-                    );
                     meetings.set(meetingId, {
                         teamId: input.teamId,
                         captainSessionId: caller.sessionId,
@@ -550,6 +467,7 @@ export function createCreateStatusRuntime(
                         parent: caller.agent
                     });
                     ensureWorker(meetings.get(meetingId)!);
+                    workers.get(meetingId)?.wake();
                     return success(meetingId, started.meetingVersion, {
                         ...participantResult(input, meetingId),
                         meetingVersion: started.meetingVersion,
@@ -564,12 +482,7 @@ export function createCreateStatusRuntime(
                     parent: caller.agent
                 });
                 ensureWorker(meetings.get(meetingId)!);
-                await dispatchInitialDelivery(
-                    repository,
-                    caller.agent as Agent,
-                    meetingId,
-                    commandSignal ?? signal
-                );
+                workers.get(meetingId)?.wake();
                 return success(meetingId, 1, {
                     ...participantResult(input, meetingId),
                     meetingVersion: 1,
@@ -606,7 +519,7 @@ export function createCreateStatusRuntime(
             }
         },
 
-        async submitTurn(input, caller, commandSignal) {
+        async submitTurn(input, caller, _commandSignal) {
             await rehydrate();
             if (
                 caller.kind !== "participant" ||
@@ -658,6 +571,7 @@ export function createCreateStatusRuntime(
                                         ? {}
                                         : { replyTo: input.replyTo }),
                                     taskIds: input.taskIds,
+                                    agendaRelation: input.agendaRelation,
                                     createdAt: Date.now()
                                 },
                                 now: options.now?.() ?? Date.now(),
@@ -717,28 +631,7 @@ export function createCreateStatusRuntime(
                         };
                     }
                 });
-                if (
-                    stored.parent !== undefined &&
-                    committed.result &&
-                    ("nextStepId" in committed.result ||
-                        (committed.result.meetingStatus === "running" &&
-                            committed.result.turnStatus === "completed"))
-                ) {
-                    if (committed.result.turnStatus === "running")
-                        await dispatchInitialDelivery(
-                            stored.repository,
-                            stored.parent,
-                            input.meetingId,
-                            commandSignal ?? signal
-                        );
-                    else
-                        await dispatchManagerPlanningDelivery(
-                            stored.repository,
-                            stored.parent,
-                            input.meetingId,
-                            commandSignal ?? signal
-                        );
-                }
+                if (committed.result) workers.get(input.meetingId)?.wake();
                 return success<TurnSubmissionResultV1>(
                     input.meetingId,
                     committed.meetingVersion,
@@ -852,10 +745,16 @@ export function createCreateStatusRuntime(
                     committed.result as ManagerPlanResultV1
                 );
             } catch (error) {
-                return commandError(error, "MANAGER_PLAN_INVALID", "The Manager plan is invalid.", {
-                    meetingId: input.meetingId,
-                    meetingVersion: input.observedMeetingVersion
-                });
+                return commandError(
+                    error,
+                    "MANAGER_PLAN_INVALID",
+                    "The Manager plan is invalid.",
+                    {
+                        meetingId: input.meetingId,
+                        meetingVersion: input.observedMeetingVersion
+                    },
+                    { VERSION_CONFLICT: "STALE_MANAGER_ATTEMPT" }
+                );
             }
         },
         async pause(input, caller) {
@@ -916,7 +815,6 @@ export function createCreateStatusRuntime(
     ) {
         const stored = meetings.get(input.meetingId);
         if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-        let dispatchManager = false;
         try {
             const committed = await stored.repository.execute({
                 requestId: input.requestId,
@@ -982,7 +880,6 @@ export function createCreateStatusRuntime(
                                     }
                                 }
                             };
-                            dispatchManager = true;
                             outbox = [
                                 {
                                     deliveryId: planningDeliveryId,
@@ -1073,20 +970,8 @@ export function createCreateStatusRuntime(
                 }
             });
             if (target === "running" && stored.parent !== undefined) {
-                if (dispatchManager)
-                    await dispatchManagerPlanningDelivery(
-                        stored.repository,
-                        stored.parent,
-                        input.meetingId,
-                        options.signal ?? signal
-                    );
-                else
-                    await dispatchInitialDelivery(
-                        stored.repository,
-                        stored.parent,
-                        input.meetingId,
-                        options.signal ?? signal
-                    );
+                ensureWorker(stored);
+                workers.get(input.meetingId)?.wake();
             }
             return success<MeetingControlResultV1>(
                 input.meetingId,

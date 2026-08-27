@@ -190,6 +190,7 @@ describe("meeting transitions", () => {
                 kind: "statement",
                 mentions: [],
                 taskIds: [],
+                agendaRelation: "supporting_context",
                 createdAt: now
             },
             now,
@@ -200,6 +201,84 @@ describe("meeting transitions", () => {
         expect(result.state.currentTurn?.steps[1]?.attempt?.participantId).toBe("b");
         expect(result.state.currentTurn?.steps.filter((step) => step.attempt).length).toBe(2);
         expect(result.state.messageSeq).toBe(1);
+    });
+
+    it("ends a completed turn from the committed running state", () => {
+        const state = meeting("running");
+        state.participants = [
+            {
+                id: "a",
+                displayName: "A",
+                status: "speaking",
+                consecutiveSpeeches: 0,
+                consecutiveAttemptFailures: 0,
+                totalSpeeches: 0,
+                lastDeliveredSeq: 0,
+                lastAcknowledgedSeq: 0
+            }
+        ];
+        state.currentTurn = {
+            id: "turn-1",
+            seq: 1,
+            agendaItemId: "agenda-1",
+            intent: "explore",
+            objective: "objective",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            plan: ["a"],
+            status: "running",
+            currentStepIndex: 0,
+            createdAt: now,
+            steps: [
+                {
+                    id: "step-0",
+                    speaker: "a",
+                    instruction: "A",
+                    reason: "manager_selected",
+                    status: "running",
+                    attempt: {
+                        attemptId: "attempt-0",
+                        participantId: "a",
+                        meetingId: "meeting-1",
+                        turnId: "turn-1",
+                        stepId: "step-0",
+                        deliveryId: "delivery-0",
+                        contextFromSeq: 0,
+                        contextThroughSeq: 0,
+                        taskSnapshots: [],
+                        assignedAt: now,
+                        status: "running",
+                        deliveryStatus: "pending"
+                    }
+                }
+            ]
+        };
+        const result = submitSpeakerAndAdvanceMeeting(state, "a", {
+            meetingId: "meeting-1",
+            participantId: "a",
+            turnId: "turn-1",
+            stepId: "step-0",
+            attemptId: "attempt-0",
+            deliveryId: "delivery-0",
+            agendaItemId: "agenda-1",
+            message: {
+                id: "message-1",
+                content: "answer",
+                kind: "statement",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic",
+                createdAt: now
+            },
+            now,
+            nextPlanningAttemptId: "planning-2",
+            nextPlanningDeliveryId: "planning-delivery-2"
+        });
+        expect(result.state.status).toBe("completed");
+        expect(result.effect.events).toContainEqual({
+            type: "meeting.ended",
+            payload: expect.objectContaining({ from: "running", to: "completed" })
+        });
     });
 
     it("submits a manager plan and starts only the first speaker", () => {
@@ -854,7 +933,7 @@ describe("meeting transitions", () => {
                 attemptId: "attempt-1",
                 speaker: "participant-1",
                 agendaItemId: "agenda-1",
-                agendaRelation: "active",
+                agendaRelation: "on_topic",
                 kind: "statement",
                 mentions: [],
                 taskIds: [],
@@ -1193,6 +1272,7 @@ describe("turn, step and attempt transitions", () => {
                 kind: "statement",
                 mentions: [],
                 taskIds: [],
+                agendaRelation: "blocking_interrupt",
                 createdAt: now
             }
         });
@@ -1210,7 +1290,8 @@ describe("turn, step and attempt transitions", () => {
                 stepId: "step-1",
                 attemptId: "attempt-1",
                 speaker: "participant-1",
-                agendaItemId: "agenda-1"
+                agendaItemId: "agenda-1",
+                agendaRelation: "blocking_interrupt"
             }
         ]);
         expect(result.state.participants[0].lastDeliveredSeq).toBe(5);
@@ -1283,6 +1364,7 @@ describe("turn, step and attempt transitions", () => {
                 kind: "statement" as const,
                 mentions: [],
                 taskIds: [],
+                agendaRelation: "on_topic" as const,
                 createdAt: now
             }
         };

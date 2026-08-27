@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createCreateStatusRuntime } from "../../src/tools/meeting-runtime.js";
 
 const roots: string[] = [];
@@ -42,6 +42,142 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
+    it("keeps committed Manager commands successful when asynchronous dispatch fails", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-manager-dispatch-"));
+        roots.push(root);
+        let followups = 0;
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => {
+                    followups += 1;
+                    throw new Error("provider unavailable");
+                }
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+        const managerInput = {
+            ...input,
+            selectionMode: "manager" as const,
+            agenda: [
+                {
+                    ...input.agenda[0]!,
+                    requiredParticipantKeys: ["one"]
+                }
+            ],
+            participants: [input.participants[0]!]
+        };
+        const created = await runtime.createMeeting(
+            managerInput,
+            captain,
+            new AbortController().signal
+        );
+        expect(created).toMatchObject({ ok: true, result: { status: "running" } });
+        if (!created.ok) throw new Error("create failed");
+        await vi.waitFor(() => expect(followups).toBe(1));
+        const meetingId = created.result.meetingId;
+        const manager = {
+            sessionId: `${meetingId}-manager-manager`,
+            meetingId,
+            kind: "manager" as const
+        };
+        const plan = {
+            protocolVersion: 1 as const,
+            meetingId,
+            planningAttemptId: `${meetingId}-planning-1`,
+            agendaItemId: "agenda-agenda-1",
+            intent: "explore",
+            objective: "Resolve scope",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            steps: [
+                {
+                    participantId: "participant-one",
+                    instruction: "Address scope",
+                    reason: "manager_selected"
+                }
+            ]
+        };
+
+        await expect(
+            runtime.submitManagerPlan(
+                { ...plan, observedMeetingVersion: 0, requestId: "stale-plan" },
+                manager
+            )
+        ).resolves.toMatchObject({
+            ok: false,
+            code: "STALE_MANAGER_ATTEMPT",
+            retryable: false
+        });
+        await expect(
+            runtime.submitManagerPlan(
+                {
+                    ...plan,
+                    planningAttemptId: "wrong-planning-attempt",
+                    observedMeetingVersion: 1,
+                    requestId: "stale-attempt"
+                },
+                manager
+            )
+        ).resolves.toMatchObject({
+            ok: false,
+            code: "STALE_MANAGER_ATTEMPT",
+            retryable: false
+        });
+
+        const planned = await runtime.submitManagerPlan(
+            { ...plan, observedMeetingVersion: 1, requestId: "plan-1" },
+            manager
+        );
+        expect(planned).toMatchObject({ ok: true });
+        if (!planned.ok) throw new Error("plan failed");
+        await vi.waitFor(() => expect(followups).toBe(2));
+
+        await expect(
+            runtime.submitTurn(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    turnId: planned.result.turnId,
+                    stepId: planned.result.firstStepId,
+                    attemptId: planned.result.firstAttemptId,
+                    deliveryId: "turn-1-delivery-0",
+                    agendaItemId: "agenda-agenda-1",
+                    kind: "statement",
+                    content: "Scope response",
+                    mentions: [],
+                    taskIds: [],
+                    agendaRelation: "supporting_context",
+                    changes: {}
+                },
+                {
+                    sessionId: `${meetingId}-participant-participant-one`,
+                    meetingId,
+                    participantId: "participant-one",
+                    kind: "participant"
+                }
+            )
+        ).resolves.toMatchObject({
+            ok: true,
+            result: { messageSeq: 1, turnStatus: "completed", meetingStatus: "running" }
+        });
+        await vi.waitFor(() => expect(followups).toBe(3));
+        await runtime.dispose();
+    });
+
     it("creates through SQLite and projects status only for the bound meeting", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-"));
         roots.push(root);

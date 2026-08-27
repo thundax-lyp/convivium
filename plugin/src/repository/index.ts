@@ -820,6 +820,7 @@ export class MeetingRepository {
     async execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>> {
         this.ensureOpen();
         const now = Date.now();
+        let transitionFailure: unknown;
         try {
             this.db.exec("BEGIN IMMEDIATE");
             const snapshot = this.getMeeting();
@@ -861,7 +862,13 @@ export class MeetingRepository {
                     "Meeting version is stale"
                 );
             }
-            const transition = command.transition(snapshot);
+            let transition: ReturnType<RepositoryCommand<T>["transition"]>;
+            try {
+                transition = command.transition(snapshot);
+            } catch (error) {
+                transitionFailure = error;
+                throw error;
+            }
             if (transition.events.length === 0) {
                 throw new RepositoryError(
                     "INVALID_STATE",
@@ -899,6 +906,7 @@ export class MeetingRepository {
             };
         } catch (error) {
             this.rollback();
+            if (error === transitionFailure) throw error;
             if (error instanceof RepositoryError) throw error;
             throw sqliteError(error, this.meetingId);
         }
