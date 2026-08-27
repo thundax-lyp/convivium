@@ -4,6 +4,7 @@ import type {
     MeetingStatusResultV1,
     PublicAgendaItemV1,
     PublicMeetingMessageV1,
+    PublicHandRaiseV1,
     MeetingTaskProjectionV1,
     PublicTurnV1
 } from "../protocol/index.js";
@@ -60,6 +61,18 @@ function meetingTask(value: MeetingState["meetingTasks"][number]): MeetingTaskPr
         ...(value.queuedAt === undefined ? {} : { queuedAt: value.queuedAt }),
         ...(value.startedAt === undefined ? {} : { startedAt: value.startedAt }),
         ...(value.finishedAt === undefined ? {} : { finishedAt: value.finishedAt })
+    };
+}
+
+function handRaise(value: MeetingState["handRaises"][number]): PublicHandRaiseV1 {
+    return {
+        id: value.id,
+        participantId: value.participant,
+        reason: value.reason,
+        summary: value.summary,
+        taskIds: value.taskIds,
+        ...(value.agendaItemId === undefined ? {} : { agendaItemId: value.agendaItemId }),
+        priority: value.priority
     };
 }
 
@@ -216,7 +229,9 @@ export function projectMeetingStatus(
         status: state.status,
         ...(currentTurn === undefined ? {} : { currentTurn }),
         ...(currentStep === undefined ? {} : { currentSpeakerId: currentStep.speaker }),
-        pendingHandRaises: [],
+        pendingHandRaises: state.handRaises
+            .filter((raise) => raise.status === "pending")
+            .map(handRaise),
         pauseControl:
             state.status === "paused"
                 ? {

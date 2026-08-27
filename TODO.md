@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `B-04 / HandRaise 与 planning`：实现 waiting 恢复、统一 eligibility 和 task snapshot
-    - 依据文档：`docs/30-designs/RUNBOOK-MEETINGTASK-HAND-RAISE.md` 第 5.4、5.5、6、7.3、8、9/T4 节
-    - 确认依据：`B-03` 完成并单独提交后执行
-    - 处理动作：实现 finish-linked 与独立 HandRaise；抽取 canonical speaker eligibility 和 `startRoundRobinTurn`，Manager/round-robin 均排除非终态 task owner；blocking delivery failure 同事务标记 failed并按 selection mode 恢复，paused 时不调度；选中 Participant 时消费 HandRaise并固化 terminal task snapshot。
-    - 验收点：失败 plan/version conflict 不消费 HandRaise；未选中的 HandRaise 保持 pending；failure 不伪造 HandRaise；manager/round-robin waiting 恢复、pause 和 snapshot 重投 tests 通过。
-
 - [ ] `B-05 / 闭环 A 集成`：合并 terminal cancellation 与 authorized MeetingTask evidence
     - 依据文档：`docs/30-designs/RUNBOOK-MEETINGTASK-HAND-RAISE.md` 第 3、8、9/T2、T4 节
     - 确认依据：`B-04` 完成且闭环 A 的公开 commits 可供语义合并后执行

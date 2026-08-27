@@ -323,6 +323,18 @@ export interface MeetingQuestion {
 export interface MeetingHandRaise {
     id: string;
     participant: string;
+    reason:
+        | "task_completed"
+        | "new_evidence"
+        | "answer_ready"
+        | "blocking_objection"
+        | "correction"
+        | "user_requested";
+    summary: string;
+    taskIds: string[];
+    agendaItemId?: string;
+    priority: "normal" | "high" | "blocking";
+    createdAt: number;
     status: "pending" | "accepted" | "deferred" | "consumed" | "rejected";
 }
 

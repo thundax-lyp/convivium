@@ -113,6 +113,7 @@ describe("meeting tool registration", () => {
             "convivium_meeting_task_status",
             "convivium_start_meeting_task",
             "convivium_finish_meeting_task",
+            "convivium_raise_hand",
             "convivium_submit_manager_plan",
             "convivium_submit_turn",
             "convivium_pause_meeting",
@@ -284,6 +285,10 @@ describe("meeting tool registration", () => {
                     calls.push(`task-finish:${caller.kind}`),
                     denied()
                 ),
+                raiseHand: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`raise-hand:${caller.kind}`),
+                    denied()
+                ),
                 submitTurn: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`submit:${caller.kind}`),
                     denied()
@@ -362,6 +367,15 @@ describe("meeting tool registration", () => {
                 executionId: "execution-1",
                 status: "completed"
             },
+            convivium_raise_hand: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                requestId: "raise-1",
+                reason: "new_evidence",
+                summary: "Evidence is ready",
+                taskIds: [],
+                priority: "normal"
+            },
             convivium_submit_turn: {
                 protocolVersion: 1,
                 meetingId: "meeting-1",
@@ -426,6 +440,7 @@ describe("meeting tool registration", () => {
             "task-status:participant",
             "task-start:participant",
             "task-finish:participant",
+            "raise-hand:participant",
             "manager-plan:participant",
             "submit:participant",
             "pause:participant",

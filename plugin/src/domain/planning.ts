@@ -1,4 +1,5 @@
 import { DomainError } from "./errors.js";
+import { participantHasActiveMeetingTask } from "./hand-raise.js";
 import type {
     MeetingState,
     MeetingTurn,
@@ -93,7 +94,11 @@ export function planRoundRobinTurn(
 
     const agenda = activeAgenda(state);
     const speakers = state.participants
-        .filter((participant) => participant.status === "available")
+        .filter(
+            (participant) =>
+                participant.status === "available" &&
+                !participantHasActiveMeetingTask(state, participant.id)
+        )
         .slice(0, state.limits.maxSpeakersPerTurn);
     if (speakers.length === 0) {
         throw new DomainError(

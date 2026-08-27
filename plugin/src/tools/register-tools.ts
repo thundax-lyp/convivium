@@ -18,6 +18,8 @@ import type {
     MeetingTaskStatusResultV1,
     MeetingTaskStartResultV1,
     MeetingTaskFinishResultV1,
+    HandRaiseSubmissionV1,
+    HandRaiseResultV1,
     MeetingControlResultV1,
     ManagerPlanResultV1,
     ManagerPlanSubmissionV1,
@@ -39,6 +41,7 @@ import {
     MeetingTaskStatusInputSchema,
     MeetingTaskStartInputSchema,
     MeetingTaskFinishInputSchema,
+    HandRaiseSubmissionSchema,
     validateProtocolError
 } from "../protocol/index.js";
 
@@ -85,6 +88,11 @@ export interface MeetingToolRuntime {
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<MeetingToolOutcome<MeetingTaskFinishResultV1>>;
+    raiseHand(
+        input: HandRaiseSubmissionV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<MeetingToolOutcome<HandRaiseResultV1>>;
     submitTurn(
         input: TurnSubmissionV1,
         caller: MeetingToolCaller,
@@ -325,6 +333,25 @@ export function registerSubmitAndControlTools(
                             runtime: dependencies.runtime.finishMeetingTask.bind(
                                 dependencies.runtime
                             ),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_raise_hand",
+                description: "Submit a deduplicated pending Meeting HandRaise.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                HandRaiseSubmissionSchema(value as never) as HandRaiseSubmissionV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.raiseHand.bind(dependencies.runtime),
                             exec
                         })
                     );

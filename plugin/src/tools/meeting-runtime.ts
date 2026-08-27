@@ -12,6 +12,9 @@ import {
 } from "../dsh/index.js";
 import {
     createMeetingTask as createMeetingTaskTransition,
+    createHandRaise,
+    completedTaskSnapshots,
+    participantHasActiveMeetingTask,
     finishMeetingTask as finishMeetingTaskTransition,
     planRoundRobinTurn,
     startMeetingTask as startMeetingTaskTransition,
@@ -46,6 +49,8 @@ import type {
     MeetingTaskStatusResultV1,
     MeetingTaskStartResultV1,
     MeetingTaskFinishResultV1,
+    HandRaiseSubmissionV1,
+    HandRaiseResultV1,
     ManagerPlanResultV1,
     ManagerPlanSubmissionV1,
     MeetingControlResultV1,
@@ -343,6 +348,7 @@ export function createCreateStatusRuntime(
             .filter(
                 (participant) =>
                     participant.status === "available" &&
+                    !participantHasActiveMeetingTask(state, participant.id) &&
                     recovered.sessionOwnership.some(
                         (candidate) =>
                             candidate.role === "participant" &&
@@ -972,15 +978,31 @@ export function createCreateStatusRuntime(
                                 now: options.now?.() ?? Date.now()
                             }
                         );
+                        const handRaise = createHandRaise(transition.state, {
+                            id: `${input.meetingTaskId}-hand-raise`,
+                            participantId: caller.participantId!,
+                            reason:
+                                input.status === "completed" ? "task_completed" : "new_evidence",
+                            summary:
+                                input.resultSummary ??
+                                input.failureReason ??
+                                "MeetingTask finished",
+                            taskIds: [input.meetingTaskId],
+                            priority: "normal",
+                            now: options.now?.() ?? Date.now()
+                        });
                         return {
-                            state: transition.state as unknown as JsonObject,
+                            state: handRaise.state as unknown as JsonObject,
                             result: {
                                 requestId: input.requestId,
                                 meetingTaskId: input.meetingTaskId,
                                 status: input.status,
                                 handRaiseId: `${input.meetingTaskId}-hand-raise`
                             } satisfies MeetingTaskFinishResultV1,
-                            events: transition.effect.events as unknown as DomainEventInput[],
+                            events: [
+                                ...(transition.effect.events as unknown as DomainEventInput[]),
+                                ...(handRaise.effect.events as unknown as DomainEventInput[])
+                            ],
                             outbox: []
                         };
                     }
@@ -995,6 +1017,64 @@ export function createCreateStatusRuntime(
                     error,
                     "INVALID_STATE_TRANSITION",
                     "The MeetingTask could not be finished.",
+                    { meetingId: input.meetingId }
+                );
+            }
+        },
+
+        async raiseHand(input: HandRaiseSubmissionV1, caller) {
+            await rehydrate();
+            const stored = meetings.get(input.meetingId);
+            if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            if (caller.kind !== "participant" || caller.participantId === undefined) {
+                return failure("UNAUTHORIZED_CALLER", "Only a Participant can raise a hand.");
+            }
+            try {
+                const current = await stored.repository.read();
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "raise_hand",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `participant:${caller.sessionId}`
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: current.version,
+                    transition: (snapshot) => {
+                        const transition = createHandRaise(
+                            snapshot.state as unknown as MeetingState,
+                            {
+                                id: `hand-raise-${input.requestId}`,
+                                participantId: caller.participantId!,
+                                reason: input.reason,
+                                summary: input.summary,
+                                taskIds: input.taskIds,
+                                agendaItemId: input.agendaItemId,
+                                priority: input.priority,
+                                now: options.now?.() ?? Date.now()
+                            }
+                        );
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: {
+                                handRaiseId: `hand-raise-${input.requestId}`,
+                                status: "pending"
+                            } satisfies HandRaiseResultV1,
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox: []
+                        };
+                    }
+                });
+                return success(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as HandRaiseResultV1
+                );
+            } catch (error) {
+                return commandError(
+                    error,
+                    "INVALID_ENTITY_STATE",
+                    "The hand raise could not be created.",
                     { meetingId: input.meetingId }
                 );
             }
@@ -1184,7 +1264,11 @@ export function createCreateStatusRuntime(
                 const recovered = await stored.repository.recover();
                 const state = current.state as unknown as MeetingState;
                 const dispatchableParticipantIds = state.participants
-                    .filter((participant) => participant.status === "available")
+                    .filter(
+                        (participant) =>
+                            participant.status === "available" &&
+                            !participantHasActiveMeetingTask(state, participant.id)
+                    )
                     .filter((participant) =>
                         recovered.sessionOwnership.some(
                             (ownership) =>
@@ -1548,7 +1632,7 @@ function assignAttempt(
         deliveryId: turn.id === "turn-1" ? `delivery-${index}` : `${turn.id}-delivery-${index}`,
         contextFromSeq: 0,
         contextThroughSeq: state.messageSeq,
-        taskSnapshots: [],
+        taskSnapshots: completedTaskSnapshots(state, step.speaker, now),
         assignedAt: now,
         startedAt: now,
         status: "running" as const,

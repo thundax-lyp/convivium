@@ -1,6 +1,7 @@
 import { DomainError, invalidStateTransition } from "./errors.js";
 import { judgeTurnCompletion } from "./completion.js";
 import { cancelNonTerminalMeetingTasks, queueMeetingTasks } from "./meeting-task.js";
+import { completedTaskSnapshots } from "./hand-raise.js";
 import {
     planManagerTurn,
     planRoundRobinTurn,
@@ -968,6 +969,9 @@ export function submitManagerPlan(
         deliveryId: context.deliveryId
     });
     const firstStep = planned.steps[0]!;
+    const selectedRaise = state.handRaises.find(
+        (raise) => raise.status === "pending" && raise.participant === firstStep.speaker
+    );
     const firstAttempt = {
         attemptId: `${planned.id}-attempt-0`,
         participantId: firstStep.speaker,
@@ -977,7 +981,7 @@ export function submitManagerPlan(
         deliveryId: `${planned.id}-delivery-0`,
         contextFromSeq: 0,
         contextThroughSeq: state.messageSeq,
-        taskSnapshots: [],
+        taskSnapshots: completedTaskSnapshots(state, firstStep.speaker, context.now),
         assignedAt: context.now,
         status: "running" as const,
         deliveryStatus: "pending" as const
@@ -995,6 +999,14 @@ export function submitManagerPlan(
         updatedAt: context.now,
         manager: { ...state.manager, status: "idle", currentPlanningAttempt: undefined },
         currentTurn: runningTurn,
+        handRaises:
+            selectedRaise === undefined
+                ? state.handRaises
+                : state.handRaises.map((raise) =>
+                      raise.id === selectedRaise.id
+                          ? { ...raise, status: "consumed" as const }
+                          : raise
+                  ),
         turnSeq: runningTurn.seq,
         participants: state.participants.map((participant) =>
             participant.id === firstStep.speaker
@@ -1345,7 +1357,11 @@ export function submitSpeakerAndAdvanceMeeting(
                 deliveryId: `${turn.id}-delivery-${turn.currentStepIndex}`,
                 contextFromSeq: 0,
                 contextThroughSeq: submitted.state.messageSeq,
-                taskSnapshots: [],
+                taskSnapshots: completedTaskSnapshots(
+                    submitted.state,
+                    nextStep.speaker,
+                    context.now
+                ),
                 assignedAt: context.now,
                 status: "running" as const,
                 deliveryStatus: "pending" as const
@@ -1478,6 +1494,9 @@ export function submitSpeakerAndAdvanceMeeting(
             context.now
         );
         const firstStep = planned.steps[0]!;
+        const selectedRaise = nextState.handRaises.find(
+            (raise) => raise.status === "pending" && raise.participant === firstStep.speaker
+        );
         const firstAttempt: SpeakerAttempt = {
             attemptId: `${planned.id}-attempt-0`,
             participantId: firstStep.speaker,
@@ -1487,7 +1506,7 @@ export function submitSpeakerAndAdvanceMeeting(
             deliveryId: `${planned.id}-delivery-0`,
             contextFromSeq: 0,
             contextThroughSeq: nextState.messageSeq,
-            taskSnapshots: [],
+            taskSnapshots: completedTaskSnapshots(nextState, firstStep.speaker, context.now),
             assignedAt: context.now,
             status: "running",
             deliveryStatus: "pending"
@@ -1502,6 +1521,14 @@ export function submitSpeakerAndAdvanceMeeting(
         nextState = {
             ...nextState,
             currentTurn: runningTurn,
+            handRaises:
+                selectedRaise === undefined
+                    ? nextState.handRaises
+                    : nextState.handRaises.map((raise) =>
+                          raise.id === selectedRaise.id
+                              ? { ...raise, status: "consumed" as const }
+                              : raise
+                      ),
             turnSeq: runningTurn.seq,
             status: "running",
             waitState: undefined,
