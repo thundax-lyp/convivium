@@ -1,4 +1,6 @@
-# TeamTask 与 HandRaise 能力证据
+# MeetingTask 方案取证（历史：DSH TeamTask 不可用）
+
+> 本文保留 2026-08-27 对 DSH Agent Teams/TeamTask 的取证结果，作为 MeetingTask 方案的历史依据，不再作为当前实现 blocker。当前实现依据是 `RUNBOOK-MEETINGTASK-HAND-RAISE.md`。
 
 ## Scope
 
@@ -7,8 +9,8 @@
 - Node：`v22.23.2`
 - pnpm：`10.7.0`
 - DSH 锁定版本：`0.1.1-rc.2`
-- 验证范围：闭环 B 的 `B-01 / DSH TeamTask API` 取证门槛。
-- 目标：确认当前可安装依赖是否提供 durable TeamTask、稳定 create correlation、Team/task/result 授权读取、terminal observation，以及原 Participant Session 可见路径。
+- 验证范围：旧闭环 B 的 DSH TeamTask 取证门槛。
+- 目标：记录当前可安装依赖不提供 durable TeamTask、稳定 create correlation、Team/task/result 授权读取和 terminal observation 的事实，并说明为何改用 Convivium-owned MeetingTask。
 
 ## Validated Contract
 
@@ -79,8 +81,8 @@ DSH 官方仓库 `master` 中存在 experimental Agent Teams：
 
 ## Closure
 
-结论：`UNSUPPORTED_CAPABILITY`。
+结论：旧 DSH TeamTask 路径为 `UNSUPPORTED_CAPABILITY`；该结论保留为历史取证，不适用于当前 MeetingTask 方案。
 
-`B-01` 已完成取证，但触发 `RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 4.3、8 节停止条件。当前不能安全执行 `B-02` 至 `B-07`。
+旧 `B-01` 取证曾触发停止条件。当前不再执行旧 TeamTask `B-02` 至 `B-07`，改按 `RUNBOOK-MEETINGTASK-HAND-RAISE.md` 的 `B-00` 至 `B-06` 执行。
 
-恢复闭环 B 前必须先确认一个可安装、可进入正式 DSH profile 的 TeamTask service，并解决 create correlation/idempotent recovery 契约。该决定影响依赖来源、profile 组合、接口兼容和跨系统恢复，不能由实现者自行选择。
+MeetingTask 不依赖可安装的 DSH TeamTask service、外部 association 或跨系统 create correlation；其 canonical state、幂等、恢复和结果投影由 Convivium MeetingState 与既有 DSH Participant continuable Session 边界负责。

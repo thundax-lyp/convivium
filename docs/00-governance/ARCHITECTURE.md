@@ -69,7 +69,7 @@
 - DSH AgentSession 不能成为 Meeting、Participant、Turn 或权限模型的真相源。
 - Convivium 实现必须保持会议领域、DSH Session adapter、持久化和 UI projection 的模块边界。
 - Meeting 的 SQLite、开发者 Markdown、Session ownership 和归档数据必须以 `<teamId>/meetings/<meetingId>/` 为共同生命周期边界。
-- 会议领域只能消费 Agent 明确提交的边界结果和经授权的 DSH TeamTask 结果，不得依赖具体 Skill、内部 Tool Schema、隐藏推理或工具调用顺序。
+- 会议领域只能消费 Agent 明确提交的边界结果和经授权的 MeetingTask projection，不得依赖具体 Skill、内部 Tool Schema、隐藏推理或工具调用顺序。MeetingTask 属于 Convivium MeetingState，不属于 DSH runtime facts。
 - Convivium 不得向 DSH Session 写入插件自定义的持久化事件类型。会议领域事件写入 SQLite `meeting_events`；插件前端只通过定时读取、写操作成功后重新读取和页面重新聚焦后读取完整类型化状态投影，不建立进程内 projection invalidation 通道。
 - 开发者 Markdown 只能单向派生自 SQLite。人工修改、文件缺失或旧版本内容不得反向写入会议状态；该文件不形成 Plugin Frontend 或 Agent 可依赖的契约。
 - DSH 原生 `tool/call`、`tool/result` 及其他 DSH-owned Session Events 继续由 DSH 定义和持久化；Convivium 不复制、重命名或扩展其语义。
