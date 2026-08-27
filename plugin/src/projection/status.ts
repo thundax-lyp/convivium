@@ -77,6 +77,19 @@ function termination(state: MeetingState) {
     };
 }
 
+function executionTermination(state: MeetingState) {
+    if (state.termination === undefined) {
+        throw new TypeError("terminal MeetingState must include termination");
+    }
+    return {
+        ...termination(state),
+        dissentingPositionIds: state.termination.dissentingPositionIds,
+        blockingAgendaItemIds: state.termination.blockingAgendaItemIds,
+        finalMessage: state.termination.finalMessage,
+        endedAt: state.termination.endedAt
+    };
+}
+
 /**
  * Projects only protocol-visible meeting facts. Session IDs, capabilities,
  * prompts, DSH payloads, outbox leases and private Agent output have no input
@@ -185,7 +198,10 @@ export function projectMeetingStatus(
             status: state.status,
             pendingHandRaises: [],
             pauseControl: { action: "none" },
-            termination: termination(state)
+            termination: executionTermination(state),
+            completionFactIds: state.completionFacts
+                .filter((fact) => fact.status === "active")
+                .map((fact) => fact.id)
         } as MeetingStatusResultV1;
     }
 

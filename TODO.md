@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `A1 / plugin completion-end protocol`：补齐闭环 A 的最小正式契约
-    - 依据文档：`docs/30-designs/RUNBOOK-COMPLETION-CLOSURE.md` T1、T4；`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
-    - 确认依据：2026-08-27 用户确认闭环 A RUNBOOK 待执行；`codex://threads/01a04210-fa01-7091-b554-4c94a5cf0186`
-    - 处理动作：先运行 `plugin/` 下的 `pnpm verify:environment` 和 `pnpm verify:contract`，再只修改协议文档及 `plugin/src/protocol/`，使 completion claims、end input/result、错误码和 terminal status 的文档、类型、Schema 一致；若完成依据需要新增 canonical domain 字段则停止并记录缺口。
-    - 验收点：`pnpm exec vitest run tests/contract/protocol-schema.spec.ts tests/contract/status-projection.spec.ts` 和 `pnpm verify:contract` 通过，且未新增 TeamTask、HandRaise 或 Archive 接口。
-
 - [ ] `A2 / plugin completion domain`：实现 CompletionFact 校验与确定性完成判断
     - 依据文档：`docs/30-designs/RUNBOOK-COMPLETION-CLOSURE.md` T2、6.1；`docs/30-designs/DOMAIN-MODEL-DESIGN.md` CompletionFact
     - 确认依据：2026-08-27 用户确认闭环 A RUNBOOK 待执行；`codex://threads/01a04210-fa01-7091-b554-4c94a5cf0186`
