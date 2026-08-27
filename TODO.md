@@ -10,44 +10,46 @@
 
 ## 待审阅任务项
 
-- [ ] `B-02 / TeamTask 与 HandRaise 契约`：补齐最小协议、领域模型和 schema
-    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 4.2、4.4、5/T1 节
-    - 确认依据：`B-01` 于 2026-08-27 记录 `UNSUPPORTED_CAPABILITY`；待 TeamTask 依赖与 correlation 契约确认后重新审阅
-    - 处理动作：定义两个工具、单一授权 task projection、MeetingState association/snapshot、`pending → consumed` HandRaise 和 B 专属事件，不增加不可达状态或闭环 A 字段。
-    - 验收点：协议文档、TypeScript 类型和 schema 一致；Manager context 与 active status 复用同一 task projection；相关 contract tests 和 `pnpm typecheck` 通过。
+- [ ] `B-00 / MeetingTask 正式口径`：把旧 DSH TeamTask 方案迁移为 Convivium MeetingTask
+    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 1、2、9/T0 节
+    - 确认依据：用户于 2026-08-27 确认 MeetingTask 方向及 A/B 联合复核结论；实现仍需逐项授权
+    - 处理动作：更新架构、需求、接口、Domain Model、Meeting Orchestration Design 和 Implementation Design，删除 external association、Captain TeamTask adapter、`task_operations`、DSH result observation 与 `convivium_request_background_task` 当前口径；定义五个 MeetingTask/HandRaise 工具及正式失败语义；重命名 RUNBOOK 并修复引用。
+    - 验收点：正式文档只保留 Convivium-owned MeetingTask；DSH 仅拥有 Participant continuable Session/FIFO/lifecycle；文档检索不再把 DSH TeamTask 描述为闭环 B 实现依赖；`git diff --check` 通过。
 
-- [ ] `B-03 / task operation 持久化`：实现最小 prepare/recover metadata
-    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 4.4、5/T3 节；`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`
-    - 确认依据：`B-02` 通过后执行；当前被 TeamTask 能力缺口阻塞
-    - 处理动作：新增 additive `task_operations` migration 和 prepare/recover/finalized metadata API；Meeting fact 仍唯一由原 request 通过 `MeetingRepository.execute()` 提交。
-    - 验收点：prepare 不写 MeetingState、event、version、success receipt 或 outbox；DSH 前后及 `execute()` 前后崩溃、不确定结果和终态拒绝均有 repository tests；不修改全局 receipt key。
+- [ ] `B-01 / MeetingTask 领域与协议`：实现 canonical state、投影、事件和五个工具 schema
+    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 4、5、9/T1 节
+    - 确认依据：`B-00` 完成并单独提交后执行
+    - 处理动作：定义 MeetingTask、ExecutionEnvelope、MeetingTaskProjection、HandRaise，以及 create/status/start/finish/raise-hand 输入输出；MeetingTask 只保存 participantId 和 originatingSpeakerAttemptId，不保存 meetingId、Session ID 或外部 task association；start receipt 不可变，status read 不使用 receipt。
+    - 验收点：协议文档、TypeScript 类型和 schema 一致；同 request start 完整返回首次 result，status 可返回不同 observedMeetingVersion；事件只追加 B 专属值；contract tests、format 和 typecheck 通过。
 
-- [ ] `B-04 / TeamTask adapter 与请求工具`：实现受控 create/associate 链路
-    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 5/T2、T3、T4 节
-    - 确认依据：`B-03` 通过后执行；当前被 TeamTask 能力缺口阻塞
-    - 处理动作：按 `B-01` 证据实现最小 `task-adapter`，注册 `convivium_request_background_task`，绑定 caller、Team、Participant 和 SpeakerAttempt，并接入 operation recovery 与唯一 `execute()` 提交路径。
-    - 验收点：合法 create/associate、字段互斥、权限拒绝、同 request 幂等和不同 hash 冲突均有测试；请求不完成 attempt、不推进 Turn、不进入 `waiting`。
+- [ ] `B-02 / MeetingTask transition 与 submit 集成`：实现状态机、终态取消和 submit 优先级
+    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 4.2、5.1、5.2、8、9/T2 节
+    - 确认依据：`B-01` 完成并单独提交后执行
+    - 处理动作：实现纯 MeetingTask create/queue/start/finish transitions 和 `cancelNonTerminalMeetingTasks`；只在 submit transition 中按 hard-limit terminal、blocking waiting、non-blocking judge/planning 的固定顺序合并 requested→queued，submit 内 hard-limit 调用 cancellation helper；继续生成既有 `kind='dispatch'`、`payload.role='meeting_task'` outbox，不注册工具或编排 Runtime command。
+    - 验收点：hard-limit 同事务取消 task 且无 task outbox；blocking 跳过 judge/next plan；non-blocking 可继续 converging/planning；纯 transition、submit rollback、同版本竞争和 submit 内 hard-limit tests 通过。
 
-- [ ] `B-05 / terminal snapshot 与 Participant 通知`：固化授权结果并通知原 Session
-    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 4.3、5/T2、T3、T6 节
-    - 确认依据：`B-04` 通过后执行；当前被 TeamTask 能力缺口阻塞
-    - 处理动作：通过已取证 DSH 能力观察 terminal result，经 `MeetingRepository.execute()` 固化 authorized snapshot；仅在必要且可证明时复用或抽取最小 per-Participant Session 串行入口。
-    - 验收点：snapshot 不自动生成 HandRaise、transcript、CompletionFact 或终态；同一 Session 不并发 followup；恢复和 disposer tests 通过；无法证明通知或串行性时停止。
+- [ ] `B-03 / MeetingTask Session 执行`：实现授权 status、start/finish 与 FIFO task dispatch
+    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 5.3、5.4、6、9/T3 节
+    - 确认依据：`B-02` 完成并单独提交后执行
+    - 处理动作：注册 create/status/start/finish 工具，通过既有 `MeetingRepository.execute()` 编排 create/start/finish command；扩展 MeetingSessionAdapter 与 outbox worker 的 `role='meeting_task'` 分支；每次从 `session_ownership` 验证 caller；按 status pre-read→queued start→status post-read 执行，只有 post-read `mayExecute=true` 才允许工作。
+    - 验收点：相同 request 完整返回首次 receipt/result；hash、version 和 terminal conflict 语义正确；重复 envelope 不重复 Meeting start/finish 事实；terminal/cancelled status 明确 stop；queued/running owner 不获得并发 SpeakerAttempt；没有自动 running resume；Runtime、Session adapter、worker、ownership 和 recovery tests 通过。
 
-- [ ] `B-06 / HandRaise、waiting 与 planning`：完成 Participant 主动回报闭环
-    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 5/T4、T5、T6 节
-    - 确认依据：`B-05` 通过后执行；当前被 TeamTask 能力缺口阻塞
-    - 处理动作：实现 `convivium_raise_hand`、pending 去重、合法 `submit_turn` 后的 blocking waiting/replan、Manager task projection 消费、HandRaise consumed 和新 SpeakerAttempt snapshot 固化。
-    - 验收点：active attempt 不被打断；失败 plan 不消费 HandRaise；snapshot 不漂移；暂停恢复及 Captain end/version 竞争有测试；不修改 completion/end 判定。
+- [ ] `B-04 / HandRaise 与 planning`：实现 waiting 恢复、统一 eligibility 和 task snapshot
+    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 5.4、5.5、6、7.3、8、9/T4 节
+    - 确认依据：`B-03` 完成并单独提交后执行
+    - 处理动作：实现 finish-linked 与独立 HandRaise；抽取 canonical speaker eligibility 和 `startRoundRobinTurn`，Manager/round-robin 均排除非终态 task owner；blocking delivery failure 同事务标记 failed并按 selection mode 恢复，paused 时不调度；选中 Participant 时消费 HandRaise并固化 terminal task snapshot。
+    - 验收点：失败 plan/version conflict 不消费 HandRaise；未选中的 HandRaise 保持 pending；failure 不伪造 HandRaise；manager/round-robin waiting 恢复、pause 和 snapshot 重投 tests 通过。
 
-- [ ] `B-07 / 验证与收口`：验证闭环 B 并迁移临时结论
-    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 6、7、9 节；`docs/00-governance/TODO-RULES.md`
-    - 确认依据：`B-06` 通过且闭环 A 已有公开 commit/PR diff 后执行；当前被 TeamTask 能力缺口阻塞
-    - 处理动作：语义合并 A/B 共享热点，运行完整插件验证和独立 profile smoke，记录 readiness 证据，迁移长期文档结论并删除临时 RUNBOOK 和已完成 TODO。
-    - 验收点：RUNBOOK 验证矩阵均有自动化或真实运行证据；失败项、`Not Covered` 和清理结果已记录；未混入闭环 A、Mail、Archive、HTTP、UI 或无关改动。
+- [ ] `B-05 / 闭环 A 集成`：合并 terminal cancellation 与 authorized MeetingTask evidence
+    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 3、8、9/T2、T4 节
+    - 确认依据：`B-04` 完成且闭环 A 的公开 commits 可供语义合并后执行
+    - 处理动作：只让 Captain `endMeeting` 调用 B-owned cancellation helper；把 AuthorizedTaskEvidenceResolver 改为只读锁内 MeetingSnapshot 的 completed MeetingTask projection，删除旧 TeamTask association 字段和文案；不重复实现 B-02 已完成的 submit 内 automatic hard-limit cancellation。
+    - 验收点：Captain end 遇到 requested/queued/running task 时同事务 cancelled；同版本 task/HandRaise/planning/end 竞争只有一个成功；resolver 不访问 DSH/文件系统/外部服务；A/B 相关测试通过。
+
+- [ ] `B-06 / MeetingTask 验证与收口`：完成真实 DSH 运行证据和临时文档迁移
+    - 依据文档：`docs/30-designs/RUNBOOK-TEAMTASK-HAND-RAISE.md` 第 10 至 13 节；`docs/00-governance/TODO-RULES.md`
+    - 确认依据：`B-05` 完成并单独提交后执行
+    - 处理动作：运行完整插件验证与独立 DSH profile smoke，证明 Participant continuable Session FIFO、submit-release、task execute、finish+raise、两种 planning、pause/waiting/end race 和恢复；记录 readiness，迁移长期结论并删除临时 RUNBOOK 和已完成 TODO。
+    - 验收点：RUNBOOK 验证矩阵均有自动化或真实运行证据；若无法证明同一 Participant Session FIFO，则按停止条件记录 blocker且不引入 execution lease；失败项、Not Covered、环境、commit 和清理结果完整。
 
 ## 待讨论项
-
-- [ ] 确认闭环 B 可交付的 DSH TeamTask 能力来源与 create correlation 契约
-    - 决策要求：确认使用哪个可安装、可进入正式 profile 的 DSH TeamTask service，以及 DSH 副作用后如何按 caller-provided correlation 查询原创建结果；不得用 process-local `ctx.jobs` 静默替代 TeamTask。
-    - 影响范围：闭环 B 的依赖与 profile、TeamTask adapter、跨系统幂等恢复、terminal observation、Participant 通知及 `B-02` 至 `B-07`。
