@@ -91,7 +91,7 @@ function expectInvalid(candidate: ManagerPlanInput) {
             { turnId: "turn-1", stepId: (index) => `step-${index}` },
             200
         )
-    ).toThrowError(expect.objectContaining<Partial<DomainError>>({ code: "INVALID_ENTITY_STATE" }));
+    ).toThrowError(expect.objectContaining<Partial<DomainError>>({ code: "MANAGER_PLAN_INVALID" }));
 }
 
 describe("Manager planning", () => {

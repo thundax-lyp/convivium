@@ -8,10 +8,11 @@ const toolRegistration = readFileSync(
 const projection = readFileSync(new URL("../../src/projection/status.ts", import.meta.url), "utf8");
 
 describe("T5 HTTP boundary", () => {
-    it("provides the five DSH tools without importing or registering a Meeting HTTP surface", () => {
+    it("provides the DSH tools without importing or registering a Meeting HTTP surface", () => {
         expect(toolRegistration.match(/name: "convivium_[^"]+"/g)).toEqual([
             'name: "convivium_create_meeting"',
             'name: "convivium_meeting_status"',
+            'name: "convivium_submit_manager_plan"',
             'name: "convivium_submit_turn"',
             'name: "convivium_pause_meeting"',
             'name: "convivium_resume_meeting"'

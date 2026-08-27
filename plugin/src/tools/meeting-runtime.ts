@@ -54,6 +54,14 @@ export interface CreateStatusRuntimeOptions {
     readonly now?: () => number;
 }
 
+interface ClaimedOutboxItem {
+    id: string;
+    deliveryId: string;
+    payload: JsonObject;
+    leaseOwner: string;
+    leaseToken: string;
+}
+
 export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
     MeetingOwnershipLookup & { dispose(): Promise<void> };
 
@@ -188,7 +196,7 @@ export function createCreateStatusRuntime(
         parent: Agent,
         meetingId: string,
         commandSignal: AbortSignal,
-        claimedItem?: import("../repository/index.js").OutboxItem,
+        claimedItem?: ClaimedOutboxItem,
         completeClaimed = true
     ) {
         const recovered = await repository.recover();
@@ -282,7 +290,7 @@ export function createCreateStatusRuntime(
         parent: Agent,
         meetingId: string,
         commandSignal: AbortSignal,
-        claimedItem?: import("../repository/index.js").OutboxItem,
+        claimedItem?: ClaimedOutboxItem,
         completeClaimed = true
     ) {
         const recovered = await repository.recover();
