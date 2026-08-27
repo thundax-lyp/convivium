@@ -19,6 +19,7 @@ import {
 } from "../domain/index.js";
 import {
     createMeetingRuntime,
+    createOutboxWorker,
     openMeetingRepository,
     type DomainEventInput,
     type JsonObject,
@@ -53,7 +54,8 @@ export interface CreateStatusRuntimeOptions {
     readonly now?: () => number;
 }
 
-export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime & MeetingOwnershipLookup;
+export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
+    MeetingOwnershipLookup & { dispose(): Promise<void> };
 
 interface StoredMeeting {
     readonly teamId: string;
@@ -140,6 +142,7 @@ export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
 ): MeetingRuntimeWithCallerLookup {
     const meetings = new Map<string, StoredMeeting>();
+    const workers = new Map<string, ReturnType<typeof createOutboxWorker>>();
     const signal = options.signal ?? new AbortController().signal;
 
     async function rehydrate() {
@@ -184,15 +187,21 @@ export function createCreateStatusRuntime(
         repository: MeetingRepositoryRuntime,
         parent: Agent,
         meetingId: string,
-        commandSignal: AbortSignal
+        commandSignal: AbortSignal,
+        claimedItem?: import("../repository/index.js").OutboxItem,
+        completeClaimed = true
     ) {
         const recovered = await repository.recover();
-        const [item] = await repository.claimOutbox({
-            owner: `runtime:${meetingId}`,
-            ttlMs: 60_000,
-            batchSize: 1,
-            now: options.now?.() ?? Date.now()
-        });
+        const item =
+            claimedItem ??
+            (
+                await repository.claimOutbox({
+                    owner: `runtime:${meetingId}`,
+                    ttlMs: 60_000,
+                    batchSize: 1,
+                    now: options.now?.() ?? Date.now()
+                })
+            )[0];
         if (item === undefined) return;
         const payload = item.payload as unknown as {
             participantId: string;
@@ -245,23 +254,25 @@ export function createCreateStatusRuntime(
                     }
                 }
             });
-            await repository.completeOutbox({
-                id: item.id,
-                leaseOwner: item.leaseOwner,
-                leaseToken: item.leaseToken,
-                completion: { status: "delivered" }
-            });
+            if (completeClaimed)
+                await repository.completeOutbox({
+                    id: item.id,
+                    leaseOwner: item.leaseOwner,
+                    leaseToken: item.leaseToken,
+                    completion: { status: "delivered" }
+                });
         } catch (error) {
-            await repository.completeOutbox({
-                id: item.id,
-                leaseOwner: item.leaseOwner,
-                leaseToken: item.leaseToken,
-                completion: {
-                    status: "retry",
-                    availableAt: Date.now(),
-                    errorCode: "DISPATCH_FAILED"
-                }
-            });
+            if (completeClaimed)
+                await repository.completeOutbox({
+                    id: item.id,
+                    leaseOwner: item.leaseOwner,
+                    leaseToken: item.leaseToken,
+                    completion: {
+                        status: "retry",
+                        availableAt: Date.now(),
+                        errorCode: "DISPATCH_FAILED"
+                    }
+                });
             throw error;
         }
     }
@@ -270,15 +281,21 @@ export function createCreateStatusRuntime(
         repository: MeetingRepositoryRuntime,
         parent: Agent,
         meetingId: string,
-        commandSignal: AbortSignal
+        commandSignal: AbortSignal,
+        claimedItem?: import("../repository/index.js").OutboxItem,
+        completeClaimed = true
     ) {
         const recovered = await repository.recover();
-        const [item] = await repository.claimOutbox({
-            owner: `runtime:${meetingId}`,
-            ttlMs: 60_000,
-            batchSize: 1,
-            now: options.now?.() ?? Date.now()
-        });
+        const item =
+            claimedItem ??
+            (
+                await repository.claimOutbox({
+                    owner: `runtime:${meetingId}`,
+                    ttlMs: 60_000,
+                    batchSize: 1,
+                    now: options.now?.() ?? Date.now()
+                })
+            )[0];
         if (item === undefined) return;
         const payload = item.payload as unknown as {
             role: "manager";
@@ -313,25 +330,63 @@ export function createCreateStatusRuntime(
                         throw new Error("Manager planning attempt is no longer authorized.");
                 }
             });
-            await repository.completeOutbox({
-                id: item.id,
-                leaseOwner: item.leaseOwner,
-                leaseToken: item.leaseToken,
-                completion: { status: "delivered" }
-            });
+            if (completeClaimed)
+                await repository.completeOutbox({
+                    id: item.id,
+                    leaseOwner: item.leaseOwner,
+                    leaseToken: item.leaseToken,
+                    completion: { status: "delivered" }
+                });
         } catch (error) {
-            await repository.completeOutbox({
-                id: item.id,
-                leaseOwner: item.leaseOwner,
-                leaseToken: item.leaseToken,
-                completion: {
-                    status: "retry",
-                    availableAt: Date.now(),
-                    errorCode: "DISPATCH_FAILED"
-                }
-            });
+            if (completeClaimed)
+                await repository.completeOutbox({
+                    id: item.id,
+                    leaseOwner: item.leaseOwner,
+                    leaseToken: item.leaseToken,
+                    completion: {
+                        status: "retry",
+                        availableAt: Date.now(),
+                        errorCode: "DISPATCH_FAILED"
+                    }
+                });
             throw error;
         }
+    }
+
+    function ensureWorker(stored: StoredMeeting): void {
+        const meetingId = stored.repository.meetingId;
+        if (stored.parent === undefined || workers.has(meetingId)) return;
+        const worker = createOutboxWorker({
+            repository: stored.repository,
+            owner: `worker:${meetingId}`,
+            ttlMs: 60_000,
+            batchSize: 1,
+            pollMs: 250,
+            dispatch: async (item) => {
+                const payload = item.payload as unknown as { role?: "manager" | "participant" };
+                if (payload.role === "manager")
+                    await dispatchManagerPlanningDelivery(
+                        stored.repository,
+                        stored.parent!,
+                        meetingId,
+                        signal,
+                        item,
+                        false
+                    );
+                else
+                    await dispatchInitialDelivery(
+                        stored.repository,
+                        stored.parent!,
+                        meetingId,
+                        signal,
+                        item,
+                        false
+                    );
+            },
+            now: options.now
+        });
+        workers.set(meetingId, worker);
+        void worker.start().catch(() => undefined);
     }
 
     return {
@@ -431,6 +486,7 @@ export function createCreateStatusRuntime(
                         repository,
                         parent: caller.agent
                     });
+                    ensureWorker(meetings.get(meetingId)!);
                     return success(meetingId, existing.snapshot?.version ?? 1, {
                         ...participantResult(input, meetingId),
                         meetingVersion: existing.snapshot?.version ?? 1,
@@ -479,6 +535,13 @@ export function createCreateStatusRuntime(
                         meetingId,
                         commandSignal ?? signal
                     );
+                    meetings.set(meetingId, {
+                        teamId: input.teamId,
+                        captainSessionId: caller.sessionId,
+                        repository,
+                        parent: caller.agent
+                    });
+                    ensureWorker(meetings.get(meetingId)!);
                     return success(meetingId, started.meetingVersion, {
                         ...participantResult(input, meetingId),
                         meetingVersion: started.meetingVersion,
@@ -492,6 +555,7 @@ export function createCreateStatusRuntime(
                     repository,
                     parent: caller.agent
                 });
+                ensureWorker(meetings.get(meetingId)!);
                 await dispatchInitialDelivery(
                     repository,
                     caller.agent as Agent,
@@ -822,6 +886,13 @@ export function createCreateStatusRuntime(
                 }
             }
             return undefined;
+        },
+        async dispose() {
+            for (const worker of workers.values()) worker.stop();
+            await Promise.all([...workers.values()].map((worker) => worker.wait()));
+            workers.clear();
+            await Promise.all([...meetings.values()].map((stored) => stored.repository.close()));
+            meetings.clear();
         }
     } satisfies MeetingRuntimeWithCallerLookup;
 

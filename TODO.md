@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/tools/meeting-runtime.ts` 与 `plugin/src/index.ts`：组装每 Meeting delivery worker
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 5.4、6.2、6.4、9.2。
-  - 确认依据：2026-08-27 用户确认逐步调度使用持久 outbox。
-  - 处理动作：仅在持有 create caller live parent 时启动唯一 worker；dispatch callback 按 payload `role` 调用 Manager/Participant adapter；Runtime dispose 依次 stop、等待 worker、关闭 repository。
-  - 验收点：runtime 与 index lifecycle 测试证明同一 Meeting 最多一个 worker、新 outbox 会 wake、无 live parent 不自动续投、插件卸载后不再 claim/write。
-
 - [ ] `plugin/src/tools/meeting-runtime.ts`：补齐 Manager pause/resume
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 7.3、9.2。
   - 确认依据：2026-08-27 用户确认闭环需要 pause/resume 测试。
