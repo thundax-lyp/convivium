@@ -93,11 +93,21 @@ export function planRoundRobinTurn(
     }
 
     const agenda = activeAgenda(state);
+    const pendingRaiseParticipants = new Set(
+        state.handRaises
+            .filter((raise) => raise.status === "pending")
+            .map((raise) => raise.participant)
+    );
     const speakers = state.participants
         .filter(
             (participant) =>
                 participant.status === "available" &&
                 !participantHasActiveMeetingTask(state, participant.id)
+        )
+        .sort(
+            (left, right) =>
+                Number(pendingRaiseParticipants.has(right.id)) -
+                Number(pendingRaiseParticipants.has(left.id))
         )
         .slice(0, state.limits.maxSpeakersPerTurn);
     if (speakers.length === 0) {

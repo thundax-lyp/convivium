@@ -42,7 +42,7 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
-    it("commits completion claims with the turn and rejects unsupported task evidence atomically", async () => {
+    it("commits completion claims with the turn and rejects unavailable task evidence atomically", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-completion-"));
         roots.push(root);
         const runtime = createCreateStatusRuntime({

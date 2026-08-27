@@ -35,7 +35,7 @@ import {
     type MeetingCreationRuntimeDependencies,
     type MeetingRepositoryRuntime,
     type RepositoryAuthorizationValidator,
-    rejectUnsupportedTaskEvidence,
+    meetingTaskEvidenceResolver,
     type AuthorizedTaskEvidenceResolver
 } from "../runtime/index.js";
 import { projectManagerMeetingContext, projectMeetingStatus } from "../projection/index.js";
@@ -184,7 +184,7 @@ export function createCreateStatusRuntime(
     const meetings = new Map<string, StoredMeeting>();
     const workers = new Map<string, ReturnType<typeof createOutboxWorker>>();
     const runtimeController = new AbortController();
-    const taskEvidenceResolver = options.taskEvidenceResolver ?? rejectUnsupportedTaskEvidence;
+    const taskEvidenceResolver = options.taskEvidenceResolver ?? meetingTaskEvidenceResolver;
     const signal =
         options.signal === undefined
             ? runtimeController.signal
@@ -775,9 +775,29 @@ export function createCreateStatusRuntime(
                     "Only the owning Participant can create a MeetingTask."
                 );
             }
+            if (caller.meetingId !== input.meetingId) {
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "Only the matching Participant can create a MeetingTask."
+                );
+            }
             const taskId = `meeting-task-${input.requestId}`;
             try {
                 const current = await stored.repository.read();
+                const currentState = current.state as unknown as MeetingState;
+                const currentAttempt =
+                    currentState.currentTurn?.steps[currentState.currentTurn.currentStepIndex]
+                        ?.attempt;
+                if (
+                    currentAttempt?.attemptId !== input.attemptId ||
+                    currentAttempt.participantId !== caller.participantId ||
+                    currentAttempt.status !== "running"
+                ) {
+                    return failure(
+                        "STALE_ATTEMPT",
+                        "The MeetingTask must be created by the current Participant attempt."
+                    );
+                }
                 const committed = await stored.repository.execute({
                     requestId: input.requestId,
                     commandKind: "create_meeting_task",
@@ -789,6 +809,20 @@ export function createCreateStatusRuntime(
                     requestHash: JSON.stringify(input),
                     expectedMeetingVersion: current.version,
                     transition: (snapshot) => {
+                        const snapshotState = snapshot.state as unknown as MeetingState;
+                        const attempt =
+                            snapshotState.currentTurn?.steps[
+                                snapshotState.currentTurn.currentStepIndex
+                            ]?.attempt;
+                        if (
+                            attempt?.attemptId !== input.attemptId ||
+                            attempt.participantId !== caller.participantId ||
+                            attempt.status !== "running"
+                        ) {
+                            throw new Error(
+                                "MeetingTask creation requires the current Participant attempt."
+                            );
+                        }
                         const transition = createMeetingTaskTransition(
                             snapshot.state as unknown as MeetingState,
                             {
@@ -987,8 +1021,21 @@ export function createCreateStatusRuntime(
                             priority: "normal",
                             now: options.now?.() ?? Date.now()
                         });
+                        const waitingForThisTask =
+                            handRaise.state.status === "waiting" &&
+                            handRaise.state.waitState?.taskIds.includes(input.meetingTaskId) &&
+                            handRaise.state.waitState.taskIds.every((taskId) =>
+                                handRaise.state.meetingTasks.every(
+                                    (task) =>
+                                        task.meetingTaskId !== taskId ||
+                                        ["completed", "failed", "cancelled"].includes(task.status)
+                                )
+                            );
+                        const nextState = waitingForThisTask
+                            ? { ...handRaise.state, currentTurn: undefined, waitState: undefined }
+                            : handRaise.state;
                         return {
-                            state: handRaise.state as unknown as JsonObject,
+                            state: nextState as unknown as JsonObject,
                             result: {
                                 requestId: input.requestId,
                                 meetingTaskId: input.meetingTaskId,
@@ -1024,6 +1071,12 @@ export function createCreateStatusRuntime(
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
             if (caller.kind !== "participant" || caller.participantId === undefined) {
                 return failure("UNAUTHORIZED_CALLER", "Only a Participant can raise a hand.");
+            }
+            if (caller.meetingId !== input.meetingId) {
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "Only the matching Participant can raise a hand."
+                );
             }
             try {
                 const current = await stored.repository.read();

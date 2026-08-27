@@ -27,3 +27,28 @@ export const rejectUnsupportedTaskEvidence: AuthorizedTaskEvidenceResolver = {
         );
     }
 };
+
+export const meetingTaskEvidenceResolver: AuthorizedTaskEvidenceResolver = {
+    resolve(input) {
+        return input.taskIds.map((taskId) => {
+            const task = (input.state.meetingTasks ?? []).find(
+                (candidate) =>
+                    candidate.meetingTaskId === taskId &&
+                    candidate.participantId === input.participantId &&
+                    candidate.status === "completed"
+            );
+            if (task === undefined) {
+                throw new DomainError(
+                    "UNSUPPORTED_CAPABILITY",
+                    `MeetingTask ${taskId} is not a completed authorized task for this Participant.`,
+                    {
+                        entityType: "meeting",
+                        entityId: input.meetingId,
+                        meetingVersion: input.state.version
+                    }
+                );
+            }
+            return { taskId };
+        });
+    }
+};
