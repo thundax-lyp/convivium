@@ -397,6 +397,113 @@ describe("meeting transitions", () => {
         });
     });
 
+    it("waits after a blocking task is queued and does not assign the next speaker", () => {
+        const state = meeting("running");
+        state.participants = [
+            {
+                id: "a",
+                displayName: "A",
+                status: "speaking",
+                consecutiveSpeeches: 0,
+                consecutiveAttemptFailures: 0,
+                totalSpeeches: 0,
+                lastDeliveredSeq: 0,
+                lastAcknowledgedSeq: 0
+            },
+            {
+                id: "b",
+                displayName: "B",
+                status: "available",
+                consecutiveSpeeches: 0,
+                consecutiveAttemptFailures: 0,
+                totalSpeeches: 0,
+                lastDeliveredSeq: 0,
+                lastAcknowledgedSeq: 0
+            }
+        ];
+        state.currentTurn = {
+            id: "turn-1",
+            seq: 1,
+            agendaItemId: "agenda-1",
+            intent: "explore",
+            objective: "objective",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            plan: ["a", "b"],
+            status: "running",
+            currentStepIndex: 0,
+            createdAt: now,
+            steps: [
+                {
+                    id: "step-0",
+                    speaker: "a",
+                    instruction: "A",
+                    reason: "manager_selected",
+                    status: "running",
+                    attempt: {
+                        attemptId: "attempt-0",
+                        participantId: "a",
+                        meetingId: state.id,
+                        turnId: "turn-1",
+                        stepId: "step-0",
+                        deliveryId: "delivery-0",
+                        contextFromSeq: 0,
+                        contextThroughSeq: 0,
+                        taskSnapshots: [],
+                        assignedAt: now,
+                        status: "running",
+                        deliveryStatus: "pending"
+                    }
+                },
+                {
+                    id: "step-1",
+                    speaker: "b",
+                    instruction: "B",
+                    reason: "manager_selected",
+                    status: "pending"
+                }
+            ]
+        };
+        state.meetingTasks = [
+            {
+                meetingTaskId: "task-1",
+                participantId: "a",
+                originatingSpeakerAttemptId: "attempt-0",
+                executionId: "exec-1",
+                deliveryId: "delivery-task-1",
+                title: "Inspect",
+                description: "Inspect",
+                blocking: true,
+                status: "requested",
+                createdAt: now
+            }
+        ];
+        const result = submitSpeakerAndAdvanceMeeting(state, "a", {
+            meetingId: state.id,
+            participantId: "a",
+            turnId: "turn-1",
+            stepId: "step-0",
+            attemptId: "attempt-0",
+            deliveryId: "delivery-0",
+            agendaItemId: "agenda-1",
+            message: {
+                id: "message-1",
+                content: "queued",
+                kind: "statement",
+                mentions: [],
+                taskIds: ["task-1"],
+                agendaRelation: "on_topic",
+                createdAt: now
+            },
+            now,
+            nextPlanningAttemptId: "planning-2",
+            nextPlanningDeliveryId: "planning-delivery-2"
+        });
+        expect(result.state.status).toBe("waiting");
+        expect(result.state.currentTurn?.steps[1]?.attempt).toBeUndefined();
+        expect(result.effect.events.map(({ type }) => type)).toContain("meeting.waiting");
+    });
+
     it.each([
         ["completed", "objective_satisfied"],
         ["partial", "captain_accepted"],

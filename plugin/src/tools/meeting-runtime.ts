@@ -435,16 +435,30 @@ export function createCreateStatusRuntime(
                 }
             ],
             signal: commandSignal,
-            authorize: async () => {
+            authorize: async (phase) => {
                 const latest = await repository.recover();
                 const current = latest.snapshot?.state as unknown as MeetingState | undefined;
                 const currentTask = current?.meetingTasks.find(
                     (candidate) => candidate.meetingTaskId === task.meetingTaskId
                 );
-                if (currentTask?.status !== "running")
+                const meetingTerminal = [
+                    "completed",
+                    "partial",
+                    "no_consensus",
+                    "cancelled",
+                    "failed",
+                    "archiving",
+                    "archived"
+                ].includes(current?.status ?? "");
+                const allowed =
+                    phase === "before"
+                        ? !meetingTerminal && currentTask?.status === "queued"
+                        : !meetingTerminal &&
+                          ["running", "completed", "failed"].includes(currentTask?.status ?? "");
+                if (!allowed)
                     throw terminalDispatchError(
-                        "MEETING_TASK_NOT_RUNNING",
-                        "MeetingTask is no longer running."
+                        "MEETING_TASK_NOT_EXECUTABLE",
+                        "MeetingTask is no longer executable."
                     );
             }
         });
@@ -498,7 +512,8 @@ export function createCreateStatusRuntime(
     async function readAuthorizedTask(
         stored: StoredMeeting,
         caller: MeetingToolCaller,
-        meetingTaskId: string
+        meetingTaskId: string,
+        executionId?: string
     ) {
         if (caller.kind !== "participant" || caller.participantId === undefined) return undefined;
         const recovered = await stored.repository.recover();
@@ -515,7 +530,9 @@ export function createCreateStatusRuntime(
         const task = state?.meetingTasks?.find(
             (candidate) => candidate.meetingTaskId === meetingTaskId
         );
-        return task === undefined || task.participantId !== caller.participantId
+        return task === undefined ||
+            task.participantId !== caller.participantId ||
+            (executionId !== undefined && task.executionId !== executionId)
             ? undefined
             : { recovered, state: state!, task };
     }
@@ -871,14 +888,6 @@ export function createCreateStatusRuntime(
                     "UNAUTHORIZED_CALLER",
                     "The caller is not authorized for this MeetingTask."
                 );
-            if (authorized.task.status !== "queued") {
-                return failure(
-                    ["completed", "failed", "cancelled"].includes(authorized.task.status)
-                        ? "IMMUTABLE_MEETING"
-                        : "INVALID_STATE_TRANSITION",
-                    "The MeetingTask is not queued."
-                );
-            }
             try {
                 const committed = await stored.repository.execute({
                     requestId: input.requestId,
@@ -926,7 +935,12 @@ export function createCreateStatusRuntime(
             await rehydrate();
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-            const authorized = await readAuthorizedTask(stored, caller, input.meetingTaskId);
+            const authorized = await readAuthorizedTask(
+                stored,
+                caller,
+                input.meetingTaskId,
+                input.executionId
+            );
             if (authorized === undefined)
                 return failure(
                     "UNAUTHORIZED_CALLER",
@@ -943,6 +957,13 @@ export function createCreateStatusRuntime(
                     requestHash: JSON.stringify(input),
                     expectedMeetingVersion: authorized.recovered.snapshot!.version,
                     transition: (snapshot) => {
+                        const currentState = snapshot.state as unknown as MeetingState;
+                        const task = currentState.meetingTasks.find(
+                            (candidate) => candidate.meetingTaskId === input.meetingTaskId
+                        );
+                        if (task?.executionId !== input.executionId) {
+                            throw new Error("MeetingTask execution binding is invalid.");
+                        }
                         const transition = finishMeetingTaskTransition(
                             snapshot.state as unknown as MeetingState,
                             input.meetingTaskId,
@@ -1095,10 +1116,17 @@ export function createCreateStatusRuntime(
                                       state,
                                       meetingId: input.meetingId,
                                       participantId: caller.participantId!,
-                                      taskIds:
-                                          input.completionClaims.outputClaims?.flatMap(
+                                      taskIds: [
+                                          ...(input.completionClaims.outputClaims?.flatMap(
                                               (claim) => claim.taskIds
-                                          ) ?? []
+                                          ) ?? []),
+                                          ...(input.completionClaims.criterionClaims?.flatMap(
+                                              (claim) => claim.taskIds
+                                          ) ?? [])
+                                      ].filter(
+                                          (taskId, index, taskIds) =>
+                                              taskIds.indexOf(taskId) === index
+                                      )
                                   });
                         const transition = submitSpeakerAndAdvanceMeeting(
                             state,

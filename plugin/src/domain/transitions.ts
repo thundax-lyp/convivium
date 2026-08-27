@@ -6,6 +6,7 @@ import {
     type ApplyCompletionClaimsContext
 } from "./completion.js";
 import { cancelNonTerminalMeetingTasks, queueMeetingTasks } from "./meeting-task.js";
+import { completedTaskSnapshots, consumeHandRaise } from "./hand-raise.js";
 import {
     planManagerTurn,
     planRoundRobinTurn,
@@ -1184,7 +1185,7 @@ export function submitManagerPlan(
         deliveryId: `${planned.id}-delivery-0`,
         contextFromSeq: 0,
         contextThroughSeq: state.messageSeq,
-        taskSnapshots: [],
+        taskSnapshots: completedTaskSnapshots(state, firstStep.speaker, context.now),
         assignedAt: context.now,
         status: "running" as const,
         deliveryStatus: "pending" as const
@@ -1196,8 +1197,15 @@ export function submitManagerPlan(
             index === 0 ? { ...step, status: "running", attempt: firstAttempt } : step
         )
     };
+    const selectedRaise = state.handRaises.find(
+        (raise) => raise.status === "pending" && raise.participant === firstStep.speaker
+    );
+    const consumed =
+        selectedRaise === undefined
+            ? { state, effect: { events: [] } }
+            : consumeHandRaise(state, selectedRaise.id);
     const nextState: MeetingState = {
-        ...state,
+        ...consumed.state,
         version: state.version + 1,
         updatedAt: context.now,
         manager: { ...state.manager, status: "idle", currentPlanningAttempt: undefined },
@@ -1523,11 +1531,46 @@ export function submitSpeakerAndAdvanceMeeting(
         effect: { events }
     });
     const nextStep = turn.steps[turn.currentStepIndex];
+    const limitReached =
+        submitted.state.turnSeq >= submitted.state.limits.maxTurns ||
+        submitted.state.messageSeq >= submitted.state.limits.maxTotalMessages ||
+        (submitted.state.limits.maxDurationMs !== undefined &&
+            context.now - submitted.state.createdAt >= submitted.state.limits.maxDurationMs);
+    const blockingTaskIds = (submitted.state.meetingTasks ?? [])
+        .filter(
+            (task) =>
+                task.status === "queued" &&
+                task.blocking &&
+                task.originatingSpeakerAttemptId === context.attemptId
+        )
+        .map((task) => task.meetingTaskId);
+    if (blockingTaskIds.length > 0 && !limitReached) {
+        nextState = {
+            ...submitted.state,
+            status: "waiting",
+            waitState: {
+                reason: "blocking MeetingTask queued",
+                taskIds: blockingTaskIds,
+                participantIds: [participantId],
+                resumeAgendaItemId: context.agendaItemId
+            }
+        };
+        events = [
+            ...events,
+            {
+                type: "meeting.waiting",
+                payload: {
+                    meetingId: state.id,
+                    from: submitted.state.status,
+                    to: "waiting",
+                    meetingVersion: version,
+                    reason: "blocking MeetingTask queued"
+                }
+            }
+        ];
+        return result();
+    }
     if (turn.status === "running" && nextStep !== undefined) {
-        const limitReached =
-            submitted.state.messageSeq >= submitted.state.limits.maxTotalMessages ||
-            (submitted.state.limits.maxDurationMs !== undefined &&
-                context.now - submitted.state.createdAt >= submitted.state.limits.maxDurationMs);
         if (!limitReached) {
             const attempt = {
                 attemptId: `${turn.id}-attempt-${turn.currentStepIndex}`,
@@ -1538,7 +1581,11 @@ export function submitSpeakerAndAdvanceMeeting(
                 deliveryId: `${turn.id}-delivery-${turn.currentStepIndex}`,
                 contextFromSeq: 0,
                 contextThroughSeq: submitted.state.messageSeq,
-                taskSnapshots: [],
+                taskSnapshots: completedTaskSnapshots(
+                    submitted.state,
+                    nextStep.speaker,
+                    context.now
+                ),
                 assignedAt: context.now,
                 status: "running" as const,
                 deliveryStatus: "pending" as const
@@ -1692,6 +1739,13 @@ export function submitSpeakerAndAdvanceMeeting(
             context.now
         );
         const firstStep = planned.steps[0]!;
+        const selectedRaise = nextState.handRaises.find(
+            (raise) => raise.status === "pending" && raise.participant === firstStep.speaker
+        );
+        const consumed =
+            selectedRaise === undefined
+                ? { state: nextState, effect: { events: [] } }
+                : consumeHandRaise(nextState, selectedRaise.id);
         const firstAttempt: SpeakerAttempt = {
             attemptId: `${planned.id}-attempt-0`,
             participantId: firstStep.speaker,
@@ -1701,7 +1755,7 @@ export function submitSpeakerAndAdvanceMeeting(
             deliveryId: `${planned.id}-delivery-0`,
             contextFromSeq: 0,
             contextThroughSeq: nextState.messageSeq,
-            taskSnapshots: [],
+            taskSnapshots: completedTaskSnapshots(nextState, firstStep.speaker, context.now),
             assignedAt: context.now,
             status: "running",
             deliveryStatus: "pending"
@@ -1714,7 +1768,7 @@ export function submitSpeakerAndAdvanceMeeting(
             )
         };
         nextState = {
-            ...nextState,
+            ...consumed.state,
             currentTurn: runningTurn,
             turnSeq: runningTurn.seq,
             status: "running",

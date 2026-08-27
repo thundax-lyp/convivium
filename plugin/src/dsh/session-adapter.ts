@@ -255,7 +255,7 @@ export interface FollowupMeetingTaskSessionInput {
     readonly deliveryId: string;
     readonly prompt: ContinuableStartSpec["request"]["prompt"];
     readonly signal: AbortSignal;
-    readonly authorize: () => Promise<void>;
+    readonly authorize: (phase: "before" | "after") => Promise<void>;
 }
 
 export async function followupMeetingTaskSession(
@@ -271,7 +271,7 @@ export async function followupMeetingTaskSession(
     ) {
         throw new Error("MeetingTask followup requires an active Participant Session.");
     }
-    await input.authorize();
+    await input.authorize("before");
     const messageId = await input.runtime.followup(
         input.parent,
         input.ownership.sessionId as SessionId,
@@ -285,7 +285,7 @@ export async function followupMeetingTaskSession(
             signal: input.signal
         }
     );
-    await input.authorize();
+    await input.authorize("after");
     return messageId;
 }
 
