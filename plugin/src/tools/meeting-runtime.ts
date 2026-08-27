@@ -3,12 +3,15 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import {
+    followupManagerSession,
     followupParticipantSession,
     type ContinuableFollowupRuntime,
     type ContinuableStarter
 } from "../dsh/index.js";
 import {
     planRoundRobinTurn,
+    startManagerPlanning,
+    submitManagerPlan as submitManagerPlanTransition,
     submitSpeakerAttempt,
     transitionMeeting,
     type MeetingState,
@@ -29,6 +32,8 @@ import type {
     CreateMeetingResultV1,
     MeetingStatusInputV1,
     MeetingStatusResultV1,
+    ManagerPlanResultV1,
+    ManagerPlanSubmissionV1,
     MeetingControlResultV1,
     TurnSubmissionResultV1,
     ProtocolErrorV1,
@@ -261,6 +266,74 @@ export function createCreateStatusRuntime(
         }
     }
 
+    async function dispatchManagerPlanningDelivery(
+        repository: MeetingRepositoryRuntime,
+        parent: Agent,
+        meetingId: string,
+        commandSignal: AbortSignal
+    ) {
+        const recovered = await repository.recover();
+        const [item] = await repository.claimOutbox({
+            owner: `runtime:${meetingId}`,
+            ttlMs: 60_000,
+            batchSize: 1,
+            now: options.now?.() ?? Date.now()
+        });
+        if (item === undefined) return;
+        const payload = item.payload as unknown as {
+            role: "manager";
+            planningAttemptId: string;
+        };
+        const ownership = recovered.sessionOwnership.find(
+            (candidate) => candidate.role === "manager"
+        );
+        if (ownership === undefined) throw new Error("Manager Session ownership is missing.");
+        try {
+            await followupManagerSession({
+                runtime: options.continuable,
+                parent,
+                ownership,
+                attempt: {
+                    planningAttemptId: payload.planningAttemptId,
+                    deliveryId: item.deliveryId
+                },
+                prompt: [
+                    { type: "text", text: `Meeting ${meetingId}: submit one ordered turn plan.` }
+                ],
+                signal: commandSignal,
+                authorize: async ({ attempt }) => {
+                    const latest = await repository.recover();
+                    const current = latest.snapshot?.state as unknown as MeetingState | undefined;
+                    const active = current?.manager.currentPlanningAttempt;
+                    if (
+                        active?.id !== attempt.planningAttemptId ||
+                        active.deliveryId !== attempt.deliveryId ||
+                        active.status !== "running"
+                    )
+                        throw new Error("Manager planning attempt is no longer authorized.");
+                }
+            });
+            await repository.completeOutbox({
+                id: item.id,
+                leaseOwner: item.leaseOwner,
+                leaseToken: item.leaseToken,
+                completion: { status: "delivered" }
+            });
+        } catch (error) {
+            await repository.completeOutbox({
+                id: item.id,
+                leaseOwner: item.leaseOwner,
+                leaseToken: item.leaseToken,
+                completion: {
+                    status: "retry",
+                    availableAt: Date.now(),
+                    errorCode: "DISPATCH_FAILED"
+                }
+            });
+            throw error;
+        }
+    }
+
     return {
         async createMeeting(input, caller, commandSignal) {
             if (caller.kind !== "captain" || caller.agent === undefined) {
@@ -365,6 +438,53 @@ export function createCreateStatusRuntime(
                     });
                 }
                 await createMeetingRuntime(input, dependencies);
+                if (input.selectionMode === "manager") {
+                    const started = await repository.execute({
+                        requestId: `${input.requestId}:start-manager-planning`,
+                        commandKind: "start_manager_planning",
+                        authorization: dependencies.authorization,
+                        requestHash: `${requestHash(input)}:start-manager-planning`,
+                        expectedMeetingVersion: 0,
+                        transition: (snapshot) => {
+                            const transition = startManagerPlanning(
+                                snapshot.state as unknown as MeetingState,
+                                {
+                                    meetingId,
+                                    planningAttemptId: `${meetingId}-planning-1`,
+                                    deliveryId: `${meetingId}-planning-delivery-1`,
+                                    reason: "initial_plan",
+                                    now: options.now?.() ?? Date.now()
+                                }
+                            );
+                            return {
+                                state: transition.state as unknown as JsonObject,
+                                result: { status: "planning" },
+                                events: transition.effect.events as unknown as DomainEventInput[],
+                                outbox: [
+                                    {
+                                        deliveryId: `${meetingId}-planning-delivery-1`,
+                                        kind: "dispatch",
+                                        payload: {
+                                            role: "manager",
+                                            planningAttemptId: `${meetingId}-planning-1`
+                                        }
+                                    }
+                                ]
+                            };
+                        }
+                    });
+                    await dispatchManagerPlanningDelivery(
+                        repository,
+                        caller.agent as Agent,
+                        meetingId,
+                        commandSignal ?? signal
+                    );
+                    return success(meetingId, started.meetingVersion, {
+                        ...participantResult(input, meetingId),
+                        meetingVersion: started.meetingVersion,
+                        status: "running"
+                    });
+                }
                 await initializeFirstTurn(repository, options.now?.() ?? Date.now());
                 meetings.set(meetingId, {
                     teamId: input.teamId,
@@ -552,11 +672,108 @@ export function createCreateStatusRuntime(
                 });
             }
         },
-        async submitManagerPlan() {
-            return failure(
-                "UNSUPPORTED_CAPABILITY",
-                "Manager planning is not wired into the runtime yet."
-            );
+        async submitManagerPlan(input: ManagerPlanSubmissionV1, caller, commandSignal) {
+            await rehydrate();
+            if (caller.kind !== "manager" || caller.meetingId !== input.meetingId)
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "Only the matching Manager can submit a plan."
+                );
+            const stored = meetings.get(input.meetingId);
+            if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            try {
+                const current = await stored.repository.read();
+                const recovered = await stored.repository.recover();
+                const state = current.state as unknown as MeetingState;
+                const dispatchableParticipantIds = state.participants
+                    .filter((participant) => participant.status === "available")
+                    .filter((participant) =>
+                        recovered.sessionOwnership.some(
+                            (ownership) =>
+                                ownership.role === "participant" &&
+                                ownership.participantId === participant.id &&
+                                ownership.lifecycleStatus === "active" &&
+                                ownership.capabilityStatus === "active"
+                        )
+                    )
+                    .map((participant) => participant.id);
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "submit_manager_plan",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `manager:${caller.sessionId}`,
+                        attemptId: input.planningAttemptId
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: input.observedMeetingVersion,
+                    transition: (snapshot) => {
+                        const snapshotState = snapshot.state as unknown as MeetingState;
+                        const transition = submitManagerPlanTransition(
+                            snapshotState,
+                            input,
+                            {
+                                meetingId: input.meetingId,
+                                planningAttemptId: input.planningAttemptId,
+                                deliveryId:
+                                    snapshotState.manager.currentPlanningAttempt?.deliveryId ?? "",
+                                observedMeetingVersion: input.observedMeetingVersion,
+                                dispatchableParticipantIds,
+                                now: options.now?.() ?? Date.now()
+                            },
+                            {
+                                turnId: `turn-${snapshotState.turnSeq + 1}`,
+                                stepId: (index) => `step-turn-${snapshotState.turnSeq + 1}-${index}`
+                            }
+                        );
+                        const turn = transition.state.currentTurn;
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result:
+                                turn === undefined
+                                    ? { waiting: true }
+                                    : {
+                                          turnId: turn.id,
+                                          firstStepId: turn.steps[0]!.id,
+                                          firstAttemptId: turn.steps[0]!.attempt!.attemptId
+                                      },
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox:
+                                turn === undefined
+                                    ? []
+                                    : [
+                                          {
+                                              deliveryId: turn.steps[0]!.attempt!.deliveryId,
+                                              kind: "dispatch",
+                                              payload: {
+                                                  role: "participant",
+                                                  participantId:
+                                                      turn.steps[0]!.attempt!.participantId,
+                                                  attemptId: turn.steps[0]!.attempt!.attemptId,
+                                                  turnId: turn.id,
+                                                  stepId: turn.steps[0]!.id
+                                              }
+                                          }
+                                      ]
+                        };
+                    }
+                });
+                if ("waiting" in committed.result)
+                    return failure(
+                        "REQUIRED_SPEAKER_UNAVAILABLE",
+                        "A required speaker is unavailable."
+                    );
+                return success<ManagerPlanResultV1>(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as ManagerPlanResultV1
+                );
+            } catch (error) {
+                return commandError(error, "MANAGER_PLAN_INVALID", "The Manager plan is invalid.", {
+                    meetingId: input.meetingId,
+                    meetingVersion: input.observedMeetingVersion
+                });
+            }
         },
         async pause(input, caller) {
             await rehydrate();

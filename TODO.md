@@ -8,12 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `plugin/src/tools/meeting-runtime.ts`：接通 Manager planning 与 plan command
-  - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 6.1、6.2、6.3。
-  - 确认依据：2026-08-27 用户确认 `manager` Meeting 不得绕过 Manager planning。
-  - 处理动作：创建完成后仅为 `manager` 启动 planning，并实现 `submitManagerPlan()` 的 caller、ownership dispatchability、attempt/version、repository receipt、原子 outbox 和错误映射。
-  - 验收点：`plugin/tests/unit/runtime/meeting-runtime.spec.ts` 证明 `manager` 与 `round_robin` 分支隔离、合法 plan 原子产生首个 delivery，不可调度/stale/unauthorized/conflict 返回规定错误。
-
 - [ ] `plugin/src/tools/meeting-runtime.ts` 与 `plugin/src/runtime/turn-runner.ts`：接通逐 Speaker 推进
   - 依据文档：`docs/30-designs/RUNBOOK-MANAGER-TURN-CLOSURE.md` 6.4、6.5、8。
   - 确认依据：2026-08-27 用户确认按计划逐 Speaker dispatch，并在 Turn 后判断下一步。
