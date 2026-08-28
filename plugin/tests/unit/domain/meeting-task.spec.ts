@@ -9,7 +9,18 @@ import {
 import type { MeetingState } from "../../../src/domain/model.js";
 
 function state(): MeetingState {
-    return { id: "meeting-1", meetingTasks: [] } as unknown as MeetingState;
+    return {
+        id: "meeting-1",
+        meetingTasks: [],
+        transcript: [
+            {
+                id: "message-1",
+                seq: 1,
+                attemptId: "attempt-1",
+                taskIds: ["task-1"]
+            }
+        ]
+    } as unknown as MeetingState;
 }
 
 function input() {
@@ -56,6 +67,8 @@ describe("MeetingTask transitions", () => {
             sourceContextFromSeq: 1,
             sourceContextThroughSeq: 1
         });
+        expect(finished.state.meetingTasks[0]?.sourceMessageId).toBe("message-1");
+        expect(finished.state.meetingTasks[0]?.sourceMessageSeq).toBe(1);
         expect(finished.effect.events.map(({ type }) => type)).toEqual(["meeting_task.completed"]);
     });
 

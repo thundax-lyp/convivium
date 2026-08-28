@@ -113,10 +113,39 @@ export function queueMeetingTasks(
             "only requested MeetingTasks can be queued"
         );
     }
+    const sourceMessages = tasks.map((task) =>
+        state.transcript.find(
+            (message) =>
+                message.attemptId === originatingSpeakerAttemptId &&
+                message.taskIds.includes(task.meetingTaskId)
+        )
+    );
+    if (sourceMessages.some((message) => message === undefined)) {
+        throw new DomainError(
+            "STALE_ATTEMPT",
+            "requested MeetingTasks require their originating formal message"
+        );
+    }
     const queued = new Set(uniqueIds);
     const nextTasks = (state.meetingTasks ?? []).map((task) =>
         queued.has(task.meetingTaskId)
-            ? { ...task, status: "queued" as const, queuedAt: now }
+            ? {
+                  ...task,
+                  status: "queued" as const,
+                  queuedAt: now,
+                  sourceMessageId:
+                      sourceMessages[
+                          tasks.findIndex(
+                              (candidate) => candidate.meetingTaskId === task.meetingTaskId
+                          )
+                      ]!.id,
+                  sourceMessageSeq:
+                      sourceMessages[
+                          tasks.findIndex(
+                              (candidate) => candidate.meetingTaskId === task.meetingTaskId
+                          )
+                      ]!.seq
+              }
             : task
     );
     return {
