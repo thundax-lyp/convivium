@@ -16,6 +16,7 @@ test-results/
 
 # Local runtime state
 .convivium/
+/dsh-workspace/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
