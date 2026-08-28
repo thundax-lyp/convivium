@@ -2,12 +2,21 @@ import { createHash } from "node:crypto";
 
 import { transitionMeeting } from "../domain/transitions.js";
 import type { ArchivePackage, MeetingState } from "../domain/model.js";
+import {
+    encodeMeetingSessionLabel,
+    interruptAndDrainOwnedSessions,
+    proveArchiveOwnedChildren,
+    type ArchiveSessionRuntime,
+    type ContinuableLifecycleRuntime
+} from "../dsh/index.js";
 import type {
     CommandAuthorization,
     CommittedResult,
     JsonObject,
     MeetingRepository
 } from "../repository/index.js";
+import type { Agent } from "@deepseek-ai/dsh-agent";
+import type { SessionOwnership } from "../repository/index.js";
 
 const executionTerminalStatuses = new Set<MeetingState["status"]>([
     "completed",
@@ -56,6 +65,184 @@ export interface BeginArchiveFromTerminationInput {
     /** A recovered, committed execution-terminal snapshot. */
     readonly terminal: MeetingState;
     readonly now: number;
+}
+
+type ArchiveCleanupRuntime = ArchiveSessionRuntime & ContinuableLifecycleRuntime;
+
+export interface CleanupOwnedSessionsInput {
+    readonly repository: Pick<MeetingRepository, "recover" | "recordSessionOwnership">;
+    readonly parent: Agent;
+    readonly runtime: ArchiveCleanupRuntime;
+    readonly signal: AbortSignal;
+    readonly now: number;
+}
+
+function archiveOwnershipIdentity(ownership: SessionOwnership): string {
+    return [
+        ownership.sessionId,
+        ownership.parentSessionId,
+        ownership.sessionLabel,
+        ownership.provider,
+        ownership.role,
+        ownership.participantId ?? ""
+    ].join("\0");
+}
+
+function assertSameArchiveOwnerships(
+    before: readonly SessionOwnership[],
+    after: readonly SessionOwnership[]
+): void {
+    const beforeIds = new Set(before.map(archiveOwnershipIdentity));
+    const afterIds = new Set(after.map(archiveOwnershipIdentity));
+    if (
+        beforeIds.size !== before.length ||
+        afterIds.size !== after.length ||
+        beforeIds.size !== afterIds.size ||
+        [...beforeIds].some((identity) => !afterIds.has(identity))
+    ) {
+        throw new Error("Archive cleanup ownership changed after drain.");
+    }
+}
+
+/**
+ * Builds the one cleanup target set from committed meeting facts. No Session
+ * outside this Manager-plus-Participants set may be interrupted or closed.
+ */
+export function requireExpectedArchiveOwnerships(
+    state: MeetingState,
+    ownerships: readonly SessionOwnership[],
+    parentSessionId: string
+): readonly SessionOwnership[] {
+    const expectedParticipants = new Set(state.participants.map((participant) => participant.id));
+    const foundParticipants = new Set<string>();
+    let managerCount = 0;
+    const sessionIds = new Set<string>();
+
+    for (const ownership of ownerships) {
+        if (
+            sessionIds.has(ownership.sessionId) ||
+            ownership.parentSessionId !== parentSessionId ||
+            !ownership.provider
+        ) {
+            throw new Error("Archive cleanup ownership set is not an exact direct-child set.");
+        }
+        sessionIds.add(ownership.sessionId);
+
+        if (ownership.role === "manager") {
+            if (
+                ownership.participantId !== undefined ||
+                ownership.sessionLabel !==
+                    encodeMeetingSessionLabel({
+                        role: "manager",
+                        teamId: state.teamId,
+                        meetingId: state.id
+                    })
+            ) {
+                throw new Error("Archive cleanup Manager ownership does not match the meeting.");
+            }
+            managerCount += 1;
+            continue;
+        }
+
+        if (
+            ownership.participantId === undefined ||
+            !expectedParticipants.has(ownership.participantId) ||
+            foundParticipants.has(ownership.participantId) ||
+            ownership.sessionLabel !==
+                encodeMeetingSessionLabel({
+                    role: "participant",
+                    teamId: state.teamId,
+                    meetingId: state.id,
+                    participantId: ownership.participantId
+                })
+        ) {
+            throw new Error("Archive cleanup Participant ownership does not match the meeting.");
+        }
+        foundParticipants.add(ownership.participantId);
+    }
+
+    if (
+        managerCount !== 1 ||
+        foundParticipants.size !== expectedParticipants.size ||
+        ownerships.length !== expectedParticipants.size + 1
+    ) {
+        throw new Error(
+            "Archive cleanup ownership set is incomplete or contains an extra Session."
+        );
+    }
+    return ownerships;
+}
+
+function requireArchivingSnapshot(
+    recovered: Awaited<ReturnType<MeetingRepository["recover"]>>
+): MeetingState {
+    const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+    if (state?.status !== "archiving" || state.archive?.package === undefined) {
+        throw new Error("Archive cleanup requires a materialized archiving snapshot.");
+    }
+    return state;
+}
+
+/**
+ * Persists capability revocation before DSH effects. A fulfilled drain only
+ * proves named resident Activations were released; the durable children are
+ * deliberately never treated as deletion candidates.
+ */
+export async function cleanupOwnedSessions(input: CleanupOwnedSessionsInput): Promise<void> {
+    const before = await input.repository.recover();
+    const state = requireArchivingSnapshot(before);
+    const parentSessionId = String(input.parent.id);
+    const expected = requireExpectedArchiveOwnerships(
+        state,
+        before.sessionOwnership,
+        parentSessionId
+    );
+    await proveArchiveOwnedChildren({
+        runtime: input.runtime,
+        parentSessionId: input.parent.id as never,
+        meetingId: state.id,
+        ownerships: expected,
+        signal: input.signal
+    });
+
+    const revoked = await Promise.all(
+        expected.map((ownership) =>
+            input.repository.recordSessionOwnership(
+                { ...ownership, capabilityStatus: "revoked" },
+                input.now
+            )
+        )
+    );
+    const notClosed = revoked.filter((ownership) => ownership.lifecycleStatus !== "closed");
+    if (notClosed.length === 0) return;
+
+    await interruptAndDrainOwnedSessions({
+        runtime: input.runtime,
+        parent: input.parent,
+        ownerships: notClosed
+    });
+
+    const afterDrain = await input.repository.recover();
+    const afterState = requireArchivingSnapshot(afterDrain);
+    const after = requireExpectedArchiveOwnerships(
+        afterState,
+        afterDrain.sessionOwnership,
+        parentSessionId
+    );
+    assertSameArchiveOwnerships(expected, after);
+    if (after.some((ownership) => ownership.capabilityStatus !== "revoked")) {
+        throw new Error("Archive cleanup capability revocation did not persist through drain.");
+    }
+    await Promise.all(
+        after
+            .filter((ownership) => ownership.lifecycleStatus !== "closed")
+            .map((ownership) =>
+                input.repository.recordSessionOwnership(
+                    { ...ownership, lifecycleStatus: "closed" },
+                    input.now
+                )
+            )
+    );
 }
 
 /**

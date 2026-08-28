@@ -13,10 +13,12 @@ export { createOutboxWorker } from "./outbox-worker.js";
 export {
     archiveBeginCommandKind,
     beginArchiveFromTermination,
+    cleanupOwnedSessions,
     materializeArchivePackage,
+    requireExpectedArchiveOwnerships,
     terminationIdentity
 } from "./archive.js";
-export type { BeginArchiveFromTerminationInput } from "./archive.js";
+export type { BeginArchiveFromTerminationInput, CleanupOwnedSessionsInput } from "./archive.js";
 export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
 export {
     pauseMeetingRuntime,
