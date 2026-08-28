@@ -144,8 +144,8 @@ domain     ──> no infrastructure module
 | `src/repository/schema.ts` | 当前完整 DDL、索引和 schema version |
 | `src/repository/migrations.ts` | 线性、事务化、不可跳级的 migration registry |
 | `src/repository/meeting-repository.ts` | 事务、聚合读写、receipt、event 和 outbox 原子提交 |
-| `src/tools/meeting-runtime.ts#repositoryPath` | 当前 `teamId/meetingId` 物理路径解析；调用方不得复制该规则 |
-| `src/tools/meeting-runtime.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime |
+| `src/runtime/application-service.ts#repositoryPath` | 当前 `teamId/meetingId` 物理路径解析；调用方不得复制该规则 |
+| `src/runtime/application-service.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime |
 | `src/runtime/turn-runner.ts` | Manager plan、逐 speaker dispatch、submit 和下一 step 推进 |
 | `src/runtime/outbox-worker.ts` | 提交后 DSH 副作用、重投和结果回写 |
 | `src/runtime/mail-processor.ts` | meeting-scoped mail context 固化和独立处理 attempt |

@@ -14,7 +14,7 @@ import {
 import {
     LocalMeetingRecoveryUnavailableError,
     type LocalMeetingWebRuntime
-} from "../tools/meeting-runtime.js";
+} from "../runtime/index.js";
 
 const routePrefix = "/api/convivium/meetings";
 const maxBodyBytes = 16_384;

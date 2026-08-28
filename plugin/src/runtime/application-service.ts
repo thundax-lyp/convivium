@@ -33,17 +33,19 @@ import {
 import { RepositoryError, type MeetingSnapshot } from "../repository/index.js";
 import {
     createMeetingRuntime,
-    createOutboxWorker,
     openMeetingRepository,
-    recoverArchive,
     type DomainEventInput,
     type JsonObject,
     type MeetingCreationRuntimeDependencies,
     type MeetingRepositoryRuntime,
-    type RepositoryAuthorizationValidator,
+    type RepositoryAuthorizationValidator
+} from "./meeting-runtime.js";
+import { createOutboxWorker } from "./outbox-worker.js";
+import { recoverArchive } from "./archive.js";
+import {
     meetingTaskEvidenceResolver,
     type AuthorizedTaskEvidenceResolver
-} from "../runtime/index.js";
+} from "./task-evidence.js";
 import { projectManagerMeetingContext, projectMeetingStatus } from "../projection/index.js";
 import { LocalMeetingListResponseSchema, MeetingStatusResultSchema } from "../protocol/index.js";
 import type {
@@ -73,9 +75,79 @@ import type {
     PauseMeetingInputV1,
     ResumeMeetingInputV1
 } from "../protocol/index.js";
-import type { MeetingToolCaller, MeetingToolRuntime } from "./register-tools.js";
 import type { MeetingOwnershipLookup } from "../dsh/index.js";
 import { interruptAndDrainOwnedSessions } from "../dsh/index.js";
+
+export interface MeetingToolCaller {
+    readonly sessionId: string;
+    readonly agent?: Agent;
+    readonly kind: "captain" | "manager" | "participant";
+    readonly meetingId?: string;
+    readonly participantId?: string;
+}
+
+export interface MeetingToolRuntime {
+    createMeeting(
+        input: CreateMeetingInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<CreateMeetingResultV1> | ProtocolErrorV1>;
+    getStatus(
+        input: MeetingStatusInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<MeetingStatusResultV1> | ProtocolErrorV1>;
+    createMeetingTask(
+        input: MeetingTaskRequestV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<MeetingTaskResultV1> | ProtocolErrorV1>;
+    meetingTaskStatus(
+        input: MeetingTaskStatusInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<MeetingTaskStatusResultV1> | ProtocolErrorV1>;
+    startMeetingTask(
+        input: MeetingTaskStartInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<MeetingTaskStartResultV1> | ProtocolErrorV1>;
+    finishMeetingTask(
+        input: MeetingTaskFinishInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<MeetingTaskFinishResultV1> | ProtocolErrorV1>;
+    raiseHand(
+        input: HandRaiseSubmissionV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<HandRaiseResultV1> | ProtocolErrorV1>;
+    submitTurn(
+        input: import("../protocol/index.js").TurnSubmissionV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<TurnSubmissionResultV1> | ProtocolErrorV1>;
+    submitManagerPlan(
+        input: ManagerPlanSubmissionV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ManagerPlanResultV1> | ProtocolErrorV1>;
+    pause(
+        input: PauseMeetingInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
+    resume(
+        input: ResumeMeetingInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
+    endMeeting(
+        input: EndMeetingInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<EndMeetingResultV1> | ProtocolErrorV1>;
+}
 
 export interface CreateStatusRuntimeOptions {
     readonly dataRoot: string;

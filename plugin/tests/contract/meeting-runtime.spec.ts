@@ -8,7 +8,7 @@ import { RepositoryError } from "../../src/repository/index.js";
 import {
     createCreateStatusRuntime,
     LocalMeetingRecoveryUnavailableError
-} from "../../src/tools/meeting-runtime.js";
+} from "../../src/runtime/application-service.js";
 
 const roots: string[] = [];
 const input = {

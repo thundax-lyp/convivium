@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createMeetingRuntime } from "../../../src/runtime/meeting-runtime.js";
 import { rejectUnsupportedTaskEvidence } from "../../../src/runtime/task-evidence.js";
 import type { CreateMeetingInputV1 } from "../../../src/protocol/index.js";
-import { LocalMeetingRecoveryUnavailableError } from "../../../src/tools/meeting-runtime.js";
+import { LocalMeetingRecoveryUnavailableError } from "../../../src/runtime/application-service.js";
 
 const input: CreateMeetingInputV1 = {
     protocolVersion: 1,

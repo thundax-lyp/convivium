@@ -4,11 +4,8 @@ import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import { Config, type Config as ConfigType } from "./config.js";
 import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
 import { registerLocalMeetingHttpRoutes } from "./http/index.js";
-import {
-    createCreateStatusRuntime,
-    registerCreateAndStatusTools,
-    registerSubmitAndControlTools
-} from "./tools/index.js";
+import { createCreateStatusRuntime } from "./runtime/index.js";
+import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "./tools/index.js";
 
 export { Config };
 export type { Config as ConfigType } from "./config.js";
