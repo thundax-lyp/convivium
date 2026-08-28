@@ -50,7 +50,9 @@
 
 smoke probe 通过 DSH 公开 `agent/created`、Agent status 和 inbox 事件捕获真实 Participant Agent，并在其 live residency 内调用 `convivium_submit_turn`；没有构造伪 Agent、绕过 caller 校验或写入 DSH 私有事件。
 
-## Not Covered
+## Not Covered At This Evidence Boundary
+
+以下条目描述 `7b39065` 的 runtime 竖切边界。MeetingTask/HandRaise、completion/end 和 archive 中已有后续自动化实现的部分，不再作为当前全局缺口；当前状态以 `CURRENT-IMPLEMENTATION-COVERAGE.md` 为准。
 
 - `completed/objective_satisfied`、`partial` 和 hard-limit 优先级由领域 fixture 覆盖；真实 smoke 不伪造业务完成声明。
 - 真实模型输出质量、主持策略、总结策略和自然语言完成判断。
