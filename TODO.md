@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `convivium-pr-review/references/review-checks.md`：增加复杂度证据链
-  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T5
-  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
-  - 处理动作：按固定文本增加范围与复杂度基础检查、复杂度链和三项 finding 证明门槛。
-  - 验收点：复杂度链与现有七条链并列；finding 同时证明当前成本、依据缺失和更小安全方案；不改变 evidence matrix、ledger、优先级和只审当前 diff 的边界。
-
 - [ ] `convivium-codex-comment-fix/SKILL.md`：固定 finding、最小修复和 thread 收口语义
   - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T6
   - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
