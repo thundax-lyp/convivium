@@ -1338,6 +1338,23 @@ describe("meeting transitions", () => {
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
 
+    it("rejects an archive package with an external artifact without changing the meeting", () => {
+        const state = meeting("completed");
+        state.artifactRefs = [{ artifactId: "artifact-1", title: "committed" }];
+        const before = structuredClone(state);
+        const archive = archivePackage();
+        archive.artifactRefs = [{ artifactId: "artifact-external", title: "external" }];
+
+        expect(() =>
+            transitionMeeting(state, "archiving", {
+                now,
+                archive: { package: archive }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+        expect(state).toEqual(before);
+        expect(state.status).toBe("completed");
+    });
+
     it("requires archive packages to include committed facts", () => {
         const state = meeting("completed");
         state.transcript = [

@@ -5,6 +5,7 @@ import {
     followupManagerSession,
     inspectOwnedSessions,
     interruptAndDrainOwnedSessions,
+    proveArchiveOwnedChildren,
     startManagerSession,
     startParticipantSession
 } from "../../../src/dsh/session-adapter.js";
@@ -378,6 +379,93 @@ describe("interruptAndDrainOwnedSessions", () => {
             })
         ).rejects.toThrow(/twice/);
         expect(interrupted).toBe(false);
+    });
+});
+
+describe("proveArchiveOwnedChildren", () => {
+    const input = (overrides: Record<string, unknown> = {}) => ({
+        runtime: {
+            listChildren: async () =>
+                [
+                    {
+                        kind: "child",
+                        id: "participant-session" as never,
+                        activity: "inactive",
+                        hasChildren: false,
+                        mode: "continuable",
+                        label: "convivium:meeting-participant:team-1:meeting-1:participant-a"
+                    }
+                ] as never
+        },
+        parentSessionId: "captain-session" as never,
+        meetingId: "meeting-1",
+        ownerships: [participantOwnership()],
+        signal: new AbortController().signal,
+        ...overrides
+    });
+
+    it("accepts a durable child that remains listed after its resident Activation drains", async () => {
+        await expect(proveArchiveOwnedChildren(input())).resolves.toEqual([participantOwnership()]);
+    });
+
+    it.each([
+        [
+            "a diagnostic",
+            [{ kind: "diagnostic", id: "participant-session", reason: "unavailable" }]
+        ],
+        [
+            "an unowned direct child",
+            [
+                {
+                    kind: "child",
+                    id: "other-session",
+                    activity: "inactive",
+                    hasChildren: false,
+                    mode: "continuable",
+                    label: "convivium:meeting-participant:team-1:meeting-1:participant-b"
+                }
+            ]
+        ],
+        [
+            "a one-shot child",
+            [
+                {
+                    kind: "child",
+                    id: "participant-session",
+                    activity: "inactive",
+                    hasChildren: false,
+                    mode: "one-shot",
+                    label: "convivium:meeting-participant:team-1:meeting-1:participant-a"
+                }
+            ]
+        ]
+    ])("fails closed for %s", async (_name, entries) => {
+        await expect(
+            proveArchiveOwnedChildren(
+                input({ runtime: { listChildren: async () => entries as never } })
+            )
+        ).rejects.toThrow();
+    });
+
+    it.each([
+        ["a missing owned child", { runtime: { listChildren: async () => [] } }],
+        [
+            "a wrong Captain parent",
+            { ownerships: [participantOwnership({ parentSessionId: "other" })] }
+        ],
+        [
+            "a mismatched meeting label",
+            {
+                ownerships: [
+                    participantOwnership({
+                        sessionLabel: "convivium:meeting-participant:team-1:other:participant-a"
+                    })
+                ]
+            }
+        ],
+        ["duplicate ownership", { ownerships: [participantOwnership(), participantOwnership()] }]
+    ])("does not produce a cleanup target for %s", async (_name, overrides) => {
+        await expect(proveArchiveOwnedChildren(input(overrides))).rejects.toThrow();
     });
 });
 

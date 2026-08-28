@@ -416,7 +416,7 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
         }) ||
         archivePackage.acceptedDecisions.some(
             (decision) =>
-                !agendaIds.has(decision.agendaItemId) ||
+                (decision.agendaItemId !== undefined && !agendaIds.has(decision.agendaItemId)) ||
                 !decisionById.has(decision.id) ||
                 decisionById.get(decision.id)?.proposalId !== decision.proposalId ||
                 decisionById.get(decision.id)?.proposalRevision !== decision.proposalRevision ||
@@ -433,13 +433,14 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
                 (decisionById.get(decision.id)?.dissentingPositionIds !== undefined &&
                     JSON.stringify(decisionById.get(decision.id)?.dissentingPositionIds) !==
                         JSON.stringify(decision.dissentingPositionIds)) ||
-                decision.acceptedBy.some((id) => !participantIds.has(id)) ||
-                decision.dissentingPositionIds.some(
+                (decision.acceptedBy?.some((id) => !participantIds.has(id)) ?? false) ||
+                (decision.dissentingPositionIds?.some(
                     (id) =>
                         !state.proposals.some((proposal) =>
                             proposal.positions?.some((position) => position.id === id)
                         )
-                )
+                ) ??
+                    false)
         ) ||
         archivePackage.proposals.some(
             (proposal) =>
@@ -504,8 +505,8 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
         archivePackage.unresolvedQuestions.some(
             (question) =>
                 !questionIds.has(question.id) ||
-                !agendaIds.has(question.agendaItemId) ||
-                !participantIds.has(question.askedBy) ||
+                (question.agendaItemId !== undefined && !agendaIds.has(question.agendaItemId)) ||
+                (question.askedBy !== undefined && !participantIds.has(question.askedBy)) ||
                 state.openQuestions.find((source) => source.id === question.id)?.text !==
                     question.text ||
                 state.openQuestions.find((source) => source.id === question.id)?.status !==

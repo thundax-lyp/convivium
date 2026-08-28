@@ -5,6 +5,7 @@ import type {
     SubagentDescendantListEntry,
     SubagentFollowupOptions,
     SubagentInterruptAuthority,
+    SubagentListEntry,
     SubagentProvider
 } from "@deepseek-ai/dsh-subagent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
@@ -366,6 +367,88 @@ export async function interruptAndDrainOwnedSessions(
         input.runtime.interrupt(childId, { kind: "ancestor", agent: input.parent });
     }
     await input.runtime.drainContinuableChildren(input.parent, childIds);
+}
+
+/**
+ * `listChildren()` is the only DSH enumeration used to authorize an archive
+ * cleanup target. Its direct-child result is durable: a child remaining in a
+ * later listing does not mean `drainContinuableChildren()` failed.
+ */
+export interface ArchiveSessionRuntime {
+    listChildren(parentSessionId: SessionId, signal: AbortSignal): Promise<SubagentListEntry[]>;
+}
+
+export interface ProveArchiveOwnedChildrenInput {
+    readonly runtime: ArchiveSessionRuntime;
+    readonly parentSessionId: SessionId;
+    readonly meetingId: string;
+    readonly ownerships: readonly MeetingOwnershipRecord[];
+    readonly signal: AbortSignal;
+}
+
+function assertArchiveOwnershipShape(
+    ownership: MeetingOwnershipRecord,
+    parentSessionId: SessionId,
+    meetingId: string
+): void {
+    if (ownership.parentSessionId !== String(parentSessionId)) {
+        throw new Error("Archive cleanup ownership has a different Captain parent.");
+    }
+    const label = decodeMeetingSessionLabel(ownership.sessionLabel);
+    if (
+        label === undefined ||
+        label.meetingId !== meetingId ||
+        label.role !== ownership.role ||
+        (label.role === "manager" && ownership.participantId !== undefined) ||
+        (label.role === "participant" && label.participantId !== ownership.participantId)
+    ) {
+        throw new Error("Archive cleanup ownership label does not match the meeting identity.");
+    }
+}
+
+/**
+ * Fails closed unless the durable direct-child listing is exactly the supplied
+ * ownership set. This is an effect-before and recovery proof only; it never
+ * interprets a post-drain durable child as resident work or a cleanup failure.
+ */
+export async function proveArchiveOwnedChildren(
+    input: ProveArchiveOwnedChildrenInput
+): Promise<readonly MeetingOwnershipRecord[]> {
+    const expected = new Map<string, MeetingOwnershipRecord>();
+    for (const ownership of input.ownerships) {
+        assertArchiveOwnershipShape(ownership, input.parentSessionId, input.meetingId);
+        if (expected.has(ownership.sessionId)) {
+            throw new Error("Archive cleanup ownership contains a duplicate Session.");
+        }
+        expected.set(ownership.sessionId, ownership);
+    }
+
+    const entries = await input.runtime.listChildren(input.parentSessionId, input.signal);
+    const observed = new Set<string>();
+    for (const entry of entries) {
+        if (entry.kind === "diagnostic") {
+            throw new Error("Archive cleanup direct-child listing contains a diagnostic.");
+        }
+        const sessionId = String(entry.id);
+        const ownership = expected.get(sessionId);
+        if (ownership === undefined) {
+            throw new Error("Archive cleanup direct-child listing contains an unowned Session.");
+        }
+        if (observed.has(sessionId)) {
+            throw new Error("Archive cleanup direct-child listing contains a duplicate Session.");
+        }
+        if (entry.mode !== "continuable" || entry.label !== ownership.sessionLabel) {
+            throw new Error("Archive cleanup direct-child listing does not match ownership.");
+        }
+        observed.add(sessionId);
+    }
+
+    for (const sessionId of expected.keys()) {
+        if (!observed.has(sessionId)) {
+            throw new Error("Archive cleanup ownership is missing from the direct-child listing.");
+        }
+    }
+    return input.ownerships;
 }
 
 export interface OwnedSessionObservation {

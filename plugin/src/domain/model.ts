@@ -443,14 +443,14 @@ export interface ArchiveParticipantProvenance {
 
 export interface ArchiveDecision {
     id: string;
-    agendaItemId: string;
+    agendaItemId?: string;
     proposalId: string;
     proposalRevision: number;
-    statement: string;
-    rationale: string;
+    statement?: string;
+    rationale?: string;
     status: "accepted" | "superseded" | "revoked";
-    acceptedBy: readonly string[];
-    dissentingPositionIds: readonly string[];
+    acceptedBy?: readonly string[];
+    dissentingPositionIds?: readonly string[];
 }
 
 export interface ArchiveProposal {
@@ -502,8 +502,15 @@ export interface ArchiveIssue {
     title: string;
     description: string;
     disposition: "blocking" | "follow_up" | "parking_lot" | "accepted_risk" | "out_of_scope";
-    status: "open" | "waiting" | "resolved" | "accepted" | "deferred";
-    rationale: string;
+    status:
+        | "open"
+        | "waiting"
+        | "resolved"
+        | "accepted"
+        | "deferred"
+        | "accepted_risk"
+        | "out_of_scope";
+    rationale?: string;
     ownerId?: string;
     relatedTaskIds: readonly string[];
 }
@@ -511,10 +518,10 @@ export interface ArchiveIssue {
 export interface ArchiveQuestion {
     id: string;
     text: string;
-    askedBy: string;
+    askedBy?: string;
     directedTo?: string;
-    agendaItemId: string;
-    blocking: boolean;
+    agendaItemId?: string;
+    blocking?: boolean;
     status: "open" | "answered" | "withdrawn" | "deferred";
     answerMessageId?: string;
 }
