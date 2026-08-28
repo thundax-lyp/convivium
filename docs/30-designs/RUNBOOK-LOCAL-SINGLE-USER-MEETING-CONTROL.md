@@ -99,9 +99,9 @@ Runtime 是 producer，HTTP 与 Client 是 consumer；Client 不提交 list DTO�
 
 前置状态：T5 PASS；`pnpm --dir plugin build` 成功。
 
-允许修改：`plugin/scripts/smoke-profile.mjs`、`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`、本 RUNBOOK；验证可机械重建 ignored `plugin/lib/**` 并创建/清理脚本自己的 OS temp root。
+允许修改：`plugin/scripts/smoke-profile.mjs`、`plugin/tsdown.config.ts`、`plugin/src/client/index.tsx`、`plugin/tests/client/client-entry.client.spec.ts`、`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`、本 RUNBOOK；验证可机械重建 ignored `plugin/lib/**` 并创建/清理脚本自己的 OS temp root。真实 Browser RUN 发现既有 Client 构建产出是裸 ESM，违反 DSH 0.1.1 `window.__ModuleLoader__.load({ id, factory })` bundle 契约，且模块导出的 `inject` 错把 package preload 列表当成 Cordis service 列表；只允许修正 CJS factory wrapper、bundle Schemastery，并把运行时 `inject` 收窄为面板实际消费的 `slots`，不得改变 package manifest 的 Client module 依赖或会议业务逻辑。
 
-禁止修改：`plugin/src/**`、package manifest、DSH profile 配置、正式 requirements/interfaces/designs 与任何已生成 Meeting 数据。
+禁止修改：除 `plugin/src/client/index.tsx` 外的 `plugin/src/**`、package manifest、DSH profile 配置、正式 requirements/interfaces/designs 与任何已生成 Meeting 数据。
 
 执行：
 

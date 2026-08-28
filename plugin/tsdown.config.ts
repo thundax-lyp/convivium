@@ -1,6 +1,7 @@
 import { defineConfig } from "tsdown";
 
 const sharedExternal = [/^@deepseek-ai\//, "react", "react-dom"] as const;
+const clientExternal = [/^@deepseek-ai\/(?!schemastery(?:\/|$))/, "react", "react-dom"] as const;
 
 export default defineConfig([
     {
@@ -17,11 +18,17 @@ export default defineConfig([
     {
         entry: { client: "src/client/index.tsx" },
         outDir: "lib",
-        platform: "browser",
+        format: "cjs",
         target: "es2022",
         clean: false,
         dts: false,
-        deps: { neverBundle: sharedExternal },
-        tsconfig: "tsconfig.client.json"
+        deps: { neverBundle: clientExternal },
+        noExternal: ["@deepseek-ai/schemastery"],
+        tsconfig: "tsconfig.client.json",
+        outExtensions: () => ({ js: ".js" }),
+        outputOptions: {
+            banner: 'window.__ModuleLoader__.load({ id: "@convivium/dsh-plugin", factory: (require) => { var module = { exports: {} }; var exports = module.exports;',
+            footer: "return module.exports; } });"
+        }
     }
 ]);

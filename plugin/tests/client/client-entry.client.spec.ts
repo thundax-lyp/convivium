@@ -123,7 +123,7 @@ describe("client entry framework", () => {
         const slotInject = vi.fn((_key, callback: () => unknown) => callback());
 
         expect(name).toBe("convivium-client");
-        expect(inject).toContain("@deepseek-ai/dsh-client-runtime");
+        expect(inject).toEqual(["slots"]);
         apply({ slots: { inject: slotInject, register } } as never);
 
         expect(slotInject).toHaveBeenCalledTimes(1);

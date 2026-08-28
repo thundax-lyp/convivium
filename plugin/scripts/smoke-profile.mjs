@@ -16,6 +16,7 @@ const PROBE_PACKAGE = "@convivium/smoke-profile-probe";
 const HOST = "127.0.0.1";
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "120000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
+const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 
 const pluginRoot = resolve(process.cwd());
 const tempPrefix = join(tmpdir(), "convivium-dsh-smoke-");
@@ -190,9 +191,10 @@ async function writeProbePackage(probeDir) {
         join(probeDir, "index.js"),
         String.raw`
 export const name = "convivium-smoke-profile-probe";
-export const inject = ["agents", "sessions", "tools"];
+export const inject = ["agents", "sessions", "tools", "webServer", "workspaceRegistry"];
 
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
+const browserMode = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 const participants = ["participant-a", "participant-c", "participant-b"];
 let captain;
 let meetingId;
@@ -214,6 +216,16 @@ async function callTool(ctx, agent, name, input, index) {
     if (result.isError) throw new Error(result.error.message);
     if (!result.value?.ok) throw new Error(name + " failed: " + JSON.stringify(result.value));
     return result.value;
+}
+
+async function callHttp(url, options) {
+    const response = await fetch(url, options);
+    assert(response.status === 200, "unexpected HTTP status for " + url + ": " + response.status);
+    assert(
+        response.headers.get("content-type")?.startsWith("application/json") === true,
+        "unexpected HTTP content type for " + url
+    );
+    return response.json();
 }
 
 function createInput() {
@@ -371,7 +383,17 @@ function scheduleParticipant(ctx, agent) {
 async function run(ctx) {
     if (!outputPath) return;
     try {
+        if (browserMode) await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke");
         captain = createSmokeAgent(ctx, "convivium-smoke-captain");
+        if (browserMode) {
+            captain.agent.session.append("user/message", {
+                id: "convivium-smoke-browser-message",
+                role: "user",
+                content: [{ type: "text", text: "Browser smoke session" }],
+                source: { kind: "user" }
+            }, { surfaceOp: "append" });
+            await ctx.sessions.flush(captain.agent.session);
+        }
         const created = await callTool(ctx, captain.agent, "convivium_create_meeting", createInput(), 0);
         meetingId = created.result.meetingId;
         const manager = await waitForAgent(ctx, meetingId + "-manager-manager");
@@ -416,6 +438,47 @@ async function run(ctx) {
         assert(transcript.map((message) => message.content).join("") === "ACB", "transcript order is not ACB");
         assert(status.result.status === "running", "next planning did not keep meeting running");
         assert(status.result.currentTurn === undefined, "next planning unexpectedly exposed a current turn");
+        const baseUrl = "http://127.0.0.1:" + ctx.webServer.port;
+        const meetingsUrl = baseUrl + "/api/convivium/meetings";
+        const selectedUrl = meetingsUrl + "/" + encodeURIComponent(meetingId);
+        const list = await callHttp(meetingsUrl);
+        assert(
+            list.result.meetings.some((meeting) => meeting.meetingId === meetingId),
+            "HTTP list did not include the smoke Meeting"
+        );
+        const webStatus = await callHttp(selectedUrl);
+        const paused = await callHttp(selectedUrl + "/pause", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+                protocolVersion: 1,
+                meetingId,
+                expectedMeetingVersion: webStatus.meetingVersion,
+                requestId: "smoke-http-pause-1",
+                reason: "Verify local host control"
+            })
+        });
+        assert(paused.result.status === "paused", "HTTP pause did not return paused");
+        const pausedStatus = await callHttp(selectedUrl);
+        assert(pausedStatus.result.status === "paused", "HTTP status did not project paused");
+        assert(
+            pausedStatus.result.pauseControl.pausedBy.kind === "local_host" &&
+                pausedStatus.result.pauseControl.pausedBy.actorId === "loopback-web",
+            "HTTP pause actor was not local_host/loopback-web"
+        );
+        const resumed = await callHttp(selectedUrl + "/resume", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+                protocolVersion: 1,
+                meetingId,
+                expectedMeetingVersion: pausedStatus.meetingVersion,
+                requestId: "smoke-http-resume-1"
+            })
+        });
+        assert(resumed.result.status === "running", "HTTP resume did not return running");
+        const resumedStatus = await callHttp(selectedUrl);
+        assert(resumedStatus.result.status === "running", "HTTP status did not return to running");
         await writeResult({
             ok: true,
             meetingId,
@@ -429,7 +492,9 @@ async function run(ctx) {
             })),
             managerPlan: managerPlan.result,
             nextPlanObserved: status.result.currentTurn === undefined,
-            httpRouteUsed: false
+            httpRouteUsed: true,
+            captainSessionId: "convivium-smoke-captain",
+            webUrl: baseUrl
         });
     } catch (error) {
         await writeResult({
@@ -437,7 +502,7 @@ async function run(ctx) {
             error: error instanceof Error ? error.message : String(error)
         });
     } finally {
-        await captain?.dispose();
+        if (!browserMode) await captain?.dispose();
     }
 }
 
@@ -577,6 +642,18 @@ async function restore() {
     }
 }
 
+function waitForBrowserStop() {
+    return new Promise((resolveStop) => {
+        const stop = () => {
+            process.off("SIGINT", stop);
+            process.off("SIGTERM", stop);
+            resolveStop();
+        };
+        process.once("SIGINT", stop);
+        process.once("SIGTERM", stop);
+    });
+}
+
 async function main() {
     validateTimeout(BOOT_TIMEOUT_MS, "CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS");
     validateTimeout(COMMAND_TIMEOUT_MS, "CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS");
@@ -632,10 +709,16 @@ async function main() {
             2
         )
     );
+    if (BROWSER_MODE) {
+        console.log(`CONVIVIUM_SMOKE_BROWSER_URL=http://${HOST}:${port}`);
+        console.log(`CONVIVIUM_SMOKE_TEMP_ROOT=${tempRoot}`);
+        await waitForBrowserStop();
+    }
 }
 
 try {
     await main();
 } finally {
     await restore();
+    if (BROWSER_MODE) console.log("CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok");
 }

@@ -5,14 +5,7 @@ import { ConviviumMeetingPanel } from "./meeting-panel.js";
 
 export const name = "convivium-client";
 
-export const inject = [
-    "@deepseek-ai/dsh-client-runtime",
-    "@deepseek-ai/dsh-client-locale",
-    "@deepseek-ai/dsh-client-ui-layout",
-    "@deepseek-ai/dsh-client-ui-conversation",
-    "@deepseek-ai/dsh-client-ui-primitives",
-    "@deepseek-ai/dsh-client-ui-slots"
-] as const;
+export const inject = ["slots"] as const;
 
 export function apply(ctx: Context): void {
     ctx.slots.inject("conversation.view", () =>
