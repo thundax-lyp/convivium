@@ -16,12 +16,6 @@
   - 处理动作：校验 participant/task identity，禁止 failed task 形成完成型 HandRaise，保持 pending raise 去重和单次 consume。
   - 验收点：错误 participant、重复 execution、failed task、terminal task 均无 raise；合法 completed task 只形成一个 pending raise。
 
-- [ ] `plugin/src/domain/planning.ts`：消费 task-linked HandRaise 并保持确定性候选规则
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T7
-  - 处理动作：复用 pending HandRaise consume、candidate priority 和 active-task 排除，创建后续 SpeakerAttempt。
-  - 验收点：未选中的 raise 保持 pending，选中的 raise 只消费一次；HandRaise 不写 transcript、decision 或 CompletionFact。
-
 - [ ] `plugin/src/domain/transitions.ts`：补齐 execution terminal、archiving、archived 的 task/planning guard
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T7
