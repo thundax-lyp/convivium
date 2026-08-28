@@ -250,6 +250,21 @@ describe("protocol envelope schemas", () => {
             status: "completed",
             handRaiseId: "raise-1"
         });
+        expect(() =>
+            MeetingTaskFinishResultSchema({
+                requestId: "request-1",
+                meetingTaskId: "task-1",
+                status: "completed"
+            })
+        ).toThrow();
+        expect(() =>
+            MeetingTaskFinishResultSchema({
+                requestId: "request-1",
+                meetingTaskId: "task-1",
+                status: "failed",
+                handRaiseId: "raise-1"
+            })
+        ).toThrow();
     });
 
     it("accepts a valid create-meeting payload", () => {
