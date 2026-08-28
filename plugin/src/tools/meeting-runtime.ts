@@ -1035,19 +1035,18 @@ export function createCreateStatusRuntime(
                                 now: options.now?.() ?? Date.now()
                             }
                         );
-                        const handRaise = createHandRaise(transition.state, {
-                            id: `${input.meetingTaskId}-hand-raise`,
-                            participantId: caller.participantId!,
-                            reason:
-                                input.status === "completed" ? "task_completed" : "new_evidence",
-                            summary:
-                                input.resultSummary ??
-                                input.failureReason ??
-                                "MeetingTask finished",
-                            taskIds: [input.meetingTaskId],
-                            priority: "normal",
-                            now: options.now?.() ?? Date.now()
-                        });
+                        const handRaise =
+                            input.status === "completed"
+                                ? createHandRaise(transition.state, {
+                                      id: `${input.meetingTaskId}-hand-raise`,
+                                      participantId: caller.participantId!,
+                                      reason: "task_completed",
+                                      summary: input.resultSummary ?? "MeetingTask finished",
+                                      taskIds: [input.meetingTaskId],
+                                      priority: "normal",
+                                      now: options.now?.() ?? Date.now()
+                                  })
+                                : { state: transition.state, effect: { events: [] } };
                         const waitingForThisTask =
                             handRaise.state.status === "waiting" &&
                             handRaise.state.waitState?.taskIds.includes(input.meetingTaskId) &&
@@ -1067,7 +1066,9 @@ export function createCreateStatusRuntime(
                                 requestId: input.requestId,
                                 meetingTaskId: input.meetingTaskId,
                                 status: input.status,
-                                handRaiseId: `${input.meetingTaskId}-hand-raise`
+                                ...(input.status === "completed"
+                                    ? { handRaiseId: `${input.meetingTaskId}-hand-raise` }
+                                    : {})
                             } satisfies MeetingTaskFinishResultV1,
                             events: [
                                 ...(transition.effect.events as unknown as DomainEventInput[]),
