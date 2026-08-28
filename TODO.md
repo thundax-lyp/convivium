@@ -10,4 +10,52 @@
 
 ## 待审阅任务项
 
+- [ ] `执行基线与锚点`：建立复杂度控制 RUNBOOK 的安全执行基线
+  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T0
+  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
+  - 处理动作：记录执行前 tracked、staged 和 untracked 文件集合，建立 worktree metadata 状态目录，并确认六个长期目标文件的全部固定锚点仍精确存在。
+  - 验收点：状态目录原本不存在并成功建立；`files.before` 可读取；执行前工作区已披露；六个文件的替换原文和插入锚点全部匹配，任一漂移时不开始 T1。
+
+- [ ] `AGENTS.md`：增加仓库级 Implementation Economy 规则
+  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T1
+  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
+  - 处理动作：只在 `Project Direction` 与 `Documentation Governance` 之间插入 RUNBOOK 固定的 `Implementation Economy` 章节。
+  - 验收点：章节只出现一次，包含“最小安全改动”、单消费者必要隔离例外、finding 与建议方案分离及停止范围扩张规则；`AGENTS.md` 其他章节无变化。
+
+- [ ] `MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md`：修正绝对消费者门槛
+  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T2
+  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
+  - 处理动作：严格替换 Responsibilities 第 4 条和 Acceptance 第 1 条，把依据固定为当前证据价值，并保留必要隔离和单消费者例外。
+  - 验收点：文件不再包含“机制必须有当前消费者”的绝对标题；Scope、State And Failure Handling、Security And Observability 及其他条目无变化；仅有假设性未来用途仍不能引入机制。
+
+- [ ] `dsh-plugin-development/SKILL.md`：增加实现前复杂度门禁
+  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T3
+  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
+  - 处理动作：在工作流后插入 RUNBOOK 固定的“范围与复杂度门禁”，并按固定文本扩展输出要求。
+  - 验收点：门禁位于主 Skill 而非 reference；不把多个消费者设为强制条件；保留运行时、权限、事务、持久化和生命周期隔离依据；front matter、官方来源优先级、验证顺序和 DSH 边界无变化。
+
+- [ ] `convivium-module-review/SKILL.md`：增加复杂度 finding 检查与门槛
+  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T4
+  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
+  - 处理动作：增加无当前证据价值机制和更小安全结构检查，并在 finding 类型中加入“范围与复杂度”。
+  - 验收点：复杂度 finding 必须同时指出实际成本、缺失依据和更小安全边界；单消费者、单实现、文件数、代码行数和个人风格不能单独形成 finding；Skill 的只读范围与其他输出字段无变化。
+
+- [ ] `convivium-pr-review/references/review-checks.md`：增加复杂度证据链
+  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T5
+  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
+  - 处理动作：按固定文本增加范围与复杂度基础检查、复杂度链和三项 finding 证明门槛。
+  - 验收点：复杂度链与现有七条链并列；finding 同时证明当前成本、依据缺失和更小安全方案；不改变 evidence matrix、ledger、优先级和只审当前 diff 的边界。
+
+- [ ] `convivium-codex-comment-fix/SKILL.md`：固定 finding、最小修复和 thread 收口语义
+  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T6
+  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
+  - 处理动作：严格执行 T6.1–T6.6，更新 front matter 和目标终点，增加 finding 与方案分离、四类处理结果、最小安全修复回复要求及禁止顺带重构规则。
+  - 验收点：`accept-with-smaller-fix` 使用 👍 并在修复后 resolve；`reject` 使用 👎、说明依据后可 resolve；`defer-or-decision` 使用 👎、回复并保持 unresolved；无 commit 不得宣称已修复；既有 GitHub、commit/push 和两轮处理边界不变。
+
+- [ ] `复杂度控制工作流`：完成整体语义验证、场景验收和任务收口
+  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T7–T9
+  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改、commit、push 和 PR 仍分别待授权
+  - 处理动作：在前述七项均完成后执行固定的格式、术语、旧文案、文件基线、本地链接和八场景验证；提交收口时删除 RUNBOOK 及本组全部已完成 TODO。
+  - 验收点：T7 全部命令和断言通过；T8 八个场景得到固定结果；没有产品代码或额外长期文件变化；执行前用户改动未丢失；状态目录按精确边界清理；RUNBOOK 和本组 TODO 在真正完成任务的同一 commit 中删除且无残留引用。
+
 ## 待讨论项
