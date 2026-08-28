@@ -16,12 +16,6 @@
   - 处理动作：校验 participant/task identity，禁止 failed task 形成完成型 HandRaise，保持 pending raise 去重和单次 consume。
   - 验收点：错误 participant、重复 execution、failed task、terminal task 均无 raise；合法 completed task 只形成一个 pending raise。
 
-- [ ] `plugin/src/domain/transitions.ts`：在 originating short submit 中原子绑定 source 并排队任务
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T4
-  - 处理动作：在既有 `submitSpeakerAndAdvanceMeeting` transition 中写 formal message、补 source binding、调用 `queueMeetingTasks`、写既有 dispatch outbox 并释放 attempt。
-  - 验收点：同一 `repository.execute()` 提交 message/source/queued/outbox；提交前或 rollback 后四者均不存在；不新增写入口。
-
 - [ ] `plugin/src/runtime/task-evidence.ts`：实现 ephemeral AuthorizedTaskEvidence resolver
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK 数据结构与 T5
