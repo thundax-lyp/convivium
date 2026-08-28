@@ -609,6 +609,7 @@ export interface MeetingStatusBaseV1 {
 export interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
     activeAgendaItem?: PublicAgendaItemV1;
     messages: readonly PublicMeetingMessageV1[];
+    questions?: readonly PublicQuestionV1[];
     acceptedDecisions: readonly PublicDecisionV1[];
     blockingFacts: readonly PublicBlockingFactV1[];
 }

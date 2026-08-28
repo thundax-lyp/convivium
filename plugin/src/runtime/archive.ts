@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { transitionMeeting } from "../domain/transitions.js";
+import { transitionMeeting } from "../domain/transitions/index.js";
 import type { ArchivePackage, MeetingState } from "../domain/model.js";
 import {
     encodeMeetingSessionLabel,

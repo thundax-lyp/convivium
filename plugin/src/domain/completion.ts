@@ -129,12 +129,7 @@ export function isObjectiveSatisfied(state: MeetingState): boolean {
                 !issue.blocking ||
                 ["resolved", "deferred", "accepted_risk", "out_of_scope"].includes(issue.status)
         ) &&
-        state.openQuestions.every(
-            (question) =>
-                question.status === "answered" ||
-                question.status === "withdrawn" ||
-                question.status === "deferred"
-        )
+        state.openQuestions.every((question) => !question.blocking || question.status !== "open")
     );
 }
 
@@ -153,6 +148,7 @@ export function applyCompletionClaims(
     const issues = state.issues.map((issue) => ({ ...issue }));
     const openQuestions = state.openQuestions.map((question) => ({ ...question }));
     const createdFacts: CompletionFact[] = [];
+    const questionEvents: DomainEffect["events"] = [];
     let factIndex = 0;
 
     const addFact = (next: CompletionFact) => {
@@ -232,11 +228,28 @@ export function applyCompletionClaims(
 
     for (const claim of context.claims.questionResolutions ?? []) {
         const question = openQuestions.find(({ id }) => id === claim.questionId);
+        if (question === undefined) {
+            invalidClaim(state, "question resolution references an unknown question");
+        }
+        if (question.status !== "open" || question.answerMessageId !== undefined) {
+            invalidClaim(state, "question is not open for resolution");
+        }
         const answer = state.transcript.find(({ id }) => id === claim.answerMessageId);
-        if (question === undefined || answer?.speaker !== context.participantId) {
+        if (answer === undefined || answer.speaker !== context.participantId) {
             invalidClaim(state, "question resolution must reference the caller's meeting answer");
         }
         question.status = "answered";
+        question.answerMessageId = claim.answerMessageId;
+        questionEvents.push({
+            type: "question.answered",
+            payload: {
+                meetingId: state.id,
+                questionId: question.id,
+                answerMessageId: claim.answerMessageId,
+                answeredBy: context.participantId,
+                meetingVersion: state.version
+            }
+        });
         addFact(
             fact(
                 context,
@@ -337,16 +350,19 @@ export function applyCompletionClaims(
         );
     }
 
-    const events: DomainEffect["events"] = createdFacts.map((completionFact) => ({
-        type: "completion_fact.added",
-        payload: {
-            meetingId: state.id,
-            completionFactId: completionFact.id,
-            kind: completionFact.kind,
-            subjectId: completionFact.subjectId,
-            meetingVersion: state.version
-        }
-    }));
+    const events: DomainEffect["events"] = [
+        ...questionEvents,
+        ...createdFacts.map((completionFact): DomainEffect["events"][number] => ({
+            type: "completion_fact.added" as const,
+            payload: {
+                meetingId: state.id,
+                completionFactId: completionFact.id,
+                kind: completionFact.kind,
+                subjectId: completionFact.subjectId,
+                meetingVersion: state.version
+            }
+        }))
+    ];
 
     return {
         state: {

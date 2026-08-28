@@ -1045,4 +1045,44 @@ PRAGMA user_version = 2;
         expect(await repository.read()).toMatchObject({ version: 0, state: { count: 0 } });
         await repository.close();
     });
+
+    it("persists an explicitly allowed no-op receipt without changing state", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { count: 0 }
+        });
+        const command = {
+            commandKind: "raise_hand",
+            authorization,
+            requestHash: "duplicate-hand-raise",
+            expectedMeetingVersion: 0,
+            allowNoop: true,
+            transition: (snapshot: { state: Record<string, unknown> }) => ({
+                state: snapshot.state,
+                result: { handRaiseId: "existing-raise" },
+                events: [],
+                outbox: []
+            })
+        };
+        const first = await repository.execute({ ...command, requestId: "duplicate-1" });
+        expect(first).toMatchObject({
+            meetingVersion: 0,
+            eventSeqs: []
+        });
+        await expect(repository.execute({ ...command, requestId: "duplicate-1" })).resolves.toEqual(
+            first
+        );
+        await expect(
+            repository.execute({
+                ...command,
+                requestId: "duplicate-1",
+                requestHash: "changed-hand-raise"
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "IDEMPOTENCY_CONFLICT" });
+        expect(await repository.read()).toMatchObject({ version: 0, state: { count: 0 } });
+        await repository.close();
+    });
 });

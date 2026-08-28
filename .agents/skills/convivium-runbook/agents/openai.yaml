@@ -1,0 +1,6 @@
+interface:
+  display_name: "Convivium RUNBOOK"
+  short_description: "编写、审计和机械执行低级 LLM RUNBOOK"
+  default_prompt: "Use $convivium-runbook to create or audit a decision-complete Convivium RUNBOOK for this task."
+policy:
+  allow_implicit_invocation: true

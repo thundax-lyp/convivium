@@ -432,7 +432,7 @@ export async function proveArchiveOwnedChildren(
         const sessionId = String(entry.id);
         const ownership = expected.get(sessionId);
         if (ownership === undefined) {
-            throw new Error("Archive cleanup direct-child listing contains an unowned Session.");
+            continue;
         }
         if (observed.has(sessionId)) {
             throw new Error("Archive cleanup direct-child listing contains a duplicate Session.");

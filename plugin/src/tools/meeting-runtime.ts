@@ -18,6 +18,7 @@ import {
     completedTaskSnapshots,
     participantHasActiveMeetingTask,
     finishMeetingTask as finishMeetingTaskTransition,
+    findPendingEquivalentHandRaise,
     planRoundRobinTurn,
     endMeeting as endMeetingTransition,
     startMeetingTask as startMeetingTaskTransition,
@@ -100,7 +101,7 @@ interface StoredMeeting {
     readonly teamId: string;
     readonly captainSessionId: string;
     readonly repository: MeetingRepositoryRuntime;
-    readonly parent?: Agent;
+    parent?: Agent;
 }
 
 type ArchiveCleanupRuntime = ArchiveSessionRuntime & ContinuableLifecycleRuntime;
@@ -287,6 +288,28 @@ export function createCreateStatusRuntime(
                 }
             }
         }
+    }
+
+    async function recoverArchiveForCaptain(
+        stored: StoredMeeting,
+        caller: MeetingToolCaller
+    ): Promise<void> {
+        if (
+            caller.kind !== "captain" ||
+            caller.sessionId !== stored.captainSessionId ||
+            caller.agent === undefined ||
+            String(caller.agent.id) !== stored.captainSessionId
+        ) {
+            return;
+        }
+        if (stored.parent === undefined) stored.parent = caller.agent;
+        await recoverArchive({
+            repository: stored.repository,
+            parent: stored.parent,
+            runtime: archiveCleanupRuntime(options.continuable),
+            signal,
+            now: options.now?.() ?? Date.now()
+        });
     }
 
     async function dispatchInitialDelivery(
@@ -820,6 +843,7 @@ export function createCreateStatusRuntime(
                 return failure("UNAUTHORIZED_CALLER", "The caller is not bound to this meeting.");
             }
             try {
+                await recoverArchiveForCaptain(stored, caller).catch(() => undefined);
                 const snapshot = await stored.repository.read();
                 const state = JSON.parse(JSON.stringify(snapshot.state));
                 return success(
@@ -1116,6 +1140,7 @@ export function createCreateStatusRuntime(
                         }> = [];
                         if (
                             input.status === "completed" &&
+                            (nextState.status === "running" || nextState.status === "waiting") &&
                             nextState.currentTurn === undefined &&
                             nextState.manager.currentPlanningAttempt === undefined &&
                             nextState.selectionMode === "manager" &&
@@ -1204,27 +1229,28 @@ export function createCreateStatusRuntime(
                     },
                     requestHash: JSON.stringify(input),
                     expectedMeetingVersion: current.version,
+                    allowNoop: true,
                     transition: (snapshot) => {
-                        const transition = createHandRaise(
-                            snapshot.state as unknown as MeetingState,
-                            {
-                                id: handRaiseId,
-                                participantId: caller.participantId!,
-                                reason: input.reason,
-                                summary: input.summary,
-                                taskIds: input.taskIds,
-                                ...(input.replyToMessageId === undefined
-                                    ? {}
-                                    : { replyToMessageId: input.replyToMessageId }),
-                                agendaItemId: input.agendaItemId,
-                                priority: input.priority,
-                                now: options.now?.() ?? Date.now()
-                            }
-                        );
+                        const handRaiseInput = {
+                            id: handRaiseId,
+                            participantId: caller.participantId!,
+                            reason: input.reason,
+                            summary: input.summary,
+                            taskIds: input.taskIds,
+                            ...(input.replyToMessageId === undefined
+                                ? {}
+                                : { replyToMessageId: input.replyToMessageId }),
+                            agendaItemId: input.agendaItemId,
+                            priority: input.priority,
+                            now: options.now?.() ?? Date.now()
+                        };
+                        const state = snapshot.state as unknown as MeetingState;
+                        const duplicate = findPendingEquivalentHandRaise(state, handRaiseInput);
+                        const transition = createHandRaise(state, handRaiseInput);
                         return {
                             state: transition.state as unknown as JsonObject,
                             result: {
-                                handRaiseId,
+                                handRaiseId: duplicate?.id ?? handRaiseId,
                                 status: "pending"
                             } satisfies HandRaiseResultV1,
                             events: transition.effect.events as unknown as DomainEventInput[],
@@ -1266,6 +1292,14 @@ export function createCreateStatusRuntime(
                 );
             }
             const messageId = `message-${input.deliveryId}`;
+            const commandNow = options.now?.() ?? Date.now();
+            const questions = (input.changes.questions ?? []).map((claim, index) => ({
+                id: `question-${input.deliveryId}-${index + 1}`,
+                text: claim.text.trim(),
+                ...(claim.directedTo === undefined ? {} : { directedTo: claim.directedTo }),
+                blocking: claim.blocking,
+                createdAt: commandNow
+            }));
             try {
                 const current = await stored.repository.read();
                 const committed = await stored.repository.execute({
@@ -1320,11 +1354,12 @@ export function createCreateStatusRuntime(
                                         : { replyTo: input.replyTo }),
                                     taskIds: input.taskIds,
                                     agendaRelation: input.agendaRelation,
-                                    createdAt: Date.now()
+                                    createdAt: commandNow
                                 },
-                                now: options.now?.() ?? Date.now(),
+                                now: commandNow,
                                 nextPlanningAttemptId: `${state.id}-planning-${state.replanCount + 1}`,
                                 nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.replanCount + 1}`,
+                                questions,
                                 ...(input.completionClaims === undefined
                                     ? {}
                                     : {
@@ -1425,14 +1460,20 @@ export function createCreateStatusRuntime(
                     committed.result as TurnSubmissionResultV1
                 );
             } catch (error) {
-                return commandError(error, "STALE_ATTEMPT", "The speaker attempt is stale.", {
-                    meetingId: input.meetingId,
-                    turnId: input.turnId,
-                    stepId: input.stepId,
-                    attemptId: input.attemptId,
-                    deliveryId: input.deliveryId,
-                    participantId: caller.participantId
-                });
+                return commandError(
+                    error,
+                    "STALE_ATTEMPT",
+                    "The speaker attempt is stale.",
+                    {
+                        meetingId: input.meetingId,
+                        turnId: input.turnId,
+                        stepId: input.stepId,
+                        attemptId: input.attemptId,
+                        deliveryId: input.deliveryId,
+                        participantId: caller.participantId
+                    },
+                    { INVALID_ENTITY_STATE: "INVALID_ARGUMENT" }
+                );
             }
         },
         async submitManagerPlan(input: ManagerPlanSubmissionV1, caller, _commandSignal) {
@@ -1624,13 +1665,11 @@ export function createCreateStatusRuntime(
                         };
                     }
                 });
-                await recoverArchive({
-                    repository: stored.repository,
-                    parent: stored.parent,
-                    runtime: archiveCleanupRuntime(options.continuable),
-                    signal,
-                    now: options.now?.() ?? Date.now()
-                });
+                try {
+                    await recoverArchiveForCaptain(stored, caller);
+                } catch {
+                    // The end_meeting receipt is already committed; leave archive cleanup recoverable.
+                }
                 workers.get(input.meetingId)?.wake();
                 return success<EndMeetingResultV1>(
                     input.meetingId,

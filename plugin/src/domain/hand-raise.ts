@@ -29,6 +29,23 @@ export interface CreateHandRaiseInput {
     now: number;
 }
 
+export function findPendingEquivalentHandRaise(
+    state: MeetingState,
+    input: CreateHandRaiseInput
+): MeetingHandRaise | undefined {
+    return state.handRaises.find(
+        (raise) =>
+            raise.status === "pending" &&
+            raise.participant === input.participantId &&
+            raise.reason === input.reason &&
+            raise.taskIds.join(",") === input.taskIds.join(",") &&
+            raise.summary === input.summary &&
+            raise.replyToMessageId === input.replyToMessageId &&
+            raise.agendaItemId === input.agendaItemId &&
+            raise.priority === input.priority
+    );
+}
+
 export function createHandRaise(
     state: MeetingState,
     input: CreateHandRaiseInput
@@ -68,18 +85,7 @@ export function createHandRaise(
             `reply target ${input.replyToMessageId} was not found in the meeting transcript`
         );
     }
-    const duplicate = state.handRaises.some(
-        (raise) =>
-            raise.status === "pending" &&
-            raise.participant === input.participantId &&
-            raise.reason === input.reason &&
-            raise.taskIds.join(",") === input.taskIds.join(",") &&
-            raise.summary === input.summary &&
-            raise.replyToMessageId === input.replyToMessageId &&
-            raise.agendaItemId === input.agendaItemId &&
-            raise.priority === input.priority
-    );
-    if (duplicate) return { state, effect: { events: [] } };
+    if (findPendingEquivalentHandRaise(state, input)) return { state, effect: { events: [] } };
     const raise: MeetingHandRaise = {
         id: input.id,
         participant: input.participantId,

@@ -5,4 +5,4 @@ export * from "./model.js";
 export * from "./meeting-task.js";
 export * from "./hand-raise.js";
 export * from "./planning.js";
-export * from "./transitions.js";
+export * from "./transitions/index.js";

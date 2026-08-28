@@ -517,10 +517,10 @@ interface PublicAgendaItemV1 {
 interface PublicQuestionV1 {
   id: string;
   text: string;
-  askedBy: string;
+  askedBy?: string;
   directedTo?: string;
-  agendaItemId: string;
-  blocking: boolean;
+  agendaItemId?: string;
+  blocking?: boolean;
   status: "open" | "answered" | "withdrawn" | "deferred";
   answerMessageId?: string;
 }
@@ -662,6 +662,10 @@ interface PublicMeetingMessageV1 {
 }
 ```
 
+`PublicQuestionV1.askedBy`、`agendaItemId` 和 `blocking` 在 V1 保持 optional，以兼容历史 Archive 读取中的缺失字段。内部 canonical `MeetingQuestion` 对这三个字段保持 required；active 和 execution-terminal status producer 对新建的 canonical Question 必须始终输出它们。
+
+active 和 execution-terminal discussion status producer 始终输出 `questions`；该字段为 additive optional，旧 V1 caller 不提供时不影响 command 输入。
+
 ### Manager plan submission
 
 ```ts
@@ -776,6 +780,10 @@ interface AgendaCandidateClaimV1 {
 
 上述对象均为 claim。Meeting Runtime 生成正式 ID，绑定真实 caller，并验证 Meeting、agenda、proposal revision、blocking evidence 和授权。
 
+V1 `QuestionClaimV1` 尚未提供必要产出、验收条件、硬约束、必需审核或未接受高风险等阻塞依据字段，因此当前只接受 `blocking: false`。`blocking: true` 返回非重试的 `UNSUPPORTED_CAPABILITY`，且整个 turn 不产生 message、Question、event、receipt、version 或 outbox 副作用。
+
+Question resolution 只能绑定当前 Meeting 中由 caller authored 的正式 answer message；成功后固化 `answerMessageId`，不得被另一答案覆盖。非法 Question claim 或 resolution 的内部 `INVALID_ENTITY_STATE` 统一公开为非重试的 `INVALID_ARGUMENT`，不得泄露内部错误码。
+
 Participant 的 Position 不得携带其他 Participant 的有效身份。正式 Decision 的 `status`、`acceptedBy`、`dissentingPositionIds` 和接受方式不得由 Participant 输入。
 
 ### Completion claims
@@ -823,6 +831,8 @@ interface RiskAcceptanceClaimV1 {
 ```
 
 Completion claim 只提交声明和证据，不直接覆盖 Meeting 状态。Meeting Runtime 必须验证真实 caller、authority、evidence 和当前版本，再派生正式完成事实。
+
+`QuestionResolutionClaimV1` 只能引用当前 Meeting 中由真实 caller 已正式提交的 answer message。合法 resolution 将 Question 设为 `answered` 并固化 `answerMessageId`；已回答 Question 不得改绑另一 answer。
 
 MeetingTask `completed` 默认只构成 evidence，不自动表示 output accepted、agenda resolved 或 Meeting completed。
 
@@ -909,6 +919,7 @@ interface MeetingStatusBaseV1 {
 interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
   activeAgendaItem?: PublicAgendaItemV1;
   messages: readonly PublicMeetingMessageV1[];
+  questions?: readonly PublicQuestionV1[];
   acceptedDecisions: readonly PublicDecisionV1[];
   blockingFacts: readonly PublicBlockingFactV1[];
 }
@@ -1208,6 +1219,8 @@ type MeetingProtocolErrorCodeV1 =
 ```
 
 `UNSUPPORTED_CAPABILITY` 表示输入在完整协议中合法，但当前已声明的插件运行范围尚未提供对应 capability，例如只启用 `round_robin` 的竖切收到 `manager` selection mode。该错误必须是 `retryable: false`，且在任何目录、bootstrap、Session、Meeting state、event、receipt 或 outbox 副作用前返回。实现缺陷、provider/SQLite 故障和未知异常仍使用 `INTERNAL_ERROR`，不得用它伪装明确的范围限制。
+
+`submit_turn` 内部产生的 `INVALID_ENTITY_STATE` 统一公开为非重试的 `INVALID_ARGUMENT`，不得原样返回；这覆盖非法 Question claim/resolution，也保持其他 submit claim 的内部错误码不泄露。Question 场景包括空文本、无效 target、重复 ID、unknown Question、非 caller authored answer 和已回答 Question 的再次 resolution。
 
 `VERSION_CONFLICT` 表示 command 的 expected Meeting version 已过期，必须是 `retryable: true`，且不得写入 state、event、receipt 或 outbox。
 

@@ -18,6 +18,7 @@ Convivium 工程文档路由入口。只读取当前任务必需的文档，并�
 
 - 实现或评审前，读取 `00-governance/ARCHITECTURE.md`。
 - 修改文档时，读取 `00-governance/DOCUMENT-RULES.md`。
+- 创建、修改、审计、执行或收口 RUNBOOK 时，读取 `00-governance/RUNBOOK-RULES.md` 并使用仓库 `.agents/skills/convivium-runbook/`。
 - 处理 TODO、验证或任务收口时，读取 `00-governance/TODO-RULES.md`。
 - 处理暂存、提交或提交历史时，读取 `00-governance/COMMIT-RULES.md`。
 - 处理分支、PR、Review、CI 或合并时，读取 `00-governance/PR-RULES.md`。

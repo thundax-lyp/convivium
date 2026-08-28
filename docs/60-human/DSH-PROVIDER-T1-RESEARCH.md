@@ -1,10 +1,10 @@
 # DSH Provider T1 调研记录
 
-状态：已取证并于 2026-08-26 获得用户 tuple 确认；长期工程结论以 `ARCHITECTURE.md` 与 RUNBOOK 为准。
+状态：已取证并于 2026-08-26 获得用户 tuple 确认；长期工程结论以 `ARCHITECTURE.md` 与 runtime readiness 证据为准。
 
 ## Scope
 
-本记录只覆盖 RUNBOOK T1 的 provider 候选定位，不宣称 Convivium 已能创建会议 Session，也不替代后续临时 profile 生命周期探针。
+本记录覆盖当时 runtime 竖切 T1 的 provider 候选定位及后续临时 profile 生命周期探针，不作为当前产品就绪声明。
 
 ## Candidate
 
@@ -127,5 +127,5 @@ probe 已先 drain target/control child，再 dispose 两个 parent。随后只�
 
 ## Related Documents
 
-- [RUNBOOK](../30-designs/RUNBOOK-DSH-RUNTIME-VERTICAL-SLICE.md)
 - [Architecture](../00-governance/ARCHITECTURE.md)
+- [Runtime readiness evidence](../40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md)

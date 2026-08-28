@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     applyCompletionClaims,
     judgeTurnCompletion,
+    isObjectiveSatisfied,
     type CompletionFact,
     type MeetingState
 } from "../../../src/domain/index.js";
@@ -181,9 +182,11 @@ function completionState(): MeetingState {
             {
                 id: "question-1",
                 text: "Question",
+                blocking: true,
                 status: "open",
                 askedBy: "reviewer-1",
-                agendaItemId: "agenda-1"
+                agendaItemId: "agenda-1",
+                createdAt: now
             }
         ],
         transcript: [
@@ -253,17 +256,52 @@ describe("applyCompletionClaims", () => {
             resolution: "Resolved"
         });
         expect(result.state.openQuestions[0]?.status).toBe("answered");
+        expect(result.state.openQuestions[0]?.answerMessageId).toBe("message-1");
         expect(result.state.issues[0]).toMatchObject({
             status: "accepted_risk",
             disposition: "accepted_risk"
         });
         expect(result.state.completionFacts).toHaveLength(6);
         expect(result.state.completionFacts.every(({ status }) => status === "active")).toBe(true);
-        expect(result.effect.events).toHaveLength(6);
+        expect(result.effect.events).toHaveLength(7);
+        expect(result.effect.events.map(({ type }) => type)).toEqual([
+            "question.answered",
+            "completion_fact.added",
+            "completion_fact.added",
+            "completion_fact.added",
+            "completion_fact.added",
+            "completion_fact.added",
+            "completion_fact.added"
+        ]);
         expect(judgeTurnCompletion(result.state, now)).toEqual({
             kind: "completed",
             reason: "objective_satisfied"
         });
+    });
+
+    it("does not block completion for an open non-blocking question", () => {
+        const source = completionState();
+        source.objectiveContract.requiredOutputs[0]!.status = "accepted";
+        source.objectiveContract.acceptanceCriteria[0]!.satisfied = true;
+        source.agenda[0]!.status = "resolved";
+        source.issues[0]!.status = "accepted_risk";
+        source.issues[0]!.disposition = "accepted_risk";
+        source.completionFacts.push({
+            id: "review-1",
+            kind: "review",
+            subjectId: "output-1",
+            assertedBy: "reviewer-1",
+            authority: "required_reviewer",
+            result: "approved",
+            evidenceMessageIds: ["message-1"],
+            taskIds: [],
+            reason: "Reviewed",
+            status: "active",
+            createdAt: now
+        });
+        source.openQuestions[0]!.blocking = false;
+
+        expect(isObjectiveSatisfied(source)).toBe(true);
     });
 
     it("rejects invalid claims without mutating the source state", () => {

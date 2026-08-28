@@ -86,8 +86,6 @@ export const meetingTaskEvidenceResolver: AuthorizedTaskEvidenceResolver = {
                 sourceMessage === undefined ||
                 sourceMessage.turnId !== task.sourceTurnId ||
                 sourceMessage.stepId !== task.sourceStepId ||
-                sourceMessage.seq < task.sourceContextFromSeq ||
-                sourceMessage.seq > task.sourceContextThroughSeq ||
                 task.resultSummary === undefined ||
                 task.resultSummary.trim() === "" ||
                 task.finishedAt === undefined ||

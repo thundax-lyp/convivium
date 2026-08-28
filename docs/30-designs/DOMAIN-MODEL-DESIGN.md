@@ -169,7 +169,7 @@ Decision 只能由 Runtime 生成，Participant 不能直接创建或覆盖。
 
 ### MeetingQuestion And MeetingHandRaise
 
-Question 必须包含 id、text、askedBy、agendaItemId、blocking、status、createdAt，并允许 directedTo?、answerMessageId?。
+Question 必须包含 id、text、askedBy、agendaItemId、blocking、status、createdAt，并允许 directedTo?、answerMessageId?。`question.added` 记录 canonical Question 创建事实；`question.answered` 记录 Question 与 caller authored answer message 的不可变关联。V1 QuestionClaim 没有 FR-6 所需的有效阻塞依据，因此 `blocking: true` 不创建 Question。
 
 HandRaise 必须包含 id、participant、reason、summary、taskIds、priority、status、createdAt，并允许 replyToMessageId?、agendaItemId?、resolvedAt?。
 

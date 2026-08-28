@@ -139,9 +139,13 @@ describe("create/status meeting runtime", () => {
         await runtime.dispose();
     });
 
-    it.each([{ status: "failed" as const }, { status: "completed" as const }])(
-        "finishes a $status task with the matching hand raise contract",
-        async ({ status }) => {
+    it.each([
+        { status: "failed" as const, pauseBeforeFinish: false },
+        { status: "completed" as const, pauseBeforeFinish: false },
+        { status: "completed" as const, pauseBeforeFinish: true }
+    ])(
+        "finishes a $status task with the matching hand raise contract (paused: $pauseBeforeFinish)",
+        async ({ status, pauseBeforeFinish }) => {
             const root = await mkdtemp(join(tmpdir(), "convivium-tools-failed-task-"));
             roots.push(root);
             const prompts: string[] = [];
@@ -257,6 +261,25 @@ describe("create/status meeting runtime", () => {
                 participant
             );
             expect(started).toMatchObject({ ok: true });
+            if (!started.ok) throw new Error("task start failed");
+            if (pauseBeforeFinish) {
+                await expect(
+                    runtime.pause(
+                        {
+                            protocolVersion: 1,
+                            meetingId,
+                            expectedMeetingVersion: started.meetingVersion,
+                            requestId: "pause-before-finish",
+                            reason: "verify paused task completion"
+                        },
+                        {
+                            sessionId: "captain-1",
+                            kind: "captain",
+                            agent: { id: "captain-1" } as never
+                        }
+                    )
+                ).resolves.toMatchObject({ ok: true });
+            }
             const finishInput = {
                 protocolVersion: 1,
                 meetingId,
@@ -276,29 +299,31 @@ describe("create/status meeting runtime", () => {
             if (!finished.ok) throw new Error("finish failed");
             if (status === "completed") {
                 expect(finished.result.handRaiseId).toBe(`${task.result.meetingTaskId}-hand-raise`);
-                const nextPlan = await runtime.submitManagerPlan(
-                    {
-                        protocolVersion: 1,
-                        meetingId,
-                        requestId: "next-plan",
-                        planningAttemptId: `${meetingId}-planning-2`,
-                        observedMeetingVersion: finished.meetingVersion,
-                        agendaItemId: "agenda-agenda-1",
-                        intent: "explore",
-                        objective: "Continue after task evidence",
-                        expectedOutputs: [],
-                        prohibitedTopics: [],
-                        steps: [
-                            {
-                                participantId: "participant-one",
-                                instruction: "Continue the meeting",
-                                reason: "manager_selected"
-                            }
-                        ]
-                    },
-                    manager
-                );
-                expect(nextPlan).toMatchObject({ ok: true });
+                if (!pauseBeforeFinish) {
+                    const nextPlan = await runtime.submitManagerPlan(
+                        {
+                            protocolVersion: 1,
+                            meetingId,
+                            requestId: "next-plan",
+                            planningAttemptId: `${meetingId}-planning-2`,
+                            observedMeetingVersion: finished.meetingVersion,
+                            agendaItemId: "agenda-agenda-1",
+                            intent: "explore",
+                            objective: "Continue after task evidence",
+                            expectedOutputs: [],
+                            prohibitedTopics: [],
+                            steps: [
+                                {
+                                    participantId: "participant-one",
+                                    instruction: "Continue the meeting",
+                                    reason: "manager_selected"
+                                }
+                            ]
+                        },
+                        manager
+                    );
+                    expect(nextPlan).toMatchObject({ ok: true });
+                }
             } else {
                 expect(finished.result).not.toHaveProperty("handRaiseId");
             }
@@ -315,6 +340,7 @@ describe("create/status meeting runtime", () => {
                         .get(meetingId).state_json
                 )
             ) as {
+                status: string;
                 handRaises: unknown[];
                 manager?: { currentPlanningAttempt?: unknown };
             };
@@ -326,6 +352,7 @@ describe("create/status meeting runtime", () => {
             db.close();
             expect(state.handRaises).toHaveLength(status === "completed" ? 1 : 0);
             expect(state.manager?.currentPlanningAttempt).toBeUndefined();
+            if (pauseBeforeFinish) expect(state.status).toBe("paused");
             expect(raiseEvents.count).toBe(status === "completed" ? 1 : 0);
 
             const recoveredRuntime = createCreateStatusRuntime({
@@ -420,6 +447,61 @@ describe("create/status meeting runtime", () => {
         expect(second).toMatchObject({ ok: true });
         if (!first.ok || !second.ok) throw new Error("raise hand failed");
         expect(first.result.handRaiseId).not.toBe(second.result.handRaiseId);
+        await runtime.dispose();
+    });
+
+    it("returns an existing equivalent pending hand raise without advancing the meeting", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-duplicate-raise-"));
+        roots.push(root);
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => "followup-message" as never
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => 100
+        });
+        const created = await runtime.createMeeting(
+            input,
+            {
+                sessionId: "captain-1",
+                kind: "captain",
+                agent: { id: "captain-1" } as never
+            },
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const caller = {
+            sessionId: `${created.result.meetingId}-participant-participant-one`,
+            meetingId: created.result.meetingId,
+            participantId: "participant-one",
+            kind: "participant" as const
+        };
+        const request = {
+            protocolVersion: 1 as const,
+            meetingId: created.result.meetingId,
+            reason: "new_evidence" as const,
+            summary: "New evidence",
+            taskIds: [],
+            priority: "normal" as const
+        };
+        const first = await runtime.raiseHand({ ...request, requestId: "raise-1" }, caller);
+        if (!first.ok) throw new Error("first raise failed");
+        const second = await runtime.raiseHand({ ...request, requestId: "raise-2" }, caller);
+
+        expect(second).toMatchObject({
+            ok: true,
+            meetingVersion: first.meetingVersion,
+            result: { handRaiseId: first.result.handRaiseId, status: "pending" }
+        });
         await runtime.dispose();
     });
 

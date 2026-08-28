@@ -46,6 +46,7 @@
 - 保存模块设计、状态机、数据所有权、依赖方向和专项设计。
 - 设计必须关联需求或契约，不能替代产品决策。
 - 复杂临时任务可以使用 `RUNBOOK-*.md`；任务关闭时必须迁移长期结论并删除 RUNBOOK。
+- RUNBOOK 的适用条件、低级 LLM 执行模型、决策完备性、颗粒度和收口规则统一由 `RUNBOOK-RULES.md` 定义。
 
 ### `40-readiness`
 
@@ -148,6 +149,7 @@ readiness 证据至少包含：
 - 启动、恢复、升级或发布方式变化：`50-operations/`。
 - 文档路由变化：根 `AGENTS.md` 和 `docs/AGENTS.md`。
 - 项目工程工作流变化：对应 `.agents/skills/`。
+- RUNBOOK 治理变化：`RUNBOOK-RULES.md`、根 `AGENTS.md`、`docs/AGENTS.md` 和 `.agents/skills/convivium-runbook/`。
 - Commit 规则变化：`COMMIT-RULES.md`、根 `AGENTS.md` 和 `docs/AGENTS.md`。
 - PR 交付规则变化：`PR-RULES.md` 和 `.github/pull_request_template.md`。
 
