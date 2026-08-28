@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
 import { spawn } from "node:child_process";
 import process from "node:process";
+import { createSmokeEnvironment } from "./smoke-environment.mjs";
 
 const DSH_VERSION = "0.1.1-rc.2";
 const PROFILE = "web";
@@ -40,7 +41,7 @@ function runCommand(command, args, options = {}) {
     return new Promise((resolveCommand, rejectCommand) => {
         const child = spawn(command, args, {
             cwd: options.cwd ?? pluginRoot,
-            env: { ...process.env, ...options.env },
+            env: createSmokeEnvironment(process.env, options.env),
             stdio: ["ignore", "pipe", "pipe"],
             shell: false
         });
@@ -597,13 +598,12 @@ async function main() {
     await writeSmokePatch(patchPath);
     await writeProbePackage(probeDir);
 
-    const env = {
-        ...process.env,
+    const env = createSmokeEnvironment(process.env, {
         DSH_HOME: dshHome,
         DSH_TELEMETRY_DISABLED: "1",
         DSH_PERMISSION_MODE: "workspace-write",
         CONVIVIUM_SMOKE_RESULT: resultPath
-    };
+    });
     const port = await allocatePort();
     const artifact = await packArtifact(artifactDir);
     await installArtifact(env, artifact);
