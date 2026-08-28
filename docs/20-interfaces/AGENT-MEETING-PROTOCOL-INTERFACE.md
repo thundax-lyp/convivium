@@ -14,13 +14,13 @@
 
 ### Protocol participants
 
-| Identity | Responsibility | May produce |
-|---|---|---|
-| Captain | 创建、控制和结束会议 | 会议控制命令、明确接受、豁免和改派 |
-| Manager | 建议下一 Turn 的议题、目标和有序 speakers | `ManagerPlanSubmission` |
-| Participant | 作为具体会议身份发言、创建 MeetingTask、异步私聊和申请后续发言 | `TurnSubmission`、`MeetingTaskRequest`、meeting-scoped mail、`HandRaiseSubmission` |
-| Meeting Runtime | 验证身份、发言权、引用和权限，形成正式会议事实 | Context、receipts、errors、status projections |
-| DSH | 提供真实 caller Session、AgentSession、工具调用、Session FIFO 和生命周期 | DSH-owned runtime facts |
+| Identity        | Responsibility                                                           | May produce                                                                        |
+| --------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Captain         | 创建、控制和结束会议                                                     | 会议控制命令、明确接受、豁免和改派                                                 |
+| Manager         | 建议下一 Turn 的议题、目标和有序 speakers                                | `ManagerPlanSubmission`                                                            |
+| Participant     | 作为具体会议身份发言、创建 MeetingTask、异步私聊和申请后续发言           | `TurnSubmission`、`MeetingTaskRequest`、meeting-scoped mail、`HandRaiseSubmission` |
+| Meeting Runtime | 验证身份、发言权、引用和权限，形成正式会议事实                           | Context、receipts、errors、status projections                                      |
+| DSH             | 提供真实 caller Session、AgentSession、工具调用、Session FIFO 和生命周期 | DSH-owned runtime facts                                                            |
 
 ### Ownership rules
 
@@ -52,33 +52,33 @@
 协议版本为 `1`。所有成功响应和结构化错误都必须携带 `protocolVersion`。
 
 ```ts
-type ProtocolVersion = 1
+type ProtocolVersion = 1;
 
 interface ProtocolMeta {
-  protocolVersion: ProtocolVersion
-  meetingId: string
-  meetingVersion: number
+  protocolVersion: ProtocolVersion;
+  meetingId: string;
+  meetingVersion: number;
 }
 ```
 
 ### Command set
 
-| Command | Authorized caller | Purpose |
-|---|---|---|
-| `convivium_create_meeting` | Captain | 创建会议和会议身份 |
-| `convivium_meeting_status` | Captain；Session 仍有效时的该会议 Manager 或 Participant | 读取按身份裁剪的会议上下文 |
-| `convivium_submit_manager_plan` | 当前 Manager Session | 提交下一 Turn 建议 |
-| `convivium_submit_turn` | 当前 Speaker Session | 提交正式发言和结构化声明 |
-| `convivium_create_meeting_task` | 当前 Speaker Session | 创建 Convivium-owned MeetingTask |
-| `convivium_meeting_task_status` | 该 MeetingTask 的原 Participant Session | 读取当前授权 task projection、Meeting terminal 状态和执行许可 |
-| `convivium_start_meeting_task` | 该 MeetingTask 的原 Participant Session | 幂等地将 queued MeetingTask 置为 running |
-| `convivium_finish_meeting_task` | 该 MeetingTask 的原 Participant Session | 提交 terminal result 并申请后续发言 |
-| `convivium_raise_hand` | 该会议的 Participant Session | 申请后续发言 |
-| `convivium_pause_meeting` | Captain | 根据用户指令暂停会议 |
-| `convivium_resume_meeting` | Captain | 根据用户指令恢复会议 |
-| `convivium_dispose_risk` | Captain | 对指定风险作出结构化接受或拒绝处置 |
-| `convivium_reassign_turn` | Captain | 撤销并改派或跳过当前发言位置 |
-| `convivium_end_meeting` | Captain | 正常、部分、无共识或取消结束 |
+| Command                         | Authorized caller                                        | Purpose                                                       |
+| ------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------- |
+| `convivium_create_meeting`      | Captain                                                  | 创建会议和会议身份                                            |
+| `convivium_meeting_status`      | Captain；Session 仍有效时的该会议 Manager 或 Participant | 读取按身份裁剪的会议上下文                                    |
+| `convivium_submit_manager_plan` | 当前 Manager Session                                     | 提交下一 Turn 建议                                            |
+| `convivium_submit_turn`         | 当前 Speaker Session                                     | 提交正式发言和结构化声明                                      |
+| `convivium_create_meeting_task` | 当前 Speaker Session                                     | 创建 Convivium-owned MeetingTask                              |
+| `convivium_meeting_task_status` | 该 MeetingTask 的原 Participant Session                  | 读取当前授权 task projection、Meeting terminal 状态和执行许可 |
+| `convivium_start_meeting_task`  | 该 MeetingTask 的原 Participant Session                  | 幂等地将 queued MeetingTask 置为 running                      |
+| `convivium_finish_meeting_task` | 该 MeetingTask 的原 Participant Session                  | 提交 terminal result 并申请后续发言                           |
+| `convivium_raise_hand`          | 该会议的 Participant Session                             | 申请后续发言                                                  |
+| `convivium_pause_meeting`       | Captain                                                  | 根据用户指令暂停会议                                          |
+| `convivium_resume_meeting`      | Captain                                                  | 根据用户指令恢复会议                                          |
+| `convivium_dispose_risk`        | Captain                                                  | 对指定风险作出结构化接受或拒绝处置                            |
+| `convivium_reassign_turn`       | Captain                                                  | 撤销并改派或跳过当前发言位置                                  |
+| `convivium_end_meeting`         | Captain                                                  | 正常、部分、无共识或取消结束                                  |
 
 本协议不提供无约束 broadcast 或通用 `meeting_message`。Agent 私聊使用 Convivium mailbox；meeting-scoped mail 使用下述上下文结构，但不属于正式 transcript 协议。
 
@@ -88,24 +88,24 @@ interface ProtocolMeta {
 
 ```ts
 interface MeetingMailboxRecipientV1 {
-  kind: 'meeting_participant'
-  meetingId: string
-  participantId: string
+  kind: "meeting_participant";
+  meetingId: string;
+  participantId: string;
 }
 
 interface MeetingMailContextV1 {
-  meetingId: string
-  agendaItemId?: string
-  contextFromSeq: number
-  contextThroughSeq: number
-  relevantMessageIds: readonly string[]
-  snapshotSummary?: string
+  meetingId: string;
+  agendaItemId?: string;
+  contextFromSeq: number;
+  contextThroughSeq: number;
+  relevantMessageIds: readonly string[];
+  snapshotSummary?: string;
 }
 
 interface MeetingMailExtensionV1 {
-  recipient: MeetingMailboxRecipientV1
-  meetingContext: MeetingMailContextV1
-  replyToMailId?: string
+  recipient: MeetingMailboxRecipientV1;
+  meetingContext: MeetingMailContextV1;
+  replyToMailId?: string;
 }
 ```
 
@@ -117,23 +117,23 @@ interface MeetingMailExtensionV1 {
 
 ```ts
 type MailHandlingStatusV1 =
-  | 'pending'
-  | 'processing'
-  | 'processed'
-  | 'obsolete'
-  | 'failed'
-  | 'timed_out'
-  | 'cancelled'
+  | "pending"
+  | "processing"
+  | "processed"
+  | "obsolete"
+  | "failed"
+  | "timed_out"
+  | "cancelled";
 
 interface MailHandlingAttemptV1 {
-  handlingAttemptId: string
-  mailId: string
-  meetingId: string
-  participantId: string
-  deliveryId?: string
-  snapshotThroughSeq: number
-  processingThroughSeq?: number
-  status: MailHandlingStatusV1
+  handlingAttemptId: string;
+  mailId: string;
+  meetingId: string;
+  participantId: string;
+  deliveryId?: string;
+  snapshotThroughSeq: number;
+  processingThroughSeq?: number;
+  status: MailHandlingStatusV1;
 }
 ```
 
@@ -155,138 +155,138 @@ Mail Processor 开始处理时必须：
 
 ```ts
 interface ParticipantSpecV1 {
-  participantKey: string
-  sourceMemberName?: string
-  displayName: string
-  role?: string
+  participantKey: string;
+  sourceMemberName?: string;
+  displayName: string;
+  role?: string;
 }
 
 interface ObjectiveContractSpecV1 {
-  requiredOutputs: readonly { key: string; description: string }[]
-  acceptanceCriteria: readonly { key: string; description: string }[]
-  hardConstraints: readonly { key: string; description: string }[]
-  requiredReviewerKeys: readonly string[]
-  riskAcceptanceAuthorityKeys: readonly string[]
-  acceptableRiskLevel: 'low' | 'medium' | 'high'
+  requiredOutputs: readonly { key: string; description: string }[];
+  acceptanceCriteria: readonly { key: string; description: string }[];
+  hardConstraints: readonly { key: string; description: string }[];
+  requiredReviewerKeys: readonly string[];
+  riskAcceptanceAuthorityKeys: readonly string[];
+  acceptableRiskLevel: "low" | "medium" | "high";
 }
 
 interface AgendaItemSpecV1 {
-  key: string
-  title: string
-  objective: string
-  inScope: readonly string[]
-  outOfScope: readonly string[]
+  key: string;
+  title: string;
+  objective: string;
+  inScope: readonly string[];
+  outOfScope: readonly string[];
   // Each reference is an output/criterion key, description, or canonical ID;
   // creation stores the resolved canonical ID.
-  completionCriteria: readonly string[]
-  ownerKey?: string
-  requiredParticipantKeys: readonly string[]
-  relatedTaskIds?: readonly string[]
+  completionCriteria: readonly string[];
+  ownerKey?: string;
+  requiredParticipantKeys: readonly string[];
+  relatedTaskIds?: readonly string[];
 }
 
 interface CreateMeetingInputV1 {
-  protocolVersion: 1
-  requestId: string
-  teamId: string
-  topic: string
-  objective: string
-  objectiveContract: ObjectiveContractSpecV1
-  agenda: readonly AgendaItemSpecV1[]
-  participants: readonly ParticipantSpecV1[]
-  continuation?: ContinuationSelectionV1
-  selectionMode?: 'round_robin' | 'rule_based' | 'manager' | 'hybrid'
-  limits?: Partial<PublicMeetingLimitsV1>
+  protocolVersion: 1;
+  requestId: string;
+  teamId: string;
+  topic: string;
+  objective: string;
+  objectiveContract: ObjectiveContractSpecV1;
+  agenda: readonly AgendaItemSpecV1[];
+  participants: readonly ParticipantSpecV1[];
+  continuation?: ContinuationSelectionV1;
+  selectionMode?: "round_robin" | "rule_based" | "manager" | "hybrid";
+  limits?: Partial<PublicMeetingLimitsV1>;
 }
 
 interface ContinuationSelectionV1 {
-  sourceMeetingId: string
-  includeFinalSummary: boolean
-  decisionIds: readonly string[]
-  unresolvedIssueIds: readonly string[]
-  riskIds: readonly string[]
-  evidenceIds: readonly string[]
-  artifactIds: readonly string[]
+  sourceMeetingId: string;
+  includeFinalSummary: boolean;
+  decisionIds: readonly string[];
+  unresolvedIssueIds: readonly string[];
+  riskIds: readonly string[];
+  evidenceIds: readonly string[];
+  artifactIds: readonly string[];
 }
 
 interface CreateMeetingResultV1 {
-  meetingId: string
-  meetingVersion: number
-  status: 'created' | 'running'
+  meetingId: string;
+  meetingVersion: number;
+  status: "created" | "running";
   participants: readonly {
-    participantKey: string
-    participantId: string
-  }[]
+    participantKey: string;
+    participantId: string;
+  }[];
 }
 
 interface MeetingStatusInputV1 {
-  protocolVersion: 1
-  meetingId: string
+  protocolVersion: 1;
+  meetingId: string;
 }
 
 interface PauseMeetingInputV1 {
-  protocolVersion: 1
-  meetingId: string
-  expectedMeetingVersion: number
-  requestId: string
-  reason: string
+  protocolVersion: 1;
+  meetingId: string;
+  expectedMeetingVersion: number;
+  requestId: string;
+  reason: string;
 }
 
 interface ResumeMeetingInputV1 {
-  protocolVersion: 1
-  meetingId: string
-  expectedMeetingVersion: number
-  requestId: string
+  protocolVersion: 1;
+  meetingId: string;
+  expectedMeetingVersion: number;
+  requestId: string;
 }
 
 interface MeetingControlResultV1 {
-  status: 'paused' | 'running' | 'waiting'
-  changed: boolean
+  status: "paused" | "running" | "waiting";
+  changed: boolean;
 }
 
 interface CaptainRiskDispositionInputV1 {
-  protocolVersion: 1
-  meetingId: string
-  expectedMeetingVersion: number
-  requestId: string
-  issueId: string
-  decision: 'accept' | 'reject'
-  reason: string
-  evidenceMessageIds: readonly string[]
+  protocolVersion: 1;
+  meetingId: string;
+  expectedMeetingVersion: number;
+  requestId: string;
+  issueId: string;
+  decision: "accept" | "reject";
+  reason: string;
+  evidenceMessageIds: readonly string[];
 }
 
 interface CaptainRiskDispositionResultV1 {
-  requestId: string
-  issueId: string
-  disposition: 'accepted' | 'rejected'
-  completionFactId: string
-  meetingStatus: MeetingStatusResultV1['status']
+  requestId: string;
+  issueId: string;
+  disposition: "accepted" | "rejected";
+  completionFactId: string;
+  meetingStatus: MeetingStatusResultV1["status"];
 }
 
 interface ReassignTurnInputV1 {
-  protocolVersion: 1
-  meetingId: string
-  expectedMeetingVersion: number
-  currentAttemptId: string
-  action: 'reassign' | 'skip'
-  replacementParticipantId?: string
-  reason: string
-  requestId: string
+  protocolVersion: 1;
+  meetingId: string;
+  expectedMeetingVersion: number;
+  currentAttemptId: string;
+  action: "reassign" | "skip";
+  replacementParticipantId?: string;
+  reason: string;
+  requestId: string;
 }
 
 interface EndMeetingInputV1 {
-  protocolVersion: 1
-  meetingId: string
-  expectedMeetingVersion: number
-  outcome: 'completed' | 'partial' | 'no_consensus' | 'cancelled'
-  reason: string
-  acceptedDecisionIds: readonly string[]
-  deferredAgendaItemIds: readonly string[]
+  protocolVersion: 1;
+  meetingId: string;
+  expectedMeetingVersion: number;
+  outcome: "completed" | "partial" | "no_consensus" | "cancelled";
+  reason: string;
+  acceptedDecisionIds: readonly string[];
+  deferredAgendaItemIds: readonly string[];
   waivers: readonly {
-    subjectId: string
-    kind: 'required_review' | 'agenda_item'
-    reason: string
-  }[]
-  requestId: string
+    subjectId: string;
+    kind: "required_review" | "agenda_item";
+    reason: string;
+  }[];
+  requestId: string;
 }
 ```
 
@@ -326,9 +326,9 @@ Web route 不得伪造 Captain Session，也不得绕过领域授权、`expected
 
 插件面板使用以下类型化路由；路径中的 `meetingId` 必须与 body 解析后的 Meeting 一致：
 
-| Method and route | Body | Result |
-|---|---|---|
-| `POST /api/convivium/meetings/:meetingId/pause` | `PauseMeetingInputV1` | `MeetingControlResultV1` |
+| Method and route                                 | Body                   | Result                   |
+| ------------------------------------------------ | ---------------------- | ------------------------ |
+| `POST /api/convivium/meetings/:meetingId/pause`  | `PauseMeetingInputV1`  | `MeetingControlResultV1` |
 | `POST /api/convivium/meetings/:meetingId/resume` | `ResumeMeetingInputV1` | `MeetingControlResultV1` |
 
 路由必须使用 DSH 当前用户上下文验证其对 Meeting 所属 Team 的控制权限；仅能读取会议的用户不得调用。前端不得传入 Captain Session ID。
@@ -355,55 +355,57 @@ Web route 不得伪造 Captain Session，也不得绕过领域授权、`expected
 
 ```ts
 interface MeetingTaskRequestV1 {
-  protocolVersion: 1
-  meetingId: string
-  attemptId: string
-  requestId: string
-  title: string
-  description: string
-  blocking: boolean
+  protocolVersion: 1;
+  meetingId: string;
+  attemptId: string;
+  requestId: string;
+  title: string;
+  description: string;
+  blocking: boolean;
 }
 
 interface MeetingTaskResultV1 {
-  requestId: string
-  meetingTaskId: string
-  participantId: string
-  originatingSpeakerAttemptId: string
-  status: 'requested' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+  requestId: string;
+  meetingTaskId: string;
+  participantId: string;
+  originatingSpeakerAttemptId: string;
+  status:
+    "requested" | "queued" | "running" | "completed" | "failed" | "cancelled";
 }
 
 interface MeetingTaskProjectionV1 {
-  meetingTaskId: string
-  participantId: string
-  title: string
-  blocking: boolean
-  status: 'requested' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
-  resultSummary?: string
-  failureReason?: string
-  createdAt: number
-  queuedAt?: number
-  startedAt?: number
-  finishedAt?: number
+  meetingTaskId: string;
+  participantId: string;
+  title: string;
+  blocking: boolean;
+  status:
+    "requested" | "queued" | "running" | "completed" | "failed" | "cancelled";
+  resultSummary?: string;
+  failureReason?: string;
+  createdAt: number;
+  queuedAt?: number;
+  startedAt?: number;
+  finishedAt?: number;
 }
 
 interface MeetingTaskStatusResultV1 {
-  task: MeetingTaskProjectionV1
-  observedMeetingVersion: number
-  meetingTerminal: boolean
-  mayExecute: boolean
+  task: MeetingTaskProjectionV1;
+  observedMeetingVersion: number;
+  meetingTerminal: boolean;
+  mayExecute: boolean;
 }
 
 interface MeetingTaskStartResultV1 {
-  requestId: string
-  meetingTaskId: string
-  status: 'running'
+  requestId: string;
+  meetingTaskId: string;
+  status: "running";
 }
 
 interface MeetingTaskFinishResultV1 {
-  requestId: string
-  meetingTaskId: string
-  status: 'completed' | 'failed'
-  handRaiseId?: string
+  requestId: string;
+  meetingTaskId: string;
+  status: "completed" | "failed";
+  handRaiseId?: string;
 }
 ```
 
@@ -435,16 +437,16 @@ interface MeetingTaskFinishResultV1 {
 
 ### Identifier semantics
 
-| Identifier | Meaning |
-|---|---|
-| `meetingId` | 一场会议的稳定 ID；先于任何 Meeting Session 或持久化副作用生成，并绑定独立存储边界 |
-| `participantId` | 会议内身份的稳定 ID |
-| `turnId` | 一个有序发言周期的稳定 ID |
-| `stepId` | Turn 内一个计划发言位置的稳定 ID |
-| `attemptId` | 对 SpeakerStep 的一次有效请求 capability |
-| `planningAttemptId` | 对 Manager 的一次有效规划请求 capability |
-| `deliveryId` | 一次 DSH Session 投递及重投使用的稳定 ID |
-| `requestId` | caller 为可重试命令提供的稳定请求 ID |
+| Identifier          | Meaning                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `meetingId`         | 一场会议的稳定 ID；先于任何 Meeting Session 或持久化副作用生成，并绑定独立存储边界 |
+| `participantId`     | 会议内身份的稳定 ID                                                                |
+| `turnId`            | 一个有序发言周期的稳定 ID                                                          |
+| `stepId`            | Turn 内一个计划发言位置的稳定 ID                                                   |
+| `attemptId`         | 对 SpeakerStep 的一次有效请求 capability                                           |
+| `planningAttemptId` | 对 Manager 的一次有效规划请求 capability                                           |
+| `deliveryId`        | 一次 DSH Session 投递及重投使用的稳定 ID                                           |
+| `requestId`         | caller 为可重试命令提供的稳定请求 ID                                               |
 
 ID 必须作为不透明字符串处理。调用方不得从 ID 格式推断权限、顺序或时间。
 
@@ -452,27 +454,27 @@ ID 必须作为不透明字符串处理。调用方不得从 ID 格式推断权�
 
 ```ts
 interface SpeakerMeetingContextV1 {
-  protocolVersion: 1
-  meetingId: string
-  meetingVersion: number
-  objective: string
-  objectiveContract: PublicObjectiveContractV1
-  activeAgendaItem: PublicAgendaItemV1
-  acceptedDecisions: readonly PublicDecisionV1[]
-  blockingQuestions: readonly PublicQuestionV1[]
-  recentMessages: readonly PublicMeetingMessageV1[]
-  relevantHistorySummary?: string
-  taskResults: readonly AuthorizedTaskResultV1[]
-  continuationMaterials: readonly PublicContinuationMaterialV1[]
-  turn: PublicTurnV1
-  step: PublicSpeakerStepV1
+  protocolVersion: 1;
+  meetingId: string;
+  meetingVersion: number;
+  objective: string;
+  objectiveContract: PublicObjectiveContractV1;
+  activeAgendaItem: PublicAgendaItemV1;
+  acceptedDecisions: readonly PublicDecisionV1[];
+  blockingQuestions: readonly PublicQuestionV1[];
+  recentMessages: readonly PublicMeetingMessageV1[];
+  relevantHistorySummary?: string;
+  taskResults: readonly AuthorizedTaskResultV1[];
+  continuationMaterials: readonly PublicContinuationMaterialV1[];
+  turn: PublicTurnV1;
+  step: PublicSpeakerStepV1;
   attempt: {
-    attemptId: string
-    deliveryId: string
-    contextFromSeq: number
-    contextThroughSeq: number
-    deadlineAt?: number
-  }
+    attemptId: string;
+    deliveryId: string;
+    contextFromSeq: number;
+    contextThroughSeq: number;
+    deadlineAt?: number;
+  };
 }
 ```
 
@@ -481,84 +483,92 @@ interface SpeakerMeetingContextV1 {
 ```ts
 interface PublicObjectiveContractV1 {
   requiredOutputs: readonly {
-    id: string
-    description: string
-    status: 'pending' | 'ready' | 'accepted'
-  }[]
+    id: string;
+    description: string;
+    status: "pending" | "ready" | "accepted";
+  }[];
   acceptanceCriteria: readonly {
-    id: string
-    description: string
-    satisfied: boolean
-  }[]
-  hardConstraints: readonly { id: string; description: string }[]
-  requiredReviewers: readonly string[]
-  riskAcceptanceAuthority: readonly string[]
-  acceptableRiskLevel: 'low' | 'medium' | 'high'
+    id: string;
+    description: string;
+    satisfied: boolean;
+  }[];
+  hardConstraints: readonly { id: string; description: string }[];
+  requiredReviewers: readonly string[];
+  riskAcceptanceAuthority: readonly string[];
+  acceptableRiskLevel: "low" | "medium" | "high";
 }
 
 interface PublicAgendaItemV1 {
-  id: string
-  title: string
-  objective: string
-  inScope: readonly string[]
-  outOfScope: readonly string[]
+  id: string;
+  title: string;
+  objective: string;
+  inScope: readonly string[];
+  outOfScope: readonly string[];
   // Public projection contains the canonical IDs resolved during creation.
-  completionCriteria: readonly string[]
-  owner?: string
-  requiredParticipants: readonly string[]
-  relatedTaskIds: readonly string[]
-  status: 'pending' | 'discussing' | 'waiting' | 'resolved' | 'deferred' | 'blocked'
-  resolution?: string
+  completionCriteria: readonly string[];
+  owner?: string;
+  requiredParticipants: readonly string[];
+  relatedTaskIds: readonly string[];
+  status:
+    "pending" | "discussing" | "waiting" | "resolved" | "deferred" | "blocked";
+  resolution?: string;
 }
 
 interface PublicQuestionV1 {
-  id: string
-  text: string
-  askedBy: string
-  directedTo?: string
-  agendaItemId: string
-  blocking: boolean
-  status: 'open' | 'answered' | 'withdrawn' | 'deferred'
-  answerMessageId?: string
+  id: string;
+  text: string;
+  askedBy: string;
+  directedTo?: string;
+  agendaItemId: string;
+  blocking: boolean;
+  status: "open" | "answered" | "withdrawn" | "deferred";
+  answerMessageId?: string;
 }
 
 interface PublicDecisionV1 {
-  id: string
-  agendaItemId: string
-  proposalId: string
-  proposalRevision: number
-  statement: string
-  rationale: string
-  status: 'accepted' | 'superseded' | 'revoked'
-  acceptedBy: readonly string[]
-  dissentingPositionIds: readonly string[]
+  id: string;
+  agendaItemId: string;
+  proposalId: string;
+  proposalRevision: number;
+  statement: string;
+  rationale: string;
+  status: "accepted" | "superseded" | "revoked";
+  acceptedBy: readonly string[];
+  dissentingPositionIds: readonly string[];
 }
 
 interface AuthorizedTaskResultV1 {
-  taskId: string
-  attemptId?: string
-  status: string
-  output?: string
-  observedAt: number
+  taskId: string;
+  attemptId?: string;
+  status: string;
+  output?: string;
+  observedAt: number;
 }
 
 interface PublicTurnV1 {
-  id: string
-  seq: number
-  agendaItemId: string
-  intent: string
-  objective: string
-  expectedOutputs: readonly string[]
-  prohibitedTopics: readonly string[]
-  steps: readonly PublicSpeakerStepV1[]
+  id: string;
+  seq: number;
+  agendaItemId: string;
+  intent: string;
+  objective: string;
+  expectedOutputs: readonly string[];
+  prohibitedTopics: readonly string[];
+  steps: readonly PublicSpeakerStepV1[];
 }
 
 interface PublicSpeakerStepV1 {
-  id: string
-  participantId: string
-  instruction: string
-  reason: string
-  status: 'pending' | 'assigned' | 'running' | 'submitted' | 'skipped' | 'revoked' | 'failed'
+  id: string;
+  participantId: string;
+  instruction: string;
+  reason: string;
+  status:
+    | "pending"
+    | "assigned"
+    | "running"
+    | "submitted"
+    | "skipped"
+    | "revoked"
+    | "failed";
 }
 ```
 
@@ -566,56 +576,57 @@ interface PublicSpeakerStepV1 {
 
 ```ts
 interface ManagerMeetingContextV1 {
-  protocolVersion: 1
-  meetingId: string
-  meetingVersion: number
-  planningAttemptId: string
-  objective: string
-  activeAgendaItem: PublicAgendaItemV1
-  requiredSpeakerIds: readonly string[]
-  dispatchableParticipantIds: readonly string[]
-  recentPublicMessages: readonly PublicMeetingMessageV1[]
-  blockingFacts: readonly PublicBlockingFactV1[]
-  meetingTasks: readonly MeetingTaskProjectionV1[]
-  pendingHandRaises: readonly PublicHandRaiseV1[]
-  continuationMaterials: readonly PublicContinuationMaterialV1[]
-  limits: PublicMeetingLimitsV1
-  planningReason: string
+  protocolVersion: 1;
+  meetingId: string;
+  meetingVersion: number;
+  planningAttemptId: string;
+  objective: string;
+  activeAgendaItem: PublicAgendaItemV1;
+  requiredSpeakerIds: readonly string[];
+  dispatchableParticipantIds: readonly string[];
+  recentPublicMessages: readonly PublicMeetingMessageV1[];
+  blockingFacts: readonly PublicBlockingFactV1[];
+  meetingTasks: readonly MeetingTaskProjectionV1[];
+  pendingHandRaises: readonly PublicHandRaiseV1[];
+  continuationMaterials: readonly PublicContinuationMaterialV1[];
+  limits: PublicMeetingLimitsV1;
+  planningReason: string;
 }
 
 interface PublicBlockingFactV1 {
-  id: string
-  kind: 'question' | 'objection' | 'issue' | 'risk' | 'required_review'
-  subjectId: string
-  summary: string
+  id: string;
+  kind: "question" | "objection" | "issue" | "risk" | "required_review";
+  subjectId: string;
+  summary: string;
 }
 
 interface PublicHandRaiseV1 {
-  id: string
-  participantId: string
-  reason: string
-  summary: string
-  taskIds: readonly string[]
-  replyToMessageId?: string
-  agendaItemId?: string
-  priority: 'normal' | 'high' | 'blocking'
+  id: string;
+  participantId: string;
+  reason: string;
+  summary: string;
+  taskIds: readonly string[];
+  replyToMessageId?: string;
+  agendaItemId?: string;
+  priority: "normal" | "high" | "blocking";
 }
 
 interface PublicContinuationMaterialV1 {
-  sourceMeetingId: string
-  sourceKind: 'final_summary' | 'decision' | 'issue' | 'risk' | 'evidence' | 'artifact'
-  sourceObjectId?: string
-  summary: string
-  checksum?: string
+  sourceMeetingId: string;
+  sourceKind:
+    "final_summary" | "decision" | "issue" | "risk" | "evidence" | "artifact";
+  sourceObjectId?: string;
+  summary: string;
+  checksum?: string;
 }
 
 interface PublicMeetingLimitsV1 {
-  maxTurns: number
-  maxSpeakersPerTurn: number
-  maxTotalMessages: number
-  maxDurationMs?: number
-  speakerAttemptTimeoutMs?: number
-  mailHandlingTimeoutMs?: number
+  maxTurns: number;
+  maxSpeakersPerTurn: number;
+  maxTotalMessages: number;
+  maxDurationMs?: number;
+  speakerAttemptTimeoutMs?: number;
+  mailHandlingTimeoutMs?: number;
 }
 ```
 
@@ -625,29 +636,29 @@ Manager context 不得包含 Participant 的隐藏推理、私有 mailbox、完�
 
 ```ts
 type PublicMessageKind =
-  | 'statement'
-  | 'question'
-  | 'answer'
-  | 'proposal'
-  | 'objection'
-  | 'evidence'
-  | 'review'
-  | 'summary'
-  | 'decision'
+  | "statement"
+  | "question"
+  | "answer"
+  | "proposal"
+  | "objection"
+  | "evidence"
+  | "review"
+  | "summary"
+  | "decision";
 
 interface PublicMeetingMessageV1 {
-  id: string
-  seq: number
-  turnId: string
-  stepId: string
-  speaker: string
-  agendaItemId: string
-  kind: PublicMessageKind
-  content: string
-  mentions: readonly string[]
-  replyTo?: string
-  taskIds: readonly string[]
-  createdAt: number
+  id: string;
+  seq: number;
+  turnId: string;
+  stepId: string;
+  speaker: string;
+  agendaItemId: string;
+  kind: PublicMessageKind;
+  content: string;
+  mentions: readonly string[];
+  replyTo?: string;
+  taskIds: readonly string[];
+  createdAt: number;
 }
 ```
 
@@ -655,21 +666,21 @@ interface PublicMeetingMessageV1 {
 
 ```ts
 interface ManagerPlanSubmissionV1 {
-  protocolVersion: 1
-  meetingId: string
-  planningAttemptId: string
-  observedMeetingVersion: number
-  requestId: string
-  agendaItemId: string
-  intent: string
-  objective: string
-  expectedOutputs: readonly string[]
-  prohibitedTopics: readonly string[]
+  protocolVersion: 1;
+  meetingId: string;
+  planningAttemptId: string;
+  observedMeetingVersion: number;
+  requestId: string;
+  agendaItemId: string;
+  intent: string;
+  objective: string;
+  expectedOutputs: readonly string[];
+  prohibitedTopics: readonly string[];
   steps: readonly {
-    participantId: string
-    instruction: string
-    reason: string
-  }[]
+    participantId: string;
+    instruction: string;
+    reason: string;
+  }[];
 }
 ```
 
@@ -679,22 +690,25 @@ Manager plan 是建议。Meeting Runtime 必须验证 agenda、required speakers
 
 ```ts
 interface TurnSubmissionV1 {
-  protocolVersion: 1
-  meetingId: string
-  turnId: string
-  stepId: string
-  attemptId: string
-  deliveryId: string
-  agendaItemId: string
-  kind: PublicMessageKind
-  content: string
-  mentions: readonly string[]
-  replyTo?: string
-  taskIds: readonly string[]
-  agendaRelation: 'on_topic' | 'supporting_context'
-    | 'new_topic_candidate' | 'blocking_interrupt'
-  changes: PublicMeetingChangesV1
-  completionClaims?: CompletionClaimsV1
+  protocolVersion: 1;
+  meetingId: string;
+  turnId: string;
+  stepId: string;
+  attemptId: string;
+  deliveryId: string;
+  agendaItemId: string;
+  kind: PublicMessageKind;
+  content: string;
+  mentions: readonly string[];
+  replyTo?: string;
+  taskIds: readonly string[];
+  agendaRelation:
+    | "on_topic"
+    | "supporting_context"
+    | "new_topic_candidate"
+    | "blocking_interrupt";
+  changes: PublicMeetingChangesV1;
+  completionClaims?: CompletionClaimsV1;
 }
 ```
 
@@ -704,59 +718,59 @@ interface TurnSubmissionV1 {
 
 ```ts
 interface PublicMeetingChangesV1 {
-  questions?: readonly QuestionClaimV1[]
-  proposals?: readonly ProposalClaimV1[]
-  positions?: readonly PositionClaimV1[]
-  issues?: readonly IssueClaimV1[]
-  decisionProposals?: readonly DecisionProposalClaimV1[]
-  agendaCandidates?: readonly AgendaCandidateClaimV1[]
+  questions?: readonly QuestionClaimV1[];
+  proposals?: readonly ProposalClaimV1[];
+  positions?: readonly PositionClaimV1[];
+  issues?: readonly IssueClaimV1[];
+  decisionProposals?: readonly DecisionProposalClaimV1[];
+  agendaCandidates?: readonly AgendaCandidateClaimV1[];
 }
 
 interface QuestionClaimV1 {
-  text: string
-  directedTo?: string
-  blocking: boolean
+  text: string;
+  directedTo?: string;
+  blocking: boolean;
 }
 
 interface ProposalClaimV1 {
-  proposalId?: string
-  expectedRevision?: number
-  title: string
-  description: string
+  proposalId?: string;
+  expectedRevision?: number;
+  title: string;
+  description: string;
 }
 
 interface PositionClaimV1 {
-  proposalId: string
-  proposalRevision: number
-  position: 'support' | 'accept' | 'object' | 'needs_revision' | 'abstain'
-  reason?: string
-  blocking: boolean
+  proposalId: string;
+  proposalRevision: number;
+  position: "support" | "accept" | "object" | "needs_revision" | "abstain";
+  reason?: string;
+  blocking: boolean;
 }
 
 interface IssueClaimV1 {
-  title: string
-  description: string
-  affectedOutputIds: readonly string[]
-  affectedCriterionIds: readonly string[]
-  violatedConstraintIds: readonly string[]
-  impact: 'none' | 'low' | 'medium' | 'high' | 'critical'
-  urgency: 'now' | 'before_release' | 'later'
-  safeDefaultAvailable: boolean
+  title: string;
+  description: string;
+  affectedOutputIds: readonly string[];
+  affectedCriterionIds: readonly string[];
+  violatedConstraintIds: readonly string[];
+  impact: "none" | "low" | "medium" | "high" | "critical";
+  urgency: "now" | "before_release" | "later";
+  safeDefaultAvailable: boolean;
 }
 
 interface DecisionProposalClaimV1 {
-  proposalId: string
-  proposalRevision: number
-  statement: string
-  rationale: string
+  proposalId: string;
+  proposalRevision: number;
+  statement: string;
+  rationale: string;
 }
 
 interface AgendaCandidateClaimV1 {
-  title: string
-  reason: string
-  relationToActiveAgenda: 'related' | 'adjacent' | 'unrelated'
-  urgency: 'now' | 'before_release' | 'later'
-  suggestedParticipants: readonly string[]
+  title: string;
+  reason: string;
+  relationToActiveAgenda: "related" | "adjacent" | "unrelated";
+  urgency: "now" | "before_release" | "later";
+  suggestedParticipants: readonly string[];
 }
 ```
 
@@ -768,43 +782,43 @@ Participant 的 Position 不得携带其他 Participant 的有效身份。正式
 
 ```ts
 interface CompletionClaimsV1 {
-  outputClaims?: readonly EvidenceClaimV1[]
-  criterionClaims?: readonly EvidenceClaimV1[]
-  agendaResolution?: AgendaResolutionClaimV1
-  review?: ReviewClaimV1
-  questionResolutions?: readonly QuestionResolutionClaimV1[]
-  riskAcceptance?: RiskAcceptanceClaimV1
+  outputClaims?: readonly EvidenceClaimV1[];
+  criterionClaims?: readonly EvidenceClaimV1[];
+  agendaResolution?: AgendaResolutionClaimV1;
+  review?: ReviewClaimV1;
+  questionResolutions?: readonly QuestionResolutionClaimV1[];
+  riskAcceptance?: RiskAcceptanceClaimV1;
 }
 
 interface EvidenceClaimV1 {
-  subjectId: string
-  evidenceMessageIds: readonly string[]
-  taskIds: readonly string[]
+  subjectId: string;
+  evidenceMessageIds: readonly string[];
+  taskIds: readonly string[];
 }
 
 interface AgendaResolutionClaimV1 {
-  agendaItemId: string
-  resolution: string
-  evidenceMessageIds: readonly string[]
+  agendaItemId: string;
+  resolution: string;
+  evidenceMessageIds: readonly string[];
 }
 
 interface ReviewClaimV1 {
-  outputId: string
-  result: 'approved' | 'changes_required'
-  reason: string
-  evidenceMessageIds: readonly string[]
+  outputId: string;
+  result: "approved" | "changes_required";
+  reason: string;
+  evidenceMessageIds: readonly string[];
 }
 
 interface QuestionResolutionClaimV1 {
-  questionId: string
-  answerMessageId: string
+  questionId: string;
+  answerMessageId: string;
 }
 
 interface RiskAcceptanceClaimV1 {
-  issueId: string
-  decision: 'accept' | 'reject'
-  reason: string
-  evidenceMessageIds: readonly string[]
+  issueId: string;
+  decision: "accept" | "reject";
+  reason: string;
+  evidenceMessageIds: readonly string[];
 }
 ```
 
@@ -822,16 +836,21 @@ meeting-owned Participant Session 只能通过 `convivium_create_meeting_task` �
 
 ```ts
 interface HandRaiseSubmissionV1 {
-  protocolVersion: 1
-  meetingId: string
-  requestId: string
-  reason: 'task_completed' | 'new_evidence' | 'answer_ready'
-    | 'blocking_objection' | 'correction' | 'user_requested'
-  summary: string
-  taskIds: readonly string[]
-  replyToMessageId?: string
-  agendaItemId?: string
-  priority: 'normal' | 'high' | 'blocking'
+  protocolVersion: 1;
+  meetingId: string;
+  requestId: string;
+  reason:
+    | "task_completed"
+    | "new_evidence"
+    | "answer_ready"
+    | "blocking_objection"
+    | "correction"
+    | "user_requested";
+  summary: string;
+  taskIds: readonly string[];
+  replyToMessageId?: string;
+  agendaItemId?: string;
+  priority: "normal" | "high" | "blocking";
 }
 ```
 
@@ -855,8 +874,8 @@ Required speaker 当前不可调度时，规划命令必须失败并返回 `REQU
 
 同一个 `MeetingStatusResultV1` 同时用于 Agent tool 和 Plugin Frontend 的类型化状态读取，避免形成两套状态语义。插件面板使用：
 
-| Method and route | Body | Result |
-|---|---|---|
+| Method and route                         | Body | Result                                     |
+| ---------------------------------------- | ---- | ------------------------------------------ |
 | `GET /api/convivium/meetings/:meetingId` | none | `ProtocolSuccessV1<MeetingStatusResultV1>` |
 
 Web route 必须使用 DSH 当前用户上下文验证其对 Meeting 所属 Team 的读取权限，并按用户权限裁剪内容。它不得接受或伪造 Agent Session ID。Agent tool 仍使用真实 caller Session 进行身份裁剪。
@@ -865,184 +884,185 @@ Meeting 进入 `archived` 前，仍有效的 Manager/Participant Session 可以�
 
 ```ts
 interface PublicTerminationV1 {
-  code: string
-  reason: string
-  decisionIds: readonly string[]
-  unresolvedQuestionIds: readonly string[]
+  code: string;
+  reason: string;
+  decisionIds: readonly string[];
+  unresolvedQuestionIds: readonly string[];
 }
 
 interface PublicExecutionTerminationV1 extends PublicTerminationV1 {
-  dissentingPositionIds: readonly string[]
-  blockingAgendaItemIds: readonly string[]
-  finalMessage: string
-  endedAt: number
+  dissentingPositionIds: readonly string[];
+  blockingAgendaItemIds: readonly string[];
+  finalMessage: string;
+  endedAt: number;
 }
 
 interface MeetingStatusBaseV1 {
-  meetingId: string
-  meetingVersion: number
-  topic: string
-  objective: string
-  continuationMaterials: readonly PublicContinuationMaterialV1[]
-  limits: PublicMeetingLimitsV1
+  meetingId: string;
+  meetingVersion: number;
+  topic: string;
+  objective: string;
+  continuationMaterials: readonly PublicContinuationMaterialV1[];
+  limits: PublicMeetingLimitsV1;
 }
 
 interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
-  activeAgendaItem?: PublicAgendaItemV1
-  messages: readonly PublicMeetingMessageV1[]
-  acceptedDecisions: readonly PublicDecisionV1[]
-  blockingFacts: readonly PublicBlockingFactV1[]
+  activeAgendaItem?: PublicAgendaItemV1;
+  messages: readonly PublicMeetingMessageV1[];
+  acceptedDecisions: readonly PublicDecisionV1[];
+  blockingFacts: readonly PublicBlockingFactV1[];
 }
 
 interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
-  status: 'created' | 'running' | 'waiting' | 'paused' | 'converging'
-  currentTurn?: PublicTurnV1
-  currentSpeakerId?: string
-  pendingHandRaises: readonly PublicHandRaiseV1[]
-  meetingTasks: readonly MeetingTaskProjectionV1[]
+  status: "created" | "running" | "waiting" | "paused" | "converging";
+  currentTurn?: PublicTurnV1;
+  currentSpeakerId?: string;
+  pendingHandRaises: readonly PublicHandRaiseV1[];
+  meetingTasks: readonly MeetingTaskProjectionV1[];
   pauseControl: {
-    action: 'pause' | 'resume' | 'none'
-    pausedAt?: number
+    action: "pause" | "resume" | "none";
+    pausedAt?: number;
     pausedBy?: {
-      kind: 'user' | 'captain'
-      actorId: string
-      displayName?: string
-    }
-    reason?: string
-  }
-  termination?: never
-  archive?: never
+      kind: "user" | "captain";
+      actorId: string;
+      displayName?: string;
+    };
+    reason?: string;
+  };
+  termination?: never;
+  archive?: never;
 }
 
 interface ExecutionTerminalMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
-  status: 'completed' | 'partial' | 'no_consensus' | 'cancelled' | 'failed'
-  currentTurn?: never
-  currentSpeakerId?: never
-  pendingHandRaises: readonly []
-  pauseControl: { action: 'none' }
-  termination: PublicExecutionTerminationV1
-  completionFactIds: readonly string[]
-  archive?: never
+  status: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
+  currentTurn?: never;
+  currentSpeakerId?: never;
+  pendingHandRaises: readonly [];
+  pauseControl: { action: "none" };
+  termination: PublicExecutionTerminationV1;
+  completionFactIds: readonly string[];
+  archive?: never;
 }
 
 interface ArchivingMeetingStatusResultV1 extends MeetingStatusBaseV1 {
-  status: 'archiving'
-  currentTurn?: never
-  currentSpeakerId?: never
-  pendingHandRaises: readonly []
-  pauseControl: { action: 'none' }
-  termination: PublicTerminationV1
-  archive: PublicMaterializedArchiveRecordV1
+  status: "archiving";
+  currentTurn?: never;
+  currentSpeakerId?: never;
+  pendingHandRaises: readonly [];
+  pauseControl: { action: "none" };
+  termination: PublicTerminationV1;
+  archive: PublicMaterializedArchiveRecordV1;
 }
 
 interface ArchivedMeetingStatusResultV1 extends MeetingStatusBaseV1 {
-  status: 'archived'
-  currentTurn?: never
-  currentSpeakerId?: never
-  pendingHandRaises: readonly []
-  pauseControl: { action: 'none' }
-  termination: PublicTerminationV1
-  archive: PublicCompletedArchiveRecordV1
+  status: "archived";
+  currentTurn?: never;
+  currentSpeakerId?: never;
+  pendingHandRaises: readonly [];
+  pauseControl: { action: "none" };
+  termination: PublicTerminationV1;
+  archive: PublicCompletedArchiveRecordV1;
 }
 
 type MeetingStatusResultV1 =
   | ActiveMeetingStatusResultV1
   | ExecutionTerminalMeetingStatusResultV1
   | ArchivingMeetingStatusResultV1
-  | ArchivedMeetingStatusResultV1
+  | ArchivedMeetingStatusResultV1;
 
 interface PublicMaterializedArchiveRecordV1 {
-  package: PublicArchivePackageV1
-  archivedAt?: never
+  package: PublicArchivePackageV1;
+  archivedAt?: never;
 }
 
 interface PublicCompletedArchiveRecordV1 {
-  package: PublicArchivePackageV1
-  archivedAt: number
+  package: PublicArchivePackageV1;
+  archivedAt: number;
 }
 
 interface PublicArchivePackageV1 {
-  schemaVersion: 1
-  meetingId: string
-  teamId: string
-  sourceMeetingId?: string
-  objectiveContract: PublicObjectiveContractV1
-  finalSummary: string
-  artifactRefs: readonly PublicArtifactRefV1[]
-  acceptedDecisions: readonly PublicDecisionV1[]
-  proposals: readonly PublicArchiveProposalV1[]
-  completionFacts: readonly PublicArchiveCompletionFactV1[]
-  agenda: readonly PublicAgendaItemV1[]
-  issues: readonly PublicArchiveIssueV1[]
-  unresolvedQuestions: readonly PublicQuestionV1[]
-  parkingLot: readonly PublicArchiveAgendaCandidateV1[]
-  formalTranscript: readonly PublicMeetingMessageV1[]
+  schemaVersion: 1;
+  meetingId: string;
+  teamId: string;
+  sourceMeetingId?: string;
+  objectiveContract: PublicObjectiveContractV1;
+  finalSummary: string;
+  artifactRefs: readonly PublicArtifactRefV1[];
+  acceptedDecisions: readonly PublicDecisionV1[];
+  proposals: readonly PublicArchiveProposalV1[];
+  completionFacts: readonly PublicArchiveCompletionFactV1[];
+  agenda: readonly PublicAgendaItemV1[];
+  issues: readonly PublicArchiveIssueV1[];
+  unresolvedQuestions: readonly PublicQuestionV1[];
+  parkingLot: readonly PublicArchiveAgendaCandidateV1[];
+  formalTranscript: readonly PublicMeetingMessageV1[];
   participantProvenance: readonly {
-    participantId: string
-    displayName: string
-    role?: string
-    templateVersion?: string
-  }[]
-  termination: PublicTerminationV1
-  endedAt: number
-  materializedAt: number
+    participantId: string;
+    displayName: string;
+    role?: string;
+    templateVersion?: string;
+  }[];
+  termination: PublicTerminationV1;
+  endedAt: number;
+  materializedAt: number;
 }
 
 interface PublicArchiveProposalV1 {
-  id: string
-  agendaItemId: string
-  title: string
-  description: string
-  revision: number
-  status: 'draft' | 'under_review' | 'accepted' | 'rejected' | 'superseded'
+  id: string;
+  agendaItemId: string;
+  title: string;
+  description: string;
+  revision: number;
+  status: "draft" | "under_review" | "accepted" | "rejected" | "superseded";
   positions: readonly {
-    id: string
-    participantId: string
-    position: 'support' | 'accept' | 'object' | 'needs_revision' | 'abstain'
-    reason?: string
-    blocking: boolean
-    proposalRevision: number
-  }[]
+    id: string;
+    participantId: string;
+    position: "support" | "accept" | "object" | "needs_revision" | "abstain";
+    reason?: string;
+    blocking: boolean;
+    proposalRevision: number;
+  }[];
 }
 
 interface PublicArchiveCompletionFactV1 {
-  id: string
-  kind: string
-  subjectId: string
-  assertedBy: string
-  authority?: string
-  result: string
-  evidenceMessageIds: readonly string[]
-  taskIds: readonly string[]
-  reason?: string
-  status: 'active' | 'superseded' | 'revoked'
+  id: string;
+  kind: string;
+  subjectId: string;
+  assertedBy: string;
+  authority?: string;
+  result: string;
+  evidenceMessageIds: readonly string[];
+  taskIds: readonly string[];
+  reason?: string;
+  status: "active" | "superseded" | "revoked";
 }
 
 interface PublicArchiveIssueV1 {
-  id: string
-  title: string
-  description: string
-  disposition: 'blocking' | 'follow_up' | 'parking_lot' | 'accepted_risk' | 'out_of_scope'
-  status: 'open' | 'waiting' | 'resolved' | 'accepted' | 'deferred'
-  rationale: string
-  ownerId?: string
-  relatedTaskIds: readonly string[]
+  id: string;
+  title: string;
+  description: string;
+  disposition:
+    "blocking" | "follow_up" | "parking_lot" | "accepted_risk" | "out_of_scope";
+  status: "open" | "waiting" | "resolved" | "accepted" | "deferred";
+  rationale: string;
+  ownerId?: string;
+  relatedTaskIds: readonly string[];
 }
 
 interface PublicArchiveAgendaCandidateV1 {
-  id: string
-  title: string
-  reason: string
-  status: 'pending' | 'promoted' | 'parked' | 'rejected'
+  id: string;
+  title: string;
+  reason: string;
+  status: "pending" | "promoted" | "parked" | "rejected";
 }
 
 interface PublicArtifactRefV1 {
-  artifactId: string
-  title: string
-  version?: string
-  checksum?: string
-  sourceTaskId?: string
-  uri?: string
+  artifactId: string;
+  title: string;
+  version?: string;
+  checksum?: string;
+  sourceTaskId?: string;
+  uri?: string;
 }
 ```
 
@@ -1052,8 +1072,7 @@ Meeting Runtime 必须按 caller 身份裁剪 projection。任何 projection 都
 
 `archive.package` 在成果物化后即可只读展示；Meeting 仍可能处于 `archiving`。只有 meeting-owned Sessions 全部停止、关闭并撤销 capability，且最终事务写入关闭完成事实和 `meeting.archived` 后，Runtime 才能设置 `status='archived'` 和 `archive.archivedAt`。归档内容不得包含 AgentSession ID、完整 Agent 配置、delivery/outbox payload、私聊或可恢复 capability；底层已关闭 Session 数据是否保留不属于本协议。
 
-
-归档包必须自包含 transcript、决策、完成依据、未解决事项和其他正式会议事实，不能只保存指向即将被裁剪的运行态对象 ID。artifact 内容不强制复制进归档；artifact ref 保存来源 ID、标题、版本、可选 URI 和可选 checksum，并在读取时重新执行授权。checksum 只是来源描述，不参与归档完成、状态转换或恢复判断。
+归档包必须自包含 transcript、决策、完成依据、未解决事项和其他正式会议事实，不能只保存指向即将被裁剪的运行态对象 ID。归档只复制已提交 MeetingState 中存在的字段，不填造默认值：`PublicDecisionV1` 的 `agendaItemId`、`statement`、`rationale`、`acceptedBy`、`dissentingPositionIds`，`PublicArchiveIssueV1.rationale`，以及 `PublicQuestionV1` 的 `askedBy`、`agendaItemId`、`blocking` 均为 optional。`parkingLot` 逐项投影已提交 `agendaCandidates` 的 `id`、`title`、`reason`、`status`。Archive issue status 原样保留 MeetingIssue 已提交值，包含 `accepted_risk` 与 `out_of_scope`，不重写。artifact 内容不强制复制进归档；artifact ref 保存来源 ID、标题、版本、可选 URI 和可选 checksum，并在读取时重新执行授权。checksum 只是来源描述，不参与归档完成、状态转换或恢复判断。
 
 当 `status='archiving'|'archived'` 时，`currentTurn`、`currentSpeakerId` 和 pending hand raises 必须为空。归档 transcript、提案、立场、决策、完成事实和未解决事项以 `archive` 为准；实现不得同时维护另一份可漂移的归档 projection。
 
@@ -1063,38 +1082,38 @@ Meeting Runtime 必须按 caller 身份裁剪 projection。任何 projection 都
 
 ```ts
 interface ProtocolSuccessV1<T> extends ProtocolMeta {
-  ok: true
-  result: T
+  ok: true;
+  result: T;
 }
 
 interface ManagerPlanResultV1 {
-  turnId: string
-  firstStepId: string
-  firstAttemptId: string
+  turnId: string;
+  firstStepId: string;
+  firstAttemptId: string;
 }
 
 interface TurnSubmissionResultV1 {
-  messageId: string
-  messageSeq: number
-  turnStatus: 'running' | 'completed' | 'truncated'
-  nextStepId?: string
-  meetingStatus: MeetingStatusResultV1['status']
+  messageId: string;
+  messageSeq: number;
+  turnStatus: "running" | "completed" | "truncated";
+  nextStepId?: string;
+  meetingStatus: MeetingStatusResultV1["status"];
 }
 
 interface HandRaiseResultV1 {
-  handRaiseId: string
-  status: 'pending' | 'accepted' | 'deferred' | 'consumed' | 'rejected'
+  handRaiseId: string;
+  status: "pending" | "accepted" | "deferred" | "consumed" | "rejected";
 }
 
 interface ReassignTurnResultV1 {
-  revokedAttemptId: string
-  replacementAttemptId?: string
-  action: 'reassign' | 'skip'
+  revokedAttemptId: string;
+  replacementAttemptId?: string;
+  action: "reassign" | "skip";
 }
 
 interface EndMeetingResultV1 {
-  status: 'completed' | 'partial' | 'no_consensus' | 'cancelled'
-  terminationCode: string
+  status: "completed" | "partial" | "no_consensus" | "cancelled";
+  terminationCode: string;
 }
 ```
 
@@ -1102,22 +1121,22 @@ interface EndMeetingResultV1 {
 
 ### Command result mapping
 
-| Command | `ProtocolSuccessV1<T>.result` |
-|---|---|
-| `convivium_create_meeting` | `CreateMeetingResultV1` |
-| `convivium_meeting_status` | `MeetingStatusResultV1` |
-| `convivium_submit_manager_plan` | `ManagerPlanResultV1` |
-| `convivium_submit_turn` | `TurnSubmissionResultV1` |
-| `convivium_create_meeting_task` | `MeetingTaskResultV1` |
-| `convivium_meeting_task_status` | `MeetingTaskStatusResultV1` |
-| `convivium_start_meeting_task` | `MeetingTaskStartResultV1` |
-| `convivium_finish_meeting_task` | `MeetingTaskFinishResultV1` |
-| `convivium_raise_hand` | `HandRaiseResultV1` |
-| `convivium_pause_meeting` | `MeetingControlResultV1` |
-| `convivium_resume_meeting` | `MeetingControlResultV1` |
-| `convivium_dispose_risk` | `CaptainRiskDispositionResultV1` |
-| `convivium_reassign_turn` | `ReassignTurnResultV1` |
-| `convivium_end_meeting` | `EndMeetingResultV1` |
+| Command                         | `ProtocolSuccessV1<T>.result`    |
+| ------------------------------- | -------------------------------- |
+| `convivium_create_meeting`      | `CreateMeetingResultV1`          |
+| `convivium_meeting_status`      | `MeetingStatusResultV1`          |
+| `convivium_submit_manager_plan` | `ManagerPlanResultV1`            |
+| `convivium_submit_turn`         | `TurnSubmissionResultV1`         |
+| `convivium_create_meeting_task` | `MeetingTaskResultV1`            |
+| `convivium_meeting_task_status` | `MeetingTaskStatusResultV1`      |
+| `convivium_start_meeting_task`  | `MeetingTaskStartResultV1`       |
+| `convivium_finish_meeting_task` | `MeetingTaskFinishResultV1`      |
+| `convivium_raise_hand`          | `HandRaiseResultV1`              |
+| `convivium_pause_meeting`       | `MeetingControlResultV1`         |
+| `convivium_resume_meeting`      | `MeetingControlResultV1`         |
+| `convivium_dispose_risk`        | `CaptainRiskDispositionResultV1` |
+| `convivium_reassign_turn`       | `ReassignTurnResultV1`           |
+| `convivium_end_meeting`         | `EndMeetingResultV1`             |
 
 ### Event and projection read contract
 
@@ -1125,11 +1144,11 @@ interface EndMeetingResultV1 {
 
 事件边界固定如下：
 
-| Channel | Owner | Contract |
-|---|---|---|
-| SQLite `meeting_events` | Meeting Runtime | 保存有序会议领域事件和审计事实；不是 DSH Session Event，也不是公开传输协议 |
-| `convivium_meeting_status` 或类型化 Web projection | Meeting Runtime | 向授权消费者返回当前会议真相 |
-| DSH 原生 `tool/call`、`tool/result` | DSH | 按 DSH 既有规则记录会议工具调用及结果；不替代会议状态、transcript 或审计事件 |
+| Channel                                            | Owner           | Contract                                                                     |
+| -------------------------------------------------- | --------------- | ---------------------------------------------------------------------------- |
+| SQLite `meeting_events`                            | Meeting Runtime | 保存有序会议领域事件和审计事实；不是 DSH Session Event，也不是公开传输协议   |
+| `convivium_meeting_status` 或类型化 Web projection | Meeting Runtime | 向授权消费者返回当前会议真相                                                 |
+| DSH 原生 `tool/call`、`tool/result`                | DSH             | 按 DSH 既有规则记录会议工具调用及结果；不替代会议状态、transcript 或审计事件 |
 
 Plugin Frontend 必须定时读取完整 Web projection，在会议写操作成功后立即重新读取，并在会议页面重新获得焦点时重新读取。三种读取都整体替换本地缓存，不合并状态增量。协议不定义进程内 projection invalidation、状态增量通知或对应事件订阅。
 
@@ -1147,18 +1166,18 @@ Meeting Runtime 可以消费 DSH-owned Session Events 作为 DSH 工具或生命
 
 ```ts
 interface ProtocolErrorV1 {
-  protocolVersion: 1
-  ok: false
-  code: MeetingProtocolErrorCodeV1
-  message: string
-  meetingId?: string
-  meetingVersion?: number
-  turnId?: string
-  stepId?: string
-  attemptId?: string
-  deliveryId?: string
-  participantId?: string
-  retryable: boolean
+  protocolVersion: 1;
+  ok: false;
+  code: MeetingProtocolErrorCodeV1;
+  message: string;
+  meetingId?: string;
+  meetingVersion?: number;
+  turnId?: string;
+  stepId?: string;
+  attemptId?: string;
+  deliveryId?: string;
+  participantId?: string;
+  retryable: boolean;
 }
 ```
 
@@ -1168,24 +1187,24 @@ interface ProtocolErrorV1 {
 
 ```ts
 type MeetingProtocolErrorCodeV1 =
-  | 'INVALID_ARGUMENT'
-  | 'MEETING_NOT_FOUND'
-  | 'UNAUTHORIZED_CALLER'
-  | 'INVALID_STATE_TRANSITION'
-  | 'STALE_ATTEMPT'
-  | 'STALE_MANAGER_ATTEMPT'
-  | 'VERSION_CONFLICT'
-  | 'IDEMPOTENCY_CONFLICT'
-  | 'IMMUTABLE_MEETING'
-  | 'ARCHIVED_MEETING'
-  | 'SOURCE_MEETING_NOT_ARCHIVED'
-  | 'ARCHIVE_MATERIAL_NOT_FOUND'
-  | 'PARTICIPANT_NOT_DISPATCHABLE'
-  | 'REQUIRED_SPEAKER_UNAVAILABLE'
-  | 'MANAGER_PLAN_INVALID'
-  | 'DELIVERY_RETRY_EXHAUSTED'
-  | 'UNSUPPORTED_CAPABILITY'
-  | 'INTERNAL_ERROR'
+  | "INVALID_ARGUMENT"
+  | "MEETING_NOT_FOUND"
+  | "UNAUTHORIZED_CALLER"
+  | "INVALID_STATE_TRANSITION"
+  | "STALE_ATTEMPT"
+  | "STALE_MANAGER_ATTEMPT"
+  | "VERSION_CONFLICT"
+  | "IDEMPOTENCY_CONFLICT"
+  | "IMMUTABLE_MEETING"
+  | "ARCHIVED_MEETING"
+  | "SOURCE_MEETING_NOT_ARCHIVED"
+  | "ARCHIVE_MATERIAL_NOT_FOUND"
+  | "PARTICIPANT_NOT_DISPATCHABLE"
+  | "REQUIRED_SPEAKER_UNAVAILABLE"
+  | "MANAGER_PLAN_INVALID"
+  | "DELIVERY_RETRY_EXHAUSTED"
+  | "UNSUPPORTED_CAPABILITY"
+  | "INTERNAL_ERROR";
 ```
 
 `UNSUPPORTED_CAPABILITY` 表示输入在完整协议中合法，但当前已声明的插件运行范围尚未提供对应 capability，例如只启用 `round_robin` 的竖切收到 `manager` selection mode。该错误必须是 `retryable: false`，且在任何目录、bootstrap、Session、Meeting state、event、receipt 或 outbox 副作用前返回。实现缺陷、provider/SQLite 故障和未知异常仍使用 `INTERNAL_ERROR`，不得用它伪装明确的范围限制。
@@ -1194,19 +1213,19 @@ type MeetingProtocolErrorCodeV1 =
 
 ### Permission matrix
 
-| Operation | Captain | Manager | Current Speaker | Other Participant |
-|---|---:|---:|---:|---:|
-| Create meeting | yes | no | no | no |
-| Read authorized status | yes | yes | yes | yes |
-| Submit Manager plan | no | yes | no | no |
-| Submit current Turn | no | no | yes | no |
-| Request background task | no | no | yes | no |
-| Raise hand | no | no | yes | yes |
-| Send meeting-scoped mail | no | no | yes | yes |
-| Pause/resume Meeting | yes | no | no | no |
-| Dispose specified risk | yes | no | no | no |
-| Reassign current speaker | yes | no | no | no |
-| End/accept/waive | yes | no | no | no |
+| Operation                | Captain | Manager | Current Speaker | Other Participant |
+| ------------------------ | ------: | ------: | --------------: | ----------------: |
+| Create meeting           |     yes |      no |              no |                no |
+| Read authorized status   |     yes |     yes |             yes |               yes |
+| Submit Manager plan      |      no |     yes |              no |                no |
+| Submit current Turn      |      no |      no |             yes |                no |
+| Request background task  |      no |      no |             yes |                no |
+| Raise hand               |      no |      no |             yes |               yes |
+| Send meeting-scoped mail |      no |      no |             yes |               yes |
+| Pause/resume Meeting     |     yes |      no |              no |                no |
+| Dispose specified risk   |     yes |      no |              no |                no |
+| Reassign current speaker |     yes |      no |              no |                no |
+| End/accept/waive         |     yes |      no |              no |                no |
 
 如果 Captain 同时作为 Participant 发言，必须使用对应 Participant Session 调用 `submit_turn`，不能使用 Captain Session 绕过发言权。
 

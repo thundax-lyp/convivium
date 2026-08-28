@@ -6,8 +6,10 @@ import {
     followupManagerSession,
     followupMeetingTaskSession,
     followupParticipantSession,
+    type ArchiveSessionRuntime,
     type ContinuableFollowupRuntime,
     type ContinuableInspectionRuntime,
+    type ContinuableLifecycleRuntime,
     type ContinuableStarter
 } from "../dsh/index.js";
 import {
@@ -30,6 +32,7 @@ import {
     createMeetingRuntime,
     createOutboxWorker,
     openMeetingRepository,
+    recoverArchive,
     type DomainEventInput,
     type JsonObject,
     type MeetingCreationRuntimeDependencies,
@@ -72,7 +75,8 @@ export interface CreateStatusRuntimeOptions {
     readonly provider: string;
     readonly continuable: ContinuableStarter &
         ContinuableFollowupRuntime &
-        ContinuableInspectionRuntime;
+        ContinuableInspectionRuntime &
+        Partial<ArchiveSessionRuntime & ContinuableLifecycleRuntime>;
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly maxParticipants?: number;
     readonly outboxPollMs?: number;
@@ -99,8 +103,45 @@ interface StoredMeeting {
     readonly parent?: Agent;
 }
 
+type ArchiveCleanupRuntime = ArchiveSessionRuntime & ContinuableLifecycleRuntime;
+
+function archiveCleanupRuntime(
+    runtime: CreateStatusRuntimeOptions["continuable"]
+): ArchiveCleanupRuntime | undefined {
+    if (
+        typeof runtime.listChildren !== "function" ||
+        typeof runtime.interrupt !== "function" ||
+        typeof runtime.drainContinuableChildren !== "function"
+    ) {
+        return undefined;
+    }
+    return runtime as ArchiveCleanupRuntime;
+}
+
 function terminalDispatchError(code: string, message: string): Error {
     return Object.assign(new Error(message), { code, retryable: false });
+}
+
+function requireDispatchableMeeting(
+    state: MeetingState | undefined
+): asserts state is MeetingState {
+    if (
+        state === undefined ||
+        [
+            "completed",
+            "partial",
+            "no_consensus",
+            "cancelled",
+            "failed",
+            "archiving",
+            "archived"
+        ].includes(state.status)
+    ) {
+        throw terminalDispatchError(
+            "MEETING_NOT_DISPATCHABLE",
+            "Meeting is terminal or archiving and cannot dispatch work."
+        );
+    }
 }
 
 function success<T>(meetingId: string, meetingVersion: number, result: T): ProtocolSuccessV1<T> {
@@ -236,6 +277,11 @@ export function createCreateStatusRuntime(
                         repository
                     };
                     meetings.set(meetingId, recoveredMeeting);
+                    await recoverArchive({
+                        repository,
+                        signal,
+                        now: options.now?.() ?? Date.now()
+                    });
                 } catch {
                     // Ignore unrelated or incomplete databases during startup discovery.
                 }
@@ -251,6 +297,9 @@ export function createCreateStatusRuntime(
         item: ClaimedOutboxItem
     ) {
         const recovered = await repository.recover();
+        requireDispatchableMeeting(
+            recovered.snapshot?.state as unknown as MeetingState | undefined
+        );
         const payload = item.payload as unknown as {
             participantId: string;
             attemptId: string;
@@ -350,9 +399,7 @@ export function createCreateStatusRuntime(
             );
         }
         const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
-        if (state === undefined) {
-            throw terminalDispatchError("MEETING_NOT_FOUND", "Meeting state is missing.");
-        }
+        requireDispatchableMeeting(state);
         const dispatchableParticipantIds = state.participants
             .filter(
                 (participant) =>
@@ -409,6 +456,7 @@ export function createCreateStatusRuntime(
             executionId: string;
         };
         const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+        requireDispatchableMeeting(state);
         const task = state?.meetingTasks?.find(
             (candidate) =>
                 candidate.meetingTaskId === payload.meetingTaskId &&
@@ -1541,6 +1589,13 @@ export function createCreateStatusRuntime(
                             outbox: []
                         };
                     }
+                });
+                await recoverArchive({
+                    repository: stored.repository,
+                    parent: stored.parent,
+                    runtime: archiveCleanupRuntime(options.continuable),
+                    signal,
+                    now: options.now?.() ?? Date.now()
                 });
                 workers.get(input.meetingId)?.wake();
                 return success<EndMeetingResultV1>(

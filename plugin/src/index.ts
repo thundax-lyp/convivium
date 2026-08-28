@@ -84,7 +84,10 @@ export function apply(ctx: Context, config: ConfigType): void {
 
     if (
         typeof ctx.tools?.register !== "function" ||
-        typeof ctx.subagents?.startContinuable !== "function"
+        typeof ctx.subagents?.startContinuable !== "function" ||
+        typeof ctx.subagents?.listChildren !== "function" ||
+        typeof ctx.subagents?.interrupt !== "function" ||
+        typeof ctx.subagents?.drainContinuableChildren !== "function"
     ) {
         return;
     }
