@@ -16,12 +16,6 @@
   - 处理动作：校验 participant/task identity，禁止 failed task 形成完成型 HandRaise，保持 pending raise 去重和单次 consume。
   - 验收点：错误 participant、重复 execution、failed task、terminal task 均无 raise；合法 completed task 只形成一个 pending raise。
 
-- [ ] `plugin/tests/unit/domain/hand-raise.spec.ts`：覆盖 failed finish、raise 去重和 planner consume
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK Test Matrix
-  - 处理动作：增加 `does not raise for failed finish` 和 task execution identity 去重/单次消费测试。
-  - 验收点：failed、foreign、duplicate 和 terminal 输入不产生额外 HandRaise 或 transcript。
-
 - [ ] `plugin/tests/unit/domain/completion.spec.ts`：覆盖 locked task evidence 与 claim acceptance 边界
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK Test Matrix
