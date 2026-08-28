@@ -384,7 +384,9 @@ function scheduleParticipant(ctx, agent) {
 async function run(ctx) {
     if (!outputPath) return;
     try {
-        if (browserMode) await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke");
+        const workspace = browserMode
+            ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
+            : undefined;
         captain = createSmokeAgent(ctx, "convivium-smoke-captain");
         if (browserMode) {
             captain.agent.session.append("user/message", {
@@ -394,6 +396,7 @@ async function run(ctx) {
                 source: { kind: "user" }
             }, { surfaceOp: "append" });
             await ctx.sessions.flush(captain.agent.session);
+            await workspace.attachSession(captain.agent.session.id);
         }
         const created = await callTool(ctx, captain.agent, "convivium_create_meeting", createInput(), 0);
         meetingId = created.result.meetingId;

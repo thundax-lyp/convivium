@@ -1,7 +1,12 @@
 import { defineConfig } from "tsdown";
 
 const sharedExternal = [/^@deepseek-ai\//, "react", "react-dom"] as const;
-const clientExternal = [/^@deepseek-ai\/(?!schemastery(?:\/|$))/, "react", "react-dom"] as const;
+const clientExternal = [
+    /^@deepseek-ai\/(?!(?:schemastery|cosmokit)(?:\/|$))/,
+    "react",
+    "react-dom"
+] as const;
+const clientAlwaysBundle = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmokit"] as const;
 
 export default defineConfig([
     {
@@ -22,8 +27,7 @@ export default defineConfig([
         target: "es2022",
         clean: false,
         dts: false,
-        deps: { neverBundle: clientExternal },
-        noExternal: ["@deepseek-ai/schemastery"],
+        deps: { neverBundle: clientExternal, alwaysBundle: clientAlwaysBundle },
         tsconfig: "tsconfig.client.json",
         outExtensions: () => ({ js: ".js" }),
         outputOptions: {
