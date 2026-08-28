@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md`：修正绝对消费者门槛
-  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T2
-  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
-  - 处理动作：严格替换 Responsibilities 第 4 条和 Acceptance 第 1 条，把依据固定为当前证据价值，并保留必要隔离和单消费者例外。
-  - 验收点：文件不再包含“机制必须有当前消费者”的绝对标题；Scope、State And Failure Handling、Security And Observability 及其他条目无变化；仅有假设性未来用途仍不能引入机制。
-
 - [ ] `dsh-plugin-development/SKILL.md`：增加实现前复杂度门禁
   - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T3
   - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
