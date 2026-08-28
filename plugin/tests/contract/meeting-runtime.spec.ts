@@ -292,7 +292,7 @@ describe("create/status meeting runtime", () => {
                 },
                 participant
             )
-        ).resolves.toMatchObject({ ok: false, code: "UNSUPPORTED_CAPABILITY" });
+        ).resolves.toMatchObject({ ok: false, code: "INVALID_STATE_TRANSITION" });
         await expect(
             runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
         ).resolves.toMatchObject({
