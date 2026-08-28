@@ -1,4 +1,5 @@
 import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -137,6 +138,139 @@ describe("create/status meeting runtime", () => {
         );
         await runtime.dispose();
     });
+
+    it.each([{ status: "failed" as const }, { status: "completed" as const }])(
+        "finishes a $status task with the matching hand raise contract",
+        async ({ status }) => {
+            const root = await mkdtemp(join(tmpdir(), "convivium-tools-failed-task-"));
+            roots.push(root);
+            const prompts: string[] = [];
+            const runtime = createCreateStatusRuntime({
+                dataRoot: root,
+                provider: "spawn",
+                outboxPollMs: 5,
+                continuable: {
+                    startContinuable: async (spec) => ({
+                        childId: spec.childId!,
+                        messageId: `initial-${String(spec.childId)}` as never
+                    }),
+                    followup: async (_parent, _sessionId, prompt) => {
+                        const text = prompt[0]?.type === "text" ? prompt[0].text : undefined;
+                        if (typeof text === "string") prompts.push(text);
+                        return "followup-message" as never;
+                    }
+                },
+                authorizationValidator: {
+                    validateCreate: () => undefined,
+                    validateCommand: () => undefined
+                }
+            });
+            const created = await runtime.createMeeting(
+                {
+                    ...input,
+                    agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                    participants: [input.participants[0]!]
+                },
+                { sessionId: "captain-1", kind: "captain", agent: { id: "captain-1" } as never },
+                new AbortController().signal
+            );
+            if (!created.ok) throw new Error("create failed");
+            const meetingId = created.result.meetingId;
+            const participant = {
+                sessionId: `${meetingId}-participant-participant-one`,
+                meetingId,
+                participantId: "participant-one",
+                kind: "participant" as const
+            };
+            const task = await runtime.createMeetingTask(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    attemptId: "attempt-0",
+                    requestId: "task-request",
+                    title: "Inspect release",
+                    description: "Inspect the release evidence",
+                    blocking: true
+                },
+                participant
+            );
+            if (!task.ok) throw new Error("task creation failed");
+            const submitted = await runtime.submitTurn(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    turnId: "turn-1",
+                    stepId: "step-participant-one-0",
+                    attemptId: "attempt-0",
+                    deliveryId: "delivery-0",
+                    agendaItemId: "agenda-agenda-1",
+                    kind: "statement",
+                    content: "Queue failing task",
+                    mentions: [],
+                    taskIds: [task.result.meetingTaskId],
+                    agendaRelation: "on_topic",
+                    changes: {}
+                },
+                participant
+            );
+            if (!submitted.ok) throw new Error(JSON.stringify(submitted));
+            await vi.waitFor(() => expect(prompts.length).toBeGreaterThan(1));
+            const executionId = `${task.result.meetingTaskId}-execution`;
+            const started = await runtime.startMeetingTask(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    meetingTaskId: task.result.meetingTaskId,
+                    requestId: "failed-start",
+                    executionId
+                } as never,
+                participant
+            );
+            expect(started).toMatchObject({ ok: true });
+            const finished = await runtime.finishMeetingTask(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    meetingTaskId: task.result.meetingTaskId,
+                    requestId: "failed-finish",
+                    executionId,
+                    status,
+                    ...(status === "completed"
+                        ? { resultSummary: "fixture result" }
+                        : { failureReason: "fixture failure" })
+                },
+                participant
+            );
+            expect(finished).toMatchObject({
+                ok: true,
+                result: { status }
+            });
+            if (!finished.ok) throw new Error("finish failed");
+            if (status === "completed") {
+                expect(finished.result.handRaiseId).toBe(`${task.result.meetingTaskId}-hand-raise`);
+            } else {
+                expect(finished.result).not.toHaveProperty("handRaiseId");
+            }
+            await runtime.dispose();
+
+            const db = new DatabaseSync(join(root, input.teamId, `${meetingId}.sqlite`));
+            const state = JSON.parse(
+                String(
+                    db
+                        .prepare("SELECT state_json FROM meetings WHERE meeting_id = ?")
+                        .get(meetingId).state_json
+                )
+            ) as { handRaises: unknown[] };
+            const raiseEvents = db
+                .prepare(
+                    "SELECT COUNT(*) AS count FROM meeting_events WHERE meeting_id = ? AND event_type = ?"
+                )
+                .get(meetingId, "hand_raise.created") as { count: number };
+            db.close();
+            expect(state.handRaises).toHaveLength(status === "completed" ? 1 : 0);
+            expect(raiseEvents.count).toBe(status === "completed" ? 1 : 0);
+        }
+    );
 
     it("scopes request-derived HandRaise IDs to the Participant", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-scoped-ids-"));
