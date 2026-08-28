@@ -9,7 +9,18 @@ import {
 import type { MeetingState } from "../../../src/domain/model.js";
 
 function state(): MeetingState {
-    return { id: "meeting-1", meetingTasks: [] } as unknown as MeetingState;
+    return {
+        id: "meeting-1",
+        meetingTasks: [],
+        transcript: [
+            {
+                id: "message-1",
+                seq: 1,
+                attemptId: "attempt-1",
+                taskIds: ["task-1"]
+            }
+        ]
+    } as unknown as MeetingState;
 }
 
 function input() {
@@ -19,6 +30,10 @@ function input() {
         deliveryId: "delivery-1",
         participantId: "participant-1",
         originatingSpeakerAttemptId: "attempt-1",
+        sourceTurnId: "turn-1",
+        sourceStepId: "step-1",
+        sourceContextFromSeq: 1,
+        sourceContextThroughSeq: 1,
         title: "Run tests",
         description: "Run the test suite",
         blocking: true,
@@ -27,6 +42,22 @@ function input() {
 }
 
 describe("MeetingTask transitions", () => {
+    it("rejects task writes after execution terminal state without mutation", () => {
+        const meeting = { ...state(), status: "archived" as const };
+        const before = structuredClone(meeting);
+
+        expect(() => createMeetingTask(meeting, input())).toThrowError(
+            expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+        );
+        expect(() => startMeetingTask(meeting, "task-1", 3)).toThrowError(
+            expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+        );
+        expect(() =>
+            finishMeetingTask(meeting, "task-1", { status: "completed", now: 4 })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+        expect(meeting).toEqual(before);
+    });
+
     it("moves a task through requested, queued, running and completed", () => {
         const created = createMeetingTask(state(), input());
         const queued = queueMeetingTasks(
@@ -46,8 +77,14 @@ describe("MeetingTask transitions", () => {
         expect(finished.state.meetingTasks[0]).toMatchObject({
             meetingTaskId: "task-1",
             status: "completed",
-            resultSummary: "passed"
+            resultSummary: "passed",
+            sourceTurnId: "turn-1",
+            sourceStepId: "step-1",
+            sourceContextFromSeq: 1,
+            sourceContextThroughSeq: 1
         });
+        expect(finished.state.meetingTasks[0]?.sourceMessageId).toBe("message-1");
+        expect(finished.state.meetingTasks[0]?.sourceMessageSeq).toBe(1);
         expect(finished.effect.events.map(({ type }) => type)).toEqual(["meeting_task.completed"]);
     });
 
@@ -58,6 +95,51 @@ describe("MeetingTask transitions", () => {
             queueMeetingTasks(created.state, ["task-1"], "participant-2", "attempt-2", 2)
         ).toThrowError("MeetingTasks can only be queued by their originating Participant attempt");
         expect(created.state.meetingTasks[0]?.status).toBe("requested");
+    });
+
+    it("rejects duplicate and invalid lifecycle operations without effects", () => {
+        const created = createMeetingTask(state(), input());
+        const queued = queueMeetingTasks(
+            created.state,
+            ["task-1"],
+            "participant-1",
+            "attempt-1",
+            2
+        );
+        expect(() =>
+            queueMeetingTasks(queued.state, ["task-1"], "participant-1", "attempt-1", 3)
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+
+        const started = startMeetingTask(queued.state, "task-1", 4);
+        expect(() => startMeetingTask(started.state, "task-1", 5)).toThrowError(
+            expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+        );
+        const finished = finishMeetingTask(started.state, "task-1", {
+            status: "failed",
+            failureReason: "provider failed",
+            now: 6
+        });
+        expect(() =>
+            finishMeetingTask(finished.state, "task-1", { status: "completed", now: 7 })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+        expect(finished.effect.events.map(({ type }) => type)).toEqual(["meeting_task.failed"]);
+    });
+
+    it("guards every task lifecycle entry in execution terminal states", () => {
+        for (const status of ["completed", "archiving", "archived"] as const) {
+            const meeting = { ...state(), status };
+            const before = structuredClone(meeting);
+            expect(() => createMeetingTask(meeting, input())).toThrowError(
+                expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+            );
+            expect(() =>
+                queueMeetingTasks(meeting, ["task-1"], "participant-1", "attempt-1", 2)
+            ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+            expect(() => startMeetingTask(meeting, "task-1", 2)).toThrowError(
+                expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+            );
+            expect(meeting).toEqual(before);
+        }
     });
 
     it("cancels every non-terminal task and leaves terminal facts unchanged", () => {

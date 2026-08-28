@@ -96,6 +96,41 @@ function expectInvalid(candidate: ManagerPlanInput) {
 }
 
 describe("Manager planning", () => {
+    it("rejects planning after every execution terminal state without mutation", () => {
+        for (const status of [
+            "completed",
+            "partial",
+            "no_consensus",
+            "cancelled",
+            "failed",
+            "archiving",
+            "archived"
+        ] as const) {
+            const meeting = state();
+            meeting.status = status;
+            const before = structuredClone(meeting);
+
+            expect(() =>
+                planManagerTurn(
+                    meeting,
+                    plan(),
+                    { turnId: "turn-1", stepId: (index) => `step-${index}` },
+                    200
+                )
+            ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+            expect(meeting).toEqual(before);
+
+            expect(() =>
+                planRoundRobinTurn(
+                    meeting,
+                    { turnId: "turn-1", stepId: (participantId) => `step-${participantId}` },
+                    200
+                )
+            ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+            expect(meeting).toEqual(before);
+        }
+    });
+
     it("preserves a non-round-robin ordered plan without mutating the meeting", () => {
         const meeting = state();
         const before = structuredClone(meeting);
@@ -199,5 +234,34 @@ describe("round-robin planning", () => {
         );
 
         expect(turn.plan).toEqual(["participant:c"]);
+    });
+
+    it("excludes participants with an active MeetingTask", () => {
+        const meeting = state();
+        meeting.meetingTasks.push({
+            meetingTaskId: "task-1",
+            participantId: "participant:c",
+            originatingSpeakerAttemptId: "attempt-1",
+            executionId: "execution-1",
+            deliveryId: "delivery-1",
+            sourceTurnId: "turn-1",
+            sourceStepId: "step-1",
+            sourceContextFromSeq: 1,
+            sourceContextThroughSeq: 1,
+            title: "Long task",
+            description: "Long task",
+            blocking: false,
+            status: "running",
+            createdAt: 100,
+            startedAt: 101
+        });
+
+        const turn = planRoundRobinTurn(
+            meeting,
+            { turnId: "turn-1", stepId: (participantId) => `step-${participantId}` },
+            200
+        );
+
+        expect(turn.plan).not.toContain("participant:c");
     });
 });

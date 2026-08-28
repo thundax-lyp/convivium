@@ -32,6 +32,16 @@ function input(overrides: Record<string, unknown> = {}) {
 }
 
 describe("HandRaise transitions", () => {
+    it("rejects a hand raise after execution terminal state without mutation", () => {
+        const meeting = state({ status: "archiving" });
+        const before = structuredClone(meeting);
+
+        expect(() => createHandRaise(meeting, input())).toThrowError(
+            expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+        );
+        expect(meeting).toEqual(before);
+    });
+
     it("rejects missing or foreign task references", () => {
         expect(() => createHandRaise(state(), input({ taskIds: ["missing"] }))).toThrowError(
             expect.objectContaining({ code: "INVALID_ENTITY_STATE" })
@@ -62,6 +72,23 @@ describe("HandRaise transitions", () => {
             input({ replyToMessageId: "message-1" })
         );
         expect(created.state.handRaises[0]?.replyToMessageId).toBe("message-1");
+    });
+
+    it("does not create a task-completed raise for a failed task", () => {
+        expect(() =>
+            createHandRaise(
+                state({
+                    meetingTasks: [
+                        {
+                            meetingTaskId: "task-1",
+                            participantId: "participant-1",
+                            status: "failed"
+                        }
+                    ] as never
+                }),
+                input()
+            )
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
     });
 
     it("does not collapse pending raises with different substantive context", () => {

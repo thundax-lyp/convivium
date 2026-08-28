@@ -12,6 +12,7 @@ import {
     isKnownMeetingProtocolErrorCode,
     validateProtocolSuccessEnvelope,
     MeetingTaskRequestSchema,
+    MeetingTaskFinishResultSchema,
     validateReassignTurnInput
 } from "../../src/protocol/index.js";
 
@@ -220,6 +221,48 @@ describe("protocol envelope schemas", () => {
                 replacementParticipantId: "",
                 reason: "unavailable",
                 requestId: "request-1"
+            })
+        ).toThrow();
+    });
+
+    it("allows failed task results to omit a hand raise id", () => {
+        expect(
+            MeetingTaskFinishResultSchema({
+                requestId: "request-1",
+                meetingTaskId: "task-1",
+                status: "failed"
+            })
+        ).toEqual({
+            requestId: "request-1",
+            meetingTaskId: "task-1",
+            status: "failed"
+        });
+        expect(
+            MeetingTaskFinishResultSchema({
+                requestId: "request-1",
+                meetingTaskId: "task-1",
+                status: "completed",
+                handRaiseId: "raise-1"
+            })
+        ).toEqual({
+            requestId: "request-1",
+            meetingTaskId: "task-1",
+            status: "completed",
+            handRaiseId: "raise-1"
+        });
+        expect(() =>
+            MeetingTaskFinishResultSchema({
+                requestId: "request-1",
+                meetingTaskId: "task-1",
+                status: "completed"
+            })
+        ).toThrow();
+        expect(() =>
+            MeetingTaskFinishResultSchema({
+                requestId: "request-1",
+                meetingTaskId: "task-1",
+                status: "failed",
+                handRaiseId: "raise-1"
             })
         ).toThrow();
     });

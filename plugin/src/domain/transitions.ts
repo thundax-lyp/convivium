@@ -1031,14 +1031,25 @@ export function startManagerPlanning(
             { entityType: "meeting", entityId: state.id, meetingVersion: state.version }
         );
     }
-    if (state.status !== "created" && state.status !== "waiting") {
+    const continuingRunningMeeting =
+        state.status === "running" && state.handRaises.some((raise) => raise.status === "pending");
+    if (!continuingRunningMeeting && state.status !== "created" && state.status !== "waiting") {
         throw invalidStateTransition("meeting", state.id, state.status, "running", state.version);
     }
 
-    const meeting = transitionMeeting(state, "running", {
-        now: context.now,
-        reason: context.reason
-    });
+    const meeting = continuingRunningMeeting
+        ? {
+              state: {
+                  ...state,
+                  version: state.version + 1,
+                  updatedAt: context.now
+              },
+              effect: { events: [] as DomainEffect["events"] }
+          }
+        : transitionMeeting(state, "running", {
+              now: context.now,
+              reason: context.reason
+          });
     const planningAttempt: ManagerPlanningAttempt = {
         id: context.planningAttemptId,
         meetingId: state.id,

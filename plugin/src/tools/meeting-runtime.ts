@@ -902,6 +902,10 @@ export function createCreateStatusRuntime(
                                 deliveryId: `${taskId}-delivery`,
                                 participantId: caller.participantId!,
                                 originatingSpeakerAttemptId: input.attemptId,
+                                sourceTurnId: attempt.turnId,
+                                sourceStepId: attempt.stepId,
+                                sourceContextFromSeq: attempt.contextFromSeq,
+                                sourceContextThroughSeq: attempt.contextThroughSeq,
                                 title: input.title,
                                 description: input.description,
                                 blocking: input.blocking,
@@ -1079,19 +1083,18 @@ export function createCreateStatusRuntime(
                                 now: options.now?.() ?? Date.now()
                             }
                         );
-                        const handRaise = createHandRaise(transition.state, {
-                            id: `${input.meetingTaskId}-hand-raise`,
-                            participantId: caller.participantId!,
-                            reason:
-                                input.status === "completed" ? "task_completed" : "new_evidence",
-                            summary:
-                                input.resultSummary ??
-                                input.failureReason ??
-                                "MeetingTask finished",
-                            taskIds: [input.meetingTaskId],
-                            priority: "normal",
-                            now: options.now?.() ?? Date.now()
-                        });
+                        const handRaise =
+                            input.status === "completed"
+                                ? createHandRaise(transition.state, {
+                                      id: `${input.meetingTaskId}-hand-raise`,
+                                      participantId: caller.participantId!,
+                                      reason: "task_completed",
+                                      summary: input.resultSummary ?? "MeetingTask finished",
+                                      taskIds: [input.meetingTaskId],
+                                      priority: "normal",
+                                      now: options.now?.() ?? Date.now()
+                                  })
+                                : { state: transition.state, effect: { events: [] } };
                         const waitingForThisTask =
                             handRaise.state.status === "waiting" &&
                             handRaise.state.waitState?.taskIds.includes(input.meetingTaskId) &&
@@ -1102,22 +1105,58 @@ export function createCreateStatusRuntime(
                                         ["completed", "failed", "cancelled"].includes(task.status)
                                 )
                             );
-                        const nextState = waitingForThisTask
+                        let nextState = waitingForThisTask
                             ? { ...handRaise.state, currentTurn: undefined, waitState: undefined }
                             : handRaise.state;
+                        let planningEvents: DomainEventInput[] = [];
+                        let planningOutbox: Array<{
+                            deliveryId: string;
+                            kind: "dispatch";
+                            payload: JsonObject;
+                        }> = [];
+                        if (
+                            input.status === "completed" &&
+                            nextState.currentTurn === undefined &&
+                            nextState.manager.currentPlanningAttempt === undefined &&
+                            nextState.selectionMode === "manager" &&
+                            nextState.handRaises.some((raise) => raise.status === "pending")
+                        ) {
+                            const planningAttemptId = `${nextState.id}-planning-${nextState.replanCount + 1}`;
+                            const planningDeliveryId = `${nextState.id}-planning-delivery-${nextState.replanCount + 1}`;
+                            const planning = startManagerPlanning(nextState, {
+                                meetingId: nextState.id,
+                                planningAttemptId,
+                                deliveryId: planningDeliveryId,
+                                reason: "next_turn",
+                                now: options.now?.() ?? Date.now()
+                            });
+                            nextState = planning.state;
+                            planningEvents = planning.effect
+                                .events as unknown as DomainEventInput[];
+                            planningOutbox = [
+                                {
+                                    deliveryId: planningDeliveryId,
+                                    kind: "dispatch",
+                                    payload: { role: "manager", planningAttemptId }
+                                }
+                            ];
+                        }
                         return {
                             state: nextState as unknown as JsonObject,
                             result: {
                                 requestId: input.requestId,
                                 meetingTaskId: input.meetingTaskId,
                                 status: input.status,
-                                handRaiseId: `${input.meetingTaskId}-hand-raise`
+                                ...(input.status === "completed"
+                                    ? { handRaiseId: `${input.meetingTaskId}-hand-raise` }
+                                    : {})
                             } satisfies MeetingTaskFinishResultV1,
                             events: [
                                 ...(transition.effect.events as unknown as DomainEventInput[]),
-                                ...(handRaise.effect.events as unknown as DomainEventInput[])
+                                ...(handRaise.effect.events as unknown as DomainEventInput[]),
+                                ...planningEvents
                             ],
-                            outbox: []
+                            outbox: planningOutbox
                         };
                     }
                 });
@@ -1292,7 +1331,7 @@ export function createCreateStatusRuntime(
                                           completion: {
                                               claims: input.completionClaims,
                                               authorizedTaskIds: taskEvidence.map(
-                                                  (evidence) => evidence.taskId
+                                                  (evidence) => evidence.meetingTaskId
                                               ),
                                               factId: (kind: string, index: number) =>
                                                   `completion-${input.deliveryId}-${kind}-${index}`

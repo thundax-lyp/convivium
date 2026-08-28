@@ -7,6 +7,16 @@ import type {
     TransitionResult
 } from "./model.js";
 
+const executionTerminalStatuses = new Set([
+    "completed",
+    "partial",
+    "no_consensus",
+    "cancelled",
+    "failed",
+    "archiving",
+    "archived"
+]);
+
 export interface CreateHandRaiseInput {
     id: string;
     participantId: string;
@@ -23,6 +33,12 @@ export function createHandRaise(
     state: MeetingState,
     input: CreateHandRaiseInput
 ): TransitionResult<MeetingState> {
+    if (executionTerminalStatuses.has(state.status)) {
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            `meeting ${state.id} does not accept HandRaise writes after execution terminal state`
+        );
+    }
     if (state.handRaises.some((raise) => raise.id === input.id)) {
         throw new DomainError("INVALID_ENTITY_STATE", `hand raise ${input.id} already exists`);
     }
@@ -34,6 +50,12 @@ export function createHandRaise(
             throw new DomainError(
                 "INVALID_ENTITY_STATE",
                 `meeting task ${taskId} is not owned by participant ${input.participantId}`
+            );
+        }
+        if (input.reason === "task_completed" && task.status !== "completed") {
+            throw new DomainError(
+                "INVALID_STATE_TRANSITION",
+                `meeting task ${taskId} is not completed`
             );
         }
     }

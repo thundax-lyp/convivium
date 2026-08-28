@@ -2,6 +2,24 @@ import { DomainError } from "./errors.js";
 import type { MeetingState, MeetingTask, MeetingTaskStatus, TransitionResult } from "./model.js";
 
 const activeStatuses: readonly MeetingTaskStatus[] = ["requested", "queued", "running"];
+const executionTerminalStatuses = new Set([
+    "completed",
+    "partial",
+    "no_consensus",
+    "cancelled",
+    "failed",
+    "archiving",
+    "archived"
+]);
+
+function requireTaskExecutionActive(state: MeetingState): void {
+    if (executionTerminalStatuses.has(state.status)) {
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            `meeting ${state.id} does not accept MeetingTask writes after execution terminal state`
+        );
+    }
+}
 
 function taskEvent(
     meetingId: string,
@@ -44,6 +62,10 @@ export interface CreateMeetingTaskInput {
     deliveryId: string;
     participantId: string;
     originatingSpeakerAttemptId: string;
+    sourceTurnId: string;
+    sourceStepId: string;
+    sourceContextFromSeq: number;
+    sourceContextThroughSeq: number;
     title: string;
     description: string;
     blocking: boolean;
@@ -54,6 +76,7 @@ export function createMeetingTask(
     state: MeetingState,
     input: CreateMeetingTaskInput
 ): TransitionResult<MeetingState> {
+    requireTaskExecutionActive(state);
     if ((state.meetingTasks ?? []).some((task) => task.meetingTaskId === input.meetingTaskId)) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
@@ -71,7 +94,11 @@ export function createMeetingTask(
             `participant ${input.participantId} already owns an active meeting task`
         );
     }
-    const task: MeetingTask = { ...input, status: "requested", createdAt: input.now };
+    const task: MeetingTask = {
+        ...input,
+        status: "requested",
+        createdAt: input.now
+    };
     return {
         state: { ...state, meetingTasks: [...(state.meetingTasks ?? []), task] },
         effect: { events: [taskEvent(state.id, "meeting_task.created", task)] }
@@ -85,6 +112,7 @@ export function queueMeetingTasks(
     originatingSpeakerAttemptId: string,
     now: number
 ): TransitionResult<MeetingState> {
+    requireTaskExecutionActive(state);
     const uniqueIds = [...new Set(meetingTaskIds)];
     const tasks = uniqueIds.map((id) => requireTask(state, id));
     if (
@@ -105,10 +133,39 @@ export function queueMeetingTasks(
             "only requested MeetingTasks can be queued"
         );
     }
+    const sourceMessages = tasks.map((task) =>
+        state.transcript.find(
+            (message) =>
+                message.attemptId === originatingSpeakerAttemptId &&
+                message.taskIds.includes(task.meetingTaskId)
+        )
+    );
+    if (sourceMessages.some((message) => message === undefined)) {
+        throw new DomainError(
+            "STALE_ATTEMPT",
+            "requested MeetingTasks require their originating formal message"
+        );
+    }
     const queued = new Set(uniqueIds);
     const nextTasks = (state.meetingTasks ?? []).map((task) =>
         queued.has(task.meetingTaskId)
-            ? { ...task, status: "queued" as const, queuedAt: now }
+            ? {
+                  ...task,
+                  status: "queued" as const,
+                  queuedAt: now,
+                  sourceMessageId:
+                      sourceMessages[
+                          tasks.findIndex(
+                              (candidate) => candidate.meetingTaskId === task.meetingTaskId
+                          )
+                      ]!.id,
+                  sourceMessageSeq:
+                      sourceMessages[
+                          tasks.findIndex(
+                              (candidate) => candidate.meetingTaskId === task.meetingTaskId
+                          )
+                      ]!.seq
+              }
             : task
     );
     return {
@@ -122,6 +179,7 @@ export function queueMeetingTasks(
 }
 
 export function startMeetingTask(state: MeetingState, meetingTaskId: string, now: number) {
+    requireTaskExecutionActive(state);
     const task = requireTask(state, meetingTaskId);
     if (task.status !== "queued") {
         throw new DomainError(
@@ -151,6 +209,7 @@ export function finishMeetingTask(
         failureReason?: string;
     }
 ) {
+    requireTaskExecutionActive(state);
     const task = requireTask(state, meetingTaskId);
     if (task.status !== "running") {
         throw new DomainError(

@@ -405,7 +405,7 @@ interface MeetingTaskFinishResultV1 {
   requestId: string;
   meetingTaskId: string;
   status: "completed" | "failed";
-  handRaiseId: string;
+  handRaiseId?: string;
 }
 ```
 

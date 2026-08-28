@@ -2,6 +2,7 @@ import Schema from "@deepseek-ai/schemastery";
 import { MeetingProtocolErrorCodeSchema, ProtocolVersionSchema } from "./schema.js";
 
 const string = () => Schema.string().required();
+const optionalString = () => Schema.union([Schema.string(), Schema.const(undefined)]);
 const nonEmptyString = () => Schema.string().pattern(/\S/).required();
 const number = () => Schema.number().required();
 const array = <T>(schema: Schema<T>) => Schema.array(schema).required();
@@ -116,12 +117,27 @@ export const MeetingTaskStartResultSchema = Schema.object({
     status: enumOf(["running"] as const)
 });
 
-export const MeetingTaskFinishResultSchema = Schema.object({
+const meetingTaskFinishResultBase = Schema.object({
     requestId: string(),
     meetingTaskId: string(),
     status: enumOf(["completed", "failed"] as const),
-    handRaiseId: string()
+    handRaiseId: optionalString()
 });
+
+export const MeetingTaskFinishResultSchema: Schema<Record<string, unknown>> = Schema.transform(
+    meetingTaskFinishResultBase,
+    (value) => {
+        if (value.status === "completed") {
+            if (typeof value.handRaiseId !== "string" || value.handRaiseId.length === 0) {
+                throw new Error("completed MeetingTask results require handRaiseId");
+            }
+        } else if (value.handRaiseId !== undefined) {
+            throw new Error("failed MeetingTask results must omit handRaiseId");
+        }
+        return value;
+    },
+    true
+);
 
 export const ProtocolErrorResultSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
