@@ -44,6 +44,10 @@ export interface CreateMeetingTaskInput {
     deliveryId: string;
     participantId: string;
     originatingSpeakerAttemptId: string;
+    sourceTurnId: string;
+    sourceStepId: string;
+    sourceContextFromSeq: number;
+    sourceContextThroughSeq: number;
     title: string;
     description: string;
     blocking: boolean;
@@ -71,7 +75,11 @@ export function createMeetingTask(
             `participant ${input.participantId} already owns an active meeting task`
         );
     }
-    const task: MeetingTask = { ...input, status: "requested", createdAt: input.now };
+    const task: MeetingTask = {
+        ...input,
+        status: "requested",
+        createdAt: input.now
+    };
     return {
         state: { ...state, meetingTasks: [...(state.meetingTasks ?? []), task] },
         effect: { events: [taskEvent(state.id, "meeting_task.created", task)] }

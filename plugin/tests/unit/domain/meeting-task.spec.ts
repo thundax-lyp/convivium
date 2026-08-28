@@ -19,6 +19,10 @@ function input() {
         deliveryId: "delivery-1",
         participantId: "participant-1",
         originatingSpeakerAttemptId: "attempt-1",
+        sourceTurnId: "turn-1",
+        sourceStepId: "step-1",
+        sourceContextFromSeq: 1,
+        sourceContextThroughSeq: 1,
         title: "Run tests",
         description: "Run the test suite",
         blocking: true,
@@ -46,7 +50,11 @@ describe("MeetingTask transitions", () => {
         expect(finished.state.meetingTasks[0]).toMatchObject({
             meetingTaskId: "task-1",
             status: "completed",
-            resultSummary: "passed"
+            resultSummary: "passed",
+            sourceTurnId: "turn-1",
+            sourceStepId: "step-1",
+            sourceContextFromSeq: 1,
+            sourceContextThroughSeq: 1
         });
         expect(finished.effect.events.map(({ type }) => type)).toEqual(["meeting_task.completed"]);
     });
