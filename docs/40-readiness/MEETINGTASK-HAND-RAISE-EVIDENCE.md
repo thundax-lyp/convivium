@@ -26,6 +26,7 @@
 - profile smoke 尚未执行 MeetingTask 的真实 `finish → HandRaise → 后续正式 submit_turn` 链路；该边界由 contract/recovery tests 覆盖，仍是 Not Covered。
 - smoke 未执行完整长时间模型任务、真实外部工具副作用或生产凭据流程；这些仍是 Not Covered。
 - Session close、capability revoke 和底层 interrupt 继续归后续 Archive/lifecycle。
+- `plugin/tests/contract/meeting-runtime.spec.ts` 中的 continuable/lifecycle fake 仅用于隔离 runtime 的确定性授权、恢复和 archive 边界；当前 main 没有可直接替换它的公开稳定 archive coordinator 接口，因此保留该 fake。`plugin/scripts/smoke-profile.mjs` 使用真实 DSH `web`/`spawn` profile，不属于该 fake。
 
 ## 清理
 
