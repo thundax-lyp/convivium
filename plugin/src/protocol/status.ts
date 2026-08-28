@@ -78,24 +78,24 @@ const agendaItem = Schema.object({
 const question = Schema.object({
     id: requiredString(),
     text: requiredString(),
-    askedBy: requiredString(),
+    askedBy: Schema.string(),
     directedTo: Schema.string(),
-    agendaItemId: requiredString(),
-    blocking: requiredBoolean(),
+    agendaItemId: Schema.string(),
+    blocking: Schema.boolean(),
     status: enumOf(["open", "answered", "withdrawn", "deferred"] as const),
     answerMessageId: Schema.string()
 });
 
 const decision = Schema.object({
     id: requiredString(),
-    agendaItemId: requiredString(),
+    agendaItemId: Schema.string(),
     proposalId: requiredString(),
     proposalRevision: requiredNumber(),
-    statement: requiredString(),
-    rationale: requiredString(),
+    statement: Schema.string(),
+    rationale: Schema.string(),
     status: enumOf(["accepted", "superseded", "revoked"] as const),
-    acceptedBy: requiredArray(requiredString()),
-    dissentingPositionIds: requiredArray(requiredString())
+    acceptedBy: Schema.array(requiredString()),
+    dissentingPositionIds: Schema.array(requiredString())
 });
 
 const blockingFact = Schema.object({
@@ -306,8 +306,16 @@ const archiveIssue = Schema.object({
         "accepted_risk",
         "out_of_scope"
     ] as const),
-    status: enumOf(["open", "waiting", "resolved", "accepted", "deferred"] as const),
-    rationale: requiredString(),
+    status: enumOf([
+        "open",
+        "waiting",
+        "resolved",
+        "accepted",
+        "deferred",
+        "accepted_risk",
+        "out_of_scope"
+    ] as const),
+    rationale: Schema.string(),
     ownerId: Schema.string(),
     relatedTaskIds: requiredArray(requiredString())
 });

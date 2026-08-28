@@ -14,7 +14,7 @@ C 线从当前 `origin/main` 独立实现会议从 execution terminal 到 `archi
 
 Scope 是 package 物化、capability revoke、interrupt/drain、ownership close、archive finalize、重启恢复、状态 projection、测试、独立 profile smoke 与 readiness evidence。
 
-不包含 Mail、MeetingTask 新语义、task evidence、主持策略、续会创建、物理删除 DSH Session、HTTP/Client、公开协议变化、多 provider abstraction、通用 worker、第二 outbox、archive table 或 migration。
+不包含 Mail、MeetingTask 新语义、task evidence、主持策略、续会创建、物理删除 DSH Session、HTTP/Client surface、多 provider abstraction、通用 worker、第二 outbox、archive table 或 migration。归档字段 optional 与 issue status 透传的正式协议对齐已由 2026-08-28 执行授权覆盖。
 
 ## State, data and safety invariants
 
