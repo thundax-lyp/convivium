@@ -4,9 +4,9 @@
 
 本证据覆盖 Convivium DSH 插件工程框架从依赖 manifest 到 PR 治理的可安装 package、lockfile、Host/Client 类型面、bundle、模块边界、framework tests、package verifier、统一验证入口和 CI workflow。
 
-本证据不代表会议运行时、真实 DSH AgentSession 或会议业务已完成。当前领域状态机和 SQLite repository 基础已经存在；会议运行时、DSH lifecycle 和集成验证仍未覆盖。
+本证据只记录 2026-08-25 至 2026-08-26 的框架阶段边界，不代表当前实现仍停留在该阶段。后续会议 Runtime、DSH lifecycle、MeetingTask、completion 和 archive 证据已分别收口。
 
-DSH Runtime 竖切的独立证据见 `docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`。
+当前统一覆盖入口见 `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`；DSH Runtime 竖切的独立历史证据见 `docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`。
 
 ## Validated Contract
 
@@ -34,39 +34,39 @@ DSH Runtime 竖切的独立证据见 `docs/40-readiness/DSH-RUNTIME-VERTICAL-SLI
 
 验证范围：`codex/dsh-runtime-integration` 的 T1 取证、domain/repository 基础与 Tool/projection 契约整合结果。
 
-| 命令 | 结果 |
-| --- | --- |
-| `pnpm verify:environment` | Pass；Node `v22.23.2` 下 15 个声明的 DSH packages 均已安装。 |
-| `pnpm verify:contract` | Pass；插件 manifest、bundle patch 与 Client contract 可解析。 |
-| `pnpm typecheck` | Pass；Host 与 Client TypeScript face 均通过。 |
-| `pnpm test` | Pass；14 个测试文件、77 个测试通过。 |
+| 命令                      | 结果                                                          |
+| ------------------------- | ------------------------------------------------------------- |
+| `pnpm verify:environment` | Pass；Node `v22.23.2` 下 15 个声明的 DSH packages 均已安装。  |
+| `pnpm verify:contract`    | Pass；插件 manifest、bundle patch 与 Client contract 可解析。 |
+| `pnpm typecheck`          | Pass；Host 与 Client TypeScript face 均通过。                 |
+| `pnpm test`               | Pass；14 个测试文件、77 个测试通过。                          |
 
-`pnpm verify` 随后也完整通过，但不替代本表中每个 T0 静态入口的独立结果。真实 profile lifecycle 的外部依赖验证见 T1 evidence；会议 Runtime 业务验证仍未覆盖。
+`pnpm verify` 随后也完整通过，但不替代本表中每个 T0 静态入口的独立结果。真实 profile lifecycle 的外部依赖验证见 T1 evidence；在该 T0 证据边界内，会议 Runtime 业务尚未覆盖。
 
 历史框架验证日期：2026-08-25
 环境：Node `v22.23.2`，pnpm `10.7.0`，macOS 本地工作区
 实现边界：`fef0d1c..fca7386`（依赖 manifest 至 PR 治理的实现提交）；证据在后续 readiness commit 中收口。
 
-| 命令或检查 | 结果 | 证据 |
-| --- | --- | --- |
-| `pnpm install --frozen-lockfile` | Pass | lockfile up to date；pnpm 提示 ignored `esbuild` build script，但安装成功 |
-| `pnpm typecheck` | Pass | Host 与 Client 两个 TypeScript face 均通过 |
-| `pnpm test` | Pass | 3 个 framework test files、4 个 tests 通过；Host/Client/contract projects 可见 |
-| `pnpm build` | Pass | 生成 `lib/index.js`、`lib/client.js` 和两组声明；tsdown 输出一个 `define` invalid input warning，不影响退出码或产物 |
-| `pnpm verify:package` | Pass | 4 个 boolean contract 字段为 true，missing/forbidden 数组为空 |
-| `pnpm lint` | Pass | JavaScript、TypeScript 与 TSX 静态规则检查通过 |
-| `pnpm verify` | Pass | 按 lint → typecheck → test → build → environment → plugin contract → package verifier 顺序通过 |
-| `pnpm test:integration` / `test:recovery` / `test:stress` | Pass with `Not Covered` | 三个入口均明确输出未覆盖，没有伪造业务用例 |
-| package fault injection | Pass | 临时副本中删除 `lib/client.js`、篡改 patch name、开放 files allowlist 均使 verifier 非零退出，并已恢复 |
-| verify fault injection | Pass | 临时类型错误使 `verify` 失败；缺失 artifact 使 `verify:package` 失败，并已恢复 |
-| workflow YAML/job comparison | Pass | 七个 job display name、Node、pnpm、frozen install、Build→Package dependency 符合 CI 契约 |
-| `git diff --check`、最终 `git status --short` | Pass | 无 whitespace error；无未提交工作区修改 |
+| 命令或检查                                                | 结果                    | 证据                                                                                                                |
+| --------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`                          | Pass                    | lockfile up to date；pnpm 提示 ignored `esbuild` build script，但安装成功                                           |
+| `pnpm typecheck`                                          | Pass                    | Host 与 Client 两个 TypeScript face 均通过                                                                          |
+| `pnpm test`                                               | Pass                    | 3 个 framework test files、4 个 tests 通过；Host/Client/contract projects 可见                                      |
+| `pnpm build`                                              | Pass                    | 生成 `lib/index.js`、`lib/client.js` 和两组声明；tsdown 输出一个 `define` invalid input warning，不影响退出码或产物 |
+| `pnpm verify:package`                                     | Pass                    | 4 个 boolean contract 字段为 true，missing/forbidden 数组为空                                                       |
+| `pnpm lint`                                               | Pass                    | JavaScript、TypeScript 与 TSX 静态规则检查通过                                                                      |
+| `pnpm verify`                                             | Pass                    | 按 lint → typecheck → test → build → environment → plugin contract → package verifier 顺序通过                      |
+| `pnpm test:integration` / `test:recovery` / `test:stress` | Pass with `Not Covered` | 三个入口均明确输出未覆盖，没有伪造业务用例                                                                          |
+| package fault injection                                   | Pass                    | 临时副本中删除 `lib/client.js`、篡改 patch name、开放 files allowlist 均使 verifier 非零退出，并已恢复              |
+| verify fault injection                                    | Pass                    | 临时类型错误使 `verify` 失败；缺失 artifact 使 `verify:package` 失败，并已恢复                                      |
+| workflow YAML/job comparison                              | Pass                    | 七个 job display name、Node、pnpm、frozen install、Build→Package dependency 符合 CI 契约                            |
+| `git diff --check`、最终 `git status --short`             | Pass                    | 无 whitespace error；无未提交工作区修改                                                                             |
 
 `pnpm 10.7.0` 不支持原执行手册写出的 `pnpm pack --dry-run` 参数；已使用该版本支持的临时目录实际打包 JSON 清单替代检查，并确认发布清单未包含 `src/`、`tests/` 或 `docs/`。
 
 当前基线复核：2026-08-26，基线为本分支最新提交，`pnpm verify` 通过，6 个测试文件、62 个测试通过；领域和 Repository 单元测试已纳入当前代码。`test:integration`、`test:recovery` 和 `test:stress` 仍无测试文件，均明确输出 `Not Covered`。尚未实现能力记录在本文件的 `Not Covered`。
 
-## Not Covered
+## Not Covered At This Evidence Boundary
 
 - 会议生命周期、Turn、发言权、Manager、完成判断和会议运行时业务。
 - 完整 MeetingState 与 SQLite repository 的类型化集成、业务 schema 语义和冷恢复。
@@ -79,4 +79,4 @@ DSH Runtime 竖切的独立证据见 `docs/40-readiness/DSH-RUNTIME-VERTICAL-SLI
 
 ## Closure
 
-框架级 package、build、test、verify 和 CI 配置已达到本阶段可检查状态；以上未覆盖项不应被描述为会议产品已完成。长期工程判断已分别落在 `ARCHITECTURE.md`、Implementation Design、PR-RULES、源码配置和 package verifier 中。
+框架级 package、build、test、verify 和 CI 配置已达到该阶段可检查状态。本节未覆盖项只描述当时的 framework commit 边界；哪些项目已由后续实现覆盖、哪些仍是当前缺口，以 `CURRENT-IMPLEMENTATION-COVERAGE.md` 为准。

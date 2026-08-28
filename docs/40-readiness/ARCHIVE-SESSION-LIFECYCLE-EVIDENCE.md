@@ -29,8 +29,8 @@ From `plugin/`:
 
 ## Not Covered
 
-- A real DSH scratch-profile smoke is not executed: the repository has no profile/smoke harness or configured scratch profile. This evidence does not claim real host residency verification.
+- Archive 场景没有执行真实 DSH scratch-profile smoke。仓库当前存在 `plugin/scripts/smoke-profile.mjs`，但该脚本只覆盖基础 Manager/Turn runtime，不覆盖 archive cleanup、restart recovery 或 archived readback；本证据不声明这些场景已通过真实 host residency 验证。
 
 ## Closure
 
-Status: implementation closure evidence. Real DSH profile residency remains explicitly not covered; all verified lifecycle conclusions are retained in code, contract tests, and this evidence.
+Status: implementation closure evidence. Real DSH profile residency remains explicitly not covered; all verified lifecycle conclusions are retained in code, contract tests, and this evidence. Current global coverage is recorded in `CURRENT-IMPLEMENTATION-COVERAGE.md`.
