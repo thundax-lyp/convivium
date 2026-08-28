@@ -103,6 +103,28 @@ function terminalDispatchError(code: string, message: string): Error {
     return Object.assign(new Error(message), { code, retryable: false });
 }
 
+function requireDispatchableMeeting(
+    state: MeetingState | undefined
+): asserts state is MeetingState {
+    if (
+        state === undefined ||
+        [
+            "completed",
+            "partial",
+            "no_consensus",
+            "cancelled",
+            "failed",
+            "archiving",
+            "archived"
+        ].includes(state.status)
+    ) {
+        throw terminalDispatchError(
+            "MEETING_NOT_DISPATCHABLE",
+            "Meeting is terminal or archiving and cannot dispatch work."
+        );
+    }
+}
+
 function success<T>(meetingId: string, meetingVersion: number, result: T): ProtocolSuccessV1<T> {
     return { protocolVersion: 1, ok: true, meetingId, meetingVersion, result };
 }
@@ -251,6 +273,9 @@ export function createCreateStatusRuntime(
         item: ClaimedOutboxItem
     ) {
         const recovered = await repository.recover();
+        requireDispatchableMeeting(
+            recovered.snapshot?.state as unknown as MeetingState | undefined
+        );
         const payload = item.payload as unknown as {
             participantId: string;
             attemptId: string;
@@ -350,9 +375,7 @@ export function createCreateStatusRuntime(
             );
         }
         const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
-        if (state === undefined) {
-            throw terminalDispatchError("MEETING_NOT_FOUND", "Meeting state is missing.");
-        }
+        requireDispatchableMeeting(state);
         const dispatchableParticipantIds = state.participants
             .filter(
                 (participant) =>
@@ -409,6 +432,7 @@ export function createCreateStatusRuntime(
             executionId: string;
         };
         const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+        requireDispatchableMeeting(state);
         const task = state?.meetingTasks?.find(
             (candidate) =>
                 candidate.meetingTaskId === payload.meetingTaskId &&
