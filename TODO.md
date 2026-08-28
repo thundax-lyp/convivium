@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `plugin/src/domain/model.ts`：补齐 MeetingTask source binding 字段
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/30-designs/DOMAIN-MODEL-DESIGN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK 数据结构契约
-  - 处理动作：增加 `sourceTurnId`、`sourceStepId`、`sourceContextFromSeq`、`sourceContextThroughSeq` 及 queued 后写入的 `sourceMessageId`、`sourceMessageSeq`，保持 SpeakerAttempt 与 MeetingTaskSnapshot 不变。
-  - 验收点：requested 不含 formal message binding；queued/running/terminal 均具备 immutable source binding；旧 MeetingState read compatibility 通过。
-
 - [ ] `plugin/src/domain/meeting-task.ts`：实现 MeetingTask 字段时点与基础状态转换
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T2/T3
