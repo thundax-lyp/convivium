@@ -247,7 +247,6 @@ export function cancelNonTerminalMeetingTasks(
     state: MeetingState,
     now: number
 ): TransitionResult<MeetingState> {
-    requireTaskExecutionActive(state);
     const cancelled = (state.meetingTasks ?? []).filter((task) =>
         activeStatuses.includes(task.status)
     );
