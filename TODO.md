@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `plugin/src/protocol/types.ts`、`plugin/src/protocol/results.ts`：将 `MeetingTaskFinishResultV1.handRaiseId` 改为 optional
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T1 已锁定该兼容修正
-  - 处理动作：保持 protocol version 和 DTO 不变，规定 completed 必须返回 `handRaiseId`，failed 成功省略该字段。
-  - 验收点：protocol types、result schema 和 contract test 接受 failed 无 `handRaiseId`，拒绝 completed 缺少该字段；无新增 DTO/version。
-
 - [ ] `plugin/src/domain/model.ts`：补齐 MeetingTask source binding 字段
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/30-designs/DOMAIN-MODEL-DESIGN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK 数据结构契约
