@@ -1402,6 +1402,8 @@ agenda has discussion ≠ agenda resolved
 - Captain 的自然语言回答、总结或建议不产生风险处置事实；只有合法的 `CaptainRiskDispositionInputV1` command commit 才能生效；
 - Captain risk disposition 只影响输入中唯一的 `issueId`；`accept` 生成 accepted-risk fact，`reject` 生成拒绝接受的 disposition fact 并保持该风险按原 blocking 规则处理，二者都不得顺带接受其他风险或 Decision；
 - question resolution 必须引用当前 Meeting 中由该 answer attempt 产生的正式 message；
+- `submitSpeakerAndAdvanceMeeting` 固定按 `submitSpeakerAttempt`、`addSubmittedQuestions`、requested MeetingTask omission check、`applyCompletionClaims`、`queueMeetingTasks`、既有 completion judge 和下一轮 planning 的顺序执行；
+- open non-blocking question 不参与 objective 阻塞；question resolution 由 active CompletionFact 驱动并固化 `answerMessageId`；
 - output 和 criterion claim 必须引用当前 Meeting 的 message 或已固化 MeetingTask snapshot；
 - AgendaItem 只有满足自身 completion criteria 且不存在关联 blocking fact 时才能变为 `resolved`；
 - Captain MAY 通过 `convivium_end_meeting` 接受 partial、豁免 reviewer 或 defer agenda，但每次豁免都必须结构化记录 actor、reason 和 affected IDs；

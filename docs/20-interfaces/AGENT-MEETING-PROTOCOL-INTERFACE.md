@@ -664,6 +664,8 @@ interface PublicMeetingMessageV1 {
 
 `PublicQuestionV1.askedBy`、`agendaItemId` 和 `blocking` 在 V1 保持 optional，以兼容历史 Archive 读取中的缺失字段。内部 canonical `MeetingQuestion` 对这三个字段保持 required；active 和 execution-terminal status producer 对新建的 canonical Question 必须始终输出它们。
 
+active 和 execution-terminal discussion status producer 始终输出 `questions`；该字段为 additive optional，旧 V1 caller 不提供时不影响 command 输入。
+
 ### Manager plan submission
 
 ```ts
@@ -779,6 +781,8 @@ interface AgendaCandidateClaimV1 {
 上述对象均为 claim。Meeting Runtime 生成正式 ID，绑定真实 caller，并验证 Meeting、agenda、proposal revision、blocking evidence 和授权。
 
 V1 `QuestionClaimV1` 尚未提供必要产出、验收条件、硬约束、必需审核或未接受高风险等阻塞依据字段，因此当前只接受 `blocking: false`。`blocking: true` 返回非重试的 `UNSUPPORTED_CAPABILITY`，且整个 turn 不产生 message、Question、event、receipt、version 或 outbox 副作用。
+
+Question resolution 只能绑定当前 Meeting 中由 caller authored 的正式 answer message；成功后固化 `answerMessageId`，不得被另一答案覆盖。非法 Question claim 或 resolution 的内部 `INVALID_ENTITY_STATE` 统一公开为非重试的 `INVALID_ARGUMENT`，不得泄露内部错误码。
 
 Participant 的 Position 不得携带其他 Participant 的有效身份。正式 Decision 的 `status`、`acceptedBy`、`dissentingPositionIds` 和接受方式不得由 Participant 输入。
 
@@ -915,6 +919,7 @@ interface MeetingStatusBaseV1 {
 interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
   activeAgendaItem?: PublicAgendaItemV1;
   messages: readonly PublicMeetingMessageV1[];
+  questions?: readonly PublicQuestionV1[];
   acceptedDecisions: readonly PublicDecisionV1[];
   blockingFacts: readonly PublicBlockingFactV1[];
 }
