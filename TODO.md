@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `plugin/tests/contract/protocol-schema.spec.ts`：验证 optional handRaiseId 和公开 DTO 边界
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T1/Test Matrix
-  - 处理动作：增加 failed result 无 `handRaiseId`、completed result 必须有 `handRaiseId` 的 schema cases。
-  - 验收点：同一 protocol version 通过，未新增 execution/source/internal evidence 字段。
-
 - [ ] `plugin/tests/contract/status-projection.spec.ts`：验证公开 projection 保留正式字段且隐藏内部字段
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK projection boundary
