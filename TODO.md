@@ -16,12 +16,6 @@
   - 处理动作：校验 participant/task identity，禁止 failed task 形成完成型 HandRaise，保持 pending raise 去重和单次 consume。
   - 验收点：错误 participant、重复 execution、failed task、terminal task 均无 raise；合法 completed task 只形成一个 pending raise。
 
-- [ ] `plugin/src/tools/meeting-runtime.ts`：实现 completed finish 与 HandRaise 的同事务提交
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T6
-  - 处理动作：在同一 `finish_meeting_task` transaction 调用 finish transition 和 createHandRaise；completed 返回 handRaiseId，failed 不创建 HandRaise 且省略 handRaiseId。
-  - 验收点：提交前 task/raise 均不存在，提交后 completed task/raise 同时存在；failed 只写 failed task/result，不写 HandRaise。
-
 - [ ] `plugin/src/domain/planning.ts`：消费 task-linked HandRaise 并保持确定性候选规则
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T7
