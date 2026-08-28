@@ -12,7 +12,7 @@
 
 ## Executor Contract
 
-执行者必须按 T4 至 T6 顺序执行；每步仅修改该步“允许修改”列出的文件，并在该步 PASS 后才进入下一步。任何 STOP 必须报告最后 PASS 步骤、触发条件、相关文件与 symbol、执行命令和完整输出；不得改动 Schema、错误语义、存储布局、身份边界或未列文件来绕过 STOP。本文只授权文档与本分支实现，不授权提交、推送、创建 PR 或合并。
+执行者必须按 T5 至 T6 顺序执行；每步仅修改该步“允许修改”列出的文件，并在该步 PASS 后才进入下一步。任何 STOP 必须报告最后 PASS 步骤、触发条件、相关文件与 symbol、执行命令和完整输出；不得改动 Schema、错误语义、存储布局、身份边界或未列文件来绕过 STOP。本文只授权文档与本分支实现，不授权提交、推送、创建 PR 或合并。
 
 `PASS` 仅表示对应步骤的规定命令退出码为 `0` 且断言成立；`STOP` 是终止本次执行的正常结果。执行者不得以“相近实现”替代本文指定的 symbol、route、Client slot 或测试入口。
 
@@ -97,48 +97,9 @@ Runtime 是 producer，HTTP 与 Client 是 consumer；Client 不提交 list DTO�
 
 ## Mechanical Execution Steps
 
-### T4：实现唯一 loopback HTTP transport
-
-前置状态：`LocalMeetingWebRuntime`、用途隔离恢复与 list 已实现并通过 focused suite；三个 list Schema 均已可由 protocol/runtime 入口导入。
-
-允许修改：`plugin/src/http/index.ts`、`plugin/src/index.ts`、`plugin/tests/contract/http-boundary.spec.ts`、`plugin/tests/unit/index-inject.spec.ts`。
-
-禁止修改：`plugin/src/tools/register-tools.ts`、Agent caller 解析、data-root discovery、Client 文件、SQLite schema/migration 与 WebServer host 配置。
-
-执行：
-
-1. `http/index.ts` 必须从 `@deepseek-ai/dsh-host-webserver` import `WebServer` type，并直接从 `../tools/meeting-runtime.js` import `LocalMeetingRecoveryUnavailableError` 与 `LocalMeetingWebRuntime` type；不得为转发 export 修改 `plugin/src/tools/index.ts`。然后 export：
-
-```ts
-registerLocalMeetingHttpRoutes(
-    webServer: Pick<WebServer, "register">,
-    runtime: LocalMeetingWebRuntime
-): () => void;
-```
-
-只注册 `{ kind: "prefix", path: "/api/convivium/meetings", handler }`。所有 JSON 编码、固定 invalid-argument envelope 和错误映射保持为该文件内的局部 helper；不要新增 router、middleware 或 transport abstraction。
-2. handler 直接解析 raw `req.url ?? ""`，不得用会规范化 dot segment 的 `new URL()`：以第一个 `?` 分成 `rawPath` 和 `hasQuery`，先调用 `decodeURI(rawPath)` 仅验证 percent encoding，但继续用未规范化的 `rawPath` 做 route match；验证失败返回固定 `400 INVALID_ARGUMENT`。随后按 raw pathname shape 和 method 分类，trailing slash、额外 segment 与未列 method 返回 `404` 无 body；仅对已支持组合检查 `hasQuery`，包括结尾裸 `?` 在内都返回固定 `400 INVALID_ARGUMENT`。受支持动态 segment 最后用 `decodeURIComponent()` 解码，失败返回同一固定错误。
-3. GET 不解析或缓存 body；详情 GET 以 decoded path ID 组装并用 `MeetingStatusInputSchema` 校验。POST 要求 `content-type` 的 media type（分号前 trim 并转小写）恰为 `application/json`；使用 `for await (const chunk of req)` 累计实际 byte length，超过 `16_384` 后停止缓存并调用 `req.resume()` 排空余下内容，再返回固定 `400 INVALID_ARGUMENT`。JSON parse 后先用该文件内局部 `assertExactBodyKeys()` 比较排序后的 key：pause 恰为 `protocolVersion | meetingId | expectedMeetingVersion | requestId | reason`，resume 恰为前四项；再调用对应 `PauseMeetingInputSchema`/`ResumeMeetingInputSchema` 并检查 path/body `meetingId`。任一步失败走同一固定错误。不要读取任何身份 header/cookie；额外用户、Team、Agent/Captain Session 或 authority 字段必须在调用 Runtime 前被拒绝。固定 invalid envelope 恰为 `{ protocolVersion: 1, ok: false, code: "INVALID_ARGUMENT", message: "Invalid meeting request.", retryable: false }`，不含任何 optional metadata。
-4. list output 通过 `LocalMeetingListResponseSchema`；status success 调用 `validateProtocolSuccessEnvelope(MeetingStatusResultSchema, value)`；pause/resume success 调用 `validateProtocolSuccessEnvelope(MeetingControlResultSchema, value)`；Runtime error 通过 `validateProtocolError()` 后才编码。Runtime success 写 `200` JSON；Runtime `VERSION_CONFLICT`/`IDEMPOTENCY_CONFLICT` 写 `409` JSON，`MEETING_NOT_FOUND` 写 `404` JSON，其他 Runtime `ProtocolErrorV1` 写 `400` JSON。所有 JSON response 设置 `content-type: application/json; charset=utf-8`。捕获 `LocalMeetingRecoveryUnavailableError` 时写 `503`、`Retry-After: 1`、无 body；response validation 或其他未知异常写 `500` 无 body。无 body response 不设置 JSON content type。
-5. `index.ts` 在 Runtime 创建和 lifecycle 注册后，且仅 `ctx.webServer.host === "127.0.0.1"` 时调用该 register 函数，并将返回 disposer 加入 lifecycle。不要注册 exact 子 route，不要在 `0.0.0.0` 抛出或注册。
-6. 测试 mock `webServer.register`：loopback 恰注册一个 prefix 并在 dispose 时移除；all-interface 不注册。直接调用 handler 覆盖四条成功路由、trailing slash/含额外 dot segment/未知 method 的空 `404`、普通及裸 `?` query/非法 percent encoding/media type/body limit/parse/extra-key/schema/path mismatch 的固定 `400`、两个 `409`、领域 `404`/`400`、目标恢复 `503`（含 header 且无 body）、未知 `500`，并断言 JSON content type、无 body response 不含 JSON header，且任何 identity/authority extra field 都不会调用 Runtime。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/http-boundary.spec.ts tests/unit/index-inject.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：两条命令退出码均为 `0`；测试断言完整 transport decision table、loopback 只有一个 prefix registration，且 all-interface 没有 registration。
-
-STOP：DSH Web 类型与已锁版本不支持 prefix disposer，或实现需要第二个 route/任何身份输入。报告 T4 并停止。
-
-恢复：从 lifecycle 移除本步骤注册并撤销四个允许文件的改动。
-
 ### T5：注册最小 Client panel
 
-前置状态：T4 PASS；loopback route 已由 host entry 注册，且 `0.0.0.0` 情况未注册。
+前置状态：loopback route 已由 host entry 注册并通过 transport/lifecycle focused suite，且 `0.0.0.0` 情况未注册。
 
 允许修改：`plugin/src/client/index.tsx`、`plugin/src/client/meeting-panel.tsx`、`plugin/tests/client/client-entry.client.spec.ts`。
 
@@ -168,7 +129,7 @@ STOP：现有 client slot API 不支持上述 list entry/disposer，或必须用
 
 ### T6：端到端证据与文档收口
 
-前置状态：T4–T5 全部 PASS；`pnpm --dir plugin build` 成功。
+前置状态：T5 PASS；`pnpm --dir plugin build` 成功。
 
 允许修改：`plugin/scripts/smoke-profile.mjs`、`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`、本 RUNBOOK；验证可机械重建 ignored `plugin/lib/**` 并创建/清理脚本自己的 OS temp root。
 
@@ -208,7 +169,6 @@ STOP：任一命令失败、smoke 无法建立实际 loopback 或发现 runtime/
 
 | 风险 | focused evidence | PASS 判据 |
 | --- | --- | --- |
-| loopback transport 与错误 body | T4 HTTP/inject suites | 只注册一个 prefix；`0.0.0.0` 无 route；404/400/409/503/500 与正式协议一致。 |
 | Client 生命周期 | T5 client suite | list-first、选择后的全量读取、write 后 refetch、pending 互斥、poll/focus、失败禁写和 cleanup 均有断言。 |
 | 真实 DSH Web 闭环 | T6 默认及 browser-mode `smoke:profile` | 实际 loopback HTTP 通过 list/status/pause/resume；真实 Client slot 可选择并控制 Meeting；不使用 Captain identity。 |
 
@@ -216,7 +176,7 @@ STOP：任一命令失败、smoke 无法建立实际 loopback 或发现 runtime/
 
 ## Completion And Deletion
 
-所有 T4–T6 PASS 后，将实际覆盖迁移到 `CURRENT-IMPLEMENTATION-COVERAGE.md`，按 TODO Rules 确认本闭环无未完成 TODO，再删除本 RUNBOOK。删除后使用 `rg -n 'RUNBOOK-LOCAL-SINGLE-USER-MEETING-CONTROL|Local Single-User Meeting Control' .` 清除仅指向本文的残留引用，并重跑相对链接检查与 `git diff --check`；任一检查失败时恢复本文并 STOP。在用户单独要求前，不提交、推送、创建 PR 或合并。
+所有 T5–T6 PASS 后，将实际覆盖迁移到 `CURRENT-IMPLEMENTATION-COVERAGE.md`，按 TODO Rules 确认本闭环无未完成 TODO，再删除本 RUNBOOK。删除后使用 `rg -n 'RUNBOOK-LOCAL-SINGLE-USER-MEETING-CONTROL|Local Single-User Meeting Control' .` 清除仅指向本文的残留引用，并重跑相对链接检查与 `git diff --check`；任一检查失败时恢复本文并 STOP。在用户单独要求前，不提交、推送、创建 PR 或合并。
 
 ## Author Audit
 
@@ -231,6 +191,6 @@ Authoring validation：
 - `git diff --check`：PASS。
 - `docs/**/*.md` 相对链接目标检查：PASS。
 - `pnpm --dir plugin exec vitest --version`：PASS，确认调用本地 Vitest `3.2.7`。
-- T4–T6 引用的当前 production/test/script 路径：PASS；唯一计划新增路径为 `plugin/src/client/meeting-panel.tsx`。
-- T4–T6 的九项固定结构（前置、允许、禁止、执行、验证、PASS、STOP、恢复）：PASS。
-- T4–T6 的 focused tests、build、smoke 与 browser lane：Not Run；这些是 RUNBOOK 执行门禁，不是本次文档修复证据。
+- T5–T6 引用的当前 production/test/script 路径：PASS；唯一计划新增路径为 `plugin/src/client/meeting-panel.tsx`。
+- T5–T6 的九项固定结构（前置、允许、禁止、执行、验证、PASS、STOP、恢复）：PASS。
+- T5–T6 的 focused tests、build、smoke 与 browser lane：Not Run；这些是 RUNBOOK 执行门禁，不是本次文档修复证据。

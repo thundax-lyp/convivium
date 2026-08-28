@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { apply, assertContinuableProvider, inject } from "../../src/index.js";
 import { requireContinuableProvider } from "../../src/dsh/index.js";
@@ -76,5 +76,49 @@ describe("Convivium continuable provider gate", () => {
         expect(requireContinuableProvider({ getProvider: () => provider } as never, "spawn")).toBe(
             provider
         );
+    });
+});
+
+describe("Convivium local Meeting route lifecycle", () => {
+    function host(host: "127.0.0.1" | "0.0.0.0") {
+        const routeDispose = vi.fn();
+        const register = vi.fn(() => routeDispose);
+        let lifecycleDispose: (() => void | Promise<void>) | undefined;
+        const ctx = {
+            effect(setup: () => () => void | Promise<void>) {
+                lifecycleDispose = setup();
+            },
+            agents: { get: () => undefined },
+            subagents: {
+                getProvider: () => ({ name: "spawn", prepareContinuable: async () => ({}) }),
+                startContinuable: async () => {
+                    throw new Error("not used");
+                },
+                listChildren: async () => [],
+                interrupt: () => undefined,
+                drainContinuableChildren: async () => undefined
+            },
+            tools: { register: vi.fn(() => vi.fn()) },
+            webServer: { host, register }
+        };
+        apply(ctx as never, config);
+        return { register, routeDispose, dispose: () => lifecycleDispose?.() };
+    }
+
+    it("registers and disposes exactly one prefix on loopback", async () => {
+        const fixture = host("127.0.0.1");
+        expect(fixture.register).toHaveBeenCalledTimes(1);
+        expect(fixture.register.mock.calls[0]?.[0]).toMatchObject({
+            kind: "prefix",
+            path: "/api/convivium/meetings"
+        });
+        await fixture.dispose();
+        expect(fixture.routeDispose).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not register Meeting routes on all interfaces", async () => {
+        const fixture = host("0.0.0.0");
+        expect(fixture.register).not.toHaveBeenCalled();
+        await fixture.dispose();
     });
 });

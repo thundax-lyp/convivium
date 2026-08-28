@@ -3,6 +3,7 @@ import type { Context } from "@deepseek-ai/cordis";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import { Config, type Config as ConfigType } from "./config.js";
 import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
+import { registerLocalMeetingHttpRoutes } from "./http/index.js";
 import {
     createCreateStatusRuntime,
     registerCreateAndStatusTools,
@@ -104,6 +105,9 @@ export function apply(ctx: Context, config: ConfigType): void {
         outboxPollMs: config.outboxPollMs
     });
     lifecycle.add(() => runtime.dispose());
+    if (ctx.webServer.host === "127.0.0.1") {
+        lifecycle.add(registerLocalMeetingHttpRoutes(ctx.webServer, runtime));
+    }
     const callers = {
         async resolve(agent: Parameters<typeof resolveMeetingCaller>[0], signal: AbortSignal) {
             const meetingCaller = await resolveMeetingCaller(agent, runtime, signal);
