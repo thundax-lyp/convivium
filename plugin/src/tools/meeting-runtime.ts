@@ -1105,9 +1105,42 @@ export function createCreateStatusRuntime(
                                         ["completed", "failed", "cancelled"].includes(task.status)
                                 )
                             );
-                        const nextState = waitingForThisTask
+                        let nextState = waitingForThisTask
                             ? { ...handRaise.state, currentTurn: undefined, waitState: undefined }
                             : handRaise.state;
+                        let planningEvents: DomainEventInput[] = [];
+                        let planningOutbox: Array<{
+                            deliveryId: string;
+                            kind: "dispatch";
+                            payload: JsonObject;
+                        }> = [];
+                        if (
+                            input.status === "completed" &&
+                            nextState.currentTurn === undefined &&
+                            nextState.manager.currentPlanningAttempt === undefined &&
+                            nextState.selectionMode === "manager" &&
+                            nextState.handRaises.some((raise) => raise.status === "pending")
+                        ) {
+                            const planningAttemptId = `${nextState.id}-planning-${nextState.replanCount + 1}`;
+                            const planningDeliveryId = `${nextState.id}-planning-delivery-${nextState.replanCount + 1}`;
+                            const planning = startManagerPlanning(nextState, {
+                                meetingId: nextState.id,
+                                planningAttemptId,
+                                deliveryId: planningDeliveryId,
+                                reason: "next_turn",
+                                now: options.now?.() ?? Date.now()
+                            });
+                            nextState = planning.state;
+                            planningEvents = planning.effect
+                                .events as unknown as DomainEventInput[];
+                            planningOutbox = [
+                                {
+                                    deliveryId: planningDeliveryId,
+                                    kind: "dispatch",
+                                    payload: { role: "manager", planningAttemptId }
+                                }
+                            ];
+                        }
                         return {
                             state: nextState as unknown as JsonObject,
                             result: {
@@ -1120,9 +1153,10 @@ export function createCreateStatusRuntime(
                             } satisfies MeetingTaskFinishResultV1,
                             events: [
                                 ...(transition.effect.events as unknown as DomainEventInput[]),
-                                ...(handRaise.effect.events as unknown as DomainEventInput[])
+                                ...(handRaise.effect.events as unknown as DomainEventInput[]),
+                                ...planningEvents
                             ],
-                            outbox: []
+                            outbox: planningOutbox
                         };
                     }
                 });

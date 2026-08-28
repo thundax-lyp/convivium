@@ -905,7 +905,55 @@ describe("meeting transitions", () => {
         ]);
     });
 
+    it("starts the next manager planning attempt from running without a current turn", () => {
+        const state = {
+            ...meeting("running"),
+            selectionMode: "manager" as const,
+            handRaises: [
+                {
+                    id: "raise-1",
+                    participant: "participant-1",
+                    reason: "task_completed" as const,
+                    summary: "completed task",
+                    taskIds: ["task-1"],
+                    priority: "normal" as const,
+                    createdAt: now,
+                    status: "pending" as const
+                }
+            ]
+        };
+
+        const result = startManagerPlanning(state, {
+            meetingId: state.id,
+            planningAttemptId: "planning-next",
+            deliveryId: "delivery-next",
+            reason: "next_turn",
+            now
+        });
+
+        expect(result.state.version).toBe(state.version + 1);
+        expect(result.state.manager.currentPlanningAttempt).toMatchObject({
+            id: "planning-next",
+            deliveryId: "delivery-next",
+            reason: "next_turn",
+            status: "running"
+        });
+        expect(result.effect.events.map((item) => item.type)).toEqual(["manager_plan.started"]);
+    });
+
     it("rejects round-robin meetings and duplicate planning state", () => {
+        expect(() =>
+            startManagerPlanning(
+                { ...meeting("running"), selectionMode: "manager" as const },
+                {
+                    meetingId: "meeting-1",
+                    planningAttemptId: "planning-next",
+                    deliveryId: "delivery-next",
+                    reason: "next_turn",
+                    now
+                }
+            )
+        ).toThrow("cannot transition from running to running");
         expect(() =>
             startManagerPlanning(meeting(), {
                 meetingId: "meeting-1",

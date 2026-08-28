@@ -169,13 +169,43 @@ describe("create/status meeting runtime", () => {
                 {
                     ...input,
                     agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
-                    participants: [input.participants[0]!]
+                    participants: [input.participants[0]!],
+                    selectionMode: "manager"
                 },
                 { sessionId: "captain-1", kind: "captain", agent: { id: "captain-1" } as never },
                 new AbortController().signal
             );
             if (!created.ok) throw new Error("create failed");
             const meetingId = created.result.meetingId;
+            const manager = {
+                sessionId: `${meetingId}-manager-manager`,
+                meetingId,
+                kind: "manager" as const
+            };
+            const planned = await runtime.submitManagerPlan(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    requestId: "initial-plan",
+                    planningAttemptId: `${meetingId}-planning-1`,
+                    observedMeetingVersion: 1,
+                    agendaItemId: "agenda-agenda-1",
+                    intent: "explore",
+                    objective: "Start task evidence flow",
+                    expectedOutputs: [],
+                    prohibitedTopics: [],
+                    steps: [
+                        {
+                            participantId: "participant-one",
+                            instruction: "Queue the task",
+                            reason: "manager_selected"
+                        }
+                    ]
+                },
+                manager
+            );
+            expect(planned).toMatchObject({ ok: true });
+            if (!planned.ok) throw new Error("initial plan failed");
             const participant = {
                 sessionId: `${meetingId}-participant-participant-one`,
                 meetingId,
@@ -186,7 +216,7 @@ describe("create/status meeting runtime", () => {
                 {
                     protocolVersion: 1,
                     meetingId,
-                    attemptId: "attempt-0",
+                    attemptId: planned.result.firstAttemptId,
                     requestId: "task-request",
                     title: "Inspect release",
                     description: "Inspect the release evidence",
@@ -199,10 +229,10 @@ describe("create/status meeting runtime", () => {
                 {
                     protocolVersion: 1,
                     meetingId,
-                    turnId: "turn-1",
-                    stepId: "step-participant-one-0",
-                    attemptId: "attempt-0",
-                    deliveryId: "delivery-0",
+                    turnId: planned.result.turnId,
+                    stepId: planned.result.firstStepId,
+                    attemptId: planned.result.firstAttemptId,
+                    deliveryId: `${planned.result.turnId}-delivery-0`,
                     agendaItemId: "agenda-agenda-1",
                     kind: "statement",
                     content: "Queue failing task",
@@ -246,6 +276,29 @@ describe("create/status meeting runtime", () => {
             if (!finished.ok) throw new Error("finish failed");
             if (status === "completed") {
                 expect(finished.result.handRaiseId).toBe(`${task.result.meetingTaskId}-hand-raise`);
+                const nextPlan = await runtime.submitManagerPlan(
+                    {
+                        protocolVersion: 1,
+                        meetingId,
+                        requestId: "next-plan",
+                        planningAttemptId: `${meetingId}-planning-2`,
+                        observedMeetingVersion: finished.meetingVersion,
+                        agendaItemId: "agenda-agenda-1",
+                        intent: "explore",
+                        objective: "Continue after task evidence",
+                        expectedOutputs: [],
+                        prohibitedTopics: [],
+                        steps: [
+                            {
+                                participantId: "participant-one",
+                                instruction: "Continue the meeting",
+                                reason: "manager_selected"
+                            }
+                        ]
+                    },
+                    manager
+                );
+                expect(nextPlan).toMatchObject({ ok: true });
             } else {
                 expect(finished.result).not.toHaveProperty("handRaiseId");
             }
@@ -261,7 +314,10 @@ describe("create/status meeting runtime", () => {
                         .prepare("SELECT state_json FROM meetings WHERE meeting_id = ?")
                         .get(meetingId).state_json
                 )
-            ) as { handRaises: unknown[] };
+            ) as {
+                handRaises: unknown[];
+                manager?: { currentPlanningAttempt?: unknown };
+            };
             const raiseEvents = db
                 .prepare(
                     "SELECT COUNT(*) AS count FROM meeting_events WHERE meeting_id = ? AND event_type = ?"
@@ -269,6 +325,7 @@ describe("create/status meeting runtime", () => {
                 .get(meetingId, "hand_raise.created") as { count: number };
             db.close();
             expect(state.handRaises).toHaveLength(status === "completed" ? 1 : 0);
+            expect(state.manager?.currentPlanningAttempt).toBeUndefined();
             expect(raiseEvents.count).toBe(status === "completed" ? 1 : 0);
 
             const recoveredRuntime = createCreateStatusRuntime({
