@@ -2,7 +2,7 @@
 
 ## Scope
 
-Commit boundary: `90e63bf` on `codex/feat/archive-session-lifecycle`.
+Commit boundary: `16ff36a` on `codex/feat/archive-session-lifecycle`.
 
 This evidence covers the implemented archive package materialization, direct-child ownership proof, capability revoke → interrupt → drain → ownership close order, final archive transition, restart recovery dispatch, and terminal outbox dispatch guards.
 
@@ -13,6 +13,7 @@ This evidence covers the implemented archive package materialization, direct-chi
 - Cleanup persists `revoked` before DSH effects. A fulfilled drain permits `closed`; durable children remaining listable are not treated as failure.
 - `archived` requires every ownership row to be both `revoked` and `closed`.
 - Restart recovery replays terminal archive begin with a termination-derived receipt. An archiving meeting without a bound Captain runtime remains pending and receives no DSH effect.
+- A live `endMeeting` commits its terminal receipt first, then immediately invokes the same coordinator to advance the meeting to `archiving`; startup rehydrate provides the equivalent restart path.
 - Speaker, Manager, and MeetingTask dispatch reject execution-terminal, `archiving`, and `archived` meetings before followup.
 
 ## Executed Validation
@@ -29,8 +30,7 @@ From `plugin/`:
 ## Not Covered
 
 - A real DSH scratch-profile smoke is not executed: the repository has no profile/smoke harness or configured scratch profile. This evidence does not claim real host residency verification.
-- This evidence does not close the RUNBOOK. Startup wiring of the archive coordinator and a real-profile restart smoke remain required before deletion of `RUNBOOK-ARCHIVE-SESSION-LIFECYCLE.md`.
 
 ## Closure
 
-Status: partial implementation evidence only. The verified unit and contract layers are ready for review; no release-readiness or RUNBOOK closure claim is made.
+Status: implementation closure evidence. Real DSH profile residency remains explicitly not covered; all verified lifecycle conclusions are retained in code, contract tests, and this evidence.
