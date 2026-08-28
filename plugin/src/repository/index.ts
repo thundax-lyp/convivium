@@ -265,12 +265,19 @@ function parseObject(value: string): JsonObject {
     return parsed as JsonObject;
 }
 
+function normalizeMeetingState(state: JsonObject): JsonObject {
+    if (Array.isArray(state.handRaises) && state.meetingTasks === undefined) {
+        return { ...state, meetingTasks: [] };
+    }
+    return state;
+}
+
 function toSnapshot(row: MeetingRow): MeetingSnapshot {
     return {
         teamId: row.team_id,
         meetingId: row.meeting_id,
         version: row.version,
-        state: parseObject(row.state_json),
+        state: normalizeMeetingState(parseObject(row.state_json)),
         createdAt: row.created_at,
         updatedAt: row.updated_at
     };

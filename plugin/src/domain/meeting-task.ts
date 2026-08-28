@@ -81,10 +81,24 @@ export function createMeetingTask(
 export function queueMeetingTasks(
     state: MeetingState,
     meetingTaskIds: readonly string[],
+    participantId: string,
+    originatingSpeakerAttemptId: string,
     now: number
 ): TransitionResult<MeetingState> {
     const uniqueIds = [...new Set(meetingTaskIds)];
     const tasks = uniqueIds.map((id) => requireTask(state, id));
+    if (
+        tasks.some(
+            (task) =>
+                task.participantId !== participantId ||
+                task.originatingSpeakerAttemptId !== originatingSpeakerAttemptId
+        )
+    ) {
+        throw new DomainError(
+            "STALE_ATTEMPT",
+            "MeetingTasks can only be queued by their originating Participant attempt"
+        );
+    }
     if (tasks.some((task) => task.status !== "requested")) {
         throw new DomainError(
             "INVALID_STATE_TRANSITION",

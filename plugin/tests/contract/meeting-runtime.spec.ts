@@ -42,6 +42,64 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
+    it("scopes request-derived HandRaise IDs to the Participant", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-scoped-ids-"));
+        roots.push(root);
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => "followup-message" as never
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => 100
+        });
+        const created = await runtime.createMeeting(
+            input,
+            {
+                sessionId: "captain-1",
+                kind: "captain",
+                agent: { id: "captain-1" } as never
+            },
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const request = {
+            protocolVersion: 1 as const,
+            meetingId: created.result.meetingId,
+            requestId: "shared-request",
+            reason: "new_evidence" as const,
+            summary: "New evidence",
+            taskIds: [],
+            priority: "normal" as const
+        };
+        const first = await runtime.raiseHand(request, {
+            sessionId: `${created.result.meetingId}-participant-participant-one`,
+            meetingId: created.result.meetingId,
+            participantId: "participant-one",
+            kind: "participant"
+        });
+        const second = await runtime.raiseHand(request, {
+            sessionId: `${created.result.meetingId}-participant-participant-two`,
+            meetingId: created.result.meetingId,
+            participantId: "participant-two",
+            kind: "participant"
+        });
+
+        expect(first).toMatchObject({ ok: true });
+        expect(second).toMatchObject({ ok: true });
+        if (!first.ok || !second.ok) throw new Error("raise hand failed");
+        expect(first.result.handRaiseId).not.toBe(second.result.handRaiseId);
+        await runtime.dispose();
+    });
+
     it("commits completion claims with the turn and rejects unavailable task evidence atomically", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-completion-"));
         roots.push(root);

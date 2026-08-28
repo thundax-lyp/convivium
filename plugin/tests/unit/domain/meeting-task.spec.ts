@@ -29,7 +29,13 @@ function input() {
 describe("MeetingTask transitions", () => {
     it("moves a task through requested, queued, running and completed", () => {
         const created = createMeetingTask(state(), input());
-        const queued = queueMeetingTasks(created.state, ["task-1"], 2);
+        const queued = queueMeetingTasks(
+            created.state,
+            ["task-1"],
+            "participant-1",
+            "attempt-1",
+            2
+        );
         const started = startMeetingTask(queued.state, "task-1", 3);
         const finished = finishMeetingTask(started.state, "task-1", {
             status: "completed",
@@ -43,6 +49,15 @@ describe("MeetingTask transitions", () => {
             resultSummary: "passed"
         });
         expect(finished.effect.events.map(({ type }) => type)).toEqual(["meeting_task.completed"]);
+    });
+
+    it("rejects queueing a task from another Participant attempt", () => {
+        const created = createMeetingTask(state(), input());
+
+        expect(() =>
+            queueMeetingTasks(created.state, ["task-1"], "participant-2", "attempt-2", 2)
+        ).toThrowError("MeetingTasks can only be queued by their originating Participant attempt");
+        expect(created.state.meetingTasks[0]?.status).toBe("requested");
     });
 
     it("cancels every non-terminal task and leaves terminal facts unchanged", () => {

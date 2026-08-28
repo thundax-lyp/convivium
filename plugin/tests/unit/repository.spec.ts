@@ -943,6 +943,21 @@ PRAGMA user_version = 2;
         await reopened.close();
     });
 
+    it("defaults legacy meeting state without MeetingTasks at the read boundary", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created", handRaises: [] }
+        });
+
+        await expect(repository.read()).resolves.toMatchObject({
+            state: { status: "created", handRaises: [], meetingTasks: [] }
+        });
+        await repository.close();
+    });
+
     it("rejects a mismatched version-two database before migration writes it", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
         roots.push(root);

@@ -1521,7 +1521,13 @@ export function submitSpeakerAndAdvanceMeeting(
           }
         : speakerSubmission;
     const queued = context.message.taskIds.length
-        ? queueMeetingTasks(completedSubmission.state, context.message.taskIds, context.now)
+        ? queueMeetingTasks(
+              completedSubmission.state,
+              context.message.taskIds,
+              participantId,
+              context.attemptId,
+              context.now
+          )
         : { state: completedSubmission.state, effect: { events: [] } };
     const submitted: TransitionResult<MeetingState> = {
         state: queued.state,

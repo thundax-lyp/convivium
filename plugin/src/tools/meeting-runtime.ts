@@ -129,6 +129,17 @@ function stableMeetingId(input: CreateMeetingInputV1): string {
         .slice(0, 32)}`;
 }
 
+function participantRequestEntityId(
+    prefix: "meeting-task" | "hand-raise",
+    participantId: string,
+    requestId: string
+): string {
+    return `${prefix}-${createHash("sha256")
+        .update(`${participantId}\0${requestId}`)
+        .digest("hex")
+        .slice(0, 32)}`;
+}
+
 function requestHash(input: CreateMeetingInputV1): string {
     return JSON.stringify(input);
 }
@@ -783,7 +794,11 @@ export function createCreateStatusRuntime(
                     "Only the matching Participant can create a MeetingTask."
                 );
             }
-            const taskId = `meeting-task-${input.requestId}`;
+            const taskId = participantRequestEntityId(
+                "meeting-task",
+                caller.participantId,
+                input.requestId
+            );
             try {
                 const current = await stored.repository.read();
                 const currentState = current.state as unknown as MeetingState;
@@ -1080,6 +1095,11 @@ export function createCreateStatusRuntime(
                     "Only the matching Participant can raise a hand."
                 );
             }
+            const handRaiseId = participantRequestEntityId(
+                "hand-raise",
+                caller.participantId,
+                input.requestId
+            );
             try {
                 const current = await stored.repository.read();
                 const committed = await stored.repository.execute({
@@ -1095,7 +1115,7 @@ export function createCreateStatusRuntime(
                         const transition = createHandRaise(
                             snapshot.state as unknown as MeetingState,
                             {
-                                id: `hand-raise-${input.requestId}`,
+                                id: handRaiseId,
                                 participantId: caller.participantId!,
                                 reason: input.reason,
                                 summary: input.summary,
@@ -1108,7 +1128,7 @@ export function createCreateStatusRuntime(
                         return {
                             state: transition.state as unknown as JsonObject,
                             result: {
-                                handRaiseId: `hand-raise-${input.requestId}`,
+                                handRaiseId,
                                 status: "pending"
                             } satisfies HandRaiseResultV1,
                             events: transition.effect.events as unknown as DomainEventInput[],
