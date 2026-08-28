@@ -23,6 +23,12 @@
 - 不建立独立服务、通用 Agent 平台或脱离 DSH 的运行模式。
 - 不导入、派生或兼容外部参考项目的源码、协议和持久化格式。
 
+### V1 deployment and user boundary
+
+V1 固定运行于单个本地 DSH Host，并只面向该 Host 的一位本地用户。Meeting Web route 只可在 `webServer.host === "127.0.0.1"` 时注册；`plugin/` 不实现远程监听、多用户身份、跨 Host 共享、网络租户隔离、Web 用户/Team authority 或生产部署编排。
+
+这项边界不放宽既有会议身份和 Session 隔离：前端不能伪造 Captain、Manager 或 Participant 身份；前端仍只能调用受控后端入口，Meeting Runtime 仍是领域状态和状态转换的唯一执行者。V1 Web request 本身不绑定上述会议身份，不做 per-user 或 Team authority 校验；loopback Host 是唯一 Web 访问边界。若未来需要远程或多用户能力，必须先在 Architecture、Requirements 和 Web authorization interface 中分别确认部署范围、用户/Team 身份来源、读取与控制权限、跨 workspace 隔离及失败语义，之后才能注册相应路由或复用 V1 的本地实现。
+
 ## Related Requirements And Interfaces
 
 - [Architecture](../00-governance/ARCHITECTURE.md)
@@ -138,8 +144,8 @@ domain     ──> no infrastructure module
 | `src/repository/schema.ts` | 当前完整 DDL、索引和 schema version |
 | `src/repository/migrations.ts` | 线性、事务化、不可跳级的 migration registry |
 | `src/repository/meeting-repository.ts` | 事务、聚合读写、receipt、event 和 outbox 原子提交 |
-| `src/repository/meeting-locator.ts` | `teamId/meetingId` 路径解析和目录所有权检查 |
-| `src/runtime/meeting-runtime.ts` | 所有公开命令的唯一应用服务入口 |
+| `src/runtime/application-service.ts#repositoryPath` | 当前 `teamId/meetingId` 物理路径解析；调用方不得复制该规则 |
+| `src/runtime/application-service.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime |
 | `src/runtime/turn-runner.ts` | Manager plan、逐 speaker dispatch、submit 和下一 step 推进 |
 | `src/runtime/outbox-worker.ts` | 提交后 DSH 副作用、重投和结果回写 |
 | `src/runtime/mail-processor.ts` | meeting-scoped mail context 固化和独立处理 attempt |
@@ -149,7 +155,7 @@ domain     ──> no infrastructure module
 | `src/domain/meeting-task.ts` | MeetingTask、HandRaise、状态转换和 task projection 的纯领域逻辑 |
 | `src/dsh/caller-resolver.ts` | 将真实 DSH caller Session 解析为 Captain、Manager 或 Participant |
 | `src/tools/register-tools.ts` | 注册 `convivium_*` 工具并绑定协议 Schema |
-| `src/http/register-routes.ts` | 注册 `/api/convivium/*` 并绑定用户授权 |
+| `src/http/index.ts` | 仅在 loopback Host 注册 `/api/convivium/*`；提供本地 Meeting list、status、pause 和 resume transport |
 | `src/projection/status.ts` | caller-specific Meeting status projection |
 | `src/projection/markdown.ts` | SQLite 到开发者 Markdown 的 best-effort 单向生成 |
 | `src/client/*` | 状态读取、暂停/继续控制和会议 UI |
@@ -161,7 +167,7 @@ domain     ──> no infrastructure module
 ### Driver and connection model
 
 - 使用 Node.js 内置 `node:sqlite`，不引入原生第三方 SQLite driver。
-- 每个 `<workspace>/.convivium/<teamId>/meetings/<meetingId>/meeting.sqlite` 使用独立连接。
+- 每个 Meeting repository 使用独立连接。当前物理 locator 为 `<dataRoot>/<encodedTeamId>/<encodedMeetingId>.sqlite`；目标布局 `<workspace>/.convivium/<teamId>/meetings/<meetingId>/meeting.sqlite` 的收敛必须由独立存储迁移完成。迁移前的增量功能只通过现有 Runtime/repository locator 访问，不复制路径规则。
 - repository 在单次命令或 worker lease 内独占连接；完成后关闭，不维护跨 workspace 的全局长连接池。
 - 打开数据库后必须执行 `PRAGMA foreign_keys = ON`、`PRAGMA journal_mode = WAL` 和有界 `busy_timeout`。
 - 所有写事务使用 `BEGIN IMMEDIATE`，先取得写锁再读取 expected version，避免读后升级锁产生竞态。
@@ -368,7 +374,7 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 | Required speaker not dispatchable | 返回 Interface 定义的结构化错误，不自动换人 |
 | Process crash | 回滚未提交事务；恢复过期 lease、未完成 outbox 和非终态 Meeting |
 
-恢复扫描只读取 `.convivium` 下能通过 locator 校验的 Meeting 目录。单个 Meeting 损坏不得阻止其他 Meeting 恢复；全局配置或 DSH capability 缺失则阻止插件加载。
+恢复扫描只读取 data root 下能通过当前 locator 校验的 Meeting repository。单个 Meeting 损坏不得阻止其他 Meeting 的 Agent best-effort 恢复；需要完整一致结果的本地 list 按 Interface 整体失败。全局配置或 DSH capability 缺失则阻止插件加载。
 
 ## Security And Observability
 

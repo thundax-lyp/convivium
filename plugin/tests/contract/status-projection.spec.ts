@@ -90,6 +90,32 @@ describe("meeting status projection", () => {
         });
     });
 
+    it("projects local host pause metadata without treating it as an Agent caller", () => {
+        const pausedState = {
+            ...state,
+            status: "paused",
+            pausedAt: 10,
+            pausedBy: { kind: "local_host", actorId: "loopback-web" },
+            pauseReason: "local control"
+        } as MeetingState;
+        const caller = { kind: "local_host", sessionId: "loopback-web" } as const;
+        const projected = projectMeetingStatus(pausedState, caller);
+
+        expect(projected).toMatchObject({
+            status: "paused",
+            pauseControl: {
+                action: "resume",
+                pausedAt: 10,
+                pausedBy: { kind: "local_host", actorId: "loopback-web" },
+                reason: "local control"
+            }
+        });
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
+
+        const resumed = projectMeetingStatus({ ...pausedState, status: "running" }, caller);
+        expect(resumed.pauseControl).toEqual({ action: "pause" });
+    });
+
     it("projects the optional HandRaise reply target", () => {
         const projected = projectMeetingStatus(
             {

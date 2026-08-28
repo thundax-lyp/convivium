@@ -16,7 +16,14 @@ export {
     validateCommandInput,
     validateReassignTurnInput
 } from "./commands.js";
-export { MeetingArchivePackageSchema, MeetingStatusResultSchema } from "./status.js";
+export {
+    LocalMeetingListItemSchema,
+    LocalMeetingListResponseConsumerSchema,
+    LocalMeetingListResponseSchema,
+    LocalMeetingListResultSchema,
+    MeetingArchivePackageSchema,
+    MeetingStatusResultSchema
+} from "./status.js";
 export {
     CaptainRiskDispositionResultSchema,
     CreateMeetingResultSchema,

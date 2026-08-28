@@ -37,7 +37,7 @@ const moduleBoundaries: readonly ModuleBoundary[] = [
     },
     {
         name: "runtime",
-        mayImport: ["domain", "repository", "dsh", "projection"],
+        mayImport: ["protocol", "domain", "repository", "dsh", "projection"],
         forbiddenRuntimeImports: ["node:sqlite", "react", "http"]
     },
     {
@@ -98,15 +98,22 @@ function moduleForFile(file: string): ModuleName | undefined {
 }
 
 function importsOf(source: string): string[] {
-    return [...source.matchAll(/(?:from\s+|import\s*\()(['"])(.*?)\1/g)].map((match) => match[2]);
+    const runtimeSource = source.replace(
+        /import\s+type\s+(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+(['"])[^'"]+\1\s*;?/g,
+        ""
+    );
+    return [...runtimeSource.matchAll(/(?:from\s+|import\s*\()(['"])(.*?)\1/g)].map(
+        (match) => match[2]
+    );
 }
 
 function importedModule(file: string, specifier: string): ModuleName | undefined {
     if (!specifier.startsWith(".")) return undefined;
     const candidate = resolve(dirname(file), specifier);
+    const candidateWithoutExtension = candidate.replace(/\.(?:m?js|tsx?)$/, "");
     const path = sourceFiles(sourceRoot).find((sourceFile) => {
-        const withoutExtension = sourceFile.replace(/\.(tsx?|jsx?)$/, "");
-        return sourceFile === candidate || withoutExtension === candidate;
+        const withoutExtension = sourceFile.replace(/\.(?:m?js|tsx?)$/, "");
+        return sourceFile === candidate || withoutExtension === candidateWithoutExtension;
     });
     return path ? moduleForFile(path) : undefined;
 }
@@ -116,7 +123,7 @@ function violations(module: ModuleName, specifiers: readonly string[]): string[]
     if (!boundary) return [`unknown module ${module}`];
     return specifiers.flatMap((specifier) => {
         const imported = importedModule(join(sourceRoot, module, "index.ts"), specifier);
-        if (imported && !boundary.mayImport.includes(imported))
+        if (imported && imported !== module && !boundary.mayImport.includes(imported))
             return [`${module} may not import ${imported}`];
         if (boundary.forbiddenRuntimeImports.some((forbidden) => specifier.includes(forbidden))) {
             return [`${module} may not import ${specifier}`];
@@ -136,7 +143,7 @@ describe("plugin module boundaries", () => {
 
     it("rejects a temporary Client-to-Host import", () => {
         expect(violations("client", ["../runtime/index.js"])).toEqual([
-            "client may not import ../runtime/index.js"
+            "client may not import runtime"
         ]);
     });
 });

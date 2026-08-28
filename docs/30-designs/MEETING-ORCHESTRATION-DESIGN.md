@@ -86,7 +86,7 @@
 11. 恢复和重投不能改变已固化的 message/task context 范围。
 12. 执行终态 Meeting 不再接受新会议事实；Archived Meeting 不再恢复旧 AgentSession。
 13. Speaker 提交匹配当前 `deliveryId` 时，可以在同一 SQLite 事务中完成 delivery accepted、context acknowledged 和 message commit。
-14. `meetingId` 和独立 Meeting 目录必须先于 meeting-owned Session、SQLite 写入、Markdown 或其他会议副作用存在。
+14. `meetingId` 和独立 repository ownership 必须先于 meeting-owned Session、SQLite 写入、Markdown 或其他会议副作用存在。
 
 ## 4. Responsibilities And Dependencies
 
@@ -711,6 +711,8 @@ interface InvalidStateTransitionError {
 
 SQLite 是 Meeting Runtime 的唯一状态真相。不再维护 `meeting.json` 或 `journal.jsonl`。
 
+以下为目标物理布局，不表示当前已完成迁移：
+
 ```text
 <workspace>/.convivium/<teamId>/
 ├── team.json
@@ -723,9 +725,9 @@ SQLite 是 Meeting Runtime 的唯一状态真相。不再维护 `meeting.json` �
         └── sessions/
 ```
 
-每场 Meeting 使用自己的 `meeting.sqlite`；不再维护 Team 级 `meetings.sqlite`。SQLite MUST 启用 foreign keys。WAL 和有界 `busy_timeout` SHOULD 启用。Meeting 列表通过扫描 `meetings/*/meeting.sqlite` 获得；如增加列表索引，该索引只能是可重建缓存，不能成为事实源。
+每场 Meeting 使用自己的 SQLite 数据库；不维护 Team 级 `meetings.sqlite`。SQLite MUST 启用 foreign keys。WAL 和有界 `busy_timeout` SHOULD 启用。当前实现的物理 locator 与 discovery 使用 `<dataRoot>/<encodedTeamId>/<encodedMeetingId>.sqlite`；上图目录布局须通过后续独立迁移收敛。在此之前，增量功能必须复用当前 Runtime discovery，不得自行扫描目标目录或同时支持两套 locator。如增加列表索引，该索引只能是可重建缓存，不能成为事实源。
 
-每个 `meeting.sqlite` 必须且只能包含一个 Meeting。Runtime 打开数据库时必须验证目录名、`meeting_bootstrap.meeting_id`、`meetings.id` 和所有 Session ownership label 中的 `meetingId` 一致；不一致时停止该 Meeting 的调度并报告结构化恢复错误，不得猜测或改写身份。
+每个 Meeting SQLite 数据库必须且只能包含一个 Meeting。当前布局下 Runtime 必须验证 locator 解析出的 `meetingId`、`meeting_bootstrap.meeting_id`、`meetings.id` 和所有 Session ownership label 中的 `meetingId` 一致；迁移到目标目录后还必须验证目录名。不一致时停止该 Meeting 的调度并报告结构化恢复错误，不得猜测或改写身份。
 
 ### 8.2 Required tables
 
@@ -737,9 +739,9 @@ SQLite 是 Meeting Runtime 的唯一状态真相。不再维护 `meeting.json` �
 
 `meeting_bootstrap.status` 只允许 `creating | ready | creation_failed`：
 
-- 创建目录和 SQLite 后，在任何 Session 创建前写入 `create_request_id`、规范化 `request_hash` 和 `creating`；
+- 通过 locator 建立 Meeting repository 并创建 SQLite 后，在任何 Session 创建前写入 `create_request_id`、规范化 `request_hash` 和 `creating`；
 - 全部必需 Session 创建且 Meeting 初始事实提交成功后，在同一 SQLite 事务中写入 `meetings`、`meeting.created`、成功 `result_json` 并转为 `ready`；
-- 无法安全继续创建时转为 `creation_failed`，保留目录和诊断事实供冷恢复识别，不对外暴露为可运行 Meeting；
+- 无法安全继续创建时转为 `creation_failed`，保留 repository 数据和诊断事实供冷恢复识别，不对外暴露为可运行 Meeting；
 - `ready` 必须对应且只对应一条 `meetings` 记录。冷恢复不得为 `creation_failed` 自动创建 Session。
 
 同一 Team 的 create 命令在进入副作用前，必须在进程内取得以 `teamId + requestId` 为 key 的互斥锁，并扫描该 Team 的 Meeting bootstrap records：相同 request ID 和相同 hash 返回或恢复原创建；相同 request ID 和不同 hash 返回 `IDEMPOTENCY_CONFLICT`。Convivium 当前是单 DSH 插件进程，因此不引入跨进程唯一索引；若该部署前提改变，必须先升级 create correlation 的持久化协调方式。
@@ -754,7 +756,7 @@ SQLite 是唯一事实依据。Markdown 文件不参加数据库事务，不被 
 
 ### 8.3 Developer Markdown generation
 
-Meeting 的 SQLite 事务成功提交后，可以 best-effort 调度本地 `render_current_markdown` 任务。该任务不发布 UI 通知，也不写 durable outbox；进程崩溃导致任务丢失是允许行为。Worker 读取指定 `meetingId` 和已提交 `meetingVersion` 的固定 `DeveloperMeetingDocument`，生成 Markdown 到同目录临时文件，再使用原子 rename 替换 `current.md`。
+Meeting 的 SQLite 事务成功提交后，可以 best-effort 调度本地 `render_current_markdown` 任务。该任务不发布 UI 通知，也不写 durable outbox；进程崩溃导致任务丢失是允许行为。Worker 读取指定 `meetingId` 和已提交 `meetingVersion` 的固定 `DeveloperMeetingDocument`，通过 repository-owned Markdown locator 生成临时文件，再使用原子 rename 替换 `current.md`；调用方不得假设物理目录。
 
 `DeveloperMeetingDocument` 是开发者诊断视图，不是 caller-specific projection、Plugin Frontend 数据源或 Agent context。它只从 SQLite 中选择会议目标、议程、正式 transcript、提案/立场/决策、问题和风险、后续事项、经过过滤的产物引用及结束结果。生成器 MUST 排除 Session、私聊、隐藏 prompt、内部工具输出、delivery/outbox、运行时 capability、凭据和敏感文件路径。文件访问只遵循 workspace 文件系统权限，插件不为其提供 Web route 或 Tool。
 
@@ -901,7 +903,7 @@ SpeakerAttempt 是会议调度路径，优先于尚未开始的普通 mail handl
 captain calls create_meeting
 → validate all side-effect-free input and references
 → allocate stable meetingId
-→ create <meetingId>/ and initialize meeting.sqlite bootstrap phase=creating
+→ establish teamId + meetingId repository ownership and initialize SQLite bootstrap phase=creating
 → authorize and resolve ContinuationSelection from an archived source Meeting when present
 → validate all participant references, source members and related tasks
 → allocate stable Meeting, Participant, Objective and Agenda IDs
@@ -922,7 +924,7 @@ captain calls create_meeting
 
 `ContinuationSelectionV1` 必须在 Session spawn 前完整解析。源会议必须已经 `archived`，每个选择项必须存在且对 Captain 可见。Runtime 只复制结构化摘要、来源引用以及来源存在时的可选 checksum 到 `ContinuationMaterial[]`；checksum 只描述来源，不参与续会创建、授权或恢复判断。新 Meeting 的 objective、agenda、Participant 和权限仍完全来自新的 create input。Speaker、Manager 和状态 projection 读取同一组 continuation materials，不得分别生成可能漂移的摘要。
 
-所有无副作用校验先完成；随后先分配 `meetingId`、创建目录和 SQLite bootstrap record，再创建 Session。因此不存在“Session 已创建但没有 meetingId/目录”的状态。`creating|creation_failed` 是内部 bootstrap phase，不是公开 `MeetingStatus`。创建失败或崩溃时保留目录用于诊断，关闭已创建 Session，并标记 bootstrap failure 或由冷恢复继续创建。
+所有无副作用校验先完成；随后先分配 `meetingId`、建立 repository ownership 和 SQLite bootstrap record，再创建 Session。因此不存在“Session 已创建但没有 meetingId/repository ownership”的状态。`creating|creation_failed` 是内部 bootstrap phase，不是公开 `MeetingStatus`。创建失败或崩溃时保留 repository 数据用于诊断，关闭已创建 Session，并标记 bootstrap failure 或由冷恢复继续创建。
 
 #### 10.1.1 Creation outcome guarantees
 
@@ -932,12 +934,12 @@ Requirements 中的创建结果由以下设计机制承接：
 |---|---|
 | 参与者配置无效时整体失败 | `materializeMeetingSpecs` 在 Session spawn 前一次性验证重复或缺失 key、悬空引用、相互矛盾的职责、无权访问的 source member/task 和非法初始状态；任一失败都不创建公开 Meeting |
 | 不产生部分可用会议 | `creating` 只存在于 bootstrap，不属于公开 `MeetingStatus`；只有全部必需 Session 已创建且初始 Meeting 事实在 SQLite 提交后才进入 `ready` 并允许 status、scheduler 和工具访问 |
-| 创建中断后 Session 仍可归属 | `meetingId`、Meeting 目录和 bootstrap 先于 Session；每个 Session label 固化 `teamId + meetingId + participantId/manager`，创建进度保存在同一 Meeting 目录 |
-| 创建失败后安全收口 | 当前进程关闭本次已创建的 Session 并写入 `creation_failed`；进程崩溃时由冷恢复根据目录、SQLite ID 和 Session label 继续创建或关闭，不把不完整 Meeting 暴露为可运行会议 |
-| 不影响其他会议或团队 | 所有 Session 生命周期操作必须通过目录、SQLite identity 和完整 ownership label 三方一致校验；缺少任一证明时拒绝操作，不使用显示名称、模糊前缀或来源 Agent 猜测归属 |
+| 创建中断后 Session 仍可归属 | `meetingId`、repository ownership 和 bootstrap 先于 Session；每个 Session label 固化 `teamId + meetingId + participantId/manager`，创建进度保存在同一 Meeting repository |
+| 创建失败后安全收口 | 当前进程关闭本次已创建的 Session 并写入 `creation_failed`；进程崩溃时由冷恢复根据 locator、SQLite ID 和 Session label 继续创建或关闭，不把不完整 Meeting 暴露为可运行会议 |
+| 不影响其他会议或团队 | 所有 Session 生命周期操作必须通过 locator identity、SQLite identity 和完整 ownership label 三方一致校验；缺少任一证明时拒绝操作，不使用显示名称、模糊前缀或来源 Agent 猜测归属 |
 | 新会议没有预置完成事实 | 创建期 Spec 不含运行期派生状态；Runtime 统一生成 pending/false 初始状态，Decision、CompletionFact 和 accepted risk 只能在后续合法协议操作中形成 |
 
-create 命令的成功边界是 bootstrap 已转为 `ready` 且完整初始 Meeting 已提交。`creating` 和 `creation_failed` 目录只用于恢复与诊断，不出现在会议列表和普通状态接口中。对同一幂等 create request 的重试必须读取原 bootstrap/receipt：已成功时返回原结果，仍在恢复时返回可重试错误，已失败时返回稳定失败；不得创建第二个 Meeting 或第二组 Session。
+create 命令的成功边界是 bootstrap 已转为 `ready` 且完整初始 Meeting 已提交。`creating` 和 `creation_failed` repository 只用于恢复与诊断，不出现在会议列表和普通状态接口中。对同一幂等 create request 的重试必须读取原 bootstrap/receipt：已成功时返回原结果，仍在恢复时返回可重试错误，已失败时返回稳定失败；不得创建第二个 Meeting 或第二组 Session。
 
 本设计不引入 `provisioning` MeetingStatus、Session spawn outbox 或跨 DSH/SQLite 的持久化 saga。该简化基于以下前提：
 
@@ -969,15 +971,15 @@ Manager/rules produce ordered SpeakerStep[]
 
 ```text
 DSH user instruction → Captain Session → pause/resume tool ┐
-                                                            ├→ authorize → domain transition → SQLite commit
-Plugin UI button → authorized Web route --------------------┘
+                                                            ├→ entry gate → domain transition → SQLite commit
+Plugin UI button → loopback-gated Web route ----------------┘
 ```
 
-两个入口共享 command、request hash、receipt、权限检查和事件，不允许 Web route 直接修改 SQLite。按钮必须根据公开 Meeting projection 显示：`created|running|waiting` 显示“暂停”，`paused` 显示“继续”，终态不显示可用的暂停/继续操作。
+两个入口共享 command、request hash、receipt、transition 和事件，不允许 Web route 直接修改 SQLite；入口门禁不同：Agent tool 校验真实 Captain caller，V1 Web 只允许已通过 loopback registration gate 的固定 `local_host` source。按钮必须根据公开 Meeting projection 显示：`created|running|waiting` 显示“暂停”，`paused` 显示“继续”，终态不显示可用的暂停/继续操作。
 
 Pause transaction MUST：
 
-1. 锁定 Meeting version 并验证 Captain 或 Web 用户的 Team 控制权限；
+1. 锁定 Meeting version，并验证 Captain tool capability 或确认调用来自已注册的 V1 `local_host` Runtime 入口；V1 不解析 Web 用户或 Team authority；
 2. 保存 `pausedFromStatus`、actor、reason 和时间；
 3. 撤销活动 `SpeakerAttempt` 和 `ManagerPlanningAttempt`，使旧 capability 立即失效；
 4. 将当前 Turn 标为因暂停截断，并取消对应未投递 outbox；
@@ -1251,9 +1253,9 @@ Worker 领取 delivery 时 MUST 使用带条件的事务更新，保证同一时
 
 冷恢复分为两个有序阶段。
 
-第一阶段扫描 `<teamId>/meetings/*/meeting.sqlite` 并执行目录级 reconciliation，此时插件 MUST 暂停 scheduler、outbox delivery 和新会议创建：
+第一阶段通过当前 locator 扫描 Meeting repository 并执行 ownership reconciliation，此时插件 MUST 暂停 scheduler、outbox delivery 和新会议创建；目标目录迁移完成后 locator 改为扫描 `<teamId>/meetings/*/meeting.sqlite`：
 
-1. 目录名、SQLite Meeting ID 和 Session ownership 必须一致；不一致时隔离并报告，不猜测归属；
+1. locator 解析出的 Meeting ID、SQLite Meeting ID 和 Session ownership 必须一致；目标目录迁移完成后还必须校验目录名；不一致时隔离并报告，不猜测归属；
 2. bootstrap `creating` 可以继续创建，或关闭已创建 Session 并标记 `creation_failed`；
 3. `created|running|waiting|paused|converging` Meeting 缺失 required Session 时按恢复规则重建；
 4. execution terminal、`archiving` 或 `archived` Meeting 不重建任何 Session；
@@ -1261,7 +1263,7 @@ Worker 领取 delivery 时 MUST 使用带条件的事务更新，保证同一时
 6. `archived` Meeting 中 Session 不 resident 且 capability 已撤销视为正常；发现 resident Activation 时只执行 interrupt/drain，发现仍有效会议 capability 时只撤销 capability，不恢复讨论；
 7. 对账完成并持久化结果后，才允许启动 scheduler 和接受新请求。
 
-Meeting Session 必须通过目录、SQLite ID 和 DSH ownership 三者一致来证明归属。DSH ownership 通过 `listChildren`/`listDescendants` 返回的持久 parent-child 关系和 Session label 核对；无法证明归属的 Session 不得由 Convivium 操作。interrupt、Activation drain 或 capability revoke 失败进入可重试 lifecycle 记录，但 Session 数据不要求物理删除。
+Meeting Session 必须通过 locator identity、SQLite ID 和 DSH ownership 三者一致来证明归属；目标目录迁移完成后 locator identity 还包含目录名。DSH ownership 通过 `listChildren`/`listDescendants` 返回的持久 parent-child 关系和 Session label 核对；无法证明归属的 Session 不得由 Convivium 操作。interrupt、Activation drain 或 capability revoke 失败进入可重试 lifecycle 记录，但 Session 数据不要求物理删除。
 
 第二阶段读取 `running`、`waiting`、`converging` 和 `archiving` Meetings：
 
@@ -1306,7 +1308,7 @@ execution terminal → archiving
 → status = archived and set archivedAt
 ```
 
-本文中的 Session close 明确定义为：停止当前 turn、释放 resident Activation，并持久撤销 Meeting Runtime 授予的会议 capability。DSH `drainContinuableChildren` 对 cold Session 是正常 no-op，且不会删除持久 Session 或永久禁止 DSH cold resume；因此所有 meeting followup 必须先检查 SQLite capability 状态，已撤销时不得调用 DSH。interrupt、Activation drain 或 capability revoke 失败时 Meeting MUST 保持 `archiving`，但不得恢复讨论。Lifecycle outbox 可以引用 Session ID；完成后 Meeting runtime projection 必须移除可运行引用，底层 Session 数据可以保留。`archived` 对外可见时不得存在 resident meeting Activation 或仍有效的会议 capability。Meeting 目录默认保留到用户显式删除。
+本文中的 Session close 明确定义为：停止当前 turn、释放 resident Activation，并持久撤销 Meeting Runtime 授予的会议 capability。DSH `drainContinuableChildren` 对 cold Session 是正常 no-op，且不会删除持久 Session 或永久禁止 DSH cold resume；因此所有 meeting followup 必须先检查 SQLite capability 状态，已撤销时不得调用 DSH。interrupt、Activation drain 或 capability revoke 失败时 Meeting MUST 保持 `archiving`，但不得恢复讨论。Lifecycle outbox 可以引用 Session ID；完成后 Meeting runtime projection 必须移除可运行引用，底层 Session 数据可以保留。`archived` 对外可见时不得存在 resident meeting Activation 或仍有效的会议 capability。Meeting repository 数据默认保留到用户显式删除。
 
 会后追问或续会 MUST 创建新 Meeting 和新 Sessions，并记录 `sourceMeetingId`；不得恢复旧 Session 或旧权限。Captain 必须通过 `ContinuationSelectionV1` 显式选择决策、未解决事项、风险、证据、输出物和最终摘要。Runtime 从源 `ArchivePackage` 解析并复制这些内容为带来源引用的只读 `ContinuationMaterial`；不得自动注入完整 transcript、旧 Participant 配置、运行状态或未选择内容。
 
@@ -1328,7 +1330,7 @@ execution terminal → archiving
 
 本协议不提供 `convivium_meeting_message` 或无约束 broadcast。
 
-Meeting-owned Sessions 清理后，不创建只为读取归档而存在的虚拟 Agent capability。Archived Meeting 由 Captain tool 或 Interface 定义的授权人类 Web route 读取；开发者 Markdown 只是 workspace 文件，不属于这两个产品读取入口。
+Meeting-owned Sessions 清理后，不创建只为读取归档而存在的虚拟 Agent capability。Archived Meeting 由 Captain tool 或 V1 loopback Web route 读取；开发者 Markdown 只是 workspace 文件，不属于这两个产品读取入口。
 
 - 正式 transcript：只允许匹配当前 SpeakerAttempt 的 `submit_turn`。
 - Participant 结构化事实：Proposal、Position 和 completion claims 随合法 `submit_turn` 提交，由 Runtime 验证后形成。
@@ -1439,8 +1441,8 @@ MeetingTask 状态只能作为 evidence。除非 objective contract 明确声明
 
 ### 17.1 Security boundaries
 
-- 插件前端只能通过受控 Web 路由读取 projection 或调用授权操作，不得直接打开 SQLite、管理 AgentSession 或读取 Session 存储。
-- 每次写操作必须从 DSH 运行时身份解析 caller Session；不得信任插件前端传入的 participant、captain 或 Manager 名称。
+- 插件前端只能通过受控 Web 路由读取 projection 或调用会议控制操作，不得直接打开 SQLite、管理 AgentSession 或读取 Session 存储。
+- Agent tool 写操作必须从 DSH 运行时身份解析 caller Session；不得信任插件前端传入的 participant、captain 或 Manager 名称。V1 loopback Web 的 `pause` 与 `resume` 是唯一例外：它们不解析或伪造 Agent identity，只在 `webServer.host === "127.0.0.1"` 的 route 注册门禁后进入 Runtime，并把 pause actor 固定为 `{ kind: "local_host", actorId: "loopback-web" }`。
 - `agentSessionId`、`managerSessionId`、delivery payload 和 tool output 视为敏感运行时数据，不进入普通 UI event、日志或归档。
 - transcript 只保存 Agent 明确提交的会议内容，不保存隐藏推理、完整 prompt、私有 mailbox 或未经筛选的工具输出。
 - task output 投影必须经过权限检查、大小限制和敏感信息过滤。
@@ -1540,7 +1542,7 @@ Plugin Frontend 以 fetch 的成功或失败维护仅存在于内存中的连接
 
 ### 17.4 UI projection
 
-UI 至少展示：active agenda、turn objective/plan、current speaker、selection reason、transcript、blocking issues、Parking Lot、proposals/positions、decisions、HandRaise、background tasks、waiting reason、limits、stall、termination 和 archive summary。
+UI 首先展示按 `updatedAt` 排序的本地 Meeting 轻量列表；用户选择一项后，才展示该 Meeting 的 active agenda、turn objective/plan、current speaker、selection reason、transcript、blocking issues、Parking Lot、proposals/positions、decisions、HandRaise、background tasks、waiting reason、limits、stall、termination 和 archive summary。列表只消费 `LocalMeetingListResultV1`，不读取完整 projection、SQLite、Session 或 Agent tool result。
 
 后端 projection mapper 必须输出 Interface 定义的四阶段 `MeetingStatusResultV1` 判别联合：active、execution terminal、archiving 和 archived。mapper 不得把内部 `MeetingState` 直接类型断言为公开 projection。执行终态必须带 `termination`；`archiving` 必须带已物化 archive package；`archived` 必须带 `archivedAt`；终态与归档阶段不得投影 current turn、speaker 或 pending hand raises。细粒度 active 状态不继续拆分公开接口，其状态相关字段由统一 Runtime schema 校验。
 
@@ -1625,8 +1627,8 @@ const DEFAULT_SELECTION_MODE: MeetingSelectionMode = 'hybrid'
 - Agent 内部工具失败不改变 Meeting 失败计数。
 - Manager Session 丢失后新 Session 接管，旧结果被拒绝。
 - required speaker 不可调度时抛出一次结构化错误，不产生部分 plan，也不在同一 Meeting version 自动重试。
-- `meetingId`、独立目录和 bootstrap 记录必须先于 Session 创建，因此不存在无 Meeting 身份的 Session 窗口。
-- 冷恢复以 Meeting 目录和 `meeting.sqlite` 对账：仅活动状态可以补建缺失 Session；执行终态、`archiving` 和 `archived` 不得补建 Session。
+- `meetingId`、独立 repository ownership 和 bootstrap 记录必须先于 Session 创建，因此不存在无 Meeting 身份的 Session 窗口。
+- 冷恢复以 locator、Meeting SQLite 和 ownership 对账：仅活动状态可以补建缺失 Session；执行终态、`archiving` 和 `archived` 不得补建 Session。
 - 冷恢复发现终态 Meeting 仍有可运行 Session 时，只中断或关闭 Session 并撤销 capability；不以物理删除 Session 数据作为恢复或归档条件。
 - 冷启动 reconciliation 完成前，不启动 scheduler、outbox delivery 或新会议创建。
 - 无法证明 ownership 的 Session 不得由 Meeting Runtime 自动中断、关闭、撤销 capability 或删除。
@@ -1642,7 +1644,7 @@ const DEFAULT_SELECTION_MODE: MeetingSelectionMode = 'hybrid'
 
 - 用户自然语言指令与面板按钮产生相同的 pause/resume domain command 和 receipt。
 - `created|running|waiting` projection 显示可用“暂停”，`paused` 显示可用“继续”，执行终态和归档状态不显示可用操作。
-- Web route 验证 DSH 用户和 Team 控制权限，不接受前端伪造 Captain Session。
+- V1 Web route 只在 `webServer.host === "127.0.0.1"` 时注册，不绑定 DSH 用户或 Team authority，也不接受前端伪造 Captain Session。
 - 面板显示暂停发起者、原因和时间。
 
 ### 19.6 Events and projection

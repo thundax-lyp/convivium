@@ -1,4 +1,9 @@
 import Schema from "@deepseek-ai/schemastery";
+import type {
+    LocalMeetingListItemV1,
+    LocalMeetingListResponseV1,
+    LocalMeetingListResultV1
+} from "./types.js";
 
 const requiredString = () => Schema.string().required();
 const requiredNumber = () => Schema.number().required();
@@ -6,6 +11,84 @@ const requiredBoolean = () => Schema.boolean().required();
 const requiredArray = <T>(schema: Schema<T>) => Schema.array(schema).required();
 const enumOf = <T extends string>(values: readonly T[]) => Schema.union(values).required();
 const optionalObject = <T>(schema: Schema<T>) => Schema.union([schema, Schema.const(undefined)]);
+
+function assertExactKeys(value: object, expected: readonly string[], label: string): void {
+    const actualKeys = Object.keys(value).sort();
+    const expectedKeys = [...expected].sort();
+    if (
+        actualKeys.length !== expectedKeys.length ||
+        actualKeys.some((key, index) => key !== expectedKeys[index])
+    ) {
+        throw new TypeError(`${label} has unexpected fields`);
+    }
+}
+
+const localMeetingListItem = Schema.object({
+    meetingId: requiredString(),
+    teamId: requiredString(),
+    topic: requiredString(),
+    status: enumOf([
+        "created",
+        "running",
+        "waiting",
+        "paused",
+        "converging",
+        "completed",
+        "partial",
+        "no_consensus",
+        "cancelled",
+        "failed",
+        "archiving",
+        "archived"
+    ] as const),
+    meetingVersion: requiredNumber(),
+    updatedAt: requiredNumber()
+});
+
+export const LocalMeetingListItemSchema: Schema<unknown, LocalMeetingListItemV1> = Schema.transform(
+    localMeetingListItem,
+    (value) => {
+        assertExactKeys(
+            value,
+            ["meetingId", "teamId", "topic", "status", "meetingVersion", "updatedAt"],
+            "local meeting list item"
+        );
+        return value as LocalMeetingListItemV1;
+    }
+) as Schema<unknown, LocalMeetingListItemV1>;
+
+const localMeetingListResult = Schema.object({
+    meetings: requiredArray(LocalMeetingListItemSchema)
+});
+
+export const LocalMeetingListResultSchema: Schema<unknown, LocalMeetingListResultV1> =
+    Schema.transform(localMeetingListResult, (value) => {
+        assertExactKeys(value, ["meetings"], "local meeting list result");
+        return value as LocalMeetingListResultV1;
+    }) as Schema<unknown, LocalMeetingListResultV1>;
+
+const localMeetingListResponse = Schema.object({
+    protocolVersion: Schema.const(1).required(),
+    ok: Schema.const(true).required(),
+    result: LocalMeetingListResultSchema.required()
+});
+
+const compatibleLocalMeetingListResponse = Schema.object({
+    protocolVersion: Schema.const(1).required(),
+    ok: Schema.const(true).required(),
+    result: Schema.object({
+        meetings: requiredArray(localMeetingListItem)
+    }).required()
+});
+
+export const LocalMeetingListResponseSchema: Schema<unknown, LocalMeetingListResponseV1> =
+    Schema.transform(localMeetingListResponse, (value) => {
+        assertExactKeys(value, ["protocolVersion", "ok", "result"], "local meeting list response");
+        return value as LocalMeetingListResponseV1;
+    }) as Schema<unknown, LocalMeetingListResponseV1>;
+
+export const LocalMeetingListResponseConsumerSchema: Schema<unknown, LocalMeetingListResponseV1> =
+    compatibleLocalMeetingListResponse as Schema<unknown, LocalMeetingListResponseV1>;
 
 const continuationMaterial = Schema.object({
     sourceMeetingId: requiredString(),
@@ -222,7 +305,7 @@ const active = Schema.object({
         pausedAt: Schema.number(),
         pausedBy: optionalObject(
             Schema.object({
-                kind: enumOf(["user", "captain"] as const),
+                kind: enumOf(["user", "captain", "local_host"] as const),
                 actorId: requiredString(),
                 displayName: Schema.string()
             })

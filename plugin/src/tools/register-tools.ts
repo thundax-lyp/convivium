@@ -7,31 +7,21 @@ import {
 } from "@deepseek-ai/dsh-tools";
 import type {
     CreateMeetingInputV1,
-    CreateMeetingResultV1,
     EndMeetingInputV1,
-    EndMeetingResultV1,
     MeetingStatusInputV1,
-    MeetingStatusResultV1,
     MeetingTaskRequestV1,
     MeetingTaskStatusInputV1,
     MeetingTaskStartInputV1,
     MeetingTaskFinishInputV1,
-    MeetingTaskResultV1,
-    MeetingTaskStatusResultV1,
-    MeetingTaskStartResultV1,
-    MeetingTaskFinishResultV1,
     HandRaiseSubmissionV1,
-    HandRaiseResultV1,
-    MeetingControlResultV1,
-    ManagerPlanResultV1,
     ManagerPlanSubmissionV1,
     PauseMeetingInputV1,
     ProtocolErrorV1,
     ProtocolSuccessV1,
     ResumeMeetingInputV1,
-    TurnSubmissionResultV1,
     TurnSubmissionV1
 } from "../protocol/index.js";
+import type { MeetingToolCaller, MeetingToolRuntime } from "../runtime/index.js";
 import {
     CreateMeetingInputSchema,
     EndMeetingInputSchema,
@@ -48,79 +38,8 @@ import {
     validateProtocolError
 } from "../protocol/index.js";
 
-export interface MeetingToolCaller {
-    readonly sessionId: string;
-    readonly agent?: Agent;
-    readonly kind: "captain" | "manager" | "participant";
-    readonly meetingId?: string;
-    readonly participantId?: string;
-}
-
 export interface MeetingToolCallerResolver {
     resolve(agent: Agent, signal: AbortSignal): Promise<MeetingToolCaller | ProtocolErrorV1>;
-}
-
-export interface MeetingToolRuntime {
-    createMeeting(
-        input: CreateMeetingInputV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<CreateMeetingResultV1> | ProtocolErrorV1>;
-    getStatus(
-        input: MeetingStatusInputV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingStatusResultV1> | ProtocolErrorV1>;
-    createMeetingTask(
-        input: MeetingTaskRequestV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<MeetingToolOutcome<MeetingTaskResultV1>>;
-    meetingTaskStatus(
-        input: MeetingTaskStatusInputV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<MeetingToolOutcome<MeetingTaskStatusResultV1>>;
-    startMeetingTask(
-        input: MeetingTaskStartInputV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<MeetingToolOutcome<MeetingTaskStartResultV1>>;
-    finishMeetingTask(
-        input: MeetingTaskFinishInputV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<MeetingToolOutcome<MeetingTaskFinishResultV1>>;
-    raiseHand(
-        input: HandRaiseSubmissionV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<MeetingToolOutcome<HandRaiseResultV1>>;
-    submitTurn(
-        input: TurnSubmissionV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<TurnSubmissionResultV1> | ProtocolErrorV1>;
-    submitManagerPlan(
-        input: ManagerPlanSubmissionV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<ManagerPlanResultV1> | ProtocolErrorV1>;
-    pause(
-        input: PauseMeetingInputV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
-    resume(
-        input: ResumeMeetingInputV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
-    endMeeting(
-        input: EndMeetingInputV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<EndMeetingResultV1> | ProtocolErrorV1>;
 }
 
 export interface MeetingToolRegistry {

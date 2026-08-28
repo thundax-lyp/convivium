@@ -426,7 +426,7 @@ export interface MeetingTermination {
 }
 
 export interface PauseActor {
-    kind: "user" | "captain";
+    kind: "user" | "captain" | "local_host";
     actorId: string;
     displayName?: string;
 }

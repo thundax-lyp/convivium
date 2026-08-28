@@ -3,7 +3,12 @@ import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createCreateStatusRuntime } from "../../src/tools/meeting-runtime.js";
+import { openMeetingRepository } from "../../src/runtime/index.js";
+import { RepositoryError } from "../../src/repository/index.js";
+import {
+    createCreateStatusRuntime,
+    LocalMeetingRecoveryUnavailableError
+} from "../../src/runtime/application-service.js";
 
 const roots: string[] = [];
 const input = {
@@ -37,6 +42,31 @@ const input = {
         { participantKey: "three", displayName: "Three" }
     ]
 };
+
+function localRuntime(
+    root: string,
+    options: {
+        now?: () => number;
+        validateCommand?: () => void;
+    } = {}
+) {
+    return createCreateStatusRuntime({
+        dataRoot: root,
+        provider: "spawn",
+        continuable: {
+            startContinuable: async (spec) => ({
+                childId: spec.childId!,
+                messageId: `initial-${String(spec.childId)}` as never
+            }),
+            followup: async () => "followup-message" as never
+        },
+        authorizationValidator: {
+            validateCreate: () => undefined,
+            validateCommand: options.validateCommand ?? (() => undefined)
+        },
+        now: options.now
+    });
+}
 
 afterEach(async () => {
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -1226,5 +1256,293 @@ describe("create/status meeting runtime", () => {
             new AbortController().signal
         );
         expect(conflict).toMatchObject({ ok: false, code: "IDEMPOTENCY_CONFLICT" });
+    });
+
+    it("skips incomplete repositories and treats a missing data root as an empty local list", async () => {
+        const missingRoot = join(tmpdir(), `convivium-missing-${Date.now()}-${Math.random()}`);
+        const missingRuntime = localRuntime(missingRoot);
+        await expect(missingRuntime.listLocalMeetings()).resolves.toEqual({
+            protocolVersion: 1,
+            ok: true,
+            result: { meetings: [] }
+        });
+        await expect(
+            missingRuntime.getLocalMeetingStatus({ protocolVersion: 1, meetingId: "unknown" })
+        ).resolves.toMatchObject({ ok: false, code: "MEETING_NOT_FOUND" });
+        await missingRuntime.dispose();
+
+        const root = await mkdtemp(join(tmpdir(), "convivium-local-incomplete-"));
+        roots.push(root);
+        const authorization = {
+            callerBinding: "fixture",
+            capabilityId: "fixture"
+        };
+        for (const [meetingId, failed] of [
+            ["creating-meeting", false],
+            ["failed-meeting", true]
+        ] as const) {
+            const repository = await openMeetingRepository({
+                databasePath: join(root, "team-1", `${meetingId}.sqlite`),
+                teamId: "team-1",
+                meetingId,
+                authorizationValidator: {
+                    validateCreate: () => undefined,
+                    validateCommand: () => undefined
+                }
+            });
+            await repository.create({
+                requestId: `create-${meetingId}`,
+                authorization,
+                requestHash: meetingId,
+                initialState: {}
+            });
+            if (failed) {
+                await repository.updateBootstrap({
+                    status: "creation_failed",
+                    failureCode: "fixture"
+                });
+            }
+            await repository.close();
+        }
+
+        const runtime = localRuntime(root);
+        await expect(runtime.listLocalMeetings()).resolves.toMatchObject({
+            result: { meetings: [] }
+        });
+        await runtime.dispose();
+    });
+
+    it("includes active, execution-terminal, archiving, and archived repositories", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-local-statuses-"));
+        roots.push(root);
+        const authorization = { callerBinding: "fixture", capabilityId: "fixture" };
+        const statuses = ["running", "completed", "archiving", "archived"] as const;
+        for (const [index, status] of statuses.entries()) {
+            const meetingId = `meeting-${status}`;
+            const repository = await openMeetingRepository({
+                databasePath: join(root, "team-1", `${meetingId}.sqlite`),
+                teamId: "team-1",
+                meetingId,
+                authorizationValidator: {
+                    validateCreate: () => undefined,
+                    validateCommand: () => undefined
+                }
+            });
+            await repository.create({
+                requestId: `create-${status}`,
+                authorization,
+                requestHash: status,
+                initialState: {},
+                createdAt: index + 1
+            });
+            await repository.recordSessionOwnership(
+                {
+                    sessionId: `${meetingId}-manager`,
+                    parentSessionId: "captain-1",
+                    sessionLabel: `convivium:meeting-manager:team-1:${meetingId}`,
+                    provider: "spawn",
+                    role: "manager",
+                    lifecycleStatus: "provisioning",
+                    capabilityStatus: "active"
+                },
+                index + 1
+            );
+            await repository.completeCreate({
+                requestId: `create-${status}`,
+                authorization,
+                requestHash: status,
+                initialState: { topic: `${status} topic`, status },
+                createResult: { meetingId, meetingVersion: 0, status: "created", participants: [] },
+                createdAt: index + 1
+            });
+            await repository.close();
+        }
+
+        const runtime = localRuntime(root);
+        const listed = await runtime.listLocalMeetings();
+        expect(new Set(listed.result.meetings.map(({ status }) => status))).toEqual(
+            new Set(statuses)
+        );
+        await runtime.dispose();
+    });
+
+    it("lists exact local summaries and controls a live Meeting with replay protection", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-local-control-"));
+        roots.push(root);
+        let clock = 100;
+        const runtime = localRuntime(root, { now: () => clock++ });
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+        const first = await runtime.createMeeting(input, captain, new AbortController().signal);
+        const second = await runtime.createMeeting(
+            { ...input, requestId: "create-2", topic: "Second meeting" },
+            captain,
+            new AbortController().signal
+        );
+        if (!first.ok || !second.ok) throw new Error("fixture create failed");
+
+        const listed = await runtime.listLocalMeetings();
+        expect(listed.result.meetings).toHaveLength(2);
+        expect(listed.result.meetings[0]?.meetingId).toBe(second.result.meetingId);
+        expect(Object.keys(listed.result.meetings[0]!).sort()).toEqual(
+            ["meetingId", "teamId", "topic", "status", "meetingVersion", "updatedAt"].sort()
+        );
+
+        const pauseInput = {
+            protocolVersion: 1 as const,
+            meetingId: first.result.meetingId,
+            expectedMeetingVersion: first.meetingVersion,
+            requestId: "local-pause-1",
+            reason: "local control"
+        };
+        const paused = await runtime.pauseLocalMeeting(pauseInput);
+        expect(paused).toMatchObject({ ok: true, result: { status: "paused", changed: true } });
+        await expect(runtime.pauseLocalMeeting(pauseInput)).resolves.toEqual(paused);
+        await expect(
+            runtime.pauseLocalMeeting({ ...pauseInput, reason: "conflicting replay" })
+        ).resolves.toMatchObject({ ok: false, code: "IDEMPOTENCY_CONFLICT" });
+        await expect(
+            runtime.pauseLocalMeeting({
+                ...pauseInput,
+                requestId: "local-pause-stale"
+            })
+        ).resolves.toMatchObject({ ok: false, code: "VERSION_CONFLICT" });
+
+        const status = await runtime.getLocalMeetingStatus({
+            protocolVersion: 1,
+            meetingId: first.result.meetingId
+        });
+        expect(status).toMatchObject({
+            ok: true,
+            result: {
+                status: "paused",
+                pauseControl: {
+                    pausedBy: { kind: "local_host", actorId: "loopback-web" }
+                }
+            }
+        });
+        if (!status.ok) throw new Error("local status failed");
+        const resumeInput = {
+            protocolVersion: 1,
+            meetingId: first.result.meetingId,
+            expectedMeetingVersion: status.meetingVersion,
+            requestId: "local-resume-1"
+        } as const;
+        const resumed = await runtime.resumeLocalMeeting(resumeInput);
+        expect(resumed).toMatchObject({ ok: true, result: { status: "running" } });
+        if (!resumed.ok) throw new Error("local resume failed");
+
+        const pausedAgain = await runtime.pauseLocalMeeting({
+            ...pauseInput,
+            expectedMeetingVersion: resumed.meetingVersion,
+            requestId: "local-pause-2"
+        });
+        expect(pausedAgain).toMatchObject({ ok: true, result: { status: "paused" } });
+        if (!pausedAgain.ok) throw new Error("second local pause failed");
+        await expect(
+            runtime.resumeLocalMeeting({
+                protocolVersion: 1,
+                meetingId: first.result.meetingId,
+                expectedMeetingVersion: pausedAgain.meetingVersion,
+                requestId: "local-resume-2"
+            })
+        ).resolves.toMatchObject({ ok: true, result: { status: "running" } });
+        await runtime.dispose();
+
+        const coldReplay = localRuntime(root);
+        await expect(coldReplay.resumeLocalMeeting(resumeInput)).resolves.toEqual(resumed);
+        await coldReplay.dispose();
+    });
+
+    it("isolates selected Meeting recovery from an unrelated corrupt ready repository", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-local-isolation-"));
+        roots.push(root);
+        const creator = localRuntime(root);
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+        const healthy = await creator.createMeeting(input, captain, new AbortController().signal);
+        const corrupt = await creator.createMeeting(
+            { ...input, requestId: "create-corrupt", topic: "Corrupt target" },
+            captain,
+            new AbortController().signal
+        );
+        if (!healthy.ok || !corrupt.ok) throw new Error("fixture create failed");
+        await creator.dispose();
+
+        const corruptDb = new DatabaseSync(
+            join(root, input.teamId, `${corrupt.result.meetingId}.sqlite`)
+        );
+        corruptDb
+            .prepare("UPDATE meetings SET state_json = ? WHERE meeting_id = ?")
+            .run("{", corrupt.result.meetingId);
+        corruptDb.close();
+
+        const runtime = localRuntime(root);
+        await expect(runtime.listLocalMeetings()).rejects.toBeInstanceOf(
+            LocalMeetingRecoveryUnavailableError
+        );
+        await expect(
+            runtime.getLocalMeetingStatus({
+                protocolVersion: 1,
+                meetingId: healthy.result.meetingId
+            })
+        ).resolves.toMatchObject({ ok: true, result: { status: "running" } });
+        await expect(
+            runtime.getLocalMeetingStatus({
+                protocolVersion: 1,
+                meetingId: corrupt.result.meetingId
+            })
+        ).rejects.toBeInstanceOf(LocalMeetingRecoveryUnavailableError);
+        await runtime.dispose();
+
+        const unexpected = localRuntime(root, {
+            validateCommand: () => {
+                throw new RepositoryError(
+                    "CONSTRAINT_VIOLATION",
+                    false,
+                    healthy.result.meetingId,
+                    "unexpected repository failure"
+                );
+            }
+        });
+        await expect(
+            unexpected.pauseLocalMeeting({
+                protocolVersion: 1,
+                meetingId: healthy.result.meetingId,
+                expectedMeetingVersion: healthy.meetingVersion,
+                requestId: "unexpected-pause",
+                reason: "verify error classification"
+            })
+        ).rejects.toMatchObject({
+            code: "CONSTRAINT_VIOLATION",
+            message: "unexpected repository failure"
+        });
+        await unexpected.dispose();
+
+        const cold = localRuntime(root);
+        const paused = await cold.pauseLocalMeeting({
+            protocolVersion: 1,
+            meetingId: healthy.result.meetingId,
+            expectedMeetingVersion: healthy.meetingVersion,
+            requestId: "cold-pause",
+            reason: "verify cold control"
+        });
+        expect(paused).toMatchObject({ ok: true });
+        if (!paused.ok) throw new Error("cold pause failed");
+        await expect(
+            cold.resumeLocalMeeting({
+                protocolVersion: 1,
+                meetingId: healthy.result.meetingId,
+                expectedMeetingVersion: paused.meetingVersion,
+                requestId: "cold-resume"
+            })
+        ).rejects.toBeInstanceOf(LocalMeetingRecoveryUnavailableError);
+        await cold.dispose();
     });
 });

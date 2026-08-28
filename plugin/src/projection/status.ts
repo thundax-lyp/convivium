@@ -11,11 +11,13 @@ import type {
     PublicQuestionV1
 } from "../protocol/index.js";
 
-export interface MeetingProjectionCaller {
-    readonly kind: "captain" | "manager" | "participant";
-    readonly sessionId: string;
-    readonly participantId?: string;
-}
+export type MeetingProjectionCaller =
+    | {
+          readonly kind: "captain" | "manager" | "participant";
+          readonly sessionId: string;
+          readonly participantId?: string;
+      }
+    | { readonly kind: "local_host"; readonly sessionId: "loopback-web" };
 
 function agendaItem(item: MeetingState["agenda"][number]): PublicAgendaItemV1 {
     return {

@@ -24,6 +24,7 @@ function readText(path) {
 
 const manifest = readJson("package.json");
 const patch = readText("cordis.patch.yml");
+const clientBundle = readText("lib/client.js");
 const files = Array.isArray(manifest?.files) ? manifest.files : [];
 const requiredArtifacts = [
     "lib/index.js",
@@ -47,6 +48,9 @@ const missingArtifacts = requiredArtifacts.filter(
 );
 const packageName = typeof manifest?.name === "string" ? manifest.name : "";
 const client = manifest?.dsh?.client;
+const bundledClientRequires = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmokit"].flatMap(
+    (packageName) => [`require("${packageName}")`, `require('${packageName}')`]
+);
 
 const result = {
     exportsMatchArtifacts: JSON.stringify(manifest?.exports) === JSON.stringify(expectedExports),
@@ -55,6 +59,9 @@ const result = {
     bundlePatchMatchesPackageName: Boolean(packageName && patch.includes(packageName)),
     clientManifestIsComplete:
         client?.platform === "web" && Array.isArray(client.inject) && client.inject.length > 0,
+    clientBundleIsSelfContained: bundledClientRequires.every(
+        (specifier) => !clientBundle.includes(specifier)
+    ),
     forbiddenPublishedPaths,
     missingArtifacts
 };
@@ -66,6 +73,7 @@ if (
     !result.filesAllowlistIsClosed ||
     !result.bundlePatchMatchesPackageName ||
     !result.clientManifestIsComplete ||
+    !result.clientBundleIsSelfContained ||
     result.forbiddenPublishedPaths.length > 0 ||
     result.missingArtifacts.length > 0
 ) {

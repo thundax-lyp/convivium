@@ -42,7 +42,23 @@ describe("meeting lifecycle and archive transitions", () => {
         expect(result.state.pausedFromStatus).toBe("waiting");
         expect(result.state.pauseReason).toBe("captain request");
         expect(result.state.pausedAt).toBe(now);
+        expect(result.state.pausedBy?.kind).toBe("captain");
         expect(result.state.pausedBy?.actorId).toBe("captain-1");
+    });
+
+    it("preserves a local host pause actor without creating a new actor on resume", () => {
+        const paused = transitionMeeting(meeting("running"), "paused", {
+            now,
+            reason: "local control",
+            pause: { at: now, by: { kind: "local_host", actorId: "loopback-web" } }
+        }).state;
+
+        expect(paused.pausedBy).toEqual({ kind: "local_host", actorId: "loopback-web" });
+
+        const resumed = transitionMeeting(paused, "running", { now: now + 1 }).state;
+        expect(resumed.pausedBy).toBe(paused.pausedBy);
+        expect(resumed.pausedAt).toBe(paused.pausedAt);
+        expect(resumed.pauseReason).toBe(paused.pauseReason);
     });
 
     it("persists structured waiting metadata", () => {

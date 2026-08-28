@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createMeetingRuntime } from "../../../src/runtime/meeting-runtime.js";
 import { rejectUnsupportedTaskEvidence } from "../../../src/runtime/task-evidence.js";
 import type { CreateMeetingInputV1 } from "../../../src/protocol/index.js";
+import { LocalMeetingRecoveryUnavailableError } from "../../../src/runtime/application-service.js";
 
 const input: CreateMeetingInputV1 = {
     protocolVersion: 1,
@@ -128,5 +129,17 @@ describe("rejectUnsupportedTaskEvidence", () => {
         expect(() =>
             rejectUnsupportedTaskEvidence.resolve({ ...resolverInput, taskIds: ["task-1"] })
         ).toThrowError(expect.objectContaining({ code: "UNSUPPORTED_CAPABILITY" }));
+    });
+});
+
+describe("LocalMeetingRecoveryUnavailableError", () => {
+    it("keeps recovery unavailability outside the public protocol code space", () => {
+        const cause = new Error("storage unavailable");
+        const error = new LocalMeetingRecoveryUnavailableError("recovery unavailable", { cause });
+
+        expect(error).toBeInstanceOf(Error);
+        expect(error.name).toBe("LocalMeetingRecoveryUnavailableError");
+        expect(error.cause).toBe(cause);
+        expect(error).not.toHaveProperty("code");
     });
 });

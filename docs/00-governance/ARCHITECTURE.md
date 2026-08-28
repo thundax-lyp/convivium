@@ -14,13 +14,14 @@
 ## Confirmed Baseline
 
 - Convivium 是纯 DSH 插件，不是独立 Electron 应用。
+- V1 运行在单个本地 DSH Host 中，仅服务该 Host 的一位本地用户；不提供远程访问、多用户协作、跨 Host 共享或网络部署。Meeting Web route 只允许在 DSH `webServer.host === "127.0.0.1"` 时注册；V1 不绑定 Web 用户身份、不校验 Team 权限，也不建立 per-user authority，所有到达该 loopback Host 的请求共享该本地用户边界。后续引入远程或多用户能力必须先补充独立的授权、身份、隔离和部署契约。
 - Convivium 使用 TypeScript 独立实现，不导入或派生外部参考项目源码。
 - 唯一可构建产品工程位于仓库顶层 `plugin/`。该目录不使用 Git submodule，也不在构建或运行时引用相邻参考项目工作区。
 - Convivium 支持的最低 DSH 版本为 `0.1.1-rc.2`；实现可以依赖该版本 `dsh-subagent` 提供的持久子 Session 枚举和 continuable Activation drain 能力。
 - Convivium 正式运行会议前，宿主组合必须提供一个具备 `prepareContinuable` 能力的 continuable subagent provider；仅声明或注入 `dsh-subagent` service 不构成该能力。当前确认的宿主 profile provider 是 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.1-rc.2`，provider name 为 `spawn`，由 profile 作为组合依赖管理，不由 Convivium 自行实现、隐式携带或写入插件 package manifest。插件必须在独立 DSH profile 中验证该 provider 与 `startContinuable()` 的实际创建链路。
 - 插件依赖 DSH 提供 AgentSession、continuable Agent、工具注册、Web 路由、DSH 原生 Session Event 和插件 UI 宿主能力。
 - 插件包含清晰分离的插件前端和插件后端会议运行时。
-- 每个 Meeting 在任何会议副作用前获得稳定 `meetingId` 和独立目录；状态、事件、幂等收据和 outbox 写入该目录内独立 `meeting.sqlite`。
+- 每个 Meeting 在任何会议副作用前获得稳定 `meetingId`，并以 `teamId + meetingId` 形成独立 repository ownership；状态、事件、幂等收据和 outbox 写入该 Meeting 独占的 SQLite 数据库。当前已实现的物理布局是 `<dataRoot>/<encodedTeamId>/<encodedMeetingId>.sqlite`；迁移到 `<workspace>/.convivium/<teamId>/meetings/<meetingId>/meeting.sqlite` 是后续独立 readiness 工作，不是增量业务分支的隐含前置条件。所有新增调用方必须经 Runtime/repository locator 访问，不能依赖或自行扫描任一物理布局。
 - Meeting Runtime 可以从 SQLite best-effort 生成供开发者在 workspace 中阅读的 Markdown 辅助文件；Markdown 不是产品接口或事实源，不参与恢复、授权、状态计算、Session 关闭与 capability 撤销或归档完成判断。
 - DSH AgentSession 是独立运行主体，拥有独立 Prompt、Skills、工作目录、模型、MCP、权限和运行模式。
 - AgentSession 必须支持 followup、interrupt、恢复，以及通过 `drainContinuableChildren` 释放指定会议 Session 的 resident Activation。会议 Session 的持久不可继续语义由 Convivium capability revoke 保证，不要求 DSH 删除持久 Session 数据。
@@ -36,7 +37,7 @@
 ### Plugin Frontend
 
 - 承载团队、会议现场、人类控制以及 Agent 和 Session 状态展示。
-- 只能调用插件后端公开、类型化且经过授权的 Web 路由或工具。
+- 只能调用插件后端公开、类型化且受已确认 Host/identity 边界约束的 Web 路由或工具；V1 loopback Web 使用 Host registration gate，不虚构用户/Team authority。
 - 不直接管理 AgentSession，不直接访问 SQLite、敏感配置或任意文件系统路径。
 - 不承担会议领域状态、发言权和权限判定的最终责任。
 
@@ -68,7 +69,7 @@
 - 会议领域规则不能依赖 DSH UI 组件。
 - DSH AgentSession 不能成为 Meeting、Participant、Turn 或权限模型的真相源。
 - Convivium 实现必须保持会议领域、DSH Session adapter、持久化和 UI projection 的模块边界。
-- Meeting 的 SQLite、开发者 Markdown、Session ownership 和归档数据必须以 `<teamId>/meetings/<meetingId>/` 为共同生命周期边界。
+- Meeting 的 SQLite、开发者 Markdown、Session ownership 和归档数据必须以 `teamId + meetingId` 为共同生命周期 ownership；目标目录迁移完成后该 ownership 物化为 `<teamId>/meetings/<meetingId>/`，迁移前不得由调用方假设该物理路径。
 - 会议领域只能消费 Agent 明确提交的边界结果和经授权的 MeetingTask projection，不得依赖具体 Skill、内部 Tool Schema、隐藏推理或工具调用顺序。MeetingTask 属于 Convivium MeetingState，不属于 DSH runtime facts。
 - Convivium 不得向 DSH Session 写入插件自定义的持久化事件类型。会议领域事件写入 SQLite `meeting_events`；插件前端只通过定时读取、写操作成功后重新读取和页面重新聚焦后读取完整类型化状态投影，不建立进程内 projection invalidation 通道。
 - 开发者 Markdown 只能单向派生自 SQLite。人工修改、文件缺失或旧版本内容不得反向写入会议状态；该文件不形成 Plugin Frontend 或 Agent 可依赖的契约。
@@ -88,7 +89,6 @@
 以下内容尚未确认，不得从本文推断为既定方案：
 
 - 插件分发方式和高于最低版本的兼容策略。
-- 第一版是本地单用户应用还是支持远程多用户部署。
 
 ## Document Routing
 
