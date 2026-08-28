@@ -466,5 +466,25 @@ describe("speaker submission and turn advancement", () => {
         expect(result.state.status).toBe("waiting");
         expect(result.state.currentTurn?.steps[1]?.attempt).toBeUndefined();
         expect(result.effect.events.map(({ type }) => type)).toContain("meeting.waiting");
+
+        const evidenceState = structuredClone(state);
+        evidenceState.meetingTasks.push({
+            meetingTaskId: "completed-task",
+            participantId: "a",
+            originatingSpeakerAttemptId: "older-attempt",
+            status: "completed"
+        } as never);
+        const withCompletedEvidence = submitSpeakerAndAdvanceMeeting(evidenceState, "a", {
+            ...context,
+            message: {
+                ...context.message,
+                id: "message-with-evidence",
+                taskIds: ["task-1", "completed-task"]
+            }
+        });
+        expect(withCompletedEvidence.state.meetingTasks).toMatchObject([
+            { meetingTaskId: "task-1", status: "queued" },
+            { meetingTaskId: "completed-task", status: "completed" }
+        ]);
     });
 });

@@ -52,6 +52,7 @@ export interface RepositoryCommand<T> {
     authorization: CommandAuthorization;
     requestHash: string;
     expectedMeetingVersion: number;
+    allowNoop?: boolean;
     transition: (snapshot: MeetingSnapshot) => TransitionResult<T>;
 }
 
@@ -945,6 +946,16 @@ export class MeetingRepository {
                 throw error;
             }
             if (transition.events.length === 0) {
+                if (command.allowNoop) {
+                    this.db.exec("COMMIT");
+                    return {
+                        requestId: command.requestId,
+                        meetingId: this.meetingId,
+                        meetingVersion: snapshot.version,
+                        result: transition.result,
+                        eventSeqs: []
+                    };
+                }
                 throw new RepositoryError(
                     "INVALID_STATE",
                     false,

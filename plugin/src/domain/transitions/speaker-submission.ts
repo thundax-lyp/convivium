@@ -53,10 +53,19 @@ export function submitSpeakerAndAdvanceMeeting(
               }
           }
         : { state: questionSubmission.state, effect: { events: submissionEvents } };
-    const queued = context.message.taskIds.length
+    const requestedTaskIds = context.message.taskIds.filter((meetingTaskId) =>
+        completedSubmission.state.meetingTasks.some(
+            (task) =>
+                task.meetingTaskId === meetingTaskId &&
+                task.status === "requested" &&
+                task.participantId === participantId &&
+                task.originatingSpeakerAttemptId === context.attemptId
+        )
+    );
+    const queued = requestedTaskIds.length
         ? queueMeetingTasks(
               completedSubmission.state,
-              context.message.taskIds,
+              requestedTaskIds,
               participantId,
               context.attemptId,
               context.now

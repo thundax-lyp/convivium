@@ -18,6 +18,7 @@ import {
     completedTaskSnapshots,
     participantHasActiveMeetingTask,
     finishMeetingTask as finishMeetingTaskTransition,
+    findPendingEquivalentHandRaise,
     planRoundRobinTurn,
     endMeeting as endMeetingTransition,
     startMeetingTask as startMeetingTaskTransition,
@@ -1205,27 +1206,28 @@ export function createCreateStatusRuntime(
                     },
                     requestHash: JSON.stringify(input),
                     expectedMeetingVersion: current.version,
+                    allowNoop: true,
                     transition: (snapshot) => {
-                        const transition = createHandRaise(
-                            snapshot.state as unknown as MeetingState,
-                            {
-                                id: handRaiseId,
-                                participantId: caller.participantId!,
-                                reason: input.reason,
-                                summary: input.summary,
-                                taskIds: input.taskIds,
-                                ...(input.replyToMessageId === undefined
-                                    ? {}
-                                    : { replyToMessageId: input.replyToMessageId }),
-                                agendaItemId: input.agendaItemId,
-                                priority: input.priority,
-                                now: options.now?.() ?? Date.now()
-                            }
-                        );
+                        const handRaiseInput = {
+                            id: handRaiseId,
+                            participantId: caller.participantId!,
+                            reason: input.reason,
+                            summary: input.summary,
+                            taskIds: input.taskIds,
+                            ...(input.replyToMessageId === undefined
+                                ? {}
+                                : { replyToMessageId: input.replyToMessageId }),
+                            agendaItemId: input.agendaItemId,
+                            priority: input.priority,
+                            now: options.now?.() ?? Date.now()
+                        };
+                        const state = snapshot.state as unknown as MeetingState;
+                        const duplicate = findPendingEquivalentHandRaise(state, handRaiseInput);
+                        const transition = createHandRaise(state, handRaiseInput);
                         return {
                             state: transition.state as unknown as JsonObject,
                             result: {
-                                handRaiseId,
+                                handRaiseId: duplicate?.id ?? handRaiseId,
                                 status: "pending"
                             } satisfies HandRaiseResultV1,
                             events: transition.effect.events as unknown as DomainEventInput[],

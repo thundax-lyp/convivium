@@ -1045,4 +1045,41 @@ PRAGMA user_version = 2;
         expect(await repository.read()).toMatchObject({ version: 0, state: { count: 0 } });
         await repository.close();
     });
+
+    it("returns an explicitly allowed no-op without changing state or creating a receipt", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { count: 0 }
+        });
+        const command = {
+            commandKind: "raise_hand",
+            authorization,
+            requestHash: "duplicate-hand-raise",
+            expectedMeetingVersion: 0,
+            allowNoop: true,
+            transition: (snapshot: { state: Record<string, unknown> }) => ({
+                state: snapshot.state,
+                result: { handRaiseId: "existing-raise" },
+                events: [],
+                outbox: []
+            })
+        };
+        await expect(
+            repository.execute({ ...command, requestId: "duplicate-1" })
+        ).resolves.toMatchObject({
+            meetingVersion: 0,
+            eventSeqs: []
+        });
+        await expect(
+            repository.execute({ ...command, requestId: "duplicate-2" })
+        ).resolves.toMatchObject({
+            meetingVersion: 0,
+            eventSeqs: []
+        });
+        expect(await repository.read()).toMatchObject({ version: 0, state: { count: 0 } });
+        await repository.close();
+    });
 });

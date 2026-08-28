@@ -265,3 +265,31 @@ export function cancelNonTerminalMeetingTasks(
         }
     };
 }
+
+export function cancelRequestedMeetingTasksForAttempts(
+    state: MeetingState,
+    originatingSpeakerAttemptIds: readonly string[],
+    now: number
+): TransitionResult<MeetingState> {
+    const revokedAttempts = new Set(originatingSpeakerAttemptIds);
+    const cancelled = (state.meetingTasks ?? []).filter(
+        (task) =>
+            task.status === "requested" && revokedAttempts.has(task.originatingSpeakerAttemptId)
+    );
+    if (cancelled.length === 0) return { state, effect: { events: [] } };
+    return {
+        state: {
+            ...state,
+            meetingTasks: (state.meetingTasks ?? []).map((task) =>
+                task.status === "requested" && revokedAttempts.has(task.originatingSpeakerAttemptId)
+                    ? { ...task, status: "cancelled" as const, finishedAt: now }
+                    : task
+            )
+        },
+        effect: {
+            events: cancelled.map((task) =>
+                taskEvent(state.id, "meeting_task.cancelled", { ...task, status: "cancelled" })
+            )
+        }
+    };
+}

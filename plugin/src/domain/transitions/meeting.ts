@@ -9,6 +9,7 @@ import type {
     TransitionResult
 } from "../model.js";
 import { assertArchivePackageMatchesMeeting, sameTermination, snapshotArchive } from "./archive.js";
+import { cancelRequestedMeetingTasksForAttempts } from "../meeting-task.js";
 import {
     assertCompletionReady,
     terminationCodesByStatus,
@@ -27,8 +28,10 @@ function revokeActiveAttempts(
     currentTurn: MeetingTurn | undefined;
     manager: MeetingState["manager"];
     events: DomainEffect["events"];
+    revokedSpeakerAttemptIds: string[];
 } {
     const events: DomainEffect["events"] = [];
+    const revokedSpeakerAttemptIds: string[] = [];
     const currentTurn = state.currentTurn
         ? {
               ...state.currentTurn,
@@ -45,6 +48,7 @@ function revokeActiveAttempts(
                       type: "speaker_attempt.revoked",
                       payload: { attemptId: attempt.attemptId, meetingId: state.id }
                   });
+                  revokedSpeakerAttemptIds.push(attempt.attemptId);
                   return {
                       ...step,
                       status: ["assigned", "running"].includes(step.status)
@@ -85,7 +89,7 @@ function revokeActiveAttempts(
             payload: { planningAttemptId: planningAttempt.id, meetingId: state.id }
         });
     }
-    return { currentTurn, manager, events };
+    return { currentTurn, manager, events, revokedSpeakerAttemptIds };
 }
 
 function requireReason(context: TransitionContext, state: MeetingState, to: MeetingStatus): string {
@@ -251,6 +255,14 @@ export function transitionMeeting(
         to === "paused" || to === "archiving" || isExecutionTerminal
             ? revokeActiveAttempts(state, isExecutionTerminal || to === "archiving")
             : undefined;
+    const requestedTaskCleanup =
+        to === "paused" && lifecycleCleanup
+            ? cancelRequestedMeetingTasksForAttempts(
+                  state,
+                  lifecycleCleanup.revokedSpeakerAttemptIds,
+                  context.now
+              )
+            : undefined;
     const next: MeetingState = {
         ...state,
         status: to,
@@ -268,6 +280,7 @@ export function transitionMeeting(
         ...(lifecycleCleanup
             ? { currentTurn: lifecycleCleanup.currentTurn, manager: lifecycleCleanup.manager }
             : {}),
+        ...(requestedTaskCleanup ? { meetingTasks: requestedTaskCleanup.state.meetingTasks } : {}),
         ...(resumingFromPause
             ? {
                   currentTurn: undefined,
@@ -309,7 +322,8 @@ export function transitionMeeting(
                         reason: context.reason
                     }
                 },
-                ...(lifecycleCleanup?.events ?? [])
+                ...(lifecycleCleanup?.events ?? []),
+                ...(requestedTaskCleanup?.effect.events ?? [])
             ]
         }
     };

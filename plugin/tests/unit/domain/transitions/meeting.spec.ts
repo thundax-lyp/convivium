@@ -156,6 +156,20 @@ describe("meeting lifecycle and archive transitions", () => {
                 createdAt: now
             }
         };
+        state.meetingTasks = [
+            {
+                meetingTaskId: "requested-task",
+                participantId: "participant-1",
+                originatingSpeakerAttemptId: "attempt-1",
+                status: "requested"
+            },
+            {
+                meetingTaskId: "running-task",
+                participantId: "participant-1",
+                originatingSpeakerAttemptId: "older-attempt",
+                status: "running"
+            }
+        ] as never;
 
         const result = transitionMeeting(state, "paused", {
             now,
@@ -167,10 +181,15 @@ describe("meeting lifecycle and archive transitions", () => {
         expect(result.state.currentTurn?.steps[0].status).toBe("revoked");
         expect(result.state.currentTurn?.steps[0].attempt?.status).toBe("revoked");
         expect(result.state.manager.currentPlanningAttempt?.status).toBe("revoked");
+        expect(result.state.meetingTasks).toMatchObject([
+            { meetingTaskId: "requested-task", status: "cancelled", finishedAt: now },
+            { meetingTaskId: "running-task", status: "running" }
+        ]);
         expect(result.effect.events.map(({ type }) => type)).toEqual([
             "meeting.paused",
             "speaker_attempt.revoked",
-            "manager_plan.revoked"
+            "manager_plan.revoked",
+            "meeting_task.cancelled"
         ]);
     });
 
