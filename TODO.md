@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `convivium-module-review/SKILL.md`：增加复杂度 finding 检查与门槛
-  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T4
-  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
-  - 处理动作：增加无当前证据价值机制和更小安全结构检查，并在 finding 类型中加入“范围与复杂度”。
-  - 验收点：复杂度 finding 必须同时指出实际成本、缺失依据和更小安全边界；单消费者、单实现、文件数、代码行数和个人风格不能单独形成 finding；Skill 的只读范围与其他输出字段无变化。
-
 - [ ] `convivium-pr-review/references/review-checks.md`：增加复杂度证据链
   - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T5
   - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行

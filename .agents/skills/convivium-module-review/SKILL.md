@@ -55,6 +55,10 @@ description: Review the complete current implementation of a Convivium plugin mo
 - Markdown 是否只能从 SQLite 单向派生，不能成为状态、授权、恢复或归档完成的事实源。
 - 输入校验、路径所有权、越权、敏感信息日志、错误语义和资源关闭。
 - 成功路径、失败路径、边界、并发/重复执行和恢复测试是否锁定了需求中的验收标准。
+- 检查新增或现存机制是否只有假设性未来用途，是否增加了无当前证据价值的状态、分支、持久化或维护成本。
+- 检查是否能够用更小结构消除同一触发条件，同时保持权限、事务、持久化、外部系统和生命周期隔离。
+
+复杂度 finding 必须指出多余机制的当前成本、缺失的依据和可行的更小边界。单一消费者、单一实现、文件数量、代码行数或个人风格不能单独达到 finding 门槛。必要的安全、授权、事务、持久化、DSH adapter 和生命周期边界即使只有一个消费者，也不能仅因“抽象较多”报告为缺陷。
 
 不要因为没有使用某个具体 Skill、Tool、MCP、Prompt、隐藏推理或调用顺序而报告问题；Convivium 的协议必须对这些 Agent 内部实现保持独立。
 
@@ -65,7 +69,7 @@ description: Review the complete current implementation of a Convivium plugin mo
 ```md
 ## [P0/P1/P2/P3] 标题
 
-- 类型：正确性 / 架构 / 接口 / 生命周期 / 持久化 / 安全 / 性能 / 测试
+- 类型：正确性 / 架构 / 接口 / 生命周期 / 持久化 / 安全 / 性能 / 测试 / 范围与复杂度
 - 文件：`plugin/...`
 - 行号：最小范围
 - 触发条件：
