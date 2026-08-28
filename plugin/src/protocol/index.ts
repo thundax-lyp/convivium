@@ -18,6 +18,7 @@ export {
 } from "./commands.js";
 export {
     LocalMeetingListItemSchema,
+    LocalMeetingListResponseConsumerSchema,
     LocalMeetingListResponseSchema,
     LocalMeetingListResultSchema,
     MeetingArchivePackageSchema,

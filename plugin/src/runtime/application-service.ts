@@ -2053,18 +2053,6 @@ export function createCreateStatusRuntime(
     ) {
         const stored = meetings.get(input.meetingId);
         if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-        if (target === "running" && stored.parent === undefined) {
-            if (source.kind === "local_host") {
-                throw new LocalMeetingRecoveryUnavailableError(
-                    "The live Captain parent is unavailable for resume dispatch."
-                );
-            }
-            return failure(
-                "INTERNAL_ERROR",
-                "The live Captain parent is unavailable for resume dispatch.",
-                true
-            );
-        }
         const authorization =
             source.kind === "captain"
                 ? {
@@ -2083,6 +2071,16 @@ export function createCreateStatusRuntime(
                 requestHash: JSON.stringify(input),
                 expectedMeetingVersion: input.expectedMeetingVersion,
                 transition: (snapshot) => {
+                    if (target === "running" && stored.parent === undefined) {
+                        if (source.kind === "local_host") {
+                            throw new LocalMeetingRecoveryUnavailableError(
+                                "The live Captain parent is unavailable for resume dispatch."
+                            );
+                        }
+                        throw new Error(
+                            "The live Captain parent is unavailable for resume dispatch."
+                        );
+                    }
                     const transition = transitionMeeting(
                         snapshot.state as unknown as MeetingState,
                         target,

@@ -73,11 +73,22 @@ const localMeetingListResponse = Schema.object({
     result: LocalMeetingListResultSchema.required()
 });
 
+const compatibleLocalMeetingListResponse = Schema.object({
+    protocolVersion: Schema.const(1).required(),
+    ok: Schema.const(true).required(),
+    result: Schema.object({
+        meetings: requiredArray(localMeetingListItem)
+    }).required()
+});
+
 export const LocalMeetingListResponseSchema: Schema<unknown, LocalMeetingListResponseV1> =
     Schema.transform(localMeetingListResponse, (value) => {
         assertExactKeys(value, ["protocolVersion", "ok", "result"], "local meeting list response");
         return value as LocalMeetingListResponseV1;
     }) as Schema<unknown, LocalMeetingListResponseV1>;
+
+export const LocalMeetingListResponseConsumerSchema: Schema<unknown, LocalMeetingListResponseV1> =
+    compatibleLocalMeetingListResponse as Schema<unknown, LocalMeetingListResponseV1>;
 
 const continuationMaterial = Schema.object({
     sourceMeetingId: requiredString(),

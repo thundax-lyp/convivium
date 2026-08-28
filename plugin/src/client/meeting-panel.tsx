@@ -8,7 +8,7 @@ import {
     type ReactElement
 } from "react";
 import {
-    LocalMeetingListResponseSchema,
+    LocalMeetingListResponseConsumerSchema,
     MeetingControlResultSchema,
     MeetingStatusResultSchema,
     validateProtocolError,
@@ -42,7 +42,7 @@ function protocolFailure(value: unknown): ProtocolFailure {
 async function readList(response: Response): Promise<LocalMeetingListResponseV1> {
     const value = await responseJson(response);
     if (!response.ok) throw protocolFailure(value);
-    return LocalMeetingListResponseSchema(value) as LocalMeetingListResponseV1;
+    return LocalMeetingListResponseConsumerSchema(value) as LocalMeetingListResponseV1;
 }
 
 async function readStatus(response: Response): Promise<ProtocolSuccessV1<MeetingStatusResultV1>> {

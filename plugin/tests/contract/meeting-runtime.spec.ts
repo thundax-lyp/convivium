@@ -1425,12 +1425,13 @@ describe("create/status meeting runtime", () => {
             }
         });
         if (!status.ok) throw new Error("local status failed");
-        const resumed = await runtime.resumeLocalMeeting({
+        const resumeInput = {
             protocolVersion: 1,
             meetingId: first.result.meetingId,
             expectedMeetingVersion: status.meetingVersion,
             requestId: "local-resume-1"
-        });
+        } as const;
+        const resumed = await runtime.resumeLocalMeeting(resumeInput);
         expect(resumed).toMatchObject({ ok: true, result: { status: "running" } });
         if (!resumed.ok) throw new Error("local resume failed");
 
@@ -1450,6 +1451,10 @@ describe("create/status meeting runtime", () => {
             })
         ).resolves.toMatchObject({ ok: true, result: { status: "running" } });
         await runtime.dispose();
+
+        const coldReplay = localRuntime(root);
+        await expect(coldReplay.resumeLocalMeeting(resumeInput)).resolves.toEqual(resumed);
+        await coldReplay.dispose();
     });
 
     it("isolates selected Meeting recovery from an unrelated corrupt ready repository", async () => {

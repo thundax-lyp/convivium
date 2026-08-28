@@ -5,6 +5,7 @@ import {
     EndMeetingInputSchema,
     EndMeetingResultSchema,
     LocalMeetingListItemSchema,
+    LocalMeetingListResponseConsumerSchema,
     LocalMeetingListResponseSchema,
     LocalMeetingListResultSchema,
     MeetingArchivePackageSchema,
@@ -36,6 +37,17 @@ describe("protocol envelope schemas", () => {
         expect(LocalMeetingListItemSchema(item)).toEqual(item);
         expect(LocalMeetingListResultSchema(result)).toEqual(result);
         expect(LocalMeetingListResponseSchema(response)).toEqual(response);
+        expect(
+            LocalMeetingListResponseConsumerSchema({
+                ...response,
+                optionalEnvelopeField: "future",
+                result: {
+                    ...result,
+                    optionalResultField: "future",
+                    meetings: [{ ...item, optionalItemField: "future" }]
+                }
+            })
+        ).toMatchObject(response);
 
         for (const invalid of [
             { ...item, meetingId: undefined },
