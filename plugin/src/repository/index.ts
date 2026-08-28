@@ -947,6 +947,15 @@ export class MeetingRepository {
             }
             if (transition.events.length === 0) {
                 if (command.allowNoop) {
+                    this.insertReceipt(
+                        command.requestId,
+                        command.commandKind,
+                        command.authorization.callerBinding,
+                        command.requestHash,
+                        transition.result,
+                        [],
+                        now
+                    );
                     this.db.exec("COMMIT");
                     return {
                         requestId: command.requestId,

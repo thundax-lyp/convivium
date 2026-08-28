@@ -843,7 +843,7 @@ export function createCreateStatusRuntime(
                 return failure("UNAUTHORIZED_CALLER", "The caller is not bound to this meeting.");
             }
             try {
-                await recoverArchiveForCaptain(stored, caller);
+                await recoverArchiveForCaptain(stored, caller).catch(() => undefined);
                 const snapshot = await stored.repository.read();
                 const state = JSON.parse(JSON.stringify(snapshot.state));
                 return success(

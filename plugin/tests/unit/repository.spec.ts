@@ -1046,7 +1046,7 @@ PRAGMA user_version = 2;
         await repository.close();
     });
 
-    it("returns an explicitly allowed no-op without changing state or creating a receipt", async () => {
+    it("persists an explicitly allowed no-op receipt without changing state", async () => {
         const repository = await openRepository();
         await createMeeting(repository, {
             requestId: "create",
@@ -1067,18 +1067,21 @@ PRAGMA user_version = 2;
                 outbox: []
             })
         };
-        await expect(
-            repository.execute({ ...command, requestId: "duplicate-1" })
-        ).resolves.toMatchObject({
+        const first = await repository.execute({ ...command, requestId: "duplicate-1" });
+        expect(first).toMatchObject({
             meetingVersion: 0,
             eventSeqs: []
         });
+        await expect(repository.execute({ ...command, requestId: "duplicate-1" })).resolves.toEqual(
+            first
+        );
         await expect(
-            repository.execute({ ...command, requestId: "duplicate-2" })
-        ).resolves.toMatchObject({
-            meetingVersion: 0,
-            eventSeqs: []
-        });
+            repository.execute({
+                ...command,
+                requestId: "duplicate-1",
+                requestHash: "changed-hand-raise"
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "IDEMPOTENCY_CONFLICT" });
         expect(await repository.read()).toMatchObject({ version: 0, state: { count: 0 } });
         await repository.close();
     });
