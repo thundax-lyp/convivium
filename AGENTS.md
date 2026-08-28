@@ -5,6 +5,7 @@
 - 先读取 `docs/AGENTS.md`，按当前任务选择最小必要文档。
 - 实现或评审前，必须读取 `docs/00-governance/ARCHITECTURE.md`。
 - 修改文档时，必须读取 `docs/00-governance/DOCUMENT-RULES.md`。
+- 创建、修改、审计、执行或收口 RUNBOOK 时，必须读取 `docs/00-governance/RUNBOOK-RULES.md` 并使用 `.agents/skills/convivium-runbook/`。
 - 处理 TODO、验证或任务收口时，必须读取 `docs/00-governance/TODO-RULES.md`。
 - 处理暂存、提交或提交历史时，必须读取 `docs/00-governance/COMMIT-RULES.md`。
 - 处理分支、PR、Review、CI 或合并时，必须读取 `docs/00-governance/PR-RULES.md`。
@@ -41,6 +42,7 @@
 - 启动、诊断、恢复、升级和发布操作放在 `docs/50-operations/`。
 - 调研、讨论、决策背景和历史材料放在 `docs/60-human/`，不作为默认实现依据。
 - 项目专用的 Codex 工作流放在 `.agents/skills/`，不在 `docs/` 中保存 Prompt 集合。
+- RUNBOOK 的稳定治理规则以 `docs/00-governance/RUNBOOK-RULES.md` 为准；对应 Skill 只负责应用和审计规则。
 
 ## Change Rules
 
