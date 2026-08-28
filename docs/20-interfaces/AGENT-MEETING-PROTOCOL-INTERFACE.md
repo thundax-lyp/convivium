@@ -303,7 +303,7 @@ Runtime 必须在产生任何 Meeting 状态前完成以下验证和转换：
 5. 把所有 output 初始化为 `pending`、criterion 初始化为 `satisfied=false`、agenda 初始化为 `pending`，不得接受调用方提供的运行期状态或 resolution；
 6. 原子创建完整 Meeting；任何 key 或引用无效时返回 `INVALID_ARGUMENT`，不得产生部分 Participant、Agenda 或 Objective state。
 
-完成无副作用输入校验后，Runtime 必须先生成 `meetingId` 并建立独立存储边界，再创建 Manager/Participant Sessions。任何 Session 都必须携带相同 `meetingId` ownership；不得出现没有 Meeting ID 或无法定位所属 Meeting 目录的 Session。
+完成无副作用输入校验后，Runtime 必须先生成 `meetingId` 并建立独立 repository ownership，再创建 Manager/Participant Sessions。任何 Session 都必须携带相同 `meetingId` ownership；不得出现没有 Meeting ID 或无法经 locator 定位所属 Meeting repository 的 Session。
 
 `continuation` 只表达对已归档素材的选择，不允许调用方提交或覆盖素材正文。Runtime 必须验证 Captain 有权访问 `sourceMeetingId`，源会议状态为 `archived`，所有选中 ID 属于该归档且可复用；随后把选中内容复制为带 `sourceMeetingId` 和源对象 ID 的只读初始素材。新 Meeting 不继承源会议的 Session、Participant ID、capability、完整 transcript、运行状态或未选中内容。
 
@@ -320,9 +320,11 @@ Captain 对风险具有独立的会议控制权限，不需要伪装成 Particip
 暂停和恢复共享同一组领域命令，但允许两个受控入口：
 
 1. 用户向 DSH 发出自然语言指令后，由 Meeting 所属 Team 的 Captain Session 调用 `convivium_pause_meeting` 或 `convivium_resume_meeting`；
-2. 用户点击插件会议面板的“暂停”或“继续”按钮后，由插件前端调用受控 Web route；后端将经过用户和 Team 授权的请求转换为同一领域命令。
+2. 用户点击插件会议面板的“暂停”或“继续”按钮后，由插件前端调用受控 Web route；V1 只在 `webServer.host === "127.0.0.1"` 的本地 DSH Host 注册该 route，所有到达该 Host 的请求共享同一个本地用户边界，不绑定 Web 用户身份或 Team 权限。
 
-Web route 不得伪造 Captain Session，也不得绕过领域授权、`expectedMeetingVersion`、`requestId` 或状态转换。工具入口与按钮入口必须返回相同的 `MeetingControlResultV1` 和结构化错误。
+Web route 不得伪造 Captain Session，也不得绕过 `expectedMeetingVersion`、`requestId` 或状态转换。工具入口与按钮入口必须返回相同的 `MeetingControlResultV1` 和结构化错误；V1 的 Web route 不接受任何用户、Team、Agent Session 或会议身份字段作为授权输入。
+
+通过 V1 Web route 的 pause 必须在正式 MeetingState 中记录 `pausedBy: { kind: "local_host", actorId: "loopback-web" }`；它是固定的 Host 边界标记，不表示、推断或持久化用户身份。通过 Captain tool 的 pause 继续记录 `kind: "captain"`。`MeetingStatusResultV1.pauseControl.pausedBy.kind` 的合法值为 `"user" | "captain" | "local_host"`。
 
 插件面板使用以下类型化路由；路径中的 `meetingId` 必须与 body 解析后的 Meeting 一致：
 
@@ -331,7 +333,7 @@ Web route 不得伪造 Captain Session，也不得绕过领域授权、`expected
 | `POST /api/convivium/meetings/:meetingId/pause`  | `PauseMeetingInputV1`  | `MeetingControlResultV1` |
 | `POST /api/convivium/meetings/:meetingId/resume` | `ResumeMeetingInputV1` | `MeetingControlResultV1` |
 
-路由必须使用 DSH 当前用户上下文验证其对 Meeting 所属 Team 的控制权限；仅能读取会议的用户不得调用。前端不得传入 Captain Session ID。
+注册时 `webServer.host !== "127.0.0.1"` 必须 fail closed，不注册上述路由。注册后的 V1 route 不解析用户或 Team authority；前端不得传入 Captain Session ID。
 
 暂停语义：
 
@@ -884,13 +886,41 @@ Required speaker 当前不可调度时，规划命令必须失败并返回 `REQU
 
 同一个 `MeetingStatusResultV1` 同时用于 Agent tool 和 Plugin Frontend 的类型化状态读取，避免形成两套状态语义。插件面板使用：
 
+```ts
+interface LocalMeetingListItemV1 {
+  meetingId: string;
+  teamId: string;
+  topic: string;
+  status: MeetingStatusResultV1["status"];
+  meetingVersion: number;
+  updatedAt: number;
+}
+
+interface LocalMeetingListResultV1 {
+  meetings: readonly LocalMeetingListItemV1[];
+}
+
+interface LocalMeetingListResponseV1 {
+  protocolVersion: 1;
+  ok: true;
+  result: LocalMeetingListResultV1;
+}
+```
+
+`GET /api/convivium/meetings` 仅在 `webServer.host === "127.0.0.1"` 注册，body 为 `none`，返回 `LocalMeetingListResponseV1`。它不能使用 `ProtocolSuccessV1`，因为后者的 envelope 必须描述单一 Meeting 的 `meetingId` 与 `meetingVersion`，而 list 没有这两个全局值。Runtime 从本地 data root 中已进入 bootstrap `ready` 且可成功 rehydrate 的 Meeting repository 读取摘要；可读取的 `creating|creation_failed` repository 不是公开 Meeting，关闭后跳过。列表包含 active、execution-terminal、`archiving` 和 `archived` Meeting，按 `updatedAt` 降序、再按 `meetingId` 升序排序。列表不接受 filter、pagination、teamId、Agent Session 或任何身份字段，且不得返回 transcript、objective、Session ID、capability、SQLite 路径、outbox、私有运行数据或完整 status projection。data root 尚不存在（`ENOENT`）表示没有 Meeting，返回空 list；除此以外 data root 无法读取、repository 无法读取 bootstrap，或已为 `ready` 的 Meeting repository 无法 rehydrate/读取 snapshot 时，整个 list 返回 HTTP `503`、`Retry-After: 1` 和无 body，不得返回部分列表。
+
+Client 必须先读取该 list；用户选择一项 `meetingId` 后才调用详情或控制 route。Client 不得从 URL/query 参数、当前 DSH Session、Agent tool result 或人工输入推断初始选择，也不得在本范围新增 Meeting 创建、跨 Meeting 导航或筛选 UI。
+
+所有 Meeting Web route 通过一个 `prefix` registration `/api/convivium/meetings` 分派。精确允许的组合只有：`GET /api/convivium/meetings`、`GET /api/convivium/meetings/:meetingId`、`POST /api/convivium/meetings/:meetingId/pause`、`POST /api/convivium/meetings/:meetingId/resume`；结尾 `/`、其他 path 或其他 method 返回 HTTP `404` 和无 body。支持 route 带任意 query、URL 含非法 percent encoding，或 POST 缺失/错误的 JSON media type、body 超过 `16_384` bytes、JSON 无法解析、含未定义字段、path/body `meetingId` 不一致或 Schema 不合法时，返回 HTTP `400` 和 `ProtocolErrorV1`，其 `code` 固定为 `INVALID_ARGUMENT`、`message` 固定为 `Invalid meeting request.`、`retryable` 固定为 `false`；请求尚不能可信解析时省略 Meeting metadata。pause body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | requestId | reason`，resume body 只允许前四项；因此用户、Team、Agent Session、Captain 或其他 authority 字段均被拒绝。`VERSION_CONFLICT` 与 `IDEMPOTENCY_CONFLICT` 返回 HTTP `409` 和 Runtime 提供的 `ProtocolErrorV1`；`MEETING_NOT_FOUND` 返回 HTTP `404` 和 Runtime 提供的 `ProtocolErrorV1`；其他领域 `ProtocolErrorV1` 返回 HTTP `400`。data root 尚不存在或目标 repository 尚未进入 `ready` 时，list 返回空/跳过该项且单 Meeting route 返回 `MEETING_NOT_FOUND`；除此以外目标 Meeting 冷恢复失败，或 list 中任一 `ready` Meeting repository 恢复/读取失败时返回 HTTP `503`、`Retry-After: 1` 和无 body；未知异常返回 HTTP `500` 和无 body。所有成功 JSON 与 `ProtocolErrorV1` response 均设置 `content-type: application/json; charset=utf-8`；成功状态为 HTTP `200`。
+
 | Method and route                         | Body | Result                                     |
 | ---------------------------------------- | ---- | ------------------------------------------ |
+| `GET /api/convivium/meetings`            | none | `LocalMeetingListResponseV1`              |
 | `GET /api/convivium/meetings/:meetingId` | none | `ProtocolSuccessV1<MeetingStatusResultV1>` |
 
-Web route 必须使用 DSH 当前用户上下文验证其对 Meeting 所属 Team 的读取权限，并按用户权限裁剪内容。它不得接受或伪造 Agent Session ID。Agent tool 仍使用真实 caller Session 进行身份裁剪。
+V1 route 仅在 `webServer.host === "127.0.0.1"` 注册，且对所有到达该本地 Host 的请求返回相同的完整 Web projection；它不解析用户或 Team authority，也不得接受或伪造 Agent Session ID。Agent tool 仍使用真实 caller Session 进行身份裁剪。
 
-Meeting 进入 `archived` 前，仍有效的 Manager/Participant Session 可以按身份读取状态。Meeting-owned Sessions 关闭并撤销 capability 后，Manager 和 Participant 不再具有可调用身份；`archived` 状态和归档内容只能由真实 Captain Session 或具备 Team read 权限的人类 Web 用户读取。
+Meeting 进入 `archived` 前，仍有效的 Manager/Participant Session 可以按身份读取状态。Meeting-owned Sessions 关闭并撤销 capability 后，Manager 和 Participant 不再具有可调用身份；`archived` 状态和归档内容只能由真实 Captain Session 或 V1 loopback Web route 读取。
 
 ```ts
 interface PublicTerminationV1 {
@@ -1158,7 +1188,7 @@ interface EndMeetingResultV1 {
 | Channel                                            | Owner           | Contract                                                                     |
 | -------------------------------------------------- | --------------- | ---------------------------------------------------------------------------- |
 | SQLite `meeting_events`                            | Meeting Runtime | 保存有序会议领域事件和审计事实；不是 DSH Session Event，也不是公开传输协议   |
-| `convivium_meeting_status` 或类型化 Web projection | Meeting Runtime | 向授权消费者返回当前会议真相                                                 |
+| `convivium_meeting_status` 或类型化 Web projection | Meeting Runtime | 向本 Interface 允许的 Agent caller 或 V1 loopback Web 返回当前会议真相       |
 | DSH 原生 `tool/call`、`tool/result`                | DSH             | 按 DSH 既有规则记录会议工具调用及结果；不替代会议状态、transcript 或审计事件 |
 
 Plugin Frontend 必须定时读取完整 Web projection，在会议写操作成功后立即重新读取，并在会议页面重新获得焦点时重新读取。三种读取都整体替换本地缓存，不合并状态增量。协议不定义进程内 projection invalidation、状态增量通知或对应事件订阅。
@@ -1242,7 +1272,7 @@ type MeetingProtocolErrorCodeV1 =
 
 如果 Captain 同时作为 Participant 发言，必须使用对应 Participant Session 调用 `submit_turn`，不能使用 Captain Session 绕过发言权。
 
-表中的 Manager 和 Participant 读取权限仅在其 meeting-owned Session 仍有效时成立；Session 关闭后只保留 Captain tool 和授权人类 Web route 的读取入口。
+表中的 Manager 和 Participant 读取权限仅在其 meeting-owned Session 仍有效时成立；Session 关闭后只保留 Captain tool 和 V1 loopback Web route 的读取入口。
 
 ### Permission composition
 
@@ -1270,4 +1300,4 @@ Convivium 要求 DSH `>=0.1.1-rc.2`，并以该版本的 `dsh-subagent` 公开�
 - 产品需求：[`../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
 - 实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
 
-本文定义 Plugin Frontend Meeting route 的路径、payload 和共享状态 projection 语义，但不定义如何从 DSH Web 请求取得当前用户及 Team read/control 权限。该 Host authorization transport 进入实现范围前必须另建接口文档并以当前 DSH 公开 API 取证；缺少该契约时不得注册无授权 Meeting route。
+本文定义 Plugin Frontend Meeting route 的路径、payload 和共享状态 projection 语义。V1 不从 DSH Web 请求取得用户或 Team authority：仅当 `webServer.host === "127.0.0.1"` 时注册 route，所有到达该 loopback Host 的请求共享本地用户边界。Host 为 `0.0.0.0`、远程访问或多用户部署不属于 V1，且必须在 route 注册前 fail closed；未来引入这些能力前必须另建用户/Team authorization interface 并以当前 DSH 公开 API 取证。

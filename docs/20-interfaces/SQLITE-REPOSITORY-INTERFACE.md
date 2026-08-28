@@ -114,7 +114,7 @@ interface SessionOwnership {
 
 `parentSessionId` 是创建 meeting-owned Session 时使用的精确 DSH direct parent Session；当前会议树中必须等于创建会议的 Captain Session。`provider` 是首次创建时解析的 continuable provider name。两者与 `sessionId`、`sessionLabel`、`role`、`participantId` 一样，首次写入后不可修改。
 
-Runtime 可以在调用 `startContinuable()` 前使用 caller-reserved `sessionId` 写入 `provisioning` ownership。DSH 接受首次 prompt 后，Runtime 把返回的 `initialMessageId` 写入同一 ownership 并将 lifecycle 前进为 `active`；`initialMessageId` 只允许从缺失变为一个稳定值，写入后不可修改。恢复只能通过 `parentSessionId`、DSH 持久 parent-child 关系、完整 label 和当前 Meeting 目录/SQLite identity 的共同证明操作 Session。
+Runtime 可以在调用 `startContinuable()` 前使用 caller-reserved `sessionId` 写入 `provisioning` ownership。DSH 接受首次 prompt 后，Runtime 把返回的 `initialMessageId` 写入同一 ownership 并将 lifecycle 前进为 `active`；`initialMessageId` 只允许从缺失变为一个稳定值，写入后不可修改。恢复只能通过 `parentSessionId`、DSH 持久 parent-child 关系、完整 label、当前 locator identity 和 SQLite identity 的共同证明操作 Session；目标目录迁移完成后 locator identity 还必须包含 Meeting 目录名。
 
 ### Schema and migration
 

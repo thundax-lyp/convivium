@@ -32,7 +32,7 @@
 | Requirement               | 状态     | 当前证据                                                                                       | 剩余边界                                                                                                          |
 | ------------------------- | -------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | FR-1 DSH 插件形态         | 已实现   | package、双 bundle、provider capability、独立 profile smoke                                    | 高于最低版本的兼容与分发策略仍未决定                                                                              |
-| FR-2 会议与身份隔离       | 部分实现 | Meeting/Participant/Manager/Captain、Session ownership、label 和 caller binding 已实现         | 用户、team、workspace 外层授权仍未接入正式 validator；无跨 workspace Web 读取路径验证                             |
+| FR-2 会议与身份隔离       | 部分实现 | Meeting/Participant/Manager/Captain、Session ownership、label 和 caller binding 已实现         | V1 loopback Web 按正式边界不绑定用户/Team authority；远程、多用户与跨 workspace Web 路径不支持                    |
 | FR-3 有序连续发言         | 部分实现 | 单一 attempt、逐 Speaker dispatch、late/stale submit 拒绝和 A→C→B 真实 profile smoke           | timeout、interrupt 和 Captain reassign 尚未形成完整运行路径                                                       |
 | FR-4 发言计划与选择       | 部分实现 | Manager 和 round-robin planning、候选资格与 MeetingTask/HandRaise 消费已实现                   | required Participant unavailable、确定性 fallback、自动 failure/stall/replan 还未形成完整 runtime 路径            |
 | FR-5 异步任务与举手       | 部分实现 | MeetingTask/HandRaise 的领域、工具、恢复、幂等、completion/end 集成自动化通过                  | `finish → HandRaise → 后续 submit_turn` 尚无真实 DSH profile smoke；不承诺外部副作用 exactly-once                 |
@@ -41,7 +41,7 @@
 | FR-8 完成事实与会议结束   | 部分实现 | completion/end、task evidence、终态 projection、幂等、恢复和 A/B 原子集成测试通过              | 独立 Captain risk disposition 尚未实现；真实 DSH completion/end 竞争 smoke 未执行                                 |
 | FR-9 暂停、恢复与故障隔离 | 部分实现 | pause/resume、outbox guard、SQLite recovery、archive recovery 和 stale gate 已实现             | `speakerTimeoutMs` 尚未接入 Runtime；发言改派工具、attempt failure counter、真实 restart/rebind smoke 未完成      |
 | FR-10 记录、隐私与归档    | 部分实现 | transcript 隔离、archive materialization 和 Session cleanup 自动化已实现                       | meeting-scoped mailbox、continuation、developer Markdown 生成和 archive 真实 profile smoke 未实现                 |
-| FR-11 可观察性与用户控制  | 部分实现 | caller-specific status projection 和 Captain tool controls 已实现                              | HTTP route、Plugin Client UI、Web 用户授权、poll/refetch、结构化 metrics 和浏览器验证均未实现                     |
+| FR-11 可观察性与用户控制  | 部分实现 | caller-specific status projection 和 Captain tool controls 已实现                              | V1 list/status/control HTTP、Plugin Client UI、poll/refetch、结构化 metrics 和浏览器验证均未实现                  |
 | FR-12 Agent 内部能力边界  | 已实现   | Convivium 只消费正式提交和授权 task projection，不写自定义 DSH Session Event；模块边界测试通过 | 仍需在未来 Mail、Web 和 UI 路径继续保持同一边界                                                                   |
 
 ## Executed Validation
@@ -61,8 +61,9 @@
 
 以下是当前真实缺口，不因 Schema、类型或历史测试存在而视为已实现：
 
-- Host 装配中的 `RepositoryAuthorizationValidator` 当前为 no-op；真实用户、team、workspace Web 授权边界未实现。
-- `src/http/index.ts` 没有 Meeting route；`src/client/index.tsx` 没有 UI 注册或交互。
+- V1 已确认不绑定 Web 用户或 Team authority；Meeting Web route 及其 `webServer.host === "127.0.0.1"` registration gate 仍未实现或验证。
+- `src/http/index.ts` 没有本地 Meeting list/status/pause/resume route；`src/client/index.tsx` 没有 Meeting list、选择、状态读取或交互。
+- 当前 `repositoryPath()`/`rehydrate()` 使用 Architecture 允许的过渡物理布局，尚未迁移到目标 `<teamId>/meetings/<meetingId>/` 目录；本地单用户会议控制闭环只复用现有 Runtime discovery，不在该分支修改存储布局。
 - 接口声明的 `convivium_dispose_risk` 和 `convivium_reassign_turn` 没有 Tool/Runtime/transition 实现。
 - `TurnSubmissionV1.changes` 的 non-blocking question 已写入正式 MeetingState 并支持 status、resolution、recovery 和 Archive；proposal、position、issue、decision proposal 和 agenda candidate 尚未写入正式 MeetingState。
 - blocking Question evidence 和正式创建未覆盖；详见 Question Fact Closure readiness evidence。
@@ -75,6 +76,6 @@
 
 ## Closure
 
-当前代码可描述为“已验证的会议后端核心”，不能描述为完整会议产品。V1 已确认采用单个本地 DSH Host 的单用户边界；下一阶段应在此边界内为本地 Web caller 形成正式授权契约，再实现最小 HTTP/UI 用户控制竖切。远程多用户、跨 Host 共享和网络部署不属于 V1。
+当前代码可描述为“已验证的会议后端核心”，不能描述为完整会议产品。V1 已确认采用单个 loopback DSH Host 的单用户边界，并以本地 Meeting list 作为面板入口；下一阶段应实现 list/status/pause/resume HTTP 与 Client 用户控制竖切。远程多用户、跨 Host 共享和网络部署不属于 V1。
 
 历史 evidence 继续保留各自 commit 的执行证据；当前覆盖判断以本文为统一入口。
