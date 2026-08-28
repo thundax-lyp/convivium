@@ -1434,14 +1434,20 @@ export function createCreateStatusRuntime(
                     committed.result as TurnSubmissionResultV1
                 );
             } catch (error) {
-                return commandError(error, "STALE_ATTEMPT", "The speaker attempt is stale.", {
-                    meetingId: input.meetingId,
-                    turnId: input.turnId,
-                    stepId: input.stepId,
-                    attemptId: input.attemptId,
-                    deliveryId: input.deliveryId,
-                    participantId: caller.participantId
-                });
+                return commandError(
+                    error,
+                    "STALE_ATTEMPT",
+                    "The speaker attempt is stale.",
+                    {
+                        meetingId: input.meetingId,
+                        turnId: input.turnId,
+                        stepId: input.stepId,
+                        attemptId: input.attemptId,
+                        deliveryId: input.deliveryId,
+                        participantId: caller.participantId
+                    },
+                    { INVALID_ENTITY_STATE: "INVALID_ARGUMENT" }
+                );
             }
         },
         async submitManagerPlan(input: ManagerPlanSubmissionV1, caller, _commandSignal) {
