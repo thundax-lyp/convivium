@@ -172,11 +172,13 @@ describe("client entry framework", () => {
 
     it("keeps writes exclusive and refetches status after a successful write", async () => {
         const post = deferred<Response>();
+        const pausedListItem = { ...listItem, status: "paused" as const, meetingVersion: 3 };
         const fetchMock = vi
             .fn<typeof fetch>()
             .mockResolvedValueOnce(jsonResponse(listResponse()))
             .mockResolvedValueOnce(jsonResponse(success(statusResult())))
             .mockImplementationOnce(() => post.promise)
+            .mockResolvedValueOnce(jsonResponse(listResponse([pausedListItem])))
             .mockResolvedValueOnce(jsonResponse(success(statusResult("paused", 3), 3)));
         vi.stubGlobal("fetch", fetchMock);
         render(createElement(ConviviumMeetingPanel));
@@ -198,7 +200,8 @@ describe("client entry framework", () => {
             await post.promise;
         });
         await screen.findByText("Status: paused");
-        expect(fetchMock).toHaveBeenCalledTimes(4);
+        expect(fetchMock).toHaveBeenCalledTimes(5);
+        expect(screen.getByRole("button", { name: /Runtime smoke \(paused\)/ })).toBeTruthy();
         expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
         expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
             protocolVersion: 1,
@@ -215,6 +218,7 @@ describe("client entry framework", () => {
             .mockResolvedValueOnce(jsonResponse(listResponse()))
             .mockResolvedValueOnce(jsonResponse(success(statusResult())))
             .mockResolvedValueOnce(jsonResponse(protocolError("Safe conflict"), 409))
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
             .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 3), 3)));
         vi.stubGlobal("fetch", fetchMock);
         render(createElement(ConviviumMeetingPanel));
@@ -223,7 +227,7 @@ describe("client entry framework", () => {
         fireEvent.change(screen.getByLabelText("Pause reason"), { target: { value: "Reason" } });
         fireEvent.click(screen.getByLabelText("Pause meeting"));
 
-        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
         expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
         await waitFor(() =>
             expect(screen.getByLabelText("Meeting status details").textContent).toContain(

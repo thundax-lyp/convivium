@@ -227,7 +227,7 @@ export function ConviviumMeetingPanel(): ReactElement {
                     }
                 }
                 if (generation === writeGeneration.current && selectedIdRef.current === meetingId) {
-                    await loadDetail(meetingId);
+                    await Promise.all([loadList(), loadDetail(meetingId)]);
                 }
             } catch (error) {
                 if (
@@ -250,7 +250,7 @@ export function ConviviumMeetingPanel(): ReactElement {
                 }
             }
         },
-        [detail, detailCached, loadDetail, pauseReason]
+        [detail, detailCached, loadDetail, loadList, pauseReason]
     );
 
     useEffect(() => {
