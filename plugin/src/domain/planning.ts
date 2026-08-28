@@ -57,6 +57,25 @@ const speakerSelectionReasons: readonly SpeakerSelectionReason[] = [
     "captain_summary"
 ];
 
+const executionTerminalStatuses = new Set([
+    "completed",
+    "partial",
+    "no_consensus",
+    "cancelled",
+    "failed",
+    "archiving",
+    "archived"
+]);
+
+function requirePlanningAllowed(state: MeetingState): void {
+    if (executionTerminalStatuses.has(state.status)) {
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            `meeting ${state.id} does not accept planning after execution terminal state`
+        );
+    }
+}
+
 function invalidManagerPlan(message: string): never {
     throw new DomainError("MANAGER_PLAN_INVALID", `manager plan is invalid: ${message}`);
 }
@@ -85,6 +104,7 @@ export function planRoundRobinTurn(
     ids: RoundRobinPlanIds,
     now: number
 ): MeetingTurn {
+    requirePlanningAllowed(state);
     if (state.currentTurn) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
@@ -157,6 +177,7 @@ export function planManagerTurn(
     ids: ManagerPlanIds,
     now: number
 ): MeetingTurn {
+    requirePlanningAllowed(state);
     if (state.currentTurn) {
         invalidManagerPlan("meeting already has a current turn");
     }
