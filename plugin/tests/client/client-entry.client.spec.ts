@@ -170,6 +170,25 @@ describe("client entry framework", () => {
         );
     });
 
+    it("refreshes both the selected detail and list summary when the window regains focus", async () => {
+        const pausedListItem = { ...listItem, status: "paused" as const, meetingVersion: 3 };
+        const fetchMock = vi
+            .fn<typeof fetch>()
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+            .mockResolvedValueOnce(jsonResponse(listResponse([pausedListItem])))
+            .mockResolvedValueOnce(jsonResponse(success(statusResult("paused", 3), 3)));
+        vi.stubGlobal("fetch", fetchMock);
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+
+        window.dispatchEvent(new Event("focus"));
+
+        await screen.findByText("Status: paused");
+        expect(screen.getByRole("button", { name: /Runtime smoke \(paused\)/ })).toBeTruthy();
+        expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
+
     it("keeps writes exclusive and refetches status after a successful write", async () => {
         const post = deferred<Response>();
         const pausedListItem = { ...listItem, status: "paused" as const, meetingVersion: 3 };
@@ -273,14 +292,32 @@ describe("client entry framework", () => {
         expect(screen.queryByLabelText("Resume meeting")).toBeNull();
     });
 
+    it("disables meeting writes when the list projection becomes cached", async () => {
+        const fetchMock = vi
+            .fn<typeof fetch>()
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+            .mockRejectedValueOnce(new TypeError("network list"));
+        vi.stubGlobal("fetch", fetchMock);
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+
+        fireEvent.click(screen.getByLabelText("Reload meetings"));
+
+        await waitFor(() => expect(screen.getByRole("status")).toBeTruthy());
+        expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
+    });
+
     it("preserves cached data on failures, polls the selection, and aborts on unmount", async () => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
         const fetchMock = vi
             .fn<typeof fetch>()
             .mockResolvedValueOnce(jsonResponse(listResponse()))
             .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+            .mockRejectedValueOnce(new TypeError("network list"))
             .mockRejectedValueOnce(new TypeError("network detail"))
             .mockRejectedValueOnce(new TypeError("network list"))
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
             .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 4), 4)));
         vi.stubGlobal("fetch", fetchMock);
         const rendered = render(createElement(ConviviumMeetingPanel));

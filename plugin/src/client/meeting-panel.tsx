@@ -163,6 +163,11 @@ export function ConviviumMeetingPanel(): ReactElement {
         }
     }, []);
 
+    const refreshSelectedMeeting = useCallback(
+        async (meetingId: string) => Promise.all([loadList(), loadDetail(meetingId)]),
+        [loadDetail, loadList]
+    );
+
     const selectMeeting = useCallback(
         (meetingId: string) => {
             detailController.current?.abort();
@@ -227,7 +232,7 @@ export function ConviviumMeetingPanel(): ReactElement {
                     }
                 }
                 if (generation === writeGeneration.current && selectedIdRef.current === meetingId) {
-                    await Promise.all([loadList(), loadDetail(meetingId)]);
+                    await refreshSelectedMeeting(meetingId);
                 }
             } catch (error) {
                 if (
@@ -250,7 +255,7 @@ export function ConviviumMeetingPanel(): ReactElement {
                 }
             }
         },
-        [detail, detailCached, loadDetail, loadList, pauseReason]
+        [detail, detailCached, pauseReason, refreshSelectedMeeting]
     );
 
     useEffect(() => {
@@ -271,27 +276,27 @@ export function ConviviumMeetingPanel(): ReactElement {
         const onFocus = () => {
             const meetingId = selectedIdRef.current;
             if (meetingId === undefined) void loadList();
-            else if (!writePendingRef.current) void loadDetail(meetingId);
+            else if (!writePendingRef.current) void refreshSelectedMeeting(meetingId);
         };
         window.addEventListener("focus", onFocus);
         return () => window.removeEventListener("focus", onFocus);
-    }, [loadDetail, loadList]);
+    }, [loadList, refreshSelectedMeeting]);
 
     useEffect(() => {
         if (selectedId === undefined) return;
         const timer = window.setInterval(() => {
             if (!writePendingRef.current && selectedIdRef.current !== undefined) {
-                void loadDetail(selectedIdRef.current);
+                void refreshSelectedMeeting(selectedIdRef.current);
             }
         }, 5_000);
         return () => window.clearInterval(timer);
-    }, [loadDetail, selectedId]);
+    }, [refreshSelectedMeeting, selectedId]);
 
     const selectedItem = meetings.find((item) => item.meetingId === selectedId);
     const canPause =
         detail !== undefined && ["created", "running", "waiting"].includes(detail.status);
     const canResume = detail?.status === "paused";
-    const writesDisabled = detailCached || writePending;
+    const writesDisabled = listCached || detailCached || writePending;
 
     return createElement(
         "section",
