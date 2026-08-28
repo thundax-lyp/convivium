@@ -5,7 +5,7 @@
 本文记录 Convivium 当前代码相对已确认会议需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-08-28
-- 代码基线：`main`，`0fd66b6`
+- 代码基线：`codex/feat/question-fact-closure`，Question closure 提交序列至 `82bf2e4`；收口文档见当前提交
 - 环境：macOS、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`
 - 工作区中的 readiness、治理和 RUNBOOK 清理只改变文档，不改变本矩阵核对的插件代码。
 
@@ -36,7 +36,7 @@
 | FR-3 有序连续发言         | 部分实现 | 单一 attempt、逐 Speaker dispatch、late/stale submit 拒绝和 A→C→B 真实 profile smoke           | timeout、interrupt 和 Captain reassign 尚未形成完整运行路径                                                       |
 | FR-4 发言计划与选择       | 部分实现 | Manager 和 round-robin planning、候选资格与 MeetingTask/HandRaise 消费已实现                   | required Participant unavailable、确定性 fallback、自动 failure/stall/replan 还未形成完整 runtime 路径            |
 | FR-5 异步任务与举手       | 部分实现 | MeetingTask/HandRaise 的领域、工具、恢复、幂等、completion/end 集成自动化通过                  | `finish → HandRaise → 后续 submit_turn` 尚无真实 DSH profile smoke；不承诺外部副作用 exactly-once                 |
-| FR-6 议题范围与发散控制   | 部分实现 | canonical model、协议 Schema、agenda relation 和 completion blocking 规则存在                  | `TurnSubmissionV1.changes` 中 question/issue/agenda candidate 等声明尚未提交到 MeetingState；stall/refocus 未闭环 |
+| FR-6 议题范围与发散控制   | 部分实现 | non-blocking Question create/read/resolve/archive 已通过 focused 与完整插件验证；canonical model、协议 Schema、status 和 completion blocking 规则存在 | proposal/position/issue/decision proposal/agenda candidate 声明尚未提交；blocking Question evidence、stall/refocus 未闭环 |
 | FR-7 提案、立场与决策     | 部分实现 | model、公开 projection 和输入 Schema 已定义，completion/end 可读取正式事实                     | proposal/position/decision claims 尚无 Runtime/transition commit 路径；Captain 风险处置工具未实现                 |
 | FR-8 完成事实与会议结束   | 部分实现 | completion/end、task evidence、终态 projection、幂等、恢复和 A/B 原子集成测试通过              | 独立 Captain risk disposition 尚未实现；真实 DSH completion/end 竞争 smoke 未执行                                 |
 | FR-9 暂停、恢复与故障隔离 | 部分实现 | pause/resume、outbox guard、SQLite recovery、archive recovery 和 stale gate 已实现             | `speakerTimeoutMs` 尚未接入 Runtime；发言改派工具、attempt failure counter、真实 restart/rebind smoke 未完成      |
@@ -46,14 +46,14 @@
 
 ## Executed Validation
 
-2026-08-28 在代码基线 `0fd66b6` 执行：
+2026-08-28 在 Question closure 提交序列执行：
 
 | 命令                                                                               | 结果                                                                                                                      |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm verify:environment`                                                          | Pass；15 个声明的 DSH packages 均已安装                                                                                   |
 | `pnpm verify:contract`                                                             | Pass；插件 manifest、bundle 和 Client contract 可解析                                                                     |
-| completion/transition/task-evidence/repository/runtime/status/recovery 聚焦 Vitest | Pass；7 files、106 tests                                                                                                  |
-| `pnpm verify`                                                                      | Pass；33 files、243 tests；format、lint、Host/Client typecheck、build、environment、contract 和 package verifier 全部通过 |
+| Question protocol/completion/transition/repository/runtime/status/recovery 聚焦 Vitest | Pass；Question closure focused suites 全部通过 |
+| `pnpm verify`                                                                      | Pass；33 files、253 tests；format、lint、Host/Client typecheck、build、environment、contract 和 package verifier 全部通过 |
 
 历史真实运行证据：`DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md` 记录 `7b39065` 上的独立 `web` profile、真实 package、`spawn` provider、Manager planning 和逐 Speaker Turn smoke。该 smoke 不自动证明后续 MeetingTask、completion、archive 或 restart 场景。
 
@@ -64,7 +64,8 @@
 - Host 装配中的 `RepositoryAuthorizationValidator` 当前为 no-op；真实用户、team、workspace Web 授权边界未实现。
 - `src/http/index.ts` 没有 Meeting route；`src/client/index.tsx` 没有 UI 注册或交互。
 - 接口声明的 `convivium_dispose_risk` 和 `convivium_reassign_turn` 没有 Tool/Runtime/transition 实现。
-- `TurnSubmissionV1.changes` 的 question、proposal、position、issue、decision proposal 和 agenda candidate 尚未写入正式 MeetingState。
+- `TurnSubmissionV1.changes` 的 non-blocking question 已写入正式 MeetingState 并支持 status、resolution、recovery 和 Archive；proposal、position、issue、decision proposal 和 agenda candidate 尚未写入正式 MeetingState。
+- blocking Question evidence 和正式创建未覆盖；详见 Question Fact Closure readiness evidence。
 - meeting-scoped mailbox、MailHandlingAttempt、Participant Session 统一 mail/speaker queue 和 mail timeout 未实现。
 - `speakerTimeoutMs` 只存在于 Config，没有接入 attempt timeout、interrupt 或 failure policy。
 - 自动 stall/refocus、required Participant unavailable 和完整 deterministic fallback 未形成可运行闭环。
