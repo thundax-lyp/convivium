@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `AGENTS.md`：增加仓库级 Implementation Economy 规则
-  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T1
-  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
-  - 处理动作：只在 `Project Direction` 与 `Documentation Governance` 之间插入 RUNBOOK 固定的 `Implementation Economy` 章节。
-  - 验收点：章节只出现一次，包含“最小安全改动”、单消费者必要隔离例外、finding 与建议方案分离及停止范围扩张规则；`AGENTS.md` 其他章节无变化。
-
 - [ ] `MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md`：修正绝对消费者门槛
   - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T2
   - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
