@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `plugin/scripts/smoke-profile.mjs`：加入真实 task finish→raise→later submit_turn 场景
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T9
-  - 处理动作：在现有 current Speaker submit 后、profile 收尾前插入真实 Participant continuable Session task flow，不改 profile 基础设施。
-  - 验收点：独立 profile 观察 start、finish、pending HandRaise、后续正式 submit_turn 和 evidence 引用；失败执行 Prepare→Execute→Assert→Restore。
-
 - [ ] `docs/40-readiness/MEETINGTASK-HAND-RAISE-EVIDENCE.md`：记录 B 闭环 readiness evidence
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/00-governance/TODO-RULES.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T10
