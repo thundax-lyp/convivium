@@ -6,6 +6,7 @@ function state(overrides: Partial<MeetingState> = {}): MeetingState {
     return {
         id: "meeting-1",
         handRaises: [],
+        transcript: [],
         meetingTasks: [
             {
                 meetingTaskId: "task-1",
@@ -49,6 +50,18 @@ describe("HandRaise transitions", () => {
                 input()
             )
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
+    it("validates and preserves the transcript reply target", () => {
+        expect(() =>
+            createHandRaise(state(), input({ replyToMessageId: "message-1" }))
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+
+        const created = createHandRaise(
+            state({ transcript: [{ id: "message-1" }] as never }),
+            input({ replyToMessageId: "message-1" })
+        );
+        expect(created.state.handRaises[0]?.replyToMessageId).toBe("message-1");
     });
 
     it("does not collapse pending raises with different substantive context", () => {

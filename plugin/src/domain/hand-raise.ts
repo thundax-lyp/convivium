@@ -13,6 +13,7 @@ export interface CreateHandRaiseInput {
     reason: MeetingHandRaise["reason"];
     summary: string;
     taskIds: readonly string[];
+    replyToMessageId?: string;
     agendaItemId?: string;
     priority: MeetingHandRaise["priority"];
     now: number;
@@ -36,6 +37,15 @@ export function createHandRaise(
             );
         }
     }
+    if (
+        input.replyToMessageId !== undefined &&
+        !state.transcript.some((message) => message.id === input.replyToMessageId)
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `reply target ${input.replyToMessageId} was not found in the meeting transcript`
+        );
+    }
     const duplicate = state.handRaises.some(
         (raise) =>
             raise.status === "pending" &&
@@ -43,6 +53,7 @@ export function createHandRaise(
             raise.reason === input.reason &&
             raise.taskIds.join(",") === input.taskIds.join(",") &&
             raise.summary === input.summary &&
+            raise.replyToMessageId === input.replyToMessageId &&
             raise.agendaItemId === input.agendaItemId &&
             raise.priority === input.priority
     );
@@ -53,6 +64,9 @@ export function createHandRaise(
         reason: input.reason,
         summary: input.summary,
         taskIds: [...input.taskIds],
+        ...(input.replyToMessageId === undefined
+            ? {}
+            : { replyToMessageId: input.replyToMessageId }),
         ...(input.agendaItemId === undefined ? {} : { agendaItemId: input.agendaItemId }),
         priority: input.priority,
         createdAt: input.now,

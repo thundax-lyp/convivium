@@ -442,7 +442,13 @@ export function createCreateStatusRuntime(
             prompt: [
                 {
                     type: "text",
-                    text: `Execute MeetingTask ${task.meetingTaskId}: ${task.title}\n${task.description}. Call convivium_finish_meeting_task when done.`
+                    text: [
+                        `Execute MeetingTask ${task.meetingTaskId}: ${task.title}`,
+                        `executionId: ${task.executionId}`,
+                        `deliveryId: ${task.deliveryId}`,
+                        task.description,
+                        "Call convivium_start_meeting_task with deliveryId as requestId before executing, then call convivium_finish_meeting_task with executionId when done."
+                    ].join("\n")
                 }
             ],
             signal: commandSignal,
@@ -1120,6 +1126,9 @@ export function createCreateStatusRuntime(
                                 reason: input.reason,
                                 summary: input.summary,
                                 taskIds: input.taskIds,
+                                ...(input.replyToMessageId === undefined
+                                    ? {}
+                                    : { replyToMessageId: input.replyToMessageId }),
                                 agendaItemId: input.agendaItemId,
                                 priority: input.priority,
                                 now: options.now?.() ?? Date.now()

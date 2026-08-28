@@ -42,6 +42,102 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
+    it("delivers the MeetingTask execution and request bindings", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-task-envelope-"));
+        roots.push(root);
+        const prompts: string[] = [];
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            outboxPollMs: 5,
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async (_parent, _sessionId, prompt) => {
+                    const text = prompt[0]?.type === "text" ? prompt[0].text : undefined;
+                    if (typeof text === "string") prompts.push(text);
+                    return "followup-message" as never;
+                }
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [
+                    {
+                        ...input.agenda[0]!,
+                        requiredParticipantKeys: ["one"]
+                    }
+                ],
+                participants: [input.participants[0]!]
+            },
+            {
+                sessionId: "captain-1",
+                kind: "captain",
+                agent: { id: "captain-1" } as never
+            },
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const meetingId = created.result.meetingId;
+        const participant = {
+            sessionId: `${meetingId}-participant-participant-one`,
+            meetingId,
+            participantId: "participant-one",
+            kind: "participant" as const
+        };
+        const task = await runtime.createMeetingTask(
+            {
+                protocolVersion: 1,
+                meetingId,
+                attemptId: "attempt-0",
+                requestId: "task-request",
+                title: "Inspect release",
+                description: "Inspect the release evidence",
+                blocking: true
+            },
+            participant
+        );
+        if (!task.ok) throw new Error("task creation failed");
+
+        const submitted = await runtime.submitTurn(
+            {
+                protocolVersion: 1,
+                meetingId,
+                turnId: "turn-1",
+                stepId: "step-participant-one-0",
+                attemptId: "attempt-0",
+                deliveryId: "delivery-0",
+                agendaItemId: "agenda-agenda-1",
+                kind: "statement",
+                content: "Task queued",
+                mentions: [],
+                taskIds: [task.result.meetingTaskId],
+                agendaRelation: "on_topic",
+                changes: {}
+            },
+            participant
+        );
+        if (!submitted.ok) throw new Error(JSON.stringify(submitted));
+
+        const executionId = `${task.result.meetingTaskId}-execution`;
+        const deliveryId = `${task.result.meetingTaskId}-delivery`;
+        await vi.waitFor(() => expect(prompts.length).toBeGreaterThan(1));
+        expect(prompts).toEqual(
+            expect.arrayContaining([
+                expect.stringContaining(`executionId: ${executionId}`),
+                expect.stringContaining(`deliveryId: ${deliveryId}`)
+            ])
+        );
+        await runtime.dispose();
+    });
+
     it("scopes request-derived HandRaise IDs to the Participant", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-scoped-ids-"));
         roots.push(root);

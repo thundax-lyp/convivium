@@ -333,6 +333,7 @@ export interface MeetingHandRaise {
         | "user_requested";
     summary: string;
     taskIds: string[];
+    replyToMessageId?: string;
     agendaItemId?: string;
     priority: "normal" | "high" | "blocking";
     createdAt: number;

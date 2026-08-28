@@ -478,7 +478,7 @@ describe("meeting transitions", () => {
                 createdAt: now
             }
         ];
-        const result = submitSpeakerAndAdvanceMeeting(state, "a", {
+        const context = {
             meetingId: state.id,
             participantId: "a",
             turnId: "turn-1",
@@ -498,7 +498,15 @@ describe("meeting transitions", () => {
             now,
             nextPlanningAttemptId: "planning-2",
             nextPlanningDeliveryId: "planning-delivery-2"
-        });
+        };
+        expect(() =>
+            submitSpeakerAndAdvanceMeeting(state, "a", {
+                ...context,
+                message: { ...context.message, taskIds: [] }
+            })
+        ).toThrowError("must be included in the originating turn submission");
+
+        const result = submitSpeakerAndAdvanceMeeting(state, "a", context);
         expect(result.state.status).toBe("waiting");
         expect(result.state.currentTurn?.steps[1]?.attempt).toBeUndefined();
         expect(result.effect.events.map(({ type }) => type)).toContain("meeting.waiting");

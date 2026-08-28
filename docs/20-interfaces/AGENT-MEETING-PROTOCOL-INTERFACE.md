@@ -412,13 +412,14 @@ interface MeetingTaskFinishResultV1 {
 - caller 必须是 `attemptId` 对应的当前 Speaker Session；
 - Meeting Runtime 必须从真实 caller 和当前 SpeakerAttempt 绑定 participantId、originatingSpeakerAttemptId，不接受 payload 覆盖；
 - create 成功只创建 `requested` MeetingTask，不完成 attempt、释放发言权或写 execution outbox；
+- 原 SpeakerAttempt 提交 `submit_turn` 时必须在 `taskIds` 中包含该 attempt 创建的全部 `requested` MeetingTask，否则原子拒绝提交；
 - 同一 Meeting/Participant 只能有一个 `requested | queued | running` MeetingTask；
 - 相同 `requestId` 和相同 request hash 必须返回同一结果；相同 `requestId` 对应不同内容必须返回 `IDEMPOTENCY_CONFLICT`；
 - MeetingTask 的运行、取消、重试和 terminal result 由 Convivium MeetingState 状态机拥有；底层模型、工具和 Session 生命周期仍由 DSH 拥有。
 
 `convivium_meeting_task_status` 是只读授权观察，不使用 requestId 或成功 receipt。它返回当前 `MeetingTaskProjectionV1`、`observedMeetingVersion`、Meeting terminal 标识和 `mayExecute`。只有 Meeting active 且 task 为 `running` 时 `mayExecute` 为 true。
 
-`convivium_start_meeting_task` 使用 envelope 的 `deliveryId` 作为稳定 requestId。相同 requestId/hash 必须完整返回首次成功的不可变 receipt/result；该 receipt 不构成继续执行许可。Execution envelope 必须在 start 前后读取 status，只有 post-read 的 `mayExecute=true` 才能执行工作。
+`convivium_start_meeting_task` 使用 envelope 的 `deliveryId` 作为稳定 requestId。Execution envelope 必须携带 `meetingTaskId`、`executionId` 和 `deliveryId`。相同 requestId/hash 必须完整返回首次成功的不可变 receipt/result；该 receipt 不构成继续执行许可。Execution envelope 必须在 start 前后读取 status，只有 post-read 的 `mayExecute=true` 才能执行工作。
 
 `convivium_finish_meeting_task` 只接受原 Participant Session 对当前 `running` execution 的提交；成功时在一个 Meeting transaction 中写 terminal task event、result 和 task-linked pending HandRaise。失败不得伪造 HandRaise。
 
@@ -595,6 +596,7 @@ interface PublicHandRaiseV1 {
   reason: string
   summary: string
   taskIds: readonly string[]
+  replyToMessageId?: string
   agendaItemId?: string
   priority: 'normal' | 'high' | 'blocking'
 }

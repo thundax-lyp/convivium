@@ -1505,6 +1505,19 @@ export function submitSpeakerAndAdvanceMeeting(
     context: SubmitSpeakerAdvanceContext
 ): TransitionResult<MeetingState> {
     const speakerSubmission = submitSpeakerAttempt(state, participantId, state.version, context);
+    const omittedTask = (speakerSubmission.state.meetingTasks ?? []).find(
+        (task) =>
+            task.status === "requested" &&
+            task.participantId === participantId &&
+            task.originatingSpeakerAttemptId === context.attemptId &&
+            !context.message.taskIds.includes(task.meetingTaskId)
+    );
+    if (omittedTask !== undefined) {
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            `requested MeetingTask ${omittedTask.meetingTaskId} must be included in the originating turn submission`
+        );
+    }
     const completion = context.completion
         ? applyCompletionClaims(speakerSubmission.state, {
               ...context.completion,

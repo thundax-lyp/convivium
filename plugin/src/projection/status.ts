@@ -72,6 +72,9 @@ function handRaise(value: MeetingState["handRaises"][number]): PublicHandRaiseV1
         reason: value.reason,
         summary: value.summary,
         taskIds: value.taskIds,
+        ...(value.replyToMessageId === undefined
+            ? {}
+            : { replyToMessageId: value.replyToMessageId }),
         ...(value.agendaItemId === undefined ? {} : { agendaItemId: value.agendaItemId }),
         priority: value.priority
     };

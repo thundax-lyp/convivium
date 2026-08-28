@@ -383,6 +383,7 @@ export interface PublicHandRaiseV1 {
     reason: string;
     summary: string;
     taskIds: readonly string[];
+    replyToMessageId?: string;
     agendaItemId?: string;
     priority: "normal" | "high" | "blocking";
 }

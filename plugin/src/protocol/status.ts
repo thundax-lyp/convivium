@@ -111,6 +111,7 @@ const handRaise = Schema.object({
     reason: requiredString(),
     summary: requiredString(),
     taskIds: requiredArray(requiredString()),
+    replyToMessageId: Schema.string(),
     agendaItemId: Schema.string(),
     priority: enumOf(["normal", "high", "blocking"] as const)
 });
