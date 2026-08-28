@@ -16,12 +16,6 @@
   - 处理动作：校验 participant/task identity，禁止 failed task 形成完成型 HandRaise，保持 pending raise 去重和单次 consume。
   - 验收点：错误 participant、重复 execution、failed task、terminal task 均无 raise；合法 completed task 只形成一个 pending raise。
 
-- [ ] `plugin/src/tools/register-tools.ts`：同步现有 task tool 的 result/error registration
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK Required File Changes
-  - 处理动作：接入 optional handRaiseId 的现有 finish result 和既有错误映射，不新增 tool、command 或公开字段。
-  - 验收点：注册 contract 与 runtime 返回 shape 一致，既有 caller binding、commandKind 和 request hash 不变。
-
 - [ ] `plugin/tests/unit/domain/meeting-task.spec.ts`：覆盖 task 字段时点与状态失败路径
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK Test Matrix
