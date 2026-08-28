@@ -1637,14 +1637,18 @@ export function submitSpeakerAndAdvanceMeeting(
               now: context.now
           })
         : undefined;
+    const submissionEvents = [
+        ...speakerSubmission.effect.events,
+        ...questionSubmission.effect.events
+    ];
     const completedSubmission = completion
         ? {
               state: completion.state,
               effect: {
-                  events: [...speakerSubmission.effect.events, ...completion.effect.events]
+                  events: [...submissionEvents, ...completion.effect.events]
               }
           }
-        : { state: questionSubmission.state, effect: { events: questionSubmission.effect.events } };
+        : { state: questionSubmission.state, effect: { events: submissionEvents } };
     const queued = context.message.taskIds.length
         ? queueMeetingTasks(
               completedSubmission.state,

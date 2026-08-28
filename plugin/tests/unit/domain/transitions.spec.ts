@@ -134,6 +134,20 @@ describe("meeting transitions", () => {
         const state = {
             ...meeting("running"),
             participants: [participant],
+            activeAgendaItemId: "agenda-1",
+            agenda: [
+                {
+                    id: "agenda-1",
+                    title: "Agenda",
+                    objective: "Objective",
+                    inScope: [],
+                    outOfScope: [],
+                    completionCriteria: [],
+                    requiredParticipants: ["a"],
+                    relatedTaskIds: [],
+                    status: "discussing" as const
+                }
+            ],
             currentTurn: {
                 id: "turn-1",
                 seq: 1,
@@ -205,6 +219,59 @@ describe("meeting transitions", () => {
         expect(result.state.currentTurn?.steps.filter((step) => step.attempt).length).toBe(2);
         expect(result.state.messageSeq).toBe(1);
         expect(result.state.eventSeq).toBe(state.eventSeq + result.effect.events.length);
+        expect(result.effect.events.map(({ type }) => type).slice(0, 3)).toEqual([
+            "speaker_attempt.submitted",
+            "speaker.submitted",
+            "message.added"
+        ]);
+
+        const completed = submitSpeakerAndAdvanceMeeting(state, "a", {
+            meetingId: "meeting-1",
+            participantId: "a",
+            turnId: "turn-1",
+            stepId: "step-0",
+            attemptId: "attempt-0",
+            deliveryId: "delivery-0",
+            agendaItemId: "agenda-1",
+            message: {
+                id: "message-1",
+                content: "answer",
+                kind: "statement",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "supporting_context",
+                createdAt: now
+            },
+            now,
+            nextPlanningAttemptId: "planning-2",
+            nextPlanningDeliveryId: "planning-delivery-2",
+            questions: [
+                {
+                    id: "question-1",
+                    text: "Is this resolved?",
+                    blocking: false,
+                    createdAt: now
+                }
+            ],
+            completion: {
+                claims: {
+                    questionResolutions: [
+                        { questionId: "question-1", answerMessageId: "message-1" }
+                    ]
+                },
+                authorizedTaskIds: [],
+                factId: (kind, index) => `fact-${kind}-${index}`
+            }
+        });
+        expect(completed.effect.events.map(({ type }) => type).slice(0, 6)).toEqual([
+            "speaker_attempt.submitted",
+            "speaker.submitted",
+            "message.added",
+            "question.added",
+            "question.answered",
+            "completion_fact.added"
+        ]);
+        expect(completed.state.eventSeq).toBe(state.eventSeq + completed.effect.events.length);
     });
 
     it("starts the next deterministic round-robin turn without Manager planning", () => {
