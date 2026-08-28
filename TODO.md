@@ -16,12 +16,6 @@
   - 处理动作：校验 participant/task identity，禁止 failed task 形成完成型 HandRaise，保持 pending raise 去重和单次 consume。
   - 验收点：错误 participant、重复 execution、failed task、terminal task 均无 raise；合法 completed task 只形成一个 pending raise。
 
-- [ ] `plugin/src/tools/meeting-runtime.ts`：接入 startMeetingTask 的 caller、execution 和 terminal guard
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T6/T7
-  - 处理动作：复用现有 Participant Session ownership、receipt、expected version 和 `repository.execute()`，只允许 queued task start。
-  - 验收点：错误 caller/task、重复 start、execution terminal、archiving、archived 均返回唯一 `ProtocolErrorV1` 映射并零领域写入。
-
 - [ ] `plugin/src/tools/meeting-runtime.ts`：实现 completed finish 与 HandRaise 的同事务提交
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T6
