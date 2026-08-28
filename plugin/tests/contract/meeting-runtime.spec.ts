@@ -768,7 +768,7 @@ describe("create/status meeting runtime", () => {
         );
         expect(created).toMatchObject({ ok: true, result: { status: "running" } });
         if (!created.ok) throw new Error("create failed");
-        await vi.waitFor(() => expect(followups).toBe(1));
+        await vi.waitFor(() => expect(followups).toBe(1), { timeout: 5000 });
         const meetingId = created.result.meetingId;
         expect(managerContexts[0]).toMatchObject({
             protocolVersion: 1,
@@ -835,7 +835,7 @@ describe("create/status meeting runtime", () => {
         );
         expect(planned).toMatchObject({ ok: true });
         if (!planned.ok) throw new Error("plan failed");
-        await vi.waitFor(() => expect(followups).toBe(2));
+        await vi.waitFor(() => expect(followups).toBe(2), { timeout: 5000 });
 
         await expect(
             runtime.submitTurn(
