@@ -7,7 +7,8 @@ import type {
     PublicMeetingMessageV1,
     PublicHandRaiseV1,
     MeetingTaskProjectionV1,
-    PublicTurnV1
+    PublicTurnV1,
+    PublicQuestionV1
 } from "../protocol/index.js";
 
 export interface MeetingProjectionCaller {
@@ -46,6 +47,19 @@ function message(value: MeetingState["transcript"][number]): PublicMeetingMessag
         ...(value.replyTo === undefined ? {} : { replyTo: value.replyTo }),
         taskIds: value.taskIds,
         createdAt: value.createdAt
+    };
+}
+
+function question(value: MeetingState["openQuestions"][number]): PublicQuestionV1 {
+    return {
+        id: value.id,
+        text: value.text,
+        ...(value.askedBy === undefined ? {} : { askedBy: value.askedBy }),
+        ...(value.directedTo === undefined ? {} : { directedTo: value.directedTo }),
+        ...(value.agendaItemId === undefined ? {} : { agendaItemId: value.agendaItemId }),
+        ...(value.blocking === undefined ? {} : { blocking: value.blocking }),
+        status: value.status,
+        ...(value.answerMessageId === undefined ? {} : { answerMessageId: value.answerMessageId })
     };
 }
 
@@ -205,6 +219,7 @@ export function projectMeetingStatus(
                       agendaItem(state.agenda.find((item) => item.id === state.activeAgendaItemId)!)
               }),
         messages: state.transcript.map(message),
+        questions: state.openQuestions.map(question),
         acceptedDecisions: state.decisions
             .filter(
                 (decision) =>

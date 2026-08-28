@@ -15,6 +15,7 @@ const state = {
     version: 2,
     agenda: [],
     transcript: [],
+    openQuestions: [],
     decisions: [],
     issues: [],
     handRaises: [],
@@ -31,6 +32,30 @@ const state = {
 } as unknown as MeetingState;
 
 describe("meeting status projection", () => {
+    it("projects question facts without inventing optional fields", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                openQuestions: [
+                    {
+                        id: "question-1",
+                        text: "Question",
+                        askedBy: "participant-1",
+                        agendaItemId: "agenda-1",
+                        blocking: false,
+                        status: "open",
+                        createdAt: 1
+                    }
+                ]
+            } as MeetingState,
+            { kind: "participant", sessionId: "session-1", participantId: "participant-1" }
+        );
+
+        expect(projected).toMatchObject({ questions: [{ id: "question-1", blocking: false }] });
+        expect(projected.questions?.[0]).not.toHaveProperty("directedTo");
+        expect(projected.questions?.[0]).not.toHaveProperty("answerMessageId");
+    });
+
     it("maps only public canonical meeting facts", () => {
         const projected = projectMeetingStatus(state, {
             kind: "participant",

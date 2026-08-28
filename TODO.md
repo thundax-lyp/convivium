@@ -59,13 +59,6 @@
     - 处理动作：生成稳定 question ID 和单次 `commandNow`，接入既有 repository transaction，并在 `submitTurn` catch 将 `INVALID_ENTITY_STATE` 固定映射为非重试的 `INVALID_ARGUMENT`；不改变 caller binding、request hash、outbox 或 DSH API。
     - 验收点：`pnpm --dir plugin vitest run tests/contract/meeting-runtime.spec.ts` 与 `pnpm --dir plugin typecheck` 通过；创建、delivery 重放、hash conflict、stale attempt、blocking true 和多问题部分失败场景无额外 version/message/question/event 副作用。
 
-- [ ] `Question Fact Closure / T7`：完成 status、恢复和 Archive 验证
-    - 依据文档：`docs/30-designs/RUNBOOK-QUESTION-FACT-CLOSURE.md` §6 T7；`plugin/src/projection/status.ts`；`plugin/src/runtime/archive.ts`
-    - 确认依据：T6 PASS 后执行
-    - 相关文件：`plugin/src/projection/status.ts`、`plugin/tests/contract/status-projection.spec.ts`、`plugin/tests/unit/repository.spec.ts`、`plugin/tests/recovery/recovery.spec.ts`、`plugin/tests/unit/runtime/archive.spec.ts`
-    - 处理动作：映射并暴露 questions，验证 reopen 与事务 rollback，确认 open/deferred 进入既有 unresolved questions、answered 不进入，保持 Archive schema 不变。
-    - 验收点：RUNBOOK T7 列出的四组命令全部通过；status、snapshot、event、answerMessageId 和 Archive 事实一致。
-
 - [ ] `Question Fact Closure / T8`：完整验证、readiness 迁移与 RUNBOOK 收口
     - 依据文档：`docs/30-designs/RUNBOOK-QUESTION-FACT-CLOSURE.md` §6 T8、§7-§10；`docs/00-governance/TODO-RULES.md`
     - 确认依据：T7 PASS 后执行
