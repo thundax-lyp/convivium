@@ -1248,7 +1248,7 @@ export function createCreateStatusRuntime(
                                           completion: {
                                               claims: input.completionClaims,
                                               authorizedTaskIds: taskEvidence.map(
-                                                  (evidence) => evidence.taskId
+                                                  (evidence) => evidence.meetingTaskId
                                               ),
                                               factId: (kind: string, index: number) =>
                                                   `completion-${input.deliveryId}-${kind}-${index}`

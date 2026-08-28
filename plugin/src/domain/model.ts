@@ -188,6 +188,12 @@ export interface MeetingTask {
     originatingSpeakerAttemptId: string;
     executionId: string;
     deliveryId: string;
+    sourceTurnId: string;
+    sourceStepId: string;
+    sourceContextFromSeq: number;
+    sourceContextThroughSeq: number;
+    sourceMessageId?: string;
+    sourceMessageSeq?: number;
     title: string;
     description: string;
     blocking: boolean;
