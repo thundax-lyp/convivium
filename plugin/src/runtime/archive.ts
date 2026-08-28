@@ -1,4 +1,104 @@
+import { createHash } from "node:crypto";
+
+import { transitionMeeting } from "../domain/transitions.js";
 import type { ArchivePackage, MeetingState } from "../domain/model.js";
+import type {
+    CommandAuthorization,
+    CommittedResult,
+    JsonObject,
+    MeetingRepository
+} from "../repository/index.js";
+
+const executionTerminalStatuses = new Set<MeetingState["status"]>([
+    "completed",
+    "partial",
+    "no_consensus",
+    "cancelled",
+    "failed"
+]);
+
+export const archiveBeginCommandKind = "internal_archive_begin";
+
+function canonicalJson(value: unknown): string {
+    if (value === null || typeof value === "boolean" || typeof value === "number") {
+        return JSON.stringify(value);
+    }
+    if (typeof value === "string") return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+    if (typeof value === "object") {
+        return `{${Object.entries(value)
+            .filter(([, child]) => child !== undefined)
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`)
+            .join(",")}}`;
+    }
+    throw new TypeError("Archive termination identity contains a non-JSON value.");
+}
+
+export function terminationIdentity(state: MeetingState): string {
+    if (state.termination === undefined) {
+        throw new TypeError("Archive materialization requires a committed termination.");
+    }
+    return createHash("sha256")
+        .update(canonicalJson({ meetingId: state.id, termination: state.termination }))
+        .digest("hex");
+}
+
+function archiveAuthorization(identity: string): CommandAuthorization {
+    return {
+        callerBinding: `internal:termination:${identity}`,
+        capabilityId: `internal:termination:${identity}`
+    };
+}
+
+export interface BeginArchiveFromTerminationInput {
+    readonly repository: Pick<MeetingRepository, "execute">;
+    /** A recovered, committed execution-terminal snapshot. */
+    readonly terminal: MeetingState;
+    readonly now: number;
+}
+
+/**
+ * Materializes only the repository snapshot that wins this versioned command.
+ * The stable termination-derived receipt makes retries replay the same begin
+ * result instead of manufacturing a second archive package.
+ */
+export async function beginArchiveFromTermination(
+    input: BeginArchiveFromTerminationInput
+): Promise<CommittedResult<{ status: "archiving" }>> {
+    if (!executionTerminalStatuses.has(input.terminal.status)) {
+        throw new TypeError("Archive begin requires a committed execution-terminal meeting.");
+    }
+    const identity = terminationIdentity(input.terminal);
+    return input.repository.execute({
+        requestId: `internal:archive:${identity}`,
+        commandKind: archiveBeginCommandKind,
+        authorization: archiveAuthorization(identity),
+        requestHash: canonicalJson({ identity, operation: "begin" }),
+        expectedMeetingVersion: input.terminal.version,
+        transition: (snapshot) => {
+            const state = snapshot.state as unknown as MeetingState;
+            if (
+                !executionTerminalStatuses.has(state.status) ||
+                terminationIdentity(state) !== identity
+            ) {
+                throw new TypeError(
+                    "Archive begin snapshot does not match the committed termination."
+                );
+            }
+            const transition = transitionMeeting(state, "archiving", {
+                now: input.now,
+                archive: { package: materializeArchivePackage(state, input.now) }
+            });
+            return {
+                state: transition.state as unknown as JsonObject,
+                result: { status: "archiving" as const },
+                events: transition.effect.events as never,
+                outbox: []
+            };
+        }
+    });
+}
 
 export function materializeArchivePackage(
     state: MeetingState,
