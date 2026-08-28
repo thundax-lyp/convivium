@@ -42,6 +42,22 @@ function input() {
 }
 
 describe("MeetingTask transitions", () => {
+    it("rejects task writes after execution terminal state without mutation", () => {
+        const meeting = { ...state(), status: "archived" as const };
+        const before = structuredClone(meeting);
+
+        expect(() => createMeetingTask(meeting, input())).toThrowError(
+            expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+        );
+        expect(() => startMeetingTask(meeting, "task-1", 3)).toThrowError(
+            expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+        );
+        expect(() =>
+            finishMeetingTask(meeting, "task-1", { status: "completed", now: 4 })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+        expect(meeting).toEqual(before);
+    });
+
     it("moves a task through requested, queued, running and completed", () => {
         const created = createMeetingTask(state(), input());
         const queued = queueMeetingTasks(

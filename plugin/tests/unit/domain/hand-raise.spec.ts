@@ -32,6 +32,16 @@ function input(overrides: Record<string, unknown> = {}) {
 }
 
 describe("HandRaise transitions", () => {
+    it("rejects a hand raise after execution terminal state without mutation", () => {
+        const meeting = state({ status: "archiving" });
+        const before = structuredClone(meeting);
+
+        expect(() => createHandRaise(meeting, input())).toThrowError(
+            expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+        );
+        expect(meeting).toEqual(before);
+    });
+
     it("rejects missing or foreign task references", () => {
         expect(() => createHandRaise(state(), input({ taskIds: ["missing"] }))).toThrowError(
             expect.objectContaining({ code: "INVALID_ENTITY_STATE" })

@@ -2,6 +2,24 @@ import { DomainError } from "./errors.js";
 import type { MeetingState, MeetingTask, MeetingTaskStatus, TransitionResult } from "./model.js";
 
 const activeStatuses: readonly MeetingTaskStatus[] = ["requested", "queued", "running"];
+const executionTerminalStatuses = new Set([
+    "completed",
+    "partial",
+    "no_consensus",
+    "cancelled",
+    "failed",
+    "archiving",
+    "archived"
+]);
+
+function requireTaskExecutionActive(state: MeetingState): void {
+    if (executionTerminalStatuses.has(state.status)) {
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            `meeting ${state.id} does not accept MeetingTask writes after execution terminal state`
+        );
+    }
+}
 
 function taskEvent(
     meetingId: string,
@@ -58,6 +76,7 @@ export function createMeetingTask(
     state: MeetingState,
     input: CreateMeetingTaskInput
 ): TransitionResult<MeetingState> {
+    requireTaskExecutionActive(state);
     if ((state.meetingTasks ?? []).some((task) => task.meetingTaskId === input.meetingTaskId)) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
@@ -93,6 +112,7 @@ export function queueMeetingTasks(
     originatingSpeakerAttemptId: string,
     now: number
 ): TransitionResult<MeetingState> {
+    requireTaskExecutionActive(state);
     const uniqueIds = [...new Set(meetingTaskIds)];
     const tasks = uniqueIds.map((id) => requireTask(state, id));
     if (
@@ -159,6 +179,7 @@ export function queueMeetingTasks(
 }
 
 export function startMeetingTask(state: MeetingState, meetingTaskId: string, now: number) {
+    requireTaskExecutionActive(state);
     const task = requireTask(state, meetingTaskId);
     if (task.status !== "queued") {
         throw new DomainError(
@@ -188,6 +209,7 @@ export function finishMeetingTask(
         failureReason?: string;
     }
 ) {
+    requireTaskExecutionActive(state);
     const task = requireTask(state, meetingTaskId);
     if (task.status !== "running") {
         throw new DomainError(
@@ -225,6 +247,7 @@ export function cancelNonTerminalMeetingTasks(
     state: MeetingState,
     now: number
 ): TransitionResult<MeetingState> {
+    requireTaskExecutionActive(state);
     const cancelled = (state.meetingTasks ?? []).filter((task) =>
         activeStatuses.includes(task.status)
     );
