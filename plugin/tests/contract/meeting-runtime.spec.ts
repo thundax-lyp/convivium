@@ -227,20 +227,18 @@ describe("create/status meeting runtime", () => {
                 participant
             );
             expect(started).toMatchObject({ ok: true });
-            const finished = await runtime.finishMeetingTask(
-                {
-                    protocolVersion: 1,
-                    meetingId,
-                    meetingTaskId: task.result.meetingTaskId,
-                    requestId: "failed-finish",
-                    executionId,
-                    status,
-                    ...(status === "completed"
-                        ? { resultSummary: "fixture result" }
-                        : { failureReason: "fixture failure" })
-                },
-                participant
-            );
+            const finishInput = {
+                protocolVersion: 1,
+                meetingId,
+                meetingTaskId: task.result.meetingTaskId,
+                requestId: "failed-finish",
+                executionId,
+                status,
+                ...(status === "completed"
+                    ? { resultSummary: "fixture result" }
+                    : { failureReason: "fixture failure" })
+            };
+            const finished = await runtime.finishMeetingTask(finishInput, participant);
             expect(finished).toMatchObject({
                 ok: true,
                 result: { status }
@@ -251,6 +249,9 @@ describe("create/status meeting runtime", () => {
             } else {
                 expect(finished.result).not.toHaveProperty("handRaiseId");
             }
+            await expect(runtime.finishMeetingTask(finishInput, participant)).resolves.toEqual(
+                finished
+            );
             await runtime.dispose();
 
             const db = new DatabaseSync(join(root, input.teamId, `${meetingId}.sqlite`));
