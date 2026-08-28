@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `plugin/src/domain/meeting-task.ts`：实现 MeetingTask 字段时点与基础状态转换
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T2/T3
-  - 处理动作：固定 create、queue、start、finish、cancel 的输入/输出 shape、状态前置条件和既有 task event。
-  - 验收点：重复、foreign、错误状态和 terminal 调用返回唯一协议映射所需的领域结果，失败不产生 state/event effect。
-
 - [ ] `plugin/src/domain/hand-raise.ts`：实现 task-linked HandRaise 校验与去重
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T3

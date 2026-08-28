@@ -97,6 +97,51 @@ describe("MeetingTask transitions", () => {
         expect(created.state.meetingTasks[0]?.status).toBe("requested");
     });
 
+    it("rejects duplicate and invalid lifecycle operations without effects", () => {
+        const created = createMeetingTask(state(), input());
+        const queued = queueMeetingTasks(
+            created.state,
+            ["task-1"],
+            "participant-1",
+            "attempt-1",
+            2
+        );
+        expect(() =>
+            queueMeetingTasks(queued.state, ["task-1"], "participant-1", "attempt-1", 3)
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+
+        const started = startMeetingTask(queued.state, "task-1", 4);
+        expect(() => startMeetingTask(started.state, "task-1", 5)).toThrowError(
+            expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+        );
+        const finished = finishMeetingTask(started.state, "task-1", {
+            status: "failed",
+            failureReason: "provider failed",
+            now: 6
+        });
+        expect(() =>
+            finishMeetingTask(finished.state, "task-1", { status: "completed", now: 7 })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+        expect(finished.effect.events.map(({ type }) => type)).toEqual(["meeting_task.failed"]);
+    });
+
+    it("guards every task lifecycle entry in execution terminal states", () => {
+        for (const status of ["completed", "archiving", "archived"] as const) {
+            const meeting = { ...state(), status };
+            const before = structuredClone(meeting);
+            expect(() => createMeetingTask(meeting, input())).toThrowError(
+                expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+            );
+            expect(() =>
+                queueMeetingTasks(meeting, ["task-1"], "participant-1", "attempt-1", 2)
+            ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+            expect(() => startMeetingTask(meeting, "task-1", 2)).toThrowError(
+                expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+            );
+            expect(meeting).toEqual(before);
+        }
+    });
+
     it("cancels every non-terminal task and leaves terminal facts unchanged", () => {
         const created = createMeetingTask(state(), input());
         const cancelled = cancelNonTerminalMeetingTasks(created.state, 5);
