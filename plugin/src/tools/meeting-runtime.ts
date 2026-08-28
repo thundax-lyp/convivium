@@ -1266,6 +1266,14 @@ export function createCreateStatusRuntime(
                 );
             }
             const messageId = `message-${input.deliveryId}`;
+            const commandNow = options.now?.() ?? Date.now();
+            const questions = (input.changes.questions ?? []).map((claim, index) => ({
+                id: `question-${input.deliveryId}-${index + 1}`,
+                text: claim.text.trim(),
+                ...(claim.directedTo === undefined ? {} : { directedTo: claim.directedTo }),
+                blocking: claim.blocking,
+                createdAt: commandNow
+            }));
             try {
                 const current = await stored.repository.read();
                 const committed = await stored.repository.execute({
@@ -1320,11 +1328,12 @@ export function createCreateStatusRuntime(
                                         : { replyTo: input.replyTo }),
                                     taskIds: input.taskIds,
                                     agendaRelation: input.agendaRelation,
-                                    createdAt: Date.now()
+                                    createdAt: commandNow
                                 },
-                                now: options.now?.() ?? Date.now(),
+                                now: commandNow,
                                 nextPlanningAttemptId: `${state.id}-planning-${state.replanCount + 1}`,
                                 nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.replanCount + 1}`,
+                                questions,
                                 ...(input.completionClaims === undefined
                                     ? {}
                                     : {
