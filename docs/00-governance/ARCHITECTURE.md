@@ -14,6 +14,7 @@
 ## Confirmed Baseline
 
 - Convivium 是纯 DSH 插件，不是独立 Electron 应用。
+- V1 运行在单个本地 DSH Host 中，仅服务该 Host 的一位本地用户；不提供远程访问、多用户协作、跨 Host 共享或网络部署。后续引入这些能力必须先补充独立的授权、身份、隔离和部署契约。
 - Convivium 使用 TypeScript 独立实现，不导入或派生外部参考项目源码。
 - 唯一可构建产品工程位于仓库顶层 `plugin/`。该目录不使用 Git submodule，也不在构建或运行时引用相邻参考项目工作区。
 - Convivium 支持的最低 DSH 版本为 `0.1.1-rc.2`；实现可以依赖该版本 `dsh-subagent` 提供的持久子 Session 枚举和 continuable Activation drain 能力。
@@ -88,7 +89,6 @@
 以下内容尚未确认，不得从本文推断为既定方案：
 
 - 插件分发方式和高于最低版本的兼容策略。
-- 第一版是本地单用户应用还是支持远程多用户部署。
 
 ## Document Routing
 

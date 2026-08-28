@@ -23,6 +23,12 @@
 - 不建立独立服务、通用 Agent 平台或脱离 DSH 的运行模式。
 - 不导入、派生或兼容外部参考项目的源码、协议和持久化格式。
 
+### V1 deployment and user boundary
+
+V1 固定运行于单个本地 DSH Host，并只面向该 Host 的一位本地用户。`plugin/` 不实现远程监听、多用户身份、跨 Host 共享、网络租户隔离或生产部署编排。
+
+这项边界不放宽既有会议身份和 Session 隔离：本地用户不能通过前端伪造 Captain、Manager 或 Participant 身份；前端仍只能调用受控后端入口，Meeting Runtime 仍是领域状态和授权判断的唯一执行者。若未来需要远程或多用户能力，必须先在 Architecture、Requirements 和 Web authorization interface 中分别确认部署范围、用户/Team 身份来源、读取与控制权限、跨 workspace 隔离及失败语义，之后才能注册相应路由或复用 V1 的本地实现。
+
 ## Related Requirements And Interfaces
 
 - [Architecture](../00-governance/ARCHITECTURE.md)
