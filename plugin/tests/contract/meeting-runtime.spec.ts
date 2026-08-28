@@ -385,6 +385,31 @@ describe("create/status meeting runtime", () => {
             }
         });
         await runtime.dispose();
+        const restarted = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => "followup-message" as never
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        await expect(
+            restarted.getStatus({ protocolVersion: 1, meetingId }, captain)
+        ).resolves.toMatchObject({
+            ok: true,
+            result: {
+                status: "archiving",
+                archive: { package: { meetingId, finalSummary: "Objective contract is satisfied" } }
+            }
+        });
+        await restarted.dispose();
     });
 
     it("retries a transient dispatch through the configured outbox loop", async () => {
