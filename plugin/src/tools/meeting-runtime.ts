@@ -6,8 +6,10 @@ import {
     followupManagerSession,
     followupMeetingTaskSession,
     followupParticipantSession,
+    type ArchiveSessionRuntime,
     type ContinuableFollowupRuntime,
     type ContinuableInspectionRuntime,
+    type ContinuableLifecycleRuntime,
     type ContinuableStarter
 } from "../dsh/index.js";
 import {
@@ -73,7 +75,8 @@ export interface CreateStatusRuntimeOptions {
     readonly provider: string;
     readonly continuable: ContinuableStarter &
         ContinuableFollowupRuntime &
-        ContinuableInspectionRuntime;
+        ContinuableInspectionRuntime &
+        Partial<ArchiveSessionRuntime & ContinuableLifecycleRuntime>;
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly maxParticipants?: number;
     readonly outboxPollMs?: number;
@@ -98,6 +101,21 @@ interface StoredMeeting {
     readonly captainSessionId: string;
     readonly repository: MeetingRepositoryRuntime;
     readonly parent?: Agent;
+}
+
+type ArchiveCleanupRuntime = ArchiveSessionRuntime & ContinuableLifecycleRuntime;
+
+function archiveCleanupRuntime(
+    runtime: CreateStatusRuntimeOptions["continuable"]
+): ArchiveCleanupRuntime | undefined {
+    if (
+        typeof runtime.listChildren !== "function" ||
+        typeof runtime.interrupt !== "function" ||
+        typeof runtime.drainContinuableChildren !== "function"
+    ) {
+        return undefined;
+    }
+    return runtime as ArchiveCleanupRuntime;
 }
 
 function terminalDispatchError(code: string, message: string): Error {
@@ -1569,6 +1587,8 @@ export function createCreateStatusRuntime(
                 });
                 await recoverArchive({
                     repository: stored.repository,
+                    parent: stored.parent,
+                    runtime: archiveCleanupRuntime(options.continuable),
                     signal,
                     now: options.now?.() ?? Date.now()
                 });

@@ -199,15 +199,36 @@ describe("create/status meeting runtime", () => {
     it("commits completion claims with the turn and rejects unavailable task evidence atomically", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-completion-"));
         roots.push(root);
+        const children: Array<{ id: string; label: string }> = [];
+        const interrupted: string[] = [];
+        const drained: string[][] = [];
         const runtime = createCreateStatusRuntime({
             dataRoot: root,
             provider: "spawn",
             continuable: {
-                startContinuable: async (spec) => ({
-                    childId: spec.childId!,
-                    messageId: `initial-${String(spec.childId)}` as never
-                }),
-                followup: async () => "followup-message" as never
+                startContinuable: async (spec) => {
+                    children.push({ id: String(spec.childId), label: spec.label });
+                    return {
+                        childId: spec.childId!,
+                        messageId: `initial-${String(spec.childId)}` as never
+                    };
+                },
+                followup: async () => "followup-message" as never,
+                listChildren: async () =>
+                    children.map((child) => ({
+                        kind: "child" as const,
+                        id: child.id as never,
+                        activity: "inactive" as const,
+                        hasChildren: false,
+                        mode: "continuable" as const,
+                        label: child.label
+                    })),
+                interrupt: (childId) => {
+                    interrupted.push(String(childId));
+                },
+                drainContinuableChildren: async (_parent, childIds) => {
+                    drained.push(childIds.map(String));
+                }
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -356,6 +377,24 @@ describe("create/status meeting runtime", () => {
             meetingVersion: 3,
             result: { status: "completed", terminationCode: "objective_satisfied" }
         });
+        expect(interrupted).toEqual(
+            expect.arrayContaining([
+                `${meetingId}-manager-manager`,
+                `${meetingId}-participant-participant-one`
+            ])
+        );
+        expect(drained).toEqual([
+            expect.arrayContaining([
+                `${meetingId}-manager-manager`,
+                `${meetingId}-participant-participant-one`
+            ])
+        ]);
+        expect(children.map((child) => child.id)).toEqual(
+            expect.arrayContaining([
+                `${meetingId}-manager-manager`,
+                `${meetingId}-participant-participant-one`
+            ])
+        );
         await expect(runtime.endMeeting(endInput, captain)).resolves.toEqual(ended);
         await expect(
             runtime.endMeeting({ ...endInput, reason: "Different request hash" }, captain)
@@ -374,10 +413,10 @@ describe("create/status meeting runtime", () => {
             runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
         ).resolves.toMatchObject({
             ok: true,
-            meetingVersion: 4,
+            meetingVersion: 5,
             result: {
-                status: "archiving",
-                archive: { package: { meetingId } }
+                status: "archived",
+                archive: { package: { meetingId }, archivedAt: 100 }
             }
         });
         await runtime.dispose();
@@ -401,8 +440,11 @@ describe("create/status meeting runtime", () => {
         ).resolves.toMatchObject({
             ok: true,
             result: {
-                status: "archiving",
-                archive: { package: { meetingId, finalSummary: "Objective contract is satisfied" } }
+                status: "archived",
+                archive: {
+                    package: { meetingId, finalSummary: "Objective contract is satisfied" },
+                    archivedAt: 100
+                }
             }
         });
         await restarted.dispose();

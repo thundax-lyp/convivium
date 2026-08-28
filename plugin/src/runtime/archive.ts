@@ -331,7 +331,7 @@ export async function finalizeArchive(
 /** Replays only safe archive stages after plugin restart. */
 export async function recoverArchive(input: RecoverArchiveInput): Promise<ArchiveRecoveryResult> {
     const recovered = await input.repository.recover();
-    const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+    let state = recovered.snapshot?.state as unknown as MeetingState | undefined;
     if (state === undefined || state.status === "archived") return "unchanged";
     if (executionTerminalStatuses.has(state.status)) {
         await beginArchiveFromTermination({
@@ -339,9 +339,10 @@ export async function recoverArchive(input: RecoverArchiveInput): Promise<Archiv
             terminal: state,
             now: input.now
         });
-        return "begun";
+        if (input.parent === undefined || input.runtime === undefined) return "begun";
+        state = (await input.repository.recover()).snapshot?.state as MeetingState | undefined;
     }
-    if (state.status !== "archiving") return "unchanged";
+    if (state?.status !== "archiving") return "unchanged";
     if (input.parent === undefined || input.runtime === undefined) return "pending";
     await cleanupOwnedSessions({
         repository: input.repository,
