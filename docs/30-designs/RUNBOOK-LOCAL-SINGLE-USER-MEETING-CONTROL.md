@@ -12,7 +12,7 @@
 
 ## Executor Contract
 
-执行者必须按 T3 至 T6 顺序执行；每步仅修改该步“允许修改”列出的文件，并在该步 PASS 后才进入下一步。任何 STOP 必须报告最后 PASS 步骤、触发条件、相关文件与 symbol、执行命令和完整输出；不得改动 Schema、错误语义、存储布局、身份边界或未列文件来绕过 STOP。本文只授权文档与本分支实现，不授权提交、推送、创建 PR 或合并。
+执行者必须按 T4 至 T6 顺序执行；每步仅修改该步“允许修改”列出的文件，并在该步 PASS 后才进入下一步。任何 STOP 必须报告最后 PASS 步骤、触发条件、相关文件与 symbol、执行命令和完整输出；不得改动 Schema、错误语义、存储布局、身份边界或未列文件来绕过 STOP。本文只授权文档与本分支实现，不授权提交、推送、创建 PR 或合并。
 
 `PASS` 仅表示对应步骤的规定命令退出码为 `0` 且断言成立；`STOP` 是终止本次执行的正常结果。执行者不得以“相近实现”替代本文指定的 symbol、route、Client slot 或测试入口。
 
@@ -97,50 +97,9 @@ Runtime 是 producer，HTTP 与 Client 是 consumer；Client 不提交 list DTO�
 
 ## Mechanical Execution Steps
 
-### T3：实现按用途隔离恢复的 Runtime Web 入口与 list
-
-前置状态：`local_host` pause actor、projection caller 与独立 `MeetingControlSource` 已实现并通过 focused suite；当前 `repositoryPath()` 与 `rehydrate()` 未被改动为不同布局。
-
-允许修改：`plugin/src/tools/meeting-runtime.ts`、`plugin/tests/unit/runtime/meeting-runtime.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`。
-
-禁止修改：`repositoryPath()` 的路径规则、`openMeetingRepository()`、repository/migration 文件、Archive/Markdown 路径、Agent tool caller 路径与 HTTP/Client 文件。
-
-执行：
-
-1. 在 `meeting-runtime.ts` export `LocalMeetingWebRuntime`，并让 `MeetingRuntimeWithCallerLookup` 交叉该接口。接口只含：
-
-```ts
-listLocalMeetings(): Promise<LocalMeetingListResponseV1>;
-getLocalMeetingStatus(input: MeetingStatusInputV1): Promise<ProtocolSuccessV1<MeetingStatusResultV1> | ProtocolErrorV1>;
-pauseLocalMeeting(input: PauseMeetingInputV1): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
-resumeLocalMeeting(input: ResumeMeetingInputV1): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
-```
-
-2. export `LocalMeetingRecoveryUnavailableError extends Error`，只作为 Runtime-to-HTTP 的恢复失败分类；不要扩展协议 code。私有恢复签名固定为 `rehydrate(mode: RehydrateMode = { kind: "agent_best_effort" })`，其中 `RehydrateMode` 是 `{ kind: "agent_best_effort" } | { kind: "local_list" } | { kind: "local_meeting"; meetingId: string }`；所有既有 Agent 调用保持无参数。
-3. 三种模式继续使用当前物理 discovery，且只能在既有 `rehydrate()` 内实现：
-   - `agent_best_effort` 保持当前行为：data root、team directory、无关或不完整数据库失败均被忽略。
-   - `local_list` 必须枚举全部当前可发现 `.sqlite`：尚不在 `meetings` map 的逐个 open/recover，已在 map 的复用其 repository 并重新 read/recover；根 data root 的 `ENOENT` 返回空发现结果。可成功 recover 且 bootstrap 为 `creating|creation_failed` 的 repository 关闭并跳过；其他 data root/team directory 读取、URI decode、bootstrap 读取失败，或 bootstrap `ready` 但 snapshot/parent ownership 缺失及 archive recovery 失败，都抛 `LocalMeetingRecoveryUnavailableError`，不得返回部分 list。
-   - `local_meeting` 若目标已在 `meetings` map 中则只处理该目标；否则扫描当前目录结构定位目标 `.sqlite`，只 open/recover 该目标。根 data root 的 `ENOENT` 表示未发现目标；目标可 recover 但 bootstrap 为 `creating|creation_failed` 时关闭并视为未发现。其他目录读取、bootstrap 读取失败，或目标已 `ready` 但 snapshot/parent ownership 缺失及 archive recovery 失败，抛 `LocalMeetingRecoveryUnavailableError`。其他 `.sqlite` 不得被打开，其损坏不得阻塞目标。未发现目标不是恢复错误，返回既有 `MEETING_NOT_FOUND` envelope。local mode 新 open 的 repository 只有完成 recover、ready checks 和 `recoverArchive()` 后才加入 `meetings`；此前抛出或跳过必须 close。已在 map 中的 repository 仍重新执行所需 read/archive recovery，失败时保留现有 map ownership 但向 HTTP 抛 typed error；`agent_best_effort` 的既有 set/catch 顺序不得改变。
-4. `listLocalMeetings()` 使用 `local_list`，只从 snapshot state 与 metadata 组装六个允许字段；按正式顺序构造 response，再用 `LocalMeetingListResponseSchema` 校验并返回 validator 的 typed result。mapping 或校验失败包装为 typed recovery error。不得调用 `projectMeetingStatus()`，不得泄漏完整状态。
-5. 其他三个 local 方法使用 `local_meeting`；status 使用固定 projection caller，并用 `MeetingStatusResultSchema` 校验 projection 后构造 success，snapshot read、projection 或校验失败均抛 typed recovery error。pause/resume 使用 T2 的固定 Host command marker，并复用同一 `transitionMeetingStatus()`。在当前文件的既有 imports 中从 `../domain/index.js` 增加 `DomainError`，并从 `../repository/index.js` 直接 import `RepositoryError`，不得为转发 export 修改 `runtime/index.ts`。local transition 的 catch 必须按唯一表处理：`VERSION_CONFLICT|IDEMPOTENCY_CONFLICT` 保持既有 envelope；`MEETING_NOT_FOUND|SQLITE_BUSY|SCHEMA_VERSION_UNSUPPORTED|CORRUPT_DATABASE|CLOSED` 包装为 typed recovery error；`DomainError` 保持既有领域 envelope；其他 `RepositoryError`（包括 `CONSTRAINT_VIOLATION|INVALID_INPUT|INVALID_STATE|LEASE_LOST|OUTBOX_NOT_FOUND|MEETING_EXISTS`）和其他异常原样抛给 HTTP 映射 `500`。冷恢复后缺少 live Captain parent 的 local resume 也抛 typed recovery error。Agent 路径的既有 catch/mapping 不变。
-6. 在两个指定 suite 中测试：排序与字段白名单、active/terminal/archiving/archived、`creating|creation_failed` 被关闭并跳过、坏的 `ready` repository 使 list 整体 reject、同一坏 repository 不阻塞另一已知健康 Meeting 的 status/pause/resume、目标损坏 reject、未知 Meeting、local pause actor、过期 version、幂等 replay、resume 时 Captain parent 不可用，以及 unexpected repository error 不被包装为 recovery unavailable。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/runtime/meeting-runtime.spec.ts tests/contract/meeting-runtime.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：两条命令退出码均为 `0`；测试逐项断言 list item 的键集合恰为六个正式字段，list 不部分成功，且无关坏库不阻塞已选健康 Meeting。
-
-STOP：为实现 list 而扫描 SQLite 以外路径、缓存旧 snapshot 当实时结果、或需要新增持久化字段。报告 T3。
-
-恢复：撤销三个允许文件中的 T3 改动，关闭本步骤新打开而未加入 `meetings` 的 repository。
-
 ### T4：实现唯一 loopback HTTP transport
 
-前置状态：T3 PASS；`LocalMeetingWebRuntime` 和三个 list Schema 均已可由 protocol/runtime 入口导入。
+前置状态：`LocalMeetingWebRuntime`、用途隔离恢复与 list 已实现并通过 focused suite；三个 list Schema 均已可由 protocol/runtime 入口导入。
 
 允许修改：`plugin/src/http/index.ts`、`plugin/src/index.ts`、`plugin/tests/contract/http-boundary.spec.ts`、`plugin/tests/unit/index-inject.spec.ts`。
 
@@ -209,7 +168,7 @@ STOP：现有 client slot API 不支持上述 list entry/disposer，或必须用
 
 ### T6：端到端证据与文档收口
 
-前置状态：T3–T5 全部 PASS；`pnpm --dir plugin build` 成功。
+前置状态：T4–T5 全部 PASS；`pnpm --dir plugin build` 成功。
 
 允许修改：`plugin/scripts/smoke-profile.mjs`、`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`、本 RUNBOOK；验证可机械重建 ignored `plugin/lib/**` 并创建/清理脚本自己的 OS temp root。
 
@@ -249,7 +208,6 @@ STOP：任一命令失败、smoke 无法建立实际 loopback 或发现 runtime/
 
 | 风险 | focused evidence | PASS 判据 |
 | --- | --- | --- |
-| 恢复隔离、terminal、重放与冲突 | T3 runtime/contract suites | 空 data root 返回空 list；未 ready bootstrap 被跳过；坏的 ready repository 不返回部分 list且不阻塞已选健康 Meeting；stale、replay、conflict、terminal guard 保持既有结果。 |
 | loopback transport 与错误 body | T4 HTTP/inject suites | 只注册一个 prefix；`0.0.0.0` 无 route；404/400/409/503/500 与正式协议一致。 |
 | Client 生命周期 | T5 client suite | list-first、选择后的全量读取、write 后 refetch、pending 互斥、poll/focus、失败禁写和 cleanup 均有断言。 |
 | 真实 DSH Web 闭环 | T6 默认及 browser-mode `smoke:profile` | 实际 loopback HTTP 通过 list/status/pause/resume；真实 Client slot 可选择并控制 Meeting；不使用 Captain identity。 |
@@ -258,7 +216,7 @@ STOP：任一命令失败、smoke 无法建立实际 loopback 或发现 runtime/
 
 ## Completion And Deletion
 
-所有 T3–T6 PASS 后，将实际覆盖迁移到 `CURRENT-IMPLEMENTATION-COVERAGE.md`，按 TODO Rules 确认本闭环无未完成 TODO，再删除本 RUNBOOK。删除后使用 `rg -n 'RUNBOOK-LOCAL-SINGLE-USER-MEETING-CONTROL|Local Single-User Meeting Control' .` 清除仅指向本文的残留引用，并重跑相对链接检查与 `git diff --check`；任一检查失败时恢复本文并 STOP。在用户单独要求前，不提交、推送、创建 PR 或合并。
+所有 T4–T6 PASS 后，将实际覆盖迁移到 `CURRENT-IMPLEMENTATION-COVERAGE.md`，按 TODO Rules 确认本闭环无未完成 TODO，再删除本 RUNBOOK。删除后使用 `rg -n 'RUNBOOK-LOCAL-SINGLE-USER-MEETING-CONTROL|Local Single-User Meeting Control' .` 清除仅指向本文的残留引用，并重跑相对链接检查与 `git diff --check`；任一检查失败时恢复本文并 STOP。在用户单独要求前，不提交、推送、创建 PR 或合并。
 
 ## Author Audit
 
@@ -273,6 +231,6 @@ Authoring validation：
 - `git diff --check`：PASS。
 - `docs/**/*.md` 相对链接目标检查：PASS。
 - `pnpm --dir plugin exec vitest --version`：PASS，确认调用本地 Vitest `3.2.7`。
-- T3–T6 引用的当前 production/test/script 路径：PASS；唯一计划新增路径为 `plugin/src/client/meeting-panel.tsx`。
-- T3–T6 的九项固定结构（前置、允许、禁止、执行、验证、PASS、STOP、恢复）：PASS。
-- T3–T6 的 focused tests、build、smoke 与 browser lane：Not Run；这些是 RUNBOOK 执行门禁，不是本次文档修复证据。
+- T4–T6 引用的当前 production/test/script 路径：PASS；唯一计划新增路径为 `plugin/src/client/meeting-panel.tsx`。
+- T4–T6 的九项固定结构（前置、允许、禁止、执行、验证、PASS、STOP、恢复）：PASS。
+- T4–T6 的 focused tests、build、smoke 与 browser lane：Not Run；这些是 RUNBOOK 执行门禁，不是本次文档修复证据。

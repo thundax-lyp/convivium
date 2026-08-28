@@ -13,6 +13,7 @@ import {
     type ContinuableStarter
 } from "../dsh/index.js";
 import {
+    DomainError,
     createMeetingTask as createMeetingTaskTransition,
     createHandRaise,
     completedTaskSnapshots,
@@ -29,6 +30,7 @@ import {
     type MeetingState,
     type MeetingTurn
 } from "../domain/index.js";
+import { RepositoryError, type MeetingSnapshot } from "../repository/index.js";
 import {
     createMeetingRuntime,
     createOutboxWorker,
@@ -43,6 +45,7 @@ import {
     type AuthorizedTaskEvidenceResolver
 } from "../runtime/index.js";
 import { projectManagerMeetingContext, projectMeetingStatus } from "../projection/index.js";
+import { LocalMeetingListResponseSchema, MeetingStatusResultSchema } from "../protocol/index.js";
 import type {
     CreateMeetingInputV1,
     CreateMeetingResultV1,
@@ -65,7 +68,10 @@ import type {
     MeetingControlResultV1,
     TurnSubmissionResultV1,
     ProtocolErrorV1,
-    ProtocolSuccessV1
+    ProtocolSuccessV1,
+    LocalMeetingListResponseV1,
+    PauseMeetingInputV1,
+    ResumeMeetingInputV1
 } from "../protocol/index.js";
 import type { MeetingToolCaller, MeetingToolRuntime } from "./register-tools.js";
 import type { MeetingOwnershipLookup } from "../dsh/index.js";
@@ -94,8 +100,26 @@ interface ClaimedOutboxItem {
     leaseToken: string;
 }
 
+export interface LocalMeetingWebRuntime {
+    listLocalMeetings(): Promise<LocalMeetingListResponseV1>;
+    getLocalMeetingStatus(
+        input: MeetingStatusInputV1
+    ): Promise<ProtocolSuccessV1<MeetingStatusResultV1> | ProtocolErrorV1>;
+    pauseLocalMeeting(
+        input: PauseMeetingInputV1
+    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
+    resumeLocalMeeting(
+        input: ResumeMeetingInputV1
+    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
+}
+
+export class LocalMeetingRecoveryUnavailableError extends Error {
+    readonly name = "LocalMeetingRecoveryUnavailableError";
+}
+
 export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
-    MeetingOwnershipLookup & { dispose(): Promise<void> };
+    MeetingOwnershipLookup &
+    LocalMeetingWebRuntime & { dispose(): Promise<void> };
 
 interface StoredMeeting {
     readonly teamId: string;
@@ -106,6 +130,11 @@ interface StoredMeeting {
 
 type MeetingControlSource =
     { readonly kind: "captain"; readonly sessionId: string } | { readonly kind: "local_host" };
+
+type RehydrateMode =
+    | { readonly kind: "agent_best_effort" }
+    | { readonly kind: "local_list" }
+    | { readonly kind: "local_meeting"; readonly meetingId: string };
 
 type ArchiveCleanupRuntime = ArchiveSessionRuntime & ContinuableLifecycleRuntime;
 
@@ -246,7 +275,142 @@ export function createCreateStatusRuntime(
             ? runtimeController.signal
             : AbortSignal.any([options.signal, runtimeController.signal]);
 
-    async function rehydrate() {
+    async function rehydrate(
+        mode: RehydrateMode = { kind: "agent_best_effort" }
+    ): Promise<Map<string, MeetingSnapshot> | undefined> {
+        if (mode.kind !== "agent_best_effort") {
+            const snapshots = new Map<string, MeetingSnapshot>();
+            const unavailable = (error: unknown): LocalMeetingRecoveryUnavailableError =>
+                error instanceof LocalMeetingRecoveryUnavailableError
+                    ? error
+                    : new LocalMeetingRecoveryUnavailableError(
+                          "Local meeting recovery is unavailable.",
+                          { cause: error }
+                      );
+            const isMissing = (error: unknown): boolean =>
+                error !== null &&
+                typeof error === "object" &&
+                "code" in error &&
+                (error as { code?: unknown }).code === "ENOENT";
+            const recoverLocal = async (
+                meetingId: string,
+                teamId: string,
+                databasePath: string,
+                existing?: StoredMeeting
+            ): Promise<void> => {
+                let repository = existing?.repository;
+                let opened = false;
+                try {
+                    if (repository === undefined) {
+                        repository = await openMeetingRepository({
+                            databasePath,
+                            teamId,
+                            meetingId,
+                            authorizationValidator: options.authorizationValidator
+                        });
+                        opened = true;
+                    } else if (existing?.teamId !== teamId) {
+                        throw new Error(
+                            "Recovered Meeting team ownership does not match discovery."
+                        );
+                    }
+                    const recovered = await repository.recover();
+                    if (
+                        recovered.bootstrap.status === "creating" ||
+                        recovered.bootstrap.status === "creation_failed"
+                    ) {
+                        if (existing !== undefined) meetings.delete(meetingId);
+                        await repository.close();
+                        return;
+                    }
+                    const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
+                    if (recovered.snapshot === undefined || parentSessionId === undefined) {
+                        throw new Error("Ready Meeting recovery is incomplete.");
+                    }
+                    const recoveredState = recovered.snapshot.state as unknown as MeetingState;
+                    if (
+                        recoveredState.status === "archiving" ||
+                        recoveredState.status === "archived"
+                    ) {
+                        await recoverArchive({
+                            repository,
+                            signal,
+                            now: options.now?.() ?? Date.now()
+                        });
+                    }
+                    const current = await repository.read();
+                    if (opened) {
+                        meetings.set(meetingId, {
+                            teamId,
+                            captainSessionId: parentSessionId,
+                            repository
+                        });
+                    }
+                    snapshots.set(meetingId, current);
+                } catch (error) {
+                    if (opened && repository !== undefined) {
+                        await repository.close().catch(() => undefined);
+                    }
+                    throw unavailable(error);
+                }
+            };
+
+            if (mode.kind === "local_meeting") {
+                const existing = meetings.get(mode.meetingId);
+                if (existing !== undefined) {
+                    await recoverLocal(
+                        mode.meetingId,
+                        existing.teamId,
+                        repositoryPath(options.dataRoot, existing.teamId, mode.meetingId),
+                        existing
+                    );
+                    return snapshots;
+                }
+            }
+
+            let teams;
+            try {
+                teams = await readdir(options.dataRoot, { withFileTypes: true });
+            } catch (error) {
+                if (isMissing(error)) return snapshots;
+                throw unavailable(error);
+            }
+            for (const team of teams) {
+                if (!team.isDirectory()) continue;
+                let teamId: string;
+                try {
+                    teamId = decodeURIComponent(team.name);
+                } catch (error) {
+                    throw unavailable(error);
+                }
+                let files: string[];
+                try {
+                    files = await readdir(join(options.dataRoot, team.name));
+                } catch (error) {
+                    throw unavailable(error);
+                }
+                for (const file of files) {
+                    if (!file.endsWith(".sqlite")) continue;
+                    let meetingId: string;
+                    try {
+                        meetingId = decodeURIComponent(file.slice(0, -7));
+                    } catch (error) {
+                        if (mode.kind === "local_list") throw unavailable(error);
+                        continue;
+                    }
+                    if (mode.kind === "local_meeting" && meetingId !== mode.meetingId) continue;
+                    await recoverLocal(
+                        meetingId,
+                        teamId,
+                        join(options.dataRoot, team.name, file),
+                        meetings.get(meetingId)
+                    );
+                    if (mode.kind === "local_meeting") return snapshots;
+                }
+            }
+            return snapshots;
+        }
+
         const teams = await readdir(options.dataRoot, { withFileTypes: true }).catch(() => []);
         for (const team of teams) {
             if (!team.isDirectory()) continue;
@@ -857,6 +1021,85 @@ export function createCreateStatusRuntime(
             } catch {
                 return failure("MEETING_NOT_FOUND", "Meeting not found.");
             }
+        },
+
+        async listLocalMeetings() {
+            const snapshots = (await rehydrate({ kind: "local_list" })) ?? new Map();
+            try {
+                return LocalMeetingListResponseSchema({
+                    protocolVersion: 1,
+                    ok: true,
+                    result: {
+                        meetings: [...snapshots.values()]
+                            .map((snapshot) => {
+                                const state = snapshot.state as unknown as MeetingState;
+                                return {
+                                    meetingId: snapshot.meetingId,
+                                    teamId: snapshot.teamId,
+                                    topic: state.topic,
+                                    status: state.status,
+                                    meetingVersion: snapshot.version,
+                                    updatedAt: snapshot.updatedAt
+                                };
+                            })
+                            .sort(
+                                (left, right) =>
+                                    right.updatedAt - left.updatedAt ||
+                                    left.meetingId.localeCompare(right.meetingId)
+                            )
+                    }
+                });
+            } catch (error) {
+                throw new LocalMeetingRecoveryUnavailableError(
+                    "Local meeting list projection is unavailable.",
+                    { cause: error }
+                );
+            }
+        },
+
+        async getLocalMeetingStatus(input) {
+            const snapshots = await rehydrate({
+                kind: "local_meeting",
+                meetingId: input.meetingId
+            });
+            const snapshot = snapshots?.get(input.meetingId);
+            if (snapshot === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            try {
+                const state = JSON.parse(JSON.stringify(snapshot.state)) as MeetingState;
+                const projection = projectMeetingStatus(state, {
+                    kind: "local_host",
+                    sessionId: "loopback-web"
+                });
+                const projected = MeetingStatusResultSchema(
+                    projection as unknown as Record<string, unknown>
+                ) as unknown as MeetingStatusResultV1;
+                return success(snapshot.meetingId, snapshot.version, projected);
+            } catch (error) {
+                throw new LocalMeetingRecoveryUnavailableError(
+                    "Local meeting status projection is unavailable.",
+                    { cause: error }
+                );
+            }
+        },
+
+        async pauseLocalMeeting(input) {
+            const snapshots = await rehydrate({
+                kind: "local_meeting",
+                meetingId: input.meetingId
+            });
+            if (!snapshots?.has(input.meetingId))
+                return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            return transitionMeetingStatus(input, "paused", { kind: "local_host" });
+        },
+
+        async resumeLocalMeeting(input) {
+            const snapshots = await rehydrate({
+                kind: "local_meeting",
+                meetingId: input.meetingId
+            });
+            if (!snapshots?.has(input.meetingId))
+                return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            return transitionMeetingStatus(input, "running", { kind: "local_host" });
         },
 
         async createMeetingTask(input: MeetingTaskRequestV1, caller) {
@@ -1739,6 +1982,11 @@ export function createCreateStatusRuntime(
         const stored = meetings.get(input.meetingId);
         if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
         if (target === "running" && stored.parent === undefined) {
+            if (source.kind === "local_host") {
+                throw new LocalMeetingRecoveryUnavailableError(
+                    "The live Captain parent is unavailable for resume dispatch."
+                );
+            }
             return failure(
                 "INTERNAL_ERROR",
                 "The live Captain parent is unavailable for resume dispatch.",
@@ -1922,6 +2170,33 @@ export function createCreateStatusRuntime(
                 committed.result as MeetingControlResultV1
             );
         } catch (error) {
+            if (source.kind === "local_host") {
+                if (
+                    error instanceof RepositoryError &&
+                    [
+                        "MEETING_NOT_FOUND",
+                        "SQLITE_BUSY",
+                        "SCHEMA_VERSION_UNSUPPORTED",
+                        "CORRUPT_DATABASE",
+                        "CLOSED"
+                    ].includes(error.code)
+                ) {
+                    throw new LocalMeetingRecoveryUnavailableError(
+                        "Local meeting control recovery is unavailable.",
+                        { cause: error }
+                    );
+                }
+                if (
+                    error instanceof RepositoryError &&
+                    error.code !== "VERSION_CONFLICT" &&
+                    error.code !== "IDEMPOTENCY_CONFLICT"
+                ) {
+                    throw error;
+                }
+                if (!(error instanceof RepositoryError) && !(error instanceof DomainError)) {
+                    throw error;
+                }
+            }
             return commandError(
                 error,
                 "INTERNAL_ERROR",
