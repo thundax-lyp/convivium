@@ -964,7 +964,7 @@ interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
     action: "pause" | "resume" | "none";
     pausedAt?: number;
     pausedBy?: {
-      kind: "user" | "captain";
+      kind: "user" | "captain" | "local_host";
       actorId: string;
       displayName?: string;
     };
