@@ -189,7 +189,7 @@ const publicMessageKind = enumOf([
 ] as const);
 
 const questionClaim = Schema.object({
-    text: string(),
+    text: nonEmptyString(),
     directedTo: Schema.string(),
     blocking: boolean()
 });

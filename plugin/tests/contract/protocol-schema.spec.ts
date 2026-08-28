@@ -13,7 +13,8 @@ import {
     validateProtocolSuccessEnvelope,
     MeetingTaskRequestSchema,
     MeetingTaskFinishResultSchema,
-    validateReassignTurnInput
+    validateReassignTurnInput,
+    TurnSubmissionSchema
 } from "../../src/protocol/index.js";
 
 describe("protocol envelope schemas", () => {
@@ -267,6 +268,33 @@ describe("protocol envelope schemas", () => {
         ).toThrow();
     });
 
+    it("rejects blank question claim text", () => {
+        const input = {
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            turnId: "turn-1",
+            stepId: "step-1",
+            attemptId: "attempt-1",
+            deliveryId: "delivery-1",
+            agendaItemId: "agenda-1",
+            kind: "question",
+            content: "Question",
+            mentions: [],
+            taskIds: [],
+            agendaRelation: "on_topic",
+            changes: {
+                questions: [{ text: "   ", blocking: false }],
+                proposals: [],
+                positions: [],
+                issues: [],
+                decisionProposals: [],
+                agendaCandidates: []
+            }
+        };
+
+        expect(() => TurnSubmissionSchema(input)).toThrow();
+    });
+
     it("accepts a valid create-meeting payload", () => {
         expect(
             CreateMeetingInputSchema({
@@ -370,6 +398,7 @@ describe("protocol envelope schemas", () => {
             continuationMaterials: [],
             limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
             messages: [],
+            questions: [],
             acceptedDecisions: [],
             blockingFacts: [],
             meetingTasks: [],
@@ -488,6 +517,7 @@ describe("protocol envelope schemas", () => {
                 limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
                 activeAgendaItem: undefined,
                 messages: [],
+                questions: [],
                 acceptedDecisions: [],
                 blockingFacts: [],
                 meetingTasks: [],
@@ -509,6 +539,7 @@ describe("protocol envelope schemas", () => {
                 limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
                 activeAgendaItem: undefined,
                 messages: [],
+                questions: [],
                 acceptedDecisions: [],
                 blockingFacts: [],
                 meetingTasks: [],
