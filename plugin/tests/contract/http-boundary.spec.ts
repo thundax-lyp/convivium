@@ -12,6 +12,11 @@ describe("T5 HTTP boundary", () => {
         expect(toolRegistration.match(/name: "convivium_[^"]+"/g)).toEqual([
             'name: "convivium_create_meeting"',
             'name: "convivium_meeting_status"',
+            'name: "convivium_create_meeting_task"',
+            'name: "convivium_meeting_task_status"',
+            'name: "convivium_start_meeting_task"',
+            'name: "convivium_finish_meeting_task"',
+            'name: "convivium_raise_hand"',
             'name: "convivium_submit_manager_plan"',
             'name: "convivium_submit_turn"',
             'name: "convivium_pause_meeting"',

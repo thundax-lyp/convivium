@@ -174,26 +174,77 @@ export interface EndMeetingInputV1 {
     requestId: string;
 }
 
-export interface BackgroundTaskRequestV1 {
+export type MeetingTaskStatusV1 =
+    "requested" | "queued" | "running" | "completed" | "failed" | "cancelled";
+
+export interface MeetingTaskRequestV1 {
     protocolVersion: ProtocolVersion;
     meetingId: string;
     attemptId: string;
     requestId: string;
-    action: "create" | "associate";
-    title?: string;
-    description?: string;
-    existingTaskId?: string;
+    title: string;
+    description: string;
     blocking: boolean;
 }
 
-export interface BackgroundTaskResultV1 {
+export interface MeetingTaskResultV1 {
     requestId: string;
-    taskId: string;
-    taskAttemptId: string;
-    association: "created" | "associated";
-    originatingMeetingId: string;
-    originatingParticipantId: string;
+    meetingTaskId: string;
+    participantId: string;
     originatingSpeakerAttemptId: string;
+    status: MeetingTaskStatusV1;
+}
+
+export interface MeetingTaskProjectionV1 {
+    meetingTaskId: string;
+    participantId: string;
+    title: string;
+    blocking: boolean;
+    status: MeetingTaskStatusV1;
+    resultSummary?: string;
+    failureReason?: string;
+    createdAt: number;
+    queuedAt?: number;
+    startedAt?: number;
+    finishedAt?: number;
+}
+
+export interface MeetingTaskStatusInputV1 {
+    protocolVersion: ProtocolVersion;
+    meetingId: string;
+    meetingTaskId: string;
+}
+
+export interface MeetingTaskStatusResultV1 {
+    task: MeetingTaskProjectionV1;
+    observedMeetingVersion: number;
+    meetingTerminal: boolean;
+    mayExecute: boolean;
+}
+
+export interface MeetingTaskStartInputV1 extends MeetingTaskStatusInputV1 {
+    requestId: string;
+}
+
+export interface MeetingTaskStartResultV1 {
+    requestId: string;
+    meetingTaskId: string;
+    status: "running";
+}
+
+export interface MeetingTaskFinishInputV1 extends MeetingTaskStatusInputV1 {
+    requestId: string;
+    executionId: string;
+    status: "completed" | "failed";
+    resultSummary?: string;
+    failureReason?: string;
+}
+
+export interface MeetingTaskFinishResultV1 {
+    requestId: string;
+    meetingTaskId: string;
+    status: "completed" | "failed";
+    handRaiseId: string;
 }
 
 export interface SpeakerMeetingContextV1 {
@@ -275,10 +326,10 @@ export interface PublicDecisionV1 {
 }
 
 export interface AuthorizedTaskResultV1 {
-    taskId: string;
-    attemptId?: string;
-    status: string;
-    output?: string;
+    meetingTaskId: string;
+    executionId?: string;
+    status: MeetingTaskStatusV1;
+    resultSummary?: string;
     observedAt: number;
 }
 
@@ -312,6 +363,7 @@ export interface ManagerMeetingContextV1 {
     dispatchableParticipantIds: readonly string[];
     recentPublicMessages: readonly PublicMeetingMessageV1[];
     blockingFacts: readonly PublicBlockingFactV1[];
+    meetingTasks: readonly MeetingTaskProjectionV1[];
     pendingHandRaises: readonly PublicHandRaiseV1[];
     continuationMaterials: readonly PublicContinuationMaterialV1[];
     limits: PublicMeetingLimitsV1;
@@ -331,6 +383,7 @@ export interface PublicHandRaiseV1 {
     reason: string;
     summary: string;
     taskIds: readonly string[];
+    replyToMessageId?: string;
     agendaItemId?: string;
     priority: "normal" | "high" | "blocking";
 }
@@ -550,6 +603,7 @@ export interface MeetingStatusBaseV1 {
     objective: string;
     continuationMaterials: readonly PublicContinuationMaterialV1[];
     limits: PublicMeetingLimitsV1;
+    meetingTasks: readonly MeetingTaskProjectionV1[];
 }
 
 export interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {

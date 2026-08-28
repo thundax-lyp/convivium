@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     followupParticipantSession,
+    followupMeetingTaskSession,
     followupManagerSession,
     inspectOwnedSessions,
     interruptAndDrainOwnedSessions,
@@ -237,6 +238,23 @@ describe("followupParticipantSession", () => {
             })
         ).rejects.toThrow("CAPABILITY_REVOKED");
         expect(checks).toBe(2);
+    });
+});
+
+describe("followupMeetingTaskSession", () => {
+    it("authorizes queued delivery before followup and running delivery after followup", async () => {
+        const phases: string[] = [];
+        await followupMeetingTaskSession({
+            runtime: { followup: async () => "task-message" as never },
+            parent: { id: "captain-session" } as never,
+            ownership: participantOwnership(),
+            meetingTaskId: "task-1",
+            deliveryId: "delivery-1",
+            prompt: [{ type: "text", text: "task" }],
+            signal: new AbortController().signal,
+            authorize: async (phase) => phases.push(phase)
+        });
+        expect(phases).toEqual(["before", "after"]);
     });
 });
 

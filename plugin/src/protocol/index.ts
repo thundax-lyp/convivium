@@ -9,13 +9,15 @@ export {
     PauseMeetingInputSchema,
     ResumeMeetingInputSchema,
     TurnSubmissionSchema,
-    validateBackgroundTaskRequest,
+    MeetingTaskFinishInputSchema,
+    MeetingTaskRequestSchema,
+    MeetingTaskStartInputSchema,
+    MeetingTaskStatusInputSchema,
     validateCommandInput,
     validateReassignTurnInput
 } from "./commands.js";
 export { MeetingArchivePackageSchema, MeetingStatusResultSchema } from "./status.js";
 export {
-    BackgroundTaskResultSchema,
     CaptainRiskDispositionResultSchema,
     CreateMeetingResultSchema,
     EndMeetingResultSchema,
@@ -24,7 +26,11 @@ export {
     MeetingControlResultSchema,
     ProtocolErrorResultSchema,
     ReassignTurnResultSchema,
-    TurnSubmissionResultSchema
+    TurnSubmissionResultSchema,
+    MeetingTaskFinishResultSchema,
+    MeetingTaskResultSchema,
+    MeetingTaskStartResultSchema,
+    MeetingTaskStatusResultSchema
 } from "./results.js";
 export {
     ProtocolErrorSchema,

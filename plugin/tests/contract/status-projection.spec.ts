@@ -18,6 +18,7 @@ const state = {
     decisions: [],
     issues: [],
     handRaises: [],
+    meetingTasks: [],
     currentTurn: undefined,
     manager: {
         status: "planning",
@@ -62,6 +63,33 @@ describe("meeting status projection", () => {
             status: "waiting",
             pauseControl: { action: "pause" }
         });
+    });
+
+    it("projects the optional HandRaise reply target", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                handRaises: [
+                    {
+                        id: "raise-1",
+                        participant: "participant-1",
+                        reason: "correction",
+                        summary: "Correct the prior statement",
+                        taskIds: [],
+                        replyToMessageId: "message-1",
+                        priority: "normal",
+                        createdAt: 1,
+                        status: "pending"
+                    }
+                ]
+            } as MeetingState,
+            { kind: "captain", sessionId: "captain-1" }
+        );
+
+        expect(projected.pendingHandRaises).toEqual([
+            expect.objectContaining({ replyToMessageId: "message-1" })
+        ]);
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
 
     it.each(["completed", "partial", "no_consensus", "cancelled", "failed"] as const)(

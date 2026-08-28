@@ -14,7 +14,7 @@
 - 每个会议身份拥有独立、持久的 continuable AgentSession。
 - Manager 按议题和会议状态规划有序 turn。
 - 每次只请求一位 speaker；后续 speaker 继承前序已提交输出。
-- 长任务转为 DSH TeamTask；完成后 Agent 通过举手申请发言。
+- 长任务创建为 Convivium-owned MeetingTask；完成后 Participant 通过举手申请发言。
 - SQLite 事务原子提交会议状态、事件、幂等收据和 outbox。
 - 从 SQLite 单向生成供开发者在 workspace 中阅读的活动和归档 Markdown 辅助文件。
 - 支持超时、撤销、重试、冷恢复、归档和迟到结果隔离。
@@ -67,7 +67,7 @@
 | SpeakerStep | Turn 中一个计划内发言位置 |
 | SpeakerAttempt | 对当前 SpeakerStep 的一次实际 Agent 请求 |
 | MeetingMessage | 通过合法 SpeakerAttempt 提交的正式会议发言 |
-| TeamTask | 会议外异步执行的 DSH 后台任务 |
+| MeetingTask | 由 Convivium 拥有、复用 Participant continuable Session 执行的会议异步任务 |
 | HandRaise | Agent 请求进入后续 turn 的结构化调度信号 |
 | Outbox | SQLite 事务提交后需要执行的 Agent 请求、事件或清理动作 |
 
@@ -78,7 +78,7 @@
 3. Speaker 提交必须同时匹配 `meetingId`、`turnId`、`stepId` 和 `attemptId`。
 4. Manager 提交必须同时匹配 `managerSessionId`、`planningAttemptId` 和 observed meeting version。
 5. 正式 transcript message 只能由匹配当前 SpeakerAttempt 的合法 `submit_turn` 写入。
-6. Proposal、Position 和 Participant completion claims 只能通过合法 `submit_turn` 进入；Captain 风险处置、结束、豁免和改派只能通过对应 Captain command 进入；DSH TeamTask 与 Session lifecycle facts 只能由受控 adapter 验证后进入。
+6. Proposal、Position 和 Participant completion claims 只能通过合法 `submit_turn` 进入；Captain 风险处置、结束、豁免和改派只能通过对应 Captain command 进入；MeetingTask 事实只能由 Meeting Runtime 通过 repository transition 进入，Session lifecycle facts 仍由 DSH 拥有。
 7. 所有正式领域事实都必须经过统一 Meeting Runtime transition 和 SQLite transaction；Manager、mailbox、Markdown、Plugin Frontend projection 和其他派生输出不能直接写入。
 8. Agent 私聊、HandRaise 和 Manager plan 都不能直接写 transcript。
 9. SQLite `COMMIT` 是会议状态提交成功的唯一判据。
@@ -124,7 +124,7 @@ Captain Session
 - Meeting Participant MUST 使用新建的 meeting-owned Session；不得直接复用 `TeamMember.id`。
 - Participant Session 的模型、persona 和能力可以从 TeamMember 配置快照派生。
 - Captain 如果作为会议角色发言，也必须创建独立 Participant Session。
-- Manager 不进入 `TeamState.members`，不领取 TeamTask，不进入 speaker 候选集。
+- Manager 不进入 `TeamState.members`，不领取 MeetingTask，不进入 speaker 候选集。
 
 ### 4.3 Session creation boundary
 
@@ -364,10 +364,9 @@ interface SpeakerAttempt {
 }
 
 interface MeetingTaskSnapshot {
-  taskId: string
-  taskAttemptId?: string
-  status: TaskStatus
-  output?: string
+  meetingTaskId: string
+  status: 'requested' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+  resultSummary?: string
   observedAt: number
 }
 ```
@@ -405,7 +404,7 @@ interface ManagerPlanningAttempt {
 Manager persona MUST 明确：
 
 - 不代表任何 Participant。
-- 不直接写 transcript、agenda、decision、risk 或 TeamTask。
+- 不直接写 transcript、agenda、decision、risk 或 MeetingTask。
 - 不使用 `submit_turn`。
 - 只通过 `convivium_submit_manager_plan` 提交结构化建议。
 - 不能绕过强制 speaker、权限、会议限制、议题边界或终止限制。
@@ -869,7 +868,7 @@ interface MeetingContextProjection {
 
 ### 9.3 Task snapshots
 
-不新增 `taskVersion`。DSH TeamTask 的 `attemptId` 已表示执行代次，terminal result 又不可修改。
+不新增 `taskVersion`。MeetingTask 的 `executionId` 已表示一次执行，terminal result 又不可修改。
 
 ```text
 acquire short TeamState lock
@@ -892,7 +891,7 @@ acquire short TeamState lock
 
 每个 meeting-owned Participant Session MUST 只有一个串行执行队列。SpeakerAttempt、MailHandlingAttempt 和其他 followup 都必须先取得该队列的执行权，不得并发调用同一个 AgentSession。
 
-SpeakerAttempt 是会议调度路径，优先于尚未开始的普通 mail handling。已经开始的短时 mail handling 可以完成；预计长时间执行的 mail 必须转为 TeamTask 并释放 Session 队列。mail handling 达到 `mailHandlingTimeoutMs` 时由 DSH interrupt，标记 `timed_out` 并释放队列。队列等待不授予会议发言权，也不改变 Turn 顺序。
+SpeakerAttempt 是会议调度路径，优先于尚未开始的普通 mail handling。已经开始的短时 mail handling 可以完成；预计长时间执行的 mail 必须转为 MeetingTask 并释放 Session 队列。mail handling 达到 `mailHandlingTimeoutMs` 时由 DSH interrupt，标记 `timed_out` 并释放队列。队列等待不授予会议发言权，也不改变 Turn 顺序。
 
 ## 10. Meeting Lifecycle
 
@@ -982,10 +981,10 @@ Pause transaction MUST：
 2. 保存 `pausedFromStatus`、actor、reason 和时间；
 3. 撤销活动 `SpeakerAttempt` 和 `ManagerPlanningAttempt`，使旧 capability 立即失效；
 4. 将当前 Turn 标为因暂停截断，并取消对应未投递 outbox；
-5. 保留全部已提交事实和 TeamTask 关联；
+5. 保留全部已提交事实和 MeetingTask 关联；
 6. 写入 receipt、状态事件和 UI projection 后进入 `paused`。
 
-已运行 TeamTask 不因会议暂停而取消。任务事件仍可由 adapter 固化为授权 snapshot 或 pending HandRaise，但 scheduler 在 `paused` 状态不得消费 HandRaise、创建 Turn 或分配发言。这样暂停不会阻塞长任务，也不会让异步结果绕过用户控制推进会议。
+已运行 MeetingTask 不因会议暂停而取消。任务事件仍可由 adapter 固化为授权 snapshot 或 pending HandRaise，但 scheduler 在 `paused` 状态不得消费 HandRaise、创建 Turn 或分配发言。这样暂停不会阻塞长任务，也不会让异步结果绕过用户控制推进会议。
 
 Resume transaction MUST 从最新持久化事实重新计算阻塞条件：有强阻塞任务则进入 `waiting`；否则进入 `running` 并创建新的 planning attempt。旧 Turn、SpeakerAttempt、delivery 和 deadline 一律不恢复，新 Attempt 获得完整 deadline。
 
@@ -1004,26 +1003,21 @@ Resume transaction MUST 从最新持久化事实重新计算阻塞条件：有�
 
 正式 speaker attempt SHOULD 只做短时分析、快速工具调用、提交问题/提案/异议或创建后台任务。
 
-长时间构建、测试、调研和外部等待 MUST 转为 TeamTask。当前 speaker 提交简短状态后释放发言权。
+长时间构建、测试、调研和外部等待 MUST 创建为 MeetingTask。任务不会在 create 时释放 speaker；当前 speaker 必须先通过合法 `convivium_submit_turn` 提交简短状态，提交 transition 原子将 task 置为 `queued`、释放 attempt，并写既有 `dispatch` outbox 的 `payload.role='meeting_task'`。
 
-meeting-owned Participant Session 不属于 `TeamState.members`，也不能直接调用 Captain-only 的 `convivium_create_task`。后台任务采用受控桥接：
+meeting-owned Participant Session 不属于 `TeamState.members`。Participant 只能调用 Convivium MeetingTask tool；Runtime 通过既有 repository transition 写入 MeetingState，不授予 Captain 权限：
 
 ```text
 current Participant Session
-→ convivium_request_background_task
+→ convivium_create_meeting_task
 → validate caller, Meeting, Participant and current SpeakerAttempt
-→ validate Team/task scope and requested operation
-→ Meeting Runtime controlled Captain adapter
-→ create or associate DSH TeamTask
-→ persist taskId/taskAttemptId ↔ meetingId/participantId/speakerAttemptId
-→ return idempotent receipt
+→ create Convivium-owned MeetingTask in MeetingState
+→ return idempotent create receipt
 ```
 
-`ControlledCaptainTaskAdapter` 是 Meeting Runtime 内部端口，只暴露创建或关联已验证 TeamTask 所需的最小操作，不接受任意 Captain tool 名称或 payload。它使用 Meeting 所属 Team 的 Captain authority 调用现有 DSH TeamTask 能力，但不得把 Captain Session、caller context 或 capability 交给 Participant Session。
+MeetingTask create、start、finish 和 cancellation 都通过既有 `MeetingRepository.execute()` 提交 MeetingState、event、version 和 receipt；不新增外部 task association、跨系统 correlation、task operation metadata 或第二套事务。
 
-创建或关联操作必须以 Participant 的 `requestId` 幂等。关联记录和 receipt 与 Meeting version/event 在同一 SQLite 事务提交；DSH TeamTask 创建本身不能与 SQLite 跨系统原子提交，因此 adapter 必须使用稳定 request correlation 查找已创建任务后再重试，避免崩溃恢复时重复创建。无法确认创建结果时返回可重试的内部失败，不得再次无条件创建。
-
-关联现有 TeamTask 时必须验证它属于同一 Team，并验证 Participant 对任务及其结果的访问权限。任务状态和结果仍归 DSH 所有；Meeting Runtime 只保存已授权 snapshot，并在进入 speaker context、HandRaise 或 CompletionFact 前再次检查关联和投影范围。
+create、start 和 finish 以 `requestId + commandKind + callerBinding` 幂等；相同 request/hash 返回原 receipt/result，不同 hash 返回 `IDEMPOTENCY_CONFLICT`。status 是不使用 receipt 的只读授权观察。Execution envelope 必须 status pre-read→start→status post-read，只有 post-read `mayExecute=true` 才能开始工作。finish 成功时原子写 terminal result 和 task-linked pending HandRaise。
 
 MeetingHandRaise 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md) 为准。本节仅定义异步工作、举手和 Mail Processor 的行为。
 
@@ -1034,7 +1028,7 @@ MeetingHandRaise 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESI
 - 非阻塞后台任务运行时，会议继续其他议题。
 - 强阻塞任务使 Meeting 进入 `waiting`；完成后通过 event/HandRaise 恢复。
 
-Agent 内部工具、MCP、命令重试和私有工作流不计入 Meeting Runtime。Runtime 只观察 speaker attempt、Session、outbox、提交协议和 TeamTask 的跨边界结果。
+Agent 内部工具、MCP、命令重试和私有工作流不计入 Meeting Runtime。Runtime 只观察 speaker attempt、Session、outbox、提交协议和 MeetingTask 的跨边界结果。
 
 ### 11.1 Meeting-scoped mailbox and Mail Processor
 
@@ -1049,7 +1043,7 @@ sender meeting-owned Session
 → enqueue MailHandlingAttempt for recipient
 ```
 
-Meeting Participant 不加入 `TeamState.members`，不复用来源 TeamMember Session，也不通过 Participant ID 冒充 TeamMember name。`MeetingMailboxAdapter` 只向 `convivium_send_message` 暴露 meeting-scoped sender/recipient 解析和投递能力，不能授予 Captain、TeamTask 或其他 TeamMember 权限。
+Meeting Participant 不加入 `TeamState.members`，不复用来源 TeamMember Session，也不通过 Participant ID 冒充 TeamMember name。`MeetingMailboxAdapter` 只向 `convivium_send_message` 暴露 meeting-scoped sender/recipient 解析和投递能力，不能授予 Captain、MeetingTask 或其他 TeamMember 权限。
 
 Mail Processor 在接收方 Session 队列可用时创建处理 attempt：
 
@@ -1061,7 +1055,7 @@ load mail snapshot through snapshotThroughSeq
 → otherwise followup existing Participant Session through unified queue
 → persist processed/failed and optional private reply
 → if public discussion is needed, create HandRaise
-→ if long work is needed, request TeamTask
+→ if long work is needed, request MeetingTask
 ```
 
 发送时 snapshot 用于保留 mail 产生时的语义，处理时 delta 用于避免 Agent 忽略已经发生的公开事实。`processingThroughSeq` 固化后，重试和恢复不得刷新输入范围；后续新增事实只能进入新的 handling attempt、SpeakerAttempt 或 mail。
@@ -1089,7 +1083,7 @@ function dispatchableNow(state: MeetingState): MeetingParticipant[]
 2. 直接问题目标；
 3. 必需复核者；
 4. 当前议题 owner；
-5. 相关 TeamTask 结果报告者；
+5. 相关 MeetingTask 结果报告者；
 6. 与 active agenda 相关的 blocking HandRaise。
 
 同一 speaker 默认每 turn 只出现一次。Plan 长度不得超过 `maxSpeakersPerTurn`。
@@ -1175,7 +1169,7 @@ Meeting completed MUST 同时满足：
 - 无开放 blocking question；
 - 无开放 blocking objection；
 - 无开放 blocking issue；
-- 必需 TeamTask output 已存在。
+- 必需 MeetingTask output 已存在。
 
 Follow-up、Parking Lot、授权 accepted risk 和非阻塞少数意见不阻止 completed。Deferred item 必须记录原因和 owner。
 
@@ -1276,7 +1270,7 @@ Meeting Session 必须通过目录、SQLite ID 和 DSH ownership 三者一致来
 3. runtime 无法确认：撤销旧 attempt，创建新 attempt 和 delivery。
 4. accepted 已发生但状态未落盘：相同 delivery ID 重投并由接收端去重。
 5. 旧提交由 stale capability 拒绝。
-6. waiting Meeting 重建 TeamTask 订阅；已完成任务生成或恢复 HandRaise。
+6. waiting Meeting 重建 MeetingTask 订阅；已完成任务生成或恢复 HandRaise。
 7. Manager Session 丢失：创建新 Manager Session 和 planning attempt，拒绝旧 Session 结果。
 8. archiving Meeting 只恢复归档、Session close 和 capability revoke，不恢复讨论。
 
@@ -1300,7 +1294,7 @@ Markdown 是从 `ArchivePackage` best-effort 生成的非必要开发者辅助�
 execution terminal → archiving
 → reject new meeting writes
 → revoke speaker and Manager attempts
-→ cancel/transfer meeting-owned TeamTasks
+→ cancel/transfer meeting-owned MeetingTasks
 → cancel obsolete outbox
 → SQLite transaction validates and materializes ArchivePackage
 → enqueue meeting-owned Session close/revoke with stable lifecycle IDs
@@ -1324,7 +1318,7 @@ execution terminal → archiving
 | `convivium_meeting_status` | captain；Session 仍有效的 participant/manager | 读取裁剪后的 Meeting 快照；归档后 Agent 身份不再可调用 |
 | `convivium_submit_manager_plan` | current Manager Session | 提交结构化 turn plan |
 | `convivium_submit_turn` | current speaker Session | 提交正式发言和结构化变化 |
-| `convivium_request_background_task` | current speaker Session | 请求 Runtime 通过受控 Captain adapter 创建或关联 TeamTask |
+| `convivium_create_meeting_task` | current speaker Session | 创建当前 Meeting 的 MeetingTask |
 | `convivium_raise_hand` | participant | 创建去重的发言申请 |
 | `convivium_pause_meeting` | captain | 按用户指令暂停 Meeting |
 | `convivium_resume_meeting` | captain | 按用户指令基于最新事实恢复 Meeting |
@@ -1339,12 +1333,12 @@ Meeting-owned Sessions 清理后，不创建只为读取归档而存在的虚拟
 - 正式 transcript：只允许匹配当前 SpeakerAttempt 的 `submit_turn`。
 - Participant 结构化事实：Proposal、Position 和 completion claims 随合法 `submit_turn` 提交，由 Runtime 验证后形成。
 - Captain 结构化事实：只允许对应的 risk disposition、end、waiver 或 reassign command，经 Runtime 验证后形成。
-- DSH-owned facts：只允许受控 TeamTask/Session adapter 投影和验证后形成会议证据或生命周期变化。
+- MeetingTask facts：只允许 Meeting Runtime 通过既有 repository transition 形成；Session lifecycle facts 仍由 DSH 定义和持久化。
 - 异步结果：使用 `raise_hand`。
 - Agent 私聊：使用 `convivium_send_message`，不进入 MeetingState。
 - 人类在 Turn 中直接插话不属于当前协议；任何后续扩展都必须使用独立 Turn Gate，不能复用普通消息绕过发言权。
 
-Manager tool filter MUST 拒绝 team create/delete、member add/remove、task reassign、meeting end 和 Participant submit。Participant tool filter MUST 拒绝 Manager plan 和 captain-only 控制工具。Participant 只能通过 `convivium_request_background_task` 请求 Runtime 代为创建或关联任务；该工具不得扩展为任意 Captain 操作代理。meeting-scoped `convivium_send_message` 只能投递到同一 Meeting 的 Participant，不得借 mailbox adapter 取得普通 TeamMember 或 Captain 身份。
+Manager tool filter MUST 拒绝 team create/delete、member add/remove、task reassign、meeting end 和 Participant submit。Participant tool filter MUST 拒绝 Manager plan 和 captain-only 控制工具。Participant 只能通过 `convivium_create_meeting_task` 创建当前 Meeting 的任务；该工具不得扩展为任意 Captain 操作代理。meeting-scoped `convivium_send_message` 只能投递到同一 Meeting 的 Participant，不得借 mailbox adapter 取得普通 TeamMember 或 Captain 身份。
 
 上述限制只适用于 Convivium 提供的会议控制工具。Convivium MUST NOT 枚举、重定义或接管 Agent 的普通 DSH Skills、Tools 和 MCP。普通能力的加载、授权、Sandbox、Approval、执行和内部重试由 DSH 与 Agent 自己负责。
 
@@ -1352,7 +1346,7 @@ Meeting Runtime 只观察以下边界结果：
 
 - 合法 SpeakerAttempt 提交的正式发言和结构化 claims；
 - Participant 提交的 HandRaise；
-- 经会议授权投影的 DSH TeamTask 状态和结果；
+- 经会议授权投影的 MeetingTask 状态和结果；
 - DSH 报告的 Session 生命周期、取消和超时。
 
 Meeting Runtime 不得根据内部 Skill 名称、Tool Schema、工具调用顺序、隐藏推理或私有日志改变议题、决策、完成事实或会议权限。Agent 内部能力发生变化时，只要仍满足相同会议协议，Meeting Runtime 的行为必须保持兼容。
@@ -1375,7 +1369,7 @@ Manager submission 只能建议一个完整、可校验的下一 Turn；Runtime 
 
 ### 16.2 DSH completion integration
 
-会议完成能力 MUST 复用 DSH 的 Agent tool、caller Session 身份、TeamTask、continuable Session 和 DSH-owned 工具/生命周期事实，不建设脱离 DSH 的第二套调用或身份系统，也不依赖插件自定义持久化 Session Event。
+会议完成能力 MUST 复用 DSH 的 Agent tool、caller Session 身份、MeetingTask、continuable Session 和 DSH-owned 工具/生命周期事实，不建设脱离 DSH 的第二套调用或身份系统，也不依赖插件自定义持久化 Session Event。MeetingTask 本身仍由 Convivium MeetingState 拥有。
 
 DSH 提供执行事实和调用通道；Meeting Runtime 负责把经过验证的事实转换为会议领域状态：
 
@@ -1383,7 +1377,7 @@ DSH 提供执行事实和调用通道；Meeting Runtime 负责把经过验证的
 DSH AgentSession
 → convivium_submit_turn(completionClaims)
 → resolve real caller Session
-→ validate evidence, TeamTask snapshots and authority
+→ validate evidence, MeetingTask snapshots and authority
 → persist CompletionFact and derive output/review/question/risk/agenda state
 → recompute deterministic completion
 → commit state, receipt, events and outbox in SQLite
@@ -1392,7 +1386,7 @@ DSH AgentSession
 以下等式均不成立：
 
 ```text
-TeamTask completed ≠ required output accepted
+MeetingTask completed ≠ required output accepted
 answer message exists ≠ blocking question resolved
 proposal exists ≠ decision accepted
 agenda has discussion ≠ agenda resolved
@@ -1408,14 +1402,14 @@ agenda has discussion ≠ agenda resolved
 - Captain 的自然语言回答、总结或建议不产生风险处置事实；只有合法的 `CaptainRiskDispositionInputV1` command commit 才能生效；
 - Captain risk disposition 只影响输入中唯一的 `issueId`；`accept` 生成 accepted-risk fact，`reject` 生成拒绝接受的 disposition fact 并保持该风险按原 blocking 规则处理，二者都不得顺带接受其他风险或 Decision；
 - question resolution 必须引用当前 Meeting 中由该 answer attempt 产生的正式 message；
-- output 和 criterion claim 必须引用当前 Meeting 的 message 或已固化 TeamTask snapshot；
+- output 和 criterion claim 必须引用当前 Meeting 的 message 或已固化 MeetingTask snapshot；
 - AgendaItem 只有满足自身 completion criteria 且不存在关联 blocking fact 时才能变为 `resolved`；
 - Captain MAY 通过 `convivium_end_meeting` 接受 partial、豁免 reviewer 或 defer agenda，但每次豁免都必须结构化记录 actor、reason 和 affected IDs；
 - Runtime 在每个合法 speaker commit 和 Captain completion 操作后重新计算 deterministic completion。
 
 每个验证成功的 claim MUST 生成不可变 `CompletionFact`。事实失效时创建替代事实并把旧事实标记为 `superseded` 或 `revoked`，不得原地改写历史 actor、authority 或 evidence。objective contract、AgendaItem、Question 和 Issue 的当前状态由 active facts 与确定性规则派生；恢复时不得从自然语言 transcript 推测完成状态。
 
-DSH TeamTask 状态只能作为 evidence。除非 objective contract 明确声明某个可机器验证的 task result 足以满足 criterion，否则 `completed` 不得自动升级为 output `accepted` 或 Meeting `completed`。
+MeetingTask 状态只能作为 evidence。除非 objective contract 明确声明某个可机器验证的 task result 足以满足 criterion，否则 `completed` 不得自动升级为 output `accepted` 或 Meeting `completed`。
 
 ### 16.3 Required errors
 
@@ -1515,7 +1509,12 @@ speaker.assigned
 speaker_attempt.revoked
 message.added
 hand_raise.created
-background_task.linked
+meeting_task.created
+meeting_task.queued
+meeting_task.started
+meeting_task.completed
+meeting_task.failed
+meeting_task.cancelled
 decision.added
 meeting.paused
 meeting.waiting
@@ -1603,7 +1602,7 @@ const DEFAULT_SELECTION_MODE: MeetingSelectionMode = 'hybrid'
 - termination 拒绝其他 Meeting 的结构化 ID。
 - completion claim 只能生成绑定真实 caller、authority 和 evidence 的 CompletionFact。
 - 恢复后由 active CompletionFact 重建相同的 output、criterion、review、question、agenda 和 risk 状态。
-- TeamTask completed 默认只产生 evidence，不自动接受 output 或完成 Meeting。
+- MeetingTask completed 默认只产生 evidence，不自动接受 output 或完成 Meeting。
 - Participant 不能为其他身份提交 Position，也不能直接创建或接受 MeetingDecision。
 - acceptedBy、dissentingPositionIds、acceptanceMode 和 acceptanceFactIds 始终由 Runtime 从同一 proposal revision 派生。
 - 新 proposal revision 不继承旧 Position 或 acceptance。
@@ -1629,7 +1628,7 @@ const DEFAULT_SELECTION_MODE: MeetingSelectionMode = 'hybrid'
 - 冷恢复发现终态 Meeting 仍有可运行 Session 时，只中断或关闭 Session 并撤销 capability；不以物理删除 Session 数据作为恢复或归档条件。
 - 冷启动 reconciliation 完成前，不启动 scheduler、outbox delivery 或新会议创建。
 - 无法证明 ownership 的 Session 不得由 Meeting Runtime 自动中断、关闭、撤销 capability 或删除。
-- 暂停期间 TeamTask 可以继续并固化授权结果，但 HandRaise 不被消费、Meeting 不创建新 Turn。
+- 暂停期间 MeetingTask 可以继续并固化授权结果，但 HandRaise 不被消费、Meeting 不创建新 Turn。
 - 恢复使用最新事实重新规划，不复用暂停前的 Turn、Attempt、delivery 或 deadline。
 - meeting-scoped mail 固化发送时 snapshot，并在处理开始时只补充接收者可见的 transcript delta。
 - 同一 MailHandlingAttempt 重试时 `processingThroughSeq` 和 `deliveryId` 不漂移。

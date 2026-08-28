@@ -23,7 +23,7 @@
 - 不提供脱离 DSH 运行的独立桌面应用或独立 Agent Host。
 - 不要求多个 Agent 同时生成发言。
 - 不要求一次会议解决所有发现的问题。
-- 不把 DSH TeamTask 完成直接等同于会议目标完成。
+- 不把 MeetingTask 完成直接等同于会议目标完成。
 - 不共享 Agent 的隐藏推理、私有工具过程或与会议无关的 Session 历史。
 - 不规定、枚举或解释 Agent 内部的 Prompt、Skills、Tools、MCP、命令、推理、工作流或重试策略。
 - 不定义角色市场、人类席位托管、自动创建角色或跨 DSH 宿主协作。
@@ -71,13 +71,13 @@
 ### FR-5：异步任务与举手
 
 1. 长时间构建、测试、调研或外部等待不得持续占用会议发言权。
-2. 参与者必须能够请求把长时间工作转为 DSH 异步任务，并以简短状态结束当前发言。
+2. 参与者必须能够创建 Convivium-owned MeetingTask，并以简短状态结束当前发言；任务实际执行复用该 Participant 的 DSH continuable Session。
 3. 异步任务完成或出现新证据时，相关参与者必须能够申请在后续讨论中发言。
 4. 发言申请本身不是正式会议发言，不得直接形成决策或修改正式 transcript。
 5. 非阻塞任务运行期间，会议应能继续讨论其他相关内容。
 6. 当前目标确实依赖某项未完成任务时，会议可以进入等待，并在条件满足后恢复。
-7. 会议运行时必须验证请求者的会议身份和授权，再通过受控的 Team Captain 能力创建或关联 TeamTask；会议 Participant 不得因此获得 Captain 权限。
-8. TeamTask 必须能够追溯到发起它的会议、参与者和当时的正式发言上下文；其结果只有经过授权筛选后才能进入会议。
+7. 会议运行时必须验证请求者的会议身份、当前 SpeakerAttempt 和授权，再创建 MeetingTask；Participant 不因此获得 Captain 或其他 Participant 权限。
+8. MeetingTask 必须能够追溯到所属 Meeting、参与者和当时的正式发言上下文；其结果只有经 Meeting Runtime 授权的 projection 才能进入会议。
 
 ### FR-6：议题范围与发散控制
 
@@ -101,8 +101,8 @@
 
 ### FR-8：完成事实与会议结束
 
-1. 会议完成事实可以来自 Agent 的正式提交、经授权的 DSH TeamTask 结果、required review，以及 Captain 的明确接受、豁免、风险处置或结束操作。
-2. `TeamTask completed` 不得默认等同于 required output accepted、议题解决或会议完成。
+1. 会议完成事实可以来自 Agent 的正式提交、经授权的 MeetingTask result projection、required review，以及 Captain 的明确接受、豁免、风险处置或结束操作。
+2. `MeetingTask completed` 不得默认等同于 required output accepted、议题解决或会议完成。
 3. 参与者可以提交完成声明及其证据，但不能直接覆盖会议目标、验收条件或完成状态。
 4. 系统必须验证声明者身份、授权范围、证据归属、审核要求和风险接受权限。
 5. 会议完成状态必须由经过验证的完成事实和确定性业务规则得出，不得仅根据自然语言总结宣布完成。
@@ -204,12 +204,12 @@ Meeting-scoped mail 是私有异步消息，不是正式会议事实。发送时
 1. 创建包含至少三位 Agent 的会议后，任意时刻最多只有一位 Agent 被请求发言。
 2. 同一 Turn 中第二位 Agent 收到的会议上下文包含第一位 Agent 已正式提交的发言。
 3. 当前发言权被重新分配后，原 Agent 的迟到提交被拒绝且不进入 transcript。
-4. 长时间任务转为 DSH TeamTask 后，会议可以释放发言权；任务完成后相关 Agent 可以申请后续发言。
+4. 长时间任务创建为 MeetingTask 后，合法的简短 `submit_turn` 可以释放发言权；任务完成后相关 Participant 可以申请后续发言。
 5. 新出现但不影响目标验收的问题被记录为后续事项或待讨论事项，不阻止会议完成。
 6. 没有有效阻塞依据的问题不能阻止会议完成。
 7. Participant 不能为其他身份提交立场，也不能直接指定正式决策的接受者或状态。
 8. 新 proposal revision 不继承旧 revision 的立场或接受结果。
-9. DSH TeamTask 完成但 required review 未通过时，会议不能把对应产出标记为 accepted。
+9. MeetingTask 完成但 required review 未通过时，会议不能把对应产出标记为 accepted。
 10. 经过授权和证据验证的完成声明可以更新相应产出、验收条件、议题、问题或风险状态。
 11. 所有必要产出和验收条件满足后，即使存在非阻塞后续事项或少数意见，会议仍能正常完成。
 12. 最后一个 Turn 同时满足完成条件和硬限制时，结果为正常完成，而不是部分完成。
@@ -224,7 +224,7 @@ Meeting-scoped mail 是私有异步消息，不是正式会议事实。发送时
 21. Meeting-scoped mail 保存发送时上下文范围；延迟处理时补充截至处理开始的可见 transcript，随后重试使用同一固定范围。
 22. 同一个会议身份不会同时处理私聊和正式发言请求；mail 回复不会自动进入 transcript 或取得发言权。
 23. 普通 TeamMember mailbox 不携带会议上下文时保持原有行为；会议参与者不需要复用或伪装成 TeamMember Session 即可收发会议私聊。
-24. Mail handling 具有明确超时；私聊处理不得无限占用 Participant Session 或阻塞正式发言，长时间工作必须转为 TeamTask。
+24. Mail handling 具有明确超时；私聊处理不得无限占用 Participant Session 或阻塞正式发言，长时间工作必须转为 MeetingTask。
 25. 创建会议时，重复、缺失、相互矛盾或引用无权访问对象的参与者配置会使创建整体失败，且不产生部分可用的会议。
 26. Captain 的自然语言风险意见不会改变会议状态；合法的结构化风险处置只影响指定风险，生成可审计事实并触发确定性完成重算。
 27. 归档前会校验最终成果、完成依据、正式 transcript、未解决事项和来源信息已经物化；Session 关闭失败时会议保持不可讨论的 `archiving`，且输出物不会丢失。

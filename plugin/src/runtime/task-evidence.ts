@@ -2,9 +2,6 @@ import { DomainError, type MeetingState } from "../domain/index.js";
 
 export interface AuthorizedTaskEvidence {
     taskId: string;
-    taskAttemptId: string;
-    associationId: string;
-    snapshotObservedAt: number;
 }
 
 export interface AuthorizedTaskEvidenceResolver {
@@ -21,12 +18,37 @@ export const rejectUnsupportedTaskEvidence: AuthorizedTaskEvidenceResolver = {
         if (input.taskIds.length === 0) return [];
         throw new DomainError(
             "UNSUPPORTED_CAPABILITY",
-            "Task evidence is unavailable until the authorized TeamTask resolver is installed.",
+            "MeetingTask evidence is unavailable until an authorized resolver is installed.",
             {
                 entityType: "meeting",
                 entityId: input.meetingId,
                 meetingVersion: input.state.version
             }
         );
+    }
+};
+
+export const meetingTaskEvidenceResolver: AuthorizedTaskEvidenceResolver = {
+    resolve(input) {
+        return input.taskIds.map((taskId) => {
+            const task = (input.state.meetingTasks ?? []).find(
+                (candidate) =>
+                    candidate.meetingTaskId === taskId &&
+                    candidate.participantId === input.participantId &&
+                    candidate.status === "completed"
+            );
+            if (task === undefined) {
+                throw new DomainError(
+                    "UNSUPPORTED_CAPABILITY",
+                    `MeetingTask ${taskId} is not a completed authorized task for this Participant.`,
+                    {
+                        entityType: "meeting",
+                        entityId: input.meetingId,
+                        meetingVersion: input.state.version
+                    }
+                );
+            }
+            return { taskId };
+        });
     }
 };

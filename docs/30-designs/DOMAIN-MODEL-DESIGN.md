@@ -18,7 +18,7 @@ Repository 不维护独立的事件词汇，不把 Domain event 通过字符串�
 
 DSH `tool/call`、`tool/result`、Session lifecycle 和其他 DSH-owned Session Event 不属于 Domain event。它们由 DSH 定义和持久化，不能写入 Convivium 的 `meeting_events`。
 
-当前 Domain event 词汇包括会议生命周期（`meeting.*`）、Turn 生命周期（`turn.*`）、speaker 分配与执行（`speaker.*`、`speaker_attempt.*`）、Manager plan（`manager_plan.*`）以及正式会议事实（`message.added`、`hand_raise.created`、`background_task.linked`、`decision.added`、`archive.sessions_closed`）。具体允许值由 `plugin/src/domain/model.ts` 的 `DomainEventTypes` 集中定义。
+当前 Domain event 词汇包括会议生命周期（`meeting.*`）、Turn 生命周期（`turn.*`）、speaker 分配与执行（`speaker.*`、`speaker_attempt.*`）、Manager plan（`manager_plan.*`）、MeetingTask 与 HandRaise（`meeting_task.*`、`hand_raise.*`）以及正式会议事实（`message.added`、`decision.added`、`archive.sessions_closed`）。具体允许值由 `plugin/src/domain/model.ts` 的 `DomainEventTypes` 集中定义。
 
 ## Authority And Boundaries
 
@@ -46,7 +46,7 @@ DSH `tool/call`、`tool/result`、Session lifecycle 和其他 DSH-owned Session 
 | proposalId / positionId / decisionId | 提案、立场和正式决策 |
 | issueId / questionId | 问题和问题回答对象 |
 | completionFactId | 不可变完成事实 |
-| taskId / taskAttemptId | DSH TeamTask 及其执行尝试 |
+| meetingTaskId / executionId | Convivium MeetingTask 及其执行尝试 |
 
 字段未明确允许缺失时不得使用 null。集合字段始终存在，使用空数组表示没有元素。
 
@@ -61,7 +61,7 @@ MeetingState 必须包含以下字段：
 | Lifecycle | status, termination?, archive? |
 | Participants | manager, participants |
 | Agenda | agenda, activeAgendaItemId?, issues, agendaCandidates, continuationMaterials |
-| Formal facts | transcript, proposals, decisions, openQuestions, handRaises, completionFacts, artifactRefs |
+| Formal facts | transcript, proposals, decisions, openQuestions, handRaises, meetingTasks, completionFacts, artifactRefs |
 | Progress | turnSeq, messageSeq, eventSeq, currentTurn?, waitState?, progressFingerprint?, stallCount, replanCount |
 | Limits | selectionMode, limits |
 | Versioning | version, createdAt, updatedAt |
@@ -85,7 +85,7 @@ status 为 available、busy、speaking、unavailable、failed 或 removed。Part
 
 必须包含 `promptVersion: string`、status、currentPlanningAttempt? 和 `lastDecisionMeetingVersion?: number`。Manager 与 meeting-owned AgentSession 的绑定属于 Runtime。
 
-status 为 creating、idle、planning、failed 或 closed。Manager 是会议控制身份，不代表任何 Participant，不直接拥有 transcript、Decision、risk 或 TeamTask 的写入权。
+status 为 creating、idle、planning、failed 或 closed。Manager 是会议控制身份，不代表任何 Participant，不直接拥有 transcript、Decision、risk 或 MeetingTask 的写入权。
 
 ### ManagerPlanningAttempt
 
@@ -137,11 +137,15 @@ intent 为 explore、clarify、challenge、review、resolve_objection、synthesi
 
 一个 Meeting 同时最多一个活动 SpeakerAttempt。重试必须创建新 Attempt，不能复活旧 capability。context 范围和 taskSnapshots 在 Attempt 创建时固化，重投不得漂移。
 
+### MeetingTask
+
+MeetingTask 是 Convivium 所有的 MeetingState 正式事实，必须包含 meetingTaskId、participantId、originatingSpeakerAttemptId、executionId、deliveryId、title、description、blocking、status、createdAt，以及 resultSummary?、failureReason?、queuedAt?、startedAt? 和 finishedAt?。status 为 requested、queued、running、completed、failed 或 cancelled。MeetingTask 不重复保存 meetingId 或 participantSessionId；调用方身份和 Session ownership 每次由 Runtime 解析。
+
 ### MeetingTaskSnapshot
 
-必须包含 taskId、taskAttemptId?、status、output? 和 observedAt。
+必须包含 meetingTaskId、status、resultSummary? 和 observedAt。
 
-TaskStatus 为 pending、running、completed、failed、cancelled 或 unknown。Task snapshot 是经授权的会议投影，不是 DSH TeamTask 的事实源。
+TaskStatus 为 requested、queued、running、completed、failed 或 cancelled。Task snapshot 是已固化的 MeetingTask 公开投影，不是第二份事实源。
 
 ## Messages, Proposals And Decisions
 

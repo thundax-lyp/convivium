@@ -11,7 +11,7 @@ import {
     validateProtocolError,
     isKnownMeetingProtocolErrorCode,
     validateProtocolSuccessEnvelope,
-    validateBackgroundTaskRequest,
+    MeetingTaskRequestSchema,
     validateReassignTurnInput
 } from "../../src/protocol/index.js";
 
@@ -183,32 +183,19 @@ describe("protocol envelope schemas", () => {
         ).toMatchObject({ code: "UNSUPPORTED_CAPABILITY", retryable: false });
     });
 
-    it("validates command discriminants beyond field types", () => {
-        expect(() =>
-            validateBackgroundTaskRequest({
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                attemptId: "attempt-1",
-                requestId: "request-1",
-                action: "create",
-                existingTaskId: "task-1",
-                blocking: false
-            })
-        ).toThrow();
-
-        expect(() =>
-            validateBackgroundTaskRequest({
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                attemptId: "attempt-1",
-                requestId: "request-1",
-                action: "create",
-                title: "task",
-                description: "work",
-                existingTaskId: "",
-                blocking: false
-            })
-        ).toThrow();
+    it("validates MeetingTask request fields", () => {
+        const input = {
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            attemptId: "attempt-1",
+            requestId: "request-1",
+            title: "task",
+            description: "work",
+            blocking: false
+        };
+        expect(MeetingTaskRequestSchema(input)).toEqual(input);
+        expect(() => MeetingTaskRequestSchema({ ...input, title: "" })).toThrow();
+        expect(() => MeetingTaskRequestSchema({ ...input, description: "" })).toThrow();
 
         expect(() =>
             validateReassignTurnInput({
@@ -342,6 +329,7 @@ describe("protocol envelope schemas", () => {
             messages: [],
             acceptedDecisions: [],
             blockingFacts: [],
+            meetingTasks: [],
             status: "completed",
             pendingHandRaises: [],
             pauseControl: { action: "none" },
@@ -378,6 +366,7 @@ describe("protocol envelope schemas", () => {
                 currentTurn: { id: "turn-1" },
                 currentSpeakerId: "participant-1",
                 pendingHandRaises: [],
+                meetingTasks: [],
                 pauseControl: { action: "none" },
                 termination: {
                     code: "completed",
@@ -399,6 +388,7 @@ describe("protocol envelope schemas", () => {
             continuationMaterials: [],
             limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
             pendingHandRaises: [],
+            meetingTasks: [],
             pauseControl: { action: "none" },
             termination: {
                 code: "completed",
@@ -457,6 +447,7 @@ describe("protocol envelope schemas", () => {
                 messages: [],
                 acceptedDecisions: [],
                 blockingFacts: [],
+                meetingTasks: [],
                 status: "paused",
                 pendingHandRaises: [],
                 pauseControl: { action: "resume" }
@@ -477,6 +468,7 @@ describe("protocol envelope schemas", () => {
                 messages: [],
                 acceptedDecisions: [],
                 blockingFacts: [],
+                meetingTasks: [],
                 status: "paused",
                 pendingHandRaises: [],
                 pauseControl: {

@@ -72,14 +72,55 @@ export const EndMeetingResultSchema = Schema.object({
     terminationCode: string()
 });
 
-export const BackgroundTaskResultSchema = Schema.object({
+const meetingTaskStatus = enumOf([
+    "requested",
+    "queued",
+    "running",
+    "completed",
+    "failed",
+    "cancelled"
+] as const);
+
+const meetingTaskProjection = Schema.object({
+    meetingTaskId: string(),
+    participantId: string(),
+    title: string(),
+    blocking: Schema.boolean().required(),
+    status: meetingTaskStatus,
+    resultSummary: Schema.string(),
+    failureReason: Schema.string(),
+    createdAt: number(),
+    queuedAt: Schema.number(),
+    startedAt: Schema.number(),
+    finishedAt: Schema.number()
+});
+
+export const MeetingTaskResultSchema = Schema.object({
     requestId: string(),
-    taskId: string(),
-    taskAttemptId: string(),
-    association: enumOf(["created", "associated"] as const),
-    originatingMeetingId: string(),
-    originatingParticipantId: string(),
-    originatingSpeakerAttemptId: string()
+    meetingTaskId: string(),
+    participantId: string(),
+    originatingSpeakerAttemptId: string(),
+    status: meetingTaskStatus
+});
+
+export const MeetingTaskStatusResultSchema = Schema.object({
+    task: meetingTaskProjection.required(),
+    observedMeetingVersion: number(),
+    meetingTerminal: Schema.boolean().required(),
+    mayExecute: Schema.boolean().required()
+});
+
+export const MeetingTaskStartResultSchema = Schema.object({
+    requestId: string(),
+    meetingTaskId: string(),
+    status: enumOf(["running"] as const)
+});
+
+export const MeetingTaskFinishResultSchema = Schema.object({
+    requestId: string(),
+    meetingTaskId: string(),
+    status: enumOf(["completed", "failed"] as const),
+    handRaiseId: string()
 });
 
 export const ProtocolErrorResultSchema = Schema.object({

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     createMeetingState,
     planManagerTurn,
+    planRoundRobinTurn,
     type CanonicalIdAllocator,
     type CreateMeetingSpec,
     type DomainError,
@@ -173,5 +174,30 @@ describe("Manager planning", () => {
                 ]
             })
         );
+    });
+});
+
+describe("round-robin planning", () => {
+    it("prioritizes pending hand raises before the speaker limit", () => {
+        const meeting = state();
+        meeting.limits.maxSpeakersPerTurn = 1;
+        meeting.handRaises.push({
+            id: "raise-1",
+            participant: "participant:c",
+            reason: "new_evidence",
+            summary: "Task result",
+            taskIds: [],
+            priority: "normal",
+            createdAt: 101,
+            status: "pending"
+        });
+
+        const turn = planRoundRobinTurn(
+            meeting,
+            { turnId: "turn-1", stepId: (participantId) => `step-${participantId}` },
+            200
+        );
+
+        expect(turn.plan).toEqual(["participant:c"]);
     });
 });
