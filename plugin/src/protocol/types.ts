@@ -108,6 +108,25 @@ export interface MeetingStatusInputV1 {
     meetingId: string;
 }
 
+export interface LocalMeetingListItemV1 {
+    meetingId: string;
+    teamId: string;
+    topic: string;
+    status: MeetingStatusResultV1["status"];
+    meetingVersion: number;
+    updatedAt: number;
+}
+
+export interface LocalMeetingListResultV1 {
+    meetings: readonly LocalMeetingListItemV1[];
+}
+
+export interface LocalMeetingListResponseV1 {
+    protocolVersion: 1;
+    ok: true;
+    result: LocalMeetingListResultV1;
+}
+
 export interface PauseMeetingInputV1 {
     protocolVersion: ProtocolVersion;
     meetingId: string;
@@ -623,7 +642,7 @@ export interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBase
         action: "pause" | "resume" | "none";
         pausedAt?: number;
         pausedBy?: {
-            kind: "user" | "captain";
+            kind: "user" | "captain" | "local_host";
             actorId: string;
             displayName?: string;
         };

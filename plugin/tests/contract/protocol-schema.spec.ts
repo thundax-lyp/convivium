@@ -4,6 +4,9 @@ import {
     CreateMeetingInputSchema,
     EndMeetingInputSchema,
     EndMeetingResultSchema,
+    LocalMeetingListItemSchema,
+    LocalMeetingListResponseSchema,
+    LocalMeetingListResultSchema,
     MeetingArchivePackageSchema,
     ManagerPlanResultSchema,
     ManagerPlanSubmissionSchema,
@@ -18,6 +21,67 @@ import {
 } from "../../src/protocol/index.js";
 
 describe("protocol envelope schemas", () => {
+    it("validates an exact local meeting list response", () => {
+        const item = {
+            meetingId: "meeting-1",
+            teamId: "team-1",
+            topic: "Release",
+            status: "running",
+            meetingVersion: 3,
+            updatedAt: 10
+        } as const;
+        const result = { meetings: [item] };
+        const response = { protocolVersion: 1, ok: true, result } as const;
+
+        expect(LocalMeetingListItemSchema(item)).toEqual(item);
+        expect(LocalMeetingListResultSchema(result)).toEqual(result);
+        expect(LocalMeetingListResponseSchema(response)).toEqual(response);
+
+        for (const invalid of [
+            { ...item, meetingId: undefined },
+            { ...item, privateState: "hidden" }
+        ]) {
+            expect(() => LocalMeetingListItemSchema(invalid)).toThrow();
+        }
+        for (const invalid of [{}, { ...result, transcript: [] }]) {
+            expect(() => LocalMeetingListResultSchema(invalid)).toThrow();
+        }
+        for (const invalid of [
+            { protocolVersion: 1, ok: true },
+            { ...response, meetingId: "meeting-1" },
+            { ...response, meetingVersion: 3 }
+        ]) {
+            expect(() => LocalMeetingListResponseSchema(invalid)).toThrow();
+        }
+    });
+
+    it("accepts local_host pause projection metadata", () => {
+        expect(() =>
+            MeetingStatusResultSchema({
+                meetingId: "meeting-1",
+                meetingVersion: 1,
+                topic: "Release",
+                objective: "Decide scope",
+                continuationMaterials: [],
+                limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
+                activeAgendaItem: undefined,
+                messages: [],
+                questions: [],
+                acceptedDecisions: [],
+                blockingFacts: [],
+                meetingTasks: [],
+                status: "paused",
+                pendingHandRaises: [],
+                pauseControl: {
+                    action: "resume",
+                    pausedAt: 1,
+                    pausedBy: { kind: "local_host", actorId: "loopback-web" },
+                    reason: "manual pause"
+                }
+            })
+        ).not.toThrow();
+    });
+
     it("validates Manager plan input and result shapes", () => {
         const input = {
             protocolVersion: 1,

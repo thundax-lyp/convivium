@@ -12,7 +12,7 @@
 
 ## Executor Contract
 
-执行者必须按 T0 至 T6 顺序执行；每步仅修改该步“允许修改”列出的文件，并在该步 PASS 后才进入下一步。任何 STOP 必须报告最后 PASS 步骤、触发条件、相关文件与 symbol、执行命令和完整输出；不得改动 Schema、错误语义、存储布局、身份边界或未列文件来绕过 STOP。本文只授权文档与本分支实现，不授权提交、推送、创建 PR 或合并。
+执行者必须按 T2 至 T6 顺序执行；每步仅修改该步“允许修改”列出的文件，并在该步 PASS 后才进入下一步。任何 STOP 必须报告最后 PASS 步骤、触发条件、相关文件与 symbol、执行命令和完整输出；不得改动 Schema、错误语义、存储布局、身份边界或未列文件来绕过 STOP。本文只授权文档与本分支实现，不授权提交、推送、创建 PR 或合并。
 
 `PASS` 仅表示对应步骤的规定命令退出码为 `0` 且断言成立；`STOP` 是终止本次执行的正常结果。执行者不得以“相近实现”替代本文指定的 symbol、route、Client slot 或测试入口。
 
@@ -97,64 +97,9 @@ Runtime 是 producer，HTTP 与 Client 是 consumer；Client 不提交 list DTO�
 
 ## Mechanical Execution Steps
 
-### T0：确认执行基线
-
-前置状态：执行目录为仓库根目录；用户已授权开始实现，而非仅评审本文。
-
-允许修改：不编辑仓库文件；`pnpm --dir plugin verify` 可以机械重建 Git ignored 的 `plugin/lib/**`。
-
-禁止修改：除上述 ignored build output 外的全部文件、Git index、提交历史和外部状态。
-
-执行：
-
-1. 确认当前分支、起点祖先关系、production/test/script 工作树为空，并运行现有完整验证。
-
-验证：
-
-```bash
-test "$(git branch --show-current)" = "codex/feat/local-single-user-meeting-control"
-git merge-base --is-ancestor f655001 HEAD
-test -z "$(git status --porcelain -- plugin/src plugin/tests plugin/scripts)"
-pnpm --dir plugin verify
-```
-
-PASS：四条命令退出码均为 `0`。文档工作树可以包含本 RUNBOOK 及其正式依据修改。
-
-STOP：分支或起点不符、production/test/script 工作树非空，或 baseline verify 失败。另行运行只读 `git status --short -- plugin/src plugin/tests plugin/scripts` 取得 STOP 证据；不 stash、覆盖或吸收已有代码修改。
-
-恢复：baseline 失败时保留 `plugin/lib/**` 作为 ignored build output，不手工删除或纳入提交；本步骤没有其他可恢复状态。
-
-### T1：补齐共享协议类型与校验
-
-前置状态：正式 Interface 已包含 `LocalMeetingListResponseV1`，工作树未包含 `plugin/src/protocol/` 的未提交实现修改。
-
-允许修改：`plugin/src/protocol/types.ts`、`plugin/src/protocol/status.ts`、`plugin/src/protocol/index.ts`、`plugin/tests/contract/protocol-schema.spec.ts`。
-
-禁止修改：`ProtocolMeta`、`ProtocolSuccessV1`、命令输入 Schema、SQLite schema/migration 与任何 HTTP/Client 文件。
-
-执行：
-
-1. 在 `types.ts` 定义并 export `LocalMeetingListItemV1`、`LocalMeetingListResultV1`、`LocalMeetingListResponseV1`；字段严格等同正式 Interface。producer 是 T3 Runtime，Runtime/T4 HTTP/T5 Client 都用共享 Schema 做边界校验；Client 不提交该结构。
-2. 在 `status.ts` 增加本地 `assertExactKeys(value, expected, label)`：对排序后的实际 key 与 expected key 做严格相等比较，不等时抛出 message 为 `<label> has unexpected fields` 的 `TypeError`。不要建立通用 schema framework。唯一新增并 export `LocalMeetingListItemSchema`、`LocalMeetingListResultSchema`、`LocalMeetingListResponseSchema`；三者分别标注为 `Schema<unknown, LocalMeetingListItemV1>`、`Schema<unknown, LocalMeetingListResultV1>`、`Schema<unknown, LocalMeetingListResponseV1>`，各自使用 `Schema.transform` 包裹结构 Schema，在 transform 中分别只允许六个 item 字段、`meetings`、`protocolVersion | ok | result`，校验后才 cast/return 对应 DTO。把 `pauseControl.pausedBy.kind` enum 扩为 `"user" | "captain" | "local_host"`，不得新增 `local_host` 的输入字段。
-3. `index.ts` 现有 `export * from "./types.js"` 自动覆盖三个新类型；只在现有 `./status.js` export 列表增加三个具名 Schema，不新增重复 type export。
-4. 在 `protocol-schema.spec.ts` 验证合法 list response，以及 response、result、item 三层各自的缺字段和多字段均被拒绝；list 顶层伪造单 Meeting 的 `meetingId`/`meetingVersion` 必须被拒绝；同时验证 `local_host` pause projection 合法。
-
-验证：
-
-```bash
-pnpm --dir plugin vitest run tests/contract/protocol-schema.spec.ts
-pnpm --dir plugin typecheck
-```
-
-PASS：两条命令退出码均为 `0`。
-
-STOP：现有 Schema 不能表达上述 response，或实现需要改变既有单 Meeting envelope。报告 T1、失败命令及冲突类型；不得给 list 填充空 Meeting ID 或版本 `0`。
-
-恢复：只撤销本步骤修改的四个文件；不触及数据库。
-
 ### T2：限定 `local_host` 为 pause actor，而非 caller
 
-前置状态：T1 PASS；`LocalMeetingListResponseSchema` 已由 `plugin/src/protocol/index.ts` export。
+前置状态：共享 list DTO/Schema 与 `local_host` pause projection Schema 已实现并通过 focused suite；`LocalMeetingListResponseSchema` 已由 `plugin/src/protocol/index.ts` export。
 
 允许修改：`plugin/src/domain/model.ts`、`plugin/src/projection/status.ts`、`plugin/src/tools/meeting-runtime.ts`、`plugin/tests/unit/domain/transitions/meeting.spec.ts`、`plugin/tests/contract/status-projection.spec.ts`。
 
@@ -170,7 +115,7 @@ STOP：现有 Schema 不能表达上述 response，或实现需要改变既有�
 验证：
 
 ```bash
-pnpm --dir plugin vitest run tests/unit/domain/transitions/meeting.spec.ts tests/contract/status-projection.spec.ts
+pnpm --dir plugin exec vitest run tests/unit/domain/transitions/meeting.spec.ts tests/contract/status-projection.spec.ts
 pnpm --dir plugin typecheck:host
 if rg -n 'local_host' plugin/src/dsh plugin/src/tools/register-tools.ts; then
   exit 1
@@ -217,7 +162,7 @@ resumeLocalMeeting(input: ResumeMeetingInputV1): Promise<ProtocolSuccessV1<Meeti
 验证：
 
 ```bash
-pnpm --dir plugin vitest run tests/unit/runtime/meeting-runtime.spec.ts tests/contract/meeting-runtime.spec.ts
+pnpm --dir plugin exec vitest run tests/unit/runtime/meeting-runtime.spec.ts tests/contract/meeting-runtime.spec.ts
 pnpm --dir plugin typecheck:host
 ```
 
@@ -256,7 +201,7 @@ registerLocalMeetingHttpRoutes(
 验证：
 
 ```bash
-pnpm --dir plugin vitest run tests/contract/http-boundary.spec.ts tests/unit/index-inject.spec.ts
+pnpm --dir plugin exec vitest run tests/contract/http-boundary.spec.ts tests/unit/index-inject.spec.ts
 pnpm --dir plugin typecheck:host
 ```
 
@@ -286,7 +231,7 @@ STOP：DSH Web 类型与已锁版本不支持 prefix disposer，或实现需要�
 验证：
 
 ```bash
-pnpm --dir plugin vitest run --project client tests/client/client-entry.client.spec.ts
+pnpm --dir plugin exec vitest run --project client tests/client/client-entry.client.spec.ts
 pnpm --dir plugin typecheck:client
 ```
 
@@ -298,7 +243,7 @@ STOP：现有 client slot API 不支持上述 list entry/disposer，或必须用
 
 ### T6：端到端证据与文档收口
 
-前置状态：T0–T5 全部 PASS；`pnpm --dir plugin build` 成功。
+前置状态：T2–T5 全部 PASS；`pnpm --dir plugin build` 成功。
 
 允许修改：`plugin/scripts/smoke-profile.mjs`、`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`、本 RUNBOOK；验证可机械重建 ignored `plugin/lib/**` 并创建/清理脚本自己的 OS temp root。
 
@@ -338,7 +283,6 @@ STOP：任一命令失败、smoke 无法建立实际 loopback 或发现 runtime/
 
 | 风险 | focused evidence | PASS 判据 |
 | --- | --- | --- |
-| list envelope 与 pause actor | T1 protocol-schema suite | 无单 Meeting metadata 的 list response 合法；`local_host` projection 合法。 |
 | actor / caller 隔离 | T2 transition、status projection suite | `local_host` 不是 `MeetingToolCaller`；Captain actor 不变。 |
 | 恢复隔离、terminal、重放与冲突 | T3 runtime/contract suites | 空 data root 返回空 list；未 ready bootstrap 被跳过；坏的 ready repository 不返回部分 list且不阻塞已选健康 Meeting；stale、replay、conflict、terminal guard 保持既有结果。 |
 | loopback transport 与错误 body | T4 HTTP/inject suites | 只注册一个 prefix；`0.0.0.0` 无 route；404/400/409/503/500 与正式协议一致。 |
@@ -349,7 +293,7 @@ STOP：任一命令失败、smoke 无法建立实际 loopback 或发现 runtime/
 
 ## Completion And Deletion
 
-所有 T0–T6 PASS 后，将实际覆盖迁移到 `CURRENT-IMPLEMENTATION-COVERAGE.md`，按 TODO Rules 确认本闭环无未完成 TODO，再删除本 RUNBOOK。删除后使用 `rg -n 'RUNBOOK-LOCAL-SINGLE-USER-MEETING-CONTROL|Local Single-User Meeting Control' .` 清除仅指向本文的残留引用，并重跑相对链接检查与 `git diff --check`；任一检查失败时恢复本文并 STOP。在用户单独要求前，不提交、推送、创建 PR 或合并。
+所有 T2–T6 PASS 后，将实际覆盖迁移到 `CURRENT-IMPLEMENTATION-COVERAGE.md`，按 TODO Rules 确认本闭环无未完成 TODO，再删除本 RUNBOOK。删除后使用 `rg -n 'RUNBOOK-LOCAL-SINGLE-USER-MEETING-CONTROL|Local Single-User Meeting Control' .` 清除仅指向本文的残留引用，并重跑相对链接检查与 `git diff --check`；任一检查失败时恢复本文并 STOP。在用户单独要求前，不提交、推送、创建 PR 或合并。
 
 ## Author Audit
 
@@ -357,12 +301,13 @@ STOP：任一命令失败、smoke 无法建立实际 loopback 或发现 runtime/
 
 审计日期：2026-08-28。
 
-审计修复：已消除「Web 写操作必须有 Agent caller」与本地无身份边界的冲突，固定了 `local_host` actor；list 改用不伪造单 Meeting metadata 的独立 response；当前物理布局已在正式设计中标为过渡基线，本分支只复用 locator；`creating|creation_failed` 与损坏的 ready Meeting 已区分；所选 Meeting 的恢复不再受无关坏库阻塞；Client 固定为 DSH `slots.inject()`，以已校验完整 projection 形成最小 UI；每步已有前置条件、允许/禁止文件、精确命令、PASS/STOP 和恢复要求。实现时若触发任一 STOP，必须停止，不得自行扩大范围。
+审计修复：已消除「Web 写操作必须有 Agent caller」与本地无身份边界的冲突，固定了 `local_host` actor；list 改用不伪造单 Meeting metadata 的独立 response；当前物理布局已在正式设计中标为过渡基线，本分支只复用 locator；`creating|creation_failed` 与损坏的 ready Meeting 已区分；所选 Meeting 的恢复不再受无关坏库阻塞；Client 固定为 DSH `slots.inject()`，以已校验完整 projection 形成最小 UI；已完成的基线步骤已删除，所有 focused Vitest 命令固定通过 pnpm `exec` 调用本地二进制；每步已有前置条件、允许/禁止文件、精确命令、PASS/STOP 和恢复要求。实现时若触发任一 STOP，必须停止，不得自行扩大范围。
 
 Authoring validation：
 
 - `git diff --check`：PASS。
 - `docs/**/*.md` 相对链接目标检查：PASS。
-- T0–T6 引用的当前 production/test/script 路径：PASS；唯一计划新增路径为 `plugin/src/client/meeting-panel.tsx`。
-- T0–T6 的九项固定结构（前置、允许、禁止、执行、验证、PASS、STOP、恢复）：PASS。
-- T0–T6 的实现、测试、build、smoke 与 browser lane：Not Run；这些是 RUNBOOK 执行门禁，不是本次文档审计证据。
+- `pnpm --dir plugin exec vitest --version`：PASS，确认调用本地 Vitest `3.2.7`。
+- T2–T6 引用的当前 production/test/script 路径：PASS；唯一计划新增路径为 `plugin/src/client/meeting-panel.tsx`。
+- T2–T6 的九项固定结构（前置、允许、禁止、执行、验证、PASS、STOP、恢复）：PASS。
+- T2–T6 的 focused tests、build、smoke 与 browser lane：Not Run；这些是 RUNBOOK 执行门禁，不是本次文档修复证据。
