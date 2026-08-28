@@ -32,6 +32,11 @@
 - finding 是否成立与建议方案是否合适必须分别判断；较小方案能够消除同一触发条件并保持必要边界时，采用较小方案。
 - 未经当前任务确认，不顺带重构稳定路径、建立通用框架、扩展协议或实现后续阶段；完成当前范围必须扩张时，停止并报告新增范围。
 
+## Review Language
+
+- 面向仓库协作者的 review comment、PR review summary 与 review reply 使用中文。
+- 代码、协议、类型、字段、错误码、命令和工具名称保留英文原文；必要时在中文说明中引用。
+
 ## Documentation Governance
 
 - 稳定工程规则放在 `docs/00-governance/`。

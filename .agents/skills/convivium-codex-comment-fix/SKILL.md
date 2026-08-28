@@ -36,6 +36,11 @@ You have reached your Codex usage limits for code reviews.
 
 判定必须保守：正文同时出现额度提示和任何可执行技术内容时，按普通 Codex finding 处理，绝不删除。删除时必须匹配评论资源：review comment 使用 `DELETE /repos/{owner}/{repo}/pulls/comments/{comment-id}`，issue comment 使用 `DELETE /repos/{owner}/{repo}/issues/comments/{comment-id}`；review summary 只有在正文完全是该通知时才可用 `DELETE /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}` 删除。成功后重新读取对应来源确认其已消失。删除失败、作者不确定或正文不完全匹配时保留评论并在最终输出说明，不能改为 resolve。
 
+## 回复语言
+
+- GitHub review thread 的回复使用中文。
+- PR 编号、commit SHA、代码、协议、类型、字段、错误码、命令和工具名称保留英文原文；其余面向协作者的说明使用中文。
+
 ## 评论来源与修复归属
 
 始终区分三个对象：`comment PR` 是评论所在 PR，`fix PR` 是修复 commit 所属的 PR，`fix commit` 是实际修复 commit。回复不能只写 commit，必须同时写清来源评论和修复位置。
