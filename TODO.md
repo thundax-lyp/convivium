@@ -16,12 +16,6 @@
   - 处理动作：校验 participant/task identity，禁止 failed task 形成完成型 HandRaise，保持 pending raise 去重和单次 consume。
   - 验收点：错误 participant、重复 execution、failed task、terminal task 均无 raise；合法 completed task 只形成一个 pending raise。
 
-- [ ] `plugin/src/domain/transitions.ts`：补齐 execution terminal、archiving、archived 的 task/planning guard
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T7
-  - 处理动作：仅依据当前 main 状态类型和本线 fixture，在 start/finish/raise/planning 入口统一拒绝不可写阶段。
-  - 验收点：每类阶段及并发迟到调用均返回 `INVALID_STATE_TRANSITION`、`retryable: false`，不写 state/event/receipt/outbox/transcript；不实现 C 的 revoke/drain/close。
-
 - [ ] `plugin/src/tools/register-tools.ts`：同步现有 task tool 的 result/error registration
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK Required File Changes
