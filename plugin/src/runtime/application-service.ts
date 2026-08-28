@@ -2129,6 +2129,7 @@ export function createCreateStatusRuntime(
                             const planningDeliveryId = `${nextState.id}-planning-delivery-${planningSequence}`;
                             nextState = {
                                 ...nextState,
+                                replanCount: planningSequence,
                                 manager: {
                                     ...nextState.manager,
                                     status: "planning",

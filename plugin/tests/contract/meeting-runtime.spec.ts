@@ -1425,12 +1425,28 @@ describe("create/status meeting runtime", () => {
             }
         });
         if (!status.ok) throw new Error("local status failed");
+        const resumed = await runtime.resumeLocalMeeting({
+            protocolVersion: 1,
+            meetingId: first.result.meetingId,
+            expectedMeetingVersion: status.meetingVersion,
+            requestId: "local-resume-1"
+        });
+        expect(resumed).toMatchObject({ ok: true, result: { status: "running" } });
+        if (!resumed.ok) throw new Error("local resume failed");
+
+        const pausedAgain = await runtime.pauseLocalMeeting({
+            ...pauseInput,
+            expectedMeetingVersion: resumed.meetingVersion,
+            requestId: "local-pause-2"
+        });
+        expect(pausedAgain).toMatchObject({ ok: true, result: { status: "paused" } });
+        if (!pausedAgain.ok) throw new Error("second local pause failed");
         await expect(
             runtime.resumeLocalMeeting({
                 protocolVersion: 1,
                 meetingId: first.result.meetingId,
-                expectedMeetingVersion: status.meetingVersion,
-                requestId: "local-resume-1"
+                expectedMeetingVersion: pausedAgain.meetingVersion,
+                requestId: "local-resume-2"
             })
         ).resolves.toMatchObject({ ok: true, result: { status: "running" } });
         await runtime.dispose();
