@@ -13,6 +13,7 @@ function state(overrides: Record<string, unknown> = {}): MeetingState {
                 turnId: "turn-1",
                 stepId: "step-1",
                 attemptId: "attempt-1",
+                speaker: "participant-1",
                 taskIds: ["task-1"]
             }
         ],
