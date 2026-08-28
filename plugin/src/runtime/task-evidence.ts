@@ -77,7 +77,9 @@ export const meetingTaskEvidenceResolver: AuthorizedTaskEvidenceResolver = {
                 sourceMessage.seq < task.sourceContextFromSeq ||
                 sourceMessage.seq > task.sourceContextThroughSeq ||
                 task.resultSummary === undefined ||
-                task.resultSummary.trim() === ""
+                task.resultSummary.trim() === "" ||
+                task.finishedAt === undefined ||
+                !Number.isFinite(task.finishedAt)
             ) {
                 throw new DomainError(
                     "INVALID_STATE_TRANSITION",
@@ -103,7 +105,7 @@ export const meetingTaskEvidenceResolver: AuthorizedTaskEvidenceResolver = {
                 sourceContextThroughSeq: task.sourceContextThroughSeq,
                 resultSummary: task.resultSummary,
                 taskStatus: "completed",
-                finishedAt: task.finishedAt!
+                finishedAt: task.finishedAt
             };
         });
     }

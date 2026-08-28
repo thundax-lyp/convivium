@@ -78,4 +78,17 @@ describe("meetingTaskEvidenceResolver", () => {
             })
         ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
     });
+
+    it("rejects evidence without a finite terminal time", () => {
+        expect(() =>
+            meetingTaskEvidenceResolver.resolve({
+                state: state({
+                    meetingTasks: [{ ...state().meetingTasks[0], finishedAt: undefined }]
+                }),
+                meetingId: "meeting-1",
+                participantId: "participant-1",
+                taskIds: ["task-1"]
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+    });
 });
