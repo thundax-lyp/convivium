@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `convivium-codex-comment-fix/SKILL.md`：固定 finding、最小修复和 thread 收口语义
-  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T6
-  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
-  - 处理动作：严格执行 T6.1–T6.6，更新 front matter 和目标终点，增加 finding 与方案分离、四类处理结果、最小安全修复回复要求及禁止顺带重构规则。
-  - 验收点：`accept-with-smaller-fix` 使用 👍 并在修复后 resolve；`reject` 使用 👎、说明依据后可 resolve；`defer-or-decision` 使用 👎、回复并保持 unresolved；无 commit 不得宣称已修复；既有 GitHub、commit/push 和两轮处理边界不变。
-
 - [ ] `复杂度控制工作流`：完成整体语义验证、场景验收和任务收口
   - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T7–T9
   - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改、commit、push 和 PR 仍分别待授权
