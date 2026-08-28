@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `dsh-plugin-development/SKILL.md`：增加实现前复杂度门禁
-  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T3
-  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
-  - 处理动作：在工作流后插入 RUNBOOK 固定的“范围与复杂度门禁”，并按固定文本扩展输出要求。
-  - 验收点：门禁位于主 Skill 而非 reference；不把多个消费者设为强制条件；保留运行时、权限、事务、持久化和生命周期隔离依据；front matter、官方来源优先级、验证顺序和 DSH 边界无变化。
-
 - [ ] `convivium-module-review/SKILL.md`：增加复杂度 finding 检查与门槛
   - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T4
   - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
