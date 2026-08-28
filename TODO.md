@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `执行基线与锚点`：建立复杂度控制 RUNBOOK 的安全执行基线
-  - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T0
-  - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
-  - 处理动作：记录执行前 tracked、staged 和 untracked 文件集合，建立 worktree metadata 状态目录，并确认六个长期目标文件的全部固定锚点仍精确存在。
-  - 验收点：状态目录原本不存在并成功建立；`files.before` 可读取；执行前工作区已披露；六个文件的替换原文和插入锚点全部匹配，任一漂移时不开始 T1。
-
 - [ ] `AGENTS.md`：增加仓库级 Implementation Economy 规则
   - 依据文档：`docs/30-designs/RUNBOOK-CODEX-IMPLEMENTATION-ECONOMY.md` T1
   - 确认依据：2026-08-28，用户要求依据 RUNBOOK 制定 TODO；长期文件修改仍待确认执行
