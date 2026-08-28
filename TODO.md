@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `plugin/tests/contract/meeting-runtime.spec.ts`：覆盖 runtime 原子性、权限、幂等和错误 DTO
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T4/T6/T8
-  - 处理动作：增加 short submit rollback、completed finish/raise、failed optional result、wrong caller/execution、duplicate request 和 version conflict cases。
-  - 验收点：每个失败场景使用唯一 protocol code/retryable；无多余 receipt/event/outbox/transcript。
-
 - [ ] `plugin/tests/contract/protocol-schema.spec.ts`：验证 optional handRaiseId 和公开 DTO 边界
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T1/Test Matrix
