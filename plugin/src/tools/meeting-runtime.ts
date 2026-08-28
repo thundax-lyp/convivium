@@ -104,6 +104,9 @@ interface StoredMeeting {
     parent?: Agent;
 }
 
+type MeetingControlSource =
+    { readonly kind: "captain"; readonly sessionId: string } | { readonly kind: "local_host" };
+
 type ArchiveCleanupRuntime = ArchiveSessionRuntime & ContinuableLifecycleRuntime;
 
 function archiveCleanupRuntime(
@@ -1605,7 +1608,10 @@ export function createCreateStatusRuntime(
                 caller.sessionId !== stored.captainSessionId
             )
                 return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can pause it.");
-            return transitionMeetingStatus(input, caller, "paused");
+            return transitionMeetingStatus(input, "paused", {
+                kind: "captain",
+                sessionId: caller.sessionId
+            });
         },
         async resume(input, caller) {
             await rehydrate();
@@ -1616,7 +1622,10 @@ export function createCreateStatusRuntime(
                 caller.sessionId !== stored.captainSessionId
             )
                 return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can resume it.");
-            return transitionMeetingStatus(input, caller, "running");
+            return transitionMeetingStatus(input, "running", {
+                kind: "captain",
+                sessionId: caller.sessionId
+            });
         },
         async endMeeting(input: EndMeetingInputV1, caller) {
             await rehydrate();
@@ -1724,8 +1733,8 @@ export function createCreateStatusRuntime(
             requestId: string;
             reason?: string;
         },
-        caller: MeetingToolCaller,
-        target: "paused" | "running"
+        target: "paused" | "running",
+        source: MeetingControlSource
     ) {
         const stored = meetings.get(input.meetingId);
         if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
@@ -1736,14 +1745,21 @@ export function createCreateStatusRuntime(
                 true
             );
         }
+        const authorization =
+            source.kind === "captain"
+                ? {
+                      callerBinding: `session:${source.sessionId}`,
+                      capabilityId: `captain:${source.sessionId}`
+                  }
+                : {
+                      callerBinding: "local-host:loopback-web",
+                      capabilityId: "local-host:loopback-web"
+                  };
         try {
             const committed = await stored.repository.execute({
                 requestId: input.requestId,
                 commandKind: target === "paused" ? "pause_meeting" : "resume_meeting",
-                authorization: {
-                    callerBinding: `session:${caller.sessionId}`,
-                    capabilityId: `captain:${caller.sessionId}`
-                },
+                authorization,
                 requestHash: JSON.stringify(input),
                 expectedMeetingVersion: input.expectedMeetingVersion,
                 transition: (snapshot) => {
@@ -1752,14 +1768,19 @@ export function createCreateStatusRuntime(
                         target,
                         {
                             now: options.now?.() ?? Date.now(),
-                            reason: input.reason ?? `captain ${target} meeting`,
+                            reason:
+                                input.reason ??
+                                `${source.kind === "captain" ? "captain" : "local host"} ${target} meeting`,
                             ...(target === "paused"
                                 ? {
                                       pause: {
                                           at: options.now?.() ?? Date.now(),
                                           by: {
-                                              kind: "captain" as const,
-                                              actorId: caller.sessionId
+                                              kind: source.kind,
+                                              actorId:
+                                                  source.kind === "captain"
+                                                      ? source.sessionId
+                                                      : "loopback-web"
                                           }
                                       }
                                   }

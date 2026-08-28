@@ -12,7 +12,7 @@
 
 ## Executor Contract
 
-执行者必须按 T2 至 T6 顺序执行；每步仅修改该步“允许修改”列出的文件，并在该步 PASS 后才进入下一步。任何 STOP 必须报告最后 PASS 步骤、触发条件、相关文件与 symbol、执行命令和完整输出；不得改动 Schema、错误语义、存储布局、身份边界或未列文件来绕过 STOP。本文只授权文档与本分支实现，不授权提交、推送、创建 PR 或合并。
+执行者必须按 T3 至 T6 顺序执行；每步仅修改该步“允许修改”列出的文件，并在该步 PASS 后才进入下一步。任何 STOP 必须报告最后 PASS 步骤、触发条件、相关文件与 symbol、执行命令和完整输出；不得改动 Schema、错误语义、存储布局、身份边界或未列文件来绕过 STOP。本文只授权文档与本分支实现，不授权提交、推送、创建 PR 或合并。
 
 `PASS` 仅表示对应步骤的规定命令退出码为 `0` 且断言成立；`STOP` 是终止本次执行的正常结果。执行者不得以“相近实现”替代本文指定的 symbol、route、Client slot 或测试入口。
 
@@ -97,43 +97,9 @@ Runtime 是 producer，HTTP 与 Client 是 consumer；Client 不提交 list DTO�
 
 ## Mechanical Execution Steps
 
-### T2：限定 `local_host` 为 pause actor，而非 caller
-
-前置状态：共享 list DTO/Schema 与 `local_host` pause projection Schema 已实现并通过 focused suite；`LocalMeetingListResponseSchema` 已由 `plugin/src/protocol/index.ts` export。
-
-允许修改：`plugin/src/domain/model.ts`、`plugin/src/projection/status.ts`、`plugin/src/tools/meeting-runtime.ts`、`plugin/tests/unit/domain/transitions/meeting.spec.ts`、`plugin/tests/contract/status-projection.spec.ts`。
-
-禁止修改：`plugin/src/dsh/caller-resolver.ts`、`plugin/src/tools/register-tools.ts`、`MeetingToolCaller`、`resolveMeetingCaller()`、repository validator、SQLite schema/migration 与 HTTP/Client 文件。
-
-执行：
-
-1. 将 `PauseActor.kind` 扩为 `"user" | "captain" | "local_host"`；不要改变 `actorId`、存储结构或 migration。
-2. 使 `MeetingProjectionCaller` 可接受只读 `{ kind: "local_host"; sessionId: "loopback-web" }`，仅用于投影；不得把它加入 `MeetingToolCaller` 或 `resolveMeetingCaller()`。
-3. 在 `meeting-runtime.ts` 增加不 export 的 `MeetingControlSource = { kind: "captain"; sessionId: string } | { kind: "local_host" }`，并把私有签名固定为 `transitionMeetingStatus(input, target, source)`；不得把该 union 与 `MeetingToolCaller` 合并。Captain `pause/resume` 传 `{ kind: "captain", sessionId: caller.sessionId }`，函数内部派生既有 `session:${sessionId}` / `captain:${sessionId}` authorization、captain pause actor 和默认 reason `captain ${target} meeting`。T3 的 local Web 调用传 `{ kind: "local_host" }`，函数内部派生固定 authorization `{ callerBinding: "local-host:loopback-web", capabilityId: "local-host:loopback-web" }`、固定 pause actor `{ kind: "local_host", actorId: "loopback-web" }` 和默认 reason `local host ${target} meeting`。这些只是 command/actor 审计标记，不是用户或 Team authority；resume 不写新的 pause actor。
-4. 增加断言：Captain pause 仍保留 captain actor；以 local_host actor 进入既有 transition 的状态投影保留该 actor；resume 不产生新的 pause actor。实际 local Web 写入口在 T3 验证。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/transitions/meeting.spec.ts tests/contract/status-projection.spec.ts
-pnpm --dir plugin typecheck:host
-if rg -n 'local_host' plugin/src/dsh plugin/src/tools/register-tools.ts; then
-  exit 1
-else
-  status=$?
-  test "$status" -eq 1
-fi
-```
-
-PASS：三段命令退出码均为 `0` 且 `rg` 无输出；`rg` 错误或任何 match 均为 STOP。
-
-STOP：修改要求 SQLite migration、将 local host 伪装成 Captain，或扩大 Agent tool caller union。停止并报告 T2。
-
-恢复：撤销 T2 允许文件的改动；不得删除已有事件。
-
 ### T3：实现按用途隔离恢复的 Runtime Web 入口与 list
 
-前置状态：T2 PASS；当前 `repositoryPath()` 与 `rehydrate()` 未被改动为不同布局。
+前置状态：`local_host` pause actor、projection caller 与独立 `MeetingControlSource` 已实现并通过 focused suite；当前 `repositoryPath()` 与 `rehydrate()` 未被改动为不同布局。
 
 允许修改：`plugin/src/tools/meeting-runtime.ts`、`plugin/tests/unit/runtime/meeting-runtime.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`。
 
@@ -243,7 +209,7 @@ STOP：现有 client slot API 不支持上述 list entry/disposer，或必须用
 
 ### T6：端到端证据与文档收口
 
-前置状态：T2–T5 全部 PASS；`pnpm --dir plugin build` 成功。
+前置状态：T3–T5 全部 PASS；`pnpm --dir plugin build` 成功。
 
 允许修改：`plugin/scripts/smoke-profile.mjs`、`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`、本 RUNBOOK；验证可机械重建 ignored `plugin/lib/**` 并创建/清理脚本自己的 OS temp root。
 
@@ -283,7 +249,6 @@ STOP：任一命令失败、smoke 无法建立实际 loopback 或发现 runtime/
 
 | 风险 | focused evidence | PASS 判据 |
 | --- | --- | --- |
-| actor / caller 隔离 | T2 transition、status projection suite | `local_host` 不是 `MeetingToolCaller`；Captain actor 不变。 |
 | 恢复隔离、terminal、重放与冲突 | T3 runtime/contract suites | 空 data root 返回空 list；未 ready bootstrap 被跳过；坏的 ready repository 不返回部分 list且不阻塞已选健康 Meeting；stale、replay、conflict、terminal guard 保持既有结果。 |
 | loopback transport 与错误 body | T4 HTTP/inject suites | 只注册一个 prefix；`0.0.0.0` 无 route；404/400/409/503/500 与正式协议一致。 |
 | Client 生命周期 | T5 client suite | list-first、选择后的全量读取、write 后 refetch、pending 互斥、poll/focus、失败禁写和 cleanup 均有断言。 |
@@ -293,7 +258,7 @@ STOP：任一命令失败、smoke 无法建立实际 loopback 或发现 runtime/
 
 ## Completion And Deletion
 
-所有 T2–T6 PASS 后，将实际覆盖迁移到 `CURRENT-IMPLEMENTATION-COVERAGE.md`，按 TODO Rules 确认本闭环无未完成 TODO，再删除本 RUNBOOK。删除后使用 `rg -n 'RUNBOOK-LOCAL-SINGLE-USER-MEETING-CONTROL|Local Single-User Meeting Control' .` 清除仅指向本文的残留引用，并重跑相对链接检查与 `git diff --check`；任一检查失败时恢复本文并 STOP。在用户单独要求前，不提交、推送、创建 PR 或合并。
+所有 T3–T6 PASS 后，将实际覆盖迁移到 `CURRENT-IMPLEMENTATION-COVERAGE.md`，按 TODO Rules 确认本闭环无未完成 TODO，再删除本 RUNBOOK。删除后使用 `rg -n 'RUNBOOK-LOCAL-SINGLE-USER-MEETING-CONTROL|Local Single-User Meeting Control' .` 清除仅指向本文的残留引用，并重跑相对链接检查与 `git diff --check`；任一检查失败时恢复本文并 STOP。在用户单独要求前，不提交、推送、创建 PR 或合并。
 
 ## Author Audit
 
@@ -308,6 +273,6 @@ Authoring validation：
 - `git diff --check`：PASS。
 - `docs/**/*.md` 相对链接目标检查：PASS。
 - `pnpm --dir plugin exec vitest --version`：PASS，确认调用本地 Vitest `3.2.7`。
-- T2–T6 引用的当前 production/test/script 路径：PASS；唯一计划新增路径为 `plugin/src/client/meeting-panel.tsx`。
-- T2–T6 的九项固定结构（前置、允许、禁止、执行、验证、PASS、STOP、恢复）：PASS。
-- T2–T6 的 focused tests、build、smoke 与 browser lane：Not Run；这些是 RUNBOOK 执行门禁，不是本次文档修复证据。
+- T3–T6 引用的当前 production/test/script 路径：PASS；唯一计划新增路径为 `plugin/src/client/meeting-panel.tsx`。
+- T3–T6 的九项固定结构（前置、允许、禁止、执行、验证、PASS、STOP、恢复）：PASS。
+- T3–T6 的 focused tests、build、smoke 与 browser lane：Not Run；这些是 RUNBOOK 执行门禁，不是本次文档修复证据。
