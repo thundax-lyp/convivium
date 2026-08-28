@@ -408,23 +408,40 @@ describe("proveArchiveOwnedChildren", () => {
         await expect(proveArchiveOwnedChildren(input())).resolves.toEqual([participantOwnership()]);
     });
 
+    it("ignores unrelated continuable children while proving every owned child", async () => {
+        await expect(
+            proveArchiveOwnedChildren(
+                input({
+                    runtime: {
+                        listChildren: async () =>
+                            [
+                                {
+                                    kind: "child",
+                                    id: "participant-session",
+                                    activity: "inactive",
+                                    hasChildren: false,
+                                    mode: "continuable",
+                                    label: "convivium:meeting-participant:team-1:meeting-1:participant-a"
+                                },
+                                {
+                                    kind: "child",
+                                    id: "unrelated-session",
+                                    activity: "inactive",
+                                    hasChildren: false,
+                                    mode: "continuable",
+                                    label: "convivium:meeting-participant:team-1:meeting-2:participant-b"
+                                }
+                            ] as never
+                    }
+                })
+            )
+        ).resolves.toEqual([participantOwnership()]);
+    });
+
     it.each([
         [
             "a diagnostic",
             [{ kind: "diagnostic", id: "participant-session", reason: "unavailable" }]
-        ],
-        [
-            "an unowned direct child",
-            [
-                {
-                    kind: "child",
-                    id: "other-session",
-                    activity: "inactive",
-                    hasChildren: false,
-                    mode: "continuable",
-                    label: "convivium:meeting-participant:team-1:meeting-1:participant-b"
-                }
-            ]
         ],
         [
             "a one-shot child",

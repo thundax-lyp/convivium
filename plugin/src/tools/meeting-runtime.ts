@@ -101,7 +101,7 @@ interface StoredMeeting {
     readonly teamId: string;
     readonly captainSessionId: string;
     readonly repository: MeetingRepositoryRuntime;
-    readonly parent?: Agent;
+    parent?: Agent;
 }
 
 type ArchiveCleanupRuntime = ArchiveSessionRuntime & ContinuableLifecycleRuntime;
@@ -288,6 +288,28 @@ export function createCreateStatusRuntime(
                 }
             }
         }
+    }
+
+    async function recoverArchiveForCaptain(
+        stored: StoredMeeting,
+        caller: MeetingToolCaller
+    ): Promise<void> {
+        if (
+            caller.kind !== "captain" ||
+            caller.sessionId !== stored.captainSessionId ||
+            caller.agent === undefined ||
+            String(caller.agent.id) !== stored.captainSessionId
+        ) {
+            return;
+        }
+        if (stored.parent === undefined) stored.parent = caller.agent;
+        await recoverArchive({
+            repository: stored.repository,
+            parent: stored.parent,
+            runtime: archiveCleanupRuntime(options.continuable),
+            signal,
+            now: options.now?.() ?? Date.now()
+        });
     }
 
     async function dispatchInitialDelivery(
@@ -821,6 +843,7 @@ export function createCreateStatusRuntime(
                 return failure("UNAUTHORIZED_CALLER", "The caller is not bound to this meeting.");
             }
             try {
+                await recoverArchiveForCaptain(stored, caller);
                 const snapshot = await stored.repository.read();
                 const state = JSON.parse(JSON.stringify(snapshot.state));
                 return success(
@@ -1642,13 +1665,11 @@ export function createCreateStatusRuntime(
                         };
                     }
                 });
-                await recoverArchive({
-                    repository: stored.repository,
-                    parent: stored.parent,
-                    runtime: archiveCleanupRuntime(options.continuable),
-                    signal,
-                    now: options.now?.() ?? Date.now()
-                });
+                try {
+                    await recoverArchiveForCaptain(stored, caller);
+                } catch {
+                    // The end_meeting receipt is already committed; leave archive cleanup recoverable.
+                }
                 workers.get(input.meetingId)?.wake();
                 return success<EndMeetingResultV1>(
                     input.meetingId,
