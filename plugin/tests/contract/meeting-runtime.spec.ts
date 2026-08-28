@@ -269,6 +269,41 @@ describe("create/status meeting runtime", () => {
             db.close();
             expect(state.handRaises).toHaveLength(status === "completed" ? 1 : 0);
             expect(raiseEvents.count).toBe(status === "completed" ? 1 : 0);
+
+            const recoveredRuntime = createCreateStatusRuntime({
+                dataRoot: root,
+                provider: "spawn",
+                continuable: {
+                    startContinuable: async () => {
+                        throw new Error("recovery must not create Sessions");
+                    },
+                    followup: async () => {
+                        throw new Error("recovery must not dispatch a terminal task");
+                    }
+                },
+                authorizationValidator: {
+                    validateCreate: () => undefined,
+                    validateCommand: () => undefined
+                }
+            });
+            await expect(
+                recoveredRuntime.meetingTaskStatus(
+                    {
+                        protocolVersion: 1,
+                        meetingId,
+                        meetingTaskId: task.result.meetingTaskId
+                    },
+                    participant
+                )
+            ).resolves.toMatchObject({
+                ok: true,
+                result: {
+                    task: { status },
+                    meetingTerminal: false,
+                    mayExecute: false
+                }
+            });
+            await recoveredRuntime.dispose();
         }
     );
 
