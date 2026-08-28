@@ -1116,6 +1116,7 @@ export function createCreateStatusRuntime(
                         }> = [];
                         if (
                             input.status === "completed" &&
+                            (nextState.status === "running" || nextState.status === "waiting") &&
                             nextState.currentTurn === undefined &&
                             nextState.manager.currentPlanningAttempt === undefined &&
                             nextState.selectionMode === "manager" &&

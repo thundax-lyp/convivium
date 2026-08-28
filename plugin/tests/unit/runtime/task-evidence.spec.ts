@@ -29,7 +29,7 @@ function state(overrides: Record<string, unknown> = {}): MeetingState {
                 sourceTurnId: "turn-1",
                 sourceStepId: "step-1",
                 sourceContextFromSeq: 1,
-                sourceContextThroughSeq: 3,
+                sourceContextThroughSeq: 2,
                 resultSummary: "passed",
                 finishedAt: 5
             }
@@ -59,7 +59,7 @@ describe("meetingTaskEvidenceResolver", () => {
                 sourceTurnId: "turn-1",
                 sourceStepId: "step-1",
                 sourceContextFromSeq: 1,
-                sourceContextThroughSeq: 3,
+                sourceContextThroughSeq: 2,
                 resultSummary: "passed",
                 taskStatus: "completed",
                 finishedAt: 5
