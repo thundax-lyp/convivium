@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `plugin/tests/contract/status-projection.spec.ts`：验证公开 projection 保留正式字段且隐藏内部字段
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK projection boundary
-  - 处理动作：断言 `finishedAt`、`resultSummary` 按正式 Interface 保留，execution/source/context/evidence/授权判定不泄露。
-  - 验收点：projection contract 通过且不新增 DTO/version。
-
 - [ ] `plugin/tests/recovery/recovery.spec.ts`：验证任务绑定、finish/raise 和迟到结果恢复
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T8/Test Matrix
