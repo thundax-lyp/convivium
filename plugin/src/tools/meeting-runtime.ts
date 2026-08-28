@@ -30,6 +30,7 @@ import {
     createMeetingRuntime,
     createOutboxWorker,
     openMeetingRepository,
+    recoverArchive,
     type DomainEventInput,
     type JsonObject,
     type MeetingCreationRuntimeDependencies,
@@ -258,6 +259,11 @@ export function createCreateStatusRuntime(
                         repository
                     };
                     meetings.set(meetingId, recoveredMeeting);
+                    await recoverArchive({
+                        repository,
+                        signal,
+                        now: options.now?.() ?? Date.now()
+                    });
                 } catch {
                     // Ignore unrelated or incomplete databases during startup discovery.
                 }
