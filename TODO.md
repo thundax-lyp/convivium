@@ -16,12 +16,6 @@
   - 处理动作：校验 participant/task identity，禁止 failed task 形成完成型 HandRaise，保持 pending raise 去重和单次 consume。
   - 验收点：错误 participant、重复 execution、failed task、terminal task 均无 raise；合法 completed task 只形成一个 pending raise。
 
-- [ ] `plugin/tests/unit/domain/meeting-task.spec.ts`：覆盖 task 字段时点与状态失败路径
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK Test Matrix
-  - 处理动作：增加 requested source 缺失、submit queue source 完整、wrong execution、重复和三类 terminal guard cases。
-  - 验收点：每个失败 case 断言 state、event 和派生副作用不变。
-
 - [ ] `plugin/tests/unit/domain/hand-raise.spec.ts`：覆盖 failed finish、raise 去重和 planner consume
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK Test Matrix
