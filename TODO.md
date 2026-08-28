@@ -16,12 +16,6 @@
   - 处理动作：校验 participant/task identity，禁止 failed task 形成完成型 HandRaise，保持 pending raise 去重和单次 consume。
   - 验收点：错误 participant、重复 execution、failed task、terminal task 均无 raise；合法 completed task 只形成一个 pending raise。
 
-- [ ] `plugin/src/domain/completion.ts`、`plugin/src/domain/transitions.ts`：将 completion claim 的 taskIds 解析到锁内 evidence
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T5
-  - 处理动作：让 taskIds 只解析当前 meeting/participant/attempt 的 completed task，并调用 evidence resolver；保留 required review 和 CompletionFact 规则。
-  - 验收点：完整 identity/source 匹配才可形成 claim 输入；completed task 不自动变为 accepted 或 Meeting completed。
-
 - [ ] `plugin/src/tools/meeting-runtime.ts`：接入 startMeetingTask 的 caller、execution 和 terminal guard
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T6/T7
