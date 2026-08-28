@@ -216,6 +216,8 @@ planner 只消费 pending HandRaise：`consumeHandRaise` 后按既有 determinis
 
 B 只从当前 `origin/main` checkout 实施，不读取 A/C worktree/branch，不等待事前批准。本 PR 只保证 B 的最小路径和必要失败、权限、事务边界；局部不完备项写入 `Not Covered`，不预建通用层。A 是后续 PR reviewer，检查公开 projection 不泄露内部字段；C 是后续 PR reviewer，检查 terminal/archiving guard 兼容性；reviewer 只检查当前不变量，不要求提前兼容尚未合并的实现。
 
-Independent completion check：B 已完成 T1–T10 中适用步骤、必要代码和共享 seam diff、unit/contract/recovery/profile smoke、readiness 与 `Not Covered`；public DTO 未扩展，MeetingState、receipt、event、outbox、terminal guard 回归通过。后合并者必须基于已合入的 `main` rebase/merge，解决真实冲突后重跑受影响测试、全量验证、package verification 和 profile smoke；不提前抽象、不覆盖另一分支、不跳过验证。
+Independent completion check：B 已完成 T1–T8、必要代码和共享 seam diff、unit/contract/recovery、readiness 与 `Not Covered`；public DTO 未扩展，MeetingState、receipt、event、outbox、terminal guard 回归通过。T9 尚未完成：`pnpm smoke:profile` 已验证真实 `web`/`spawn` profile、Participant Session FIFO 和后续 planning，但尚未观察 MeetingTask 的 `finish → HandRaise → 后续正式 submit_turn`。该链路是唯一明确剩余 TODO，不得以离线 contract/recovery 结果替代真实 profile 证据。后合并者必须基于已合入的 `main` rebase/merge，解决真实冲突后重跑受影响测试、全量验证、package verification 和 profile smoke；不提前抽象、不覆盖另一分支、不跳过验证。
+
+T10 closure audit（2026-08-28）：保留本 RUNBOOK，直到 T9 profile smoke 产生上述完整观察结果并补入 readiness；完成后再执行长期结论迁移、残留引用搜索和独立删除提交。
 
 RUNBOOK 仅在长期结论迁移到正式 design/interface/readiness、readiness 证据完整、Not Covered 明确且残留引用清理后删除；commit、push、PR 和删除动作仍需用户授权。
