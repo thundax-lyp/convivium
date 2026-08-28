@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `plugin/tests/recovery/recovery.spec.ts`：验证任务绑定、finish/raise 和迟到结果恢复
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T8/Test Matrix
-  - 处理动作：覆盖 create 后 submit 前、short submit 前后、finish transaction 前后、重启后 evidence 和 terminal guard。
-  - 验收点：恢复不产生半提交状态、重复 fact 或迟到 task result。
-
 - [ ] `plugin/scripts/smoke-profile.mjs`：加入真实 task finish→raise→later submit_turn 场景
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T9
