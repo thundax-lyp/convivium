@@ -3,6 +3,7 @@ import {
     cleanupOwnedSessions,
     finalizeArchive,
     materializeArchivePackage,
+    recoverArchive,
     requireExpectedArchiveOwnerships,
     terminationIdentity
 } from "../../../src/runtime/archive.js";
@@ -501,5 +502,31 @@ describe("archive ownership cleanup", () => {
                 now: 11
             })
         ).rejects.toThrow(/revoked and closed/);
+    });
+});
+
+describe("recoverArchive", () => {
+    it("keeps an archiving meeting pending when the Captain runtime is unavailable", async () => {
+        await expect(
+            recoverArchive({
+                repository: {
+                    recover: async () => ({
+                        snapshot: { state: { status: "archiving" } as never },
+                        sessionOwnership: [],
+                        bootstrap: {} as never,
+                        reclaimedOutbox: 0,
+                        pendingOutbox: 0
+                    }),
+                    execute: async () => {
+                        throw new Error("must not execute");
+                    },
+                    recordSessionOwnership: async () => {
+                        throw new Error("must not write ownership");
+                    }
+                },
+                signal: new AbortController().signal,
+                now: 12
+            })
+        ).resolves.toBe("pending");
     });
 });

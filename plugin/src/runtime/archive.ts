@@ -83,6 +83,16 @@ export interface FinalizeArchiveInput {
     readonly now: number;
 }
 
+export interface RecoverArchiveInput {
+    readonly repository: Pick<MeetingRepository, "execute" | "recover" | "recordSessionOwnership">;
+    readonly parent?: Agent;
+    readonly runtime?: ArchiveCleanupRuntime;
+    readonly signal: AbortSignal;
+    readonly now: number;
+}
+
+export type ArchiveRecoveryResult = "begun" | "archived" | "pending" | "unchanged";
+
 function archiveOwnershipIdentity(ownership: SessionOwnership): string {
     return [
         ownership.sessionId,
@@ -316,6 +326,32 @@ export async function finalizeArchive(
             };
         }
     });
+}
+
+/** Replays only safe archive stages after plugin restart. */
+export async function recoverArchive(input: RecoverArchiveInput): Promise<ArchiveRecoveryResult> {
+    const recovered = await input.repository.recover();
+    const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+    if (state === undefined || state.status === "archived") return "unchanged";
+    if (executionTerminalStatuses.has(state.status)) {
+        await beginArchiveFromTermination({
+            repository: input.repository,
+            terminal: state,
+            now: input.now
+        });
+        return "begun";
+    }
+    if (state.status !== "archiving") return "unchanged";
+    if (input.parent === undefined || input.runtime === undefined) return "pending";
+    await cleanupOwnedSessions({
+        repository: input.repository,
+        parent: input.parent,
+        runtime: input.runtime,
+        signal: input.signal,
+        now: input.now
+    });
+    await finalizeArchive({ repository: input.repository, now: input.now });
+    return "archived";
 }
 
 /**

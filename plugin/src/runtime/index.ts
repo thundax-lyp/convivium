@@ -17,13 +17,16 @@ export {
     cleanupOwnedSessions,
     finalizeArchive,
     materializeArchivePackage,
+    recoverArchive,
     requireExpectedArchiveOwnerships,
     terminationIdentity
 } from "./archive.js";
 export type {
     BeginArchiveFromTerminationInput,
     CleanupOwnedSessionsInput,
-    FinalizeArchiveInput
+    FinalizeArchiveInput,
+    RecoverArchiveInput,
+    ArchiveRecoveryResult
 } from "./archive.js";
 export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
 export {
