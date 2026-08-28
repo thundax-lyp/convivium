@@ -36,6 +36,12 @@ export function createHandRaise(
                 `meeting task ${taskId} is not owned by participant ${input.participantId}`
             );
         }
+        if (input.reason === "task_completed" && task.status !== "completed") {
+            throw new DomainError(
+                "INVALID_STATE_TRANSITION",
+                `meeting task ${taskId} is not completed`
+            );
+        }
     }
     if (
         input.replyToMessageId !== undefined &&

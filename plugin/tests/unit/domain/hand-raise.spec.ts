@@ -64,6 +64,23 @@ describe("HandRaise transitions", () => {
         expect(created.state.handRaises[0]?.replyToMessageId).toBe("message-1");
     });
 
+    it("does not create a task-completed raise for a failed task", () => {
+        expect(() =>
+            createHandRaise(
+                state({
+                    meetingTasks: [
+                        {
+                            meetingTaskId: "task-1",
+                            participantId: "participant-1",
+                            status: "failed"
+                        }
+                    ] as never
+                }),
+                input()
+            )
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+    });
+
     it("does not collapse pending raises with different substantive context", () => {
         const first = createHandRaise(state(), input());
         const second = createHandRaise(
