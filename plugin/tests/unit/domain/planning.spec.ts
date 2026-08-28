@@ -200,4 +200,33 @@ describe("round-robin planning", () => {
 
         expect(turn.plan).toEqual(["participant:c"]);
     });
+
+    it("excludes participants with an active MeetingTask", () => {
+        const meeting = state();
+        meeting.meetingTasks.push({
+            meetingTaskId: "task-1",
+            participantId: "participant:c",
+            originatingSpeakerAttemptId: "attempt-1",
+            executionId: "execution-1",
+            deliveryId: "delivery-1",
+            sourceTurnId: "turn-1",
+            sourceStepId: "step-1",
+            sourceContextFromSeq: 1,
+            sourceContextThroughSeq: 1,
+            title: "Long task",
+            description: "Long task",
+            blocking: false,
+            status: "running",
+            createdAt: 100,
+            startedAt: 101
+        });
+
+        const turn = planRoundRobinTurn(
+            meeting,
+            { turnId: "turn-1", stepId: (participantId) => `step-${participantId}` },
+            200
+        );
+
+        expect(turn.plan).not.toContain("participant:c");
+    });
 });
