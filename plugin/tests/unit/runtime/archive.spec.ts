@@ -1,6 +1,7 @@
 import {
     beginArchiveFromTermination,
     cleanupOwnedSessions,
+    finalizeArchive,
     materializeArchivePackage,
     requireExpectedArchiveOwnerships,
     terminationIdentity
@@ -429,5 +430,76 @@ describe("archive ownership cleanup", () => {
                 (item) => item.lifecycleStatus === "active" && item.capabilityStatus === "revoked"
             )
         ).toBe(true);
+    });
+
+    it("writes archived only after every owned Session is revoked and closed", async () => {
+        const closed = ownerships().map((ownership) => ({
+            ...ownership,
+            capabilityStatus: "revoked" as const,
+            lifecycleStatus: "closed" as const
+        }));
+        let command: RepositoryCommand<{ status: "archived" }> | undefined;
+        await finalizeArchive({
+            repository: {
+                recover: async () => ({
+                    snapshot: { state: archiving() as never },
+                    sessionOwnership: closed,
+                    bootstrap: {} as never,
+                    reclaimedOutbox: 0,
+                    pendingOutbox: 0
+                }),
+                execute: async (received) => {
+                    command = received;
+                    const transition = received.transition({
+                        teamId: "team-1",
+                        meetingId: "meeting-1",
+                        version: 4,
+                        state: archiving() as never,
+                        createdAt: 1,
+                        updatedAt: 2
+                    });
+                    expect(transition.state).toMatchObject({
+                        status: "archived",
+                        archive: { archivedAt: 11 }
+                    });
+                    expect(transition.events.map((event) => event.type)).toEqual([
+                        "meeting.archived",
+                        "archive.sessions_closed"
+                    ]);
+                    return {
+                        requestId: received.requestId,
+                        meetingId: "meeting-1",
+                        meetingVersion: 5,
+                        result: received.transition as never,
+                        eventSeqs: [1, 2]
+                    };
+                }
+            },
+            now: 11
+        });
+        expect(command).toMatchObject({
+            commandKind: "internal_archive_finalize",
+            expectedMeetingVersion: 4
+        });
+    });
+
+    it("does not finalize while an owned Session remains open", async () => {
+        await expect(
+            finalizeArchive({
+                repository: {
+                    recover: async () => ({
+                        snapshot: { state: archiving() as never },
+                        sessionOwnership: ownerships(),
+                        bootstrap: {} as never,
+                        reclaimedOutbox: 0,
+                        pendingOutbox: 0
+                    }),
+                    execute: async () => {
+                        throw new Error("must not execute");
+                    }
+                },
+                now: 11
+            })
+        ).rejects.toThrow(/revoked and closed/);
     });
 });

@@ -12,13 +12,19 @@ export type { TurnAttemptInput, TurnRunnerDependencies, TurnRunnerResult } from 
 export { createOutboxWorker } from "./outbox-worker.js";
 export {
     archiveBeginCommandKind,
+    archiveFinalizeCommandKind,
     beginArchiveFromTermination,
     cleanupOwnedSessions,
+    finalizeArchive,
     materializeArchivePackage,
     requireExpectedArchiveOwnerships,
     terminationIdentity
 } from "./archive.js";
-export type { BeginArchiveFromTerminationInput, CleanupOwnedSessionsInput } from "./archive.js";
+export type {
+    BeginArchiveFromTerminationInput,
+    CleanupOwnedSessionsInput,
+    FinalizeArchiveInput
+} from "./archive.js";
 export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
 export {
     pauseMeetingRuntime,

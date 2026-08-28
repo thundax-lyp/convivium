@@ -27,6 +27,7 @@ const executionTerminalStatuses = new Set<MeetingState["status"]>([
 ]);
 
 export const archiveBeginCommandKind = "internal_archive_begin";
+export const archiveFinalizeCommandKind = "internal_archive_finalize";
 
 function canonicalJson(value: unknown): string {
     if (value === null || typeof value === "boolean" || typeof value === "number") {
@@ -74,6 +75,11 @@ export interface CleanupOwnedSessionsInput {
     readonly parent: Agent;
     readonly runtime: ArchiveCleanupRuntime;
     readonly signal: AbortSignal;
+    readonly now: number;
+}
+
+export interface FinalizeArchiveInput {
+    readonly repository: Pick<MeetingRepository, "execute" | "recover">;
     readonly now: number;
 }
 
@@ -243,6 +249,73 @@ export async function cleanupOwnedSessions(input: CleanupOwnedSessionsInput): Pr
                 )
             )
     );
+}
+
+/** Commits archived only after every owned meeting Session is revoked and closed. */
+export async function finalizeArchive(
+    input: FinalizeArchiveInput
+): Promise<CommittedResult<{ status: "archived" }>> {
+    const recovered = await input.repository.recover();
+    const state = requireArchivingSnapshot(recovered);
+    const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
+    if (parentSessionId === undefined) {
+        throw new Error("Archive finalization requires complete Session ownership.");
+    }
+    const expected = requireExpectedArchiveOwnerships(
+        state,
+        recovered.sessionOwnership,
+        parentSessionId
+    );
+    if (
+        expected.some(
+            (ownership) =>
+                ownership.capabilityStatus !== "revoked" || ownership.lifecycleStatus !== "closed"
+        )
+    ) {
+        throw new Error(
+            "Archive finalization requires every owned Session to be revoked and closed."
+        );
+    }
+
+    const identity = terminationIdentity(state);
+    return input.repository.execute({
+        requestId: `internal:archive:${identity}`,
+        commandKind: archiveFinalizeCommandKind,
+        authorization: archiveAuthorization(identity),
+        requestHash: canonicalJson({ identity, operation: "finalize" }),
+        expectedMeetingVersion: state.version,
+        transition: (snapshot) => {
+            const archiving = snapshot.state as unknown as MeetingState;
+            if (
+                archiving.status !== "archiving" ||
+                archiving.archive?.package === undefined ||
+                terminationIdentity(archiving) !== identity
+            ) {
+                throw new TypeError(
+                    "Archive finalization snapshot does not match the materialized archive."
+                );
+            }
+            const transition = transitionMeeting(archiving, "archived", {
+                now: input.now,
+                archive: { archivedAt: input.now }
+            });
+            return {
+                state: transition.state as unknown as JsonObject,
+                result: { status: "archived" as const },
+                events: [
+                    ...(transition.effect.events as never[]),
+                    {
+                        type: "archive.sessions_closed" as const,
+                        payload: {
+                            meetingId: archiving.id,
+                            meetingVersion: transition.state.version
+                        }
+                    }
+                ],
+                outbox: []
+            };
+        }
+    });
 }
 
 /**
