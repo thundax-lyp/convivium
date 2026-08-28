@@ -374,14 +374,10 @@ describe("create/status meeting runtime", () => {
             runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
         ).resolves.toMatchObject({
             ok: true,
-            meetingVersion: 3,
+            meetingVersion: 4,
             result: {
-                status: "completed",
-                completionFactIds: expect.arrayContaining([
-                    "completion-delivery-0-output_evidence-0",
-                    "completion-delivery-0-criterion_evidence-1",
-                    "completion-delivery-0-agenda_resolution-2"
-                ])
+                status: "archiving",
+                archive: { package: { meetingId } }
             }
         });
         await runtime.dispose();

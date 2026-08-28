@@ -1567,6 +1567,11 @@ export function createCreateStatusRuntime(
                         };
                     }
                 });
+                await recoverArchive({
+                    repository: stored.repository,
+                    signal,
+                    now: options.now?.() ?? Date.now()
+                });
                 workers.get(input.meetingId)?.wake();
                 return success<EndMeetingResultV1>(
                     input.meetingId,
