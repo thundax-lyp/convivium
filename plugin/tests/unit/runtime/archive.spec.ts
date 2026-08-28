@@ -53,4 +53,14 @@ describe("materializeArchivePackage", () => {
             { id: "candidate-1", title: "later", reason: "parking", status: "parked" }
         ]);
     });
+
+    it("deep-copies committed facts", () => {
+        const source = structuredClone(state);
+        const archive = materializeArchivePackage(source, 20);
+        source.agendaCandidates[0].title = "mutated";
+        source.issues[0].title = "mutated";
+
+        expect(archive.parkingLot[0]?.title).toBe("later");
+        expect(archive.issues[0]?.title).toBe("scope");
+    });
 });
