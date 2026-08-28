@@ -142,16 +142,38 @@ export const EndMeetingInputSchema = Schema.object({
     requestId: string()
 });
 
-const backgroundTaskRequestSchema = Schema.object({
+export const MeetingTaskRequestSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: string(),
     attemptId: string(),
     requestId: string(),
-    action: enumOf(["create", "associate"] as const),
-    title: Schema.string(),
-    description: Schema.string(),
-    existingTaskId: Schema.string(),
+    title: nonEmptyString(),
+    description: nonEmptyString(),
     blocking: boolean()
+});
+
+export const MeetingTaskStatusInputSchema = Schema.object({
+    protocolVersion: ProtocolVersionSchema,
+    meetingId: string(),
+    meetingTaskId: string()
+});
+
+export const MeetingTaskStartInputSchema = Schema.object({
+    protocolVersion: ProtocolVersionSchema,
+    meetingId: string(),
+    meetingTaskId: string(),
+    requestId: string()
+});
+
+export const MeetingTaskFinishInputSchema = Schema.object({
+    protocolVersion: ProtocolVersionSchema,
+    meetingId: string(),
+    meetingTaskId: string(),
+    requestId: string(),
+    executionId: string(),
+    status: enumOf(["completed", "failed"] as const),
+    resultSummary: Schema.string(),
+    failureReason: Schema.string()
 });
 
 const publicMessageKind = enumOf([
@@ -348,23 +370,6 @@ export const MeetingScopedMailSchema = Schema.object({
 
 export function validateCommandInput<T>(schema: Schema<T>, value: unknown): T {
     return schema(value as T);
-}
-
-export function validateBackgroundTaskRequest(value: unknown) {
-    const result = validateCommandInput(backgroundTaskRequestSchema, value);
-    const hasExistingTaskId = Object.prototype.hasOwnProperty.call(result, "existingTaskId");
-    const hasTitle = Object.prototype.hasOwnProperty.call(result, "title");
-    const hasDescription = Object.prototype.hasOwnProperty.call(result, "description");
-    if (result.action === "create" && (!result.title || !result.description || hasExistingTaskId)) {
-        throw new TypeError("create background task requires title and description only");
-    }
-    if (
-        result.action === "associate" &&
-        (!result.existingTaskId || hasTitle || hasDescription || !hasExistingTaskId)
-    ) {
-        throw new TypeError("associate background task requires existingTaskId only");
-    }
-    return result;
 }
 
 export function validateReassignTurnInput(value: unknown) {

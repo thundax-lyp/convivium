@@ -1,5 +1,12 @@
 import { DomainError, invalidStateTransition } from "./errors.js";
-import { judgeTurnCompletion } from "./completion.js";
+import {
+    applyCompletionClaims,
+    isObjectiveSatisfied,
+    judgeTurnCompletion,
+    type ApplyCompletionClaimsContext
+} from "./completion.js";
+import { cancelNonTerminalMeetingTasks, queueMeetingTasks } from "./meeting-task.js";
+import { completedTaskSnapshots, consumeHandRaise } from "./hand-raise.js";
 import {
     planManagerTurn,
     planRoundRobinTurn,
@@ -11,6 +18,7 @@ import type {
     AttemptTransitionContext,
     ArchiveInput,
     ArchiveRecord,
+    CompletionFact,
     DomainEffect,
     DomainEventType,
     MeetingState,
@@ -48,6 +56,7 @@ export interface SubmitSpeakerAdvanceContext extends SpeakerSubmissionContext {
     now: number;
     nextPlanningAttemptId: string;
     nextPlanningDeliveryId: string;
+    completion?: Omit<ApplyCompletionClaimsContext, "participantId" | "now">;
 }
 
 const meetingTransitions: Readonly<Record<MeetingStatus, readonly MeetingStatus[]>> = {
@@ -62,8 +71,8 @@ const meetingTransitions: Readonly<Record<MeetingStatus, readonly MeetingStatus[
         "cancelled",
         "failed"
     ],
-    waiting: ["running", "paused", "partial", "cancelled", "failed"],
-    paused: ["running", "waiting", "cancelled", "failed"],
+    waiting: ["running", "paused", "completed", "partial", "no_consensus", "cancelled", "failed"],
+    paused: ["running", "waiting", "completed", "partial", "no_consensus", "cancelled", "failed"],
     converging: ["running", "completed", "partial", "no_consensus", "cancelled", "failed"],
     completed: ["archiving"],
     partial: ["archiving"],
@@ -156,7 +165,10 @@ function isArchiveInput(archive: TransitionContext["archive"]): archive is Archi
     return Boolean(archive && "package" in archive);
 }
 
-function revokeActiveAttempts(state: MeetingState): {
+function revokeActiveAttempts(
+    state: MeetingState,
+    emitTurnLifecycleEvent = false
+): {
     currentTurn: MeetingTurn | undefined;
     manager: MeetingState["manager"];
     events: DomainEffect["events"];
@@ -188,6 +200,20 @@ function revokeActiveAttempts(state: MeetingState): {
               })
           }
         : undefined;
+    if (
+        emitTurnLifecycleEvent &&
+        state.currentTurn !== undefined &&
+        (state.currentTurn.status === "planned" || state.currentTurn.status === "running")
+    ) {
+        events.push({
+            type: state.currentTurn.status === "planned" ? "turn.cancelled" : "turn.truncated",
+            payload: {
+                meetingId: state.id,
+                turnId: state.currentTurn.id,
+                meetingVersion: state.version + 1
+            }
+        });
+    }
     const planningAttempt = state.manager.currentPlanningAttempt;
     const activePlanning =
         planningAttempt && ["pending", "running"].includes(planningAttempt.status);
@@ -442,7 +468,13 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
         archivePackage.completionFacts.some(
             (fact) =>
                 !completionSubjectIds.has(fact.subjectId) ||
-                !participantIds.has(fact.assertedBy) ||
+                !(
+                    participantIds.has(fact.assertedBy) ||
+                    (fact.authority === "captain" &&
+                        fact.assertedBy.startsWith("captain:") &&
+                        sourceCompletionById.get(fact.id)?.authority === "captain" &&
+                        sourceCompletionById.get(fact.id)?.assertedBy === fact.assertedBy)
+                ) ||
                 (sourceCompletionById.get(fact.id)?.subjectId !== undefined &&
                     sourceCompletionById.get(fact.id)?.subjectId !== fact.subjectId) ||
                 (sourceCompletionById.get(fact.id)?.result !== undefined &&
@@ -524,30 +556,7 @@ function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveI
 
 function assertCompletionReady(state: MeetingState, to: MeetingStatus): void {
     if (to !== "completed") return;
-    const ready =
-        state.objectiveContract.requiredOutputs.every((output) => output.status === "accepted") &&
-        state.objectiveContract.acceptanceCriteria.every((criterion) => criterion.satisfied) &&
-        state.objectiveContract.requiredReviewers.every((reviewerId) =>
-            state.completionFacts.some(
-                (fact) =>
-                    fact.reviewerId === reviewerId &&
-                    fact.status === "active" &&
-                    fact.result === "approved"
-            )
-        ) &&
-        state.agenda.every((item) => item.status === "resolved" || item.status === "deferred") &&
-        state.issues.every(
-            (issue) =>
-                !issue.blocking ||
-                ["resolved", "deferred", "accepted_risk", "out_of_scope"].includes(issue.status)
-        ) &&
-        state.openQuestions.every(
-            (question) =>
-                question.status === "answered" ||
-                question.status === "withdrawn" ||
-                question.status === "deferred"
-        );
-    if (!ready) {
+    if (!isObjectiveSatisfied(state)) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
             `meeting ${state.id} is not ready to complete`,
@@ -724,7 +733,7 @@ export function transitionMeeting(
     const resumingFromPause = state.status === "paused" && (to === "running" || to === "waiting");
     const lifecycleCleanup =
         to === "paused" || to === "archiving" || isExecutionTerminal
-            ? revokeActiveAttempts(state)
+            ? revokeActiveAttempts(state, isExecutionTerminal || to === "archiving")
             : undefined;
     const next: MeetingState = {
         ...state,
@@ -790,6 +799,212 @@ export function transitionMeeting(
     };
 }
 
+export interface EndMeetingTransitionContext {
+    meetingId: string;
+    captainBinding: string;
+    outcome: "completed" | "partial" | "no_consensus" | "cancelled";
+    reason: string;
+    acceptedDecisionIds: readonly string[];
+    deferredAgendaItemIds: readonly string[];
+    waivers: readonly {
+        subjectId: string;
+        kind: "required_review" | "agenda_item";
+        reason: string;
+    }[];
+    now: number;
+    factId: (index: number) => string;
+}
+
+const executionTerminalStatuses: readonly MeetingStatus[] = [
+    "completed",
+    "partial",
+    "no_consensus",
+    "cancelled",
+    "failed",
+    "archiving",
+    "archived"
+];
+
+export function endMeeting(
+    state: MeetingState,
+    context: EndMeetingTransitionContext
+): TransitionResult<MeetingState> {
+    if (context.meetingId !== state.id) {
+        throw new DomainError("INVALID_ENTITY_STATE", "end command targets another meeting", {
+            entityType: "meeting",
+            entityId: context.meetingId,
+            meetingVersion: state.version
+        });
+    }
+    if (executionTerminalStatuses.includes(state.status)) {
+        throw new DomainError("IMMUTABLE_MEETING", `meeting ${state.id} is immutable`, {
+            entityType: "meeting",
+            entityId: state.id,
+            meetingVersion: state.version
+        });
+    }
+    if (!context.reason.trim()) {
+        throw new DomainError("INVALID_ENTITY_STATE", "end command requires a reason", {
+            entityType: "meeting",
+            entityId: state.id,
+            meetingVersion: state.version
+        });
+    }
+    if (
+        new Set(context.acceptedDecisionIds).size !== context.acceptedDecisionIds.length ||
+        context.acceptedDecisionIds.some(
+            (id) =>
+                !state.decisions.some(
+                    (decision) => decision.id === id && decision.status === "accepted"
+                )
+        )
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            "end command references an invalid decision",
+            {
+                entityType: "meeting",
+                entityId: state.id,
+                meetingVersion: state.version
+            }
+        );
+    }
+    if (
+        new Set(context.deferredAgendaItemIds).size !== context.deferredAgendaItemIds.length ||
+        context.deferredAgendaItemIds.some((id) => !state.agenda.some((item) => item.id === id))
+    ) {
+        throw new DomainError("INVALID_ENTITY_STATE", "end command references an invalid agenda", {
+            entityType: "meeting",
+            entityId: state.id,
+            meetingVersion: state.version
+        });
+    }
+    if (
+        context.outcome !== "partial" &&
+        (context.deferredAgendaItemIds.length > 0 || context.waivers.length > 0)
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            "only a partial outcome may defer agenda or waive requirements",
+            { entityType: "meeting", entityId: state.id, meetingVersion: state.version }
+        );
+    }
+
+    let completionFacts = [...state.completionFacts];
+    const agenda = state.agenda.map((item) =>
+        context.deferredAgendaItemIds.includes(item.id)
+            ? { ...item, status: "deferred" as const }
+            : item
+    );
+    const waiverFacts: CompletionFact[] = [];
+    const waiverKeys = new Set<string>();
+    for (const [index, waiver] of context.waivers.entries()) {
+        const key = `${waiver.kind}:${waiver.subjectId}`;
+        const validSubject =
+            waiver.kind === "required_review"
+                ? state.objectiveContract.requiredReviewers.includes(waiver.subjectId)
+                : state.agenda.some((item) => item.id === waiver.subjectId);
+        if (!waiver.reason.trim() || !validSubject || waiverKeys.has(key)) {
+            throw new DomainError(
+                "INVALID_ENTITY_STATE",
+                "end command contains an invalid waiver",
+                {
+                    entityType: "meeting",
+                    entityId: state.id,
+                    meetingVersion: state.version
+                }
+            );
+        }
+        waiverKeys.add(key);
+        const waiverFact: CompletionFact = {
+            id: context.factId(index),
+            kind: "waiver",
+            subjectId: waiver.subjectId,
+            assertedBy: context.captainBinding,
+            authority: "captain",
+            result: "waived",
+            evidenceMessageIds: [],
+            taskIds: [],
+            reason: waiver.reason,
+            status: "active",
+            createdAt: context.now
+        };
+        completionFacts = [
+            ...completionFacts.map((existing) =>
+                existing.status === "active" &&
+                existing.kind === "waiver" &&
+                existing.subjectId === waiver.subjectId
+                    ? { ...existing, status: "superseded" as const }
+                    : existing
+            ),
+            waiverFact
+        ];
+        waiverFacts.push(waiverFact);
+    }
+
+    const prepared: MeetingState = { ...state, agenda, completionFacts };
+    const dissentingPositionIds = prepared.proposals.flatMap((proposal) =>
+        proposal.positions
+            .filter(({ position }) => ["object", "needs_revision", "abstain"].includes(position))
+            .map(({ id }) => id)
+    );
+    const blockingAgendaItemIds = prepared.agenda
+        .filter((item) => item.status === "blocked")
+        .map((item) => item.id);
+    const unresolvedQuestionIds = prepared.openQuestions
+        .filter((question) => question.status === "open" || question.status === "deferred")
+        .map((question) => question.id);
+    if (
+        context.outcome === "no_consensus" &&
+        dissentingPositionIds.length === 0 &&
+        blockingAgendaItemIds.length === 0 &&
+        unresolvedQuestionIds.length === 0
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            "no-consensus outcome requires unresolved or dissenting facts",
+            { entityType: "meeting", entityId: state.id, meetingVersion: state.version }
+        );
+    }
+
+    const code = {
+        completed: "objective_satisfied",
+        partial: "captain_accepted",
+        no_consensus: "no_consensus",
+        cancelled: "user_cancelled"
+    }[context.outcome] as NonNullable<MeetingState["termination"]>["code"];
+    const ended = transitionMeeting(prepared, context.outcome, {
+        now: context.now,
+        reason: context.reason,
+        termination: {
+            code,
+            reason: context.reason,
+            decisionIds: [...context.acceptedDecisionIds],
+            unresolvedQuestionIds,
+            dissentingPositionIds,
+            blockingAgendaItemIds,
+            finalMessage: context.reason,
+            endedAt: context.now
+        }
+    });
+    const factEvents: DomainEffect["events"] = waiverFacts.map((waiverFact) => ({
+        type: "completion_fact.added",
+        payload: {
+            meetingId: state.id,
+            completionFactId: waiverFact.id,
+            kind: waiverFact.kind,
+            subjectId: waiverFact.subjectId,
+            meetingVersion: ended.state.version
+        }
+    }));
+    const cancelled = cancelNonTerminalMeetingTasks(ended.state, context.now);
+    const events = [...factEvents, ...ended.effect.events, ...cancelled.effect.events];
+    return {
+        state: { ...cancelled.state, eventSeq: state.eventSeq + events.length },
+        effect: { events }
+    };
+}
+
 export function startManagerPlanning(
     state: MeetingState,
     context: StartManagerPlanningContext
@@ -844,7 +1059,8 @@ export function startManagerPlanning(
             ...meeting.state.manager,
             status: "planning",
             currentPlanningAttempt: planningAttempt
-        }
+        },
+        replanCount: meeting.state.replanCount + 1
     };
     return {
         state: nextState,
@@ -976,7 +1192,7 @@ export function submitManagerPlan(
         deliveryId: `${planned.id}-delivery-0`,
         contextFromSeq: 0,
         contextThroughSeq: state.messageSeq,
-        taskSnapshots: [],
+        taskSnapshots: completedTaskSnapshots(state, firstStep.speaker, context.now),
         assignedAt: context.now,
         status: "running" as const,
         deliveryStatus: "pending" as const
@@ -988,8 +1204,15 @@ export function submitManagerPlan(
             index === 0 ? { ...step, status: "running", attempt: firstAttempt } : step
         )
     };
+    const selectedRaise = state.handRaises.find(
+        (raise) => raise.status === "pending" && raise.participant === firstStep.speaker
+    );
+    const consumed =
+        selectedRaise === undefined
+            ? { state, effect: { events: [] } }
+            : consumeHandRaise(state, selectedRaise.id);
     const nextState: MeetingState = {
-        ...state,
+        ...consumed.state,
         version: state.version + 1,
         updatedAt: context.now,
         manager: { ...state.manager, status: "idle", currentPlanningAttempt: undefined },
@@ -1131,6 +1354,13 @@ export function submitSpeakerAttempt(
     meetingVersion: number,
     context: SpeakerSubmissionContext
 ): TransitionResult<MeetingState> {
+    if (executionTerminalStatuses.includes(state.status)) {
+        throw new DomainError("IMMUTABLE_MEETING", `meeting ${state.id} is immutable`, {
+            entityType: "meeting",
+            entityId: state.id,
+            meetingVersion: state.version
+        });
+    }
     const participant = state.participants.find(({ id }) => id === participantId);
     const turn = state.currentTurn;
     const step = turn?.steps[turn.currentStepIndex];
@@ -1274,7 +1504,48 @@ export function submitSpeakerAndAdvanceMeeting(
     participantId: string,
     context: SubmitSpeakerAdvanceContext
 ): TransitionResult<MeetingState> {
-    const submitted = submitSpeakerAttempt(state, participantId, state.version, context);
+    const speakerSubmission = submitSpeakerAttempt(state, participantId, state.version, context);
+    const omittedTask = (speakerSubmission.state.meetingTasks ?? []).find(
+        (task) =>
+            task.status === "requested" &&
+            task.participantId === participantId &&
+            task.originatingSpeakerAttemptId === context.attemptId &&
+            !context.message.taskIds.includes(task.meetingTaskId)
+    );
+    if (omittedTask !== undefined) {
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            `requested MeetingTask ${omittedTask.meetingTaskId} must be included in the originating turn submission`
+        );
+    }
+    const completion = context.completion
+        ? applyCompletionClaims(speakerSubmission.state, {
+              ...context.completion,
+              participantId,
+              now: context.now
+          })
+        : undefined;
+    const completedSubmission = completion
+        ? {
+              state: completion.state,
+              effect: {
+                  events: [...speakerSubmission.effect.events, ...completion.effect.events]
+              }
+          }
+        : speakerSubmission;
+    const queued = context.message.taskIds.length
+        ? queueMeetingTasks(
+              completedSubmission.state,
+              context.message.taskIds,
+              participantId,
+              context.attemptId,
+              context.now
+          )
+        : { state: completedSubmission.state, effect: { events: [] } };
+    const submitted: TransitionResult<MeetingState> = {
+        state: queued.state,
+        effect: { events: [...completedSubmission.effect.events, ...queued.effect.events] }
+    };
     const version = submitted.state.version;
     const turn = submitted.state.currentTurn;
     if (turn === undefined) return submitted;
@@ -1286,11 +1557,46 @@ export function submitSpeakerAndAdvanceMeeting(
         effect: { events }
     });
     const nextStep = turn.steps[turn.currentStepIndex];
+    const limitReached =
+        submitted.state.turnSeq >= submitted.state.limits.maxTurns ||
+        submitted.state.messageSeq >= submitted.state.limits.maxTotalMessages ||
+        (submitted.state.limits.maxDurationMs !== undefined &&
+            context.now - submitted.state.createdAt >= submitted.state.limits.maxDurationMs);
+    const blockingTaskIds = (submitted.state.meetingTasks ?? [])
+        .filter(
+            (task) =>
+                task.status === "queued" &&
+                task.blocking &&
+                task.originatingSpeakerAttemptId === context.attemptId
+        )
+        .map((task) => task.meetingTaskId);
+    if (blockingTaskIds.length > 0 && !limitReached) {
+        nextState = {
+            ...submitted.state,
+            status: "waiting",
+            waitState: {
+                reason: "blocking MeetingTask queued",
+                taskIds: blockingTaskIds,
+                participantIds: [participantId],
+                resumeAgendaItemId: context.agendaItemId
+            }
+        };
+        events = [
+            ...events,
+            {
+                type: "meeting.waiting",
+                payload: {
+                    meetingId: state.id,
+                    from: submitted.state.status,
+                    to: "waiting",
+                    meetingVersion: version,
+                    reason: "blocking MeetingTask queued"
+                }
+            }
+        ];
+        return result();
+    }
     if (turn.status === "running" && nextStep !== undefined) {
-        const limitReached =
-            submitted.state.messageSeq >= submitted.state.limits.maxTotalMessages ||
-            (submitted.state.limits.maxDurationMs !== undefined &&
-                context.now - submitted.state.createdAt >= submitted.state.limits.maxDurationMs);
         if (!limitReached) {
             const attempt = {
                 attemptId: `${turn.id}-attempt-${turn.currentStepIndex}`,
@@ -1301,7 +1607,11 @@ export function submitSpeakerAndAdvanceMeeting(
                 deliveryId: `${turn.id}-delivery-${turn.currentStepIndex}`,
                 contextFromSeq: 0,
                 contextThroughSeq: submitted.state.messageSeq,
-                taskSnapshots: [],
+                taskSnapshots: completedTaskSnapshots(
+                    submitted.state,
+                    nextStep.speaker,
+                    context.now
+                ),
                 assignedAt: context.now,
                 status: "running" as const,
                 deliveryStatus: "pending" as const
@@ -1380,12 +1690,34 @@ export function submitSpeakerAndAdvanceMeeting(
         return result();
     }
     const judgment = judgeTurnCompletion(nextState, context.now);
-    if (judgment.kind === "completed" || judgment.kind === "partial") {
-        const terminalStatus = judgment.kind === "completed" ? "completed" : "partial";
-        const terminationCode = judgment.reason as
-            "objective_satisfied" | "max_turns" | "message_limit" | "time_limit";
+    if (judgment.kind === "completed") {
         nextState = {
             ...nextState,
+            status: "converging",
+            currentTurn: undefined,
+            waitState: undefined
+        };
+        events = [
+            ...events,
+            {
+                type: "meeting.replanned",
+                payload: {
+                    meetingId: state.id,
+                    from: state.status,
+                    to: "converging",
+                    meetingVersion: version,
+                    reason: judgment.reason
+                }
+            }
+        ];
+        return result();
+    }
+    if (judgment.kind === "partial") {
+        const terminalStatus = "partial";
+        const terminationCode = judgment.reason as "max_turns" | "message_limit" | "time_limit";
+        const cancelled = cancelNonTerminalMeetingTasks(nextState, context.now);
+        nextState = {
+            ...cancelled.state,
             status: terminalStatus,
             currentTurn: undefined,
             termination: {
@@ -1408,6 +1740,7 @@ export function submitSpeakerAndAdvanceMeeting(
         };
         events = [
             ...events,
+            ...cancelled.effect.events,
             {
                 type: "meeting.ended",
                 payload: {
@@ -1432,6 +1765,13 @@ export function submitSpeakerAndAdvanceMeeting(
             context.now
         );
         const firstStep = planned.steps[0]!;
+        const selectedRaise = nextState.handRaises.find(
+            (raise) => raise.status === "pending" && raise.participant === firstStep.speaker
+        );
+        const consumed =
+            selectedRaise === undefined
+                ? { state: nextState, effect: { events: [] } }
+                : consumeHandRaise(nextState, selectedRaise.id);
         const firstAttempt: SpeakerAttempt = {
             attemptId: `${planned.id}-attempt-0`,
             participantId: firstStep.speaker,
@@ -1441,7 +1781,7 @@ export function submitSpeakerAndAdvanceMeeting(
             deliveryId: `${planned.id}-delivery-0`,
             contextFromSeq: 0,
             contextThroughSeq: nextState.messageSeq,
-            taskSnapshots: [],
+            taskSnapshots: completedTaskSnapshots(nextState, firstStep.speaker, context.now),
             assignedAt: context.now,
             status: "running",
             deliveryStatus: "pending"
@@ -1454,7 +1794,7 @@ export function submitSpeakerAndAdvanceMeeting(
             )
         };
         nextState = {
-            ...nextState,
+            ...consumed.state,
             currentTurn: runningTurn,
             turnSeq: runningTurn.seq,
             status: "running",
@@ -1512,6 +1852,7 @@ export function submitSpeakerAndAdvanceMeeting(
         currentTurn: undefined,
         status: "running",
         waitState: undefined,
+        replanCount: nextState.replanCount + 1,
         manager: {
             ...nextState.manager,
             status: "planning",

@@ -17,6 +17,8 @@ export {
     rebindCaptainParent,
     resumeMeetingRuntime
 } from "./recovery.js";
+export { meetingTaskEvidenceResolver, rejectUnsupportedTaskEvidence } from "./task-evidence.js";
+export type { AuthorizedTaskEvidence, AuthorizedTaskEvidenceResolver } from "./task-evidence.js";
 export type {
     CaptainRebindDependencies,
     MeetingRecoveryDependencies,

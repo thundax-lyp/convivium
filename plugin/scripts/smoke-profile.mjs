@@ -226,7 +226,7 @@ function createInput() {
         selectionMode: "manager",
         objectiveContract: {
             requiredOutputs: [],
-            acceptanceCriteria: [],
+            acceptanceCriteria: [{ key: "smoke-order", description: "A/C/B committed" }],
             hardConstraints: [],
             requiredReviewerKeys: [],
             riskAcceptanceAuthorityKeys: [],
@@ -238,7 +238,7 @@ function createInput() {
             objective: "Commit A then C then B",
             inScope: ["tool execution"],
             outOfScope: ["Meeting HTTP route"],
-            completionCriteria: ["A/C/B committed"],
+            completionCriteria: ["smoke-order"],
             requiredParticipantKeys: ["a", "b", "c"]
         }],
         participants: [

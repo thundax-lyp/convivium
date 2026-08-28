@@ -146,7 +146,7 @@ domain     ──> no infrastructure module
 | `src/runtime/recovery.ts` | 冷启动扫描、租约回收、outbox 恢复和 orphan 归属修复 |
 | `src/runtime/archive.ts` | 终态快照、capability revoke、Activation drain 和 archived commit |
 | `src/dsh/session-adapter.ts` | meeting-owned Session 创建、followup、interrupt、drain 和枚举 |
-| `src/dsh/task-adapter.ts` | 受控 Captain 路径创建、关联和读取 TeamTask fact |
+| `src/domain/meeting-task.ts` | MeetingTask、HandRaise、状态转换和 task projection 的纯领域逻辑 |
 | `src/dsh/caller-resolver.ts` | 将真实 DSH caller Session 解析为 Captain、Manager 或 Participant |
 | `src/tools/register-tools.ts` | 注册 `convivium_*` 工具并绑定协议 Schema |
 | `src/http/register-routes.ts` | 注册 `/api/convivium/*` 并绑定用户授权 |
@@ -303,7 +303,7 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 5. 重新计算完成、硬限制和下一 step；
 6. 当前 turn 完成后才请求下一 Manager plan。
 
-长任务由 `TaskAdapter` 转为后台 TeamTask并释放 speaker。任务结果先作为 DSH-owned observation 进入 Runtime，验证绑定后创建 HandRaise 或 evidence，不直接写 transcript 或完成状态。
+长任务由 Participant 通过 `convivium_create_meeting_task` 创建为 MeetingTask；合法 `submit_turn` 后释放 speaker，任务通过同一 Participant continuable Session 的现有 dispatch/FIFO 执行。任务结果先作为 MeetingState canonical fact 提交，随后由 Runtime 生成 HandRaise 或 evidence，不直接写 transcript 或完成状态。
 
 ### Outbox worker
 

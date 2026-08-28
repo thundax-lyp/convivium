@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
     CreateMeetingResultSchema,
     CreateMeetingInputSchema,
+    EndMeetingInputSchema,
+    EndMeetingResultSchema,
     MeetingArchivePackageSchema,
     ManagerPlanResultSchema,
     ManagerPlanSubmissionSchema,
@@ -9,7 +11,7 @@ import {
     validateProtocolError,
     isKnownMeetingProtocolErrorCode,
     validateProtocolSuccessEnvelope,
-    validateBackgroundTaskRequest,
+    MeetingTaskRequestSchema,
     validateReassignTurnInput
 } from "../../src/protocol/index.js";
 
@@ -164,6 +166,7 @@ describe("protocol envelope schemas", () => {
             })
         ).toMatchObject({ code: "UNKNOWN_ERROR", retryable: false });
         expect(isKnownMeetingProtocolErrorCode("INVALID_ARGUMENT")).toBe(true);
+        expect(isKnownMeetingProtocolErrorCode("VERSION_CONFLICT")).toBe(true);
         expect(isKnownMeetingProtocolErrorCode("UNSUPPORTED_CAPABILITY")).toBe(true);
         expect(isKnownMeetingProtocolErrorCode("UNKNOWN_ERROR")).toBe(false);
     });
@@ -180,32 +183,19 @@ describe("protocol envelope schemas", () => {
         ).toMatchObject({ code: "UNSUPPORTED_CAPABILITY", retryable: false });
     });
 
-    it("validates command discriminants beyond field types", () => {
-        expect(() =>
-            validateBackgroundTaskRequest({
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                attemptId: "attempt-1",
-                requestId: "request-1",
-                action: "create",
-                existingTaskId: "task-1",
-                blocking: false
-            })
-        ).toThrow();
-
-        expect(() =>
-            validateBackgroundTaskRequest({
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                attemptId: "attempt-1",
-                requestId: "request-1",
-                action: "create",
-                title: "task",
-                description: "work",
-                existingTaskId: "",
-                blocking: false
-            })
-        ).toThrow();
+    it("validates MeetingTask request fields", () => {
+        const input = {
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            attemptId: "attempt-1",
+            requestId: "request-1",
+            title: "task",
+            description: "work",
+            blocking: false
+        };
+        expect(MeetingTaskRequestSchema(input)).toEqual(input);
+        expect(() => MeetingTaskRequestSchema({ ...input, title: "" })).toThrow();
+        expect(() => MeetingTaskRequestSchema({ ...input, description: "" })).toThrow();
 
         expect(() =>
             validateReassignTurnInput({
@@ -311,6 +301,57 @@ describe("protocol envelope schemas", () => {
         ).toThrow();
     });
 
+    it("validates the Captain end command and terminal completion basis", () => {
+        expect(
+            EndMeetingInputSchema({
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 3,
+                outcome: "completed",
+                reason: "Objective satisfied",
+                acceptedDecisionIds: ["decision-1"],
+                deferredAgendaItemIds: [],
+                waivers: [],
+                requestId: "request-end-1"
+            })
+        ).toMatchObject({ outcome: "completed" });
+        expect(
+            EndMeetingResultSchema({ status: "completed", terminationCode: "objective_satisfied" })
+        ).toEqual({ status: "completed", terminationCode: "objective_satisfied" });
+
+        const terminal = {
+            meetingId: "meeting-1",
+            meetingVersion: 4,
+            topic: "Release",
+            objective: "Decide scope",
+            continuationMaterials: [],
+            limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
+            messages: [],
+            acceptedDecisions: [],
+            blockingFacts: [],
+            meetingTasks: [],
+            status: "completed",
+            pendingHandRaises: [],
+            pauseControl: { action: "none" },
+            termination: {
+                code: "objective_satisfied",
+                reason: "Objective satisfied",
+                decisionIds: ["decision-1"],
+                unresolvedQuestionIds: [],
+                dissentingPositionIds: [],
+                blockingAgendaItemIds: [],
+                finalMessage: "Meeting completed.",
+                endedAt: 1
+            },
+            completionFactIds: ["completion-1"]
+        };
+
+        expect(() => MeetingStatusResultSchema(terminal)).not.toThrow();
+        expect(() =>
+            MeetingStatusResultSchema({ ...terminal, completionFactIds: undefined })
+        ).toThrow();
+    });
+
     it("rejects terminal status with active meeting fields", () => {
         const archivePackage = validArchivePackage();
         expect(() =>
@@ -325,6 +366,7 @@ describe("protocol envelope schemas", () => {
                 currentTurn: { id: "turn-1" },
                 currentSpeakerId: "participant-1",
                 pendingHandRaises: [],
+                meetingTasks: [],
                 pauseControl: { action: "none" },
                 termination: {
                     code: "completed",
@@ -346,6 +388,7 @@ describe("protocol envelope schemas", () => {
             continuationMaterials: [],
             limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
             pendingHandRaises: [],
+            meetingTasks: [],
             pauseControl: { action: "none" },
             termination: {
                 code: "completed",
@@ -404,6 +447,7 @@ describe("protocol envelope schemas", () => {
                 messages: [],
                 acceptedDecisions: [],
                 blockingFacts: [],
+                meetingTasks: [],
                 status: "paused",
                 pendingHandRaises: [],
                 pauseControl: { action: "resume" }
@@ -424,6 +468,7 @@ describe("protocol envelope schemas", () => {
                 messages: [],
                 acceptedDecisions: [],
                 blockingFacts: [],
+                meetingTasks: [],
                 status: "paused",
                 pendingHandRaises: [],
                 pauseControl: {

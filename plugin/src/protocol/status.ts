@@ -111,8 +111,23 @@ const handRaise = Schema.object({
     reason: requiredString(),
     summary: requiredString(),
     taskIds: requiredArray(requiredString()),
+    replyToMessageId: Schema.string(),
     agendaItemId: Schema.string(),
     priority: enumOf(["normal", "high", "blocking"] as const)
+});
+
+const meetingTask = Schema.object({
+    meetingTaskId: requiredString(),
+    participantId: requiredString(),
+    title: requiredString(),
+    blocking: requiredBoolean(),
+    status: enumOf(["requested", "queued", "running", "completed", "failed", "cancelled"] as const),
+    resultSummary: Schema.string(),
+    failureReason: Schema.string(),
+    createdAt: requiredNumber(),
+    queuedAt: Schema.number(),
+    startedAt: Schema.number(),
+    finishedAt: Schema.number()
 });
 
 const step = Schema.object({
@@ -174,6 +189,17 @@ const termination = Schema.object({
     unresolvedQuestionIds: requiredArray(requiredString())
 });
 
+const executionTermination = Schema.object({
+    code: requiredString(),
+    reason: requiredString(),
+    decisionIds: requiredArray(requiredString()),
+    unresolvedQuestionIds: requiredArray(requiredString()),
+    dissentingPositionIds: requiredArray(requiredString()),
+    blockingAgendaItemIds: requiredArray(requiredString()),
+    finalMessage: requiredString(),
+    endedAt: requiredNumber()
+});
+
 const active = Schema.object({
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
@@ -185,6 +211,7 @@ const active = Schema.object({
     messages: requiredArray(message),
     acceptedDecisions: requiredArray(decision),
     blockingFacts: requiredArray(blockingFact),
+    meetingTasks: requiredArray(meetingTask),
     status: enumOf(["created", "running", "waiting", "paused", "converging"] as const),
     currentTurn: optionalObject(turn),
     currentSpeakerId: Schema.string(),
@@ -220,8 +247,10 @@ const terminal = Schema.object({
     currentTurn: Schema.never(),
     currentSpeakerId: Schema.never(),
     pendingHandRaises: Schema.tuple([]).required(),
+    meetingTasks: requiredArray(meetingTask),
     pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
-    termination: termination.required(),
+    termination: executionTermination.required(),
+    completionFactIds: requiredArray(requiredString()),
     archive: Schema.never()
 });
 
@@ -330,6 +359,7 @@ const archiving = Schema.object({
     currentTurn: Schema.never(),
     currentSpeakerId: Schema.never(),
     pendingHandRaises: Schema.tuple([]).required(),
+    meetingTasks: requiredArray(meetingTask),
     pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
     termination: termination.required(),
     archive: Schema.object({
@@ -349,6 +379,7 @@ const archived = Schema.object({
     currentTurn: Schema.never(),
     currentSpeakerId: Schema.never(),
     pendingHandRaises: Schema.tuple([]).required(),
+    meetingTasks: requiredArray(meetingTask),
     pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
     termination: termination.required(),
     archive: Schema.object({

@@ -71,6 +71,26 @@ function requireKnownKeys(keys: readonly string[], known: ReadonlySet<string>, k
     }
 }
 
+function canonicalCompletionCriteria(
+    references: readonly string[],
+    outputs: readonly { key: string; id: string; description: string }[],
+    criteria: readonly { key: string; id: string; description: string }[]
+): string[] {
+    const candidates = [...outputs, ...criteria];
+    return references.map((reference) => {
+        const matches = candidates.filter(
+            (candidate) =>
+                candidate.id === reference ||
+                candidate.key === reference ||
+                candidate.description === reference
+        );
+        if (matches.length !== 1) {
+            invalidCreateInput(`Unknown or ambiguous agenda completion criterion: ${reference}`);
+        }
+        return matches[0]!.id;
+    });
+}
+
 export function createMeetingState(
     input: CreateMeetingSpec,
     ids: CanonicalIdAllocator
@@ -130,6 +150,29 @@ export function createMeetingState(
         return id ?? invalidCreateInput("Unknown participant reference");
     };
 
+    const requiredOutputCandidates = input.objectiveContract.requiredOutputs.map((output) => ({
+        id: ids.allocate("output", output.key),
+        key: output.key,
+        description: output.description,
+        status: "pending" as const
+    }));
+    const acceptanceCriterionCandidates = input.objectiveContract.acceptanceCriteria.map(
+        (criterion) => ({
+            id: ids.allocate("criterion", criterion.key),
+            key: criterion.key,
+            description: criterion.description,
+            satisfied: false
+        })
+    );
+    const requiredOutputs = requiredOutputCandidates.map(({ id, description, status }) => ({
+        id,
+        description,
+        status
+    }));
+    const acceptanceCriteria = acceptanceCriterionCandidates.map(
+        ({ id, description, satisfied }) => ({ id, description, satisfied })
+    );
+
     return {
         id: input.meetingId,
         teamId: input.teamId,
@@ -152,16 +195,8 @@ export function createMeetingState(
             lastAcknowledgedSeq: 0
         })),
         objectiveContract: {
-            requiredOutputs: input.objectiveContract.requiredOutputs.map((output) => ({
-                id: ids.allocate("output", output.key),
-                description: output.description,
-                status: "pending"
-            })),
-            acceptanceCriteria: input.objectiveContract.acceptanceCriteria.map((criterion) => ({
-                id: ids.allocate("criterion", criterion.key),
-                description: criterion.description,
-                satisfied: false
-            })),
+            requiredOutputs,
+            acceptanceCriteria,
             hardConstraints: input.objectiveContract.hardConstraints.map((constraint) => ({
                 id: ids.allocate("constraint", constraint.key),
                 description: constraint.description
@@ -180,7 +215,11 @@ export function createMeetingState(
                 objective: agenda.objective,
                 inScope: [...agenda.inScope],
                 outOfScope: [...agenda.outOfScope],
-                completionCriteria: [...agenda.completionCriteria],
+                completionCriteria: canonicalCompletionCriteria(
+                    agenda.completionCriteria,
+                    requiredOutputCandidates,
+                    acceptanceCriterionCandidates
+                ),
                 ...(agenda.ownerKey ? { owner: participantId(agenda.ownerKey) } : {}),
                 requiredParticipants: agenda.requiredParticipantKeys.map(participantId),
                 relatedTaskIds: [...(agenda.relatedTaskIds ?? [])],
@@ -194,6 +233,7 @@ export function createMeetingState(
         decisions: [],
         openQuestions: [],
         handRaises: [],
+        meetingTasks: [],
         completionFacts: [],
         artifactRefs: [],
         continuationMaterials: [],

@@ -199,6 +199,36 @@ describe("MeetingRepository", () => {
         await repository.close();
     });
 
+    it("keeps the embedded MeetingState version in sync for plain commands", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created", version: 0, updatedAt: 1 }
+        });
+
+        await repository.execute({
+            requestId: "plain-command",
+            commandKind: "raise_hand",
+            authorization,
+            requestHash: "plain-command-hash",
+            expectedMeetingVersion: 0,
+            transition: (snapshot) => ({
+                state: { ...snapshot.state, status: "waiting" },
+                result: { status: "waiting" },
+                events: [{ type: "hand_raise.created", payload: {} }],
+                outbox: []
+            })
+        });
+
+        expect(await repository.read()).toMatchObject({
+            version: 1,
+            state: { version: 1, status: "waiting" }
+        });
+        await repository.close();
+    });
+
     it("rolls back and preserves a transition validation error", async () => {
         const repository = await openRepository();
         await createMeeting(repository, {
@@ -316,6 +346,74 @@ describe("MeetingRepository", () => {
         ).rejects.toMatchObject<RepositoryError>({ code: "CONSTRAINT_VIOLATION" });
 
         expect(await repository.read()).toMatchObject({ version: 0, state: { count: 0 } });
+        await repository.close();
+    });
+
+    it("serializes Captain end against a same-version meeting fact command", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "running", completionFactIds: [] }
+        });
+        const endCommand: RepositoryCommand<{ status: string }> = {
+            requestId: "end-1",
+            commandKind: "end_meeting",
+            authorization,
+            requestHash: "end-hash",
+            expectedMeetingVersion: 0,
+            transition: (snapshot) => ({
+                state: { ...snapshot.state, status: "completed" },
+                result: { status: "completed" },
+                events: [{ type: "meeting.ended", payload: { status: "completed" } }],
+                outbox: []
+            })
+        };
+        const meetingFactCommand = (expectedMeetingVersion: number) => ({
+            requestId: `fact-${expectedMeetingVersion}`,
+            commandKind: "associate_task_snapshot",
+            authorization: { ...authorization, callerBinding: "participant:1" },
+            requestHash: `fact-hash-${expectedMeetingVersion}`,
+            expectedMeetingVersion,
+            transition: (snapshot: Awaited<ReturnType<MeetingRepository["read"]>>) => {
+                if (snapshot.state.status === "completed") {
+                    throw Object.assign(new Error("terminal meeting is immutable"), {
+                        code: "IMMUTABLE_MEETING",
+                        retryable: false
+                    });
+                }
+                return {
+                    state: { ...snapshot.state, completionFactIds: ["task-fact-1"] },
+                    result: { completionFactId: "task-fact-1" },
+                    events: [
+                        {
+                            type: "completion_fact.added" as const,
+                            payload: { completionFactId: "task-fact-1" }
+                        }
+                    ],
+                    outbox: []
+                };
+            }
+        });
+
+        const [endResult, factResult] = await Promise.allSettled([
+            repository.execute(endCommand),
+            repository.execute(meetingFactCommand(0))
+        ]);
+
+        expect(endResult.status).toBe("fulfilled");
+        expect(factResult).toMatchObject({
+            status: "rejected",
+            reason: { code: "VERSION_CONFLICT" }
+        });
+        await expect(repository.execute(meetingFactCommand(1))).rejects.toMatchObject({
+            code: "IMMUTABLE_MEETING"
+        });
+        expect(await repository.read()).toMatchObject({
+            version: 1,
+            state: { status: "completed", completionFactIds: [] }
+        });
         await repository.close();
     });
 
@@ -843,6 +941,21 @@ PRAGMA user_version = 2;
             retryable: false
         });
         await reopened.close();
+    });
+
+    it("defaults legacy meeting state without MeetingTasks at the read boundary", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created", handRaises: [] }
+        });
+
+        await expect(repository.read()).resolves.toMatchObject({
+            state: { status: "created", handRaises: [], meetingTasks: [] }
+        });
+        await repository.close();
     });
 
     it("rejects a mismatched version-two database before migration writes it", async () => {

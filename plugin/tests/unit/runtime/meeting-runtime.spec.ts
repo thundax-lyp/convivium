@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMeetingRuntime } from "../../../src/runtime/meeting-runtime.js";
+import { rejectUnsupportedTaskEvidence } from "../../../src/runtime/task-evidence.js";
 import type { CreateMeetingInputV1 } from "../../../src/protocol/index.js";
 
 const input: CreateMeetingInputV1 = {
@@ -110,5 +111,22 @@ describe("createMeetingRuntime", () => {
             "provider unavailable"
         );
         expect(deps.calls).toEqual(["bootstrap", "ownership:provisioning", "failed", "cleanup:1"]);
+    });
+});
+
+describe("rejectUnsupportedTaskEvidence", () => {
+    const resolverInput = {
+        state: { id: "meeting-1", version: 1 } as never,
+        meetingId: "meeting-1",
+        participantId: "participant-1"
+    };
+
+    it("accepts no task evidence and rejects non-empty task IDs", () => {
+        expect(rejectUnsupportedTaskEvidence.resolve({ ...resolverInput, taskIds: [] })).toEqual(
+            []
+        );
+        expect(() =>
+            rejectUnsupportedTaskEvidence.resolve({ ...resolverInput, taskIds: ["task-1"] })
+        ).toThrowError(expect.objectContaining({ code: "UNSUPPORTED_CAPABILITY" }));
     });
 });

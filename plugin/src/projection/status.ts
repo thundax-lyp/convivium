@@ -1,9 +1,12 @@
 import type { MeetingState } from "../domain/model.js";
 import type {
+    ExecutionTerminalMeetingStatusResultV1,
     ManagerMeetingContextV1,
     MeetingStatusResultV1,
     PublicAgendaItemV1,
     PublicMeetingMessageV1,
+    PublicHandRaiseV1,
+    MeetingTaskProjectionV1,
     PublicTurnV1
 } from "../protocol/index.js";
 
@@ -46,6 +49,37 @@ function message(value: MeetingState["transcript"][number]): PublicMeetingMessag
     };
 }
 
+function meetingTask(value: MeetingState["meetingTasks"][number]): MeetingTaskProjectionV1 {
+    return {
+        meetingTaskId: value.meetingTaskId,
+        participantId: value.participantId,
+        title: value.title,
+        blocking: value.blocking,
+        status: value.status,
+        ...(value.resultSummary === undefined ? {} : { resultSummary: value.resultSummary }),
+        ...(value.failureReason === undefined ? {} : { failureReason: value.failureReason }),
+        createdAt: value.createdAt,
+        ...(value.queuedAt === undefined ? {} : { queuedAt: value.queuedAt }),
+        ...(value.startedAt === undefined ? {} : { startedAt: value.startedAt }),
+        ...(value.finishedAt === undefined ? {} : { finishedAt: value.finishedAt })
+    };
+}
+
+function handRaise(value: MeetingState["handRaises"][number]): PublicHandRaiseV1 {
+    return {
+        id: value.id,
+        participantId: value.participant,
+        reason: value.reason,
+        summary: value.summary,
+        taskIds: value.taskIds,
+        ...(value.replyToMessageId === undefined
+            ? {}
+            : { replyToMessageId: value.replyToMessageId }),
+        ...(value.agendaItemId === undefined ? {} : { agendaItemId: value.agendaItemId }),
+        priority: value.priority
+    };
+}
+
 function turn(value: NonNullable<MeetingState["currentTurn"]>): PublicTurnV1 {
     return {
         id: value.id,
@@ -75,6 +109,27 @@ function termination(state: MeetingState) {
         decisionIds: state.termination.decisionIds,
         unresolvedQuestionIds: state.termination.unresolvedQuestionIds
     };
+}
+
+function executionTermination(
+    state: MeetingState
+): ExecutionTerminalMeetingStatusResultV1["termination"] {
+    if (state.termination === undefined) {
+        throw new TypeError("terminal MeetingState must include termination");
+    }
+    return {
+        ...termination(state),
+        dissentingPositionIds: state.termination.dissentingPositionIds,
+        blockingAgendaItemIds: state.termination.blockingAgendaItemIds,
+        finalMessage: state.termination.finalMessage,
+        endedAt: state.termination.endedAt
+    };
+}
+
+function isExecutionTerminalStatus(
+    status: MeetingState["status"]
+): status is ExecutionTerminalMeetingStatusResultV1["status"] {
+    return ["completed", "partial", "no_consensus", "cancelled", "failed"].includes(status);
 }
 
 /**
@@ -124,6 +179,7 @@ export function projectMeetingStatus(
                   ...base,
                   status: "archiving",
                   pendingHandRaises: [],
+                  meetingTasks: state.meetingTasks.map(meetingTask),
                   pauseControl: { action: "none" },
                   termination: termination(state),
                   archive
@@ -132,6 +188,7 @@ export function projectMeetingStatus(
                   ...base,
                   status: "archived",
                   pendingHandRaises: [],
+                  meetingTasks: state.meetingTasks.map(meetingTask),
                   pauseControl: { action: "none" },
                   termination: termination(state),
                   archive: { ...archive, archivedAt: state.archive.archivedAt ?? state.updatedAt }
@@ -176,17 +233,22 @@ export function projectMeetingStatus(
                 kind: "issue" as const,
                 subjectId: issue.id,
                 summary: issue.title
-            }))
+            })),
+        meetingTasks: state.meetingTasks.map(meetingTask)
     };
 
-    if (["completed", "partial", "no_consensus", "cancelled", "failed"].includes(state.status)) {
-        return {
+    if (isExecutionTerminalStatus(state.status)) {
+        const terminal: ExecutionTerminalMeetingStatusResultV1 = {
             ...discussion,
             status: state.status,
             pendingHandRaises: [],
             pauseControl: { action: "none" },
-            termination: termination(state)
-        } as MeetingStatusResultV1;
+            termination: executionTermination(state),
+            completionFactIds: state.completionFacts
+                .filter((fact) => fact.status === "active")
+                .map((fact) => fact.id)
+        };
+        return terminal;
     }
 
     const currentTurn = state.currentTurn === undefined ? undefined : turn(state.currentTurn);
@@ -196,7 +258,9 @@ export function projectMeetingStatus(
         status: state.status,
         ...(currentTurn === undefined ? {} : { currentTurn }),
         ...(currentStep === undefined ? {} : { currentSpeakerId: currentStep.speaker }),
-        pendingHandRaises: [],
+        pendingHandRaises: state.handRaises
+            .filter((raise) => raise.status === "pending")
+            .map(handRaise),
         pauseControl:
             state.status === "paused"
                 ? {
@@ -241,6 +305,7 @@ export function projectManagerMeetingContext(
         recentPublicMessages: status.messages,
         blockingFacts: status.blockingFacts,
         pendingHandRaises: status.pendingHandRaises,
+        meetingTasks: status.meetingTasks,
         continuationMaterials: status.continuationMaterials,
         limits: status.limits,
         planningReason: planningAttempt.reason

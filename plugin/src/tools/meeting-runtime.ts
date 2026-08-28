@@ -4,13 +4,21 @@ import { join } from "node:path";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import {
     followupManagerSession,
+    followupMeetingTaskSession,
     followupParticipantSession,
     type ContinuableFollowupRuntime,
     type ContinuableInspectionRuntime,
     type ContinuableStarter
 } from "../dsh/index.js";
 import {
+    createMeetingTask as createMeetingTaskTransition,
+    createHandRaise,
+    completedTaskSnapshots,
+    participantHasActiveMeetingTask,
+    finishMeetingTask as finishMeetingTaskTransition,
     planRoundRobinTurn,
+    endMeeting as endMeetingTransition,
+    startMeetingTask as startMeetingTaskTransition,
     startManagerPlanning,
     submitManagerPlan as submitManagerPlanTransition,
     submitSpeakerAndAdvanceMeeting,
@@ -26,7 +34,9 @@ import {
     type JsonObject,
     type MeetingCreationRuntimeDependencies,
     type MeetingRepositoryRuntime,
-    type RepositoryAuthorizationValidator
+    type RepositoryAuthorizationValidator,
+    meetingTaskEvidenceResolver,
+    type AuthorizedTaskEvidenceResolver
 } from "../runtime/index.js";
 import { projectManagerMeetingContext, projectMeetingStatus } from "../projection/index.js";
 import type {
@@ -34,6 +44,18 @@ import type {
     CreateMeetingResultV1,
     MeetingStatusInputV1,
     MeetingStatusResultV1,
+    EndMeetingInputV1,
+    EndMeetingResultV1,
+    MeetingTaskRequestV1,
+    MeetingTaskStatusInputV1,
+    MeetingTaskStartInputV1,
+    MeetingTaskFinishInputV1,
+    MeetingTaskResultV1,
+    MeetingTaskStatusResultV1,
+    MeetingTaskStartResultV1,
+    MeetingTaskFinishResultV1,
+    HandRaiseSubmissionV1,
+    HandRaiseResultV1,
     ManagerPlanResultV1,
     ManagerPlanSubmissionV1,
     MeetingControlResultV1,
@@ -56,6 +78,7 @@ export interface CreateStatusRuntimeOptions {
     readonly outboxPollMs?: number;
     readonly signal?: AbortSignal;
     readonly now?: () => number;
+    readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
 }
 
 interface ClaimedOutboxItem {
@@ -102,6 +125,17 @@ function repositoryPath(root: string, teamId: string, meetingId: string): string
 function stableMeetingId(input: CreateMeetingInputV1): string {
     return `meeting-${createHash("sha256")
         .update(`${input.teamId}\0${input.requestId}`)
+        .digest("hex")
+        .slice(0, 32)}`;
+}
+
+function participantRequestEntityId(
+    prefix: "meeting-task" | "hand-raise",
+    participantId: string,
+    requestId: string
+): string {
+    return `${prefix}-${createHash("sha256")
+        .update(`${participantId}\0${requestId}`)
         .digest("hex")
         .slice(0, 32)}`;
 }
@@ -155,21 +189,13 @@ function commandError(
     };
 }
 
-function hasUnsupportedClaims(input: { changes: object; completionClaims?: object }): boolean {
-    return (
-        Object.values(input.changes as Record<string, unknown>).some(
-            (value) => Array.isArray(value) && value.length > 0
-        ) ||
-        (input.completionClaims !== undefined && Object.keys(input.completionClaims).length > 0)
-    );
-}
-
 export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
 ): MeetingRuntimeWithCallerLookup {
     const meetings = new Map<string, StoredMeeting>();
     const workers = new Map<string, ReturnType<typeof createOutboxWorker>>();
     const runtimeController = new AbortController();
+    const taskEvidenceResolver = options.taskEvidenceResolver ?? meetingTaskEvidenceResolver;
     const signal =
         options.signal === undefined
             ? runtimeController.signal
@@ -331,6 +357,7 @@ export function createCreateStatusRuntime(
             .filter(
                 (participant) =>
                     participant.status === "available" &&
+                    !participantHasActiveMeetingTask(state, participant.id) &&
                     recovered.sessionOwnership.some(
                         (candidate) =>
                             candidate.role === "participant" &&
@@ -368,6 +395,94 @@ export function createCreateStatusRuntime(
         });
     }
 
+    async function dispatchMeetingTaskDelivery(
+        repository: MeetingRepositoryRuntime,
+        parent: Agent,
+        meetingId: string,
+        commandSignal: AbortSignal,
+        item: ClaimedOutboxItem
+    ) {
+        const recovered = await repository.recover();
+        const payload = item.payload as unknown as {
+            meetingTaskId: string;
+            participantId: string;
+            executionId: string;
+        };
+        const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+        const task = state?.meetingTasks?.find(
+            (candidate) =>
+                candidate.meetingTaskId === payload.meetingTaskId &&
+                candidate.participantId === payload.participantId
+        );
+        if (task === undefined || task.status !== "queued") {
+            throw terminalDispatchError(
+                "MEETING_TASK_NOT_QUEUED",
+                "MeetingTask is no longer queued."
+            );
+        }
+        const ownership = recovered.sessionOwnership.find(
+            (candidate) =>
+                candidate.role === "participant" &&
+                candidate.participantId === task.participantId &&
+                candidate.lifecycleStatus === "active" &&
+                candidate.capabilityStatus === "active"
+        );
+        if (ownership === undefined || ownership.parentSessionId !== String(parent.id)) {
+            throw terminalDispatchError(
+                "SESSION_CAPABILITY_REVOKED",
+                "Task Participant Session is unavailable."
+            );
+        }
+        await followupMeetingTaskSession({
+            runtime: options.continuable,
+            parent,
+            ownership,
+            meetingTaskId: task.meetingTaskId,
+            deliveryId: item.deliveryId,
+            prompt: [
+                {
+                    type: "text",
+                    text: [
+                        `Execute MeetingTask ${task.meetingTaskId}: ${task.title}`,
+                        `executionId: ${task.executionId}`,
+                        `deliveryId: ${task.deliveryId}`,
+                        task.description,
+                        "Call convivium_start_meeting_task with deliveryId as requestId before executing, then call convivium_finish_meeting_task with executionId when done."
+                    ].join("\n")
+                }
+            ],
+            signal: commandSignal,
+            authorize: async (phase) => {
+                const latest = await repository.recover();
+                const current = latest.snapshot?.state as unknown as MeetingState | undefined;
+                const currentTask = current?.meetingTasks.find(
+                    (candidate) => candidate.meetingTaskId === task.meetingTaskId
+                );
+                const meetingTerminal = [
+                    "completed",
+                    "partial",
+                    "no_consensus",
+                    "cancelled",
+                    "failed",
+                    "archiving",
+                    "archived"
+                ].includes(current?.status ?? "");
+                const allowed =
+                    phase === "before"
+                        ? !meetingTerminal && currentTask?.status === "queued"
+                        : !meetingTerminal &&
+                          ["queued", "running", "completed", "failed"].includes(
+                              currentTask?.status ?? ""
+                          );
+                if (!allowed)
+                    throw terminalDispatchError(
+                        "MEETING_TASK_NOT_EXECUTABLE",
+                        "MeetingTask is no longer executable."
+                    );
+            }
+        });
+    }
+
     function ensureWorker(stored: StoredMeeting): void {
         const meetingId = stored.repository.meetingId;
         if (stored.parent === undefined || workers.has(meetingId)) return;
@@ -379,9 +494,19 @@ export function createCreateStatusRuntime(
             pollMs: options.outboxPollMs ?? 1_000,
             dispatch: async (item, workerSignal) => {
                 const dispatchSignal = AbortSignal.any([signal, workerSignal]);
-                const payload = item.payload as unknown as { role?: "manager" | "participant" };
+                const payload = item.payload as unknown as {
+                    role?: "manager" | "participant" | "meeting_task";
+                };
                 if (payload.role === "manager")
                     await dispatchManagerPlanningDelivery(
+                        stored.repository,
+                        stored.parent!,
+                        meetingId,
+                        dispatchSignal,
+                        item
+                    );
+                else if (payload.role === "meeting_task")
+                    await dispatchMeetingTaskDelivery(
                         stored.repository,
                         stored.parent!,
                         meetingId,
@@ -401,6 +526,34 @@ export function createCreateStatusRuntime(
         });
         workers.set(meetingId, worker);
         void worker.start().catch(() => undefined);
+    }
+
+    async function readAuthorizedTask(
+        stored: StoredMeeting,
+        caller: MeetingToolCaller,
+        meetingTaskId: string,
+        executionId?: string
+    ) {
+        if (caller.kind !== "participant" || caller.participantId === undefined) return undefined;
+        const recovered = await stored.repository.recover();
+        const ownership = recovered.sessionOwnership.find(
+            (candidate) =>
+                candidate.sessionId === caller.sessionId &&
+                candidate.role === "participant" &&
+                candidate.participantId === caller.participantId &&
+                candidate.lifecycleStatus === "active" &&
+                candidate.capabilityStatus === "active"
+        );
+        if (ownership === undefined) return undefined;
+        const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+        const task = state?.meetingTasks?.find(
+            (candidate) => candidate.meetingTaskId === meetingTaskId
+        );
+        return task === undefined ||
+            task.participantId !== caller.participantId ||
+            (executionId !== undefined && task.executionId !== executionId)
+            ? undefined
+            : { recovered, state: state!, task };
     }
 
     return {
@@ -631,6 +784,382 @@ export function createCreateStatusRuntime(
             }
         },
 
+        async createMeetingTask(input: MeetingTaskRequestV1, caller) {
+            await rehydrate();
+            const stored = meetings.get(input.meetingId);
+            if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            if (caller.kind !== "participant" || caller.participantId === undefined) {
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "Only the owning Participant can create a MeetingTask."
+                );
+            }
+            if (caller.meetingId !== input.meetingId) {
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "Only the matching Participant can create a MeetingTask."
+                );
+            }
+            const taskId = participantRequestEntityId(
+                "meeting-task",
+                caller.participantId,
+                input.requestId
+            );
+            try {
+                const current = await stored.repository.read();
+                const currentState = current.state as unknown as MeetingState;
+                const currentAttempt =
+                    currentState.currentTurn?.steps[currentState.currentTurn.currentStepIndex]
+                        ?.attempt;
+                if (
+                    currentAttempt?.attemptId !== input.attemptId ||
+                    currentAttempt.participantId !== caller.participantId ||
+                    currentAttempt.status !== "running"
+                ) {
+                    return failure(
+                        "STALE_ATTEMPT",
+                        "The MeetingTask must be created by the current Participant attempt."
+                    );
+                }
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "create_meeting_task",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `participant:${caller.sessionId}`,
+                        attemptId: input.attemptId
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: current.version,
+                    transition: (snapshot) => {
+                        const snapshotState = snapshot.state as unknown as MeetingState;
+                        const attempt =
+                            snapshotState.currentTurn?.steps[
+                                snapshotState.currentTurn.currentStepIndex
+                            ]?.attempt;
+                        if (
+                            attempt?.attemptId !== input.attemptId ||
+                            attempt.participantId !== caller.participantId ||
+                            attempt.status !== "running"
+                        ) {
+                            throw new Error(
+                                "MeetingTask creation requires the current Participant attempt."
+                            );
+                        }
+                        const transition = createMeetingTaskTransition(
+                            snapshot.state as unknown as MeetingState,
+                            {
+                                meetingTaskId: taskId,
+                                executionId: `${taskId}-execution`,
+                                deliveryId: `${taskId}-delivery`,
+                                participantId: caller.participantId!,
+                                originatingSpeakerAttemptId: input.attemptId,
+                                title: input.title,
+                                description: input.description,
+                                blocking: input.blocking,
+                                now: options.now?.() ?? Date.now()
+                            }
+                        );
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: {
+                                requestId: input.requestId,
+                                meetingTaskId: taskId,
+                                participantId: caller.participantId!,
+                                originatingSpeakerAttemptId: input.attemptId,
+                                status: "requested"
+                            } satisfies MeetingTaskResultV1,
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox: []
+                        };
+                    }
+                });
+                return success(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as MeetingTaskResultV1
+                );
+            } catch (error) {
+                return commandError(
+                    error,
+                    "INVALID_ENTITY_STATE",
+                    "The MeetingTask could not be created.",
+                    { meetingId: input.meetingId }
+                );
+            }
+        },
+
+        async meetingTaskStatus(input: MeetingTaskStatusInputV1, caller) {
+            await rehydrate();
+            const stored = meetings.get(input.meetingId);
+            if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            const authorized = await readAuthorizedTask(stored, caller, input.meetingTaskId);
+            if (authorized === undefined)
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "The caller is not authorized for this MeetingTask."
+                );
+            const { state, recovered } = authorized;
+            const task = authorized.task;
+            const meetingTerminal = [
+                "completed",
+                "partial",
+                "no_consensus",
+                "cancelled",
+                "failed",
+                "archiving",
+                "archived"
+            ].includes(state.status);
+            const projection = {
+                meetingTaskId: task.meetingTaskId,
+                participantId: task.participantId,
+                title: task.title,
+                blocking: task.blocking,
+                status: task.status,
+                ...(task.resultSummary === undefined ? {} : { resultSummary: task.resultSummary }),
+                ...(task.failureReason === undefined ? {} : { failureReason: task.failureReason }),
+                createdAt: task.createdAt,
+                ...(task.queuedAt === undefined ? {} : { queuedAt: task.queuedAt }),
+                ...(task.startedAt === undefined ? {} : { startedAt: task.startedAt }),
+                ...(task.finishedAt === undefined ? {} : { finishedAt: task.finishedAt })
+            };
+            return success<MeetingTaskStatusResultV1>(
+                input.meetingId,
+                recovered.snapshot?.version ?? 0,
+                {
+                    task: projection,
+                    observedMeetingVersion: recovered.snapshot?.version ?? 0,
+                    meetingTerminal,
+                    mayExecute: !meetingTerminal && task.status === "running"
+                }
+            );
+        },
+
+        async startMeetingTask(input: MeetingTaskStartInputV1, caller) {
+            await rehydrate();
+            const stored = meetings.get(input.meetingId);
+            if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            const authorized = await readAuthorizedTask(stored, caller, input.meetingTaskId);
+            if (authorized === undefined)
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "The caller is not authorized for this MeetingTask."
+                );
+            try {
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "start_meeting_task",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `participant:${caller.sessionId}`
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: authorized.recovered.snapshot!.version,
+                    transition: (snapshot) => {
+                        const transition = startMeetingTaskTransition(
+                            snapshot.state as unknown as MeetingState,
+                            input.meetingTaskId,
+                            options.now?.() ?? Date.now()
+                        );
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: {
+                                requestId: input.requestId,
+                                meetingTaskId: input.meetingTaskId,
+                                status: "running"
+                            } satisfies MeetingTaskStartResultV1,
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox: []
+                        };
+                    }
+                });
+                return success(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as MeetingTaskStartResultV1
+                );
+            } catch (error) {
+                return commandError(
+                    error,
+                    "INVALID_STATE_TRANSITION",
+                    "The MeetingTask could not be started.",
+                    { meetingId: input.meetingId }
+                );
+            }
+        },
+
+        async finishMeetingTask(input: MeetingTaskFinishInputV1, caller) {
+            await rehydrate();
+            const stored = meetings.get(input.meetingId);
+            if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            const authorized = await readAuthorizedTask(
+                stored,
+                caller,
+                input.meetingTaskId,
+                input.executionId
+            );
+            if (authorized === undefined)
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "The caller is not authorized for this MeetingTask."
+                );
+            try {
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "finish_meeting_task",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `participant:${caller.sessionId}`
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: authorized.recovered.snapshot!.version,
+                    transition: (snapshot) => {
+                        const currentState = snapshot.state as unknown as MeetingState;
+                        const task = currentState.meetingTasks.find(
+                            (candidate) => candidate.meetingTaskId === input.meetingTaskId
+                        );
+                        if (task?.executionId !== input.executionId) {
+                            throw new Error("MeetingTask execution binding is invalid.");
+                        }
+                        const transition = finishMeetingTaskTransition(
+                            snapshot.state as unknown as MeetingState,
+                            input.meetingTaskId,
+                            {
+                                status: input.status,
+                                resultSummary: input.resultSummary,
+                                failureReason: input.failureReason,
+                                now: options.now?.() ?? Date.now()
+                            }
+                        );
+                        const handRaise = createHandRaise(transition.state, {
+                            id: `${input.meetingTaskId}-hand-raise`,
+                            participantId: caller.participantId!,
+                            reason:
+                                input.status === "completed" ? "task_completed" : "new_evidence",
+                            summary:
+                                input.resultSummary ??
+                                input.failureReason ??
+                                "MeetingTask finished",
+                            taskIds: [input.meetingTaskId],
+                            priority: "normal",
+                            now: options.now?.() ?? Date.now()
+                        });
+                        const waitingForThisTask =
+                            handRaise.state.status === "waiting" &&
+                            handRaise.state.waitState?.taskIds.includes(input.meetingTaskId) &&
+                            handRaise.state.waitState.taskIds.every((taskId) =>
+                                handRaise.state.meetingTasks.every(
+                                    (task) =>
+                                        task.meetingTaskId !== taskId ||
+                                        ["completed", "failed", "cancelled"].includes(task.status)
+                                )
+                            );
+                        const nextState = waitingForThisTask
+                            ? { ...handRaise.state, currentTurn: undefined, waitState: undefined }
+                            : handRaise.state;
+                        return {
+                            state: nextState as unknown as JsonObject,
+                            result: {
+                                requestId: input.requestId,
+                                meetingTaskId: input.meetingTaskId,
+                                status: input.status,
+                                handRaiseId: `${input.meetingTaskId}-hand-raise`
+                            } satisfies MeetingTaskFinishResultV1,
+                            events: [
+                                ...(transition.effect.events as unknown as DomainEventInput[]),
+                                ...(handRaise.effect.events as unknown as DomainEventInput[])
+                            ],
+                            outbox: []
+                        };
+                    }
+                });
+                return success(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as MeetingTaskFinishResultV1
+                );
+            } catch (error) {
+                return commandError(
+                    error,
+                    "INVALID_STATE_TRANSITION",
+                    "The MeetingTask could not be finished.",
+                    { meetingId: input.meetingId }
+                );
+            }
+        },
+
+        async raiseHand(input: HandRaiseSubmissionV1, caller) {
+            await rehydrate();
+            const stored = meetings.get(input.meetingId);
+            if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            if (caller.kind !== "participant" || caller.participantId === undefined) {
+                return failure("UNAUTHORIZED_CALLER", "Only a Participant can raise a hand.");
+            }
+            if (caller.meetingId !== input.meetingId) {
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "Only the matching Participant can raise a hand."
+                );
+            }
+            const handRaiseId = participantRequestEntityId(
+                "hand-raise",
+                caller.participantId,
+                input.requestId
+            );
+            try {
+                const current = await stored.repository.read();
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "raise_hand",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `participant:${caller.sessionId}`
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: current.version,
+                    transition: (snapshot) => {
+                        const transition = createHandRaise(
+                            snapshot.state as unknown as MeetingState,
+                            {
+                                id: handRaiseId,
+                                participantId: caller.participantId!,
+                                reason: input.reason,
+                                summary: input.summary,
+                                taskIds: input.taskIds,
+                                ...(input.replyToMessageId === undefined
+                                    ? {}
+                                    : { replyToMessageId: input.replyToMessageId }),
+                                agendaItemId: input.agendaItemId,
+                                priority: input.priority,
+                                now: options.now?.() ?? Date.now()
+                            }
+                        );
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: {
+                                handRaiseId,
+                                status: "pending"
+                            } satisfies HandRaiseResultV1,
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox: []
+                        };
+                    }
+                });
+                return success(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as HandRaiseResultV1
+                );
+            } catch (error) {
+                return commandError(
+                    error,
+                    "INVALID_ENTITY_STATE",
+                    "The hand raise could not be created.",
+                    { meetingId: input.meetingId }
+                );
+            }
+        },
+
         async submitTurn(input, caller, _commandSignal) {
             await rehydrate();
             if (
@@ -639,12 +1168,6 @@ export function createCreateStatusRuntime(
                 caller.participantId === undefined
             ) {
                 return failure("UNAUTHORIZED_CALLER", "Only the matching Participant can submit.");
-            }
-            if (hasUnsupportedClaims(input)) {
-                return failure(
-                    "UNSUPPORTED_CAPABILITY",
-                    "Structured claims are outside this runtime slice."
-                );
             }
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
@@ -670,6 +1193,25 @@ export function createCreateStatusRuntime(
                     expectedMeetingVersion: current.version,
                     transition: (snapshot) => {
                         const state = snapshot.state as unknown as MeetingState;
+                        const taskEvidence =
+                            input.completionClaims === undefined
+                                ? []
+                                : taskEvidenceResolver.resolve({
+                                      state,
+                                      meetingId: input.meetingId,
+                                      participantId: caller.participantId!,
+                                      taskIds: [
+                                          ...(input.completionClaims.outputClaims?.flatMap(
+                                              (claim) => claim.taskIds
+                                          ) ?? []),
+                                          ...(input.completionClaims.criterionClaims?.flatMap(
+                                              (claim) => claim.taskIds
+                                          ) ?? [])
+                                      ].filter(
+                                          (taskId, index, taskIds) =>
+                                              taskIds.indexOf(taskId) === index
+                                      )
+                                  });
                         const transition = submitSpeakerAndAdvanceMeeting(
                             state,
                             caller.participantId!,
@@ -694,8 +1236,20 @@ export function createCreateStatusRuntime(
                                     createdAt: Date.now()
                                 },
                                 now: options.now?.() ?? Date.now(),
-                                nextPlanningAttemptId: `${state.id}-planning-${state.turnSeq + 1}`,
-                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.turnSeq + 1}`
+                                nextPlanningAttemptId: `${state.id}-planning-${state.replanCount + 1}`,
+                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.replanCount + 1}`,
+                                ...(input.completionClaims === undefined
+                                    ? {}
+                                    : {
+                                          completion: {
+                                              claims: input.completionClaims,
+                                              authorizedTaskIds: taskEvidence.map(
+                                                  (evidence) => evidence.taskId
+                                              ),
+                                              factId: (kind: string, index: number) =>
+                                                  `completion-${input.deliveryId}-${kind}-${index}`
+                                          }
+                                      })
                             }
                         );
                         const nextStep =
@@ -703,6 +1257,27 @@ export function createCreateStatusRuntime(
                                 transition.state.currentTurn.currentStepIndex
                             ];
                         const submittedTurn = transition.state.currentTurn;
+                        const taskOutbox: Array<{
+                            deliveryId: string;
+                            kind: "dispatch";
+                            payload: JsonObject;
+                        }> = transition.state.meetingTasks
+                            .filter(
+                                (task) =>
+                                    task.status === "queued" &&
+                                    task.originatingSpeakerAttemptId === input.attemptId &&
+                                    input.taskIds.includes(task.meetingTaskId)
+                            )
+                            .map((task) => ({
+                                deliveryId: task.deliveryId,
+                                kind: "dispatch" as const,
+                                payload: {
+                                    role: "meeting_task",
+                                    meetingTaskId: task.meetingTaskId,
+                                    participantId: task.participantId,
+                                    executionId: task.executionId
+                                }
+                            }));
                         const turnStatus =
                             submittedTurn?.status ??
                             (transition.state.status === "partial" ? "truncated" : "completed");
@@ -716,12 +1291,13 @@ export function createCreateStatusRuntime(
                                 meetingStatus: transition.state.status
                             },
                             events: transition.effect.events as unknown as DomainEventInput[],
-                            outbox:
-                                submittedTurn?.status === "running" && nextStep?.attempt
+                            outbox: [
+                                ...taskOutbox,
+                                ...(submittedTurn?.status === "running" && nextStep?.attempt
                                     ? [
                                           {
                                               deliveryId: nextStep.attempt.deliveryId,
-                                              kind: "dispatch",
+                                              kind: "dispatch" as const,
                                               payload: {
                                                   role: "participant",
                                                   participantId: nextStep.attempt.participantId,
@@ -737,7 +1313,7 @@ export function createCreateStatusRuntime(
                                                 deliveryId:
                                                     transition.state.manager.currentPlanningAttempt
                                                         .deliveryId,
-                                                kind: "dispatch",
+                                                kind: "dispatch" as const,
                                                 payload: {
                                                     role: "manager",
                                                     planningAttemptId:
@@ -746,7 +1322,12 @@ export function createCreateStatusRuntime(
                                                 }
                                             }
                                         ]
-                                      : []
+                                      : [])
+                            ] as Array<{
+                                deliveryId: string;
+                                kind: "dispatch";
+                                payload: JsonObject;
+                            }>
                         };
                     }
                 });
@@ -788,7 +1369,11 @@ export function createCreateStatusRuntime(
                 const recovered = await stored.repository.recover();
                 const state = current.state as unknown as MeetingState;
                 const dispatchableParticipantIds = state.participants
-                    .filter((participant) => participant.status === "available")
+                    .filter(
+                        (participant) =>
+                            participant.status === "available" &&
+                            !participantHasActiveMeetingTask(state, participant.id)
+                    )
                     .filter((participant) =>
                         recovered.sessionOwnership.some(
                             (ownership) =>
@@ -905,6 +1490,75 @@ export function createCreateStatusRuntime(
                 return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can resume it.");
             return transitionMeetingStatus(input, caller, "running");
         },
+        async endMeeting(input: EndMeetingInputV1, caller) {
+            await rehydrate();
+            const stored = meetings.get(input.meetingId);
+            if (
+                stored === undefined ||
+                caller.kind !== "captain" ||
+                caller.sessionId !== stored.captainSessionId ||
+                (caller.meetingId !== undefined && caller.meetingId !== input.meetingId)
+            ) {
+                return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can end it.");
+            }
+            try {
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "end_meeting",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `captain:${caller.sessionId}`
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: input.expectedMeetingVersion,
+                    transition: (snapshot) => {
+                        const transition = endMeetingTransition(
+                            snapshot.state as unknown as MeetingState,
+                            {
+                                meetingId: input.meetingId,
+                                captainBinding: `captain:${caller.sessionId}`,
+                                outcome: input.outcome,
+                                reason: input.reason,
+                                acceptedDecisionIds: input.acceptedDecisionIds,
+                                deferredAgendaItemIds: input.deferredAgendaItemIds,
+                                waivers: input.waivers,
+                                now: options.now?.() ?? Date.now(),
+                                factId: (index) => `completion-${input.requestId}-waiver-${index}`
+                            }
+                        );
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: {
+                                status: transition.state.status,
+                                terminationCode: transition.state.termination!.code
+                            },
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox: []
+                        };
+                    }
+                });
+                workers.get(input.meetingId)?.wake();
+                return success<EndMeetingResultV1>(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as EndMeetingResultV1
+                );
+            } catch (error) {
+                return commandError(
+                    error,
+                    "INVALID_ARGUMENT",
+                    error instanceof Error ? error.message : "The meeting could not be ended.",
+                    {
+                        meetingId: input.meetingId,
+                        meetingVersion: input.expectedMeetingVersion
+                    },
+                    {
+                        INVALID_ENTITY_STATE: "INVALID_ARGUMENT",
+                        INVALID_STATE_TRANSITION: "INVALID_ARGUMENT"
+                    }
+                );
+            }
+        },
 
         async findBySessionId(sessionId, lookupSignal) {
             if (lookupSignal.aborted) throw lookupSignal.reason;
@@ -996,8 +1650,9 @@ export function createCreateStatusRuntime(
                             )
                         };
                         if (nextState.selectionMode === "manager") {
-                            const planningAttemptId = `${nextState.id}-planning-${nextState.version}`;
-                            const planningDeliveryId = `${nextState.id}-planning-delivery-${nextState.version}`;
+                            const planningSequence = nextState.replanCount + 1;
+                            const planningAttemptId = `${nextState.id}-planning-${planningSequence}`;
+                            const planningDeliveryId = `${nextState.id}-planning-delivery-${planningSequence}`;
                             nextState = {
                                 ...nextState,
                                 manager: {
@@ -1152,7 +1807,7 @@ function assignAttempt(
         deliveryId: turn.id === "turn-1" ? `delivery-${index}` : `${turn.id}-delivery-${index}`,
         contextFromSeq: 0,
         contextThroughSeq: state.messageSeq,
-        taskSnapshots: [],
+        taskSnapshots: completedTaskSnapshots(state, step.speaker, now),
         assignedAt: now,
         startedAt: now,
         status: "running" as const,

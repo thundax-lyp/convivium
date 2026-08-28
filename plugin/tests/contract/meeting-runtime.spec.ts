@@ -13,7 +13,7 @@ const input = {
     objective: "Decide scope",
     objectiveContract: {
         requiredOutputs: [],
-        acceptanceCriteria: [],
+        acceptanceCriteria: [{ key: "reviewed", description: "Reviewed" }],
         hardConstraints: [],
         requiredReviewerKeys: [],
         riskAcceptanceAuthorityKeys: [],
@@ -42,6 +42,351 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
+    it("delivers the MeetingTask execution and request bindings", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-task-envelope-"));
+        roots.push(root);
+        const prompts: string[] = [];
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            outboxPollMs: 5,
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async (_parent, _sessionId, prompt) => {
+                    const text = prompt[0]?.type === "text" ? prompt[0].text : undefined;
+                    if (typeof text === "string") prompts.push(text);
+                    return "followup-message" as never;
+                }
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [
+                    {
+                        ...input.agenda[0]!,
+                        requiredParticipantKeys: ["one"]
+                    }
+                ],
+                participants: [input.participants[0]!]
+            },
+            {
+                sessionId: "captain-1",
+                kind: "captain",
+                agent: { id: "captain-1" } as never
+            },
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const meetingId = created.result.meetingId;
+        const participant = {
+            sessionId: `${meetingId}-participant-participant-one`,
+            meetingId,
+            participantId: "participant-one",
+            kind: "participant" as const
+        };
+        const task = await runtime.createMeetingTask(
+            {
+                protocolVersion: 1,
+                meetingId,
+                attemptId: "attempt-0",
+                requestId: "task-request",
+                title: "Inspect release",
+                description: "Inspect the release evidence",
+                blocking: true
+            },
+            participant
+        );
+        if (!task.ok) throw new Error("task creation failed");
+
+        const submitted = await runtime.submitTurn(
+            {
+                protocolVersion: 1,
+                meetingId,
+                turnId: "turn-1",
+                stepId: "step-participant-one-0",
+                attemptId: "attempt-0",
+                deliveryId: "delivery-0",
+                agendaItemId: "agenda-agenda-1",
+                kind: "statement",
+                content: "Task queued",
+                mentions: [],
+                taskIds: [task.result.meetingTaskId],
+                agendaRelation: "on_topic",
+                changes: {}
+            },
+            participant
+        );
+        if (!submitted.ok) throw new Error(JSON.stringify(submitted));
+
+        const executionId = `${task.result.meetingTaskId}-execution`;
+        const deliveryId = `${task.result.meetingTaskId}-delivery`;
+        await vi.waitFor(() => expect(prompts.length).toBeGreaterThan(1));
+        expect(prompts).toEqual(
+            expect.arrayContaining([
+                expect.stringContaining(`executionId: ${executionId}`),
+                expect.stringContaining(`deliveryId: ${deliveryId}`)
+            ])
+        );
+        await runtime.dispose();
+    });
+
+    it("scopes request-derived HandRaise IDs to the Participant", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-scoped-ids-"));
+        roots.push(root);
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => "followup-message" as never
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => 100
+        });
+        const created = await runtime.createMeeting(
+            input,
+            {
+                sessionId: "captain-1",
+                kind: "captain",
+                agent: { id: "captain-1" } as never
+            },
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const request = {
+            protocolVersion: 1 as const,
+            meetingId: created.result.meetingId,
+            requestId: "shared-request",
+            reason: "new_evidence" as const,
+            summary: "New evidence",
+            taskIds: [],
+            priority: "normal" as const
+        };
+        const first = await runtime.raiseHand(request, {
+            sessionId: `${created.result.meetingId}-participant-participant-one`,
+            meetingId: created.result.meetingId,
+            participantId: "participant-one",
+            kind: "participant"
+        });
+        const second = await runtime.raiseHand(request, {
+            sessionId: `${created.result.meetingId}-participant-participant-two`,
+            meetingId: created.result.meetingId,
+            participantId: "participant-two",
+            kind: "participant"
+        });
+
+        expect(first).toMatchObject({ ok: true });
+        expect(second).toMatchObject({ ok: true });
+        if (!first.ok || !second.ok) throw new Error("raise hand failed");
+        expect(first.result.handRaiseId).not.toBe(second.result.handRaiseId);
+        await runtime.dispose();
+    });
+
+    it("commits completion claims with the turn and rejects unavailable task evidence atomically", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-tools-completion-"));
+        roots.push(root);
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => "followup-message" as never
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => 100
+        });
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                objectiveContract: {
+                    ...input.objectiveContract,
+                    requiredOutputs: [{ key: "done", description: "Done output" }],
+                    acceptanceCriteria: [{ key: "done", description: "Done criterion" }]
+                },
+                agenda: [
+                    {
+                        ...input.agenda[0]!,
+                        completionCriteria: ["output-done", "criterion-done"],
+                        requiredParticipantKeys: ["one"]
+                    }
+                ],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const meetingId = created.result.meetingId;
+        const participant = {
+            sessionId: `${meetingId}-participant-participant-one`,
+            meetingId,
+            participantId: "participant-one",
+            kind: "participant" as const
+        };
+        const submission = {
+            protocolVersion: 1 as const,
+            meetingId,
+            turnId: "turn-1",
+            stepId: "step-participant-one-0",
+            attemptId: "attempt-0",
+            deliveryId: "delivery-0",
+            agendaItemId: "agenda-agenda-1",
+            kind: "evidence" as const,
+            content: "Completion evidence",
+            mentions: [],
+            taskIds: [],
+            agendaRelation: "on_topic" as const,
+            changes: {}
+        };
+
+        await expect(runtime.submitTurn(submission, captain)).resolves.toMatchObject({
+            ok: false,
+            code: "UNAUTHORIZED_CALLER"
+        });
+        await expect(
+            runtime.submitTurn(submission, {
+                ...participant,
+                sessionId: `${meetingId}-participant-other`,
+                participantId: "participant-other"
+            })
+        ).resolves.toMatchObject({ ok: false, code: "STALE_ATTEMPT" });
+
+        await expect(
+            runtime.submitTurn(
+                {
+                    ...submission,
+                    completionClaims: {
+                        outputClaims: [
+                            {
+                                subjectId: "output-done",
+                                evidenceMessageIds: [],
+                                taskIds: ["task-1"]
+                            }
+                        ]
+                    }
+                },
+                participant
+            )
+        ).resolves.toMatchObject({ ok: false, code: "UNSUPPORTED_CAPABILITY" });
+        await expect(
+            runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
+        ).resolves.toMatchObject({
+            ok: true,
+            meetingVersion: 1,
+            result: { messages: [] }
+        });
+
+        const validSubmission = {
+            ...submission,
+            completionClaims: {
+                outputClaims: [
+                    {
+                        subjectId: "output-done",
+                        evidenceMessageIds: ["message-delivery-0"],
+                        taskIds: []
+                    }
+                ],
+                criterionClaims: [
+                    {
+                        subjectId: "criterion-done",
+                        evidenceMessageIds: ["message-delivery-0"],
+                        taskIds: []
+                    }
+                ],
+                agendaResolution: {
+                    agendaItemId: "agenda-agenda-1",
+                    resolution: "Done",
+                    evidenceMessageIds: ["message-delivery-0"]
+                }
+            }
+        };
+        const committed = await runtime.submitTurn(validSubmission, participant);
+        expect(committed).toMatchObject({
+            ok: true,
+            meetingVersion: 2,
+            result: { messageSeq: 1, meetingStatus: "converging" }
+        });
+        await expect(runtime.submitTurn(validSubmission, participant)).resolves.toEqual(committed);
+        const endInput = {
+            protocolVersion: 1 as const,
+            meetingId,
+            expectedMeetingVersion: 2,
+            outcome: "completed" as const,
+            reason: "Objective contract is satisfied",
+            acceptedDecisionIds: [],
+            deferredAgendaItemIds: [],
+            waivers: [],
+            requestId: "end-1"
+        };
+        await expect(runtime.endMeeting(endInput, participant)).resolves.toMatchObject({
+            ok: false,
+            code: "UNAUTHORIZED_CALLER"
+        });
+        await expect(
+            runtime.endMeeting({ ...endInput, expectedMeetingVersion: 1 }, captain)
+        ).resolves.toMatchObject({ ok: false, code: "VERSION_CONFLICT", retryable: true });
+        const ended = await runtime.endMeeting(endInput, captain);
+        expect(ended).toMatchObject({
+            ok: true,
+            meetingVersion: 3,
+            result: { status: "completed", terminationCode: "objective_satisfied" }
+        });
+        await expect(runtime.endMeeting(endInput, captain)).resolves.toEqual(ended);
+        await expect(
+            runtime.endMeeting({ ...endInput, reason: "Different request hash" }, captain)
+        ).resolves.toMatchObject({ ok: false, code: "IDEMPOTENCY_CONFLICT" });
+        await expect(
+            runtime.submitTurn(
+                {
+                    ...submission,
+                    deliveryId: "delivery-after-terminal",
+                    content: "late write"
+                },
+                participant
+            )
+        ).resolves.toMatchObject({ ok: false, code: "IMMUTABLE_MEETING" });
+        await expect(
+            runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
+        ).resolves.toMatchObject({
+            ok: true,
+            meetingVersion: 3,
+            result: {
+                status: "completed",
+                completionFactIds: expect.arrayContaining([
+                    "completion-delivery-0-output_evidence-0",
+                    "completion-delivery-0-criterion_evidence-1",
+                    "completion-delivery-0-agenda_resolution-2"
+                ])
+            }
+        });
+        await runtime.dispose();
+    });
+
     it("retries a transient dispatch through the configured outbox loop", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-outbox-retry-"));
         roots.push(root);

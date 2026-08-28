@@ -265,12 +265,19 @@ function parseObject(value: string): JsonObject {
     return parsed as JsonObject;
 }
 
+function normalizeMeetingState(state: JsonObject): JsonObject {
+    if (Array.isArray(state.handRaises) && state.meetingTasks === undefined) {
+        return { ...state, meetingTasks: [] };
+    }
+    return state;
+}
+
 function toSnapshot(row: MeetingRow): MeetingSnapshot {
     return {
         teamId: row.team_id,
         meetingId: row.meeting_id,
         version: row.version,
-        state: parseObject(row.state_json),
+        state: normalizeMeetingState(parseObject(row.state_json)),
         createdAt: row.created_at,
         updatedAt: row.updated_at
     };
@@ -946,11 +953,15 @@ export class MeetingRepository {
                 );
             }
             const nextVersion = snapshot.version + 1;
+            const nextState =
+                transition.state.version === snapshot.state.version
+                    ? { ...transition.state, version: nextVersion, updatedAt: now }
+                    : transition.state;
             this.db
                 .prepare(
                     "UPDATE meetings SET version = ?, state_json = ?, updated_at = ? WHERE meeting_id = ?"
                 )
-                .run(nextVersion, json(transition.state), now, this.meetingId);
+                .run(nextVersion, json(nextState), now, this.meetingId);
             const eventSeqs = transition.events.map((event) =>
                 this.insertEvent(event, nextVersion, now)
             );
