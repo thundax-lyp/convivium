@@ -11,7 +11,7 @@
 `dev.env` 使用以下项目专属变量，避免与开发者 shell 中其他模型配置静默冲突：
 
 ```env
-CONVIVIUM_LLM_API_KEY=
+DEEPSEEK_API_KEY=
 CONVIVIUM_LLM_MODEL=
 CONVIVIUM_LLM_BASE_URL=
 CONVIVIUM_LLM_CHAT_COMPLETIONS_ENDPOINT=/chat/completions
