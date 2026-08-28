@@ -1,15 +1,11 @@
 #!/usr/bin/env node
 import { createConnection, createServer } from "node:net";
-import { constants, createWriteStream, existsSync } from "node:fs";
+import { constants, createWriteStream } from "node:fs";
 import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
 import { spawn } from "node:child_process";
 import process from "node:process";
-
-const pluginRoot = resolve(process.cwd());
-const devEnvPath = resolve(pluginRoot, "..", "dev.env");
-if (existsSync(devEnvPath)) process.loadEnvFile(devEnvPath);
 
 const DSH_VERSION = "0.1.1-rc.2";
 const PROFILE = "web";
@@ -18,6 +14,7 @@ const DSH_PACKAGE = `@deepseek-ai/dsh@${DSH_VERSION}`;
 const CONVIVIUM_PACKAGE = "@convivium/dsh-plugin";
 const PROBE_PACKAGE = "@convivium/smoke-profile-probe";
 const HOST = "127.0.0.1";
+const pluginRoot = resolve(process.cwd());
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "120000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 
