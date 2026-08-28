@@ -6,6 +6,18 @@
 - Node.js 满足 `plugin/package.json` 的 engines 要求。
 - pnpm 可访问或已缓存 `@deepseek-ai/dsh@0.1.1-rc.2`。
 - 不使用开发者常用的 DSH profile；脚本会创建并清理独立临时 profile、workspace、端口和 `DSH_HOME`。
+- 可选的本地 LLM 配置保存在仓库根目录 `dev.env`；从 `dev.env.example` 复制后填写。脚本会在创建 DSH 子进程前加载该文件，文件不进入 Git。
+
+`dev.env` 使用以下项目专属变量，避免与开发者 shell 中其他模型配置静默冲突：
+
+```env
+CONVIVIUM_LLM_API_KEY=
+CONVIVIUM_LLM_MODEL=
+CONVIVIUM_LLM_BASE_URL=
+CONVIVIUM_LLM_CHAT_COMPLETIONS_ENDPOINT=/chat/completions
+```
+
+当前确定性 `smoke:profile` 不调用 LLM；加载这些变量只准备后续真实模型 adapter/profile 验证，不能作为 LLM 链路已通过的证据。
 
 ## 标准入口
 

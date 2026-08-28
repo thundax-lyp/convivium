@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+/.pnpm-store/
 
 # TypeScript and bundler output
 dist/
@@ -23,6 +24,7 @@ test-results/
 .env
 .env.*
 !.env.example
+/dev.env
 *.local
 
 # Logs
