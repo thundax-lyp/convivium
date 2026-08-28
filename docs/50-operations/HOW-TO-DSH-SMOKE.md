@@ -8,19 +8,13 @@
 - 不使用开发者常用的 DSH profile；脚本会创建并清理独立临时 profile、workspace、端口和 `DSH_HOME`。
 - 可选的本地 LLM 配置保存在仓库根目录 `dev.env`；从 `dev.env.example` 复制后填写。脚本会在创建 DSH 子进程前加载该文件，文件不进入 Git。
 
-`dev.env` 使用以下项目专属变量，避免与开发者 shell 中其他模型配置静默冲突：
+`dev.env` 只保存 DeepSeek 官方 provider 所需的本地凭据：
 
 ```env
 DEEPSEEK_API_KEY=
-CONVIVIUM_LLM_MODEL=
-CONVIVIUM_LLM_BASE_URL=
-CONVIVIUM_LLM_CHAT_COMPLETIONS_ENDPOINT=/chat/completions
-CONVIVIUM_DSH_WORKSPACE=./dsh-workspace
 ```
 
-当前确定性 `smoke:profile` 不调用 LLM；加载这些变量只准备后续真实模型 adapter/profile 验证，不能作为 LLM 链路已通过的证据。
-
-`CONVIVIUM_DSH_WORKSPACE` 只指定人工开发和调试使用的持久 workspace，默认位于仓库根目录 `dsh-workspace/` 且不进入 Git。自动 `smoke:profile` 不使用该目录，仍为每次运行创建并清理独立的 OS 临时 workspace，避免旧 Session、Meeting 或文件状态影响验证结果。
+当前确定性 `smoke:profile` 不调用 LLM；加载该变量只准备后续真实 DeepSeek provider 验证，不能作为 LLM 链路已通过的证据。人工开发和调试使用仓库根目录 `dsh-workspace/`，该目录不进入 Git；自动 `smoke:profile` 不使用该目录，仍为每次运行创建并清理独立的 OS 临时 workspace，避免旧 Session、Meeting 或文件状态影响验证结果。
 
 ## 标准入口
 
