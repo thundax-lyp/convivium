@@ -10,12 +10,6 @@
 
 ## 待审阅任务项
 
-- [ ] `plugin/src/domain/hand-raise.ts`：实现 task-linked HandRaise 校验与去重
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T3
-  - 处理动作：校验 participant/task identity，禁止 failed task 形成完成型 HandRaise，保持 pending raise 去重和单次 consume。
-  - 验收点：错误 participant、重复 execution、failed task、terminal task 均无 raise；合法 completed task 只形成一个 pending raise。
-
 - [ ] `plugin/tests/contract/meeting-runtime.spec.ts`：覆盖 runtime 原子性、权限、幂等和错误 DTO
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T4/T6/T8
