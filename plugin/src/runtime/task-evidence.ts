@@ -43,6 +43,17 @@ export const rejectUnsupportedTaskEvidence: AuthorizedTaskEvidenceResolver = {
 
 export const meetingTaskEvidenceResolver: AuthorizedTaskEvidenceResolver = {
     resolve(input) {
+        if (input.meetingId !== input.state.id) {
+            throw new DomainError(
+                "INVALID_STATE_TRANSITION",
+                "MeetingTask evidence meeting identity does not match the locked state.",
+                {
+                    entityType: "meeting",
+                    entityId: input.state.id,
+                    meetingVersion: input.state.version
+                }
+            );
+        }
         return input.taskIds.map((taskId) => {
             const task = (input.state.meetingTasks ?? []).find(
                 (candidate) =>
@@ -66,6 +77,7 @@ export const meetingTaskEvidenceResolver: AuthorizedTaskEvidenceResolver = {
                     message.id === task.sourceMessageId &&
                     message.seq === task.sourceMessageSeq &&
                     message.attemptId === task.originatingSpeakerAttemptId &&
+                    message.speaker === input.participantId &&
                     message.taskIds.includes(task.meetingTaskId)
             );
             if (

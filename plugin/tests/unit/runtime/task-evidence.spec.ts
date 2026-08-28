@@ -91,4 +91,25 @@ describe("meetingTaskEvidenceResolver", () => {
             })
         ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
     });
+
+    it("rejects foreign meeting and source identities", () => {
+        expect(() =>
+            meetingTaskEvidenceResolver.resolve({
+                state: state(),
+                meetingId: "meeting-2",
+                participantId: "participant-1",
+                taskIds: ["task-1"]
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+        expect(() =>
+            meetingTaskEvidenceResolver.resolve({
+                state: state({
+                    transcript: [{ ...state().transcript[0], speaker: "participant-2" }]
+                }),
+                meetingId: "meeting-1",
+                participantId: "participant-1",
+                taskIds: ["task-1"]
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+    });
 });

@@ -16,12 +16,6 @@
   - 处理动作：校验 participant/task identity，禁止 failed task 形成完成型 HandRaise，保持 pending raise 去重和单次 consume。
   - 验收点：错误 participant、重复 execution、failed task、terminal task 均无 raise；合法 completed task 只形成一个 pending raise。
 
-- [ ] `plugin/src/runtime/task-evidence.ts`：实现 ephemeral AuthorizedTaskEvidence resolver
-  - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`
-  - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK 数据结构与 T5
-  - 处理动作：按 meeting、participant、task、attempt、execution、source message、context bounds、completed result 和 finishedAt 生成精确 evidence shape。
-  - 验收点：resolver 只读同一锁内 MeetingState；taskId-only、finishedAt-only、foreign、缺 source 和迟到 execution 全部拒绝；不持久化 evidence 或 observedMeetingVersion。
-
 - [ ] `plugin/src/domain/completion.ts`、`plugin/src/domain/transitions.ts`：将 completion claim 的 taskIds 解析到锁内 evidence
   - 依据文档：`docs/30-designs/RUNBOOK-TASK-EVIDENCE-RETURN.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
   - 确认依据：2026-08-28 用户要求依据 RUNBOOK 建立 TODO；RUNBOOK T5
