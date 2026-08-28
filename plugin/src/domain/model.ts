@@ -53,6 +53,8 @@ export const DomainEventTypes = [
     "manager_plan.revoked",
     "manager_plan.failed",
     "message.added",
+    "question.added",
+    "question.answered",
     "completion_fact.added",
     "hand_raise.created",
     "meeting_task.created",
@@ -322,9 +324,13 @@ export interface MeetingDecision {
 export interface MeetingQuestion {
     id: string;
     text: string;
+    askedBy: string;
+    directedTo?: string;
+    agendaItemId: string;
+    blocking: boolean;
     status: "open" | "answered" | "withdrawn" | "deferred";
-    askedBy?: string;
-    agendaItemId?: string;
+    answerMessageId?: string;
+    createdAt: number;
 }
 
 export interface MeetingHandRaise {

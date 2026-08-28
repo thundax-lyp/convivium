@@ -559,6 +559,8 @@ describe("meeting transitions", () => {
                 text: "Still open",
                 askedBy: "participant-1",
                 agendaItemId: "agenda-1",
+                blocking: true,
+                createdAt: now,
                 status: "open"
             }
         ];
@@ -1335,7 +1337,17 @@ describe("meeting transitions", () => {
                 relatedTaskIds: []
             }
         ];
-        state.openQuestions = [{ id: "question-1", text: "question", status: "open" }];
+        state.openQuestions = [
+            {
+                id: "question-1",
+                text: "question",
+                askedBy: "participant-1",
+                agendaItemId: "agenda-1",
+                blocking: true,
+                createdAt: now,
+                status: "open"
+            }
+        ];
 
         expect(() =>
             transitionMeeting(state, "completed", {

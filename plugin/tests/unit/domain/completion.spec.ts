@@ -181,9 +181,11 @@ function completionState(): MeetingState {
             {
                 id: "question-1",
                 text: "Question",
+                blocking: true,
                 status: "open",
                 askedBy: "reviewer-1",
-                agendaItemId: "agenda-1"
+                agendaItemId: "agenda-1",
+                createdAt: now
             }
         ],
         transcript: [
