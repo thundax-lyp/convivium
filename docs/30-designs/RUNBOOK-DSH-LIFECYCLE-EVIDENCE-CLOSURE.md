@@ -360,17 +360,7 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 
 以下对象中的 `<status.*>` 不是执行者选择或占位输入，而是强制的数据流引用：必须先执行紧邻的 `convivium_meeting_status`，再逐字段复制该返回值；字段缺失即 STOP。所有 `convivium_create_meeting` 使用 §6.5 固定 fixture；所有 success 必须是 `ProtocolSuccessV1`，所有预期失败必须是 `ProtocolErrorV1` 且 `retryable===false`。
 
-T1-T6 已 PASS 并按滚动策略删除对应执行步骤；当前从 T7 开始执行。稳定场景定义仍保留在 §7。
-
-### T7：只实现 cold-rebind 场景
-
-前置状态：T1-T6 PASS；当前未提交 cold-rebind WIP 必须先逐项对照本节修订后的唯一恢复链，删除旧 `createSmokeAgent`、错误 env/path、临时诊断和不完整 checkpoint 行为，不得丢弃其他已验证场景。
-
-允许修改：仅 `plugin/scripts/smoke-profile.mjs` 与本 RUNBOOK 的滚动删除。禁止修改 production、测试、Schema、DSH adapter及其他 selector。
-
-执行：新增 `runColdRebindScenario(ctx,fixture)`，唯一允许按 §6.3.1 在外层 `main()` 内联两阶段。phase1 create/status/plan/A submit=`700/701/702/703`；703 后等待 later Manager context，flush later Manager exact Session与Captain Session，读取紧邻 status并原子写完整 checkpoint。外层按固定 path/env停止 phase1 Host并以同一 home/workspace/profile/port启动 phase2，不重复 pack/install/dump。phase2 按 `prepare→enter→announce→registerSmokeAgent` 恢复 Captain，704 status，校验 children/ownership/transcript，再用 checkpoint planning context执行 705、用真实 A speaker context执行 706。finally 只执行一次既有 Restore。
-
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/runtime/recovery.spec.ts tests/recovery/recovery.spec.ts tests/integration/dsh/session-adapter.spec.ts tests/unit/repository/session-ownership.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile`。真实运行必须让 `validateColdCheckpoint` 同时处理完整 checkpoint 和外层构造的缺字段副本，前者返回、后者抛错；PASS assertions=`phase1-checkpoint-durable`,`host-pid-changed`,`exact-parent-rebound`,`transcript-prefix-preserved`,`cold-followup-submitted`，完整 result 必须记录两 Host PID、Captain/Manager/A ID、checkpoint planning ID、两条 transcript message ID、phase2 children mode/activity和 Restore 后端口/进程/tempRoot均不存在。任何正式 API、字段或持久化事实与本节不符立即 STOP，不改 production或引入替代恢复链。
+T1-T7 已 PASS 并按滚动策略删除对应执行步骤；当前从 T8 开始执行。稳定场景定义仍保留在 §7。
 
 ### T8：只实现 archive-continuation 场景
 

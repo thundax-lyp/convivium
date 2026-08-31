@@ -44,6 +44,63 @@ export function validateScenarioResult(value, expectedScenario) {
     return value;
 }
 
+function validateColdCheckpoint(value) {
+    if (value === null || typeof value !== "object") {
+        throw new Error("Cold checkpoint must be an object.");
+    }
+    const stringFields = [
+        "captainSessionId",
+        "meetingId",
+        "workspacePath",
+        "managerSessionId",
+        "participantSessionId",
+        "managerPlanningAttemptId"
+    ];
+    if (value.schemaVersion !== 1 || value.scenario !== "cold-rebind" || value.phase !== 1) {
+        throw new Error("Cold checkpoint constants are invalid.");
+    }
+    if (!Number.isInteger(value.hostPid) || value.hostPid <= 0) {
+        throw new Error("Cold checkpoint hostPid is invalid.");
+    }
+    if (!Number.isInteger(value.meetingVersion) || value.meetingVersion < 0) {
+        throw new Error("Cold checkpoint meetingVersion is invalid.");
+    }
+    if (
+        !Number.isInteger(value.managerPlanningMeetingVersion) ||
+        value.managerPlanningMeetingVersion !== value.meetingVersion
+    ) {
+        throw new Error("Cold checkpoint planning version is invalid.");
+    }
+    for (const field of stringFields) {
+        if (typeof value[field] !== "string" || value[field] === "") {
+            throw new Error(`Cold checkpoint ${field} is invalid.`);
+        }
+    }
+    if (value.captainSessionId !== "convivium-smoke-captain") {
+        throw new Error("Cold checkpoint Captain Session is invalid.");
+    }
+    if (
+        !Array.isArray(value.sessionIds) ||
+        value.sessionIds.length !== 2 ||
+        value.sessionIds[0] !== value.managerSessionId ||
+        value.sessionIds[1] !== value.participantSessionId
+    ) {
+        throw new Error("Cold checkpoint child Session IDs are invalid.");
+    }
+    if (
+        !Array.isArray(value.transcriptMessageIds) ||
+        value.transcriptMessageIds.length === 0 ||
+        value.transcriptMessageIds.some((id) => typeof id !== "string" || id === "")
+    ) {
+        throw new Error("Cold checkpoint transcript IDs are invalid.");
+    }
+    return Object.freeze({
+        ...value,
+        sessionIds: Object.freeze([...value.sessionIds]),
+        transcriptMessageIds: Object.freeze([...value.transcriptMessageIds])
+    });
+}
+
 const tempPrefix = join(tmpdir(), "convivium-dsh-smoke-");
 
 let tempRoot;
@@ -216,11 +273,12 @@ async function writeProbePackage(probeDir) {
         join(probeDir, "index.js"),
         String.raw`
 export const name = "convivium-smoke-profile-probe";
-export const inject = ["agents", "sessions", "subagents", "tools", "webServer", "workspaceRegistry"];
+export const inject = ["agents", "sessions", "sessionPersistence", "subagents", "tools", "webServer", "workspaceRegistry"];
 
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
 const browserMode = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 const scenario = process.env.CONVIVIUM_SMOKE_SCENARIO || "baseline";
+${validateColdCheckpoint.toString()}
 const participants = ["participant-a", "participant-c", "participant-b"];
 let captain;
 let meetingId;
@@ -229,6 +287,8 @@ const drivingAgents = new Set();
 const observedAgents = new Map();
 const observedInboxMessages = new Map();
 const inboxWaiters = new Set();
+let releaseColdMaintenance;
+let coldMaintenancePromise;
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -332,6 +392,15 @@ function messageText(message) {
     return Array.isArray(message.content)
         ? message.content.find((part) => part.type === "text")?.text
         : message.content;
+}
+
+function messageTexts(message) {
+    if (!Array.isArray(message.content)) {
+        return typeof message.content === "string" ? [message.content] : [];
+    }
+    return message.content
+        .filter((part) => part?.type === "text" && typeof part.text === "string")
+        .map((part) => part.text);
 }
 
 function recordInbox(agent, message) {
@@ -534,7 +603,7 @@ function scheduleParticipant(ctx, agent) {
 
 async function run(ctx) {
     if (!outputPath) return;
-    if (scenario !== "baseline" && scenario !== "timeout" && scenario !== "reassign" && scenario !== "task-handraise" && scenario !== "completion-end" && scenario !== "risk-reopen") {
+    if (scenario !== "baseline" && scenario !== "timeout" && scenario !== "reassign" && scenario !== "task-handraise" && scenario !== "completion-end" && scenario !== "risk-reopen" && scenario !== "cold-rebind") {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -542,7 +611,131 @@ async function run(ctx) {
         const workspace = browserMode
             ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
             : undefined;
-        captain = createSmokeAgent(ctx, "convivium-smoke-captain");
+        if (!(scenario === "cold-rebind" && process.env.CONVIVIUM_SMOKE_COLD_PHASE === "2")) captain = createSmokeAgent(ctx, "convivium-smoke-captain");
+        if (scenario === "cold-rebind") {
+            const phase = process.env.CONVIVIUM_SMOKE_COLD_PHASE ?? "1";
+            if (phase === "2") {
+                const checkpointPath = process.env.CONVIVIUM_SMOKE_COLD_CHECKPOINT;
+                assert(checkpointPath, "cold checkpoint path missing");
+                const checkpointFs = await import("node:fs/promises");
+                const checkpoint = validateColdCheckpoint(JSON.parse(await checkpointFs.readFile(checkpointPath, "utf8")));
+                const signal = new AbortController().signal;
+                const preparation = await ctx.sessionPersistence.prepare(checkpoint.captainSessionId, signal);
+                const restoredSession = preparation.session;
+                const detach = ctx.sessions.enter(restoredSession);
+                try {
+                    ctx.sessions.announce(restoredSession);
+                } catch (error) {
+                    detach();
+                    preparation[Symbol.dispose]();
+                    throw error;
+                }
+                preparation[Symbol.dispose]();
+                const registered = registerSmokeAgent(ctx, restoredSession);
+                captain = { agent: registered.agent, async dispose() { await registered.dispose(); detach(); } };
+                const reboundStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId: checkpoint.meetingId }, 704);
+                assert(reboundStatus.meetingVersion === checkpoint.meetingVersion, "cold rebind version changed");
+                assert(checkpoint.transcriptMessageIds.every((id) => reboundStatus.result.messages.some((message) => message.id === id)), "cold transcript prefix missing");
+                const children = await ctx.subagents.listChildren(restoredSession.id, signal);
+                const checkpointChildren = checkpoint.sessionIds.map((sessionId) => {
+                    const child = children.find((candidate) => candidate.id === sessionId);
+                    assert(child, "cold durable child missing " + sessionId);
+                    assert(child.mode === "continuable", "cold child mode mismatch " + sessionId);
+                    assert(child.diagnostic === undefined, "cold child diagnostic " + sessionId);
+                    return child;
+                });
+                const { DatabaseSync } = await import("node:sqlite");
+                const { join } = await import("node:path");
+                const database = new DatabaseSync(join(checkpoint.workspacePath, "convivium-smoke-data", encodeURIComponent("smoke-team"), encodeURIComponent(checkpoint.meetingId) + ".sqlite"), { readOnly: true });
+                const ownership = database.prepare("SELECT session_id, parent_session_id, session_label, role, participant_id, lifecycle_status, capability_status FROM session_ownership WHERE meeting_id = ? ORDER BY session_id").all(checkpoint.meetingId);
+                database.close();
+                for (const sessionId of checkpoint.sessionIds) {
+                    const row = ownership.find((candidate) => candidate.session_id === sessionId);
+                    assert(row?.parent_session_id === restoredSession.id, "cold ownership parent mismatch " + sessionId);
+                }
+                assert(ctx.agents.get(checkpoint.managerSessionId) === undefined, "cold Manager unexpectedly resident before followup");
+                const manager = await resumeParticipantForProbe(ctx, captain.agent, checkpoint.managerSessionId, "convivium-smoke-cold-manager");
+                let managerContext;
+                let managerContextMessageId;
+                const contextMessages = [
+                    ...(manager.inbox.nextTurn ?? []),
+                    ...(manager.inbox.nextStep ?? [])
+                ];
+                for (const message of contextMessages) {
+                    for (const text of messageTexts(message)) {
+                        const marker = text.indexOf("manager context: ");
+                        try {
+                            const parsed = JSON.parse(marker >= 0 ? text.slice(marker + "manager context: ".length) : text);
+                            if (parsed.meetingId === checkpoint.meetingId && parsed.planningAttemptId === checkpoint.managerPlanningAttemptId && parsed.meetingVersion === checkpoint.managerPlanningMeetingVersion) {
+                                managerContext = parsed;
+                                managerContextMessageId = message.id;
+                            }
+                        } catch {}
+                    }
+                }
+                assert(managerContext && managerContextMessageId, "cold persisted Manager inbox context missing");
+                const replanned = await callTool(ctx, manager, "convivium_submit_manager_plan", { protocolVersion: 1, meetingId: checkpoint.meetingId, planningAttemptId: managerContext.planningAttemptId, observedMeetingVersion: managerContext.meetingVersion, requestId: "smoke-cold-plan-2", agendaItemId: reboundStatus.result.activeAgendaItem.id, intent: "explore", objective: "Cold restart followup", expectedOutputs: [], prohibitedTopics: [], steps: [{ participantId: "participant-a", instruction: "A", reason: "manager_selected" }] }, 705);
+                assert(replanned.result.firstAttemptId, "cold replan missing attempt");
+                const phase2Delivery = await waitForSpeakerContext(ctx, checkpoint.participantSessionId, replanned.result.firstAttemptId);
+                const submitted = await callTool(ctx, phase2Delivery.agent, "convivium_submit_turn", { protocolVersion: 1, meetingId: checkpoint.meetingId, turnId: phase2Delivery.value.turn.id, stepId: phase2Delivery.value.step.id, attemptId: phase2Delivery.value.attempt.attemptId, deliveryId: phase2Delivery.value.attempt.deliveryId, agendaItemId: phase2Delivery.value.activeAgendaItem.id, kind: "statement", content: "cold-rebind:a:2", mentions: [], taskIds: [], agendaRelation: "on_topic", changes: { questions: [], proposals: [], positions: [], issues: [], decisionProposals: [], agendaCandidates: [] } }, 706);
+                const finalStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId: checkpoint.meetingId }, 707);
+                assert(process.pid !== checkpoint.hostPid, "cold Host PID did not change");
+                assert(checkpoint.transcriptMessageIds.every((id) => finalStatus.result.messages.some((message) => message.id === id)), "cold final transcript prefix missing");
+                assert(finalStatus.result.messages.some((message) => message.id === submitted.result.messageId), "cold followup transcript missing");
+                const finalChildren = await ctx.subagents.listChildren(restoredSession.id, signal);
+                assert(checkpoint.sessionIds.every((id) => finalChildren.some((child) => child.id === id)), "cold child identity changed");
+                await writeResult({ ok: true, scenario, assertions: ["phase1-checkpoint-durable", "host-pid-changed", "exact-parent-rebound", "transcript-prefix-preserved", "cold-followup-submitted"], observed: { phase1HostPid: checkpoint.hostPid, phase2HostPid: process.pid, captainSessionId: restoredSession.id, managerSessionId: checkpoint.managerSessionId, participantSessionId: checkpoint.participantSessionId, managerPlanningAttemptId: checkpoint.managerPlanningAttemptId, managerContextMessageId, transcriptMessageIds: [...checkpoint.transcriptMessageIds, submitted.result.messageId], reboundVersion: reboundStatus.meetingVersion, finalVersion: finalStatus.meetingVersion, children: checkpointChildren.map((child) => ({ id: child.id, mode: child.mode, activity: child.activity })) } });
+                return;
+            }
+            const input = createInput(); input.agenda[0].requiredParticipantKeys = ["a"];
+            const created = await callTool(ctx, captain.agent, "convivium_create_meeting", input, 700);
+            const meetingId = created.result.meetingId;
+            const status = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 701);
+            const manager = await waitForAgent(ctx, meetingId + "-manager-manager");
+            const plan = await callTool(ctx, manager, "convivium_submit_manager_plan", { protocolVersion: 1, meetingId, planningAttemptId: meetingId + "-planning-1", observedMeetingVersion: status.meetingVersion, requestId: "smoke-cold-plan-1", agendaItemId: status.result.activeAgendaItem.id, intent: "explore", objective: "Cold restart", expectedOutputs: [], prohibitedTopics: [], steps: [{ participantId: "participant-a", instruction: "A", reason: "manager_selected" }] }, 702);
+            const delivery = await waitForSpeakerContext(ctx, meetingId + "-participant-participant-a", plan.result.firstAttemptId);
+            let laterManagerAgent = ctx.agents.get(manager.id);
+            if (laterManagerAgent === undefined) {
+                laterManagerAgent = await resumeParticipantForProbe(ctx, captain.agent, manager.id, "convivium-smoke-cold-manager-barrier");
+            }
+            await laterManagerAgent.whenIdle();
+            let maintenanceStartedResolve;
+            const maintenanceStarted = new Promise((resolveStarted) => { maintenanceStartedResolve = resolveStarted; });
+            coldMaintenancePromise = laterManagerAgent.runMaintenance(async () => {
+                maintenanceStartedResolve();
+                await new Promise((resolveMaintenance) => { releaseColdMaintenance = resolveMaintenance; });
+            });
+            await maintenanceStarted;
+            const submitted = await callTool(ctx, delivery.agent, "convivium_submit_turn", { protocolVersion: 1, meetingId, turnId: delivery.value.turn.id, stepId: delivery.value.step.id, attemptId: delivery.value.attempt.attemptId, deliveryId: delivery.value.attempt.deliveryId, agendaItemId: delivery.value.activeAgendaItem.id, kind: "statement", content: "cold-rebind:a:1", mentions: [], taskIds: [], agendaRelation: "on_topic", changes: { questions: [], proposals: [], positions: [], issues: [], decisionProposals: [], agendaCandidates: [] } }, 703);
+            const laterManagerDelivery = await waitForInbox(ctx, manager.id, (message) => {
+                for (const text of messageTexts(message)) {
+                    const marker = text.indexOf("manager context: ");
+                    try {
+                        const context = JSON.parse(marker >= 0 ? text.slice(marker + "manager context: ".length) : text);
+                        if (context.meetingId === meetingId && context.planningAttemptId !== (plan.result.planningAttemptId ?? meetingId + "-planning-1")) return context;
+                    } catch {}
+                }
+                return undefined;
+            });
+            const laterManagerContext = laterManagerDelivery.value;
+            assert(laterManagerDelivery.agent === laterManagerAgent, "cold planning context used a different Manager Agent");
+            assert([...laterManagerAgent.inbox.nextTurn, ...laterManagerAgent.inbox.nextStep].some((message) => message.id && messageTexts(message).some((text) => text.includes(laterManagerContext.planningAttemptId))), "cold planning context is not pending behind maintenance barrier");
+            assert(await ctx.sessions.flush(laterManagerDelivery.agent.session) === true, "cold later Manager Session flush failed");
+            assert(await ctx.sessions.flush(captain.agent.session) === true, "cold Captain Session flush failed");
+            const checkpointStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 701);
+            assert(checkpointStatus.meetingVersion === laterManagerContext.meetingVersion, "cold planning/status version mismatch");
+            assert(checkpointStatus.result.currentAttemptId === undefined, "cold phase1 still has running attempt");
+            assert(checkpointStatus.result.termination === undefined, "cold phase1 unexpectedly terminal");
+            assert(checkpointStatus.result.messages.some((message) => message.id === submitted.result.messageId), "cold phase1 transcript missing");
+            const checkpoint = validateColdCheckpoint({ schemaVersion: 1, scenario, phase: 1, hostPid: process.pid, captainSessionId: captain.agent.session.id, meetingId, meetingVersion: checkpointStatus.meetingVersion, workspacePath: process.cwd(), managerSessionId: laterManagerDelivery.agent.id, participantSessionId: delivery.agent.id, sessionIds: [laterManagerDelivery.agent.id, delivery.agent.id], transcriptMessageIds: [submitted.result.messageId], managerPlanningAttemptId: laterManagerContext.planningAttemptId, managerPlanningMeetingVersion: laterManagerContext.meetingVersion });
+            const fs = await import("node:fs/promises");
+            const checkpointPath = process.env.CONVIVIUM_SMOKE_COLD_CHECKPOINT;
+            assert(checkpointPath, "cold checkpoint path missing");
+            await fs.writeFile(checkpointPath + ".tmp", JSON.stringify(checkpoint), "utf8");
+            await fs.rename(checkpointPath + ".tmp", checkpointPath);
+            await writeResult({ ok: true, scenario, phase1Complete: true, meetingId, checkpoint });
+            return;
+        }
         if (scenario === "risk-reopen") {
             const riskInput = createInput();
             riskInput.agenda[0].requiredParticipantKeys = ["a"];
@@ -1250,6 +1443,10 @@ export function apply(ctx) {
     });
     ctx.effect(() => {
         void run(ctx);
+        return async () => {
+            releaseColdMaintenance?.();
+            await coldMaintenancePromise;
+        };
     }, "convivium-smoke-profile-probe");
 }
 `,
@@ -1401,12 +1598,15 @@ async function main() {
     const logsDir = join(tempRoot, "logs");
     const artifactDir = join(tempRoot, "artifact");
     const probeDir = join(tempRoot, "probe");
+    const controlDir = join(tempRoot, "control");
     const patchPath = join(tempRoot, "convivium-smoke.patch.yml");
     const resultPath = join(tempRoot, "smoke-result.json");
+    const coldCheckpointPath = join(controlDir, "cold-rebind-checkpoint.json");
     await mkdir(dshHome, { recursive: true });
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(logsDir, { recursive: true });
     await mkdir(artifactDir, { recursive: true });
+    if (SMOKE_SCENARIO === "cold-rebind") await mkdir(controlDir, { recursive: true });
     await writeSmokePatch(patchPath);
     await writeProbePackage(probeDir);
 
@@ -1415,15 +1615,38 @@ async function main() {
         DSH_TELEMETRY_DISABLED: "1",
         DSH_PERMISSION_MODE: "workspace-write",
         CONVIVIUM_SMOKE_RESULT: resultPath,
-        CONVIVIUM_SMOKE_SCENARIO: SMOKE_SCENARIO
+        CONVIVIUM_SMOKE_SCENARIO: SMOKE_SCENARIO,
+        ...(SMOKE_SCENARIO === "cold-rebind"
+            ? { CONVIVIUM_SMOKE_COLD_CHECKPOINT: coldCheckpointPath }
+            : {})
     });
     const port = await allocatePort();
     const artifact = await packArtifact(artifactDir);
     await installArtifact(env, artifact);
     await installProbe(env, probeDir);
     const dumpPath = await dumpConfig(env, patchPath, logsDir);
-    const bootLogs = await bootHost(env, patchPath, workspaceDir, logsDir, port);
-    const probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
+    let bootLogs = await bootHost(env, patchPath, workspaceDir, logsDir, port);
+    let probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
+    if (SMOKE_SCENARIO === "cold-rebind" && probeResult.phase1Complete === true) {
+        const checkpoint = validateColdCheckpoint(
+            JSON.parse(await readFile(coldCheckpointPath, "utf8"))
+        );
+        let missingFieldRejected = false;
+        try {
+            validateColdCheckpoint({ ...checkpoint, managerPlanningAttemptId: undefined });
+        } catch {
+            missingFieldRejected = true;
+        }
+        if (!missingFieldRejected) throw new Error("Cold checkpoint missing-field check failed.");
+        await stopHost();
+        await writeFile(resultPath, "", "utf8");
+        await rm(resultPath + ".tmp", { force: true });
+        env.CONVIVIUM_SMOKE_COLD_PHASE = "2";
+        env.CONVIVIUM_SMOKE_COLD_CHECKPOINT = coldCheckpointPath;
+        bootLogs = await bootHost(env, patchPath, workspaceDir, logsDir, port);
+        await waitForTcp(port, BOOT_TIMEOUT_MS);
+        probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
+    }
     if (!probeResult.ok) {
         throw new Error(`smoke probe failed: ${probeResult.error ?? "unknown error"}`);
     }
