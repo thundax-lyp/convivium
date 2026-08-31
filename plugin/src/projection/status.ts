@@ -304,6 +304,9 @@ export function projectMeetingStatus(
         status: state.status,
         ...(currentTurn === undefined ? {} : { currentTurn }),
         ...(currentStep === undefined ? {} : { currentSpeakerId: currentStep.speaker }),
+        ...(currentStep?.attempt?.status === "running"
+            ? { currentAttemptId: currentStep.attempt.attemptId }
+            : {}),
         ...(state.waitState === undefined
             ? {}
             : {
