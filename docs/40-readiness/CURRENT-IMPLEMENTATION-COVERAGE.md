@@ -5,7 +5,7 @@
 本文记录 Convivium 当前代码相对已确认会议需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-08-31
-- 代码基线：`codex/dispatch-reliability-closure` 已合并 `main@f3e9a61`；本证据保留 Proposal/Position/AgendaCandidate、Blocking Question（含 Manager `blockingFacts` projection）与 dispatch reliability 已执行的验证
+- 代码基线：Proposal/Position/AgendaCandidate、Blocking Question（含 Manager `blockingFacts` projection）与 dispatch reliability 已依次合并至 `main@d653962`；本证据保留各分支验证及合并后主线验证
 - 环境：macOS、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`
 - 本文只记录实际执行过的实现与验证；文档删除和本覆盖矩阵更新由收口提交记录。
 
@@ -133,6 +133,15 @@
 | `pnpm --dir plugin verify:contract`    | Pass；plugin contract 通过。                                                                                                                                                                              |
 | `pnpm --dir plugin verify`             | Pass；44 files、329 tests；同时覆盖 Blocking Question `blockingFacts` projection 与 dispatch review-fix，format、lint、Host/Client typecheck、build、environment、contract 与 package verifier 全部通过。 |
 | `git diff --check`                     | Pass。                                                                                                                                                                                                    |
+
+2026-08-31 在 PR #22 合并后的 `main@d653962` 执行：
+
+| 命令                                   | 结果                                                                                                                                                                                                               |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm --dir plugin verify:environment` | Pass；15 个声明 DSH package 均已安装。                                                                                                                                                                             |
+| `pnpm --dir plugin verify:contract`    | Pass；plugin contract 通过。                                                                                                                                                                                       |
+| `pnpm --dir plugin verify`             | Pass；44 files、329 tests；覆盖 Proposal/Position/AgendaCandidate、Blocking Question `blockingFacts` projection 与 dispatch reliability，format、lint、Host/Client typecheck、build 和 package verifier 全部通过。 |
+| `git diff --check`                     | Pass。                                                                                                                                                                                                             |
 
 ## Not Covered
 
