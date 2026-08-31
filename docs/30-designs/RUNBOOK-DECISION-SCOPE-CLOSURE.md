@@ -1,10 +1,10 @@
 # RUNBOOK A：最小 Decision acceptance 竖切
 
-状态：`Executable · T1-T4 PASS · T5 in progress`
+状态：`Executable · T1-T5 PASS · T6 in progress`
 工作边界：只允许在执行者自己的 Convivium checkout 和独立任务分支中按 T1-T8 顺序执行
 建立日期：2026-08-31
 调查基线：`main@42a7bfb`
-模式：Execute（滚动收口）；T1-T4 已完成并已提交，当前执行 T5
+模式：Execute（滚动收口）；T1-T5 已完成并已提交，当前执行 T6
 
 ## 1. 执行者契约
 
@@ -167,19 +167,6 @@ export function createMeetingDecisionApplication(
 | projection/archive | `projection/status.ts#projectMeetingStatus`；`runtime/services/meeting-archive-service.ts#materializeArchivePackage` |
 
 ## 6. 机械步骤
-
-### T5：Runtime 与 Tool
-
-前置状态：T4 PASS。
-允许修改：新增 `plugin/src/runtime/application-service/meeting-decision.ts`、`plugin/src/runtime/application-service/index.ts`、`plugin/src/tools/register-tools.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/contract/tool-registration.spec.ts`、`plugin/tests/unit/index-inject.spec.ts`。
-禁止修改：HTTP/Client/DSH adapter/repository/projection/archive。
-执行：按 4.5 新增 application；先 rehydrate，再做与 `endMeeting` 相同 Captain session/meeting binding；按 4.2 repository.execute，单次取 now，只调用 pure transition，传入 4.5 actor binding，result 为 4.2，events 透传，outbox `[]`；Runtime 增加 `acceptDecision(input: CaptainDecisionAcceptanceInputV1, caller: MeetingToolCaller, signal: AbortSignal): Promise<ProtocolSuccessV1<CaptainDecisionAcceptanceResultV1> | ProtocolErrorV1>` 并组合 application；在 dispose-risk Tool 后注册新 Tool，复用现有 tool envelope/execute/caller resolver。error mapping 严格按 4.4；unknown 若共享 helper不能 retryable true，只在新 application 显式 `failure("INTERNAL_ERROR",...,true)`。测试 success rows/version、replay、hash conflict、stale version、wrong caller/session/meeting、candidate/support/blocking/evidence、每个 terminal、transaction throw 零副作用，以及 Tool 唯一注册/Schema/caller/result。
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts tests/contract/tool-registration.spec.ts tests/unit/index-inject.spec.ts
-pnpm --dir plugin typecheck
-```
-PASS：命令全 `0`，无 HTTP/Client/Session effect。STOP：需要新 DSH API/route/outbox/dependency。Restore：删除 application/method/Tool/tests。
 
 ### T6：status、archive、recovery
 

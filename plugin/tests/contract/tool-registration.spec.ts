@@ -143,6 +143,13 @@ describe("meeting tool registration", () => {
                     code: "UNAUTHORIZED_CALLER",
                     message: "not exercised",
                     retryable: false
+                }),
+                acceptDecision: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNAUTHORIZED_CALLER",
+                    message: "not exercised",
+                    retryable: false
                 })
             }
         });
@@ -203,6 +210,7 @@ describe("meeting tool registration", () => {
         });
 
         expect(definitions.map((definition) => definition.name)).toEqual([
+            "convivium_accept_decision",
             "convivium_dispose_risk",
             "convivium_create_meeting",
             "convivium_meeting_status",
@@ -433,6 +441,10 @@ describe("meeting tool registration", () => {
                     calls.push(`risk:${caller.kind}`),
                     denied()
                 ),
+                acceptDecision: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`accept:${caller.kind}`),
+                    denied()
+                ),
                 endMeeting: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`end:${caller.kind}`),
                     denied()
@@ -611,6 +623,15 @@ describe("meeting tool registration", () => {
                 deferredAgendaItemIds: [],
                 waivers: [],
                 requestId: "request-1"
+            },
+            convivium_accept_decision: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                requestId: "request-1",
+                decisionCandidateId: "candidate-1",
+                reason: "accept",
+                evidenceMessageIds: []
             }
         };
 
@@ -623,6 +644,7 @@ describe("meeting tool registration", () => {
         }
 
         expect(calls).toEqual([
+            "accept:participant",
             "risk:participant",
             "create:participant",
             "status:participant",

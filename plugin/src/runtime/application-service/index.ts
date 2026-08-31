@@ -29,6 +29,7 @@ import { createMeetingTaskApplication } from "./meeting-task.js";
 import { createMeetingControlApplication } from "./meeting-control.js";
 import { createMeetingEndApplication } from "./meeting-end.js";
 import { createMeetingMailApplication } from "./meeting-mail.js";
+import { createMeetingDecisionApplication } from "./meeting-decision.js";
 import type { StoredMeeting } from "./types.js";
 import {
     meetingTaskEvidenceResolver,
@@ -68,6 +69,7 @@ import type {
     MeetingMailResultV1,
     SendMeetingMessageInputV1,
     TurnSubmissionV1
+    ,CaptainDecisionAcceptanceInputV1, CaptainDecisionAcceptanceResultV1
 } from "../../protocol/index.js";
 import type { MeetingOwnershipLookup } from "../../dsh/index.js";
 
@@ -80,6 +82,7 @@ export interface MeetingToolCaller {
 }
 
 export interface MeetingToolRuntime {
+    acceptDecision(input: CaptainDecisionAcceptanceInputV1, caller: MeetingToolCaller, signal: AbortSignal): Promise<ProtocolSuccessV1<CaptainDecisionAcceptanceResultV1> | ProtocolErrorV1>;
     sendMeetingMessage(
         input: SendMeetingMessageInputV1,
         caller: MeetingToolCaller,
@@ -410,6 +413,7 @@ export function createCreateStatusRuntime(
         recovery,
         deliveryWorkers
     });
+    const decisionApplication = createMeetingDecisionApplication({ options, meetings, recovery });
 
     async function scanExpiredSpeakerAttempts(): Promise<void> {
         await recovery.rehydrate();
@@ -591,6 +595,7 @@ export function createCreateStatusRuntime(
         resume: controlApplication.resume,
         reassignTurn: controlApplication.reassignTurn,
         disposeRisk: controlApplication.disposeRisk,
+        acceptDecision: decisionApplication.acceptDecision,
         endMeeting: endApplication.endMeeting,
         endLocalMeeting: endApplication.endLocalMeeting,
         scanExpiredSpeakerAttempts,

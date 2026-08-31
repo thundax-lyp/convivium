@@ -21,6 +21,7 @@ import type {
     ResumeMeetingInputV1,
     ReassignTurnInputV1,
     CaptainRiskDispositionInputV1,
+    CaptainDecisionAcceptanceInputV1,
     FinishMeetingMailInputV1,
     SendMeetingMessageInputV1,
     TurnSubmissionV1
@@ -41,6 +42,7 @@ import {
     MeetingTaskFinishInputSchema,
     HandRaiseSubmissionSchema,
     CaptainRiskDispositionInputSchema,
+    CaptainDecisionAcceptanceInputSchema,
     FinishMeetingMailInputSchema,
     SendMeetingMessageInputSchema,
     validateProtocolError
@@ -134,6 +136,22 @@ export function registerCreateAndStatusTools(
     dependencies: CreateAndStatusToolDependencies
 ): readonly (() => void)[] {
     return [
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_accept_decision",
+                description: "Accept one decision candidate as the meeting Captain.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(await execute(args.input, {
+                        validate: (value) => CaptainDecisionAcceptanceInputSchema(value as never) as CaptainDecisionAcceptanceInputV1,
+                        callers: dependencies.callers,
+                        runtime: dependencies.runtime.acceptDecision.bind(dependencies.runtime),
+                        exec
+                    }));
+                }
+            })
+        ),
         dependencies.registry.register(
             defineTool({
                 name: "convivium_dispose_risk",
