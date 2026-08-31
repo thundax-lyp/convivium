@@ -260,7 +260,7 @@ describe("client entry framework", () => {
         expect(screen.getByLabelText("Meetings")).toBeTruthy();
 
         fireEvent.click(item);
-        const projection = await screen.findByLabelText("Meeting summary");
+        await screen.findByLabelText("Meeting summary");
         expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/convivium/meetings/meeting%2F1");
         expect(screen.getByLabelText("Resume meeting")).toBeTruthy();
         expect(screen.queryByLabelText("Pause meeting")).toBeNull();

@@ -48,10 +48,17 @@
 | FR-8 完成事实与会议结束   | 部分实现 | completion/end、task evidence、Captain 非 Participant 风险处置的 Runtime 成功/幂等与 Domain 失败路径、终态 projection、恢复和 A/B 原子集成测试通过                                                                                                                                                           | Captain risk disposition 尚无恢复与真实 DSH profile smoke；completion/end 竞争 smoke 未执行                            |
 | FR-9 暂停、恢复与故障隔离 | 部分实现 | Captain tool 与 loopback Web pause/resume、outbox guard、SQLite recovery、archive recovery、stale gate、发言 reassign/skip、`speakerTimeoutMs` 到 Runtime lifecycle deadline 扫描、attempt failure counter、事务外 interrupt/drain 和 per-Meeting scanner 错误隔离，以及连续两轮本地 pause/resume 回归已实现 | 自动降级策略和 reassign/timeout 真实 cold restart/rebind smoke 未完成                                                  |
 | FR-10 记录、隐私与归档    | 部分实现 | transcript 隔离、meeting-scoped `convivium_send_message` 私有 mail 表、snapshot/delta processing、terminal finish/timeout、archive cancel、archive materialization、Session cleanup，以及 archived source 的 ID-only continuation material 复制、target provenance、重放与冷恢复自动化已实现 | developer Markdown 生成和 archive/continuation 真实 profile smoke 未实现 |
-| FR-11 可观察性与用户控制  | 部分实现 | caller-specific status、Captain reassign/skip tool、loopback list/status/pause/resume/reassign/end HTTP、固定 `local_host/loopback-web` authority、current attempt 投影、Plugin Client Meetings slot、poll/refetch，以及面板 Skip current speaker/End 已自动化验证                                                                                                                                       | 结构化 metrics、远程/多用户控制，以及 end/reassign 的真实 DSH browser/profile 行为尚未验证                                                |
+| FR-11 可观察性与用户控制  | 部分实现 | caller-specific status、Captain reassign/skip tool、loopback list/status/pause/resume/reassign/end HTTP、固定 `local_host/loopback-web` authority、current attempt projection、Plugin Client Meeting selector，以及 `Meeting summary`、`Current activity`、`Transcript`、`Blocking items`、`Meeting tasks`、`Accepted decisions`、conditional `Termination` semantic sections；Client 自动化覆盖 polling/focus/write-result full refetch、stale cache、固定错误、全部写控制禁用及 Pause/Resume/Skip/End 回归，不再暴露默认 JSON dump | 结构化 metrics、远程/多用户控制，以及 RUNBOOK B 所属 end/reassign 的真实 DSH browser/profile 证据尚未完成 |
 | FR-12 Agent 内部能力边界  | 已实现   | Convivium 只消费正式提交和授权 task projection，不写自定义 DSH Session Event；模块边界测试通过                                                                                                                                                                                                               | 仍需在未来 Mail、Web 和 UI 路径继续保持同一边界                                                                        |
 
 ## Executed Validation
+
+2026-08-31 在 `codex/client-observability-closure`、基线 `42a7bfb0d3c256eaf06aa3be8344fbcff379ada2` 执行：
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --dir plugin verify` | Pass；46 files、358 tests；format、lint、Host/Client typecheck、build、15-package environment、contract 与 package verifier 全部通过；Client observability sections、stale/error、controls 和 refetch 回归包含在测试中。 |
+| `git diff --check` | Pass。 |
 
 2026-08-31 在 `main@6c272f2`（本分支从该提交创建）执行：
 
