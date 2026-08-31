@@ -393,7 +393,9 @@ export interface CompletionFact {
 export interface ContinuationMaterial {
     sourceMeetingId: string;
     sourceKind: "final_summary" | "decision" | "issue" | "risk" | "evidence" | "artifact";
+    sourceObjectId?: string;
     summary: string;
+    checksum?: string;
 }
 
 export interface MeetingLimits {
@@ -584,6 +586,7 @@ export interface ArchivePackage {
     schemaVersion: 1;
     meetingId: string;
     teamId: string;
+    sourceMeetingId?: string;
     objectiveContract: MeetingObjectiveContract;
     finalSummary: string;
     artifactRefs: readonly ArchiveArtifactRef[];

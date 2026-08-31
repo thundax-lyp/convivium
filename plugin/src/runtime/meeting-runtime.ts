@@ -3,6 +3,7 @@ import type { SessionId } from "@deepseek-ai/dsh-session";
 import {
     createMeetingState,
     type CanonicalIdAllocator,
+    type CreateContinuationSpec,
     type MeetingLimits
 } from "../domain/index.js";
 import {
@@ -52,6 +53,7 @@ export interface MeetingCreationRuntimeDependencies {
     readonly cleanup?: (ownerships: readonly { sessionId: SessionId }[]) => Promise<void>;
     readonly promptVersion?: string;
     readonly speakerAttemptTimeoutMs?: number;
+    readonly continuation?: CreateContinuationSpec;
     readonly signal: AbortSignal;
     readonly now?: () => number;
 }
@@ -128,7 +130,7 @@ export async function createMeetingRuntime(
                 displayName: participant.displayName,
                 role: participant.role
             })),
-            continuation: input.continuation,
+            continuation: dependencies.continuation,
             selectionMode: input.selectionMode,
             limits: limits(input, dependencies.speakerAttemptTimeoutMs),
             createdAt: now

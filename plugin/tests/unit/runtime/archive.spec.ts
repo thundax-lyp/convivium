@@ -89,6 +89,25 @@ describe("materializeArchivePackage", () => {
         expect(archive.issues[0]?.title).toBe("scope");
     });
 
+    it("preserves continuation source provenance without copying source runtime facts", () => {
+        const source = structuredClone(state);
+        source.sourceMeetingId = "source-meeting";
+        source.continuationMaterials = [
+            {
+                sourceMeetingId: "source-meeting",
+                sourceKind: "artifact",
+                sourceObjectId: "artifact-1",
+                summary: "Selected artifact",
+                checksum: "sha256:artifact-1"
+            }
+        ];
+        const archive = materializeArchivePackage(source, 20);
+
+        expect(archive.sourceMeetingId).toBe("source-meeting");
+        expect(archive).not.toHaveProperty("continuationMaterials");
+        expect(archive).not.toHaveProperty("sourceSessionId");
+    });
+
     it("preserves proposal revisions and their positions as formal archive facts", () => {
         const source = structuredClone(state);
         source.proposals = [

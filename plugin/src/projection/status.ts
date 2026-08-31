@@ -7,6 +7,7 @@ import type {
     PublicMeetingMessageV1,
     PublicHandRaiseV1,
     MeetingTaskProjectionV1,
+    SpeakerMeetingContextV1,
     PublicTurnV1,
     PublicQuestionV1
 } from "../protocol/index.js";
@@ -369,5 +370,89 @@ export function projectManagerMeetingContext(
         continuationMaterials: status.continuationMaterials,
         limits: status.limits,
         planningReason: planningAttempt.reason
+    };
+}
+
+/**
+ * Builds the immutable context for the exact current speaker attempt. This is
+ * deliberately derived from the target MeetingState only, so continuation
+ * source Sessions or transcripts cannot leak into a new Meeting delivery.
+ */
+export function projectSpeakerMeetingContext(
+    state: MeetingState,
+    participantId: string,
+    attemptId: string
+): SpeakerMeetingContextV1 {
+    const currentTurn = state.currentTurn;
+    const step = currentTurn?.steps.find(
+        (candidate) =>
+            candidate.speaker === participantId && candidate.attempt?.attemptId === attemptId
+    );
+    const attempt = step?.attempt;
+    const activeAgendaItem = state.agenda.find((item) => item.id === currentTurn?.agendaItemId);
+    if (
+        currentTurn === undefined ||
+        step === undefined ||
+        attempt === undefined ||
+        activeAgendaItem === undefined
+    ) {
+        throw new TypeError("Speaker delivery requires an active speaker attempt and agenda item");
+    }
+    const status = projectMeetingStatus(state, {
+        kind: "participant",
+        sessionId: "speaker-projection",
+        participantId
+    });
+    if (!("messages" in status)) {
+        throw new TypeError("Speaker delivery requires an active meeting projection");
+    }
+    return {
+        protocolVersion: 1,
+        meetingId: state.id,
+        meetingVersion: state.version,
+        objective: state.objective,
+        objectiveContract: {
+            requiredOutputs: state.objectiveContract.requiredOutputs.map((value) => ({ ...value })),
+            acceptanceCriteria: state.objectiveContract.acceptanceCriteria.map((value) => ({
+                ...value
+            })),
+            hardConstraints: state.objectiveContract.hardConstraints.map((value) => ({ ...value })),
+            requiredReviewers: [...state.objectiveContract.requiredReviewers],
+            riskAcceptanceAuthority: [...state.objectiveContract.riskAcceptanceAuthority],
+            acceptableRiskLevel: state.objectiveContract.acceptableRiskLevel
+        },
+        activeAgendaItem: agendaItem(activeAgendaItem),
+        acceptedDecisions: status.acceptedDecisions,
+        blockingQuestions: (status.questions ?? []).filter(
+            (question) => question.blocking && question.status === "open"
+        ),
+        recentMessages: status.messages.filter(
+            (message) =>
+                message.seq >= attempt.contextFromSeq && message.seq <= attempt.contextThroughSeq
+        ),
+        taskResults: attempt.taskSnapshots.map((snapshot) => ({
+            meetingTaskId: snapshot.meetingTaskId,
+            status: snapshot.status,
+            ...(snapshot.resultSummary === undefined
+                ? {}
+                : { resultSummary: snapshot.resultSummary }),
+            observedAt: snapshot.observedAt
+        })),
+        continuationMaterials: state.continuationMaterials.map((material) => ({ ...material })),
+        turn: turn(currentTurn),
+        step: {
+            id: step.id,
+            participantId: step.speaker,
+            instruction: step.instruction,
+            reason: step.reason,
+            status: step.status
+        },
+        attempt: {
+            attemptId: attempt.attemptId,
+            deliveryId: attempt.deliveryId,
+            contextFromSeq: attempt.contextFromSeq,
+            contextThroughSeq: attempt.contextThroughSeq,
+            ...(attempt.deadlineAt === undefined ? {} : { deadlineAt: attempt.deadlineAt })
+        }
     };
 }
