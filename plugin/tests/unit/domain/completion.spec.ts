@@ -122,7 +122,7 @@ describe("judgeTurnCompletion", () => {
     });
 });
 
-function completionState(): MeetingState {
+function completionState(overrides: Partial<MeetingState> = {}): MeetingState {
     const base = state();
     return state({
         participants: [
@@ -211,7 +211,8 @@ function completionState(): MeetingState {
             }
         ],
         messageSeq: 1,
-        limits: { ...base.limits, maxTurns: 4 }
+        limits: { ...base.limits, maxTurns: 4 },
+        ...overrides
     });
 }
 
@@ -482,6 +483,40 @@ describe("applyCompletionClaims", () => {
             authority: "captain",
             result: "accepted"
         });
+    });
+
+    it("rejects Captain risk authority in every execution-terminal state without mutation", () => {
+        for (const status of [
+            "completed",
+            "partial",
+            "no_consensus",
+            "cancelled",
+            "failed",
+            "archiving",
+            "archived"
+        ] as const) {
+            const source = completionState({ status });
+            const before = structuredClone(source);
+            expect(() =>
+                applyCompletionClaims(source, {
+                    participantId: "captain",
+                    assertedBy: "captain:captain-session",
+                    riskAuthority: true,
+                    authorizedTaskIds: [],
+                    now,
+                    factId,
+                    claims: {
+                        riskAcceptance: {
+                            issueId: "risk-1",
+                            decision: "accept",
+                            reason: "Captain accepted the bounded risk.",
+                            evidenceMessageIds: ["message-1"]
+                        }
+                    }
+                })
+            ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+            expect(source).toEqual(before);
+        }
     });
 
     it("does not let non-Participant risk authority submit Participant completion claims", () => {

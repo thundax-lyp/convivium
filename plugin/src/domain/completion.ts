@@ -1,5 +1,6 @@
 import { DomainError } from "./errors.js";
 import type { CompletionFact, DomainEffect, MeetingState, TransitionResult } from "./model.js";
+import { executionTerminalStatuses } from "./transitions/termination.js";
 
 export type TurnCompletionKind = "completed" | "partial" | "continue";
 
@@ -151,6 +152,9 @@ export function applyCompletionClaims(
     state: MeetingState,
     context: ApplyCompletionClaimsContext
 ): TransitionResult<MeetingState> {
+    if (executionTerminalStatuses.includes(state.status)) {
+        invalidClaim(state, "completion claims cannot modify an immutable meeting");
+    }
     if (
         !state.participants.some((participant) => participant.id === context.participantId) &&
         !isCaptainRiskDisposition(context)
