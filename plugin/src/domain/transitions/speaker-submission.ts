@@ -64,7 +64,7 @@ export function submitSpeakerAndAdvanceMeeting(
               context.message.id,
               decisionCandidates
           )
-        : agendaCandidateSubmission;
+        : { state: agendaCandidateSubmission.state, effect: { events: [] } };
     const omittedTask = (speakerSubmission.state.meetingTasks ?? []).find(
         (task) =>
             task.status === "requested" &&
@@ -79,7 +79,7 @@ export function submitSpeakerAndAdvanceMeeting(
         );
     }
     const completion = context.completion
-        ? applyCompletionClaims(agendaCandidateSubmission.state, {
+        ? applyCompletionClaims(decisionCandidateSubmission.state, {
               ...context.completion,
               participantId,
               now: context.now
@@ -90,7 +90,8 @@ export function submitSpeakerAndAdvanceMeeting(
         ...questionSubmission.effect.events,
         ...issueSubmission.effect.events,
         ...proposalPositionSubmission.effect.events,
-        ...agendaCandidateSubmission.effect.events
+        ...agendaCandidateSubmission.effect.events,
+        ...decisionCandidateSubmission.effect.events
     ];
     const completedSubmission = completion
         ? {

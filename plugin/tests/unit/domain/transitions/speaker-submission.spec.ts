@@ -132,6 +132,29 @@ describe("speaker submission and turn advancement", () => {
             nextPlanningAttemptId: "planning-2",
             nextPlanningDeliveryId: "planning-delivery-2",
             issues: [],
+            proposals: [
+                {
+                    id: "proposal-1",
+                    title: "Proposal",
+                    description: "Description"
+                }
+            ],
+            positions: [
+                {
+                    proposalId: "proposal-1",
+                    proposalRevision: 1,
+                    position: "support",
+                    blocking: false
+                }
+            ],
+            decisionCandidates: [
+                {
+                    proposalId: "proposal-1",
+                    proposalRevision: 1,
+                    statement: "Accept proposal",
+                    rationale: "Supported"
+                }
+            ],
             questions: [
                 {
                     id: "question-1",
@@ -150,15 +173,23 @@ describe("speaker submission and turn advancement", () => {
                 factId: (kind, index) => `fact-${kind}-${index}`
             }
         });
-        expect(completed.effect.events.map(({ type }) => type).slice(0, 6)).toEqual([
+        expect(completed.effect.events.map(({ type }) => type).slice(0, 8)).toEqual([
             "speaker_attempt.submitted",
             "speaker.submitted",
             "message.added",
             "question.added",
+            "proposal.added",
+            "position.added",
             "question.answered",
             "completion_fact.added"
         ]);
         expect(completed.state.eventSeq).toBe(state.eventSeq + completed.effect.events.length);
+        expect(completed.state.decisionCandidates).toEqual([
+            expect.objectContaining({
+                proposalId: "proposal-1",
+                proposedBy: "a"
+            })
+        ]);
     });
 
     it("starts the next deterministic round-robin turn without Manager planning", () => {

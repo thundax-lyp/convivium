@@ -74,8 +74,12 @@ describe("acceptDecisionCandidate", () => {
         expect(result.state.decisions[0]).toMatchObject({
             id: "decision-candidate-1",
             status: "accepted",
-            acceptedBy: ["participant-1"]
+            acceptedBy: ["participant-1"],
+            acceptanceMode: "captain_acceptance",
+            acceptanceFactIds: ["completion-candidate-1-acceptance"],
+            createdAt: now
         });
+        expect(result.state.eventSeq).toBe(ready().eventSeq + 1);
         expect(result.state.completionFacts[0]).toMatchObject({
             id: "completion-candidate-1-acceptance",
             authority: "captain",
