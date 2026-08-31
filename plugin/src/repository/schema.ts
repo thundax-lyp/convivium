@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 export const CURRENT_SCHEMA = `
 CREATE TABLE IF NOT EXISTS meetings (
@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS outbox (
   meeting_id TEXT NOT NULL REFERENCES meeting_bootstrap(meeting_id),
   delivery_id TEXT NOT NULL UNIQUE,
   kind TEXT NOT NULL,
+  priority INTEGER NOT NULL DEFAULT 50,
   payload_json TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('pending', 'leased', 'delivered', 'failed')),
   attempts INTEGER NOT NULL DEFAULT 0,
@@ -75,4 +76,27 @@ CREATE TABLE IF NOT EXISTS session_ownership (
   UNIQUE(meeting_id, session_label)
 );
 CREATE INDEX IF NOT EXISTS session_ownership_meeting ON session_ownership(meeting_id, lifecycle_status, capability_status);
+CREATE TABLE IF NOT EXISTS meeting_mail (
+  mail_id TEXT PRIMARY KEY,
+  meeting_id TEXT NOT NULL REFERENCES meeting_bootstrap(meeting_id),
+  sender_participant_id TEXT NOT NULL,
+  recipient_participant_id TEXT NOT NULL,
+  content TEXT NOT NULL,
+  context_json TEXT NOT NULL,
+  reply_to_mail_id TEXT,
+  handling_attempt_id TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'processed', 'obsolete', 'failed', 'timed_out', 'cancelled')),
+  snapshot_through_seq INTEGER NOT NULL,
+  processing_through_seq INTEGER,
+  delivery_id TEXT UNIQUE,
+  deadline_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  CHECK (
+    (status = 'pending' AND processing_through_seq IS NULL AND delivery_id IS NULL AND deadline_at IS NULL)
+    OR (status IN ('processing', 'processed', 'obsolete', 'failed', 'timed_out') AND processing_through_seq IS NOT NULL AND delivery_id IS NOT NULL AND deadline_at IS NOT NULL)
+    OR (status = 'cancelled' AND ((processing_through_seq IS NULL AND delivery_id IS NULL AND deadline_at IS NULL) OR (processing_through_seq IS NOT NULL AND delivery_id IS NOT NULL AND deadline_at IS NOT NULL)))
+  )
+);
+CREATE INDEX IF NOT EXISTS meeting_mail_pending ON meeting_mail(meeting_id, recipient_participant_id, status, deadline_at, created_at);
 `;

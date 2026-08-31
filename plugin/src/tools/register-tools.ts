@@ -21,6 +21,8 @@ import type {
     ResumeMeetingInputV1,
     ReassignTurnInputV1,
     CaptainRiskDispositionInputV1,
+    FinishMeetingMailInputV1,
+    SendMeetingMessageInputV1,
     TurnSubmissionV1
 } from "../protocol/index.js";
 import type { MeetingToolCaller, MeetingToolRuntime } from "../runtime/index.js";
@@ -39,6 +41,8 @@ import {
     MeetingTaskFinishInputSchema,
     HandRaiseSubmissionSchema,
     CaptainRiskDispositionInputSchema,
+    FinishMeetingMailInputSchema,
+    SendMeetingMessageInputSchema,
     validateProtocolError
 } from "../protocol/index.js";
 
@@ -220,6 +224,53 @@ export function registerSubmitAndControlTools(
     dependencies: SubmitAndControlToolDependencies
 ): readonly (() => void)[] {
     return [
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_send_message",
+                description:
+                    "Send private meeting-scoped mail as the authenticated Participant caller.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                SendMeetingMessageInputSchema(
+                                    value as never
+                                ) as SendMeetingMessageInputV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.sendMeetingMessage.bind(
+                                dependencies.runtime
+                            ),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_finish_meeting_mail",
+                description: "Finish private mail as its authenticated recipient Participant.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                FinishMeetingMailInputSchema(
+                                    value as never
+                                ) as FinishMeetingMailInputV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.finishMeetingMail.bind(
+                                dependencies.runtime
+                            ),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
         dependencies.registry.register(
             defineTool({
                 name: "convivium_meeting_task_status",

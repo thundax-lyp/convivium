@@ -13,12 +13,19 @@ describe("current repository schema", () => {
             notnull: number;
         }>;
 
-        expect(CURRENT_SCHEMA_VERSION).toBe(5);
+        expect(CURRENT_SCHEMA_VERSION).toBe(6);
         expect(columns).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({ name: "parent_session_id", notnull: 1 }),
                 expect.objectContaining({ name: "provider", notnull: 1 }),
                 expect.objectContaining({ name: "initial_message_id", notnull: 0 })
+            ])
+        );
+        expect(database.prepare("PRAGMA table_info(meeting_mail)").all()).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ name: "mail_id", notnull: 0 }),
+                expect.objectContaining({ name: "content", notnull: 1 }),
+                expect.objectContaining({ name: "processing_through_seq", notnull: 0 })
             ])
         );
         database.close();

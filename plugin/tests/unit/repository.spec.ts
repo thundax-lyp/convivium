@@ -116,7 +116,8 @@ describe("MeetingRepository", () => {
                 provider: "test-continuable-provider",
                 role: "manager",
                 lifecycleStatus: "provisioning",
-                capabilityStatus: "active"
+                capabilityStatus: "active",
+                initialMessageId: "m1"
             },
             11
         );
@@ -1083,6 +1084,129 @@ PRAGMA user_version = 2;
             })
         ).rejects.toMatchObject<RepositoryError>({ code: "IDEMPOTENCY_CONFLICT" });
         expect(await repository.read()).toMatchObject({ version: 0, state: { count: 0 } });
+        await repository.close();
+    });
+
+    it("keeps private mail lifecycle atomic, idempotent, and out of MeetingState", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create-mail",
+            authorization,
+            requestHash: "create-mail-hash",
+            initialState: {
+                status: "running",
+                messageSeq: 2,
+                participants: [{ id: "p1" }, { id: "p2" }],
+                transcript: [
+                    { id: "m1", seq: 1 },
+                    { id: "m2", seq: 2 }
+                ]
+            }
+        });
+        await repository.recordSessionOwnership(
+            {
+                sessionId: "participant-session-2",
+                parentSessionId: "parent-session",
+                sessionLabel: "convivium:meeting-participant:team-1:meeting-1:p2",
+                provider: "test",
+                role: "participant",
+                participantId: "p2",
+                lifecycleStatus: "active",
+                capabilityStatus: "active",
+                initialMessageId: "m1"
+            },
+            1
+        );
+        const send = {
+            requestId: "mail-request",
+            requestHash: "mail-hash",
+            authorization,
+            expectedMeetingVersion: 0,
+            mail: {
+                mailId: "mail-1",
+                meetingId: "meeting-1",
+                senderParticipantId: "p1",
+                recipientParticipantId: "p2",
+                content: "private",
+                meetingContext: {
+                    meetingId: "meeting-1",
+                    contextFromSeq: 0,
+                    contextThroughSeq: 2,
+                    relevantMessageIds: ["m1", "m2"],
+                    snapshotSummary: "summary"
+                },
+                handlingAttemptId: "attempt-1",
+                snapshotThroughSeq: 2,
+                createdAt: 10
+            },
+            outbox: {
+                deliveryId: "delivery-1",
+                kind: "dispatch" as const,
+                priority: 0,
+                payload: { role: "meeting_mail", mailId: "mail-1", participantId: "p2" }
+            }
+        };
+        const sent = await repository.sendPrivateMeetingMail(send);
+        expect(await repository.sendPrivateMeetingMail(send)).toEqual(sent);
+        expect((await repository.read()).state).not.toHaveProperty("mailbox");
+        expect(await repository.readPrivateMeetingMail("mail-1")).toMatchObject({
+            status: "pending",
+            snapshotThroughSeq: 2
+        });
+        const processing = await repository.startPrivateMeetingMail({
+            requestId: "start-mail",
+            requestHash: "start-mail-hash",
+            authorization,
+            expectedMeetingVersion: 0,
+            mailId: "mail-1",
+            processingThroughSeq: 2,
+            deliveryId: "delivery-1",
+            deadlineAt: 110,
+            now: 10
+        });
+        expect(processing).toMatchObject({
+            status: "processing",
+            deliveryId: "delivery-1",
+            deadlineAt: 110
+        });
+        await expect(
+            repository.startPrivateMeetingMail({
+                requestId: "start-mail-2",
+                requestHash: "start-mail-2-hash",
+                authorization,
+                expectedMeetingVersion: 0,
+                mailId: "mail-1",
+                processingThroughSeq: 1,
+                deliveryId: "drifted",
+                deadlineAt: 120,
+                now: 10
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_STATE" });
+        const finished = await repository.finishPrivateMeetingMail({
+            requestId: "finish-mail",
+            requestHash: "finish-mail-hash",
+            authorization,
+            expectedMeetingVersion: 0,
+            mailId: "mail-1",
+            handlingAttemptId: "attempt-1",
+            deliveryId: "delivery-1",
+            status: "processed",
+            now: 20
+        });
+        expect(finished.status).toBe("processed");
+        await expect(
+            repository.finishPrivateMeetingMail({
+                requestId: "late-mail",
+                requestHash: "late-mail-hash",
+                authorization,
+                expectedMeetingVersion: 0,
+                mailId: "mail-1",
+                handlingAttemptId: "attempt-1",
+                deliveryId: "delivery-1",
+                status: "failed",
+                now: 30
+            })
+        ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_STATE" });
         await repository.close();
     });
 });

@@ -70,6 +70,8 @@ interface ProtocolMeta {
 | `convivium_submit_manager_plan` | 当前 Manager Session                                     | 提交下一 Turn 建议                                            |
 | `convivium_submit_turn`         | 当前 Speaker Session                                     | 提交正式发言和结构化声明                                      |
 | `convivium_create_meeting_task` | 当前 Speaker Session                                     | 创建 Convivium-owned MeetingTask                              |
+| `convivium_send_message`       | 当前 Meeting Participant Session                         | 仅发送 meeting-scoped Participant→Participant 私聊            |
+| `convivium_finish_meeting_mail`| recipient Participant Session                            | 固化私聊处理 terminal status                                  |
 | `convivium_meeting_task_status` | 该 MeetingTask 的原 Participant Session                  | 读取当前授权 task projection、Meeting terminal 状态和执行许可 |
 | `convivium_start_meeting_task`  | 该 MeetingTask 的原 Participant Session                  | 幂等地将 queued MeetingTask 置为 running                      |
 | `convivium_finish_meeting_task` | 该 MeetingTask 的原 Participant Session                  | 提交 terminal result 并申请后续发言                           |
@@ -84,7 +86,7 @@ interface ProtocolMeta {
 
 ### Meeting-scoped mailbox extension
 
-普通 Convivium mail 不携带 `meetingContext`。会议 Participant 发出的私聊必须使用 meeting-scoped recipient 和 context：
+本插件不实现普通 TeamMember mailbox。`convivium_send_message` 在 V1 仅接受 meeting-scoped Participant→Participant 模式；非 meeting recipient fail closed 为 `UNSUPPORTED_CAPABILITY`。普通 Convivium mail（如由其他产品提供）不携带 `meetingContext`，不受本插件改动影响。
 
 ```ts
 interface MeetingMailboxRecipientV1 {
@@ -109,7 +111,7 @@ interface MeetingMailExtensionV1 {
 }
 ```
 
-`convivium_send_message` 的 meeting-scoped adapter 必须从真实 caller Session 解析发送方 Participant，并验证发送方、接收方属于同一 Meeting。调用方不能提供或覆盖 sender identity。`contextThroughSeq` 必须由 Meeting Runtime 固化为发送事务时发送方和接收方均有权查看的最大 transcript seq；调用方提供的更大值必须拒绝。
+`convivium_send_message` 必须从真实 caller Session 解析发送方 Participant，并验证发送方、接收方属于同一 Meeting。调用方不能提供或覆盖 sender identity。`contextThroughSeq` 必须由 Meeting Runtime 固化为发送事务时发送方和接收方均有权查看的最大 transcript seq；调用方提供的更大值必须拒绝。
 
 `relevantMessageIds` 和 `snapshotSummary` 只能引用或概括 `contextFromSeq..contextThroughSeq` 内双方有权查看的正式会议内容。mail 不得携带其他 Participant 的私有 mailbox、隐藏推理、Session 历史或未授权 task output。
 

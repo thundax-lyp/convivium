@@ -41,6 +41,33 @@ export interface MailHandlingAttemptV1 {
     status: MailHandlingStatusV1;
 }
 
+export interface SendMeetingMessageInputV1 {
+    protocolVersion: ProtocolVersion;
+    meetingId: string;
+    expectedMeetingVersion: number;
+    requestId: string;
+    recipient: MeetingMailboxRecipientV1;
+    content: string;
+    meetingContext: MeetingMailContextV1;
+    replyToMailId?: string;
+}
+
+export interface FinishMeetingMailInputV1 {
+    protocolVersion: ProtocolVersion;
+    meetingId: string;
+    mailId: string;
+    handlingAttemptId: string;
+    deliveryId: string;
+    requestId: string;
+    status: "processed" | "obsolete" | "failed";
+}
+
+export interface MeetingMailResultV1 {
+    mailId: string;
+    handlingAttemptId: string;
+    status: MailHandlingStatusV1;
+}
+
 export interface ParticipantSpecV1 {
     participantKey: string;
     sourceMemberName?: string;
