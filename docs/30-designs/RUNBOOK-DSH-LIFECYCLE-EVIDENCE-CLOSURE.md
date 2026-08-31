@@ -1,6 +1,6 @@
 # RUNBOOK：DSH 生命周期与恢复证据闭环
 
-状态：执行中；T1-T12 已 PASS，当前断点为 T13
+状态：执行中；T1-T13 已 PASS，当前断点为 T14
 
 建立日期：2026-08-31
 
@@ -360,11 +360,7 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 
 以下对象中的 `<status.*>` 不是执行者选择或占位输入，而是强制的数据流引用：必须先执行紧邻的 `convivium_meeting_status`，再逐字段复制该返回值；字段缺失即 STOP。所有 `convivium_create_meeting` 使用 §6.5 固定 fixture；所有 success 必须是 `ProtocolSuccessV1`，所有预期失败必须是 `ProtocolErrorV1` 且 `retryable===false`。
 
-T1-T12 已 PASS 并按滚动策略删除对应执行步骤；当前从 T13 开始执行。稳定场景定义仍保留在 §7。
-
-### T13：迁移 readiness 与 operations
-
-只有T11/T12实际PASS后，才允许修改§6.1两个长期文档。readiness记录commit、Node/pnpm/DSH版本、九条精确selector命令和result摘要；只移除被实际证据关闭的缺口，保留Decision/Agenda/stall、Markdown、metrics/stress、browser、远程/多用户、存储迁移、生产发布。operations继续以 `node scripts/smoke-profile.mjs` 为入口，列出selector、首轮失败STOP及Restore；不得写不存在的`smoke:lifecycle`命令。
+T1-T13 已 PASS 并按滚动策略删除对应执行步骤；当前从 T14 开始执行。稳定场景定义仍保留在 §7。
 
 ### T14：链接、diff 与删除
 

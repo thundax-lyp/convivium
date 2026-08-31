@@ -102,6 +102,28 @@ pnpm dlx @deepseek-ai/dsh@0.1.1-rc.2
 - resume 返回 `status: "running"`
 - DSH host 启动并通过 readiness 检查
 
+## 生命周期 selector
+
+从仓库根目录逐个执行；`CONVIVIUM_SMOKE_SCENARIO` 只接受下列固定值，脚本入口仍是 `plugin/scripts/smoke-profile.mjs`，不得改写为不存在的 lifecycle runner：
+
+```sh
+env CONVIVIUM_SMOKE_SCENARIO=timeout pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=reassign pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=task-handraise pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=completion-end pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=risk-reopen pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=archive-continuation pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
+```
+
+每条命令必须退出码为 `0`，并输出 `ok: true`、与 selector 同名的 `probe.scenario` 及该场景固定 assertions。首次失败立即停止后续 selector，保留该次命令、首个 `smoke probe failed` 及有界日志路径；不得把 Host 已启动、TCP 可连或 mock 结果当作场景通过。
+
+脚本的 finally 必须停止其记录的 Host PID、确认临时端口释放并删除唯一 `convivium-dsh-smoke-*` 临时根。`cold-rebind` 会在同一临时 DSH_HOME、workspace、profile、data root 和端口上依次启动两个不同 Host PID；只在 phase 2 完成后执行一次最终 Restore。Restore 失败时即使场景断言通过也不得记为 Pass。
+
+上述 selector 不调用 LLM，只证明当前锁定 DSH runtime/provider、真实 Session persistence、inbox、interrupt/drain、tool caller、SQLite/status/archive 路径。Decision/Agenda、developer Markdown、metrics/stress、浏览器 end/reassign、远程/多用户、存储布局迁移和生产发布不在这些 selector 的证明范围内。
+
 ## 失败处理
 
 - 首次运行无法取得 DSH 包时，检查网络或 pnpm store；不得改用未记录版本的 DSH CLI 继续判定结果。
