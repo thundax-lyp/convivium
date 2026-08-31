@@ -1,10 +1,10 @@
 # RUNBOOK A：最小 Decision acceptance 竖切
 
-状态：`Executable · T1-T2 PASS · T3 in progress`
+状态：`Executable · T1-T3 PASS · T4 in progress`
 工作边界：只允许在执行者自己的 Convivium checkout 和独立任务分支中按 T1-T8 顺序执行
 建立日期：2026-08-31
 调查基线：`main@42a7bfb`
-模式：Execute（滚动收口）；T1-T2 已完成并已提交，当前执行 T3
+模式：Execute（滚动收口）；T1-T3 已完成并已提交，当前执行 T4
 
 ## 1. 执行者契约
 
@@ -167,19 +167,6 @@ export function createMeetingDecisionApplication(
 | projection/archive | `projection/status.ts#projectMeetingStatus`；`runtime/services/meeting-archive-service.ts#materializeArchivePackage` |
 
 ## 6. 机械步骤
-
-### T3：submit candidate transition
-
-前置状态：T2 PASS。
-允许修改：`plugin/src/domain/transitions/types.ts`、新增 `plugin/src/domain/transitions/decision-candidate.ts`、`plugin/src/domain/transitions/speaker-submission.ts`、`plugin/src/domain/transitions/index.ts`、`plugin/src/runtime/application-service/meeting-turn.ts`、新增 `plugin/tests/unit/domain/transitions/decision-candidate.spec.ts`、`plugin/tests/unit/domain/transitions/speaker-submission.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`。
-禁止修改：Captain/Tool/projection/archive。
-执行：新增 `SubmittedDecisionCandidateInput`，字段精确为 `id/proposalId/proposalRevision/statement/rationale/sourceMessageId/agendaItemId/createdAt`，以及 optional readonly context array；实现 `addSubmittedDecisionCandidates(state: MeetingState, participantId: string, agendaItemId: string, sourceMessageId: string, candidates: readonly SubmittedDecisionCandidateInput[]): TransitionResult<MeetingState>`，验证 participant、active agenda、source message、non-empty text、unique ID、current Proposal revision/agenda，成功 append 且 events `[]`；在 proposal/position/agenda-candidate 后、completion 前调用；删除 Runtime fail-closed guard，按 4.1 derive input。测试字段来源、顺序、原子非法数组、replay/hash conflict。
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/transitions/decision-candidate.spec.ts tests/unit/domain/transitions/speaker-submission.spec.ts tests/contract/meeting-runtime.spec.ts
-pnpm --dir plugin typecheck
-```
-PASS：命令全 `0`，candidate/message/receipt 同 commit。STOP：需要 event/outbox/table或改变 submit result。Restore：删除新增文件/export/call并恢复 guard。
 
 ### T4：Captain accept pure transition
 

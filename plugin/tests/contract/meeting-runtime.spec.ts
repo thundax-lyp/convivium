@@ -569,7 +569,7 @@ describe("create/status meeting runtime", () => {
         expect(sleepers).toHaveLength(sleepCount);
     });
 
-    it("commits proposal and caller-bound position once, while failing closed for decision proposals", async () => {
+    it("commits proposal and caller-bound position once, while rejecting stale decision proposal submissions", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-proposal-position-"));
         roots.push(root);
         const runtime = localRuntime(root);
@@ -650,7 +650,7 @@ describe("create/status meeting runtime", () => {
                 },
                 participant
             )
-        ).resolves.toMatchObject({ ok: false, code: "UNSUPPORTED_CAPABILITY" });
+        ).resolves.toMatchObject({ ok: false, code: "STALE_ATTEMPT" });
         await expect(
             runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
         ).resolves.toMatchObject({

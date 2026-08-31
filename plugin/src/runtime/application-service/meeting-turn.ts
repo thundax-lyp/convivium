@@ -245,12 +245,6 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                         true
                     );
                 }
-                if ((input.changes.decisionProposals?.length ?? 0) > 0) {
-                    return failure(
-                        "UNSUPPORTED_CAPABILITY",
-                        "Decision proposals cannot be persisted until a pending decision contract exists."
-                    );
-                }
                 const messageId = `message-${input.deliveryId}`;
                 const commandNow = options.now?.() ?? Date.now();
                 const questions = (input.changes.questions ?? []).map((claim, index) => ({
@@ -304,6 +298,16 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                         now: commandNow
                     })
                 );
+                const decisionCandidates = (input.changes.decisionProposals ?? []).map((claim, index) => ({
+                    id: `decision-candidate-${input.deliveryId}-${index + 1}`,
+                    proposalId: claim.proposalId,
+                    proposalRevision: claim.proposalRevision,
+                    statement: claim.statement,
+                    rationale: claim.rationale,
+                    sourceMessageId: messageId,
+                    agendaItemId: input.agendaItemId,
+                    createdAt: commandNow
+                }));
                 try {
                     const current = await stored.repository.read();
                     const committed = await stored.repository.execute({
@@ -368,6 +372,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                                     proposals,
                                     positions,
                                     agendaCandidates,
+                                    decisionCandidates,
                                     ...(input.completionClaims === undefined
                                         ? {}
                                         : {
