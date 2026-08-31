@@ -40,7 +40,7 @@
 | FR-6 议题范围与发散控制   | 部分实现 | non-blocking Question create/read/resolve/archive 已通过 focused 与完整插件验证；canonical model、协议 Schema、status 和 completion blocking 规则存在 | proposal/position/issue/decision proposal/agenda candidate 声明尚未提交；blocking Question evidence、stall/refocus 未闭环 |
 | FR-7 提案、立场与决策     | 部分实现 | model、公开 projection 和输入 Schema 已定义，completion/end 可读取正式事实                     | proposal/position/decision claims 尚无 Runtime/transition commit 路径；Captain 风险处置工具未实现                 |
 | FR-8 完成事实与会议结束   | 部分实现 | completion/end、task evidence、终态 projection、幂等、恢复和 A/B 原子集成测试通过              | 独立 Captain risk disposition 尚未实现；真实 DSH completion/end 竞争 smoke 未执行                                 |
-| FR-9 暂停、恢复与故障隔离 | 部分实现 | Captain tool 与 loopback Web pause/resume、outbox guard、SQLite recovery、archive recovery、stale gate、发言 reassign/skip 和连续两轮本地 pause/resume 回归已实现 | `speakerTimeoutMs` 尚未接入 Runtime；attempt failure counter、reassign 真实 cold restart/rebind smoke 未完成 |
+| FR-9 暂停、恢复与故障隔离 | 部分实现 | Captain tool 与 loopback Web pause/resume、outbox guard、SQLite recovery、archive recovery、stale gate、发言 reassign/skip、`speakerTimeoutMs` 到 SpeakerAttempt `deadlineAt` 的持久化，以及连续两轮本地 pause/resume 回归已实现 | timeout 扫描、interrupt、attempt failure counter、自动降级策略和 reassign 真实 cold restart/rebind smoke 未完成 |
 | FR-10 记录、隐私与归档    | 部分实现 | transcript 隔离、archive materialization 和 Session cleanup 自动化已实现                       | meeting-scoped mailbox、continuation、developer Markdown 生成和 archive 真实 profile smoke 未实现                 |
 | FR-11 可观察性与用户控制  | 部分实现 | caller-specific status、Captain reassign/skip tool、loopback list/status/pause/resume HTTP、Plugin Client Meetings slot、poll/refetch 和真实浏览器选择/暂停/恢复已实现 | 结构化 metrics、远程/多用户控制，以及面板 end/reassign 控制不在当前闭环                                           |
 | FR-12 Agent 内部能力边界  | 已实现   | Convivium 只消费正式提交和授权 task projection，不写自定义 DSH Session Event；模块边界测试通过 | 仍需在未来 Mail、Web 和 UI 路径继续保持同一边界                                                                   |
@@ -75,7 +75,7 @@
 - `TurnSubmissionV1.changes` 的 non-blocking question 已写入正式 MeetingState 并支持 status、resolution、recovery 和 Archive；proposal、position、issue、decision proposal 和 agenda candidate 尚未写入正式 MeetingState。
 - blocking Question 的正式创建、提交与验证尚未覆盖。
 - meeting-scoped mailbox、MailHandlingAttempt、Participant Session 统一 mail/speaker queue 和 mail timeout 未实现。
-- `speakerTimeoutMs` 只存在于 Config，没有接入 attempt timeout、interrupt 或 failure policy。
+- `speakerTimeoutMs` 已接入 SpeakerAttempt `deadlineAt` 持久化；timeout 扫描、interrupt、attempt failure policy 和自动降级策略尚未实现。
 - 自动 stall/refocus、required Participant unavailable 和完整 deterministic fallback 未形成可运行闭环。
 - continuation 创建新 Meeting 和显式导入 archive material 尚未实现，当前 fail closed。
 - developer Markdown、结构化 metrics、stress/长期资源泄漏和生产发布验证未实现；浏览器只覆盖本地 list/select/pause/resume 确定性闭环。
