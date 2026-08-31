@@ -74,7 +74,6 @@ export function createMeetingEndApplication(dependencies: MeetingEndApplicationO
                 return failure("MEETING_NOT_FOUND", "Meeting not found.");
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-            assertLocalArchiveRecoveryAvailable(stored);
             return endMeetingForSource(input, stored, { kind: "local_host" }, () =>
                 recoverArchiveForLocal(stored)
             );
@@ -107,6 +106,9 @@ export function createMeetingEndApplication(dependencies: MeetingEndApplicationO
                 requestHash: JSON.stringify(input),
                 expectedMeetingVersion: input.expectedMeetingVersion,
                 transition: (snapshot) => {
+                    if (source.kind === "local_host") {
+                        assertLocalArchiveRecoveryAvailable(stored);
+                    }
                     const transition = endMeetingTransition(
                         snapshot.state as unknown as MeetingState,
                         {
@@ -145,6 +147,7 @@ export function createMeetingEndApplication(dependencies: MeetingEndApplicationO
             );
         } catch (error) {
             if (source.kind === "local_host") {
+                if (error instanceof LocalMeetingRecoveryUnavailableError) throw error;
                 if (
                     error instanceof RepositoryError &&
                     [
