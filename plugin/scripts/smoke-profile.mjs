@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createConnection, createServer } from "node:net";
 import { constants, createWriteStream } from "node:fs";
-import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -171,8 +171,8 @@ async function writeSmokePatch(path) {
         `    provider: ${PROVIDER}`,
         "    dataRoot: convivium-smoke-data",
         "    maxParticipants: 3",
-        "    speakerTimeoutMs: 60000",
-        "    outboxPollMs: 1000",
+        `    speakerTimeoutMs: ${process.env.CONVIVIUM_SMOKE_SCENARIO === "timeout" ? 250 : 60000}`,
+        `    outboxPollMs: ${process.env.CONVIVIUM_SMOKE_SCENARIO === "timeout" ? 25 : 1000}`,
         ""
     ].join("\n");
     await writeFile(path, patch, "utf8");
@@ -205,7 +205,7 @@ async function writeProbePackage(probeDir) {
         join(probeDir, "index.js"),
         String.raw`
 export const name = "convivium-smoke-profile-probe";
-export const inject = ["agents", "sessions", "tools", "webServer", "workspaceRegistry"];
+export const inject = ["agents", "sessions", "subagents", "tools", "webServer", "workspaceRegistry"];
 
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
 const browserMode = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
@@ -215,6 +215,7 @@ let captain;
 let meetingId;
 let nextCall = 1000;
 const drivingAgents = new Set();
+const observedAgents = new Map();
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -279,7 +280,9 @@ function createInput() {
 async function writeResult(value) {
     if (!outputPath) return;
     const fs = await import("node:fs/promises");
-    await fs.writeFile(outputPath, JSON.stringify(value, null, 2));
+    const tempPath = outputPath + ".tmp";
+    await fs.writeFile(tempPath, JSON.stringify(value, null, 2), "utf8");
+    await fs.rename(tempPath, outputPath);
 }
 
 async function waitForAgent(ctx, id) {
@@ -290,6 +293,18 @@ async function waitForAgent(ctx, id) {
         await new Promise((resolveWait) => setTimeout(resolveWait, 100));
     }
     throw new Error("Timed out waiting for real participant Agent " + id + ".");
+}
+
+async function waitForObservedParticipant(ctx, meetingId, participantKey) {
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+        for (const agent of observedAgents.values()) {
+            const id = String(agent.id);
+            if (id.includes(meetingId) && id.includes("participant-" + participantKey)) return agent;
+        }
+        await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+    }
+    throw new Error("Timed out waiting for observed participant Agent " + participantKey + ".");
 }
 
 async function waitForCommittedMessages(ctx, captain, meetingId, count) {
@@ -347,6 +362,7 @@ async function driveParticipant(ctx, agent) {
     const participantId = "participant-" + String(agent.id).split("-").at(-1);
     const index = participants.indexOf(participantId);
     if (index < 0) return;
+    if (scenario === "timeout" && participantId === "participant-a") return;
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
         if (ctx.agents.get(agent.id) !== agent) return;
@@ -397,7 +413,7 @@ function scheduleParticipant(ctx, agent) {
 
 async function run(ctx) {
     if (!outputPath) return;
-    if (scenario !== "baseline") {
+    if (scenario !== "baseline" && scenario !== "timeout") {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -436,6 +452,14 @@ async function run(ctx) {
                 { participantId: "participant-b", instruction: "B", reason: "manager_selected" }
             ]
         }, 1);
+        const timeoutProbe = scenario === "timeout";
+        const timeoutSpeaker = timeoutProbe
+            ? await waitForObservedParticipant(ctx, meetingId, "a")
+            : undefined;
+        const timeoutSessionId = timeoutSpeaker?.id;
+        const timeoutStartedAt = timeoutProbe ? Date.now() : undefined;
+        let timeoutOracle;
+        let nextSpeakerSubmittedAt;
         const messages = [];
         for (let index = 0; index < participants.length; index += 1) {
             const participantId = participants[index];
@@ -445,7 +469,35 @@ async function run(ctx) {
                     protocolVersion: 1,
                     meetingId
                 }, nextCall++);
-                if (beforeSubmit.result.messages.length >= index + 1) break;
+                if (timeoutProbe && index === 1) {
+                    const advanced = beforeSubmit.result.currentSpeakerId !== "participant-a";
+                    if (!advanced) {
+                        await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+                        continue;
+                    }
+                    if (timeoutSessionId === undefined) throw new Error("timeout owned session missing");
+                    if (ctx.agents.get(timeoutSessionId) !== undefined) {
+                        throw new Error("timed-out participant Agent is still resident");
+                    }
+                    const listSignal = new AbortController();
+                    const children = await ctx.subagents.listChildren(captain.agent.session.id, listSignal.signal);
+                    const durableChild = children.find((child) => child.id === timeoutSessionId);
+                    if (durableChild === undefined || durableChild.mode !== "continuable" || durableChild.activity !== "inactive" || durableChild.diagnostic !== undefined) {
+                        throw new Error("timed-out participant durable child observation invalid");
+                    }
+                    const drainedAt = Date.now();
+                    timeoutOracle = {
+                        oldAttemptId: managerPlan.result.firstAttemptId,
+                        drainedAt,
+                        durableSessionId: timeoutSessionId,
+                        durableChild
+                    };
+                }
+                const requiredMessages = scenario === "timeout" ? index : index + 1;
+                if (beforeSubmit.result.messages.length >= requiredMessages) {
+                    if (timeoutProbe && index > 0) nextSpeakerSubmittedAt = Date.now();
+                    break;
+                }
                 await new Promise((resolveWait) => setTimeout(resolveWait, 100));
             }
             if (Date.now() >= stepDeadline) {
@@ -457,7 +509,18 @@ async function run(ctx) {
             meetingId
         }, 10);
         const transcript = status.result.messages;
-        assert(transcript.map((message) => message.content).join("") === "ACB", "transcript order is not ACB");
+        const expectedTranscript = scenario === "timeout" ? "CB" : "ACB";
+        assert(
+            transcript.map((message) => message.content).join("") === expectedTranscript,
+            "transcript order is not " + expectedTranscript
+        );
+        if (timeoutProbe) {
+            assert(transcript.every((message) => message.speaker !== "participant-a"), "timed-out speaker wrote a message");
+            assert(transcript.length === 2, "timeout transcript has an unexpected message count");
+            assert(status.result.currentAttemptId === undefined || status.result.currentAttemptId !== managerPlan.result.firstAttemptId, "old attempt remains current");
+            assert(timeoutOracle !== undefined && nextSpeakerSubmittedAt !== undefined, "timeout timestamps missing");
+            assert(timeoutOracle.drainedAt < nextSpeakerSubmittedAt, "next speaker submitted before drain");
+        }
         assert(status.result.status === "running", "next planning did not keep meeting running");
         assert(status.result.currentTurn === undefined, "next planning unexpectedly exposed a current turn");
         const baseUrl = "http://127.0.0.1:" + ctx.webServer.port;
@@ -504,7 +567,7 @@ async function run(ctx) {
         await writeResult({
             ok: true,
             scenario,
-            assertions: ["baseline-transcript-acb", "baseline-http-pause-resume"],
+            assertions: scenario === "timeout" ? [] : ["baseline-transcript-acb", "baseline-http-pause-resume"],
             meetingId,
             participants,
             messages,
@@ -515,6 +578,9 @@ async function run(ctx) {
                 speaker: message.speaker
             })),
             managerPlan: managerPlan.result,
+            timeoutOracle,
+            timeoutStartedAt,
+            nextSpeakerSubmittedAt,
             nextPlanObserved: status.result.currentTurn === undefined,
             httpRouteUsed: true,
             captainSessionId: "convivium-smoke-captain",
@@ -532,6 +598,7 @@ async function run(ctx) {
 
 export function apply(ctx) {
     ctx.on("agent/created", ({ agent }) => {
+        observedAgents.set(String(agent.id), agent);
         if (String(agent.id).includes("-participant-")) {
             agent.ctx.on("agent/status", () => scheduleParticipant(ctx, agent));
             agent.ctx.on("agent/inbox/inserted", () => scheduleParticipant(ctx, agent));
@@ -625,7 +692,12 @@ async function waitForJson(path, timeoutMs) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
         if (await pathExists(path)) {
-            return JSON.parse(await readFile(path, "utf8"));
+            try {
+                const content = await readFile(path, "utf8");
+                if (content.trim() !== "") return JSON.parse(content);
+            } catch (error) {
+                if (!(error?.code === "ENOENT" || error instanceof SyntaxError)) throw error;
+            }
         }
         await new Promise((resolveWait) => setTimeout(resolveWait, 250));
     }

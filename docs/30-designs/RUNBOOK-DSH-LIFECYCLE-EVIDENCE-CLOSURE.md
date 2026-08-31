@@ -354,25 +354,7 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 
 T1 已 PASS（baseline、selector/result contract、Restore）；当前从 T2 开始执行。
 
-### T2：只实现 timeout 场景
-
-前置状态：T1 PASS。允许修改仅 `plugin/scripts/smoke-profile.mjs`；禁止实现其他 selector。
-
-执行：新增 `runTimeoutScenario(ctx,fixture)`。调用顺序和完整 input：create `index=200` 使用 `createFixtureInput("timeout")`；status `201` 为 `{protocolVersion:1,meetingId}`；Manager plan `202` 为 `{protocolVersion:1,meetingId,planningAttemptId:<status.managerPlanningAttempt.id>,observedMeetingVersion:<status.meetingVersion>,requestId:"smoke-timeout-plan-1",agendaItemId:<status.activeAgendaItem.id>,intent:"explore",objective:"timeout",expectedOutputs:[],prohibitedTopics:[],steps:[{participantId:<fixture.participantAId>,instruction:"timeout-a",reason:"manager_selected"},{participantId:<fixture.participantBId>,instruction:"timeout-b",reason:"manager_selected"}]}`；等待 A timeout 与 B current；B submit `203` 为 `{protocolVersion:1,meetingId,turnId:<status.currentTurn.id>,stepId:<status.currentStep.id>,attemptId:<status.currentAttempt.id>,deliveryId:<status.currentAttempt.deliveryId>,agendaItemId:<status.currentTurn.agendaItemId>,kind:"statement",content:"timeout:b:1",mentions:[],taskIds:[],agendaRelation:"on_topic",changes:{}}`。A 不提交 late turn；该 caller 已被 drain 后不可作为正式 caller，真实证据改为 status/SQLite/listChildren 的 revoked→non-running→B success，不伪造不可用 caller。
-
-验证：
-
-```bash
-node --check plugin/scripts/smoke-profile.mjs
-pnpm --dir plugin exec vitest run tests/unit/domain/transitions/speaker-attempt.spec.ts tests/contract/meeting-runtime.spec.ts tests/unit/dsh/session-adapter.spec.ts
-env CONVIVIUM_SMOKE_SCENARIO=timeout pnpm --dir plugin smoke:profile
-```
-
-PASS：全部退出 `0`；result assertions 逐字为 `attempt-revoked-timeout`,`old-activation-drained`,`durable-child-retained`,`next-existing-speaker-submitted`；SQLite只有B新增 message，A attempt reason为timeout，Restore 后无临时根/Host/端口。
-
-STOP：现有 focused test 失败，或场景需要新状态/fallback/错误码。不得修改 production。
-
-恢复：场景 `try/finally` 不删除业务事实；外层既有 `finally -> restore()` 停止唯一 Host并删除精确 temp root。Restore失败保留精确路径并 STOP。
+T2 已 PASS（真实 timeout/revoke/interrupt/drain/next-speaker oracle 与 Restore）；当前从 T3 开始执行。
 
 ### T3：只实现 reassign 场景
 
