@@ -46,7 +46,7 @@
 | FR-7 提案、立场与决策     | 部分实现 | Proposal/Position 的 canonical ID、revision、真实 Speaker binding、旧 revision 审计 snapshot、status projection、幂等/terminal reject、archive snapshot 已自动化；`convivium_dispose_risk` 已提供 Captain 单一 Issue accept/reject 控制                                                                                   | 未定义 pending Decision 的公开契约；`decisionProposals` fail closed，Captain 决策接受与完整 Decision acceptance 未实现 |
 | FR-8 完成事实与会议结束   | 部分实现 | completion/end、task evidence、Captain 非 Participant 风险处置的 Runtime 成功/幂等与 Domain 失败路径、终态 projection、恢复和 A/B 原子集成测试通过                                                                                                                                                           | Captain risk disposition 尚无恢复与真实 DSH profile smoke；completion/end 竞争 smoke 未执行                            |
 | FR-9 暂停、恢复与故障隔离 | 部分实现 | Captain tool 与 loopback Web pause/resume、outbox guard、SQLite recovery、archive recovery、stale gate、发言 reassign/skip、`speakerTimeoutMs` 到 Runtime lifecycle deadline 扫描、attempt failure counter、事务外 interrupt/drain 和 per-Meeting scanner 错误隔离，以及连续两轮本地 pause/resume 回归已实现 | 自动降级策略和 reassign/timeout 真实 cold restart/rebind smoke 未完成                                                  |
-| FR-10 记录、隐私与归档    | 部分实现 | transcript 隔离、archive materialization 和 Session cleanup 自动化已实现                                                                                                                                                                                                                                     | meeting-scoped mailbox、continuation、developer Markdown 生成和 archive 真实 profile smoke 未实现                      |
+| FR-10 记录、隐私与归档    | 部分实现 | transcript 隔离、archive materialization、Session cleanup，以及 archived source 的 ID-only continuation material 复制、target provenance、重放与冷恢复自动化已实现                                                                                                                                             | meeting-scoped mailbox、developer Markdown 生成和 archive/continuation 真实 profile smoke 未实现                      |
 | FR-11 可观察性与用户控制  | 部分实现 | caller-specific status、Captain reassign/skip tool、loopback list/status/pause/resume/reassign/end HTTP、固定 `local_host/loopback-web` authority、current attempt 投影、Plugin Client Meetings slot、poll/refetch，以及面板 Skip current speaker/End 已自动化验证                                                                                                                                       | 结构化 metrics、远程/多用户控制，以及 end/reassign 的真实 DSH browser/profile 行为尚未验证                                                |
 | FR-12 Agent 内部能力边界  | 已实现   | Convivium 只消费正式提交和授权 task projection，不写自定义 DSH Session Event；模块边界测试通过                                                                                                                                                                                                               | 仍需在未来 Mail、Web 和 UI 路径继续保持同一边界                                                                        |
 
@@ -178,6 +178,15 @@
 | `pnpm --dir plugin smoke:profile` | Pass；独立临时 DSH Web profile、bundle/package、`spawn` provider、loopback list/status/pause/resume 组合通过；该 smoke 未执行 end/reassign。 |
 | `git diff --check` | Pass。 |
 
+2026-08-31 在 `codex/archive-continuation-closure` 的 `main@d86c04c` worktree 执行：
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --dir plugin verify:environment` | Pass；15 个声明 DSH package 均已安装。 |
+| `pnpm --dir plugin verify:contract` | Pass；plugin contract 通过。 |
+| `pnpm --dir plugin test -- continuation archive status-projection meeting-runtime` | Pass；45 files、341 tests；覆盖 archived source 的 final summary/decision/issue/risk/evidence/artifact 选择、错误/部分非法/重复零 target 副作用、target-only Session、source state 不变、create replay、cold source authorization/reopen、archive provenance 和 Manager/Speaker/status projection。 |
+| `pnpm --dir plugin verify` | Pass；45 files、341 tests；format、lint、Host/Client typecheck、build、environment、contract 与 package verifier 全部通过。 |
+
 ## Not Covered
 
 以下是当前真实缺口，不因 Schema、类型或历史测试存在而视为已实现：
@@ -190,7 +199,7 @@
 - meeting-scoped mailbox、MailHandlingAttempt、Participant Session 统一 mail/speaker queue 和 mail timeout 未实现。
 - timeout 仅有确定性 current Attempt/Step revoke、下一既有 Step 推进、failure counter 与事务外 interrupt/drain 的本地自动化证据；真实 DSH profile timeout interrupt/drain、cold restart/rebind smoke 尚未执行。
 - 自动 stall/refocus/replan 与其计数语义尚未实现；timeout 不在本分支发明该机制。
-- continuation 创建新 Meeting 和显式导入 archive material 尚未实现，当前 fail closed。
+- continuation 已在本地自动化中验证：创建前从 source SQLite 的持久 Team/Captain ownership 授权，选择 archived `ArchivePackage` 的 final summary/decision/issue/risk/evidence/artifact，复制为 target-owned materials；source 不存在/无权/不存在素材、未归档、重复或部分非法选择均不创建 target。真实 DSH continuation/archive profile smoke 尚未执行。
 - developer Markdown、结构化 metrics、stress/长期资源泄漏和生产发布验证未实现；浏览器只覆盖本地 list/select/pause/resume 确定性闭环，尚未覆盖 end/reassign。
 - MeetingTask、completion/end、archive、cold restart/rebind 和跨 Meeting isolation 尚无对应的完整真实 DSH profile smoke。
 

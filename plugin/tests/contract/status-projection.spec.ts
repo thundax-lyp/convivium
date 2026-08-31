@@ -1,5 +1,5 @@
 import type { MeetingState } from "../../src/domain/model.js";
-import { projectMeetingStatus } from "../../src/projection/index.js";
+import { projectMeetingStatus, projectSpeakerMeetingContext } from "../../src/projection/index.js";
 import { MeetingStatusResultSchema } from "../../src/protocol/index.js";
 import { describe, expect, it } from "vitest";
 
@@ -112,9 +112,93 @@ describe("meeting status projection", () => {
         expect(JSON.stringify(projected)).not.toContain("prompt");
         expect(projected).not.toHaveProperty("currentTurn");
         expect(projected).not.toHaveProperty("currentSpeakerId");
-        expect(projected).not.toHaveProperty("currentAttemptId");
         expect(JSON.stringify(projected)).not.toContain("planning-1");
         expect(JSON.stringify(projected)).not.toContain("leaseToken");
+    });
+
+    it("projects target-owned continuation materials into the exact speaker attempt", () => {
+        const projected = projectSpeakerMeetingContext(
+            {
+                ...state,
+                objectiveContract: {
+                    requiredOutputs: [],
+                    acceptanceCriteria: [],
+                    hardConstraints: [],
+                    requiredReviewers: [],
+                    riskAcceptanceAuthority: [],
+                    acceptableRiskLevel: "low"
+                },
+                agenda: [
+                    {
+                        id: "agenda-1",
+                        title: "Scope",
+                        objective: "Decide scope",
+                        inScope: ["target only"],
+                        outOfScope: [],
+                        completionCriteria: [],
+                        requiredParticipants: ["participant-1"],
+                        relatedTaskIds: [],
+                        status: "discussing"
+                    }
+                ],
+                continuationMaterials: [
+                    {
+                        sourceMeetingId: "source-1",
+                        sourceKind: "artifact",
+                        sourceObjectId: "artifact-1",
+                        summary: "Selected artifact only",
+                        checksum: "sha256:artifact-1"
+                    }
+                ],
+                currentTurn: {
+                    id: "turn-1",
+                    seq: 1,
+                    agendaItemId: "agenda-1",
+                    intent: "explore",
+                    objective: "Decide scope",
+                    expectedOutputs: [],
+                    prohibitedTopics: [],
+                    status: "running",
+                    currentStepIndex: 0,
+                    steps: [
+                        {
+                            id: "step-1",
+                            speaker: "participant-1",
+                            instruction: "Review selected material",
+                            reason: "rule_score",
+                            status: "running",
+                            attempt: {
+                                attemptId: "attempt-1",
+                                participantId: "participant-1",
+                                meetingId: "meeting-1",
+                                turnId: "turn-1",
+                                stepId: "step-1",
+                                deliveryId: "delivery-1",
+                                contextFromSeq: 0,
+                                contextThroughSeq: 0,
+                                taskSnapshots: [],
+                                assignedAt: 1,
+                                status: "running",
+                                deliveryStatus: "pending"
+                            }
+                        }
+                    ]
+                }
+            } as MeetingState,
+            "participant-1",
+            "attempt-1"
+        );
+
+        expect(projected.continuationMaterials).toEqual([
+            {
+                sourceMeetingId: "source-1",
+                sourceKind: "artifact",
+                sourceObjectId: "artifact-1",
+                summary: "Selected artifact only",
+                checksum: "sha256:artifact-1"
+            }
+        ]);
+        expect(JSON.stringify(projected)).not.toContain("sourceSessionId");
     });
 
     it("projects only the current running attempt ID for local skip control", () => {
