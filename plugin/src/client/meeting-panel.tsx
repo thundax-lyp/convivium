@@ -24,10 +24,16 @@ import {
     type ProtocolSuccessV1,
     type ReassignTurnResultV1
 } from "../protocol/index.js";
+import { mapMeetingPanelView } from "./meeting-panel-view.js";
 
 const meetingsPath = "/api/convivium/meetings";
 
 class ProtocolFailure extends Error {}
+
+function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElement {
+    mapMeetingPanelView(detail);
+    return createElement("div");
+}
 
 function meetingPath(meetingId: string): string {
     return `${meetingsPath}/${encodeURIComponent(meetingId)}`;
@@ -427,6 +433,7 @@ export function ConviviumMeetingPanel(): ReactElement {
                       : createElement(
                             "div",
                             null,
+                            renderObservabilitySections(detail),
                             createElement(
                                 "p",
                                 { "data-meeting-status": detail.status },

@@ -1,6 +1,6 @@
 # RUNBOOK C：FR-11 Client 可观察性最小闭环
 
-状态：滚动执行中；T0 PASS，下一步为 T1；Author 与 Audit 结论为 `Executable`
+状态：滚动执行中；T0–T1 PASS，下一步为 T2；Author 与 Audit 结论为 `Executable`
 
 建立日期：2026-08-31
 
@@ -10,7 +10,7 @@
 
 ## 1. 执行者契约
 
-执行者必须按 `T1 → T2 → T3 → T4 → T5 → T6 → T7` 顺序执行；T0 已完成并从本文删除。不得跳步、合并步骤或在失败后继续修改。
+执行者必须按 `T2 → T3 → T4 → T5 → T6 → T7` 顺序执行；T0–T1 已完成并从本文删除。不得跳步、合并步骤或在失败后继续修改。
 
 允许修改：
 
@@ -150,29 +150,6 @@ import type {
 8. 控制可见性和 payload 不变：Pause/Resume/Skip current speaker/End；不新增 Decision/Agenda control。
 
 ## 7. 机械执行步骤
-
-### T1：建立双消费者 Client-local render mapper
-
-前置状态：T0 PASS。
-
-允许修改：`plugin/src/client/meeting-panel-view.tsx`（新增）、`plugin/src/client/meeting-panel.tsx`、`plugin/tests/client/client-entry.client.spec.ts`。
-
-禁止修改：JSX section、controls、fetch/cache callbacks、其他文件。
-
-执行：新增第 5 节唯一 mapper；`meeting-panel.tsx` 导入 mapper，并新增同文件非导出 `function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElement`，其中只调用一次 `mapMeetingPanelView(detail)`；组件在原 JSON `<pre>` 前调用该函数，T1 时函数暂只返回空 `div`，JSON `<pre>` 仍渲染原 `detail`。测试直接导入 mapper，以 active、execution-terminal、archiving fixtures 逐项验证所有映射、fallback、termination、transcript 新数组升序和输入未修改。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/client-entry.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-
-PASS：命令退出 `0`；mapper 只有组件与该测试两个 import consumer；全部映射断言通过；无 JSX/副作用/archive 读取；现有 Client 回归通过。
-
-STOP：需要第三个 consumer、类型断言、协议变化或第二种 mapping。保留 diff 并停止。
-
-恢复：无外部副作用；保留 diff。
 
 ### T2：实现 Summary 与 Current activity
 

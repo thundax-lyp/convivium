@@ -3,6 +3,8 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apply, inject, name } from "../../src/client/index.js";
 import { ConviviumMeetingPanel } from "../../src/client/meeting-panel.js";
+import { mapMeetingPanelView } from "../../src/client/meeting-panel-view.js";
+import type { MeetingStatusResultV1 } from "../../src/protocol/index.js";
 
 const meetingId = "meeting/1";
 const listItem = {
@@ -22,7 +24,7 @@ function statusResult(
     status: "running" | "paused" | "converging" = "running",
     meetingVersion = 2,
     withCurrentAttempt = false
-) {
+): MeetingStatusResultV1 {
     return {
         meetingId,
         meetingVersion,
@@ -136,6 +138,42 @@ async function selectMeeting(): Promise<void> {
 describe("client entry framework", () => {
     beforeEach(() => {
         vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "request-1") });
+    });
+
+    it("maps active and terminal projections without mutating transcript order", () => {
+        const active = statusResult("running", 2, true);
+        const activeView = mapMeetingPanelView(active);
+        expect(activeView.plannedSpeakerOrder).toBe("participant-one");
+        expect(activeView.currentSpeaker).toBe("participant-one");
+        expect(activeView.termination).toBeUndefined();
+
+        const terminal = terminalStatusResult();
+        const terminalView = mapMeetingPanelView(terminal);
+        expect(terminalView.termination?.code).toBe("completed");
+        expect(terminalView.currentSpeaker).toBe("None");
+
+        const message = {
+            id: "m1",
+            seq: 1,
+            turnId: "turn-1",
+            stepId: "step-1",
+            speaker: "participant-one",
+            agendaItemId: "agenda-1",
+            kind: "statement" as const,
+            content: "hello",
+            mentions: [],
+            taskIds: [],
+            createdAt: 1
+        };
+        const messages = [
+            { ...message, id: "m2", seq: 2 },
+            message
+        ];
+        const ordered = mapMeetingPanelView({ ...active, messages });
+        expect(ordered.messages.map((message) => message.seq)).toEqual([1, 2]);
+        expect(messages.map((message) => message.seq)).toEqual([2, 1]);
+        expect(ordered.blockingFacts).toEqual([]);
+        expect(ordered.acceptedDecisions).toEqual([]);
     });
 
     afterEach(() => {
