@@ -96,6 +96,7 @@ describe("speaker submission and turn advancement", () => {
             now,
             nextPlanningAttemptId: "planning-2",
             nextPlanningDeliveryId: "planning-delivery-2",
+            issues: [],
             questions: []
         });
         expect(result.state.version).toBe(state.version + 1);
@@ -129,6 +130,7 @@ describe("speaker submission and turn advancement", () => {
             now,
             nextPlanningAttemptId: "planning-2",
             nextPlanningDeliveryId: "planning-delivery-2",
+            issues: [],
             questions: [
                 {
                     id: "question-1",
@@ -248,6 +250,7 @@ describe("speaker submission and turn advancement", () => {
             now,
             nextPlanningAttemptId: "unused-planning-2",
             nextPlanningDeliveryId: "unused-planning-delivery-2",
+            issues: [],
             questions: []
         });
 

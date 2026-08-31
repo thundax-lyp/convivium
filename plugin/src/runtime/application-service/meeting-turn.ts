@@ -254,6 +254,17 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     blocking: claim.blocking,
                     createdAt: commandNow
                 }));
+                const issues = (input.changes.issues ?? []).map((claim, index) => ({
+                    id: `issue-${input.deliveryId}-${index + 1}`,
+                    title: claim.title,
+                    description: claim.description,
+                    affectedOutputIds: claim.affectedOutputIds,
+                    affectedCriterionIds: claim.affectedCriterionIds,
+                    violatedConstraintIds: claim.violatedConstraintIds,
+                    impact: claim.impact,
+                    urgency: claim.urgency,
+                    safeDefaultAvailable: claim.safeDefaultAvailable
+                }));
                 try {
                     const current = await stored.repository.read();
                     const committed = await stored.repository.execute({
@@ -313,6 +324,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                                     now: commandNow,
                                     nextPlanningAttemptId: `${state.id}-planning-${state.replanCount + 1}`,
                                     nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.replanCount + 1}`,
+                                    issues,
                                     questions,
                                     ...(input.completionClaims === undefined
                                         ? {}
