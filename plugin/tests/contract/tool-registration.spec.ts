@@ -29,6 +29,8 @@ describe("meeting tool registration", () => {
                 meetingTaskStatus: denied,
                 startMeetingTask: denied,
                 finishMeetingTask: denied,
+                sendMeetingMessage: denied,
+                finishMeetingMail: denied,
                 raiseHand: denied,
                 submitTurn: async (input) => {
                     submitted = input;
@@ -205,6 +207,8 @@ describe("meeting tool registration", () => {
             "convivium_create_meeting",
             "convivium_meeting_status",
             "convivium_create_meeting_task",
+            "convivium_send_message",
+            "convivium_finish_meeting_mail",
             "convivium_meeting_task_status",
             "convivium_start_meeting_task",
             "convivium_finish_meeting_task",
@@ -393,6 +397,14 @@ describe("meeting tool registration", () => {
                     calls.push(`task-finish:${caller.kind}`),
                     denied()
                 ),
+                sendMeetingMessage: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`send-message:${caller.kind}`),
+                    denied()
+                ),
+                finishMeetingMail: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`finish-mail:${caller.kind}`),
+                    denied()
+                ),
                 raiseHand: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`raise-hand:${caller.kind}`),
                     denied()
@@ -562,6 +574,33 @@ describe("meeting tool registration", () => {
                 reason: "not accepted",
                 evidenceMessageIds: ["message-1"]
             },
+            convivium_send_message: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                requestId: "request-1",
+                recipient: {
+                    kind: "meeting_participant",
+                    meetingId: "meeting-1",
+                    participantId: "participant-two"
+                },
+                content: "hello",
+                meetingContext: {
+                    meetingId: "meeting-1",
+                    contextFromSeq: 0,
+                    contextThroughSeq: 0,
+                    relevantMessageIds: []
+                }
+            },
+            convivium_finish_meeting_mail: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                mailId: "mail-1",
+                handlingAttemptId: "attempt-1",
+                deliveryId: "delivery-1",
+                requestId: "request-1",
+                status: "processed"
+            },
             convivium_end_meeting: {
                 protocolVersion: 1,
                 meetingId: "meeting-1",
@@ -588,6 +627,8 @@ describe("meeting tool registration", () => {
             "create:participant",
             "status:participant",
             "task-create:participant",
+            "send-message:participant",
+            "finish-mail:participant",
             "task-status:participant",
             "task-start:participant",
             "task-finish:participant",

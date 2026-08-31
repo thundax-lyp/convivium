@@ -12,7 +12,8 @@ import {
 import type { RepositoryAuthorizationValidator } from "../meeting-runtime.js";
 import {
     createMeetingDeliveryDispatcher,
-    createMeetingDeliveryWorkerService
+    createMeetingDeliveryWorkerService,
+    scanMeetingMailTimeouts
 } from "../services/meeting-dispatch-service.js";
 import { resolveArchiveCleanupRuntime } from "../services/meeting-session-service.js";
 import { recoverArchive } from "../services/meeting-archive-service.js";
@@ -27,6 +28,7 @@ import { createMeetingApplication } from "./create-meeting.js";
 import { createMeetingTaskApplication } from "./meeting-task.js";
 import { createMeetingControlApplication } from "./meeting-control.js";
 import { createMeetingEndApplication } from "./meeting-end.js";
+import { createMeetingMailApplication } from "./meeting-mail.js";
 import type { StoredMeeting } from "./types.js";
 import {
     meetingTaskEvidenceResolver,
@@ -62,6 +64,9 @@ import type {
     ReassignTurnResultV1,
     CaptainRiskDispositionInputV1,
     CaptainRiskDispositionResultV1,
+    FinishMeetingMailInputV1,
+    MeetingMailResultV1,
+    SendMeetingMessageInputV1,
     TurnSubmissionV1
 } from "../../protocol/index.js";
 import type { MeetingOwnershipLookup } from "../../dsh/index.js";
@@ -75,6 +80,16 @@ export interface MeetingToolCaller {
 }
 
 export interface MeetingToolRuntime {
+    sendMeetingMessage(
+        input: SendMeetingMessageInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<MeetingMailResultV1> | ProtocolErrorV1>;
+    finishMeetingMail(
+        input: FinishMeetingMailInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<MeetingMailResultV1> | ProtocolErrorV1>;
     createMeeting(
         input: CreateMeetingInputV1,
         caller: MeetingToolCaller,
@@ -222,7 +237,8 @@ export function createCreateStatusRuntime(
         now: options.now
     });
     const deliveryDispatcher = createMeetingDeliveryDispatcher({
-        continuable: options.continuable
+        continuable: options.continuable,
+        now: options.now
     });
     const runtimeController = new AbortController();
     const taskEvidenceResolver = options.taskEvidenceResolver ?? meetingTaskEvidenceResolver;
@@ -339,6 +355,15 @@ export function createCreateStatusRuntime(
                     signal: AbortSignal.any([signal, workerSignal]),
                     item
                 });
+            },
+            scan: async (now) => {
+                if (stored.parent === undefined) return;
+                await scanMeetingMailTimeouts({
+                    repository: stored.repository,
+                    parent: stored.parent,
+                    continuable: options.continuable,
+                    now
+                });
             }
         });
     }
@@ -379,6 +404,12 @@ export function createCreateStatusRuntime(
         assertLocalArchiveRecoveryAvailable,
         recoverArchiveForLocal
     });
+    const mailApplication = createMeetingMailApplication({
+        options,
+        meetings,
+        recovery,
+        deliveryWorkers
+    });
 
     async function scanExpiredSpeakerAttempts(): Promise<void> {
         await recovery.rehydrate();
@@ -390,6 +421,12 @@ export function createCreateStatusRuntime(
             try {
                 const parent = stored.parent;
                 if (parent === undefined) continue;
+                await scanMeetingMailTimeouts({
+                    repository: stored.repository,
+                    parent,
+                    continuable: options.continuable,
+                    now
+                });
                 const current = await stored.repository.read();
                 const state = current.state as unknown as MeetingState;
                 const turn = state.currentTurn;
@@ -534,6 +571,8 @@ export function createCreateStatusRuntime(
 
     return {
         createMeeting,
+        sendMeetingMessage: mailApplication.sendMeetingMessage,
+        finishMeetingMail: mailApplication.finishMeetingMail,
         getStatus: queryApplication.getStatus,
         listLocalMeetings: queryApplication.listLocalMeetings,
         getLocalMeetingStatus: queryApplication.getLocalMeetingStatus,

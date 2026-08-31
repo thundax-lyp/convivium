@@ -1034,7 +1034,7 @@ Agent 内部工具、MCP、命令重试和私有工作流不计入 Meeting Runti
 
 ### 11.1 Meeting-scoped mailbox and Mail Processor
 
-Convivium mailbox 同时支持普通 TeamMember recipient 和 meeting Participant recipient；meeting-scoped mail 通过 `MeetingMailboxAdapter` 解析精确身份：
+本插件不实现普通 TeamMember mailbox；V1 仅为 `convivium_send_message` 提供 meeting-scoped Participant recipient 模式，并通过 meeting adapter 解析精确身份：
 
 ```text
 sender meeting-owned Session
@@ -1045,7 +1045,7 @@ sender meeting-owned Session
 → enqueue MailHandlingAttempt for recipient
 ```
 
-Meeting Participant 不加入 `TeamState.members`，不复用来源 TeamMember Session，也不通过 Participant ID 冒充 TeamMember name。`MeetingMailboxAdapter` 只向 `convivium_send_message` 暴露 meeting-scoped sender/recipient 解析和投递能力，不能授予 Captain、MeetingTask 或其他 TeamMember 权限。
+Meeting Participant 不加入 `TeamState.members`，不复用来源 TeamMember Session，也不通过 Participant ID 冒充 TeamMember name。V1 的 `convivium_send_message` 仅暴露 meeting-scoped sender/recipient 解析和投递能力；普通 TeamMember mailbox 不在本插件范围，非 meeting recipient 必须 fail closed，且不能授予 Captain、MeetingTask 或其他 TeamMember 权限。
 
 Mail Processor 在接收方 Session 队列可用时创建处理 attempt：
 

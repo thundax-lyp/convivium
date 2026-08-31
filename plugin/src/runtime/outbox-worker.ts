@@ -23,6 +23,7 @@ export interface OutboxWorkerOptions {
     readonly maxAttempts?: number;
     readonly retryDelayMs?: number;
     readonly dispatch: (item: OutboxItem, signal: AbortSignal) => Promise<void>;
+    readonly beforeRun?: (now: number) => Promise<void>;
     readonly now?: () => number;
     readonly sleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
 }
@@ -81,6 +82,8 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
     let running: Promise<void> | undefined;
 
     async function runOnce(at = now()): Promise<OutboxPollResult> {
+        if (controller.signal.aborted) return { claimed: 0, delivered: 0, retried: 0, failed: 0 };
+        await options.beforeRun?.(at);
         if (controller.signal.aborted) return { claimed: 0, delivered: 0, retried: 0, failed: 0 };
         const items = await options.repository.claimOutbox({
             owner: options.owner,

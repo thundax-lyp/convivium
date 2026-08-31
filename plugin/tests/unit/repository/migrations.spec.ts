@@ -29,12 +29,17 @@ describe("session ownership migration", () => {
 
         migrate(database, "meeting-1");
 
-        expect(database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 5 });
+        expect(database.prepare("PRAGMA user_version").get()).toMatchObject({ user_version: 6 });
         expect(database.prepare("PRAGMA table_info(session_ownership)").all()).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({ name: "parent_session_id", notnull: 1 }),
                 expect.objectContaining({ name: "provider", notnull: 1 }),
                 expect.objectContaining({ name: "initial_message_id", notnull: 0 })
+            ])
+        );
+        expect(database.prepare("PRAGMA table_info(meeting_mail)").all()).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ name: "handling_attempt_id", notnull: 1 })
             ])
         );
         database.close();

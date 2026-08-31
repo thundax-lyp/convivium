@@ -259,6 +259,46 @@ export interface FollowupMeetingTaskSessionInput {
     readonly authorize: (phase: "before" | "after") => Promise<void>;
 }
 
+export interface FollowupMeetingMailSessionInput {
+    readonly runtime: ContinuableFollowupRuntime;
+    readonly parent: Agent;
+    readonly ownership: MeetingOwnershipRecord;
+    readonly participantId: string;
+    readonly prompt: ContinuableStartSpec["request"]["prompt"];
+    readonly signal: AbortSignal;
+    readonly authorize: (phase: "before" | "after") => Promise<void>;
+}
+
+export async function followupMeetingMailSession(
+    input: FollowupMeetingMailSessionInput
+): Promise<ContinuableStart["messageId"]> {
+    if (
+        String(input.parent.id) !== input.ownership.parentSessionId ||
+        input.ownership.role !== "participant" ||
+        input.ownership.participantId !== input.participantId ||
+        input.ownership.lifecycleStatus !== "active" ||
+        input.ownership.capabilityStatus !== "active"
+    ) {
+        throw new Error("Meeting mail followup requires an active owned Participant Session.");
+    }
+    await input.authorize("before");
+    const messageId = await input.runtime.followup(
+        input.parent,
+        input.ownership.sessionId as SessionId,
+        input.prompt,
+        {
+            source: {
+                kind: "coordinator",
+                form: "relay",
+                senderSessionId: input.parent.id as SessionId
+            },
+            signal: input.signal
+        }
+    );
+    await input.authorize("after");
+    return messageId;
+}
+
 export async function followupMeetingTaskSession(
     input: FollowupMeetingTaskSessionInput
 ): Promise<ContinuableStart["messageId"]> {

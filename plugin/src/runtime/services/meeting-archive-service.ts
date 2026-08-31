@@ -84,7 +84,13 @@ export interface FinalizeArchiveInput {
 }
 
 export interface RecoverArchiveInput {
-    readonly repository: Pick<MeetingRepository, "execute" | "recover" | "recordSessionOwnership">;
+    readonly repository: Pick<MeetingRepository, "execute" | "recover" | "recordSessionOwnership"> &
+        Partial<
+            Pick<
+                MeetingRepository,
+                "cancelUnfinishedPrivateMeetingMail" | "hasUnfinishedPrivateMeetingMail"
+            >
+        >;
     readonly parent?: Agent;
     readonly runtime?: ArchiveCleanupRuntime;
     readonly signal: AbortSignal;
@@ -333,6 +339,23 @@ export async function recoverArchive(input: RecoverArchiveInput): Promise<Archiv
     const recovered = await input.repository.recover();
     let state = recovered.snapshot?.state as unknown as MeetingState | undefined;
     if (state === undefined || state.status === "archived") return "unchanged";
+    if (
+        (executionTerminalStatuses.has(state.status) || state.status === "archiving") &&
+        input.repository.cancelUnfinishedPrivateMeetingMail !== undefined &&
+        input.repository.hasUnfinishedPrivateMeetingMail !== undefined &&
+        (await input.repository.hasUnfinishedPrivateMeetingMail())
+    ) {
+        const identity = terminationIdentity(state);
+        await input.repository.cancelUnfinishedPrivateMeetingMail({
+            requestId: `internal:mail-cancel:${identity}`,
+            requestHash: canonicalJson({ identity, operation: "cancel-unfinished-mail" }),
+            authorization: archiveAuthorization(identity),
+            expectedMeetingVersion: state.version,
+            now: input.now
+        });
+        state = (await input.repository.recover()).snapshot?.state as MeetingState | undefined;
+    }
+    if (state === undefined) return "unchanged";
     if (executionTerminalStatuses.has(state.status)) {
         await beginArchiveFromTermination({
             repository: input.repository,

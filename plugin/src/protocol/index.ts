@@ -5,6 +5,8 @@ export {
     HandRaiseSubmissionSchema,
     ManagerPlanSubmissionSchema,
     MeetingScopedMailSchema,
+    SendMeetingMessageInputSchema,
+    FinishMeetingMailInputSchema,
     MeetingStatusInputSchema,
     PauseMeetingInputSchema,
     ResumeMeetingInputSchema,

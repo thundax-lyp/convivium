@@ -1,6 +1,10 @@
 import Schema from "@deepseek-ai/schemastery";
 import { ProtocolVersionSchema } from "./schema.js";
-import type { CreateMeetingInputV1 } from "./types.js";
+import type {
+    CreateMeetingInputV1,
+    FinishMeetingMailInputV1,
+    SendMeetingMessageInputV1
+} from "./types.js";
 
 const string = () => Schema.string().required();
 const nonEmptyString = () => Schema.string().pattern(/\S/).required();
@@ -370,6 +374,40 @@ export const MeetingScopedMailSchema = Schema.object({
     }).required(),
     replyToMailId: Schema.string()
 });
+
+export const SendMeetingMessageInputSchema: Schema<unknown, SendMeetingMessageInputV1> =
+    Schema.object({
+        protocolVersion: ProtocolVersionSchema,
+        meetingId: string(),
+        expectedMeetingVersion: number(),
+        requestId: nonEmptyString(),
+        recipient: Schema.object({
+            kind: Schema.const("meeting_participant").required(),
+            meetingId: string(),
+            participantId: string()
+        }).required(),
+        content: nonEmptyString(),
+        meetingContext: Schema.object({
+            meetingId: string(),
+            agendaItemId: Schema.string(),
+            contextFromSeq: number(),
+            contextThroughSeq: number(),
+            relevantMessageIds: array(string()),
+            snapshotSummary: Schema.string()
+        }).required(),
+        replyToMailId: Schema.string()
+    }) as Schema<unknown, SendMeetingMessageInputV1>;
+
+export const FinishMeetingMailInputSchema: Schema<unknown, FinishMeetingMailInputV1> =
+    Schema.object({
+        protocolVersion: ProtocolVersionSchema,
+        meetingId: string(),
+        mailId: string(),
+        handlingAttemptId: string(),
+        deliveryId: string(),
+        requestId: nonEmptyString(),
+        status: enumOf(["processed", "obsolete", "failed"] as const)
+    }) as Schema<unknown, FinishMeetingMailInputV1>;
 
 export function validateCommandInput<T>(schema: Schema<T>, value: unknown): T {
     return schema(value as T);

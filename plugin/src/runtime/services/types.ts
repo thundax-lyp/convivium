@@ -12,6 +12,7 @@ export interface MeetingDeliveryWorkerService {
         readonly repository: OutboxWorkerRepository;
         readonly parent?: Agent;
         readonly dispatch: (item: OutboxItem, signal: AbortSignal) => Promise<void>;
+        readonly scan?: (now: number) => Promise<void>;
     }): void;
     wake(meetingId: string): void;
     dispose(): Promise<void>;

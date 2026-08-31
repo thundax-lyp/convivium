@@ -24,6 +24,7 @@ export {
     startParticipantSession,
     followupParticipantSession,
     followupMeetingTaskSession,
+    followupMeetingMailSession,
     followupManagerSession,
     interruptAndDrainOwnedSessions,
     inspectOwnedSessions,

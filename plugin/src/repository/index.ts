@@ -35,6 +35,7 @@ export interface OutboxInput {
     id?: string;
     deliveryId: string;
     kind: OutboxKind;
+    priority?: number;
     payload: JsonObject;
     availableAt?: number;
 }
@@ -122,6 +123,7 @@ export interface OutboxItem {
     id: string;
     deliveryId: string;
     kind: OutboxKind;
+    priority: number;
     payload: JsonObject;
     attempts: number;
     leaseOwner: string;
@@ -201,6 +203,71 @@ export interface UpdateBootstrapInput {
     now?: number;
 }
 
+export type PrivateMeetingMailStatus =
+    "pending" | "processing" | "processed" | "obsolete" | "failed" | "timed_out" | "cancelled";
+
+export interface PrivateMeetingMail {
+    mailId: string;
+    meetingId: string;
+    senderParticipantId: string;
+    recipientParticipantId: string;
+    content: string;
+    meetingContext: JsonObject;
+    replyToMailId?: string;
+    handlingAttemptId: string;
+    status: PrivateMeetingMailStatus;
+    snapshotThroughSeq: number;
+    processingThroughSeq?: number;
+    deliveryId?: string;
+    deadlineAt?: number;
+    createdAt: number;
+    updatedAt: number;
+}
+
+export interface SendPrivateMeetingMailInput {
+    requestId: string;
+    requestHash: string;
+    authorization: CommandAuthorization;
+    expectedMeetingVersion: number;
+    mail: Omit<
+        PrivateMeetingMail,
+        "status" | "processingThroughSeq" | "deliveryId" | "deadlineAt" | "updatedAt"
+    >;
+    outbox: OutboxInput;
+}
+
+export interface StartPrivateMeetingMailInput {
+    requestId: string;
+    requestHash: string;
+    authorization: CommandAuthorization;
+    expectedMeetingVersion: number;
+    mailId: string;
+    processingThroughSeq: number;
+    deliveryId: string;
+    deadlineAt: number;
+    now?: number;
+}
+
+export interface FinishPrivateMeetingMailInput {
+    requestId: string;
+    requestHash: string;
+    authorization: CommandAuthorization;
+    expectedMeetingVersion: number;
+    mailId: string;
+    handlingAttemptId: string;
+    deliveryId: string;
+    status: Extract<PrivateMeetingMailStatus, "processed" | "obsolete" | "failed" | "timed_out">;
+    now?: number;
+}
+
+export interface CancelPrivateMeetingMailInput {
+    requestId: string;
+    requestHash: string;
+    authorization: CommandAuthorization;
+    expectedMeetingVersion: number;
+    now?: number;
+}
+
 interface MeetingRow {
     team_id: string;
     meeting_id: string;
@@ -222,6 +289,7 @@ interface OutboxRow {
     id: string;
     delivery_id: string;
     kind: string;
+    priority: number;
     payload_json: string;
     attempts: number;
     lease_owner: string | null;
@@ -254,8 +322,48 @@ interface SessionOwnershipRow {
     updated_at: number;
 }
 
+interface PrivateMeetingMailRow {
+    mail_id: string;
+    meeting_id: string;
+    sender_participant_id: string;
+    recipient_participant_id: string;
+    content: string;
+    context_json: string;
+    reply_to_mail_id: string | null;
+    handling_attempt_id: string;
+    status: PrivateMeetingMailStatus;
+    snapshot_through_seq: number;
+    processing_through_seq: number | null;
+    delivery_id: string | null;
+    deadline_at: number | null;
+    created_at: number;
+    updated_at: number;
+}
+
 function json(value: JsonValue | unknown): string {
     return JSON.stringify(value);
+}
+
+function toPrivateMeetingMail(row: PrivateMeetingMailRow): PrivateMeetingMail {
+    return {
+        mailId: row.mail_id,
+        meetingId: row.meeting_id,
+        senderParticipantId: row.sender_participant_id,
+        recipientParticipantId: row.recipient_participant_id,
+        content: row.content,
+        meetingContext: parseObject(row.context_json),
+        ...(row.reply_to_mail_id === null ? {} : { replyToMailId: row.reply_to_mail_id }),
+        handlingAttemptId: row.handling_attempt_id,
+        status: row.status,
+        snapshotThroughSeq: row.snapshot_through_seq,
+        ...(row.processing_through_seq === null
+            ? {}
+            : { processingThroughSeq: row.processing_through_seq }),
+        ...(row.delivery_id === null ? {} : { deliveryId: row.delivery_id }),
+        ...(row.deadline_at === null ? {} : { deadlineAt: row.deadline_at }),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+    };
 }
 
 function parseObject(value: string): JsonObject {
@@ -759,6 +867,568 @@ export class MeetingRepository {
         }
     }
 
+    async readPrivateMeetingMail(mailId: string): Promise<PrivateMeetingMail | undefined> {
+        this.ensureOpen();
+        try {
+            const record = row<PrivateMeetingMailRow>(
+                this.db
+                    .prepare("SELECT * FROM meeting_mail WHERE meeting_id = ? AND mail_id = ?")
+                    .get(this.meetingId, mailId)
+            );
+            return record === undefined ? undefined : toPrivateMeetingMail(record);
+        } catch (error) {
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
+    async listOverduePrivateMeetingMail(now: number): Promise<PrivateMeetingMail[]> {
+        this.ensureOpen();
+        try {
+            return (
+                this.db
+                    .prepare(
+                        "SELECT * FROM meeting_mail WHERE meeting_id = ? AND status = 'processing' AND deadline_at <= ? ORDER BY deadline_at, created_at, mail_id"
+                    )
+                    .all(this.meetingId, now) as unknown as PrivateMeetingMailRow[]
+            ).map(toPrivateMeetingMail);
+        } catch (error) {
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
+    async hasUnfinishedPrivateMeetingMail(): Promise<boolean> {
+        this.ensureOpen();
+        try {
+            return (
+                row<{ present: number }>(
+                    this.db
+                        .prepare(
+                            "SELECT 1 AS present FROM meeting_mail WHERE meeting_id = ? AND status IN ('pending', 'processing') LIMIT 1"
+                        )
+                        .get(this.meetingId)
+                ) !== undefined
+            );
+        } catch (error) {
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
+    async sendPrivateMeetingMail(
+        input: SendPrivateMeetingMailInput
+    ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>> {
+        this.ensureOpen();
+        const now = input.mail.createdAt;
+        try {
+            this.db.exec("BEGIN IMMEDIATE");
+            const snapshot = this.getMeeting();
+            this.authorizationValidator.validateCommand({
+                snapshot,
+                command: { commandKind: "send_meeting_message", authorization: input.authorization }
+            });
+            const existing = row<ReceiptRow>(
+                this.db
+                    .prepare(
+                        "SELECT * FROM idempotency_receipts WHERE request_id = ? AND command_kind = ? AND caller_binding = ?"
+                    )
+                    .get(input.requestId, "send_meeting_message", input.authorization.callerBinding)
+            );
+            if (existing) {
+                if (existing.request_hash !== input.requestHash)
+                    throw new RepositoryError(
+                        "IDEMPOTENCY_CONFLICT",
+                        false,
+                        this.meetingId,
+                        "Request hash conflicts with receipt"
+                    );
+                this.db.exec("COMMIT");
+                return this.receiptResult(existing) as CommittedResult<{
+                    mailId: string;
+                    handlingAttemptId: string;
+                }>;
+            }
+            if (snapshot.version !== input.expectedMeetingVersion)
+                throw new RepositoryError(
+                    "VERSION_CONFLICT",
+                    true,
+                    this.meetingId,
+                    "Meeting version is stale"
+                );
+            const state = snapshot.state as {
+                status?: string;
+                messageSeq?: number;
+                participants?: { id: string }[];
+                transcript?: { id: string; seq: number }[];
+            };
+            const context = input.mail.meetingContext as {
+                meetingId?: unknown;
+                contextFromSeq?: unknown;
+                contextThroughSeq?: unknown;
+                relevantMessageIds?: unknown;
+            };
+            const contextFromSeq = context.contextFromSeq;
+            const contextThroughSeq = context.contextThroughSeq;
+            const relevantMessageIds = context.relevantMessageIds;
+            const recipientOwnership = row<{ session_id: string }>(
+                this.db
+                    .prepare(
+                        "SELECT session_id FROM session_ownership WHERE meeting_id = ? AND role = 'participant' AND participant_id = ? AND lifecycle_status = 'active' AND capability_status = 'active'"
+                    )
+                    .get(this.meetingId, input.mail.recipientParticipantId)
+            );
+            const invalidStatus = [
+                "paused",
+                "completed",
+                "partial",
+                "no_consensus",
+                "cancelled",
+                "failed",
+                "archiving",
+                "archived"
+            ].includes(state.status ?? "");
+            const invalidContext =
+                context.meetingId !== this.meetingId ||
+                !Number.isSafeInteger(contextFromSeq) ||
+                !Number.isSafeInteger(contextThroughSeq) ||
+                (contextFromSeq as number) < 0 ||
+                (contextFromSeq as number) > (contextThroughSeq as number) ||
+                (contextThroughSeq as number) > (state.messageSeq ?? -1) ||
+                input.mail.snapshotThroughSeq !== contextThroughSeq;
+            if (
+                invalidStatus ||
+                invalidContext ||
+                !state.participants?.some(
+                    (participant) => participant.id === input.mail.senderParticipantId
+                ) ||
+                !state.participants.some(
+                    (participant) => participant.id === input.mail.recipientParticipantId
+                ) ||
+                recipientOwnership === undefined ||
+                input.outbox.priority !== 0 ||
+                input.outbox.payload.role !== "meeting_mail" ||
+                input.outbox.payload.mailId !== input.mail.mailId ||
+                input.outbox.payload.participantId !== input.mail.recipientParticipantId
+            ) {
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Meeting mail participants, context, or delivery are invalid"
+                );
+            }
+            if (
+                !Array.isArray(relevantMessageIds) ||
+                !relevantMessageIds.every(
+                    (messageId) =>
+                        typeof messageId === "string" &&
+                        state.transcript?.some(
+                            (message) =>
+                                message.id === messageId &&
+                                message.seq >= (contextFromSeq as number) &&
+                                message.seq <= (contextThroughSeq as number)
+                        )
+                )
+            ) {
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Meeting mail references unavailable transcript content"
+                );
+            }
+            if (input.mail.replyToMailId !== undefined) {
+                const parent = row<{
+                    sender_participant_id: string;
+                    recipient_participant_id: string;
+                }>(
+                    this.db
+                        .prepare(
+                            "SELECT sender_participant_id, recipient_participant_id FROM meeting_mail WHERE meeting_id = ? AND mail_id = ?"
+                        )
+                        .get(this.meetingId, input.mail.replyToMailId)
+                );
+                const conversation = new Set([
+                    input.mail.senderParticipantId,
+                    input.mail.recipientParticipantId
+                ]);
+                if (
+                    parent === undefined ||
+                    !conversation.has(parent.sender_participant_id) ||
+                    !conversation.has(parent.recipient_participant_id) ||
+                    new Set([parent.sender_participant_id, parent.recipient_participant_id])
+                        .size !== conversation.size
+                ) {
+                    throw new RepositoryError(
+                        "INVALID_INPUT",
+                        false,
+                        this.meetingId,
+                        "Reply mail is not visible to this conversation"
+                    );
+                }
+            }
+            this.db
+                .prepare(
+                    "INSERT INTO meeting_mail(mail_id, meeting_id, sender_participant_id, recipient_participant_id, content, context_json, reply_to_mail_id, handling_attempt_id, status, snapshot_through_seq, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)"
+                )
+                .run(
+                    input.mail.mailId,
+                    this.meetingId,
+                    input.mail.senderParticipantId,
+                    input.mail.recipientParticipantId,
+                    input.mail.content,
+                    json(input.mail.meetingContext),
+                    input.mail.replyToMailId ?? null,
+                    input.mail.handlingAttemptId,
+                    input.mail.snapshotThroughSeq,
+                    now,
+                    now
+                );
+            this.insertOutbox(input.outbox, now);
+            const result = {
+                mailId: input.mail.mailId,
+                handlingAttemptId: input.mail.handlingAttemptId
+            };
+            this.insertReceipt(
+                input.requestId,
+                "send_meeting_message",
+                input.authorization.callerBinding,
+                input.requestHash,
+                result,
+                [],
+                now
+            );
+            this.db.exec("COMMIT");
+            return {
+                requestId: input.requestId,
+                meetingId: this.meetingId,
+                meetingVersion: snapshot.version,
+                result,
+                eventSeqs: []
+            };
+        } catch (error) {
+            this.rollback();
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
+    async startPrivateMeetingMail(
+        input: StartPrivateMeetingMailInput
+    ): Promise<PrivateMeetingMail> {
+        this.ensureOpen();
+        const now = input.now ?? Date.now();
+        try {
+            this.db.exec("BEGIN IMMEDIATE");
+            const snapshot = this.getMeeting();
+            this.authorizationValidator.validateCommand({
+                snapshot,
+                command: {
+                    commandKind: "start_meeting_message",
+                    authorization: input.authorization
+                }
+            });
+            const existing = row<ReceiptRow>(
+                this.db
+                    .prepare(
+                        "SELECT * FROM idempotency_receipts WHERE request_id = ? AND command_kind = ? AND caller_binding = ?"
+                    )
+                    .get(
+                        input.requestId,
+                        "start_meeting_message",
+                        input.authorization.callerBinding
+                    )
+            );
+            if (existing) {
+                if (existing.request_hash !== input.requestHash)
+                    throw new RepositoryError(
+                        "IDEMPOTENCY_CONFLICT",
+                        false,
+                        this.meetingId,
+                        "Request hash conflicts with receipt"
+                    );
+                const replay = row<PrivateMeetingMailRow>(
+                    this.db
+                        .prepare("SELECT * FROM meeting_mail WHERE meeting_id = ? AND mail_id = ?")
+                        .get(this.meetingId, input.mailId)
+                );
+                if (!replay)
+                    throw new RepositoryError(
+                        "CORRUPT_DATABASE",
+                        false,
+                        this.meetingId,
+                        "Mail receipt points to a missing mail"
+                    );
+                this.db.exec("COMMIT");
+                return toPrivateMeetingMail(replay);
+            }
+            if (snapshot.version !== input.expectedMeetingVersion)
+                throw new RepositoryError(
+                    "VERSION_CONFLICT",
+                    true,
+                    this.meetingId,
+                    "Meeting version is stale"
+                );
+            const state = snapshot.state as { status?: string; messageSeq?: number };
+            if (
+                state.status === "paused" ||
+                [
+                    "completed",
+                    "partial",
+                    "no_consensus",
+                    "cancelled",
+                    "failed",
+                    "archiving",
+                    "archived"
+                ].includes(state.status ?? "")
+            ) {
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    state.status === "paused",
+                    this.meetingId,
+                    "Meeting mail is not dispatchable"
+                );
+            }
+            if (
+                !Number.isSafeInteger(input.processingThroughSeq) ||
+                input.processingThroughSeq < 0 ||
+                input.processingThroughSeq > (state.messageSeq ?? -1) ||
+                !Number.isFinite(input.deadlineAt) ||
+                input.deadlineAt <= now
+            ) {
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Meeting mail processing bounds are invalid"
+                );
+            }
+            const updated = this.db
+                .prepare(
+                    "UPDATE meeting_mail SET status = 'processing', processing_through_seq = ?, delivery_id = ?, deadline_at = ?, updated_at = ? WHERE meeting_id = ? AND mail_id = ? AND status = 'pending'"
+                )
+                .run(
+                    input.processingThroughSeq,
+                    input.deliveryId,
+                    input.deadlineAt,
+                    now,
+                    this.meetingId,
+                    input.mailId
+                );
+            if (updated.changes !== 1)
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "Mail handling is not pending"
+                );
+            const record = row<PrivateMeetingMailRow>(
+                this.db
+                    .prepare("SELECT * FROM meeting_mail WHERE meeting_id = ? AND mail_id = ?")
+                    .get(this.meetingId, input.mailId)
+            );
+            if (!record)
+                throw new RepositoryError(
+                    "CORRUPT_DATABASE",
+                    false,
+                    this.meetingId,
+                    "Mail disappeared during processing start"
+                );
+            this.insertReceipt(
+                input.requestId,
+                "start_meeting_message",
+                input.authorization.callerBinding,
+                input.requestHash,
+                { mailId: input.mailId },
+                [],
+                now
+            );
+            this.db.exec("COMMIT");
+            return toPrivateMeetingMail(record);
+        } catch (error) {
+            this.rollback();
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
+    async finishPrivateMeetingMail(
+        input: FinishPrivateMeetingMailInput
+    ): Promise<PrivateMeetingMail> {
+        this.ensureOpen();
+        const now = input.now ?? Date.now();
+        try {
+            this.db.exec("BEGIN IMMEDIATE");
+            const snapshot = this.getMeeting();
+            this.authorizationValidator.validateCommand({
+                snapshot,
+                command: {
+                    commandKind:
+                        input.status === "timed_out"
+                            ? "timeout_meeting_message"
+                            : "finish_meeting_message",
+                    authorization: input.authorization
+                }
+            });
+            const commandKind =
+                input.status === "timed_out" ? "timeout_meeting_message" : "finish_meeting_message";
+            const existing = row<ReceiptRow>(
+                this.db
+                    .prepare(
+                        "SELECT * FROM idempotency_receipts WHERE request_id = ? AND command_kind = ? AND caller_binding = ?"
+                    )
+                    .get(input.requestId, commandKind, input.authorization.callerBinding)
+            );
+            if (existing) {
+                if (existing.request_hash !== input.requestHash)
+                    throw new RepositoryError(
+                        "IDEMPOTENCY_CONFLICT",
+                        false,
+                        this.meetingId,
+                        "Request hash conflicts with receipt"
+                    );
+                const replay = row<PrivateMeetingMailRow>(
+                    this.db
+                        .prepare("SELECT * FROM meeting_mail WHERE meeting_id = ? AND mail_id = ?")
+                        .get(this.meetingId, input.mailId)
+                );
+                if (!replay)
+                    throw new RepositoryError(
+                        "CORRUPT_DATABASE",
+                        false,
+                        this.meetingId,
+                        "Mail receipt points to a missing mail"
+                    );
+                this.db.exec("COMMIT");
+                return toPrivateMeetingMail(replay);
+            }
+            if (snapshot.version !== input.expectedMeetingVersion)
+                throw new RepositoryError(
+                    "VERSION_CONFLICT",
+                    true,
+                    this.meetingId,
+                    "Meeting version is stale"
+                );
+            const updated = this.db
+                .prepare(
+                    "UPDATE meeting_mail SET status = ?, updated_at = ? WHERE meeting_id = ? AND mail_id = ? AND handling_attempt_id = ? AND delivery_id = ? AND status = 'processing'"
+                )
+                .run(
+                    input.status,
+                    now,
+                    this.meetingId,
+                    input.mailId,
+                    input.handlingAttemptId,
+                    input.deliveryId
+                );
+            if (updated.changes !== 1)
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "Mail handling is stale or terminal"
+                );
+            const record = row<PrivateMeetingMailRow>(
+                this.db
+                    .prepare("SELECT * FROM meeting_mail WHERE meeting_id = ? AND mail_id = ?")
+                    .get(this.meetingId, input.mailId)
+            );
+            if (!record)
+                throw new RepositoryError(
+                    "CORRUPT_DATABASE",
+                    false,
+                    this.meetingId,
+                    "Mail disappeared during finish"
+                );
+            this.insertReceipt(
+                input.requestId,
+                commandKind,
+                input.authorization.callerBinding,
+                input.requestHash,
+                { mailId: input.mailId, status: input.status },
+                [],
+                now
+            );
+            this.db.exec("COMMIT");
+            return toPrivateMeetingMail(record);
+        } catch (error) {
+            this.rollback();
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
+    async cancelUnfinishedPrivateMeetingMail(
+        input: CancelPrivateMeetingMailInput
+    ): Promise<number> {
+        this.ensureOpen();
+        const now = input.now ?? Date.now();
+        try {
+            this.db.exec("BEGIN IMMEDIATE");
+            const snapshot = this.getMeeting();
+            this.authorizationValidator.validateCommand({
+                snapshot,
+                command: {
+                    commandKind: "cancel_unfinished_meeting_message",
+                    authorization: input.authorization
+                }
+            });
+            const existing = row<ReceiptRow>(
+                this.db
+                    .prepare(
+                        "SELECT * FROM idempotency_receipts WHERE request_id = ? AND command_kind = ? AND caller_binding = ?"
+                    )
+                    .get(
+                        input.requestId,
+                        "cancel_unfinished_meeting_message",
+                        input.authorization.callerBinding
+                    )
+            );
+            if (existing) {
+                if (existing.request_hash !== input.requestHash)
+                    throw new RepositoryError(
+                        "IDEMPOTENCY_CONFLICT",
+                        false,
+                        this.meetingId,
+                        "Request hash conflicts with receipt"
+                    );
+                this.db.exec("COMMIT");
+                return Number(
+                    (this.receiptResult(existing).result as { cancelled: number }).cancelled
+                );
+            }
+            if (snapshot.version !== input.expectedMeetingVersion)
+                throw new RepositoryError(
+                    "VERSION_CONFLICT",
+                    true,
+                    this.meetingId,
+                    "Meeting version is stale"
+                );
+            const result = this.db
+                .prepare(
+                    "UPDATE meeting_mail SET status = 'cancelled', updated_at = ? WHERE meeting_id = ? AND status IN ('pending', 'processing')"
+                )
+                .run(now, this.meetingId);
+            const cancelled = Number(result.changes);
+            this.insertReceipt(
+                input.requestId,
+                "cancel_unfinished_meeting_message",
+                input.authorization.callerBinding,
+                input.requestHash,
+                { cancelled },
+                [],
+                now
+            );
+            this.db.exec("COMMIT");
+            return cancelled;
+        } catch (error) {
+            this.rollback();
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
     async updateBootstrap(input: UpdateBootstrapInput): Promise<MeetingBootstrap> {
         this.ensureOpen();
         const now = input.now ?? Date.now();
@@ -1020,9 +1690,15 @@ export class MeetingRepository {
             const batchSize = Math.max(1, Math.floor(input.batchSize));
             const rows = this.db
                 .prepare(
-                    `SELECT * FROM outbox WHERE (status = 'pending' AND available_at <= ?) OR (status = 'leased' AND lease_deadline <= ?) ORDER BY available_at, created_at LIMIT ${batchSize}`
+                    `SELECT * FROM outbox
+                     WHERE ((status = 'pending' AND available_at <= ?) OR (status = 'leased' AND lease_deadline <= ?))
+                       AND (
+                         json_extract((SELECT state_json FROM meetings WHERE meeting_id = ?), '$.status') <> 'paused'
+                         OR json_extract(payload_json, '$.role') = 'meeting_task'
+                       )
+                     ORDER BY priority DESC, available_at, created_at, id LIMIT ${batchSize}`
                 )
-                .all(now, now) as unknown as OutboxRow[];
+                .all(now, now, this.meetingId) as unknown as OutboxRow[];
             const items = rows.map((item) => {
                 assertOutboxKind(item.kind, this.meetingId);
                 const token = randomUUID();
@@ -1035,6 +1711,7 @@ export class MeetingRepository {
                     id: item.id,
                     deliveryId: item.delivery_id,
                     kind: item.kind,
+                    priority: item.priority,
                     payload: parseObject(item.payload_json),
                     attempts: item.attempts + 1,
                     leaseOwner: input.owner,
@@ -1175,13 +1852,14 @@ export class MeetingRepository {
         assertOutboxKind(item.kind, this.meetingId);
         this.db
             .prepare(
-                "INSERT INTO outbox(id, meeting_id, delivery_id, kind, payload_json, status, attempts, available_at, created_at) VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, ?)"
+                "INSERT INTO outbox(id, meeting_id, delivery_id, kind, priority, payload_json, status, attempts, available_at, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)"
             )
             .run(
                 item.id ?? randomUUID(),
                 this.meetingId,
                 item.deliveryId,
                 item.kind,
+                item.priority ?? 50,
                 json(item.payload),
                 item.availableAt ?? createdAt,
                 createdAt
