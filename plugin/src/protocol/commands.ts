@@ -234,6 +234,16 @@ const decisionProposalClaim = Schema.object({
     rationale: string()
 });
 
+export const CaptainDecisionAcceptanceInputSchema = Schema.object({
+    protocolVersion: Schema.const(1).required(),
+    meetingId: nonEmptyString(),
+    expectedMeetingVersion: number(),
+    requestId: nonEmptyString(),
+    decisionCandidateId: nonEmptyString(),
+    reason: nonEmptyString(),
+    evidenceMessageIds: array(string())
+});
+
 const agendaCandidateClaim = Schema.object({
     title: string(),
     reason: string(),

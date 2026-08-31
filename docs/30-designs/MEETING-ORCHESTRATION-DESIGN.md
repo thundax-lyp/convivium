@@ -1185,13 +1185,9 @@ Follow-up、Parking Lot、授权 accepted risk 和非阻塞少数意见不阻止
 
 #### Decision acceptance
 
-Participant 只能对指定 `proposalId + proposalRevision` 提交自己的 Position，以及提交 `DecisionProposalInput` 建议 Runtime 固化决策。Runtime MUST 从 DSH caller Session 绑定 `participant`，不得接受调用方提供的其他身份。
+`DecisionProposalClaimV1` is persisted during the same `convivium_submit_turn` transaction as its source message as an internal `MeetingDecisionCandidate`; it is not a pending `MeetingDecision` and is not projected publicly. Candidate IDs are runtime-generated as `decision-candidate-${deliveryId}-${index + 1}`. Captain acceptance is a separate `convivium_accept_decision` command. The command creates `decision-${decisionCandidateId}`, `status='accepted'`, the proposal acceptance, a `decision_acceptance` CompletionFact, one `decision.accepted` event, receipt, and no outbox effect in one SQLite transaction. It requires a current-revision support/accept Position, no blocking object/needs_revision Position, and Meeting-owned evidence. It does not accept risk, end the Meeting, reject/revoke/supersede candidates, or expose candidates in status/archive.
 
-正式 `MeetingDecision` 只能由 Runtime 通过以下一种方式生成：
-
-1. `deterministic_consensus`：required reviewers 已完成 review，所有必须表态者均已有当前 revision 的有效 Position，且不存在 blocking `object` 或 `needs_revision`；
-2. `captain_acceptance`：Captain 通过 `convivium_end_meeting` 或专用接受操作明确接受指定 proposal revision；
-3. `authorized_risk_acceptance`：剩余分歧全部属于可接受风险，并且真实 caller 位于 `riskAcceptanceAuthority`，其权限只覆盖被引用的风险，不得顺带接受无关决策。
+Participant 只能对指定 `proposalId + proposalRevision` 提交自己的 Position，以及提交 `DecisionProposalClaimV1` 建议 Runtime 固化内部 candidate。Runtime MUST 从 DSH caller Session 绑定 `participant`，不得接受调用方提供的其他身份。当前 V1 竖切中，正式 `MeetingDecision` 只能由 Captain 通过独立 `convivium_accept_decision` 对指定 candidate 生成；deterministic consensus、`convivium_end_meeting` acceptance 和 authorized risk acceptance 不在本竖切内。
 
 Runtime MUST 派生而不是信任输入中的以下字段：
 

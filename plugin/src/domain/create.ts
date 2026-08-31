@@ -266,6 +266,7 @@ export function createMeetingState(
         agendaCandidates: [],
         transcript: [],
         proposals: [],
+        decisionCandidates: [],
         decisions: [],
         openQuestions: [],
         handRaises: [],
