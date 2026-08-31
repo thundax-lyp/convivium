@@ -3,6 +3,7 @@ import {
     planRoundRobinTurn,
     reassignTurn as reassignTurnTransition,
     applyCompletionClaims,
+    judgeTurnCompletion,
     transitionMeeting,
     type MeetingState
 } from "../../domain/index.js";
@@ -233,17 +234,46 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                             factId: (_kind, index) => `completion-${input.requestId}-risk-${index}`,
                             claims: { riskAcceptance: input }
                         });
-                        const fact = transition.state.completionFacts.at(-1)!;
+                        const judgment = judgeTurnCompletion(
+                            transition.state,
+                            options.now?.() ?? Date.now()
+                        );
+                        const nextState =
+                            judgment.kind === "completed"
+                                ? {
+                                      ...transition.state,
+                                      status: "converging" as const,
+                                      currentTurn: undefined,
+                                      waitState: undefined
+                                  }
+                                : transition.state;
+                        const events =
+                            judgment.kind === "completed"
+                                ? [
+                                      ...transition.effect.events,
+                                      {
+                                          type: "meeting.replanned" as const,
+                                          payload: {
+                                              meetingId: state.id,
+                                              from: state.status,
+                                              to: "converging",
+                                              meetingVersion: state.version,
+                                              reason: judgment.reason
+                                          }
+                                      }
+                                  ]
+                                : transition.effect.events;
+                        const fact = nextState.completionFacts.at(-1)!;
                         return {
-                            state: transition.state as unknown as JsonObject,
+                            state: nextState as unknown as JsonObject,
                             result: {
                                 requestId: input.requestId,
                                 issueId: input.issueId,
                                 disposition: input.decision === "accept" ? "accepted" : "rejected",
                                 completionFactId: fact.id,
-                                meetingStatus: transition.state.status
+                                meetingStatus: nextState.status
                             } satisfies CaptainRiskDispositionResultV1,
-                            events: transition.effect.events as unknown as DomainEventInput[],
+                            events: events as unknown as DomainEventInput[],
                             outbox: []
                         };
                     }
