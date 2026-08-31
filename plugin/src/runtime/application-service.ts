@@ -167,6 +167,7 @@ export interface CreateStatusRuntimeOptions {
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly maxParticipants?: number;
     readonly outboxPollMs?: number;
+    readonly speakerAttemptTimeoutMs?: number;
     readonly signal?: AbortSignal;
     readonly now?: () => number;
     readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
@@ -911,6 +912,7 @@ export function createCreateStatusRuntime(
                 allocateSessionId: (role, key) => `${meetingId}-${role}-${key}` as never,
                 signal: commandSignal ?? signal,
                 now: options.now,
+                speakerAttemptTimeoutMs: options.speakerAttemptTimeoutMs,
                 cleanup: async (created) => {
                     const recovered = await repository.recover();
                     const owned = recovered.sessionOwnership.filter((candidate) =>
@@ -2413,6 +2415,9 @@ function assignAttempt(
         contextThroughSeq: state.messageSeq,
         taskSnapshots: completedTaskSnapshots(state, step.speaker, now),
         assignedAt: now,
+        ...(state.limits.speakerAttemptTimeoutMs === undefined
+            ? {}
+            : { deadlineAt: now + state.limits.speakerAttemptTimeoutMs }),
         startedAt: now,
         status: "running" as const,
         deliveryStatus: "accepted" as const

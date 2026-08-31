@@ -51,6 +51,7 @@ export interface MeetingCreationRuntimeDependencies {
     readonly allocateSessionId: (role: "manager" | "participant", key: string) => SessionId;
     readonly cleanup?: (ownerships: readonly { sessionId: SessionId }[]) => Promise<void>;
     readonly promptVersion?: string;
+    readonly speakerAttemptTimeoutMs?: number;
     readonly signal: AbortSignal;
     readonly now?: () => number;
 }
@@ -66,9 +67,10 @@ const defaultLimits: MeetingLimits = {
     maxReplans: 1
 };
 
-function limits(input: CreateMeetingInputV1): MeetingLimits {
+function limits(input: CreateMeetingInputV1, speakerAttemptTimeoutMs?: number): MeetingLimits {
     return {
         ...defaultLimits,
+        ...(speakerAttemptTimeoutMs === undefined ? {} : { speakerAttemptTimeoutMs }),
         ...(input.limits ?? {})
     };
 }
@@ -128,7 +130,7 @@ export async function createMeetingRuntime(
             })),
             continuation: input.continuation,
             selectionMode: input.selectionMode,
-            limits: limits(input),
+            limits: limits(input, dependencies.speakerAttemptTimeoutMs),
             createdAt: now
         },
         allocator
