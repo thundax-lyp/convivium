@@ -736,6 +736,9 @@ interface QuestionClaimV1 {
   text: string;
   directedTo?: string;
   blocking: boolean;
+  affectedOutputIds?: readonly string[];
+  affectedCriterionIds?: readonly string[];
+  violatedConstraintIds?: readonly string[];
 }
 
 interface ProposalClaimV1 {
@@ -782,9 +785,9 @@ interface AgendaCandidateClaimV1 {
 
 上述对象均为 claim。Meeting Runtime 生成正式 ID，绑定真实 caller，并验证 Meeting、agenda、proposal revision、blocking evidence 和授权。
 
-V1 `QuestionClaimV1` 尚未提供必要产出、验收条件、硬约束、必需审核或未接受高风险等阻塞依据字段，因此当前只接受 `blocking: false`。`blocking: true` 返回非重试的 `UNSUPPORTED_CAPABILITY`，且整个 turn 不产生 message、Question、event、receipt、version 或 outbox 副作用。
+`affectedOutputIds`、`affectedCriterionIds` 与 `violatedConstraintIds` 是 Question evidence claim；缺失值规范化为 `[]`。非 blocking Question 可以不引用 evidence，但如提供，每个 ID 都必须属于当前 Meeting objective contract。blocking Question 三组引用合并后必须至少有一个，全部必须属于 contract，且至少一个引用仍未满足：required output 未 `accepted`、criterion 为 `satisfied: false`，或引用 hard constraint。空、未知或仅指向已满足 output/criterion 的 blocking claim 返回非重试 `INVALID_ARGUMENT`；整个 turn 不产生 message、Question、event、receipt、version 或 outbox 副作用。required-review 与 risk evidence 不属于 V1 Question claim。
 
-Question resolution 只能绑定当前 Meeting 中由 caller authored 的正式 answer message；成功后固化 `answerMessageId`，不得被另一答案覆盖。非法 Question claim 或 resolution 的内部 `INVALID_ENTITY_STATE` 统一公开为非重试的 `INVALID_ARGUMENT`，不得泄露内部错误码。
+Question resolution 只能绑定当前 Meeting 中由 caller authored 的正式 answer message；成功后固化 `answerMessageId`，不得被另一答案覆盖，也不得改写 Question evidence。非法 Question claim 或 resolution 公开为非重试的 `INVALID_ARGUMENT`，不得泄露内部错误码。
 
 Participant 的 Position 不得携带其他 Participant 的有效身份。正式 Decision 的 `status`、`acceptedBy`、`dissentingPositionIds` 和接受方式不得由 Participant 输入。
 

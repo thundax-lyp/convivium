@@ -1,4 +1,5 @@
 export type DomainErrorCode =
+    | "INVALID_ARGUMENT"
     | "INVALID_STATE_TRANSITION"
     | "MISSING_TERMINATION"
     | "MISSING_ARCHIVE"

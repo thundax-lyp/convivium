@@ -690,7 +690,7 @@ pending → running | revoked | failed
 running → submitted | revoked | failed
 ```
 
-结束状态不可再次转换。超时转换为 `revoked` 并记录 timeout reason。重试必须创建新 attempt，不能复活旧 capability。
+结束状态不可再次转换。Captain 主动撤销、改派或 deadline timeout 都转换为 `revoked`；timeout 的 Attempt/Step event payload 必须记录 `reason='timeout'`。上述转换都使旧 capability 失效，后续调度必须创建新 attempt，不能复活旧 capability。
 
 非法转换返回：
 
@@ -1404,6 +1404,7 @@ agenda has discussion ≠ agenda resolved
 - Captain 的自然语言回答、总结或建议不产生风险处置事实；只有合法的 `CaptainRiskDispositionInputV1` command commit 才能生效；
 - Captain risk disposition 只影响输入中唯一的 `issueId`；`accept` 生成 accepted-risk fact，`reject` 生成拒绝接受的 disposition fact 并保持该风险按原 blocking 规则处理，二者都不得顺带接受其他风险或 Decision；
 - question resolution 必须引用当前 Meeting 中由该 answer attempt 产生的正式 message；
+- `QuestionClaimV1` 的 output/criterion/constraint evidence 由 `addSubmittedQuestions` 在 `submitSpeakerAttempt` 成功后的同一 repository transition 验证；blocking claim 必须有至少一个仍未满足的 objective reference，失败为 `INVALID_ARGUMENT` 并回滚本次 turn 的所有候选事实；
 - `submitSpeakerAndAdvanceMeeting` 固定按 `submitSpeakerAttempt`、`addSubmittedQuestions`、requested MeetingTask omission check、`applyCompletionClaims`、`queueMeetingTasks`、既有 completion judge 和下一轮 planning 的顺序执行；
 - open non-blocking question 不参与 objective 阻塞；question resolution 由 active CompletionFact 驱动并固化 `answerMessageId`；
 - output 和 criterion claim 必须引用当前 Meeting 的 message 或已固化 MeetingTask snapshot；

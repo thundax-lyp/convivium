@@ -16,6 +16,9 @@ describe("addSubmittedQuestions", () => {
                 askedBy: "participant-1",
                 agendaItemId: "agenda-1",
                 blocking: false,
+                affectedOutputIds: [],
+                affectedCriterionIds: [],
+                violatedConstraintIds: [],
                 status: "open",
                 createdAt: now
             }
@@ -70,12 +73,54 @@ describe("addSubmittedQuestions", () => {
         ).toThrow();
     });
 
-    it("rejects blocking questions", () => {
+    it.each([
+        ["unaccepted output", { affectedOutputIds: ["output-1"] }],
+        ["unsatisfied criterion", { affectedCriterionIds: ["criterion-1"] }],
+        ["hard constraint", { violatedConstraintIds: ["constraint-1"] }]
+    ])("creates a blocking question for %s evidence", (_name, evidence) => {
+        const state = questionState();
+        state.objectiveContract.requiredOutputs = [
+            { id: "output-1", description: "Output", status: "ready" }
+        ];
+        state.objectiveContract.acceptanceCriteria = [
+            { id: "criterion-1", description: "Criterion", satisfied: false }
+        ];
+        state.objectiveContract.hardConstraints = [
+            { id: "constraint-1", description: "Constraint" }
+        ];
+
+        const result = addSubmittedQuestions(state, "participant-1", "agenda-1", [
+            { id: "question-1", text: "Question", blocking: true, createdAt: now, ...evidence }
+        ]);
+
+        expect(result.state.openQuestions[0]).toMatchObject({
+            blocking: true,
+            affectedOutputIds: evidence.affectedOutputIds ?? [],
+            affectedCriterionIds: evidence.affectedCriterionIds ?? [],
+            violatedConstraintIds: evidence.violatedConstraintIds ?? []
+        });
+    });
+
+    it.each([
+        ["empty", {}],
+        ["unknown", { affectedOutputIds: ["unknown"] }],
+        ["accepted output only", { affectedOutputIds: ["output-1"] }],
+        ["satisfied criterion only", { affectedCriterionIds: ["criterion-1"] }]
+    ])("rejects blocking question with %s evidence", (_name, evidence) => {
+        const state = questionState();
+        state.objectiveContract.requiredOutputs = [
+            { id: "output-1", description: "Output", status: "accepted" }
+        ];
+        state.objectiveContract.acceptanceCriteria = [
+            { id: "criterion-1", description: "Criterion", satisfied: true }
+        ];
+
         expect(() =>
-            addSubmittedQuestions(questionState(), "participant-1", "agenda-1", [
-                { id: "question-1", text: "Question", blocking: true, createdAt: now }
+            addSubmittedQuestions(state, "participant-1", "agenda-1", [
+                { id: "question-1", text: "Question", blocking: true, createdAt: now, ...evidence }
             ])
-        ).toThrowError(expect.objectContaining({ code: "UNSUPPORTED_CAPABILITY" }));
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ARGUMENT" }));
+        expect(state.openQuestions).toEqual([]);
     });
 
     it("validates all questions before writing any", () => {
@@ -86,6 +131,32 @@ describe("addSubmittedQuestions", () => {
                 { id: "question-2", text: "   ", blocking: false, createdAt: now }
             ])
         ).toThrow();
+        expect(state.openQuestions).toEqual([]);
+    });
+
+    it("atomically rejects a mixed batch with invalid evidence", () => {
+        const state = questionState();
+        state.objectiveContract.requiredOutputs = [
+            { id: "output-1", description: "Output", status: "pending" }
+        ];
+        expect(() =>
+            addSubmittedQuestions(state, "participant-1", "agenda-1", [
+                {
+                    id: "question-1",
+                    text: "Valid",
+                    blocking: true,
+                    affectedOutputIds: ["output-1"],
+                    createdAt: now
+                },
+                {
+                    id: "question-2",
+                    text: "Invalid",
+                    blocking: false,
+                    affectedCriterionIds: ["unknown"],
+                    createdAt: now
+                }
+            ])
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ARGUMENT" }));
         expect(state.openQuestions).toEqual([]);
     });
 });

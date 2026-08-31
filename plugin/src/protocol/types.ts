@@ -328,6 +328,9 @@ export interface PublicQuestionV1 {
     directedTo?: string;
     agendaItemId?: string;
     blocking?: boolean;
+    affectedOutputIds?: readonly string[];
+    affectedCriterionIds?: readonly string[];
+    violatedConstraintIds?: readonly string[];
     status: "open" | "answered" | "withdrawn" | "deferred";
     answerMessageId?: string;
 }
@@ -500,6 +503,9 @@ export interface QuestionClaimV1 {
     text: string;
     directedTo?: string;
     blocking: boolean;
+    affectedOutputIds?: readonly string[];
+    affectedCriterionIds?: readonly string[];
+    violatedConstraintIds?: readonly string[];
 }
 
 export interface ProposalClaimV1 {

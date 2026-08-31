@@ -1,11 +1,7 @@
 import { judgeTurnCompletion } from "../completion.js";
-import {
-    completedTaskSnapshots,
-    consumeHandRaise,
-    participantHasActiveMeetingTask
-} from "../hand-raise.js";
+import { completedTaskSnapshots, consumeHandRaise } from "../hand-raise.js";
 import { cancelNonTerminalMeetingTasks } from "../meeting-task.js";
-import { planRoundRobinTurn } from "../planning.js";
+import { isParticipantDispatchableNow, planRoundRobinTurn } from "../planning.js";
 import type {
     MeetingState,
     MeetingTurn,
@@ -238,12 +234,8 @@ export function advanceAfterSpeakerSubmission(
         return result();
     }
 
-    const dispatchableParticipants = nextState.participants.filter(
-        (participant) =>
-            participant.status === "available" &&
-            participant.consecutiveAttemptFailures <
-                nextState.limits.maxConsecutiveAttemptFailuresPerParticipant &&
-            !participantHasActiveMeetingTask(nextState, participant.id)
+    const dispatchableParticipants = nextState.participants.filter((participant) =>
+        isParticipantDispatchableNow(nextState, participant)
     );
     if (dispatchableParticipants.length === 0) {
         const cancelled = cancelNonTerminalMeetingTasks(nextState, context.now);
@@ -280,6 +272,42 @@ export function advanceAfterSpeakerSubmission(
                     to: "failed",
                     meetingVersion: version,
                     reason: "all_participants_unavailable"
+                }
+            }
+        ];
+        return result();
+    }
+
+    const dispatchableParticipantIds = new Set(
+        dispatchableParticipants.map((participant) => participant.id)
+    );
+    const activeAgenda = nextState.agenda.find(
+        (agenda) => agenda.id === nextState.activeAgendaItemId
+    );
+    const unavailableRequiredParticipant = activeAgenda?.requiredParticipants.find(
+        (participantId) => !dispatchableParticipantIds.has(participantId)
+    );
+    if (unavailableRequiredParticipant !== undefined) {
+        nextState = {
+            ...nextState,
+            status: "running",
+            waitState: undefined,
+            manager: {
+                ...nextState.manager,
+                status: "idle",
+                currentPlanningAttempt: undefined
+            }
+        };
+        events = [
+            ...events,
+            {
+                type: "manager_plan.failed",
+                payload: {
+                    meetingId: state.id,
+                    participantId: unavailableRequiredParticipant,
+                    code: "REQUIRED_SPEAKER_UNAVAILABLE",
+                    reason: `required Participant ${unavailableRequiredParticipant} is unavailable`,
+                    meetingVersion: version
                 }
             }
         ];

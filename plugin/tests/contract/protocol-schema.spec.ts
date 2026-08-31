@@ -371,6 +371,36 @@ describe("protocol envelope schemas", () => {
         expect(() => TurnSubmissionSchema(input)).toThrow();
     });
 
+    it("accepts a legacy non-blocking question claim without evidence arrays", () => {
+        const normalized = TurnSubmissionSchema({
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            turnId: "turn-1",
+            stepId: "step-1",
+            attemptId: "attempt-1",
+            deliveryId: "delivery-1",
+            agendaItemId: "agenda-1",
+            kind: "question",
+            content: "Question",
+            mentions: [],
+            taskIds: [],
+            agendaRelation: "on_topic",
+            changes: {
+                questions: [{ text: "What remains?", blocking: false }],
+                proposals: [],
+                positions: [],
+                issues: [],
+                decisionProposals: [],
+                agendaCandidates: []
+            }
+        });
+        expect(normalized.changes.questions?.[0]).toMatchObject({
+            affectedOutputIds: [],
+            affectedCriterionIds: [],
+            violatedConstraintIds: []
+        });
+    });
+
     it("accepts a valid create-meeting payload", () => {
         expect(
             CreateMeetingInputSchema({

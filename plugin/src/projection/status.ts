@@ -60,6 +60,15 @@ function question(value: MeetingState["openQuestions"][number]): PublicQuestionV
         ...(value.directedTo === undefined ? {} : { directedTo: value.directedTo }),
         ...(value.agendaItemId === undefined ? {} : { agendaItemId: value.agendaItemId }),
         ...(value.blocking === undefined ? {} : { blocking: value.blocking }),
+        ...(value.affectedOutputIds === undefined
+            ? {}
+            : { affectedOutputIds: value.affectedOutputIds }),
+        ...(value.affectedCriterionIds === undefined
+            ? {}
+            : { affectedCriterionIds: value.affectedCriterionIds }),
+        ...(value.violatedConstraintIds === undefined
+            ? {}
+            : { violatedConstraintIds: value.violatedConstraintIds }),
         status: value.status,
         ...(value.answerMessageId === undefined ? {} : { answerMessageId: value.answerMessageId })
     };

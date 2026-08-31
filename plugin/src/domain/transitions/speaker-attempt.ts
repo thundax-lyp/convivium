@@ -1,4 +1,5 @@
 import { DomainError } from "../errors.js";
+import { cancelRequestedMeetingTasksForAttempts } from "../meeting-task.js";
 import type { MeetingState, SpeakerSubmissionContext, TransitionResult } from "../model.js";
 import { transitionAttempt, transitionStep } from "./kernel.js";
 import { executionTerminalStatuses } from "./termination.js";
@@ -135,6 +136,7 @@ export function submitSpeakerAttempt(
                               attempt.contextThroughSeq
                           ),
                           totalSpeeches: candidate.totalSpeeches + 1,
+                          consecutiveAttemptFailures: 0,
                           status: "available" as const
                       }
                     : candidate
@@ -196,21 +198,31 @@ export function failSpeakerAttempt(
             meetingVersion: state.version
         });
     }
-    const failedAttempt = transitionAttempt(attempt, "failed", state.version, context);
-    const failedStep = transitionStep(
-        { ...step, attempt: { ...failedAttempt.state, completedAt: context.now } },
-        "failed",
-        state.version
+    const revokedAttempt = transitionAttempt(attempt, "revoked", state.version, {
+        ...context,
+        reason: "timeout"
+    });
+    const revokedStep = transitionStep(
+        { ...step, attempt: { ...revokedAttempt.state, completedAt: context.now } },
+        "revoked",
+        state.version,
+        "timeout"
+    );
+    const cancelled = cancelRequestedMeetingTasksForAttempts(
+        state,
+        [attempt.attemptId],
+        context.now
     );
     const steps = turn.steps.map((candidate, index) =>
-        index === turn.currentStepIndex ? failedStep.state : candidate
+        index === turn.currentStepIndex ? revokedStep.state : candidate
     );
     const completed = steps.every(({ status }) =>
         ["submitted", "skipped", "revoked", "failed"].includes(status)
     );
     const events = [
-        ...failedAttempt.effect.events,
-        ...failedStep.effect.events,
+        ...revokedAttempt.effect.events,
+        ...revokedStep.effect.events,
+        ...cancelled.effect.events,
         ...(completed
             ? [
                   {
@@ -230,9 +242,9 @@ export function failSpeakerAttempt(
               ]
             : [])
     ];
-    const failed: TransitionResult<MeetingState> = {
+    const revoked: TransitionResult<MeetingState> = {
         state: {
-            ...state,
+            ...cancelled.state,
             status: completed ? "waiting" : state.status,
             version: state.version + 1,
             updatedAt: context.now,
@@ -265,5 +277,5 @@ export function failSpeakerAttempt(
         },
         effect: { events }
     };
-    return advanceAfterSpeakerSubmission(state, participant.id, context, failed);
+    return advanceAfterSpeakerSubmission(state, participant.id, context, revoked);
 }

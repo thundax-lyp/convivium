@@ -183,18 +183,18 @@ export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
         scanExpiredSpeakerAttempts(): Promise<void>;
     } & LocalMeetingWebRuntime & { dispose(): Promise<void> };
 
-function defaultTimeoutScanSleep(delayMs: number, signal: AbortSignal): Promise<void> {
+export function defaultTimeoutScanSleep(delayMs: number, signal: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
         if (signal.aborted) return reject(signal.reason);
-        const timer = setTimeout(resolve, delayMs);
-        signal.addEventListener(
-            "abort",
-            () => {
-                clearTimeout(timer);
-                reject(signal.reason);
-            },
-            { once: true }
-        );
+        const onAbort = () => {
+            clearTimeout(timer);
+            reject(signal.reason);
+        };
+        const timer = setTimeout(() => {
+            signal.removeEventListener("abort", onAbort);
+            resolve();
+        }, delayMs);
+        signal.addEventListener("abort", onAbort, { once: true });
     });
 }
 
@@ -225,6 +225,20 @@ export function createCreateStatusRuntime(
             : AbortSignal.any([options.signal, runtimeController.signal]);
     const timeoutController = new AbortController();
     const timeoutSignal = AbortSignal.any([signal, timeoutController.signal]);
+    const timeoutDispatchHolds = new Map<string, Promise<void>>();
+    const holdTimeoutDispatch = (meetingId: string): (() => void) => {
+        let release!: () => void;
+        const hold = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        timeoutDispatchHolds.set(meetingId, hold);
+        return () => {
+            if (timeoutDispatchHolds.get(meetingId) === hold) {
+                timeoutDispatchHolds.delete(meetingId);
+            }
+            release();
+        };
+    };
     const repositoryRecovery = createMeetingRehydrationService({
         dataRoot: options.dataRoot,
         authorizationValidator: options.authorizationValidator,
@@ -287,14 +301,16 @@ export function createCreateStatusRuntime(
             meetingId,
             repository: stored.repository,
             parent: stored.parent,
-            dispatch: (item, workerSignal) =>
-                deliveryDispatcher.dispatch({
+            dispatch: async (item, workerSignal) => {
+                await timeoutDispatchHolds.get(meetingId);
+                return deliveryDispatcher.dispatch({
                     repository: stored.repository,
                     parent: stored.parent!,
                     meetingId,
                     signal: AbortSignal.any([signal, workerSignal]),
                     item
-                })
+                });
+            }
         });
     }
 
@@ -336,25 +352,29 @@ export function createCreateStatusRuntime(
     async function scanExpiredSpeakerAttempts(): Promise<void> {
         await recovery.rehydrate();
         const now = options.now?.() ?? Date.now();
+        let firstError: unknown;
         for (const stored of meetings.values()) {
-            const parent = stored.parent;
-            if (parent === undefined) continue;
-            const current = await stored.repository.read();
-            const state = current.state as unknown as MeetingState;
-            const turn = state.currentTurn;
-            const step = turn?.steps[turn.currentStepIndex];
-            const attempt = step?.attempt;
-            if (
-                state.status !== "running" ||
-                turn?.status !== "running" ||
-                step?.status !== "running" ||
-                attempt?.status !== "running" ||
-                attempt.deadlineAt === undefined ||
-                attempt.deadlineAt > now
-            ) {
-                continue;
-            }
+            let releaseDispatch: (() => void) | undefined;
+            let committed = false;
             try {
+                const parent = stored.parent;
+                if (parent === undefined) continue;
+                const current = await stored.repository.read();
+                const state = current.state as unknown as MeetingState;
+                const turn = state.currentTurn;
+                const step = turn?.steps[turn.currentStepIndex];
+                const attempt = step?.attempt;
+                if (
+                    state.status !== "running" ||
+                    turn?.status !== "running" ||
+                    step?.status !== "running" ||
+                    attempt?.status !== "running" ||
+                    attempt.deadlineAt === undefined ||
+                    attempt.deadlineAt > now
+                ) {
+                    continue;
+                }
+                releaseDispatch = holdTimeoutDispatch(stored.repository.meetingId);
                 await stored.repository.execute({
                     requestId: `runtime-timeout:${attempt.attemptId}`,
                     commandKind: "expire_speaker_attempt",
@@ -385,30 +405,41 @@ export function createCreateStatusRuntime(
                             transition.state.currentTurn?.steps[
                                 transition.state.currentTurn.currentStepIndex
                             ]?.attempt;
+                        const nextPlanningAttempt = transition.state.manager.currentPlanningAttempt;
                         return {
                             state: transition.state as unknown as JsonObject,
                             result: { expiredAttemptId: attempt.attemptId },
                             events: transition.effect.events as unknown as DomainEventInput[],
-                            outbox:
-                                nextAttempt === undefined
-                                    ? []
-                                    : [
-                                          {
-                                              deliveryId: nextAttempt.deliveryId,
-                                              kind: "dispatch" as const,
-                                              payload: {
-                                                  role: "participant",
-                                                  participantId: nextAttempt.participantId,
-                                                  attemptId: nextAttempt.attemptId,
-                                                  turnId: nextAttempt.turnId,
-                                                  stepId: nextAttempt.stepId
-                                              }
+                            outbox: nextAttempt
+                                ? [
+                                      {
+                                          deliveryId: nextAttempt.deliveryId,
+                                          kind: "dispatch" as const,
+                                          payload: {
+                                              role: "participant",
+                                              participantId: nextAttempt.participantId,
+                                              attemptId: nextAttempt.attemptId,
+                                              turnId: nextAttempt.turnId,
+                                              stepId: nextAttempt.stepId
                                           }
-                                      ]
+                                      }
+                                  ]
+                                : nextPlanningAttempt
+                                  ? [
+                                        {
+                                            deliveryId: nextPlanningAttempt.deliveryId,
+                                            kind: "dispatch" as const,
+                                            payload: {
+                                                role: "manager",
+                                                planningAttemptId: nextPlanningAttempt.id
+                                            }
+                                        }
+                                    ]
+                                  : []
                         };
                     }
                 });
-                deliveryWorkers.wake(stored.repository.meetingId);
+                committed = true;
                 const ownership = (await stored.repository.recover()).sessionOwnership.find(
                     (candidate) =>
                         candidate.role === "participant" &&
@@ -430,11 +461,27 @@ export function createCreateStatusRuntime(
                         // Timeout facts are committed before this best-effort DSH effect.
                     }
                 }
+                if (
+                    ownership !== undefined &&
+                    typeof options.continuable.drainContinuableChildren === "function"
+                ) {
+                    try {
+                        await options.continuable.drainContinuableChildren(parent, [
+                            ownership.sessionId as never
+                        ]);
+                    } catch {
+                        // A failed drain does not roll back the committed timeout fact.
+                    }
+                }
             } catch (error) {
                 if (isConcurrentTimeoutLoser(error)) continue;
-                throw error;
+                firstError ??= error;
+            } finally {
+                releaseDispatch?.();
+                if (committed) deliveryWorkers.wake(stored.repository.meetingId);
             }
         }
+        if (firstError !== undefined) throw firstError;
     }
 
     const scanSleep = options.timeoutScanSleep ?? defaultTimeoutScanSleep;
