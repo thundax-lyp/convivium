@@ -51,14 +51,14 @@ export {
 export {
     createCreateStatusRuntime,
     LocalMeetingRecoveryUnavailableError
-} from "./application-service.js";
+} from "./application-service/index.js";
 export type {
     CreateStatusRuntimeOptions,
     LocalMeetingWebRuntime,
     MeetingRuntimeWithCallerLookup,
     MeetingToolCaller,
     MeetingToolRuntime
-} from "./application-service.js";
+} from "./application-service/index.js";
 export { meetingTaskEvidenceResolver, rejectUnsupportedTaskEvidence } from "./task-evidence.js";
 export type { AuthorizedTaskEvidence, AuthorizedTaskEvidenceResolver } from "./task-evidence.js";
 export type {

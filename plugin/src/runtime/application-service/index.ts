@@ -11,12 +11,11 @@ import {
     type ContinuableInspectionRuntime,
     type ContinuableLifecycleRuntime,
     type ContinuableStarter
-} from "../dsh/index.js";
+} from "../../dsh/index.js";
 import {
     DomainError,
     createMeetingTask as createMeetingTaskTransition,
     createHandRaise,
-    completedTaskSnapshots,
     participantHasActiveMeetingTask,
     finishMeetingTask as finishMeetingTaskTransition,
     findPendingEquivalentHandRaise,
@@ -28,10 +27,9 @@ import {
     submitSpeakerAndAdvanceMeeting,
     reassignTurn as reassignTurnTransition,
     transitionMeeting,
-    type MeetingState,
-    type MeetingTurn
-} from "../domain/index.js";
-import { RepositoryError, type MeetingSnapshot } from "../repository/index.js";
+    type MeetingState
+} from "../../domain/index.js";
+import { RepositoryError, type MeetingSnapshot } from "../../repository/index.js";
 import {
     createMeetingRuntime,
     openMeetingRepository,
@@ -40,21 +38,22 @@ import {
     type MeetingCreationRuntimeDependencies,
     type MeetingRepositoryRuntime,
     type RepositoryAuthorizationValidator
-} from "./meeting-runtime.js";
-import { createMeetingDeliveryWorkerService } from "./services/meeting-dispatch-service.js";
+} from "../meeting-runtime.js";
+import { createMeetingDeliveryWorkerService } from "../services/meeting-dispatch-service.js";
 import {
     commandFailure as failure,
     commandSuccess as success,
     mapCommandError as commandError
-} from "./services/meeting-command-service.js";
-import { resolveArchiveCleanupRuntime } from "./services/meeting-session-service.js";
-import { recoverArchive } from "./services/meeting-archive-service.js";
+} from "../services/meeting-command-service.js";
+import { resolveArchiveCleanupRuntime } from "../services/meeting-session-service.js";
+import { recoverArchive } from "../services/meeting-archive-service.js";
+import { assignTurnAttempt, initializeFirstMeetingTurn } from "./meeting-turn.js";
 import {
     meetingTaskEvidenceResolver,
     type AuthorizedTaskEvidenceResolver
-} from "./task-evidence.js";
-import { projectManagerMeetingContext, projectMeetingStatus } from "../projection/index.js";
-import { LocalMeetingListResponseSchema, MeetingStatusResultSchema } from "../protocol/index.js";
+} from "../task-evidence.js";
+import { projectManagerMeetingContext, projectMeetingStatus } from "../../projection/index.js";
+import { LocalMeetingListResponseSchema, MeetingStatusResultSchema } from "../../protocol/index.js";
 import type {
     CreateMeetingInputV1,
     CreateMeetingResultV1,
@@ -82,10 +81,11 @@ import type {
     PauseMeetingInputV1,
     ResumeMeetingInputV1,
     ReassignTurnInputV1,
-    ReassignTurnResultV1
-} from "../protocol/index.js";
-import type { MeetingOwnershipLookup } from "../dsh/index.js";
-import { interruptAndDrainOwnedSessions } from "../dsh/index.js";
+    ReassignTurnResultV1,
+    TurnSubmissionV1
+} from "../../protocol/index.js";
+import type { MeetingOwnershipLookup } from "../../dsh/index.js";
+import { interruptAndDrainOwnedSessions } from "../../dsh/index.js";
 
 export interface MeetingToolCaller {
     readonly sessionId: string;
@@ -132,7 +132,7 @@ export interface MeetingToolRuntime {
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<HandRaiseResultV1> | ProtocolErrorV1>;
     submitTurn(
-        input: import("../protocol/index.js").TurnSubmissionV1,
+        input: TurnSubmissionV1,
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<TurnSubmissionResultV1> | ProtocolErrorV1>;
@@ -1009,7 +1009,7 @@ export function createCreateStatusRuntime(
                     deliveryWorkers.wake(meetingId);
                     return success(meetingId, started.meetingVersion, result);
                 }
-                const meetingVersion = await initializeFirstTurn(
+                const meetingVersion = await initializeFirstMeetingTurn(
                     repository,
                     options.now?.() ?? Date.now()
                 );
@@ -2236,7 +2236,7 @@ export function createCreateStatusRuntime(
                             },
                             options.now?.() ?? Date.now()
                         );
-                        const running = assignAttempt(
+                        const running = assignTurnAttempt(
                             nextState,
                             planned,
                             0,
@@ -2347,117 +2347,4 @@ function isAuthorizedForMeeting(
 ): boolean {
     if (caller.kind === "captain") return caller.sessionId === stored.captainSessionId;
     return caller.meetingId === meetingId;
-}
-
-function assignAttempt(
-    state: MeetingState,
-    turn: MeetingTurn,
-    index: number,
-    now: number
-): MeetingTurn {
-    const step = turn.steps[index];
-    if (step === undefined) return turn;
-    const attempt = {
-        attemptId: turn.id === "turn-1" ? `attempt-${index}` : `${turn.id}-attempt-${index}`,
-        participantId: step.speaker,
-        meetingId: state.id,
-        turnId: turn.id,
-        stepId: step.id,
-        deliveryId: turn.id === "turn-1" ? `delivery-${index}` : `${turn.id}-delivery-${index}`,
-        contextFromSeq: 0,
-        contextThroughSeq: state.messageSeq,
-        taskSnapshots: completedTaskSnapshots(state, step.speaker, now),
-        assignedAt: now,
-        ...(state.limits.speakerAttemptTimeoutMs === undefined
-            ? {}
-            : { deadlineAt: now + state.limits.speakerAttemptTimeoutMs }),
-        startedAt: now,
-        status: "running" as const,
-        deliveryStatus: "accepted" as const
-    };
-    return {
-        ...turn,
-        status: "running",
-        steps: turn.steps.map((candidate, candidateIndex) =>
-            candidateIndex === index ? { ...candidate, status: "running", attempt } : candidate
-        )
-    };
-}
-
-async function initializeFirstTurn(
-    repository: MeetingRepositoryRuntime,
-    now: number
-): Promise<number> {
-    const current = await repository.read();
-    const currentState = current.state as unknown as MeetingState;
-    const firstAgenda = currentState.agenda[0];
-    if (firstAgenda === undefined) throw new Error("At least one agenda item is required.");
-    const activeState: MeetingState = {
-        ...currentState,
-        status: "running",
-        activeAgendaItemId: currentState.activeAgendaItemId ?? firstAgenda.id,
-        agenda: currentState.agenda.map((agenda, index) =>
-            index === 0 ? { ...agenda, status: "discussing" } : agenda
-        )
-    };
-    const planned = planRoundRobinTurn(
-        activeState,
-        {
-            turnId: "turn-1",
-            stepId: (participantId, index) => `step-${participantId}-${index}`
-        },
-        now
-    );
-    const running = assignAttempt(activeState, planned, 0, now);
-    const speaker = running.steps[0]?.speaker;
-    const events: DomainEventInput[] = [
-        { type: "meeting.started", payload: { meetingId: activeState.id } },
-        { type: "turn.started", payload: { turnId: running.id } },
-        {
-            type: "speaker_attempt.started",
-            payload: { attemptId: running.steps[0]?.attempt?.attemptId ?? "attempt-0" }
-        }
-    ];
-    const committed = await repository.execute({
-        requestId: "runtime-initialize-turn-1",
-        commandKind: "start_turn",
-        authorization: {
-            callerBinding: "runtime:convivium",
-            capabilityId: "runtime:turn"
-        },
-        requestHash: "runtime-initialize-turn-1",
-        expectedMeetingVersion: current.version,
-        transition: () => ({
-            state: {
-                ...activeState,
-                currentTurn: running,
-                participants: activeState.participants.map((participant) =>
-                    participant.id === speaker
-                        ? { ...participant, status: "speaking" as const }
-                        : participant
-                ),
-                turnSeq: running.seq,
-                version: activeState.version + 1,
-                updatedAt: now
-            } as unknown as JsonObject,
-            result: { turnId: running.id, firstStepId: running.steps[0]?.id },
-            events,
-            outbox:
-                speaker === undefined
-                    ? []
-                    : [
-                          {
-                              deliveryId: running.steps[0]!.attempt!.deliveryId,
-                              kind: "dispatch",
-                              payload: {
-                                  participantId: speaker,
-                                  attemptId: running.steps[0]!.attempt!.attemptId,
-                                  turnId: running.id,
-                                  stepId: running.steps[0]!.id
-                              }
-                          }
-                      ]
-        })
-    });
-    return committed.meetingVersion;
 }
