@@ -110,22 +110,24 @@ pack current plugin
 - [DSH API source policy](../../.agents/skills/dsh-plugin-development/references/source-of-truth.md) 与 [testing verification](../../.agents/skills/dsh-plugin-development/references/testing-verification.md)。
 - DSH 官方依据：[Architecture](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md)、[Plugins and lifecycle](https://deepseek-harness.github.io/deepseek-harness/en/develop/framework/)、[Testing](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/testing.md)。官方文档只解释平台语义；当前可调用签名仍以锁定包类型为准。
 - 锁定包 `@deepseek-ai/dsh-subagent@0.1.1-rc.2`：`plugin/node_modules/@deepseek-ai/dsh-subagent/lib/types/index.d.ts`、`continuation.d.ts`、`README.md`。
+- 锁定包 `@deepseek-ai/dsh-session-persistence@0.1.1-rc.2` 的 `lib/types/index.d.ts` 与实现：`SessionPersistence.prepare(id,signal?)` 返回 resume 使用的 exact unpublished `SessionPreparation.session`。
+- 锁定包 `@deepseek-ai/dsh-session@0.1.1-rc.2` 的 `lib/types/index.d.ts`：`SessionStore.enter(session)` 把 prepared Session 放入 live store，`announce(session)` 发布 `session/created`；`create` 只用于新 Session，不是 cold resume。
 
 执行时必须确认的 API，不得自行替换：
 
-| API                                                                    | 当前签名/行为                                                                                                      | 本 RUNBOOK 用途                         |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
-| `startContinuable(spec): Promise<{childId,messageId}>`                 | 首条 inbox 接受后返回；发布前失败完全回滚；provider 必须有 `prepareContinuable`                                    | 创建真实 meeting child                  |
-| `followup(parent, childId, content, options)`                          | 要求 exact live direct parent；resident 入 FIFO，absent child 从 persistence cold resume                           | phase 2 rebind 后真实 cold delivery     |
-| `interrupt(targetSessionId, authority): void`                          | 同步准入、异步 cancel；absent 是 no-op；不等待目标停稳                                                             | timeout/reassign/mail 取消              |
-| `drainContinuableChildren(parent, childIds): Promise<void>`            | 只释放 exact parent 的指定 resident direct children；不删除持久 Session                                            | 等待真实 Activation 释放                |
-| `listChildren(parentSessionId, signal?)`                               | 不加载 child，返回 durable direct-child mode/activity/label/diagnostic                                             | restart 前后、archive 和 isolation 证据 |
-| `AgentRegistry.create({sessionId,meta,signal})`                        | 由当前 Host factory 创建 Session+Agent，返回持有 teardown capability 的 `AgentHandle`                              | phase 1 创建 Captain                    |
-| `AgentRegistry.resume({resumeSessionId,signal})`                       | 从 persistence 恢复同 ID Session，创建新的 live Agent object，返回 `AgentHandle`                                   | phase 2 Captain exact rebind            |
-| `AgentRegistry.get(id)` / `register(agent)`                            | `get` 只返回 live Agent；`register` 仅登记已构造 Agent，不负责 persistence resume，本 RUNBOOK 禁止用它伪造 Captain | exact Agent 检查 / 禁止错误实现         |
-| `SessionStore.get(id)` / `flush(session)`                              | `get` 只返回当前进程 live Session；`flush` 等待 persistence listener，返回是否有 listener 参与                     | phase checkpoint durability             |
-| `ToolRuntime.execute(input)`                                           | 输入固定含 `callId/name/arguments/agent/signal`，返回 `isError` 判别的 `ToolExecutionResult`                       | 真实 caller Tool 调用                   |
-| `WorkspaceRegistry.create(path,title)` / `Workspace.attachSession(id)` | workspace 路径必须存在；attach 校验 Session header `cwd` 与 canonical workspace 一致并持久记录                     | Captain workspace/session persistence   |
+| API                                                                    | 当前签名/行为                                                                                                        | 本 RUNBOOK 用途                         |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `startContinuable(spec): Promise<{childId,messageId}>`                 | 首条 inbox 接受后返回；发布前失败完全回滚；provider 必须有 `prepareContinuable`                                      | 创建真实 meeting child                  |
+| `followup(parent, childId, content, options)`                          | 要求 exact live direct parent；resident 入 FIFO，absent child 从 persistence cold resume                             | phase 2 rebind 后真实 cold delivery     |
+| `interrupt(targetSessionId, authority): void`                          | 同步准入、异步 cancel；absent 是 no-op；不等待目标停稳                                                               | timeout/reassign/mail 取消              |
+| `drainContinuableChildren(parent, childIds): Promise<void>`            | 只释放 exact parent 的指定 resident direct children；不删除持久 Session                                              | 等待真实 Activation 释放                |
+| `listChildren(parentSessionId, signal?)`                               | 不加载 child，返回 durable direct-child mode/activity/label/diagnostic                                               | restart 前后、archive 和 isolation 证据 |
+| `SessionPersistence.prepare(id,signal?)`                               | 返回 `SessionPreparation`；`.session` 是 resume 使用的 exact unpublished persisted Session；preparation 必须 dispose | phase 2 恢复 Captain Session            |
+| `SessionStore.enter(session)` / `announce(session)`                    | `enter` 发布到 live store并返回 detach disposer；`announce` 发出正式 created 通知；`create` 仅新建 Session           | phase 2 Session live/publish            |
+| `AgentRegistry.get(id)` / `register(agent)`                            | `get` 只返回 live Agent；`register` 仅登记已由正式 persistence 路径恢复的 Session 对应 Agent                         | exact Agent 检查 / restored Agent登记   |
+| `SessionStore.get(id)` / `flush(session)`                              | `get` 只返回当前进程 live Session；`flush` 等待 persistence listener，返回是否有 listener 参与                       | phase checkpoint durability             |
+| `ToolRuntime.execute(input)`                                           | 输入固定含 `callId/name/arguments/agent/signal`，返回 `isError` 判别的 `ToolExecutionResult`                         | 真实 caller Tool 调用                   |
+| `WorkspaceRegistry.create(path,title)` / `Workspace.attachSession(id)` | workspace 路径必须存在；attach 校验 Session header `cwd` 与 canonical workspace 一致并持久记录                       | Captain workspace/session persistence   |
 
 DSH 已知限制必须保留在断言中：`interrupt()` 不保证停稳；`drain` 不删除 durable Session；`followup` 接受后但尚未记入日志的消息在进程崩溃时不自动 replay。因此本 smoke 必须在 phase 1 checkpoint 前等待 SQLite/Session 可观察提交，不以“调用已返回”猜测 durability。
 
@@ -148,7 +150,7 @@ DSH 已知限制必须保留在断言中：`interrupt()` 不保证停稳；`drai
 
 组合顺序保持：创建唯一 `convivium-dsh-smoke-*` temp root及既有子目录 → `packArtifact` → `installArtifact` → `installProbe` → `dumpConfig` → `bootHost`。DSH CLI argv、cwd、env、probe manifest、probe `cordis.patch.yml`、Convivium patch、tarball/profile 路径全部保持当前实现。`dumpConfig` 继续断言 `@convivium/dsh-plugin`、`@deepseek-ai/dsh-subagent-spawn-in-process`、`spawn`；新增且仅新增 probe package、probe id、`webServer.host === "127.0.0.1"` 的 config-tree 断言。Host readiness 必须在 TCP 后再以既有 `callHttp` GET `/api/convivium/meetings` 得到 HTTP 200、`protocolVersion===1` 和数组 `result.meetings`；TCP 单独不是 PASS。
 
-`writeProbePackage` 继续生成当前 `@convivium/smoke-profile-probe`，manifest、patch 与 `inject = ["agents","sessions","tools","webServer","workspaceRegistry"]` 不变。只有 T7 `cold-rebind` 可以把 `"subagents"` 加入 inject；其他 selector 不得扩展 inject。不得新增 probe package或第二份 probe source。
+`writeProbePackage` 继续生成当前 `@convivium/smoke-profile-probe`，manifest、patch 与 baseline inject 不变。只有 T7 `cold-rebind` 可以在同一 probe 的静态 inject 中增加 `"sessionPersistence"` 和 `"subagents"`；`sessionPersistence` 只用于 phase2 恢复 checkpoint 指定的 Captain Session，`subagents` 只用于读取其 durable children。其他 selector 不得消费这两个 service。不得新增 probe package或第二份 probe source。
 
 ### 6.3 固定 selector、结果和直接 helper
 
@@ -210,15 +212,21 @@ async function waitForStatus(
 
 `callToolResult` 被 T2-T11 全部场景消费，`waitForStatus` 被 T2-T11 全部场景消费，满足共享 helper 门禁；`waitForOwnedAgent` 被 T2、T3、T4、T5、T6、T7、T8、T9、T10、T11 消费。除此以外 helper 必须内联在唯一 `run<ScenarioName>Scenario` 中；只有文中明确列出两个消费者时才可共享。
 
-Captain 继续复用当前 `createSmokeAgent(ctx,"convivium-smoke-captain")`、`registerSmokeAgent(ctx,session)` 和 disposer。除 T7 cold-rebind 外不得改变 Agent 注册方式。Manager/Participant caller 唯一来自 `waitForOwnedAgent` 返回值；attempt/delivery/turn/step/agenda ID 唯一来自紧邻 call 前的 status DTO；MeetingTask/mail/message/HandRaise ID 唯一来自前序 success DTO，再与 status 对照。禁止从 ID 字符串或 fixture 自行推导。
+Captain 继续复用当前 `createSmokeAgent(ctx,"convivium-smoke-captain")`、`registerSmokeAgent(ctx,session)` 和 disposer。除 T7 phase2 按 §6.3.1 恢复 persisted Captain 外不得改变 Agent 注册方式。Manager/Participant caller 唯一来自 `waitForOwnedAgent` 或 T7 checkpoint 指定 Session 经正式 cold followup 后返回的 live Agent；attempt/delivery/turn/step/agenda ID 唯一来自紧邻 call 前的公开 status 或真实 inbox context。MeetingTask/mail/message/HandRaise ID 唯一来自前序 success DTO，再与 status 对照。禁止从 ID 字符串或 fixture 自行推导。
 
 ### 6.3.1 cold-rebind 唯一 phase 例外
 
-仅 selector `cold-rebind` 在现有 `main()` 中内联两阶段，不新增 helper/framework：phase1 使用现有 temp root、`DSH_HOME`、workspace、port、patch、tarball和profile，probe 写 `control/cold-rebind-checkpoint.json` 后外层 `stopHost()`；phase2 设置 `CONVIVIUM_SMOKE_COLD_PHASE=2`，使用完全相同参数再次 `bootHost()`。phase2 不 pack、不 install、不 dump另一份 config。
+仅 selector `cold-rebind` 在现有 `main()` 中内联两阶段，不新增 framework：phase1 使用现有 temp root、`DSH_HOME`、workspace、port、patch、tarball和profile；外层只在该 selector 创建 `control/`，并把绝对 checkpoint path 通过 `CONVIVIUM_SMOKE_COLD_CHECKPOINT` 传给 probe。probe 写 `control/cold-rebind-checkpoint.json` 后外层 `stopHost()`；phase2 设置 `CONVIVIUM_SMOKE_COLD_PHASE=2`，继续传同一 checkpoint path并使用完全相同参数再次 `bootHost()`。phase2 不 pack、不 install、不 dump另一份 config。
 
-checkpoint 必须原子写：先 `writeFile(checkpointPath+".tmp", JSON.stringify(...))`，再 `rename`；字段固定为 `schemaVersion:1`、`scenario:"cold-rebind"`、`phase:1`、`hostPid`、`captainSessionId:"convivium-smoke-captain"`、`meetingId`、`meetingVersion`、`workspacePath`、`sessionIds`、`transcriptMessageIds`。phase1 在写前必须 `ctx.sessions.flush(captain.agent.session)===true`，并用 status确认 Meeting active、无 running attempt、所有 ownership 都有稳定 session ID。外层只接受完整字段，确认 phase1 child 已 exit 后启动 phase2。
+checkpoint 必须写入 `control/cold-rebind-checkpoint.json` 并原子发布：先 `writeFile(checkpointPath+".tmp", JSON.stringify(value))`，再 `rename`。固定结构为 `{schemaVersion:1,scenario:"cold-rebind",phase:1,hostPid:number,captainSessionId:"convivium-smoke-captain",meetingId:string,meetingVersion:number,workspacePath:string,managerSessionId:string,participantSessionId:string,sessionIds:string[],transcriptMessageIds:string[],managerPlanningAttemptId:string,managerPlanningMeetingVersion:number}`；所有字段 required，`sessionIds` 精确等于 Manager/A 两个 ID，`transcriptMessageIds` 至少含 703 success messageId。
 
-phase2 使用当前 `createSmokeAgent` 的 exact same Session ID重新建立 Captain parent；不得序列化或复用旧 Agent object。若 DSH 拒绝同 ID register，立即 STOP；不得引入 `AgentRegistry.create/resume`、兼容层或手工替代 parent。phase2 status 必须显示 checkpoint Meeting/version/transcript prefix，所有 owned Session parent 都精确等于新 Captain ID；再用真实 Manager/Participant caller提交一次新 plan/turn。finally 仍唯一调用现有 `restore()`；断言 phase1/phase2 PID 不同、端口已释放、boot child 已 exit、temp root已删除。
+在现有脚本内新增且仅新增 T7 直接 helper `validateColdCheckpoint(value)`：逐字段拒绝缺失、错误类型、错误常量、空数组、`sessionIds` 与两个显式 child ID 不一致、空 transcript、planning version 与 meeting version 不一致；成功返回冻结的字段副本。外层第一次读取完整文件必须成功；随后对 `{...value,managerPlanningAttemptId:undefined}` 调用必须抛错，之后才能 stop phase1 Host。该 helper不得接受默认值、推导 ID或扫描目录。
+
+phase1 在 703 后必须等待真实 later Manager inbox context；它的 `planningAttemptId` 必须不同于 702 使用的 attempt，`meetingId` 必须匹配且 `meetingVersion` 必须等于紧邻 checkpoint 的 Captain status version。等待函数必须保留 `{value,agent}`，checkpoint 的 planning 字段取 `value`，并且依次断言 `await ctx.sessions.flush(agent.session)===true` 与 `await ctx.sessions.flush(captain.agent.session)===true`；不得 flush 旧 Manager Agent。紧邻 status 必须证明 Meeting 非终态、无 running speaker attempt、消息前缀包含 703 messageId。外层校验所有字段和数组非空，确认 phase1 Host 已退出后才启动 phase2。
+
+phase2 不得调用 `createSmokeAgent` 或 `ctx.sessions.create` 复用 persisted ID。唯一恢复链固定为：`preparation=await ctx.sessionPersistence.prepare(checkpoint.captainSessionId,signal)` → `restoredSession=preparation.session` → `detach=ctx.sessions.enter(restoredSession)` → `ctx.sessions.announce(restoredSession)` → `registered=registerSmokeAgent(ctx,restoredSession)`。`announce` 失败时顺序为 `detach()`、`preparation[Symbol.dispose]()`、抛原错误；成功后立即 `preparation[Symbol.dispose]()`。Captain disposer 唯一顺序为 `await registered.dispose()` 后 `detach()`，外层 finally 仍只调用现有 `restore()`。
+
+704 使用恢复后的 Captain 调 `convivium_meeting_status` 触发 Meeting rehydrate/rebind；必须显示 checkpoint Meeting/version/transcript prefix。`ctx.subagents.listChildren(restoredSession.id,signal)` 必须包含 checkpoint 的 Manager/A ID，`mode==="continuable"`、无 diagnostic，且 SQLite ownership 的 `parent_session_id` 都等于 restored Captain ID。随后用 `resumeParticipantForProbe` 对 checkpoint Manager ID 发 cold followup，并从该 live Manager 的 `session.deriveMessages()` 与本 Host `agent/inbox/inserted` 合并读取 JSON context；只接受 `planningAttemptId===checkpoint.managerPlanningAttemptId`、`meetingVersion===checkpoint.managerPlanningMeetingVersion`、`meetingId===checkpoint.meetingId`。705 使用该 context；706 的全部 turn/step/attempt/delivery/agenda 字段只取 705 后 A 的真实 speaker context。禁止调用 `AgentRegistry.create/resume`、构造 planning/delivery ID、删除 persisted log或建立兼容层。
 
 ### 6.4 只读证据结构
 
@@ -312,7 +320,7 @@ Restore：关闭所有只读 SQLite handle，登记 Meeting/Session/issue IDs，
 
 Prepare：phase 1 保留一个非终态 Meeting，所有 owned Sessions、SQLite 和 Captain Session 已 flush；checkpoint 保存精确 IDs。
 
-Execute：phase 2 按 §6.3.1 使用现有 `createSmokeAgent` 对同一 Captain Session ID 建立新的 live parent，调用 `convivium_meeting_status` 触发 rehydrate/rebind；用 `listChildren` 读取 durable children；让 cold Manager 接收 Manager planning followup并提交唯一 A plan。不得创建 wrong-parent、调用 `AgentRegistry.create/resume` 或扩展本场景为通用 parent 测试。
+Execute：phase 2 按 §6.3.1 使用 `SessionPersistence.prepare`、`SessionStore.enter/announce` 与现有 `registerSmokeAgent` 恢复同一 Captain Session，调用 `convivium_meeting_status` 触发 rehydrate/rebind；用 `listChildren` 读取 durable children；让 cold Manager 从持久 Session 历史取得 checkpoint 锁定的未消费 planning context并提交唯一 A plan。不得调用 `createSmokeAgent`、`SessionStore.create`、`AgentRegistry.create/resume`，不得创建 wrong-parent或扩展本场景为通用 parent 测试。
 
 Assert：Meeting ID/version/transcript 前缀不丢失；children IDs、parent IDs、labels 与 SQLite ownership 逐项一致；followup 发生前 cold Manager child 不在 `ctx.agents`，接受后相同 Session ID 的真实 Agent 出现在 registry；旧 attempt/delivery 不复活；不创建替代 Session ID；phase-2 Captain object不等于 phase-1（只用不同 PID 证明进程边界），但 `id` 等于 checkpoint。
 
@@ -352,31 +360,17 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 
 以下对象中的 `<status.*>` 不是执行者选择或占位输入，而是强制的数据流引用：必须先执行紧邻的 `convivium_meeting_status`，再逐字段复制该返回值；字段缺失即 STOP。所有 `convivium_create_meeting` 使用 §6.5 固定 fixture；所有 success 必须是 `ProtocolSuccessV1`，所有预期失败必须是 `ProtocolErrorV1` 且 `retryable===false`。
 
-T1 已 PASS（baseline、selector/result contract、Restore）；当前从 T2 开始执行。
-
-T4 已 PASS（真实 task delivery/HandRaise/replan/later submit 与 Restore）；当前从 T5 开始执行。
-
-### T4：只实现 task-handraise 场景
-
-前置状态：T3 PASS。新增 `runTaskHandraiseScenario(ctx,fixture)`，不改前三场景。
-
-调用：create/status/plan=`400/401/402`；A create task `403` input `{protocolVersion:1,meetingId,attemptId:<status.currentAttempt.id>,requestId:"smoke-task-create-1",title:"smoke task",description:"produce evidence",blocking:false}`；A submit `404` 使用当前 attempt且 `taskIds:[<create.result.meetingTaskId>]`；task status pre `405` input `{protocolVersion:1,meetingId,meetingTaskId:<create.result.meetingTaskId>}`；start `406` input `{protocolVersion:1,meetingId,meetingTaskId:<create.result.meetingTaskId>,requestId:<delivery.deliveryId>}`；status post `407` 与pre相同；finish `408` input `{protocolVersion:1,meetingId,meetingTaskId:<create.result.meetingTaskId>,requestId:<delivery.deliveryId>,executionId:<delivery.executionId>,status:"completed",resultSummary:"task evidence"}`。Captain status `409` 必须观察 finish result.handRaiseId；Manager第二plan `410`只含A；A later submit `411`使用新 attempt、kind `evidence`、content `task-handraise:a:2`、`taskIds:[meetingTaskId]`。
-
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/domain/meeting-task.spec.ts tests/unit/domain/hand-raise.spec.ts tests/unit/runtime/meeting-mail-dispatch.spec.ts tests/contract/meeting-runtime.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=task-handraise pnpm --dir plugin smoke:profile`。PASS assertions=`task-delivered`,`task-started`,`finish-created-handraise`,`handraise-visible-then-consumed`,`later-turn-submitted`；不声称观察 Manager内部消费。Restore同T2。
-
-### T6：只实现 risk-reopen 场景
-
-> 已 PASS；本节保留为历史执行记录，后续从 T7 开始。
-
-新增 `runRiskReopenScenario(ctx,fixture)`；本场景的 reopen 是同一 Host内通过新的 status/repository open，不重启 Host。create/status/plan=`600/601/602`；A submit issue `603` 标准 submit，`changes:{issues:[{title:"smoke risk",description:"smoke risk",affectedOutputIds:[],affectedCriterionIds:[<fixture.criterionId>],violatedConstraintIds:[],impact:"high",urgency:"now",safeDefaultAvailable:false}]}`；从 success DTO取得 messageId并从status取得唯一新增 issueId。Captain dispose `604` input `{protocolVersion:1,meetingId,expectedMeetingVersion:<status.meetingVersion>,requestId:"smoke-risk-dispose-1",issueId:<status新增issueId>,decision:"accept",reason:"smoke accepted risk",evidenceMessageIds:[<submit.result.messageId>]}`；重新读取status `605`；相同对象 replay `606`成功且receipt相同；仅把reason改为`different`的同requestId调用 `607` 必须 `IDEMPOTENCY_CONFLICT`。
-
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/domain/completion.spec.ts tests/contract/meeting-runtime.spec.ts tests/recovery/recovery.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=risk-reopen pnpm --dir plugin smoke:profile`。PASS assertions=`risk-created`,`risk-accepted`,`reopen-preserved`,`replay-stable`,`conflict-rejected`，version/event不因read/replay增加，Restore同T2。
+T1-T6 已 PASS 并按滚动策略删除对应执行步骤；当前从 T7 开始执行。稳定场景定义仍保留在 §7。
 
 ### T7：只实现 cold-rebind 场景
 
-新增 `runColdRebindScenario(ctx,fixture)`，唯一允许改外层 `main()`，严格执行§6.3.1。phase1 create/status/plan/A submit=`700/701/702/703`，再等待无running attempt、flush、写checkpoint。phase2先status `704`；Manager plan `705`，A submit `706`，全部ID来自phase2 status。不得同时实现archive或isolation prepare。
+前置状态：T1-T6 PASS；当前未提交 cold-rebind WIP 必须先逐项对照本节修订后的唯一恢复链，删除旧 `createSmokeAgent`、错误 env/path、临时诊断和不完整 checkpoint 行为，不得丢弃其他已验证场景。
 
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/runtime/recovery.spec.ts tests/recovery/recovery.spec.ts tests/integration/dsh/session-adapter.spec.ts tests/unit/repository/session-ownership.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile`。真实运行必须让 `validateColdCheckpoint` 同时处理完整checkpoint和外层在验证前构造的缺字段副本，前者返回、后者抛错；PASS assertions=`phase1-checkpoint-durable`,`host-pid-changed`,`exact-parent-rebound`,`transcript-prefix-preserved`,`cold-followup-submitted`，相同home/workspace/port，finally清除两Host与temp。任何rebind bug立即STOP，不改production。
+允许修改：仅 `plugin/scripts/smoke-profile.mjs` 与本 RUNBOOK 的滚动删除。禁止修改 production、测试、Schema、DSH adapter及其他 selector。
+
+执行：新增 `runColdRebindScenario(ctx,fixture)`，唯一允许按 §6.3.1 在外层 `main()` 内联两阶段。phase1 create/status/plan/A submit=`700/701/702/703`；703 后等待 later Manager context，flush later Manager exact Session与Captain Session，读取紧邻 status并原子写完整 checkpoint。外层按固定 path/env停止 phase1 Host并以同一 home/workspace/profile/port启动 phase2，不重复 pack/install/dump。phase2 按 `prepare→enter→announce→registerSmokeAgent` 恢复 Captain，704 status，校验 children/ownership/transcript，再用 checkpoint planning context执行 705、用真实 A speaker context执行 706。finally 只执行一次既有 Restore。
+
+验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/runtime/recovery.spec.ts tests/recovery/recovery.spec.ts tests/integration/dsh/session-adapter.spec.ts tests/unit/repository/session-ownership.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile`。真实运行必须让 `validateColdCheckpoint` 同时处理完整 checkpoint 和外层构造的缺字段副本，前者返回、后者抛错；PASS assertions=`phase1-checkpoint-durable`,`host-pid-changed`,`exact-parent-rebound`,`transcript-prefix-preserved`,`cold-followup-submitted`，完整 result 必须记录两 Host PID、Captain/Manager/A ID、checkpoint planning ID、两条 transcript message ID、phase2 children mode/activity和 Restore 后端口/进程/tempRoot均不存在。任何正式 API、字段或持久化事实与本节不符立即 STOP，不改 production或引入替代恢复链。
 
 ### T8：只实现 archive-continuation 场景
 
