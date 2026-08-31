@@ -107,6 +107,12 @@ function importsOf(source: string): string[] {
     );
 }
 
+function reexportsOf(source: string): string[] {
+    return [
+        ...source.matchAll(/export\s+(?:type\s+)?(?:\{[^}]*\}|\*)\s+from\s+(['"])(.*?)\1\s*;?/g)
+    ].map((match) => match[2]);
+}
+
 function importedModule(file: string, specifier: string): ModuleName | undefined {
     if (!specifier.startsWith(".")) return undefined;
     const candidate = resolve(dirname(file), specifier);
@@ -153,5 +159,23 @@ describe("plugin module boundaries", () => {
             "utf8"
         );
         expect(importsOf(recoverySource)).not.toContain("./meeting-archive-service.js");
+    });
+
+    it("keeps internal application use cases and services out of runtime facades", () => {
+        const runtimeFacade = readFileSync(join(sourceRoot, "runtime/index.ts"), "utf8");
+        expect(reexportsOf(runtimeFacade)).not.toEqual(
+            expect.arrayContaining([
+                "./services/meeting-dispatch-service.js",
+                "./services/types.js",
+                "./services/command-result-service.js",
+                "./services/meeting-session-service.js"
+            ])
+        );
+
+        const applicationFacade = readFileSync(
+            join(sourceRoot, "runtime/application-service/index.ts"),
+            "utf8"
+        );
+        expect(reexportsOf(applicationFacade)).not.toContain("./meeting-control.js");
     });
 });

@@ -11,7 +11,7 @@ import {
 import {
     pauseMeetingRuntime,
     type PauseRecoveryDependencies
-} from "../../src/runtime/application-service/index.js";
+} from "../../src/runtime/application-service/meeting-control.js";
 import { rebindCaptainParent } from "../../src/runtime/services/meeting-recovery-service.js";
 
 const ownership = {

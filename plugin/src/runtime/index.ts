@@ -33,30 +33,17 @@ export type {
     ArchiveRecoveryResult
 } from "./services/meeting-archive-service.js";
 export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
-export { createMeetingDeliveryWorkerService } from "./services/meeting-dispatch-service.js";
-export type { MeetingDeliveryWorkerService } from "./services/types.js";
-export {
-    commandFailure,
-    commandSuccess,
-    mapCommandError
-} from "./services/command-result-service.js";
-export { resolveArchiveCleanupRuntime } from "./services/meeting-session-service.js";
-export type { ArchiveCleanupRuntime } from "./services/meeting-session-service.js";
 export { recoverMeetingRuntime, rebindCaptainParent } from "./services/meeting-recovery-service.js";
 export {
     createCreateStatusRuntime,
-    LocalMeetingRecoveryUnavailableError,
-    pauseMeetingRuntime,
-    resumeMeetingRuntime
+    LocalMeetingRecoveryUnavailableError
 } from "./application-service/index.js";
 export type {
     CreateStatusRuntimeOptions,
     LocalMeetingWebRuntime,
     MeetingRuntimeWithCallerLookup,
     MeetingToolCaller,
-    MeetingToolRuntime,
-    PauseRecoveryDependencies,
-    ResumeRecoveryDependencies
+    MeetingToolRuntime
 } from "./application-service/index.js";
 export { meetingTaskEvidenceResolver, rejectUnsupportedTaskEvidence } from "./task-evidence.js";
 export type { AuthorizedTaskEvidence, AuthorizedTaskEvidenceResolver } from "./task-evidence.js";
