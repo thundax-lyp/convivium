@@ -466,6 +466,46 @@ describe("MeetingRepository", () => {
         await repository.close();
     });
 
+    it("renews an owned outbox lease before a long dispatch completes", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" },
+            createdAt: 0,
+            outbox: [
+                { deliveryId: "delivery-1", kind: "dispatch", payload: { meetingId: "meeting-1" } }
+            ]
+        });
+        const [lease] = await repository.claimOutbox({
+            owner: "worker-a",
+            ttlMs: 10,
+            batchSize: 1,
+            now: 100
+        });
+
+        await expect(
+            repository.renewOutboxLease({
+                id: lease.id,
+                leaseOwner: lease.leaseOwner,
+                leaseToken: lease.leaseToken,
+                ttlMs: 10,
+                now: 105
+            })
+        ).resolves.toBe(115);
+        await expect(
+            repository.completeOutbox({
+                id: lease.id,
+                leaseOwner: lease.leaseOwner,
+                leaseToken: lease.leaseToken,
+                completion: { status: "delivered" },
+                now: 111
+            })
+        ).resolves.toMatchObject({ status: "delivered" });
+        await repository.close();
+    });
+
     it("replays a committed command without rerunning its transition or duplicating outbox", async () => {
         const repository = await openRepository();
         await createMeeting(repository, {

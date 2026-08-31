@@ -25,6 +25,7 @@ export function createMeetingMailApplication(dependencies: {
     readonly meetings: Map<string, StoredMeeting>;
     readonly recovery: MeetingRehydrationService;
     readonly deliveryWorkers: MeetingDeliveryWorkerService;
+    readonly ensureWorker: (stored: StoredMeeting) => void;
 }) {
     return {
         async sendMeetingMessage(
@@ -56,7 +57,13 @@ export function createMeetingMailApplication(dependencies: {
                     "INVALID_ARGUMENT",
                     "Meeting mail must remain in one Meeting."
                 );
+            if (stored.parent === undefined)
+                return commandFailure(
+                    "UNSUPPORTED_CAPABILITY",
+                    "Meeting delivery is unavailable until the Captain Session is rebound."
+                );
             try {
+                dependencies.ensureWorker(stored);
                 const snapshot = await stored.repository.read();
                 const state = snapshot.state as unknown as {
                     participants: { id: string }[];

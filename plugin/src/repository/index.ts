@@ -144,6 +144,14 @@ export interface CompleteOutboxInput {
     now?: number;
 }
 
+export interface RenewOutboxLeaseInput {
+    id: string;
+    leaseOwner: string;
+    leaseToken: string;
+    ttlMs: number;
+    now?: number;
+}
+
 export interface OutboxCompletionResult {
     id: string;
     status: OutboxCompletion["status"];
@@ -1782,6 +1790,42 @@ export class MeetingRepository {
             }
             this.db.exec("COMMIT");
             return { id: input.id, status: completion.status };
+        } catch (error) {
+            this.rollback();
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
+    async renewOutboxLease(input: RenewOutboxLeaseInput): Promise<number> {
+        this.ensureOpen();
+        const now = input.now ?? Date.now();
+        if (input.ttlMs < 1) throw new Error("Outbox lease ttlMs must be positive");
+        try {
+            this.db.exec("BEGIN IMMEDIATE");
+            const current = row<OutboxRow>(
+                this.db.prepare("SELECT * FROM outbox WHERE id = ?").get(input.id)
+            );
+            if (
+                !current ||
+                current.lease_owner !== input.leaseOwner ||
+                current.lease_token !== input.leaseToken ||
+                current.lease_deadline === null ||
+                current.lease_deadline <= now
+            ) {
+                throw new RepositoryError(
+                    "LEASE_LOST",
+                    true,
+                    this.meetingId,
+                    "Outbox lease is no longer owned"
+                );
+            }
+            const deadline = now + input.ttlMs;
+            this.db
+                .prepare("UPDATE outbox SET lease_deadline = ? WHERE id = ?")
+                .run(deadline, input.id);
+            this.db.exec("COMMIT");
+            return deadline;
         } catch (error) {
             this.rollback();
             if (error instanceof RepositoryError) throw error;
