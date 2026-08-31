@@ -44,10 +44,12 @@ import {
     commandFailure as failure,
     commandSuccess as success,
     mapCommandError as commandError
-} from "../services/meeting-command-service.js";
+} from "../services/command-result-service.js";
+import { locateMeetingRepository } from "../services/meeting-repository-locator.js";
 import { resolveArchiveCleanupRuntime } from "../services/meeting-session-service.js";
 import { recoverArchive } from "../services/meeting-archive-service.js";
 import { assignTurnAttempt, initializeFirstMeetingTurn } from "./meeting-turn.js";
+import type { MeetingControlSource, RehydrateMode, StoredMeeting } from "./types.js";
 import {
     meetingTaskEvidenceResolver,
     type AuthorizedTaskEvidenceResolver
@@ -208,21 +210,6 @@ export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
     MeetingOwnershipLookup &
     LocalMeetingWebRuntime & { dispose(): Promise<void> };
 
-interface StoredMeeting {
-    readonly teamId: string;
-    readonly captainSessionId: string;
-    readonly repository: MeetingRepositoryRuntime;
-    parent?: Agent;
-}
-
-type MeetingControlSource =
-    { readonly kind: "captain"; readonly sessionId: string } | { readonly kind: "local_host" };
-
-type RehydrateMode =
-    | { readonly kind: "agent_best_effort" }
-    | { readonly kind: "local_list" }
-    | { readonly kind: "local_meeting"; readonly meetingId: string };
-
 function terminalDispatchError(code: string, message: string): Error {
     return Object.assign(new Error(message), { code, retryable: false });
 }
@@ -247,13 +234,6 @@ function requireDispatchableMeeting(
             "Meeting is terminal or archiving and cannot dispatch work."
         );
     }
-}
-
-function repositoryPath(root: string, teamId: string, meetingId: string): string {
-    if (!/^(?!\.\.?(?:$|[\\/]))[^\\/\0]+$/.test(teamId)) {
-        throw new Error("Invalid teamId path component.");
-    }
-    return join(root, encodeURIComponent(teamId), `${encodeURIComponent(meetingId)}.sqlite`);
 }
 
 function stableMeetingId(input: CreateMeetingInputV1): string {
@@ -403,7 +383,7 @@ export function createCreateStatusRuntime(
                     await recoverLocal(
                         mode.meetingId,
                         existing.teamId,
-                        repositoryPath(options.dataRoot, existing.teamId, mode.meetingId),
+                        locateMeetingRepository(options.dataRoot, existing.teamId, mode.meetingId),
                         existing
                     );
                     return snapshots;
@@ -850,7 +830,7 @@ export function createCreateStatusRuntime(
             await rehydrate();
             const meetingId = stableMeetingId(input);
             const repository = await openMeetingRepository({
-                databasePath: repositoryPath(options.dataRoot, input.teamId, meetingId),
+                databasePath: locateMeetingRepository(options.dataRoot, input.teamId, meetingId),
                 teamId: input.teamId,
                 meetingId,
                 authorizationValidator: options.authorizationValidator

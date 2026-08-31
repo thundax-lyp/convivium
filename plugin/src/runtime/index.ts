@@ -39,7 +39,7 @@ export {
     commandFailure,
     commandSuccess,
     mapCommandError
-} from "./services/meeting-command-service.js";
+} from "./services/command-result-service.js";
 export { resolveArchiveCleanupRuntime } from "./services/meeting-session-service.js";
 export type { ArchiveCleanupRuntime } from "./services/meeting-session-service.js";
 export {
