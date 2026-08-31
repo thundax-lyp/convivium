@@ -173,6 +173,94 @@ describe("client entry framework", () => {
         expect(ordered.acceptedDecisions).toEqual([]);
     });
 
+    it("maps waiting state without a current turn and archive package facts", () => {
+        const waiting = {
+            ...statusResult("running"),
+            status: "waiting" as const,
+            waitState: {
+                reason: "Waiting for evidence",
+                taskIds: [],
+                participantIds: ["participant-one"]
+            }
+        };
+        expect(mapMeetingPanelView(waiting)).toMatchObject({
+            waitingReason: "Waiting for evidence",
+            waitingParticipants: "participant-one"
+        });
+
+        const message = {
+            id: "archive-message-1",
+            seq: 1,
+            turnId: "turn-1",
+            stepId: "step-1",
+            speaker: "participant-one",
+            agendaItemId: "agenda-1",
+            kind: "statement" as const,
+            content: "Archived statement",
+            mentions: [],
+            taskIds: [],
+            createdAt: 1
+        };
+        const decision = { id: "decision-1", statement: "Ship it", status: "accepted" as const };
+        const archived = {
+            meetingId,
+            meetingVersion: 6,
+            topic: "Runtime smoke",
+            objective: "Verify local control",
+            continuationMaterials: [],
+            limits: statusResult().limits,
+            meetingTasks: [],
+            status: "archived" as const,
+            pendingHandRaises: [] as const,
+            pauseControl: { action: "none" as const },
+            termination: {
+                code: "completed",
+                reason: "Done",
+                decisionIds: [decision.id],
+                unresolvedQuestionIds: []
+            },
+            archive: {
+                archivedAt: 300,
+                package: {
+                    schemaVersion: 1 as const,
+                    meetingId,
+                    teamId: "team-1",
+                    objectiveContract: {
+                        requiredOutputs: [],
+                        acceptanceCriteria: [],
+                        hardConstraints: [],
+                        requiredReviewers: [],
+                        riskAcceptanceAuthority: [],
+                        acceptableRiskLevel: "medium" as const
+                    },
+                    finalSummary: "Done",
+                    artifactRefs: [],
+                    acceptedDecisions: [decision],
+                    proposals: [],
+                    completionFacts: [],
+                    agenda: [],
+                    issues: [],
+                    unresolvedQuestions: [],
+                    parkingLot: [],
+                    formalTranscript: [message],
+                    participantProvenance: [],
+                    termination: {
+                        code: "completed",
+                        reason: "Done",
+                        decisionIds: [decision.id],
+                        unresolvedQuestionIds: []
+                    },
+                    endedAt: 200,
+                    materializedAt: 250
+                }
+            }
+        } satisfies MeetingStatusResultV1;
+        expect(mapMeetingPanelView(archived)).toMatchObject({
+            messages: [message],
+            acceptedDecisions: [decision]
+        });
+    });
+
     it("renders transcript in seq order and blocking facts with empty-state sections", async () => {
         const message = {
             id: "m1",
@@ -265,6 +353,9 @@ describe("client entry framework", () => {
         expect(screen.getByLabelText("Resume meeting")).toBeTruthy();
         expect(screen.queryByLabelText("Pause meeting")).toBeNull();
         expect(screen.getByLabelText("Meeting summary").textContent).toContain("paused");
+        expect(screen.getByLabelText("Pause details").textContent).toContain("Inspect output");
+        expect(screen.getByLabelText("Pause details").textContent).toContain("loopback-web");
+        expect(screen.getByLabelText("Meeting limits").textContent).toContain("Maximum turns3");
     });
 
     it("refreshes both the selected detail and list summary when the window regains focus", async () => {
