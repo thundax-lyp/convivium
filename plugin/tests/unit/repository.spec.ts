@@ -954,7 +954,12 @@ PRAGMA user_version = 2;
         });
 
         await expect(repository.read()).resolves.toMatchObject({
-            state: { status: "created", handRaises: [], meetingTasks: [] }
+            state: {
+                status: "created",
+                handRaises: [],
+                meetingTasks: [],
+                decisionCandidates: []
+            }
         });
         await repository.close();
     });

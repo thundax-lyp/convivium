@@ -24,6 +24,7 @@ export function meeting(status: MeetingState["status"] = "created"): MeetingStat
         agendaCandidates: [],
         transcript: [],
         proposals: [],
+        decisionCandidates: [],
         decisions: [],
         openQuestions: [],
         handRaises: [],
