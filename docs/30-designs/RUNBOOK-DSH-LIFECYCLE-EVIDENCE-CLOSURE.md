@@ -1,6 +1,6 @@
 # RUNBOOK：DSH 生命周期与恢复证据闭环
 
-状态：执行中；T1-T11 已 PASS，当前断点为 T12
+状态：执行中；T1-T12 已 PASS，当前断点为 T13
 
 建立日期：2026-08-31
 
@@ -360,27 +360,7 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 
 以下对象中的 `<status.*>` 不是执行者选择或占位输入，而是强制的数据流引用：必须先执行紧邻的 `convivium_meeting_status`，再逐字段复制该返回值；字段缺失即 STOP。所有 `convivium_create_meeting` 使用 §6.5 固定 fixture；所有 success 必须是 `ProtocolSuccessV1`，所有预期失败必须是 `ProtocolErrorV1` 且 `retryable===false`。
 
-T1-T11 已 PASS 并按滚动策略删除对应执行步骤；当前从 T12 开始执行。稳定场景定义仍保留在 §7。
-
-### T12：完整本地验证
-
-允许修改：仅Prettier对 `plugin/scripts/smoke-profile.mjs` 的格式化。执行：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile.mjs --write
-node --check plugin/scripts/smoke-profile.mjs
-pnpm --dir plugin format:check
-pnpm --dir plugin lint
-pnpm --dir plugin typecheck
-pnpm --dir plugin test
-pnpm --dir plugin build
-pnpm --dir plugin verify:environment
-pnpm --dir plugin verify:contract
-pnpm --dir plugin verify:package
-pnpm --dir plugin verify
-```
-
-任一失败若需production修复则STOP。
+T1-T12 已 PASS 并按滚动策略删除对应执行步骤；当前从 T13 开始执行。稳定场景定义仍保留在 §7。
 
 ### T13：迁移 readiness 与 operations
 

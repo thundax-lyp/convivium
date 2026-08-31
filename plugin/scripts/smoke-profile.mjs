@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createConnection, createServer } from "node:net";
 import { constants, createWriteStream } from "node:fs";
-import { access, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
