@@ -99,7 +99,8 @@ export function apply(ctx: Context, config: ConfigType): void {
             validateCommand: () => undefined
         },
         maxParticipants: config.maxParticipants,
-        outboxPollMs: config.outboxPollMs
+        outboxPollMs: config.outboxPollMs,
+        speakerAttemptTimeoutMs: config.speakerTimeoutMs
     });
     lifecycle.add(() => runtime.dispose());
     if (ctx.webServer.host === "127.0.0.1") {

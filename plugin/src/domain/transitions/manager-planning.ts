@@ -212,6 +212,9 @@ export function submitManagerPlan(
         contextThroughSeq: state.messageSeq,
         taskSnapshots: completedTaskSnapshots(state, firstStep.speaker, context.now),
         assignedAt: context.now,
+        ...(state.limits.speakerAttemptTimeoutMs === undefined
+            ? {}
+            : { deadlineAt: context.now + state.limits.speakerAttemptTimeoutMs }),
         status: "running" as const,
         deliveryStatus: "pending" as const
     };

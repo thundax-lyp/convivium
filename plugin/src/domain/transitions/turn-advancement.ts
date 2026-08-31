@@ -84,6 +84,9 @@ export function advanceAfterSpeakerSubmission(
                     context.now
                 ),
                 assignedAt: context.now,
+                ...(submitted.state.limits.speakerAttemptTimeoutMs === undefined
+                    ? {}
+                    : { deadlineAt: context.now + submitted.state.limits.speakerAttemptTimeoutMs }),
                 status: "running" as const,
                 deliveryStatus: "pending" as const
             };
@@ -254,6 +257,9 @@ export function advanceAfterSpeakerSubmission(
             contextThroughSeq: nextState.messageSeq,
             taskSnapshots: completedTaskSnapshots(nextState, firstStep.speaker, context.now),
             assignedAt: context.now,
+            ...(nextState.limits.speakerAttemptTimeoutMs === undefined
+                ? {}
+                : { deadlineAt: context.now + nextState.limits.speakerAttemptTimeoutMs }),
             status: "running",
             deliveryStatus: "pending"
         };

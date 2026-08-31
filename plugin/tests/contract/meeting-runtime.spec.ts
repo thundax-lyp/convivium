@@ -73,6 +73,100 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
+    it("revokes the current attempt before Captain reassignment and rejects its late submission", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-reassign-turn-"));
+        roots.push(root);
+        const runtime = localRuntime(root);
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one", "two"] }],
+                limits: { maxSpeakersPerTurn: 2 }
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const meetingId = created.result.meetingId;
+        const reassigned = await runtime.reassignTurn(
+            {
+                protocolVersion: 1,
+                meetingId,
+                expectedMeetingVersion: created.meetingVersion,
+                currentAttemptId: "attempt-0",
+                action: "reassign",
+                replacementParticipantId: "participant-three",
+                reason: "Captain reassigned the current speaker.",
+                requestId: "reassign-1"
+            },
+            captain,
+            new AbortController().signal
+        );
+        expect(reassigned).toMatchObject({
+            ok: true,
+            meetingVersion: 2,
+            result: { revokedAttemptId: "attempt-0", action: "reassign" }
+        });
+        if (!reassigned.ok || !reassigned.result.replacementAttemptId)
+            throw new Error("reassignment did not create a replacement attempt");
+        await expect(
+            runtime.submitTurn(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    turnId: "turn-1",
+                    stepId: "step-participant-one-0",
+                    attemptId: "attempt-0",
+                    deliveryId: "delivery-0",
+                    agendaItemId: "agenda-agenda-1",
+                    kind: "statement",
+                    content: "late submission",
+                    mentions: [],
+                    taskIds: [],
+                    agendaRelation: "on_topic",
+                    changes: {}
+                },
+                {
+                    sessionId: `${meetingId}-participant-participant-one`,
+                    meetingId,
+                    participantId: "participant-one",
+                    kind: "participant" as const
+                }
+            )
+        ).resolves.toMatchObject({ ok: false, code: "STALE_ATTEMPT" });
+        await expect(
+            runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
+        ).resolves.toMatchObject({
+            ok: true,
+            result: { currentSpeakerId: "participant-three" }
+        });
+        await expect(
+            runtime.reassignTurn(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    expectedMeetingVersion: 2,
+                    currentAttemptId: reassigned.result.replacementAttemptId,
+                    action: "skip",
+                    reason: "Captain skipped the reassigned speaker.",
+                    requestId: "skip-1"
+                },
+                captain,
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({
+            ok: true,
+            meetingVersion: 3,
+            result: { action: "skip", revokedAttemptId: reassigned.result.replacementAttemptId }
+        });
+        await runtime.dispose();
+    });
+
     it("delivers the MeetingTask execution and request bindings", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-task-envelope-"));
         roots.push(root);
