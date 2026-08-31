@@ -360,13 +360,7 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 
 以下对象中的 `<status.*>` 不是执行者选择或占位输入，而是强制的数据流引用：必须先执行紧邻的 `convivium_meeting_status`，再逐字段复制该返回值；字段缺失即 STOP。所有 `convivium_create_meeting` 使用 §6.5 固定 fixture；所有 success 必须是 `ProtocolSuccessV1`，所有预期失败必须是 `ProtocolErrorV1` 且 `retryable===false`。
 
-T1-T9 已 PASS 并按滚动策略删除对应执行步骤；当前从 T10 开始执行。稳定场景定义仍保留在 §7。
-
-### T10：只实现 cross-meeting 场景
-
-新增 `runCrossMeetingScenario(ctx,fixture)`。依次create三个meeting indexes `1000/1010/1020`，team固定A/A/B；每场status、plan、A submit分别使用其十位段+1/+2/+3。随后只对第一场end `1004`，对象同T8但requestId `smoke-cross-end-a-1`；读取三场status `1005/1014/1024`。不得复用Session/participant/attempt对象。
-
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/repository/session-ownership.spec.ts tests/recovery/recovery.spec.ts tests/contract/meeting-runtime.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile`。PASS assertions=`ownership-sets-disjoint`,`meeting-a-cleanup-isolated`,`meeting-b-submitted`,`team-b-submitted`；B/C version与capability未被A cleanup改变，Restore同T2。
+T1-T10 已 PASS 并按滚动策略删除对应执行步骤；当前从 T11 开始执行。稳定场景定义仍保留在 §7。
 
 ### T11：逐个重跑九个 selector
 

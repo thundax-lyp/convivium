@@ -553,7 +553,7 @@ async function driveParticipant(ctx, agent) {
     const participantId = "participant-" + String(agent.id).split("-").at(-1);
     const index = participants.indexOf(participantId);
     if (index < 0) return;
-    if (scenario === "reassign" || scenario === "task-handraise" || scenario === "archive-continuation" || scenario === "mail-race") return;
+    if (scenario === "reassign" || scenario === "task-handraise" || scenario === "archive-continuation" || scenario === "mail-race" || scenario === "cross-meeting") return;
     if (scenario === "timeout" && participantId === "participant-a") return;
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
@@ -605,7 +605,7 @@ function scheduleParticipant(ctx, agent) {
 
 async function run(ctx) {
     if (!outputPath) return;
-    if (scenario !== "baseline" && scenario !== "timeout" && scenario !== "reassign" && scenario !== "task-handraise" && scenario !== "completion-end" && scenario !== "risk-reopen" && scenario !== "cold-rebind" && scenario !== "archive-continuation" && scenario !== "mail-race") {
+    if (scenario !== "baseline" && scenario !== "timeout" && scenario !== "reassign" && scenario !== "task-handraise" && scenario !== "completion-end" && scenario !== "risk-reopen" && scenario !== "cold-rebind" && scenario !== "archive-continuation" && scenario !== "mail-race" && scenario !== "cross-meeting") {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -861,6 +861,69 @@ async function run(ctx) {
             assert(String(recipientSpeaker.agent.id) === recipientSessionId && ctx.agents.get(recipientSessionId) === recipientSpeaker.agent, "recipient queue did not accept a live speaker followup");
             assert(afterSender.result.messages.some((message) => message.id === submitted.result.messageId) && !JSON.stringify(afterSender.result).includes("private-smoke-body"), "mail privacy/status assertion failed");
             await writeResult({ ok: true, scenario, assertions: ["single-mail-terminal", "stable-delivery-ids", "private-body-not-projected", "recipient-queue-reusable"], observed: { meetingId: mailMeetingId, mailId: sent.result.mailId, handlingAttemptId: terminalMail.handling_attempt_id, deliveryId: terminalMail.delivery_id, processingThroughSeq: terminalMail.processing_through_seq, deadlineAt: terminalMail.deadline_at, terminalStatus: terminalMail.status, finishOutcome: finishResult?.result.status ?? finishError, senderMessageId: submitted.result.messageId, recipientAttemptId: afterSender.result.currentAttemptId, recipientSessionId } });
+            return;
+        }
+        if (scenario === "cross-meeting") {
+            const fixtures = [
+                { key: "a", teamId: "smoke-team-a", base: 1000 },
+                { key: "b", teamId: "smoke-team-a", base: 1010 },
+                { key: "c", teamId: "smoke-team-b", base: 1020 }
+            ];
+            const meetings = [];
+            for (const fixture of fixtures) {
+                const input = createInput();
+                input.requestId = "smoke-cross-create-" + fixture.key;
+                input.teamId = fixture.teamId;
+                input.topic = "Cross meeting " + fixture.key.toUpperCase();
+                input.agenda[0].requiredParticipantKeys = ["a"];
+                const created = await callTool(ctx, captain.agent, "convivium_create_meeting", input, fixture.base);
+                const isolatedMeetingId = created.result.meetingId;
+                const status = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId: isolatedMeetingId }, fixture.base + 1);
+                const isolatedManager = await waitForAgent(ctx, isolatedMeetingId + "-manager-manager");
+                const plan = await callTool(ctx, isolatedManager, "convivium_submit_manager_plan", { protocolVersion: 1, meetingId: isolatedMeetingId, planningAttemptId: isolatedMeetingId + "-planning-1", observedMeetingVersion: status.meetingVersion, requestId: "smoke-cross-plan-" + fixture.key, agendaItemId: status.result.activeAgendaItem.id, intent: "explore", objective: "Isolated " + fixture.key, expectedOutputs: [], prohibitedTopics: [], steps: [{ participantId: "participant-a", instruction: "Submit " + fixture.key, reason: "manager_selected" }] }, fixture.base + 2);
+                const isolatedDelivery = await waitForSpeakerContext(ctx, isolatedMeetingId + "-participant-participant-a", plan.result.firstAttemptId);
+                const submitted = await callTool(ctx, isolatedDelivery.agent, "convivium_submit_turn", { protocolVersion: 1, meetingId: isolatedMeetingId, turnId: isolatedDelivery.value.turn.id, stepId: isolatedDelivery.value.step.id, attemptId: isolatedDelivery.value.attempt.attemptId, deliveryId: isolatedDelivery.value.attempt.deliveryId, agendaItemId: isolatedDelivery.value.activeAgendaItem.id, kind: "statement", content: "cross-meeting:" + fixture.key + ":1", mentions: [], taskIds: [], agendaRelation: "on_topic", changes: { questions: [], proposals: [], positions: [], issues: [], decisionProposals: [], agendaCandidates: [] } }, fixture.base + 3);
+                const afterSubmit = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId: isolatedMeetingId }, fixture.base + 1);
+                const { DatabaseSync } = await import("node:sqlite");
+                const { join } = await import("node:path");
+                const databasePath = join(process.cwd(), "convivium-smoke-data", encodeURIComponent(fixture.teamId), encodeURIComponent(isolatedMeetingId) + ".sqlite");
+                const database = new DatabaseSync(databasePath, { readOnly: true });
+                const ownership = database.prepare("SELECT session_id, parent_session_id, session_label, role, participant_id, lifecycle_status, capability_status FROM session_ownership WHERE meeting_id = ? ORDER BY session_id").all(isolatedMeetingId);
+                database.close();
+                assert(ownership.length === 4 && ownership.every((row) => row.parent_session_id === captain.agent.id), "cross Meeting ownership invalid " + fixture.key);
+                meetings.push({ ...fixture, meetingId: isolatedMeetingId, manager: isolatedManager, participant: isolatedDelivery.agent, messageId: submitted.result.messageId, status: afterSubmit, databasePath, ownership });
+            }
+            const sessionSets = meetings.map((meeting) => new Set(meeting.ownership.map((row) => row.session_id)));
+            assert([...sessionSets[0]].every((id) => !sessionSets[1].has(id) && !sessionSets[2].has(id)) && [...sessionSets[1]].every((id) => !sessionSets[2].has(id)), "cross Meeting ownership sets overlap");
+            const first = meetings[0];
+            await callTool(ctx, captain.agent, "convivium_end_meeting", { protocolVersion: 1, meetingId: first.meetingId, expectedMeetingVersion: first.status.meetingVersion, outcome: "partial", reason: "smoke cross isolation", acceptedDecisionIds: [], deferredAgendaItemIds: [], waivers: [], requestId: "smoke-cross-end-a-1" }, 1004);
+            const firstDeadline = Date.now() + 30000;
+            let firstFinal;
+            while (Date.now() < firstDeadline) {
+                const candidate = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId: first.meetingId }, 1005);
+                if (candidate.result.status === "archived") { firstFinal = candidate; break; }
+                await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+            }
+            assert(firstFinal?.result.status === "archived", "cross Meeting A did not archive");
+            const secondFinal = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId: meetings[1].meetingId }, 1014);
+            const thirdFinal = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId: meetings[2].meetingId }, 1024);
+            assert(secondFinal.meetingVersion === meetings[1].status.meetingVersion && thirdFinal.meetingVersion === meetings[2].status.meetingVersion, "cross Meeting cleanup changed another version");
+            assert(secondFinal.result.messages.length === 1 && secondFinal.result.messages[0].id === meetings[1].messageId && thirdFinal.result.messages.length === 1 && thirdFinal.result.messages[0].id === meetings[2].messageId, "cross Meeting cleanup changed another transcript");
+            for (const meeting of meetings.slice(1)) {
+                const { DatabaseSync } = await import("node:sqlite");
+                const database = new DatabaseSync(meeting.databasePath, { readOnly: true });
+                const ownership = database.prepare("SELECT session_id, parent_session_id, session_label, role, participant_id, lifecycle_status, capability_status FROM session_ownership WHERE meeting_id = ? ORDER BY session_id").all(meeting.meetingId);
+                database.close();
+                assert(JSON.stringify(ownership) === JSON.stringify(meeting.ownership), "cross Meeting cleanup changed another ownership set");
+            }
+            let crossAccessError;
+            try {
+                await callTool(ctx, first.participant, "convivium_meeting_status", { protocolVersion: 1, meetingId: meetings[1].meetingId }, 1006);
+            } catch (error) {
+                crossAccessError = String(error);
+            }
+            assert(crossAccessError?.includes("not live") || crossAccessError?.includes("UNAUTHORIZED"), "cross Meeting ownership access was not rejected");
+            await writeResult({ ok: true, scenario, assertions: ["ownership-sets-disjoint", "meeting-a-cleanup-isolated", "meeting-b-submitted", "team-b-submitted"], observed: { meetings: meetings.map((meeting, index) => ({ key: meeting.key, teamId: meeting.teamId, meetingId: meeting.meetingId, messageId: meeting.messageId, versionBeforeCleanup: meeting.status.meetingVersion, versionAfterCleanup: index === 0 ? firstFinal.meetingVersion : index === 1 ? secondFinal.meetingVersion : thirdFinal.meetingVersion, sessionIds: [...sessionSets[index]] })), crossAccessError } });
             return;
         }
         if (scenario === "risk-reopen") {
