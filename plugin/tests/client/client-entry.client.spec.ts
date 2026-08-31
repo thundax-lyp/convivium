@@ -165,10 +165,7 @@ describe("client entry framework", () => {
             taskIds: [],
             createdAt: 1
         };
-        const messages = [
-            { ...message, id: "m2", seq: 2 },
-            message
-        ];
+        const messages = [{ ...message, id: "m2", seq: 2 }, message];
         const ordered = mapMeetingPanelView({ ...active, messages });
         expect(ordered.messages.map((message) => message.seq)).toEqual([1, 2]);
         expect(messages.map((message) => message.seq)).toEqual([2, 1]);
@@ -178,15 +175,38 @@ describe("client entry framework", () => {
 
     it("renders transcript in seq order and blocking facts with empty-state sections", async () => {
         const message = {
-            id: "m1", seq: 1, turnId: "turn-1", stepId: "step-1", speaker: "participant-one",
-            agendaItemId: "agenda-1", kind: "statement" as const, content: "hello", mentions: [], taskIds: [], createdAt: 1
+            id: "m1",
+            seq: 1,
+            turnId: "turn-1",
+            stepId: "step-1",
+            speaker: "participant-one",
+            agendaItemId: "agenda-1",
+            kind: "statement" as const,
+            content: "hello",
+            mentions: [],
+            taskIds: [],
+            createdAt: 1
         };
-        const detail = { ...statusResult(), messages: [{ ...message, id: "m2", seq: 2 }, message], blockingFacts: [{ id: "b1", kind: "risk" as const, subjectId: "s1", summary: "risk" }] };
-        vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse(listResponse())).mockResolvedValueOnce(jsonResponse(success(detail))));
+        const detail = {
+            ...statusResult(),
+            messages: [{ ...message, id: "m2", seq: 2 }, message],
+            blockingFacts: [{ id: "b1", kind: "risk" as const, subjectId: "s1", summary: "risk" }]
+        };
+        vi.stubGlobal(
+            "fetch",
+            vi
+                .fn<typeof fetch>()
+                .mockResolvedValueOnce(jsonResponse(listResponse()))
+                .mockResolvedValueOnce(jsonResponse(success(detail)))
+        );
         render(createElement(ConviviumMeetingPanel));
         await selectMeeting();
         const transcript = screen.getByLabelText("Transcript");
-        expect([...transcript.querySelectorAll("li")].map((item) => item.getAttribute("data-message-seq"))).toEqual(["1", "2"]);
+        expect(
+            [...transcript.querySelectorAll("li")].map((item) =>
+                item.getAttribute("data-message-seq")
+            )
+        ).toEqual(["1", "2"]);
         expect(screen.getByLabelText("Blocking items").textContent).toContain("risk");
     });
 
@@ -399,7 +419,9 @@ describe("client entry framework", () => {
 
         await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
         expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
-        await waitFor(() => expect(screen.getByLabelText("Meeting summary").textContent).toContain("3"));
+        await waitFor(() =>
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain("3")
+        );
         expect(screen.queryByText("Safe conflict")).toBeNull();
     });
 
@@ -484,7 +506,9 @@ describe("client entry framework", () => {
         expect(screen.getByRole("alert").parentElement?.getAttribute("data-cached")).toBe("true");
 
         await act(async () => vi.advanceTimersByTime(5_000));
-        await waitFor(() => expect(screen.getByLabelText("Meeting summary").textContent).toContain("4"));
+        await waitFor(() =>
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain("4")
+        );
         const lastSignal = fetchMock.mock.calls.at(-1)?.[1]?.signal;
         rendered.unmount();
         expect(lastSignal?.aborted).toBe(true);

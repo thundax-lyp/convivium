@@ -33,7 +33,12 @@ class ProtocolFailure extends Error {}
 function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElement {
     const view = mapMeetingPanelView(detail);
     const row = (label: string, value: string) =>
-        createElement("div", { key: label }, createElement("dt", null, label), createElement("dd", null, value));
+        createElement(
+            "div",
+            { key: label },
+            createElement("dt", null, label),
+            createElement("dd", null, value)
+        );
     return createElement(
         "div",
         null,
@@ -41,13 +46,28 @@ function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElemen
             "section",
             { "aria-label": "Meeting summary" },
             createElement("h4", null, "Meeting summary"),
-            createElement("dl", null, row("Topic", detail.topic), row("Status", detail.status), row("Meeting version", String(detail.meetingVersion)), row("Current agenda title", view.agendaTitle), row("Current agenda objective", view.agendaObjective))
+            createElement(
+                "dl",
+                null,
+                row("Topic", detail.topic),
+                row("Status", detail.status),
+                row("Meeting version", String(detail.meetingVersion)),
+                row("Current agenda title", view.agendaTitle),
+                row("Current agenda objective", view.agendaObjective)
+            )
         ),
         createElement(
             "section",
             { "aria-label": "Current activity" },
             createElement("h4", null, "Current activity"),
-            createElement("dl", null, row("Planned speaker order", view.plannedSpeakerOrder), row("Current speaker", view.currentSpeaker), row("Waiting reason", view.waitingReason), row("Waiting participants", view.waitingParticipants))
+            createElement(
+                "dl",
+                null,
+                row("Planned speaker order", view.plannedSpeakerOrder),
+                row("Current speaker", view.currentSpeaker),
+                row("Waiting reason", view.waitingReason),
+                row("Waiting participants", view.waitingParticipants)
+            )
         ),
         createElement(
             "section",
@@ -96,7 +116,22 @@ function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElemen
             createElement("h4", null, "Meeting tasks"),
             view.meetingTasks.length === 0
                 ? createElement("p", null, "No meeting tasks.")
-                : createElement("ol", null, view.meetingTasks.map((task) => createElement("li", { key: task.meetingTaskId, "data-task-id": task.meetingTaskId }, row("Title", task.title), row("Status", task.status), row("Participant", task.participantId), task.resultSummary === undefined ? null : row("Result", task.resultSummary))))
+                : createElement(
+                      "ol",
+                      null,
+                      view.meetingTasks.map((task) =>
+                          createElement(
+                              "li",
+                              { key: task.meetingTaskId, "data-task-id": task.meetingTaskId },
+                              row("Title", task.title),
+                              row("Status", task.status),
+                              row("Participant", task.participantId),
+                              task.resultSummary === undefined
+                                  ? null
+                                  : row("Result", task.resultSummary)
+                          )
+                      )
+                  )
         ),
         createElement(
             "section",
@@ -104,7 +139,28 @@ function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElemen
             createElement("h4", null, "Accepted decisions"),
             view.acceptedDecisions.length === 0
                 ? createElement("p", null, "No accepted decisions.")
-                : createElement("ol", null, view.acceptedDecisions.map((decision) => createElement("li", { key: decision.id, "data-decision-id": decision.id }, decision.statement === undefined ? null : row("Statement", decision.statement), decision.rationale === undefined ? null : row("Rationale", decision.rationale), decision.dissentingPositionIds === undefined ? null : row("Dissent IDs", decision.dissentingPositionIds.join(", ") || "None"))))
+                : createElement(
+                      "ol",
+                      null,
+                      view.acceptedDecisions.map((decision) =>
+                          createElement(
+                              "li",
+                              { key: decision.id, "data-decision-id": decision.id },
+                              decision.statement === undefined
+                                  ? null
+                                  : row("Statement", decision.statement),
+                              decision.rationale === undefined
+                                  ? null
+                                  : row("Rationale", decision.rationale),
+                              decision.dissentingPositionIds === undefined
+                                  ? null
+                                  : row(
+                                        "Dissent IDs",
+                                        decision.dissentingPositionIds.join(", ") || "None"
+                                    )
+                          )
+                      )
+                  )
         ),
         view.termination === undefined
             ? null
@@ -112,7 +168,13 @@ function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElemen
                   "section",
                   { "aria-label": "Termination" },
                   createElement("h4", null, "Termination"),
-                  createElement("dl", null, row("Code", view.termination.code), row("Reason", view.termination.reason), row("Decision IDs", view.termination.decisionIds.join(", ") || "None"))
+                  createElement(
+                      "dl",
+                      null,
+                      row("Code", view.termination.code),
+                      row("Reason", view.termination.reason),
+                      row("Decision IDs", view.termination.decisionIds.join(", ") || "None")
+                  )
               )
     );
 }

@@ -1,6 +1,6 @@
 # RUNBOOK C：FR-11 Client 可观察性最小闭环
 
-状态：滚动执行中；T0–T5 PASS，下一步为 T6；Author 与 Audit 结论为 `Executable`
+状态：滚动执行中；T0–T6 PASS，下一步为 T7；Author 与 Audit 结论为 `Executable`
 
 建立日期：2026-08-31
 
@@ -10,7 +10,7 @@
 
 ## 1. 执行者契约
 
-执行者必须按 `T6 → T7` 顺序执行；T0–T5 已完成并从本文删除。不得跳步、合并步骤或在失败后继续修改。
+执行者必须按 `T7` 顺序执行；T0–T6 已完成并从本文删除。不得跳步、合并步骤或在失败后继续修改。
 
 允许修改：
 
@@ -150,32 +150,6 @@ import type {
 8. 控制可见性和 payload 不变：Pause/Resume/Skip current speaker/End；不新增 Decision/Agenda control。
 
 ## 7. 机械执行步骤
-
-### T6：focused Client、consumer Schema 与 bundle 门禁
-
-前置状态：T5 PASS。
-
-允许修改：只允许 Prettier 对 `meeting-panel.tsx`、`meeting-panel-view.tsx` 和 `client-entry.client.spec.ts` 的机械格式化结果。
-
-禁止修改：其他文件及任何行为/断言。
-
-执行：格式化三个允许文件；运行 Client、consumer Schema、status projection、双 typecheck 与 build。任一失败立即 STOP，不在 T6 修代码。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier src/client/meeting-panel.tsx src/client/meeting-panel-view.tsx tests/client/client-entry.client.spec.ts --write
-pnpm --dir plugin exec vitest run --project client tests/client/client-entry.client.spec.ts
-pnpm --dir plugin exec vitest run --project contract tests/contract/protocol-schema.spec.ts tests/contract/status-projection.spec.ts
-pnpm --dir plugin typecheck
-pnpm --dir plugin build
-```
-
-PASS：全部退出 `0`；consumer Schema/producer projection 无回归；Host/Client programs 和 bundle build 通过；格式化未触碰其他文件。
-
-STOP：任一失败或 Prettier 修改范围越界。报告失败并回到对应 T1-T5 修订 RUNBOOK后再执行；不得在本步判断修复。
-
-恢复：构建产物由现有 build 管理；不手工删除。保留源码 diff。
 
 ### T7：full verify、readiness 迁移与删除
 
