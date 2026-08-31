@@ -149,7 +149,8 @@ export function transitionTurn(
 export function transitionStep(
     step: SpeakerStep,
     to: StepStatus,
-    meetingVersion: number
+    meetingVersion: number,
+    reason?: string
 ): TransitionResult<SpeakerStep> {
     assertTransition("step", step.id, step.status, to, stepTransitions, meetingVersion);
     return {
@@ -158,7 +159,8 @@ export function transitionStep(
             stepId: step.id,
             from: step.status,
             to,
-            meetingVersion
+            meetingVersion,
+            ...(reason === undefined ? {} : { reason })
         })
     };
 }
@@ -212,7 +214,8 @@ export function transitionAttempt(
             from: attempt.status,
             to,
             deliveryStatus: acknowledged ? "acknowledged" : attempt.deliveryStatus,
-            meetingVersion
+            meetingVersion,
+            ...(context.reason === undefined ? {} : { reason: context.reason })
         })
     };
 }

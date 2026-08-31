@@ -1,7 +1,9 @@
 import { DomainError } from "../errors.js";
+import { cancelRequestedMeetingTasksForAttempts } from "../meeting-task.js";
 import type { MeetingState, SpeakerSubmissionContext, TransitionResult } from "../model.js";
 import { transitionAttempt, transitionStep } from "./kernel.js";
 import { executionTerminalStatuses } from "./termination.js";
+import { advanceAfterSpeakerSubmission } from "./turn-advancement.js";
 
 export function submitSpeakerAttempt(
     state: MeetingState,
@@ -134,6 +136,7 @@ export function submitSpeakerAttempt(
                               attempt.contextThroughSeq
                           ),
                           totalSpeeches: candidate.totalSpeeches + 1,
+                          consecutiveAttemptFailures: 0,
                           status: "available" as const
                       }
                     : candidate
@@ -152,4 +155,127 @@ export function submitSpeakerAttempt(
         },
         effect: { events }
     };
+}
+
+export interface FailSpeakerAttemptContext {
+    readonly meetingId: string;
+    readonly participantId: string;
+    readonly turnId: string;
+    readonly stepId: string;
+    readonly attemptId: string;
+    readonly deliveryId: string;
+    readonly agendaItemId: string;
+    readonly now: number;
+    readonly nextPlanningAttemptId: string;
+    readonly nextPlanningDeliveryId: string;
+}
+
+/** Records one expired current attempt; the normal turn-advance path owns the next step. */
+export function failSpeakerAttempt(
+    state: MeetingState,
+    context: FailSpeakerAttemptContext
+): TransitionResult<MeetingState> {
+    const participant = state.participants.find(({ id }) => id === context.participantId);
+    const turn = state.currentTurn;
+    const step = turn?.steps[turn.currentStepIndex];
+    const attempt = step?.attempt;
+    if (
+        state.status !== "running" ||
+        participant === undefined ||
+        turn?.status !== "running" ||
+        turn.id !== context.turnId ||
+        turn.agendaItemId !== context.agendaItemId ||
+        step?.status !== "running" ||
+        step.id !== context.stepId ||
+        attempt?.status !== "running" ||
+        attempt.attemptId !== context.attemptId ||
+        attempt.deliveryId !== context.deliveryId ||
+        attempt.participantId !== context.participantId
+    ) {
+        throw new DomainError("STALE_ATTEMPT", `attempt ${context.attemptId} is not current`, {
+            entityType: "attempt",
+            entityId: context.attemptId,
+            meetingVersion: state.version
+        });
+    }
+    const revokedAttempt = transitionAttempt(attempt, "revoked", state.version, {
+        ...context,
+        reason: "timeout"
+    });
+    const revokedStep = transitionStep(
+        { ...step, attempt: { ...revokedAttempt.state, completedAt: context.now } },
+        "revoked",
+        state.version,
+        "timeout"
+    );
+    const cancelled = cancelRequestedMeetingTasksForAttempts(
+        state,
+        [attempt.attemptId],
+        context.now
+    );
+    const steps = turn.steps.map((candidate, index) =>
+        index === turn.currentStepIndex ? revokedStep.state : candidate
+    );
+    const completed = steps.every(({ status }) =>
+        ["submitted", "skipped", "revoked", "failed"].includes(status)
+    );
+    const events = [
+        ...revokedAttempt.effect.events,
+        ...revokedStep.effect.events,
+        ...cancelled.effect.events,
+        ...(completed
+            ? [
+                  {
+                      type: "turn.completed" as const,
+                      payload: { turnId: turn.id, meetingVersion: state.version + 1 }
+                  },
+                  {
+                      type: "meeting.waiting" as const,
+                      payload: {
+                          meetingId: state.id,
+                          from: state.status,
+                          to: "waiting",
+                          meetingVersion: state.version + 1,
+                          reason: "speaker attempt failed"
+                      }
+                  }
+              ]
+            : [])
+    ];
+    const revoked: TransitionResult<MeetingState> = {
+        state: {
+            ...cancelled.state,
+            status: completed ? "waiting" : state.status,
+            version: state.version + 1,
+            updatedAt: context.now,
+            eventSeq: state.eventSeq + events.length,
+            currentTurn: {
+                ...turn,
+                steps,
+                currentStepIndex: completed ? steps.length : turn.currentStepIndex + 1,
+                ...(completed ? { status: "completed" as const, completedAt: context.now } : {})
+            },
+            participants: state.participants.map((candidate) =>
+                candidate.id === participant.id
+                    ? {
+                          ...candidate,
+                          status: "available" as const,
+                          consecutiveAttemptFailures: candidate.consecutiveAttemptFailures + 1
+                      }
+                    : candidate
+            ),
+            ...(completed
+                ? {
+                      waitState: {
+                          reason: "speaker attempt failed",
+                          taskIds: [],
+                          participantIds: [],
+                          resumeAgendaItemId: turn.agendaItemId
+                      }
+                  }
+                : {})
+        },
+        effect: { events }
+    };
+    return advanceAfterSpeakerSubmission(state, participant.id, context, revoked);
 }

@@ -136,34 +136,30 @@ describe("manager planning transitions", () => {
                 }
             }
         };
-        const result = submitManagerPlan(
-            state,
-            {
-                agendaItemId: "agenda-1",
-                intent: "explore",
-                objective: "Objective",
-                expectedOutputs: [],
-                prohibitedTopics: [],
-                steps: [{ participantId: "a", instruction: "A", reason: "manager_selected" }]
-            },
-            {
-                meetingId: "meeting-1",
-                planningAttemptId: "planning-1",
-                deliveryId: "planning-delivery-1",
-                observedMeetingVersion: 3,
-                dispatchableParticipantIds: [],
-                now
-            },
-            { turnId: "turn-1", stepId: (index) => `step-${index}` }
-        );
-        expect(result.state.status).toBe("waiting");
-        expect(result.state.currentTurn).toBeUndefined();
-        expect(result.state.manager.currentPlanningAttempt?.status).toBe("failed");
-        expect(result.state.waitState?.participantIds).toEqual(["a"]);
-        expect(result.effect.events.map((item) => item.type)).toEqual([
-            "manager_plan.failed",
-            "meeting.waiting"
-        ]);
+        expect(() =>
+            submitManagerPlan(
+                state,
+                {
+                    agendaItemId: "agenda-1",
+                    intent: "explore",
+                    objective: "Objective",
+                    expectedOutputs: [],
+                    prohibitedTopics: [],
+                    steps: [{ participantId: "a", instruction: "A", reason: "manager_selected" }]
+                },
+                {
+                    meetingId: "meeting-1",
+                    planningAttemptId: "planning-1",
+                    deliveryId: "planning-delivery-1",
+                    observedMeetingVersion: 3,
+                    dispatchableParticipantIds: [],
+                    now
+                },
+                { turnId: "turn-1", stepId: (index) => `step-${index}` }
+            )
+        ).toThrowError(expect.objectContaining({ code: "REQUIRED_SPEAKER_UNAVAILABLE" }));
+        expect(state.version).toBe(3);
+        expect(state.manager.currentPlanningAttempt?.status).toBe("running");
     });
     it("starts one manager planning attempt after entering running", () => {
         const state = {

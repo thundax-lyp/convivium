@@ -685,6 +685,7 @@ export interface AttemptTransitionContext {
     turnId: string;
     stepId: string;
     deliveryId: string;
+    reason?: string;
 }
 
 export interface SpeakerSubmissionContext extends AttemptTransitionContext {

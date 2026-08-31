@@ -690,7 +690,7 @@ pending → running | revoked | failed
 running → submitted | revoked | failed
 ```
 
-结束状态不可再次转换。超时转换为 `revoked` 并记录 timeout reason。重试必须创建新 attempt，不能复活旧 capability。
+结束状态不可再次转换。Captain 主动撤销、改派或 deadline timeout 都转换为 `revoked`；timeout 的 Attempt/Step event payload 必须记录 `reason='timeout'`。上述转换都使旧 capability 失效，后续调度必须创建新 attempt，不能复活旧 capability。
 
 非法转换返回：
 

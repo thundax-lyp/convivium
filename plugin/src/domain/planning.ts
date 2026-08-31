@@ -1,12 +1,25 @@
 import { DomainError } from "./errors.js";
 import { participantHasActiveMeetingTask } from "./hand-raise.js";
 import type {
+    MeetingParticipant,
     MeetingState,
     MeetingTurn,
     SpeakerSelectionReason,
     SpeakerStep,
     TurnIntent
 } from "./model.js";
+
+export function isParticipantDispatchableNow(
+    state: MeetingState,
+    participant: MeetingParticipant
+): boolean {
+    return (
+        participant.status === "available" &&
+        participant.consecutiveAttemptFailures <
+            state.limits.maxConsecutiveAttemptFailuresPerParticipant &&
+        !participantHasActiveMeetingTask(state, participant.id)
+    );
+}
 
 export interface RoundRobinPlanIds {
     turnId: string;
@@ -119,11 +132,7 @@ export function planRoundRobinTurn(
             .map((raise) => raise.participant)
     );
     const speakers = state.participants
-        .filter(
-            (participant) =>
-                participant.status === "available" &&
-                !participantHasActiveMeetingTask(state, participant.id)
-        )
+        .filter((participant) => isParticipantDispatchableNow(state, participant))
         .sort(
             (left, right) =>
                 Number(pendingRaiseParticipants.has(right.id)) -

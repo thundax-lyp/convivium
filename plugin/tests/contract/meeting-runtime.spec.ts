@@ -189,6 +189,386 @@ describe("create/status meeting runtime", () => {
         await reopened.dispose();
     });
 
+    it("expires only a due current SpeakerAttempt and rejects its late submit", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-speaker-timeout-"));
+        roots.push(root);
+        let time = Date.now() + 10_000;
+        const interrupted: string[] = [];
+        const deliveryOrder: string[] = [];
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            outboxPollMs: 1,
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async (_parent, sessionId) => {
+                    deliveryOrder.push(`followup:${String(sessionId)}`);
+                    return "followup-message" as never;
+                },
+                interrupt: (sessionId) => {
+                    interrupted.push(String(sessionId));
+                    deliveryOrder.push(`interrupt:${String(sessionId)}`);
+                },
+                drainContinuableChildren: async (_parent, sessionIds) => {
+                    deliveryOrder.push(`drain:start:${sessionIds.map(String).join(",")}`);
+                    await Promise.resolve();
+                    deliveryOrder.push(`drain:end:${sessionIds.map(String).join(",")}`);
+                }
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => time
+        });
+        const captain = {
+            sessionId: "captain-timeout",
+            kind: "captain" as const,
+            agent: { id: "captain-timeout" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one", "two"] }],
+                participants: [input.participants[0]!, input.participants[1]!],
+                limits: { maxSpeakersPerTurn: 2, speakerAttemptTimeoutMs: 10 }
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const firstSessionId = `${created.result.meetingId}-participant-participant-one`;
+        const secondSessionId = `${created.result.meetingId}-participant-participant-two`;
+        await vi.waitFor(() => expect(deliveryOrder).toContain(`followup:${firstSessionId}`));
+        await runtime.scanExpiredSpeakerAttempts();
+        expect(
+            await runtime.getStatus(
+                { protocolVersion: 1, meetingId: created.result.meetingId },
+                captain
+            )
+        ).toMatchObject({ ok: true, meetingVersion: created.meetingVersion });
+        time += 10;
+        await runtime.scanExpiredSpeakerAttempts();
+        await vi.waitFor(() => expect(deliveryOrder).toContain(`followup:${secondSessionId}`));
+        const status = await runtime.getStatus(
+            { protocolVersion: 1, meetingId: created.result.meetingId },
+            captain
+        );
+        expect(status).toMatchObject({
+            ok: true,
+            meetingVersion: created.meetingVersion + 1,
+            result: { currentSpeakerId: "participant-two" }
+        });
+        expect(interrupted).toEqual([firstSessionId]);
+        expect(deliveryOrder.indexOf(`interrupt:${firstSessionId}`)).toBeLessThan(
+            deliveryOrder.indexOf(`drain:start:${firstSessionId}`)
+        );
+        expect(deliveryOrder.indexOf(`drain:end:${firstSessionId}`)).toBeLessThan(
+            deliveryOrder.indexOf(`followup:${secondSessionId}`)
+        );
+        await runtime.scanExpiredSpeakerAttempts();
+        expect(
+            await runtime.getStatus(
+                { protocolVersion: 1, meetingId: created.result.meetingId },
+                captain
+            )
+        ).toMatchObject({ ok: true, meetingVersion: created.meetingVersion + 1 });
+        await expect(
+            runtime.submitTurn(
+                {
+                    protocolVersion: 1,
+                    meetingId: created.result.meetingId,
+                    turnId: "turn-1",
+                    stepId: "step-participant-one-0",
+                    attemptId: "attempt-0",
+                    deliveryId: "delivery-0",
+                    agendaItemId: "agenda-agenda-1",
+                    kind: "statement",
+                    content: "late",
+                    mentions: [],
+                    taskIds: [],
+                    agendaRelation: "on_topic",
+                    changes: {}
+                },
+                {
+                    sessionId: `${created.result.meetingId}-participant-participant-one`,
+                    meetingId: created.result.meetingId,
+                    participantId: "participant-one",
+                    kind: "participant"
+                }
+            )
+        ).resolves.toMatchObject({ ok: false, code: "STALE_ATTEMPT" });
+        await runtime.dispose();
+    });
+
+    it("dispatches the next Manager plan with the shared failure-threshold eligibility", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-manager-timeout-"));
+        roots.push(root);
+        let time = Date.now() + 10_000;
+        const managerContexts: Array<{ dispatchableParticipantIds?: string[] }> = [];
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            outboxPollMs: 1,
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async (_parent, _sessionId, prompt) => {
+                    const text = prompt[0]?.type === "text" ? prompt[0].text : undefined;
+                    if (typeof text === "string" && text.startsWith("{")) {
+                        managerContexts.push(
+                            JSON.parse(text) as { dispatchableParticipantIds?: string[] }
+                        );
+                    }
+                    return "followup-message" as never;
+                },
+                interrupt: () => undefined
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => time
+        });
+        const captain = {
+            sessionId: "captain-manager-timeout",
+            kind: "captain" as const,
+            agent: { id: "captain-manager-timeout" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                selectionMode: "manager",
+                objectiveContract: {
+                    ...input.objectiveContract,
+                    requiredOutputs: [{ key: "done", description: "Done" }]
+                },
+                agenda: [
+                    {
+                        ...input.agenda[0]!,
+                        completionCriteria: ["Done"],
+                        requiredParticipantKeys: []
+                    }
+                ],
+                participants: [input.participants[0]!, input.participants[1]!],
+                limits: {
+                    maxSpeakersPerTurn: 1,
+                    speakerAttemptTimeoutMs: 5,
+                    maxConsecutiveAttemptFailuresPerParticipant: 1
+                }
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        await vi.waitFor(() => expect(managerContexts).toHaveLength(1));
+        const meetingId = created.result.meetingId;
+        const planned = await runtime.submitManagerPlan(
+            {
+                protocolVersion: 1,
+                meetingId,
+                requestId: "manager-timeout-plan",
+                planningAttemptId: `${meetingId}-planning-1`,
+                observedMeetingVersion: created.meetingVersion,
+                agendaItemId: "agenda-agenda-1",
+                intent: "explore",
+                objective: "Resolve output",
+                expectedOutputs: ["output-done"],
+                prohibitedTopics: [],
+                steps: [
+                    {
+                        participantId: "participant-one",
+                        instruction: "Investigate",
+                        reason: "manager_selected"
+                    }
+                ]
+            },
+            {
+                sessionId: `${meetingId}-manager-manager`,
+                meetingId,
+                kind: "manager"
+            }
+        );
+        expect(planned).toMatchObject({ ok: true });
+        time += 5;
+        await runtime.scanExpiredSpeakerAttempts();
+        await vi.waitFor(() => expect(managerContexts).toHaveLength(2));
+        expect(managerContexts[1]?.dispatchableParticipantIds).toEqual(["participant-two"]);
+        const afterTimeout = await runtime.getStatus({ protocolVersion: 1, meetingId }, captain);
+        if (!afterTimeout.ok) throw new Error("status failed");
+        await expect(
+            runtime.submitManagerPlan(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    requestId: "manager-timeout-invalid-plan",
+                    planningAttemptId: `${meetingId}-planning-2`,
+                    observedMeetingVersion: afterTimeout.meetingVersion,
+                    agendaItemId: "agenda-agenda-1",
+                    intent: "explore",
+                    objective: "Retry failed participant",
+                    expectedOutputs: ["output-done"],
+                    prohibitedTopics: [],
+                    steps: [
+                        {
+                            participantId: "participant-one",
+                            instruction: "Retry",
+                            reason: "manager_selected"
+                        }
+                    ]
+                },
+                {
+                    sessionId: `${meetingId}-manager-manager`,
+                    meetingId,
+                    kind: "manager"
+                }
+            )
+        ).resolves.toMatchObject({ ok: false, code: "MANAGER_PLAN_INVALID" });
+        await expect(
+            runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
+        ).resolves.toMatchObject({ meetingVersion: afterTimeout.meetingVersion });
+        await runtime.dispose();
+    });
+
+    it("continues scanning healthy Meetings before surfacing one repository failure", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-timeout-isolation-"));
+        roots.push(root);
+        let time = 0;
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            timeoutScanSleep: async (_delay, signal) =>
+                new Promise<void>((resolve) => {
+                    signal.addEventListener("abort", resolve, { once: true });
+                }),
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => "followup-message" as never
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => time
+        });
+        const captain = {
+            sessionId: "captain-isolation",
+            kind: "captain" as const,
+            agent: { id: "captain-isolation" } as never
+        };
+        const meetingInput = {
+            ...input,
+            agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+            participants: [input.participants[0]!],
+            limits: {
+                maxSpeakersPerTurn: 1,
+                speakerAttemptTimeoutMs: 5,
+                maxConsecutiveAttemptFailuresPerParticipant: 1
+            }
+        };
+        const broken = await runtime.createMeeting(
+            { ...meetingInput, requestId: "create-broken" },
+            captain,
+            new AbortController().signal
+        );
+        const healthy = await runtime.createMeeting(
+            { ...meetingInput, requestId: "create-healthy" },
+            captain,
+            new AbortController().signal
+        );
+        if (!broken.ok || !healthy.ok) throw new Error("create failed");
+        const brokenDb = new DatabaseSync(
+            join(root, input.teamId, `${broken.result.meetingId}.sqlite`)
+        );
+        brokenDb.exec("ALTER TABLE meetings RENAME TO meetings_broken");
+        brokenDb.close();
+
+        time = 5;
+        await expect(runtime.scanExpiredSpeakerAttempts()).rejects.toMatchObject({
+            code: "CORRUPT_DATABASE"
+        });
+        const healthyStatus = await runtime.getStatus(
+            { protocolVersion: 1, meetingId: healthy.result.meetingId },
+            captain
+        );
+        expect(healthyStatus).toMatchObject({ ok: true });
+        expect(healthyStatus.meetingVersion).toBeGreaterThan(healthy.meetingVersion);
+        await runtime.dispose();
+    });
+
+    it("runs the timeout scan from the runtime lifecycle and stops it on dispose", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-timeout-monitor-"));
+        roots.push(root);
+        let time = 0;
+        const sleepers: Array<() => void> = [];
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            outboxPollMs: 10,
+            timeoutScanSleep: async (_delay, signal) =>
+                new Promise<void>((resolve) => {
+                    sleepers.push(resolve);
+                    signal.addEventListener("abort", resolve, { once: true });
+                }),
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => "followup-message" as never
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => time
+        });
+        await vi.waitFor(() => expect(sleepers).toHaveLength(1));
+        const captain = {
+            sessionId: "captain-monitor",
+            kind: "captain" as const,
+            agent: { id: "captain-monitor" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!],
+                limits: {
+                    maxSpeakersPerTurn: 1,
+                    speakerAttemptTimeoutMs: 5,
+                    maxConsecutiveAttemptFailuresPerParticipant: 1
+                }
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        time = 5;
+        sleepers.shift()!();
+        await vi.waitFor(() => expect(sleepers).toHaveLength(1));
+        await vi.waitFor(async () =>
+            expect(
+                await runtime.getStatus(
+                    { protocolVersion: 1, meetingId: created.result.meetingId },
+                    captain
+                )
+            ).toMatchObject({ ok: true, result: { status: "archiving" } })
+        );
+        const sleepCount = sleepers.length;
+        await runtime.dispose();
+        await Promise.resolve();
+        expect(sleepers).toHaveLength(sleepCount);
+    });
+
     it("commits proposal and caller-bound position once, while failing closed for decision proposals", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-proposal-position-"));
         roots.push(root);

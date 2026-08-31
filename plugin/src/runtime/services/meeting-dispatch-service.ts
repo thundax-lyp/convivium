@@ -5,7 +5,7 @@ import {
     followupParticipantSession,
     type ContinuableFollowupRuntime
 } from "../../dsh/index.js";
-import { participantHasActiveMeetingTask, type MeetingState } from "../../domain/index.js";
+import { isParticipantDispatchableNow, type MeetingState } from "../../domain/index.js";
 import { projectManagerMeetingContext } from "../../projection/index.js";
 import type { OutboxItem } from "../../repository/index.js";
 import type { MeetingRepositoryRuntime } from "../meeting-runtime.js";
@@ -162,8 +162,7 @@ export function createMeetingDeliveryDispatcher(
         const dispatchableParticipantIds = state.participants
             .filter(
                 (participant) =>
-                    participant.status === "available" &&
-                    !participantHasActiveMeetingTask(state, participant.id) &&
+                    isParticipantDispatchableNow(state, participant) &&
                     recovered.sessionOwnership.some(
                         (candidate) =>
                             candidate.role === "participant" &&

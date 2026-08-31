@@ -3,7 +3,7 @@ import {
     completedTaskSnapshots,
     createHandRaise,
     findPendingEquivalentHandRaise,
-    participantHasActiveMeetingTask,
+    isParticipantDispatchableNow,
     planRoundRobinTurn,
     submitManagerPlan as submitManagerPlanTransition,
     submitSpeakerAndAdvanceMeeting,
@@ -505,11 +505,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     const recovered = await stored.repository.recover();
                     const state = current.state as unknown as MeetingState;
                     const dispatchableParticipantIds = state.participants
-                        .filter(
-                            (participant) =>
-                                participant.status === "available" &&
-                                !participantHasActiveMeetingTask(state, participant.id)
-                        )
+                        .filter((participant) => isParticipantDispatchableNow(state, participant))
                         .filter((participant) =>
                             recovered.sessionOwnership.some(
                                 (ownership) =>
@@ -602,7 +598,10 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                             meetingId: input.meetingId,
                             meetingVersion: input.observedMeetingVersion
                         },
-                        { VERSION_CONFLICT: "STALE_MANAGER_ATTEMPT" }
+                        {
+                            VERSION_CONFLICT: "STALE_MANAGER_ATTEMPT",
+                            REQUIRED_SPEAKER_UNAVAILABLE: "REQUIRED_SPEAKER_UNAVAILABLE"
+                        }
                     );
                 }
             }

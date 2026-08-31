@@ -1,4 +1,7 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
+import { DomainError, failSpeakerAttempt, type MeetingState } from "../../domain/index.js";
+import { RepositoryError } from "../../repository/index.js";
+import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
 import {
     type ArchiveSessionRuntime,
     type ContinuableFollowupRuntime,
@@ -157,6 +160,7 @@ export interface CreateStatusRuntimeOptions {
     readonly signal?: AbortSignal;
     readonly now?: () => number;
     readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
+    readonly timeoutScanSleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
 }
 
 export interface LocalMeetingWebRuntime {
@@ -175,8 +179,32 @@ export interface LocalMeetingWebRuntime {
 export { LocalMeetingRecoveryUnavailableError } from "../services/meeting-recovery-service.js";
 
 export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
-    MeetingOwnershipLookup &
-    LocalMeetingWebRuntime & { dispose(): Promise<void> };
+    MeetingOwnershipLookup & {
+        scanExpiredSpeakerAttempts(): Promise<void>;
+    } & LocalMeetingWebRuntime & { dispose(): Promise<void> };
+
+export function defaultTimeoutScanSleep(delayMs: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (signal.aborted) return reject(signal.reason);
+        const onAbort = () => {
+            clearTimeout(timer);
+            reject(signal.reason);
+        };
+        const timer = setTimeout(() => {
+            signal.removeEventListener("abort", onAbort);
+            resolve();
+        }, delayMs);
+        signal.addEventListener("abort", onAbort, { once: true });
+    });
+}
+
+function isConcurrentTimeoutLoser(error: unknown): boolean {
+    return (
+        (error instanceof RepositoryError &&
+            (error.code === "VERSION_CONFLICT" || error.code === "IDEMPOTENCY_CONFLICT")) ||
+        (error instanceof DomainError && error.code === "STALE_ATTEMPT")
+    );
+}
 
 export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
@@ -195,6 +223,22 @@ export function createCreateStatusRuntime(
         options.signal === undefined
             ? runtimeController.signal
             : AbortSignal.any([options.signal, runtimeController.signal]);
+    const timeoutController = new AbortController();
+    const timeoutSignal = AbortSignal.any([signal, timeoutController.signal]);
+    const timeoutDispatchHolds = new Map<string, Promise<void>>();
+    const holdTimeoutDispatch = (meetingId: string): (() => void) => {
+        let release!: () => void;
+        const hold = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        timeoutDispatchHolds.set(meetingId, hold);
+        return () => {
+            if (timeoutDispatchHolds.get(meetingId) === hold) {
+                timeoutDispatchHolds.delete(meetingId);
+            }
+            release();
+        };
+    };
     const repositoryRecovery = createMeetingRehydrationService({
         dataRoot: options.dataRoot,
         authorizationValidator: options.authorizationValidator,
@@ -257,14 +301,16 @@ export function createCreateStatusRuntime(
             meetingId,
             repository: stored.repository,
             parent: stored.parent,
-            dispatch: (item, workerSignal) =>
-                deliveryDispatcher.dispatch({
+            dispatch: async (item, workerSignal) => {
+                await timeoutDispatchHolds.get(meetingId);
+                return deliveryDispatcher.dispatch({
                     repository: stored.repository,
                     parent: stored.parent!,
                     meetingId,
                     signal: AbortSignal.any([signal, workerSignal]),
                     item
-                })
+                });
+            }
         });
     }
 
@@ -303,6 +349,158 @@ export function createCreateStatusRuntime(
         recoverArchiveForCaptain
     });
 
+    async function scanExpiredSpeakerAttempts(): Promise<void> {
+        await recovery.rehydrate();
+        const now = options.now?.() ?? Date.now();
+        let firstError: unknown;
+        for (const stored of meetings.values()) {
+            let releaseDispatch: (() => void) | undefined;
+            let committed = false;
+            try {
+                const parent = stored.parent;
+                if (parent === undefined) continue;
+                const current = await stored.repository.read();
+                const state = current.state as unknown as MeetingState;
+                const turn = state.currentTurn;
+                const step = turn?.steps[turn.currentStepIndex];
+                const attempt = step?.attempt;
+                if (
+                    state.status !== "running" ||
+                    turn?.status !== "running" ||
+                    step?.status !== "running" ||
+                    attempt?.status !== "running" ||
+                    attempt.deadlineAt === undefined ||
+                    attempt.deadlineAt > now
+                ) {
+                    continue;
+                }
+                releaseDispatch = holdTimeoutDispatch(stored.repository.meetingId);
+                await stored.repository.execute({
+                    requestId: `runtime-timeout:${attempt.attemptId}`,
+                    commandKind: "expire_speaker_attempt",
+                    authorization: {
+                        callerBinding: "runtime:convivium",
+                        capabilityId: "runtime:timeout",
+                        attemptId: attempt.attemptId
+                    },
+                    requestHash: `runtime-timeout:${attempt.attemptId}`,
+                    expectedMeetingVersion: current.version,
+                    transition: (snapshot) => {
+                        const transition = failSpeakerAttempt(
+                            snapshot.state as unknown as MeetingState,
+                            {
+                                meetingId: state.id,
+                                participantId: attempt.participantId,
+                                turnId: attempt.turnId,
+                                stepId: attempt.stepId,
+                                attemptId: attempt.attemptId,
+                                deliveryId: attempt.deliveryId,
+                                agendaItemId: turn.agendaItemId,
+                                now,
+                                nextPlanningAttemptId: `${state.id}-planning-${state.replanCount + 1}`,
+                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.replanCount + 1}`
+                            }
+                        );
+                        const nextAttempt =
+                            transition.state.currentTurn?.steps[
+                                transition.state.currentTurn.currentStepIndex
+                            ]?.attempt;
+                        const nextPlanningAttempt = transition.state.manager.currentPlanningAttempt;
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: { expiredAttemptId: attempt.attemptId },
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox: nextAttempt
+                                ? [
+                                      {
+                                          deliveryId: nextAttempt.deliveryId,
+                                          kind: "dispatch" as const,
+                                          payload: {
+                                              role: "participant",
+                                              participantId: nextAttempt.participantId,
+                                              attemptId: nextAttempt.attemptId,
+                                              turnId: nextAttempt.turnId,
+                                              stepId: nextAttempt.stepId
+                                          }
+                                      }
+                                  ]
+                                : nextPlanningAttempt
+                                  ? [
+                                        {
+                                            deliveryId: nextPlanningAttempt.deliveryId,
+                                            kind: "dispatch" as const,
+                                            payload: {
+                                                role: "manager",
+                                                planningAttemptId: nextPlanningAttempt.id
+                                            }
+                                        }
+                                    ]
+                                  : []
+                        };
+                    }
+                });
+                committed = true;
+                const ownership = (await stored.repository.recover()).sessionOwnership.find(
+                    (candidate) =>
+                        candidate.role === "participant" &&
+                        candidate.participantId === attempt.participantId &&
+                        candidate.parentSessionId === String(parent.id) &&
+                        candidate.lifecycleStatus === "active" &&
+                        candidate.capabilityStatus === "active"
+                );
+                if (
+                    ownership !== undefined &&
+                    typeof options.continuable.interrupt === "function"
+                ) {
+                    try {
+                        options.continuable.interrupt(ownership.sessionId as never, {
+                            kind: "ancestor",
+                            agent: parent
+                        });
+                    } catch {
+                        // Timeout facts are committed before this best-effort DSH effect.
+                    }
+                }
+                if (
+                    ownership !== undefined &&
+                    typeof options.continuable.drainContinuableChildren === "function"
+                ) {
+                    try {
+                        await options.continuable.drainContinuableChildren(parent, [
+                            ownership.sessionId as never
+                        ]);
+                    } catch {
+                        // A failed drain does not roll back the committed timeout fact.
+                    }
+                }
+            } catch (error) {
+                if (isConcurrentTimeoutLoser(error)) continue;
+                firstError ??= error;
+            } finally {
+                releaseDispatch?.();
+                if (committed) deliveryWorkers.wake(stored.repository.meetingId);
+            }
+        }
+        if (firstError !== undefined) throw firstError;
+    }
+
+    const scanSleep = options.timeoutScanSleep ?? defaultTimeoutScanSleep;
+    const timeoutMonitor = (async () => {
+        while (!timeoutSignal.aborted) {
+            try {
+                await scanExpiredSpeakerAttempts();
+            } catch {
+                // The public scan preserves the error. The lifecycle monitor retries on its next poll.
+            }
+            try {
+                await scanSleep(options.outboxPollMs ?? 1_000, timeoutSignal);
+            } catch {
+                if (timeoutSignal.aborted) return;
+                throw new Error("Speaker timeout monitor sleep failed.");
+            }
+        }
+    })();
+
     return {
         createMeeting,
         getStatus: queryApplication.getStatus,
@@ -323,9 +521,12 @@ export function createCreateStatusRuntime(
         reassignTurn: controlApplication.reassignTurn,
         disposeRisk: controlApplication.disposeRisk,
         endMeeting: endApplication.endMeeting,
+        scanExpiredSpeakerAttempts,
         findBySessionId: queryApplication.findBySessionId,
         async dispose() {
             runtimeController.abort(new Error("Meeting runtime disposed"));
+            timeoutController.abort(new Error("Speaker timeout monitor disposed"));
+            await timeoutMonitor;
             await deliveryWorkers.dispose();
             await Promise.all([...meetings.values()].map((stored) => stored.repository.close()));
             meetings.clear();

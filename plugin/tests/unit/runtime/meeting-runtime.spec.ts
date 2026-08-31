@@ -1,8 +1,12 @@
+import { getEventListeners } from "node:events";
 import { describe, expect, it } from "vitest";
 import { createMeetingRuntime } from "../../../src/runtime/meeting-runtime.js";
 import { rejectUnsupportedTaskEvidence } from "../../../src/runtime/task-evidence.js";
 import type { CreateMeetingInputV1 } from "../../../src/protocol/index.js";
-import { LocalMeetingRecoveryUnavailableError } from "../../../src/runtime/application-service/index.js";
+import {
+    defaultTimeoutScanSleep,
+    LocalMeetingRecoveryUnavailableError
+} from "../../../src/runtime/application-service/index.js";
 
 const input: CreateMeetingInputV1 = {
     protocolVersion: 1,
@@ -141,5 +145,16 @@ describe("LocalMeetingRecoveryUnavailableError", () => {
         expect(error.name).toBe("LocalMeetingRecoveryUnavailableError");
         expect(error.cause).toBe(cause);
         expect(error).not.toHaveProperty("code");
+    });
+});
+
+describe("defaultTimeoutScanSleep", () => {
+    it("removes its abort listener after the timer completes", async () => {
+        const controller = new AbortController();
+        const sleeping = defaultTimeoutScanSleep(0, controller.signal);
+
+        expect(getEventListeners(controller.signal, "abort")).toHaveLength(1);
+        await sleeping;
+        expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
     });
 });
