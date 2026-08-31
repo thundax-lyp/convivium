@@ -152,13 +152,7 @@ async function resolveContinuationSelection(
     }
     for (const id of selection.unresolvedIssueIds) {
         const issue = archive.issues.find((candidate) => candidate.id === id);
-        if (
-            issue === undefined ||
-            !(
-                ["open", "waiting", "deferred"].includes(issue.status) ||
-                ["blocking", "follow_up"].includes(issue.disposition)
-            )
-        ) {
+        if (issue === undefined || !["open", "waiting", "deferred"].includes(issue.status)) {
             return archiveMaterialFailure("The selected unresolved issue is unavailable.");
         }
         const failure = append(
