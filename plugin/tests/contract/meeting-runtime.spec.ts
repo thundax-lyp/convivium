@@ -82,7 +82,15 @@ describe("create/status meeting runtime", () => {
             kind: "captain" as const,
             agent: { id: "captain-1" } as never
         };
-        const created = await runtime.createMeeting(input, captain, new AbortController().signal);
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one", "two"] }],
+                limits: { maxSpeakersPerTurn: 2 }
+            },
+            captain,
+            new AbortController().signal
+        );
         if (!created.ok) throw new Error("create failed");
         const meetingId = created.result.meetingId;
         const reassigned = await runtime.reassignTurn(
@@ -92,7 +100,7 @@ describe("create/status meeting runtime", () => {
                 expectedMeetingVersion: created.meetingVersion,
                 currentAttemptId: "attempt-0",
                 action: "reassign",
-                replacementParticipantId: "participant-two",
+                replacementParticipantId: "participant-three",
                 reason: "Captain reassigned the current speaker.",
                 requestId: "reassign-1"
             },
@@ -135,7 +143,7 @@ describe("create/status meeting runtime", () => {
             runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
         ).resolves.toMatchObject({
             ok: true,
-            result: { currentSpeakerId: "participant-two" }
+            result: { currentSpeakerId: "participant-three" }
         });
         await expect(
             runtime.reassignTurn(

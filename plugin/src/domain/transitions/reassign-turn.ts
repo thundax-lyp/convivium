@@ -92,6 +92,10 @@ export function reassignTurn(
             replacementId === attempt.participantId ||
             replacement === undefined ||
             replacement.status !== "available" ||
+            turn.steps.some(
+                (candidate, index) =>
+                    index !== turn.currentStepIndex && candidate.speaker === replacementId
+            ) ||
             participantHasActiveMeetingTask(cancelled.state, replacementId)
         ) {
             throw new DomainError(
@@ -183,19 +187,21 @@ export function reassignTurn(
         version: state.version + 1,
         updatedAt: context.now,
         eventSeq: state.eventSeq + (completed ? 4 : 5) + cancelled.effect.events.length,
-        currentTurn: {
-            ...turn,
-            status: completed ? ("completed" as const) : turn.status,
-            currentStepIndex: completed ? turn.steps.length : nextIndex,
-            completedAt: completed ? context.now : turn.completedAt,
-            steps: turn.steps.map((candidate, index) =>
-                index === turn.currentStepIndex
-                    ? { ...revokedStep, status: "skipped" as const }
-                    : index === nextIndex && nextAttempt !== undefined
-                      ? { ...candidate, status: "running" as const, attempt: nextAttempt }
-                      : candidate
-            )
-        },
+        currentTurn: completed
+            ? undefined
+            : {
+                  ...turn,
+                  status: turn.status,
+                  currentStepIndex: nextIndex,
+                  completedAt: turn.completedAt,
+                  steps: turn.steps.map((candidate, index) =>
+                      index === turn.currentStepIndex
+                          ? { ...revokedStep, status: "skipped" as const }
+                          : index === nextIndex && nextAttempt !== undefined
+                            ? { ...candidate, status: "running" as const, attempt: nextAttempt }
+                            : candidate
+                  )
+              },
         ...(completed
             ? {
                   waitState: {
