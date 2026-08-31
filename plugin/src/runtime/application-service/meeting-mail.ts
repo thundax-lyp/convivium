@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { DomainError } from "../../domain/index.js";
 import type {
     FinishMeetingMailInputV1,
     MeetingMailResultV1,
@@ -94,14 +93,7 @@ export function createMeetingMailApplication(dependencies: {
                         capabilityId: `participant:${caller.participantId}`
                     },
                     expectedMeetingVersion: input.expectedMeetingVersion,
-                    validateNewDelivery: () => {
-                        if (stored.parent === undefined) {
-                            throw new DomainError(
-                                "UNSUPPORTED_CAPABILITY",
-                                "Meeting delivery is unavailable until the Captain Session is rebound."
-                            );
-                        }
-                    },
+                    isNewDeliveryAvailable: () => stored.parent !== undefined,
                     mail: {
                         mailId,
                         handlingAttemptId,

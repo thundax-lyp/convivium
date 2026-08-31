@@ -237,7 +237,7 @@ export interface SendPrivateMeetingMailInput {
     requestHash: string;
     authorization: CommandAuthorization;
     expectedMeetingVersion: number;
-    validateNewDelivery: () => void;
+    isNewDeliveryAvailable: () => boolean;
     mail: Omit<
         PrivateMeetingMail,
         "status" | "processingThroughSeq" | "deliveryId" | "deadlineAt" | "updatedAt"
@@ -962,7 +962,14 @@ export class MeetingRepository {
                     handlingAttemptId: string;
                 }>;
             }
-            input.validateNewDelivery();
+            if (!input.isNewDeliveryAvailable()) {
+                throw new RepositoryError(
+                    "UNSUPPORTED_CAPABILITY",
+                    false,
+                    this.meetingId,
+                    "Meeting delivery is unavailable until the Captain Session is rebound"
+                );
+            }
             if (snapshot.version !== input.expectedMeetingVersion)
                 throw new RepositoryError(
                     "VERSION_CONFLICT",

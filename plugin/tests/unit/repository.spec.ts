@@ -1167,7 +1167,7 @@ PRAGMA user_version = 2;
             requestHash: "mail-hash",
             authorization,
             expectedMeetingVersion: 0,
-            validateNewDelivery: vi.fn(),
+            isNewDeliveryAvailable: vi.fn(() => true),
             mail: {
                 mailId: "mail-1",
                 meetingId: "meeting-1",
@@ -1193,9 +1193,23 @@ PRAGMA user_version = 2;
             }
         };
         const sent = await repository.sendPrivateMeetingMail(send);
-        expect(send.validateNewDelivery).toHaveBeenCalledTimes(1);
+        expect(send.isNewDeliveryAvailable).toHaveBeenCalledTimes(1);
         expect(await repository.sendPrivateMeetingMail(send)).toEqual(sent);
-        expect(send.validateNewDelivery).toHaveBeenCalledTimes(1);
+        expect(send.isNewDeliveryAvailable).toHaveBeenCalledTimes(1);
+        await expect(
+            repository.sendPrivateMeetingMail({
+                ...send,
+                requestId: "mail-request-unavailable",
+                requestHash: "mail-hash-unavailable",
+                isNewDeliveryAvailable: () => false,
+                mail: { ...send.mail, mailId: "mail-unavailable" },
+                outbox: {
+                    ...send.outbox,
+                    deliveryId: "delivery-unavailable",
+                    payload: { ...send.outbox.payload, mailId: "mail-unavailable" }
+                }
+            })
+        ).rejects.toMatchObject({ code: "UNSUPPORTED_CAPABILITY" });
         expect((await repository.read()).state).not.toHaveProperty("mailbox");
         expect(await repository.readPrivateMeetingMail("mail-1")).toMatchObject({
             status: "pending",
