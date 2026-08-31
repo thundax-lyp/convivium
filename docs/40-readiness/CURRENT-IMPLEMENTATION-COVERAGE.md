@@ -5,7 +5,7 @@
 本文记录 Convivium 当前代码相对已确认会议需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-08-31
-- 代码基线：`codex/post-merge-integration-fix` 基于 `main@d653962`；包含 Proposal/Position/AgendaCandidate、Blocking Question、dispatch reliability、Captain 非 Participant 风险处置、Proposal revision 审计/公开 projection，以及 required-speaker waiting projection 修复
+- 代码基线：`main@6c272f2`；包含 Proposal/Position/AgendaCandidate、Blocking Question、dispatch reliability、Captain 非 Participant 风险处置、Proposal revision 审计/公开 projection、required-speaker waiting projection、面板控制、归档续会素材与 meeting-scoped mailbox
 - 环境：macOS、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`
 - 本文只记录实际执行过的实现与验证；文档删除和本覆盖矩阵更新由收口提交记录。
 
@@ -52,6 +52,13 @@
 | FR-12 Agent 内部能力边界  | 已实现   | Convivium 只消费正式提交和授权 task projection，不写自定义 DSH Session Event；模块边界测试通过                                                                                                                                                                                                               | 仍需在未来 Mail、Web 和 UI 路径继续保持同一边界                                                                        |
 
 ## Executed Validation
+
+2026-08-31 在 `main@6c272f2`（本分支从该提交创建）执行：
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --dir plugin verify` | Pass；46 files、354 tests；format、lint、Host/Client typecheck、build、环境、contract 与 package verifier 全部通过。该次全量测试包含 mailbox 的 tool 注册、协议 schema、SQLite migration/schema、发送/开始/完成幂等与 stale 拒绝、archive cancel，以及 timeout 先持久化再 best-effort interrupt 覆盖。 |
+| `git diff --check` | Pass。 |
 
 2026-08-31 在 `codex/blocking-question-closure` 执行：
 
