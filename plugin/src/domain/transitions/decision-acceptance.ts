@@ -94,7 +94,10 @@ export function acceptDecisionCandidate(
                         position === "needs_revision" ||
                         position === "abstain")
             )
-            .map(({ id }) => id)
+            .map(({ id }) => id),
+        acceptanceMode: "captain_acceptance",
+        acceptanceFactIds: [factId],
+        createdAt: context.now
     };
     const fact: CompletionFact = {
         id: factId,
@@ -116,7 +119,8 @@ export function acceptDecisionCandidate(
                 item === proposal ? { ...item, status: "accepted" as const } : item
             ),
             decisions: [...state.decisions, decision],
-            completionFacts: [...state.completionFacts, fact]
+            completionFacts: [...state.completionFacts, fact],
+            eventSeq: state.eventSeq + 1
         },
         effect: {
             events: [

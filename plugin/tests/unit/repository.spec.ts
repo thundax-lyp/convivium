@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     MeetingRepository,
     RepositoryError,
@@ -461,6 +461,46 @@ describe("MeetingRepository", () => {
                 leaseToken: second[0].leaseToken,
                 completion: { status: "delivered" },
                 now: 112
+            })
+        ).resolves.toMatchObject({ status: "delivered" });
+        await repository.close();
+    });
+
+    it("renews an owned outbox lease before a long dispatch completes", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: { status: "created" },
+            createdAt: 0,
+            outbox: [
+                { deliveryId: "delivery-1", kind: "dispatch", payload: { meetingId: "meeting-1" } }
+            ]
+        });
+        const [lease] = await repository.claimOutbox({
+            owner: "worker-a",
+            ttlMs: 10,
+            batchSize: 1,
+            now: 100
+        });
+
+        await expect(
+            repository.renewOutboxLease({
+                id: lease.id,
+                leaseOwner: lease.leaseOwner,
+                leaseToken: lease.leaseToken,
+                ttlMs: 10,
+                now: 105
+            })
+        ).resolves.toBe(115);
+        await expect(
+            repository.completeOutbox({
+                id: lease.id,
+                leaseOwner: lease.leaseOwner,
+                leaseToken: lease.leaseToken,
+                completion: { status: "delivered" },
+                now: 111
             })
         ).resolves.toMatchObject({ status: "delivered" });
         await repository.close();
@@ -964,6 +1004,54 @@ PRAGMA user_version = 2;
         await repository.close();
     });
 
+    it("migrates legacy accepted Decision audit fields from its CompletionFact", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: {
+                status: "running",
+                decisions: [
+                    {
+                        id: "decision-1",
+                        proposalId: "proposal-1",
+                        proposalRevision: 1,
+                        status: "accepted"
+                    }
+                ],
+                completionFacts: [
+                    {
+                        id: "fact-1",
+                        kind: "decision_acceptance",
+                        subjectId: "decision-1",
+                        assertedBy: "captain:session-1",
+                        authority: "captain",
+                        result: "accepted",
+                        status: "active",
+                        evidenceMessageIds: [],
+                        taskIds: [],
+                        createdAt: 123
+                    }
+                ]
+            }
+        });
+
+        await expect(repository.read()).resolves.toMatchObject({
+            state: {
+                decisions: [
+                    {
+                        id: "decision-1",
+                        acceptanceMode: "captain_acceptance",
+                        acceptanceFactIds: ["fact-1"],
+                        createdAt: 123
+                    }
+                ]
+            }
+        });
+        await repository.close();
+    });
+
     it("rejects a mismatched version-two database before migration writes it", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
         roots.push(root);
@@ -1127,6 +1215,7 @@ PRAGMA user_version = 2;
             requestHash: "mail-hash",
             authorization,
             expectedMeetingVersion: 0,
+            isNewDeliveryAvailable: vi.fn(() => true),
             mail: {
                 mailId: "mail-1",
                 meetingId: "meeting-1",
@@ -1152,7 +1241,23 @@ PRAGMA user_version = 2;
             }
         };
         const sent = await repository.sendPrivateMeetingMail(send);
+        expect(send.isNewDeliveryAvailable).toHaveBeenCalledTimes(1);
         expect(await repository.sendPrivateMeetingMail(send)).toEqual(sent);
+        expect(send.isNewDeliveryAvailable).toHaveBeenCalledTimes(1);
+        await expect(
+            repository.sendPrivateMeetingMail({
+                ...send,
+                requestId: "mail-request-unavailable",
+                requestHash: "mail-hash-unavailable",
+                isNewDeliveryAvailable: () => false,
+                mail: { ...send.mail, mailId: "mail-unavailable" },
+                outbox: {
+                    ...send.outbox,
+                    deliveryId: "delivery-unavailable",
+                    payload: { ...send.outbox.payload, mailId: "mail-unavailable" }
+                }
+            })
+        ).rejects.toMatchObject({ code: "UNSUPPORTED_CAPABILITY" });
         expect((await repository.read()).state).not.toHaveProperty("mailbox");
         expect(await repository.readPrivateMeetingMail("mail-1")).toMatchObject({
             status: "pending",

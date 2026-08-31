@@ -152,8 +152,17 @@ export function applyCompletionClaims(
     state: MeetingState,
     context: ApplyCompletionClaimsContext
 ): TransitionResult<MeetingState> {
+    if (state.status === "archived") {
+        throw new DomainError(
+            "ARCHIVED_MEETING",
+            "completion claims cannot modify an archived meeting"
+        );
+    }
     if (executionTerminalStatuses.includes(state.status)) {
-        invalidClaim(state, "completion claims cannot modify an immutable meeting");
+        throw new DomainError(
+            "IMMUTABLE_MEETING",
+            "completion claims cannot modify an immutable meeting"
+        );
     }
     if (
         !state.participants.some((participant) => participant.id === context.participantId) &&

@@ -324,6 +324,9 @@ export interface MeetingDecision {
     rationale?: string;
     acceptedBy?: readonly string[];
     dissentingPositionIds?: readonly string[];
+    acceptanceMode: "deterministic_consensus" | "captain_acceptance" | "authorized_risk_acceptance";
+    acceptanceFactIds: readonly string[];
+    createdAt: number;
 }
 
 export interface MeetingDecisionCandidate {

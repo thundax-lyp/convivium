@@ -486,15 +486,14 @@ describe("applyCompletionClaims", () => {
         });
     });
 
-    it("rejects Captain risk authority in every execution-terminal state without mutation", () => {
+    it("returns lifecycle error codes for Captain risk authority in terminal states", () => {
         for (const status of [
             "completed",
             "partial",
             "no_consensus",
             "cancelled",
             "failed",
-            "archiving",
-            "archived"
+            "archiving"
         ] as const) {
             const source = completionState({ status });
             const before = structuredClone(source);
@@ -515,9 +514,31 @@ describe("applyCompletionClaims", () => {
                         }
                     }
                 })
-            ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+            ).toThrowError(expect.objectContaining({ code: "IMMUTABLE_MEETING" }));
             expect(source).toEqual(before);
         }
+
+        const archived = completionState({ status: "archived" });
+        const before = structuredClone(archived);
+        expect(() =>
+            applyCompletionClaims(archived, {
+                participantId: "captain",
+                assertedBy: "captain:captain-session",
+                riskAuthority: true,
+                authorizedTaskIds: [],
+                now,
+                factId,
+                claims: {
+                    riskAcceptance: {
+                        issueId: "risk-1",
+                        decision: "accept",
+                        reason: "Captain accepted the bounded risk.",
+                        evidenceMessageIds: ["message-1"]
+                    }
+                }
+            })
+        ).toThrowError(expect.objectContaining({ code: "ARCHIVED_MEETING" }));
+        expect(archived).toEqual(before);
     });
 
     it("does not let non-Participant risk authority submit Participant completion claims", () => {

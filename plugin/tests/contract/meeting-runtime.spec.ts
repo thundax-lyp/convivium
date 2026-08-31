@@ -73,6 +73,34 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
+    it("persists the designed default mail handling timeout", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-mail-default-"));
+        roots.push(root);
+        const runtime = localRuntime(root);
+        const captain = {
+            sessionId: "captain-mail-default",
+            kind: "captain" as const,
+            agent: { id: "captain-mail-default" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        await expect(
+            runtime.getStatus({ protocolVersion: 1, meetingId: created.result.meetingId }, captain)
+        ).resolves.toMatchObject({
+            ok: true,
+            result: { limits: { mailHandlingTimeoutMs: 2 * 60_000 } }
+        });
+        await runtime.dispose();
+    });
+
     it("atomically rejects invalid blocking evidence and persists an idempotent canonical question", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-blocking-question-"));
         roots.push(root);
@@ -887,6 +915,10 @@ describe("create/status meeting runtime", () => {
             })
         ).resolves.toMatchObject({ ok: false, code: "STALE_ATTEMPT" });
         await runtime.dispose();
+
+        const recovered = localRuntime(root);
+        await expect(recovered.reassignLocalTurn(request)).resolves.toEqual(skipped);
+        await recovered.dispose();
     });
 
     it("fails local End before committing when archive cleanup capability is unavailable", async () => {
@@ -976,7 +1008,7 @@ describe("create/status meeting runtime", () => {
         };
         const created = await runtime.createMeeting(input, captain, new AbortController().signal);
         if (!created.ok) throw new Error("create failed");
-        const ended = await runtime.endLocalMeeting({
+        const request = {
             protocolVersion: 1,
             meetingId: created.result.meetingId,
             expectedMeetingVersion: created.meetingVersion,
@@ -986,7 +1018,8 @@ describe("create/status meeting runtime", () => {
             deferredAgendaItemIds: [],
             waivers: [],
             requestId: "local-end-archive-1"
-        });
+        } as const;
+        const ended = await runtime.endLocalMeeting(request);
         expect(ended).toMatchObject({ ok: true, result: { status: "cancelled" } });
         await expect(
             runtime.getLocalMeetingStatus({
@@ -1005,6 +1038,10 @@ describe("create/status meeting runtime", () => {
         );
         expect(drained).toHaveLength(2);
         await runtime.dispose();
+
+        const recovered = localRuntime(root);
+        await expect(recovered.endLocalMeeting(request)).resolves.toEqual(ended);
+        await recovered.dispose();
     });
 
     it("delivers the MeetingTask execution and request bindings", async () => {

@@ -229,12 +229,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
     async function reassignTurnForSource(input: ReassignTurnInputV1, source: MeetingControlSource) {
         const stored = meetings.get(input.meetingId);
         if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-        if (stored.parent === undefined) {
-            if (source.kind === "local_host") {
-                throw new LocalMeetingRecoveryUnavailableError(
-                    "The live Captain parent is unavailable for speaker dispatch."
-                );
-            }
+        if (stored.parent === undefined && source.kind === "captain") {
             return failure(
                 "INTERNAL_ERROR",
                 "The live Captain parent is unavailable for speaker dispatch.",
@@ -261,6 +256,11 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                 requestHash: JSON.stringify(input),
                 expectedMeetingVersion: input.expectedMeetingVersion,
                 transition: (snapshot) => {
+                    if (stored.parent === undefined) {
+                        throw new LocalMeetingRecoveryUnavailableError(
+                            "The live Captain parent is unavailable for speaker dispatch."
+                        );
+                    }
                     const transition = reassignTurnTransition(
                         snapshot.state as unknown as MeetingState,
                         {
