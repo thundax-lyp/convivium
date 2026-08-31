@@ -132,7 +132,7 @@ function deferred<T>() {
 async function selectMeeting(): Promise<void> {
     const item = await screen.findByRole("button", { name: /Runtime smoke/ });
     fireEvent.click(item);
-    await screen.findByLabelText("Meeting status details");
+    await screen.findByLabelText("Meeting summary");
 }
 
 describe("client entry framework", () => {

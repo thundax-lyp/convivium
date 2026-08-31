@@ -1,6 +1,6 @@
 # RUNBOOK C：FR-11 Client 可观察性最小闭环
 
-状态：滚动执行中；T0–T3 PASS，下一步为 T4；Author 与 Audit 结论为 `Executable`
+状态：滚动执行中；T0–T4 PASS，下一步为 T5；Author 与 Audit 结论为 `Executable`
 
 建立日期：2026-08-31
 
@@ -10,7 +10,7 @@
 
 ## 1. 执行者契约
 
-执行者必须按 `T4 → T5 → T6 → T7` 顺序执行；T0–T3 已完成并从本文删除。不得跳步、合并步骤或在失败后继续修改。
+执行者必须按 `T5 → T6 → T7` 顺序执行；T0–T4 已完成并从本文删除。不得跳步、合并步骤或在失败后继续修改。
 
 允许修改：
 
@@ -150,29 +150,6 @@ import type {
 8. 控制可见性和 payload 不变：Pause/Resume/Skip current speaker/End；不新增 Decision/Agenda control。
 
 ## 7. 机械执行步骤
-
-### T4：实现 Tasks、Decisions 与 conditional Termination
-
-前置状态：T3 PASS。
-
-允许修改：`plugin/src/client/meeting-panel.tsx`、`plugin/tests/client/client-entry.client.spec.ts`。
-
-禁止修改：前四 section、controls、cache、archive mapping。
-
-执行：按第 5 节依次新增 Meeting tasks、Accepted decisions，消费 `view.meetingTasks` 和 `view.acceptedDecisions`；最后仅在 `view.termination !== undefined` 时新增 Termination。tests 覆盖 optional result/statement/rationale/dissent 行的存在/省略、空数组 fallback、所有状态任务、active 无 Termination、五个 terminal 状态及 archiving/archived 有 Termination。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/client-entry.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-
-PASS：三个 section 的适用状态、顺序、字段、optional 行和空态逐字匹配；active 查询 Termination 返回不存在；不从 archive.package 读取 decisions。
-
-STOP：字段不存在、需要新 public field 或出现 Decision/Agenda action。保留 diff并停止。
-
-恢复：无外部副作用；保留 diff。
 
 ### T5：删除 JSON 并收口 controls/stale/refetch regression
 

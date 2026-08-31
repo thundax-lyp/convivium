@@ -89,7 +89,31 @@ function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElemen
                           )
                       )
                   )
-        )
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Meeting tasks" },
+            createElement("h4", null, "Meeting tasks"),
+            view.meetingTasks.length === 0
+                ? createElement("p", null, "No meeting tasks.")
+                : createElement("ol", null, view.meetingTasks.map((task) => createElement("li", { key: task.meetingTaskId, "data-task-id": task.meetingTaskId }, row("Title", task.title), row("Status", task.status), row("Participant", task.participantId), task.resultSummary === undefined ? null : row("Result", task.resultSummary))))
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Accepted decisions" },
+            createElement("h4", null, "Accepted decisions"),
+            view.acceptedDecisions.length === 0
+                ? createElement("p", null, "No accepted decisions.")
+                : createElement("ol", null, view.acceptedDecisions.map((decision) => createElement("li", { key: decision.id, "data-decision-id": decision.id }, decision.statement === undefined ? null : row("Statement", decision.statement), decision.rationale === undefined ? null : row("Rationale", decision.rationale), decision.dissentingPositionIds === undefined ? null : row("Dissent IDs", decision.dissentingPositionIds.join(", ") || "None"))))
+        ),
+        view.termination === undefined
+            ? null
+            : createElement(
+                  "section",
+                  { "aria-label": "Termination" },
+                  createElement("h4", null, "Termination"),
+                  createElement("dl", null, row("Code", view.termination.code), row("Reason", view.termination.reason), row("Decision IDs", view.termination.decisionIds.join(", ") || "None"))
+              )
     );
 }
 
