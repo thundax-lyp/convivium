@@ -83,15 +83,18 @@ export function applySubmittedProposalPositionClaims(
             );
         }
         submittedIds.add(proposal.proposalId);
-        const index = nextProposals.findIndex(({ id }) => id === proposal.proposalId);
+        const index = nextProposals.findIndex(
+            ({ id, revision, status }) =>
+                id === proposal.proposalId &&
+                revision === proposal.expectedRevision &&
+                status !== "superseded"
+        );
         const existing = nextProposals[index];
         if (existing === undefined || existing.agendaItemId !== agendaItemId) {
             throw new DomainError("INVALID_ENTITY_STATE", "proposal is not in the active agenda");
         }
-        if (existing.revision !== proposal.expectedRevision) {
-            throw new DomainError("INVALID_ENTITY_STATE", "proposal revision is stale");
-        }
-        nextProposals[index] = {
+        nextProposals[index] = { ...existing, status: "superseded" };
+        nextProposals.push({
             ...existing,
             title,
             description,
@@ -99,7 +102,7 @@ export function applySubmittedProposalPositionClaims(
             status: "under_review",
             positions: [],
             updatedAt: proposal.now
-        };
+        });
         events.push({
             type: "proposal.revised",
             payload: {
@@ -115,7 +118,12 @@ export function applySubmittedProposalPositionClaims(
     const positionIds = new Set<string>();
     const participantRevisions = new Set<string>();
     for (const position of positions) {
-        const proposal = nextProposals.find(({ id }) => id === position.proposalId);
+        const proposal = nextProposals.find(
+            ({ id, revision, status }) =>
+                id === position.proposalId &&
+                revision === position.proposalRevision &&
+                status !== "superseded"
+        );
         if (
             proposal === undefined ||
             proposal.agendaItemId !== agendaItemId ||

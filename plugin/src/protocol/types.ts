@@ -635,8 +635,17 @@ export interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
     activeAgendaItem?: PublicAgendaItemV1;
     messages: readonly PublicMeetingMessageV1[];
     questions?: readonly PublicQuestionV1[];
+    proposals: readonly PublicProposalV1[];
     acceptedDecisions: readonly PublicDecisionV1[];
     blockingFacts: readonly PublicBlockingFactV1[];
+}
+
+export interface PublicMeetingWaitStateV1 {
+    reason: string;
+    taskIds: readonly string[];
+    participantIds: readonly string[];
+    deadlineAt?: number;
+    resumeAgendaItemId?: string;
 }
 
 export interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
@@ -644,6 +653,7 @@ export interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBase
     currentTurn?: PublicTurnV1;
     currentSpeakerId?: string;
     pendingHandRaises: readonly PublicHandRaiseV1[];
+    waitState?: PublicMeetingWaitStateV1;
     pauseControl: {
         action: "pause" | "resume" | "none";
         pausedAt?: number;
@@ -678,7 +688,7 @@ export interface PublicArtifactRefV1 {
     uri?: string;
 }
 
-export interface PublicArchiveProposalV1 {
+export interface PublicProposalV1 {
     id: string;
     agendaItemId: string;
     title: string;
@@ -694,6 +704,8 @@ export interface PublicArchiveProposalV1 {
         proposalRevision: number;
     }[];
 }
+
+export type PublicArchiveProposalV1 = PublicProposalV1;
 
 export interface PublicArchiveCompletionFactV1 {
     id: string;

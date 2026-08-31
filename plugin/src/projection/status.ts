@@ -231,6 +231,15 @@ export function projectMeetingStatus(
               }),
         messages: state.transcript.map(message),
         questions: state.openQuestions.map(question),
+        proposals: state.proposals.map((proposal) => ({
+            id: proposal.id,
+            agendaItemId: proposal.agendaItemId,
+            title: proposal.title,
+            description: proposal.description,
+            revision: proposal.revision,
+            status: proposal.status,
+            positions: proposal.positions.map((position) => ({ ...position }))
+        })),
         acceptedDecisions: state.decisions
             .filter(
                 (decision) =>
@@ -294,6 +303,21 @@ export function projectMeetingStatus(
         status: state.status,
         ...(currentTurn === undefined ? {} : { currentTurn }),
         ...(currentStep === undefined ? {} : { currentSpeakerId: currentStep.speaker }),
+        ...(state.waitState === undefined
+            ? {}
+            : {
+                  waitState: {
+                      reason: state.waitState.reason,
+                      taskIds: [...state.waitState.taskIds],
+                      participantIds: [...state.waitState.participantIds],
+                      ...(state.waitState.deadlineAt === undefined
+                          ? {}
+                          : { deadlineAt: state.waitState.deadlineAt }),
+                      ...(state.waitState.resumeAgendaItemId === undefined
+                          ? {}
+                          : { resumeAgendaItemId: state.waitState.resumeAgendaItemId })
+                  }
+              }),
         pendingHandRaises: state.handRaises
             .filter((raise) => raise.status === "pending")
             .map(handRaise),

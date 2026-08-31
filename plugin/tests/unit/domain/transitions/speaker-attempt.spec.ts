@@ -137,6 +137,15 @@ describe("SpeakerAttempt timeout", () => {
                 }
             ]
         });
+        expect(result.state).toMatchObject({
+            status: "waiting",
+            waitState: {
+                reason: "required Participant a is unavailable",
+                participantIds: ["a"],
+                taskIds: [],
+                resumeAgendaItemId: "agenda-1"
+            }
+        });
         expect(result.effect.events).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
@@ -158,6 +167,14 @@ describe("SpeakerAttempt timeout", () => {
             })
         });
         expect(result.effect.events.map(({ type }) => type)).toContain("meeting_task.cancelled");
+        expect(result.effect.events).toContainEqual(
+            expect.objectContaining({
+                type: "meeting.waiting",
+                payload: expect.objectContaining({
+                    reason: "required Participant a is unavailable"
+                })
+            })
+        );
     });
 
     it("creates the next Manager planning attempt when remaining speakers are dispatchable", () => {

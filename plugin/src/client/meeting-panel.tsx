@@ -372,6 +372,20 @@ export function ConviviumMeetingPanel(): ReactElement {
                                       )
                                   )
                                 : null,
+                            !("waitState" in detail) || detail.waitState === undefined
+                                ? null
+                                : createElement(
+                                      "dl",
+                                      null,
+                                      createElement("dt", null, "Waiting reason"),
+                                      createElement("dd", null, detail.waitState.reason),
+                                      createElement("dt", null, "Waiting participants"),
+                                      createElement(
+                                          "dd",
+                                          null,
+                                          detail.waitState.participantIds.join(", ")
+                                      )
+                                  ),
                             createElement(
                                 "pre",
                                 { "aria-label": "Meeting status details" },

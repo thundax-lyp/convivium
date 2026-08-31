@@ -455,6 +455,63 @@ describe("applyCompletionClaims", () => {
         expect(source.issues[0]?.status).toBe("open");
     });
 
+    it("allows Captain risk authority without requiring a Participant identity", () => {
+        const result = applyCompletionClaims(completionState(), {
+            participantId: "captain",
+            assertedBy: "captain:captain-session",
+            riskAuthority: true,
+            authorizedTaskIds: [],
+            now,
+            factId,
+            claims: {
+                riskAcceptance: {
+                    issueId: "risk-1",
+                    decision: "accept",
+                    reason: "Captain accepted the bounded risk.",
+                    evidenceMessageIds: ["message-1"]
+                }
+            }
+        });
+
+        expect(result.state.issues[0]).toMatchObject({
+            status: "accepted_risk",
+            disposition: "accepted_risk"
+        });
+        expect(result.state.completionFacts.at(-1)).toMatchObject({
+            assertedBy: "captain:captain-session",
+            authority: "captain",
+            result: "accepted"
+        });
+    });
+
+    it("does not let non-Participant risk authority submit Participant completion claims", () => {
+        expect(() =>
+            applyCompletionClaims(completionState(), {
+                participantId: "captain",
+                assertedBy: "captain:captain-session",
+                riskAuthority: true,
+                authorizedTaskIds: [],
+                now,
+                factId,
+                claims: {
+                    outputClaims: [
+                        {
+                            subjectId: "output-1",
+                            evidenceMessageIds: ["message-1"],
+                            taskIds: []
+                        }
+                    ],
+                    riskAcceptance: {
+                        issueId: "risk-1",
+                        decision: "accept",
+                        reason: "Captain accepted the bounded risk.",
+                        evidenceMessageIds: ["message-1"]
+                    }
+                }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
     it("restores a blocking issue when risk acceptance is later rejected", () => {
         const accepted = applyCompletionClaims(completionState(), {
             participantId: "reviewer-1",

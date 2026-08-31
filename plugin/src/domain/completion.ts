@@ -47,6 +47,18 @@ export interface ApplyCompletionClaimsContext {
     assertedBy?: string;
 }
 
+function isCaptainRiskDisposition(context: ApplyCompletionClaimsContext): boolean {
+    return (
+        context.riskAuthority === true &&
+        context.claims.riskAcceptance !== undefined &&
+        (context.claims.outputClaims?.length ?? 0) === 0 &&
+        (context.claims.criterionClaims?.length ?? 0) === 0 &&
+        context.claims.agendaResolution === undefined &&
+        context.claims.review === undefined &&
+        (context.claims.questionResolutions?.length ?? 0) === 0
+    );
+}
+
 function invalidClaim(state: MeetingState, message: string): never {
     throw new DomainError("INVALID_ENTITY_STATE", message, {
         entityType: "completion_claim",
@@ -139,7 +151,10 @@ export function applyCompletionClaims(
     state: MeetingState,
     context: ApplyCompletionClaimsContext
 ): TransitionResult<MeetingState> {
-    if (!state.participants.some((participant) => participant.id === context.participantId)) {
+    if (
+        !state.participants.some((participant) => participant.id === context.participantId) &&
+        !isCaptainRiskDisposition(context)
+    ) {
         invalidClaim(state, "completion claim caller is not a meeting participant");
     }
 

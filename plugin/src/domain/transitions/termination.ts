@@ -153,11 +153,15 @@ export function endMeeting(
     }
 
     const prepared: MeetingState = { ...state, agenda, completionFacts };
-    const dissentingPositionIds = prepared.proposals.flatMap((proposal) =>
-        proposal.positions
-            .filter(({ position }) => ["object", "needs_revision", "abstain"].includes(position))
-            .map(({ id }) => id)
-    );
+    const dissentingPositionIds = prepared.proposals
+        .filter((proposal) => proposal.status !== "superseded")
+        .flatMap((proposal) =>
+            proposal.positions
+                .filter(({ position }) =>
+                    ["object", "needs_revision", "abstain"].includes(position)
+                )
+                .map(({ id }) => id)
+        );
     const blockingAgendaItemIds = prepared.agenda
         .filter((item) => item.status === "blocked")
         .map((item) => item.id);

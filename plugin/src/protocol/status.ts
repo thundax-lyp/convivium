@@ -283,6 +283,33 @@ const executionTermination = Schema.object({
     endedAt: requiredNumber()
 });
 
+const proposal = Schema.object({
+    id: requiredString(),
+    agendaItemId: requiredString(),
+    title: requiredString(),
+    description: requiredString(),
+    revision: requiredNumber(),
+    status: enumOf(["draft", "under_review", "accepted", "rejected", "superseded"] as const),
+    positions: requiredArray(
+        Schema.object({
+            id: requiredString(),
+            participantId: requiredString(),
+            position: enumOf(["support", "accept", "object", "needs_revision", "abstain"] as const),
+            reason: Schema.string(),
+            blocking: requiredBoolean(),
+            proposalRevision: requiredNumber()
+        })
+    )
+});
+
+const waitState = Schema.object({
+    reason: requiredString(),
+    taskIds: requiredArray(requiredString()),
+    participantIds: requiredArray(requiredString()),
+    deadlineAt: Schema.number(),
+    resumeAgendaItemId: Schema.string()
+});
+
 const active = Schema.object({
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
@@ -293,12 +320,14 @@ const active = Schema.object({
     activeAgendaItem: optionalObject(agendaItem),
     messages: requiredArray(message),
     questions: requiredArray(question),
+    proposals: requiredArray(proposal),
     acceptedDecisions: requiredArray(decision),
     blockingFacts: requiredArray(blockingFact),
     meetingTasks: requiredArray(meetingTask),
     status: enumOf(["created", "running", "waiting", "paused", "converging"] as const),
     currentTurn: optionalObject(turn),
     currentSpeakerId: Schema.string(),
+    waitState: optionalObject(waitState),
     pendingHandRaises: requiredArray(handRaise),
     pauseControl: Schema.object({
         action: enumOf(["pause", "resume", "none"] as const),
@@ -326,6 +355,7 @@ const terminal = Schema.object({
     activeAgendaItem: optionalObject(agendaItem),
     messages: requiredArray(message),
     questions: requiredArray(question),
+    proposals: requiredArray(proposal),
     acceptedDecisions: requiredArray(decision),
     blockingFacts: requiredArray(blockingFact),
     status: enumOf(["completed", "partial", "no_consensus", "cancelled", "failed"] as const),
@@ -337,25 +367,6 @@ const terminal = Schema.object({
     termination: executionTermination.required(),
     completionFactIds: requiredArray(requiredString()),
     archive: Schema.never()
-});
-
-const archiveProposal = Schema.object({
-    id: requiredString(),
-    agendaItemId: requiredString(),
-    title: requiredString(),
-    description: requiredString(),
-    revision: requiredNumber(),
-    status: enumOf(["draft", "under_review", "accepted", "rejected", "superseded"] as const),
-    positions: requiredArray(
-        Schema.object({
-            id: requiredString(),
-            participantId: requiredString(),
-            position: enumOf(["support", "accept", "object", "needs_revision", "abstain"] as const),
-            reason: Schema.string(),
-            blocking: requiredBoolean(),
-            proposalRevision: requiredNumber()
-        })
-    )
 });
 
 const artifactRef = Schema.object({
@@ -421,7 +432,7 @@ export const MeetingArchivePackageSchema = Schema.object({
     finalSummary: requiredString(),
     artifactRefs: requiredArray(artifactRef),
     acceptedDecisions: requiredArray(decision),
-    proposals: requiredArray(archiveProposal),
+    proposals: requiredArray(proposal),
     completionFacts: requiredArray(completionFact),
     agenda: requiredArray(agendaItem),
     issues: requiredArray(archiveIssue),

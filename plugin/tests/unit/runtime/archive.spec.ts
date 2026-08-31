@@ -94,6 +94,26 @@ describe("materializeArchivePackage", () => {
         source.proposals = [
             {
                 id: "proposal-1",
+                title: "Storage v1",
+                description: "Use files.",
+                proposedBy: "participant-1",
+                revision: 1,
+                status: "superseded",
+                agendaItemId: "agenda-1",
+                positions: [
+                    {
+                        id: "position-old",
+                        participantId: "participant-1",
+                        position: "object",
+                        blocking: true,
+                        proposalRevision: 1
+                    }
+                ],
+                createdAt: 1,
+                updatedAt: 1
+            },
+            {
+                id: "proposal-1",
                 title: "Storage",
                 description: "Use SQLite.",
                 proposedBy: "participant-1",
@@ -116,8 +136,8 @@ describe("materializeArchivePackage", () => {
         const archive = materializeArchivePackage(source, 20);
 
         expect(archive.proposals).toEqual(source.proposals);
-        source.proposals[0]!.positions[0]!.position = "object";
-        expect(archive.proposals[0]?.positions[0]?.position).toBe("accept");
+        source.proposals[1]!.positions[0]!.position = "object";
+        expect(archive.proposals[1]?.positions[0]?.position).toBe("accept");
     });
 
     it("includes agenda candidate facts in the archive parking lot projection", () => {

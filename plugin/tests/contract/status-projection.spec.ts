@@ -16,6 +16,7 @@ const state = {
     agenda: [],
     transcript: [],
     openQuestions: [],
+    proposals: [],
     decisions: [],
     issues: [],
     handRaises: [],
@@ -115,6 +116,46 @@ describe("meeting status projection", () => {
         expect(JSON.stringify(projected)).not.toContain("leaseToken");
     });
 
+    it("projects canonical proposal revisions and positions for later participants", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                proposals: [
+                    {
+                        id: "proposal-1",
+                        title: "Use SQLite",
+                        description: "Persist locally",
+                        proposedBy: "participant-1",
+                        revision: 1,
+                        status: "under_review",
+                        agendaItemId: "agenda-1",
+                        positions: [
+                            {
+                                id: "position-1",
+                                participantId: "participant-1",
+                                position: "support",
+                                blocking: false,
+                                proposalRevision: 1
+                            }
+                        ],
+                        createdAt: 1,
+                        updatedAt: 1
+                    }
+                ]
+            } as MeetingState,
+            { kind: "participant", sessionId: "session-2", participantId: "participant-2" }
+        );
+
+        expect(projected.proposals).toEqual([
+            expect.objectContaining({
+                id: "proposal-1",
+                revision: 1,
+                positions: [expect.objectContaining({ participantId: "participant-1" })]
+            })
+        ]);
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
+    });
+
     it("projects only blocking Issues as blocking facts", () => {
         const projected = projectMeetingStatus(
             {
@@ -167,15 +208,30 @@ describe("meeting status projection", () => {
     });
 
     it("keeps pause available while an active meeting is waiting", () => {
-        const projected = projectMeetingStatus({ ...state, status: "waiting" } as MeetingState, {
-            kind: "captain",
-            sessionId: "captain-1"
-        });
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                status: "waiting",
+                waitState: {
+                    reason: "required Participant participant-1 is unavailable",
+                    taskIds: [],
+                    participantIds: ["participant-1"],
+                    resumeAgendaItemId: "agenda-1"
+                }
+            } as MeetingState,
+            { kind: "captain", sessionId: "captain-1" }
+        );
 
         expect(projected).toMatchObject({
             status: "waiting",
-            pauseControl: { action: "pause" }
+            pauseControl: { action: "pause" },
+            waitState: {
+                reason: "required Participant participant-1 is unavailable",
+                participantIds: ["participant-1"],
+                resumeAgendaItemId: "agenda-1"
+            }
         });
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
 
     it("projects local host pause metadata without treating it as an Agent caller", () => {

@@ -93,11 +93,25 @@ describe("applySubmittedProposalPositionClaims", () => {
             []
         );
 
-        expect(result.state.proposals[0]).toMatchObject({
-            proposedBy: "participant-1",
-            revision: 2,
-            positions: []
-        });
+        expect(result.state.proposals).toEqual([
+            expect.objectContaining({
+                id: "proposal-1",
+                title: "Old",
+                description: "Old description",
+                revision: 1,
+                status: "superseded",
+                positions: [expect.objectContaining({ id: "position-1", proposalRevision: 1 })]
+            }),
+            expect.objectContaining({
+                id: "proposal-1",
+                title: "New",
+                description: "New description",
+                proposedBy: "participant-1",
+                revision: 2,
+                status: "under_review",
+                positions: []
+            })
+        ]);
         expect(result.effect.events[0]?.type).toBe("proposal.revised");
     });
 
