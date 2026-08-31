@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { DomainError } from "../../domain/index.js";
 import type {
     FinishMeetingMailInputV1,
     MeetingMailResultV1,
@@ -57,13 +58,7 @@ export function createMeetingMailApplication(dependencies: {
                     "INVALID_ARGUMENT",
                     "Meeting mail must remain in one Meeting."
                 );
-            if (stored.parent === undefined)
-                return commandFailure(
-                    "UNSUPPORTED_CAPABILITY",
-                    "Meeting delivery is unavailable until the Captain Session is rebound."
-                );
             try {
-                dependencies.ensureWorker(stored);
                 const snapshot = await stored.repository.read();
                 const state = snapshot.state as unknown as {
                     participants: { id: string }[];
@@ -99,6 +94,14 @@ export function createMeetingMailApplication(dependencies: {
                         capabilityId: `participant:${caller.participantId}`
                     },
                     expectedMeetingVersion: input.expectedMeetingVersion,
+                    validateNewDelivery: () => {
+                        if (stored.parent === undefined) {
+                            throw new DomainError(
+                                "UNSUPPORTED_CAPABILITY",
+                                "Meeting delivery is unavailable until the Captain Session is rebound."
+                            );
+                        }
+                    },
                     mail: {
                         mailId,
                         handlingAttemptId,
@@ -124,6 +127,7 @@ export function createMeetingMailApplication(dependencies: {
                         }
                     }
                 });
+                if (stored.parent !== undefined) dependencies.ensureWorker(stored);
                 dependencies.deliveryWorkers.wake(input.meetingId);
                 return commandSuccess(input.meetingId, committed.meetingVersion, {
                     ...committed.result,

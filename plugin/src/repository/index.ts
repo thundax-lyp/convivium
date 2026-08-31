@@ -237,6 +237,7 @@ export interface SendPrivateMeetingMailInput {
     requestHash: string;
     authorization: CommandAuthorization;
     expectedMeetingVersion: number;
+    validateNewDelivery: () => void;
     mail: Omit<
         PrivateMeetingMail,
         "status" | "processingThroughSeq" | "deliveryId" | "deadlineAt" | "updatedAt"
@@ -961,6 +962,7 @@ export class MeetingRepository {
                     handlingAttemptId: string;
                 }>;
             }
+            input.validateNewDelivery();
             if (snapshot.version !== input.expectedMeetingVersion)
                 throw new RepositoryError(
                     "VERSION_CONFLICT",

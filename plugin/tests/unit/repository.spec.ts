@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     MeetingRepository,
     RepositoryError,
@@ -1167,6 +1167,7 @@ PRAGMA user_version = 2;
             requestHash: "mail-hash",
             authorization,
             expectedMeetingVersion: 0,
+            validateNewDelivery: vi.fn(),
             mail: {
                 mailId: "mail-1",
                 meetingId: "meeting-1",
@@ -1192,7 +1193,9 @@ PRAGMA user_version = 2;
             }
         };
         const sent = await repository.sendPrivateMeetingMail(send);
+        expect(send.validateNewDelivery).toHaveBeenCalledTimes(1);
         expect(await repository.sendPrivateMeetingMail(send)).toEqual(sent);
+        expect(send.validateNewDelivery).toHaveBeenCalledTimes(1);
         expect((await repository.read()).state).not.toHaveProperty("mailbox");
         expect(await repository.readPrivateMeetingMail("mail-1")).toMatchObject({
             status: "pending",
