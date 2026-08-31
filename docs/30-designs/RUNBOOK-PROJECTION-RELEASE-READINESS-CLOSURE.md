@@ -1,6 +1,6 @@
 # RUNBOOK C：FR-11 Client 可观察性最小闭环
 
-状态：待执行；Author 与 Audit 完成，结论为 `Executable`
+状态：滚动执行中；T0 PASS，下一步为 T1；Author 与 Audit 结论为 `Executable`
 
 建立日期：2026-08-31
 
@@ -10,7 +10,7 @@
 
 ## 1. 执行者契约
 
-执行者必须按 `T0 → T1 → T2 → T3 → T4 → T5 → T6 → T7` 顺序执行。不得跳步、合并步骤或在失败后继续修改。
+执行者必须按 `T1 → T2 → T3 → T4 → T5 → T6 → T7` 顺序执行；T0 已完成并从本文删除。不得跳步、合并步骤或在失败后继续修改。
 
 允许修改：
 
@@ -150,35 +150,6 @@ import type {
 8. 控制可见性和 payload 不变：Pause/Resume/Skip current speaker/End；不新增 Decision/Agenda control。
 
 ## 7. 机械执行步骤
-
-### T0：锁定 baseline 与字段表
-
-前置状态：仓库根；尚未修改允许文件。
-
-允许修改：无。
-
-禁止修改：全部文件。
-
-执行：记录 HEAD/status；确认依赖已存在；核对字段、Schema、组件和测试路径；确认 RUNBOOK A 未改变当前契约。
-
-验证：
-
-```bash
-git status --short --branch
-git rev-parse HEAD
-test -d plugin/node_modules
-rg -n "export type MeetingStatusResultV1|export interface (MeetingStatusBaseV1|ActiveMeetingStatusResultV1|ExecutionTerminalMeetingStatusResultV1|ArchivingMeetingStatusResultV1|ArchivedMeetingStatusResultV1|PublicTurnV1|PublicMeetingMessageV1|PublicBlockingFactV1|MeetingTaskProjectionV1|PublicDecisionV1|PublicTerminationV1)" plugin/src/protocol/types.ts
-rg -n "meetingTasks: requiredArray|messages: requiredArray|blockingFacts: requiredArray|acceptedDecisions: requiredArray|termination:" plugin/src/protocol/status.ts
-rg -n "export function ConviviumMeetingPanel|Meeting status details|Pause meeting|Resume meeting|Skip current speaker|End meeting" plugin/src/client/meeting-panel.tsx plugin/tests/client/client-entry.client.spec.ts
-pnpm --dir plugin verify:environment
-pnpm --dir plugin verify:contract
-```
-
-PASS：全部命令退出 `0`；实际字段与第 5 节一致；node_modules 已准备；status 仅有当前 JSON `<pre>` 专用详情；HEAD/status 已记录。
-
-STOP：依赖缺失、字段/状态/Schema 漂移、RUNBOOK A 已改变契约、允许文件已有重叠用户修改或 baseline 验证失败。不得安装依赖或改协议。
-
-恢复：只读，无副作用。
 
 ### T1：建立双消费者 Client-local render mapper
 
