@@ -2,10 +2,16 @@ import {
     DomainError,
     planRoundRobinTurn,
     reassignTurn as reassignTurnTransition,
+    applyCompletionClaims,
     transitionMeeting,
     type MeetingState
 } from "../../domain/index.js";
-import type { MeetingControlResultV1, ReassignTurnResultV1 } from "../../protocol/index.js";
+import type {
+    CaptainRiskDispositionInputV1,
+    CaptainRiskDispositionResultV1,
+    MeetingControlResultV1,
+    ReassignTurnResultV1
+} from "../../protocol/index.js";
 import {
     RepositoryError,
     type CommandAuthorization,
@@ -43,7 +49,12 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
     const { options, meetings, recovery, deliveryWorkers, ensureWorker } = dependencies;
     const application: Pick<
         MeetingToolRuntime & LocalMeetingWebRuntime,
-        "pauseLocalMeeting" | "resumeLocalMeeting" | "pause" | "resume" | "reassignTurn"
+        | "pauseLocalMeeting"
+        | "resumeLocalMeeting"
+        | "pause"
+        | "resume"
+        | "reassignTurn"
+        | "disposeRisk"
     > = {
         async pauseLocalMeeting(input) {
             const snapshots = await recovery.rehydrate({
@@ -186,6 +197,69 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                         INVALID_ENTITY_STATE: "INVALID_ARGUMENT",
                         REQUIRED_SPEAKER_UNAVAILABLE: "REQUIRED_SPEAKER_UNAVAILABLE"
                     }
+                );
+            }
+        },
+        async disposeRisk(input: CaptainRiskDispositionInputV1, caller) {
+            await recovery.rehydrate();
+            const stored = meetings.get(input.meetingId);
+            if (
+                !stored ||
+                caller.kind !== "captain" ||
+                caller.sessionId !== stored.captainSessionId
+            )
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "Only the meeting Captain can dispose a risk."
+                );
+            try {
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "dispose_risk",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `captain:${caller.sessionId}`
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: input.expectedMeetingVersion,
+                    transition: (snapshot) => {
+                        const state = snapshot.state as unknown as MeetingState;
+                        const transition = applyCompletionClaims(state, {
+                            participantId: "captain",
+                            assertedBy: `captain:${caller.sessionId}`,
+                            riskAuthority: true,
+                            now: options.now?.() ?? Date.now(),
+                            authorizedTaskIds: [],
+                            factId: (_kind, index) => `completion-${input.requestId}-risk-${index}`,
+                            claims: { riskAcceptance: input }
+                        });
+                        const fact = transition.state.completionFacts.at(-1)!;
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: {
+                                requestId: input.requestId,
+                                issueId: input.issueId,
+                                disposition: input.decision === "accept" ? "accepted" : "rejected",
+                                completionFactId: fact.id,
+                                meetingStatus: transition.state.status
+                            } satisfies CaptainRiskDispositionResultV1,
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox: []
+                        };
+                    }
+                });
+                return success(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as CaptainRiskDispositionResultV1
+                );
+            } catch (error) {
+                return commandError(
+                    error,
+                    "INVALID_ENTITY_STATE",
+                    "The risk could not be disposed.",
+                    { meetingId: input.meetingId },
+                    { INVALID_ENTITY_STATE: "INVALID_ARGUMENT" }
                 );
             }
         }

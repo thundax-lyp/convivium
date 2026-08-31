@@ -43,6 +43,8 @@ export interface ApplyCompletionClaimsContext {
     authorizedTaskIds: readonly string[];
     now: number;
     factId: (kind: CompletionFact["kind"], index: number) => string;
+    riskAuthority?: boolean;
+    assertedBy?: string;
 }
 
 function invalidClaim(state: MeetingState, message: string): never {
@@ -99,7 +101,7 @@ function fact(
         id: context.factId(kind, index),
         kind,
         subjectId,
-        assertedBy: context.participantId,
+        assertedBy: context.assertedBy ?? context.participantId,
         ...(options.authority === undefined ? {} : { authority: options.authority }),
         result,
         evidenceMessageIds: [...evidenceMessageIds],
@@ -313,7 +315,10 @@ export function applyCompletionClaims(
         assertEvidence(state, riskAcceptance.evidenceMessageIds, [], authorizedTaskIds);
         const issue = issues.find(({ id }) => id === riskAcceptance.issueId);
         if (issue === undefined) invalidClaim(state, `unknown issue ${riskAcceptance.issueId}`);
-        if (!objectiveContract.riskAcceptanceAuthority.includes(context.participantId)) {
+        if (
+            !context.riskAuthority &&
+            !objectiveContract.riskAcceptanceAuthority.includes(context.participantId)
+        ) {
             invalidClaim(state, "completion risk caller lacks risk acceptance authority");
         }
         if (riskAcceptance.decision === "accept") {
@@ -345,7 +350,10 @@ export function applyCompletionClaims(
                 riskAcceptance.evidenceMessageIds,
                 [],
                 factIndex,
-                { authority: "risk_acceptance_authority", reason: riskAcceptance.reason }
+                {
+                    authority: context.riskAuthority ? "captain" : "risk_acceptance_authority",
+                    reason: riskAcceptance.reason
+                }
             )
         );
     }

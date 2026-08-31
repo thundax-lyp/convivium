@@ -56,6 +56,8 @@ import type {
     ResumeMeetingInputV1,
     ReassignTurnInputV1,
     ReassignTurnResultV1,
+    CaptainRiskDispositionInputV1,
+    CaptainRiskDispositionResultV1,
     TurnSubmissionV1
 } from "../../protocol/index.js";
 import type { MeetingOwnershipLookup } from "../../dsh/index.js";
@@ -129,6 +131,11 @@ export interface MeetingToolRuntime {
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<ReassignTurnResultV1> | ProtocolErrorV1>;
+    disposeRisk(
+        input: CaptainRiskDispositionInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<CaptainRiskDispositionResultV1> | ProtocolErrorV1>;
     endMeeting(
         input: EndMeetingInputV1,
         caller: MeetingToolCaller,
@@ -314,6 +321,7 @@ export function createCreateStatusRuntime(
         pause: controlApplication.pause,
         resume: controlApplication.resume,
         reassignTurn: controlApplication.reassignTurn,
+        disposeRisk: controlApplication.disposeRisk,
         endMeeting: endApplication.endMeeting,
         findBySessionId: queryApplication.findBySessionId,
         async dispose() {

@@ -134,6 +134,13 @@ describe("meeting tool registration", () => {
                     code: "UNSUPPORTED_CAPABILITY",
                     message: "not exercised",
                     retryable: false
+                }),
+                disposeRisk: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNAUTHORIZED_CALLER",
+                    message: "not exercised",
+                    retryable: false
                 })
             }
         });
@@ -194,6 +201,7 @@ describe("meeting tool registration", () => {
         });
 
         expect(definitions.map((definition) => definition.name)).toEqual([
+            "convivium_dispose_risk",
             "convivium_create_meeting",
             "convivium_meeting_status",
             "convivium_create_meeting_task",
@@ -409,6 +417,10 @@ describe("meeting tool registration", () => {
                     calls.push(`reassign:${caller.kind}`),
                     denied()
                 ),
+                disposeRisk: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`risk:${caller.kind}`),
+                    denied()
+                ),
                 endMeeting: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`end:${caller.kind}`),
                     denied()
@@ -540,6 +552,16 @@ describe("meeting tool registration", () => {
                 reason: "speaker unavailable",
                 requestId: "request-1"
             },
+            convivium_dispose_risk: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                requestId: "request-1",
+                issueId: "issue-1",
+                decision: "reject",
+                reason: "not accepted",
+                evidenceMessageIds: ["message-1"]
+            },
             convivium_end_meeting: {
                 protocolVersion: 1,
                 meetingId: "meeting-1",
@@ -562,6 +584,7 @@ describe("meeting tool registration", () => {
         }
 
         expect(calls).toEqual([
+            "risk:participant",
             "create:participant",
             "status:participant",
             "task-create:participant",

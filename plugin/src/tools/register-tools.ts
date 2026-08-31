@@ -20,6 +20,7 @@ import type {
     ProtocolSuccessV1,
     ResumeMeetingInputV1,
     ReassignTurnInputV1,
+    CaptainRiskDispositionInputV1,
     TurnSubmissionV1
 } from "../protocol/index.js";
 import type { MeetingToolCaller, MeetingToolRuntime } from "../runtime/index.js";
@@ -37,6 +38,7 @@ import {
     MeetingTaskStartInputSchema,
     MeetingTaskFinishInputSchema,
     HandRaiseSubmissionSchema,
+    CaptainRiskDispositionInputSchema,
     validateProtocolError
 } from "../protocol/index.js";
 
@@ -128,6 +130,27 @@ export function registerCreateAndStatusTools(
     dependencies: CreateAndStatusToolDependencies
 ): readonly (() => void)[] {
     return [
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_dispose_risk",
+                description: "Accept or reject one Meeting Issue as the meeting Captain.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                CaptainRiskDispositionInputSchema(
+                                    value as never
+                                ) as CaptainRiskDispositionInputV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.disposeRisk.bind(dependencies.runtime),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
         dependencies.registry.register(
             defineTool({
                 name: "convivium_create_meeting",
