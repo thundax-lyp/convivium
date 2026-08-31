@@ -35,13 +35,13 @@
 | ------------------------- | -------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | FR-1 DSH 插件形态         | 已实现   | package、双 bundle、provider capability、独立 profile smoke                                    | 高于最低版本的兼容与分发策略仍未决定                                                                              |
 | FR-2 会议与身份隔离       | 部分实现 | Meeting/Participant/Manager/Captain、Session ownership、label 和 caller binding 已实现         | V1 loopback Web 按正式边界不绑定用户/Team authority；远程、多用户与跨 workspace Web 路径不支持                    |
-| FR-3 有序连续发言         | 部分实现 | 单一 attempt、逐 Speaker dispatch、late/stale submit 拒绝、Captain reassign/skip、到期 SpeakerAttempt 原子失败与事务外 DSH interrupt，以及 A→C→B 真实 profile smoke | timeout/interrupt 和 Captain reassign 的真实 DSH profile smoke 尚未形成完整运行路径                              |
+| FR-3 有序连续发言         | 部分实现 | 单一 attempt、逐 Speaker dispatch、late/stale submit 拒绝、Captain reassign/skip、Runtime lifecycle 周期扫描的到期 SpeakerAttempt 原子失败与事务外 DSH interrupt，以及 A→C→B 真实 profile smoke | timeout/interrupt 和 Captain reassign 的真实 DSH profile smoke 尚未形成完整运行路径                              |
 | FR-4 发言计划与选择       | 部分实现 | Manager 和 round-robin planning、候选资格与 MeetingTask/HandRaise 消费；required Participant unavailable 零副作用拒绝已实现 | 确定性 fallback、自动 failure/stall/replan 还未形成完整 runtime 路径            |
 | FR-5 异步任务与举手       | 部分实现 | MeetingTask/HandRaise 的领域、工具、恢复、幂等、completion/end 集成自动化通过                  | `finish → HandRaise → 后续 submit_turn` 尚无真实 DSH profile smoke；不承诺外部副作用 exactly-once                 |
 | FR-6 议题范围与发散控制   | 部分实现 | non-blocking Question 与 `IssueClaimV1` 已完成 create/read/status/archive；Issue 依据 required output、criterion 或 hard constraint 派生 blocking，SQLite 事务、幂等 receipt 与终态拒写复用既有 `submit_turn` 闭环 | proposal/position/decision proposal/agenda candidate 声明尚未提交；blocking Question evidence、stall/refocus 未闭环 |
 | FR-7 提案、立场与决策     | 部分实现 | `convivium_dispose_risk` 已提供 Captain 单一 Issue accept/reject 控制；model、公开 projection 和输入 Schema 已定义 | proposal/position/decision claims 尚无 Runtime/transition commit 路径                                                |
 | FR-8 完成事实与会议结束   | 部分实现 | completion/end、task evidence、Captain risk disposition、终态 projection、幂等、恢复和 A/B 原子集成测试通过 | Captain risk disposition 尚无独立 Runtime 成功/失败与真实 DSH profile smoke；completion/end 竞争 smoke 未执行 |
-| FR-9 暂停、恢复与故障隔离 | 部分实现 | Captain tool 与 loopback Web pause/resume、outbox guard、SQLite recovery、archive recovery、stale gate、发言 reassign/skip、`speakerTimeoutMs` 到 deadline 持久化/扫描、attempt failure counter 和事务外 interrupt，以及连续两轮本地 pause/resume 回归已实现 | 自动降级策略和 reassign/timeout 真实 cold restart/rebind smoke 未完成 |
+| FR-9 暂停、恢复与故障隔离 | 部分实现 | Captain tool 与 loopback Web pause/resume、outbox guard、SQLite recovery、archive recovery、stale gate、发言 reassign/skip、`speakerTimeoutMs` 到 Runtime lifecycle deadline 扫描、attempt failure counter 和事务外 interrupt，以及连续两轮本地 pause/resume 回归已实现 | 自动降级策略和 reassign/timeout 真实 cold restart/rebind smoke 未完成 |
 | FR-10 记录、隐私与归档    | 部分实现 | transcript 隔离、archive materialization 和 Session cleanup 自动化已实现                       | meeting-scoped mailbox、continuation、developer Markdown 生成和 archive 真实 profile smoke 未实现                 |
 | FR-11 可观察性与用户控制  | 部分实现 | caller-specific status、Captain reassign/skip tool、loopback list/status/pause/resume HTTP、Plugin Client Meetings slot、poll/refetch 和真实浏览器选择/暂停/恢复已实现 | 结构化 metrics、远程/多用户控制，以及面板 end/reassign 控制不在当前闭环                                           |
 | FR-12 Agent 内部能力边界  | 已实现   | Convivium 只消费正式提交和授权 task projection，不写自定义 DSH Session Event；模块边界测试通过 | 仍需在未来 Mail、Web 和 UI 路径继续保持同一边界                                                                   |
@@ -72,7 +72,7 @@
 | --- | --- |
 | `pnpm --dir plugin verify:environment && pnpm --dir plugin verify:contract` | Pass；锁定 DSH `0.1.1-rc.2` 环境与插件 package contract 可用。 |
 | `pnpm --dir plugin exec vitest run tests/unit/domain/transitions/manager-planning.spec.ts tests/contract/meeting-runtime.spec.ts` | Pass；覆盖 required speaker 的零副作用 `REQUIRED_SPEAKER_UNAVAILABLE`、deadline 未到、到期失败、下一 step dispatch、late submit、重复 scan 与 DSH interrupt。 |
-| `pnpm --dir plugin verify` | Pass；41 files、302 tests；format、lint、Host/Client typecheck、build、环境/contract/package verifier 全部通过。 |
+| `pnpm --dir plugin verify` | Pass；41 files、303 tests；format、lint、Host/Client typecheck、build、环境/contract/package verifier 全部通过；Runtime lifecycle scanner 自动触发并在 dispose 后停止的 contract test 通过。 |
 | `git diff --check` | Pass。 |
 
 ## Not Covered

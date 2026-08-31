@@ -165,6 +165,71 @@ describe("create/status meeting runtime", () => {
         await runtime.dispose();
     });
 
+    it("runs the timeout scan from the runtime lifecycle and stops it on dispose", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-timeout-monitor-"));
+        roots.push(root);
+        let time = 0;
+        const sleepers: Array<() => void> = [];
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            outboxPollMs: 10,
+            timeoutScanSleep: async (_delay, signal) =>
+                new Promise<void>((resolve) => {
+                    sleepers.push(resolve);
+                    signal.addEventListener("abort", resolve, { once: true });
+                }),
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => "followup-message" as never
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => time
+        });
+        await vi.waitFor(() => expect(sleepers).toHaveLength(1));
+        const captain = {
+            sessionId: "captain-monitor",
+            kind: "captain" as const,
+            agent: { id: "captain-monitor" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!],
+                limits: {
+                    maxSpeakersPerTurn: 1,
+                    speakerAttemptTimeoutMs: 5,
+                    maxConsecutiveAttemptFailuresPerParticipant: 1
+                }
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        time = 5;
+        sleepers.shift()!();
+        await vi.waitFor(() => expect(sleepers).toHaveLength(1));
+        await vi.waitFor(async () =>
+            expect(
+                await runtime.getStatus(
+                    { protocolVersion: 1, meetingId: created.result.meetingId },
+                    captain
+                )
+            ).toMatchObject({ ok: true, result: { status: "archiving" } })
+        );
+        const sleepCount = sleepers.length;
+        await runtime.dispose();
+        await Promise.resolve();
+        expect(sleepers).toHaveLength(sleepCount);
+    });
+
     it("revokes the current attempt before Captain reassignment and rejects its late submission", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-reassign-turn-"));
         roots.push(root);

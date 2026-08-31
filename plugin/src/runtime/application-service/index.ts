@@ -1,5 +1,6 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import { failSpeakerAttempt, type MeetingState } from "../../domain/index.js";
+import { DomainError, failSpeakerAttempt, type MeetingState } from "../../domain/index.js";
+import { RepositoryError } from "../../repository/index.js";
 import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
 import {
     type ArchiveSessionRuntime,
@@ -159,6 +160,7 @@ export interface CreateStatusRuntimeOptions {
     readonly signal?: AbortSignal;
     readonly now?: () => number;
     readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
+    readonly timeoutScanSleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
 }
 
 export interface LocalMeetingWebRuntime {
@@ -181,6 +183,29 @@ export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
         scanExpiredSpeakerAttempts(): Promise<void>;
     } & LocalMeetingWebRuntime & { dispose(): Promise<void> };
 
+function defaultTimeoutScanSleep(delayMs: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (signal.aborted) return reject(signal.reason);
+        const timer = setTimeout(resolve, delayMs);
+        signal.addEventListener(
+            "abort",
+            () => {
+                clearTimeout(timer);
+                reject(signal.reason);
+            },
+            { once: true }
+        );
+    });
+}
+
+function isConcurrentTimeoutLoser(error: unknown): boolean {
+    return (
+        (error instanceof RepositoryError &&
+            (error.code === "VERSION_CONFLICT" || error.code === "IDEMPOTENCY_CONFLICT")) ||
+        (error instanceof DomainError && error.code === "STALE_ATTEMPT")
+    );
+}
+
 export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
 ): MeetingRuntimeWithCallerLookup {
@@ -198,6 +223,8 @@ export function createCreateStatusRuntime(
         options.signal === undefined
             ? runtimeController.signal
             : AbortSignal.any([options.signal, runtimeController.signal]);
+    const timeoutController = new AbortController();
+    const timeoutSignal = AbortSignal.any([signal, timeoutController.signal]);
     const repositoryRecovery = createMeetingRehydrationService({
         dataRoot: options.dataRoot,
         authorizationValidator: options.authorizationValidator,
@@ -328,7 +355,7 @@ export function createCreateStatusRuntime(
                 continue;
             }
             try {
-                const committed = await stored.repository.execute({
+                await stored.repository.execute({
                     requestId: `runtime-timeout:${attempt.attemptId}`,
                     commandKind: "expire_speaker_attempt",
                     authorization: {
@@ -394,17 +421,38 @@ export function createCreateStatusRuntime(
                     ownership !== undefined &&
                     typeof options.continuable.interrupt === "function"
                 ) {
-                    options.continuable.interrupt(ownership.sessionId as never, {
-                        kind: "ancestor",
-                        agent: parent
-                    });
+                    try {
+                        options.continuable.interrupt(ownership.sessionId as never, {
+                            kind: "ancestor",
+                            agent: parent
+                        });
+                    } catch {
+                        // Timeout facts are committed before this best-effort DSH effect.
+                    }
                 }
-                void committed;
-            } catch {
-                // A concurrent submit/scan makes the attempt stale; no scan retry creates a new fact.
+            } catch (error) {
+                if (isConcurrentTimeoutLoser(error)) continue;
+                throw error;
             }
         }
     }
+
+    const scanSleep = options.timeoutScanSleep ?? defaultTimeoutScanSleep;
+    const timeoutMonitor = (async () => {
+        while (!timeoutSignal.aborted) {
+            try {
+                await scanExpiredSpeakerAttempts();
+            } catch {
+                // The public scan preserves the error. The lifecycle monitor retries on its next poll.
+            }
+            try {
+                await scanSleep(options.outboxPollMs ?? 1_000, timeoutSignal);
+            } catch {
+                if (timeoutSignal.aborted) return;
+                throw new Error("Speaker timeout monitor sleep failed.");
+            }
+        }
+    })();
 
     return {
         createMeeting,
@@ -430,6 +478,8 @@ export function createCreateStatusRuntime(
         findBySessionId: queryApplication.findBySessionId,
         async dispose() {
             runtimeController.abort(new Error("Meeting runtime disposed"));
+            timeoutController.abort(new Error("Speaker timeout monitor disposed"));
+            await timeoutMonitor;
             await deliveryWorkers.dispose();
             await Promise.all([...meetings.values()].map((stored) => stored.repository.close()));
             meetings.clear();
