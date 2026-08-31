@@ -78,6 +78,28 @@ describe("meeting status projection", () => {
         expect(JSON.stringify(projected)).not.toContain("leaseToken");
     });
 
+    it("projects only blocking Issues as blocking facts", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                issues: [
+                    { id: "issue-blocking", title: "Required output", blocking: true },
+                    { id: "issue-follow-up", title: "Later", blocking: false }
+                ]
+            } as unknown as MeetingState,
+            { kind: "captain", sessionId: "captain-1" }
+        );
+        expect(projected.blockingFacts).toEqual([
+            {
+                id: "issue-blocking",
+                kind: "issue",
+                subjectId: "issue-blocking",
+                summary: "Required output"
+            }
+        ]);
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
+    });
+
     it("keeps pause available while an active meeting is waiting", () => {
         const projected = projectMeetingStatus({ ...state, status: "waiting" } as MeetingState, {
             kind: "captain",
