@@ -32,7 +32,16 @@ const state = {
             relatedTaskIds: []
         }
     ],
-    openQuestions: [{ id: "question-1", text: "who?", status: "open" }],
+    openQuestions: [
+        {
+            id: "question-1",
+            text: "who?",
+            affectedOutputIds: ["output-1"],
+            affectedCriterionIds: ["criterion-1"],
+            violatedConstraintIds: ["constraint-1"],
+            status: "open"
+        }
+    ],
     agendaCandidates: [{ id: "candidate-1", title: "later", reason: "parking", status: "parked" }],
     transcript: [],
     participants: [{ id: "participant-1", displayName: "P", role: "reviewer" }],
@@ -56,7 +65,14 @@ describe("materializeArchivePackage", () => {
             }
         ]);
         expect(archive.unresolvedQuestions).toEqual([
-            { id: "question-1", text: "who?", status: "open" }
+            {
+                id: "question-1",
+                text: "who?",
+                affectedOutputIds: ["output-1"],
+                affectedCriterionIds: ["criterion-1"],
+                violatedConstraintIds: ["constraint-1"],
+                status: "open"
+            }
         ]);
         expect(archive.parkingLot).toEqual([
             { id: "candidate-1", title: "later", reason: "parking", status: "parked" }

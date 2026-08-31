@@ -191,7 +191,10 @@ const publicMessageKind = enumOf([
 const questionClaim = Schema.object({
     text: nonEmptyString(),
     directedTo: Schema.string(),
-    blocking: boolean()
+    blocking: boolean(),
+    affectedOutputIds: Schema.array(string()).default([]),
+    affectedCriterionIds: Schema.array(string()).default([]),
+    violatedConstraintIds: Schema.array(string()).default([])
 });
 
 const proposalClaim = Schema.object({

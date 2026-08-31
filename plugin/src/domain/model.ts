@@ -333,6 +333,9 @@ export interface MeetingQuestion {
     directedTo?: string;
     agendaItemId: string;
     blocking: boolean;
+    affectedOutputIds: readonly string[];
+    affectedCriterionIds: readonly string[];
+    violatedConstraintIds: readonly string[];
     status: "open" | "answered" | "withdrawn" | "deferred";
     answerMessageId?: string;
     createdAt: number;
@@ -539,6 +542,9 @@ export interface ArchiveQuestion {
     directedTo?: string;
     agendaItemId?: string;
     blocking?: boolean;
+    affectedOutputIds?: readonly string[];
+    affectedCriterionIds?: readonly string[];
+    violatedConstraintIds?: readonly string[];
     status: "open" | "answered" | "withdrawn" | "deferred";
     answerMessageId?: string;
 }

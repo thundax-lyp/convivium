@@ -73,6 +73,122 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
+    it("atomically rejects invalid blocking evidence and persists an idempotent canonical question", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-blocking-question-"));
+        roots.push(root);
+        const runtime = localRuntime(root);
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                objectiveContract: {
+                    ...input.objectiveContract,
+                    requiredOutputs: [{ key: "done", description: "Done output" }]
+                },
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const meetingId = created.result.meetingId;
+        const participant = {
+            sessionId: `${meetingId}-participant-participant-one`,
+            meetingId,
+            participantId: "participant-one",
+            kind: "participant" as const
+        };
+        const submission = {
+            protocolVersion: 1 as const,
+            meetingId,
+            turnId: "turn-1",
+            stepId: "step-participant-one-0",
+            attemptId: "attempt-0",
+            deliveryId: "delivery-0",
+            agendaItemId: "agenda-agenda-1",
+            kind: "question" as const,
+            content: "Evidence needed",
+            mentions: [],
+            taskIds: [],
+            agendaRelation: "on_topic" as const,
+            changes: {
+                questions: [
+                    {
+                        text: "Unknown output",
+                        blocking: true,
+                        affectedOutputIds: ["output-missing"]
+                    }
+                ]
+            }
+        };
+
+        await expect(runtime.submitTurn(submission, participant)).resolves.toMatchObject({
+            ok: false,
+            code: "INVALID_ARGUMENT"
+        });
+        await expect(
+            runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
+        ).resolves.toMatchObject({
+            ok: true,
+            meetingVersion: created.meetingVersion,
+            result: { messages: [], questions: [] }
+        });
+
+        const validSubmission = {
+            ...submission,
+            changes: {
+                questions: [
+                    {
+                        text: "Output is not accepted",
+                        blocking: true,
+                        affectedOutputIds: ["output-done"]
+                    }
+                ]
+            }
+        };
+        const committed = await runtime.submitTurn(validSubmission, participant);
+        expect(committed).toMatchObject({ ok: true, meetingVersion: created.meetingVersion + 1 });
+        await expect(runtime.submitTurn(validSubmission, participant)).resolves.toEqual(committed);
+        await expect(
+            runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
+        ).resolves.toMatchObject({
+            ok: true,
+            result: {
+                questions: [
+                    {
+                        blocking: true,
+                        affectedOutputIds: ["output-done"],
+                        affectedCriterionIds: [],
+                        violatedConstraintIds: []
+                    }
+                ]
+            }
+        });
+        await runtime.dispose();
+        const reopened = localRuntime(root);
+        await expect(
+            reopened.getStatus({ protocolVersion: 1, meetingId }, captain)
+        ).resolves.toMatchObject({
+            ok: true,
+            result: {
+                questions: [
+                    {
+                        blocking: true,
+                        affectedOutputIds: ["output-done"],
+                        affectedCriterionIds: [],
+                        violatedConstraintIds: []
+                    }
+                ]
+            }
+        });
+        await reopened.dispose();
+    });
+
     it("commits proposal and caller-bound position once, while failing closed for decision proposals", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-proposal-position-"));
         roots.push(root);

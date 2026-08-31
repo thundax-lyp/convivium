@@ -183,6 +183,9 @@ function completionState(): MeetingState {
                 id: "question-1",
                 text: "Question",
                 blocking: true,
+                affectedOutputIds: ["output-1"],
+                affectedCriterionIds: ["criterion-1"],
+                violatedConstraintIds: ["constraint-1"],
                 status: "open",
                 askedBy: "reviewer-1",
                 agendaItemId: "agenda-1",
@@ -257,6 +260,11 @@ describe("applyCompletionClaims", () => {
         });
         expect(result.state.openQuestions[0]?.status).toBe("answered");
         expect(result.state.openQuestions[0]?.answerMessageId).toBe("message-1");
+        expect(result.state.openQuestions[0]).toMatchObject({
+            affectedOutputIds: ["output-1"],
+            affectedCriterionIds: ["criterion-1"],
+            violatedConstraintIds: ["constraint-1"]
+        });
         expect(result.state.issues[0]).toMatchObject({
             status: "accepted_risk",
             disposition: "accepted_risk"
