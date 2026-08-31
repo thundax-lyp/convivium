@@ -1,11 +1,6 @@
 import { createHash } from "node:crypto";
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import {
-    followupManagerSession,
-    followupMeetingTaskSession,
-    followupParticipantSession,
     type ArchiveSessionRuntime,
     type ContinuableFollowupRuntime,
     type ContinuableInspectionRuntime,
@@ -29,33 +24,41 @@ import {
     transitionMeeting,
     type MeetingState
 } from "../../domain/index.js";
-import { RepositoryError, type MeetingSnapshot } from "../../repository/index.js";
+import { RepositoryError } from "../../repository/index.js";
 import {
     createMeetingRuntime,
     openMeetingRepository,
     type DomainEventInput,
     type JsonObject,
     type MeetingCreationRuntimeDependencies,
-    type MeetingRepositoryRuntime,
     type RepositoryAuthorizationValidator
 } from "../meeting-runtime.js";
-import { createMeetingDeliveryWorkerService } from "../services/meeting-dispatch-service.js";
+import {
+    createMeetingDeliveryDispatcher,
+    createMeetingDeliveryWorkerService
+} from "../services/meeting-dispatch-service.js";
 import {
     commandFailure as failure,
     commandSuccess as success,
     mapCommandError as commandError
 } from "../services/command-result-service.js";
 import { locateMeetingRepository } from "../services/meeting-repository-locator.js";
-import { resolveArchiveCleanupRuntime } from "../services/meeting-session-service.js";
+import {
+    readAuthorizedMeetingTask,
+    resolveArchiveCleanupRuntime
+} from "../services/meeting-session-service.js";
 import { recoverArchive } from "../services/meeting-archive-service.js";
+import {
+    createMeetingRehydrationService,
+    LocalMeetingRecoveryUnavailableError
+} from "../services/meeting-recovery-service.js";
 import { assignTurnAttempt, initializeFirstMeetingTurn } from "./meeting-turn.js";
-import type { MeetingControlSource, RehydrateMode, StoredMeeting } from "./types.js";
+import { createMeetingQueryApplication } from "./meeting-query.js";
+import type { MeetingControlSource, StoredMeeting } from "./types.js";
 import {
     meetingTaskEvidenceResolver,
     type AuthorizedTaskEvidenceResolver
 } from "../task-evidence.js";
-import { projectManagerMeetingContext, projectMeetingStatus } from "../../projection/index.js";
-import { LocalMeetingListResponseSchema, MeetingStatusResultSchema } from "../../protocol/index.js";
 import type {
     CreateMeetingInputV1,
     CreateMeetingResultV1,
@@ -181,14 +184,6 @@ export interface CreateStatusRuntimeOptions {
     readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
 }
 
-interface ClaimedOutboxItem {
-    id: string;
-    deliveryId: string;
-    payload: JsonObject;
-    leaseOwner: string;
-    leaseToken: string;
-}
-
 export interface LocalMeetingWebRuntime {
     listLocalMeetings(): Promise<LocalMeetingListResponseV1>;
     getLocalMeetingStatus(
@@ -202,39 +197,11 @@ export interface LocalMeetingWebRuntime {
     ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
 }
 
-export class LocalMeetingRecoveryUnavailableError extends Error {
-    readonly name = "LocalMeetingRecoveryUnavailableError";
-}
+export { LocalMeetingRecoveryUnavailableError } from "../services/meeting-recovery-service.js";
 
 export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
     MeetingOwnershipLookup &
     LocalMeetingWebRuntime & { dispose(): Promise<void> };
-
-function terminalDispatchError(code: string, message: string): Error {
-    return Object.assign(new Error(message), { code, retryable: false });
-}
-
-function requireDispatchableMeeting(
-    state: MeetingState | undefined
-): asserts state is MeetingState {
-    if (
-        state === undefined ||
-        [
-            "completed",
-            "partial",
-            "no_consensus",
-            "cancelled",
-            "failed",
-            "archiving",
-            "archived"
-        ].includes(state.status)
-    ) {
-        throw terminalDispatchError(
-            "MEETING_NOT_DISPATCHABLE",
-            "Meeting is terminal or archiving and cannot dispatch work."
-        );
-    }
-}
 
 function stableMeetingId(input: CreateMeetingInputV1): string {
     return `meeting-${createHash("sha256")
@@ -290,194 +257,22 @@ export function createCreateStatusRuntime(
         pollMs: options.outboxPollMs ?? 1_000,
         now: options.now
     });
+    const deliveryDispatcher = createMeetingDeliveryDispatcher({
+        continuable: options.continuable
+    });
     const runtimeController = new AbortController();
     const taskEvidenceResolver = options.taskEvidenceResolver ?? meetingTaskEvidenceResolver;
     const signal =
         options.signal === undefined
             ? runtimeController.signal
             : AbortSignal.any([options.signal, runtimeController.signal]);
-
-    async function rehydrate(
-        mode: RehydrateMode = { kind: "agent_best_effort" }
-    ): Promise<Map<string, MeetingSnapshot> | undefined> {
-        if (mode.kind !== "agent_best_effort") {
-            const snapshots = new Map<string, MeetingSnapshot>();
-            const unavailable = (error: unknown): LocalMeetingRecoveryUnavailableError =>
-                error instanceof LocalMeetingRecoveryUnavailableError
-                    ? error
-                    : new LocalMeetingRecoveryUnavailableError(
-                          "Local meeting recovery is unavailable.",
-                          { cause: error }
-                      );
-            const isMissing = (error: unknown): boolean =>
-                error !== null &&
-                typeof error === "object" &&
-                "code" in error &&
-                (error as { code?: unknown }).code === "ENOENT";
-            const recoverLocal = async (
-                meetingId: string,
-                teamId: string,
-                databasePath: string,
-                existing?: StoredMeeting
-            ): Promise<void> => {
-                let repository = existing?.repository;
-                let opened = false;
-                try {
-                    if (repository === undefined) {
-                        repository = await openMeetingRepository({
-                            databasePath,
-                            teamId,
-                            meetingId,
-                            authorizationValidator: options.authorizationValidator
-                        });
-                        opened = true;
-                    } else if (existing?.teamId !== teamId) {
-                        throw new Error(
-                            "Recovered Meeting team ownership does not match discovery."
-                        );
-                    }
-                    const recovered = await repository.recover();
-                    if (
-                        recovered.bootstrap.status === "creating" ||
-                        recovered.bootstrap.status === "creation_failed"
-                    ) {
-                        if (existing !== undefined) meetings.delete(meetingId);
-                        await repository.close();
-                        return;
-                    }
-                    const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
-                    if (recovered.snapshot === undefined || parentSessionId === undefined) {
-                        throw new Error("Ready Meeting recovery is incomplete.");
-                    }
-                    const recoveredState = recovered.snapshot.state as unknown as MeetingState;
-                    if (
-                        recoveredState.status === "archiving" ||
-                        recoveredState.status === "archived"
-                    ) {
-                        await recoverArchive({
-                            repository,
-                            signal,
-                            now: options.now?.() ?? Date.now()
-                        });
-                    }
-                    const current = await repository.read();
-                    if (opened) {
-                        meetings.set(meetingId, {
-                            teamId,
-                            captainSessionId: parentSessionId,
-                            repository
-                        });
-                    }
-                    snapshots.set(meetingId, current);
-                } catch (error) {
-                    if (opened && repository !== undefined) {
-                        await repository.close().catch(() => undefined);
-                    }
-                    throw unavailable(error);
-                }
-            };
-
-            if (mode.kind === "local_meeting") {
-                const existing = meetings.get(mode.meetingId);
-                if (existing !== undefined) {
-                    await recoverLocal(
-                        mode.meetingId,
-                        existing.teamId,
-                        locateMeetingRepository(options.dataRoot, existing.teamId, mode.meetingId),
-                        existing
-                    );
-                    return snapshots;
-                }
-            }
-
-            let teams;
-            try {
-                teams = await readdir(options.dataRoot, { withFileTypes: true });
-            } catch (error) {
-                if (isMissing(error)) return snapshots;
-                throw unavailable(error);
-            }
-            for (const team of teams) {
-                if (!team.isDirectory()) continue;
-                let teamId: string;
-                try {
-                    teamId = decodeURIComponent(team.name);
-                } catch (error) {
-                    throw unavailable(error);
-                }
-                let files: string[];
-                try {
-                    files = await readdir(join(options.dataRoot, team.name));
-                } catch (error) {
-                    throw unavailable(error);
-                }
-                for (const file of files) {
-                    if (!file.endsWith(".sqlite")) continue;
-                    let meetingId: string;
-                    try {
-                        meetingId = decodeURIComponent(file.slice(0, -7));
-                    } catch (error) {
-                        if (mode.kind === "local_list") throw unavailable(error);
-                        continue;
-                    }
-                    if (mode.kind === "local_meeting" && meetingId !== mode.meetingId) continue;
-                    await recoverLocal(
-                        meetingId,
-                        teamId,
-                        join(options.dataRoot, team.name, file),
-                        meetings.get(meetingId)
-                    );
-                    if (mode.kind === "local_meeting") return snapshots;
-                }
-            }
-            return snapshots;
-        }
-
-        const teams = await readdir(options.dataRoot, { withFileTypes: true }).catch(() => []);
-        for (const team of teams) {
-            if (!team.isDirectory()) continue;
-            const files = await readdir(join(options.dataRoot, team.name)).catch(() => []);
-            for (const file of files) {
-                if (!file.endsWith(".sqlite")) continue;
-                const meetingId = decodeURIComponent(file.slice(0, -7));
-                const stored = meetings.get(meetingId);
-                if (stored !== undefined) {
-                    continue;
-                }
-                try {
-                    const repository = await openMeetingRepository({
-                        databasePath: join(options.dataRoot, team.name, file),
-                        teamId: decodeURIComponent(team.name),
-                        meetingId,
-                        authorizationValidator: options.authorizationValidator
-                    });
-                    const recovered = await repository.recover();
-                    const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
-                    if (
-                        recovered.bootstrap.status !== "ready" ||
-                        recovered.snapshot === undefined ||
-                        parentSessionId === undefined
-                    ) {
-                        await repository.close();
-                        continue;
-                    }
-                    const recoveredMeeting: StoredMeeting = {
-                        teamId: decodeURIComponent(team.name),
-                        captainSessionId: parentSessionId,
-                        repository
-                    };
-                    meetings.set(meetingId, recoveredMeeting);
-                    await recoverArchive({
-                        repository,
-                        signal,
-                        now: options.now?.() ?? Date.now()
-                    });
-                } catch {
-                    // Ignore unrelated or incomplete databases during startup discovery.
-                }
-            }
-        }
-    }
+    const recovery = createMeetingRehydrationService({
+        dataRoot: options.dataRoot,
+        authorizationValidator: options.authorizationValidator,
+        meetings,
+        signal,
+        now: options.now
+    });
 
     async function recoverArchiveForCaptain(
         stored: StoredMeeting,
@@ -501,247 +296,11 @@ export function createCreateStatusRuntime(
         });
     }
 
-    async function dispatchInitialDelivery(
-        repository: MeetingRepositoryRuntime,
-        parent: Agent,
-        meetingId: string,
-        commandSignal: AbortSignal,
-        item: ClaimedOutboxItem
-    ) {
-        const recovered = await repository.recover();
-        requireDispatchableMeeting(
-            recovered.snapshot?.state as unknown as MeetingState | undefined
-        );
-        const payload = item.payload as unknown as {
-            participantId: string;
-            attemptId: string;
-            turnId: string;
-        };
-        const ownership = recovered.sessionOwnership.find(
-            (candidate) => candidate.participantId === payload.participantId
-        );
-        if (ownership === undefined)
-            throw terminalDispatchError(
-                "SESSION_OWNERSHIP_MISSING",
-                "Initial speaker Session ownership is missing."
-            );
-        if (
-            ownership.parentSessionId !== String(parent.id) ||
-            ownership.lifecycleStatus !== "active" ||
-            ownership.capabilityStatus !== "active"
-        ) {
-            throw terminalDispatchError(
-                "SESSION_CAPABILITY_REVOKED",
-                "Speaker Session ownership is no longer authorized."
-            );
-        }
-        await followupParticipantSession({
-            runtime: options.continuable,
-            parent,
-            ownership,
-            attempt: {
-                attemptId: payload.attemptId,
-                deliveryId: item.deliveryId,
-                participantId: payload.participantId
-            },
-            prompt: [
-                {
-                    type: "text",
-                    text: `Meeting ${meetingId} turn ${payload.turnId}: submit your statement.`
-                }
-            ],
-            signal: commandSignal,
-            authorize: async ({ attempt }) => {
-                const latest = await repository.recover();
-                const current = latest.snapshot?.state as unknown as MeetingState | undefined;
-                const active = current?.currentTurn?.steps.find(
-                    (step) => step.attempt?.attemptId === attempt.attemptId
-                )?.attempt;
-                if (
-                    active?.deliveryId !== attempt.deliveryId ||
-                    active.status !== "running" ||
-                    !["pending", "accepted"].includes(active.deliveryStatus)
-                ) {
-                    throw terminalDispatchError(
-                        "STALE_SPEAKER_ATTEMPT",
-                        "Speaker attempt is no longer authorized."
-                    );
-                }
-                const owned = latest.sessionOwnership.find(
-                    (candidate) => candidate.sessionId === ownership.sessionId
-                );
-                if (owned?.lifecycleStatus !== "active" || owned.capabilityStatus !== "active") {
-                    throw terminalDispatchError(
-                        "SESSION_CAPABILITY_REVOKED",
-                        "Speaker Session capability is no longer active."
-                    );
-                }
-            }
-        });
-    }
-
-    async function dispatchManagerPlanningDelivery(
-        repository: MeetingRepositoryRuntime,
-        parent: Agent,
-        meetingId: string,
-        commandSignal: AbortSignal,
-        item: ClaimedOutboxItem
-    ) {
-        const recovered = await repository.recover();
-        const payload = item.payload as unknown as {
-            role: "manager";
-            planningAttemptId: string;
-        };
-        const ownership = recovered.sessionOwnership.find(
-            (candidate) => candidate.role === "manager"
-        );
-        if (ownership === undefined)
-            throw terminalDispatchError(
-                "SESSION_OWNERSHIP_MISSING",
-                "Manager Session ownership is missing."
-            );
-        if (
-            ownership.parentSessionId !== String(parent.id) ||
-            ownership.lifecycleStatus !== "active" ||
-            ownership.capabilityStatus !== "active"
-        ) {
-            throw terminalDispatchError(
-                "SESSION_CAPABILITY_REVOKED",
-                "Manager Session ownership is no longer authorized."
-            );
-        }
-        const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
-        requireDispatchableMeeting(state);
-        const dispatchableParticipantIds = state.participants
-            .filter(
-                (participant) =>
-                    participant.status === "available" &&
-                    !participantHasActiveMeetingTask(state, participant.id) &&
-                    recovered.sessionOwnership.some(
-                        (candidate) =>
-                            candidate.role === "participant" &&
-                            candidate.participantId === participant.id &&
-                            candidate.lifecycleStatus === "active" &&
-                            candidate.capabilityStatus === "active"
-                    )
-            )
-            .map((participant) => participant.id);
-        const managerContext = projectManagerMeetingContext(state, dispatchableParticipantIds);
-        await followupManagerSession({
-            runtime: options.continuable,
-            parent,
-            ownership,
-            attempt: {
-                planningAttemptId: payload.planningAttemptId,
-                deliveryId: item.deliveryId
-            },
-            prompt: [{ type: "text", text: JSON.stringify(managerContext) }],
-            signal: commandSignal,
-            authorize: async ({ attempt }) => {
-                const latest = await repository.recover();
-                const current = latest.snapshot?.state as unknown as MeetingState | undefined;
-                const active = current?.manager.currentPlanningAttempt;
-                if (
-                    active?.id !== attempt.planningAttemptId ||
-                    active.deliveryId !== attempt.deliveryId ||
-                    active.status !== "running"
-                )
-                    throw terminalDispatchError(
-                        "STALE_MANAGER_ATTEMPT",
-                        "Manager planning attempt is no longer authorized."
-                    );
-            }
-        });
-    }
-
-    async function dispatchMeetingTaskDelivery(
-        repository: MeetingRepositoryRuntime,
-        parent: Agent,
-        meetingId: string,
-        commandSignal: AbortSignal,
-        item: ClaimedOutboxItem
-    ) {
-        const recovered = await repository.recover();
-        const payload = item.payload as unknown as {
-            meetingTaskId: string;
-            participantId: string;
-            executionId: string;
-        };
-        const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
-        requireDispatchableMeeting(state);
-        const task = state?.meetingTasks?.find(
-            (candidate) =>
-                candidate.meetingTaskId === payload.meetingTaskId &&
-                candidate.participantId === payload.participantId
-        );
-        if (task === undefined || task.status !== "queued") {
-            throw terminalDispatchError(
-                "MEETING_TASK_NOT_QUEUED",
-                "MeetingTask is no longer queued."
-            );
-        }
-        const ownership = recovered.sessionOwnership.find(
-            (candidate) =>
-                candidate.role === "participant" &&
-                candidate.participantId === task.participantId &&
-                candidate.lifecycleStatus === "active" &&
-                candidate.capabilityStatus === "active"
-        );
-        if (ownership === undefined || ownership.parentSessionId !== String(parent.id)) {
-            throw terminalDispatchError(
-                "SESSION_CAPABILITY_REVOKED",
-                "Task Participant Session is unavailable."
-            );
-        }
-        await followupMeetingTaskSession({
-            runtime: options.continuable,
-            parent,
-            ownership,
-            meetingTaskId: task.meetingTaskId,
-            deliveryId: item.deliveryId,
-            prompt: [
-                {
-                    type: "text",
-                    text: [
-                        `Execute MeetingTask ${task.meetingTaskId}: ${task.title}`,
-                        `executionId: ${task.executionId}`,
-                        `deliveryId: ${task.deliveryId}`,
-                        task.description,
-                        "Call convivium_start_meeting_task with deliveryId as requestId before executing, then call convivium_finish_meeting_task with executionId when done."
-                    ].join("\n")
-                }
-            ],
-            signal: commandSignal,
-            authorize: async (phase) => {
-                const latest = await repository.recover();
-                const current = latest.snapshot?.state as unknown as MeetingState | undefined;
-                const currentTask = current?.meetingTasks.find(
-                    (candidate) => candidate.meetingTaskId === task.meetingTaskId
-                );
-                const meetingTerminal = [
-                    "completed",
-                    "partial",
-                    "no_consensus",
-                    "cancelled",
-                    "failed",
-                    "archiving",
-                    "archived"
-                ].includes(current?.status ?? "");
-                const allowed =
-                    phase === "before"
-                        ? !meetingTerminal && currentTask?.status === "queued"
-                        : !meetingTerminal &&
-                          ["queued", "running", "completed", "failed"].includes(
-                              currentTask?.status ?? ""
-                          );
-                if (!allowed)
-                    throw terminalDispatchError(
-                        "MEETING_TASK_NOT_EXECUTABLE",
-                        "MeetingTask is no longer executable."
-                    );
-            }
-        });
-    }
+    const queryApplication = createMeetingQueryApplication({
+        meetings,
+        recovery,
+        recoverArchiveForCaptain
+    });
 
     function ensureWorker(stored: StoredMeeting): void {
         const meetingId = stored.repository.meetingId;
@@ -749,65 +308,15 @@ export function createCreateStatusRuntime(
             meetingId,
             repository: stored.repository,
             parent: stored.parent,
-            dispatch: async (item, workerSignal) => {
-                const dispatchSignal = AbortSignal.any([signal, workerSignal]);
-                const payload = item.payload as unknown as {
-                    role?: "manager" | "participant" | "meeting_task";
-                };
-                if (payload.role === "manager")
-                    await dispatchManagerPlanningDelivery(
-                        stored.repository,
-                        stored.parent!,
-                        meetingId,
-                        dispatchSignal,
-                        item
-                    );
-                else if (payload.role === "meeting_task")
-                    await dispatchMeetingTaskDelivery(
-                        stored.repository,
-                        stored.parent!,
-                        meetingId,
-                        dispatchSignal,
-                        item
-                    );
-                else
-                    await dispatchInitialDelivery(
-                        stored.repository,
-                        stored.parent!,
-                        meetingId,
-                        dispatchSignal,
-                        item
-                    );
-            }
+            dispatch: (item, workerSignal) =>
+                deliveryDispatcher.dispatch({
+                    repository: stored.repository,
+                    parent: stored.parent!,
+                    meetingId,
+                    signal: AbortSignal.any([signal, workerSignal]),
+                    item
+                })
         });
-    }
-
-    async function readAuthorizedTask(
-        stored: StoredMeeting,
-        caller: MeetingToolCaller,
-        meetingTaskId: string,
-        executionId?: string
-    ) {
-        if (caller.kind !== "participant" || caller.participantId === undefined) return undefined;
-        const recovered = await stored.repository.recover();
-        const ownership = recovered.sessionOwnership.find(
-            (candidate) =>
-                candidate.sessionId === caller.sessionId &&
-                candidate.role === "participant" &&
-                candidate.participantId === caller.participantId &&
-                candidate.lifecycleStatus === "active" &&
-                candidate.capabilityStatus === "active"
-        );
-        if (ownership === undefined) return undefined;
-        const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
-        const task = state?.meetingTasks?.find(
-            (candidate) => candidate.meetingTaskId === meetingTaskId
-        );
-        return task === undefined ||
-            task.participantId !== caller.participantId ||
-            (executionId !== undefined && task.executionId !== executionId)
-            ? undefined
-            : { recovered, state: state!, task };
     }
 
     return {
@@ -827,7 +336,7 @@ export function createCreateStatusRuntime(
             if (input.agenda.length === 0) {
                 return failure("INVALID_ARGUMENT", "At least one agenda item is required.");
             }
-            await rehydrate();
+            await recovery.rehydrate();
             const meetingId = stableMeetingId(input);
             const repository = await openMeetingRepository({
                 databasePath: locateMeetingRepository(options.dataRoot, input.teamId, meetingId),
@@ -1019,88 +528,12 @@ export function createCreateStatusRuntime(
             }
         },
 
-        async getStatus(input: MeetingStatusInputV1, caller) {
-            await rehydrate();
-            const stored = meetings.get(input.meetingId);
-            if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-            if (!isAuthorizedForMeeting(caller, stored, input.meetingId)) {
-                return failure("UNAUTHORIZED_CALLER", "The caller is not bound to this meeting.");
-            }
-            try {
-                await recoverArchiveForCaptain(stored, caller).catch(() => undefined);
-                const snapshot = await stored.repository.read();
-                const state = JSON.parse(JSON.stringify(snapshot.state));
-                return success(
-                    snapshot.meetingId,
-                    snapshot.version,
-                    projectMeetingStatus(state, caller) as MeetingStatusResultV1
-                );
-            } catch {
-                return failure("MEETING_NOT_FOUND", "Meeting not found.");
-            }
-        },
-
-        async listLocalMeetings() {
-            const snapshots = (await rehydrate({ kind: "local_list" })) ?? new Map();
-            try {
-                return LocalMeetingListResponseSchema({
-                    protocolVersion: 1,
-                    ok: true,
-                    result: {
-                        meetings: [...snapshots.values()]
-                            .map((snapshot) => {
-                                const state = snapshot.state as unknown as MeetingState;
-                                return {
-                                    meetingId: snapshot.meetingId,
-                                    teamId: snapshot.teamId,
-                                    topic: state.topic,
-                                    status: state.status,
-                                    meetingVersion: snapshot.version,
-                                    updatedAt: snapshot.updatedAt
-                                };
-                            })
-                            .sort(
-                                (left, right) =>
-                                    right.updatedAt - left.updatedAt ||
-                                    left.meetingId.localeCompare(right.meetingId)
-                            )
-                    }
-                });
-            } catch (error) {
-                throw new LocalMeetingRecoveryUnavailableError(
-                    "Local meeting list projection is unavailable.",
-                    { cause: error }
-                );
-            }
-        },
-
-        async getLocalMeetingStatus(input) {
-            const snapshots = await rehydrate({
-                kind: "local_meeting",
-                meetingId: input.meetingId
-            });
-            const snapshot = snapshots?.get(input.meetingId);
-            if (snapshot === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-            try {
-                const state = JSON.parse(JSON.stringify(snapshot.state)) as MeetingState;
-                const projection = projectMeetingStatus(state, {
-                    kind: "local_host",
-                    sessionId: "loopback-web"
-                });
-                const projected = MeetingStatusResultSchema(
-                    projection as unknown as Record<string, unknown>
-                ) as unknown as MeetingStatusResultV1;
-                return success(snapshot.meetingId, snapshot.version, projected);
-            } catch (error) {
-                throw new LocalMeetingRecoveryUnavailableError(
-                    "Local meeting status projection is unavailable.",
-                    { cause: error }
-                );
-            }
-        },
+        getStatus: queryApplication.getStatus,
+        listLocalMeetings: queryApplication.listLocalMeetings,
+        getLocalMeetingStatus: queryApplication.getLocalMeetingStatus,
 
         async pauseLocalMeeting(input) {
-            const snapshots = await rehydrate({
+            const snapshots = await recovery.rehydrate({
                 kind: "local_meeting",
                 meetingId: input.meetingId
             });
@@ -1110,7 +543,7 @@ export function createCreateStatusRuntime(
         },
 
         async resumeLocalMeeting(input) {
-            const snapshots = await rehydrate({
+            const snapshots = await recovery.rehydrate({
                 kind: "local_meeting",
                 meetingId: input.meetingId
             });
@@ -1120,7 +553,7 @@ export function createCreateStatusRuntime(
         },
 
         async createMeetingTask(input: MeetingTaskRequestV1, caller) {
-            await rehydrate();
+            await recovery.rehydrate();
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
             if (caller.kind !== "participant" || caller.participantId === undefined) {
@@ -1229,10 +662,14 @@ export function createCreateStatusRuntime(
         },
 
         async meetingTaskStatus(input: MeetingTaskStatusInputV1, caller) {
-            await rehydrate();
+            await recovery.rehydrate();
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-            const authorized = await readAuthorizedTask(stored, caller, input.meetingTaskId);
+            const authorized = await readAuthorizedMeetingTask(
+                stored.repository,
+                caller,
+                input.meetingTaskId
+            );
             if (authorized === undefined)
                 return failure(
                     "UNAUTHORIZED_CALLER",
@@ -1275,10 +712,14 @@ export function createCreateStatusRuntime(
         },
 
         async startMeetingTask(input: MeetingTaskStartInputV1, caller) {
-            await rehydrate();
+            await recovery.rehydrate();
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-            const authorized = await readAuthorizedTask(stored, caller, input.meetingTaskId);
+            const authorized = await readAuthorizedMeetingTask(
+                stored.repository,
+                caller,
+                input.meetingTaskId
+            );
             if (authorized === undefined)
                 return failure(
                     "UNAUTHORIZED_CALLER",
@@ -1328,11 +769,11 @@ export function createCreateStatusRuntime(
         },
 
         async finishMeetingTask(input: MeetingTaskFinishInputV1, caller) {
-            await rehydrate();
+            await recovery.rehydrate();
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-            const authorized = await readAuthorizedTask(
-                stored,
+            const authorized = await readAuthorizedMeetingTask(
+                stored.repository,
                 caller,
                 input.meetingTaskId,
                 input.executionId
@@ -1464,7 +905,7 @@ export function createCreateStatusRuntime(
         },
 
         async raiseHand(input: HandRaiseSubmissionV1, caller) {
-            await rehydrate();
+            await recovery.rehydrate();
             const stored = meetings.get(input.meetingId);
             if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
             if (caller.kind !== "participant" || caller.participantId === undefined) {
@@ -1537,7 +978,7 @@ export function createCreateStatusRuntime(
         },
 
         async submitTurn(input, caller, _commandSignal) {
-            await rehydrate();
+            await recovery.rehydrate();
             if (
                 caller.kind !== "participant" ||
                 caller.meetingId !== input.meetingId ||
@@ -1740,7 +1181,7 @@ export function createCreateStatusRuntime(
             }
         },
         async submitManagerPlan(input: ManagerPlanSubmissionV1, caller, _commandSignal) {
-            await rehydrate();
+            await recovery.rehydrate();
             if (caller.kind !== "manager" || caller.meetingId !== input.meetingId)
                 return failure(
                     "UNAUTHORIZED_CALLER",
@@ -1860,7 +1301,7 @@ export function createCreateStatusRuntime(
             }
         },
         async pause(input, caller) {
-            await rehydrate();
+            await recovery.rehydrate();
             const stored = meetings.get(input.meetingId);
             if (
                 stored === undefined ||
@@ -1874,7 +1315,7 @@ export function createCreateStatusRuntime(
             });
         },
         async resume(input, caller) {
-            await rehydrate();
+            await recovery.rehydrate();
             const stored = meetings.get(input.meetingId);
             if (
                 stored === undefined ||
@@ -1888,7 +1329,7 @@ export function createCreateStatusRuntime(
             });
         },
         async reassignTurn(input, caller) {
-            await rehydrate();
+            await recovery.rehydrate();
             const stored = meetings.get(input.meetingId);
             if (
                 stored === undefined ||
@@ -1984,7 +1425,7 @@ export function createCreateStatusRuntime(
             }
         },
         async endMeeting(input: EndMeetingInputV1, caller) {
-            await rehydrate();
+            await recovery.rehydrate();
             const stored = meetings.get(input.meetingId);
             if (
                 stored === undefined ||
@@ -2058,20 +1499,7 @@ export function createCreateStatusRuntime(
             }
         },
 
-        async findBySessionId(sessionId, lookupSignal) {
-            if (lookupSignal.aborted) throw lookupSignal.reason;
-            await rehydrate();
-            for (const [meetingId, stored] of meetings) {
-                const recovered = await stored.repository.recover();
-                const ownership = recovered.sessionOwnership.find(
-                    (candidate) => candidate.sessionId === sessionId
-                );
-                if (ownership !== undefined) {
-                    return { teamId: stored.teamId, meetingId, ownership };
-                }
-            }
-            return undefined;
-        },
+        findBySessionId: queryApplication.findBySessionId,
         async dispose() {
             runtimeController.abort(new Error("Meeting runtime disposed"));
             await deliveryWorkers.dispose();
@@ -2318,13 +1746,4 @@ export function createCreateStatusRuntime(
             );
         }
     }
-}
-
-function isAuthorizedForMeeting(
-    caller: MeetingToolCaller,
-    stored: StoredMeeting,
-    meetingId: string
-): boolean {
-    if (caller.kind === "captain") return caller.sessionId === stored.captainSessionId;
-    return caller.meetingId === meetingId;
 }
