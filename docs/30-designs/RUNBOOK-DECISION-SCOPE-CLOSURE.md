@@ -1,10 +1,10 @@
 # RUNBOOK A：最小 Decision acceptance 竖切
 
-状态：`Executable`
+状态：`Executable · T1 PASS · T2 in progress`
 工作边界：只允许在执行者自己的 Convivium checkout 和独立任务分支中按 T1-T8 顺序执行
 建立日期：2026-08-31
 调查基线：`main@42a7bfb`
-模式：Author + Audit 已完成；本文未执行
+模式：Execute（滚动收口）；T1 已完成并已提交，当前执行 T2
 
 ## 1. 执行者契约
 
@@ -167,18 +167,6 @@ export function createMeetingDecisionApplication(
 | projection/archive | `projection/status.ts#projectMeetingStatus`；`runtime/services/meeting-archive-service.ts#materializeArchivePackage` |
 
 ## 6. 机械步骤
-
-### T1：正式 Interface 与 Design
-
-前置状态：冻结决定与 FR-7/Architecture 无冲突。
-允许修改：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`。
-禁止修改：其他文件。
-执行：在 command table、data/result mapping、permission/error 和 Design 13.3 逐字加入第 4 节；把非空 `decisionProposals` fail-closed 口径改为 internal candidate；保留 optional V1；其他 acceptance modes 只列 Non-goals。
-验证：
-```bash
-rg -n 'convivium_accept_decision|CaptainDecisionAcceptance(Input|Result)V1|MeetingDecisionCandidate|decision.accepted|internal-only|accepted-only' docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md
-```
-PASS：两文件各覆盖六类契约。STOP：正式规则要求不同字段/authority。Restore：撤销本步两文件新增段落。
 
 ### T2：model、Schema 与历史默认值
 
