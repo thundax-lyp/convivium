@@ -16,6 +16,7 @@ const state = {
     agenda: [],
     transcript: [],
     openQuestions: [],
+    proposals: [],
     decisions: [],
     issues: [],
     handRaises: [],
@@ -113,6 +114,46 @@ describe("meeting status projection", () => {
         expect(projected).not.toHaveProperty("currentSpeakerId");
         expect(JSON.stringify(projected)).not.toContain("planning-1");
         expect(JSON.stringify(projected)).not.toContain("leaseToken");
+    });
+
+    it("projects canonical proposal revisions and positions for later participants", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                proposals: [
+                    {
+                        id: "proposal-1",
+                        title: "Use SQLite",
+                        description: "Persist locally",
+                        proposedBy: "participant-1",
+                        revision: 1,
+                        status: "under_review",
+                        agendaItemId: "agenda-1",
+                        positions: [
+                            {
+                                id: "position-1",
+                                participantId: "participant-1",
+                                position: "support",
+                                blocking: false,
+                                proposalRevision: 1
+                            }
+                        ],
+                        createdAt: 1,
+                        updatedAt: 1
+                    }
+                ]
+            } as MeetingState,
+            { kind: "participant", sessionId: "session-2", participantId: "participant-2" }
+        );
+
+        expect(projected.proposals).toEqual([
+            expect.objectContaining({
+                id: "proposal-1",
+                revision: 1,
+                positions: [expect.objectContaining({ participantId: "participant-1" })]
+            })
+        ]);
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
 
     it("projects only blocking Issues as blocking facts", () => {

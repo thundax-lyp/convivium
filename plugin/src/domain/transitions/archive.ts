@@ -77,7 +77,11 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
     const artifactById = new Map(
         state.artifactRefs.map((artifact) => [artifact.artifactId, artifact])
     );
-    const proposalById = new Map(state.proposals.map((proposal) => [proposal.id, proposal]));
+    const proposalKey = (proposal: { id: string; revision: number }) =>
+        `${proposal.id}\0${proposal.revision}`;
+    const proposalByRevision = new Map(
+        state.proposals.map((proposal) => [proposalKey(proposal), proposal])
+    );
     const completionSubjectIds = new Set([
         ...state.objectiveContract.requiredOutputs.map((output) => output.id),
         ...state.objectiveContract.acceptanceCriteria.map((criterion) => criterion.id),
@@ -105,8 +109,8 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
         ) ||
         !containsEvery(acceptedDecisionIds, archiveIds(archivePackage.acceptedDecisions)) ||
         !containsEvery(
-            state.proposals.map((proposal) => proposal.id),
-            archiveIds(archivePackage.proposals)
+            state.proposals.map(proposalKey),
+            new Set(archivePackage.proposals.map(proposalKey))
         ) ||
         !containsEvery(
             state.completionFacts.map((fact) => fact.id),
@@ -168,30 +172,27 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
                 ) ??
                     false)
         ) ||
-        archivePackage.proposals.some(
-            (proposal) =>
+        archivePackage.proposals.some((proposal) => {
+            const source = proposalByRevision.get(proposalKey(proposal));
+            return (
+                !source ||
                 !agendaIds.has(proposal.agendaItemId) ||
-                proposalById.get(proposal.id)?.revision !== proposal.revision ||
-                proposalById.get(proposal.id)?.status !== proposal.status ||
-                (proposalById.get(proposal.id)?.agendaItemId !== undefined &&
-                    proposalById.get(proposal.id)?.agendaItemId !== proposal.agendaItemId) ||
-                proposalById.get(proposal.id)?.title !== proposal.title ||
-                (proposalById.get(proposal.id)?.description !== undefined &&
-                    proposalById.get(proposal.id)?.description !== proposal.description) ||
+                source.status !== proposal.status ||
+                source.agendaItemId !== proposal.agendaItemId ||
+                source.title !== proposal.title ||
+                source.description !== proposal.description ||
                 proposal.positions.some(
                     (position) =>
                         !participantIds.has(position.participantId) ||
                         position.proposalRevision !== proposal.revision ||
-                        (proposalById.get(proposal.id)?.positions !== undefined &&
-                            !proposalById
-                                .get(proposal.id)
-                                ?.positions?.some(
-                                    (source) =>
-                                        source.id === position.id &&
-                                        source.participantId === position.participantId
-                                ))
+                        !source.positions.some(
+                            (sourcePosition) =>
+                                sourcePosition.id === position.id &&
+                                sourcePosition.participantId === position.participantId
+                        )
                 )
-        ) ||
+            );
+        }) ||
         archivePackage.completionFacts.some(
             (fact) =>
                 !completionSubjectIds.has(fact.subjectId) ||

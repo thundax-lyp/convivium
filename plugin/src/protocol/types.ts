@@ -635,6 +635,7 @@ export interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
     activeAgendaItem?: PublicAgendaItemV1;
     messages: readonly PublicMeetingMessageV1[];
     questions?: readonly PublicQuestionV1[];
+    proposals: readonly PublicProposalV1[];
     acceptedDecisions: readonly PublicDecisionV1[];
     blockingFacts: readonly PublicBlockingFactV1[];
 }
@@ -678,7 +679,7 @@ export interface PublicArtifactRefV1 {
     uri?: string;
 }
 
-export interface PublicArchiveProposalV1 {
+export interface PublicProposalV1 {
     id: string;
     agendaItemId: string;
     title: string;
@@ -694,6 +695,8 @@ export interface PublicArchiveProposalV1 {
         proposalRevision: number;
     }[];
 }
+
+export type PublicArchiveProposalV1 = PublicProposalV1;
 
 export interface PublicArchiveCompletionFactV1 {
     id: string;

@@ -5,7 +5,7 @@
 本文记录 Convivium 当前代码相对已确认会议需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-08-31
-- 代码基线：`codex/post-merge-integration-fix` 基于 `main@d653962`；包含 Proposal/Position/AgendaCandidate、Blocking Question、dispatch reliability，以及 Captain 非 Participant 风险处置修复
+- 代码基线：`codex/post-merge-integration-fix` 基于 `main@d653962`；包含 Proposal/Position/AgendaCandidate、Blocking Question、dispatch reliability、Captain 非 Participant 风险处置，以及 Proposal revision 审计/公开 projection 修复
 - 环境：macOS、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`
 - 本文只记录实际执行过的实现与验证；文档删除和本覆盖矩阵更新由收口提交记录。
 
@@ -26,7 +26,7 @@
 - Convivium-owned MeetingTask、task status/start/finish、HandRaise、锁内 task evidence 和终态 task cancellation。
 - completion claim、确定性完成判断、Captain end、execution-terminal projection 和终态后写入拒绝。
 - `IssueClaimV1` 的正式提交，以及 Captain 对单一 Issue 的 `convivium_dispose_risk` 结构化处置；两者均复用 SQLite 原子 command、receipt 和终态拒写边界。
-- `ProposalClaimV1` 的创建/修订与 `PositionClaimV1` 的真实 Speaker binding 已通过 `submit_turn` 写入 MeetingState；新 revision 清空 Position，非空 `decisionProposals` 在事务前 fail closed。
+- `ProposalClaimV1` 的创建/修订与 `PositionClaimV1` 的真实 Speaker binding 已通过 `submit_turn` 写入 MeetingState；新 revision 保留旧的 `superseded` snapshot 和其 Position、创建空的当前 revision，active/execution-terminal status projection 公开 canonical revision 供后续 Participant 表态；非空 `decisionProposals` 在事务前 fail closed。
 - `AgendaCandidateClaimV1` 已通过 `submit_turn` 写入 MeetingState；candidate 与同一事务 message、真实 Speaker、Meeting Participant suggestion 绑定，且不改变 active agenda 或完成判断。
 - `QuestionClaimV1` 的 blocking evidence 已覆盖 required output、acceptance criterion 与 hard constraint；canonical Question、status projection、archive/reopen 保留和非法引用零副作用均已自动化验证。
 - 开放的 blocking Question 已投影为 `PublicBlockingFactV1(kind: "question")`，并随 Manager context 传递 Question ID 与摘要，避免完成阻塞事实脱离规划上下文。
@@ -43,7 +43,7 @@
 | FR-4 发言计划与选择       | 部分实现 | Manager 和 round-robin planning、候选资格与 MeetingTask/HandRaise 消费；required Participant unavailable 零副作用拒绝已实现                                                                                                                                                                                  | 确定性 fallback、自动 failure/stall/replan 还未形成完整 runtime 路径                                                   |
 | FR-5 异步任务与举手       | 部分实现 | MeetingTask/HandRaise 的领域、工具、恢复、幂等、completion/end 集成自动化通过                                                                                                                                                                                                                                | `finish → HandRaise → 后续 submit_turn` 尚无真实 DSH profile smoke；不承诺外部副作用 exactly-once                      |
 | FR-6 议题范围与发散控制   | 部分实现 | `QuestionClaimV1`、`IssueClaimV1`、Proposal/Position 和 AgendaCandidate 已通过单一 SQLite `submit_turn` transaction 形成正式事实；blocking Question 验证 required output、criterion 或 hard constraint 引用并以 `INVALID_ARGUMENT` 零副作用拒绝非法引用；canonical Question 在 status/archive/reopen 中保留  | Question required-review/risk evidence、`decisionProposals`、candidate promote/park/reject、stall/refocus 未闭环       |
-| FR-7 提案、立场与决策     | 部分实现 | Proposal/Position 的 canonical ID、revision、真实 Speaker binding、幂等/terminal reject、archive snapshot 已自动化；`convivium_dispose_risk` 已提供 Captain 单一 Issue accept/reject 控制                                                                                                                    | 未定义 pending Decision 的公开契约；`decisionProposals` fail closed，Captain 决策接受与完整 Decision acceptance 未实现 |
+| FR-7 提案、立场与决策     | 部分实现 | Proposal/Position 的 canonical ID、revision、真实 Speaker binding、旧 revision 审计 snapshot、status projection、幂等/terminal reject、archive snapshot 已自动化；`convivium_dispose_risk` 已提供 Captain 单一 Issue accept/reject 控制                                                                                   | 未定义 pending Decision 的公开契约；`decisionProposals` fail closed，Captain 决策接受与完整 Decision acceptance 未实现 |
 | FR-8 完成事实与会议结束   | 部分实现 | completion/end、task evidence、Captain 非 Participant 风险处置的 Runtime 成功/幂等与 Domain 失败路径、终态 projection、恢复和 A/B 原子集成测试通过                                                                                                                                                           | Captain risk disposition 尚无恢复与真实 DSH profile smoke；completion/end 竞争 smoke 未执行                            |
 | FR-9 暂停、恢复与故障隔离 | 部分实现 | Captain tool 与 loopback Web pause/resume、outbox guard、SQLite recovery、archive recovery、stale gate、发言 reassign/skip、`speakerTimeoutMs` 到 Runtime lifecycle deadline 扫描、attempt failure counter、事务外 interrupt/drain 和 per-Meeting scanner 错误隔离，以及连续两轮本地 pause/resume 回归已实现 | 自动降级策略和 reassign/timeout 真实 cold restart/rebind smoke 未完成                                                  |
 | FR-10 记录、隐私与归档    | 部分实现 | transcript 隔离、archive materialization 和 Session cleanup 自动化已实现                                                                                                                                                                                                                                     | meeting-scoped mailbox、continuation、developer Markdown 生成和 archive 真实 profile smoke 未实现                      |
@@ -150,6 +150,14 @@
 | `pnpm --dir plugin exec vitest run tests/unit/domain/completion.spec.ts tests/contract/meeting-runtime.spec.ts` | Pass；2 files、38 tests；覆盖 Captain 不作为 Participant 的风险处置成功/幂等、事实 provenance，以及 `riskAuthority` 不得携带 Participant completion claims。 |
 | `pnpm --dir plugin verify`                                                                                      | Pass；44 files、332 tests；format、lint、Host/Client typecheck、build、environment、contract 与 package verifier 全部通过。                                  |
 | `git diff --check`                                                                                              | Pass。                                                                                                                                                       |
+
+2026-08-31 在 `codex/post-merge-integration-fix` 处理 PR #21 Codex comments #3892303338、#3892303349 后执行：
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --dir plugin exec vitest run tests/unit/domain/transitions/proposal-position.spec.ts tests/unit/domain/transitions/termination.spec.ts tests/unit/domain/transitions/archive.spec.ts tests/unit/runtime/archive.spec.ts tests/contract/status-projection.spec.ts tests/contract/protocol-schema.spec.ts tests/contract/http-boundary.spec.ts tests/client/client-entry.client.spec.ts` | Pass；8 files、98 tests；覆盖 revision snapshot、当前 revision dissent、archive 全 revision 校验、公开 projection 及 HTTP/Client schema 兼容。 |
+| `pnpm --dir plugin verify` | Pass；44 files、335 tests；format、lint、Host/Client typecheck、build、environment、contract 与 package verifier 全部通过。 |
+| `git diff --check` | Pass。 |
 
 ## Not Covered
 

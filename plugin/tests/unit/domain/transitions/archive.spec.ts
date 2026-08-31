@@ -130,6 +130,56 @@ describe("archive transitions", () => {
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
 
+    it("requires every committed proposal revision in the archive", () => {
+        const state = meeting("completed");
+        state.agenda = [
+            {
+                id: "agenda-1",
+                title: "Agenda",
+                objective: "Decide",
+                inScope: [],
+                outOfScope: [],
+                completionCriteria: [],
+                requiredParticipants: [],
+                relatedTaskIds: [],
+                status: "resolved"
+            }
+        ];
+        state.proposals = [
+            {
+                id: "proposal-1",
+                title: "Old",
+                description: "Old",
+                proposedBy: "participant-1",
+                revision: 1,
+                status: "superseded",
+                agendaItemId: "agenda-1",
+                positions: [],
+                createdAt: now - 1,
+                updatedAt: now - 1
+            },
+            {
+                id: "proposal-1",
+                title: "New",
+                description: "New",
+                proposedBy: "participant-1",
+                revision: 2,
+                status: "under_review",
+                agendaItemId: "agenda-1",
+                positions: [],
+                createdAt: now - 1,
+                updatedAt: now
+            }
+        ];
+        const archive = archivePackage();
+        archive.agenda = state.agenda;
+        archive.proposals = [state.proposals[1]!];
+
+        expect(() =>
+            transitionMeeting(state, "archiving", { now, archive: { package: archive } })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
+
     it("rejects termination references to unknown positions and agenda items", () => {
         const state = meeting("running");
         expect(() =>

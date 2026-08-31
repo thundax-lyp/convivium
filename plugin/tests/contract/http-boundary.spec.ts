@@ -15,6 +15,7 @@ const statusResult = {
     limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 20 },
     messages: [],
     questions: [],
+    proposals: [],
     acceptedDecisions: [],
     blockingFacts: [],
     meetingTasks: [],

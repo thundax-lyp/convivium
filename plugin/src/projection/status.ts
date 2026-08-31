@@ -231,6 +231,15 @@ export function projectMeetingStatus(
               }),
         messages: state.transcript.map(message),
         questions: state.openQuestions.map(question),
+        proposals: state.proposals.map((proposal) => ({
+            id: proposal.id,
+            agendaItemId: proposal.agendaItemId,
+            title: proposal.title,
+            description: proposal.description,
+            revision: proposal.revision,
+            status: proposal.status,
+            positions: proposal.positions.map((position) => ({ ...position }))
+        })),
         acceptedDecisions: state.decisions
             .filter(
                 (decision) =>

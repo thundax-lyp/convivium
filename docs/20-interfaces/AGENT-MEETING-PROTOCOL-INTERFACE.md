@@ -668,6 +668,8 @@ interface PublicMeetingMessageV1 {
 
 active 和 execution-terminal discussion status producer 始终输出 `questions`；该字段为 additive optional，旧 V1 caller 不提供时不影响 command 输入。
 
+active 和 execution-terminal discussion status producer 始终输出 `proposals`，包含当前与已 `superseded` 的 canonical `proposalId + revision` 及各 revision 自有的 Position。后续 Participant 必须从该类型化 projection 获取可提交 `PositionClaimV1` 的 proposal revision；不得从 transcript 文本或本地生成规则推断 canonical ID。新 revision 必须保留旧 revision 快照，但旧 revision 的 Position 不参与新 revision 的当前共识或 termination dissent 计算。
+
 ### Manager plan submission
 
 ```ts
@@ -953,6 +955,7 @@ interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
   activeAgendaItem?: PublicAgendaItemV1;
   messages: readonly PublicMeetingMessageV1[];
   questions?: readonly PublicQuestionV1[];
+  proposals: readonly PublicProposalV1[];
   acceptedDecisions: readonly PublicDecisionV1[];
   blockingFacts: readonly PublicBlockingFactV1[];
 }
@@ -1051,7 +1054,7 @@ interface PublicArchivePackageV1 {
   materializedAt: number;
 }
 
-interface PublicArchiveProposalV1 {
+interface PublicProposalV1 {
   id: string;
   agendaItemId: string;
   title: string;
@@ -1067,6 +1070,8 @@ interface PublicArchiveProposalV1 {
     proposalRevision: number;
   }[];
 }
+
+type PublicArchiveProposalV1 = PublicProposalV1;
 
 interface PublicArchiveCompletionFactV1 {
   id: string;

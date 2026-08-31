@@ -76,6 +76,66 @@ describe("meeting termination", () => {
         });
     });
 
+    it("does not treat superseded revision positions as current dissent", () => {
+        const state = meeting("running");
+        state.proposals = [
+            {
+                id: "proposal-1",
+                title: "Old",
+                description: "Old",
+                proposedBy: "participant-1",
+                revision: 1,
+                status: "superseded",
+                agendaItemId: "agenda-1",
+                positions: [
+                    {
+                        id: "position-old",
+                        participantId: "participant-1",
+                        position: "object",
+                        blocking: true,
+                        proposalRevision: 1
+                    }
+                ],
+                createdAt: now - 1,
+                updatedAt: now - 1
+            },
+            {
+                id: "proposal-1",
+                title: "New",
+                description: "New",
+                proposedBy: "participant-1",
+                revision: 2,
+                status: "under_review",
+                agendaItemId: "agenda-1",
+                positions: [
+                    {
+                        id: "position-current",
+                        participantId: "participant-2",
+                        position: "abstain",
+                        blocking: false,
+                        proposalRevision: 2
+                    }
+                ],
+                createdAt: now - 1,
+                updatedAt: now
+            }
+        ];
+
+        const result = endMeeting(state, {
+            meetingId: state.id,
+            captainBinding: "captain:captain-1",
+            outcome: "partial",
+            reason: "Captain accepts the partial result",
+            acceptedDecisionIds: [],
+            deferredAgendaItemIds: [],
+            waivers: [],
+            now,
+            factId: (index) => `waiver-${index}`
+        });
+
+        expect(result.state.termination?.dissentingPositionIds).toEqual(["position-current"]);
+    });
+
     it("records partial waivers and revokes active execution", () => {
         const state = meeting("running");
         state.objectiveContract.requiredReviewers = ["reviewer-1"];
