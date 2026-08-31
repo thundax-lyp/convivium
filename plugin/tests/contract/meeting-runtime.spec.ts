@@ -661,6 +661,91 @@ describe("create/status meeting runtime", () => {
         await runtime.dispose();
     });
 
+    it("lets the authenticated Captain dispose a submitted risk without a Participant identity", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-captain-risk-"));
+        roots.push(root);
+        const runtime = localRuntime(root);
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                objectiveContract: {
+                    ...input.objectiveContract,
+                    requiredOutputs: [{ key: "done", description: "Done output" }]
+                },
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const meetingId = created.result.meetingId;
+        const submitted = await runtime.submitTurn(
+            {
+                protocolVersion: 1,
+                meetingId,
+                turnId: "turn-1",
+                stepId: "step-participant-one-0",
+                attemptId: "attempt-0",
+                deliveryId: "delivery-0",
+                agendaItemId: "agenda-agenda-1",
+                kind: "statement",
+                content: "The output has a bounded risk.",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic",
+                changes: {
+                    issues: [
+                        {
+                            title: "Bounded risk",
+                            description: "The output has a low-impact risk.",
+                            affectedOutputIds: ["output-done"],
+                            affectedCriterionIds: [],
+                            violatedConstraintIds: [],
+                            impact: "low",
+                            urgency: "before_release",
+                            safeDefaultAvailable: true
+                        }
+                    ]
+                }
+            },
+            {
+                sessionId: `${meetingId}-participant-participant-one`,
+                meetingId,
+                participantId: "participant-one",
+                kind: "participant" as const
+            }
+        );
+        if (!submitted.ok) throw new Error("risk submission failed");
+
+        const disposition = {
+            protocolVersion: 1 as const,
+            meetingId,
+            expectedMeetingVersion: submitted.meetingVersion,
+            requestId: "dispose-risk-1",
+            issueId: "issue-delivery-0-1",
+            decision: "accept" as const,
+            reason: "Captain accepted the bounded risk.",
+            evidenceMessageIds: ["message-delivery-0"]
+        };
+        const disposed = await runtime.disposeRisk(disposition, captain);
+        expect(disposed).toMatchObject({
+            ok: true,
+            meetingVersion: submitted.meetingVersion + 1,
+            result: {
+                issueId: "issue-delivery-0-1",
+                disposition: "accepted"
+            }
+        });
+        await expect(runtime.disposeRisk(disposition, captain)).resolves.toEqual(disposed);
+        await runtime.dispose();
+    });
+
     it("revokes the current attempt before Captain reassignment and rejects its late submission", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-reassign-turn-"));
         roots.push(root);
