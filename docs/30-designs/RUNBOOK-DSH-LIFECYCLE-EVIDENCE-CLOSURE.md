@@ -354,7 +354,7 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 
 T1 已 PASS（baseline、selector/result contract、Restore）；当前从 T2 开始执行。
 
-T2 已 PASS（真实 timeout/revoke/interrupt/drain/next-speaker oracle 与 Restore）；当前从 T4 开始执行。
+T4 已 PASS（真实 task delivery/HandRaise/replan/later submit 与 Restore）；当前从 T5 开始执行。
 
 ### T4：只实现 task-handraise 场景
 

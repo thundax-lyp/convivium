@@ -217,6 +217,7 @@ let nextCall = 1000;
 const drivingAgents = new Set();
 const observedAgents = new Map();
 const observedInboxMessages = new Map();
+const inboxWaiters = new Set();
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -230,7 +231,7 @@ async function callTool(ctx, agent, name, input, index) {
         agent,
         signal: new AbortController().signal
     });
-    if (result.isError) throw new Error(result.error.message);
+    if (result.isError) throw new Error(name + "#" + index + ": " + result.error.message);
     if (!result.value?.ok) throw new Error(name + " failed: " + JSON.stringify(result.value));
     return result.value;
 }
@@ -308,6 +309,113 @@ async function waitForObservedParticipant(ctx, meetingId, participantKey) {
     throw new Error("Timed out waiting for observed participant Agent " + participantKey + ".");
 }
 
+function observedMessages(agent) {
+    return [
+        ...(agent.inbox.nextTurn ?? []),
+        ...(agent.inbox.nextStep ?? []),
+        ...(observedInboxMessages.get(String(agent.id)) ?? [])
+    ];
+}
+
+function messageText(message) {
+    return Array.isArray(message.content)
+        ? message.content.find((part) => part.type === "text")?.text
+        : message.content;
+}
+
+function recordInbox(agent, message) {
+    const list = observedInboxMessages.get(String(agent.id)) ?? [];
+    list.push(message);
+    observedInboxMessages.set(String(agent.id), list);
+    for (const waiter of [...inboxWaiters]) waiter(agent, message);
+}
+
+function waitForInbox(ctx, agentId, select) {
+    return new Promise((resolveInbox, rejectInbox) => {
+        let settled = false;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeout);
+            inboxWaiters.delete(onInbox);
+            resolveInbox(value);
+        };
+        const onInbox = (agent, message) => {
+            if (String(agent.id) !== String(agentId) || ctx.agents.get(agent.id) !== agent) return;
+            const selected = select(message);
+            if (selected !== undefined) finish({ value: selected, agent });
+        };
+        const timeout = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            inboxWaiters.delete(onInbox);
+            rejectInbox(new Error("Timed out waiting for live inbox delivery " + agentId + "."));
+        }, 30000);
+        inboxWaiters.add(onInbox);
+        const live = ctx.agents.get(agentId);
+        if (live !== undefined) {
+            for (const message of observedMessages(live)) onInbox(live, message);
+        }
+    });
+}
+
+async function resumeParticipantForProbe(ctx, parent, childId, marker) {
+    const delivery = waitForInbox(ctx, childId, (message) =>
+        messageText(message)?.includes(marker) ? marker : undefined
+    );
+    await ctx.subagents.followup(
+        parent,
+        childId,
+        [{ type: "text", text: marker }],
+        {
+            source: { kind: "coordinator", form: "relay", senderSessionId: parent.id },
+            signal: new AbortController().signal
+        }
+    );
+    return (await delivery).agent;
+}
+
+async function waitForSpeakerContext(ctx, agentId, attemptId) {
+    return waitForInbox(ctx, agentId, (message) => {
+            const text = messageText(message);
+            const marker = typeof text === "string" ? text.indexOf("speaker context: ") : -1;
+            if (marker < 0) return undefined;
+            try {
+                const context = JSON.parse(text.slice(marker + "speaker context: ".length));
+                if (context.attempt?.attemptId === attemptId) return context;
+            } catch {}
+            return undefined;
+    });
+}
+
+async function waitForTaskDelivery(ctx, agentId, meetingTaskId) {
+    return waitForInbox(ctx, agentId, (message) => {
+            const text = messageText(message);
+            if (typeof text !== "string" || !text.startsWith("Execute MeetingTask " + meetingTaskId + ":")) return undefined;
+            const executionId = text.match(/^executionId: (.+)$/m)?.[1];
+            const deliveryId = text.match(/^deliveryId: (.+)$/m)?.[1];
+            if (executionId && deliveryId) return { executionId, deliveryId };
+            return undefined;
+    });
+}
+
+async function waitForStoredManagerContext(agentId, excludedPlanningAttemptId) {
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+        for (const message of observedInboxMessages.get(String(agentId)) ?? []) {
+            const text = messageText(message);
+            if (typeof text !== "string") continue;
+            try {
+                const marker = text.indexOf("manager context: ");
+                const context = JSON.parse(marker >= 0 ? text.slice(marker + "manager context: ".length) : text);
+                if (context.planningAttemptId && context.planningAttemptId !== excludedPlanningAttemptId) return context;
+            } catch {}
+        }
+        await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+    }
+    throw new Error("Timed out waiting for the later Manager planning context.");
+}
+
 async function waitForCommittedMessages(ctx, captain, meetingId, count) {
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
@@ -363,7 +471,7 @@ async function driveParticipant(ctx, agent) {
     const participantId = "participant-" + String(agent.id).split("-").at(-1);
     const index = participants.indexOf(participantId);
     if (index < 0) return;
-    if (scenario === "reassign") return;
+    if (scenario === "reassign" || scenario === "task-handraise") return;
     if (scenario === "timeout" && participantId === "participant-a") return;
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
@@ -415,7 +523,7 @@ function scheduleParticipant(ctx, agent) {
 
 async function run(ctx) {
     if (!outputPath) return;
-    if (scenario !== "baseline" && scenario !== "timeout" && scenario !== "reassign") {
+    if (scenario !== "baseline" && scenario !== "timeout" && scenario !== "reassign" && scenario !== "task-handraise") {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -424,6 +532,124 @@ async function run(ctx) {
             ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
             : undefined;
         captain = createSmokeAgent(ctx, "convivium-smoke-captain");
+        if (scenario === "task-handraise") {
+            const taskInput = createInput();
+            taskInput.agenda[0].requiredParticipantKeys = ["a"];
+            const created = await callTool(ctx, captain.agent, "convivium_create_meeting", taskInput, 400);
+            const meetingId = created.result.meetingId;
+            const initialStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 401);
+            const manager = await waitForAgent(ctx, meetingId + "-manager-manager");
+            const firstPlan = await callTool(ctx, manager, "convivium_submit_manager_plan", {
+                protocolVersion: 1,
+                meetingId,
+                planningAttemptId: meetingId + "-planning-1",
+                observedMeetingVersion: initialStatus.meetingVersion,
+                requestId: "smoke-task-plan-1",
+                agendaItemId: initialStatus.result.activeAgendaItem.id,
+                intent: "explore",
+                objective: "Create and finish task evidence",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                steps: [{ participantId: "participant-a", instruction: "Create task evidence", reason: "manager_selected" }]
+            }, 402);
+            const participantSessionId = meetingId + "-participant-participant-a";
+            const firstDelivery = await waitForSpeakerContext(ctx, participantSessionId, firstPlan.result.firstAttemptId);
+            const firstEnvelope = firstDelivery.value;
+            const firstAgent = firstDelivery.agent;
+            const task = await callTool(ctx, firstAgent, "convivium_create_meeting_task", {
+                protocolVersion: 1,
+                meetingId,
+                attemptId: firstEnvelope.attempt.attemptId,
+                requestId: "smoke-task-create-1",
+                title: "smoke task",
+                description: "produce evidence",
+                blocking: false
+            }, 403);
+            const meetingTaskId = task.result.meetingTaskId;
+            const firstSubmitted = await callTool(ctx, firstAgent, "convivium_submit_turn", {
+                protocolVersion: 1,
+                meetingId,
+                turnId: firstEnvelope.turn.id,
+                stepId: firstEnvelope.step.id,
+                attemptId: firstEnvelope.attempt.attemptId,
+                deliveryId: firstEnvelope.attempt.deliveryId,
+                agendaItemId: firstEnvelope.activeAgendaItem.id,
+                kind: "statement",
+                content: "task-handraise:a:1",
+                mentions: [],
+                taskIds: [meetingTaskId],
+                agendaRelation: "on_topic",
+                changes: {}
+            }, 404);
+            const taskDelivery = await waitForTaskDelivery(ctx, participantSessionId, meetingTaskId);
+            const delivery = taskDelivery.value;
+            const taskAgent = taskDelivery.agent;
+            const taskStatusPre = await callTool(ctx, taskAgent, "convivium_meeting_task_status", { protocolVersion: 1, meetingId, meetingTaskId }, 405);
+            assert(taskStatusPre.result.task.status === "queued", "MeetingTask was not delivered as queued");
+            const started = await callTool(ctx, taskAgent, "convivium_start_meeting_task", {
+                protocolVersion: 1,
+                meetingId,
+                meetingTaskId,
+                requestId: delivery.deliveryId
+            }, 406);
+            assert(started.result.status === "running", "MeetingTask did not start");
+            const statusAgent = await resumeParticipantForProbe(ctx, captain.agent, participantSessionId, "convivium-smoke-task-status-post");
+            const taskStatusPost = await callTool(ctx, statusAgent, "convivium_meeting_task_status", { protocolVersion: 1, meetingId, meetingTaskId }, 407);
+            assert(taskStatusPost.result.task.status === "running" && taskStatusPost.result.mayExecute === true, "MeetingTask running projection mismatch");
+            const finishAgent = await resumeParticipantForProbe(ctx, captain.agent, participantSessionId, "convivium-smoke-task-finish");
+            const finished = await callTool(ctx, finishAgent, "convivium_finish_meeting_task", {
+                protocolVersion: 1,
+                meetingId,
+                meetingTaskId,
+                requestId: delivery.deliveryId,
+                executionId: delivery.executionId,
+                status: "completed",
+                resultSummary: "task evidence"
+            }, 408);
+            const handRaiseId = finished.result.handRaiseId;
+            assert(typeof handRaiseId === "string" && handRaiseId.length > 0, "MeetingTask finish omitted HandRaise");
+            const handRaiseStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 409);
+            assert(handRaiseStatus.result.pendingHandRaises.some((raise) => raise.id === handRaiseId), "finished task HandRaise is not visible");
+            const managerSessionId = meetingId + "-manager-manager";
+            const secondManager = await resumeParticipantForProbe(ctx, captain.agent, managerSessionId, "convivium-smoke-manager-plan-2");
+            const managerContext = await waitForStoredManagerContext(managerSessionId, firstPlan.result.planningAttemptId ?? meetingId + "-planning-1");
+            const secondPlan = await callTool(ctx, secondManager, "convivium_submit_manager_plan", {
+                protocolVersion: 1,
+                meetingId,
+                planningAttemptId: managerContext.planningAttemptId,
+                observedMeetingVersion: managerContext.meetingVersion,
+                requestId: "smoke-task-plan-2",
+                agendaItemId: handRaiseStatus.result.activeAgendaItem.id,
+                intent: "explore",
+                objective: "Consume task hand raise",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                steps: [{ participantId: "participant-a", instruction: "Submit task evidence", reason: "manager_selected" }]
+            }, 410);
+            const laterDelivery = await waitForSpeakerContext(ctx, participantSessionId, secondPlan.result.firstAttemptId);
+            const laterEnvelope = laterDelivery.value;
+            const laterAgent = laterDelivery.agent;
+            await callTool(ctx, laterAgent, "convivium_submit_turn", {
+                protocolVersion: 1,
+                meetingId,
+                turnId: laterEnvelope.turn.id,
+                stepId: laterEnvelope.step.id,
+                attemptId: laterEnvelope.attempt.attemptId,
+                deliveryId: laterEnvelope.attempt.deliveryId,
+                agendaItemId: laterEnvelope.activeAgendaItem.id,
+                kind: "evidence",
+                content: "task-handraise:a:2",
+                mentions: [],
+                taskIds: [meetingTaskId],
+                agendaRelation: "on_topic",
+                changes: {}
+            }, 411);
+            const finalStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 412);
+            assert(finalStatus.result.pendingHandRaises.every((raise) => raise.id !== handRaiseId), "HandRaise remained pending after later plan");
+            assert(finalStatus.result.messages.at(-1)?.content === "task-handraise:a:2", "later task evidence was not submitted");
+            await writeResult({ ok: true, scenario, assertions: ["task-delivered", "task-started", "finish-created-handraise", "handraise-visible-then-consumed", "later-turn-submitted"], meetingId, observed: { meetingTaskId, delivery, handRaiseId, firstMessageId: finalStatus.result.messages[0]?.id, laterMessageId: finalStatus.result.messages.at(-1)?.id } });
+            return;
+        }
         if (scenario === "reassign") {
             const reassignInput = createInput();
             reassignInput.agenda[0].requiredParticipantKeys = ["a"];
@@ -684,7 +910,7 @@ export function apply(ctx) {
         observedAgents.set(String(agent.id), agent);
         if (String(agent.id).includes("-participant-")) {
             agent.ctx.on("agent/status", () => scheduleParticipant(ctx, agent));
-            agent.ctx.on("agent/inbox/inserted", ({ message }) => { const list = observedInboxMessages.get(String(agent.id)) ?? []; list.push(message); observedInboxMessages.set(String(agent.id), list); scheduleParticipant(ctx, agent); });
+            agent.ctx.on("agent/inbox/inserted", ({ message }) => { recordInbox(agent, message); scheduleParticipant(ctx, agent); });
             scheduleParticipant(ctx, agent);
         }
     });
@@ -692,7 +918,7 @@ export function apply(ctx) {
         if (String(agent.id).includes("-participant-")) scheduleParticipant(ctx, agent);
     });
     ctx.on("agent/inbox/inserted", ({ agent, message }) => {
-        if (message) { const list = observedInboxMessages.get(String(agent.id)) ?? []; list.push(message); observedInboxMessages.set(String(agent.id), list); }
+        if (message) recordInbox(agent, message);
         if (String(agent.id).includes("-participant-")) scheduleParticipant(ctx, agent);
     });
     ctx.effect(() => {
