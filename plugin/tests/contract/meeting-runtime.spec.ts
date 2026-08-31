@@ -1104,12 +1104,13 @@ describe("create/status meeting runtime", () => {
     });
 
     it.each([
-        { status: "failed" as const, pauseBeforeFinish: false },
-        { status: "completed" as const, pauseBeforeFinish: false },
-        { status: "completed" as const, pauseBeforeFinish: true }
+        { status: "failed" as const, pauseBeforeFinish: false, blocking: true },
+        { status: "completed" as const, pauseBeforeFinish: false, blocking: true },
+        { status: "completed" as const, pauseBeforeFinish: true, blocking: true },
+        { status: "completed" as const, pauseBeforeFinish: false, blocking: false }
     ])(
-        "finishes a $status task with the matching hand raise contract (paused: $pauseBeforeFinish)",
-        async ({ status, pauseBeforeFinish }) => {
+        "finishes a $status task with the matching hand raise contract (paused: $pauseBeforeFinish, blocking: $blocking)",
+        async ({ status, pauseBeforeFinish, blocking }) => {
             const root = await mkdtemp(join(tmpdir(), "convivium-tools-failed-task-"));
             roots.push(root);
             const prompts: string[] = [];
@@ -1125,7 +1126,7 @@ describe("create/status meeting runtime", () => {
                     followup: async (_parent, _sessionId, prompt) => {
                         const text = prompt[0]?.type === "text" ? prompt[0].text : undefined;
                         if (typeof text === "string") prompts.push(text);
-                        return "followup-message" as never;
+                        return `followup-message-${prompts.length}` as never;
                     }
                 },
                 authorizationValidator: {
@@ -1136,8 +1137,20 @@ describe("create/status meeting runtime", () => {
             const created = await runtime.createMeeting(
                 {
                     ...input,
-                    agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
-                    participants: [input.participants[0]!],
+                    objectiveContract: {
+                        ...input.objectiveContract,
+                        acceptanceCriteria: [
+                            { key: "task-followup", description: "Submit completed task evidence" }
+                        ]
+                    },
+                    agenda: [
+                        {
+                            ...input.agenda[0]!,
+                            completionCriteria: ["task-followup"],
+                            requiredParticipantKeys: ["one"]
+                        }
+                    ],
+                    participants: [input.participants[0]!, input.participants[1]!],
                     selectionMode: "manager"
                 },
                 { sessionId: "captain-1", kind: "captain", agent: { id: "captain-1" } as never },
@@ -1188,7 +1201,7 @@ describe("create/status meeting runtime", () => {
                     requestId: "task-request",
                     title: "Inspect release",
                     description: "Inspect the release evidence",
-                    blocking: true
+                    blocking
                 },
                 participant
             );
@@ -1212,7 +1225,24 @@ describe("create/status meeting runtime", () => {
                 participant
             );
             if (!submitted.ok) throw new Error(JSON.stringify(submitted));
-            await vi.waitFor(() => expect(prompts.length).toBeGreaterThan(1));
+            if (blocking) {
+                await vi.waitFor(() => expect(prompts.length).toBeGreaterThan(1));
+            } else {
+                await vi.waitFor(async () => {
+                    const taskStatus = await runtime.meetingTaskStatus(
+                        {
+                            protocolVersion: 1,
+                            meetingId,
+                            meetingTaskId: task.result.meetingTaskId
+                        },
+                        participant
+                    );
+                    expect(taskStatus).toMatchObject({
+                        ok: true,
+                        result: { task: { status: "queued" } }
+                    });
+                });
+            }
             const executionId = `${task.result.meetingTaskId}-execution`;
             const started = await runtime.startMeetingTask(
                 {
