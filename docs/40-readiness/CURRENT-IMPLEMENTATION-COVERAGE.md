@@ -5,7 +5,7 @@
 本文记录 Convivium 当前代码相对已确认会议需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-09-01
-- 代码基线：`codex/dsh-lifecycle-evidence-closure@d8cc1b3`，已合并 `main@819500e`；包含主线 comprehensive remediation、MeetingTask planning restart 修复、九个真实 DSH lifecycle selector、九场景串行重跑及全量本地验证
+- 代码基线：`codex/dsh-lifecycle-evidence-closure@f0595c9`，已合并 `main@819500e`；包含主线 comprehensive remediation、MeetingTask planning restart 修复、九个真实 DSH lifecycle selector、九场景串行重跑及全量本地验证；生命周期 RUNBOOK 已按滚动策略删除并完成收口
 - 已记录验证环境：macOS、Node `v22.23.2`/`v24.19.0`、pnpm `10.7.0`/`11.24.0`、DSH `0.1.1-rc.2`
 - 本文只记录实际执行过的实现与验证；文档删除和本覆盖矩阵更新由收口提交记录。
 
@@ -75,7 +75,7 @@
 | `26def96`；九个 `CONVIVIUM_SMOKE_SCENARIO` selector 按固定顺序串行重跑 | Pass；timeout、reassign、task-handraise、completion-end、risk-reopen、cold-rebind、archive-continuation、mail-race、cross-meeting 全部在同一代码基线通过，各次 Restore 完成。 |
 | `d8cc1b3`；T12 固定完整验证序列与 `pnpm --dir plugin verify` | Pass；Node `v24.19.0`、pnpm `11.24.0`、DSH `0.1.1-rc.2`；48 files、368 tests，format、lint、Host/Client typecheck、build、environment、contract、package verifier 全部通过。 |
 
-上述证据只证明 `codex/dsh-lifecycle-evidence-closure@d8cc1b3` 当前本地基线；与后续 Decision/Agenda 或 projection release 改动集成后仍须重跑九个 selector。
+上述证据只证明 `codex/dsh-lifecycle-evidence-closure@f0595c9` 当前本地基线；与后续 Decision/Agenda 或 projection release 改动集成后仍须重跑九个 selector。
 
 ### Main remediation baseline retained during merge
 
