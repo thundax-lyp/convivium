@@ -1,4 +1,6 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
+import { failSpeakerAttempt, type MeetingState } from "../../domain/index.js";
+import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
 import {
     type ArchiveSessionRuntime,
     type ContinuableFollowupRuntime,
@@ -175,8 +177,9 @@ export interface LocalMeetingWebRuntime {
 export { LocalMeetingRecoveryUnavailableError } from "../services/meeting-recovery-service.js";
 
 export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
-    MeetingOwnershipLookup &
-    LocalMeetingWebRuntime & { dispose(): Promise<void> };
+    MeetingOwnershipLookup & {
+        scanExpiredSpeakerAttempts(): Promise<void>;
+    } & LocalMeetingWebRuntime & { dispose(): Promise<void> };
 
 export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
@@ -303,6 +306,106 @@ export function createCreateStatusRuntime(
         recoverArchiveForCaptain
     });
 
+    async function scanExpiredSpeakerAttempts(): Promise<void> {
+        await recovery.rehydrate();
+        const now = options.now?.() ?? Date.now();
+        for (const stored of meetings.values()) {
+            const parent = stored.parent;
+            if (parent === undefined) continue;
+            const current = await stored.repository.read();
+            const state = current.state as unknown as MeetingState;
+            const turn = state.currentTurn;
+            const step = turn?.steps[turn.currentStepIndex];
+            const attempt = step?.attempt;
+            if (
+                state.status !== "running" ||
+                turn?.status !== "running" ||
+                step?.status !== "running" ||
+                attempt?.status !== "running" ||
+                attempt.deadlineAt === undefined ||
+                attempt.deadlineAt > now
+            ) {
+                continue;
+            }
+            try {
+                const committed = await stored.repository.execute({
+                    requestId: `runtime-timeout:${attempt.attemptId}`,
+                    commandKind: "expire_speaker_attempt",
+                    authorization: {
+                        callerBinding: "runtime:convivium",
+                        capabilityId: "runtime:timeout",
+                        attemptId: attempt.attemptId
+                    },
+                    requestHash: `runtime-timeout:${attempt.attemptId}`,
+                    expectedMeetingVersion: current.version,
+                    transition: (snapshot) => {
+                        const transition = failSpeakerAttempt(
+                            snapshot.state as unknown as MeetingState,
+                            {
+                                meetingId: state.id,
+                                participantId: attempt.participantId,
+                                turnId: attempt.turnId,
+                                stepId: attempt.stepId,
+                                attemptId: attempt.attemptId,
+                                deliveryId: attempt.deliveryId,
+                                agendaItemId: turn.agendaItemId,
+                                now,
+                                nextPlanningAttemptId: `${state.id}-planning-${state.replanCount + 1}`,
+                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.replanCount + 1}`
+                            }
+                        );
+                        const nextAttempt =
+                            transition.state.currentTurn?.steps[
+                                transition.state.currentTurn.currentStepIndex
+                            ]?.attempt;
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: { expiredAttemptId: attempt.attemptId },
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox:
+                                nextAttempt === undefined
+                                    ? []
+                                    : [
+                                          {
+                                              deliveryId: nextAttempt.deliveryId,
+                                              kind: "dispatch" as const,
+                                              payload: {
+                                                  role: "participant",
+                                                  participantId: nextAttempt.participantId,
+                                                  attemptId: nextAttempt.attemptId,
+                                                  turnId: nextAttempt.turnId,
+                                                  stepId: nextAttempt.stepId
+                                              }
+                                          }
+                                      ]
+                        };
+                    }
+                });
+                deliveryWorkers.wake(stored.repository.meetingId);
+                const ownership = (await stored.repository.recover()).sessionOwnership.find(
+                    (candidate) =>
+                        candidate.role === "participant" &&
+                        candidate.participantId === attempt.participantId &&
+                        candidate.parentSessionId === String(parent.id) &&
+                        candidate.lifecycleStatus === "active" &&
+                        candidate.capabilityStatus === "active"
+                );
+                if (
+                    ownership !== undefined &&
+                    typeof options.continuable.interrupt === "function"
+                ) {
+                    options.continuable.interrupt(ownership.sessionId as never, {
+                        kind: "ancestor",
+                        agent: parent
+                    });
+                }
+                void committed;
+            } catch {
+                // A concurrent submit/scan makes the attempt stale; no scan retry creates a new fact.
+            }
+        }
+    }
+
     return {
         createMeeting,
         getStatus: queryApplication.getStatus,
@@ -323,6 +426,7 @@ export function createCreateStatusRuntime(
         reassignTurn: controlApplication.reassignTurn,
         disposeRisk: controlApplication.disposeRisk,
         endMeeting: endApplication.endMeeting,
+        scanExpiredSpeakerAttempts,
         findBySessionId: queryApplication.findBySessionId,
         async dispose() {
             runtimeController.abort(new Error("Meeting runtime disposed"));

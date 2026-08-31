@@ -1,5 +1,9 @@
 import { judgeTurnCompletion } from "../completion.js";
-import { completedTaskSnapshots, consumeHandRaise } from "../hand-raise.js";
+import {
+    completedTaskSnapshots,
+    consumeHandRaise,
+    participantHasActiveMeetingTask
+} from "../hand-raise.js";
 import { cancelNonTerminalMeetingTasks } from "../meeting-task.js";
 import { planRoundRobinTurn } from "../planning.js";
 import type {
@@ -11,10 +15,15 @@ import type {
 } from "../model.js";
 import type { SubmitSpeakerAdvanceContext } from "./types.js";
 
+type SpeakerAdvanceContext = Pick<
+    SubmitSpeakerAdvanceContext,
+    "attemptId" | "agendaItemId" | "now" | "nextPlanningAttemptId" | "nextPlanningDeliveryId"
+>;
+
 export function advanceAfterSpeakerSubmission(
     state: MeetingState,
     participantId: string,
-    context: SubmitSpeakerAdvanceContext,
+    context: SpeakerAdvanceContext,
     submitted: TransitionResult<MeetingState>
 ): TransitionResult<MeetingState> {
     const version = submitted.state.version;
@@ -223,6 +232,54 @@ export function advanceAfterSpeakerSubmission(
                     to: terminalStatus,
                     meetingVersion: version,
                     reason: judgment.reason
+                }
+            }
+        ];
+        return result();
+    }
+
+    const dispatchableParticipants = nextState.participants.filter(
+        (participant) =>
+            participant.status === "available" &&
+            participant.consecutiveAttemptFailures <
+                nextState.limits.maxConsecutiveAttemptFailuresPerParticipant &&
+            !participantHasActiveMeetingTask(nextState, participant.id)
+    );
+    if (dispatchableParticipants.length === 0) {
+        const cancelled = cancelNonTerminalMeetingTasks(nextState, context.now);
+        nextState = {
+            ...cancelled.state,
+            status: "failed",
+            currentTurn: undefined,
+            waitState: undefined,
+            termination: {
+                code: "all_participants_unavailable",
+                reason: "all Participants are unavailable for the next turn",
+                decisionIds: [],
+                unresolvedQuestionIds: nextState.openQuestions
+                    .filter(
+                        (question) => question.status === "open" || question.status === "deferred"
+                    )
+                    .map((question) => question.id),
+                dissentingPositionIds: [],
+                blockingAgendaItemIds: nextState.agenda
+                    .filter((item) => item.status === "blocked")
+                    .map((item) => item.id),
+                finalMessage: "all Participants are unavailable for the next turn",
+                endedAt: context.now
+            }
+        };
+        events = [
+            ...events,
+            ...cancelled.effect.events,
+            {
+                type: "meeting.ended",
+                payload: {
+                    meetingId: state.id,
+                    from: state.status,
+                    to: "failed",
+                    meetingVersion: version,
+                    reason: "all_participants_unavailable"
                 }
             }
         ];

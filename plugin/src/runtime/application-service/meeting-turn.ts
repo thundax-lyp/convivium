@@ -560,7 +560,10 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                             meetingId: input.meetingId,
                             meetingVersion: input.observedMeetingVersion
                         },
-                        { VERSION_CONFLICT: "STALE_MANAGER_ATTEMPT" }
+                        {
+                            VERSION_CONFLICT: "STALE_MANAGER_ATTEMPT",
+                            REQUIRED_SPEAKER_UNAVAILABLE: "REQUIRED_SPEAKER_UNAVAILABLE"
+                        }
                     );
                 }
             }

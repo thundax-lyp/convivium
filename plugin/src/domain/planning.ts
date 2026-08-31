@@ -122,6 +122,8 @@ export function planRoundRobinTurn(
         .filter(
             (participant) =>
                 participant.status === "available" &&
+                participant.consecutiveAttemptFailures <
+                    state.limits.maxConsecutiveAttemptFailuresPerParticipant &&
                 !participantHasActiveMeetingTask(state, participant.id)
         )
         .sort(

@@ -132,52 +132,15 @@ export function submitManagerPlan(
         (participantId) => !dispatchable.has(participantId)
     );
     if (unavailableRequired.length > 0) {
-        const nextVersion = state.version + 1;
-        const nextState: MeetingState = {
-            ...state,
-            status: "waiting",
-            version: nextVersion,
-            updatedAt: context.now,
-            manager: {
-                ...state.manager,
-                status: "idle",
-                currentPlanningAttempt: { ...planningAttempt, status: "failed" }
-            },
-            waitState: {
-                reason: "required speaker unavailable",
-                taskIds: [],
-                participantIds: unavailableRequired,
-                resumeAgendaItemId: state.activeAgendaItemId
+        throw new DomainError(
+            "REQUIRED_SPEAKER_UNAVAILABLE",
+            `required Participant ${unavailableRequired[0]} is unavailable`,
+            {
+                entityType: "participant",
+                entityId: unavailableRequired[0],
+                meetingVersion: state.version
             }
-        };
-        return {
-            state: nextState,
-            effect: {
-                events: [
-                    {
-                        type: "manager_plan.failed",
-                        payload: {
-                            meetingId: state.id,
-                            planningAttemptId: planningAttempt.id,
-                            from: planningAttempt.status,
-                            to: "failed",
-                            meetingVersion: nextVersion,
-                            reason: "required_speaker_unavailable"
-                        }
-                    },
-                    {
-                        type: "meeting.waiting",
-                        payload: {
-                            meetingId: state.id,
-                            from: state.status,
-                            to: "waiting",
-                            meetingVersion: nextVersion,
-                            reason: "required speaker unavailable"
-                        }
-                    }
-                ]
-            }
-        };
+        );
     }
 
     const selectedUnavailable = input.steps

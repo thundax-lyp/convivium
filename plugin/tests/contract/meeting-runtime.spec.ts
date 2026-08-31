@@ -73,6 +73,98 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
+    it("expires only a due current SpeakerAttempt and rejects its late submit", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-speaker-timeout-"));
+        roots.push(root);
+        let time = 100;
+        const interrupted: string[] = [];
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => ({
+                    childId: spec.childId!,
+                    messageId: `initial-${String(spec.childId)}` as never
+                }),
+                followup: async () => "followup-message" as never,
+                interrupt: (sessionId) => interrupted.push(String(sessionId))
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => time
+        });
+        const captain = {
+            sessionId: "captain-timeout",
+            kind: "captain" as const,
+            agent: { id: "captain-timeout" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one", "two"] }],
+                participants: [input.participants[0]!, input.participants[1]!],
+                limits: { maxSpeakersPerTurn: 2, speakerAttemptTimeoutMs: 10 }
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        await runtime.scanExpiredSpeakerAttempts();
+        expect(
+            await runtime.getStatus(
+                { protocolVersion: 1, meetingId: created.result.meetingId },
+                captain
+            )
+        ).toMatchObject({ ok: true, meetingVersion: created.meetingVersion });
+        time = 110;
+        await runtime.scanExpiredSpeakerAttempts();
+        const status = await runtime.getStatus(
+            { protocolVersion: 1, meetingId: created.result.meetingId },
+            captain
+        );
+        expect(status).toMatchObject({
+            ok: true,
+            meetingVersion: created.meetingVersion + 1,
+            result: { currentSpeakerId: "participant-two" }
+        });
+        expect(interrupted).toEqual([`${created.result.meetingId}-participant-participant-one`]);
+        await runtime.scanExpiredSpeakerAttempts();
+        expect(
+            await runtime.getStatus(
+                { protocolVersion: 1, meetingId: created.result.meetingId },
+                captain
+            )
+        ).toMatchObject({ ok: true, meetingVersion: created.meetingVersion + 1 });
+        await expect(
+            runtime.submitTurn(
+                {
+                    protocolVersion: 1,
+                    meetingId: created.result.meetingId,
+                    turnId: "turn-1",
+                    stepId: "step-participant-one-0",
+                    attemptId: "attempt-0",
+                    deliveryId: "delivery-0",
+                    agendaItemId: "agenda-agenda-1",
+                    kind: "statement",
+                    content: "late",
+                    mentions: [],
+                    taskIds: [],
+                    agendaRelation: "on_topic",
+                    changes: {}
+                },
+                {
+                    sessionId: `${created.result.meetingId}-participant-participant-one`,
+                    meetingId: created.result.meetingId,
+                    participantId: "participant-one",
+                    kind: "participant"
+                }
+            )
+        ).resolves.toMatchObject({ ok: false, code: "STALE_ATTEMPT" });
+        await runtime.dispose();
+    });
+
     it("revokes the current attempt before Captain reassignment and rejects its late submission", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-reassign-turn-"));
         roots.push(root);
