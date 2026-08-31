@@ -1,6 +1,6 @@
 # RUNBOOK C：FR-11 Client 可观察性最小闭环
 
-状态：滚动执行中；T0–T2 PASS，下一步为 T3；Author 与 Audit 结论为 `Executable`
+状态：滚动执行中；T0–T3 PASS，下一步为 T4；Author 与 Audit 结论为 `Executable`
 
 建立日期：2026-08-31
 
@@ -10,7 +10,7 @@
 
 ## 1. 执行者契约
 
-执行者必须按 `T3 → T4 → T5 → T6 → T7` 顺序执行；T0–T2 已完成并从本文删除。不得跳步、合并步骤或在失败后继续修改。
+执行者必须按 `T4 → T5 → T6 → T7` 顺序执行；T0–T3 已完成并从本文删除。不得跳步、合并步骤或在失败后继续修改。
 
 允许修改：
 
@@ -150,29 +150,6 @@ import type {
 8. 控制可见性和 payload 不变：Pause/Resume/Skip current speaker/End；不新增 Decision/Agenda control。
 
 ## 7. 机械执行步骤
-
-### T3：实现 Transcript 与 Blocking items
-
-前置状态：T2 PASS。
-
-允许修改：`plugin/src/client/meeting-panel.tsx`、`plugin/tests/client/client-entry.client.spec.ts`。
-
-禁止修改：Summary/Activity 语义、Tasks/Decisions/Termination、controls、cache。
-
-执行：按第 5 节在 Activity 后新增 Transcript、Blocking items，分别消费 `view.messages` 和 `view.blockingFacts`；tests 输入逆序 seq 并断言 DOM 升序、四字段、data attributes、两个空态和 archiving 无 discussion 字段的空态。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/client-entry.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-
-PASS：两个 section 各恰好一个；原 fixture 数组顺序未改变；DOM seq 升序；字段与空态逐字匹配；无 HTML 注入。
-
-STOP：需要修改 producer/Schema、原地 sort 或显示私有字段。保留 diff并停止。
-
-恢复：无外部副作用；保留 diff。
 
 ### T4：实现 Tasks、Decisions 与 conditional Termination
 

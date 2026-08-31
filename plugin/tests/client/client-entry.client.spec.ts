@@ -176,6 +176,20 @@ describe("client entry framework", () => {
         expect(ordered.acceptedDecisions).toEqual([]);
     });
 
+    it("renders transcript in seq order and blocking facts with empty-state sections", async () => {
+        const message = {
+            id: "m1", seq: 1, turnId: "turn-1", stepId: "step-1", speaker: "participant-one",
+            agendaItemId: "agenda-1", kind: "statement" as const, content: "hello", mentions: [], taskIds: [], createdAt: 1
+        };
+        const detail = { ...statusResult(), messages: [{ ...message, id: "m2", seq: 2 }, message], blockingFacts: [{ id: "b1", kind: "risk" as const, subjectId: "s1", summary: "risk" }] };
+        vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse(listResponse())).mockResolvedValueOnce(jsonResponse(success(detail))));
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+        const transcript = screen.getByLabelText("Transcript");
+        expect([...transcript.querySelectorAll("li")].map((item) => item.getAttribute("data-message-seq"))).toEqual(["1", "2"]);
+        expect(screen.getByLabelText("Blocking items").textContent).toContain("risk");
+    });
+
     afterEach(() => {
         cleanup();
         vi.restoreAllMocks();

@@ -48,6 +48,47 @@ function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElemen
             { "aria-label": "Current activity" },
             createElement("h4", null, "Current activity"),
             createElement("dl", null, row("Planned speaker order", view.plannedSpeakerOrder), row("Current speaker", view.currentSpeaker), row("Waiting reason", view.waitingReason), row("Waiting participants", view.waitingParticipants))
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Transcript" },
+            createElement("h4", null, "Transcript"),
+            view.messages.length === 0
+                ? createElement("p", null, "No committed messages.")
+                : createElement(
+                      "ol",
+                      null,
+                      view.messages.map((message) =>
+                          createElement(
+                              "li",
+                              { key: message.id, "data-message-seq": String(message.seq) },
+                              row("Speaker", message.speaker),
+                              row("Kind", message.kind),
+                              row("Content", message.content),
+                              row("Agenda item", message.agendaItemId)
+                          )
+                      )
+                  )
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Blocking items" },
+            createElement("h4", null, "Blocking items"),
+            view.blockingFacts.length === 0
+                ? createElement("p", null, "No blocking items.")
+                : createElement(
+                      "ol",
+                      null,
+                      view.blockingFacts.map((fact) =>
+                          createElement(
+                              "li",
+                              { key: fact.id, "data-blocking-id": fact.id },
+                              row("Kind", fact.kind),
+                              row("Summary", fact.summary),
+                              row("Subject", fact.subjectId)
+                          )
+                      )
+                  )
         )
     );
 }
