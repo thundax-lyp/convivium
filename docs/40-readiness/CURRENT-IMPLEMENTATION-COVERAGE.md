@@ -77,9 +77,9 @@
 
 上述证据只证明 `codex/dsh-lifecycle-evidence-closure@f0595c9` 当前本地基线；与后续 Decision/Agenda 或 projection release 改动集成后仍须重跑九个 selector。
 
-### Main remediation baseline retained during merge
+### 历史快照（仅审计追溯，不代表当前状态）
 
-以下快照保留 `fix/comprehensive-remediation` 合并前独立执行的主线证据；上方 2026-09-01 矩阵是合并后叠加生命周期 selector 证据的当前结论。
+以下内容保留 `fix/comprehensive-remediation` 合并前独立执行的主线证据，仅用于追溯当时基线；其中的 Requirement Coverage、Executed Validation 和“尚未完成”描述均不得用于判断当前状态。当前结论、验证命令和剩余缺口只以本文上方 2026-09-01 矩阵及本文 `Not Covered` 为准。
 
 - loopback-only Meeting list/status/pause/resume/reassign/end HTTP、`local_host/loopback-web` 控制来源和 DSH Client `Meetings` slot；active status 只公开当前 running attempt 的 `currentAttemptId`，不公开 delivery、Session 或 capability。Client 以语义 section 展示 summary、activity、transcript、blocking items、tasks、accepted decisions 与 termination，保留 last-successful stale cache 和固定错误，并在成功或结构化错误后全量 refetch。
 
