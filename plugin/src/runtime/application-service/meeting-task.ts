@@ -3,6 +3,7 @@ import {
     createHandRaise,
     createMeetingTask as createMeetingTaskTransition,
     finishMeetingTask as finishMeetingTaskTransition,
+    isParticipantDispatchableNow,
     startManagerPlanning,
     startMeetingTask as startMeetingTaskTransition,
     type MeetingState
@@ -232,15 +233,60 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                             input.meetingTaskId,
                             options.now?.() ?? Date.now()
                         );
+                        let nextState = transition.state as unknown as MeetingState;
+                        let planningEvents: DomainEventInput[] = [];
+                        let planningOutbox: Array<{
+                            deliveryId: string;
+                            kind: "dispatch";
+                            payload: JsonObject;
+                        }> = [];
+                        if (
+                            nextState.manager.currentPlanningAttempt !== undefined &&
+                            nextState.manager.currentPlanningAttempt.observedMeetingVersion !==
+                                nextState.version + 1
+                        ) {
+                            const planningAttemptId = `${nextState.id}-planning-${nextState.replanCount + 1}`;
+                            const planningDeliveryId = `${nextState.id}-planning-delivery-${nextState.replanCount + 1}`;
+                            const planning = startManagerPlanning(
+                                {
+                                    ...nextState,
+                                    manager: {
+                                        ...nextState.manager,
+                                        status: "idle",
+                                        currentPlanningAttempt: undefined
+                                    }
+                                },
+                                {
+                                    meetingId: nextState.id,
+                                    planningAttemptId,
+                                    deliveryId: planningDeliveryId,
+                                    reason: "next_turn",
+                                    now: options.now?.() ?? Date.now()
+                                }
+                            );
+                            nextState = planning.state;
+                            planningEvents = planning.effect
+                                .events as unknown as DomainEventInput[];
+                            planningOutbox = [
+                                {
+                                    deliveryId: planningDeliveryId,
+                                    kind: "dispatch",
+                                    payload: { role: "manager", planningAttemptId }
+                                }
+                            ];
+                        }
                         return {
-                            state: transition.state as unknown as JsonObject,
+                            state: nextState as unknown as JsonObject,
                             result: {
                                 requestId: input.requestId,
                                 meetingTaskId: input.meetingTaskId,
                                 status: "running"
                             } satisfies MeetingTaskStartResultV1,
-                            events: transition.effect.events as unknown as DomainEventInput[],
-                            outbox: []
+                            events: [
+                                ...(transition.effect.events as unknown as DomainEventInput[]),
+                                ...planningEvents
+                            ],
+                            outbox: planningOutbox
                         };
                     }
                 });
@@ -324,9 +370,45 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                                         ["completed", "failed", "cancelled"].includes(task.status)
                                 )
                             );
-                        let nextState = waitingForThisTask
-                            ? { ...handRaise.state, currentTurn: undefined, waitState: undefined }
-                            : handRaise.state;
+                        const waitingResolvedByThisTask =
+                            input.status === "completed" &&
+                            handRaise.state.status === "waiting" &&
+                            handRaise.state.waitState?.participantIds.includes(
+                                task.participantId
+                            ) &&
+                            handRaise.state.waitState.participantIds.every((participantId) => {
+                                const participant = handRaise.state.participants.find(
+                                    (candidate) => candidate.id === participantId
+                                );
+                                return (
+                                    participant !== undefined &&
+                                    isParticipantDispatchableNow(handRaise.state, participant)
+                                );
+                            });
+                        let nextState =
+                            waitingForThisTask || waitingResolvedByThisTask
+                                ? {
+                                      ...handRaise.state,
+                                      status: "running" as const,
+                                      currentTurn: undefined,
+                                      waitState: undefined
+                                  }
+                                : handRaise.state;
+                        if (
+                            input.status === "completed" &&
+                            nextState.manager.currentPlanningAttempt !== undefined &&
+                            nextState.manager.currentPlanningAttempt.observedMeetingVersion !==
+                                nextState.version + 1
+                        ) {
+                            nextState = {
+                                ...nextState,
+                                manager: {
+                                    ...nextState.manager,
+                                    status: "idle",
+                                    currentPlanningAttempt: undefined
+                                }
+                            };
+                        }
                         let planningEvents: DomainEventInput[] = [];
                         let planningOutbox: Array<{
                             deliveryId: string;
