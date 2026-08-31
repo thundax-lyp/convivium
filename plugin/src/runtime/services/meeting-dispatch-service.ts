@@ -485,10 +485,21 @@ export function createMeetingDeliveryDispatcher(
             }
         });
 
+        const leaseTtlMs = Math.max(1, input.item.leaseDeadline - now);
+        let leaseDeadline = input.item.leaseDeadline;
         for (;;) {
             const active = await input.repository.readPrivateMeetingMail(payload.mailId);
             if (active?.status !== "processing") return;
             const currentNow = options.now?.() ?? Date.now();
+            if (leaseDeadline - currentNow <= leaseTtlMs / 2) {
+                leaseDeadline = await input.repository.renewOutboxLease({
+                    id: input.item.id,
+                    leaseOwner: input.item.leaseOwner,
+                    leaseToken: input.item.leaseToken,
+                    ttlMs: leaseTtlMs,
+                    now: currentNow
+                });
+            }
             if (active.deadlineAt !== undefined && active.deadlineAt <= currentNow) {
                 await scanMeetingMailTimeouts({
                     repository: input.repository,

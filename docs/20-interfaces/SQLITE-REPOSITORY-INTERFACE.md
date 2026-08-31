@@ -26,6 +26,7 @@ interface MeetingRepository {
   read(): Promise<MeetingSnapshot>
   execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>
   claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>
+  renewOutboxLease(input: RenewOutboxLeaseInput): Promise<number>
   completeOutbox(input: CompleteOutboxInput): Promise<OutboxCompletionResult>
   recover(input: RecoverInput): Promise<RecoveryResult>
   close(): Promise<void>
@@ -79,7 +80,7 @@ interface TransitionResult<T> {
 
 ### Outbox
 
-每个 outbox item 具有稳定 `id`、`deliveryId`、集中注册的 `kind`（当前为 `dispatch`）、JSON payload、attempt count、状态、lease owner、lease token、lease deadline、retry time 和最后错误。Repository 在写入和 lease 前拒绝未注册 kind；claim 在事务内原子取得 lease；completion 必须带回同一 owner/token，且当前时间严格早于 lease deadline。过期或旧 lease 的 completion 返回 `LEASE_LOST`，不得覆盖新 worker 的状态。
+每个 outbox item 具有稳定 `id`、`deliveryId`、集中注册的 `kind`（当前为 `dispatch`）、JSON payload、attempt count、状态、lease owner、lease token、lease deadline、retry time 和最后错误。Repository 在写入和 lease 前拒绝未注册 kind；claim 在事务内原子取得 lease。长时间 dispatch 可以在当前 lease 过期前调用 `renewOutboxLease`：请求必须带回同一 `id`、owner 和 token，且 `ttlMs` 必须为正数；Repository 在事务内确认当前时间严格早于已有 deadline 后，将新 deadline 设置为 `now + ttlMs` 并返回该值。续租不改变 attempt count、owner 或 token。owner/token 不匹配、item 不存在、已有 lease 已过期，或 completion 在当前 deadline 时及之后到达时，均返回 `LEASE_LOST`，不得覆盖新 worker 的状态；completion 同样必须带回当前 owner/token。
 
 外部调用不在 SQLite 事务内执行。成功、可重试失败和终止失败都通过独立事务完成；相同 `deliveryId` 重投不得产生重复领域事实。
 

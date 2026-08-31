@@ -69,6 +69,50 @@ function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElemen
                 row("Waiting participants", view.waitingParticipants)
             )
         ),
+        detail.status === "paused"
+            ? createElement(
+                  "section",
+                  { "aria-label": "Pause details" },
+                  createElement("h4", null, "Pause details"),
+                  createElement(
+                      "dl",
+                      null,
+                      row("Pause reason", view.pauseReason),
+                      row("Paused by", view.pausedBy),
+                      row("Paused at", view.pausedAt)
+                  )
+              )
+            : null,
+        createElement(
+            "section",
+            { "aria-label": "Meeting limits" },
+            createElement("h4", null, "Meeting limits"),
+            createElement(
+                "dl",
+                null,
+                row("Maximum turns", String(view.limits.maxTurns)),
+                row("Maximum speakers per turn", String(view.limits.maxSpeakersPerTurn)),
+                row("Maximum total messages", String(view.limits.maxTotalMessages)),
+                row(
+                    "Maximum duration (ms)",
+                    view.limits.maxDurationMs === undefined
+                        ? "None"
+                        : String(view.limits.maxDurationMs)
+                ),
+                row(
+                    "Speaker attempt timeout (ms)",
+                    view.limits.speakerAttemptTimeoutMs === undefined
+                        ? "None"
+                        : String(view.limits.speakerAttemptTimeoutMs)
+                ),
+                row(
+                    "Mail handling timeout (ms)",
+                    view.limits.mailHandlingTimeoutMs === undefined
+                        ? "None"
+                        : String(view.limits.mailHandlingTimeoutMs)
+                )
+            )
+        ),
         createElement(
             "section",
             { "aria-label": "Transcript" },

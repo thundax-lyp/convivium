@@ -25,6 +25,7 @@ export function createMeetingMailApplication(dependencies: {
     readonly meetings: Map<string, StoredMeeting>;
     readonly recovery: MeetingRehydrationService;
     readonly deliveryWorkers: MeetingDeliveryWorkerService;
+    readonly ensureWorker: (stored: StoredMeeting) => void;
 }) {
     return {
         async sendMeetingMessage(
@@ -92,6 +93,7 @@ export function createMeetingMailApplication(dependencies: {
                         capabilityId: `participant:${caller.participantId}`
                     },
                     expectedMeetingVersion: input.expectedMeetingVersion,
+                    isNewDeliveryAvailable: () => stored.parent !== undefined,
                     mail: {
                         mailId,
                         handlingAttemptId,
@@ -117,6 +119,7 @@ export function createMeetingMailApplication(dependencies: {
                         }
                     }
                 });
+                if (stored.parent !== undefined) dependencies.ensureWorker(stored);
                 dependencies.deliveryWorkers.wake(input.meetingId);
                 return commandSuccess(input.meetingId, committed.meetingVersion, {
                     ...committed.result,

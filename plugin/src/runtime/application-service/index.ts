@@ -311,6 +311,7 @@ export function createCreateStatusRuntime(
             return;
         }
         if (stored.parent === undefined) stored.parent = caller.agent;
+        ensureWorker(stored);
         await recoverArchive({
             repository: stored.repository,
             parent: stored.parent,
@@ -416,7 +417,8 @@ export function createCreateStatusRuntime(
         options,
         meetings,
         recovery,
-        deliveryWorkers
+        deliveryWorkers,
+        ensureWorker
     });
     const decisionApplication = createMeetingDecisionApplication({ options, meetings, recovery });
 

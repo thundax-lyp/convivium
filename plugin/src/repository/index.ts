@@ -144,6 +144,14 @@ export interface CompleteOutboxInput {
     now?: number;
 }
 
+export interface RenewOutboxLeaseInput {
+    id: string;
+    leaseOwner: string;
+    leaseToken: string;
+    ttlMs: number;
+    now?: number;
+}
+
 export interface OutboxCompletionResult {
     id: string;
     status: OutboxCompletion["status"];
@@ -229,6 +237,7 @@ export interface SendPrivateMeetingMailInput {
     requestHash: string;
     authorization: CommandAuthorization;
     expectedMeetingVersion: number;
+    isNewDeliveryAvailable: () => boolean;
     mail: Omit<
         PrivateMeetingMail,
         "status" | "processingThroughSeq" | "deliveryId" | "deadlineAt" | "updatedAt"
@@ -381,6 +390,40 @@ function normalizeMeetingState(state: JsonObject): JsonObject {
     }
     if (Array.isArray(state.handRaises) && state.meetingTasks === undefined) {
         normalized = { ...normalized, meetingTasks: [] };
+    }
+    if (Array.isArray(state.decisions)) {
+        const completionFacts = Array.isArray(state.completionFacts)
+            ? (state.completionFacts as JsonObject[])
+            : [];
+        const decisions = (state.decisions as JsonObject[]).map((decision) => {
+            if (
+                decision.acceptanceMode !== undefined &&
+                decision.acceptanceFactIds !== undefined &&
+                decision.createdAt !== undefined
+            ) {
+                return decision;
+            }
+            const fact = completionFacts.find(
+                (candidate) =>
+                    candidate.kind === "decision_acceptance" &&
+                    candidate.subjectId === decision.id &&
+                    candidate.status === "active"
+            );
+            if (
+                fact === undefined ||
+                typeof fact.id !== "string" ||
+                typeof fact.createdAt !== "number"
+            ) {
+                throw new Error("Legacy Decision acceptance fact is missing");
+            }
+            return {
+                ...decision,
+                acceptanceMode: decision.acceptanceMode ?? "captain_acceptance",
+                acceptanceFactIds: decision.acceptanceFactIds ?? [fact.id],
+                createdAt: decision.createdAt ?? fact.createdAt
+            };
+        });
+        normalized = { ...normalized, decisions };
     }
     return normalized;
 }
@@ -952,6 +995,14 @@ export class MeetingRepository {
                     mailId: string;
                     handlingAttemptId: string;
                 }>;
+            }
+            if (!input.isNewDeliveryAvailable()) {
+                throw new RepositoryError(
+                    "UNSUPPORTED_CAPABILITY",
+                    false,
+                    this.meetingId,
+                    "Meeting delivery is unavailable until the Captain Session is rebound"
+                );
             }
             if (snapshot.version !== input.expectedMeetingVersion)
                 throw new RepositoryError(
@@ -1782,6 +1833,42 @@ export class MeetingRepository {
             }
             this.db.exec("COMMIT");
             return { id: input.id, status: completion.status };
+        } catch (error) {
+            this.rollback();
+            if (error instanceof RepositoryError) throw error;
+            throw sqliteError(error, this.meetingId);
+        }
+    }
+
+    async renewOutboxLease(input: RenewOutboxLeaseInput): Promise<number> {
+        this.ensureOpen();
+        const now = input.now ?? Date.now();
+        if (input.ttlMs < 1) throw new Error("Outbox lease ttlMs must be positive");
+        try {
+            this.db.exec("BEGIN IMMEDIATE");
+            const current = row<OutboxRow>(
+                this.db.prepare("SELECT * FROM outbox WHERE id = ?").get(input.id)
+            );
+            if (
+                !current ||
+                current.lease_owner !== input.leaseOwner ||
+                current.lease_token !== input.leaseToken ||
+                current.lease_deadline === null ||
+                current.lease_deadline <= now
+            ) {
+                throw new RepositoryError(
+                    "LEASE_LOST",
+                    true,
+                    this.meetingId,
+                    "Outbox lease is no longer owned"
+                );
+            }
+            const deadline = now + input.ttlMs;
+            this.db
+                .prepare("UPDATE outbox SET lease_deadline = ? WHERE id = ?")
+                .run(deadline, input.id);
+            this.db.exec("COMMIT");
+            return deadline;
         } catch (error) {
             this.rollback();
             if (error instanceof RepositoryError) throw error;

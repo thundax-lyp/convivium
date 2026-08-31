@@ -66,7 +66,8 @@ const defaultLimits: MeetingLimits = {
     maxConsecutiveAttemptFailuresPerParticipant: 3,
     maxDeliveryRetries: 5,
     maxStalls: 3,
-    maxReplans: 1
+    maxReplans: 1,
+    mailHandlingTimeoutMs: 2 * 60_000
 };
 
 function limits(input: CreateMeetingInputV1, speakerAttemptTimeoutMs?: number): MeetingLimits {
