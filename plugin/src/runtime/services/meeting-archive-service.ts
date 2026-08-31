@@ -431,6 +431,7 @@ export function materializeArchivePackage(
         schemaVersion: 1 as const,
         meetingId: state.id,
         teamId: state.teamId,
+        ...(state.sourceMeetingId === undefined ? {} : { sourceMeetingId: state.sourceMeetingId }),
         objectiveContract: state.objectiveContract,
         finalSummary: state.termination.finalMessage,
         artifactRefs: state.artifactRefs,

@@ -1,12 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebServer } from "@deepseek-ai/dsh-host-webserver";
 import {
+    EndMeetingInputSchema,
+    EndMeetingResultSchema,
     LocalMeetingListResponseSchema,
     MeetingControlResultSchema,
     MeetingStatusInputSchema,
     MeetingStatusResultSchema,
     PauseMeetingInputSchema,
+    ReassignTurnResultSchema,
     ResumeMeetingInputSchema,
+    validateReassignTurnInput,
     validateProtocolError,
     validateProtocolSuccessEnvelope,
     type ProtocolErrorV1
@@ -113,7 +117,7 @@ export function registerLocalMeetingHttpRoutes(
                 const listRoute = rawPath === routePrefix && req.method === "GET";
                 const detailMatch = rawPath.match(/^\/api\/convivium\/meetings\/([^/]+)$/);
                 const controlMatch = rawPath.match(
-                    /^\/api\/convivium\/meetings\/([^/]+)\/(pause|resume)$/
+                    /^\/api\/convivium\/meetings\/([^/]+)\/(pause|resume|reassign|end)$/
                 );
                 const detailRoute = detailMatch !== null && req.method === "GET";
                 const controlRoute = controlMatch !== null && req.method === "POST";
@@ -198,6 +202,96 @@ export function registerLocalMeetingHttpRoutes(
                         res,
                         200,
                         validateProtocolSuccessEnvelope(MeetingControlResultSchema, value as never)
+                    );
+                    return;
+                }
+
+                if (action === "reassign") {
+                    if (body === null || typeof body !== "object" || Array.isArray(body)) {
+                        throw new InvalidMeetingRequestError(
+                            "Meeting request body must be an object."
+                        );
+                    }
+                    const request = body as Record<string, unknown>;
+                    assertExactBodyKeys(
+                        request,
+                        request.action === "reassign"
+                            ? [
+                                  "protocolVersion",
+                                  "meetingId",
+                                  "expectedMeetingVersion",
+                                  "currentAttemptId",
+                                  "action",
+                                  "replacementParticipantId",
+                                  "reason",
+                                  "requestId"
+                              ]
+                            : [
+                                  "protocolVersion",
+                                  "meetingId",
+                                  "expectedMeetingVersion",
+                                  "currentAttemptId",
+                                  "action",
+                                  "reason",
+                                  "requestId"
+                              ]
+                    );
+                    let input;
+                    try {
+                        input = validateReassignTurnInput(request);
+                    } catch (error) {
+                        throw new InvalidMeetingRequestError("Meeting request is invalid.", {
+                            cause: error
+                        });
+                    }
+                    if (input.meetingId !== meetingId)
+                        throw new InvalidMeetingRequestError("Meeting ID mismatch.");
+                    const value = await runtime.reassignLocalTurn(input);
+                    if (!value.ok) {
+                        const error = validateProtocolError(value);
+                        writeJson(res, errorStatus(error), error);
+                        return;
+                    }
+                    writeJson(
+                        res,
+                        200,
+                        validateProtocolSuccessEnvelope(ReassignTurnResultSchema, value as never)
+                    );
+                    return;
+                }
+
+                if (action === "end") {
+                    assertExactBodyKeys(body, [
+                        "protocolVersion",
+                        "meetingId",
+                        "expectedMeetingVersion",
+                        "outcome",
+                        "reason",
+                        "acceptedDecisionIds",
+                        "deferredAgendaItemIds",
+                        "waivers",
+                        "requestId"
+                    ]);
+                    let input;
+                    try {
+                        input = EndMeetingInputSchema(body);
+                    } catch (error) {
+                        throw new InvalidMeetingRequestError("Meeting request is invalid.", {
+                            cause: error
+                        });
+                    }
+                    if (input.meetingId !== meetingId)
+                        throw new InvalidMeetingRequestError("Meeting ID mismatch.");
+                    const value = await runtime.endLocalMeeting(input);
+                    if (!value.ok) {
+                        const error = validateProtocolError(value);
+                        writeJson(res, errorStatus(error), error);
+                        return;
+                    }
+                    writeJson(
+                        res,
+                        200,
+                        validateProtocolSuccessEnvelope(EndMeetingResultSchema, value as never)
                     );
                     return;
                 }

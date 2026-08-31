@@ -9,7 +9,10 @@ import {
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { SubagentInterruptAuthority } from "@deepseek-ai/dsh-subagent";
 import { isParticipantDispatchableNow, type MeetingState } from "../../domain/index.js";
-import { projectManagerMeetingContext } from "../../projection/index.js";
+import {
+    projectManagerMeetingContext,
+    projectSpeakerMeetingContext
+} from "../../projection/index.js";
 import { RepositoryError, type OutboxItem } from "../../repository/index.js";
 import type { MeetingRepositoryRuntime } from "../meeting-runtime.js";
 import { createOutboxWorker } from "../outbox-worker.js";
@@ -151,9 +154,8 @@ export function createMeetingDeliveryDispatcher(
     }
     async function dispatchParticipant(input: MeetingDeliveryInput): Promise<void> {
         const recovered = await input.repository.recover();
-        requireDispatchableMeeting(
-            recovered.snapshot?.state as unknown as MeetingState | undefined
-        );
+        const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+        requireDispatchableMeeting(state);
         const payload = input.item.payload as unknown as {
             participantId: string;
             attemptId: string;
@@ -190,7 +192,13 @@ export function createMeetingDeliveryDispatcher(
             prompt: [
                 {
                     type: "text",
-                    text: `Meeting ${input.meetingId} turn ${payload.turnId}: submit your statement.`
+                    text: `Meeting ${input.meetingId} speaker context: ${JSON.stringify(
+                        projectSpeakerMeetingContext(
+                            state,
+                            payload.participantId,
+                            payload.attemptId
+                        )
+                    )}`
                 }
             ],
             signal: input.signal,

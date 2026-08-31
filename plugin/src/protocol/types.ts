@@ -679,6 +679,7 @@ export interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBase
     status: "created" | "running" | "waiting" | "paused" | "converging";
     currentTurn?: PublicTurnV1;
     currentSpeakerId?: string;
+    currentAttemptId?: string;
     pendingHandRaises: readonly PublicHandRaiseV1[];
     waitState?: PublicMeetingWaitStateV1;
     pauseControl: {
@@ -699,6 +700,7 @@ export interface ExecutionTerminalMeetingStatusResultV1 extends DiscussionMeetin
     status: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
     currentTurn?: never;
     currentSpeakerId?: never;
+    currentAttemptId?: never;
     pendingHandRaises: readonly [];
     pauseControl: { action: "none" };
     termination: PublicExecutionTerminationV1;
@@ -813,6 +815,7 @@ export interface ArchivingMeetingStatusResultV1 extends MeetingStatusBaseV1 {
     status: "archiving";
     currentTurn?: never;
     currentSpeakerId?: never;
+    currentAttemptId?: never;
     pendingHandRaises: readonly [];
     pauseControl: { action: "none" };
     termination: PublicTerminationV1;
@@ -823,6 +826,7 @@ export interface ArchivedMeetingStatusResultV1 extends MeetingStatusBaseV1 {
     status: "archived";
     currentTurn?: never;
     currentSpeakerId?: never;
+    currentAttemptId?: never;
     pendingHandRaises: readonly [];
     pauseControl: { action: "none" };
     termination: PublicTerminationV1;

@@ -19,6 +19,7 @@ import { resolveArchiveCleanupRuntime } from "../services/meeting-session-servic
 import { recoverArchive } from "../services/meeting-archive-service.js";
 import {
     createMeetingRehydrationService,
+    LocalMeetingRecoveryUnavailableError,
     type MeetingRehydrationService
 } from "../services/meeting-recovery-service.js";
 import { createMeetingTurnApplication } from "./meeting-turn.js";
@@ -189,6 +190,12 @@ export interface LocalMeetingWebRuntime {
     resumeLocalMeeting(
         input: ResumeMeetingInputV1
     ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
+    reassignLocalTurn(
+        input: ReassignTurnInputV1
+    ): Promise<ProtocolSuccessV1<ReassignTurnResultV1> | ProtocolErrorV1>;
+    endLocalMeeting(
+        input: EndMeetingInputV1
+    ): Promise<ProtocolSuccessV1<EndMeetingResultV1> | ProtocolErrorV1>;
 }
 
 export { LocalMeetingRecoveryUnavailableError } from "../services/meeting-recovery-service.js";
@@ -305,6 +312,28 @@ export function createCreateStatusRuntime(
         });
     }
 
+    function assertLocalArchiveRecoveryAvailable(stored: StoredMeeting): void {
+        if (
+            stored.parent === undefined ||
+            resolveArchiveCleanupRuntime(options.continuable) === undefined
+        ) {
+            throw new LocalMeetingRecoveryUnavailableError(
+                "Local meeting archive recovery is unavailable."
+            );
+        }
+    }
+
+    async function recoverArchiveForLocal(stored: StoredMeeting): Promise<void> {
+        assertLocalArchiveRecoveryAvailable(stored);
+        await recoverArchive({
+            repository: stored.repository,
+            parent: stored.parent,
+            runtime: resolveArchiveCleanupRuntime(options.continuable),
+            signal,
+            now: options.now?.() ?? Date.now()
+        });
+    }
+
     const queryApplication = createMeetingQueryApplication({
         meetings,
         recovery,
@@ -371,7 +400,9 @@ export function createCreateStatusRuntime(
         meetings,
         recovery,
         deliveryWorkers,
-        recoverArchiveForCaptain
+        recoverArchiveForCaptain,
+        assertLocalArchiveRecoveryAvailable,
+        recoverArchiveForLocal
     });
     const mailApplication = createMeetingMailApplication({
         options,
@@ -548,6 +579,7 @@ export function createCreateStatusRuntime(
 
         pauseLocalMeeting: controlApplication.pauseLocalMeeting,
         resumeLocalMeeting: controlApplication.resumeLocalMeeting,
+        reassignLocalTurn: controlApplication.reassignLocalTurn,
         createMeetingTask: taskApplication.createMeetingTask,
         meetingTaskStatus: taskApplication.meetingTaskStatus,
         startMeetingTask: taskApplication.startMeetingTask,
@@ -560,6 +592,7 @@ export function createCreateStatusRuntime(
         reassignTurn: controlApplication.reassignTurn,
         disposeRisk: controlApplication.disposeRisk,
         endMeeting: endApplication.endMeeting,
+        endLocalMeeting: endApplication.endLocalMeeting,
         scanExpiredSpeakerAttempts,
         findBySessionId: queryApplication.findBySessionId,
         async dispose() {

@@ -142,7 +142,33 @@ describe("canonical meeting creation", () => {
         );
     });
 
-    it("rejects unsupported modes and oversized required speakers before allocating ids", () => {
+    it("copies resolved continuation materials while rejecting unsupported modes", () => {
+        const source = {
+            sourceMeetingId: "source-1",
+            materials: [
+                {
+                    sourceMeetingId: "source-1",
+                    sourceKind: "artifact" as const,
+                    sourceObjectId: "artifact-1",
+                    summary: "Release notes",
+                    checksum: "sha256:source"
+                }
+            ]
+        };
+        const state = createMeetingState(input({ continuation: source }), ids);
+        source.materials[0]!.summary = "mutated outside domain";
+
+        expect(state.sourceMeetingId).toBe("source-1");
+        expect(state.continuationMaterials).toEqual([
+            {
+                sourceMeetingId: "source-1",
+                sourceKind: "artifact",
+                sourceObjectId: "artifact-1",
+                summary: "Release notes",
+                checksum: "sha256:source"
+            }
+        ]);
+
         let allocations = 0;
         const recordingIds: CanonicalIdAllocator = {
             allocate: (kind, key) => {
@@ -153,8 +179,7 @@ describe("canonical meeting creation", () => {
 
         for (const unsupported of [
             input({ selectionMode: "rule_based" }),
-            input({ selectionMode: "hybrid" }),
-            input({ continuation: { sourceMeetingId: "archived-meeting" } })
+            input({ selectionMode: "hybrid" })
         ]) {
             expect(() => createMeetingState(unsupported, recordingIds)).toThrowError(
                 expect.objectContaining<Partial<DomainError>>({
@@ -174,6 +199,29 @@ describe("canonical meeting creation", () => {
         );
 
         expect(allocations).toBe(0);
+    });
+
+    it("rejects malformed resolved continuation materials", () => {
+        expect(() =>
+            createMeetingState(
+                input({
+                    continuation: {
+                        sourceMeetingId: "source-1",
+                        materials: [
+                            {
+                                sourceMeetingId: "source-2",
+                                sourceKind: "decision",
+                                sourceObjectId: "decision-1",
+                                summary: "Decision"
+                            }
+                        ]
+                    }
+                }),
+                ids
+            )
+        ).toThrowError(
+            expect.objectContaining<Partial<DomainError>>({ code: "INVALID_CREATE_INPUT" })
+        );
     });
 
     it("plans a canonical round-robin turn in participant order", () => {

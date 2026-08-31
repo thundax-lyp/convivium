@@ -307,7 +307,9 @@ Runtime 必须在产生任何 Meeting 状态前完成以下验证和转换：
 
 完成无副作用输入校验后，Runtime 必须先生成 `meetingId` 并建立独立 repository ownership，再创建 Manager/Participant Sessions。任何 Session 都必须携带相同 `meetingId` ownership；不得出现没有 Meeting ID 或无法经 locator 定位所属 Meeting repository 的 Session。
 
-`continuation` 只表达对已归档素材的选择，不允许调用方提交或覆盖素材正文。Runtime 必须验证 Captain 有权访问 `sourceMeetingId`，源会议状态为 `archived`，所有选中 ID 属于该归档且可复用；随后把选中内容复制为带 `sourceMeetingId` 和源对象 ID 的只读初始素材。新 Meeting 不继承源会议的 Session、Participant ID、capability、完整 transcript、运行状态或未选中内容。
+`continuation` 只表达对已归档素材的选择，不允许调用方提交或覆盖素材正文。Runtime 必须在打开目标 Meeting repository、创建 bootstrap、receipt、outbox 或 Session 前，从 locator 恢复 source 的持久 ownership；只有 source 的 `teamId` 与新请求一致、持久 Captain binding 与真实 create caller 一致，且 source 状态为 `archived` 并已有物化 `ArchivePackage` 时才允许继续。该授权判断只依赖持久 ownership，不要求 source Captain 的 live parent 存在。
+
+每个选择数组中的 ID 必须非空且不重复；同一个 archive issue 不得同时出现在 `unresolvedIssueIds` 和 `riskIds`。Runtime 按 `includeFinalSummary`、`decisionIds`、`unresolvedIssueIds`、`riskIds`、`evidenceIds`、`artifactIds` 的顺序复制选中内容为新 Meeting SQLite 独占的 immutable `ContinuationMaterial`：必有 `sourceMeetingId`、`sourceKind`、非空 `summary`，除最终摘要外必有 `sourceObjectId`；artifact 只在来源存在时复制 `checksum`。不存在、无权读取或不属于该 source archive 的素材返回 `ARCHIVE_MATERIAL_NOT_FOUND`，未归档/未物化 source 返回 `SOURCE_MEETING_NOT_ARCHIVED`，重复、空 ID 或无可用摘要返回 `INVALID_ARGUMENT`；这些错误均不产生目标 Meeting 副作用。新 Meeting 不继承源会议的 Session、Participant ID、capability、完整 transcript、运行状态、limits 或未选中内容；其 archive 只记录新的 `sourceMeetingId` provenance。
 
 `CreateMeetingResultV1.participants` 返回请求 key 到正式 Participant ID 的映射，供调用方解释创建结果。后续协议只接受正式 ID，不接受创建期 key。
 
@@ -334,6 +336,8 @@ Web route 不得伪造 Captain Session，也不得绕过 `expectedMeetingVersion
 | ------------------------------------------------ | ---------------------- | ------------------------ |
 | `POST /api/convivium/meetings/:meetingId/pause`  | `PauseMeetingInputV1`  | `MeetingControlResultV1` |
 | `POST /api/convivium/meetings/:meetingId/resume` | `ResumeMeetingInputV1` | `MeetingControlResultV1` |
+| `POST /api/convivium/meetings/:meetingId/reassign` | `ReassignTurnInputV1` | `ReassignTurnResultV1` |
+| `POST /api/convivium/meetings/:meetingId/end` | `EndMeetingInputV1` | `EndMeetingResultV1` |
 
 注册时 `webServer.host !== "127.0.0.1"` 必须 fail closed，不注册上述路由。注册后的 V1 route 不解析用户或 Team authority；前端不得传入 Captain Session ID。
 
@@ -918,12 +922,14 @@ interface LocalMeetingListResponseV1 {
 
 Client 必须先读取该 list；用户选择一项 `meetingId` 后才调用详情或控制 route。Client 不得从 URL/query 参数、当前 DSH Session、Agent tool result 或人工输入推断初始选择，也不得在本范围新增 Meeting 创建、跨 Meeting 导航或筛选 UI。
 
-所有 Meeting Web route 通过一个 `prefix` registration `/api/convivium/meetings` 分派。精确允许的组合只有：`GET /api/convivium/meetings`、`GET /api/convivium/meetings/:meetingId`、`POST /api/convivium/meetings/:meetingId/pause`、`POST /api/convivium/meetings/:meetingId/resume`；结尾 `/`、其他 path 或其他 method 返回 HTTP `404` 和无 body。支持 route 带任意 query、URL 含非法 percent encoding，或 POST 缺失/错误的 JSON media type、body 超过 `16_384` bytes、JSON 无法解析、含未定义字段、path/body `meetingId` 不一致或 Schema 不合法时，返回 HTTP `400` 和 `ProtocolErrorV1`，其 `code` 固定为 `INVALID_ARGUMENT`、`message` 固定为 `Invalid meeting request.`、`retryable` 固定为 `false`；请求尚不能可信解析时省略 Meeting metadata。pause body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | requestId | reason`，resume body 只允许前四项；因此用户、Team、Agent Session、Captain 或其他 authority 字段均被拒绝。`VERSION_CONFLICT` 与 `IDEMPOTENCY_CONFLICT` 返回 HTTP `409` 和 Runtime 提供的 `ProtocolErrorV1`；`MEETING_NOT_FOUND` 返回 HTTP `404` 和 Runtime 提供的 `ProtocolErrorV1`；其他领域 `ProtocolErrorV1` 返回 HTTP `400`。data root 尚不存在或目标 repository 尚未进入 `ready` 时，list 返回空/跳过该项且单 Meeting route 返回 `MEETING_NOT_FOUND`；除此以外目标 Meeting 冷恢复失败，或 list 中任一 `ready` Meeting repository 恢复/读取失败时返回 HTTP `503`、`Retry-After: 1` 和无 body；未知异常返回 HTTP `500` 和无 body。所有成功 JSON 与 `ProtocolErrorV1` response 均设置 `content-type: application/json; charset=utf-8`；成功状态为 HTTP `200`。
+所有 Meeting Web route 通过一个 `prefix` registration `/api/convivium/meetings` 分派。精确允许的组合只有：`GET /api/convivium/meetings`、`GET /api/convivium/meetings/:meetingId`、`POST /api/convivium/meetings/:meetingId/pause`、`POST /api/convivium/meetings/:meetingId/resume`、`POST /api/convivium/meetings/:meetingId/reassign`、`POST /api/convivium/meetings/:meetingId/end`；结尾 `/`、其他 path 或其他 method 返回 HTTP `404` 和无 body。route 不接受 query；URL 含非法 percent encoding，或 POST 缺失/错误的 JSON media type、body 超过 `16_384` bytes、JSON 无法解析、含未定义字段、path/body `meetingId` 不一致或 Schema 不合法时，返回 HTTP `400` 和 `ProtocolErrorV1`，其 `code` 固定为 `INVALID_ARGUMENT`、`message` 固定为 `Invalid meeting request.`、`retryable` 固定为 `false`；请求尚不能可信解析时省略 Meeting metadata。pause body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | requestId | reason`，resume body 只允许前四项；reassign body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | currentAttemptId | action | reason | requestId`，仅 `action='reassign'` 时额外允许 `replacementParticipantId`；end body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | outcome | reason | acceptedDecisionIds | deferredAgendaItemIds | waivers | requestId`。因此用户、Team、Agent Session、Captain 或其他 authority 字段均被拒绝。`VERSION_CONFLICT` 与 `IDEMPOTENCY_CONFLICT` 返回 HTTP `409` 和 Runtime 提供的 `ProtocolErrorV1`；`MEETING_NOT_FOUND` 返回 HTTP `404` 和 Runtime 提供的 `ProtocolErrorV1`；其他领域 `ProtocolErrorV1` 返回 HTTP `400`。data root 尚不存在或目标 repository 尚未进入 `ready` 时，list 返回空/跳过该项且单 Meeting route 返回 `MEETING_NOT_FOUND`；除此以外目标 Meeting 冷恢复失败，或 list 中任一 `ready` Meeting repository 恢复/读取失败时返回 HTTP `503`、`Retry-After: 1` 和无 body；未知异常返回 HTTP `500` 和无 body。所有成功 JSON 与 `ProtocolErrorV1` response 均设置 `content-type: application/json; charset=utf-8`；成功状态为 HTTP `200`。
 
 | Method and route                         | Body | Result                                     |
 | ---------------------------------------- | ---- | ------------------------------------------ |
 | `GET /api/convivium/meetings`            | none | `LocalMeetingListResponseV1`              |
 | `GET /api/convivium/meetings/:meetingId` | none | `ProtocolSuccessV1<MeetingStatusResultV1>` |
+| `POST /api/convivium/meetings/:meetingId/reassign` | `ReassignTurnInputV1` | `ProtocolSuccessV1<ReassignTurnResultV1>` |
+| `POST /api/convivium/meetings/:meetingId/end` | `EndMeetingInputV1` | `ProtocolSuccessV1<EndMeetingResultV1>` |
 
 V1 route 仅在 `webServer.host === "127.0.0.1"` 注册，且对所有到达该本地 Host 的请求返回相同的完整 Web projection；它不解析用户或 Team authority，也不得接受或伪造 Agent Session ID。Agent tool 仍使用真实 caller Session 进行身份裁剪。
 
@@ -966,6 +972,7 @@ interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
   status: "created" | "running" | "waiting" | "paused" | "converging";
   currentTurn?: PublicTurnV1;
   currentSpeakerId?: string;
+  currentAttemptId?: string;
   waitState?: PublicMeetingWaitStateV1;
   pendingHandRaises: readonly PublicHandRaiseV1[];
   meetingTasks: readonly MeetingTaskProjectionV1[];
