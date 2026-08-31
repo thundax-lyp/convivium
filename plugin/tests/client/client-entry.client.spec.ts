@@ -399,11 +399,7 @@ describe("client entry framework", () => {
 
         await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
         expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
-        await waitFor(() =>
-            expect(screen.getByLabelText("Meeting status details").textContent).toContain(
-                '"meetingVersion": 3'
-            )
-        );
+        await waitFor(() => expect(screen.getByLabelText("Meeting summary").textContent).toContain("3"));
         expect(screen.queryByText("Safe conflict")).toBeNull();
     });
 
@@ -424,9 +420,7 @@ describe("client entry framework", () => {
         expect(fetchMock).toHaveBeenCalledTimes(3);
         expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
-        expect(screen.getByLabelText("Meeting status details").textContent).toContain(
-            '"meetingVersion": 2'
-        );
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("2");
     });
 
     it("does not expose controls for a terminal projection", async () => {
@@ -478,9 +472,7 @@ describe("client entry framework", () => {
 
         window.dispatchEvent(new Event("focus"));
         await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
-        expect(screen.getByLabelText("Meeting status details").textContent).toContain(
-            '"meetingVersion": 2'
-        );
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("2");
         expect(screen.getByRole("alert").parentElement?.getAttribute("data-cached")).toBe("true");
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
 
@@ -492,11 +484,7 @@ describe("client entry framework", () => {
         expect(screen.getByRole("alert").parentElement?.getAttribute("data-cached")).toBe("true");
 
         await act(async () => vi.advanceTimersByTime(5_000));
-        await waitFor(() =>
-            expect(screen.getByLabelText("Meeting status details").textContent).toContain(
-                '"meetingVersion": 4'
-            )
-        );
+        await waitFor(() => expect(screen.getByLabelText("Meeting summary").textContent).toContain("4"));
         const lastSignal = fetchMock.mock.calls.at(-1)?.[1]?.signal;
         rendered.unmount();
         expect(lastSignal?.aborted).toBe(true);

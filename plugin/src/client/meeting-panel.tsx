@@ -173,8 +173,8 @@ async function readEnd(response: Response): Promise<ProtocolSuccessV1<EndMeeting
     ) as ProtocolSuccessV1<EndMeetingResultV1>;
 }
 
-function failureMessage(error: unknown): string {
-    return error instanceof ProtocolFailure ? error.message : "Meeting data is unavailable.";
+function failureMessage(_error: unknown): string {
+    return "Meeting data is unavailable.";
 }
 
 export function ConviviumMeetingPanel(): ReactElement {
@@ -516,11 +516,6 @@ export function ConviviumMeetingPanel(): ReactElement {
                             "div",
                             null,
                             renderObservabilitySections(detail),
-                            createElement(
-                                "pre",
-                                { "aria-label": "Meeting status details" },
-                                JSON.stringify(detail, null, 2)
-                            ),
                             canPause
                                 ? createElement(
                                       "div",
