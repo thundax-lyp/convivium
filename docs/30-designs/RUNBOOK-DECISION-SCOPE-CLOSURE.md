@@ -1,10 +1,10 @@
 # RUNBOOK A：最小 Decision acceptance 竖切
 
-状态：`Executable · T1-T3 PASS · T4 in progress`
+状态：`Executable · T1-T4 PASS · T5 in progress`
 工作边界：只允许在执行者自己的 Convivium checkout 和独立任务分支中按 T1-T8 顺序执行
 建立日期：2026-08-31
 调查基线：`main@42a7bfb`
-模式：Execute（滚动收口）；T1-T3 已完成并已提交，当前执行 T4
+模式：Execute（滚动收口）；T1-T4 已完成并已提交，当前执行 T5
 
 ## 1. 执行者契约
 
@@ -167,19 +167,6 @@ export function createMeetingDecisionApplication(
 | projection/archive | `projection/status.ts#projectMeetingStatus`；`runtime/services/meeting-archive-service.ts#materializeArchivePackage` |
 
 ## 6. 机械步骤
-
-### T4：Captain accept pure transition
-
-前置状态：T3 PASS。
-允许修改：新增 `plugin/src/domain/transitions/decision-acceptance.ts`、`plugin/src/domain/transitions/index.ts`、新增 `plugin/tests/unit/domain/transitions/decision-acceptance.spec.ts`、`plugin/tests/unit/domain/transitions/fixtures.ts`。
-禁止修改：Runtime/Tool/repository/projection/archive。
-执行：逐字实现 4.3；不得调用 completion judge、termination、risk 或 Session code。测试完整 success state/event，以及 terminal、missing/stale candidate、source、agenda、support、blocking、evidence、duplicate ID；每个 failure 后输入 state 深相等。
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/transitions/decision-acceptance.spec.ts
-pnpm --dir plugin typecheck
-```
-PASS：命令全 `0`。STOP：需选择未规定语义。Restore：删除 transition/test/export/fixture additions。
 
 ### T5：Runtime 与 Tool
 
