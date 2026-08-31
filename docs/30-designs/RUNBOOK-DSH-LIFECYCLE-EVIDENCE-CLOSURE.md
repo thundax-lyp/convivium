@@ -294,7 +294,7 @@ Prepare：创建只含一个 output/criterion、无 Decision 的 Meeting；A 的
 
 Execute：同一 event-loop tick 用 `Promise.allSettled` 发起两个 `ctx.tools.execute()`；不规定哪一个先取得 SQLite 写锁。
 
-Assert：允许结果集合只有以下两类之一，执行者不作选择：`submit_turn ok + end VERSION_CONFLICT|IMMUTABLE_MEETING`，或 `end ok + submit_turn VERSION_CONFLICT|IMMUTABLE_MEETING|STALE_ATTEMPT`。两个操作不得都形成不同终态；最终 status 只能是 `completed` 或 `partial`，只含一个 termination，执行终态后再次 submit/end 必须是 `IMMUTABLE_MEETING` 或 `ARCHIVED_MEETING`；事件/version 单调且无两份终止事实。任何 `INTERNAL_ERROR`、两个成功但相互矛盾、或非上述错误均 STOP。
+Assert：允许结果集合只有以下两类之一，执行者不作选择：`submit_turn ok + end VERSION_CONFLICT|IMMUTABLE_MEETING`，或 `end ok + submit_turn VERSION_CONFLICT|IMMUTABLE_MEETING|STALE_ATTEMPT|UNAUTHORIZED_CALLER`；后者的 `UNAUTHORIZED_CALLER` 仅表示 end 已同步撤销 meeting-owned Session capability。两个操作不得都形成不同终态；最终 status 只能是 `completed` 或 `partial`，只含一个 termination，执行终态后 Captain end 必须是 `IMMUTABLE_MEETING` 或 `ARCHIVED_MEETING`，Participant submit 还可因 capability 已撤销或 Session 已从 live store 移除而为 `UNAUTHORIZED_CALLER` 或同义的 tool-level rejection；事件/version 单调且无两份终止事实。任何 `INTERNAL_ERROR`、两个成功但相互矛盾、或非上述错误均 STOP。
 
 Restore：等待两个 Promise 均 settled，登记 Meeting/Session IDs 和 winner，再由外层 Restore 停 Host并删除临时根；禁止通过反向写入改变已产生的 canonical winner。
 
@@ -363,12 +363,6 @@ T4 已 PASS（真实 task delivery/HandRaise/replan/later submit 与 Restore）�
 调用：create/status/plan=`400/401/402`；A create task `403` input `{protocolVersion:1,meetingId,attemptId:<status.currentAttempt.id>,requestId:"smoke-task-create-1",title:"smoke task",description:"produce evidence",blocking:false}`；A submit `404` 使用当前 attempt且 `taskIds:[<create.result.meetingTaskId>]`；task status pre `405` input `{protocolVersion:1,meetingId,meetingTaskId:<create.result.meetingTaskId>}`；start `406` input `{protocolVersion:1,meetingId,meetingTaskId:<create.result.meetingTaskId>,requestId:<delivery.deliveryId>}`；status post `407` 与pre相同；finish `408` input `{protocolVersion:1,meetingId,meetingTaskId:<create.result.meetingTaskId>,requestId:<delivery.deliveryId>,executionId:<delivery.executionId>,status:"completed",resultSummary:"task evidence"}`。Captain status `409` 必须观察 finish result.handRaiseId；Manager第二plan `410`只含A；A later submit `411`使用新 attempt、kind `evidence`、content `task-handraise:a:2`、`taskIds:[meetingTaskId]`。
 
 验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/domain/meeting-task.spec.ts tests/unit/domain/hand-raise.spec.ts tests/unit/runtime/meeting-mail-dispatch.spec.ts tests/contract/meeting-runtime.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=task-handraise pnpm --dir plugin smoke:profile`。PASS assertions=`task-delivered`,`task-started`,`finish-created-handraise`,`handraise-visible-then-consumed`,`later-turn-submitted`；不声称观察 Manager内部消费。Restore同T2。
-
-### T5：只实现 completion-end 场景
-
-新增 `runCompletionEndScenario(ctx,fixture)`。create/status/第一plan/A证据submit=`500/501/502/503`；保存success messageId。status/第二plan/status=`504/505/506`，第二plan仍只含A。从同一 `506` status构造两个调用并 `Promise.allSettled`：A submit `507` 使用标准字段、`changes:{}`，并在顶层加 `completionClaims:{outputClaims:[{subjectId:<fixture.outputId>,evidenceMessageIds:[<firstSubmit.result.messageId>],taskIds:[]}],criterionClaims:[{subjectId:<fixture.criterionId>,evidenceMessageIds:[<firstSubmit.result.messageId>],taskIds:[]}]}`；Captain end `508` input `{protocolVersion:1,meetingId,expectedMeetingVersion:<sameStatus.meetingVersion>,outcome:"partial",reason:"smoke competition",acceptedDecisionIds:[],deferredAgendaItemIds:[],waivers:[],requestId:"smoke-completion-end-1"}`。允许集合只为 §7 S4；随后 status `509`，terminal late submit `510`与late end `511`必须分别为 `IMMUTABLE_MEETING|ARCHIVED_MEETING`。
-
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/domain/completion.spec.ts tests/contract/meeting-runtime.spec.ts tests/recovery/recovery.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=completion-end pnpm --dir plugin smoke:profile`。PASS assertions=`single-winner`,`single-termination`,`terminal-submit-rejected`,`terminal-end-rejected`，Restore同T2。
 
 ### T6：只实现 risk-reopen 场景
 
