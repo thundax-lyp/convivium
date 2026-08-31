@@ -5,15 +5,15 @@ import {
     type ContinuableLifecycleRuntime,
     type ContinuableInspectionRuntime,
     type OwnedSessionInspection
-} from "../dsh/index.js";
-import { transitionMeeting, type MeetingState } from "../domain/index.js";
+} from "../../dsh/index.js";
+import { transitionMeeting, type MeetingState } from "../../domain/index.js";
 import type {
     CommandAuthorization,
     JsonObject,
     MeetingRepository,
     RecoveryResult,
     SessionOwnership
-} from "../repository/index.js";
+} from "../../repository/index.js";
 
 export interface MeetingRecoveryDependencies {
     readonly repository: Pick<MeetingRepository, "recover">;

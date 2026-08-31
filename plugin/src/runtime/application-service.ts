@@ -41,8 +41,14 @@ import {
     type MeetingRepositoryRuntime,
     type RepositoryAuthorizationValidator
 } from "./meeting-runtime.js";
-import { createMeetingDeliveryWorkerService } from "./services/delivery-worker-service.js";
-import { recoverArchive } from "./archive.js";
+import { createMeetingDeliveryWorkerService } from "./services/meeting-dispatch-service.js";
+import {
+    commandFailure as failure,
+    commandSuccess as success,
+    mapCommandError as commandError
+} from "./services/meeting-command-service.js";
+import { resolveArchiveCleanupRuntime } from "./services/meeting-session-service.js";
+import { recoverArchive } from "./services/meeting-archive-service.js";
 import {
     meetingTaskEvidenceResolver,
     type AuthorizedTaskEvidenceResolver
@@ -217,21 +223,6 @@ type RehydrateMode =
     | { readonly kind: "local_list" }
     | { readonly kind: "local_meeting"; readonly meetingId: string };
 
-type ArchiveCleanupRuntime = ArchiveSessionRuntime & ContinuableLifecycleRuntime;
-
-function archiveCleanupRuntime(
-    runtime: CreateStatusRuntimeOptions["continuable"]
-): ArchiveCleanupRuntime | undefined {
-    if (
-        typeof runtime.listChildren !== "function" ||
-        typeof runtime.interrupt !== "function" ||
-        typeof runtime.drainContinuableChildren !== "function"
-    ) {
-        return undefined;
-    }
-    return runtime as ArchiveCleanupRuntime;
-}
-
 function terminalDispatchError(code: string, message: string): Error {
     return Object.assign(new Error(message), { code, retryable: false });
 }
@@ -256,18 +247,6 @@ function requireDispatchableMeeting(
             "Meeting is terminal or archiving and cannot dispatch work."
         );
     }
-}
-
-function success<T>(meetingId: string, meetingVersion: number, result: T): ProtocolSuccessV1<T> {
-    return { protocolVersion: 1, ok: true, meetingId, meetingVersion, result };
-}
-
-function failure(
-    code: ProtocolErrorV1["code"],
-    message: string,
-    retryable = false
-): ProtocolErrorV1 {
-    return { protocolVersion: 1, ok: false, code, message, retryable };
 }
 
 function repositoryPath(root: string, teamId: string, meetingId: string): string {
@@ -320,27 +299,6 @@ function runningCreateResult(
         ...participantResult(input, meetingId),
         meetingVersion,
         status: "running"
-    };
-}
-
-function commandError(
-    error: unknown,
-    fallback: ProtocolErrorV1["code"],
-    message: string,
-    context?: Partial<ProtocolErrorV1>,
-    codeMap: Readonly<Record<string, ProtocolErrorV1["code"]>> = {}
-) {
-    const code =
-        error && typeof error === "object" && "code" in error
-            ? (error as { code?: unknown }).code
-            : undefined;
-    const mappedCode = typeof code === "string" ? (codeMap[code] ?? code) : fallback;
-    return {
-        ...failure(mappedCode, message, mappedCode === "VERSION_CONFLICT"),
-        ...context,
-        ...(error && typeof error === "object" && "meetingId" in error
-            ? { meetingId: String((error as { meetingId: unknown }).meetingId) }
-            : {})
     };
 }
 
@@ -557,7 +515,7 @@ export function createCreateStatusRuntime(
         await recoverArchive({
             repository: stored.repository,
             parent: stored.parent,
-            runtime: archiveCleanupRuntime(options.continuable),
+            runtime: resolveArchiveCleanupRuntime(options.continuable),
             signal,
             now: options.now?.() ?? Date.now()
         });

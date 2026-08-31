@@ -12,7 +12,7 @@ import {
     pauseMeetingRuntime,
     rebindCaptainParent,
     type PauseRecoveryDependencies
-} from "../../src/runtime/recovery.js";
+} from "../../src/runtime/services/meeting-recovery-service.js";
 
 const ownership = {
     sessionId: "participant-session",

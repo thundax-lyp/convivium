@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MeetingMessage, MeetingTurn } from "../../../src/domain/model.js";
-import { createTurnRunner } from "../../../src/runtime/turn-runner.js";
+import { createTurnRunner } from "../../../src/runtime/services/meeting-turn-service.js";
 
 const turn: MeetingTurn = {
     id: "turn-1",

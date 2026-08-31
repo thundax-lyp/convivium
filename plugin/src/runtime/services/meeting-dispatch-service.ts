@@ -1,5 +1,5 @@
 import { createOutboxWorker } from "../outbox-worker.js";
-import type { MeetingDeliveryWorkerService } from "./contracts.js";
+import type { MeetingDeliveryWorkerService } from "./types.js";
 
 export interface MeetingDeliveryWorkerServiceOptions {
     readonly pollMs: number;
