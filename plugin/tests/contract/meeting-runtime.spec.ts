@@ -230,6 +230,98 @@ describe("create/status meeting runtime", () => {
         expect(sleepers).toHaveLength(sleepCount);
     });
 
+    it("commits proposal and caller-bound position once, while failing closed for decision proposals", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-proposal-position-"));
+        roots.push(root);
+        const runtime = localRuntime(root);
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const meetingId = created.result.meetingId;
+        const participant = {
+            sessionId: `${meetingId}-participant-participant-one`,
+            meetingId,
+            participantId: "participant-one",
+            kind: "participant" as const
+        };
+        const submission = {
+            protocolVersion: 1 as const,
+            meetingId,
+            turnId: "turn-1",
+            stepId: "step-participant-one-0",
+            attemptId: "attempt-0",
+            deliveryId: "delivery-0",
+            agendaItemId: "agenda-agenda-1",
+            kind: "proposal" as const,
+            content: "Use SQLite",
+            mentions: [],
+            taskIds: [],
+            agendaRelation: "on_topic" as const,
+            changes: {
+                proposals: [{ title: "Storage", description: "Use SQLite." }],
+                positions: [
+                    {
+                        proposalId: "delivery-0-proposal-1",
+                        proposalRevision: 1,
+                        position: "accept" as const,
+                        blocking: false
+                    }
+                ],
+                agendaCandidates: [
+                    {
+                        title: "Follow-up",
+                        reason: "Separate discussion",
+                        relationToActiveAgenda: "adjacent" as const,
+                        urgency: "later" as const,
+                        suggestedParticipants: ["participant-one"]
+                    }
+                ]
+            }
+        };
+        const committed = await runtime.submitTurn(submission, participant);
+        expect(committed).toMatchObject({ ok: true, meetingVersion: 2 });
+        await expect(runtime.submitTurn(submission, participant)).resolves.toEqual(committed);
+        await expect(
+            runtime.submitTurn(
+                {
+                    ...submission,
+                    deliveryId: "delivery-1",
+                    changes: {
+                        decisionProposals: [
+                            {
+                                proposalId: "delivery-0-proposal-1",
+                                proposalRevision: 1,
+                                statement: "Accept",
+                                rationale: "Supported"
+                            }
+                        ]
+                    }
+                },
+                participant
+            )
+        ).resolves.toMatchObject({ ok: false, code: "UNSUPPORTED_CAPABILITY" });
+        await expect(
+            runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
+        ).resolves.toMatchObject({
+            ok: true,
+            meetingVersion: 2,
+            result: { messages: [expect.objectContaining({ id: "message-delivery-0" })] }
+        });
+        await runtime.dispose();
+    });
+
     it("revokes the current attempt before Captain reassignment and rejects its late submission", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-reassign-turn-"));
         roots.push(root);
