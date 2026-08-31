@@ -391,6 +391,40 @@ function normalizeMeetingState(state: JsonObject): JsonObject {
     if (Array.isArray(state.handRaises) && state.meetingTasks === undefined) {
         normalized = { ...normalized, meetingTasks: [] };
     }
+    if (Array.isArray(state.decisions)) {
+        const completionFacts = Array.isArray(state.completionFacts)
+            ? (state.completionFacts as JsonObject[])
+            : [];
+        const decisions = (state.decisions as JsonObject[]).map((decision) => {
+            if (
+                decision.acceptanceMode !== undefined &&
+                decision.acceptanceFactIds !== undefined &&
+                decision.createdAt !== undefined
+            ) {
+                return decision;
+            }
+            const fact = completionFacts.find(
+                (candidate) =>
+                    candidate.kind === "decision_acceptance" &&
+                    candidate.subjectId === decision.id &&
+                    candidate.status === "active"
+            );
+            if (
+                fact === undefined ||
+                typeof fact.id !== "string" ||
+                typeof fact.createdAt !== "number"
+            ) {
+                throw new Error("Legacy Decision acceptance fact is missing");
+            }
+            return {
+                ...decision,
+                acceptanceMode: decision.acceptanceMode ?? "captain_acceptance",
+                acceptanceFactIds: decision.acceptanceFactIds ?? [fact.id],
+                createdAt: decision.createdAt ?? fact.createdAt
+            };
+        });
+        normalized = { ...normalized, decisions };
+    }
     return normalized;
 }
 

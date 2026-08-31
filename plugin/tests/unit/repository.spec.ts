@@ -1004,6 +1004,54 @@ PRAGMA user_version = 2;
         await repository.close();
     });
 
+    it("migrates legacy accepted Decision audit fields from its CompletionFact", async () => {
+        const repository = await openRepository();
+        await createMeeting(repository, {
+            requestId: "create",
+            authorization,
+            requestHash: "create-hash",
+            initialState: {
+                status: "running",
+                decisions: [
+                    {
+                        id: "decision-1",
+                        proposalId: "proposal-1",
+                        proposalRevision: 1,
+                        status: "accepted"
+                    }
+                ],
+                completionFacts: [
+                    {
+                        id: "fact-1",
+                        kind: "decision_acceptance",
+                        subjectId: "decision-1",
+                        assertedBy: "captain:session-1",
+                        authority: "captain",
+                        result: "accepted",
+                        status: "active",
+                        evidenceMessageIds: [],
+                        taskIds: [],
+                        createdAt: 123
+                    }
+                ]
+            }
+        });
+
+        await expect(repository.read()).resolves.toMatchObject({
+            state: {
+                decisions: [
+                    {
+                        id: "decision-1",
+                        acceptanceMode: "captain_acceptance",
+                        acceptanceFactIds: ["fact-1"],
+                        createdAt: 123
+                    }
+                ]
+            }
+        });
+        await repository.close();
+    });
+
     it("rejects a mismatched version-two database before migration writes it", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-repository-"));
         roots.push(root);
