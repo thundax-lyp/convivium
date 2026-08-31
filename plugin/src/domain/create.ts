@@ -1,5 +1,10 @@
 import { DomainError } from "./errors.js";
-import type { MeetingLimits, MeetingSelectionMode, MeetingState } from "./model.js";
+import type {
+    ContinuationMaterial,
+    MeetingLimits,
+    MeetingSelectionMode,
+    MeetingState
+} from "./model.js";
 
 export interface CanonicalIdAllocator {
     allocate(
@@ -45,11 +50,16 @@ export interface CreateMeetingSpec {
     objectiveContract: CreateObjectiveContractSpec;
     agenda: readonly CreateAgendaItemSpec[];
     participants: readonly CreateParticipantSpec[];
-    /** Present only while the caller requests an archived-meeting continuation. */
-    continuation?: unknown;
+    /** Resolved from a source ArchivePackage before this pure domain constructor runs. */
+    continuation?: CreateContinuationSpec;
     selectionMode?: MeetingSelectionMode;
     limits: MeetingLimits;
     createdAt: number;
+}
+
+export interface CreateContinuationSpec {
+    sourceMeetingId: string;
+    materials: readonly ContinuationMaterial[];
 }
 
 function invalidCreateInput(message: string): never {
@@ -91,6 +101,36 @@ function canonicalCompletionCriteria(
     });
 }
 
+function copyContinuation(
+    continuation: CreateContinuationSpec | undefined
+): CreateContinuationSpec | undefined {
+    if (continuation === undefined) return undefined;
+    if (!continuation.sourceMeetingId.trim()) {
+        invalidCreateInput("Continuation source meeting ID is required");
+    }
+    const materials = continuation.materials.map((material) => {
+        if (
+            material.sourceMeetingId !== continuation.sourceMeetingId ||
+            !material.summary.trim() ||
+            (material.sourceKind === "final_summary" && material.sourceObjectId !== undefined) ||
+            (material.sourceKind !== "final_summary" && !material.sourceObjectId?.trim()) ||
+            (material.sourceKind !== "artifact" && material.checksum !== undefined)
+        ) {
+            invalidCreateInput("Invalid continuation material");
+        }
+        return {
+            sourceMeetingId: material.sourceMeetingId,
+            sourceKind: material.sourceKind,
+            ...(material.sourceObjectId === undefined
+                ? {}
+                : { sourceObjectId: material.sourceObjectId }),
+            summary: material.summary,
+            ...(material.checksum === undefined ? {} : { checksum: material.checksum })
+        };
+    });
+    return { sourceMeetingId: continuation.sourceMeetingId, materials };
+}
+
 export function createMeetingState(
     input: CreateMeetingSpec,
     ids: CanonicalIdAllocator
@@ -102,12 +142,7 @@ export function createMeetingState(
             `selection mode ${selectionMode} is not supported by this runtime slice`
         );
     }
-    if (input.continuation !== undefined) {
-        throw new DomainError(
-            "UNSUPPORTED_CAPABILITY",
-            "meeting continuation is not supported by this runtime slice"
-        );
-    }
+    const continuation = copyContinuation(input.continuation);
     if (
         !input.meetingId ||
         !input.teamId ||
@@ -176,6 +211,7 @@ export function createMeetingState(
     return {
         id: input.meetingId,
         teamId: input.teamId,
+        ...(continuation === undefined ? {} : { sourceMeetingId: continuation.sourceMeetingId }),
         status: "created",
         topic: input.topic,
         objective: input.objective,
@@ -236,7 +272,7 @@ export function createMeetingState(
         meetingTasks: [],
         completionFacts: [],
         artifactRefs: [],
-        continuationMaterials: [],
+        continuationMaterials: continuation?.materials.map((material) => ({ ...material })) ?? [],
         turnSeq: 0,
         messageSeq: 0,
         eventSeq: 0,

@@ -305,7 +305,9 @@ Runtime 必须在产生任何 Meeting 状态前完成以下验证和转换：
 
 完成无副作用输入校验后，Runtime 必须先生成 `meetingId` 并建立独立 repository ownership，再创建 Manager/Participant Sessions。任何 Session 都必须携带相同 `meetingId` ownership；不得出现没有 Meeting ID 或无法经 locator 定位所属 Meeting repository 的 Session。
 
-`continuation` 只表达对已归档素材的选择，不允许调用方提交或覆盖素材正文。Runtime 必须验证 Captain 有权访问 `sourceMeetingId`，源会议状态为 `archived`，所有选中 ID 属于该归档且可复用；随后把选中内容复制为带 `sourceMeetingId` 和源对象 ID 的只读初始素材。新 Meeting 不继承源会议的 Session、Participant ID、capability、完整 transcript、运行状态或未选中内容。
+`continuation` 只表达对已归档素材的选择，不允许调用方提交或覆盖素材正文。Runtime 必须在打开目标 Meeting repository、创建 bootstrap、receipt、outbox 或 Session 前，从 locator 恢复 source 的持久 ownership；只有 source 的 `teamId` 与新请求一致、持久 Captain binding 与真实 create caller 一致，且 source 状态为 `archived` 并已有物化 `ArchivePackage` 时才允许继续。该授权判断只依赖持久 ownership，不要求 source Captain 的 live parent 存在。
+
+每个选择数组中的 ID 必须非空且不重复；同一个 archive issue 不得同时出现在 `unresolvedIssueIds` 和 `riskIds`。Runtime 按 `includeFinalSummary`、`decisionIds`、`unresolvedIssueIds`、`riskIds`、`evidenceIds`、`artifactIds` 的顺序复制选中内容为新 Meeting SQLite 独占的 immutable `ContinuationMaterial`：必有 `sourceMeetingId`、`sourceKind`、非空 `summary`，除最终摘要外必有 `sourceObjectId`；artifact 只在来源存在时复制 `checksum`。不存在、无权读取或不属于该 source archive 的素材返回 `ARCHIVE_MATERIAL_NOT_FOUND`，未归档/未物化 source 返回 `SOURCE_MEETING_NOT_ARCHIVED`，重复、空 ID 或无可用摘要返回 `INVALID_ARGUMENT`；这些错误均不产生目标 Meeting 副作用。新 Meeting 不继承源会议的 Session、Participant ID、capability、完整 transcript、运行状态、limits 或未选中内容；其 archive 只记录新的 `sourceMeetingId` provenance。
 
 `CreateMeetingResultV1.participants` 返回请求 key 到正式 Participant ID 的映射，供调用方解释创建结果。后续协议只接受正式 ID，不接受创建期 key。
 

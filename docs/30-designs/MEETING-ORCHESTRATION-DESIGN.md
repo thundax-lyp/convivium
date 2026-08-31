@@ -902,9 +902,9 @@ SpeakerAttempt 是会议调度路径，优先于尚未开始的普通 mail handl
 ```text
 captain calls create_meeting
 → validate all side-effect-free input and references
+→ authorize and resolve ContinuationSelection from an archived source Meeting when present
 → allocate stable meetingId
 → establish teamId + meetingId repository ownership and initialize SQLite bootstrap phase=creating
-→ authorize and resolve ContinuationSelection from an archived source Meeting when present
 → validate all participant references, source members and related tasks
 → allocate stable Meeting, Participant, Objective and Agenda IDs
 → map request-local keys to formal IDs
@@ -922,7 +922,7 @@ captain calls create_meeting
 
 `participantKey` 只在当前 create request 内用于建立交叉引用。创建 receipt 保存 key 到正式 ID 的映射以支持幂等重放；Meeting 运行状态和后续命令只使用正式 ID。任何重复 key、悬空引用、无权访问的 source member/task 或非法 Spec 都必须在 Session spawn 前整体拒绝，不得创建部分 Meeting。
 
-`ContinuationSelectionV1` 必须在 Session spawn 前完整解析。源会议必须已经 `archived`，每个选择项必须存在且对 Captain 可见。Runtime 只复制结构化摘要、来源引用以及来源存在时的可选 checksum 到 `ContinuationMaterial[]`；checksum 只描述来源，不参与续会创建、授权或恢复判断。新 Meeting 的 objective、agenda、Participant 和权限仍完全来自新的 create input。Speaker、Manager 和状态 projection 读取同一组 continuation materials，不得分别生成可能漂移的摘要。
+`ContinuationSelectionV1` 必须在目标 repository/bootstrap/receipt/outbox/Session 副作用和 Session spawn 前完整解析。source discovery 通过现有 locator/recovery 读取持久 Team/Captain ownership；它不依赖 source Captain 的 live parent。源会议必须已经 `archived` 且含已物化 `ArchivePackage`，每个选择项必须存在且对 Captain 可见；数组内 ID 必须非空且唯一，且同一 Issue 不得作为 issue 与 risk 重复选择。Runtime 只复制结构化摘要、来源引用以及 artifact 来源存在时的可选 checksum 到新 Meeting SQLite 独占的 `ContinuationMaterial[]`；checksum 只描述来源，不参与续会创建、授权或恢复判断。source 缺失、无权访问、错误种类或不属于 archive 的 ID 使用 `ARCHIVE_MATERIAL_NOT_FOUND`，未归档或无 package 使用 `SOURCE_MEETING_NOT_ARCHIVED`，无可用摘要或非法重复输入使用 `INVALID_ARGUMENT`，并且这些失败不产生目标副作用。新 Meeting 的 objective、agenda、Participant 和权限仍完全来自新的 create input。Speaker、Manager 和状态 projection 读取同一组 continuation materials，不得分别生成可能漂移的摘要。
 
 所有无副作用校验先完成；随后先分配 `meetingId`、建立 repository ownership 和 SQLite bootstrap record，再创建 Session。因此不存在“Session 已创建但没有 meetingId/repository ownership”的状态。`creating|creation_failed` 是内部 bootstrap phase，不是公开 `MeetingStatus`。创建失败或崩溃时保留 repository 数据用于诊断，关闭已创建 Session，并标记 bootstrap failure 或由冷恢复继续创建。
 
