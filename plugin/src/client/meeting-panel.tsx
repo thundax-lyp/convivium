@@ -31,8 +31,25 @@ const meetingsPath = "/api/convivium/meetings";
 class ProtocolFailure extends Error {}
 
 function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElement {
-    mapMeetingPanelView(detail);
-    return createElement("div");
+    const view = mapMeetingPanelView(detail);
+    const row = (label: string, value: string) =>
+        createElement("div", { key: label }, createElement("dt", null, label), createElement("dd", null, value));
+    return createElement(
+        "div",
+        null,
+        createElement(
+            "section",
+            { "aria-label": "Meeting summary" },
+            createElement("h4", null, "Meeting summary"),
+            createElement("dl", null, row("Topic", detail.topic), row("Status", detail.status), row("Meeting version", String(detail.meetingVersion)), row("Current agenda title", view.agendaTitle), row("Current agenda objective", view.agendaObjective))
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Current activity" },
+            createElement("h4", null, "Current activity"),
+            createElement("dl", null, row("Planned speaker order", view.plannedSpeakerOrder), row("Current speaker", view.currentSpeaker), row("Waiting reason", view.waitingReason), row("Waiting participants", view.waitingParticipants))
+        )
+    );
 }
 
 function meetingPath(meetingId: string): string {
@@ -434,45 +451,6 @@ export function ConviviumMeetingPanel(): ReactElement {
                             "div",
                             null,
                             renderObservabilitySections(detail),
-                            createElement(
-                                "p",
-                                { "data-meeting-status": detail.status },
-                                `Status: ${detail.status}`
-                            ),
-                            detail.status === "paused"
-                                ? createElement(
-                                      "dl",
-                                      null,
-                                      createElement("dt", null, "Pause reason"),
-                                      createElement("dd", null, detail.pauseControl.reason),
-                                      createElement("dt", null, "Paused by"),
-                                      createElement(
-                                          "dd",
-                                          null,
-                                          `${detail.pauseControl.pausedBy?.kind}/${detail.pauseControl.pausedBy?.actorId}`
-                                      ),
-                                      createElement("dt", null, "Paused at"),
-                                      createElement(
-                                          "dd",
-                                          null,
-                                          String(detail.pauseControl.pausedAt)
-                                      )
-                                  )
-                                : null,
-                            !("waitState" in detail) || detail.waitState === undefined
-                                ? null
-                                : createElement(
-                                      "dl",
-                                      null,
-                                      createElement("dt", null, "Waiting reason"),
-                                      createElement("dd", null, detail.waitState.reason),
-                                      createElement("dt", null, "Waiting participants"),
-                                      createElement(
-                                          "dd",
-                                          null,
-                                          detail.waitState.participantIds.join(", ")
-                                      )
-                                  ),
                             createElement(
                                 "pre",
                                 { "aria-label": "Meeting status details" },

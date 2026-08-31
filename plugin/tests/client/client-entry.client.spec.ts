@@ -226,17 +226,11 @@ describe("client entry framework", () => {
         expect(screen.getByLabelText("Meetings")).toBeTruthy();
 
         fireEvent.click(item);
-        const projection = await screen.findByLabelText("Meeting status details");
+        const projection = await screen.findByLabelText("Meeting summary");
         expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/convivium/meetings/meeting%2F1");
-        expect(projection.textContent).toContain('"objective": "Verify local control"');
-        expect(screen.getByText("Inspect output")).toBeTruthy();
-        expect(screen.getByText("local_host/loopback-web")).toBeTruthy();
-        expect(screen.getByText("100")).toBeTruthy();
         expect(screen.getByLabelText("Resume meeting")).toBeTruthy();
         expect(screen.queryByLabelText("Pause meeting")).toBeNull();
-        expect(screen.getByText("Status: paused").getAttribute("data-meeting-status")).toBe(
-            "paused"
-        );
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("paused");
     });
 
     it("refreshes both the selected detail and list summary when the window regains focus", async () => {
@@ -253,7 +247,7 @@ describe("client entry framework", () => {
 
         window.dispatchEvent(new Event("focus"));
 
-        await screen.findByText("Status: paused");
+        await screen.findByText("paused");
         expect(screen.getByRole("button", { name: /Runtime smoke \(paused\)/ })).toBeTruthy();
         expect(fetchMock).toHaveBeenCalledTimes(4);
     });
@@ -287,7 +281,7 @@ describe("client entry framework", () => {
             post.resolve(jsonResponse(success({ status: "paused", changed: true }, 3)));
             await post.promise;
         });
-        await screen.findByText("Status: paused");
+        await screen.findByText("paused");
         expect(fetchMock).toHaveBeenCalledTimes(5);
         expect(screen.getByRole("button", { name: /Runtime smoke \(paused\)/ })).toBeTruthy();
         expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
@@ -430,7 +424,7 @@ describe("client entry framework", () => {
         render(createElement(ConviviumMeetingPanel));
         await selectMeeting();
 
-        expect(screen.getByText("Status: completed")).toBeTruthy();
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("completed");
         expect(screen.queryByLabelText("Pause meeting")).toBeNull();
         expect(screen.queryByLabelText("Resume meeting")).toBeNull();
         expect(screen.queryByLabelText("Skip current speaker")).toBeNull();

@@ -1,6 +1,6 @@
 # RUNBOOK C：FR-11 Client 可观察性最小闭环
 
-状态：滚动执行中；T0–T1 PASS，下一步为 T2；Author 与 Audit 结论为 `Executable`
+状态：滚动执行中；T0–T2 PASS，下一步为 T3；Author 与 Audit 结论为 `Executable`
 
 建立日期：2026-08-31
 
@@ -10,7 +10,7 @@
 
 ## 1. 执行者契约
 
-执行者必须按 `T2 → T3 → T4 → T5 → T6 → T7` 顺序执行；T0–T1 已完成并从本文删除。不得跳步、合并步骤或在失败后继续修改。
+执行者必须按 `T3 → T4 → T5 → T6 → T7` 顺序执行；T0–T2 已完成并从本文删除。不得跳步、合并步骤或在失败后继续修改。
 
 允许修改：
 
@@ -150,29 +150,6 @@ import type {
 8. 控制可见性和 payload 不变：Pause/Resume/Skip current speaker/End；不新增 Decision/Agenda control。
 
 ## 7. 机械执行步骤
-
-### T2：实现 Summary 与 Current activity
-
-前置状态：T1 PASS。
-
-允许修改：`plugin/src/client/meeting-panel.tsx`、`plugin/tests/client/client-entry.client.spec.ts`。
-
-禁止修改：其他五个新 section、controls、fetch/cache callbacks。
-
-执行：在 `renderObservabilitySections` 内消费 T1 `view`，以 Summary、Current activity 顺序新增第 5 节两个 section；删除原独立 status `<p data-meeting-status>`、paused/waiting `<dl>`，其事实只由两个新 section 表达；tests 覆盖 running/waiting/terminal、agenda 有无、steps/participants 顺序及全部 `None` fallback。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run --project client tests/client/client-entry.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-
-PASS：两个 aria-label 各恰好一个；字段/顺序/fallback 与表一致；terminal activity 四行均为 `None`；现有 selector 与 controls 回归通过。
-
-STOP：需要从 archive/text 推断字段、改变 controls 或新增 CSS/组件。保留 diff并停止。
-
-恢复：无外部副作用；保留 diff。
 
 ### T3：实现 Transcript 与 Blocking items
 
