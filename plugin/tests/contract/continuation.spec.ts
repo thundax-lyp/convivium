@@ -154,7 +154,11 @@ async function directoryEntries(root: string, teamId = "team-1"): Promise<readon
     }
 }
 
-async function createArchivedSource(root: string, starts: string[]) {
+async function createArchivedSource(
+    root: string,
+    starts: string[],
+    amendArchive?: (archive: ArchivePackage) => ArchivePackage
+) {
     const sourceRuntime = runtime(root, starts);
     const created = await sourceRuntime.createMeeting(
         baseInput,
@@ -174,7 +178,9 @@ async function createArchivedSource(root: string, starts: string[]) {
         }
     });
     const snapshot = await repository.read();
-    const archive = archiveFixture(created.result.meetingId);
+    const archive =
+        amendArchive?.(archiveFixture(created.result.meetingId)) ??
+        archiveFixture(created.result.meetingId);
     const archived = structuredClone(snapshot.state) as unknown as MeetingState;
     archived.status = "archived";
     archived.currentTurn = undefined;
@@ -436,6 +442,34 @@ describe("archive continuation create contract", () => {
             );
             expect(starts).toHaveLength(beforeStarts);
         }
+        await targetRuntime.dispose();
+    });
+
+    it("rejects a resolved blocking issue selected as unresolved before target creation", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-continuation-resolved-issue-"));
+        roots.push(root);
+        const starts: string[] = [];
+        const sourceMeetingId = await createArchivedSource(root, starts, (archive) => ({
+            ...archive,
+            issues: archive.issues.map((issue) =>
+                issue.id === "issue-1" ? { ...issue, status: "resolved" } : issue
+            )
+        }));
+        const targetRuntime = runtime(root, starts);
+        const request = continuationInput(sourceMeetingId, "resolved-issue");
+        const beforeStarts = starts.length;
+
+        await expect(
+            targetRuntime.createMeeting(request, captain, new AbortController().signal)
+        ).resolves.toMatchObject({ ok: false, code: "ARCHIVE_MATERIAL_NOT_FOUND" });
+        const targetId = `meeting-${createHash("sha256")
+            .update(`${request.teamId}\0${request.requestId}`)
+            .digest("hex")
+            .slice(0, 32)}`;
+        expect(await directoryEntries(root)).not.toContain(
+            `${encodeURIComponent(targetId)}.sqlite`
+        );
+        expect(starts).toHaveLength(beforeStarts);
         await targetRuntime.dispose();
     });
 
