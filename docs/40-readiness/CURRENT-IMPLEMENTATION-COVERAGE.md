@@ -29,6 +29,7 @@
 - `ProposalClaimV1` 的创建/修订与 `PositionClaimV1` 的真实 Speaker binding 已通过 `submit_turn` 写入 MeetingState；新 revision 清空 Position，非空 `decisionProposals` 在事务前 fail closed。
 - `AgendaCandidateClaimV1` 已通过 `submit_turn` 写入 MeetingState；candidate 与同一事务 message、真实 Speaker、Meeting Participant suggestion 绑定，且不改变 active agenda 或完成判断。
 - `QuestionClaimV1` 的 blocking evidence 已覆盖 required output、acceptance criterion 与 hard constraint；canonical Question、status projection、archive/reopen 保留和非法引用零副作用均已自动化验证。
+- 开放的 blocking Question 已投影为 `PublicBlockingFactV1(kind: "question")`，并随 Manager context 传递 Question ID 与摘要，避免完成阻塞事实脱离规划上下文。
 - archive package materialization、capability revoke、interrupt、drain、ownership close 和 archive recovery。
 - loopback-only Meeting list/status/pause/resume HTTP、`local_host/loopback-web` 控制来源和 DSH Client `Meetings` slot；Client 只从 list 选择 Meeting，并在写后全量 refetch。
 
@@ -57,7 +58,7 @@
 | --- | --- |
 | `pnpm --dir plugin typecheck` | Pass；Host/Client 双 program 类型检查。 |
 | `pnpm --dir plugin exec vitest run tests/contract/protocol-schema.spec.ts tests/unit/domain/transitions/question.spec.ts tests/unit/domain/completion.spec.ts tests/contract/status-projection.spec.ts tests/unit/runtime/archive.spec.ts tests/contract/meeting-runtime.spec.ts` | Pass；6 files、91 tests；覆盖三类 blocking evidence、零副作用拒绝、数组部分非法、non-blocking 兼容、caller/idempotency、status/archive/recovery 与 answer 保留，并保留最新 main 的 Proposal/Position/AgendaCandidate 回归。 |
-| `pnpm --dir plugin verify` | Pass；43 files、321 tests；format、lint、Host/Client typecheck、build、environment、contract 与 package verifier 全部通过。 |
+| `pnpm --dir plugin verify` | Pass；43 files、322 tests；format、lint、Host/Client typecheck、build、environment、contract 与 package verifier 全部通过；新增 blocking Question → `blockingFacts` 投影回归。 |
 | `git diff --check` | Pass。 |
 
 2026-08-28 在本分支上述实现提交序列执行：
