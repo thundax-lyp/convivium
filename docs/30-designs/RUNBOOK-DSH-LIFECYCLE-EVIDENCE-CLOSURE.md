@@ -360,13 +360,7 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 
 以下对象中的 `<status.*>` 不是执行者选择或占位输入，而是强制的数据流引用：必须先执行紧邻的 `convivium_meeting_status`，再逐字段复制该返回值；字段缺失即 STOP。所有 `convivium_create_meeting` 使用 §6.5 固定 fixture；所有 success 必须是 `ProtocolSuccessV1`，所有预期失败必须是 `ProtocolErrorV1` 且 `retryable===false`。
 
-T1-T7 已 PASS 并按滚动策略删除对应执行步骤；当前从 T8 开始执行。稳定场景定义仍保留在 §7。
-
-### T8：只实现 archive-continuation 场景
-
-新增 `runArchiveContinuationScenario(ctx,fixture)`，单Host完成。create/status/plan/A submit=`800..803`；end `804` input `{protocolVersion:1,meetingId,expectedMeetingVersion:<status.meetingVersion>,outcome:"partial",reason:"smoke archive",acceptedDecisionIds:[],deferredAgendaItemIds:[],waivers:[],requestId:"smoke-archive-end-1"}`；等待archived status `805`。target create `806` 使用固定fixture加 `continuation:{sourceMeetingId,includeFinalSummary:true,decisionIds:[],unresolvedIssueIds:[],riskIds:[],evidenceIds:[],artifactIds:[]}`；target status `807`。
-
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/runtime/archive.spec.ts tests/unit/domain/transitions/archive.spec.ts tests/contract/continuation.spec.ts tests/recovery/recovery.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=archive-continuation pnpm --dir plugin smoke:profile`。PASS assertions=`source-archived`,`source-sessions-drained`,`continuation-final-summary-only`,`target-identities-new`；source/target ID集合无交集，Restore同T2。
+T1-T8 已 PASS 并按滚动策略删除对应执行步骤；当前从 T9 开始执行。稳定场景定义仍保留在 §7。
 
 ### T9：只实现 mail-race 场景
 
