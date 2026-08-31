@@ -1,10 +1,10 @@
 # RUNBOOK A：最小 Decision acceptance 竖切
 
-状态：`Executable · T1-T6 PASS · T7 in progress`
+状态：`Executable · T1-T7 PASS · T8 in progress`
 工作边界：只允许在执行者自己的 Convivium checkout 和独立任务分支中按 T1-T8 顺序执行
 建立日期：2026-08-31
 调查基线：`main@42a7bfb`
-模式：Execute（滚动收口）；T1-T6 已完成并已提交，当前执行 T7
+模式：Execute（滚动收口）；T1-T7 已完成并已提交，当前执行 T8
 
 ## 1. 执行者契约
 
@@ -167,23 +167,6 @@ export function createMeetingDecisionApplication(
 | projection/archive | `projection/status.ts#projectMeetingStatus`；`runtime/services/meeting-archive-service.ts#materializeArchivePackage` |
 
 ## 6. 机械步骤
-
-### T7：focused 与 full verify
-
-前置状态：T1-T6 PASS。
-允许修改：只可在 T1-T6 已列文件修正其直接 format/type/test error。
-禁止修改：新行为和 Non-goals。
-执行与验证：
-```bash
-pnpm --dir plugin verify:environment
-pnpm --dir plugin verify:contract
-pnpm --dir plugin exec vitest run tests/contract/protocol-schema.spec.ts tests/unit/domain/transitions/decision-candidate.spec.ts tests/unit/domain/transitions/decision-acceptance.spec.ts tests/unit/domain/transitions/speaker-submission.spec.ts tests/contract/meeting-runtime.spec.ts tests/contract/tool-registration.spec.ts tests/contract/status-projection.spec.ts tests/unit/runtime/archive.spec.ts tests/recovery/recovery.spec.ts
-pnpm --dir plugin verify
-git diff --check
-```
-PASS：五命令全 `0`，覆盖 submit/accept/authority/terminal/idempotency/atomicity/projection/archive/recovery。STOP：缺依赖、contract drift、baseline failure、需放宽 assertion/Schema/error。Restore：保留上一 PASS 并报告。
-
-真实 DSH profile：`Not Applicable`。本竖切只复用既有 `ctx.tools.register(defineTool(...))`、caller binding 和 repository transaction，不改变 provider、Session lifecycle、Client、route、bundle/profile 或 DSH event；Tool contract + full verify 是最窄验证。
 
 ### T8：readiness 与删除
 

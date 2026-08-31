@@ -298,16 +298,18 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                         now: commandNow
                     })
                 );
-                const decisionCandidates = (input.changes.decisionProposals ?? []).map((claim, index) => ({
-                    id: `decision-candidate-${input.deliveryId}-${index + 1}`,
-                    proposalId: claim.proposalId,
-                    proposalRevision: claim.proposalRevision,
-                    statement: claim.statement,
-                    rationale: claim.rationale,
-                    sourceMessageId: messageId,
-                    agendaItemId: input.agendaItemId,
-                    createdAt: commandNow
-                }));
+                const decisionCandidates = (input.changes.decisionProposals ?? []).map(
+                    (claim, index) => ({
+                        id: `decision-candidate-${input.deliveryId}-${index + 1}`,
+                        proposalId: claim.proposalId,
+                        proposalRevision: claim.proposalRevision,
+                        statement: claim.statement,
+                        rationale: claim.rationale,
+                        sourceMessageId: messageId,
+                        agendaItemId: input.agendaItemId,
+                        createdAt: commandNow
+                    })
+                );
                 try {
                     const current = await stored.repository.read();
                     const committed = await stored.repository.execute({

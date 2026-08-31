@@ -68,8 +68,9 @@ import type {
     FinishMeetingMailInputV1,
     MeetingMailResultV1,
     SendMeetingMessageInputV1,
-    TurnSubmissionV1
-    ,CaptainDecisionAcceptanceInputV1, CaptainDecisionAcceptanceResultV1
+    TurnSubmissionV1,
+    CaptainDecisionAcceptanceInputV1,
+    CaptainDecisionAcceptanceResultV1
 } from "../../protocol/index.js";
 import type { MeetingOwnershipLookup } from "../../dsh/index.js";
 
@@ -82,7 +83,11 @@ export interface MeetingToolCaller {
 }
 
 export interface MeetingToolRuntime {
-    acceptDecision(input: CaptainDecisionAcceptanceInputV1, caller: MeetingToolCaller, signal: AbortSignal): Promise<ProtocolSuccessV1<CaptainDecisionAcceptanceResultV1> | ProtocolErrorV1>;
+    acceptDecision(
+        input: CaptainDecisionAcceptanceInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<CaptainDecisionAcceptanceResultV1> | ProtocolErrorV1>;
     sendMeetingMessage(
         input: SendMeetingMessageInputV1,
         caller: MeetingToolCaller,

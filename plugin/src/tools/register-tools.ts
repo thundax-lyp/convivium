@@ -143,12 +143,17 @@ export function registerCreateAndStatusTools(
                 parameters: toolParameters,
                 output: { schema: protocolOutputSchema, render: renderOutcome },
                 async execute(args, exec) {
-                    return asJson(await execute(args.input, {
-                        validate: (value) => CaptainDecisionAcceptanceInputSchema(value as never) as CaptainDecisionAcceptanceInputV1,
-                        callers: dependencies.callers,
-                        runtime: dependencies.runtime.acceptDecision.bind(dependencies.runtime),
-                        exec
-                    }));
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                CaptainDecisionAcceptanceInputSchema(
+                                    value as never
+                                ) as CaptainDecisionAcceptanceInputV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.acceptDecision.bind(dependencies.runtime),
+                            exec
+                        })
+                    );
                 }
             })
         ),

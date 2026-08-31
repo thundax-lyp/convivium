@@ -9,7 +9,17 @@ export function addSubmittedDecisionCandidates(
     sourceMessageId: string,
     candidates: readonly SubmittedDecisionCandidateInput[]
 ): TransitionResult<MeetingState> {
-    if (["completed", "partial", "no_consensus", "cancelled", "failed", "archiving", "archived"].includes(state.status))
+    if (
+        [
+            "completed",
+            "partial",
+            "no_consensus",
+            "cancelled",
+            "failed",
+            "archiving",
+            "archived"
+        ].includes(state.status)
+    )
         throw new DomainError("IMMUTABLE_MEETING", "meeting is immutable");
     if (!state.participants.some(({ id }) => id === participantId))
         throw new DomainError("INVALID_ENTITY_STATE", "candidate caller is not a participant");
@@ -35,5 +45,8 @@ export function addSubmittedDecisionCandidates(
             throw new DomainError("INVALID_ENTITY_STATE", "candidate proposal is invalid");
         return { ...candidate, proposedBy: participantId };
     });
-    return { state: { ...state, decisionCandidates: [...state.decisionCandidates, ...added] }, effect: { events: [] } };
+    return {
+        state: { ...state, decisionCandidates: [...state.decisionCandidates, ...added] },
+        effect: { events: [] }
+    };
 }
