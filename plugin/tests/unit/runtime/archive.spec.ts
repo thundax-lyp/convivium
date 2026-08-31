@@ -72,6 +72,37 @@ describe("materializeArchivePackage", () => {
         expect(archive.parkingLot[0]?.title).toBe("later");
         expect(archive.issues[0]?.title).toBe("scope");
     });
+
+    it("preserves proposal revisions and their positions as formal archive facts", () => {
+        const source = structuredClone(state);
+        source.proposals = [
+            {
+                id: "proposal-1",
+                title: "Storage",
+                description: "Use SQLite.",
+                proposedBy: "participant-1",
+                revision: 2,
+                status: "under_review",
+                agendaItemId: "agenda-1",
+                positions: [
+                    {
+                        id: "position-1",
+                        participantId: "participant-1",
+                        position: "accept",
+                        blocking: false,
+                        proposalRevision: 2
+                    }
+                ],
+                createdAt: 1,
+                updatedAt: 2
+            }
+        ];
+        const archive = materializeArchivePackage(source, 20);
+
+        expect(archive.proposals).toEqual(source.proposals);
+        source.proposals[0]!.positions[0]!.position = "object";
+        expect(archive.proposals[0]?.positions[0]?.position).toBe("accept");
+    });
 });
 
 describe("beginArchiveFromTermination", () => {

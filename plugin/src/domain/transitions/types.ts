@@ -23,8 +23,29 @@ export interface SubmitSpeakerAdvanceContext extends SpeakerSubmissionContext {
     nextPlanningAttemptId: string;
     nextPlanningDeliveryId: string;
     issues?: readonly SubmittedIssueInput[];
+    proposals?: readonly SubmittedProposalInput[];
+    positions?: readonly SubmittedPositionInput[];
     questions: readonly SubmittedQuestionInput[];
     completion?: Omit<ApplyCompletionClaimsContext, "participantId" | "now">;
+}
+
+export interface SubmittedProposalInput {
+    id: string;
+    proposalId?: string;
+    expectedRevision?: number;
+    title: string;
+    description: string;
+    now: number;
+}
+
+export interface SubmittedPositionInput {
+    id: string;
+    proposalId: string;
+    proposalRevision: number;
+    position: "support" | "accept" | "object" | "needs_revision" | "abstain";
+    reason?: string;
+    blocking: boolean;
+    now: number;
 }
 
 export interface SubmittedIssueInput {

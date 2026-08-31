@@ -11,11 +11,14 @@ export { submitSpeakerAttempt } from "./speaker-attempt.js";
 export { reassignTurn, type ReassignTurnContext } from "./reassign-turn.js";
 export { addSubmittedQuestions } from "./question.js";
 export { addSubmittedIssues } from "./issue.js";
+export { applySubmittedProposalPositionClaims } from "./proposal-position.js";
 export { submitSpeakerAndAdvanceMeeting } from "./speaker-submission.js";
 export type {
     StartManagerPlanningContext,
     SubmitManagerPlanContext,
     SubmittedIssueInput,
+    SubmittedPositionInput,
+    SubmittedProposalInput,
     SubmittedQuestionInput,
     SubmitSpeakerAdvanceContext
 } from "./types.js";

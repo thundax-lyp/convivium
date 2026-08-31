@@ -245,6 +245,12 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                         true
                     );
                 }
+                if ((input.changes.decisionProposals?.length ?? 0) > 0) {
+                    return failure(
+                        "UNSUPPORTED_CAPABILITY",
+                        "Decision proposals cannot be persisted until a pending decision contract exists."
+                    );
+                }
                 const messageId = `message-${input.deliveryId}`;
                 const commandNow = options.now?.() ?? Date.now();
                 const questions = (input.changes.questions ?? []).map((claim, index) => ({
@@ -264,6 +270,25 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     impact: claim.impact,
                     urgency: claim.urgency,
                     safeDefaultAvailable: claim.safeDefaultAvailable
+                }));
+                const proposals = (input.changes.proposals ?? []).map((claim, index) => ({
+                    id: `${input.deliveryId}-proposal-${index + 1}`,
+                    ...(claim.proposalId === undefined ? {} : { proposalId: claim.proposalId }),
+                    ...(claim.expectedRevision === undefined
+                        ? {}
+                        : { expectedRevision: claim.expectedRevision }),
+                    title: claim.title,
+                    description: claim.description,
+                    now: commandNow
+                }));
+                const positions = (input.changes.positions ?? []).map((claim, index) => ({
+                    id: `${input.deliveryId}-position-${index + 1}`,
+                    proposalId: claim.proposalId,
+                    proposalRevision: claim.proposalRevision,
+                    position: claim.position,
+                    ...(claim.reason === undefined ? {} : { reason: claim.reason }),
+                    blocking: claim.blocking,
+                    now: commandNow
                 }));
                 try {
                     const current = await stored.repository.read();
@@ -326,6 +351,8 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                                     nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.replanCount + 1}`,
                                     issues,
                                     questions,
+                                    proposals,
+                                    positions,
                                     ...(input.completionClaims === undefined
                                         ? {}
                                         : {

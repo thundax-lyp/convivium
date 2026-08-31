@@ -5,7 +5,7 @@
 本文记录 Convivium 当前代码相对已确认会议需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-08-31
-- 代码基线：`feat/issue-claim-closure` 的未提交工作区，分支起点 `1fe50f6`（`main`）；本证据只覆盖该工作区已执行的验证
+- 代码基线：`codex/proposal-decision-closure`，分支起点 `bd34022`（`main`）；本证据只覆盖该分支已执行的验证
 - 环境：macOS、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`
 - 本文只记录实际执行过的实现与验证；文档删除和本覆盖矩阵更新由收口提交记录。
 
@@ -26,6 +26,7 @@
 - Convivium-owned MeetingTask、task status/start/finish、HandRaise、锁内 task evidence 和终态 task cancellation。
 - completion claim、确定性完成判断、Captain end、execution-terminal projection 和终态后写入拒绝。
 - `IssueClaimV1` 的正式提交，以及 Captain 对单一 Issue 的 `convivium_dispose_risk` 结构化处置；两者均复用 SQLite 原子 command、receipt 和终态拒写边界。
+- `ProposalClaimV1` 的创建/修订与 `PositionClaimV1` 的真实 Speaker binding 已通过 `submit_turn` 写入 MeetingState；新 revision 清空 Position，非空 `decisionProposals` 在事务前 fail closed。
 - archive package materialization、capability revoke、interrupt、drain、ownership close 和 archive recovery。
 - loopback-only Meeting list/status/pause/resume HTTP、`local_host/loopback-web` 控制来源和 DSH Client `Meetings` slot；Client 只从 list 选择 Meeting，并在写后全量 refetch。
 
@@ -38,8 +39,8 @@
 | FR-3 有序连续发言         | 部分实现 | 单一 attempt、逐 Speaker dispatch、late/stale submit 拒绝、Captain reassign/skip 和 A→C→B 真实 profile smoke | timeout、interrupt 和 Captain reassign 的真实 DSH profile smoke 尚未形成完整运行路径                              |
 | FR-4 发言计划与选择       | 部分实现 | Manager 和 round-robin planning、候选资格与 MeetingTask/HandRaise 消费已实现                   | required Participant unavailable、确定性 fallback、自动 failure/stall/replan 还未形成完整 runtime 路径            |
 | FR-5 异步任务与举手       | 部分实现 | MeetingTask/HandRaise 的领域、工具、恢复、幂等、completion/end 集成自动化通过                  | `finish → HandRaise → 后续 submit_turn` 尚无真实 DSH profile smoke；不承诺外部副作用 exactly-once                 |
-| FR-6 议题范围与发散控制   | 部分实现 | non-blocking Question 与 `IssueClaimV1` 已完成 create/read/status/archive；Issue 依据 required output、criterion 或 hard constraint 派生 blocking，SQLite 事务、幂等 receipt 与终态拒写复用既有 `submit_turn` 闭环 | proposal/position/decision proposal/agenda candidate 声明尚未提交；blocking Question evidence、stall/refocus 未闭环 |
-| FR-7 提案、立场与决策     | 部分实现 | `convivium_dispose_risk` 已提供 Captain 单一 Issue accept/reject 控制；model、公开 projection 和输入 Schema 已定义 | proposal/position/decision claims 尚无 Runtime/transition commit 路径                                                |
+| FR-6 议题范围与发散控制   | 部分实现 | non-blocking Question、`IssueClaimV1`、Proposal create/revision 和 caller-bound Position 已通过单一 SQLite `submit_turn` transaction 形成正式事实；Issue 依据 required output、criterion 或 hard constraint 派生 blocking，Proposal 新 revision 清空 Position | `decisionProposals`、agenda candidate、blocking Question evidence、stall/refocus 未闭环 |
+| FR-7 提案、立场与决策     | 部分实现 | Proposal/Position 的 canonical ID、revision、真实 Speaker binding、幂等/terminal reject、archive snapshot 已自动化；`convivium_dispose_risk` 已提供 Captain 单一 Issue accept/reject 控制 | 未定义 pending Decision 的公开契约；`decisionProposals` fail closed，Captain 决策接受与完整 Decision acceptance 未实现 |
 | FR-8 完成事实与会议结束   | 部分实现 | completion/end、task evidence、Captain risk disposition、终态 projection、幂等、恢复和 A/B 原子集成测试通过 | Captain risk disposition 尚无独立 Runtime 成功/失败与真实 DSH profile smoke；completion/end 竞争 smoke 未执行 |
 | FR-9 暂停、恢复与故障隔离 | 部分实现 | Captain tool 与 loopback Web pause/resume、outbox guard、SQLite recovery、archive recovery、stale gate、发言 reassign/skip、`speakerTimeoutMs` 到 SpeakerAttempt `deadlineAt` 的持久化，以及连续两轮本地 pause/resume 回归已实现 | timeout 扫描、interrupt、attempt failure counter、自动降级策略和 reassign 真实 cold restart/rebind smoke 未完成 |
 | FR-10 记录、隐私与归档    | 部分实现 | transcript 隔离、archive materialization 和 Session cleanup 自动化已实现                       | meeting-scoped mailbox、continuation、developer Markdown 生成和 archive 真实 profile smoke 未实现                 |
@@ -66,6 +67,16 @@
 | --- | --- |
 | `pnpm --dir plugin verify` | Pass；41 files、301 tests；覆盖 `IssueClaimV1` 的 blocking/follow-up 派生、status projection 与 archive，及 `convivium_dispose_risk` 的工具注册和 caller forwarding 契约。format、lint、Host/Client typecheck、build、15-package environment、contract 和 package verifier 全部通过。 |
 
+2026-08-31 在 `codex/proposal-decision-closure` 执行：
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --dir plugin verify:environment` | Pass；15 个声明 DSH package 均已安装。 |
+| `pnpm --dir plugin verify:contract` | Pass；plugin contract 通过。 |
+| `pnpm --dir plugin exec vitest run tests/unit/domain/transitions/proposal-position.spec.ts tests/contract/meeting-runtime.spec.ts tests/unit/runtime/archive.spec.ts` | Pass；3 files、36 tests；覆盖 Proposal create/revision、Position 实际 Speaker binding、数组原子性、幂等重放、`decisionProposals` fail closed 和 archive snapshot。 |
+| `pnpm --dir plugin verify` | Pass；42 files、307 tests；format、lint、Host/Client typecheck、build、环境、contract 与 package verifier 全部通过。 |
+| `git diff --check` | Pass。 |
+
 ## Not Covered
 
 以下是当前真实缺口，不因 Schema、类型或历史测试存在而视为已实现：
@@ -73,7 +84,7 @@
 - V1 loopback Web 已确认不绑定用户或 Team authority；远程、多用户、跨 Host 共享和网络部署不支持。
 - 当前 `repositoryPath()`/`rehydrate()` 使用 Architecture 允许的过渡物理布局，尚未迁移到目标 `<teamId>/meetings/<meetingId>/` 目录；本地单用户会议控制闭环只复用现有 Runtime discovery，不在该分支修改存储布局。
 - `convivium_dispose_risk` 已有 Tool/Runtime 路径与工具注册契约覆盖，但尚无独立 Runtime 成功/失败、恢复或真实 DSH profile/面板控制验证；`convivium_reassign_turn` 也尚无真实 DSH profile 或面板控制验证。
-- `TurnSubmissionV1.changes` 的 non-blocking question 和 `IssueClaimV1` 已写入正式 MeetingState；proposal、position、decision proposal 和 agenda candidate 尚未写入正式 MeetingState。
+- `TurnSubmissionV1.changes` 的 non-blocking question、`IssueClaimV1`、Proposal 和 Position 已写入正式 MeetingState；当前没有受正式公开契约约束的 pending Decision 形态，因此非空 `decisionProposals` 返回 `UNSUPPORTED_CAPABILITY`，Captain decision acceptance command 与完整 Decision acceptance 尚未实现；agenda candidate 也尚未写入正式 MeetingState。
 - blocking Question 的正式创建、提交与验证尚未覆盖。
 - meeting-scoped mailbox、MailHandlingAttempt、Participant Session 统一 mail/speaker queue 和 mail timeout 未实现。
 - `speakerTimeoutMs` 已接入 SpeakerAttempt `deadlineAt` 持久化；timeout 扫描、interrupt、attempt failure policy 和自动降级策略尚未实现。
