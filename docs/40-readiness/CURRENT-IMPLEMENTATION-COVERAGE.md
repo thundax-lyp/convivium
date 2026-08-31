@@ -56,8 +56,9 @@
 | 命令 | 结果 |
 | --- | --- |
 | `pnpm --dir plugin typecheck` | Pass；Host/Client 双 program 类型检查。 |
-| `pnpm --dir plugin exec vitest run tests/contract/protocol-schema.spec.ts tests/unit/domain/transitions/question.spec.ts tests/unit/domain/completion.spec.ts tests/contract/status-projection.spec.ts tests/unit/runtime/archive.spec.ts tests/contract/meeting-runtime.spec.ts` | Pass；88 tests；覆盖三类 blocking evidence、零副作用拒绝、数组部分非法、non-blocking 兼容、caller/idempotency、status/archive/recovery 与 answer 保留。 |
-| `pnpm --dir plugin verify` | Pass；合并最新 `main` 后的最终计数见本节后续收口记录。 |
+| `pnpm --dir plugin exec vitest run tests/contract/protocol-schema.spec.ts tests/unit/domain/transitions/question.spec.ts tests/unit/domain/completion.spec.ts tests/contract/status-projection.spec.ts tests/unit/runtime/archive.spec.ts tests/contract/meeting-runtime.spec.ts` | Pass；6 files、91 tests；覆盖三类 blocking evidence、零副作用拒绝、数组部分非法、non-blocking 兼容、caller/idempotency、status/archive/recovery 与 answer 保留，并保留最新 main 的 Proposal/Position/AgendaCandidate 回归。 |
+| `pnpm --dir plugin verify` | Pass；43 files、321 tests；format、lint、Host/Client typecheck、build、environment、contract 与 package verifier 全部通过。 |
+| `git diff --check` | Pass。 |
 
 2026-08-28 在本分支上述实现提交序列执行：
 
