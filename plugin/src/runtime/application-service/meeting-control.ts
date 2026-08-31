@@ -5,10 +5,7 @@ import {
     transitionMeeting,
     type MeetingState
 } from "../../domain/index.js";
-import type {
-    MeetingControlResultV1,
-    ReassignTurnResultV1
-} from "../../protocol/index.js";
+import type { MeetingControlResultV1, ReassignTurnResultV1 } from "../../protocol/index.js";
 import { RepositoryError } from "../../repository/index.js";
 import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
 import {
@@ -21,7 +18,11 @@ import {
     type MeetingRehydrationService
 } from "../services/meeting-recovery-service.js";
 import type { MeetingDeliveryWorkerService } from "../services/types.js";
-import type { CreateStatusRuntimeOptions, LocalMeetingWebRuntime, MeetingToolRuntime } from "./index.js";
+import type {
+    CreateStatusRuntimeOptions,
+    LocalMeetingWebRuntime,
+    MeetingToolRuntime
+} from "./index.js";
 import { assignTurnAttempt } from "./meeting-turn.js";
 import type { MeetingControlSource, StoredMeeting } from "./types.js";
 
@@ -182,7 +183,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                     }
                 );
             }
-        },
+        }
     };
     async function transitionMeetingStatus(
         input: {
