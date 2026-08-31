@@ -42,29 +42,26 @@ export {
 } from "./services/command-result-service.js";
 export { resolveArchiveCleanupRuntime } from "./services/meeting-session-service.js";
 export type { ArchiveCleanupRuntime } from "./services/meeting-session-service.js";
-export {
-    pauseMeetingRuntime,
-    recoverMeetingRuntime,
-    rebindCaptainParent,
-    resumeMeetingRuntime
-} from "./services/meeting-recovery-service.js";
+export { recoverMeetingRuntime, rebindCaptainParent } from "./services/meeting-recovery-service.js";
 export {
     createCreateStatusRuntime,
-    LocalMeetingRecoveryUnavailableError
+    LocalMeetingRecoveryUnavailableError,
+    pauseMeetingRuntime,
+    resumeMeetingRuntime
 } from "./application-service/index.js";
 export type {
     CreateStatusRuntimeOptions,
     LocalMeetingWebRuntime,
     MeetingRuntimeWithCallerLookup,
     MeetingToolCaller,
-    MeetingToolRuntime
+    MeetingToolRuntime,
+    PauseRecoveryDependencies,
+    ResumeRecoveryDependencies
 } from "./application-service/index.js";
 export { meetingTaskEvidenceResolver, rejectUnsupportedTaskEvidence } from "./task-evidence.js";
 export type { AuthorizedTaskEvidence, AuthorizedTaskEvidenceResolver } from "./task-evidence.js";
 export type {
     CaptainRebindDependencies,
     MeetingRecoveryDependencies,
-    MeetingRecoveryResult,
-    PauseRecoveryDependencies,
-    ResumeRecoveryDependencies
+    MeetingRecoveryResult
 } from "./services/meeting-recovery-service.js";

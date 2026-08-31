@@ -6,7 +6,12 @@ import {
     type MeetingState
 } from "../../domain/index.js";
 import type { MeetingControlResultV1, ReassignTurnResultV1 } from "../../protocol/index.js";
-import { RepositoryError } from "../../repository/index.js";
+import {
+    RepositoryError,
+    type CommandAuthorization,
+    type MeetingRepository,
+    type SessionOwnership
+} from "../../repository/index.js";
 import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
 import {
     commandFailure as failure,
@@ -425,3 +430,125 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
     }
     return application;
 }
+
+export interface PauseRecoveryDependencies {
+    readonly repository: Pick<MeetingRepository, "execute" | "recordSessionOwnership">;
+    readonly authorization: CommandAuthorization;
+    readonly requestId: string;
+    readonly expectedMeetingVersion: number;
+    readonly reason: string;
+    readonly parent?: Agent;
+    readonly lifecycle?: ContinuableLifecycleRuntime;
+    readonly ownerships: readonly SessionOwnership[];
+    readonly signal: AbortSignal;
+    readonly now?: () => number;
+}
+
+export interface ResumeRecoveryDependencies {
+    readonly repository: Pick<MeetingRepository, "execute">;
+    readonly authorization: CommandAuthorization;
+    readonly requestId: string;
+    readonly expectedMeetingVersion: number;
+    readonly signal: AbortSignal;
+    readonly now?: () => number;
+}
+
+function ownershipForRevocation(ownership: SessionOwnership): SessionOwnership {
+    return { ...ownership, capabilityStatus: "revoked" };
+}
+
+export async function pauseMeetingRuntime(
+    dependencies: PauseRecoveryDependencies
+): Promise<unknown> {
+    const now = dependencies.now?.() ?? Date.now();
+    const committed = await dependencies.repository.execute({
+        requestId: dependencies.requestId,
+        commandKind: "pause_meeting",
+        authorization: dependencies.authorization,
+        requestHash: JSON.stringify({
+            requestId: dependencies.requestId,
+            expectedMeetingVersion: dependencies.expectedMeetingVersion,
+            reason: dependencies.reason
+        }),
+        expectedMeetingVersion: dependencies.expectedMeetingVersion,
+        transition: (snapshot) => {
+            const transition = transitionMeeting(
+                snapshot.state as unknown as MeetingState,
+                "paused",
+                {
+                    now,
+                    reason: dependencies.reason,
+                    pause: {
+                        at: now,
+                        by: { kind: "captain", actorId: dependencies.authorization.callerBinding }
+                    }
+                }
+            );
+            return {
+                state: transition.state as unknown as JsonObject,
+                result: { status: "paused", changed: true },
+                events: transition.effect.events as never,
+                outbox: []
+            };
+        }
+    });
+    const active = dependencies.ownerships.filter(
+        (ownership) =>
+            ownership.lifecycleStatus === "active" && ownership.capabilityStatus === "active"
+    );
+    for (const ownership of active) {
+        await dependencies.repository.recordSessionOwnership(
+            ownershipForRevocation(ownership),
+            now
+        );
+    }
+    if (
+        dependencies.parent !== undefined &&
+        dependencies.lifecycle !== undefined &&
+        active.length > 0
+    ) {
+        await interruptAndDrainOwnedSessions({
+            runtime: dependencies.lifecycle,
+            parent: dependencies.parent,
+            ownerships: active
+        });
+        for (const ownership of active) {
+            await dependencies.repository.recordSessionOwnership(
+                { ...ownershipForRevocation(ownership), lifecycleStatus: "closed" },
+                now
+            );
+        }
+    }
+    return { committed, revokedOwnerships: active.length };
+}
+
+export async function resumeMeetingRuntime(
+    dependencies: ResumeRecoveryDependencies
+): Promise<unknown> {
+    const now = dependencies.now?.() ?? Date.now();
+    return dependencies.repository.execute({
+        requestId: dependencies.requestId,
+        commandKind: "resume_meeting",
+        authorization: dependencies.authorization,
+        requestHash: JSON.stringify({ requestId: dependencies.requestId }),
+        expectedMeetingVersion: dependencies.expectedMeetingVersion,
+        transition: (snapshot) => {
+            const transition = transitionMeeting(
+                snapshot.state as unknown as MeetingState,
+                "running",
+                { now, reason: "captain resumed meeting" }
+            );
+            return {
+                state: transition.state as unknown as JsonObject,
+                result: { status: "running", changed: true },
+                events: transition.effect.events as never,
+                outbox: []
+            };
+        }
+    });
+}
+import type { Agent } from "@deepseek-ai/dsh-agent";
+import {
+    interruptAndDrainOwnedSessions,
+    type ContinuableLifecycleRuntime
+} from "../../dsh/index.js";

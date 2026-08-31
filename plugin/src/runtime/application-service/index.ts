@@ -163,6 +163,8 @@ export interface LocalMeetingWebRuntime {
 }
 
 export { LocalMeetingRecoveryUnavailableError } from "../services/meeting-recovery-service.js";
+export { pauseMeetingRuntime, resumeMeetingRuntime } from "./meeting-control.js";
+export type { PauseRecoveryDependencies, ResumeRecoveryDependencies } from "./meeting-control.js";
 
 export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
     MeetingOwnershipLookup &
