@@ -4,6 +4,7 @@ import { constants, createWriteStream } from "node:fs";
 import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
 import { createSmokeEnvironment } from "./smoke-environment.mjs";
@@ -19,6 +20,18 @@ const pluginRoot = resolve(process.cwd());
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "120000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
+const SMOKE_SCENARIOS = ["baseline", "timeout", "reassign", "task-handraise", "completion-end", "risk-reopen", "cold-rebind", "archive-continuation", "mail-race", "cross-meeting"];
+const SMOKE_SCENARIO = process.env.CONVIVIUM_SMOKE_SCENARIO ?? "baseline";
+
+export function validateScenarioResult(value, expectedScenario) {
+    if (value === null || typeof value !== "object" || value.ok !== true) {
+        throw new Error("Smoke result is not successful.");
+    }
+    if (value.scenario !== expectedScenario || !Array.isArray(value.assertions)) {
+        throw new Error("Smoke result scenario contract mismatch.");
+    }
+    return value;
+}
 
 const tempPrefix = join(tmpdir(), "convivium-dsh-smoke-");
 
@@ -196,6 +209,7 @@ export const inject = ["agents", "sessions", "tools", "webServer", "workspaceReg
 
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
 const browserMode = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
+const scenario = process.env.CONVIVIUM_SMOKE_SCENARIO || "baseline";
 const participants = ["participant-a", "participant-c", "participant-b"];
 let captain;
 let meetingId;
@@ -383,6 +397,10 @@ function scheduleParticipant(ctx, agent) {
 
 async function run(ctx) {
     if (!outputPath) return;
+    if (scenario !== "baseline") {
+        await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
+        return;
+    }
     try {
         const workspace = browserMode
             ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
@@ -485,6 +503,8 @@ async function run(ctx) {
         assert(resumedStatus.result.status === "running", "HTTP status did not return to running");
         await writeResult({
             ok: true,
+            scenario,
+            assertions: ["baseline-transcript-acb", "baseline-http-pause-resume"],
             meetingId,
             participants,
             messages,
@@ -661,6 +681,9 @@ function waitForBrowserStop() {
 async function main() {
     validateTimeout(BOOT_TIMEOUT_MS, "CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS");
     validateTimeout(COMMAND_TIMEOUT_MS, "CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS");
+    if (!SMOKE_SCENARIOS.includes(SMOKE_SCENARIO)) {
+        throw new Error(`Unsupported CONVIVIUM_SMOKE_SCENARIO: ${SMOKE_SCENARIO}.`);
+    }
     await access(join(pluginRoot, "package.json"), constants.R_OK);
 
     tempRoot = await mkdtemp(tempPrefix);
@@ -682,7 +705,8 @@ async function main() {
         DSH_HOME: dshHome,
         DSH_TELEMETRY_DISABLED: "1",
         DSH_PERMISSION_MODE: "workspace-write",
-        CONVIVIUM_SMOKE_RESULT: resultPath
+        CONVIVIUM_SMOKE_RESULT: resultPath,
+        CONVIVIUM_SMOKE_SCENARIO: SMOKE_SCENARIO
     });
     const port = await allocatePort();
     const artifact = await packArtifact(artifactDir);
@@ -719,9 +743,12 @@ async function main() {
     }
 }
 
-try {
-    await main();
-} finally {
-    await restore();
-    if (BROWSER_MODE) console.log("CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok");
+const isMain = process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+    try {
+        await main();
+    } finally {
+        await restore();
+        if (BROWSER_MODE) console.log("CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok");
+    }
 }

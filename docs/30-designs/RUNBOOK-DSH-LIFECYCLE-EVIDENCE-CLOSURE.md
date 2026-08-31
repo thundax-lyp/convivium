@@ -352,21 +352,7 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 
 以下对象中的 `<status.*>` 不是执行者选择或占位输入，而是强制的数据流引用：必须先执行紧邻的 `convivium_meeting_status`，再逐字段复制该返回值；字段缺失即 STOP。所有 `convivium_create_meeting` 使用 §6.5 固定 fixture；所有 success 必须是 `ProtocolSuccessV1`，所有预期失败必须是 `ProtocolErrorV1` 且 `retryable===false`。
 
-### T1：加入 selector 与 result contract
-
-前置状态：T0 PASS。允许修改仅 `plugin/scripts/smoke-profile.mjs`；禁止修改 production、tests、package manifest 和其他场景。
-
-执行：在 temp root 创建前增加固定 selector 校验；保留现有 `run(ctx)` 为 baseline；未实现 selector 抛 `SCENARIO_NOT_IMPLEMENTED:<selector>`；增加 §6.3 三个直接 helper与纯 export `validateScenarioResult(value,expectedScenario)`；从 `node:url` import `fileURLToPath`，定义且只定义 `const isMain = process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)`，仅在 `isMain` 时执行现有顶层 `main()/finally restore()`，使 mapper import 不启动 Host；不得新增 registry、runner、DSL 或 package。
-
-验证：
-
-```bash
-node --check plugin/scripts/smoke-profile.mjs
-node -e 'import("./plugin/scripts/smoke-profile.mjs").then(({validateScenarioResult})=>{validateScenarioResult({ok:true,scenario:"timeout",assertions:[],meetingIds:[],sessionIds:[]},"timeout");try{validateScenarioResult({ok:true,scenario:"reassign"},"timeout");process.exit(1)}catch{}})'
-CONVIVIUM_SMOKE_SCENARIO=baseline node plugin/scripts/smoke-profile.mjs
-```
-
-PASS：baseline ACB/HTTP不回归；mapper实际输入输出通过；未知selector在`mkdtemp`前失败且无temp root。STOP：需要新文件/package/依赖或baseline回归。恢复：先等既有finally Restore，再只撤销T1增量。
+T1 已 PASS（baseline、selector/result contract、Restore）；当前从 T2 开始执行。
 
 ### T2：只实现 timeout 场景
 
@@ -379,7 +365,7 @@ PASS：baseline ACB/HTTP不回归；mapper实际输入输出通过；未知selec
 ```bash
 node --check plugin/scripts/smoke-profile.mjs
 pnpm --dir plugin exec vitest run tests/unit/domain/transitions/speaker-attempt.spec.ts tests/contract/meeting-runtime.spec.ts tests/unit/dsh/session-adapter.spec.ts
-CONVIVIUM_SMOKE_SCENARIO=timeout node plugin/scripts/smoke-profile.mjs
+env CONVIVIUM_SMOKE_SCENARIO=timeout pnpm --dir plugin smoke:profile
 ```
 
 PASS：全部退出 `0`；result assertions 逐字为 `attempt-revoked-timeout`,`old-activation-drained`,`durable-child-retained`,`next-existing-speaker-submitted`；SQLite只有B新增 message，A attempt reason为timeout，Restore 后无临时根/Host/端口。
@@ -399,7 +385,7 @@ STOP：现有 focused test 失败，或场景需要新状态/fallback/错误码�
 ```bash
 node --check plugin/scripts/smoke-profile.mjs
 pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts tests/unit/domain/transitions/speaker-attempt.spec.ts tests/unit/dsh/session-adapter.spec.ts
-CONVIVIUM_SMOKE_SCENARIO=reassign node plugin/scripts/smoke-profile.mjs
+env CONVIVIUM_SMOKE_SCENARIO=reassign pnpm --dir plugin smoke:profile
 ```
 
 PASS：assertions=`old-attempt-revoked`,`old-activation-drained`,`replacement-attempt-created`,`replacement-submitted`；ownership未交换、仅B新增消息、Restore全清。STOP/恢复同T2。
@@ -410,50 +396,50 @@ PASS：assertions=`old-attempt-revoked`,`old-activation-drained`,`replacement-at
 
 调用：create/status/plan=`400/401/402`；A create task `403` input `{protocolVersion:1,meetingId,attemptId:<status.currentAttempt.id>,requestId:"smoke-task-create-1",title:"smoke task",description:"produce evidence",blocking:false}`；A submit `404` 使用当前 attempt且 `taskIds:[<create.result.meetingTaskId>]`；task status pre `405` input `{protocolVersion:1,meetingId,meetingTaskId:<create.result.meetingTaskId>}`；start `406` input `{protocolVersion:1,meetingId,meetingTaskId:<create.result.meetingTaskId>,requestId:<delivery.deliveryId>}`；status post `407` 与pre相同；finish `408` input `{protocolVersion:1,meetingId,meetingTaskId:<create.result.meetingTaskId>,requestId:<delivery.deliveryId>,executionId:<delivery.executionId>,status:"completed",resultSummary:"task evidence"}`。Captain status `409` 必须观察 finish result.handRaiseId；Manager第二plan `410`只含A；A later submit `411`使用新 attempt、kind `evidence`、content `task-handraise:a:2`、`taskIds:[meetingTaskId]`。
 
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/domain/meeting-task.spec.ts tests/unit/domain/hand-raise.spec.ts tests/unit/runtime/meeting-mail-dispatch.spec.ts tests/contract/meeting-runtime.spec.ts && CONVIVIUM_SMOKE_SCENARIO=task-handraise node plugin/scripts/smoke-profile.mjs`。PASS assertions=`task-delivered`,`task-started`,`finish-created-handraise`,`handraise-visible-then-consumed`,`later-turn-submitted`；不声称观察 Manager内部消费。Restore同T2。
+验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/domain/meeting-task.spec.ts tests/unit/domain/hand-raise.spec.ts tests/unit/runtime/meeting-mail-dispatch.spec.ts tests/contract/meeting-runtime.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=task-handraise pnpm --dir plugin smoke:profile`。PASS assertions=`task-delivered`,`task-started`,`finish-created-handraise`,`handraise-visible-then-consumed`,`later-turn-submitted`；不声称观察 Manager内部消费。Restore同T2。
 
 ### T5：只实现 completion-end 场景
 
 新增 `runCompletionEndScenario(ctx,fixture)`。create/status/第一plan/A证据submit=`500/501/502/503`；保存success messageId。status/第二plan/status=`504/505/506`，第二plan仍只含A。从同一 `506` status构造两个调用并 `Promise.allSettled`：A submit `507` 使用标准字段、`changes:{}`，并在顶层加 `completionClaims:{outputClaims:[{subjectId:<fixture.outputId>,evidenceMessageIds:[<firstSubmit.result.messageId>],taskIds:[]}],criterionClaims:[{subjectId:<fixture.criterionId>,evidenceMessageIds:[<firstSubmit.result.messageId>],taskIds:[]}]}`；Captain end `508` input `{protocolVersion:1,meetingId,expectedMeetingVersion:<sameStatus.meetingVersion>,outcome:"partial",reason:"smoke competition",acceptedDecisionIds:[],deferredAgendaItemIds:[],waivers:[],requestId:"smoke-completion-end-1"}`。允许集合只为 §7 S4；随后 status `509`，terminal late submit `510`与late end `511`必须分别为 `IMMUTABLE_MEETING|ARCHIVED_MEETING`。
 
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/domain/completion.spec.ts tests/contract/meeting-runtime.spec.ts tests/recovery/recovery.spec.ts && CONVIVIUM_SMOKE_SCENARIO=completion-end node plugin/scripts/smoke-profile.mjs`。PASS assertions=`single-winner`,`single-termination`,`terminal-submit-rejected`,`terminal-end-rejected`，Restore同T2。
+验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/domain/completion.spec.ts tests/contract/meeting-runtime.spec.ts tests/recovery/recovery.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=completion-end pnpm --dir plugin smoke:profile`。PASS assertions=`single-winner`,`single-termination`,`terminal-submit-rejected`,`terminal-end-rejected`，Restore同T2。
 
 ### T6：只实现 risk-reopen 场景
 
 新增 `runRiskReopenScenario(ctx,fixture)`；本场景的 reopen 是同一 Host内通过新的 status/repository open，不重启 Host。create/status/plan=`600/601/602`；A submit issue `603` 标准 submit，`changes:{issues:[{title:"smoke risk",description:"smoke risk",affectedOutputIds:[],affectedCriterionIds:[<fixture.criterionId>],violatedConstraintIds:[],impact:"high",urgency:"now",safeDefaultAvailable:false}]}`；从 success DTO取得 messageId并从status取得唯一新增 issueId。Captain dispose `604` input `{protocolVersion:1,meetingId,expectedMeetingVersion:<status.meetingVersion>,requestId:"smoke-risk-dispose-1",issueId:<status新增issueId>,decision:"accept",reason:"smoke accepted risk",evidenceMessageIds:[<submit.result.messageId>]}`；重新读取status `605`；相同对象 replay `606`成功且receipt相同；仅把reason改为`different`的同requestId调用 `607` 必须 `IDEMPOTENCY_CONFLICT`。
 
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/domain/completion.spec.ts tests/contract/meeting-runtime.spec.ts tests/recovery/recovery.spec.ts && CONVIVIUM_SMOKE_SCENARIO=risk-reopen node plugin/scripts/smoke-profile.mjs`。PASS assertions=`risk-created`,`risk-accepted`,`reopen-preserved`,`replay-stable`,`conflict-rejected`，version/event不因read/replay增加，Restore同T2。
+验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/domain/completion.spec.ts tests/contract/meeting-runtime.spec.ts tests/recovery/recovery.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=risk-reopen pnpm --dir plugin smoke:profile`。PASS assertions=`risk-created`,`risk-accepted`,`reopen-preserved`,`replay-stable`,`conflict-rejected`，version/event不因read/replay增加，Restore同T2。
 
 ### T7：只实现 cold-rebind 场景
 
 新增 `runColdRebindScenario(ctx,fixture)`，唯一允许改外层 `main()`，严格执行§6.3.1。phase1 create/status/plan/A submit=`700/701/702/703`，再等待无running attempt、flush、写checkpoint。phase2先status `704`；Manager plan `705`，A submit `706`，全部ID来自phase2 status。不得同时实现archive或isolation prepare。
 
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/runtime/recovery.spec.ts tests/recovery/recovery.spec.ts tests/integration/dsh/session-adapter.spec.ts tests/unit/repository/session-ownership.spec.ts && CONVIVIUM_SMOKE_SCENARIO=cold-rebind node plugin/scripts/smoke-profile.mjs`。真实运行必须让 `validateColdCheckpoint` 同时处理完整checkpoint和外层在验证前构造的缺字段副本，前者返回、后者抛错；PASS assertions=`phase1-checkpoint-durable`,`host-pid-changed`,`exact-parent-rebound`,`transcript-prefix-preserved`,`cold-followup-submitted`，相同home/workspace/port，finally清除两Host与temp。任何rebind bug立即STOP，不改production。
+验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/runtime/recovery.spec.ts tests/recovery/recovery.spec.ts tests/integration/dsh/session-adapter.spec.ts tests/unit/repository/session-ownership.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile`。真实运行必须让 `validateColdCheckpoint` 同时处理完整checkpoint和外层在验证前构造的缺字段副本，前者返回、后者抛错；PASS assertions=`phase1-checkpoint-durable`,`host-pid-changed`,`exact-parent-rebound`,`transcript-prefix-preserved`,`cold-followup-submitted`，相同home/workspace/port，finally清除两Host与temp。任何rebind bug立即STOP，不改production。
 
 ### T8：只实现 archive-continuation 场景
 
 新增 `runArchiveContinuationScenario(ctx,fixture)`，单Host完成。create/status/plan/A submit=`800..803`；end `804` input `{protocolVersion:1,meetingId,expectedMeetingVersion:<status.meetingVersion>,outcome:"partial",reason:"smoke archive",acceptedDecisionIds:[],deferredAgendaItemIds:[],waivers:[],requestId:"smoke-archive-end-1"}`；等待archived status `805`。target create `806` 使用固定fixture加 `continuation:{sourceMeetingId,includeFinalSummary:true,decisionIds:[],unresolvedIssueIds:[],riskIds:[],evidenceIds:[],artifactIds:[]}`；target status `807`。
 
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/runtime/archive.spec.ts tests/unit/domain/transitions/archive.spec.ts tests/contract/continuation.spec.ts tests/recovery/recovery.spec.ts && CONVIVIUM_SMOKE_SCENARIO=archive-continuation node plugin/scripts/smoke-profile.mjs`。PASS assertions=`source-archived`,`source-sessions-drained`,`continuation-final-summary-only`,`target-identities-new`；source/target ID集合无交集，Restore同T2。
+验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/runtime/archive.spec.ts tests/unit/domain/transitions/archive.spec.ts tests/contract/continuation.spec.ts tests/recovery/recovery.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=archive-continuation pnpm --dir plugin smoke:profile`。PASS assertions=`source-archived`,`source-sessions-drained`,`continuation-final-summary-only`,`target-identities-new`；source/target ID集合无交集，Restore同T2。
 
 ### T9：只实现 mail-race 场景
 
 新增 `runMailRaceScenario(ctx,fixture)`。create/status/plan=`900..902`；A send `903` input `{protocolVersion:1,meetingId,expectedMeetingVersion:<status.meetingVersion>,requestId:"smoke-mail-send-1",recipient:{kind:"meeting_participant",meetingId,participantId:<fixture.participantBId>},content:"private-smoke-body",meetingContext:{meetingId,agendaItemId:<status.activeAgendaItem.id>,contextFromSeq:0,contextThroughSeq:<status.messages.at(-1)?.seq ?? 0>,relevantMessageIds:[],snapshotSummary:"smoke"}}`。mailId取success DTO；handlingAttemptId/deliveryId只取B收到的正式mail envelope。B finish `904` input `{protocolVersion:1,meetingId,mailId,handlingAttemptId,deliveryId,requestId:deliveryId,status:"processed"}`，在deadline前最后25ms发起；不直接调用timeout。等待250ms后status/只读SQLite。
 
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/runtime/meeting-mail-dispatch.spec.ts tests/contract/meeting-runtime.spec.ts tests/recovery/recovery.spec.ts && CONVIVIUM_SMOKE_SCENARIO=mail-race node plugin/scripts/smoke-profile.mjs`。PASS assertions=`single-mail-terminal`,`stable-delivery-ids`,`private-body-not-projected`,`recipient-queue-reusable`；winner仅`processed|timed_out`，双终态STOP，Restore同T2。
+验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/runtime/meeting-mail-dispatch.spec.ts tests/contract/meeting-runtime.spec.ts tests/recovery/recovery.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile`。PASS assertions=`single-mail-terminal`,`stable-delivery-ids`,`private-body-not-projected`,`recipient-queue-reusable`；winner仅`processed|timed_out`，双终态STOP，Restore同T2。
 
 ### T10：只实现 cross-meeting 场景
 
 新增 `runCrossMeetingScenario(ctx,fixture)`。依次create三个meeting indexes `1000/1010/1020`，team固定A/A/B；每场status、plan、A submit分别使用其十位段+1/+2/+3。随后只对第一场end `1004`，对象同T8但requestId `smoke-cross-end-a-1`；读取三场status `1005/1014/1024`。不得复用Session/participant/attempt对象。
 
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/repository/session-ownership.spec.ts tests/recovery/recovery.spec.ts tests/contract/meeting-runtime.spec.ts && CONVIVIUM_SMOKE_SCENARIO=cross-meeting node plugin/scripts/smoke-profile.mjs`。PASS assertions=`ownership-sets-disjoint`,`meeting-a-cleanup-isolated`,`meeting-b-submitted`,`team-b-submitted`；B/C version与capability未被A cleanup改变，Restore同T2。
+验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/repository/session-ownership.spec.ts tests/recovery/recovery.spec.ts tests/contract/meeting-runtime.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile`。PASS assertions=`ownership-sets-disjoint`,`meeting-a-cleanup-isolated`,`meeting-b-submitted`,`team-b-submitted`；B/C version与capability未被A cleanup改变，Restore同T2。
 
 ### T11：逐个重跑九个 selector
 
 允许修改：无。执行固定命令：
 
 ```bash
-for scenario in timeout reassign task-handraise completion-end risk-reopen cold-rebind archive-continuation mail-race cross-meeting; do CONVIVIUM_SMOKE_SCENARIO="$scenario" node plugin/scripts/smoke-profile.mjs || exit 1; done
+for scenario in timeout reassign task-handraise completion-end risk-reopen cold-rebind archive-continuation mail-race cross-meeting; do env CONVIVIUM_SMOKE_SCENARIO="$scenario" pnpm --dir plugin smoke:profile || exit 1; done
 ```
 
 每次首轮失败即STOP，不自动重试。PASS：九个result契约、SQLite/status/listChildren断言和各自Restore全部通过。
