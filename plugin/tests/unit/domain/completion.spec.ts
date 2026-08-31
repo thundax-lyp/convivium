@@ -43,6 +43,7 @@ function state(overrides: Partial<MeetingState> = {}): MeetingState {
         agendaCandidates: [],
         transcript: [],
         proposals: [],
+        decisionCandidates: [],
         decisions: [],
         openQuestions: [],
         handRaises: [],

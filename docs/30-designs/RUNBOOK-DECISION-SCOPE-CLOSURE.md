@@ -1,10 +1,10 @@
 # RUNBOOK A：最小 Decision acceptance 竖切
 
-状态：`Executable · T1 PASS · T2 in progress`
+状态：`Executable · T1-T2 PASS · T3 in progress`
 工作边界：只允许在执行者自己的 Convivium checkout 和独立任务分支中按 T1-T8 顺序执行
 建立日期：2026-08-31
 调查基线：`main@42a7bfb`
-模式：Execute（滚动收口）；T1 已完成并已提交，当前执行 T2
+模式：Execute（滚动收口）；T1-T2 已完成并已提交，当前执行 T3
 
 ## 1. 执行者契约
 
@@ -167,19 +167,6 @@ export function createMeetingDecisionApplication(
 | projection/archive | `projection/status.ts#projectMeetingStatus`；`runtime/services/meeting-archive-service.ts#materializeArchivePackage` |
 
 ## 6. 机械步骤
-
-### T2：model、Schema 与历史默认值
-
-前置状态：T1 PASS。
-允许修改：`plugin/src/domain/model.ts`、`plugin/src/domain/create.ts`、`plugin/src/repository/index.ts`、`plugin/src/protocol/types.ts`、`plugin/src/protocol/commands.ts`、`plugin/src/protocol/results.ts`、`plugin/src/protocol/index.ts`、`plugin/tests/unit/domain/transitions/fixtures.ts`、`plugin/tests/unit/domain/completion.spec.ts`、`plugin/tests/contract/status-projection.spec.ts`、`plugin/tests/recovery/recovery.spec.ts`、`plugin/tests/unit/runtime/archive.spec.ts`、`plugin/tests/contract/protocol-schema.spec.ts`、`plugin/tests/unit/repository.spec.ts`。
-禁止修改：transition、Runtime、Tool、projection/archive。
-执行：按 4.1 加 model/state/create；在本步允许的五个既有 `MeetingState` test fixture 中紧邻 `decisions` 增加 `decisionCandidates: []`；将未使用 `decision.added` event literal 替换为 `decision.accepted`；`normalizeMeetingState` 只在字段 `undefined` 时补 `[]`，非数组不静默修复；按 4.2 加 types/strict Schemas/exports；测试合法正例、缺/多字段、错误 version、空值和历史 state 默认值。不得新增 error code。
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/contract/protocol-schema.spec.ts tests/unit/repository.spec.ts
-pnpm --dir plugin typecheck
-```
-PASS：命令全 `0` 且正负例/恢复通过。STOP：需要 dependency/migration。Restore：删除本步 additions 并恢复 event literal。
 
 ### T3：submit candidate transition
 

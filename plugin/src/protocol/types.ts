@@ -568,6 +568,25 @@ export interface DecisionProposalClaimV1 {
     rationale: string;
 }
 
+export interface CaptainDecisionAcceptanceInputV1 {
+    protocolVersion: 1;
+    meetingId: string;
+    expectedMeetingVersion: number;
+    requestId: string;
+    decisionCandidateId: string;
+    reason: string;
+    evidenceMessageIds: readonly string[];
+}
+
+export interface CaptainDecisionAcceptanceResultV1 {
+    requestId: string;
+    decisionCandidateId: string;
+    decisionId: string;
+    proposalId: string;
+    proposalRevision: number;
+    completionFactId: string;
+}
+
 export interface AgendaCandidateClaimV1 {
     title: string;
     reason: string;

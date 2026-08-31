@@ -68,7 +68,7 @@ export const DomainEventTypes = [
     "meeting_task.completed",
     "meeting_task.failed",
     "meeting_task.cancelled",
-    "decision.added",
+    "decision.accepted",
     "archive.sessions_closed"
 ] as const;
 
@@ -324,6 +324,18 @@ export interface MeetingDecision {
     rationale?: string;
     acceptedBy?: readonly string[];
     dissentingPositionIds?: readonly string[];
+}
+
+export interface MeetingDecisionCandidate {
+    id: string;
+    proposalId: string;
+    proposalRevision: number;
+    statement: string;
+    rationale: string;
+    proposedBy: string;
+    sourceMessageId: string;
+    agendaItemId: string;
+    createdAt: number;
 }
 
 export interface MeetingQuestion {
@@ -644,6 +656,7 @@ export interface MeetingState {
     activeAgendaItemId?: string;
     transcript: MeetingMessage[];
     proposals: MeetingProposal[];
+    decisionCandidates: MeetingDecisionCandidate[];
     decisions: MeetingDecision[];
     openQuestions: MeetingQuestion[];
     handRaises: MeetingHandRaise[];

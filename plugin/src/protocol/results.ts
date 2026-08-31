@@ -62,6 +62,15 @@ export const CaptainRiskDispositionResultSchema = Schema.object({
     meetingStatus: meetingStatus
 });
 
+export const CaptainDecisionAcceptanceResultSchema = Schema.object({
+    requestId: string(),
+    decisionCandidateId: string(),
+    decisionId: string(),
+    proposalId: string(),
+    proposalRevision: number(),
+    completionFactId: string()
+});
+
 export const ReassignTurnResultSchema = Schema.object({
     revokedAttemptId: string(),
     replacementAttemptId: Schema.string(),
