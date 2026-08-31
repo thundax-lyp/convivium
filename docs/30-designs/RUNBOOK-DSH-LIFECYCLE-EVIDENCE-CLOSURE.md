@@ -354,23 +354,7 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 
 T1 已 PASS（baseline、selector/result contract、Restore）；当前从 T2 开始执行。
 
-T2 已 PASS（真实 timeout/revoke/interrupt/drain/next-speaker oracle 与 Restore）；当前从 T3 开始执行。
-
-### T3：只实现 reassign 场景
-
-前置状态：T2 PASS。允许修改仅同一脚本；禁止修改 timeout函数。
-
-执行：新增 `runReassignScenario(ctx,fixture)`。create/status/plan indexes `300/301/302`，plan只有 A。Captain reassign `303` input 固定 `{protocolVersion:1,meetingId,expectedMeetingVersion:<status.meetingVersion>,currentAttemptId:<status.currentAttempt.id>,action:"reassign",replacementParticipantId:<fixture.participantBId>,reason:"smoke reassign",requestId:"smoke-reassign-1"}`；返回必须含 `revokedAttemptId===oldAttemptId` 和非空不同 `replacementAttemptId`。随后 status `304` 取得 B 新 attempt，B submit `305` 使用与 T2 相同完整 submit结构，content改为 `reassign:b:1`。
-
-验证：
-
-```bash
-node --check plugin/scripts/smoke-profile.mjs
-pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts tests/unit/domain/transitions/speaker-attempt.spec.ts tests/unit/dsh/session-adapter.spec.ts
-env CONVIVIUM_SMOKE_SCENARIO=reassign pnpm --dir plugin smoke:profile
-```
-
-PASS：assertions=`old-attempt-revoked`,`old-activation-drained`,`replacement-attempt-created`,`replacement-submitted`；ownership未交换、仅B新增消息、Restore全清。STOP/恢复同T2。
+T2 已 PASS（真实 timeout/revoke/interrupt/drain/next-speaker oracle 与 Restore）；当前从 T4 开始执行。
 
 ### T4：只实现 task-handraise 场景
 

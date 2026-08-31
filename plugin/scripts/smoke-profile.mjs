@@ -216,6 +216,7 @@ let meetingId;
 let nextCall = 1000;
 const drivingAgents = new Set();
 const observedAgents = new Map();
+const observedInboxMessages = new Map();
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -300,7 +301,7 @@ async function waitForObservedParticipant(ctx, meetingId, participantKey) {
     while (Date.now() < deadline) {
         for (const agent of observedAgents.values()) {
             const id = String(agent.id);
-            if (id.includes(meetingId) && id.includes("participant-" + participantKey)) return agent;
+            if (id.includes(meetingId) && id.includes("participant-" + participantKey) && ctx.agents.get(agent.id) === agent) return agent;
         }
         await new Promise((resolveWait) => setTimeout(resolveWait, 100));
     }
@@ -362,6 +363,7 @@ async function driveParticipant(ctx, agent) {
     const participantId = "participant-" + String(agent.id).split("-").at(-1);
     const index = participants.indexOf(participantId);
     if (index < 0) return;
+    if (scenario === "reassign") return;
     if (scenario === "timeout" && participantId === "participant-a") return;
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
@@ -413,7 +415,7 @@ function scheduleParticipant(ctx, agent) {
 
 async function run(ctx) {
     if (!outputPath) return;
-    if (scenario !== "baseline" && scenario !== "timeout") {
+    if (scenario !== "baseline" && scenario !== "timeout" && scenario !== "reassign") {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -422,6 +424,87 @@ async function run(ctx) {
             ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
             : undefined;
         captain = createSmokeAgent(ctx, "convivium-smoke-captain");
+        if (scenario === "reassign") {
+            const reassignInput = createInput();
+            reassignInput.agenda[0].requiredParticipantKeys = ["a"];
+            const created = await callTool(ctx, captain.agent, "convivium_create_meeting", reassignInput, 300);
+            const meetingId = created.result.meetingId;
+            const manager = await waitForAgent(ctx, meetingId + "-manager-manager");
+            await waitForObservedParticipant(ctx, meetingId, "a");
+            const planned = await callTool(ctx, manager, "convivium_submit_manager_plan", {
+                protocolVersion: 1,
+                meetingId,
+                planningAttemptId: meetingId + "-planning-1",
+                observedMeetingVersion: created.meetingVersion,
+                requestId: "smoke-reassign-plan-1",
+                agendaItemId: "agenda-agenda-1",
+                intent: "explore",
+                objective: "Reassign A to B",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                steps: [{ participantId: "participant-a", instruction: "A", reason: "manager_selected" }]
+            }, 301);
+            const before = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 302);
+            const oldAttemptId = before.result.currentTurn?.steps?.[0]?.attemptId ?? before.result.currentAttemptId;
+            const oldAgent = await waitForObservedParticipant(ctx, meetingId, "a");
+            const oldChildId = oldAgent.id;
+            const replacementParticipantId = created.result.participants.find((p) => p.participantKey === "b")?.participantId;
+            assert(oldAttemptId && replacementParticipantId, "reassign identifiers missing");
+            const reassigned = await callTool(ctx, captain.agent, "convivium_reassign_turn", {
+                protocolVersion: 1,
+                meetingId,
+                expectedMeetingVersion: before.meetingVersion,
+                currentAttemptId: oldAttemptId,
+                action: "reassign",
+                replacementParticipantId,
+                reason: "smoke reassign",
+                requestId: "smoke-reassign-1"
+            }, 303);
+            assert(reassigned.result.revokedAttemptId === oldAttemptId, "reassign revoked attempt mismatch");
+            assert(typeof reassigned.result.replacementAttemptId === "string" && reassigned.result.replacementAttemptId !== oldAttemptId, "replacement attempt invalid: " + JSON.stringify(reassigned.result));
+            const drainDeadline = Date.now() + 30000;
+            while (ctx.agents.get(oldChildId) !== undefined && Date.now() < drainDeadline) await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+            assert(ctx.agents.get(oldChildId) === undefined, "reassigned old activation still resident");
+            const after = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 304);
+            assert(after.result.currentSpeakerId === "participant-b", "replacement speaker is not participant-b");
+            assert(after.result.currentAttemptId === reassigned.result.replacementAttemptId, "replacement attempt is not current");
+            const replacement = await waitForObservedParticipant(ctx, meetingId, "b");
+            assert(ctx.agents.get(replacement.id) === replacement, "replacement Agent is not live in store");
+            const envelopeDeadline = Date.now() + 30000;
+            let envelope;
+            while (Date.now() < envelopeDeadline && envelope === undefined) {
+                for (const message of [...(replacement.inbox.nextTurn ?? []), ...(replacement.inbox.nextStep ?? []), ...(observedInboxMessages.get(String(replacement.id)) ?? [])]) {
+                    const text = Array.isArray(message.content) ? message.content.find((part) => part.type === "text")?.text : message.content;
+                    const marker = typeof text === "string" ? text.indexOf("speaker context: ") : -1;
+                    if (marker >= 0) {
+                        try { envelope = JSON.parse(text.slice(marker + "speaker context: ".length)); } catch {}
+                    }
+                }
+                if (envelope === undefined) await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+            }
+            assert(envelope?.meetingId === meetingId && envelope.step?.participantId === replacementParticipantId && envelope.attempt?.attemptId === reassigned.result.replacementAttemptId, "replacement speaker context missing or mismatched: " + JSON.stringify({ meetingId: envelope?.meetingId, turn: envelope?.turn?.id, step: envelope?.step?.id, participantId: envelope?.step?.participantId, attemptId: envelope?.attempt?.attemptId, deliveryId: envelope?.attempt?.deliveryId, agendaItemId: envelope?.activeAgendaItem?.id }));
+            assert(typeof envelope.turn?.id === "string" && typeof envelope.step?.id === "string" && typeof envelope.attempt?.attemptId === "string" && typeof envelope.attempt?.deliveryId === "string" && typeof envelope.activeAgendaItem?.id === "string", "replacement speaker context fields incomplete");
+            const submittedAt = Date.now();
+            const submitted = await callTool(ctx, replacement, "convivium_submit_turn", {
+                protocolVersion: 1,
+                meetingId,
+                turnId: envelope.turn.id,
+                stepId: envelope.step.id,
+                attemptId: envelope.attempt.attemptId,
+                deliveryId: envelope.attempt.deliveryId,
+                agendaItemId: envelope.activeAgendaItem.id,
+                kind: "statement",
+                content: "reassign:b:1",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic",
+                changes: {}
+            }, 305);
+            const finalStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 306);
+            assert(finalStatus.result.messages.length === 1 && finalStatus.result.messages[0].content === "reassign:b:1", "reassign transcript mismatch");
+            await writeResult({ ok: true, scenario, meetingId, observed: { oldAttemptId, revokedAttemptId: reassigned.result.revokedAttemptId, replacementAttemptId: reassigned.result.replacementAttemptId, oldChildId, oldAgentResidentAfterReassign: ctx.agents.get(oldChildId) !== undefined, currentSpeakerId: after.result.currentSpeakerId, currentAttemptId: after.result.currentAttemptId, submittedMessageId: submitted.result.messageId, submittedAt, transcript: finalStatus.result.messages } });
+            return;
+        }
         if (browserMode) {
             captain.agent.session.append("user/message", {
                 id: "convivium-smoke-browser-message",
@@ -601,14 +684,15 @@ export function apply(ctx) {
         observedAgents.set(String(agent.id), agent);
         if (String(agent.id).includes("-participant-")) {
             agent.ctx.on("agent/status", () => scheduleParticipant(ctx, agent));
-            agent.ctx.on("agent/inbox/inserted", () => scheduleParticipant(ctx, agent));
+            agent.ctx.on("agent/inbox/inserted", ({ message }) => { const list = observedInboxMessages.get(String(agent.id)) ?? []; list.push(message); observedInboxMessages.set(String(agent.id), list); scheduleParticipant(ctx, agent); });
             scheduleParticipant(ctx, agent);
         }
     });
     ctx.on("agent/status", ({ agent }) => {
         if (String(agent.id).includes("-participant-")) scheduleParticipant(ctx, agent);
     });
-    ctx.on("agent/inbox/inserted", ({ agent }) => {
+    ctx.on("agent/inbox/inserted", ({ agent, message }) => {
+        if (message) { const list = observedInboxMessages.get(String(agent.id)) ?? []; list.push(message); observedInboxMessages.set(String(agent.id), list); }
         if (String(agent.id).includes("-participant-")) scheduleParticipant(ctx, agent);
     });
     ctx.effect(() => {
