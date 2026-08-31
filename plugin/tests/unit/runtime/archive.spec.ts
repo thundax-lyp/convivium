@@ -208,6 +208,7 @@ describe("beginArchiveFromTermination", () => {
         agendaCandidates: [],
         transcript: [],
         proposals: [],
+        decisionCandidates: [],
         decisions: [],
         openQuestions: [],
         handRaises: [],

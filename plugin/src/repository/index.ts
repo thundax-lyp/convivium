@@ -375,10 +375,14 @@ function parseObject(value: string): JsonObject {
 }
 
 function normalizeMeetingState(state: JsonObject): JsonObject {
-    if (Array.isArray(state.handRaises) && state.meetingTasks === undefined) {
-        return { ...state, meetingTasks: [] };
+    let normalized = state;
+    if (state.decisionCandidates === undefined) {
+        normalized = { ...normalized, decisionCandidates: [] };
     }
-    return state;
+    if (Array.isArray(state.handRaises) && state.meetingTasks === undefined) {
+        normalized = { ...normalized, meetingTasks: [] };
+    }
+    return normalized;
 }
 
 function toSnapshot(row: MeetingRow): MeetingSnapshot {

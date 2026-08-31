@@ -125,6 +125,7 @@ describe("recovery controls", () => {
             agendaCandidates: [],
             transcript: [],
             proposals: [],
+            decisionCandidates: [],
             decisions: [],
             openQuestions: [],
             handRaises: [],

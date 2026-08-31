@@ -26,8 +26,20 @@ export interface SubmitSpeakerAdvanceContext extends SpeakerSubmissionContext {
     proposals?: readonly SubmittedProposalInput[];
     positions?: readonly SubmittedPositionInput[];
     agendaCandidates?: readonly SubmittedAgendaCandidateInput[];
+    decisionCandidates?: readonly SubmittedDecisionCandidateInput[];
     questions: readonly SubmittedQuestionInput[];
     completion?: Omit<ApplyCompletionClaimsContext, "participantId" | "now">;
+}
+
+export interface SubmittedDecisionCandidateInput {
+    id: string;
+    proposalId: string;
+    proposalRevision: number;
+    statement: string;
+    rationale: string;
+    sourceMessageId: string;
+    agendaItemId: string;
+    createdAt: number;
 }
 
 export interface SubmittedAgendaCandidateInput {

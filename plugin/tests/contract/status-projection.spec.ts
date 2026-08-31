@@ -17,6 +17,7 @@ const state = {
     transcript: [],
     openQuestions: [],
     proposals: [],
+    decisionCandidates: [],
     decisions: [],
     issues: [],
     handRaises: [],

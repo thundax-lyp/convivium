@@ -13,6 +13,11 @@ export { reassignTurn, type ReassignTurnContext } from "./reassign-turn.js";
 export { addSubmittedQuestions } from "./question.js";
 export { addSubmittedIssues } from "./issue.js";
 export { addSubmittedAgendaCandidates } from "./agenda-candidate.js";
+export { addSubmittedDecisionCandidates } from "./decision-candidate.js";
+export {
+    acceptDecisionCandidate,
+    type AcceptDecisionCandidateContext
+} from "./decision-acceptance.js";
 export { applySubmittedProposalPositionClaims } from "./proposal-position.js";
 export { submitSpeakerAndAdvanceMeeting } from "./speaker-submission.js";
 export type {

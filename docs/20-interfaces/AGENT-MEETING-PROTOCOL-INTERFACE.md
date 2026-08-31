@@ -1190,6 +1190,10 @@ interface EndMeetingResultV1 {
 
 ### Command result mapping
 
+#### `convivium_accept_decision`
+
+Captain-only acceptance of an internal `MeetingDecisionCandidate` uses `CaptainDecisionAcceptanceInputV1` with `protocolVersion: 1`, `meetingId`, `expectedMeetingVersion`, `requestId`, `decisionCandidateId`, `reason`, and `evidenceMessageIds`. Success returns `CaptainDecisionAcceptanceResultV1` containing `requestId`, `decisionCandidateId`, `decisionId`, `proposalId`, `proposalRevision`, and `completionFactId`. The candidate is internal MeetingState data and is never a public projection. Acceptance requires the candidate's current proposal revision, one `support`/`accept` Position, no blocking `object`/`needs_revision`, and Meeting-owned evidence messages. It atomically writes the accepted Decision, accepted Proposal status, decision-acceptance CompletionFact, one `decision.accepted` event, receipt, and `outbox=[]`; version increases by one. Replay returns the original receipt. Version conflict, idempotency conflict, unauthorized Captain, invalid/stale candidate, blocking Position, invalid evidence, and terminal Meeting have zero side effects.
+
 | Command                         | `ProtocolSuccessV1<T>.result`    |
 | ------------------------------- | -------------------------------- |
 | `convivium_create_meeting`      | `CreateMeetingResultV1`          |

@@ -5,6 +5,7 @@ import type { MeetingState, TransitionResult } from "../model.js";
 import { addSubmittedQuestions } from "./question.js";
 import { addSubmittedIssues } from "./issue.js";
 import { addSubmittedAgendaCandidates } from "./agenda-candidate.js";
+import { addSubmittedDecisionCandidates } from "./decision-candidate.js";
 import { applySubmittedProposalPositionClaims } from "./proposal-position.js";
 import { submitSpeakerAttempt } from "./speaker-attempt.js";
 import { advanceAfterSpeakerSubmission } from "./turn-advancement.js";
@@ -54,6 +55,16 @@ export function submitSpeakerAndAdvanceMeeting(
               agendaCandidates
           )
         : { state: proposalPositionSubmission.state, effect: { events: [] } };
+    const decisionCandidates = context.decisionCandidates ?? [];
+    const decisionCandidateSubmission = decisionCandidates.length
+        ? addSubmittedDecisionCandidates(
+              agendaCandidateSubmission.state,
+              participantId,
+              context.agendaItemId,
+              context.message.id,
+              decisionCandidates
+          )
+        : agendaCandidateSubmission;
     const omittedTask = (speakerSubmission.state.meetingTasks ?? []).find(
         (task) =>
             task.status === "requested" &&
@@ -88,7 +99,7 @@ export function submitSpeakerAndAdvanceMeeting(
                   events: [...submissionEvents, ...completion.effect.events]
               }
           }
-        : { state: agendaCandidateSubmission.state, effect: { events: submissionEvents } };
+        : { state: decisionCandidateSubmission.state, effect: { events: submissionEvents } };
     const requestedTaskIds = context.message.taskIds.filter((meetingTaskId) =>
         completedSubmission.state.meetingTasks.some(
             (task) =>
