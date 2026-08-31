@@ -252,14 +252,24 @@ export function projectMeetingStatus(
                 acceptedBy: decision.acceptedBy!,
                 dissentingPositionIds: decision.dissentingPositionIds!
             })),
-        blockingFacts: state.issues
-            .filter((issue) => issue.blocking)
-            .map((issue) => ({
-                id: issue.id,
-                kind: "issue" as const,
-                subjectId: issue.id,
-                summary: issue.title
-            })),
+        blockingFacts: [
+            ...state.issues
+                .filter((issue) => issue.blocking)
+                .map((issue) => ({
+                    id: issue.id,
+                    kind: "issue" as const,
+                    subjectId: issue.id,
+                    summary: issue.title
+                })),
+            ...state.openQuestions
+                .filter((question) => question.blocking && question.status === "open")
+                .map((question) => ({
+                    id: question.id,
+                    kind: "question" as const,
+                    subjectId: question.id,
+                    summary: question.text
+                }))
+        ],
         meetingTasks: state.meetingTasks.map(meetingTask)
     };
 

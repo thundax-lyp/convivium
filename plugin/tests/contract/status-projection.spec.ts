@@ -137,6 +137,35 @@ describe("meeting status projection", () => {
         expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
 
+    it("projects open blocking Questions for Manager planning", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                openQuestions: [
+                    {
+                        id: "question-blocking",
+                        text: "Required output needs evidence",
+                        askedBy: "participant-1",
+                        agendaItemId: "agenda-1",
+                        blocking: true,
+                        affectedOutputIds: ["output-1"],
+                        affectedCriterionIds: [],
+                        violatedConstraintIds: [],
+                        status: "open",
+                        createdAt: 1
+                    }
+                ]
+            } as MeetingState,
+            { kind: "manager", sessionId: "manager-1" }
+        );
+        expect(projected.blockingFacts).toContainEqual({
+            id: "question-blocking",
+            kind: "question",
+            subjectId: "question-blocking",
+            summary: "Required output needs evidence"
+        });
+    });
+
     it("keeps pause available while an active meeting is waiting", () => {
         const projected = projectMeetingStatus({ ...state, status: "waiting" } as MeetingState, {
             kind: "captain",
