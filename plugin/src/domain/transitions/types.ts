@@ -25,8 +25,19 @@ export interface SubmitSpeakerAdvanceContext extends SpeakerSubmissionContext {
     issues?: readonly SubmittedIssueInput[];
     proposals?: readonly SubmittedProposalInput[];
     positions?: readonly SubmittedPositionInput[];
+    agendaCandidates?: readonly SubmittedAgendaCandidateInput[];
     questions: readonly SubmittedQuestionInput[];
     completion?: Omit<ApplyCompletionClaimsContext, "participantId" | "now">;
+}
+
+export interface SubmittedAgendaCandidateInput {
+    id: string;
+    title: string;
+    reason: string;
+    relationToActiveAgenda: "related" | "adjacent" | "unrelated";
+    urgency: "now" | "before_release" | "later";
+    suggestedParticipants: readonly string[];
+    now: number;
 }
 
 export interface SubmittedProposalInput {

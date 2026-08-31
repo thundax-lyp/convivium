@@ -103,6 +103,32 @@ describe("materializeArchivePackage", () => {
         source.proposals[0]!.positions[0]!.position = "object";
         expect(archive.proposals[0]?.positions[0]?.position).toBe("accept");
     });
+
+    it("includes agenda candidate facts in the archive parking lot projection", () => {
+        const source = structuredClone(state);
+        source.agendaCandidates = [
+            {
+                id: "candidate-2",
+                proposedBy: "participant-1",
+                sourceMessageId: "message-1",
+                title: "Follow-up",
+                reason: "Separate discussion",
+                relationToActiveAgenda: "adjacent",
+                urgency: "later",
+                suggestedParticipants: ["participant-1"],
+                status: "pending",
+                createdAt: 1
+            }
+        ];
+        expect(materializeArchivePackage(source, 20).parkingLot).toEqual([
+            {
+                id: "candidate-2",
+                title: "Follow-up",
+                reason: "Separate discussion",
+                status: "pending"
+            }
+        ]);
+    });
 });
 
 describe("beginArchiveFromTermination", () => {

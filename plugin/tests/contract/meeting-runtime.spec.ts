@@ -121,6 +121,15 @@ describe("create/status meeting runtime", () => {
                         position: "accept" as const,
                         blocking: false
                     }
+                ],
+                agendaCandidates: [
+                    {
+                        title: "Follow-up",
+                        reason: "Separate discussion",
+                        relationToActiveAgenda: "adjacent" as const,
+                        urgency: "later" as const,
+                        suggestedParticipants: ["participant-one"]
+                    }
                 ]
             }
         };

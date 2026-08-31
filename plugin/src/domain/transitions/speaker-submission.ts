@@ -4,6 +4,7 @@ import { queueMeetingTasks } from "../meeting-task.js";
 import type { MeetingState, TransitionResult } from "../model.js";
 import { addSubmittedQuestions } from "./question.js";
 import { addSubmittedIssues } from "./issue.js";
+import { addSubmittedAgendaCandidates } from "./agenda-candidate.js";
 import { applySubmittedProposalPositionClaims } from "./proposal-position.js";
 import { submitSpeakerAttempt } from "./speaker-attempt.js";
 import { advanceAfterSpeakerSubmission } from "./turn-advancement.js";
@@ -34,6 +35,7 @@ export function submitSpeakerAndAdvanceMeeting(
             : { state: questionSubmission.state, effect: { events: [] } };
     const proposals = context.proposals ?? [];
     const positions = context.positions ?? [];
+    const agendaCandidates = context.agendaCandidates ?? [];
     const proposalPositionSubmission =
         proposals.length || positions.length
             ? applySubmittedProposalPositionClaims(
@@ -44,6 +46,14 @@ export function submitSpeakerAndAdvanceMeeting(
                   positions
               )
             : { state: issueSubmission.state, effect: { events: [] } };
+    const agendaCandidateSubmission = agendaCandidates.length
+        ? addSubmittedAgendaCandidates(
+              proposalPositionSubmission.state,
+              participantId,
+              context.message.id,
+              agendaCandidates
+          )
+        : { state: proposalPositionSubmission.state, effect: { events: [] } };
     const omittedTask = (speakerSubmission.state.meetingTasks ?? []).find(
         (task) =>
             task.status === "requested" &&
@@ -58,7 +68,7 @@ export function submitSpeakerAndAdvanceMeeting(
         );
     }
     const completion = context.completion
-        ? applyCompletionClaims(proposalPositionSubmission.state, {
+        ? applyCompletionClaims(agendaCandidateSubmission.state, {
               ...context.completion,
               participantId,
               now: context.now
@@ -68,7 +78,8 @@ export function submitSpeakerAndAdvanceMeeting(
         ...speakerSubmission.effect.events,
         ...questionSubmission.effect.events,
         ...issueSubmission.effect.events,
-        ...proposalPositionSubmission.effect.events
+        ...proposalPositionSubmission.effect.events,
+        ...agendaCandidateSubmission.effect.events
     ];
     const completedSubmission = completion
         ? {
@@ -77,7 +88,7 @@ export function submitSpeakerAndAdvanceMeeting(
                   events: [...submissionEvents, ...completion.effect.events]
               }
           }
-        : { state: proposalPositionSubmission.state, effect: { events: submissionEvents } };
+        : { state: agendaCandidateSubmission.state, effect: { events: submissionEvents } };
     const requestedTaskIds = context.message.taskIds.filter((meetingTaskId) =>
         completedSubmission.state.meetingTasks.some(
             (task) =>

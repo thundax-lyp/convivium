@@ -53,6 +53,7 @@ export const DomainEventTypes = [
     "manager_plan.revoked",
     "manager_plan.failed",
     "message.added",
+    "agenda_candidate.added",
     "proposal.added",
     "proposal.revised",
     "position.added",

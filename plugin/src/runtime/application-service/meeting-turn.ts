@@ -290,6 +290,17 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     blocking: claim.blocking,
                     now: commandNow
                 }));
+                const agendaCandidates = (input.changes.agendaCandidates ?? []).map(
+                    (claim, index) => ({
+                        id: `${input.deliveryId}-agenda-candidate-${index + 1}`,
+                        title: claim.title,
+                        reason: claim.reason,
+                        relationToActiveAgenda: claim.relationToActiveAgenda,
+                        urgency: claim.urgency,
+                        suggestedParticipants: claim.suggestedParticipants,
+                        now: commandNow
+                    })
+                );
                 try {
                     const current = await stored.repository.read();
                     const committed = await stored.repository.execute({
@@ -353,6 +364,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                                     questions,
                                     proposals,
                                     positions,
+                                    agendaCandidates,
                                     ...(input.completionClaims === undefined
                                         ? {}
                                         : {
