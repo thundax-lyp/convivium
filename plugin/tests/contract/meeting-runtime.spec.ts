@@ -840,6 +840,173 @@ describe("create/status meeting runtime", () => {
         await runtime.dispose();
     });
 
+    it("binds loopback skip to the fixed local source and preserves replay and stale gates", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-local-skip-"));
+        roots.push(root);
+        const runtime = localRuntime(root);
+        const captain = {
+            sessionId: "captain-local-skip",
+            kind: "captain" as const,
+            agent: { id: "captain-local-skip" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one", "two"] }],
+                participants: [input.participants[0]!, input.participants[1]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const request = {
+            protocolVersion: 1 as const,
+            meetingId: created.result.meetingId,
+            expectedMeetingVersion: created.meetingVersion,
+            currentAttemptId: "attempt-0",
+            action: "skip" as const,
+            reason: "Local user skipped the current speaker.",
+            requestId: "local-skip-1"
+        };
+        const skipped = await runtime.reassignLocalTurn(request);
+        expect(skipped).toMatchObject({
+            ok: true,
+            meetingVersion: created.meetingVersion + 1,
+            result: { action: "skip", revokedAttemptId: "attempt-0" }
+        });
+        await expect(runtime.reassignLocalTurn(request)).resolves.toEqual(skipped);
+        await expect(
+            runtime.reassignLocalTurn({ ...request, reason: "different hash" })
+        ).resolves.toMatchObject({ ok: false, code: "IDEMPOTENCY_CONFLICT" });
+        await expect(
+            runtime.reassignLocalTurn({
+                ...request,
+                expectedMeetingVersion: created.meetingVersion + 1,
+                requestId: "local-skip-stale",
+                currentAttemptId: "attempt-0"
+            })
+        ).resolves.toMatchObject({ ok: false, code: "STALE_ATTEMPT" });
+        await runtime.dispose();
+    });
+
+    it("fails local End before committing when archive cleanup capability is unavailable", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-local-end-preflight-"));
+        roots.push(root);
+        const runtime = localRuntime(root);
+        const captain = {
+            sessionId: "captain-local-end-preflight",
+            kind: "captain" as const,
+            agent: { id: "captain-local-end-preflight" } as never
+        };
+        const created = await runtime.createMeeting(input, captain, new AbortController().signal);
+        if (!created.ok) throw new Error("create failed");
+        await expect(
+            runtime.endLocalMeeting({
+                protocolVersion: 1,
+                meetingId: created.result.meetingId,
+                expectedMeetingVersion: created.meetingVersion,
+                outcome: "cancelled",
+                reason: "Local user cancelled the meeting.",
+                acceptedDecisionIds: [],
+                deferredAgendaItemIds: [],
+                waivers: [],
+                requestId: "local-end-preflight-1"
+            })
+        ).rejects.toBeInstanceOf(LocalMeetingRecoveryUnavailableError);
+        await expect(
+            runtime.getLocalMeetingStatus({
+                protocolVersion: 1,
+                meetingId: created.result.meetingId
+            })
+        ).resolves.toMatchObject({
+            ok: true,
+            meetingVersion: created.meetingVersion,
+            result: { status: "running" }
+        });
+        await runtime.dispose();
+    });
+
+    it("archives a local End and recovers from post-commit cleanup failure", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-local-end-archive-"));
+        roots.push(root);
+        const children: Array<{ id: string; label: string }> = [];
+        const interrupted: string[] = [];
+        const drained: string[][] = [];
+        let failDrain = true;
+        const runtime = createCreateStatusRuntime({
+            dataRoot: root,
+            provider: "spawn",
+            continuable: {
+                startContinuable: async (spec) => {
+                    children.push({ id: String(spec.childId), label: spec.label });
+                    return {
+                        childId: spec.childId!,
+                        messageId: `initial-${String(spec.childId)}` as never
+                    };
+                },
+                followup: async () => "followup-message" as never,
+                listChildren: async () =>
+                    children.map((child) => ({
+                        kind: "child" as const,
+                        id: child.id as never,
+                        activity: "inactive" as const,
+                        hasChildren: false,
+                        mode: "continuable" as const,
+                        label: child.label
+                    })),
+                interrupt: (childId) => interrupted.push(String(childId)),
+                drainContinuableChildren: async (_parent, childIds) => {
+                    drained.push(childIds.map(String));
+                    if (failDrain) {
+                        failDrain = false;
+                        throw new Error("cleanup failed after termination commit");
+                    }
+                }
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => 100
+        });
+        const captain = {
+            sessionId: "captain-local-end-archive",
+            kind: "captain" as const,
+            agent: { id: "captain-local-end-archive" } as never
+        };
+        const created = await runtime.createMeeting(input, captain, new AbortController().signal);
+        if (!created.ok) throw new Error("create failed");
+        const ended = await runtime.endLocalMeeting({
+            protocolVersion: 1,
+            meetingId: created.result.meetingId,
+            expectedMeetingVersion: created.meetingVersion,
+            outcome: "cancelled",
+            reason: "Local user cancelled the meeting.",
+            acceptedDecisionIds: [],
+            deferredAgendaItemIds: [],
+            waivers: [],
+            requestId: "local-end-archive-1"
+        });
+        expect(ended).toMatchObject({ ok: true, result: { status: "cancelled" } });
+        await expect(
+            runtime.getLocalMeetingStatus({
+                protocolVersion: 1,
+                meetingId: created.result.meetingId
+            })
+        ).resolves.toMatchObject({ ok: true, result: { status: "archiving" } });
+        await expect(
+            runtime.getStatus({ protocolVersion: 1, meetingId: created.result.meetingId }, captain)
+        ).resolves.toMatchObject({ ok: true, result: { status: "archived" } });
+        expect(interrupted).toEqual(
+            expect.arrayContaining([
+                `${created.result.meetingId}-manager-manager`,
+                `${created.result.meetingId}-participant-participant-one`
+            ])
+        );
+        expect(drained).toHaveLength(2);
+        await runtime.dispose();
+    });
+
     it("delivers the MeetingTask execution and request bindings", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-task-envelope-"));
         roots.push(root);

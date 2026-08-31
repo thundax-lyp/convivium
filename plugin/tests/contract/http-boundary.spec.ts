@@ -52,6 +52,12 @@ function runtime() {
         ),
         resumeLocalMeeting: vi.fn(async () =>
             success({ status: "running" as const, changed: true }, 4)
+        ),
+        reassignLocalTurn: vi.fn(async () =>
+            success({ revokedAttemptId: "attempt-1", action: "skip" as const }, 5)
+        ),
+        endLocalMeeting: vi.fn(async () =>
+            success({ status: "cancelled" as const, terminationCode: "user_cancelled" }, 6)
         )
     };
 }
@@ -113,8 +119,36 @@ function pauseBody(overrides: Record<string, unknown> = {}) {
     });
 }
 
+function skipBody(overrides: Record<string, unknown> = {}) {
+    return JSON.stringify({
+        protocolVersion: 1,
+        meetingId,
+        expectedMeetingVersion: 2,
+        currentAttemptId: "attempt-1",
+        action: "skip",
+        reason: "local skip",
+        requestId: "skip-1",
+        ...overrides
+    });
+}
+
+function endBody(overrides: Record<string, unknown> = {}) {
+    return JSON.stringify({
+        protocolVersion: 1,
+        meetingId,
+        expectedMeetingVersion: 2,
+        outcome: "cancelled",
+        reason: "local end",
+        acceptedDecisionIds: [],
+        deferredAgendaItemIds: [],
+        waivers: [],
+        requestId: "end-1",
+        ...overrides
+    });
+}
+
 describe("local Meeting HTTP boundary", () => {
-    it("registers one prefix and serves all four successful routes", async () => {
+    it("registers one prefix and serves all six successful routes", async () => {
         const { handler, runtime } = registeredHandler();
         const list = await invoke(handler, "GET", "/api/convivium/meetings");
         const status = await invoke(handler, "GET", `/api/convivium/meetings/${meetingId}`);
@@ -136,8 +170,18 @@ describe("local Meeting HTTP boundary", () => {
                 contentType: "application/json"
             }
         );
+        const reassign = await invoke(
+            handler,
+            "POST",
+            `/api/convivium/meetings/${meetingId}/reassign`,
+            { body: skipBody(), contentType: "application/json" }
+        );
+        const end = await invoke(handler, "POST", `/api/convivium/meetings/${meetingId}/end`, {
+            body: endBody(),
+            contentType: "application/json"
+        });
 
-        for (const response of [list, status, pause, resume]) {
+        for (const response of [list, status, pause, resume, reassign, end]) {
             expect(response.status).toBe(200);
             expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
         }
@@ -145,12 +189,50 @@ describe("local Meeting HTTP boundary", () => {
         expect(status.json).toMatchObject({ result: { status: "running" } });
         expect(pause.json).toMatchObject({ result: { status: "paused" } });
         expect(resume.json).toMatchObject({ result: { status: "running" } });
+        expect(reassign.json).toMatchObject({ result: { action: "skip" } });
+        expect(end.json).toMatchObject({ result: { status: "cancelled" } });
         expect(runtime.pauseLocalMeeting).toHaveBeenCalledWith(JSON.parse(pauseBody()));
+        expect(runtime.reassignLocalTurn).toHaveBeenCalledWith(JSON.parse(skipBody()));
+        expect(runtime.endLocalMeeting).toHaveBeenCalledWith(JSON.parse(endBody()));
+    });
+
+    it("accepts only the formal reassign replacement shape", async () => {
+        const { handler, runtime } = registeredHandler();
+        const replacement = JSON.stringify({
+            protocolVersion: 1,
+            meetingId,
+            expectedMeetingVersion: 2,
+            currentAttemptId: "attempt-1",
+            action: "reassign",
+            replacementParticipantId: "participant-2",
+            reason: "local reassign",
+            requestId: "reassign-1"
+        });
+        const successResponse = await invoke(
+            handler,
+            "POST",
+            `/api/convivium/meetings/${meetingId}/reassign`,
+            { body: replacement, contentType: "application/json" }
+        );
+        expect(successResponse.status).toBe(200);
+        expect(runtime.reassignLocalTurn).toHaveBeenCalledWith(JSON.parse(replacement));
+
+        const invalid = await invoke(
+            handler,
+            "POST",
+            `/api/convivium/meetings/${meetingId}/reassign`,
+            {
+                body: skipBody({ replacementParticipantId: "participant-2" }),
+                contentType: "application/json"
+            }
+        );
+        expect(invalid.json).toMatchObject({ code: "INVALID_ARGUMENT" });
     });
 
     it.each([
         ["GET", "/api/convivium/meetings/"],
         ["GET", "/api/convivium/meetings/meeting-1/../pause"],
+        ["POST", `/api/convivium/meetings/${meetingId}/end/`],
         ["DELETE", `/api/convivium/meetings/${meetingId}`]
     ])("returns an empty 404 for unsupported %s %s", async (method, url) => {
         const { handler } = registeredHandler();
@@ -169,6 +251,18 @@ describe("local Meeting HTTP boundary", () => {
             "POST",
             `/api/convivium/meetings/${meetingId}/pause`,
             pauseBody({ userId: "user-1" }),
+            "application/json"
+        ],
+        [
+            "POST",
+            `/api/convivium/meetings/${meetingId}/reassign`,
+            skipBody({ userId: "user-1" }),
+            "application/json"
+        ],
+        [
+            "POST",
+            `/api/convivium/meetings/${meetingId}/end`,
+            endBody({ captainSessionId: "captain-1" }),
             "application/json"
         ],
         [
