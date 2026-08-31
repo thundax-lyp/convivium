@@ -1,10 +1,10 @@
 # RUNBOOK A：最小 Decision acceptance 竖切
 
-状态：`Executable · T1-T5 PASS · T6 in progress`
+状态：`Executable · T1-T6 PASS · T7 in progress`
 工作边界：只允许在执行者自己的 Convivium checkout 和独立任务分支中按 T1-T8 顺序执行
 建立日期：2026-08-31
 调查基线：`main@42a7bfb`
-模式：Execute（滚动收口）；T1-T5 已完成并已提交，当前执行 T6
+模式：Execute（滚动收口）；T1-T6 已完成并已提交，当前执行 T7
 
 ## 1. 执行者契约
 
@@ -167,19 +167,6 @@ export function createMeetingDecisionApplication(
 | projection/archive | `projection/status.ts#projectMeetingStatus`；`runtime/services/meeting-archive-service.ts#materializeArchivePackage` |
 
 ## 6. 机械步骤
-
-### T6：status、archive、recovery
-
-前置状态：T5 PASS。
-允许修改：`plugin/src/projection/status.ts`、`plugin/src/runtime/services/meeting-archive-service.ts`、`plugin/tests/contract/status-projection.spec.ts`、`plugin/tests/unit/runtime/archive.spec.ts`、`plugin/tests/recovery/recovery.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`。
-禁止修改：public DTO/Client/continuation/repository schema。
-执行：production mapper 已 accepted-only 时只加 `decisionCandidates internal-only` 邻接注释；tests 断言 candidate/key/ID 不在 status/archive 而 accepted Decision 在；持久化 candidate 后 close/reopen 字段一致，accept 后再 close/reopen 的 Decision/Proposal/Fact/candidate/event/receipt/version 不漂移；历史缺字段为 `[]`。
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/contract/status-projection.spec.ts tests/unit/runtime/archive.spec.ts tests/recovery/recovery.spec.ts tests/contract/meeting-runtime.spec.ts
-pnpm --dir plugin typecheck
-```
-PASS：命令全 `0`。STOP：需要 public candidate/migration/continuation 语义。Restore：删除 comments/tests；若需改 mapper 则恢复并 STOP。
 
 ### T7：focused 与 full verify
 
