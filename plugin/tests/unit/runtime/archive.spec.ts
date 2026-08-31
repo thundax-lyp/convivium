@@ -6,7 +6,7 @@ import {
     recoverArchive,
     requireExpectedArchiveOwnerships,
     terminationIdentity
-} from "../../../src/runtime/archive.js";
+} from "../../../src/runtime/services/meeting-archive-service.js";
 import type { MeetingState } from "../../../src/domain/model.js";
 import type { RepositoryCommand } from "../../../src/repository/index.js";
 import { describe, expect, it } from "vitest";

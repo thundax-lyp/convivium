@@ -1,6 +1,6 @@
 import type { MeetingMessage, MeetingTurn } from "../../../src/domain/model.js";
 import { createOutboxWorker } from "../../../src/runtime/outbox-worker.js";
-import { createTurnRunner } from "../../../src/runtime/turn-runner.js";
+import { createTurnRunner } from "../../../src/runtime/services/meeting-turn-service.js";
 import { describe, expect, it } from "vitest";
 
 const turn: MeetingTurn = {

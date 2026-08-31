@@ -10,9 +10,9 @@ import {
 } from "../../src/repository/index.js";
 import {
     pauseMeetingRuntime,
-    rebindCaptainParent,
     type PauseRecoveryDependencies
-} from "../../src/runtime/recovery.js";
+} from "../../src/runtime/application-service/meeting-control.js";
+import { rebindCaptainParent } from "../../src/runtime/services/meeting-recovery-service.js";
 
 const ownership = {
     sessionId: "participant-session",

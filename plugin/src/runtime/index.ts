@@ -7,8 +7,12 @@ export type {
     MeetingRepositoryRuntime,
     RepositoryAuthorizationValidator
 } from "./meeting-runtime.js";
-export { createTurnRunner } from "./turn-runner.js";
-export type { TurnAttemptInput, TurnRunnerDependencies, TurnRunnerResult } from "./turn-runner.js";
+export { createTurnRunner } from "./services/meeting-turn-service.js";
+export type {
+    TurnAttemptInput,
+    TurnRunnerDependencies,
+    TurnRunnerResult
+} from "./services/meeting-turn-service.js";
 export { createOutboxWorker } from "./outbox-worker.js";
 export {
     archiveBeginCommandKind,
@@ -20,38 +24,31 @@ export {
     recoverArchive,
     requireExpectedArchiveOwnerships,
     terminationIdentity
-} from "./archive.js";
+} from "./services/meeting-archive-service.js";
 export type {
     BeginArchiveFromTerminationInput,
     CleanupOwnedSessionsInput,
     FinalizeArchiveInput,
     RecoverArchiveInput,
     ArchiveRecoveryResult
-} from "./archive.js";
+} from "./services/meeting-archive-service.js";
 export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
-export {
-    pauseMeetingRuntime,
-    recoverMeetingRuntime,
-    rebindCaptainParent,
-    resumeMeetingRuntime
-} from "./recovery.js";
+export { recoverMeetingRuntime, rebindCaptainParent } from "./services/meeting-recovery-service.js";
 export {
     createCreateStatusRuntime,
     LocalMeetingRecoveryUnavailableError
-} from "./application-service.js";
+} from "./application-service/index.js";
 export type {
     CreateStatusRuntimeOptions,
     LocalMeetingWebRuntime,
     MeetingRuntimeWithCallerLookup,
     MeetingToolCaller,
     MeetingToolRuntime
-} from "./application-service.js";
+} from "./application-service/index.js";
 export { meetingTaskEvidenceResolver, rejectUnsupportedTaskEvidence } from "./task-evidence.js";
 export type { AuthorizedTaskEvidence, AuthorizedTaskEvidenceResolver } from "./task-evidence.js";
 export type {
     CaptainRebindDependencies,
     MeetingRecoveryDependencies,
-    MeetingRecoveryResult,
-    PauseRecoveryDependencies,
-    ResumeRecoveryDependencies
-} from "./recovery.js";
+    MeetingRecoveryResult
+} from "./services/meeting-recovery-service.js";

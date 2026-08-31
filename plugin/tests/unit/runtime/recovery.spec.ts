@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recoverMeetingRuntime } from "../../../src/runtime/recovery.js";
+import { recoverMeetingRuntime } from "../../../src/runtime/services/meeting-recovery-service.js";
 
 const recovered = {
     bootstrap: {

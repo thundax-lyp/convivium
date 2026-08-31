@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebRoute } from "@deepseek-ai/dsh-host-webserver";
 import { describe, expect, it, vi } from "vitest";
 import { registerLocalMeetingHttpRoutes } from "../../src/http/index.js";
-import { LocalMeetingRecoveryUnavailableError } from "../../src/runtime/application-service.js";
+import { LocalMeetingRecoveryUnavailableError } from "../../src/runtime/application-service/index.js";
 
 const meetingId = "meeting-1";
 const statusResult = {

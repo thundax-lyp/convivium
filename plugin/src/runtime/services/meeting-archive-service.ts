@@ -1,22 +1,22 @@
 import { createHash } from "node:crypto";
 
-import { transitionMeeting } from "../domain/transitions/index.js";
-import type { ArchivePackage, MeetingState } from "../domain/model.js";
+import { transitionMeeting } from "../../domain/transitions/index.js";
+import type { ArchivePackage, MeetingState } from "../../domain/model.js";
 import {
     encodeMeetingSessionLabel,
     interruptAndDrainOwnedSessions,
     proveArchiveOwnedChildren,
     type ArchiveSessionRuntime,
     type ContinuableLifecycleRuntime
-} from "../dsh/index.js";
+} from "../../dsh/index.js";
 import type {
     CommandAuthorization,
     CommittedResult,
     JsonObject,
     MeetingRepository
-} from "../repository/index.js";
+} from "../../repository/index.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { SessionOwnership } from "../repository/index.js";
+import type { SessionOwnership } from "../../repository/index.js";
 
 const executionTerminalStatuses = new Set<MeetingState["status"]>([
     "completed",

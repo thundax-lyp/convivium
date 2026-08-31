@@ -1,4 +1,4 @@
-import type { MeetingMessage, MeetingTurn, SpeakerStep } from "../domain/model.js";
+import type { MeetingMessage, MeetingTurn, SpeakerStep } from "../../domain/model.js";
 
 export interface TurnAttemptInput {
     readonly meetingId: string;
