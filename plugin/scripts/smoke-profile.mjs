@@ -289,6 +289,8 @@ const observedInboxMessages = new Map();
 const inboxWaiters = new Set();
 let releaseColdMaintenance;
 let coldMaintenancePromise;
+let releaseMailMaintenance;
+let mailMaintenancePromise;
 
 function assert(condition, message) {
     if (!condition) throw new Error(message);
@@ -422,7 +424,7 @@ function waitForInbox(ctx, agentId, select) {
         };
         const onInbox = (agent, message) => {
             if (String(agent.id) !== String(agentId) || ctx.agents.get(agent.id) !== agent) return;
-            const selected = select(message);
+            const selected = select(message, agent);
             if (selected !== undefined) finish({ value: selected, agent });
         };
         const timeout = setTimeout(() => {
@@ -551,7 +553,7 @@ async function driveParticipant(ctx, agent) {
     const participantId = "participant-" + String(agent.id).split("-").at(-1);
     const index = participants.indexOf(participantId);
     if (index < 0) return;
-    if (scenario === "reassign" || scenario === "task-handraise" || scenario === "archive-continuation") return;
+    if (scenario === "reassign" || scenario === "task-handraise" || scenario === "archive-continuation" || scenario === "mail-race") return;
     if (scenario === "timeout" && participantId === "participant-a") return;
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
@@ -603,7 +605,7 @@ function scheduleParticipant(ctx, agent) {
 
 async function run(ctx) {
     if (!outputPath) return;
-    if (scenario !== "baseline" && scenario !== "timeout" && scenario !== "reassign" && scenario !== "task-handraise" && scenario !== "completion-end" && scenario !== "risk-reopen" && scenario !== "cold-rebind" && scenario !== "archive-continuation") {
+    if (scenario !== "baseline" && scenario !== "timeout" && scenario !== "reassign" && scenario !== "task-handraise" && scenario !== "completion-end" && scenario !== "risk-reopen" && scenario !== "cold-rebind" && scenario !== "archive-continuation" && scenario !== "mail-race") {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -775,6 +777,90 @@ async function run(ctx) {
             assert(sourceSessionIds.every((id) => !targetSessionIds.includes(id)), "continuation reused source Session ID");
             assert(targetStatus.result.continuationMaterials.length === 1 && targetStatus.result.continuationMaterials[0].sourceKind === "final_summary" && targetStatus.result.continuationMaterials[0].sourceMeetingId === sourceMeetingId, "continuation material is not final-summary-only");
             await writeResult({ ok: true, scenario, assertions: ["source-archived", "source-sessions-drained", "continuation-final-summary-only", "target-identities-new"], observed: { sourceMeetingId, targetMeetingId, sourceMessageId: submitted.result.messageId, sourceStatus: archived.result.status, sourceSessionIds, targetSessionIds, continuationMaterials: targetStatus.result.continuationMaterials, sourceChildren: sourceChildren.filter((child) => sourceSessionIds.includes(child.id)).map((child) => ({ id: child.id, mode: child.mode, activity: child.activity })) } });
+            return;
+        }
+        if (scenario === "mail-race") {
+            const mailInput = createInput();
+            mailInput.agenda[0].requiredParticipantKeys = ["a", "b"];
+            mailInput.limits = { mailHandlingTimeoutMs: 100 };
+            const created = await callTool(ctx, captain.agent, "convivium_create_meeting", mailInput, 900);
+            const mailMeetingId = created.result.meetingId;
+            const status = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId: mailMeetingId }, 901);
+            const manager = await waitForAgent(ctx, mailMeetingId + "-manager-manager");
+            const plan = await callTool(ctx, manager, "convivium_submit_manager_plan", { protocolVersion: 1, meetingId: mailMeetingId, planningAttemptId: mailMeetingId + "-planning-1", observedMeetingVersion: status.meetingVersion, requestId: "smoke-mail-plan-1", agendaItemId: status.result.activeAgendaItem.id, intent: "explore", objective: "Mail race", expectedOutputs: [], prohibitedTopics: [], steps: [{ participantId: "participant-a", instruction: "Send mail", reason: "manager_selected" }, { participantId: "participant-b", instruction: "Receive next speaker followup", reason: "manager_selected" }] }, 902);
+            const senderDelivery = await waitForSpeakerContext(ctx, mailMeetingId + "-participant-participant-a", plan.result.firstAttemptId);
+            const beforeSend = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId: mailMeetingId }, 901);
+            const recipientSessionId = mailMeetingId + "-participant-participant-b";
+            let mailMaintenanceStartedResolve;
+            const mailMaintenanceStarted = new Promise((resolveStarted) => { mailMaintenanceStartedResolve = resolveStarted; });
+            const mailDeliveryPromise = waitForInbox(ctx, recipientSessionId, (message, liveRecipient) => {
+                for (const text of messageTexts(message)) {
+                    try {
+                        const envelope = JSON.parse(text);
+                        if (envelope.kind === "meeting_mail" && envelope.meetingContext?.meetingId === mailMeetingId) {
+                            mailMaintenancePromise = liveRecipient.runMaintenance(async () => {
+                                mailMaintenanceStartedResolve();
+                                await new Promise((resolveMaintenance) => { releaseMailMaintenance = resolveMaintenance; });
+                            });
+                            return envelope;
+                        }
+                    } catch {}
+                }
+                return undefined;
+            });
+            const sent = await callTool(ctx, senderDelivery.agent, "convivium_send_message", { protocolVersion: 1, meetingId: mailMeetingId, expectedMeetingVersion: beforeSend.meetingVersion, requestId: "smoke-mail-send-1", recipient: { kind: "meeting_participant", meetingId: mailMeetingId, participantId: "participant-b" }, content: "private-smoke-body", meetingContext: { meetingId: mailMeetingId, agendaItemId: beforeSend.result.activeAgendaItem.id, contextFromSeq: 0, contextThroughSeq: beforeSend.result.messages.at(-1)?.seq ?? 0, relevantMessageIds: [], snapshotSummary: "smoke" } }, 903);
+            const mailDelivery = await mailDeliveryPromise.catch((error) => { throw new Error("mail envelope wait failed: " + String(error)); });
+            await mailMaintenanceStarted;
+            assert(ctx.agents.get(recipientSessionId) === mailDelivery.agent, "mail recipient maintenance barrier lost live Agent");
+            assert(mailDelivery.value.mailId === sent.result.mailId, "mail envelope ID mismatch");
+            assert(typeof mailDelivery.value.handlingAttemptId === "string" && typeof mailDelivery.value.deliveryId === "string", "mail envelope identifiers missing");
+            const { DatabaseSync } = await import("node:sqlite");
+            const { join } = await import("node:path");
+            const databasePath = join(process.cwd(), "convivium-smoke-data", encodeURIComponent("smoke-team"), encodeURIComponent(mailMeetingId) + ".sqlite");
+            const mailDeadline = Date.now() + 30000;
+            let processing;
+            while (Date.now() < mailDeadline) {
+                const database = new DatabaseSync(databasePath, { readOnly: true });
+                processing = database.prepare("SELECT status, handling_attempt_id, delivery_id, processing_through_seq, deadline_at FROM meeting_mail WHERE meeting_id = ? AND mail_id = ?").get(mailMeetingId, sent.result.mailId);
+                database.close();
+                if (processing?.status === "processing") break;
+                await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+            }
+            assert(processing?.status === "processing", "mail never entered processing");
+            assert(processing.handling_attempt_id === mailDelivery.value.handlingAttemptId && processing.delivery_id === mailDelivery.value.deliveryId, "mail SQLite/envelope identifiers mismatch");
+            const waitBeforeRace = processing.deadline_at - Date.now() - 25;
+            if (waitBeforeRace > 0) await new Promise((resolveWait) => setTimeout(resolveWait, waitBeforeRace));
+            let finishResult;
+            let finishError;
+            try {
+                finishResult = await callTool(ctx, mailDelivery.agent, "convivium_finish_meeting_mail", { protocolVersion: 1, meetingId: mailMeetingId, mailId: sent.result.mailId, handlingAttemptId: mailDelivery.value.handlingAttemptId, deliveryId: mailDelivery.value.deliveryId, requestId: mailDelivery.value.deliveryId, status: "processed" }, 904);
+            } catch (error) {
+                finishError = String(error);
+            }
+            await new Promise((resolveWait) => setTimeout(resolveWait, 250));
+            const finalDatabase = new DatabaseSync(databasePath, { readOnly: true });
+            const terminalMail = finalDatabase.prepare("SELECT status, handling_attempt_id, delivery_id, processing_through_seq, deadline_at FROM meeting_mail WHERE meeting_id = ? AND mail_id = ?").get(mailMeetingId, sent.result.mailId);
+            const canonical = finalDatabase.prepare("SELECT state_json, version FROM meetings WHERE meeting_id = ?").get(mailMeetingId);
+            finalDatabase.close();
+            assert(terminalMail?.status === "processed" || terminalMail?.status === "timed_out", "mail race has invalid terminal status");
+            assert(terminalMail.handling_attempt_id === processing.handling_attempt_id && terminalMail.delivery_id === processing.delivery_id && terminalMail.processing_through_seq === processing.processing_through_seq, "mail race changed stable delivery identifiers");
+            if (terminalMail.status === "processed") assert(finishResult?.result.status === "processed", "processed winner lacks success receipt");
+            if (terminalMail.status === "timed_out") assert(finishError !== undefined, "timed-out winner also returned finish success");
+            assert(!String(canonical.state_json).includes("private-smoke-body"), "private mail leaked into Meeting state");
+            releaseMailMaintenance();
+            await mailMaintenancePromise;
+            releaseMailMaintenance = undefined;
+            mailMaintenancePromise = undefined;
+            const senderSessionId = mailMeetingId + "-participant-participant-a";
+            const liveSender = ctx.agents.get(senderSessionId) ?? await resumeParticipantForProbe(ctx, captain.agent, senderSessionId, "convivium-smoke-mail-sender-resume");
+            assert(ctx.agents.get(senderSessionId) === liveSender, "mail sender did not cold-resume as live Agent");
+            const submitted = await callTool(ctx, liveSender, "convivium_submit_turn", { protocolVersion: 1, meetingId: mailMeetingId, turnId: senderDelivery.value.turn.id, stepId: senderDelivery.value.step.id, attemptId: senderDelivery.value.attempt.attemptId, deliveryId: senderDelivery.value.attempt.deliveryId, agendaItemId: senderDelivery.value.activeAgendaItem.id, kind: "statement", content: "mail-race:a:1", mentions: [], taskIds: [], agendaRelation: "on_topic", changes: { questions: [], proposals: [], positions: [], issues: [], decisionProposals: [], agendaCandidates: [] } }, 905);
+            const afterSender = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId: mailMeetingId }, 906);
+            assert(afterSender.result.currentSpeakerId === "participant-b" && typeof afterSender.result.currentAttemptId === "string", "recipient did not become next speaker");
+            const recipientSpeaker = await waitForSpeakerContext(ctx, recipientSessionId, afterSender.result.currentAttemptId).catch((error) => { throw new Error("recipient speaker wait failed: " + String(error)); });
+            assert(String(recipientSpeaker.agent.id) === recipientSessionId && ctx.agents.get(recipientSessionId) === recipientSpeaker.agent, "recipient queue did not accept a live speaker followup");
+            assert(afterSender.result.messages.some((message) => message.id === submitted.result.messageId) && !JSON.stringify(afterSender.result).includes("private-smoke-body"), "mail privacy/status assertion failed");
+            await writeResult({ ok: true, scenario, assertions: ["single-mail-terminal", "stable-delivery-ids", "private-body-not-projected", "recipient-queue-reusable"], observed: { meetingId: mailMeetingId, mailId: sent.result.mailId, handlingAttemptId: terminalMail.handling_attempt_id, deliveryId: terminalMail.delivery_id, processingThroughSeq: terminalMail.processing_through_seq, deadlineAt: terminalMail.deadline_at, terminalStatus: terminalMail.status, finishOutcome: finishResult?.result.status ?? finishError, senderMessageId: submitted.result.messageId, recipientAttemptId: afterSender.result.currentAttemptId, recipientSessionId } });
             return;
         }
         if (scenario === "risk-reopen") {
@@ -1487,6 +1573,8 @@ export function apply(ctx) {
         return async () => {
             releaseColdMaintenance?.();
             await coldMaintenancePromise;
+            releaseMailMaintenance?.();
+            await mailMaintenancePromise;
         };
     }, "convivium-smoke-profile-probe");
 }

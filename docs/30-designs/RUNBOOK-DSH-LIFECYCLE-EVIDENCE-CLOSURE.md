@@ -360,13 +360,7 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 
 以下对象中的 `<status.*>` 不是执行者选择或占位输入，而是强制的数据流引用：必须先执行紧邻的 `convivium_meeting_status`，再逐字段复制该返回值；字段缺失即 STOP。所有 `convivium_create_meeting` 使用 §6.5 固定 fixture；所有 success 必须是 `ProtocolSuccessV1`，所有预期失败必须是 `ProtocolErrorV1` 且 `retryable===false`。
 
-T1-T8 已 PASS 并按滚动策略删除对应执行步骤；当前从 T9 开始执行。稳定场景定义仍保留在 §7。
-
-### T9：只实现 mail-race 场景
-
-新增 `runMailRaceScenario(ctx,fixture)`。create/status/plan=`900..902`；A send `903` input `{protocolVersion:1,meetingId,expectedMeetingVersion:<status.meetingVersion>,requestId:"smoke-mail-send-1",recipient:{kind:"meeting_participant",meetingId,participantId:<fixture.participantBId>},content:"private-smoke-body",meetingContext:{meetingId,agendaItemId:<status.activeAgendaItem.id>,contextFromSeq:0,contextThroughSeq:<status.messages.at(-1)?.seq ?? 0>,relevantMessageIds:[],snapshotSummary:"smoke"}}`。mailId取success DTO；handlingAttemptId/deliveryId只取B收到的正式mail envelope。B finish `904` input `{protocolVersion:1,meetingId,mailId,handlingAttemptId,deliveryId,requestId:deliveryId,status:"processed"}`，在deadline前最后25ms发起；不直接调用timeout。等待250ms后status/只读SQLite。
-
-验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/runtime/meeting-mail-dispatch.spec.ts tests/contract/meeting-runtime.spec.ts tests/recovery/recovery.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile`。PASS assertions=`single-mail-terminal`,`stable-delivery-ids`,`private-body-not-projected`,`recipient-queue-reusable`；winner仅`processed|timed_out`，双终态STOP，Restore同T2。
+T1-T9 已 PASS 并按滚动策略删除对应执行步骤；当前从 T10 开始执行。稳定场景定义仍保留在 §7。
 
 ### T10：只实现 cross-meeting 场景
 
