@@ -41,7 +41,7 @@ import {
     type MeetingRepositoryRuntime,
     type RepositoryAuthorizationValidator
 } from "./meeting-runtime.js";
-import { createOutboxWorker } from "./outbox-worker.js";
+import { createMeetingDeliveryWorkerService } from "./services/delivery-worker-service.js";
 import { recoverArchive } from "./archive.js";
 import {
     meetingTaskEvidenceResolver,
@@ -348,7 +348,10 @@ export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
 ): MeetingRuntimeWithCallerLookup {
     const meetings = new Map<string, StoredMeeting>();
-    const workers = new Map<string, ReturnType<typeof createOutboxWorker>>();
+    const deliveryWorkers = createMeetingDeliveryWorkerService({
+        pollMs: options.outboxPollMs ?? 1_000,
+        now: options.now
+    });
     const runtimeController = new AbortController();
     const taskEvidenceResolver = options.taskEvidenceResolver ?? meetingTaskEvidenceResolver;
     const signal =
@@ -804,13 +807,10 @@ export function createCreateStatusRuntime(
 
     function ensureWorker(stored: StoredMeeting): void {
         const meetingId = stored.repository.meetingId;
-        if (stored.parent === undefined || workers.has(meetingId)) return;
-        const worker = createOutboxWorker({
+        deliveryWorkers.ensure({
+            meetingId,
             repository: stored.repository,
-            owner: `worker:${meetingId}`,
-            ttlMs: 60_000,
-            batchSize: 1,
-            pollMs: options.outboxPollMs ?? 1_000,
+            parent: stored.parent,
             dispatch: async (item, workerSignal) => {
                 const dispatchSignal = AbortSignal.any([signal, workerSignal]);
                 const payload = item.payload as unknown as {
@@ -840,11 +840,8 @@ export function createCreateStatusRuntime(
                         dispatchSignal,
                         item
                     );
-            },
-            now: options.now
+            }
         });
-        workers.set(meetingId, worker);
-        void worker.start().catch(() => undefined);
     }
 
     async function readAuthorizedTask(
@@ -1051,7 +1048,7 @@ export function createCreateStatusRuntime(
                         parent: caller.agent
                     });
                     ensureWorker(meetings.get(meetingId)!);
-                    workers.get(meetingId)?.wake();
+                    deliveryWorkers.wake(meetingId);
                     return success(meetingId, started.meetingVersion, result);
                 }
                 const meetingVersion = await initializeFirstTurn(
@@ -1071,7 +1068,7 @@ export function createCreateStatusRuntime(
                     parent: caller.agent
                 });
                 ensureWorker(meetings.get(meetingId)!);
-                workers.get(meetingId)?.wake();
+                deliveryWorkers.wake(meetingId);
                 return success(meetingId, meetingVersion, result);
             } catch (error) {
                 await repository.close();
@@ -1781,7 +1778,7 @@ export function createCreateStatusRuntime(
                         };
                     }
                 });
-                if (committed.result) workers.get(input.meetingId)?.wake();
+                if (committed.result) deliveryWorkers.wake(input.meetingId);
                 return success<TurnSubmissionResultV1>(
                     input.meetingId,
                     committed.meetingVersion,
@@ -2029,7 +2026,7 @@ export function createCreateStatusRuntime(
                         };
                     }
                 });
-                workers.get(input.meetingId)?.wake();
+                deliveryWorkers.wake(input.meetingId);
                 return success<ReassignTurnResultV1>(
                     input.meetingId,
                     committed.meetingVersion,
@@ -2100,7 +2097,7 @@ export function createCreateStatusRuntime(
                 } catch {
                     // The end_meeting receipt is already committed; leave archive cleanup recoverable.
                 }
-                workers.get(input.meetingId)?.wake();
+                deliveryWorkers.wake(input.meetingId);
                 return success<EndMeetingResultV1>(
                     input.meetingId,
                     committed.meetingVersion,
@@ -2139,9 +2136,7 @@ export function createCreateStatusRuntime(
         },
         async dispose() {
             runtimeController.abort(new Error("Meeting runtime disposed"));
-            for (const worker of workers.values()) worker.stop();
-            await Promise.all([...workers.values()].map((worker) => worker.wait()));
-            workers.clear();
+            await deliveryWorkers.dispose();
             await Promise.all([...meetings.values()].map((stored) => stored.repository.close()));
             meetings.clear();
         }
@@ -2339,7 +2334,7 @@ export function createCreateStatusRuntime(
             });
             if (target === "running" && stored.parent !== undefined) {
                 ensureWorker(stored);
-                workers.get(input.meetingId)?.wake();
+                deliveryWorkers.wake(input.meetingId);
             }
             return success<MeetingControlResultV1>(
                 input.meetingId,

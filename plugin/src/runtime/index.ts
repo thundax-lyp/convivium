@@ -29,6 +29,8 @@ export type {
     ArchiveRecoveryResult
 } from "./archive.js";
 export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
+export { createMeetingDeliveryWorkerService } from "./services/delivery-worker-service.js";
+export type { MeetingDeliveryWorkerService } from "./services/contracts.js";
 export {
     pauseMeetingRuntime,
     recoverMeetingRuntime,
