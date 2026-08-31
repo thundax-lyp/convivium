@@ -3,6 +3,7 @@ import {
     createHandRaise,
     createMeetingTask as createMeetingTaskTransition,
     finishMeetingTask as finishMeetingTaskTransition,
+    isParticipantDispatchableNow,
     startManagerPlanning,
     startMeetingTask as startMeetingTaskTransition,
     type MeetingState
@@ -324,9 +325,45 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                                         ["completed", "failed", "cancelled"].includes(task.status)
                                 )
                             );
-                        let nextState = waitingForThisTask
-                            ? { ...handRaise.state, currentTurn: undefined, waitState: undefined }
-                            : handRaise.state;
+                        const waitingResolvedByThisTask =
+                            input.status === "completed" &&
+                            handRaise.state.status === "waiting" &&
+                            handRaise.state.waitState?.participantIds.includes(
+                                task.participantId
+                            ) &&
+                            handRaise.state.waitState.participantIds.every((participantId) => {
+                                const participant = handRaise.state.participants.find(
+                                    (candidate) => candidate.id === participantId
+                                );
+                                return (
+                                    participant !== undefined &&
+                                    isParticipantDispatchableNow(handRaise.state, participant)
+                                );
+                            });
+                        let nextState =
+                            waitingForThisTask || waitingResolvedByThisTask
+                                ? {
+                                      ...handRaise.state,
+                                      status: "running" as const,
+                                      currentTurn: undefined,
+                                      waitState: undefined
+                                  }
+                                : handRaise.state;
+                        if (
+                            input.status === "completed" &&
+                            nextState.manager.currentPlanningAttempt !== undefined &&
+                            nextState.manager.currentPlanningAttempt.observedMeetingVersion !==
+                                nextState.version
+                        ) {
+                            nextState = {
+                                ...nextState,
+                                manager: {
+                                    ...nextState.manager,
+                                    status: "idle",
+                                    currentPlanningAttempt: undefined
+                                }
+                            };
+                        }
                         let planningEvents: DomainEventInput[] = [];
                         let planningOutbox: Array<{
                             deliveryId: string;

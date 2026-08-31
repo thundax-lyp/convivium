@@ -1139,6 +1139,9 @@ describe("create/status meeting runtime", () => {
                     ...input,
                     objectiveContract: {
                         ...input.objectiveContract,
+                        requiredOutputs: [
+                            { key: "task-output", description: "Completed task evidence" }
+                        ],
                         acceptanceCriteria: [
                             { key: "task-followup", description: "Submit completed task evidence" }
                         ]
