@@ -18,7 +18,11 @@ function listResponse(meetings = [listItem]) {
     return { protocolVersion: 1 as const, ok: true as const, result: { meetings } };
 }
 
-function statusResult(status: "running" | "paused" = "running", meetingVersion = 2) {
+function statusResult(
+    status: "running" | "paused" | "converging" = "running",
+    meetingVersion = 2,
+    withCurrentAttempt = false
+) {
     return {
         meetingId,
         meetingVersion,
@@ -34,6 +38,30 @@ function statusResult(status: "running" | "paused" = "running", meetingVersion =
         meetingTasks: [],
         status,
         pendingHandRaises: [],
+        ...(withCurrentAttempt
+            ? {
+                  currentTurn: {
+                      id: "turn-1",
+                      seq: 1,
+                      agendaItemId: "agenda-1",
+                      intent: "Review scope",
+                      objective: "Verify local control",
+                      expectedOutputs: [],
+                      prohibitedTopics: [],
+                      steps: [
+                          {
+                              id: "step-1",
+                              participantId: "participant-one",
+                              instruction: "Speak",
+                              reason: "Current speaker",
+                              status: "running" as const
+                          }
+                      ]
+                  },
+                  currentSpeakerId: "participant-one",
+                  currentAttemptId: "attempt-1"
+              }
+            : {}),
         pauseControl:
             status === "paused"
                 ? {
@@ -42,7 +70,9 @@ function statusResult(status: "running" | "paused" = "running", meetingVersion =
                       pausedBy: { kind: "local_host" as const, actorId: "loopback-web" },
                       reason: "Inspect output"
                   }
-                : { action: "pause" as const }
+                : status === "converging"
+                  ? { action: "none" as const }
+                  : { action: "pause" as const }
     };
 }
 
@@ -232,6 +262,80 @@ describe("client entry framework", () => {
         });
     });
 
+    it("shows Skip only for a visible current attempt and posts the fixed skip payload", async () => {
+        const fetchMock = vi
+            .fn<typeof fetch>()
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 2, true))))
+            .mockResolvedValueOnce(
+                jsonResponse(success({ revokedAttemptId: "attempt-1", action: "skip" }, 3))
+            )
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 3))));
+        vi.stubGlobal("fetch", fetchMock);
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+
+        expect(screen.getByLabelText("Skip current speaker")).toBeTruthy();
+        fireEvent.change(screen.getByLabelText("Skip reason"), {
+            target: { value: "Move on" }
+        });
+        fireEvent.click(screen.getByLabelText("Skip current speaker"));
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+        expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/convivium/meetings/meeting%2F1/reassign");
+        expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+            protocolVersion: 1,
+            meetingId,
+            expectedMeetingVersion: 2,
+            currentAttemptId: "attempt-1",
+            action: "skip",
+            reason: "Move on",
+            requestId: "request-1"
+        });
+        expect(
+            JSON.stringify(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body)))
+        ).not.toContain("replacementParticipantId");
+    });
+
+    it("limits End outcomes and posts the fixed empty completion fields", async () => {
+        const fetchMock = vi
+            .fn<typeof fetch>()
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(statusResult("converging", 2))))
+            .mockResolvedValueOnce(
+                jsonResponse(
+                    success({ status: "no_consensus", terminationCode: "no_consensus" }, 3)
+                )
+            )
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(terminalStatusResult()));
+        vi.stubGlobal("fetch", fetchMock);
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+
+        expect(screen.queryByRole("option", { name: "Completed" })).toBeNull();
+        fireEvent.change(screen.getByLabelText("End outcome"), {
+            target: { value: "no_consensus" }
+        });
+        fireEvent.change(screen.getByLabelText("End reason"), {
+            target: { value: "No consensus reached" }
+        });
+        fireEvent.click(screen.getByLabelText("End meeting"));
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+        expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/convivium/meetings/meeting%2F1/end");
+        expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+            protocolVersion: 1,
+            meetingId,
+            expectedMeetingVersion: 2,
+            outcome: "no_consensus",
+            reason: "No consensus reached",
+            acceptedDecisionIds: [],
+            deferredAgendaItemIds: [],
+            waivers: [],
+            requestId: "request-1"
+        });
+    });
+
     it("refetches after a validated protocol error without retrying the POST", async () => {
         const fetchMock = vi
             .fn<typeof fetch>()
@@ -291,6 +395,8 @@ describe("client entry framework", () => {
         expect(screen.getByText("Status: completed")).toBeTruthy();
         expect(screen.queryByLabelText("Pause meeting")).toBeNull();
         expect(screen.queryByLabelText("Resume meeting")).toBeNull();
+        expect(screen.queryByLabelText("Skip current speaker")).toBeNull();
+        expect(screen.queryByLabelText("End meeting")).toBeNull();
     });
 
     it("disables meeting writes when the list projection becomes cached", async () => {

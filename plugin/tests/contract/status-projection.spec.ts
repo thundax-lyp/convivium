@@ -112,8 +112,50 @@ describe("meeting status projection", () => {
         expect(JSON.stringify(projected)).not.toContain("prompt");
         expect(projected).not.toHaveProperty("currentTurn");
         expect(projected).not.toHaveProperty("currentSpeakerId");
+        expect(projected).not.toHaveProperty("currentAttemptId");
         expect(JSON.stringify(projected)).not.toContain("planning-1");
         expect(JSON.stringify(projected)).not.toContain("leaseToken");
+    });
+
+    it("projects only the current running attempt ID for local skip control", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                currentTurn: {
+                    id: "turn-1",
+                    seq: 1,
+                    agendaItemId: "agenda-1",
+                    intent: "review",
+                    objective: "Review",
+                    expectedOutputs: [],
+                    prohibitedTopics: [],
+                    status: "running",
+                    currentStepIndex: 0,
+                    steps: [
+                        {
+                            id: "step-1",
+                            speaker: "participant-1",
+                            instruction: "Review",
+                            reason: "required",
+                            status: "running",
+                            attempt: {
+                                attemptId: "attempt-public",
+                                deliveryId: "delivery-private",
+                                status: "running"
+                            }
+                        }
+                    ]
+                }
+            } as unknown as MeetingState,
+            { kind: "local_host", sessionId: "loopback-web" }
+        );
+
+        expect(projected).toMatchObject({
+            currentSpeakerId: "participant-1",
+            currentAttemptId: "attempt-public"
+        });
+        expect(JSON.stringify(projected)).not.toContain("delivery-private");
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
 
     it("projects canonical proposal revisions and positions for later participants", () => {

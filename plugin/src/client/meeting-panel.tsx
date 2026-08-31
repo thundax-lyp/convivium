@@ -8,17 +8,21 @@ import {
     type ReactElement
 } from "react";
 import {
+    EndMeetingResultSchema,
     LocalMeetingListResponseConsumerSchema,
     MeetingControlResultSchema,
     MeetingStatusResultSchema,
+    ReassignTurnResultSchema,
     validateProtocolError,
     validateProtocolSuccessEnvelope,
     type LocalMeetingListItemV1,
     type LocalMeetingListResponseV1,
+    type EndMeetingResultV1,
     type MeetingControlResultV1,
     type MeetingStatusResultV1,
     type ProtocolErrorV1,
-    type ProtocolSuccessV1
+    type ProtocolSuccessV1,
+    type ReassignTurnResultV1
 } from "../protocol/index.js";
 
 const meetingsPath = "/api/convivium/meetings";
@@ -63,6 +67,24 @@ async function readControl(response: Response): Promise<ProtocolSuccessV1<Meetin
     ) as ProtocolSuccessV1<MeetingControlResultV1>;
 }
 
+async function readReassign(response: Response): Promise<ProtocolSuccessV1<ReassignTurnResultV1>> {
+    const value = await responseJson(response);
+    if (!response.ok) throw protocolFailure(value);
+    return validateProtocolSuccessEnvelope(
+        ReassignTurnResultSchema,
+        value
+    ) as ProtocolSuccessV1<ReassignTurnResultV1>;
+}
+
+async function readEnd(response: Response): Promise<ProtocolSuccessV1<EndMeetingResultV1>> {
+    const value = await responseJson(response);
+    if (!response.ok) throw protocolFailure(value);
+    return validateProtocolSuccessEnvelope(
+        EndMeetingResultSchema,
+        value
+    ) as ProtocolSuccessV1<EndMeetingResultV1>;
+}
+
 function failureMessage(error: unknown): string {
     return error instanceof ProtocolFailure ? error.message : "Meeting data is unavailable.";
 }
@@ -76,6 +98,11 @@ export function ConviviumMeetingPanel(): ReactElement {
     const [listError, setListError] = useState<string>();
     const [detailError, setDetailError] = useState<string>();
     const [pauseReason, setPauseReason] = useState("");
+    const [skipReason, setSkipReason] = useState("");
+    const [endReason, setEndReason] = useState("");
+    const [endOutcome, setEndOutcome] = useState<"partial" | "no_consensus" | "cancelled">(
+        "partial"
+    );
     const [writePending, setWritePending] = useState(false);
 
     const mounted = useRef(true);
@@ -100,6 +127,9 @@ export function ConviviumMeetingPanel(): ReactElement {
         setDetailCached(false);
         setDetailError(undefined);
         setPauseReason("");
+        setSkipReason("");
+        setEndReason("");
+        setEndOutcome("partial");
         setWritePending(false);
     }, []);
 
@@ -181,6 +211,9 @@ export function ConviviumMeetingPanel(): ReactElement {
             setDetailCached(false);
             setDetailError(undefined);
             setPauseReason("");
+            setSkipReason("");
+            setEndReason("");
+            setEndOutcome("partial");
             setWritePending(false);
             void loadDetail(meetingId);
         },
@@ -188,7 +221,7 @@ export function ConviviumMeetingPanel(): ReactElement {
     );
 
     const controlMeeting = useCallback(
-        async (action: "pause" | "resume") => {
+        async (action: "pause" | "resume" | "reassign" | "end") => {
             const meetingId = selectedIdRef.current;
             if (
                 meetingId === undefined ||
@@ -204,13 +237,43 @@ export function ConviviumMeetingPanel(): ReactElement {
             writePendingRef.current = true;
             setWritePending(true);
             setDetailError(undefined);
-            const body = {
-                protocolVersion: 1,
-                meetingId,
-                expectedMeetingVersion: detail.meetingVersion,
-                requestId: crypto.randomUUID(),
-                ...(action === "pause" ? { reason: pauseReason } : {})
-            };
+            const body =
+                action === "pause"
+                    ? {
+                          protocolVersion: 1,
+                          meetingId,
+                          expectedMeetingVersion: detail.meetingVersion,
+                          requestId: crypto.randomUUID(),
+                          reason: pauseReason
+                      }
+                    : action === "resume"
+                      ? {
+                            protocolVersion: 1,
+                            meetingId,
+                            expectedMeetingVersion: detail.meetingVersion,
+                            requestId: crypto.randomUUID()
+                        }
+                      : action === "reassign"
+                        ? {
+                              protocolVersion: 1,
+                              meetingId,
+                              expectedMeetingVersion: detail.meetingVersion,
+                              currentAttemptId: detail.currentAttemptId!,
+                              action: "skip" as const,
+                              reason: skipReason,
+                              requestId: crypto.randomUUID()
+                          }
+                        : {
+                              protocolVersion: 1,
+                              meetingId,
+                              expectedMeetingVersion: detail.meetingVersion,
+                              outcome: endOutcome,
+                              reason: endReason,
+                              acceptedDecisionIds: [],
+                              deferredAgendaItemIds: [],
+                              waivers: [],
+                              requestId: crypto.randomUUID()
+                          };
             let shouldRefetch = false;
             try {
                 const response = await fetch(`${meetingPath(meetingId)}/${action}`, {
@@ -220,7 +283,9 @@ export function ConviviumMeetingPanel(): ReactElement {
                     signal: controller.signal
                 });
                 try {
-                    await readControl(response);
+                    if (action === "pause" || action === "resume") await readControl(response);
+                    else if (action === "reassign") await readReassign(response);
+                    else await readEnd(response);
                     shouldRefetch = true;
                 } catch (error) {
                     if (error instanceof ProtocolFailure) {
@@ -255,7 +320,15 @@ export function ConviviumMeetingPanel(): ReactElement {
                 }
             }
         },
-        [detail, detailCached, pauseReason, refreshSelectedMeeting]
+        [
+            detail,
+            detailCached,
+            endOutcome,
+            endReason,
+            pauseReason,
+            refreshSelectedMeeting,
+            skipReason
+        ]
     );
 
     useEffect(() => {
@@ -296,6 +369,13 @@ export function ConviviumMeetingPanel(): ReactElement {
     const canPause =
         detail !== undefined && ["created", "running", "waiting"].includes(detail.status);
     const canResume = detail?.status === "paused";
+    const canSkip =
+        detail?.status === "running" &&
+        detail.currentTurn !== undefined &&
+        detail.currentSpeakerId !== undefined &&
+        detail.currentAttemptId !== undefined;
+    const canEnd =
+        detail !== undefined && ["running", "paused", "converging"].includes(detail.status);
     const writesDisabled = listCached || detailCached || writePending;
 
     return createElement(
@@ -423,6 +503,73 @@ export function ConviviumMeetingPanel(): ReactElement {
                                           onClick: () => void controlMeeting("resume")
                                       },
                                       "Resume"
+                                  )
+                                : null,
+                            canSkip
+                                ? createElement(
+                                      "div",
+                                      null,
+                                      createElement("input", {
+                                          "aria-label": "Skip reason",
+                                          value: skipReason,
+                                          onChange: (event: ChangeEvent<HTMLInputElement>) =>
+                                              setSkipReason(event.currentTarget.value)
+                                      }),
+                                      createElement(
+                                          "button",
+                                          {
+                                              type: "button",
+                                              "aria-label": "Skip current speaker",
+                                              disabled: writesDisabled || skipReason.trim() === "",
+                                              onClick: () => void controlMeeting("reassign")
+                                          },
+                                          "Skip current speaker"
+                                      )
+                                  )
+                                : null,
+                            canEnd
+                                ? createElement(
+                                      "div",
+                                      null,
+                                      createElement(
+                                          "select",
+                                          {
+                                              "aria-label": "End outcome",
+                                              value: endOutcome,
+                                              onChange: (event: ChangeEvent<HTMLSelectElement>) =>
+                                                  setEndOutcome(
+                                                      event.currentTarget.value as
+                                                          "partial" | "no_consensus" | "cancelled"
+                                                  )
+                                          },
+                                          createElement("option", { value: "partial" }, "Partial"),
+                                          createElement(
+                                              "option",
+                                              { value: "no_consensus" },
+                                              "No consensus"
+                                          ),
+                                          createElement(
+                                              "option",
+                                              { value: "cancelled" },
+                                              "Cancelled"
+                                          )
+                                      ),
+                                      createElement("input", {
+                                          "aria-label": "End reason",
+                                          value: endReason,
+                                          onChange: (event: ChangeEvent<HTMLInputElement>) =>
+                                              setEndReason(event.currentTarget.value)
+                                      }),
+                                      createElement(
+                                          "button",
+                                          {
+                                              type: "button",
+                                              "aria-label": "End meeting",
+                                              disabled: writesDisabled || endReason.trim() === "",
+                                              onClick: () => void controlMeeting("end")
+                                          },
+                                          "End meeting"
+                                      )
                                   )
                                 : null
                         )
