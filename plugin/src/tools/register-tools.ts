@@ -19,6 +19,7 @@ import type {
     ProtocolErrorV1,
     ProtocolSuccessV1,
     ResumeMeetingInputV1,
+    ReassignTurnInputV1,
     TurnSubmissionV1
 } from "../protocol/index.js";
 import type { MeetingToolCaller, MeetingToolRuntime } from "../runtime/index.js";
@@ -28,6 +29,7 @@ import {
     MeetingStatusInputSchema,
     PauseMeetingInputSchema,
     ResumeMeetingInputSchema,
+    validateReassignTurnInput,
     ManagerPlanSubmissionSchema,
     TurnSubmissionSchema,
     MeetingTaskRequestSchema,
@@ -363,6 +365,26 @@ export function registerSubmitAndControlTools(
                                 ResumeMeetingInputSchema(value as never) as ResumeMeetingInputV1,
                             callers: dependencies.callers,
                             runtime: dependencies.runtime.resume.bind(dependencies.runtime),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_reassign_turn",
+                description:
+                    "Revoke the current speaker attempt as the meeting Captain, then reassign or skip it.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                validateReassignTurnInput(value) as ReassignTurnInputV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.reassignTurn.bind(dependencies.runtime),
                             exec
                         })
                     );

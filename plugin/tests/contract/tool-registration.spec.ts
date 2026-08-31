@@ -205,6 +205,7 @@ describe("meeting tool registration", () => {
             "convivium_submit_turn",
             "convivium_pause_meeting",
             "convivium_resume_meeting",
+            "convivium_reassign_turn",
             "convivium_end_meeting"
         ]);
         expect(definitions.every((definition) => definition.output !== undefined)).toBe(true);
@@ -404,6 +405,10 @@ describe("meeting tool registration", () => {
                     calls.push(`resume:${caller.kind}`),
                     denied()
                 ),
+                reassignTurn: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`reassign:${caller.kind}`),
+                    denied()
+                ),
                 endMeeting: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`end:${caller.kind}`),
                     denied()
@@ -526,6 +531,15 @@ describe("meeting tool registration", () => {
                 expectedMeetingVersion: 1,
                 requestId: "request-1"
             },
+            convivium_reassign_turn: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                currentAttemptId: "attempt-1",
+                action: "skip",
+                reason: "speaker unavailable",
+                requestId: "request-1"
+            },
             convivium_end_meeting: {
                 protocolVersion: 1,
                 meetingId: "meeting-1",
@@ -559,6 +573,7 @@ describe("meeting tool registration", () => {
             "submit:participant",
             "pause:participant",
             "resume:participant",
+            "reassign:participant",
             "end:participant"
         ]);
     });

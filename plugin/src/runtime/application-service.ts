@@ -26,6 +26,7 @@ import {
     startManagerPlanning,
     submitManagerPlan as submitManagerPlanTransition,
     submitSpeakerAndAdvanceMeeting,
+    reassignTurn as reassignTurnTransition,
     transitionMeeting,
     type MeetingState,
     type MeetingTurn
@@ -73,7 +74,9 @@ import type {
     ProtocolSuccessV1,
     LocalMeetingListResponseV1,
     PauseMeetingInputV1,
-    ResumeMeetingInputV1
+    ResumeMeetingInputV1,
+    ReassignTurnInputV1,
+    ReassignTurnResultV1
 } from "../protocol/index.js";
 import type { MeetingOwnershipLookup } from "../dsh/index.js";
 import { interruptAndDrainOwnedSessions } from "../dsh/index.js";
@@ -142,6 +145,11 @@ export interface MeetingToolRuntime {
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
+    reassignTurn(
+        input: ReassignTurnInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ReassignTurnResultV1> | ProtocolErrorV1>;
     endMeeting(
         input: EndMeetingInputV1,
         caller: MeetingToolCaller,
@@ -1941,6 +1949,102 @@ export function createCreateStatusRuntime(
                 kind: "captain",
                 sessionId: caller.sessionId
             });
+        },
+        async reassignTurn(input, caller) {
+            await rehydrate();
+            const stored = meetings.get(input.meetingId);
+            if (
+                stored === undefined ||
+                caller.kind !== "captain" ||
+                caller.sessionId !== stored.captainSessionId ||
+                (caller.meetingId !== undefined && caller.meetingId !== input.meetingId)
+            ) {
+                return failure(
+                    "UNAUTHORIZED_CALLER",
+                    "Only the meeting Captain can reassign a turn."
+                );
+            }
+            if (stored.parent === undefined) {
+                return failure(
+                    "INTERNAL_ERROR",
+                    "The live Captain parent is unavailable for speaker dispatch.",
+                    true
+                );
+            }
+            try {
+                const committed = await stored.repository.execute({
+                    requestId: input.requestId,
+                    commandKind: "reassign_turn",
+                    authorization: {
+                        callerBinding: `session:${caller.sessionId}`,
+                        capabilityId: `captain:${caller.sessionId}`,
+                        attemptId: input.currentAttemptId
+                    },
+                    requestHash: JSON.stringify(input),
+                    expectedMeetingVersion: input.expectedMeetingVersion,
+                    transition: (snapshot) => {
+                        const transition = reassignTurnTransition(
+                            snapshot.state as unknown as MeetingState,
+                            {
+                                currentAttemptId: input.currentAttemptId,
+                                action: input.action,
+                                ...(input.replacementParticipantId === undefined
+                                    ? {}
+                                    : { replacementParticipantId: input.replacementParticipantId }),
+                                reason: input.reason,
+                                now: options.now?.() ?? Date.now()
+                            }
+                        );
+                        const current = transition.state.currentTurn;
+                        const nextAttempt = current?.steps[current.currentStepIndex]?.attempt;
+                        return {
+                            state: transition.state as unknown as JsonObject,
+                            result: {
+                                revokedAttemptId: input.currentAttemptId,
+                                ...(input.action === "skip" || nextAttempt === undefined
+                                    ? {}
+                                    : { replacementAttemptId: nextAttempt.attemptId }),
+                                action: input.action
+                            } satisfies ReassignTurnResultV1,
+                            events: transition.effect.events as unknown as DomainEventInput[],
+                            outbox:
+                                nextAttempt === undefined
+                                    ? []
+                                    : [
+                                          {
+                                              deliveryId: nextAttempt.deliveryId,
+                                              kind: "dispatch" as const,
+                                              payload: {
+                                                  role: "participant",
+                                                  participantId: nextAttempt.participantId,
+                                                  attemptId: nextAttempt.attemptId,
+                                                  turnId: current!.id,
+                                                  stepId: current!.steps[current!.currentStepIndex]!
+                                                      .id
+                                              }
+                                          }
+                                      ]
+                        };
+                    }
+                });
+                workers.get(input.meetingId)?.wake();
+                return success<ReassignTurnResultV1>(
+                    input.meetingId,
+                    committed.meetingVersion,
+                    committed.result as ReassignTurnResultV1
+                );
+            } catch (error) {
+                return commandError(
+                    error,
+                    "STALE_ATTEMPT",
+                    "The speaker attempt is stale or cannot be reassigned.",
+                    { meetingId: input.meetingId, attemptId: input.currentAttemptId },
+                    {
+                        INVALID_ENTITY_STATE: "INVALID_ARGUMENT",
+                        REQUIRED_SPEAKER_UNAVAILABLE: "REQUIRED_SPEAKER_UNAVAILABLE"
+                    }
+                );
+            }
         },
         async endMeeting(input: EndMeetingInputV1, caller) {
             await rehydrate();
