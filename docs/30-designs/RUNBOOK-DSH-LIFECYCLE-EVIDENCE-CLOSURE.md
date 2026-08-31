@@ -366,6 +366,8 @@ T4 已 PASS（真实 task delivery/HandRaise/replan/later submit 与 Restore）�
 
 ### T6：只实现 risk-reopen 场景
 
+> 已 PASS；本节保留为历史执行记录，后续从 T7 开始。
+
 新增 `runRiskReopenScenario(ctx,fixture)`；本场景的 reopen 是同一 Host内通过新的 status/repository open，不重启 Host。create/status/plan=`600/601/602`；A submit issue `603` 标准 submit，`changes:{issues:[{title:"smoke risk",description:"smoke risk",affectedOutputIds:[],affectedCriterionIds:[<fixture.criterionId>],violatedConstraintIds:[],impact:"high",urgency:"now",safeDefaultAvailable:false}]}`；从 success DTO取得 messageId并从status取得唯一新增 issueId。Captain dispose `604` input `{protocolVersion:1,meetingId,expectedMeetingVersion:<status.meetingVersion>,requestId:"smoke-risk-dispose-1",issueId:<status新增issueId>,decision:"accept",reason:"smoke accepted risk",evidenceMessageIds:[<submit.result.messageId>]}`；重新读取status `605`；相同对象 replay `606`成功且receipt相同；仅把reason改为`different`的同requestId调用 `607` 必须 `IDEMPOTENCY_CONFLICT`。
 
 验证：`node --check plugin/scripts/smoke-profile.mjs && pnpm --dir plugin exec vitest run tests/unit/domain/completion.spec.ts tests/contract/meeting-runtime.spec.ts tests/recovery/recovery.spec.ts && env CONVIVIUM_SMOKE_SCENARIO=risk-reopen pnpm --dir plugin smoke:profile`。PASS assertions=`risk-created`,`risk-accepted`,`reopen-preserved`,`replay-stable`,`conflict-rejected`，version/event不因read/replay增加，Restore同T2。
