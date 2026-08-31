@@ -24,10 +24,160 @@ import {
     type ProtocolSuccessV1,
     type ReassignTurnResultV1
 } from "../protocol/index.js";
+import { mapMeetingPanelView } from "./meeting-panel-view.js";
 
 const meetingsPath = "/api/convivium/meetings";
 
 class ProtocolFailure extends Error {}
+
+function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElement {
+    const view = mapMeetingPanelView(detail);
+    const row = (label: string, value: string) =>
+        createElement(
+            "div",
+            { key: label },
+            createElement("dt", null, label),
+            createElement("dd", null, value)
+        );
+    return createElement(
+        "div",
+        null,
+        createElement(
+            "section",
+            { "aria-label": "Meeting summary" },
+            createElement("h4", null, "Meeting summary"),
+            createElement(
+                "dl",
+                null,
+                row("Topic", detail.topic),
+                row("Status", detail.status),
+                row("Meeting version", String(detail.meetingVersion)),
+                row("Current agenda title", view.agendaTitle),
+                row("Current agenda objective", view.agendaObjective)
+            )
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Current activity" },
+            createElement("h4", null, "Current activity"),
+            createElement(
+                "dl",
+                null,
+                row("Planned speaker order", view.plannedSpeakerOrder),
+                row("Current speaker", view.currentSpeaker),
+                row("Waiting reason", view.waitingReason),
+                row("Waiting participants", view.waitingParticipants)
+            )
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Transcript" },
+            createElement("h4", null, "Transcript"),
+            view.messages.length === 0
+                ? createElement("p", null, "No committed messages.")
+                : createElement(
+                      "ol",
+                      null,
+                      view.messages.map((message) =>
+                          createElement(
+                              "li",
+                              { key: message.id, "data-message-seq": String(message.seq) },
+                              row("Speaker", message.speaker),
+                              row("Kind", message.kind),
+                              row("Content", message.content),
+                              row("Agenda item", message.agendaItemId)
+                          )
+                      )
+                  )
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Blocking items" },
+            createElement("h4", null, "Blocking items"),
+            view.blockingFacts.length === 0
+                ? createElement("p", null, "No blocking items.")
+                : createElement(
+                      "ol",
+                      null,
+                      view.blockingFacts.map((fact) =>
+                          createElement(
+                              "li",
+                              { key: fact.id, "data-blocking-id": fact.id },
+                              row("Kind", fact.kind),
+                              row("Summary", fact.summary),
+                              row("Subject", fact.subjectId)
+                          )
+                      )
+                  )
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Meeting tasks" },
+            createElement("h4", null, "Meeting tasks"),
+            view.meetingTasks.length === 0
+                ? createElement("p", null, "No meeting tasks.")
+                : createElement(
+                      "ol",
+                      null,
+                      view.meetingTasks.map((task) =>
+                          createElement(
+                              "li",
+                              { key: task.meetingTaskId, "data-task-id": task.meetingTaskId },
+                              row("Title", task.title),
+                              row("Status", task.status),
+                              row("Participant", task.participantId),
+                              task.resultSummary === undefined
+                                  ? null
+                                  : row("Result", task.resultSummary)
+                          )
+                      )
+                  )
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Accepted decisions" },
+            createElement("h4", null, "Accepted decisions"),
+            view.acceptedDecisions.length === 0
+                ? createElement("p", null, "No accepted decisions.")
+                : createElement(
+                      "ol",
+                      null,
+                      view.acceptedDecisions.map((decision) =>
+                          createElement(
+                              "li",
+                              { key: decision.id, "data-decision-id": decision.id },
+                              decision.statement === undefined
+                                  ? null
+                                  : row("Statement", decision.statement),
+                              decision.rationale === undefined
+                                  ? null
+                                  : row("Rationale", decision.rationale),
+                              decision.dissentingPositionIds === undefined
+                                  ? null
+                                  : row(
+                                        "Dissent IDs",
+                                        decision.dissentingPositionIds.join(", ") || "None"
+                                    )
+                          )
+                      )
+                  )
+        ),
+        view.termination === undefined
+            ? null
+            : createElement(
+                  "section",
+                  { "aria-label": "Termination" },
+                  createElement("h4", null, "Termination"),
+                  createElement(
+                      "dl",
+                      null,
+                      row("Code", view.termination.code),
+                      row("Reason", view.termination.reason),
+                      row("Decision IDs", view.termination.decisionIds.join(", ") || "None")
+                  )
+              )
+    );
+}
 
 function meetingPath(meetingId: string): string {
     return `${meetingsPath}/${encodeURIComponent(meetingId)}`;
@@ -85,8 +235,8 @@ async function readEnd(response: Response): Promise<ProtocolSuccessV1<EndMeeting
     ) as ProtocolSuccessV1<EndMeetingResultV1>;
 }
 
-function failureMessage(error: unknown): string {
-    return error instanceof ProtocolFailure ? error.message : "Meeting data is unavailable.";
+function failureMessage(_error: unknown): string {
+    return "Meeting data is unavailable.";
 }
 
 export function ConviviumMeetingPanel(): ReactElement {
@@ -427,50 +577,7 @@ export function ConviviumMeetingPanel(): ReactElement {
                       : createElement(
                             "div",
                             null,
-                            createElement(
-                                "p",
-                                { "data-meeting-status": detail.status },
-                                `Status: ${detail.status}`
-                            ),
-                            detail.status === "paused"
-                                ? createElement(
-                                      "dl",
-                                      null,
-                                      createElement("dt", null, "Pause reason"),
-                                      createElement("dd", null, detail.pauseControl.reason),
-                                      createElement("dt", null, "Paused by"),
-                                      createElement(
-                                          "dd",
-                                          null,
-                                          `${detail.pauseControl.pausedBy?.kind}/${detail.pauseControl.pausedBy?.actorId}`
-                                      ),
-                                      createElement("dt", null, "Paused at"),
-                                      createElement(
-                                          "dd",
-                                          null,
-                                          String(detail.pauseControl.pausedAt)
-                                      )
-                                  )
-                                : null,
-                            !("waitState" in detail) || detail.waitState === undefined
-                                ? null
-                                : createElement(
-                                      "dl",
-                                      null,
-                                      createElement("dt", null, "Waiting reason"),
-                                      createElement("dd", null, detail.waitState.reason),
-                                      createElement("dt", null, "Waiting participants"),
-                                      createElement(
-                                          "dd",
-                                          null,
-                                          detail.waitState.participantIds.join(", ")
-                                      )
-                                  ),
-                            createElement(
-                                "pre",
-                                { "aria-label": "Meeting status details" },
-                                JSON.stringify(detail, null, 2)
-                            ),
+                            renderObservabilitySections(detail),
                             canPause
                                 ? createElement(
                                       "div",

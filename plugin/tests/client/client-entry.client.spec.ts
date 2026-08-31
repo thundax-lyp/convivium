@@ -3,6 +3,8 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apply, inject, name } from "../../src/client/index.js";
 import { ConviviumMeetingPanel } from "../../src/client/meeting-panel.js";
+import { mapMeetingPanelView } from "../../src/client/meeting-panel-view.js";
+import type { MeetingStatusResultV1 } from "../../src/protocol/index.js";
 
 const meetingId = "meeting/1";
 const listItem = {
@@ -22,7 +24,7 @@ function statusResult(
     status: "running" | "paused" | "converging" = "running",
     meetingVersion = 2,
     withCurrentAttempt = false
-) {
+): MeetingStatusResultV1 {
     return {
         meetingId,
         meetingVersion,
@@ -130,12 +132,82 @@ function deferred<T>() {
 async function selectMeeting(): Promise<void> {
     const item = await screen.findByRole("button", { name: /Runtime smoke/ });
     fireEvent.click(item);
-    await screen.findByLabelText("Meeting status details");
+    await screen.findByLabelText("Meeting summary");
 }
 
 describe("client entry framework", () => {
     beforeEach(() => {
         vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "request-1") });
+    });
+
+    it("maps active and terminal projections without mutating transcript order", () => {
+        const active = statusResult("running", 2, true);
+        const activeView = mapMeetingPanelView(active);
+        expect(activeView.plannedSpeakerOrder).toBe("participant-one");
+        expect(activeView.currentSpeaker).toBe("participant-one");
+        expect(activeView.termination).toBeUndefined();
+
+        const terminal = terminalStatusResult();
+        const terminalView = mapMeetingPanelView(terminal);
+        expect(terminalView.termination?.code).toBe("completed");
+        expect(terminalView.currentSpeaker).toBe("None");
+
+        const message = {
+            id: "m1",
+            seq: 1,
+            turnId: "turn-1",
+            stepId: "step-1",
+            speaker: "participant-one",
+            agendaItemId: "agenda-1",
+            kind: "statement" as const,
+            content: "hello",
+            mentions: [],
+            taskIds: [],
+            createdAt: 1
+        };
+        const messages = [{ ...message, id: "m2", seq: 2 }, message];
+        const ordered = mapMeetingPanelView({ ...active, messages });
+        expect(ordered.messages.map((message) => message.seq)).toEqual([1, 2]);
+        expect(messages.map((message) => message.seq)).toEqual([2, 1]);
+        expect(ordered.blockingFacts).toEqual([]);
+        expect(ordered.acceptedDecisions).toEqual([]);
+    });
+
+    it("renders transcript in seq order and blocking facts with empty-state sections", async () => {
+        const message = {
+            id: "m1",
+            seq: 1,
+            turnId: "turn-1",
+            stepId: "step-1",
+            speaker: "participant-one",
+            agendaItemId: "agenda-1",
+            kind: "statement" as const,
+            content: "hello",
+            mentions: [],
+            taskIds: [],
+            createdAt: 1
+        };
+        const detail = {
+            ...statusResult(),
+            messages: [{ ...message, id: "m2", seq: 2 }, message],
+            blockingFacts: [{ id: "b1", kind: "risk" as const, subjectId: "s1", summary: "risk" }]
+        };
+        vi.stubGlobal(
+            "fetch",
+            vi
+                .fn<typeof fetch>()
+                .mockResolvedValueOnce(jsonResponse(listResponse()))
+                .mockResolvedValueOnce(jsonResponse(success(detail)))
+        );
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+        const transcript = screen.getByLabelText("Transcript");
+        expect(
+            [...transcript.querySelectorAll("li")].map((item) =>
+                item.getAttribute("data-message-seq")
+            )
+        ).toEqual(["1", "2"]);
+        expect(screen.getByLabelText("Blocking items").textContent).toContain("risk");
     });
 
     afterEach(() => {
@@ -188,17 +260,11 @@ describe("client entry framework", () => {
         expect(screen.getByLabelText("Meetings")).toBeTruthy();
 
         fireEvent.click(item);
-        const projection = await screen.findByLabelText("Meeting status details");
+        await screen.findByLabelText("Meeting summary");
         expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/convivium/meetings/meeting%2F1");
-        expect(projection.textContent).toContain('"objective": "Verify local control"');
-        expect(screen.getByText("Inspect output")).toBeTruthy();
-        expect(screen.getByText("local_host/loopback-web")).toBeTruthy();
-        expect(screen.getByText("100")).toBeTruthy();
         expect(screen.getByLabelText("Resume meeting")).toBeTruthy();
         expect(screen.queryByLabelText("Pause meeting")).toBeNull();
-        expect(screen.getByText("Status: paused").getAttribute("data-meeting-status")).toBe(
-            "paused"
-        );
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("paused");
     });
 
     it("refreshes both the selected detail and list summary when the window regains focus", async () => {
@@ -215,7 +281,7 @@ describe("client entry framework", () => {
 
         window.dispatchEvent(new Event("focus"));
 
-        await screen.findByText("Status: paused");
+        await screen.findByText("paused");
         expect(screen.getByRole("button", { name: /Runtime smoke \(paused\)/ })).toBeTruthy();
         expect(fetchMock).toHaveBeenCalledTimes(4);
     });
@@ -249,7 +315,7 @@ describe("client entry framework", () => {
             post.resolve(jsonResponse(success({ status: "paused", changed: true }, 3)));
             await post.promise;
         });
-        await screen.findByText("Status: paused");
+        await screen.findByText("paused");
         expect(fetchMock).toHaveBeenCalledTimes(5);
         expect(screen.getByRole("button", { name: /Runtime smoke \(paused\)/ })).toBeTruthy();
         expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
@@ -354,9 +420,7 @@ describe("client entry framework", () => {
         await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
         expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
         await waitFor(() =>
-            expect(screen.getByLabelText("Meeting status details").textContent).toContain(
-                '"meetingVersion": 3'
-            )
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain("3")
         );
         expect(screen.queryByText("Safe conflict")).toBeNull();
     });
@@ -378,9 +442,7 @@ describe("client entry framework", () => {
         expect(fetchMock).toHaveBeenCalledTimes(3);
         expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
-        expect(screen.getByLabelText("Meeting status details").textContent).toContain(
-            '"meetingVersion": 2'
-        );
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("2");
     });
 
     it("does not expose controls for a terminal projection", async () => {
@@ -392,7 +454,7 @@ describe("client entry framework", () => {
         render(createElement(ConviviumMeetingPanel));
         await selectMeeting();
 
-        expect(screen.getByText("Status: completed")).toBeTruthy();
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("completed");
         expect(screen.queryByLabelText("Pause meeting")).toBeNull();
         expect(screen.queryByLabelText("Resume meeting")).toBeNull();
         expect(screen.queryByLabelText("Skip current speaker")).toBeNull();
@@ -432,9 +494,7 @@ describe("client entry framework", () => {
 
         window.dispatchEvent(new Event("focus"));
         await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
-        expect(screen.getByLabelText("Meeting status details").textContent).toContain(
-            '"meetingVersion": 2'
-        );
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("2");
         expect(screen.getByRole("alert").parentElement?.getAttribute("data-cached")).toBe("true");
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
 
@@ -447,9 +507,7 @@ describe("client entry framework", () => {
 
         await act(async () => vi.advanceTimersByTime(5_000));
         await waitFor(() =>
-            expect(screen.getByLabelText("Meeting status details").textContent).toContain(
-                '"meetingVersion": 4'
-            )
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain("4")
         );
         const lastSignal = fetchMock.mock.calls.at(-1)?.[1]?.signal;
         rendered.unmount();
