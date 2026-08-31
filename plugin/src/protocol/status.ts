@@ -302,6 +302,14 @@ const proposal = Schema.object({
     )
 });
 
+const waitState = Schema.object({
+    reason: requiredString(),
+    taskIds: requiredArray(requiredString()),
+    participantIds: requiredArray(requiredString()),
+    deadlineAt: Schema.number(),
+    resumeAgendaItemId: Schema.string()
+});
+
 const active = Schema.object({
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
@@ -319,6 +327,7 @@ const active = Schema.object({
     status: enumOf(["created", "running", "waiting", "paused", "converging"] as const),
     currentTurn: optionalObject(turn),
     currentSpeakerId: Schema.string(),
+    waitState: optionalObject(waitState),
     pendingHandRaises: requiredArray(handRaise),
     pauseControl: Schema.object({
         action: enumOf(["pause", "resume", "none"] as const),

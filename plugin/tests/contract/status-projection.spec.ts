@@ -208,15 +208,30 @@ describe("meeting status projection", () => {
     });
 
     it("keeps pause available while an active meeting is waiting", () => {
-        const projected = projectMeetingStatus({ ...state, status: "waiting" } as MeetingState, {
-            kind: "captain",
-            sessionId: "captain-1"
-        });
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                status: "waiting",
+                waitState: {
+                    reason: "required Participant participant-1 is unavailable",
+                    taskIds: [],
+                    participantIds: ["participant-1"],
+                    resumeAgendaItemId: "agenda-1"
+                }
+            } as MeetingState,
+            { kind: "captain", sessionId: "captain-1" }
+        );
 
         expect(projected).toMatchObject({
             status: "waiting",
-            pauseControl: { action: "pause" }
+            pauseControl: { action: "pause" },
+            waitState: {
+                reason: "required Participant participant-1 is unavailable",
+                participantIds: ["participant-1"],
+                resumeAgendaItemId: "agenda-1"
+            }
         });
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
 
     it("projects local host pause metadata without treating it as an Agent caller", () => {

@@ -5,7 +5,7 @@
 本文记录 Convivium 当前代码相对已确认会议需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-08-31
-- 代码基线：`codex/post-merge-integration-fix` 基于 `main@d653962`；包含 Proposal/Position/AgendaCandidate、Blocking Question、dispatch reliability、Captain 非 Participant 风险处置，以及 Proposal revision 审计/公开 projection 修复
+- 代码基线：`codex/post-merge-integration-fix` 基于 `main@d653962`；包含 Proposal/Position/AgendaCandidate、Blocking Question、dispatch reliability、Captain 非 Participant 风险处置、Proposal revision 审计/公开 projection，以及 required-speaker waiting projection 修复
 - 环境：macOS、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`
 - 本文只记录实际执行过的实现与验证；文档删除和本覆盖矩阵更新由收口提交记录。
 
@@ -40,7 +40,7 @@
 | FR-1 DSH 插件形态         | 已实现   | package、双 bundle、provider capability、独立 profile smoke                                                                                                                                                                                                                                                  | 高于最低版本的兼容与分发策略仍未决定                                                                                   |
 | FR-2 会议与身份隔离       | 部分实现 | Meeting/Participant/Manager/Captain、Session ownership、label 和 caller binding 已实现                                                                                                                                                                                                                       | V1 loopback Web 按正式边界不绑定用户/Team authority；远程、多用户与跨 workspace Web 路径不支持                         |
 | FR-3 有序连续发言         | 部分实现 | 单一 attempt、逐 Speaker dispatch、late/stale submit 拒绝、Captain reassign/skip、Runtime lifecycle 周期扫描的到期 SpeakerAttempt/Step 原子 revoke、事务外 DSH interrupt+drain 后再放行后续 delivery，以及 A→C→B 真实 profile smoke                                                                          | timeout interrupt/drain 和 Captain reassign 的真实 DSH profile smoke 尚未形成完整运行路径                              |
-| FR-4 发言计划与选择       | 部分实现 | Manager 和 round-robin planning、候选资格与 MeetingTask/HandRaise 消费；required Participant unavailable 零副作用拒绝已实现                                                                                                                                                                                  | 确定性 fallback、自动 failure/stall/replan 还未形成完整 runtime 路径                                                   |
+| FR-4 发言计划与选择       | 部分实现 | Manager 和 round-robin planning、候选资格与 MeetingTask/HandRaise 消费；required Participant unavailable 零副作用拒绝已实现，timeout 后的 required speaker 阻塞以 `waiting.waitState` 对外公开身份和原因                                                                                                                      | 确定性 fallback、自动 failure/stall/replan 还未形成完整 runtime 路径                                                   |
 | FR-5 异步任务与举手       | 部分实现 | MeetingTask/HandRaise 的领域、工具、恢复、幂等、completion/end 集成自动化通过                                                                                                                                                                                                                                | `finish → HandRaise → 后续 submit_turn` 尚无真实 DSH profile smoke；不承诺外部副作用 exactly-once                      |
 | FR-6 议题范围与发散控制   | 部分实现 | `QuestionClaimV1`、`IssueClaimV1`、Proposal/Position 和 AgendaCandidate 已通过单一 SQLite `submit_turn` transaction 形成正式事实；blocking Question 验证 required output、criterion 或 hard constraint 引用并以 `INVALID_ARGUMENT` 零副作用拒绝非法引用；canonical Question 在 status/archive/reopen 中保留  | Question required-review/risk evidence、`decisionProposals`、candidate promote/park/reject、stall/refocus 未闭环       |
 | FR-7 提案、立场与决策     | 部分实现 | Proposal/Position 的 canonical ID、revision、真实 Speaker binding、旧 revision 审计 snapshot、status projection、幂等/terminal reject、archive snapshot 已自动化；`convivium_dispose_risk` 已提供 Captain 单一 Issue accept/reject 控制                                                                                   | 未定义 pending Decision 的公开契约；`decisionProposals` fail closed，Captain 决策接受与完整 Decision acceptance 未实现 |
@@ -156,6 +156,14 @@
 | 命令 | 结果 |
 | --- | --- |
 | `pnpm --dir plugin exec vitest run tests/unit/domain/transitions/proposal-position.spec.ts tests/unit/domain/transitions/termination.spec.ts tests/unit/domain/transitions/archive.spec.ts tests/unit/runtime/archive.spec.ts tests/contract/status-projection.spec.ts tests/contract/protocol-schema.spec.ts tests/contract/http-boundary.spec.ts tests/client/client-entry.client.spec.ts` | Pass；8 files、98 tests；覆盖 revision snapshot、当前 revision dissent、archive 全 revision 校验、公开 projection 及 HTTP/Client schema 兼容。 |
+| `pnpm --dir plugin verify` | Pass；44 files、335 tests；format、lint、Host/Client typecheck、build、environment、contract 与 package verifier 全部通过。 |
+| `git diff --check` | Pass。 |
+
+2026-08-31 在 `codex/post-merge-integration-fix` 处理 PR #22 Codex comment #3892531088 后执行：
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --dir plugin exec vitest run tests/unit/domain/transitions/speaker-attempt.spec.ts tests/contract/status-projection.spec.ts tests/contract/protocol-schema.spec.ts tests/client/client-entry.client.spec.ts` | Pass；4 files、46 tests；覆盖 required speaker timeout 后的 `waiting.waitState`、status schema 与 Client 读取。 |
 | `pnpm --dir plugin verify` | Pass；44 files、335 tests；format、lint、Host/Client typecheck、build、environment、contract 与 package verifier 全部通过。 |
 | `git diff --check` | Pass。 |
 

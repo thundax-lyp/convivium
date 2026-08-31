@@ -640,11 +640,20 @@ export interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
     blockingFacts: readonly PublicBlockingFactV1[];
 }
 
+export interface PublicMeetingWaitStateV1 {
+    reason: string;
+    taskIds: readonly string[];
+    participantIds: readonly string[];
+    deadlineAt?: number;
+    resumeAgendaItemId?: string;
+}
+
 export interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
     status: "created" | "running" | "waiting" | "paused" | "converging";
     currentTurn?: PublicTurnV1;
     currentSpeakerId?: string;
     pendingHandRaises: readonly PublicHandRaiseV1[];
+    waitState?: PublicMeetingWaitStateV1;
     pauseControl: {
         action: "pause" | "resume" | "none";
         pausedAt?: number;

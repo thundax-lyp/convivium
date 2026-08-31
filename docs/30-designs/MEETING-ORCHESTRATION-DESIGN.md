@@ -1090,7 +1090,7 @@ function dispatchableNow(state: MeetingState): MeetingParticipant[]
 
 同一 speaker 默认每 turn 只出现一次。Plan 长度不得超过 `maxSpeakersPerTurn`。
 
-Required speaker 不属于 `dispatchableNow` 时，Runtime MUST 停止规划并抛出 `REQUIRED_SPEAKER_UNAVAILABLE`，不得自动替换、豁免或删除该 speaker，也不得创建部分 Turn、Step 或 Attempt。错误由 DSH 外层工具结果或后台活动面板呈现给用户。
+Required speaker 不属于 `dispatchableNow` 时，Runtime MUST 停止规划并抛出 `REQUIRED_SPEAKER_UNAVAILABLE`，不得自动替换、豁免或删除该 speaker，也不得创建部分 Turn、Step 或 Attempt。同步命令通过 DSH 外层工具结果报告错误；后台 timeout 进入 `waiting` 并将原因与不可调度 `participantIds` 写入 `waitState`，由类型化 status projection 呈现给面板和 Agent。
 
 同一 Meeting version 下，同一 required speaker 的不可调度错误不得自动重复规划或形成重试循环。只有用户改派、显式豁免、恢复/移除 Participant，或其他合法操作推进 Meeting version 后，scheduler 才能再次规划。后台调度发生该错误时，只停止该 Meeting 的继续调度，不影响其他 Meetings。
 

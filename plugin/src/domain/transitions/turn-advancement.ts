@@ -288,10 +288,16 @@ export function advanceAfterSpeakerSubmission(
         (participantId) => !dispatchableParticipantIds.has(participantId)
     );
     if (unavailableRequiredParticipant !== undefined) {
+        const reason = `required Participant ${unavailableRequiredParticipant} is unavailable`;
         nextState = {
             ...nextState,
-            status: "running",
-            waitState: undefined,
+            status: "waiting",
+            waitState: {
+                reason,
+                taskIds: [],
+                participantIds: [unavailableRequiredParticipant],
+                resumeAgendaItemId: nextState.activeAgendaItemId
+            },
             manager: {
                 ...nextState.manager,
                 status: "idle",
@@ -306,8 +312,18 @@ export function advanceAfterSpeakerSubmission(
                     meetingId: state.id,
                     participantId: unavailableRequiredParticipant,
                     code: "REQUIRED_SPEAKER_UNAVAILABLE",
-                    reason: `required Participant ${unavailableRequiredParticipant} is unavailable`,
+                    reason,
                     meetingVersion: version
+                }
+            },
+            {
+                type: "meeting.waiting",
+                payload: {
+                    meetingId: state.id,
+                    from: state.status,
+                    to: "waiting",
+                    meetingVersion: version,
+                    reason
                 }
             }
         ];

@@ -303,6 +303,21 @@ export function projectMeetingStatus(
         status: state.status,
         ...(currentTurn === undefined ? {} : { currentTurn }),
         ...(currentStep === undefined ? {} : { currentSpeakerId: currentStep.speaker }),
+        ...(state.waitState === undefined
+            ? {}
+            : {
+                  waitState: {
+                      reason: state.waitState.reason,
+                      taskIds: [...state.waitState.taskIds],
+                      participantIds: [...state.waitState.participantIds],
+                      ...(state.waitState.deadlineAt === undefined
+                          ? {}
+                          : { deadlineAt: state.waitState.deadlineAt }),
+                      ...(state.waitState.resumeAgendaItemId === undefined
+                          ? {}
+                          : { resumeAgendaItemId: state.waitState.resumeAgendaItemId })
+                  }
+              }),
         pendingHandRaises: state.handRaises
             .filter((raise) => raise.status === "pending")
             .map(handRaise),

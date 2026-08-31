@@ -964,6 +964,7 @@ interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
   status: "created" | "running" | "waiting" | "paused" | "converging";
   currentTurn?: PublicTurnV1;
   currentSpeakerId?: string;
+  waitState?: PublicMeetingWaitStateV1;
   pendingHandRaises: readonly PublicHandRaiseV1[];
   meetingTasks: readonly MeetingTaskProjectionV1[];
   pauseControl: {
@@ -978,6 +979,14 @@ interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
   };
   termination?: never;
   archive?: never;
+}
+
+interface PublicMeetingWaitStateV1 {
+  reason: string;
+  taskIds: readonly string[];
+  participantIds: readonly string[];
+  deadlineAt?: number;
+  resumeAgendaItemId?: string;
 }
 
 interface ExecutionTerminalMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
@@ -1116,6 +1125,8 @@ interface PublicArtifactRefV1 {
 ```
 
 该 union 只表达字段结构显著不同的四个生命周期阶段，不为每个细粒度 `status` 建立独立接口。`waiting`、`paused` 和 `converging` 等 active 子状态继续共享 `ActiveMeetingStatusResultV1`；其 `pauseControl`、等待原因等细粒度一致性由 Runtime schema 和状态转换校验，不通过更多 TypeScript 分支复制完整 projection。
+
+当 active Meeting 因 `REQUIRED_SPEAKER_UNAVAILABLE` 或其他已提交的等待条件停止推进时，Runtime 必须进入 `status='waiting'` 并输出 `waitState`。`reason` 与 `participantIds` 是面板和 Agent 可观察的正式状态，不得只留在 `manager_plan.failed` event 或日志中；该状态本身不创建部分 Turn、Step 或 Attempt。
 
 Meeting Runtime 必须按 caller 身份裁剪 projection。任何 projection 都不得包含其他 Agent 的私有 Session 历史、隐藏推理、私有 mailbox、完整内部工具输出或可复用的 Session capability。
 
