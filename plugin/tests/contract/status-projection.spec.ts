@@ -56,6 +56,43 @@ describe("meeting status projection", () => {
         expect(projected.questions?.[0]).not.toHaveProperty("answerMessageId");
     });
 
+    it("projects canonical blocking-question evidence arrays", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                openQuestions: [
+                    {
+                        id: "question-1",
+                        text: "Question",
+                        askedBy: "participant-1",
+                        agendaItemId: "agenda-1",
+                        blocking: true,
+                        affectedOutputIds: ["output-1"],
+                        affectedCriterionIds: ["criterion-1"],
+                        violatedConstraintIds: ["constraint-1"],
+                        status: "open",
+                        createdAt: 1
+                    }
+                ]
+            } as MeetingState,
+            { kind: "participant", sessionId: "session-1", participantId: "participant-1" }
+        );
+
+        expect(projected.questions).toEqual([
+            {
+                id: "question-1",
+                text: "Question",
+                askedBy: "participant-1",
+                agendaItemId: "agenda-1",
+                blocking: true,
+                affectedOutputIds: ["output-1"],
+                affectedCriterionIds: ["criterion-1"],
+                violatedConstraintIds: ["constraint-1"],
+                status: "open"
+            }
+        ]);
+    });
+
     it("maps only public canonical meeting facts", () => {
         const projected = projectMeetingStatus(state, {
             kind: "participant",

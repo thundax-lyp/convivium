@@ -258,6 +258,9 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     text: claim.text.trim(),
                     ...(claim.directedTo === undefined ? {} : { directedTo: claim.directedTo }),
                     blocking: claim.blocking,
+                    affectedOutputIds: [...(claim.affectedOutputIds ?? [])],
+                    affectedCriterionIds: [...(claim.affectedCriterionIds ?? [])],
+                    violatedConstraintIds: [...(claim.violatedConstraintIds ?? [])],
                     createdAt: commandNow
                 }));
                 const issues = (input.changes.issues ?? []).map((claim, index) => ({

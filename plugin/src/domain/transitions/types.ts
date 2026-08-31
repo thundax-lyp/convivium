@@ -76,5 +76,8 @@ export interface SubmittedQuestionInput {
     text: string;
     directedTo?: string;
     blocking: boolean;
+    affectedOutputIds?: readonly string[];
+    affectedCriterionIds?: readonly string[];
+    violatedConstraintIds?: readonly string[];
     createdAt: number;
 }

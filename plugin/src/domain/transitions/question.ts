@@ -47,11 +47,47 @@ export function addSubmittedQuestions(
             );
         }
     }
-    if (questions.some(({ blocking }) => blocking)) {
-        throw new DomainError(
-            "UNSUPPORTED_CAPABILITY",
-            "blocking question evidence is not supported by QuestionClaimV1"
-        );
+    for (const question of questions) {
+        const outputIds = question.affectedOutputIds ?? [];
+        const criterionIds = question.affectedCriterionIds ?? [];
+        const constraintIds = question.violatedConstraintIds ?? [];
+        const valid =
+            outputIds.every((id) =>
+                state.objectiveContract.requiredOutputs.some((item) => item.id === id)
+            ) &&
+            criterionIds.every((id) =>
+                state.objectiveContract.acceptanceCriteria.some((item) => item.id === id)
+            ) &&
+            constraintIds.every((id) =>
+                state.objectiveContract.hardConstraints.some((item) => item.id === id)
+            );
+        if (!valid) {
+            throw new DomainError(
+                "INVALID_ARGUMENT",
+                "question evidence does not belong to this Meeting"
+            );
+        }
+        if (question.blocking) {
+            const refs = outputIds.length + criterionIds.length + constraintIds.length;
+            const unresolved =
+                outputIds.some((id) =>
+                    state.objectiveContract.requiredOutputs.some(
+                        (item) => item.id === id && item.status !== "accepted"
+                    )
+                ) ||
+                criterionIds.some((id) =>
+                    state.objectiveContract.acceptanceCriteria.some(
+                        (item) => item.id === id && !item.satisfied
+                    )
+                ) ||
+                constraintIds.length > 0;
+            if (refs === 0 || !unresolved) {
+                throw new DomainError(
+                    "INVALID_ARGUMENT",
+                    "blocking question requires unresolved objective evidence"
+                );
+            }
+        }
     }
 
     const addedQuestions = questions.map((question) => ({
@@ -60,7 +96,10 @@ export function addSubmittedQuestions(
         ...(question.directedTo === undefined ? {} : { directedTo: question.directedTo }),
         askedBy: participantId,
         agendaItemId,
-        blocking: false,
+        blocking: question.blocking,
+        affectedOutputIds: [...(question.affectedOutputIds ?? [])],
+        affectedCriterionIds: [...(question.affectedCriterionIds ?? [])],
+        violatedConstraintIds: [...(question.violatedConstraintIds ?? [])],
         status: "open" as const,
         createdAt: question.createdAt
     }));
