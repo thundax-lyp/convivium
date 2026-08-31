@@ -6,14 +6,12 @@ import {
     type ContinuableInspectionRuntime,
     type OwnedSessionInspection
 } from "../../dsh/index.js";
-import type { MeetingState } from "../../domain/index.js";
 import type { MeetingRepository, RecoveryResult } from "../../repository/index.js";
 import type { MeetingSnapshot } from "../../repository/index.js";
 import {
     openMeetingRepository,
     type RepositoryAuthorizationValidator
 } from "../meeting-runtime.js";
-import { recoverArchive } from "./meeting-archive-service.js";
 import { locateMeetingRepository } from "./meeting-repository-locator.js";
 
 export class LocalMeetingRecoveryUnavailableError extends Error {
@@ -93,14 +91,6 @@ export function createMeetingRehydrationService(
             const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
             if (recovered.snapshot === undefined || parentSessionId === undefined) {
                 throw new Error("Ready Meeting recovery is incomplete.");
-            }
-            const recoveredState = recovered.snapshot.state as unknown as MeetingState;
-            if (recoveredState.status === "archiving" || recoveredState.status === "archived") {
-                await recoverArchive({
-                    repository,
-                    signal: options.signal,
-                    now: options.now?.() ?? Date.now()
-                });
             }
             const current = await repository.read();
             if (opened) {
@@ -213,11 +203,6 @@ export function createMeetingRehydrationService(
                             teamId: decodeURIComponent(team.name),
                             captainSessionId: parentSessionId,
                             repository
-                        });
-                        await recoverArchive({
-                            repository,
-                            signal: options.signal,
-                            now: options.now?.() ?? Date.now()
                         });
                     } catch {
                         // Ignore unrelated or incomplete databases during startup discovery.

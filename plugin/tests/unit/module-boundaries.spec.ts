@@ -146,4 +146,12 @@ describe("plugin module boundaries", () => {
             "client may not import runtime"
         ]);
     });
+
+    it("keeps repository recovery free of archive lifecycle orchestration", () => {
+        const recoverySource = readFileSync(
+            join(sourceRoot, "runtime/services/meeting-recovery-service.ts"),
+            "utf8"
+        );
+        expect(importsOf(recoverySource)).not.toContain("./meeting-archive-service.js");
+    });
 });

@@ -13,7 +13,10 @@ import {
 } from "../services/meeting-dispatch-service.js";
 import { resolveArchiveCleanupRuntime } from "../services/meeting-session-service.js";
 import { recoverArchive } from "../services/meeting-archive-service.js";
-import { createMeetingRehydrationService } from "../services/meeting-recovery-service.js";
+import {
+    createMeetingRehydrationService,
+    type MeetingRehydrationService
+} from "../services/meeting-recovery-service.js";
 import { createMeetingTurnApplication } from "./meeting-turn.js";
 import { createMeetingQueryApplication } from "./meeting-query.js";
 import { createMeetingApplication } from "./create-meeting.js";
@@ -187,13 +190,33 @@ export function createCreateStatusRuntime(
         options.signal === undefined
             ? runtimeController.signal
             : AbortSignal.any([options.signal, runtimeController.signal]);
-    const recovery = createMeetingRehydrationService({
+    const repositoryRecovery = createMeetingRehydrationService({
         dataRoot: options.dataRoot,
         authorizationValidator: options.authorizationValidator,
         meetings,
         signal,
         now: options.now
     });
+    const recovery: MeetingRehydrationService = {
+        async rehydrate(mode) {
+            const knownMeetingIds = new Set(meetings.keys());
+            const snapshots = await repositoryRecovery.rehydrate(mode);
+            if (mode !== undefined && mode.kind !== "agent_best_effort") return snapshots;
+            for (const [meetingId, stored] of meetings) {
+                if (knownMeetingIds.has(meetingId)) continue;
+                try {
+                    await recoverArchive({
+                        repository: stored.repository,
+                        signal,
+                        now: options.now?.() ?? Date.now()
+                    });
+                } catch {
+                    // Keep startup discovery best-effort; a later application command may retry.
+                }
+            }
+            return snapshots;
+        }
+    };
 
     async function recoverArchiveForCaptain(
         stored: StoredMeeting,
