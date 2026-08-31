@@ -8,7 +8,7 @@
 
 ## 1. 执行者契约
 
-本 RUNBOOK 面向不能承担产品、架构或接口判断的低级 LLM。必须从 T0 开始顺序执行；不得跳步、合并步骤、改用开发者常用 DSH profile，或把 focused test、mock、Host 监听端口、`build` 成功当作真实生命周期证据。
+本 RUNBOOK 面向不能承担产品、架构或接口判断的低级 LLM。T0 已完成并在前一 commit 收口；从 T1 开始顺序执行，不得跳步、合并步骤、改用开发者常用 DSH profile，或把 focused test、mock、Host 监听端口、`build` 成功当作真实生命周期证据。
 
 允许动作：
 
@@ -351,43 +351,6 @@ Restore：分别保存 A/B/C 的最终 ownership 快照和交集为空断言；�
 ## 8. 机械执行步骤
 
 以下对象中的 `<status.*>` 不是执行者选择或占位输入，而是强制的数据流引用：必须先执行紧邻的 `convivium_meeting_status`，再逐字段复制该返回值；字段缺失即 STOP。所有 `convivium_create_meeting` 使用 §6.5 固定 fixture；所有 success 必须是 `ProtocolSuccessV1`，所有预期失败必须是 `ProtocolErrorV1` 且 `retryable===false`。
-
-### T0：锁定 baseline 与当前 DSH API
-
-前置状态：在仓库根目录，工作树允许存在用户改动但尚未触碰本 RUNBOOK 允许文件。
-
-允许修改：无。
-
-禁止修改：全部文件。
-
-执行：
-
-1. 运行下列命令并保存 stdout 到执行报告；确认 `git status` 中没有执行者造成的改动。
-2. `pnpm install` 只能使用 frozen lockfile；如果 node_modules 已存在仍执行验证命令。
-3. 核对 DSH subagent、SessionStore、AgentRegistry、ToolRuntime、WorkspaceRegistry 的锁定类型和 persistence 语义；任何签名差异都 STOP。
-
-验证：
-
-```bash
-git status --short --branch
-git rev-parse HEAD
-pnpm --dir plugin install --frozen-lockfile
-pnpm --dir plugin verify:environment
-pnpm --dir plugin verify:contract
-node -e 'for (const p of ["dsh-subagent","dsh-agent","dsh-session","dsh-tools","dsh-workspace"]){const v=require("./plugin/node_modules/@deepseek-ai/"+p+"/package.json").version;if(v!=="0.1.1-rc.2")throw Error(p+"="+v)}'
-rg -n "startContinuable\(spec: ContinuableStartSpec\)|followup\(parent: Agent, childId: SessionId|interrupt\(targetSessionId: SessionId|drainContinuableChildren\(parent: Agent|listChildren\(parentSessionId: SessionId|listDescendants\(rootSessionId: SessionId" plugin/node_modules/@deepseek-ai/dsh-subagent/lib/types/index.d.ts plugin/node_modules/@deepseek-ai/dsh-subagent/lib/types/continuation.d.ts
-rg -n "create\(options: CreateAgentOptions\)|resume\(options: ResumeAgentOptions\)|register\(agent: Agent\)|get\(id: SessionId\): Agent" plugin/node_modules/@deepseek-ai/dsh-agent/lib/types/index.d.ts
-rg -n "create\(id\?: SessionId|flush\(session: Session\): Promise<boolean>|get\(id: SessionId\): Session" plugin/node_modules/@deepseek-ai/dsh-session/lib/types/index.d.ts
-rg -n "readonly callId: CallId|readonly name: string|readonly arguments: unknown|readonly agent\?: Agent|readonly signal: AbortSignal|execute\(exec: ToolExecutionInput\): Promise<ToolExecutionResult>" plugin/node_modules/@deepseek-ai/dsh-tools/lib/types/index.d.ts
-rg -n "create\(path: string, title\?: string\): Promise<Workspace>|attachSession\(sessionId: SessionId\): Promise<void>" plugin/node_modules/@deepseek-ai/dsh-workspace/lib/types/index.d.ts plugin/node_modules/@deepseek-ai/dsh-workspace/lib/types/types.d.ts
-rg -n "cold-resum|persisted Session|does not delete|without loading|exact live direct parent|async.*cancel|inbox acceptance" plugin/node_modules/@deepseek-ai/dsh-subagent/README.md plugin/node_modules/@deepseek-ai/dsh-subagent/lib/types/index.d.ts plugin/node_modules/@deepseek-ai/dsh-subagent/lib/types/continuation.d.ts
-```
-
-PASS：环境/contract 退出 `0`；五个包版本严格为 `0.1.1-rc.2`；所有逐项签名均匹配；类型/README 同时证明 `SessionStore.get` 仅 live、`AgentRegistry.resume` 负责 persisted resume、workspace attach 校验持久 Session header、interrupt 异步、drain 不删除 durable Session、list 不加载、followup absent child cold resume；Git 基线已记录。
-
-STOP：依赖安装修改 `plugin/pnpm-lock.yaml`、任一版本/签名/语义 grep 缺失、workspace/session persistence 未组合、environment/contract 失败。报告精确包、文件、行和 stdout；不得升级依赖、手工构造 Agent、用 `SessionStore.create` 代替 resume 或改 reference。
-
-恢复：T0 不写仓库文件；若 frozen install 产生未预期 tracked diff，停止并保留该 diff供人工判断，不执行 checkout/reset。`node_modules` 只由包管理器管理，不在本步骤手工删除。
 
 ### T1：加入 selector 与 result contract
 
