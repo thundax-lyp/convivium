@@ -24,6 +24,7 @@ export type FaultPoint =
 export class ScriptedFileSystem implements FileSystemPort {
     private readonly armed = new Map<FaultPoint, Error>();
     private readonly seen = new Map<FaultPoint, { readonly paths: readonly string[] }[]>();
+    private readonly pending = new Map<string, "page" | "root" | "pointer">();
     failNext(point: FaultPoint, error: Error): void {
         if (this.armed.has(point)) throw new Error(`already armed: ${point}`);
         this.armed.set(point, error);
@@ -61,7 +62,7 @@ export class ScriptedFileSystem implements FileSystemPort {
                     ? "checkpoint.pointer-temp-write"
                     : path.endsWith("root.json")
                       ? "checkpoint.root-write"
-                      : path.endsWith("records.jsonl") || /segment-\d+\.jsonl$/.test(path)
+                      : path.endsWith("records.jsonl") || /\/segments\/\d{20}\.jsonl$/.test(path)
                         ? "checkpoint.page-write"
                         : path.endsWith(".tmp")
                           ? "replace.temp-write"
@@ -81,7 +82,7 @@ export class ScriptedFileSystem implements FileSystemPort {
                     ? "checkpoint.pointer-temp-sync"
                     : path.endsWith("root.json")
                       ? "checkpoint.root-sync"
-                      : path.endsWith("records.jsonl") || /segment-\d+\.jsonl$/.test(path)
+                      : path.endsWith("records.jsonl") || /\/segments\/\d{20}\.jsonl$/.test(path)
                         ? "checkpoint.page-sync"
                         : "append.datasync";
                 const e = this.mark(p, path);
@@ -89,18 +90,32 @@ export class ScriptedFileSystem implements FileSystemPort {
                 return base.datasync();
             },
             sync: async () => {
-                const p: FaultPoint | undefined = path.endsWith("checkpoint-pointer.json.tmp")
-                    ? "checkpoint.pointer-directory-sync"
-                    : path.endsWith("root.json")
-                      ? "checkpoint.root-directory-sync"
-                      : path.endsWith("records.jsonl") || /segment-\d+\.jsonl$/.test(path)
+                const role = this.pending.get(path);
+                const point: FaultPoint =
+                    role === "page"
                         ? "checkpoint.page-directory-sync"
-                        : path.endsWith(".tmp")
-                          ? "replace.temp-sync"
-                          : "replace.directory-sync";
-                const e = p ? this.mark(p, path) : undefined;
+                        : role === "root"
+                          ? "checkpoint.root-directory-sync"
+                          : role === "pointer"
+                            ? "checkpoint.pointer-directory-sync"
+                            : path.endsWith("checkpoint-pointer.json.tmp")
+                              ? "checkpoint.pointer-temp-sync"
+                              : path.endsWith("root.json")
+                                ? "checkpoint.root-sync"
+                                : path.endsWith("records.jsonl") ||
+                                    /\/segments\/\d{20}\.jsonl$/.test(path)
+                                  ? "checkpoint.page-sync"
+                                  : path.endsWith(".tmp")
+                                    ? "replace.temp-sync"
+                                    : "replace.directory-sync";
+                const e = this.mark(point, path);
                 if (e) throw e;
-                return base.sync();
+                await base.sync();
+                if (role) this.pending.delete(path);
+                else if (path.endsWith("records.jsonl"))
+                    this.pending.set(path.slice(0, path.lastIndexOf("/")), "page");
+                else if (path.endsWith("root.json"))
+                    this.pending.set(path.slice(0, path.lastIndexOf("/")), "root");
             },
             truncate: async (length) => {
                 const e = path.endsWith(".jsonl")
@@ -121,10 +136,15 @@ export class ScriptedFileSystem implements FileSystemPort {
             ? "checkpoint.pointer-rename"
             : "replace.rename";
         const e = this.mark(point, from);
-        return e ? Promise.reject(e) : nodeFileSystemPort.rename(from, to);
+        return e
+            ? Promise.reject(e)
+            : nodeFileSystemPort.rename(from, to).then(() => {
+                  if (point === "checkpoint.pointer-rename")
+                      this.pending.set(to.slice(0, to.lastIndexOf("/")), "pointer");
+              });
     }
     unlink(path: string): Promise<void> {
-        const e = /segment-\d+\.jsonl$/.test(path)
+        const e = /\/segments\/\d{20}\.jsonl$/.test(path)
             ? this.mark("checkpoint.segment-unlink", path)
             : undefined;
         return e ? Promise.reject(e) : nodeFileSystemPort.unlink(path);
