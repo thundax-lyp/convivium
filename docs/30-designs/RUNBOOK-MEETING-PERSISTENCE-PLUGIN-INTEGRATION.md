@@ -5,7 +5,7 @@
 - 状态：Executable
 - 建立日期：2026-09-01
 - 最后审计日期：2026-09-02
-- 当前执行进度：T0–T4 已 PASS；最后合法完成提交是 `954bf10`。T5 仍处于 STOP correction，`ad094c4`、`4609640`、`4c17266`、`cd3e2ef` 都是必须保留且不得 amend/squash 的未完成历史，不构成 T5 PASS；T6–T19 未开始。
+- 当前执行进度：T0–T6 已 PASS；最后合法完成提交是 `ff9df58`。T7 已提交 `b481adf`，但审计发现 boundary test 未兑现 T7 的完整 allowlist 与 repository-domain import prohibition，因此该提交必须保留且不得 amend/squash，但在 T7C PASS 前不构成合法 T7 PASS；T8–T19 未开始。
 - 执行目录：仓库根目录。执行前必须运行 `git rev-parse --show-toplevel`；文档和证据中不得记录机器绝对路径。
 - 当前起点：`plugin/` 通过 `node:sqlite` 实现每 Meeting repository，`Config.dataRoot` 和目录扫描属于 Convivium。
 - 目标终点：`plugin/src/storage/` 实现 package-private JSONL DSH `StorageBackend` provider child plugin；Meeting consumer child plugin 只使用 `@deepseek-ai/dsh-storage-domain` 和自身 record schema；验证切换后删除 SQLite 源码。
@@ -13,11 +13,11 @@
 
 ## Executable Gate
 
-本文只有在执行者能够把已完成的 T0–T4 视为固定历史，从正文第一项未完成步骤 T5 顺序执行到 T19，且不需要选择数据结构、接口、文件、symbol、实现方案、错误语义、测试范围或失败处理时才可保持 `Executable`。发现任何一步仍需上述判断时立即 STOP，并把本文状态改为 `Not Executable`；不得边猜边执行。
+本文只有在执行者能够把已完成的 T0–T6 视为固定历史，把 `b481adf` 视为必须保留但尚未完成 T7 的历史，从正文第一项未完成步骤 T7C 顺序执行到 T19，且不需要选择数据结构、接口、文件、symbol、实现方案、错误语义、测试范围或失败处理时才可保持 `Executable`。发现任何一步仍需上述判断时立即 STOP，并把本文状态改为 `Not Executable`；不得边猜边执行。
 
 ## Executor Contract
 
-- T0–T4 只以固定历史提交为完成证据；严格从正文第一项未完成步骤 T5 开始顺序执行到 T19，前一步未 PASS、未删除当前步骤或未完成当前步骤 commit 时不得进入下一步。
+- T0–T6 只以固定历史提交为完成证据；`b481adf` 只作为 T7 correction 的起点，不是合法 T7 PASS；严格从正文第一项未完成步骤 T7C 开始顺序执行到 T19，前一步未 PASS、未删除当前步骤或未完成当前步骤 commit 时不得进入下一步。
 - 每步只修改“允许修改”列出的文件和 symbol；不存在的既有路径/symbol 或必需的额外改动立即 STOP。
 - T14 前 SQLite 是唯一 production truth；T14 后 Storage Domain 是唯一 production truth。
 - 禁止双写、fallback、自动迁移、扫描或删除 legacy `.sqlite`。
@@ -39,6 +39,7 @@
 | T5 | `Fix(plugin/storage): 完成物理 checkpoint 与恢复边界` |
 | T6 | `Feat(plugin/storage): 建立内置 backend 生命周期` |
 | T7 | `Test(plugin/storage): 锁定 package-private backend 边界` |
+| T7C | `Test(plugin/storage): 修正 package-private backend 边界验证` |
 | T8 | `Test(plugin/storage): 证明 provider 与 Domain child 组合` |
 | T9 | `Refactor(plugin/repository): 提取稳定 Repository Port` |
 | T10 | `Feat(plugin/repository): 固化 Domain schema 与 projection codec` |
@@ -947,7 +948,7 @@ Every step uses the fixed STOP report from `Executor Contract`. “Failure state
 
 ### T8 — Prove Provider/Domain Child Composition In Process
 
-前置状态：T7 PASS；锁定的 `@deepseek-ai/cordis`、`@deepseek-ai/dsh-storage` 和 `@deepseek-ai/dsh-storage-domain` 可从 `plugin/` 解析。
+前置状态：T7C PASS；锁定的 `@deepseek-ai/cordis`、`@deepseek-ai/dsh-storage` 和 `@deepseek-ai/dsh-storage-domain` 可从 `plugin/` 解析。
 
 允许修改：new `plugin/tests/integration/storage/child-plugin.spec.ts`；`plugin/vitest.config.ts` 仅在现有 integration project 不匹配该路径时允许机械加入该路径。
 

@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, extname, join, relative, resolve } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 type ModuleName =
@@ -113,6 +113,41 @@ function reexportsOf(source: string): string[] {
     ].map((match) => match[2]);
 }
 
+function allModuleSpecifiersOf(source: string): string[] {
+    const typeOnlyImports = [
+        ...source.matchAll(
+            /import\s+type\s+(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+(["'])([^"']+)\1\s*;?/g
+        )
+    ].map((match) => match[2]!);
+    return [...new Set([...importsOf(source), ...reexportsOf(source), ...typeOnlyImports])];
+}
+
+function isWithin(root: string, candidate: string): boolean {
+    const path = relative(root, candidate);
+    return path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
+}
+
+const storageRoot = join(sourceRoot, "storage");
+function storageBoundaryViolations(file: string, specifiers: readonly string[]): string[] {
+    return specifiers.flatMap((specifier) => {
+        const allowed =
+            specifier.startsWith("node:") ||
+            specifier === "@deepseek-ai/cordis" ||
+            specifier === "@deepseek-ai/dsh-storage" ||
+            (specifier.startsWith(".") && isWithin(storageRoot, resolve(dirname(file), specifier)));
+        return allowed ? [] : [`${relative(sourceRoot, file)} may not import ${specifier}`];
+    });
+}
+
+function repositoryDomainBoundaryViolations(file: string, specifiers: readonly string[]): string[] {
+    return specifiers.flatMap((specifier) => {
+        const forbidden =
+            specifier === "@deepseek-ai/dsh-storage" ||
+            (specifier.startsWith(".") && isWithin(storageRoot, resolve(dirname(file), specifier)));
+        return forbidden ? [`${relative(sourceRoot, file)} may not import ${specifier}`] : [];
+    });
+}
+
 function importedModule(file: string, specifier: string): ModuleName | undefined {
     if (!specifier.startsWith(".")) return undefined;
     const candidate = resolve(dirname(file), specifier);
@@ -140,28 +175,57 @@ function violations(module: ModuleName, specifiers: readonly string[]): string[]
 
 describe("plugin module boundaries", () => {
     it("keeps package-private storage and repository-domain boundaries explicit", () => {
-        const storageFiles = sourceFiles(join(sourceRoot, "storage"));
+        const storageFiles = sourceFiles(storageRoot);
         expect(storageFiles.length).toBeGreaterThan(0);
-        const forbidden = [
-            "domain",
-            "repository",
-            "runtime",
-            "dsh",
-            "tools",
-            "http",
-            "projection",
-            "client"
-        ];
-        for (const file of storageFiles) {
-            const imports = importsOf(readFileSync(file, "utf8"));
-            expect(
-                imports.some((specifier) =>
-                    forbidden.some((name) => specifier.includes(`/src/${name}`))
-                )
-            ).toBe(false);
-        }
+        expect(
+            storageFiles.flatMap((file) =>
+                storageBoundaryViolations(file, allModuleSpecifiersOf(readFileSync(file, "utf8")))
+            )
+        ).toEqual([]);
         const domainRoot = join(sourceRoot, "repository", "domain");
-        expect(existsSync(domainRoot) ? sourceFiles(domainRoot) : []).toHaveLength(0);
+        const domainFiles = existsSync(domainRoot) ? sourceFiles(domainRoot) : [];
+        expect(domainFiles).toHaveLength(0);
+        expect(
+            domainFiles.flatMap((file) =>
+                repositoryDomainBoundaryViolations(
+                    file,
+                    allModuleSpecifiersOf(readFileSync(file, "utf8"))
+                )
+            )
+        ).toEqual([]);
+        expect(
+            storageBoundaryViolations(join(storageRoot, "unit.ts"), [
+                "node:fs",
+                "@deepseek-ai/cordis",
+                "@deepseek-ai/dsh-storage",
+                "./format.js"
+            ])
+        ).toEqual([]);
+        expect(
+            storageBoundaryViolations(join(storageRoot, "unit.ts"), [
+                "../domain/model.js",
+                "@deepseek-ai/dsh-storage-domain",
+                "zod"
+            ])
+        ).toEqual([
+            "storage/unit.ts may not import ../domain/model.js",
+            "storage/unit.ts may not import @deepseek-ai/dsh-storage-domain",
+            "storage/unit.ts may not import zod"
+        ]);
+        expect(
+            repositoryDomainBoundaryViolations(join(domainRoot, "model.ts"), [
+                "../../storage/index.js",
+                "@deepseek-ai/dsh-storage"
+            ])
+        ).toEqual([
+            "repository/domain/model.ts may not import ../../storage/index.js",
+            "repository/domain/model.ts may not import @deepseek-ai/dsh-storage"
+        ]);
+        expect(
+            repositoryDomainBoundaryViolations(join(domainRoot, "model.ts"), [
+                "@deepseek-ai/dsh-storage-domain"
+            ])
+        ).toEqual([]);
     });
     it("accepts the current source import graph", () => {
         const errors = sourceFiles(sourceRoot).flatMap((file) => {
