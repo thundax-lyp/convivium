@@ -944,93 +944,9 @@ No raw path or record payload enters the public error message.
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
 
-### T0 — Baseline And API Evidence
-
-前置状态：current branch is not `main`；HEAD contains committed baseline `51a09e2` and its tip subject is `Docs(repo/runbook): 固定已提交执行基线`；worktree is clean。
-
-允许修改：this RUNBOOK only through the global post-PASS T0 deletion。
-
-禁止修改：全部仓库文件、用户 DSH profile。
-
-执行：运行下列命令并保留输出。当前 `plugin/src/repository/index.ts#MeetingRepository` 的 public instance surface 必须是下列有序集合；签名的唯一预期来源是本文 `Repository Port And Method Mapping` 中的完整 `MeetingRepositoryPort`：
-
-```text
-properties: teamId, meetingId
-methods: create, completeCreate, updateCreateResult, updateBootstrap,
-recordSessionOwnership, read, readPrivateMeetingMail,
-listOverduePrivateMeetingMail, hasUnfinishedPrivateMeetingMail,
-sendPrivateMeetingMail, startPrivateMeetingMail, finishPrivateMeetingMail,
-cancelUnfinishedPrivateMeetingMail, execute, claimOutbox, completeOutbox,
-renewOutboxLease, recover, close
-```
-
-The heredoc parser locates that exact class, excludes constructor/static/private members and compares sorted names; do not count `static open` as a port method.
-
-验证：
-
-```bash
-git rev-parse --show-toplevel
-git merge-base --is-ancestor 51a09e2 HEAD
-test "$(git log -1 --format=%s)" = "Docs(repo/runbook): 固定已提交执行基线"
-git branch --show-current
-test -z "$(git status --short)"
-node --version
-pnpm --version
-node --input-type=module <<'NODE'
-import ts from "./plugin/node_modules/typescript/lib/typescript.js";
-import { readFileSync } from "node:fs";
-const file = ts.createSourceFile(
-    "index.ts",
-    readFileSync("plugin/src/repository/index.ts", "utf8"),
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS
-);
-const klass = file.statements.find(
-    (node) => ts.isClassDeclaration(node) && node.name?.text === "MeetingRepository"
-);
-if (!klass) throw new Error("MeetingRepository class missing");
-const has = (node, kind) => node.modifiers?.some((m) => m.kind === kind) ?? false;
-const methods = klass.members
-    .filter((node) =>
-        ts.isMethodDeclaration(node) &&
-        !has(node, ts.SyntaxKind.PrivateKeyword) &&
-        !has(node, ts.SyntaxKind.StaticKeyword)
-    )
-    .map((node) => node.name.getText(file))
-    .sort();
-const constructor = klass.members.find(ts.isConstructorDeclaration);
-if (!constructor) throw new Error("MeetingRepository constructor missing");
-const properties = constructor.parameters
-    .filter((node) => has(node, ts.SyntaxKind.ReadonlyKeyword) && !has(node, ts.SyntaxKind.PrivateKeyword))
-    .map((node) => node.name.getText(file))
-    .sort();
-const expectedMethods = [
-    "cancelUnfinishedPrivateMeetingMail", "claimOutbox", "close", "completeCreate",
-    "completeOutbox", "create", "execute", "finishPrivateMeetingMail",
-    "hasUnfinishedPrivateMeetingMail", "listOverduePrivateMeetingMail", "read",
-    "readPrivateMeetingMail", "recordSessionOwnership", "recover", "renewOutboxLease",
-    "sendPrivateMeetingMail", "startPrivateMeetingMail", "updateBootstrap", "updateCreateResult"
-].sort();
-const expectedProperties = ["meetingId", "teamId"];
-if (JSON.stringify(methods) !== JSON.stringify(expectedMethods)) throw new Error(JSON.stringify({ methods }));
-if (JSON.stringify(properties) !== JSON.stringify(expectedProperties)) throw new Error(JSON.stringify({ properties }));
-NODE
-pnpm --dir plugin verify:environment
-pnpm --dir plugin verify:contract
-pnpm --dir plugin typecheck
-pnpm --dir plugin test
-pnpm --dir plugin build
-pnpm --dir plugin verify
-```
-
-PASS：baseline ancestor、tip subject 和 clean status assertions pass；branch 非 `main`；heredoc 退出 0；全部 plugin 验证退出 0；DSH packages resolve to `0.1.1-rc.2`/Cordis `4.0.1`；after deleting T0, the fixed T0 commit contains only this RUNBOOK。
-
-STOP：任一版本、method、命令或 baseline 不匹配。Failure state：无文件或外部数据变化。
-
 ### T1 — Formalize The Target Interface
 
-前置状态：T0 PASS。
+前置状态：T0 已 PASS，且 T0 基线验证结果已提交；当前 HEAD 即为 T0 提交。
 
 允许修改：rename `docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md` to `docs/20-interfaces/MEETING-STORAGE-INTERFACE.md`; `docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md`; `docs/30-designs/MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md`; `docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`; this RUNBOOK only for its Formal Sources link.
 
