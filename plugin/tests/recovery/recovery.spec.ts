@@ -3,11 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { endMeeting, type MeetingState } from "../../src/domain/index.js";
-import {
-    MeetingRepository,
-    type JsonObject,
-    type RepositoryCommand
-} from "../../src/repository/index.js";
+import { SqliteMeetingRepository as MeetingRepository } from "../../src/repository/sqlite-meeting-repository.js";
+import type { JsonObject, RepositoryCommand } from "../../src/repository/types.js";
 import {
     pauseMeetingRuntime,
     type PauseRecoveryDependencies

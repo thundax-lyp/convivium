@@ -4,13 +4,13 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-    MeetingRepository,
-    RepositoryError,
-    type CommandAuthorization,
-    type RepositoryAuthorizationValidator,
-    type RepositoryCommand
-} from "../../src/repository/index.js";
+import { SqliteMeetingRepository as MeetingRepository } from "../../src/repository/sqlite-meeting-repository.js";
+import { RepositoryError } from "../../src/repository/errors.js";
+import type {
+    CommandAuthorization,
+    RepositoryAuthorizationValidator,
+    RepositoryCommand
+} from "../../src/repository/types.js";
 import { CURRENT_SCHEMA_VERSION, migrate } from "../../src/repository/migrations.js";
 
 const roots: string[] = [];

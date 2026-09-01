@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openMeetingRepository } from "../../src/runtime/index.js";
-import { RepositoryError } from "../../src/repository/index.js";
+import { RepositoryError } from "../../src/repository/errors.js";
 import {
     createCreateStatusRuntime,
     LocalMeetingRecoveryUnavailableError

@@ -12,7 +12,8 @@ import {
     projectManagerMeetingContext,
     projectSpeakerMeetingContext
 } from "../../projection/index.js";
-import { RepositoryError, type OutboxItem } from "../../repository/index.js";
+import { RepositoryError } from "../../repository/errors.js";
+import type { OutboxItem } from "../../repository/types.js";
 import type { MeetingRepositoryRuntime } from "../meeting-runtime.js";
 import { createOutboxWorker } from "../outbox-worker.js";
 import type { MeetingDeliveryWorkerService } from "./types.js";

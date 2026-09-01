@@ -1,6 +1,6 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { DomainError, failSpeakerAttempt, type MeetingState } from "../../domain/index.js";
-import { RepositoryError } from "../../repository/index.js";
+import { RepositoryError } from "../../repository/errors.js";
 import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { RepositoryAuthorizationValidator } from "../meeting-runtime.js";

@@ -3,8 +3,8 @@ import { join } from "node:path";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { inspectOwnedSessions, type OwnedSessionInspection } from "../../dsh/index.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { MeetingRepository, RecoveryResult } from "../../repository/index.js";
-import type { MeetingSnapshot } from "../../repository/index.js";
+import type { MeetingRepositoryPort as MeetingRepository } from "../../repository/meeting-repository-port.js";
+import type { MeetingSnapshot, RecoveryResult } from "../../repository/types.js";
 import {
     openMeetingRepository,
     type RepositoryAuthorizationValidator

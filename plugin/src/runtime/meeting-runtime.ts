@@ -12,31 +12,31 @@ import {
     startParticipantSession
 } from "../dsh/index.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import {
-    MeetingRepository,
-    type CommandAuthorization,
-    type CreateMeetingInput,
-    type JsonObject,
-    type MeetingRepository as MeetingRepositoryType
-} from "../repository/index.js";
-import type { DomainEventInput } from "../repository/index.js";
+import { SqliteMeetingRepository } from "../repository/sqlite-meeting-repository.js";
+import type {
+    CommandAuthorization,
+    CreateMeetingInput,
+    DomainEventInput,
+    JsonObject
+} from "../repository/types.js";
+import type { MeetingRepositoryPort as MeetingRepositoryType } from "../repository/meeting-repository-port.js";
+import type { RepositoryAuthorizationValidator } from "../repository/types.js";
 import type { CreateMeetingInputV1 } from "../protocol/index.js";
 
-export type MeetingRepositoryOpenInput = Parameters<typeof MeetingRepository.open>[0];
+export type MeetingRepositoryOpenInput = Parameters<typeof SqliteMeetingRepository.open>[0];
 export type MeetingRepositoryRuntime = MeetingRepositoryType;
-export type RepositoryAuthorizationValidator =
-    import("../repository/index.js").RepositoryAuthorizationValidator;
+export type { RepositoryAuthorizationValidator };
 export type { DomainEventInput, JsonObject };
 
 export async function openMeetingRepository(
     input: MeetingRepositoryOpenInput
-): Promise<MeetingRepository> {
-    return MeetingRepository.open(input);
+): Promise<SqliteMeetingRepository> {
+    return SqliteMeetingRepository.open(input);
 }
 
 export interface MeetingCreationRuntimeDependencies {
     readonly repository: Pick<
-        MeetingRepository,
+        MeetingRepositoryType,
         | "meetingId"
         | "create"
         | "completeCreate"

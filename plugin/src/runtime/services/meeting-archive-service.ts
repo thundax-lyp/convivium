@@ -8,14 +8,10 @@ import {
     proveArchiveOwnedChildren
 } from "../../dsh/index.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type {
-    CommandAuthorization,
-    CommittedResult,
-    JsonObject,
-    MeetingRepository
-} from "../../repository/index.js";
+import type { CommandAuthorization, CommittedResult, JsonObject } from "../../repository/types.js";
+import type { MeetingRepositoryPort as MeetingRepository } from "../../repository/meeting-repository-port.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { SessionOwnership } from "../../repository/index.js";
+import type { SessionOwnership } from "../../repository/types.js";
 
 const executionTerminalStatuses = new Set<MeetingState["status"]>([
     "completed",

@@ -3,12 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-    MeetingRepository,
-    RepositoryError,
-    type RepositoryAuthorizationValidator,
-    type SessionOwnershipInput
-} from "../../../src/repository/index.js";
+import { SqliteMeetingRepository as MeetingRepository } from "../../../src/repository/sqlite-meeting-repository.js";
+import { RepositoryError } from "../../../src/repository/errors.js";
+import type {
+    RepositoryAuthorizationValidator,
+    SessionOwnershipInput
+} from "../../../src/repository/types.js";
 
 const roots: string[] = [];
 const authorizationValidator: RepositoryAuthorizationValidator = {
