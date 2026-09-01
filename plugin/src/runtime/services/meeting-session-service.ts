@@ -1,8 +1,11 @@
-import type { ArchiveSessionRuntime, ContinuableLifecycleRuntime } from "../../dsh/index.js";
+import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { MeetingState } from "../../domain/index.js";
 import type { MeetingRepositoryRuntime } from "../meeting-runtime.js";
 
-export type ArchiveCleanupRuntime = ArchiveSessionRuntime & ContinuableLifecycleRuntime;
+export type ArchiveCleanupRuntime = Pick<
+    SubagentRuntime,
+    "listChildren" | "interrupt" | "drainContinuableChildren"
+>;
 
 /** Narrows optional DSH lifecycle capabilities before archive orchestration uses them. */
 export function resolveArchiveCleanupRuntime(

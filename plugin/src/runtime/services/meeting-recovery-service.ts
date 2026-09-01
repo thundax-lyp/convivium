@@ -1,11 +1,8 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import {
-    inspectOwnedSessions,
-    type ContinuableInspectionRuntime,
-    type OwnedSessionInspection
-} from "../../dsh/index.js";
+import { inspectOwnedSessions, type OwnedSessionInspection } from "../../dsh/index.js";
+import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { MeetingRepository, RecoveryResult } from "../../repository/index.js";
 import type { MeetingSnapshot } from "../../repository/index.js";
 import {
@@ -215,7 +212,7 @@ export function createMeetingRehydrationService(
 
 export interface MeetingRecoveryDependencies {
     readonly repository: Pick<MeetingRepository, "recover">;
-    readonly inspection?: ContinuableInspectionRuntime;
+    readonly inspection?: Pick<SubagentRuntime, "listDescendants">;
     readonly parent?: Agent;
     readonly signal: AbortSignal;
     readonly now?: () => number;
@@ -231,7 +228,7 @@ export interface CaptainRebindDependencies {
     readonly expectedParentSessionId: string;
     readonly meetingId: string;
     readonly ownerships: RecoveryResult["sessionOwnership"];
-    readonly inspection: ContinuableInspectionRuntime;
+    readonly inspection: Pick<SubagentRuntime, "listDescendants">;
     readonly signal: AbortSignal;
 }
 

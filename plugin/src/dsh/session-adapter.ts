@@ -2,11 +2,8 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type {
     ContinuableStart,
     ContinuableStartSpec,
-    SubagentDescendantListEntry,
-    SubagentFollowupOptions,
-    SubagentInterruptAuthority,
-    SubagentListEntry,
-    SubagentProvider
+    SubagentProvider,
+    SubagentRuntime
 } from "@deepseek-ai/dsh-subagent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { MeetingOwnershipRecord } from "./caller-resolver.js";
@@ -16,17 +13,13 @@ import {
     serializeSessionProvisioningEnvelope
 } from "./provisioning.js";
 
-export interface SubagentProviderRegistry {
-    getProvider(name: string): SubagentProvider | undefined;
-}
-
 /**
  * Resolves the explicitly configured provider without creating or preparing a
  * child Session. Continuable creation remains restricted to later adapter
  * methods and profile smoke tests.
  */
 export function requireContinuableProvider(
-    providers: SubagentProviderRegistry,
+    providers: Pick<SubagentRuntime, "getProvider">,
     providerName: string
 ): SubagentProvider {
     const provider = providers.getProvider(providerName);
@@ -45,12 +38,8 @@ export function requireContinuableProvider(
     return provider;
 }
 
-export interface ContinuableStarter {
-    startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart>;
-}
-
 export interface StartManagerSessionInput {
-    readonly runtime: ContinuableStarter;
+    readonly runtime: Pick<SubagentRuntime, "startContinuable">;
     readonly provider: string;
     readonly parent: Agent;
     readonly childId: SessionId;
@@ -95,7 +84,7 @@ export async function startManagerSession(
 }
 
 export interface StartParticipantSessionInput {
-    readonly runtime: ContinuableStarter;
+    readonly runtime: Pick<SubagentRuntime, "startContinuable">;
     readonly provider: string;
     readonly parent: Agent;
     readonly childId: SessionId;
@@ -142,15 +131,6 @@ export async function startParticipantSession(
     return started;
 }
 
-export interface ContinuableFollowupRuntime {
-    followup(
-        parent: Agent,
-        childId: SessionId,
-        content: ContinuableStartSpec["request"]["prompt"],
-        options: SubagentFollowupOptions
-    ): Promise<ContinuableStart["messageId"]>;
-}
-
 export interface SpeakerFollowupAttempt {
     readonly attemptId: string;
     readonly deliveryId: string;
@@ -171,7 +151,7 @@ export interface AuthorizeSpeakerFollowupInput {
 export type AuthorizeSpeakerFollowup = (input: AuthorizeSpeakerFollowupInput) => Promise<void>;
 
 export interface FollowupParticipantSessionInput {
-    readonly runtime: ContinuableFollowupRuntime;
+    readonly runtime: Pick<SubagentRuntime, "followup">;
     readonly parent: Agent;
     readonly ownership: MeetingOwnershipRecord;
     readonly attempt: SpeakerFollowupAttempt;
@@ -194,7 +174,7 @@ export interface AuthorizeManagerFollowupInput {
 export type AuthorizeManagerFollowup = (input: AuthorizeManagerFollowupInput) => Promise<void>;
 
 export interface FollowupManagerSessionInput {
-    readonly runtime: ContinuableFollowupRuntime;
+    readonly runtime: Pick<SubagentRuntime, "followup">;
     readonly parent: Agent;
     readonly ownership: MeetingOwnershipRecord;
     readonly attempt: ManagerFollowupAttempt;
@@ -249,7 +229,7 @@ export async function followupParticipantSession(
 }
 
 export interface FollowupMeetingTaskSessionInput {
-    readonly runtime: ContinuableFollowupRuntime;
+    readonly runtime: Pick<SubagentRuntime, "followup">;
     readonly parent: Agent;
     readonly ownership: MeetingOwnershipRecord;
     readonly meetingTaskId: string;
@@ -260,7 +240,7 @@ export interface FollowupMeetingTaskSessionInput {
 }
 
 export interface FollowupMeetingMailSessionInput {
-    readonly runtime: ContinuableFollowupRuntime;
+    readonly runtime: Pick<SubagentRuntime, "followup">;
     readonly parent: Agent;
     readonly ownership: MeetingOwnershipRecord;
     readonly participantId: string;
@@ -365,13 +345,8 @@ export async function followupManagerSession(
     return messageId;
 }
 
-export interface ContinuableLifecycleRuntime {
-    interrupt(targetSessionId: SessionId, authority: SubagentInterruptAuthority): void;
-    drainContinuableChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void>;
-}
-
 export interface InterruptAndDrainOwnedSessionsInput {
-    readonly runtime: ContinuableLifecycleRuntime;
+    readonly runtime: Pick<SubagentRuntime, "interrupt" | "drainContinuableChildren">;
     readonly parent: Agent;
     readonly ownerships: readonly MeetingOwnershipRecord[];
 }
@@ -414,12 +389,8 @@ export async function interruptAndDrainOwnedSessions(
  * cleanup target. Its direct-child result is durable: a child remaining in a
  * later listing does not mean `drainContinuableChildren()` failed.
  */
-export interface ArchiveSessionRuntime {
-    listChildren(parentSessionId: SessionId, signal: AbortSignal): Promise<SubagentListEntry[]>;
-}
-
 export interface ProveArchiveOwnedChildrenInput {
-    readonly runtime: ArchiveSessionRuntime;
+    readonly runtime: Pick<SubagentRuntime, "listChildren">;
     readonly parentSessionId: SessionId;
     readonly meetingId: string;
     readonly ownerships: readonly MeetingOwnershipRecord[];
@@ -520,15 +491,8 @@ export interface OwnedSessionInspection {
     readonly diagnostics: readonly OwnedSessionDiagnostic[];
 }
 
-export interface ContinuableInspectionRuntime {
-    listDescendants(
-        rootSessionId: SessionId,
-        signal: AbortSignal
-    ): Promise<SubagentDescendantListEntry[]>;
-}
-
 export interface InspectOwnedSessionsInput {
-    readonly runtime: ContinuableInspectionRuntime;
+    readonly runtime: Pick<SubagentRuntime, "listDescendants">;
     readonly parentSessionId: SessionId;
     readonly meetingId: string;
     readonly ownerships: readonly MeetingOwnershipRecord[];

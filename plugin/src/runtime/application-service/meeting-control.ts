@@ -31,6 +31,7 @@ import {
     type MeetingRehydrationService
 } from "../services/meeting-recovery-service.js";
 import type { MeetingDeliveryWorkerService } from "../services/types.js";
+import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type {
     CreateStatusRuntimeOptions,
     LocalMeetingWebRuntime,
@@ -598,7 +599,7 @@ export interface PauseRecoveryDependencies {
     readonly expectedMeetingVersion: number;
     readonly reason: string;
     readonly parent?: Agent;
-    readonly lifecycle?: ContinuableLifecycleRuntime;
+    readonly lifecycle?: Pick<SubagentRuntime, "interrupt" | "drainContinuableChildren">;
     readonly ownerships: readonly SessionOwnership[];
     readonly signal: AbortSignal;
     readonly now?: () => number;
@@ -708,7 +709,4 @@ export async function resumeMeetingRuntime(
     });
 }
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import {
-    interruptAndDrainOwnedSessions,
-    type ContinuableLifecycleRuntime
-} from "../../dsh/index.js";
+import { interruptAndDrainOwnedSessions } from "../../dsh/index.js";

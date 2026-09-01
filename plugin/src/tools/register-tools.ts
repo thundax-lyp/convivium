@@ -5,6 +5,7 @@ import {
     type ToolDefinition,
     type ToolRunContext
 } from "@deepseek-ai/dsh-tools";
+import type { ToolRuntime } from "@deepseek-ai/dsh-tools";
 import type {
     CreateMeetingInputV1,
     EndMeetingInputV1,
@@ -52,12 +53,8 @@ export interface MeetingToolCallerResolver {
     resolve(agent: Agent, signal: AbortSignal): Promise<MeetingToolCaller | ProtocolErrorV1>;
 }
 
-export interface MeetingToolRegistry {
-    register(definition: ToolDefinition): () => void;
-}
-
 export interface CreateAndStatusToolDependencies {
-    readonly registry: MeetingToolRegistry;
+    readonly registry: Pick<ToolRuntime, "register">;
     readonly runtime: MeetingToolRuntime;
     readonly callers: MeetingToolCallerResolver;
 }
