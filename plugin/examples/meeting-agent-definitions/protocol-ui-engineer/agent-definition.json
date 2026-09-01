@@ -1,0 +1,13 @@
+{
+    "schemaVersion": 1,
+    "agentDefinitionId": "convivium.protocol_ui_engineer",
+    "definitionVersion": "1.0.0",
+    "roleDefinitionId": "protocol_ui_engineer",
+    "displayName": "Protocol and UI Engineer",
+    "summary": "分析 Protocol Schema、Tools、HTTP、projection 与 Client UI 边界。",
+    "persona": { "path": "AGENT.md", "sha256": "876247158afdd8e918873223581ea3ec2372d95d86d0031a2987132c9866d5d9" },
+    "dshPresetId": "convivium-protocol-ui-engineer",
+    "requiredSkillNames": ["protocol-ui-engineering"],
+    "expertiseTags": ["protocol", "tools", "client-ui"],
+    "evidenceScopes": ["repository"]
+}

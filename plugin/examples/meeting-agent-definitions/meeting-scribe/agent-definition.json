@@ -1,0 +1,14 @@
+{
+    "schemaVersion": 1,
+    "agentDefinitionId": "convivium.meeting_scribe",
+    "definitionVersion": "1.0.0",
+    "roleDefinitionId": "meeting_scribe",
+    "displayName": "Meeting Scribe",
+    "summary": "从正式 transcript、事实、决议与任务结果形成带 canonical 引用的纪要草稿。",
+    "persona": { "path": "AGENT.md", "sha256": "9612249b8a6fd1a7e1cf50030f590beccb0f0b615bcb7f39a1e7ec8d5456a2e8" },
+    "dshPresetId": "convivium-meeting-scribe",
+    "requiredSkillNames": ["referenced-minutes"],
+    "toolFilter": { "allow": ["convivium_meeting_status", "convivium_submit_turn"] },
+    "expertiseTags": ["minutes", "fact-tracing", "decision-recording"],
+    "evidenceScopes": []
+}

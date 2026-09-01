@@ -57,11 +57,11 @@
         "test:recovery": "vitest run --project recovery",
         "test:stress": "vitest run tests/stress --passWithNoTests && node -e \"console.log('Not Covered: stress tests')\"",
         "smoke:profile": "node scripts/smoke-profile.mjs",
-        "verify:agent-templates": "node scripts/verify-agent-template-samples.mjs",
+        "verify:agent-definitions": "node scripts/verify-agent-definition-samples.mjs",
         "verify:environment": "node scripts/verify-dsh-environment.mjs",
         "verify:contract": "node scripts/verify-plugin-contract.mjs",
         "verify:package": "node scripts/verify-package.mjs",
-        "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm verify:environment && pnpm verify:contract && pnpm verify:agent-templates && pnpm verify:package",
+        "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm verify:environment && pnpm verify:contract && pnpm verify:agent-definitions && pnpm verify:package",
         "verify:runtime": "pnpm verify && pnpm smoke:profile"
     },
     "peerDependencies": {

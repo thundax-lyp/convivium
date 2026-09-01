@@ -1,0 +1,17 @@
+{
+    "schemaVersion": 1,
+    "agentDefinitionId": "convivium.meeting_manager",
+    "definitionVersion": "1.0.0",
+    "roleDefinitionId": "meeting_manager",
+    "displayName": "Meeting Manager",
+    "summary": "围绕当前议题形成有界发言计划，并在存在职责或证据缺口时提出参会推荐。",
+    "persona": {
+        "path": "AGENT.md",
+        "sha256": "a0fa07824aec671bd7b292674ea1233108151b1baf9b06ef09b72c7349bbf173"
+    },
+    "dshPresetId": "convivium-meeting-manager",
+    "requiredSkillNames": ["meeting-management"],
+    "toolFilter": { "allow": ["convivium_meeting_status", "convivium_submit_manager_plan"] },
+    "expertiseTags": ["meeting-planning", "scope-control", "attendance-recommendation"],
+    "evidenceScopes": []
+}

@@ -1,0 +1,13 @@
+{
+    "schemaVersion": 1,
+    "agentDefinitionId": "convivium.domain_architect",
+    "definitionVersion": "1.0.0",
+    "roleDefinitionId": "domain_architect",
+    "displayName": "Domain Architect",
+    "summary": "审核领域状态、不变量、需求与设计一致性以及 completion/termination 语义。",
+    "persona": { "path": "AGENT.md", "sha256": "38d1ade66ef1f0cbf5893df0d440653c25955215de99cf2ba0a4981fc7dab9d0" },
+    "dshPresetId": "convivium-domain-architect",
+    "requiredSkillNames": ["domain-architecture"],
+    "expertiseTags": ["domain-model", "requirements", "architecture"],
+    "evidenceScopes": ["repository"]
+}

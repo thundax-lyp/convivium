@@ -1,0 +1,13 @@
+{
+    "schemaVersion": 1,
+    "agentDefinitionId": "convivium.arxiv_research_analyst",
+    "definitionVersion": "1.0.0",
+    "roleDefinitionId": "arxiv_research_analyst",
+    "displayName": "arXiv Research Analyst",
+    "summary": "搜索并分析论文版本、方法、实验结论与局限。",
+    "persona": { "path": "AGENT.md", "sha256": "caddeeb95806dd9a477bb5ac222424ba8fc8add7e1416b111285d447c0ab4302" },
+    "dshPresetId": "convivium-arxiv-research-analyst",
+    "requiredSkillNames": ["arxiv-paper-analysis"],
+    "expertiseTags": ["arxiv", "paper-analysis", "research-evidence"],
+    "evidenceScopes": ["arxiv"]
+}
