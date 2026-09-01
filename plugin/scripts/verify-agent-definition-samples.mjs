@@ -190,6 +190,28 @@ export async function verifyMeetingAgentDefinitionSamples(root) {
         }
         const jsonPath = join(path, "agent-definition.json");
         const personaPath = join(path, "AGENT.md");
+        let filesValid = true;
+        for (const [childName, childPath] of [
+            ["agent-definition.json", jsonPath],
+            ["AGENT.md", personaPath]
+        ]) {
+            let childStat;
+            try {
+                childStat = await lstat(childPath);
+            } catch {
+                add("SAMPLE_FILE_SET_MISMATCH", `${name}/${childName}`);
+                filesValid = false;
+                continue;
+            }
+            if (childStat.isSymbolicLink()) {
+                add("SYMLINK_FORBIDDEN", `${name}/${childName}`);
+                filesValid = false;
+            } else if (!childStat.isFile()) {
+                add("SAMPLE_FILE_SET_MISMATCH", `${name}/${childName}`);
+                filesValid = false;
+            }
+        }
+        if (!filesValid) continue;
         let doc;
         try {
             doc = JSON.parse(await readFile(jsonPath, "utf8"));
