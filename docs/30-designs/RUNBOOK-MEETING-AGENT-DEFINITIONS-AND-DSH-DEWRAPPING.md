@@ -32,7 +32,7 @@ T0 不重新解释 architecture/requirements；T1 只按第 4.5 节的 exact anc
 
 ### 0.2 执行前工作树基线
 
-本 RUNBOOK 提交后才允许开始 T0。T0 的 `git status --short` 必须为空；任何 tracked 修改、staged 修改或 untracked 文件都使 T0 STOP。执行者不得自行吸收、暂存、提交、移动或删除额外改动来满足该前置条件。
+每个尚未执行的 Tn 只能在前一步已经退休并提交后开始。步骤开始前 `git status --short` 必须为空；任何 tracked 修改、staged 修改或 untracked 文件都使该步骤 STOP。执行者不得自行吸收、暂存、提交、移动或删除额外改动来满足前置条件。
 
 ```text
 <empty>
@@ -42,7 +42,7 @@ T0 不重新解释 architecture/requirements；T1 只按第 4.5 节的 exact anc
 
 ### 1.1 允许动作
 
-- 只按 T0 至 T7 顺序执行；每一步 PASS 后才能进入下一步。
+- 只按当前 RUNBOOK 中尚存的最小 Tn 到 T7 顺序执行；每一步 PASS 后必须先按第 1.5 节退休并提交，才能进入下一步。
 - 只修改每一步“允许修改”列出的文件、目录和 symbol。
 - 可以用 `apply_patch` 修改文本文件；样本目录重命名使用 `mv`，不得删除后重新手工重建 Persona 内容。
 - 不得运行会改写未列入当前步骤 allowlist 的全仓 formatter；每一步直接写出符合现有 Prettier 配置的文本，格式门禁失败即 STOP。
@@ -56,7 +56,7 @@ T0 不重新解释 architecture/requirements；T1 只按第 4.5 节的 exact anc
 - 不得修改 Protocol Schema、tool schema、HTTP DTO、SQLite schema/migration、Domain state/event、Client UI 或发布文件白名单。
 - 不得重命名或删除 Meeting 业务边界，只因其名称中包含 `adapter`、`runtime`、`record`、`lookup` 或 `binding`。
 - 不得新增依赖、兼容层、feature flag、通用 registry、通用 manifest framework 或新顶层目录。
-- 不得提交、推送、创建 PR 或合并。
+- 不得执行第 1.5 节之外的提交；不得 push、创建 PR、合并、amend、rebase 或 squash。
 
 ### 1.3 PASS 与 STOP
 
@@ -73,6 +73,29 @@ T0 不重新解释 architecture/requirements；T1 只按第 4.5 节的 exact anc
 - T6 的 `smoke:profile` 必须依赖现有脚本自己的 restore；失败时报告脚本输出中的临时 profile/workspace 路径，不运行额外广域清理命令。
 - T7 使用该步骤规定的可恢复移动；删除后检查失败时必须把同一 RUNBOOK 原样移回，不得留下已删除状态。
 - 本任务不写数据库、不调用外部写 API、不改变用户 DSH profile；因此除测试临时目录和 T7 临时备份外没有需要回滚的外部状态。
+
+### 1.5 步骤退休与提交协议
+
+每个 Tn 的验证达到 PASS 后，必须立即执行以下唯一收口；不得先开始下一步：
+
+1. 用 `apply_patch` 删除当前 `### Tn：...` heading 起至下一个 `### T(n+1)：...` heading 前的完整章节；T7 通过其关闭脚本删除整个 RUNBOOK。不得改写仍未执行步骤。
+2. 运行 `git diff --check`，并确认 `git status --short` 只包含当前步骤“允许修改”的路径与本 RUNBOOK；出现其他路径立即 STOP。
+3. 暂存当前步骤全部修改和本 RUNBOOK 的退休修改；读取完整 staged diff，确认没有额外路径、凭据、临时文件或未验证变化。
+4. 使用下表固定 commit subject；T3、T4、T5 还必须使用表中固定 body。不得改写、合并或跳过提交。
+5. commit 成功后运行 `test -z "$(git status --short)"`；非空立即 STOP，不得进入下一步。
+
+| 步骤 | 固定 commit subject                                           | 固定 commit body                                                                                                                                             |
+| ---- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T0   | `Docs(repo/runbook): 记录 T0 基线验证通过`                    | 无                                                                                                                                                           |
+| T1   | `Docs(repo/agents): 收敛 Meeting Agent Definition 契约`       | 无                                                                                                                                                           |
+| T2   | `Docs(repo/agents): 移除 DSH Template 二次建模`               | 无                                                                                                                                                           |
+| T3   | `Feat(cross-project): 迁移 Meeting Agent Definition 样本验证` | `Projects: repo, plugin`；`Decision: Agent Definition 样本、验证器与执行记录必须作为一个原子判断变化`；`Verification: 按 RUNBOOK T3 focused validation 通过` |
+| T4   | `Refactor(cross-project): 改用 DSH 原生运行时类型`            | `Projects: repo, plugin`；`Decision: DSH 原生类型替换与执行记录必须作为一个原子判断变化`；`Verification: 按 RUNBOOK T4 focused validation 通过`              |
+| T5   | `Refactor(cross-project): 删除 Cordis 与 caller 冗余封装`     | `Projects: repo, plugin`；`Decision: 生命周期去封装与执行记录必须作为一个原子判断变化`；`Verification: 按 RUNBOOK T5 focused validation 通过`                |
+| T6   | `Docs(repo/readiness): 记录 Agent Definition 去封装验证`      | 无                                                                                                                                                           |
+| T7   | `Docs(repo/runbook): 完成 Agent Definition 去封装执行`        | 无                                                                                                                                                           |
+
+已退休步骤的唯一执行证据是当前分支 Git 历史中的固定 commit subject 及该 commit 的验证事实；不得在 RUNBOOK 中保留完成标记、步骤摘要或重复日志。
 
 ## 2. 目标、起点与终点
 
@@ -641,164 +664,6 @@ T7 只按下表判断 S1-S9 是否闭合，不得自行选择“对应”步骤�
 
 ## 8. 机械执行步骤
 
-### T0：锁定 baseline 与 DSH 公共 API
-
-前置状态：位于指定分支；本 RUNBOOK 已提交；工作树为空。
-
-允许修改：无。
-
-禁止修改：全部文件。
-
-执行：
-
-1. 运行完整 baseline。
-2. 用验证区的单个 Node API probe 逐项验证 DSH/Cordis 依赖版本、每个 required method、`ToolRestriction` 字段集合、`ChildComposition`/`SubagentStartRequest` 字段集合、child preset 继承实现、`ContinuableStartSpec` 的 per-child preset 缺口以及 Cordis effect 的逆序/幂等语义。任一断言失败都使 probe 非零退出；不得用 alternation search 代替逐项断言。
-3. 用下述 Node 断言 `git status --short` 为空；不创建快照文件。
-
-验证：
-
-```bash
-set -e
-test "$(git branch --show-current)" = "codex/redundant-code-governance"
-! rg -n '^- \[[ xX]\] ' TODO.md
-pnpm --dir plugin verify
-node - <<'NODE'
-const fs = require("node:fs");
-const path = require("node:path");
-
-function fail(message) {
-  process.stderr.write(`${message}\n`);
-  process.exitCode = 1;
-}
-function requireText(file, tokens) {
-  const text = fs.readFileSync(file, "utf8");
-  for (const token of tokens) {
-    if (!text.includes(token)) fail(`${file}: missing ${token}`);
-  }
-  return text;
-}
-function requireVersion(packageRoot, expected) {
-  const file = path.join(packageRoot, "package.json");
-  const version = JSON.parse(fs.readFileSync(file, "utf8")).version;
-  if (version !== expected) fail(`${file}: expected ${expected}, got ${version}`);
-}
-function interfaceFields(text, name) {
-  const start = text.indexOf(`export interface ${name} {`);
-  const end = text.indexOf("\n}", start);
-  if (start < 0 || end < 0) return fail(`cannot extract ${name}`), [];
-  return [...text.slice(start, end).matchAll(/readonly\s+([A-Za-z0-9_]+)\??:/g)].map(
-    (match) => match[1],
-  );
-}
-
-const subagentRoot = fs.realpathSync("plugin/node_modules/@deepseek-ai/dsh-subagent");
-const toolsRoot = fs.realpathSync("plugin/node_modules/@deepseek-ai/dsh-tools");
-const cordisRoot = fs.realpathSync("plugin/node_modules/@deepseek-ai/cordis");
-requireVersion(subagentRoot, "0.1.1-rc.2");
-requireVersion(toolsRoot, "0.1.1-rc.2");
-requireVersion(cordisRoot, "4.0.1");
-requireText(path.join(cordisRoot, "src/fiber.ts"), [
-  "effect(execute: () => SyncEffect, label?: string)",
-  "effect(execute: () => Effect, label?: string)",
-  "Disposers run in reverse registration order",
-  "Calling the disposer twice",
-  "is a no-op.",
-]);
-const subagentIndex = requireText(path.join(subagentRoot, "lib/types/index.d.ts"), [
-  "class SubagentRuntime",
-  "getProvider(",
-  "startContinuable(",
-  "followup(",
-  "interrupt(",
-  "drainContinuableChildren(",
-  "listChildren(",
-  "listDescendants(",
-]);
-const toolsIndex = requireText(path.join(toolsRoot, "lib/types/index.d.ts"), [
-  "interface ToolRestriction",
-  "readonly allow?: readonly string[]",
-  "readonly deny?: readonly string[]",
-  "class ToolRuntime",
-  "register(definition",
-]);
-const restrictionFields = interfaceFields(toolsIndex, "ToolRestriction").sort();
-if (JSON.stringify(restrictionFields) !== JSON.stringify(["allow", "deny"])) {
-  fail(`ToolRestriction fields: ${JSON.stringify(restrictionFields)}`);
-}
-const childTypes = requireText(path.join(subagentRoot, "lib/types/child-agent.d.ts"), [
-  "export interface ChildComposition",
-  "readonly persona?: string | undefined",
-  "readonly toolFilter?: ToolRestriction | undefined",
-]);
-const childFields = interfaceFields(childTypes, "ChildComposition");
-if (JSON.stringify(childFields) !== JSON.stringify(["persona", "toolFilter"])) {
-  fail(`ChildComposition fields: ${JSON.stringify(childFields)}`);
-}
-const childRuntime = requireText(path.join(subagentRoot, "lib/types/child-agent.js"), [
-  "composeFrom(childCtx, parent.ctx)",
-]);
-const continuation = requireText(path.join(subagentRoot, "lib/types/continuation.d.ts"), [
-  "export interface ContinuableStartSpec",
-  "readonly request: Omit<SubagentStartRequest, 'label' | 'signal' | 'outputSchema'>",
-]);
-const requestTypes = requireText(path.join(subagentRoot, "lib/types/types.d.ts"), [
-  "export interface SubagentStartRequest",
-]);
-const requestFields = interfaceFields(requestTypes, "SubagentStartRequest");
-const expectedRequestFields = [
-  "label",
-  "prompt",
-  "parent",
-  "signal",
-  "agentOptions",
-  "outputSchema",
-  "maxDepth",
-  "toolFilter",
-  "persona",
-];
-if (JSON.stringify(requestFields) !== JSON.stringify(expectedRequestFields)) {
-  fail(`SubagentStartRequest fields: ${JSON.stringify(requestFields)}`);
-}
-const specStart = continuation.indexOf("export interface ContinuableStartSpec");
-const specEnd = continuation.indexOf("export interface ContinuableStart", specStart + 1);
-const spec = continuation.slice(specStart, specEnd);
-if (/agentPreset(?:Id)?/.test(spec)) fail("ContinuableStartSpec unexpectedly selects a preset");
-
-const pnpmRoot = "plugin/node_modules/.pnpm";
-const presetRoots = fs
-  .readdirSync(pnpmRoot)
-  .filter((name) => name.startsWith("@deepseek-ai+dsh-agent-presets@0.1.1-rc.2_"))
-  .map((name) => path.join(pnpmRoot, name, "node_modules/@deepseek-ai/dsh-agent-presets"))
-  .filter((entry) => fs.existsSync(path.join(entry, "package.json")));
-if (presetRoots.length === 0) fail("no installed dsh-agent-presets 0.1.1-rc.2 package");
-for (const presetRoot of presetRoots) {
-  requireVersion(presetRoot, "0.1.1-rc.2");
-  requireText(path.join(presetRoot, "lib/types/index.d.ts"), [
-    "list():",
-    "resolve(id?: string):",
-    "mount(agentCtx:",
-    "composeFrom(agentCtx:",
-    "read(id: string):",
-    "recompose(agentCtx:",
-  ]);
-}
-if (process.exitCode) process.exit(process.exitCode);
-process.stdout.write("PASS DSH 0.1.1-rc.2 / Cordis 4.0.1 API probe\n");
-NODE
-node - <<'NODE'
-const { execFileSync } = require("node:child_process");
-const actual = execFileSync("git", ["status", "--short"], { encoding: "utf8" });
-if (actual !== "") {
-  process.stderr.write(actual);
-  process.exit(1);
-}
-NODE
-```
-
-PASS：分支 exact 匹配；TODO 三个任务区域为空；`verify` 为 exact 48 files/368 tests 且全部通过；Node API probe 输出 exact `PASS DSH 0.1.1-rc.2 / Cordis 4.0.1 API probe`；`git status --short` 为空。
-
-STOP：任何命令失败或签名已变化。不得升级/降级依赖，不得修改 `node_modules`。
-
 ### T1：提升正式口径并替换 Agent Definition 契约
 
 前置状态：T0 PASS。
@@ -1159,13 +1024,44 @@ STOP：任何验证失败；不得降低 49/385 门槛、删除第 4.6 节之外
 
 执行：
 
-1. T0、T1、T2、T3、T4、T5、T6 必须已按顺序各 PASS；其中 S1-S9 与不变量 1-10 的证据已由第 6.4 节唯一映射到这些步骤，不在 T7 重新作语义判断。任一步未 PASS 即 STOP。
+1. 下列 T0-T6 commit subject 必须各在当前分支历史中 exact 出现一次且顺序与列表一致；同时 T0-T6 章节必须已从当前 RUNBOOK 删除。任一条件不成立即 STOP，不在 T7 重新作语义判断：`Docs(repo/runbook): 记录 T0 基线验证通过`、`Docs(repo/agents): 收敛 Meeting Agent Definition 契约`、`Docs(repo/agents): 移除 DSH Template 二次建模`、`Feat(cross-project): 迁移 Meeting Agent Definition 样本验证`、`Refactor(cross-project): 改用 DSH 原生运行时类型`、`Refactor(cross-project): 删除 Cordis 与 caller 冗余封装`、`Docs(repo/readiness): 记录 Agent Definition 去封装验证`。其中 S1-S9 与不变量 1-10 的证据已由第 6.4 节唯一映射到这些提交，不在 T7 重新作语义判断。
 2. 不再修改 readiness 数字或正文；在同一个 shell 中执行下述可恢复关闭脚本。脚本把 RUNBOOK 移到 `mktemp -d` 创建的精确临时目录，安装 EXIT trap；随后机械检查 TODO 空面板、readiness 固定结论与当日 evidence、当前口径禁止词、RUNBOOK 引用、旧/新路径、全部 Markdown 相对链接、`git diff --check` 和最终 status allowlist。任一检查失败时 trap 原样移回 RUNBOOK；全部通过时才删除临时备份。不得归档到 `docs/60-human/`。
 
 关闭脚本：
 
 ```bash
 set -eu
+node - <<'NODE'
+const fs = require("node:fs");
+const { execFileSync } = require("node:child_process");
+const runbook = "docs/30-designs/RUNBOOK-MEETING-AGENT-DEFINITIONS-AND-DSH-DEWRAPPING.md";
+const expected = [
+  "Docs(repo/runbook): 记录 T0 基线验证通过",
+  "Docs(repo/agents): 收敛 Meeting Agent Definition 契约",
+  "Docs(repo/agents): 移除 DSH Template 二次建模",
+  "Feat(cross-project): 迁移 Meeting Agent Definition 样本验证",
+  "Refactor(cross-project): 改用 DSH 原生运行时类型",
+  "Refactor(cross-project): 删除 Cordis 与 caller 冗余封装",
+  "Docs(repo/readiness): 记录 Agent Definition 去封装验证",
+];
+const actual = execFileSync("git", ["log", "--format=%s", "--reverse", "dbe1a80..HEAD"], {
+  encoding: "utf8",
+})
+  .trim()
+  .split("\n")
+  .filter((subject) => expected.includes(subject));
+if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+  process.stderr.write(`step commit subjects: ${JSON.stringify(actual)}\n`);
+  process.exit(1);
+}
+const text = fs.readFileSync(runbook, "utf8");
+for (let step = 0; step <= 6; step += 1) {
+  if (text.includes(`### T${step}：`)) {
+    process.stderr.write(`${runbook}: T${step} section not retired\n`);
+    process.exit(1);
+  }
+}
+NODE
 runbook_path="docs/30-designs/RUNBOOK-MEETING-AGENT-DEFINITIONS-AND-DSH-DEWRAPPING.md"
 runbook_backup_dir="$(mktemp -d)"
 runbook_backup_path="$runbook_backup_dir/$(basename "$runbook_path")"
@@ -1360,7 +1256,9 @@ git diff --check
 
 PASS：关闭脚本退出码为 0；RUNBOOK 文件和引用均不存在；删除后 Markdown 链接、diff check 和 status allowlist 全部通过；临时备份目录已删除。
 
-STOP：关闭脚本或删除后验证中的任一命令非零退出；报告该命令和原始输出，不修改 allowlist、expected text 或检查脚本后重试。
+收口提交：验证 PASS 后，按第 1.5 节暂存 RUNBOOK 删除，使用固定 subject `Docs(repo/runbook): 完成 Agent Definition 去封装执行` 提交，并确认工作树为空。
+
+STOP：历史 subject/章节退休断言、关闭脚本、删除后验证、commit 或提交后空工作树检查中的任一命令非零退出；报告该命令和原始输出，不修改 allowlist、expected text 或检查脚本后重试。
 
 ## 9. 验证矩阵
 
