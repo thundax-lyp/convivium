@@ -5,8 +5,8 @@ import {
     sha256Hex,
     type JsonValue
 } from "./canonical-json.js";
-import { createFileDurably } from "./jsonl.js";
-import { nodeFileSystemPort, replaceFileDurably, type FileSystemPort } from "./filesystem.js";
+import { createFileDurably, readJsonl } from "./jsonl.js";
+import { nodeFileSystemPort, syncDirectory, type FileSystemPort } from "./filesystem.js";
 
 export interface PhysicalCheckpointState {
     readonly generation: string;
@@ -20,28 +20,38 @@ export async function writePhysicalCheckpoint(
     state: PhysicalCheckpointState,
     fs: FileSystemPort = nodeFileSystemPort
 ): Promise<void> {
-    const dir = join(
-        root,
-        "checkpoints",
-        `${String(state.throughOpSeq).padStart(20, "0")}_${sha256Hex(encodeCanonicalJson(state)).slice(0, 16)}`
-    );
+    const dir = join(root, "checkpoints", state.generation);
+    try {
+        await fs.stat(join(dir, "records.jsonl"));
+        return;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
     await fs.mkdir(dir, { recursive: true });
-    const records: Uint8Array[] = [];
-    for (const table of Object.keys(state.tables).sort())
-        for (const key of Object.keys(state.tables[table]!).sort())
-            records.push(
-                encodeCanonicalJson({
-                    formatVersion: 1,
-                    table,
-                    key,
-                    value: state.tables[table]![key]
-                })
-            );
-    await createFileDurably(
-        join(dir, "records.jsonl"),
-        new Uint8Array(records.flatMap((b) => [...b, 10])),
-        fs
-    );
+    const recordsHandle = await fs.open(join(dir, "records.jsonl"), "wx");
+    try {
+        for (const table of Object.keys(state.tables).sort())
+            for (const key of Object.keys(state.tables[table]!).sort()) {
+                const body = { formatVersion: 1, table, key, value: state.tables[table]![key] };
+                const record = encodeCanonicalJson({
+                    ...body,
+                    digest: sha256Hex(encodeCanonicalJson(body))
+                });
+                const line = new Uint8Array([...record, 10]);
+                const result = await recordsHandle.write(line, 0, line.length, null);
+                if (result.bytesWritten !== line.length) throw new Error("short-write");
+            }
+        await recordsHandle.sync();
+    } finally {
+        await recordsHandle.close();
+    }
+    await syncDirectory(dir, fs);
+    const verified = await readJsonl(join(dir, "records.jsonl"), "immutable", fs);
+    if (
+        verified.length !==
+        Object.values(state.tables).reduce((n, table) => n + Object.keys(table).length, 0)
+    )
+        throw new Error("checkpoint record count mismatch");
     await createFileDurably(join(dir, "root.json"), encodeCanonicalJson(state), fs);
     const pointer = encodeCanonicalJson({
         formatVersion: 1,
@@ -49,7 +59,32 @@ export async function writePhysicalCheckpoint(
         throughOpSeq: state.throughOpSeq,
         rootDigest: sha256Hex(encodeCanonicalJson(state))
     });
-    await replaceFileDurably(join(root, "checkpoint-pointer.json"), pointer, fs);
+    const pointerTmp = join(root, "checkpoint-pointer.json.tmp");
+    let ph;
+    try {
+        ph = await fs.open(pointerTmp, "wx");
+        const result = await ph.write(pointer, 0, pointer.length, null);
+        if (result.bytesWritten !== pointer.length) throw new Error("short-write");
+        await ph.sync();
+        await ph.close();
+        await fs.rename(pointerTmp, join(root, "checkpoint-pointer.json"));
+        await syncDirectory(root, fs);
+    } finally {
+        try {
+            await fs.unlink(pointerTmp);
+        } catch {
+            /* absent */
+        }
+    }
+    let entries;
+    try {
+        entries = await fs.readdir(join(root, "segments"), { withFileTypes: true });
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+        throw error;
+    }
+    for (const entry of entries)
+        if (/^\d{20}\.jsonl$/.test(entry.name)) await fs.unlink(join(root, "segments", entry.name));
 }
 
 export async function loadPhysicalCheckpoint(
@@ -74,7 +109,7 @@ export async function loadPhysicalCheckpoint(
         rootDigest: string;
     };
     const dirs = await fs.readdir(join(root, "checkpoints"), { withFileTypes: true });
-    const dir = dirs.find((d) => d.name.startsWith(String(pointer.throughOpSeq).padStart(20, "0")));
+    const dir = dirs.find((d) => d.name === pointer.generation);
     if (!dir) return undefined;
     const h = await fs.open(join(root, "checkpoints", dir.name, "root.json"), "r");
     let body: Buffer;

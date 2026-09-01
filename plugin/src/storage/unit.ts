@@ -1,28 +1,40 @@
 import { StorageError } from "@deepseek-ai/dsh-storage";
+import { JsonlStorageError } from "./errors.js";
 import type { KvUnit, KvUnitDescriptor } from "@deepseek-ai/dsh-storage";
 import { join } from "node:path";
 import { appendFailurePhase, appendLineDurably, readJsonl } from "./jsonl.js";
 import {
     decodeCanonicalJson,
     encodeCanonicalJson,
-    type JsonValue,
-    sha256Hex
+    sha256Hex,
+    type JsonValue
 } from "./canonical-json.js";
 import { decodeRecord, encodeRecord, type UnitDescriptorRecordV1 } from "./format.js";
 import { nodeFileSystemPort, syncDirectory, type FileSystemPort } from "./filesystem.js";
+import {
+    collectPhysicalOrphans,
+    loadPhysicalCheckpoint,
+    writePhysicalCheckpoint
+} from "./checkpoint.js";
 
 export class JsonlKvUnit implements KvUnit {
     private closed = false;
     private poisoned = false;
     private seq = 0;
     private queue = Promise.resolve();
+    private maintenanceError: unknown;
+    private tailRecords = 0;
+    private tailBytes = 0;
     constructor(
         private readonly root: string,
         private readonly descriptor: KvUnitDescriptor,
         private readonly fs: FileSystemPort,
         private readonly tables: Record<string, Record<string, unknown>>,
-        private global: unknown
-    ) {}
+        private global: unknown,
+        initialSeq = 0
+    ) {
+        this.seq = initialSeq;
+    }
     private guard(): void {
         if (this.closed || this.poisoned) throw new StorageError("closed", "storage unit closed");
     }
@@ -59,11 +71,37 @@ export class JsonlKvUnit implements KvUnit {
         key: string | null;
         value: JsonValue | null;
     }): Promise<void> {
-        return this.run(async () => {
+        const prior = this.queue;
+        let checkpointSnapshot: import("./checkpoint.js").PhysicalCheckpointState | undefined;
+        const committed = prior.then(async () => {
+            this.guard();
             if (input.table !== null && !Object.hasOwn(this.tables, input.table))
                 throw new Error("undeclared table");
             const record = { formatVersion: 1 as const, opSeq: this.seq + 1, ...input };
             const line = new Uint8Array([...encodeRecord(record), 10]);
+            if (this.tailRecords + 1 > 1024 || this.tailBytes + line.byteLength > 16_777_216) {
+                if (this.maintenanceError)
+                    throw new JsonlStorageError("capacity-exceeded", "tail capacity exceeded");
+                const snapshot = {
+                    generation: `${String(this.seq).padStart(20, "0")}_${sha256Hex(encodeCanonicalJson({ throughOpSeq: this.seq, tables: this.tables, global: this.global ?? null })).slice(0, 16)}`,
+                    throughOpSeq: this.seq,
+                    tables: structuredClone(this.tables) as Record<
+                        string,
+                        Record<string, JsonValue>
+                    >,
+                    global: (this.global ?? null) as JsonValue | null
+                };
+                try {
+                    await writePhysicalCheckpoint(this.root, snapshot, this.fs);
+                    this.tailRecords = 0;
+                    this.tailBytes = 0;
+                } catch (error) {
+                    this.maintenanceError = error;
+                    throw new JsonlStorageError("capacity-exceeded", "tail capacity exceeded", {
+                        cause: error
+                    });
+                }
+            }
             let shouldRoll = this.seq > 0 && this.seq % 256 === 0;
             try {
                 const active = await this.fs.stat(join(this.root, "active.jsonl"));
@@ -91,11 +129,42 @@ export class JsonlKvUnit implements KvUnit {
             else if (input.kind === "delete") delete this.tables[input.table!][input.key!];
             else this.global = structuredClone(input.value);
             this.seq += 1;
+            this.tailRecords += 1;
+            this.tailBytes += line.byteLength;
+            if (this.seq % 512 === 0) {
+                checkpointSnapshot = {
+                    generation: `${String(this.seq).padStart(20, "0")}_${sha256Hex(encodeCanonicalJson({ throughOpSeq: this.seq, tables: this.tables, global: this.global ?? null })).slice(0, 16)}`,
+                    throughOpSeq: this.seq,
+                    tables: structuredClone(this.tables) as Record<
+                        string,
+                        Record<string, JsonValue>
+                    >,
+                    global: (this.global ?? null) as JsonValue | null
+                };
+            }
         });
+        const maintenance = committed.then(
+            async () => {
+                if (checkpointSnapshot)
+                    try {
+                        await writePhysicalCheckpoint(this.root, checkpointSnapshot, this.fs);
+                        this.maintenanceError = undefined;
+                    } catch (e) {
+                        this.maintenanceError = e;
+                    }
+            },
+            () => undefined
+        );
+        this.queue = maintenance.then(
+            () => undefined,
+            () => undefined
+        );
+        return committed;
     }
     async close(): Promise<void> {
         this.closed = true;
         await this.queue;
+        if (this.maintenanceError) throw this.maintenanceError;
     }
 }
 
@@ -146,6 +215,15 @@ export async function openJsonlUnit(
     for (const table of descriptor.tables) tables[table] = {};
     let global: unknown = null;
     let seq = 0;
+    let replaySeq = 0;
+    const checkpoint = await loadPhysicalCheckpoint(root, fs);
+    if (checkpoint) {
+        for (const [t, values] of Object.entries(checkpoint.tables))
+            tables[t] = structuredClone(values);
+        global = checkpoint.global;
+        seq = checkpoint.throughOpSeq;
+        await collectPhysicalOrphans(root, checkpoint.generation, fs);
+    }
     const segmentLines: Uint8Array[] = [];
     try {
         for (const entry of (await fs.readdir(join(root, "segments"), { withFileTypes: true }))
@@ -170,12 +248,24 @@ export async function openJsonlUnit(
                 cause: error
             });
         }
-        if (record.opSeq !== seq + 1)
+        const expected =
+            replaySeq === 0
+                ? checkpoint
+                    ? record.opSeq === 1 || record.opSeq === checkpoint.throughOpSeq + 1
+                    : 1
+                : replaySeq + 1;
+        if (
+            record.opSeq !== expected &&
+            !(checkpoint && record.opSeq <= checkpoint.throughOpSeq && replaySeq === 0)
+        )
             throw new StorageError("malformed-medium", "sequence mismatch");
-        if (record.kind === "put") tables[record.table!][record.key!] = record.value;
-        else if (record.kind === "delete") delete tables[record.table!][record.key!];
-        else global = record.value;
+        if (!checkpoint || record.opSeq > checkpoint.throughOpSeq) {
+            if (record.kind === "put") tables[record.table!][record.key!] = record.value;
+            else if (record.kind === "delete") delete tables[record.table!][record.key!];
+            else global = record.value;
+        }
+        replaySeq = record.opSeq;
         seq = record.opSeq;
     }
-    return new JsonlKvUnit(root, descriptor, fs, tables, global);
+    return new JsonlKvUnit(root, descriptor, fs, tables, global, seq);
 }

@@ -948,11 +948,11 @@ Every step uses the fixed STOP report from `Executor Contract`. “Failure state
 
 前置状态：T5 false-PASS correction；`ad094c4` 已提交但缺失契约验证。不得 amend 或改写该提交。
 
-允许修改：new `plugin/src/storage/checkpoint.ts`; `plugin/src/storage/unit.ts`, `plugin/src/storage/format.ts`; new `plugin/tests/unit/storage/checkpoint.spec.ts`, `plugin/tests/recovery/storage/checkpoint-recovery.spec.ts`.
+允许修改：new `plugin/src/storage/checkpoint.ts`; `plugin/src/storage/unit.ts`, `plugin/src/storage/format.ts`; `plugin/tests/fixtures/storage/scripted-filesystem.ts` only to make the already-fixed checkpoint phase classifier reachable; new `plugin/tests/unit/storage/checkpoint.spec.ts`, `plugin/tests/recovery/storage/checkpoint-recovery.spec.ts`.
 
-禁止修改：`plugin/src/storage/backend.ts`, `plugin/src/storage/index.ts`, every `plugin/src` path outside `plugin/src/storage/`, and every test path except the two allowed suites.
+禁止修改：`plugin/src/storage/backend.ts`, `plugin/src/storage/index.ts`, every `plugin/src` path outside `plugin/src/storage/`, and every test path except the allowed fixture and two suites. The fixture change must not add a new FaultPoint, callback, call-count injection or production import; it may only classify file sync, the following same-directory sync, pointer publication and numeric closed-segment unlink into the existing semantic points.
 
-执行：implement the exact physical checkpoint records/publication. Maintenance is queued after resolved mutation at trigger; its failure is retained as the single internal `maintenanceError` needed by hard-tail enforcement and does not retroactively reject committed mutation. Before a new mutation would exceed hard tail, retry checkpoint first; if still failing, reject new mutation with `capacity-exceeded` before append. `close()` drains maintenance and rejects its retained error after the committed mutation is durable. Implement `createPhysicalCheckpointFixture()` and the exact 14-case T5 parameter table; do not inject by operation count. Delete all placeholder assertions; every exact title must arm the specified semantic FaultPoint and assert the specified pointer/cleanup/recovery result.
+执行：implement the exact physical checkpoint records/publication. Maintenance is queued after resolved mutation at trigger; its failure is retained as the single internal `maintenanceError` needed by hard-tail enforcement and does not retroactively reject committed mutation. Before a new mutation would exceed hard tail, retry checkpoint first; if still failing, reject new mutation with `capacity-exceeded` before append. `close()` drains maintenance and rejects its retained error after the committed mutation is durable. Implement `createPhysicalCheckpointFixture()` and the exact 14-case T5 parameter table; do not inject by operation count. Delete all placeholder assertions; every exact title must arm the specified semantic FaultPoint and assert the specified pointer/cleanup/recovery result. In `ScriptedFileSystem`, track at most one pending checkpoint publication role per directory so a file `sync` and its immediately following `syncDirectory()` map respectively to `checkpoint.<page|root>-sync` and `checkpoint.<page|root>-directory-sync`; pointer temp sync/rename/root-directory-sync and `segments/<20-digit>.jsonl` unlink map directly to their existing points. An unmatched or reordered pending role is a test failure.
 
 验证：
 
@@ -964,7 +964,7 @@ git diff --check
 
 PASS：tests prove bounded line count, pointer-before/after crash recovery, orphan collection, safe segment GC, hard-tail refusal before append and close drain; exact 14-case table and all required assertions are present; no placeholder assertion remains.
 
-STOP：checkpoint ever writes whole unit as one call or deletes active/uncovered log. Failure state：test roots only; last valid pointer/log remains recoverable.
+STOP：the final T5 implementation cannot write one current record per append with the locked `FileSystemPort`, or correct recovery would require deleting active/uncovered log. A pre-existing or intermediate whole-unit write is a defect to replace in T5, not by itself a STOP. Failure state：test roots only; last valid pointer/log remains recoverable.
 
 ### T6 — Implement Backend Lifecycle
 
