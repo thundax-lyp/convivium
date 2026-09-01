@@ -8,9 +8,9 @@
 
 ### Scope
 
-- `plugin/` 内唯一产品工程的目录和构建边界。
-- Meeting domain、SQLite repository、Meeting Runtime、DSH adapter、HTTP、projection 和 client 的依赖关系。
-- SQLite driver、schema migration、事务入口和连接生命周期。
+- `plugin/` Meeting 产品工程与独立 `storage-plugin/` 存储工程的构建边界。
+- Meeting domain、repository port、DSH Storage Domain adapter、Meeting Runtime、DSH adapter、HTTP、projection 和 client 的依赖关系。
+- 当前 SQLite repository 的替换边界，以及目标 Storage Domain 的打开、关闭和恢复生命周期。
 - 所有 meeting-owned AgentSession 的统一调用和 capability revoke 检查入口。
 - 插件启动、创建、运行、暂停、恢复、归档和冷恢复的代码协作顺序。
 - 单元、契约、集成、恢复和压力验证的源码位置及最低覆盖。
@@ -38,6 +38,8 @@ V1 固定运行于单个本地 DSH Host，并只面向该 Host 的一位本地�
 - [Meeting Agent Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)
 - [Domain Model Design](./DOMAIN-MODEL-DESIGN.md)
 - [Meeting Orchestration Design](./MEETING-ORCHESTRATION-DESIGN.md)
+- [Meeting Persistence Design](./MEETING-PERSISTENCE-SPECIAL-DESIGN.md)
+- [Meeting Persistence Plugin Integration Runbook](./RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md)（Executable；尚未执行）
 
 发生冲突时，Architecture、Requirements 和 Interface 优先；本文不得通过实现便利改变公开语义。
 
@@ -82,7 +84,7 @@ plugin/
 
 ### Package topology and build faces
 
-Convivium 是一个职责闭合的树外 DSH bundle，因此保持单 package，不复制 DSH 仓库内部的 `packages/<group>/<pkg>` monorepo 布局。只有出现能够独立演进、独立发布且具有稳定 service definition/provider 边界的第二项能力时，才可以提出拆包设计。
+Convivium Meeting 能力保持为 `plugin/` 单 package。JSONL 持久化已经形成独立的 DSH `StorageBackend` provider 边界，因此位于第二个独立工程 `storage-plugin/`。两个 package 不建立根 workspace、不互相 import：Storage Plugin 只实现 DSH KV backend；Convivium 只消费 `@deepseek-ai/dsh-storage-domain`。宿主 profile 负责组合和 backend 路由。
 
 会议运行依赖宿主组合中的 continuable subagent provider。`@deepseek-ai/dsh-subagent` 只提供 `ctx.subagents` service definition；它不自动提供具备 `prepareContinuable` 能力的 provider。选定 provider 包、宿主 profile 组合和最终分发方式前，不能将会议 Session 创建描述为可运行；`smoke:profile` 必须在独立 profile 中验证 provider、`startContinuable()`、冷恢复和释放链路。
 
@@ -166,12 +168,16 @@ domain     ──> no infrastructure module
 
 上述文件可以在实现增长后拆分，但不得跨越职责边界或创建第二个 Meeting 写入口。
 
-## SQLite Repository
+## Persistence Algorithm And Current SQLite Repository
 
-### Driver and connection model
+目标持久化算法已经确认为 `Checkpointed Commit Log`，抽象状态、checkpoint/commit/compaction 流程、不变量和验收点见 `MEETING-PERSISTENCE-SPECIAL-DESIGN.md`。它属于带 checkpoint 与 log compaction 的 log-structured persistence，不得简称为 `Event Sourcing` 或 `WAL`。目标 adapter 使用 `@deepseek-ai/dsh-storage-domain`：一个轻量 catalog domain 用于发现，每个 Meeting 使用独立 domain；一次 command 只写一条 commit record，checkpoint 分页写入。独立 `storage-plugin/` 以 JSONL 实现标准 DSH KV backend，但不认识 Meeting 数据语义。精确接入、切换、验证和删除顺序由 Executable RUNBOOK 固定。
+
+本节及 `SQLITE-REPOSITORY-INTERFACE.md` 只描述当前已经实现并通过测试的 SQLite Repository，不再是目标实现。执行顺序固定为：先实现并验证 JSONL Storage Plugin，再让 Convivium 通过 Storage Domain adapter 切换，验证 production 不可达 SQLite 后才删除旧源码。全过程不双写、不 fallback read，也不自动迁移或删除既有 SQLite 数据。正式接口重命名和本节整体改写属于 RUNBOOK T1。
+
+### Current SQLite driver and connection model
 
 - 使用 Node.js 内置 `node:sqlite`，不引入原生第三方 SQLite driver。
-- 每个 Meeting repository 使用独立连接。当前物理 locator 为 `<dataRoot>/<encodedTeamId>/<encodedMeetingId>.sqlite`；目标布局 `<workspace>/.convivium/<teamId>/meetings/<meetingId>/meeting.sqlite` 的收敛必须由独立存储迁移完成。迁移前的增量功能只通过现有 Runtime/repository locator 访问，不复制路径规则。
+- 每个 Meeting repository 使用独立连接。当前物理 locator 为 `<dataRoot>/<encodedTeamId>/<encodedMeetingId>.sqlite`；该布局只描述待替换实现，不再是迁移目标。目标 JSONL layout 与 legacy fail-closed 规则以 Executable RUNBOOK 为准；切换前的代码仍只通过现有 Runtime/repository locator 访问，不复制路径规则。
 - repository 在单次命令或 worker lease 内独占连接；完成后关闭，不维护跨 workspace 的全局长连接池。
 - 打开数据库后必须执行 `PRAGMA foreign_keys = ON`、`PRAGMA journal_mode = WAL` 和有界 `busy_timeout`。
 - 所有写事务使用 `BEGIN IMMEDIATE`，先取得写锁再读取 expected version，避免读后升级锁产生竞态。

@@ -16,14 +16,15 @@
 - Convivium 是纯 DSH 插件，不是独立 Electron 应用。
 - V1 运行在单个本地 DSH Host 中，仅服务该 Host 的一位本地用户；不提供远程访问、多用户协作、跨 Host 共享或网络部署。Meeting Web route 只允许在 DSH `webServer.host === "127.0.0.1"` 时注册；V1 不绑定 Web 用户身份、不校验 Team 权限，也不建立 per-user authority，所有到达该 loopback Host 的请求共享该本地用户边界。后续引入远程或多用户能力必须先补充独立的授权、身份、隔离和部署契约。
 - Convivium 使用 TypeScript 独立实现，不导入或派生外部参考项目源码。
-- 唯一可构建产品工程位于仓库顶层 `plugin/`。该目录不使用 Git submodule，也不在构建或运行时引用相邻参考项目工作区。
+- 目标仓库包含两个职责独立的可构建 DSH 插件工程：现有 `plugin/` 是 Convivium Meeting 产品插件；待按 RUNBOOK 建立的 `storage-plugin/` 是通用 JSONL DSH Storage Backend。两者各自维护 package、lockfile、构建和验证入口，不建立根 workspace，也不在源码中互相依赖。
 - Convivium 支持的最低 DSH 版本为 `0.1.1-rc.2`；实现可以依赖该版本 `dsh-subagent` 提供的持久子 Session 枚举和 continuable Activation drain 能力。
 - Convivium 正式运行会议前，宿主组合必须提供一个具备 `prepareContinuable` 能力的 continuable subagent provider；仅声明或注入 `dsh-subagent` service 不构成该能力。当前确认的宿主 profile provider 是 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.1-rc.2`，provider name 为 `spawn`，由 profile 作为组合依赖管理，不由 Convivium 自行实现、隐式携带或写入插件 package manifest。插件必须在独立 DSH profile 中验证该 provider 与 `startContinuable()` 的实际创建链路。
 - 插件依赖 DSH 提供 AgentSession、continuable Agent、工具注册、Web 路由、DSH 原生 Session Event 和插件 UI 宿主能力。
 - Convivium 拥有会议角色目录、Meeting Agent Definition、Manager 可见安全摘要、参会选择与批准状态；DSH Host 或 profile 拥有 Agent Preset、Skills、Tools、MCP、Sandbox、Approval、模型配置及其安装和执行。
 - Meeting Agent Definition 只引用 DSH 原生 Agent Preset 和 Skill 名称，并可用 DSH 原生 ToolRestriction 收窄工具；Convivium 不复制、安装或持久化 DSH capability composition。Definition 存在不证明 capability 已安装；缺少可验证的 DSH composition 时必须 fail closed。
 - 插件包含清晰分离的插件前端和插件后端会议运行时。
-- 每个 Meeting 在任何会议副作用前获得稳定 `meetingId`，并以 `teamId + meetingId` 形成独立 repository ownership；状态、事件、幂等收据和 outbox 写入该 Meeting 独占的 SQLite 数据库。当前已实现的物理布局是 `<dataRoot>/<encodedTeamId>/<encodedMeetingId>.sqlite`；迁移到 `<workspace>/.convivium/<teamId>/meetings/<meetingId>/meeting.sqlite` 是后续独立 readiness 工作，不是增量业务分支的隐含前置条件。所有新增调用方必须经 Runtime/repository locator 访问，不能依赖或自行扫描任一物理布局。
+- 每个 Meeting 在任何会议副作用前获得稳定 `meetingId`，并以 `teamId + meetingId` 形成独立 repository ownership。当前未替换实现仍把状态、事件、幂等收据和 outbox 写入 `<dataRoot>/<encodedTeamId>/<encodedMeetingId>.sqlite`。目标实现中，Convivium 通过 `@deepseek-ai/dsh-storage-domain` 使用一个轻量 catalog domain 和每 Meeting 独立 domain；不得定位、扫描或依赖 backend 的物理布局。
+- [Meeting Persistence Design](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) 已确认采用 `Checkpointed Commit Log`：一次 command 编码为一条原子 commit，当前真相由已发布分页 checkpoint 与连续有界 commit tail 合成。独立 `storage-plugin/` 通过 `@deepseek-ai/dsh-storage` 实现通用 JSONL KV backend，只认识 unit、table、key 和 value；Convivium 只消费 DSH Storage Domain 和自身 record schema。两个 package 无源码依赖，唯一耦合是标准 KV 数据结构承载的 record schema。profile 负责把 storage-domain 路由到 backend `convivium-jsonl`。切换前 SQLite 是唯一事实源，切换后 Storage Domain 是唯一事实源；禁止双写、fallback 和自动迁移，旧 SQLite 源码只在切换验证后删除，现存数据不自动删除。
 - Meeting Runtime 可以从 SQLite best-effort 生成供开发者在 workspace 中阅读的 Markdown 辅助文件；Markdown 不是产品接口或事实源，不参与恢复、授权、状态计算、Session 关闭与 capability 撤销或归档完成判断。
 - DSH AgentSession 是独立运行主体，拥有独立 Prompt、Skills、工作目录、模型、MCP、权限和运行模式。
 - AgentSession 必须支持 followup、interrupt、恢复，以及通过 `drainContinuableChildren` 释放指定会议 Session 的 resident Activation。会议 Session 的持久不可继续语义由 Convivium capability revoke 保证，不要求 DSH 删除持久 Session 数据。
@@ -84,12 +85,12 @@
 
 ## Source Layout And Verification
 
-- `plugin/` 包含 DSH 插件 package manifest、后端和前端源码、资产及验证脚本；仓库级 `docs/` 不参与插件打包。
+- `plugin/` 包含 Convivium DSH 插件的 Host、Client、Meeting 业务和验证；`storage-plugin/` 包含通用 JSONL Storage Backend 和独立验证。仓库级 `docs/` 不参与任一插件打包。
 - `plugin/examples/meeting-agent-definitions/` 保存不进入发布包的 Convivium Meeting Agent Definition 样本；样本不是 DSH Agent Preset、不是 capability registry，也不证明运行时已安装差异化能力。
-- 根目录不因单一插件工程建立无消费者的 workspace 或 monorepo 层；只有出现第二个独立构建工程并形成架构依据时才可引入。
-- `plugin/` 必须能够在不读取任何相邻参考项目的情况下独立安装、类型检查、构建和验证。
+- 两个插件各自独立安装、类型检查、构建和验证；根目录不建立 workspace 或 monorepo 层。真实 DSH profile 验证可以把已构建 package 组合运行，但不得形成源码依赖。
+- `plugin/` 和 `storage-plugin/` 必须能够在不读取外部参考项目的情况下分别完成自身构建和静态验证。
 - 外部参考项目只用于只读调研 DSH 接口和可选实现思路；其源码、文档、发布记录、品牌、协议命名和持久化格式不得进入产品工程。
-- 工程验证入口是 `plugin/package.json` 中的 `typecheck`、`build` 和 `verify`；会议实现必须在这些入口之上增加领域和生命周期测试。
+- 两个工程各自在 `package.json` 提供 `typecheck`、`test`、`build` 和 `verify`；组合边界还必须用真实 DSH profile 验证 backend 注册、Storage Domain 打开、Host 冷重启和关闭顺序。
 
 ## Undecided Architecture
 
