@@ -945,36 +945,6 @@ No raw path or record payload enters the public error message.
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
 
-### T7 — Verify The Package-Private Backend Boundary
-
-前置状态：T6 PASS。
-
-允许修改：`plugin/tests/contract/package-contract.spec.ts`, `plugin/tests/unit/module-boundaries.spec.ts`, `plugin/scripts/verify-plugin-contract.mjs`, `plugin/scripts/verify-package.mjs`。
-
-禁止修改：production behavior、package exports、bundle patch、profile smoke。
-
-执行：
-
-1. `module-boundaries.spec.ts` 必须实际发现 `plugin/src/storage/*.ts`，并证明每个文件不导入 Convivium `domain/repository/runtime/dsh/tools/http/projection/client`；只允许 Node builtin、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-storage` 和同目录相对 import。
-2. 同一 suite 在 T7 精确断言 `plugin/src/repository/domain/*.ts` 的文件数为 `0`；保留一条针对该集合的 import prohibition，并由 T10 在创建文件后把文件数断言唯一改为 `> 0`，届时真实证明它不导入 `plugin/src/storage/` 或 `@deepseek-ai/dsh-storage`。
-3. `package-contract.spec.ts` 和 `verify-plugin-contract.mjs` 构建后 import package root，断言排序后的公开 exports 精确等于 `["Config", "apply", "assertContinuableProvider", "inject", "name"]`；并分别断言 `BACKEND_NAME`、`jsonlStoragePlugin`、`JsonlStorageBackend`、`JsonlStorageError` 均不存在。
-4. `verify-package.mjs` 继续使用现有 package allowlist；断言 tarball 不包含第二个 manifest、`storage-plugin` path 或独立 backend entry。不得扩展 package exports/files 或新建验证脚本。
-
-验证：
-
-```bash
-pnpm --dir plugin test -- tests/contract/package-contract.spec.ts tests/unit/module-boundaries.spec.ts
-pnpm --dir plugin build
-pnpm --dir plugin verify:contract
-pnpm --dir plugin verify:package
-test ! -e storage-plugin
-test ! -e pnpm-workspace.yaml
-```
-
-PASS：全部命令退出 0；storage source 被 boundary test 真实枚举；backend symbols 不能从 package root import；tarball 仍是单一 Convivium package。
-
-STOP：验证 backend 必须增加公共 export、第二个 package 或新 build face。Failure state：只有现有 package build artifacts。
-
 ### T8 — Prove Provider/Domain Child Composition In Process
 
 前置状态：T7 PASS；锁定的 `@deepseek-ai/cordis`、`@deepseek-ai/dsh-storage` 和 `@deepseek-ai/dsh-storage-domain` 可从 `plugin/` 解析。

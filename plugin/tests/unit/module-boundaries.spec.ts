@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, extname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -139,6 +139,30 @@ function violations(module: ModuleName, specifiers: readonly string[]): string[]
 }
 
 describe("plugin module boundaries", () => {
+    it("keeps package-private storage and repository-domain boundaries explicit", () => {
+        const storageFiles = sourceFiles(join(sourceRoot, "storage"));
+        expect(storageFiles.length).toBeGreaterThan(0);
+        const forbidden = [
+            "domain",
+            "repository",
+            "runtime",
+            "dsh",
+            "tools",
+            "http",
+            "projection",
+            "client"
+        ];
+        for (const file of storageFiles) {
+            const imports = importsOf(readFileSync(file, "utf8"));
+            expect(
+                imports.some((specifier) =>
+                    forbidden.some((name) => specifier.includes(`/src/${name}`))
+                )
+            ).toBe(false);
+        }
+        const domainRoot = join(sourceRoot, "repository", "domain");
+        expect(existsSync(domainRoot) ? sourceFiles(domainRoot) : []).toHaveLength(0);
+    });
     it("accepts the current source import graph", () => {
         const errors = sourceFiles(sourceRoot).flatMap((file) => {
             const module = moduleForFile(file);
