@@ -944,37 +944,9 @@ No raw path or record payload enters the public error message.
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
 
-### T3 — Implement Canonical Format And Filesystem Port
-
-前置状态：T2 已 PASS 且结果已提交；当前 HEAD 即为 T2 提交。
-
-允许修改：new `plugin/src/storage/config.ts`, `plugin/src/storage/errors.ts`, `plugin/src/storage/canonical-json.ts`, `plugin/src/storage/filesystem.ts`, `plugin/src/storage/format.ts`, `plugin/src/storage/jsonl.ts`, `plugin/src/storage/index.ts`; new `plugin/tests/fixtures/storage/scripted-filesystem.ts`, `plugin/tests/unit/storage/canonical-json.spec.ts`, `plugin/tests/unit/storage/filesystem.spec.ts`, `plugin/tests/unit/storage/format.spec.ts`, `plugin/tests/unit/storage/jsonl.spec.ts`.
-
-禁止修改：`plugin/src/storage/unit.ts`, `plugin/src/storage/checkpoint.ts`, `plugin/src/storage/backend.ts`, every `plugin/src` path outside `plugin/src/storage/`, and every test path outside the five allowed suites/fixture.
-
-执行：
-
-1. Implement only the symbols assigned to the seven allowed `plugin/src/storage/` files in this step: `JsonlStorageConfig`; `JsonlStorageErrorCode`/`JsonlStorageError`; canonical JSON/digest symbols; filesystem port/helpers; physical record codecs/limits; JSONL helpers plus `AppendFailurePhase`/`appendFailurePhase`; and an `plugin/src/storage/index.ts` internal barrel that reexports only these T3 symbols. Do not create or implement `unit.ts`, `checkpoint.ts`, `backend.ts` or their symbols in T3.
-2. `FileHandlePort` and `FileSystemPort` implement every method and exact signature in `Internal Storage Child Physical Contract`, including `lstat`; no extra method is permitted. Every filesystem helper accepts final optional port defaulting to `nodeFileSystemPort`.
-3. Canonical encoding recursively sorts object keys, preserves arrays, UTF-8/no whitespace, rejects non-finite numbers, bigint, undefined, sparse/cyclic values and dangerous keys.
-4. `appendLineDurably` uses create-exclusive for first line and append for existing file, exactly one write, datasync, close; first creation syncs parent directory. Short write rejects `JsonlStorageError("short-write")`.
-5. `replaceFileDurably` uses random same-directory `.tmp`, create-exclusive, one write, sync, close, rename, directory sync; failure removes only that temp.
-6. Implement `ScriptedFileSystem` with the exact semantic `FaultPoint` API and every exact T3 title above. Use one fresh mkdtemp root per test, assert the armed phase was consumed, and remove only that root in `afterEach`.
-
-验证：
-
-```bash
-pnpm --dir plugin test -- tests/unit/storage/canonical-json.spec.ts tests/unit/storage/filesystem.spec.ts tests/unit/storage/format.spec.ts tests/unit/storage/jsonl.spec.ts
-pnpm --dir plugin typecheck
-```
-
-PASS：tests prove canonical equality/rejection and every T3 row in the fault matrix, including exact call ordering and allowed old/new boundary; commands exit 0.
-
-STOP：Node port cannot express a required operation or Windows behavior would require silently weakening POSIX durability. Failure state：test temp directories only; exact temp roots removed by tests.
-
 ### T4 — Implement JSONL Unit Replay And Mutation
 
-前置状态：T3 PASS.
+前置状态：T3 已 PASS 且结果已提交；当前 HEAD 即为 T3 提交。
 
 允许修改：new `plugin/src/storage/unit.ts`; `plugin/src/storage/jsonl.ts`, `plugin/src/storage/format.ts`; new `plugin/tests/unit/storage/unit.spec.ts`, `plugin/tests/recovery/storage/tail-recovery.spec.ts`.
 
