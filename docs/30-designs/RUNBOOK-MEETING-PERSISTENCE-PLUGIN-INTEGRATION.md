@@ -944,41 +944,9 @@ No raw path or record payload enters the public error message.
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
 
-### T2 — Lock Storage Dependencies In The Existing Package
-
-前置状态：T1 已 PASS，且 Meeting Storage Interface 固化结果已提交；当前 HEAD 即为 T1 提交；工作树不存在 `storage-plugin/`，`plugin/package.json` 的 package name 仍为 `@convivium/dsh-plugin`。
-
-允许修改：`plugin/package.json`, `plugin/pnpm-lock.yaml`, `plugin/tests/contract/package-contract.spec.ts`, `plugin/tests/unit/module-boundaries.spec.ts`。
-
-禁止修改：新增顶层目录、root workspace、`plugin/cordis.patch.yml`、production source、现有依赖版本。
-
-执行：
-
-1. 在 `peerDependencies` 增加 `"@deepseek-ai/dsh-storage": "^0.1.1-rc.2"` 与 `"@deepseek-ai/dsh-storage-domain": "^0.1.1-rc.2"`；在 `peerDependenciesMeta` 为两者各增加 `{ "optional": true }`；在 `devDependencies` 为两者各增加精确版本 `"0.1.1-rc.2"`。
-2. 在 `dependencies` 增加 `"zod": "^4.4.3"`。不得新增其他依赖，不改变现有 key/value；各 dependency map 保持字母序。
-3. 用 `pnpm --dir plugin install --lockfile-only` 更新唯一 lockfile，再用 frozen install 验证。
-4. 扩展 `package-contract.spec.ts`，逐一断言上述五处 manifest 值，并断言 package name、exports、files、dsh、scripts 保持 T2 前原值。
-5. 扩展 `module-boundaries.spec.ts`：若 `plugin/src/storage/` 存在，则其中 production source 不得导入 `plugin/src/domain`、`repository`、`runtime`、`tools`、`http`、`projection` 或 `client`；若 `plugin/src/repository/domain/` 存在，则其中不得导入 `plugin/src/storage/` 或 `@deepseek-ai/dsh-storage`。路径不存在时规则以空集合 PASS，T7 再证明真实命中。
-
-验证：
-
-```bash
-test ! -e storage-plugin
-test ! -e pnpm-workspace.yaml
-pnpm --dir plugin install --lockfile-only
-pnpm --dir plugin install --frozen-lockfile
-pnpm --dir plugin test -- tests/contract/package-contract.spec.ts tests/unit/module-boundaries.spec.ts
-pnpm --dir plugin typecheck
-git diff --check
-```
-
-PASS：全部命令退出 0；lockfile 只有 `plugin/pnpm-lock.yaml`；manifest 精确包含上述依赖且没有独立 storage package/workspace。
-
-STOP：任一包无法解析为锁定版本、安装要求 root override/workspace、或必须改变既有依赖。Failure state：只改变现有 package manifest、lockfile 和两项 contract tests；没有持久化介质。
-
 ### T3 — Implement Canonical Format And Filesystem Port
 
-前置状态：T2 PASS.
+前置状态：T2 已 PASS 且结果已提交；当前 HEAD 即为 T2 提交。
 
 允许修改：new `plugin/src/storage/config.ts`, `plugin/src/storage/errors.ts`, `plugin/src/storage/canonical-json.ts`, `plugin/src/storage/filesystem.ts`, `plugin/src/storage/format.ts`, `plugin/src/storage/jsonl.ts`, `plugin/src/storage/index.ts`; new `plugin/tests/fixtures/storage/scripted-filesystem.ts`, `plugin/tests/unit/storage/canonical-json.spec.ts`, `plugin/tests/unit/storage/filesystem.spec.ts`, `plugin/tests/unit/storage/format.spec.ts`, `plugin/tests/unit/storage/jsonl.spec.ts`.
 

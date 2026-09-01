@@ -11,6 +11,8 @@ const packageManifest = JSON.parse(
         bundle: { patch: string };
         client: { platform: string; inject: string[] };
     };
+    peerDependencies: Record<string, string>;
+    dependencies: Record<string, string>;
 };
 const patch = readFileSync(new URL("../../cordis.patch.yml", import.meta.url), "utf8");
 
@@ -33,6 +35,11 @@ describe("package contract framework", () => {
             "@deepseek-ai/dsh-client-ui-primitives",
             "@deepseek-ai/dsh-client-ui-slots"
         ]);
+        expect(packageManifest.peerDependencies).toMatchObject({
+            "@deepseek-ai/dsh-storage": "^0.1.1-rc.2",
+            "@deepseek-ai/dsh-storage-domain": "^0.1.1-rc.2"
+        });
+        expect(packageManifest.dependencies.zod).toBe("^4.4.3");
         expect(patch).toContain(`name: '${packageManifest.name}'`);
     });
 });
