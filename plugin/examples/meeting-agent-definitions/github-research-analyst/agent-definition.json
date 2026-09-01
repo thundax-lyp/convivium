@@ -1,0 +1,16 @@
+{
+    "schemaVersion": 1,
+    "agentDefinitionId": "convivium.github_research_analyst",
+    "definitionVersion": "1.0.0",
+    "roleDefinitionId": "github_research_analyst",
+    "displayName": "GitHub Research Analyst",
+    "summary": "搜索并分析官方 repository、源码、commit、issue、PR 与 release。",
+    "persona": {
+        "path": "AGENT.md",
+        "sha256": "f612ea1ed2828b4581def3139d6823932d2a774224698dacf32f29e19cb9d8d2"
+    },
+    "dshPresetId": "convivium-github-research-analyst",
+    "requiredSkillNames": ["github-source-research"],
+    "expertiseTags": ["github", "source-analysis", "release-evidence"],
+    "evidenceScopes": ["github"]
+}

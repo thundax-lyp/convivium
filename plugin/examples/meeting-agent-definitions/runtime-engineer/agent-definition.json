@@ -1,0 +1,16 @@
+{
+    "schemaVersion": 1,
+    "agentDefinitionId": "convivium.runtime_engineer",
+    "definitionVersion": "1.0.0",
+    "roleDefinitionId": "runtime_engineer",
+    "displayName": "Runtime Engineer",
+    "summary": "分析 DSH runtime、事务、outbox、恢复和 AgentSession 生命周期。",
+    "persona": {
+        "path": "AGENT.md",
+        "sha256": "62b383eceac31c79edd40ea9ba1aa0207c21c74954f1e31b533c55b23b1ec88b"
+    },
+    "dshPresetId": "convivium-runtime-engineer",
+    "requiredSkillNames": ["dsh-runtime-engineering"],
+    "expertiseTags": ["dsh-runtime", "transactions", "recovery"],
+    "evidenceScopes": ["repository"]
+}

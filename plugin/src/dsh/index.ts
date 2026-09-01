@@ -6,9 +6,7 @@ export {
     type ParticipantSessionLabel
 } from "./labels.js";
 export {
-    bindCaptainParent,
     resolveMeetingCaller,
-    type CaptainParentBinding,
     type MeetingOwnershipLookup,
     type MeetingOwnershipRecord,
     type ResolvedMeetingCaller
@@ -29,12 +27,8 @@ export {
     interruptAndDrainOwnedSessions,
     inspectOwnedSessions,
     proveArchiveOwnedChildren,
-    type ArchiveSessionRuntime,
     type AuthorizeSpeakerFollowup,
     type AuthorizeSpeakerFollowupInput,
-    type ContinuableFollowupRuntime,
-    type ContinuableLifecycleRuntime,
-    type ContinuableStarter,
     type FollowupParticipantSessionInput,
     type FollowupMeetingTaskSessionInput,
     type FollowupManagerSessionInput,
@@ -44,12 +38,10 @@ export {
     type InterruptAndDrainOwnedSessionsInput,
     type ProveArchiveOwnedChildrenInput,
     type InspectOwnedSessionsInput,
-    type ContinuableInspectionRuntime,
     type OwnedSessionDiagnostic,
     type OwnedSessionInspection,
     type OwnedSessionObservation,
     type SpeakerFollowupAttempt,
     type StartManagerSessionInput,
-    type StartParticipantSessionInput,
-    type SubagentProviderRegistry
+    type StartParticipantSessionInput
 } from "./session-adapter.js";

@@ -5,10 +5,9 @@ import type { ArchivePackage, MeetingState } from "../../domain/model.js";
 import {
     encodeMeetingSessionLabel,
     interruptAndDrainOwnedSessions,
-    proveArchiveOwnedChildren,
-    type ArchiveSessionRuntime,
-    type ContinuableLifecycleRuntime
+    proveArchiveOwnedChildren
 } from "../../dsh/index.js";
+import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type {
     CommandAuthorization,
     CommittedResult,
@@ -68,7 +67,10 @@ export interface BeginArchiveFromTerminationInput {
     readonly now: number;
 }
 
-type ArchiveCleanupRuntime = ArchiveSessionRuntime & ContinuableLifecycleRuntime;
+type ArchiveCleanupRuntime = Pick<
+    SubagentRuntime,
+    "listChildren" | "interrupt" | "drainContinuableChildren"
+>;
 
 export interface CleanupOwnedSessionsInput {
     readonly repository: Pick<MeetingRepository, "recover" | "recordSessionOwnership">;

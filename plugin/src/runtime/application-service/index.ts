@@ -2,13 +2,7 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import { DomainError, failSpeakerAttempt, type MeetingState } from "../../domain/index.js";
 import { RepositoryError } from "../../repository/index.js";
 import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
-import {
-    type ArchiveSessionRuntime,
-    type ContinuableFollowupRuntime,
-    type ContinuableInspectionRuntime,
-    type ContinuableLifecycleRuntime,
-    type ContinuableStarter
-} from "../../dsh/index.js";
+import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { RepositoryAuthorizationValidator } from "../meeting-runtime.js";
 import {
     createMeetingDeliveryDispatcher,
@@ -173,10 +167,11 @@ export interface MeetingToolRuntime {
 export interface CreateStatusRuntimeOptions {
     readonly dataRoot: string;
     readonly provider: string;
-    readonly continuable: ContinuableStarter &
-        ContinuableFollowupRuntime &
-        ContinuableInspectionRuntime &
-        Partial<ArchiveSessionRuntime & ContinuableLifecycleRuntime>;
+    readonly continuable: Pick<
+        SubagentRuntime,
+        "startContinuable" | "followup" | "listDescendants"
+    > &
+        Partial<Pick<SubagentRuntime, "listChildren" | "interrupt" | "drainContinuableChildren">>;
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly maxParticipants?: number;
     readonly outboxPollMs?: number;

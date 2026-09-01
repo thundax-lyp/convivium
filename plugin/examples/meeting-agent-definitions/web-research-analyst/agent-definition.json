@@ -1,0 +1,16 @@
+{
+    "schemaVersion": 1,
+    "agentDefinitionId": "convivium.web_research_analyst",
+    "definitionVersion": "1.0.0",
+    "roleDefinitionId": "web_research_analyst",
+    "displayName": "Web Research Analyst",
+    "summary": "搜索并分析官方文档、标准、发布说明、安全公告与时效信息。",
+    "persona": {
+        "path": "AGENT.md",
+        "sha256": "92fe78e64311ef4b244a65a15dcdf3a5a3138e76155d45ca1c80bb5d6a3c5113"
+    },
+    "dshPresetId": "convivium-web-research-analyst",
+    "requiredSkillNames": ["web-source-research"],
+    "expertiseTags": ["web", "official-documentation", "current-information"],
+    "evidenceScopes": ["web"]
+}
