@@ -944,38 +944,9 @@ No raw path or record payload enters the public error message.
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
 
-### T4 — Implement JSONL Unit Replay And Mutation
-
-前置状态：T3 已 PASS 且结果已提交；当前 HEAD 即为 T3 提交。
-
-允许修改：new `plugin/src/storage/unit.ts`; `plugin/src/storage/jsonl.ts`, `plugin/src/storage/format.ts`; new `plugin/tests/unit/storage/unit.spec.ts`, `plugin/tests/recovery/storage/tail-recovery.spec.ts`.
-
-禁止修改：`plugin/src/storage/backend.ts`, `plugin/src/storage/checkpoint.ts`, every `plugin/src` path outside `plugin/src/storage/`, and every test path except the two allowed suites.
-
-执行：
-
-1. Import `KvUnit`/`KvUnitDescriptor` as types and `StorageError` as a value from `@deepseek-ai/dsh-storage`. `JsonlKvUnit implements KvUnit`; `openJsonlUnit` is exactly `openJsonlUnit(root: string, descriptor: KvUnitDescriptor, fs?: FileSystemPort): Promise<JsonlKvUnit>`, defaulting to `nodeFileSystemPort`. Do not modify `errors.ts` or add DSH stable codes to `JsonlStorageErrorCode`.
-2. Implement descriptor create/validation exactly as `UnitDescriptorRecordV1`: backend `formatVersion` and DSH `unitVersion` are separate; version-only mismatch is `new StorageError("version-mismatch", diagnostic)`; every other descriptor/digest/static-shape mismatch is `new StorageError("malformed-medium", diagnostic)`.
-3. All directory, descriptor, active log, segment, replay and truncate operations go through `FileSystemPort` or the T3 helpers. `unit.ts` may import `node:path` only for path construction and must not import `node:fs`/`node:fs/promises`. Production code must not use `any`, `unknown as`, `ScriptedFileSystem.calls()` or error-message matching.
-4. Implement in-memory table/global state, positive continuous `opSeq`, one per-unit Promise queue, exactly one operation append per mutation, digest generation/verification, validation of kind/table/key/value/size, segment rollover at the exact count/byte boundary, ordered closed-segment replay, active-tail repair and closed behavior as fixed in `Physical records and publication`.
-5. Build the next candidate projection without publishing it. Append `sha256Hex(canonical record without digest)`; only after append resolves publish candidate and increment seq. Write/short-write rejection preserves memory. When `appendFailurePhase(error) === "datasync"`, poison the unit before rethrowing the identical error; every later mutation rejects `new StorageError("closed", diagnostic)`. Close/reopen determines whether the complete record exists.
-6. `loadAll()` returns the exact async DSH shape with every declared empty table. Undeclared table/global misuse throws plain `Error`; closed/poisoned calls throw DSH `StorageError("closed")`; LF-terminated/middle/immutable corruption and invalid operation/digest/seq throw DSH `StorageError("malformed-medium")` without truncate/write.
-7. Implement every exact T4 fault-matrix title. Add these exact non-parameterized titles to `unit.spec.ts`: `initializes every declared table in loadAll`, `rejects a descriptor version mismatch`, `rejects malformed descriptor identity or shape`, `rejects undeclared table and global operations before IO`, `rejects an operation digest or sequence mismatch`, `rolls over before record 257 and replays segments by first op sequence`, `rolls over before exceeding four MiB`. The last two assert exact filenames/order and cold-reopen deep equality. Enumerate every final-record prefix length in the tail test, not a sample.
-
-验证：
-
-```bash
-pnpm --dir plugin test -- tests/unit/storage/unit.spec.ts tests/recovery/storage/tail-recovery.spec.ts
-pnpm --dir plugin typecheck
-```
-
-PASS：the six fault-matrix cases and seven exact additional titles pass；write rollback covers `put/delete/set_global` with close/reopen deep equality；short-write reopens after exact repair；datasync proves unpublished memory, poisoned later mutation and complete cold replay；both corruption titles observe `StorageError("malformed-medium")` with zero truncate/write；seq, digest, empty-table and both rollover thresholds are asserted。
-
-STOP：any mutation requires two operation lines or recovery accepts partial middle data. Failure state：only isolated test roots; production package not registered.
-
 ### T5 — Implement Physical Checkpoint
 
-前置状态：T4 PASS.
+前置状态：T4 已 PASS 且结果已提交；当前 HEAD 即为 T4 提交。
 
 允许修改：new `plugin/src/storage/checkpoint.ts`; `plugin/src/storage/unit.ts`, `plugin/src/storage/format.ts`; new `plugin/tests/unit/storage/checkpoint.spec.ts`, `plugin/tests/recovery/storage/checkpoint-recovery.spec.ts`.
 
