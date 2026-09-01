@@ -945,29 +945,6 @@ No raw path or record payload enters the public error message.
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
 
-### T6 — Implement Backend Lifecycle
-
-前置状态：T5 已 PASS 且结果已提交；当前 HEAD 即为 T5 提交。
-
-允许修改：new `plugin/src/storage/backend.ts`; `plugin/src/storage/unit.ts`, `plugin/src/storage/index.ts`; new `plugin/tests/contract/storage/backend.spec.ts`, `plugin/tests/unit/storage/backend-lifecycle.spec.ts`.
-
-禁止修改：`plugin/cordis.patch.yml`, `plugin/scripts/smoke-profile.mjs`, every `plugin/src` path outside `plugin/src/storage/`, and every test path except the two allowed suites.
-
-执行：implement `JsonlStorageBackend` with `kv.open`, `open/opening` maps, descriptor validation, duplicate-open rejection, close drain/idempotency. Implement exact registration code from `Locked DSH API`. Backend must not add a write queue above the per-unit queue that reorders calls.
-
-验证：
-
-```bash
-pnpm --dir plugin test -- tests/contract/storage/backend.spec.ts tests/unit/storage/backend-lifecycle.spec.ts
-pnpm --dir plugin typecheck
-pnpm --dir plugin build
-test -z "$(rg -l 'Meeting|teamId|meetingId|receipt|outbox|Session' plugin/src/storage plugin/tests/unit/storage plugin/tests/recovery/storage plugin/tests/contract/storage || true)"
-```
-
-PASS：first three exit 0; final rg has no output; contract covers exact KvUnit methods and errors.
-
-STOP：DSH types differ or backend requires Convivium semantics. Failure state：test roots only.
-
 ### T7 — Verify The Package-Private Backend Boundary
 
 前置状态：T6 PASS。
