@@ -28,16 +28,34 @@ export interface MeetingRepositoryPort {
   updateBootstrap(input: UpdateBootstrapInput): Promise<MeetingBootstrap>;
   recordSessionOwnership(
     input: SessionOwnershipInput,
+    now?: number,
   ): Promise<SessionOwnership>;
   read(): Promise<MeetingSnapshot>;
+  readPrivateMeetingMail(mailId: string): Promise<PrivateMeetingMail | undefined>;
+  listOverduePrivateMeetingMail(now: number): Promise<PrivateMeetingMail[]>;
+  hasUnfinishedPrivateMeetingMail(): Promise<boolean>;
+  sendPrivateMeetingMail(
+    input: SendPrivateMeetingMailInput,
+  ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
+  startPrivateMeetingMail(
+    input: StartPrivateMeetingMailInput,
+  ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
+  finishPrivateMeetingMail(
+    input: FinishPrivateMeetingMailInput,
+  ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
+  cancelUnfinishedPrivateMeetingMail(
+    input: CancelPrivateMeetingMailInput,
+  ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
   execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>;
   claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>;
-  renewOutboxLease(input: RenewOutboxLeaseInput): Promise<number>;
   completeOutbox(input: CompleteOutboxInput): Promise<OutboxCompletionResult>;
-  recover(input: RecoverInput): Promise<RecoveryResult>;
+  renewOutboxLease(input: RenewOutboxLeaseInput): Promise<number>;
+  recover(input?: RecoverInput): Promise<RecoveryResult>;
   close(): Promise<void>;
 }
 ```
+
+The seven private-mail methods belong to the same per-Meeting `MeetingRepositoryPort`; mail is private communication data, not formal transcript or `MeetingSnapshot` data. `readPrivateMeetingMail`, `listOverduePrivateMeetingMail`, and `hasUnfinishedPrivateMeetingMail` are read-only. `sendPrivateMeetingMail`, `startPrivateMeetingMail`, `finishPrivateMeetingMail`, and `cancelUnfinishedPrivateMeetingMail` follow the same authorization, expected-version, idempotency, transaction, and recovery boundaries as other repository mutations. No second repository or mail port is introduced. See [Agent Meeting Protocol](./AGENT-MEETING-PROTOCOL-INTERFACE.md) sections `Meeting-scoped mailbox extension` and `Mail processing contract`.
 
 `create` 是 bootstrap 专用写入口：它先实时校验当前 caller，然后持久化 `creating` bootstrap、`createRequestId` 与 `requestHash`，但不创建公开 Meeting、领域事件或成功 receipt。Bootstrap 只保存创建 correlation，不保存 caller ownership；Runtime 可以安全创建并通过 `recordSessionOwnership` 记录 DSH Session ownership。崩溃恢复可据此识别未完成创建，且不能把它当作可运行 Meeting。`updateBootstrap` 只允许把 `creating` 转为 `creation_failed`，并保留安全失败码。
 
