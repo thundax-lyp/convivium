@@ -8,13 +8,13 @@
 
 ## Boundary And Ownership
 
-- DSH Host 或其受控 profile 拥有可用 Agent template；Convivium 不复制模型凭据、完整 Prompt、Tools Schema、MCP 配置或权限秘密。
-- 每个 Catalog candidate 必须绑定一个可解析的 `DshAgentTemplateRefV1`；`sourceMemberName`、显示名称或 role ID 本身均不能证明 Template 已加载。
+- DSH Host 或其受控 profile 拥有可用 Agent Preset、Skill 和 Tool；Convivium 不复制模型凭据、完整 Prompt、Tools Schema、MCP 配置或权限秘密。
+- 每个 Catalog candidate 必须绑定一个可解析的 Meeting Agent Definition；`sourceMemberName`、显示名称或 role ID 本身均不能证明 DSH capability 已加载。
 - Convivium 消费一个经过 Captain 当前授权范围过滤的 `MeetingAgentCatalogSnapshotV1`，并把其最小安全 projection 交给当前 Meeting Manager。
 - Catalog 中的 Agent 是候选来源，不是当前 Meeting Participant。只有 Captain 批准 recommendation 且 Runtime 完成独立 meeting-owned Session provisioning 后，该 Agent 才成为可调度 Participant。
 - Manager 只能推荐 Catalog 中可见且当前可用的 candidate，并说明与议题、职责或证据缺口的关系；Manager 不能批准自己的推荐。
 - Captain 的批准只允许创建普通可选 Participant。批准不得自动修改 `requiredReviewers`、`riskAcceptanceAuthority`、议题 required Participant 或 DSH 已授予的权限上限。
-- Meeting Runtime 是 recommendation、Captain disposition、admission 状态和 Participant identity 的事实所有者；DSH Agent template 和内部执行能力不是 MeetingState 的事实源。
+- Meeting Runtime 是 recommendation、Captain disposition、admission 状态和 Participant identity 的事实所有者；Meeting Agent Definition 和 DSH 内部执行能力不是 MeetingState 的事实源。
 - Catalog snapshot、recommendation、disposition 和 admission 必须绑定 `teamId + meetingId`，不得跨 Meeting 重放或隐式共享 capability。
 
 ## Transport Or Invocation
@@ -55,7 +55,7 @@ interface ManagerResearchNeedV1 {
 }
 ```
 
-该 projection 不包含 `sourceMemberName`、DSH Session ID、模型、完整 Prompt、凭据、私有工具配置或其他 Agent 的私有历史。Runtime 保留 `candidateId` 到受控 DSH template reference 的私有映射。
+该 projection 不包含 `sourceMemberName`、DSH Session ID、模型、完整 Prompt、凭据、私有工具配置或其他 Agent 的私有历史。Runtime 保留 `candidateId -> agentDefinitionId -> MeetingAgentDefinitionV1` 私有映射。
 
 ### Manager recommendation
 
@@ -82,7 +82,7 @@ interface AttendanceRecommendationV1 extends AttendanceRecommendationClaimV1 {
 }
 ```
 
-Manager 不得在 claim 中提供或覆盖 `recommendationId`、身份、状态、Participant ID、review responsibility、risk authority、tool filter 或 DSH template reference。Runtime 从当前合法 Manager caller、planning attempt 和 Catalog snapshot 绑定这些字段。
+Manager 不得在 claim 中提供或覆盖 `recommendationId`、身份、状态、Participant ID、review responsibility、risk authority、tool filter 或 Agent Definition identity。Runtime 从当前合法 Manager caller、planning attempt 和 Catalog snapshot 绑定这些字段。
 
 ### Captain disposition
 
@@ -143,7 +143,7 @@ interface PublicAttendanceRecommendationV1 {
 }
 ```
 
-projection 不公开 Manager Session ID、DSH template reference、Participant Session ID 或 Catalog 私有 mapping。Plugin Frontend 只有在 recommendation 为 `pending` 时显示 Captain Approve/Reject 控制；写操作完成或返回结构化错误后必须重新读取完整 status。
+projection 不公开 Manager Session ID、agentDefinitionId、Participant Session ID 或 Catalog 私有 mapping。Plugin Frontend 只有在 recommendation 为 `pending` 时显示 Captain Approve/Reject 控制；写操作完成或返回结构化错误后必须重新读取完整 status。
 
 ## Data And State Contract
 
@@ -185,13 +185,13 @@ interface MeetingAgentCatalogSnapshotV1 {
     roleDefinitionId: AgentRoleDefinitionIdV1;
     roleDefinitionVersion: string;
     sourceMemberName: string;
-    templateRef: DshAgentTemplateRefV1;
+    agentDefinitionId: string;
     availability: "available" | "unavailable";
   }[];
 }
 ```
 
-Catalog snapshot 必须在 recommendation 产生前固化。Manager 只看到安全 projection；Runtime 使用完整 snapshot 验证 candidate、角色版本和受控 template mapping。Catalog 更新不得改变已经存在的 recommendation 或 admission。
+Catalog snapshot 必须在 recommendation 产生前固化。Manager 只看到安全 projection；Runtime 使用完整 snapshot 验证 candidate、角色版本和受控 Agent Definition mapping。Catalog 更新不得改变已经存在的 recommendation 或 admission。
 
 ### Initial role definitions
 
@@ -240,7 +240,7 @@ recommendation 不打断当前合法 SpeakerAttempt，也不能把推荐 Agent �
 | `AGENT_CATALOG_UNAVAILABLE`             | 当前 Meeting 无可验证 Catalog snapshot                       |
 | `AGENT_CATALOG_VERSION_UNSUPPORTED`     | Catalog 或 role definition 版本不受支持                      |
 | `AGENT_CANDIDATE_NOT_FOUND`             | recommendation 引用了当前 snapshot 之外的 candidate          |
-| `AGENT_CANDIDATE_UNAVAILABLE`           | candidate 在 snapshot 中不可用或其受控 template 已不可解析   |
+| `AGENT_CANDIDATE_UNAVAILABLE`           | candidate 在 snapshot 中不可用或其 Agent Definition 或其 DSH capability 引用已不可解析   |
 | `ATTENDANCE_RECOMMENDATION_INVALID`     | recommendation 缺少有效议题、理由、贡献或证据缺口引用        |
 | `ATTENDANCE_RECOMMENDATION_STALE`       | planning attempt、Catalog snapshot 或 Meeting version 已失效 |
 | `ATTENDANCE_RECOMMENDATION_NOT_PENDING` | Captain 处置的 recommendation 已终止                         |
@@ -249,14 +249,14 @@ recommendation 不打断当前合法 SpeakerAttempt，也不能把推荐 Agent �
 - 只有当前合法 Manager Session 能提交 recommendation。
 - 只有当前 Meeting Captain 能批准或拒绝 recommendation。
 - Manager recommendation、自然语言建议或 research result 都不能替代 Captain disposition。
-- Captain approval 不能扩大 candidate 对应 DSH template 的权限，也不能自动赋予 required-review、risk acceptance、Captain 或 Manager authority。
-- Catalog projection 必须过滤秘密和敏感配置；错误不得返回 template 路径、凭据、完整 Prompt 或内部工具配置。
+- Captain approval 不能扩大 candidate 对应 DSH Preset 和 policy 的权限，也不能自动赋予 required-review、risk acceptance、Captain 或 Manager authority。
+- Catalog projection 必须过滤秘密和敏感配置；错误不得返回 Preset/Skill 私有配置、凭据、完整 Prompt 或内部工具配置。
 - recommendation、disposition、admission 和 Session provisioning 必须保留幂等、version conflict、终态拒写和跨 Meeting 隔离。
 
 ## Compatibility
 
 - 当前 `CreateMeetingInputV1.participants` 和既有会议创建行为保持不变；初始 Participant 仍由 Captain 在创建时明确提供。
-- 初始 Participant 和 recommendation admission 都必须在 Session provisioning 前解析对应 DSH Agent Template；`sourceMemberName` 不能作为隐式 Template fallback。
+- 初始 Participant 和 recommendation admission 都必须在 Session provisioning 前解析对应 Meeting Agent Definition 及其 DSH capability 引用；`sourceMemberName` 不能作为隐式 Definition fallback。
 - 本接口增加的是会议运行期间的可选参会推荐与 Captain admission，不得静默改变既有 Manager plan 或 `ParticipantSpecV1` 的含义。
 - 在代码和 Schema 正式实现前，Catalog projection、recommendation claim 和 Captain disposition 均属于未实现契约，不得由调用方假设可用。
 - 新增或修改 role definition 必须提升其 `version`；历史 Meeting 保留当时 snapshot，不随 Catalog 更新漂移。
@@ -267,6 +267,6 @@ recommendation 不打断当前合法 SpeakerAttempt，也不能把推荐 Agent �
 - `docs/00-governance/ARCHITECTURE.md`
 - `docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`
 - `docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
-- `docs/20-interfaces/DSH-AGENT-TEMPLATE-INTERFACE.md`
+- `docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`
 - `docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`
 - `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`

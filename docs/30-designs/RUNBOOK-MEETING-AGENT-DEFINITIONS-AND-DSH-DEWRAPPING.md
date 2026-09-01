@@ -380,7 +380,7 @@ export async function verifyMeetingAgentDefinitionSamples(root) {}
 4. `toolFilter` 必须使用 DSH 原生 `ToolRestriction`，并且只能收窄目标 Preset 已提供的 Tools，不能授予新 Tool 或扩大 DSH/用户权限。
 5. `persona` 只提供 meeting-specific role instruction，不授予 Skill、Tool、MCP、Sandbox、Approval、模型或 Meeting authority；仓库 `AGENTS.md` 也不作为隐式 Agent capability。
 6. Manager recommendation 和 Captain approval 只能选择 Definition 对应的会议身份；只有 DSH 完成独立 continuable AgentSession provisioning 后，该身份才能成为可调度 Participant。
-7. Definition resolution、Preset/Skill validation 或 DSH capability composition 任一失败时必须 fail closed，不得通过 Prompt-only、persona-only、Tool Schema 隐藏或 Convivium 自建 Template installer 降级运行。
+7. Definition resolution、Preset/Skill validation 或 DSH capability composition 任一失败时必须 fail closed，不得通过 Prompt-only、persona-only、Tool Schema 隐藏或 Convivium 自建 capability installer 降级运行。
 8. 当前 DSH `0.1.1-rc.2` 不能为 continuable child 选择不同于 parent 的 Agent Preset；在 DSH 提供公开 per-child preset composition API 前，Definition 到差异化 AgentSession 的 runtime 接线保持未实现。
 ```
 
@@ -663,46 +663,6 @@ T7 只按下表判断 S1-S9 是否闭合，不得自行选择“对应”步骤�
 10. 样本不进入 `package.json#files`，不是发布资产、Host registry 或 runtime readiness 证据。
 
 ## 8. 机械执行步骤
-
-### T1：提升正式口径并替换 Agent Definition 契约
-
-前置状态：T0 PASS。
-
-允许修改：
-
-- `docs/00-governance/ARCHITECTURE.md`
-- `docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`
-- 新增 `docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`
-- 删除 `docs/20-interfaces/DSH-AGENT-TEMPLATE-INTERFACE.md`
-- 修改 `docs/20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md`
-
-禁止修改：其他 interface、design、readiness、TODO、code、sample。
-
-执行：
-
-1. 先逐项执行第 4.5 节 `Architecture` 五项；不得同时修改其他文件。
-2. 运行本步骤第一个 Architecture focused search；非零退出或仍有旧词时 STOP。
-3. 再逐项执行第 4.5 节 `Requirements` 五项；不得修改 FR-13 第 1-8、10 条、BR-10 或 Acceptance 30-34。
-4. 按第 4.7 节从空文件创建新 Interface；任何段落只能复制该节或第 2.2、4.1-4.3 节指定内容。
-5. 对 Role Catalog 执行第 4.5 节 simultaneous replacements 和随后两句替换；不得改变任何 type 的其他字段。
-6. 删除旧 Interface。删除前 `test -f` 必须成功；不存在时 STOP。
-
-验证：
-
-```bash
-set -e
-! rg -n "Agent Template|agent template|agent-templates|Template registry|Template installer" docs/00-governance/ARCHITECTURE.md
-for token in "Convivium 拥有会议角色目录" "Meeting Agent Definition 只引用 DSH 原生 Agent Preset" "Meeting Agent Definition identity 与 meeting-owned DSH Session ownership" "DSH capability secret" "plugin/examples/meeting-agent-definitions/"; do rg -Fq "$token" docs/00-governance/ARCHITECTURE.md; done
-for token in "### FR-14：Meeting Agent Definition 与 DSH composition boundary" "dshPresetId" "requiredSkillNames" "### BR-11：Meeting Agent Definition 与能力所有权" "39. 在 DSH 提供并验证 per-child preset composition API 前"; do rg -Fq "$token" docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md; done
-for token in "interface MeetingAgentDefinitionV1" "dshPresetId" "requiredSkillNames" "ToolRestriction" "per-child preset selection"; do rg -Fq "$token" docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md; done
-for token in "agentDefinitionId: string;" 'candidateId -> agentDefinitionId -> MeetingAgentDefinitionV1' "projection 不公开 Manager Session ID、agentDefinitionId"; do rg -Fq "$token" docs/20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md; done
-test ! -e docs/20-interfaces/DSH-AGENT-TEMPLATE-INTERFACE.md
-! rg -ni "agent template|agent-templates|DSH-AGENT-TEMPLATE-INTERFACE|DshAgentTemplate|templateRef|Template registry|Template installer|skillSetRefs|toolSetRefs|mcpSetRefs|permissionProfileRef|outputContractRef" docs/00-governance/ARCHITECTURE.md docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md docs/20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md
-```
-
-PASS：architecture/requirements 已先形成新正式依据；新接口包含第 4 节全部字段；Catalog 不再保存 template ref；旧接口不存在；禁止词无命中。
-
-STOP：0.1 的确认依据不足以完成指定口径迁移、需要改变 recommendation/admission 产品语义，或发现 0.1 之外的正式冲突。
 
 ### T2：同步其余 interfaces 与 designs
 
