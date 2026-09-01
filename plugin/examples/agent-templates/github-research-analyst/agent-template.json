@@ -1,0 +1,23 @@
+{
+    "schemaVersion": 1,
+    "templateId": "convivium.github-research-analyst",
+    "templateVersion": "1.0.0",
+    "roleDefinitionId": "github_research_analyst",
+    "roleInstructions": {
+        "path": "ROLE.md",
+        "sha256": "f612ea1ed2828b4581def3139d6823932d2a774224698dacf32f29e19cb9d8d2"
+    },
+    "baseInstructionSetRefs": [{ "id": "convivium.base.meeting-participant", "version": "1.0.0" }],
+    "skillSetRefs": [{ "id": "convivium.skills.github-source-research", "version": "1.0.0" }],
+    "toolSetRefs": [{ "id": "convivium.tools.github-read-research", "version": "1.0.0" }],
+    "mcpSetRefs": [{ "id": "convivium.mcp.github-read", "version": "1.0.0" }],
+    "permissionProfileRef": {
+        "id": "convivium.permissions.delegated-network-read",
+        "version": "1.0.0"
+    },
+    "modelPolicy": { "maxTokens": 12288 },
+    "outputContractRef": {
+        "id": "convivium.output.github-evidence",
+        "version": "1.0.0"
+    }
+}

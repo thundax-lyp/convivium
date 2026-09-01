@@ -1,0 +1,23 @@
+{
+    "schemaVersion": 1,
+    "templateId": "convivium.meeting-manager",
+    "templateVersion": "1.0.0",
+    "roleDefinitionId": "meeting_manager",
+    "roleInstructions": {
+        "path": "ROLE.md",
+        "sha256": "a0fa07824aec671bd7b292674ea1233108151b1baf9b06ef09b72c7349bbf173"
+    },
+    "baseInstructionSetRefs": [{ "id": "convivium.base.meeting-manager", "version": "1.0.0" }],
+    "skillSetRefs": [{ "id": "convivium.skills.meeting-management", "version": "1.0.0" }],
+    "toolSetRefs": [{ "id": "convivium.tools.manager-meeting-read-submit", "version": "1.0.0" }],
+    "mcpSetRefs": [{ "id": "convivium.mcp.none", "version": "1.0.0" }],
+    "permissionProfileRef": {
+        "id": "convivium.permissions.delegated-manager",
+        "version": "1.0.0"
+    },
+    "modelPolicy": { "maxTokens": 8192 },
+    "outputContractRef": {
+        "id": "convivium.output.manager-plan",
+        "version": "1.0.0"
+    }
+}

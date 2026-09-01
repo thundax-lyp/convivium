@@ -1,0 +1,23 @@
+{
+    "schemaVersion": 1,
+    "templateId": "convivium.verification-reviewer",
+    "templateVersion": "1.0.0",
+    "roleDefinitionId": "verification_reviewer",
+    "roleInstructions": {
+        "path": "ROLE.md",
+        "sha256": "ce8987f755e9cb646813e5bfcfdcf48649700fd4ac82080ccaf0ab48962a5e3e"
+    },
+    "baseInstructionSetRefs": [{ "id": "convivium.base.meeting-participant", "version": "1.0.0" }],
+    "skillSetRefs": [{ "id": "convivium.skills.verification-review", "version": "1.0.0" }],
+    "toolSetRefs": [{ "id": "convivium.tools.repository-verification", "version": "1.0.0" }],
+    "mcpSetRefs": [{ "id": "convivium.mcp.none", "version": "1.0.0" }],
+    "permissionProfileRef": {
+        "id": "convivium.permissions.delegated-verification",
+        "version": "1.0.0"
+    },
+    "modelPolicy": { "maxTokens": 12288 },
+    "outputContractRef": {
+        "id": "convivium.output.verification-review",
+        "version": "1.0.0"
+    }
+}

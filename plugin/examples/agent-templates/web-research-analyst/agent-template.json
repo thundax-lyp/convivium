@@ -1,0 +1,23 @@
+{
+    "schemaVersion": 1,
+    "templateId": "convivium.web-research-analyst",
+    "templateVersion": "1.0.0",
+    "roleDefinitionId": "web_research_analyst",
+    "roleInstructions": {
+        "path": "ROLE.md",
+        "sha256": "92fe78e64311ef4b244a65a15dcdf3a5a3138e76155d45ca1c80bb5d6a3c5113"
+    },
+    "baseInstructionSetRefs": [{ "id": "convivium.base.meeting-participant", "version": "1.0.0" }],
+    "skillSetRefs": [{ "id": "convivium.skills.web-source-research", "version": "1.0.0" }],
+    "toolSetRefs": [{ "id": "convivium.tools.web-read-research", "version": "1.0.0" }],
+    "mcpSetRefs": [{ "id": "convivium.mcp.web-read", "version": "1.0.0" }],
+    "permissionProfileRef": {
+        "id": "convivium.permissions.delegated-network-read",
+        "version": "1.0.0"
+    },
+    "modelPolicy": { "maxTokens": 12288 },
+    "outputContractRef": {
+        "id": "convivium.output.web-evidence",
+        "version": "1.0.0"
+    }
+}
