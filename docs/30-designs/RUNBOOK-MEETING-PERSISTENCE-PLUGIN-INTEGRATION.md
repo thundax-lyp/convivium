@@ -944,30 +944,9 @@ No raw path or record payload enters the public error message.
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
 
-### T5 — Implement Physical Checkpoint
-
-前置状态：T4 已 PASS 且结果已提交；当前 HEAD 即为 T4 提交。
-
-允许修改：new `plugin/src/storage/checkpoint.ts`; `plugin/src/storage/unit.ts`, `plugin/src/storage/format.ts`; new `plugin/tests/unit/storage/checkpoint.spec.ts`, `plugin/tests/recovery/storage/checkpoint-recovery.spec.ts`.
-
-禁止修改：`plugin/src/storage/backend.ts`, `plugin/src/storage/index.ts`, every `plugin/src` path outside `plugin/src/storage/`, and every test path except the two allowed suites.
-
-执行：implement the exact physical checkpoint records/publication. Maintenance is queued after resolved mutation at trigger; its failure is retained as the single internal `maintenanceError` needed by hard-tail enforcement and does not retroactively reject committed mutation. Before a new mutation would exceed hard tail, retry checkpoint first; if still failing, reject new mutation with `capacity-exceeded` before append. `close()` drains maintenance and rejects its retained error after the committed mutation is durable. Implement `createPhysicalCheckpointFixture()` and the exact 14-case T5 parameter table; do not inject by operation count.
-
-验证：
-
-```bash
-pnpm --dir plugin test -- tests/unit/storage/checkpoint.spec.ts tests/recovery/storage/checkpoint-recovery.spec.ts
-pnpm --dir plugin typecheck
-```
-
-PASS：tests prove bounded line count, pointer-before/after crash recovery, orphan collection, safe segment GC, hard-tail refusal before append and close drain.
-
-STOP：checkpoint ever writes whole unit as one call or deletes active/uncovered log. Failure state：test roots only; last valid pointer/log remains recoverable.
-
 ### T6 — Implement Backend Lifecycle
 
-前置状态：T5 PASS.
+前置状态：T5 已 PASS 且结果已提交；当前 HEAD 即为 T5 提交。
 
 允许修改：new `plugin/src/storage/backend.ts`; `plugin/src/storage/unit.ts`, `plugin/src/storage/index.ts`; new `plugin/tests/contract/storage/backend.spec.ts`, `plugin/tests/unit/storage/backend-lifecycle.spec.ts`.
 
