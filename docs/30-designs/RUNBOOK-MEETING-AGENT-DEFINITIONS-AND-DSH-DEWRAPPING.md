@@ -664,39 +664,6 @@ T7 只按下表判断 S1-S9 是否闭合，不得自行选择“对应”步骤�
 
 ## 8. 机械执行步骤
 
-### T2：同步其余 interfaces 与 designs
-
-前置状态：T1 PASS。
-
-允许修改：
-
-- `docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
-- `docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`
-- `docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`
-- `docs/30-designs/DOMAIN-MODEL-DESIGN.md`
-- `docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`
-
-禁止修改：T1 已形成的 architecture/requirements/interfaces、TODO、readiness、code、sample。
-
-执行：
-
-1. Protocol 只执行第 4.5 节最后一项 Related Documents replacement。
-2. 其余四个文件按第 4.8 节所列文件顺序、再按各文件 numbered replacement 顺序执行 edit manifest；四个文件全部完成后运行本步骤验证区命令。不得使用临时 placeholder 或自行扩展文件集合。
-3. 不新增第 4.8 节未写出的解释段、type、字段或错误。
-
-验证：
-
-```bash
-set -e
-for file in docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md docs/20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md; do rg -Fq "MEETING-AGENT-DEFINITION-INTERFACE" "$file"; done
-for file in docs/30-designs/DOMAIN-MODEL-DESIGN.md docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md; do rg -Fq "agentDefinitionId" "$file"; done
-! rg -ni "agent template|agent-templates|DSH-AGENT-TEMPLATE-INTERFACE|DshAgentTemplate|MeetingAgentTemplate|AgentTemplateAdapter|TemplateSnapshotInput|agentTemplateSnapshot|agent_template_snapshot_json|templateProvenance|TEMPLATE_RESUME_FAILED|template-adapter|Template registry|Template installer|skillSetRefs|toolSetRefs|mcpSetRefs|permissionProfileRef|outputContractRef" docs/00-governance/ARCHITECTURE.md docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md docs/20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md docs/30-designs/DOMAIN-MODEL-DESIGN.md docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md
-```
-
-PASS：FR 编号保留且语义已替换；所有引用指向新接口；禁止词在 RUNBOOK 外无命中；Protocol 和 SQLite 没有新增字段。
-
-STOP：同步文档要求确认新的产品行为、数据结构或 DSH workaround。
-
 ### T3：迁移九个 Agent Definition 样本与验证器
 
 前置状态：T2 PASS。

@@ -37,7 +37,7 @@
 - 正式需求：[`../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)。
 - Agent 间会议协议：[`../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)。
 - Agent 角色目录与参会推荐：[`../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md`](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)。
-- DSH Agent Template：[`../20-interfaces/DSH-AGENT-TEMPLATE-INTERFACE.md`](../20-interfaces/DSH-AGENT-TEMPLATE-INTERFACE.md)。
+- Meeting Agent Definition：[`../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)。
 - Domain 数据结构唯一真相源：[`DOMAIN-MODEL-DESIGN.md`](./DOMAIN-MODEL-DESIGN.md)。
 - 源码落点与接线：[`CONVIVIUM-IMPLEMENTATION-DESIGN.md`](./CONVIVIUM-IMPLEMENTATION-DESIGN.md)。
 - 增量实现的范围控制：[`MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md`](./MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md)。
@@ -53,7 +53,7 @@
 | 异步任务与私聊       | background task、hand raise、mailbox extension                     | 9、11            |
 | 议题、决策与完成     | public changes、completion claims、risk disposition                | 6、12、13、16.2  |
 | Agent 角色与参会推荐 | catalog projection、recommendation、Captain disposition、admission | 12.5、16         |
-| DSH Agent Template   | manifest、ROLE、Skill/Tool/MCP sets、permission、resume            | 4.3、4.4、14、15 |
+| Meeting Agent Definition | Convivium role configuration 与 DSH capability ownership boundary | 4.3、4.4、12.5 |
 | 暂停、恢复与故障隔离 | pause/resume、receipts、errors                                     | 7、8、10.3、14   |
 | 事件与可观察性       | status projection、refresh contract                                | 17               |
 | 归档与续会           | archive projection、continuation selection                         | 15               |
@@ -145,7 +145,6 @@ createMeetingAgentSession(input: {
   provider: string
   model?: string
   maxTokens?: number
-  templateSnapshot: MeetingAgentTemplateSnapshotV1
   signal: AbortSignal
 }): Promise<{ sessionId: SessionId; initialMessageId: MessageId }>
 ```
@@ -172,26 +171,11 @@ convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
 
 这些 label 同时是冷恢复时的 ownership 证明。Runtime 只能操作由上述命名空间创建、且能够解析出完整 `teamId`、`meetingId` 和身份 ID 的 Session；不得根据模糊前缀或显示名称中断、关闭 Session 或撤销 capability。
 
-### 4.4 DSH Agent Template composition
+### 4.4 Meeting Agent Definition boundary
 
-DSH Agent Template 的 manifest、registry、resolved snapshot、installer、权限和兼容语义以 [DSH Agent Template Interface](../20-interfaces/DSH-AGENT-TEMPLATE-INTERFACE.md) 为唯一契约。仓库 `AGENTS.md` 不作为隐式 DSH runtime input；必须传给 Agent 的共享说明由 manifest 显式引用 versioned base instruction sets，每个角色使用独立 `ROLE.md`。二者都不能形成 per-Agent 权限。
+Convivium 拥有 Meeting Agent Definition、会议身份、选择、批准和 Session ownership；DSH 拥有 Agent Preset、Skills、Tools、MCP、Sandbox、Approval、模型配置、capability composition 和 AgentSession runtime。Definition 只引用 `dshPresetId`、声明 `requiredSkillNames`、提供 persona，并可用 DSH 原生 `ToolRestriction` 收窄工具。
 
-创建 Manager 或 Participant Session 前，Runtime 必须：
-
-```text
-resolve exact templateId + templateVersion under Captain/Team authority
-→ validate manifest, ROLE.md hash and all versioned resource sets
-→ persist immutable template snapshot/provenance before DSH side effects
-→ reserve childId and provisioning ownership
-→ prepare Host scoped composition for that exact childId
-→ call startContinuable with persona/toolFilter/agentOptions
-→ verify composition receipt and initial inbox acceptance
-→ mark ownership active
-```
-
-当前 DSH `0.1.1-rc.2` 的 continuable request 原生承载 `persona`、`toolFilter` 和 `agentOptions(provider/model/maxTokens)`。Skills、MCP 和 permission profile 必须由 Host-owned scoped installer 在 child publication 前安装；任何一项无法安装都回滚未发布 child。`reasoningEffort` 不属于当前 `AgentOptions`，不得由实现或 Template V1 猜测注入。
-
-Cold resume 必须从 Meeting SQLite 的 exact template snapshot 重新解析同版本资源并重装 scoped composition，再允许 followup。DSH continuable descriptor 自身只持久化 provider/model/persona/toolFilter 等公开 composition 字段，不能替代 Convivium 对 Skill/MCP/permission snapshot 的恢复校验。同版本 hash 漂移、资源缺失或 installer 不可用时，当前 Participant 标记不可调度并报告 `TEMPLATE_RESUME_FAILED`；不得自动加载最新版或只恢复部分能力。
+当前 DSH `0.1.1-rc.2` 的 continuable child 自动继承 parent preset，公开 request 不能选择不同 preset。因此 Definition resolution、Preset/Skill validation 和差异化 Session provisioning 尚未接线；本设计禁止用 Prompt-only、persona-only 或 Convivium 自建 installer 绕过该缺口。
 
 ## 5. Runtime Model
 
@@ -1204,7 +1188,7 @@ Manager plan MUST 校验：
 
 Agent role catalog、Manager recommendation、Captain disposition 和 admission 的跨边界类型以 [Meeting Agent Role Catalog Interface](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md) 为唯一契约。Catalog candidate 与 Meeting Participant 必须保持分离。
 
-Runtime 在 Manager planning context 中附带当前 authorized Catalog 的安全 projection 和已有 evidence 的最小索引。Manager 可以随合法 planning submission 推荐 candidate，但 recommendation 不改变当前 Turn、speaker candidates、objective contract 或权限。Runtime 必须从当前 Manager caller、planning attempt、Meeting version 和固化 Catalog snapshot 绑定 recommendation identity；Manager 不能提供 recommendation 状态、Participant ID 或 DSH template reference。
+Runtime 在 Manager planning context 中附带当前 authorized Catalog 的安全 projection 和已有 evidence 的最小索引。Manager 可以随合法 planning submission 推荐 candidate，但 recommendation 不改变当前 Turn、speaker candidates、objective contract 或权限。Runtime 必须从当前 Manager caller、planning attempt、Meeting version 和固化 Catalog snapshot 绑定 recommendation identity；Manager 不能提供 recommendation 状态、Participant ID 或 agentDefinitionId。
 
 Captain 使用独立 command 处置 pending recommendation：
 
@@ -1758,7 +1742,7 @@ const DEFAULT_SELECTION_MODE: MeetingSelectionMode = "hybrid";
 - Meeting-owned Manager/Participant Session 的创建、串行调用、恢复、关闭和 capability revoke；
 - create/status/submit/raise-hand/reassign/end/manager-plan、后台任务和 meeting-scoped mailbox 工具边界；
 - Agent role catalog 安全 projection、Manager 参会 recommendation、Captain disposition 和 Participant admission/provisioning；
-- versioned DSH Agent Template registry、ROLE/Skill/Tool/MCP/permission composition、持久 snapshot 和 cold-resume 重建；
+- Meeting Agent Definition resolution、DSH per-child preset/Skill validation 和 fail-closed provisioning（blocked）；
 - `round_robin | rule_based | manager | hybrid` planning、Manager 语义裁决和确定性 fallback；
 - 顺序 speaker、delivery dedupe、完成判断、归档和续会；
 - Plugin Frontend projection、刷新、用户控制和连接失败展示；
@@ -1779,4 +1763,4 @@ const DEFAULT_SELECTION_MODE: MeetingSelectionMode = "hybrid";
 7. SQLite、outbox、Session delivery 和 archive 的故障边界可测试、可恢复。
 8. Archived Meeting 不保留私有 AgentSession，续会不恢复旧权限和上下文。
 9. Manager 只能推荐 authorized Catalog candidate；Captain 批准和独立 Session provisioning 完成前，该 Agent 不是 Participant，也不能取得发言或权限。
-10. 每个 Manager/Participant Session 在 fresh create 和 cold resume 中使用同一 Template snapshot；缺失或不受支持的 scoped composition 在 Agent publication/followup admission 前 fail closed。
+10. Definition 存在不等于 DSH capability 已安装；在 per-child preset composition 可验证前不得接线或宣称完成。

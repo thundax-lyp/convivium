@@ -35,7 +35,7 @@ V1 固定运行于单个本地 DSH Host，并只面向该 Host 的一位本地�
 - [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
 - [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)
 - [Meeting Agent Role Catalog Interface](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)
-- [DSH Agent Template Interface](../20-interfaces/DSH-AGENT-TEMPLATE-INTERFACE.md)
+- [Meeting Agent Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)
 - [Domain Model Design](./DOMAIN-MODEL-DESIGN.md)
 - [Meeting Orchestration Design](./MEETING-ORCHESTRATION-DESIGN.md)
 
@@ -154,9 +154,8 @@ domain     ──> no infrastructure module
 | `src/runtime/recovery.ts`                                      | 冷启动扫描、租约回收、outbox 恢复和 orphan 归属修复                                                       |
 | `src/runtime/archive.ts`                                       | 终态快照、capability revoke、Activation drain 和 archived commit                                          |
 | `src/dsh/session-adapter.ts`                                   | meeting-owned Session 创建、followup、interrupt、drain 和枚举                                             |
-| `src/dsh/template-adapter.ts`                                  | DSH Agent Template resolution、scoped composition、snapshot receipt 和 cold-resume 重建                   |
-| `examples/agent-templates/*`                                   | 不进入发布包的版本化 Template/ROLE 契约样本；供 FR-14 resolver、installer 和 Host registry 实现与审阅使用 |
-| `scripts/verify-agent-template-samples.mjs`                    | 校验样本 manifest、角色唯一性、resource ref、ROLE path/hash 和当前 DSH modelPolicy 字段边界               |
+| `examples/meeting-agent-definitions/*`                         | 不进入发布包的 Convivium Meeting Agent Definition 固定样本；不表示 DSH capability 已安装             |
+| `scripts/verify-agent-definition-samples.mjs`                   | 校验九个固定 Definition、文件集合和 AGENT.md hash                                                      |
 | `src/domain/meeting-task.ts`                                   | MeetingTask、HandRaise、状态转换和 task projection 的纯领域逻辑                                           |
 | `src/dsh/caller-resolver.ts`                                   | 将真实 DSH caller Session 解析为 Captain、Manager 或 Participant                                          |
 | `src/tools/register-tools.ts`                                  | 注册 `convivium_*` 工具并绑定协议 Schema                                                                  |
@@ -255,10 +254,10 @@ interface MeetingRepository {
 ```ts
 interface MeetingSessionAdapter {
   createManager(
-    input: CreateManagerSession & TemplateSnapshotInput,
+    input: CreateManagerSession,
   ): Promise<OwnedSession>;
   createParticipant(
-    input: CreateParticipantSession & TemplateSnapshotInput,
+    input: CreateParticipantSession,
   ): Promise<OwnedSession>;
   followup(input: AuthorizedFollowup): Promise<DeliveryResult>;
   interrupt(input: AuthorizedInterrupt): Promise<InterruptResult>;
@@ -267,23 +266,7 @@ interface MeetingSessionAdapter {
 }
 ```
 
-`MeetingSessionAdapter` 必须通过独立 `AgentTemplateAdapter` 解析并安装 Template，不得自行读取 Template 文件、Skills 或 MCP 配置：
-
-```ts
-interface AgentTemplateAdapter {
-  resolve(
-    input: AuthorizedTemplateReference,
-  ): Promise<MeetingAgentTemplateSnapshotV1>;
-  prepare(
-    input: TemplateCompositionInput,
-  ): Promise<PreparedMeetingAgentCompositionV1>;
-  verifyResume(
-    input: TemplateResumeInput,
-  ): Promise<PreparedMeetingAgentCompositionV1>;
-}
-```
-
-当前 DSH `0.1.1-rc.2` 中，`persona`、`toolFilter` 和 `agentOptions(provider/model/maxTokens)` 通过 `startContinuable()` 传递；Skill/MCP/permission sets 通过 Host scoped composition 安装。两部分必须由同一 snapshot 和 composition receipt 关联，任一部分失败都不得发布 Agent。Cold resume 在 followup admission 前调用 `verifyResume()`；不能重建 exact version/hash 时拒绝恢复。
+Meeting Agent Definition resolution 与 per-child DSH preset composition 尚未接线；在 DSH 提供公开且可验证的 per-child preset API 前，`MeetingSessionAdapter` 保持当前创建、followup、interrupt、drain 和 ownership 行为。
 
 禁止其他模块直接调用 DSH subagent `spawn`、`followup`、`interrupt`、`listChildren`、`listDescendants`、`drainContinuableChildren` 或 `drainContinuableDescendants`。
 
@@ -463,7 +446,7 @@ pnpm verify
 
 1. 固化协议 Schema、domain model、纯 transitions 和错误映射。
 2. 实现 SQLite schema、migration、repository transaction、receipt 和 outbox。
-3. 实现 caller resolver、AgentTemplateAdapter、MeetingSessionAdapter 和 TaskAdapter。
+3. 实现 caller resolver、MeetingSessionAdapter 和 TaskAdapter。
 4. 实现 Meeting Runtime、TurnRunner、OutboxWorker、MailProcessor 和 Recovery。
 5. 建立 Host/Client 双入口、package manifest、bundle patch 和 lifecycle disposer，再注册全部 tools 与 HTTP routes。
 6. 实现 status、Markdown 和 archive projection。
@@ -485,5 +468,4 @@ pnpm verify
 7. 验证目录和命令能够覆盖成功、失败、权限、恢复和压力边界。
 8. 文档不依赖或承诺兼容任何外部参考项目实现。
 9. package manifest、Host/Client exports、构建产物、bundle patch 和 DSH browser roster 声明相互一致。
-10. Template manifest、ROLE/Skill/Tool/MCP/permission resolution 与 DSH scoped composition 在 fresh create 和 cold resume 中使用相同 snapshot，并在不支持时 fail closed。
 11. 至少一种选定分发方式通过临时 DSH profile 的真实安装与启动验证。
