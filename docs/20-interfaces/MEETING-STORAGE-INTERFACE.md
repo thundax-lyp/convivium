@@ -19,33 +19,18 @@ export interface MeetingRepositoryPort {
   readonly teamId: string;
   readonly meetingId: string;
   create(input: CreateMeetingInput): Promise<MeetingBootstrap>;
-  completeCreate(
-    input: CreateMeetingInput,
-  ): Promise<CommittedResult<CreateMeetingResult>>;
-  updateCreateResult(
-    input: UpdateCreateResultInput,
-  ): Promise<CreateMeetingResult>;
+  completeCreate(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>>;
+  updateCreateResult(input: UpdateCreateResultInput): Promise<CreateMeetingResult>;
   updateBootstrap(input: UpdateBootstrapInput): Promise<MeetingBootstrap>;
-  recordSessionOwnership(
-    input: SessionOwnershipInput,
-    now?: number,
-  ): Promise<SessionOwnership>;
+  recordSessionOwnership(input: SessionOwnershipInput, now?: number): Promise<SessionOwnership>;
   read(): Promise<MeetingSnapshot>;
   readPrivateMeetingMail(mailId: string): Promise<PrivateMeetingMail | undefined>;
   listOverduePrivateMeetingMail(now: number): Promise<PrivateMeetingMail[]>;
   hasUnfinishedPrivateMeetingMail(): Promise<boolean>;
-  sendPrivateMeetingMail(
-    input: SendPrivateMeetingMailInput,
-  ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
-  startPrivateMeetingMail(
-    input: StartPrivateMeetingMailInput,
-  ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
-  finishPrivateMeetingMail(
-    input: FinishPrivateMeetingMailInput,
-  ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
-  cancelUnfinishedPrivateMeetingMail(
-    input: CancelPrivateMeetingMailInput,
-  ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
+  sendPrivateMeetingMail(input: SendPrivateMeetingMailInput): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
+  startPrivateMeetingMail(input: StartPrivateMeetingMailInput): Promise<PrivateMeetingMail>;
+  finishPrivateMeetingMail(input: FinishPrivateMeetingMailInput): Promise<PrivateMeetingMail>;
+  cancelUnfinishedPrivateMeetingMail(input: CancelPrivateMeetingMailInput): Promise<number>;
   execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>;
   claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>;
   completeOutbox(input: CompleteOutboxInput): Promise<OutboxCompletionResult>;
