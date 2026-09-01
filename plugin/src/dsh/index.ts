@@ -6,9 +6,7 @@ export {
     type ParticipantSessionLabel
 } from "./labels.js";
 export {
-    bindCaptainParent,
     resolveMeetingCaller,
-    type CaptainParentBinding,
     type MeetingOwnershipLookup,
     type MeetingOwnershipRecord,
     type ResolvedMeetingCaller

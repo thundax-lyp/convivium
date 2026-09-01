@@ -3,11 +3,6 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ProtocolErrorV1 } from "../protocol/index.js";
 import { decodeMeetingSessionLabel } from "./labels.js";
 
-export interface CaptainParentBinding {
-    readonly kind: "captain";
-    readonly sessionId: string;
-}
-
 export interface ResolvedMeetingCaller {
     readonly kind: "manager" | "participant";
     readonly sessionId: string;
@@ -62,10 +57,6 @@ function unauthorized(message: string): ProtocolErrorV1 {
 
 function sessionIdOf(agent: Agent): string {
     return String(agent.id);
-}
-
-export function bindCaptainParent(agent: Agent): CaptainParentBinding {
-    return { kind: "captain", sessionId: sessionIdOf(agent) };
 }
 
 export async function resolveMeetingCaller(

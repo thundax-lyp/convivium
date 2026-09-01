@@ -664,43 +664,6 @@ T7 只按下表判断 S1-S9 是否闭合，不得自行选择“对应”步骤�
 
 ## 8. 机械执行步骤
 
-### T5：删除 Cordis 生命周期与无消费者包装
-
-前置状态：T4 PASS。
-
-允许修改：
-
-- `plugin/src/index.ts`
-- `plugin/src/dsh/caller-resolver.ts`
-- `plugin/src/dsh/index.ts`
-- `plugin/tests/unit/index-inject.spec.ts`
-- `plugin/tests/unit/dsh/caller-resolver.spec.ts`
-
-禁止修改：route 条件、runtime options、tool definitions、caller authorization、recovery 的 `rebindCaptainParent()`。
-
-执行：
-
-1. 删除 `PluginDisposerRegistry` 和 `createPluginDisposerRegistry()` 的完整声明。
-2. 不改 provider assertion 和 capability guard；guard 的条件文本必须保持 byte-for-byte 不变。
-3. 只按第 4.10 节固定顺序重写 guard 后的 lifecycle registration。
-4. 只按第 4.10 节重写 `index-inject.spec.ts#host()` 和两个 lifecycle cases。
-5. 删除 `CaptainParentBinding`、`bindCaptainParent()`、re-export 与其唯一单元测试。不得删除 runtime recovery service 中名称相近但语义不同的 `rebindCaptainParent()`。
-
-验证：
-
-```bash
-set -e
-pnpm --dir plugin exec vitest run tests/unit/index-inject.spec.ts tests/unit/dsh/caller-resolver.spec.ts tests/recovery/recovery.spec.ts tests/contract/tool-registration.spec.ts
-pnpm --dir plugin typecheck:host
-! rg -n "PluginDisposerRegistry|createPluginDisposerRegistry|CaptainParentBinding|\bbindCaptainParent\b" plugin/src plugin/tests
-rg -q "rebindCaptainParent" plugin/src/runtime/services/meeting-recovery-service.ts
-rg -q "rebindCaptainParent" plugin/tests/recovery/recovery.spec.ts
-```
-
-PASS：focused tests/typecheck 通过；删除项无命中；`rebindCaptainParent` 仍在 production 与 recovery test 中命中。
-
-STOP：Cordis effect 不能保证每个 disposer exactly once，或必须改变 route/tool/runtime 行为才能通过测试。
-
 ### T6：更新 readiness 并完成全量验证
 
 前置状态：T5 PASS。
