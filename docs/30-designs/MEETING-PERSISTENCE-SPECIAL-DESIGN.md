@@ -39,7 +39,7 @@ checkpoint 不是命令原子性的来源。它只是某个稳定序号上的已
 - [Architecture](../00-governance/ARCHITECTURE.md)
 - [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
 - [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)
-- [SQLite Repository Interface](../20-interfaces/SQLITE-REPOSITORY-INTERFACE.md)（当前已实现契约，不是算法定义）
+- [Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)（当前已实现契约，不是算法定义）
 - [Convivium Implementation Design](./CONVIVIUM-IMPLEMENTATION-DESIGN.md)
 - [Meeting Persistence Plugin Integration Runbook](./RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md)（Executable；JSONL adapter；尚未执行）
 

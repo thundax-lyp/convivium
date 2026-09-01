@@ -175,11 +175,11 @@ domain     ──> no infrastructure module
 
 上述文件可以在实现增长后拆分，但不得跨越职责边界或创建第二个 Meeting 写入口。
 
-## Persistence Algorithm And Current SQLite Repository
+## Persistence Algorithm And Repository Cutover
 
 目标持久化算法已经确认为 `Checkpointed Commit Log`，抽象状态、checkpoint/commit/compaction 流程、不变量和验收点见 `MEETING-PERSISTENCE-SPECIAL-DESIGN.md`。它属于带 checkpoint 与 log compaction 的 log-structured persistence，不得简称为 `Event Sourcing` 或 `WAL`。目标 adapter 使用 `@deepseek-ai/dsh-storage-domain`：一个轻量 catalog domain 用于发现，每个 Meeting 使用独立 domain；一次 command 只写一条 commit record，checkpoint 分页写入。`src/storage/` 以 JSONL 实现标准 DSH KV backend，但不认识 Meeting 数据语义；它是 Convivium package 内的 provider child plugin，不是独立产品或发布单元。精确接入、切换、验证和删除顺序由 Executable RUNBOOK 固定。
 
-本节及 `SQLITE-REPOSITORY-INTERFACE.md` 只描述当前已经实现并通过测试的 SQLite Repository，不再是目标实现。执行顺序固定为：先在 `plugin/` 内实现并验证 JSONL backend provider child plugin，再让 Meeting consumer child plugin 通过 Storage Domain adapter 切换，验证 production 不可达 SQLite 后才删除旧源码。全过程不双写、不 fallback read，也不自动迁移或删除既有 SQLite 数据。正式接口重命名和本节整体改写属于 RUNBOOK T1。
+下列 SQLite 小节只描述切换前实现。执行顺序固定为：先在 Convivium package 内实现并验证 JSONL provider child plugin，再让 Meeting consumer child plugin 只通过 DSH Storage Domain 接入，验证 production import graph 后删除 SQLite 源码。全过程不双写、不 fallback、不迁移或删除既有 SQLite 数据。稳定 repository 行为以 Meeting Storage Interface 为准。
 
 ### Current SQLite driver and connection model
 

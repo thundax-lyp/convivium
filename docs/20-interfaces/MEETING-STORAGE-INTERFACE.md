@@ -1,21 +1,21 @@
-# SQLite Repository Interface
+# Meeting Storage Interface
 
 ## Purpose
 
-本文定义 Meeting Runtime 与单个 Meeting SQLite 数据库之间的类型化持久化契约。SQLite 是 Meeting 领域事实的唯一持久化路径；本文不定义 DSH Session Event、HTTP route 或前端 projection。
+本文定义 Convivium Meeting Repository 在 Storage Domain 上的稳定行为、持久 record、原子 commit、恢复和错误边界。DSH backend 的物理 JSONL 格式不属于本接口。
 
 ## Boundary And Ownership
 
-- `MeetingRepository` 只服务一个已验证的 `teamId + meetingId`，不接受任意文件路径、SQL 或通用 JSON patch。
+- `MeetingRepositoryPort` 只服务一个已验证的 `teamId + meetingId`，不接受任意文件路径、SQL 或通用 JSON patch；链路为 DSH profile -> storage hub -> child backend `convivium-jsonl` -> Storage Domain -> repository。
 - Repository 负责连接、schema migration、聚合快照、领域事件、幂等 receipt 和 outbox 的原子持久化。
 - Domain transition 由 Runtime 提供纯函数；Repository 不选择 speaker、不调用 DSH、不执行外部副作用。
 - Runtime 通过 `RepositoryAuthorizationValidator` 验证真实 caller、会议 capability 和当前 attempt；Repository 只接受已带 `CommandAuthorization` 的 command，并在 transition 前调用该验证端口。
 - Repository 的所有公开方法返回 Promise，但 SQLite 调用只发生在 `repository/` 模块内。
 
-## Transport Or Invocation
+## Repository Port
 
 ```ts
-interface MeetingRepository {
+export interface MeetingRepositoryPort {
   readonly teamId: string;
   readonly meetingId: string;
   create(input: CreateMeetingInput): Promise<MeetingBootstrap>;
@@ -45,7 +45,7 @@ interface MeetingRepository {
 
 若首个 Turn 或 Manager planning 在 `completeCreate` 后由独立领域事务启动，Runtime 必须在首次成功响应前调用 `updateCreateResult`，以当前 Meeting version 原子替换 bootstrap 和 `create_meeting` receipt 中的公开结果。该方法不修改 MeetingState、不新增领域事件或 outbox，只允许 `ready` Meeting 且要求 `result.meetingId`、`result.meetingVersion` 与当前快照完全一致。崩溃重试可以幂等补齐启动事务和该结果；已经返回给 caller 的创建结果后续必须原样重放，不得用当前状态重新合成。
 
-## Data And State Contract
+## Persistent Data Contract
 
 ### Command and transition
 
@@ -129,17 +129,23 @@ Runtime 可以在调用 `startContinuable()` 前使用 caller-reserved `sessionI
 
 当前 schema 至少包含：`meetings`、`meeting_events`、`idempotency_receipts`、`outbox`、`meeting_bootstrap` 和 `session_ownership`。`meeting_bootstrap` 是创建前唯一允许不引用公开 Meeting 的根记录；预创建 session ownership 与 outbox 通过 `meeting_bootstrap.meeting_id` 关联。`session_ownership` 以 `sessionId` 仅更新生命周期、capability 和首次 `initialMessageId`，同时保留不可变的 parent、provider、identity 和创建时间。空库直接使用当前 DDL 初始化为当前 `user_version`；非空 version-zero 数据库必须隔离，不得用 `CREATE TABLE IF NOT EXISTS` 猜测其结构；已发布版本只能执行不可变的相邻 migration。
 
-## Error And Permission Semantics
+## Error Mapping
 
 Repository 错误必须使用结构化 `RepositoryError`，至少区分：`MEETING_NOT_FOUND`、`VERSION_CONFLICT`、`IDEMPOTENCY_CONFLICT`、`CONSTRAINT_VIOLATION`、`INVALID_INPUT`、`SQLITE_BUSY`、`SCHEMA_VERSION_UNSUPPORTED`、`CORRUPT_DATABASE`、`LEASE_LOST`、`INVALID_STATE` 和 `CLOSED`。
 
 每个错误包含 `code`、`retryable` 和 `meetingId`；错误不会把 SQLite 原始路径或敏感 payload 返回给调用方。`SQLITE_BUSY` 在有界 `busy_timeout` 后返回可重试错误；schema 或数据损坏只隔离当前 Meeting。
 
+## Method-To-Write Mapping
+
+每个 ready-state mutation 只写一个 `CommitRecordV1`；`PersistenceProjectionV1` 由 published checkpoint 与连续 commit tail 合成。`convivium_catalog` 仅保存 discovery record。
+
+## Creation And Recovery
+
+创建按 catalog creating、creation record、Session ownership、seq 1 commit、ready 发布顺序执行；恢复只接受 published checkpoint 和连续 commit tail。
+
 ## Compatibility
 
-- 只使用 Node.js 内置 `node:sqlite`，不引入原生第三方 driver。
-- 新增 event/outbox kind 必须先更新类型注册和 migration/兼容说明，不能用任意字符串静默扩展。
-- Schema 只允许连续向前 migration；不支持自动降级或未知版本猜测。
+V1 不读取、迁移、删除或回退到 legacy SQLite；切换前后各只有一个 production truth。现存 SQLite 数据不在本接口范围内。
 
 ## Related Documents
 

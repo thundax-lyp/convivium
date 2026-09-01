@@ -155,7 +155,7 @@ Application checkpoint runs only as a task appended to `mutationChain`; physical
 
 - [Architecture](../00-governance/ARCHITECTURE.md), sections `Confirmed Baseline`, `Dependency Rules`, `Source Layout And Verification`.
 - [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md), `FR-2`, `FR-9`, `FR-10`, `FR-11` and Acceptance 13–15, 21–24.
-- [Current SQLite Repository Interface](../20-interfaces/SQLITE-REPOSITORY-INTERFACE.md), all current repository behavior until T14.
+- [Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md), all current repository behavior until T14.
 - [Meeting Persistence Design](./MEETING-PERSISTENCE-SPECIAL-DESIGN.md), `Algorithm invariants`, `Recovery`, `Checkpoint and compaction`, `Capacity boundary`.
 - [Convivium Implementation Design](./CONVIVIUM-IMPLEMENTATION-DESIGN.md), `Responsibilities And Dependencies` and current repository/runtime symbols.
 - DSH `0.1.1-rc.2` package declarations: `@deepseek-ai/dsh-storage` exports `StorageBackend`, `KvFacet`, `KvUnit`, `KvUnitDescriptor`, `StorageError`, `storageBackendServiceKey`; `@deepseek-ai/dsh-storage-domain` exports `defineDomain`, `domainTable`, `DomainFacility`, `Domain`, `DomainError`.
@@ -944,40 +944,9 @@ No raw path or record payload enters the public error message.
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
 
-### T1 — Formalize The Target Interface
-
-前置状态：T0 已 PASS，且 T0 基线验证结果已提交；当前 HEAD 即为 T0 提交。
-
-允许修改：rename `docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md` to `docs/20-interfaces/MEETING-STORAGE-INTERFACE.md`; `docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md`; `docs/30-designs/MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md`; `docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`; this RUNBOOK only for its Formal Sources link.
-
-禁止修改：code, tests, requirements, protocol interfaces, TODO.
-
-执行：
-
-1. Run `rg -l 'SQLITE-REPOSITORY-INTERFACE\.md' docs --glob '!RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md' | sort`; output must equal exactly the three allowed design files and no fourth path. Rename the interface file with `git mv`.
-2. Replace the old filename with `MEETING-STORAGE-INTERFACE.md` in those three design files only. In Persistence Design change the link label to `Meeting Storage Interface`; in scope-control replace the complete prefix `SQLite repository 契约：` with `Meeting storage 契约：`; in this RUNBOOK change only the Formal Sources link label/target `[Current SQLite Repository Interface](../20-interfaces/SQLITE-REPOSITORY-INTERFACE.md)` to `[Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)`. Leave this T1 instruction and its validation command byte-identical.
-3. Replace the renamed interface file completely. Its heading order is exactly: `Purpose`, `Boundary And Ownership`, `Repository Port`, `Persistent Data Contract`, `Method-To-Write Mapping`, `Creation And Recovery`, `Error Mapping`, `Compatibility`, `Related Documents`. `Repository Port` is a verbatim copy of this RUNBOOK's `Repository Port And Method Mapping` TypeScript block. `Persistent Data Contract` is a verbatim copy from `Exact Persistent Data Contract` starting at its prose rules through `DomainSpec`. `Method-To-Write Mapping` is a verbatim copy of the mapping table and following one-commit paragraph. `Creation And Recovery` is a verbatim copy of the creation saga and recovery matrix. `Error Mapping` is a verbatim copy of the error table and no-raw-path sentence.
-4. The interface `Purpose` text is exactly: `本文定义 Convivium Meeting Repository 在 Storage Domain 上的稳定行为、持久 record、原子 commit、恢复和错误边界。DSH backend 的物理 JSONL 格式不属于本接口。` `Boundary And Ownership` states exactly the complete chain from `Goal And Complete Chain` and Invariants 8–12. `Compatibility` is exactly: `V1 不读取、迁移、删除或回退到 legacy SQLite；切换前后各只有一个 production truth。现存 SQLite 数据不在本接口范围内。` `Related Documents` links Architecture, Requirements, Implementation Design and Persistence Design.
-5. In `CONVIVIUM-IMPLEMENTATION-DESIGN.md`, change heading `Persistence Algorithm And Current SQLite Repository` to `Persistence Algorithm And Repository Cutover`; replace the paragraph beginning `本节及 SQL...` with: `下列 SQLite 小节只描述切换前实现。执行顺序固定为：先在 Convivium package 内实现并验证 JSONL provider child plugin，再让 Meeting consumer child plugin 只通过 DSH Storage Domain 接入，验证 production import graph 后删除 SQLite 源码。全过程不双写、不 fallback、不迁移或删除既有 SQLite 数据。稳定 repository 行为以 Meeting Storage Interface 为准。` Do not rewrite any other SQLite-current-state paragraph until T17.
-
-验证：
-
-```bash
-test ! -e docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md
-test -e docs/20-interfaces/MEETING-STORAGE-INTERFACE.md
-test -z "$(rg -l 'SQLITE-REPOSITORY-INTERFACE\.md' docs --glob '!RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md')"
-test "$(rg -c '^## (Purpose|Boundary And Ownership|Repository Port|Persistent Data Contract|Method-To-Write Mapping|Creation And Recovery|Error Mapping|Compatibility|Related Documents)$' docs/20-interfaces/MEETING-STORAGE-INTERFACE.md)" -eq 9
-test "$(rg -c 'MeetingRepositoryPort|CommitRecordV1|PersistenceProjectionV1|convivium_catalog|convivium-jsonl' docs/20-interfaces/MEETING-STORAGE-INTERFACE.md)" -ge 5
-git diff --check
-```
-
-PASS：all tests exit 0; the interface has exactly nine H2 headings and all five required symbols; diff check exits 0.
-
-STOP：initial non-RUNBOOK `rg` set differs, a verbatim source section is missing, or any fourth design document must change. Failure state：documents only; no runtime data.
-
 ### T2 — Lock Storage Dependencies In The Existing Package
 
-前置状态：T1 PASS；工作树不存在 `storage-plugin/`，`plugin/package.json` 的 package name 仍为 `@convivium/dsh-plugin`。
+前置状态：T1 已 PASS，且 Meeting Storage Interface 固化结果已提交；当前 HEAD 即为 T1 提交；工作树不存在 `storage-plugin/`，`plugin/package.json` 的 package name 仍为 `@convivium/dsh-plugin`。
 
 允许修改：`plugin/package.json`, `plugin/pnpm-lock.yaml`, `plugin/tests/contract/package-contract.spec.ts`, `plugin/tests/unit/module-boundaries.spec.ts`。
 
