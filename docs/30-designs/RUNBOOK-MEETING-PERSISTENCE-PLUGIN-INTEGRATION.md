@@ -7,8 +7,8 @@
 - 最后审计日期：2026-09-01
 - 执行目录：仓库根目录。执行前必须运行 `git rev-parse --show-toplevel`；文档和证据中不得记录机器绝对路径。
 - 当前起点：`plugin/` 通过 `node:sqlite` 实现每 Meeting repository，`Config.dataRoot` 和目录扫描属于 Convivium。
-- 目标终点：独立 `storage-plugin/` 实现通用 JSONL DSH `StorageBackend`；Convivium 只使用 `@deepseek-ai/dsh-storage-domain` 和自身 record schema；验证切换后删除 SQLite 源码。
-- 授权边界：本文授权修改本文列出的仓库文件并运行列出的本地验证；不授权 commit、push、PR、merge、修改用户 DSH profile、迁移或删除现存 `.sqlite` 数据。
+- 目标终点：`plugin/src/storage/` 实现 package-private JSONL DSH `StorageBackend` provider child plugin；Meeting consumer child plugin 只使用 `@deepseek-ai/dsh-storage-domain` 和自身 record schema；验证切换后删除 SQLite 源码。
+- 授权边界：本文授权修改本文列出的仓库文件、运行列出的本地验证，并按 `Executor Contract` 为每个 PASS 步骤创建一个本地 commit；不授权 push、PR、merge、修改用户 DSH profile、迁移或删除现存 `.sqlite` 数据。
 
 ## Executable Gate
 
@@ -25,6 +25,33 @@
 - PASS 是验证命令退出 0 且本步列出的断言全部成立；没有“基本通过”。
 - STOP 报告必须包含：最后 PASS 步骤、触发条件、文件/symbol、最小复现命令、实际输出、`git status --short`、继续所需人工决定。
 - STOP 时保留工作树，不回滚用户已有改动，不运行 destructive Git 命令。
+- 每步“允许修改”额外且只额外包含本文 RUNBOOK：该步全部验证 PASS 后，删除从当前 `### Tn` heading 到下一 `### Tn+1` heading 前的完整当前步骤；T19 删除全文。不得提前删除、改写后续步骤或修改本文其他 section。
+- 删除当前步骤后运行 `git diff --check`，只 stage 本步允许文件和 RUNBOOK，复读 staged diff，再使用下表固定 commit message。commit PASS 后才进入下一步；commit 失败 STOP。不得 amend、squash、push 或把其他工作区文件纳入 commit。
+
+| Step | Exact commit subject |
+| --- | --- |
+| T0 | `Docs(repo/runbook): 锁定存储切换执行基线` |
+| T1 | `Docs(repo/persistence): 固化 Meeting Storage Interface` |
+| T2 | `Build(plugin/storage): 锁定内置存储依赖` |
+| T3 | `Feat(plugin/storage): 建立 JSONL 持久写入与故障边界` |
+| T4 | `Feat(plugin/storage): 建立 JSONL unit 重放与变更语义` |
+| T5 | `Feat(plugin/storage): 建立物理 checkpoint 与恢复边界` |
+| T6 | `Feat(plugin/storage): 建立内置 backend 生命周期` |
+| T7 | `Test(plugin/storage): 锁定 package-private backend 边界` |
+| T8 | `Test(plugin/storage): 证明 provider 与 Domain child 组合` |
+| T9 | `Refactor(plugin/repository): 提取稳定 Repository Port` |
+| T10 | `Feat(plugin/repository): 固化 Domain schema 与 projection codec` |
+| T11 | `Feat(plugin/repository): 建立应用 checkpoint` |
+| T12 | `Feat(plugin/repository): 实现 Domain Meeting Repository` |
+| T13 | `Feat(plugin/repository): 建立 catalog registry 与恢复` |
+| T14 | `Feat(plugin/persistence): 切换到内置 storage child 组合` |
+| T15 | `Feat(plugin/persistence): 接通单 package DSH profile` |
+| T16 | `Test(plugin/persistence): 证明 SQLite 路径不可达` |
+| T17 | `Feat(cross-project): 删除 SQLite 实现并收口存储设计` |
+| T18 | `Docs(repo/readiness): 记录 Storage Domain 切换证据` |
+| T19 | `Docs(repo/persistence): 关闭持久化接入 RUNBOOK` |
+
+T17 commit body 必须追加三行：`Projects: plugin, repo`、`Decision: Storage Domain 已成为唯一 production truth，SQLite 实现与过渡文档必须原子删除。`、`Verification: pnpm --dir plugin verify`。其他步骤不添加固定 body。
 
 ## Goal And Complete Chain
 
@@ -33,9 +60,11 @@
 ```text
 DSH profile
   -> @deepseek-ai/dsh-storage hub
-  -> @convivium/dsh-storage-jsonl provider (backend name: convivium-jsonl)
-  -> @deepseek-ai/dsh-storage-domain (backend: convivium-jsonl)
-  -> @convivium/dsh-plugin consumer
+  -> @convivium/dsh-plugin top-level fiber
+       -> jsonlStoragePlugin provider child (backend name: convivium-jsonl)
+       -> meetingPlugin consumer child (injects storageDomain)
+  -> @deepseek-ai/dsh-storage-domain (backend: convivium-jsonl; waits for provider service)
+  -> meetingPlugin becomes active
   -> CatalogDomain
   -> per-Meeting Domain
   -> MeetingRepositoryPort
@@ -69,20 +98,20 @@ checkpoint page、root 和 pointer 是派生数据。pointer 最后写入；poin
 
 | Boundary | Current evidence | Required target | Implemented in |
 | --- | --- | --- | --- |
-| Backend ownership | `plugin/src/repository/index.ts` imports `node:sqlite` | JSONL IO only in `storage-plugin/` | T2–T8 |
+| Backend ownership | `plugin/src/repository/index.ts` imports `node:sqlite` | JSONL IO only in `plugin/src/storage/` | T2–T7 |
 | Repository location | `plugin/src/runtime/services/meeting-repository-locator.ts#locateMeetingRepository` | no production path locator | T14–T17 |
 | Discovery | `plugin/src/runtime/services/meeting-recovery-service.ts#createMeetingRehydrationService` scans directories | enumerate `convivium_catalog.meetings` | T13–T14 |
-| Runtime construction | `plugin/src/index.ts#apply` resolves `Config.dataRoot` | inject `storageDomain`, pass repository registry | T15 |
+| Runtime construction | `plugin/src/index.ts#apply` constructs SQLite Runtime directly | top-level mounts provider child and `storageDomain` consumer child | T14 |
 | Repository surface | `plugin/src/repository/index.ts#MeetingRepository` combines types and SQLite | shared types + `MeetingRepositoryPort` + two temporary implementations | T9–T12 |
 | Cold smoke | `plugin/scripts/smoke-profile.mjs` imports `DatabaseSync` | public tool/status assertions only | T15–T16 |
-| Storage composition | web profile currently routes `storage-domain` to `json` | smoke patch routes it to `convivium-jsonl` | T8, T15 |
+| Storage composition | web profile currently routes `storage-domain` to `json` | bundle/smoke patch routes it to child backend `convivium-jsonl` | T15 |
 | SQLite removal | schema/migration/tests remain required by current implementation | delete only after production import graph proof | T17 |
 
 ## Scope And Non-goals
 
 ### Scope
 
-- Add independent `storage-plugin/` package implementing the locked DSH KV backend contract.
+- Add a package-private `plugin/src/storage/` provider child plugin implementing the locked DSH KV backend contract.
 - Implement bounded JSONL append, recovery, physical checkpoint and lifecycle.
 - Define catalog and per-Meeting DomainSpec with exact Zod schemas.
 - Preserve the complete current `MeetingRepository` observable behavior.
@@ -97,7 +126,7 @@ checkpoint page、root 和 pointer 是派生数据。pointer 最后写入；poin
 - Remote/network filesystems, compression, encryption or a general database framework.
 - Changes to Meeting protocol DTOs, domain transitions, authorization, Session identity or UI behavior.
 - Changing DSH-owned Session persistence.
-- Root workspace/monorepo creation or source dependency between the two plugins.
+- A second package, lockfile, publishable backend entry, root workspace or monorepo.
 
 ### Implementation Economy Gate
 
@@ -105,18 +134,18 @@ checkpoint page、root 和 pointer 是派生数据。pointer 最后写入；poin
 
 | 新增结构 | 唯一职责 | 当前正式依据 |
 | --- | --- | --- |
-| `storage-plugin/` | 在 DSH provider 边界内兑现单 record JSONL durability | Architecture 的插件业务切割和 DSH provider/consumer 依赖方向；Persistence Design 的 bounded atomic record 要求 |
-| `FileSystemPort` | 对 append、sync、rename、truncate 的已确认崩溃点做确定性故障注入 | Persistence Design Acceptance 1、4、7；真实文件崩溃不能稳定复现。它只在 `storage-plugin` 内部使用且不从 package root 导出 |
+| `plugin/src/storage/` | 在同一 Convivium package 的 provider child 边界内兑现单 record JSONL durability | Architecture 的单 package child-plugin 组合；Persistence Design 的 bounded atomic record 要求 |
+| `FileSystemPort` | 对 append、sync、rename、truncate 的已确认崩溃点做确定性故障注入 | Persistence Design Acceptance 1、4、7；真实文件崩溃不能稳定复现。它只在 `plugin/src/storage/` 内部使用且不从 package root 导出 |
 | `MeetingRepositoryPort` | 保持现有 19 个 repository 方法的稳定业务边界，使 Runtime 不依赖 SQLite 或 DSH 实现 | 当前 SQLite Repository Interface；Architecture 要求 Convivium 只通过 DSH storage interface 接入 |
 | `DomainMeetingRepository` | 把现有 repository 语义映射到一个 per-Meeting Domain | DSH consumer 必须使用 Storage Domain；Persistence Design 的 one-commit invariant |
 | `DomainRepositoryRegistry` | 以 catalog 发现 Meeting，并集中拥有已打开 Domain 的关闭顺序 | FR-11 本地恢复/发现；DSH Domain 必须显式 open/close；替代现有目录扫描和 locator |
-| catalog/Meeting `DomainSpec` 与 strict schema | 固定跨插件唯一数据耦合并在读取边界拒绝非法数据 | Architecture 的数据结构耦合边界；DSH Storage Domain `invalid-record` 契约 |
+| catalog/Meeting `DomainSpec` 与 strict schema | 固定 provider/consumer child 之间经 DSH Domain 承载的数据结构，并在读取边界拒绝非法数据 | Architecture 的 child-plugin 边界；DSH Storage Domain `invalid-record` 契约 |
 | deterministic patch、commit 与分页 checkpoint | 一个有界 commit 原子表示一次命令；在不大写入的前提下合成当前真相 | Meeting Persistence Design 全部算法不变量和 Acceptance 1–7 |
-| physical checkpoint | 限制通用 JSONL backend 的 replay tail 和介质增长 | Meeting Persistence Design 的 bounded recovery/capacity；Storage Plugin 不能依赖 Meeting checkpoint 的存在 |
+| physical checkpoint | 限制 JSONL backend 的 replay tail 和介质增长 | Meeting Persistence Design 的 bounded recovery/capacity；internal storage child 不能依赖 Meeting checkpoint 的存在 |
 | repository `mutationChain` | 把 validation、head/seq allocation、diff 和 commit put 作为同一 Meeting 的顺序单元 | 当前并发 command/lease 行为；DSH Domain 只串行单次 table write，不串行 write 之前的 Convivium transition |
 | per-unit operation queue | 保持直接并发 `KvUnit` mutation、segment rollover 和 physical checkpoint 的调用顺序 | Locked DSH API 明确 `KvUnit` 不负责串行；StorageBackend 必须独立兑现调用顺序 |
 | active log + immutable segments + checkpoint pointer layout | 只允许修复 active EOF，并把历史介质损坏与崩溃尾部区分 | Persistence Design 的 fail-loud corruption、restart 和 bounded-tail acceptance |
-| two package-local canonical codecs | backend 校验任意 KV JSON，Convivium 独立计算业务 commit/checkpoint digest | 两个插件禁止源码依赖且两层 digest 的 producer/consumer 不同；建立第三个 shared package 反而违反当前 package 边界 |
+| two layer-local canonical codecs | backend 校验任意 KV JSON，repository 独立计算业务 commit/checkpoint digest | 两层 digest 的 producer/consumer 和错误语义不同；不建立共享 codec、adapter 或第三层抽象 |
 
 Application checkpoint runs only as a task appended to `mutationChain`; physical checkpoint runs only as a task appended to the per-unit operation queue. Neither layer creates a checkpoint queue, timer or worker. The single `maintenanceError` field at each layer records the last failed task solely so the next hard-tail write can retry-or-refuse and `close()` can drain; it is cleared after a successful checkpoint and has no callback/hook.
 
@@ -177,15 +206,16 @@ StorageErrorCode = backend-not-found | form-not-mounted | duplicate-backend |
 DomainErrorCode  = already-open | facet-unsupported | invalid-record | missing-key | closed
 ```
 
-Backend registration is exactly:
+Backend child registration is exactly:
 
 ```ts
-export const name = "convivium-storage-jsonl";
-export const inject = ["storage"] as const;
 export const BACKEND_NAME = "convivium-jsonl";
 
-export function apply(ctx: Context, config: Config): void {
-    const backend = new JsonlStorageBackend(resolve(process.cwd(), config.root));
+export const jsonlStoragePlugin = {
+  name: "convivium-storage-jsonl",
+  inject: ["storage"] as const,
+  apply(ctx: Context, config: JsonlStorageConfig): void {
+    const backend = new JsonlStorageBackend(config.root);
     ctx.effect(() => {
         const unregister = ctx.storage.backend.register(BACKEND_NAME, backend);
         return async () => {
@@ -194,10 +224,11 @@ export function apply(ctx: Context, config: Config): void {
         };
     });
     ctx.provide(storageBackendServiceKey(BACKEND_NAME), backend);
-}
+  }
+};
 ```
 
-Convivium injects only `storageDomain`; it never imports `BACKEND_NAME` or `storage-plugin` code. The profile owns `{ backend: "convivium-jsonl" }`.
+`plugin/src/index.ts#apply` mounts `jsonlStoragePlugin` with `root = resolve(process.cwd(), config.dataRoot ?? ".convivium", "storage")`, then registers `ctx.inject(["storageDomain"], meetingPlugin)`. Only `plugin/src/storage/index.ts` imports `BACKEND_NAME`; repository code imports only `@deepseek-ai/dsh-storage-domain`. `cordis.patch.yml` fixes the existing `storage-domain` row to `{ backend: "convivium-jsonl" }` and adds no backend row.
 
 ## Exact Persistent Data Contract
 
@@ -425,7 +456,7 @@ createMeetingDomainSpec(name) = defineDomain({
 
 No global slot is declared. Domain names and table names are immutable for version 1.
 
-## Storage Plugin Physical Contract
+## Internal Storage Child Physical Contract
 
 ### Limits
 
@@ -512,7 +543,7 @@ export interface FileSystemPort {
 }
 ```
 
-`nodeFileSystemPort` delegates one-for-one to `node:fs/promises`. Symlinks or non-regular files anywhere below a unit directory cause `StorageError("malformed-medium")`; the backend never follows them. Config is exactly `interface Config { root: string }` and `export const Config: Schema<Config> = Schema.object({ root: Schema.string().required() })`. `root` may be absolute or relative because it is trusted profile composition; `apply` resolves it once with `resolve(process.cwd(), config.root)`.
+`nodeFileSystemPort` delegates one-for-one to `node:fs/promises`. Symlinks or non-regular files anywhere below a unit directory cause `StorageError("malformed-medium")`; the backend never follows them. Child config is exactly `export interface JsonlStorageConfig { root: string }`; it has no Schemastery export because the trusted top-level Convivium plugin constructs it internally. `plugin/src/index.ts` resolves the configured Convivium data root once and passes the absolute `<dataRoot>/storage` path.
 
 Helper signatures are fixed:
 
@@ -524,6 +555,8 @@ syncDirectory(path: string, fs?: FileSystemPort): Promise<void>;
 replaceFileDurably(path: string, bytes: Uint8Array, fs?: FileSystemPort): Promise<void>;
 createFileDurably(path: string, bytes: Uint8Array, fs?: FileSystemPort): Promise<void>;
 appendLineDurably(path: string, line: Uint8Array, fs?: FileSystemPort): Promise<void>;
+type AppendFailurePhase = "write" | "datasync";
+appendFailurePhase(error: unknown): AppendFailurePhase | undefined;
 readJsonl(
     path: string,
     policy: "immutable" | "active-tail",
@@ -531,12 +564,15 @@ readJsonl(
 ): Promise<readonly Uint8Array[]>;
 ```
 
-The test-only fault fixture is fixed and is never exported from `storage-plugin/src`. Faults use semantic publication phases, never internal call counts:
+`appendLineDurably` records the phase of an object-valued rejection in a module-private `WeakMap<object, AppendFailurePhase>` and rethrows the exact same rejection object. `appendFailurePhase()` is the only typed reader of that map. `JsonlKvUnit` uses it solely to poison an open unit after `datasync`; production code must not read `ScriptedFileSystem.calls()`, inspect error messages or cast the filesystem/error to `any`. No callback, hook or exported package API is added.
+
+The test-only fault fixture is fixed and is never exported from `plugin/src/storage/`. Faults use semantic publication phases, never internal call counts:
 
 ```ts
 type FaultPoint =
     | "append.write"
     | "append.datasync"
+    | "active-tail.truncate"
     | "replace.temp-write"
     | "replace.temp-sync"
     | "replace.rename"
@@ -569,7 +605,7 @@ export class ScriptedFileSystem implements FileSystemPort {
 }
 ```
 
-`ScriptedFileSystem` assigns phases from the path role plus operation: non-checkpoint JSONL append → `append.*`; same-directory `.tmp` used by `replaceFileDurably` → `replace.*`; checkpoint `records.jsonl`, `root.json`, `checkpoint-pointer.json.tmp`, pointer rename, and covered-segment unlink → their literal checkpoint phase. Arming an unmatched phase is a test failure in `afterEach`; arming twice before consumption throws.
+`ScriptedFileSystem` assigns phases from the path role plus operation: non-checkpoint JSONL append → `append.*`; repair truncation performed by `readJsonl(..., "active-tail")` → `active-tail.truncate`; same-directory `.tmp` used by `replaceFileDurably` → `replace.*`; checkpoint `records.jsonl`, `root.json`, `checkpoint-pointer.json.tmp`, pointer rename, and covered-segment unlink → their literal checkpoint phase. Arming an unmatched phase is a test failure in `afterEach`; arming twice before consumption throws.
 
 The exact T3 tests are:
 
@@ -578,6 +614,7 @@ The exact T3 tests are:
 | `jsonl.spec.ts#rejects before append write` | `active.jsonl` contains one valid LF-terminated line A | `failNext("append.write", fault)` | append valid line B | rejects `fault`; one write call; zero datasync; bytes equal A |
 | `jsonl.spec.ts#repairs a short append on active-tail reopen` | A | `shortWriteNext("append.write", 5)` | append B, then `readJsonl(..., "active-tail")` | append rejects `short-write`; zero datasync; reopen returns only A and truncates to exact A byte length |
 | `jsonl.spec.ts#observes a complete line after datasync reports failure` | A | `failNext("append.datasync", fault)` | append B, then active-tail read | append rejects `fault`; one full write and one datasync; read returns A,B; no truncate |
+| `jsonl.spec.ts#reports active-tail truncate failure without appending` | A plus five-byte prefix of non-LF B | `failNext("active-tail.truncate", fault)` | active-tail read | rejects exact `fault`; bytes unchanged; one truncate attempt; zero append write/datasync |
 | `filesystem.spec.ts#preserves target when replacement temp write fails` | target = `old\n` | `failNext("replace.temp-write", fault)` | replace with `new\n` | rejects; target is old; temp absent |
 | `filesystem.spec.ts#preserves target when replacement temp short-writes` | old | `shortWriteNext("replace.temp-write", 2)` | same | rejects `short-write`; target old; temp absent |
 | `filesystem.spec.ts#preserves target when replacement temp sync fails` | old | `failNext("replace.temp-sync", fault)` | same | rejects; target old; temp absent |
@@ -645,6 +682,15 @@ interface OperationRecordV1 {
     digest: string;
 }
 
+interface UnitDescriptorRecordV1 {
+    formatVersion: 1;
+    name: string;
+    unitVersion: number;
+    tables: string[];
+    hasGlobal: boolean;
+    digest: string;
+}
+
 interface PhysicalCheckpointRecordV1 {
     formatVersion: 1;
     table: string;
@@ -673,6 +719,10 @@ interface PhysicalCheckpointPointerV1 {
 ```
 
 Every line is canonical JSON plus one LF. A mutation performs exactly one FileHandle `write(buffer, 0, length, null)` and one `datasync()` before resolve. A short write rejects and is never completed by a second write. A newly created file also syncs its parent directory before resolve.
+
+Descriptor `digest` is `sha256Hex(encodeCanonicalJson(record without digest))`. A missing descriptor is written through `createFileDurably`; an existing descriptor is read through `FileSystemPort.open(..., "r").readFile()`. `unitVersion` alone differing from the requested DSH `descriptor.version` throws `StorageError("version-mismatch")`; invalid digest/format/name/table order/table set/`hasGlobal` throws `StorageError("malformed-medium")`. Directory create, descriptor IO, segment IO, replay, truncate and cleanup all use `FileSystemPort`; `plugin/src/storage/unit.ts` must not import `node:fs` or `node:fs/promises`.
+
+Operation `digest` is `sha256Hex(encodeCanonicalJson(record without digest))`. Replay validates the digest, strictly continuous positive `opSeq`, exact `kind`, declared table, key/value shape and every encoded limit before applying. `loadAll()` is async and returns one empty object for every declared table plus `global: null` when never set or not declared. Undeclared table use and `setGlobal()` when `hasGlobal === false` throw plain `Error` before IO. Before appending record 257, or before an append whose resulting active bytes would exceed `SEGMENT_MAX_BYTES`, the queue renames the nonempty active log to `segments/<20-digit-first-op-seq>.jsonl`, syncs the segments directory, then creates the new active log; closed segments are replayed in numeric first-op-seq order and filename/order mismatch is malformed medium.
 
 Open reads the published physical checkpoint, then closed segments and active lines with `opSeq > throughOpSeq`. Only bytes after the final verified LF may be truncated. Any LF-terminated invalid JSON/digest line, earlier error, seq gap, duplicate conflicting seq, descriptor mismatch, checkpoint mismatch or immutable-file error throws `StorageError("malformed-medium")`. Descriptor version mismatch alone throws `StorageError("version-mismatch")`.
 
@@ -835,23 +885,21 @@ No raw path or record payload enters the public error message.
 
 ## File And Symbol Map
 
-### `storage-plugin/` new files
+### `plugin/src/storage/` new files
 
 | File | Symbols |
 | --- | --- |
-| `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, `tsdown.config.ts`, `vitest.config.ts`, formatting/lint config | independent package/build/test |
-| `src/config.ts` | `Config` interface and `Config` Schemastery value |
-| `src/errors.ts` | `JsonlStorageErrorCode`, `JsonlStorageError` |
-| `src/canonical-json.ts` | `JsonValue`, `encodeCanonicalJson`, `decodeCanonicalJson`, `sha256Hex` |
-| `src/filesystem.ts` | `FileHandlePort`, `FileSystemPort`, `nodeFileSystemPort`, `syncDirectory`, `replaceFileDurably` |
-| `src/format.ts` | physical schemas, encoders, decoders, limits |
-| `src/jsonl.ts` | `appendLineDurably`, `readJsonl`, `createFileDurably` |
-| `src/checkpoint.ts` | `loadPhysicalCheckpoint`, `writePhysicalCheckpoint`, `collectPhysicalOrphans` |
-| `src/unit.ts` | `JsonlKvUnit`, `openJsonlUnit` |
-| `src/backend.ts` | `JsonlStorageBackend`, descriptor validation/open/close |
-| `src/index.ts` | `name`, `inject`, `BACKEND_NAME`, `Config`, `apply` |
-| `scripts/verify-*.mjs`, `scripts/smoke-profile.mjs` | environment/package/contract/profile validation |
-| `tests/fixtures/scripted-filesystem.ts` | test-only `ScriptedFileSystem`; exact failure injection surface above |
+| `plugin/src/storage/config.ts` | `JsonlStorageConfig` internal interface |
+| `plugin/src/storage/errors.ts` | `JsonlStorageErrorCode`, `JsonlStorageError` |
+| `plugin/src/storage/canonical-json.ts` | `JsonValue`, `encodeCanonicalJson`, `decodeCanonicalJson`, `sha256Hex` |
+| `plugin/src/storage/filesystem.ts` | `FileHandlePort`, `FileSystemPort`, `nodeFileSystemPort`, `syncDirectory`, `replaceFileDurably` |
+| `plugin/src/storage/format.ts` | physical schemas, encoders, decoders, limits |
+| `plugin/src/storage/jsonl.ts` | `appendLineDurably`, `readJsonl`, `createFileDurably` |
+| `plugin/src/storage/checkpoint.ts` | `loadPhysicalCheckpoint`, `writePhysicalCheckpoint`, `collectPhysicalOrphans` |
+| `plugin/src/storage/unit.ts` | `JsonlKvUnit`, `openJsonlUnit` |
+| `plugin/src/storage/backend.ts` | `JsonlStorageBackend`, descriptor validation/open/close |
+| `plugin/src/storage/index.ts` | `BACKEND_NAME`, `jsonlStoragePlugin`; internal source entry only |
+| `plugin/tests/fixtures/storage/scripted-filesystem.ts` | test-only `ScriptedFileSystem`; exact failure injection surface above |
 
 ### `plugin/` target files
 
@@ -874,7 +922,7 @@ No raw path or record payload enters the public error message.
 | `src/runtime/services/meeting-recovery-service.ts` | catalog discovery |
 | `src/runtime/application-service/create-meeting.ts` | registry open instead of path locator |
 | `src/runtime/application-service/index.ts` | `repositoryRegistry` option instead of `dataRoot` |
-| `src/index.ts`, `src/config.ts` | inject/wire Storage Domain; remove dataRoot |
+| `src/index.ts` | top-level provider/consumer child composition; retain `Config.dataRoot` as the single physical root input |
 | `tests/fixtures/domain-storage.ts` | test-only `createFakeDomainFacility`, `createFakeCatalogDomain`, `createFakeMeetingDomain`, exact put/delete failure and call spies |
 
 ## Invariants
@@ -887,8 +935,8 @@ No raw path or record payload enters the public error message.
 6. Pointer publication is monotonic; cleanup follows pointer and cannot remove required tail.
 7. Every backend call is bounded; checkpoint uses multiple bounded records.
 8. Catalog stays lightweight and contains no private/session/payload data.
-9. Convivium has no filesystem/backend package dependency after cutover.
-10. Storage Plugin has no Convivium business dependency.
+9. Repository and Meeting Runtime have no filesystem or `@deepseek-ai/dsh-storage` import after cutover.
+10. `plugin/src/storage/` has no Convivium business dependency and is not exported from package root.
 11. SQLite and Storage Domain are never production truths at the same time.
 12. Existing `.sqlite` files are untouched.
 
@@ -898,9 +946,9 @@ Every step uses the fixed STOP report from `Executor Contract`. “Failure state
 
 ### T0 — Baseline And API Evidence
 
-前置状态：current branch is not `main`; user changes are present only as reported by `git status`.
+前置状态：current branch is not `main`；HEAD is `0b148d0`；the only worktree changes are the supervisor-authored child-plugin rewrite in `docs/00-governance/ARCHITECTURE.md`, `docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md` and this RUNBOOK。
 
-允许修改：无。
+允许修改：this RUNBOOK only through the global post-PASS T0 deletion；the two other pre-existing design files are allowed in the T0 commit but must not be edited by T0。
 
 禁止修改：全部仓库文件、用户 DSH profile。
 
@@ -922,8 +970,12 @@ The heredoc parser locates that exact class, excludes constructor/static/private
 
 ```bash
 git rev-parse --show-toplevel
+test "$(git rev-parse --short HEAD)" = "0b148d0"
 git branch --show-current
-git status --short
+test "$(git status --short)" = "$(printf '%s\n' \
+  ' M docs/00-governance/ARCHITECTURE.md' \
+  ' M docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md' \
+  ' M docs/30-designs/RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md')"
 node --version
 pnpm --version
 node --input-type=module <<'NODE'
@@ -974,7 +1026,7 @@ pnpm --dir plugin build
 pnpm --dir plugin verify
 ```
 
-PASS：仓库根目录命令成功；branch 非 `main`；heredoc 退出 0；全部 plugin 验证退出 0；DSH packages resolve to `0.1.1-rc.2`/Cordis `4.0.1`.
+PASS：HEAD/status exact assertions pass；branch 非 `main`；heredoc 退出 0；全部 plugin 验证退出 0；DSH packages resolve to `0.1.1-rc.2`/Cordis `4.0.1`；after deleting T0, the fixed T0 commit contains only the three listed docs。
 
 STOP：任一版本、method、命令或 baseline 不匹配。Failure state：无文件或外部数据变化。
 
@@ -988,11 +1040,11 @@ STOP：任一版本、method、命令或 baseline 不匹配。Failure state：�
 
 执行：
 
-1. `rg -l` must return exactly this RUNBOOK plus the three allowed design files; any fifth path STOPs. Rename the interface file with `git mv`.
-2. Replace the old filename with `MEETING-STORAGE-INTERFACE.md` in all four `rg` result files. In Persistence Design change the link label to `Meeting Storage Interface`; in scope-control replace the complete prefix `SQLite repository 契约：` with `Meeting storage 契约：`; in this RUNBOOK change only `[Current SQLite Repository Interface]` to `[Meeting Storage Interface]`. No other text in the first two files or this RUNBOOK changes.
+1. Run `rg -l 'SQLITE-REPOSITORY-INTERFACE\.md' docs --glob '!RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md' | sort`; output must equal exactly the three allowed design files and no fourth path. Rename the interface file with `git mv`.
+2. Replace the old filename with `MEETING-STORAGE-INTERFACE.md` in those three design files only. In Persistence Design change the link label to `Meeting Storage Interface`; in scope-control replace the complete prefix `SQLite repository 契约：` with `Meeting storage 契约：`; in this RUNBOOK change only the Formal Sources link label/target `[Current SQLite Repository Interface](../20-interfaces/SQLITE-REPOSITORY-INTERFACE.md)` to `[Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)`. Leave this T1 instruction and its validation command byte-identical.
 3. Replace the renamed interface file completely. Its heading order is exactly: `Purpose`, `Boundary And Ownership`, `Repository Port`, `Persistent Data Contract`, `Method-To-Write Mapping`, `Creation And Recovery`, `Error Mapping`, `Compatibility`, `Related Documents`. `Repository Port` is a verbatim copy of this RUNBOOK's `Repository Port And Method Mapping` TypeScript block. `Persistent Data Contract` is a verbatim copy from `Exact Persistent Data Contract` starting at its prose rules through `DomainSpec`. `Method-To-Write Mapping` is a verbatim copy of the mapping table and following one-commit paragraph. `Creation And Recovery` is a verbatim copy of the creation saga and recovery matrix. `Error Mapping` is a verbatim copy of the error table and no-raw-path sentence.
 4. The interface `Purpose` text is exactly: `本文定义 Convivium Meeting Repository 在 Storage Domain 上的稳定行为、持久 record、原子 commit、恢复和错误边界。DSH backend 的物理 JSONL 格式不属于本接口。` `Boundary And Ownership` states exactly the complete chain from `Goal And Complete Chain` and Invariants 8–12. `Compatibility` is exactly: `V1 不读取、迁移、删除或回退到 legacy SQLite；切换前后各只有一个 production truth。现存 SQLite 数据不在本接口范围内。` `Related Documents` links Architecture, Requirements, Implementation Design and Persistence Design.
-5. In `CONVIVIUM-IMPLEMENTATION-DESIGN.md`, change heading `Persistence Algorithm And Current SQLite Repository` to `Persistence Algorithm And Repository Cutover`; replace the paragraph beginning `本节及 SQL...` with: `下列 SQLite 小节只描述切换前实现。执行顺序固定为：先实现并验证独立 JSONL Storage Plugin，再让 Convivium 只通过 DSH Storage Domain 接入，验证 production import graph 后删除 SQLite 源码。全过程不双写、不 fallback、不迁移或删除既有 SQLite 数据。稳定 repository 行为以 Meeting Storage Interface 为准。` Do not rewrite any other SQLite-current-state paragraph until T17.
+5. In `CONVIVIUM-IMPLEMENTATION-DESIGN.md`, change heading `Persistence Algorithm And Current SQLite Repository` to `Persistence Algorithm And Repository Cutover`; replace the paragraph beginning `本节及 SQL...` with: `下列 SQLite 小节只描述切换前实现。执行顺序固定为：先在 Convivium package 内实现并验证 JSONL provider child plugin，再让 Meeting consumer child plugin 只通过 DSH Storage Domain 接入，验证 production import graph 后删除 SQLite 源码。全过程不双写、不 fallback、不迁移或删除既有 SQLite 数据。稳定 repository 行为以 Meeting Storage Interface 为准。` Do not rewrite any other SQLite-current-state paragraph until T17.
 
 验证：
 
@@ -1007,174 +1059,52 @@ git diff --check
 
 PASS：all tests exit 0; the interface has exactly nine H2 headings and all five required symbols; diff check exits 0.
 
-STOP：initial `rg` set differs, a verbatim source section is missing, or any fifth document must change. Failure state：documents only; no runtime data.
+STOP：initial non-RUNBOOK `rg` set differs, a verbatim source section is missing, or any fourth design document must change. Failure state：documents only; no runtime data.
 
-### T2 — Scaffold Independent Storage Package
+### T2 — Lock Storage Dependencies In The Existing Package
 
-前置状态：T1 PASS；`storage-plugin/` absent.
+前置状态：T1 PASS；工作树不存在 `storage-plugin/`，`plugin/package.json` 的 package name 仍为 `@convivium/dsh-plugin`。
 
-允许修改：new `storage-plugin/.gitignore`, `.prettierignore`, `.prettierrc.json`, `eslint.config.js`, `README.md`, `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, `tsdown.config.ts`, `vitest.config.ts`, `cordis.patch.yml`, `scripts/verify-dsh-environment.mjs`, `scripts/verify-plugin-contract.mjs`, `scripts/verify-package.mjs`, empty `src/index.ts`, `tests/contract/package-contract.spec.ts`.
+允许修改：`plugin/package.json`, `plugin/pnpm-lock.yaml`, `plugin/tests/contract/package-contract.spec.ts`, `plugin/tests/unit/module-boundaries.spec.ts`。
 
-禁止修改：`plugin/**`, docs, root workspace files.
+禁止修改：新增顶层目录、root workspace、`plugin/cordis.patch.yml`、production source、现有依赖版本。
 
 执行：
 
-1. Create `.gitignore`, `.prettierignore`, `.prettierrc.json`, `eslint.config.js`, and `tsconfig.json` byte-for-byte equal to the same five paths under `plugin/`; use `apply_patch`, then prove equality with `cmp`. Do not copy any other config.
-2. Create `tsdown.config.ts` and `vitest.config.ts` with exactly:
-
-```ts
-// tsdown.config.ts
-import { defineConfig } from "tsdown";
-
-export default defineConfig({
-    entry: { index: "src/index.ts" },
-    outDir: "lib",
-    platform: "node",
-    target: "node22.19.0",
-    clean: false,
-    dts: false,
-    fixedExtension: false,
-    deps: { neverBundle: [/^@deepseek-ai\//] },
-    tsconfig: "tsconfig.json"
-});
-
-// vitest.config.ts
-import { defineConfig } from "vitest/config";
-
-export default defineConfig({
-    test: {
-        projects: [
-            {
-                extends: true,
-                test: {
-                    name: "unit",
-                    include: ["tests/unit/**/*.spec.ts"],
-                    environment: "node"
-                }
-            },
-            {
-                extends: true,
-                test: {
-                    name: "contract",
-                    include: ["tests/contract/**/*.spec.ts"],
-                    environment: "node"
-                }
-            },
-            {
-                extends: true,
-                test: {
-                    name: "recovery",
-                    include: ["tests/recovery/**/*.spec.ts"],
-                    environment: "node"
-                }
-            }
-        ]
-    }
-});
-```
-
-3. Create `package.json` with only these complete fields and exact values:
-
-```json
-{
-    "name": "@convivium/dsh-storage-jsonl",
-    "version": "0.0.0",
-    "description": "Generic local JSONL storage backend for DeepSeek Harness",
-    "private": true,
-    "license": "UNLICENSED",
-    "type": "module",
-    "main": "lib/index.js",
-    "types": "lib/types/index.d.ts",
-    "exports": {
-        ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
-        "./cordis.patch.yml": "./cordis.patch.yml",
-        "./package.json": "./package.json"
-    },
-    "files": ["lib", "cordis.patch.yml", "README.md"],
-    "engines": { "node": "^22.19.0 || >=24.11.0" },
-    "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
-    "scripts": {
-        "format": "prettier . --write",
-        "format:check": "prettier . --check",
-        "lint": "eslint .",
-        "lint:fix": "eslint . --fix",
-        "build": "rm -rf lib && tsc -p tsconfig.json && tsdown --config tsdown.config.ts",
-        "typecheck": "tsc -p tsconfig.json --noEmit",
-        "test": "vitest run",
-        "smoke:profile": "node scripts/smoke-profile.mjs",
-        "verify:environment": "node scripts/verify-dsh-environment.mjs",
-        "verify:contract": "node scripts/verify-plugin-contract.mjs",
-        "verify:package": "node scripts/verify-package.mjs",
-        "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm verify:environment && pnpm verify:contract && pnpm verify:package"
-    },
-    "dependencies": { "@deepseek-ai/schemastery": "^3.18.1" },
-    "peerDependencies": {
-        "@deepseek-ai/cordis": "^4.0.1",
-        "@deepseek-ai/dsh-storage": "^0.1.1-rc.2"
-    },
-    "peerDependenciesMeta": {
-        "@deepseek-ai/cordis": { "optional": true },
-        "@deepseek-ai/dsh-storage": { "optional": true }
-    },
-    "devDependencies": {
-        "@deepseek-ai/cordis": "4.0.1",
-        "@deepseek-ai/dsh-storage": "0.1.1-rc.2",
-        "@deepseek-ai/schemastery": "3.18.1",
-        "@eslint/js": "10.0.1",
-        "@types/node": "^22.15.0",
-        "eslint": "10.6.0",
-        "eslint-config-prettier": "10.1.8",
-        "globals": "17.7.0",
-        "prettier": "3.9.3",
-        "tsdown": "^0.22.14",
-        "typescript": "^5.9.3",
-        "typescript-eslint": "8.62.0",
-        "vitest": "^3.0.0"
-    },
-    "packageManager": "pnpm@10.7.0"
-}
-```
-
-4. `cordis.patch.yml` bytes are exactly `- insert:\n    - id: convivium-storage-jsonl\n      name: '@convivium/dsh-storage-jsonl'\n      config:\n        root: convivium-storage\n`. `README.md` contains exactly the heading `# @convivium/dsh-storage-jsonl`, one blank line, and `Generic local JSONL implementation of the DSH StorageBackend KV facet.`, ending LF. `src/index.ts` contains exactly `export {};` plus LF.
-5. `package-contract.spec.ts` has suite `storage package scaffold contract` and asserts deep equality for `exports`, `files`, `engines`, `dsh`, every dependency map and the patch parse result `{ id: "convivium-storage-jsonl", name: "@convivium/dsh-storage-jsonl", root: "convivium-storage" }`; it also asserts `dsh.client === undefined`.
-6. `verify-dsh-environment.mjs` exits nonzero unless Node satisfies the manifest engine and resolved Cordis/storage package versions equal `4.0.1`/`0.1.1-rc.2`. `verify-plugin-contract.mjs` repeats the manifest/patch assertions from the contract suite and asserts no `src/client` path. At scaffold time it does not require runtime exports; T7 adds those checks after T6. `verify-package.mjs` packs to `mkdtemp(join(tmpdir(), "convivium-storage-pack-"))`, compares tar entries to `package/package.json`, `package/README.md`, `package/cordis.patch.yml`, `package/lib/index.js`, `package/lib/types/index.d.ts`, and removes that exact root in `finally`.
-7. Generate the lockfile only with the listed command; do not add workspace, override or another dependency.
+1. 在 `peerDependencies` 增加 `"@deepseek-ai/dsh-storage": "^0.1.1-rc.2"` 与 `"@deepseek-ai/dsh-storage-domain": "^0.1.1-rc.2"`；在 `peerDependenciesMeta` 为两者各增加 `{ "optional": true }`；在 `devDependencies` 为两者各增加精确版本 `"0.1.1-rc.2"`。
+2. 在 `dependencies` 增加 `"zod": "^4.4.3"`。不得新增其他依赖，不改变现有 key/value；各 dependency map 保持字母序。
+3. 用 `pnpm --dir plugin install --lockfile-only` 更新唯一 lockfile，再用 frozen install 验证。
+4. 扩展 `package-contract.spec.ts`，逐一断言上述五处 manifest 值，并断言 package name、exports、files、dsh、scripts 保持 T2 前原值。
+5. 扩展 `module-boundaries.spec.ts`：若 `plugin/src/storage/` 存在，则其中 production source 不得导入 `plugin/src/domain`、`repository`、`runtime`、`tools`、`http`、`projection` 或 `client`；若 `plugin/src/repository/domain/` 存在，则其中不得导入 `plugin/src/storage/` 或 `@deepseek-ai/dsh-storage`。路径不存在时规则以空集合 PASS，T7 再证明真实命中。
 
 验证：
 
 ```bash
-pnpm --dir storage-plugin install --lockfile-only
-pnpm --dir storage-plugin install --frozen-lockfile
-cmp -s plugin/.gitignore storage-plugin/.gitignore
-cmp -s plugin/.prettierignore storage-plugin/.prettierignore
-cmp -s plugin/.prettierrc.json storage-plugin/.prettierrc.json
-cmp -s plugin/eslint.config.js storage-plugin/eslint.config.js
-cmp -s plugin/tsconfig.json storage-plugin/tsconfig.json
-pnpm --dir storage-plugin typecheck
-pnpm --dir storage-plugin test
-pnpm --dir storage-plugin build
-pnpm --dir storage-plugin verify:environment
-pnpm --dir storage-plugin verify:contract
-pnpm --dir storage-plugin verify:package
+test ! -e storage-plugin
 test ! -e pnpm-workspace.yaml
+pnpm --dir plugin install --lockfile-only
+pnpm --dir plugin install --frozen-lockfile
+pnpm --dir plugin test -- tests/contract/package-contract.spec.ts tests/unit/module-boundaries.spec.ts
+pnpm --dir plugin typecheck
+git diff --check
 ```
 
-PASS：all commands including five byte comparisons exit 0; contract suite proves the complete manifest/patch; no script uses `--passWithNoTests`.
+PASS：全部命令退出 0；lockfile 只有 `plugin/pnpm-lock.yaml`；manifest 精确包含上述依赖且没有独立 storage package/workspace。
 
-STOP：dependency requires root workspace/override or a version not listed. Failure state：only new untracked package files; no medium created.
+STOP：任一包无法解析为锁定版本、安装要求 root override/workspace、或必须改变既有依赖。Failure state：只改变现有 package manifest、lockfile 和两项 contract tests；没有持久化介质。
 
 ### T3 — Implement Canonical Format And Filesystem Port
 
 前置状态：T2 PASS.
 
-允许修改：`storage-plugin/src/config.ts`, `errors.ts`, `canonical-json.ts`, `filesystem.ts`, `format.ts`, `jsonl.ts`, `index.ts`; new `storage-plugin/tests/fixtures/scripted-filesystem.ts`; `storage-plugin/tests/unit/canonical-json.spec.ts`, `filesystem.spec.ts`, `format.spec.ts`, `jsonl.spec.ts`.
+允许修改：new `plugin/src/storage/config.ts`, `plugin/src/storage/errors.ts`, `plugin/src/storage/canonical-json.ts`, `plugin/src/storage/filesystem.ts`, `plugin/src/storage/format.ts`, `plugin/src/storage/jsonl.ts`, `plugin/src/storage/index.ts`; new `plugin/tests/fixtures/storage/scripted-filesystem.ts`, `plugin/tests/unit/storage/canonical-json.spec.ts`, `plugin/tests/unit/storage/filesystem.spec.ts`, `plugin/tests/unit/storage/format.spec.ts`, `plugin/tests/unit/storage/jsonl.spec.ts`.
 
-禁止修改：backend/unit/checkpoint, Convivium plugin.
+禁止修改：`plugin/src/storage/unit.ts`, `plugin/src/storage/checkpoint.ts`, `plugin/src/storage/backend.ts`, every `plugin/src` path outside `plugin/src/storage/`, and every test path outside the five allowed suites/fixture.
 
 执行：
 
-1. Implement the exact symbols from `File And Symbol Map`.
-2. `FileHandlePort` and `FileSystemPort` implement every method and exact signature in `Storage Plugin Physical Contract`, including `lstat`; no extra method is permitted. Every filesystem helper accepts final optional port defaulting to `nodeFileSystemPort`.
+1. Implement only the symbols assigned to the seven allowed `plugin/src/storage/` files in this step: `JsonlStorageConfig`; `JsonlStorageErrorCode`/`JsonlStorageError`; canonical JSON/digest symbols; filesystem port/helpers; physical record codecs/limits; JSONL helpers plus `AppendFailurePhase`/`appendFailurePhase`; and an `plugin/src/storage/index.ts` internal barrel that reexports only these T3 symbols. Do not create or implement `unit.ts`, `checkpoint.ts`, `backend.ts` or their symbols in T3.
+2. `FileHandlePort` and `FileSystemPort` implement every method and exact signature in `Internal Storage Child Physical Contract`, including `lstat`; no extra method is permitted. Every filesystem helper accepts final optional port defaulting to `nodeFileSystemPort`.
 3. Canonical encoding recursively sorts object keys, preserves arrays, UTF-8/no whitespace, rejects non-finite numbers, bigint, undefined, sparse/cyclic values and dangerous keys.
 4. `appendLineDurably` uses create-exclusive for first line and append for existing file, exactly one write, datasync, close; first creation syncs parent directory. Short write rejects `JsonlStorageError("short-write")`.
 5. `replaceFileDurably` uses random same-directory `.tmp`, create-exclusive, one write, sync, close, rename, directory sync; failure removes only that temp.
@@ -1183,8 +1113,8 @@ STOP：dependency requires root workspace/override or a version not listed. Fail
 验证：
 
 ```bash
-pnpm --dir storage-plugin test -- tests/unit/canonical-json.spec.ts tests/unit/filesystem.spec.ts tests/unit/format.spec.ts tests/unit/jsonl.spec.ts
-pnpm --dir storage-plugin typecheck
+pnpm --dir plugin test -- tests/unit/storage/canonical-json.spec.ts tests/unit/storage/filesystem.spec.ts tests/unit/storage/format.spec.ts tests/unit/storage/jsonl.spec.ts
+pnpm --dir plugin typecheck
 ```
 
 PASS：tests prove canonical equality/rejection and every T3 row in the fault matrix, including exact call ordering and allowed old/new boundary; commands exit 0.
@@ -1195,20 +1125,28 @@ STOP：Node port cannot express a required operation or Windows behavior would r
 
 前置状态：T3 PASS.
 
-允许修改：`storage-plugin/src/unit.ts`, `jsonl.ts`, `format.ts`; `storage-plugin/tests/unit/unit.spec.ts`, `tests/recovery/tail-recovery.spec.ts`.
+允许修改：new `plugin/src/storage/unit.ts`; `plugin/src/storage/jsonl.ts`, `plugin/src/storage/format.ts`; new `plugin/tests/unit/storage/unit.spec.ts`, `plugin/tests/recovery/storage/tail-recovery.spec.ts`.
 
-禁止修改：backend registration, physical checkpoint, Convivium.
+禁止修改：`plugin/src/storage/backend.ts`, `plugin/src/storage/checkpoint.ts`, every `plugin/src` path outside `plugin/src/storage/`, and every test path except the two allowed suites.
 
-执行：implement descriptor file create/validate; in-memory table/global state; op seq; one queued mutation append; rollback in-memory candidate on append failure; segment rollover; load/replay; final active-tail truncation rules; closed behavior. Undeclared table/global misuse throws plain `Error`; closed throws `StorageError("closed")`; malformed durable content maps exactly as specified. After a full write whose `datasync` rejects, mark the open unit poisoned so all later mutations throw `StorageError("closed")`; only close/reopen resolves whether that complete record exists. Implement every exact T4 title and enumerate every final-record prefix length, not a sampled subset.
+执行：
+
+1. Import `KvUnit`/`KvUnitDescriptor` as types and `StorageError` as a value from `@deepseek-ai/dsh-storage`. `JsonlKvUnit implements KvUnit`; `openJsonlUnit` is exactly `openJsonlUnit(root: string, descriptor: KvUnitDescriptor, fs?: FileSystemPort): Promise<JsonlKvUnit>`, defaulting to `nodeFileSystemPort`. Do not modify `errors.ts` or add DSH stable codes to `JsonlStorageErrorCode`.
+2. Implement descriptor create/validation exactly as `UnitDescriptorRecordV1`: backend `formatVersion` and DSH `unitVersion` are separate; version-only mismatch is `new StorageError("version-mismatch", diagnostic)`; every other descriptor/digest/static-shape mismatch is `new StorageError("malformed-medium", diagnostic)`.
+3. All directory, descriptor, active log, segment, replay and truncate operations go through `FileSystemPort` or the T3 helpers. `unit.ts` may import `node:path` only for path construction and must not import `node:fs`/`node:fs/promises`. Production code must not use `any`, `unknown as`, `ScriptedFileSystem.calls()` or error-message matching.
+4. Implement in-memory table/global state, positive continuous `opSeq`, one per-unit Promise queue, exactly one operation append per mutation, digest generation/verification, validation of kind/table/key/value/size, segment rollover at the exact count/byte boundary, ordered closed-segment replay, active-tail repair and closed behavior as fixed in `Physical records and publication`.
+5. Build the next candidate projection without publishing it. Append `sha256Hex(canonical record without digest)`; only after append resolves publish candidate and increment seq. Write/short-write rejection preserves memory. When `appendFailurePhase(error) === "datasync"`, poison the unit before rethrowing the identical error; every later mutation rejects `new StorageError("closed", diagnostic)`. Close/reopen determines whether the complete record exists.
+6. `loadAll()` returns the exact async DSH shape with every declared empty table. Undeclared table/global misuse throws plain `Error`; closed/poisoned calls throw DSH `StorageError("closed")`; LF-terminated/middle/immutable corruption and invalid operation/digest/seq throw DSH `StorageError("malformed-medium")` without truncate/write.
+7. Implement every exact T4 fault-matrix title. Add these exact non-parameterized titles to `unit.spec.ts`: `initializes every declared table in loadAll`, `rejects a descriptor version mismatch`, `rejects malformed descriptor identity or shape`, `rejects undeclared table and global operations before IO`, `rejects an operation digest or sequence mismatch`, `rolls over before record 257 and replays segments by first op sequence`, `rolls over before exceeding four MiB`. The last two assert exact filenames/order and cold-reopen deep equality. Enumerate every final-record prefix length in the tail test, not a sample.
 
 验证：
 
 ```bash
-pnpm --dir storage-plugin test -- tests/unit/unit.spec.ts tests/recovery/tail-recovery.spec.ts
-pnpm --dir storage-plugin typecheck
+pnpm --dir plugin test -- tests/unit/storage/unit.spec.ts tests/recovery/storage/tail-recovery.spec.ts
+pnpm --dir plugin typecheck
 ```
 
-PASS：named tests cover put overwrite, delete missing no-op, global, seq continuity, rollover, write/short-write/datasync rollback, final-tail repair and middle corruption rejection.
+PASS：the six fault-matrix cases and seven exact additional titles pass；write rollback covers `put/delete/set_global` with close/reopen deep equality；short-write reopens after exact repair；datasync proves unpublished memory, poisoned later mutation and complete cold replay；both corruption titles observe `StorageError("malformed-medium")` with zero truncate/write；seq, digest, empty-table and both rollover thresholds are asserted。
 
 STOP：any mutation requires two operation lines or recovery accepts partial middle data. Failure state：only isolated test roots; production package not registered.
 
@@ -1216,17 +1154,17 @@ STOP：any mutation requires two operation lines or recovery accepts partial mid
 
 前置状态：T4 PASS.
 
-允许修改：`storage-plugin/src/checkpoint.ts`, `unit.ts`, `format.ts`; `storage-plugin/tests/unit/checkpoint.spec.ts`, `tests/recovery/checkpoint-recovery.spec.ts`.
+允许修改：new `plugin/src/storage/checkpoint.ts`; `plugin/src/storage/unit.ts`, `plugin/src/storage/format.ts`; new `plugin/tests/unit/storage/checkpoint.spec.ts`, `plugin/tests/recovery/storage/checkpoint-recovery.spec.ts`.
 
-禁止修改：backend/plugin entry, Convivium.
+禁止修改：`plugin/src/storage/backend.ts`, `plugin/src/storage/index.ts`, every `plugin/src` path outside `plugin/src/storage/`, and every test path except the two allowed suites.
 
 执行：implement the exact physical checkpoint records/publication. Maintenance is queued after resolved mutation at trigger; its failure is retained as the single internal `maintenanceError` needed by hard-tail enforcement and does not retroactively reject committed mutation. Before a new mutation would exceed hard tail, retry checkpoint first; if still failing, reject new mutation with `capacity-exceeded` before append. `close()` drains maintenance and rejects its retained error after the committed mutation is durable. Implement `createPhysicalCheckpointFixture()` and the exact 14-case T5 parameter table; do not inject by operation count.
 
 验证：
 
 ```bash
-pnpm --dir storage-plugin test -- tests/unit/checkpoint.spec.ts tests/recovery/checkpoint-recovery.spec.ts
-pnpm --dir storage-plugin typecheck
+pnpm --dir plugin test -- tests/unit/storage/checkpoint.spec.ts tests/recovery/storage/checkpoint-recovery.spec.ts
+pnpm --dir plugin typecheck
 ```
 
 PASS：tests prove bounded line count, pointer-before/after crash recovery, orphan collection, safe segment GC, hard-tail refusal before append and close drain.
@@ -1237,103 +1175,81 @@ STOP：checkpoint ever writes whole unit as one call or deletes active/uncovered
 
 前置状态：T5 PASS.
 
-允许修改：`storage-plugin/src/backend.ts`, `unit.ts`, `index.ts`; `storage-plugin/tests/contract/backend.spec.ts`, `tests/unit/backend-lifecycle.spec.ts`.
+允许修改：new `plugin/src/storage/backend.ts`; `plugin/src/storage/unit.ts`, `plugin/src/storage/index.ts`; new `plugin/tests/contract/storage/backend.spec.ts`, `plugin/tests/unit/storage/backend-lifecycle.spec.ts`.
 
-禁止修改：profile smoke, Convivium.
+禁止修改：`plugin/cordis.patch.yml`, `plugin/scripts/smoke-profile.mjs`, every `plugin/src` path outside `plugin/src/storage/`, and every test path except the two allowed suites.
 
 执行：implement `JsonlStorageBackend` with `kv.open`, `open/opening` maps, descriptor validation, duplicate-open rejection, close drain/idempotency. Implement exact registration code from `Locked DSH API`. Backend must not add a write queue above the per-unit queue that reorders calls.
 
 验证：
 
 ```bash
-pnpm --dir storage-plugin test -- tests/contract/backend.spec.ts tests/unit/backend-lifecycle.spec.ts
-pnpm --dir storage-plugin typecheck
-pnpm --dir storage-plugin build
-test -z "$(rg -l 'Meeting|teamId|meetingId|receipt|outbox|Session' storage-plugin/src storage-plugin/tests || true)"
+pnpm --dir plugin test -- tests/contract/storage/backend.spec.ts tests/unit/storage/backend-lifecycle.spec.ts
+pnpm --dir plugin typecheck
+pnpm --dir plugin build
+test -z "$(rg -l 'Meeting|teamId|meetingId|receipt|outbox|Session' plugin/src/storage plugin/tests/unit/storage plugin/tests/recovery/storage plugin/tests/contract/storage || true)"
 ```
 
 PASS：first three exit 0; final rg has no output; contract covers exact KvUnit methods and errors.
 
 STOP：DSH types differ or backend requires Convivium semantics. Failure state：test roots only.
 
-### T7 — Verify Storage Package
+### T7 — Verify The Package-Private Backend Boundary
 
-前置状态：T6 PASS.
+前置状态：T6 PASS。
 
-允许修改：`storage-plugin/scripts/verify-dsh-environment.mjs`, `verify-plugin-contract.mjs`, `verify-package.mjs`; `storage-plugin/tests/contract/package-contract.spec.ts`.
+允许修改：`plugin/tests/contract/package-contract.spec.ts`, `plugin/tests/unit/module-boundaries.spec.ts`, `plugin/scripts/verify-plugin-contract.mjs`, `plugin/scripts/verify-package.mjs`。
 
-禁止修改：production behavior, Convivium.
+禁止修改：production behavior、package exports、bundle patch、profile smoke。
 
 执行：
 
-1. Extend the scaffold contract/verify checks to import the built root and require exactly these public names: `name`, `inject`, `BACKEND_NAME`, `Config`, `apply`, `JsonlStorageBackend`, `JsonlStorageError`. Assert `name === "convivium-storage-jsonl"`, `inject` deep-equals `["storage"]`, and `BACKEND_NAME === "convivium-jsonl"`.
-2. Assert manifest has no `dsh.client`, no dependency key containing `convivium`, no source dependency/file/workspace field, and repository root has no `pnpm-workspace.yaml`.
-3. `verify-package.mjs` uses its T2 mkdtemp procedure and deep-equals sorted tar entries to exactly:
-
-```text
-package/README.md
-package/cordis.patch.yml
-package/lib/index.js
-package/lib/types/backend.d.ts
-package/lib/types/canonical-json.d.ts
-package/lib/types/checkpoint.d.ts
-package/lib/types/config.d.ts
-package/lib/types/errors.d.ts
-package/lib/types/filesystem.d.ts
-package/lib/types/format.d.ts
-package/lib/types/index.d.ts
-package/lib/types/jsonl.d.ts
-package/lib/types/unit.d.ts
-package/package.json
-```
-
-Any additional declaration means a production source file outside the fixed File And Symbol Map and STOPs; do not widen the allowlist.
+1. `module-boundaries.spec.ts` 必须实际发现 `plugin/src/storage/*.ts`，并证明每个文件不导入 Convivium `domain/repository/runtime/dsh/tools/http/projection/client`；只允许 Node builtin、`@deepseek-ai/cordis`、`@deepseek-ai/dsh-storage` 和同目录相对 import。
+2. 同一 suite 在 T7 精确断言 `plugin/src/repository/domain/*.ts` 的文件数为 `0`；保留一条针对该集合的 import prohibition，并由 T10 在创建文件后把文件数断言唯一改为 `> 0`，届时真实证明它不导入 `plugin/src/storage/` 或 `@deepseek-ai/dsh-storage`。
+3. `package-contract.spec.ts` 和 `verify-plugin-contract.mjs` 构建后 import package root，断言排序后的公开 exports 精确等于 `["Config", "apply", "assertContinuableProvider", "inject", "name"]`；并分别断言 `BACKEND_NAME`、`jsonlStoragePlugin`、`JsonlStorageBackend`、`JsonlStorageError` 均不存在。
+4. `verify-package.mjs` 继续使用现有 package allowlist；断言 tarball 不包含第二个 manifest、`storage-plugin` path 或独立 backend entry。不得扩展 package exports/files 或新建验证脚本。
 
 验证：
 
 ```bash
-pnpm --dir storage-plugin verify
-pnpm --dir storage-plugin verify:package
+pnpm --dir plugin test -- tests/contract/package-contract.spec.ts tests/unit/module-boundaries.spec.ts
+pnpm --dir plugin build
+pnpm --dir plugin verify:contract
+pnpm --dir plugin verify:package
+test ! -e storage-plugin
+test ! -e pnpm-workspace.yaml
 ```
 
-PASS：both exit 0; package output contains only allowlisted files; script temp root is removed.
+PASS：全部命令退出 0；storage source 被 boundary test 真实枚举；backend symbols 不能从 package root import；tarball 仍是单一 Convivium package。
 
-STOP：pack requires publishing or output includes src/tests/local paths. Failure state：package build artifacts only; verify script removes its own temp root.
+STOP：验证 backend 必须增加公共 export、第二个 package 或新 build face。Failure state：只有现有 package build artifacts。
 
-### T8 — Real DSH Backend/Domain Smoke
+### T8 — Prove Provider/Domain Child Composition In Process
 
-前置状态：T7 PASS.
+前置状态：T7 PASS；锁定的 `@deepseek-ai/cordis`、`@deepseek-ai/dsh-storage` 和 `@deepseek-ai/dsh-storage-domain` 可从 `plugin/` 解析。
 
-允许修改：`storage-plugin/scripts/smoke-profile.mjs`, `storage-plugin/tests/contract/smoke-profile.spec.ts`, `storage-plugin/package.json`.
+允许修改：new `plugin/tests/integration/storage/child-plugin.spec.ts`；`plugin/vitest.config.ts` 仅在现有 integration project 不匹配该路径时允许机械加入该路径。
 
-禁止修改：user profiles, Convivium.
+禁止修改：production source、`plugin/src/index.ts`、bundle patch、smoke script、用户 profile。
 
-执行：smoke creates one `mkdtemp` root and installs packed backend into DSH `web` profile `0.1.1-rc.2`. Temporary patch is exactly:
+执行：
 
-```yaml
-- id: convivium-storage-jsonl
-  config:
-    root: !!js dshHomePath('convivium-storage-smoke')
-- id: storage-domain
-  config:
-    backend: convivium-jsonl
-```
-
-Probe injects `storageDomain`, opens fixed spec `convivium_storage_smoke` version 1/table `records`, puts `alpha`, closes; Host stops; second Host opens and reads alpha, deletes, closes; third Host proves missing. It records PID per phase. Script runs `--dump-config` before boot and removes only its mkdtemp root in finally. Unregister-before-close is proven in `backend-lifecycle.spec.ts`, not inferred across a terminated process.
-
-Both storage and Convivium smoke scripts implement the same `assertRelativeRowOrder(dumpText, expectedIds)` helper. It parses row IDs with `/^\s*-\s+id:\s+['"]?([^'"\s]+)['"]?\s*$/gm`; for each expected ID it requires exactly one match, maps the match to its row index, and throws unless every later expected index is strictly greater than the preceding index. T8 calls it before first boot with `["storage", "convivium-storage-jsonl", "storage-domain"]`. Patch text order and effective dump order are both backend-before-domain; only the effective dump assertion is PASS evidence. Unrelated rows may occur between these three rows, but cannot reverse or duplicate them.
+1. 测试固定使用 `new Context()`，先 `await root.plugin(Storage)`，再把官方 `storage-domain` plugin 作为 root sibling 以 `{ backend: "convivium-jsonl" }` 挂载；它在 backend service 出现前必须保持 pending，不得改用 fake DomainFacility。
+2. 挂载一个 test-only parent plugin；parent 内先 `ctx.plugin(jsonlStoragePlugin, { root: join(tempRoot, "storage") })`，再 `ctx.inject(["storageDomain"], consumer)`。consumer 只能从 `ctx.storageDomain` 打开 fixed domain `convivium_storage_child_test` version 1/table `records`，写入 `alpha` 后关闭。
+3. 调用 `await root.fiber.dispose()`，用第二个全新 root 重复相同组合并读取 `alpha`，删除后关闭；第三个全新 root 证明 key 缺失。每轮记录不同的 root Context identity；每个 root 都在 `finally` dispose。
+4. lifecycle spy 只位于测试：断言 consumer Domain close 完成后 provider backend close 才完成；T6 的 backend lifecycle suite 继续证明 unregister-before-close。不得增加 production hook/callback。
+5. 每个 test 使用一个 `mkdtemp(join(tmpdir(), "convivium-storage-child-"))`，只在 `finally` 删除该精确目录。
 
 验证：
 
 ```bash
-pnpm --dir storage-plugin test -- tests/contract/smoke-profile.spec.ts
-pnpm --dir storage-plugin smoke:profile
-pnpm --dir storage-plugin verify
+pnpm --dir plugin test:integration -- tests/integration/storage/child-plugin.spec.ts
+pnpm --dir plugin typecheck
 ```
 
-PASS：three distinct Host PIDs; exact relative-order assertion passes; persisted value survives first restart and deletion survives second; commands exit 0.
+PASS：真实 Cordis/Storage/Storage Domain 组合完成三次冷打开；写入跨第一次重开可见，删除跨第二次重开保持；consumer-before-provider 关闭断言成立；命令退出 0。
 
-STOP：smoke needs an existing user profile/process or direct backend import to pass. Failure state：only script mkdtemp root, removed in finally.
+STOP：需要 profile row、第二个 package、fake DomainFacility、service isolation 或生产 lifecycle hook 才能通过。Failure state：只有本测试 mkdtemp root，`finally` 精确删除。
 
 ### T9 — Extract Shared Repository Types And Port
 
@@ -1405,23 +1321,22 @@ STOP：port signature differs from exact contract or requires behavior changes. 
 
 前置状态：T9 PASS.
 
-允许修改：`plugin/package.json`, `plugin/pnpm-lock.yaml`; new `plugin/src/repository/domain/keys.ts`, `schemas.ts`, `specs.ts`, `canonical-json.ts`, `json-patch.ts`, `projection.ts`; new `plugin/tests/fixtures/domain-storage.ts`; new `plugin/tests/unit/repository/domain/keys.spec.ts`, `schemas.spec.ts`, `specs.spec.ts`, `canonical-json.spec.ts`, `json-patch.spec.ts`, `projection.spec.ts`.
+允许修改：new `plugin/src/repository/domain/keys.ts`, `plugin/src/repository/domain/schemas.ts`, `plugin/src/repository/domain/specs.ts`, `plugin/src/repository/domain/canonical-json.ts`, `plugin/src/repository/domain/json-patch.ts`, `plugin/src/repository/domain/projection.ts`; new `plugin/tests/fixtures/domain-storage.ts`, `plugin/tests/unit/repository/domain/keys.spec.ts`, `plugin/tests/unit/repository/domain/schemas.spec.ts`, `plugin/tests/unit/repository/domain/specs.spec.ts`, `plugin/tests/unit/repository/domain/canonical-json.spec.ts`, `plugin/tests/unit/repository/domain/json-patch.spec.ts`, `plugin/tests/unit/repository/domain/projection.spec.ts`; `plugin/tests/unit/module-boundaries.spec.ts`.
 
 禁止修改：Runtime, plugin entry, SQLite repository, production barrel.
 
-执行：add dependency `zod: ^4.4.3`; add peer `@deepseek-ai/dsh-storage-domain: ^0.1.1-rc.2`, its optional peer meta, and dev exact `0.1.1-rc.2`; implement only the symbols assigned to the six source files in File And Symbol Map. The six same-basename suites test only their source file; `projection.spec.ts` owns fold/limit tests. Create the test-only fake symbols listed in File And Symbol Map; each fake table implements exact synchronous `get/entries/keys/size` and async `put/delete/update`, exposes `failNextPut(table,key)`, `failNextDelete(table,key)`, and ordered call arrays, and validates through the real DomainSpec schema on initial load. No file API or production export from the repository barrel. Update lockfile with the two listed install commands.
+执行：使用 T2 已锁定的 `zod` 与 `@deepseek-ai/dsh-storage-domain`；不得修改 dependency metadata。Implement only the symbols assigned to the six source files in File And Symbol Map. The six same-basename suites test only their source file; `projection.spec.ts` owns fold/limit tests. Create the test-only fake symbols listed in File And Symbol Map; each fake table implements exact synchronous `get/entries/keys/size` and async `put/delete/update`, exposes `failNextPut(table,key)`, `failNextDelete(table,key)`, and ordered call arrays, and validates through the real DomainSpec schema on initial load. No file API or production export from the repository barrel. Change T7's temporary repository-domain count assertion from exactly `0` to greater than `0`, while retaining the import prohibitions.
 
 验证：
 
 ```bash
-pnpm --dir plugin install --lockfile-only
-pnpm --dir plugin install --frozen-lockfile
 pnpm --dir plugin test -- tests/unit/repository/domain
+pnpm --dir plugin test -- tests/unit/module-boundaries.spec.ts
 pnpm --dir plugin typecheck
-test -z "$(rg -l 'node:fs|node:path|node:sqlite|storage-plugin' plugin/src/repository/domain || true)"
+test -z "$(rg -l 'node:fs|node:path|node:sqlite|@deepseek-ai/dsh-storage(\"|\x27)' plugin/src/repository/domain || true)"
 ```
 
-PASS：first four exit 0; rg has no output; tests cover every schema, key formula, patch operation, deterministic digest, dangerous keys, over-limit rejection, fold gap/conflict.
+PASS：全部命令退出 0；rg 无输出；boundary test 真实枚举两侧 source；tests cover every schema, key formula, patch operation, deterministic digest, dangerous keys, over-limit rejection, fold gap/conflict.
 
 STOP：a schema requires changing a public type or DomainSpec API differs. Failure state：new test-only modules and dependency metadata; production still SQLite.
 
@@ -1577,111 +1492,141 @@ PASS：all 13 exact titles pass; facility open/close spies, sorted output and ev
 
 STOP：registry needs unit enumeration, filesystem access or backend-specific import. Failure state：fake domains only; production still SQLite.
 
-### T14 — Cut Runtime To Repository Registry
+### T14 — Cut Production Over Through Child Plugins
 
-前置状态：T13 PASS.
+前置状态：T13 PASS；SQLite remains the only production truth before this step；T8 已证明真实 Cordis provider/domain child composition。
 
-允许修改：`plugin/src/runtime/meeting-runtime.ts`, `plugin/src/runtime/application-service/index.ts`, `plugin/src/runtime/application-service/create-meeting.ts`, `plugin/src/runtime/services/meeting-recovery-service.ts`, `plugin/src/index.ts`, `plugin/src/config.ts`, `plugin/src/repository/index.ts`; `plugin/tests/contract/continuation.spec.ts`, `plugin/tests/contract/meeting-runtime.spec.ts`, `plugin/tests/recovery/recovery.spec.ts`, `plugin/tests/unit/config.spec.ts`, `plugin/tests/unit/index-inject.spec.ts`, `plugin/tests/unit/module-boundaries.spec.ts`.
+允许修改：`plugin/src/runtime/meeting-runtime.ts`, `plugin/src/runtime/application-service/index.ts`, `plugin/src/runtime/application-service/create-meeting.ts`, `plugin/src/runtime/services/meeting-recovery-service.ts`, `plugin/src/index.ts`, `plugin/src/repository/index.ts`; `plugin/tests/contract/continuation.spec.ts`, `plugin/tests/contract/meeting-runtime.spec.ts`, `plugin/tests/recovery/recovery.spec.ts`, `plugin/tests/unit/index-inject.spec.ts`, `plugin/tests/unit/module-boundaries.spec.ts`。
 
-禁止修改：profile patch/smoke/package metadata, protocol/domain/client, SQLite source/deletion, any additional Runtime test.
+禁止修改：`plugin/src/config.ts`、`plugin/cordis.patch.yml`、smoke/package metadata、protocol/domain/client、SQLite source/deletion、任何其他 Runtime test。
 
 执行：
 
-1. Remove `Config.dataRoot` and its schema/test cases. Do not add a replacement path/backend field.
-2. Change `CreateStatusRuntimeOptions.dataRoot` to required `repositoryRegistry: DomainRepositoryRegistry`. Creation calls `openMeeting({ teamId, meetingId })` then the existing repository methods. Rehydration calls `listMeetings()` in catalog order and `recoverMeeting()`; delete all `readdir`, locator and repository path use from these four Runtime files. Replace concrete repository annotations with `MeetingRepositoryPort`.
+1. 保留 `Config.dataRoot` 及其现有 Schema/default/tests；它是内置 JSONL backend 的唯一物理 root 输入，不新增 backend/path 配置。
+2. Change `CreateStatusRuntimeOptions.dataRoot` to required `repositoryRegistry: DomainRepositoryRegistry`. Creation calls `openMeeting({ teamId, meetingId })` then existing repository methods. Rehydration calls `listMeetings()` in catalog order and `recoverMeeting()`; delete all `readdir`, locator and repository-path use from these four Runtime files. Replace concrete repository annotations with `MeetingRepositoryPort`.
 3. In the three contract/recovery suites, replace each `dataRoot` fixture with `DomainRepositoryRegistry.open({ facility: createFakeDomainFacility(), authorizationValidator, now })`; the existing fixture owns registry close through `runtime.dispose()`. Do not change test titles or behavior assertions.
-4. Make `apply` exactly `export async function apply(ctx: Context, config: ConfigType): Promise<void>`. Add `storageDomain` once to `inject`. After the existing capability guard, await `DomainRepositoryRegistry.open({ facility: ctx.storageDomain, authorizationValidator })`, pass it to `createCreateStatusRuntime`, and keep the single existing `ctx.effect(() => () => runtime.dispose(), "convivium:runtime")`. `runtime.dispose()` stops Runtime services first and then calls `repositoryRegistry.close()`; `apply` must not register a second registry disposer.
-5. `plugin/src/repository/index.ts` exports the shared types, errors, `MeetingRepositoryPort`, `DomainMeetingRepository`, and `DomainRepositoryRegistry`; it no longer exports `SqliteMeetingRepository as MeetingRepository`. Legacy SQLite suites import `SqliteMeetingRepository` directly from `sqlite-meeting-repository.ts` until T17.
-6. Update `index-inject.spec.ts`: exact inject array adds `"storageDomain"`; tests await `apply`; lifecycle test supplies fake `storageDomain`, runs collected disposer, and asserts Meeting Domain closes before catalog Domain exactly once. Update `module-boundaries.spec.ts` so repository may import only `@deepseek-ai/dsh-storage-domain` among DSH packages.
+4. In `plugin/src/index.ts`, keep the public `name` and `Config` exports. The exact public `inject` array is the prior seven service names plus one final `"storage"`; it must not contain `"storageDomain"`.
+5. Move the current capability guard, repository registry open, Runtime construction, route/tool registration and all their effects into one non-exported `async function applyMeetingPlugin(ctx: Context, config: ConfigType): Promise<void>`. It opens `DomainRepositoryRegistry` from `ctx.storageDomain`, passes it to `createCreateStatusRuntime`, and registers only the existing single `runtime.dispose()` effect; Runtime disposal stops services then closes Meeting domains and catalog.
+6. Make public `apply` exactly synchronous and limited to child composition:
+
+```ts
+export function apply(ctx: Context, config: ConfigType): void {
+    ctx.plugin(jsonlStoragePlugin, {
+        root: resolve(process.cwd(), config.dataRoot ?? ".convivium", "storage")
+    });
+    ctx.inject(["storageDomain"], (meetingCtx) => applyMeetingPlugin(meetingCtx, config));
+}
+```
+
+Do not await either child, create a third child, add a disposer, import backend symbols other than `jsonlStoragePlugin`, or expose Meeting tools/routes outside `applyMeetingPlugin`. Cordis owns child disposal.
+7. `plugin/src/repository/index.ts` exports shared types, errors, `MeetingRepositoryPort`, `DomainMeetingRepository`, and `DomainRepositoryRegistry`; it no longer exports `SqliteMeetingRepository as MeetingRepository`. Legacy SQLite suites import `SqliteMeetingRepository` directly until T17.
+8. Update `index-inject.spec.ts` with exactly three cases: public inject array ends in `storage` and has no package-name keys; `apply` mounts `jsonlStoragePlugin` once with the exact resolved `<dataRoot>/storage` root and registers one `storageDomain` consumer; running the consumer then its Runtime disposer closes Meeting domains before catalog, while parent disposal closes provider afterward. Use a fake Context only for call capture; T8 already owns real Cordis behavior.
+9. Update `module-boundaries.spec.ts` so repository may import only `@deepseek-ai/dsh-storage-domain` among DSH storage packages, storage source cannot import Meeting modules, and only `plugin/src/index.ts` may import `plugin/src/storage/index.ts`.
 
 验证：
 
 ```bash
 pnpm --dir plugin test -- tests/contract/continuation.spec.ts tests/contract/meeting-runtime.spec.ts tests/recovery/recovery.spec.ts
-pnpm --dir plugin test -- tests/unit/config.spec.ts tests/unit/index-inject.spec.ts tests/unit/module-boundaries.spec.ts
+pnpm --dir plugin test -- tests/unit/index-inject.spec.ts tests/unit/module-boundaries.spec.ts
 pnpm --dir plugin typecheck
 pnpm --dir plugin build
-test -z "$(rg -l 'dataRoot|locateMeetingRepository|readdir|\.sqlite' plugin/src/index.ts plugin/src/config.ts plugin/src/runtime plugin/src/repository/index.ts || true)"
+test -z "$(rg -l 'locateMeetingRepository|readdir|\.sqlite' plugin/src/index.ts plugin/src/runtime plugin/src/repository/index.ts || true)"
+test "$(rg -l 'src/storage/index\.js' plugin/src --glob '*.ts')" = "plugin/src/index.ts"
 ```
 
-PASS：all commands exit 0; final test has empty output; the complete production entry compiles and uses Storage Domain as its only Meeting persistence truth; all listed fixtures use fake Domain registry; lifecycle assertion has one ordered close sequence.
+PASS：全部命令退出 0；production entry compiles as one top-level plugin with exactly two child responsibilities; Storage Domain is the only Meeting truth; `dataRoot` only determines the child backend root and legacy files remain untouched。
 
-STOP：an unlisted file must change, a Runtime behavior/test requires path inspection/SQLite fallback, or the production entry cannot compile. Failure state：this is the single production cutover step; no real profile or legacy data is opened. Do not enter T15 until the whole step PASSes.
+STOP：unlisted file must change、consumer must start before `storageDomain`、a second persistence truth/path is required、or child lifecycle cannot compile against Cordis 4.0.1. Failure state：this is the single production cutover step; no real profile or legacy data is opened。
 
-### T15 — Wire Plugin And Real Profile
+### T15 — Wire The Single Package In A Real Profile
 
-前置状态：T14 PASS; production build is already fully cut over.
+前置状态：T14 PASS；production build is fully cut over and `plugin/cordis.patch.yml` still contains only the old Convivium insert operation。
 
-允许修改：`plugin/cordis.patch.yml`, `plugin/scripts/smoke-profile.mjs`, `plugin/tests/contract/package-contract.spec.ts`.
+允许修改：`plugin/cordis.patch.yml`, `plugin/scripts/smoke-profile.mjs`, `plugin/tests/contract/package-contract.spec.ts`, `plugin/tests/unit/scripts/smoke-environment.spec.ts` only if its existing expectations cover changed patch text。
 
-禁止修改：all production TypeScript, package dependencies, public protocol/client/domain behavior, SQLite source/deletion.
+禁止修改：all production TypeScript、package dependencies/exports/files、public protocol/client/domain behavior、SQLite source/deletion、用户 profile。
 
 执行：
 
-1. Keep `plugin/cordis.patch.yml` as one inserted Convivium row; add no backend package/config to it. Package contract asserts the row id/name and that built host exports `inject` containing `storageDomain`.
-2. In `smoke-profile.mjs`, change `packArtifact(artifactDir)` to `packArtifact(packageRoot, artifactDir)` and run build/pack with `cwd: packageRoot`. Call it once for repository `plugin/` and once for repository `storage-plugin/`; install both returned tarballs into the same temporary DSH profile. No source import crosses packages.
-3. `writeSmokePatch()` writes these existing-row config patches in this order, followed by the existing Convivium config fields without `dataRoot`:
+1. Replace `plugin/cordis.patch.yml` with exactly one existing-row patch plus one insert operation:
+
+```yaml
+- id: storage-domain
+  config:
+    backend: convivium-jsonl
+- insert:
+    - id: convivium
+      name: '@convivium/dsh-plugin'
+      config: {}
+```
+
+There is no backend row or second package. Package contract and `verify-plugin-contract.mjs` compare the complete patch bytes to the fenced block plus one final LF; built host `inject` must contain `storage` and must not contain `storageDomain`.
+2. Keep `smoke-profile.mjs#packArtifact(artifactDir)` as a one-package operation. It builds and packs only repository `plugin/`, installs exactly that tarball into the temporary DSH profile, and rejects any second Convivium tarball/package.
+3. `writeSmokePatch()` writes only these existing-row config patches, followed by the unchanged Convivium fields including `dataRoot`:
 
 ```js
 const patch = [
-    "- id: convivium-storage-jsonl",
-    "  config:",
-    "    root: !!js dshHomePath('convivium-storage-smoke')",
     "- id: storage-domain",
     "  config:",
     "    backend: convivium-jsonl",
     "- id: convivium",
     "  config:",
     `    provider: ${PROVIDER}`,
+    "    dataRoot: convivium-smoke-data",
     "    maxParticipants: 3",
     `    speakerTimeoutMs: ${SMOKE_SCENARIO === "timeout" ? 250 : 60000}`,
     `    outboxPollMs: ${SMOKE_SCENARIO === "timeout" ? 25 : 1000}`,
     ""
-].join("\n");
+].join("\\n");
 ```
 
-After `--dump-config`, call the exact T8 helper with `["storage", "convivium-storage-jsonl", "storage-domain", "convivium"]` before boot. The helper's exactly-once and strictly-increasing checks are the only row-order rule; patch line order is not a substitute for this effective-config assertion.
-4. Remove imports and code paths using `DatabaseSync`, SQL strings, `.sqlite`, and direct medium/file inspection. Cold phase asserts only probe/tool results: phase-2 PID differs from phase-1 PID, Meeting ID is equal, recovered Meeting version is not lower, the exact two recorded child Session IDs are equal, and continuation succeeds. Keep every other existing smoke scenario assertion unchanged.
+4. Add/retain one `assertRelativeRowOrder(dumpText, ["storage", "storage-domain", "convivium"])` helper using the existing fixed row-ID regex. Each ID must occur exactly once and indices must strictly increase. `convivium-jsonl` must not appear as a row ID; it appears exactly once as the `storage-domain.config.backend` value.
+5. Remove imports and code paths using `DatabaseSync`, SQL strings, `.sqlite`, and direct medium/file inspection. Cold phase asserts only public probe/tool results: phase-2 PID differs from phase-1 PID, Meeting ID is equal, recovered Meeting version is not lower, the exact two child Session IDs are equal, and continuation succeeds. Keep every other existing smoke scenario assertion unchanged.
+6. The script retains its one `mkdtemp` profile/root and existing `finally`; it deletes only that exact root and never reads or edits a user profile.
 
 验证：
 
 ```bash
-pnpm --dir plugin test -- tests/contract/package-contract.spec.ts
+pnpm --dir plugin test -- tests/contract/package-contract.spec.ts tests/unit/scripts/smoke-environment.spec.ts
 pnpm --dir plugin verify
 env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
-test -z "$(rg -l 'DatabaseSync|node:sqlite|SELECT |PRAGMA|\.sqlite|dataRoot' plugin/scripts/smoke-profile.mjs || true)"
+test -z "$(rg -l 'DatabaseSync|node:sqlite|SELECT |PRAGMA|\.sqlite|storage-plugin' plugin/scripts/smoke-profile.mjs || true)"
+test ! -e storage-plugin
 ```
 
-PASS：all commands exit 0; final test has empty output; dump-config and cold assertions prove the fixed four-row composition and restart recovery through public surfaces.
+PASS：全部命令退出 0；dump-config proves the fixed three-row single-package composition；cold public assertions prove restart recovery；no independent backend artifact/profile row exists。
 
-STOP：row order differs, either tarball is not installed, profile requires Convivium production code/config to know the backend name, or public cold assertions fail. Failure state：only the script-owned mkdtemp DSH profile/root, removed in its existing `finally`; user profile/data and legacy SQLite remain untouched.
+STOP：effective config duplicates/reorders the three rows、bundle patch cannot configure the existing `storage-domain` row、a second tarball is needed、or public cold assertions fail. Failure state：only the script-owned mkdtemp DSH profile/root, removed in its existing `finally`; user profile/data and legacy SQLite remain untouched。
 
 ### T16 — Prove Cutover Before Deletion
 
-前置状态：T15 PASS.
+前置状态：T15 PASS。
 
-允许修改：`plugin/tests/unit/module-boundaries.spec.ts`, new `plugin/tests/contract/production-import-graph.spec.ts`.
+允许修改：`plugin/tests/unit/module-boundaries.spec.ts`, new `plugin/tests/contract/production-import-graph.spec.ts`。
 
-禁止修改：production code, SQLite source, protocol/design.
+禁止修改：production code、SQLite source、protocol/design、smoke script。
 
-执行：import-graph test starts at `plugin/src/index.ts`, resolves relative static imports recursively, and rejects `node:sqlite`, `sqlite-meeting-repository.ts`, `schema.ts`, `migrations.ts`, locator, repository `node:fs`/`node:path`. Add the same exact forbidden set to the repository row in `module-boundaries.spec.ts`. Do not change the smoke script; run its T15 assertions in the three listed scenarios.
+执行：
+
+1. Import-graph test starts at `plugin/src/index.ts`, resolves relative static imports recursively, and rejects every reachable `node:sqlite`, `sqlite-meeting-repository.ts`, `schema.ts`, `migrations.ts` and `meeting-repository-locator.ts`.
+2. The same test computes a second graph rooted at `plugin/src/repository/domain/` plus `plugin/src/runtime/`; that graph must reject `node:fs`, `node:path`, every `plugin/src/storage/*.ts`, and `@deepseek-ai/dsh-storage`, while allowing `@deepseek-ai/dsh-storage-domain`.
+3. The whole-entry graph is allowed to reach `node:fs`/`node:path` only through `plugin/src/storage/` and the single root composition import; it must prove that only `plugin/src/index.ts` imports `plugin/src/storage/index.ts`.
+4. Add the same exact partition rules to `module-boundaries.spec.ts`. Do not broaden them to a generic dependency framework.
+5. Run the unchanged T15 public smoke assertions in `cold-rebind`, `mail-race` and `cross-meeting`.
 
 验证：
 
 ```bash
-pnpm --dir storage-plugin verify
-pnpm --dir storage-plugin smoke:profile
-pnpm --dir plugin test -- tests/contract/production-import-graph.spec.ts
-pnpm --dir plugin test -- tests/contract/repository-title-migration.spec.ts
-pnpm --dir plugin verify
+pnpm --dir plugin test -- tests/contract/production-import-graph.spec.ts tests/unit/module-boundaries.spec.ts
 env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
+pnpm --dir plugin verify
 ```
 
-PASS：all exit 0; cold uses distinct Host PIDs and same state; mail/cross-meeting assertions unchanged; import graph excludes every forbidden node.
+PASS：全部命令退出 0；root graph reaches the internal backend but no SQLite；Meeting repository/runtime graph reaches Storage Domain only；cold uses distinct Host PIDs and the same committed state；mail/cross-meeting assertions unchanged。
 
-STOP：any scenario needs direct medium inspection or production reaches SQLite. Failure state：only mkdtemp smoke roots, removed in finally; legacy data untouched. T17 forbidden.
+STOP：any scenario needs direct medium inspection、production reaches SQLite、or Meeting code reaches backend/file APIs. Failure state：only mkdtemp smoke roots, removed in `finally`; legacy data untouched。T17 forbidden。
 
 ### T17 — Delete SQLite Implementation
 
@@ -1715,7 +1660,6 @@ rejects a mismatched version-two database before migration writes it
 
 | Existing prefix | Fixed replacement |
 | --- | --- |
-| `目标仓库包含两个职责独立` | 仓库包含两个职责独立且已验证的 DSH 插件工程：`plugin/` 是 Convivium Meeting 产品插件，`storage-plugin/` 是通用 JSONL DSH Storage Backend；两者各自维护 package、lockfile、构建和验证入口，不建立根 workspace，也不在源码中互相依赖。 |
 | `每个 Meeting 在任何会议副作用前` | 每个 Meeting 在任何会议副作用前获得稳定 `meetingId`，并以 `teamId + meetingId` 形成独立 repository ownership。Convivium 只通过 `@deepseek-ai/dsh-storage-domain` 使用轻量 catalog domain 和每 Meeting 独立 domain，不定位、扫描或依赖 backend 物理布局。 |
 | `[Meeting Persistence Design]` | Replace exact substring `切换前 SQLite 是唯一事实源，切换后 Storage Domain 是唯一事实源；禁止双写、fallback 和自动迁移，旧 SQLite 源码只在切换验证后删除，现存数据不自动删除。` with `Storage Domain 是唯一 production truth；不存在双写、fallback 或自动迁移，现存 SQLite 数据不自动读取或删除。`; no other byte changes. |
 | `Meeting Runtime 可以从 SQLite` | Meeting Runtime 可以从 repository snapshot best-effort 生成供开发者在 workspace 中阅读的 Markdown 辅助文件；Markdown 不是产品接口或事实源，不参与恢复、授权、状态计算、Session 关闭、capability 撤销或归档完成判断。 |
@@ -1729,7 +1673,7 @@ rejects a mismatched version-two database before migration writes it
 ```md
 ## Persistence Algorithm And Storage Domain Repository
 
-Meeting persistence uses the `Checkpointed Commit Log` defined by [Meeting Persistence Design](./MEETING-PERSISTENCE-SPECIAL-DESIGN.md). Convivium consumes only `@deepseek-ai/dsh-storage-domain`; the independent `storage-plugin/` owns JSONL media. The packages share no source dependency.
+Meeting persistence uses the `Checkpointed Commit Log` defined by [Meeting Persistence Design](./MEETING-PERSISTENCE-SPECIAL-DESIGN.md). The package-private `src/storage/` child owns JSONL media and DSH KV semantics; `src/repository/domain/` consumes only `@deepseek-ai/dsh-storage-domain` and owns Meeting record semantics.
 
 ### Domain ownership
 
@@ -1743,7 +1687,7 @@ Meeting persistence uses the `Checkpointed Commit Log` defined by [Meeting Persi
 Current truth is the published checkpoint plus its continuous commit tail. Gap, digest error, missing ready commit or invalid schema fails loud. V1 does not read, migrate, delete or fall back to legacy SQLite. The stable record, method, error and recovery contract is [Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md).
 ```
 6. In the remainder of `CONVIVIUM-IMPLEMENTATION-DESIGN.md`, perform only these substitutions; every source phrase must match before edit: `从 SQLite 读取` → `从 Meeting Repository 读取`; `SQLite ownership record` → `Meeting Repository ownership record`; `最新 SQLite 事实` → `最新 Meeting Repository 事实`; `终态 SQLite snapshot` → `终态 Meeting Repository snapshot`; `从 SQLite snapshot` → `从 Meeting Repository snapshot`; `SQLite capability` → `storageDomain capability`; `SQLite、workspace` → `持久化介质、workspace`. Delete the error-table row whose first cell is `SQLite busy`. Delete the complete numbered item beginning `实现 SQLite schema` and the complete item beginning `SQLite driver、schema version`; leave Markdown automatic numbering as `1.`.
-7. Do not change any other document text, add migration code, compatibility assertions or legacy path scanning.
+7. Do not change the single-package/child-plugin topology sections or any other document text, and do not add migration code, compatibility assertions or legacy path scanning.
 
 验证：
 
@@ -1759,7 +1703,7 @@ test ! -e plugin/tests/unit/repository/schema.spec.ts
 test ! -e plugin/tests/unit/repository.spec.ts
 test ! -e plugin/tests/unit/repository/session-ownership.spec.ts
 test ! -e plugin/tests/contract/repository-title-migration.spec.ts
-test -z "$(rg -l '目标仓库包含两个职责独立|每个 Meeting 在任何会议副作用前.*当前未替换|Meeting Runtime 可以从 SQLite|Meeting 的 SQLite、开发者 Markdown|SQLite ownership record|从 SQLite 读取|SQLite busy' docs/00-governance/ARCHITECTURE.md docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md || true)"
+test -z "$(rg -l '每个 Meeting 在任何会议副作用前.*当前未替换|Meeting Runtime 可以从 SQLite|Meeting 的 SQLite、开发者 Markdown|SQLite ownership record|从 SQLite 读取|SQLite busy|storage-plugin' docs/00-governance/ARCHITECTURE.md docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md || true)"
 pnpm --dir plugin typecheck
 pnpm --dir plugin test
 pnpm --dir plugin build
@@ -1778,27 +1722,23 @@ STOP：the fixed migration-manifest test fails, the T12 file changed/count diffe
 
 禁止修改：all production/test code, TODO.
 
-执行：run commands; append one dated evidence section with exact versions, commands/results, backend name, smoke scenarios, single-writer boundary, and `Not Covered: legacy SQLite migration/deletion, multi-Host writer, remote filesystem`.
+执行：run commands once; append one dated evidence section with exact versions, commands/results, backend name, single-package child composition, smoke scenarios, single-writer boundary, and `Not Covered: legacy SQLite migration/deletion, multi-Host writer, remote filesystem`.
 
 验证：
 
 ```bash
-pnpm --dir storage-plugin typecheck
-pnpm --dir storage-plugin test
-pnpm --dir storage-plugin build
-pnpm --dir storage-plugin verify
-pnpm --dir storage-plugin smoke:profile
 pnpm --dir plugin typecheck
 pnpm --dir plugin test
 pnpm --dir plugin build
 pnpm --dir plugin verify
+pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
 git diff --check
 ```
 
-PASS：all exit 0; readiness contains every command and Not Covered item; no claim of legacy migration/deletion.
+PASS：all exit 0; readiness contains every command and Not Covered item; it states one package/provider child/consumer child and makes no claim of independent backend delivery or legacy migration/deletion.
 
 STOP：any command fails or evidence would overstate coverage. Failure state：readiness document only; implementation remains uncommitted.
 
@@ -1832,7 +1772,7 @@ STOP：review/PR identity absent, the exact pre-delete path equality fails, or l
 
 | Risk | Exact test/command | Expected result |
 | --- | --- | --- |
-| successful KV writes | `storage-plugin/tests/contract/backend.spec.ts` | reopen observes put/delete/global |
+| successful KV writes | `plugin/tests/contract/storage/backend.spec.ts` | reopen observes put/delete/global |
 | partial/failed write | unit + tail recovery suites | no memory advance; only final tail repair |
 | medium corruption/version | backend/recovery suites | malformed/version errors, no partial load |
 | physical checkpoint crash | checkpoint recovery suite | old or new complete truth only |
@@ -1842,10 +1782,10 @@ STOP：review/PR identity absent, the exact pre-delete path equality fails, or l
 | application checkpoint | app checkpoint suite | bounded pages, monotonic pointer, safe GC |
 | creation interruption | registry recovery suite | every recovery matrix row exact |
 | per-Meeting isolation | registry + cross-meeting smoke | no state/session crossover |
-| restart | backend smoke + cold-rebind | distinct PID sees same committed truth |
-| production path | import graph | no filesystem/backend/SQLite dependency |
-| package/profile | verify + dump config | correct exports, rows, route and lifecycle |
-| full behavior | both `verify` plus three smoke scenarios | all exit 0 |
+| restart | child-composition test + cold-rebind | distinct Host sees same committed truth |
+| production path | import graph | storage owns file APIs; Meeting code reaches Domain only; no SQLite |
+| package/profile | verify + dump config | one package, three rows, child backend route and lifecycle |
+| full behavior | plugin `verify` plus three smoke scenarios | all exit 0 |
 
 Caller/authority, stale version, terminal immutability, array-invalid atomicity, receipt/event/outbox/projection/archive consistency remain covered by the existing `meeting-runtime`, continuation, recovery and domain repository contract suites. GUI visual testing is Not Applicable: this task changes no client code or visible UI contract.
 
@@ -1862,19 +1802,20 @@ Caller/authority, stale version, terminal immutability, array-invalid atomicity,
 
 | Scope item | Interface/design | Production symbols | Focused proof | Full proof |
 | --- | --- | --- | --- | --- |
-| JSONL backend | DSH API + physical contract | T3–T6 files | backend/recovery suites | storage verify/smoke |
+| JSONL backend | DSH API + physical contract | `plugin/src/storage/*` | backend/recovery suites | plugin verify/child composition |
 | bounded commit/checkpoint | Persistence Design + storage interface | projection/repository/checkpoint | T10–T12 | plugin verify/cold |
 | catalog discovery | FR-11 + registry contract | registry/recovery service | T13 | local/cross smoke |
-| lifecycle/cutover | Architecture | entry/runtime/registry | T14–T16 | both verify suites |
+| lifecycle/cutover | Architecture | entry/runtime/registry/storage child | T14–T16 | plugin verify/profile smoke |
 | SQLite deletion | one-truth invariant | exact T17 files | import graph/rg | plugin verify |
 
-完成定义：T0–T18 全部 PASS，production import graph 只到 Storage Domain，两个 package 分别验证，真实 profile 冷恢复通过，SQLite 源码删除且 legacy 数据未触碰，readiness 记录真实证据。T19 只负责在 review/merge 后迁移引用并删除临时 RUNBOOK。
+完成定义：T0–T18 全部 PASS，Meeting production import graph 只到 Storage Domain，单一 package 的 provider/consumer child lifecycle 已验证，真实 profile 冷恢复通过，SQLite 源码删除且 legacy 数据未触碰，readiness 记录真实证据。T19 只负责在 review/merge 后迁移引用并删除临时 RUNBOOK。
 
 ## Author Audit Record
 
-- 2026-09-01 Author + Audit conclusion: `Executable`; all T0–T19 steps contain precondition, exact allowed/forbidden scope, execution, validation, PASS, STOP and failure state.
-- Implementation Economy: every production structure in File And Symbol Map maps to the gate table; no future adapter/factory/worker/compatibility/migration/hook/metrics framework remains. Application and physical checkpointing reuse their required existing ordering chain and add no checkpoint queue.
+- 2026-09-01 child-plugin rewrite Author + Audit conclusion: `Executable`; all T0–T19 steps contain precondition, exact allowed/forbidden scope, execution, validation, PASS, STOP and failure state.
+- Implementation Economy: repository remains one package/lockfile/build/publish unit；the independent scaffold, manifest, profile row, pack/install and duplicate verify steps are removed。Every production structure in File And Symbol Map maps to the gate table；no future adapter/factory/worker/compatibility/migration/hook/metrics framework remains。Application and physical checkpointing reuse their required ordering chain and add no checkpoint queue。
 - Repository evidence: T0 fixes the 19-method/2-property surface; T9 fixes all 16 current barrel-import paths; T12/T17 fix the machine-checked 26-port/9-delete test partition.
-- DSH evidence: all target signatures and profile assertions are locked to `0.1.1-rc.2`; a declaration/profile mismatch is STOP, not an adaptation task.
-- Author checks run from repository root: existing relative Markdown targets resolve; the four `MEETING-STORAGE-INTERFACE.md` links are planned outputs created by T1 and are the only intentionally absent targets; `git diff --check` exits 0.
+- Previous execution failures are fixed in the instructions: T3 now assigns only its seven files/symbol groups and includes `active-tail.truncate`; T4 locks FileSystemPort-only media IO, typed rejection-phase tracking without `any`, descriptor format/version separation, SHA-256 operation digest, strict replay, cold-reopen assertions and both rollover thresholds.
+- DSH evidence: Cordis `4.0.1` `ctx.plugin()`/`ctx.inject()` child Fiber API and DSH Storage/Storage Domain `0.1.1-rc.2` service contracts are fixed；provider is package-private and only the Meeting consumer injects `storageDomain`。
+- Author checks run from repository root: all existing relative Markdown targets resolve；the five `MEETING-STORAGE-INTERFACE.md` links are planned outputs created by T1 and are the only intentionally absent targets；every Tn has all eight mechanical fields；`git diff --check` exits 0；baseline `pnpm --dir plugin verify` passes 49 files / 371 tests plus build and package checks。
 - Not Covered at authoring time: no T0–T19 implementation or runtime validation has been executed; their results may only be recorded during RUNBOOK execution and T18 readiness.
