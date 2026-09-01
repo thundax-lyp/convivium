@@ -47,16 +47,16 @@
 
 需求到设计的主映射如下；公开字段和错误以 Interface 为准，本文只说明实现方式：
 
-| Requirement area     | Interface boundary                                                 | Design section   |
-| -------------------- | ------------------------------------------------------------------ | ---------------- |
-| 身份隔离与有序发言   | caller binding、speaker/manager context、turn submission           | 4、5、9、10      |
-| 异步任务与私聊       | background task、hand raise、mailbox extension                     | 9、11            |
-| 议题、决策与完成     | public changes、completion claims、risk disposition                | 6、12、13、16.2  |
-| Agent 角色与参会推荐 | catalog projection、recommendation、Captain disposition、admission | 12.5、16         |
-| Meeting Agent Definition | Convivium role configuration 与 DSH capability ownership boundary | 4.3、4.4、12.5 |
-| 暂停、恢复与故障隔离 | pause/resume、receipts、errors                                     | 7、8、10.3、14   |
-| 事件与可观察性       | status projection、refresh contract                                | 17               |
-| 归档与续会           | archive projection、continuation selection                         | 15               |
+| Requirement area         | Interface boundary                                                 | Design section  |
+| ------------------------ | ------------------------------------------------------------------ | --------------- |
+| 身份隔离与有序发言       | caller binding、speaker/manager context、turn submission           | 4、5、9、10     |
+| 异步任务与私聊           | background task、hand raise、mailbox extension                     | 9、11           |
+| 议题、决策与完成         | public changes、completion claims、risk disposition                | 6、12、13、16.2 |
+| Agent 角色与参会推荐     | catalog projection、recommendation、Captain disposition、admission | 12.5、16        |
+| Meeting Agent Definition | Convivium role configuration 与 DSH capability ownership boundary  | 4.3、4.4、12.5  |
+| 暂停、恢复与故障隔离     | pause/resume、receipts、errors                                     | 7、8、10.3、14  |
+| 事件与可观察性           | status projection、refresh contract                                | 17              |
+| 归档与续会               | archive projection、continuation selection                         | 15              |
 
 ## 3. Terminology And Invariants
 

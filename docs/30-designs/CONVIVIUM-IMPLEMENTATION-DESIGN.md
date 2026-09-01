@@ -134,35 +134,35 @@ domain     ──> no infrastructure module
 
 ### Module map
 
-| Path                                                           | Required responsibility                                                                                   |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `src/config.ts`                                                | 插件配置 Schema、默认值和启动期能力检查                                                                   |
-| `src/protocol/*`                                               | Interface 对应的 Host/Client 共享 transport 类型、常量和无副作用 codec                                    |
-| `src/domain/model.ts`                                          | Meeting 聚合、值对象和领域 read model                                                                     |
-| `src/domain/transitions.ts`                                    | 唯一领域状态转换集合                                                                                      |
-| `src/domain/planning.ts`                                       | candidate filtering、selection mode、turn plan 校验                                                       |
-| `src/domain/completion.ts`                                     | 完成事实、停滞和终止派生计算                                                                              |
-| `src/domain/errors.ts`                                         | 内部领域错误分类；由 transport 映射为协议错误                                                             |
-| `src/repository/schema.ts`                                     | 当前完整 DDL、索引和 schema version                                                                       |
-| `src/repository/migrations.ts`                                 | 线性、事务化、不可跳级的 migration registry                                                               |
-| `src/repository/meeting-repository.ts`                         | 事务、聚合读写、receipt、event 和 outbox 原子提交                                                         |
-| `src/runtime/application-service.ts#repositoryPath`            | 当前 `teamId/meetingId` 物理路径解析；调用方不得复制该规则                                                |
-| `src/runtime/application-service.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime                              |
-| `src/runtime/turn-runner.ts`                                   | Manager plan、逐 speaker dispatch、submit 和下一 step 推进                                                |
-| `src/runtime/outbox-worker.ts`                                 | 提交后 DSH 副作用、重投和结果回写                                                                         |
-| `src/runtime/mail-processor.ts`                                | meeting-scoped mail context 固化和独立处理 attempt                                                        |
-| `src/runtime/recovery.ts`                                      | 冷启动扫描、租约回收、outbox 恢复和 orphan 归属修复                                                       |
-| `src/runtime/archive.ts`                                       | 终态快照、capability revoke、Activation drain 和 archived commit                                          |
-| `src/dsh/session-adapter.ts`                                   | meeting-owned Session 创建、followup、interrupt、drain 和枚举                                             |
+| Path                                                           | Required responsibility                                                                              |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/config.ts`                                                | 插件配置 Schema、默认值和启动期能力检查                                                              |
+| `src/protocol/*`                                               | Interface 对应的 Host/Client 共享 transport 类型、常量和无副作用 codec                               |
+| `src/domain/model.ts`                                          | Meeting 聚合、值对象和领域 read model                                                                |
+| `src/domain/transitions.ts`                                    | 唯一领域状态转换集合                                                                                 |
+| `src/domain/planning.ts`                                       | candidate filtering、selection mode、turn plan 校验                                                  |
+| `src/domain/completion.ts`                                     | 完成事实、停滞和终止派生计算                                                                         |
+| `src/domain/errors.ts`                                         | 内部领域错误分类；由 transport 映射为协议错误                                                        |
+| `src/repository/schema.ts`                                     | 当前完整 DDL、索引和 schema version                                                                  |
+| `src/repository/migrations.ts`                                 | 线性、事务化、不可跳级的 migration registry                                                          |
+| `src/repository/meeting-repository.ts`                         | 事务、聚合读写、receipt、event 和 outbox 原子提交                                                    |
+| `src/runtime/application-service.ts#repositoryPath`            | 当前 `teamId/meetingId` 物理路径解析；调用方不得复制该规则                                           |
+| `src/runtime/application-service.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime                         |
+| `src/runtime/turn-runner.ts`                                   | Manager plan、逐 speaker dispatch、submit 和下一 step 推进                                           |
+| `src/runtime/outbox-worker.ts`                                 | 提交后 DSH 副作用、重投和结果回写                                                                    |
+| `src/runtime/mail-processor.ts`                                | meeting-scoped mail context 固化和独立处理 attempt                                                   |
+| `src/runtime/recovery.ts`                                      | 冷启动扫描、租约回收、outbox 恢复和 orphan 归属修复                                                  |
+| `src/runtime/archive.ts`                                       | 终态快照、capability revoke、Activation drain 和 archived commit                                     |
+| `src/dsh/session-adapter.ts`                                   | meeting-owned Session 创建、followup、interrupt、drain 和枚举                                        |
 | `examples/meeting-agent-definitions/*`                         | 不进入发布包的 Convivium Meeting Agent Definition 固定样本；不表示 DSH capability 已安装             |
-| `scripts/verify-agent-definition-samples.mjs`                   | 校验九个固定 Definition、文件集合和 AGENT.md hash                                                      |
-| `src/domain/meeting-task.ts`                                   | MeetingTask、HandRaise、状态转换和 task projection 的纯领域逻辑                                           |
-| `src/dsh/caller-resolver.ts`                                   | 将真实 DSH caller Session 解析为 Captain、Manager 或 Participant                                          |
-| `src/tools/register-tools.ts`                                  | 注册 `convivium_*` 工具并绑定协议 Schema                                                                  |
-| `src/http/index.ts`                                            | 仅在 loopback Host 注册 `/api/convivium/*`；提供本地 Meeting list、status、pause 和 resume transport      |
-| `src/projection/status.ts`                                     | caller-specific Meeting status projection                                                                 |
-| `src/projection/markdown.ts`                                   | SQLite 到开发者 Markdown 的 best-effort 单向生成                                                          |
-| `src/client/*`                                                 | 状态读取、暂停/继续控制和会议 UI                                                                          |
+| `scripts/verify-agent-definition-samples.mjs`                  | 校验九个固定 Definition、文件集合和 AGENT.md hash                                                    |
+| `src/domain/meeting-task.ts`                                   | MeetingTask、HandRaise、状态转换和 task projection 的纯领域逻辑                                      |
+| `src/dsh/caller-resolver.ts`                                   | 将真实 DSH caller Session 解析为 Captain、Manager 或 Participant                                     |
+| `src/tools/register-tools.ts`                                  | 注册 `convivium_*` 工具并绑定协议 Schema                                                             |
+| `src/http/index.ts`                                            | 仅在 loopback Host 注册 `/api/convivium/*`；提供本地 Meeting list、status、pause 和 resume transport |
+| `src/projection/status.ts`                                     | caller-specific Meeting status projection                                                            |
+| `src/projection/markdown.ts`                                   | SQLite 到开发者 Markdown 的 best-effort 单向生成                                                     |
+| `src/client/*`                                                 | 状态读取、暂停/继续控制和会议 UI                                                                     |
 
 上述文件可以在实现增长后拆分，但不得跨越职责边界或创建第二个 Meeting 写入口。
 
@@ -253,12 +253,8 @@ interface MeetingRepository {
 
 ```ts
 interface MeetingSessionAdapter {
-  createManager(
-    input: CreateManagerSession,
-  ): Promise<OwnedSession>;
-  createParticipant(
-    input: CreateParticipantSession,
-  ): Promise<OwnedSession>;
+  createManager(input: CreateManagerSession): Promise<OwnedSession>;
+  createParticipant(input: CreateParticipantSession): Promise<OwnedSession>;
   followup(input: AuthorizedFollowup): Promise<DeliveryResult>;
   interrupt(input: AuthorizedInterrupt): Promise<InterruptResult>;
   drain(input: AuthorizedDrain): Promise<DrainResult>;
@@ -468,4 +464,4 @@ pnpm verify
 7. 验证目录和命令能够覆盖成功、失败、权限、恢复和压力边界。
 8. 文档不依赖或承诺兼容任何外部参考项目实现。
 9. package manifest、Host/Client exports、构建产物、bundle patch 和 DSH browser roster 声明相互一致。
-11. 至少一种选定分发方式通过临时 DSH profile 的真实安装与启动验证。
+10. 至少一种选定分发方式通过临时 DSH profile 的真实安装与启动验证。

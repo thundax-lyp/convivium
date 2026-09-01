@@ -5,7 +5,10 @@
     "roleDefinitionId": "verification_reviewer",
     "displayName": "Verification Reviewer",
     "summary": "建立测试矩阵、反例、回归和 readiness 证据。",
-    "persona": { "path": "AGENT.md", "sha256": "ce8987f755e9cb646813e5bfcfdcf48649700fd4ac82080ccaf0ab48962a5e3e" },
+    "persona": {
+        "path": "AGENT.md",
+        "sha256": "ce8987f755e9cb646813e5bfcfdcf48649700fd4ac82080ccaf0ab48962a5e3e"
+    },
     "dshPresetId": "convivium-verification-reviewer",
     "requiredSkillNames": ["verification-review"],
     "expertiseTags": ["verification", "regression", "readiness"],

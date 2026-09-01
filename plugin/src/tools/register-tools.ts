@@ -1,10 +1,5 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import {
-    defineTool,
-    type JsonValue,
-    type ToolDefinition,
-    type ToolRunContext
-} from "@deepseek-ai/dsh-tools";
+import { defineTool, type JsonValue, type ToolRunContext } from "@deepseek-ai/dsh-tools";
 import type { ToolRuntime } from "@deepseek-ai/dsh-tools";
 import type {
     CreateMeetingInputV1,

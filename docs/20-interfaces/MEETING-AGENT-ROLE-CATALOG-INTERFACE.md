@@ -235,16 +235,16 @@ recommendation 不打断当前合法 SpeakerAttempt，也不能把推荐 Agent �
 
 接口至少区分以下错误：
 
-| Error                                   | 含义                                                         |
-| --------------------------------------- | ------------------------------------------------------------ |
-| `AGENT_CATALOG_UNAVAILABLE`             | 当前 Meeting 无可验证 Catalog snapshot                       |
-| `AGENT_CATALOG_VERSION_UNSUPPORTED`     | Catalog 或 role definition 版本不受支持                      |
-| `AGENT_CANDIDATE_NOT_FOUND`             | recommendation 引用了当前 snapshot 之外的 candidate          |
-| `AGENT_CANDIDATE_UNAVAILABLE`           | candidate 在 snapshot 中不可用或其 Agent Definition 或其 DSH capability 引用已不可解析   |
-| `ATTENDANCE_RECOMMENDATION_INVALID`     | recommendation 缺少有效议题、理由、贡献或证据缺口引用        |
-| `ATTENDANCE_RECOMMENDATION_STALE`       | planning attempt、Catalog snapshot 或 Meeting version 已失效 |
-| `ATTENDANCE_RECOMMENDATION_NOT_PENDING` | Captain 处置的 recommendation 已终止                         |
-| `PARTICIPANT_PROVISIONING_FAILED`       | 已批准 admission 无法形成有效 meeting-owned Session          |
+| Error                                   | 含义                                                                                   |
+| --------------------------------------- | -------------------------------------------------------------------------------------- |
+| `AGENT_CATALOG_UNAVAILABLE`             | 当前 Meeting 无可验证 Catalog snapshot                                                 |
+| `AGENT_CATALOG_VERSION_UNSUPPORTED`     | Catalog 或 role definition 版本不受支持                                                |
+| `AGENT_CANDIDATE_NOT_FOUND`             | recommendation 引用了当前 snapshot 之外的 candidate                                    |
+| `AGENT_CANDIDATE_UNAVAILABLE`           | candidate 在 snapshot 中不可用或其 Agent Definition 或其 DSH capability 引用已不可解析 |
+| `ATTENDANCE_RECOMMENDATION_INVALID`     | recommendation 缺少有效议题、理由、贡献或证据缺口引用                                  |
+| `ATTENDANCE_RECOMMENDATION_STALE`       | planning attempt、Catalog snapshot 或 Meeting version 已失效                           |
+| `ATTENDANCE_RECOMMENDATION_NOT_PENDING` | Captain 处置的 recommendation 已终止                                                   |
+| `PARTICIPANT_PROVISIONING_FAILED`       | 已批准 admission 无法形成有效 meeting-owned Session                                    |
 
 - 只有当前合法 Manager Session 能提交 recommendation。
 - 只有当前 Meeting Captain 能批准或拒绝 recommendation。

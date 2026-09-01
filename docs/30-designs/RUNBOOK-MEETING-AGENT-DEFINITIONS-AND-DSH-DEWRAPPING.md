@@ -81,19 +81,19 @@ T0 不重新解释 architecture/requirements；T1 只按第 4.5 节的 exact anc
 1. 用 `apply_patch` 删除当前 `### Tn：...` heading 起至下一个 `### T(n+1)：...` heading 前的完整章节；T7 通过其关闭脚本删除整个 RUNBOOK。不得改写仍未执行步骤。
 2. 运行 `git diff --check`，并确认 `git status --short` 只包含当前步骤“允许修改”的路径与本 RUNBOOK；出现其他路径立即 STOP。
 3. 暂存当前步骤全部修改和本 RUNBOOK 的退休修改；读取完整 staged diff，确认没有额外路径、凭据、临时文件或未验证变化。
-4. 使用下表固定 commit subject；T3、T4、T5 还必须使用表中固定 body。不得改写、合并或跳过提交。
+4. 使用下表固定 commit subject；T3、T4、T5、T6 还必须使用表中固定 body。不得改写、合并或跳过提交。
 5. commit 成功后运行 `test -z "$(git status --short)"`；非空立即 STOP，不得进入下一步。
 
-| 步骤 | 固定 commit subject                                           | 固定 commit body                                                                                                                                             |
-| ---- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| T0   | `Docs(repo/runbook): 记录 T0 基线验证通过`                    | 无                                                                                                                                                           |
-| T1   | `Docs(repo/agents): 收敛 Meeting Agent Definition 契约`       | 无                                                                                                                                                           |
-| T2   | `Docs(repo/agents): 移除 DSH Template 二次建模`               | 无                                                                                                                                                           |
-| T3   | `Feat(cross-project): 迁移 Meeting Agent Definition 样本验证` | `Projects: repo, plugin`；`Decision: Agent Definition 样本、验证器与执行记录必须作为一个原子判断变化`；`Verification: 按 RUNBOOK T3 focused validation 通过` |
-| T4   | `Refactor(cross-project): 改用 DSH 原生运行时类型`            | `Projects: repo, plugin`；`Decision: DSH 原生类型替换与执行记录必须作为一个原子判断变化`；`Verification: 按 RUNBOOK T4 focused validation 通过`              |
-| T5   | `Refactor(cross-project): 删除 Cordis 与 caller 冗余封装`     | `Projects: repo, plugin`；`Decision: 生命周期去封装与执行记录必须作为一个原子判断变化`；`Verification: 按 RUNBOOK T5 focused validation 通过`                |
-| T6   | `Docs(repo/readiness): 记录 Agent Definition 去封装验证`      | 无                                                                                                                                                           |
-| T7   | `Docs(repo/runbook): 完成 Agent Definition 去封装执行`        | 无                                                                                                                                                           |
+| 步骤 | 固定 commit subject                                           | 固定 commit body                                                                                                                                                     |
+| ---- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T0   | `Docs(repo/runbook): 记录 T0 基线验证通过`                    | 无                                                                                                                                                                   |
+| T1   | `Docs(repo/agents): 收敛 Meeting Agent Definition 契约`       | 无                                                                                                                                                                   |
+| T2   | `Docs(repo/agents): 移除 DSH Template 二次建模`               | 无                                                                                                                                                                   |
+| T3   | `Feat(cross-project): 迁移 Meeting Agent Definition 样本验证` | `Projects: repo, plugin`；`Decision: Agent Definition 样本、验证器与执行记录必须作为一个原子判断变化`；`Verification: 按 RUNBOOK T3 focused validation 通过`         |
+| T4   | `Refactor(cross-project): 改用 DSH 原生运行时类型`            | `Projects: repo, plugin`；`Decision: DSH 原生类型替换与执行记录必须作为一个原子判断变化`；`Verification: 按 RUNBOOK T4 focused validation 通过`                      |
+| T5   | `Refactor(cross-project): 删除 Cordis 与 caller 冗余封装`     | `Projects: repo, plugin`；`Decision: 生命周期去封装与执行记录必须作为一个原子判断变化`；`Verification: 按 RUNBOOK T5 focused validation 通过`                        |
+| T6   | `Fix(cross-project): 收口 Agent Definition 去封装验证`        | `Projects: repo, plugin`；`Decision: 修复 T3 格式回归与 readiness 验证证据必须作为一个原子判断变化`；`Verification: 按 RUNBOOK T6 full verify 与 profile smoke 通过` |
+| T7   | `Docs(repo/runbook): 完成 Agent Definition 去封装执行`        | 无                                                                                                                                                                   |
 
 已退休步骤的唯一执行证据是当前分支 Git 历史中的固定 commit subject 及该 commit 的验证事实；不得在 RUNBOOK 中保留完成标记、步骤摘要或重复日志。
 
@@ -592,6 +592,7 @@ Readiness 只做三类机械更新：
 - `plugin/examples/meeting-agent-definitions/*/agent-definition.json`（9 个）
 - `plugin/examples/meeting-agent-definitions/*/AGENT.md`（9 个，由现有 `ROLE.md` 重命名）
 - `plugin/scripts/verify-agent-definition-samples.mjs`
+- `plugin/src/tools/register-tools.ts`
 - `plugin/tests/unit/scripts/agent-definition-samples.spec.ts`
 
 ### 6.2 必须删除
@@ -664,84 +665,6 @@ T7 只按下表判断 S1-S9 是否闭合，不得自行选择“对应”步骤�
 
 ## 8. 机械执行步骤
 
-### T6：更新 readiness 并完成全量验证
-
-前置状态：T5 PASS。
-
-允许修改：
-
-- `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`
-
-禁止修改：新增实现范围、把未运行的 profile/Agent capability 写为通过。
-
-执行：
-
-1. 先执行第 4.11 节 Readiness 的 FR-14 row 与 Not Covered 更新；不得修改 `TODO.md`，不得新增 Executed Validation。
-2. 只运行一次下列 Phase A 命令；不得在本步骤验证区重复运行。Profile 只证明既有插件加载与 baseline Meeting 路径，不证明 Agent Definition 被解析或不同 preset 已运行。
-
-```bash
-set -e
-pnpm --dir plugin verify
-pnpm --dir plugin smoke:profile
-```
-
-3. 两个 Phase A 命令都退出 0 后，才按第 4.11 节向 Executed Validation 新增一段，并从刚才 `verify` 的 terminal output 抄录实际 test files/tests；任一命令失败时不得写该段，立即 STOP。
-4. 新增 evidence 后运行下列验证区 Phase B 命令。
-
-验证：
-
-```bash
-set -e
-git diff --check
-pnpm --dir plugin exec prettier ../TODO.md ../docs/00-governance/ARCHITECTURE.md ../docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md ../docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md ../docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md ../docs/20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md ../docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md ../docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md ../docs/30-designs/DOMAIN-MODEL-DESIGN.md ../docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md ../docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md --check
-node - <<'NODE'
-const fs = require("node:fs");
-const { execFileSync } = require("node:child_process");
-const runbook = "docs/30-designs/RUNBOOK-MEETING-AGENT-DEFINITIONS-AND-DSH-DEWRAPPING.md";
-const readiness = "docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md";
-const forbidden = /agent template|agent-templates|DshAgentTemplate|MeetingAgentTemplate|AgentTemplateAdapter|TemplateSnapshotInput|agentTemplateSnapshot|agent_template_snapshot_json|templateProvenance|TEMPLATE_RESUME_FAILED|verify:agent-templates|Template registry|Template installer|templateRef|skillSetRefs|toolSetRefs|mcpSetRefs|permissionProfileRef|outputContractRef/i;
-const tracked = execFileSync("git", ["ls-files", "--", "TODO.md", "docs", "plugin"], {
-  encoding: "utf8",
-});
-const untracked = execFileSync(
-  "git",
-  ["ls-files", "--others", "--exclude-standard", "--", "TODO.md", "docs", "plugin"],
-  { encoding: "utf8" },
-);
-const files = [...new Set(`${tracked}${untracked}`.trim().split("\n").filter(Boolean))]
-  .filter((file) => file !== runbook && !file.startsWith("plugin/node_modules/"))
-  .filter((file) => fs.existsSync(file) && fs.lstatSync(file).isFile());
-const failures = [];
-const todo = fs.readFileSync("TODO.md", "utf8");
-for (const heading of ["## 当前任务项", "## 待审阅任务项", "## 待讨论项"]) {
-  if (todo.split(heading).length !== 2) failures.push(`TODO.md: heading mismatch ${heading}`);
-}
-if (/^- \[[ xX]\] /m.test(todo)) failures.push("TODO.md: task item must not exist");
-for (const file of files) {
-  let text = fs.readFileSync(file, "utf8");
-  if (file === readiness) {
-    const start = text.indexOf("## Executed Validation");
-    const end = text.indexOf("## Not Covered", start);
-    if (start < 0 || end < 0) {
-      failures.push(`${file}: missing Executed Validation/Not Covered boundary`);
-      continue;
-    }
-    text = text.slice(0, start) + text.slice(end);
-  }
-  const match = text.match(forbidden);
-  if (match) failures.push(`${file}: ${match[0]}`);
-}
-if (failures.length > 0) {
-  process.stderr.write(failures.join("\n") + "\n");
-  process.exit(1);
-}
-NODE
-```
-
-PASS：TODO 三个任务区域保持为空；Phase A 的完整 verify 全过且 terminal output 显示 exact 49 test files/385 tests（T0 baseline 48/368，加 T3 的 1 个 test file/18 tests，再减去 T5 删除的 `bindCaptainParent()` 唯一测试，即 `48 + 1 = 49`、`368 + 18 - 1 = 385`）；Phase A profile smoke 通过；Phase B `git diff --check` 和文档 Prettier check 通过；禁止词在 RUNBOOK 与 readiness 历史 `Executed Validation` 之外无命中；readiness 数字逐字等于 Phase A output。
-
-STOP：任何验证失败；不得降低 49/385 门槛、删除第 4.6 节之外的测试、改写 readiness 历史 `Executed Validation` 或把 profile 失败标成 Not Covered。
-
 ### T7：审计、迁移证据并删除 RUNBOOK
 
 前置状态：T6 PASS，readiness 已记录 exact command、日期、test count 和 profile 范围。
@@ -754,7 +677,7 @@ STOP：任何验证失败；不得降低 49/385 门槛、删除第 4.6 节之外
 
 执行：
 
-1. 下列 T0-T6 commit subject 必须各在当前分支历史中 exact 出现一次且顺序与列表一致；同时 T0-T6 章节必须已从当前 RUNBOOK 删除。任一条件不成立即 STOP，不在 T7 重新作语义判断：`Docs(repo/runbook): 记录 T0 基线验证通过`、`Docs(repo/agents): 收敛 Meeting Agent Definition 契约`、`Docs(repo/agents): 移除 DSH Template 二次建模`、`Feat(cross-project): 迁移 Meeting Agent Definition 样本验证`、`Refactor(cross-project): 改用 DSH 原生运行时类型`、`Refactor(cross-project): 删除 Cordis 与 caller 冗余封装`、`Docs(repo/readiness): 记录 Agent Definition 去封装验证`。其中 S1-S9 与不变量 1-10 的证据已由第 6.4 节唯一映射到这些提交，不在 T7 重新作语义判断。
+1. 下列 T0-T6 commit subject 必须各在当前分支历史中 exact 出现一次且顺序与列表一致；同时 T0-T6 章节必须已从当前 RUNBOOK 删除。任一条件不成立即 STOP，不在 T7 重新作语义判断：`Docs(repo/runbook): 记录 T0 基线验证通过`、`Docs(repo/agents): 收敛 Meeting Agent Definition 契约`、`Docs(repo/agents): 移除 DSH Template 二次建模`、`Feat(cross-project): 迁移 Meeting Agent Definition 样本验证`、`Refactor(cross-project): 改用 DSH 原生运行时类型`、`Refactor(cross-project): 删除 Cordis 与 caller 冗余封装`、`Fix(cross-project): 收口 Agent Definition 去封装验证`。其中 S1-S9 与不变量 1-10 的证据已由第 6.4 节唯一映射到这些提交，不在 T7 重新作语义判断。
 2. 不再修改 readiness 数字或正文；在同一个 shell 中执行下述可恢复关闭脚本。脚本把 RUNBOOK 移到 `mktemp -d` 创建的精确临时目录，安装 EXIT trap；随后机械检查 TODO 空面板、readiness 固定结论与当日 evidence、当前口径禁止词、RUNBOOK 引用、旧/新路径、全部 Markdown 相对链接、`git diff --check` 和最终 status allowlist。任一检查失败时 trap 原样移回 RUNBOOK；全部通过时才删除临时备份。不得归档到 `docs/60-human/`。
 
 关闭脚本：
@@ -772,7 +695,7 @@ const expected = [
   "Feat(cross-project): 迁移 Meeting Agent Definition 样本验证",
   "Refactor(cross-project): 改用 DSH 原生运行时类型",
   "Refactor(cross-project): 删除 Cordis 与 caller 冗余封装",
-  "Docs(repo/readiness): 记录 Agent Definition 去封装验证",
+  "Fix(cross-project): 收口 Agent Definition 去封装验证",
 ];
 const actual = execFileSync("git", ["log", "--format=%s", "--reverse", "dbe1a80..HEAD"], {
   encoding: "utf8",

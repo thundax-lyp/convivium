@@ -1335,7 +1335,7 @@ Convivium 要求 DSH `>=0.1.1-rc.2`，并以该版本的 `dsh-subagent` 公开�
 - 架构边界：[`../00-governance/ARCHITECTURE.md`](../00-governance/ARCHITECTURE.md)
 - 产品需求：[`../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
 - Agent 角色目录与参会推荐：[`MEETING-AGENT-ROLE-CATALOG-INTERFACE.md`](MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)
-- DSH Agent Template：[`DSH-AGENT-TEMPLATE-INTERFACE.md`](DSH-AGENT-TEMPLATE-INTERFACE.md)
+- Meeting Agent Definition：[`MEETING-AGENT-DEFINITION-INTERFACE.md`](MEETING-AGENT-DEFINITION-INTERFACE.md)
 - 实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
 
 本文定义 Plugin Frontend Meeting route 的路径、payload 和共享状态 projection 语义。V1 不从 DSH Web 请求取得用户或 Team authority：仅当 `webServer.host === "127.0.0.1"` 时注册 route，所有到达该 loopback Host 的请求共享本地用户边界。Host 为 `0.0.0.0`、远程访问或多用户部署不属于 V1，且必须在 route 注册前 fail closed；未来引入这些能力前必须另建用户/Team authorization interface 并以当前 DSH 公开 API 取证。
