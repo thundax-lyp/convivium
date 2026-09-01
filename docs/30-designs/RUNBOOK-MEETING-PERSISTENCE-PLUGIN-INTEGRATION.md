@@ -946,9 +946,9 @@ Every step uses the fixed STOP report from `Executor Contract`. “Failure state
 
 ### T0 — Baseline And API Evidence
 
-前置状态：current branch is not `main`；HEAD is `0b148d0`；the only worktree changes are the supervisor-authored child-plugin rewrite in `docs/00-governance/ARCHITECTURE.md`, `docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md` and this RUNBOOK。
+前置状态：current branch is not `main`；HEAD contains committed baseline `51a09e2` and its tip subject is `Docs(repo/runbook): 固定已提交执行基线`；worktree is clean。
 
-允许修改：this RUNBOOK only through the global post-PASS T0 deletion；the two other pre-existing design files are allowed in the T0 commit but must not be edited by T0。
+允许修改：this RUNBOOK only through the global post-PASS T0 deletion。
 
 禁止修改：全部仓库文件、用户 DSH profile。
 
@@ -970,12 +970,10 @@ The heredoc parser locates that exact class, excludes constructor/static/private
 
 ```bash
 git rev-parse --show-toplevel
-test "$(git rev-parse --short HEAD)" = "0b148d0"
+git merge-base --is-ancestor 51a09e2 HEAD
+test "$(git log -1 --format=%s)" = "Docs(repo/runbook): 固定已提交执行基线"
 git branch --show-current
-test "$(git status --short)" = "$(printf '%s\n' \
-  ' M docs/00-governance/ARCHITECTURE.md' \
-  ' M docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md' \
-  ' M docs/30-designs/RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md')"
+test -z "$(git status --short)"
 node --version
 pnpm --version
 node --input-type=module <<'NODE'
@@ -1026,7 +1024,7 @@ pnpm --dir plugin build
 pnpm --dir plugin verify
 ```
 
-PASS：HEAD/status exact assertions pass；branch 非 `main`；heredoc 退出 0；全部 plugin 验证退出 0；DSH packages resolve to `0.1.1-rc.2`/Cordis `4.0.1`；after deleting T0, the fixed T0 commit contains only the three listed docs。
+PASS：baseline ancestor、tip subject 和 clean status assertions pass；branch 非 `main`；heredoc 退出 0；全部 plugin 验证退出 0；DSH packages resolve to `0.1.1-rc.2`/Cordis `4.0.1`；after deleting T0, the fixed T0 commit contains only this RUNBOOK。
 
 STOP：任一版本、method、命令或 baseline 不匹配。Failure state：无文件或外部数据变化。
 
