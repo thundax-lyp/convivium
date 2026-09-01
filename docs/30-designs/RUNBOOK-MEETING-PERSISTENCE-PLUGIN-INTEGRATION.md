@@ -946,33 +946,6 @@ No raw path or record payload enters the public error message.
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
 
-### T8 — Prove Provider/Domain Child Composition In Process
-
-前置状态：T7C PASS；锁定的 `@deepseek-ai/cordis`、`@deepseek-ai/dsh-storage` 和 `@deepseek-ai/dsh-storage-domain` 可从 `plugin/` 解析。
-
-允许修改：new `plugin/tests/integration/storage/child-plugin.spec.ts`；`plugin/vitest.config.ts` 仅在现有 integration project 不匹配该路径时允许机械加入该路径。
-
-禁止修改：production source、`plugin/src/index.ts`、bundle patch、smoke script、用户 profile。
-
-执行：
-
-1. 测试固定使用 `new Context()`，先 `await root.plugin(Storage)`，再把官方 `storage-domain` plugin 作为 root sibling 以 `{ backend: "convivium-jsonl" }` 挂载；它在 backend service 出现前必须保持 pending，不得改用 fake DomainFacility。
-2. 挂载一个 test-only parent plugin；parent 内先 `ctx.plugin(jsonlStoragePlugin, { root: join(tempRoot, "storage") })`，再 `ctx.inject(["storageDomain"], consumer)`。consumer 只能从 `ctx.storageDomain` 打开 fixed domain `convivium_storage_child_test` version 1/table `records`，写入 `alpha` 后关闭。
-3. 调用 `await root.fiber.dispose()`，用第二个全新 root 重复相同组合并读取 `alpha`，删除后关闭；第三个全新 root 证明 key 缺失。每轮记录不同的 root Context identity；每个 root 都在 `finally` dispose。
-4. lifecycle spy 只位于测试：断言 consumer Domain close 完成后 provider backend close 才完成；T6 的 backend lifecycle suite 继续证明 unregister-before-close。不得增加 production hook/callback。
-5. 每个 test 使用一个 `mkdtemp(join(tmpdir(), "convivium-storage-child-"))`，只在 `finally` 删除该精确目录。
-
-验证：
-
-```bash
-pnpm --dir plugin test:integration -- tests/integration/storage/child-plugin.spec.ts
-pnpm --dir plugin typecheck
-```
-
-PASS：真实 Cordis/Storage/Storage Domain 组合完成三次冷打开；写入跨第一次重开可见，删除跨第二次重开保持；consumer-before-provider 关闭断言成立；命令退出 0。
-
-STOP：需要 profile row、第二个 package、fake DomainFacility、service isolation 或生产 lifecycle hook 才能通过。Failure state：只有本测试 mkdtemp root，`finally` 精确删除。
-
 ### T9 — Extract Shared Repository Types And Port
 
 前置状态：T8 PASS; SQLite remains production.
