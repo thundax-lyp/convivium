@@ -32,21 +32,21 @@ DSH `tool/call`、`tool/result`、Session lifecycle 和其他 DSH-owned Session 
 
 ## Canonical Identifier Semantics
 
-| ID | 语义 |
-| --- | --- |
-| meetingId | 一场会议的稳定身份 |
-| participantId | 会议内身份，不等于 TeamMember ID |
-| agendaItemId | 正式议题 |
-| agendaCandidateId | 尚未成为正式议题的议题候选 |
-| turnId / stepId | 有序发言周期及其位置 |
-| attemptId | 一次有效 speaker capability |
-| planningAttemptId | 一次有效 Manager plan capability |
-| deliveryId | 一次投递及其重投的稳定身份 |
-| messageId | 正式 transcript message |
-| proposalId / positionId / decisionId | 提案、立场和正式决策 |
-| issueId / questionId | 问题和问题回答对象 |
-| completionFactId | 不可变完成事实 |
-| meetingTaskId / executionId | Convivium MeetingTask 及其执行尝试 |
+| ID                                   | 语义                               |
+| ------------------------------------ | ---------------------------------- |
+| meetingId                            | 一场会议的稳定身份                 |
+| participantId                        | 会议内身份，不等于 TeamMember ID   |
+| agendaItemId                         | 正式议题                           |
+| agendaCandidateId                    | 尚未成为正式议题的议题候选         |
+| turnId / stepId                      | 有序发言周期及其位置               |
+| attemptId                            | 一次有效 speaker capability        |
+| planningAttemptId                    | 一次有效 Manager plan capability   |
+| deliveryId                           | 一次投递及其重投的稳定身份         |
+| messageId                            | 正式 transcript message            |
+| proposalId / positionId / decisionId | 提案、立场和正式决策               |
+| issueId / questionId                 | 问题和问题回答对象                 |
+| completionFactId                     | 不可变完成事实                     |
+| meetingTaskId / executionId          | Convivium MeetingTask 及其执行尝试 |
 
 字段未明确允许缺失时不得使用 null。集合字段始终存在，使用空数组表示没有元素。
 
@@ -54,17 +54,17 @@ DSH `tool/call`、`tool/result`、Session lifecycle 和其他 DSH-owned Session 
 
 MeetingState 必须包含以下字段：
 
-| Group | Fields |
-| --- | --- |
-| Identity | id, teamId, sourceMeetingId? |
-| Objective | topic, objective, objectiveContract |
-| Lifecycle | status, termination?, archive? |
-| Participants | manager, participants |
-| Agenda | agenda, activeAgendaItemId?, issues, agendaCandidates, continuationMaterials |
+| Group        | Fields                                                                                                   |
+| ------------ | -------------------------------------------------------------------------------------------------------- |
+| Identity     | id, teamId, sourceMeetingId?                                                                             |
+| Objective    | topic, objective, objectiveContract                                                                      |
+| Lifecycle    | status, termination?, archive?                                                                           |
+| Participants | manager, participants, attendanceRecommendations, participantAdmissions                                  |
+| Agenda       | agenda, activeAgendaItemId?, issues, agendaCandidates, continuationMaterials                             |
 | Formal facts | transcript, proposals, decisions, openQuestions, handRaises, meetingTasks, completionFacts, artifactRefs |
-| Progress | turnSeq, messageSeq, eventSeq, currentTurn?, waitState?, progressFingerprint?, stallCount, replanCount |
-| Limits | selectionMode, limits |
-| Versioning | version, createdAt, updatedAt |
+| Progress     | turnSeq, messageSeq, eventSeq, currentTurn?, waitState?, progressFingerprint?, stallCount, replanCount   |
+| Limits       | selectionMode, limits                                                                                    |
+| Versioning   | version, createdAt, updatedAt                                                                            |
 
 核心约束：
 
@@ -77,15 +77,27 @@ MeetingState 必须包含以下字段：
 
 ### MeetingParticipant
 
-必须包含 sourceMemberName?、displayName、role?、status、lastDeliveredSeq、lastAcknowledgedSeq、consecutiveSpeeches、consecutiveAttemptFailures 和 totalSpeeches。
+必须包含 sourceMemberName?、displayName、role?、templateProvenance、status、lastDeliveredSeq、lastAcknowledgedSeq、consecutiveSpeeches、consecutiveAttemptFailures 和 totalSpeeches。
 
 status 为 available、busy、speaking、unavailable、failed 或 removed。Participant 与 meeting-owned AgentSession 的绑定属于 Runtime，不进入 MeetingState。
 
 ### MeetingManagerRuntime
 
-必须包含 `promptVersion: string`、status、currentPlanningAttempt? 和 `lastDecisionMeetingVersion?: number`。Manager 与 meeting-owned AgentSession 的绑定属于 Runtime。
+必须包含 `promptVersion: string`、templateProvenance、status、currentPlanningAttempt? 和 `lastDecisionMeetingVersion?: number`。Manager 与 meeting-owned AgentSession 的绑定属于 Runtime。
 
 status 为 creating、idle、planning、failed 或 closed。Manager 是会议控制身份，不代表任何 Participant，不直接拥有 transcript、Decision、risk 或 MeetingTask 的写入权。
+
+### AgentTemplateProvenance
+
+必须包含 templateId、templateVersion、roleDefinitionId 和 manifestHash。该结构是 Meeting/Archive 可见的最小非敏感溯源，不包含 ROLE.md 正文、Skill 内容、Tool 配置、MCP endpoint/credential 或 permission profile 细节。
+
+完整 `MeetingAgentTemplateSnapshotV1` 属于 repository/session composition 数据，不进入 MeetingState；它必须与 `teamId + meetingId + Manager/Participant identity` 共同持久化并在 cold resume 前验证。Domain 只消费已验证的 templateProvenance，不解释 Agent 内部组合。
+
+### AttendanceRecommendation And ParticipantAdmission
+
+AttendanceRecommendation 必须包含 id、candidateId、roleDefinitionId、templateProvenance、agendaItemId、rationale、expectedContribution、evidenceGapIds、urgency、status、createdAt 和 Manager planning provenance。status 为 pending、approved、rejected、expired 或 cancelled。
+
+ParticipantAdmission 必须包含 id、recommendationId、candidateId、participantId、templateProvenance、status 和 failureCode?。status 为 approved、provisioning、active、failed 或 cancelled。只有 active admission 对应的 Participant 才可进入发言候选集；pending recommendation 与非 active admission 不授予 Meeting capability。
 
 ### ManagerPlanningAttempt
 
@@ -222,6 +234,7 @@ ArchivePackage 物化后不可变。续会只通过显式选择的 continuation 
 - Protocol、Repository、Archive 和 Runtime 必须提供显式字段映射。
 - 新增必填字段、枚举删除、结构变更和字段重命名必须有显式 migration。
 - Session ID、capability、outbox payload、私聊和内部运行数据不得进入 ArchivePackage。
+- ArchivePackage 只保留 AgentTemplateProvenance，不保留完整 Template snapshot、ROLE.md、Skill/Tool/MCP/permission 内容或 composition receipt。
 
 ## Acceptance
 

@@ -26,7 +26,7 @@
 - 不把 MeetingTask 完成直接等同于会议目标完成。
 - 不共享 Agent 的隐藏推理、私有工具过程或与会议无关的 Session 历史。
 - 不规定、枚举或解释 Agent 内部的 Prompt、Skills、Tools、MCP、命令、推理、工作流或重试策略。
-- 不定义角色市场、人类席位托管、自动创建角色或跨 DSH 宿主协作。
+- 不定义开放角色市场、人类席位托管、由 Manager 任意创建角色或跨 DSH 宿主协作。
 - 不在本文规定存储引擎、进程边界、源码目录、工具 Schema 或 UI 实现。
 
 ## Functional Requirements
@@ -135,6 +135,7 @@
 8. 归档包只保留 Participant 的会议身份、角色和必要模板版本等溯源信息，不得包含完整运行配置、私有 Session 历史或权限 capability。已关闭 Session 数据可以按 workspace/DSH retention policy 保留，但不得通过归档包、UI 或续会暴露。
 9. 会议进入 `archiving` 后不得恢复讨论；只有全部会议专用 Session 已停止、关闭并失去继续参与该会议的权限后才能进入 `archived`。物理删除 Session 数据不是归档完成条件。
 10. 基于旧会议继续讨论时必须创建新会议和新的会议身份 Session，并从归档中显式选择可复用素材；不得自动继承完整 transcript、旧运行状态、旧配置或旧权限。
+11. 会议可以使用可选 Scribe Agent 从正式会议事实形成引用式纪要草稿；Scribe 不得创建、修改或替代 Runtime-owned transcript、事实或决议，其缺席、失败或被替换不得影响正式记录的完整性。
 
 ### FR-11：可观察性与用户控制
 
@@ -158,6 +159,30 @@
 7. Agent 内部数据进入会议前必须经过公开提交、权限检查和必要的信息过滤。
 8. Participant 对后台任务的请求属于 Agent 与会议系统之间的公开操作；任务内部使用的 Skills、Tools、MCP 和执行过程仍由 DSH 管理。
 9. 会议私聊的身份、可见上下文、串行处理和处理状态由会议系统保证；Agent 如何理解或回复 mail 仍属于 Agent 内部过程。
+
+### FR-13：Agent 角色目录与参会推荐
+
+1. DSH Host 可以向 Meeting Runtime 提供经过当前 Captain 授权范围过滤的版本化 Agent 角色目录；目录必须区分角色定义、可用 Agent candidate 和当前 Meeting Participant。
+2. Manager 必须能够获得与当前会议目标、议题和证据缺口有关的最小安全目录 projection，但不得获得模型凭据、完整 Prompt、私有工具配置、Session 历史或其他敏感运行配置。
+3. Manager 可以推荐目录中的某个 Agent 参加当前会议，并必须说明相关议题、预期贡献及需要补充的职责或证据；推荐本身不得创建 Participant、DSH Session 或正式立场。
+4. Manager 不得推荐自己成为 Participant，不得推荐目录之外或不可用的 Agent，也不得通过推荐授予 required-review、risk acceptance、Captain、Manager 或额外 DSH 权限。
+5. 只有 Captain 的独立结构化批准才能接纳被推荐 Agent；自然语言同意、Manager plan 或 research result 均不得替代批准操作。
+6. Captain 批准后，Meeting Runtime 必须为该身份创建独立 meeting-owned continuable Session；Session provisioning 完成前，该身份不得进入发言候选集或调用 Participant 操作。
+7. 新接纳的 Agent 默认是普通可选 Participant；批准不得自动修改 objective contract、required reviewer、risk authority、议题 required Participant 或已有 Participant 的权限。
+8. recommendation、Captain disposition、Participant admission 和 provisioning 结果必须可审计、幂等、可恢复，并受 Meeting version、终态拒写和跨 Meeting 隔离约束。
+9. Agent template 不可用或 Session provisioning 失败时，不得产生部分可用 Participant；会议必须显示失败原因，并允许 Manager 在新状态上推荐替代 candidate。
+10. GitHub、arXiv 和 Web research 角色必须按证据来源和分析责任区分；Manager 应先参考已有 evidence 索引，不能仅因搜索工具可用而重复推荐多个 Agent 处理相同来源范围。
+
+### FR-14：DSH Agent Template
+
+1. 每个 Manager 和 Participant Agent 必须绑定一个版本化 DSH Agent Template；Template 至少包含机器可校验 manifest、角色专用说明、Skill set、Tool set、MCP set、permission profile 和 output contract 的版本化引用。
+2. 仓库 `AGENTS.md` 只提供仓库协作规则，不能假设 DSH 自动加载，也不能作为某个 Agent 的唯一角色说明；运行时共享说明必须由 Template 显式引用版本化 base instruction set，角色专用说明必须与共享规则分离并独立版本化。
+3. Template 只能引用 DSH Host 已提供并授权的 Skills、Tools、MCP、模型和权限配置，不能携带凭据、注册任意 Tool、扩大 Sandbox 或降低 Approval 要求。
+4. Template 必须在 Session 创建前完整解析和校验；任何必需资源缺失、版本冲突、hash 漂移或 Host composition 能力不足都必须整体失败，不得只加载部分配置后降级运行。
+5. Tool set 必须同时限制模型可见 Schema 和实际执行；Skill 或角色说明不能代替 Tool、MCP、Sandbox 或 Meeting capability 的权限校验。
+6. 同一会议身份在 fresh create 与 cold resume 时必须恢复相同 Template snapshot；运行中的 Meeting 和 Participant 不得因 Catalog 或 Template 更新而静默升级。
+7. Meeting 持久化和归档只保留 Template ID、版本、hash 和最小非敏感 provenance，不得保存完整角色说明、Skill 内容、MCP endpoint/credential 或 Host 私有配置。
+8. delegated meeting-owned Agent 的 Approval 必须适合无人值守运行；需要交互式批准而当前 Session 无法取得批准时必须 fail closed，不能无限等待或自动提权。
 
 ## Business Rules
 
@@ -191,7 +216,6 @@ Agent 内部工具、命令或 MCP 失败属于 Agent 的执行过程。只有�
 
 新会议只能通过显式选择的续会素材引用旧归档；旧归档仍保持不可变，旧会议不得恢复运行。
 
-
 ### BR-8：会议协议边界
 
 Convivium 的权限规则只约束会议身份、会议上下文和 Convivium 提供的会议操作。Agent 的通用 Skills、Tools 和 MCP 由 DSH 负责加载、授权和执行，Convivium 不复制其 Schema，也不干预其内部编排。
@@ -199,6 +223,14 @@ Convivium 的权限规则只约束会议身份、会议上下文和 Convivium �
 ### BR-9：会议私聊边界
 
 Meeting-scoped mail 是私有异步消息，不是正式会议事实。发送时快照和处理时 transcript 增量都只能包含接收者有权查看的公开会议内容；同一次 mail 处理的上下文范围一旦固化，重试不得随会议推进而漂移。
+
+### BR-10：参会推荐与接纳边界
+
+Manager recommendation 是待 Captain 处置的结构化建议，不是 Participant、发言权、审核身份或权限事实。只有 Captain 批准且独立 Session provisioning 成功后，被推荐 Agent 才成为可调度 Participant；批准不能改变 objective contract 中已经固化的 required-review、risk authority 或必需参与关系。
+
+### BR-11：Agent Template 组合边界
+
+Agent Template 描述一个会议 Agent 可以加载的角色、内部工作流和能力上限，但不产生 Meeting authority。显式 base instruction sets、`ROLE.md`、Skills、Tools、MCP 和 permission profile 必须分层组合；仓库 `AGENTS.md` 不得被假设为 DSH runtime input，任一层都不能覆盖 Runtime 根据真实 Session、Meeting identity 和当前 attempt 形成的授权结果。
 
 ## Acceptance Criteria
 
@@ -231,11 +263,25 @@ Meeting-scoped mail 是私有异步消息，不是正式会议事实。发送时
 27. 归档前会校验最终成果、完成依据、正式 transcript、未解决事项和来源信息已经物化；Session 关闭失败时会议保持不可讨论的 `archiving`，且输出物不会丢失。
 28. 从旧会议创建新会议时，只导入 Captain 显式选择且有权访问的归档素材，并保留来源引用；不会继承旧 Session、capability、完整 transcript 或运行状态。
 29. V1 面板先读取本地 Meeting 列表；选择一个摘要后只读取被选择 Meeting 的完整状态，列表本身不暴露 transcript、Session ID、capability、SQLite 路径或私有运行数据。任一已发现 Meeting 无法恢复时，列表报告暂不可用且不返回部分结果。
+30. Manager 收到的 Agent Catalog projection 不包含敏感 DSH 配置，并且只能引用当前 snapshot 中可用的 candidate 形成参会 recommendation。
+31. Manager 推荐 Agent 后，该 Agent 在 Captain 批准和 Session provisioning 成功前不会进入 speaker candidates，也不能提交会议事实。
+32. Captain 批准 recommendation 只创建普通可选 Participant，不会自动授予 required-review、risk acceptance、Captain、Manager 或超出 DSH template 的权限。
+33. 被批准 Agent 的 provisioning 失败时，会议中不存在部分可用 Participant；失败可恢复、可审计，且不影响其他 Meeting 或 Participant Session。
+34. 已有证据满足当前 freshness 和来源范围时，Manager 不会仅因 GitHub、arXiv 或 Web 搜索能力可用而重复推荐相同研究工作；明确的独立交叉验证除外。
+35. 每个 Manager/Participant Session 都能追溯到唯一 Template ID、版本和 hash；共享 runtime instructions 与角色说明分别版本化，且不会仅因 workspace 存在 `AGENTS.md` 就假设 DSH 已加载它。
+36. Template 引用的 Skill、Tool、MCP 或 permission resource 缺失时，Session 在发布前整体失败，不会形成只加载部分角色配置的 Agent。
+37. Template Tool restriction 同时影响模型可见工具和实际执行；Agent 即使在说明或 Skill 中请求未授权 Tool，也无法调用。
+38. Template 在 cold resume 时使用原 snapshot 重建；同版本 hash 漂移或资源不可恢复时拒绝 followup，不自动切换到新 Template。
+39. Meeting status、archive 和错误不暴露 ROLE.md 正文、Skill 内容、MCP endpoint/credential、完整 Tool 配置或 Sandbox 细节。
+40. delegated meeting-owned Agent 不会等待无人处理的交互式 Approval，也不能从自身 Session 内扩大启动时固化的权限。
+41. Scribe 生成的纪要草稿标明覆盖范围并引用正式 message、Fact、Decision、Issue 或 task result ID；缺少引用或覆盖不连续时不会被当作权威 transcript、正式事实或决议。
 
 ## Related Documents
 
 - 架构边界：[`../00-governance/ARCHITECTURE.md`](../00-governance/ARCHITECTURE.md)
 - Agent 间会议协议：[`../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)
+- Agent 角色目录与参会推荐：[`../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md`](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)
+- DSH Agent Template：[`../20-interfaces/DSH-AGENT-TEMPLATE-INTERFACE.md`](../20-interfaces/DSH-AGENT-TEMPLATE-INTERFACE.md)
 - 当前实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
 
 Plugin Frontend 的最小状态读取和会议控制边界由 Interface 定义；本需求文档不规定路由实现、组件结构或视觉样式。

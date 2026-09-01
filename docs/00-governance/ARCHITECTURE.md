@@ -20,6 +20,8 @@
 - Convivium 支持的最低 DSH 版本为 `0.1.1-rc.2`；实现可以依赖该版本 `dsh-subagent` 提供的持久子 Session 枚举和 continuable Activation drain 能力。
 - Convivium 正式运行会议前，宿主组合必须提供一个具备 `prepareContinuable` 能力的 continuable subagent provider；仅声明或注入 `dsh-subagent` service 不构成该能力。当前确认的宿主 profile provider 是 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.1-rc.2`，provider name 为 `spawn`，由 profile 作为组合依赖管理，不由 Convivium 自行实现、隐式携带或写入插件 package manifest。插件必须在独立 DSH profile 中验证该 provider 与 `startContinuable()` 的实际创建链路。
 - 插件依赖 DSH 提供 AgentSession、continuable Agent、工具注册、Web 路由、DSH 原生 Session Event 和插件 UI 宿主能力。
+- DSH Host 可以提供版本化 Agent role catalog 和受控 Agent template reference；Convivium 只消费经当前 Captain 授权范围过滤的最小 metadata，不拥有模型凭据、完整 Prompt、Skills、Tools、MCP 或敏感运行配置。
+- 每个 meeting-owned Manager/Participant Session 必须绑定一个已解析的 DSH Agent Template snapshot。仓库 `AGENTS.md` 是仓库协作规则，不假设 DSH 自动加载；运行时 base instructions、角色专用说明、Skill/Tool/MCP sets 和 permission profile 由 Template 显式、独立版本化。缺少完整 scoped composition 或 cold-resume 重建能力时必须 fail closed。
 - 插件包含清晰分离的插件前端和插件后端会议运行时。
 - 每个 Meeting 在任何会议副作用前获得稳定 `meetingId`，并以 `teamId + meetingId` 形成独立 repository ownership；状态、事件、幂等收据和 outbox 写入该 Meeting 独占的 SQLite 数据库。当前已实现的物理布局是 `<dataRoot>/<encodedTeamId>/<encodedMeetingId>.sqlite`；迁移到 `<workspace>/.convivium/<teamId>/meetings/<meetingId>/meeting.sqlite` 是后续独立 readiness 工作，不是增量业务分支的隐含前置条件。所有新增调用方必须经 Runtime/repository locator 访问，不能依赖或自行扫描任一物理布局。
 - Meeting Runtime 可以从 SQLite best-effort 生成供开发者在 workspace 中阅读的 Markdown 辅助文件；Markdown 不是产品接口或事实源，不参与恢复、授权、状态计算、Session 关闭与 capability 撤销或归档完成判断。
@@ -53,11 +55,13 @@
 - DSH 负责 Session 创建、followup、interrupt、事件和生命周期能力。
 - Convivium 负责会议身份、上下文投影、发言 capability 和 Session ownership，不把 AgentSession 当作会议领域真相源。
 - Convivium 只定义 Agent 之间及 Agent 与 Meeting Runtime 之间的会议协议，不拥有或解释 Agent 内部的 Prompt、Skills、Tools、MCP、推理、命令、工作流和重试过程。
+- Convivium 可以保存 Template ID/version/hash 和已解析的非敏感能力上限用于创建与恢复一致性，但不保存或解释完整角色说明、Skill 内容、MCP 凭据或 Host 私有配置。
 - Agent 内部能力、Sandbox 和 Approval 由 DSH 管理；Convivium 只向 DSH 提供会议身份对应的授权上限，不得扩大用户或 DSH 已授予的权限。
 
 ## Identity And Session Isolation
 
 - 调度器选择的是会议中的 Participant，不是底层 Agent 实例。
+- Agent role catalog 中的 candidate 不是 Participant。Manager recommendation 不是接纳或授权；只有 Captain 明确批准且 Runtime 完成独立 meeting-owned Session provisioning 后，candidate 才成为可调度 Participant。
 - TeamMember、Participant、Manager、Captain 和 AgentSession 必须保持概念分离。
 - 同一个底层 Agent 表示不同会议身份时，必须使用不同 AgentSession。
 - 不同会议、不同身份或不同授权范围的上下文不得通过共享 Session 静默混合。
@@ -72,6 +76,8 @@
 - Meeting 的 SQLite、开发者 Markdown、Session ownership 和归档数据必须以 `teamId + meetingId` 为共同生命周期 ownership；目标目录迁移完成后该 ownership 物化为 `<teamId>/meetings/<meetingId>/`，迁移前不得由调用方假设该物理路径。
 - 会议领域只能消费 Agent 明确提交的边界结果和经授权的 MeetingTask projection，不得依赖具体 Skill、内部 Tool Schema、隐藏推理或工具调用顺序。MeetingTask 属于 Convivium MeetingState，不属于 DSH runtime facts。
 - Convivium 不得向 DSH Session 写入插件自定义的持久化事件类型。会议领域事件写入 SQLite `meeting_events`；插件前端只通过定时读取、写操作成功后重新读取和页面重新聚焦后读取完整类型化状态投影，不建立进程内 projection invalidation 通道。
+- Manager 只能消费 Agent catalog 的安全 projection 并提交参会 recommendation，不能取得 template secret、创建任意角色、批准自己的推荐或扩大 DSH/Meeting 权限。Catalog 更新不能改变 Meeting 已固化的 snapshot、recommendation、admission 或 Participant provenance。
+- Agent Template 只能通过 DSH 公开的 continuable request 和 Host scoped composition 安装。把 Skill/MCP 名称拼进 Prompt、仅隐藏 Tool Schema 或依赖 `sourceMemberName` 推断配置都不能替代实际权限和组合校验。
 - 开发者 Markdown 只能单向派生自 SQLite。人工修改、文件缺失或旧版本内容不得反向写入会议状态；该文件不形成 Plugin Frontend 或 Agent 可依赖的契约。
 - DSH 原生 `tool/call`、`tool/result` 及其他 DSH-owned Session Events 继续由 DSH 定义和持久化；Convivium 不复制、重命名或扩展其语义。
 - 新增 Web 路由、工具、事件、外部访问或文件权限前，必须先形成对应接口契约和失败语义。
@@ -79,6 +85,7 @@
 ## Source Layout And Verification
 
 - `plugin/` 包含 DSH 插件 package manifest、后端和前端源码、资产及验证脚本；仓库级 `docs/` 不参与插件打包。
+- `plugin/examples/agent-templates/` 保存与正式 Template 契约一致的可校验角色样本；该目录不进入插件发布包，不是 Host registry、运行时 resolver 或已安装 Agent 能力的真相源。样本提升为运行时资产前必须经 FR-14 registry/installer 完整解析、授权和 scoped composition。
 - 根目录不因单一插件工程建立无消费者的 workspace 或 monorepo 层；只有出现第二个独立构建工程并形成架构依据时才可引入。
 - `plugin/` 必须能够在不读取任何相邻参考项目的情况下独立安装、类型检查、构建和验证。
 - 外部参考项目只用于只读调研 DSH 接口和可选实现思路；其源码、文档、发布记录、品牌、协议命名和持久化格式不得进入产品工程。

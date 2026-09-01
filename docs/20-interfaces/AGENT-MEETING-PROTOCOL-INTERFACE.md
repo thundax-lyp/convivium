@@ -70,8 +70,8 @@ interface ProtocolMeta {
 | `convivium_submit_manager_plan` | 当前 Manager Session                                     | 提交下一 Turn 建议                                            |
 | `convivium_submit_turn`         | 当前 Speaker Session                                     | 提交正式发言和结构化声明                                      |
 | `convivium_create_meeting_task` | 当前 Speaker Session                                     | 创建 Convivium-owned MeetingTask                              |
-| `convivium_send_message`       | 当前 Meeting Participant Session                         | 仅发送 meeting-scoped Participant→Participant 私聊            |
-| `convivium_finish_meeting_mail`| recipient Participant Session                            | 固化私聊处理 terminal status                                  |
+| `convivium_send_message`        | 当前 Meeting Participant Session                         | 仅发送 meeting-scoped Participant→Participant 私聊            |
+| `convivium_finish_meeting_mail` | recipient Participant Session                            | 固化私聊处理 terminal status                                  |
 | `convivium_meeting_task_status` | 该 MeetingTask 的原 Participant Session                  | 读取当前授权 task projection、Meeting terminal 状态和执行许可 |
 | `convivium_start_meeting_task`  | 该 MeetingTask 的原 Participant Session                  | 幂等地将 queued MeetingTask 置为 running                      |
 | `convivium_finish_meeting_task` | 该 MeetingTask 的原 Participant Session                  | 提交 terminal result 并申请后续发言                           |
@@ -332,12 +332,12 @@ Web route 不得伪造 Captain Session，也不得绕过 `expectedMeetingVersion
 
 插件面板使用以下类型化路由；路径中的 `meetingId` 必须与 body 解析后的 Meeting 一致：
 
-| Method and route                                 | Body                   | Result                   |
-| ------------------------------------------------ | ---------------------- | ------------------------ |
-| `POST /api/convivium/meetings/:meetingId/pause`  | `PauseMeetingInputV1`  | `MeetingControlResultV1` |
-| `POST /api/convivium/meetings/:meetingId/resume` | `ResumeMeetingInputV1` | `MeetingControlResultV1` |
-| `POST /api/convivium/meetings/:meetingId/reassign` | `ReassignTurnInputV1` | `ReassignTurnResultV1` |
-| `POST /api/convivium/meetings/:meetingId/end` | `EndMeetingInputV1` | `EndMeetingResultV1` |
+| Method and route                                   | Body                   | Result                   |
+| -------------------------------------------------- | ---------------------- | ------------------------ |
+| `POST /api/convivium/meetings/:meetingId/pause`    | `PauseMeetingInputV1`  | `MeetingControlResultV1` |
+| `POST /api/convivium/meetings/:meetingId/resume`   | `ResumeMeetingInputV1` | `MeetingControlResultV1` |
+| `POST /api/convivium/meetings/:meetingId/reassign` | `ReassignTurnInputV1`  | `ReassignTurnResultV1`   |
+| `POST /api/convivium/meetings/:meetingId/end`      | `EndMeetingInputV1`    | `EndMeetingResultV1`     |
 
 注册时 `webServer.host !== "127.0.0.1"` 必须 fail closed，不注册上述路由。注册后的 V1 route 不解析用户或 Team authority；前端不得传入 Captain Session ID。
 
@@ -924,12 +924,12 @@ Client 必须先读取该 list；用户选择一项 `meetingId` 后才调用详�
 
 所有 Meeting Web route 通过一个 `prefix` registration `/api/convivium/meetings` 分派。精确允许的组合只有：`GET /api/convivium/meetings`、`GET /api/convivium/meetings/:meetingId`、`POST /api/convivium/meetings/:meetingId/pause`、`POST /api/convivium/meetings/:meetingId/resume`、`POST /api/convivium/meetings/:meetingId/reassign`、`POST /api/convivium/meetings/:meetingId/end`；结尾 `/`、其他 path 或其他 method 返回 HTTP `404` 和无 body。route 不接受 query；URL 含非法 percent encoding，或 POST 缺失/错误的 JSON media type、body 超过 `16_384` bytes、JSON 无法解析、含未定义字段、path/body `meetingId` 不一致或 Schema 不合法时，返回 HTTP `400` 和 `ProtocolErrorV1`，其 `code` 固定为 `INVALID_ARGUMENT`、`message` 固定为 `Invalid meeting request.`、`retryable` 固定为 `false`；请求尚不能可信解析时省略 Meeting metadata。pause body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | requestId | reason`，resume body 只允许前四项；reassign body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | currentAttemptId | action | reason | requestId`，仅 `action='reassign'` 时额外允许 `replacementParticipantId`；end body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | outcome | reason | acceptedDecisionIds | deferredAgendaItemIds | waivers | requestId`。因此用户、Team、Agent Session、Captain 或其他 authority 字段均被拒绝。`VERSION_CONFLICT` 与 `IDEMPOTENCY_CONFLICT` 返回 HTTP `409` 和 Runtime 提供的 `ProtocolErrorV1`；`MEETING_NOT_FOUND` 返回 HTTP `404` 和 Runtime 提供的 `ProtocolErrorV1`；其他领域 `ProtocolErrorV1` 返回 HTTP `400`。data root 尚不存在或目标 repository 尚未进入 `ready` 时，list 返回空/跳过该项且单 Meeting route 返回 `MEETING_NOT_FOUND`；除此以外目标 Meeting 冷恢复失败，或 list 中任一 `ready` Meeting repository 恢复/读取失败时返回 HTTP `503`、`Retry-After: 1` 和无 body；未知异常返回 HTTP `500` 和无 body。所有成功 JSON 与 `ProtocolErrorV1` response 均设置 `content-type: application/json; charset=utf-8`；成功状态为 HTTP `200`。
 
-| Method and route                         | Body | Result                                     |
-| ---------------------------------------- | ---- | ------------------------------------------ |
-| `GET /api/convivium/meetings`            | none | `LocalMeetingListResponseV1`              |
-| `GET /api/convivium/meetings/:meetingId` | none | `ProtocolSuccessV1<MeetingStatusResultV1>` |
-| `POST /api/convivium/meetings/:meetingId/reassign` | `ReassignTurnInputV1` | `ProtocolSuccessV1<ReassignTurnResultV1>` |
-| `POST /api/convivium/meetings/:meetingId/end` | `EndMeetingInputV1` | `ProtocolSuccessV1<EndMeetingResultV1>` |
+| Method and route                                   | Body                  | Result                                     |
+| -------------------------------------------------- | --------------------- | ------------------------------------------ |
+| `GET /api/convivium/meetings`                      | none                  | `LocalMeetingListResponseV1`               |
+| `GET /api/convivium/meetings/:meetingId`           | none                  | `ProtocolSuccessV1<MeetingStatusResultV1>` |
+| `POST /api/convivium/meetings/:meetingId/reassign` | `ReassignTurnInputV1` | `ProtocolSuccessV1<ReassignTurnResultV1>`  |
+| `POST /api/convivium/meetings/:meetingId/end`      | `EndMeetingInputV1`   | `ProtocolSuccessV1<EndMeetingResultV1>`    |
 
 V1 route 仅在 `webServer.host === "127.0.0.1"` 注册，且对所有到达该本地 Host 的请求返回相同的完整 Web projection；它不解析用户或 Team authority，也不得接受或伪造 Agent Session ID。Agent tool 仍使用真实 caller Session 进行身份裁剪。
 
@@ -1065,7 +1065,9 @@ interface PublicArchivePackageV1 {
     participantId: string;
     displayName: string;
     role?: string;
+    templateId?: string;
     templateVersion?: string;
+    templateManifestHash?: string;
   }[];
   termination: PublicTerminationV1;
   endedAt: number;
@@ -1293,12 +1295,14 @@ type MeetingProtocolErrorCodeV1 =
 | Create meeting           |     yes |      no |              no |                no |
 | Read authorized status   |     yes |     yes |             yes |               yes |
 | Submit Manager plan      |      no |     yes |              no |                no |
+| Recommend Catalog Agent  |      no |     yes |              no |                no |
 | Submit current Turn      |      no |      no |             yes |                no |
 | Request background task  |      no |      no |             yes |                no |
 | Raise hand               |      no |      no |             yes |               yes |
 | Send meeting-scoped mail |      no |      no |             yes |               yes |
 | Pause/resume Meeting     |     yes |      no |              no |                no |
 | Dispose specified risk   |     yes |      no |              no |                no |
+| Review attendance        |     yes |      no |              no |                no |
 | Reassign current speaker |     yes |      no |              no |                no |
 | End/accept/waive         |     yes |      no |              no |                no |
 
@@ -1330,6 +1334,8 @@ Convivium 要求 DSH `>=0.1.1-rc.2`，并以该版本的 `dsh-subagent` 公开�
 
 - 架构边界：[`../00-governance/ARCHITECTURE.md`](../00-governance/ARCHITECTURE.md)
 - 产品需求：[`../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
+- Agent 角色目录与参会推荐：[`MEETING-AGENT-ROLE-CATALOG-INTERFACE.md`](MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)
+- DSH Agent Template：[`DSH-AGENT-TEMPLATE-INTERFACE.md`](DSH-AGENT-TEMPLATE-INTERFACE.md)
 - 实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
 
 本文定义 Plugin Frontend Meeting route 的路径、payload 和共享状态 projection 语义。V1 不从 DSH Web 请求取得用户或 Team authority：仅当 `webServer.host === "127.0.0.1"` 时注册 route，所有到达该 loopback Host 的请求共享本地用户边界。Host 为 `0.0.0.0`、远程访问或多用户部署不属于 V1，且必须在 route 注册前 fail closed；未来引入这些能力前必须另建用户/Team authorization interface 并以当前 DSH 公开 API 取证。
