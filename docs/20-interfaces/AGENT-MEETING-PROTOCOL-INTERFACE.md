@@ -79,6 +79,7 @@ interface ProtocolMeta {
 | `convivium_pause_meeting`       | Captain                                                  | 根据用户指令暂停会议                                          |
 | `convivium_resume_meeting`      | Captain                                                  | 根据用户指令恢复会议                                          |
 | `convivium_dispose_risk`        | Captain                                                  | 对指定风险作出结构化接受或拒绝处置                            |
+| `convivium_dispose_attendance_recommendation` | Captain | 批准或拒绝 Manager 的参会推荐 |
 | `convivium_reassign_turn`       | Captain                                                  | 撤销并改派或跳过当前发言位置                                  |
 | `convivium_end_meeting`         | Captain                                                  | 正常、部分、无共识或取消结束                                  |
 
@@ -262,6 +263,24 @@ interface CaptainRiskDispositionResultV1 {
   disposition: "accepted" | "rejected";
   completionFactId: string;
   meetingStatus: MeetingStatusResultV1["status"];
+}
+
+interface CaptainAttendanceDispositionInputV1 {
+  protocolVersion: 1;
+  meetingId: string;
+  expectedMeetingVersion: number;
+  requestId: string;
+  recommendationId: string;
+  decision: "approve" | "reject";
+  reason: string;
+}
+
+interface CaptainAttendanceDispositionResultV1 {
+  requestId: string;
+  recommendationId: string;
+  disposition: "approved" | "rejected";
+  admissionId?: string;
+  participantId?: string;
 }
 
 interface ReassignTurnInputV1 {
@@ -679,6 +698,15 @@ active 和 execution-terminal discussion status producer 始终输出 `proposals
 ### Manager plan submission
 
 ```ts
+interface AttendanceRecommendationClaimV1 {
+  candidateId: string;
+  agendaItemId: string;
+  rationale: string;
+  expectedContribution: string;
+  evidenceGapIds: readonly string[];
+  urgency: "current_agenda" | "later_agenda" | "follow_up";
+}
+
 interface ManagerPlanSubmissionV1 {
   protocolVersion: 1;
   meetingId: string;
@@ -695,6 +723,7 @@ interface ManagerPlanSubmissionV1 {
     instruction: string;
     reason: string;
   }[];
+  attendanceRecommendations?: readonly AttendanceRecommendationClaimV1[];
 }
 ```
 
@@ -1065,9 +1094,7 @@ interface PublicArchivePackageV1 {
     participantId: string;
     displayName: string;
     role?: string;
-    templateId?: string;
     templateVersion?: string;
-    templateManifestHash?: string;
   }[];
   termination: PublicTerminationV1;
   endedAt: number;
@@ -1210,6 +1237,7 @@ Captain-only acceptance of an internal `MeetingDecisionCandidate` uses `CaptainD
 | `convivium_pause_meeting`       | `MeetingControlResultV1`         |
 | `convivium_resume_meeting`      | `MeetingControlResultV1`         |
 | `convivium_dispose_risk`        | `CaptainRiskDispositionResultV1` |
+| `convivium_dispose_attendance_recommendation` | `CaptainAttendanceDispositionResultV1` |
 | `convivium_reassign_turn`       | `ReassignTurnResultV1`           |
 | `convivium_end_meeting`         | `EndMeetingResultV1`             |
 
@@ -1277,6 +1305,14 @@ type MeetingProtocolErrorCodeV1 =
   | "PARTICIPANT_NOT_DISPATCHABLE"
   | "REQUIRED_SPEAKER_UNAVAILABLE"
   | "MANAGER_PLAN_INVALID"
+  | "AGENT_CATALOG_UNAVAILABLE"
+  | "AGENT_CATALOG_VERSION_UNSUPPORTED"
+  | "AGENT_CANDIDATE_NOT_FOUND"
+  | "AGENT_CANDIDATE_UNAVAILABLE"
+  | "ATTENDANCE_RECOMMENDATION_INVALID"
+  | "ATTENDANCE_RECOMMENDATION_STALE"
+  | "ATTENDANCE_RECOMMENDATION_NOT_PENDING"
+  | "PARTICIPANT_PROVISIONING_FAILED"
   | "DELIVERY_RETRY_EXHAUSTED"
   | "UNSUPPORTED_CAPABILITY"
   | "INTERNAL_ERROR";
