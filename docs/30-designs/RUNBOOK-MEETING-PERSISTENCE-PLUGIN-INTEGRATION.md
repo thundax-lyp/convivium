@@ -4,7 +4,8 @@
 
 - 状态：Executable
 - 建立日期：2026-09-01
-- 最后审计日期：2026-09-01
+- 最后审计日期：2026-09-02
+- 当前执行进度：T0–T4 已 PASS；最后合法完成提交是 `954bf10`。T5 仍处于 STOP correction，`ad094c4`、`4609640`、`4c17266`、`cd3e2ef` 都是必须保留且不得 amend/squash 的未完成历史，不构成 T5 PASS；T6–T19 未开始。
 - 执行目录：仓库根目录。执行前必须运行 `git rev-parse --show-toplevel`；文档和证据中不得记录机器绝对路径。
 - 当前起点：`plugin/` 通过 `node:sqlite` 实现每 Meeting repository，`Config.dataRoot` 和目录扫描属于 Convivium。
 - 目标终点：`plugin/src/storage/` 实现 package-private JSONL DSH `StorageBackend` provider child plugin；Meeting consumer child plugin 只使用 `@deepseek-ai/dsh-storage-domain` 和自身 record schema；验证切换后删除 SQLite 源码。
@@ -12,11 +13,11 @@
 
 ## Executable Gate
 
-本文只有在执行者能够从 T0 顺序执行到 T19，且不需要选择数据结构、接口、文件、symbol、实现方案、错误语义、测试范围或失败处理时才可保持 `Executable`。发现任何一步仍需上述判断时立即 STOP，并把本文状态改为 `Not Executable`；不得边猜边执行。
+本文只有在执行者能够把已完成的 T0–T4 视为固定历史，从正文第一项未完成步骤 T5 顺序执行到 T19，且不需要选择数据结构、接口、文件、symbol、实现方案、错误语义、测试范围或失败处理时才可保持 `Executable`。发现任何一步仍需上述判断时立即 STOP，并把本文状态改为 `Not Executable`；不得边猜边执行。
 
 ## Executor Contract
 
-- 严格按 T0–T19 顺序执行；前一步未 PASS 不得进入下一步。
+- T0–T4 只以固定历史提交为完成证据；严格从正文第一项未完成步骤 T5 开始顺序执行到 T19，前一步未 PASS、未删除当前步骤或未完成当前步骤 commit 时不得进入下一步。
 - 每步只修改“允许修改”列出的文件和 symbol；不存在的既有路径/symbol 或必需的额外改动立即 STOP。
 - T14 前 SQLite 是唯一 production truth；T14 后 Storage Domain 是唯一 production truth。
 - 禁止双写、fallback、自动迁移、扫描或删除 legacy `.sqlite`。
@@ -35,7 +36,7 @@
 | T2 | `Build(plugin/storage): 锁定内置存储依赖` |
 | T3 | `Feat(plugin/storage): 建立 JSONL 持久写入与故障边界` |
 | T4 | `Feat(plugin/storage): 建立 JSONL unit 重放与变更语义` |
-| T5 | `Feat(plugin/storage): 建立物理 checkpoint 与恢复边界` |
+| T5 | `Fix(plugin/storage): 完成物理 checkpoint 与恢复边界` |
 | T6 | `Feat(plugin/storage): 建立内置 backend 生命周期` |
 | T7 | `Test(plugin/storage): 锁定 package-private backend 边界` |
 | T8 | `Test(plugin/storage): 证明 provider 与 Domain child 组合` |
@@ -944,28 +945,6 @@ No raw path or record payload enters the public error message.
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
 
-### T5 — Implement Physical Checkpoint
-
-前置状态：T5 false-PASS correction；`ad094c4` 已提交但缺失契约验证。不得 amend 或改写该提交。
-
-允许修改：new `plugin/src/storage/checkpoint.ts`; `plugin/src/storage/unit.ts`, `plugin/src/storage/format.ts`; `plugin/tests/fixtures/storage/scripted-filesystem.ts` only to make the already-fixed checkpoint phase classifier reachable; new `plugin/tests/unit/storage/checkpoint.spec.ts`, `plugin/tests/recovery/storage/checkpoint-recovery.spec.ts`.
-
-禁止修改：`plugin/src/storage/backend.ts`, `plugin/src/storage/index.ts`, every `plugin/src` path outside `plugin/src/storage/`, and every test path except the allowed fixture and two suites. The fixture change must not add a new FaultPoint, callback, call-count injection or production import; it may only classify file sync, the following same-directory sync, pointer publication and numeric closed-segment unlink into the existing semantic points.
-
-执行：implement the exact physical checkpoint records/publication. Maintenance is queued after resolved mutation at trigger; its failure is retained as the single internal `maintenanceError` needed by hard-tail enforcement and does not retroactively reject committed mutation. Before a new mutation would exceed hard tail, retry checkpoint first; if still failing, reject new mutation with `capacity-exceeded` before append. `close()` drains maintenance and rejects its retained error after the committed mutation is durable. Implement `createPhysicalCheckpointFixture()` and the exact 14-case T5 parameter table; do not inject by operation count. Delete all placeholder assertions; every exact title must arm the specified semantic FaultPoint and assert the specified pointer/cleanup/recovery result. In `ScriptedFileSystem`, track at most one pending checkpoint publication role per directory so a file `sync` and its immediately following `syncDirectory()` map respectively to `checkpoint.<page|root>-sync` and `checkpoint.<page|root>-directory-sync`; pointer temp sync/rename/root-directory-sync and `segments/<20-digit>.jsonl` unlink map directly to their existing points. An unmatched or reordered pending role is a test failure.
-
-验证：
-
-```bash
-pnpm --dir plugin test -- tests/unit/storage/checkpoint.spec.ts tests/recovery/storage/checkpoint-recovery.spec.ts
-pnpm --dir plugin typecheck
-git diff --check
-```
-
-PASS：tests prove bounded line count, pointer-before/after crash recovery, orphan collection, safe segment GC, hard-tail refusal before append and close drain; exact 14-case table and all required assertions are present; no placeholder assertion remains.
-
-STOP：the final T5 implementation cannot write one current record per append with the locked `FileSystemPort`, or correct recovery would require deleting active/uncovered log. A pre-existing or intermediate whole-unit write is a defect to replace in T5, not by itself a STOP. Failure state：test roots only; last valid pointer/log remains recoverable.
-
 ### T6 — Implement Backend Lifecycle
 
 前置状态：T5 已 PASS 且结果已提交；当前 HEAD 即为 T5 提交。
@@ -1607,6 +1586,7 @@ Caller/authority, stale version, terminal immutability, array-invalid atomicity,
 
 ## Author Audit Record
 
+- 2026-09-02 T5 STOP correction Author + Audit conclusion: `Executable` for T5 only after the executor first restores the frozen install and `verify:environment` passes; T5 remains not PASS at authoring time. The correction fixes the actual baseline (`954bf10` last legal PASS; `cd3e2ef` incomplete T5 HEAD), replaces the non-focused `pnpm test -- ...` invocation with direct Vitest filtering, locks root/record reconstruction and digest validation, safe covered-segment GC, reopen tail accounting, seven exact unit titles, fourteen distinct recovery cases, and the required execute-PASS-delete-commit cadence. No T5 production/test/dependency change was executed by the author.
 - 2026-09-01 child-plugin rewrite Author + Audit conclusion: `Executable`; all T0–T19 steps contain precondition, exact allowed/forbidden scope, execution, validation, PASS, STOP and failure state.
 - Implementation Economy: repository remains one package/lockfile/build/publish unit；the independent scaffold, manifest, profile row, pack/install and duplicate verify steps are removed。Every production structure in File And Symbol Map maps to the gate table；no future adapter/factory/worker/compatibility/migration/hook/metrics framework remains。Application and physical checkpointing reuse their required ordering chain and add no checkpoint queue。
 - Repository evidence: T0 fixes the 19-method/2-property surface; T9 fixes all 16 current barrel-import paths; T12/T17 fix the machine-checked 26-port/9-delete test partition.

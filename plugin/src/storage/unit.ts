@@ -31,9 +31,14 @@ export class JsonlKvUnit implements KvUnit {
         private readonly fs: FileSystemPort,
         private readonly tables: Record<string, Record<string, unknown>>,
         private global: unknown,
-        initialSeq = 0
+        initialSeq = 0,
+        initialTailRecords = 0,
+        initialTailBytes = 0,
+        private readonly activeFirstOpSeq?: number
     ) {
         this.seq = initialSeq;
+        this.tailRecords = initialTailRecords;
+        this.tailBytes = initialTailBytes;
     }
     private guard(): void {
         if (this.closed || this.poisoned) throw new StorageError("closed", "storage unit closed");
@@ -89,7 +94,16 @@ export class JsonlKvUnit implements KvUnit {
                         string,
                         Record<string, JsonValue>
                     >,
-                    global: (this.global ?? null) as JsonValue | null
+                    global: (this.global ?? null) as JsonValue | null,
+                    descriptorDigest: sha256Hex(
+                        encodeCanonicalJson({
+                            formatVersion: 1,
+                            name: this.descriptor.name,
+                            unitVersion: this.descriptor.version,
+                            tables: [...this.descriptor.tables],
+                            hasGlobal: this.descriptor.hasGlobal
+                        })
+                    )
                 };
                 try {
                     await writePhysicalCheckpoint(this.root, snapshot, this.fs);
@@ -114,7 +128,10 @@ export class JsonlKvUnit implements KvUnit {
                 await this.fs.mkdir(segments, { recursive: true });
                 await this.fs.rename(
                     join(this.root, "active.jsonl"),
-                    join(segments, `${String(this.seq - 255).padStart(20, "0")}.jsonl`)
+                    join(
+                        segments,
+                        `${String(this.activeFirstOpSeq ?? this.seq - 255).padStart(20, "0")}.jsonl`
+                    )
                 );
                 await syncDirectory(segments, this.fs);
             }
@@ -139,7 +156,16 @@ export class JsonlKvUnit implements KvUnit {
                         string,
                         Record<string, JsonValue>
                     >,
-                    global: (this.global ?? null) as JsonValue | null
+                    global: (this.global ?? null) as JsonValue | null,
+                    descriptorDigest: sha256Hex(
+                        encodeCanonicalJson({
+                            formatVersion: 1,
+                            name: this.descriptor.name,
+                            unitVersion: this.descriptor.version,
+                            tables: [...this.descriptor.tables],
+                            hasGlobal: this.descriptor.hasGlobal
+                        })
+                    )
                 };
             }
         });
@@ -211,12 +237,16 @@ export async function openJsonlUnit(
         const { createFileDurably } = await import("./jsonl.js");
         await createFileDurably(descriptorPath, encodeCanonicalJson(record), fs);
     }
+    const descriptorDigest = sha256Hex(encodeCanonicalJson(expectedBase));
     const tables: Record<string, Record<string, unknown>> = {};
     for (const table of descriptor.tables) tables[table] = {};
     let global: unknown = null;
     let seq = 0;
     let replaySeq = 0;
-    const checkpoint = await loadPhysicalCheckpoint(root, fs);
+    let tailRecords = 0;
+    let tailBytes = 0;
+    let activeFirstOpSeq: number | undefined;
+    const checkpoint = await loadPhysicalCheckpoint(root, descriptor, descriptorDigest, fs);
     if (checkpoint) {
         for (const [t, values] of Object.entries(checkpoint.tables))
             tables[t] = structuredClone(values);
@@ -235,10 +265,8 @@ export async function openJsonlUnit(
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
-    const lines = [
-        ...segmentLines,
-        ...(await readJsonl(join(root, "active.jsonl"), "active-tail", fs))
-    ];
+    const activeLines = await readJsonl(join(root, "active.jsonl"), "active-tail", fs);
+    const lines = [...segmentLines, ...activeLines];
     for (const line of lines) {
         let record;
         try {
@@ -263,9 +291,23 @@ export async function openJsonlUnit(
             if (record.kind === "put") tables[record.table!][record.key!] = record.value;
             else if (record.kind === "delete") delete tables[record.table!][record.key!];
             else global = record.value;
+            tailRecords += 1;
+            tailBytes += line.byteLength + 1;
+            if (activeFirstOpSeq === undefined && activeLines.includes(line))
+                activeFirstOpSeq = record.opSeq;
         }
         replaySeq = record.opSeq;
         seq = record.opSeq;
     }
-    return new JsonlKvUnit(root, descriptor, fs, tables, global, seq);
+    return new JsonlKvUnit(
+        root,
+        descriptor,
+        fs,
+        tables,
+        global,
+        seq,
+        tailRecords,
+        tailBytes,
+        activeFirstOpSeq
+    );
 }
