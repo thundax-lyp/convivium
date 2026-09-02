@@ -2,10 +2,10 @@
 
 ## Status And Work Boundary
 
-- 状态：Executable
+- 状态：Executable（T10F correction；T11 在 fixture contract 缺失处 STOP）
 - 建立日期：2026-09-01
 - 最后审计日期：2026-09-02
-- 当前执行进度：T0–T8 已 PASS。T9C 已提交 `370cc00`，但把三个 private-mail 方法的返回类型写错，不构成合法接口纠偏；该提交必须保留且不得 amend/squash。当前 T9 允许范围内的未提交改动必须保留，先执行正文第一项 T9D，再恢复 T9。
+- 当前执行进度：T0–T10 已 PASS，T10 commit 为 `4a72063`。T11 因 T10 已提交的 fake Domain fixture contract 缺失而 STOP；正文第一项为 T10F。T10F PASS、删除并提交前不得恢复 T11。
 - 执行目录：仓库根目录。执行前必须运行 `git rev-parse --show-toplevel`；文档和证据中不得记录机器绝对路径。
 - 当前起点：`plugin/` 通过 `node:sqlite` 实现每 Meeting repository，`Config.dataRoot` 和目录扫描属于 Convivium。
 - 目标终点：`plugin/src/storage/` 实现 package-private JSONL DSH `StorageBackend` provider child plugin；Meeting consumer child plugin 只使用 `@deepseek-ai/dsh-storage-domain` 和自身 record schema；验证切换后删除 SQLite 源码。
@@ -13,11 +13,11 @@
 
 ## Executable Gate
 
-本文只有在执行者能够把已完成的 T0–T8 视为固定历史，把 `370cc00` 视为必须保留但未完成正式接口纠偏的历史，先执行正文第一项未完成步骤 T9D，再恢复已经开始但未 PASS 的 T9，并继续到 T19，且不需要选择数据结构、接口、文件、symbol、实现方案、错误语义、测试范围或失败处理时才可保持 `Executable`。发现任何一步仍需上述判断时立即 STOP，并把本文状态改为 `Not Executable`；不得边猜边执行。
+本文只有在执行者能够把 T0–T10（T10=`4a72063`）视为固定历史，先执行 T10F，再恢复 T11 并继续到 T19，且不需要选择数据结构、接口、文件、symbol、实现方案、错误语义、测试范围或失败处理时才可保持 `Executable`。T10F 未 PASS、删除或提交不得恢复 T11。发现任何一步仍需上述判断时立即 STOP，并把本文状态改为 `Not Executable`；不得边猜边执行。
 
 ## Executor Contract
 
-- T0–T8 只以固定历史提交为完成证据；`370cc00` 不是 T9D PASS；严格从正文第一项未完成步骤 T9D 开始，T9D 未 PASS、未删除或未提交时不得恢复 T9，T9 未 PASS、未删除或未提交时不得进入 T10。
+- T0–T10 只以固定历史提交为完成证据；T10=`4a72063`。严格从正文第一项未完成步骤 T10F 开始，T10F 未 PASS、未删除或未提交时不得恢复 T11。
 - 每步只修改“允许修改”列出的文件和 symbol；不存在的既有路径/symbol 或必需的额外改动立即 STOP。
 - T14 前 SQLite 是唯一 production truth；T14 后 Storage Domain 是唯一 production truth。
 - 禁止双写、fallback、自动迁移、扫描或删除 legacy `.sqlite`。
@@ -45,6 +45,7 @@
 | T9D | `Docs(repo/persistence): 修正 Meeting Repository 私聊签名` |
 | T9 | `Refactor(plugin/repository): 提取稳定 Repository Port` |
 | T10 | `Feat(plugin/repository): 固化 Domain schema 与 projection codec` |
+| T10F | `Test(plugin/repository): 修正 Domain storage fixture 契约` |
 | T11 | `Feat(plugin/repository): 建立应用 checkpoint` |
 | T12 | `Feat(plugin/repository): 实现 Domain Meeting Repository` |
 | T13 | `Feat(plugin/repository): 建立 catalog registry 与恢复` |
