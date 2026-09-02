@@ -300,6 +300,25 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 };
             }
             const now = input.createdAt ?? this.now();
+            const initialOutbox = (input.outbox ?? []).map((item) => {
+                if (item.kind !== "dispatch")
+                    throw new RepositoryError(
+                        "INVALID_INPUT",
+                        false,
+                        this.meetingId,
+                        "Outbox kind is not registered"
+                    );
+                return {
+                    formatVersion: 1 as const,
+                    id: item.id ?? crypto.randomUUID(),
+                    deliveryId: item.deliveryId,
+                    kind: "dispatch" as const,
+                    priority: item.priority ?? 50,
+                    payload: item.payload,
+                    availableAt: item.availableAt ?? now,
+                    createdAt: now
+                };
+            });
             const creation = CreationRecordV1Schema.parse({
                 formatVersion: 1,
                 teamId: this.teamId,
@@ -310,16 +329,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 authorization: input.authorization,
                 initialState: input.initialState,
                 createResult: null,
-                initialOutbox: (input.outbox ?? []).map((item) => ({
-                    formatVersion: 1,
-                    id: item.id ?? crypto.randomUUID(),
-                    deliveryId: item.deliveryId,
-                    kind: item.kind,
-                    priority: item.priority ?? 0,
-                    payload: item.payload,
-                    availableAt: item.availableAt ?? now,
-                    createdAt: now
-                })),
+                initialOutbox,
                 sessionOwnership: Object.create(null),
                 createdAt: now,
                 updatedAt: now,
@@ -372,15 +382,37 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     this.meetingId,
                     "Request hash conflicts with bootstrap"
                 );
+            const createReceiptKey = receiptKey(
+                input.requestId,
+                "create_meeting",
+                input.authorization.callerBinding
+            );
             const result = input.createResult ?? { meetingId: this.meetingId, meetingVersion: 0 };
-            if (creation.status !== "creating")
+            const existingReceipt = this.projection?.receipts[createReceiptKey];
+            if (existingReceipt) {
+                const replayResult = this.projection?.bootstrap.createResult;
+                if (!replayResult)
+                    throw new RepositoryError(
+                        "CORRUPT_DATABASE",
+                        false,
+                        this.meetingId,
+                        "Create result is missing"
+                    );
                 return {
                     requestId: input.requestId,
                     meetingId: this.meetingId,
-                    meetingVersion: 0,
-                    result,
-                    eventSeqs: [1]
+                    meetingVersion: existingReceipt.meetingVersion,
+                    result: replayResult,
+                    eventSeqs: [...existingReceipt.eventSeqs]
                 };
+            }
+            if (creation.status !== "creating")
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "Meeting bootstrap cannot be completed"
+                );
             const now = input.createdAt ?? this.now();
             const next = createProjection({
                 snapshot: {
@@ -401,12 +433,46 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 },
                 sessionOwnership: creation.sessionOwnership
             });
+            next.events[seqKey(1)] = PersistedEventV1Schema.parse({
+                formatVersion: 1,
+                eventSeq: 1,
+                meetingVersion: 0,
+                type: "meeting.created",
+                payload: { meetingId: this.meetingId },
+                turnId: null,
+                attemptId: null,
+                createdAt: now
+            });
+            next.receipts[createReceiptKey] = PersistedReceiptV1Schema.parse({
+                formatVersion: 1,
+                requestId: input.requestId,
+                commandKind: "create_meeting",
+                callerBinding: input.authorization.callerBinding,
+                requestHash: input.requestHash,
+                meetingVersion: 0,
+                result,
+                eventSeqs: [1],
+                createdAt: now
+            });
+            for (const item of creation.initialOutbox)
+                next.outbox[item.id] = PersistedOutboxV1Schema.parse({
+                    ...item,
+                    status: "pending",
+                    attempts: 0,
+                    leaseOwner: null,
+                    leaseToken: null,
+                    leaseDeadline: null,
+                    deliveredAt: null,
+                    failedAt: null,
+                    lastError: null
+                });
+            next.nextEventSeq = 2;
             const record = createCommitRecord({
                 formatVersion: 1,
                 seq: 1,
                 previousSeq: 0,
                 previousDigest: null,
-                operation: "create_meeting",
+                operation: "create.complete",
                 patch: [
                     { op: "set", path: [], value: decodeCanonicalJson(encodeCanonicalJson(next)) }
                 ],
@@ -463,19 +529,42 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     "Create result version does not match the current meeting"
                 );
             const now = input.now ?? this.now();
-            await this.meetingDomain
-                .table("creation")
-                .put("current", { ...creation, createResult: input.result, updatedAt: now });
-            if (this.projection)
-                this.projection = PersistenceProjectionV1Schema.parse({
-                    ...this.projection,
-                    bootstrap: {
-                        ...this.projection.bootstrap,
-                        createResult: input.result,
-                        updatedAt: now
-                    }
-                });
-            return input.result;
+            return this.commit({
+                operation: "create.result",
+                now,
+                mutate: (current) => {
+                    const key = receiptKey(
+                        creation.requestId,
+                        "create_meeting",
+                        creation.authorization.callerBinding
+                    );
+                    const receipt = current.receipts[key];
+                    if (!receipt)
+                        throw new RepositoryError(
+                            "CORRUPT_DATABASE",
+                            false,
+                            this.meetingId,
+                            "Create receipt is missing"
+                        );
+                    const next = PersistenceProjectionV1Schema.parse({
+                        ...current,
+                        bootstrap: {
+                            ...current.bootstrap,
+                            createResult: input.result,
+                            updatedAt: now
+                        },
+                        receipts: {
+                            ...current.receipts,
+                            [key]: {
+                                ...receipt,
+                                meetingVersion: snapshot.version,
+                                result: input.result
+                            }
+                        }
+                    });
+                    return { next, result: input.result };
+                }
+            });
         });
     }
     async updateBootstrap(_input: UpdateBootstrapInput): Promise<MeetingBootstrap> {
@@ -538,12 +627,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 !input.provider ||
                 !parsed ||
                 parsed.teamId !== this.teamId ||
-                parsed.meetingId !== this.meetingId ||
-                (input.role === "manager" && parsed.participantId !== undefined) ||
-                (input.role === "participant" &&
-                    (parsed.participantId === undefined ||
-                        parsed.participantId !== input.participantId)) ||
-                (input.role === "manager" && input.participantId !== undefined)
+                parsed.meetingId !== this.meetingId
             )
                 throw new RepositoryError(
                     "INVALID_INPUT",
@@ -578,6 +662,20 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     "Session ownership identity, initial message, lifecycle or capability cannot move backward"
                 );
             if (
+                !existing &&
+                ((input.role === "manager" &&
+                    (parsed.participantId !== undefined || input.participantId !== undefined)) ||
+                    (input.role === "participant" &&
+                        (parsed.participantId === undefined ||
+                            parsed.participantId !== input.participantId)))
+            )
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Session role does not match the repository identity"
+                );
+            if (
                 input.lifecycleStatus === "active" &&
                 !input.initialMessageId &&
                 !existing?.initialMessageId
@@ -588,7 +686,11 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     this.meetingId,
                     "Active sessions must have an initial message"
                 );
-            const ownership = { ...input, createdAt: now, updatedAt: now };
+            const ownership = {
+                ...input,
+                createdAt: existing?.createdAt ?? now,
+                updatedAt: now
+            };
             if (existing?.initialMessageId !== undefined)
                 ownership.initialMessageId = existing.initialMessageId;
             if (creation.status !== "ready") {

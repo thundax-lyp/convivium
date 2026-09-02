@@ -114,27 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T12C — Implement Creation And Ownership
-
-前置状态：T12B PASS.
-
-允许修改：`plugin/src/repository/domain/domain-meeting-repository.ts`; `plugin/tests/contract/domain-meeting-repository.spec.ts`; `plugin/tests/fixtures/domain-storage.ts`.
-
-禁止修改：all other production, test and document files.
-
-执行：实现 `create`, `updateBootstrap`, `recordSessionOwnership`, `completeCreate`, `updateCreateResult`；遵循 fixed seq 1、validation order、write map；create 时一次规范化 initial outbox，default priority 50，retry 复用 ID/time。
-
-验证：
-
-```bash
-pnpm --dir plugin test --project contract tests/contract/domain-meeting-repository.spec.ts -t 'bootstraps|separately authorized|creating bootstrap|bootstrap and session ownership|session label|immutable session ownership|unregistered outbox|parent/provider|immutable ownership|labels and participant|does not reactivate'
-pnpm --dir plugin typecheck
-```
-
-PASS：selected shared bodies pass；seq 1 spy 恰一条 `create.complete` 且包含 event/receipt/outbox/ownership/nextEventSeq；`updateCreateResult` 恰一条 `create.result`。
-
-STOP：需要第二个 ready truth 或错误优先级不同。
-
 ### T12D — Implement Generic Command Commit
 
 前置状态：T12C PASS.

@@ -2,8 +2,13 @@ import { DomainMeetingRepository } from "../../src/repository/domain/domain-meet
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
 import { defineMeetingRepositoryBehaviorContract } from "./meeting-repository-behavior.js";
 import type { RepositoryAuthorizationValidator } from "../../src/repository/types.js";
-import { createCommitRecord, createProjection } from "../../src/repository/domain/projection.js";
-import { seqKey } from "../../src/repository/domain/keys.js";
+import {
+    createCommitRecord,
+    createProjection,
+    loadProjection
+} from "../../src/repository/domain/projection.js";
+import { catalogKey, receiptKey, seqKey } from "../../src/repository/domain/keys.js";
+import { CommitRecordV1Schema } from "../../src/repository/domain/schemas.js";
 import { expect, it } from "vitest";
 
 const allow: RepositoryAuthorizationValidator = {
@@ -77,6 +82,159 @@ defineMeetingRepositoryBehaviorContract("DomainMeetingRepository behavior contra
         await repository.read();
         throw new Error("corrupt state was accepted");
     }
+});
+
+it("writes the complete seq-one projection in one create commit", async () => {
+    const catalog = createFakeCatalogDomain();
+    const meeting = createFakeMeetingDomain();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: catalog,
+        meetingDomain: meeting,
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 1
+    });
+    const input = {
+        requestId: "create",
+        authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
+        requestHash: "hash",
+        initialState: { status: "created" },
+        outbox: [
+            {
+                id: "outbox-1",
+                deliveryId: "delivery-1",
+                kind: "dispatch" as const,
+                payload: { meetingId: "meeting-1" }
+            }
+        ],
+        createdAt: 10
+    };
+    await repository.create(input);
+    await repository.recordSessionOwnership(
+        {
+            sessionId: "session-1",
+            parentSessionId: "captain-session-1",
+            sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+            provider: "continuable-provider",
+            role: "manager",
+            lifecycleStatus: "provisioning",
+            capabilityStatus: "active"
+        },
+        11
+    );
+
+    await repository.completeCreate({ ...input, createdAt: 12 });
+
+    const commitCalls = meeting.putCalls.filter((call) => call.table === "commits");
+    expect(commitCalls).toHaveLength(1);
+    expect(commitCalls[0]?.key).toBe(seqKey(1));
+    const commit = CommitRecordV1Schema.parse(commitCalls[0]?.value);
+    expect(commit).toMatchObject({
+        seq: 1,
+        previousSeq: 0,
+        previousDigest: null,
+        operation: "create.complete",
+        committedAt: 12
+    });
+    const projection = loadProjection({ domain: meeting });
+    expect(projection).toMatchObject({
+        snapshot: { version: 0, state: { status: "created" } },
+        bootstrap: {
+            status: "ready",
+            createRequestId: "create",
+            requestHash: "hash",
+            createResult: { meetingId: "meeting-1", meetingVersion: 0 },
+            createdAt: 10,
+            updatedAt: 12
+        },
+        nextEventSeq: 2
+    });
+    expect(projection.events[seqKey(1)]).toMatchObject({
+        eventSeq: 1,
+        meetingVersion: 0,
+        type: "meeting.created",
+        payload: { meetingId: "meeting-1" }
+    });
+    expect(projection.receipts[receiptKey("create", "create_meeting", "captain:1")]).toMatchObject({
+        requestHash: "hash",
+        meetingVersion: 0,
+        result: { meetingId: "meeting-1", meetingVersion: 0 },
+        eventSeqs: [1]
+    });
+    expect(projection.outbox["outbox-1"]).toMatchObject({
+        deliveryId: "delivery-1",
+        kind: "dispatch",
+        priority: 50,
+        status: "pending",
+        availableAt: 10,
+        createdAt: 10
+    });
+    expect(projection.sessionOwnership["session-1"]).toMatchObject({
+        createdAt: 11,
+        updatedAt: 11
+    });
+    expect(meeting.table("creation").get("current")?.status).toBe("ready");
+    expect(catalog.table("meetings").get(catalogKey("team-1", "meeting-1"))?.status).toBe("ready");
+    await repository.close();
+});
+
+it("updates the create result with one projection-only commit", async () => {
+    const catalog = createFakeCatalogDomain();
+    const meeting = createFakeMeetingDomain();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: catalog,
+        meetingDomain: meeting,
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 1
+    });
+    const input = {
+        requestId: "create",
+        authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
+        requestHash: "hash",
+        initialState: { status: "created" },
+        createdAt: 10
+    };
+    await repository.create(input);
+    await repository.completeCreate(input);
+    const snapshot = await repository.read();
+    const creationPuts = meeting.putCalls.filter((call) => call.table === "creation").length;
+    const catalogPuts = catalog.putCalls.length;
+    const result = {
+        meetingId: "meeting-1",
+        meetingVersion: 0,
+        status: "running" as const,
+        participants: [{ participantKey: "manager", participantId: "participant-1" }]
+    };
+
+    await expect(
+        repository.updateCreateResult({ expectedMeetingVersion: 0, result, now: 20 })
+    ).resolves.toEqual(result);
+
+    expect(meeting.putCalls.filter((call) => call.table === "creation")).toHaveLength(creationPuts);
+    expect(catalog.putCalls).toHaveLength(catalogPuts);
+    const commits = meeting.putCalls.filter((call) => call.table === "commits");
+    expect(commits).toHaveLength(2);
+    expect(CommitRecordV1Schema.parse(commits[1]?.value)).toMatchObject({
+        seq: 2,
+        operation: "create.result",
+        committedAt: 20
+    });
+    const projection = loadProjection({ domain: meeting });
+    expect(projection.snapshot).toEqual(snapshot);
+    expect(projection.bootstrap).toMatchObject({ createResult: result, updatedAt: 20 });
+    expect(projection.receipts[receiptKey("create", "create_meeting", "captain:1")]).toMatchObject({
+        result,
+        meetingVersion: 0,
+        eventSeqs: [1]
+    });
+    expect(meeting.table("creation").get("current")?.createResult).toEqual({
+        meetingId: "meeting-1",
+        meetingVersion: 0
+    });
+    await repository.close();
 });
 
 it("rolls back state, events and outbox when a commit put fails", async () => {
