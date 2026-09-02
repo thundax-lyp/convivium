@@ -203,9 +203,10 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 "Meeting is not ready"
             );
         const current = decodeProjection(encodeProjection(this.projection));
-        const changed = _input.mutate(current);
         const previousJson = decodeCanonicalJson(encodeCanonicalJson(current));
-        const nextJson = decodeCanonicalJson(encodeCanonicalJson(changed.next));
+        const changed = _input.mutate(current);
+        const nextProjection = PersistenceProjectionV1Schema.parse(changed.next);
+        const nextJson = decodeCanonicalJson(encodeCanonicalJson(nextProjection));
         const patch = diff(previousJson, nextJson).map((operation) => {
             if (operation.op === "splice")
                 return { ...operation, path: [...operation.path], items: [...operation.items] };
@@ -241,7 +242,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 "Application commit tail is too large"
             );
         await this.meetingDomain.table("commits").put(seqKey(seq), record);
-        this.projection = PersistenceProjectionV1Schema.parse(changed.next);
+        this.projection = nextProjection;
         this.headSeq = seq;
         this.headDigest = record.digest;
         const nextTailCount = tail.length + 1;
@@ -775,35 +776,161 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     this.meetingId,
                     "Meeting does not exist"
                 );
+            const snapshot = structuredClone(this.projection.snapshot);
             this.authorizationValidator.validateCommand({
-                snapshot: this.projection.snapshot,
+                snapshot,
                 command: { commandKind: "send_meeting_message", authorization: input.authorization }
             });
+            const key = receiptKey(
+                input.requestId,
+                "send_meeting_message",
+                input.authorization.callerBinding
+            );
+            const existing = this.projection.receipts[key];
+            if (existing) {
+                if (existing.requestHash !== input.requestHash)
+                    throw new RepositoryError(
+                        "IDEMPOTENCY_CONFLICT",
+                        false,
+                        this.meetingId,
+                        "Request hash conflicts with receipt"
+                    );
+                const replay = this.projection.privateMail[input.mail.mailId];
+                if (!replay)
+                    throw new RepositoryError(
+                        "CORRUPT_DATABASE",
+                        false,
+                        this.meetingId,
+                        "Mail receipt points to a missing mail"
+                    );
+                return {
+                    requestId: input.requestId,
+                    meetingId: this.meetingId,
+                    meetingVersion: existing.meetingVersion,
+                    result: {
+                        mailId: replay.mailId,
+                        handlingAttemptId: replay.handlingAttemptId
+                    },
+                    eventSeqs: [...existing.eventSeqs]
+                };
+            }
+            if (!input.isNewDeliveryAvailable())
+                throw new RepositoryError(
+                    "UNSUPPORTED_CAPABILITY",
+                    false,
+                    this.meetingId,
+                    "Meeting delivery is unavailable until the Captain Session is rebound"
+                );
+            if (snapshot.version !== input.expectedMeetingVersion)
+                throw new RepositoryError(
+                    "VERSION_CONFLICT",
+                    true,
+                    this.meetingId,
+                    "Meeting version is stale"
+                );
+            const state = snapshot.state;
+            const participants = state.participants;
+            const transcript = state.transcript;
+            const messageSeq = state.messageSeq;
+            const context = input.mail.meetingContext;
+            const contextFromSeq = context.contextFromSeq;
+            const contextThroughSeq = context.contextThroughSeq;
+            const relevantMessageIds = context.relevantMessageIds;
+            const terminal = [
+                "paused",
+                "completed",
+                "partial",
+                "no_consensus",
+                "cancelled",
+                "failed",
+                "archiving",
+                "archived"
+            ].includes(typeof state.status === "string" ? state.status : "");
+            const hasParticipant = (participantId: string): boolean =>
+                Array.isArray(participants) &&
+                participants.some(
+                    (participant) =>
+                        typeof participant === "object" &&
+                        participant !== null &&
+                        !Array.isArray(participant) &&
+                        participant.id === participantId
+                );
+            const recipientOwned = Object.values(this.projection.sessionOwnership).some(
+                (ownership) =>
+                    ownership.role === "participant" &&
+                    ownership.participantId === input.mail.recipientParticipantId &&
+                    ownership.lifecycleStatus === "active" &&
+                    ownership.capabilityStatus === "active"
+            );
+            const contextValid =
+                context.meetingId === this.meetingId &&
+                typeof contextFromSeq === "number" &&
+                Number.isSafeInteger(contextFromSeq) &&
+                typeof contextThroughSeq === "number" &&
+                Number.isSafeInteger(contextThroughSeq) &&
+                contextFromSeq >= 0 &&
+                contextFromSeq <= contextThroughSeq &&
+                typeof messageSeq === "number" &&
+                contextThroughSeq <= messageSeq &&
+                input.mail.snapshotThroughSeq === contextThroughSeq;
+            const messagesValid =
+                contextValid &&
+                Array.isArray(relevantMessageIds) &&
+                relevantMessageIds.every(
+                    (messageId) =>
+                        typeof messageId === "string" &&
+                        Array.isArray(transcript) &&
+                        transcript.some(
+                            (message) =>
+                                typeof message === "object" &&
+                                message !== null &&
+                                !Array.isArray(message) &&
+                                message.id === messageId &&
+                                typeof message.seq === "number" &&
+                                message.seq >= contextFromSeq &&
+                                message.seq <= contextThroughSeq
+                        )
+                );
+            const parent =
+                input.mail.replyToMailId === undefined
+                    ? undefined
+                    : this.projection.privateMail[input.mail.replyToMailId];
+            const replyValid =
+                input.mail.replyToMailId === undefined ||
+                (parent !== undefined &&
+                    new Set([parent.senderParticipantId, parent.recipientParticipantId]).size ===
+                        new Set([input.mail.senderParticipantId, input.mail.recipientParticipantId])
+                            .size &&
+                    [parent.senderParticipantId, parent.recipientParticipantId].every(
+                        (participantId) =>
+                            participantId === input.mail.senderParticipantId ||
+                            participantId === input.mail.recipientParticipantId
+                    ));
+            if (
+                terminal ||
+                !hasParticipant(input.mail.senderParticipantId) ||
+                !hasParticipant(input.mail.recipientParticipantId) ||
+                !recipientOwned ||
+                !messagesValid ||
+                !replyValid ||
+                input.mail.meetingId !== this.meetingId ||
+                input.outbox.kind !== "dispatch" ||
+                input.outbox.priority !== 0 ||
+                input.outbox.payload.role !== "meeting_mail" ||
+                input.outbox.payload.mailId !== input.mail.mailId ||
+                input.outbox.payload.participantId !== input.mail.recipientParticipantId
+            )
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Meeting mail participants, context, or delivery are invalid"
+                );
             const now = input.mail.createdAt;
             return this.commit({
-                operation: "send_meeting_message",
+                operation: "mail.send",
                 now,
                 mutate: (projection) => {
-                    const key = receiptKey(
-                        input.requestId,
-                        "send_meeting_message",
-                        input.authorization.callerBinding
-                    );
-                    const existing = projection.receipts[key];
-                    if (existing)
-                        return {
-                            next: projection,
-                            result: {
-                                requestId: input.requestId,
-                                meetingId: this.meetingId,
-                                meetingVersion: existing.meetingVersion,
-                                result: existing.result as {
-                                    mailId: string;
-                                    handlingAttemptId: string;
-                                },
-                                eventSeqs: [...existing.eventSeqs]
-                            }
-                        };
                     const mail = { ...input.mail, status: "pending" as const, updatedAt: now };
                     projection.privateMail[mail.mailId] = mail;
                     const outboxId = input.outbox.id ?? crypto.randomUUID();
@@ -811,8 +938,8 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                         formatVersion: 1,
                         id: outboxId,
                         deliveryId: input.outbox.deliveryId,
-                        kind: input.outbox.kind,
-                        priority: input.outbox.priority ?? 0,
+                        kind: "dispatch",
+                        priority: input.outbox.priority ?? 50,
                         payload: input.outbox.payload,
                         status: "pending",
                         attempts: 0,
@@ -860,7 +987,52 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         const input = _input;
         this.ensureOpen();
         return this.enqueueMutation(async () => {
+            const snapshot = this.projection?.snapshot;
+            if (!snapshot)
+                throw new RepositoryError(
+                    "MEETING_NOT_FOUND",
+                    false,
+                    this.meetingId,
+                    "Meeting does not exist"
+                );
+            this.authorizationValidator.validateCommand({
+                snapshot,
+                command: {
+                    commandKind: "start_meeting_message",
+                    authorization: input.authorization
+                }
+            });
+            const key = receiptKey(
+                input.requestId,
+                "start_meeting_message",
+                input.authorization.callerBinding
+            );
+            const receipt = this.projection?.receipts[key];
             const mail = this.projection?.privateMail[input.mailId];
+            if (receipt) {
+                if (receipt.requestHash !== input.requestHash)
+                    throw new RepositoryError(
+                        "IDEMPOTENCY_CONFLICT",
+                        false,
+                        this.meetingId,
+                        "Request hash conflicts with receipt"
+                    );
+                if (!mail)
+                    throw new RepositoryError(
+                        "CORRUPT_DATABASE",
+                        false,
+                        this.meetingId,
+                        "Mail receipt points to a missing mail"
+                    );
+                return structuredClone(mail);
+            }
+            if (snapshot.version !== input.expectedMeetingVersion)
+                throw new RepositoryError(
+                    "VERSION_CONFLICT",
+                    true,
+                    this.meetingId,
+                    "Meeting version is stale"
+                );
             if (!mail)
                 throw new RepositoryError(
                     "OUTBOX_NOT_FOUND",
@@ -869,6 +1041,41 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     "Private mail does not exist"
                 );
             const now = input.now ?? this.now();
+            const status = snapshot.state.status;
+            if (
+                mail.status !== "pending" ||
+                status === "paused" ||
+                [
+                    "completed",
+                    "partial",
+                    "no_consensus",
+                    "cancelled",
+                    "failed",
+                    "archiving",
+                    "archived"
+                ].includes(typeof status === "string" ? status : "")
+            )
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    status === "paused",
+                    this.meetingId,
+                    "Meeting mail is not dispatchable"
+                );
+            const messageSeq = snapshot.state.messageSeq;
+            if (
+                !Number.isSafeInteger(input.processingThroughSeq) ||
+                input.processingThroughSeq < 0 ||
+                typeof messageSeq !== "number" ||
+                input.processingThroughSeq > messageSeq ||
+                !Number.isFinite(input.deadlineAt) ||
+                input.deadlineAt <= now
+            )
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Meeting mail processing bounds are invalid"
+                );
             return this.commit({
                 operation: "mail.start",
                 now,
@@ -882,6 +1089,17 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                         updatedAt: now
                     };
                     projection.privateMail[input.mailId] = next;
+                    projection.receipts[key] = {
+                        formatVersion: 1,
+                        requestId: input.requestId,
+                        commandKind: "start_meeting_message",
+                        callerBinding: input.authorization.callerBinding,
+                        requestHash: input.requestHash,
+                        meetingVersion: snapshot.version,
+                        result: { mailId: input.mailId },
+                        eventSeqs: [],
+                        createdAt: now
+                    };
                     return { next: projection, result: next };
                 }
             });
@@ -893,13 +1111,58 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         const input = _input;
         this.ensureOpen();
         return this.enqueueMutation(async () => {
-            const mail = this.projection?.privateMail[input.mailId];
-            if (!mail || mail.handlingAttemptId !== input.handlingAttemptId)
+            const snapshot = this.projection?.snapshot;
+            if (!snapshot)
                 throw new RepositoryError(
-                    "INVALID_INPUT",
+                    "MEETING_NOT_FOUND",
                     false,
                     this.meetingId,
-                    "Private mail attempt is invalid"
+                    "Meeting does not exist"
+                );
+            const commandKind =
+                input.status === "timed_out" ? "timeout_meeting_message" : "finish_meeting_message";
+            this.authorizationValidator.validateCommand({
+                snapshot,
+                command: { commandKind, authorization: input.authorization }
+            });
+            const key = receiptKey(input.requestId, commandKind, input.authorization.callerBinding);
+            const receipt = this.projection?.receipts[key];
+            const mail = this.projection?.privateMail[input.mailId];
+            if (receipt) {
+                if (receipt.requestHash !== input.requestHash)
+                    throw new RepositoryError(
+                        "IDEMPOTENCY_CONFLICT",
+                        false,
+                        this.meetingId,
+                        "Request hash conflicts with receipt"
+                    );
+                if (!mail)
+                    throw new RepositoryError(
+                        "CORRUPT_DATABASE",
+                        false,
+                        this.meetingId,
+                        "Mail receipt points to a missing mail"
+                    );
+                return structuredClone(mail);
+            }
+            if (snapshot.version !== input.expectedMeetingVersion)
+                throw new RepositoryError(
+                    "VERSION_CONFLICT",
+                    true,
+                    this.meetingId,
+                    "Meeting version is stale"
+                );
+            if (
+                !mail ||
+                mail.status !== "processing" ||
+                mail.handlingAttemptId !== input.handlingAttemptId ||
+                mail.deliveryId !== input.deliveryId
+            )
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "Mail handling is stale or terminal"
                 );
             const now = input.now ?? this.now();
             return this.commit({
@@ -913,6 +1176,17 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                         updatedAt: now
                     };
                     projection.privateMail[input.mailId] = next;
+                    projection.receipts[key] = {
+                        formatVersion: 1,
+                        requestId: input.requestId,
+                        commandKind,
+                        callerBinding: input.authorization.callerBinding,
+                        requestHash: input.requestHash,
+                        meetingVersion: snapshot.version,
+                        result: { mailId: input.mailId, status: input.status },
+                        eventSeqs: [],
+                        createdAt: now
+                    };
                     return { next: projection, result: next };
                 }
             });
@@ -924,6 +1198,51 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         const input = _input;
         this.ensureOpen();
         return this.enqueueMutation(async () => {
+            const snapshot = this.projection?.snapshot;
+            if (!snapshot)
+                throw new RepositoryError(
+                    "MEETING_NOT_FOUND",
+                    false,
+                    this.meetingId,
+                    "Meeting does not exist"
+                );
+            const commandKind = "cancel_unfinished_meeting_message";
+            this.authorizationValidator.validateCommand({
+                snapshot,
+                command: { commandKind, authorization: input.authorization }
+            });
+            const key = receiptKey(input.requestId, commandKind, input.authorization.callerBinding);
+            const receipt = this.projection?.receipts[key];
+            if (receipt) {
+                if (receipt.requestHash !== input.requestHash)
+                    throw new RepositoryError(
+                        "IDEMPOTENCY_CONFLICT",
+                        false,
+                        this.meetingId,
+                        "Request hash conflicts with receipt"
+                    );
+                const result = receipt.result;
+                if (
+                    typeof result !== "object" ||
+                    result === null ||
+                    Array.isArray(result) ||
+                    typeof result.cancelled !== "number"
+                )
+                    throw new RepositoryError(
+                        "CORRUPT_DATABASE",
+                        false,
+                        this.meetingId,
+                        "Cancel receipt is invalid"
+                    );
+                return result.cancelled;
+            }
+            if (snapshot.version !== input.expectedMeetingVersion)
+                throw new RepositoryError(
+                    "VERSION_CONFLICT",
+                    true,
+                    this.meetingId,
+                    "Meeting version is stale"
+                );
             const now = input.now ?? this.now();
             const count = Object.values(this.projection?.privateMail ?? {}).filter(
                 (mail) => mail.status === "pending" || mail.status === "processing"
@@ -943,6 +1262,17 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                             };
                             cancelled += 1;
                         }
+                    projection.receipts[key] = {
+                        formatVersion: 1,
+                        requestId: input.requestId,
+                        commandKind,
+                        callerBinding: input.authorization.callerBinding,
+                        requestHash: input.requestHash,
+                        meetingVersion: snapshot.version,
+                        result: { cancelled },
+                        eventSeqs: [],
+                        createdAt: now
+                    };
                     return { next: projection, result: cancelled };
                 }
             });
@@ -1159,6 +1489,13 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         const input = _input;
         this.ensureOpen();
         return this.enqueueMutation(async () => {
+            if (input.ttlMs < 1 || !Number.isSafeInteger(input.batchSize) || input.batchSize < 1)
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Outbox lease bounds are invalid"
+                );
             const now = input.now ?? this.now();
             const candidates = Object.values(this.projection?.outbox ?? {})
                 .filter(
@@ -1168,7 +1505,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 )
                 .sort(
                     (a, b) =>
-                        a.priority - b.priority ||
+                        b.priority - a.priority ||
                         a.createdAt - b.createdAt ||
                         (a.id < b.id ? -1 : 1)
                 )
@@ -1211,6 +1548,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         const input = _input;
         this.ensureOpen();
         return this.enqueueMutation(async () => {
+            const now = input.now ?? this.now();
             const current = this.projection?.outbox[input.id];
             if (!current)
                 throw new RepositoryError(
@@ -1223,7 +1561,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 current.status !== "leased" ||
                 current.leaseOwner !== input.leaseOwner ||
                 current.leaseToken !== input.leaseToken ||
-                (current.leaseDeadline ?? 0) <= (input.now ?? this.now())
+                (current.leaseDeadline ?? 0) <= now
             )
                 throw new RepositoryError(
                     "LEASE_LOST",
@@ -1231,7 +1569,6 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     this.meetingId,
                     "Outbox lease is no longer valid"
                 );
-            const now = input.now ?? this.now();
             return this.commit({
                 operation: "outbox.complete",
                 now,
@@ -1279,6 +1616,13 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         const input = _input;
         this.ensureOpen();
         return this.enqueueMutation(async () => {
+            if (input.ttlMs < 1)
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Outbox lease ttlMs must be positive"
+                );
             const now = input.now ?? this.now();
             const item = this.projection?.outbox[input.id];
             if (
@@ -1312,61 +1656,68 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
     }
     async recover(_input: RecoverInput = {}): Promise<RecoveryResult> {
         this.ensureOpen();
-        const creation = this.meetingDomain.table("creation").get("current");
-        if (!creation)
-            throw new RepositoryError(
-                "CORRUPT_DATABASE",
-                false,
-                this.meetingId,
-                "Meeting bootstrap is missing"
-            );
-        const now = _input.now ?? this.now();
-        let reclaimedOutbox = 0;
-        if (this.projection) {
-            const expired = Object.values(this.projection.outbox).filter(
-                (item) => item.status === "leased" && (item.leaseDeadline ?? 0) <= now
-            );
-            if (expired.length) {
-                reclaimedOutbox = await this.commit({
-                    operation: "outbox.recover",
-                    now,
-                    mutate: (projection) => {
-                        for (const item of expired)
-                            projection.outbox[item.id] = {
-                                ...item,
-                                status: "pending",
-                                leaseOwner: null,
-                                leaseToken: null,
-                                leaseDeadline: null
-                            };
-                        return { next: projection, result: expired.length };
-                    }
-                });
+        return this.enqueueMutation(async () => {
+            const creation = this.meetingDomain.table("creation").get("current");
+            if (!creation)
+                throw new RepositoryError(
+                    "CORRUPT_DATABASE",
+                    false,
+                    this.meetingId,
+                    "Meeting bootstrap is missing"
+                );
+            const now = _input.now ?? this.now();
+            let reclaimedOutbox = 0;
+            if (this.projection) {
+                const expired = Object.values(this.projection.outbox).filter(
+                    (item) => item.status === "leased" && (item.leaseDeadline ?? 0) <= now
+                );
+                if (expired.length)
+                    reclaimedOutbox = await this.commit({
+                        operation: "outbox.recover",
+                        now,
+                        mutate: (projection) => {
+                            for (const item of expired)
+                                projection.outbox[item.id] = {
+                                    ...item,
+                                    status: "pending",
+                                    leaseOwner: null,
+                                    leaseToken: null,
+                                    leaseDeadline: null
+                                };
+                            return { next: projection, result: expired.length };
+                        }
+                    });
             }
-        }
-        const bootstrap = {
-            status: creation.status,
-            createRequestId: creation.requestId,
-            requestHash: creation.requestHash,
-            ...(creation.createResult === null ? {} : { createResult: creation.createResult }),
-            createdAt: creation.createdAt,
-            updatedAt: creation.updatedAt,
-            ...(creation.failureCode === null ? {} : { failureCode: creation.failureCode })
-        };
-        const pendingOutbox = Object.values(this.projection?.outbox ?? {}).filter(
-            (item) => item.status === "pending" || item.status === "leased"
-        ).length;
-        return {
-            ...(this.projection?.snapshot
-                ? { snapshot: structuredClone(this.projection.snapshot) }
-                : {}),
-            bootstrap,
-            sessionOwnership: Object.values(creation.sessionOwnership).map((item) =>
-                structuredClone(item)
-            ),
-            reclaimedOutbox,
-            pendingOutbox
-        };
+            const ready = creation.status === "ready" && this.projection !== undefined;
+            const bootstrap = ready
+                ? structuredClone(this.projection!.bootstrap)
+                : {
+                      status: creation.status,
+                      createRequestId: creation.requestId,
+                      requestHash: creation.requestHash,
+                      ...(creation.createResult === null
+                          ? {}
+                          : { createResult: creation.createResult }),
+                      createdAt: creation.createdAt,
+                      updatedAt: creation.updatedAt,
+                      ...(creation.failureCode === null
+                          ? {}
+                          : { failureCode: creation.failureCode })
+                  };
+            const pendingOutbox = Object.values(this.projection?.outbox ?? {}).filter(
+                (item) => item.status === "pending" || item.status === "leased"
+            ).length;
+            const ownership = ready ? this.projection!.sessionOwnership : creation.sessionOwnership;
+            return {
+                ...(ready && this.projection!.snapshot
+                    ? { snapshot: structuredClone(this.projection!.snapshot) }
+                    : {}),
+                bootstrap,
+                sessionOwnership: Object.values(ownership).map((item) => structuredClone(item)),
+                reclaimedOutbox,
+                pendingOutbox
+            };
+        });
     }
 
     async close(): Promise<void> {

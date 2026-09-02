@@ -381,6 +381,140 @@ it("validates command event and outbox records before commit", async () => {
     await repository.close();
 });
 
+it("persists the current outbox lease before renewal and completion", async () => {
+    const meeting = createFakeMeetingDomain();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: createFakeCatalogDomain(),
+        meetingDomain: meeting,
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 1
+    });
+    const input = {
+        requestId: "create",
+        authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
+        requestHash: "hash",
+        initialState: {},
+        outbox: [
+            {
+                id: "outbox-1",
+                deliveryId: "delivery-1",
+                kind: "dispatch" as const,
+                payload: {}
+            }
+        ],
+        createdAt: 0
+    };
+    await repository.create(input);
+    await repository.completeCreate(input);
+    const [first] = await repository.claimOutbox({
+        owner: "worker-a",
+        ttlMs: 10,
+        batchSize: 1,
+        now: 100
+    });
+    expect(meeting.putCalls.filter((call) => call.table === "commits")).toHaveLength(2);
+    const [second] = await repository.claimOutbox({
+        owner: "worker-b",
+        ttlMs: 100,
+        batchSize: 1,
+        now: 111
+    });
+    expect(meeting.putCalls.filter((call) => call.table === "commits")).toHaveLength(3);
+    expect(first).toMatchObject({ leaseOwner: "worker-a", leaseDeadline: 110 });
+    expect(second).toMatchObject({ leaseOwner: "worker-b", leaseDeadline: 211 });
+    expect(loadProjection({ domain: meeting }).outbox["outbox-1"]).toMatchObject({
+        status: "leased",
+        leaseOwner: "worker-b",
+        leaseToken: second.leaseToken,
+        leaseDeadline: 211
+    });
+    await expect(
+        repository.renewOutboxLease({
+            id: second.id,
+            leaseOwner: second.leaseOwner,
+            leaseToken: second.leaseToken,
+            ttlMs: 10,
+            now: 112
+        })
+    ).resolves.toBe(122);
+    expect(meeting.putCalls.filter((call) => call.table === "commits")).toHaveLength(4);
+    await expect(
+        repository.completeOutbox({
+            id: second.id,
+            leaseOwner: second.leaseOwner,
+            leaseToken: second.leaseToken,
+            completion: { status: "delivered" },
+            now: 113
+        })
+    ).resolves.toEqual({ id: "outbox-1", status: "delivered" });
+    expect(meeting.putCalls.filter((call) => call.table === "commits")).toHaveLength(5);
+    await repository.close();
+});
+
+it("recovers expired outbox leases on the mutation chain with zero-or-one commit", async () => {
+    const meeting = createFakeMeetingDomain();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: createFakeCatalogDomain(),
+        meetingDomain: meeting,
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 1
+    });
+    const input = {
+        requestId: "create",
+        authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
+        requestHash: "hash",
+        initialState: {},
+        outbox: [
+            {
+                id: "outbox-1",
+                deliveryId: "delivery-1",
+                kind: "dispatch" as const,
+                payload: {}
+            }
+        ],
+        createdAt: 0
+    };
+    await repository.create(input);
+    await repository.completeCreate(input);
+    await repository.claimOutbox({ owner: "worker", ttlMs: 10, batchSize: 1, now: 100 });
+    const before = meeting.putCalls.filter((call) => call.table === "commits").length;
+
+    await expect(repository.recover({ now: 109 })).resolves.toMatchObject({
+        reclaimedOutbox: 0,
+        pendingOutbox: 1,
+        snapshot: { meetingId: "meeting-1" }
+    });
+    expect(meeting.putCalls.filter((call) => call.table === "commits")).toHaveLength(before);
+    await expect(repository.recover({ now: 110 })).resolves.toMatchObject({
+        reclaimedOutbox: 1,
+        pendingOutbox: 1,
+        snapshot: { meetingId: "meeting-1" }
+    });
+    expect(meeting.putCalls.filter((call) => call.table === "commits")).toHaveLength(before + 1);
+    expect(loadProjection({ domain: meeting }).outbox["outbox-1"]).toMatchObject({
+        status: "pending",
+        leaseOwner: null,
+        leaseToken: null,
+        leaseDeadline: null
+    });
+    const afterRecovery = meeting.putCalls.filter((call) => call.table === "commits").length;
+    await expect(
+        repository.cancelUnfinishedPrivateMeetingMail({
+            requestId: "cancel-empty",
+            requestHash: "cancel-empty-hash",
+            authorization: input.authorization,
+            expectedMeetingVersion: 0,
+            now: 111
+        })
+    ).resolves.toBe(0);
+    expect(meeting.putCalls.filter((call) => call.table === "commits")).toHaveLength(afterRecovery);
+    await repository.close();
+});
+
 it("rolls back state, events and outbox when a commit put fails", async () => {
     const catalog = createFakeCatalogDomain();
     const meeting = createFakeMeetingDomain();

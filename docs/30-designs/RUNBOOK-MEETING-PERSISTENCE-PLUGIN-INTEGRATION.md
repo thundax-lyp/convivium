@@ -114,27 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T12E — Implement Mail, Outbox And Recovery
-
-前置状态：T12D PASS.
-
-允许修改：`plugin/src/repository/domain/domain-meeting-repository.ts`; `plugin/tests/contract/domain-meeting-repository.spec.ts`; `plugin/tests/fixtures/domain-storage.ts`.
-
-禁止修改：all other production, test and document files.
-
-执行：实现七个 private-mail methods、claim/complete/renew outbox、recover；全部 mutation 用 chain；recover 可能写时加入 chain；保留 mail immutable identity、authorization/idempotency、lease token/deadline 和 snapshot exclusion。
-
-验证：
-
-```bash
-pnpm --dir plugin test --project contract tests/contract/domain-meeting-repository.spec.ts -t 'stale outbox|renews an owned|completion after expiry|private mail'
-pnpm --dir plugin typecheck
-```
-
-PASS：selected bodies pass；spy 符合 zero/one；stale lease 为 `LEASE_LOST`；mail 可恢复且不在 MeetingState。
-
-STOP：需要多 commit、commit 内 external effect 或 recover 链外写。
-
 ### T12F — Close Repository Contract And Maintenance
 
 前置状态：T12E PASS.
