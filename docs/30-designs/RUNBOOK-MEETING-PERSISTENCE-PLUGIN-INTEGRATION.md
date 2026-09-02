@@ -114,34 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T11B — Repair Checkpoint Baseline
-
-前置状态：HEAD subject is `Docs(repo/persistence): 固化存储切换纠偏边界`; `git rev-parse HEAD^` equals commit `53618af`; three T12 files remain untracked with SHA-256 respectively `b7c253addec6c9256fcc7722d3e49d3f4b73e0f644479bef22dbbf8cdc5991cf`, `096f7272869b3fb361de8867ecdab206addaa6e27cf330fa6d7f7273391ca1d6`, `335669f89d08bee56e608b42aeabeeb66ecdf4769ffe43f756d77a8a39c3feaa`.
-
-允许修改：`plugin/src/storage/unit.ts`; `plugin/tests/unit/storage/checkpoint.spec.ts`; `plugin/tests/unit/repository/domain/projection.spec.ts`; `plugin/tests/unit/repository/domain/checkpoint.spec.ts`.
-
-禁止修改：T12 files, public types, schemas, backend layout.
-
-执行：
-
-1. `JsonlKvUnit#mutate` 成功 append 后，在 `tailRecords >= 512` 或 `tailBytes >= 8_388_608` 时捕获 post-append state 并请求 routine checkpoint；保留 hard limits 1,024/16,777,216 和原 unit queue。
-2. 新增 exact title `triggers routine physical checkpoint at the byte threshold before 512 records`；少于 512 次 put 跨过 8 MiB，close/reopen 后断言 pointer 覆盖最后 op 且全部值恢复。
-3. 把 projection 最后两个误导测试替换为 `anchors the first post-checkpoint commit to the checkpoint projection digest` 和 `rejects a post-checkpoint predecessor that references a reclaimed commit`；真实调用 `foldCommitTail`。
-4. checkpoint suite 十个测试必须保留真实 page/root/pointer/digest/put/delete 行为，不得只比较常量或名称。
-
-验证：
-
-```bash
-pnpm --dir plugin test --project host tests/unit/storage/checkpoint.spec.ts tests/recovery/storage/checkpoint-recovery.spec.ts tests/unit/repository/domain/projection.spec.ts tests/unit/repository/domain/checkpoint.spec.ts
-pnpm --dir plugin typecheck
-pnpm --dir plugin build
-git diff --check
-```
-
-PASS：全部退出 0；byte trigger 观察 published pointer；anchor tests 实际 fold；T12 files unchanged。
-
-STOP：需要 layout/API/Schema 变化或既有 recovery 回归。
-
 ### T12A — Establish One Behavior Oracle
 
 前置状态：T11B PASS；T12 STOP files still uncommitted.

@@ -148,7 +148,7 @@ export class JsonlKvUnit implements KvUnit {
             this.seq += 1;
             this.tailRecords += 1;
             this.tailBytes += line.byteLength;
-            if (this.seq % 512 === 0) {
+            if (this.tailRecords >= 512 || this.tailBytes >= 8_388_608) {
                 checkpointSnapshot = {
                     generation: `${String(this.seq).padStart(20, "0")}_${sha256Hex(encodeCanonicalJson({ throughOpSeq: this.seq, tables: this.tables, global: this.global ?? null })).slice(0, 16)}`,
                     throughOpSeq: this.seq,
@@ -174,6 +174,8 @@ export class JsonlKvUnit implements KvUnit {
                 if (checkpointSnapshot)
                     try {
                         await writePhysicalCheckpoint(this.root, checkpointSnapshot, this.fs);
+                        this.tailRecords = 0;
+                        this.tailBytes = 0;
                         this.maintenanceError = undefined;
                     } catch (e) {
                         this.maintenanceError = e;
@@ -252,6 +254,7 @@ export async function openJsonlUnit(
             tables[t] = structuredClone(values);
         global = checkpoint.global;
         seq = checkpoint.throughOpSeq;
+        replaySeq = checkpoint.throughOpSeq;
         await collectPhysicalOrphans(root, checkpoint.generation, fs);
     }
     const segmentLines: Uint8Array[] = [];
@@ -276,26 +279,20 @@ export async function openJsonlUnit(
                 cause: error
             });
         }
-        const expected =
-            replaySeq === 0
-                ? checkpoint
-                    ? record.opSeq === 1 || record.opSeq === checkpoint.throughOpSeq + 1
-                    : 1
-                : replaySeq + 1;
-        if (
-            record.opSeq !== expected &&
-            !(checkpoint && record.opSeq <= checkpoint.throughOpSeq && replaySeq === 0)
-        )
-            throw new StorageError("malformed-medium", "sequence mismatch");
-        if (!checkpoint || record.opSeq > checkpoint.throughOpSeq) {
-            if (record.kind === "put") tables[record.table!][record.key!] = record.value;
-            else if (record.kind === "delete") delete tables[record.table!][record.key!];
-            else global = record.value;
-            tailRecords += 1;
-            tailBytes += line.byteLength + 1;
-            if (activeFirstOpSeq === undefined && activeLines.includes(line))
-                activeFirstOpSeq = record.opSeq;
+        if (checkpoint && record.opSeq <= checkpoint.throughOpSeq) {
+            if (replaySeq !== checkpoint.throughOpSeq)
+                throw new StorageError("malformed-medium", "sequence mismatch");
+            continue;
         }
+        if (record.opSeq !== replaySeq + 1)
+            throw new StorageError("malformed-medium", "sequence mismatch");
+        if (record.kind === "put") tables[record.table!][record.key!] = record.value;
+        else if (record.kind === "delete") delete tables[record.table!][record.key!];
+        else global = record.value;
+        tailRecords += 1;
+        tailBytes += line.byteLength + 1;
+        if (activeFirstOpSeq === undefined && activeLines.includes(line))
+            activeFirstOpSeq = record.opSeq;
         replaySeq = record.opSeq;
         seq = record.opSeq;
     }

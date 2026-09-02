@@ -8,6 +8,7 @@ import {
 import { ScriptedFileSystem } from "../../fixtures/storage/scripted-filesystem.js";
 import { encodeRecord } from "../../../src/storage/format.js";
 import { encodeCanonicalJson, sha256Hex } from "../../../src/storage/canonical-json.js";
+import { openJsonlUnit } from "../../../src/storage/unit.js";
 
 async function fixture() {
     const root = await mkdtemp(join("/tmp", "cp-"));
@@ -150,6 +151,55 @@ describe("physical checkpoint", () => {
             await expect(
                 loadPhysicalCheckpoint(root, descriptor, descriptorDigest)
             ).resolves.toMatchObject(state);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
+    it("triggers routine physical checkpoint at the byte threshold before 512 records", async () => {
+        const root = await mkdtemp(join("/tmp", "cp-byte-"));
+        const descriptor = {
+            name: "records",
+            version: 1,
+            tables: ["records"],
+            hasGlobal: false
+        } as const;
+        try {
+            const value = "x".repeat(17_000);
+            let accumulatedBytes = 0;
+            let triggerOpSeq = 0;
+            for (let index = 0; index < 512; index += 1) {
+                accumulatedBytes +=
+                    encodeRecord({
+                        formatVersion: 1,
+                        opSeq: index + 1,
+                        kind: "put",
+                        table: "records",
+                        key: `k${index}`,
+                        value
+                    }).byteLength + 1;
+                if (accumulatedBytes >= 8_388_608) {
+                    triggerOpSeq = index + 1;
+                    break;
+                }
+            }
+            expect(triggerOpSeq).toBeGreaterThan(0);
+            expect(triggerOpSeq).toBeLessThan(512);
+            expect(accumulatedBytes).toBeGreaterThanOrEqual(8_388_608);
+            const unit = await openJsonlUnit(root, descriptor);
+            for (let index = 0; index < triggerOpSeq; index += 1)
+                await unit.putRecord("records", `k${index}`, value);
+            await unit.close();
+            const pointer = JSON.parse(
+                (await readFile(join(root, "checkpoint-pointer.json"))).toString()
+            ) as { throughOpSeq: number };
+            expect(pointer.throughOpSeq).toBe(triggerOpSeq);
+            const reopened = await openJsonlUnit(root, descriptor);
+            const loaded = await reopened.loadAll();
+            expect(Object.keys(loaded.tables.records!)).toHaveLength(triggerOpSeq);
+            expect(loaded.tables.records?.k0).toBe(value);
+            expect(loaded.tables.records?.[`k${triggerOpSeq - 1}`]).toBe(value);
+            await reopened.close();
         } finally {
             await rm(root, { recursive: true, force: true });
         }

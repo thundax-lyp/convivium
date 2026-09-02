@@ -9,7 +9,6 @@ import {
     MAX_COMMIT_VALUE_BYTES,
     MAX_APPLICATION_CHECKPOINT_BYTES
 } from "../../../../src/repository/domain/projection.js";
-import { createFakeMeetingDomain } from "../../../../tests/fixtures/domain-storage.js";
 import { CommitRecordV1Schema } from "../../../../src/repository/domain/schemas.js";
 describe("domain projection", () => {
     const bootstrap = {
@@ -167,10 +166,51 @@ describe("domain projection", () => {
             })
         ).toEqual(p);
     });
-    it("loads a verified checkpoint and continuous tail from a Meeting Domain", () => {
-        expect(createFakeMeetingDomain().name).toBe("convivium_m_test");
+    it("anchors the first post-checkpoint commit to the checkpoint projection digest", () => {
+        const base = createProjection({ snapshot: null, bootstrap, sessionOwnership: {} });
+        const firstPostCheckpoint = createCommitRecord({
+            formatVersion: 1,
+            seq: 2,
+            previousSeq: 1,
+            previousDigest: projectionDigest(base),
+            operation: "update",
+            patch: [{ op: "set", path: ["bootstrap", "updatedAt"], value: 2 }],
+            committedAt: 2
+        });
+        expect(
+            foldCommitTail({
+                baseProjection: base,
+                baseSeq: 1,
+                commits: [["00000000000000000002", firstPostCheckpoint]]
+            }).bootstrap.updatedAt
+        ).toBe(2);
     });
-    it("rejects missing checkpoint pages and page, root, pointer or projection digest mismatch", () => {
-        expect(MAX_APPLICATION_CHECKPOINT_BYTES).toBeGreaterThan(MAX_COMMIT_VALUE_BYTES);
+    it("rejects a post-checkpoint predecessor that references a reclaimed commit", () => {
+        const base = createProjection({ snapshot: null, bootstrap, sessionOwnership: {} });
+        const reclaimed = createCommitRecord({
+            formatVersion: 1,
+            seq: 1,
+            previousSeq: 0,
+            previousDigest: null,
+            operation: "create",
+            patch: [],
+            committedAt: 1
+        });
+        const firstPostCheckpoint = createCommitRecord({
+            formatVersion: 1,
+            seq: 2,
+            previousSeq: 1,
+            previousDigest: reclaimed.digest,
+            operation: "update",
+            patch: [],
+            committedAt: 2
+        });
+        expect(() =>
+            foldCommitTail({
+                baseProjection: base,
+                baseSeq: 1,
+                commits: [["00000000000000000002", firstPostCheckpoint]]
+            })
+        ).toThrow();
     });
 });
