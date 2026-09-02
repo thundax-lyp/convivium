@@ -114,36 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T12A — Establish One Behavior Oracle
-
-前置状态：T11B PASS；T12 STOP files still uncommitted.
-
-允许修改：new `plugin/tests/contract/meeting-repository-behavior.ts`; new `plugin/tests/contract/sqlite-meeting-repository.spec.ts`; `plugin/tests/unit/repository.spec.ts`; delete `plugin/tests/unit/repository/session-ownership.spec.ts`; replace `plugin/tests/contract/domain-meeting-repository.spec.ts`; delete `plugin/tests/contract/repository-title-migration.spec.ts`.
-
-禁止修改：production and fixtures.
-
-执行：
-
-1. 把 25 个 backend-neutral 原测试 body 移入 `defineMeetingRepositoryBehaviorContract(name, harness)`。`harness` 精确类型为 `{ open(authorizationValidator?: RepositoryAuthorizationValidator): Promise<MeetingRepositoryPort>; rejectCorruptedReadyState(): Promise<never> }`；后者必须构造 schema-valid 但 commit digest-invalid 的 ready state，并在 repository open/read boundary 产生 `RepositoryError("CORRUPT_DATABASE")`。
-2. 25 个是原 26 port titles 去掉 `rolls back state, events and outbox when a transition write fails`；仅把首 title 的 `database` 改成 `domain`。九个 schema/migration/media titles 留在 SQLite suite。
-3. 新 `sqlite-meeting-repository.spec.ts` 用原 opener/harness 调用 shared contract，并把原 atomicity case 原样移入该文件。`repository.spec.ts` 只保留九个 SQLite-only cases；四个 ownership bodies 移走后删除空的 `session-ownership.spec.ts`。
-4. Domain suite 用 fake catalog/Meeting Domain 调用同一 shared contract；另加 `rolls back state, events and outbox when a commit put fails`，arm `failNextPut("commits", seqKey(2))` 并断言 projection/events/outbox/head 不变。
-5. Portable corruption body 只调用 `harness.rejectCorruptedReadyState()`；SQLite harness 用原受控 medium corruption，Domain harness 用 schema-valid/digest-invalid commit。ownership label 通过 public method 提交。除 atomic spy 外不读 Domain table。
-
-验证：
-
-```bash
-test -z "$(rg -n 'expect\(true\)|toBeDefined\(\)' plugin/tests/contract/domain-meeting-repository.spec.ts plugin/tests/contract/meeting-repository-behavior.ts || true)"
-pnpm --dir plugin test --project contract tests/contract/sqlite-meeting-repository.spec.ts
-pnpm --dir plugin test --project host tests/unit/repository.spec.ts
-pnpm --dir plugin typecheck
-git diff --check
-```
-
-PASS：SQLite contract 运行 shared 25 bodies 和 atomicity case；unit repository 只运行九个 implementation-only cases；ownership old file 与 title manifest 均不存在；无 placeholder。
-
-STOP：portable body 必须访问 SQL/physical media，或两实现公开错误断言不能一致。
-
 ### T12B — Implement Domain Commit Kernel
 
 前置状态：T12A PASS.
