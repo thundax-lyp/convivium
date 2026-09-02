@@ -46,17 +46,15 @@ describe("domain storage fixture", () => {
     it("records ordered put and delete calls through one shared controller", async () => {
         const domain = createFakeMeetingDomain();
         await domain.table("commits").put("k", commit);
-        await domain
-            .table("checkpoint_roots")
-            .put("r", {
-                formatVersion: 1,
-                generation: "g",
-                baseSeq: 1,
-                pageCount: 1,
-                totalBytes: 1,
-                projectionDigest: "0".repeat(64),
-                createdAt: 1
-            });
+        await domain.table("checkpoint_roots").put("r", {
+            formatVersion: 1,
+            generation: "g",
+            baseSeq: 1,
+            pageCount: 1,
+            totalBytes: 1,
+            projectionDigest: "0".repeat(64),
+            createdAt: 1
+        });
         await domain.table("commits").delete("k");
         expect(domain.putCalls.map((call) => [call.table, call.key])).toEqual([
             ["commits", "k"],

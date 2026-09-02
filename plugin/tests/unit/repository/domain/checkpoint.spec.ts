@@ -113,12 +113,10 @@ describe("application checkpoint", () => {
                     .put("current", { ...pointer, rootDigest: "0".repeat(64) });
             else {
                 const root = domain.table("checkpoint_roots").get(pointer.generation)!;
-                await domain
-                    .table("checkpoint_roots")
-                    .put(pointer.generation, {
-                        ...root,
-                        projectionDigest: projectionDigest(makeProjection("different"))
-                    });
+                await domain.table("checkpoint_roots").put(pointer.generation, {
+                    ...root,
+                    projectionDigest: projectionDigest(makeProjection("different"))
+                });
             }
             expect(() => loadProjection({ domain })).toThrow();
         }
