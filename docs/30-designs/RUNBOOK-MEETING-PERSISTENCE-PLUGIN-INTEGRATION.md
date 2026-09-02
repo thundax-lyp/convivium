@@ -114,31 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T12F — Close Repository Contract And Maintenance
-
-前置状态：T12E PASS.
-
-允许修改：`plugin/src/repository/domain/domain-meeting-repository.ts`; `plugin/tests/contract/domain-meeting-repository.spec.ts`; `plugin/tests/fixtures/domain-storage.ts`.
-
-禁止修改：all other production, test and document files.
-
-执行：实现 maintenance request/run、hard-tail retry/refusal、close drain；新增真实 tests：`queues application checkpoint behind the committed result`, `blocks the next mutation behind application checkpoint`, `retains checkpoint failure for hard-tail retry and close`, `drains maintenance and closes the Domain exactly once`。
-
-验证：
-
-```bash
-test -z "$(rg -n 'void writeCheckpoint|expect\(true\)|toBeDefined\(\)|as never|unknown as|\bany\b' plugin/src/repository/domain/domain-meeting-repository.ts plugin/tests/contract/domain-meeting-repository.spec.ts || true)"
-pnpm --dir plugin test --project contract tests/contract/domain-meeting-repository.spec.ts
-pnpm --dir plugin test --project host tests/unit/module-boundaries.spec.ts tests/unit/repository/domain
-pnpm --dir plugin typecheck
-pnpm --dir plugin build
-git diff --check
-```
-
-PASS：shared Domain behavior 和四 maintenance tests 全过；spy 符合 write map；无 detached checkpoint/bypass。
-
-STOP：shared behavior 不等价、teardown 不静默或必须改 fixed limits。
-
 ### T13 — Implement Catalog Registry And Recovery
 
 前置状态：T12F PASS.

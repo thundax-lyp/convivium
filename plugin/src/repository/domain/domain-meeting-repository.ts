@@ -110,7 +110,9 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
     private projection: PersistenceProjectionV1 | undefined;
     private headSeq = 0;
     private headDigest: string | null = null;
+    private maintenanceRequested = false;
     private maintenanceError: unknown;
+    private closePromise: Promise<void> | undefined;
 
     private constructor(options: DomainMeetingRepositoryOpenOptions) {
         this.catalogDomain = options.catalogDomain;
@@ -155,38 +157,36 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
     }
 
     private enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
-        const guarded = async (): Promise<T> => {
-            if (this.maintenanceError && this.projection) {
-                const pointer = this.meetingDomain.table("checkpoint_pointer").get("current");
-                const baseSeq = pointer?.baseSeq ?? 0;
-                const tail = [...this.meetingDomain.table("commits").entries()].filter(
-                    ([, item]) => item.seq > baseSeq
-                );
-                const bytes = tail.reduce(
-                    (total, [, item]) => total + encodeCanonicalJson(item).byteLength,
-                    0
-                );
-                if (
-                    tail.length >= APPLICATION_CHECKPOINT_TRIGGER_COMMITS ||
-                    bytes >= APPLICATION_CHECKPOINT_TRIGGER_BYTES
-                ) {
-                    await writeCheckpoint({
-                        domain: this.meetingDomain,
-                        projection: this.projection,
-                        baseSeq: this.headSeq,
-                        createdAt: this.now()
-                    });
-                    this.maintenanceError = undefined;
-                } else this.maintenanceError = undefined;
-            }
-            return operation();
-        };
-        const result = this.mutationChain.then(guarded, guarded);
-        this.mutationChain = result.then(
+        this.ensureOpen();
+        const committed = this.mutationChain.then(operation);
+        const maintenance = committed.then(
+            () => this.runMaintenance(),
+            () => undefined
+        );
+        this.mutationChain = maintenance.then(
             () => undefined,
             () => undefined
         );
-        return result;
+        return committed;
+    }
+
+    private async runMaintenance(): Promise<void> {
+        if (!this.maintenanceRequested || !this.projection) return;
+        this.maintenanceRequested = false;
+        const projection = this.projection;
+        const baseSeq = this.headSeq;
+        try {
+            await writeCheckpoint({
+                domain: this.meetingDomain,
+                projection,
+                baseSeq,
+                createdAt: this.now()
+            });
+            this.headDigest = projectionDigest(projection);
+            this.maintenanceError = undefined;
+        } catch (error) {
+            this.maintenanceError = error;
+        }
     }
 
     private async commit<T>(_input: {
@@ -214,7 +214,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         });
         if (patch.length === 0) return changed.result;
         const seq = this.headSeq + 1;
-        const record = createCommitRecord({
+        let record = createCommitRecord({
             formatVersion: 1,
             seq,
             previousSeq: this.headSeq,
@@ -223,24 +223,61 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
             patch,
             committedAt: _input.now
         });
-        const pointerBase =
+        let pointerBase =
             this.meetingDomain.table("checkpoint_pointer").get("current")?.baseSeq ?? 0;
-        const tail = [...this.meetingDomain.table("commits").entries()].filter(
+        let tail = [...this.meetingDomain.table("commits").entries()].filter(
             ([, item]) => item.seq > pointerBase
         );
-        const tailBytes =
+        let tailBytes =
             tail.reduce((total, [, item]) => total + encodeCanonicalJson(item).byteLength, 0) +
             encodeCanonicalJson(record).byteLength;
         if (
             tail.length + 1 > APPLICATION_TAIL_HARD_COMMITS ||
             tailBytes > APPLICATION_TAIL_HARD_BYTES
-        )
-            throw new RepositoryError(
-                "CONSTRAINT_VIOLATION",
-                false,
-                this.meetingId,
-                "Application commit tail is too large"
-            );
+        ) {
+            try {
+                await writeCheckpoint({
+                    domain: this.meetingDomain,
+                    projection: this.projection,
+                    baseSeq: this.headSeq,
+                    createdAt: _input.now
+                });
+                this.headDigest = projectionDigest(this.projection);
+                this.maintenanceRequested = false;
+                this.maintenanceError = undefined;
+                record = createCommitRecord({
+                    formatVersion: 1,
+                    seq,
+                    previousSeq: this.headSeq,
+                    previousDigest: this.headDigest,
+                    operation: _input.operation,
+                    patch,
+                    committedAt: _input.now
+                });
+                pointerBase =
+                    this.meetingDomain.table("checkpoint_pointer").get("current")?.baseSeq ?? 0;
+                tail = [...this.meetingDomain.table("commits").entries()].filter(
+                    ([, item]) => item.seq > pointerBase
+                );
+                tailBytes =
+                    tail.reduce(
+                        (total, [, item]) => total + encodeCanonicalJson(item).byteLength,
+                        0
+                    ) + encodeCanonicalJson(record).byteLength;
+            } catch (error) {
+                this.maintenanceError = error;
+            }
+            if (
+                tail.length + 1 > APPLICATION_TAIL_HARD_COMMITS ||
+                tailBytes > APPLICATION_TAIL_HARD_BYTES
+            )
+                throw new RepositoryError(
+                    "CONSTRAINT_VIOLATION",
+                    false,
+                    this.meetingId,
+                    "Application commit tail is too large"
+                );
+        }
         await this.meetingDomain.table("commits").put(seqKey(seq), record);
         this.projection = nextProjection;
         this.headSeq = seq;
@@ -249,21 +286,8 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         if (
             nextTailCount >= APPLICATION_CHECKPOINT_TRIGGER_COMMITS ||
             tailBytes >= APPLICATION_CHECKPOINT_TRIGGER_BYTES
-        ) {
-            const captured = this.projection;
-            void writeCheckpoint({
-                domain: this.meetingDomain,
-                projection: captured,
-                baseSeq: this.headSeq,
-                createdAt: _input.now
-            })
-                .then(() => {
-                    this.maintenanceError = undefined;
-                })
-                .catch((error: unknown) => {
-                    this.maintenanceError = error;
-                });
-        }
+        )
+            this.maintenanceRequested = true;
         return changed.result;
     }
 
@@ -1721,12 +1745,20 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
     }
 
     async close(): Promise<void> {
-        if (this.closed) return;
+        if (this.closePromise) return this.closePromise;
         this.closed = true;
-        await this.mutationChain;
-        if (!this.domainClosed) {
-            this.domainClosed = true;
-            await this.meetingDomain.close();
-        }
+        this.closePromise = (async () => {
+            await this.mutationChain;
+            const maintenanceError = this.maintenanceError;
+            try {
+                if (!this.domainClosed) {
+                    this.domainClosed = true;
+                    await this.meetingDomain.close();
+                }
+            } finally {
+                if (maintenanceError) throw maintenanceError;
+            }
+        })();
+        return this.closePromise;
     }
 }

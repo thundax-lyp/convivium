@@ -15,8 +15,12 @@ export interface FakeDomainDeleteCall {
 export interface FakeDomainControls {
     readonly putCalls: readonly FakeDomainPutCall[];
     readonly deleteCalls: readonly FakeDomainDeleteCall[];
+    readonly closeCalls: number;
     failNextPut(table: string, key: string): void;
     failNextDelete(table: string, key: string): void;
+    failPutsInTable(table: string): void;
+    allowPutsInTable(table: string): void;
+    blockNextPut(table: string): { readonly entered: Promise<void>; release(): void };
 }
 export type FakeCatalogDomain = CatalogDomain & FakeDomainControls;
 export type FakeMeetingDomain = MeetingDomain & FakeDomainControls;
@@ -27,6 +31,15 @@ class Controller implements FakeDomainControls {
     readonly deleteCalls: FakeDomainDeleteCall[] = [];
     private putFailure: Failure | undefined;
     private deleteFailure: Failure | undefined;
+    private failedPutTable: string | undefined;
+    private putBlock:
+        | {
+              table: string;
+              entered(): void;
+              wait: Promise<void>;
+          }
+        | undefined;
+    closeCalls = 0;
     failNextPut(table: string, key: string): void {
         if (this.putFailure) throw new Error("put failure already armed");
         this.putFailure = { table, key, error: new Error("fake put failure") };
@@ -35,12 +48,41 @@ class Controller implements FakeDomainControls {
         if (this.deleteFailure) throw new Error("delete failure already armed");
         this.deleteFailure = { table, key, error: new Error("fake delete failure") };
     }
-    recordPut(table: string, key: string, value: unknown): Error | undefined {
+    failPutsInTable(table: string): void {
+        this.failedPutTable = table;
+    }
+    allowPutsInTable(table: string): void {
+        if (this.failedPutTable === table) this.failedPutTable = undefined;
+    }
+    blockNextPut(table: string): { readonly entered: Promise<void>; release(): void } {
+        if (this.putBlock) throw new Error("put block already armed");
+        let markEntered = () => undefined;
+        let release = () => undefined;
+        const entered = new Promise<void>((resolve) => {
+            markEntered = resolve;
+        });
+        const wait = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        this.putBlock = { table, entered: markEntered, wait };
+        return { entered, release };
+    }
+    async recordPut(table: string, key: string, value: unknown): Promise<Error | undefined> {
         this.putCalls.push({ table, key, value });
-        if (this.putFailure?.table === table && this.putFailure.key === key) {
+        if (
+            this.putFailure?.table === table &&
+            (this.putFailure.key === key || this.putFailure.key === "*")
+        ) {
             const error = this.putFailure.error;
             this.putFailure = undefined;
             return error;
+        }
+        if (this.failedPutTable === table) return new Error("fake persistent put failure");
+        if (this.putBlock?.table === table) {
+            const block = this.putBlock;
+            this.putBlock = undefined;
+            block.entered();
+            await block.wait;
         }
         return undefined;
     }
@@ -52,6 +94,9 @@ class Controller implements FakeDomainControls {
             return error;
         }
         return undefined;
+    }
+    recordClose(): void {
+        this.closeCalls += 1;
     }
 }
 
@@ -77,7 +122,7 @@ class FakeTable<K extends string, V> implements KvTable<K, V> {
         return this.values.size;
     }
     async put(key: K, value: V): Promise<void> {
-        const error = this.controller.recordPut(this.tableName, key, value);
+        const error = await this.controller.recordPut(this.tableName, key, value);
         if (error) throw error;
         this.values.set(key, value);
     }
@@ -117,12 +162,18 @@ function fakeDomain<S extends DomainSpec>(
             if (!table) throw new Error("unknown table");
             return table;
         },
-        async close() {},
+        async close() {
+            controller.recordClose();
+        },
         putCalls: controller.putCalls,
         deleteCalls: controller.deleteCalls,
         failNextPut: controller.failNextPut.bind(controller),
-        failNextDelete: controller.failNextDelete.bind(controller)
+        failNextDelete: controller.failNextDelete.bind(controller),
+        failPutsInTable: controller.failPutsInTable.bind(controller),
+        allowPutsInTable: controller.allowPutsInTable.bind(controller),
+        blockNextPut: controller.blockNextPut.bind(controller)
     } as Domain<S> & FakeDomainControls;
+    Object.defineProperty(domain, "closeCalls", { get: () => controller.closeCalls });
     Object.defineProperty(domain, "__tables", { value: tables });
     return domain;
 }

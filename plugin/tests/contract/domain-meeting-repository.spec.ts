@@ -554,3 +554,132 @@ it("rolls back state, events and outbox when a commit put fails", async () => {
     await expect(repository.read()).resolves.toEqual(before);
     await repository.close();
 });
+
+async function maintenanceFixture() {
+    const meeting = createFakeMeetingDomain();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: createFakeCatalogDomain(),
+        meetingDomain: meeting,
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 1000
+    });
+    const authorization = { callerBinding: "captain:1", capabilityId: "capability:1" };
+    const input = {
+        requestId: "create",
+        authorization,
+        requestHash: "create-hash",
+        initialState: { count: 0 },
+        createdAt: 1
+    };
+    await repository.create(input);
+    await repository.completeCreate(input);
+    return { meeting, repository, authorization };
+}
+
+async function appendVersion(
+    repository: DomainMeetingRepository,
+    authorization: { callerBinding: string; capabilityId: string },
+    expectedMeetingVersion: number
+) {
+    const nextVersion = expectedMeetingVersion + 1;
+    return repository.execute({
+        requestId: `command-${nextVersion}`,
+        commandKind: "increment",
+        authorization,
+        requestHash: `hash-${nextVersion}`,
+        expectedMeetingVersion,
+        transition: () => ({
+            state: { count: nextVersion },
+            result: { count: nextVersion },
+            events: [{ type: "message.added" as const, payload: { count: nextVersion } }],
+            outbox: []
+        })
+    });
+}
+
+async function appendThroughRoutineThreshold(
+    repository: DomainMeetingRepository,
+    authorization: { callerBinding: string; capabilityId: string }
+) {
+    for (let version = 0; version < 126; version += 1)
+        await appendVersion(repository, authorization, version);
+}
+
+it("queues application checkpoint behind the committed result", async () => {
+    const { meeting, repository, authorization } = await maintenanceFixture();
+    await appendThroughRoutineThreshold(repository, authorization);
+    const block = meeting.blockNextPut("checkpoint_pages");
+
+    await expect(appendVersion(repository, authorization, 126)).resolves.toMatchObject({
+        meetingVersion: 127
+    });
+    await block.entered;
+
+    expect(meeting.table("commits").get(seqKey(128))).toBeTruthy();
+    expect(meeting.table("checkpoint_pointer").get("current")).toBeUndefined();
+    block.release();
+    await repository.close();
+    expect(meeting.table("checkpoint_pointer").get("current")?.baseSeq).toBe(128);
+});
+
+it("blocks the next mutation behind application checkpoint", async () => {
+    const { meeting, repository, authorization } = await maintenanceFixture();
+    await appendThroughRoutineThreshold(repository, authorization);
+    const block = meeting.blockNextPut("checkpoint_pages");
+    await appendVersion(repository, authorization, 126);
+    await block.entered;
+    let settled = false;
+    const next = appendVersion(repository, authorization, 127).finally(() => {
+        settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    block.release();
+    await expect(next).resolves.toMatchObject({ meetingVersion: 128 });
+    expect(meeting.table("checkpoint_pointer").get("current")?.baseSeq).toBe(128);
+    const firstAfterCheckpoint = CommitRecordV1Schema.parse(
+        meeting.table("commits").get(seqKey(129))
+    );
+    expect(firstAfterCheckpoint.previousSeq).toBe(128);
+    expect(typeof firstAfterCheckpoint.previousDigest).toBe("string");
+    await repository.close();
+});
+
+it("retains checkpoint failure for hard-tail retry and close", async () => {
+    const { meeting, repository, authorization } = await maintenanceFixture();
+    await appendThroughRoutineThreshold(repository, authorization);
+    meeting.failPutsInTable("checkpoint_pages");
+    await appendVersion(repository, authorization, 126);
+    for (let version = 127; version < 255; version += 1)
+        await appendVersion(repository, authorization, version);
+
+    await expect(appendVersion(repository, authorization, 255)).rejects.toMatchObject({
+        code: "CONSTRAINT_VIOLATION"
+    });
+    expect(
+        meeting.putCalls.filter((call) => call.table === "checkpoint_pages").length
+    ).toBeGreaterThan(1);
+    await expect(repository.close()).rejects.toThrow("fake persistent put failure");
+    expect(meeting.closeCalls).toBe(1);
+});
+
+it("drains maintenance and closes the Domain exactly once", async () => {
+    const { meeting, repository, authorization } = await maintenanceFixture();
+    await appendThroughRoutineThreshold(repository, authorization);
+    const block = meeting.blockNextPut("checkpoint_pages");
+    await appendVersion(repository, authorization, 126);
+    await block.entered;
+
+    const firstClose = repository.close();
+    const secondClose = repository.close();
+    expect(meeting.closeCalls).toBe(0);
+    block.release();
+    await Promise.all([firstClose, secondClose]);
+
+    expect(meeting.table("checkpoint_pointer").get("current")?.baseSeq).toBe(128);
+    expect(meeting.closeCalls).toBe(1);
+    await expect(repository.read()).rejects.toMatchObject({ code: "CLOSED" });
+});
