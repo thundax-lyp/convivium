@@ -41,8 +41,9 @@ export class JsonlKvUnit implements KvUnit {
         this.tailRecords = initialTailRecords;
         this.tailBytes = initialTailBytes;
     }
-    private guard(): void {
-        if (this.closed || this.poisoned) throw new StorageError("closed", "storage unit closed");
+    private guard(allowClosed = false): void {
+        if ((!allowClosed && this.closed) || this.poisoned)
+            throw new StorageError("closed", "storage unit closed");
     }
     private run(task: () => Promise<void>): Promise<void> {
         const next = this.queue.then(async () => {
@@ -77,10 +78,15 @@ export class JsonlKvUnit implements KvUnit {
         key: string | null;
         value: JsonValue | null;
     }): Promise<void> {
+        try {
+            this.guard();
+        } catch (error) {
+            return Promise.reject(error);
+        }
         const prior = this.queue;
         let checkpointSnapshot: import("./checkpoint.js").PhysicalCheckpointState | undefined;
         const committed = prior.then(async () => {
-            this.guard();
+            this.guard(true);
             if (input.table !== null && !Object.hasOwn(this.tables, input.table))
                 throw new Error("undeclared table");
             const record = { formatVersion: 1 as const, opSeq: this.seq + 1, ...input };
@@ -133,11 +139,12 @@ export class JsonlKvUnit implements KvUnit {
                 );
                 this.activeFirstOpSeq = record.opSeq;
                 await syncDirectory(segments, this.fs);
+                await syncDirectory(this.root, this.fs);
             }
             try {
                 await appendLineDurably(join(this.root, "active.jsonl"), line, this.fs);
             } catch (error) {
-                if (appendFailurePhase(error) === "datasync") this.poisoned = true;
+                if (appendFailurePhase(error)) this.poisoned = true;
                 throw error;
             }
             if (input.kind === "put")
