@@ -34,7 +34,7 @@
 | Plugin/package Markdown 或 JSDoc     | `pnpm --dir plugin format:check` | 仓库没有上游 `doc-sync`；Markdown link、heading 和 skill 文档按本仓库规则检查。 |
 | 模型/用户组合行为                    | `pnpm --dir plugin test` | 使用所属 unit、contract 或 integration fixture；真实 DSH profile 另跑 `pnpm --dir plugin smoke:profile`。 |
 | 产品可见插件 wiring                  | `pnpm --dir plugin test` | 包含当前 plugin 的 runtime、contract、integration 测试。 |
-| Client code                          | `pnpm --dir plugin test -- --project client` | 本仓库没有上游 `test:gui`。 |
+| Client code                          | `pnpm --dir plugin test --project client` | 本仓库没有上游 `test:gui`。 |
 | Built runtime entry                  | `pnpm --dir plugin build` 后运行所属 built smoke | Source test 不能证明发布 artifact。 |
 | Provider transport                   | `pnpm --dir plugin smoke:profile` | 使用仓库固定 `web` profile 与 `spawn` provider；外部凭证依赖必须准确报告未覆盖。 |
 | Package contract                      | `pnpm --dir plugin verify:contract && pnpm --dir plugin verify:package` | 验证 manifest、bundle、exports 和发布 allowlist。 |

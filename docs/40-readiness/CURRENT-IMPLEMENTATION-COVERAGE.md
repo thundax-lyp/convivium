@@ -5,7 +5,7 @@
 本文记录当前代码相对已确认需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-09-02
-- 代码基线：`607148e888f05f7fe324389d38dd2b46134089c0`
+- 代码基线：`b0753d86a63312ff9a19f2f4464eda8989ec8c88`
 - 环境：macOS、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`
 - `已实现` 表示存在正式路径和相称验证；`部分实现` 表示存在局部路径但未闭合；`未实现` 表示没有产品运行路径。
 - 历史真实 profile 证据只适用于其原始 commit，不外推为当前 HEAD 证据。
@@ -42,7 +42,7 @@
 2026-09-02，在当前 HEAD 执行 `pnpm --dir plugin verify`：
 
 - Pass：format、lint、Host/Client typecheck、build、environment、contract、Agent Definition samples、package verifier。
-- Pass：68 test files、477 tests。
+- Pass：68 test files、481 tests。
 - 未执行 `smoke:profile` 或其他真实 DSH profile selector；当前 HEAD 不新增真实 profile 证据。
 
 历史真实 profile 验证覆盖 timeout、reassign、MeetingTask、completion/end、risk disposition、cold rebind、archive continuation、mail race 和跨 Meeting/Team isolation；其提交、命令和结果索引如下，详见 [DSH Runtime Vertical Slice Evidence](./DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md)。
