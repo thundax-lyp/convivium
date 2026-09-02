@@ -114,28 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T13 — Implement Catalog Registry And Recovery
-
-前置状态：T12F PASS.
-
-允许修改：new `plugin/src/repository/domain/domain-repository-registry.ts`; new `plugin/tests/contract/domain-repository-registry.spec.ts`; new `plugin/tests/recovery/domain-recovery.spec.ts`.
-
-禁止修改：Runtime, entry, SQLite, Domain contract.
-
-执行：catalog open once；每 CatalogKey 共享 in-flight/cache；rejection 后移除；验证 identity/domainName；实现 creating/failed/valid-seq1 recovery；list 按 teamId/meetingId；Meeting domains 按 domainName 后 catalog close once。valid seq1 修复 ready；ready 无 seq1 为 `CORRUPT_DATABASE`。Contract/recovery suites 使用以下 exact titles：`opens the catalog once and returns a deterministic sorted list`; `shares one in-flight open for the same CatalogKey`; `removes a rejected in-flight open before retry`; `rejects cached identity or domainName mismatch`; `recreates an absent creation record for the same creating request`; `resumes a creating record for the same request and hash`; `rejects a different request or hash for a creating catalog record`; `repairs creating catalog and creation status when seq 1 is valid`; `rejects ready catalog without valid seq 1`; `returns creation_failed and recorded ownership without reconstructing state`; `rejects invalid catalog or commit schema, digest and sequence gap`; `isolates two Meeting domains`; `closes Meeting domains in domainName order before catalog exactly once`。
-
-验证：
-
-```bash
-pnpm --dir plugin test --project contract tests/contract/domain-repository-registry.spec.ts
-pnpm --dir plugin test --project host tests/recovery/domain-recovery.spec.ts tests/unit/module-boundaries.spec.ts
-pnpm --dir plugin typecheck
-```
-
-PASS：open/in-flight/retry/isolation/recovery/close-order cases 全过；无 filesystem/backend import。
-
-STOP：需要扫描 backend、第二真相或 callback/factory hierarchy。
-
 ### T14 — Cut Production Over
 
 前置状态：T13 PASS.
