@@ -145,7 +145,13 @@ export async function verifyMeetingAgentDefinitionSamples(root) {
     const add = (code, location) => errors.push({ code, location });
     let entries;
     try {
-        await lstat(root);
+        const rootStat = await lstat(root);
+        if (rootStat.isSymbolicLink()) {
+            return [{ code: "SYMLINK_FORBIDDEN", location: "." }];
+        }
+        if (!rootStat.isDirectory()) {
+            return [{ code: "ROOT_ENTRY_INVALID", location: "." }];
+        }
         entries = await readdir(root);
     } catch {
         return [{ code: "ROOT_NOT_READABLE", location: "." }];

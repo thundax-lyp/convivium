@@ -958,7 +958,7 @@ async function run(ctx) {
             let conflict;
             try { await callTool(ctx, captain.agent, "convivium_dispose_risk", { ...input, reason: "different" }, 607); } catch (error) { conflict = String(error); }
             assert(conflict?.includes("IDEMPOTENCY_CONFLICT"), "risk idempotency conflict missing");
-            await writeResult({ ok: true, scenario, meetingId, observed: { issueId, handRaiseId: disposed.result.completionFactId, receipt: disposed.result } });
+            await writeResult({ ok: true, scenario, assertions: ["risk-disposed", "risk-replay-stable", "risk-idempotency-conflict"], meetingId, observed: { issueId, handRaiseId: disposed.result.completionFactId, receipt: disposed.result } });
             return;
         }
         if (scenario === "completion-end") {
@@ -1448,7 +1448,7 @@ async function run(ctx) {
             }, 305);
             const finalStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 306);
             assert(finalStatus.result.messages.length === 1 && finalStatus.result.messages[0].content === "reassign:b:1", "reassign transcript mismatch");
-            await writeResult({ ok: true, scenario, meetingId, observed: { oldAttemptId, revokedAttemptId: reassigned.result.revokedAttemptId, replacementAttemptId: reassigned.result.replacementAttemptId, oldChildId, oldAgentResidentAfterReassign: ctx.agents.get(oldChildId) !== undefined, currentSpeakerId: after.result.currentSpeakerId, currentAttemptId: after.result.currentAttemptId, submittedMessageId: submitted.result.messageId, submittedAt, transcript: finalStatus.result.messages } });
+            await writeResult({ ok: true, scenario, assertions: ["old-attempt-revoked", "old-activation-drained", "replacement-attempt-submitted", "transcript-preserved"], meetingId, observed: { oldAttemptId, revokedAttemptId: reassigned.result.revokedAttemptId, replacementAttemptId: reassigned.result.replacementAttemptId, oldChildId, oldAgentResidentAfterReassign: ctx.agents.get(oldChildId) !== undefined, currentSpeakerId: after.result.currentSpeakerId, currentAttemptId: after.result.currentAttemptId, submittedMessageId: submitted.result.messageId, submittedAt, transcript: finalStatus.result.messages } });
             return;
         }
         if (browserMode) {
@@ -1888,6 +1888,7 @@ async function main() {
                 `stderr tail:\n${stderrTail}`
         );
     }
+    probeResult = validateScenarioResult(probeResult, SMOKE_SCENARIO);
 
     await stat(dumpPath);
     console.log(

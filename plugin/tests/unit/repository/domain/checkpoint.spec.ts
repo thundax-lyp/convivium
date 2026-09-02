@@ -76,6 +76,14 @@ describe("application checkpoint", () => {
         ).toBe(true);
         expect(pointer.generation).toContain("_");
     });
+
+    it("loads a ready projection from an application checkpoint without seq one", async () => {
+        const domain = createFakeMeetingDomain();
+        const projection = makeProjection("checkpoint-only");
+        await writeCheckpoint({ domain, projection, baseSeq: 1, createdAt: 1 });
+        expect(domain.table("commits").get(seqKey(1))).toBeUndefined();
+        expect(loadProjection({ domain })).toEqual(projection);
+    });
     it("rejects a missing referenced page", async () => {
         const domain = createFakeMeetingDomain();
         const pointer = await writeCheckpoint({

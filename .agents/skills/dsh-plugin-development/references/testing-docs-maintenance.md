@@ -26,23 +26,21 @@
 
 从仓库根目录运行最小适用集合，只报告实际观察到输出的命令。
 
-| 变更面                               | rc.2 命令                                                              | 前置条件与证据                                                                                                                   |
+| 变更面                               | Convivium 命令                                                          | 前置条件与证据                                                                                                                   |
 | ------------------------------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 聚焦 unit/composition spec           | `pnpm exec vitest run packages/<group>/<package>/tests/<file>.spec.ts` | 替换为真实路径；证明局部行为与 cleanup。                                                                                         |
-| 新 workspace package                 | `pnpm install` 然后 `pnpm run constraints`                             | 注册 workspace 并检查 manifest/package 规则。                                                                                    |
-| Type API、declaration merge、exports | `pnpm run typecheck`                                                   | 解析 Host 与 Client compiler face。                                                                                              |
-| Static source                        | `pnpm run lint`                                                        | 修正所属源码，不压制规则。                                                                                                       |
-| Package/docs Markdown 或 JSDoc       | `pnpm run doc-sync`                                                    | 运行 rc.2 文档 generator 与 gate。                                                                                               |
-| Website navigation/link              | `pnpm run website:build`                                               | 构建 VitePress 并检测死链。                                                                                                      |
-| 模型/用户组合行为                    | `pnpm run test:snapshot -- -t '<case name>'`                           | 使用窄化的已有或新增 fixture。                                                                                                   |
-| 产品可见插件 wiring                  | `pnpm exec vitest run packages/<group>/<package>/tests`                | 包含真实 Loader/应用组合测试。                                                                                                   |
-| Client code                          | `pnpm run test:gui`                                                    | 运行 Client 与 Host-side GUI suites。                                                                                            |
-| 组合 browser/output                  | `DSH_SNAPSHOT=replay pnpm run test:web`                                | 重建并运行 keyless replay/browser lane。                                                                                         |
-| Built runtime entry                  | `pnpm run build` 后运行所属 built smoke                                | Source test 不能证明发布 artifact。                                                                                              |
-| Provider transport                   | `pnpm run test:e2e`                                                    | 需要 Provider key；准确报告 self-skip。                                                                                          |
-| Outgoing branch/push                 | 按 outgoing diff 选择上面的最小适用集合                                | 遵循仓库 `dsh-pre-push-checks`；只有 manifest、public export、build config 或发布路径等相关变更才运行适用的 hygiene/build gate。 |
+| 聚焦 unit/composition spec           | `pnpm --dir plugin exec vitest run tests/<path>/<file>.spec.ts` | 从仓库根目录运行；证明局部行为与 cleanup。 |
+| Type API、declaration merge、exports | `pnpm --dir plugin typecheck` | 解析 Host 与 Client compiler face。 |
+| Static source                        | `pnpm --dir plugin lint` | 修正所属源码，不压制规则。 |
+| Plugin/package Markdown 或 JSDoc     | `pnpm --dir plugin format:check` | 仓库没有上游 `doc-sync`；Markdown link、heading 和 skill 文档按本仓库规则检查。 |
+| 模型/用户组合行为                    | `pnpm --dir plugin test` | 使用所属 unit、contract 或 integration fixture；真实 DSH profile 另跑 `pnpm --dir plugin smoke:profile`。 |
+| 产品可见插件 wiring                  | `pnpm --dir plugin test` | 包含当前 plugin 的 runtime、contract、integration 测试。 |
+| Client code                          | `pnpm --dir plugin test --project client` | 本仓库没有上游 `test:gui`。 |
+| Built runtime entry                  | `pnpm --dir plugin build` 后运行所属 built smoke | Source test 不能证明发布 artifact。 |
+| Provider transport                   | `pnpm --dir plugin smoke:profile` | 使用仓库固定 `web` profile 与 `spawn` provider；外部凭证依赖必须准确报告未覆盖。 |
+| Package contract                      | `pnpm --dir plugin verify:contract && pnpm --dir plugin verify:package` | 验证 manifest、bundle、exports 和发布 allowlist。 |
+| 全量插件改动或 outgoing branch/push | `pnpm --dir plugin verify` | 覆盖 format、lint、Host/Client typecheck、test、build、environment、contract、samples 和 package。 |
 
-`pnpm run test:coverage` 是 CI coverage gate，不是默认本地命令。仅在明确要求、诊断 CI 或聚焦证据无法覆盖时运行。`pnpm run check:windows-wine` 只用于已知 Windows failure。rc.2 没有 `pnpm run test:docs` 或 `pnpm run test:expected`；文档用 `doc-sync`，行为用所属聚焦命令。
+`pnpm --dir plugin test:stress` 是显式的 stress 入口；默认 `pnpm --dir plugin verify` 不包含真实 DSH profile smoke。仓库没有 `constraints`、`doc-sync`、`website:build`、`test:gui` 或 `test:web` 等上游 DSH monorepo 脚本；需要这些能力时必须标记为未覆盖，不得把上游命令当作本仓库验证入口。
 
 ## 文档交付
 

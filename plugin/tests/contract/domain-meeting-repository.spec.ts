@@ -179,6 +179,93 @@ it("writes the complete seq-one projection in one create commit", async () => {
     await repository.close();
 });
 
+it("rejects duplicate outbox delivery identities across caller-bound mail requests", async () => {
+    const catalog = createFakeCatalogDomain();
+    const meeting = createFakeMeetingDomain();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: catalog,
+        meetingDomain: meeting,
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 1
+    });
+    const createInput = {
+        requestId: "create",
+        authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
+        requestHash: "hash",
+        initialState: {
+            status: "created",
+            version: 0,
+            participants: [{ id: "p1" }, { id: "p2" }],
+            transcript: [],
+            messageSeq: 0
+        },
+        createdAt: 1
+    };
+    await repository.create(createInput);
+    await repository.completeCreate(createInput);
+    for (const participantId of ["p1", "p2"]) {
+        await repository.recordSessionOwnership(
+            {
+                sessionId: `${participantId}-session`,
+                parentSessionId: "captain-session",
+                sessionLabel: `convivium:meeting-participant:team-1:meeting-1:${participantId}`,
+                provider: "continuable-provider",
+                initialMessageId: `${participantId}-initial`,
+                role: "participant",
+                participantId,
+                lifecycleStatus: "active",
+                capabilityStatus: "active"
+            },
+            2
+        );
+    }
+    const mail = (senderParticipantId: string, recipientParticipantId: string, mailId: string) => ({
+        mailId,
+        handlingAttemptId: `${mailId}-attempt`,
+        meetingId: "meeting-1",
+        senderParticipantId,
+        recipientParticipantId,
+        content: mailId,
+        meetingContext: {
+            meetingId: "meeting-1",
+            contextFromSeq: 0,
+            contextThroughSeq: 0,
+            relevantMessageIds: []
+        },
+        snapshotThroughSeq: 0,
+        createdAt: 3
+    });
+    const send = (senderParticipantId: string, recipientParticipantId: string, mailId: string) =>
+        repository.sendPrivateMeetingMail({
+            requestId: "same-request",
+            requestHash: mailId,
+            authorization: {
+                callerBinding: `session:${senderParticipantId}`,
+                capabilityId: `participant:${senderParticipantId}`
+            },
+            expectedMeetingVersion: 0,
+            isNewDeliveryAvailable: () => true,
+            mail: mail(senderParticipantId, recipientParticipantId, mailId),
+            outbox: {
+                deliveryId: "duplicate-delivery",
+                kind: "dispatch",
+                priority: 0,
+                payload: {
+                    role: "meeting_mail",
+                    mailId,
+                    participantId: recipientParticipantId
+                }
+            }
+        });
+    await send("p1", "p2", "mail-1");
+    await expect(send("p2", "p1", "mail-2")).rejects.toMatchObject({
+        code: "INVALID_INPUT"
+    });
+    await repository.close();
+});
+
 it.each(["creation", "catalog"] as const)(
     "repairs ready publication after the %s write fails post-commit",
     async (failurePoint) => {

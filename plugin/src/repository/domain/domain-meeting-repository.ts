@@ -998,6 +998,17 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 operation: "mail.send",
                 now,
                 mutate: (projection) => {
+                    if (
+                        Object.values(projection.outbox).some(
+                            (item) => item.deliveryId === input.outbox.deliveryId
+                        )
+                    )
+                        throw new RepositoryError(
+                            "INVALID_INPUT",
+                            false,
+                            this.meetingId,
+                            "Outbox deliveryId already exists"
+                        );
                     const mail = { ...input.mail, status: "pending" as const, updatedAt: now };
                     projection.privateMail[mail.mailId] = mail;
                     const outboxId = input.outbox.id ?? crypto.randomUUID();
@@ -1493,6 +1504,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     );
                 next.events[seqKey(eventSeq)] = persisted.data;
             }
+            const deliveryIds = new Set(Object.values(next.outbox).map((item) => item.deliveryId));
             for (const item of transition.outbox) {
                 if (item.kind !== "dispatch")
                     throw new RepositoryError(
@@ -1501,6 +1513,14 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                         this.meetingId,
                         "Outbox kind is not registered"
                     );
+                if (deliveryIds.has(item.deliveryId))
+                    throw new RepositoryError(
+                        "INVALID_INPUT",
+                        false,
+                        this.meetingId,
+                        "Outbox deliveryId already exists"
+                    );
+                deliveryIds.add(item.deliveryId);
                 const id = item.id ?? crypto.randomUUID();
                 const persisted = PersistedOutboxV1Schema.safeParse({
                     formatVersion: 1,
