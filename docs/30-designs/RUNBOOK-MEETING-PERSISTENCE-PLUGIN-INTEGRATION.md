@@ -114,33 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T17 — Delete SQLite
-
-前置状态：T16 PASS；Domain shared contract unchanged since T12F.
-
-允许删除：`plugin/src/repository/sqlite-meeting-repository.ts`; `plugin/src/repository/schema.ts`; `plugin/src/repository/migrations.ts`; `plugin/src/runtime/services/meeting-repository-locator.ts`; `plugin/tests/unit/repository/migrations.spec.ts`; `plugin/tests/unit/repository/schema.spec.ts`; `plugin/tests/unit/repository.spec.ts`; `plugin/tests/contract/sqlite-meeting-repository.spec.ts`.
-
-允许修改：`docs/00-governance/ARCHITECTURE.md`; `docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`; `plugin/package.json` only for unused sqlite metadata.
-
-禁止修改：Domain repository/shared contract, Runtime behavior, user/legacy data and every other file.
-
-执行：先重跑 Domain contract；删除 exact legacy source 和九个 SQLite-only tests；移除 Architecture/Implementation Design 的 SQLite current-state wording；声明 Storage Domain 唯一 truth、legacy data untouched/out of scope；保留 shared behavior + Domain wrapper。
-
-验证：
-
-```bash
-test -z "$(rg -l 'node:sqlite|DatabaseSync|\.sqlite|CREATE TABLE|PRAGMA|locateMeetingRepository' plugin/src plugin/scripts plugin/package.json || true)"
-pnpm --dir plugin test --project contract tests/contract/domain-meeting-repository.spec.ts tests/contract/production-import-graph.spec.ts
-pnpm --dir plugin typecheck
-pnpm --dir plugin test
-pnpm --dir plugin build
-pnpm --dir plugin verify
-```
-
-PASS：all 0；legacy source/tests absent；shared Domain behavior remains。
-
-STOP：Domain contract changed/fails、import remains 或需要 legacy data access。
-
 ### T18 — Record Readiness
 
 前置状态：T17 PASS.

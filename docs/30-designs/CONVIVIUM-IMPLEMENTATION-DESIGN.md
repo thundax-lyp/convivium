@@ -10,7 +10,7 @@
 
 - `plugin/` 内 Meeting consumer 与 JSONL backend provider 两个 Cordis child plugins 的职责和生命周期边界。
 - Meeting domain、repository port、DSH Storage Domain adapter、Meeting Runtime、DSH adapter、HTTP、projection 和 client 的依赖关系。
-- 当前 SQLite repository 的替换边界，以及目标 Storage Domain 的打开、关闭和恢复生命周期。
+- 当前 Storage Domain repository 的打开、关闭和恢复生命周期，以及遗留数据的 fail-closed 边界。
 - 所有 meeting-owned AgentSession 的统一调用和 capability revoke 检查入口。
 - 插件启动、创建、运行、暂停、恢复、归档和冷恢复的代码协作顺序。
 - 单元、契约、集成、恢复和压力验证的源码位置及最低覆盖。
@@ -39,7 +39,7 @@ V1 固定运行于单个本地 DSH Host，并只面向该 Host 的一位本地�
 - [Domain Model Design](./DOMAIN-MODEL-DESIGN.md)
 - [Meeting Orchestration Design](./MEETING-ORCHESTRATION-DESIGN.md)
 - [Meeting Persistence Design](./MEETING-PERSISTENCE-SPECIAL-DESIGN.md)
-- [Meeting Persistence Plugin Integration Runbook](./RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md)（Executable；尚未执行）
+- [Meeting Persistence Plugin Integration Runbook](./RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md)（Executable；执行收口中）
 
 发生冲突时，Architecture、Requirements 和 Interface 优先；本文不得通过实现便利改变公开语义。
 
@@ -104,7 +104,7 @@ Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。`src/
 - 使用 `files` allowlist 只发布 Host bundle、Client bundle、类型声明、patch、README 和必要资产。
 - 将 Cordis、React 和 DSH 共享 runtime identity 声明为 peer；构建、类型检查和测试所需版本同时出现在 dev dependencies。只由插件内部使用且不要求与 Host 共享 identity 的库使用普通 dependency。
 
-构建分为两个明确步骤：TypeScript 生成 `lib/types/**` 声明和构建中间 JavaScript，`tsdown` 生成 `lib/index.js` 与 `lib/client.js`。Client 构建使用独立 `tsconfig.client.json`，不得把 Node.js、SQLite、workspace 文件系统或 Host-only DSH service 打入浏览器 bundle。
+构建分为两个明确步骤：TypeScript 生成 `lib/types/**` 声明和构建中间 JavaScript，`tsdown` 生成 `lib/index.js` 与 `lib/client.js`。Client 构建使用独立 `tsconfig.client.json`，不得把 Node.js、持久化实现、workspace 文件系统或 Host-only DSH service 打入浏览器 bundle。
 
 `cordis.patch.yml` 插入稳定 row ID `convivium` 并把既有 `storage-domain` row 的默认 backend 固定为 `convivium-jsonl`；不新增独立 backend row。Client entry 由 `package.json.dsh.client` 进入 DSH browser roster，不在 Host `apply()` 中手工加载或注册。
 
@@ -131,7 +131,7 @@ domain     ──> no infrastructure module
 依赖规则：
 
 1. `protocol/` 只保存 Host/Client 共享的 transport-neutral 类型、常量和无副作用 codec，不导入 domain 或 infrastructure。
-2. `domain/` 不导入 protocol、DSH、SQLite、HTTP、React 或文件系统模块。
+2. `domain/` 不导入 protocol、DSH、repository、HTTP、React 或文件系统模块。
 3. `repository/` 不调用 DSH，也不选择 speaker 或判断会议完成。
 4. `dsh/` 只实现 Runtime 所需 port，不写 Meeting 领域状态。
 5. `tools/` 和 `http/` 只做 transport 解析、caller binding、调用 Runtime 和结果编码。
@@ -149,13 +149,12 @@ domain     ──> no infrastructure module
 | `src/domain/planning.ts`                                       | candidate filtering、selection mode、turn plan 校验                                                  |
 | `src/domain/completion.ts`                                     | 完成事实、停滞和终止派生计算                                                                         |
 | `src/domain/errors.ts`                                         | 内部领域错误分类；由 transport 映射为协议错误                                                        |
-| `src/repository/schema.ts`                                     | 当前完整 DDL、索引和 schema version                                                                  |
-| `src/repository/migrations.ts`                                 | 线性、事务化、不可跳级的 migration registry                                                          |
-| `src/repository/meeting-repository.ts`                         | 事务、聚合读写、receipt、event 和 outbox 原子提交                                                    |
+| `src/repository/domain/domain-meeting-repository.ts`           | 聚合读写、receipt、event 和 outbox 的单 commit 提交                                                   |
+| `src/repository/domain/domain-repository-registry.ts`          | catalog discovery、每 Meeting domain 打开、缓存和关闭                                                |
+| `src/repository/domain/schemas.ts`                             | catalog、creation、projection、commit、checkpoint 和 patch 的严格 record schema                       |
 | `src/storage/index.ts`                                        | 注册 package-private `convivium-jsonl` backend provider child plugin                                |
 | `src/storage/backend.ts`                                      | DSH `StorageBackend`/`KvFacet` lifecycle；不导入 Meeting 业务                                      |
 | `src/storage/unit.ts`                                         | JSONL KV unit 的 replay、mutation、physical checkpoint 和关闭顺序                                   |
-| `src/runtime/application-service.ts#repositoryPath`            | 当前 `teamId/meetingId` 物理路径解析；调用方不得复制该规则                                           |
 | `src/runtime/application-service.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime                         |
 | `src/runtime/turn-runner.ts`                                   | Manager plan、逐 speaker dispatch、submit 和下一 step 推进                                           |
 | `src/runtime/outbox-worker.ts`                                 | 提交后 DSH 副作用、重投和结果回写                                                                    |
@@ -170,47 +169,23 @@ domain     ──> no infrastructure module
 | `src/tools/register-tools.ts`                                  | 注册 `convivium_*` 工具并绑定协议 Schema                                                             |
 | `src/http/index.ts`                                            | 仅在 loopback Host 注册 `/api/convivium/*`；提供本地 Meeting list、status、pause 和 resume transport |
 | `src/projection/status.ts`                                     | caller-specific Meeting status projection                                                            |
-| `src/projection/markdown.ts`                                   | SQLite 到开发者 Markdown 的 best-effort 单向生成                                                     |
 | `src/client/*`                                                 | 状态读取、暂停/继续控制和会议 UI                                                                     |
 
 上述文件可以在实现增长后拆分，但不得跨越职责边界或创建第二个 Meeting 写入口。
 
 ## Persistence Algorithm And Repository Cutover
 
-目标持久化算法已经确认为 `Checkpointed Commit Log`，抽象状态、checkpoint/commit/compaction 流程、不变量和验收点见 `MEETING-PERSISTENCE-SPECIAL-DESIGN.md`。它属于带 checkpoint 与 log compaction 的 log-structured persistence，不得简称为 `Event Sourcing` 或 `WAL`。目标 adapter 使用 `@deepseek-ai/dsh-storage-domain`：一个轻量 catalog domain 用于发现，每个 Meeting 使用独立 domain；一次 command 只写一条 commit record，checkpoint 分页写入。`src/storage/` 以 JSONL 实现标准 DSH KV backend，但不认识 Meeting 数据语义；它是 Convivium package 内的 provider child plugin，不是独立产品或发布单元。精确接入、切换、验证和删除顺序由 Executable RUNBOOK 固定。
+当前持久化算法是 `Checkpointed Commit Log`，抽象状态、checkpoint/commit/compaction 流程、不变量和验收点见 `MEETING-PERSISTENCE-SPECIAL-DESIGN.md`。它属于带 checkpoint 与 log compaction 的 log-structured persistence，不得简称为 `Event Sourcing` 或 `WAL`。repository 只使用 `@deepseek-ai/dsh-storage-domain`：一个轻量 catalog domain 用于发现，每个 Meeting 使用独立 domain；一次 command 只写一条 commit record，checkpoint 分页写入。`src/storage/` 以 JSONL 实现标准 DSH KV backend，但不认识 Meeting 数据语义；它是 Convivium package 内的 provider child plugin，不是独立产品或发布单元。
 
-下列 SQLite 小节只描述切换前实现。执行顺序固定为：先在 Convivium package 内实现并验证 JSONL provider child plugin，再让 Meeting consumer child plugin 只通过 DSH Storage Domain 接入，验证 production import graph 后删除 SQLite 源码。全过程不双写、不 fallback、不迁移或删除既有 SQLite 数据。稳定 repository 行为以 Meeting Storage Interface 为准。
+Storage Domain 是当前唯一会议事实源。实现不双写、不 fallback，也不定位、读取或扫描 backend 的物理布局。遗留 `.sqlite` 数据不读取、不迁移、不删除，属于当前实现和恢复流程之外；缺少 catalog record 时不得据遗留文件猜测 Meeting 存在。
 
-### Current SQLite driver and connection model
+### Storage Domain ownership and lifecycle
 
-- 使用 Node.js 内置 `node:sqlite`，不引入原生第三方 SQLite driver。
-- 每个 Meeting repository 使用独立连接。当前物理 locator 为 `<dataRoot>/<encodedTeamId>/<encodedMeetingId>.sqlite`；该布局只描述待替换实现，不再是迁移目标。目标 JSONL layout 与 legacy fail-closed 规则以 Executable RUNBOOK 为准；切换前的代码仍只通过现有 Runtime/repository locator 访问，不复制路径规则。
-- repository 在单次命令或 worker lease 内独占连接；完成后关闭，不维护跨 workspace 的全局长连接池。
-- 打开数据库后必须执行 `PRAGMA foreign_keys = ON`、`PRAGMA journal_mode = WAL` 和有界 `busy_timeout`。
-- 所有写事务使用 `BEGIN IMMEDIATE`，先取得写锁再读取 expected version，避免读后升级锁产生竞态。
-- SQLite 同步 API 只能存在于 `repository/`，Runtime 不直接持有数据库对象。
-
-Convivium 支持的最低 Node 版本必须覆盖所用 `node:sqlite` API。插件启动时如果运行时缺失该模块或所需方法，必须以结构化启动错误失败，不能切换到 JSON 或内存状态。
-
-### Schema ownership and migration
-
-`schema.ts` 是完整 DDL 的代码真相源，`PRAGMA user_version` 是已应用 schema version。`migrations.ts` 按连续整数登记 migration：
-
-```ts
-interface Migration {
-  from: number;
-  to: number;
-  apply(db: SqliteConnection): void;
-}
-```
-
-规则：
-
-1. 新数据库在一个事务中创建完整当前 schema 并设置 `user_version`。
-2. 旧数据库只允许逐版本前进，不允许跳级、降级或猜测未知版本。
-3. migration 与目标 `user_version` 更新必须处于同一事务。
-4. migration 失败回滚并阻止该 Meeting 恢复，不影响其他 Meeting。
-5. 测试必须覆盖空库创建、每个相邻版本升级、重复打开和未知新版本拒绝。
+- catalog domain 只保存 `teamId + meetingId` 到 Meeting domain identity 的严格记录；每个 Meeting domain 独立持有 creation、projection、commit、checkpoint 与 pointer records。
+- Runtime 只经 `DomainRepositoryRegistry` 打开 catalog 和 Meeting domains；registry 负责缓存、恢复隔离与关闭顺序。
+- record schema 拒绝未知字段、危险 map key、digest 冲突、sequence gap 和超过上限的 projection/checkpoint。
+- repository close 先排空 mutation/checkpoint maintenance，再关闭 Meeting domain；consumer 全部关闭后 provider 才注销 backend。
+- backend 物理布局只属于 `src/storage/`，Meeting repository、Runtime、tools、HTTP 和 client 均不得导入文件系统、backend package 或物理路径规则。
 
 ### Repository API
 
@@ -240,7 +215,7 @@ interface MeetingRepository {
 
 1. Runtime 先通过 `RepositoryAuthorizationValidator` 校验真实 caller binding、capability 和当前 attempt；Repository 在 transition 前调用该端口，并校验 `expectedMeetingVersion`。
 2. 调用纯 `domain/transitions.ts` 得到新聚合和 effects。
-3. 写入聚合状态、不可变 `meeting_events`、幂等 receipt 和 outbox。
+3. 在一条 Domain commit 中写入聚合 patch、不可变 event、幂等 receipt 和 outbox。
 4. 单调递增 meeting version 与 event sequence。
 5. `COMMIT` 后返回 `CommittedResult`；提交前不得调用 DSH 或生成成功响应。
 
@@ -252,7 +227,7 @@ interface MeetingRepository {
 
 1. 生成稳定 `meetingId`。
 2. 原子创建 Meeting 独立目录。
-3. 创建 SQLite 并提交 bootstrap record。
+3. 创建 catalog/Meeting domain records 并提交 bootstrap record。
 4. 通过 outbox 创建 Manager 和 Participant Sessions。
 5. Session 创建成功后回写 ownership；全部 required Sessions 就绪后会议才可进入 `running`。
 
@@ -281,7 +256,7 @@ Meeting Agent Definition resolution 与 per-child DSH preset composition 尚未�
 
 ### Capability check
 
-每次 `followup`、`interrupt` 和 `drain` 前，adapter 必须从 SQLite 读取并验证：
+每次 `followup`、`interrupt` 和 `drain` 前，adapter 必须从 Meeting repository 读取并验证：
 
 - `meetingId`、session ID 和会议身份绑定一致；
 - capability 状态仍为 active；
@@ -300,7 +275,7 @@ convivium:meeting-manager:<teamId>:<meetingId>
 convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
 ```
 
-SQLite ownership record 是授权依据，label 只用于冷恢复定位和交叉校验。仅有 label、显示名称或父子关系不足以获得会议 capability。
+Meeting domain 中的 ownership record 是授权依据，label 只用于冷恢复交叉校验。仅有 label、显示名称或父子关系不足以获得会议 capability。
 
 ## Meeting Runtime
 
@@ -353,8 +328,8 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 ### Pause, resume and archive
 
 - `pause` 在事务中改变 Meeting 状态并撤销尚未开始的 dispatch capability；运行中的 DSH 调用由 outbox 请求 interrupt。
-- `resume` 从最新 SQLite 事实重新计算阻塞条件和下一动作，不复用暂停前未提交的 attempt。
-- archive 先生成完整终态 SQLite snapshot 和 archive projection，再 revoke 全部 meeting capability、drain resident Activation，最后提交 `archived`。
+- `resume` 从最新已提交 Meeting projection 重新计算阻塞条件和下一动作，不复用暂停前未提交的 attempt。
+- archive 先提交完整终态 Meeting projection 和 archive projection，再 revoke 全部 meeting capability、drain resident Activation，最后提交 `archived`。
 - Markdown 生成始终是 best-effort；失败不阻止 pause、resume、archive 或 Session drain。
 - 持久 DSH Session 数据不删除；归档后的不可继续语义由 capability revoke 保证。
 
@@ -366,7 +341,7 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 
 ### Developer Markdown
 
-- `projection/markdown.ts` 从 SQLite snapshot 生成单份人类可读文档。
+- 若提供开发者 Markdown，则从已提交 Meeting projection 生成单份人类可读文档。
 - 文件位于 Meeting 自有目录，只用于开发和诊断。
 - 生成失败只记录日志；文件缺失、陈旧或被人工修改都不触发修复事务。
 - Markdown 不提供 HTTP 接口，也不按 caller 生成权限投影。
@@ -380,11 +355,11 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 
 ## Plugin Composition And Lifecycle
 
-`src/index.ts` 的目标启动顺序：
+`src/index.ts` 的启动顺序：
 
-1. 解析 Config，并要求顶层 fiber 注入 `storage` 及现有 DSH services。
+1. 顶层无依赖 compositor 解析 Config，使其可以在 `storage-domain` 等待 backend 时先激活。
 2. 用 `<resolved dataRoot>/storage` 挂载 `src/storage/index.ts#jsonlStoragePlugin` provider child plugin；provider 注册 `convivium-jsonl` backend service。
-3. 挂载 `ctx.inject(["storageDomain"], meetingPlugin)` consumer child plugin；`storage-domain` 尚未就绪时 consumer 保持 pending，不暴露部分 Meeting 能力。
+3. 挂载依赖完整 DSH services 与 `storageDomain` 的 Meeting consumer child plugin；依赖尚未就绪时 consumer 保持 pending，不暴露部分 Meeting 能力。
 4. consumer 打开 catalog domain 和 Meeting domains，完成冷恢复，再构造 Meeting Runtime、outbox worker 和 recovery coordinator。
 5. consumer 注册 tools、HTTP routes 和 system prompt contribution；Client bundle 由 DSH 根据 package manifest 独立装载。
 6. consumer 启动有界 outbox worker。
@@ -395,7 +370,7 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 
 | Failure                                        | Required handling                                                     |
 | ---------------------------------------------- | --------------------------------------------------------------------- |
-| SQLite busy                                    | 在 `busy_timeout` 后返回可重试错误，不在 Runtime 无限重试             |
+| Storage mutation conflict                      | 返回可重试冲突或按 expected version 拒绝，不在 Runtime 无限重试       |
 | Unknown schema version                         | 隔离该 Meeting 并拒绝恢复                                             |
 | DSH unavailable during dispatch                | outbox 保持可重试；Meeting 按领域规则进入 waiting 或 failure          |
 | Session created but ownership write failed     | recovery 通过 bootstrap 和 label 关联；无法证明归属时不操作该 Session |
@@ -405,16 +380,16 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 | Required speaker not dispatchable              | 返回 Interface 定义的结构化错误，不自动换人                           |
 | Process crash                                  | 回滚未提交事务；恢复过期 lease、未完成 outbox 和非终态 Meeting        |
 
-恢复扫描只读取 data root 下能通过当前 locator 校验的 Meeting repository。单个 Meeting 损坏不得阻止其他 Meeting 的 Agent best-effort 恢复；需要完整一致结果的本地 list 按 Interface 整体失败。全局配置或 DSH capability 缺失则阻止插件加载。
+恢复只通过 catalog discovery 打开已登记的 Meeting domains，不扫描 data root 或 backend 物理路径。单个 Meeting 损坏不得阻止其他 Meeting 的 Agent best-effort 恢复；需要完整一致结果的本地 list 按 Interface 整体失败。全局配置或 DSH capability 缺失则阻止插件加载。
 
 ## Security And Observability
 
 - 所有路径由 validated `teamId` 和 `meetingId` 解析，禁止调用方提供任意文件路径。
-- repository 不接受未绑定 caller 的通用 JSON patch 或 SQL。
+- repository 不接受未绑定 caller 的通用 JSON patch 或 backend operation。
 - 日志必须包含 meeting ID、command/outbox kind、attempt ID 和结构化错误码，不记录隐藏推理、完整私聊或敏感凭据。
 - metrics 至少覆盖 active/waiting meetings、outbox backlog、dispatch latency、recovery count、rejected stale submissions 和 repository failures。
 - DSH 原生 tool/session events 由 DSH 持有；Convivium 不声明自定义持久化 DSH Session Event。
-- Plugin Frontend 不能访问 SQLite、workspace 任意文件或 Session capability token。
+- Plugin Frontend 不能访问持久化介质、workspace 任意文件或 Session capability token。
 
 ## Verification Design
 
@@ -423,7 +398,7 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 | Test path                   | Minimum coverage                                                                |
 | --------------------------- | ------------------------------------------------------------------------------- |
 | `tests/unit/domain`         | 状态转换、speaker selection、议题漂移、完成/硬限制顺序、停滞和终止              |
-| `tests/unit/repository`     | DDL、migration、事务回滚、version CAS、receipt 和 outbox                        |
+| `tests/unit/repository`     | record schema、commit rollback、version CAS、receipt、checkpoint 和 outbox      |
 | `tests/contract`            | 所有 `convivium_*` Schema、caller binding、错误、package manifest 和 projection |
 | `tests/integration/dsh`     | create/followup/interrupt/drain、capability revoke 和迟到结果                   |
 | `tests/integration/runtime` | 创建、连续 turn、后台任务、mail、暂停/继续和归档                                |
@@ -464,7 +439,7 @@ pnpm verify
 以下顺序只表达依赖关系，不表示可省略的发布阶段；完整实现必须覆盖全部项：
 
 1. 固化协议 Schema、domain model、纯 transitions 和错误映射。
-2. 实现 SQLite schema、migration、repository transaction、receipt 和 outbox。
+2. 实现 Storage Domain record schema、repository commit、receipt、checkpoint 和 outbox。
 3. 实现 caller resolver、MeetingSessionAdapter 和 TaskAdapter。
 4. 实现 Meeting Runtime、TurnRunner、OutboxWorker、MailProcessor 和 Recovery。
 5. 建立 Host/Client 双入口、package manifest、bundle patch 和 lifecycle disposer，再注册全部 tools 与 HTTP routes。
@@ -479,7 +454,7 @@ pnpm verify
 本文设计满足以下条件时可作为无歧义实现依据：
 
 1. 每个产品职责都有唯一源码目录和依赖方向。
-2. SQLite driver、schema version、migration、事务和 repository API 已确定。
+2. Storage Domain record schema、commit/checkpoint、catalog lifecycle 和 repository API 已确定。
 3. 所有 meeting-owned Session 操作只能经过统一 adapter 和 capability 检查。
 4. tool、HTTP、worker 和 recovery 共享同一个 Runtime/Repository 写入口。
 5. 创建中断、迟到结果、重复投递、暂停恢复和归档都有确定处理路径。
