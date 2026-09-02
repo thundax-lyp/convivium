@@ -2,10 +2,10 @@
 
 ## Status And Work Boundary
 
-- 状态：Executable（T10F correction；T11 在 fixture contract 缺失处 STOP）
+- 状态：Executable
 - 建立日期：2026-09-01
 - 最后审计日期：2026-09-02
-- 当前执行进度：T0–T10 已 PASS，T10 commit 为 `4a72063`。T11 因 T10 已提交的 fake Domain fixture contract 缺失而 STOP；正文第一项为 T10F。T10F PASS、删除并提交前不得恢复 T11。
+- 当前执行进度：T0–T11 已 PASS，T10 commit 为 `4a72063`，T10F commit 为 `38bc9a1`。正文第一项为 T12。
 - 执行目录：仓库根目录。执行前必须运行 `git rev-parse --show-toplevel`；文档和证据中不得记录机器绝对路径。
 - 当前起点：`plugin/` 通过 `node:sqlite` 实现每 Meeting repository，`Config.dataRoot` 和目录扫描属于 Convivium。
 - 目标终点：`plugin/src/storage/` 实现 package-private JSONL DSH `StorageBackend` provider child plugin；Meeting consumer child plugin 只使用 `@deepseek-ai/dsh-storage-domain` 和自身 record schema；验证切换后删除 SQLite 源码。
@@ -13,11 +13,11 @@
 
 ## Executable Gate
 
-本文只有在执行者能够把 T0–T10（T10=`4a72063`）视为固定历史，先执行 T10F，再恢复 T11 并继续到 T19，且不需要选择数据结构、接口、文件、symbol、实现方案、错误语义、测试范围或失败处理时才可保持 `Executable`。T10F 未 PASS、删除或提交不得恢复 T11。发现任何一步仍需上述判断时立即 STOP，并把本文状态改为 `Not Executable`；不得边猜边执行。
+本文只有在执行者能够把 T0–T11（T10=`4a72063`，T10F=`38bc9a1`）视为固定历史并继续到 T19，且不需要选择数据结构、接口、文件、symbol、实现方案、错误语义、测试范围或失败处理时才可保持 `Executable`。发现任何一步仍需上述判断时立即 STOP，并把本文状态改为 `Not Executable`；不得边猜边执行。
 
 ## Executor Contract
 
-- T0–T10 只以固定历史提交为完成证据；T10=`4a72063`。严格从正文第一项未完成步骤 T10F 开始，T10F 未 PASS、未删除或未提交时不得恢复 T11。
+- T0–T11 只以固定历史提交为完成证据；T10=`4a72063`，T10F=`38bc9a1`。严格从正文第一项未完成步骤 T12 开始。
 - 每步只修改“允许修改”列出的文件和 symbol；不存在的既有路径/symbol 或必需的额外改动立即 STOP。
 - T14 前 SQLite 是唯一 production truth；T14 后 Storage Domain 是唯一 production truth。
 - 禁止双写、fallback、自动迁移、扫描或删除 legacy `.sqlite`。
@@ -948,42 +948,6 @@ No raw path or record payload enters the public error message.
 ## Mechanical Execution
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
-
-### T11 — Implement Application Checkpoint
-
-前置状态：T10 PASS.
-
-允许修改：new `plugin/src/repository/domain/checkpoint.ts`; `plugin/tests/unit/repository/domain/checkpoint.spec.ts`.
-
-禁止修改：repository implementation, Runtime, backend.
-
-执行：implement pages/root/pointer/recovery/GC exactly as Persistent Data Contract and the three exact signatures. Every function accepts typed Domain and no path. Enforce monotonic pointer by checking current pointer immediately before put; stale generation becomes orphan and performs no deletion. The suite has exactly these titles and outcomes:
-
-```text
-loads a continuous commit tail without a checkpoint
-writes more than one bounded page before root and pointer
-rejects a missing referenced page
-rejects page, root, pointer and projection digest mismatch
-refuses a stale generation without publishing or deleting
-keeps the old pointer when a checkpoint page put fails
-keeps the old pointer when checkpoint root put fails
-keeps the old pointer when pointer put fails
-keeps new truth when obsolete commit deletion fails
-collects only generations not named by the current pointer
-```
-
-Use `createFakeMeetingDomain()` from the fixed fixture. The three put-failure titles arm `failNextPut` respectively for `(checkpoint_pages, generated page 0 key)`, `(checkpoint_roots, generation)`, and `(checkpoint_pointer, current)`. The delete-failure title arms `failNextDelete(commits, seqKey(1))`; `writeCheckpoint` resolves the already-published pointer, retains redundant commit 1, and `loadProjection` ignores it because its seq is not above `baseSeq`. Every page-put spy value is `< MAX_DOMAIN_VALUE_BYTES` and no spy call receives `PersistenceProjectionV1`.
-
-验证：
-
-```bash
-pnpm --dir plugin test -- tests/unit/repository/domain/checkpoint.spec.ts
-pnpm --dir plugin typecheck
-```
-
-PASS：all ten exact titles pass; put/delete spy arguments and pointer outcomes match the fixed rules.
-
-STOP：any function passes full projection to one Domain put. Failure state：test fake-domain state only.
 
 ### T12 — Implement DomainMeetingRepository Contract
 
