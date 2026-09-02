@@ -114,28 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T12B — Implement Domain Commit Kernel
-
-前置状态：T12A PASS.
-
-允许修改：replace `plugin/src/repository/domain/domain-meeting-repository.ts`; `plugin/tests/contract/domain-meeting-repository.spec.ts`; `plugin/tests/fixtures/domain-storage.ts`.
-
-禁止修改：Runtime, entry, SQLite, public port/types, schema/projection/checkpoint.
-
-执行：实现 `open`, `ensureOpen`, `enqueueMutation`, `commit`, read methods, `close`；使用固定 predecessor/publish/lifecycle；ready creation 没有 valid seq 1 拒绝 `CORRUPT_DATABASE`；按 Storage Interface 映射错误。Fixture 只可增加 `closeCalls` 和 `failNextClose()`。
-
-验证：
-
-```bash
-pnpm --dir plugin test --project contract tests/contract/domain-meeting-repository.spec.ts -t 'maps corrupted persisted state|rolls back state, events and outbox when a commit put fails'
-pnpm --dir plugin test --project host tests/unit/module-boundaries.spec.ts tests/unit/repository/domain
-pnpm --dir plugin typecheck
-```
-
-PASS：corruption 为 `CORRUPT_DATABASE`；failed put 不发布 projection；close idempotent；无 backend/filesystem import。
-
-STOP：需要另一队列、raw backend、类型绕过或 public surface 变化。
-
 ### T12C — Implement Creation And Ownership
 
 前置状态：T12B PASS.
