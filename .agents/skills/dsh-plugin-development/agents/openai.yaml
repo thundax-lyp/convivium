@@ -1,6 +1,4 @@
 interface:
-  display_name: "DSH Plugin Development"
-  short_description: "按当前 DSH API 和插件契约开发、验证 Convivium 插件"
-  default_prompt: "Use $dsh-plugin-development for DSH plugin implementation, API verification, build, test, or runtime validation."
-policy:
-  allow_implicit_invocation: true
+    display_name: "DSH 插件开发"
+    short_description: "按 DSH 扩展点开发和修改 DeepSeek Harness Cordis 插件"
+    default_prompt: "使用 $dsh-plugin-development 添加或修改 DeepSeek Harness 插件。"
