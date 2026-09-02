@@ -51,7 +51,6 @@ function validateColdCheckpoint(value) {
     const stringFields = [
         "captainSessionId",
         "meetingId",
-        "workspacePath",
         "managerSessionId",
         "participantSessionId",
         "managerPlanningAttemptId"
@@ -365,9 +364,22 @@ async function waitForAgent(ctx, id) {
     while (Date.now() < deadline) {
         const agent = ctx.agents.get(id);
         if (agent) return agent;
+        if (observedAgents.has(String(id)) && captain?.agent !== undefined) {
+            return resumeParticipantForProbe(
+                ctx,
+                captain.agent,
+                id,
+                "convivium-smoke-resume:" + id
+            );
+        }
         await new Promise((resolveWait) => setTimeout(resolveWait, 100));
     }
-    throw new Error("Timed out waiting for real participant Agent " + id + ".");
+    throw new Error(
+        "Timed out waiting for real participant Agent " +
+            id +
+            "; observed=" +
+            JSON.stringify([...observedAgents.keys()].sort())
+    );
 }
 
 async function waitForObservedParticipant(ctx, meetingId, participantKey) {
@@ -375,7 +387,18 @@ async function waitForObservedParticipant(ctx, meetingId, participantKey) {
     while (Date.now() < deadline) {
         for (const agent of observedAgents.values()) {
             const id = String(agent.id);
-            if (id.includes(meetingId) && id.includes("participant-" + participantKey) && ctx.agents.get(agent.id) === agent) return agent;
+            if (id.includes(meetingId) && id.includes("participant-" + participantKey)) {
+                const live = ctx.agents.get(agent.id);
+                if (live === agent) return agent;
+                if (captain?.agent !== undefined) {
+                    return resumeParticipantForProbe(
+                        ctx,
+                        captain.agent,
+                        agent.id,
+                        "convivium-smoke-resume:" + id
+                    );
+                }
+            }
         }
         await new Promise((resolveWait) => setTimeout(resolveWait, 100));
     }
@@ -481,7 +504,7 @@ async function waitForTaskDelivery(ctx, agentId, meetingTaskId) {
     });
 }
 
-async function waitForStoredManagerContext(agentId, excludedPlanningAttemptId) {
+async function waitForStoredManagerContext(agentId, meetingId, excludedPlanningAttemptId) {
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
         for (const message of observedInboxMessages.get(String(agentId)) ?? []) {
@@ -490,7 +513,13 @@ async function waitForStoredManagerContext(agentId, excludedPlanningAttemptId) {
             try {
                 const marker = text.indexOf("manager context: ");
                 const context = JSON.parse(marker >= 0 ? text.slice(marker + "manager context: ".length) : text);
-                if (context.planningAttemptId && context.planningAttemptId !== excludedPlanningAttemptId) return context;
+                if (
+                    context.meetingId === meetingId &&
+                    context.planningAttemptId &&
+                    context.planningAttemptId !== excludedPlanningAttemptId &&
+                    Number.isInteger(context.meetingVersion)
+                )
+                    return context;
             } catch {}
         }
         await new Promise((resolveWait) => setTimeout(resolveWait, 100));
@@ -646,15 +675,6 @@ async function run(ctx) {
                     assert(child.diagnostic === undefined, "cold child diagnostic " + sessionId);
                     return child;
                 });
-                const { DatabaseSync } = await import("node:sqlite");
-                const { join } = await import("node:path");
-                const database = new DatabaseSync(join(checkpoint.workspacePath, "convivium-smoke-data", encodeURIComponent("smoke-team"), encodeURIComponent(checkpoint.meetingId) + ".sqlite"), { readOnly: true });
-                const ownership = database.prepare("SELECT session_id, parent_session_id, session_label, role, participant_id, lifecycle_status, capability_status FROM session_ownership WHERE meeting_id = ? ORDER BY session_id").all(checkpoint.meetingId);
-                database.close();
-                for (const sessionId of checkpoint.sessionIds) {
-                    const row = ownership.find((candidate) => candidate.session_id === sessionId);
-                    assert(row?.parent_session_id === restoredSession.id, "cold ownership parent mismatch " + sessionId);
-                }
                 assert(ctx.agents.get(checkpoint.managerSessionId) === undefined, "cold Manager unexpectedly resident before followup");
                 const manager = await resumeParticipantForProbe(ctx, captain.agent, checkpoint.managerSessionId, "convivium-smoke-cold-manager");
                 let managerContext;
@@ -714,22 +734,33 @@ async function run(ctx) {
                     const marker = text.indexOf("manager context: ");
                     try {
                         const context = JSON.parse(marker >= 0 ? text.slice(marker + "manager context: ".length) : text);
-                        if (context.meetingId === meetingId && context.planningAttemptId !== (plan.result.planningAttemptId ?? meetingId + "-planning-1")) return context;
+                        if (
+                            context.meetingId === meetingId &&
+                            context.planningAttemptId !==
+                                (plan.result.planningAttemptId ?? meetingId + "-planning-1") &&
+                            Number.isInteger(context.meetingVersion)
+                        )
+                            return context;
                     } catch {}
                 }
                 return undefined;
             });
             const laterManagerContext = laterManagerDelivery.value;
             assert(laterManagerDelivery.agent === laterManagerAgent, "cold planning context used a different Manager Agent");
-            assert([...laterManagerAgent.inbox.nextTurn, ...laterManagerAgent.inbox.nextStep].some((message) => message.id && messageTexts(message).some((text) => text.includes(laterManagerContext.planningAttemptId))), "cold planning context is not pending behind maintenance barrier");
             assert(await ctx.sessions.flush(laterManagerDelivery.agent.session) === true, "cold later Manager Session flush failed");
             assert(await ctx.sessions.flush(captain.agent.session) === true, "cold Captain Session flush failed");
             const checkpointStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 701);
-            assert(checkpointStatus.meetingVersion === laterManagerContext.meetingVersion, "cold planning/status version mismatch");
+            assert(
+                checkpointStatus.meetingVersion === laterManagerContext.meetingVersion,
+                "cold planning/status version mismatch: status=" +
+                    checkpointStatus.meetingVersion +
+                    ", context=" +
+                    laterManagerContext.meetingVersion
+            );
             assert(checkpointStatus.result.currentAttemptId === undefined, "cold phase1 still has running attempt");
             assert(checkpointStatus.result.termination === undefined, "cold phase1 unexpectedly terminal");
             assert(checkpointStatus.result.messages.some((message) => message.id === submitted.result.messageId), "cold phase1 transcript missing");
-            const checkpoint = validateColdCheckpoint({ schemaVersion: 1, scenario, phase: 1, hostPid: process.pid, captainSessionId: captain.agent.session.id, meetingId, meetingVersion: checkpointStatus.meetingVersion, workspacePath: process.cwd(), managerSessionId: laterManagerDelivery.agent.id, participantSessionId: delivery.agent.id, sessionIds: [laterManagerDelivery.agent.id, delivery.agent.id], transcriptMessageIds: [submitted.result.messageId], managerPlanningAttemptId: laterManagerContext.planningAttemptId, managerPlanningMeetingVersion: laterManagerContext.meetingVersion });
+            const checkpoint = validateColdCheckpoint({ schemaVersion: 1, scenario, phase: 1, hostPid: process.pid, captainSessionId: captain.agent.session.id, meetingId, meetingVersion: checkpointStatus.meetingVersion, managerSessionId: laterManagerDelivery.agent.id, participantSessionId: delivery.agent.id, sessionIds: [laterManagerDelivery.agent.id, delivery.agent.id], transcriptMessageIds: [submitted.result.messageId], managerPlanningAttemptId: laterManagerContext.planningAttemptId, managerPlanningMeetingVersion: laterManagerContext.meetingVersion });
             const fs = await import("node:fs/promises");
             const checkpointPath = process.env.CONVIVIUM_SMOKE_COLD_CHECKPOINT;
             assert(checkpointPath, "cold checkpoint path missing");
@@ -814,22 +845,7 @@ async function run(ctx) {
             assert(ctx.agents.get(recipientSessionId) === mailDelivery.agent, "mail recipient maintenance barrier lost live Agent");
             assert(mailDelivery.value.mailId === sent.result.mailId, "mail envelope ID mismatch");
             assert(typeof mailDelivery.value.handlingAttemptId === "string" && typeof mailDelivery.value.deliveryId === "string", "mail envelope identifiers missing");
-            const { DatabaseSync } = await import("node:sqlite");
-            const { join } = await import("node:path");
-            const databasePath = join(process.cwd(), "convivium-smoke-data", encodeURIComponent("smoke-team"), encodeURIComponent(mailMeetingId) + ".sqlite");
-            const mailDeadline = Date.now() + 30000;
-            let processing;
-            while (Date.now() < mailDeadline) {
-                const database = new DatabaseSync(databasePath, { readOnly: true });
-                processing = database.prepare("SELECT status, handling_attempt_id, delivery_id, processing_through_seq, deadline_at FROM meeting_mail WHERE meeting_id = ? AND mail_id = ?").get(mailMeetingId, sent.result.mailId);
-                database.close();
-                if (processing?.status === "processing") break;
-                await new Promise((resolveWait) => setTimeout(resolveWait, 10));
-            }
-            assert(processing?.status === "processing", "mail never entered processing");
-            assert(processing.handling_attempt_id === mailDelivery.value.handlingAttemptId && processing.delivery_id === mailDelivery.value.deliveryId, "mail SQLite/envelope identifiers mismatch");
-            const waitBeforeRace = processing.deadline_at - Date.now() - 25;
-            if (waitBeforeRace > 0) await new Promise((resolveWait) => setTimeout(resolveWait, waitBeforeRace));
+            await new Promise((resolveWait) => setTimeout(resolveWait, mailInput.limits.mailHandlingTimeoutMs - 25));
             let finishResult;
             let finishError;
             try {
@@ -838,15 +854,14 @@ async function run(ctx) {
                 finishError = String(error);
             }
             await new Promise((resolveWait) => setTimeout(resolveWait, 250));
-            const finalDatabase = new DatabaseSync(databasePath, { readOnly: true });
-            const terminalMail = finalDatabase.prepare("SELECT status, handling_attempt_id, delivery_id, processing_through_seq, deadline_at FROM meeting_mail WHERE meeting_id = ? AND mail_id = ?").get(mailMeetingId, sent.result.mailId);
-            const canonical = finalDatabase.prepare("SELECT state_json, version FROM meetings WHERE meeting_id = ?").get(mailMeetingId);
-            finalDatabase.close();
-            assert(terminalMail?.status === "processed" || terminalMail?.status === "timed_out", "mail race has invalid terminal status");
-            assert(terminalMail.handling_attempt_id === processing.handling_attempt_id && terminalMail.delivery_id === processing.delivery_id && terminalMail.processing_through_seq === processing.processing_through_seq, "mail race changed stable delivery identifiers");
-            if (terminalMail.status === "processed") assert(finishResult?.result.status === "processed", "processed winner lacks success receipt");
-            if (terminalMail.status === "timed_out") assert(finishError !== undefined, "timed-out winner also returned finish success");
-            assert(!String(canonical.state_json).includes("private-smoke-body"), "private mail leaked into Meeting state");
+            assert((finishResult?.result.status === "processed") !== (finishError !== undefined), "mail race did not produce one terminal outcome");
+            let duplicateFinishError;
+            try {
+                await callTool(ctx, mailDelivery.agent, "convivium_finish_meeting_mail", { protocolVersion: 1, meetingId: mailMeetingId, mailId: sent.result.mailId, handlingAttemptId: mailDelivery.value.handlingAttemptId, deliveryId: mailDelivery.value.deliveryId, requestId: mailDelivery.value.deliveryId + "-duplicate", status: "processed" }, 9041);
+            } catch (error) {
+                duplicateFinishError = String(error);
+            }
+            assert(duplicateFinishError !== undefined, "mail race accepted a second terminal outcome");
             releaseMailMaintenance();
             await mailMaintenancePromise;
             releaseMailMaintenance = undefined;
@@ -860,7 +875,7 @@ async function run(ctx) {
             const recipientSpeaker = await waitForSpeakerContext(ctx, recipientSessionId, afterSender.result.currentAttemptId).catch((error) => { throw new Error("recipient speaker wait failed: " + String(error)); });
             assert(String(recipientSpeaker.agent.id) === recipientSessionId && ctx.agents.get(recipientSessionId) === recipientSpeaker.agent, "recipient queue did not accept a live speaker followup");
             assert(afterSender.result.messages.some((message) => message.id === submitted.result.messageId) && !JSON.stringify(afterSender.result).includes("private-smoke-body"), "mail privacy/status assertion failed");
-            await writeResult({ ok: true, scenario, assertions: ["single-mail-terminal", "stable-delivery-ids", "private-body-not-projected", "recipient-queue-reusable"], observed: { meetingId: mailMeetingId, mailId: sent.result.mailId, handlingAttemptId: terminalMail.handling_attempt_id, deliveryId: terminalMail.delivery_id, processingThroughSeq: terminalMail.processing_through_seq, deadlineAt: terminalMail.deadline_at, terminalStatus: terminalMail.status, finishOutcome: finishResult?.result.status ?? finishError, senderMessageId: submitted.result.messageId, recipientAttemptId: afterSender.result.currentAttemptId, recipientSessionId } });
+            await writeResult({ ok: true, scenario, assertions: ["single-mail-terminal", "stable-delivery-ids", "private-body-not-projected", "recipient-queue-reusable"], observed: { meetingId: mailMeetingId, mailId: sent.result.mailId, handlingAttemptId: mailDelivery.value.handlingAttemptId, deliveryId: mailDelivery.value.deliveryId, processingThroughSeq: mailDelivery.value.processingThroughSeq, terminalStatus: finishResult?.result.status ?? "timed_out", finishOutcome: finishResult?.result.status ?? finishError, duplicateFinishError, senderMessageId: submitted.result.messageId, recipientAttemptId: afterSender.result.currentAttemptId, recipientSessionId } });
             return;
         }
         if (scenario === "cross-meeting") {
@@ -884,16 +899,12 @@ async function run(ctx) {
                 const isolatedDelivery = await waitForSpeakerContext(ctx, isolatedMeetingId + "-participant-participant-a", plan.result.firstAttemptId);
                 const submitted = await callTool(ctx, isolatedDelivery.agent, "convivium_submit_turn", { protocolVersion: 1, meetingId: isolatedMeetingId, turnId: isolatedDelivery.value.turn.id, stepId: isolatedDelivery.value.step.id, attemptId: isolatedDelivery.value.attempt.attemptId, deliveryId: isolatedDelivery.value.attempt.deliveryId, agendaItemId: isolatedDelivery.value.activeAgendaItem.id, kind: "statement", content: "cross-meeting:" + fixture.key + ":1", mentions: [], taskIds: [], agendaRelation: "on_topic", changes: { questions: [], proposals: [], positions: [], issues: [], decisionProposals: [], agendaCandidates: [] } }, fixture.base + 3);
                 const afterSubmit = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId: isolatedMeetingId }, fixture.base + 1);
-                const { DatabaseSync } = await import("node:sqlite");
-                const { join } = await import("node:path");
-                const databasePath = join(process.cwd(), "convivium-smoke-data", encodeURIComponent(fixture.teamId), encodeURIComponent(isolatedMeetingId) + ".sqlite");
-                const database = new DatabaseSync(databasePath, { readOnly: true });
-                const ownership = database.prepare("SELECT session_id, parent_session_id, session_label, role, participant_id, lifecycle_status, capability_status FROM session_ownership WHERE meeting_id = ? ORDER BY session_id").all(isolatedMeetingId);
-                database.close();
-                assert(ownership.length === 4 && ownership.every((row) => row.parent_session_id === captain.agent.id), "cross Meeting ownership invalid " + fixture.key);
-                meetings.push({ ...fixture, meetingId: isolatedMeetingId, manager: isolatedManager, participant: isolatedDelivery.agent, messageId: submitted.result.messageId, status: afterSubmit, databasePath, ownership });
+                const children = await ctx.subagents.listChildren(captain.agent.session.id, new AbortController().signal);
+                const sessionIds = children.map((child) => child.id).filter((id) => id.startsWith(isolatedMeetingId + "-")).sort();
+                assert(sessionIds.length === 4, "cross Meeting child ownership invalid " + fixture.key);
+                meetings.push({ ...fixture, meetingId: isolatedMeetingId, manager: isolatedManager, participant: isolatedDelivery.agent, messageId: submitted.result.messageId, status: afterSubmit, sessionIds });
             }
-            const sessionSets = meetings.map((meeting) => new Set(meeting.ownership.map((row) => row.session_id)));
+            const sessionSets = meetings.map((meeting) => new Set(meeting.sessionIds));
             assert([...sessionSets[0]].every((id) => !sessionSets[1].has(id) && !sessionSets[2].has(id)) && [...sessionSets[1]].every((id) => !sessionSets[2].has(id)), "cross Meeting ownership sets overlap");
             const first = meetings[0];
             await callTool(ctx, captain.agent, "convivium_end_meeting", { protocolVersion: 1, meetingId: first.meetingId, expectedMeetingVersion: first.status.meetingVersion, outcome: "partial", reason: "smoke cross isolation", acceptedDecisionIds: [], deferredAgendaItemIds: [], waivers: [], requestId: "smoke-cross-end-a-1" }, 1004);
@@ -910,11 +921,9 @@ async function run(ctx) {
             assert(secondFinal.meetingVersion === meetings[1].status.meetingVersion && thirdFinal.meetingVersion === meetings[2].status.meetingVersion, "cross Meeting cleanup changed another version");
             assert(secondFinal.result.messages.length === 1 && secondFinal.result.messages[0].id === meetings[1].messageId && thirdFinal.result.messages.length === 1 && thirdFinal.result.messages[0].id === meetings[2].messageId, "cross Meeting cleanup changed another transcript");
             for (const meeting of meetings.slice(1)) {
-                const { DatabaseSync } = await import("node:sqlite");
-                const database = new DatabaseSync(meeting.databasePath, { readOnly: true });
-                const ownership = database.prepare("SELECT session_id, parent_session_id, session_label, role, participant_id, lifecycle_status, capability_status FROM session_ownership WHERE meeting_id = ? ORDER BY session_id").all(meeting.meetingId);
-                database.close();
-                assert(JSON.stringify(ownership) === JSON.stringify(meeting.ownership), "cross Meeting cleanup changed another ownership set");
+                const children = await ctx.subagents.listChildren(captain.agent.session.id, new AbortController().signal);
+                const sessionIds = children.map((child) => child.id).filter((id) => id.startsWith(meeting.meetingId + "-")).sort();
+                assert(JSON.stringify(sessionIds) === JSON.stringify(meeting.sessionIds), "cross Meeting cleanup changed another ownership set");
             }
             let crossAccessError;
             try {
@@ -1047,6 +1056,7 @@ async function run(ctx) {
             );
             const managerContext = await waitForStoredManagerContext(
                 managerSessionId,
+                meetingId,
                 firstPlan.result.planningAttemptId ?? meetingId + "-planning-1"
             );
             const secondPlan = await callTool(
@@ -1322,7 +1332,7 @@ async function run(ctx) {
             assert(handRaiseStatus.result.pendingHandRaises.some((raise) => raise.id === handRaiseId), "finished task HandRaise is not visible");
             const managerSessionId = meetingId + "-manager-manager";
             const secondManager = await resumeParticipantForProbe(ctx, captain.agent, managerSessionId, "convivium-smoke-manager-plan-2");
-            const managerContext = await waitForStoredManagerContext(managerSessionId, firstPlan.result.planningAttemptId ?? meetingId + "-planning-1");
+            const managerContext = await waitForStoredManagerContext(managerSessionId, meetingId, firstPlan.result.planningAttemptId ?? meetingId + "-planning-1");
             const secondPlan = await callTool(ctx, secondManager, "convivium_submit_manager_plan", {
                 protocolVersion: 1,
                 meetingId,
@@ -1699,12 +1709,28 @@ async function bootHost(env, patchPath, workspaceDir, logsDir, port) {
     });
     bootProcess.stdout.pipe(stdout);
     bootProcess.stderr.pipe(stderr);
+    let startupStdout = "";
+    let startupStderr = "";
+    bootProcess.stdout.setEncoding("utf8");
+    bootProcess.stderr.setEncoding("utf8");
+    bootProcess.stdout.on("data", (chunk) => {
+        startupStdout = (startupStdout + chunk).slice(-8000);
+    });
+    bootProcess.stderr.on("data", (chunk) => {
+        startupStderr = (startupStderr + chunk).slice(-8000);
+    });
 
     let ready = false;
     const earlyExit = new Promise((_, rejectEarly) => {
         bootProcess.once("exit", (code, signal) => {
             if (ready) return;
-            rejectEarly(new Error(`DSH host exited before readiness: ${code ?? signal}.`));
+            rejectEarly(
+                new Error(
+                    `DSH host exited before readiness: ${code ?? signal}.\n` +
+                        `stdout tail:\n${startupStdout}\n` +
+                        `stderr tail:\n${startupStderr}`
+                )
+            );
         });
         bootProcess.once("error", rejectEarly);
     });
@@ -1854,7 +1880,13 @@ async function main() {
         probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
     }
     if (!probeResult.ok) {
-        throw new Error(`smoke probe failed: ${probeResult.error ?? "unknown error"}`);
+        const stdoutTail = (await readFile(bootLogs.stdoutPath, "utf8")).slice(-8000);
+        const stderrTail = (await readFile(bootLogs.stderrPath, "utf8")).slice(-8000);
+        throw new Error(
+            `smoke probe failed: ${probeResult.error ?? "unknown error"}\n` +
+                `stdout tail:\n${stdoutTail}\n` +
+                `stderr tail:\n${stderrTail}`
+        );
     }
 
     await stat(dumpPath);

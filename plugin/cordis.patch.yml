@@ -2,3 +2,6 @@
     - id: convivium
       name: '@convivium/dsh-plugin'
       config: {}
+- id: storage-domain
+  config:
+    backend: convivium-jsonl

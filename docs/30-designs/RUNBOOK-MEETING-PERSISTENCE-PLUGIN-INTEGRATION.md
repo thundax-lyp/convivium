@@ -114,30 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T15 — Wire Real Profile
-
-前置状态：T14 PASS.
-
-允许修改：`plugin/cordis.patch.yml`; `plugin/scripts/smoke-profile.mjs`.
-
-禁止修改：package manifest, production TypeScript, user profiles and non-smoke tests.
-
-执行：existing `storage-domain` row route 到 `convivium-jsonl`；不加第二 package/row；smoke 删除 `DatabaseSync` 介质检查，只断言 public create/read/status、distinct-PID cold-rebind、mail-race、cross-meeting；temporary roots 在 `finally` 恢复。
-
-验证：
-
-```bash
-pnpm --dir plugin verify:environment
-pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
-```
-
-PASS：all 0；cold PID 不同且状态相同；无 direct medium inspection。
-
-STOP：需要第二包/row、用户 profile 写或只能经 SQLite 通过。
-
 ### T16 — Prove Production Import Boundary
 
 前置状态：T15 PASS.
