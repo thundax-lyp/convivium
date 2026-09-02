@@ -69,7 +69,7 @@ CurrentState(headSeq)
 
 1. **Single-command atomicity**：一次命令的全部权威结果只由一个 `Commit` 表示；该 record 不存在则命令未提交，完整存在则命令已提交。
 2. **Immutable history**：已提交的 `seq` 不得被不同内容覆盖；同 key、同 digest 的重试可以幂等成功，同 key、不同 digest 必须 fail loud。
-3. **Continuous order**：commit 序号严格连续；gap、重复序号冲突或非法前驱都不能被静默跳过。
+3. **Continuous order**：commit 序号严格连续；gap、重复序号冲突或非法前驱都不能被静默跳过。无 checkpoint 时 seq 1 以 `(0, null)` 为前驱；published checkpoint 后第一条 tail commit 以 `(baseSeq, projectionDigest(checkpoint projection))` 为前驱；其余 commit 引用前一条 commit。
 4. **Published checkpoint only**：只有 `CheckpointPointer` 指向的完整 generation 属于当前真相；未发布 generation 只是可回收数据。
 5. **Monotonic publication**：新 pointer 的 `baseSeq` 必须大于旧值；迟到或并发的旧 generation 不得覆盖较新的 pointer。
 6. **Bounded writes**：每次持久化调用只写一个经过真实编码后仍在硬上限内的 record；完整 checkpoint 必须拆分写入。
@@ -108,7 +108,7 @@ CurrentState(headSeq)
 
 1. pointer 不存在时使用 `baseSeq = 0` 的空 checkpoint；存在时读取它唯一引用的 generation。
 2. 校验 generation 的完整性、顺序、大小边界和 digest；未被 pointer 引用的 generation 不参与恢复。
-3. 从 `baseSeq + 1` 开始读取严格连续的 commit tail，并逐条校验和 fold。
+3. 从 `baseSeq + 1` 开始读取严格连续的 commit tail；第一条 tail commit 校验 checkpoint projection digest anchor，后续 commit 校验前一条 commit digest，然后逐条 fold。
 4. 任一缺页、gap、内容冲突、版本不兼容或校验失败都必须 fail loud；不得返回看似可用的部分状态。
 5. 完成恢复前不得接受新命令或投递 pending effect。
 

@@ -335,10 +335,20 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 ### Outbox worker
 
 - outbox item 必须有稳定 ID、kind、payload、attempt count、lease owner 和 lease deadline。
-- worker 使用有界 batch 和租约 claim，不在数据库事务中执行 DSH 调用。
-- 成功、可重试失败和终止失败通过独立事务提交。
+- worker 使用有界 batch 和租约 claim，不在 Repository commit 中执行 DSH 调用。
+- 成功、可重试失败和终止失败通过独立 commit 提交。
 - 进程退出后，过期 lease 可被冷恢复重新领取。
 - meeting 级 speaker/manager 失败预算由领域设计控制；Agent 内部 tool failure 不进入该预算。
+
+#### Minimal implementation boundary
+
+- Outbox 由 Convivium Meeting Runtime 和 Meeting Repository 共同拥有；DSH、Storage Domain 和 JSONL backend 只分别提供被调用能力或持久载体，不拥有 outbox 语义。
+- V1 只允许 `OUTBOX_KINDS` 已声明的单一 `dispatch` kind。worker 只执行固定链路 `claim -> MeetingSessionAdapter call -> complete`，不得接受任意函数、脚本、tool name、backend operation 或调用方提供的 handler。
+- pending item 必须与产生它的 Meeting 状态、event 和 receipt 位于同一个 repository commit；worker 不在 commit 前执行 DSH 调用，也不把调用中的临时结果当作 Meeting 事实。
+- 实现只使用当前单 Host 内的一个有界 worker、batch claim、lease/renew、completion 和冷恢复；不增加独立进程、消息 broker、分布式锁、跨 Host 协调、通用 scheduler 或第二条持久化队列。
+- `deliveryId` 只提供稳定投递身份和接收端幂等依据，不承诺跨 DSH 与 Repository 的 exactly-once。completion 写入失败时允许同一 `deliveryId` 重投。
+- Outbox 不对 Plugin Frontend、Agent 或公共工具暴露 enqueue/inspect/cancel API；业务只能通过已定义的 Meeting command 在 transition 结果中产生 outbox item。
+- 新增 kind、独立 consumer、优先级算法、定时任务、callback/hook、metrics framework 或通用重试策略不属于当前实现。只有先更新正式 Interface、指出当前消费者和验收失败，才能扩大该边界。
 
 ### Pause, resume and archive
 
