@@ -114,34 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T18 — Record Readiness
-
-前置状态：T17 PASS.
-
-允许修改：`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` only.
-
-禁止修改：production, tests, TODO and every other document.
-
-执行：运行下列命令一次并追加 dated evidence、commit/version/composition/scenarios，以及 exact Not Covered：legacy migration/deletion、multi-Host writer、remote filesystem。
-
-验证：
-
-```bash
-pnpm --dir plugin typecheck
-pnpm --dir plugin test
-pnpm --dir plugin build
-pnpm --dir plugin verify
-pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
-git diff --check
-```
-
-PASS：all 0；readiness 只记录 observed evidence。
-
-STOP：命令失败或证据会夸大覆盖。
-
 ### T19 — Close And Delete RUNBOOK
 
 前置状态：T18 PASS；normal review/PR identity present；用户另行授权 close/commit。
