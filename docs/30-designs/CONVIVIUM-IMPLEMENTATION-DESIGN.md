@@ -149,12 +149,12 @@ domain     ──> no infrastructure module
 | `src/domain/planning.ts`                                       | candidate filtering、selection mode、turn plan 校验                                                  |
 | `src/domain/completion.ts`                                     | 完成事实、停滞和终止派生计算                                                                         |
 | `src/domain/errors.ts`                                         | 内部领域错误分类；由 transport 映射为协议错误                                                        |
-| `src/repository/domain/domain-meeting-repository.ts`           | 聚合读写、receipt、event 和 outbox 的单 commit 提交                                                   |
+| `src/repository/domain/domain-meeting-repository.ts`           | 聚合读写、receipt、event 和 outbox 的单 commit 提交                                                  |
 | `src/repository/domain/domain-repository-registry.ts`          | catalog discovery、每 Meeting domain 打开、缓存和关闭                                                |
-| `src/repository/domain/schemas.ts`                             | catalog、creation、projection、commit、checkpoint 和 patch 的严格 record schema                       |
-| `src/storage/index.ts`                                        | 注册 package-private `convivium-jsonl` backend provider child plugin                                |
-| `src/storage/backend.ts`                                      | DSH `StorageBackend`/`KvFacet` lifecycle；不导入 Meeting 业务                                      |
-| `src/storage/unit.ts`                                         | JSONL KV unit 的 replay、mutation、physical checkpoint 和关闭顺序                                   |
+| `src/repository/domain/schemas.ts`                             | catalog、creation、projection、commit、checkpoint 和 patch 的严格 record schema                      |
+| `src/storage/index.ts`                                         | 注册 package-private `convivium-jsonl` backend provider child plugin                                 |
+| `src/storage/backend.ts`                                       | DSH `StorageBackend`/`KvFacet` lifecycle；不导入 Meeting 业务                                        |
+| `src/storage/unit.ts`                                          | JSONL KV unit 的 replay、mutation、physical checkpoint 和关闭顺序                                    |
 | `src/runtime/application-service.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime                         |
 | `src/runtime/turn-runner.ts`                                   | Manager plan、逐 speaker dispatch、submit 和下一 step 推进                                           |
 | `src/runtime/outbox-worker.ts`                                 | 提交后 DSH 副作用、重投和结果回写                                                                    |
@@ -191,47 +191,31 @@ Storage Domain 是当前唯一会议事实源。实现不双写、不 fallback�
 
 Runtime 只通过以下语义级 API 读写：
 
-完整的类型、幂等、lease、错误和 migration 契约见
-`docs/20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`。本设计只保留模块边界和事务约束。
-
-```ts
-interface MeetingRepository {
-  create(input: CreateMeetingRecord): Promise<MeetingSnapshot>;
-  updateCreateResult(
-    input: UpdateCreateResultInput,
-  ): Promise<CreateMeetingResult>;
-  read(meetingId: string): Promise<MeetingSnapshot>;
-  execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>;
-  claimOutbox(batchSize: number, lease: WorkerLease): Promise<OutboxItem[]>;
-  completeOutbox(result: OutboxCompletion): Promise<void>;
-  recover(now: number): Promise<RecoverySnapshot>;
-  close(): Promise<void>;
-}
-```
+完整的 Port、幂等、lease、错误和兼容契约以 [Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md) 为唯一真相源；本设计不复制可能漂移的方法签名。
 
 `updateCreateResult` 只在创建链路首次成功响应前，把首个 planning/Turn 提交后的公开创建结果同步写入 bootstrap 与 `create_meeting` receipt；它不修改领域状态。后续 create replay 必须直接返回该持久结果，不能根据当前 Meeting snapshot 重新合成。
 
-`execute` 是正式会议事实的唯一写入口。它在一个事务中完成：
+`execute` 是正式会议事实的唯一写入口。它在一个 Repository commit 边界内完成：
 
 1. Runtime 先通过 `RepositoryAuthorizationValidator` 校验真实 caller binding、capability 和当前 attempt；Repository 在 transition 前调用该端口，并校验 `expectedMeetingVersion`。
 2. 调用纯 `domain/transitions.ts` 得到新聚合和 effects。
 3. 在一条 Domain commit 中写入聚合 patch、不可变 event、幂等 receipt 和 outbox。
 4. 单调递增 meeting version 与 event sequence。
-5. `COMMIT` 后返回 `CommittedResult`；提交前不得调用 DSH 或生成成功响应。
+5. commit record 持久化成功后返回 `CommittedResult`；提交前不得调用 DSH 或生成成功响应。
 
 `requestId + commandKind + callerBinding` 形成幂等键。相同键和相同 request hash 返回已提交 receipt；相同键但不同 hash 返回冲突。已提交的 message IDs、meeting version 和结果必须来自 receipt，不能重新执行转换。
 
-### Directory creation
+### Meeting creation
 
 创建流程固定为：
 
 1. 生成稳定 `meetingId`。
-2. 原子创建 Meeting 独立目录。
-3. 创建 catalog/Meeting domain records 并提交 bootstrap record。
-4. 通过 outbox 创建 Manager 和 Participant Sessions。
-5. Session 创建成功后回写 ownership；全部 required Sessions 就绪后会议才可进入 `running`。
+2. 通过 `DomainRepositoryRegistry` 打开对应 Meeting domain，并在 catalog/creation records 中写入 `creating` correlation。
+3. 创建 Manager 和 Participant Sessions，并逐个回写不可变 ownership identity。
+4. 全部 required Sessions 就绪后，以 seq 1 `create.complete` commit 建立公开 Meeting、event、receipt 和初始 outbox，再发布 catalog/creation `ready`。
+5. 若首个 planning/Turn 使用独立 commit 启动，在首次成功响应前以 `create.result` commit 固化最终 create result。
 
-进程在第 2 至 5 步中断时，冷恢复根据 bootstrap record 和 Session label 修复归属。Repository 对 `creating` 或 `creation_failed` bootstrap 返回 ownership 但不返回公开 Meeting snapshot，使上层能恢复或安全关闭 Session。不存在 bootstrap record 的空目录可以清理；有 bootstrap record 的 Meeting 必须恢复或进入结构化 `failed`，不能成为部分可用会议。
+进程在第 2 至 5 步中断时，冷恢复根据 catalog、creation record、Session ownership 和 DSH parent-child/label 共同证明修复归属。Repository 对 `creating` 或 `creation_failed` bootstrap 返回 ownership 但不返回公开 Meeting snapshot，使上层能恢复或安全关闭 Session。没有 catalog record 时 Runtime 不扫描或猜测 backend 物理数据；有 bootstrap record 的 Meeting 必须恢复或进入结构化 `failed`，不能成为部分可用会议。
 
 ## Meeting Session Adapter
 
