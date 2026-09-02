@@ -105,14 +105,10 @@ export function foldCommitTail(input: {
             commit.previousSeq !== commit.seq - 1
         )
             throw new Error("invalid commit chain");
-        if (
-            previous
-                ? commit.previousDigest !== previous.digest
-                : input.baseProjection
-                  ? commit.previousDigest === null
-                  : commit.previousDigest !== null
-        )
-            throw new Error("invalid commit predecessor");
+        const expectedDigest =
+            previous?.digest ??
+            (input.baseProjection ? projectionDigest(input.baseProjection) : null);
+        if (commit.previousDigest !== expectedDigest) throw new Error("invalid commit predecessor");
         const source: JsonValue =
             projection === null ? null : decodeCanonicalJson(encodeProjection(projection));
         projection = decodeProjection(encodeCanonicalJson(applyPatch(source, commit.patch)));

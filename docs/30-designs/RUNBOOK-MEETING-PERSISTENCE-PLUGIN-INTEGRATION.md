@@ -5,7 +5,7 @@
 - 状态：Executable
 - 建立日期：2026-09-01
 - 最后审计日期：2026-09-02
-- 当前执行进度：T0–T11 已 PASS，T10 commit 为 `4a72063`，T10F commit 为 `38bc9a1`。正文第一项为 T12。
+- 当前执行进度：T0–T11 已 PASS，T10 commit 为 `4a72063`，T10F commit 为 `38bc9a1`。T11A 已 PASS，正文第一项为 T12。
 - 执行目录：仓库根目录。执行前必须运行 `git rev-parse --show-toplevel`；文档和证据中不得记录机器绝对路径。
 - 当前起点：`plugin/` 通过 `node:sqlite` 实现每 Meeting repository，`Config.dataRoot` 和目录扫描属于 Convivium。
 - 目标终点：`plugin/src/storage/` 实现 package-private JSONL DSH `StorageBackend` provider child plugin；Meeting consumer child plugin 只使用 `@deepseek-ai/dsh-storage-domain` 和自身 record schema；验证切换后删除 SQLite 源码。
@@ -13,11 +13,11 @@
 
 ## Executable Gate
 
-本文只有在执行者能够把 T0–T11（T10=`4a72063`，T10F=`38bc9a1`）视为固定历史并继续到 T19，且不需要选择数据结构、接口、文件、symbol、实现方案、错误语义、测试范围或失败处理时才可保持 `Executable`。发现任何一步仍需上述判断时立即 STOP，并把本文状态改为 `Not Executable`；不得边猜边执行。
+本文只有在执行者能够把 T0–T11（T10=`4a72063`，T10F=`38bc9a1`）及 T11A 固定历史视为完成并继续到 T19，且不需要选择数据结构、接口、文件、symbol、实现方案、错误语义、测试范围或失败处理时才可保持 `Executable`。发现任何一步仍需上述判断时立即 STOP，并把本文状态改为 `Not Executable`；不得边猜边执行。
 
 ## Executor Contract
 
-- T0–T11 只以固定历史提交为完成证据；T10=`4a72063`，T10F=`38bc9a1`。严格从正文第一项未完成步骤 T12 开始。
+- T0–T11A 只以固定历史提交为完成证据；T10=`4a72063`，T10F=`38bc9a1`。严格从正文第一项未完成步骤 T12 开始。
 - 每步只修改“允许修改”列出的文件和 symbol；不存在的既有路径/symbol 或必需的额外改动立即 STOP。
 - T14 前 SQLite 是唯一 production truth；T14 后 Storage Domain 是唯一 production truth。
 - 禁止双写、fallback、自动迁移、扫描或删除 legacy `.sqlite`。
@@ -47,6 +47,7 @@
 | T10 | `Feat(plugin/repository): 固化 Domain schema 与 projection codec` |
 | T10F | `Test(plugin/repository): 修正 Domain storage fixture 契约` |
 | T11 | `Feat(plugin/repository): 建立应用 checkpoint` |
+| T11A | `Fix(plugin/repository): 固化 checkpoint 后继 digest 锚点` |
 | T12 | `Feat(plugin/repository): 实现 Domain Meeting Repository` |
 | T13 | `Feat(plugin/repository): 建立 catalog registry 与恢复` |
 | T14 | `Feat(plugin/persistence): 切换到内置 storage child 组合` |

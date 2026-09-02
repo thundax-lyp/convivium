@@ -5,6 +5,7 @@ import {
     decodeProjection,
     encodeProjection,
     foldCommitTail,
+    projectionDigest,
     MAX_COMMIT_VALUE_BYTES,
     MAX_APPLICATION_CHECKPOINT_BYTES
 } from "../../../../src/repository/domain/projection.js";
@@ -92,6 +93,79 @@ describe("domain projection", () => {
             foldCommitTail({ baseProjection: null, baseSeq: 0, commits: [["bad", c]] })
         ).toThrow();
         expect(foldCommitTail({ baseProjection: p, baseSeq: 1, commits: [] })).toEqual(p);
+        const badAnchor = createCommitRecord({
+            formatVersion: 1,
+            seq: 2,
+            previousSeq: 1,
+            previousDigest: "wrong",
+            operation: "update",
+            patch: [],
+            committedAt: 2
+        });
+        expect(() =>
+            foldCommitTail({
+                baseProjection: p,
+                baseSeq: 1,
+                commits: [["00000000000000000002", badAnchor]]
+            })
+        ).toThrow();
+        const anchored = createCommitRecord({
+            formatVersion: 1,
+            seq: 2,
+            previousSeq: 1,
+            previousDigest: projectionDigest(p),
+            operation: "update",
+            patch: [],
+            committedAt: 2
+        });
+        expect(
+            foldCommitTail({
+                baseProjection: p,
+                baseSeq: 1,
+                commits: [["00000000000000000002", anchored]]
+            })
+        ).toEqual(p);
+        const badNext = {
+            ...createCommitRecord({
+                formatVersion: 1,
+                seq: 3,
+                previousSeq: 2,
+                previousDigest: anchored.digest,
+                operation: "update",
+                patch: [],
+                committedAt: 3
+            }),
+            previousDigest: "wrong"
+        };
+        expect(() =>
+            foldCommitTail({
+                baseProjection: p,
+                baseSeq: 1,
+                commits: [
+                    ["00000000000000000002", anchored],
+                    ["00000000000000000003", badNext]
+                ]
+            })
+        ).toThrow();
+        const next = createCommitRecord({
+            formatVersion: 1,
+            seq: 3,
+            previousSeq: 2,
+            previousDigest: anchored.digest,
+            operation: "update",
+            patch: [],
+            committedAt: 3
+        });
+        expect(
+            foldCommitTail({
+                baseProjection: p,
+                baseSeq: 1,
+                commits: [
+                    ["00000000000000000002", anchored],
+                    ["00000000000000000003", next]
+                ]
+            })
+        ).toEqual(p);
     });
     it("loads a verified checkpoint and continuous tail from a Meeting Domain", () => {
         expect(createFakeMeetingDomain().name).toBe("convivium_m_test");
