@@ -16,15 +16,16 @@
 - Convivium 是纯 DSH 插件，不是独立 Electron 应用。
 - V1 运行在单个本地 DSH Host 中，仅服务该 Host 的一位本地用户；不提供远程访问、多用户协作、跨 Host 共享或网络部署。Meeting Web route 只允许在 DSH `webServer.host === "127.0.0.1"` 时注册；V1 不绑定 Web 用户身份、不校验 Team 权限，也不建立 per-user authority，所有到达该 loopback Host 的请求共享该本地用户边界。后续引入远程或多用户能力必须先补充独立的授权、身份、隔离和部署契约。
 - Convivium 使用 TypeScript 独立实现，不导入或派生外部参考项目源码。
-- 唯一可构建产品工程位于仓库顶层 `plugin/`。该目录不使用 Git submodule，也不在构建或运行时引用相邻参考项目工作区。
+- 仓库只包含一个可构建、测试和交付的 Convivium DSH 插件工程 `plugin/`。Meeting Runtime 和 JSONL `StorageBackend` 保持源码职责分离，但作为同一 package 内的 Cordis child plugins 组合；不为 JSONL backend 建立第二个顶层工程、package、lockfile 或发布单元。
 - Convivium 支持的最低 DSH 版本为 `0.1.1-rc.2`；实现可以依赖该版本 `dsh-subagent` 提供的持久子 Session 枚举和 continuable Activation drain 能力。
 - Convivium 正式运行会议前，宿主组合必须提供一个具备 `prepareContinuable` 能力的 continuable subagent provider；仅声明或注入 `dsh-subagent` service 不构成该能力。当前确认的宿主 profile provider 是 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.1-rc.2`，provider name 为 `spawn`，由 profile 作为组合依赖管理，不由 Convivium 自行实现、隐式携带或写入插件 package manifest。插件必须在独立 DSH profile 中验证该 provider 与 `startContinuable()` 的实际创建链路。
 - 插件依赖 DSH 提供 AgentSession、continuable Agent、工具注册、Web 路由、DSH 原生 Session Event 和插件 UI 宿主能力。
 - Convivium 拥有会议角色目录、Meeting Agent Definition、Manager 可见安全摘要、参会选择与批准状态；DSH Host 或 profile 拥有 Agent Preset、Skills、Tools、MCP、Sandbox、Approval、模型配置及其安装和执行。
 - Meeting Agent Definition 只引用 DSH 原生 Agent Preset 和 Skill 名称，并可用 DSH 原生 ToolRestriction 收窄工具；Convivium 不复制、安装或持久化 DSH capability composition。Definition 存在不证明 capability 已安装；缺少可验证的 DSH composition 时必须 fail closed。
 - 插件包含清晰分离的插件前端和插件后端会议运行时。
-- 每个 Meeting 在任何会议副作用前获得稳定 `meetingId`，并以 `teamId + meetingId` 形成独立 repository ownership；状态、事件、幂等收据和 outbox 写入该 Meeting 独占的 SQLite 数据库。当前已实现的物理布局是 `<dataRoot>/<encodedTeamId>/<encodedMeetingId>.sqlite`；迁移到 `<workspace>/.convivium/<teamId>/meetings/<meetingId>/meeting.sqlite` 是后续独立 readiness 工作，不是增量业务分支的隐含前置条件。所有新增调用方必须经 Runtime/repository locator 访问，不能依赖或自行扫描任一物理布局。
-- Meeting Runtime 可以从 SQLite best-effort 生成供开发者在 workspace 中阅读的 Markdown 辅助文件；Markdown 不是产品接口或事实源，不参与恢复、授权、状态计算、Session 关闭与 capability 撤销或归档完成判断。
+- 每个 Meeting 在任何会议副作用前获得稳定 `meetingId`，并以 `teamId + meetingId` 形成独立 repository ownership。Convivium 只通过 `@deepseek-ai/dsh-storage-domain` 使用一个轻量 catalog domain 和每 Meeting 独立 domain；不得定位、扫描或依赖 backend 的物理布局。
+- [Meeting Persistence Design](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) 已确认采用 `Checkpointed Commit Log`：一次 command 编码为一条原子 commit，当前真相由已发布分页 checkpoint 与连续有界 commit tail 合成。`plugin/src/storage/` 通过 `@deepseek-ai/dsh-storage` 实现仅供 Convivium 使用的 JSONL KV backend，只认识 unit、table、key 和 value；`plugin/src/repository/domain/` 只消费 `@deepseek-ai/dsh-storage-domain` 和自身 record schema。顶层 Convivium plugin 先挂载 backend provider child plugin，再由依赖完整 DSH services 与 `storageDomain` 的 Meeting consumer child plugin 注册业务能力；宿主组合中的现有 `storage-domain` row 路由到 backend `convivium-jsonl`。Storage Domain 是唯一会议事实源；禁止双写、fallback 和自动迁移。遗留 `.sqlite` 数据不读取、不迁移、不删除，属于当前实现范围外的数据。
+- Meeting Runtime 若 best-effort 生成供开发者阅读的 Markdown 辅助文件，只能从已提交 Meeting projection 单向派生；Markdown 不是产品接口或事实源，不参与恢复、授权、状态计算、Session 关闭与 capability 撤销或归档完成判断。
 - DSH AgentSession 是独立运行主体，拥有独立 Prompt、Skills、工作目录、模型、MCP、权限和运行模式。
 - AgentSession 必须支持 followup、interrupt、恢复，以及通过 `drainContinuableChildren` 释放指定会议 Session 的 resident Activation。会议 Session 的持久不可继续语义由 Convivium capability revoke 保证，不要求 DSH 删除持久 Session 数据。
 
@@ -40,7 +41,7 @@
 
 - 承载团队、会议现场、人类控制以及 Agent 和 Session 状态展示。
 - 只能调用插件后端公开、类型化且受已确认 Host/identity 边界约束的 Web 路由或工具；V1 loopback Web 使用 Host registration gate，不虚构用户/Team authority。
-- 不直接管理 AgentSession，不直接访问 SQLite、敏感配置或任意文件系统路径。
+- 不直接管理 AgentSession，不直接访问持久化介质、敏感配置或任意文件系统路径。
 - 不承担会议领域状态、发言权和权限判定的最终责任。
 
 ### Meeting Runtime
@@ -73,23 +74,23 @@
 - 会议领域规则不能依赖 DSH UI 组件。
 - DSH AgentSession 不能成为 Meeting、Participant、Turn 或权限模型的真相源。
 - Convivium 实现必须保持会议领域、DSH Session adapter、持久化和 UI projection 的模块边界。
-- Meeting 的 SQLite、开发者 Markdown、Session ownership 和归档数据必须以 `teamId + meetingId` 为共同生命周期 ownership；目标目录迁移完成后该 ownership 物化为 `<teamId>/meetings/<meetingId>/`，迁移前不得由调用方假设该物理路径。
+- Meeting domain、开发者 Markdown、Session ownership 和归档数据必须以 `teamId + meetingId` 为共同生命周期 ownership；调用方不得假设或推导 backend 的物理路径。
 - 会议领域只能消费 Agent 明确提交的边界结果和经授权的 MeetingTask projection，不得依赖具体 Skill、内部 Tool Schema、隐藏推理或工具调用顺序。MeetingTask 属于 Convivium MeetingState，不属于 DSH runtime facts。
-- Convivium 不得向 DSH Session 写入插件自定义的持久化事件类型。会议领域事件写入 SQLite `meeting_events`；插件前端只通过定时读取、写操作成功后重新读取和页面重新聚焦后读取完整类型化状态投影，不建立进程内 projection invalidation 通道。
+- Convivium 不得向 DSH Session 写入插件自定义的持久化事件类型。会议领域事件与状态在同一 Storage Domain commit 中原子持久化；插件前端只通过定时读取、写操作成功后重新读取和页面重新聚焦后读取完整类型化状态投影，不建立进程内 projection invalidation 通道。
 - Manager 只能消费 Agent catalog 的安全 projection 并提交参会 recommendation，不能取得 DSH capability secret、创建任意角色、批准自己的推荐或扩大 DSH/Meeting 权限。Catalog 更新不能改变 Meeting 已固化的 Catalog snapshot、recommendation、admission 或 Participant provenance。
 - Meeting Agent Definition 只能引用 DSH 公开的 Preset、Skill 和 ToolRestriction；Convivium 不得用 Prompt、persona 或自建 installer 假装安装 DSH capability。
-- 开发者 Markdown 只能单向派生自 SQLite。人工修改、文件缺失或旧版本内容不得反向写入会议状态；该文件不形成 Plugin Frontend 或 Agent 可依赖的契约。
+- 开发者 Markdown 只能单向派生自已提交 Meeting projection。人工修改、文件缺失或旧版本内容不得反向写入会议状态；该文件不形成 Plugin Frontend 或 Agent 可依赖的契约。
 - DSH 原生 `tool/call`、`tool/result` 及其他 DSH-owned Session Events 继续由 DSH 定义和持久化；Convivium 不复制、重命名或扩展其语义。
 - 新增 Web 路由、工具、事件、外部访问或文件权限前，必须先形成对应接口契约和失败语义。
 
 ## Source Layout And Verification
 
-- `plugin/` 包含 DSH 插件 package manifest、后端和前端源码、资产及验证脚本；仓库级 `docs/` 不参与插件打包。
+- `plugin/` 包含 Convivium DSH 插件的 Host、Client、Meeting 业务、JSONL Storage Backend 和全部验证；仓库级 `docs/` 不参与插件打包。
 - `plugin/examples/meeting-agent-definitions/` 保存不进入发布包的 Convivium Meeting Agent Definition 样本；样本不是 DSH Agent Preset、不是 capability registry，也不证明运行时已安装差异化能力。
-- 根目录不因单一插件工程建立无消费者的 workspace 或 monorepo 层；只有出现第二个独立构建工程并形成架构依据时才可引入。
-- `plugin/` 必须能够在不读取任何相邻参考项目的情况下独立安装、类型检查、构建和验证。
+- `plugin/` 独立安装、类型检查、构建和验证；根目录不建立 workspace 或 monorepo 层。
+- JSONL backend 不从 package root 导出，不拥有独立 manifest 或 profile row；它的 backend contract、恢复和生命周期测试位于 `plugin/tests/`，并由同一 package 的 `verify` 与真实 DSH profile smoke 覆盖。
 - 外部参考项目只用于只读调研 DSH 接口和可选实现思路；其源码、文档、发布记录、品牌、协议命名和持久化格式不得进入产品工程。
-- 工程验证入口是 `plugin/package.json` 中的 `typecheck`、`build` 和 `verify`；会议实现必须在这些入口之上增加领域和生命周期测试。
+- `plugin/package.json` 提供 `typecheck`、`test`、`build` 和 `verify`；组合边界还必须用真实 DSH profile 验证 backend 注册、Storage Domain 打开、Host 冷重启和关闭顺序。
 
 ## Undecided Architecture
 

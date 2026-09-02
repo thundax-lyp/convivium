@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OutboxItem } from "../../../src/repository/index.js";
+import type { OutboxItem } from "../../../src/repository/types.js";
 import { createOutboxWorker } from "../../../src/runtime/outbox-worker.js";
 
 function item(attempts = 1): OutboxItem {

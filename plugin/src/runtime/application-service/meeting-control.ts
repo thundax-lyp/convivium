@@ -14,12 +14,9 @@ import type {
     ReassignTurnInputV1,
     ReassignTurnResultV1
 } from "../../protocol/index.js";
-import {
-    RepositoryError,
-    type CommandAuthorization,
-    type MeetingRepository,
-    type SessionOwnership
-} from "../../repository/index.js";
+import { RepositoryError } from "../../repository/errors.js";
+import type { CommandAuthorization, SessionOwnership } from "../../repository/types.js";
+import type { MeetingRepositoryPort as MeetingRepository } from "../../repository/meeting-repository-port.js";
 import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
 import {
     commandFailure as failure,

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { apply, assertContinuableProvider, inject } from "../../src/index.js";
 import { requireContinuableProvider } from "../../src/dsh/index.js";
+import { createFakeDomainFacility } from "../fixtures/domain-storage.js";
 
 const config = {
     provider: "spawn",
@@ -11,17 +12,8 @@ const config = {
 };
 
 describe("Convivium host inject", () => {
-    it("uses the DSH 0.1.1-rc.2 Context service keys rather than package names", () => {
-        expect(inject).toEqual([
-            "agents",
-            "sessions",
-            "subagents",
-            "systemPrompt",
-            "tools",
-            "workspaceRegistry",
-            "webServer"
-        ]);
-        expect(inject.some((service) => service.startsWith("@deepseek-ai/"))).toBe(false);
+    it("keeps the top-level compositor dependency-free", () => {
+        expect(inject).toEqual([]);
     });
 });
 
@@ -51,7 +43,7 @@ describe("Convivium continuable provider gate", () => {
         ).toThrow(/spawn.*prepareContinuable/);
     });
 
-    it("checks capability without preparing or starting a child session", () => {
+    it("checks capability without preparing or starting a child session", async () => {
         const prepareContinuable = () => {
             throw new Error("must not prepare a child during plugin activation");
         };
@@ -68,7 +60,6 @@ describe("Convivium continuable provider gate", () => {
         };
 
         expect(assertContinuableProvider(ctx as never, "spawn")).toBe(provider);
-        expect(() => apply(ctx as never, config)).not.toThrow();
     });
 
     it("exposes the same non-creating capability gate through the session adapter", () => {
@@ -80,11 +71,12 @@ describe("Convivium continuable provider gate", () => {
 });
 
 describe("Convivium local Meeting route lifecycle", () => {
-    function host(host: "127.0.0.1" | "0.0.0.0") {
+    async function host(host: "127.0.0.1" | "0.0.0.0") {
         const routeDispose = vi.fn();
         const register = vi.fn(() => routeDispose);
         const effects: Array<() => void | Promise<void>> = [];
         const toolDisposers: Array<ReturnType<typeof vi.fn>> = [];
+        const childOrder: string[] = [];
         const ctx = {
             effect(setup: () => () => void | Promise<void>) {
                 effects.push(setup());
@@ -106,14 +98,39 @@ describe("Convivium local Meeting route lifecycle", () => {
                     return disposer;
                 })
             },
-            webServer: { host, register }
+            webServer: { host, register },
+            async plugin(
+                plugin: { name?: string; apply(context: unknown, value: unknown): unknown },
+                value: unknown
+            ) {
+                childOrder.push(plugin.name ?? "anonymous");
+                if (plugin.name === "convivium-meeting-consumer") {
+                    expect(plugin).toMatchObject({
+                        inject: [
+                            "agents",
+                            "sessions",
+                            "subagents",
+                            "systemPrompt",
+                            "tools",
+                            "workspaceRegistry",
+                            "webServer",
+                            "storageDomain"
+                        ]
+                    });
+                    await plugin.apply(
+                        { ...ctx, storageDomain: createFakeDomainFacility() },
+                        value
+                    );
+                }
+            }
         };
-        apply(ctx as never, config);
+        await apply(ctx as never, config);
         return {
             register,
             routeDispose,
             effects,
             toolDisposers,
+            childOrder,
             dispose: async () => {
                 for (const effect of [...effects].reverse()) await effect();
             }
@@ -121,7 +138,11 @@ describe("Convivium local Meeting route lifecycle", () => {
     }
 
     it("registers and disposes exactly one prefix on loopback", async () => {
-        const fixture = host("127.0.0.1");
+        const fixture = await host("127.0.0.1");
+        expect(fixture.childOrder).toEqual([
+            "convivium-storage-jsonl",
+            "convivium-meeting-consumer"
+        ]);
         expect(fixture.register).toHaveBeenCalledTimes(1);
         expect(fixture.register.mock.calls[0]?.[0]).toMatchObject({
             kind: "prefix",
@@ -136,7 +157,7 @@ describe("Convivium local Meeting route lifecycle", () => {
     });
 
     it("does not register Meeting routes on all interfaces", async () => {
-        const fixture = host("0.0.0.0");
+        const fixture = await host("0.0.0.0");
         expect(fixture.register).not.toHaveBeenCalled();
         expect(fixture.effects).toHaveLength(18);
         await fixture.dispose();

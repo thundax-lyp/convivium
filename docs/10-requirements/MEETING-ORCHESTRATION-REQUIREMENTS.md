@@ -140,7 +140,7 @@
 ### FR-11：可观察性与用户控制
 
 1. 用户必须能够查看当前议题、当前讨论目标、计划发言者、当前发言者、正式 transcript、阻塞项、后续事项、异步任务、适用的 Turn/消息/时长/发言人数/超时限制和结束结果。
-2. V1 面板必须列出本地 Host 中全部可恢复 Meeting 的轻量摘要；用户选择其中一项后，面板才读取该 Meeting 的完整状态。列表不得包含 transcript、Session ID、capability、SQLite 路径或私有运行数据；任一已发现 Meeting 无法恢复时，列表必须报告暂不可用，不得返回部分列表。
+2. V1 面板必须列出本地 Host 中全部可恢复 Meeting 的轻量摘要；用户选择其中一项后，面板才读取该 Meeting 的完整状态。列表不得包含 transcript、Session ID、capability、backend 物理路径或私有运行数据；任一已发现 Meeting 无法恢复时，列表必须报告暂不可用，不得返回部分列表。
 3. 用户必须能够暂停、恢复、结束会议，以及在适用的会议控制入口中撤销或重新分配当前发言权。V1 的插件面板运行于单个 loopback DSH Host，不绑定 Web 用户身份、不校验 Team 权限；到达该 Host 的请求共享该本地用户边界。
 4. 会议运行时，面板必须显示“暂停”；会议已暂停时，面板必须显示“继续”，并清楚显示暂停原因和发起者。
 5. 任何降级选择、强制结束、审核豁免、风险接受和部分完成都必须向用户显示原因。
@@ -262,7 +262,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 26. Captain 的自然语言风险意见不会改变会议状态；合法的结构化风险处置只影响指定风险，生成可审计事实并触发确定性完成重算。
 27. 归档前会校验最终成果、完成依据、正式 transcript、未解决事项和来源信息已经物化；Session 关闭失败时会议保持不可讨论的 `archiving`，且输出物不会丢失。
 28. 从旧会议创建新会议时，只导入 Captain 显式选择且有权访问的归档素材，并保留来源引用；不会继承旧 Session、capability、完整 transcript 或运行状态。
-29. V1 面板先读取本地 Meeting 列表；选择一个摘要后只读取被选择 Meeting 的完整状态，列表本身不暴露 transcript、Session ID、capability、SQLite 路径或私有运行数据。任一已发现 Meeting 无法恢复时，列表报告暂不可用且不返回部分结果。
+29. V1 面板先读取本地 Meeting 列表；选择一个摘要后只读取被选择 Meeting 的完整状态，列表本身不暴露 transcript、Session ID、capability、backend 物理路径或私有运行数据。任一已发现 Meeting 无法恢复时，列表报告暂不可用且不返回部分结果。
 30. Manager 收到的 Agent Catalog projection 不包含敏感 DSH 配置，并且只能引用当前 snapshot 中可用的 candidate 形成参会 recommendation。
 31. Manager 推荐 Agent 后，该 Agent 在 Captain 批准和 Session provisioning 成功前不会进入 speaker candidates，也不能提交会议事实。
 32. Captain 批准 recommendation 只创建普通可选 Participant，不会自动授予 required-review、risk acceptance、Captain、Manager 或超出 DSH Agent Preset 和 policy 的权限。

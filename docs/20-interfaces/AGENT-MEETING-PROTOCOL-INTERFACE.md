@@ -63,25 +63,25 @@ interface ProtocolMeta {
 
 ### Command set
 
-| Command                         | Authorized caller                                        | Purpose                                                       |
-| ------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------- |
-| `convivium_create_meeting`      | Captain                                                  | 创建会议和会议身份                                            |
-| `convivium_meeting_status`      | Captain；Session 仍有效时的该会议 Manager 或 Participant | 读取按身份裁剪的会议上下文                                    |
-| `convivium_submit_manager_plan` | 当前 Manager Session                                     | 提交下一 Turn 建议                                            |
-| `convivium_submit_turn`         | 当前 Speaker Session                                     | 提交正式发言和结构化声明                                      |
-| `convivium_create_meeting_task` | 当前 Speaker Session                                     | 创建 Convivium-owned MeetingTask                              |
-| `convivium_send_message`        | 当前 Meeting Participant Session                         | 仅发送 meeting-scoped Participant→Participant 私聊            |
-| `convivium_finish_meeting_mail` | recipient Participant Session                            | 固化私聊处理 terminal status                                  |
-| `convivium_meeting_task_status` | 该 MeetingTask 的原 Participant Session                  | 读取当前授权 task projection、Meeting terminal 状态和执行许可 |
-| `convivium_start_meeting_task`  | 该 MeetingTask 的原 Participant Session                  | 幂等地将 queued MeetingTask 置为 running                      |
-| `convivium_finish_meeting_task` | 该 MeetingTask 的原 Participant Session                  | 提交 terminal result 并申请后续发言                           |
-| `convivium_raise_hand`          | 该会议的 Participant Session                             | 申请后续发言                                                  |
-| `convivium_pause_meeting`       | Captain                                                  | 根据用户指令暂停会议                                          |
-| `convivium_resume_meeting`      | Captain                                                  | 根据用户指令恢复会议                                          |
-| `convivium_dispose_risk`        | Captain                                                  | 对指定风险作出结构化接受或拒绝处置                            |
-| `convivium_dispose_attendance_recommendation` | Captain | 批准或拒绝 Manager 的参会推荐 |
-| `convivium_reassign_turn`       | Captain                                                  | 撤销并改派或跳过当前发言位置                                  |
-| `convivium_end_meeting`         | Captain                                                  | 正常、部分、无共识或取消结束                                  |
+| Command                                       | Authorized caller                                        | Purpose                                                       |
+| --------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------- |
+| `convivium_create_meeting`                    | Captain                                                  | 创建会议和会议身份                                            |
+| `convivium_meeting_status`                    | Captain；Session 仍有效时的该会议 Manager 或 Participant | 读取按身份裁剪的会议上下文                                    |
+| `convivium_submit_manager_plan`               | 当前 Manager Session                                     | 提交下一 Turn 建议                                            |
+| `convivium_submit_turn`                       | 当前 Speaker Session                                     | 提交正式发言和结构化声明                                      |
+| `convivium_create_meeting_task`               | 当前 Speaker Session                                     | 创建 Convivium-owned MeetingTask                              |
+| `convivium_send_message`                      | 当前 Meeting Participant Session                         | 仅发送 meeting-scoped Participant→Participant 私聊            |
+| `convivium_finish_meeting_mail`               | recipient Participant Session                            | 固化私聊处理 terminal status                                  |
+| `convivium_meeting_task_status`               | 该 MeetingTask 的原 Participant Session                  | 读取当前授权 task projection、Meeting terminal 状态和执行许可 |
+| `convivium_start_meeting_task`                | 该 MeetingTask 的原 Participant Session                  | 幂等地将 queued MeetingTask 置为 running                      |
+| `convivium_finish_meeting_task`               | 该 MeetingTask 的原 Participant Session                  | 提交 terminal result 并申请后续发言                           |
+| `convivium_raise_hand`                        | 该会议的 Participant Session                             | 申请后续发言                                                  |
+| `convivium_pause_meeting`                     | Captain                                                  | 根据用户指令暂停会议                                          |
+| `convivium_resume_meeting`                    | Captain                                                  | 根据用户指令恢复会议                                          |
+| `convivium_dispose_risk`                      | Captain                                                  | 对指定风险作出结构化接受或拒绝处置                            |
+| `convivium_dispose_attendance_recommendation` | Captain                                                  | 批准或拒绝 Manager 的参会推荐                                 |
+| `convivium_reassign_turn`                     | Captain                                                  | 撤销并改派或跳过当前发言位置                                  |
+| `convivium_end_meeting`                       | Captain                                                  | 正常、部分、无共识或取消结束                                  |
 
 本协议不提供无约束 broadcast 或通用 `meeting_message`。Agent 私聊使用 Convivium mailbox；meeting-scoped mail 使用下述上下文结构，但不属于正式 transcript 协议。
 
@@ -324,11 +324,11 @@ Runtime 必须在产生任何 Meeting 状态前完成以下验证和转换：
 5. 把所有 output 初始化为 `pending`、criterion 初始化为 `satisfied=false`、agenda 初始化为 `pending`，不得接受调用方提供的运行期状态或 resolution；
 6. 原子创建完整 Meeting；任何 key 或引用无效时返回 `INVALID_ARGUMENT`，不得产生部分 Participant、Agenda 或 Objective state。
 
-完成无副作用输入校验后，Runtime 必须先生成 `meetingId` 并建立独立 repository ownership，再创建 Manager/Participant Sessions。任何 Session 都必须携带相同 `meetingId` ownership；不得出现没有 Meeting ID 或无法经 locator 定位所属 Meeting repository 的 Session。
+完成无副作用输入校验后，Runtime 必须先生成 `meetingId` 并建立独立 repository ownership，再创建 Manager/Participant Sessions。任何 Session 都必须携带相同 `meetingId` ownership；不得出现没有 Meeting ID 或无法由 catalog、Meeting domain identity 与 ownership record 共同证明所属 Meeting 的 Session。
 
-`continuation` 只表达对已归档素材的选择，不允许调用方提交或覆盖素材正文。Runtime 必须在打开目标 Meeting repository、创建 bootstrap、receipt、outbox 或 Session 前，从 locator 恢复 source 的持久 ownership；只有 source 的 `teamId` 与新请求一致、持久 Captain binding 与真实 create caller 一致，且 source 状态为 `archived` 并已有物化 `ArchivePackage` 时才允许继续。该授权判断只依赖持久 ownership，不要求 source Captain 的 live parent 存在。
+`continuation` 只表达对已归档素材的选择，不允许调用方提交或覆盖素材正文。Runtime 必须在打开目标 Meeting repository、创建 bootstrap、receipt、outbox 或 Session 前，通过 catalog discovery 恢复 source 的持久 ownership；只有 source 的 `teamId` 与新请求一致、持久 Captain binding 与真实 create caller 一致，且 source 状态为 `archived` 并已有物化 `ArchivePackage` 时才允许继续。该授权判断只依赖持久 ownership，不要求 source Captain 的 live parent 存在。
 
-每个选择数组中的 ID 必须非空且不重复；同一个 archive issue 不得同时出现在 `unresolvedIssueIds` 和 `riskIds`。Runtime 按 `includeFinalSummary`、`decisionIds`、`unresolvedIssueIds`、`riskIds`、`evidenceIds`、`artifactIds` 的顺序复制选中内容为新 Meeting SQLite 独占的 immutable `ContinuationMaterial`：必有 `sourceMeetingId`、`sourceKind`、非空 `summary`，除最终摘要外必有 `sourceObjectId`；artifact 只在来源存在时复制 `checksum`。不存在、无权读取或不属于该 source archive 的素材返回 `ARCHIVE_MATERIAL_NOT_FOUND`，未归档/未物化 source 返回 `SOURCE_MEETING_NOT_ARCHIVED`，重复、空 ID 或无可用摘要返回 `INVALID_ARGUMENT`；这些错误均不产生目标 Meeting 副作用。新 Meeting 不继承源会议的 Session、Participant ID、capability、完整 transcript、运行状态、limits 或未选中内容；其 archive 只记录新的 `sourceMeetingId` provenance。
+每个选择数组中的 ID 必须非空且不重复；同一个 archive issue 不得同时出现在 `unresolvedIssueIds` 和 `riskIds`。Runtime 按 `includeFinalSummary`、`decisionIds`、`unresolvedIssueIds`、`riskIds`、`evidenceIds`、`artifactIds` 的顺序复制选中内容为新 Meeting 独占的 immutable `ContinuationMaterial`：必有 `sourceMeetingId`、`sourceKind`、非空 `summary`，除最终摘要外必有 `sourceObjectId`；artifact 只在来源存在时复制 `checksum`。不存在、无权读取或不属于该 source archive 的素材返回 `ARCHIVE_MATERIAL_NOT_FOUND`，未归档/未物化 source 返回 `SOURCE_MEETING_NOT_ARCHIVED`，重复、空 ID 或无可用摘要返回 `INVALID_ARGUMENT`；这些错误均不产生目标 Meeting 副作用。新 Meeting 不继承源会议的 Session、Participant ID、capability、完整 transcript、运行状态、limits 或未选中内容；其 archive 只记录新的 `sourceMeetingId` provenance。
 
 `CreateMeetingResultV1.participants` 返回请求 key 到正式 Participant ID 的映射，供调用方解释创建结果。后续协议只接受正式 ID，不接受创建期 key。
 
@@ -947,7 +947,7 @@ interface LocalMeetingListResponseV1 {
 }
 ```
 
-`GET /api/convivium/meetings` 仅在 `webServer.host === "127.0.0.1"` 注册，body 为 `none`，返回 `LocalMeetingListResponseV1`。它不能使用 `ProtocolSuccessV1`，因为后者的 envelope 必须描述单一 Meeting 的 `meetingId` 与 `meetingVersion`，而 list 没有这两个全局值。Runtime 从本地 data root 中已进入 bootstrap `ready` 且可成功 rehydrate 的 Meeting repository 读取摘要；可读取的 `creating|creation_failed` repository 不是公开 Meeting，关闭后跳过。列表包含 active、execution-terminal、`archiving` 和 `archived` Meeting，按 `updatedAt` 降序、再按 `meetingId` 升序排序。列表不接受 filter、pagination、teamId、Agent Session 或任何身份字段，且不得返回 transcript、objective、Session ID、capability、SQLite 路径、outbox、私有运行数据或完整 status projection。data root 尚不存在（`ENOENT`）表示没有 Meeting，返回空 list；除此以外 data root 无法读取、repository 无法读取 bootstrap，或已为 `ready` 的 Meeting repository 无法 rehydrate/读取 snapshot 时，整个 list 返回 HTTP `503`、`Retry-After: 1` 和无 body，不得返回部分列表。
+`GET /api/convivium/meetings` 仅在 `webServer.host === "127.0.0.1"` 注册，body 为 `none`，返回 `LocalMeetingListResponseV1`。它不能使用 `ProtocolSuccessV1`，因为后者的 envelope 必须描述单一 Meeting 的 `meetingId` 与 `meetingVersion`，而 list 没有这两个全局值。Runtime 从 catalog 中已进入 bootstrap `ready` 且可成功恢复的 Meeting repository 读取摘要；可读取的 `creating|creation_failed` repository 不是公开 Meeting，关闭后跳过。列表包含 active、execution-terminal、`archiving` 和 `archived` Meeting，按 `updatedAt` 降序、再按 `meetingId` 升序排序。列表不接受 filter、pagination、teamId、Agent Session 或任何身份字段，且不得返回 transcript、objective、Session ID、capability、backend 物理路径、outbox、私有运行数据或完整 status projection。空 catalog 表示没有 Meeting，返回空 list；除此以外 catalog 无法读取、repository 无法读取 creation record，或已为 `ready` 的 Meeting repository 无法恢复/读取 snapshot 时，整个 list 返回 HTTP `503`、`Retry-After: 1` 和无 body，不得返回部分列表。
 
 Client 必须先读取该 list；用户选择一项 `meetingId` 后才调用详情或控制 route。Client 不得从 URL/query 参数、当前 DSH Session、Agent tool result 或人工输入推断初始选择，也不得在本范围新增 Meeting 创建、跨 Meeting 导航或筛选 UI。
 
@@ -1223,23 +1223,23 @@ interface EndMeetingResultV1 {
 
 Captain-only acceptance of an internal `MeetingDecisionCandidate` uses `CaptainDecisionAcceptanceInputV1` with `protocolVersion: 1`, `meetingId`, `expectedMeetingVersion`, `requestId`, `decisionCandidateId`, `reason`, and `evidenceMessageIds`. Success returns `CaptainDecisionAcceptanceResultV1` containing `requestId`, `decisionCandidateId`, `decisionId`, `proposalId`, `proposalRevision`, and `completionFactId`. The candidate is internal MeetingState data and is never a public projection. Acceptance requires the candidate's current proposal revision, one `support`/`accept` Position, no blocking `object`/`needs_revision`, and Meeting-owned evidence messages. It atomically writes the accepted Decision, accepted Proposal status, decision-acceptance CompletionFact, one `decision.accepted` event, receipt, and `outbox=[]`; version increases by one. Replay returns the original receipt. Version conflict, idempotency conflict, unauthorized Captain, invalid/stale candidate, blocking Position, invalid evidence, and terminal Meeting have zero side effects.
 
-| Command                         | `ProtocolSuccessV1<T>.result`    |
-| ------------------------------- | -------------------------------- |
-| `convivium_create_meeting`      | `CreateMeetingResultV1`          |
-| `convivium_meeting_status`      | `MeetingStatusResultV1`          |
-| `convivium_submit_manager_plan` | `ManagerPlanResultV1`            |
-| `convivium_submit_turn`         | `TurnSubmissionResultV1`         |
-| `convivium_create_meeting_task` | `MeetingTaskResultV1`            |
-| `convivium_meeting_task_status` | `MeetingTaskStatusResultV1`      |
-| `convivium_start_meeting_task`  | `MeetingTaskStartResultV1`       |
-| `convivium_finish_meeting_task` | `MeetingTaskFinishResultV1`      |
-| `convivium_raise_hand`          | `HandRaiseResultV1`              |
-| `convivium_pause_meeting`       | `MeetingControlResultV1`         |
-| `convivium_resume_meeting`      | `MeetingControlResultV1`         |
-| `convivium_dispose_risk`        | `CaptainRiskDispositionResultV1` |
+| Command                                       | `ProtocolSuccessV1<T>.result`          |
+| --------------------------------------------- | -------------------------------------- |
+| `convivium_create_meeting`                    | `CreateMeetingResultV1`                |
+| `convivium_meeting_status`                    | `MeetingStatusResultV1`                |
+| `convivium_submit_manager_plan`               | `ManagerPlanResultV1`                  |
+| `convivium_submit_turn`                       | `TurnSubmissionResultV1`               |
+| `convivium_create_meeting_task`               | `MeetingTaskResultV1`                  |
+| `convivium_meeting_task_status`               | `MeetingTaskStatusResultV1`            |
+| `convivium_start_meeting_task`                | `MeetingTaskStartResultV1`             |
+| `convivium_finish_meeting_task`               | `MeetingTaskFinishResultV1`            |
+| `convivium_raise_hand`                        | `HandRaiseResultV1`                    |
+| `convivium_pause_meeting`                     | `MeetingControlResultV1`               |
+| `convivium_resume_meeting`                    | `MeetingControlResultV1`               |
+| `convivium_dispose_risk`                      | `CaptainRiskDispositionResultV1`       |
 | `convivium_dispose_attendance_recommendation` | `CaptainAttendanceDispositionResultV1` |
-| `convivium_reassign_turn`       | `ReassignTurnResultV1`           |
-| `convivium_end_meeting`         | `EndMeetingResultV1`             |
+| `convivium_reassign_turn`                     | `ReassignTurnResultV1`                 |
+| `convivium_end_meeting`                       | `EndMeetingResultV1`                   |
 
 ### Event and projection read contract
 
@@ -1249,7 +1249,7 @@ Captain-only acceptance of an internal `MeetingDecisionCandidate` uses `CaptainD
 
 | Channel                                            | Owner           | Contract                                                                     |
 | -------------------------------------------------- | --------------- | ---------------------------------------------------------------------------- |
-| SQLite `meeting_events`                            | Meeting Runtime | 保存有序会议领域事件和审计事实；不是 DSH Session Event，也不是公开传输协议   |
+| Meeting projection 中的领域事件                    | Meeting Runtime | 保存有序会议领域事件和审计事实；不是 DSH Session Event，也不是公开传输协议   |
 | `convivium_meeting_status` 或类型化 Web projection | Meeting Runtime | 向本 Interface 允许的 Agent caller 或 V1 loopback Web 返回当前会议真相       |
 | DSH 原生 `tool/call`、`tool/result`                | DSH             | 按 DSH 既有规则记录会议工具调用及结果；不替代会议状态、transcript 或审计事件 |
 
@@ -1318,7 +1318,7 @@ type MeetingProtocolErrorCodeV1 =
   | "INTERNAL_ERROR";
 ```
 
-`UNSUPPORTED_CAPABILITY` 表示输入在完整协议中合法，但当前已声明的插件运行范围尚未提供对应 capability，例如只启用 `round_robin` 的竖切收到 `manager` selection mode。该错误必须是 `retryable: false`，且在任何目录、bootstrap、Session、Meeting state、event、receipt 或 outbox 副作用前返回。实现缺陷、provider/SQLite 故障和未知异常仍使用 `INTERNAL_ERROR`，不得用它伪装明确的范围限制。
+`UNSUPPORTED_CAPABILITY` 表示输入在完整协议中合法，但当前已声明的插件运行范围尚未提供对应 capability，例如只启用 `round_robin` 的竖切收到 `manager` selection mode。该错误必须是 `retryable: false`，且在任何 catalog/creation record、Session、Meeting state、event、receipt 或 outbox 副作用前返回。实现缺陷、provider/Storage Domain 故障和未知异常仍使用 `INTERNAL_ERROR`，不得用它伪装明确的范围限制。
 
 `submit_turn` 内部产生的 `INVALID_ENTITY_STATE` 统一公开为非重试的 `INVALID_ARGUMENT`，不得原样返回；这覆盖非法 Question claim/resolution，也保持其他 submit claim 的内部错误码不泄露。Question 场景包括空文本、无效 target、重复 ID、unknown Question、非 caller authored answer 和已回答 Question 的再次 resolution。
 

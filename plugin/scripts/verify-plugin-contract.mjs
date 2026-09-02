@@ -7,6 +7,18 @@ const root = resolve(process.cwd());
 const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
 const patch = await readFile(join(root, "cordis.patch.yml"), "utf8");
 const failures = [];
+const runtime = await import(join(root, "lib/index.js"));
+const publicExports = Object.keys(runtime).sort();
+const expectedPublicExports = ["Config", "apply", "assertContinuableProvider", "inject", "name"];
+if (JSON.stringify(publicExports) !== JSON.stringify(expectedPublicExports))
+    failures.push(`public exports mismatch: ${publicExports.join(",")}`);
+for (const symbol of [
+    "BACKEND_NAME",
+    "jsonlStoragePlugin",
+    "JsonlStorageBackend",
+    "JsonlStorageError"
+])
+    if (symbol in runtime) failures.push(`backend symbol must remain package-private: ${symbol}`);
 
 if (!pkg.dsh?.bundle?.patch) failures.push("package.json must declare dsh.bundle.patch");
 if (!pkg.files?.includes("lib")) failures.push("package files must include lib");

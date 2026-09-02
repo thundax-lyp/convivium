@@ -8,13 +8,14 @@ import {
     type MeetingState
 } from "../../domain/index.js";
 import type { CreateMeetingInputV1, CreateMeetingResultV1 } from "../../protocol/index.js";
+import type { DomainRepositoryRegistry } from "../../repository/domain/domain-repository-registry.js";
 import { commandFailure, commandSuccess } from "../services/command-result-service.js";
-import { locateMeetingRepository } from "../services/meeting-repository-locator.js";
 import type { MeetingRehydrationService } from "../services/meeting-recovery-service.js";
 import type { MeetingDeliveryWorkerService } from "../services/types.js";
 import {
     createMeetingRuntime,
     openMeetingRepository,
+    prepareMeetingCreation,
     type DomainEventInput,
     type JsonObject,
     type MeetingCreationRuntimeDependencies
@@ -222,7 +223,9 @@ function runningCreateResult(
 }
 
 export interface CreateMeetingApplicationOptions {
-    readonly runtime: CreateStatusRuntimeOptions;
+    readonly runtime: CreateStatusRuntimeOptions & {
+        readonly repositoryRegistry: Promise<DomainRepositoryRegistry>;
+    };
     readonly meetings: Map<string, StoredMeeting>;
     readonly recovery: MeetingRehydrationService;
     readonly deliveryWorkers: MeetingDeliveryWorkerService;
@@ -261,30 +264,49 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
         if (!continuation.ok) return continuation.error;
         await options.recovery.rehydrate();
         const meetingId = stableMeetingId(input);
-        const repository = await openMeetingRepository({
-            databasePath: locateMeetingRepository(
-                options.runtime.dataRoot,
-                input.teamId,
-                meetingId
-            ),
-            teamId: input.teamId,
-            meetingId,
-            authorizationValidator: options.runtime.authorizationValidator
+        const now = options.runtime.now?.() ?? Date.now();
+        const authorization = {
+            callerBinding: `session:${caller.sessionId}`,
+            capabilityId: `captain:${caller.sessionId}`
+        };
+        const prepared = prepareMeetingCreation(input, meetingId, authorization, {
+            now,
+            speakerAttemptTimeoutMs: options.runtime.speakerAttemptTimeoutMs,
+            continuation: continuation.continuation
         });
+        let repository;
+        try {
+            repository = await openMeetingRepository({
+                registry: options.runtime.repositoryRegistry,
+                teamId: input.teamId,
+                meetingId,
+                create: prepared.createInput
+            });
+        } catch (error) {
+            if (
+                error !== null &&
+                typeof error === "object" &&
+                "code" in error &&
+                error.code === "IDEMPOTENCY_CONFLICT"
+            )
+                return commandFailure(
+                    "IDEMPOTENCY_CONFLICT",
+                    "The create request conflicts with the persisted meeting."
+                );
+            return commandFailure("INTERNAL_ERROR", "The meeting could not be opened.", true);
+        }
         const dependencies: MeetingCreationRuntimeDependencies = {
             repository,
             continuable: options.runtime.continuable,
             parent: caller.agent as Agent,
             provider: options.runtime.provider,
-            authorization: {
-                callerBinding: `session:${caller.sessionId}`,
-                capabilityId: `captain:${caller.sessionId}`
-            },
+            authorization,
             allocateSessionId: (role, key) => `${meetingId}-${role}-${key}` as never,
             signal: commandSignal ?? options.signal,
             now: options.runtime.now,
             speakerAttemptTimeoutMs: options.runtime.speakerAttemptTimeoutMs,
             continuation: continuation.continuation,
+            prepared,
             cleanup: async (created) => {
                 const recovered = await repository.recover();
                 const owned = recovered.sessionOwnership.filter((candidate) =>
@@ -330,7 +352,6 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                 existing.bootstrap.createResult !== undefined
             ) {
                 if (existing.bootstrap.requestHash !== requestHash(input)) {
-                    await repository.close();
                     return commandFailure(
                         "IDEMPOTENCY_CONFLICT",
                         "The create request conflicts with the persisted meeting."
@@ -338,7 +359,6 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                 }
                 const persistedCaptain = existing.sessionOwnership[0]?.parentSessionId;
                 if (persistedCaptain !== caller.sessionId) {
-                    await repository.close();
                     return commandFailure(
                         "UNAUTHORIZED_CALLER",
                         "Only the original meeting Captain can replay creation."
@@ -346,7 +366,6 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                 }
                 const resident = options.meetings.get(meetingId);
                 if (resident?.parent !== undefined) {
-                    await repository.close();
                     const persisted = existing.bootstrap.createResult;
                     return commandSuccess(
                         meetingId,
@@ -355,7 +374,6 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                     );
                 }
                 if (resident !== undefined) {
-                    await resident.repository.close();
                     options.meetings.delete(meetingId);
                 }
                 const replayedMeeting: StoredMeeting = {
@@ -447,7 +465,6 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
             options.deliveryWorkers.wake(meetingId);
             return commandSuccess(meetingId, meetingVersion, result);
         } catch (error) {
-            await repository.close();
             if (error && typeof error === "object" && "code" in error) {
                 const code = (error as { code?: unknown }).code;
                 if (code === "UNSUPPORTED_CAPABILITY") {

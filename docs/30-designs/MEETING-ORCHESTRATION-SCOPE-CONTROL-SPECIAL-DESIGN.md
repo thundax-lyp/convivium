@@ -23,7 +23,7 @@
 
 - 正式需求：[`../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)。
 - Agent 间会议协议：[`../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)。
-- SQLite repository 契约：[`../20-interfaces/SQLITE-REPOSITORY-INTERFACE.md`](../20-interfaces/SQLITE-REPOSITORY-INTERFACE.md)。
+- Meeting storage 契约：[`../20-interfaces/MEETING-STORAGE-INTERFACE.md`](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
 - 会议编排主设计：[`MEETING-ORCHESTRATION-DESIGN.md`](./MEETING-ORCHESTRATION-DESIGN.md)。
 
 上述文档决定产品和跨边界语义；本文只约束如何按有界增量实现它们。

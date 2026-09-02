@@ -1,6 +1,6 @@
 import { endMeeting as endMeetingTransition, type MeetingState } from "../../domain/index.js";
 import type { EndMeetingInputV1, EndMeetingResultV1 } from "../../protocol/index.js";
-import { RepositoryError } from "../../repository/index.js";
+import { RepositoryError } from "../../repository/errors.js";
 import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
 import {
     commandFailure as failure,

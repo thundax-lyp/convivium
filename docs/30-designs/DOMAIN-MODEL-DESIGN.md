@@ -8,7 +8,7 @@
 
 本文定义核心对象的字段、ID 引用、集合关系、持久化边界和数据不变量。需求、接口和编排设计可以引用本文，但不得重复定义 Domain 数据结构。
 
-本文不定义调度算法、状态转换流程、SQLite 表结构、DSH 调用、HTTP、工具、UI 或 Agent 内部能力。
+本文不定义调度算法、状态转换流程、Repository record schema、DSH 调用、HTTP、工具、UI 或 Agent 内部能力。
 
 ## Domain Event Ownership
 
@@ -16,15 +16,15 @@ Domain event 是 Convivium 会议事实的唯一事件语义来源。`DomainEven
 
 Repository 不维护独立的事件词汇，不把 Domain event 通过字符串转换为另一种事件。Domain transition 中仅有内部状态变化、没有独立会议事实的变化，不产生持久化 Domain event。
 
-DSH `tool/call`、`tool/result`、Session lifecycle 和其他 DSH-owned Session Event 不属于 Domain event。它们由 DSH 定义和持久化，不能写入 Convivium 的 `meeting_events`。
+DSH `tool/call`、`tool/result`、Session lifecycle 和其他 DSH-owned Session Event 不属于 Domain event。它们由 DSH 定义和持久化，不能写入 Convivium 的持久领域事件集合。
 
 当前 Domain event 词汇包括会议生命周期（`meeting.*`）、Turn 生命周期（`turn.*`）、speaker 分配与执行（`speaker.*`、`speaker_attempt.*`）、Manager plan（`manager_plan.*`）、MeetingTask 与 HandRaise（`meeting_task.*`、`hand_raise.*`）以及正式会议事实（`message.added`、`decision.added`、`archive.sessions_closed`）。具体允许值由 `plugin/src/domain/model.ts` 的 `DomainEventTypes` 集中定义。
 
 ## Authority And Boundaries
 
 - MeetingState 是 Meeting Domain 的完整当前事实模型。
-- SQLite state_json 必须无损保存和恢复 MeetingState；SQLite event、receipt、outbox 和 DSH Session 不得形成第二份业务状态。
-- Domain 不依赖 protocol、DSH、SQLite、HTTP、React 或文件系统。
+- Meeting projection 必须无损保存和恢复 MeetingState；持久 event、receipt、outbox 和 DSH Session 不得形成第二份业务状态。
+- Domain 不依赖 protocol、DSH、Repository、Storage Domain、HTTP、React 或文件系统。
 - Protocol projection 可以裁剪或重命名字段，但不得改变 Domain 事实。
 - Session capability、outbox lease、私聊正文和 Agent 内部运行历史不属于 MeetingState。
 - 所有 Domain ID 都是不透明字符串；调用方不得从 ID 格式推断权限、时间或顺序。
@@ -71,7 +71,7 @@ MeetingState 必须包含以下字段：
 - 同一时刻最多一个 activeAgendaItemId。
 - agendaCandidates 必须是结构化 AgendaCandidate，而不是 string[]。
 - waiting 状态必须有 waitState；离开 waiting 时清除 waitState。
-- 当前事实由 state_json 恢复，不从 Markdown、自然语言摘要或 event replay 猜测。
+- 当前事实由 published checkpoint 与连续 commit tail 合成的 Meeting projection 恢复，不从 Markdown、自然语言摘要或 event-only replay 猜测。
 
 ## Participant And Manager
 
@@ -223,8 +223,8 @@ ArchivePackage 物化后不可变。续会只通过显式选择的 continuation 
 
 ## Persistence And Mapping
 
-- Domain model 是 state_json 的 canonical shape；读取时必须进行结构校验。
-- Domain model 不等同于 Protocol projection、SQLite table schema 或 DSH Session ownership。
+- Domain model 是 Meeting projection 中 `MeetingState` 的 canonical shape；读取时必须进行结构校验。
+- Domain model 不等同于 Protocol projection、Repository record schema 或 DSH Session ownership。
 - Protocol、Repository、Archive 和 Runtime 必须提供显式字段映射。
 - 新增必填字段、枚举删除、结构变更和字段重命名必须有显式 migration。
 - Session ID、capability、outbox payload、私聊和内部运行数据不得进入 ArchivePackage。

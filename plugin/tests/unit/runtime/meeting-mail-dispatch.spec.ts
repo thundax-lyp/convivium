@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { scanMeetingMailTimeouts } from "../../../src/runtime/services/meeting-dispatch-service.js";
 import type { MeetingRepositoryRuntime } from "../../../src/runtime/meeting-runtime.js";
-import { RepositoryError } from "../../../src/repository/index.js";
+import { RepositoryError } from "../../../src/repository/errors.js";
 
 describe("meeting mail recovery dispatch", () => {
     it("commits timed_out before best-effort interrupt", async () => {

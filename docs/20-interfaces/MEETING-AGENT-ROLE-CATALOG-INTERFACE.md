@@ -199,16 +199,16 @@ Meeting Manager 是 Runtime 为每场 Meeting 创建的内建编排角色，role
 
 初始 Participant role catalog 包含：
 
-| `roleDefinitionId`        | 核心责任                                                               | 非责任                                    |
-| ------------------------- | ---------------------------------------------------------------------- | ----------------------------------------- |
-| `domain_architect`        | 审核领域状态、不变量、需求与设计一致性、completion/termination 语义    | 不替 Captain 接受风险或 Decision          |
-| `runtime_engineer`        | 分析 Runtime、DSH adapter、事务、outbox、恢复和 Session 生命周期       | 不自行改变产品范围                        |
-| `protocol_ui_engineer`    | 分析 Protocol Schema、tools、HTTP、projection 和 Client UI             | 不绕过 Runtime 直接管理 Session 或 SQLite |
-| `verification_reviewer`   | 建立测试矩阵、反例、回归、真实 DSH smoke 和 readiness 证据             | 不把未执行验证描述为通过                  |
-| `github_research_analyst` | 搜索并分析官方 repository、源码、commit、issue、PR 和 release          | 不把第三方 fork 或讨论当作正式实现依据    |
-| `arxiv_research_analyst`  | 搜索并分析论文版本、方法、实验结论和局限                               | 不用论文主张覆盖正式需求、接口或仓库事实  |
-| `web_research_analyst`    | 搜索并分析官方文档、标准、发布说明、安全公告和时效信息                 | 不重复承担源码级 GitHub 取证              |
-| `meeting_scribe`          | 从正式 transcript、事实、决议和任务结果形成带 canonical 引用的纪要草稿 | 不记录或修改权威 transcript、事实或决议   |
+| `roleDefinitionId`        | 核心责任                                                               | 非责任                                        |
+| ------------------------- | ---------------------------------------------------------------------- | --------------------------------------------- |
+| `domain_architect`        | 审核领域状态、不变量、需求与设计一致性、completion/termination 语义    | 不替 Captain 接受风险或 Decision              |
+| `runtime_engineer`        | 分析 Runtime、DSH adapter、事务、outbox、恢复和 Session 生命周期       | 不自行改变产品范围                            |
+| `protocol_ui_engineer`    | 分析 Protocol Schema、tools、HTTP、projection 和 Client UI             | 不绕过 Runtime 直接管理 Session 或 Repository |
+| `verification_reviewer`   | 建立测试矩阵、反例、回归、真实 DSH smoke 和 readiness 证据             | 不把未执行验证描述为通过                      |
+| `github_research_analyst` | 搜索并分析官方 repository、源码、commit、issue、PR 和 release          | 不把第三方 fork 或讨论当作正式实现依据        |
+| `arxiv_research_analyst`  | 搜索并分析论文版本、方法、实验结论和局限                               | 不用论文主张覆盖正式需求、接口或仓库事实      |
+| `web_research_analyst`    | 搜索并分析官方文档、标准、发布说明、安全公告和时效信息                 | 不重复承担源码级 GitHub 取证                  |
+| `meeting_scribe`          | 从正式 transcript、事实、决议和任务结果形成带 canonical 引用的纪要草稿 | 不记录或修改权威 transcript、事实或决议       |
 
 上述定义描述会议责任，不规定具体 Prompt 文本或内部工具序列。Manager 本身不是 Catalog candidate，不得推荐自己成为 Participant。Scribe 是普通可选 Participant；它只能读取授权的正式会议 projection 并提交派生纪要草稿，不能访问私聊或取得 Captain、Manager、Decision、风险处置和正式记录写权。
 
@@ -224,7 +224,7 @@ GitHub、arXiv 和 Web research Agent 的职责按证据方法划分；其内部
 2. Manager 在合法 planning attempt 中提交 recommendation claim；Runtime 原子写入 recommendation、event 和 receipt。
 3. recommendation 保持 `pending`，不进入 speaker candidates，也不创建 DSH Session。
 4. Captain 明确 `approve` 或 `reject`；重复请求遵守通用幂等规则。
-5. `approve` 原子创建 admission、Participant identity 和 provisioning outbox；外部 DSH 调用不进入 SQLite transaction。
+5. `approve` 以一个 Repository commit 原子创建 admission、Participant identity 和 provisioning outbox；外部 DSH 调用不进入该 commit。
 6. provisioning 成功后 admission 进入 `active`，Participant 才可被后续 planning 选择。
 7. provisioning 失败时 admission 进入 `failed`，不得产生部分可用 Participant；Manager 可以在新 Meeting version 上推荐替代 candidate。
 8. Meeting 进入 execution-terminal 或 `archiving` 时，所有 pending recommendation 和非 active admission 被取消。
