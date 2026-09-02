@@ -72,6 +72,7 @@ node .agents/skills/convivium-pr-review/scripts/collect-review-context.mjs snaps
 4. 如果删除、收窄、改正文档或局部校验即可消除触发条件，不建议建立新抽象、状态、接口、adapter、registry、migration 或 runtime path。
 5. 仅影响尚未实现路径的问题，优先删除过早契约、收窄声明或标记 blocked，不要求提前实现未来 Runtime、持久化、UI、transport 或 capability composition。
 6. 重新统计 findings 并按当前可触发影响校准优先级；不得用 finding 数量、概念重要性或未来实现难度替代风险判断。
+7. 对范围与复杂度 finding，确认已说明新增成本、缺失的当前 caller/requirement、可行的直接替代方案，以及删除或保留的风险；复杂状态机由当前并发、恢复、安全或兼容要求证明时，不得仅因复杂而报告。
 
 ## 6. 关闭审查
 
