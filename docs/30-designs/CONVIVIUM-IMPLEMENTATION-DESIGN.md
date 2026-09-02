@@ -39,7 +39,7 @@ V1 固定运行于单个本地 DSH Host，并只面向该 Host 的一位本地�
 - [Domain Model Design](./DOMAIN-MODEL-DESIGN.md)
 - [Meeting Orchestration Design](./MEETING-ORCHESTRATION-DESIGN.md)
 - [Meeting Persistence Design](./MEETING-PERSISTENCE-SPECIAL-DESIGN.md)
-- [Meeting Persistence Plugin Integration Runbook](./RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md)（Executable；执行收口中）
+- [Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)（当前持久化接入契约）
 
 发生冲突时，Architecture、Requirements 和 Interface 优先；本文不得通过实现便利改变公开语义。
 

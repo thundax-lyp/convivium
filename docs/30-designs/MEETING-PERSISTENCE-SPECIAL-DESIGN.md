@@ -32,7 +32,7 @@ checkpoint 不是命令原子性的来源。它只是某个稳定序号上的已
 - 不建立通用数据库、通用 Event Sourcing framework、分布式日志或跨 Host 共识协议。
 - 不承诺外部副作用与本地提交形成分布式事务或 exactly-once delivery。
 
-上述插件实现细节暂存于 [Meeting Persistence Plugin Integration Runbook](./RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md)。RUNBOOK 不得反向改变本文的算法语义。
+上述插件实现细节由 [Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md) 固定；接口契约不得反向改变本文的算法语义。
 
 ## Related Requirements And Interfaces
 
@@ -41,9 +41,8 @@ checkpoint 不是命令原子性的来源。它只是某个稳定序号上的已
 - [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)
 - [Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)（当前已实现契约，不是算法定义）
 - [Convivium Implementation Design](./CONVIVIUM-IMPLEMENTATION-DESIGN.md)
-- [Meeting Persistence Plugin Integration Runbook](./RUNBOOK-MEETING-PERSISTENCE-PLUGIN-INTEGRATION.md)（Executable；JSONL adapter；尚未执行）
 
-当前 SQLite Repository 仍是唯一已实现的 Meeting 持久化事实源。采用本算法不自动授权替换 backend、迁移数据或启用双写。
+当前实现只通过 DSH Storage Domain 使用 package-private JSONL backend，且不启用双写、fallback 或遗留数据迁移。
 
 ## Responsibilities And Dependencies
 
@@ -134,7 +133,7 @@ pointer 发布前崩溃时，旧 checkpoint 与全部 commits 仍是真相；新
 - 每个 Meeting 的可恢复总量、commit tail 和单个 checkpoint generation 必须有运行上限。
 - 正常写入必须为完成一次 checkpoint 和回收崩溃 orphan 保留足够空间；不能等存储写满后才触发 compaction。
 
-具体分页大小、阈值、reserve 计算、总量限制和拒绝错误属于适配器接口及实现 RUNBOOK。
+具体分页大小、阈值、reserve 计算、总量限制和拒绝错误属于适配器接口及实现设计。
 
 ### External effects boundary
 
