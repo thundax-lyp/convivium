@@ -1,52 +1,30 @@
 ---
 name: dsh-plugin-development
-description: 开发、扩展、验证或排查 DeepSeek Harness (DSH) 插件时使用。覆盖当前依赖 API 取证、host/client 结构、bundle/profile 契约、生命周期、测试和真实 DSH 运行验证；不用于独立应用或纯评审任务。
-metadata:
-  source_policy: official-source-first
-  compatibility: developer-preview
+description: 开发或修改 DeepSeek Harness Cordis 包与插件，包括模型工具、Provider、持久状态和 UI 集成。实现 DSH 扩展时使用；不要用于纯文档编辑或普通 DSH 使用。
 ---
 
 # DSH 插件开发
 
-把 Convivium 当作独立的 TypeScript DSH 插件开发，不把相邻参考项目当作源码基线。每次实现前先确认当前 `plugin/` 的 DSH 依赖版本，再以当前依赖的类型声明、源码和官方文档取证；社区 skill 只能补充实践，不能覆盖当前 API。
+使用本 skill 把功能放到正确的 DSH 扩展点，保持生命周期与持久上下文不变量，并验证组合后的行为。它是自包含的，唯一目标基线为 release candidate `dsh-v0.1.1-rc.2`；references 保存该版本的离线开发资料。
 
-## 工作流
+## 编辑前
 
-1. 读取仓库 `docs/AGENTS.md`、`docs/00-governance/ARCHITECTURE.md`，再读取与任务相关的需求、接口或设计文档。
-2. 检查 `plugin/package.json`、`pnpm-lock.yaml`、两个 `tsconfig`、构建配置和相关源码；确认任务属于 host、client 或双面插件。
-3. 先阅读 [references/official-development-map.md](references/official-development-map.md)，按 [references/source-of-truth.md](references/source-of-truth.md) 取证，不凭旧版 API 或社区示例猜测。
-4. 实现时遵守对应参考文档：
-   - 插件和包契约：阅读 [references/plugin-contract.md](references/plugin-contract.md)。
-   - host、工具、Service、路由和生命周期：阅读 [references/host-api.md](references/host-api.md)。
-   - client、slot、Conversation Node 和双 program：阅读 [references/client-api.md](references/client-api.md)。
-   - 测试和运行验证：阅读 [references/testing-verification.md](references/testing-verification.md)。
-   - 版本差异或不确定 API：阅读 [references/compatibility.md](references/compatibility.md)。
-5. 先运行 `pnpm verify:environment`，再运行 `pnpm verify:contract`；命令发现契约问题时先修复或明确记录边界。
-6. 使用最窄验证收口：格式、双 program typecheck、单元/契约测试、构建、包验证；涉及运行时的改动再进行独立 DSH profile 的 `--dump-config` 和 smoke 验证。
+先确认目标代码确实基于 `dsh-v0.1.1-rc.2`，再阅读目标仓库根目录和目标路径下的贡献说明，并检查所属包与最接近的现有实现。目标版本不匹配时，不套用代码骨架；先告知用户该 skill 的基线限制。
 
-## 范围与复杂度门禁
+先根据用户要求的可观察结果选择主路径，再叠加持久化、配置、凭证、并发资源和交付物等横切路径。读取 `references/plugin-development-routing.md`，只加载命中行涉及的 reference，并用表中链接定位相关章节；选中的 reference 要完整读取。维护本 skill 或核对依据时，读取 `references/source-map.md` 和 testing reference 的“Skill 发布维护”章节。
 
-实现前先定义当前行为、必要失败路径、权限边界和最窄验证。默认复用现有模块和状态，只完成当前已确认范围。
+## 实现规则
 
-新增抽象、状态、事件、adapter、worker、依赖、兼容层或扩展点前，至少记录一项当前依据：
+- 通过已记录的 plugin、service 或 event 扩展点实现；存在扩展点时，不修改 agent loop。
+- 遵循仓库的插件导出约定。本 skill 记录的 DSH 约定是：Service 包默认导出 Service class；函数插件具名导出 `name`、`inject`、可选 `Config` 与 `apply`。
+- 每项贡献都必须有生命周期所有者。事件监听直接调用 `ctx.on()`。当注册 API 明确会创建 Cordis effect 时直接调用；rc.2 的 tool、system-prompt section 和 LLM adapter 注册属于这种情况。其他只返回未托管 disposer 的 registry 必须由插件的 `ctx.effect()` 接管。
+- 模型可见输入必须能从 Session log 重建。先确认所属路径是否已通过 request header、message 或 tool result 记录完整证据；只有插件引入新的持久事实时，才声明并追加由该插件拥有的 Session event。
+- 当 Service Definition、Provider、Consumer 会独立演进时，将可替换能力拆成这三个角色。Consumer 依赖 Definition，不依赖具体 Provider。
+- 部署差异放入经过验证的插件配置、profile 或 patch；不要藏在运行时默认值里。
+- 模型工具只定义一个规范 JSON 结果，并仅从参数和该结果进行纯渲染。实现前先确定 render intent 与模型可见文本。
 
-- 当前需求或接口契约；
-- 已确认的架构或安全不变量；
-- 可复现的正确性、并发、恢复或生命周期失败；
-- 必须隔离的外部系统、权限、事务、持久化或生命周期边界；
-- 多个当前消费者需要的稳定共享语义。
+## 完成条件
 
-仅有假设性未来用途时不得新增。单一消费者、单一实现、文件数量或代码行数不能单独证明机制多余；若现有实现能够在不削弱必要边界的前提下清楚承载当前行为，选择更小方案。完成当前任务必须扩大范围时停止实现，报告新增范围及依据，不自行扩张。
+实现完成后读取 testing reference 的“按变更面选择证据”和“验证命令矩阵”，再选择聚焦检查。产品可见插件需要真实 Loader/应用组合测试；非平凡的模型、协议或用户可见变更需要对应的组合快照。同步更新公共 API 文档与所属包 README。非平凡设计决策按目标仓库惯例记录。只报告实际观察到输出的命令。
 
-## 不可违反的边界
-
-- DSH AgentSession、Session、工具、Skills、MCP 和权限由 DSH 管理；插件只通过公开、类型化接口使用它们。
-- 插件前端不直接管理 AgentSession、不访问 SQLite 或任意文件系统，不替代后端授权和领域状态。
-- 每个会议身份必须使用独立的 DSH continuable AgentSession；不得跨身份共享会话状态。
-- 不向 DSH-owned Session Event 写入 Convivium 自定义持久化事件；领域事件按架构文档进入插件自己的持久化边界。
-- 不因为一个社区示例存在就新增兼容层；先确认当前依赖是否需要，无法确认时选择可安全失败的最小实现并记录假设。
-- 不把 `build` 通过描述为 DSH 运行时可用；至少还要验证 bundle 组合，涉及 client 或运行时行为时要验证独立 profile。
-
-## 输出要求
-
-实现 DSH 能力时，说明采用了哪个当前依赖/官方来源、验证了哪些入口、哪些运行面仍未覆盖。若发现 API 与参考文档不一致，保留依赖版本和文件路径证据，并更新最小必要 reference，不要静默改写为普遍规则。说明本次新增机制的当前依据，或明确说明没有新增机制。若在候选方案中舍弃了更复杂方案，简述更小方案如何覆盖同一触发条件和必要边界。
+不要直接编辑生成的 catalog；没有明确要求时，不把示例或实验代码提升为默认组件；没有授权时，不执行外部调用、凭证修改、push 或 release。
