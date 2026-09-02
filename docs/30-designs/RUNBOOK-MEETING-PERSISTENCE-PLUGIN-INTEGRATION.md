@@ -114,28 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T16 — Prove Production Import Boundary
-
-前置状态：T15 PASS.
-
-允许修改：new `plugin/tests/contract/production-import-graph.spec.ts`; `plugin/tests/unit/module-boundaries.spec.ts`.
-
-禁止修改：production, profile, smoke, repository behavior contracts and every other test.
-
-执行：递归 static-import graph rooted at `src/index.ts` 拒绝 SQLite/schema/migration/locator；第二 graph rooted at Domain repository + runtime 拒绝 fs/path/storage/backend package，只允许 Storage Domain；证明仅 root composition imports `storage/index.ts`。
-
-验证：
-
-```bash
-pnpm --dir plugin test --project contract tests/contract/production-import-graph.spec.ts
-pnpm --dir plugin test --project host tests/unit/module-boundaries.spec.ts
-pnpm --dir plugin verify
-```
-
-PASS：production reaches internal backend but no SQLite；Meeting reaches Storage Domain only。
-
-STOP：任何 production SQLite 或 Meeting backend/file path remains。
-
 ### T17 — Delete SQLite
 
 前置状态：T16 PASS；Domain shared contract unchanged since T12F.

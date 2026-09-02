@@ -159,6 +159,12 @@ function importedModule(file: string, specifier: string): ModuleName | undefined
     return path ? moduleForFile(path) : undefined;
 }
 
+function resolvesTo(file: string, specifier: string, target: string): boolean {
+    if (!specifier.startsWith(".")) return false;
+    const candidate = resolve(dirname(file), specifier).replace(/\.(?:m?js|tsx?)$/, "");
+    return candidate === target.replace(/\.(?:m?js|tsx?)$/, "");
+}
+
 function violations(module: ModuleName, specifiers: readonly string[]): string[] {
     const boundary = moduleBoundaries.find((item) => item.name === module);
     if (!boundary) return [`unknown module ${module}`];
@@ -237,6 +243,18 @@ describe("plugin module boundaries", () => {
             return module ? violations(module, importsOf(readFileSync(file, "utf8"))) : [];
         });
         expect(errors).toEqual([]);
+    });
+
+    it("keeps storage composition at the package root", () => {
+        const storageEntry = join(storageRoot, "index.ts");
+        const importers = sourceFiles(sourceRoot).flatMap((file) =>
+            allModuleSpecifiersOf(readFileSync(file, "utf8")).some((specifier) =>
+                resolvesTo(file, specifier, storageEntry)
+            )
+                ? [relative(sourceRoot, file)]
+                : []
+        );
+        expect(importers).toEqual(["index.ts"]);
     });
 
     it("rejects a temporary Client-to-Host import", () => {
