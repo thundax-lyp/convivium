@@ -10,11 +10,13 @@
 - 代码基线：`7b39065`
 - 环境：Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、provider `spawn`
 
+该历史基线的 repository 仍使用 SQLite；本文的 profile 证据不证明后续 Storage Domain/JSONL 实现，也不应改写为当前 persistence 边界。
+
 ## Validated Contract
 
 - `selectionMode="manager"` 进入 Manager planning；`round_robin` 保持可用，其他未支持模式 fail closed。
 - Manager 提交有序 plan；Speaker delivery 串行进行，后续 Speaker 获取前序正式 transcript。
-- Manager plan、首个 attempt、领域事件和 outbox 通过一个 Storage Domain command commit 提交。
+- Manager plan、首个 attempt、领域事件和 outbox 通过一个 SQLite repository command commit 提交。
 - DSH followup 校验 exact parent、ownership、capability 和当前 attempt。
 
 ## Executed Validation

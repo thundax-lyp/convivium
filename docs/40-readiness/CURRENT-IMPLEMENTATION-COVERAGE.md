@@ -5,7 +5,7 @@
 本文记录当前代码相对已确认需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-09-02
-- 代码基线：`4856c88bcc585d09c4d4b8a54300fc0501f0b769`
+- 代码基线：`607148e888f05f7fe324389d38dd2b46134089c0`
 - 环境：macOS、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`
 - `已实现` 表示存在正式路径和相称验证；`部分实现` 表示存在局部路径但未闭合；`未实现` 表示没有产品运行路径。
 - 历史真实 profile 证据只适用于其原始 commit，不外推为当前 HEAD 证据。
@@ -42,10 +42,24 @@
 2026-09-02，在当前 HEAD 执行 `pnpm --dir plugin verify`：
 
 - Pass：format、lint、Host/Client typecheck、build、environment、contract、Agent Definition samples、package verifier。
-- Pass：68 test files、476 tests。
+- Pass：68 test files、477 tests。
 - 未执行 `smoke:profile` 或其他真实 DSH profile selector；当前 HEAD 不新增真实 profile 证据。
 
-历史真实 profile 验证覆盖 timeout、reassign、MeetingTask、completion/end、risk disposition、cold rebind、archive continuation、mail race 和跨 Meeting/Team isolation；详见 [DSH Runtime Vertical Slice Evidence](./DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md)。
+历史真实 profile 验证覆盖 timeout、reassign、MeetingTask、completion/end、risk disposition、cold rebind、archive continuation、mail race 和跨 Meeting/Team isolation；其提交、命令和结果索引如下，详见 [DSH Runtime Vertical Slice Evidence](./DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md)。
+
+| 历史基线 | 命令 | 结果与边界 |
+| --- | --- | --- |
+| `23fbbb5` | `CONVIVIUM_SMOKE_SCENARIO=timeout pnpm --dir plugin smoke:profile` | Pass；timeout 后旧 Speaker Activation drain，后续 Speaker 提交，旧发言不入 transcript。 |
+| `75e7a7d` | `CONVIVIUM_SMOKE_SCENARIO=reassign pnpm --dir plugin smoke:profile` | Pass；旧 attempt revoke、旧 Activation drain、replacement attempt 提交。 |
+| `7d2ee89` | `CONVIVIUM_SMOKE_SCENARIO=task-handraise pnpm --dir plugin smoke:profile` | Pass；task delivery、finish、HandRaise 和后续 planning/evidence submit。 |
+| `4fb7b13` | `CONVIVIUM_SMOKE_SCENARIO=completion-end pnpm --dir plugin smoke:profile` | Pass；completion/end 竞争只产生一个终态，terminal 写入被拒绝。 |
+| `b5c415b` | `CONVIVIUM_SMOKE_SCENARIO=risk-reopen pnpm --dir plugin smoke:profile` | Pass；risk disposition、同 request replay 和 hash conflict。 |
+| `83c2cd3` | `CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile` | Pass；新 Host PID 中 exact Captain Session rebind 和后续提交。 |
+| `479d994` | `CONVIVIUM_SMOKE_SCENARIO=archive-continuation pnpm --dir plugin smoke:profile` | Pass；source archive、target 新身份和 final summary-only continuation。 |
+| `6a01518` | `CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile` | Pass；mail 单一 terminal、稳定 delivery ID 和隐私边界。 |
+| `0a7110d` | `CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile` | Pass；跨 Meeting ownership 隔离和清理隔离。 |
+
+上述记录是各自历史提交的证据，不外推为当前 HEAD 的 smoke 结果；当前代码的 persistence 边界为 Storage Domain/JSONL，历史基线的实际介质以对应提交为准。
 
 ## Not Covered
 
