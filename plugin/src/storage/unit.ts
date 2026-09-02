@@ -34,7 +34,8 @@ export class JsonlKvUnit implements KvUnit {
         initialSeq = 0,
         initialTailRecords = 0,
         initialTailBytes = 0,
-        private readonly activeFirstOpSeq?: number
+        private activeFirstOpSeq: number,
+        private readonly onClosed?: () => void
     ) {
         this.seq = initialSeq;
         this.tailRecords = initialTailRecords;
@@ -128,11 +129,9 @@ export class JsonlKvUnit implements KvUnit {
                 await this.fs.mkdir(segments, { recursive: true });
                 await this.fs.rename(
                     join(this.root, "active.jsonl"),
-                    join(
-                        segments,
-                        `${String(this.activeFirstOpSeq ?? this.seq - 255).padStart(20, "0")}.jsonl`
-                    )
+                    join(segments, `${String(this.activeFirstOpSeq).padStart(20, "0")}.jsonl`)
                 );
+                this.activeFirstOpSeq = record.opSeq;
                 await syncDirectory(segments, this.fs);
             }
             try {
@@ -191,15 +190,20 @@ export class JsonlKvUnit implements KvUnit {
     }
     async close(): Promise<void> {
         this.closed = true;
-        await this.queue;
-        if (this.maintenanceError) throw this.maintenanceError;
+        try {
+            await this.queue;
+            if (this.maintenanceError) throw this.maintenanceError;
+        } finally {
+            this.onClosed?.();
+        }
     }
 }
 
 export async function openJsonlUnit(
     root: string,
     descriptor: KvUnitDescriptor,
-    fs: FileSystemPort = nodeFileSystemPort
+    fs: FileSystemPort = nodeFileSystemPort,
+    onClosed?: () => void
 ): Promise<JsonlKvUnit> {
     await fs.mkdir(root, { recursive: true });
     const descriptorPath = join(root, "descriptor.json");
@@ -240,8 +244,8 @@ export async function openJsonlUnit(
         await createFileDurably(descriptorPath, encodeCanonicalJson(record), fs);
     }
     const descriptorDigest = sha256Hex(encodeCanonicalJson(expectedBase));
-    const tables: Record<string, Record<string, unknown>> = {};
-    for (const table of descriptor.tables) tables[table] = {};
+    const tables: Record<string, Record<string, unknown>> = Object.create(null);
+    for (const table of descriptor.tables) tables[table] = Object.create(null);
     let global: unknown = null;
     let seq = 0;
     let replaySeq = 0;
@@ -305,6 +309,7 @@ export async function openJsonlUnit(
         seq,
         tailRecords,
         tailBytes,
-        activeFirstOpSeq
+        activeFirstOpSeq ?? seq + 1,
+        onClosed
     );
 }

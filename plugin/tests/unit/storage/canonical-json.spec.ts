@@ -14,4 +14,12 @@ describe("canonical JSON", () => {
     it("decodes JSON", () => {
         expect(decodeCanonicalJson(new TextEncoder().encode('{"a":1}'))).toEqual({ a: 1 });
     });
+    it("preserves object keys that resemble prototype properties", () => {
+        const source = new TextEncoder().encode('{"__proto__":1,"constructor":2,"prototype":3}');
+        const decoded = decodeCanonicalJson(source) as Record<string, unknown>;
+        expect(Object.keys(decoded).sort()).toEqual(["__proto__", "constructor", "prototype"]);
+        expect(new TextDecoder().decode(encodeCanonicalJson(decoded))).toBe(
+            '{"__proto__":1,"constructor":2,"prototype":3}'
+        );
+    });
 });

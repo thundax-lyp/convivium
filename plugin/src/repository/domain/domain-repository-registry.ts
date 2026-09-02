@@ -189,6 +189,15 @@ export class DomainRepositoryRegistry {
             }
             return;
         }
+        if (!first && creation?.status === "creation_failed") {
+            await this.catalog.table("meetings").put(key, {
+                ...catalog,
+                status: "creation_failed",
+                updatedAt: creation.updatedAt,
+                failureCode: creation.failureCode
+            });
+            return;
+        }
         if (!first) {
             if (creation && creation.status !== "creating")
                 throw corrupt(catalog.meetingId, "Creating record status is invalid");

@@ -4,8 +4,6 @@ import { JsonlStorageError } from "./errors.js";
 export type JsonValue =
     null | boolean | string | number | JsonValue[] | { readonly [key: string]: JsonValue };
 
-const dangerous = new Set(["__proto__", "constructor", "prototype"]);
-
 function validate(value: unknown, seen: Set<object>): asserts value is JsonValue {
     if (value === null || typeof value === "boolean" || typeof value === "string") return;
     if (typeof value === "number") {
@@ -24,11 +22,8 @@ function validate(value: unknown, seen: Set<object>): asserts value is JsonValue
             validate(value[i], seen);
         }
     } else {
-        for (const key of Object.keys(value)) {
-            if (dangerous.has(key))
-                throw new JsonlStorageError("invalid-json-value", "dangerous key");
+        for (const key of Object.keys(value))
             validate((value as Record<string, unknown>)[key], seen);
-        }
     }
     seen.delete(value);
 }

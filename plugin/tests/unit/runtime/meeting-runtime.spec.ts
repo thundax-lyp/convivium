@@ -59,7 +59,7 @@ function dependencies(overrides: Record<string, unknown> = {}) {
         },
         updateBootstrap: async () => {
             calls.push("failed");
-            return {};
+            return { status: "creation_failed" };
         }
     };
     return {
@@ -116,6 +116,32 @@ describe("createMeetingRuntime", () => {
             "provider unavailable"
         );
         expect(deps.calls).toEqual(["bootstrap", "ownership:provisioning", "failed", "cleanup:1"]);
+    });
+
+    it("replays a committed create after ready publication is repaired", async () => {
+        const deps = dependencies();
+        let completes = 0;
+        deps.repository.completeCreate = async () => {
+            deps.calls.push("complete");
+            completes += 1;
+            if (completes === 1) throw new Error("ready publication failed");
+            return {
+                requestId: "create-1",
+                meetingId: "meeting-1",
+                meetingVersion: 0,
+                result: {}
+            };
+        };
+        deps.repository.updateBootstrap = async () => {
+            deps.calls.push("repair");
+            return { status: "ready" };
+        };
+
+        await expect(createMeetingRuntime(input, deps as never)).resolves.toMatchObject({
+            requestId: "create-1",
+            meetingId: "meeting-1"
+        });
+        expect(deps.calls.slice(-3)).toEqual(["complete", "repair", "complete"]);
     });
 });
 

@@ -19,6 +19,9 @@ describe("JsonlStorageBackend lifecycle", () => {
             await expect(backend.kv!.open(descriptor)).rejects.toMatchObject({
                 code: "duplicate-mount"
             });
+            await unit.close();
+            const reopened = await backend.kv!.open(descriptor);
+            await reopened.close();
             await backend.close();
             await backend.close();
             await expect(unit.loadAll()).rejects.toBeInstanceOf(StorageError);

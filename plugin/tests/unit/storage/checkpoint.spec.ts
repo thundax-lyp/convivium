@@ -68,6 +68,20 @@ describe("physical checkpoint", () => {
         }
     });
 
+    it("closes the pointer handle when pointer sync fails", async () => {
+        const { root, state } = await fixture();
+        const fs = new ScriptedFileSystem();
+        try {
+            fs.failNext("checkpoint.pointer-temp-sync", new Error("pointer sync failed"));
+            await expect(writePhysicalCheckpoint(root, state, fs)).rejects.toThrow(
+                "pointer sync failed"
+            );
+            expect(fs.closeCallsEndingWith("checkpoint-pointer.json.tmp")).toBe(1);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
     it("loads state from verified records instead of root payload", async () => {
         const { root, state, descriptor, descriptorDigest } = await fixture();
         try {
@@ -204,4 +218,36 @@ describe("physical checkpoint", () => {
             await rm(root, { recursive: true, force: true });
         }
     }, 15_000);
+
+    it("preserves every tail record across mixed rollovers after reopen", async () => {
+        const root = await mkdtemp(join("/tmp", "cp-rollover-"));
+        const descriptor = {
+            name: "records",
+            version: 1,
+            tables: ["records"],
+            hasGlobal: false
+        } as const;
+        const value = "x".repeat(17_000);
+        try {
+            const first = await openJsonlUnit(root, descriptor);
+            for (let index = 1; index <= 300; index += 1)
+                await first.putRecord("records", `k${index}`, value);
+            await first.close();
+
+            const second = await openJsonlUnit(root, descriptor);
+            for (let index = 301; index <= 513; index += 1)
+                await second.putRecord("records", `k${index}`, value);
+            await second.close();
+
+            const cold = await openJsonlUnit(root, descriptor);
+            const loaded = await cold.loadAll();
+            expect(Object.keys(loaded.tables.records!)).toHaveLength(513);
+            expect(loaded.tables.records?.k1).toBe(value);
+            expect(loaded.tables.records?.k500).toBe(value);
+            expect(loaded.tables.records?.k513).toBe(value);
+            await cold.close();
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    }, 20_000);
 });

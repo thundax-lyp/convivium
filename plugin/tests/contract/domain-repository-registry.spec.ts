@@ -161,6 +161,40 @@ describe("DomainRepositoryRegistry contract", () => {
         await registry.close();
     });
 
+    it("publishes a durable creation failure left behind a creating catalog", async () => {
+        const record = catalogRecord("team-1", "meeting-1");
+        const failedCreation = {
+            ...creationRecord("team-1", "meeting-1"),
+            status: "creation_failed" as const,
+            updatedAt: 2,
+            failureCode: "SESSION_FAILED"
+        };
+        const catalog = createFakeCatalogDomain({
+            meetings: new Map([[catalogKey("team-1", "meeting-1"), record]])
+        });
+        const facility = new Facility(catalog);
+        facility.register(
+            createFakeMeetingDomain({
+                name: record.domainName,
+                initial: { creation: new Map([["current", failedCreation]]) }
+            })
+        );
+        const registry = await DomainRepositoryRegistry.open({
+            storageDomain: facility,
+            authorizationValidator: allow
+        });
+
+        await expect(
+            registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" })
+        ).resolves.toBeTruthy();
+        expect(catalog.table("meetings").get(catalogKey("team-1", "meeting-1"))).toMatchObject({
+            status: "creation_failed",
+            updatedAt: 2,
+            failureCode: "SESSION_FAILED"
+        });
+        await registry.close();
+    });
+
     it("removes a rejected in-flight open before retry", async () => {
         const record = catalogRecord("team-1", "meeting-1");
         const { facility } = fixture([record]);

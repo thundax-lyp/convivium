@@ -42,7 +42,10 @@ export class JsonlStorageBackend implements StorageBackend {
         if (this.openUnits.has(descriptor.name))
             throw new StorageError("duplicate-mount", "storage unit already open");
         const path = join(this.root, Buffer.from(descriptor.name).toString("base64url"));
-        const opening = openJsonlUnit(path, descriptor, this.fs);
+        const opening = openJsonlUnit(path, descriptor, this.fs, () => {
+            if (this.openUnits.get(descriptor.name) === opening)
+                this.openUnits.delete(descriptor.name);
+        });
         this.openUnits.set(descriptor.name, opening);
         try {
             return await opening;

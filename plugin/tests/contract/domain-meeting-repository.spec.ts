@@ -179,6 +179,50 @@ it("writes the complete seq-one projection in one create commit", async () => {
     await repository.close();
 });
 
+it.each(["creation", "catalog"] as const)(
+    "repairs ready publication after the %s write fails post-commit",
+    async (failurePoint) => {
+        const catalog = createFakeCatalogDomain();
+        const meeting = createFakeMeetingDomain();
+        const repository = await DomainMeetingRepository.open({
+            catalogDomain: catalog,
+            meetingDomain: meeting,
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            authorizationValidator: allow,
+            now: () => 1
+        });
+        const input = {
+            requestId: "create",
+            authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
+            requestHash: "hash",
+            initialState: { status: "created" },
+            createdAt: 10
+        };
+        await repository.create(input);
+        if (failurePoint === "creation") meeting.failNextPut("creation", "current");
+        else catalog.failNextPut("meetings", catalogKey("team-1", "meeting-1"));
+
+        await expect(repository.completeCreate(input)).rejects.toThrow("fake put failure");
+        await expect(
+            repository.updateBootstrap({
+                status: "creation_failed",
+                failureCode: "READY_PUBLICATION_FAILED",
+                now: 20
+            })
+        ).resolves.toMatchObject({ status: "ready" });
+        await expect(repository.completeCreate(input)).resolves.toMatchObject({
+            requestId: "create",
+            meetingId: "meeting-1"
+        });
+        expect(meeting.table("creation").get("current")?.status).toBe("ready");
+        expect(catalog.table("meetings").get(catalogKey("team-1", "meeting-1"))?.status).toBe(
+            "ready"
+        );
+        await repository.close();
+    }
+);
+
 it("updates the create result with one projection-only commit", async () => {
     const catalog = createFakeCatalogDomain();
     const meeting = createFakeMeetingDomain();
@@ -234,6 +278,47 @@ it("updates the create result with one projection-only commit", async () => {
         meetingId: "meeting-1",
         meetingVersion: 0
     });
+    await repository.close();
+});
+
+it("updates the create receipt written by a separately authorized completer", async () => {
+    const catalog = createFakeCatalogDomain();
+    const meeting = createFakeMeetingDomain();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: catalog,
+        meetingDomain: meeting,
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 1
+    });
+    const createInput = {
+        requestId: "create",
+        authorization: { callerBinding: "creator:1", capabilityId: "creator-capability" },
+        requestHash: "hash",
+        initialState: { status: "created" },
+        createdAt: 10
+    };
+    await repository.create(createInput);
+    await repository.completeCreate({
+        ...createInput,
+        authorization: { callerBinding: "completer:1", capabilityId: "completer-capability" }
+    });
+    const result = {
+        meetingId: "meeting-1",
+        meetingVersion: 0,
+        status: "running" as const,
+        participants: []
+    };
+
+    await expect(
+        repository.updateCreateResult({ expectedMeetingVersion: 0, result, now: 20 })
+    ).resolves.toEqual(result);
+    expect(
+        loadProjection({ domain: meeting }).receipts[
+            receiptKey("create", "create_meeting", "completer:1")
+        ]
+    ).toMatchObject({ result });
     await repository.close();
 });
 
@@ -664,6 +749,15 @@ it("retains checkpoint failure for hard-tail retry and close", async () => {
     ).toBeGreaterThan(1);
     await expect(repository.close()).rejects.toThrow("fake persistent put failure");
     expect(meeting.closeCalls).toBe(1);
+}, 20_000);
+
+it("drains a mutation accepted immediately before close", async () => {
+    const { repository, authorization } = await maintenanceFixture();
+    const committed = appendVersion(repository, authorization, 0);
+    const closed = repository.close();
+
+    await expect(committed).resolves.toMatchObject({ meetingVersion: 1 });
+    await expect(closed).resolves.toBeUndefined();
 });
 
 it("drains maintenance and closes the Domain exactly once", async () => {

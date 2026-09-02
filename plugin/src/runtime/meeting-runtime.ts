@@ -298,11 +298,13 @@ export async function createMeetingRuntime(
         }
         return await dependencies.repository.completeCreate(createInput);
     } catch (error) {
-        await dependencies.repository.updateBootstrap({
+        const bootstrap = await dependencies.repository.updateBootstrap({
             status: "creation_failed",
             failureCode: error instanceof Error ? error.name : "SESSION_CREATION_FAILED",
             now
         });
+        if (bootstrap.status === "ready")
+            return dependencies.repository.completeCreate(createInput);
         if (dependencies.cleanup) await dependencies.cleanup(ownerships);
         throw error;
     }

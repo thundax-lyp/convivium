@@ -218,7 +218,6 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         now: number;
         mutate(current: PersistenceProjectionV1): { next: PersistenceProjectionV1; result: T };
     }): Promise<T> {
-        this.ensureOpen();
         if (!this.projection)
             throw new RepositoryError(
                 "INVALID_STATE",
@@ -413,7 +412,6 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
     }
     async completeCreate(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>> {
         return this.enqueueMutation(async () => {
-            this.ensureOpen();
             this.authorizationValidator.validateCreate({
                 teamId: this.teamId,
                 meetingId: this.meetingId,
@@ -582,19 +580,19 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 operation: "create.result",
                 now,
                 mutate: (current) => {
-                    const key = receiptKey(
-                        creation.requestId,
-                        "create_meeting",
-                        creation.authorization.callerBinding
+                    const matches = Object.entries(current.receipts).filter(
+                        ([, candidate]) =>
+                            candidate.requestId === creation.requestId &&
+                            candidate.commandKind === "create_meeting"
                     );
-                    const receipt = current.receipts[key];
-                    if (!receipt)
+                    if (matches.length !== 1)
                         throw new RepositoryError(
                             "CORRUPT_DATABASE",
                             false,
                             this.meetingId,
                             "Create receipt is missing"
                         );
+                    const [key, receipt] = matches[0]!;
                     const next = PersistenceProjectionV1Schema.parse({
                         ...current,
                         bootstrap: {
@@ -621,6 +619,27 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         this.ensureOpen();
         return this.enqueueMutation(async () => {
             const creation = this.meetingDomain.table("creation").get("current");
+            const committedBootstrap = this.projection?.bootstrap;
+            if (creation && committedBootstrap?.status === "ready") {
+                const updatedAt = committedBootstrap.updatedAt;
+                if (creation.status !== "ready")
+                    await this.meetingDomain.table("creation").put("current", {
+                        ...creation,
+                        status: "ready",
+                        createResult: committedBootstrap.createResult ?? null,
+                        updatedAt,
+                        failureCode: null
+                    });
+                await this.catalogDomain
+                    .table("meetings")
+                    .update(catalogKey(this.teamId, this.meetingId), (catalog) => ({
+                        ...catalog,
+                        status: "ready",
+                        updatedAt,
+                        failureCode: null
+                    }));
+                return structuredClone(committedBootstrap);
+            }
             if (!creation || creation.status === "ready")
                 throw new RepositoryError(
                     "INVALID_STATE",

@@ -90,10 +90,13 @@ export async function writePhysicalCheckpoint(
     let ph;
     try {
         ph = await fs.open(pointerTmp, "wx");
-        const result = await ph.write(pointer, 0, pointer.length, null);
-        if (result.bytesWritten !== pointer.length) throw new Error("short-write");
-        await ph.sync();
-        await ph.close();
+        try {
+            const result = await ph.write(pointer, 0, pointer.length, null);
+            if (result.bytesWritten !== pointer.length) throw new Error("short-write");
+            await ph.sync();
+        } finally {
+            await ph.close();
+        }
         await fs.rename(pointerTmp, join(root, "checkpoint-pointer.json"));
         await syncDirectory(root, fs);
     } finally {
@@ -185,12 +188,6 @@ export async function loadPhysicalCheckpoint(
         for (const record of records) {
             if (!descriptor.tables.includes(record.table))
                 throw new Error("undeclared checkpoint table");
-            if (
-                record.key === "__proto__" ||
-                record.key === "prototype" ||
-                record.key === "constructor"
-            )
-                throw new Error("dangerous checkpoint key");
             const table = (tables[record.table] ??= Object.create(null) as Record<
                 string,
                 JsonValue

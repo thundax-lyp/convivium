@@ -33,6 +33,33 @@ describe("JSONL unit", () => {
             await rm(root, { recursive: true, force: true });
         }
     });
+    it("round-trips every string key through a physical checkpoint", async () => {
+        const root = await mkdtemp(join("/tmp", "unit-"));
+        const descriptor = {
+            name: "x",
+            version: 1,
+            tables: ["a"],
+            hasGlobal: false
+        } as const;
+        try {
+            const unit = await openJsonlUnit(root, descriptor);
+            for (const key of ["__proto__", "prototype", "constructor"])
+                await unit.putRecord("a", key, { key });
+            for (let index = 0; index < 509; index += 1)
+                await unit.putRecord("a", `k${index}`, index);
+            await unit.close();
+
+            const reopened = await openJsonlUnit(root, descriptor);
+            const loaded = await reopened.loadAll();
+            for (const key of ["__proto__", "prototype", "constructor"]) {
+                expect(Object.hasOwn(loaded.tables.a!, key)).toBe(true);
+                expect(loaded.tables.a?.[key]).toEqual({ key });
+            }
+            await reopened.close();
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    }, 15_000);
     it("rejects undeclared table and global operations before IO", async () => {
         const root = await mkdtemp(join("/tmp", "unit-"));
         try {

@@ -24,6 +24,7 @@ export type FaultPoint =
 export class ScriptedFileSystem implements FileSystemPort {
     private readonly armed = new Map<FaultPoint, Error>();
     private readonly seen = new Map<FaultPoint, { readonly paths: readonly string[] }[]>();
+    private readonly closedPaths: string[] = [];
     private readonly pending = new Map<string, "page" | "root" | "pointer">();
     failNext(point: FaultPoint, error: Error): void {
         if (this.armed.has(point)) throw new Error(`already armed: ${point}`);
@@ -34,6 +35,9 @@ export class ScriptedFileSystem implements FileSystemPort {
     }
     calls(point: FaultPoint): readonly { readonly paths: readonly string[] }[] {
         return this.seen.get(point) ?? [];
+    }
+    closeCallsEndingWith(suffix: string): number {
+        return this.closedPaths.filter((path) => path.endsWith(suffix)).length;
     }
     assertConsumed(): void {
         if (this.armed.size)
@@ -125,7 +129,10 @@ export class ScriptedFileSystem implements FileSystemPort {
                 return base.truncate(length);
             },
             readFile: () => base.readFile(),
-            close: () => base.close()
+            close: async () => {
+                this.closedPaths.push(path);
+                await base.close();
+            }
         };
     }
     mkdir(path: string, options: { recursive: boolean; mode?: number }): Promise<void> {
