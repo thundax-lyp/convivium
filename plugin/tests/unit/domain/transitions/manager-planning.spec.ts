@@ -244,6 +244,28 @@ describe("manager planning transitions", () => {
         expect(result.effect.events.map((item) => item.type)).toEqual(["manager_plan.started"]);
     });
 
+    it("restarts planning from running after an explicit stale-attempt reset", () => {
+        const state = {
+            ...meeting("running"),
+            selectionMode: "manager" as const,
+            manager: { promptVersion: "test", status: "idle" as const }
+        };
+
+        const result = startManagerPlanning(state, {
+            meetingId: state.id,
+            planningAttemptId: "planning-replacement",
+            deliveryId: "delivery-replacement",
+            reason: "next_turn",
+            now,
+            allowRunningRestart: true
+        });
+
+        expect(result.state.status).toBe("running");
+        expect(result.state.version).toBe(state.version + 1);
+        expect(result.state.manager.currentPlanningAttempt?.id).toBe("planning-replacement");
+        expect(result.effect.events.map((item) => item.type)).toEqual(["manager_plan.started"]);
+    });
+
     it("rejects round-robin meetings and duplicate planning state", () => {
         expect(() =>
             startManagerPlanning(

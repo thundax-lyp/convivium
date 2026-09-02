@@ -261,7 +261,8 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                                     planningAttemptId,
                                     deliveryId: planningDeliveryId,
                                     reason: "next_turn",
-                                    now: options.now?.() ?? Date.now()
+                                    now: options.now?.() ?? Date.now(),
+                                    allowRunningRestart: true
                                 }
                             );
                             nextState = planning.state;

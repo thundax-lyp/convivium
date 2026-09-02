@@ -7,6 +7,7 @@ export interface StartManagerPlanningContext {
     deliveryId: string;
     reason: ManagerPlanningAttempt["reason"];
     now: number;
+    allowRunningRestart?: boolean;
 }
 
 export interface SubmitManagerPlanContext {
