@@ -1787,14 +1787,17 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         this.closePromise = (async () => {
             await this.mutationChain;
             const maintenanceError = this.maintenanceError;
+            let domainCloseError: unknown;
             try {
                 if (!this.domainClosed) {
                     this.domainClosed = true;
                     await this.meetingDomain.close();
                 }
-            } finally {
-                if (maintenanceError) throw maintenanceError;
+            } catch (error) {
+                domainCloseError = error;
             }
+            if (maintenanceError) throw maintenanceError;
+            if (domainCloseError !== undefined) throw domainCloseError;
         })();
         return this.closePromise;
     }

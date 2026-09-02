@@ -11,7 +11,6 @@ import type {
     SessionOwnership
 } from "../types.js";
 import type { JsonValue } from "./canonical-json.js";
-import type { JsonPatchOperationV1 } from "./json-patch.js";
 
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.union([

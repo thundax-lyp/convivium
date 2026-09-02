@@ -146,7 +146,7 @@ function fakeDomain<S extends DomainSpec>(
     controller: Controller
 ): Domain<S> & FakeDomainControls {
     const tables = new Map<string, FakeTable<string, unknown>>();
-    for (const [name, initial] of Object.entries(values ?? {}))
+    for (const name of Object.keys(values ?? {}))
         if (!(name in spec.tables)) throw new Error("unknown table");
     for (const name of Object.keys(spec.tables)) {
         const parsed = new Map<string, unknown>();

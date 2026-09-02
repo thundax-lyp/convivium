@@ -18,7 +18,6 @@ describe("jsonl helpers", () => {
     it("rejects before append write", async () => {
         const { path, fs } = await fixture();
         await appendLineDurably(path, bytes("A\n"), fs);
-        const datasyncBefore = fs.calls("append.datasync").length;
         const fault = new Error("write fault");
         fs.failNext("append.write", fault);
         await expect(appendLineDurably(path, bytes("B\n"), fs)).rejects.toBe(fault);

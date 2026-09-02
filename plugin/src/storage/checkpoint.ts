@@ -1,12 +1,7 @@
 import { join } from "node:path";
 import type { KvUnitDescriptor } from "@deepseek-ai/dsh-storage";
 import { StorageError } from "@deepseek-ai/dsh-storage";
-import {
-    encodeCanonicalJson,
-    decodeCanonicalJson,
-    sha256Hex,
-    type JsonValue
-} from "./canonical-json.js";
+import { encodeCanonicalJson, sha256Hex, type JsonValue } from "./canonical-json.js";
 import {
     decodePhysicalCheckpointPointer,
     decodePhysicalCheckpointRecord,

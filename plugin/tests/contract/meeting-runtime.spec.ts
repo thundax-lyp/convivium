@@ -513,7 +513,7 @@ describe("create/status meeting runtime", () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-timeout-isolation-"));
         roots.push(root);
         let time = 0;
-        let rejectedMeetingId: string | undefined;
+        const rejectedMeeting: { id?: string } = {};
         const runtime = createCreateStatusRuntime({
             storageDomain: storagePort(root),
             provider: "spawn",
@@ -532,7 +532,7 @@ describe("create/status meeting runtime", () => {
                 validateCreate: () => undefined,
                 validateCommand: ({ snapshot, command }) => {
                     if (
-                        snapshot.meetingId === rejectedMeetingId &&
+                        snapshot.meetingId === rejectedMeeting.id &&
                         command.commandKind === "expire_speaker_attempt"
                     )
                         throw new RepositoryError(
@@ -571,7 +571,7 @@ describe("create/status meeting runtime", () => {
             new AbortController().signal
         );
         if (!broken.ok || !healthy.ok) throw new Error("create failed");
-        rejectedMeetingId = broken.result.meetingId;
+        rejectedMeeting.id = broken.result.meetingId;
 
         time = 5;
         await expect(runtime.scanExpiredSpeakerAttempts()).rejects.toMatchObject({

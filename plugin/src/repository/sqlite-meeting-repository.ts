@@ -8,7 +8,6 @@ import { CURRENT_SCHEMA_VERSION, migrate } from "./migrations.js";
 import { OUTBOX_KINDS } from "./types.js";
 import type {
     ClaimOutboxInput,
-    CommandAuthorization,
     CommittedResult,
     CompleteOutboxInput,
     CreateMeetingInput,
@@ -19,7 +18,6 @@ import type {
     JsonValue,
     MeetingBootstrap,
     MeetingSnapshot,
-    OutboxCompletion,
     OutboxCompletionResult,
     OutboxInput,
     OutboxItem,

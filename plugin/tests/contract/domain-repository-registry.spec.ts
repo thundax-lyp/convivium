@@ -9,8 +9,7 @@ import { RepositoryError } from "../../src/repository/errors.js";
 import {
     createFakeCatalogDomain,
     createFakeMeetingDomain,
-    type FakeCatalogDomain,
-    type FakeMeetingDomain
+    type FakeCatalogDomain
 } from "../fixtures/domain-storage.js";
 
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
@@ -46,16 +45,6 @@ function creationRecord(teamId: string, meetingId: string) {
         createdAt: 1,
         updatedAt: 1,
         failureCode: null
-    };
-}
-
-function createInput(meetingId: string) {
-    return {
-        requestId: `create-${meetingId}`,
-        requestHash: `hash-${meetingId}`,
-        authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
-        initialState: {},
-        createdAt: 1
     };
 }
 

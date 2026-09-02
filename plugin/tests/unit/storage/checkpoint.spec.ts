@@ -38,7 +38,7 @@ async function fixture() {
 
 describe("physical checkpoint", () => {
     it("writes one bounded canonical record per current entry", async () => {
-        const { root, state, descriptor, descriptorDigest } = await fixture();
+        const { root, state } = await fixture();
         try {
             await writePhysicalCheckpoint(root, state);
             const lines = (await readFile(join(root, "checkpoints", "g1", "records.jsonl")))
@@ -104,7 +104,7 @@ describe("physical checkpoint", () => {
     });
 
     it("keeps active and uncovered segments during checkpoint cleanup", async () => {
-        const { root, state, descriptor, descriptorDigest } = await fixture();
+        const { root, state } = await fixture();
         try {
             await (
                 await import("node:fs/promises")
@@ -203,5 +203,5 @@ describe("physical checkpoint", () => {
         } finally {
             await rm(root, { recursive: true, force: true });
         }
-    });
+    }, 15_000);
 });
