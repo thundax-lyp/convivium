@@ -12,6 +12,7 @@ export type FaultPoint =
     | "checkpoint.page-write"
     | "checkpoint.page-sync"
     | "checkpoint.page-directory-sync"
+    | "checkpoint.generation-parent-directory-sync"
     | "checkpoint.root-write"
     | "checkpoint.root-sync"
     | "checkpoint.root-directory-sync"
@@ -95,23 +96,24 @@ export class ScriptedFileSystem implements FileSystemPort {
             },
             sync: async () => {
                 const role = this.pending.get(path);
-                const point: FaultPoint =
-                    role === "page"
-                        ? "checkpoint.page-directory-sync"
-                        : role === "root"
-                          ? "checkpoint.root-directory-sync"
-                          : role === "pointer"
-                            ? "checkpoint.pointer-directory-sync"
-                            : path.endsWith("checkpoint-pointer.json.tmp")
-                              ? "checkpoint.pointer-temp-sync"
-                              : path.endsWith("root.json")
-                                ? "checkpoint.root-sync"
-                                : path.endsWith("records.jsonl") ||
-                                    /\/segments\/\d{20}\.jsonl$/.test(path)
-                                  ? "checkpoint.page-sync"
-                                  : path.endsWith(".tmp")
-                                    ? "replace.temp-sync"
-                                    : "replace.directory-sync";
+                const point: FaultPoint = path.endsWith("/checkpoints")
+                    ? "checkpoint.generation-parent-directory-sync"
+                    : role === "page"
+                      ? "checkpoint.page-directory-sync"
+                      : role === "root"
+                        ? "checkpoint.root-directory-sync"
+                        : role === "pointer"
+                          ? "checkpoint.pointer-directory-sync"
+                          : path.endsWith("checkpoint-pointer.json.tmp")
+                            ? "checkpoint.pointer-temp-sync"
+                            : path.endsWith("root.json")
+                              ? "checkpoint.root-sync"
+                              : path.endsWith("records.jsonl") ||
+                                  /\/segments\/\d{20}\.jsonl$/.test(path)
+                                ? "checkpoint.page-sync"
+                                : path.endsWith(".tmp")
+                                  ? "replace.temp-sync"
+                                  : "replace.directory-sync";
                 const e = this.mark(point, path);
                 if (e) throw e;
                 await base.sync();

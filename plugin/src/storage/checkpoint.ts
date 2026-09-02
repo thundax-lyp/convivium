@@ -63,6 +63,7 @@ export async function writePhysicalCheckpoint(
         await recordsHandle.close();
     }
     await syncDirectory(dir, fs);
+    await syncDirectory(join(root, "checkpoints"), fs);
     const verified = await readJsonl(join(dir, "records.jsonl"), "immutable", fs);
     if (
         verified.length !==

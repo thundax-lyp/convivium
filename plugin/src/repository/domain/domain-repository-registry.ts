@@ -180,7 +180,8 @@ export class DomainRepositoryRegistry {
         }
         const first = domain.table("commits").get("00000000000000000001");
         if (catalog.status === "ready") {
-            if (!creation || creation.status !== "ready" || !first)
+            const checkpoint = domain.table("checkpoint_pointer").get("current");
+            if (!creation || creation.status !== "ready" || (!first && !checkpoint))
                 throw corrupt(catalog.meetingId, "Ready meeting is missing seq one");
             try {
                 loadProjection({ domain });

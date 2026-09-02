@@ -53,6 +53,19 @@ describe("physical checkpoint", () => {
         }
     });
 
+    it("syncs the checkpoint generation parent before publishing", async () => {
+        const { root, state } = await fixture();
+        const fs = new ScriptedFileSystem();
+        try {
+            await writePhysicalCheckpoint(root, state, fs);
+            expect(fs.calls("checkpoint.generation-parent-directory-sync")).toEqual([
+                { paths: [join(root, "checkpoints")] }
+            ]);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
     it("publishes pointer only after records and root verify", async () => {
         const { root, state, descriptor, descriptorDigest } = await fixture();
         try {
