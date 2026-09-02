@@ -13,7 +13,7 @@ export type { Config as ConfigType } from "./config.js";
 
 export const name = "convivium";
 
-export const inject = [
+const meetingServices = [
     "agents",
     "sessions",
     "subagents",
@@ -22,6 +22,8 @@ export const inject = [
     "workspaceRegistry",
     "webServer"
 ] as const;
+
+export const inject = [] as const;
 
 export function assertContinuableProvider(
     ctx: Pick<Context, "subagents">,
@@ -32,8 +34,18 @@ export function assertContinuableProvider(
 
 const meetingConsumerPlugin = {
     name: "convivium-meeting-consumer",
-    inject: ["storageDomain"] as const,
+    inject: [...meetingServices, "storageDomain"] as const,
     apply(ctx: Context, config: ConfigType): void {
+        assertContinuableProvider(ctx, config.provider);
+        if (
+            typeof ctx.tools?.register !== "function" ||
+            typeof ctx.subagents?.startContinuable !== "function" ||
+            typeof ctx.subagents?.listChildren !== "function" ||
+            typeof ctx.subagents?.interrupt !== "function" ||
+            typeof ctx.subagents?.drainContinuableChildren !== "function"
+        ) {
+            return;
+        }
         const runtime = createCreateStatusRuntime({
             storageDomain: ctx.storageDomain,
             provider: config.provider,
@@ -78,17 +90,6 @@ const meetingConsumerPlugin = {
 };
 
 export async function apply(ctx: Context, config: ConfigType): Promise<void> {
-    assertContinuableProvider(ctx, config.provider);
-
-    if (
-        typeof ctx.tools?.register !== "function" ||
-        typeof ctx.subagents?.startContinuable !== "function" ||
-        typeof ctx.subagents?.listChildren !== "function" ||
-        typeof ctx.subagents?.interrupt !== "function" ||
-        typeof ctx.subagents?.drainContinuableChildren !== "function"
-    ) {
-        return;
-    }
     await ctx.plugin(jsonlStoragePlugin, {
         root: resolve(process.cwd(), config.dataRoot ?? ".convivium", "storage")
     });

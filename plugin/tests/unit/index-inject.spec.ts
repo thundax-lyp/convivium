@@ -12,17 +12,8 @@ const config = {
 };
 
 describe("Convivium host inject", () => {
-    it("uses the DSH 0.1.1-rc.2 Context service keys rather than package names", () => {
-        expect(inject).toEqual([
-            "agents",
-            "sessions",
-            "subagents",
-            "systemPrompt",
-            "tools",
-            "workspaceRegistry",
-            "webServer"
-        ]);
-        expect(inject.some((service) => service.startsWith("@deepseek-ai/"))).toBe(false);
+    it("keeps the top-level compositor dependency-free", () => {
+        expect(inject).toEqual([]);
     });
 });
 
@@ -69,7 +60,6 @@ describe("Convivium continuable provider gate", () => {
         };
 
         expect(assertContinuableProvider(ctx as never, "spawn")).toBe(provider);
-        await expect(apply(ctx as never, config)).resolves.toBeUndefined();
     });
 
     it("exposes the same non-creating capability gate through the session adapter", () => {
@@ -115,6 +105,18 @@ describe("Convivium local Meeting route lifecycle", () => {
             ) {
                 childOrder.push(plugin.name ?? "anonymous");
                 if (plugin.name === "convivium-meeting-consumer") {
+                    expect(plugin).toMatchObject({
+                        inject: [
+                            "agents",
+                            "sessions",
+                            "subagents",
+                            "systemPrompt",
+                            "tools",
+                            "workspaceRegistry",
+                            "webServer",
+                            "storageDomain"
+                        ]
+                    });
                     await plugin.apply(
                         { ...ctx, storageDomain: createFakeDomainFacility() },
                         value
