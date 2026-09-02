@@ -3,11 +3,10 @@ import {
     followupManagerSession,
     followupMeetingMailSession,
     followupMeetingTaskSession,
-    followupParticipantSession,
-    type ContinuableFollowupRuntime
+    followupParticipantSession
 } from "../../dsh/index.js";
 import type { SessionId } from "@deepseek-ai/dsh-session";
-import type { SubagentInterruptAuthority } from "@deepseek-ai/dsh-subagent";
+import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import { isParticipantDispatchableNow, type MeetingState } from "../../domain/index.js";
 import {
     projectManagerMeetingContext,
@@ -60,7 +59,7 @@ function requireDispatchableMeeting(
 }
 
 export interface MeetingDeliveryDispatcherOptions {
-    readonly continuable: ContinuableFollowupRuntime;
+    readonly continuable: Pick<SubagentRuntime, "followup">;
     readonly now?: () => number;
 }
 
@@ -80,9 +79,8 @@ export interface MeetingDeliveryDispatcher {
 export async function scanMeetingMailTimeouts(input: {
     readonly repository: MeetingRepositoryRuntime;
     readonly parent: Agent;
-    readonly continuable: ContinuableFollowupRuntime & {
-        interrupt?: (id: SessionId, authority: SubagentInterruptAuthority) => void;
-    };
+    readonly continuable: Pick<SubagentRuntime, "followup"> &
+        Partial<Pick<SubagentRuntime, "interrupt">>;
     readonly now: number;
 }): Promise<number> {
     const overdue = await input.repository.listOverduePrivateMeetingMail(input.now);

@@ -83,10 +83,11 @@ describe("Convivium local Meeting route lifecycle", () => {
     function host(host: "127.0.0.1" | "0.0.0.0") {
         const routeDispose = vi.fn();
         const register = vi.fn(() => routeDispose);
-        let lifecycleDispose: (() => void | Promise<void>) | undefined;
+        const effects: Array<() => void | Promise<void>> = [];
+        const toolDisposers: Array<ReturnType<typeof vi.fn>> = [];
         const ctx = {
             effect(setup: () => () => void | Promise<void>) {
-                lifecycleDispose = setup();
+                effects.push(setup());
             },
             agents: { get: () => undefined },
             subagents: {
@@ -98,11 +99,25 @@ describe("Convivium local Meeting route lifecycle", () => {
                 interrupt: () => undefined,
                 drainContinuableChildren: async () => undefined
             },
-            tools: { register: vi.fn(() => vi.fn()) },
+            tools: {
+                register: vi.fn(() => {
+                    const disposer = vi.fn();
+                    toolDisposers.push(disposer);
+                    return disposer;
+                })
+            },
             webServer: { host, register }
         };
         apply(ctx as never, config);
-        return { register, routeDispose, dispose: () => lifecycleDispose?.() };
+        return {
+            register,
+            routeDispose,
+            effects,
+            toolDisposers,
+            dispose: async () => {
+                for (const effect of [...effects].reverse()) await effect();
+            }
+        };
     }
 
     it("registers and disposes exactly one prefix on loopback", async () => {
@@ -112,13 +127,20 @@ describe("Convivium local Meeting route lifecycle", () => {
             kind: "prefix",
             path: "/api/convivium/meetings"
         });
+        expect(fixture.effects).toHaveLength(19);
+        expect(fixture.register).toHaveBeenCalledTimes(1);
         await fixture.dispose();
         expect(fixture.routeDispose).toHaveBeenCalledTimes(1);
+        expect(fixture.toolDisposers).toHaveLength(17);
+        for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
     it("does not register Meeting routes on all interfaces", async () => {
         const fixture = host("0.0.0.0");
         expect(fixture.register).not.toHaveBeenCalled();
+        expect(fixture.effects).toHaveLength(18);
         await fixture.dispose();
+        expect(fixture.toolDisposers).toHaveLength(17);
+        for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 });

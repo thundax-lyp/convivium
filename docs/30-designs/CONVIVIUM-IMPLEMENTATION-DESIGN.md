@@ -34,6 +34,8 @@ V1 固定运行于单个本地 DSH Host，并只面向该 Host 的一位本地�
 - [Architecture](../00-governance/ARCHITECTURE.md)
 - [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
 - [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)
+- [Meeting Agent Role Catalog Interface](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)
+- [Meeting Agent Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)
 - [Domain Model Design](./DOMAIN-MODEL-DESIGN.md)
 - [Meeting Orchestration Design](./MEETING-ORCHESTRATION-DESIGN.md)
 
@@ -86,9 +88,9 @@ Convivium 是一个职责闭合的树外 DSH bundle，因此保持单 package，
 
 同一个 package 提供两个构建面：
 
-| Face | Source entry | Published entry | Runtime |
-|---|---|---|---|
-| Host | `src/index.ts` | `lib/index.js`、`lib/types/index.d.ts` | DSH Host / Node.js |
+| Face   | Source entry           | Published entry                                | Runtime                  |
+| ------ | ---------------------- | ---------------------------------------------- | ------------------------ |
+| Host   | `src/index.ts`         | `lib/index.js`、`lib/types/index.d.ts`         | DSH Host / Node.js       |
 | Client | `src/client/index.tsx` | `lib/client.js`、`lib/types/client/index.d.ts` | DSH Web Client / Browser |
 
 `package.json` MUST：
@@ -132,33 +134,35 @@ domain     ──> no infrastructure module
 
 ### Module map
 
-| Path | Required responsibility |
-|---|---|
-| `src/config.ts` | 插件配置 Schema、默认值和启动期能力检查 |
-| `src/protocol/*` | Interface 对应的 Host/Client 共享 transport 类型、常量和无副作用 codec |
-| `src/domain/model.ts` | Meeting 聚合、值对象和领域 read model |
-| `src/domain/transitions.ts` | 唯一领域状态转换集合 |
-| `src/domain/planning.ts` | candidate filtering、selection mode、turn plan 校验 |
-| `src/domain/completion.ts` | 完成事实、停滞和终止派生计算 |
-| `src/domain/errors.ts` | 内部领域错误分类；由 transport 映射为协议错误 |
-| `src/repository/schema.ts` | 当前完整 DDL、索引和 schema version |
-| `src/repository/migrations.ts` | 线性、事务化、不可跳级的 migration registry |
-| `src/repository/meeting-repository.ts` | 事务、聚合读写、receipt、event 和 outbox 原子提交 |
-| `src/runtime/application-service.ts#repositoryPath` | 当前 `teamId/meetingId` 物理路径解析；调用方不得复制该规则 |
-| `src/runtime/application-service.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime |
-| `src/runtime/turn-runner.ts` | Manager plan、逐 speaker dispatch、submit 和下一 step 推进 |
-| `src/runtime/outbox-worker.ts` | 提交后 DSH 副作用、重投和结果回写 |
-| `src/runtime/mail-processor.ts` | meeting-scoped mail context 固化和独立处理 attempt |
-| `src/runtime/recovery.ts` | 冷启动扫描、租约回收、outbox 恢复和 orphan 归属修复 |
-| `src/runtime/archive.ts` | 终态快照、capability revoke、Activation drain 和 archived commit |
-| `src/dsh/session-adapter.ts` | meeting-owned Session 创建、followup、interrupt、drain 和枚举 |
-| `src/domain/meeting-task.ts` | MeetingTask、HandRaise、状态转换和 task projection 的纯领域逻辑 |
-| `src/dsh/caller-resolver.ts` | 将真实 DSH caller Session 解析为 Captain、Manager 或 Participant |
-| `src/tools/register-tools.ts` | 注册 `convivium_*` 工具并绑定协议 Schema |
-| `src/http/index.ts` | 仅在 loopback Host 注册 `/api/convivium/*`；提供本地 Meeting list、status、pause 和 resume transport |
-| `src/projection/status.ts` | caller-specific Meeting status projection |
-| `src/projection/markdown.ts` | SQLite 到开发者 Markdown 的 best-effort 单向生成 |
-| `src/client/*` | 状态读取、暂停/继续控制和会议 UI |
+| Path                                                           | Required responsibility                                                                              |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/config.ts`                                                | 插件配置 Schema、默认值和启动期能力检查                                                              |
+| `src/protocol/*`                                               | Interface 对应的 Host/Client 共享 transport 类型、常量和无副作用 codec                               |
+| `src/domain/model.ts`                                          | Meeting 聚合、值对象和领域 read model                                                                |
+| `src/domain/transitions.ts`                                    | 唯一领域状态转换集合                                                                                 |
+| `src/domain/planning.ts`                                       | candidate filtering、selection mode、turn plan 校验                                                  |
+| `src/domain/completion.ts`                                     | 完成事实、停滞和终止派生计算                                                                         |
+| `src/domain/errors.ts`                                         | 内部领域错误分类；由 transport 映射为协议错误                                                        |
+| `src/repository/schema.ts`                                     | 当前完整 DDL、索引和 schema version                                                                  |
+| `src/repository/migrations.ts`                                 | 线性、事务化、不可跳级的 migration registry                                                          |
+| `src/repository/meeting-repository.ts`                         | 事务、聚合读写、receipt、event 和 outbox 原子提交                                                    |
+| `src/runtime/application-service.ts#repositoryPath`            | 当前 `teamId/meetingId` 物理路径解析；调用方不得复制该规则                                           |
+| `src/runtime/application-service.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime                         |
+| `src/runtime/turn-runner.ts`                                   | Manager plan、逐 speaker dispatch、submit 和下一 step 推进                                           |
+| `src/runtime/outbox-worker.ts`                                 | 提交后 DSH 副作用、重投和结果回写                                                                    |
+| `src/runtime/mail-processor.ts`                                | meeting-scoped mail context 固化和独立处理 attempt                                                   |
+| `src/runtime/recovery.ts`                                      | 冷启动扫描、租约回收、outbox 恢复和 orphan 归属修复                                                  |
+| `src/runtime/archive.ts`                                       | 终态快照、capability revoke、Activation drain 和 archived commit                                     |
+| `src/dsh/session-adapter.ts`                                   | meeting-owned Session 创建、followup、interrupt、drain 和枚举                                        |
+| `examples/meeting-agent-definitions/*`                         | 不进入发布包的 Convivium Meeting Agent Definition 固定样本；不表示 DSH capability 已安装             |
+| `scripts/verify-agent-definition-samples.mjs`                  | 校验九个固定 Definition、文件集合和 AGENT.md hash                                                    |
+| `src/domain/meeting-task.ts`                                   | MeetingTask、HandRaise、状态转换和 task projection 的纯领域逻辑                                      |
+| `src/dsh/caller-resolver.ts`                                   | 将真实 DSH caller Session 解析为 Captain、Manager 或 Participant                                     |
+| `src/tools/register-tools.ts`                                  | 注册 `convivium_*` 工具并绑定协议 Schema                                                             |
+| `src/http/index.ts`                                            | 仅在 loopback Host 注册 `/api/convivium/*`；提供本地 Meeting list、status、pause 和 resume transport |
+| `src/projection/status.ts`                                     | caller-specific Meeting status projection                                                            |
+| `src/projection/markdown.ts`                                   | SQLite 到开发者 Markdown 的 best-effort 单向生成                                                     |
+| `src/client/*`                                                 | 状态读取、暂停/继续控制和会议 UI                                                                     |
 
 上述文件可以在实现增长后拆分，但不得跨越职责边界或创建第二个 Meeting 写入口。
 
@@ -181,9 +185,9 @@ Convivium 支持的最低 Node 版本必须覆盖所用 `node:sqlite` API。插�
 
 ```ts
 interface Migration {
-  from: number
-  to: number
-  apply(db: SqliteConnection): void
+  from: number;
+  to: number;
+  apply(db: SqliteConnection): void;
 }
 ```
 
@@ -204,14 +208,16 @@ Runtime 只通过以下语义级 API 读写：
 
 ```ts
 interface MeetingRepository {
-  create(input: CreateMeetingRecord): Promise<MeetingSnapshot>
-  updateCreateResult(input: UpdateCreateResultInput): Promise<CreateMeetingResult>
-  read(meetingId: string): Promise<MeetingSnapshot>
-  execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>
-  claimOutbox(batchSize: number, lease: WorkerLease): Promise<OutboxItem[]>
-  completeOutbox(result: OutboxCompletion): Promise<void>
-  recover(now: number): Promise<RecoverySnapshot>
-  close(): Promise<void>
+  create(input: CreateMeetingRecord): Promise<MeetingSnapshot>;
+  updateCreateResult(
+    input: UpdateCreateResultInput,
+  ): Promise<CreateMeetingResult>;
+  read(meetingId: string): Promise<MeetingSnapshot>;
+  execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>;
+  claimOutbox(batchSize: number, lease: WorkerLease): Promise<OutboxItem[]>;
+  completeOutbox(result: OutboxCompletion): Promise<void>;
+  recover(now: number): Promise<RecoverySnapshot>;
+  close(): Promise<void>;
 }
 ```
 
@@ -247,14 +253,16 @@ interface MeetingRepository {
 
 ```ts
 interface MeetingSessionAdapter {
-  createManager(input: CreateManagerSession): Promise<OwnedSession>
-  createParticipant(input: CreateParticipantSession): Promise<OwnedSession>
-  followup(input: AuthorizedFollowup): Promise<DeliveryResult>
-  interrupt(input: AuthorizedInterrupt): Promise<InterruptResult>
-  drain(input: AuthorizedDrain): Promise<DrainResult>
-  inspectOwnedSessions(meetingId: string): Promise<OwnedSessionObservation[]>
+  createManager(input: CreateManagerSession): Promise<OwnedSession>;
+  createParticipant(input: CreateParticipantSession): Promise<OwnedSession>;
+  followup(input: AuthorizedFollowup): Promise<DeliveryResult>;
+  interrupt(input: AuthorizedInterrupt): Promise<InterruptResult>;
+  drain(input: AuthorizedDrain): Promise<DrainResult>;
+  inspectOwnedSessions(meetingId: string): Promise<OwnedSessionObservation[]>;
 }
 ```
+
+Meeting Agent Definition resolution 与 per-child DSH preset composition 尚未接线；在 DSH 提供公开且可验证的 per-child preset API 前，`MeetingSessionAdapter` 保持当前创建、followup、interrupt、drain 和 ownership 行为。
 
 禁止其他模块直接调用 DSH subagent `spawn`、`followup`、`interrupt`、`listChildren`、`listDescendants`、`drainContinuableChildren` 或 `drainContinuableDescendants`。
 
@@ -362,17 +370,17 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 
 ## State And Failure Handling
 
-| Failure | Required handling |
-|---|---|
-| SQLite busy | 在 `busy_timeout` 后返回可重试错误，不在 Runtime 无限重试 |
-| Unknown schema version | 隔离该 Meeting 并拒绝恢复 |
-| DSH unavailable during dispatch | outbox 保持可重试；Meeting 按领域规则进入 waiting 或 failure |
-| Session created but ownership write failed | recovery 通过 bootstrap 和 label 关联；无法证明归属时不操作该 Session |
-| Delivery succeeded but completion write failed | 使用稳定 delivery ID 重投/查询；提交端幂等 receipt 防止重复 message |
-| Late speaker or manager result | 当前 capability 校验失败，记录 rejected observation，不修改正式事实 |
-| Markdown generation failed | 记录日志并继续；不影响正式状态 |
-| Required speaker not dispatchable | 返回 Interface 定义的结构化错误，不自动换人 |
-| Process crash | 回滚未提交事务；恢复过期 lease、未完成 outbox 和非终态 Meeting |
+| Failure                                        | Required handling                                                     |
+| ---------------------------------------------- | --------------------------------------------------------------------- |
+| SQLite busy                                    | 在 `busy_timeout` 后返回可重试错误，不在 Runtime 无限重试             |
+| Unknown schema version                         | 隔离该 Meeting 并拒绝恢复                                             |
+| DSH unavailable during dispatch                | outbox 保持可重试；Meeting 按领域规则进入 waiting 或 failure          |
+| Session created but ownership write failed     | recovery 通过 bootstrap 和 label 关联；无法证明归属时不操作该 Session |
+| Delivery succeeded but completion write failed | 使用稳定 delivery ID 重投/查询；提交端幂等 receipt 防止重复 message   |
+| Late speaker or manager result                 | 当前 capability 校验失败，记录 rejected observation，不修改正式事实   |
+| Markdown generation failed                     | 记录日志并继续；不影响正式状态                                        |
+| Required speaker not dispatchable              | 返回 Interface 定义的结构化错误，不自动换人                           |
+| Process crash                                  | 回滚未提交事务；恢复过期 lease、未完成 outbox 和非终态 Meeting        |
 
 恢复扫描只读取 data root 下能通过当前 locator 校验的 Meeting repository。单个 Meeting 损坏不得阻止其他 Meeting 的 Agent best-effort 恢复；需要完整一致结果的本地 list 按 Interface 整体失败。全局配置或 DSH capability 缺失则阻止插件加载。
 
@@ -389,15 +397,15 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 
 ### Test layers
 
-| Test path | Minimum coverage |
-|---|---|
-| `tests/unit/domain` | 状态转换、speaker selection、议题漂移、完成/硬限制顺序、停滞和终止 |
-| `tests/unit/repository` | DDL、migration、事务回滚、version CAS、receipt 和 outbox |
-| `tests/contract` | 所有 `convivium_*` Schema、caller binding、错误、package manifest 和 projection |
-| `tests/integration/dsh` | create/followup/interrupt/drain、capability revoke 和迟到结果 |
-| `tests/integration/runtime` | 创建、连续 turn、后台任务、mail、暂停/继续和归档 |
-| `tests/recovery` | 每个事务边界 crash、orphan Session、lease expiry 和重复 delivery |
-| `tests/stress` | 并发命令、长任务、重复提交、多 Meeting 隔离和冷恢复 |
+| Test path                   | Minimum coverage                                                                |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `tests/unit/domain`         | 状态转换、speaker selection、议题漂移、完成/硬限制顺序、停滞和终止              |
+| `tests/unit/repository`     | DDL、migration、事务回滚、version CAS、receipt 和 outbox                        |
+| `tests/contract`            | 所有 `convivium_*` Schema、caller binding、错误、package manifest 和 projection |
+| `tests/integration/dsh`     | create/followup/interrupt/drain、capability revoke 和迟到结果                   |
+| `tests/integration/runtime` | 创建、连续 turn、后台任务、mail、暂停/继续和归档                                |
+| `tests/recovery`            | 每个事务边界 crash、orphan Session、lease expiry 和重复 delivery                |
+| `tests/stress`              | 并发命令、长任务、重复提交、多 Meeting 隔离和冷恢复                             |
 
 Host 测试运行在 Node.js；Client 测试运行在 browser-compatible test environment，分别验证 HTTP controller、locale、组件生命周期和 disposer。测试不得通过导入 Host 实现来伪造 Client contract。
 

@@ -36,6 +36,8 @@
 - 仓库级边界：[`../00-governance/ARCHITECTURE.md`](../00-governance/ARCHITECTURE.md)。
 - 正式需求：[`../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)。
 - Agent 间会议协议：[`../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)。
+- Agent 角色目录与参会推荐：[`../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md`](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)。
+- Meeting Agent Definition：[`../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)。
 - Domain 数据结构唯一真相源：[`DOMAIN-MODEL-DESIGN.md`](./DOMAIN-MODEL-DESIGN.md)。
 - 源码落点与接线：[`CONVIVIUM-IMPLEMENTATION-DESIGN.md`](./CONVIVIUM-IMPLEMENTATION-DESIGN.md)。
 - 增量实现的范围控制：[`MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md`](./MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md)。
@@ -45,31 +47,33 @@
 
 需求到设计的主映射如下；公开字段和错误以 Interface 为准，本文只说明实现方式：
 
-| Requirement area | Interface boundary | Design section |
-|---|---|---|
-| 身份隔离与有序发言 | caller binding、speaker/manager context、turn submission | 4、5、9、10 |
-| 异步任务与私聊 | background task、hand raise、mailbox extension | 9、11 |
-| 议题、决策与完成 | public changes、completion claims、risk disposition | 6、12、13、16.2 |
-| 暂停、恢复与故障隔离 | pause/resume、receipts、errors | 7、8、10.3、14 |
-| 事件与可观察性 | status projection、refresh contract | 17 |
-| 归档与续会 | archive projection、continuation selection | 15 |
+| Requirement area         | Interface boundary                                                 | Design section  |
+| ------------------------ | ------------------------------------------------------------------ | --------------- |
+| 身份隔离与有序发言       | caller binding、speaker/manager context、turn submission           | 4、5、9、10     |
+| 异步任务与私聊           | background task、hand raise、mailbox extension                     | 9、11           |
+| 议题、决策与完成         | public changes、completion claims、risk disposition                | 6、12、13、16.2 |
+| Agent 角色与参会推荐     | catalog projection、recommendation、Captain disposition、admission | 12.5、16        |
+| Meeting Agent Definition | Convivium role configuration 与 DSH capability ownership boundary  | 4.3、4.4、12.5  |
+| 暂停、恢复与故障隔离     | pause/resume、receipts、errors                                     | 7、8、10.3、14  |
+| 事件与可观察性           | status projection、refresh contract                                | 17              |
+| 归档与续会               | archive projection、continuation selection                         | 15              |
 
 ## 3. Terminology And Invariants
 
 ### 3.1 Terminology
 
-| 名称 | 定义 |
-|---|---|
-| Meeting | 围绕明确 objective contract 持续演进的共享会议 |
-| Participant | 某场会议中的发言身份，不等于 TeamMember 或底层 Agent |
-| Manager | 每场会议独立的编排 Agent，不是 Participant |
-| Turn | Manager 围绕一个议题规划的有序发言周期 |
-| SpeakerStep | Turn 中一个计划内发言位置 |
-| SpeakerAttempt | 对当前 SpeakerStep 的一次实际 Agent 请求 |
-| MeetingMessage | 通过合法 SpeakerAttempt 提交的正式会议发言 |
-| MeetingTask | 由 Convivium 拥有、复用 Participant continuable Session 执行的会议异步任务 |
-| HandRaise | Agent 请求进入后续 turn 的结构化调度信号 |
-| Outbox | SQLite 事务提交后需要执行的 Agent 请求、事件或清理动作 |
+| 名称           | 定义                                                                       |
+| -------------- | -------------------------------------------------------------------------- |
+| Meeting        | 围绕明确 objective contract 持续演进的共享会议                             |
+| Participant    | 某场会议中的发言身份，不等于 TeamMember 或底层 Agent                       |
+| Manager        | 每场会议独立的编排 Agent，不是 Participant                                 |
+| Turn           | Manager 围绕一个议题规划的有序发言周期                                     |
+| SpeakerStep    | Turn 中一个计划内发言位置                                                  |
+| SpeakerAttempt | 对当前 SpeakerStep 的一次实际 Agent 请求                                   |
+| MeetingMessage | 通过合法 SpeakerAttempt 提交的正式会议发言                                 |
+| MeetingTask    | 由 Convivium 拥有、复用 Participant continuable Session 执行的会议异步任务 |
+| HandRaise      | Agent 请求进入后续 turn 的结构化调度信号                                   |
+| Outbox         | SQLite 事务提交后需要执行的 Agent 请求、事件或清理动作                     |
 
 ### 3.2 Required invariants
 
@@ -101,15 +105,15 @@
 - `client/*` 作为 DSH 插件前端，只消费插件后端 projection，不拥有会议领域状态。
 - 外部参考源码、文档、发布记录、品牌、协议名和持久化格式不得复制到 `plugin/`。
 
-| 文件或模块 | 职责 |
-|---|---|
-| `src/domain/*` | Meeting、Participant、Turn、Agenda、Decision 和终止状态机 |
-| `src/repository/*` | SQLite schema、事务、迁移、幂等收据和 outbox |
-| `src/runtime/*` | Manager、speaker、mail、任务和恢复编排 |
-| `src/dsh/*` | DSH Session、subagent、工具和生命周期适配 |
-| `src/http/*` | 类型化状态读取与人类控制路由 |
-| `src/projection/*` | 前端状态和开发者 Markdown 的单向投影 |
-| `src/client/*` | 会议时间线、议题、当前 speaker、等待和归档视图 |
+| 文件或模块         | 职责                                                      |
+| ------------------ | --------------------------------------------------------- |
+| `src/domain/*`     | Meeting、Participant、Turn、Agenda、Decision 和终止状态机 |
+| `src/repository/*` | SQLite schema、事务、迁移、幂等收据和 outbox              |
+| `src/runtime/*`    | Manager、speaker、mail、任务和恢复编排                    |
+| `src/dsh/*`        | DSH Session、subagent、工具和生命周期适配                 |
+| `src/http/*`       | 类型化状态读取与人类控制路由                              |
+| `src/projection/*` | 前端状态和开发者 Markdown 的单向投影                      |
+| `src/client/*`     | 会议时间线、议题、当前 speaker、等待和归档视图            |
 
 ### 4.2 Session hierarchy
 
@@ -140,7 +144,7 @@ createMeetingAgentSession(input: {
   toolFilter: ToolFilter
   provider: string
   model?: string
-  reasoningEffort?: string
+  maxTokens?: number
   signal: AbortSignal
 }): Promise<{ sessionId: SessionId; initialMessageId: MessageId }>
 ```
@@ -167,6 +171,12 @@ convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
 
 这些 label 同时是冷恢复时的 ownership 证明。Runtime 只能操作由上述命名空间创建、且能够解析出完整 `teamId`、`meetingId` 和身份 ID 的 Session；不得根据模糊前缀或显示名称中断、关闭 Session 或撤销 capability。
 
+### 4.4 Meeting Agent Definition boundary
+
+Convivium 拥有 Meeting Agent Definition、会议身份、选择、批准和 Session ownership；DSH 拥有 Agent Preset、Skills、Tools、MCP、Sandbox、Approval、模型配置、capability composition 和 AgentSession runtime。Definition 只引用 `dshPresetId`、声明 `requiredSkillNames`、提供 persona，并可用 DSH 原生 `ToolRestriction` 收窄工具。
+
+当前 DSH `0.1.1-rc.2` 的 continuable child 自动继承 parent preset，公开 request 不能选择不同 preset。因此 Definition resolution、Preset/Skill validation 和差异化 Session provisioning 尚未接线；本设计禁止用 Prompt-only、persona-only 或 Convivium 自建 installer 绕过该缺口。
+
 ## 5. Runtime Model
 
 本节的核心 Domain 数据结构唯一真相源为 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md)。本设计只描述状态转换、调度、持久化、恢复、归档和跨边界流程。
@@ -177,134 +187,136 @@ convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
 
 ```ts
 type MeetingStatus =
-  | 'created'
-  | 'running'
-  | 'waiting'
-  | 'paused'
-  | 'converging'
-  | 'completed'
-  | 'partial'
-  | 'no_consensus'
-  | 'cancelled'
-  | 'failed'
-  | 'archiving'
-  | 'archived'
+  | "created"
+  | "running"
+  | "waiting"
+  | "paused"
+  | "converging"
+  | "completed"
+  | "partial"
+  | "no_consensus"
+  | "cancelled"
+  | "failed"
+  | "archiving"
+  | "archived";
 
 interface MeetingParticipant {
-  id: string
-  sourceMemberName?: string
-  displayName: string
-  role?: string
-  agentSessionId: string
-  status: 'available' | 'busy' | 'speaking' | 'unavailable' | 'failed' | 'removed'
+  id: string;
+  sourceMemberName?: string;
+  displayName: string;
+  role?: string;
+  agentSessionId: string;
+  status:
+    "available" | "busy" | "speaking" | "unavailable" | "failed" | "removed";
 
-  lastDeliveredSeq: number
-  lastAcknowledgedSeq: number
-  lastSpokeTurn?: number
-  consecutiveSpeeches: number
-  consecutiveAttemptFailures: number
-  totalSpeeches: number
+  lastDeliveredSeq: number;
+  lastAcknowledgedSeq: number;
+  lastSpokeTurn?: number;
+  consecutiveSpeeches: number;
+  consecutiveAttemptFailures: number;
+  totalSpeeches: number;
 
-  permissions: string[]
+  permissions: string[];
 }
 
-type MeetingSelectionMode = 'round_robin' | 'rule_based' | 'manager' | 'hybrid'
+type MeetingSelectionMode = "round_robin" | "rule_based" | "manager" | "hybrid";
 
 interface MeetingState {
-  id: string
-  teamId: string
-  sourceMeetingId?: string
-  topic: string
-  objective: string
-  objectiveContract: MeetingObjectiveContract
-  status: MeetingStatus
+  id: string;
+  teamId: string;
+  sourceMeetingId?: string;
+  topic: string;
+  objective: string;
+  objectiveContract: MeetingObjectiveContract;
+  status: MeetingStatus;
 
-  manager: MeetingManagerRuntime
-  participants: MeetingParticipant[]
-  agenda: AgendaItem[]
-  activeAgendaItemId?: string
-  issues: MeetingIssue[]
-  agendaCandidates: AgendaCandidate[]
-  transcript: MeetingMessage[]
-  proposals: MeetingProposal[]
-  decisions: MeetingDecision[]
-  openQuestions: MeetingQuestion[]
-  handRaises: MeetingHandRaise[]
-  completionFacts: CompletionFact[]
-  continuationMaterials: ContinuationMaterial[]
+  manager: MeetingManagerRuntime;
+  participants: MeetingParticipant[];
+  agenda: AgendaItem[];
+  activeAgendaItemId?: string;
+  issues: MeetingIssue[];
+  agendaCandidates: AgendaCandidate[];
+  transcript: MeetingMessage[];
+  proposals: MeetingProposal[];
+  decisions: MeetingDecision[];
+  openQuestions: MeetingQuestion[];
+  handRaises: MeetingHandRaise[];
+  completionFacts: CompletionFact[];
+  continuationMaterials: ContinuationMaterial[];
 
-  turnSeq: number
-  messageSeq: number
-  eventSeq: number
-  currentTurn?: MeetingTurn
-  waitState?: MeetingWaitState
-  lastCommittedSpeaker?: string
+  turnSeq: number;
+  messageSeq: number;
+  eventSeq: number;
+  currentTurn?: MeetingTurn;
+  waitState?: MeetingWaitState;
+  lastCommittedSpeaker?: string;
 
-  progressFingerprint?: string
-  stallCount: number
-  replanCount: number
+  progressFingerprint?: string;
+  stallCount: number;
+  replanCount: number;
 
-  selectionMode: MeetingSelectionMode
-  limits: MeetingLimits
-  termination?: MeetingTermination
-  archive?: ArchiveRecord
+  selectionMode: MeetingSelectionMode;
+  limits: MeetingLimits;
+  termination?: MeetingTermination;
+  archive?: ArchiveRecord;
 
-  version: number
-  createdAt: number
-  updatedAt: number
+  version: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 interface ArchivePackage {
-  schemaVersion: 1
-  meetingId: string
-  teamId: string
-  sourceMeetingId?: string
-  objectiveContract: MeetingObjectiveContract
-  finalSummary: string
-  artifacts: ArchiveArtifactRef[]
-  acceptedDecisions: MeetingDecision[]
-  proposals: MeetingProposal[]
-  completionFacts: CompletionFact[]
-  agenda: AgendaItem[]
-  issues: MeetingIssue[]
-  unresolvedQuestions: MeetingQuestion[]
-  parkingLot: AgendaCandidate[]
-  formalTranscript: MeetingMessage[]
-  participantProvenance: ArchiveParticipantProvenance[]
-  managerPromptVersion: string
-  termination: MeetingTermination
-  endedAt: number
-  materializedAt: number
+  schemaVersion: 1;
+  meetingId: string;
+  teamId: string;
+  sourceMeetingId?: string;
+  objectiveContract: MeetingObjectiveContract;
+  finalSummary: string;
+  artifacts: ArchiveArtifactRef[];
+  acceptedDecisions: MeetingDecision[];
+  proposals: MeetingProposal[];
+  completionFacts: CompletionFact[];
+  agenda: AgendaItem[];
+  issues: MeetingIssue[];
+  unresolvedQuestions: MeetingQuestion[];
+  parkingLot: AgendaCandidate[];
+  formalTranscript: MeetingMessage[];
+  participantProvenance: ArchiveParticipantProvenance[];
+  managerPromptVersion: string;
+  termination: MeetingTermination;
+  endedAt: number;
+  materializedAt: number;
 }
 
 interface ArchiveRecord {
-  package: ArchivePackage
-  archivedAt?: number
+  package: ArchivePackage;
+  archivedAt?: number;
 }
 
 interface ContinuationMaterial {
-  sourceMeetingId: string
-  sourceKind: 'final_summary' | 'decision' | 'issue' | 'risk' | 'evidence' | 'artifact'
-  sourceObjectId?: string
-  summary: string
-  checksum?: string
+  sourceMeetingId: string;
+  sourceKind:
+    "final_summary" | "decision" | "issue" | "risk" | "evidence" | "artifact";
+  sourceObjectId?: string;
+  summary: string;
+  checksum?: string;
 }
 
 interface ArchiveArtifactRef {
-  artifactId: string
-  title: string
-  version?: string
-  checksum?: string
-  sourceTaskId?: string
-  uri?: string
+  artifactId: string;
+  title: string;
+  version?: string;
+  checksum?: string;
+  sourceTaskId?: string;
+  uri?: string;
 }
 
 interface ArchiveParticipantProvenance {
-  participantId: string
-  displayName: string
-  role?: string
-  sourceMemberName?: string
-  templateVersion?: string
+  participantId: string;
+  displayName: string;
+  role?: string;
+  sourceMemberName?: string;
+  templateVersion?: string;
 }
 ```
 
@@ -312,62 +324,71 @@ interface ArchiveParticipantProvenance {
 
 ```ts
 type TurnIntent =
-  | 'explore'
-  | 'clarify'
-  | 'challenge'
-  | 'review'
-  | 'resolve_objection'
-  | 'synthesize'
-  | 'decide'
-  | 'report_task_result'
-  | 'refocus'
+  | "explore"
+  | "clarify"
+  | "challenge"
+  | "review"
+  | "resolve_objection"
+  | "synthesize"
+  | "decide"
+  | "report_task_result"
+  | "refocus";
 
 interface MeetingTurn {
-  id: string
-  seq: number
-  agendaItemId: string
-  intent: TurnIntent
-  objective: string
-  expectedOutputs: string[]
-  prohibitedTopics: string[]
-  plan: readonly string[]
-  currentStepIndex: number
-  steps: SpeakerStep[]
-  status: 'planned' | 'running' | 'completed' | 'truncated' | 'cancelled' | 'failed'
-  createdAt: number
-  completedAt?: number
+  id: string;
+  seq: number;
+  agendaItemId: string;
+  intent: TurnIntent;
+  objective: string;
+  expectedOutputs: string[];
+  prohibitedTopics: string[];
+  plan: readonly string[];
+  currentStepIndex: number;
+  steps: SpeakerStep[];
+  status:
+    "planned" | "running" | "completed" | "truncated" | "cancelled" | "failed";
+  createdAt: number;
+  completedAt?: number;
 }
 
 interface SpeakerStep {
-  id: string
-  speaker: string
-  instruction: string
-  reason: SpeakerSelectionReason
-  status: 'pending' | 'assigned' | 'running' | 'submitted' | 'skipped' | 'revoked' | 'failed'
-  attempt?: SpeakerAttempt
+  id: string;
+  speaker: string;
+  instruction: string;
+  reason: SpeakerSelectionReason;
+  status:
+    | "pending"
+    | "assigned"
+    | "running"
+    | "submitted"
+    | "skipped"
+    | "revoked"
+    | "failed";
+  attempt?: SpeakerAttempt;
 }
 
 interface SpeakerAttempt {
-  attemptId: string
-  status: 'assigned' | 'running' | 'submitted' | 'revoked' | 'failed'
-  contextFromSeq: number
-  contextThroughSeq: number
-  deliveryId: string
-  deliveryStatus: 'pending' | 'accepted' | 'acknowledged' | 'failed'
-  taskSnapshots: MeetingTaskSnapshot[]
-  assignedAt: number
-  startedAt?: number
-  completedAt?: number
-  deadlineAt?: number
-  deliveredAt?: number
-  acknowledgedAt?: number
+  attemptId: string;
+  status: "assigned" | "running" | "submitted" | "revoked" | "failed";
+  contextFromSeq: number;
+  contextThroughSeq: number;
+  deliveryId: string;
+  deliveryStatus: "pending" | "accepted" | "acknowledged" | "failed";
+  taskSnapshots: MeetingTaskSnapshot[];
+  assignedAt: number;
+  startedAt?: number;
+  completedAt?: number;
+  deadlineAt?: number;
+  deliveredAt?: number;
+  acknowledgedAt?: number;
 }
 
 interface MeetingTaskSnapshot {
-  meetingTaskId: string
-  status: 'requested' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
-  resultSummary?: string
-  observedAt: number
+  meetingTaskId: string;
+  status:
+    "requested" | "queued" | "running" | "completed" | "failed" | "cancelled";
+  resultSummary?: string;
+  observedAt: number;
 }
 ```
 
@@ -377,27 +398,27 @@ interface MeetingTaskSnapshot {
 
 ```ts
 interface MeetingManagerRuntime {
-  promptVersion: string
-  status: 'creating' | 'idle' | 'planning' | 'failed' | 'closed'
-  currentPlanningAttempt?: ManagerPlanningAttempt
-  lastDecisionMeetingVersion?: number
+  promptVersion: string;
+  status: "creating" | "idle" | "planning" | "failed" | "closed";
+  currentPlanningAttempt?: ManagerPlanningAttempt;
+  lastDecisionMeetingVersion?: number;
 }
 
 interface ManagerPlanningAttempt {
-  id: string
-  observedMeetingVersion: number
+  id: string;
+  observedMeetingVersion: number;
   reason:
-    | 'initial_plan'
-    | 'next_turn'
-    | 'semantic_arbitration'
-    | 'refocus'
-    | 'stall'
-    | 'replan'
-    | 'termination_review'
-  status: 'pending' | 'running' | 'submitted' | 'revoked' | 'failed'
-  deliveryId: string
-  createdAt: number
-  deadlineAt?: number
+    | "initial_plan"
+    | "next_turn"
+    | "semantic_arbitration"
+    | "refocus"
+    | "stall"
+    | "replan"
+    | "termination_review";
+  status: "pending" | "running" | "submitted" | "revoked" | "failed";
+  deliveryId: string;
+  createdAt: number;
+  deadlineAt?: number;
 }
 ```
 
@@ -413,148 +434,173 @@ Manager persona MUST 明确：
 
 ```ts
 type AgendaRelation =
-  | 'on_topic'
-  | 'supporting_context'
-  | 'new_topic_candidate'
-  | 'blocking_interrupt'
+  | "on_topic"
+  | "supporting_context"
+  | "new_topic_candidate"
+  | "blocking_interrupt";
 
 interface MeetingMessage {
-  id: string
-  seq: number
-  turnSeq: number
-  turnId: string
-  stepId: string
-  attemptId: string
-  speaker: string
-  agendaItemId: string
-  agendaRelation: AgendaRelation
-  kind: 'statement' | 'question' | 'answer' | 'proposal' | 'objection'
-    | 'evidence' | 'review' | 'summary' | 'decision'
-  content: string
-  mentions: string[]
-  replyTo?: string
-  taskIds: string[]
-  createdAt: number
+  id: string;
+  seq: number;
+  turnSeq: number;
+  turnId: string;
+  stepId: string;
+  attemptId: string;
+  speaker: string;
+  agendaItemId: string;
+  agendaRelation: AgendaRelation;
+  kind:
+    | "statement"
+    | "question"
+    | "answer"
+    | "proposal"
+    | "objection"
+    | "evidence"
+    | "review"
+    | "summary"
+    | "decision";
+  content: string;
+  mentions: string[];
+  replyTo?: string;
+  taskIds: string[];
+  createdAt: number;
 }
 
 interface ParticipantPosition {
-  id: string
-  proposalId: string
-  participant: string
-  position: 'support' | 'accept' | 'object' | 'needs_revision' | 'abstain'
-  reason?: string
-  blocking: boolean
-  proposalRevision: number
-  updatedAt: number
+  id: string;
+  proposalId: string;
+  participant: string;
+  position: "support" | "accept" | "object" | "needs_revision" | "abstain";
+  reason?: string;
+  blocking: boolean;
+  proposalRevision: number;
+  updatedAt: number;
 }
 
 type SpeakerSelectionReason =
-  | 'explicit_mention'
-  | 'direct_question'
-  | 'required_reviewer'
-  | 'agenda_owner'
-  | 'task_result_owner'
-  | 'blocking_objection_owner'
-  | 'hand_raise'
-  | 'rule_score'
-  | 'manager_selected'
-  | 'round_robin_fallback'
-  | 'captain_summary'
+  | "explicit_mention"
+  | "direct_question"
+  | "required_reviewer"
+  | "agenda_owner"
+  | "task_result_owner"
+  | "blocking_objection_owner"
+  | "hand_raise"
+  | "rule_score"
+  | "manager_selected"
+  | "round_robin_fallback"
+  | "captain_summary";
 
 interface MeetingQuestion {
-  id: string
-  text: string
-  askedBy: string
-  directedTo?: string
-  agendaItemId: string
-  blocking: boolean
-  status: 'open' | 'answered' | 'withdrawn' | 'deferred'
-  answerMessageId?: string
-  createdAt: number
+  id: string;
+  text: string;
+  askedBy: string;
+  directedTo?: string;
+  agendaItemId: string;
+  blocking: boolean;
+  status: "open" | "answered" | "withdrawn" | "deferred";
+  answerMessageId?: string;
+  createdAt: number;
 }
 
 interface MeetingProposal {
-  id: string
-  title: string
-  description: string
-  proposedBy: string
-  agendaItemId: string
-  revision: number
-  status: 'draft' | 'under_review' | 'accepted' | 'rejected' | 'superseded'
-  positions: ParticipantPosition[]
-  createdAt: number
-  updatedAt: number
+  id: string;
+  title: string;
+  description: string;
+  proposedBy: string;
+  agendaItemId: string;
+  revision: number;
+  status: "draft" | "under_review" | "accepted" | "rejected" | "superseded";
+  positions: ParticipantPosition[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 interface MeetingDecision {
-  id: string
-  agendaItemId: string
-  proposalId: string
-  proposalRevision: number
-  statement: string
-  rationale: string
-  status: 'accepted' | 'superseded' | 'revoked'
-  acceptanceMode: 'deterministic_consensus' | 'captain_acceptance' | 'authorized_risk_acceptance'
-  acceptedBy: string[]
-  dissentingPositionIds: string[]
-  acceptanceFactIds: string[]
-  createdAt: number
+  id: string;
+  agendaItemId: string;
+  proposalId: string;
+  proposalRevision: number;
+  statement: string;
+  rationale: string;
+  status: "accepted" | "superseded" | "revoked";
+  acceptanceMode:
+    | "deterministic_consensus"
+    | "captain_acceptance"
+    | "authorized_risk_acceptance";
+  acceptedBy: string[];
+  dissentingPositionIds: string[];
+  acceptanceFactIds: string[];
+  createdAt: number;
 }
 
 interface DecisionProposalInput {
-  proposalId: string
-  proposalRevision: number
-  statement: string
-  rationale: string
+  proposalId: string;
+  proposalRevision: number;
+  statement: string;
+  rationale: string;
 }
 
 interface MeetingWaitState {
-  reason: 'blocking_task' | 'required_participant_unavailable' | 'captain_action'
-  taskIds: string[]
-  participantIds: string[]
-  waitingSince: number
-  deadlineAt?: number
-  resumeAgendaItemId?: string
+  reason:
+    "blocking_task" | "required_participant_unavailable" | "captain_action";
+  taskIds: string[];
+  participantIds: string[];
+  waitingSince: number;
+  deadlineAt?: number;
+  resumeAgendaItemId?: string;
 }
 
 type MeetingTerminationCode =
-  | 'objective_satisfied'
-  | 'captain_accepted'
-  | 'no_consensus'
-  | 'stalled'
-  | 'max_turns'
-  | 'message_limit'
-  | 'time_limit'
-  | 'all_participants_unavailable'
-  | 'user_cancelled'
-  | 'internal_error'
+  | "objective_satisfied"
+  | "captain_accepted"
+  | "no_consensus"
+  | "stalled"
+  | "max_turns"
+  | "message_limit"
+  | "time_limit"
+  | "all_participants_unavailable"
+  | "user_cancelled"
+  | "internal_error";
 
 interface MeetingTermination {
-  code: MeetingTerminationCode
-  reason: string
-  decisionIds: string[]
-  unresolvedQuestionIds: string[]
-  dissentingPositionIds: string[]
-  blockingAgendaItemIds: string[]
-  finalMessage: string
-  endedAt: number
+  code: MeetingTerminationCode;
+  reason: string;
+  decisionIds: string[];
+  unresolvedQuestionIds: string[];
+  dissentingPositionIds: string[];
+  blockingAgendaItemIds: string[];
+  finalMessage: string;
+  endedAt: number;
 }
 
 interface CompletionFact {
-  id: string
-  kind: 'output_evidence' | 'criterion_evidence' | 'review'
-    | 'question_resolution' | 'agenda_resolution' | 'risk_acceptance'
-    | 'decision_acceptance' | 'waiver'
-  subjectId: string
-  assertedBy: string
-  authority?: string
-  result: 'supported' | 'approved' | 'changes_required' | 'accepted'
-    | 'rejected' | 'resolved' | 'deferred' | 'waived'
-  evidenceMessageIds: string[]
-  taskIds: string[]
-  reason?: string
-  status: 'active' | 'superseded' | 'revoked'
-  createdAt: number
+  id: string;
+  kind:
+    | "output_evidence"
+    | "criterion_evidence"
+    | "review"
+    | "question_resolution"
+    | "agenda_resolution"
+    | "risk_acceptance"
+    | "decision_acceptance"
+    | "waiver";
+  subjectId: string;
+  assertedBy: string;
+  authority?: string;
+  result:
+    | "supported"
+    | "approved"
+    | "changes_required"
+    | "accepted"
+    | "rejected"
+    | "resolved"
+    | "deferred"
+    | "waived";
+  evidenceMessageIds: string[];
+  taskIds: string[];
+  reason?: string;
+  status: "active" | "superseded" | "revoked";
+  createdAt: number;
 }
 ```
 
@@ -574,31 +620,27 @@ ObjectiveContract 和 AgendaItem 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./D
 
 ```ts
 type IssueDisposition =
-  | 'blocking'
-  | 'follow_up'
-  | 'parking_lot'
-  | 'accepted_risk'
-  | 'out_of_scope'
+  "blocking" | "follow_up" | "parking_lot" | "accepted_risk" | "out_of_scope";
 
 interface MeetingIssue {
-  id: string
-  title: string
-  description: string
-  sourceMessageId: string
-  agendaItemId?: string
-  affectedOutputIds: string[]
-  affectedCriterionIds: string[]
-  violatedConstraintIds: string[]
-  blockingObjectionIds: string[]
-  impact: 'none' | 'low' | 'medium' | 'high' | 'critical'
-  urgency: 'now' | 'before_release' | 'later'
-  reversibility: 'easy' | 'moderate' | 'hard' | 'irreversible'
-  safeDefaultAvailable: boolean
-  disposition: IssueDisposition
-  rationale: string
-  owner?: string
-  relatedTaskIds: string[]
-  status: 'open' | 'waiting' | 'resolved' | 'accepted' | 'deferred'
+  id: string;
+  title: string;
+  description: string;
+  sourceMessageId: string;
+  agendaItemId?: string;
+  affectedOutputIds: string[];
+  affectedCriterionIds: string[];
+  violatedConstraintIds: string[];
+  blockingObjectionIds: string[];
+  impact: "none" | "low" | "medium" | "high" | "critical";
+  urgency: "now" | "before_release" | "later";
+  reversibility: "easy" | "moderate" | "hard" | "irreversible";
+  safeDefaultAvailable: boolean;
+  disposition: IssueDisposition;
+  rationale: string;
+  owner?: string;
+  relatedTaskIds: string[];
+  status: "open" | "waiting" | "resolved" | "accepted" | "deferred";
 }
 ```
 
@@ -626,16 +668,16 @@ Issue 只有引用 required output、acceptance criterion、hard constraint 或 
 
 ```ts
 interface AgendaCandidate {
-  id: string
-  proposedBy: string
-  sourceMessageId: string
-  title: string
-  reason: string
-  relationToActiveAgenda: 'related' | 'adjacent' | 'unrelated'
-  urgency: 'now' | 'before_release' | 'later'
-  suggestedParticipants: string[]
-  status: 'pending' | 'promoted' | 'parked' | 'rejected'
-  createdAt: number
+  id: string;
+  proposedBy: string;
+  sourceMessageId: string;
+  title: string;
+  reason: string;
+  relationToActiveAgenda: "related" | "adjacent" | "unrelated";
+  urgency: "now" | "before_release" | "later";
+  suggestedParticipants: string[];
+  status: "pending" | "promoted" | "parked" | "rejected";
+  createdAt: number;
 }
 ```
 
@@ -656,15 +698,15 @@ Summary 只在议题解决、议题切换、上下文压缩、stall/replan、暂
 
 ### 7.1 Meeting
 
-| From | To |
-|---|---|
-| `created` | `running`, `paused`, `cancelled`, `failed` |
-| `running` | `waiting`, `paused`, `converging`, `completed`, `partial`, `no_consensus`, `cancelled`, `failed` |
-| `waiting` | `running`, `paused`, `partial`, `cancelled`, `failed` |
-| `paused` | `running`, `waiting`, `cancelled`, `failed` |
-| `converging` | `running`, `completed`, `partial`, `no_consensus`, `cancelled`, `failed` |
-| execution terminal | `archiving` |
-| `archiving` | `archived` |
+| From               | To                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| `created`          | `running`, `paused`, `cancelled`, `failed`                                                       |
+| `running`          | `waiting`, `paused`, `converging`, `completed`, `partial`, `no_consensus`, `cancelled`, `failed` |
+| `waiting`          | `running`, `paused`, `partial`, `cancelled`, `failed`                                            |
+| `paused`           | `running`, `waiting`, `cancelled`, `failed`                                                      |
+| `converging`       | `running`, `completed`, `partial`, `no_consensus`, `cancelled`, `failed`                         |
+| execution terminal | `archiving`                                                                                      |
+| `archiving`        | `archived`                                                                                       |
 
 `completed`、`partial`、`no_consensus`、`cancelled` 和 `failed` 是执行终态，只允许进入 `archiving`。`archived` 是最终状态。归档、Session 关闭或 capability 撤销失败不把 Meeting 改回执行态或改写为执行 `failed`；Meeting 保持 `archiving`，错误记录在 outbox 并按策略重试或等待人工恢复。
 
@@ -696,12 +738,12 @@ running → submitted | revoked | failed
 
 ```ts
 interface InvalidStateTransitionError {
-  code: 'INVALID_STATE_TRANSITION'
-  entityType: 'meeting' | 'turn' | 'step' | 'attempt' | 'manager_attempt'
-  entityId: string
-  from: string
-  to: string
-  meetingVersion: number
+  code: "INVALID_STATE_TRANSITION";
+  entityType: "meeting" | "turn" | "step" | "attempt" | "manager_attempt";
+  entityId: string;
+  from: string;
+  to: string;
+  meetingVersion: number;
 }
 ```
 
@@ -730,10 +772,6 @@ SQLite 是 Meeting Runtime 的唯一状态真相。不再维护 `meeting.json` �
 每个 Meeting SQLite 数据库必须且只能包含一个 Meeting。当前布局下 Runtime 必须验证 locator 解析出的 `meetingId`、`meeting_bootstrap.meeting_id`、`meetings.id` 和所有 Session ownership label 中的 `meetingId` 一致；迁移到目标目录后还必须验证目录名。不一致时停止该 Meeting 的调度并报告结构化恢复错误，不得猜测或改写身份。
 
 ### 8.2 Required tables
-
-
-
-
 
 `plugin/src/repository/schema.ts` 是当前完整 DDL 真相源。本设计只固定逻辑表及其职责，不复制第二份可能漂移的 SQL：`meeting_bootstrap`、`meetings`、`meeting_events`、`idempotency_receipts`、`outbox` 和 `session_ownership`。
 
@@ -852,17 +890,17 @@ Agent MAY 在 outbox worker 写入 accepted 状态前调用 `submit_turn`。当�
 
 ```ts
 interface MeetingContextProjection {
-  objective: string
-  objectiveContract: MeetingObjectiveContract
-  activeAgendaItem: AgendaItem
-  acceptedDecisions: MeetingDecision[]
-  blockingQuestions: MeetingQuestion[]
-  recentMessages: MeetingMessage[]
-  relevantHistorySummary?: string
-  taskSnapshots: MeetingTaskSnapshot[]
-  turn: MeetingTurn
-  step: SpeakerStep
-  attempt: SpeakerAttempt
+  objective: string;
+  objectiveContract: MeetingObjectiveContract;
+  activeAgendaItem: AgendaItem;
+  acceptedDecisions: MeetingDecision[];
+  blockingQuestions: MeetingQuestion[];
+  recentMessages: MeetingMessage[];
+  relevantHistorySummary?: string;
+  taskSnapshots: MeetingTaskSnapshot[];
+  turn: MeetingTurn;
+  step: SpeakerStep;
+  attempt: SpeakerAttempt;
 }
 ```
 
@@ -930,14 +968,14 @@ captain calls create_meeting
 
 Requirements 中的创建结果由以下设计机制承接：
 
-| 产品结果 | 设计机制 |
-|---|---|
-| 参与者配置无效时整体失败 | `materializeMeetingSpecs` 在 Session spawn 前一次性验证重复或缺失 key、悬空引用、相互矛盾的职责、无权访问的 source member/task 和非法初始状态；任一失败都不创建公开 Meeting |
-| 不产生部分可用会议 | `creating` 只存在于 bootstrap，不属于公开 `MeetingStatus`；只有全部必需 Session 已创建且初始 Meeting 事实在 SQLite 提交后才进入 `ready` 并允许 status、scheduler 和工具访问 |
-| 创建中断后 Session 仍可归属 | `meetingId`、repository ownership 和 bootstrap 先于 Session；每个 Session label 固化 `teamId + meetingId + participantId/manager`，创建进度保存在同一 Meeting repository |
-| 创建失败后安全收口 | 当前进程关闭本次已创建的 Session 并写入 `creation_failed`；进程崩溃时由冷恢复根据 locator、SQLite ID 和 Session label 继续创建或关闭，不把不完整 Meeting 暴露为可运行会议 |
-| 不影响其他会议或团队 | 所有 Session 生命周期操作必须通过 locator identity、SQLite identity 和完整 ownership label 三方一致校验；缺少任一证明时拒绝操作，不使用显示名称、模糊前缀或来源 Agent 猜测归属 |
-| 新会议没有预置完成事实 | 创建期 Spec 不含运行期派生状态；Runtime 统一生成 pending/false 初始状态，Decision、CompletionFact 和 accepted risk 只能在后续合法协议操作中形成 |
+| 产品结果                    | 设计机制                                                                                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 参与者配置无效时整体失败    | `materializeMeetingSpecs` 在 Session spawn 前一次性验证重复或缺失 key、悬空引用、相互矛盾的职责、无权访问的 source member/task 和非法初始状态；任一失败都不创建公开 Meeting    |
+| 不产生部分可用会议          | `creating` 只存在于 bootstrap，不属于公开 `MeetingStatus`；只有全部必需 Session 已创建且初始 Meeting 事实在 SQLite 提交后才进入 `ready` 并允许 status、scheduler 和工具访问    |
+| 创建中断后 Session 仍可归属 | `meetingId`、repository ownership 和 bootstrap 先于 Session；每个 Session label 固化 `teamId + meetingId + participantId/manager`，创建进度保存在同一 Meeting repository       |
+| 创建失败后安全收口          | 当前进程关闭本次已创建的 Session 并写入 `creation_failed`；进程崩溃时由冷恢复根据 locator、SQLite ID 和 Session label 继续创建或关闭，不把不完整 Meeting 暴露为可运行会议      |
+| 不影响其他会议或团队        | 所有 Session 生命周期操作必须通过 locator identity、SQLite identity 和完整 ownership label 三方一致校验；缺少任一证明时拒绝操作，不使用显示名称、模糊前缀或来源 Agent 猜测归属 |
+| 新会议没有预置完成事实      | 创建期 Spec 不含运行期派生状态；Runtime 统一生成 pending/false 初始状态，Decision、CompletionFact 和 accepted risk 只能在后续合法协议操作中形成                                |
 
 create 命令的成功边界是 bootstrap 已转为 `ready` 且完整初始 Meeting 已提交。`creating` 和 `creation_failed` repository 只用于恢复与诊断，不出现在会议列表和普通状态接口中。对同一幂等 create request 的重试必须读取原 bootstrap/receipt：已成功时返回原结果，仍在恢复时返回可重试错误，已失败时返回稳定失败；不得创建第二个 Meeting 或第二组 Session。
 
@@ -1071,8 +1109,8 @@ mail 和处理结果属于私有通信数据，不进入 transcript、Decision�
 ### 12.1 Candidate sets
 
 ```ts
-function selectionCandidates(state: MeetingState): MeetingParticipant[]
-function dispatchableNow(state: MeetingState): MeetingParticipant[]
+function selectionCandidates(state: MeetingState): MeetingParticipant[];
+function dispatchableNow(state: MeetingState): MeetingParticipant[];
 ```
 
 `selectionCandidates` 表示后续 Turn 仍有资格；`dispatchableNow` 只包含当前 `available`、未失败、未移除且未达到连续 attempt 失败限制的 Participant。Turn plan 只能使用 `dispatchableNow`。
@@ -1096,19 +1134,19 @@ Required speaker 不属于 `dispatchableNow` 时，Runtime MUST 停止规划并�
 
 ### 12.3 Rule score
 
-| Feature | Score |
-|---|---:|
-| explicit mention | +100 |
-| directed blocking question | +80 |
-| required reviewer | +60 |
-| active agenda owner | +50 |
-| fresh task result | +40 |
-| blocking objection owner | +25 |
-| previous turn did not speak | +20 |
-| recency | 0..+15 |
-| previous speaker | -25 |
-| repeated content | -30 |
-| consecutive speech soft limit | -40 |
+| Feature                       |  Score |
+| ----------------------------- | -----: |
+| explicit mention              |   +100 |
+| directed blocking question    |    +80 |
+| required reviewer             |    +60 |
+| active agenda owner           |    +50 |
+| fresh task result             |    +40 |
+| blocking objection owner      |    +25 |
+| previous turn did not speak   |    +20 |
+| recency                       | 0..+15 |
+| previous speaker              |    -25 |
+| repeated content              |    -30 |
+| consecutive speech soft limit |    -40 |
 
 Tie MUST 使用稳定注册顺序，不得随机。Runtime 不读取或评分 Agent 内部 Skills、Tools 或 MCP。
 
@@ -1118,13 +1156,16 @@ Tie MUST 使用稳定注册顺序，不得随机。Runtime 不读取或评分 Ag
 
 ```ts
 switch (selectionMode) {
-  case 'round_robin': return roundRobinPlan()
-  case 'rule_based': return rulePlan()
-  case 'manager': return managerPlan() ?? rulePlan()
-  case 'hybrid':
+  case "round_robin":
+    return roundRobinPlan();
+  case "rule_based":
+    return rulePlan();
+  case "manager":
+    return managerPlan() ?? rulePlan();
+  case "hybrid":
     return needsSemanticArbitration()
-      ? managerPlan() ?? rulePlan()
-      : rulePlan()
+      ? (managerPlan() ?? rulePlan())
+      : rulePlan();
 }
 ```
 
@@ -1142,6 +1183,29 @@ Manager plan MUST 校验：
 - Manager 未自行接受风险或宣布业务成功。
 
 非法、超时或失败的 Manager plan 回退到 rule plan；仍无结果时创建稳定轮询的单 speaker turn。
+
+### 12.5 Agent Catalog and attendance recommendation
+
+Agent role catalog、Manager recommendation、Captain disposition 和 admission 的跨边界类型以 [Meeting Agent Role Catalog Interface](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md) 为唯一契约。Catalog candidate 与 Meeting Participant 必须保持分离。
+
+Runtime 在 Manager planning context 中附带当前 authorized Catalog 的安全 projection 和已有 evidence 的最小索引。Manager 可以随合法 planning submission 推荐 candidate，但 recommendation 不改变当前 Turn、speaker candidates、objective contract 或权限。Runtime 必须从当前 Manager caller、planning attempt、Meeting version 和固化 Catalog snapshot 绑定 recommendation identity；Manager 不能提供 recommendation 状态、Participant ID 或 agentDefinitionId。
+
+Captain 使用独立 command 处置 pending recommendation：
+
+```text
+Manager plan + recommendation claim
+→ validate current Manager/planning/version/catalog candidate
+→ atomically persist pending recommendation/event/receipt
+→ Captain approve or reject
+→ approve atomically creates admission/Participant identity/provisioning outbox
+→ provision a new meeting-owned continuable Participant Session
+→ mark admission active
+→ include Participant only in a later planning attempt
+```
+
+外部 Session provisioning 不得进入 SQLite transaction。`approved | provisioning` admission 不属于 `selectionCandidates`；只有 ownership、initial message 和 capability 全部持久化成功后的 `active` admission 才能使 Participant 可调度。失败必须留下可审计 `failed` admission，不得产生半初始化 Participant，也不得自动选择其他 candidate。
+
+批准 recommendation 只能增加普通可选 Participant，不能原地修改 required reviewer、risk authority、Agenda required Participant 或已有权限。若未来需要修改这些约束，必须通过独立的 objective/agenda contract amendment 设计和 Captain authority，不得扩展 attendance approval 的含义。
 
 ## 13. Completion, Limits And Stall
 
@@ -1219,14 +1283,14 @@ MeetingLimits 和 MeetingTermination 的字段定义以 [DOMAIN-MODEL-DESIGN.md]
 
 Agent 内部工具失败不进入 limits。SpeakerAttempt 超时、Session 崩溃或无合法提交时递增 `consecutiveAttemptFailures`；成功提交清零；用户主动撤销或改派不计失败。MailHandlingAttempt 超时只终止该私聊处理并释放 Session 队列，不递增会议级 speaker failure 或直接使 Meeting 失败。
 
-| Condition | Status | Termination code |
-|---|---|---|
-| objective contract satisfied | `completed` | `objective_satisfied` |
-| captain accepts partial result | `partial` | `captain_accepted` |
-| unresolved blocking disagreement | `no_consensus` | `no_consensus` |
-| turn/message/time limit | `partial` | matching limit code |
-| user cancel | `cancelled` | `user_cancelled` |
-| no participant/internal fatal error | `failed` | matching error code |
+| Condition                           | Status         | Termination code      |
+| ----------------------------------- | -------------- | --------------------- |
+| objective contract satisfied        | `completed`    | `objective_satisfied` |
+| captain accepts partial result      | `partial`      | `captain_accepted`    |
+| unresolved blocking disagreement    | `no_consensus` | `no_consensus`        |
+| turn/message/time limit             | `partial`      | matching limit code   |
+| user cancel                         | `cancelled`    | `user_cancelled`      |
+| no participant/internal fatal error | `failed`       | matching error code   |
 
 Termination MUST 保存结构化 IDs。事务 MUST 验证所有引用属于当前 Meeting。`finalMessage` 只是展示快照，UI 和导出不得解析它重建事实。
 
@@ -1310,19 +1374,21 @@ execution terminal → archiving
 
 ## 16. Tools And Authorization
 
-| Tool | Caller | Effect |
-|---|---|---|
-| `convivium_create_meeting` | captain | 创建 Meeting、Manager、Participants 和首个 turn |
-| `convivium_meeting_status` | captain；Session 仍有效的 participant/manager | 读取裁剪后的 Meeting 快照；归档后 Agent 身份不再可调用 |
-| `convivium_submit_manager_plan` | current Manager Session | 提交结构化 turn plan |
-| `convivium_submit_turn` | current speaker Session | 提交正式发言和结构化变化 |
-| `convivium_create_meeting_task` | current speaker Session | 创建当前 Meeting 的 MeetingTask |
-| `convivium_raise_hand` | participant | 创建去重的发言申请 |
-| `convivium_pause_meeting` | captain | 按用户指令暂停 Meeting |
-| `convivium_resume_meeting` | captain | 按用户指令基于最新事实恢复 Meeting |
-| `convivium_dispose_risk` | captain | 对一个指定风险提交结构化接受或拒绝处置 |
-| `convivium_reassign_turn` | captain | 撤销并跳过/改派当前 step |
-| `convivium_end_meeting` | captain | 接受、取消或以无共识结束 |
+| Tool                                                 | Caller                                        | Effect                                                                                 |
+| ---------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `convivium_create_meeting`                           | captain                                       | 创建 Meeting、Manager、Participants 和首个 turn                                        |
+| `convivium_meeting_status`                           | captain；Session 仍有效的 participant/manager | 读取裁剪后的 Meeting 快照；归档后 Agent 身份不再可调用                                 |
+| `convivium_submit_manager_plan`                      | current Manager Session                       | 提交结构化 turn plan                                                                   |
+| `convivium_submit_manager_plan` attendance extension | current Manager Session                       | 随合法 planning attempt 提交 Catalog Agent 参会 recommendation；不直接创建 Participant |
+| `convivium_submit_turn`                              | current speaker Session                       | 提交正式发言和结构化变化                                                               |
+| `convivium_create_meeting_task`                      | current speaker Session                       | 创建当前 Meeting 的 MeetingTask                                                        |
+| `convivium_raise_hand`                               | participant                                   | 创建去重的发言申请                                                                     |
+| `convivium_pause_meeting`                            | captain                                       | 按用户指令暂停 Meeting                                                                 |
+| `convivium_resume_meeting`                           | captain                                       | 按用户指令基于最新事实恢复 Meeting                                                     |
+| `convivium_dispose_risk`                             | captain                                       | 对一个指定风险提交结构化接受或拒绝处置                                                 |
+| `convivium_dispose_attendance_recommendation`        | captain                                       | 批准或拒绝一个 pending recommendation；批准后启动受控 Participant provisioning         |
+| `convivium_reassign_turn`                            | captain                                       | 撤销并跳过/改派当前 step                                                               |
+| `convivium_end_meeting`                              | captain                                       | 接受、取消或以无共识结束                                                               |
 
 本协议不提供 `convivium_meeting_message` 或无约束 broadcast。
 
@@ -1416,21 +1482,21 @@ MeetingTask 状态只能作为 evidence。除非 objective contract 明确声明
 
 所有 meeting tools MUST 返回结构化错误；不得依赖错误字符串驱动恢复逻辑。
 
-| Code | Meaning |
-|---|---|
-| `INVALID_STATE_TRANSITION` | 请求的状态转换不在状态机中 |
-| `STALE_ATTEMPT` | SpeakerAttempt 已撤销、结束或已被替换 |
-| `STALE_MANAGER_ATTEMPT` | ManagerPlanningAttempt 已撤销、结束或 meeting version 已变化 |
-| `IDEMPOTENCY_CONFLICT` | 同一幂等 ID 收到不同 request hash |
-| `IMMUTABLE_MEETING` | Meeting 已处于执行终态 |
-| `ARCHIVED_MEETING` | Meeting 已归档，不能恢复写入 |
-| `SOURCE_MEETING_NOT_ARCHIVED` | 续会来源尚未归档，不能作为不可变素材来源 |
-| `ARCHIVE_MATERIAL_NOT_FOUND` | 续会选择项不存在、不属于来源归档或 caller 无权读取 |
-| `UNAUTHORIZED_CALLER` | caller Session 与要求的会议身份不匹配 |
-| `PARTICIPANT_NOT_DISPATCHABLE` | Participant 当前不能被请求发言 |
-| `REQUIRED_SPEAKER_UNAVAILABLE` | Required speaker 当前不可调度，规划未产生任何部分状态 |
-| `MANAGER_PLAN_INVALID` | Manager plan 违反议题、候选人、会议限制或顺序约束 |
-| `DELIVERY_RETRY_EXHAUSTED` | outbox 投递重试达到上限 |
+| Code                           | Meaning                                                      |
+| ------------------------------ | ------------------------------------------------------------ |
+| `INVALID_STATE_TRANSITION`     | 请求的状态转换不在状态机中                                   |
+| `STALE_ATTEMPT`                | SpeakerAttempt 已撤销、结束或已被替换                        |
+| `STALE_MANAGER_ATTEMPT`        | ManagerPlanningAttempt 已撤销、结束或 meeting version 已变化 |
+| `IDEMPOTENCY_CONFLICT`         | 同一幂等 ID 收到不同 request hash                            |
+| `IMMUTABLE_MEETING`            | Meeting 已处于执行终态                                       |
+| `ARCHIVED_MEETING`             | Meeting 已归档，不能恢复写入                                 |
+| `SOURCE_MEETING_NOT_ARCHIVED`  | 续会来源尚未归档，不能作为不可变素材来源                     |
+| `ARCHIVE_MATERIAL_NOT_FOUND`   | 续会选择项不存在、不属于来源归档或 caller 无权读取           |
+| `UNAUTHORIZED_CALLER`          | caller Session 与要求的会议身份不匹配                        |
+| `PARTICIPANT_NOT_DISPATCHABLE` | Participant 当前不能被请求发言                               |
+| `REQUIRED_SPEAKER_UNAVAILABLE` | Required speaker 当前不可调度，规划未产生任何部分状态        |
+| `MANAGER_PLAN_INVALID`         | Manager plan 违反议题、候选人、会议限制或顺序约束            |
+| `DELIVERY_RETRY_EXHAUSTED`     | outbox 投递重试达到上限                                      |
 
 错误响应 MUST 至少包含 `code`、`meetingId`、当前 `meetingVersion` 和可安全展示的 `message`；涉及 attempt 时还应包含对应 ID。内部 Session ID、prompt 和私有工具输出不得出现在面向插件前端的错误中。
 
@@ -1557,9 +1623,9 @@ const DEFAULT_MEETING_LIMITS: MeetingLimits = {
   maxReplans: 1,
   speakerAttemptTimeoutMs: 10 * 60_000,
   mailHandlingTimeoutMs: 2 * 60_000,
-}
+};
 
-const DEFAULT_SELECTION_MODE: MeetingSelectionMode = 'hybrid'
+const DEFAULT_SELECTION_MODE: MeetingSelectionMode = "hybrid";
 ```
 
 所有 `selectionMode` 都属于同一次完整实现。默认使用 `hybrid`：规则足以决定时直接使用确定性 plan，需要语义裁决时调用 Manager，Manager 失败或建议无效时回退到 rule plan。`round_robin`、`rule_based` 和 `manager` 作为显式配置模式保留；Manager Session、planning attempt、receipt、tool 和恢复路径不得通过 feature flag 延后或省略。
@@ -1675,6 +1741,8 @@ const DEFAULT_SELECTION_MODE: MeetingSelectionMode = 'hybrid'
 - Meeting/Turn/Step/Attempt、waiting、pause/resume、limits、stall、refocus 和 replan 状态机；
 - Meeting-owned Manager/Participant Session 的创建、串行调用、恢复、关闭和 capability revoke；
 - create/status/submit/raise-hand/reassign/end/manager-plan、后台任务和 meeting-scoped mailbox 工具边界；
+- Agent role catalog 安全 projection、Manager 参会 recommendation、Captain disposition 和 Participant admission/provisioning；
+- Meeting Agent Definition resolution、DSH per-child preset/Skill validation 和 fail-closed provisioning（blocked）；
 - `round_robin | rule_based | manager | hybrid` planning、Manager 语义裁决和确定性 fallback；
 - 顺序 speaker、delivery dedupe、完成判断、归档和续会；
 - Plugin Frontend projection、刷新、用户控制和连接失败展示；
@@ -1694,3 +1762,5 @@ const DEFAULT_SELECTION_MODE: MeetingSelectionMode = 'hybrid'
 6. Meeting 可以 completed 且保留 follow-up、Parking Lot 和 accepted risks。
 7. SQLite、outbox、Session delivery 和 archive 的故障边界可测试、可恢复。
 8. Archived Meeting 不保留私有 AgentSession，续会不恢复旧权限和上下文。
+9. Manager 只能推荐 authorized Catalog candidate；Captain 批准和独立 Session provisioning 完成前，该 Agent 不是 Participant，也不能取得发言或权限。
+10. Definition 存在不等于 DSH capability 已安装；在 per-child preset composition 可验证前不得接线或宣称完成。

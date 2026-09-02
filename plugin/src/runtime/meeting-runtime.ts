@@ -9,9 +9,9 @@ import {
 import {
     encodeMeetingSessionLabel,
     startManagerSession,
-    startParticipantSession,
-    type ContinuableStarter
+    startParticipantSession
 } from "../dsh/index.js";
+import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import {
     MeetingRepository,
     type CommandAuthorization,
@@ -45,7 +45,7 @@ export interface MeetingCreationRuntimeDependencies {
         | "updateCreateResult"
         | "recover"
     >;
-    readonly continuable: ContinuableStarter;
+    readonly continuable: Pick<SubagentRuntime, "startContinuable">;
     readonly parent: Agent;
     readonly provider: string;
     readonly authorization: CommandAuthorization;

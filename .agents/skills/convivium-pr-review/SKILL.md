@@ -62,7 +62,18 @@ node .agents/skills/convivium-pr-review/scripts/collect-review-context.mjs snaps
 - 对新增、删除、替换、绕过或收窄的旧路径进行语义对账。
 - 只报告满足 finding 门槛的问题，不为了凑数量提出建议。
 
-## 5. 关闭审查
+## 5. 收敛 findings
+
+输出前必须对全部 candidate findings 执行一次收敛：
+
+1. 按根因、触发条件、修复位置和当前 consumer 分组。
+2. 同一实现缺陷及其直接测试或 readiness 缺口默认合并；只有具备独立触发、独立影响和独立修复边界时才能拆分。
+3. 分别判断 finding 是否成立、优先级是否准确、最小修复是否合适；不得因为建议方案过大而否定真实 finding，也不得因为 finding 成立而接受扩大范围的方案。
+4. 如果删除、收窄、改正文档或局部校验即可消除触发条件，不建议建立新抽象、状态、接口、adapter、registry、migration 或 runtime path。
+5. 仅影响尚未实现路径的问题，优先删除过早契约、收窄声明或标记 blocked，不要求提前实现未来 Runtime、持久化、UI、transport 或 capability composition。
+6. 重新统计 findings 并按当前可触发影响校准优先级；不得用 finding 数量、概念重要性或未来实现难度替代风险判断。
+
+## 6. 关闭审查
 
 重新运行 snapshot。若 `head`、`base_sha`、`merge_base`、`diff_hash` 或 changed-file 集发生变化，原 ledger 失效，必须重新审查。按照 [`references/coverage-and-output.md`](./references/coverage-and-output.md) 输出 findings、ledger、validation gaps、summary 和合并建议。
 

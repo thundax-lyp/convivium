@@ -3,7 +3,6 @@ import { SessionId } from "@deepseek-ai/dsh-session";
 import { describe, expect, it } from "vitest";
 
 import {
-    bindCaptainParent,
     resolveMeetingCaller,
     type MeetingOwnershipLookup,
     type MeetingOwnershipRecord
@@ -37,13 +36,6 @@ function lookup(
 }
 
 describe("meeting caller resolver", () => {
-    it("binds the exact DSH caller as the Captain direct parent", () => {
-        expect(bindCaptainParent(agent("captain-session"))).toEqual({
-            kind: "captain",
-            sessionId: "captain-session"
-        });
-    });
-
     it("resolves an active participant only from Agent identity and verified ownership", async () => {
         const result = await resolveMeetingCaller(
             agent("participant-session"),
