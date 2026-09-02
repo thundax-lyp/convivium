@@ -19,14 +19,14 @@
 | Job | 覆盖范围 | 当前状态 |
 | --- | --- | --- |
 | `Governance` | 治理结构和 PR diff 格式 | workflow 已定义；Ruleset 当前要求 |
-| `Plugin Format` | `plugin/` Prettier 格式检查 | workflow 已定义；远端运行未在本地确认 |
-| `Plugin Lint` | `plugin/` JavaScript、TypeScript 与 TSX 静态规则检查 | workflow 已定义；远端运行未在本地确认 |
-| `Plugin Typecheck` | `plugin/` Host 与 Client TypeScript faces | workflow 已定义；远端运行未在本地确认 |
-| `Plugin Test` | `plugin/` framework、package 和 Client entry tests | workflow 已定义；会议 integration/recovery/stress 为 `Not Covered` |
-| `Plugin Build` | Host/Client declarations 与 bundle artifacts | workflow 已定义；远端运行未在本地确认 |
-| `Package Contract` | Build artifact 的 public exports、manifest、allowlist、patch 和产物检查 | 显式依赖 `Plugin Build`；远端运行未在本地确认 |
+| `Plugin Format` | `plugin/` Prettier 格式检查 | workflow 已定义；Ruleset 当前要求 |
+| `Plugin Lint` | `plugin/` JavaScript、TypeScript 与 TSX 静态规则检查 | workflow 已定义；Ruleset 当前要求 |
+| `Plugin Typecheck` | `plugin/` Host 与 Client TypeScript faces | workflow 已定义；Ruleset 当前要求 |
+| `Plugin Test` | `plugin/` framework、package 和 Client entry tests | workflow 已定义；Ruleset 当前要求 |
+| `Plugin Build` | Host/Client declarations 与 bundle artifacts | workflow 已定义；Ruleset 当前要求 |
+| `Package Contract` | Build artifact 的 public exports、manifest、allowlist、patch 和产物检查 | workflow 已定义；Ruleset 当前要求；显式依赖 `Plugin Build` |
 
-插件 job 使用 Node 22.19.0、pnpm 10.7.0 和 frozen lockfile。job 存在不等同于已被 Ruleset 强制；当前已观察到的 `Protect main` Ruleset 仍只要求 `Governance`。
+插件 job 使用 Node 22.19.0、pnpm 10.7.0 和 frozen lockfile。`Protect main` Ruleset 以 strict 模式要求上述七项检查；任一检查未完成或失败时不得 merge。
 
 ## Delivery Boundary
 
@@ -41,7 +41,7 @@
 GitHub 仓库使用名为 `Protect main` 的 active Repository Ruleset 保护 `refs/heads/main`：
 
 - 所有已有 `main` 上的变更必须通过 PR。
-- 必须通过最新目标分支代码上的 `Governance` 状态检查。
+- 必须基于最新目标分支代码通过 `Governance`、`Plugin Format`、`Plugin Lint`、`Plugin Typecheck`、`Plugin Test`、`Plugin Build` 和 `Package Contract` 七项状态检查。
 - 必须解决全部 Review 对话。
 - 禁止删除 `main`，禁止 force-push。
 - 只允许普通 merge，与保留小步 commit 历史的规则一致。
@@ -76,15 +76,15 @@ PR 描述固定覆盖：
 
 ## Verification Rules
 
-- 当前 workflow 的必需检查候选为 `Governance`、`Plugin Format`、`Plugin Lint`、`Plugin Typecheck`、`Plugin Test`、`Plugin Build` 和 `Package Contract`，由 `.github/workflows/pr-verify.yml` 分别定义。
-- `Governance` 检查治理入口和文档目录存在，并对 PR diff 执行 `git diff --check`；当前 Ruleset 的实际强制项仍以 `Governance` 为准。
+- 当前 workflow 和 `Protect main` Ruleset 的必需检查为 `Governance`、`Plugin Format`、`Plugin Lint`、`Plugin Typecheck`、`Plugin Test`、`Plugin Build` 和 `Package Contract`，由 `.github/workflows/pr-verify.yml` 分别定义并以 strict 模式强制。
+- `Governance` 检查治理入口和文档目录存在，并对 PR diff 执行 `git diff --check`。
 - `Plugin Format` 执行 `pnpm format:check`，`Plugin Lint` 执行 `pnpm lint`，`Plugin Typecheck` 执行 `pnpm typecheck`，`Plugin Test` 执行 `pnpm test`，`Plugin Build` 执行 `pnpm build`，`Package Contract` 下载 `Plugin Build` 产物后执行 `pnpm verify:contract` 与 `pnpm verify:package`。
 - 只记录实际执行过的验证；未运行、被阻塞或无法复现的检查不能标记为通过。
 - 优先运行与改动范围匹配的最窄验证；公共契约、共享基础设施或跨进程行为变化时扩大范围。
 - 自动化检查通过是证据，不自动证明业务行为、生命周期、权限和恢复流程正确。
 - 涉及用户流程、ACP Agent 生命周期、权限或恢复能力时，应记录必要的运行时或人工验证。
 - 不能执行的验证应写入 `Not Covered`，说明原因和影响，不把阻塞检查描述为绿色。
-- 当前已接入真实的 Prettier、ESLint、TypeScript、framework test、bundle build 和 package contract gates；尚未接入会议 integration/recovery/stress 业务测试，也未在本地观察本分支远端 PR job 启动结果。
+- 当前已接入真实的 Prettier、ESLint、TypeScript、framework test、bundle build 和 package contract gates；这些门禁不能替代未纳入对应 suite 的运行时、恢复或压力验证。
 
 ## GitHub Tooling And Authorization
 
