@@ -240,4 +240,4 @@ jobs:
 
       - name: Verify package contract
         working-directory: plugin
-        run: pnpm verify:package
+        run: pnpm verify:contract && pnpm verify:package

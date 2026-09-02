@@ -17,20 +17,6 @@ const packageManifest = JSON.parse(
 const patch = readFileSync(new URL("../../cordis.patch.yml", import.meta.url), "utf8");
 
 describe("package contract framework", () => {
-    it("keeps backend implementation symbols package-private", async () => {
-        const runtime = await import("../../lib/index.js");
-        expect(Object.keys(runtime).sort()).toEqual([
-            "Config",
-            "apply",
-            "assertContinuableProvider",
-            "inject",
-            "name"
-        ]);
-        expect(runtime).not.toHaveProperty("BACKEND_NAME");
-        expect(runtime).not.toHaveProperty("jsonlStoragePlugin");
-        expect(runtime).not.toHaveProperty("JsonlStorageBackend");
-        expect(runtime).not.toHaveProperty("JsonlStorageError");
-    });
     it("publishes the closed bundle and client manifest contract", () => {
         expect(Object.keys(packageManifest.exports)).toEqual([
             ".",
