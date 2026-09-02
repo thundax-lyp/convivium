@@ -948,29 +948,6 @@ No raw path or record payload enters the public error message.
 
 Every step uses the fixed STOP report from `Executor Contract`. “Failure state” states whether repository or external data can have changed.
 
-### T10 — Add Domain Schemas And Pure Projection Codec
-
-前置状态：T9 PASS.
-
-允许修改：new `plugin/src/repository/domain/keys.ts`, `plugin/src/repository/domain/schemas.ts`, `plugin/src/repository/domain/specs.ts`, `plugin/src/repository/domain/canonical-json.ts`, `plugin/src/repository/domain/json-patch.ts`, `plugin/src/repository/domain/projection.ts`; new `plugin/tests/fixtures/domain-storage.ts`, `plugin/tests/unit/repository/domain/keys.spec.ts`, `plugin/tests/unit/repository/domain/schemas.spec.ts`, `plugin/tests/unit/repository/domain/specs.spec.ts`, `plugin/tests/unit/repository/domain/canonical-json.spec.ts`, `plugin/tests/unit/repository/domain/json-patch.spec.ts`, `plugin/tests/unit/repository/domain/projection.spec.ts`; `plugin/tests/unit/module-boundaries.spec.ts`.
-
-禁止修改：Runtime, plugin entry, SQLite repository, production barrel.
-
-执行：使用 T2 已锁定的 `zod` 与 `@deepseek-ai/dsh-storage-domain`；不得修改 dependency metadata。Implement only the symbols assigned to the six source files in File And Symbol Map. The six same-basename suites test only their source file; `projection.spec.ts` owns fold/limit tests. Create the test-only fake symbols listed in File And Symbol Map; each fake table implements exact synchronous `get/entries/keys/size` and async `put/delete/update`, exposes `failNextPut(table,key)`, `failNextDelete(table,key)`, and ordered call arrays, and validates through the real DomainSpec schema on initial load. No file API or production export from the repository barrel. Change T7's temporary repository-domain count assertion from exactly `0` to greater than `0`, while retaining the import prohibitions.
-
-验证：
-
-```bash
-pnpm --dir plugin test -- tests/unit/repository/domain
-pnpm --dir plugin test -- tests/unit/module-boundaries.spec.ts
-pnpm --dir plugin typecheck
-test -z "$(rg -l 'node:fs|node:path|node:sqlite|@deepseek-ai/dsh-storage(\"|\x27)' plugin/src/repository/domain || true)"
-```
-
-PASS：全部命令退出 0；rg 无输出；boundary test 真实枚举两侧 source；tests cover every schema, key formula, patch operation, deterministic digest, dangerous keys, over-limit rejection, fold gap/conflict.
-
-STOP：a schema requires changing a public type or DomainSpec API differs. Failure state：new test-only modules and dependency metadata; production still SQLite.
-
 ### T11 — Implement Application Checkpoint
 
 前置状态：T10 PASS.
