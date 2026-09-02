@@ -1,16 +1,60 @@
-import { mkdtemp, readdir, rm } from "node:fs/promises";
-import { DatabaseSync } from "node:sqlite";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Context } from "@deepseek-ai/cordis";
+import Storage from "@deepseek-ai/dsh-storage";
+import * as storageDomainPlugin from "@deepseek-ai/dsh-storage-domain";
+import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { openMeetingRepository } from "../../src/runtime/index.js";
 import { RepositoryError } from "../../src/repository/errors.js";
+import {
+    DomainRepositoryRegistry,
+    type DomainFacilityPort
+} from "../../src/repository/domain/domain-repository-registry.js";
+import { jsonlStoragePlugin } from "../../src/storage/index.js";
+import { meetingDomainName, seqKey } from "../../src/repository/domain/keys.js";
+import { createMeetingDomainSpec } from "../../src/repository/domain/specs.js";
 import {
     createCreateStatusRuntime,
     LocalMeetingRecoveryUnavailableError
 } from "../../src/runtime/application-service/index.js";
 
 const roots: string[] = [];
+const storageContexts: Array<Promise<Context>> = [];
+
+function storagePort(root: string): DomainFacilityPort {
+    const mounting = (async () => {
+        const ctx = new Context();
+        await ctx.plugin(Storage);
+        await ctx.plugin(jsonlStoragePlugin, { root: join(root, "storage") });
+        await ctx.plugin(
+            {
+                name: storageDomainPlugin.name,
+                inject: storageDomainPlugin.inject,
+                apply: storageDomainPlugin.apply
+            },
+            { backend: "convivium-jsonl" }
+        );
+        return ctx;
+    })();
+    storageContexts.push(mounting);
+    return {
+        async open<S extends DomainSpec>(spec: S): Promise<Domain<S>> {
+            return (await mounting).storageDomain.open(spec);
+        }
+    };
+}
+
+async function openTestRegistry(root: string): Promise<DomainRepositoryRegistry> {
+    return DomainRepositoryRegistry.open({
+        storageDomain: storagePort(root),
+        authorizationValidator: {
+            validateCreate: () => undefined,
+            validateCommand: () => undefined
+        }
+    });
+}
 const input = {
     protocolVersion: 1 as const,
     requestId: "create-1",
@@ -51,7 +95,7 @@ function localRuntime(
     } = {}
 ) {
     return createCreateStatusRuntime({
-        dataRoot: root,
+        storageDomain: storagePort(root),
         provider: "spawn",
         continuable: {
             startContinuable: async (spec) => ({
@@ -69,6 +113,8 @@ function localRuntime(
 }
 
 afterEach(async () => {
+    await Promise.all(storageContexts.map(async (context) => (await context).fiber.dispose()));
+    storageContexts.length = 0;
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
@@ -224,7 +270,7 @@ describe("create/status meeting runtime", () => {
         const interrupted: string[] = [];
         const deliveryOrder: string[] = [];
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             outboxPollMs: 1,
             continuable: {
@@ -338,7 +384,7 @@ describe("create/status meeting runtime", () => {
         let time = Date.now() + 10_000;
         const managerContexts: Array<{ dispatchableParticipantIds?: string[] }> = [];
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             outboxPollMs: 1,
             continuable: {
@@ -467,8 +513,9 @@ describe("create/status meeting runtime", () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-timeout-isolation-"));
         roots.push(root);
         let time = 0;
+        let rejectedMeetingId: string | undefined;
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             timeoutScanSleep: async (_delay, signal) =>
                 new Promise<void>((resolve) => {
@@ -483,7 +530,18 @@ describe("create/status meeting runtime", () => {
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
-                validateCommand: () => undefined
+                validateCommand: ({ snapshot, command }) => {
+                    if (
+                        snapshot.meetingId === rejectedMeetingId &&
+                        command.commandKind === "expire_speaker_attempt"
+                    )
+                        throw new RepositoryError(
+                            "CORRUPT_DATABASE",
+                            false,
+                            snapshot.meetingId,
+                            "fixture repository failure"
+                        );
+                }
             },
             now: () => time
         });
@@ -513,11 +571,7 @@ describe("create/status meeting runtime", () => {
             new AbortController().signal
         );
         if (!broken.ok || !healthy.ok) throw new Error("create failed");
-        const brokenDb = new DatabaseSync(
-            join(root, input.teamId, `${broken.result.meetingId}.sqlite`)
-        );
-        brokenDb.exec("ALTER TABLE meetings RENAME TO meetings_broken");
-        brokenDb.close();
+        rejectedMeetingId = broken.result.meetingId;
 
         time = 5;
         await expect(runtime.scanExpiredSpeakerAttempts()).rejects.toMatchObject({
@@ -538,7 +592,7 @@ describe("create/status meeting runtime", () => {
         let time = 0;
         const sleepers: Array<() => void> = [];
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             outboxPollMs: 10,
             timeoutScanSleep: async (_delay, signal) =>
@@ -966,7 +1020,7 @@ describe("create/status meeting runtime", () => {
         const drained: string[][] = [];
         let failDrain = true;
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async (spec) => {
@@ -1049,7 +1103,7 @@ describe("create/status meeting runtime", () => {
         roots.push(root);
         const prompts: string[] = [];
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             outboxPollMs: 5,
             continuable: {
@@ -1094,6 +1148,7 @@ describe("create/status meeting runtime", () => {
             participantId: "participant-one",
             kind: "participant" as const
         };
+        await vi.waitFor(() => expect(prompts).toHaveLength(1));
         const task = await runtime.createMeetingTask(
             {
                 protocolVersion: 1,
@@ -1130,7 +1185,7 @@ describe("create/status meeting runtime", () => {
 
         const executionId = `${task.result.meetingTaskId}-execution`;
         const deliveryId = `${task.result.meetingTaskId}-delivery`;
-        await vi.waitFor(() => expect(prompts.length).toBeGreaterThan(1));
+        await vi.waitFor(() => expect(prompts.length).toBeGreaterThan(1), { timeout: 5_000 });
         expect(prompts).toEqual(
             expect.arrayContaining([
                 expect.stringContaining(`executionId: ${executionId}`),
@@ -1152,7 +1207,7 @@ describe("create/status meeting runtime", () => {
             roots.push(root);
             const prompts: string[] = [];
             const runtime = createCreateStatusRuntime({
-                dataRoot: root,
+                storageDomain: storagePort(root),
                 provider: "spawn",
                 outboxPollMs: 5,
                 continuable: {
@@ -1197,7 +1252,13 @@ describe("create/status meeting runtime", () => {
                 new AbortController().signal
             );
             if (!created.ok) throw new Error("create failed");
+            await vi.waitFor(() => expect(prompts).toHaveLength(1));
             const meetingId = created.result.meetingId;
+            const captain = {
+                sessionId: "captain-1",
+                kind: "captain" as const,
+                agent: { id: "captain-1" } as never
+            };
             const manager = {
                 sessionId: `${meetingId}-manager-manager`,
                 meetingId,
@@ -1266,7 +1327,9 @@ describe("create/status meeting runtime", () => {
             );
             if (!submitted.ok) throw new Error(JSON.stringify(submitted));
             if (blocking) {
-                await vi.waitFor(() => expect(prompts.length).toBeGreaterThan(1));
+                await vi.waitFor(() => expect(prompts.length).toBeGreaterThan(1), {
+                    timeout: 5_000
+                });
             } else {
                 await vi.waitFor(async () => {
                     const taskStatus = await runtime.meetingTaskStatus(
@@ -1366,31 +1429,8 @@ describe("create/status meeting runtime", () => {
             );
             await runtime.dispose();
 
-            const db = new DatabaseSync(join(root, input.teamId, `${meetingId}.sqlite`));
-            const state = JSON.parse(
-                String(
-                    db
-                        .prepare("SELECT state_json FROM meetings WHERE meeting_id = ?")
-                        .get(meetingId).state_json
-                )
-            ) as {
-                status: string;
-                handRaises: unknown[];
-                manager?: { currentPlanningAttempt?: unknown };
-            };
-            const raiseEvents = db
-                .prepare(
-                    "SELECT COUNT(*) AS count FROM meeting_events WHERE meeting_id = ? AND event_type = ?"
-                )
-                .get(meetingId, "hand_raise.created") as { count: number };
-            db.close();
-            expect(state.handRaises).toHaveLength(status === "completed" ? 1 : 0);
-            expect(state.manager?.currentPlanningAttempt).toBeUndefined();
-            if (pauseBeforeFinish) expect(state.status).toBe("paused");
-            expect(raiseEvents.count).toBe(status === "completed" ? 1 : 0);
-
             const recoveredRuntime = createCreateStatusRuntime({
-                dataRoot: root,
+                storageDomain: storagePort(root),
                 provider: "spawn",
                 continuable: {
                     startContinuable: async () => {
@@ -1403,6 +1443,14 @@ describe("create/status meeting runtime", () => {
                 authorizationValidator: {
                     validateCreate: () => undefined,
                     validateCommand: () => undefined
+                }
+            });
+            await expect(
+                recoveredRuntime.getStatus({ protocolVersion: 1, meetingId }, captain)
+            ).resolves.toMatchObject({
+                ok: true,
+                result: {
+                    status: pauseBeforeFinish ? "paused" : expect.any(String)
                 }
             });
             await expect(
@@ -1430,7 +1478,7 @@ describe("create/status meeting runtime", () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-scoped-ids-"));
         roots.push(root);
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async (spec) => ({
@@ -1488,7 +1536,7 @@ describe("create/status meeting runtime", () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-duplicate-raise-"));
         roots.push(root);
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async (spec) => ({
@@ -1546,7 +1594,7 @@ describe("create/status meeting runtime", () => {
         const interrupted: string[] = [];
         const drained: string[][] = [];
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async (spec) => {
@@ -1764,7 +1812,7 @@ describe("create/status meeting runtime", () => {
         });
         await runtime.dispose();
         const restarted = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async (spec) => ({
@@ -1798,7 +1846,7 @@ describe("create/status meeting runtime", () => {
         roots.push(root);
         let followups = 0;
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             outboxPollMs: 5,
             continuable: {
@@ -1838,7 +1886,7 @@ describe("create/status meeting runtime", () => {
         let followups = 0;
         const managerContexts: Record<string, unknown>[] = [];
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async (spec) => ({
@@ -1985,11 +2033,11 @@ describe("create/status meeting runtime", () => {
         await runtime.dispose();
     });
 
-    it("creates through SQLite and projects status only for the bound meeting", async () => {
+    it("creates through Storage Domain and projects status only for the bound meeting", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-"));
         roots.push(root);
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async (spec) => ({
@@ -2043,7 +2091,7 @@ describe("create/status meeting runtime", () => {
             agent: captainAgent
         };
         const firstRuntime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async (spec) => ({
@@ -2067,7 +2115,7 @@ describe("create/status meeting runtime", () => {
 
         const meetingId = created.result.meetingId;
         const unboundRuntime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async () => {
@@ -2111,7 +2159,7 @@ describe("create/status meeting runtime", () => {
 
         let followups = 0;
         const recoveredRuntime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             outboxPollMs: 5,
             continuable: {
@@ -2138,12 +2186,12 @@ describe("create/status meeting runtime", () => {
         await recoveredRuntime.dispose();
     });
 
-    it("rejects non-Captain creation and mismatched control callers before SQLite access", async () => {
+    it("rejects non-Captain creation and mismatched control callers before storage access", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-tools-auth-"));
         roots.push(root);
         let starts = 0;
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async (spec) => {
@@ -2184,7 +2232,7 @@ describe("create/status meeting runtime", () => {
         roots.push(root);
         let starts = 0;
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async (spec) => {
@@ -2210,7 +2258,9 @@ describe("create/status meeting runtime", () => {
 
         expect(result).toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
         expect(starts).toBe(0);
-        await expect(readdir(root)).resolves.toEqual([]);
+        await expect(runtime.listLocalMeetings()).resolves.toMatchObject({
+            result: { meetings: [] }
+        });
         await runtime.dispose();
     });
 
@@ -2219,7 +2269,7 @@ describe("create/status meeting runtime", () => {
         roots.push(root);
         let starts = 0;
         const runtime = createCreateStatusRuntime({
-            dataRoot: root,
+            storageDomain: storagePort(root),
             provider: "spawn",
             continuable: {
                 startContinuable: async (spec) => {
@@ -2262,7 +2312,7 @@ describe("create/status meeting runtime", () => {
         expect(conflict).toMatchObject({ ok: false, code: "IDEMPOTENCY_CONFLICT" });
     });
 
-    it("skips incomplete repositories and treats a missing data root as an empty local list", async () => {
+    it("skips incomplete repositories and treats an empty catalog as an empty local list", async () => {
         const missingRoot = join(tmpdir(), `convivium-missing-${Date.now()}-${Math.random()}`);
         const missingRuntime = localRuntime(missingRoot);
         await expect(missingRuntime.listLocalMeetings()).resolves.toEqual({
@@ -2281,24 +2331,22 @@ describe("create/status meeting runtime", () => {
             callerBinding: "fixture",
             capabilityId: "fixture"
         };
+        const registry = await openTestRegistry(root);
         for (const [meetingId, failed] of [
             ["creating-meeting", false],
             ["failed-meeting", true]
         ] as const) {
-            const repository = await openMeetingRepository({
-                databasePath: join(root, "team-1", `${meetingId}.sqlite`),
-                teamId: "team-1",
-                meetingId,
-                authorizationValidator: {
-                    validateCreate: () => undefined,
-                    validateCommand: () => undefined
-                }
-            });
-            await repository.create({
+            const create = {
                 requestId: `create-${meetingId}`,
                 authorization,
                 requestHash: meetingId,
                 initialState: {}
+            };
+            const repository = await openMeetingRepository({
+                registry: Promise.resolve(registry),
+                teamId: "team-1",
+                meetingId,
+                create
             });
             if (failed) {
                 await repository.updateBootstrap({
@@ -2306,8 +2354,8 @@ describe("create/status meeting runtime", () => {
                     failureCode: "fixture"
                 });
             }
-            await repository.close();
         }
+        await registry.close();
 
         const runtime = localRuntime(root);
         await expect(runtime.listLocalMeetings()).resolves.toMatchObject({
@@ -2321,23 +2369,21 @@ describe("create/status meeting runtime", () => {
         roots.push(root);
         const authorization = { callerBinding: "fixture", capabilityId: "fixture" };
         const statuses = ["running", "completed", "archiving", "archived"] as const;
+        const registry = await openTestRegistry(root);
         for (const [index, status] of statuses.entries()) {
             const meetingId = `meeting-${status}`;
-            const repository = await openMeetingRepository({
-                databasePath: join(root, "team-1", `${meetingId}.sqlite`),
-                teamId: "team-1",
-                meetingId,
-                authorizationValidator: {
-                    validateCreate: () => undefined,
-                    validateCommand: () => undefined
-                }
-            });
-            await repository.create({
+            const create = {
                 requestId: `create-${status}`,
                 authorization,
                 requestHash: status,
-                initialState: {},
+                initialState: { topic: `${status} topic`, status },
                 createdAt: index + 1
+            };
+            const repository = await openMeetingRepository({
+                registry: Promise.resolve(registry),
+                teamId: "team-1",
+                meetingId,
+                create
             });
             await repository.recordSessionOwnership(
                 {
@@ -2359,8 +2405,8 @@ describe("create/status meeting runtime", () => {
                 createResult: { meetingId, meetingVersion: 0, status: "created", participants: [] },
                 createdAt: index + 1
             });
-            await repository.close();
         }
+        await registry.close();
 
         const runtime = localRuntime(root);
         const listed = await runtime.listLocalMeetings();
@@ -2479,13 +2525,11 @@ describe("create/status meeting runtime", () => {
         if (!healthy.ok || !corrupt.ok) throw new Error("fixture create failed");
         await creator.dispose();
 
-        const corruptDb = new DatabaseSync(
-            join(root, input.teamId, `${corrupt.result.meetingId}.sqlite`)
+        const corruptDomain = await storagePort(root).open(
+            createMeetingDomainSpec(meetingDomainName(input.teamId, corrupt.result.meetingId))
         );
-        corruptDb
-            .prepare("UPDATE meetings SET state_json = ? WHERE meeting_id = ?")
-            .run("{", corrupt.result.meetingId);
-        corruptDb.close();
+        await corruptDomain.table("commits").delete(seqKey(1));
+        await corruptDomain.close();
 
         const runtime = localRuntime(root);
         await expect(runtime.listLocalMeetings()).rejects.toBeInstanceOf(

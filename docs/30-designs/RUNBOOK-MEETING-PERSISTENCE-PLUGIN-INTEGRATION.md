@@ -114,28 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T14 — Cut Production Over
-
-前置状态：T13 PASS.
-
-允许修改：`plugin/src/repository/index.ts`; `plugin/src/runtime/meeting-runtime.ts`; `plugin/src/runtime/services/meeting-recovery-service.ts`; `plugin/src/runtime/application-service/create-meeting.ts`; `plugin/src/runtime/application-service/index.ts`; `plugin/src/index.ts`; `plugin/tests/unit/index-inject.spec.ts`; `plugin/tests/unit/config.spec.ts`; `plugin/tests/unit/runtime/meeting-mail-dispatch.spec.ts`; `plugin/tests/contract/continuation.spec.ts`; `plugin/tests/contract/meeting-runtime.spec.ts`; `plugin/tests/recovery/recovery.spec.ts`.
-
-禁止修改：SQLite implementation/tests, public DTO/domain/client behavior, profile.
-
-执行：mount JSONL child at `<dataRoot>/storage` then Meeting consumer through `storageDomain`；own one registry；replace locator/directory discovery with catalog；shutdown delivery/timeouts -> registry/domains -> backend；barrel 不再导出 SQLite，但源仍保留。
-
-验证：
-
-```bash
-pnpm --dir plugin test --project host tests/unit/index-inject.spec.ts tests/unit/runtime tests/unit/module-boundaries.spec.ts
-pnpm --dir plugin typecheck
-pnpm --dir plugin build
-```
-
-PASS：production constructs Domain registry；SQLite 仅 direct-import tests 可达；无 dual write/fallback。
-
-STOP：需要公开行为变化、两 repository 或无法证明 close order。
-
 ### T15 — Wire Real Profile
 
 前置状态：T14 PASS.

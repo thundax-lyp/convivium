@@ -2,9 +2,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { Context } from "@deepseek-ai/cordis";
+import Storage from "@deepseek-ai/dsh-storage";
+import * as storageDomainPlugin from "@deepseek-ai/dsh-storage-domain";
 import { endMeeting, type MeetingState } from "../../src/domain/index.js";
-import { SqliteMeetingRepository as MeetingRepository } from "../../src/repository/sqlite-meeting-repository.js";
+import { DomainRepositoryRegistry } from "../../src/repository/domain/domain-repository-registry.js";
 import type { JsonObject, RepositoryCommand } from "../../src/repository/types.js";
+import { jsonlStoragePlugin } from "../../src/storage/index.js";
 import {
     pauseMeetingRuntime,
     type PauseRecoveryDependencies
@@ -90,9 +94,8 @@ describe("recovery controls", () => {
         ).rejects.toThrow(/exact persisted parent/);
     });
 
-    it("reopens the same complete terminal snapshot and receipt from SQLite", async () => {
+    it("reopens the same complete terminal snapshot and receipt from Storage Domain", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-completion-recovery-"));
-        const databasePath = join(root, "meeting.sqlite");
         const authorization = {
             callerBinding: "session:captain-1",
             capabilityId: "captain:captain-1"
@@ -178,38 +181,63 @@ describe("recovery controls", () => {
                 };
             }
         };
-        let first: MeetingRepository | undefined;
-        let reopened: MeetingRepository | undefined;
+        const context = new Context();
+        const reopenedContext = new Context();
+        let firstRegistry: DomainRepositoryRegistry | undefined;
+        let reopenedRegistry: DomainRepositoryRegistry | undefined;
 
         try {
-            first = await MeetingRepository.open({
-                databasePath,
-                teamId: "team-1",
-                meetingId: "meeting-1",
-                authorizationValidator: validator
-            });
-            await first.create({
+            await context.plugin(Storage);
+            await context.plugin(jsonlStoragePlugin, { root: join(root, "storage") });
+            await context.plugin(
+                {
+                    name: storageDomainPlugin.name,
+                    inject: storageDomainPlugin.inject,
+                    apply: storageDomainPlugin.apply
+                },
+                { backend: "convivium-jsonl" }
+            );
+            const create = {
                 requestId: "create-1",
                 authorization,
                 requestHash: "create-hash",
                 initialState: initialState as unknown as JsonObject,
                 createdAt: 10
+            };
+            firstRegistry = await DomainRepositoryRegistry.open({
+                storageDomain: context.storageDomain,
+                authorizationValidator: validator
+            });
+            const first = await firstRegistry.openMeeting({
+                teamId: "team-1",
+                meetingId: "meeting-1",
+                create
             });
             await first.completeCreate({
-                requestId: "create-1",
-                authorization,
-                requestHash: "create-hash",
-                initialState: initialState as unknown as JsonObject,
-                createdAt: 10
+                ...create
             });
             const ended = await first.execute(command);
-            await first.close();
+            await firstRegistry.close();
+            await context.fiber.dispose();
 
-            reopened = await MeetingRepository.open({
-                databasePath,
-                teamId: "team-1",
-                meetingId: "meeting-1",
+            await reopenedContext.plugin(Storage);
+            await reopenedContext.plugin(jsonlStoragePlugin, { root: join(root, "storage") });
+            await reopenedContext.plugin(
+                {
+                    name: storageDomainPlugin.name,
+                    inject: storageDomainPlugin.inject,
+                    apply: storageDomainPlugin.apply
+                },
+                { backend: "convivium-jsonl" }
+            );
+
+            reopenedRegistry = await DomainRepositoryRegistry.open({
+                storageDomain: reopenedContext.storageDomain,
                 authorizationValidator: validator
+            });
+            const reopened = await reopenedRegistry.openMeeting({
+                teamId: "team-1",
+                meetingId: "meeting-1"
             });
             const recovered = await reopened.recover({ now: 40 });
             expect(recovered.snapshot).toMatchObject({
@@ -225,10 +253,12 @@ describe("recovery controls", () => {
             });
             await expect(reopened.execute(command)).resolves.toEqual(ended);
             expect((await reopened.read()).version).toBe(1);
-            await reopened.close();
+            await reopenedRegistry.close();
         } finally {
-            await reopened?.close();
-            await first?.close();
+            await reopenedRegistry?.close();
+            await firstRegistry?.close();
+            await reopenedContext.fiber.dispose();
+            await context.fiber.dispose();
             await rm(root, { recursive: true, force: true });
         }
     });

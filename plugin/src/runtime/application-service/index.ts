@@ -1,6 +1,11 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
+import type { DomainFacility } from "@deepseek-ai/dsh-storage-domain";
 import { DomainError, failSpeakerAttempt, type MeetingState } from "../../domain/index.js";
 import { RepositoryError } from "../../repository/errors.js";
+import {
+    DomainRepositoryRegistry,
+    type DomainFacilityPort
+} from "../../repository/domain/domain-repository-registry.js";
 import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { RepositoryAuthorizationValidator } from "../meeting-runtime.js";
@@ -165,7 +170,7 @@ export interface MeetingToolRuntime {
 }
 
 export interface CreateStatusRuntimeOptions {
-    readonly dataRoot: string;
+    readonly storageDomain: Pick<DomainFacility, "open"> | DomainFacilityPort;
     readonly provider: string;
     readonly continuable: Pick<
         SubagentRuntime,
@@ -180,6 +185,10 @@ export interface CreateStatusRuntimeOptions {
     readonly now?: () => number;
     readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
     readonly timeoutScanSleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
+}
+
+interface InternalCreateStatusRuntimeOptions extends CreateStatusRuntimeOptions {
+    readonly repositoryRegistry: Promise<DomainRepositoryRegistry>;
 }
 
 export interface LocalMeetingWebRuntime {
@@ -234,6 +243,15 @@ function isConcurrentTimeoutLoser(error: unknown): boolean {
 export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
 ): MeetingRuntimeWithCallerLookup {
+    const repositoryRegistry = DomainRepositoryRegistry.open({
+        storageDomain: options.storageDomain,
+        authorizationValidator: options.authorizationValidator,
+        now: options.now
+    });
+    const runtimeOptions: InternalCreateStatusRuntimeOptions = {
+        ...options,
+        repositoryRegistry
+    };
     const meetings = new Map<string, StoredMeeting>();
     const deliveryWorkers = createMeetingDeliveryWorkerService({
         pollMs: options.outboxPollMs ?? 1_000,
@@ -252,6 +270,7 @@ export function createCreateStatusRuntime(
     const timeoutController = new AbortController();
     const timeoutSignal = AbortSignal.any([signal, timeoutController.signal]);
     const timeoutDispatchHolds = new Map<string, Promise<void>>();
+    const timeoutAttemptsInFlight = new Set<string>();
     const holdTimeoutDispatch = (meetingId: string): (() => void) => {
         let release!: () => void;
         const hold = new Promise<void>((resolve) => {
@@ -266,8 +285,7 @@ export function createCreateStatusRuntime(
         };
     };
     const repositoryRecovery = createMeetingRehydrationService({
-        dataRoot: options.dataRoot,
-        authorizationValidator: options.authorizationValidator,
+        registry: repositoryRegistry,
         meetings,
         signal,
         now: options.now
@@ -373,7 +391,7 @@ export function createCreateStatusRuntime(
     }
 
     const createMeeting = createMeetingApplication({
-        runtime: options,
+        runtime: runtimeOptions,
         meetings,
         recovery,
         deliveryWorkers,
@@ -381,26 +399,26 @@ export function createCreateStatusRuntime(
         signal
     });
     const taskApplication = createMeetingTaskApplication({
-        options,
+        options: runtimeOptions,
         meetings,
         recovery
     });
     const turnApplication = createMeetingTurnApplication({
-        options,
+        options: runtimeOptions,
         meetings,
         recovery,
         deliveryWorkers,
         taskEvidenceResolver
     });
     const controlApplication = createMeetingControlApplication({
-        options,
+        options: runtimeOptions,
         meetings,
         recovery,
         deliveryWorkers,
         ensureWorker
     });
     const endApplication = createMeetingEndApplication({
-        options,
+        options: runtimeOptions,
         meetings,
         recovery,
         deliveryWorkers,
@@ -409,13 +427,17 @@ export function createCreateStatusRuntime(
         recoverArchiveForLocal
     });
     const mailApplication = createMeetingMailApplication({
-        options,
+        options: runtimeOptions,
         meetings,
         recovery,
         deliveryWorkers,
         ensureWorker
     });
-    const decisionApplication = createMeetingDecisionApplication({ options, meetings, recovery });
+    const decisionApplication = createMeetingDecisionApplication({
+        options: runtimeOptions,
+        meetings,
+        recovery
+    });
 
     async function scanExpiredSpeakerAttempts(): Promise<void> {
         await recovery.rehydrate();
@@ -423,6 +445,7 @@ export function createCreateStatusRuntime(
         let firstError: unknown;
         for (const stored of meetings.values()) {
             let releaseDispatch: (() => void) | undefined;
+            let timeoutAttemptId: string | undefined;
             let committed = false;
             try {
                 const parent = stored.parent;
@@ -448,6 +471,9 @@ export function createCreateStatusRuntime(
                 ) {
                     continue;
                 }
+                if (timeoutAttemptsInFlight.has(attempt.attemptId)) continue;
+                timeoutAttemptsInFlight.add(attempt.attemptId);
+                timeoutAttemptId = attempt.attemptId;
                 releaseDispatch = holdTimeoutDispatch(stored.repository.meetingId);
                 await stored.repository.execute({
                     requestId: `runtime-timeout:${attempt.attemptId}`,
@@ -551,6 +577,8 @@ export function createCreateStatusRuntime(
                 if (isConcurrentTimeoutLoser(error)) continue;
                 firstError ??= error;
             } finally {
+                if (timeoutAttemptId !== undefined)
+                    timeoutAttemptsInFlight.delete(timeoutAttemptId);
                 releaseDispatch?.();
                 if (committed) deliveryWorkers.wake(stored.repository.meetingId);
             }
@@ -607,7 +635,7 @@ export function createCreateStatusRuntime(
             timeoutController.abort(new Error("Speaker timeout monitor disposed"));
             await timeoutMonitor;
             await deliveryWorkers.dispose();
-            await Promise.all([...meetings.values()].map((stored) => stored.repository.close()));
+            await (await repositoryRegistry).close();
             meetings.clear();
         }
     } satisfies MeetingRuntimeWithCallerLookup;

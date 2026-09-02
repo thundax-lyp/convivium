@@ -7,7 +7,8 @@ import {
     PersistedEventV1Schema,
     PersistedOutboxV1Schema,
     PersistedReceiptV1Schema,
-    PersistenceProjectionV1Schema
+    PersistenceProjectionV1Schema,
+    JsonObjectSchema
 } from "./schemas.js";
 import type {
     CancelPrivateMeetingMailInput,
@@ -16,6 +17,7 @@ import type {
     CompleteOutboxInput,
     CreateMeetingInput,
     CreateMeetingResult,
+    JsonObject,
     MeetingBootstrap,
     MeetingSnapshot,
     OutboxCompletionResult,
@@ -44,7 +46,7 @@ import {
 import { diff } from "./json-patch.js";
 import { catalogKey, receiptKey, seqKey } from "./keys.js";
 import { loadProjection } from "./projection.js";
-import { decodeCanonicalJson, encodeCanonicalJson } from "./canonical-json.js";
+import { decodeCanonicalJson, encodeCanonicalJson, type JsonValue } from "./canonical-json.js";
 import { RepositoryError } from "../errors.js";
 import {
     APPLICATION_CHECKPOINT_TRIGGER_BYTES,
@@ -53,6 +55,28 @@ import {
     APPLICATION_TAIL_HARD_COMMITS
 } from "./projection.js";
 import { writeCheckpoint } from "./checkpoint.js";
+
+function jsonValue(value: unknown): JsonValue {
+    if (
+        value === null ||
+        typeof value === "string" ||
+        typeof value === "boolean" ||
+        (typeof value === "number" && Number.isFinite(value))
+    )
+        return value;
+    if (Array.isArray(value)) return value.map(jsonValue);
+    if (value !== undefined && typeof value === "object") {
+        const prototype = Object.getPrototypeOf(value);
+        if (prototype !== Object.prototype && prototype !== null)
+            throw new TypeError("Repository value contains a non-plain object");
+        const result: Record<string, JsonValue> = Object.create(null);
+        for (const [key, item] of Object.entries(value)) {
+            if (item !== undefined) result[key] = jsonValue(item);
+        }
+        return result;
+    }
+    throw new TypeError("Repository value is not JSON-compatible");
+}
 
 function parseSessionLabel(
     label: string
@@ -1346,6 +1370,19 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 );
             const now = this.now();
             const transition = command.transition(snapshot);
+            let transitionState: JsonObject;
+            let transitionResult: JsonValue;
+            try {
+                transitionState = JsonObjectSchema.parse(jsonValue(transition.state));
+                transitionResult = jsonValue(transition.result);
+            } catch {
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Command state or result is invalid"
+                );
+            }
             if (transition.events.length === 0) {
                 if (!command.allowNoop)
                     throw new RepositoryError(
@@ -1367,7 +1404,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                             callerBinding: command.authorization.callerBinding,
                             requestHash: command.requestHash,
                             meetingVersion,
-                            result: transition.result,
+                            result: transitionResult,
                             eventSeqs: [],
                             createdAt: now
                         });
@@ -1401,7 +1438,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                         snapshot: {
                             ...snapshot,
                             version: nextVersion,
-                            state: { ...transition.state, version: nextVersion },
+                            state: { ...transitionState, version: nextVersion },
                             updatedAt: now
                         }
                     })
@@ -1423,7 +1460,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     eventSeq,
                     meetingVersion: nextVersion,
                     type: event.type,
-                    payload: event.payload,
+                    payload: jsonValue(event.payload),
                     turnId: event.turnId ?? null,
                     attemptId: event.attemptId ?? null,
                     createdAt: now
@@ -1452,7 +1489,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     deliveryId: item.deliveryId,
                     kind: "dispatch",
                     priority: item.priority ?? 50,
-                    payload: item.payload,
+                    payload: jsonValue(item.payload),
                     status: "pending",
                     attempts: 0,
                     availableAt: item.availableAt ?? now,
@@ -1481,7 +1518,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 callerBinding: command.authorization.callerBinding,
                 requestHash: command.requestHash,
                 meetingVersion: nextVersion,
-                result,
+                result: transitionResult,
                 eventSeqs,
                 createdAt: now
             });

@@ -12,7 +12,8 @@ import {
     startParticipantSession
 } from "../dsh/index.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import { SqliteMeetingRepository } from "../repository/sqlite-meeting-repository.js";
+import { DomainRepositoryRegistry } from "../repository/domain/domain-repository-registry.js";
+import type { DomainMeetingRepository } from "../repository/domain/domain-meeting-repository.js";
 import type {
     CommandAuthorization,
     CreateMeetingInput,
@@ -22,16 +23,108 @@ import type {
 import type { MeetingRepositoryPort as MeetingRepositoryType } from "../repository/meeting-repository-port.js";
 import type { RepositoryAuthorizationValidator } from "../repository/types.js";
 import type { CreateMeetingInputV1 } from "../protocol/index.js";
+import type { JsonValue } from "../repository/domain/canonical-json.js";
 
-export type MeetingRepositoryOpenInput = Parameters<typeof SqliteMeetingRepository.open>[0];
+export interface MeetingRepositoryOpenInput {
+    readonly registry: Promise<DomainRepositoryRegistry>;
+    readonly teamId: string;
+    readonly meetingId: string;
+    readonly create?: CreateMeetingInput;
+}
 export type MeetingRepositoryRuntime = MeetingRepositoryType;
 export type { RepositoryAuthorizationValidator };
 export type { DomainEventInput, JsonObject };
 
 export async function openMeetingRepository(
     input: MeetingRepositoryOpenInput
-): Promise<SqliteMeetingRepository> {
-    return SqliteMeetingRepository.open(input);
+): Promise<DomainMeetingRepository> {
+    return (await input.registry).openMeeting({
+        teamId: input.teamId,
+        meetingId: input.meetingId,
+        ...(input.create === undefined ? {} : { create: input.create })
+    });
+}
+
+export interface PreparedMeetingCreation {
+    readonly state: ReturnType<typeof createMeetingState>;
+    readonly createInput: CreateMeetingInput;
+}
+
+function jsonValue(value: unknown): JsonValue {
+    if (
+        value === null ||
+        typeof value === "string" ||
+        typeof value === "boolean" ||
+        (typeof value === "number" && Number.isFinite(value))
+    )
+        return value;
+    if (Array.isArray(value)) return value.map(jsonValue);
+    if (value !== undefined && typeof value === "object") {
+        const prototype = Object.getPrototypeOf(value);
+        if (prototype !== Object.prototype && prototype !== null)
+            throw new TypeError("Meeting state contains a non-plain object");
+        const result: JsonObject = Object.create(null);
+        for (const [key, item] of Object.entries(value)) {
+            if (item !== undefined) result[key] = jsonValue(item);
+        }
+        return result;
+    }
+    throw new TypeError("Meeting state is not JSON-compatible");
+}
+
+function jsonObject(value: unknown): JsonObject {
+    const normalized = jsonValue(value);
+    if (normalized !== null && typeof normalized === "object" && !Array.isArray(normalized))
+        return normalized;
+    throw new TypeError("Meeting state must be a JSON object");
+}
+
+export function prepareMeetingCreation(
+    input: CreateMeetingInputV1,
+    meetingId: string,
+    authorization: CommandAuthorization,
+    options: {
+        readonly now: number;
+        readonly promptVersion?: string;
+        readonly speakerAttemptTimeoutMs?: number;
+        readonly continuation?: CreateContinuationSpec;
+    }
+): PreparedMeetingCreation {
+    const allocator: CanonicalIdAllocator = {
+        allocate: (kind, key) => `${kind}-${key}`
+    };
+    const state = createMeetingState(
+        {
+            meetingId,
+            teamId: input.teamId,
+            topic: input.topic,
+            objective: input.objective,
+            promptVersion: options.promptVersion ?? "v1",
+            objectiveContract: input.objectiveContract,
+            agenda: input.agenda,
+            participants: input.participants.map((participant) => ({
+                key: participant.participantKey,
+                sourceMemberName: participant.sourceMemberName,
+                displayName: participant.displayName,
+                role: participant.role
+            })),
+            continuation: options.continuation,
+            selectionMode: input.selectionMode,
+            limits: limits(input, options.speakerAttemptTimeoutMs),
+            createdAt: options.now
+        },
+        allocator
+    );
+    return {
+        state,
+        createInput: authorizationInput(
+            input,
+            authorization,
+            meetingId,
+            jsonObject(state),
+            options.now
+        )
+    };
 }
 
 export interface MeetingCreationRuntimeDependencies {
@@ -54,6 +147,7 @@ export interface MeetingCreationRuntimeDependencies {
     readonly promptVersion?: string;
     readonly speakerAttemptTimeoutMs?: number;
     readonly continuation?: CreateContinuationSpec;
+    readonly prepared?: PreparedMeetingCreation;
     readonly signal: AbortSignal;
     readonly now?: () => number;
 }
@@ -113,38 +207,15 @@ export async function createMeetingRuntime(
 ) {
     const now = dependencies.now?.() ?? Date.now();
     const meetingId = dependencies.repository.meetingId;
-    const allocator: CanonicalIdAllocator = {
-        allocate: (kind, key) => `${kind}-${key}`
-    };
-    const state = createMeetingState(
-        {
-            meetingId,
-            teamId: input.teamId,
-            topic: input.topic,
-            objective: input.objective,
-            promptVersion: dependencies.promptVersion ?? "v1",
-            objectiveContract: input.objectiveContract,
-            agenda: input.agenda,
-            participants: input.participants.map((participant) => ({
-                key: participant.participantKey,
-                sourceMemberName: participant.sourceMemberName,
-                displayName: participant.displayName,
-                role: participant.role
-            })),
-            continuation: dependencies.continuation,
-            selectionMode: input.selectionMode,
-            limits: limits(input, dependencies.speakerAttemptTimeoutMs),
-            createdAt: now
-        },
-        allocator
-    );
-    const createInput = authorizationInput(
-        input,
-        dependencies.authorization,
-        meetingId,
-        state as unknown as Record<string, unknown>,
-        now
-    );
+    const prepared =
+        dependencies.prepared ??
+        prepareMeetingCreation(input, meetingId, dependencies.authorization, {
+            now,
+            promptVersion: dependencies.promptVersion,
+            speakerAttemptTimeoutMs: dependencies.speakerAttemptTimeoutMs,
+            continuation: dependencies.continuation
+        });
+    const { state, createInput } = prepared;
     await dependencies.repository.create(createInput);
     const ownerships: { sessionId: SessionId }[] = [];
     try {

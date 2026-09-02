@@ -1,14 +1,56 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { Context } from "@deepseek-ai/cordis";
+import Storage from "@deepseek-ai/dsh-storage";
+import * as storageDomainPlugin from "@deepseek-ai/dsh-storage-domain";
+import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import type { ArchivePackage, MeetingState } from "../../src/domain/index.js";
 import { openMeetingRepository } from "../../src/runtime/index.js";
-import { locateMeetingRepository } from "../../src/runtime/services/meeting-repository-locator.js";
 import { createCreateStatusRuntime } from "../../src/runtime/application-service/index.js";
+import {
+    DomainRepositoryRegistry,
+    type DomainFacilityPort
+} from "../../src/repository/domain/domain-repository-registry.js";
+import { jsonlStoragePlugin } from "../../src/storage/index.js";
 
 const roots: string[] = [];
+const storageContexts: Array<Promise<Context>> = [];
+
+function storagePort(root: string): DomainFacilityPort {
+    const mounting = (async () => {
+        const ctx = new Context();
+        await ctx.plugin(Storage);
+        await ctx.plugin(jsonlStoragePlugin, { root: join(root, "storage") });
+        await ctx.plugin(
+            {
+                name: storageDomainPlugin.name,
+                inject: storageDomainPlugin.inject,
+                apply: storageDomainPlugin.apply
+            },
+            { backend: "convivium-jsonl" }
+        );
+        return ctx;
+    })();
+    storageContexts.push(mounting);
+    return {
+        async open<S extends DomainSpec>(spec: S): Promise<Domain<S>> {
+            return (await mounting).storageDomain.open(spec);
+        }
+    };
+}
+
+async function openTestRegistry(root: string): Promise<DomainRepositoryRegistry> {
+    return DomainRepositoryRegistry.open({
+        storageDomain: storagePort(root),
+        authorizationValidator: {
+            validateCreate: () => undefined,
+            validateCommand: () => undefined
+        }
+    });
+}
 
 const baseInput = {
     protocolVersion: 1 as const,
@@ -46,7 +88,7 @@ const captain = {
 
 function runtime(root: string, starts: string[]) {
     return createCreateStatusRuntime({
-        dataRoot: root,
+        storageDomain: storagePort(root),
         provider: "spawn",
         continuable: {
             startContinuable: async (spec) => {
@@ -146,12 +188,9 @@ function archiveFixture(meetingId: string): ArchivePackage {
     };
 }
 
-async function directoryEntries(root: string, teamId = "team-1"): Promise<readonly string[]> {
-    try {
-        return (await readdir(join(root, encodeURIComponent(teamId)))).sort();
-    } catch {
-        return [];
-    }
+async function meetingIds(runtime: ReturnType<typeof createCreateStatusRuntime>) {
+    const listed = await runtime.listLocalMeetings();
+    return listed.result.meetings.map(({ meetingId }) => meetingId).sort();
 }
 
 async function createArchivedSource(
@@ -168,14 +207,11 @@ async function createArchivedSource(
     if (!created.ok) throw new Error("source create failed");
     await sourceRuntime.dispose();
 
+    const registry = await openTestRegistry(root);
     const repository = await openMeetingRepository({
-        databasePath: locateMeetingRepository(root, "team-1", created.result.meetingId),
+        registry: Promise.resolve(registry),
         teamId: "team-1",
-        meetingId: created.result.meetingId,
-        authorizationValidator: {
-            validateCreate: () => undefined,
-            validateCommand: () => undefined
-        }
+        meetingId: created.result.meetingId
     });
     const snapshot = await repository.read();
     const archive =
@@ -199,24 +235,21 @@ async function createArchivedSource(
             outbox: []
         })
     });
-    await repository.close();
+    await registry.close();
     return created.result.meetingId;
 }
 
 async function serializedSourceState(root: string, meetingId: string): Promise<string> {
+    const registry = await openTestRegistry(root);
     const repository = await openMeetingRepository({
-        databasePath: locateMeetingRepository(root, "team-1", meetingId),
+        registry: Promise.resolve(registry),
         teamId: "team-1",
-        meetingId,
-        authorizationValidator: {
-            validateCreate: () => undefined,
-            validateCommand: () => undefined
-        }
+        meetingId
     });
     try {
         return JSON.stringify((await repository.read()).state);
     } finally {
-        await repository.close();
+        await registry.close();
     }
 }
 
@@ -238,6 +271,8 @@ function continuationInput(sourceMeetingId: string, requestId = "continuation-cr
 }
 
 afterEach(async () => {
+    await Promise.all(storageContexts.map(async (context) => (await context).fiber.dispose()));
+    storageContexts.length = 0;
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
@@ -247,7 +282,7 @@ describe("archive continuation create contract", () => {
         roots.push(root);
         const starts: string[] = [];
         const sourceMeetingId = await createArchivedSource(root, starts);
-        const beforeEntries = await directoryEntries(root);
+        const beforeMeetingIds = [sourceMeetingId];
         const sourceBefore = await serializedSourceState(root, sourceMeetingId);
 
         const targetRuntime = runtime(root, starts);
@@ -304,8 +339,8 @@ describe("archive continuation create contract", () => {
         expect(targetId).not.toBe(sourceMeetingId);
         expect(starts.filter((id) => id.includes(sourceMeetingId))).toHaveLength(2);
         expect(starts.filter((id) => id.includes(targetId))).toHaveLength(2);
-        expect(await directoryEntries(root)).toEqual(
-            expect.arrayContaining([...beforeEntries, `${encodeURIComponent(targetId)}.sqlite`])
+        expect(await meetingIds(targetRuntime)).toEqual(
+            expect.arrayContaining([...beforeMeetingIds, targetId])
         );
         expect(await serializedSourceState(root, sourceMeetingId)).toBe(sourceBefore);
         const startsBeforeReplay = starts.length;
@@ -437,9 +472,7 @@ describe("archive continuation create contract", () => {
                 .update(`${input.teamId}\0${input.requestId}`)
                 .digest("hex")
                 .slice(0, 32)}`;
-            expect(await directoryEntries(root)).not.toContain(
-                `${encodeURIComponent(targetId)}.sqlite`
-            );
+            expect(await meetingIds(targetRuntime)).not.toContain(targetId);
             expect(starts).toHaveLength(beforeStarts);
         }
         await targetRuntime.dispose();
@@ -466,9 +499,7 @@ describe("archive continuation create contract", () => {
             .update(`${request.teamId}\0${request.requestId}`)
             .digest("hex")
             .slice(0, 32)}`;
-        expect(await directoryEntries(root)).not.toContain(
-            `${encodeURIComponent(targetId)}.sqlite`
-        );
+        expect(await meetingIds(targetRuntime)).not.toContain(targetId);
         expect(starts).toHaveLength(beforeStarts);
         await targetRuntime.dispose();
     });
@@ -484,7 +515,7 @@ describe("archive continuation create contract", () => {
             new AbortController().signal
         );
         if (!created.ok) throw new Error("source create failed");
-        const beforeEntries = await directoryEntries(root);
+        const beforeMeetingIds = [created.result.meetingId];
         const beforeStarts = starts.length;
         const result = await sourceRuntime.createMeeting(
             continuationInput(created.result.meetingId, "unarchived"),
@@ -493,7 +524,7 @@ describe("archive continuation create contract", () => {
         );
 
         expect(result).toMatchObject({ ok: false, code: "SOURCE_MEETING_NOT_ARCHIVED" });
-        expect(await directoryEntries(root)).toEqual(beforeEntries);
+        expect(await meetingIds(sourceRuntime)).toEqual(beforeMeetingIds);
         expect(starts).toHaveLength(beforeStarts);
         await sourceRuntime.dispose();
     });

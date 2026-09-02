@@ -1,15 +1,9 @@
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { inspectOwnedSessions, type OwnedSessionInspection } from "../../dsh/index.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
+import type { DomainRepositoryRegistry } from "../../repository/domain/domain-repository-registry.js";
 import type { MeetingRepositoryPort as MeetingRepository } from "../../repository/meeting-repository-port.js";
 import type { MeetingSnapshot, RecoveryResult } from "../../repository/types.js";
-import {
-    openMeetingRepository,
-    type RepositoryAuthorizationValidator
-} from "../meeting-runtime.js";
-import { locateMeetingRepository } from "./meeting-repository-locator.js";
 
 export class LocalMeetingRecoveryUnavailableError extends Error {
     readonly name = "LocalMeetingRecoveryUnavailableError";
@@ -28,8 +22,7 @@ export type RehydrateMode =
     | { readonly kind: "local_meeting"; readonly meetingId: string };
 
 export interface MeetingRehydrationServiceOptions {
-    readonly dataRoot: string;
-    readonly authorizationValidator: RepositoryAuthorizationValidator;
+    readonly registry: Promise<DomainRepositoryRegistry>;
     readonly meetings: Map<string, RecoverableMeeting>;
     readonly signal: AbortSignal;
     readonly now?: () => number;
@@ -39,7 +32,7 @@ export interface MeetingRehydrationService {
     rehydrate(mode?: RehydrateMode): Promise<Map<string, MeetingSnapshot> | undefined>;
 }
 
-/** Owns filesystem discovery and repository recovery; it makes no meeting command decisions. */
+/** Owns catalog discovery and repository recovery; it makes no meeting command decisions. */
 export function createMeetingRehydrationService(
     options: MeetingRehydrationServiceOptions
 ): MeetingRehydrationService {
@@ -49,32 +42,18 @@ export function createMeetingRehydrationService(
             : new LocalMeetingRecoveryUnavailableError("Local meeting recovery is unavailable.", {
                   cause: error
               });
-    const isMissing = (error: unknown): boolean =>
-        error !== null &&
-        typeof error === "object" &&
-        "code" in error &&
-        (error as { code?: unknown }).code === "ENOENT";
-
     async function recoverLocal(
         snapshots: Map<string, MeetingSnapshot>,
         meetingId: string,
         teamId: string,
-        databasePath: string,
         existing?: RecoverableMeeting
     ): Promise<void> {
         let repository = existing?.repository;
-        let opened = false;
         try {
             if (repository === undefined) {
-                repository = await openMeetingRepository({
-                    databasePath,
-                    teamId,
-                    meetingId,
-                    authorizationValidator: options.authorizationValidator
-                });
-                opened = true;
+                repository = await (await options.registry).openMeeting({ teamId, meetingId });
             } else if (existing?.teamId !== teamId) {
-                throw new Error("Recovered Meeting team ownership does not match discovery.");
+                throw new Error("Recovered Meeting team ownership does not match catalog.");
             }
             const recovered = await repository.recover();
             if (
@@ -82,7 +61,6 @@ export function createMeetingRehydrationService(
                 recovered.bootstrap.status === "creation_failed"
             ) {
                 if (existing !== undefined) options.meetings.delete(meetingId);
-                await repository.close();
                 return;
             }
             const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
@@ -90,7 +68,7 @@ export function createMeetingRehydrationService(
                 throw new Error("Ready Meeting recovery is incomplete.");
             }
             const current = await repository.read();
-            if (opened) {
+            if (existing === undefined) {
                 options.meetings.set(meetingId, {
                     teamId,
                     captainSessionId: parentSessionId,
@@ -99,9 +77,6 @@ export function createMeetingRehydrationService(
             }
             snapshots.set(meetingId, current);
         } catch (error) {
-            if (opened && repository !== undefined) {
-                await repository.close().catch(() => undefined);
-            }
             throw unavailable(error);
         }
     }
@@ -113,97 +88,53 @@ export function createMeetingRehydrationService(
                 if (mode.kind === "local_meeting") {
                     const existing = options.meetings.get(mode.meetingId);
                     if (existing !== undefined) {
-                        await recoverLocal(
-                            snapshots,
-                            mode.meetingId,
-                            existing.teamId,
-                            locateMeetingRepository(
-                                options.dataRoot,
-                                existing.teamId,
-                                mode.meetingId
-                            ),
-                            existing
-                        );
+                        await recoverLocal(snapshots, mode.meetingId, existing.teamId, existing);
                         return snapshots;
                     }
                 }
-                let teams;
                 try {
-                    teams = await readdir(options.dataRoot, { withFileTypes: true });
-                } catch (error) {
-                    if (isMissing(error)) return snapshots;
-                    throw unavailable(error);
-                }
-                for (const team of teams) {
-                    if (!team.isDirectory()) continue;
-                    let teamId: string;
-                    try {
-                        teamId = decodeURIComponent(team.name);
-                    } catch (error) {
-                        throw unavailable(error);
-                    }
-                    let files: string[];
-                    try {
-                        files = await readdir(join(options.dataRoot, team.name));
-                    } catch (error) {
-                        throw unavailable(error);
-                    }
-                    for (const file of files) {
-                        if (!file.endsWith(".sqlite")) continue;
-                        let meetingId: string;
-                        try {
-                            meetingId = decodeURIComponent(file.slice(0, -7));
-                        } catch (error) {
-                            if (mode.kind === "local_list") throw unavailable(error);
+                    const catalog = (await options.registry).listMeetings();
+                    for (const record of catalog) {
+                        if (mode.kind === "local_meeting" && record.meetingId !== mode.meetingId)
                             continue;
-                        }
-                        if (mode.kind === "local_meeting" && meetingId !== mode.meetingId) continue;
                         await recoverLocal(
                             snapshots,
-                            meetingId,
-                            teamId,
-                            join(options.dataRoot, team.name, file),
-                            options.meetings.get(meetingId)
+                            record.meetingId,
+                            record.teamId,
+                            options.meetings.get(record.meetingId)
                         );
                         if (mode.kind === "local_meeting") return snapshots;
                     }
+                } catch (error) {
+                    throw unavailable(error);
                 }
                 return snapshots;
             }
-
-            const teams = await readdir(options.dataRoot, { withFileTypes: true }).catch(() => []);
-            for (const team of teams) {
-                if (!team.isDirectory()) continue;
-                const files = await readdir(join(options.dataRoot, team.name)).catch(() => []);
-                for (const file of files) {
-                    if (!file.endsWith(".sqlite")) continue;
-                    const meetingId = decodeURIComponent(file.slice(0, -7));
-                    if (options.meetings.has(meetingId)) continue;
-                    try {
-                        const repository = await openMeetingRepository({
-                            databasePath: join(options.dataRoot, team.name, file),
-                            teamId: decodeURIComponent(team.name),
-                            meetingId,
-                            authorizationValidator: options.authorizationValidator
-                        });
-                        const recovered = await repository.recover();
-                        const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
-                        if (
-                            recovered.bootstrap.status !== "ready" ||
-                            recovered.snapshot === undefined ||
-                            parentSessionId === undefined
-                        ) {
-                            await repository.close();
-                            continue;
-                        }
-                        options.meetings.set(meetingId, {
-                            teamId: decodeURIComponent(team.name),
-                            captainSessionId: parentSessionId,
-                            repository
-                        });
-                    } catch {
-                        // Ignore unrelated or incomplete databases during startup discovery.
-                    }
+            const catalog = await options.registry.then((registry) => registry.listMeetings());
+            for (const record of catalog) {
+                if (options.meetings.has(record.meetingId)) continue;
+                try {
+                    const repository = await (
+                        await options.registry
+                    ).openMeeting({
+                        teamId: record.teamId,
+                        meetingId: record.meetingId
+                    });
+                    const recovered = await repository.recover();
+                    const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
+                    if (
+                        recovered.bootstrap.status !== "ready" ||
+                        recovered.snapshot === undefined ||
+                        parentSessionId === undefined
+                    )
+                        continue;
+                    options.meetings.set(record.meetingId, {
+                        teamId: record.teamId,
+                        captainSessionId: parentSessionId,
+                        repository
+                    });
+                } catch {
+                    // Ignore unrelated or incomplete catalog records during startup discovery.
                 }
             }
         }
