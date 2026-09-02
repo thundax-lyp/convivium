@@ -952,13 +952,15 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         const command = _command;
         this.ensureOpen();
         return this.enqueueMutation(async () => {
-            if (!this.projection)
+            if (!this.projection?.snapshot)
                 throw new RepositoryError(
                     "INVALID_STATE",
                     false,
                     this.meetingId,
                     "Meeting is not ready"
                 );
+            const snapshot = structuredClone(this.projection.snapshot);
+            this.authorizationValidator.validateCommand({ snapshot, command });
             const key = receiptKey(
                 command.requestId,
                 command.commandKind,
@@ -981,11 +983,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     eventSeqs: [...existing.eventSeqs]
                 };
             }
-            this.authorizationValidator.validateCommand({
-                snapshot: this.projection.snapshot!,
-                command
-            });
-            if (this.projection.snapshot!.version !== command.expectedMeetingVersion)
+            if (snapshot.version !== command.expectedMeetingVersion)
                 throw new RepositoryError(
                     "VERSION_CONFLICT",
                     true,
@@ -993,7 +991,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     "Meeting version is stale"
                 );
             const now = this.now();
-            const transition = command.transition(this.projection.snapshot!);
+            const transition = command.transition(snapshot);
             if (transition.events.length === 0) {
                 if (!command.allowNoop)
                     throw new RepositoryError(
@@ -1002,14 +1000,13 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                         this.meetingId,
                         "State transitions must emit at least one domain event"
                     );
-                const meetingVersion = this.projection.snapshot!.version;
-                const noopNow = this.now();
+                const meetingVersion = snapshot.version;
                 return this.commit({
                     operation: `command:${command.commandKind}`,
-                    now: noopNow,
+                    now,
                     mutate: (current) => {
                         const next = decodeProjection(encodeProjection(current));
-                        next.receipts[key] = PersistedReceiptV1Schema.parse({
+                        const receipt = PersistedReceiptV1Schema.safeParse({
                             formatVersion: 1,
                             requestId: command.requestId,
                             commandKind: command.commandKind,
@@ -1018,8 +1015,16 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                             meetingVersion,
                             result: transition.result,
                             eventSeqs: [],
-                            createdAt: noopNow
+                            createdAt: now
                         });
+                        if (!receipt.success)
+                            throw new RepositoryError(
+                                "INVALID_INPUT",
+                                false,
+                                this.meetingId,
+                                "Command result is invalid"
+                            );
+                        next.receipts[key] = receipt.data;
                         return {
                             next,
                             result: {
@@ -1033,23 +1038,33 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     }
                 });
             }
-            const nextVersion = this.projection.snapshot!.version + 1;
-            const next = decodeProjection(
-                encodeCanonicalJson({
-                    ...this.projection,
-                    snapshot: {
-                        ...this.projection.snapshot,
-                        version: nextVersion,
-                        state: { ...transition.state, version: nextVersion },
-                        updatedAt: now
-                    }
-                })
-            );
+            const nextVersion = snapshot.version + 1;
+            let next: PersistenceProjectionV1;
+            try {
+                next = decodeProjection(
+                    encodeCanonicalJson({
+                        ...this.projection,
+                        snapshot: {
+                            ...snapshot,
+                            version: nextVersion,
+                            state: { ...transition.state, version: nextVersion },
+                            updatedAt: now
+                        }
+                    })
+                );
+            } catch {
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Command state is invalid"
+                );
+            }
             const eventSeqs: number[] = [];
             for (const event of transition.events) {
                 const eventSeq = next.nextEventSeq++;
                 eventSeqs.push(eventSeq);
-                next.events[seqKey(eventSeq)] = PersistedEventV1Schema.parse({
+                const persisted = PersistedEventV1Schema.safeParse({
                     formatVersion: 1,
                     eventSeq,
                     meetingVersion: nextVersion,
@@ -1059,15 +1074,30 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     attemptId: event.attemptId ?? null,
                     createdAt: now
                 });
+                if (!persisted.success)
+                    throw new RepositoryError(
+                        "INVALID_INPUT",
+                        false,
+                        this.meetingId,
+                        "Command event is invalid"
+                    );
+                next.events[seqKey(eventSeq)] = persisted.data;
             }
             for (const item of transition.outbox) {
+                if (item.kind !== "dispatch")
+                    throw new RepositoryError(
+                        "INVALID_INPUT",
+                        false,
+                        this.meetingId,
+                        "Outbox kind is not registered"
+                    );
                 const id = item.id ?? crypto.randomUUID();
-                next.outbox[id] = PersistedOutboxV1Schema.parse({
+                const persisted = PersistedOutboxV1Schema.safeParse({
                     formatVersion: 1,
                     id,
                     deliveryId: item.deliveryId,
-                    kind: item.kind,
-                    priority: item.priority ?? 0,
+                    kind: "dispatch",
+                    priority: item.priority ?? 50,
                     payload: item.payload,
                     status: "pending",
                     attempts: 0,
@@ -1080,9 +1110,17 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     lastError: null,
                     createdAt: now
                 });
+                if (!persisted.success)
+                    throw new RepositoryError(
+                        "INVALID_INPUT",
+                        false,
+                        this.meetingId,
+                        "Command outbox item is invalid"
+                    );
+                next.outbox[id] = persisted.data;
             }
             const result = transition.result;
-            next.receipts[key] = PersistedReceiptV1Schema.parse({
+            const receipt = PersistedReceiptV1Schema.safeParse({
                 formatVersion: 1,
                 requestId: command.requestId,
                 commandKind: command.commandKind,
@@ -1093,6 +1131,14 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 eventSeqs,
                 createdAt: now
             });
+            if (!receipt.success)
+                throw new RepositoryError(
+                    "INVALID_INPUT",
+                    false,
+                    this.meetingId,
+                    "Command result is invalid"
+                );
+            next.receipts[key] = receipt.data;
             return this.commit({
                 operation: `command:${command.commandKind}`,
                 now,

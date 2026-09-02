@@ -9,7 +9,7 @@ import {
 } from "../../src/repository/domain/projection.js";
 import { catalogKey, receiptKey, seqKey } from "../../src/repository/domain/keys.js";
 import { CommitRecordV1Schema } from "../../src/repository/domain/schemas.js";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 
 const allow: RepositoryAuthorizationValidator = {
     validateCreate: () => undefined,
@@ -234,6 +234,150 @@ it("updates the create result with one projection-only commit", async () => {
         meetingId: "meeting-1",
         meetingVersion: 0
     });
+    await repository.close();
+});
+
+it("requires the authorization validator before replay and writes each accepted command once", async () => {
+    let rejectCommands = false;
+    const validateCommand = vi.fn(() => {
+        if (rejectCommands) throw new Error("authorization rejected");
+    });
+    const meeting = createFakeMeetingDomain();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: createFakeCatalogDomain(),
+        meetingDomain: meeting,
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: { validateCreate: () => undefined, validateCommand },
+        now: () => 20
+    });
+    const authorization = { callerBinding: "captain:1", capabilityId: "capability:1" };
+    const createInput = {
+        requestId: "create",
+        authorization,
+        requestHash: "create-hash",
+        initialState: { count: 0 },
+        createdAt: 10
+    };
+    await repository.create(createInput);
+    await repository.completeCreate(createInput);
+    const transition = vi.fn(() => ({
+        state: { count: 1 },
+        result: { count: 1 },
+        events: [
+            { type: "message.added" as const, payload: { count: 1 } },
+            { type: "turn.planned" as const, payload: { turnId: "turn-1" } }
+        ],
+        outbox: [
+            {
+                id: "outbox-1",
+                deliveryId: "delivery-1",
+                kind: "dispatch" as const,
+                payload: { count: 1 }
+            }
+        ]
+    }));
+    const command = {
+        requestId: "command",
+        commandKind: "increment",
+        authorization,
+        requestHash: "command-hash",
+        expectedMeetingVersion: 0,
+        transition
+    };
+
+    const first = await repository.execute(command);
+
+    expect(first).toMatchObject({ meetingVersion: 1, eventSeqs: [2, 3] });
+    expect(transition).toHaveBeenCalledTimes(1);
+    expect(validateCommand).toHaveBeenCalledTimes(1);
+    const commits = meeting.putCalls.filter((call) => call.table === "commits");
+    expect(commits).toHaveLength(2);
+    expect(CommitRecordV1Schema.parse(commits[1]?.value)).toMatchObject({
+        seq: 2,
+        operation: "command:increment"
+    });
+    const projection = loadProjection({ domain: meeting });
+    expect(projection).toMatchObject({
+        snapshot: { version: 1, state: { count: 1, version: 1 } },
+        nextEventSeq: 4
+    });
+    expect(projection.events[seqKey(2)]?.eventSeq).toBe(2);
+    expect(projection.events[seqKey(3)]?.eventSeq).toBe(3);
+    expect(projection.outbox["outbox-1"]?.priority).toBe(50);
+
+    rejectCommands = true;
+    await expect(repository.execute(command)).rejects.toThrow("authorization rejected");
+    expect(transition).toHaveBeenCalledTimes(1);
+    expect(meeting.putCalls.filter((call) => call.table === "commits")).toHaveLength(2);
+    rejectCommands = false;
+    await expect(repository.execute(command)).resolves.toEqual(first);
+    expect(transition).toHaveBeenCalledTimes(1);
+    expect(validateCommand).toHaveBeenCalledTimes(3);
+    expect(meeting.putCalls.filter((call) => call.table === "commits")).toHaveLength(2);
+    await repository.close();
+});
+
+it("validates command event and outbox records before commit", async () => {
+    const meeting = createFakeMeetingDomain();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: createFakeCatalogDomain(),
+        meetingDomain: meeting,
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 20
+    });
+    const authorization = { callerBinding: "captain:1", capabilityId: "capability:1" };
+    const createInput = {
+        requestId: "create",
+        authorization,
+        requestHash: "create-hash",
+        initialState: { count: 0 },
+        createdAt: 10
+    };
+    await repository.create(createInput);
+    await repository.completeCreate(createInput);
+    const badEvent = { type: "message.added" as const, payload: {} };
+    Reflect.set(badEvent, "type", "unregistered.event");
+    await expect(
+        repository.execute({
+            requestId: "bad-event",
+            commandKind: "bad_event",
+            authorization,
+            requestHash: "bad-event-hash",
+            expectedMeetingVersion: 0,
+            transition: () => ({
+                state: { count: 1 },
+                result: { count: 1 },
+                events: [badEvent],
+                outbox: []
+            })
+        })
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    const badOutbox = {
+        id: "outbox-1",
+        deliveryId: "delivery-1",
+        kind: "dispatch" as const,
+        payload: {}
+    };
+    Reflect.set(badOutbox, "kind", "unregistered");
+    await expect(
+        repository.execute({
+            requestId: "bad-outbox",
+            commandKind: "bad_outbox",
+            authorization,
+            requestHash: "bad-outbox-hash",
+            expectedMeetingVersion: 0,
+            transition: () => ({
+                state: { count: 1 },
+                result: { count: 1 },
+                events: [{ type: "message.added", payload: {} }],
+                outbox: [badOutbox]
+            })
+        })
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    expect(meeting.putCalls.filter((call) => call.table === "commits")).toHaveLength(1);
     await repository.close();
 });
 

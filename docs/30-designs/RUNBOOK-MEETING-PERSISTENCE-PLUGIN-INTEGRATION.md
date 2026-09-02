@@ -114,27 +114,6 @@ Non-goals：legacy import/export/delete；dual write/fallback；multi-Host write
 
 ## Mechanical Execution
 
-### T12D — Implement Generic Command Commit
-
-前置状态：T12C PASS.
-
-允许修改：`plugin/src/repository/domain/domain-meeting-repository.ts`; `plugin/tests/contract/domain-meeting-repository.spec.ts`; `plugin/tests/fixtures/domain-storage.ts`.
-
-禁止修改：all other production, test and document files.
-
-执行：实现 `execute`；authorization 在 replay 前；transition 至多一次；校验 event/outbox；连续 eventSeq；state version 同步；`allowNoop` 以一条 receipt-bearing commit 保持 snapshot version；没有新 receipt 的真 no-op 为零写。
-
-验证：
-
-```bash
-pnpm --dir plugin test --project contract tests/contract/domain-meeting-repository.spec.ts -t 'conflicting idempotency|embedded MeetingState|transition validation|generic receipt|serializes Captain|replays a committed|authorization validator|state transition|allowed no-op'
-pnpm --dir plugin typecheck
-```
-
-PASS：selected bodies pass；accepted non-replay 恰一次 commit put；replay/rejection 零 put 且不重跑 transition。
-
-STOP：caller 必须移到 receipt 后、transition 必须重跑或公开结果变化。
-
 ### T12E — Implement Mail, Outbox And Recovery
 
 前置状态：T12D PASS.
