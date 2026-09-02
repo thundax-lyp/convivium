@@ -1,0 +1,6 @@
+interface:
+  display_name: "Right-size Changes"
+  short_description: "让计划、实现与重构范围始终匹配当前已经证实的真实需求"
+  default_prompt: "Use $right-size-changes to implement this request without speculative complexity."
+policy:
+  allow_implicit_invocation: true
