@@ -2,6 +2,7 @@ import Schema from "@deepseek-ai/schemastery";
 import { ProtocolVersionSchema } from "./schema.js";
 import type {
     CreateMeetingInputV1,
+    CaptainDecisionDispositionInputV1,
     FinishMeetingMailInputV1,
     SendMeetingMessageInputV1
 } from "./types.js";
@@ -265,27 +266,27 @@ const captainDecisionDispositionInput = Schema.object({
     replacementCandidateId: Schema.string()
 });
 
-export const CaptainDecisionDispositionInputSchema = Schema.transform(
-    captainDecisionDispositionInput,
-    (value) => {
-        const expected = [
-            "protocolVersion",
-            "meetingId",
-            "expectedMeetingVersion",
-            "requestId",
-            "decisionId",
-            "action",
-            "reason",
-            "evidenceMessageIds",
-            ...(value.action === "supersede" ? ["replacementCandidateId"] : [])
-        ];
-        assertExactKeys(value, expected, "captain decision disposition input");
-        if (value.action === "supersede" && !value.replacementCandidateId?.trim()) {
-            throw new TypeError("supersede requires replacementCandidateId");
-        }
-        return value;
+export const CaptainDecisionDispositionInputSchema: Schema<
+    unknown,
+    CaptainDecisionDispositionInputV1
+> = Schema.transform(captainDecisionDispositionInput, (value) => {
+    const expected = [
+        "protocolVersion",
+        "meetingId",
+        "expectedMeetingVersion",
+        "requestId",
+        "decisionId",
+        "action",
+        "reason",
+        "evidenceMessageIds",
+        ...(value.action === "supersede" ? ["replacementCandidateId"] : [])
+    ];
+    assertExactKeys(value, expected, "captain decision disposition input");
+    if (value.action === "supersede" && !value.replacementCandidateId?.trim()) {
+        throw new TypeError("supersede requires replacementCandidateId");
     }
-);
+    return value;
+}) as Schema<unknown, CaptainDecisionDispositionInputV1>;
 
 const agendaCandidateClaim = Schema.object({
     title: string(),
