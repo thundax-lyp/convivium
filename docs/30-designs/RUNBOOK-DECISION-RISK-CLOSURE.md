@@ -272,33 +272,9 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 ## 8. 机械步骤
 
-### T2：迁移 interfaces
-
-前置状态：commit `bb363a4` 已完成并验证 baseline；requirements 已完成 D1-D5 迁移并通过本步全部验证 PASS。
-
-允许修改：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/20-interfaces/MEETING-STORAGE-INTERFACE.md`。
-
-禁止修改：其他文件。
-
-执行：逐字段写§5 DTO/required/optional/validator/caller/ID/time/event payload/order/result/error/projection/HTTP/archive/D5；删除 candidate 永不公开与 `decision.added`。
-
-验证：
-
-```bash
-rg -n 'CaptainDecisionDispositionInputV1|CaptainDecisionDispositionResultV1|PublicDecisionCandidateV1|PublicRiskV1|pendingDecisionCandidates|decisionHistory|serializeValidatedRequestV1|decision\.accepted|decision\.superseded|decision\.revoked' docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md docs/20-interfaces/MEETING-STORAGE-INTERFACE.md
-! rg -n 'decision\.added|never a public projection|not projected publicly' docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md
-pnpm --dir plugin exec prettier ../docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md ../docs/20-interfaces/MEETING-STORAGE-INTERFACE.md --check
-```
-
-PASS：契约与§5一致。
-
-STOP：需改 repository record、HTTP allowlist、identity。
-
-失败恢复：保留 diff，不回滚已完成的 requirements 迁移。
-
 ### T3：迁移 designs
 
-前置状态：T2 PASS。
+前置状态：commit `9cb086e` 已包含并验证 requirements 迁移；interfaces 已包含并验证 D1-D5 契约。
 
 允许修改：`docs/30-designs/DOMAIN-MODEL-DESIGN.md`、`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`、`docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md`、`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`。
 
@@ -483,7 +459,7 @@ STOP：环境不可用则记录命令/输出并标 runtime smoke `Not Covered`�
 
 ### T11：完整验证与移交
 
-前置状态：requirements、interfaces、designs 迁移已完成并验证 PASS；T2-T9 PASS；T10 fixture PASS；真实 smoke 可仅因环境为 Not Covered。
+前置状态：requirements、interfaces、designs 迁移已完成并验证 PASS；T3-T9 PASS；T10 fixture PASS；真实 smoke 可仅因环境为 Not Covered。
 
 允许修改：无；本步骤只运行检查命令。
 
@@ -529,7 +505,7 @@ STOP：产品 test/type/lint/build/contract/package失败，不放宽。
 | archive/recovery      | history/current、全部 Issue/Fact、legacy risk、checkpoint/tail/reopen一致                   |
 | DSH/full              | 现有 registry/renderer/fiber；无 Session event；T11 verify；T10 profile或环境Not Covered    |
 
-完成条件：requirements、interfaces、designs 迁移已完成并验证 PASS；T2-T9/T11 PASS；T10 fixture PASS，真实 profile PASS或仅可复现环境缺失；双向追踪完整且无 Non-goal diff。数据库迁移 `Not Applicable`：D4 指定 optional read compatibility，formatVersion不变。
+完成条件：requirements、interfaces、designs 迁移已完成并验证 PASS；T3-T9/T11 PASS；T10 fixture PASS，真实 profile PASS或仅可复现环境缺失；双向追踪完整且无 Non-goal diff。数据库迁移 `Not Applicable`：D4 指定 optional read compatibility，formatVersion不变。
 
 B 不写 readiness。C 只在 B→A 最终 SHA 更新 `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` 与 `DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`。
 
@@ -556,12 +532,12 @@ B 本轮补齐 `plugin/src/protocol/results.ts:CaptainDecisionDispositionResultS
 | traceability        | PASS | §6                                                                        |
 | data/interface      | PASS | §5                                                                        |
 | file/symbol         | PASS | §6、所有剩余执行步骤                                                      |
-| mechanical steps    | PASS | T2-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
+| mechanical steps    | PASS | T3-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
 | validation/failure  | PASS | §9 覆盖 success/invalid/authority/stale/terminal/replay/rollback/recovery |
 | scope/non-goals     | PASS | §3、§6，B→A→C固定                                                         |
 | readiness/deletion  | PASS | §9                                                                        |
 
-当前 Not Covered：未执行剩余 T2-T11，未实现代码，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 commit、push 或创建 PR。
+当前 Not Covered：未执行剩余 T3-T11，未实现代码，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 commit、push 或创建 PR。
 
 ## 11. Related Documents
 

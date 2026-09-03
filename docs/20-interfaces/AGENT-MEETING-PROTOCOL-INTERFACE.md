@@ -78,6 +78,7 @@ interface ProtocolMeta {
 | `convivium_raise_hand`                        | 该会议的 Participant Session                             | 申请后续发言                                                  |
 | `convivium_pause_meeting`                     | Captain                                                  | 根据用户指令暂停会议                                          |
 | `convivium_resume_meeting`                    | Captain                                                  | 根据用户指令恢复会议                                          |
+| `convivium_dispose_decision`                  | Captain                                                  | 替代或撤销指定正式决策                                        |
 | `convivium_dispose_risk`                      | Captain                                                  | 对指定风险作出结构化接受或拒绝处置                            |
 | `convivium_dispose_attendance_recommendation` | Captain                                                  | 批准或拒绝 Manager 的参会推荐                                 |
 | `convivium_reassign_turn`                     | Captain                                                  | 撤销并改派或跳过当前发言位置                                  |
@@ -265,6 +266,8 @@ interface CaptainRiskDispositionResultV1 {
   meetingStatus: MeetingStatusResultV1["status"];
 }
 
+`CaptainRiskDispositionInputV1` is Captain-only and applies to exactly one Issue. The Schema rejects extra fields, requires a non-empty `issueId`, trimmed non-empty `reason`, and at least one unique `evidenceMessageIds` entry belonging to the Meeting. The Issue must be `open` or `accepted_risk`, have a present `riskLevel` no higher than the objective `acceptableRiskLevel`, and satisfy all hard-constraint checks; missing legacy `riskLevel` fails closed without a default. `resolved|deferred|out_of_scope`, execution-terminal, `archiving`, and `archived` states reject with zero side effects. Accept writes `status=accepted_risk`, `disposition=accepted_risk`, `blocking=false`; reject writes `status=open`, `disposition=blocking`, `blocking=true`. A legal disposition supersedes the Issue's prior active `risk_acceptance` CompletionFact before creating one new active fact; a same request replays its receipt/result and a different payload conflicts. The command writes only the existing `completion_fact.added` event and `outbox=[]`.
+
 interface CaptainAttendanceDispositionInputV1 {
   protocolVersion: 1;
   meetingId: string;
@@ -333,6 +336,8 @@ Runtime 必须在产生任何 Meeting 状态前完成以下验证和转换：
 `CreateMeetingResultV1.participants` 返回请求 key 到正式 Participant ID 的映射，供调用方解释创建结果。后续协议只接受正式 ID，不接受创建期 key。
 
 `CaptainRiskDispositionInputV1` 是正式会议控制命令的输入，不是 Captain 自然语言回答的格式。Captain 的文本、摘要或建议不得自动转换为风险处置。Runtime 必须验证真实 Captain Session、Meeting version、issue 当前状态、evidence 归属、objective hard constraints 和 `acceptableRiskLevel`；验证成功后生成不可变风险处置 CompletionFact，并重新计算确定性完成状态。
+
+B-owned Decision acceptance/disposal and risk disposition request hashes use `serializeValidatedRequestV1(value: object): string` after protocol Schema validation. Its only implementation is `plugin/src/protocol/request-idempotency.ts`; it returns `JSON.stringify(value)` without crypto, repository canonical JSON, string trimming, or other normalization. Array order and object insertion order are significant, `undefined` properties are omitted, and receipt string semantics are unchanged.
 
 Captain 对风险具有独立的会议控制权限，不需要伪装成 Participant 或调用 `submit_turn`。该权限只覆盖 `issueId` 指定的风险：不能接受其他风险、不能接受无关 Decision，也不能绕过 objective contract。`decision='reject'` 表示拒绝接受该风险，风险继续按照其当前 blocking 规则处理，不等于风险已经解决。
 
@@ -552,16 +557,53 @@ interface PublicQuestionV1 {
   answerMessageId?: string;
 }
 
-interface PublicDecisionV1 {
+interface PublicDecisionCandidateV1 {
   id: string;
-  agendaItemId: string;
   proposalId: string;
   proposalRevision: number;
   statement: string;
   rationale: string;
+  proposedBy: string;
+  sourceMessageId: string;
+  agendaItemId: string;
+  createdAt: number;
+}
+
+interface PublicDecisionV1 {
+  id: string;
+  agendaItemId?: string;
+  proposalId: string;
+  proposalRevision: number;
+  statement?: string;
+  rationale?: string;
   status: "accepted" | "superseded" | "revoked";
-  acceptedBy: readonly string[];
-  dissentingPositionIds: readonly string[];
+  acceptedBy?: readonly string[];
+  dissentingPositionIds?: readonly string[];
+  supersededByDecisionId?: string;
+}
+
+interface PublicRiskV1 {
+  id: string;
+  title: string;
+  description: string;
+  sourceMessageId: string;
+  agendaItemId?: string;
+  affectedOutputIds: readonly string[];
+  affectedCriterionIds: readonly string[];
+  violatedConstraintIds: readonly string[];
+  blockingObjectionIds: readonly string[];
+  blocking: boolean;
+  riskLevel?: "low" | "medium" | "high";
+  impact: string;
+  urgency: string;
+  reversibility: string;
+  safeDefaultAvailable: boolean;
+  disposition:
+    "blocking" | "follow_up" | "parking_lot" | "accepted_risk" | "out_of_scope";
+  status: "open" | "accepted_risk" | "resolved" | "deferred" | "out_of_scope";
+  rationale?: string;
+  ownerId?: string;
+  relatedTaskIds: readonly string[];
 }
 
 interface AuthorizedTaskResultV1 {
@@ -962,6 +1004,8 @@ Client 必须先读取该 list；用户选择一项 `meetingId` 后才调用详�
 
 V1 route 仅在 `webServer.host === "127.0.0.1"` 注册，且对所有到达该本地 Host 的请求返回相同的完整 Web projection；它不解析用户或 Team authority，也不得接受或伪造 Agent Session ID。Agent tool 仍使用真实 caller Session 进行身份裁剪。
 
+Decision 和 risk 的写操作只通过对应的 Captain tool command 暴露；V1 不增加 HTTP decision/risk write route。现有 loopback `GET /api/convivium/meetings/:meetingId` 只读取按 caller 过滤的 status projection。
+
 Meeting 进入 `archived` 前，仍有效的 Manager/Participant Session 可以按身份读取状态。Meeting-owned Sessions 关闭并撤销 capability 后，Manager 和 Participant 不再具有可调用身份；`archived` 状态和归档内容只能由真实 Captain Session 或 V1 loopback Web route 读取。
 
 ```ts
@@ -993,7 +1037,10 @@ interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
   messages: readonly PublicMeetingMessageV1[];
   questions?: readonly PublicQuestionV1[];
   proposals: readonly PublicProposalV1[];
+  pendingDecisionCandidates: readonly PublicDecisionCandidateV1[];
   acceptedDecisions: readonly PublicDecisionV1[];
+  decisionHistory: readonly PublicDecisionV1[];
+  risks: readonly PublicRiskV1[];
   blockingFacts: readonly PublicBlockingFactV1[];
 }
 
@@ -1083,6 +1130,7 @@ interface PublicArchivePackageV1 {
   finalSummary: string;
   artifactRefs: readonly PublicArtifactRefV1[];
   acceptedDecisions: readonly PublicDecisionV1[];
+  decisionHistory: readonly PublicDecisionV1[];
   proposals: readonly PublicArchiveProposalV1[];
   completionFacts: readonly PublicArchiveCompletionFactV1[];
   agenda: readonly PublicAgendaItemV1[];
@@ -1139,8 +1187,15 @@ interface PublicArchiveIssueV1 {
   description: string;
   disposition:
     "blocking" | "follow_up" | "parking_lot" | "accepted_risk" | "out_of_scope";
-  status: "open" | "waiting" | "resolved" | "accepted" | "deferred";
-  rationale: string;
+  status:
+    | "open"
+    | "accepted_risk"
+    | "waiting"
+    | "resolved"
+    | "deferred"
+    | "out_of_scope";
+  riskLevel?: "low" | "medium" | "high";
+  rationale?: string;
   ownerId?: string;
   relatedTaskIds: readonly string[];
 }
@@ -1169,6 +1224,8 @@ interface PublicArtifactRefV1 {
 Meeting Runtime 必须按 caller 身份裁剪 projection。任何 projection 都不得包含其他 Agent 的私有 Session 历史、隐藏推理、私有 mailbox、完整内部工具输出或可复用的 Session capability。
 
 `archive.package` 在成果物化后即可只读展示；Meeting 仍可能处于 `archiving`。只有 meeting-owned Sessions 全部停止、关闭并撤销 capability，且最终事务写入关闭完成事实和 `meeting.archived` 后，Runtime 才能设置 `status='archived'` 和 `archive.archivedAt`。归档内容不得包含 AgentSession ID、完整 Agent 配置、delivery/outbox payload、私聊或可恢复 capability；底层已关闭 Session 数据是否保留不属于本协议。
+
+Archive `decisionHistory` preserves every Decision, while `acceptedDecisions` contains only the current accepted Decisions. Superseded Decisions carry `supersededByDecisionId`; accepted and revoked Decisions omit it. Archive retains every Issue and every completion fact, including superseded risk acceptance facts and Decision supersession/revocation facts. The only additional completion fact kind/result pairs are `decision_supersession/superseded` and `decision_revocation/revoked`; prior acceptance facts remain.
 
 归档包必须自包含 transcript、决策、完成依据、未解决事项和其他正式会议事实，不能只保存指向即将被裁剪的运行态对象 ID。归档只复制已提交 MeetingState 中存在的字段，不填造默认值：`PublicDecisionV1` 的 `agendaItemId`、`statement`、`rationale`、`acceptedBy`、`dissentingPositionIds`，`PublicArchiveIssueV1.rationale`，以及 `PublicQuestionV1` 的 `askedBy`、`agendaItemId`、`blocking` 均为 optional。`parkingLot` 逐项投影已提交 `agendaCandidates` 的 `id`、`title`、`reason`、`status`。Archive issue status 原样保留 MeetingIssue 已提交值，包含 `accepted_risk` 与 `out_of_scope`，不重写。artifact 内容不强制复制进归档；artifact ref 保存来源 ID、标题、版本、可选 URI 和可选 checksum，并在读取时重新执行授权。checksum 只是来源描述，不参与归档完成、状态转换或恢复判断。
 
@@ -1221,7 +1278,35 @@ interface EndMeetingResultV1 {
 
 #### `convivium_accept_decision`
 
-Captain-only acceptance of an internal `MeetingDecisionCandidate` uses `CaptainDecisionAcceptanceInputV1` with `protocolVersion: 1`, `meetingId`, `expectedMeetingVersion`, `requestId`, `decisionCandidateId`, `reason`, and `evidenceMessageIds`. Success returns `CaptainDecisionAcceptanceResultV1` containing `requestId`, `decisionCandidateId`, `decisionId`, `proposalId`, `proposalRevision`, and `completionFactId`. The candidate is internal MeetingState data and is never a public projection. Acceptance requires the candidate's current proposal revision, one `support`/`accept` Position, no blocking `object`/`needs_revision`, and Meeting-owned evidence messages. It atomically writes the accepted Decision, accepted Proposal status, decision-acceptance CompletionFact, one `decision.accepted` event, receipt, and `outbox=[]`; version increases by one. Replay returns the original receipt. Version conflict, idempotency conflict, unauthorized Captain, invalid/stale candidate, blocking Position, invalid evidence, and terminal Meeting have zero side effects.
+Captain-only acceptance of an internal `MeetingDecisionCandidate` uses `CaptainDecisionAcceptanceInputV1` with `protocolVersion: 1`, `meetingId`, `expectedMeetingVersion`, `requestId`, `decisionCandidateId`, `reason`, and `evidenceMessageIds`. Success returns `CaptainDecisionAcceptanceResultV1` containing `requestId`, `decisionCandidateId`, `decisionId`, `proposalId`, `proposalRevision`, and `completionFactId`. The candidate record is internal immutable MeetingState data; its pending subset is exposed only through the typed `pendingDecisionCandidates` projection defined below. Acceptance requires the candidate's current proposal revision, one `support`/`accept` Position, no blocking `object`/`needs_revision`, and Meeting-owned evidence messages. It atomically writes the accepted Decision, accepted Proposal status, decision-acceptance CompletionFact, one `decision.accepted` event, receipt, and `outbox=[]`; version increases by one. Replay returns the original receipt. Version conflict, idempotency conflict, unauthorized Captain, invalid/stale candidate, blocking Position, invalid evidence, and terminal Meeting have zero side effects.
+
+The candidate record remains immutable and has no persistent status. `pendingDecisionCandidates` is derived only when the candidate points to the current Proposal revision, no Decision was formed from that candidate, and the Meeting remains executable. Acceptance, a Proposal revision update, or execution-terminal status removes the candidate. Captain and the loopback local user receive the pending array; Manager and Participant callers receive `[]`. No candidate reject/revoke command exists.
+
+#### `convivium_dispose_decision`
+
+```ts
+interface CaptainDecisionDispositionInputV1 {
+  protocolVersion: 1;
+  meetingId: string;
+  expectedMeetingVersion: number;
+  requestId: string;
+  decisionId: string;
+  action: "supersede" | "revoke";
+  reason: string;
+  evidenceMessageIds: readonly string[];
+  replacementCandidateId?: string;
+}
+
+interface CaptainDecisionDispositionResultV1 {
+  requestId: string;
+  decisionId: string;
+  action: "supersede" | "revoke";
+  completionFactId: string;
+  replacementDecisionId?: string;
+}
+```
+
+`CaptainDecisionDispositionInputV1` is Captain-only. Its Schema rejects extra fields, requires non-empty IDs, trimmed non-empty `reason`, and one or more unique evidence IDs belonging to the Meeting. `supersede` requires non-empty `replacementCandidateId`; `revoke` forbids that field. The target must be an accepted Decision. `supersede` uses the normal acceptance guards for the current replacement candidate and, in one Repository commit, writes replacement `decision.accepted` before old `decision.superseded`; `revoke` writes `decision.revoked`. `completed|partial|no_consensus|cancelled|failed|archiving|archived` reject the mutation with the existing terminal/archived error boundary and zero side effects. The Result Schema is exactly `CaptainDecisionDispositionResultSchema` at `plugin/src/protocol/results.ts`, directly exported by `plugin/src/protocol/index.ts`; `requestId`, `decisionId`, `action`, and `completionFactId` are always required, `replacementDecisionId` is required only for `supersede` and forbidden for `revoke`.
 
 | Command                                       | `ProtocolSuccessV1<T>.result`          |
 | --------------------------------------------- | -------------------------------------- |
@@ -1236,6 +1321,7 @@ Captain-only acceptance of an internal `MeetingDecisionCandidate` uses `CaptainD
 | `convivium_raise_hand`                        | `HandRaiseResultV1`                    |
 | `convivium_pause_meeting`                     | `MeetingControlResultV1`               |
 | `convivium_resume_meeting`                    | `MeetingControlResultV1`               |
+| `convivium_dispose_decision`                  | `CaptainDecisionDispositionResultV1`   |
 | `convivium_dispose_risk`                      | `CaptainRiskDispositionResultV1`       |
 | `convivium_dispose_attendance_recommendation` | `CaptainAttendanceDispositionResultV1` |
 | `convivium_reassign_turn`                     | `ReassignTurnResultV1`                 |
