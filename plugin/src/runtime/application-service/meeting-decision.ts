@@ -124,19 +124,29 @@ export function createMeetingDecisionApplication({
                     requestHash: serializeValidatedRequestV1(input),
                     expectedMeetingVersion: input.expectedMeetingVersion,
                     transition: (snapshot) => {
-                        const transition = disposeDecision(snapshot.state as never, {
-                            meetingId: input.meetingId,
-                            requestId: input.requestId,
-                            decisionId: input.decisionId,
-                            action: input.action,
-                            ...(input.action === "supersede"
-                                ? { replacementCandidateId: input.replacementCandidateId! }
-                                : {}),
-                            actorBinding: `captain:${caller.sessionId}`,
-                            reason: input.reason,
-                            evidenceMessageIds: input.evidenceMessageIds,
-                            now
-                        });
+                        const transition =
+                            input.action === "supersede"
+                                ? disposeDecision(snapshot.state as never, {
+                                      meetingId: input.meetingId,
+                                      requestId: input.requestId,
+                                      decisionId: input.decisionId,
+                                      action: "supersede",
+                                      replacementCandidateId: input.replacementCandidateId!,
+                                      actorBinding: `captain:${caller.sessionId}`,
+                                      reason: input.reason,
+                                      evidenceMessageIds: input.evidenceMessageIds,
+                                      now
+                                  })
+                                : disposeDecision(snapshot.state as never, {
+                                      meetingId: input.meetingId,
+                                      requestId: input.requestId,
+                                      decisionId: input.decisionId,
+                                      action: "revoke",
+                                      actorBinding: `captain:${caller.sessionId}`,
+                                      reason: input.reason,
+                                      evidenceMessageIds: input.evidenceMessageIds,
+                                      now
+                                  });
                         const replacement = transition.state.decisions.find(
                             (decision) =>
                                 decision.status === "accepted" &&
