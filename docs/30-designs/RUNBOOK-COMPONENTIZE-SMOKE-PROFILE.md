@@ -243,35 +243,6 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T13：迁移 baseline 与 timeout 场景
-
-前置状态：前一提交已完成 T12 closure，工作树 clean；generic baseline/timeout flow 仍在模板尾部。
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/baseline.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-
-禁止修改：其他场景和产品源码。
-
-执行：把 browser setup 后的共享 baseline/timeout flow 移为 `runBaselineScenario(runtime)`；保留 `runtime.scenario === "timeout"` 分支、participant driver 和 HTTP pause/resume；删除旧 flow；unit 锁定 `baseline`/`timeout` 两 case 指向同一函数且各只有一个 case。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/baseline.js tests/unit/scripts/smoke-profile.spec.ts --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=timeout pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/baseline.js tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/scenarios/baseline.js plugin/tests/unit/scripts/smoke-profile.spec.ts
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 拆分基础与超时场景"
-```
-
-PASS：baseline 输出 `baseline-transcript-acb`、`baseline-http-pause-resume`；timeout 输出 `probe.scenario: "timeout"`、transcript `CB`、旧 Agent 非 resident、durable child inactive、drain 早于下一 speaker submit；两个命令 Restore PASS。
-
-STOP：baseline transcript/HTTP 或 timeout drain/order 语义变化。
-
 ### T14：外置最终 probe 入口
 
 前置状态：前一提交已完成 T13 closure，工作树 clean；模板内只剩 probe plugin 入口、runtime/stateful helper、dispatcher 和 lifecycle cleanup；所有场景已在模块中。

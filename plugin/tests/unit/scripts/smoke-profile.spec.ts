@@ -53,6 +53,10 @@ const convergenceSource = readFileSync(
     new URL("../../../scripts/smoke-profile/probe/scenarios/convergence.js", import.meta.url),
     "utf8"
 );
+const baselineSource = readFileSync(
+    new URL("../../../scripts/smoke-profile/probe/scenarios/baseline.js", import.meta.url),
+    "utf8"
+);
 
 describe("createSmokeEnvironment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
@@ -233,6 +237,15 @@ describe("smoke profile scenario guard", () => {
         expect(convergenceSource).toContain('"deterministic-fallback"');
         expect(convergenceSource).toContain('"fallback-replay-idempotent"');
         expect(convergenceSource).toContain('"fallback-status-projected"');
+    });
+
+    it("dispatches baseline and timeout to one shared module", () => {
+        expect(smokeProfileSource).toContain("await runBaselineScenario(runtime);");
+        expect(smokeProfileSource.match(/runBaselineScenario\(runtime\)/g)).toHaveLength(1);
+        expect(baselineSource).toContain("export async function runBaselineScenario(runtime)");
+        expect(baselineSource).toContain('"baseline-transcript-acb"');
+        expect(baselineSource).toContain('"baseline-http-pause-resume"');
+        expect(baselineSource).toContain('scenario === "timeout"');
     });
 
     it("copies the probe tree and keeps shared support exports bounded", () => {

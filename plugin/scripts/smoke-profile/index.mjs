@@ -223,6 +223,7 @@ import { runArchiveContinuationScenario } from "./scenarios/archive.js";
 import { runCompletionEndScenario, runTaskHandraiseScenario } from "./scenarios/completion.js";
 import { runDecisionRiskClosureScenario } from "./scenarios/decision-risk-closure.js";
 import { runConvergenceScenario } from "./scenarios/convergence.js";
+import { runBaselineScenario } from "./scenarios/baseline.js";
 
 export const name = "convivium-smoke-profile-probe";
 export const inject = ["agents", "sessions", "sessionPersistence", "subagents", "tools", "webServer", "workspaceRegistry"];
@@ -516,12 +517,15 @@ async function run(ctx) {
             ctx,
             scenario,
             browserMode,
+            workspace,
+            participants,
             get captain() { return captain; },
             meetingId,
             setMeetingId(value) { meetingId = value; },
             nextCall() { return nextCall++; },
             assert,
             callTool,
+            callHttp,
             createInput,
             writeResult,
             waitForAgent,
@@ -609,170 +613,10 @@ async function run(ctx) {
             await runReassignScenario(runtime);
             return;
         }
-        if (browserMode) {
-            captain.agent.session.append("user/message", {
-                id: "convivium-smoke-browser-message",
-                role: "user",
-                content: [{ type: "text", text: "Browser smoke session" }],
-                source: { kind: "user" }
-            }, { surfaceOp: "append" });
-            await ctx.sessions.flush(captain.agent.session);
-            await workspace.attachSession(captain.agent.session.id);
+        if (scenario === "baseline" || scenario === "timeout") {
+            await runBaselineScenario(runtime);
+            return;
         }
-        const created = await callTool(ctx, captain.agent, "convivium_create_meeting", createInput(), 0);
-        meetingId = created.result.meetingId;
-        const manager = await waitForAgent(ctx, meetingId + "-manager-manager");
-        const managerPlan = await callTool(ctx, manager, "convivium_submit_manager_plan", {
-            protocolVersion: 1,
-            meetingId,
-            planningAttemptId: meetingId + "-planning-1",
-            observedMeetingVersion: created.meetingVersion,
-            requestId: "smoke-plan-1",
-            agendaItemId: "agenda-agenda-1",
-            intent: "explore",
-            objective: "Commit A then C then B",
-            expectedOutputs: [],
-            prohibitedTopics: [],
-            steps: [
-                { participantId: "participant-a", instruction: "A", reason: "manager_selected" },
-                { participantId: "participant-c", instruction: "C", reason: "manager_selected" },
-                { participantId: "participant-b", instruction: "B", reason: "manager_selected" }
-            ]
-        }, 1);
-        const timeoutProbe = scenario === "timeout";
-        const timeoutSpeaker = timeoutProbe
-            ? await waitForObservedParticipant(ctx, meetingId, "a")
-            : undefined;
-        const timeoutSessionId = timeoutSpeaker?.id;
-        const timeoutStartedAt = timeoutProbe ? Date.now() : undefined;
-        let timeoutOracle;
-        let nextSpeakerSubmittedAt;
-        const messages = [];
-        for (let index = 0; index < participants.length; index += 1) {
-            const participantId = participants[index];
-            const stepDeadline = Date.now() + 30000;
-            while (Date.now() < stepDeadline) {
-                const beforeSubmit = await callTool(ctx, captain.agent, "convivium_meeting_status", {
-                    protocolVersion: 1,
-                    meetingId
-                }, nextCall++);
-                if (timeoutProbe && index === 1) {
-                    const advanced = beforeSubmit.result.currentSpeakerId !== "participant-a";
-                    if (!advanced) {
-                        await new Promise((resolveWait) => setTimeout(resolveWait, 100));
-                        continue;
-                    }
-                    if (timeoutSessionId === undefined) throw new Error("timeout owned session missing");
-                    if (ctx.agents.get(timeoutSessionId) !== undefined) {
-                        throw new Error("timed-out participant Agent is still resident");
-                    }
-                    const listSignal = new AbortController();
-                    const children = await ctx.subagents.listChildren(captain.agent.session.id, listSignal.signal);
-                    const durableChild = children.find((child) => child.id === timeoutSessionId);
-                    if (durableChild === undefined || durableChild.mode !== "continuable" || durableChild.activity !== "inactive" || durableChild.diagnostic !== undefined) {
-                        throw new Error("timed-out participant durable child observation invalid");
-                    }
-                    const drainedAt = Date.now();
-                    timeoutOracle = {
-                        oldAttemptId: managerPlan.result.firstAttemptId,
-                        drainedAt,
-                        durableSessionId: timeoutSessionId,
-                        durableChild
-                    };
-                }
-                const requiredMessages = scenario === "timeout" ? index : index + 1;
-                if (beforeSubmit.result.messages.length >= requiredMessages) {
-                    if (timeoutProbe && index > 0) nextSpeakerSubmittedAt = Date.now();
-                    break;
-                }
-                await new Promise((resolveWait) => setTimeout(resolveWait, 100));
-            }
-            if (Date.now() >= stepDeadline) {
-                throw new Error("Timed out waiting for committed participant step " + index + ".");
-            }
-        }
-        const status = await callTool(ctx, captain.agent, "convivium_meeting_status", {
-            protocolVersion: 1,
-            meetingId
-        }, 10);
-        const transcript = status.result.messages;
-        const expectedTranscript = scenario === "timeout" ? "CB" : "ACB";
-        assert(
-            transcript.map((message) => message.content).join("") === expectedTranscript,
-            "transcript order is not " + expectedTranscript
-        );
-        if (timeoutProbe) {
-            assert(transcript.every((message) => message.speaker !== "participant-a"), "timed-out speaker wrote a message");
-            assert(transcript.length === 2, "timeout transcript has an unexpected message count");
-            assert(status.result.currentAttemptId === undefined || status.result.currentAttemptId !== managerPlan.result.firstAttemptId, "old attempt remains current");
-            assert(timeoutOracle !== undefined && nextSpeakerSubmittedAt !== undefined, "timeout timestamps missing");
-            assert(timeoutOracle.drainedAt < nextSpeakerSubmittedAt, "next speaker submitted before drain");
-        }
-        assert(status.result.status === "running", "next planning did not keep meeting running");
-        assert(status.result.currentTurn === undefined, "next planning unexpectedly exposed a current turn");
-        const baseUrl = "http://127.0.0.1:" + ctx.webServer.port;
-        const meetingsUrl = baseUrl + "/api/convivium/meetings";
-        const selectedUrl = meetingsUrl + "/" + encodeURIComponent(meetingId);
-        const list = await callHttp(meetingsUrl);
-        assert(
-            list.result.meetings.some((meeting) => meeting.meetingId === meetingId),
-            "HTTP list did not include the smoke Meeting"
-        );
-        const webStatus = await callHttp(selectedUrl);
-        const paused = await callHttp(selectedUrl + "/pause", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-                protocolVersion: 1,
-                meetingId,
-                expectedMeetingVersion: webStatus.meetingVersion,
-                requestId: "smoke-http-pause-1",
-                reason: "Verify local host control"
-            })
-        });
-        assert(paused.result.status === "paused", "HTTP pause did not return paused");
-        const pausedStatus = await callHttp(selectedUrl);
-        assert(pausedStatus.result.status === "paused", "HTTP status did not project paused");
-        assert(
-            pausedStatus.result.pauseControl.pausedBy.kind === "local_host" &&
-                pausedStatus.result.pauseControl.pausedBy.actorId === "loopback-web",
-            "HTTP pause actor was not local_host/loopback-web"
-        );
-        const resumed = await callHttp(selectedUrl + "/resume", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-                protocolVersion: 1,
-                meetingId,
-                expectedMeetingVersion: pausedStatus.meetingVersion,
-                requestId: "smoke-http-resume-1"
-            })
-        });
-        assert(resumed.result.status === "running", "HTTP resume did not return running");
-        const resumedStatus = await callHttp(selectedUrl);
-        assert(resumedStatus.result.status === "running", "HTTP status did not return to running");
-        await writeResult({
-            ok: true,
-            scenario,
-            assertions: scenario === "timeout" ? [] : ["baseline-transcript-acb", "baseline-http-pause-resume"],
-            meetingId,
-            participants,
-            messages,
-            transcript: transcript.map((message) => ({
-                id: message.id,
-                seq: message.seq,
-                content: message.content,
-                speaker: message.speaker
-            })),
-            managerPlan: managerPlan.result,
-            timeoutOracle,
-            timeoutStartedAt,
-            nextSpeakerSubmittedAt,
-            nextPlanObserved: status.result.currentTurn === undefined,
-            httpRouteUsed: true,
-            captainSessionId: "convivium-smoke-captain",
-            webUrl: baseUrl
-        });
     } catch (error) {
         await writeResult({
             ok: false,
