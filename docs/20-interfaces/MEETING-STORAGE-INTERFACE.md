@@ -179,6 +179,16 @@ Repository 错误必须使用结构化 `RepositoryError`，至少区分：`MEETI
 
 V1 不读取、迁移、删除或回退到 legacy SQLite；切换前后各只有一个 production truth。现存 SQLite 数据不在本接口范围内。
 
+### Meeting convergence commands and commit contract
+
+Convergence uses the existing `MeetingRepositoryPort.execute<T>(command: RepositoryCommand<T>)` only. A successful planning, waiting, fallback, refocus, replan, or termination transition produces exactly one `CommitRecordV1` containing the new snapshot, ordered domain events, receipt, and required outbox items; a failed put publishes none of them. The transition is pure and runs after authorization, expected-version, stale-attempt, and idempotency checks.
+
+Manager fallback uses request identity `manager-fallback:<attemptId>:<reasonCode>`, caller binding `runtime:<meetingId>`, and `serializeValidatedRequestV1({ attemptId, reasonCode, observedMeetingVersion })` as the request hash. A business-invalid Manager submission atomically writes the failed planning attempt, `manager_plan.failed`, deterministic fallback Turn, receipt, and Speaker outbox. Timeout and delivery-retry exhaustion use the same command. A Manager-unavailable branch creates no planning attempt. Equal request identity/hash replays the receipt; unequal hash returns `IDEMPOTENCY_CONFLICT`; an old attempt or terminal Meeting is rejected without side effects.
+
+Required-unavailable planning atomically writes `status='waiting'` and `MeetingWaitState` with `reason='required_participant_unavailable'`, sorted canonical `participantIds`, `taskIds: []`, `waitingSince=Runtime now`, and optional current `resumeAgendaItemId`; it never writes a partial Turn. The same Meeting version and sorted participant IDs are committed once. The existing Captain/local resume command is the sole recovery entrypoint and creates a new plan only after all required Participants are dispatchable.
+
+The existing event vocabulary is reused: convergence writes `meeting.replanned` for replan and `meeting.ended` for stall/no-consensus termination. Event payloads include the committed `meetingId`, `meetingVersion`, `eventSeq`, `turnId` when present, and deterministic reason/termination code; no new convergence event family, repository, table, or outbox worker is introduced. Outbox external delivery remains post-commit; only the A-owned terminal-failure callback may issue the fallback command after durable failed completion.
+
 ## Related Documents
 
 - `docs/00-governance/ARCHITECTURE.md`

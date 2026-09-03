@@ -1108,9 +1108,7 @@ function dispatchableNow(state: MeetingState): MeetingParticipant[];
 
 同一 speaker 默认每 turn 只出现一次。Plan 长度不得超过 `maxSpeakersPerTurn`。
 
-Required speaker 不属于 `dispatchableNow` 时，Runtime MUST 停止规划并抛出 `REQUIRED_SPEAKER_UNAVAILABLE`，不得自动替换、豁免或删除该 speaker，也不得创建部分 Turn、Step 或 Attempt。同步命令通过 DSH 外层工具结果报告错误；后台 timeout 进入 `waiting` 并将原因与不可调度 `participantIds` 写入 `waitState`，由类型化 status projection 呈现给面板和 Agent。
-
-同一 Meeting version 下，同一 required speaker 的不可调度错误不得自动重复规划或形成重试循环。只有用户改派、显式豁免、恢复/移除 Participant，或其他合法操作推进 Meeting version 后，scheduler 才能再次规划。后台调度发生该错误时，只停止该 Meeting 的继续调度，不影响其他 Meetings。
+Required speaker 不属于 `dispatchableNow` 时，同步与后台规划都必须以一个 Repository commit 进入 `waiting`，使用 `reason='required_participant_unavailable'`、去重并按 canonical ID 排序的 `participantIds`、`taskIds=[]`、Runtime `now` 的 `waitingSince`，以及存在时当前 active agenda 的 `resumeAgendaItemId`；不得返回裸 planning error，不得创建部分 Turn、Step 或 Attempt。相同 Meeting version 与相同排序 participant IDs 只提交一次，后续不得自动重试。只有既有 Captain/local resume command 在全部 required Participant dispatchable 时清除 wait 并重新规划；否则返回 `REQUIRED_SPEAKER_UNAVAILABLE` 且零副作用。自动替换、豁免和部分计划均禁止。
 
 ### 12.3 Rule score
 
@@ -1125,10 +1123,11 @@ Required speaker 不属于 `dispatchableNow` 时，Runtime MUST 停止规划并�
 | previous turn did not speak   |    +20 |
 | recency                       | 0..+15 |
 | previous speaker              |    -25 |
-| repeated content              |    -30 |
 | consecutive speech soft limit |    -40 |
 
 Tie MUST 使用稳定注册顺序，不得随机。Runtime 不读取或评分 Agent 内部 Skills、Tools 或 MCP。
+
+确定性分数的 recency 为 `never spoke ? 15 : min(15, max(0, state.turnSeq - lastCommittedSpeakerTurnSeq))`，从已提交 transcript 推导；consecutive penalty 仅在再次选择将达到 `maxConsecutiveSpeechesPerSpeaker` 时应用。`MeetingState.participants[]` index 是唯一稳定注册顺序；不得持久化 score、last speaker 或 repeated-content helper。
 
 ### 12.4 Manager branch
 
@@ -1149,7 +1148,7 @@ switch (selectionMode) {
 }
 ```
 
-Hybrid 在评分接近、多个阻塞异议、stall/replan、需要总结者或规则无法决定讨论顺序时调用 Manager。
+Hybrid 仅在最后可用席位同分竞争、至少两个不同 Participant 持有 current blocking objection，或当前 convergence action 为 `refocus|replan` 时调用 Manager；其他情况直接使用 rule plan。
 
 Manager plan MUST 校验：
 
@@ -1255,7 +1254,7 @@ Proposal 产生新 revision 后，旧 revision 的 Position 和 acceptance 不�
 - 再次达到阈值：允许一次 replan。
 - `maxStalls` 或 `maxReplans` 耗尽：`stalled` 或 `no_consensus`。
 
-文本相似度只能作为辅助信号，不能替代结构化进展。
+Fingerprint 不读取文本相似度、当前时间、Map/Set 迭代顺序或非正式摘要。
 
 ### 13.5 Limits and termination
 
@@ -1611,6 +1610,16 @@ const DEFAULT_SELECTION_MODE: MeetingSelectionMode = "hybrid";
 ```
 
 所有 `selectionMode` 都属于同一次完整实现。默认使用 `hybrid`：规则足以决定时直接使用确定性 plan，需要语义裁决时调用 Manager，Manager 失败或建议无效时回退到 rule plan。`round_robin`、`rule_based` 和 `manager` 作为显式配置模式保留；Manager Session、planning attempt、receipt、tool 和恢复路径不得通过 feature flag 延后或省略。
+
+## 18.1 Confirmed Convergence Execution (D6-D10)
+
+The planning path is deterministic unless the confirmed `hybrid` predicate is true: the last available seat has a score tie, at least two distinct Participants own current blocking objections, or the current convergence action is `refocus|replan`. `round_robin` and `rule_based` never call Manager; `manager` always calls Manager; `hybrid` otherwise uses the rule plan. Required Participants are ordered first, stable ties use `MeetingState.participants[]` index, and required overflow enters waiting without truncation.
+
+Manager unavailable before attempt creation uses the rule plan. Schema parse failure does not commit and is resolved only by the attempt deadline timeout fallback. A business-invalid submission commits failed attempt + `manager_plan.failed` + deterministic fallback Turn + receipt + Speaker outbox in one Repository commit and returns `fallbackApplied=true`. Timeout and delivery retry exhaustion use identity `manager-fallback:<attemptId>:<reasonCode>`, caller `runtime:<meetingId>`, and the B serializer over `{ attemptId, reasonCode, observedMeetingVersion }`. Same request replays; different content conflicts; stale attempts and terminal Meetings have zero side effects.
+
+Required-unavailable sync/background/overflow paths commit waiting with fixed `MeetingWaitState`; no bare planning error or partial plan is returned. Same Meeting version plus sorted participant IDs is deduped. Captain/local resume is the only recovery path and clears waiting only after every required Participant is dispatchable; otherwise it returns `REQUIRED_SPEAKER_UNAVAILABLE` without commit.
+
+After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fingerprint defined by the Domain Model. First completion stores it with `stallCount=0`; a changed fingerprint resets `stallCount` and `replanCount`; unchanged progress increments stall and creates deterministic refocus on the first occurrence, then increments replan budget and replans on the second while budget remains. If `stallCount+1 >= maxStalls` or `replanCount >= maxReplans`, terminate. Reuse `meeting.replanned` and `meeting.ended`; blocking disagreement terminates as `no_consensus`, otherwise as `partial`/`stalled`. Active projection maps counters and `MeetingTurn.reason`; no second convergence state, event vocabulary, repository, mapper, adapter or scheduler exists.
 
 ## 19. Verification Matrix
 
