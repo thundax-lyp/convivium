@@ -220,7 +220,7 @@ import { runCrossMeetingScenario } from "./scenarios/isolation.js";
 import { runReassignScenario } from "./scenarios/reassign.js";
 import { runColdRebindScenario } from "./scenarios/recovery.js";
 import { runArchiveContinuationScenario } from "./scenarios/archive.js";
-import { runCompletionEndScenario } from "./scenarios/completion.js";
+import { runCompletionEndScenario, runTaskHandraiseScenario } from "./scenarios/completion.js";
 
 export const name = "convivium-smoke-profile-probe";
 export const inject = ["agents", "sessions", "sessionPersistence", "subagents", "tools", "webServer", "workspaceRegistry"];
@@ -1020,6 +1020,7 @@ async function run(ctx) {
             waitForAgent,
             waitForObservedParticipant,
             waitForSpeakerContext,
+            waitForTaskDelivery,
             waitForInbox,
             waitForStoredManagerContext,
             messageTexts,
@@ -1094,121 +1095,7 @@ async function run(ctx) {
             return;
         }
         if (scenario === "task-handraise") {
-            const taskInput = createInput();
-            taskInput.agenda[0].requiredParticipantKeys = ["a"];
-            const created = await callTool(ctx, captain.agent, "convivium_create_meeting", taskInput, 400);
-            const meetingId = created.result.meetingId;
-            const initialStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 401);
-            const manager = await waitForAgent(ctx, meetingId + "-manager-manager");
-            const firstPlan = await callTool(ctx, manager, "convivium_submit_manager_plan", {
-                protocolVersion: 1,
-                meetingId,
-                planningAttemptId: meetingId + "-planning-1",
-                observedMeetingVersion: initialStatus.meetingVersion,
-                requestId: "smoke-task-plan-1",
-                agendaItemId: initialStatus.result.activeAgendaItem.id,
-                intent: "explore",
-                objective: "Create and finish task evidence",
-                expectedOutputs: [],
-                prohibitedTopics: [],
-                steps: [{ participantId: "participant-a", instruction: "Create task evidence", reason: "manager_selected" }]
-            }, 402);
-            const participantSessionId = meetingId + "-participant-participant-a";
-            const firstDelivery = await waitForSpeakerContext(ctx, participantSessionId, firstPlan.result.firstAttemptId);
-            const firstEnvelope = firstDelivery.value;
-            const firstAgent = firstDelivery.agent;
-            const task = await callTool(ctx, firstAgent, "convivium_create_meeting_task", {
-                protocolVersion: 1,
-                meetingId,
-                attemptId: firstEnvelope.attempt.attemptId,
-                requestId: "smoke-task-create-1",
-                title: "smoke task",
-                description: "produce evidence",
-                blocking: false
-            }, 403);
-            const meetingTaskId = task.result.meetingTaskId;
-            const firstSubmitted = await callTool(ctx, firstAgent, "convivium_submit_turn", {
-                protocolVersion: 1,
-                meetingId,
-                turnId: firstEnvelope.turn.id,
-                stepId: firstEnvelope.step.id,
-                attemptId: firstEnvelope.attempt.attemptId,
-                deliveryId: firstEnvelope.attempt.deliveryId,
-                agendaItemId: firstEnvelope.activeAgendaItem.id,
-                kind: "statement",
-                content: "task-handraise:a:1",
-                mentions: [],
-                taskIds: [meetingTaskId],
-                agendaRelation: "on_topic",
-                changes: {}
-            }, 404);
-            const taskDelivery = await waitForTaskDelivery(ctx, participantSessionId, meetingTaskId);
-            const delivery = taskDelivery.value;
-            const taskAgent = taskDelivery.agent;
-            const taskStatusPre = await callTool(ctx, taskAgent, "convivium_meeting_task_status", { protocolVersion: 1, meetingId, meetingTaskId }, 405);
-            assert(taskStatusPre.result.task.status === "queued", "MeetingTask was not delivered as queued");
-            const started = await callTool(ctx, taskAgent, "convivium_start_meeting_task", {
-                protocolVersion: 1,
-                meetingId,
-                meetingTaskId,
-                requestId: delivery.deliveryId
-            }, 406);
-            assert(started.result.status === "running", "MeetingTask did not start");
-            const statusAgent = await resumeParticipantForProbe(ctx, captain.agent, participantSessionId, "convivium-smoke-task-status-post");
-            const taskStatusPost = await callTool(ctx, statusAgent, "convivium_meeting_task_status", { protocolVersion: 1, meetingId, meetingTaskId }, 407);
-            assert(taskStatusPost.result.task.status === "running" && taskStatusPost.result.mayExecute === true, "MeetingTask running projection mismatch");
-            const finishAgent = await resumeParticipantForProbe(ctx, captain.agent, participantSessionId, "convivium-smoke-task-finish");
-            const finished = await callTool(ctx, finishAgent, "convivium_finish_meeting_task", {
-                protocolVersion: 1,
-                meetingId,
-                meetingTaskId,
-                requestId: delivery.deliveryId,
-                executionId: delivery.executionId,
-                status: "completed",
-                resultSummary: "task evidence"
-            }, 408);
-            const handRaiseId = finished.result.handRaiseId;
-            assert(typeof handRaiseId === "string" && handRaiseId.length > 0, "MeetingTask finish omitted HandRaise");
-            const handRaiseStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 409);
-            assert(handRaiseStatus.result.pendingHandRaises.some((raise) => raise.id === handRaiseId), "finished task HandRaise is not visible");
-            const managerSessionId = meetingId + "-manager-manager";
-            const secondManager = await resumeParticipantForProbe(ctx, captain.agent, managerSessionId, "convivium-smoke-manager-plan-2");
-            const managerContext = await waitForStoredManagerContext(managerSessionId, meetingId, firstPlan.result.planningAttemptId ?? meetingId + "-planning-1");
-            const secondPlan = await callTool(ctx, secondManager, "convivium_submit_manager_plan", {
-                protocolVersion: 1,
-                meetingId,
-                planningAttemptId: managerContext.planningAttemptId,
-                observedMeetingVersion: managerContext.meetingVersion,
-                requestId: "smoke-task-plan-2",
-                agendaItemId: handRaiseStatus.result.activeAgendaItem.id,
-                intent: "explore",
-                objective: "Consume task hand raise",
-                expectedOutputs: [],
-                prohibitedTopics: [],
-                steps: [{ participantId: "participant-a", instruction: "Submit task evidence", reason: "manager_selected" }]
-            }, 410);
-            const laterDelivery = await waitForSpeakerContext(ctx, participantSessionId, secondPlan.result.firstAttemptId);
-            const laterEnvelope = laterDelivery.value;
-            const laterAgent = laterDelivery.agent;
-            await callTool(ctx, laterAgent, "convivium_submit_turn", {
-                protocolVersion: 1,
-                meetingId,
-                turnId: laterEnvelope.turn.id,
-                stepId: laterEnvelope.step.id,
-                attemptId: laterEnvelope.attempt.attemptId,
-                deliveryId: laterEnvelope.attempt.deliveryId,
-                agendaItemId: laterEnvelope.activeAgendaItem.id,
-                kind: "evidence",
-                content: "task-handraise:a:2",
-                mentions: [],
-                taskIds: [meetingTaskId],
-                agendaRelation: "on_topic",
-                changes: {}
-            }, 411);
-            const finalStatus = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 412);
-            assert(finalStatus.result.pendingHandRaises.every((raise) => raise.id !== handRaiseId), "HandRaise remained pending after later plan");
-            assert(finalStatus.result.messages.at(-1)?.content === "task-handraise:a:2", "later task evidence was not submitted");
-            await writeResult({ ok: true, scenario, assertions: ["task-delivered", "task-started", "finish-created-handraise", "handraise-visible-then-consumed", "later-turn-submitted"], meetingId, observed: { meetingTaskId, delivery, handRaiseId, firstMessageId: finalStatus.result.messages[0]?.id, laterMessageId: finalStatus.result.messages.at(-1)?.id } });
+            await runTaskHandraiseScenario(runtime);
             return;
         }
         if (scenario === "reassign") {

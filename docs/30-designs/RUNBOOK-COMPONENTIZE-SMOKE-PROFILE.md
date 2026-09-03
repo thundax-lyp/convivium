@@ -243,37 +243,9 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T10：迁移 task-handraise 场景
-
-前置状态：前一提交已完成 T9 closure，工作树 clean；`completion.js` 只含 completion-end export。
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/completion.js`、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-
-禁止修改：completion-end function、其他场景和产品源码。
-
-执行：把完整 `task-handraise` branch 移为 `runTaskHandraiseScenario(runtime)`；删除旧 branch；unit 锁定唯一 call 和 5 个 label。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/completion.js tests/unit/scripts/smoke-profile.spec.ts --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-env CONVIVIUM_SMOKE_SCENARIO=task-handraise pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/completion.js tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/scenarios/completion.js plugin/tests/unit/scripts/smoke-profile.spec.ts
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 拆分任务举手场景"
-```
-
-PASS：真实 smoke 包含 `task-delivered`、`task-started`、`finish-created-handraise`、`handraise-visible-then-consumed`、`later-turn-submitted`。
-
-STOP：MeetingTask delivery/status、HandRaise 可见性/消费或 later turn 语义变化。
-
 ### T11：迁移 decision-risk-closure 场景
 
-前置状态：T10 commit 是 HEAD，工作树 clean。
+前置状态：前一提交已完成 T10 closure，工作树 clean。
 
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/decision-risk-closure.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
 

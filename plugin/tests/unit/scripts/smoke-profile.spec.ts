@@ -173,6 +173,19 @@ describe("smoke profile scenario guard", () => {
         expect(completionSource).toContain('"terminal-end-rejected"');
     });
 
+    it("dispatches task-handraise to the shared completion module", () => {
+        expect(smokeProfileSource).toContain("await runTaskHandraiseScenario(runtime);");
+        expect(smokeProfileSource.match(/runTaskHandraiseScenario\(runtime\)/g)).toHaveLength(1);
+        expect(completionSource).toContain(
+            "export async function runTaskHandraiseScenario(runtime)"
+        );
+        expect(completionSource).toContain('"task-delivered"');
+        expect(completionSource).toContain('"task-started"');
+        expect(completionSource).toContain('"finish-created-handraise"');
+        expect(completionSource).toContain('"handraise-visible-then-consumed"');
+        expect(completionSource).toContain('"later-turn-submitted"');
+    });
+
     it("copies the probe tree and keeps shared support exports bounded", () => {
         expect(smokeProfileSource).toContain("cp(probeSourceDir, probeDir");
         expect(smokeProfileSource).toContain('from "./probe/support.js"');
