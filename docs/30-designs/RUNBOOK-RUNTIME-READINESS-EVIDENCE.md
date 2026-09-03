@@ -121,34 +121,9 @@ G0 必须同时找到：
 
 ## 6. 机械执行步骤
 
-### G3：全部 real DSH selectors
-
-前置状态：当前分支 HEAD 为 G2 收口 commit，且 `git show --name-only --format= HEAD^..HEAD` 只列本文；工作树 clean；不加载 `dev.env`；`DSH_SMOKE_DSH_BIN` 未设置；可取得 `@deepseek-ai/dsh@0.1.1-rc.2`。允许修改：无。禁止修改：全部文件和 runner defaults。
-
-依次执行，不能并行或跳过：
-
-```bash
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=baseline pnpm --dir plugin smoke:profile
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=timeout pnpm --dir plugin smoke:profile
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=reassign pnpm --dir plugin smoke:profile
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=task-handraise pnpm --dir plugin smoke:profile
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=completion-end pnpm --dir plugin smoke:profile
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=risk-reopen pnpm --dir plugin smoke:profile
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=archive-continuation pnpm --dir plugin smoke:profile
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure pnpm --dir plugin smoke:profile
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_SCENARIO=convergence pnpm --dir plugin smoke:profile
-```
-
-每条 PASS：退出 0；顶层 JSON `ok:true,profile:"web",provider:"spawn"`；`probe.ok:true`；`probe.scenario` 等于 selector；`probe.assertions` 原样记录。`decision-risk-closure` 数组与 §4.1 的 9-label set 相等，`convergence` 数组与 §4.2 的 3-label set 相等；数组顺序按 runner 输出记录，不改变 set。Restore 必须没有 `smoke probe failed`/`Smoke restore failed`，runner finally 停 Host、释放 port、删除自身 temp root。`risk-reopen` 只记录其三项现有断言，不写 FR-7 Pass。
-
-STOP：首次非零、JSON/selector/assertion/rc.2/profile/provider 不匹配、Restore失败或 plugin diff。网络/包不可达记 `Blocked` 后 STOP，不降级 DSH。恢复仅由 runner `restore()` 负责。
-
 ### G4：已有 browser control evidence
 
-前置状态：G3 PASS；使用仓库 browser skill；只用 runner 临时 profile/workspace。允许修改：无。禁止修改：产品、fixture、runner、readiness。
+前置状态：当前分支 HEAD 为 G3 收口 commit，且 `git show --name-only --format= HEAD^..HEAD` 只列本文；工作树 clean；使用仓库 browser skill；只用 runner 临时 profile/workspace。允许修改：无。禁止修改：产品、fixture、runner、readiness。
 
 Prepare：在唯一 PTY 执行：
 
