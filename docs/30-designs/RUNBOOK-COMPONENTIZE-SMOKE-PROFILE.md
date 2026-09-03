@@ -239,37 +239,9 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T7：迁移 cold-rebind 场景
-
-前置状态：T6 closure commit is HEAD, literal SHA is recorded in the preceding commit; T6 unit/build/reassign smoke/lint/diff checks passed; worktree clean; `reassign` has one dispatcher call to `runReassignScenario(runtime)` and no inline branch.
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/recovery.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-
-禁止修改：`archive-continuation` branch、其他场景和产品源码。
-
-执行：把完整 `cold-rebind` 两 phase branch 移为 `runColdRebindScenario(runtime)`；通过 `setColdMaintenance` 保留 phase 1 barrier；runner 仍拥有 phase restart；删除旧 cold branch；unit 锁定唯一 call 和 5 个 label。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/recovery.js tests/unit/scripts/smoke-profile.spec.ts --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/recovery.js tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/scenarios/recovery.js plugin/tests/unit/scripts/smoke-profile.spec.ts
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 拆分冷恢复场景"
-```
-
-PASS：真实 smoke 包含 `phase1-checkpoint-durable`、`host-pid-changed`、`exact-parent-rebound`、`transcript-prefix-preserved`、`cold-followup-submitted`；Restore 只执行最终一次。
-
-STOP：phase 文件、Host PID、Session identity、checkpoint、port reuse 或 Restore 次数变化。
-
 ### T8：迁移 archive-continuation 场景
 
-前置状态：T7 commit 是 HEAD，工作树 clean；`recovery.js` 只含 cold export。
+前置状态：前一提交已完成 T7 closure，工作树 clean；`recovery.js` 只含 cold export。
 
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/recovery.js`、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
 

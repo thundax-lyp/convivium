@@ -30,6 +30,10 @@ const reassignSource = readFileSync(
     new URL("../../../scripts/smoke-profile/probe/scenarios/reassign.js", import.meta.url),
     "utf8"
 );
+const recoverySource = readFileSync(
+    new URL("../../../scripts/smoke-profile/probe/scenarios/recovery.js", import.meta.url),
+    "utf8"
+);
 
 describe("createSmokeEnvironment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
@@ -118,6 +122,18 @@ describe("smoke profile scenario guard", () => {
         expect(reassignSource).toContain('"old-activation-drained"');
         expect(reassignSource).toContain('"replacement-attempt-submitted"');
         expect(reassignSource).toContain('"transcript-preserved"');
+    });
+
+    it("dispatches cold-rebind to one scenario module", () => {
+        expect(smokeProfileSource).toContain('from "./scenarios/recovery.js"');
+        expect(smokeProfileSource).toContain("await runColdRebindScenario(runtime);");
+        expect(smokeProfileSource.match(/runColdRebindScenario\(runtime\)/g)).toHaveLength(1);
+        expect(recoverySource).toContain("export async function runColdRebindScenario(runtime)");
+        expect(recoverySource).toContain('"phase1-checkpoint-durable"');
+        expect(recoverySource).toContain('"host-pid-changed"');
+        expect(recoverySource).toContain('"exact-parent-rebound"');
+        expect(recoverySource).toContain('"transcript-prefix-preserved"');
+        expect(recoverySource).toContain('"cold-followup-submitted"');
     });
 
     it("copies the probe tree and keeps shared support exports bounded", () => {
