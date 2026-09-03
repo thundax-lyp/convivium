@@ -121,29 +121,9 @@ G0 必须同时找到：
 
 ## 6. 机械执行步骤
 
-### G4：已有 browser control evidence
-
-前置状态：当前分支 HEAD 为 G3 收口 commit，且 `git show --name-only --format= HEAD^..HEAD` 只列本文；工作树 clean；使用仓库 browser skill；只用 runner 临时 profile/workspace。允许修改：无。禁止修改：产品、fixture、runner、readiness。
-
-Prepare：在唯一 PTY 执行：
-
-```bash
-env -u DSH_SMOKE_DSH_BIN CONVIVIUM_SMOKE_BROWSER_MODE=1 CONVIVIUM_SMOKE_SCENARIO=baseline pnpm --dir plugin smoke:profile
-```
-
-Execute/Assert：等待 `CONVIVIUM_SMOKE_BROWSER_URL=http://127.0.0.1:<port>`；浏览器打开该 URL；选择 `Runtime smoke`；确认 `Meeting summary` 包含 `running`；在 `Pause reason` 输入 `Readiness evidence` 并点击 `Pause meeting`；确认 summary 包含 `paused` 且出现 `Resume meeting`；点击它并确认 summary 返回 `running`；`End outcome` 选 `partial`，`End reason` 输入 `Readiness evidence`，点击 `End meeting`，确认 summary 包含 `partial` 且 `Pause meeting`、`Resume meeting`、`End meeting` 三个 label 全部不存在。
-
-Restore：关闭页面；向唯一 PTY 发送一次 Ctrl-C；等待退出 0 和 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`。
-
-PASS：全部可见断言与 Restore 成立。STOP：启动、label、HTTP action、terminal projection 或 cleanup 任一失败；记录 screenshot、console/response 与 PTY tail，不改产品。
-
-失败恢复：浏览器断言无论 PASS/FAIL 都执行上述 Restore；若 Ctrl-C 后未出现 cleanup marker，则保留 PTY 输出并 STOP，不手工删除 runner 临时根。
-
-固定 `Not Covered`：risk/Decision disposition 没有正式 HTTP/Client write control；reassign 有 route/control，但 baseline fixture 在页面可操作时没有 active attempt，runner 没有 browser-ready reassign fixture。不得伪造 Pass 或增加 fixture。
-
 ### G5：bounded stress 与资源边界
 
-前置状态：G4 PASS。允许修改：无。禁止修改：全部文件。
+前置状态：当前分支 HEAD 为 G4 收口 commit，且上一提交只修改本文；工作树 clean；G0-G3 已在祖先提交中 PASS；G4 的 pnpm browser UI run 与 direct-node cleanup probe 均已记录 PASS。允许修改：无。禁止修改：全部文件。
 
 ```bash
 pnpm --dir plugin test:stress
