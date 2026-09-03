@@ -51,7 +51,8 @@ export function advanceAfterSpeakerSubmission(
             ...submitted.state,
             status: "waiting",
             waitState: {
-                reason: "blocking MeetingTask queued",
+                reason: "blocking_task",
+                waitingSince: context.now,
                 taskIds: blockingTaskIds,
                 participantIds: [participantId],
                 resumeAgendaItemId: context.agendaItemId
@@ -66,7 +67,7 @@ export function advanceAfterSpeakerSubmission(
                     from: submitted.state.status,
                     to: "waiting",
                     meetingVersion: version,
-                    reason: "blocking MeetingTask queued"
+                    reason: "blocking_task"
                 }
             }
         ];
@@ -288,12 +289,13 @@ export function advanceAfterSpeakerSubmission(
         (participantId) => !dispatchableParticipantIds.has(participantId)
     );
     if (unavailableRequiredParticipant !== undefined) {
-        const reason = `required Participant ${unavailableRequiredParticipant} is unavailable`;
+        const reason = "required_participant_unavailable";
         nextState = {
             ...nextState,
             status: "waiting",
             waitState: {
                 reason,
+                waitingSince: context.now,
                 taskIds: [],
                 participantIds: [unavailableRequiredParticipant],
                 resumeAgendaItemId: nextState.activeAgendaItemId

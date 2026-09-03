@@ -140,7 +140,8 @@ describe("SpeakerAttempt timeout", () => {
         expect(result.state).toMatchObject({
             status: "waiting",
             waitState: {
-                reason: "required Participant a is unavailable",
+                reason: "required_participant_unavailable",
+                waitingSince: now + 1,
                 participantIds: ["a"],
                 taskIds: [],
                 resumeAgendaItemId: "agenda-1"
@@ -171,7 +172,7 @@ describe("SpeakerAttempt timeout", () => {
             expect.objectContaining({
                 type: "meeting.waiting",
                 payload: expect.objectContaining({
-                    reason: "required Participant a is unavailable"
+                    reason: "required_participant_unavailable"
                 })
             })
         );

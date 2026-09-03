@@ -145,7 +145,8 @@ export function submitSpeakerAttempt(
             ...(completed
                 ? {
                       waitState: {
-                          reason: "turn completed",
+                          reason: "captain_action",
+                          waitingSince: context.now,
                           taskIds: [],
                           participantIds: [],
                           resumeAgendaItemId: turn.agendaItemId
@@ -267,7 +268,8 @@ export function failSpeakerAttempt(
             ...(completed
                 ? {
                       waitState: {
-                          reason: "speaker attempt failed",
+                          reason: "captain_action",
+                          waitingSince: context.now,
                           taskIds: [],
                           participantIds: [],
                           resumeAgendaItemId: turn.agendaItemId

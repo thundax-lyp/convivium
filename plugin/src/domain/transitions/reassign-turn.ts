@@ -205,7 +205,8 @@ export function reassignTurn(
         ...(completed
             ? {
                   waitState: {
-                      reason: "turn completed after Captain skipped speaker",
+                      reason: "captain_action",
+                      waitingSince: context.now,
                       taskIds: [],
                       participantIds: [],
                       resumeAgendaItemId: turn.agendaItemId
