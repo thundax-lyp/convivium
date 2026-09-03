@@ -121,24 +121,9 @@ G0 必须同时找到：
 
 ## 6. 机械执行步骤
 
-### G5：bounded stress 与资源边界
-
-前置状态：当前分支 HEAD 为 G4 收口 commit，且上一提交只修改本文；工作树 clean；G0-G3 已在祖先提交中 PASS；G4 的 pnpm browser UI run 与 direct-node cleanup probe 均已记录 PASS。允许修改：无。禁止修改：全部文件。
-
-```bash
-pnpm --dir plugin test:stress
-test -z "$(git diff --name-only -- plugin)"
-```
-
-PASS：退出 0且 stdout 包含 `Not Covered: stress tests`；结果记录 `Not Covered`，不是 stress Pass。G3/G4 Restore Pass 是唯一 bounded startup/cleanup 证据。长期 soak、吞吐、容量、memory/FD budget 均 `Not Covered`。STOP：命令失败、缺固定输出、残留 Host/port/temp root 或产生 diff；不得新增 framework。
-
-失败恢复：该命令不得启动外部 Host；如实际出现进程或临时根，记录路径 basename 和进程状态后 STOP，不终止或删除不属于本命令的资源。
-
-structured metrics 固定 `Not Covered`：当前没有同时指定唯一 contract、producer、consumer 和验证入口；C 不设计 framework。
-
 ### G6：C-only readiness
 
-前置状态：G0-G5 结果确定且资源已恢复；工作树 clean。
+前置状态：当前分支 HEAD 为 G5 收口 commit，且上一提交只修改本文；工作树 clean；G0-G4 已在祖先提交中 PASS；G5 已记录 `Not Covered` 且未产生插件 diff；全部资源已恢复。
 
 允许修改：两份 readiness。禁止修改：其他文件。
 
