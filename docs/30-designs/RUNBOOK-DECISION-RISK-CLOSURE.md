@@ -274,32 +274,9 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 ## 8. 机械步骤
 
-### T9：Archive 与 recovery compatibility
-
-前置状态：T8 完成 commit 的产品/正式文档树已包含并验证 projection、HTTP、Client；T8 focused tests、client/host typecheck、ESLint 和 Prettier 已 PASS。T8 archive-specific HTTP case remains for T9.
-
-允许修改：`plugin/src/domain/model.ts` archive types、`plugin/src/runtime/services/meeting-archive-service.ts:materializeArchivePackage`、`plugin/src/domain/transitions/archive.ts:assertArchivePackageMatchesMeeting`；`plugin/tests/unit/domain/transitions/archive.spec.ts`、`plugin/tests/unit/runtime/archive.spec.ts`、`plugin/tests/recovery/domain-recovery.spec.ts`。
-
-禁止修改：`plugin/src/repository/domain/schemas.ts`、formatVersion、repository/recovery算法、checkpoint/backend/Session cleanup。
-
-执行：history/current accepted双 projection；全部 Issue/Fact；superseded link；legacy可读但处置fail closed；测试 checkpoint/tail/reopen一致。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/transitions/archive.spec.ts tests/unit/runtime/archive.spec.ts tests/recovery/domain-recovery.spec.ts tests/contract/domain-meeting-repository.spec.ts tests/contract/http-boundary.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：archive、legacy、restart/replay、corruption、rollback通过。
-
-STOP：需 formatVersion/migration/recovery算法。
-
-失败恢复：仅临时 storage；保留 diff。
-
 ### T10：唯一 B smoke fixture
 
-前置状态：T9 PASS。
+前置状态：T9 完成 commit 的产品/正式文档树已包含并验证 Archive 与 recovery compatibility；T9 tests、host typecheck、ESLint 和 Prettier 已 PASS。
 
 允许修改：`plugin/scripts/smoke-profile.mjs` 的 scenario 列表、guard、新 `decision-risk-closure` run/validation；`plugin/tests/unit/scripts/smoke-environment.spec.ts`。
 
@@ -395,12 +372,12 @@ B 本轮补齐 `plugin/src/protocol/results.ts:CaptainDecisionDispositionResultS
 | traceability        | PASS | §6                                                                        |
 | data/interface      | PASS | §5                                                                        |
 | file/symbol         | PASS | §6、所有剩余执行步骤                                                      |
-| mechanical steps    | PASS | T9-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
+| mechanical steps    | PASS | T10-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                       |
 | validation/failure  | PASS | §9 覆盖 success/invalid/authority/stale/terminal/replay/rollback/recovery |
 | scope/non-goals     | PASS | §3、§6，B→A→C固定                                                         |
 | readiness/deletion  | PASS | §9                                                                        |
 
-当前 Not Covered：未执行剩余 T9-T11，T4-T8 已完成，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 push 或创建 PR。
+当前 Not Covered：未执行剩余 T10-T11，T4-T9 已完成，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 push 或创建 PR。
 
 ## 11. Related Documents
 
