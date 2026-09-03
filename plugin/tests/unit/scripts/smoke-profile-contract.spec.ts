@@ -1,14 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { validateScenarioResult } from "../../../scripts/smoke-profile.mjs";
+import { validateScenarioResult } from "../../../scripts/smoke-profile/index.mjs";
 
 describe("meeting convergence smoke profile", () => {
     it("registers one closed convergence selector and exact assertion set", async () => {
         const source = await readFile(
-            new URL("../../../scripts/smoke-profile.mjs", import.meta.url),
+            new URL("../../../scripts/smoke-profile/probe/index.js", import.meta.url),
             "utf8"
         );
-        expect((source.match(/"convergence"/g) ?? []).length).toBe(4);
+        expect((source.match(/"convergence"/g) ?? []).length).toBe(2);
         expect(() =>
             validateScenarioResult({ ok: true, scenario: "unknown", assertions: [] }, "unknown")
         ).not.toThrow();

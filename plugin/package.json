@@ -56,7 +56,7 @@
         "test:integration": "vitest run --project integration",
         "test:recovery": "vitest run --project recovery",
         "test:stress": "vitest run tests/stress --passWithNoTests && node -e \"console.log('Not Covered: stress tests')\"",
-        "smoke:profile": "node scripts/smoke-profile.mjs",
+        "smoke:profile": "node scripts/smoke-profile/index.mjs",
         "verify:agent-definitions": "node scripts/verify-agent-definition-samples.mjs",
         "verify:environment": "node scripts/verify-dsh-environment.mjs",
         "verify:contract": "node scripts/verify-plugin-contract.mjs",
