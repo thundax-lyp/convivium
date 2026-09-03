@@ -274,34 +274,11 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 ## 8. 机械步骤
 
-### T7：Application、Runtime、tools
-
-前置状态：T6 完成 commit 的产品/正式文档树已包含并验证 Issue/risk domain；T6 focused tests、ESLint 和 Prettier 已 PASS。
-
-允许修改：`plugin/src/runtime/meeting-runtime.ts:MeetingToolRuntime`、`plugin/src/runtime/application-service/meeting-decision.ts:createMeetingDecisionApplication`、`plugin/src/runtime/application-service/meeting-control.ts:disposeRisk`、`plugin/src/runtime/application-service/index.ts`、`plugin/src/tools/register-tools.ts:registerCreateAndStatusTools`；`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/contract/tool-registration.spec.ts`、`plugin/tests/unit/runtime/meeting-runtime.spec.ts`。
-
-禁止修改：repository、meeting-turn、HTTP。
-
-执行：新增 `disposeDecision` 和 tool；三个 B command 用 serializer、单次 now、Captain binding；disposal调纯 transition；risk调T6。`disposeRisk` 中现有 `judgeTurnCompletion`/`meeting.replanned` composition 由 A 拥有，B 不改变其判断、state 或 event；B 只把其时间参数改用同一 `commandNow`。两类 B command outbox空。测试 unauthorized/version/replay/hash conflict/terminal/result/event/receipt/outbox/put failure。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts tests/contract/tool-registration.spec.ts tests/unit/runtime/meeting-runtime.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：authorization-before-replay、replay/conflict/version+1/zero outbox直接断言。
-
-STOP：需 shared repository/A transition。
-
-失败恢复：临时测试存储，无外部数据；保留 diff。
-
 ### T8：Projection、HTTP、Client
 
-前置状态：T7 PASS。
+前置状态：T7 完成 commit 的产品/正式文档树已包含并验证 Application、Runtime、tools；T7 tool registration、runtime unit、ESLint 和 Prettier 已 PASS。
 
-允许修改：`plugin/src/projection/status.ts:projectMeetingStatus`、`plugin/src/client/meeting-panel-view.tsx:createMeetingPanelView`、`plugin/src/client/meeting-panel.tsx:MeetingPanel`；`plugin/tests/contract/status-projection.spec.ts`、`plugin/tests/contract/http-boundary.spec.ts`、`plugin/tests/client/client-entry.client.spec.ts`。
+允许修改：`plugin/src/projection/status.ts:projectMeetingStatus`、`plugin/src/client/meeting-panel-view.tsx:createMeetingPanelView`、`plugin/src/client/meeting-panel.tsx:MeetingPanel`；`plugin/tests/contract/status-projection.spec.ts`、`plugin/tests/contract/http-boundary.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/client/client-entry.client.spec.ts`。
 
 禁止修改：speaker/manager context shape、route table、Client mutation/cache/CSS framework。
 
@@ -310,6 +287,7 @@ STOP：需 shared repository/A transition。
 验证：
 
 ```bash
+pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts
 pnpm --dir plugin exec vitest run tests/contract/status-projection.spec.ts tests/contract/http-boundary.spec.ts tests/client/client-entry.client.spec.ts
 pnpm --dir plugin typecheck:client
 ```
@@ -441,12 +419,12 @@ B 本轮补齐 `plugin/src/protocol/results.ts:CaptainDecisionDispositionResultS
 | traceability        | PASS | §6                                                                        |
 | data/interface      | PASS | §5                                                                        |
 | file/symbol         | PASS | §6、所有剩余执行步骤                                                      |
-| mechanical steps    | PASS | T7-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
+| mechanical steps    | PASS | T8-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
 | validation/failure  | PASS | §9 覆盖 success/invalid/authority/stale/terminal/replay/rollback/recovery |
 | scope/non-goals     | PASS | §3、§6，B→A→C固定                                                         |
 | readiness/deletion  | PASS | §9                                                                        |
 
-当前 Not Covered：未执行剩余 T7-T11，T4-T6 已完成，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 push 或创建 PR。
+当前 Not Covered：未执行剩余 T8-T11，T4-T7 已完成，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 push 或创建 PR。
 
 ## 11. Related Documents
 
