@@ -57,7 +57,7 @@ export function addSubmittedIssues(
             violatedConstraintIds: issue.violatedConstraintIds,
             blockingObjectionIds: [],
             blocking,
-            riskLevel: issue.riskLevel,
+            ...(issue.riskLevel === undefined ? {} : { riskLevel: issue.riskLevel }),
             impact: issue.impact,
             urgency: issue.urgency,
             reversibility: issue.safeDefaultAvailable ? "reversible" : "partially_reversible",

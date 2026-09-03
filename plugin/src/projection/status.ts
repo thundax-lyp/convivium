@@ -15,6 +15,14 @@ import type {
     PublicRiskV1
 } from "../protocol/index.js";
 
+const executionTerminalStatuses = new Set<MeetingState["status"]>([
+    "completed",
+    "partial",
+    "no_consensus",
+    "cancelled",
+    "failed"
+]);
+
 export type MeetingProjectionCaller =
     | {
           readonly kind: "captain" | "manager" | "participant";
@@ -294,7 +302,8 @@ export function projectMeetingStatus(
             positions: proposal.positions.map((position) => ({ ...position }))
         })),
         pendingDecisionCandidates:
-            caller.kind === "captain" || caller.kind === "local_host"
+            (caller.kind === "captain" || caller.kind === "local_host") &&
+            !executionTerminalStatuses.has(state.status)
                 ? state.decisionCandidates
                       .filter((candidate) => {
                           const proposal = state.proposals.find(

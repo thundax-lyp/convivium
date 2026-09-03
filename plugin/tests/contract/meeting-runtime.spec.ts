@@ -814,7 +814,8 @@ describe("create/status meeting runtime", () => {
                             violatedConstraintIds: [],
                             impact: "low",
                             urgency: "before_release",
-                            safeDefaultAvailable: true
+                            safeDefaultAvailable: true,
+                            riskLevel: "low"
                         }
                     ]
                 }

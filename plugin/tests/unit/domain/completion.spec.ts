@@ -171,6 +171,7 @@ function completionState(overrides: Partial<MeetingState> = {}): MeetingState {
                 violatedConstraintIds: [],
                 blockingObjectionIds: [],
                 blocking: true,
+                riskLevel: "low",
                 impact: "low",
                 urgency: "later",
                 reversibility: "reversible",

@@ -298,6 +298,59 @@ describe("meeting status projection", () => {
         expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
 
+    it("clears pending decision candidates for execution-terminal meetings", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                status: "partial",
+                termination: {
+                    code: "partial",
+                    reason: "Stopped",
+                    decisionIds: [],
+                    unresolvedQuestionIds: [],
+                    dissentingPositionIds: [],
+                    blockingAgendaItemIds: [],
+                    finalMessage: "Stopped",
+                    endedAt: 1
+                },
+                completionFacts: [],
+                stallCount: 0,
+                maxStalls: 3,
+                replanCount: 0,
+                maxReplans: 1,
+                decisionCandidates: [
+                    {
+                        id: "candidate-1",
+                        proposalId: "proposal-1",
+                        proposalRevision: 1,
+                        statement: "Decide",
+                        rationale: "Evidence",
+                        proposedBy: "participant-1",
+                        sourceMessageId: "message-1",
+                        agendaItemId: "agenda-1",
+                        createdAt: 1
+                    }
+                ],
+                proposals: [
+                    {
+                        id: "proposal-1",
+                        title: "Proposal",
+                        description: "Description",
+                        proposedBy: "participant-1",
+                        revision: 1,
+                        status: "under_review",
+                        agendaItemId: "agenda-1",
+                        positions: []
+                    }
+                ]
+            } as MeetingState,
+            { kind: "local_host", sessionId: "loopback-web" }
+        );
+
+        expect(projected.pendingDecisionCandidates).toEqual([]);
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
+    });
+
     it("projects only blocking Issues as blocking facts", () => {
         const projected = projectMeetingStatus(
             {

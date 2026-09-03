@@ -513,6 +513,43 @@ describe("protocol envelope schemas", () => {
         });
     });
 
+    it("accepts a legacy Issue claim without riskLevel", () => {
+        const normalized = TurnSubmissionSchema({
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            turnId: "turn-1",
+            stepId: "step-1",
+            attemptId: "attempt-1",
+            deliveryId: "delivery-1",
+            agendaItemId: "agenda-1",
+            kind: "statement",
+            content: "Legacy issue",
+            mentions: [],
+            taskIds: [],
+            agendaRelation: "on_topic",
+            changes: {
+                questions: [],
+                proposals: [],
+                positions: [],
+                issues: [
+                    {
+                        title: "Legacy issue",
+                        description: "No risk level was persisted by V1.",
+                        affectedOutputIds: [],
+                        affectedCriterionIds: [],
+                        violatedConstraintIds: [],
+                        impact: "low",
+                        urgency: "later",
+                        safeDefaultAvailable: true
+                    }
+                ],
+                decisionProposals: [],
+                agendaCandidates: []
+            }
+        });
+        expect(normalized.changes.issues?.[0]).not.toHaveProperty("riskLevel");
+    });
+
     it("accepts a valid create-meeting payload", () => {
         expect(
             CreateMeetingInputSchema({

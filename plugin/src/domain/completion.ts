@@ -361,6 +361,7 @@ export function applyCompletionClaims(
         }
         const ranks = { low: 1, medium: 2, high: 3 } as const;
         if (
+            issue.riskLevel === undefined ||
             ranks[issue.riskLevel] > ranks[objectiveContract.acceptableRiskLevel] ||
             issue.violatedConstraintIds.length > 0
         ) {
