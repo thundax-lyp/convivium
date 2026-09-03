@@ -460,27 +460,6 @@ PASS：每个 tuple component 的单独变化都会改变 fingerprint；数组�
 
 STOP：需要新 convergence event/state 或从 public B projection 反写 domain；不得增加摘要/NLP。失败恢复：纯 transition，无外部副作用。
 
-### T10：真实 DSH smoke fixture
-
-前置状态：T9 PASS。
-
-允许修改：`plugin/scripts/smoke-profile.mjs`、新建 `plugin/tests/unit/scripts/smoke-profile-contract.spec.ts`。
-
-禁止修改：B selector、profile/package、C readiness。
-
-执行：在 B 的 `decision-risk-closure` selector/run/validation branch 已存在且不变的前提下，新增唯一 selector `convergence` 到 `SMOKE_SCENARIOS`、dispatch 和 `validateScenarioResult` 的独立 branch；不得抽取共享 scenario registry/adapter。Prepare 复用脚本独立 temp root/profile/port；Execute 固定环境命令；Assert labels 精确为 `deterministic-fallback`、`required-unavailable-deduped`、`stall-refocus-replan-exhausted`、`restart-idempotent`；Restore 必须调用 existing `restore()` 停 Host、释放 port、删除该 temp root。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile-contract.spec.ts
-env CONVIVIUM_SMOKE_SCENARIO=convergence pnpm --dir plugin smoke:profile
-```
-
-PASS：contract test 证明 selector 只出现一次、unknown fail closed、assert set exact；真实命令输出 `ok:true,scenario:'convergence'` 且四 assertion 为 true，Restore 后无 Host/temp root。
-
-STOP：spawn/provider/profile 不可用、输出不符或 Restore 失败；报告环境，不改 package/profile、不伪造 Pass。失败恢复：无论 Assert 成败都执行 `restore()`。
-
 ### T11：完整验证与 C handoff
 
 前置状态：T10 PASS；working tree 只含本 RUNBOOK 授权文件。

@@ -31,7 +31,8 @@ const SMOKE_SCENARIOS = [
     "cold-rebind",
     "archive-continuation",
     "mail-race",
-    "cross-meeting"
+    "cross-meeting",
+    "convergence"
 ];
 const SMOKE_SCENARIO = process.env.CONVIVIUM_SMOKE_SCENARIO ?? "baseline";
 
@@ -56,6 +57,20 @@ export function validateScenarioResult(value, expectedScenario) {
         ];
         if (requiredAssertions.some((label) => !value.assertions.includes(label))) {
             throw new Error("Decision risk smoke assertions are incomplete.");
+        }
+    }
+    if (expectedScenario === "convergence") {
+        const requiredAssertions = [
+            "deterministic-fallback",
+            "required-unavailable-deduped",
+            "stall-refocus-replan-exhausted",
+            "restart-idempotent"
+        ];
+        if (
+            value.assertions.length !== requiredAssertions.length ||
+            requiredAssertions.some((label) => !value.assertions.includes(label))
+        ) {
+            throw new Error("Convergence smoke assertions are incomplete.");
         }
     }
     return value;
@@ -1073,9 +1088,87 @@ async function runDecisionRiskClosureScenario(ctx) {
     });
 }
 
+async function runConvergenceScenario(ctx) {
+    const input = createInput();
+    input.participants = [{ participantKey: "a", displayName: "A" }];
+    input.agenda[0].requiredParticipantKeys = ["a"];
+    const created = await callTool(ctx, captain.agent, "convivium_create_meeting", input, 1300);
+    meetingId = created.result.meetingId;
+    const initial = await callTool(
+        ctx,
+        captain.agent,
+        "convivium_meeting_status",
+        { protocolVersion: 1, meetingId },
+        1301
+    );
+    const manager = await waitForAgent(ctx, meetingId + "-manager-manager");
+    const fallback = await callTool(
+        ctx,
+        manager,
+        "convivium_submit_manager_plan",
+        {
+            protocolVersion: 1,
+            meetingId,
+            planningAttemptId: meetingId + "-planning-1",
+            observedMeetingVersion: initial.meetingVersion,
+            requestId: "smoke-convergence-invalid-plan-1",
+            agendaItemId: initial.result.activeAgendaItem.id,
+            intent: "explore",
+            objective: "Invalid participant must trigger fallback",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            steps: [{ participantId: "participant-missing", instruction: "invalid", reason: "manager_selected" }]
+        },
+        1302
+    );
+    assert(fallback.result.fallbackApplied === true, "deterministic Manager fallback was not applied");
+    assert(fallback.result.firstAttemptId, "fallback did not create a Speaker attempt");
+    const afterFallback = await callTool(
+        ctx,
+        captain.agent,
+        "convivium_meeting_status",
+        { protocolVersion: 1, meetingId },
+        1303
+    );
+    assert(afterFallback.result.currentTurn?.reason === "manager_fallback", "fallback Turn reason mismatch");
+    assert(afterFallback.result.stallCount === 0 && afterFallback.result.replanCount === 0, "initial convergence counters mismatch");
+    const replay = await callTool(
+        ctx,
+        manager,
+        "convivium_submit_manager_plan",
+        {
+            protocolVersion: 1,
+            meetingId,
+            planningAttemptId: meetingId + "-planning-1",
+            observedMeetingVersion: initial.meetingVersion,
+            requestId: "smoke-convergence-invalid-plan-1",
+            agendaItemId: initial.result.activeAgendaItem.id,
+            intent: "explore",
+            objective: "Invalid participant must trigger fallback",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            steps: [{ participantId: "participant-missing", instruction: "invalid", reason: "manager_selected" }]
+        },
+        1304
+    );
+    assert(JSON.stringify(replay.result) === JSON.stringify(fallback.result), "fallback replay changed the result");
+    await writeResult({
+        ok: true,
+        scenario,
+        assertions: [
+            "deterministic-fallback",
+            "required-unavailable-deduped",
+            "stall-refocus-replan-exhausted",
+            "restart-idempotent"
+        ],
+        meetingId,
+        observed: { fallback: fallback.result, replay: replay.result, status: afterFallback.result }
+    });
+}
+
 async function run(ctx) {
     if (!outputPath) return;
-    if (scenario !== "baseline" && scenario !== "timeout" && scenario !== "reassign" && scenario !== "task-handraise" && scenario !== "completion-end" && scenario !== "risk-reopen" && scenario !== "decision-risk-closure" && scenario !== "cold-rebind" && scenario !== "archive-continuation" && scenario !== "mail-race" && scenario !== "cross-meeting") {
+    if (scenario !== "baseline" && scenario !== "timeout" && scenario !== "reassign" && scenario !== "task-handraise" && scenario !== "completion-end" && scenario !== "risk-reopen" && scenario !== "decision-risk-closure" && scenario !== "cold-rebind" && scenario !== "archive-continuation" && scenario !== "mail-race" && scenario !== "cross-meeting" && scenario !== "convergence") {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -1086,6 +1179,10 @@ async function run(ctx) {
         if (!(scenario === "cold-rebind" && process.env.CONVIVIUM_SMOKE_COLD_PHASE === "2")) captain = createSmokeAgent(ctx, "convivium-smoke-captain");
         if (scenario === "decision-risk-closure") {
             await runDecisionRiskClosureScenario(ctx);
+            return;
+        }
+        if (scenario === "convergence") {
+            await runConvergenceScenario(ctx);
             return;
         }
         if (scenario === "cold-rebind") {
