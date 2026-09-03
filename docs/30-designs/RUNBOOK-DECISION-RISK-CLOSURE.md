@@ -272,35 +272,9 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 ## 8. 机械步骤
 
-### T0：Baseline 与唯一 RUNBOOK
-
-前置状态：仓库根、目标分支。
-
-允许修改：无。
-
-禁止修改：全部文件及 stash/clean/reset/checkout/commit/push。
-
-执行：确认 branch、HEAD、唯一 RUNBOOK、工作树和 DSH version。
-
-验证：
-
-```bash
-test "$(git branch --show-current)" = "codex/decision-risk-closure-runbook"
-test "$(git rev-parse HEAD)" = "7291ba012475915e02648addb60ca3c6223425e1"
-test "$(find docs/30-designs -maxdepth 1 -type f -name 'RUNBOOK-*.md' -print)" = "docs/30-designs/RUNBOOK-DECISION-RISK-CLOSURE.md"
-test -z "$(git status --short | grep -v '^?? docs/30-designs/RUNBOOK-DECISION-RISK-CLOSURE.md$')"
-rg -n '0\.1\.1-rc\.2' plugin/package.json plugin/pnpm-lock.yaml
-```
-
-PASS：全部成功，无其他 RUNBOOK/改动。
-
-STOP：任一不符，不切换/删除/清理。
-
-失败恢复：只读，无副作用。
-
 ### T1：迁移 requirements
 
-前置状态：T0 PASS。
+前置状态：commit `56d29cc5a69cfeb1dd7dd16914278d43aa082344` 的产品/正式文档树等同 `7291ba012475915e02648addb60ca3c6223425e1`，且 T0 baseline 检查 PASS。
 
 允许修改：`docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md` 的 FR-7 全部、FR-8.1/8.4/8.9、FR-11.1/11.5/11.7 中 Candidate/Decision/risk 句子，以及 AC-7/8/13/16/26/27 中 FR-7 断言。
 
