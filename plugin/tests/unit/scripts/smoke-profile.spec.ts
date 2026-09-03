@@ -18,6 +18,10 @@ const riskReopenSource = readFileSync(
     new URL("../../../scripts/smoke-profile/probe/scenarios/risk-reopen.js", import.meta.url),
     "utf8"
 );
+const mailSource = readFileSync(
+    new URL("../../../scripts/smoke-profile/probe/scenarios/mail.js", import.meta.url),
+    "utf8"
+);
 
 describe("createSmokeEnvironment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
@@ -73,6 +77,17 @@ describe("smoke profile scenario guard", () => {
         expect(riskReopenSource).toContain('"risk-replay-stable"');
         expect(riskReopenSource).toContain('"risk-idempotency-conflict"');
         expect(smokeProfileSource.match(/runRiskReopenScenario\(/g)).toHaveLength(1);
+    });
+
+    it("dispatches mail-race to one scenario module", () => {
+        expect(smokeProfileSource).toContain('from "./scenarios/mail.js"');
+        expect(smokeProfileSource).toContain("await runMailRaceScenario(runtime);");
+        expect(smokeProfileSource.match(/runMailRaceScenario\(runtime\)/g)).toHaveLength(1);
+        expect(mailSource).toContain("export async function runMailRaceScenario(runtime)");
+        expect(mailSource).toContain('"single-mail-terminal"');
+        expect(mailSource).toContain('"stable-delivery-ids"');
+        expect(mailSource).toContain('"private-body-not-projected"');
+        expect(mailSource).toContain('"recipient-queue-reusable"');
     });
 
     it("copies the probe tree and keeps shared support exports bounded", () => {

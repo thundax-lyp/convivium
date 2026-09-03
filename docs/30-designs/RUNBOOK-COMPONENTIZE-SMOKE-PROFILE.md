@@ -239,37 +239,9 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T4：迁移 mail-race 场景
-
-前置状态：T3 closure commit is HEAD, literal SHA is recorded in the preceding commit; T3 unit/build/risk-reopen smoke/lint/diff checks passed; worktree clean; `risk-reopen` has one dispatcher call to `runRiskReopenScenario(runtime)` and no inline branch.
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/mail.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-
-禁止修改：其他场景和产品源码。
-
-执行：把完整 `mail-race` branch 移为 `runMailRaceScenario(runtime)`；通过 runtime 的 `setMailMaintenance`/`releaseMailMaintenance` 保留原 slot、release 和 await 顺序；删除旧 branch；unit 锁定唯一 import/call 和 4 个 label。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/mail.js tests/unit/scripts/smoke-profile.spec.ts --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/mail.js tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/scenarios/mail.js plugin/tests/unit/scripts/smoke-profile.spec.ts
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 拆分邮件竞争场景"
-```
-
-PASS：真实 smoke 包含 `single-mail-terminal`、`stable-delivery-ids`、`private-body-not-projected`、`recipient-queue-reusable`；maintenance cleanup PASS。
-
-STOP：mail terminal、隐私 projection、queue reuse 或 cleanup 语义变化。
-
 ### T5：迁移 cross-meeting 场景
 
-前置状态：T4 commit 是 HEAD，工作树 clean。
+前置状态：T4 closure commit is HEAD, literal SHA is recorded in the preceding commit; T4 unit/build/mail-race smoke/lint/diff checks passed; worktree clean; `mail-race` has one dispatcher call to `runMailRaceScenario(runtime)` and no inline branch.
 
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/isolation.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
 
