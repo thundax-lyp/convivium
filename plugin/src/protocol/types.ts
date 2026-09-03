@@ -618,7 +618,7 @@ export interface IssueClaimV1 {
     impact: "none" | "low" | "medium" | "high" | "critical";
     urgency: "now" | "before_release" | "later";
     safeDefaultAvailable: boolean;
-    riskLevel?: RiskLevelV1;
+    riskLevel: RiskLevelV1;
 }
 
 export interface DecisionProposalClaimV1 {

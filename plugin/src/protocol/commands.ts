@@ -262,7 +262,7 @@ const issueClaim = Schema.object({
     impact: enumOf(["none", "low", "medium", "high", "critical"] as const),
     urgency: enumOf(["now", "before_release", "later"] as const),
     safeDefaultAvailable: boolean(),
-    riskLevel: Schema.union([Schema.const(undefined), enumOf(["low", "medium", "high"] as const)])
+    riskLevel: enumOf(["low", "medium", "high"] as const)
 });
 
 const decisionProposalClaim = Schema.object({
