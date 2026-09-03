@@ -16,6 +16,105 @@ type SpeakerAdvanceContext = Pick<
     "attemptId" | "agendaItemId" | "now" | "nextPlanningAttemptId" | "nextPlanningDeliveryId"
 >;
 
+function canonicalIds(values: readonly string[]): string[] {
+    return [...values].sort();
+}
+
+export function createProgressFingerprint(state: MeetingState): string {
+    const agenda = state.agenda
+        .map((item) => [item.id, item.status, item.resolution ?? ""])
+        .sort(([left], [right]) => left!.localeCompare(right!));
+    const acceptedDecisions = state.decisions
+        .filter((decision) => decision.status === "accepted")
+        .map((decision) => [decision.id, decision.proposalId, decision.proposalRevision])
+        .sort(([left], [right]) => left!.localeCompare(right!));
+    const questions = state.openQuestions
+        .filter((question) => question.status === "open" && question.blocking)
+        .map((question) => [question.id])
+        .sort(([left], [right]) => left!.localeCompare(right!));
+    const latestProposalById = new Map<string, (typeof state.proposals)[number]>();
+    for (const proposal of state.proposals) {
+        const current = latestProposalById.get(proposal.id);
+        if (current === undefined || proposal.revision > current.revision) {
+            latestProposalById.set(proposal.id, proposal);
+        }
+    }
+    const positions = [...latestProposalById.values()]
+        .flatMap((proposal) =>
+            proposal.positions
+                .filter(
+                    (position) =>
+                        position.proposalRevision === proposal.revision &&
+                        position.blocking &&
+                        (position.position === "object" || position.position === "needs_revision")
+                )
+                .map((position) => [
+                    proposal.id,
+                    proposal.revision,
+                    position.id,
+                    position.participantId,
+                    position.position
+                ])
+        )
+        .sort(([left], [right]) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+    const tasks = state.meetingTasks
+        .filter((task) => ["completed", "failed", "cancelled"].includes(task.status))
+        .map((task) => [task.meetingTaskId, task.status, task.resultSummary ?? ""])
+        .sort(([left], [right]) => left!.localeCompare(right!));
+    const proposals = [...latestProposalById.values()]
+        .map((proposal) => [proposal.id, proposal.revision, proposal.status])
+        .sort(([left], [right]) => left!.localeCompare(right!));
+    const facts = state.completionFacts
+        .filter((fact) => fact.status === "active")
+        .map((fact) => [
+            fact.id,
+            fact.kind,
+            fact.subjectId,
+            fact.result,
+            canonicalIds(fact.evidenceMessageIds),
+            canonicalIds(fact.taskIds)
+        ])
+        .sort(([left], [right]) => left!.localeCompare(right!));
+    return JSON.stringify([
+        agenda,
+        acceptedDecisions,
+        questions,
+        positions,
+        tasks,
+        proposals,
+        facts
+    ]);
+}
+
+export function hasBlockingDisagreement(state: MeetingState): boolean {
+    const currentProposalIds = new Set(
+        state.proposals
+            .filter((proposal) => proposal.agendaItemId === state.activeAgendaItemId)
+            .map((proposal) => proposal.id)
+    );
+    const currentProposals = state.proposals.filter(
+        (proposal) =>
+            currentProposalIds.has(proposal.id) &&
+            proposal.revision ===
+                Math.max(
+                    ...state.proposals
+                        .filter((candidate) => candidate.id === proposal.id)
+                        .map((candidate) => candidate.revision)
+                )
+    );
+    return (
+        state.openQuestions.some((question) => question.status === "open" && question.blocking) ||
+        currentProposals.some((proposal) =>
+            proposal.positions.some(
+                (position) =>
+                    position.proposalRevision === proposal.revision &&
+                    position.blocking &&
+                    (position.position === "object" || position.position === "needs_revision")
+            )
+        )
+    );
+}
+
 export function advanceAfterSpeakerSubmission(
     state: MeetingState,
     participantId: string,
