@@ -203,4 +203,38 @@ describe("outbox worker", () => {
         await worker.runOnce();
         expect(completions[0]).toMatchObject({ status: "failed", errorCode: "STALE" });
     });
+
+    it("notifies the owner after terminal delivery failure is durably recorded", async () => {
+        const failures: unknown[] = [];
+        const worker = createOutboxWorker({
+            repository: {
+                claimOutbox: async () => [item(2)],
+                completeOutbox: async (input) => {
+                    failures.push({ kind: "completion", completion: input.completion });
+                    return { id: input.id, status: input.completion.status };
+                }
+            },
+            owner: "worker-1",
+            ttlMs: 100,
+            batchSize: 1,
+            pollMs: 10,
+            maxAttempts: 2,
+            dispatch: async () => {
+                throw Object.assign(new Error("bad"), { code: "MANAGER_UNAVAILABLE" });
+            },
+            onTerminalFailure: async (failed, errorCode, failedAt) => {
+                failures.push({ kind: "callback", id: failed.id, errorCode, failedAt });
+            },
+            now: () => 10
+        });
+
+        await worker.runOnce();
+        expect(failures).toEqual([
+            {
+                kind: "completion",
+                completion: { status: "failed", failedAt: 10, errorCode: "MANAGER_UNAVAILABLE" }
+            },
+            { kind: "callback", id: "outbox-1", errorCode: "MANAGER_UNAVAILABLE", failedAt: 10 }
+        ]);
+    });
 });

@@ -1909,6 +1909,7 @@ describe("create/status meeting runtime", () => {
         roots.push(root);
         let followups = 0;
         const managerContexts: Record<string, unknown>[] = [];
+        let releaseManagerDelivery: (() => void) | undefined;
         const runtime = createCreateStatusRuntime({
             storageDomain: storagePort(root),
             provider: "spawn",
@@ -1922,6 +1923,12 @@ describe("create/status meeting runtime", () => {
                     const text = prompt[0]?.type === "text" ? prompt[0].text : undefined;
                     if (typeof text === "string" && text.startsWith("{")) {
                         managerContexts.push(JSON.parse(text) as Record<string, unknown>);
+                    }
+                    if (followups === 1) {
+                        await new Promise<void>((resolve) => {
+                            releaseManagerDelivery = resolve;
+                        });
+                        return "manager-delivered" as never;
                     }
                     throw Object.assign(new Error("provider unavailable"), {
                         retryable: false
@@ -2023,6 +2030,7 @@ describe("create/status meeting runtime", () => {
         );
         expect(planned).toMatchObject({ ok: true });
         if (!planned.ok) throw new Error("plan failed");
+        releaseManagerDelivery?.();
         await vi.waitFor(() => expect(followups).toBe(2), { timeout: 5000 });
 
         await expect(

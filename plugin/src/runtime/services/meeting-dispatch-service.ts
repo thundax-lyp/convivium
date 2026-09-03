@@ -552,6 +552,7 @@ export function createMeetingDeliveryWorkerService(
                 pollMs: options.pollMs,
                 dispatch: input.dispatch,
                 beforeRun: input.scan,
+                onTerminalFailure: input.onTerminalFailure,
                 now: options.now
             });
             workers.set(input.meetingId, worker);

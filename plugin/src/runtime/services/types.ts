@@ -13,6 +13,11 @@ export interface MeetingDeliveryWorkerService {
         readonly parent?: Agent;
         readonly dispatch: (item: OutboxItem, signal: AbortSignal) => Promise<void>;
         readonly scan?: (now: number) => Promise<void>;
+        readonly onTerminalFailure?: (
+            item: OutboxItem,
+            errorCode: string,
+            failedAt: number
+        ) => Promise<void>;
     }): void;
     wake(meetingId: string): void;
     dispose(): Promise<void>;
