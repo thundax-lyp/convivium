@@ -118,6 +118,8 @@ describe("smoke profile scenario guard", () => {
         expect(riskReopenSource).toContain('"risk-disposed"');
         expect(riskReopenSource).toContain('"risk-replay-stable"');
         expect(riskReopenSource).toContain('"risk-idempotency-conflict"');
+        expect(probeSource).toContain('scenario === "risk-reopen"');
+        expect(probeSource).toContain('scenario === "cold-rebind"');
         expect(probeSource.match(/runRiskReopenScenario\(/g)).toHaveLength(1);
     });
 

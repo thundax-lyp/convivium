@@ -135,7 +135,6 @@ export function rankRulePlanningCandidates(
             requiredReviewers.has(participant.id) ||
             agendaOwner ||
             freshTaskReporters.has(participant.id) ||
-            blockingPositionOwners.has(participant.id) ||
             handRaise
         ) {
             required.add(participant.id);
@@ -183,19 +182,13 @@ export function requiredPlanningBlockers(
                 .filter((participant) => isParticipantDispatchableNow(state, participant))
                 .map((participant) => participant.id)
     );
-    const rankedRequired = rankRulePlanningCandidates(state).filter(
-        (candidate) => candidate.required
+    const requiredIds = new Set(requiredPlanningParticipantIds(state));
+    const rankedRequired = rankRulePlanningCandidates(state).filter((candidate) =>
+        requiredIds.has(candidate.participantId)
     );
-    const agendaRequired =
-        state.agenda.find((item) => item.id === state.activeAgendaItemId)?.requiredParticipants ??
-        [];
-    const requiredIds = new Set([
-        ...agendaRequired,
-        ...rankedRequired.map((candidate) => candidate.participantId)
-    ]);
     const required = [
         ...rankedRequired,
-        ...agendaRequired
+        ...[...requiredIds]
             .filter((participantId) =>
                 rankedRequired.every((candidate) => candidate.participantId !== participantId)
             )
@@ -216,6 +209,20 @@ export function requiredPlanningBlockers(
         .slice(state.limits.maxSpeakersPerTurn)
         .map((candidate) => candidate.participantId);
     return [...new Set([...unavailable, ...overflow])].sort();
+}
+
+export function requiredPlanningParticipantIds(state: MeetingState): string[] {
+    const agendaRequired =
+        state.agenda.find((item) => item.id === state.activeAgendaItemId)?.requiredParticipants ??
+        [];
+    return [
+        ...new Set([
+            ...agendaRequired,
+            ...rankRulePlanningCandidates(state)
+                .filter((candidate) => candidate.required)
+                .map((candidate) => candidate.participantId)
+        ])
+    ];
 }
 
 export function planRuleBasedTurn(
@@ -482,6 +489,11 @@ export function planManagerTurn(
         }
     }
     for (const requiredParticipantId of agenda.requiredParticipants) {
+        if (!selectedIds.has(requiredParticipantId)) {
+            invalidManagerPlan(`required participant ${requiredParticipantId} is missing`);
+        }
+    }
+    for (const requiredParticipantId of requiredPlanningParticipantIds(state)) {
         if (!selectedIds.has(requiredParticipantId)) {
             invalidManagerPlan(`required participant ${requiredParticipantId} is missing`);
         }

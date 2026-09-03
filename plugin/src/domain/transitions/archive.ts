@@ -97,6 +97,7 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
     const acceptedDecisionIds = state.decisions
         .filter((decision) => decision.status === "accepted")
         .map((decision) => decision.id);
+    const decisionHistoryIds = state.decisions.map((decision) => decision.id);
     const unresolvedQuestionIds = state.openQuestions
         .filter((question) => question.status === "open" || question.status === "deferred")
         .map((question) => question.id);
@@ -108,6 +109,7 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
             new Set(archivePackage.artifactRefs.map((artifact) => artifact.artifactId))
         ) ||
         !containsEvery(acceptedDecisionIds, archiveIds(archivePackage.acceptedDecisions)) ||
+        !containsEvery(decisionHistoryIds, archiveIds(archivePackage.decisionHistory)) ||
         !containsEvery(
             state.proposals.map(proposalKey),
             new Set(archivePackage.proposals.map(proposalKey))
@@ -172,6 +174,21 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
                 ) ??
                     false)
         ) ||
+        archivePackage.decisionHistory.some((archived) => {
+            const source = decisionById.get(archived.id);
+            return (
+                source === undefined ||
+                source.proposalId !== archived.proposalId ||
+                source.proposalRevision !== archived.proposalRevision ||
+                source.status !== archived.status ||
+                source.agendaItemId !== archived.agendaItemId ||
+                source.statement !== archived.statement ||
+                source.rationale !== archived.rationale ||
+                JSON.stringify(source.acceptedBy) !== JSON.stringify(archived.acceptedBy) ||
+                JSON.stringify(source.dissentingPositionIds) !==
+                    JSON.stringify(archived.dissentingPositionIds)
+            );
+        }) ||
         archivePackage.proposals.some((proposal) => {
             const source = proposalByRevision.get(proposalKey(proposal));
             return (

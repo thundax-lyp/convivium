@@ -82,6 +82,7 @@ export function archivePackage(): ArchivePackage {
         finalSummary: "summary",
         artifactRefs: [],
         acceptedDecisions: [],
+        decisionHistory: [],
         proposals: [],
         completionFacts: [],
         agenda: [],

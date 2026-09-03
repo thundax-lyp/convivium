@@ -7,6 +7,7 @@ import {
     nextManagerPlanningIds,
     planRuleBasedTurn,
     rankRulePlanningCandidates,
+    requiredPlanningParticipantIds,
     type CanonicalIdAllocator,
     type CreateMeetingSpec,
     type DomainError,
@@ -317,6 +318,72 @@ describe("deterministic convergence planning", () => {
         );
         expect(turn.reason).toBe("refocus");
         expect(turn.intent).toBe("refocus");
+    });
+
+    it("keeps a blocking objection owner as a scored, non-required candidate", () => {
+        const meeting = state();
+        meeting.agenda[0]!.requiredParticipants = [];
+        meeting.proposals = [
+            {
+                id: "proposal-1",
+                agendaItemId: meeting.activeAgendaItemId!,
+                proposalId: "proposal-1",
+                revision: 1,
+                title: "Proposal",
+                description: "Proposal",
+                status: "open",
+                positions: [
+                    {
+                        id: "position-1",
+                        proposalId: "proposal-1",
+                        proposalRevision: 1,
+                        participantId: "participant:b",
+                        position: "object",
+                        blocking: true,
+                        createdAt: 100
+                    }
+                ],
+                createdAt: 100
+            }
+        ];
+
+        expect(
+            rankRulePlanningCandidates(meeting).find(
+                (item) => item.participantId === "participant:b"
+            )
+        ).toMatchObject({ required: false, score: 25 + 20 + 15 });
+        expect(() =>
+            planRuleBasedTurn(
+                meeting,
+                { turnId: "turn-1", stepId: (participantId) => `step-${participantId}` },
+                200,
+                "normal"
+            )
+        ).not.toThrow();
+    });
+
+    it("requires dynamic speakers selected by the same rule set as rule planning", () => {
+        const meeting = state();
+        meeting.objectiveContract.requiredReviewers = ["participant:b"];
+        expect(requiredPlanningParticipantIds(meeting)).toContain("participant:b");
+        expect(() =>
+            planManagerTurn(
+                meeting,
+                plan({
+                    steps: [
+                        {
+                            participantId: "participant:a",
+                            instruction: "Review",
+                            reason: "agenda_owner"
+                        }
+                    ]
+                }),
+                { turnId: "turn-1", stepId: (index) => `step-${index}` },
+                200
+            )
+        ).toThrowError(
+            expect.objectContaining<Partial<DomainError>>({ code: "MANAGER_PLAN_INVALID" })
+        );
     });
 
     it("uses only the three confirmed arbitration predicates and separates planning sequence from budget", () => {
