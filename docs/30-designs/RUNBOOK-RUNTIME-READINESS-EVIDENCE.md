@@ -121,89 +121,9 @@ G0 必须同时找到：
 
 ## 6. 机械执行步骤
 
-### G0：固定 target baseline 与入口 Audit
-
-前置状态：当前分支为 `codex/runtime-readiness-evidence-runbook`；工作树 clean；本文 targetCommit 为 `cf0ab2d2cf12d670bab66c0324c1c2395f319d98`。
-
-允许修改：无。禁止修改：全部文件；禁止 switch/merge/rebase/cherry-pick/stash/clean。
-
-Prepare/Execute：
-
-```bash
-test -z "$(git status --porcelain)"
-git fetch origin
-test "$(git branch --show-current)" = "codex/runtime-readiness-evidence-runbook"
-target_sha="cf0ab2d2cf12d670bab66c0324c1c2395f319d98"
-test "$(git rev-parse origin/main)" = "$target_sha"
-git merge-base --is-ancestor "$target_sha" HEAD
-test "$(git diff --name-only "$target_sha"..HEAD)" = "docs/30-designs/RUNBOOK-RUNTIME-READINESS-EVIDENCE.md"
-git diff --exit-code "$target_sha"..HEAD -- plugin docs/00-governance docs/10-requirements docs/20-interfaces docs/40-readiness docs/50-operations
-uname -srm
-node --version
-pnpm --version
-rg -n 'const DSH_VERSION = "0\.1\.1-rc\.2"|const PROFILE = "web"|const PROVIDER = "spawn"' plugin/scripts/smoke-profile/index.mjs
-test "$(rg -c '^targetCommit: `cf0ab2d2cf12d670bab66c0324c1c2395f319d98`$' docs/30-designs/RUNBOOK-RUNTIME-READINESS-EVIDENCE.md)" = 1
-```
-
-Investigate/Audit：
-
-```bash
-test "$(git rev-parse origin/main)" = "cf0ab2d2cf12d670bab66c0324c1c2395f319d98"
-rg -n 'serializeValidatedRequestV1|PublicDecisionCandidateV1|CaptainDecisionDispositionInputV1|CaptainDecisionDispositionResultV1|PublicRiskV1' plugin/src/protocol
-rg -n 'CaptainDecisionDispositionResultSchema' plugin/src/protocol/results.ts plugin/src/protocol/index.ts
-rg -n 'convivium_dispose_decision' plugin/src/tools/register-tools.ts
-rg -n 'disposeDecision' plugin/src/domain/transitions/decision-disposition.ts
-rg -n 'pendingDecisionCandidates|risks|decisionHistory|waitState|stallCount|maxStalls|replanCount|maxReplans' plugin/src/projection/status.ts
-rg -n 'rankRulePlanningCandidates|planRuleBasedTurn|needsSemanticArbitration' plugin/src/domain/planning.ts
-rg -n 'failManagerPlanningAndCreateFallback' plugin/src/domain/transitions/manager-planning.ts
-rg -n 'advanceAfterSpeakerSubmission|createProgressFingerprint|hasBlockingDisagreement' plugin/src/domain/transitions/turn-advancement.ts
-rg -n 'decision-risk-closure|convergence' plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/index.js
-rg -n 'runDecisionRiskClosureScenario|candidate-visible-to-captain|risk-replay-version-stable' plugin/scripts/smoke-profile/probe/scenarios/decision-risk-closure.js
-rg -n 'runConvergenceScenario|deterministic-fallback|fallback-replay-idempotent|fallback-status-projected' plugin/scripts/smoke-profile/probe/scenarios/convergence.js
-for f in \
-  plugin/tests/unit/protocol/request-idempotency.spec.ts \
-  plugin/tests/unit/domain/transitions/{proposal-position,issue,decision-candidate,decision-acceptance,decision-disposition,manager-planning,turn-advancement,speaker-attempt,speaker-submission}.spec.ts \
-  plugin/tests/unit/domain/{completion,planning}.spec.ts \
-  plugin/tests/unit/runtime/{archive,manager-fallback,meeting-runtime,turn-runner}.spec.ts \
-  plugin/tests/contract/{protocol-schema,status-projection,http-boundary,meeting-runtime,tool-registration,domain-meeting-repository}.spec.ts \
-  plugin/tests/recovery/{domain-recovery,recovery}.spec.ts \
-  plugin/tests/client/client-entry.client.spec.ts \
-  plugin/tests/unit/scripts/{smoke-profile,smoke-profile-contract}.spec.ts; do test -f "$f"; done
-node --input-type=module <<'NODE'
-import fs from 'node:fs'
-const runner = fs.readFileSync('plugin/scripts/smoke-profile/index.mjs', 'utf8')
-const match = runner.match(/const SMOKE_SCENARIOS = \[([\s\S]*?)\];/)
-if (!match) process.exit(1)
-const actual = [...match[1].matchAll(/"([^"]+)"/g)].map((item) => item[1]).sort()
-const expected = ['archive-continuation','baseline','cold-rebind','completion-end','convergence','cross-meeting','decision-risk-closure','mail-race','reassign','risk-reopen','task-handraise','timeout'].sort()
-if (JSON.stringify(actual) !== JSON.stringify(expected)) { console.error(JSON.stringify({actual, expected}, null, 2)); process.exit(1) }
-const expectedAssertions = {
-  'decision-risk-closure': ['accepted-candidate-not-pending','candidate-accepted','candidate-visible-to-captain','decision-history-current-state','decision-pending-by-current-revision','event-order-not-observable-by-command-status','risk-blocking-facts','risk-disposition-status','risk-replay-version-stable'].sort(),
-  convergence: ['deterministic-fallback','fallback-replay-idempotent','fallback-status-projected'].sort(),
-}
-const scenarioFiles = {
-  'decision-risk-closure': 'plugin/scripts/smoke-profile/probe/scenarios/decision-risk-closure.js',
-  convergence: 'plugin/scripts/smoke-profile/probe/scenarios/convergence.js',
-}
-for (const [scenario, labels] of Object.entries(expectedAssertions)) {
-  const source = fs.readFileSync(scenarioFiles[scenario], 'utf8')
-  const assertionBlocks = [...source.matchAll(/assertions:\s*\[([\s\S]*?)\]/g)]
-  if (assertionBlocks.length !== 1) { console.error(`${scenario}: expected one assertion block`); process.exit(1) }
-  const found = [...assertionBlocks[0][1].matchAll(/"([^"]+)"/g)].map((item) => item[1]).sort()
-  if (JSON.stringify(found) !== JSON.stringify(labels)) { console.error(JSON.stringify({scenario, found, expected: labels}, null, 2)); process.exit(1) }
-}
-NODE
-pnpm --dir plugin exec prettier ../docs/30-designs/RUNBOOK-RUNTIME-READINESS-EVIDENCE.md --check
-git diff --check
-```
-
-PASS：全部退出 0；`origin/main` 等于 literal target，target 是 HEAD ancestor，target 以上只含本文，产品树无差异；A/B exact paths/symbols/tests、12-selector set 和两组 assertion set 全存在；进入 G1。
-
-STOP：dirty tree、fetch/SHA/ancestry失败、target 以上出现本文外文件、产品树差异、任一 postcondition/selector 不一致。不得清理、更新 target、猜测替代入口或继续。恢复：本步骤只读；保留当前分支和工作树，不执行 Git 修复。
-
 ### G1：focused product tests
 
-前置状态：G0 PASS；工作树 clean。允许修改：无。禁止修改：全部文件。
+前置状态：当前分支 HEAD 为 G0 收口 commit，且 `git show --name-only --format= HEAD^..HEAD` 只列本文；工作树 clean。允许修改：无。禁止修改：全部文件。
 
 ```bash
 pnpm --dir plugin exec vitest run tests/unit/protocol/request-idempotency.spec.ts tests/unit/domain/transitions/proposal-position.spec.ts tests/unit/domain/transitions/issue.spec.ts tests/unit/domain/transitions/decision-candidate.spec.ts tests/unit/domain/transitions/decision-acceptance.spec.ts tests/unit/domain/transitions/decision-disposition.spec.ts tests/unit/domain/completion.spec.ts tests/contract/http-boundary.spec.ts tests/contract/tool-registration.spec.ts tests/unit/domain/planning.spec.ts tests/unit/domain/transitions/manager-planning.spec.ts tests/unit/domain/transitions/turn-advancement.spec.ts tests/unit/domain/transitions/speaker-attempt.spec.ts tests/unit/domain/transitions/speaker-submission.spec.ts tests/unit/runtime/manager-fallback.spec.ts tests/unit/runtime/meeting-runtime.spec.ts tests/unit/runtime/turn-runner.spec.ts tests/contract/meeting-runtime.spec.ts tests/contract/protocol-schema.spec.ts tests/contract/status-projection.spec.ts tests/contract/domain-meeting-repository.spec.ts tests/recovery/domain-recovery.spec.ts tests/recovery/recovery.spec.ts tests/unit/runtime/archive.spec.ts tests/client/client-entry.client.spec.ts tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
