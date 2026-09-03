@@ -205,6 +205,10 @@ Runtime 只通过以下语义级 API 读写：
 
 `requestId + commandKind + callerBinding` 形成幂等键。相同键和相同 request hash 返回已提交 receipt；相同键但不同 hash 返回冲突。已提交的 message IDs、meeting version 和结果必须来自 receipt，不能重新执行转换。
 
+FR-7 implementation owns the Proposal revision, nested `Position`, immutable Decision candidate, Decision acceptance/disposal, `MeetingIssue.riskLevel`, risk disposition and their caller-specific status projection. `pendingDecisionCandidates` is derived for Captain/local only; `decisionHistory` contains all Decisions while `acceptedDecisions` contains current accepted Decisions. The only Decision events are `decision.accepted`, `decision.superseded` and `decision.revoked`; supersede orders replacement acceptance before superseding the old Decision in one commit. Risk disposition retains all risk facts and uses the existing completion fact event. These facts are projected and archived through the existing `projection/status.ts` and archive service; no second mapper, repository, adapter, or event vocabulary is added.
+
+The sole request serializer is `plugin/src/protocol/request-idempotency.ts::serializeValidatedRequestV1(value: object): string`. It is called only after protocol Schema validation and returns `JSON.stringify(value)` with no crypto, repository canonical JSON, or receipt string changes. Convergence imports this helper after the B contract commit and does not implement another serializer.
+
 ### Meeting creation
 
 创建流程固定为：

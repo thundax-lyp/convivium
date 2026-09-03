@@ -468,13 +468,11 @@ interface MeetingMessage {
 
 interface ParticipantPosition {
   id: string;
-  proposalId: string;
-  participant: string;
+  participantId: string;
   position: "support" | "accept" | "object" | "needs_revision" | "abstain";
   reason?: string;
   blocking: boolean;
   proposalRevision: number;
-  updatedAt: number;
 }
 
 type SpeakerSelectionReason =
@@ -523,13 +521,11 @@ interface MeetingDecision {
   statement: string;
   rationale: string;
   status: "accepted" | "superseded" | "revoked";
-  acceptanceMode:
-    | "deterministic_consensus"
-    | "captain_acceptance"
-    | "authorized_risk_acceptance";
+  acceptanceMode: "captain_acceptance";
   acceptedBy: string[];
   dissentingPositionIds: string[];
   acceptanceFactIds: string[];
+  supersededByDecisionId?: string;
   createdAt: number;
 }
 
@@ -583,6 +579,8 @@ interface CompletionFact {
     | "agenda_resolution"
     | "risk_acceptance"
     | "decision_acceptance"
+    | "decision_supersession"
+    | "decision_revocation"
     | "waiver";
   subjectId: string;
   assertedBy: string;
@@ -595,6 +593,8 @@ interface CompletionFact {
     | "rejected"
     | "resolved"
     | "deferred"
+    | "superseded"
+    | "revoked"
     | "waived";
   evidenceMessageIds: string[];
   taskIds: string[];
@@ -632,6 +632,8 @@ interface MeetingIssue {
   affectedCriterionIds: string[];
   violatedConstraintIds: string[];
   blockingObjectionIds: string[];
+  blocking: boolean;
+  riskLevel: "low" | "medium" | "high";
   impact: "none" | "low" | "medium" | "high" | "critical";
   urgency: "now" | "before_release" | "later";
   reversibility: "easy" | "moderate" | "hard" | "irreversible";
@@ -640,7 +642,13 @@ interface MeetingIssue {
   rationale: string;
   owner?: string;
   relatedTaskIds: string[];
-  status: "open" | "waiting" | "resolved" | "accepted" | "deferred";
+  status:
+    | "open"
+    | "accepted_risk"
+    | "waiting"
+    | "resolved"
+    | "deferred"
+    | "out_of_scope";
 }
 ```
 
@@ -663,6 +671,14 @@ Issue 只有引用 required output、acceptance criterion、hard constraint 或 
 - 已有 owner/task 的 follow-up；
 - 已由授权主体接受的残余风险；
 - 继续讨论没有结构化进展。
+
+### 6.2.1 Decision And Risk Closure
+
+Proposal revision 是独立 immutable snapshot；新 revision 的 `positions=[]`，不继承旧 Position、Decision、Candidate 或 acceptance。`Position` 的 canonical shape 是 `participantId`、`proposalRevision`、`position`、`blocking` 与可选 `reason`。Candidate 保持内部 immutable record，不保存 status；`pendingDecisionCandidates` 由当前 revision、未形成 Decision 且 Meeting 仍可执行三个条件派生，Captain 与 loopback local user 可见，其他 caller 返回 `[]`。Acceptance、revision update 或 execution-terminal 后 candidate 不再 pending。
+
+正式 acceptance 只能由 Captain 结构化 command 产生 `decision.accepted`，不使用 auto-accept。Decision disposal 由 Captain-only `convivium_dispose_decision` 执行：`supersede` 在一个 commit 中先写 replacement `decision.accepted`，再写旧 `decision.superseded` 并设置 `supersededByDecisionId`；`revoke` 写 `decision.revoked`。execution-terminal、`archiving` 与 `archived` 拒绝写入。`decisionHistory` 保留全部 Decision，`acceptedDecisions` 只保留当前 accepted。
+
+Risk disposition 只作用于一个 Issue。新 Issue 要求 `riskLevel`；legacy 读取可以缺失但处置 fail closed。可处置 status 仅为 `open|accepted_risk`；accept 写 `accepted_risk/accepted_risk/false`，reject 写 `open/blocking/true`。reason trim 后非空，evidence 至少一个、唯一且属于本 Meeting；risk level 不得高于 `acceptableRiskLevel` 且 hard constraints 必须通过。不同 request 先 supersede 旧 active `risk_acceptance` fact 再创建新 active fact；相同 request replay/conflict。全部 Issue 和 risk facts 进入 archive。
 
 ### 6.3 Parking Lot and refocus
 
@@ -1213,7 +1229,7 @@ Follow-up、Parking Lot、授权 accepted risk 和非阻塞少数意见不阻止
 
 #### Decision acceptance
 
-`DecisionProposalClaimV1` is persisted during the same `convivium_submit_turn` commit as its source message as an internal `MeetingDecisionCandidate`; it is not a pending `MeetingDecision` and is not projected publicly. Candidate IDs are runtime-generated as `decision-candidate-${deliveryId}-${index + 1}`. Captain acceptance is a separate `convivium_accept_decision` command. The command creates `decision-${decisionCandidateId}`, `status='accepted'`, the proposal acceptance, a `decision_acceptance` CompletionFact, one `decision.accepted` event, receipt, and no outbox effect in one Repository commit. It requires a current-revision support/accept Position, no blocking object/needs_revision Position, and Meeting-owned evidence. It does not accept risk, end the Meeting, reject/revoke/supersede candidates, or expose candidates in status/archive.
+`DecisionProposalClaimV1` is persisted during the same `convivium_submit_turn` commit as its source message as an immutable internal `MeetingDecisionCandidate`; it is not a pending `MeetingDecision`. Its pending subset is exposed through typed `pendingDecisionCandidates` only to Captain and loopback local user callers; other callers receive `[]`. Candidate IDs are runtime-generated as `decision-candidate-${deliveryId}-${index + 1}`. Captain acceptance is a separate `convivium_accept_decision` command. The command creates `decision-${decisionCandidateId}`, `status='accepted'`, the proposal acceptance, a `decision_acceptance` CompletionFact, one `decision.accepted` event, receipt, and no outbox effect in one Repository commit. It requires a current-revision support/accept Position, no blocking object/needs_revision Position, and Meeting-owned evidence. It does not accept risk, end the Meeting, or provide candidate reject/revoke commands.
 
 Participant 只能对指定 `proposalId + proposalRevision` 提交自己的 Position，以及提交 `DecisionProposalClaimV1` 建议 Runtime 固化内部 candidate。Runtime MUST 从 DSH caller Session 绑定 `participant`，不得接受调用方提供的其他身份。当前 V1 竖切中，正式 `MeetingDecision` 只能由 Captain 通过独立 `convivium_accept_decision` 对指定 candidate 生成；deterministic consensus、`convivium_end_meeting` acceptance 和 authorized risk acceptance 不在本竖切内。
 
@@ -1546,7 +1562,9 @@ meeting_task.started
 meeting_task.completed
 meeting_task.failed
 meeting_task.cancelled
-decision.added
+decision.accepted
+decision.superseded
+decision.revoked
 meeting.paused
 meeting.waiting
 meeting.resumed

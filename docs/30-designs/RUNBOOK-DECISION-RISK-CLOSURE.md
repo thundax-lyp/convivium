@@ -238,7 +238,7 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 | D1-D5 requirements            | B                                      | B 已完成 requirements 迁移                           | A T1 只保留并引用                                                          | `docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`：B 只改 FR-7、FR-8.1/8.4/8.9、FR-11.1/11.5/11.7 中 Decision/risk 句子及 AC-7/8/13/16/26/27 中 FR-7 断言                                                                                                                                                                                                                | B→A              | 无重复；A 只追加 D6-D10 句子                                                                |
 | D6-D10 requirements           | A                                      | A T1                                                 | B 不消费                                                                   | 同文件：FR-4、FR-6.7、FR-8.7、FR-9.4/9.5、FR-11.1/11.5 中 counters/Turn reason及 AC-5/6/13/16/20 的 convergence 断言                                                                                                                                                                                                                                                                | B→A              | B 禁止修改这些句子                                                                          |
 | Agent Protocol                | B lifecycle；A convergence             | B/A 各自产生所属 DTO/Schema                          | tools/runtime/Client                                                       | `AGENT-MEETING-PROTOCOL-INTERFACE.md`；B symbols 为 §5 的 Candidate/Decision/risk/status/archive；A symbols 为 `ManagerPlanResultV1`、`PublicMeetingWaitStateV1`、`PublicTurnV1.reason`、active counters                                                                                                                                                                            | B→A              | 同文档顺序编辑，无同名 member                                                               |
-| Domain/Orchestration designs  | B lifecycle；A convergence             | B T3/A T1                                            | production steps                                                           | `DOMAIN-MODEL-DESIGN.md`、`MEETING-ORCHESTRATION-DESIGN.md`：B 只写 §5 lifecycle；A 只写 planning/wait/fingerprint/stall/terminal                                                                                                                                                                                                                                                   | B→A              | event vocabulary共享但不重复定义；B events固定，A复用既有 `meeting.replanned/meeting.ended` |
+| Domain/Orchestration designs  | B lifecycle；A convergence             | B 已完成 designs 迁移；A T1                          | production steps                                                           | `DOMAIN-MODEL-DESIGN.md`、`MEETING-ORCHESTRATION-DESIGN.md`：B 只写 §5 lifecycle；A 只写 planning/wait/fingerprint/stall/terminal                                                                                                                                                                                                                                                   | B→A              | event vocabulary共享但不重复定义；B events固定，A复用既有 `meeting.replanned/meeting.ended` |
 | Domain model                  | B fact types；A orchestration fields   | domain transitions                                   | projection/runtime/archive                                                 | `plugin/src/domain/model.ts`：B owns `DomainEventTypes` 的三类 Decision event、`MeetingIssue.riskLevel`、`MeetingDecision.supersededByDecisionId`、Candidate/CompletionFact/Archive FR-7 members；A owns `MeetingState.managerPlanningSeq`、`MeetingTurn.reason`、wait types                                                                                                        | B→A              | 无 member 重名；A 不改 B optionality                                                        |
 | Protocol types/status/results | B FR-7；A D6-D10                       | protocol codec                                       | tools/projection/Client                                                    | `plugin/src/protocol/types.ts`、`status.ts`：B owns `PublicDecisionCandidateV1`、`CaptainDecisionDisposition*`、`PublicRiskV1`、`pendingDecisionCandidates`、`risks`、`decisionHistory`；`plugin/src/protocol/results.ts`：B owns `CaptainDecisionDispositionResultSchema`，A owns `CreateMeetingResultSchema`、`ManagerPlanResultSchema`；A owns Manager/wait/Turn reason/counters | B→A              | 同文件按 symbol/member 分工，无重复 Schema 或 mapper                                        |
 | Base protocol Schema          | 无 D1-D10 新 owner                     | existing protocol                                    | all commands                                                               | `plugin/src/protocol/schema.ts` 保持不变；已含 A 所需 error codes                                                                                                                                                                                                                                                                                                                   | Not Modified     | A T2 明确禁止修改                                                                           |
@@ -272,33 +272,9 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 ## 8. 机械步骤
 
-### T3：迁移 designs
-
-前置状态：commit `9cb086e` 已包含并验证 requirements 迁移；interfaces 已包含并验证 D1-D5 契约。
-
-允许修改：`docs/30-designs/DOMAIN-MODEL-DESIGN.md`、`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`、`docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md`、`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`。
-
-禁止修改：其他文件。
-
-执行：使 Position/Issue/Decision 与§5一致；加入 pending、transitions、archive、serializer、commit顺序；`decision.added` 改 `decision.accepted`，无 compatibility。
-
-验证：
-
-```bash
-rg -n 'participantId|proposalRevision|riskLevel|pendingDecisionCandidates|disposeDecision|decisionHistory|serializeValidatedRequestV1|decision\.accepted' docs/30-designs/DOMAIN-MODEL-DESIGN.md docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md
-! rg -n 'decision\.added' docs/30-designs/DOMAIN-MODEL-DESIGN.md docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md
-pnpm --dir plugin exec prettier ../docs/30-designs/DOMAIN-MODEL-DESIGN.md ../docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md ../docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md ../docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md --check
-```
-
-PASS：结构/event/职责唯一。
-
-STOP：需 adapter/service/provider/formatVersion。
-
-失败恢复：保留 diff，不回滚已完成的 requirements 或 interfaces 迁移。
-
 ### T4：Protocol 与 serializer
 
-前置状态：T3 PASS。
+前置状态：commit `1179f97` 已包含并验证 requirements/interfaces 契约；designs 已完成 D1-D5 迁移并通过本步全部验证 PASS。
 
 允许修改：`plugin/src/protocol/types.ts`、`plugin/src/protocol/commands.ts`、`plugin/src/protocol/results.ts`、`plugin/src/protocol/status.ts`、`plugin/src/protocol/index.ts`；新增 `plugin/src/protocol/request-idempotency.ts`、`plugin/tests/unit/protocol/request-idempotency.spec.ts`；修改 `plugin/tests/contract/protocol-schema.spec.ts`。
 
@@ -459,7 +435,7 @@ STOP：环境不可用则记录命令/输出并标 runtime smoke `Not Covered`�
 
 ### T11：完整验证与移交
 
-前置状态：requirements、interfaces、designs 迁移已完成并验证 PASS；T3-T9 PASS；T10 fixture PASS；真实 smoke 可仅因环境为 Not Covered。
+前置状态：requirements、interfaces、designs 迁移已完成并验证 PASS；T4-T9 PASS；T10 fixture PASS；真实 smoke 可仅因环境为 Not Covered。
 
 允许修改：无；本步骤只运行检查命令。
 
@@ -505,7 +481,7 @@ STOP：产品 test/type/lint/build/contract/package失败，不放宽。
 | archive/recovery      | history/current、全部 Issue/Fact、legacy risk、checkpoint/tail/reopen一致                   |
 | DSH/full              | 现有 registry/renderer/fiber；无 Session event；T11 verify；T10 profile或环境Not Covered    |
 
-完成条件：requirements、interfaces、designs 迁移已完成并验证 PASS；T3-T9/T11 PASS；T10 fixture PASS，真实 profile PASS或仅可复现环境缺失；双向追踪完整且无 Non-goal diff。数据库迁移 `Not Applicable`：D4 指定 optional read compatibility，formatVersion不变。
+完成条件：requirements、interfaces、designs 迁移已完成并验证 PASS；T4-T9/T11 PASS；T10 fixture PASS，真实 profile PASS或仅可复现环境缺失；双向追踪完整且无 Non-goal diff。数据库迁移 `Not Applicable`：D4 指定 optional read compatibility，formatVersion不变。
 
 B 不写 readiness。C 只在 B→A 最终 SHA 更新 `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` 与 `DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`。
 
@@ -532,12 +508,12 @@ B 本轮补齐 `plugin/src/protocol/results.ts:CaptainDecisionDispositionResultS
 | traceability        | PASS | §6                                                                        |
 | data/interface      | PASS | §5                                                                        |
 | file/symbol         | PASS | §6、所有剩余执行步骤                                                      |
-| mechanical steps    | PASS | T3-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
+| mechanical steps    | PASS | T4-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
 | validation/failure  | PASS | §9 覆盖 success/invalid/authority/stale/terminal/replay/rollback/recovery |
 | scope/non-goals     | PASS | §3、§6，B→A→C固定                                                         |
 | readiness/deletion  | PASS | §9                                                                        |
 
-当前 Not Covered：未执行剩余 T3-T11，未实现代码，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 commit、push 或创建 PR。
+当前 Not Covered：未执行剩余 T4-T11，未实现代码，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 commit、push 或创建 PR。
 
 ## 11. Related Documents
 
