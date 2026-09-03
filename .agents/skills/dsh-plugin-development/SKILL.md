@@ -22,7 +22,7 @@ description: 开发或修改 DeepSeek Harness Cordis 包与插件，包括模型
 ## 实现规则
 
 - 通过已记录的 plugin、service 或 event 扩展点实现；存在扩展点时，不修改 agent loop。
-- 遵循仓库的插件导出约定。本 skill 记录的 DSH 约定是：Service 包默认导出 Service class；函数插件具名导出 `name`、`inject`、可选 `Config` 与 `apply`。
+- 遵循仓库的插件导出约定。Service 包默认导出 Service class。函数插件具名导出 `apply`；只有插件确实需要稳定名称、必需依赖或配置时，才分别导出 `name`、`inject` 或 `Config`。不要为凑齐固定入口形状添加空 metadata。
 - 每项贡献都必须有生命周期所有者。事件监听直接调用 `ctx.on()`。当注册 API 明确会创建 Cordis effect 时直接调用；rc.2 的 tool、system-prompt section 和 LLM adapter 注册属于这种情况。其他只返回未托管 disposer 的 registry 必须由插件的 `ctx.effect()` 接管。
 - 模型可见输入必须能从 Session log 重建。先确认所属路径是否已通过 request header、message 或 tool result 记录完整证据；只有插件引入新的持久事实时，才声明并追加由该插件拥有的 Session event。
 - 当 Service Definition、Provider、Consumer 会独立演进时，将可替换能力拆成这三个角色。Consumer 依赖 Definition，不依赖具体 Provider。

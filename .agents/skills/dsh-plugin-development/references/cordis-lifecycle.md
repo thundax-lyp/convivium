@@ -8,7 +8,7 @@ DSH 是 Cordis plugin harness。rc.2 发布并使用 vendored `@deepseek-ai/cord
 
 Context 是 Service 容器；Provider 占用稳定的 `ctx.<key>`，Consumer 在 `inject` 中声明这些 key。是否就绪由拓扑而非启动顺序决定。把行为放在能拥有它的最小现有 Service、event、tool、profile 或 durable Session extension 上。Agent loop 是组合叶节点；插件扩展点足以表达行为时不要修改 loop。
 
-Cordis runtime 接受 function、class 和 `{ apply }` object 三种 plugin shape；DSH 仓库 package 只使用两种导出约定：Service 包 default-export Service class，函数插件 named-export `name`、`inject`、可选 `Config` 和 `apply` 且没有 default export。不要把 runtime 支持的 object shape 当作 package export 约定，也不要混用两种 DSH package 形式。只有已声明 injection 的 Service 才通过 context property 访问；可选 Service 使用 `ctx.get(name)` 并处理 `undefined`。
+Cordis runtime 接受 function、class 和 `{ apply }` object 三种 plugin shape。Loader 导入 package 后优先解包 `default` export；没有 `default` 时把 module namespace 交给 Cordis。DSH Service 包 default-export Service class；函数插件不设 `default`，具名导出 `apply`，并且只在实际需要时导出 `name`、`inject` 或 `Config`。例如，无必需依赖的函数插件可以没有 `inject`，纯 Client surface 的空 Host 插件可以只导出 `apply`。不要混用两种 DSH package 形式，也不要添加无用途的入口 metadata。只有已声明 injection 的 Service 才通过 context property 访问；可选 Service 使用 `ctx.get(name)` 并处理 `undefined`。
 
 ## Service 与依赖
 
