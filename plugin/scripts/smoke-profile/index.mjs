@@ -7,7 +7,11 @@ import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
-import { createSmokeEnvironment } from "./smoke-environment.mjs";
+import { createSmokeEnvironment } from "./environment.mjs";
+import { validateScenarioResult } from "./result.mjs";
+
+export { createSmokeEnvironment } from "./environment.mjs";
+export { validateScenarioResult } from "./result.mjs";
 
 const DSH_VERSION = "0.1.1-rc.2";
 const PROFILE = "web";
@@ -20,7 +24,7 @@ const pluginRoot = resolve(process.cwd());
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "120000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
-const SMOKE_SCENARIOS = [
+export const SMOKE_SCENARIOS = [
     "baseline",
     "timeout",
     "reassign",
@@ -34,32 +38,6 @@ const SMOKE_SCENARIOS = [
     "cross-meeting"
 ];
 const SMOKE_SCENARIO = process.env.CONVIVIUM_SMOKE_SCENARIO ?? "baseline";
-
-export function validateScenarioResult(value, expectedScenario) {
-    if (value === null || typeof value !== "object" || value.ok !== true) {
-        throw new Error("Smoke result is not successful.");
-    }
-    if (value.scenario !== expectedScenario || !Array.isArray(value.assertions)) {
-        throw new Error("Smoke result scenario contract mismatch.");
-    }
-    if (expectedScenario === "decision-risk-closure") {
-        const requiredAssertions = [
-            "candidate-visible-to-captain",
-            "candidate-accepted",
-            "accepted-candidate-not-pending",
-            "decision-history-current-state",
-            "decision-pending-by-current-revision",
-            "risk-disposition-status",
-            "risk-blocking-facts",
-            "risk-replay-version-stable",
-            "event-order-not-observable-by-command-status"
-        ];
-        if (requiredAssertions.some((label) => !value.assertions.includes(label))) {
-            throw new Error("Decision risk smoke assertions are incomplete.");
-        }
-    }
-    return value;
-}
 
 function validateColdCheckpoint(value) {
     if (value === null || typeof value !== "object") {

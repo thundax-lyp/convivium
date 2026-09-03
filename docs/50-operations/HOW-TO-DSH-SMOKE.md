@@ -104,7 +104,7 @@ pnpm dlx @deepseek-ai/dsh@0.1.1-rc.2
 
 ## 生命周期 selector
 
-从仓库根目录逐个执行；`CONVIVIUM_SMOKE_SCENARIO` 只接受下列固定值，脚本入口仍是 `plugin/scripts/smoke-profile.mjs`，不得改写为不存在的 lifecycle runner：
+从仓库根目录逐个执行；`CONVIVIUM_SMOKE_SCENARIO` 只接受下列固定值，脚本入口是 `plugin/scripts/smoke-profile/index.mjs`，不得改写为不存在的 lifecycle runner：
 
 ```sh
 env CONVIVIUM_SMOKE_SCENARIO=timeout pnpm --dir plugin smoke:profile
@@ -112,6 +112,7 @@ env CONVIVIUM_SMOKE_SCENARIO=reassign pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=task-handraise pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=completion-end pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=risk-reopen pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=archive-continuation pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
@@ -131,6 +132,6 @@ env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
 
 ## 关联入口
 
-- 自动化脚本：`plugin/scripts/smoke-profile.mjs`
+- 自动化脚本：`plugin/scripts/smoke-profile/index.mjs`
 - 插件完整运行验证：`pnpm verify:runtime`
 - 运行验证证据：`docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`

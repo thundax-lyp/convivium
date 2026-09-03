@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { createSmokeEnvironment } from "../../../scripts/smoke-environment.mjs";
+import {
+    createSmokeEnvironment,
+    validateScenarioResult
+} from "../../../scripts/smoke-profile/index.mjs";
 
 const smokeProfileSource = readFileSync(
-    new URL("../../../scripts/smoke-profile.mjs", import.meta.url),
+    new URL("../../../scripts/smoke-profile/index.mjs", import.meta.url),
     "utf8"
 );
 
@@ -29,6 +32,13 @@ describe("createSmokeEnvironment", () => {
 });
 
 describe("smoke profile scenario guard", () => {
+    it("exports the smoke result validator from the entrypoint", () => {
+        expect(
+            validateScenarioResult({ ok: true, scenario: "baseline", assertions: [] }, "baseline")
+                .ok
+        ).toBe(true);
+    });
+
     it("accepts the decision-risk-closure selector with one dispatcher branch", () => {
         expect(smokeProfileSource).toContain('"decision-risk-closure"');
         expect(smokeProfileSource).toContain('if (scenario === "decision-risk-closure") {');

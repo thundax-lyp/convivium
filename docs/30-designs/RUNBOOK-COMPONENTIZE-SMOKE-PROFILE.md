@@ -239,48 +239,9 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T1：迁移唯一外部入口
-
-前置状态：T0 固化 commit `ffd3ea8d43d60e38f92f7deb26d7fb6c255eacbb` 已包含本 RUNBOOK 且 T0 检查 PASS；T0 closure commit 是 HEAD；工作树 clean。
-
-允许修改：`plugin/scripts/smoke-profile.mjs`（删除）、`plugin/scripts/smoke-environment.mjs`（删除）、`plugin/scripts/smoke-profile/index.mjs`（新增）、`plugin/scripts/smoke-profile/environment.mjs`（新增）、`plugin/scripts/smoke-profile/result.mjs`（新增）、`plugin/package.json`、`plugin/tests/unit/scripts/smoke-environment.spec.ts`（删除）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`（新增）、`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`、`docs/50-operations/HOW-TO-DSH-SMOKE.md`。
-
-禁止修改：`plugin/src/**`、其他 script/test/docs、RUNBOOK。
-
-执行：
-
-1. 用 `git mv` 把两个脚本移入 `plugin/scripts/smoke-profile/`，主入口命名 `index.mjs`，environment 命名 `environment.mjs`。
-2. 修正 `index.mjs` import，并从 `index.mjs` 具名导出 `createSmokeEnvironment` 和 `SMOKE_SCENARIOS`。
-3. 把 `validateScenarioResult` 原样移入 `result.mjs`；`index.mjs` import 并 re-export 该 symbol。
-4. 把 unit spec 用 `git mv` 改名为 `smoke-profile.spec.ts`，只从 `../../../scripts/smoke-profile/index.mjs` import `createSmokeEnvironment` 和 `validateScenarioResult`；静态 source 路径改为该 `index.mjs`。
-5. `package.json` 的 `smoke:profile` 改为 `node scripts/smoke-profile/index.mjs`。
-6. Implementation Design 的 tree 把旧单文件改为 `smoke-profile/index.mjs`唯一入口，不在该步预告尚未存在的 probe/场景文件；操作说明两处入口路径改为 `plugin/scripts/smoke-profile/index.mjs`，并在 selector 命令表加入已存在的 `decision-risk-closure` 命令。
-7. 对允许文件运行 Prettier。
-8. 验证后 stage 允许文件，commit message 固定为 `Refactor(plugin/smoke): 建立独立 profile 脚本入口`。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/environment.mjs scripts/smoke-profile/result.mjs package.json tests/unit/scripts/smoke-profile.spec.ts ../docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md ../docs/50-operations/HOW-TO-DSH-SMOKE.md --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/environment.mjs scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile.spec.ts
-test "$(rg -n 'plugin/scripts/smoke-profile\.mjs|scripts/smoke-profile\.mjs' docs plugin/package.json plugin/tests plugin/scripts --glob '!RUNBOOK-COMPONENTIZE-SMOKE-PROFILE.md' | wc -l | tr -d ' ')" = "0"
-git diff --check
-git diff --name-only
-git add -- plugin/scripts/smoke-profile.mjs plugin/scripts/smoke-environment.mjs plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/environment.mjs plugin/scripts/smoke-profile/result.mjs plugin/package.json plugin/tests/unit/scripts/smoke-environment.spec.ts plugin/tests/unit/scripts/smoke-profile.spec.ts docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md docs/50-operations/HOW-TO-DSH-SMOKE.md
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 建立独立 profile 脚本入口"
-```
-
-PASS：unit 4/4；build PASS；baseline smoke 输出 `baseline`、`baseline-transcript-acb`、`baseline-http-pause-resume`；旧两个脚本不存在；package script 和文档只指向新入口；cached 路径等于允许列表。
-
-STOP：路径迁移引起行为差异；旧入口仍被仓库引用；需要改 package exports 或发布 allowlist。
-
 ### T2：建立 probe 支持与复制边界
 
-前置状态：T1 commit 是 HEAD，工作树 clean；probe 仍内嵌在 `index.mjs::writeProbePackage`。
+前置状态：T1 closure commit 是 HEAD，且 T1 已完成入口/environment/result/unit/docs 迁移与 baseline smoke PASS；工作树 clean；probe 仍内嵌在 `index.mjs::writeProbePackage`。
 
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/support.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
 
