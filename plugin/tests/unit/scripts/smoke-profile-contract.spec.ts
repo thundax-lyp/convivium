@@ -19,9 +19,8 @@ describe("meeting convergence smoke profile", () => {
                     scenario: "convergence",
                     assertions: [
                         "deterministic-fallback",
-                        "required-unavailable-deduped",
-                        "stall-refocus-replan-exhausted",
-                        "restart-idempotent"
+                        "fallback-replay-idempotent",
+                        "fallback-status-projected"
                     ]
                 },
                 "convergence"

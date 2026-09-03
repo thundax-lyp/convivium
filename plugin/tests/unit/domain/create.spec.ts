@@ -133,7 +133,7 @@ describe("canonical meeting creation", () => {
         );
     });
 
-    it("accepts manager mode while preserving the default round-robin mode", () => {
+    it("accepts every confirmed selection mode while preserving the default", () => {
         expect(createMeetingState(input(), ids).selectionMode).toBe("round_robin");
         expect(createMeetingState(input({ selectionMode: "round_robin" }), ids).selectionMode).toBe(
             "round_robin"
@@ -141,9 +141,15 @@ describe("canonical meeting creation", () => {
         expect(createMeetingState(input({ selectionMode: "manager" }), ids).selectionMode).toBe(
             "manager"
         );
+        expect(createMeetingState(input({ selectionMode: "rule_based" }), ids).selectionMode).toBe(
+            "rule_based"
+        );
+        expect(createMeetingState(input({ selectionMode: "hybrid" }), ids).selectionMode).toBe(
+            "hybrid"
+        );
     });
 
-    it("copies resolved continuation materials while rejecting unsupported modes", () => {
+    it("copies resolved continuation materials without mutating the source", () => {
         const source = {
             sourceMeetingId: "source-1",
             materials: [
@@ -178,28 +184,12 @@ describe("canonical meeting creation", () => {
             }
         };
 
-        for (const unsupported of [
-            input({ selectionMode: "rule_based" }),
-            input({ selectionMode: "hybrid" })
-        ]) {
-            expect(() => createMeetingState(unsupported, recordingIds)).toThrowError(
-                expect.objectContaining<Partial<DomainError>>({
-                    code: "UNSUPPORTED_CAPABILITY",
-                    retryable: false
-                })
-            );
-        }
-
-        expect(() =>
-            createMeetingState(
-                input({ limits: { ...input().limits, maxSpeakersPerTurn: 1 } }),
-                recordingIds
-            )
-        ).toThrowError(
-            expect.objectContaining<Partial<DomainError>>({ code: "INVALID_CREATE_INPUT" })
+        const overCapacity = createMeetingState(
+            input({ limits: { ...input().limits, maxSpeakersPerTurn: 1 } }),
+            recordingIds
         );
-
-        expect(allocations).toBe(0);
+        expect(overCapacity.agenda[0]?.requiredParticipants).toHaveLength(2);
+        expect(allocations).toBeGreaterThan(0);
     });
 
     it("rejects malformed resolved continuation materials", () => {

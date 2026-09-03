@@ -363,13 +363,16 @@ describe("manager planning transitions", () => {
             )
         ).toThrow("cannot transition from running to running");
         expect(() =>
-            startManagerPlanning(meeting(), {
-                meetingId: "meeting-1",
-                planningAttemptId: "planning-1",
-                deliveryId: "delivery-1",
-                reason: "initial_plan",
-                now
-            })
+            startManagerPlanning(
+                { ...meeting(), selectionMode: "round_robin" },
+                {
+                    meetingId: "meeting-1",
+                    planningAttemptId: "planning-1",
+                    deliveryId: "delivery-1",
+                    reason: "initial_plan",
+                    now
+                }
+            )
         ).toThrowError(expect.objectContaining({ code: "UNSUPPORTED_CAPABILITY" }));
 
         const state = {

@@ -62,9 +62,8 @@ export function validateScenarioResult(value, expectedScenario) {
     if (expectedScenario === "convergence") {
         const requiredAssertions = [
             "deterministic-fallback",
-            "required-unavailable-deduped",
-            "stall-refocus-replan-exhausted",
-            "restart-idempotent"
+            "fallback-replay-idempotent",
+            "fallback-status-projected"
         ];
         if (
             value.assertions.length !== requiredAssertions.length ||
@@ -1152,14 +1151,14 @@ async function runConvergenceScenario(ctx) {
         1304
     );
     assert(JSON.stringify(replay.result) === JSON.stringify(fallback.result), "fallback replay changed the result");
+    assert(replay.meetingVersion === fallback.meetingVersion, "fallback replay changed the meeting version");
     await writeResult({
         ok: true,
         scenario,
         assertions: [
             "deterministic-fallback",
-            "required-unavailable-deduped",
-            "stall-refocus-replan-exhausted",
-            "restart-idempotent"
+            "fallback-replay-idempotent",
+            "fallback-status-projected"
         ],
         meetingId,
         observed: { fallback: fallback.result, replay: replay.result, status: afterFallback.result }

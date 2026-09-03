@@ -100,7 +100,7 @@ export function rankRulePlanningCandidates(
             .map((question) => question.directedTo as string)
     );
     const freshTaskReporters = new Set(
-        state.meetingTasks
+        (state.meetingTasks ?? [])
             .filter((task) => task.status === "completed")
             .filter((task) =>
                 state.handRaises.some(
@@ -114,6 +114,7 @@ export function rankRulePlanningCandidates(
             .map((task) => task.participantId)
     );
     const requiredReviewers = new Set(state.objectiveContract.requiredReviewers);
+    const agendaRequiredParticipants = new Set(agenda?.requiredParticipants ?? []);
     const required = new Set<string>();
     const scoreByParticipant = new Map<string, number>();
     for (const participant of state.participants) {
@@ -129,6 +130,7 @@ export function rankRulePlanningCandidates(
         );
         if (
             explicitlyMentioned ||
+            agendaRequiredParticipants.has(participant.id) ||
             directedQuestionOwners.has(participant.id) ||
             requiredReviewers.has(participant.id) ||
             agendaOwner ||
@@ -171,12 +173,64 @@ export function rankRulePlanningCandidates(
         );
 }
 
+export function requiredPlanningBlockers(
+    state: MeetingState,
+    dispatchableParticipantIds?: readonly string[]
+): string[] {
+    const dispatchable = new Set(
+        dispatchableParticipantIds ??
+            state.participants
+                .filter((participant) => isParticipantDispatchableNow(state, participant))
+                .map((participant) => participant.id)
+    );
+    const rankedRequired = rankRulePlanningCandidates(state).filter(
+        (candidate) => candidate.required
+    );
+    const agendaRequired =
+        state.agenda.find((item) => item.id === state.activeAgendaItemId)?.requiredParticipants ??
+        [];
+    const requiredIds = new Set([
+        ...agendaRequired,
+        ...rankedRequired.map((candidate) => candidate.participantId)
+    ]);
+    const required = [
+        ...rankedRequired,
+        ...agendaRequired
+            .filter((participantId) =>
+                rankedRequired.every((candidate) => candidate.participantId !== participantId)
+            )
+            .map((participantId) => ({
+                participantId,
+                required: true,
+                score: 0,
+                registrationIndex: state.participants.findIndex(
+                    (participant) => participant.id === participantId
+                )
+            }))
+    ].filter((candidate) => requiredIds.has(candidate.participantId));
+    const unavailable = required
+        .filter((candidate) => !dispatchable.has(candidate.participantId))
+        .map((candidate) => candidate.participantId);
+    const overflow = required
+        .filter((candidate) => dispatchable.has(candidate.participantId))
+        .slice(state.limits.maxSpeakersPerTurn)
+        .map((candidate) => candidate.participantId);
+    return [...new Set([...unavailable, ...overflow])].sort();
+}
+
 export function planRuleBasedTurn(
     state: MeetingState,
     ids: RoundRobinPlanIds,
     now: number,
     action: ConvergenceAction
 ): MeetingTurn {
+    const blockers = requiredPlanningBlockers(state);
+    if (blockers.length > 0) {
+        throw new DomainError(
+            "REQUIRED_SPEAKER_UNAVAILABLE",
+            `required Participants cannot form one complete plan: ${blockers.join(",")}`
+        );
+    }
     const ranked = rankRulePlanningCandidates(state);
     const selected = ranked
         .filter(({ participantId }) => {

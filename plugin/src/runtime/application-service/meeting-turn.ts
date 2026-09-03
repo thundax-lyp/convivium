@@ -6,6 +6,8 @@ import {
     isParticipantDispatchableNow,
     nextManagerPlanningIds,
     planRoundRobinTurn,
+    planRuleBasedTurn,
+    requiredPlanningBlockers,
     submitManagerPlan as submitManagerPlanTransition,
     submitSpeakerAndAdvanceMeeting,
     type MeetingState,
@@ -81,8 +83,9 @@ export function assignTurnAttempt(
 
 export async function initializeFirstMeetingTurn(
     repository: MeetingRepositoryRuntime,
-    now: number
-): Promise<number> {
+    now: number,
+    managerFallback = false
+): Promise<{ meetingVersion: number; status: "running" | "waiting" }> {
     const current = await repository.read();
     const currentState = current.state as unknown as MeetingState;
     const firstAgenda = currentState.agenda[0];
@@ -95,12 +98,71 @@ export async function initializeFirstMeetingTurn(
             index === 0 ? { ...agenda, status: "discussing" } : agenda
         )
     };
-    const planned = planRoundRobinTurn(
-        activeState,
-        { turnId: "turn-1", stepId: (participantId, index) => `step-${participantId}-${index}` },
-        now
-    );
-    const running = assignTurnAttempt(activeState, planned, 0, now);
+    const blockers = requiredPlanningBlockers(activeState);
+    if (blockers.length > 0) {
+        const waitingEvents: DomainEventInput[] = [
+            { type: "meeting.started", payload: { meetingId: activeState.id } },
+            {
+                type: "meeting.waiting",
+                payload: {
+                    meetingId: activeState.id,
+                    from: currentState.status,
+                    to: "waiting",
+                    reason: "required_participant_unavailable",
+                    participantIds: blockers
+                }
+            }
+        ];
+        const committed = await repository.execute({
+            requestId: "runtime-initialize-waiting",
+            commandKind: "start_turn",
+            authorization: { callerBinding: "runtime:convivium", capabilityId: "runtime:turn" },
+            requestHash: `runtime-initialize-waiting:${JSON.stringify(blockers)}`,
+            expectedMeetingVersion: current.version,
+            transition: () => ({
+                state: {
+                    ...activeState,
+                    status: "waiting",
+                    waitState: {
+                        reason: "required_participant_unavailable",
+                        waitingSince: now,
+                        taskIds: [],
+                        participantIds: blockers,
+                        resumeAgendaItemId: activeState.activeAgendaItemId
+                    },
+                    version: activeState.version + 1,
+                    updatedAt: now
+                } as unknown as JsonObject,
+                result: { status: "waiting" },
+                events: waitingEvents,
+                outbox: []
+            })
+        });
+        return { meetingVersion: committed.meetingVersion, status: "waiting" };
+    }
+    const planned =
+        activeState.selectionMode === "round_robin"
+            ? planRoundRobinTurn(
+                  activeState,
+                  {
+                      turnId: "turn-1",
+                      stepId: (participantId, index) => `step-${participantId}-${index}`
+                  },
+                  now
+              )
+            : planRuleBasedTurn(
+                  activeState,
+                  {
+                      turnId: "turn-1",
+                      stepId: (participantId, index) => `step-${participantId}-${index}`
+                  },
+                  now,
+                  "normal"
+              );
+    const directedPlan = managerFallback
+        ? { ...planned, reason: "manager_fallback" as const }
+        : planned;
+    const running = assignTurnAttempt(activeState, directedPlan, 0, now);
     const speaker = running.steps[0]?.speaker;
     const events: DomainEventInput[] = [
         { type: "meeting.started", payload: { meetingId: activeState.id } },
@@ -148,7 +210,7 @@ export async function initializeFirstMeetingTurn(
                       ]
         })
     });
-    return committed.meetingVersion;
+    return { meetingVersion: committed.meetingVersion, status: "running" };
 }
 
 function allocateHandRaiseId(participantId: string, requestId: string): string {

@@ -657,7 +657,16 @@ describe("create/status meeting runtime", () => {
                     { protocolVersion: 1, meetingId: created.result.meetingId },
                     captain
                 )
-            ).toMatchObject({ ok: true, result: { status: "archiving" } })
+            ).toMatchObject({
+                ok: true,
+                result: {
+                    status: "waiting",
+                    waitState: {
+                        reason: "required_participant_unavailable",
+                        participantIds: ["participant-one"]
+                    }
+                }
+            })
         );
         const sleepCount = sleepers.length;
         await runtime.dispose();
@@ -2519,6 +2528,96 @@ describe("create/status meeting runtime", () => {
         const coldReplay = localRuntime(root);
         await expect(coldReplay.resumeLocalMeeting(resumeInput)).resolves.toEqual(resumed);
         await coldReplay.dispose();
+    });
+
+    it("runs rule-based and non-arbitrated hybrid creation without Manager planning", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-selection-modes-"));
+        roots.push(root);
+        const runtime = localRuntime(root);
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+
+        for (const selectionMode of ["rule_based", "hybrid"] as const) {
+            const created = await runtime.createMeeting(
+                {
+                    ...input,
+                    requestId: `create-${selectionMode}`,
+                    selectionMode
+                },
+                captain,
+                new AbortController().signal
+            );
+            expect(created).toMatchObject({ ok: true, result: { status: "running" } });
+            if (!created.ok) throw new Error("create failed");
+            await expect(
+                runtime.getStatus(
+                    { protocolVersion: 1, meetingId: created.result.meetingId },
+                    captain
+                )
+            ).resolves.toMatchObject({
+                ok: true,
+                result: {
+                    status: "running",
+                    currentTurn: { reason: "explore" }
+                }
+            });
+        }
+        await runtime.dispose();
+    });
+
+    it("creates one replay-stable waiting state when required speakers exceed the turn limit", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-required-overflow-"));
+        roots.push(root);
+        const runtime = localRuntime(root);
+        const captain = {
+            sessionId: "captain-1",
+            kind: "captain" as const,
+            agent: { id: "captain-1" } as never
+        };
+        const createInput = {
+            ...input,
+            requestId: "create-required-overflow",
+            selectionMode: "rule_based" as const,
+            limits: { maxSpeakersPerTurn: 1 }
+        };
+        const created = await runtime.createMeeting(
+            createInput,
+            captain,
+            new AbortController().signal
+        );
+        expect(created).toMatchObject({ ok: true, result: { status: "waiting" } });
+        if (!created.ok) throw new Error("create failed");
+        const replay = await runtime.createMeeting(
+            createInput,
+            captain,
+            new AbortController().signal
+        );
+        expect(replay).toEqual(created);
+        await expect(
+            runtime.getStatus({ protocolVersion: 1, meetingId: created.result.meetingId }, captain)
+        ).resolves.toMatchObject({
+            ok: true,
+            result: {
+                status: "waiting",
+                waitState: {
+                    reason: "required_participant_unavailable",
+                    taskIds: [],
+                    participantIds: ["participant-three", "participant-two"]
+                }
+            }
+        });
+        await expect(
+            runtime.resumeLocalMeeting({
+                protocolVersion: 1,
+                meetingId: created.result.meetingId,
+                expectedMeetingVersion: created.meetingVersion,
+                requestId: "resume-required-overflow"
+            })
+        ).resolves.toMatchObject({ ok: false, code: "REQUIRED_SPEAKER_UNAVAILABLE" });
+        await runtime.dispose();
     });
 
     it("isolates selected Meeting recovery from an unrelated corrupt ready repository", async () => {

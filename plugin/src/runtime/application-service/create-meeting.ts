@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { interruptAndDrainOwnedSessions } from "../../dsh/index.js";
 import {
+    needsSemanticArbitration,
     nextManagerPlanningIds,
+    rankRulePlanningCandidates,
     startManagerPlanning,
     type ArchivePackage,
     type CreateContinuationSpec,
@@ -210,12 +212,13 @@ function requestHash(input: CreateMeetingInputV1): string {
 function runningCreateResult(
     input: CreateMeetingInputV1,
     meetingId: string,
-    meetingVersion: number
+    meetingVersion: number,
+    status: "running" | "waiting" = "running"
 ): CreateMeetingResultV1 {
     return {
         meetingId,
         meetingVersion,
-        status: "running",
+        status,
         participants: input.participants.map(({ participantKey }) => ({
             participantKey,
             participantId: `participant-${participantKey}`
@@ -385,7 +388,10 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                 options.meetings.set(meetingId, replayedMeeting);
                 options.ensureWorker(replayedMeeting);
                 const persisted = existing.bootstrap.createResult;
-                if (persisted.status === "running" && persisted.participants !== undefined) {
+                if (
+                    (persisted.status === "running" || persisted.status === "waiting") &&
+                    persisted.participants !== undefined
+                ) {
                     return commandSuccess(
                         meetingId,
                         persisted.meetingVersion,
@@ -395,7 +401,28 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                 resumeReadyCreate = true;
             }
             if (!resumeReadyCreate) await createMeetingRuntime(input, dependencies);
-            if (input.selectionMode === "manager") {
+            const initial = await repository.read();
+            const initialState = initial.state as unknown as MeetingState;
+            const firstAgenda = initialState.agenda[0];
+            const activeInitialState: MeetingState = {
+                ...initialState,
+                activeAgendaItemId: initialState.activeAgendaItemId ?? firstAgenda?.id,
+                agenda: initialState.agenda.map((agenda, index) =>
+                    index === 0 ? { ...agenda, status: "discussing" as const } : agenda
+                )
+            };
+            const managerRequested =
+                input.selectionMode === "manager" ||
+                (input.selectionMode === "hybrid" &&
+                    needsSemanticArbitration(
+                        activeInitialState,
+                        rankRulePlanningCandidates(activeInitialState),
+                        "normal"
+                    ));
+            const managerAvailable =
+                activeInitialState.manager.status !== "failed" &&
+                activeInitialState.manager.status !== "closed";
+            if (managerRequested && managerAvailable) {
                 const started = await repository.execute({
                     requestId: `${input.requestId}:start-manager-planning`,
                     commandKind: "start_manager_planning",
@@ -412,7 +439,10 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                                 meetingId,
                                 planningAttemptId: planningIds.planningAttemptId,
                                 deliveryId: planningIds.deliveryId,
-                                reason: "initial_plan",
+                                reason:
+                                    input.selectionMode === "hybrid"
+                                        ? "semantic_arbitration"
+                                        : "initial_plan",
                                 now: options.runtime.now?.() ?? Date.now()
                             }
                         );
@@ -449,13 +479,19 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                 options.deliveryWorkers.wake(meetingId);
                 return commandSuccess(meetingId, started.meetingVersion, result);
             }
-            const meetingVersion = await initializeFirstMeetingTurn(
+            const initialized = await initializeFirstMeetingTurn(
                 repository,
-                options.runtime.now?.() ?? Date.now()
+                options.runtime.now?.() ?? Date.now(),
+                managerRequested
             );
-            const result = runningCreateResult(input, meetingId, meetingVersion);
+            const result = runningCreateResult(
+                input,
+                meetingId,
+                initialized.meetingVersion,
+                initialized.status
+            );
             await repository.updateCreateResult({
-                expectedMeetingVersion: meetingVersion,
+                expectedMeetingVersion: initialized.meetingVersion,
                 result,
                 now: options.runtime.now?.()
             });
@@ -467,7 +503,7 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
             });
             options.ensureWorker(options.meetings.get(meetingId)!);
             options.deliveryWorkers.wake(meetingId);
-            return commandSuccess(meetingId, meetingVersion, result);
+            return commandSuccess(meetingId, initialized.meetingVersion, result);
         } catch (error) {
             if (error && typeof error === "object" && "code" in error) {
                 const code = (error as { code?: unknown }).code;

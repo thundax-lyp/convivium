@@ -160,13 +160,7 @@ describe("SpeakerAttempt timeout", () => {
             ])
         );
         expect(result.effect.events.map(({ type }) => type)).not.toContain("turn.planned");
-        expect(result.effect.events).toContainEqual({
-            type: "manager_plan.failed",
-            payload: expect.objectContaining({
-                participantId: "a",
-                code: "REQUIRED_SPEAKER_UNAVAILABLE"
-            })
-        });
+        expect(result.effect.events.map(({ type }) => type)).not.toContain("manager_plan.failed");
         expect(result.effect.events.map(({ type }) => type)).toContain("meeting_task.cancelled");
         expect(result.effect.events).toContainEqual(
             expect.objectContaining({

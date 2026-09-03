@@ -3,6 +3,7 @@ import { completedTaskSnapshots, consumeHandRaise } from "../hand-raise.js";
 import {
     planManagerTurn,
     planRuleBasedTurn,
+    requiredPlanningBlockers,
     type ManagerPlanIds,
     type ManagerPlanInput
 } from "../planning.js";
@@ -21,11 +22,7 @@ export type ManagerFallbackReasonCode =
     "manager_plan_invalid" | "manager_timeout" | "manager_delivery_retry_exhausted";
 
 function requiredUnavailable(state: MeetingState, context: SubmitManagerPlanContext): string[] {
-    const agenda = state.agenda.find((item) => item.id === state.activeAgendaItemId);
-    const dispatchable = new Set(context.dispatchableParticipantIds);
-    return [
-        ...new Set((agenda?.requiredParticipants ?? []).filter((id) => !dispatchable.has(id)))
-    ].sort();
+    return requiredPlanningBlockers(state, context.dispatchableParticipantIds);
 }
 
 function waitForRequiredParticipant(
@@ -200,7 +197,7 @@ export function startManagerPlanning(
             { entityType: "meeting", entityId: state.id, meetingVersion: state.version }
         );
     }
-    if (state.selectionMode !== "manager") {
+    if (state.selectionMode !== "manager" && state.selectionMode !== "hybrid") {
         throw new DomainError(
             "UNSUPPORTED_CAPABILITY",
             `meeting ${state.id} does not use manager selection`,
@@ -248,7 +245,10 @@ export function startManagerPlanning(
         reason: context.reason,
         deliveryId: context.deliveryId,
         status: "running",
-        createdAt: context.now
+        createdAt: context.now,
+        ...(state.limits.speakerAttemptTimeoutMs === undefined
+            ? {}
+            : { deadlineAt: context.now + state.limits.speakerAttemptTimeoutMs })
     };
     const nextState: MeetingState = {
         ...meeting.state,

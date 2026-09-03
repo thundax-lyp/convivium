@@ -1,7 +1,15 @@
 import { judgeTurnCompletion } from "../completion.js";
 import { completedTaskSnapshots, consumeHandRaise } from "../hand-raise.js";
 import { cancelNonTerminalMeetingTasks } from "../meeting-task.js";
-import { isParticipantDispatchableNow, planRoundRobinTurn } from "../planning.js";
+import {
+    isParticipantDispatchableNow,
+    needsSemanticArbitration,
+    planRoundRobinTurn,
+    planRuleBasedTurn,
+    rankRulePlanningCandidates,
+    requiredPlanningBlockers,
+    type ConvergenceAction
+} from "../planning.js";
 import type {
     MeetingState,
     MeetingTurn,
@@ -60,7 +68,7 @@ export function createProgressFingerprint(state: MeetingState): string {
                 )
         )
         .sort(([left], [right]) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
-    const tasks = state.meetingTasks
+    const tasks = (state.meetingTasks ?? [])
         .filter((task) => ["completed", "failed", "cancelled"].includes(task.status))
         .map((task) => [task.meetingTaskId, task.status, task.resultSummary ?? ""] as const)
         .sort(([left], [right]) => left!.localeCompare(right!));
@@ -119,6 +127,30 @@ export function hasBlockingDisagreement(state: MeetingState): boolean {
             )
         )
     );
+}
+
+function currentDissentingPositionIds(state: MeetingState): string[] {
+    const latestRevisionByProposal = new Map<string, number>();
+    for (const proposal of state.proposals) {
+        latestRevisionByProposal.set(
+            proposal.id,
+            Math.max(latestRevisionByProposal.get(proposal.id) ?? 0, proposal.revision)
+        );
+    }
+    return state.proposals
+        .flatMap((proposal) =>
+            proposal.revision === latestRevisionByProposal.get(proposal.id)
+                ? proposal.positions
+                      .filter(
+                          (position) =>
+                              position.proposalRevision === proposal.revision &&
+                              position.position !== "support" &&
+                              position.position !== "accept"
+                      )
+                      .map((position) => position.id)
+                : []
+        )
+        .sort();
 }
 
 export function advanceAfterSpeakerSubmission(
@@ -343,7 +375,11 @@ export function advanceAfterSpeakerSubmission(
     const dispatchableParticipants = nextState.participants.filter((participant) =>
         isParticipantDispatchableNow(nextState, participant)
     );
-    if (dispatchableParticipants.length === 0) {
+    const dispatchableParticipantIds = dispatchableParticipants.map(
+        (participant) => participant.id
+    );
+    const requiredBlockers = requiredPlanningBlockers(nextState, dispatchableParticipantIds);
+    if (dispatchableParticipants.length === 0 && requiredBlockers.length === 0) {
         const cancelled = cancelNonTerminalMeetingTasks(nextState, context.now);
         nextState = {
             ...cancelled.state,
@@ -384,16 +420,7 @@ export function advanceAfterSpeakerSubmission(
         return result();
     }
 
-    const dispatchableParticipantIds = new Set(
-        dispatchableParticipants.map((participant) => participant.id)
-    );
-    const activeAgenda = nextState.agenda.find(
-        (agenda) => agenda.id === nextState.activeAgendaItemId
-    );
-    const unavailableRequiredParticipant = activeAgenda?.requiredParticipants.find(
-        (participantId) => !dispatchableParticipantIds.has(participantId)
-    );
-    if (unavailableRequiredParticipant !== undefined) {
+    if (requiredBlockers.length > 0) {
         const reason = "required_participant_unavailable";
         nextState = {
             ...nextState,
@@ -402,8 +429,10 @@ export function advanceAfterSpeakerSubmission(
                 reason,
                 waitingSince: context.now,
                 taskIds: [],
-                participantIds: [unavailableRequiredParticipant],
-                resumeAgendaItemId: nextState.activeAgendaItemId
+                participantIds: requiredBlockers,
+                ...(nextState.activeAgendaItemId === undefined
+                    ? {}
+                    : { resumeAgendaItemId: nextState.activeAgendaItemId })
             },
             manager: {
                 ...nextState.manager,
@@ -413,16 +442,6 @@ export function advanceAfterSpeakerSubmission(
         };
         events = [
             ...events,
-            {
-                type: "manager_plan.failed",
-                payload: {
-                    meetingId: state.id,
-                    participantId: unavailableRequiredParticipant,
-                    code: "REQUIRED_SPEAKER_UNAVAILABLE",
-                    reason,
-                    meetingVersion: version
-                }
-            },
             {
                 type: "meeting.waiting",
                 payload: {
@@ -430,132 +449,282 @@ export function advanceAfterSpeakerSubmission(
                     from: state.status,
                     to: "waiting",
                     meetingVersion: version,
-                    reason
+                    reason,
+                    participantIds: requiredBlockers
                 }
             }
         ];
         return result();
     }
 
-    if (nextState.selectionMode === "round_robin") {
-        const planned = planRoundRobinTurn(
-            { ...nextState, currentTurn: undefined },
-            {
-                turnId: `turn-${nextState.turnSeq + 1}`,
-                stepId: (_nextParticipantId, index) => `step-turn-${nextState.turnSeq + 1}-${index}`
-            },
-            context.now
-        );
-        const firstStep = planned.steps[0]!;
-        const selectedRaise = nextState.handRaises.find(
-            (raise) => raise.status === "pending" && raise.participant === firstStep.speaker
-        );
-        const consumed =
-            selectedRaise === undefined
-                ? { state: nextState, effect: { events: [] } }
-                : consumeHandRaise(nextState, selectedRaise.id);
-        const firstAttempt: SpeakerAttempt = {
-            attemptId: `${planned.id}-attempt-0`,
-            participantId: firstStep.speaker,
+    const fingerprint = createProgressFingerprint(nextState);
+    let action: ConvergenceAction = "normal";
+    if (nextState.progressFingerprint === undefined) {
+        nextState = { ...nextState, progressFingerprint: fingerprint, stallCount: 0 };
+    } else if (nextState.progressFingerprint !== fingerprint) {
+        nextState = {
+            ...nextState,
+            progressFingerprint: fingerprint,
+            stallCount: 0,
+            replanCount: 0
+        };
+    } else {
+        const nextStallCount = nextState.stallCount + 1;
+        const exhausted =
+            nextStallCount >= 2 &&
+            (nextStallCount >= nextState.limits.maxStalls ||
+                nextState.replanCount >= nextState.limits.maxReplans);
+        if (exhausted) {
+            const blocking = hasBlockingDisagreement(nextState);
+            const terminalStatus = blocking ? "no_consensus" : "partial";
+            const terminationCode = blocking ? "no_consensus" : "stalled";
+            const cancelled = cancelNonTerminalMeetingTasks(nextState, context.now);
+            nextState = {
+                ...cancelled.state,
+                status: terminalStatus,
+                currentTurn: undefined,
+                progressFingerprint: fingerprint,
+                stallCount: nextStallCount,
+                waitState: undefined,
+                termination: {
+                    code: terminationCode,
+                    reason: terminationCode,
+                    decisionIds: nextState.decisions
+                        .filter((decision) => decision.status === "accepted")
+                        .map((decision) => decision.id)
+                        .sort(),
+                    unresolvedQuestionIds: nextState.openQuestions
+                        .filter(
+                            (question) =>
+                                question.status === "open" || question.status === "deferred"
+                        )
+                        .map((question) => question.id)
+                        .sort(),
+                    dissentingPositionIds: currentDissentingPositionIds(nextState),
+                    blockingAgendaItemIds: nextState.agenda
+                        .filter((item) => item.status === "blocked")
+                        .map((item) => item.id)
+                        .sort(),
+                    finalMessage: terminationCode,
+                    endedAt: context.now
+                }
+            };
+            events = [
+                ...events,
+                ...cancelled.effect.events,
+                {
+                    type: "meeting.ended",
+                    payload: {
+                        meetingId: state.id,
+                        from: state.status,
+                        to: terminalStatus,
+                        meetingVersion: version,
+                        reason: terminationCode
+                    }
+                }
+            ];
+            return result();
+        }
+        action = nextStallCount === 1 ? "refocus" : "replan";
+        nextState = {
+            ...nextState,
+            progressFingerprint: fingerprint,
+            stallCount: nextStallCount,
+            replanCount: action === "replan" ? nextState.replanCount + 1 : nextState.replanCount
+        };
+    }
+
+    const ranked = rankRulePlanningCandidates(nextState);
+    const managerRequested =
+        nextState.selectionMode === "manager" ||
+        (nextState.selectionMode === "hybrid" &&
+            needsSemanticArbitration(nextState, ranked, action));
+    const managerAvailable =
+        nextState.manager.status !== "failed" && nextState.manager.status !== "closed";
+
+    if (managerRequested && managerAvailable) {
+        const reason =
+            action === "normal"
+                ? nextState.selectionMode === "hybrid"
+                    ? "semantic_arbitration"
+                    : "next_turn"
+                : action;
+        const planningAttempt: ManagerPlanningAttempt = {
+            id: context.nextPlanningAttemptId,
             meetingId: state.id,
-            turnId: planned.id,
-            stepId: firstStep.id,
-            deliveryId: `${planned.id}-delivery-0`,
-            contextFromSeq: 0,
-            contextThroughSeq: nextState.messageSeq,
-            taskSnapshots: completedTaskSnapshots(nextState, firstStep.speaker, context.now),
-            assignedAt: context.now,
+            observedMeetingVersion: version,
+            reason,
+            deliveryId: context.nextPlanningDeliveryId,
+            status: "running",
+            createdAt: context.now,
             ...(nextState.limits.speakerAttemptTimeoutMs === undefined
                 ? {}
-                : { deadlineAt: context.now + nextState.limits.speakerAttemptTimeoutMs }),
-            status: "running",
-            deliveryStatus: "pending"
-        };
-        const runningTurn: MeetingTurn = {
-            ...planned,
-            status: "running",
-            steps: planned.steps.map((step, index) =>
-                index === 0 ? { ...step, status: "running", attempt: firstAttempt } : step
-            )
+                : { deadlineAt: context.now + nextState.limits.speakerAttemptTimeoutMs })
         };
         nextState = {
-            ...consumed.state,
-            currentTurn: runningTurn,
-            turnSeq: runningTurn.seq,
+            ...nextState,
+            currentTurn: undefined,
             status: "running",
             waitState: undefined,
+            managerPlanningSeq: nextState.managerPlanningSeq + 1,
             manager: {
                 ...nextState.manager,
-                status: "idle",
-                currentPlanningAttempt: undefined
-            },
-            participants: nextState.participants.map((participant) =>
-                participant.id === firstStep.speaker
-                    ? { ...participant, status: "speaking" }
-                    : participant
-            )
+                status: "planning",
+                currentPlanningAttempt: planningAttempt
+            }
         };
         events = [
             ...events,
-            { type: "turn.planned", payload: { turnId: planned.id, meetingVersion: version } },
-            { type: "turn.started", payload: { turnId: planned.id, meetingVersion: version } },
+            ...(action === "normal"
+                ? []
+                : [
+                      {
+                          type: "meeting.replanned" as const,
+                          payload: {
+                              meetingId: state.id,
+                              from: state.status,
+                              to: "running",
+                              meetingVersion: version,
+                              reason: action
+                          }
+                      }
+                  ]),
             {
-                type: "speaker.assigned",
+                type: "manager_plan.started",
                 payload: {
                     meetingId: state.id,
-                    turnId: planned.id,
-                    stepId: firstStep.id,
-                    participantId: firstStep.speaker,
-                    attemptId: firstAttempt.attemptId,
-                    deliveryId: firstAttempt.deliveryId,
-                    meetingVersion: version
+                    planningAttemptId: planningAttempt.id,
+                    deliveryId: planningAttempt.deliveryId,
+                    reason: planningAttempt.reason,
+                    meetingVersion: version,
+                    observedMeetingVersion: version
                 }
-            },
-            {
-                type: "speaker.started",
-                payload: { stepId: firstStep.id, meetingVersion: version }
-            },
-            {
-                type: "speaker_attempt.started",
-                payload: { attemptId: firstAttempt.attemptId, meetingVersion: version }
             }
         ];
         return result();
     }
 
-    const planningAttempt: ManagerPlanningAttempt = {
-        id: context.nextPlanningAttemptId,
+    const planned =
+        nextState.selectionMode === "round_robin"
+            ? planRoundRobinTurn(
+                  { ...nextState, currentTurn: undefined },
+                  {
+                      turnId: `turn-${nextState.turnSeq + 1}`,
+                      stepId: (_nextParticipantId, index) =>
+                          `step-turn-${nextState.turnSeq + 1}-${index}`
+                  },
+                  context.now
+              )
+            : planRuleBasedTurn(
+                  { ...nextState, currentTurn: undefined },
+                  {
+                      turnId: `turn-${nextState.turnSeq + 1}`,
+                      stepId: (_nextParticipantId, index) =>
+                          `step-turn-${nextState.turnSeq + 1}-${index}`
+                  },
+                  context.now,
+                  action
+              );
+    const directReason = managerRequested && !managerAvailable ? "manager_fallback" : action;
+    const directedPlan: MeetingTurn =
+        directReason === "normal"
+            ? planned
+            : {
+                  ...planned,
+                  reason: directReason
+              };
+    const firstStep = directedPlan.steps[0]!;
+    const selectedRaise = nextState.handRaises.find(
+        (raise) => raise.status === "pending" && raise.participant === firstStep.speaker
+    );
+    const consumed =
+        selectedRaise === undefined
+            ? { state: nextState, effect: { events: [] } }
+            : consumeHandRaise(nextState, selectedRaise.id);
+    const firstAttempt: SpeakerAttempt = {
+        attemptId: `${directedPlan.id}-attempt-0`,
+        participantId: firstStep.speaker,
         meetingId: state.id,
-        observedMeetingVersion: version,
-        reason: "next_turn",
-        deliveryId: context.nextPlanningDeliveryId,
+        turnId: directedPlan.id,
+        stepId: firstStep.id,
+        deliveryId: `${directedPlan.id}-delivery-0`,
+        contextFromSeq: 0,
+        contextThroughSeq: nextState.messageSeq,
+        taskSnapshots: completedTaskSnapshots(nextState, firstStep.speaker, context.now),
+        assignedAt: context.now,
+        ...(nextState.limits.speakerAttemptTimeoutMs === undefined
+            ? {}
+            : { deadlineAt: context.now + nextState.limits.speakerAttemptTimeoutMs }),
         status: "running",
-        createdAt: context.now
+        deliveryStatus: "pending"
+    };
+    const runningTurn: MeetingTurn = {
+        ...directedPlan,
+        status: "running",
+        steps: directedPlan.steps.map((step, index) =>
+            index === 0 ? { ...step, status: "running", attempt: firstAttempt } : step
+        )
     };
     nextState = {
-        ...nextState,
-        currentTurn: undefined,
+        ...consumed.state,
+        currentTurn: runningTurn,
+        turnSeq: runningTurn.seq,
         status: "running",
         waitState: undefined,
-        replanCount: nextState.replanCount + 1,
         manager: {
             ...nextState.manager,
-            status: "planning",
-            currentPlanningAttempt: planningAttempt
-        }
+            status: "idle",
+            currentPlanningAttempt: undefined
+        },
+        participants: nextState.participants.map((participant) =>
+            participant.id === firstStep.speaker
+                ? { ...participant, status: "speaking" }
+                : participant
+        )
     };
     events = [
         ...events,
+        ...(action === "normal"
+            ? []
+            : [
+                  {
+                      type: "meeting.replanned" as const,
+                      payload: {
+                          meetingId: state.id,
+                          from: state.status,
+                          to: "running",
+                          meetingVersion: version,
+                          reason: action
+                      }
+                  }
+              ]),
         {
-            type: "manager_plan.started",
+            type: "turn.planned",
+            payload: { turnId: directedPlan.id, meetingVersion: version }
+        },
+        {
+            type: "turn.started",
+            payload: { turnId: directedPlan.id, meetingVersion: version }
+        },
+        {
+            type: "speaker.assigned",
             payload: {
                 meetingId: state.id,
-                planningAttemptId: planningAttempt.id,
-                deliveryId: planningAttempt.deliveryId,
-                reason: planningAttempt.reason,
-                meetingVersion: version,
-                observedMeetingVersion: version
+                turnId: directedPlan.id,
+                stepId: firstStep.id,
+                participantId: firstStep.speaker,
+                attemptId: firstAttempt.attemptId,
+                deliveryId: firstAttempt.deliveryId,
+                meetingVersion: version
             }
+        },
+        {
+            type: "speaker.started",
+            payload: { stepId: firstStep.id, meetingVersion: version }
+        },
+        {
+            type: "speaker_attempt.started",
+            payload: { attemptId: firstAttempt.attemptId, meetingVersion: version }
         }
     ];
     return result();
