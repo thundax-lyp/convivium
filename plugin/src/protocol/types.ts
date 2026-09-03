@@ -174,6 +174,28 @@ export interface MeetingControlResultV1 {
     changed: boolean;
 }
 
+export type RiskLevelV1 = "low" | "medium" | "high";
+
+export interface CaptainDecisionDispositionInputV1 {
+    protocolVersion: 1;
+    meetingId: string;
+    expectedMeetingVersion: number;
+    requestId: string;
+    decisionId: string;
+    action: "supersede" | "revoke";
+    reason: string;
+    evidenceMessageIds: readonly string[];
+    replacementCandidateId?: string;
+}
+
+export interface CaptainDecisionDispositionResultV1 {
+    requestId: string;
+    decisionId: string;
+    action: "supersede" | "revoke";
+    completionFactId: string;
+    replacementDecisionId?: string;
+}
+
 export interface CaptainRiskDispositionInputV1 {
     protocolVersion: ProtocolVersion;
     meetingId: string;
@@ -362,6 +384,18 @@ export interface PublicQuestionV1 {
     answerMessageId?: string;
 }
 
+export interface PublicDecisionCandidateV1 {
+    id: string;
+    proposalId: string;
+    proposalRevision: number;
+    statement: string;
+    rationale: string;
+    proposedBy: string;
+    sourceMessageId: string;
+    agendaItemId: string;
+    createdAt: number;
+}
+
 export interface PublicDecisionV1 {
     id: string;
     agendaItemId?: string;
@@ -372,6 +406,30 @@ export interface PublicDecisionV1 {
     status: "accepted" | "superseded" | "revoked";
     acceptedBy?: readonly string[];
     dissentingPositionIds?: readonly string[];
+    supersededByDecisionId?: string;
+}
+
+export interface PublicRiskV1 {
+    id: string;
+    title: string;
+    description: string;
+    sourceMessageId: string;
+    agendaItemId?: string;
+    affectedOutputIds: readonly string[];
+    affectedCriterionIds: readonly string[];
+    violatedConstraintIds: readonly string[];
+    blockingObjectionIds: readonly string[];
+    blocking: boolean;
+    riskLevel?: RiskLevelV1;
+    impact: string;
+    urgency: string;
+    reversibility: string;
+    safeDefaultAvailable: boolean;
+    disposition: "blocking" | "follow_up" | "parking_lot" | "accepted_risk" | "out_of_scope";
+    status: "open" | "accepted_risk" | "resolved" | "deferred" | "out_of_scope";
+    rationale?: string;
+    ownerId?: string;
+    relatedTaskIds: readonly string[];
 }
 
 export interface AuthorizedTaskResultV1 {
@@ -559,6 +617,7 @@ export interface IssueClaimV1 {
     impact: "none" | "low" | "medium" | "high" | "critical";
     urgency: "now" | "before_release" | "later";
     safeDefaultAvailable: boolean;
+    riskLevel: RiskLevelV1;
 }
 
 export interface DecisionProposalClaimV1 {
@@ -682,7 +741,10 @@ export interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
     messages: readonly PublicMeetingMessageV1[];
     questions?: readonly PublicQuestionV1[];
     proposals: readonly PublicProposalV1[];
+    pendingDecisionCandidates: readonly PublicDecisionCandidateV1[];
     acceptedDecisions: readonly PublicDecisionV1[];
+    decisionHistory: readonly PublicDecisionV1[];
+    risks: readonly PublicRiskV1[];
     blockingFacts: readonly PublicBlockingFactV1[];
 }
 
@@ -802,6 +864,7 @@ export interface PublicArchivePackageV1 {
     finalSummary: string;
     artifactRefs: readonly PublicArtifactRefV1[];
     acceptedDecisions: readonly PublicDecisionV1[];
+    decisionHistory: readonly PublicDecisionV1[];
     proposals: readonly PublicArchiveProposalV1[];
     completionFacts: readonly PublicArchiveCompletionFactV1[];
     agenda: readonly PublicAgendaItemV1[];

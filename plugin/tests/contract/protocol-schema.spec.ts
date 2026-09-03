@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     CreateMeetingResultSchema,
     CreateMeetingInputSchema,
+    CaptainDecisionDispositionInputSchema,
     EndMeetingInputSchema,
     EndMeetingResultSchema,
     LocalMeetingListItemSchema,
@@ -17,11 +18,77 @@ import {
     validateProtocolSuccessEnvelope,
     MeetingTaskRequestSchema,
     MeetingTaskFinishResultSchema,
+    CaptainDecisionDispositionResultSchema,
     validateReassignTurnInput,
     TurnSubmissionSchema
 } from "../../src/protocol/index.js";
 
 describe("protocol envelope schemas", () => {
+    it("validates Decision disposition conditional result and input fields", () => {
+        const supersedeInput = {
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            expectedMeetingVersion: 3,
+            requestId: "request-1",
+            decisionId: "decision-1",
+            action: "supersede" as const,
+            reason: "Replace with current candidate",
+            evidenceMessageIds: ["message-1"],
+            replacementCandidateId: "candidate-2"
+        };
+        const revokeInput = { ...supersedeInput, action: "revoke" as const };
+        delete (revokeInput as { replacementCandidateId?: string }).replacementCandidateId;
+        expect(CaptainDecisionDispositionInputSchema(supersedeInput)).toEqual(supersedeInput);
+        expect(CaptainDecisionDispositionInputSchema(revokeInput)).toEqual(revokeInput);
+        expect(() =>
+            CaptainDecisionDispositionInputSchema({
+                ...revokeInput,
+                replacementCandidateId: "candidate-2"
+            })
+        ).toThrow();
+        expect(() =>
+            CaptainDecisionDispositionInputSchema({
+                ...supersedeInput,
+                replacementCandidateId: undefined
+            })
+        ).toThrow();
+        expect(() =>
+            CaptainDecisionDispositionInputSchema({ ...supersedeInput, extra: true })
+        ).toThrow();
+
+        const supersedeResult = {
+            requestId: "request-1",
+            decisionId: "decision-1",
+            action: "supersede" as const,
+            completionFactId: "completion-1",
+            replacementDecisionId: "decision-2"
+        };
+        const revokeResult = { ...supersedeResult, action: "revoke" as const };
+        delete (revokeResult as { replacementDecisionId?: string }).replacementDecisionId;
+        expect(CaptainDecisionDispositionResultSchema(supersedeResult)).toEqual(supersedeResult);
+        expect(CaptainDecisionDispositionResultSchema(revokeResult)).toEqual(revokeResult);
+        for (const field of ["requestId", "decisionId", "action", "completionFactId"] as const) {
+            expect(() =>
+                CaptainDecisionDispositionResultSchema({ ...supersedeResult, [field]: undefined })
+            ).toThrow();
+        }
+        expect(() =>
+            CaptainDecisionDispositionResultSchema({
+                ...supersedeResult,
+                replacementDecisionId: undefined
+            })
+        ).toThrow();
+        expect(() =>
+            CaptainDecisionDispositionResultSchema({
+                ...revokeResult,
+                replacementDecisionId: "decision-2"
+            })
+        ).toThrow();
+        expect(() =>
+            CaptainDecisionDispositionResultSchema({ ...revokeResult, extra: true })
+        ).toThrow();
+    });
+
     it("validates an exact local meeting list response", () => {
         const item = {
             meetingId: "meeting-1",
@@ -80,7 +147,10 @@ describe("protocol envelope schemas", () => {
                 messages: [],
                 questions: [],
                 proposals: [],
+                pendingDecisionCandidates: [],
                 acceptedDecisions: [],
+                decisionHistory: [],
+                risks: [],
                 blockingFacts: [],
                 meetingTasks: [],
                 status: "paused",
@@ -507,7 +577,10 @@ describe("protocol envelope schemas", () => {
             messages: [],
             questions: [],
             proposals: [],
+            pendingDecisionCandidates: [],
             acceptedDecisions: [],
+            decisionHistory: [],
+            risks: [],
             blockingFacts: [],
             meetingTasks: [],
             status: "completed",
@@ -627,7 +700,10 @@ describe("protocol envelope schemas", () => {
                 messages: [],
                 questions: [],
                 proposals: [],
+                pendingDecisionCandidates: [],
                 acceptedDecisions: [],
+                decisionHistory: [],
+                risks: [],
                 blockingFacts: [],
                 meetingTasks: [],
                 status: "paused",
@@ -650,7 +726,10 @@ describe("protocol envelope schemas", () => {
                 messages: [],
                 questions: [],
                 proposals: [],
+                pendingDecisionCandidates: [],
                 acceptedDecisions: [],
+                decisionHistory: [],
+                risks: [],
                 blockingFacts: [],
                 meetingTasks: [],
                 status: "paused",
@@ -682,6 +761,7 @@ function validArchivePackage(meetingId = "meeting-1") {
         finalSummary: "done",
         artifactRefs: [],
         acceptedDecisions: [],
+        decisionHistory: [],
         proposals: [],
         completionFacts: [],
         agenda: [],

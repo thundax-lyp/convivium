@@ -8,6 +8,14 @@ const number = () => Schema.number().required();
 const array = <T>(schema: Schema<T>) => Schema.array(schema).required();
 const enumOf = <T extends string>(values: readonly T[]) => Schema.union(values).required();
 
+function assertExactKeys(value: object, expected: readonly string[], label: string): void {
+    const actual = Object.keys(value).sort();
+    const required = [...expected].sort();
+    if (actual.length !== required.length || actual.some((key, index) => key !== required[index])) {
+        throw new TypeError(`${label} has unexpected fields`);
+    }
+}
+
 export const CreateMeetingResultSchema = Schema.object({
     meetingId: string(),
     meetingVersion: number(),
@@ -70,6 +78,30 @@ export const CaptainDecisionAcceptanceResultSchema = Schema.object({
     proposalRevision: number(),
     completionFactId: string()
 });
+
+const captainDecisionDispositionResult = Schema.object({
+    requestId: string(),
+    decisionId: string(),
+    action: enumOf(["supersede", "revoke"] as const),
+    completionFactId: string(),
+    replacementDecisionId: Schema.string()
+});
+
+export const CaptainDecisionDispositionResultSchema: Schema<Record<string, unknown>> =
+    Schema.transform(captainDecisionDispositionResult, (value) => {
+        const expected = [
+            "requestId",
+            "decisionId",
+            "action",
+            "completionFactId",
+            ...(value.action === "supersede" ? ["replacementDecisionId"] : [])
+        ];
+        assertExactKeys(value, expected, "captain decision disposition result");
+        if (value.action === "supersede" && !value.replacementDecisionId?.trim()) {
+            throw new TypeError("supersede requires replacementDecisionId");
+        }
+        return value as Record<string, unknown>;
+    });
 
 export const ReassignTurnResultSchema = Schema.object({
     revokedAttemptId: string(),

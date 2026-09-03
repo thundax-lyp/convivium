@@ -272,32 +272,9 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 ## 8. 机械步骤
 
-### T4：Protocol 与 serializer
-
-前置状态：commit `1179f97` 已包含并验证 requirements/interfaces 契约；designs 已完成 D1-D5 迁移并通过本步全部验证 PASS。
-
-允许修改：`plugin/src/protocol/types.ts`、`plugin/src/protocol/commands.ts`、`plugin/src/protocol/results.ts`、`plugin/src/protocol/status.ts`、`plugin/src/protocol/index.ts`；新增 `plugin/src/protocol/request-idempotency.ts`、`plugin/tests/unit/protocol/request-idempotency.spec.ts`；修改 `plugin/tests/contract/protocol-schema.spec.ts`。
-
-禁止修改：repository/runtime/domain/Client。
-
-执行：照抄§5类型；Issue Schema required riskLevel；conditional Decision input validator；在 `plugin/src/protocol/results.ts` 新增并从 `plugin/src/protocol/index.ts` 直接导出 `CaptainDecisionDispositionResultSchema`；实现 status/archive Schema 与 serializer/export。`plugin/tests/contract/protocol-schema.spec.ts` 必须分别验证 supersede/revoke 成功 shape、四个始终 required 字段、supersede required replacement、revoke forbidden replacement和额外字段拒绝；serializer test 验证 array order、undefined omission、no trim。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/protocol/request-idempotency.spec.ts tests/contract/protocol-schema.spec.ts
-pnpm --dir plugin typecheck
-```
-
-PASS：`plugin/tests/contract/protocol-schema.spec.ts` 对 supersede/revoke conditional field、required field、exact-key rejection 的每项断言均通过；serializer、riskLevel 和 host/client typecheck 通过；`CaptainDecisionDispositionResultSchema` 仅由 `plugin/src/protocol/results.ts` 定义并由 `plugin/src/protocol/index.ts` 直接导出。
-
-STOP：需放宽 Schema/改 serializer。
-
-失败恢复：仅有文件 diff，无 durable 副作用。
-
 ### T5：Decision domain lifecycle
 
-前置状态：T4 PASS。
+前置状态：commit `bbd84f1` 的产品/正式文档树已包含 T4 所需的 protocol/serializer 变更，且 T4 focused tests、ESLint 和 Prettier 已 PASS。
 
 允许修改：`plugin/src/domain/model.ts`、`plugin/src/domain/index.ts`、`plugin/src/domain/transitions/proposal-position.ts`、`plugin/src/domain/transitions/decision-candidate.ts`、`plugin/src/domain/transitions/decision-acceptance.ts`；新增 `plugin/src/domain/transitions/decision-disposition.ts`、`plugin/tests/unit/domain/transitions/decision-disposition.spec.ts`；修改 `plugin/tests/unit/domain/transitions/proposal-position.spec.ts`、`plugin/tests/unit/domain/transitions/decision-candidate.spec.ts`、`plugin/tests/unit/domain/transitions/decision-acceptance.spec.ts`、`plugin/tests/unit/domain/transitions/fixtures.ts`。
 
@@ -435,7 +412,7 @@ STOP：环境不可用则记录命令/输出并标 runtime smoke `Not Covered`�
 
 ### T11：完整验证与移交
 
-前置状态：requirements、interfaces、designs 迁移已完成并验证 PASS；T4-T9 PASS；T10 fixture PASS；真实 smoke 可仅因环境为 Not Covered。
+前置状态：requirements、interfaces、designs 迁移已完成并验证 PASS；T5-T9 PASS；T10 fixture PASS；真实 smoke 可仅因环境为 Not Covered。
 
 允许修改：无；本步骤只运行检查命令。
 
@@ -481,7 +458,7 @@ STOP：产品 test/type/lint/build/contract/package失败，不放宽。
 | archive/recovery      | history/current、全部 Issue/Fact、legacy risk、checkpoint/tail/reopen一致                   |
 | DSH/full              | 现有 registry/renderer/fiber；无 Session event；T11 verify；T10 profile或环境Not Covered    |
 
-完成条件：requirements、interfaces、designs 迁移已完成并验证 PASS；T4-T9/T11 PASS；T10 fixture PASS，真实 profile PASS或仅可复现环境缺失；双向追踪完整且无 Non-goal diff。数据库迁移 `Not Applicable`：D4 指定 optional read compatibility，formatVersion不变。
+完成条件：requirements、interfaces、designs 迁移已完成并验证 PASS；T5-T9/T11 PASS；T10 fixture PASS，真实 profile PASS或仅可复现环境缺失；双向追踪完整且无 Non-goal diff。数据库迁移 `Not Applicable`：D4 指定 optional read compatibility，formatVersion不变。
 
 B 不写 readiness。C 只在 B→A 最终 SHA 更新 `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` 与 `DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`。
 
@@ -508,12 +485,12 @@ B 本轮补齐 `plugin/src/protocol/results.ts:CaptainDecisionDispositionResultS
 | traceability        | PASS | §6                                                                        |
 | data/interface      | PASS | §5                                                                        |
 | file/symbol         | PASS | §6、所有剩余执行步骤                                                      |
-| mechanical steps    | PASS | T4-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
+| mechanical steps    | PASS | T5-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
 | validation/failure  | PASS | §9 覆盖 success/invalid/authority/stale/terminal/replay/rollback/recovery |
 | scope/non-goals     | PASS | §3、§6，B→A→C固定                                                         |
 | readiness/deletion  | PASS | §9                                                                        |
 
-当前 Not Covered：未执行剩余 T4-T11，未实现代码，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 commit、push 或创建 PR。
+当前 Not Covered：未执行剩余 T5-T11，T4 已完成，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 push 或创建 PR。
 
 ## 11. Related Documents
 

@@ -178,7 +178,49 @@ const decision = Schema.object({
     rationale: Schema.string(),
     status: enumOf(["accepted", "superseded", "revoked"] as const),
     acceptedBy: Schema.array(requiredString()),
-    dissentingPositionIds: Schema.array(requiredString())
+    dissentingPositionIds: Schema.array(requiredString()),
+    supersededByDecisionId: Schema.string()
+});
+
+const decisionCandidate = Schema.object({
+    id: requiredString(),
+    proposalId: requiredString(),
+    proposalRevision: requiredNumber(),
+    statement: requiredString(),
+    rationale: requiredString(),
+    proposedBy: requiredString(),
+    sourceMessageId: requiredString(),
+    agendaItemId: requiredString(),
+    createdAt: requiredNumber()
+});
+
+const risk = Schema.object({
+    id: requiredString(),
+    title: requiredString(),
+    description: requiredString(),
+    sourceMessageId: requiredString(),
+    agendaItemId: Schema.string(),
+    affectedOutputIds: requiredArray(requiredString()),
+    affectedCriterionIds: requiredArray(requiredString()),
+    violatedConstraintIds: requiredArray(requiredString()),
+    blockingObjectionIds: requiredArray(requiredString()),
+    blocking: requiredBoolean(),
+    riskLevel: enumOf(["low", "medium", "high"] as const),
+    impact: requiredString(),
+    urgency: requiredString(),
+    reversibility: requiredString(),
+    safeDefaultAvailable: requiredBoolean(),
+    disposition: enumOf([
+        "blocking",
+        "follow_up",
+        "parking_lot",
+        "accepted_risk",
+        "out_of_scope"
+    ] as const),
+    status: enumOf(["open", "accepted_risk", "resolved", "deferred", "out_of_scope"] as const),
+    rationale: Schema.string(),
+    ownerId: Schema.string(),
+    relatedTaskIds: requiredArray(requiredString())
 });
 
 const blockingFact = Schema.object({
@@ -321,7 +363,10 @@ const active = Schema.object({
     messages: requiredArray(message),
     questions: requiredArray(question),
     proposals: requiredArray(proposal),
+    pendingDecisionCandidates: requiredArray(decisionCandidate),
     acceptedDecisions: requiredArray(decision),
+    decisionHistory: requiredArray(decision),
+    risks: requiredArray(risk),
     blockingFacts: requiredArray(blockingFact),
     meetingTasks: requiredArray(meetingTask),
     status: enumOf(["created", "running", "waiting", "paused", "converging"] as const),
@@ -357,7 +402,10 @@ const terminal = Schema.object({
     messages: requiredArray(message),
     questions: requiredArray(question),
     proposals: requiredArray(proposal),
+    pendingDecisionCandidates: Schema.tuple([]).required(),
     acceptedDecisions: requiredArray(decision),
+    decisionHistory: requiredArray(decision),
+    risks: requiredArray(risk),
     blockingFacts: requiredArray(blockingFact),
     status: enumOf(["completed", "partial", "no_consensus", "cancelled", "failed"] as const),
     currentTurn: Schema.never(),
@@ -413,6 +461,7 @@ const archiveIssue = Schema.object({
         "accepted_risk",
         "out_of_scope"
     ] as const),
+    riskLevel: Schema.union([Schema.const(undefined), enumOf(["low", "medium", "high"] as const)]),
     rationale: Schema.string(),
     ownerId: Schema.string(),
     relatedTaskIds: requiredArray(requiredString())
@@ -434,6 +483,7 @@ export const MeetingArchivePackageSchema = Schema.object({
     finalSummary: requiredString(),
     artifactRefs: requiredArray(artifactRef),
     acceptedDecisions: requiredArray(decision),
+    decisionHistory: requiredArray(decision),
     proposals: requiredArray(proposal),
     completionFacts: requiredArray(completionFact),
     agenda: requiredArray(agendaItem),

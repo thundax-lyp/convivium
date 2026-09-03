@@ -15,6 +15,14 @@ const enumOf = <T extends string>(values: readonly T[]) => Schema.union(values).
 const optionalEnumOf = <T extends string>(values: readonly T[]) => Schema.union(values);
 const optionalObject = <T>(schema: Schema<T>) => Schema.union([schema, Schema.const(undefined)]);
 
+function assertExactKeys(value: object, expected: readonly string[], label: string): void {
+    const actual = Object.keys(value).sort();
+    const required = [...expected].sort();
+    if (actual.length !== required.length || actual.some((key, index) => key !== required[index])) {
+        throw new TypeError(`${label} has unexpected fields`);
+    }
+}
+
 const participantSpec = Schema.object({
     participantKey: string(),
     sourceMemberName: Schema.string(),
@@ -224,7 +232,8 @@ const issueClaim = Schema.object({
     violatedConstraintIds: array(string()),
     impact: enumOf(["none", "low", "medium", "high", "critical"] as const),
     urgency: enumOf(["now", "before_release", "later"] as const),
-    safeDefaultAvailable: boolean()
+    safeDefaultAvailable: boolean(),
+    riskLevel: enumOf(["low", "medium", "high"] as const)
 });
 
 const decisionProposalClaim = Schema.object({
@@ -243,6 +252,40 @@ export const CaptainDecisionAcceptanceInputSchema = Schema.object({
     reason: nonEmptyString(),
     evidenceMessageIds: array(string())
 });
+
+const captainDecisionDispositionInput = Schema.object({
+    protocolVersion: Schema.const(1).required(),
+    meetingId: nonEmptyString(),
+    expectedMeetingVersion: number(),
+    requestId: nonEmptyString(),
+    decisionId: nonEmptyString(),
+    action: enumOf(["supersede", "revoke"] as const),
+    reason: nonEmptyString(),
+    evidenceMessageIds: array(nonEmptyString()),
+    replacementCandidateId: Schema.string()
+});
+
+export const CaptainDecisionDispositionInputSchema = Schema.transform(
+    captainDecisionDispositionInput,
+    (value) => {
+        const expected = [
+            "protocolVersion",
+            "meetingId",
+            "expectedMeetingVersion",
+            "requestId",
+            "decisionId",
+            "action",
+            "reason",
+            "evidenceMessageIds",
+            ...(value.action === "supersede" ? ["replacementCandidateId"] : [])
+        ];
+        assertExactKeys(value, expected, "captain decision disposition input");
+        if (value.action === "supersede" && !value.replacementCandidateId?.trim()) {
+            throw new TypeError("supersede requires replacementCandidateId");
+        }
+        return value;
+    }
+);
 
 const agendaCandidateClaim = Schema.object({
     title: string(),
