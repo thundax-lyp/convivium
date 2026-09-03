@@ -37,7 +37,7 @@ const wait = {
     waitReason: Schema.const("required_participant_unavailable").required(),
     participantIds: array(nonEmptyString())
 };
-export const ManagerPlanResultSchema = Schema.union([
+export const ManagerPlanResultSchema: Schema<Record<string, unknown>> = Schema.union([
     Schema.object({
         status: Schema.const("planned").required(),
         ...ids,

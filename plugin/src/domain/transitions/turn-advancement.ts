@@ -22,15 +22,15 @@ function canonicalIds(values: readonly string[]): string[] {
 
 export function createProgressFingerprint(state: MeetingState): string {
     const agenda = state.agenda
-        .map((item) => [item.id, item.status, item.resolution ?? ""])
+        .map((item) => [item.id, item.status, item.resolution ?? ""] as const)
         .sort(([left], [right]) => left!.localeCompare(right!));
     const acceptedDecisions = state.decisions
         .filter((decision) => decision.status === "accepted")
-        .map((decision) => [decision.id, decision.proposalId, decision.proposalRevision])
+        .map((decision) => [decision.id, decision.proposalId, decision.proposalRevision] as const)
         .sort(([left], [right]) => left!.localeCompare(right!));
     const questions = state.openQuestions
         .filter((question) => question.status === "open" && question.blocking)
-        .map((question) => [question.id])
+        .map((question) => [question.id] as const)
         .sort(([left], [right]) => left!.localeCompare(right!));
     const latestProposalById = new Map<string, (typeof state.proposals)[number]>();
     for (const proposal of state.proposals) {
@@ -48,32 +48,38 @@ export function createProgressFingerprint(state: MeetingState): string {
                         position.blocking &&
                         (position.position === "object" || position.position === "needs_revision")
                 )
-                .map((position) => [
-                    proposal.id,
-                    proposal.revision,
-                    position.id,
-                    position.participantId,
-                    position.position
-                ])
+                .map(
+                    (position) =>
+                        [
+                            proposal.id,
+                            proposal.revision,
+                            position.id,
+                            position.participantId,
+                            position.position
+                        ] as const
+                )
         )
         .sort(([left], [right]) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
     const tasks = state.meetingTasks
         .filter((task) => ["completed", "failed", "cancelled"].includes(task.status))
-        .map((task) => [task.meetingTaskId, task.status, task.resultSummary ?? ""])
+        .map((task) => [task.meetingTaskId, task.status, task.resultSummary ?? ""] as const)
         .sort(([left], [right]) => left!.localeCompare(right!));
     const proposals = [...latestProposalById.values()]
-        .map((proposal) => [proposal.id, proposal.revision, proposal.status])
+        .map((proposal) => [proposal.id, proposal.revision, proposal.status] as const)
         .sort(([left], [right]) => left!.localeCompare(right!));
     const facts = state.completionFacts
         .filter((fact) => fact.status === "active")
-        .map((fact) => [
-            fact.id,
-            fact.kind,
-            fact.subjectId,
-            fact.result,
-            canonicalIds(fact.evidenceMessageIds),
-            canonicalIds(fact.taskIds)
-        ])
+        .map(
+            (fact) =>
+                [
+                    fact.id,
+                    fact.kind,
+                    fact.subjectId,
+                    fact.result,
+                    canonicalIds(fact.evidenceMessageIds),
+                    canonicalIds(fact.taskIds)
+                ] as const
+        )
         .sort(([left], [right]) => left!.localeCompare(right!));
     return JSON.stringify([
         agenda,

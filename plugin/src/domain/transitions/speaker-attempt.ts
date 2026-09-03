@@ -146,7 +146,7 @@ export function submitSpeakerAttempt(
                 ? {
                       waitState: {
                           reason: "captain_action",
-                          waitingSince: context.now,
+                          waitingSince: context.message.createdAt,
                           taskIds: [],
                           participantIds: [],
                           resumeAgendaItemId: turn.agendaItemId

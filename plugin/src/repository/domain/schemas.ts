@@ -67,7 +67,7 @@ const createResult = z
     .object({
         meetingId: z.string(),
         meetingVersion: z.number().int(),
-        status: z.enum(["created", "running"]).optional(),
+        status: z.enum(["created", "running", "waiting"]).optional(),
         participants: z
             .array(z.object({ participantKey: z.string(), participantId: z.string() }).strict())
             .readonly()
