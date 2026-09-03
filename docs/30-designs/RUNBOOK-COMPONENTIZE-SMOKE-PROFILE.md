@@ -239,37 +239,9 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T9：迁移 completion-end 场景
-
-前置状态：前一提交已完成 T8 closure，工作树 clean。
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/completion.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-
-禁止修改：`task-handraise` branch、其他场景和产品源码。
-
-执行：把完整 `completion-end` branch 移为 `runCompletionEndScenario(runtime)`；保留原 `Promise.allSettled` race、允许 loser code 和 terminal guards；删除旧 branch；unit 锁定唯一 call 和 4 个 label。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/completion.js tests/unit/scripts/smoke-profile.spec.ts --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-env CONVIVIUM_SMOKE_SCENARIO=completion-end pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/completion.js tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/scenarios/completion.js plugin/tests/unit/scripts/smoke-profile.spec.ts
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 拆分完成终止竞争场景"
-```
-
-PASS：真实 smoke 包含 `single-winner`、`single-termination`、`terminal-submit-rejected`、`terminal-end-rejected`。
-
-STOP：race 数量、loser code、terminal 状态或晚到写拒绝语义变化。
-
 ### T10：迁移 task-handraise 场景
 
-前置状态：T9 commit 是 HEAD，工作树 clean；`completion.js` 只含 completion-end export。
+前置状态：前一提交已完成 T9 closure，工作树 clean；`completion.js` 只含 completion-end export。
 
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/completion.js`、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
 

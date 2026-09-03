@@ -38,6 +38,10 @@ const archiveSource = readFileSync(
     new URL("../../../scripts/smoke-profile/probe/scenarios/archive.js", import.meta.url),
     "utf8"
 );
+const completionSource = readFileSync(
+    new URL("../../../scripts/smoke-profile/probe/scenarios/completion.js", import.meta.url),
+    "utf8"
+);
 
 describe("createSmokeEnvironment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
@@ -153,6 +157,20 @@ describe("smoke profile scenario guard", () => {
         expect(archiveSource).toContain('"source-sessions-drained"');
         expect(archiveSource).toContain('"continuation-final-summary-only"');
         expect(archiveSource).toContain('"target-identities-new"');
+    });
+
+    it("dispatches completion-end to one scenario module", () => {
+        expect(smokeProfileSource).toContain('from "./scenarios/completion.js"');
+        expect(smokeProfileSource).toContain("await runCompletionEndScenario(runtime);");
+        expect(smokeProfileSource.match(/runCompletionEndScenario\(runtime\)/g)).toHaveLength(1);
+        expect(completionSource).toContain(
+            "export async function runCompletionEndScenario(runtime)"
+        );
+        expect(completionSource).toContain("Promise.allSettled");
+        expect(completionSource).toContain('"single-winner"');
+        expect(completionSource).toContain('"single-termination"');
+        expect(completionSource).toContain('"terminal-submit-rejected"');
+        expect(completionSource).toContain('"terminal-end-rejected"');
     });
 
     it("copies the probe tree and keeps shared support exports bounded", () => {
