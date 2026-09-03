@@ -34,6 +34,7 @@ export function meeting(status: MeetingState["status"] = "created"): MeetingStat
         turnSeq: 0,
         messageSeq: 0,
         eventSeq: 0,
+        managerPlanningSeq: 0,
         stallCount: 0,
         replanCount: 0,
         selectionMode: "hybrid",

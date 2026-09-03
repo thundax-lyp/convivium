@@ -136,12 +136,6 @@ export function createMeetingState(
     ids: CanonicalIdAllocator
 ): MeetingState {
     const selectionMode = input.selectionMode ?? "round_robin";
-    if (selectionMode === "rule_based" || selectionMode === "hybrid") {
-        throw new DomainError(
-            "UNSUPPORTED_CAPABILITY",
-            `selection mode ${selectionMode} is not supported by this runtime slice`
-        );
-    }
     const continuation = copyContinuation(input.continuation);
     if (
         !input.meetingId ||
@@ -166,14 +160,6 @@ export function createMeetingState(
         participantKeys,
         "risk authority"
     );
-    if (
-        input.agenda.some(
-            (agenda) => agenda.requiredParticipantKeys.length > input.limits.maxSpeakersPerTurn
-        )
-    ) {
-        invalidCreateInput("Agenda required participants exceed max speakers per turn");
-    }
-
     const participantIds = new Map(
         input.participants.map((participant) => [
             participant.key,
@@ -277,6 +263,7 @@ export function createMeetingState(
         turnSeq: 0,
         messageSeq: 0,
         eventSeq: 0,
+        managerPlanningSeq: 0,
         stallCount: 0,
         replanCount: 0,
         selectionMode,

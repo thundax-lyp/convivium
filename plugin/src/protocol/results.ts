@@ -19,15 +19,48 @@ function assertExactKeys(value: object, expected: readonly string[], label: stri
 export const CreateMeetingResultSchema = Schema.object({
     meetingId: string(),
     meetingVersion: number(),
-    status: enumOf(["created", "running"] as const),
+    status: enumOf(["created", "running", "waiting"] as const),
     participants: array(Schema.object({ participantKey: string(), participantId: string() }))
 });
 
-export const ManagerPlanResultSchema = Schema.object({
+const fallbackReason = enumOf([
+    "manager_plan_invalid",
+    "manager_timeout",
+    "manager_delivery_retry_exhausted"
+] as const);
+const ids = {
     turnId: nonEmptyString(),
     firstStepId: nonEmptyString(),
     firstAttemptId: nonEmptyString()
-});
+};
+const wait = {
+    waitReason: Schema.const("required_participant_unavailable").required(),
+    participantIds: array(nonEmptyString())
+};
+export const ManagerPlanResultSchema: Schema<Record<string, unknown>> = Schema.union([
+    Schema.object({
+        status: Schema.const("planned").required(),
+        ...ids,
+        fallbackApplied: Schema.const(false).required()
+    }),
+    Schema.object({
+        status: Schema.const("planned").required(),
+        ...ids,
+        fallbackApplied: Schema.const(true).required(),
+        fallbackReason
+    }),
+    Schema.object({
+        status: Schema.const("waiting").required(),
+        ...wait,
+        fallbackApplied: Schema.const(false).required()
+    }),
+    Schema.object({
+        status: Schema.const("waiting").required(),
+        ...wait,
+        fallbackApplied: Schema.const(true).required(),
+        fallbackReason
+    })
+]);
 
 const meetingStatus = enumOf([
     "created",

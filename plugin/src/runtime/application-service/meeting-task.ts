@@ -4,6 +4,12 @@ import {
     createMeetingTask as createMeetingTaskTransition,
     finishMeetingTask as finishMeetingTaskTransition,
     isParticipantDispatchableNow,
+    needsSemanticArbitration,
+    nextManagerPlanningIds,
+    planRoundRobinTurn,
+    planRuleBasedTurn,
+    rankRulePlanningCandidates,
+    requiredPlanningBlockers,
     startManagerPlanning,
     startMeetingTask as startMeetingTaskTransition,
     type MeetingState
@@ -19,6 +25,7 @@ import type {
     MeetingTaskStatusResultV1
 } from "../../protocol/index.js";
 import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
+import { assignTurnAttempt } from "./meeting-turn.js";
 import {
     commandFailure as failure,
     commandSuccess as success,
@@ -245,8 +252,9 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                             nextState.manager.currentPlanningAttempt.observedMeetingVersion !==
                                 nextState.version + 1
                         ) {
-                            const planningAttemptId = `${nextState.id}-planning-${nextState.replanCount + 1}`;
-                            const planningDeliveryId = `${nextState.id}-planning-delivery-${nextState.replanCount + 1}`;
+                            const planningIds = nextManagerPlanningIds(nextState);
+                            const planningAttemptId = planningIds.planningAttemptId;
+                            const planningDeliveryId = planningIds.deliveryId;
                             const planning = startManagerPlanning(
                                 {
                                     ...nextState,
@@ -421,28 +429,157 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                             (nextState.status === "running" || nextState.status === "waiting") &&
                             nextState.currentTurn === undefined &&
                             nextState.manager.currentPlanningAttempt === undefined &&
-                            nextState.selectionMode === "manager" &&
                             nextState.handRaises.some((raise) => raise.status === "pending")
                         ) {
-                            const planningAttemptId = `${nextState.id}-planning-${nextState.replanCount + 1}`;
-                            const planningDeliveryId = `${nextState.id}-planning-delivery-${nextState.replanCount + 1}`;
-                            const planning = startManagerPlanning(nextState, {
-                                meetingId: nextState.id,
-                                planningAttemptId,
-                                deliveryId: planningDeliveryId,
-                                reason: "next_turn",
-                                now: options.now?.() ?? Date.now()
-                            });
-                            nextState = planning.state;
-                            planningEvents = planning.effect
-                                .events as unknown as DomainEventInput[];
-                            planningOutbox = [
-                                {
-                                    deliveryId: planningDeliveryId,
-                                    kind: "dispatch",
-                                    payload: { role: "manager", planningAttemptId }
+                            const planningNow = options.now?.() ?? Date.now();
+                            const blockers = requiredPlanningBlockers(nextState);
+                            if (blockers.length > 0) {
+                                nextState = {
+                                    ...nextState,
+                                    status: "waiting",
+                                    currentTurn: undefined,
+                                    waitState: {
+                                        reason: "required_participant_unavailable",
+                                        waitingSince: planningNow,
+                                        taskIds: [],
+                                        participantIds: blockers,
+                                        ...(nextState.activeAgendaItemId === undefined
+                                            ? {}
+                                            : {
+                                                  resumeAgendaItemId: nextState.activeAgendaItemId
+                                              })
+                                    }
+                                };
+                                planningEvents = [
+                                    {
+                                        type: "meeting.waiting",
+                                        payload: {
+                                            meetingId: nextState.id,
+                                            from: handRaise.state.status,
+                                            to: "waiting",
+                                            reason: "required_participant_unavailable",
+                                            participantIds: blockers,
+                                            meetingVersion: nextState.version
+                                        }
+                                    }
+                                ];
+                            } else {
+                                const managerRequested =
+                                    nextState.selectionMode === "manager" ||
+                                    (nextState.selectionMode === "hybrid" &&
+                                        needsSemanticArbitration(
+                                            nextState,
+                                            rankRulePlanningCandidates(nextState),
+                                            "normal"
+                                        ));
+                                const managerAvailable =
+                                    nextState.manager.status !== "failed" &&
+                                    nextState.manager.status !== "closed";
+                                if (managerRequested && managerAvailable) {
+                                    const planningIds = nextManagerPlanningIds(nextState);
+                                    const planning = startManagerPlanning(nextState, {
+                                        meetingId: nextState.id,
+                                        planningAttemptId: planningIds.planningAttemptId,
+                                        deliveryId: planningIds.deliveryId,
+                                        reason:
+                                            nextState.selectionMode === "hybrid"
+                                                ? "semantic_arbitration"
+                                                : "next_turn",
+                                        now: planningNow
+                                    });
+                                    nextState = planning.state;
+                                    planningEvents = planning.effect
+                                        .events as unknown as DomainEventInput[];
+                                    planningOutbox = [
+                                        {
+                                            deliveryId: planningIds.deliveryId,
+                                            kind: "dispatch",
+                                            payload: {
+                                                role: "manager",
+                                                planningAttemptId: planningIds.planningAttemptId
+                                            }
+                                        }
+                                    ];
+                                } else {
+                                    const planned =
+                                        nextState.selectionMode === "round_robin"
+                                            ? planRoundRobinTurn(
+                                                  nextState,
+                                                  {
+                                                      turnId: `turn-${nextState.turnSeq + 1}`,
+                                                      stepId: (participantId, index) =>
+                                                          `step-${participantId}-${index}`
+                                                  },
+                                                  planningNow
+                                              )
+                                            : planRuleBasedTurn(
+                                                  nextState,
+                                                  {
+                                                      turnId: `turn-${nextState.turnSeq + 1}`,
+                                                      stepId: (participantId, index) =>
+                                                          `step-${participantId}-${index}`
+                                                  },
+                                                  planningNow,
+                                                  "normal"
+                                              );
+                                    const directedPlan =
+                                        managerRequested && !managerAvailable
+                                            ? {
+                                                  ...planned,
+                                                  reason: "manager_fallback" as const
+                                              }
+                                            : planned;
+                                    const running = assignTurnAttempt(
+                                        nextState,
+                                        directedPlan,
+                                        0,
+                                        planningNow
+                                    );
+                                    const speaker = running.steps[0];
+                                    nextState = {
+                                        ...nextState,
+                                        currentTurn: running,
+                                        turnSeq: running.seq,
+                                        participants: nextState.participants.map((participant) =>
+                                            participant.id === speaker?.speaker
+                                                ? {
+                                                      ...participant,
+                                                      status: "speaking" as const
+                                                  }
+                                                : participant
+                                        )
+                                    };
+                                    planningEvents = [
+                                        { type: "turn.started", payload: { turnId: running.id } },
+                                        ...(speaker?.attempt === undefined
+                                            ? []
+                                            : [
+                                                  {
+                                                      type: "speaker_attempt.started" as const,
+                                                      payload: {
+                                                          attemptId: speaker.attempt.attemptId
+                                                      }
+                                                  }
+                                              ])
+                                    ];
+                                    planningOutbox =
+                                        speaker?.attempt === undefined
+                                            ? []
+                                            : [
+                                                  {
+                                                      deliveryId: speaker.attempt.deliveryId,
+                                                      kind: "dispatch",
+                                                      payload: {
+                                                          participantId:
+                                                              speaker.attempt.participantId,
+                                                          attemptId: speaker.attempt.attemptId,
+                                                          turnId: running.id,
+                                                          stepId: speaker.id
+                                                      }
+                                                  }
+                                              ];
                                 }
-                            ];
+                            }
                         }
                         return {
                             state: nextState as unknown as JsonObject,

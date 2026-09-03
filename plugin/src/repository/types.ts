@@ -81,7 +81,7 @@ export interface CreateMeetingInput {
 export interface CreateMeetingResult {
     meetingId: string;
     meetingVersion: number;
-    status?: "created" | "running";
+    status?: "created" | "running" | "waiting";
     participants?: readonly {
         participantKey: string;
         participantId: string;

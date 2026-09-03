@@ -278,6 +278,18 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 40. delegated meeting-owned Agent 不会等待无人处理的交互式 Approval，也不能从自身 Session 内扩大启动时固化的权限。
 41. Scribe 生成的纪要草稿标明覆盖范围并引用正式 message、Fact、Decision、Issue 或 task result ID；缺少引用或覆盖不连续时不会被当作权威 transcript、正式事实或决议。
 
+## Confirmed Meeting Convergence Rules (D6-D10)
+
+本节把 2026-09-03 已确认的 D6-D10 提升为本需求的正式验收依据。D6 的 rule plan 使用 `recency = never spoke ? 15 : min(15, max(0, state.turnSeq - lastCommittedSpeakerTurnSeq))`，其中 `never spoke` 和 `lastCommittedSpeakerTurnSeq` 从已提交 transcript 推导，不新增持久字段；删除 repeated-content 分数 `-30`。consecutive penalty 只在再次选择会达到 `maxConsecutiveSpeechesPerSpeaker` 时应用。required Participant 永远先排；其余候选按既有 score 降序；同分按 `MeetingState.participants[]` index。required 数量超过 `maxSpeakersPerTurn` 不截断，必须进入 `waiting`。
+
+`selectionMode` 的语义固定为：`round_robin` 只使用 round-robin；`rule_based` 只使用 rule plan；`manager` 只使用 Manager；`hybrid` 仅当最后可用席位出现同分竞争、至少两个不同 Participant 拥有 current blocking objection、或 current convergence action 为 `refocus|replan` 时调用 Manager，其余情况直接使用 rule plan。Manager mode 始终为 `Manager`；Manager 不可用时不创建 planning attempt，直接使用 rule plan。
+
+Manager Schema 无法解析时不提交，等待当前 attempt deadline 后进入 timeout fallback。Schema 有效但业务非法时，一个 commit 将 attempt 置为 `failed`、写入 `manager_plan.failed`、创建 deterministic fallback Turn 和 Speaker outbox，并返回成功 result 且 `fallbackApplied=true`。timeout 或 delivery retry exhausted 使用 `manager-fallback:<attemptId>:<reasonCode>`、`runtime:<meetingId>`，并在一个 commit 中写入 failed attempt、`manager_plan.failed`、fallback Turn、receipt 和 Speaker outbox。request hash 必须由 `serializeValidatedRequestV1({ attemptId, reasonCode, observedMeetingVersion })` 产生；相同 request replay，内容不同则 `IDEMPOTENCY_CONFLICT`；旧 attempt 拒绝提交。
+
+required Participant 不可调度时，同步与后台规划都提交 `waiting`，不返回裸 planning error、不生成部分 plan。wait reason 使用 `blocking_task|required_participant_unavailable|captain_action`；`waitingSince` required，`taskIds` 与 `participantIds` 始终数组，`deadlineAt` 与 `resumeAgendaItemId` optional。required unavailable 时 participant IDs 排序、taskIds 为 `[]`、`waitingSince` 为 Runtime now，`resumeAgendaItemId` 为当前 active agenda（若存在）。相同 Meeting version 与排序 participant IDs 只提交一次；恢复复用 Captain/local resume command，只有全部 required Participant dispatchable 才清除 wait 并重新规划，否则返回 `REQUIRED_SPEAKER_UNAVAILABLE` 且零副作用；自动替换、豁免和部分计划均禁止。
+
+D10 fingerprint 是固定 key 顺序 JSON tuple；数组按 canonical ID 排序，包含 agenda id/status/resolution、current accepted decisions id/proposalId/proposalRevision、open blocking questions、当前 Proposal revision 的 blocking object/needs_revision Positions、terminal tasks id/status/resultSummary、Proposal id/revision/status，以及 active CompletionFacts id/kind/subjectId/result/evidenceMessageIds/taskIds。不得使用文本相似度、当前时间、Map/Set 迭代顺序或非正式摘要。首个完成 Turn 只保存 fingerprint 且 `stallCount=0`；有变化时 `stallCount=0,replanCount=0`；第一次无变化为 `stallCount=1` 并创建 deterministic refocus Turn；第二次无变化时若 `replanCount < maxReplans` 则递增并 replan；若 `stallCount+1 >= maxStalls` 或 `replanCount >= maxReplans` 则终止。`managerPlanningSeq` 独立生成 planning attempt ID，`replanCount` 只表示 replan budget。blocking disagreement 仍存在时终态为 `no_consensus`/`no_consensus`，否则为 `partial`/`stalled`。复用 `meeting.replanned` 与 `meeting.ended`，active status additive 输出 `stallCount/maxStalls/replanCount/maxReplans`，原因只显示在 `currentTurn.intent/reason`。
+
 ## Related Documents
 
 - 架构边界：[`../00-governance/ARCHITECTURE.md`](../00-governance/ARCHITECTURE.md)

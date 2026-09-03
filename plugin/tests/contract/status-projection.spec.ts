@@ -11,7 +11,15 @@ const state = {
     objective: "Decide scope",
     objectiveContract: {},
     continuationMaterials: [],
-    limits: { maxTurns: 3, maxSpeakersPerTurn: 2, maxTotalMessages: 8 },
+    limits: {
+        maxTurns: 3,
+        maxSpeakersPerTurn: 2,
+        maxTotalMessages: 8,
+        maxStalls: 3,
+        maxReplans: 1
+    },
+    stallCount: 0,
+    replanCount: 0,
     version: 2,
     agenda: [],
     transcript: [],
@@ -106,7 +114,11 @@ describe("meeting status projection", () => {
             meetingId: "meeting-1",
             meetingVersion: 2,
             status: "running",
-            limits: { maxTurns: 3 }
+            limits: { maxTurns: 3 },
+            stallCount: 0,
+            maxStalls: 3,
+            replanCount: 0,
+            maxReplans: 1
         });
         expect(JSON.stringify(projected)).not.toContain("session-1");
         expect(JSON.stringify(projected)).not.toContain("capability");
@@ -156,6 +168,7 @@ describe("meeting status projection", () => {
                     seq: 1,
                     agendaItemId: "agenda-1",
                     intent: "explore",
+                    reason: "initial_plan",
                     objective: "Decide scope",
                     expectedOutputs: [],
                     prohibitedTopics: [],
@@ -211,6 +224,7 @@ describe("meeting status projection", () => {
                     seq: 1,
                     agendaItemId: "agenda-1",
                     intent: "review",
+                    reason: "next_turn",
                     objective: "Review",
                     expectedOutputs: [],
                     prohibitedTopics: [],
@@ -236,6 +250,7 @@ describe("meeting status projection", () => {
         );
 
         expect(projected).toMatchObject({
+            currentTurn: { intent: "review", reason: "next_turn" },
             currentSpeakerId: "participant-1",
             currentAttemptId: "attempt-public"
         });
@@ -395,7 +410,8 @@ describe("meeting status projection", () => {
                 ...state,
                 status: "waiting",
                 waitState: {
-                    reason: "required Participant participant-1 is unavailable",
+                    reason: "required_participant_unavailable",
+                    waitingSince: 1,
                     taskIds: [],
                     participantIds: ["participant-1"],
                     resumeAgendaItemId: "agenda-1"
@@ -408,7 +424,8 @@ describe("meeting status projection", () => {
             status: "waiting",
             pauseControl: { action: "pause" },
             waitState: {
-                reason: "required Participant participant-1 is unavailable",
+                reason: "required_participant_unavailable",
+                waitingSince: 1,
                 participantIds: ["participant-1"],
                 resumeAgendaItemId: "agenda-1"
             }

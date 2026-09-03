@@ -161,6 +161,7 @@ const defaultLimits: MeetingLimits = {
     maxDeliveryRetries: 5,
     maxStalls: 3,
     maxReplans: 1,
+    speakerAttemptTimeoutMs: 10 * 60_000,
     mailHandlingTimeoutMs: 2 * 60_000
 };
 

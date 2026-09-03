@@ -3,6 +3,10 @@ import {
     createMeetingState,
     planManagerTurn,
     planRoundRobinTurn,
+    needsSemanticArbitration,
+    nextManagerPlanningIds,
+    planRuleBasedTurn,
+    rankRulePlanningCandidates,
     type CanonicalIdAllocator,
     type CreateMeetingSpec,
     type DomainError,
@@ -263,5 +267,70 @@ describe("round-robin planning", () => {
         );
 
         expect(turn.plan).not.toContain("participant:c");
+    });
+});
+
+describe("deterministic convergence planning", () => {
+    it("ranks required participants first and uses registration order for ties", () => {
+        const meeting = state();
+        meeting.limits.maxSpeakersPerTurn = 2;
+        meeting.agenda[0]!.owner = "participant:a";
+        const ranked = rankRulePlanningCandidates(meeting);
+        expect(ranked.map(({ participantId }) => participantId)).toEqual([
+            "participant:a",
+            "participant:b",
+            "participant:c"
+        ]);
+        expect(ranked.map(({ score }) => score)).toEqual([35 + 50, 35, 35]);
+        expect(needsSemanticArbitration(meeting, ranked, "normal")).toBe(true);
+    });
+
+    it("derives recency from committed transcript and applies the consecutive boundary penalty", () => {
+        const meeting = state();
+        meeting.turnSeq = 10;
+        meeting.transcript.push({
+            id: "message-1",
+            seq: 1,
+            turnSeq: 10,
+            turnId: "turn-1",
+            stepId: "step-1",
+            attemptId: "attempt-1",
+            speaker: "participant:b",
+            agendaItemId: "agenda:agenda-1",
+            agendaRelation: "on_topic",
+            content: "Earlier",
+            kind: "statement",
+            mentions: [],
+            taskIds: [],
+            createdAt: 100
+        });
+        meeting.participants[1]!.consecutiveSpeeches = 1;
+        const ranked = rankRulePlanningCandidates(meeting);
+        expect(ranked.find(({ participantId }) => participantId === "participant:b")?.score).toBe(
+            -65
+        );
+        const turn = planRuleBasedTurn(
+            meeting,
+            { turnId: "turn-2", stepId: (participantId) => `step-${participantId}` },
+            200,
+            "refocus"
+        );
+        expect(turn.reason).toBe("refocus");
+        expect(turn.intent).toBe("refocus");
+    });
+
+    it("uses only the three confirmed arbitration predicates and separates planning sequence from budget", () => {
+        const meeting = state();
+        const ranked = rankRulePlanningCandidates(meeting);
+        expect(needsSemanticArbitration(meeting, ranked, "normal")).toBe(false);
+        expect(needsSemanticArbitration(meeting, ranked, "refocus")).toBe(true);
+        expect(needsSemanticArbitration(meeting, ranked, "replan")).toBe(true);
+        expect(nextManagerPlanningIds(meeting)).toEqual({
+            managerPlanningSeq: 1,
+            planningAttemptId: "meeting-1-planning-1",
+            deliveryId: "meeting-1-planning-delivery-1"
+        });
+        expect(meeting.managerPlanningSeq).toBe(0);
+        expect(meeting.replanCount).toBe(0);
     });
 });
