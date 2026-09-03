@@ -79,6 +79,7 @@ export function submitSpeakerAttempt(
         speaker: participantId,
         agendaItemId: turn.agendaItemId
     };
+    const lastCommittedSpeaker = state.transcript.at(-1)?.speaker;
     const events = [
         ...attemptResult.effect.events,
         ...stepResult.effect.events,
@@ -136,10 +137,14 @@ export function submitSpeakerAttempt(
                               attempt.contextThroughSeq
                           ),
                           totalSpeeches: candidate.totalSpeeches + 1,
+                          consecutiveSpeeches:
+                              candidate.id === lastCommittedSpeaker
+                                  ? candidate.consecutiveSpeeches + 1
+                                  : 1,
                           consecutiveAttemptFailures: 0,
                           status: "available" as const
                       }
-                    : candidate
+                    : { ...candidate, consecutiveSpeeches: 0 }
             ),
             currentTurn,
             ...(completed

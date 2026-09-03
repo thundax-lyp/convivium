@@ -434,6 +434,7 @@ export function materializeArchivePackage(
         finalSummary: state.termination.finalMessage,
         artifactRefs: state.artifactRefs,
         acceptedDecisions: state.decisions.filter((decision) => decision.status === "accepted"),
+        decisionHistory: state.decisions,
         proposals: state.proposals,
         completionFacts: state.completionFacts,
         agenda: state.agenda,

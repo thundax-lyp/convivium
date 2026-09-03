@@ -93,13 +93,15 @@ export function failManagerPlanningAndCreateFallback(
     if (requiredUnavailable(state, context).length > 0) {
         return waitForRequiredParticipant(state, context, ids, context.reasonCode);
     }
+    const attempt = state.manager.currentPlanningAttempt!;
+    const fallbackAction =
+        attempt.reason === "refocus" || attempt.reason === "replan" ? attempt.reason : "normal";
     const planned = planRuleBasedTurn(
         state,
         { turnId: ids.turnId, stepId: (participantId, index) => ids.stepId(index) },
         context.now,
-        "normal"
+        fallbackAction
     );
-    const attempt = state.manager.currentPlanningAttempt!;
     const firstStep = planned.steps[0]!;
     const firstAttempt = {
         attemptId: `${planned.id}-attempt-0`,

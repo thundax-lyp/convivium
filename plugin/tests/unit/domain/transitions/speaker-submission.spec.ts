@@ -104,6 +104,7 @@ describe("speaker submission and turn advancement", () => {
         expect(result.state.currentTurn?.steps.filter((step) => step.attempt).length).toBe(2);
         expect(result.state.messageSeq).toBe(1);
         expect(result.state.participants[0]?.consecutiveAttemptFailures).toBe(0);
+        expect(result.state.participants[0]?.consecutiveSpeeches).toBe(1);
         expect(result.state.eventSeq).toBe(state.eventSeq + result.effect.events.length);
         expect(result.effect.events.map(({ type }) => type).slice(0, 3)).toEqual([
             "speaker_attempt.submitted",

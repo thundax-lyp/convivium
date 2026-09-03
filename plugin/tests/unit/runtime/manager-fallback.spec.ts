@@ -113,4 +113,32 @@ describe("manager fallback", () => {
             )
         ).toThrowError("manager planning attempt is stale in meeting meeting-1");
     });
+
+    it("preserves a refocus action when Manager fallback is required", () => {
+        const state = { ...planningState() };
+        state.manager = {
+            ...state.manager,
+            currentPlanningAttempt: {
+                ...state.manager.currentPlanningAttempt!,
+                reason: "refocus" as const
+            }
+        };
+        const result = failManagerPlanningAndCreateFallback(
+            state,
+            {
+                meetingId: "meeting-1",
+                planningAttemptId: "planning-1",
+                deliveryId: "planning-delivery-1",
+                observedMeetingVersion: 3,
+                dispatchableParticipantIds: ["participant-a"],
+                now,
+                reasonCode: "manager_timeout"
+            },
+            { turnId: "turn-1", stepId: (index) => `step-${index}` }
+        );
+        expect(result.state.currentTurn).toMatchObject({
+            reason: "manager_fallback",
+            intent: "refocus"
+        });
+    });
 });

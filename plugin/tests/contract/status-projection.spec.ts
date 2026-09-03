@@ -298,6 +298,59 @@ describe("meeting status projection", () => {
         expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
 
+    it("clears pending decision candidates for execution-terminal meetings", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                status: "partial",
+                termination: {
+                    code: "partial",
+                    reason: "Stopped",
+                    decisionIds: [],
+                    unresolvedQuestionIds: [],
+                    dissentingPositionIds: [],
+                    blockingAgendaItemIds: [],
+                    finalMessage: "Stopped",
+                    endedAt: 1
+                },
+                completionFacts: [],
+                stallCount: 0,
+                maxStalls: 3,
+                replanCount: 0,
+                maxReplans: 1,
+                decisionCandidates: [
+                    {
+                        id: "candidate-1",
+                        proposalId: "proposal-1",
+                        proposalRevision: 1,
+                        statement: "Decide",
+                        rationale: "Evidence",
+                        proposedBy: "participant-1",
+                        sourceMessageId: "message-1",
+                        agendaItemId: "agenda-1",
+                        createdAt: 1
+                    }
+                ],
+                proposals: [
+                    {
+                        id: "proposal-1",
+                        title: "Proposal",
+                        description: "Description",
+                        proposedBy: "participant-1",
+                        revision: 1,
+                        status: "under_review",
+                        agendaItemId: "agenda-1",
+                        positions: []
+                    }
+                ]
+            } as MeetingState,
+            { kind: "local_host", sessionId: "loopback-web" }
+        );
+
+        expect(projected.pendingDecisionCandidates).toEqual([]);
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
+    });
+
     it("projects only blocking Issues as blocking facts", () => {
         const projected = projectMeetingStatus(
             {
@@ -372,6 +425,38 @@ describe("meeting status projection", () => {
                 summary: "Required output"
             }
         ]);
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
+    });
+
+    it("accepts a legacy risk projection without riskLevel", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                issues: [
+                    {
+                        id: "issue-legacy-risk",
+                        title: "Legacy risk",
+                        description: "Risk level was not persisted.",
+                        sourceMessageId: "message-1",
+                        affectedOutputIds: [],
+                        affectedCriterionIds: [],
+                        violatedConstraintIds: [],
+                        blockingObjectionIds: [],
+                        impact: "low",
+                        urgency: "later",
+                        reversibility: "reversible",
+                        safeDefaultAvailable: true,
+                        relatedTaskIds: [],
+                        status: "open",
+                        disposition: "follow_up",
+                        blocking: false
+                    }
+                ]
+            } as MeetingState,
+            { kind: "captain", sessionId: "captain-1" }
+        );
+
+        expect(projected.risks[0]).not.toHaveProperty("riskLevel");
         expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
 

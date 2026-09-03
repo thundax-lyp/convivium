@@ -26,7 +26,7 @@ import {
     LocalMeetingRecoveryUnavailableError,
     type MeetingRehydrationService
 } from "../services/meeting-recovery-service.js";
-import { createMeetingTurnApplication } from "./meeting-turn.js";
+import { createMeetingTurnApplication, type ManagerFallbackInput } from "./meeting-turn.js";
 import { createMeetingQueryApplication } from "./meeting-query.js";
 import { createMeetingApplication } from "./create-meeting.js";
 import { createMeetingTaskApplication } from "./meeting-task.js";
@@ -374,6 +374,10 @@ export function createCreateStatusRuntime(
         recoverArchiveForCaptain
     });
 
+    const fallbackManagerPlanning: {
+        current?: (input: ManagerFallbackInput) => Promise<void>;
+    } = {};
+
     function ensureWorker(stored: StoredMeeting): void {
         const meetingId = stored.repository.meetingId;
         deliveryWorkers.ensure({
@@ -397,6 +401,23 @@ export function createCreateStatusRuntime(
                     parent: stored.parent,
                     continuable: options.continuable,
                     now
+                });
+            },
+            onTerminalFailure: async (item, _errorCode, failedAt) => {
+                const payload = item.payload as { role?: string; planningAttemptId?: string };
+                if (payload.role !== "manager" || payload.planningAttemptId === undefined) return;
+                const snapshot = await stored.repository.read();
+                const attempt = (snapshot.state as unknown as MeetingState).manager
+                    .currentPlanningAttempt;
+                if (attempt?.id !== payload.planningAttemptId || attempt.status !== "running")
+                    return;
+                await fallbackManagerPlanning.current?.({
+                    repository: stored.repository,
+                    meetingId: stored.repository.meetingId,
+                    attemptId: attempt.id,
+                    reasonCode: "manager_delivery_retry_exhausted",
+                    observedMeetingVersion: attempt.observedMeetingVersion,
+                    now: failedAt
                 });
             }
         });
@@ -422,6 +443,7 @@ export function createCreateStatusRuntime(
         deliveryWorkers,
         taskEvidenceResolver
     });
+    fallbackManagerPlanning.current = turnApplication.fallbackManagerPlanning;
     const controlApplication = createMeetingControlApplication({
         options: runtimeOptions,
         meetings,
@@ -470,6 +492,30 @@ export function createCreateStatusRuntime(
                 });
                 const current = await stored.repository.read();
                 const state = current.state as unknown as MeetingState;
+                const planningAttempt = state.manager.currentPlanningAttempt;
+                if (
+                    state.status === "running" &&
+                    planningAttempt?.status === "running" &&
+                    planningAttempt.deadlineAt !== undefined &&
+                    planningAttempt.deadlineAt <= now
+                ) {
+                    if (timeoutAttemptsInFlight.has(planningAttempt.id)) continue;
+                    timeoutAttemptsInFlight.add(planningAttempt.id);
+                    try {
+                        await fallbackManagerPlanning.current?.({
+                            repository: stored.repository,
+                            meetingId: stored.repository.meetingId,
+                            attemptId: planningAttempt.id,
+                            reasonCode: "manager_timeout",
+                            observedMeetingVersion: planningAttempt.observedMeetingVersion,
+                            now
+                        });
+                    } finally {
+                        timeoutAttemptsInFlight.delete(planningAttempt.id);
+                    }
+                    deliveryWorkers.wake(stored.repository.meetingId);
+                    continue;
+                }
                 const turn = state.currentTurn;
                 const step = turn?.steps[turn.currentStepIndex];
                 const attempt = step?.attempt;

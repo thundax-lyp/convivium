@@ -289,7 +289,7 @@ export interface MeetingIssue {
     violatedConstraintIds: readonly string[];
     blockingObjectionIds: readonly string[];
     blocking: boolean;
-    riskLevel: RiskLevel;
+    riskLevel?: RiskLevel;
     impact: string;
     urgency: "now" | "before_release" | "later";
     reversibility: "reversible" | "partially_reversible" | "irreversible";
@@ -619,6 +619,7 @@ export interface ArchivePackage {
     finalSummary: string;
     artifactRefs: readonly ArchiveArtifactRef[];
     acceptedDecisions: readonly ArchiveDecision[];
+    decisionHistory: readonly ArchiveDecision[];
     proposals: readonly ArchiveProposal[];
     completionFacts: readonly ArchiveCompletionFact[];
     agenda: readonly ArchiveAgendaItem[];

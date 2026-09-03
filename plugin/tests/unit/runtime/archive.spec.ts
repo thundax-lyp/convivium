@@ -54,6 +54,7 @@ describe("materializeArchivePackage", () => {
         expect(archive.acceptedDecisions).toEqual([
             { id: "decision-1", proposalId: "proposal-1", proposalRevision: 1, status: "accepted" }
         ]);
+        expect(archive.decisionHistory).toEqual(archive.acceptedDecisions);
         expect(archive.issues).toEqual([
             {
                 id: "issue-1",
@@ -87,6 +88,29 @@ describe("materializeArchivePackage", () => {
 
         expect(archive.parkingLot[0]?.title).toBe("later");
         expect(archive.issues[0]?.title).toBe("scope");
+    });
+
+    it("persists every Decision in history while keeping acceptedDecisions current-only", () => {
+        const source = structuredClone(state);
+        source.decisions = [
+            {
+                id: "decision-1",
+                proposalId: "proposal-1",
+                proposalRevision: 1,
+                status: "superseded"
+            },
+            {
+                id: "decision-2",
+                proposalId: "proposal-1",
+                proposalRevision: 2,
+                status: "accepted"
+            }
+        ];
+
+        const archive = materializeArchivePackage(source, 20);
+
+        expect(archive.acceptedDecisions.map(({ id }) => id)).toEqual(["decision-2"]);
+        expect(archive.decisionHistory.map(({ id }) => id)).toEqual(["decision-1", "decision-2"]);
     });
 
     it("preserves continuation source provenance without copying source runtime facts", () => {

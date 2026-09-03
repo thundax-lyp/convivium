@@ -205,7 +205,7 @@ const risk = Schema.object({
     violatedConstraintIds: requiredArray(requiredString()),
     blockingObjectionIds: requiredArray(requiredString()),
     blocking: requiredBoolean(),
-    riskLevel: enumOf(["low", "medium", "high"] as const),
+    riskLevel: Schema.union([Schema.const(undefined), enumOf(["low", "medium", "high"] as const)]),
     impact: requiredString(),
     urgency: requiredString(),
     reversibility: requiredString(),

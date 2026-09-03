@@ -253,7 +253,9 @@ async function driveParticipant(ctx, agent) {
         scenario === "archive-continuation" ||
         scenario === "mail-race" ||
         scenario === "cross-meeting" ||
-        scenario === "decision-risk-closure"
+        scenario === "decision-risk-closure" ||
+        scenario === "risk-reopen" ||
+        scenario === "cold-rebind"
     )
         return;
     if (scenario === "timeout" && participantId === "participant-a") return;
