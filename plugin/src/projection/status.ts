@@ -159,6 +159,7 @@ function turn(value: NonNullable<MeetingState["currentTurn"]>): PublicTurnV1 {
         seq: value.seq,
         agendaItemId: value.agendaItemId,
         intent: value.intent,
+        reason: value.reason ?? value.intent,
         objective: value.objective,
         expectedOutputs: value.expectedOutputs,
         prohibitedTopics: value.prohibitedTopics,
@@ -368,6 +369,10 @@ export function projectMeetingStatus(
     return {
         ...discussion,
         status: state.status,
+        stallCount: state.stallCount,
+        maxStalls: state.limits.maxStalls,
+        replanCount: state.replanCount,
+        maxReplans: state.limits.maxReplans,
         ...(currentTurn === undefined ? {} : { currentTurn }),
         ...(currentStep === undefined ? {} : { currentSpeakerId: currentStep.speaker }),
         ...(currentStep?.attempt?.status === "running"
@@ -378,6 +383,7 @@ export function projectMeetingStatus(
             : {
                   waitState: {
                       reason: state.waitState.reason,
+                      waitingSince: state.waitState.waitingSince,
                       taskIds: [...state.waitState.taskIds],
                       participantIds: [...state.waitState.participantIds],
                       ...(state.waitState.deadlineAt === undefined

@@ -460,26 +460,6 @@ PASS：每个 tuple component 的单独变化都会改变 fingerprint；数组�
 
 STOP：需要新 convergence event/state 或从 public B projection 反写 domain；不得增加摘要/NLP。失败恢复：纯 transition，无外部副作用。
 
-### T8：authorized projection
-
-前置状态：T7 PASS。
-
-允许修改：`plugin/src/projection/status.ts`、`plugin/tests/contract/status-projection.spec.ts`。
-
-禁止修改：B mapper、Client、readiness。
-
-执行：只修改 `turn` 中 `reason` expression，以及 `projectMeetingStatus` active return object 中 `waitState/stallCount/maxStalls/replanCount/maxReplans` expressions；不得改 B 的 `pendingDecisionCandidates`、`risks`、`acceptedDecisions` 或 archive history expressions。只在 active union 输出 counters；terminal、archiving、archived 分支除共享 base 的既有字段外不得新增这四个 counters、current Turn 或 waitState。A 测试只新增 `describe("meeting convergence projection", ...)`。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/status-projection.spec.ts tests/contract/protocol-schema.spec.ts
-```
-
-PASS：internal→DTO 每字段 exact；B 五项 projection 保持；Session/outbox/capability 不泄露；active/terminal exact keys 通过。
-
-STOP：需要修改 B filter 或新增 Client state；不得建第二 projection。失败恢复：纯 mapper，无外部副作用。
-
 ### T9：repository、recovery 与原子性证明
 
 前置状态：T8 PASS。

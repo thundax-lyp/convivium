@@ -470,6 +470,7 @@ export interface PauseActor {
 
 export interface MeetingWaitState {
     reason: string;
+    waitingSince: number;
     taskIds: readonly string[];
     participantIds: readonly string[];
     deadlineAt?: number;
