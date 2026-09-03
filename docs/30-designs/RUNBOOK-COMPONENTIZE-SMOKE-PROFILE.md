@@ -243,42 +243,6 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T14：外置最终 probe 入口
-
-前置状态：前一提交已完成 T13 closure，工作树 clean；模板内只剩 probe plugin 入口、runtime/stateful helper、dispatcher 和 lifecycle cleanup；所有场景已在模块中。
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/index.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`、`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`。
-
-禁止修改：`probe/support.js`、全部场景文件、产品源码、package/docs。
-
-执行：
-
-1. 把剩余模板源码原样移动为 `probe/index.js`，使用最终显式 `switch` 和 static imports。
-2. `writeProbePackage` 删除 `String.raw` 与 `writeFile(join(probeDir, "index.js"), ...)`，只 recursive copy source probe 后写 manifest 和 patch。
-3. 删除 runner 对 probe 内部函数的注入；runner 仍从 `support.js` import `validateColdCheckpoint`。
-4. unit 断言 runner 不含 `String.raw`，probe index 对 12 个 selector 各有唯一 case，全部场景 export 路径存在，未知 selector fail closed。
-5. Implementation Design 的 script tree 替换为 §3.2 最终目录树，不改其他设计 section。
-6. format、验证、stage 后 commit `Refactor(plugin/smoke): 固化独立 probe 插件入口`。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/index.js tests/unit/scripts/smoke-profile.spec.ts ../docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/index.js tests/unit/scripts/smoke-profile.spec.ts
-test "$(rg -n 'String\.raw|writeFile\([^\n]*index\.js' plugin/scripts/smoke-profile/index.mjs | wc -l | tr -d ' ')" = "0"
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/index.js plugin/tests/unit/scripts/smoke-profile.spec.ts docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 固化独立 probe 插件入口"
-```
-
-PASS：unit/build/baseline smoke PASS；无嵌入 probe 源码；临时 package 从复制的 `probe/index.js` 加载；Implementation Design 与最终目录一致；cached 仅 4 个允许文件。
-
-STOP：Loader 无法解析多文件 probe、copy 布局错误、出现重复 dispatcher/fallback 或需改 DSH profile。
-
 ### T15：完整验证与 RUNBOOK 收口
 
 前置状态：前一提交已完成 T14 closure；工作树 clean；最终文件树与 §3.2 完全一致；无旧入口引用。

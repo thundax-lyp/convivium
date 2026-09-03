@@ -10,6 +10,10 @@ const smokeProfileSource = readFileSync(
     new URL("../../../scripts/smoke-profile/index.mjs", import.meta.url),
     "utf8"
 );
+const probeSource = readFileSync(
+    new URL("../../../scripts/smoke-profile/probe/index.js", import.meta.url),
+    "utf8"
+);
 const smokeSupportSource = readFileSync(
     new URL("../../../scripts/smoke-profile/probe/support.js", import.meta.url),
     "utf8"
@@ -88,8 +92,8 @@ describe("smoke profile scenario guard", () => {
 
     it("accepts the decision-risk-closure selector with one dispatcher branch", () => {
         expect(smokeProfileSource).toContain('"decision-risk-closure"');
-        expect(smokeProfileSource).toContain('if (scenario === "decision-risk-closure") {');
-        expect(smokeProfileSource).toContain("await runDecisionRiskClosureScenario(runtime);");
+        expect(probeSource).toContain('case "decision-risk-closure":');
+        expect(probeSource).toContain("return runDecisionRiskClosureScenario(runtime);");
         expect(decisionRiskSource).toContain(
             "export async function runDecisionRiskClosureScenario(runtime)"
         );
@@ -103,24 +107,24 @@ describe("smoke profile scenario guard", () => {
     });
 
     it("keeps unknown scenario handling fail closed", () => {
-        expect(smokeProfileSource).toContain('"SCENARIO_NOT_IMPLEMENTED:" + scenario');
+        expect(probeSource).toContain('"SCENARIO_NOT_IMPLEMENTED:" + runtime.scenario');
         expect(smokeProfileSource).toContain("if (!SMOKE_SCENARIOS.includes(SMOKE_SCENARIO))");
     });
 
     it("dispatches risk-reopen to one scenario module", () => {
-        expect(smokeProfileSource).toContain('from "./scenarios/risk-reopen.js"');
-        expect(smokeProfileSource).toContain("await runRiskReopenScenario(runtime);");
+        expect(probeSource).toContain('from "./scenarios/risk-reopen.js"');
+        expect(probeSource).toContain("return runRiskReopenScenario(runtime);");
         expect(riskReopenSource).toContain("export async function runRiskReopenScenario(runtime)");
         expect(riskReopenSource).toContain('"risk-disposed"');
         expect(riskReopenSource).toContain('"risk-replay-stable"');
         expect(riskReopenSource).toContain('"risk-idempotency-conflict"');
-        expect(smokeProfileSource.match(/runRiskReopenScenario\(/g)).toHaveLength(1);
+        expect(probeSource.match(/runRiskReopenScenario\(/g)).toHaveLength(1);
     });
 
     it("dispatches mail-race to one scenario module", () => {
-        expect(smokeProfileSource).toContain('from "./scenarios/mail.js"');
-        expect(smokeProfileSource).toContain("await runMailRaceScenario(runtime);");
-        expect(smokeProfileSource.match(/runMailRaceScenario\(runtime\)/g)).toHaveLength(1);
+        expect(probeSource).toContain('from "./scenarios/mail.js"');
+        expect(probeSource).toContain("return runMailRaceScenario(runtime);");
+        expect(probeSource.match(/runMailRaceScenario\(runtime\)/g)).toHaveLength(1);
         expect(mailSource).toContain("export async function runMailRaceScenario(runtime)");
         expect(mailSource).toContain('"single-mail-terminal"');
         expect(mailSource).toContain('"stable-delivery-ids"');
@@ -129,9 +133,9 @@ describe("smoke profile scenario guard", () => {
     });
 
     it("dispatches cross-meeting to one scenario module", () => {
-        expect(smokeProfileSource).toContain('from "./scenarios/isolation.js"');
-        expect(smokeProfileSource).toContain("await runCrossMeetingScenario(runtime);");
-        expect(smokeProfileSource.match(/runCrossMeetingScenario\(runtime\)/g)).toHaveLength(1);
+        expect(probeSource).toContain('from "./scenarios/isolation.js"');
+        expect(probeSource).toContain("return runCrossMeetingScenario(runtime);");
+        expect(probeSource.match(/runCrossMeetingScenario\(runtime\)/g)).toHaveLength(1);
         expect(isolationSource).toContain("export async function runCrossMeetingScenario(runtime)");
         expect(isolationSource).toContain('"ownership-sets-disjoint"');
         expect(isolationSource).toContain('"meeting-a-cleanup-isolated"');
@@ -140,9 +144,9 @@ describe("smoke profile scenario guard", () => {
     });
 
     it("dispatches reassign to one scenario module", () => {
-        expect(smokeProfileSource).toContain('from "./scenarios/reassign.js"');
-        expect(smokeProfileSource).toContain("await runReassignScenario(runtime);");
-        expect(smokeProfileSource.match(/runReassignScenario\(runtime\)/g)).toHaveLength(1);
+        expect(probeSource).toContain('from "./scenarios/reassign.js"');
+        expect(probeSource).toContain("return runReassignScenario(runtime);");
+        expect(probeSource.match(/runReassignScenario\(runtime\)/g)).toHaveLength(1);
         expect(reassignSource).toContain("export async function runReassignScenario(runtime)");
         expect(reassignSource).toContain('"old-attempt-revoked"');
         expect(reassignSource).toContain('"old-activation-drained"');
@@ -151,9 +155,9 @@ describe("smoke profile scenario guard", () => {
     });
 
     it("dispatches cold-rebind to one scenario module", () => {
-        expect(smokeProfileSource).toContain('from "./scenarios/recovery.js"');
-        expect(smokeProfileSource).toContain("await runColdRebindScenario(runtime);");
-        expect(smokeProfileSource.match(/runColdRebindScenario\(runtime\)/g)).toHaveLength(1);
+        expect(probeSource).toContain('from "./scenarios/recovery.js"');
+        expect(probeSource).toContain("return runColdRebindScenario(runtime);");
+        expect(probeSource.match(/runColdRebindScenario\(runtime\)/g)).toHaveLength(1);
         expect(recoverySource).toContain("export async function runColdRebindScenario(runtime)");
         expect(recoverySource).toContain('"phase1-checkpoint-durable"');
         expect(recoverySource).toContain('"host-pid-changed"');
@@ -163,11 +167,9 @@ describe("smoke profile scenario guard", () => {
     });
 
     it("dispatches archive-continuation to one scenario module", () => {
-        expect(smokeProfileSource).toContain('from "./scenarios/archive.js"');
-        expect(smokeProfileSource).toContain("await runArchiveContinuationScenario(runtime);");
-        expect(smokeProfileSource.match(/runArchiveContinuationScenario\(runtime\)/g)).toHaveLength(
-            1
-        );
+        expect(probeSource).toContain('from "./scenarios/archive.js"');
+        expect(probeSource).toContain("return runArchiveContinuationScenario(runtime);");
+        expect(probeSource.match(/runArchiveContinuationScenario\(runtime\)/g)).toHaveLength(1);
         expect(archiveSource).toContain(
             "export async function runArchiveContinuationScenario(runtime)"
         );
@@ -178,9 +180,9 @@ describe("smoke profile scenario guard", () => {
     });
 
     it("dispatches completion-end to one scenario module", () => {
-        expect(smokeProfileSource).toContain('from "./scenarios/completion.js"');
-        expect(smokeProfileSource).toContain("await runCompletionEndScenario(runtime);");
-        expect(smokeProfileSource.match(/runCompletionEndScenario\(runtime\)/g)).toHaveLength(1);
+        expect(probeSource).toContain('from "./scenarios/completion.js"');
+        expect(probeSource).toContain("return runCompletionEndScenario(runtime);");
+        expect(probeSource.match(/runCompletionEndScenario\(runtime\)/g)).toHaveLength(1);
         expect(completionSource).toContain(
             "export async function runCompletionEndScenario(runtime)"
         );
@@ -192,8 +194,8 @@ describe("smoke profile scenario guard", () => {
     });
 
     it("dispatches task-handraise to the shared completion module", () => {
-        expect(smokeProfileSource).toContain("await runTaskHandraiseScenario(runtime);");
-        expect(smokeProfileSource.match(/runTaskHandraiseScenario\(runtime\)/g)).toHaveLength(1);
+        expect(probeSource).toContain("return runTaskHandraiseScenario(runtime);");
+        expect(probeSource.match(/runTaskHandraiseScenario\(runtime\)/g)).toHaveLength(1);
         expect(completionSource).toContain(
             "export async function runTaskHandraiseScenario(runtime)"
         );
@@ -205,11 +207,9 @@ describe("smoke profile scenario guard", () => {
     });
 
     it("dispatches decision-risk-closure to its lifecycle module", () => {
-        expect(smokeProfileSource).toContain('from "./scenarios/decision-risk-closure.js"');
-        expect(smokeProfileSource).toContain("await runDecisionRiskClosureScenario(runtime);");
-        expect(smokeProfileSource.match(/runDecisionRiskClosureScenario\(runtime\)/g)).toHaveLength(
-            1
-        );
+        expect(probeSource).toContain('from "./scenarios/decision-risk-closure.js"');
+        expect(probeSource).toContain("return runDecisionRiskClosureScenario(runtime);");
+        expect(probeSource.match(/runDecisionRiskClosureScenario\(runtime\)/g)).toHaveLength(1);
         expect(decisionRiskSource).toContain(
             "export async function runDecisionRiskClosureScenario(runtime)"
         );
@@ -228,9 +228,9 @@ describe("smoke profile scenario guard", () => {
     });
 
     it("dispatches convergence to its lifecycle module", () => {
-        expect(smokeProfileSource).toContain('from "./scenarios/convergence.js"');
-        expect(smokeProfileSource).toContain("await runConvergenceScenario(runtime);");
-        expect(smokeProfileSource.match(/runConvergenceScenario\(runtime\)/g)).toHaveLength(1);
+        expect(probeSource).toContain('from "./scenarios/convergence.js"');
+        expect(probeSource).toContain("return runConvergenceScenario(runtime);");
+        expect(probeSource.match(/runConvergenceScenario\(runtime\)/g)).toHaveLength(1);
         expect(convergenceSource).toContain(
             "export async function runConvergenceScenario(runtime)"
         );
@@ -240,8 +240,9 @@ describe("smoke profile scenario guard", () => {
     });
 
     it("dispatches baseline and timeout to one shared module", () => {
-        expect(smokeProfileSource).toContain("await runBaselineScenario(runtime);");
-        expect(smokeProfileSource.match(/runBaselineScenario\(runtime\)/g)).toHaveLength(1);
+        expect(probeSource).toContain("await runSelectedScenario(runtime);");
+        expect(probeSource).toContain("return runBaselineScenario(runtime);");
+        expect(probeSource.match(/runBaselineScenario\(runtime\)/g)).toHaveLength(1);
         expect(baselineSource).toContain("export async function runBaselineScenario(runtime)");
         expect(baselineSource).toContain('"baseline-transcript-acb"');
         expect(baselineSource).toContain('"baseline-http-pause-resume"');

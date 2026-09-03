@@ -79,7 +79,23 @@ plugin/
 └── scripts/
     ├── verify-package.mjs
     └── smoke-profile/
-        └── index.mjs
+        ├── index.mjs
+        ├── environment.mjs
+        ├── result.mjs
+        └── probe/
+            ├── index.js
+            ├── support.js
+            └── scenarios/
+                ├── archive.js
+                ├── baseline.js
+                ├── completion.js
+                ├── convergence.js
+                ├── decision-risk-closure.js
+                ├── isolation.js
+                ├── mail.js
+                ├── reassign.js
+                ├── recovery.js
+                └── risk-reopen.js
 ```
 
 `src/index.ts` 只负责解析配置、构造依赖、注册 DSH 插件能力和绑定 disposer。业务转换不得直接写在插件入口、HTTP handler 或 tool handler 中。

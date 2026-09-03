@@ -5,10 +5,10 @@ import { validateScenarioResult } from "../../../scripts/smoke-profile/index.mjs
 describe("meeting convergence smoke profile", () => {
     it("registers one closed convergence selector and exact assertion set", async () => {
         const source = await readFile(
-            new URL("../../../scripts/smoke-profile/index.mjs", import.meta.url),
+            new URL("../../../scripts/smoke-profile/probe/index.js", import.meta.url),
             "utf8"
         );
-        expect((source.match(/"convergence"/g) ?? []).length).toBe(3);
+        expect((source.match(/"convergence"/g) ?? []).length).toBe(2);
         expect(() =>
             validateScenarioResult({ ok: true, scenario: "unknown", assertions: [] }, "unknown")
         ).not.toThrow();
