@@ -460,26 +460,6 @@ PASS：每个 tuple component 的单独变化都会改变 fingerprint；数组�
 
 STOP：需要新 convergence event/state 或从 public B projection 反写 domain；不得增加摘要/NLP。失败恢复：纯 transition，无外部副作用。
 
-### T9：repository、recovery 与原子性证明
-
-前置状态：T8 PASS。
-
-允许修改：`plugin/tests/contract/meeting-repository-behavior.ts`、`plugin/tests/contract/domain-meeting-repository.spec.ts`、`plugin/tests/recovery/recovery.spec.ts`、`plugin/tests/unit/domain/transitions/fixtures.ts`。
-
-禁止修改：`plugin/src/repository/**`、Storage backend/schema、migration。
-
-执行：只增加 A command behavior assertions；reopen 后比较 wait/fingerprint/counters/managerPlanningSeq/termination/receipt/outbox；注入 commit put failure 验证 prior projection；corrupt record 继续 fail closed。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/domain-meeting-repository.spec.ts tests/recovery/recovery.spec.ts
-```
-
-PASS：checkpoint+tail、pending fallback、same receipt、different hash、rollback、corruption 全部满足 §5。
-
-STOP：证明需要改 record format 或 migration；不得修改 persistence。失败恢复：fixture Restore 删除 exact temp root 并 close domains。
-
 ### T10：真实 DSH smoke fixture
 
 前置状态：T9 PASS。

@@ -136,6 +136,7 @@ describe("recovery controls", () => {
             messageSeq: 1,
             eventSeq: 1,
             managerPlanningSeq: 0,
+            progressFingerprint: "fingerprint-1",
             stallCount: 0,
             replanCount: 0,
             selectionMode: "round_robin",
@@ -217,6 +218,12 @@ describe("recovery controls", () => {
             await first.completeCreate({
                 ...create
             });
+            expect((await first.read()).state).toMatchObject({
+                managerPlanningSeq: 0,
+                progressFingerprint: "fingerprint-1",
+                stallCount: 0,
+                replanCount: 0
+            });
             const ended = await first.execute(command);
             await firstRegistry.close();
             await context.fiber.dispose();
@@ -245,6 +252,10 @@ describe("recovery controls", () => {
                 version: 1,
                 state: {
                     status: "completed",
+                    managerPlanningSeq: 0,
+                    progressFingerprint: "fingerprint-1",
+                    stallCount: 0,
+                    replanCount: 0,
                     termination: {
                         code: "objective_satisfied",
                         reason: "Objective satisfied",
