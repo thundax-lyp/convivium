@@ -274,32 +274,9 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 ## 8. 机械步骤
 
-### T6：Issue/risk domain
-
-前置状态：T5 完成 commit 的产品/正式文档树已包含并验证 Decision domain lifecycle；T5 focused tests、ESLint 和 Prettier 已 PASS。
-
-允许修改：`plugin/src/domain/model.ts:MeetingIssue`、`plugin/src/domain/transitions/types.ts:SubmittedIssueInput`、`plugin/src/domain/transitions/issue.ts:addSubmittedIssues`、`plugin/src/domain/completion.ts` 的 risk branch、replace 调用和 `isObjectiveSatisfied` Issue predicate、`plugin/src/runtime/application-service/meeting-turn.ts:createMeetingTurnApplication.submitTurn` 的 `issues` mapping；`plugin/tests/unit/domain/transitions/issue.spec.ts`、`plugin/tests/unit/domain/completion.spec.ts`、`plugin/tests/unit/domain/transitions/speaker-submission.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts` 中 Issue mapping assertions。
-
-禁止修改：`judgeTurnCompletion` union、advancement/planning、runtime/repository。
-
-执行：给 `SubmittedIssueInput` 和 `submitTurn` 的 issue mapping 增加 required `riskLevel` 并由 `addSubmittedIssues` 复制到新 Issue；实现§5.3矩阵/evidence/reason/rank/constraint/跨 actor supersede；非 risk Fact规则不变。不得修改 `submitTurn` 的 planning、fallback、wait 或 advancement 语句。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/transitions/issue.spec.ts tests/unit/domain/completion.spec.ts tests/unit/domain/transitions/speaker-submission.spec.ts tests/contract/meeting-runtime.spec.ts -t 'issue|risk'
-pnpm --dir plugin typecheck:host
-```
-
-PASS：两前驱、三非法状态、legacy missing、阈值、constraint、证据、跨 actor supersede全断言。
-
-STOP：需 convergence/其他 claim改动。
-
-失败恢复：仅有文件 diff，无 durable 副作用。
-
 ### T7：Application、Runtime、tools
 
-前置状态：T6 PASS。
+前置状态：T6 完成 commit 的产品/正式文档树已包含并验证 Issue/risk domain；T6 focused tests、ESLint 和 Prettier 已 PASS。
 
 允许修改：`plugin/src/runtime/meeting-runtime.ts:MeetingToolRuntime`、`plugin/src/runtime/application-service/meeting-decision.ts:createMeetingDecisionApplication`、`plugin/src/runtime/application-service/meeting-control.ts:disposeRisk`、`plugin/src/runtime/application-service/index.ts`、`plugin/src/tools/register-tools.ts:registerCreateAndStatusTools`；`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/contract/tool-registration.spec.ts`、`plugin/tests/unit/runtime/meeting-runtime.spec.ts`。
 
@@ -391,7 +368,7 @@ STOP：环境不可用则记录命令/输出并标 runtime smoke `Not Covered`�
 
 ### T11：完整验证与移交
 
-前置状态：requirements、interfaces、designs 迁移已完成并验证 PASS；T6-T9 PASS；T10 fixture PASS；真实 smoke 可仅因环境为 Not Covered。
+前置状态：requirements、interfaces、designs 迁移已完成并验证 PASS；T7-T9 PASS；T10 fixture PASS；真实 smoke 可仅因环境为 Not Covered。
 
 允许修改：无；本步骤只运行检查命令。
 
@@ -437,7 +414,7 @@ STOP：产品 test/type/lint/build/contract/package失败，不放宽。
 | archive/recovery      | history/current、全部 Issue/Fact、legacy risk、checkpoint/tail/reopen一致                   |
 | DSH/full              | 现有 registry/renderer/fiber；无 Session event；T11 verify；T10 profile或环境Not Covered    |
 
-完成条件：requirements、interfaces、designs 迁移已完成并验证 PASS；T6-T9/T11 PASS；T10 fixture PASS，真实 profile PASS或仅可复现环境缺失；双向追踪完整且无 Non-goal diff。数据库迁移 `Not Applicable`：D4 指定 optional read compatibility，formatVersion不变。
+完成条件：requirements、interfaces、designs 迁移已完成并验证 PASS；T7-T9/T11 PASS；T10 fixture PASS，真实 profile PASS或仅可复现环境缺失；双向追踪完整且无 Non-goal diff。数据库迁移 `Not Applicable`：D4 指定 optional read compatibility，formatVersion不变。
 
 B 不写 readiness。C 只在 B→A 最终 SHA 更新 `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` 与 `DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`。
 
@@ -464,12 +441,12 @@ B 本轮补齐 `plugin/src/protocol/results.ts:CaptainDecisionDispositionResultS
 | traceability        | PASS | §6                                                                        |
 | data/interface      | PASS | §5                                                                        |
 | file/symbol         | PASS | §6、所有剩余执行步骤                                                      |
-| mechanical steps    | PASS | T6-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
+| mechanical steps    | PASS | T7-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
 | validation/failure  | PASS | §9 覆盖 success/invalid/authority/stale/terminal/replay/rollback/recovery |
 | scope/non-goals     | PASS | §3、§6，B→A→C固定                                                         |
 | readiness/deletion  | PASS | §9                                                                        |
 
-当前 Not Covered：未执行剩余 T6-T11，T4-T5 已完成，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 push 或创建 PR。
+当前 Not Covered：未执行剩余 T7-T11，T4-T6 已完成，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 push 或创建 PR。
 
 ## 11. Related Documents
 

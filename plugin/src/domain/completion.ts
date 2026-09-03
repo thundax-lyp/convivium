@@ -341,6 +341,13 @@ export function applyCompletionClaims(
     const riskAcceptance = context.claims.riskAcceptance;
     if (riskAcceptance !== undefined) {
         assertEvidence(state, riskAcceptance.evidenceMessageIds, [], authorizedTaskIds);
+        if (
+            !riskAcceptance.reason.trim() ||
+            new Set(riskAcceptance.evidenceMessageIds).size !==
+                riskAcceptance.evidenceMessageIds.length ||
+            riskAcceptance.evidenceMessageIds.some((id) => !id.trim())
+        )
+            invalidClaim(state, "risk disposition evidence or reason is invalid");
         const issue = issues.find(({ id }) => id === riskAcceptance.issueId);
         if (issue === undefined) invalidClaim(state, `unknown issue ${riskAcceptance.issueId}`);
         if (
@@ -349,25 +356,33 @@ export function applyCompletionClaims(
         ) {
             invalidClaim(state, "completion risk caller lacks risk acceptance authority");
         }
+        if (!["open", "accepted_risk"].includes(issue.status)) {
+            invalidClaim(state, "risk issue is not disposable");
+        }
+        const ranks = { low: 1, medium: 2, high: 3 } as const;
+        if (
+            ranks[issue.riskLevel] > ranks[objectiveContract.acceptableRiskLevel] ||
+            issue.violatedConstraintIds.length > 0
+        ) {
+            invalidClaim(state, "risk exceeds the objective acceptance boundary");
+        }
+        completionFacts = completionFacts.map((existing) =>
+            existing.kind === "risk_acceptance" &&
+            existing.subjectId === issue.id &&
+            existing.status === "active"
+                ? { ...existing, status: "superseded" as const }
+                : existing
+        );
         if (riskAcceptance.decision === "accept") {
-            const ranks = { none: 0, low: 1, medium: 2, high: 3, critical: 4 } as const;
-            const acceptedRanks = { low: 1, medium: 2, high: 3 } as const;
-            if (
-                issue.violatedConstraintIds.length > 0 ||
-                (issue.impact in ranks
-                    ? ranks[issue.impact as keyof typeof ranks]
-                    : Number.POSITIVE_INFINITY) >
-                    acceptedRanks[objectiveContract.acceptableRiskLevel]
-            ) {
-                invalidClaim(state, "risk exceeds the objective acceptance boundary");
-            }
             issue.status = "accepted_risk";
             issue.disposition = "accepted_risk";
-            issue.rationale = riskAcceptance.reason;
+            issue.blocking = false;
+            issue.rationale = riskAcceptance.reason.trim();
         } else {
             issue.status = "open";
             issue.disposition = "blocking";
-            issue.rationale = riskAcceptance.reason;
+            issue.blocking = true;
+            issue.rationale = riskAcceptance.reason.trim();
         }
         addFact(
             fact(

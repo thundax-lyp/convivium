@@ -266,7 +266,8 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     violatedConstraintIds: claim.violatedConstraintIds,
                     impact: claim.impact,
                     urgency: claim.urgency,
-                    safeDefaultAvailable: claim.safeDefaultAvailable
+                    safeDefaultAvailable: claim.safeDefaultAvailable,
+                    riskLevel: claim.riskLevel
                 }));
                 const proposals = (input.changes.proposals ?? []).map((claim, index) => ({
                     id: `${input.deliveryId}-proposal-${index + 1}`,
