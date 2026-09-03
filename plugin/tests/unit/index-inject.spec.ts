@@ -148,20 +148,20 @@ describe("Convivium local Meeting route lifecycle", () => {
             kind: "prefix",
             path: "/api/convivium/meetings"
         });
-        expect(fixture.effects).toHaveLength(19);
+        expect(fixture.effects).toHaveLength(20);
         expect(fixture.register).toHaveBeenCalledTimes(1);
         await fixture.dispose();
         expect(fixture.routeDispose).toHaveBeenCalledTimes(1);
-        expect(fixture.toolDisposers).toHaveLength(17);
+        expect(fixture.toolDisposers).toHaveLength(18);
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
     it("does not register Meeting routes on all interfaces", async () => {
         const fixture = await host("0.0.0.0");
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.effects).toHaveLength(18);
+        expect(fixture.effects).toHaveLength(19);
         await fixture.dispose();
-        expect(fixture.toolDisposers).toHaveLength(17);
+        expect(fixture.toolDisposers).toHaveLength(18);
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 });
