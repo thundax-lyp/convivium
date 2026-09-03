@@ -239,37 +239,9 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T3：迁移 risk-reopen 场景
-
-前置状态：T2 closure commit is HEAD, literal SHA is recorded in the preceding commit; T2 unit/build/baseline smoke/lint/diff checks passed; worktree clean; `support.js` is the sole owner of the two shared probe exports and `writeProbePackage` recursively copies the probe tree.
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/risk-reopen.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-
-禁止修改：其他场景和产品源码。
-
-执行：先在内嵌 probe 中创建 §5.2 的 `runtime` 普通对象，该步只加入 `risk-reopen` 实际引用的字段；再把完整 `risk-reopen` branch 原样移动为 `runRiskReopenScenario(runtime)`；内嵌 dispatcher 对该 selector 只调用此函数；删除旧 branch；unit 锁定唯一 import/call 和 3 个 assertion label。后续步骤只在迁移场景首次引用某字段时将该字段加入 runtime。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/risk-reopen.js tests/unit/scripts/smoke-profile.spec.ts --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-env CONVIVIUM_SMOKE_SCENARIO=risk-reopen pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/risk-reopen.js tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/scenarios/risk-reopen.js plugin/tests/unit/scripts/smoke-profile.spec.ts
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 拆分风险重开场景"
-```
-
-PASS：真实 smoke 包含 `risk-disposed`、`risk-replay-stable`、`risk-idempotency-conflict`；selector 只有一个可达实现。
-
-STOP：工具输入、receipt replay/conflict 断言或 result 字段变化。
-
 ### T4：迁移 mail-race 场景
 
-前置状态：T3 commit 是 HEAD，工作树 clean。
+前置状态：T3 closure commit is HEAD, literal SHA is recorded in the preceding commit; T3 unit/build/risk-reopen smoke/lint/diff checks passed; worktree clean; `risk-reopen` has one dispatcher call to `runRiskReopenScenario(runtime)` and no inline branch.
 
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/mail.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
 

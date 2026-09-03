@@ -213,6 +213,7 @@ async function writeProbePackage(probeDir) {
         join(probeDir, "index.js"),
         String.raw`
 import { createProbeSupport, validateColdCheckpoint } from "./support.js";
+import { runRiskReopenScenario } from "./scenarios/risk-reopen.js";
 
 export const name = "convivium-smoke-profile-probe";
 export const inject = ["agents", "sessions", "sessionPersistence", "subagents", "tools", "webServer", "workspaceRegistry"];
@@ -919,6 +920,21 @@ async function run(ctx) {
             ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
             : undefined;
         if (!(scenario === "cold-rebind" && process.env.CONVIVIUM_SMOKE_COLD_PHASE === "2")) captain = createSmokeAgent(ctx, "convivium-smoke-captain");
+        const runtime = {
+            ctx,
+            scenario,
+            browserMode,
+            get captain() { return captain; },
+            meetingId,
+            setMeetingId(value) { meetingId = value; },
+            nextCall() { return nextCall++; },
+            assert,
+            callTool,
+            createInput,
+            writeResult,
+            waitForAgent,
+            waitForSpeakerContext
+        };
         if (scenario === "decision-risk-closure") {
             await runDecisionRiskClosureScenario(ctx);
             return;
@@ -1216,29 +1232,7 @@ async function run(ctx) {
             return;
         }
         if (scenario === "risk-reopen") {
-            const riskInput = createInput();
-            riskInput.agenda[0].requiredParticipantKeys = ["a"];
-            riskInput.objectiveContract.riskAcceptanceAuthorityKeys = ["a"];
-            riskInput.objectiveContract.acceptableRiskLevel = "high";
-            const created = await callTool(ctx, captain.agent, "convivium_create_meeting", riskInput, 600);
-            const meetingId = created.result.meetingId;
-            const status = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 601);
-            const manager = await waitForAgent(ctx, meetingId + "-manager-manager");
-            const plan = await callTool(ctx, manager, "convivium_submit_manager_plan", { protocolVersion: 1, meetingId, planningAttemptId: meetingId + "-planning-1", observedMeetingVersion: status.meetingVersion, requestId: "smoke-risk-plan-1", agendaItemId: status.result.activeAgendaItem.id, intent: "explore", objective: "Risk evidence", expectedOutputs: [], prohibitedTopics: [], steps: [{ participantId: "participant-a", instruction: "Report risk", reason: "manager_selected" }] }, 602);
-            const delivery = await waitForSpeakerContext(ctx, meetingId + "-participant-participant-a", plan.result.firstAttemptId);
-            const submitted = await callTool(ctx, delivery.agent, "convivium_submit_turn", { protocolVersion: 1, meetingId, turnId: delivery.value.turn.id, stepId: delivery.value.step.id, attemptId: delivery.value.attempt.attemptId, deliveryId: delivery.value.attempt.deliveryId, agendaItemId: delivery.value.activeAgendaItem.id, kind: "statement", content: "risk", mentions: [], taskIds: [], agendaRelation: "on_topic", changes: { questions: [], proposals: [], positions: [], issues: [{ title: "smoke risk", description: "smoke risk", affectedOutputIds: [], affectedCriterionIds: ["criterion-smoke-order"], violatedConstraintIds: [], impact: "high", urgency: "now", safeDefaultAvailable: false, riskLevel: "high" }], decisionProposals: [], agendaCandidates: [] } }, 603);
-            const afterIssue = await callTool(ctx, captain.agent, "convivium_meeting_status", { protocolVersion: 1, meetingId }, 604);
-            const issueCandidates = afterIssue.result.blockingFacts ?? [];
-            const issueId = issueCandidates.find((fact) => fact.kind === "issue" && fact.summary === "smoke risk")?.id;
-            assert(issueId, "risk issue missing");
-            const input = { protocolVersion: 1, meetingId, expectedMeetingVersion: afterIssue.meetingVersion, requestId: "smoke-risk-dispose-1", issueId, decision: "accept", reason: "smoke accepted risk", evidenceMessageIds: [submitted.result.messageId] };
-            const disposed = await callTool(ctx, captain.agent, "convivium_dispose_risk", input, 605);
-            const replay = await callTool(ctx, captain.agent, "convivium_dispose_risk", input, 606);
-            assert(JSON.stringify(replay.result) === JSON.stringify(disposed.result), "risk replay mismatch");
-            let conflict;
-            try { await callTool(ctx, captain.agent, "convivium_dispose_risk", { ...input, reason: "different" }, 607); } catch (error) { conflict = String(error); }
-            assert(conflict?.includes("IDEMPOTENCY_CONFLICT"), "risk idempotency conflict missing");
-            await writeResult({ ok: true, scenario, assertions: ["risk-disposed", "risk-replay-stable", "risk-idempotency-conflict"], meetingId, observed: { issueId, handRaiseId: disposed.result.completionFactId, receipt: disposed.result } });
+            await runRiskReopenScenario(runtime);
             return;
         }
         if (scenario === "completion-end") {

@@ -14,6 +14,10 @@ const smokeSupportSource = readFileSync(
     new URL("../../../scripts/smoke-profile/probe/support.js", import.meta.url),
     "utf8"
 );
+const riskReopenSource = readFileSync(
+    new URL("../../../scripts/smoke-profile/probe/scenarios/risk-reopen.js", import.meta.url),
+    "utf8"
+);
 
 describe("createSmokeEnvironment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
@@ -59,6 +63,16 @@ describe("smoke profile scenario guard", () => {
     it("keeps unknown scenario handling fail closed", () => {
         expect(smokeProfileSource).toContain('"SCENARIO_NOT_IMPLEMENTED:" + scenario');
         expect(smokeProfileSource).toContain("if (!SMOKE_SCENARIOS.includes(SMOKE_SCENARIO))");
+    });
+
+    it("dispatches risk-reopen to one scenario module", () => {
+        expect(smokeProfileSource).toContain('from "./scenarios/risk-reopen.js"');
+        expect(smokeProfileSource).toContain("await runRiskReopenScenario(runtime);");
+        expect(riskReopenSource).toContain("export async function runRiskReopenScenario(runtime)");
+        expect(riskReopenSource).toContain('"risk-disposed"');
+        expect(riskReopenSource).toContain('"risk-replay-stable"');
+        expect(riskReopenSource).toContain('"risk-idempotency-conflict"');
+        expect(smokeProfileSource.match(/runRiskReopenScenario\(/g)).toHaveLength(1);
     });
 
     it("copies the probe tree and keeps shared support exports bounded", () => {
