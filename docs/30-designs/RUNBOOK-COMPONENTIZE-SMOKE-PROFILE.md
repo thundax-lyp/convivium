@@ -10,20 +10,20 @@
 - 唯一临时交付物：`docs/30-designs/RUNBOOK-COMPONENTIZE-SMOKE-PROFILE.md`
 - 执行授权：本 RUNBOOK 的存在不授权修改产品代码、commit、push、创建 PR 或合并。进入 Execute 前，用户必须明确授权执行和 commit；push、PR 与 merge 分别需要独立授权。
 
-本任务是测试基础设施结构重构。当前 `plugin/scripts/smoke-profile.mjs` 同时拥有 CLI runner、临时 DSH probe package 生成、probe 生命周期、共享 helper 和 11 个场景，共 2,371 行；其中 `writeProbePackage()` 内嵌 1,839 行 probe 源码。终点是一个自包含的 `plugin/scripts/smoke-profile/` 目录，仓库外部只执行 `plugin/scripts/smoke-profile/index.mjs`，场景按固定模块拆分，所有现有 selector、调用顺序、结果字段、assertion label、失败和 Restore 语义保持不变。
+本任务是测试基础设施结构重构。当前 `plugin/scripts/smoke-profile.mjs` 同时拥有 CLI runner、临时 DSH probe package 生成、probe 生命周期、共享 helper 和 12 个场景，共 2,371 行；其中 `writeProbePackage()` 内嵌 1,839 行 probe 源码。终点是一个自包含的 `plugin/scripts/smoke-profile/` 目录，仓库外部只执行 `plugin/scripts/smoke-profile/index.mjs`，场景按固定模块拆分，所有现有 selector、调用顺序、结果字段、assertion label、失败和 Restore 语义保持不变。
 
 ## 2. 执行者契约
 
-1. 只在 `codex/componentize-smoke-profile` 上按 T0→T14 顺序执行；每次只执行最前面的未完成步骤。
+1. 只在 `codex/componentize-smoke-profile` 上按 T0→T15 顺序执行；每次只执行最前面的未完成步骤。
 2. T0 以前不得修改现有源码。T0 在取得明确 commit 授权后仅提交本 RUNBOOK。
-3. 每个 T1→T13 是一个独立稳定重构单元。该步全部验证 PASS 后，恰好创建一个 commit；不得合并两个步骤，不得 amend、rebase、squash、push、创建 PR 或修改 `main`。
+3. 每个 T1→T14 是一个独立稳定重构单元。该步全部验证 PASS 后，恰好创建一个 commit；不得合并两个步骤，不得 amend、rebase、squash、push、创建 PR 或修改 `main`。
 4. 每步只 stage“允许修改”列出的文件。`git diff --cached --name-only` 出现其他路径时必须 STOP，不得提交。
 5. 每次真实 smoke 前必须先运行 `pnpm --dir plugin build`，确保脚本测试当前 `src/` 对应的 `lib/`。真实 smoke 只能使用 `@deepseek-ai/dsh@0.1.1-rc.2`、`web` profile 和 `spawn` provider。
 6. 每项验证必须退出码为 0，真实 smoke 必须输出顶层 `ok: true`、`profile: "web"`、`provider: "spawn"`、与 selector 相同的 `probe.scenario` 和原有 assertion label。Host 启动或 TCP 可连不构成 PASS。
 7. 任一验证失败时保留当前工作树、不得 stage 或 commit，并报告：步骤、命令、首个失败、完整错误分类、允许文件 diff 和最小候选修复。不得删除或放宽断言，不得改产品源码来迁就 smoke。
 8. 真实 smoke 创建的临时 Host、端口和 `convivium-dsh-smoke-*` 根由入口 `finally` Restore。失败后若 Restore 未完成，必须 STOP 并报告临时根和 Host 状态；不得把未恢复环境描述为 PASS。
 9. 纯移动必须保持文本语义；场景拆分只允许参数改为下文固定的 `runtime` 接口、import/export 和缩进变化。不得更改 request ID、call ID、状态读取时点、工具输入、race、timeout、assertion、result shape 或场景顺序。
-10. 每步 PASS 后允许继续下一步；T14 完成前不得删除本 RUNBOOK。
+10. 每步 PASS 后允许继续下一步；T15 完成前不得删除本 RUNBOOK。
 
 ### PASS
 
@@ -40,7 +40,7 @@
 - `plugin/package.json::scripts["smoke:profile"]` 执行 `node scripts/smoke-profile.mjs`。
 - `plugin/scripts/smoke-profile.mjs::main` 拥有 CLI、临时目录、artifact、profile、Host 和 Restore。
 - `plugin/scripts/smoke-profile.mjs::writeProbePackage` 使用 `String.raw` 生成临时 probe 的 `index.js`。
-- 同一模板内包含 `apply`、`run`、共享 Agent/tool/status helper 和 11 个 selector。
+- 同一模板内包含 `apply`、`run`、共享 Agent/tool/status helper 和 12 个 selector。
 - `plugin/scripts/smoke-environment.mjs::createSmokeEnvironment` 只被 smoke runner 和对应 unit spec 使用。
 - `plugin/tests/unit/scripts/smoke-environment.spec.ts` 直接读取旧脚本路径并对 `decision-risk-closure` 做静态 contract 断言。
 - [Implementation Design](./CONVIVIUM-IMPLEMENTATION-DESIGN.md) 和 [DSH Smoke 操作说明](../50-operations/HOW-TO-DSH-SMOKE.md) 仍声明旧入口路径。
@@ -57,7 +57,9 @@ plugin/scripts/smoke-profile/
     ├── support.js
     └── scenarios/
         ├── baseline.js
+        ├── archive.js
         ├── completion.js
+        ├── convergence.js
         ├── decision-risk-closure.js
         ├── isolation.js
         ├── mail.js
@@ -82,7 +84,7 @@ plugin/scripts/smoke-profile/
 3. 把共享且已有多个调用方的 helper 放入 `probe/support.js`。
 4. 按 selector 分多次迁移场景，每个步骤独立真实 smoke、独立 commit。
 5. 更新 package script、unit contract、实现设计和操作文档中的入口路径与最终目录结构。
-6. 完成全部 11 个 selector、完整插件验证、文档链接和 diff 验证后删除本 RUNBOOK。
+6. 完成全部 12 个 selector、完整插件验证、文档链接和 diff 验证后删除本 RUNBOOK。
 
 ### 4.2 Non-goals
 
@@ -123,6 +125,7 @@ export const SMOKE_SCENARIOS = [
   "archive-continuation",
   "mail-race",
   "cross-meeting",
+  "convergence",
 ];
 ```
 
@@ -152,6 +155,7 @@ async function runSelectedScenario(runtime) {}
 | `baseline`, `timeout`   | `runBaselineScenario(runtime)`            | `probe/scenarios/baseline.js`              |
 | `completion-end`        | `runCompletionEndScenario(runtime)`       | `probe/scenarios/completion.js`            |
 | `task-handraise`        | `runTaskHandraiseScenario(runtime)`       | `probe/scenarios/completion.js`            |
+| `convergence`           | `runConvergenceScenario(runtime)`         | `probe/scenarios/convergence.js`           |
 | `decision-risk-closure` | `runDecisionRiskClosureScenario(runtime)` | `probe/scenarios/decision-risk-closure.js` |
 | `cross-meeting`         | `runCrossMeetingScenario(runtime)`        | `probe/scenarios/isolation.js`             |
 | `mail-race`             | `runMailRaceScenario(runtime)`            | `probe/scenarios/mail.js`                  |
@@ -295,9 +299,37 @@ PASS：真实 smoke 输出现有 9 个 decision/risk assertion label；history/c
 
 STOP：任何 Decision/risk tool input、status 读取、replay version、history 顺序或 result shape 变化。
 
-### T12：迁移 baseline 与 timeout 场景
+### T12：迁移 convergence 场景
 
-前置状态：T11 commit 是 HEAD，工作树 clean；generic baseline/timeout flow 仍在模板尾部。
+前置状态：前一提交已完成 T11 closure，工作树 clean；`runConvergenceScenario(ctx)` 仍是 probe 模板内唯一实现，`convergence` selector 已在 allowlist 中。
+
+允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/convergence.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
+
+禁止修改：其他场景文件、A 已迁移的 domain/runtime 产品代码、`result.mjs` 的 convergence contract。
+
+执行：把完整 `runConvergenceScenario(ctx)` 移为 `runConvergenceScenario(runtime)`；仅把自由变量替换为 runtime 固定字段；dispatcher 调用新 export；删除旧函数；保留 deterministic fallback、replay equality/version 和三个原 assertion label；unit 锁定唯一 call 与三个 label。
+
+验证：
+
+```bash
+pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/convergence.js tests/unit/scripts/smoke-profile.spec.ts --write
+pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts --reporter=dot
+pnpm --dir plugin build
+env CONVIVIUM_SMOKE_SCENARIO=convergence pnpm --dir plugin smoke:profile
+pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/convergence.js tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
+git diff --check
+git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/scenarios/convergence.js plugin/tests/unit/scripts/smoke-profile.spec.ts plugin/tests/unit/scripts/smoke-profile-contract.spec.ts
+git diff --cached --name-only
+git commit -m "Refactor(plugin/smoke): 拆分收敛场景"
+```
+
+PASS：真实 smoke 输出 `deterministic-fallback`、`fallback-replay-idempotent`、`fallback-status-projected`；fallback result 与 replay result 的 JSON 和 meetingVersion 相等。
+
+STOP：fallback、replay、status projection、assertion label 或 result shape 变化。
+
+### T13：迁移 baseline 与 timeout 场景
+
+前置状态：前一提交已完成 T12 closure，工作树 clean；generic baseline/timeout flow 仍在模板尾部。
 
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/baseline.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
 
@@ -324,9 +356,9 @@ PASS：baseline 输出 `baseline-transcript-acb`、`baseline-http-pause-resume`�
 
 STOP：baseline transcript/HTTP 或 timeout drain/order 语义变化。
 
-### T13：外置最终 probe 入口
+### T14：外置最终 probe 入口
 
-前置状态：T12 commit 是 HEAD，工作树 clean；模板内只剩 probe plugin 入口、runtime/stateful helper、dispatcher 和 lifecycle cleanup；所有场景已在模块中。
+前置状态：前一提交已完成 T13 closure，工作树 clean；模板内只剩 probe plugin 入口、runtime/stateful helper、dispatcher 和 lifecycle cleanup；所有场景已在模块中。
 
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/index.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`、`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`。
 
@@ -337,7 +369,7 @@ STOP：baseline transcript/HTTP 或 timeout drain/order 语义变化。
 1. 把剩余模板源码原样移动为 `probe/index.js`，使用最终显式 `switch` 和 static imports。
 2. `writeProbePackage` 删除 `String.raw` 与 `writeFile(join(probeDir, "index.js"), ...)`，只 recursive copy source probe 后写 manifest 和 patch。
 3. 删除 runner 对 probe 内部函数的注入；runner 仍从 `support.js` import `validateColdCheckpoint`。
-4. unit 断言 runner 不含 `String.raw`，probe index 对 11 个 selector 各有唯一 case，全部场景 export 路径存在，未知 selector fail closed。
+4. unit 断言 runner 不含 `String.raw`，probe index 对 12 个 selector 各有唯一 case，全部场景 export 路径存在，未知 selector fail closed。
 5. Implementation Design 的 script tree 替换为 §3.2 最终目录树，不改其他设计 section。
 6. format、验证、stage 后 commit `Refactor(plugin/smoke): 固化独立 probe 插件入口`。
 
@@ -360,9 +392,9 @@ PASS：unit/build/baseline smoke PASS；无嵌入 probe 源码；临时 package 
 
 STOP：Loader 无法解析多文件 probe、copy 布局错误、出现重复 dispatcher/fallback 或需改 DSH profile。
 
-### T14：完整验证与 RUNBOOK 收口
+### T15：完整验证与 RUNBOOK 收口
 
-前置状态：T13 commit 是 HEAD；工作树 clean；最终文件树与 §3.2 完全一致；无旧入口引用。
+前置状态：前一提交已完成 T14 closure；工作树 clean；最终文件树与 §3.2 完全一致；无旧入口引用。
 
 允许修改：`docs/30-designs/RUNBOOK-COMPONENTIZE-SMOKE-PROFILE.md`（删除）。
 
@@ -371,7 +403,7 @@ STOP：Loader 无法解析多文件 probe、copy 布局错误、出现重复 dis
 执行：
 
 1. 运行完整插件验证。
-2. build 后按固定顺序运行 11 个真实 selector；首次失败立即停止后续 selector。
+2. build 后按固定顺序运行 12 个真实 selector；首次失败立即停止后续 selector。
 3. 检查旧路径、嵌入 probe、重复 selector、相对文档链接和 diff。
 4. 全部 PASS 后删除本 RUNBOOK，确认没有 RUNBOOK 引用，再次运行文档路径与 diff 检查。
 5. stage 仅 RUNBOOK 删除，commit `Docs(repo): 收口 smoke profile 组件化手册`。
@@ -392,6 +424,7 @@ env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=archive-continuation pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=convergence pnpm --dir plugin smoke:profile
 test ! -e plugin/scripts/smoke-profile.mjs
 test ! -e plugin/scripts/smoke-environment.mjs
 test "$(rg -n 'plugin/scripts/smoke-profile\.mjs|scripts/smoke-profile\.mjs' docs plugin/package.json plugin/tests plugin/scripts --glob '!RUNBOOK-COMPONENTIZE-SMOKE-PROFILE.md' | wc -l | tr -d ' ')" = "0"
@@ -408,7 +441,7 @@ git diff --cached --name-only
 git commit -m "Docs(repo): 收口 smoke profile 组件化手册"
 ```
 
-PASS：`pnpm verify` PASS；11 个 smoke 全部满足各自固定结果且 Restore PASS；旧路径和嵌入源码扫描为 0；相对链接存在；RUNBOOK 删除后无引用；最终 commit 仅删除 RUNBOOK。
+PASS：`pnpm verify` PASS；12 个 smoke 全部满足各自固定结果且 Restore PASS；旧路径和嵌入源码扫描为 0；相对链接存在；RUNBOOK 删除后无引用；最终 commit 仅删除 RUNBOOK。
 
 STOP：完整验证或任一 smoke 失败；真实 provider/package 不可访问；Restore 失败；扫描发现旧路径/重复入口；需要修改允许范围外文件；未获得 commit 授权。
 
@@ -417,17 +450,17 @@ STOP：完整验证或任一 smoke 失败；真实 provider/package 不可访问
 | 风险/能力                        | focused evidence           | full evidence         | PASS                                                 |
 | -------------------------------- | -------------------------- | --------------------- | ---------------------------------------------------- |
 | credential stripping             | `smoke-profile.spec.ts`    | `pnpm verify`         | inherited/override `DEEPSEEK_API_KEY` 均删除         |
-| selector allowlist/unknown guard | `smoke-profile.spec.ts`    | 11 个 smoke           | 11 个固定 selector；未知值 fail closed               |
+| selector allowlist/unknown guard | `smoke-profile.spec.ts`    | 12 个 smoke           | 12 个固定 selector；未知值 fail closed               |
 | runner→probe copy/Loader         | baseline smoke             | 每个 smoke            | temp probe 多文件 import 成功，profile/provider 固定 |
-| baseline/timeout                 | T12 两命令                 | T14 重跑              | ACB/HTTP 与 timeout drain 顺序不变                   |
-| reassign                         | T6                         | T14                   | 4 个原 label                                         |
-| task/completion                  | T9、T10                    | T14                   | task 5 个、completion 4 个原 label                   |
-| risk/decision                    | T3、T11                    | T14                   | risk 3 个、decision/risk 9 个原 label                |
-| cold/archive                     | T7、T8                     | T14                   | cold 5 个、archive 4 个原 label                      |
-| mail/isolation                   | T4、T5                     | T14                   | mail 4 个、isolation 4 个原 label                    |
-| lifecycle cleanup                | 每个真实 smoke             | T14                   | Host stop、maintenance 静默、temp root 删除          |
+| baseline/timeout                 | T13 两命令                 | T15 重跑              | ACB/HTTP 与 timeout drain 顺序不变                   |
+| reassign                         | T6                         | T15                   | 4 个原 label                                         |
+| task/completion                  | T9、T10                    | T15                   | task 5 个、completion 4 个原 label                   |
+| risk/decision                    | T3、T11                    | T15                   | risk 3 个、decision/risk 9 个原 label                |
+| cold/archive                     | T7、T8                     | T15                   | cold 5 个、archive 4 个原 label                      |
+| mail/isolation                   | T4、T5                     | T15                   | mail 4 个、isolation 4 个原 label                    |
+| lifecycle cleanup                | 每个真实 smoke             | T15                   | Host stop、maintenance 静默、temp root 删除          |
 | static/type/build/package        | 每步 ESLint/Prettier/build | `pnpm verify`         | 全部退出 0                                           |
-| docs/path                        | T1 path checks             | T14 scans/link checks | 无旧入口；所有相对链接存在                           |
+| docs/path                        | T1 path checks             | T15 scans/link checks | 无旧入口；所有相对链接存在                           |
 
 非法产品输入、caller authority、stale version、terminal immutability、receipt conflict、transaction rollback、recovery 和 archive 本身不由本重构新增测试；它们由现有场景原断言和 `pnpm verify` 回归覆盖。本任务不得改变或弱化这些测试。
 
@@ -435,27 +468,28 @@ STOP：完整验证或任一 smoke 失败；真实 provider/package 不可访问
 
 | Scope                        | 实现步骤 | focused 验证    | full 验证 |
 | ---------------------------- | -------- | --------------- | --------- |
-| 独占目录与唯一入口           | T1       | unit + baseline | T14       |
-| probe copy/support 边界      | T2、T13  | unit + baseline | T14       |
-| risk/mail/isolation/reassign | T3–T6    | 对应 selector   | T14       |
-| recovery/archive             | T7–T8    | 对应 selector   | T14       |
-| completion/task              | T9–T10   | 对应 selector   | T14       |
-| decision/risk closure        | T11      | 对应 selector   | T14       |
-| baseline/timeout             | T12      | 两 selector     | T14       |
-| 文档与临时手册收口           | T1、T14  | path/link/diff  | T14       |
+| 独占目录与唯一入口           | T1       | unit + baseline | T15       |
+| probe copy/support 边界      | T2、T14  | unit + baseline | T15       |
+| risk/mail/isolation/reassign | T3–T6    | 对应 selector   | T15       |
+| recovery/archive             | T7–T8    | 对应 selector   | T15       |
+| completion/task              | T9–T10   | 对应 selector   | T15       |
+| decision/risk closure        | T11      | 对应 selector   | T15       |
+| convergence                  | T12      | 对应 selector   | T15       |
+| baseline/timeout             | T13      | 两 selector     | T15       |
+| 文档与临时手册收口           | T1、T15  | path/link/diff  | T15       |
 
-T0 仅固化本 RUNBOOK；T1–T13 每一步都由上述 Scope 授权，没有步骤修改 Non-goals。T14 只验证和删除临时文档。
+T0 仅固化本 RUNBOOK；T1–T14 每一步都由上述 Scope 授权，没有步骤修改 Non-goals。T15 只验证和删除临时文档。
 
 ## 10. 完成定义与删除条件
 
-只有以下条件全部成立，T14 才能删除本 RUNBOOK：
+只有以下条件全部成立，T15 才能删除本 RUNBOOK：
 
 1. 最终目录与 §3.2 完全一致，旧两个顶层 smoke 文件不存在。
 2. package、设计和操作文档只引用新入口。
 3. probe 不再由字符串生成；`probe/index.js` 是唯一 DSH plugin entry。
-4. 11 个 selector 各有唯一静态 dispatcher case 和唯一场景 producer。
-5. 每个 T1–T13 都是独立 commit，且其 focused smoke 已 PASS。
-6. `pnpm --dir plugin verify` 和 T14 的 11 个真实 smoke 全部 PASS。
+4. 12 个 selector 各有唯一静态 dispatcher case 和唯一场景 producer。
+5. 每个 T1–T14 都是独立 commit，且其 focused smoke 已 PASS。
+6. `pnpm --dir plugin verify` 和 T15 的 12 个真实 smoke 全部 PASS。
 7. Restore、旧路径扫描、相对链接和 `git diff --check` PASS。
 8. 没有产品行为、接口或 readiness 结论需要迁移；Implementation Design 与操作说明已保存本任务唯一长期结构结论。
 
