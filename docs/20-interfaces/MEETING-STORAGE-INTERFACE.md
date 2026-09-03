@@ -19,18 +19,35 @@ export interface MeetingRepositoryPort {
   readonly teamId: string;
   readonly meetingId: string;
   create(input: CreateMeetingInput): Promise<MeetingBootstrap>;
-  completeCreate(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>>;
-  updateCreateResult(input: UpdateCreateResultInput): Promise<CreateMeetingResult>;
+  completeCreate(
+    input: CreateMeetingInput,
+  ): Promise<CommittedResult<CreateMeetingResult>>;
+  updateCreateResult(
+    input: UpdateCreateResultInput,
+  ): Promise<CreateMeetingResult>;
   updateBootstrap(input: UpdateBootstrapInput): Promise<MeetingBootstrap>;
-  recordSessionOwnership(input: SessionOwnershipInput, now?: number): Promise<SessionOwnership>;
+  recordSessionOwnership(
+    input: SessionOwnershipInput,
+    now?: number,
+  ): Promise<SessionOwnership>;
   read(): Promise<MeetingSnapshot>;
-  readPrivateMeetingMail(mailId: string): Promise<PrivateMeetingMail | undefined>;
+  readPrivateMeetingMail(
+    mailId: string,
+  ): Promise<PrivateMeetingMail | undefined>;
   listOverduePrivateMeetingMail(now: number): Promise<PrivateMeetingMail[]>;
   hasUnfinishedPrivateMeetingMail(): Promise<boolean>;
-  sendPrivateMeetingMail(input: SendPrivateMeetingMailInput): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
-  startPrivateMeetingMail(input: StartPrivateMeetingMailInput): Promise<PrivateMeetingMail>;
-  finishPrivateMeetingMail(input: FinishPrivateMeetingMailInput): Promise<PrivateMeetingMail>;
-  cancelUnfinishedPrivateMeetingMail(input: CancelPrivateMeetingMailInput): Promise<number>;
+  sendPrivateMeetingMail(
+    input: SendPrivateMeetingMailInput,
+  ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
+  startPrivateMeetingMail(
+    input: StartPrivateMeetingMailInput,
+  ): Promise<PrivateMeetingMail>;
+  finishPrivateMeetingMail(
+    input: FinishPrivateMeetingMailInput,
+  ): Promise<PrivateMeetingMail>;
+  cancelUnfinishedPrivateMeetingMail(
+    input: CancelPrivateMeetingMailInput,
+  ): Promise<number>;
   execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>;
   claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>;
   completeOutbox(input: CompleteOutboxInput): Promise<OutboxCompletionResult>;
@@ -78,6 +95,8 @@ interface TransitionResult<T> {
 
 幂等键为 `requestId + commandKind + callerBinding`，其中 `requestId` 是调用方提供的稳定幂等身份；`requestHash` 是规范化请求内容的 hash。`attemptId`、`planningAttemptId` 等领域对象 ID 不参与 receipt 查询，也不要求 Repository 提供按这些 ID 反查提交结果的能力。
 
+B-owned Decision acceptance/disposal and risk disposition commands produce `requestHash` by calling `serializeValidatedRequestV1(value: object): string` from `plugin/src/protocol/request-idempotency.ts` on the already Schema-validated request. The function returns `JSON.stringify(value)` exactly: object insertion order and array order are significant, `undefined` properties are omitted, and strings receive no extra normalization. It does not use crypto, `repository` canonical JSON, or alter receipt string semantics. A later convergence command imports this function and does not define another serializer.
+
 - 相同幂等键和相同 hash：返回原 receipt，不再次运行 transition。
 - 相同幂等键和不同 hash：返回 `IDEMPOTENCY_CONFLICT`。
 - 相同 `requestId` 在不同领域 attempt 标识下仍由 command kind 和 caller binding 区分；同一幂等键不得产生第二份提交。
@@ -86,6 +105,8 @@ interface TransitionResult<T> {
 ### Events and sequence
 
 `DomainEventInput.type` 必须来自集中注册的 `MeetingEventType`；每个改变 Meeting 状态的成功 transition 至少提供一个 event，Repository 负责写入 `eventSeq`、提交后的 `meetingVersion` 和时间戳。单个 commit 的事件序号连续递增，顺序与输入顺序一致。校验失败、commit put 失败和幂等命中不新增领域事件。
+
+Decision acceptance uses `decision.accepted`. Decision supersede writes replacement `decision.accepted` first and old `decision.superseded` second in the same commit; revoke writes `decision.revoked`. Risk disposition uses the existing `completion_fact.added` event and does not add a risk-specific event. The supersede commit has two events and the revoke commit has one; both advance Meeting version once and write `outbox=[]`. Completion facts add only `decision_supersession/superseded` and `decision_revocation/revoked` pairs for Decision disposal; prior acceptance facts are retained.
 
 ### Outbox
 

@@ -16,6 +16,7 @@ export type ExecutionTerminalMeetingStatus =
     "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
 
 export type TurnStatus = "planned" | "running" | "completed" | "truncated" | "cancelled" | "failed";
+export type RiskLevel = "low" | "medium" | "high";
 
 export type StepStatus =
     "pending" | "assigned" | "running" | "submitted" | "skipped" | "revoked" | "failed";
@@ -69,6 +70,8 @@ export const DomainEventTypes = [
     "meeting_task.failed",
     "meeting_task.cancelled",
     "decision.accepted",
+    "decision.superseded",
+    "decision.revoked",
     "archive.sessions_closed"
 ] as const;
 
@@ -283,6 +286,7 @@ export interface MeetingIssue {
     violatedConstraintIds: readonly string[];
     blockingObjectionIds: readonly string[];
     blocking: boolean;
+    riskLevel: RiskLevel;
     impact: string;
     urgency: "now" | "before_release" | "later";
     reversibility: "reversible" | "partially_reversible" | "irreversible";
@@ -326,6 +330,7 @@ export interface MeetingDecision {
     dissentingPositionIds?: readonly string[];
     acceptanceMode: "deterministic_consensus" | "captain_acceptance" | "authorized_risk_acceptance";
     acceptanceFactIds: readonly string[];
+    supersededByDecisionId?: string;
     createdAt: number;
 }
 
@@ -385,6 +390,8 @@ export interface CompletionFact {
         | "agenda_resolution"
         | "risk_acceptance"
         | "decision_acceptance"
+        | "decision_supersession"
+        | "decision_revocation"
         | "waiver";
     subjectId: string;
     assertedBy: string;
@@ -394,6 +401,8 @@ export interface CompletionFact {
         | "approved"
         | "changes_required"
         | "accepted"
+        | "superseded"
+        | "revoked"
         | "rejected"
         | "resolved"
         | "deferred"

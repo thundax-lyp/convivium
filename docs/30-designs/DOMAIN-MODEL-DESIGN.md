@@ -18,7 +18,7 @@ Repository 不维护独立的事件词汇，不把 Domain event 通过字符串�
 
 DSH `tool/call`、`tool/result`、Session lifecycle 和其他 DSH-owned Session Event 不属于 Domain event。它们由 DSH 定义和持久化，不能写入 Convivium 的持久领域事件集合。
 
-当前 Domain event 词汇包括会议生命周期（`meeting.*`）、Turn 生命周期（`turn.*`）、speaker 分配与执行（`speaker.*`、`speaker_attempt.*`）、Manager plan（`manager_plan.*`）、MeetingTask 与 HandRaise（`meeting_task.*`、`hand_raise.*`）以及正式会议事实（`message.added`、`decision.added`、`archive.sessions_closed`）。具体允许值由 `plugin/src/domain/model.ts` 的 `DomainEventTypes` 集中定义。
+当前 Domain event 词汇包括会议生命周期（`meeting.*`）、Turn 生命周期（`turn.*`）、speaker 分配与执行（`speaker.*`、`speaker_attempt.*`）、Manager plan（`manager_plan.*`）、MeetingTask 与 HandRaise（`meeting_task.*`、`hand_raise.*`）以及正式会议事实（`message.added`、`decision.accepted`、`decision.superseded`、`decision.revoked`、`archive.sessions_closed`）。具体允许值由 `plugin/src/domain/model.ts` 的 `DomainEventTypes` 集中定义。
 
 ## Authority And Boundaries
 
@@ -117,7 +117,7 @@ MeetingMessage 的 agendaRelation 必须为 on_topic、supporting_context、new_
 
 ### MeetingIssue
 
-必须包含 id、title、description、sourceMessageId、agendaItemId?、affectedOutputIds、affectedCriterionIds、violatedConstraintIds、blockingObjectionIds、impact、urgency、reversibility、safeDefaultAvailable、disposition、rationale、owner?、relatedTaskIds 和 status。
+必须包含 id、title、description、sourceMessageId、agendaItemId?、affectedOutputIds、affectedCriterionIds、violatedConstraintIds、blockingObjectionIds、blocking、riskLevel、impact、urgency、reversibility、safeDefaultAvailable、disposition、rationale、owner?、relatedTaskIds 和 status。`riskLevel` 为 `low|medium|high`；legacy 持久记录可在读取边界缺失该字段，但风险处置必须 fail closed，不得推断默认值。
 
 Issue 只有引用 required output、acceptance criterion、hard constraint 或 blocking objection 时才能标记为 blocking。
 
@@ -163,13 +163,13 @@ TaskStatus 为 requested、queued、running、completed、failed 或 cancelled�
 
 Proposal 必须包含 id、title、description、proposedBy、agendaItemId、revision、status、positions、createdAt 和 updatedAt。
 
-Position 必须包含 id、proposalId、participant、position、blocking、proposalRevision 和 updatedAt，并允许 reason?。
+Position 必须包含 `id`、`participantId`、`position`、`blocking` 和 `proposalRevision`，并允许 `reason?`；不增加 `proposalId` 或 `updatedAt`。
 
 新 proposal revision 不得继承旧 revision 的 Position 或 acceptance；旧 revision 必须保留到不再需要审计为止。
 
 ### MeetingDecision
 
-Decision 必须包含 id、agendaItemId、proposalId、proposalRevision、statement、rationale、status、acceptanceMode、acceptedBy、dissentingPositionIds、acceptanceFactIds 和 createdAt。
+Decision 必须包含 id、agendaItemId、proposalId、proposalRevision、statement、rationale、status、acceptanceMode、acceptedBy、dissentingPositionIds、acceptanceFactIds 和 createdAt，并允许 `supersededByDecisionId?`。V1 的 `acceptanceMode` 只有 `captain_acceptance`；不存在 deterministic 或 risk auto-accept。
 
 Decision 只能由 Runtime 生成，Participant 不能直接创建或覆盖。
 
@@ -199,7 +199,7 @@ HandRaise 是调度输入，不是 transcript、Decision 或 CompletionFact。
 
 ## Archive And Continuation
 
-ArchivePackage 必须包含 objectiveContract、finalSummary、artifactRefs、acceptedDecisions、proposals、completionFacts、agenda、issues、unresolvedQuestions、parkingLot、formalTranscript、participantProvenance、managerPromptVersion、termination、endedAt 和 materializedAt。
+ArchivePackage 必须包含 objectiveContract、finalSummary、artifactRefs、acceptedDecisions、decisionHistory、proposals、completionFacts、agenda、issues、unresolvedQuestions、parkingLot、formalTranscript、participantProvenance、managerPromptVersion、termination、endedAt 和 materializedAt。`acceptedDecisions` 只包含当前 accepted Decision；`decisionHistory` 保留全部 Decision。
 
 ArchivePackage 不得包含可恢复的 Agent Session ID、capability、完整 Agent 配置、工作目录、MCP、隐藏推理、私有工具过程、私有 mailbox、SpeakerAttempt、delivery/outbox payload 或完整 speaker context。
 

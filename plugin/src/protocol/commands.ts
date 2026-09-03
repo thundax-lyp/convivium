@@ -1,7 +1,9 @@
 import Schema from "@deepseek-ai/schemastery";
 import { ProtocolVersionSchema } from "./schema.js";
 import type {
+    CaptainRiskDispositionInputV1,
     CreateMeetingInputV1,
+    CaptainDecisionDispositionInputV1,
     FinishMeetingMailInputV1,
     SendMeetingMessageInputV1
 } from "./types.js";
@@ -14,6 +16,14 @@ const array = <T>(schema: Schema<T>) => Schema.array(schema).required();
 const enumOf = <T extends string>(values: readonly T[]) => Schema.union(values).required();
 const optionalEnumOf = <T extends string>(values: readonly T[]) => Schema.union(values);
 const optionalObject = <T>(schema: Schema<T>) => Schema.union([schema, Schema.const(undefined)]);
+
+function assertExactKeys(value: object, expected: readonly string[], label: string): void {
+    const actual = Object.keys(value).sort();
+    const required = [...expected].sort();
+    if (actual.length !== required.length || actual.some((key, index) => key !== required[index])) {
+        throw new TypeError(`${label} has unexpected fields`);
+    }
+}
 
 const participantSpec = Schema.object({
     participantKey: string(),
@@ -106,16 +116,43 @@ export const ResumeMeetingInputSchema = Schema.object({
     requestId: string()
 });
 
-export const CaptainRiskDispositionInputSchema = Schema.object({
+const captainRiskDispositionInput = Schema.object({
     protocolVersion: ProtocolVersionSchema,
-    meetingId: string(),
+    meetingId: nonEmptyString(),
     expectedMeetingVersion: number(),
-    requestId: string(),
-    issueId: string(),
+    requestId: nonEmptyString(),
+    issueId: nonEmptyString(),
     decision: enumOf(["accept", "reject"] as const),
-    reason: string(),
-    evidenceMessageIds: array(string())
+    reason: nonEmptyString(),
+    evidenceMessageIds: array(nonEmptyString())
 });
+
+export const CaptainRiskDispositionInputSchema: Schema<unknown, CaptainRiskDispositionInputV1> =
+    Schema.transform(captainRiskDispositionInput, (value) => {
+        assertExactKeys(
+            value,
+            [
+                "protocolVersion",
+                "meetingId",
+                "expectedMeetingVersion",
+                "requestId",
+                "issueId",
+                "decision",
+                "reason",
+                "evidenceMessageIds"
+            ],
+            "captain risk disposition input"
+        );
+        const evidenceMessageIds = value.evidenceMessageIds;
+        if (
+            !Array.isArray(evidenceMessageIds) ||
+            evidenceMessageIds.length === 0 ||
+            new Set(evidenceMessageIds).size !== evidenceMessageIds.length
+        ) {
+            throw new TypeError("risk evidenceMessageIds must be unique");
+        }
+        return value as CaptainRiskDispositionInputV1;
+    }) as Schema<unknown, CaptainRiskDispositionInputV1>;
 
 const reassignTurnInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
@@ -224,7 +261,8 @@ const issueClaim = Schema.object({
     violatedConstraintIds: array(string()),
     impact: enumOf(["none", "low", "medium", "high", "critical"] as const),
     urgency: enumOf(["now", "before_release", "later"] as const),
-    safeDefaultAvailable: boolean()
+    safeDefaultAvailable: boolean(),
+    riskLevel: enumOf(["low", "medium", "high"] as const)
 });
 
 const decisionProposalClaim = Schema.object({
@@ -243,6 +281,40 @@ export const CaptainDecisionAcceptanceInputSchema = Schema.object({
     reason: nonEmptyString(),
     evidenceMessageIds: array(string())
 });
+
+const captainDecisionDispositionInput = Schema.object({
+    protocolVersion: Schema.const(1).required(),
+    meetingId: nonEmptyString(),
+    expectedMeetingVersion: number(),
+    requestId: nonEmptyString(),
+    decisionId: nonEmptyString(),
+    action: enumOf(["supersede", "revoke"] as const),
+    reason: nonEmptyString(),
+    evidenceMessageIds: array(nonEmptyString()),
+    replacementCandidateId: Schema.string()
+});
+
+export const CaptainDecisionDispositionInputSchema: Schema<
+    unknown,
+    CaptainDecisionDispositionInputV1
+> = Schema.transform(captainDecisionDispositionInput, (value) => {
+    const expected = [
+        "protocolVersion",
+        "meetingId",
+        "expectedMeetingVersion",
+        "requestId",
+        "decisionId",
+        "action",
+        "reason",
+        "evidenceMessageIds",
+        ...(value.action === "supersede" ? ["replacementCandidateId"] : [])
+    ];
+    assertExactKeys(value, expected, "captain decision disposition input");
+    if (value.action === "supersede" && !value.replacementCandidateId?.trim()) {
+        throw new TypeError("supersede requires replacementCandidateId");
+    }
+    return value;
+}) as Schema<unknown, CaptainDecisionDispositionInputV1>;
 
 const agendaCandidateClaim = Schema.object({
     title: string(),

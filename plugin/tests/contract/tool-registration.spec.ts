@@ -150,6 +150,13 @@ describe("meeting tool registration", () => {
                     code: "UNAUTHORIZED_CALLER",
                     message: "not exercised",
                     retryable: false
+                }),
+                disposeDecision: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNAUTHORIZED_CALLER",
+                    message: "not exercised",
+                    retryable: false
                 })
             }
         });
@@ -211,6 +218,7 @@ describe("meeting tool registration", () => {
 
         expect(definitions.map((definition) => definition.name)).toEqual([
             "convivium_accept_decision",
+            "convivium_dispose_decision",
             "convivium_dispose_risk",
             "convivium_create_meeting",
             "convivium_meeting_status",
@@ -445,6 +453,10 @@ describe("meeting tool registration", () => {
                     calls.push(`accept:${caller.kind}`),
                     denied()
                 ),
+                disposeDecision: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`dispose-decision:${caller.kind}`),
+                    denied()
+                ),
                 endMeeting: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`end:${caller.kind}`),
                     denied()
@@ -586,6 +598,16 @@ describe("meeting tool registration", () => {
                 reason: "not accepted",
                 evidenceMessageIds: ["message-1"]
             },
+            convivium_dispose_decision: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                requestId: "dispose-decision-1",
+                decisionId: "decision-1",
+                action: "revoke",
+                reason: "Decision is no longer valid",
+                evidenceMessageIds: ["message-1"]
+            },
             convivium_send_message: {
                 protocolVersion: 1,
                 meetingId: "meeting-1",
@@ -645,6 +667,7 @@ describe("meeting tool registration", () => {
 
         expect(calls).toEqual([
             "accept:participant",
+            "dispose-decision:participant",
             "risk:participant",
             "create:participant",
             "status:participant",

@@ -82,6 +82,7 @@ export interface SubmittedIssueInput {
     impact: string;
     urgency: "now" | "before_release" | "later";
     safeDefaultAvailable: boolean;
+    riskLevel: "low" | "medium" | "high";
 }
 
 export interface SubmittedQuestionInput {

@@ -206,6 +206,45 @@ function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElemen
                       )
                   )
         ),
+        createElement(
+            "section",
+            { "aria-label": "Pending decisions" },
+            createElement("h4", null, "Pending decisions"),
+            view.pendingDecisionCandidates.length === 0
+                ? createElement("p", null, "No pending decisions.")
+                : createElement(
+                      "ol",
+                      null,
+                      view.pendingDecisionCandidates.map((candidate) =>
+                          createElement(
+                              "li",
+                              { key: candidate.id },
+                              row("Statement", candidate.statement),
+                              row("Rationale", candidate.rationale)
+                          )
+                      )
+                  )
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Risks" },
+            createElement("h4", null, "Risks"),
+            view.risks.length === 0
+                ? createElement("p", null, "No risks.")
+                : createElement(
+                      "ol",
+                      null,
+                      view.risks.map((risk) =>
+                          createElement(
+                              "li",
+                              { key: risk.id },
+                              row("Title", risk.title),
+                              row("Status", risk.status),
+                              row("Disposition", risk.disposition)
+                          )
+                      )
+                  )
+        ),
         view.termination === undefined
             ? null
             : createElement(

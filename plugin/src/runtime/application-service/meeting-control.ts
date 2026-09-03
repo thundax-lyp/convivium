@@ -14,6 +14,7 @@ import type {
     ReassignTurnInputV1,
     ReassignTurnResultV1
 } from "../../protocol/index.js";
+import { serializeValidatedRequestV1 } from "../../protocol/request-idempotency.js";
 import { RepositoryError } from "../../repository/errors.js";
 import type { CommandAuthorization, SessionOwnership } from "../../repository/types.js";
 import type { MeetingRepositoryPort as MeetingRepository } from "../../repository/meeting-repository-port.js";
@@ -151,7 +152,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                         callerBinding: `session:${caller.sessionId}`,
                         capabilityId: `captain:${caller.sessionId}`
                     },
-                    requestHash: JSON.stringify(input),
+                    requestHash: serializeValidatedRequestV1(input),
                     expectedMeetingVersion: input.expectedMeetingVersion,
                     transition: (snapshot) => {
                         const state = snapshot.state as unknown as MeetingState;

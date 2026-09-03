@@ -69,7 +69,9 @@ import type {
     SendMeetingMessageInputV1,
     TurnSubmissionV1,
     CaptainDecisionAcceptanceInputV1,
-    CaptainDecisionAcceptanceResultV1
+    CaptainDecisionAcceptanceResultV1,
+    CaptainDecisionDispositionInputV1,
+    CaptainDecisionDispositionResultV1
 } from "../../protocol/index.js";
 import type { MeetingOwnershipLookup } from "../../dsh/index.js";
 
@@ -87,6 +89,11 @@ export interface MeetingToolRuntime {
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<CaptainDecisionAcceptanceResultV1> | ProtocolErrorV1>;
+    disposeDecision(
+        input: CaptainDecisionDispositionInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<CaptainDecisionDispositionResultV1> | ProtocolErrorV1>;
     sendMeetingMessage(
         input: SendMeetingMessageInputV1,
         caller: MeetingToolCaller,
@@ -626,6 +633,7 @@ export function createCreateStatusRuntime(
         reassignTurn: controlApplication.reassignTurn,
         disposeRisk: controlApplication.disposeRisk,
         acceptDecision: decisionApplication.acceptDecision,
+        disposeDecision: decisionApplication.disposeDecision,
         endMeeting: endApplication.endMeeting,
         endLocalMeeting: endApplication.endLocalMeeting,
         scanExpiredSpeakerAttempts,

@@ -99,6 +99,10 @@ CurrentState(headSeq)
 4. 不可变追加该 `Commit`。持久化成功前不得更新权威内存 projection、执行外部副作用或返回成功。
 5. 追加成功后才把 commit 应用于内存 projection，并允许后续工作观察它。
 
+FR-7 Decision and risk lifecycle uses this same single-commit boundary. Decision acceptance writes `decision.accepted`; supersede writes replacement `decision.accepted` followed by old `decision.superseded` in one ordered commit; revoke writes `decision.revoked`. Risk disposition writes the existing `completion_fact.added` event, supersedes prior active risk acceptance facts before adding the new active fact, and writes `outbox=[]`. `decisionHistory` and all Issue/risk facts are part of the snapshot projection and therefore recover from the checkpoint plus continuous commit tail without a second store.
+
+All B-owned command request hashes are produced after Schema validation by `serializeValidatedRequestV1(value: object): string`, whose sole implementation returns `JSON.stringify(value)`. Undefined properties are omitted, array/object insertion order is significant, and no crypto, repository canonical JSON, or receipt string rewrite is permitted.
+
 如果进程在追加返回前终止，恢复时读取同一 `seq`：record 不存在表示未提交；内容与 digest 一致表示完整提交；同 key 内容冲突表示存储不一致，必须隔离而不是猜测。
 
 ### Recovery
