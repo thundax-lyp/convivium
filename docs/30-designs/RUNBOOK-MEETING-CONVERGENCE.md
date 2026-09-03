@@ -328,48 +328,9 @@ Terminal 有 blocking disagreement 时 `status='no_consensus',termination.code='
 
 ## 7. 机械执行步骤
 
-### P0：baseline、唯一 RUNBOOK 与 B-first 门禁
-
-前置状态：位于仓库根；用户改动必须原样保留。
-
-允许修改：无。
-
-禁止修改：全部文件；禁止 stash/clean/reset/checkout。
-
-执行：运行下列命令；任何失败立即 STOP。
-
-验证：
-
-```bash
-test "$(git branch --show-current)" = "codex/orchestration-convergence-runbook"
-test -z "$(git status --short | grep -v '^?? docs/30-designs/RUNBOOK-MEETING-CONVERGENCE.md$')"
-test "$(rg --files docs/30-designs -g 'RUNBOOK-*.md' | sort)" = "docs/30-designs/RUNBOOK-MEETING-CONVERGENCE.md"
-git fetch origin
-git merge-base --is-ancestor origin/main HEAD
-git diff --exit-code 7291ba012475915e02648addb60ca3c6223425e1 origin/main -- plugin/src/repository plugin/src/runtime/outbox-worker.ts plugin/src/domain/transitions/manager-planning.ts plugin/src/domain/transitions/turn-advancement.ts
-rg -n '0\.1\.1-rc\.2' plugin/package.json plugin/pnpm-lock.yaml
-test -f plugin/src/protocol/request-idempotency.ts
-rg -U -n 'export function serializeValidatedRequestV1\(\s*value: object\s*\): string' plugin/src/protocol/request-idempotency.ts
-rg -U -n 'pendingDecisionCandidates: readonly PublicDecisionCandidateV1\[\]' plugin/src/protocol/types.ts
-rg -U -n 'decisionHistory: readonly PublicDecisionV1\[\]' plugin/src/protocol/types.ts
-rg -U -n 'risks: readonly PublicRiskV1\[\]' plugin/src/protocol/types.ts
-rg -U -n 'interface IssueClaimV1[\s\S]*riskLevel: RiskLevelV1' plugin/src/protocol/types.ts
-rg -U -n 'interface MeetingIssue[\s\S]*riskLevel: "low" \| "medium" \| "high"' plugin/src/domain/model.ts
-rg -n 'CaptainDecisionDispositionInputV1|CaptainDecisionDispositionResultV1' plugin/src/protocol/types.ts
-rg -n 'CaptainDecisionDispositionInputSchema' plugin/src/protocol/commands.ts
-rg -n 'CaptainDecisionDispositionResultSchema' plugin/src/protocol/results.ts
-rg -n 'convivium_dispose_decision' plugin/src/tools/register-tools.ts plugin/tests/contract/tool-registration.spec.ts
-pnpm --dir plugin exec vitest run tests/unit/protocol/request-idempotency.spec.ts tests/unit/domain/transitions/decision-disposition.spec.ts tests/unit/domain/completion.spec.ts tests/contract/protocol-schema.spec.ts tests/contract/status-projection.spec.ts tests/contract/tool-registration.spec.ts
-pnpm --dir plugin typecheck
-```
-
-PASS：全部退出 0；工作树除唯一 untracked RUNBOOK 外 clean；`origin/main` 是 HEAD ancestor；B 相对共同基线未修改 shared repository/outbox/Manager/convergence transition；§3.4 的 B types、optionality、Schema、tool、projection visibility 和 serializer 签名均由源码匹配与 B focused tests 证明。
-
-STOP：任一失败，报告 branch/HEAD/status、缺失 symbol 和命令输出；不得实现 stub、copy helper、修改 B contract 或继续 T1。失败恢复：只读，无副作用。
-
 ### T1：迁移 D6-D10 到正式真相源
 
-前置状态：P0 PASS。
+前置状态：P0 已通过；`refs/remotes/convivium-two/decision-risk-closure` 精确为 `975d9b76db83fd02c95a60e6c7fdc7fda8d2df8d`，共同基线 `7291ba012475915e02648addb60ca3c6223425e1` 是其 ancestor 且该 B ref 是当前 HEAD ancestor；P0 验证的 B symbols、focused tests、typecheck 与 shared-file diff gate 保持通过；A 仓库只保留本 RUNBOOK。
 
 允许修改：`docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`、`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/20-interfaces/MEETING-STORAGE-INTERFACE.md`、`docs/30-designs/DOMAIN-MODEL-DESIGN.md`、`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`。
 
