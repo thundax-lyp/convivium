@@ -9,14 +9,20 @@ description: 开发或修改 DeepSeek Harness Cordis 包与插件，包括模型
 
 ## 编辑前
 
-先确认目标代码确实基于 `dsh-v0.1.1-rc.2`，再阅读目标仓库根目录和目标路径下的贡献说明，并检查所属包与最接近的现有实现。目标版本不匹配时，不套用代码骨架；先告知用户该 skill 的基线限制。
+按以下顺序执行：
 
-先根据用户要求的可观察结果选择主路径，再叠加持久化、配置、凭证、并发资源和交付物等横切路径。读取 `references/plugin-development-routing.md`，只加载命中行涉及的 reference，并用表中链接定位相关章节；选中的 reference 要完整读取。维护本 skill 或核对依据时，读取 `references/source-map.md` 和 testing reference 的“Skill 发布维护”章节。
+1. 从目标 package manifest 和 lockfile 确认 DSH 版本。只有 `dsh-v0.1.1-rc.2` 可以直接使用本 skill 的 API 与代码骨架；版本不同则停止套用本 skill，并报告实际版本。
+2. 阅读目标仓库根目录、目标 package 和目标路径的贡献说明。
+3. 打开 `references/plugin-development-routing.md`，按“用户要求插件具体做什么”命中功能行；完整读取该行链接的 reference。
+4. 在目标版本的公开类型、运行时代码和现有调用方中查找该功能已经使用的 DSH Service、Event、Tool、Slot、Provider 或 Loader entry。先记录准确 package、context key、symbol 和签名，再设计修改。
+5. 只有现有 DSH API 无法完成已确认行为时，才允许新增 Service Definition、Provider、registry、adapter 或 fallback。无法指出缺失的准确 API 或当前消费者时，不新增这些结构。
+
+同一任务命中多个功能行时读取这些行的并集，不读取无关 reference。维护本 skill 或核对依据时，额外读取 `references/source-map.md` 和 testing reference 的“Skill 发布维护”章节。
 
 ## 实现规则
 
 - 通过已记录的 plugin、service 或 event 扩展点实现；存在扩展点时，不修改 agent loop。
-- 遵循仓库的插件导出约定。本 skill 记录的 DSH 约定是：Service 包默认导出 Service class；函数插件具名导出 `name`、`inject`、可选 `Config` 与 `apply`。
+- 遵循仓库的插件导出约定。Service 包默认导出 Service class。函数插件具名导出 `apply`；只有插件确实需要稳定名称、必需依赖或配置时，才分别导出 `name`、`inject` 或 `Config`。不要为凑齐固定入口形状添加空 metadata。
 - 每项贡献都必须有生命周期所有者。事件监听直接调用 `ctx.on()`。当注册 API 明确会创建 Cordis effect 时直接调用；rc.2 的 tool、system-prompt section 和 LLM adapter 注册属于这种情况。其他只返回未托管 disposer 的 registry 必须由插件的 `ctx.effect()` 接管。
 - 模型可见输入必须能从 Session log 重建。先确认所属路径是否已通过 request header、message 或 tool result 记录完整证据；只有插件引入新的持久事实时，才声明并追加由该插件拥有的 Session event。
 - 当 Service Definition、Provider、Consumer 会独立演进时，将可替换能力拆成这三个角色。Consumer 依赖 Definition，不依赖具体 Provider。
