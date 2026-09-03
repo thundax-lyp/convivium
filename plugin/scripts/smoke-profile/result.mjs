@@ -21,5 +21,18 @@ export function validateScenarioResult(value, expectedScenario) {
             throw new Error("Decision risk smoke assertions are incomplete.");
         }
     }
+    if (expectedScenario === "convergence") {
+        const requiredAssertions = [
+            "deterministic-fallback",
+            "fallback-replay-idempotent",
+            "fallback-status-projected"
+        ];
+        if (
+            value.assertions.length !== requiredAssertions.length ||
+            requiredAssertions.some((label) => !value.assertions.includes(label))
+        ) {
+            throw new Error("Convergence smoke assertions are incomplete.");
+        }
+    }
     return value;
 }

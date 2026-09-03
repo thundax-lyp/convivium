@@ -276,6 +276,7 @@ const turn = Schema.object({
     seq: requiredNumber(),
     agendaItemId: requiredString(),
     intent: requiredString(),
+    reason: requiredString(),
     objective: requiredString(),
     expectedOutputs: requiredArray(requiredString()),
     prohibitedTopics: requiredArray(requiredString()),
@@ -345,7 +346,12 @@ const proposal = Schema.object({
 });
 
 const waitState = Schema.object({
-    reason: requiredString(),
+    reason: enumOf([
+        "blocking_task",
+        "required_participant_unavailable",
+        "captain_action"
+    ] as const),
+    waitingSince: requiredNumber(),
     taskIds: requiredArray(requiredString()),
     participantIds: requiredArray(requiredString()),
     deadlineAt: Schema.number(),
@@ -370,6 +376,10 @@ const active = Schema.object({
     blockingFacts: requiredArray(blockingFact),
     meetingTasks: requiredArray(meetingTask),
     status: enumOf(["created", "running", "waiting", "paused", "converging"] as const),
+    stallCount: requiredNumber(),
+    maxStalls: requiredNumber(),
+    replanCount: requiredNumber(),
+    maxReplans: requiredNumber(),
     currentTurn: optionalObject(turn),
     currentSpeakerId: Schema.string(),
     currentAttemptId: Schema.string(),

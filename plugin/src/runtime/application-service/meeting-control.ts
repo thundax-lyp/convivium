@@ -1,9 +1,14 @@
 import {
     DomainError,
+    needsSemanticArbitration,
     planRoundRobinTurn,
+    planRuleBasedTurn,
+    rankRulePlanningCandidates,
+    requiredPlanningBlockers,
     reassignTurn as reassignTurnTransition,
     applyCompletionClaims,
     judgeTurnCompletion,
+    nextManagerPlanningIds,
     transitionMeeting,
     type MeetingState
 } from "../../domain/index.js";
@@ -389,30 +394,39 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                             "The live Captain parent is unavailable for resume dispatch."
                         );
                     }
-                    const transition = transitionMeeting(
-                        snapshot.state as unknown as MeetingState,
-                        target,
-                        {
-                            now: options.now?.() ?? Date.now(),
-                            reason:
-                                input.reason ??
-                                `${source.kind === "captain" ? "captain" : "local host"} ${target} meeting`,
-                            ...(target === "paused"
-                                ? {
-                                      pause: {
-                                          at: options.now?.() ?? Date.now(),
-                                          by: {
-                                              kind: source.kind,
-                                              actorId:
-                                                  source.kind === "captain"
-                                                      ? source.sessionId
-                                                      : "loopback-web"
-                                          }
+                    const currentState = snapshot.state as unknown as MeetingState;
+                    if (
+                        target === "running" &&
+                        currentState.waitState?.reason === "required_participant_unavailable"
+                    ) {
+                        const blockers = requiredPlanningBlockers(currentState);
+                        if (blockers.length > 0) {
+                            throw new DomainError(
+                                "REQUIRED_SPEAKER_UNAVAILABLE",
+                                `required Participants remain unavailable: ${blockers.join(",")}`
+                            );
+                        }
+                    }
+                    const transition = transitionMeeting(currentState, target, {
+                        now: options.now?.() ?? Date.now(),
+                        reason:
+                            input.reason ??
+                            `${source.kind === "captain" ? "captain" : "local host"} ${target} meeting`,
+                        ...(target === "paused"
+                            ? {
+                                  pause: {
+                                      at: options.now?.() ?? Date.now(),
+                                      by: {
+                                          kind: source.kind,
+                                          actorId:
+                                              source.kind === "captain"
+                                                  ? source.sessionId
+                                                  : "loopback-web"
                                       }
                                   }
-                                : {})
-                        }
-                    );
+                              }
+                            : {})
+                    });
                     let nextState = transition.state as MeetingState;
                     let extraEvents: DomainEventInput[] = [];
                     let outbox: Array<{
@@ -429,32 +443,52 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                                     : participant
                             )
                         };
-                        if (nextState.selectionMode === "manager") {
-                            const planningSequence = nextState.replanCount + 1;
-                            const planningAttemptId = `${nextState.id}-planning-${planningSequence}`;
-                            const planningDeliveryId = `${nextState.id}-planning-delivery-${planningSequence}`;
+                        const planningNow = options.now?.() ?? Date.now();
+                        const managerRequested =
+                            nextState.selectionMode === "manager" ||
+                            (nextState.selectionMode === "hybrid" &&
+                                needsSemanticArbitration(
+                                    nextState,
+                                    rankRulePlanningCandidates(nextState),
+                                    "normal"
+                                ));
+                        const managerAvailable =
+                            nextState.manager.status !== "failed" &&
+                            nextState.manager.status !== "closed";
+                        if (managerRequested && managerAvailable) {
+                            const planningIds = nextManagerPlanningIds(nextState);
                             nextState = {
                                 ...nextState,
-                                replanCount: planningSequence,
+                                managerPlanningSeq: planningIds.managerPlanningSeq,
                                 manager: {
                                     ...nextState.manager,
                                     status: "planning",
                                     currentPlanningAttempt: {
-                                        id: planningAttemptId,
+                                        id: planningIds.planningAttemptId,
                                         meetingId: nextState.id,
                                         observedMeetingVersion: nextState.version,
                                         reason: "next_turn",
-                                        deliveryId: planningDeliveryId,
+                                        deliveryId: planningIds.deliveryId,
                                         status: "running",
-                                        createdAt: options.now?.() ?? Date.now()
+                                        createdAt: planningNow,
+                                        ...(nextState.limits.speakerAttemptTimeoutMs === undefined
+                                            ? {}
+                                            : {
+                                                  deadlineAt:
+                                                      planningNow +
+                                                      nextState.limits.speakerAttemptTimeoutMs
+                                              })
                                     }
                                 }
                             };
                             outbox = [
                                 {
-                                    deliveryId: planningDeliveryId,
+                                    deliveryId: planningIds.deliveryId,
                                     kind: "dispatch",
-                                    payload: { role: "manager", planningAttemptId }
+                                    payload: {
+                                        role: "manager",
+                                        planningAttemptId: planningIds.planningAttemptId
+                                    }
                                 }
                             ];
                             extraEvents = [
@@ -462,7 +496,8 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                                     type: "manager_plan.started",
                                     payload: {
                                         meetingId: nextState.id,
-                                        planningAttemptId,
+                                        planningAttemptId: planningIds.planningAttemptId,
+                                        deliveryId: planningIds.deliveryId,
                                         meetingVersion: nextState.version
                                     }
                                 }
@@ -477,20 +512,35 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                                 outbox
                             };
                         }
-                        const planned = planRoundRobinTurn(
-                            nextState,
-                            {
-                                turnId: `turn-${nextState.turnSeq + 1}`,
-                                stepId: (participantId, index) => `step-${participantId}-${index}`
-                            },
-                            options.now?.() ?? Date.now()
-                        );
-                        const running = assignTurnAttempt(
-                            nextState,
-                            planned,
-                            0,
-                            options.now?.() ?? Date.now()
-                        );
+                        const planned =
+                            nextState.selectionMode === "round_robin"
+                                ? planRoundRobinTurn(
+                                      nextState,
+                                      {
+                                          turnId: `turn-${nextState.turnSeq + 1}`,
+                                          stepId: (participantId, index) =>
+                                              `step-${participantId}-${index}`
+                                      },
+                                      planningNow
+                                  )
+                                : planRuleBasedTurn(
+                                      nextState,
+                                      {
+                                          turnId: `turn-${nextState.turnSeq + 1}`,
+                                          stepId: (participantId, index) =>
+                                              `step-${participantId}-${index}`
+                                      },
+                                      planningNow,
+                                      "normal"
+                                  );
+                        const directedPlan =
+                            managerRequested && !managerAvailable
+                                ? {
+                                      ...planned,
+                                      reason: "manager_fallback" as const
+                                  }
+                                : planned;
+                        const running = assignTurnAttempt(nextState, directedPlan, 0, planningNow);
                         const speaker = running.steps[0];
                         nextState = {
                             ...nextState,

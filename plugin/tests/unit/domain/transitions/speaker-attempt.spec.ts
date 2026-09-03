@@ -140,7 +140,8 @@ describe("SpeakerAttempt timeout", () => {
         expect(result.state).toMatchObject({
             status: "waiting",
             waitState: {
-                reason: "required Participant a is unavailable",
+                reason: "required_participant_unavailable",
+                waitingSince: now + 1,
                 participantIds: ["a"],
                 taskIds: [],
                 resumeAgendaItemId: "agenda-1"
@@ -159,19 +160,13 @@ describe("SpeakerAttempt timeout", () => {
             ])
         );
         expect(result.effect.events.map(({ type }) => type)).not.toContain("turn.planned");
-        expect(result.effect.events).toContainEqual({
-            type: "manager_plan.failed",
-            payload: expect.objectContaining({
-                participantId: "a",
-                code: "REQUIRED_SPEAKER_UNAVAILABLE"
-            })
-        });
+        expect(result.effect.events.map(({ type }) => type)).not.toContain("manager_plan.failed");
         expect(result.effect.events.map(({ type }) => type)).toContain("meeting_task.cancelled");
         expect(result.effect.events).toContainEqual(
             expect.objectContaining({
                 type: "meeting.waiting",
                 payload: expect.objectContaining({
-                    reason: "required Participant a is unavailable"
+                    reason: "required_participant_unavailable"
                 })
             })
         );

@@ -42,6 +42,10 @@ function statusResult(
         blockingFacts: [],
         meetingTasks: [],
         status,
+        stallCount: 0,
+        maxStalls: 3,
+        replanCount: 0,
+        maxReplans: 1,
         pendingHandRaises: [],
         ...(withCurrentAttempt
             ? {
@@ -50,6 +54,7 @@ function statusResult(
                       seq: 1,
                       agendaItemId: "agenda-1",
                       intent: "Review scope",
+                      reason: "Review scope",
                       objective: "Verify local control",
                       expectedOutputs: [],
                       prohibitedTopics: [],

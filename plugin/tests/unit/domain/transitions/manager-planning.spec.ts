@@ -35,6 +35,7 @@ describe("manager planning transitions", () => {
                     createdAt: now
                 }
             },
+            meetingTasks: [],
             participants: [
                 {
                     id: "a",
@@ -136,30 +137,36 @@ describe("manager planning transitions", () => {
                 }
             }
         };
-        expect(() =>
-            submitManagerPlan(
-                state,
-                {
-                    agendaItemId: "agenda-1",
-                    intent: "explore",
-                    objective: "Objective",
-                    expectedOutputs: [],
-                    prohibitedTopics: [],
-                    steps: [{ participantId: "a", instruction: "A", reason: "manager_selected" }]
-                },
-                {
-                    meetingId: "meeting-1",
-                    planningAttemptId: "planning-1",
-                    deliveryId: "planning-delivery-1",
-                    observedMeetingVersion: 3,
-                    dispatchableParticipantIds: [],
-                    now
-                },
-                { turnId: "turn-1", stepId: (index) => `step-${index}` }
-            )
-        ).toThrowError(expect.objectContaining({ code: "REQUIRED_SPEAKER_UNAVAILABLE" }));
-        expect(state.version).toBe(3);
-        expect(state.manager.currentPlanningAttempt?.status).toBe("running");
+        const result = submitManagerPlan(
+            state,
+            {
+                agendaItemId: "agenda-1",
+                intent: "explore",
+                objective: "Objective",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                steps: [{ participantId: "a", instruction: "A", reason: "manager_selected" }]
+            },
+            {
+                meetingId: "meeting-1",
+                planningAttemptId: "planning-1",
+                deliveryId: "planning-delivery-1",
+                observedMeetingVersion: 3,
+                dispatchableParticipantIds: [],
+                now
+            },
+            { turnId: "turn-1", stepId: (index) => `step-${index}` }
+        );
+        expect(result.state.status).toBe("waiting");
+        expect(result.state.waitState).toMatchObject({
+            reason: "required_participant_unavailable",
+            waitingSince: now,
+            taskIds: [],
+            participantIds: ["a"]
+        });
+        expect(result.state.currentTurn).toBeUndefined();
+        expect(result.state.manager.currentPlanningAttempt?.status).toBe("failed");
+        expect(result.effect.events.map((item) => item.type)).toEqual(["meeting.waiting"]);
     });
     it("starts one manager planning attempt after entering running", () => {
         const state = {
@@ -190,7 +197,8 @@ describe("manager planning transitions", () => {
 
         expect(result.state.status).toBe("running");
         expect(result.state.version).toBe(state.version + 1);
-        expect(result.state.replanCount).toBe(state.replanCount + 1);
+        expect(result.state.replanCount).toBe(state.replanCount);
+        expect(result.state.managerPlanningSeq).toBe(state.managerPlanningSeq + 1);
         expect(result.state.currentTurn).toBeUndefined();
         expect(result.state.manager.status).toBe("planning");
         expect(result.state.manager.currentPlanningAttempt).toEqual({
@@ -244,6 +252,81 @@ describe("manager planning transitions", () => {
         expect(result.effect.events.map((item) => item.type)).toEqual(["manager_plan.started"]);
     });
 
+    it("commits a deterministic fallback for a business-invalid Manager plan", () => {
+        const state = {
+            ...meeting(),
+            selectionMode: "manager" as const,
+            activeAgendaItemId: "agenda-1",
+            agenda: [
+                {
+                    id: "agenda-1",
+                    title: "Agenda",
+                    objective: "Objective",
+                    inScope: [],
+                    outOfScope: [],
+                    completionCriteria: [],
+                    requiredParticipants: [],
+                    relatedTaskIds: [],
+                    status: "discussing" as const
+                }
+            ],
+            manager: {
+                ...meeting().manager,
+                status: "planning" as const,
+                currentPlanningAttempt: {
+                    id: "planning-1",
+                    meetingId: "meeting-1",
+                    observedMeetingVersion: 3,
+                    reason: "semantic_arbitration" as const,
+                    deliveryId: "delivery-1",
+                    status: "running" as const,
+                    createdAt: now
+                }
+            },
+            meetingTasks: [],
+            participants: [
+                {
+                    id: "a",
+                    displayName: "A",
+                    status: "available" as const,
+                    consecutiveSpeeches: 0,
+                    consecutiveAttemptFailures: 0,
+                    totalSpeeches: 0,
+                    lastDeliveredSeq: 0,
+                    lastAcknowledgedSeq: 0
+                }
+            ]
+        };
+        const result = submitManagerPlan(
+            state,
+            {
+                agendaItemId: "agenda-1",
+                intent: "not-an-intent",
+                objective: "Objective",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                steps: [{ participantId: "a", instruction: "A", reason: "manager_selected" }]
+            },
+            {
+                meetingId: "meeting-1",
+                planningAttemptId: "planning-1",
+                deliveryId: "delivery-1",
+                observedMeetingVersion: 3,
+                dispatchableParticipantIds: ["a"],
+                now
+            },
+            { turnId: "turn-fallback", stepId: (index) => `step-${index}` }
+        );
+        expect(result.state.currentTurn?.reason).toBe("manager_fallback");
+        expect(result.state.manager.currentPlanningAttempt?.status).toBe("failed");
+        expect(result.effect.events.map((item) => item.type)).toEqual([
+            "manager_plan.failed",
+            "turn.planned",
+            "turn.started",
+            "speaker.assigned"
+        ]);
+    });
+
     it("restarts planning from running after an explicit stale-attempt reset", () => {
         const state = {
             ...meeting("running"),
@@ -280,13 +363,16 @@ describe("manager planning transitions", () => {
             )
         ).toThrow("cannot transition from running to running");
         expect(() =>
-            startManagerPlanning(meeting(), {
-                meetingId: "meeting-1",
-                planningAttemptId: "planning-1",
-                deliveryId: "delivery-1",
-                reason: "initial_plan",
-                now
-            })
+            startManagerPlanning(
+                { ...meeting(), selectionMode: "round_robin" },
+                {
+                    meetingId: "meeting-1",
+                    planningAttemptId: "planning-1",
+                    deliveryId: "delivery-1",
+                    reason: "initial_plan",
+                    now
+                }
+            )
         ).toThrowError(expect.objectContaining({ code: "UNSUPPORTED_CAPABILITY" }));
 
         const state = {

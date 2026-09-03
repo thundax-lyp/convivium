@@ -53,6 +53,7 @@ function state(overrides: Partial<MeetingState> = {}): MeetingState {
         turnSeq: 1,
         messageSeq: 1,
         eventSeq: 0,
+        managerPlanningSeq: 0,
         stallCount: 0,
         replanCount: 0,
         selectionMode: "manager",

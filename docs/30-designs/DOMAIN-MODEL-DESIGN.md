@@ -230,6 +230,30 @@ ArchivePackage 物化后不可变。续会只通过显式选择的 continuation 
 - Session ID、capability、outbox payload、私聊和内部运行数据不得进入 ArchivePackage。
 - ArchivePackage 可以保留 agentDefinitionId 作为非敏感 provenance，但不保存 persona 或 DSH capability 配置。
 
+## Confirmed Meeting Convergence Domain (D6-D10)
+
+`MeetingState` adds required `managerPlanningSeq: number`; it is an internal monotonic planning-attempt sequence and starts at `0`. `replanCount` remains the replan budget counter. `MeetingTurn.reason` is required. `MeetingTurn.intent` remains the source of `refocus|replan` display semantics. `MeetingWaitState` is:
+
+```ts
+type MeetingWaitReason =
+  "blocking_task" | "required_participant_unavailable" | "captain_action";
+
+interface MeetingWaitState {
+  reason: MeetingWaitReason;
+  waitingSince: number;
+  taskIds: readonly string[];
+  participantIds: readonly string[];
+  deadlineAt?: number;
+  resumeAgendaItemId?: string;
+}
+```
+
+Rule planning derives recency from transcript and `turnSeq`; it never persists a last-speaker helper or repeated-content score. Required participants are ordered first, then scored candidates, with `MeetingState.participants[]` order as the sole tie-break. Required overflow is waiting, not truncation. `managerPlanningSeq` generates planning IDs independently of `replanCount`.
+
+The progress fingerprint is a fixed-key JSON tuple over agenda id/status/resolution; accepted decision id/proposalId/proposalRevision; open blocking questions; current-revision blocking positions; terminal task id/status/resultSummary; proposal id/revision/status; and active CompletionFact id/kind/subjectId/result/evidenceMessageIds/taskIds. Arrays are sorted by canonical ID. Text similarity, current time, Map/Set iteration and informal summaries are excluded. First completed Turn stores the fingerprint with `stallCount=0`; change resets stall and replan counters; unchanged progress creates refocus, then bounded replan, then termination. Blocking disagreement yields `status='no_consensus'` and `termination.code='no_consensus'`; otherwise stall yields `status='partial'` and `termination.code='stalled'`. Termination IDs are state-derived and ownership-validated.
+
+Initial convergence defaults are `stallCount=0`, `replanCount=0`, `managerPlanningSeq=0`; `maxStalls=3` and `maxReplans=1` are the existing confirmed defaults. Waiting clears on the sole Captain/local resume transition only when all required Participants are dispatchable. Terminal state rejects new planning, fallback, wait, or speaker facts.
+
 ## Acceptance
 
 实现者无需从需求、接口和其他设计章节拼接 Domain model，即可依据本文确定核心字段、ID 引用、集合结构、初始化边界和数据不变量。

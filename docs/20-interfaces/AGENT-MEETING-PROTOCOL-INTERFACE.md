@@ -619,6 +619,7 @@ interface PublicTurnV1 {
   seq: number;
   agendaItemId: string;
   intent: string;
+  reason: string;
   objective: string;
   expectedOutputs: readonly string[];
   prohibitedTopics: readonly string[];
@@ -962,7 +963,7 @@ HandRaise 是调度输入，不是正式发言，不得直接形成 transcript�
 
 ### Required speaker unavailable
 
-Required speaker 当前不可调度时，规划命令必须失败并返回 `REQUIRED_SPEAKER_UNAVAILABLE`。失败不得创建部分 Turn、Step 或 Attempt，不得自动替换或豁免 required speaker。同一 Meeting version 不得自动重复调度相同失败。
+Required speaker 当前不可调度时，同步与后台规划必须提交 `waiting`，使用 `reason='required_participant_unavailable'`、排序后的去重 `participantIds`、`taskIds=[]`、Runtime `waitingSince` 和可选当前 active agenda `resumeAgendaItemId`，不得返回裸 planning error 或创建部分 Turn、Step、Attempt。相同 Meeting version 与排序 participant IDs 只提交一次。Captain/local resume 是唯一恢复入口；未全部 dispatchable 时返回 `REQUIRED_SPEAKER_UNAVAILABLE` 且零副作用，全部 dispatchable 时清除 wait 并重新规划。
 
 ### Authorized status projection
 
@@ -1046,6 +1047,10 @@ interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
 
 interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
   status: "created" | "running" | "waiting" | "paused" | "converging";
+  stallCount: number;
+  maxStalls: number;
+  replanCount: number;
+  maxReplans: number;
   currentTurn?: PublicTurnV1;
   currentSpeakerId?: string;
   currentAttemptId?: string;
@@ -1067,7 +1072,9 @@ interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
 }
 
 interface PublicMeetingWaitStateV1 {
-  reason: string;
+  reason:
+    "blocking_task" | "required_participant_unavailable" | "captain_action";
+  waitingSince: number;
   taskIds: readonly string[];
   participantIds: readonly string[];
   deadlineAt?: number;
@@ -1242,9 +1249,17 @@ interface ProtocolSuccessV1<T> extends ProtocolMeta {
 }
 
 interface ManagerPlanResultV1 {
-  turnId: string;
-  firstStepId: string;
-  firstAttemptId: string;
+  status: "planned" | "waiting";
+  turnId?: string;
+  firstStepId?: string;
+  firstAttemptId?: string;
+  waitReason?: "required_participant_unavailable";
+  participantIds?: readonly string[];
+  fallbackApplied: boolean;
+  fallbackReason?:
+    | "manager_plan_invalid"
+    | "manager_timeout"
+    | "manager_delivery_retry_exhausted";
 }
 
 interface TurnSubmissionResultV1 {
@@ -1451,6 +1466,29 @@ Convivium 要求 DSH `>=0.1.1-rc.2`，并以该版本的 `dsh-subagent` 公开�
 7. Meeting Runtime 必须拒绝不支持的 `protocolVersion`，不得按相近版本猜测解释。
 8. `meetingContext` 是 Convivium mail 的 optional 字段；不含该字段的普通 TeamMember mail 使用普通身份解析、投递和处理行为。
 9. 不识别 meeting-scoped recipient 的实现必须明确拒绝，不能把 Participant ID 当成 TeamMember 名称进行投递。
+
+<!-- D6-D10 protocol details are integrated into the canonical declarations above. -->
+<!--
+
+```ts
+interface PublicMeetingWaitStateV1 {
+  reason: "blocking_task" | "required_participant_unavailable" | "captain_action";
+  waitingSince: number;
+  taskIds: readonly string[];
+  participantIds: readonly string[];
+  deadlineAt?: number;
+  resumeAgendaItemId?: string;
+}
+```
+
+`ActiveMeetingStatusResultV1` additionally requires `stallCount`, `maxStalls`, `replanCount`, and `maxReplans`; terminal, archiving, and archived result branches do not expose these active-only fields. `PublicTurnV1.reason` is required and is a deterministic display value; convergence actions are represented by `currentTurn.intent` and this reason, not by a second status.
+
+`ManagerPlanResultV1` is a union of the committed plan result and the waiting/fallback result. A fallback result has `fallbackApplied: true`, the committed `turnId`, `firstStepId`, and `firstAttemptId`; a waiting result has `waiting: true`, the committed `waitState`, and no partial Turn. Schema parse failure has no result and waits for the attempt deadline; a business-invalid submission returns the committed fallback result. `REQUIRED_SPEAKER_UNAVAILABLE`, `IDEMPOTENCY_CONFLICT`, `VERSION_CONFLICT`, stale-attempt and terminal errors retain the existing `ProtocolErrorV1` envelope and have zero side effects when rejected.
+
+The D8 fallback request identity is `manager-fallback:<attemptId>:<reasonCode>`, caller binding is `runtime:<meetingId>`, and its request hash is the B serializer output for the insertion-ordered object `{ attemptId, reasonCode, observedMeetingVersion }`. Equal identity and serialization replays the original receipt; equal identity with different serialization returns `IDEMPOTENCY_CONFLICT`. Required-unavailable wait uses sorted canonical participant IDs, `taskIds: []`, Runtime `now` for `waitingSince`, and the current active agenda as `resumeAgendaItemId` when present. Resume is the only recovery entrypoint and succeeds only when every required Participant is dispatchable.
+
+The active status projection's convergence fields are mapped from the committed MeetingState without a second mapper. D10 reuses `meeting.replanned` and `meeting.ended`; no convergence-specific event type is added. Termination payload IDs are derived from current MeetingState and ownership-validated before commit.
+-->
 
 ## Related Documents
 
