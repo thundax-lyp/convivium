@@ -121,30 +121,9 @@ G0 必须同时找到：
 
 ## 6. 机械执行步骤
 
-### G6：C-only readiness
-
-前置状态：当前分支 HEAD 为 G5 收口 commit，且上一提交只修改本文；工作树 clean；G0-G4 已在祖先提交中 PASS；G5 已记录 `Not Covered` 且未产生插件 diff；全部资源已恢复。
-
-允许修改：两份 readiness。禁止修改：其他文件。
-
-执行：先运行 `date -u +%Y-%m-%dT%H:%M:%SZ`、`uname -srm`、`node --version`、`pnpm --version`；两份文件写相同 `dateUtc`、literal target SHA、OS/arch、Node、pnpm、DSH `0.1.1-rc.2`、profile `web`、provider `spawn`。Current Coverage 的 Executed Validation 只写 G1-G5 实际结果。G1-G3 全 PASS 后，FR-4 改为 `已实现` 并删除旧 fallback/stall 缺口，FR-7 改为 `已实现` 并删除旧 candidate lifecycle、supersede/revoke、risk acceptance/UI 实现缺口；FR-6 保持 `部分实现`，只保留不属于 D1-D10 的 Agenda candidate 管理缺口；禁止用 `risk-reopen` 单独提升。G1-G3 未全 PASS 时不得执行 G6。Runtime Evidence 新建唯一 current-target section，按 §5 逐 lane/selector 写 record并保留历史边界；两处同步写 browser/metrics/stress/credential/deploy Not Covered；不复制 A/B 历史输出。
-
-验证：
-
-```bash
-target_sha="cf0ab2d2cf12d670bab66c0324c1c2395f319d98"
-test "$(git rev-parse origin/main)" = "$target_sha"
-git merge-base --is-ancestor "$target_sha" HEAD
-rg -n "$target_sha|0\.1\.1-rc\.2|spawn|Not Covered" docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md
-test "$(git diff --name-only | sort)" = "$(printf '%s\n' docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md | sort)"
-pnpm --dir plugin exec prettier ../docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md ../docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md --check
-```
-
-PASS：target/date/environment一致；12 selector 均有 record；结果与真实输出一致；只有两份 readiness 有 diff。STOP：需猜测产品状态、丢失首败、外推历史或越界 diff。恢复：保留文档 diff，不 reset。
-
 ### G7：Audit、迁移与删除
 
-前置状态：G6 PASS；全部 Scope 有 evidence 或 Not Covered。允许修改：本文和两份 readiness。禁止修改：其他文件。
+前置状态：当前分支 HEAD 为 G6 收口 commit，且上一提交只修改本文与两份 readiness；工作树 clean；G0-G5 已在祖先提交中 PASS；两份 readiness 已固定 target SHA、date/environment 和 G1-G5 实际 evidence，所有 Scope 均有 evidence 或 `Not Covered`。允许修改：本文和两份 readiness。禁止修改：其他文件。
 
 ```bash
 python3 - <<'PY'
