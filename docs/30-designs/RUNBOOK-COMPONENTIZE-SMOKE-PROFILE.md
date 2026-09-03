@@ -239,37 +239,9 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T8：迁移 archive-continuation 场景
-
-前置状态：前一提交已完成 T7 closure，工作树 clean；`recovery.js` 只含 cold export。
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/recovery.js`、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-
-禁止修改：cold function、其他场景和产品源码。
-
-执行：把完整 `archive-continuation` branch 移为 `runArchiveContinuationScenario(runtime)`；删除旧 branch；unit 锁定唯一 call 和 4 个 label。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/recovery.js tests/unit/scripts/smoke-profile.spec.ts --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-env CONVIVIUM_SMOKE_SCENARIO=archive-continuation pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/recovery.js tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/scenarios/recovery.js plugin/tests/unit/scripts/smoke-profile.spec.ts
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 拆分归档续会场景"
-```
-
-PASS：真实 smoke 包含 `source-archived`、`source-sessions-drained`、`continuation-final-summary-only`、`target-identities-new`。
-
-STOP：archive、drain、continuation material 或 identity 断言变化。
-
 ### T9：迁移 completion-end 场景
 
-前置状态：T8 commit 是 HEAD，工作树 clean。
+前置状态：前一提交已完成 T8 closure，工作树 clean。
 
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/completion.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
 

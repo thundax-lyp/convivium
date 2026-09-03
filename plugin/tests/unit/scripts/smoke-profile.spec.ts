@@ -34,6 +34,10 @@ const recoverySource = readFileSync(
     new URL("../../../scripts/smoke-profile/probe/scenarios/recovery.js", import.meta.url),
     "utf8"
 );
+const archiveSource = readFileSync(
+    new URL("../../../scripts/smoke-profile/probe/scenarios/archive.js", import.meta.url),
+    "utf8"
+);
 
 describe("createSmokeEnvironment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
@@ -134,6 +138,21 @@ describe("smoke profile scenario guard", () => {
         expect(recoverySource).toContain('"exact-parent-rebound"');
         expect(recoverySource).toContain('"transcript-prefix-preserved"');
         expect(recoverySource).toContain('"cold-followup-submitted"');
+    });
+
+    it("dispatches archive-continuation to one scenario module", () => {
+        expect(smokeProfileSource).toContain('from "./scenarios/archive.js"');
+        expect(smokeProfileSource).toContain("await runArchiveContinuationScenario(runtime);");
+        expect(smokeProfileSource.match(/runArchiveContinuationScenario\(runtime\)/g)).toHaveLength(
+            1
+        );
+        expect(archiveSource).toContain(
+            "export async function runArchiveContinuationScenario(runtime)"
+        );
+        expect(archiveSource).toContain('"source-archived"');
+        expect(archiveSource).toContain('"source-sessions-drained"');
+        expect(archiveSource).toContain('"continuation-final-summary-only"');
+        expect(archiveSource).toContain('"target-identities-new"');
     });
 
     it("copies the probe tree and keeps shared support exports bounded", () => {
