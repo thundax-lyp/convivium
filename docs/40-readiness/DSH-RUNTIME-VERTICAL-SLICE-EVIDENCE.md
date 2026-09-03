@@ -4,8 +4,8 @@
 
 ## Current Target Evidence
 
-- `targetCommit`: `cf0ab2d2cf12d670bab66c0324c1c2395f319d98`
-- `dateUtc`: `2026-09-03T08:34:00Z`
+- `targetCommit`: `2f49e1af2d09206cb763a39676151a9d4466c80b`
+- `dateUtc`: `2026-09-03T09:25:38Z`
 - `environment`: Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`
 - `profile`: `web`
 - `provider`: `spawn`
@@ -14,7 +14,7 @@
 ### G1/G2 package and test evidence
 
 - G1 focused validation：Pass，27 test files、265 tests。
-- G2 full verification：Pass，format、lint、Host/Client typecheck、build、environment、contract、Agent Definition samples、package verifier；73 test files、517 tests。
+- G2 full verification：Pass，format、lint、Host/Client typecheck、build、environment、contract、Agent Definition samples、package verifier；73 test files、525 tests。
 
 ### G3 selector evidence
 

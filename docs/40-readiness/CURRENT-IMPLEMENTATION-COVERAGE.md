@@ -5,7 +5,7 @@
 本文记录当前代码相对已确认需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-09-03
-- 代码基线：`cf0ab2d2cf12d670bab66c0324c1c2395f319d98`
+- 代码基线：`2f49e1af2d09206cb763a39676151a9d4466c80b`
 - 环境：Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、profile `web`、provider `spawn`
 - `已实现` 表示存在正式路径和相称验证；`部分实现` 表示存在局部路径但未闭合；`未实现` 表示没有产品运行路径。
 - 历史真实 profile 证据只适用于其原始 commit，不外推为当前 HEAD 证据。
@@ -39,10 +39,10 @@
 
 ## Executed Validation
 
-2026-09-03，在 target HEAD `cf0ab2d2cf12d670bab66c0324c1c2395f319d98` 执行 `pnpm --dir plugin verify`：
+2026-09-03，在 target HEAD `2f49e1af2d09206cb763a39676151a9d4466c80b` 执行 `pnpm --dir plugin verify`：
 
 - Pass：format、lint、Host/Client typecheck、build、environment、contract、Agent Definition samples、package verifier。
-- Pass：73 test files、517 tests。
+- Pass：73 test files、525 tests。
 - Pass：G3 的 12 个真实 DSH profile selector，均为 `profile=web`、`provider=spawn`，且 probe `ok=true`：
   - `baseline`：`baseline-transcript-acb`、`baseline-http-pause-resume`
   - `timeout`：无 probe assertion
