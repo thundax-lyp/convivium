@@ -121,20 +121,9 @@ G0 必须同时找到：
 
 ## 6. 机械执行步骤
 
-### G1：focused product tests
-
-前置状态：当前分支 HEAD 为 G0 收口 commit，且 `git show --name-only --format= HEAD^..HEAD` 只列本文；工作树 clean。允许修改：无。禁止修改：全部文件。
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/protocol/request-idempotency.spec.ts tests/unit/domain/transitions/proposal-position.spec.ts tests/unit/domain/transitions/issue.spec.ts tests/unit/domain/transitions/decision-candidate.spec.ts tests/unit/domain/transitions/decision-acceptance.spec.ts tests/unit/domain/transitions/decision-disposition.spec.ts tests/unit/domain/completion.spec.ts tests/contract/http-boundary.spec.ts tests/contract/tool-registration.spec.ts tests/unit/domain/planning.spec.ts tests/unit/domain/transitions/manager-planning.spec.ts tests/unit/domain/transitions/turn-advancement.spec.ts tests/unit/domain/transitions/speaker-attempt.spec.ts tests/unit/domain/transitions/speaker-submission.spec.ts tests/unit/runtime/manager-fallback.spec.ts tests/unit/runtime/meeting-runtime.spec.ts tests/unit/runtime/turn-runner.spec.ts tests/contract/meeting-runtime.spec.ts tests/contract/protocol-schema.spec.ts tests/contract/status-projection.spec.ts tests/contract/domain-meeting-repository.spec.ts tests/recovery/domain-recovery.spec.ts tests/recovery/recovery.spec.ts tests/unit/runtime/archive.spec.ts tests/client/client-entry.client.spec.ts tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
-test -z "$(git status --porcelain)"
-```
-
-PASS：Vitest 退出 0，每个 file 有通过记录，工作树 clean。STOP：首个失败、missing file 或 tracked/untracked diff；不得删测试、改 Schema 或缩小命令。恢复：测试自有临时资源；残留资源或 diff 即 STOP。
-
 ### G2：完整 plugin verify
 
-前置状态：G1 PASS。允许修改：无。禁止修改：全部文件。
+前置状态：当前分支 HEAD 为 G1 收口 commit，且 `git show --name-only --format= HEAD^..HEAD` 只列本文；工作树 clean。允许修改：无。禁止修改：全部文件。
 
 ```bash
 pnpm --dir plugin verify
