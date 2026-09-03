@@ -9,7 +9,10 @@ import type {
     MeetingTaskProjectionV1,
     SpeakerMeetingContextV1,
     PublicTurnV1,
-    PublicQuestionV1
+    PublicQuestionV1,
+    PublicDecisionCandidateV1,
+    PublicDecisionV1,
+    PublicRiskV1
 } from "../protocol/index.js";
 
 export type MeetingProjectionCaller =
@@ -106,6 +109,50 @@ function handRaise(value: MeetingState["handRaises"][number]): PublicHandRaiseV1
     };
 }
 
+function decision(value: MeetingState["decisions"][number]): PublicDecisionV1 {
+    return {
+        id: value.id,
+        ...(value.agendaItemId === undefined ? {} : { agendaItemId: value.agendaItemId }),
+        proposalId: value.proposalId,
+        proposalRevision: value.proposalRevision,
+        ...(value.statement === undefined ? {} : { statement: value.statement }),
+        ...(value.rationale === undefined ? {} : { rationale: value.rationale }),
+        status: value.status,
+        ...(value.acceptedBy === undefined ? {} : { acceptedBy: value.acceptedBy }),
+        ...(value.dissentingPositionIds === undefined
+            ? {}
+            : { dissentingPositionIds: value.dissentingPositionIds }),
+        ...(value.supersededByDecisionId === undefined
+            ? {}
+            : { supersededByDecisionId: value.supersededByDecisionId })
+    };
+}
+
+function risk(value: MeetingState["issues"][number]): PublicRiskV1 {
+    return {
+        id: value.id,
+        title: value.title,
+        description: value.description,
+        sourceMessageId: value.sourceMessageId,
+        ...(value.agendaItemId === undefined ? {} : { agendaItemId: value.agendaItemId }),
+        affectedOutputIds: value.affectedOutputIds,
+        affectedCriterionIds: value.affectedCriterionIds,
+        violatedConstraintIds: value.violatedConstraintIds,
+        blockingObjectionIds: value.blockingObjectionIds,
+        blocking: value.blocking,
+        riskLevel: value.riskLevel,
+        impact: value.impact,
+        urgency: value.urgency,
+        reversibility: value.reversibility,
+        safeDefaultAvailable: value.safeDefaultAvailable,
+        disposition: value.disposition,
+        status: value.status,
+        ...(value.rationale === undefined ? {} : { rationale: value.rationale }),
+        ...(value.ownerId === undefined ? {} : { ownerId: value.ownerId }),
+        relatedTaskIds: value.relatedTaskIds
+    };
+}
+
 function turn(value: NonNullable<MeetingState["currentTurn"]>): PublicTurnV1 {
     return {
         id: value.id,
@@ -165,7 +212,7 @@ function isExecutionTerminalStatus(
  */
 export function projectMeetingStatus(
     state: MeetingState,
-    _caller: MeetingProjectionCaller
+    caller: MeetingProjectionCaller
 ): MeetingStatusResultV1 {
     const base = {
         meetingId: state.id,
@@ -195,6 +242,10 @@ export function projectMeetingStatus(
         const archive = {
             package: {
                 ...state.archive.package,
+                acceptedDecisions: state.decisions
+                    .filter(({ status }) => status === "accepted")
+                    .map(decision),
+                decisionHistory: state.decisions.map(decision),
                 ...(state.sourceMeetingId === undefined
                     ? {}
                     : { sourceMeetingId: state.sourceMeetingId })
@@ -241,30 +292,45 @@ export function projectMeetingStatus(
             status: proposal.status,
             positions: proposal.positions.map((position) => ({ ...position }))
         })),
+        pendingDecisionCandidates:
+            caller.kind === "captain" || caller.kind === "local_host"
+                ? state.decisionCandidates
+                      .filter((candidate) => {
+                          const proposal = state.proposals.find(
+                              (item) =>
+                                  item.id === candidate.proposalId && item.status !== "superseded"
+                          );
+                          const currentRevision = state.proposals
+                              .filter(
+                                  (item) =>
+                                      item.id === candidate.proposalId &&
+                                      item.status !== "superseded"
+                              )
+                              .reduce((max, item) => Math.max(max, item.revision), 0);
+                          return (
+                              proposal !== undefined &&
+                              candidate.proposalRevision === currentRevision &&
+                              !state.decisions.some(
+                                  (item) => item.id === `decision-${candidate.id}`
+                              )
+                          );
+                      })
+                      .map((candidate): PublicDecisionCandidateV1 => ({ ...candidate }))
+                : [],
         acceptedDecisions: state.decisions
-            .filter(
-                (decision) =>
-                    decision.status === "accepted" &&
-                    decision.agendaItemId !== undefined &&
-                    decision.statement !== undefined &&
-                    decision.rationale !== undefined &&
-                    decision.acceptedBy !== undefined &&
-                    decision.dissentingPositionIds !== undefined
-            )
-            .map((decision) => ({
-                id: decision.id,
-                agendaItemId: decision.agendaItemId!,
-                proposalId: decision.proposalId,
-                proposalRevision: decision.proposalRevision,
-                statement: decision.statement!,
-                rationale: decision.rationale!,
-                status: decision.status,
-                acceptedBy: decision.acceptedBy!,
-                dissentingPositionIds: decision.dissentingPositionIds!
-            })),
+            .filter(({ status }) => status === "accepted")
+            .map(decision),
+        decisionHistory: state.decisions.map(decision),
+        risks:
+            caller.kind === "captain" || caller.kind === "local_host" ? state.issues.map(risk) : [],
         blockingFacts: [
             ...state.issues
-                .filter((issue) => issue.blocking)
+                .filter(
+                    (issue) =>
+                        issue.status === "open" &&
+                        issue.disposition === "blocking" &&
+                        issue.blocking
+                )
                 .map((issue) => ({
                     id: issue.id,
                     kind: "issue" as const,

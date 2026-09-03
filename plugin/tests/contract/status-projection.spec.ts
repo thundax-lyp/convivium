@@ -288,8 +288,63 @@ describe("meeting status projection", () => {
             {
                 ...state,
                 issues: [
-                    { id: "issue-blocking", title: "Required output", blocking: true },
-                    { id: "issue-follow-up", title: "Later", blocking: false }
+                    {
+                        id: "issue-blocking",
+                        title: "Required output",
+                        description: "Output missing",
+                        sourceMessageId: "message-1",
+                        affectedOutputIds: [],
+                        affectedCriterionIds: [],
+                        violatedConstraintIds: [],
+                        blockingObjectionIds: [],
+                        riskLevel: "high",
+                        impact: "high",
+                        urgency: "now",
+                        reversibility: "partially_reversible",
+                        safeDefaultAvailable: false,
+                        relatedTaskIds: [],
+                        status: "open",
+                        disposition: "blocking",
+                        blocking: true
+                    },
+                    {
+                        id: "issue-follow-up",
+                        title: "Later",
+                        description: "Later",
+                        sourceMessageId: "message-1",
+                        affectedOutputIds: [],
+                        affectedCriterionIds: [],
+                        violatedConstraintIds: [],
+                        blockingObjectionIds: [],
+                        riskLevel: "low",
+                        impact: "low",
+                        urgency: "later",
+                        reversibility: "reversible",
+                        safeDefaultAvailable: true,
+                        relatedTaskIds: [],
+                        status: "open",
+                        disposition: "blocking",
+                        blocking: false
+                    },
+                    {
+                        id: "issue-accepted",
+                        title: "Accepted risk",
+                        description: "Accepted",
+                        sourceMessageId: "message-1",
+                        affectedOutputIds: [],
+                        affectedCriterionIds: [],
+                        violatedConstraintIds: [],
+                        blockingObjectionIds: [],
+                        riskLevel: "low",
+                        impact: "low",
+                        urgency: "later",
+                        reversibility: "reversible",
+                        safeDefaultAvailable: true,
+                        relatedTaskIds: [],
+                        status: "accepted_risk",
+                        disposition: "accepted_risk",
+                        blocking: true
+                    }
                 ]
             } as unknown as MeetingState,
             { kind: "captain", sessionId: "captain-1" }

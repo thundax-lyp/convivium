@@ -274,33 +274,9 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 ## 8. 机械步骤
 
-### T8：Projection、HTTP、Client
-
-前置状态：T7 完成 commit 的产品/正式文档树已包含并验证 Application、Runtime、tools；T7 tool registration、runtime unit、ESLint 和 Prettier 已 PASS。
-
-允许修改：`plugin/src/projection/status.ts:projectMeetingStatus`、`plugin/src/client/meeting-panel-view.tsx:createMeetingPanelView`、`plugin/src/client/meeting-panel.tsx:MeetingPanel`；`plugin/tests/contract/status-projection.spec.ts`、`plugin/tests/contract/http-boundary.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/client/client-entry.client.spec.ts`。
-
-禁止修改：speaker/manager context shape、route table、Client mutation/cache/CSS framework。
-
-执行：实现§5 mappers/caller visibility/accepted filter；Client 两只读区块。测试 revision/acceptance/terminal pending消失、隔离、blocking predicate、local GET、empty state。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts
-pnpm --dir plugin exec vitest run tests/contract/status-projection.spec.ts tests/contract/http-boundary.spec.ts tests/client/client-entry.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-
-PASS：三层字段一致，Participant 无实际 candidate/risk。
-
-STOP：需写 route/button/second fetch。
-
-失败恢复：无外部数据；保留 diff。
-
 ### T9：Archive 与 recovery compatibility
 
-前置状态：T8 PASS。
+前置状态：T8 完成 commit 的产品/正式文档树已包含并验证 projection、HTTP、Client；T8 focused tests、client/host typecheck、ESLint 和 Prettier 已 PASS。T8 archive-specific HTTP case remains for T9.
 
 允许修改：`plugin/src/domain/model.ts` archive types、`plugin/src/runtime/services/meeting-archive-service.ts:materializeArchivePackage`、`plugin/src/domain/transitions/archive.ts:assertArchivePackageMatchesMeeting`；`plugin/tests/unit/domain/transitions/archive.spec.ts`、`plugin/tests/unit/runtime/archive.spec.ts`、`plugin/tests/recovery/domain-recovery.spec.ts`。
 
@@ -311,7 +287,7 @@ STOP：需写 route/button/second fetch。
 验证：
 
 ```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/transitions/archive.spec.ts tests/unit/runtime/archive.spec.ts tests/recovery/domain-recovery.spec.ts tests/contract/domain-meeting-repository.spec.ts
+pnpm --dir plugin exec vitest run tests/unit/domain/transitions/archive.spec.ts tests/unit/runtime/archive.spec.ts tests/recovery/domain-recovery.spec.ts tests/contract/domain-meeting-repository.spec.ts tests/contract/http-boundary.spec.ts
 pnpm --dir plugin typecheck:host
 ```
 
@@ -419,12 +395,12 @@ B 本轮补齐 `plugin/src/protocol/results.ts:CaptainDecisionDispositionResultS
 | traceability        | PASS | §6                                                                        |
 | data/interface      | PASS | §5                                                                        |
 | file/symbol         | PASS | §6、所有剩余执行步骤                                                      |
-| mechanical steps    | PASS | T8-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
+| mechanical steps    | PASS | T9-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
 | validation/failure  | PASS | §9 覆盖 success/invalid/authority/stale/terminal/replay/rollback/recovery |
 | scope/non-goals     | PASS | §3、§6，B→A→C固定                                                         |
 | readiness/deletion  | PASS | §9                                                                        |
 
-当前 Not Covered：未执行剩余 T8-T11，T4-T7 已完成，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 push 或创建 PR。
+当前 Not Covered：未执行剩余 T9-T11，T4-T8 已完成，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 push 或创建 PR。
 
 ## 11. Related Documents
 

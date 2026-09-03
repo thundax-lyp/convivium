@@ -4,6 +4,8 @@ import type {
     MeetingTaskProjectionV1,
     PublicBlockingFactV1,
     PublicDecisionV1,
+    PublicDecisionCandidateV1,
+    PublicRiskV1,
     PublicMeetingMessageV1,
     PublicTerminationV1
 } from "../protocol/index.js";
@@ -19,6 +21,8 @@ export interface MeetingPanelView {
     readonly blockingFacts: readonly PublicBlockingFactV1[];
     readonly meetingTasks: readonly MeetingTaskProjectionV1[];
     readonly acceptedDecisions: readonly PublicDecisionV1[];
+    readonly pendingDecisionCandidates: readonly PublicDecisionCandidateV1[];
+    readonly risks: readonly PublicRiskV1[];
     readonly limits: MeetingStatusResultV1["limits"];
     readonly pauseReason: string;
     readonly pausedBy: string;
@@ -54,6 +58,8 @@ export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanel
         blockingFacts: discussion?.blockingFacts ?? [],
         meetingTasks: detail.meetingTasks,
         acceptedDecisions: discussion?.acceptedDecisions ?? archivePackage?.acceptedDecisions ?? [],
+        pendingDecisionCandidates: discussion?.pendingDecisionCandidates ?? [],
+        risks: discussion?.risks ?? [],
         limits: detail.limits,
         pauseReason: active?.pauseControl.reason ?? "None",
         pausedBy:
