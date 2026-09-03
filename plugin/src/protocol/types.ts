@@ -123,7 +123,7 @@ export interface CreateMeetingInputV1 {
 export interface CreateMeetingResultV1 {
     meetingId: string;
     meetingVersion: number;
-    status: "created" | "running";
+    status: "created" | "running" | "waiting";
     participants: readonly {
         participantKey: string;
         participantId: string;
@@ -445,6 +445,7 @@ export interface PublicTurnV1 {
     seq: number;
     agendaItemId: string;
     intent: string;
+    reason: string;
     objective: string;
     expectedOutputs: readonly string[];
     prohibitedTopics: readonly string[];
@@ -749,7 +750,8 @@ export interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
 }
 
 export interface PublicMeetingWaitStateV1 {
-    reason: string;
+    reason: "blocking_task" | "required_participant_unavailable" | "captain_action";
+    waitingSince: number;
     taskIds: readonly string[];
     participantIds: readonly string[];
     deadlineAt?: number;
@@ -758,6 +760,10 @@ export interface PublicMeetingWaitStateV1 {
 
 export interface ActiveMeetingStatusResultV1 extends DiscussionMeetingStatusBaseV1 {
     status: "created" | "running" | "waiting" | "paused" | "converging";
+    stallCount: number;
+    maxStalls: number;
+    replanCount: number;
+    maxReplans: number;
     currentTurn?: PublicTurnV1;
     currentSpeakerId?: string;
     currentAttemptId?: string;
@@ -927,9 +933,15 @@ export interface ProtocolSuccessV1<T> extends ProtocolMeta {
 }
 
 export interface ManagerPlanResultV1 {
-    turnId: string;
-    firstStepId: string;
-    firstAttemptId: string;
+    status: "planned" | "waiting";
+    turnId?: string;
+    firstStepId?: string;
+    firstAttemptId?: string;
+    waitReason?: "required_participant_unavailable";
+    participantIds?: readonly string[];
+    fallbackApplied: boolean;
+    fallbackReason?:
+        "manager_plan_invalid" | "manager_timeout" | "manager_delivery_retry_exhausted";
 }
 
 export interface TurnSubmissionResultV1 {

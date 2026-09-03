@@ -98,6 +98,7 @@ describe("canonical meeting creation", () => {
             turnSeq: 0,
             messageSeq: 0,
             eventSeq: 0,
+            managerPlanningSeq: 0,
             transcript: []
         });
         expect(state.agenda[0]?.completionCriteria).toEqual(["criterion:criterion-1"]);

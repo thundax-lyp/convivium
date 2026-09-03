@@ -181,6 +181,10 @@ describe("protocol envelope schemas", () => {
                 blockingFacts: [],
                 meetingTasks: [],
                 status: "paused",
+                stallCount: 0,
+                maxStalls: 3,
+                replanCount: 0,
+                maxReplans: 1,
                 pendingHandRaises: [],
                 pauseControl: {
                     action: "resume",
@@ -216,11 +220,19 @@ describe("protocol envelope schemas", () => {
         expect(ManagerPlanSubmissionSchema(input)).toEqual(input);
         expect(
             ManagerPlanResultSchema({
+                status: "planned",
                 turnId: "turn-1",
                 firstStepId: "step-1",
-                firstAttemptId: "attempt-1"
+                firstAttemptId: "attempt-1",
+                fallbackApplied: false
             })
-        ).toEqual({ turnId: "turn-1", firstStepId: "step-1", firstAttemptId: "attempt-1" });
+        ).toEqual({
+            status: "planned",
+            turnId: "turn-1",
+            firstStepId: "step-1",
+            firstAttemptId: "attempt-1",
+            fallbackApplied: false
+        });
 
         expect(() => ManagerPlanSubmissionSchema({ ...input, protocolVersion: 2 })).toThrow();
         expect(() => ManagerPlanSubmissionSchema({ ...input, steps: [] })).toThrow();
@@ -233,9 +245,11 @@ describe("protocol envelope schemas", () => {
         expect(() => ManagerPlanSubmissionSchema({ ...input, steps: "not-an-array" })).toThrow();
         expect(() =>
             ManagerPlanResultSchema({
+                status: "planned",
                 turnId: "",
                 firstStepId: "step-1",
-                firstAttemptId: "attempt-1"
+                firstAttemptId: "attempt-1",
+                fallbackApplied: false
             })
         ).toThrow();
     });
@@ -734,6 +748,10 @@ describe("protocol envelope schemas", () => {
                 blockingFacts: [],
                 meetingTasks: [],
                 status: "paused",
+                stallCount: 0,
+                maxStalls: 3,
+                replanCount: 0,
+                maxReplans: 1,
                 pendingHandRaises: [],
                 pauseControl: { action: "resume" }
             })
@@ -760,6 +778,10 @@ describe("protocol envelope schemas", () => {
                 blockingFacts: [],
                 meetingTasks: [],
                 status: "paused",
+                stallCount: 0,
+                maxStalls: 3,
+                replanCount: 0,
+                maxReplans: 1,
                 pendingHandRaises: [],
                 pauseControl: {
                     action: "pause",

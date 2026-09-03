@@ -135,6 +135,7 @@ describe("recovery controls", () => {
             turnSeq: 1,
             messageSeq: 1,
             eventSeq: 1,
+            managerPlanningSeq: 0,
             stallCount: 0,
             replanCount: 0,
             selectionMode: "round_robin",

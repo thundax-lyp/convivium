@@ -120,6 +120,7 @@ export interface MeetingTurn {
     seq: number;
     agendaItemId: string;
     intent: TurnIntent;
+    reason?: TurnConvergenceReason;
     objective: string;
     expectedOutputs: string[];
     prohibitedTopics: string[];
@@ -130,6 +131,8 @@ export interface MeetingTurn {
     createdAt: number;
     completedAt?: number;
 }
+
+export type TurnConvergenceReason = "manager_fallback" | "refocus" | "replan";
 
 export type TurnIntent =
     | "explore"
@@ -679,6 +682,7 @@ export interface MeetingState {
     turnSeq: number;
     messageSeq: number;
     eventSeq: number;
+    managerPlanningSeq: number;
     progressFingerprint?: string;
     stallCount: number;
     replanCount: number;
