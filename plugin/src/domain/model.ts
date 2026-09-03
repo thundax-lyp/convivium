@@ -69,6 +69,8 @@ export const DomainEventTypes = [
     "meeting_task.failed",
     "meeting_task.cancelled",
     "decision.accepted",
+    "decision.superseded",
+    "decision.revoked",
     "archive.sessions_closed"
 ] as const;
 
@@ -326,6 +328,7 @@ export interface MeetingDecision {
     dissentingPositionIds?: readonly string[];
     acceptanceMode: "deterministic_consensus" | "captain_acceptance" | "authorized_risk_acceptance";
     acceptanceFactIds: readonly string[];
+    supersededByDecisionId?: string;
     createdAt: number;
 }
 
@@ -385,6 +388,8 @@ export interface CompletionFact {
         | "agenda_resolution"
         | "risk_acceptance"
         | "decision_acceptance"
+        | "decision_supersession"
+        | "decision_revocation"
         | "waiver";
     subjectId: string;
     assertedBy: string;
@@ -394,6 +399,8 @@ export interface CompletionFact {
         | "approved"
         | "changes_required"
         | "accepted"
+        | "superseded"
+        | "revoked"
         | "rejected"
         | "resolved"
         | "deferred"

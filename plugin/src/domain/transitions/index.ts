@@ -18,6 +18,7 @@ export {
     acceptDecisionCandidate,
     type AcceptDecisionCandidateContext
 } from "./decision-acceptance.js";
+export { disposeDecision, type DisposeDecisionInput } from "./decision-disposition.js";
 export { applySubmittedProposalPositionClaims } from "./proposal-position.js";
 export { submitSpeakerAndAdvanceMeeting } from "./speaker-submission.js";
 export type {
