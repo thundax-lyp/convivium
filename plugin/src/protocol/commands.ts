@@ -1,6 +1,7 @@
 import Schema from "@deepseek-ai/schemastery";
 import { ProtocolVersionSchema } from "./schema.js";
 import type {
+    CaptainRiskDispositionInputV1,
     CreateMeetingInputV1,
     CaptainDecisionDispositionInputV1,
     FinishMeetingMailInputV1,
@@ -115,16 +116,43 @@ export const ResumeMeetingInputSchema = Schema.object({
     requestId: string()
 });
 
-export const CaptainRiskDispositionInputSchema = Schema.object({
+const captainRiskDispositionInput = Schema.object({
     protocolVersion: ProtocolVersionSchema,
-    meetingId: string(),
+    meetingId: nonEmptyString(),
     expectedMeetingVersion: number(),
-    requestId: string(),
-    issueId: string(),
+    requestId: nonEmptyString(),
+    issueId: nonEmptyString(),
     decision: enumOf(["accept", "reject"] as const),
-    reason: string(),
-    evidenceMessageIds: array(string())
+    reason: nonEmptyString(),
+    evidenceMessageIds: array(nonEmptyString())
 });
+
+export const CaptainRiskDispositionInputSchema: Schema<unknown, CaptainRiskDispositionInputV1> =
+    Schema.transform(captainRiskDispositionInput, (value) => {
+        assertExactKeys(
+            value,
+            [
+                "protocolVersion",
+                "meetingId",
+                "expectedMeetingVersion",
+                "requestId",
+                "issueId",
+                "decision",
+                "reason",
+                "evidenceMessageIds"
+            ],
+            "captain risk disposition input"
+        );
+        const evidenceMessageIds = value.evidenceMessageIds;
+        if (
+            !Array.isArray(evidenceMessageIds) ||
+            evidenceMessageIds.length === 0 ||
+            new Set(evidenceMessageIds).size !== evidenceMessageIds.length
+        ) {
+            throw new TypeError("risk evidenceMessageIds must be unique");
+        }
+        return value as CaptainRiskDispositionInputV1;
+    }) as Schema<unknown, CaptainRiskDispositionInputV1>;
 
 const reassignTurnInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,

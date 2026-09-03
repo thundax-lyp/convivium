@@ -147,12 +147,6 @@ export function createMeetingDecisionApplication({
                                       evidenceMessageIds: input.evidenceMessageIds,
                                       now
                                   });
-                        const replacement = transition.state.decisions.find(
-                            (decision) =>
-                                decision.status === "accepted" &&
-                                decision.id !== input.decisionId &&
-                                decision.createdAt === now
-                        );
                         return {
                             state: transition.state as unknown as JsonObject,
                             result: {
@@ -160,9 +154,12 @@ export function createMeetingDecisionApplication({
                                 decisionId: input.decisionId,
                                 action: input.action,
                                 completionFactId: `completion-${input.requestId}-decision-${input.action === "supersede" ? "supersession" : "revocation"}`,
-                                ...(replacement === undefined
-                                    ? {}
-                                    : { replacementDecisionId: replacement.id })
+                                ...(input.action === "supersede"
+                                    ? {
+                                          replacementDecisionId:
+                                              transition.state.decisions.at(-1)!.id
+                                      }
+                                    : {})
                             },
                             events: transition.effect.events as never,
                             outbox: []

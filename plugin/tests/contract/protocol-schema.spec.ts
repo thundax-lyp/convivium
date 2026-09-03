@@ -3,6 +3,7 @@ import {
     CreateMeetingResultSchema,
     CreateMeetingInputSchema,
     CaptainDecisionDispositionInputSchema,
+    CaptainRiskDispositionInputSchema,
     EndMeetingInputSchema,
     EndMeetingResultSchema,
     LocalMeetingListItemSchema,
@@ -24,6 +25,32 @@ import {
 } from "../../src/protocol/index.js";
 
 describe("protocol envelope schemas", () => {
+    it("rejects malformed Captain risk disposition input before runtime", () => {
+        const input = {
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            expectedMeetingVersion: 3,
+            requestId: "request-1",
+            issueId: "issue-1",
+            decision: "accept" as const,
+            reason: "Captain accepts the documented risk.",
+            evidenceMessageIds: ["message-1"]
+        };
+        expect(CaptainRiskDispositionInputSchema(input)).toEqual(input);
+        expect(() => CaptainRiskDispositionInputSchema({ ...input, extra: true })).toThrow();
+        expect(() => CaptainRiskDispositionInputSchema({ ...input, issueId: " " })).toThrow();
+        expect(() => CaptainRiskDispositionInputSchema({ ...input, reason: " " })).toThrow();
+        expect(() =>
+            CaptainRiskDispositionInputSchema({ ...input, evidenceMessageIds: [] })
+        ).toThrow();
+        expect(() =>
+            CaptainRiskDispositionInputSchema({
+                ...input,
+                evidenceMessageIds: ["message-1", "message-1"]
+            })
+        ).toThrow();
+    });
+
     it("validates Decision disposition conditional result and input fields", () => {
         const supersedeInput = {
             protocolVersion: 1,
