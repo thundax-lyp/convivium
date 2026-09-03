@@ -4,6 +4,7 @@ import {
     createMeetingTask as createMeetingTaskTransition,
     finishMeetingTask as finishMeetingTaskTransition,
     isParticipantDispatchableNow,
+    nextManagerPlanningIds,
     startManagerPlanning,
     startMeetingTask as startMeetingTaskTransition,
     type MeetingState
@@ -424,12 +425,11 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                             nextState.selectionMode === "manager" &&
                             nextState.handRaises.some((raise) => raise.status === "pending")
                         ) {
-                            const planningAttemptId = `${nextState.id}-planning-${nextState.replanCount + 1}`;
-                            const planningDeliveryId = `${nextState.id}-planning-delivery-${nextState.replanCount + 1}`;
+                            const planningIds = nextManagerPlanningIds(nextState);
                             const planning = startManagerPlanning(nextState, {
                                 meetingId: nextState.id,
-                                planningAttemptId,
-                                deliveryId: planningDeliveryId,
+                                planningAttemptId: planningIds.planningAttemptId,
+                                deliveryId: planningIds.deliveryId,
                                 reason: "next_turn",
                                 now: options.now?.() ?? Date.now()
                             });
@@ -438,9 +438,12 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                                 .events as unknown as DomainEventInput[];
                             planningOutbox = [
                                 {
-                                    deliveryId: planningDeliveryId,
+                                    deliveryId: planningIds.deliveryId,
                                     kind: "dispatch",
-                                    payload: { role: "manager", planningAttemptId }
+                                    payload: {
+                                        role: "manager",
+                                        planningAttemptId: planningIds.planningAttemptId
+                                    }
                                 }
                             ];
                         }

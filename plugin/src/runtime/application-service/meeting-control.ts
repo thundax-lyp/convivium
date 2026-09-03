@@ -4,6 +4,7 @@ import {
     reassignTurn as reassignTurnTransition,
     applyCompletionClaims,
     judgeTurnCompletion,
+    nextManagerPlanningIds,
     transitionMeeting,
     type MeetingState
 } from "../../domain/index.js";
@@ -430,21 +431,19 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                             )
                         };
                         if (nextState.selectionMode === "manager") {
-                            const planningSequence = nextState.replanCount + 1;
-                            const planningAttemptId = `${nextState.id}-planning-${planningSequence}`;
-                            const planningDeliveryId = `${nextState.id}-planning-delivery-${planningSequence}`;
+                            const planningIds = nextManagerPlanningIds(nextState);
                             nextState = {
                                 ...nextState,
-                                replanCount: planningSequence,
+                                managerPlanningSeq: planningIds.managerPlanningSeq,
                                 manager: {
                                     ...nextState.manager,
                                     status: "planning",
                                     currentPlanningAttempt: {
-                                        id: planningAttemptId,
+                                        id: planningIds.planningAttemptId,
                                         meetingId: nextState.id,
                                         observedMeetingVersion: nextState.version,
                                         reason: "next_turn",
-                                        deliveryId: planningDeliveryId,
+                                        deliveryId: planningIds.deliveryId,
                                         status: "running",
                                         createdAt: options.now?.() ?? Date.now()
                                     }
@@ -452,9 +451,12 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                             };
                             outbox = [
                                 {
-                                    deliveryId: planningDeliveryId,
+                                    deliveryId: planningIds.deliveryId,
                                     kind: "dispatch",
-                                    payload: { role: "manager", planningAttemptId }
+                                    payload: {
+                                        role: "manager",
+                                        planningAttemptId: planningIds.planningAttemptId
+                                    }
                                 }
                             ];
                             extraEvents = [
@@ -462,7 +464,8 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                                     type: "manager_plan.started",
                                     payload: {
                                         meetingId: nextState.id,
-                                        planningAttemptId,
+                                        planningAttemptId: planningIds.planningAttemptId,
+                                        deliveryId: planningIds.deliveryId,
                                         meetingVersion: nextState.version
                                     }
                                 }

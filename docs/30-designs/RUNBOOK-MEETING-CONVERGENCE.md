@@ -460,26 +460,6 @@ PASS：每个 tuple component 的单独变化都会改变 fingerprint；数组�
 
 STOP：需要新 convergence event/state 或从 public B projection 反写 domain；不得增加摘要/NLP。失败恢复：纯 transition，无外部副作用。
 
-### T7：Runtime、fallback idempotency 与 delivery failure
-
-前置状态：T6 PASS。
-
-允许修改：`plugin/src/runtime/application-service/create-meeting.ts`、`plugin/src/runtime/application-service/meeting-control.ts`、`plugin/src/runtime/application-service/meeting-task.ts`、`plugin/src/runtime/application-service/meeting-turn.ts`、`plugin/src/runtime/application-service/index.ts`、`plugin/src/runtime/services/meeting-dispatch-service.ts`、`plugin/src/runtime/services/types.ts`、`plugin/src/runtime/outbox-worker.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/unit/runtime/meeting-runtime.spec.ts`、`plugin/tests/unit/runtime/turn-runner.spec.ts`、新建 `plugin/tests/unit/runtime/manager-fallback.spec.ts`。
-
-禁止修改：Repository port/implementation、B serializer、DSH adapter、new worker/scheduler。
-
-执行：所有 planning ID 改用 `nextManagerPlanningIds`；Runtime 每 command 取一次 now。Schema-valid 但 business-invalid 的 `submit_manager_plan` 保留现有 caller request identity/hash，并在该 command 的 commit 中应用 fallback。`meeting-control.ts::disposeRisk` 只把 B fact commit 后既有 `judgeTurnCompletion`/`meeting.replanned` tail 接到 T6 状态表，不改 B command validation、risk transition、result、serializer、Issue/Fact/event/receipt/idempotency。给 `OutboxWorkerOptions` 新增唯一 optional callback `onTerminalFailure?: (item: OutboxItem, errorCode: string, failedAt: number) => Promise<void>`；仅在 failed completion durable 成功后调用。Meeting worker 对 Manager payload 的 retry exhausted 调用同一 `manager_fallback` Repository command；timeout monitor 对 deadline 到期调用同一路径。两种 internal command 的 request hash 直接调用 B 的 `serializeValidatedRequestV1({ attemptId, reasonCode, observedMeetingVersion })`，参数对象严格按该 insertion order 构造；identity/hash 精确按 §5.3；commit 成功后 wake Speaker outbox。callback 失败不改已 failed outbox，下次 monitor 以相同 internal request 重试。共享 runtime suite 只新增 `describe("meeting convergence runtime", ...)`；不得修改 B 的 `describe("decision and risk closure runtime", ...)`。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/runtime/manager-fallback.spec.ts tests/unit/runtime/meeting-runtime.spec.ts tests/unit/runtime/turn-runner.spec.ts tests/contract/meeting-runtime.spec.ts
-```
-
-PASS：Manager unavailable 无 attempt；invalid/timeout/retry exhausted 各一个 fallback commit；same replay 不重复；hash conflict、stale attempt、put failure 零副作用；cold retry 产生同 request/hash；outbox callback 时序和 dispose 静默通过。
-
-STOP：serializer 签名不是 `(value: object) => string`，或必须修改 Repository/B helper；不新增 adapter。失败恢复：测试必须 dispose runtime/worker；临时 Storage 由 fixture 删除。
-
 ### T8：authorized projection
 
 前置状态：T7 PASS。

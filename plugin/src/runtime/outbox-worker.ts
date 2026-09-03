@@ -24,6 +24,11 @@ export interface OutboxWorkerOptions {
     readonly retryDelayMs?: number;
     readonly dispatch: (item: OutboxItem, signal: AbortSignal) => Promise<void>;
     readonly beforeRun?: (now: number) => Promise<void>;
+    readonly onTerminalFailure?: (
+        item: OutboxItem,
+        errorCode: string,
+        failedAt: number
+    ) => Promise<void>;
     readonly now?: () => number;
     readonly sleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
 }
@@ -114,17 +119,20 @@ export function createOutboxWorker(options: OutboxWorkerOptions) {
                     return { claimed: items.length, delivered, retried, failed };
                 const code = errorCode(error);
                 const terminal = !isRetryable(error) || item.attempts >= maxAttempts;
+                const completionNow = now();
                 await options.repository.completeOutbox({
                     id: item.id,
                     leaseOwner: item.leaseOwner,
                     leaseToken: item.leaseToken,
                     completion: terminal
-                        ? { status: "failed", failedAt: now(), errorCode: code }
+                        ? { status: "failed", failedAt: completionNow, errorCode: code }
                         : { status: "retry", availableAt: now() + retryDelayMs, errorCode: code },
-                    now: now()
+                    now: completionNow
                 });
-                if (terminal) failed += 1;
-                else retried += 1;
+                if (terminal) {
+                    failed += 1;
+                    await options.onTerminalFailure?.(item, code, completionNow);
+                } else retried += 1;
             }
         }
         return { claimed: items.length, delivered, retried, failed };

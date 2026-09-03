@@ -1,6 +1,11 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { DomainFacility } from "@deepseek-ai/dsh-storage-domain";
-import { DomainError, failSpeakerAttempt, type MeetingState } from "../../domain/index.js";
+import {
+    DomainError,
+    failSpeakerAttempt,
+    nextManagerPlanningIds,
+    type MeetingState
+} from "../../domain/index.js";
 import { RepositoryError } from "../../repository/errors.js";
 import {
     DomainRepositoryRegistry,
@@ -493,6 +498,9 @@ export function createCreateStatusRuntime(
                     requestHash: `runtime-timeout:${attempt.attemptId}`,
                     expectedMeetingVersion: current.version,
                     transition: (snapshot) => {
+                        const planningIds = nextManagerPlanningIds(
+                            snapshot.state as unknown as MeetingState
+                        );
                         const transition = failSpeakerAttempt(
                             snapshot.state as unknown as MeetingState,
                             {
@@ -504,17 +512,24 @@ export function createCreateStatusRuntime(
                                 deliveryId: attempt.deliveryId,
                                 agendaItemId: turn.agendaItemId,
                                 now,
-                                nextPlanningAttemptId: `${state.id}-planning-${state.replanCount + 1}`,
-                                nextPlanningDeliveryId: `${state.id}-planning-delivery-${state.replanCount + 1}`
+                                nextPlanningAttemptId: planningIds.planningAttemptId,
+                                nextPlanningDeliveryId: planningIds.deliveryId
                             }
                         );
+                        const transitionState =
+                            transition.state.manager.currentPlanningAttempt === undefined
+                                ? transition.state
+                                : {
+                                      ...transition.state,
+                                      managerPlanningSeq: planningIds.managerPlanningSeq
+                                  };
                         const nextAttempt =
-                            transition.state.currentTurn?.steps[
-                                transition.state.currentTurn.currentStepIndex
+                            transitionState.currentTurn?.steps[
+                                transitionState.currentTurn.currentStepIndex
                             ]?.attempt;
-                        const nextPlanningAttempt = transition.state.manager.currentPlanningAttempt;
+                        const nextPlanningAttempt = transitionState.manager.currentPlanningAttempt;
                         return {
-                            state: transition.state as unknown as JsonObject,
+                            state: transitionState as unknown as JsonObject,
                             result: { expiredAttemptId: attempt.attemptId },
                             events: transition.effect.events as unknown as DomainEventInput[],
                             outbox: nextAttempt

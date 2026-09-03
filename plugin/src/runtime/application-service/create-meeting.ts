@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { interruptAndDrainOwnedSessions } from "../../dsh/index.js";
 import {
+    nextManagerPlanningIds,
     startManagerPlanning,
     type ArchivePackage,
     type CreateContinuationSpec,
@@ -402,12 +403,15 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                     requestHash: `${requestHash(input)}:start-manager-planning`,
                     expectedMeetingVersion: 0,
                     transition: (snapshot) => {
+                        const planningIds = nextManagerPlanningIds(
+                            snapshot.state as unknown as MeetingState
+                        );
                         const transition = startManagerPlanning(
                             snapshot.state as unknown as MeetingState,
                             {
                                 meetingId,
-                                planningAttemptId: `${meetingId}-planning-1`,
-                                deliveryId: `${meetingId}-planning-delivery-1`,
+                                planningAttemptId: planningIds.planningAttemptId,
+                                deliveryId: planningIds.deliveryId,
                                 reason: "initial_plan",
                                 now: options.runtime.now?.() ?? Date.now()
                             }
@@ -418,11 +422,11 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                             events: transition.effect.events as unknown as DomainEventInput[],
                             outbox: [
                                 {
-                                    deliveryId: `${meetingId}-planning-delivery-1`,
+                                    deliveryId: planningIds.deliveryId,
                                     kind: "dispatch",
                                     payload: {
                                         role: "manager",
-                                        planningAttemptId: `${meetingId}-planning-1`
+                                        planningAttemptId: planningIds.planningAttemptId
                                     }
                                 }
                             ]
