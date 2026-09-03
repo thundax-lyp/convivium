@@ -42,6 +42,13 @@ const completionSource = readFileSync(
     new URL("../../../scripts/smoke-profile/probe/scenarios/completion.js", import.meta.url),
     "utf8"
 );
+const decisionRiskSource = readFileSync(
+    new URL(
+        "../../../scripts/smoke-profile/probe/scenarios/decision-risk-closure.js",
+        import.meta.url
+    ),
+    "utf8"
+);
 
 describe("createSmokeEnvironment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
@@ -74,13 +81,16 @@ describe("smoke profile scenario guard", () => {
     it("accepts the decision-risk-closure selector with one dispatcher branch", () => {
         expect(smokeProfileSource).toContain('"decision-risk-closure"');
         expect(smokeProfileSource).toContain('if (scenario === "decision-risk-closure") {');
-        expect(smokeProfileSource).toContain("async function runDecisionRiskClosureScenario(ctx)");
-        expect(smokeProfileSource).toContain('action: "supersede"');
-        expect(smokeProfileSource).toContain('action: "revoke"');
-        expect(smokeProfileSource).toContain('"decision supersede replay result mismatch"');
-        expect(smokeProfileSource).toContain('"decision history does not retain both decisions"');
-        expect(smokeProfileSource).toContain('"risk replay result mismatch"');
-        expect(smokeProfileSource).toContain('"risk-blocking-facts"');
+        expect(smokeProfileSource).toContain("await runDecisionRiskClosureScenario(runtime);");
+        expect(decisionRiskSource).toContain(
+            "export async function runDecisionRiskClosureScenario(runtime)"
+        );
+        expect(decisionRiskSource).toContain('action: "supersede"');
+        expect(decisionRiskSource).toContain('action: "revoke"');
+        expect(decisionRiskSource).toContain('"decision supersede replay result mismatch"');
+        expect(decisionRiskSource).toContain('"decision history does not retain both decisions"');
+        expect(decisionRiskSource).toContain('"risk replay result mismatch"');
+        expect(decisionRiskSource).toContain('"risk-blocking-facts"');
         expect(smokeProfileSource).not.toContain("INTERNAL_UNIMPLEMENTED");
     });
 
@@ -184,6 +194,29 @@ describe("smoke profile scenario guard", () => {
         expect(completionSource).toContain('"finish-created-handraise"');
         expect(completionSource).toContain('"handraise-visible-then-consumed"');
         expect(completionSource).toContain('"later-turn-submitted"');
+    });
+
+    it("dispatches decision-risk-closure to its lifecycle module", () => {
+        expect(smokeProfileSource).toContain('from "./scenarios/decision-risk-closure.js"');
+        expect(smokeProfileSource).toContain("await runDecisionRiskClosureScenario(runtime);");
+        expect(smokeProfileSource.match(/runDecisionRiskClosureScenario\(runtime\)/g)).toHaveLength(
+            1
+        );
+        expect(decisionRiskSource).toContain(
+            "export async function runDecisionRiskClosureScenario(runtime)"
+        );
+        for (const label of [
+            "candidate-visible-to-captain",
+            "candidate-accepted",
+            "accepted-candidate-not-pending",
+            "decision-history-current-state",
+            "decision-pending-by-current-revision",
+            "risk-disposition-status",
+            "risk-blocking-facts",
+            "risk-replay-version-stable",
+            "event-order-not-observable-by-command-status"
+        ])
+            expect(decisionRiskSource).toContain(`"${label}"`);
     });
 
     it("copies the probe tree and keeps shared support exports bounded", () => {

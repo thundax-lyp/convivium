@@ -243,34 +243,6 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T11：迁移 decision-risk-closure 场景
-
-前置状态：前一提交已完成 T10 closure，工作树 clean。
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/decision-risk-closure.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-
-禁止修改：其他场景和产品源码。
-
-执行：把完整 `runDecisionRiskClosureScenario(ctx)` 移为 `runDecisionRiskClosureScenario(runtime)`；仅把自由变量替换为 runtime 固定字段；内嵌 dispatcher 调用新 export；删除旧函数；unit 从新文件检查 supersede/revoke/replay/history/risk label。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/decision-risk-closure.js tests/unit/scripts/smoke-profile.spec.ts --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/decision-risk-closure.js tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/scenarios/decision-risk-closure.js plugin/tests/unit/scripts/smoke-profile.spec.ts
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 拆分决策风险闭环场景"
-```
-
-PASS：真实 smoke 输出现有 9 个 decision/risk assertion label；history/current/pending/risk/blocking/replay 观察值不变；事件顺序仍明确为 command/status 不可观察。
-
-STOP：任何 Decision/risk tool input、status 读取、replay version、history 顺序或 result shape 变化。
-
 ### T12：迁移 convergence 场景
 
 前置状态：前一提交已完成 T11 closure，工作树 clean；`runConvergenceScenario(ctx)` 仍是 probe 模板内唯一实现，`convergence` selector 已在 allowlist 中。
