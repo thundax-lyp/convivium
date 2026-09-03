@@ -274,42 +274,20 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 ## 8. 机械步骤
 
-### T10：唯一 B smoke fixture
-
-前置状态：T9 完成 commit 的产品/正式文档树已包含并验证 Archive 与 recovery compatibility；T9 tests、host typecheck、ESLint 和 Prettier 已 PASS。
-
-允许修改：`plugin/scripts/smoke-profile.mjs` 的 scenario 列表、guard、新 `decision-risk-closure` run/validation；`plugin/tests/unit/scripts/smoke-environment.spec.ts`。
-
-禁止修改：其他 selector、runner、A selector、readiness。
-
-执行：真实 profile依次 candidate visibility→accept→new revision/replacement→supersede→revoke→risk accept→reject，每次重读 status；断言 history/current/pending/risk/blocking/replay/event order。不复制 mapper。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-environment.spec.ts
-CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure pnpm --dir plugin smoke:profile
-```
-
-PASS：fixture与真实 profile成功。
-
-STOP：环境不可用则记录命令/输出并标 runtime smoke `Not Covered`；不得模拟成功或改 runner。
-
-失败恢复：现有 finally 清理临时 workspace；保留 diff。
-
 ### T11：完整验证与移交
 
-前置状态：requirements、interfaces、designs 迁移已完成并验证 PASS；T7-T9 PASS；T10 fixture PASS；真实 smoke 可仅因环境为 Not Covered。
+前置状态：上一提交已完成 T10 fixture，且真实 decision-risk smoke、unit、ESLint 和 Prettier 已 PASS；requirements、interfaces、designs 迁移已完成并验证 PASS；T7-T9 PASS。
 
 允许修改：无；本步骤只运行检查命令。
 
 禁止修改：readiness、Non-goals、依赖、commit/push/PR。
 
-执行：运行 focused aggregate、Prettier check、完整 verify、链接、唯一文件、禁词和 diff 检查；把输出交给 C，不写 readiness。
+执行：先 build current source 生成最新 `plugin/lib/`，再运行 focused aggregate、Prettier check、完整 verify、链接、唯一文件、禁词和 diff 检查；把输出交给 C，不写 readiness。
 
 验证：
 
 ```bash
+pnpm --dir plugin build
 pnpm --dir plugin exec vitest run tests/unit/protocol/request-idempotency.spec.ts tests/unit/domain/transitions/proposal-position.spec.ts tests/unit/domain/transitions/issue.spec.ts tests/unit/domain/transitions/decision-candidate.spec.ts tests/unit/domain/transitions/decision-acceptance.spec.ts tests/unit/domain/transitions/decision-disposition.spec.ts tests/unit/domain/completion.spec.ts tests/contract/protocol-schema.spec.ts tests/contract/status-projection.spec.ts tests/contract/http-boundary.spec.ts tests/contract/meeting-runtime.spec.ts tests/contract/tool-registration.spec.ts tests/unit/runtime/archive.spec.ts tests/recovery/domain-recovery.spec.ts tests/client/client-entry.client.spec.ts tests/unit/scripts/smoke-environment.spec.ts
 pnpm --dir plugin format:check
 pnpm --dir plugin verify
