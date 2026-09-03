@@ -148,7 +148,7 @@ function risk(value: MeetingState["issues"][number]): PublicRiskV1 {
         violatedConstraintIds: value.violatedConstraintIds,
         blockingObjectionIds: value.blockingObjectionIds,
         blocking: value.blocking,
-        riskLevel: value.riskLevel,
+        ...(value.riskLevel === undefined ? {} : { riskLevel: value.riskLevel }),
         impact: value.impact,
         urgency: value.urgency,
         reversibility: value.reversibility,

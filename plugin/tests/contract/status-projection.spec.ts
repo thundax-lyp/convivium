@@ -428,6 +428,38 @@ describe("meeting status projection", () => {
         expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
 
+    it("accepts a legacy risk projection without riskLevel", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                issues: [
+                    {
+                        id: "issue-legacy-risk",
+                        title: "Legacy risk",
+                        description: "Risk level was not persisted.",
+                        sourceMessageId: "message-1",
+                        affectedOutputIds: [],
+                        affectedCriterionIds: [],
+                        violatedConstraintIds: [],
+                        blockingObjectionIds: [],
+                        impact: "low",
+                        urgency: "later",
+                        reversibility: "reversible",
+                        safeDefaultAvailable: true,
+                        relatedTaskIds: [],
+                        status: "open",
+                        disposition: "follow_up",
+                        blocking: false
+                    }
+                ]
+            } as MeetingState,
+            { kind: "captain", sessionId: "captain-1" }
+        );
+
+        expect(projected.risks[0]).not.toHaveProperty("riskLevel");
+        expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
+    });
+
     it("projects open blocking Questions for Manager planning", () => {
         const projected = projectMeetingStatus(
             {
