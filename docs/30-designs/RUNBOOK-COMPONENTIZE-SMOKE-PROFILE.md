@@ -239,42 +239,9 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T0：固化 RUNBOOK 与基线
-
-前置状态：当前分支为 `codex/componentize-smoke-profile`；HEAD 为 `d285efec7dc268320c8040b1a8fb5f5031918fd6`；工作树仅有本 RUNBOOK；用户已明确授权 Execute 和 commit。
-
-允许修改：`docs/30-designs/RUNBOOK-COMPONENTIZE-SMOKE-PROFILE.md`。
-
-禁止修改：除上述文件外全部路径。
-
-执行：
-
-1. 运行基线状态、focused unit、format 和 lint。
-2. stage 本 RUNBOOK，确认 cached 路径唯一。
-3. commit message 固定为 `Docs(repo): 固化 smoke profile 组件化执行手册`。
-
-验证：
-
-```bash
-test "$(git branch --show-current)" = "codex/componentize-smoke-profile"
-test "$(git rev-parse HEAD)" = "d285efec7dc268320c8040b1a8fb5f5031918fd6"
-test "$(git status --porcelain)" = "?? docs/30-designs/RUNBOOK-COMPONENTIZE-SMOKE-PROFILE.md"
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-environment.spec.ts --reporter=dot
-pnpm --dir plugin format:check
-pnpm --dir plugin lint
-git diff --check
-git add -- docs/30-designs/RUNBOOK-COMPONENTIZE-SMOKE-PROFILE.md
-git diff --cached --name-only
-git commit -m "Docs(repo): 固化 smoke profile 组件化执行手册"
-```
-
-PASS：4 个 focused tests PASS；format/lint/diff PASS；cached 输出仅 RUNBOOK；commit 成功。
-
-STOP：HEAD、分支或工作树范围不符；任一基线命令失败；未获得 commit 授权。
-
 ### T1：迁移唯一外部入口
 
-前置状态：T0 commit 是 HEAD，工作树 clean。
+前置状态：T0 固化 commit `ffd3ea8d43d60e38f92f7deb26d7fb6c255eacbb` 已包含本 RUNBOOK 且 T0 检查 PASS；T0 closure commit 是 HEAD；工作树 clean。
 
 允许修改：`plugin/scripts/smoke-profile.mjs`（删除）、`plugin/scripts/smoke-environment.mjs`（删除）、`plugin/scripts/smoke-profile/index.mjs`（新增）、`plugin/scripts/smoke-profile/environment.mjs`（新增）、`plugin/scripts/smoke-profile/result.mjs`（新增）、`plugin/package.json`、`plugin/tests/unit/scripts/smoke-environment.spec.ts`（删除）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`（新增）、`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`、`docs/50-operations/HOW-TO-DSH-SMOKE.md`。
 
