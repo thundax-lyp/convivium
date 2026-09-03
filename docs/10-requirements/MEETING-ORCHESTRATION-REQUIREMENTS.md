@@ -92,12 +92,14 @@
 ### FR-7：提案、立场与决策
 
 1. 参与者只能以自己的会议身份提交立场，不得代表其他参与者表态。
-2. 参与者可以提出候选决策，但不能自行写入正式决策的接受者、异议者或接受状态。
-3. 正式决策必须依据当前提案版本上的有效立场、Captain 明确接受或具备授权的风险接受形成。
-4. 新提案版本不得自动继承旧版本的立场或接受结果。
+2. 参与者可以提出候选决策，但不能自行写入正式决策的接受者、异议者或接受状态；候选记录不可变且不具有持久状态。
+3. 正式决策必须依据当前提案版本上的有效立场和 Captain 的明确结构化接受形成；V1 不使用自动接受，Captain 的自然语言意见不能替代该操作。
+4. 新提案版本必须独立保存，`positions` 从空集合开始，不得自动继承旧版本的立场、候选决策、正式决策或接受结果。
 5. 少数非阻塞意见必须保留在会议结果中，不得为了显示一致而删除。
-6. 决策被替代或撤销时，历史决策及其依据必须仍可审计。
-7. Captain 在自然语言中表示接受或拒绝风险只构成意见；只有通过明确的结构化风险处置操作并经系统验证后，才能改变正式风险状态。
+6. 只有 Captain 和 loopback local user 可以查看当前 Meeting 的 `pendingDecisionCandidates`；该 projection 只包含指向当前 Proposal revision、尚未形成 Decision 且 Meeting 仍可执行的候选，普通 Participant 不可见。候选被接受、Proposal revision 更新或 Meeting execution 进入终态后，必须从该 projection 消失；V1 不提供 candidate reject/revoke 操作。
+7. 决策被替代或撤销时，必须通过 Captain-only 的结构化 `supersede` 或 `revoke` 操作；历史决策及其依据必须仍可审计。`supersede` 必须在同一原子提交中接受 replacement candidate、生成 replacement Decision、将旧 accepted Decision 标记为 superseded 并记录替代关系；`revoke` 只能将旧 accepted Decision 标记为 revoked。
+8. Captain-only Decision disposal 必须包含 protocol version、Meeting/version expectation、request identity、目标 Decision、action、非空理由和至少一条本 Meeting 证据；`supersede` 必须提供 replacement candidate，`revoke` 不得提供。execution-terminal、archiving 和 archived 状态不得写入 Decision。
+9. Captain 在自然语言中表示接受或拒绝风险只构成意见；只有通过明确的结构化风险处置操作并经系统验证后，才能改变正式风险状态。
 
 ### FR-8：完成事实与会议结束
 
@@ -109,7 +111,7 @@
 6. 达到业务完成条件时，即使仍有非阻塞后续事项、待讨论事项、已接受风险或少数意见，会议也可以正常完成。
 7. 会议不能完成时，必须区分部分完成、无共识、取消和内部失败，并说明原因及未解决事项。
 8. 最大 Turn 数、最大消息数、最大会议时长、每个 Turn 的最大发言人数和发言请求超时只限制继续讨论；如果最后一次有效讨论已经满足完成条件，会议必须按正常完成结束。
-9. Captain 的结构化风险处置必须明确风险、动作、理由和证据，并受当前目标约束及可接受风险级别限制；处置一个风险不得顺带接受其他风险或正式决策。
+9. Captain 的结构化风险处置必须明确一个 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、hard constraints、Issue status 和 Meeting lifecycle 限制；`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `disposition=blocking`、`blocking=true`。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。
 
 ### FR-9：暂停、恢复与故障隔离
 
@@ -139,13 +141,13 @@
 
 ### FR-11：可观察性与用户控制
 
-1. 用户必须能够查看当前议题、当前讨论目标、计划发言者、当前发言者、正式 transcript、阻塞项、后续事项、异步任务、适用的 Turn/消息/时长/发言人数/超时限制和结束结果。
+1. 用户必须能够查看当前议题、当前讨论目标、计划发言者、当前发言者、正式 transcript、阻塞项、后续事项、异步任务、适用的 Turn/消息/时长/发言人数/超时限制、结束结果，以及 Captain/local 可见的 pending decision candidates、accepted decision history 和 risks projection；普通 Participant 不得通过该状态读取获得这些 Captain/local 专属数组。
 2. V1 面板必须列出本地 Host 中全部可恢复 Meeting 的轻量摘要；用户选择其中一项后，面板才读取该 Meeting 的完整状态。列表不得包含 transcript、Session ID、capability、backend 物理路径或私有运行数据；任一已发现 Meeting 无法恢复时，列表必须报告暂不可用，不得返回部分列表。
 3. 用户必须能够暂停、恢复、结束会议，以及在适用的会议控制入口中撤销或重新分配当前发言权。V1 的插件面板运行于单个 loopback DSH Host，不绑定 Web 用户身份、不校验 Team 权限；到达该 Host 的请求共享该本地用户边界。
 4. 会议运行时，面板必须显示“暂停”；会议已暂停时，面板必须显示“继续”，并清楚显示暂停原因和发起者。
 5. 任何降级选择、强制结束、审核豁免、风险接受和部分完成都必须向用户显示原因。
 6. 产品必须通过完整的会议状态读取展示正式会议事实，不得把本地缓存或自然语言摘要当作状态真相源。
-7. 用户重新打开或刷新会议后，必须看到完整且一致的当前事实。
+7. 用户重新打开或刷新会议后，必须看到完整且一致的当前事实；状态 projection、HTTP response、Client 只读展示和 archive-facing history 必须对同一已提交事实保持一致。
 8. 会议操作可以出现在 DSH 原生工具调用记录中，但这些记录不得替代正式会议状态、transcript 或审计记录。
 
 ### FR-12：Agent 内部能力边界
@@ -240,16 +242,16 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 4. 长时间任务创建为 MeetingTask 后，合法的简短 `submit_turn` 可以释放发言权；任务完成后相关 Participant 可以申请后续发言。
 5. 新出现但不影响目标验收的问题被记录为后续事项或待讨论事项，不阻止会议完成。
 6. 没有有效阻塞依据的问题不能阻止会议完成。
-7. Participant 不能为其他身份提交立场，也不能直接指定正式决策的接受者或状态。
-8. 新 proposal revision 不继承旧 revision 的立场或接受结果。
+7. Participant 不能为其他身份提交立场，也不能直接指定正式决策的接受者或状态；候选不是正式 Decision，且普通 Participant 不获得 pending candidate projection。
+8. 新 proposal revision 的 `positions` 为空，不继承旧 revision 的立场、candidate、Decision 或 acceptance；接受事件统一为 `decision.accepted`，不存在 `decision.added` 兼容事件。
 9. MeetingTask 完成但 required review 未通过时，会议不能把对应产出标记为 accepted。
 10. 经过授权和证据验证的完成声明可以更新相应产出、验收条件、议题、问题或风险状态。
 11. 所有必要产出和验收条件满足后，即使存在非阻塞后续事项或少数意见，会议仍能正常完成。
 12. 最后一个 Turn 同时满足完成条件和硬限制时，结果为正常完成，而不是部分完成。
-13. 插件重启后，正式提交内容不丢失，重复投递不产生重复会议事实。
+13. 插件重启后，正式提交内容不丢失，重复投递不产生重复会议事实；request identity 相同且 validated request serialization 相同的重试必须重放原 receipt/result，identity 相同但 serialization 不同必须拒绝。
 14. 会议创建中断后，已经产生的会议专用 Session 仍能被确定性归属和安全关闭，不会影响其他会议或团队的 Session。
 15. `archived` 对外可见时，所有会议专用 Session 已停止、关闭并失去会议 capability；归档包不包含可恢复 Session、完整 Agent 运行配置或私有 Session 历史，但底层已关闭数据可以按 DSH retention policy 保留。
-16. 用户可以观察当前议题、发言计划、当前发言者、等待原因、阻塞项、异步任务、决策和结束原因。
+16. 用户可以观察当前议题、发言计划、当前发言者、等待原因、阻塞项、异步任务、决策 history、当前 accepted decisions、按权限过滤的 pending candidates/risks 和结束原因；状态读取不得暴露 Session、capability 或 backend 物理细节。
 17. 更换 Agent 的内部 Skills、Tools 或执行顺序，在其仍遵守相同会议协议时，不改变会议编排的正确性。
 18. Agent 内部工具失败但随后仍能合法提交发言时，会议不会因此增加会议级失败计数。
 19. Participant、Manager 和 Captain 只能调用其获授权的 Convivium 会议操作，但 Convivium 不枚举或接管其普通 DSH Tools。
@@ -259,8 +261,8 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 23. 普通 TeamMember mailbox 不携带会议上下文时保持原有行为；会议参与者不需要复用或伪装成 TeamMember Session 即可收发会议私聊。
 24. Mail handling 具有明确超时；私聊处理不得无限占用 Participant Session 或阻塞正式发言，长时间工作必须转为 MeetingTask。
 25. 创建会议时，重复、缺失、相互矛盾或引用无权访问对象的参与者配置会使创建整体失败，且不产生部分可用的会议。
-26. Captain 的自然语言风险意见不会改变会议状态；合法的结构化风险处置只影响指定风险，生成可审计事实并触发确定性完成重算。
-27. 归档前会校验最终成果、完成依据、正式 transcript、未解决事项和来源信息已经物化；Session 关闭失败时会议保持不可讨论的 `archiving`，且输出物不会丢失。
+26. Captain 的自然语言风险意见不会改变会议状态；合法的结构化风险处置只影响指定 Issue，验证 `riskLevel <= acceptableRiskLevel`、hard constraints、状态、理由和本 Meeting 证据，生成可审计事实并触发确定性完成重算；旧 risk facts 不删除。
+27. 归档前会校验最终成果、完成依据、正式 transcript、未解决事项、来源信息、全部 Decision history、全部 Issue 和全部 risk facts 已经物化；Session 关闭失败时会议保持不可讨论的 `archiving`，且输出物不会丢失。
 28. 从旧会议创建新会议时，只导入 Captain 显式选择且有权访问的归档素材，并保留来源引用；不会继承旧 Session、capability、完整 transcript 或运行状态。
 29. V1 面板先读取本地 Meeting 列表；选择一个摘要后只读取被选择 Meeting 的完整状态，列表本身不暴露 transcript、Session ID、capability、backend 物理路径或私有运行数据。任一已发现 Meeting 无法恢复时，列表报告暂不可用且不返回部分结果。
 30. Manager 收到的 Agent Catalog projection 不包含敏感 DSH 配置，并且只能引用当前 snapshot 中可用的 candidate 形成参会 recommendation。

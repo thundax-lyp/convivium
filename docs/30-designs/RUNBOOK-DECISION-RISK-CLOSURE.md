@@ -8,11 +8,11 @@
 - 当前交付只形成并审计本文件；不实现产品代码，不 commit、push 或创建 PR。
 - 产品终点：FR-7 的 Proposal revision、Position、Decision candidate、Captain acceptance、Decision supersede/revoke 和单 Issue risk disposition 经同一 Meeting Domain、协议、Repository commit、projection、Client 和 archive 链路闭合。
 
-用户于 2026-09-03 确认的 D1-D5 是正式人工决定。T1-T3 必须先把它们迁移到 requirements、interfaces、designs；本 RUNBOOK 不是长期真相源。
+用户于 2026-09-03 确认的 D1-D5 是正式人工决定。必须先把它们迁移到 requirements、interfaces、designs；本 RUNBOOK 不是长期真相源。
 
 ## 2. 执行者契约
 
-执行者必须从 T0 按编号执行。每步只修改列出的文件和 symbol，不得提前后续步骤或替换同义 DTO、event、helper、adapter、测试入口。
+执行者必须从当前最前面的未完成步骤按编号执行。每步只修改列出的文件和 symbol，不得提前后续步骤或替换同义 DTO、event、helper、adapter、测试入口。
 
 `PASS` 表示所有命令退出码为 0 且断言成立。`STOP` 后不得继续；报告最后 PASS 步骤、触发条件、文件/symbol、最小复现命令、实际输出和所需人工决定。不得清理、覆盖或回滚用户改动。
 
@@ -62,7 +62,7 @@
 5. [Domain Design](./DOMAIN-MODEL-DESIGN.md)、[Orchestration Design](./MEETING-ORCHESTRATION-DESIGN.md)、[Persistence Design](./MEETING-PERSISTENCE-SPECIAL-DESIGN.md)。
 6. `plugin/src` 和 tests 是结构基线与证据，不覆盖 requirement 行为。
 
-当前断点：接口仍称 candidate 不公开；设计仍含 `decision.added`、扁平 Position 或错误 Issue status；代码缺 pending/risk projection、Decision disposal/history、`riskLevel` 和统一 serializer。T1-T3 先消除冲突；若 D1-D5 外仍需产品决定则 STOP。
+当前断点：接口仍称 candidate 不公开；设计仍含 `decision.added`、扁平 Position 或错误 Issue status；代码缺 pending/risk projection、Decision disposal/history、`riskLevel` 和统一 serializer。requirements、interfaces、designs 迁移先消除冲突；若 D1-D5 外仍需产品决定则 STOP。
 
 DSH rc.2 边界：沿用 `defineTool`/registry/fiber、JSON result/纯 renderer；Meeting durable state 只入 Storage Domain Repository；Client 整体消费 wire projection。不新增 Service、Provider、job、Session projection或依赖。
 
@@ -235,7 +235,7 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 | 能力                          | 唯一 owner                             | producer                                             | consumer                                                                   | 精确文件/symbol                                                                                                                                                                                                                                                                                                                                                                     | 顺序             | 重复/冲突                                                                                   |
 | ----------------------------- | -------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------- |
-| D1-D5 requirements            | B                                      | B T1                                                 | A T1 只保留并引用                                                          | `docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`：B 只改 FR-7、FR-8.1/8.4/8.9、FR-11.1/11.5/11.7 中 Decision/risk 句子及 AC-7/8/13/16/26/27 中 FR-7 断言                                                                                                                                                                                                                | B→A              | 无重复；A 只追加 D6-D10 句子                                                                |
+| D1-D5 requirements            | B                                      | B 已完成 requirements 迁移                           | A T1 只保留并引用                                                          | `docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`：B 只改 FR-7、FR-8.1/8.4/8.9、FR-11.1/11.5/11.7 中 Decision/risk 句子及 AC-7/8/13/16/26/27 中 FR-7 断言                                                                                                                                                                                                                | B→A              | 无重复；A 只追加 D6-D10 句子                                                                |
 | D6-D10 requirements           | A                                      | A T1                                                 | B 不消费                                                                   | 同文件：FR-4、FR-6.7、FR-8.7、FR-9.4/9.5、FR-11.1/11.5 中 counters/Turn reason及 AC-5/6/13/16/20 的 convergence 断言                                                                                                                                                                                                                                                                | B→A              | B 禁止修改这些句子                                                                          |
 | Agent Protocol                | B lifecycle；A convergence             | B/A 各自产生所属 DTO/Schema                          | tools/runtime/Client                                                       | `AGENT-MEETING-PROTOCOL-INTERFACE.md`；B symbols 为 §5 的 Candidate/Decision/risk/status/archive；A symbols 为 `ManagerPlanResultV1`、`PublicMeetingWaitStateV1`、`PublicTurnV1.reason`、active counters                                                                                                                                                                            | B→A              | 同文档顺序编辑，无同名 member                                                               |
 | Domain/Orchestration designs  | B lifecycle；A convergence             | B T3/A T1                                            | production steps                                                           | `DOMAIN-MODEL-DESIGN.md`、`MEETING-ORCHESTRATION-DESIGN.md`：B 只写 §5 lifecycle；A 只写 planning/wait/fingerprint/stall/terminal                                                                                                                                                                                                                                                   | B→A              | event vocabulary共享但不重复定义；B events固定，A复用既有 `meeting.replanned/meeting.ended` |
@@ -255,7 +255,7 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 交叉结论：`Compatible`。A 的 P0 在 B 合入后校验最终 FR-7 types、conditional Result Schema、tool、projection、serializer 和 focused tests；A 后续只消费这些 contract 并实现 D6-D10，C 最后在 B→A merged SHA 写 readiness。双方未重复 state、Schema、transition、adapter、fixture、runner 或 readiness writer。
 
-反向核对：T1-T10 每项修改均属于表中行为；T11 仅验证。Non-goals 无 production step。
+反向核对：每项剩余修改均属于表中行为；T11 仅验证。Non-goals 无 production step。
 
 ## 7. 不变量
 
@@ -272,32 +272,9 @@ Repository 固定顺序：authorization→receipt→idempotency conflict→expec
 
 ## 8. 机械步骤
 
-### T1：迁移 requirements
-
-前置状态：commit `56d29cc5a69cfeb1dd7dd16914278d43aa082344` 的产品/正式文档树等同 `7291ba012475915e02648addb60ca3c6223425e1`，且 T0 baseline 检查 PASS。
-
-允许修改：`docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md` 的 FR-7 全部、FR-8.1/8.4/8.9、FR-11.1/11.5/11.7 中 Candidate/Decision/risk 句子，以及 AC-7/8/13/16/26/27 中 FR-7 断言。
-
-禁止修改：其他 docs、`plugin/`。
-
-执行：写入§5 revision isolation、pending visibility/predicate、Captain commands、history、risk matrix、terminal/atomic/recovery/archive；明确无 auto-accept、candidate disposal、HTTP write。
-
-验证：
-
-```bash
-rg -n 'pendingDecisionCandidates|decision\.accepted|decision\.superseded|decision\.revoked|decisionHistory|riskLevel|accepted_risk' docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md
-pnpm --dir plugin exec prettier ../docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md --check
-```
-
-PASS：tokens存在，明确 revision 不继承和 caller visibility，格式通过。
-
-STOP：D1-D5 外需决定。
-
-失败恢复：保留 diff，不回滚其他文件。
-
 ### T2：迁移 interfaces
 
-前置状态：T1 PASS。
+前置状态：commit `bb363a4` 已完成并验证 baseline；requirements 已完成 D1-D5 迁移并通过本步全部验证 PASS。
 
 允许修改：`docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`、`docs/20-interfaces/MEETING-STORAGE-INTERFACE.md`。
 
@@ -317,7 +294,7 @@ PASS：契约与§5一致。
 
 STOP：需改 repository record、HTTP allowlist、identity。
 
-失败恢复：保留 diff，不回滚 T1。
+失败恢复：保留 diff，不回滚已完成的 requirements 迁移。
 
 ### T3：迁移 designs
 
@@ -341,7 +318,7 @@ PASS：结构/event/职责唯一。
 
 STOP：需 adapter/service/provider/formatVersion。
 
-失败恢复：保留 diff，不回滚 T1-T2。
+失败恢复：保留 diff，不回滚已完成的 requirements 或 interfaces 迁移。
 
 ### T4：Protocol 与 serializer
 
@@ -506,7 +483,7 @@ STOP：环境不可用则记录命令/输出并标 runtime smoke `Not Covered`�
 
 ### T11：完整验证与移交
 
-前置状态：T1-T9 PASS；T10 fixture PASS；真实 smoke 可仅因环境为 Not Covered。
+前置状态：requirements、interfaces、designs 迁移已完成并验证 PASS；T2-T9 PASS；T10 fixture PASS；真实 smoke 可仅因环境为 Not Covered。
 
 允许修改：无；本步骤只运行检查命令。
 
@@ -552,11 +529,11 @@ STOP：产品 test/type/lint/build/contract/package失败，不放宽。
 | archive/recovery      | history/current、全部 Issue/Fact、legacy risk、checkpoint/tail/reopen一致                   |
 | DSH/full              | 现有 registry/renderer/fiber；无 Session event；T11 verify；T10 profile或环境Not Covered    |
 
-完成条件：T1-T9/T11 PASS；T10 fixture PASS，真实 profile PASS或仅可复现环境缺失；双向追踪完整且无 Non-goal diff。数据库迁移 `Not Applicable`：D4 指定 optional read compatibility，formatVersion不变。
+完成条件：requirements、interfaces、designs 迁移已完成并验证 PASS；T2-T9/T11 PASS；T10 fixture PASS，真实 profile PASS或仅可复现环境缺失；双向追踪完整且无 Non-goal diff。数据库迁移 `Not Applicable`：D4 指定 optional read compatibility，formatVersion不变。
 
 B 不写 readiness。C 只在 B→A 最终 SHA 更新 `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` 与 `DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`。
 
-长期事实经 T1-T3 迁移后，删除本 RUNBOOK 前运行 `rg -n 'RUNBOOK-DECISION-RISK-CLOSURE|Decision And Risk Closure' docs .agents plugin`；仅剩本文件时删除，再做链接、Prettier、`git diff --check`。删除属于实现 PR 收口，不属于本次 Author/Audit。
+长期事实经 requirements、interfaces、designs 迁移后，删除本 RUNBOOK 前运行 `rg -n 'RUNBOOK-DECISION-RISK-CLOSURE|Decision And Risk Closure' docs .agents plugin`；仅剩本文件时删除，再做链接、Prettier、`git diff --check`。删除属于实现 PR 收口，不属于本次 Author/Audit。
 
 ## 10. Audit 与当前 Not Covered
 
@@ -578,13 +555,13 @@ B 本轮补齐 `plugin/src/protocol/results.ts:CaptainDecisionDispositionResultS
 | authority/structure | PASS | §1-4                                                                      |
 | traceability        | PASS | §6                                                                        |
 | data/interface      | PASS | §5                                                                        |
-| file/symbol         | PASS | §6、T1-T10                                                                |
-| mechanical steps    | PASS | T0-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
+| file/symbol         | PASS | §6、所有剩余执行步骤                                                      |
+| mechanical steps    | PASS | T2-T11 均含前置/允许/禁止/动作/命令/PASS/STOP/恢复                        |
 | validation/failure  | PASS | §9 覆盖 success/invalid/authority/stale/terminal/replay/rollback/recovery |
 | scope/non-goals     | PASS | §3、§6，B→A→C固定                                                         |
 | readiness/deletion  | PASS | §9                                                                        |
 
-当前 Not Covered：未执行 T1-T11，未实现代码，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 commit、push 或创建 PR。
+当前 Not Covered：未执行剩余 T2-T11，未实现代码，未运行产品 focused/full verify/smoke，未更新 readiness；这是未来执行阶段，不影响 RUNBOOK 可执行性。本次不 commit、push 或创建 PR。
 
 ## 11. Related Documents
 
