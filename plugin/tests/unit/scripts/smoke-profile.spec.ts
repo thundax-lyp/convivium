@@ -49,6 +49,10 @@ const decisionRiskSource = readFileSync(
     ),
     "utf8"
 );
+const convergenceSource = readFileSync(
+    new URL("../../../scripts/smoke-profile/probe/scenarios/convergence.js", import.meta.url),
+    "utf8"
+);
 
 describe("createSmokeEnvironment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
@@ -217,6 +221,18 @@ describe("smoke profile scenario guard", () => {
             "event-order-not-observable-by-command-status"
         ])
             expect(decisionRiskSource).toContain(`"${label}"`);
+    });
+
+    it("dispatches convergence to its lifecycle module", () => {
+        expect(smokeProfileSource).toContain('from "./scenarios/convergence.js"');
+        expect(smokeProfileSource).toContain("await runConvergenceScenario(runtime);");
+        expect(smokeProfileSource.match(/runConvergenceScenario\(runtime\)/g)).toHaveLength(1);
+        expect(convergenceSource).toContain(
+            "export async function runConvergenceScenario(runtime)"
+        );
+        expect(convergenceSource).toContain('"deterministic-fallback"');
+        expect(convergenceSource).toContain('"fallback-replay-idempotent"');
+        expect(convergenceSource).toContain('"fallback-status-projected"');
     });
 
     it("copies the probe tree and keeps shared support exports bounded", () => {

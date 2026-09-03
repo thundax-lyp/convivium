@@ -243,34 +243,6 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T12：迁移 convergence 场景
-
-前置状态：前一提交已完成 T11 closure，工作树 clean；`runConvergenceScenario(ctx)` 仍是 probe 模板内唯一实现，`convergence` selector 已在 allowlist 中。
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/convergence.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-
-禁止修改：其他场景文件、A 已迁移的 domain/runtime 产品代码、`result.mjs` 的 convergence contract。
-
-执行：把完整 `runConvergenceScenario(ctx)` 移为 `runConvergenceScenario(runtime)`；仅把自由变量替换为 runtime 固定字段；dispatcher 调用新 export；删除旧函数；保留 deterministic fallback、replay equality/version 和三个原 assertion label；unit 锁定唯一 call 与三个 label。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/convergence.js tests/unit/scripts/smoke-profile.spec.ts --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts --reporter=dot
-pnpm --dir plugin build
-env CONVIVIUM_SMOKE_SCENARIO=convergence pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/convergence.js tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/scenarios/convergence.js plugin/tests/unit/scripts/smoke-profile.spec.ts plugin/tests/unit/scripts/smoke-profile-contract.spec.ts
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 拆分收敛场景"
-```
-
-PASS：真实 smoke 输出 `deterministic-fallback`、`fallback-replay-idempotent`、`fallback-status-projected`；fallback result 与 replay result 的 JSON 和 meetingVersion 相等。
-
-STOP：fallback、replay、status projection、assertion label 或 result shape 变化。
-
 ### T13：迁移 baseline 与 timeout 场景
 
 前置状态：前一提交已完成 T12 closure，工作树 clean；generic baseline/timeout flow 仍在模板尾部。
