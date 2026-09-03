@@ -533,6 +533,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
             try {
                 const current = await stored.repository.read();
                 const recovered = await stored.repository.recover();
+                const commandNow = options.now?.() ?? Date.now();
                 const state = current.state as unknown as MeetingState;
                 const dispatchableParticipantIds = state.participants
                     .filter((participant) => isParticipantDispatchableNow(state, participant))
@@ -546,7 +547,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                         )
                     )
                     .map((participant) => participant.id);
-                const committed = await stored.repository.execute({
+                const committed = await stored.repository.execute<ManagerPlanResultV1>({
                     requestId: input.requestId,
                     commandKind: "submit_manager_plan",
                     authorization: {
@@ -568,7 +569,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                                     snapshotState.manager.currentPlanningAttempt?.deliveryId ?? "",
                                 observedMeetingVersion: input.observedMeetingVersion,
                                 dispatchableParticipantIds,
-                                now: options.now?.() ?? Date.now()
+                                now: commandNow
                             },
                             {
                                 turnId: `turn-${snapshotState.turnSeq + 1}`,
@@ -576,22 +577,33 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                             }
                         );
                         const turn = transition.state.currentTurn;
-                        const result: ManagerPlanResultV1 =
-                            turn === undefined
-                                ? {
-                                      status: "waiting",
-                                      waitReason: "required_participant_unavailable",
-                                      participantIds:
-                                          transition.state.waitState?.participantIds ?? [],
-                                      fallbackApplied: false
-                                  }
-                                : {
-                                      status: "planned",
-                                      turnId: turn.id,
-                                      firstStepId: turn.steps[0]!.id,
-                                      firstAttemptId: turn.steps[0]!.attempt!.attemptId,
-                                      fallbackApplied: false
-                                  };
+                        const fallbackApplied = turn?.reason === "manager_fallback";
+                        let result: ManagerPlanResultV1;
+                        if (turn === undefined) {
+                            result = {
+                                status: "waiting",
+                                waitReason: "required_participant_unavailable",
+                                participantIds: transition.state.waitState?.participantIds ?? [],
+                                fallbackApplied: false
+                            };
+                        } else if (fallbackApplied) {
+                            result = {
+                                status: "planned",
+                                turnId: turn.id,
+                                firstStepId: turn.steps[0]!.id,
+                                firstAttemptId: turn.steps[0]!.attempt!.attemptId,
+                                fallbackApplied: true,
+                                fallbackReason: "manager_plan_invalid"
+                            };
+                        } else {
+                            result = {
+                                status: "planned",
+                                turnId: turn.id,
+                                firstStepId: turn.steps[0]!.id,
+                                firstAttemptId: turn.steps[0]!.attempt!.attemptId,
+                                fallbackApplied: false
+                            };
+                        }
                         return {
                             state: transition.state as unknown as JsonObject,
                             result,

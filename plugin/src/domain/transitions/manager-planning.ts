@@ -104,6 +104,23 @@ export function failManagerPlanningAndCreateFallback(
     );
     const attempt = state.manager.currentPlanningAttempt!;
     const firstStep = planned.steps[0]!;
+    const firstAttempt = {
+        attemptId: `${planned.id}-attempt-0`,
+        deliveryId: `${planned.id}-delivery-0`,
+        participantId: firstStep.speaker,
+        meetingId: state.id,
+        turnId: planned.id,
+        stepId: firstStep.id,
+        contextFromSeq: 0,
+        contextThroughSeq: state.messageSeq,
+        taskSnapshots: completedTaskSnapshots(state, firstStep.speaker, context.now),
+        assignedAt: context.now,
+        ...(state.limits.speakerAttemptTimeoutMs === undefined
+            ? {}
+            : { deadlineAt: context.now + state.limits.speakerAttemptTimeoutMs }),
+        status: "running" as const,
+        deliveryStatus: "pending" as const
+    };
     const nextState: MeetingState = {
         ...state,
         version: state.version + 1,
@@ -118,7 +135,7 @@ export function failManagerPlanningAndCreateFallback(
             status: "running",
             reason: "manager_fallback",
             steps: planned.steps.map((step, index) =>
-                index === 0 ? { ...step, status: "running" as const } : step
+                index === 0 ? { ...step, status: "running" as const, attempt: firstAttempt } : step
             )
         },
         turnSeq: planned.seq,
@@ -294,28 +311,27 @@ export function submitManagerPlan(
             }
         );
     }
-    const activeAgenda = state.agenda.find((item) => item.id === state.activeAgendaItemId);
     const dispatchable = new Set(context.dispatchableParticipantIds);
     if (requiredUnavailable(state, context).length > 0) {
         return waitForRequiredParticipant(state, context, ids);
     }
 
-    const selectedUnavailable = input.steps
-        .map((step) => step.participantId)
-        .filter((participantId) => !dispatchable.has(participantId));
-    if (selectedUnavailable.length > 0) {
-        throw new DomainError(
-            "MANAGER_PLAN_INVALID",
-            `manager plan selects unavailable participant ${selectedUnavailable[0]}`,
-            {
-                entityType: "manager_attempt",
-                entityId: planningAttempt.id,
-                meetingVersion: state.version
-            }
-        );
-    }
     let planned: MeetingTurn;
     try {
+        const selectedUnavailable = input.steps
+            .map((step) => step.participantId)
+            .filter((participantId) => !dispatchable.has(participantId));
+        if (selectedUnavailable.length > 0) {
+            throw new DomainError(
+                "MANAGER_PLAN_INVALID",
+                `manager plan selects unavailable participant ${selectedUnavailable[0]}`,
+                {
+                    entityType: "manager_attempt",
+                    entityId: planningAttempt.id,
+                    meetingVersion: state.version
+                }
+            );
+        }
         planned = planManagerTurn(state, input, ids, context.now);
     } catch (error) {
         if (!(error instanceof DomainError) || error.code !== "MANAGER_PLAN_INVALID") throw error;

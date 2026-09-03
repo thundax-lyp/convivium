@@ -475,37 +475,51 @@ describe("create/status meeting runtime", () => {
         expect(managerContexts[1]?.dispatchableParticipantIds).toEqual(["participant-two"]);
         const afterTimeout = await runtime.getStatus({ protocolVersion: 1, meetingId }, captain);
         if (!afterTimeout.ok) throw new Error("status failed");
-        await expect(
-            runtime.submitManagerPlan(
+        const invalidPlanInput = {
+            protocolVersion: 1,
+            meetingId,
+            requestId: "manager-timeout-invalid-plan",
+            planningAttemptId: `${meetingId}-planning-2`,
+            observedMeetingVersion: afterTimeout.meetingVersion,
+            agendaItemId: "agenda-agenda-1",
+            intent: "explore",
+            objective: "Retry failed participant",
+            expectedOutputs: ["output-done"],
+            prohibitedTopics: [],
+            steps: [
                 {
-                    protocolVersion: 1,
-                    meetingId,
-                    requestId: "manager-timeout-invalid-plan",
-                    planningAttemptId: `${meetingId}-planning-2`,
-                    observedMeetingVersion: afterTimeout.meetingVersion,
-                    agendaItemId: "agenda-agenda-1",
-                    intent: "explore",
-                    objective: "Retry failed participant",
-                    expectedOutputs: ["output-done"],
-                    prohibitedTopics: [],
-                    steps: [
-                        {
-                            participantId: "participant-one",
-                            instruction: "Retry",
-                            reason: "manager_selected"
-                        }
-                    ]
-                },
-                {
-                    sessionId: `${meetingId}-manager-manager`,
-                    meetingId,
-                    kind: "manager"
+                    participantId: "participant-one",
+                    instruction: "Retry",
+                    reason: "manager_selected"
                 }
-            )
-        ).resolves.toMatchObject({ ok: false, code: "MANAGER_PLAN_INVALID" });
+            ]
+        } as const;
+        const invalidPlan = await runtime.submitManagerPlan(invalidPlanInput, {
+            sessionId: `${meetingId}-manager-manager`,
+            meetingId,
+            kind: "manager"
+        });
+        expect(invalidPlan).toMatchObject({
+            ok: true,
+            result: {
+                status: "planned",
+                fallbackApplied: true,
+                fallbackReason: "manager_plan_invalid"
+            }
+        });
+        const fallbackStatus = await runtime.getStatus({ protocolVersion: 1, meetingId }, captain);
+        if (!fallbackStatus.ok) throw new Error("fallback status failed");
+        expect(fallbackStatus.meetingVersion).toBe(afterTimeout.meetingVersion + 1);
+        expect(fallbackStatus.result.currentTurn?.reason).toBe("manager_fallback");
+        const replay = await runtime.submitManagerPlan(invalidPlanInput, {
+            sessionId: `${meetingId}-manager-manager`,
+            meetingId,
+            kind: "manager"
+        });
+        expect(replay).toEqual(invalidPlan);
         await expect(
             runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
-        ).resolves.toMatchObject({ meetingVersion: afterTimeout.meetingVersion });
+        ).resolves.toMatchObject({ meetingVersion: fallbackStatus.meetingVersion });
         await runtime.dispose();
     });
 
