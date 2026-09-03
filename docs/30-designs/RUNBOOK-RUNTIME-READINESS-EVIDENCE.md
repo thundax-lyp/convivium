@@ -121,20 +121,9 @@ G0 必须同时找到：
 
 ## 6. 机械执行步骤
 
-### G2：完整 plugin verify
-
-前置状态：当前分支 HEAD 为 G1 收口 commit，且 `git show --name-only --format= HEAD^..HEAD` 只列本文；工作树 clean。允许修改：无。禁止修改：全部文件。
-
-```bash
-pnpm --dir plugin verify
-test -z "$(git status --porcelain)"
-```
-
-PASS：format、lint、Host/Client typecheck、tests、build、environment、contract、Agent Definition samples、package 全退出 0且工作树 clean。STOP：任一子门禁失败或产生 tracked/untracked diff；不得忽略 aggregate 首败。恢复：ignored build output 由既有 script 管理。
-
 ### G3：全部 real DSH selectors
 
-前置状态：G2 PASS；不加载 `dev.env`；`DSH_SMOKE_DSH_BIN` 未设置；可取得 `@deepseek-ai/dsh@0.1.1-rc.2`。允许修改：无。禁止修改：全部文件和 runner defaults。
+前置状态：当前分支 HEAD 为 G2 收口 commit，且 `git show --name-only --format= HEAD^..HEAD` 只列本文；工作树 clean；不加载 `dev.env`；`DSH_SMOKE_DSH_BIN` 未设置；可取得 `@deepseek-ai/dsh@0.1.1-rc.2`。允许修改：无。禁止修改：全部文件和 runner defaults。
 
 依次执行，不能并行或跳过：
 
