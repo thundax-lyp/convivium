@@ -1,6 +1,11 @@
 import { DomainError, invalidStateTransition } from "../errors.js";
 import { completedTaskSnapshots, consumeHandRaise } from "../hand-raise.js";
-import { planManagerTurn, type ManagerPlanIds, type ManagerPlanInput } from "../planning.js";
+import {
+    planManagerTurn,
+    planRuleBasedTurn,
+    type ManagerPlanIds,
+    type ManagerPlanInput
+} from "../planning.js";
 import type {
     DomainEffect,
     MeetingState,
@@ -11,6 +16,161 @@ import type {
 import { transitionManagerAttempt } from "./kernel.js";
 import { transitionMeeting } from "./meeting.js";
 import type { StartManagerPlanningContext, SubmitManagerPlanContext } from "./types.js";
+
+export type ManagerFallbackReasonCode =
+    "manager_plan_invalid" | "manager_timeout" | "manager_delivery_retry_exhausted";
+
+function requiredUnavailable(state: MeetingState, context: SubmitManagerPlanContext): string[] {
+    const agenda = state.agenda.find((item) => item.id === state.activeAgendaItemId);
+    const dispatchable = new Set(context.dispatchableParticipantIds);
+    return [
+        ...new Set((agenda?.requiredParticipants ?? []).filter((id) => !dispatchable.has(id)))
+    ].sort();
+}
+
+function waitForRequiredParticipant(
+    state: MeetingState,
+    context: SubmitManagerPlanContext,
+    ids: ManagerPlanIds,
+    reasonCode?: ManagerFallbackReasonCode
+): TransitionResult<MeetingState> {
+    const participantIds = requiredUnavailable(state, context);
+    if (participantIds.length === 0) throw new Error("wait requires unavailable participant");
+    const attempt = state.manager.currentPlanningAttempt!;
+    const nextState: MeetingState = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: context.now,
+        status: "waiting",
+        currentTurn: undefined,
+        waitState: {
+            reason: "required_participant_unavailable",
+            waitingSince: context.now,
+            taskIds: [],
+            participantIds,
+            ...(state.activeAgendaItemId ? { resumeAgendaItemId: state.activeAgendaItemId } : {})
+        },
+        manager: {
+            ...state.manager,
+            status: "idle",
+            currentPlanningAttempt: { ...attempt, status: "failed" }
+        }
+    };
+    return {
+        state: nextState,
+        effect: {
+            events: [
+                ...(reasonCode
+                    ? [
+                          {
+                              type: "manager_plan.failed" as const,
+                              payload: {
+                                  meetingId: state.id,
+                                  planningAttemptId: attempt.id,
+                                  reasonCode
+                              }
+                          }
+                      ]
+                    : []),
+                {
+                    type: "meeting.waiting",
+                    payload: {
+                        meetingId: state.id,
+                        from: state.status,
+                        to: "waiting",
+                        reason: "required_participant_unavailable",
+                        participantIds,
+                        meetingVersion: nextState.version
+                    }
+                }
+            ]
+        }
+    };
+}
+
+export function failManagerPlanningAndCreateFallback(
+    state: MeetingState,
+    context: SubmitManagerPlanContext & { reasonCode: ManagerFallbackReasonCode },
+    ids: ManagerPlanIds
+): TransitionResult<MeetingState> {
+    if (requiredUnavailable(state, context).length > 0) {
+        return waitForRequiredParticipant(state, context, ids, context.reasonCode);
+    }
+    const planned = planRuleBasedTurn(
+        state,
+        { turnId: ids.turnId, stepId: (participantId, index) => ids.stepId(index) },
+        context.now,
+        "normal"
+    );
+    const attempt = state.manager.currentPlanningAttempt!;
+    const firstStep = planned.steps[0]!;
+    const nextState: MeetingState = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: context.now,
+        manager: {
+            ...state.manager,
+            status: "idle",
+            currentPlanningAttempt: { ...attempt, status: "failed" }
+        },
+        currentTurn: {
+            ...planned,
+            status: "running",
+            reason: "manager_fallback",
+            steps: planned.steps.map((step, index) =>
+                index === 0 ? { ...step, status: "running" as const } : step
+            )
+        },
+        turnSeq: planned.seq,
+        participants: state.participants.map((participant) =>
+            participant.id === firstStep.speaker
+                ? { ...participant, status: "speaking" as const }
+                : participant
+        )
+    };
+    return {
+        state: nextState,
+        effect: {
+            events: [
+                {
+                    type: "manager_plan.failed",
+                    payload: {
+                        meetingId: state.id,
+                        planningAttemptId: attempt.id,
+                        reasonCode: context.reasonCode,
+                        meetingVersion: nextState.version
+                    }
+                },
+                {
+                    type: "turn.planned",
+                    payload: {
+                        meetingId: state.id,
+                        turnId: planned.id,
+                        meetingVersion: nextState.version
+                    }
+                },
+                {
+                    type: "turn.started",
+                    payload: {
+                        meetingId: state.id,
+                        turnId: planned.id,
+                        meetingVersion: nextState.version
+                    }
+                },
+                {
+                    type: "speaker.assigned",
+                    payload: {
+                        meetingId: state.id,
+                        turnId: planned.id,
+                        stepId: firstStep.id,
+                        participantId: firstStep.speaker,
+                        meetingVersion: nextState.version
+                    }
+                }
+            ]
+        }
+    };
+}
 
 export function startManagerPlanning(
     state: MeetingState,
@@ -86,7 +246,7 @@ export function startManagerPlanning(
             status: "planning",
             currentPlanningAttempt: planningAttempt
         },
-        replanCount: meeting.state.replanCount + 1
+        managerPlanningSeq: meeting.state.managerPlanningSeq + 1
     };
     return {
         state: nextState,
@@ -136,19 +296,8 @@ export function submitManagerPlan(
     }
     const activeAgenda = state.agenda.find((item) => item.id === state.activeAgendaItemId);
     const dispatchable = new Set(context.dispatchableParticipantIds);
-    const unavailableRequired = (activeAgenda?.requiredParticipants ?? []).filter(
-        (participantId) => !dispatchable.has(participantId)
-    );
-    if (unavailableRequired.length > 0) {
-        throw new DomainError(
-            "REQUIRED_SPEAKER_UNAVAILABLE",
-            `required Participant ${unavailableRequired[0]} is unavailable`,
-            {
-                entityType: "participant",
-                entityId: unavailableRequired[0],
-                meetingVersion: state.version
-            }
-        );
+    if (requiredUnavailable(state, context).length > 0) {
+        return waitForRequiredParticipant(state, context, ids);
     }
 
     const selectedUnavailable = input.steps
@@ -165,7 +314,17 @@ export function submitManagerPlan(
             }
         );
     }
-    const planned = planManagerTurn(state, input, ids, context.now);
+    let planned: MeetingTurn;
+    try {
+        planned = planManagerTurn(state, input, ids, context.now);
+    } catch (error) {
+        if (!(error instanceof DomainError) || error.code !== "MANAGER_PLAN_INVALID") throw error;
+        return failManagerPlanningAndCreateFallback(
+            state,
+            { ...context, reasonCode: "manager_plan_invalid" },
+            ids
+        );
+    }
     const submitted = transitionManagerAttempt(planningAttempt, "submitted", state.version, {
         attemptId: context.planningAttemptId,
         meetingId: context.meetingId,
