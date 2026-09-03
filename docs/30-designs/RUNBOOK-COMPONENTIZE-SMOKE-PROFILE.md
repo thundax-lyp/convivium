@@ -239,37 +239,9 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T5：迁移 cross-meeting 场景
-
-前置状态：T4 closure commit is HEAD, literal SHA is recorded in the preceding commit; T4 unit/build/mail-race smoke/lint/diff checks passed; worktree clean; `mail-race` has one dispatcher call to `runMailRaceScenario(runtime)` and no inline branch.
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/isolation.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-
-禁止修改：其他场景和产品源码。
-
-执行：把完整 `cross-meeting` branch 移为 `runCrossMeetingScenario(runtime)`；删除旧 branch；unit 锁定唯一 import/call 和 4 个 label。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/isolation.js tests/unit/scripts/smoke-profile.spec.ts --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/scenarios/isolation.js tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/scenarios/isolation.js plugin/tests/unit/scripts/smoke-profile.spec.ts
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 拆分会议隔离场景"
-```
-
-PASS：真实 smoke 包含 `ownership-sets-disjoint`、`meeting-a-cleanup-isolated`、`meeting-b-submitted`、`team-b-submitted`。
-
-STOP：Meeting/Team ownership、session set 或 cleanup isolation 断言变化。
-
 ### T6：迁移 reassign 场景
 
-前置状态：T5 commit 是 HEAD，工作树 clean。
+前置状态：T5 closure commit is HEAD, literal SHA is recorded in the preceding commit; T5 unit/build/cross-meeting smoke/lint/diff checks passed; worktree clean; `cross-meeting` has one dispatcher call to `runCrossMeetingScenario(runtime)` and no inline branch.
 
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/reassign.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
 

@@ -22,6 +22,10 @@ const mailSource = readFileSync(
     new URL("../../../scripts/smoke-profile/probe/scenarios/mail.js", import.meta.url),
     "utf8"
 );
+const isolationSource = readFileSync(
+    new URL("../../../scripts/smoke-profile/probe/scenarios/isolation.js", import.meta.url),
+    "utf8"
+);
 
 describe("createSmokeEnvironment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
@@ -88,6 +92,17 @@ describe("smoke profile scenario guard", () => {
         expect(mailSource).toContain('"stable-delivery-ids"');
         expect(mailSource).toContain('"private-body-not-projected"');
         expect(mailSource).toContain('"recipient-queue-reusable"');
+    });
+
+    it("dispatches cross-meeting to one scenario module", () => {
+        expect(smokeProfileSource).toContain('from "./scenarios/isolation.js"');
+        expect(smokeProfileSource).toContain("await runCrossMeetingScenario(runtime);");
+        expect(smokeProfileSource.match(/runCrossMeetingScenario\(runtime\)/g)).toHaveLength(1);
+        expect(isolationSource).toContain("export async function runCrossMeetingScenario(runtime)");
+        expect(isolationSource).toContain('"ownership-sets-disjoint"');
+        expect(isolationSource).toContain('"meeting-a-cleanup-isolated"');
+        expect(isolationSource).toContain('"meeting-b-submitted"');
+        expect(isolationSource).toContain('"team-b-submitted"');
     });
 
     it("copies the probe tree and keeps shared support exports bounded", () => {
