@@ -239,44 +239,9 @@ setMailMaintenance(release, promise), releaseMailMaintenance()
 
 ## 7. 机械执行步骤
 
-### T2：建立 probe 支持与复制边界
-
-前置状态：T1 closure commit 是 HEAD，且 T1 已完成入口/environment/result/unit/docs 迁移与 baseline smoke PASS；工作树 clean；probe 仍内嵌在 `index.mjs::writeProbePackage`。
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/support.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-
-禁止修改：场景文件、产品源码、package/docs、RUNBOOK。
-
-执行：
-
-1. `index.mjs` 从 `node:fs/promises` 增加 `cp`，定义 `probeSourceDir = fileURLToPath(new URL("./probe", import.meta.url))`。
-2. `writeProbePackage` 在写 manifest/patch/index 前执行 `cp(probeSourceDir, probeDir, { recursive: true })`；调用前 `probeDir` 必须不存在。
-3. 新建 `support.js`，实现 §5.2 的 `validateColdCheckpoint` 与 `createProbeSupport(outputPath)`。
-4. runner 和内嵌 probe 都从 `support.js` import `validateColdCheckpoint`；内嵌 probe 调用 `createProbeSupport(outputPath)` 并解构固定 helper，删除模板中的同名旧实现。
-5. unit spec 断言 runner 包含 recursive `cp`、probe support import，且 `support.js` 只有两个 export。该步不创建尚无场景消费的 runtime 对象。
-6. format、验证、stage 后 commit `Refactor(plugin/smoke): 分离 probe 共享支持边界`。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/support.js tests/unit/scripts/smoke-profile.spec.ts --write
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts --reporter=dot
-pnpm --dir plugin build
-pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/probe/support.js tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-git add -- plugin/scripts/smoke-profile/index.mjs plugin/scripts/smoke-profile/probe/support.js plugin/tests/unit/scripts/smoke-profile.spec.ts
-git diff --cached --name-only
-git commit -m "Refactor(plugin/smoke): 分离 probe 共享支持边界"
-```
-
-PASS：unit/build/baseline smoke PASS；临时 probe 能解析复制后的 `support.js`；helper 旧定义已从模板删除；cached 仅 3 个允许文件。
-
-STOP：`cp` 生成嵌套 `probe/probe`、temp package 无法 import、helper 行为变化或需新增依赖。
-
 ### T3：迁移 risk-reopen 场景
 
-前置状态：T2 commit 是 HEAD，工作树 clean。
+前置状态：T2 closure commit is HEAD, literal SHA is recorded in the preceding commit; T2 unit/build/baseline smoke/lint/diff checks passed; worktree clean; `support.js` is the sole owner of the two shared probe exports and `writeProbePackage` recursively copies the probe tree.
 
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/risk-reopen.js`（新增）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
 

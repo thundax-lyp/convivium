@@ -10,6 +10,10 @@ const smokeProfileSource = readFileSync(
     new URL("../../../scripts/smoke-profile/index.mjs", import.meta.url),
     "utf8"
 );
+const smokeSupportSource = readFileSync(
+    new URL("../../../scripts/smoke-profile/probe/support.js", import.meta.url),
+    "utf8"
+);
 
 describe("createSmokeEnvironment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
@@ -55,5 +59,12 @@ describe("smoke profile scenario guard", () => {
     it("keeps unknown scenario handling fail closed", () => {
         expect(smokeProfileSource).toContain('"SCENARIO_NOT_IMPLEMENTED:" + scenario');
         expect(smokeProfileSource).toContain("if (!SMOKE_SCENARIOS.includes(SMOKE_SCENARIO))");
+    });
+
+    it("copies the probe tree and keeps shared support exports bounded", () => {
+        expect(smokeProfileSource).toContain("cp(probeSourceDir, probeDir");
+        expect(smokeProfileSource).toContain('from "./probe/support.js"');
+        expect(smokeSupportSource.match(/^export function /gm)).toHaveLength(2);
+        expect(smokeSupportSource).toContain("createProbeSupport(outputPath)");
     });
 });
