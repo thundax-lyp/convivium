@@ -44,6 +44,212 @@ export interface ManagerPlanIds {
     stepId(index: number): string;
 }
 
+export type ConvergenceAction = "normal" | "refocus" | "replan";
+
+export interface ScoredPlanningCandidate {
+    participantId: string;
+    required: boolean;
+    score: number;
+    registrationIndex: number;
+}
+
+function currentAgenda(state: MeetingState) {
+    return state.agenda.find((item) => item.id === state.activeAgendaItemId);
+}
+
+function latestSpeakerTurnSeq(state: MeetingState, participantId: string): number | undefined {
+    const turns = state.transcript
+        .filter((message) => message.speaker === participantId)
+        .map((message) => message.turnSeq);
+    return turns.length === 0 ? undefined : Math.max(...turns);
+}
+
+function currentProposal(state: MeetingState) {
+    const proposals = state.proposals.filter(
+        (proposal) => proposal.agendaItemId === state.activeAgendaItemId
+    );
+    return proposals.sort((left, right) => right.revision - left.revision)[0];
+}
+
+export function rankRulePlanningCandidates(
+    state: MeetingState
+): readonly ScoredPlanningCandidate[] {
+    const agenda = currentAgenda(state);
+    const proposal = currentProposal(state);
+    const latestMessage = [...state.transcript]
+        .filter((message) => message.agendaItemId === state.activeAgendaItemId)
+        .sort((left, right) => right.seq - left.seq)[0];
+    const blockingPositionOwners = new Set(
+        (proposal?.positions ?? [])
+            .filter(
+                (position) =>
+                    position.proposalRevision === proposal?.revision &&
+                    position.blocking &&
+                    (position.position === "object" || position.position === "needs_revision")
+            )
+            .map((position) => position.participantId)
+    );
+    const directedQuestionOwners = new Set(
+        state.openQuestions
+            .filter(
+                (question) =>
+                    question.status === "open" &&
+                    question.blocking &&
+                    question.directedTo !== undefined
+            )
+            .map((question) => question.directedTo as string)
+    );
+    const freshTaskReporters = new Set(
+        state.meetingTasks
+            .filter((task) => task.status === "completed")
+            .filter((task) =>
+                state.handRaises.some(
+                    (raise) =>
+                        raise.status === "pending" &&
+                        raise.reason === "task_completed" &&
+                        raise.participant === task.participantId &&
+                        raise.taskIds.includes(task.meetingTaskId)
+                )
+            )
+            .map((task) => task.participantId)
+    );
+    const requiredReviewers = new Set(state.objectiveContract.requiredReviewers);
+    const required = new Set<string>();
+    const scoreByParticipant = new Map<string, number>();
+    for (const participant of state.participants) {
+        const neverSpoke = latestSpeakerTurnSeq(state, participant.id) === undefined;
+        const explicitlyMentioned = latestMessage?.mentions.includes(participant.id) ?? false;
+        const agendaOwner = agenda?.owner === participant.id;
+        const handRaise = state.handRaises.some(
+            (raise) =>
+                raise.status === "pending" &&
+                raise.participant === participant.id &&
+                raise.agendaItemId === state.activeAgendaItemId &&
+                raise.priority === "blocking"
+        );
+        if (
+            explicitlyMentioned ||
+            directedQuestionOwners.has(participant.id) ||
+            requiredReviewers.has(participant.id) ||
+            agendaOwner ||
+            freshTaskReporters.has(participant.id) ||
+            blockingPositionOwners.has(participant.id) ||
+            handRaise
+        ) {
+            required.add(participant.id);
+        }
+        const lastTurnSeq = latestSpeakerTurnSeq(state, participant.id);
+        const recency =
+            lastTurnSeq === undefined ? 15 : Math.min(15, Math.max(0, state.turnSeq - lastTurnSeq));
+        let score = 0;
+        if (explicitlyMentioned) score += 100;
+        if (directedQuestionOwners.has(participant.id)) score += 80;
+        if (requiredReviewers.has(participant.id)) score += 60;
+        if (agendaOwner) score += 50;
+        if (freshTaskReporters.has(participant.id)) score += 40;
+        if (blockingPositionOwners.has(participant.id)) score += 25;
+        if (neverSpoke) score += 20;
+        score += recency;
+        if (latestMessage?.speaker === participant.id) score -= 25;
+        if (participant.consecutiveSpeeches + 1 >= state.limits.maxConsecutiveSpeechesPerSpeaker) {
+            score -= 40;
+        }
+        scoreByParticipant.set(participant.id, score);
+    }
+    return state.participants
+        .map((participant, registrationIndex) => ({
+            participantId: participant.id,
+            required: required.has(participant.id),
+            score: scoreByParticipant.get(participant.id)!,
+            registrationIndex
+        }))
+        .sort(
+            (left, right) =>
+                Number(right.required) - Number(left.required) ||
+                right.score - left.score ||
+                left.registrationIndex - right.registrationIndex
+        );
+}
+
+export function planRuleBasedTurn(
+    state: MeetingState,
+    ids: RoundRobinPlanIds,
+    now: number,
+    action: ConvergenceAction
+): MeetingTurn {
+    const ranked = rankRulePlanningCandidates(state);
+    const selected = ranked
+        .filter(({ participantId }) => {
+            const participant = state.participants.find(({ id }) => id === participantId)!;
+            return isParticipantDispatchableNow(state, participant);
+        })
+        .slice(0, state.limits.maxSpeakersPerTurn);
+    if (selected.length === 0) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `meeting ${state.id} has no available participant`
+        );
+    }
+    const agenda = activeAgenda(state);
+    const steps = selected.map(({ participantId }, index) => ({
+        id: ids.stepId(participantId, index),
+        speaker: participantId,
+        instruction: `Address the active agenda: ${agenda.objective}`,
+        reason: "rule_score" as SpeakerSelectionReason,
+        status: "pending" as const
+    }));
+    return {
+        id: ids.turnId,
+        seq: state.turnSeq + 1,
+        agendaItemId: agenda.id,
+        intent: action === "normal" ? "explore" : "refocus",
+        ...(action === "normal" ? {} : { reason: action }),
+        objective: agenda.objective,
+        expectedOutputs: [...agenda.completionCriteria],
+        prohibitedTopics: [...agenda.outOfScope],
+        plan: steps.map(({ speaker }) => speaker),
+        status: "planned",
+        currentStepIndex: 0,
+        steps,
+        createdAt: now
+    };
+}
+
+export function needsSemanticArbitration(
+    state: MeetingState,
+    ranked: readonly ScoredPlanningCandidate[],
+    action: ConvergenceAction
+): boolean {
+    if (action === "refocus" || action === "replan") return true;
+    const limit = state.limits.maxSpeakersPerTurn;
+    const boundaryTie = ranked.length > limit && ranked[limit - 1]?.score === ranked[limit]?.score;
+    const proposal = currentProposal(state);
+    const owners = new Set(
+        (proposal?.positions ?? [])
+            .filter(
+                (position) =>
+                    position.proposalRevision === proposal?.revision &&
+                    position.blocking &&
+                    (position.position === "object" || position.position === "needs_revision")
+            )
+            .map((position) => position.participantId)
+    );
+    return boundaryTie || owners.size >= 2;
+}
+
+export function nextManagerPlanningIds(state: MeetingState): {
+    managerPlanningSeq: number;
+    planningAttemptId: string;
+    deliveryId: string;
+} {
+    const managerPlanningSeq = state.managerPlanningSeq + 1;
+    return {
+        managerPlanningSeq,
+        planningAttemptId: `${state.id}-planning-${managerPlanningSeq}`,
+        deliveryId: `${state.id}-planning-delivery-${managerPlanningSeq}`
+    };
+}
+
 const turnIntents: readonly TurnIntent[] = [
     "explore",
     "clarify",
