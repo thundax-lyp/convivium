@@ -26,6 +26,10 @@ const isolationSource = readFileSync(
     new URL("../../../scripts/smoke-profile/probe/scenarios/isolation.js", import.meta.url),
     "utf8"
 );
+const reassignSource = readFileSync(
+    new URL("../../../scripts/smoke-profile/probe/scenarios/reassign.js", import.meta.url),
+    "utf8"
+);
 
 describe("createSmokeEnvironment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
@@ -103,6 +107,17 @@ describe("smoke profile scenario guard", () => {
         expect(isolationSource).toContain('"meeting-a-cleanup-isolated"');
         expect(isolationSource).toContain('"meeting-b-submitted"');
         expect(isolationSource).toContain('"team-b-submitted"');
+    });
+
+    it("dispatches reassign to one scenario module", () => {
+        expect(smokeProfileSource).toContain('from "./scenarios/reassign.js"');
+        expect(smokeProfileSource).toContain("await runReassignScenario(runtime);");
+        expect(smokeProfileSource.match(/runReassignScenario\(runtime\)/g)).toHaveLength(1);
+        expect(reassignSource).toContain("export async function runReassignScenario(runtime)");
+        expect(reassignSource).toContain('"old-attempt-revoked"');
+        expect(reassignSource).toContain('"old-activation-drained"');
+        expect(reassignSource).toContain('"replacement-attempt-submitted"');
+        expect(reassignSource).toContain('"transcript-preserved"');
     });
 
     it("copies the probe tree and keeps shared support exports bounded", () => {
