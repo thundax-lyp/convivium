@@ -23,6 +23,10 @@ const statusResult = {
     blockingFacts: [],
     meetingTasks: [],
     status: "running",
+    stallCount: 0,
+    maxStalls: 3,
+    replanCount: 0,
+    maxReplans: 1,
     pendingHandRaises: [],
     pauseControl: { action: "pause" }
 } as const;
