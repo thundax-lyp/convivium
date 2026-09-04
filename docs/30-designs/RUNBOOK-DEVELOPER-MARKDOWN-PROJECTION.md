@@ -180,30 +180,9 @@ ctx
 
 ## 8. 机械执行步骤
 
-### T0：固定基线
-
-前置状态：分支为 `codex/developer-markdown-projection`，工作树除本 RUNBOOK 外 clean。
-
-允许修改：仅本 RUNBOOK。禁止修改：其他全部文件。
-
-执行：验证 HEAD、正式依据、当前缺口和 DSH 版本。
-
-验证：
-
-```bash
-test "$(git rev-parse HEAD)" = '5c2574800f7a627a7a0ac824e53584b70ae8c8b6'
-test -z "$(git status --porcelain --untracked-files=all | awk 'substr($0, 4) != "docs/30-designs/RUNBOOK-DEVELOPER-MARKDOWN-PROJECTION.md" { print }')"
-rg -n '### FR-15：Developer Markdown Projection|48\. Developer Markdown' docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md
-rg -n '^状态：已确认|interface DeveloperMeetingDocument|### Atomic replacement' docs/20-interfaces/DEVELOPER-MARKDOWN-PROJECTION-INTERFACE.md
-rg -n '0\.1\.1-rc\.2' plugin/package.json plugin/pnpm-lock.yaml
-! rg -n 'DeveloperMeetingDocument|createDeveloperMarkdownService|developerMarkdownWorkspaceId' plugin/src plugin/tests plugin/README.md
-```
-
-PASS：全部退出 0。STOP：任一失败；报告实际 HEAD/status/命中，不更新基线或正式契约。失败恢复：只读，无恢复。
-
 ### T1：白名单 mapper 与 renderer
 
-前置状态：T0 PASS。
+前置状态：已完成基线核对；当前 HEAD 包含 FR-15 requirements、Developer Markdown interface 和唯一实现 design，且不存在 Developer Markdown production/test symbol。
 
 允许修改：`plugin/src/projection/developer-markdown.ts`、`plugin/src/projection/index.ts`、`plugin/tests/unit/projection/developer-markdown.spec.ts`。
 
