@@ -8,6 +8,7 @@ import {
     planRoundRobinTurn,
     planRuleBasedTurn,
     requiredPlanningBlockers,
+    isMeetingStateV2,
     submitManagerPlan as submitManagerPlanTransition,
     submitSpeakerAndAdvanceMeeting,
     type MeetingState,
@@ -33,6 +34,7 @@ import type { MeetingDeliveryWorkerService } from "../services/types.js";
 import type { AuthorizedTaskEvidenceResolver } from "../task-evidence.js";
 import type { CreateStatusRuntimeOptions, MeetingToolRuntime } from "./index.js";
 import type { StoredMeeting } from "./types.js";
+import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
 
 type ManagerFallbackReasonCode =
     "manager_plan_invalid" | "manager_timeout" | "manager_delivery_retry_exhausted";
@@ -389,6 +391,19 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
             );
             try {
                 const current = await stored.repository.read();
+                const currentState = current.state as unknown as MeetingState;
+                const shouldCapture =
+                    currentState.currentTurn !== undefined &&
+                    (currentState.selectionMode === "manager" ||
+                        currentState.selectionMode === "hybrid");
+                const catalogBinding =
+                    shouldCapture && isMeetingStateV2(currentState)
+                        ? await captureManagerCatalogBinding(options.agentCatalog, {
+                              teamId: stored.teamId,
+                              meetingId: stored.repository.meetingId,
+                              captainSessionId: stored.captainSessionId
+                          })
+                        : { kind: "none" as const };
                 const committed = await stored.repository.execute({
                     requestId: input.deliveryId,
                     commandKind: "submit_turn",
@@ -447,7 +462,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                                 now: commandNow,
                                 nextPlanningAttemptId: planningIds.planningAttemptId,
                                 nextPlanningDeliveryId: planningIds.deliveryId,
-                                catalogBinding: { kind: "none" },
+                                catalogBinding,
                                 issues,
                                 questions,
                                 proposals,

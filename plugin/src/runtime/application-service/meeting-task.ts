@@ -10,6 +10,7 @@ import {
     planRuleBasedTurn,
     rankRulePlanningCandidates,
     requiredPlanningBlockers,
+    isMeetingStateV2,
     startManagerPlanning,
     startMeetingTask as startMeetingTaskTransition,
     type MeetingState
@@ -35,6 +36,7 @@ import type { MeetingRehydrationService } from "../services/meeting-recovery-ser
 import { readAuthorizedMeetingTask } from "../services/meeting-session-service.js";
 import type { CreateStatusRuntimeOptions, MeetingToolRuntime } from "./index.js";
 import type { StoredMeeting } from "./types.js";
+import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
 
 function meetingTaskId(participantId: string, requestId: string): string {
     return `meeting-task-${createHash("sha256")
@@ -225,6 +227,26 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                     "The caller is not authorized for this MeetingTask."
                 );
             try {
+                const taskNow = options.now?.() ?? Date.now();
+                const currentForPlanning = await stored.repository.read();
+                const previewTask = startMeetingTaskTransition(
+                    currentForPlanning.state as unknown as MeetingState,
+                    input.meetingTaskId,
+                    taskNow
+                );
+                const previewState = previewTask.state as unknown as MeetingState;
+                const previewWillPlan =
+                    previewState.manager.currentPlanningAttempt !== undefined &&
+                    previewState.manager.currentPlanningAttempt.observedMeetingVersion !==
+                        previewState.version + 1;
+                const catalogBinding =
+                    previewWillPlan && isMeetingStateV2(currentForPlanning.state)
+                        ? await captureManagerCatalogBinding(options.agentCatalog, {
+                              teamId: stored.teamId,
+                              meetingId: stored.repository.meetingId,
+                              captainSessionId: stored.captainSessionId
+                          })
+                        : { kind: "none" as const };
                 const committed = await stored.repository.execute({
                     requestId: input.requestId,
                     commandKind: "start_meeting_task",
@@ -238,7 +260,7 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                         const transition = startMeetingTaskTransition(
                             snapshot.state as unknown as MeetingState,
                             input.meetingTaskId,
-                            options.now?.() ?? Date.now()
+                            taskNow
                         );
                         let nextState = transition.state as unknown as MeetingState;
                         let planningEvents: DomainEventInput[] = [];
@@ -269,8 +291,8 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                                     planningAttemptId,
                                     deliveryId: planningDeliveryId,
                                     reason: "next_turn",
-                                    now: options.now?.() ?? Date.now(),
-                                    catalogBinding: { kind: "none" },
+                                    now: taskNow,
+                                    catalogBinding,
                                     allowRunningRestart: true
                                 }
                             );
@@ -331,6 +353,29 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                     "The caller is not authorized for this MeetingTask."
                 );
             try {
+                const currentState = authorized.recovered.snapshot!
+                    .state as unknown as MeetingState;
+                const currentAttempt = currentState.manager.currentPlanningAttempt;
+                const managerRequested =
+                    currentState.selectionMode === "manager" ||
+                    currentState.selectionMode === "hybrid";
+                const mayCreatePlanningAttempt =
+                    input.status === "completed" &&
+                    (currentState.currentTurn === undefined ||
+                        (currentAttempt !== undefined &&
+                            currentAttempt.observedMeetingVersion !== currentState.version + 1)) &&
+                    currentState.manager.status !== "failed" &&
+                    currentState.manager.status !== "closed" &&
+                    managerRequested &&
+                    requiredPlanningBlockers(currentState).length === 0;
+                const catalogBinding =
+                    mayCreatePlanningAttempt && isMeetingStateV2(currentState)
+                        ? await captureManagerCatalogBinding(options.agentCatalog, {
+                              teamId: stored.teamId,
+                              meetingId: stored.repository.meetingId,
+                              captainSessionId: stored.captainSessionId
+                          })
+                        : { kind: "none" as const };
                 const committed = await stored.repository.execute({
                     requestId: input.requestId,
                     commandKind: "finish_meeting_task",
@@ -487,7 +532,7 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                                                 ? "semantic_arbitration"
                                                 : "next_turn",
                                         now: planningNow,
-                                        catalogBinding: { kind: "none" }
+                                        catalogBinding
                                     });
                                     nextState = planning.state;
                                     planningEvents = planning.effect

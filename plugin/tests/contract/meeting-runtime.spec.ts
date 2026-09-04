@@ -19,6 +19,7 @@ import {
     createCreateStatusRuntime,
     LocalMeetingRecoveryUnavailableError
 } from "../../src/runtime/application-service/index.js";
+import type { AgentCatalogPort } from "../../src/runtime/services/agent-catalog.js";
 
 const roots: string[] = [];
 const storageContexts: Array<Promise<Context>> = [];
@@ -92,6 +93,7 @@ function localRuntime(
     options: {
         now?: () => number;
         validateCommand?: () => void;
+        agentCatalog?: AgentCatalogPort;
     } = {}
 ) {
     return createCreateStatusRuntime({
@@ -108,7 +110,8 @@ function localRuntime(
             validateCreate: () => undefined,
             validateCommand: options.validateCommand ?? (() => undefined)
         },
-        now: options.now
+        now: options.now,
+        agentCatalog: options.agentCatalog
     });
 }
 
@@ -119,6 +122,78 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
+    it("captures Catalog exactly once for an initial Manager attempt and not for rule planning", async () => {
+        const snapshot = {
+            protocolVersion: 1 as const,
+            catalogId: "catalog-1",
+            catalogVersion: "2026-09-04",
+            teamId: input.teamId,
+            capturedAt: 100,
+            roles: [
+                {
+                    roleDefinitionId: "generalist" as const,
+                    version: "1",
+                    displayName: "Generalist",
+                    summary: "General meeting support",
+                    expertiseTags: [],
+                    evidenceScopes: [],
+                    responsibilities: ["Review"],
+                    nonResponsibilities: []
+                }
+            ],
+            candidates: []
+        };
+        const readSnapshot = vi.fn(async () => ({ ok: true as const, snapshot }));
+        const managerCatalog: AgentCatalogPort = { readSnapshot };
+        const managerRoot = await mkdtemp(join(tmpdir(), "convivium-catalog-initial-"));
+        roots.push(managerRoot);
+        const managerRuntime = localRuntime(managerRoot, { agentCatalog: managerCatalog });
+        const captain = {
+            sessionId: "captain-catalog",
+            kind: "captain" as const,
+            agent: { id: "captain-catalog" } as never
+        };
+        const managerMeeting = await managerRuntime.createMeeting(
+            {
+                ...input,
+                selectionMode: "manager",
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        expect(managerMeeting).toMatchObject({ ok: true });
+        expect(readSnapshot).toHaveBeenCalledTimes(1);
+        expect(readSnapshot).toHaveBeenCalledWith({
+            teamId: input.teamId,
+            meetingId: expect.any(String),
+            captainSessionId: captain.sessionId
+        });
+        await managerRuntime.dispose();
+
+        const ruleRoot = await mkdtemp(join(tmpdir(), "convivium-catalog-rule-"));
+        roots.push(ruleRoot);
+        const ruleReadSnapshot = vi.fn(async () => ({ ok: true as const, snapshot }));
+        const ruleRuntime = localRuntime(ruleRoot, {
+            agentCatalog: { readSnapshot: ruleReadSnapshot }
+        });
+        const ruleMeeting = await ruleRuntime.createMeeting(
+            {
+                ...input,
+                requestId: "create-rule-catalog",
+                selectionMode: "rule_based",
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        expect(ruleMeeting).toMatchObject({ ok: true });
+        expect(ruleReadSnapshot).not.toHaveBeenCalled();
+        await ruleRuntime.dispose();
+    });
+
     it("persists the designed default mail handling timeout", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-mail-default-"));
         roots.push(root);

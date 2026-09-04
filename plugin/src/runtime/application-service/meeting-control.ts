@@ -5,6 +5,7 @@ import {
     planRuleBasedTurn,
     rankRulePlanningCandidates,
     requiredPlanningBlockers,
+    isMeetingStateV2,
     reassignTurn as reassignTurnTransition,
     applyCompletionClaims,
     judgeTurnCompletion,
@@ -42,6 +43,7 @@ import type {
 } from "./index.js";
 import { assignTurnAttempt } from "./meeting-turn.js";
 import type { MeetingControlSource, StoredMeeting } from "./types.js";
+import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
 
 export interface MeetingControlApplicationOptions {
     readonly options: CreateStatusRuntimeOptions;
@@ -377,6 +379,24 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                       capabilityId: "local-host:loopback-web"
                   };
         try {
+            const current = await stored.repository.read();
+            const currentState = current.state as unknown as MeetingState;
+            const shouldCapture =
+                target === "running" &&
+                currentState.currentTurn === undefined &&
+                requiredPlanningBlockers(currentState).length === 0 &&
+                (currentState.selectionMode === "manager" ||
+                    currentState.selectionMode === "hybrid") &&
+                currentState.manager.status !== "failed" &&
+                currentState.manager.status !== "closed";
+            const catalogBinding =
+                shouldCapture && isMeetingStateV2(currentState)
+                    ? await captureManagerCatalogBinding(options.agentCatalog, {
+                          teamId: stored.teamId,
+                          meetingId: stored.repository.meetingId,
+                          captainSessionId: stored.captainSessionId
+                      })
+                    : { kind: "none" as const };
             const committed = await stored.repository.execute({
                 requestId: input.requestId,
                 commandKind: target === "paused" ? "pause_meeting" : "resume_meeting",
@@ -471,7 +491,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                                         deliveryId: planningIds.deliveryId,
                                         status: "running",
                                         createdAt: planningNow,
-                                        catalogBinding: { kind: "none" },
+                                        catalogBinding,
                                         ...(nextState.limits.speakerAttemptTimeoutMs === undefined
                                             ? {}
                                             : {

@@ -3,6 +3,7 @@ import type { DomainFacility } from "@deepseek-ai/dsh-storage-domain";
 import {
     DomainError,
     failSpeakerAttempt,
+    isMeetingStateV2,
     nextManagerPlanningIds,
     type MeetingState
 } from "../../domain/index.js";
@@ -36,6 +37,7 @@ import { createMeetingEndApplication } from "./meeting-end.js";
 import { createMeetingMailApplication } from "./meeting-mail.js";
 import { createMeetingDecisionApplication } from "./meeting-decision.js";
 import type { StoredMeeting } from "./types.js";
+import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
 import {
     meetingTaskEvidenceResolver,
     type AuthorizedTaskEvidenceResolver
@@ -535,6 +537,29 @@ export function createCreateStatusRuntime(
                 timeoutAttemptsInFlight.add(attempt.attemptId);
                 timeoutAttemptId = attempt.attemptId;
                 releaseDispatch = holdTimeoutDispatch(stored.repository.meetingId);
+                const planningIds = nextManagerPlanningIds(state);
+                const preview = failSpeakerAttempt(state, {
+                    meetingId: state.id,
+                    participantId: attempt.participantId,
+                    turnId: attempt.turnId,
+                    stepId: attempt.stepId,
+                    attemptId: attempt.attemptId,
+                    deliveryId: attempt.deliveryId,
+                    agendaItemId: turn.agendaItemId,
+                    now,
+                    nextPlanningAttemptId: planningIds.planningAttemptId,
+                    nextPlanningDeliveryId: planningIds.deliveryId,
+                    catalogBinding: { kind: "none" }
+                });
+                const catalogBinding =
+                    preview.state.manager.currentPlanningAttempt?.id ===
+                        planningIds.planningAttemptId && isMeetingStateV2(state)
+                        ? await captureManagerCatalogBinding(options.agentCatalog, {
+                              teamId: stored.teamId,
+                              meetingId: stored.repository.meetingId,
+                              captainSessionId: stored.captainSessionId
+                          })
+                        : { kind: "none" as const };
                 await stored.repository.execute({
                     requestId: `runtime-timeout:${attempt.attemptId}`,
                     commandKind: "expire_speaker_attempt",
@@ -562,7 +587,7 @@ export function createCreateStatusRuntime(
                                 now,
                                 nextPlanningAttemptId: planningIds.planningAttemptId,
                                 nextPlanningDeliveryId: planningIds.deliveryId,
-                                catalogBinding: { kind: "none" }
+                                catalogBinding
                             }
                         );
                         const transitionState =

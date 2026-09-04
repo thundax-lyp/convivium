@@ -480,36 +480,6 @@ Captain approval/admission/provisioning portions of FR-13.5-9 and AC 31-34 remai
 
 ## 8. 机械实施步骤
 
-### T5：全部 Manager attempt 的一次性 Catalog capture
-
-前置状态：T4 PASS commit 已存在；T4 完整章节已删除；工作树 clean；所有 producer已显式接受 required binding但仍传 none。
-
-允许修改：`plugin/src/runtime/application-service/create-meeting.ts::createMeetingApplication`；`plugin/src/runtime/application-service/meeting-task.ts::createMeetingTaskApplication`的`startMeetingTask`、`finishMeetingTask`；`plugin/src/runtime/application-service/meeting-control.ts::createMeetingControlApplication`内的`transitionMeetingStatus`；`plugin/src/runtime/application-service/meeting-turn.ts::createMeetingTurnApplication.submitTurn`；`plugin/src/runtime/application-service/index.ts::scanExpiredSpeakerAttempts`；`plugin/tests/unit/domain/transitions/manager-planning.spec.ts`；`plugin/tests/unit/domain/transitions/turn-advancement.spec.ts`；`plugin/tests/contract/meeting-runtime.spec.ts`；本RUNBOOK的T5章节。
-
-禁止修改：Domain selection/fallback算法、repository API、event/outbox vocabulary、Meeting creation initial state、claim/status projection。
-
-执行：
-
-1. 对 7.2 producer matrix 六条路径逐条应用固定 preview算法。resident路径的request只取`StoredMeeting.teamId`、`StoredMeeting.repository.meetingId`、`StoredMeeting.captainSessionId`；initial planning仅在creation ownership已持久化后取validated`input.teamId`、Runtime派生的`meetingId`和已授权`caller.sessionId`，不得使用Manager输入。
-2. initial planning在已确定 `managerRequested && managerAvailable` 后、`start_manager_planning` execute前capture；不得在 `createMeetingState`、ownership持久化前或 no-Manager path读取。
-3. 其余五条路径用同一 fixed `now`/IDs先运行pure transition with none；source state不是V2或preview没有创建新Manager attempt时不调用port；V2且创建时capture一次并把binding传给commit transition。
-4. Repository `VERSION_CONFLICT` 后直接返回/保留既有错误；该 command内部不得重新capture或循环。
-5. 在`meeting-runtime.spec.ts`增加`describe("FR-13 planning attempt Catalog capture")`，逐一覆盖initial、task start、task finish、Captain resume、local resume、speaker submission和speaker timeout的verified、missing service、legacy-no-read、no-attempt-no-read、capture count=1及commit/reopen binding；domain tests断言context binding按原值写入。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/transitions/manager-planning.spec.ts tests/unit/domain/transitions/turn-advancement.spec.ts tests/contract/meeting-runtime.spec.ts
-pnpm --dir plugin typecheck:host
-git diff --check
-```
-
-PASS：全部退出0；六类producer（resume类含Captain/local两个入口）均有测试；每个实际新attempt恰好一次read；没有attempt时零read；verified/none随同一attempt commit恢复。
-
-STOP：需要async repository transition、第二commit、cache、retry、Manager input ownership或遗漏producer。报告producer symbol、调用计数和首错。
-
-失败恢复：fake port和fake domain无外部副作用；repository command失败时保留原state。保留 T5 与现场。
-
 ### T6：Manager safe Catalog context
 
 前置状态：T5 PASS；T5 完整章节已删除；verified binding可从repository恢复。
