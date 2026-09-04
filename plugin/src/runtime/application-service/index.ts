@@ -12,6 +12,7 @@ import {
     DomainRepositoryRegistry,
     type DomainFacilityPort
 } from "../../repository/domain/domain-repository-registry.js";
+import { openMeetingRepository } from "../meeting-runtime.js";
 import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { RepositoryAuthorizationValidator } from "../meeting-runtime.js";
@@ -21,6 +22,11 @@ import {
     scanMeetingMailTimeouts
 } from "../services/meeting-dispatch-service.js";
 import { resolveArchiveCleanupRuntime } from "../services/meeting-session-service.js";
+import {
+    createDeveloperMarkdownService,
+    type DeveloperMarkdownService,
+    type DeveloperMarkdownWarning
+} from "../services/developer-markdown-service.js";
 import type { AgentCatalogPort } from "../services/agent-catalog.js";
 import { recoverArchive } from "../services/meeting-archive-service.js";
 import {
@@ -209,6 +215,10 @@ export interface CreateStatusRuntimeOptions {
     readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
     readonly timeoutScanSleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
     readonly agentCatalog?: AgentCatalogPort;
+    readonly developerMarkdown?: {
+        readonly workspaceRoot: string;
+        readonly warn: (warning: DeveloperMarkdownWarning) => void;
+    };
 }
 
 interface InternalCreateStatusRuntimeOptions extends CreateStatusRuntimeOptions {
@@ -267,11 +277,22 @@ function isConcurrentTimeoutLoser(error: unknown): boolean {
 export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
 ): MeetingRuntimeWithCallerLookup {
+    let developerMarkdownService: DeveloperMarkdownService | undefined;
     const repositoryRegistry = DomainRepositoryRegistry.open({
         storageDomain: options.storageDomain,
         authorizationValidator: options.authorizationValidator,
-        now: options.now
+        now: options.now,
+        onProjectionCommitted: (snapshot) => developerMarkdownService?.schedule(snapshot)
     });
+    if (options.developerMarkdown !== undefined) {
+        developerMarkdownService = createDeveloperMarkdownService({
+            workspaceRoot: options.developerMarkdown.workspaceRoot,
+            openRepository: (teamId, meetingId) =>
+                openMeetingRepository({ registry: repositoryRegistry, teamId, meetingId }),
+            now: options.now,
+            warn: options.developerMarkdown.warn
+        });
+    }
     const runtimeOptions: InternalCreateStatusRuntimeOptions = {
         ...options,
         repositoryRegistry
@@ -746,6 +767,7 @@ export function createCreateStatusRuntime(
             timeoutController.abort(new Error("Speaker timeout monitor disposed"));
             await timeoutMonitor;
             await deliveryWorkers.dispose();
+            await developerMarkdownService?.dispose();
             await (await repositoryRegistry).close();
             meetings.clear();
         }

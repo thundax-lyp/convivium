@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
+import type { WorkspaceId } from "@deepseek-ai/dsh-workspace";
 import { Config, type Config as ConfigType } from "./config.js";
 import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
 import { registerLocalMeetingHttpRoutes } from "./http/index.js";
@@ -20,7 +21,6 @@ const meetingServices = [
     "subagents",
     "systemPrompt",
     "tools",
-    "workspaceRegistry",
     "webServer"
 ] as const;
 
@@ -48,6 +48,17 @@ const meetingConsumerPlugin = {
             return;
         }
         const agentCatalog = ctx.get(AGENT_CATALOG_SERVICE_KEY);
+        let workspace: { path: string } | undefined;
+        if (config.developerMarkdownWorkspaceId !== undefined) {
+            const workspaceRegistry = ctx.get("workspaceRegistry");
+            if (workspaceRegistry === undefined)
+                throw new Error("Developer Markdown workspace service is unavailable");
+            workspace = workspaceRegistry.get(config.developerMarkdownWorkspaceId as WorkspaceId);
+            if (workspace === undefined)
+                throw new Error(
+                    `Developer Markdown workspace is not registered: ${config.developerMarkdownWorkspaceId}`
+                );
+        }
         const runtime = createCreateStatusRuntime({
             storageDomain: ctx.storageDomain,
             provider: config.provider,
@@ -59,7 +70,18 @@ const meetingConsumerPlugin = {
             maxParticipants: config.maxParticipants,
             outboxPollMs: config.outboxPollMs,
             speakerAttemptTimeoutMs: config.speakerTimeoutMs,
-            agentCatalog
+            agentCatalog,
+            ...(workspace === undefined
+                ? {}
+                : {
+                      developerMarkdown: {
+                          workspaceRoot: workspace.path,
+                          warn: (warning) =>
+                              ctx
+                                  .logger("convivium:developer-markdown")
+                                  .warn("Developer Markdown projection failed %o", warning)
+                      }
+                  })
         });
         ctx.effect(() => () => runtime.dispose(), "convivium:runtime");
         if (ctx.webServer.host === "127.0.0.1") {
