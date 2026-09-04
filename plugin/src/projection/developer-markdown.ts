@@ -142,7 +142,10 @@ function optional<T>(value: T | undefined): T | undefined {
     return value;
 }
 
-export function mapDeveloperMeetingDocument(snapshot: MeetingSnapshot): DeveloperMeetingDocument {
+export function mapDeveloperMeetingDocument(
+    snapshot: MeetingSnapshot,
+    generatedAt: number
+): DeveloperMeetingDocument {
     if (!isMeetingStateV2(snapshot.state)) {
         throw new TypeError("Meeting snapshot state is invalid");
     }
@@ -154,16 +157,25 @@ export function mapDeveloperMeetingDocument(snapshot: MeetingSnapshot): Develope
         meetingId: snapshot.meetingId,
         teamId: snapshot.teamId,
         sourceMeetingVersion: snapshot.version,
-        generatedAt: Date.now(),
+        generatedAt,
         status: state.status,
         topic: state.topic,
         objective: state.objective,
         objectiveContract: {
-            requiredOutputs: state.objectiveContract.requiredOutputs.map((value) => ({ ...value })),
-            acceptanceCriteria: state.objectiveContract.acceptanceCriteria.map((value) => ({
-                ...value
+            requiredOutputs: state.objectiveContract.requiredOutputs.map((value) => ({
+                id: value.id,
+                description: value.description,
+                status: value.status
             })),
-            hardConstraints: state.objectiveContract.hardConstraints.map((value) => ({ ...value })),
+            acceptanceCriteria: state.objectiveContract.acceptanceCriteria.map((value) => ({
+                id: value.id,
+                description: value.description,
+                satisfied: value.satisfied
+            })),
+            hardConstraints: state.objectiveContract.hardConstraints.map((value) => ({
+                id: value.id,
+                description: value.description
+            })),
             requiredReviewers: [...state.objectiveContract.requiredReviewers],
             riskAcceptanceAuthority: [...state.objectiveContract.riskAcceptanceAuthority],
             acceptableRiskLevel: state.objectiveContract.acceptableRiskLevel
@@ -301,7 +313,7 @@ export function renderCurrentMarkdown(document: DeveloperMeetingDocument): strin
         "---"
     ].join("\n");
     const sections = currentHeadings.map(([title, key]) => renderSection(title, document[key]));
-    return `# Current Meeting Projection\n\nThis file is a potentially stale, non-authoritative developer projection. The committed Meeting projection is authoritative.\n\n${frontMatter}\n\n${sections.join("\n\n")}\n`;
+    return `${frontMatter}\n\n# Current Meeting Projection\n\nThis file is a potentially stale, non-authoritative developer projection. The committed Meeting projection is authoritative.\n\n${sections.join("\n\n")}\n`;
 }
 
 export function renderArchiveMarkdown(
@@ -321,5 +333,5 @@ export function renderArchiveMarkdown(
     const sections = Object.keys(packageValue).map((key) =>
         renderSection(key, packageValue[key as keyof ArchivePackage])
     );
-    return `# Archived Meeting Projection\n\nThis file is a potentially stale, non-authoritative developer projection. The committed Meeting projection is authoritative.\n\n${frontMatter}\n\n${sections.join("\n\n")}\n`;
+    return `${frontMatter}\n\n# Archived Meeting Projection\n\nThis file is a potentially stale, non-authoritative developer projection. The committed Meeting projection is authoritative.\n\n${sections.join("\n\n")}\n`;
 }
