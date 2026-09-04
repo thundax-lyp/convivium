@@ -177,43 +177,9 @@ browser-ready result 的任一额外、缺失或乱序 label，以及 malformed 
 
 ## 8. 机械实施步骤
 
-### T0：基线与边界复核
-
-前置状态：当前分支为 `codex/reassign-browser-evidence`；产品/正式文档 baseline 为 `b82f38f94697d5f77e81ab7e7757f8f091ae737c`；当前 HEAD 等于该 baseline，或相对该 baseline 只新增本文；工作树 clean；`plugin/package.json` 与 lockfile 中 DSH packages 为 `0.1.1-rc.2`。
-
-允许修改：仅本文 T0 章节。
-
-禁止修改：全部 production、test、readiness、package、lock、Git history。
-
-执行：
-
-1. 核对 3.2 的九个文件/symbol仍存在。
-2. 核对 `meeting-panel.tsx` 只发送 skip，Meeting status 不公开 replacement candidate list，Interface 仍禁止 skip 携带 `replacementParticipantId`。
-3. 运行下面命令；保存退出码和 test counts。
-
-验证：
-
-```bash
-test "$(git branch --show-current)" = codex/reassign-browser-evidence
-runbook_base_sha=b82f38f94697d5f77e81ab7e7757f8f091ae737c
-runbook_head_sha="$(git rev-parse HEAD)"
-if [ "$runbook_head_sha" != "$runbook_base_sha" ]; then
-  test "$(git diff --name-only "$runbook_base_sha"..HEAD)" = "docs/30-designs/RUNBOOK-REASSIGN-BROWSER-EVIDENCE.md"
-fi
-test -z "$(git status --short)"
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts tests/client/client-entry.client.spec.ts tests/contract/http-boundary.spec.ts
-git diff --check
-```
-
-PASS：全部退出 0；focused baseline 为 3 files / 53 tests；当前 HEAD 等于产品/正式文档 baseline，或相对 baseline 只新增本文；工作树 clean；production 仍满足第2项。
-
-STOP：相对产品/正式文档 baseline 存在本文以外的差异、工作树不 clean、baseline test失败、Client已出现 replacement picker、status新增正式 replacement candidates，或 Interface 改变 skip字段。报告命令、实际 SHA、首错和相关 diff；不得自行重写产品范围。
-
-失败恢复：只读检查，无运行时或外部副作用；保留本文和失败现场。
-
 ### T1：建立 reassign browser-ready fixture
 
-前置状态：T0 PASS；基线 contracts 未变化。
+前置状态：完成提交 `46322a796ab35e67dbff2a403f7aa3fc5001440c` 已包含修正后的 T0 基线与边界复核，且 T0 focused 验证 PASS；基线 contracts 未变化。
 
 允许修改：`plugin/scripts/smoke-profile/probe/scenarios/reassign.js::runReassignScenario`；`plugin/scripts/smoke-profile/result.mjs::validateScenarioResult` 的 browser-ready窄分支；`plugin/tests/unit/scripts/smoke-profile.spec.ts` 的 reassign source/result contract cases；本文 T1 章节。
 
