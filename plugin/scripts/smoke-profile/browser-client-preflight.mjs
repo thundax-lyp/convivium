@@ -61,13 +61,19 @@ export async function assertBrowserClientPreflight(origin, fetchImpl = globalThi
         fail("root HTML is missing the DSH boot markers");
     }
     const boot = extractBootObject(html);
+    if (typeof boot.rev !== "string" || !/^[0-9a-f]{12}$/.test(boot.rev)) {
+        fail("DSH boot revision is invalid");
+    }
     if (!Array.isArray(boot.entries)) fail("DSH boot entries are missing");
     const entries = boot.entries.filter((entry) => entry?.id === "@convivium/dsh-plugin");
     if (entries.length !== 1) fail("expected one Convivium boot entry");
     const rowUrl = entries[0]?.url;
+    const rowRevision = entries[0]?.rev;
     if (
+        typeof rowRevision !== "string" ||
+        !/^[0-9a-f]{12}$/.test(rowRevision) ||
         typeof rowUrl !== "string" ||
-        !/^\/plugins\/@convivium\/dsh-plugin\/client\.js\?rev=[0-9a-f]{12}$/.test(rowUrl)
+        rowUrl !== `/plugins/@convivium/dsh-plugin/client.js?rev=${rowRevision}`
     ) {
         fail("Convivium boot entry URL is invalid");
     }

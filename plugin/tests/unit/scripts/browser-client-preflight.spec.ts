@@ -4,18 +4,17 @@ import { assertBrowserClientPreflight } from "../../../scripts/smoke-profile/bro
 
 const rootUrl = "http://127.0.0.1:4567/";
 const bundleUrl = "http://127.0.0.1:4567/plugins/@convivium/dsh-plugin/client.js?rev=0123456789ab";
-const bootHtml = `<script>globalThis["__DSH_BOOT__"] = ${JSON.stringify(
-    {
-        entries: [
-            {
-                id: "@convivium/dsh-plugin",
-                url: "/plugins/@convivium/dsh-plugin/client.js?rev=0123456789ab"
-            }
-        ]
-    },
-    null,
-    2
-)};</script>`;
+const bootGraph = {
+    rev: "abcdef012345",
+    entries: [
+        {
+            id: "@convivium/dsh-plugin",
+            url: "/plugins/@convivium/dsh-plugin/client.js?rev=0123456789ab",
+            rev: "0123456789ab"
+        }
+    ]
+};
+const bootHtml = `<script>globalThis["__DSH_BOOT__"] = ${JSON.stringify(bootGraph, null, 2)};</script>`;
 const bundleText =
     'window.__ModuleLoader__.load({ id: "@convivium/dsh-plugin" }); convivium-meetings conversation.view';
 
@@ -75,11 +74,13 @@ describe("assertBrowserClientPreflight", () => {
             [
                 {
                     id: "@convivium/dsh-plugin",
-                    url: "/plugins/@convivium/dsh-plugin/client.js?rev=0123456789ab"
+                    url: "/plugins/@convivium/dsh-plugin/client.js?rev=0123456789ab",
+                    rev: "0123456789ab"
                 },
                 {
                     id: "@convivium/dsh-plugin",
-                    url: "/plugins/@convivium/dsh-plugin/client.js?rev=0123456789ab"
+                    url: "/plugins/@convivium/dsh-plugin/client.js?rev=0123456789ab",
+                    rev: "0123456789ab"
                 }
             ]
         ]
@@ -87,7 +88,7 @@ describe("assertBrowserClientPreflight", () => {
         const sequence = fetchSequence(
             {
                 status: 200,
-                body: `<script>globalThis["__DSH_BOOT__"] = ${JSON.stringify({ entries })}; @convivium/dsh-plugin</script>`
+                body: `<script>globalThis["__DSH_BOOT__"] = ${JSON.stringify({ ...bootGraph, entries })}; @convivium/dsh-plugin</script>`
             },
             { status: 200, body: bundleText }
         );
@@ -99,11 +100,56 @@ describe("assertBrowserClientPreflight", () => {
 
     it("rejects a malformed bundle URL and missing marker", async () => {
         const invalidUrl = `<script>globalThis["__DSH_BOOT__"] = ${JSON.stringify({
-            entries: [{ id: "@convivium/dsh-plugin", url: "/plugins/wrong.js?rev=0123456789ab" }]
+            rev: "abcdef012345",
+            entries: [
+                {
+                    id: "@convivium/dsh-plugin",
+                    url: "/plugins/wrong.js?rev=0123456789ab",
+                    rev: "0123456789ab"
+                }
+            ]
         })};</script>`;
         const sequence = fetchSequence({ status: 200, body: invalidUrl });
         await expect(assertBrowserClientPreflight(rootUrl, sequence.fetchImpl)).rejects.toThrow(
             "browser client preflight: Convivium boot entry URL is invalid."
+        );
+        expect(sequence.calls).toEqual([rootUrl]);
+    });
+
+    it.each([
+        [
+            "missing graph revision",
+            { entries: bootGraph.entries },
+            "browser client preflight: DSH boot revision is invalid."
+        ],
+        [
+            "missing entry revision",
+            {
+                ...bootGraph,
+                entries: [
+                    {
+                        id: bootGraph.entries[0].id,
+                        url: bootGraph.entries[0].url
+                    }
+                ]
+            },
+            "browser client preflight: Convivium boot entry URL is invalid."
+        ],
+        [
+            "mismatched entry revision",
+            {
+                ...bootGraph,
+                entries: [{ ...bootGraph.entries[0], rev: "fedcba987654" }]
+            },
+            "browser client preflight: Convivium boot entry URL is invalid."
+        ]
+    ])("rejects %s", async (_label, boot, message) => {
+        const sequence = fetchSequence({
+            status: 200,
+            body: `<script>globalThis["__DSH_BOOT__"] = ${JSON.stringify(boot)}; @convivium/dsh-plugin</script>`
+        });
+        await expect(assertBrowserClientPreflight(rootUrl, sequence.fetchImpl)).rejects.toThrow(
+            message
         );
         expect(sequence.calls).toEqual([rootUrl]);
     });
