@@ -167,52 +167,19 @@ browser-ready result 的任一额外、缺失或乱序 label，以及 malformed 
 
 | 行为                            | requirement / acceptance | interface / design                        | owner                                        | focused test              | full / readiness         |
 | ------------------------------- | ------------------------ | ----------------------------------------- | -------------------------------------------- | ------------------------- | ------------------------ |
-| browser-ready current attempt   | FR-11.3                  | existing Client control and smoke wrapper | T1 `runReassignScenario`                     | `smoke-profile.spec.ts`   | T2 real browser          |
+| browser-ready current attempt   | FR-11.3                  | existing Client control and smoke wrapper | `runReassignScenario`                        | `smoke-profile.spec.ts`   | T2 real browser          |
 | exact skip request/refetch      | FR-9.6、FR-11.3、AC 3    | `ReassignTurnInputV1`、Web route          | existing production; initial regression only | client + HTTP specs       | T2 browser observation   |
-| replacement lifecycle preserved | FR-9.6、AC 3             | tool/runtime design                       | existing ordinary reassign scenario          | T1 result validator       | T1 real profile smoke    |
+| replacement lifecycle preserved | FR-9.6、AC 3             | tool/runtime design                       | existing ordinary reassign scenario          | result validator          | ordinary reassign smoke  |
 | cleanup                         | architecture lifecycle   | smoke wrapper restore                     | existing `main` finally                      | existing source contract  | T2 marker/path assertion |
 | readiness truthfulness          | readiness governance     | G4 / Scope gaps                           | T2 docs                                      | relative links / Prettier | T3 full verify           |
 
-没有步骤实现新的产品行为。T1 的单一工程判断是“同一 reassign smoke 以受校验的 test-only result 暴露 browser-ready 模式”；T2 的单一工程判断是“真实 Browser 结果足以消除 readiness 缺口”；T3 的单一工程判断是“全部证据满足关闭条件并删除临时 RUNBOOK”。
+没有步骤实现新的产品行为。首项实现的单一工程判断是“同一 reassign smoke 以受校验的 test-only result 暴露 browser-ready 模式”；T2 的单一工程判断是“真实 Browser 结果足以消除 readiness 缺口”；T3 的单一工程判断是“全部证据满足关闭条件并删除临时 RUNBOOK”。
 
 ## 8. 机械实施步骤
 
-### T1：建立 reassign browser-ready fixture
-
-前置状态：完成提交 `46322a796ab35e67dbff2a403f7aa3fc5001440c` 已包含修正后的产品/正式文档基线与边界复核，且首项 focused 验证 PASS；基线 contracts 未变化。
-
-允许修改：`plugin/scripts/smoke-profile/probe/scenarios/reassign.js::runReassignScenario`；`plugin/scripts/smoke-profile/result.mjs::validateScenarioResult` 的 browser-ready窄分支；`plugin/tests/unit/scripts/smoke-profile.spec.ts` 的 reassign source/result contract cases；本文 T1 章节。
-
-禁止修改：`plugin/scripts/smoke-profile/index.mjs`、`probe/index.js`、其他 scenario/support；全部 `plugin/src/**`；其他 tests；package/lock/profile。
-
-执行：
-
-1. 按 5.2 在现有 `oldAttemptId` 和 `replacementParticipantId` 校验之后、第一次 `convivium_reassign_turn` 之前增加唯一 browser-ready branch。普通路径代码保持原顺序。
-2. 在 `smoke-profile.spec.ts` 的现有 reassign source case 中静态断言：browser-ready label和`runtime.browserMode` branch存在；branch source位置早于第一次`convivium_reassign_turn`；ordinary tool调用仍恰好一次；现有普通四labels source assertions保持不变。
-3. 按5.3增加唯一browser-ready validator窄分支；普通reassign和其他selector继续走现有common validation。
-4. 在`smoke-profile.spec.ts`直接调用`validateScenarioResult`，覆盖一个完整5.2 object，以及缺失、额外、乱序labels、top-level/`observed`额外key和以下逐项malformed observation：空`meetingId`、空attempt ID、非`participant-a` speaker、两个attempt ID不等、非整数或负数`meetingVersion`。
-5. 运行普通真实reassign smoke，证明该工程判断未改变普通replacement lifecycle和result。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier --write scripts/smoke-profile/probe/scenarios/reassign.js scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile.spec.ts
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts tests/client/client-entry.client.spec.ts tests/contract/http-boundary.spec.ts
-pnpm --dir plugin build
-CONVIVIUM_SMOKE_SCENARIO=reassign pnpm --dir plugin smoke:profile
-pnpm --dir plugin exec eslint scripts/smoke-profile/probe/scenarios/reassign.js scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-```
-
-PASS：全部退出0；source contract证明browser branch位置、唯一ordinary tool调用和既有四labels；新增validator接受唯一完整browser-ready object并拒绝每个malformed case；ordinary smoke输出`ok=true`、`scenario=reassign`和既有四labels，result无`browserReady`；Client/HTTP regressions与build通过；diff只含三个允许的script/test文件和本文。
-
-STOP：browser-ready contract必须修改runner/dispatcher/product，validator必须改变普通result行为，ordinary source labels/tool调用发生改变，ordinary smoke、Client/HTTP regression或build失败，或只能通过放宽malformed断言继续。报告失败命令、首个test title、probe error、stdout/stderr tail和diff；不得修改产品代码或拆出通用validator框架。
-
-失败恢复：真实smoke只使用wrapper创建的临时DSH_HOME/workspace并由finally删除；若命令失败，先确认无残留child process和输出中的temp root已删除，再保留T1现场。
-
 ### T2：执行真实浏览器 skip 并迁移证据
 
-前置状态：T1 PASS；ordinary reassign真实 smoke通过；browser-ready fixture尚未写入长期证据；C 线没有修改第6节第9至10项分配给B的exact readiness条目；当前执行环境提供能够打开真实URL、读取可访问名称、输入、点击和刷新页面的Browser控制能力。
+前置状态：前一提交已包含 browser-ready fixture、validator、focused contract 与 ordinary smoke PASS；browser-ready fixture尚未写入长期证据；C 线没有修改第6节第9至10项分配给B的exact readiness条目；当前执行环境提供能够打开真实URL、读取可访问名称、输入、点击和刷新页面的Browser控制能力。
 
 允许修改：`docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md` G4与Scope gaps；`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` FR-11、G4和Not Covered；本文T2章节。
 
@@ -229,7 +196,7 @@ CONVIVIUM_SMOKE_BROWSER_MODE=1 CONVIVIUM_SMOKE_SCENARIO=reassign pnpm --dir plug
 2. 解析 stdout 中 wrapper 输出的 JSON，断言 `.ok === true`、`.probe.browserReady === true`、`.probe.assertions` 精确等于 `["browser-reassign-ready"]`；随后等待 `CONVIVIUM_SMOKE_BROWSER_URL=` 和 `CONVIVIUM_SMOKE_TEMP_ROOT=`。缺一立即 STOP；不要打开猜测 URL。
 3. 使用 stdout 的 exact URL 打开 Browser。按 5.4 顺序完成选择、空理由disabled、输入、单击、refetch、无alert和刷新断言；每项只操作一次。
 4. 返回 terminal 发送一次 SIGINT；等待 wrapper退出0并输出`CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`。用 stdout的exact temp root运行`test ! -e '<exact path>'`。
-5. 只把实际观察结果写入两份readiness：记录日期、starting HEAD/T1完成边界、完整命令、ordinary smoke与browser smoke的不同断言、cleanup。删除“reassign无browser-ready fixture/browser evidence”的Not Covered句子；Decision/risk controls、metrics和其他Not Covered保持原文。
+5. 只把实际观察结果写入两份readiness：记录日期、starting HEAD/前一提交完成边界、完整命令、ordinary smoke与browser smoke的不同断言、cleanup。删除“reassign无browser-ready fixture/browser evidence”的Not Covered句子；Decision/risk controls、metrics和其他Not Covered保持原文。
 
 验证：
 
@@ -239,7 +206,7 @@ ruby -e 'files=Dir["docs/**/*.md"]; bad=[]; files.each{|p| File.read(p).scan(/\[
 git diff --check
 ```
 
-PASS：真实浏览器五项断言成立；wrapper退出0、cleanup marker出现、exact temp root不存在；文档命令退出0；readiness未声称浏览器观察了replacement/drain/transcript；diff仅含T1三个script/test文件、两份readiness和本文。
+PASS：真实浏览器五项断言成立；wrapper退出0、cleanup marker出现、exact temp root不存在；文档命令退出0；readiness未声称浏览器观察了replacement/drain/transcript；diff仅含前一提交的三个script/test文件、两份readiness和本文。
 
 STOP：Browser控制能力缺失、URL前fixture已推进、控件缺失、POST失败、refetch后旧attempt仍可操作、刷新回退、wrapper不退出0、temp root残留、证据只能靠推断，或B-owned readiness exact条目已有并行修改。报告缺失能力、UI可见文本、terminal tail、temp path或readiness diff；不得以jsdom/HTTP调用替代Browser，不得修改product或覆盖C的内容来修复证据步骤。
 
@@ -289,18 +256,18 @@ STOP：任一验证失败、范围外diff、本文仍被引用或删除后链接
 
 ## 9. 验证矩阵
 
-| 风险                          | focused assertion                                                                               | full / readiness        |
-| ----------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------- |
-| browser fixture提前推进       | browser-ready observation仍指向同一current attempt                                              | T2页面有可用skip控制    |
-| ordinary replacement回归      | 保留既有四labels source assertions、唯一tool call                                               | T1/T3真实reassign smoke |
-| Client body或route漂移        | existing client exact body与HTTP contract                                                       | T2真实Browser写入成功   |
-| stale本地UI                   | write后refetch、刷新后旧控制不返回                                                              | T2浏览器观察            |
-| 错把skip写成replacement       | browser result只标ready；readiness明确action=skip                                               | scope/readiness audit   |
-| cleanup泄漏                   | SIGINT、cleanup marker、exact path不存在                                                        | T2 evidence             |
-| production scope creep        | `plugin/src/**`零diff                                                                           | T3 allowlist            |
-| package/type/build regression | focused tests、build                                                                            | T3 `pnpm verify`        |
-| recovery/event/receipt/outbox | `Not Applicable`：任务不改这些产品边界；既有ordinary smoke和full suite回归                      | T3 full verify          |
-| external provider credential  | `Not Applicable`：固定spawn provider不需要LLM credential；smoke environment移除DeepSeek secrets | T1/T2真实profile        |
+| 风险                          | focused assertion                                                                               | full / readiness             |
+| ----------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------- |
+| browser fixture提前推进       | browser-ready observation仍指向同一current attempt                                              | T2页面有可用skip控制         |
+| ordinary replacement回归      | 保留既有四labels source assertions、唯一tool call                                               | ordinary reassign smoke / T3 |
+| Client body或route漂移        | existing client exact body与HTTP contract                                                       | T2真实Browser写入成功        |
+| stale本地UI                   | write后refetch、刷新后旧控制不返回                                                              | T2浏览器观察                 |
+| 错把skip写成replacement       | browser result只标ready；readiness明确action=skip                                               | scope/readiness audit        |
+| cleanup泄漏                   | SIGINT、cleanup marker、exact path不存在                                                        | T2 evidence                  |
+| production scope creep        | `plugin/src/**`零diff                                                                           | T3 allowlist                 |
+| package/type/build regression | focused tests、build                                                                            | T3 `pnpm verify`             |
+| recovery/event/receipt/outbox | `Not Applicable`：任务不改这些产品边界；既有ordinary smoke和full suite回归                      | T3 full verify               |
+| external provider credential  | `Not Applicable`：固定spawn provider不需要LLM credential；smoke environment移除DeepSeek secrets | ordinary / browser profile   |
 
 ## 10. Readiness、Not Covered 与删除
 

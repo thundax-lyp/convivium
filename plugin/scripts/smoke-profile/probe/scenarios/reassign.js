@@ -49,6 +49,31 @@ export async function runReassignScenario(runtime) {
         (p) => p.participantKey === "b"
     )?.participantId;
     runtime.assert(oldAttemptId && replacementParticipantId, "reassign identifiers missing");
+    if (runtime.browserMode) {
+        await ctx.sessions.flush(captain.agent.session);
+        runtime.assert(runtime.workspace !== undefined, "browser smoke workspace missing");
+        await runtime.workspace.attachSession(runtime.captain.agent.session.id);
+        runtime.assert(
+            before.result.status === "running" &&
+                before.result.currentSpeakerId === "participant-a" &&
+                before.result.currentAttemptId === oldAttemptId,
+            "browser reassign fixture is not ready"
+        );
+        await runtime.writeResult({
+            ok: true,
+            scenario,
+            browserReady: true,
+            assertions: ["browser-reassign-ready"],
+            meetingId,
+            observed: {
+                oldAttemptId,
+                currentSpeakerId: "participant-a",
+                currentAttemptId: oldAttemptId,
+                meetingVersion: before.meetingVersion
+            }
+        });
+        return;
+    }
     const reassigned = await runtime.callTool(
         ctx,
         captain.agent,

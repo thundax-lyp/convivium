@@ -150,10 +150,49 @@ describe("smoke profile scenario guard", () => {
         expect(probeSource).toContain("return runReassignScenario(runtime);");
         expect(probeSource.match(/runReassignScenario\(runtime\)/g)).toHaveLength(1);
         expect(reassignSource).toContain("export async function runReassignScenario(runtime)");
+        expect(reassignSource).toContain("if (runtime.browserMode)");
+        expect(reassignSource).toContain('"browser-reassign-ready"');
+        expect(reassignSource.indexOf("if (runtime.browserMode)")).toBeLessThan(
+            reassignSource.indexOf('"convivium_reassign_turn"')
+        );
         expect(reassignSource).toContain('"old-attempt-revoked"');
         expect(reassignSource).toContain('"old-activation-drained"');
         expect(reassignSource).toContain('"replacement-attempt-submitted"');
         expect(reassignSource).toContain('"transcript-preserved"');
+    });
+
+    it("validates the exact reassign browser-ready result", () => {
+        const result = {
+            ok: true,
+            scenario: "reassign",
+            browserReady: true,
+            assertions: ["browser-reassign-ready"],
+            meetingId: "meeting-1",
+            observed: {
+                oldAttemptId: "attempt-1",
+                currentSpeakerId: "participant-a",
+                currentAttemptId: "attempt-1",
+                meetingVersion: 2
+            }
+        };
+        expect(validateScenarioResult(result, "reassign")).toEqual(result);
+        for (const malformed of [
+            { ...result, assertions: [] },
+            { ...result, assertions: ["wrong"] },
+            { ...result, assertions: ["browser-reassign-ready", "extra"] },
+            { ...result, extra: true },
+            { ...result, observed: { ...result.observed, extra: true } },
+            { ...result, meetingId: "" },
+            { ...result, observed: { ...result.observed, oldAttemptId: "" } },
+            { ...result, observed: { ...result.observed, currentAttemptId: "attempt-2" } },
+            { ...result, observed: { ...result.observed, currentSpeakerId: "participant-b" } },
+            { ...result, observed: { ...result.observed, meetingVersion: -1 } },
+            { ...result, observed: { ...result.observed, meetingVersion: 1.5 } }
+        ]) {
+            expect(() => validateScenarioResult(malformed, "reassign")).toThrow(
+                "Reassign browser-ready result is invalid."
+            );
+        }
     });
 
     it("dispatches cold-rebind to one scenario module", () => {
