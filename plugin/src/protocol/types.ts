@@ -476,6 +476,7 @@ export interface ManagerMeetingContextV1 {
     continuationMaterials: readonly PublicContinuationMaterialV1[];
     limits: PublicMeetingLimitsV1;
     planningReason: string;
+    agentCatalog: MeetingAgentCatalogProjectionV1 | null;
 }
 
 export interface PublicBlockingFactV1 {

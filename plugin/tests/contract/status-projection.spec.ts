@@ -1,5 +1,9 @@
 import type { MeetingState } from "../../src/domain/model.js";
-import { projectMeetingStatus, projectSpeakerMeetingContext } from "../../src/projection/index.js";
+import {
+    projectManagerMeetingContext,
+    projectMeetingStatus,
+    projectSpeakerMeetingContext
+} from "../../src/projection/index.js";
 import { MeetingStatusResultSchema } from "../../src/protocol/index.js";
 import { describe, expect, it } from "vitest";
 
@@ -45,6 +49,91 @@ const state = {
 } as unknown as MeetingState;
 
 describe("meeting status projection", () => {
+    it("projects only the safe Catalog fields into Manager context", () => {
+        const projected = projectManagerMeetingContext(
+            {
+                ...state,
+                activeAgendaItemId: "agenda-1",
+                agenda: [
+                    {
+                        id: "agenda-1",
+                        title: "Scope",
+                        objective: "Agree scope",
+                        inScope: [],
+                        outOfScope: [],
+                        completionCriteria: [],
+                        requiredParticipants: [],
+                        relatedTaskIds: [],
+                        status: "discussing"
+                    }
+                ],
+                manager: {
+                    ...state.manager,
+                    currentPlanningAttempt: {
+                        ...state.manager.currentPlanningAttempt!,
+                        catalogBinding: {
+                            kind: "verified",
+                            snapshot: {
+                                protocolVersion: 1,
+                                catalogId: "catalog-1",
+                                catalogVersion: "v1",
+                                teamId: "team-1",
+                                capturedAt: 1,
+                                roles: [
+                                    {
+                                        roleDefinitionId: "domain_architect",
+                                        version: "1",
+                                        displayName: "Generalist",
+                                        summary: "General support",
+                                        expertiseTags: ["review"],
+                                        evidenceScopes: [],
+                                        responsibilities: ["Review"],
+                                        nonResponsibilities: []
+                                    }
+                                ],
+                                candidates: [
+                                    {
+                                        candidateId: "candidate-1",
+                                        roleDefinitionId: "domain_architect",
+                                        roleDefinitionVersion: "1",
+                                        sourceMemberName: "private-member",
+                                        agentDefinitionId: "private-definition",
+                                        availability: "available"
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            } as MeetingState,
+            []
+        );
+
+        expect(projected.agentCatalog).toEqual({
+            protocolVersion: 1,
+            catalogId: "catalog-1",
+            catalogVersion: "v1",
+            candidates: [
+                {
+                    candidateId: "candidate-1",
+                    roleDefinitionId: "domain_architect",
+                    roleDefinitionVersion: "1",
+                    displayName: "Generalist",
+                    summary: "General support",
+                    expertiseTags: ["review"],
+                    evidenceScopes: [],
+                    responsibilities: ["Review"],
+                    nonResponsibilities: [],
+                    availability: "available"
+                }
+            ],
+            researchNeeds: []
+        });
+        expect(JSON.stringify(projected.agentCatalog)).not.toMatch(
+            /sourceMemberName|agentDefinitionId|session|prompt|model|credential|preset|skill|tool|mcp/i
+        );
+    });
+
     it("projects question facts without inventing optional fields", () => {
         const projected = projectMeetingStatus(
             {

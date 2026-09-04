@@ -1,5 +1,6 @@
-import type { MeetingState } from "../domain/model.js";
+import { isMeetingStateV2, type MeetingState } from "../domain/model.js";
 import type {
+    MeetingAgentCatalogProjectionV1,
     ExecutionTerminalMeetingStatusResultV1,
     ManagerMeetingContextV1,
     MeetingStatusResultV1,
@@ -438,6 +439,37 @@ export function projectManagerMeetingContext(
     if (!("messages" in status)) {
         throw new TypeError("Manager planning requires an active meeting projection");
     }
+    const catalogBinding = isMeetingStateV2(state) ? planningAttempt.catalogBinding : undefined;
+    const agentCatalog: MeetingAgentCatalogProjectionV1 | null =
+        catalogBinding?.kind === "verified"
+            ? {
+                  protocolVersion: 1,
+                  catalogId: catalogBinding.snapshot.catalogId,
+                  catalogVersion: catalogBinding.snapshot.catalogVersion,
+                  candidates: catalogBinding.snapshot.candidates.map((candidate) => {
+                      const role = catalogBinding.snapshot.roles.find(
+                          (value) =>
+                              value.roleDefinitionId === candidate.roleDefinitionId &&
+                              value.version === candidate.roleDefinitionVersion
+                      );
+                      if (role === undefined)
+                          throw new TypeError("Verified Catalog candidate role is missing");
+                      return {
+                          candidateId: candidate.candidateId,
+                          roleDefinitionId: candidate.roleDefinitionId,
+                          roleDefinitionVersion: candidate.roleDefinitionVersion,
+                          displayName: role.displayName,
+                          summary: role.summary,
+                          expertiseTags: role.expertiseTags,
+                          evidenceScopes: role.evidenceScopes,
+                          responsibilities: role.responsibilities,
+                          nonResponsibilities: role.nonResponsibilities,
+                          availability: candidate.availability
+                      };
+                  }),
+                  researchNeeds: []
+              }
+            : null;
     return {
         protocolVersion: 1,
         meetingId: state.id,
@@ -453,7 +485,8 @@ export function projectManagerMeetingContext(
         meetingTasks: status.meetingTasks,
         continuationMaterials: status.continuationMaterials,
         limits: status.limits,
-        planningReason: planningAttempt.reason
+        planningReason: planningAttempt.reason,
+        agentCatalog
     };
 }
 

@@ -480,38 +480,9 @@ Captain approval/admission/provisioning portions of FR-13.5-9 and AC 31-34 remai
 
 ## 8. 机械实施步骤
 
-### T6：Manager safe Catalog context
-
-前置状态：T5 PASS；T5 完整章节已删除；verified binding可从repository恢复。
-
-允许修改：`plugin/src/protocol/types.ts::ManagerMeetingContextV1`；`plugin/src/projection/status.ts::projectManagerMeetingContext`；`plugin/tests/contract/status-projection.spec.ts`；`plugin/tests/contract/meeting-runtime.spec.ts` 的 Manager dispatch context assertions；本 RUNBOOK 的 T6 章节。
-
-禁止修改：Catalog capture、claim、public Meeting status、manager delivery payload shape、DSH adapter、Prompt内容中除serialized context value外的文本。
-
-执行：
-
-1. 增加 required `agentCatalog: MeetingAgentCatalogProjectionV1 | null`。
-2. `projectManagerMeetingContext` 首先调用 `isMeetingStateV2`；legacy、无current attempt和none均输出 null；verified按7.1 join/map并输出 `researchNeeds: []`。
-3. 测试对完整私有 snapshot做exact object断言，并递归断言输出不含 `sourceMemberName | agentDefinitionId | session | prompt | model | credential | preset | skill | tool | mcp`（大小写不敏感）。
-4. Manager dispatch contract解析实际prompt JSON，断言它等于从已提交attempt生成的projection，而不是port的新读取；dispatch阶段port read count保持不变。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/status-projection.spec.ts tests/contract/meeting-runtime.spec.ts
-pnpm --dir plugin typecheck:host
-git diff --check
-```
-
-PASS：全部退出 0；legacy/none为null；verified字段逐项正确且无private key；dispatch不重读Catalog。
-
-STOP：需要临时context store、outbox snapshot、fallback projection或暴露private字段。报告actual projection和首个额外/缺失key。
-
-失败恢复：只修改纯projection/type/tests；无repository或外部副作用。保留 T6 与现场。
-
 ### T7：attendance claim 的原子提交
 
-前置状态：T6 PASS；T6 完整章节已删除；Manager context已能展示attempt-bound verified snapshot。
+前置状态：T6 PASS；T6 完整章节已删除；Manager context 已携带 safe Catalog projection。
 
 允许修改：`plugin/src/domain/planning.ts::ManagerPlanInput`；`plugin/src/domain/errors.ts::DomainErrorCode`；`plugin/src/domain/transitions/types.ts::SubmitManagerPlanContext`；`plugin/src/domain/transitions/manager-planning.ts::submitManagerPlan`；`plugin/src/runtime/application-service/meeting-turn.ts::submitManagerPlan`、`mapAttendanceRecommendationError`；`plugin/tests/unit/domain/transitions/manager-planning.spec.ts`；`plugin/tests/contract/meeting-runtime.spec.ts`；本RUNBOOK的T7章节。`plugin/src/protocol/request-idempotency.ts::serializeValidatedRequestV1`只允许调用，禁止修改。
 
