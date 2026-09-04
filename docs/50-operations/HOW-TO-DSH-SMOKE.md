@@ -127,7 +127,7 @@ env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
 
 ### Reassign browser-ready 模式
 
-该模式复用 `reassign` selector，但在调用 reassign tool 前保留一个仍有 current SpeakerAttempt 的 Meeting，并持续运行 Host 供真实 Browser 操作。browser-ready profile 把 `speakerTimeoutMs` 固定为 5 分钟；操作者必须在 ready 输出后的 5 分钟内完成五项 Browser 操作。必须从仓库根目录执行：
+该模式复用 `reassign` selector，但在调用 reassign tool 前保留一个仍有 current SpeakerAttempt 的 Meeting，并持续运行 Host 供真实 Browser 操作。browser-ready profile 把 `speakerTimeoutMs` 固定为 5 分钟；该窗口从 SpeakerAttempt 创建时开始，Session flush、workspace attach、result polling 和 Browser Client preflight 都会消耗窗口，ready 输出不会重置计时。操作者必须在 ready 输出后立即完成五项 Browser 操作；若打开页面时旧 attempt 已超时或 `Skip current speaker` 已因超时消失，本次 Browser 证据无效，必须停止 wrapper 并重新执行完整命令，不得记为 Client 失败。必须从仓库根目录执行：
 
 ```sh
 env CONVIVIUM_SMOKE_SCENARIO=reassign \

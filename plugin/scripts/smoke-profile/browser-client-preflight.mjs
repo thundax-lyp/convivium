@@ -35,11 +35,12 @@ function extractBootObject(html) {
     fail("DSH boot assignment is incomplete");
 }
 
-async function fetchText(fetchImpl, url, label) {
+async function fetchText(fetchImpl, url, label, signal) {
     let response;
     try {
-        response = await fetchImpl(url);
+        response = await fetchImpl(url, { signal });
     } catch (error) {
+        if (signal.aborted) fail(`${label} fetch timed out`);
         fail(`${label} fetch failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     if (response.status < 200 || response.status >= 300) {
@@ -48,15 +49,21 @@ async function fetchText(fetchImpl, url, label) {
     try {
         return await response.text();
     } catch (error) {
+        if (signal.aborted) fail(`${label} body read timed out`);
         fail(
             `${label} body read failed: ${error instanceof Error ? error.message : String(error)}`
         );
     }
 }
 
-export async function assertBrowserClientPreflight(origin, fetchImpl = globalThis.fetch) {
+export async function assertBrowserClientPreflight(
+    origin,
+    fetchImpl = globalThis.fetch,
+    timeoutMs
+) {
+    const signal = AbortSignal.timeout(timeoutMs);
     const rootUrl = new URL("/", origin).href;
-    const html = await fetchText(fetchImpl, rootUrl, "root");
+    const html = await fetchText(fetchImpl, rootUrl, "root", signal);
     if (!html.includes("@convivium/dsh-plugin")) {
         fail("root HTML is missing the DSH boot markers");
     }
@@ -77,7 +84,7 @@ export async function assertBrowserClientPreflight(origin, fetchImpl = globalThi
     ) {
         fail("Convivium boot entry URL is invalid");
     }
-    const bundleText = await fetchText(fetchImpl, new URL(rowUrl, origin).href, "bundle");
+    const bundleText = await fetchText(fetchImpl, new URL(rowUrl, origin).href, "bundle", signal);
     for (const marker of [
         "window.__ModuleLoader__.load",
         'id: "@convivium/dsh-plugin"',

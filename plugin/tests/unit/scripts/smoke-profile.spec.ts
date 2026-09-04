@@ -138,13 +138,22 @@ describe("loadSmokeApiKey", () => {
 
 describe("smoke profile scenario guard", () => {
     it("uses the one preflight seam before browser output", () => {
+        const preflightCall =
+            "await assertBrowserClientPreflight(origin, globalThis.fetch, BOOT_TIMEOUT_MS)";
         expect(smokeProfileSource).toContain('from "./browser-client-preflight.mjs"');
         expect(smokeProfileSource.match(/assertBrowserClientPreflight\(/g)).toHaveLength(1);
-        expect(
-            smokeProfileSource.indexOf("await assertBrowserClientPreflight(origin)")
-        ).toBeLessThan(smokeProfileSource.indexOf("console.log(\n        JSON.stringify"));
+        expect(smokeProfileSource).toContain(preflightCall);
+        expect(smokeProfileSource.indexOf(preflightCall)).toBeLessThan(
+            smokeProfileSource.indexOf("console.log(\n        JSON.stringify")
+        );
         expect(browserClientPreflightSource).toContain(
-            "export async function assertBrowserClientPreflight(origin, fetchImpl = globalThis.fetch)"
+            [
+                "export async function assertBrowserClientPreflight(",
+                "    origin,",
+                "    fetchImpl = globalThis.fetch,",
+                "    timeoutMs",
+                ")"
+            ].join("\n")
         );
         expect(browserClientPreflightSource).toContain(
             "fail(`${label} returned HTTP ${response.status}`)"

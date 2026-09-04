@@ -453,7 +453,7 @@ async function main() {
     await stat(dumpPath);
     if (BROWSER_MODE && probeResult.browserReady === true) {
         const origin = `http://${HOST}:${port}`;
-        await assertBrowserClientPreflight(origin);
+        await assertBrowserClientPreflight(origin, globalThis.fetch, BOOT_TIMEOUT_MS);
     }
     console.log(
         JSON.stringify(

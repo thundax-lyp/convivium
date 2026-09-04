@@ -17,6 +17,7 @@ const bootGraph = {
 const bootHtml = `<script>globalThis["__DSH_BOOT__"] = ${JSON.stringify(bootGraph, null, 2)};</script>`;
 const bundleText =
     'window.__ModuleLoader__.load({ id: "@convivium/dsh-plugin" }); convivium-meetings conversation.view';
+const timeoutMs = 100;
 
 function response(status: number, body: string) {
     return { status, text: async () => body };
@@ -36,6 +37,16 @@ function fetchSequence(...responses: Array<{ status: number; body: string }>) {
     };
 }
 
+function rejectOnAbort(signal: AbortSignal): Promise<never> {
+    return new Promise((_, reject) => {
+        if (signal.aborted) {
+            reject(signal.reason);
+            return;
+        }
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    });
+}
+
 describe("assertBrowserClientPreflight", () => {
     it("accepts the unique boot entry and bundle markers", async () => {
         const sequence = fetchSequence(
@@ -43,16 +54,16 @@ describe("assertBrowserClientPreflight", () => {
             { status: 200, body: bundleText }
         );
         await expect(
-            assertBrowserClientPreflight(rootUrl, sequence.fetchImpl)
+            assertBrowserClientPreflight(rootUrl, sequence.fetchImpl, timeoutMs)
         ).resolves.toBeUndefined();
         expect(sequence.calls).toEqual([rootUrl, bundleUrl]);
     });
 
     it("fails closed when the root fetch is non-2xx", async () => {
         const sequence = fetchSequence({ status: 503, body: "unavailable" });
-        await expect(assertBrowserClientPreflight(rootUrl, sequence.fetchImpl)).rejects.toThrow(
-            "browser client preflight: root returned HTTP 503."
-        );
+        await expect(
+            assertBrowserClientPreflight(rootUrl, sequence.fetchImpl, timeoutMs)
+        ).rejects.toThrow("browser client preflight: root returned HTTP 503.");
         expect(sequence.calls).toEqual([rootUrl]);
     });
 
@@ -61,9 +72,9 @@ describe("assertBrowserClientPreflight", () => {
             { status: 200, body: bootHtml },
             { status: 502, body: "bad gateway" }
         );
-        await expect(assertBrowserClientPreflight(rootUrl, sequence.fetchImpl)).rejects.toThrow(
-            "browser client preflight: bundle returned HTTP 502."
-        );
+        await expect(
+            assertBrowserClientPreflight(rootUrl, sequence.fetchImpl, timeoutMs)
+        ).rejects.toThrow("browser client preflight: bundle returned HTTP 502.");
         expect(sequence.calls).toEqual([rootUrl, bundleUrl]);
     });
 
@@ -92,9 +103,9 @@ describe("assertBrowserClientPreflight", () => {
             },
             { status: 200, body: bundleText }
         );
-        await expect(assertBrowserClientPreflight(rootUrl, sequence.fetchImpl)).rejects.toThrow(
-            "browser client preflight: expected one Convivium boot entry."
-        );
+        await expect(
+            assertBrowserClientPreflight(rootUrl, sequence.fetchImpl, timeoutMs)
+        ).rejects.toThrow("browser client preflight: expected one Convivium boot entry.");
         expect(sequence.calls).toEqual([rootUrl]);
     });
 
@@ -110,9 +121,9 @@ describe("assertBrowserClientPreflight", () => {
             ]
         })};</script>`;
         const sequence = fetchSequence({ status: 200, body: invalidUrl });
-        await expect(assertBrowserClientPreflight(rootUrl, sequence.fetchImpl)).rejects.toThrow(
-            "browser client preflight: Convivium boot entry URL is invalid."
-        );
+        await expect(
+            assertBrowserClientPreflight(rootUrl, sequence.fetchImpl, timeoutMs)
+        ).rejects.toThrow("browser client preflight: Convivium boot entry URL is invalid.");
         expect(sequence.calls).toEqual([rootUrl]);
     });
 
@@ -148,9 +159,9 @@ describe("assertBrowserClientPreflight", () => {
             status: 200,
             body: `<script>globalThis["__DSH_BOOT__"] = ${JSON.stringify(boot)}; @convivium/dsh-plugin</script>`
         });
-        await expect(assertBrowserClientPreflight(rootUrl, sequence.fetchImpl)).rejects.toThrow(
-            message
-        );
+        await expect(
+            assertBrowserClientPreflight(rootUrl, sequence.fetchImpl, timeoutMs)
+        ).rejects.toThrow(message);
         expect(sequence.calls).toEqual([rootUrl]);
     });
 
@@ -159,9 +170,31 @@ describe("assertBrowserClientPreflight", () => {
             status: 200,
             body: `<script>window.__DSH_BOOT__ = ${JSON.stringify({ entries: [] })}; @convivium/dsh-plugin</script>`
         });
-        await expect(assertBrowserClientPreflight(rootUrl, sequence.fetchImpl)).rejects.toThrow(
-            "browser client preflight: expected one DSH boot assignment."
-        );
+        await expect(
+            assertBrowserClientPreflight(rootUrl, sequence.fetchImpl, timeoutMs)
+        ).rejects.toThrow("browser client preflight: expected one DSH boot assignment.");
         expect(sequence.calls).toEqual([rootUrl]);
+    });
+
+    it("times out a stalled root fetch", async () => {
+        const fetchImpl = (_url: string, init: { signal: AbortSignal }) =>
+            rejectOnAbort(init.signal);
+
+        await expect(assertBrowserClientPreflight(rootUrl, fetchImpl, 10)).rejects.toThrow(
+            "browser client preflight: root fetch timed out."
+        );
+    });
+
+    it("times out a stalled bundle body read", async () => {
+        let call = 0;
+        const fetchImpl = async (_url: string, init: { signal: AbortSignal }) => {
+            call += 1;
+            if (call === 1) return response(200, bootHtml);
+            return { status: 200, text: () => rejectOnAbort(init.signal) };
+        };
+
+        await expect(assertBrowserClientPreflight(rootUrl, fetchImpl, 10)).rejects.toThrow(
+            "browser client preflight: bundle body read timed out."
+        );
     });
 });
