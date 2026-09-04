@@ -185,8 +185,9 @@ export function createDeveloperMarkdownService(options: {
                 return;
             }
             let document;
+            const generatedAt = (options.now ?? Date.now)();
             try {
-                document = mapDeveloperMeetingDocument(current);
+                document = mapDeveloperMeetingDocument(current, generatedAt);
             } catch {
                 warning(options.warn, "map_document", task, "current");
                 return;
@@ -207,7 +208,7 @@ export function createDeveloperMarkdownService(options: {
                 await replaceAtomically(
                     directory,
                     "archive.md",
-                    renderArchiveMarkdown(archivePackage, (options.now ?? Date.now)()),
+                    renderArchiveMarkdown(archivePackage, generatedAt),
                     task,
                     "archive",
                     options.warn,
