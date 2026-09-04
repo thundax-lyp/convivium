@@ -77,6 +77,19 @@ describe("protocol envelope schemas", () => {
                     agendaItem: { ...promote.agendaItem, requiredParticipants: ["p", "p"] }
                 })
             ).toThrow();
+            for (const field of [
+                "inScope",
+                "outOfScope",
+                "completionCriteria",
+                "requiredParticipants"
+            ] as const) {
+                expect(() =>
+                    CaptainAgendaCandidateDispositionInputSchema({
+                        ...promote,
+                        agendaItem: { ...promote.agendaItem, [field]: ["value", " value "] }
+                    })
+                ).toThrow();
+            }
             expect(() =>
                 CaptainAgendaCandidateDispositionInputSchema({
                     ...promote,

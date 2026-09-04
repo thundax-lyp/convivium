@@ -193,6 +193,30 @@ describe("meeting status projection", () => {
         );
     });
 
+    it("projects parking-lot candidates by creation time and then ID", () => {
+        const candidate = (id: string, createdAt: number) => ({
+            id,
+            proposedBy: "participant-1",
+            sourceMessageId: `message-${id}`,
+            title: `Title ${id}`,
+            reason: `Reason ${id}`,
+            relationToActiveAgenda: "related" as const,
+            urgency: "later" as const,
+            suggestedParticipants: [],
+            status: "pending" as const,
+            createdAt
+        });
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                agendaCandidates: [candidate("z", 1), candidate("a", 2), candidate("b", 1)]
+            } as MeetingState,
+            { kind: "captain", sessionId: "captain-1" }
+        );
+
+        expect(projected.parkingLot?.map(({ id }) => id)).toEqual(["b", "z", "a"]);
+    });
+
     it("projects question facts without inventing optional fields", () => {
         const projected = projectMeetingStatus(
             {

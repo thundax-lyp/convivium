@@ -208,7 +208,13 @@ export const CaptainAgendaCandidateDispositionInputSchema: Schema<
             agendaItem.completionCriteria,
             agendaItem.requiredParticipants
         ];
-        if (arrays.some((items) => !Array.isArray(items) || new Set(items).size !== items.length)) {
+        if (
+            arrays.some(
+                (items) =>
+                    !Array.isArray(items) ||
+                    new Set(items.map((item) => item.trim())).size !== items.length
+            )
+        ) {
             throw new TypeError("agenda item arrays must be unique");
         }
     }
