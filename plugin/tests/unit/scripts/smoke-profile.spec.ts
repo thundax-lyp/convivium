@@ -264,6 +264,7 @@ describe("smoke profile scenario guard", () => {
             browserReady: true,
             assertions: ["browser-reassign-ready"],
             meetingId: "meeting-1",
+            captainSessionId: "convivium-smoke-captain",
             observed: {
                 oldAttemptId: "attempt-1",
                 currentSpeakerId: "participant-a",
@@ -277,6 +278,12 @@ describe("smoke profile scenario guard", () => {
             { ...result, assertions: ["wrong"] },
             { ...result, assertions: ["browser-reassign-ready", "extra"] },
             { ...result, extra: true },
+            { ...result, captainSessionId: "" },
+            { ...result, captainSessionId: "other-session" },
+            (() => {
+                const { captainSessionId: _captainSessionId, ...missing } = result;
+                return missing;
+            })(),
             { ...result, observed: { ...result.observed, extra: true } },
             { ...result, meetingId: "" },
             { ...result, observed: { ...result.observed, oldAttemptId: "" } },

@@ -126,41 +126,9 @@ seam 按以下固定顺序执行：
 
 ## 7. 机械执行步骤
 
-### T2：暴露唯一 Captain Session identity
-
-前置状态：前一完成 commit（T1 实现及其 focused validation PASS）已包含唯一 preflight seam、调用顺序和四个授权文件；browser-ready producer 已 attach `captain.agent.session`；session ID 由 `plugin/scripts/smoke-profile/probe/index.js::createSmokeAgent` 固定为 `convivium-smoke-captain`。
-
-允许修改：
-
-- `plugin/scripts/smoke-profile/probe/scenarios/reassign.js`：browser-ready result object。
-- `plugin/scripts/smoke-profile/result.mjs`：`validateScenarioResult` 的 reassign browser branch。
-- `plugin/tests/unit/scripts/smoke-profile.spec.ts`：result contract cases。
-
-禁止修改：product files、其他 scenario、workspace/session lifecycle、Browser preflight。
-
-执行：
-
-1. producer 在 `meetingId` 后写入 `captainSessionId: captain.agent.session.id`。
-2. 写入前断言该值精确等于 `convivium-smoke-captain`。
-3. validator 的 exact top-level key list加入 `captainSessionId`，并拒绝缺失、空值、其他值和额外 key。
-4. unit contract 的合法 fixture 加入固定值；分别增加 missing 和 wrong-value rejection。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts
-pnpm --dir plugin exec eslint scripts/smoke-profile/probe/scenarios/reassign.js scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile.spec.ts
-pnpm --dir plugin exec prettier --check scripts/smoke-profile/probe/scenarios/reassign.js scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-```
-
-PASS：命令全为 `0`；合法 result 保持通过，missing、wrong、extra 均抛 `Reassign browser-ready result is invalid.`。
-
-STOP：Captain Session ID 不再由固定 `createSmokeAgent` 创建，或 attach 的不是同一 Session；不得新增 session lookup/fallback。
-
 ### T3：固定 Browser 导航操作
 
-前置状态：T2 PASS；[DSH Smoke 操作说明](../50-operations/HOW-TO-DSH-SMOKE.md#reassign-browser-ready-模式) 仍只有 URL 后五项业务断言，没有 Captain Session 导航。
+前置状态：前一完成 commit（T2 实现及其 focused validation PASS）已包含 `captainSessionId` producer、validator exact-key contract 和全部 T2 测试；[DSH Smoke 操作说明](../50-operations/HOW-TO-DSH-SMOKE.md#reassign-browser-ready-模式) 仍只有 URL 后五项业务断言，没有 Captain Session 导航。
 
 允许修改：`docs/50-operations/HOW-TO-DSH-SMOKE.md` 的 Reassign browser-ready 小节。
 

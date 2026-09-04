@@ -6,7 +6,15 @@ export function validateScenarioResult(value, expectedScenario) {
         throw new Error("Smoke result scenario contract mismatch.");
     }
     if (expectedScenario === "reassign" && value.browserReady === true) {
-        const validKeys = ["ok", "scenario", "browserReady", "assertions", "meetingId", "observed"];
+        const validKeys = [
+            "ok",
+            "scenario",
+            "browserReady",
+            "assertions",
+            "meetingId",
+            "captainSessionId",
+            "observed"
+        ];
         const observedKeys = [
             "oldAttemptId",
             "currentSpeakerId",
@@ -21,6 +29,7 @@ export function validateScenarioResult(value, expectedScenario) {
             value.assertions[0] !== "browser-reassign-ready" ||
             typeof value.meetingId !== "string" ||
             value.meetingId.length === 0 ||
+            value.captainSessionId !== "convivium-smoke-captain" ||
             observed === null ||
             typeof observed !== "object" ||
             Object.keys(observed).length !== observedKeys.length ||
