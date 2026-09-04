@@ -57,7 +57,6 @@
   - `decision-risk-closure`：`candidate-visible-to-captain`、`candidate-accepted`、`accepted-candidate-not-pending`、`decision-history-current-state`、`decision-pending-by-current-revision`、`risk-disposition-status`、`risk-blocking-facts`、`risk-replay-version-stable`、`event-order-not-observable-by-command-status`
   - `convergence`：`deterministic-fallback`、`fallback-replay-idempotent`、`fallback-status-projected`
 - Pass：G4 已完成 pnpm browser UI run；wrapper 退出 0、其 `CONVIVIUM_SMOKE_TEMP_ROOT` 不存在；UI 验证 pause/resume/end，最终 status 为 `archived`，Termination Code=`captain_accepted`、Reason=`Readiness evidence`。
-- Pass：2026-09-04，commit `9b43bab4e284a902bb19360a2f365733e46a3f7a` 的 reassign browser run；probe 为 `browserReady=true`，真实 Browser 观察 Current speaker=`participant-a`、空理由 disabled、填写后 enabled、单击 skip 后 refetch 为 `waiting` 且旧控件消失、无 alert，刷新后旧控件仍未出现；wrapper 输出 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok` 且 exact temp root 不存在。该证据不外推为 Browser 已观察 replacement、drain 或 transcript。
 - Pass：G4 direct-node cleanup probe；退出 0，观察到 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`，且该 run 的 temp root 不存在。pnpm wrapper 未观察到该 marker，不得写成 wrapper 输出 marker。
 - Not Covered：G5 `test:stress` 仅输出 `Not Covered: stress tests`；长期 soak、吞吐、容量、memory/FD budget 和一般资源泄漏验证未覆盖。
 

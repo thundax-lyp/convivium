@@ -38,7 +38,6 @@
 ### G4 browser and cleanup evidence
 
 - pnpm browser UI run：Pass，退出 0，`CONVIVIUM_SMOKE_TEMP_ROOT` 不存在；`Runtime smoke` 完成 `running → paused → running`，End outcome 选 `Partial`，最终 Meeting summary 为 `archived`，Termination Code=`captain_accepted`、Reason=`Readiness evidence`，Pause/Resume/End controls 均不存在。
-- 2026-09-04，commit `9b43bab4e284a902bb19360a2f365733e46a3f7a`：`CONVIVIUM_SMOKE_BROWSER_MODE=1 CONVIVIUM_SMOKE_SCENARIO=reassign pnpm --dir plugin smoke:profile` 的 probe 返回 `browserReady=true` 和 `browser-reassign-ready`。真实 Browser 从持久化 Captain Session 进入 `Meetings`，观察 `Runtime smoke (running)`、Current speaker=`participant-a`；`Skip reason` 为空时按钮 disabled，输入 `Browser reassign evidence` 后 enabled。单击一次后重新读取为 `waiting`、version `3`，旧 `Skip current speaker` 控件消失且无 `role=alert`；页面刷新后控件仍未出现。wrapper 输出 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`，exact temp root 不存在。该 Browser 证据不声称观察了 replacement、Activation drain 或 transcript。
 - pnpm wrapper cleanup marker：Not observed；wrapper 退出 0 且 temp root 已删除。该 wrapper 边界不得改写为已观察 marker。
 - direct-node cleanup probe：Pass，退出 0，观察到 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`，且 probe temp root 不存在；probe 不执行浏览器交互。
 
@@ -49,7 +48,7 @@
 
 ### Scope gaps
 
-- risk/Decision disposition 无正式 browser/HTTP/Client write control，为 `Not Covered`。
+- risk/Decision disposition 无正式 browser/HTTP/Client write control；reassign browser evidence 未完成，均为 `Not Covered`。
 - structured metrics 无唯一正式 contract、producer、consumer 和验证入口，为 `Not Covered`。
 
 ## Scope
