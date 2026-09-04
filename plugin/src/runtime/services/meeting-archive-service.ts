@@ -450,12 +450,11 @@ export function materializeArchivePackage(
                 ...(askedBy === undefined ? {} : { askedBy }),
                 ...(agendaItemId === undefined ? {} : { agendaItemId })
             })),
-        parkingLot: state.agendaCandidates.map(({ id, title, reason, status }) => ({
-            id,
-            title,
-            reason,
-            status
-        })),
+        parkingLot: [...state.agendaCandidates]
+            .sort(
+                (left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id)
+            )
+            .map(({ id, title, reason, status }) => ({ id, title, reason, status })),
         formalTranscript: state.transcript,
         participantProvenance: state.participants.map((participant) => ({
             participantId: participant.id,

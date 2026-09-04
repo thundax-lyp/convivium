@@ -21,6 +21,7 @@ const statusResult = {
     decisionHistory: [],
     risks: [],
     blockingFacts: [],
+    parkingLot: [],
     meetingTasks: [],
     attendanceRecommendations: [],
     status: "running",

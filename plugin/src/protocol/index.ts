@@ -1,5 +1,6 @@
 export {
     CaptainRiskDispositionInputSchema,
+    CaptainAgendaCandidateDispositionInputSchema,
     CaptainDecisionDispositionInputSchema,
     CaptainDecisionAcceptanceInputSchema,
     CreateMeetingInputSchema,
@@ -31,6 +32,7 @@ export {
 export {
     CaptainRiskDispositionResultSchema,
     CaptainDecisionDispositionResultSchema,
+    CaptainAgendaCandidateDispositionResultSchema,
     CaptainDecisionAcceptanceResultSchema,
     CreateMeetingResultSchema,
     EndMeetingResultSchema,

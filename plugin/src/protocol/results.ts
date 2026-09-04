@@ -136,6 +136,28 @@ export const CaptainDecisionDispositionResultSchema: Schema<Record<string, unkno
         return value as Record<string, unknown>;
     });
 
+const captainAgendaCandidateDispositionResult = Schema.object({
+    requestId: nonEmptyString(),
+    candidateId: nonEmptyString(),
+    action: enumOf(["promote", "park", "reject"] as const),
+    agendaItemId: Schema.string()
+});
+
+export const CaptainAgendaCandidateDispositionResultSchema: Schema<Record<string, unknown>> =
+    Schema.transform(captainAgendaCandidateDispositionResult, (value) => {
+        const expected = [
+            "requestId",
+            "candidateId",
+            "action",
+            ...(value.action === "promote" ? ["agendaItemId"] : [])
+        ];
+        assertExactKeys(value, expected, "captain agenda candidate disposition result");
+        if (value.action === "promote" && !value.agendaItemId?.trim()) {
+            throw new TypeError("promote requires agendaItemId");
+        }
+        return value as Record<string, unknown>;
+    });
+
 export const ReassignTurnResultSchema = Schema.object({
     revokedAttemptId: string(),
     replacementAttemptId: Schema.string(),

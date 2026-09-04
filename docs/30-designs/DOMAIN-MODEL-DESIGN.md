@@ -150,6 +150,10 @@ Issue 只有引用 required output、acceptance criterion、hard constraint 或 
 
 ### AgendaCandidate
 
+`AgendaCandidate.status` 的唯一处置 transition 是 `disposeAgendaCandidate`。输入 actor 已由 Runtime 绑定为 Captain；transition 只接受 `pending`。`park|reject` 只更新目标 status；`promote` 同时创建 `${candidate.id}-agenda-item`，从 candidate 复制 title，从 command 接收 objective、scope、completion criteria、owner 和 required Participants，并固定 `relatedTaskIds=[]`、`status="pending"`。该 transition 不修改 `activeAgendaItemId`，不创建 CompletionFact 或 outbox，只产生一个 `agenda_candidate.disposed` 领域事件。任何校验失败返回原 state 且无 effect。
+
+pending candidate 不参与 completion blocking。Meeting 结束时不自动改写 candidate status；checkpoint/recovery 与 archive 按原值保存全部 candidate。
+
 必须包含 id、proposedBy、sourceMessageId、title、reason、relationToActiveAgenda、urgency、suggestedParticipants、status 和 createdAt。
 
 ## Turn, Step And Attempt

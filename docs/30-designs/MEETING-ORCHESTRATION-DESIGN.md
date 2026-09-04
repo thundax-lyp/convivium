@@ -699,6 +699,10 @@ interface AgendaCandidate {
 
 `new_topic_candidate` MUST 进入 `AgendaCandidate`，不能自动切换议题。`blocking_interrupt` MUST 引用有效阻塞依据，并且只能在当前 speaker 提交后截断 turn。
 
+Captain-only `convivium_dispose_agenda_candidate` 是唯一处置入口。`park|reject` 只把 pending candidate 改为对应状态；`promote` 在同一 Repository commit 中把 candidate 改为 `promoted` 并 append 一个 pending AgendaItem。新 item 的 ID 为 `${candidate.id}-agenda-item`、title 来自 candidate，其他必需议程字段来自经过 Schema 校验的 Captain payload；`relatedTaskIds=[]`。处置不得改变 `activeAgendaItemId`，因此 promotion 也不能自动切换议题。成功只写一个 `agenda_candidate.disposed` event、receipt 和 `outbox=[]`；失败零副作用。
+
+`MeetingStatusResultV1` 的 discussion base 对所有获授权 status caller 提供 required `parkingLot: PublicArchiveAgendaCandidateV1[]`，按 `createdAt` 升序、再按 `id` 升序映射全部 candidate，公开字段仅为 `id/title/reason/status`。execution-terminal 继续提供该数组；`archiving|archived` 只从 `archive.package.parkingLot` 提供同一事实，不增加第二个顶层副本。pending candidate 不阻塞结束，也不在结束时自动 park/reject。
+
 连续低进展、候选议题过多或反复讨论 Parking Lot 内容时，Manager SHOULD 创建 `intent='refocus'` 的 turn，输出：
 
 1. 当前已确认事实；
@@ -1378,6 +1382,7 @@ execution terminal → archiving
 | `convivium_pause_meeting`                            | captain                                       | 按用户指令暂停 Meeting                                                                 |
 | `convivium_resume_meeting`                           | captain                                       | 按用户指令基于最新事实恢复 Meeting                                                     |
 | `convivium_dispose_risk`                             | captain                                       | 对一个指定风险提交结构化接受或拒绝处置                                                 |
+| `convivium_dispose_agenda_candidate`                 | captain                                       | 原子提升、暂存或拒绝一个 pending Agenda candidate；不切换 active agenda                |
 | `convivium_dispose_attendance_recommendation`        | captain                                       | 批准或拒绝一个 pending recommendation；批准后启动受控 Participant provisioning         |
 | `convivium_reassign_turn`                            | captain                                       | 撤销并跳过/改派当前 step                                                               |
 | `convivium_end_meeting`                              | captain                                       | 接受、取消或以无共识结束                                                               |

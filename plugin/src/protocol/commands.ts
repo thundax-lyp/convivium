@@ -2,6 +2,7 @@ import Schema from "@deepseek-ai/schemastery";
 import { AttendanceRecommendationClaimSchema, ProtocolVersionSchema } from "./schema.js";
 import type {
     CaptainRiskDispositionInputV1,
+    CaptainAgendaCandidateDispositionInputV1,
     CreateMeetingInputV1,
     CaptainDecisionDispositionInputV1,
     FinishMeetingMailInputV1,
@@ -154,6 +155,71 @@ export const CaptainRiskDispositionInputSchema: Schema<unknown, CaptainRiskDispo
         }
         return value as CaptainRiskDispositionInputV1;
     }) as Schema<unknown, CaptainRiskDispositionInputV1>;
+
+const captainAgendaCandidateDispositionInput = Schema.union([
+    Schema.object({
+        protocolVersion: ProtocolVersionSchema,
+        meetingId: nonEmptyString(),
+        expectedMeetingVersion: number(),
+        requestId: nonEmptyString(),
+        candidateId: nonEmptyString(),
+        action: Schema.const("promote").required(),
+        agendaItem: Schema.object({
+            objective: nonEmptyString(),
+            inScope: array(nonEmptyString()),
+            outOfScope: array(nonEmptyString()),
+            completionCriteria: array(nonEmptyString()),
+            owner: Schema.string(),
+            requiredParticipants: array(nonEmptyString())
+        }).required()
+    }),
+    Schema.object({
+        protocolVersion: ProtocolVersionSchema,
+        meetingId: nonEmptyString(),
+        expectedMeetingVersion: number(),
+        requestId: nonEmptyString(),
+        candidateId: nonEmptyString(),
+        action: enumOf(["park", "reject"] as const)
+    })
+]);
+
+export const CaptainAgendaCandidateDispositionInputSchema: Schema<
+    unknown,
+    CaptainAgendaCandidateDispositionInputV1
+> = Schema.transform(captainAgendaCandidateDispositionInput, (value) => {
+    const expected = [
+        "protocolVersion",
+        "meetingId",
+        "expectedMeetingVersion",
+        "requestId",
+        "candidateId",
+        "action",
+        ...(value.action === "promote" ? ["agendaItem"] : [])
+    ];
+    assertExactKeys(value, expected, "captain agenda candidate disposition input");
+    if (value.action === "promote") {
+        const agendaItem = value.agendaItem;
+        if (agendaItem === undefined || agendaItem === null) {
+            throw new TypeError("promote requires agendaItem");
+        }
+        const arrays = [
+            agendaItem.inScope,
+            agendaItem.outOfScope,
+            agendaItem.completionCriteria,
+            agendaItem.requiredParticipants
+        ];
+        if (
+            arrays.some(
+                (items) =>
+                    !Array.isArray(items) ||
+                    new Set(items.map((item) => item.trim())).size !== items.length
+            )
+        ) {
+            throw new TypeError("agenda item arrays must be unique");
+        }
+    }
+    return value as CaptainAgendaCandidateDispositionInputV1;
+}) as Schema<unknown, CaptainAgendaCandidateDispositionInputV1>;
 
 const reassignTurnInputSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,

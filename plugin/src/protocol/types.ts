@@ -196,6 +196,39 @@ export interface CaptainDecisionDispositionResultV1 {
     replacementDecisionId?: string;
 }
 
+export type CaptainAgendaCandidateDispositionInputV1 =
+    | {
+          protocolVersion: 1;
+          meetingId: string;
+          expectedMeetingVersion: number;
+          requestId: string;
+          candidateId: string;
+          action: "promote";
+          agendaItem: {
+              objective: string;
+              inScope: readonly string[];
+              outOfScope: readonly string[];
+              completionCriteria: readonly string[];
+              owner?: string;
+              requiredParticipants: readonly string[];
+          };
+      }
+    | {
+          protocolVersion: 1;
+          meetingId: string;
+          expectedMeetingVersion: number;
+          requestId: string;
+          candidateId: string;
+          action: "park" | "reject";
+      };
+
+export interface CaptainAgendaCandidateDispositionResultV1 {
+    requestId: string;
+    candidateId: string;
+    action: "promote" | "park" | "reject";
+    agendaItemId?: string;
+}
+
 export interface CaptainRiskDispositionInputV1 {
     protocolVersion: ProtocolVersion;
     meetingId: string;
@@ -837,6 +870,7 @@ export interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
     decisionHistory: readonly PublicDecisionV1[];
     risks: readonly PublicRiskV1[];
     blockingFacts: readonly PublicBlockingFactV1[];
+    parkingLot: readonly PublicArchiveAgendaCandidateV1[];
 }
 
 export interface PublicMeetingWaitStateV1 {

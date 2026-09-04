@@ -42,6 +42,7 @@ import { createMeetingControlApplication } from "./meeting-control.js";
 import { createMeetingEndApplication } from "./meeting-end.js";
 import { createMeetingMailApplication } from "./meeting-mail.js";
 import { createMeetingDecisionApplication } from "./meeting-decision.js";
+import { createMeetingAgendaCandidateApplication } from "./meeting-agenda-candidate.js";
 import type { StoredMeeting } from "./types.js";
 import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
 import {
@@ -85,7 +86,9 @@ import type {
     CaptainDecisionAcceptanceInputV1,
     CaptainDecisionAcceptanceResultV1,
     CaptainDecisionDispositionInputV1,
-    CaptainDecisionDispositionResultV1
+    CaptainDecisionDispositionResultV1,
+    CaptainAgendaCandidateDispositionInputV1,
+    CaptainAgendaCandidateDispositionResultV1
 } from "../../protocol/index.js";
 import type { MeetingOwnershipLookup } from "../../dsh/index.js";
 
@@ -108,6 +111,11 @@ export interface MeetingToolRuntime {
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<CaptainDecisionDispositionResultV1> | ProtocolErrorV1>;
+    disposeAgendaCandidate(
+        input: CaptainAgendaCandidateDispositionInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<CaptainAgendaCandidateDispositionResultV1> | ProtocolErrorV1>;
     sendMeetingMessage(
         input: SendMeetingMessageInputV1,
         caller: MeetingToolCaller,
@@ -497,6 +505,11 @@ export function createCreateStatusRuntime(
         meetings,
         recovery
     });
+    const agendaCandidateApplication = createMeetingAgendaCandidateApplication({
+        options: runtimeOptions,
+        meetings,
+        recovery
+    });
 
     async function scanExpiredSpeakerAttempts(): Promise<void> {
         await recovery.rehydrate();
@@ -744,6 +757,7 @@ export function createCreateStatusRuntime(
         disposeRisk: controlApplication.disposeRisk,
         acceptDecision: decisionApplication.acceptDecision,
         disposeDecision: decisionApplication.disposeDecision,
+        disposeAgendaCandidate: agendaCandidateApplication.disposeAgendaCandidate,
         endMeeting: endApplication.endMeeting,
         endLocalMeeting: endApplication.endLocalMeeting,
         scanExpiredSpeakerAttempts,
