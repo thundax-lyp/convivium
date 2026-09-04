@@ -167,13 +167,15 @@ it("preserves legacy reopen and distinguishes unsupported from corrupt MeetingSt
 it("writes the complete seq-one projection in one create commit", async () => {
     const catalog = createFakeCatalogDomain();
     const meeting = createFakeMeetingDomain();
+    const snapshots: unknown[] = [];
     const repository = await DomainMeetingRepository.open({
         catalogDomain: catalog,
         meetingDomain: meeting,
         teamId: "team-1",
         meetingId: "meeting-1",
         authorizationValidator: allow,
-        now: () => 1
+        now: () => 1,
+        onProjectionCommitted: (snapshot) => snapshots.push(snapshot)
     });
     const input = {
         requestId: "create",
@@ -256,6 +258,19 @@ it("writes the complete seq-one projection in one create commit", async () => {
     });
     expect(meeting.table("creation").get("current")?.status).toBe("ready");
     expect(catalog.table("meetings").get(catalogKey("team-1", "meeting-1"))?.status).toBe("ready");
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0]).toMatchObject({ teamId: "team-1", meetingId: "meeting-1", version: 0 });
+    await repository.updateCreateResult({
+        expectedMeetingVersion: 0,
+        result: {
+            meetingId: "meeting-1",
+            meetingVersion: 0,
+            status: "running",
+            participants: []
+        },
+        now: 13
+    });
+    expect(snapshots).toHaveLength(2);
     await repository.close();
 });
 

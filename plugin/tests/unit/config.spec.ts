@@ -28,6 +28,15 @@ describe("Convivium runtime config", () => {
         }
     });
 
+    it("accepts a non-empty Developer Markdown workspace id", () => {
+        expect(
+            Config({ ...validConfig, developerMarkdownWorkspaceId: "workspace-1" })
+        ).toMatchObject({ developerMarkdownWorkspaceId: "workspace-1" });
+        expect(() => Config({ ...validConfig, developerMarkdownWorkspaceId: "   " })).toThrow(
+            /developerMarkdownWorkspaceId/
+        );
+    });
+
     it("rejects participant and polling values outside their safe integer bounds", () => {
         for (const invalid of [2, 33, 3.5, Number.POSITIVE_INFINITY]) {
             expect(() => Config({ ...validConfig, maxParticipants: invalid })).toThrow(
