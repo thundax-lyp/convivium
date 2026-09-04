@@ -800,7 +800,9 @@ enter per-Meeting mutation chain
 
 ### 8.3 Developer Markdown generation
 
-Meeting commit 成功后，可以 best-effort 调度本地 `render_current_markdown` 任务。该任务不发布 UI 通知，也不写 durable outbox；进程崩溃导致任务丢失是允许行为。Worker 读取指定 `meetingId` 和已提交 `meetingVersion` 的固定 `DeveloperMeetingDocument`，在受控 workspace 路径中以原子替换生成 `current.md`；调用方不得从 Meeting identity 推导 backend 目录。
+本节是 Developer Markdown 的唯一实现设计；配置、数据和文件格式由 [Developer Markdown Projection Interface](../20-interfaces/DEVELOPER-MARKDOWN-PROJECTION-INTERFACE.md) 唯一拥有。
+
+配置 `developerMarkdownWorkspaceId` 后挂载一个 Runtime-owned generation service；未配置时不创建 service。每次新 Meeting commit 发布内存 projection 后，repository callback 只同步 enqueue，不执行文件 I/O。单一串行 worker 读取指定 Meeting 的已提交 snapshot，映射固定 `DeveloperMeetingDocument`，在受控 workspace 路径中原子替换 `current.md`。receipt replay、读取和恢复不 enqueue；调用方不得从 Meeting identity 推导 backend 目录。
 
 `DeveloperMeetingDocument` 是开发者诊断视图，不是 caller-specific projection、Plugin Frontend 数据源或 Agent context。它只从已提交 Meeting projection 中选择会议目标、议程、正式 transcript、提案/立场/决策、问题和风险、后续事项、经过过滤的产物引用及结束结果。生成器 MUST 排除 Session、私聊、隐藏 prompt、内部工具输出、delivery/outbox、运行时 capability、凭据和敏感文件路径。文件访问只遵循 workspace 文件系统权限，插件不为其提供 Web route 或 Tool。
 
@@ -808,6 +810,7 @@ Meeting commit 成功后，可以 best-effort 调度本地 `render_current_markd
 
 ```yaml
 ---
+schemaVersion: 1
 meetingId: meeting-id
 projectionKind: current
 authoritative: false
@@ -818,9 +821,11 @@ generatedAt: 2026-08-25T12:00:00Z
 
 正文开头必须明确说明该文件是可能滞后的非权威开发者辅助文件，正式状态以已提交 Meeting projection 为准。Worker 不合并人工修改；重新生成时覆盖旧文件。
 
-同一进程内，同一 Meeting 只需保留最新待执行的活动投影任务。旧版本任务被领取时，如果 repository 已有更高版本，可以跳过。生成失败只写普通诊断日志；不回滚会议事实、不更新 Meeting version、不写领域事件，也不阻塞会议继续运行。用户再次读取或后续状态变化时可以重新触发生成，但 Runtime 不保证文件必然存在。
+同一进程内，同一 Meeting 只保留最高 version 的未执行活动投影任务。task 被领取时必须重新读取 repository；更高 version 已存在时跳过。生成失败只写接口规定的 warning；不回滚会议事实、不更新 Meeting version、不写领域事件，也不阻塞会议继续运行。只有后续新 commit 可以再次触发生成；读取不触发，Runtime 不保证文件必然存在。
 
-归档可以 best-effort 生成 `archive.md`，且只能读取不可变 `ArchivePackage`。生成任务可以在归档前后执行或重试，不参与 Session 关闭与 capability 撤销、`archiving → archived` 转换或归档正确性判断。
+已提交 snapshot 包含不可变 `ArchivePackage` 时必须 best-effort 生成 `archive.md`，且只能读取该 package。生成任务不重试，不参与 Session 关闭与 capability 撤销、`archiving → archived` 转换或归档正确性判断。
+
+service 由 Runtime `dispose()` 收口：停止接收 enqueue、清空 pending、等待 active task 完成或清理 temp。不得增加 event bus、durable queue、重试 timer、registry、adapter、跨进程锁或通用 projection framework。
 
 ### 8.4 Idempotency
 

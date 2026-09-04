@@ -354,13 +354,6 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 
 `projection/status.ts` 接收真实 caller authorization 和已提交 snapshot，生成 Interface 定义的 caller-specific projection。它不得读取 Agent 隐藏上下文或未提交 outbox 结果。
 
-### Developer Markdown
-
-- 若提供开发者 Markdown，则从已提交 Meeting projection 生成单份人类可读文档。
-- 文件位于 Meeting 自有目录，只用于开发和诊断。
-- 生成失败只记录日志；文件缺失、陈旧或被人工修改都不触发修复事务。
-- Markdown 不提供 HTTP 接口，也不按 caller 生成权限投影。
-
 ### Frontend
 
 - `client/` 通过 `/api/convivium/meetings/:meetingId` 读取完整 projection。
