@@ -162,6 +162,21 @@ function risk(value: MeetingState["issues"][number]): PublicRiskV1 {
     };
 }
 
+function attendanceRecommendation(value: MeetingState["attendanceRecommendations"][number]) {
+    return {
+        recommendationId: value.id,
+        candidateId: value.candidateId,
+        agendaItemId: value.agendaItemId,
+        rationale: value.rationale,
+        expectedContribution: value.expectedContribution,
+        evidenceGapIds: [...value.evidenceGapIds],
+        urgency: value.urgency,
+        roleDefinitionId: value.roleDefinitionId,
+        displayName: value.displayName,
+        status: value.status
+    };
+}
+
 function turn(value: NonNullable<MeetingState["currentTurn"]>): PublicTurnV1 {
     return {
         id: value.id,
@@ -357,7 +372,13 @@ export function projectMeetingStatus(
                     summary: question.text
                 }))
         ],
-        meetingTasks: state.meetingTasks.map(meetingTask)
+        meetingTasks: state.meetingTasks.map(meetingTask),
+        attendanceRecommendations:
+            caller.kind === "captain" || caller.kind === "manager" || caller.kind === "participant"
+                ? [...(state.attendanceRecommendations ?? [])]
+                      .sort((left, right) => left.id.localeCompare(right.id))
+                      .map(attendanceRecommendation)
+                : []
     };
 
     if (isExecutionTerminalStatus(state.status)) {

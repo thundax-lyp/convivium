@@ -480,37 +480,6 @@ Captain approval/admission/provisioning portions of FR-13.5-9 and AC 31-34 remai
 
 ## 8. 机械实施步骤
 
-### T8：pending status、consumer fixtures 与 recovery
-
-前置状态：T7 PASS；T7 完整章节已删除；pending facts可由repository commit/replay。
-
-允许修改：`plugin/src/protocol/types.ts::DiscussionMeetingStatusBaseV1`；`plugin/src/protocol/status.ts::active`、`terminal`、`MeetingStatusResultSchema`；`plugin/src/projection/status.ts::projectMeetingStatus`；`plugin/tests/contract/protocol-schema.spec.ts`；`plugin/tests/contract/status-projection.spec.ts`；`plugin/tests/contract/http-boundary.spec.ts`；`plugin/tests/client/client-entry.client.spec.ts::statusResult`；`plugin/tests/recovery/recovery.spec.ts`；本RUNBOOK的T8章节。
-
-禁止修改：archiving/archived Schema、Archive package、Client/HTTP production、smoke-profile、admission fields、status compatibility default。
-
-执行：
-
-1. 给`DiscussionMeetingStatusBaseV1`增加required public array，并在`active`/`terminal`引用T1的`PublicAttendanceRecommendationSchema`；archiving/archived不得出现该key。
-2. `projectMeetingStatus`只对Captain、matching Manager和有效Participant的active/execution-terminal结果输出7.1排序脱敏数组；`local_host`、legacy state均输出`[]`且不写state；现有Runtime caller authorization保持先执行。
-3. 对protocol、client和HTTP的active/terminal fixtures机械补`attendanceRecommendations: []`；不得修改production consumer behavior。
-4. status tests覆盖visibility、排序、逐字段映射、private字段缺失、legacy`[]`、terminal保留和archive exact-key拒绝。
-5. recovery test先commit两个recommendations，再分别从checkpoint与tail reopen，断言internal provenance和public排序不变；same request replay不新增。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/protocol-schema.spec.ts tests/contract/status-projection.spec.ts tests/contract/http-boundary.spec.ts tests/client/client-entry.client.spec.ts tests/recovery/recovery.spec.ts
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin typecheck:client
-git diff --check
-```
-
-PASS：全部退出 0；active/terminal required、archive absent、legacy empty、recovery和consumer fixtures均通过；无Client/HTTP production diff。
-
-STOP：必须放宽MeetingStatus Schema、修改archive/Client/HTTP production或增加compat default。报告首个exact-key/type/recovery错误。
-
-失败恢复：isolated recovery fixture无真实外部数据；保留 T8 与现场。
-
 ### T9：完整验证、readiness 与删除
 
 前置状态：T8 PASS；T8 完整章节已删除；T0至T8规定的focused tests全部仍PASS。

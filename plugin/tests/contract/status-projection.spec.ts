@@ -134,6 +134,64 @@ describe("meeting status projection", () => {
         );
     });
 
+    it("projects pending recommendations in canonical order for an authorized Agent caller", () => {
+        const projected = projectMeetingStatus(
+            {
+                ...state,
+                attendanceRecommendations: [
+                    {
+                        id: "recommendation-2",
+                        candidateId: "candidate-2",
+                        roleDefinitionId: "runtime_engineer",
+                        roleDefinitionVersion: "1",
+                        displayName: "Runtime Engineer",
+                        agentDefinitionId: "private-definition-2",
+                        agendaItemId: "agenda-1",
+                        rationale: "Second",
+                        expectedContribution: "Review runtime",
+                        evidenceGapIds: [],
+                        urgency: "later_agenda",
+                        recommendedByManagerSessionId: "manager-1",
+                        catalogId: "catalog-1",
+                        catalogVersion: "v1",
+                        planningAttemptId: "planning-1",
+                        status: "pending",
+                        createdAt: 2
+                    },
+                    {
+                        id: "recommendation-1",
+                        candidateId: "candidate-1",
+                        roleDefinitionId: "domain_architect",
+                        roleDefinitionVersion: "1",
+                        displayName: "Domain Architect",
+                        agentDefinitionId: "private-definition-1",
+                        agendaItemId: "agenda-1",
+                        rationale: "First",
+                        expectedContribution: "Review design",
+                        evidenceGapIds: [],
+                        urgency: "current_agenda",
+                        recommendedByManagerSessionId: "manager-1",
+                        catalogId: "catalog-1",
+                        catalogVersion: "v1",
+                        planningAttemptId: "planning-1",
+                        status: "pending",
+                        createdAt: 1
+                    }
+                ]
+            } as MeetingState,
+            { kind: "captain", sessionId: "captain-1" }
+        );
+        expect(projected).toMatchObject({
+            attendanceRecommendations: [
+                { recommendationId: "recommendation-1" },
+                { recommendationId: "recommendation-2" }
+            ]
+        });
+        expect(JSON.stringify(projected.attendanceRecommendations)).not.toMatch(
+            /agentDefinitionId|recommendedByManagerSessionId|catalogId|catalogVersion|planningAttemptId/i
+        );
+    });
+
     it("projects question facts without inventing optional fields", () => {
         const projected = projectMeetingStatus(
             {
