@@ -26,6 +26,7 @@ const probeSourceDir = fileURLToPath(new URL("./probe", import.meta.url));
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "120000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
+const BROWSER_SPEAKER_TIMEOUT_MS = 30 * 60 * 1000;
 export const SMOKE_SCENARIOS = [
     "baseline",
     "timeout",
@@ -180,7 +181,7 @@ async function writeSmokePatch(path) {
         `    provider: ${PROVIDER}`,
         "    dataRoot: convivium-smoke-data",
         "    maxParticipants: 3",
-        `    speakerTimeoutMs: ${process.env.CONVIVIUM_SMOKE_SCENARIO === "timeout" ? 250 : 60000}`,
+        `    speakerTimeoutMs: ${process.env.CONVIVIUM_SMOKE_SCENARIO === "timeout" ? 250 : BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
         `    outboxPollMs: ${process.env.CONVIVIUM_SMOKE_SCENARIO === "timeout" ? 25 : 1000}`,
         ""
     ].join("\n");
