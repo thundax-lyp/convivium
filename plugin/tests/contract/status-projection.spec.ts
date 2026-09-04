@@ -33,6 +33,7 @@ const state = {
     decisionCandidates: [],
     decisions: [],
     issues: [],
+    agendaCandidates: [],
     handRaises: [],
     attendanceRecommendations: [],
     meetingTasks: [],

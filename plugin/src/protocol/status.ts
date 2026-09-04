@@ -359,6 +359,13 @@ const waitState = Schema.object({
     resumeAgendaItemId: Schema.string()
 });
 
+const archiveAgendaCandidate = Schema.object({
+    id: requiredString(),
+    title: requiredString(),
+    reason: requiredString(),
+    status: enumOf(["pending", "promoted", "parked", "rejected"] as const)
+});
+
 const active = Schema.object({
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
@@ -375,6 +382,7 @@ const active = Schema.object({
     decisionHistory: requiredArray(decision),
     risks: requiredArray(risk),
     blockingFacts: requiredArray(blockingFact),
+    parkingLot: requiredArray(archiveAgendaCandidate),
     meetingTasks: requiredArray(meetingTask),
     attendanceRecommendations: requiredArray(
         Schema.object({
@@ -432,6 +440,7 @@ const terminal = Schema.object({
     decisionHistory: requiredArray(decision),
     risks: requiredArray(risk),
     blockingFacts: requiredArray(blockingFact),
+    parkingLot: requiredArray(archiveAgendaCandidate),
     status: enumOf(["completed", "partial", "no_consensus", "cancelled", "failed"] as const),
     currentTurn: Schema.never(),
     currentSpeakerId: Schema.never(),
@@ -504,13 +513,6 @@ const archiveIssue = Schema.object({
     rationale: Schema.string(),
     ownerId: Schema.string(),
     relatedTaskIds: requiredArray(requiredString())
-});
-
-const archiveAgendaCandidate = Schema.object({
-    id: requiredString(),
-    title: requiredString(),
-    reason: requiredString(),
-    status: enumOf(["pending", "promoted", "parked", "rejected"] as const)
 });
 
 export const MeetingArchivePackageSchema = Schema.object({

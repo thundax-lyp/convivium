@@ -870,6 +870,7 @@ export interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
     decisionHistory: readonly PublicDecisionV1[];
     risks: readonly PublicRiskV1[];
     blockingFacts: readonly PublicBlockingFactV1[];
+    parkingLot: readonly PublicArchiveAgendaCandidateV1[];
 }
 
 export interface PublicMeetingWaitStateV1 {

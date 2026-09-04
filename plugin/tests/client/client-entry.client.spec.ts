@@ -40,6 +40,7 @@ function statusResult(
         decisionHistory: [],
         risks: [],
         blockingFacts: [],
+        parkingLot: [],
         meetingTasks: [],
         attendanceRecommendations: [],
         status,

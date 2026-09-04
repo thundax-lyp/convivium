@@ -372,6 +372,9 @@ export function projectMeetingStatus(
                     summary: question.text
                 }))
         ],
+        parkingLot: (state.agendaCandidates ?? [])
+            .map(({ id, title, reason, status }) => ({ id, title, reason, status }))
+            .sort((left, right) => left.id.localeCompare(right.id)),
         meetingTasks: state.meetingTasks.map(meetingTask),
         attendanceRecommendations:
             caller.kind === "captain" || caller.kind === "manager" || caller.kind === "participant"
