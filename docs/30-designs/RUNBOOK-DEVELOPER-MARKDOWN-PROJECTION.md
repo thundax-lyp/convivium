@@ -180,30 +180,9 @@ ctx
 
 ## 8. 机械执行步骤
 
-### T4：Config、Runtime 与 Host 装配
-
-前置状态：T3 已 PASS 并已提交；`DomainMeetingRepositoryOpenOptions.onProjectionCommitted`、`DomainRepositoryRegistryOptions.onProjectionCommitted`、普通 `commit` 及 `completeCreate` callback 发布点，以及两份 contract test 已存在且 T3 focused validation 已通过。
-
-允许修改：`plugin/src/config.ts`、`plugin/src/index.ts`、`plugin/src/runtime/application-service/index.ts`、`plugin/README.md`、`plugin/tests/unit/config.spec.ts`、`plugin/tests/unit/index-inject.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`。
-
-禁止修改：HTTP/Tool/Client/smoke/profile/package manifest 和其他 tests。
-
-执行：增加第 6 节 optional config、workspace resolve、logger、runtime option、service/registry 接线和 dispose 顺序。README 只记录配置、路径、非权威、失败隔离及 Compatibility 的 Not Covered。测试 config absent/empty/value；absent 零 workspace get/service；known workspace canonical path；unknown fail；warning不含 error/path；Runtime commit schedule；dispose quiescence。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/config.spec.ts tests/unit/index-inject.spec.ts tests/contract/meeting-runtime.spec.ts
-pnpm --dir plugin typecheck
-pnpm --dir plugin lint
-git diff --check
-```
-
-PASS：四命令退出 0，既有 inject 数组不变。STOP：需要 profile/manifest/HTTP/schema 变更或失败；不得增加 fallback。失败恢复：dispose 测试 root，保留 diff。
-
 ### T5：完整验证
 
-前置状态：T4 PASS，工作树只含 T1-T4 允许文件和本 RUNBOOK。
+前置状态：T4 已 PASS 并已提交；`Config.developerMarkdownWorkspaceId`、host workspace fail-closed 解析、`CreateStatusRuntimeOptions.developerMarkdown` 接线、service 生命周期和 T4 tests 已存在且 focused validation 已通过。
 
 允许修改：无。
 

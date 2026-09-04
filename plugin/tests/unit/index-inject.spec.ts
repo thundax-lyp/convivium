@@ -71,7 +71,11 @@ describe("Convivium continuable provider gate", () => {
 });
 
 describe("Convivium local Meeting route lifecycle", () => {
-    async function host(host: "127.0.0.1" | "0.0.0.0") {
+    async function host(
+        host: "127.0.0.1" | "0.0.0.0",
+        runtimeConfig = config,
+        workspace: { path: string } | undefined = undefined
+    ) {
         const routeDispose = vi.fn();
         const register = vi.fn(() => routeDispose);
         const effects: Array<() => void | Promise<void>> = [];
@@ -83,6 +87,8 @@ describe("Convivium local Meeting route lifecycle", () => {
                 effects.push(setup());
             },
             agents: { get: () => undefined },
+            workspaceRegistry: { get: vi.fn(() => workspace) },
+            logger: vi.fn(() => ({ warn: vi.fn() })),
             subagents: {
                 getProvider: () => ({ name: "spawn", prepareContinuable: async () => ({}) }),
                 startContinuable: async () => {
@@ -125,7 +131,7 @@ describe("Convivium local Meeting route lifecycle", () => {
                 }
             }
         };
-        await apply(ctx as never, config);
+        await apply(ctx as never, runtimeConfig);
         return {
             register,
             routeDispose,
@@ -167,5 +173,17 @@ describe("Convivium local Meeting route lifecycle", () => {
         await fixture.dispose();
         expect(fixture.toolDisposers).toHaveLength(18);
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
+    });
+
+    it("resolves a configured workspace and fails closed for an unknown id", async () => {
+        const fixture = await host(
+            "0.0.0.0",
+            { ...config, developerMarkdownWorkspaceId: "workspace-1" },
+            { path: "/tmp/convivium-workspace" }
+        );
+        await fixture.dispose();
+        await expect(
+            host("0.0.0.0", { ...config, developerMarkdownWorkspaceId: "missing" })
+        ).rejects.toThrow("Developer Markdown workspace is not registered: missing");
     });
 });
