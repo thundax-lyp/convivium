@@ -4,11 +4,11 @@
 
 产品/正式文档基线：`b82f38f94697d5f77e81ab7e7757f8f091ae737c`
 
-RUNBOOK 固化提交不改变产品/正式文档基线。T0 允许当前 HEAD 等于该 baseline，或当前 HEAD 相对该 baseline 只新增本文且工作树 clean。
+RUNBOOK 固化提交不改变产品/正式文档基线。首项边界复核允许当前 HEAD 等于该 baseline，或当前 HEAD 相对该 baseline 只新增本文且工作树 clean。
 
 ## 1. 执行者契约
 
-本文只补齐现有 loopback Client `Skip current speaker` 控制的真实浏览器证据，不修改 reassign/skip 产品语义。执行者必须从 T0 开始顺序执行；每一步只能修改允许文件和指定 symbol，全部验证 PASS 后才能进入下一步。
+本文只补齐现有 loopback Client `Skip current speaker` 控制的真实浏览器证据，不修改 reassign/skip 产品语义。执行者必须按步骤顺序执行；每一步只能修改允许文件和指定 symbol，全部验证 PASS 后才能进入下一步。
 
 任何正式契约、现有生产 symbol、测试命令或浏览器可观察入口与本文不一致时必须 STOP。不得通过修改 production Client、HTTP、Runtime、protocol、repository、DSH adapter，放宽 Schema/断言，新增 Playwright/Cypress 依赖，或把非浏览器 smoke 描述成浏览器证据来继续。
 
@@ -51,7 +51,7 @@ RUNBOOK 固化提交不改变产品/正式文档基线。T0 允许当前 HEAD �
 | focused contracts           | `plugin/tests/client/client-entry.client.spec.ts`、`plugin/tests/contract/http-boundary.spec.ts` | 已固定 exact skip body、URL、refetch 和 HTTP boundary                                                                         |
 | smoke source contract       | `plugin/tests/unit/scripts/smoke-profile.spec.ts`                                                | 已固定唯一 reassign dispatcher 和普通四 labels，尚无 browser-ready branch contract                                            |
 
-T0 Author baseline 实际运行：
+RUNBOOK 固化前的 baseline 实际运行：
 
 ```text
 pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts tests/client/client-entry.client.spec.ts tests/contract/http-boundary.spec.ts
@@ -165,13 +165,13 @@ browser-ready result 的任一额外、缺失或乱序 label，以及 malformed 
 
 ## 7. 双向追踪
 
-| 行为                            | requirement / acceptance | interface / design                        | owner                                   | focused test              | full / readiness         |
-| ------------------------------- | ------------------------ | ----------------------------------------- | --------------------------------------- | ------------------------- | ------------------------ |
-| browser-ready current attempt   | FR-11.3                  | existing Client control and smoke wrapper | T1 `runReassignScenario`                | `smoke-profile.spec.ts`   | T2 real browser          |
-| exact skip request/refetch      | FR-9.6、FR-11.3、AC 3    | `ReassignTurnInputV1`、Web route          | existing production; T0 regression only | client + HTTP specs       | T2 browser observation   |
-| replacement lifecycle preserved | FR-9.6、AC 3             | tool/runtime design                       | existing ordinary reassign scenario     | T1 result validator       | T1 real profile smoke    |
-| cleanup                         | architecture lifecycle   | smoke wrapper restore                     | existing `main` finally                 | existing source contract  | T2 marker/path assertion |
-| readiness truthfulness          | readiness governance     | G4 / Scope gaps                           | T2 docs                                 | relative links / Prettier | T3 full verify           |
+| 行为                            | requirement / acceptance | interface / design                        | owner                                        | focused test              | full / readiness         |
+| ------------------------------- | ------------------------ | ----------------------------------------- | -------------------------------------------- | ------------------------- | ------------------------ |
+| browser-ready current attempt   | FR-11.3                  | existing Client control and smoke wrapper | T1 `runReassignScenario`                     | `smoke-profile.spec.ts`   | T2 real browser          |
+| exact skip request/refetch      | FR-9.6、FR-11.3、AC 3    | `ReassignTurnInputV1`、Web route          | existing production; initial regression only | client + HTTP specs       | T2 browser observation   |
+| replacement lifecycle preserved | FR-9.6、AC 3             | tool/runtime design                       | existing ordinary reassign scenario          | T1 result validator       | T1 real profile smoke    |
+| cleanup                         | architecture lifecycle   | smoke wrapper restore                     | existing `main` finally                      | existing source contract  | T2 marker/path assertion |
+| readiness truthfulness          | readiness governance     | G4 / Scope gaps                           | T2 docs                                      | relative links / Prettier | T3 full verify           |
 
 没有步骤实现新的产品行为。T1 的单一工程判断是“同一 reassign smoke 以受校验的 test-only result 暴露 browser-ready 模式”；T2 的单一工程判断是“真实 Browser 结果足以消除 readiness 缺口”；T3 的单一工程判断是“全部证据满足关闭条件并删除临时 RUNBOOK”。
 
@@ -179,7 +179,7 @@ browser-ready result 的任一额外、缺失或乱序 label，以及 malformed 
 
 ### T1：建立 reassign browser-ready fixture
 
-前置状态：完成提交 `46322a796ab35e67dbff2a403f7aa3fc5001440c` 已包含修正后的 T0 基线与边界复核，且 T0 focused 验证 PASS；基线 contracts 未变化。
+前置状态：完成提交 `46322a796ab35e67dbff2a403f7aa3fc5001440c` 已包含修正后的产品/正式文档基线与边界复核，且首项 focused 验证 PASS；基线 contracts 未变化。
 
 允许修改：`plugin/scripts/smoke-profile/probe/scenarios/reassign.js::runReassignScenario`；`plugin/scripts/smoke-profile/result.mjs::validateScenarioResult` 的 browser-ready窄分支；`plugin/tests/unit/scripts/smoke-profile.spec.ts` 的 reassign source/result contract cases；本文 T1 章节。
 
@@ -247,7 +247,7 @@ STOP：Browser控制能力缺失、URL前fixture已推进、控件缺失、POST�
 
 ### T3：完整验证与删除 RUNBOOK
 
-前置状态：T2 PASS；两份readiness只记录真实证据；T0至T2所有focused验证仍通过。
+前置状态：T2 PASS；两份readiness只记录真实证据；首项边界复核至 T2 的所有 focused 验证仍通过。
 
 允许修改：本文整体删除。
 
@@ -316,4 +316,4 @@ Author 已核对正式需求、HTTP/Client接口、生产实现、browser wrappe
 
 Audit 结论：`Executable`。
 
-T0至T3为唯一顺序；每一步都是一个可独立审阅、提交和回滚的工程判断，并具有固定前置、允许/禁止文件、唯一动作、直接命令、客观PASS、强制STOP和失败恢复。普通replacement smoke与browser skip evidence被明确分开，执行者无需决定是否新增replacement picker或如何修改生产行为。
+本文步骤至 T3 为唯一顺序；每一步都是一个可独立审阅、提交和回滚的工程判断，并具有固定前置、允许/禁止文件、唯一动作、直接命令、客观PASS、强制STOP和失败恢复。普通replacement smoke与browser skip evidence被明确分开，执行者无需决定是否新增replacement picker或如何修改生产行为。
