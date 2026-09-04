@@ -7,6 +7,7 @@ import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
+import { assertBrowserClientPreflight } from "./browser-client-preflight.mjs";
 import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 import { validateColdCheckpoint } from "./probe/support.js";
 import { validateScenarioResult } from "./result.mjs";
@@ -450,6 +451,10 @@ async function main() {
     probeResult = validateScenarioResult(probeResult, SMOKE_SCENARIO);
 
     await stat(dumpPath);
+    if (BROWSER_MODE && probeResult.browserReady === true) {
+        const origin = `http://${HOST}:${port}`;
+        await assertBrowserClientPreflight(origin);
+    }
     console.log(
         JSON.stringify(
             {

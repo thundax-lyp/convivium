@@ -14,6 +14,10 @@ const smokeProfileSource = readFileSync(
     new URL("../../../scripts/smoke-profile/index.mjs", import.meta.url),
     "utf8"
 );
+const browserClientPreflightSource = readFileSync(
+    new URL("../../../scripts/smoke-profile/browser-client-preflight.mjs", import.meta.url),
+    "utf8"
+);
 const probeSource = readFileSync(
     new URL("../../../scripts/smoke-profile/probe/index.js", import.meta.url),
     "utf8"
@@ -133,6 +137,21 @@ describe("loadSmokeApiKey", () => {
 });
 
 describe("smoke profile scenario guard", () => {
+    it("uses the one preflight seam before browser output", () => {
+        expect(smokeProfileSource).toContain('from "./browser-client-preflight.mjs"');
+        expect(smokeProfileSource.match(/assertBrowserClientPreflight\(/g)).toHaveLength(1);
+        expect(
+            smokeProfileSource.indexOf("await assertBrowserClientPreflight(origin)")
+        ).toBeLessThan(smokeProfileSource.indexOf("console.log(\n        JSON.stringify"));
+        expect(browserClientPreflightSource).toContain(
+            "export async function assertBrowserClientPreflight(origin, fetchImpl = globalThis.fetch)"
+        );
+        expect(browserClientPreflightSource).toContain(
+            "fail(`${label} returned HTTP ${response.status}`)"
+        );
+        expect(browserClientPreflightSource).toContain('"window.__ModuleLoader__.load"');
+    });
+
     it("loads dev.env for the DSH Host without exposing it to setup commands", () => {
         expect(smokeProfileSource).toContain(
             'loadSmokeApiKey(resolve(pluginRoot, "..", "dev.env"))'

@@ -126,46 +126,9 @@ seam 按以下固定顺序执行：
 
 ## 7. 机械执行步骤
 
-### T1：增加真实 Web Client Loader preflight
-
-前置状态：前一完成 commit `a1e65e95ac3e52fb807290b4ba5c4e271c25007e` 已包含 T0 检查且 PASS；`plugin/scripts/smoke-profile/index.mjs` 仍在 browser mode 中先取得 `probeResult`，后打印 Browser URL。
-
-允许修改：
-
-- 新建 `plugin/scripts/smoke-profile/browser-client-preflight.mjs`：唯一 `assertBrowserClientPreflight` seam。
-- `plugin/scripts/smoke-profile/index.mjs`：import seam；`main` 的 browser-ready 输出前唯一调用。
-- 新建 `plugin/tests/unit/scripts/browser-client-preflight.spec.ts`：seam 行为测试。
-- `plugin/tests/unit/scripts/smoke-profile.spec.ts`：suite `smoke profile script contract` 的调用顺序静态断言。
-
-禁止修改：`plugin/src/**`、probe scenarios、result validator、package manifest、profile patch、其他测试。
-
-执行：
-
-1. 新建 §5.3 指定的 repository-private seam；只使用 `globalThis.fetch`、`JSON.parse` 和 `URL`，不新增 dependency、wrapper、registry 或公共 package export。
-2. `index.mjs` 从固定路径 import seam，并在 Browser URL 输出前唯一一次 `await` 调用；不得在 `index.mjs` 复制 graph 或 bundle 校验。
-3. seam test 使用一个按调用序列返回 response 的 `fetchImpl` mock，分别断言：成功；root HTTP `503`；missing row；duplicate row；malformed URL；bundle HTTP `502`；bundle marker 缺失。两个 non-2xx case 必须断言固定错误文本和实际 fetch 次数，证明 root 失败不执行 bundle fetch、bundle 失败已完成两次 fetch。
-4. 现有 static contract 断言锁定 import 路径、唯一 seam 调用、四个 bundle marker，以及 seam 调用位于 Browser URL 输出前。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts
-pnpm --dir plugin exec vitest run tests/unit/scripts/browser-client-preflight.spec.ts
-pnpm --dir plugin exec eslint scripts/smoke-profile/index.mjs scripts/smoke-profile/browser-client-preflight.mjs tests/unit/scripts/browser-client-preflight.spec.ts tests/unit/scripts/smoke-profile.spec.ts
-pnpm --dir plugin exec prettier --check scripts/smoke-profile/index.mjs scripts/smoke-profile/browser-client-preflight.mjs tests/unit/scripts/browser-client-preflight.spec.ts tests/unit/scripts/smoke-profile.spec.ts
-git diff --check
-actual="$( { git diff --name-only -- plugin; git ls-files --others --exclude-standard -- plugin; } | LC_ALL=C sort -u)"
-expected="$(printf '%s\n' 'plugin/scripts/smoke-profile/browser-client-preflight.mjs' 'plugin/scripts/smoke-profile/index.mjs' 'plugin/tests/unit/scripts/browser-client-preflight.spec.ts' 'plugin/tests/unit/scripts/smoke-profile.spec.ts' | LC_ALL=C sort)"
-test "$actual" = "$expected"
-```
-
-PASS：全部命令退出 `0`；seam 行为测试覆盖成功、missing、duplicate、malformed URL、root non-2xx 和 bundle non-2xx；static suite 证明唯一调用及调用顺序；allowlist 比较退出 `0`，且实际路径集合精确等于四个允许文件。
-
-STOP：当前 HTML 不含可唯一提取的 JSON boot object、必须引入 parser dependency、或改动需要进入 DSH/package/product code；保留首个 HTML 结构证据，不猜替代格式。
-
 ### T2：暴露唯一 Captain Session identity
 
-前置状态：T1 PASS；browser-ready producer 已 attach `captain.agent.session`；session ID 由 `plugin/scripts/smoke-profile/probe/index.js::createSmokeAgent` 固定为 `convivium-smoke-captain`。
+前置状态：前一完成 commit（T1 实现及其 focused validation PASS）已包含唯一 preflight seam、调用顺序和四个授权文件；browser-ready producer 已 attach `captain.agent.session`；session ID 由 `plugin/scripts/smoke-profile/probe/index.js::createSmokeAgent` 固定为 `convivium-smoke-captain`。
 
 允许修改：
 
