@@ -2,6 +2,16 @@
 
 > 当前证据：本文新增 target HEAD current section；其余历史证据仍只适用于原始 commit，不外推为当前 HEAD。当前覆盖总览以 [Current Implementation Coverage](./CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
 
+## PR #45 Regression Evidence
+
+- `targetCommit`: `759e2ef7cec4fe5cf4f7a5ec57ea70a460afdfe8`
+- `date`: 2026-09-04
+- `pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts`：在 `8c7c39e6705fed5a79ed228b8f494a7f96cfe83b` Pass，1 file、35 tests；相同 `requestId` 的 MeetingTask start 返回首次 receipt/result；该 suite 也包含在 target HEAD 的完整验证中。
+- `pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts`：在 target HEAD Pass，1 file、24 tests；browser-ready profile 固定 30 分钟 `speakerTimeoutMs`，普通模式保持 60 秒，`timeout` selector 保持 250ms。
+- `pnpm --dir plugin verify`：Pass，74 files、549 tests；format、lint、Host/Client typecheck、build、environment、contract、Agent Definition samples 和 package verifier 均通过。
+- 实现边界：Catalog preview 只在 repository 最新 snapshot 中目标 task 仍为 `queued` 时执行；目标 task 已为 `running` 时直接进入既有 `MeetingRepository.execute()` receipt replay，不新增 receipt 查询 API，不改变 caller binding、authorization、request hash、transition、event 或 outbox 契约。Reassign browser-ready 只延长 test profile 的人工操作窗口，不暂停领域 timeout 或改变产品行为。
+- `Not Covered`：本次没有重新运行真实 DSH profile selector，也没有完成 Reassign 的五项真实 Browser 交互验证；下方较早 target 的 G3/G4 证据不得外推到 `759e2ef`。
+
 ## Current Target Evidence
 
 - `targetCommit`: `2f49e1af2d09206cb763a39676151a9d4466c80b`
