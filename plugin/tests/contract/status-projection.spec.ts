@@ -4,6 +4,7 @@ import { MeetingStatusResultSchema } from "../../src/protocol/index.js";
 import { describe, expect, it } from "vitest";
 
 const state = {
+    formatVersion: 2,
     id: "meeting-1",
     teamId: "team-1",
     status: "running",
@@ -29,13 +30,15 @@ const state = {
     decisions: [],
     issues: [],
     handRaises: [],
+    attendanceRecommendations: [],
     meetingTasks: [],
     currentTurn: undefined,
     manager: {
         status: "planning",
         currentPlanningAttempt: {
             id: "planning-1",
-            deliveryId: "delivery-1"
+            deliveryId: "delivery-1",
+            catalogBinding: { kind: "none" }
         }
     },
     outbox: { leaseToken: "secret" }

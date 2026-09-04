@@ -270,6 +270,7 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                                     deliveryId: planningDeliveryId,
                                     reason: "next_turn",
                                     now: options.now?.() ?? Date.now(),
+                                    catalogBinding: { kind: "none" },
                                     allowRunningRestart: true
                                 }
                             );
@@ -485,7 +486,8 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                                             nextState.selectionMode === "hybrid"
                                                 ? "semantic_arbitration"
                                                 : "next_turn",
-                                        now: planningNow
+                                        now: planningNow,
+                                        catalogBinding: { kind: "none" }
                                     });
                                     nextState = planning.state;
                                     planningEvents = planning.effect

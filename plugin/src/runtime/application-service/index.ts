@@ -559,7 +559,8 @@ export function createCreateStatusRuntime(
                                 agendaItemId: turn.agendaItemId,
                                 now,
                                 nextPlanningAttemptId: planningIds.planningAttemptId,
-                                nextPlanningDeliveryId: planningIds.deliveryId
+                                nextPlanningDeliveryId: planningIds.deliveryId,
+                                catalogBinding: { kind: "none" }
                             }
                         );
                         const transitionState =

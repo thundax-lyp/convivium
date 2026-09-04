@@ -1,5 +1,9 @@
 import type { ApplyCompletionClaimsContext } from "../completion.js";
-import type { ManagerPlanningAttempt, SpeakerSubmissionContext } from "../model.js";
+import type {
+    ManagerCatalogBindingV1,
+    ManagerPlanningAttempt,
+    SpeakerSubmissionContext
+} from "../model.js";
 
 export interface StartManagerPlanningContext {
     meetingId: string;
@@ -7,6 +11,7 @@ export interface StartManagerPlanningContext {
     deliveryId: string;
     reason: ManagerPlanningAttempt["reason"];
     now: number;
+    catalogBinding: ManagerCatalogBindingV1;
     allowRunningRestart?: boolean;
 }
 
@@ -23,6 +28,7 @@ export interface SubmitSpeakerAdvanceContext extends SpeakerSubmissionContext {
     now: number;
     nextPlanningAttemptId: string;
     nextPlanningDeliveryId: string;
+    catalogBinding: ManagerCatalogBindingV1;
     issues?: readonly SubmittedIssueInput[];
     proposals?: readonly SubmittedProposalInput[];
     positions?: readonly SubmittedPositionInput[];

@@ -11,6 +11,7 @@ const now = 1_700_000_000_000;
 
 function state(overrides: Partial<MeetingState> = {}): MeetingState {
     return {
+        formatVersion: 2,
         id: "meeting-1",
         teamId: "team-1",
         status: "running",
@@ -48,6 +49,7 @@ function state(overrides: Partial<MeetingState> = {}): MeetingState {
         openQuestions: [],
         handRaises: [],
         completionFacts: [],
+        attendanceRecommendations: [],
         artifactRefs: [],
         continuationMaterials: [],
         turnSeq: 1,

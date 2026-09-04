@@ -443,7 +443,8 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                                     input.selectionMode === "hybrid"
                                         ? "semantic_arbitration"
                                         : "initial_plan",
-                                now: options.runtime.now?.() ?? Date.now()
+                                now: options.runtime.now?.() ?? Date.now(),
+                                catalogBinding: { kind: "none" }
                             }
                         );
                         return {

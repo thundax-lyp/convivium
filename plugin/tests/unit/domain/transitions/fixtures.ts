@@ -4,6 +4,7 @@ export const now = 1_700_000_000_000;
 
 export function meeting(status: MeetingState["status"] = "created"): MeetingState {
     return {
+        formatVersion: 2,
         id: "meeting-1",
         teamId: "team-1",
         status,
@@ -29,6 +30,7 @@ export function meeting(status: MeetingState["status"] = "created"): MeetingStat
         openQuestions: [],
         handRaises: [],
         completionFacts: [],
+        attendanceRecommendations: [],
         artifactRefs: [],
         continuationMaterials: [],
         turnSeq: 0,

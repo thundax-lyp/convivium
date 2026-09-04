@@ -21,7 +21,12 @@ import type { SubmitSpeakerAdvanceContext } from "./types.js";
 
 type SpeakerAdvanceContext = Pick<
     SubmitSpeakerAdvanceContext,
-    "attemptId" | "agendaItemId" | "now" | "nextPlanningAttemptId" | "nextPlanningDeliveryId"
+    | "attemptId"
+    | "agendaItemId"
+    | "now"
+    | "nextPlanningAttemptId"
+    | "nextPlanningDeliveryId"
+    | "catalogBinding"
 >;
 
 function canonicalIds(values: readonly string[]): string[] {
@@ -557,6 +562,7 @@ export function advanceAfterSpeakerSubmission(
             deliveryId: context.nextPlanningDeliveryId,
             status: "running",
             createdAt: context.now,
+            catalogBinding: context.catalogBinding,
             ...(nextState.limits.speakerAttemptTimeoutMs === undefined
                 ? {}
                 : { deadlineAt: context.now + nextState.limits.speakerAttemptTimeoutMs })

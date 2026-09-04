@@ -248,6 +248,7 @@ export function startManagerPlanning(
         deliveryId: context.deliveryId,
         status: "running",
         createdAt: context.now,
+        catalogBinding: context.catalogBinding,
         ...(state.limits.speakerAttemptTimeoutMs === undefined
             ? {}
             : { deadlineAt: context.now + state.limits.speakerAttemptTimeoutMs })

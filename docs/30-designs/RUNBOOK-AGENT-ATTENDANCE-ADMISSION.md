@@ -480,39 +480,9 @@ Captain approval/admission/provisioning portions of FR-13.5-9 and AC 31-34 remai
 
 ## 8. 机械实施步骤
 
-### T2：V2 domain shape 与 no-Catalog baseline
-
-前置状态：T1 PASS commit 已存在；T1 完整章节已删除；工作树 clean。
-
-允许修改：`plugin/src/domain/model.ts`；`plugin/src/domain/create.ts::createMeetingState`；`plugin/src/domain/transitions/types.ts::StartManagerPlanningContext`、`SubmitSpeakerAdvanceContext`；`plugin/src/domain/transitions/speaker-attempt.ts::FailSpeakerAttemptContext`；`plugin/src/domain/transitions/manager-planning.ts::startManagerPlanning`；`plugin/src/domain/transitions/turn-advancement.ts::advanceAfterSpeakerSubmission`；`plugin/src/runtime/application-service/create-meeting.ts::createMeetingApplication`的initial`startManagerPlanning`context；`plugin/src/runtime/application-service/meeting-task.ts::createMeetingTaskApplication`的`startMeetingTask`和`finishMeetingTask`contexts；`plugin/src/runtime/application-service/meeting-control.ts::transitionMeetingStatus`的`currentPlanningAttempt`literal；`plugin/src/runtime/application-service/meeting-turn.ts::submitTurn`的`SubmitSpeakerAdvanceContext`；`plugin/src/runtime/application-service/index.ts::scanExpiredSpeakerAttempts`的`FailSpeakerAttemptContext`；以下fixtures：`plugin/tests/contract/continuation.spec.ts`、`plugin/tests/contract/meeting-repository-behavior.ts`、`plugin/tests/contract/status-projection.spec.ts`、`plugin/tests/recovery/recovery.spec.ts`、`plugin/tests/unit/domain/completion.spec.ts`、`plugin/tests/unit/domain/create.spec.ts`、`plugin/tests/unit/domain/hand-raise.spec.ts`、`plugin/tests/unit/domain/meeting-task.spec.ts`、`plugin/tests/unit/domain/transitions/fixtures.ts`、`plugin/tests/unit/domain/transitions/manager-planning.spec.ts`、`plugin/tests/unit/domain/transitions/meeting.spec.ts`、`plugin/tests/unit/domain/transitions/speaker-attempt.spec.ts`、`plugin/tests/unit/domain/transitions/turn-advancement.spec.ts`、`plugin/tests/unit/runtime/archive.spec.ts`、`plugin/tests/unit/runtime/manager-fallback.spec.ts`、`plugin/tests/unit/runtime/recovery.spec.ts`、`plugin/tests/unit/runtime/task-evidence.spec.ts`；本RUNBOOK的T2章节。
-
-禁止修改：Catalog service、repository decoder、protocol status、claim behavior、Client/HTTP、archive production、outbox。
-
-执行：
-
-1. 按 7.1 在 `model.ts` 增加 exact internal domain types、required `formatVersion: 2`、required recommendations 与 required attempt binding；不得导入`protocol/`。`isMeetingStateV2` 只验证 discriminator、recommendations exact fields、以及 current attempt 存在时的 two-branch binding和完整 snapshot字段，不写入或转换 value。
-2. `createMeetingState` 初始化 `formatVersion: 2` 和 `attendanceRecommendations: []`。
-3. 给两个 advance/start context 增加 required `catalogBinding`；给 `FailSpeakerAttemptContext` 增加同一字段；所有 production attempt constructor 暂时只从 context复制 binding。
-4. 7.2 producer matrix的六条Runtime caller暂时显式传`{ kind: "none" }`，保持普通behavior；不得读取Catalog，也不得修改matrix外Runtime symbol。
-5. 仅对上述 TypeScript fixtures 中声明为 canonical `MeetingState` 或直接构造 `currentPlanningAttempt` 的对象补 `formatVersion: 2`、`attendanceRecommendations: []`、`catalogBinding: { kind: "none" }`。raw persistence legacy fixture保持无 discriminator且继续以 `JsonObject` 输入，不 cast 为 V2 fixture。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain tests/unit/runtime/archive.spec.ts tests/unit/runtime/manager-fallback.spec.ts tests/unit/runtime/recovery.spec.ts tests/unit/runtime/task-evidence.spec.ts tests/contract/continuation.spec.ts tests/contract/domain-meeting-repository.spec.ts tests/contract/status-projection.spec.ts tests/recovery/recovery.spec.ts
-pnpm --dir plugin typecheck:host
-git diff --check
-```
-
-PASS：全部退出 0；每个新 Meeting/attempt 都含 required V2字段；普通 Manager behavior不变；raw legacy fixture未被补字段。
-
-STOP：编译要求修改允许列表外的 production symbol，或只能通过 optional/default/cast/全仓 union 才能通过。报告 exact file、line 和首错。
-
-失败恢复：只产生代码/fixture diff；保留 T2，禁止扩大 fixture 范围而不先 STOP。
-
 ### T3：optional Catalog port 与 composition
 
-前置状态：T2 PASS；T2 完整章节已删除；canonical V2 attempts 当前均绑定 none。
+前置状态：T2 PASS commit 已存在；T2 完整章节已删除；工作树 clean；canonical V2 attempts 当前均绑定 none。
 
 允许修改：新文件 `plugin/src/runtime/services/agent-catalog.ts` 的 7.2 exact exports；`plugin/src/runtime/application-service/index.ts::CreateStatusRuntimeOptions`；`plugin/src/index.ts::meetingConsumerPlugin.apply`；`plugin/tests/unit/index-inject.spec.ts`；新文件 `plugin/tests/unit/runtime/agent-catalog.spec.ts`；本 RUNBOOK 的 T3 章节。
 

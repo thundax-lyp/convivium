@@ -471,6 +471,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                                         deliveryId: planningIds.deliveryId,
                                         status: "running",
                                         createdAt: planningNow,
+                                        catalogBinding: { kind: "none" },
                                         ...(nextState.limits.speakerAttemptTimeoutMs === undefined
                                             ? {}
                                             : {

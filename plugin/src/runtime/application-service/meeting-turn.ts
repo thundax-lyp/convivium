@@ -447,6 +447,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                                 now: commandNow,
                                 nextPlanningAttemptId: planningIds.planningAttemptId,
                                 nextPlanningDeliveryId: planningIds.deliveryId,
+                                catalogBinding: { kind: "none" },
                                 issues,
                                 questions,
                                 proposals,

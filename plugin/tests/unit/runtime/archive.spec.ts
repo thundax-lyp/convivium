@@ -12,6 +12,7 @@ import type { RepositoryCommand } from "../../../src/repository/types.js";
 import { describe, expect, it } from "vitest";
 
 const state = {
+    formatVersion: 2,
     id: "meeting-1",
     teamId: "team-1",
     objectiveContract: {},
@@ -21,6 +22,7 @@ const state = {
     ],
     proposals: [],
     completionFacts: [],
+    attendanceRecommendations: [],
     agenda: [],
     issues: [
         {
@@ -212,6 +214,7 @@ describe("materializeArchivePackage", () => {
 
 describe("beginArchiveFromTermination", () => {
     const terminal = (): MeetingState => ({
+        formatVersion: 2,
         id: "meeting-1",
         teamId: "team-1",
         status: "completed",
@@ -238,6 +241,7 @@ describe("beginArchiveFromTermination", () => {
         handRaises: [],
         meetingTasks: [],
         completionFacts: [],
+        attendanceRecommendations: [],
         artifactRefs: [],
         continuationMaterials: [],
         turnSeq: 0,
@@ -361,6 +365,7 @@ describe("archive ownership cleanup", () => {
         archive: { package: materializeArchivePackage(terminalState(), 9) }
     });
     const terminalState = (): MeetingState => ({
+        formatVersion: 2,
         id: "meeting-1",
         teamId: "team-1",
         status: "completed",
@@ -397,6 +402,7 @@ describe("archive ownership cleanup", () => {
         handRaises: [],
         meetingTasks: [],
         completionFacts: [],
+        attendanceRecommendations: [],
         artifactRefs: [],
         continuationMaterials: [],
         turnSeq: 0,
