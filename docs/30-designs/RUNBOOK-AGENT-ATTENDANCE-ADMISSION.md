@@ -480,43 +480,9 @@ Captain approval/admission/provisioning portions of FR-13.5-9 and AC 31-34 remai
 
 ## 8. 机械实施步骤
 
-### T0：clean baseline 与契约门禁
-
-前置状态：文档 closure 与本 RUNBOOK 已由单独授权提交；当前目录、branch 和 baseline ancestor 必须符合下列命令。
-
-允许修改：无。
-
-禁止修改：全部文件、Git refs/history、依赖、持久数据、DSH 和外部系统。
-
-执行：
-
-1. 从 repository root 原样运行验证区命令并保存 stdout、stderr 与 exit code。
-2. 不运行 fetch、pull、rebase、reset、stash、checkout 或 clean。
-
-验证：
-
-```bash
-test "$(pwd)" = "/Volumes/storage/workspace/convivium-one"
-test "$(git branch --show-current)" = "codex/agent-attendance-admission-runbook"
-git merge-base --is-ancestor cf0ab2d2cf12d670bab66c0324c1c2395f319d98 HEAD
-test -z "$(git status --porcelain=v1)"
-test -f docs/30-designs/RUNBOOK-AGENT-ATTENDANCE-ADMISSION.md
-! rg -n "AgentCatalogPort|captureManagerCatalogBinding|attendanceRecommendations|catalogBinding|MeetingAgentCatalogSnapshotV1" plugin/src
-rg -n 'convivium\.agentCatalog|AgentCatalogPort|AgentCatalogReadResult' docs/20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md
-rg -n 'formatVersion: 2|catalogBinding|16 \* 1024' docs/20-interfaces/MEETING-STORAGE-INTERFACE.md docs/30-designs/DOMAIN-MODEL-DESIGN.md
-rg -n 'recommendationIds|serializeValidatedRequestV1|AGENT_CATALOG_UNAVAILABLE' docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md docs/20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md
-git diff --check
-````
-
-PASS：每条命令退出 0；工作树 clean；planned production symbols 尚不存在；正式文档命中 P0-A 至 P0-E。
-
-STOP：任一命令非 0。报告失败命令和首个输出；不得自行改变 baseline、branch 或文档。
-
-失败恢复：只读步骤，无文件、repository、DSH 或外部副作用。
-
 ### T1：Catalog protocol types、Schema 与 command input
 
-前置状态：T0 PASS；T0 完整章节已删除；工作树只包含该删除。
+前置状态：T0 PASS commit 已存在；T0 完整章节已删除；工作树 clean。
 
 允许修改：`plugin/src/protocol/types.ts` 的 Catalog/claim/error symbols 与 `ManagerPlanSubmissionV1`；`plugin/src/protocol/schema.ts` 的四个 Catalog Schema 与 `knownErrorCodes`；`plugin/src/protocol/commands.ts::ManagerPlanSubmissionSchema`；`plugin/src/protocol/index.ts` 的四个 Schema exports；`plugin/tests/contract/protocol-schema.spec.ts`；本 RUNBOOK 的 T1 章节。
 
