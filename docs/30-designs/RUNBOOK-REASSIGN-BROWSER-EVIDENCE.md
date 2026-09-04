@@ -210,6 +210,8 @@ PASS：真实浏览器五项断言成立；wrapper退出0、cleanup marker出现
 
 STOP：Browser控制能力缺失、URL前fixture已推进、控件缺失、POST失败、refetch后旧attempt仍可操作、刷新回退、wrapper不退出0、temp root残留、证据只能靠推断，或B-owned readiness exact条目已有并行修改。报告缺失能力、UI可见文本、terminal tail、temp path或readiness diff；不得以jsdom/HTTP调用替代Browser，不得修改product或覆盖C的内容来修复证据步骤。
 
+本次实际 STOP 证据：使用真实 `web` profile 打开 `http://127.0.0.1:56386`；wrapper 输出 `ok=true`、`probe.browserReady=true`、`assertions=["browser-reassign-ready"]`，但 Browser DOM 只有 Harness 主界面、工作区/会话树和`新会话`，缺少 Convivium Meeting panel、Meeting 选择器、`Skip current speaker` 和 `Skip reason`。wrapper 已输出 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`；执行 `test ! -e /var/folders/38/sp0hsff57mq7fnwxtdcxk29h0000gq/T/convivium-dsh-smoke-OFFJ1Z` 通过。需要人工决定：提供能进入活动 `conversation.view` 并加载 Meeting panel 的现有正式入口，或批准 T2 标记为 `Not Covered`。
+
 失败恢复：无持久Host数据；无论PASS/STOP都先SIGINT并验证temp root删除。未完成五项断言时不得修改readiness。
 
 ### T3：完整验证与删除 RUNBOOK
