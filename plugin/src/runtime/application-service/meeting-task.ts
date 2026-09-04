@@ -13,6 +13,7 @@ import {
     isMeetingStateV2,
     startManagerPlanning,
     startMeetingTask as startMeetingTaskTransition,
+    type ManagerCatalogBindingV1,
     type MeetingState
 } from "../../domain/index.js";
 import type {
@@ -228,25 +229,36 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                 );
             try {
                 const taskNow = options.now?.() ?? Date.now();
-                const currentForPlanning = await stored.repository.read();
-                const previewTask = startMeetingTaskTransition(
-                    currentForPlanning.state as unknown as MeetingState,
-                    input.meetingTaskId,
-                    taskNow
-                );
-                const previewState = previewTask.state as unknown as MeetingState;
-                const previewWillPlan =
-                    previewState.manager.currentPlanningAttempt !== undefined &&
-                    previewState.manager.currentPlanningAttempt.observedMeetingVersion !==
-                        previewState.version + 1;
-                const catalogBinding =
-                    previewWillPlan && isMeetingStateV2(currentForPlanning.state)
-                        ? await captureManagerCatalogBinding(options.agentCatalog, {
-                              teamId: stored.teamId,
-                              meetingId: stored.repository.meetingId,
-                              captainSessionId: stored.captainSessionId
-                          })
-                        : { kind: "none" as const };
+                let catalogBinding: ManagerCatalogBindingV1 = { kind: "none" };
+                if (authorized.task.status === "queued") {
+                    const currentForPlanning = await stored.repository.read();
+                    const currentState = currentForPlanning.state as unknown as MeetingState;
+                    const currentTask = currentState.meetingTasks.find(
+                        (task) => task.meetingTaskId === input.meetingTaskId
+                    );
+                    if (currentTask?.status === "queued") {
+                        const previewTask = startMeetingTaskTransition(
+                            currentState,
+                            input.meetingTaskId,
+                            taskNow
+                        );
+                        const previewState = previewTask.state as unknown as MeetingState;
+                        const previewWillPlan =
+                            previewState.manager.currentPlanningAttempt !== undefined &&
+                            previewState.manager.currentPlanningAttempt.observedMeetingVersion !==
+                                previewState.version + 1;
+                        if (previewWillPlan && isMeetingStateV2(currentForPlanning.state)) {
+                            catalogBinding = await captureManagerCatalogBinding(
+                                options.agentCatalog,
+                                {
+                                    teamId: stored.teamId,
+                                    meetingId: stored.repository.meetingId,
+                                    captainSessionId: stored.captainSessionId
+                                }
+                            );
+                        }
+                    }
+                }
                 const committed = await stored.repository.execute({
                     requestId: input.requestId,
                     commandKind: "start_meeting_task",

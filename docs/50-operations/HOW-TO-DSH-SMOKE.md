@@ -6,7 +6,7 @@
 - Node.js 满足 `plugin/package.json` 的 engines 要求。
 - pnpm 可访问或已缓存 `@deepseek-ai/dsh@0.1.1-rc.2`。
 - 不使用开发者常用的 DSH profile；脚本会创建并清理独立临时 profile、workspace、端口和 `DSH_HOME`。
-- 可选的本地 LLM 配置保存在仓库根目录 `dev.env`；从 `dev.env.example` 复制后填写。该文件只供人工真实模型验证使用，不进入 Git，也不会由自动 `smoke:profile` 加载。
+- 自动 `smoke:profile` 使用的本地 DeepSeek 凭据保存在仓库根目录 `dev.env`；从 `dev.env.example` 复制后填写。该文件不进入 Git。
 
 `dev.env` 只保存 DeepSeek 官方 provider 所需的本地凭据：
 
@@ -14,7 +14,9 @@
 DEEPSEEK_API_KEY=
 ```
 
-当前确定性 `smoke:profile` 不调用 LLM，因此不得加载或向构建、打包、依赖安装和 probe 子进程传递该凭据。人工真实模型验证只在启动需要模型的 DSH host 时显式注入 `DEEPSEEK_API_KEY`，实际请求成功才可作为 LLM 链路证据。
+`smoke:profile` 启动前必须读取 `dev.env`。文件缺失、`DEEPSEEK_API_KEY` 缺失或空值、存在其他变量时立即失败。密钥只注入真实 DSH Host 进程；构建、打包、插件安装和 `dump-config` 子进程不会取得该值。脚本不得把密钥写入 stdout、stderr、临时 profile、结果 JSON 或构建产物。
+
+当前确定性 selector 不调用 LLM；注入密钥只保证 smoke Host 与人工 Browser 验证使用同一完整 DeepSeek provider 环境，不得据此声称 LLM 请求已经验证。只有实际模型请求成功才可作为 LLM 链路证据。
 
 人工开发和调试使用仓库根目录 `dsh-workspace/`，该目录不进入 Git；自动 `smoke:profile` 不使用该目录，仍为每次运行创建并清理独立的 OS 临时 workspace，避免旧 Session、Meeting 或文件状态影响验证结果。
 
@@ -83,6 +85,8 @@ pnpm dlx @deepseek-ai/dsh@0.1.1-rc.2 --version
 pnpm smoke:profile
 ```
 
+命令必须从 `plugin/` 运行，使入口能够从其父目录读取唯一的仓库根 `dev.env`。调用者 shell 中已有的 `DEEPSEEK_API_KEY` 会被忽略，不能替代该文件。
+
 其中 `pnpm smoke:profile` 内部固定调用：
 
 ```text
@@ -120,6 +124,47 @@ env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
 ```
 
 每条命令必须退出码为 `0`，并输出 `ok: true`、与 selector 同名的 `probe.scenario` 及该场景固定 assertions。首次失败立即停止后续 selector，保留该次命令、首个 `smoke probe failed` 及有界日志路径；不得把 Host 已启动、TCP 可连或 mock 结果当作场景通过。
+
+### Reassign browser-ready 模式
+
+该模式复用 `reassign` selector，但在调用 reassign tool 前保留一个仍有 current SpeakerAttempt 的 Meeting，并持续运行 Host 供真实 Browser 操作。browser-ready profile 把 `speakerTimeoutMs` 固定为 30 分钟；操作者必须在 ready 输出后的 30 分钟内完成五项 Browser 操作。必须从仓库根目录执行：
+
+```sh
+env CONVIVIUM_SMOKE_SCENARIO=reassign \
+    CONVIVIUM_SMOKE_BROWSER_MODE=1 \
+    pnpm --dir plugin smoke:profile
+```
+
+等待 stdout 同时满足以下 ready 判据后才能打开 Browser；Host 会继续运行并等待终止信号：
+
+- 顶层结果为 `ok: true`、`profile: "web"`、`provider: "spawn"`。
+- `probe.scenario` 为 `reassign`，`probe.browserReady` 为 `true`，`probe.assertions` 精确等于 `["browser-reassign-ready"]`。
+- `probe.meetingId`、`probe.observed.oldAttemptId` 和 `probe.observed.meetingVersion` 均存在；`probe.observed.currentSpeakerId` 为 `participant-a`，`probe.observed.currentAttemptId` 等于 `probe.observed.oldAttemptId`。
+- stdout 打印唯一的 `CONVIVIUM_SMOKE_BROWSER_URL=http://127.0.0.1:<port>` 和 `CONVIVIUM_SMOKE_TEMP_ROOT=<absolute-path>`；分别记录 URL 与临时根路径。
+
+在真实 Browser 打开该次 stdout 给出的 `CONVIVIUM_SMOKE_BROWSER_URL`，只通过现有 Convivium Meeting panel 完成以下操作：
+
+1. Meeting list 出现 `Runtime smoke (running)`。
+2. 选择该 Meeting；summary 显示 `running`、current Speaker 为 `participant-a`，页面显示 `Skip current speaker` 和 `Skip reason`。
+3. 保持 `Skip reason` 为空时，确认按钮 disabled；输入 `Browser reassign evidence` 后确认按钮 enabled。
+4. 点击一次 `Skip current speaker`；成功重新读取后该控制消失，页面不存在 `role=alert`。
+5. 刷新页面；旧 attempt 的 `Skip current speaker` 控制仍不出现。
+
+五项任一不成立即停止 Browser 判定并记录为 `Not Covered`；不得用 HTTP、jsdom、普通 `reassign` selector 或 fixture test 替代。特别是 Harness 页面未显示 Convivium Meeting panel 时，不得继续猜测入口或宣称 Browser Pass。
+
+完成观察或命中上述失败条件后，在运行 wrapper 的终端发送一次 `Ctrl-C`。必须等待进程退出，并确认 stdout 出现：
+
+```text
+CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok
+```
+
+再使用先前记录的精确临时根路径检查清理结果：
+
+```sh
+test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
+```
+
+只有 wrapper 已退出、cleanup marker 已出现且该命令退出码为 `0`，Restore 才为 Pass。不得使用 glob 猜测或删除其他 smoke 临时目录；cleanup 失败时保留 stdout、stderr 和精确路径用于诊断。
 
 脚本的 finally 必须停止其记录的 Host PID、确认临时端口释放并删除唯一 `convivium-dsh-smoke-*` 临时根。`cold-rebind` 会在同一临时 DSH_HOME、workspace、profile、data root 和端口上依次启动两个不同 Host PID；只在 phase 2 完成后执行一次最终 Restore。Restore 失败时即使场景断言通过也不得记为 Pass。
 
