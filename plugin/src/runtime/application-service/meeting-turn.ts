@@ -423,10 +423,82 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
             try {
                 const current = await stored.repository.read();
                 const currentState = current.state as unknown as MeetingState;
-                const shouldCapture =
-                    currentState.currentTurn !== undefined &&
-                    (currentState.selectionMode === "manager" ||
-                        currentState.selectionMode === "hybrid");
+                const taskEvidence =
+                    input.completionClaims === undefined
+                        ? []
+                        : taskEvidenceResolver.resolve({
+                              state: currentState,
+                              meetingId: input.meetingId,
+                              participantId: caller.participantId!,
+                              taskIds: [
+                                  ...(input.completionClaims.outputClaims?.flatMap(
+                                      (claim) => claim.taskIds
+                                  ) ?? []),
+                                  ...(input.completionClaims.criterionClaims?.flatMap(
+                                      (claim) => claim.taskIds
+                                  ) ?? [])
+                              ].filter(
+                                  (taskId, index, taskIds) => taskIds.indexOf(taskId) === index
+                              )
+                          });
+                const planningIds = nextManagerPlanningIds(currentState);
+                const advanceContext = {
+                    meetingId: input.meetingId,
+                    participantId: caller.participantId!,
+                    turnId: input.turnId,
+                    stepId: input.stepId,
+                    attemptId: input.attemptId,
+                    deliveryId: input.deliveryId,
+                    agendaItemId: input.agendaItemId,
+                    message: {
+                        id: messageId,
+                        content: input.content,
+                        kind: input.kind,
+                        mentions: input.mentions,
+                        ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
+                        taskIds: input.taskIds,
+                        agendaRelation: input.agendaRelation,
+                        createdAt: commandNow
+                    },
+                    now: commandNow,
+                    nextPlanningAttemptId: planningIds.planningAttemptId,
+                    nextPlanningDeliveryId: planningIds.deliveryId,
+                    issues,
+                    questions,
+                    proposals,
+                    positions,
+                    agendaCandidates,
+                    decisionCandidates,
+                    ...(input.completionClaims === undefined
+                        ? {}
+                        : {
+                              completion: {
+                                  claims: input.completionClaims,
+                                  authorizedTaskIds: taskEvidence.map(
+                                      (evidence) => evidence.meetingTaskId
+                                  ),
+                                  factId: (kind: string, index: number) =>
+                                      `completion-${input.deliveryId}-${kind}-${index}`
+                              }
+                          })
+                };
+                const currentStep =
+                    currentState.currentTurn?.steps[currentState.currentTurn.currentStepIndex];
+                const hasCurrentAttempt =
+                    currentStep?.attempt?.attemptId === input.attemptId &&
+                    currentStep.attempt.participantId === caller.participantId &&
+                    currentStep.attempt.status === "running";
+                const preview = hasCurrentAttempt
+                    ? submitSpeakerAndAdvanceMeeting(
+                          structuredClone(currentState),
+                          caller.participantId!,
+                          {
+                              ...advanceContext,
+                              catalogBinding: { kind: "none" as const }
+                          }
+                      )
+                    : undefined;
+                const shouldCapture = preview?.state.manager.currentPlanningAttempt !== undefined;
                 const catalogBinding =
                     shouldCapture && isMeetingStateV2(currentState)
                         ? await captureManagerCatalogBinding(options.agentCatalog, {
@@ -447,71 +519,12 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     expectedMeetingVersion: current.version,
                     transition: (snapshot) => {
                         const state = snapshot.state as unknown as MeetingState;
-                        const taskEvidence =
-                            input.completionClaims === undefined
-                                ? []
-                                : taskEvidenceResolver.resolve({
-                                      state,
-                                      meetingId: input.meetingId,
-                                      participantId: caller.participantId!,
-                                      taskIds: [
-                                          ...(input.completionClaims.outputClaims?.flatMap(
-                                              (claim) => claim.taskIds
-                                          ) ?? []),
-                                          ...(input.completionClaims.criterionClaims?.flatMap(
-                                              (claim) => claim.taskIds
-                                          ) ?? [])
-                                      ].filter(
-                                          (taskId, index, taskIds) =>
-                                              taskIds.indexOf(taskId) === index
-                                      )
-                                  });
-                        const planningIds = nextManagerPlanningIds(state);
                         const transition = submitSpeakerAndAdvanceMeeting(
                             state,
                             caller.participantId!,
                             {
-                                meetingId: input.meetingId,
-                                participantId: caller.participantId!,
-                                turnId: input.turnId,
-                                stepId: input.stepId,
-                                attemptId: input.attemptId,
-                                deliveryId: input.deliveryId,
-                                agendaItemId: input.agendaItemId,
-                                message: {
-                                    id: messageId,
-                                    content: input.content,
-                                    kind: input.kind,
-                                    mentions: input.mentions,
-                                    ...(input.replyTo === undefined
-                                        ? {}
-                                        : { replyTo: input.replyTo }),
-                                    taskIds: input.taskIds,
-                                    agendaRelation: input.agendaRelation,
-                                    createdAt: commandNow
-                                },
-                                now: commandNow,
-                                nextPlanningAttemptId: planningIds.planningAttemptId,
-                                nextPlanningDeliveryId: planningIds.deliveryId,
-                                catalogBinding,
-                                issues,
-                                questions,
-                                proposals,
-                                positions,
-                                agendaCandidates,
-                                decisionCandidates,
-                                ...(input.completionClaims === undefined
-                                    ? {}
-                                    : {
-                                          completion: {
-                                              claims: input.completionClaims,
-                                              authorizedTaskIds: taskEvidence.map(
-                                                  (evidence) => evidence.meetingTaskId
-                                              ),
-                                              factId: (kind: string, index: number) =>
-                                                  `completion-${input.deliveryId}-${kind}-${index}`
-                                          }
-                                      })
+                                ...advanceContext,
+                                catalogBinding
                             }
                         );
                         const transitionState =

@@ -4,6 +4,7 @@ import type {
     LocalMeetingListResponseV1,
     LocalMeetingListResultV1
 } from "./types.js";
+import { agentRoleDefinitionIdSchema } from "./schema.js";
 
 const requiredString = () => Schema.string().required();
 const requiredNumber = () => Schema.number().required();
@@ -384,7 +385,7 @@ const active = Schema.object({
             expectedContribution: requiredString(),
             evidenceGapIds: requiredArray(requiredString()),
             urgency: enumOf(["current_agenda", "later_agenda", "follow_up"] as const),
-            roleDefinitionId: requiredString(),
+            roleDefinitionId: agentRoleDefinitionIdSchema,
             displayName: requiredString(),
             status: enumOf(["pending", "approved", "rejected", "expired", "cancelled"] as const)
         })
@@ -446,7 +447,7 @@ const terminal = Schema.object({
             expectedContribution: requiredString(),
             evidenceGapIds: requiredArray(requiredString()),
             urgency: enumOf(["current_agenda", "later_agenda", "follow_up"] as const),
-            roleDefinitionId: requiredString(),
+            roleDefinitionId: agentRoleDefinitionIdSchema,
             displayName: requiredString(),
             status: enumOf(["pending", "approved", "rejected", "expired", "cancelled"] as const)
         })

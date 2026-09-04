@@ -49,7 +49,7 @@ const knownErrorCodes = [
     "INTERNAL_ERROR"
 ] as const;
 
-const agentRoleDefinitionIdSchema = Schema.union([
+export const agentRoleDefinitionIdSchema = Schema.union([
     "domain_architect",
     "runtime_engineer",
     "protocol_ui_engineer",

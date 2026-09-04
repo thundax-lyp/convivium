@@ -358,12 +358,18 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                 const currentAttempt = currentState.manager.currentPlanningAttempt;
                 const managerRequested =
                     currentState.selectionMode === "manager" ||
-                    currentState.selectionMode === "hybrid";
+                    (currentState.selectionMode === "hybrid" &&
+                        needsSemanticArbitration(
+                            currentState,
+                            rankRulePlanningCandidates(currentState),
+                            "normal"
+                        ));
                 const mayCreatePlanningAttempt =
                     input.status === "completed" &&
-                    (currentState.currentTurn === undefined ||
-                        (currentAttempt !== undefined &&
-                            currentAttempt.observedMeetingVersion !== currentState.version + 1)) &&
+                    (currentState.status === "running" || currentState.status === "waiting") &&
+                    currentState.currentTurn === undefined &&
+                    (currentAttempt === undefined ||
+                        currentAttempt.observedMeetingVersion !== currentState.version + 1) &&
                     currentState.manager.status !== "failed" &&
                     currentState.manager.status !== "closed" &&
                     managerRequested &&

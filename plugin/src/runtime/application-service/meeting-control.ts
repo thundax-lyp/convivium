@@ -384,9 +384,16 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
             const shouldCapture =
                 target === "running" &&
                 currentState.currentTurn === undefined &&
+                currentState.manager.currentPlanningAttempt === undefined &&
+                currentState.handRaises.some((raise) => raise.status === "pending") &&
                 requiredPlanningBlockers(currentState).length === 0 &&
                 (currentState.selectionMode === "manager" ||
-                    currentState.selectionMode === "hybrid") &&
+                    (currentState.selectionMode === "hybrid" &&
+                        needsSemanticArbitration(
+                            currentState,
+                            rankRulePlanningCandidates(currentState),
+                            "normal"
+                        ))) &&
                 currentState.manager.status !== "failed" &&
                 currentState.manager.status !== "closed";
             const catalogBinding =
