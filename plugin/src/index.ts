@@ -21,7 +21,6 @@ const meetingServices = [
     "subagents",
     "systemPrompt",
     "tools",
-    "workspaceRegistry",
     "webServer"
 ] as const;
 
@@ -49,14 +48,17 @@ const meetingConsumerPlugin = {
             return;
         }
         const agentCatalog = ctx.get(AGENT_CATALOG_SERVICE_KEY);
-        const workspace =
-            config.developerMarkdownWorkspaceId === undefined
-                ? undefined
-                : ctx.workspaceRegistry.get(config.developerMarkdownWorkspaceId as WorkspaceId);
-        if (config.developerMarkdownWorkspaceId !== undefined && workspace === undefined)
-            throw new Error(
-                `Developer Markdown workspace is not registered: ${config.developerMarkdownWorkspaceId}`
-            );
+        let workspace: { path: string } | undefined;
+        if (config.developerMarkdownWorkspaceId !== undefined) {
+            const workspaceRegistry = ctx.get("workspaceRegistry");
+            if (workspaceRegistry === undefined)
+                throw new Error("Developer Markdown workspace service is unavailable");
+            workspace = workspaceRegistry.get(config.developerMarkdownWorkspaceId as WorkspaceId);
+            if (workspace === undefined)
+                throw new Error(
+                    `Developer Markdown workspace is not registered: ${config.developerMarkdownWorkspaceId}`
+                );
+        }
         const runtime = createCreateStatusRuntime({
             storageDomain: ctx.storageDomain,
             provider: config.provider,
