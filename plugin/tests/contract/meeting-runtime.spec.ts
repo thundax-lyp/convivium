@@ -121,6 +121,193 @@ afterEach(async () => {
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
+describe("agenda candidate disposition runtime", () => {
+    async function setup() {
+        const root = await mkdtemp(join(tmpdir(), "convivium-agenda-candidate-dispose-"));
+        roots.push(root);
+        const runtime = localRuntime(root);
+        const captain = {
+            sessionId: "captain-disposition",
+            kind: "captain" as const,
+            agent: { id: "captain-disposition" } as never
+        };
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                requestId: `create-${root}`,
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const meetingId = created.result.meetingId;
+        const participant = {
+            sessionId: `${meetingId}-participant-participant-one`,
+            meetingId,
+            participantId: "participant-one",
+            kind: "participant" as const
+        };
+        const submitted = await runtime.submitTurn(
+            {
+                protocolVersion: 1,
+                meetingId,
+                turnId: "turn-1",
+                stepId: "step-participant-one-0",
+                attemptId: "attempt-0",
+                deliveryId: "delivery-0",
+                agendaItemId: "agenda-agenda-1",
+                kind: "statement",
+                content: "Follow-up",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "new_topic_candidate",
+                changes: {
+                    agendaCandidates: [
+                        {
+                            title: "Follow-up",
+                            reason: "Separate discussion",
+                            relationToActiveAgenda: "adjacent",
+                            urgency: "later",
+                            suggestedParticipants: ["participant-one"]
+                        }
+                    ]
+                }
+            },
+            participant
+        );
+        if (!submitted.ok) throw new Error("candidate submission failed");
+        return { runtime, captain, meetingId, candidateId: "delivery-0-agenda-candidate-1" };
+    }
+
+    it("promotes a pending candidate atomically", async () => {
+        const { runtime, captain, meetingId, candidateId } = await setup();
+        const command = {
+            protocolVersion: 1 as const,
+            meetingId,
+            expectedMeetingVersion: 2,
+            requestId: "dispose-promote-1",
+            candidateId,
+            action: "promote" as const,
+            agendaItem: {
+                objective: "Decide follow-up",
+                inScope: [],
+                outOfScope: [],
+                completionCriteria: [],
+                requiredParticipants: []
+            }
+        };
+        await expect(
+            runtime.disposeAgendaCandidate(command, captain, new AbortController().signal)
+        ).resolves.toMatchObject({
+            ok: true,
+            meetingVersion: 3,
+            result: {
+                candidateId,
+                action: "promote",
+                agendaItemId: `${candidateId}-agenda-item`
+            }
+        });
+        await runtime.dispose();
+    });
+
+    it("parks and rejects only pending candidates", async () => {
+        for (const action of ["park", "reject"] as const) {
+            const { runtime, captain, meetingId, candidateId } = await setup();
+            await expect(
+                runtime.disposeAgendaCandidate(
+                    {
+                        protocolVersion: 1,
+                        meetingId,
+                        expectedMeetingVersion: 2,
+                        requestId: `dispose-${action}`,
+                        candidateId,
+                        action
+                    },
+                    captain,
+                    new AbortController().signal
+                )
+            ).resolves.toMatchObject({
+                ok: true,
+                meetingVersion: 3,
+                result: { candidateId, action }
+            });
+            await runtime.dispose();
+        }
+    });
+
+    it("replays the same request and rejects a hash conflict", async () => {
+        const { runtime, captain, meetingId, candidateId } = await setup();
+        const command = {
+            protocolVersion: 1 as const,
+            meetingId,
+            expectedMeetingVersion: 2,
+            requestId: "dispose-replay-1",
+            candidateId,
+            action: "park" as const
+        };
+        const first = await runtime.disposeAgendaCandidate(
+            command,
+            captain,
+            new AbortController().signal
+        );
+        await expect(
+            runtime.disposeAgendaCandidate(command, captain, new AbortController().signal)
+        ).resolves.toEqual(first);
+        await expect(
+            runtime.disposeAgendaCandidate(
+                { ...command, action: "reject" },
+                captain,
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({ ok: false, code: "IDEMPOTENCY_CONFLICT" });
+        await runtime.dispose();
+    });
+
+    it("rejects unauthorized and unknown candidates without a commit", async () => {
+        const { runtime, captain, meetingId } = await setup();
+        const participant = {
+            sessionId: `${meetingId}-participant-participant-one`,
+            meetingId,
+            participantId: "participant-one",
+            kind: "participant" as const
+        };
+        await expect(
+            runtime.disposeAgendaCandidate(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    expectedMeetingVersion: 2,
+                    requestId: "dispose-unauthorized",
+                    candidateId: "delivery-0-agenda-candidate-1",
+                    action: "park"
+                },
+                participant,
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
+        await expect(
+            runtime.disposeAgendaCandidate(
+                {
+                    protocolVersion: 1,
+                    meetingId,
+                    expectedMeetingVersion: 2,
+                    requestId: "dispose-missing",
+                    candidateId: "missing",
+                    action: "park"
+                },
+                captain,
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
+        await expect(
+            runtime.getStatus({ protocolVersion: 1, meetingId }, captain)
+        ).resolves.toMatchObject({ meetingVersion: 2 });
+        await runtime.dispose();
+    });
+});
+
 describe("create/status meeting runtime", () => {
     it("captures Catalog exactly once for an initial Manager attempt and not for rule planning", async () => {
         const snapshot = {

@@ -33,21 +33,6 @@ Non-goals：自动切换 active agenda；Manager/Participant/local HTTP disposit
 
 ## 4. 机械步骤
 
-### T3：Runtime application 与 repository command
-
-前置：HEAD 为已完成 T2 的唯一前一步 commit、clean、T2 已删除。允许：新建 `plugin/src/runtime/application-service/meeting-agenda-candidate.ts::MeetingAgendaCandidateApplicationOptions/createMeetingAgendaCandidateApplication`；仅接入 `plugin/src/runtime/application-service/index.ts::MeetingToolRuntime/createMeetingToolRuntime`；`plugin/tests/contract/meeting-runtime.spec.ts` 增加固定 suite `agenda candidate disposition runtime`；本 RUNBOOK。禁止 repository 文件。
-
-动作：新增准确签名：`MeetingToolRuntime.disposeAgendaCandidate(input: CaptainAgendaCandidateDispositionInputV1, caller: MeetingToolCaller, signal: AbortSignal): Promise<ProtocolSuccessV1<CaptainAgendaCandidateDispositionResultV1> | ProtocolErrorV1>`；factory 返回 `Pick<MeetingToolRuntime, "disposeAgendaCandidate">`。依次 rehydrate、核对 stored Meeting 与 Captain Session/optional caller meetingId、调用一次 `MeetingRepositoryPort.execute`。固定 `commandKind="dispose_agenda_candidate"`、bindings、`serializeValidatedRequestV1(input)`、expected version、event、receipt、`outbox=[]`；不得调用 `options.now`。无权错误固定 `UNAUTHORIZED_CALLER/"Only the meeting Captain can dispose an agenda candidate."/false`；catch 使用 `mapCommandError(error, "INTERNAL_ERROR", "The agenda candidate could not be disposed.", { meetingId: input.meetingId }, { INVALID_ENTITY_STATE: "INVALID_ARGUMENT" })`。
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts -t 'agenda candidate disposition runtime'
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin exec prettier --check src/runtime/application-service tests/contract/meeting-runtime.spec.ts
-git diff --check
-```
-
-PASS：stdout 中该 suite 至少 10 tests passed：成功三 action、unauthorized/wrong meeting/version/replay/hash conflict/invalid/non-pending/terminal；拒绝前后 state/event/receipt/outbox/version 相同。随后删除 T3、写 T4 SHA、提交。STOP/恢复同 T1。
-
 ### T4：DSH Tool
 
 前置：HEAD 为已完成 T3 的唯一前一步 commit、clean、T3 已删除。允许：`plugin/src/tools/register-tools.ts::registerCreateAndStatusTools` 及其 protocol imports；修改现有 `plugin/tests/contract/tool-registration.spec.ts` 中 `meeting tool registration` suite；本 RUNBOOK。禁止 `registerSubmitAndControlTools`、HTTP、Client、tool framework 和其他 tool。
