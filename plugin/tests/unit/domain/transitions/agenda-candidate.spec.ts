@@ -152,6 +152,36 @@ describe("disposeAgendaCandidate", () => {
         }
     });
 
+    it("rejects terminal meetings without changing candidates", () => {
+        for (const status of [
+            "completed",
+            "partial",
+            "no_consensus",
+            "cancelled",
+            "failed",
+            "archiving",
+            "archived"
+        ] as const) {
+            const state = stateWithCandidate();
+            state.status = status;
+            const before = structuredClone(state);
+
+            expect(() =>
+                disposeAgendaCandidate(state, {
+                    meetingId: "meeting-1",
+                    candidateId: "candidate-1",
+                    actorBinding: "captain:session-1",
+                    action: "park"
+                })
+            ).toThrowError(
+                expect.objectContaining({
+                    code: status === "archived" ? "ARCHIVED_MEETING" : "IMMUTABLE_MEETING"
+                })
+            );
+            expect(state).toEqual(before);
+        }
+    });
+
     it("rejects non-pending and invalid promotion references without changes", () => {
         const state = stateWithCandidate();
         expect(() =>

@@ -210,6 +210,39 @@ describe("materializeArchivePackage", () => {
             }
         ]);
     });
+
+    it("orders archive parking-lot candidates by creation time and then ID", () => {
+        const source = structuredClone(state);
+        source.agendaCandidates = [
+            {
+                id: "candidate-z",
+                title: "Z",
+                reason: "later",
+                status: "pending",
+                createdAt: 1
+            },
+            {
+                id: "candidate-a",
+                title: "A",
+                reason: "later",
+                status: "pending",
+                createdAt: 2
+            },
+            {
+                id: "candidate-b",
+                title: "B",
+                reason: "later",
+                status: "pending",
+                createdAt: 1
+            }
+        ];
+
+        expect(materializeArchivePackage(source, 20).parkingLot.map(({ id }) => id)).toEqual([
+            "candidate-b",
+            "candidate-z",
+            "candidate-a"
+        ]);
+    });
 });
 
 describe("beginArchiveFromTermination", () => {

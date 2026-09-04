@@ -5,6 +5,7 @@ import type {
     MeetingState,
     TransitionResult
 } from "../model.js";
+import { executionTerminalStatuses } from "./termination.js";
 import type { SubmittedAgendaCandidateInput } from "./types.js";
 
 export type DisposeAgendaCandidateInput =
@@ -132,6 +133,12 @@ export function disposeAgendaCandidate(
     input: DisposeAgendaCandidateInput
 ): TransitionResult<MeetingState> {
     if (input.meetingId !== state.id) invalid("dispose command targets another meeting");
+    if (executionTerminalStatuses.includes(state.status)) {
+        throw new DomainError(
+            state.status === "archived" ? "ARCHIVED_MEETING" : "IMMUTABLE_MEETING",
+            "meeting is immutable"
+        );
+    }
     const candidate = state.agendaCandidates.find(({ id }) => id === input.candidateId);
     if (candidate === undefined) invalid("agenda candidate is missing");
     if (candidate.status !== "pending") invalid("agenda candidate is not pending");
