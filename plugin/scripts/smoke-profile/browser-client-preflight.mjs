@@ -3,7 +3,7 @@ function fail(message) {
 }
 
 function extractBootObject(html) {
-    const assignment = /window\.__DSH_BOOT__\s*=\s*/g;
+    const assignment = /globalThis\s*\[\s*(["'])__DSH_BOOT__\1\s*\]\s*=\s*/g;
     const assignments = [...html.matchAll(assignment)];
     if (assignments.length !== 1) fail("expected one DSH boot assignment");
     const start = assignments[0].index + assignments[0][0].length;
@@ -57,7 +57,7 @@ async function fetchText(fetchImpl, url, label) {
 export async function assertBrowserClientPreflight(origin, fetchImpl = globalThis.fetch) {
     const rootUrl = new URL("/", origin).href;
     const html = await fetchText(fetchImpl, rootUrl, "root");
-    if (!html.includes("window.__DSH_BOOT__") || !html.includes("@convivium/dsh-plugin")) {
+    if (!html.includes("@convivium/dsh-plugin")) {
         fail("root HTML is missing the DSH boot markers");
     }
     const boot = extractBootObject(html);
