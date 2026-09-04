@@ -2,7 +2,9 @@
 
 状态：`Executable`
 
-基线：`b82f38f94697d5f77e81ab7e7757f8f091ae737c`
+产品/正式文档基线：`b82f38f94697d5f77e81ab7e7757f8f091ae737c`
+
+RUNBOOK 固化提交不改变产品/正式文档基线。T0 允许当前 HEAD 等于该 baseline，或当前 HEAD 相对该 baseline 只新增本文且工作树 clean。
 
 ## 1. 执行者契约
 
@@ -177,7 +179,7 @@ browser-ready result 的任一额外、缺失或乱序 label，以及 malformed 
 
 ### T0：基线与边界复核
 
-前置状态：当前分支为 `codex/reassign-browser-evidence`；starting HEAD 为 `b82f38f94697d5f77e81ab7e7757f8f091ae737c`；除本文外工作树 clean；`plugin/package.json` 与 lockfile 中 DSH packages 为 `0.1.1-rc.2`。
+前置状态：当前分支为 `codex/reassign-browser-evidence`；产品/正式文档 baseline 为 `b82f38f94697d5f77e81ab7e7757f8f091ae737c`；当前 HEAD 等于该 baseline，或相对该 baseline 只新增本文；工作树 clean；`plugin/package.json` 与 lockfile 中 DSH packages 为 `0.1.1-rc.2`。
 
 允许修改：仅本文 T0 章节。
 
@@ -193,14 +195,19 @@ browser-ready result 的任一额外、缺失或乱序 label，以及 malformed 
 
 ```bash
 test "$(git branch --show-current)" = codex/reassign-browser-evidence
-test "$(git rev-parse HEAD)" = b82f38f94697d5f77e81ab7e7757f8f091ae737c
+runbook_base_sha=b82f38f94697d5f77e81ab7e7757f8f091ae737c
+runbook_head_sha="$(git rev-parse HEAD)"
+if [ "$runbook_head_sha" != "$runbook_base_sha" ]; then
+  test "$(git diff --name-only "$runbook_base_sha"..HEAD)" = "docs/30-designs/RUNBOOK-REASSIGN-BROWSER-EVIDENCE.md"
+fi
+test -z "$(git status --short)"
 pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts tests/client/client-entry.client.spec.ts tests/contract/http-boundary.spec.ts
 git diff --check
 ```
 
-PASS：全部退出 0；focused baseline 为 3 files / 53 tests；除本文外无 diff；production 仍满足第2项。
+PASS：全部退出 0；focused baseline 为 3 files / 53 tests；当前 HEAD 等于产品/正式文档 baseline，或相对 baseline 只新增本文；工作树 clean；production 仍满足第2项。
 
-STOP：HEAD 漂移、baseline test失败、Client已出现 replacement picker、status新增正式 replacement candidates，或 Interface 改变 skip字段。报告命令、实际 SHA、首错和相关 diff；不得自行重写产品范围。
+STOP：相对产品/正式文档 baseline 存在本文以外的差异、工作树不 clean、baseline test失败、Client已出现 replacement picker、status新增正式 replacement candidates，或 Interface 改变 skip字段。报告命令、实际 SHA、首错和相关 diff；不得自行重写产品范围。
 
 失败恢复：只读检查，无运行时或外部副作用；保留本文和失败现场。
 
