@@ -180,28 +180,9 @@ ctx
 
 ## 8. 机械执行步骤
 
-### T5：完整验证
-
-前置状态：T4 已 PASS 并已提交；`Config.developerMarkdownWorkspaceId`、host workspace fail-closed 解析、`CreateStatusRuntimeOptions.developerMarkdown` 接线、service 生命周期和 T4 tests 已存在且 focused validation 已通过。
-
-允许修改：无。
-
-禁止修改：其他全部文件。
-
-执行：运行完整验证并记录完整输出。真实 DSH smoke 为 Not Applicable：没有 HTTP、Tool、UI、Agent 或默认 profile surface。
-
-验证：
-
-```bash
-pnpm --dir plugin verify
-git diff --check
-```
-
-PASS：两命令退出 0。STOP：任一失败；不得更新 readiness、删除 RUNBOOK 或提交。失败恢复：验证无持久外部状态；若测试输出 temp root，确认其已删除，否则只删除该精确 root 后 STOP。
-
 ### T6：Literal implementation commit、readiness 与 Close
 
-前置状态：T5 PASS；用户已明确授权提交并且 T1-T5 实现已形成一个或多个 commit；工作树 clean；HEAD 是目标基线后代。
+前置状态：T5 已 PASS 并已提交；完整 `pnpm --dir plugin verify` 已通过，且 T1-T5 实现、focused tests 和完整验证已形成提交；工作树 clean；HEAD 是目标基线后代。
 
 允许修改：`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` 中只归属 Developer Markdown 的内容、本 RUNBOOK（最后删除）。
 

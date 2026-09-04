@@ -1,6 +1,3 @@
-import { mkdir, open, lstat, realpath, rename, unlink } from "node:fs/promises";
-import { isAbsolute, join, relative } from "node:path";
-
 import {
     mapDeveloperMeetingDocument,
     renderArchiveMarkdown,
@@ -71,6 +68,8 @@ function warning(
 }
 
 async function resolveDirectory(root: string, task: PendingTask): Promise<string> {
+    const { lstat, mkdir, realpath } = await import("node:fs/promises");
+    const { isAbsolute, join, relative } = await import("node:path");
     const rootPath = await realpath(root);
     const parts = [
         ".convivium",
@@ -111,6 +110,8 @@ async function replaceAtomically(
     warn: (warning: DeveloperMarkdownWarning) => void,
     counter: { value: number }
 ): Promise<void> {
+    const { open, rename, unlink } = await import("node:fs/promises");
+    const { join } = await import("node:path");
     counter.value += 1;
     const tempName = `.${targetName}.${process.pid}.${counter.value}.tmp`;
     const tempPath = join(directory, tempName);
