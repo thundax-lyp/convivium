@@ -80,6 +80,7 @@ interface ProtocolMeta {
 | `convivium_resume_meeting`                    | Captain                                                  | 根据用户指令恢复会议                                          |
 | `convivium_dispose_decision`                  | Captain                                                  | 替代或撤销指定正式决策                                        |
 | `convivium_dispose_risk`                      | Captain                                                  | 对指定风险作出结构化接受或拒绝处置                            |
+| `convivium_dispose_agenda_candidate`          | Captain                                                  | 提升、暂存或拒绝指定 Agenda candidate                         |
 | `convivium_dispose_attendance_recommendation` | Captain                                                  | 批准或拒绝 Manager 的参会推荐                                 |
 | `convivium_reassign_turn`                     | Captain                                                  | 撤销并改派或跳过当前发言位置                                  |
 | `convivium_end_meeting`                       | Captain                                                  | 正常、部分、无共识或取消结束                                  |
@@ -1335,24 +1336,70 @@ interface CaptainDecisionDispositionResultV1 {
 
 `CaptainDecisionDispositionInputV1` is Captain-only. Its Schema rejects extra fields, requires non-empty IDs, trimmed non-empty `reason`, and one or more unique evidence IDs belonging to the Meeting. `supersede` requires non-empty `replacementCandidateId`; `revoke` forbids that field. The target must be an accepted Decision. `supersede` uses the normal acceptance guards for the current replacement candidate and, in one Repository commit, writes replacement `decision.accepted` before old `decision.superseded`; `revoke` writes `decision.revoked`. `completed|partial|no_consensus|cancelled|failed|archiving|archived` reject the mutation with the existing terminal/archived error boundary and zero side effects. The Result Schema is exactly `CaptainDecisionDispositionResultSchema` at `plugin/src/protocol/results.ts`, directly exported by `plugin/src/protocol/index.ts`; `requestId`, `decisionId`, `action`, and `completionFactId` are always required, `replacementDecisionId` is required only for `supersede` and forbidden for `revoke`.
 
-| Command                                       | `ProtocolSuccessV1<T>.result`          |
-| --------------------------------------------- | -------------------------------------- |
-| `convivium_create_meeting`                    | `CreateMeetingResultV1`                |
-| `convivium_meeting_status`                    | `MeetingStatusResultV1`                |
-| `convivium_submit_manager_plan`               | `ManagerPlanResultV1`                  |
-| `convivium_submit_turn`                       | `TurnSubmissionResultV1`               |
-| `convivium_create_meeting_task`               | `MeetingTaskResultV1`                  |
-| `convivium_meeting_task_status`               | `MeetingTaskStatusResultV1`            |
-| `convivium_start_meeting_task`                | `MeetingTaskStartResultV1`             |
-| `convivium_finish_meeting_task`               | `MeetingTaskFinishResultV1`            |
-| `convivium_raise_hand`                        | `HandRaiseResultV1`                    |
-| `convivium_pause_meeting`                     | `MeetingControlResultV1`               |
-| `convivium_resume_meeting`                    | `MeetingControlResultV1`               |
-| `convivium_dispose_decision`                  | `CaptainDecisionDispositionResultV1`   |
-| `convivium_dispose_risk`                      | `CaptainRiskDispositionResultV1`       |
-| `convivium_dispose_attendance_recommendation` | `CaptainAttendanceDispositionResultV1` |
-| `convivium_reassign_turn`                     | `ReassignTurnResultV1`                 |
-| `convivium_end_meeting`                       | `EndMeetingResultV1`                   |
+#### `convivium_dispose_agenda_candidate`
+
+```ts
+type CaptainAgendaCandidateDispositionInputV1 =
+  | {
+      protocolVersion: 1;
+      meetingId: string;
+      expectedMeetingVersion: number;
+      requestId: string;
+      candidateId: string;
+      action: "promote";
+      agendaItem: {
+        objective: string;
+        inScope: readonly string[];
+        outOfScope: readonly string[];
+        completionCriteria: readonly string[];
+        owner?: string;
+        requiredParticipants: readonly string[];
+      };
+    }
+  | {
+      protocolVersion: 1;
+      meetingId: string;
+      expectedMeetingVersion: number;
+      requestId: string;
+      candidateId: string;
+      action: "park" | "reject";
+    };
+
+interface CaptainAgendaCandidateDispositionResultV1 {
+  requestId: string;
+  candidateId: string;
+  action: "promote" | "park" | "reject";
+  agendaItemId?: string;
+}
+```
+
+Schema 拒绝额外字段；所有 ID、AgendaItem 文本和数组成员 trim 后非空，数组成员必须唯一。`promote` 要求 `agendaItem`，`park|reject` 禁止该字段。`owner` 和每个 `requiredParticipants` 引用当前 Meeting Participant；每个 `completionCriteria` 必须是当前 `MeetingObjectiveContract.requiredOutputs[].id` 或 `acceptanceCriteria[].id`。Runtime 从 candidate 复制 AgendaItem `title`，生成 `${candidateId}-agenda-item`，并固定 `relatedTaskIds=[]`、`status="pending"`；输入不能覆盖这些派生字段。目标 candidate 必须存在且仍为 `pending`，生成的 AgendaItem ID 不得已存在。处置 command 不接受单独 rationale；candidate 已持久化的 `reason` 仍是 Parking Lot 中该议题的原因。
+
+该 command 只授权 Meeting Captain Session。Runtime 复用 `MeetingRepositoryPort.execute`，固定 `commandKind="dispose_agenda_candidate"`、`callerBinding="session:<captainSessionId>"`、`capabilityId="captain:<captainSessionId>"`、现有 `serializeValidatedRequestV1(input)` 和 `expectedMeetingVersion`。成功在一个 commit 中更新 candidate；`promote` 同时 append AgendaItem；写一个 `agenda_candidate.disposed` event、receipt、`outbox=[]` 并增加一个 Meeting version。event payload 固定为 `candidateId`、`action`、`actorBinding="captain:<captainSessionId>"`，仅 `promote` 增加 `agendaItemId`。result 的 `agendaItemId` 同样只在 `promote` 时 required，其他 action 禁止；result 不重复返回可由 `action` 唯一推导的 candidate status。
+
+同 request identity 与 hash replay 原 receipt；同 identity 不同 hash 返回 `IDEMPOTENCY_CONFLICT`。caller/Meeting/version/idempotency/terminal 检查沿用现有先后顺序；无权 caller 返回 `UNAUTHORIZED_CALLER`，未知或非 pending candidate、非法 participant 引用、重复 AgendaItem ID 返回非重试 `INVALID_ARGUMENT`，execution-terminal 或 `archiving|archived` 沿用既有 immutable/archived 错误。所有拒绝均为零副作用，不转换为 Manager fallback。
+
+`DiscussionMeetingStatusBaseV1.parkingLot` 是 required `readonly PublicArchiveAgendaCandidateV1[]`。projection 对所有已授权 status caller 按 domain `createdAt` 升序、再按 `id` 升序输出全部 candidate，仅包含 `id/title/reason/status`。execution-terminal 保留该字段；`archiving|archived` 只使用 `archive.package.parkingLot`，不增加顶层副本。
+
+| Command                                       | `ProtocolSuccessV1<T>.result`               |
+| --------------------------------------------- | ------------------------------------------- |
+| `convivium_create_meeting`                    | `CreateMeetingResultV1`                     |
+| `convivium_meeting_status`                    | `MeetingStatusResultV1`                     |
+| `convivium_submit_manager_plan`               | `ManagerPlanResultV1`                       |
+| `convivium_submit_turn`                       | `TurnSubmissionResultV1`                    |
+| `convivium_create_meeting_task`               | `MeetingTaskResultV1`                       |
+| `convivium_meeting_task_status`               | `MeetingTaskStatusResultV1`                 |
+| `convivium_start_meeting_task`                | `MeetingTaskStartResultV1`                  |
+| `convivium_finish_meeting_task`               | `MeetingTaskFinishResultV1`                 |
+| `convivium_raise_hand`                        | `HandRaiseResultV1`                         |
+| `convivium_pause_meeting`                     | `MeetingControlResultV1`                    |
+| `convivium_resume_meeting`                    | `MeetingControlResultV1`                    |
+| `convivium_dispose_decision`                  | `CaptainDecisionDispositionResultV1`        |
+| `convivium_dispose_risk`                      | `CaptainRiskDispositionResultV1`            |
+| `convivium_dispose_agenda_candidate`          | `CaptainAgendaCandidateDispositionResultV1` |
+| `convivium_dispose_attendance_recommendation` | `CaptainAttendanceDispositionResultV1`      |
+| `convivium_reassign_turn`                     | `ReassignTurnResultV1`                      |
+| `convivium_end_meeting`                       | `EndMeetingResultV1`                        |
 
 ### Event and projection read contract
 

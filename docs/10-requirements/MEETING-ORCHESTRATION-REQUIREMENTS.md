@@ -88,6 +88,10 @@
 5. 次要问题和潜在风险可以被记录、分配负责人或留待后续会议，不要求本次会议全部解决。
 6. 新议题不得因为被提及而自动取代当前议题。
 7. 讨论发生漂移、重复或长期没有实质进展时，主持机制必须能够重新聚焦、重新规划或结束会议。
+8. Agenda candidate 只能由 Captain 通过结构化处置操作设为 `promoted`、`parked` 或 `rejected`；Manager、Participant 和自然语言内容不得处置 candidate。
+9. `promote` 必须在一个原子提交中把仍为 `pending` 的 candidate 标为 `promoted` 并创建一个完整的 pending AgendaItem，但不得改变当前 active agenda；`park` 和 `reject` 只改变 candidate 状态。
+10. 同一 candidate 只能处置一次。处置失败不得写入 Meeting state、event、receipt、outbox 或增加 Meeting version；成功处置不产生 outbox。
+11. 当前状态必须以稳定顺序公开 `parkingLot` 的 `id`、`title`、`reason` 和 `status`；归档保留相同事实。未处置的 candidate 不阻塞会议结束，并以 `pending` 原样进入归档。
 
 ### FR-7：提案、立场与决策
 
