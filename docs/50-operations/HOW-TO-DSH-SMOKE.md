@@ -127,7 +127,7 @@ env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
 
 ### Reassign browser-ready 模式
 
-该模式复用 `reassign` selector，但在调用 reassign tool 前保留一个仍有 current SpeakerAttempt 的 Meeting，并持续运行 Host 供真实 Browser 操作。browser-ready profile 把 `speakerTimeoutMs` 固定为 30 分钟；操作者必须在 ready 输出后的 30 分钟内完成五项 Browser 操作。必须从仓库根目录执行：
+该模式复用 `reassign` selector，但在调用 reassign tool 前保留一个仍有 current SpeakerAttempt 的 Meeting，并持续运行 Host 供真实 Browser 操作。browser-ready profile 把 `speakerTimeoutMs` 固定为 5 分钟；该窗口从 SpeakerAttempt 创建时开始，Session flush、workspace attach、result polling 和 Browser Client preflight 都会消耗窗口，ready 输出不会重置计时。操作者必须在 ready 输出后立即完成五项 Browser 操作；若打开页面时旧 attempt 已超时或 `Skip current speaker` 已因超时消失，本次 Browser 证据无效，必须停止 wrapper 并重新执行完整命令，不得记为 Client 失败。必须从仓库根目录执行：
 
 ```sh
 env CONVIVIUM_SMOKE_SCENARIO=reassign \
@@ -139,10 +139,10 @@ env CONVIVIUM_SMOKE_SCENARIO=reassign \
 
 - 顶层结果为 `ok: true`、`profile: "web"`、`provider: "spawn"`。
 - `probe.scenario` 为 `reassign`，`probe.browserReady` 为 `true`，`probe.assertions` 精确等于 `["browser-reassign-ready"]`。
-- `probe.meetingId`、`probe.observed.oldAttemptId` 和 `probe.observed.meetingVersion` 均存在；`probe.observed.currentSpeakerId` 为 `participant-a`，`probe.observed.currentAttemptId` 等于 `probe.observed.oldAttemptId`。
+- `probe.meetingId`、`probe.captainSessionId`、`probe.observed.oldAttemptId` 和 `probe.observed.meetingVersion` 均存在；`probe.captainSessionId` 精确为 `convivium-smoke-captain`；`probe.observed.currentSpeakerId` 为 `participant-a`，`probe.observed.currentAttemptId` 等于 `probe.observed.oldAttemptId`。
 - stdout 打印唯一的 `CONVIVIUM_SMOKE_BROWSER_URL=http://127.0.0.1:<port>` 和 `CONVIVIUM_SMOKE_TEMP_ROOT=<absolute-path>`；分别记录 URL 与临时根路径。
 
-在真实 Browser 打开该次 stdout 给出的 `CONVIVIUM_SMOKE_BROWSER_URL`，只通过现有 Convivium Meeting panel 完成以下操作：
+在真实 Browser 打开该次 stdout 给出的 `CONVIVIUM_SMOKE_BROWSER_URL`，先在 smoke workspace 的 session tree 选择 session ID `convivium-smoke-captain`，等待 `conversation.view` 加载，再选择 label 精确为 `Meetings` 的 view，最后只通过现有 Convivium Meeting panel 完成以下操作。Harness 首页只显示“新会话”且尚未打开该 Session，不构成 Client 加载失败：
 
 1. Meeting list 出现 `Runtime smoke (running)`。
 2. 选择该 Meeting；summary 显示 `running`、current Speaker 为 `participant-a`，页面显示 `Skip current speaker` 和 `Skip reason`。
@@ -151,6 +151,8 @@ env CONVIVIUM_SMOKE_SCENARIO=reassign \
 5. 刷新页面；旧 attempt 的 `Skip current speaker` 控制仍不出现。
 
 五项任一不成立即停止 Browser 判定并记录为 `Not Covered`；不得用 HTTP、jsdom、普通 `reassign` selector 或 fixture test 替代。特别是 Harness 页面未显示 Convivium Meeting panel 时，不得继续猜测入口或宣称 Browser Pass。
+
+若 session tree 中不存在 `convivium-smoke-captain`、`conversation.view` 中不存在 label 精确为 `Meetings` 的 view，或 Browser console 出现 Convivium bundle evaluate/activate error，立即 STOP 并记录对应 DOM、slot owner 和 console 错误；不得修改 Client slot 或增加导航 fallback。
 
 完成观察或命中上述失败条件后，在运行 wrapper 的终端发送一次 `Ctrl-C`。必须等待进程退出，并确认 stdout 出现：
 
@@ -168,7 +170,7 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 
 脚本的 finally 必须停止其记录的 Host PID、确认临时端口释放并删除唯一 `convivium-dsh-smoke-*` 临时根。`cold-rebind` 会在同一临时 DSH_HOME、workspace、profile、data root 和端口上依次启动两个不同 Host PID；只在 phase 2 完成后执行一次最终 Restore。Restore 失败时即使场景断言通过也不得记为 Pass。
 
-上述 selector 不调用 LLM，只证明当前锁定 DSH runtime/provider、真实 Session persistence、inbox、interrupt/drain、tool caller、Storage Domain composition/cold recovery、status/archive 和 Meeting 隔离路径。Decision/Agenda、developer Markdown、metrics/stress、浏览器 end/reassign、遗留 SQLite migration/deletion、multi-Host writer、remote filesystem 和生产发布不在这些 selector 的证明范围内。
+上述 selector 不调用 LLM，只证明当前锁定 DSH runtime/provider、真实 Session persistence、inbox、interrupt/drain、tool caller、Storage Domain composition/cold recovery、status/archive 和 Meeting 隔离路径。Decision/Agenda、developer Markdown、metrics/stress、浏览器未列出的其他控制、遗留 SQLite migration/deletion、multi-Host writer、remote filesystem 和生产发布不在这些 selector 的证明范围内。
 
 ## 失败处理
 

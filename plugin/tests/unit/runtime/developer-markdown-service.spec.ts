@@ -65,6 +65,9 @@ describe("Developer Markdown service", () => {
         expect(await readFile(join(directory, "current.md"), "utf8")).toContain(
             "sourceMeetingVersion: 2"
         );
+        expect(await readFile(join(directory, "current.md"), "utf8")).toContain(
+            `generatedAt: ${JSON.stringify(new Date(now).toISOString())}`
+        );
         expect(await readFile(join(directory, "archive.md"), "utf8")).toContain(
             "# Archived Meeting Projection"
         );

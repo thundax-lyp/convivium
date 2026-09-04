@@ -7,6 +7,7 @@ import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
+import { assertBrowserClientPreflight } from "./browser-client-preflight.mjs";
 import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 import { validateColdCheckpoint } from "./probe/support.js";
 import { validateScenarioResult } from "./result.mjs";
@@ -26,7 +27,7 @@ const probeSourceDir = fileURLToPath(new URL("./probe", import.meta.url));
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "120000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
-const BROWSER_SPEAKER_TIMEOUT_MS = 30 * 60 * 1000;
+const BROWSER_SPEAKER_TIMEOUT_MS = 5 * 60 * 1000;
 export const SMOKE_SCENARIOS = [
     "baseline",
     "timeout",
@@ -450,6 +451,10 @@ async function main() {
     probeResult = validateScenarioResult(probeResult, SMOKE_SCENARIO);
 
     await stat(dumpPath);
+    if (BROWSER_MODE && probeResult.browserReady === true) {
+        const origin = `http://${HOST}:${port}`;
+        await assertBrowserClientPreflight(origin, globalThis.fetch, BOOT_TIMEOUT_MS);
+    }
     console.log(
         JSON.stringify(
             {

@@ -75,6 +75,7 @@ export async function runReassignScenario(runtime) {
             browserReady: true,
             assertions: ["browser-reassign-ready"],
             meetingId,
+            captainSessionId: captain.agent.session.id,
             observed: {
                 oldAttemptId,
                 currentSpeakerId: "participant-a",
