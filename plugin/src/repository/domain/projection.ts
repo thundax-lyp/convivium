@@ -23,6 +23,13 @@ export const APPLICATION_TAIL_HARD_COMMITS = 256;
 export const APPLICATION_TAIL_HARD_BYTES = 4_194_304;
 export const MAX_APPLICATION_CHECKPOINT_BYTES = 16_777_216;
 
+export class UnsupportedMeetingStateFormatError extends Error {
+    constructor(readonly formatVersion: unknown) {
+        super(`Unsupported MeetingState format: ${String(formatVersion)}`);
+        this.name = "UnsupportedMeetingStateFormatError";
+    }
+}
+
 function emptyMaps(): Pick<
     PersistenceProjectionV1,
     "receipts" | "events" | "outbox" | "sessionOwnership" | "privateMail"
@@ -61,7 +68,15 @@ export function encodeProjection(projection: PersistenceProjectionV1): Uint8Arra
 }
 
 export function decodeProjection(bytes: Uint8Array): PersistenceProjectionV1 {
-    return PersistenceProjectionV1Schema.parse(decodeCanonicalJson(bytes));
+    const projection = PersistenceProjectionV1Schema.parse(decodeCanonicalJson(bytes));
+    const state = projection.snapshot?.state;
+    if (state === undefined || !Object.prototype.hasOwnProperty.call(state, "formatVersion")) {
+        return projection;
+    }
+    if (state.formatVersion !== 2) {
+        throw new UnsupportedMeetingStateFormatError(state.formatVersion);
+    }
+    return projection;
 }
 
 function verifyCommitRecord(record: CommitRecordV1): void {

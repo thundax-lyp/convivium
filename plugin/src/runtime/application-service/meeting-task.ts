@@ -10,6 +10,7 @@ import {
     planRuleBasedTurn,
     rankRulePlanningCandidates,
     requiredPlanningBlockers,
+    isMeetingStateV2,
     startManagerPlanning,
     startMeetingTask as startMeetingTaskTransition,
     type MeetingState
@@ -35,6 +36,7 @@ import type { MeetingRehydrationService } from "../services/meeting-recovery-ser
 import { readAuthorizedMeetingTask } from "../services/meeting-session-service.js";
 import type { CreateStatusRuntimeOptions, MeetingToolRuntime } from "./index.js";
 import type { StoredMeeting } from "./types.js";
+import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
 
 function meetingTaskId(participantId: string, requestId: string): string {
     return `meeting-task-${createHash("sha256")
@@ -225,6 +227,26 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                     "The caller is not authorized for this MeetingTask."
                 );
             try {
+                const taskNow = options.now?.() ?? Date.now();
+                const currentForPlanning = await stored.repository.read();
+                const previewTask = startMeetingTaskTransition(
+                    currentForPlanning.state as unknown as MeetingState,
+                    input.meetingTaskId,
+                    taskNow
+                );
+                const previewState = previewTask.state as unknown as MeetingState;
+                const previewWillPlan =
+                    previewState.manager.currentPlanningAttempt !== undefined &&
+                    previewState.manager.currentPlanningAttempt.observedMeetingVersion !==
+                        previewState.version + 1;
+                const catalogBinding =
+                    previewWillPlan && isMeetingStateV2(currentForPlanning.state)
+                        ? await captureManagerCatalogBinding(options.agentCatalog, {
+                              teamId: stored.teamId,
+                              meetingId: stored.repository.meetingId,
+                              captainSessionId: stored.captainSessionId
+                          })
+                        : { kind: "none" as const };
                 const committed = await stored.repository.execute({
                     requestId: input.requestId,
                     commandKind: "start_meeting_task",
@@ -238,7 +260,7 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                         const transition = startMeetingTaskTransition(
                             snapshot.state as unknown as MeetingState,
                             input.meetingTaskId,
-                            options.now?.() ?? Date.now()
+                            taskNow
                         );
                         let nextState = transition.state as unknown as MeetingState;
                         let planningEvents: DomainEventInput[] = [];
@@ -269,7 +291,8 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                                     planningAttemptId,
                                     deliveryId: planningDeliveryId,
                                     reason: "next_turn",
-                                    now: options.now?.() ?? Date.now(),
+                                    now: taskNow,
+                                    catalogBinding,
                                     allowRunningRestart: true
                                 }
                             );
@@ -330,6 +353,95 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                     "The caller is not authorized for this MeetingTask."
                 );
             try {
+                const currentState = authorized.recovered.snapshot!
+                    .state as unknown as MeetingState;
+                const task = currentState.meetingTasks.find(
+                    (candidate) =>
+                        candidate.meetingTaskId === input.meetingTaskId &&
+                        candidate.executionId === input.executionId
+                );
+                const taskIsActive = task?.status === "running";
+                let planningPreview: MeetingState | undefined;
+                if (input.status === "completed" && task?.status === "running") {
+                    const finished = finishMeetingTaskTransition(
+                        structuredClone(currentState),
+                        input.meetingTaskId,
+                        {
+                            status: input.status,
+                            now: options.now?.() ?? Date.now(),
+                            resultSummary: input.resultSummary,
+                            failureReason: input.failureReason
+                        }
+                    );
+                    const handRaise = createHandRaise(finished.state, {
+                        id: `${input.meetingTaskId}-hand-raise`,
+                        participantId: caller.participantId!,
+                        reason: "task_completed",
+                        summary: input.resultSummary ?? "MeetingTask finished",
+                        taskIds: [input.meetingTaskId],
+                        priority: "normal",
+                        now: options.now?.() ?? Date.now()
+                    });
+                    planningPreview = handRaise.state;
+                    const waitingForThisTask =
+                        planningPreview.status === "waiting" &&
+                        planningPreview.waitState?.taskIds.includes(input.meetingTaskId) &&
+                        planningPreview.waitState.taskIds.every((taskId) =>
+                            planningPreview!.meetingTasks.every(
+                                (candidate) =>
+                                    candidate.meetingTaskId !== taskId ||
+                                    ["completed", "failed", "cancelled"].includes(candidate.status)
+                            )
+                        );
+                    const waitingResolvedByThisTask =
+                        planningPreview.status === "waiting" &&
+                        planningPreview.waitState?.participantIds.includes(task.participantId) &&
+                        planningPreview.waitState.participantIds.every((participantId) =>
+                            planningPreview!.participants.some(
+                                (participant) =>
+                                    participant.id === participantId &&
+                                    isParticipantDispatchableNow(planningPreview!, participant)
+                            )
+                        );
+                    if (waitingForThisTask || waitingResolvedByThisTask) {
+                        planningPreview = {
+                            ...planningPreview,
+                            status: "running",
+                            currentTurn: undefined,
+                            waitState: undefined
+                        };
+                    }
+                }
+                const previewState = planningPreview ?? currentState;
+                const currentAttempt = previewState.manager.currentPlanningAttempt;
+                const managerRequested =
+                    previewState.selectionMode === "manager" ||
+                    (previewState.selectionMode === "hybrid" &&
+                        needsSemanticArbitration(
+                            previewState,
+                            rankRulePlanningCandidates(previewState),
+                            "normal"
+                        ));
+                const mayCreatePlanningAttempt =
+                    input.status === "completed" &&
+                    taskIsActive &&
+                    (previewState.status === "running" || previewState.status === "waiting") &&
+                    previewState.currentTurn === undefined &&
+                    (currentAttempt === undefined ||
+                        currentAttempt.observedMeetingVersion !== previewState.version + 1) &&
+                    previewState.handRaises.some((raise) => raise.status === "pending") &&
+                    previewState.manager.status !== "failed" &&
+                    previewState.manager.status !== "closed" &&
+                    managerRequested &&
+                    requiredPlanningBlockers(previewState).length === 0;
+                const catalogBinding =
+                    mayCreatePlanningAttempt && isMeetingStateV2(currentState)
+                        ? await captureManagerCatalogBinding(options.agentCatalog, {
+                              teamId: stored.teamId,
+                              meetingId: stored.repository.meetingId,
+                              captainSessionId: stored.captainSessionId
+                          })
+                        : { kind: "none" as const };
                 const committed = await stored.repository.execute({
                     requestId: input.requestId,
                     commandKind: "finish_meeting_task",
@@ -485,7 +597,8 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
                                             nextState.selectionMode === "hybrid"
                                                 ? "semantic_arbitration"
                                                 : "next_turn",
-                                        now: planningNow
+                                        now: planningNow,
+                                        catalogBinding
                                     });
                                     nextState = planning.state;
                                     planningEvents = planning.effect

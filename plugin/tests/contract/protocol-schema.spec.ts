@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    AttendanceRecommendationClaimSchema,
     CreateMeetingResultSchema,
     CreateMeetingInputSchema,
     CaptainDecisionDispositionInputSchema,
@@ -11,9 +12,12 @@ import {
     LocalMeetingListResponseSchema,
     LocalMeetingListResultSchema,
     MeetingArchivePackageSchema,
+    MeetingAgentCatalogProjectionSchema,
+    MeetingAgentCatalogSnapshotSchema,
     ManagerPlanResultSchema,
     ManagerPlanSubmissionSchema,
     MeetingStatusResultSchema,
+    PublicAttendanceRecommendationSchema,
     validateProtocolError,
     isKnownMeetingProtocolErrorCode,
     validateProtocolSuccessEnvelope,
@@ -180,6 +184,7 @@ describe("protocol envelope schemas", () => {
                 risks: [],
                 blockingFacts: [],
                 meetingTasks: [],
+                attendanceRecommendations: [],
                 status: "paused",
                 stallCount: 0,
                 maxStalls: 3,
@@ -662,6 +667,7 @@ describe("protocol envelope schemas", () => {
             risks: [],
             blockingFacts: [],
             meetingTasks: [],
+            attendanceRecommendations: [],
             status: "completed",
             pendingHandRaises: [],
             pauseControl: { action: "none" },
@@ -785,6 +791,7 @@ describe("protocol envelope schemas", () => {
                 risks: [],
                 blockingFacts: [],
                 meetingTasks: [],
+                attendanceRecommendations: [],
                 status: "paused",
                 stallCount: 0,
                 maxStalls: 3,
@@ -815,6 +822,7 @@ describe("protocol envelope schemas", () => {
                 risks: [],
                 blockingFacts: [],
                 meetingTasks: [],
+                attendanceRecommendations: [],
                 status: "paused",
                 stallCount: 0,
                 maxStalls: 3,
@@ -829,6 +837,200 @@ describe("protocol envelope schemas", () => {
                 }
             })
         ).toThrow(/pause control action/);
+    });
+});
+
+describe("FR-13 Catalog protocol", () => {
+    const role = {
+        roleDefinitionId: "runtime_engineer" as const,
+        version: "1",
+        displayName: "Runtime Engineer",
+        summary: "Reviews runtime behavior",
+        expertiseTags: ["runtime"],
+        evidenceScopes: ["repository" as const],
+        responsibilities: ["Review runtime changes"],
+        nonResponsibilities: ["Approve attendance"]
+    };
+    const snapshotCandidate = {
+        candidateId: "candidate-1",
+        roleDefinitionId: "runtime_engineer" as const,
+        roleDefinitionVersion: "1",
+        sourceMemberName: "runtime-member",
+        agentDefinitionId: "agent-definition-1",
+        availability: "available" as const
+    };
+    const snapshot = {
+        protocolVersion: 1 as const,
+        catalogId: "catalog-1",
+        catalogVersion: "1",
+        teamId: "team-1",
+        capturedAt: 1,
+        roles: [role],
+        candidates: [snapshotCandidate]
+    };
+    const projectedCandidate = {
+        candidateId: "candidate-1",
+        roleDefinitionId: "runtime_engineer" as const,
+        roleDefinitionVersion: "1",
+        displayName: "Runtime Engineer",
+        summary: "Reviews runtime behavior",
+        expertiseTags: ["runtime"],
+        evidenceScopes: ["repository" as const],
+        responsibilities: ["Review runtime changes"],
+        nonResponsibilities: ["Approve attendance"],
+        availability: "available" as const
+    };
+    const projection = {
+        protocolVersion: 1 as const,
+        catalogId: "catalog-1",
+        catalogVersion: "1",
+        candidates: [projectedCandidate],
+        researchNeeds: []
+    };
+    const claim = {
+        candidateId: "candidate-1",
+        agendaItemId: "agenda-1",
+        rationale: "Runtime expertise is needed",
+        expectedContribution: "Review runtime risks",
+        evidenceGapIds: [],
+        urgency: "current_agenda" as const
+    };
+    const publicRecommendation = {
+        ...claim,
+        recommendationId: "planning-1-attendance-0",
+        roleDefinitionId: "runtime_engineer" as const,
+        displayName: "Runtime Engineer",
+        status: "pending" as const
+    };
+    const managerSubmission = {
+        protocolVersion: 1 as const,
+        meetingId: "meeting-1",
+        planningAttemptId: "planning-1",
+        observedMeetingVersion: 2,
+        requestId: "request-1",
+        agendaItemId: "agenda-1",
+        intent: "review",
+        objective: "Review the proposal",
+        expectedOutputs: ["review"],
+        prohibitedTopics: [],
+        steps: [
+            {
+                participantId: "participant-1",
+                instruction: "Review the proposal",
+                reason: "required_reviewer"
+            }
+        ]
+    };
+
+    it("validates exact Catalog snapshot and safe projection shapes", () => {
+        expect(MeetingAgentCatalogSnapshotSchema(snapshot)).toEqual(snapshot);
+        expect(MeetingAgentCatalogProjectionSchema(projection)).toEqual(projection);
+        expect(() => MeetingAgentCatalogSnapshotSchema({ ...snapshot, extra: true })).toThrow();
+        expect(() =>
+            MeetingAgentCatalogSnapshotSchema({
+                ...snapshot,
+                roles: [{ ...role, prompt: "secret" }]
+            })
+        ).toThrow();
+        expect(() =>
+            MeetingAgentCatalogSnapshotSchema({
+                ...snapshot,
+                candidates: [{ ...snapshotCandidate, agentDefinitionId: undefined }]
+            })
+        ).toThrow();
+        expect(() =>
+            MeetingAgentCatalogProjectionSchema({
+                ...projection,
+                candidates: [{ ...projectedCandidate, sourceMemberName: "secret" }]
+            })
+        ).toThrow();
+        expect(() =>
+            MeetingAgentCatalogProjectionSchema({
+                ...projection,
+                researchNeeds: [
+                    {
+                        evidenceGapId: "gap-1",
+                        agendaItemId: "agenda-1",
+                        question: "What changed?",
+                        requiredScopes: ["repository"],
+                        existingEvidenceIds: [],
+                        status: "open",
+                        extra: true
+                    }
+                ]
+            })
+        ).toThrow();
+    });
+
+    it("validates exact claim and public recommendation shapes", () => {
+        expect(AttendanceRecommendationClaimSchema(claim)).toEqual(claim);
+        expect(PublicAttendanceRecommendationSchema(publicRecommendation)).toEqual(
+            publicRecommendation
+        );
+        expect(() =>
+            AttendanceRecommendationClaimSchema({ ...claim, status: "pending" })
+        ).toThrow();
+        expect(() =>
+            AttendanceRecommendationClaimSchema({ ...claim, expectedContribution: undefined })
+        ).toThrow();
+        expect(() =>
+            AttendanceRecommendationClaimSchema({ ...claim, evidenceGapIds: [1] })
+        ).toThrow();
+        expect(() =>
+            AttendanceRecommendationClaimSchema({ ...claim, urgency: "urgent" })
+        ).toThrow();
+        expect(() =>
+            PublicAttendanceRecommendationSchema({ ...publicRecommendation, extra: true })
+        ).toThrow();
+        expect(
+            PublicAttendanceRecommendationSchema({
+                ...publicRecommendation,
+                admissionStatus: "provisioning",
+                failureCode: "failure"
+            })
+        ).toMatchObject({ admissionStatus: "provisioning", failureCode: "failure" });
+    });
+
+    it("accepts absent, empty, and multiple recommendation claims only at the claim field", () => {
+        expect(ManagerPlanSubmissionSchema(managerSubmission)).toEqual(managerSubmission);
+        expect(
+            ManagerPlanSubmissionSchema({ ...managerSubmission, attendanceRecommendations: [] })
+        ).toEqual({ ...managerSubmission, attendanceRecommendations: [] });
+        expect(
+            ManagerPlanSubmissionSchema({
+                ...managerSubmission,
+                attendanceRecommendations: [claim, { ...claim, candidateId: "candidate-2" }]
+            })
+        ).toMatchObject({
+            attendanceRecommendations: [claim, { ...claim, candidateId: "candidate-2" }]
+        });
+        expect(() =>
+            ManagerPlanSubmissionSchema({ ...managerSubmission, recommendationId: "forbidden" })
+        ).toThrow();
+        expect(() =>
+            ManagerPlanSubmissionSchema({ ...managerSubmission, status: "pending" })
+        ).toThrow();
+        expect(() =>
+            ManagerPlanSubmissionSchema({
+                ...managerSubmission,
+                attendanceRecommendations: [{ ...claim, extra: true }]
+            })
+        ).toThrow();
+    });
+
+    it("recognizes all Catalog and attendance protocol errors", () => {
+        for (const code of [
+            "AGENT_CATALOG_UNAVAILABLE",
+            "AGENT_CATALOG_VERSION_UNSUPPORTED",
+            "AGENT_CANDIDATE_NOT_FOUND",
+            "AGENT_CANDIDATE_UNAVAILABLE",
+            "ATTENDANCE_RECOMMENDATION_INVALID",
+            "ATTENDANCE_RECOMMENDATION_STALE",
+            "ATTENDANCE_RECOMMENDATION_NOT_PENDING",
+            "PARTICIPANT_PROVISIONING_FAILED"
+        ]) {
+            expect(isKnownMeetingProtocolErrorCode(code)).toBe(true);
+        }
     });
 });
 

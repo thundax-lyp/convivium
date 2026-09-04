@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DomainEventTypes } from "../../domain/model.js";
+import { DomainEventTypes, isMeetingStateV2 } from "../../domain/model.js";
 import type {
     CommandAuthorization,
     CreateMeetingResult,
@@ -40,6 +40,15 @@ function safeRecord<T>(valueSchema: z.ZodType<T>): z.ZodType<Record<string, T>> 
     );
 }
 export const JsonObjectSchema: z.ZodType<JsonObject> = safeRecord(JsonValueSchema);
+
+const meetingStateTransport: z.ZodType<JsonObject> = JsonObjectSchema.superRefine((value, ctx) => {
+    if (value.formatVersion === 2 && !isMeetingStateV2(value)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "MeetingState format 2 is malformed"
+        });
+    }
+});
 
 const authorization = z
     .object({
@@ -92,7 +101,7 @@ const meetingSnapshot = z
         teamId: z.string(),
         meetingId: z.string(),
         version: z.number().int(),
-        state: JsonObjectSchema,
+        state: meetingStateTransport,
         createdAt: z.number().int(),
         updatedAt: z.number().int()
     })

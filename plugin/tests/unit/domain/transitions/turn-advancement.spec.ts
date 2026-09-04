@@ -76,7 +76,8 @@ function finishTurn(state: ReturnType<typeof runningMeeting>, at: number) {
             agendaItemId: "agenda-1",
             now: at,
             nextPlanningAttemptId: `meeting-1-planning-${state.managerPlanningSeq + 1}`,
-            nextPlanningDeliveryId: `meeting-1-planning-delivery-${state.managerPlanningSeq + 1}`
+            nextPlanningDeliveryId: `meeting-1-planning-delivery-${state.managerPlanningSeq + 1}`,
+            catalogBinding: { kind: "none" }
         },
         { state: submittedState, effect: { events: [] } }
     );

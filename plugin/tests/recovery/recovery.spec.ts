@@ -152,7 +152,9 @@ describe("recovery controls", () => {
             },
             version: 1,
             createdAt: 10,
-            updatedAt: 20
+            updatedAt: 20,
+            formatVersion: 2,
+            attendanceRecommendations: []
         } as MeetingState;
         const command: RepositoryCommand<{ status: string; terminationCode: string }> = {
             requestId: "end-1",

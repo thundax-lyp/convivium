@@ -7,6 +7,7 @@ import {
     type ManagerPlanIds,
     type ManagerPlanInput
 } from "../planning.js";
+import { isMeetingStateV2 } from "../model.js";
 import type {
     DomainEffect,
     MeetingState,
@@ -23,6 +24,73 @@ export type ManagerFallbackReasonCode =
 
 function requiredUnavailable(state: MeetingState, context: SubmitManagerPlanContext): string[] {
     return requiredPlanningBlockers(state, context.dispatchableParticipantIds);
+}
+
+function attendanceRecommendations(
+    state: MeetingState,
+    input: ManagerPlanInput,
+    context: SubmitManagerPlanContext
+) {
+    const claims = input.attendanceRecommendations ?? [];
+    if (claims.length === 0) return [];
+    if (!isMeetingStateV2(state))
+        throw new DomainError("AGENT_CATALOG_UNAVAILABLE", "Agent Catalog is unavailable");
+    const planningAttempt = state.manager.currentPlanningAttempt;
+    if (planningAttempt?.catalogBinding.kind !== "verified")
+        throw new DomainError("AGENT_CATALOG_UNAVAILABLE", "Agent Catalog is unavailable");
+    const binding = planningAttempt.catalogBinding;
+    return claims.map((claim, index) => {
+        const candidate = binding.snapshot.candidates.find(
+            (value) => value.candidateId === claim.candidateId
+        );
+        if (candidate === undefined)
+            throw new DomainError("AGENT_CANDIDATE_NOT_FOUND", "Agent candidate was not found");
+        if (candidate.availability !== "available")
+            throw new DomainError("AGENT_CANDIDATE_UNAVAILABLE", "Agent candidate is unavailable");
+        if (!state.agenda.some((item) => item.id === claim.agendaItemId))
+            throw new DomainError(
+                "ATTENDANCE_RECOMMENDATION_INVALID",
+                "Attendance recommendation is invalid"
+            );
+        if (
+            claim.rationale.trim() === "" ||
+            claim.expectedContribution.trim() === "" ||
+            claim.evidenceGapIds.length !== 0 ||
+            ["github_research_analyst", "arxiv_research_analyst", "web_research_analyst"].includes(
+                candidate.roleDefinitionId
+            )
+        )
+            throw new DomainError(
+                "ATTENDANCE_RECOMMENDATION_INVALID",
+                "Attendance recommendation is invalid"
+            );
+        const role = binding.snapshot.roles.find(
+            (value) =>
+                value.roleDefinitionId === candidate.roleDefinitionId &&
+                value.version === candidate.roleDefinitionVersion
+        );
+        if (role === undefined)
+            throw new DomainError("AGENT_CATALOG_UNAVAILABLE", "Agent Catalog is unavailable");
+        return {
+            id: `${context.planningAttemptId}-attendance-${index}`,
+            candidateId: candidate.candidateId,
+            roleDefinitionId: candidate.roleDefinitionId,
+            roleDefinitionVersion: candidate.roleDefinitionVersion,
+            displayName: role.displayName,
+            agentDefinitionId: candidate.agentDefinitionId,
+            agendaItemId: claim.agendaItemId,
+            rationale: claim.rationale,
+            expectedContribution: claim.expectedContribution,
+            evidenceGapIds: [],
+            urgency: claim.urgency,
+            recommendedByManagerSessionId: context.managerSessionId,
+            catalogId: binding.snapshot.catalogId,
+            catalogVersion: binding.snapshot.catalogVersion,
+            planningAttemptId: context.planningAttemptId,
+            status: "pending" as const,
+            createdAt: context.now
+        };
+    });
 }
 
 function waitForRequiredParticipant(
@@ -248,6 +316,7 @@ export function startManagerPlanning(
         deliveryId: context.deliveryId,
         status: "running",
         createdAt: context.now,
+        catalogBinding: context.catalogBinding,
         ...(state.limits.speakerAttemptTimeoutMs === undefined
             ? {}
             : { deadlineAt: context.now + state.limits.speakerAttemptTimeoutMs })
@@ -314,6 +383,7 @@ export function submitManagerPlan(
         );
     }
     const dispatchable = new Set(context.dispatchableParticipantIds);
+    const recommendations = attendanceRecommendations(state, input, context);
     if (requiredUnavailable(state, context).length > 0) {
         return waitForRequiredParticipant(state, context, ids);
     }
@@ -385,6 +455,7 @@ export function submitManagerPlan(
         version: state.version + 1,
         updatedAt: context.now,
         manager: { ...state.manager, status: "idle", currentPlanningAttempt: undefined },
+        attendanceRecommendations: [...(state.attendanceRecommendations ?? []), ...recommendations],
         currentTurn: runningTurn,
         turnSeq: runningTurn.seq,
         participants: state.participants.map((participant) =>
@@ -400,7 +471,17 @@ export function submitManagerPlan(
             events: [
                 ...submitted.effect.events.map((item) => ({
                     ...item,
-                    payload: { ...item.payload, meetingVersion }
+                    payload: {
+                        ...item.payload,
+                        meetingVersion,
+                        ...(item.type === "manager_plan.submitted"
+                            ? {
+                                  recommendationIds: recommendations.map(
+                                      (recommendation) => recommendation.id
+                                  )
+                              }
+                            : {})
+                    }
                 })),
                 { type: "turn.planned", payload: { turnId: planned.id, meetingVersion } },
                 { type: "turn.started", payload: { turnId: planned.id, meetingVersion } },

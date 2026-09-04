@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     DomainError,
     createMeetingState,
+    isMeetingStateV2,
     planRoundRobinTurn,
     type CanonicalIdAllocator,
     type CreateMeetingSpec
@@ -69,6 +70,7 @@ describe("canonical meeting creation", () => {
         const state = createMeetingState(input(), ids);
 
         expect(state).toMatchObject({
+            formatVersion: 2,
             id: "meeting-1",
             status: "created",
             version: 0,
@@ -99,8 +101,11 @@ describe("canonical meeting creation", () => {
             messageSeq: 0,
             eventSeq: 0,
             managerPlanningSeq: 0,
+            attendanceRecommendations: [],
             transcript: []
         });
+        expect(isMeetingStateV2(state)).toBe(true);
+        expect(isMeetingStateV2({ ...state, attendanceRecommendations: undefined })).toBe(false);
         expect(state.agenda[0]?.completionCriteria).toEqual(["criterion:criterion-1"]);
     });
 

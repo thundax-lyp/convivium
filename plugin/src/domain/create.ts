@@ -195,6 +195,7 @@ export function createMeetingState(
     );
 
     return {
+        formatVersion: 2,
         id: input.meetingId,
         teamId: input.teamId,
         ...(continuation === undefined ? {} : { sourceMeetingId: continuation.sourceMeetingId }),
@@ -258,6 +259,7 @@ export function createMeetingState(
         handRaises: [],
         meetingTasks: [],
         completionFacts: [],
+        attendanceRecommendations: [],
         artifactRefs: [],
         continuationMaterials: continuation?.materials.map((material) => ({ ...material })) ?? [],
         turnSeq: 0,

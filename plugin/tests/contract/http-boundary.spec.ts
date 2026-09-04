@@ -22,6 +22,7 @@ const statusResult = {
     risks: [],
     blockingFacts: [],
     meetingTasks: [],
+    attendanceRecommendations: [],
     status: "running",
     stallCount: 0,
     maxStalls: 3,

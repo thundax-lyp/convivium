@@ -10,7 +10,9 @@ import type { MeetingState } from "../../../src/domain/model.js";
 
 function state(): MeetingState {
     return {
+        formatVersion: 2,
         id: "meeting-1",
+        attendanceRecommendations: [],
         meetingTasks: [],
         transcript: [
             {

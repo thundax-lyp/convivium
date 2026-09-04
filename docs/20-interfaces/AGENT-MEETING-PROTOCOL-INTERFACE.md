@@ -661,6 +661,7 @@ interface ManagerMeetingContextV1 {
   continuationMaterials: readonly PublicContinuationMaterialV1[];
   limits: PublicMeetingLimitsV1;
   planningReason: string;
+  agentCatalog: MeetingAgentCatalogProjectionV1 | null;
 }
 
 interface PublicBlockingFactV1 {
@@ -701,6 +702,10 @@ interface PublicMeetingLimitsV1 {
 ```
 
 Manager context 不得包含 Participant 的隐藏推理、私有 mailbox、完整内部工具输出或无关 Session 历史。
+
+`agentCatalog` 是 required。非 null 值只能来自当前 V2 planning attempt 的 verified Catalog binding；legacy state 与 V2 `kind="none"` 都投影为 `null`，且都禁止 attendance claim。projection 只包含 Role Catalog Interface 允许的安全字段，固定 `researchNeeds: []`，不得包含 `sourceMemberName`、`agentDefinitionId`、Session、Prompt、模型、凭据或 Preset/Skill/Tool/MCP 私有配置。
+
+`MeetingAgentCatalogProjectionV1` 与 `PublicAttendanceRecommendationV1` 的 exact fields 由 [Meeting Agent Role Catalog Interface](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md) 单一拥有；本协议只规定它们在 Manager context 与 Meeting status 中的 requiredness 和位置，不复制第二份 DTO。
 
 ### Public message
 
@@ -771,6 +776,12 @@ interface ManagerPlanSubmissionV1 {
 ```
 
 Manager plan 是建议。Meeting Runtime 必须验证 agenda、required speakers、dispatchability、权限、会议限制和顺序后才能形成正式 Turn。
+
+`attendanceRecommendations` 缺失或为空时保持既有 plan 语义。非空 claim 只能引用当前 `planningAttemptId` 持久绑定的 verified snapshot；Runtime 不在 submission 时重新加载 Catalog。Phase 1 要求 `evidenceGapIds: []`，拒绝 research role candidate，不实现 research dedup。
+
+Phase 1 recommendation ID 为 `${planningAttemptId}-attendance-${claimIndex}`；同一 planning attempt 只有一次有效业务 submission。validated command 的完整输入继续使用 `serializeValidatedRequestV1` 形成 request hash，并沿用现有 caller binding、expected version、receipt 和 replay/conflict 语义。正常 plan submission 在一个 commit 中写 pending recommendation、receipt、Speaker outbox 和既有 `manager_plan.submitted` event；event payload 的 `recommendationIds` required，无 claim 时为 `[]`。required-unavailable waiting 与 Manager business-invalid fallback 不写 recommendation 或该 submitted event。
+
+既有 Schema、caller、Meeting ownership、idempotency、version、stale attempt 和 terminal checks 早于 attendance validation；attendance validation 早于 required-unavailable 与 `MANAGER_PLAN_INVALID` fallback。attendance rejection 使用 Role Catalog Interface 的固定错误且 `retryable=false`，不得写 state、event、receipt、outbox、增加 Meeting version或触发 fallback。
 
 ### Turn submission
 
@@ -1042,6 +1053,7 @@ interface DiscussionMeetingStatusBaseV1 extends MeetingStatusBaseV1 {
   acceptedDecisions: readonly PublicDecisionV1[];
   decisionHistory: readonly PublicDecisionV1[];
   risks: readonly PublicRiskV1[];
+  attendanceRecommendations: readonly PublicAttendanceRecommendationV1[];
   blockingFacts: readonly PublicBlockingFactV1[];
 }
 

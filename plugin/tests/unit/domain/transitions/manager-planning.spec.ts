@@ -32,7 +32,8 @@ describe("manager planning transitions", () => {
                     reason: "initial_plan" as const,
                     deliveryId: "planning-delivery-1",
                     status: "running" as const,
-                    createdAt: now
+                    createdAt: now,
+                    catalogBinding: { kind: "none" as const }
                 }
             },
             meetingTasks: [],
@@ -89,7 +90,8 @@ describe("manager planning transitions", () => {
                 deliveryId: "planning-delivery-1",
                 observedMeetingVersion: 3,
                 dispatchableParticipantIds: ["a", "c", "b"],
-                now
+                now,
+                managerSessionId: "manager-1"
             },
             { turnId: "turn-1", stepId: (index) => `step-${index}` }
         );
@@ -133,7 +135,8 @@ describe("manager planning transitions", () => {
                     reason: "initial_plan" as const,
                     deliveryId: "planning-delivery-1",
                     status: "running" as const,
-                    createdAt: now
+                    createdAt: now,
+                    catalogBinding: { kind: "none" as const }
                 }
             }
         };
@@ -153,7 +156,8 @@ describe("manager planning transitions", () => {
                 deliveryId: "planning-delivery-1",
                 observedMeetingVersion: 3,
                 dispatchableParticipantIds: [],
-                now
+                now,
+                managerSessionId: "manager-1"
             },
             { turnId: "turn-1", stepId: (index) => `step-${index}` }
         );
@@ -192,7 +196,8 @@ describe("manager planning transitions", () => {
             planningAttemptId: "planning-1",
             deliveryId: "delivery-1",
             reason: "initial_plan",
-            now
+            now,
+            catalogBinding: { kind: "none" }
         });
 
         expect(result.state.status).toBe("running");
@@ -208,7 +213,8 @@ describe("manager planning transitions", () => {
             reason: "initial_plan",
             deliveryId: "delivery-1",
             status: "running",
-            createdAt: now
+            createdAt: now,
+            catalogBinding: { kind: "none" }
         });
         expect(result.effect.events.map((item) => item.type)).toEqual([
             "meeting.started",
@@ -239,7 +245,8 @@ describe("manager planning transitions", () => {
             planningAttemptId: "planning-next",
             deliveryId: "delivery-next",
             reason: "next_turn",
-            now
+            now,
+            catalogBinding: { kind: "none" }
         });
 
         expect(result.state.version).toBe(state.version + 1);
@@ -280,7 +287,8 @@ describe("manager planning transitions", () => {
                     reason: "semantic_arbitration" as const,
                     deliveryId: "delivery-1",
                     status: "running" as const,
-                    createdAt: now
+                    createdAt: now,
+                    catalogBinding: { kind: "none" as const }
                 }
             },
             meetingTasks: [],
@@ -313,7 +321,8 @@ describe("manager planning transitions", () => {
                 deliveryId: "delivery-1",
                 observedMeetingVersion: 3,
                 dispatchableParticipantIds: ["a"],
-                now
+                now,
+                managerSessionId: "manager-1"
             },
             { turnId: "turn-fallback", stepId: (index) => `step-${index}` }
         );
@@ -340,6 +349,7 @@ describe("manager planning transitions", () => {
             deliveryId: "delivery-replacement",
             reason: "next_turn",
             now,
+            catalogBinding: { kind: "none" },
             allowRunningRestart: true
         });
 
@@ -358,7 +368,8 @@ describe("manager planning transitions", () => {
                     planningAttemptId: "planning-next",
                     deliveryId: "delivery-next",
                     reason: "next_turn",
-                    now
+                    now,
+                    catalogBinding: { kind: "none" }
                 }
             )
         ).toThrow("cannot transition from running to running");
@@ -370,7 +381,8 @@ describe("manager planning transitions", () => {
                     planningAttemptId: "planning-1",
                     deliveryId: "delivery-1",
                     reason: "initial_plan",
-                    now
+                    now,
+                    catalogBinding: { kind: "none" }
                 }
             )
         ).toThrowError(expect.objectContaining({ code: "UNSUPPORTED_CAPABILITY" }));
@@ -387,7 +399,8 @@ describe("manager planning transitions", () => {
                     reason: "initial_plan" as const,
                     deliveryId: "delivery-existing",
                     status: "running" as const,
-                    createdAt: now
+                    createdAt: now,
+                    catalogBinding: { kind: "none" as const }
                 }
             }
         };
@@ -397,7 +410,8 @@ describe("manager planning transitions", () => {
                 planningAttemptId: "planning-1",
                 deliveryId: "delivery-1",
                 reason: "initial_plan",
-                now
+                now,
+                catalogBinding: { kind: "none" }
             })
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });

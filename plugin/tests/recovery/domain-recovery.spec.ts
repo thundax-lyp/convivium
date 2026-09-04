@@ -88,14 +88,19 @@ function createInput(meetingId: string, requestId = `create-${meetingId}`) {
 function readyDomain(
     teamId: string,
     meetingId: string,
-    options: { catalogStatus?: "creating" | "ready"; badDigest?: boolean; gap?: boolean } = {}
+    options: {
+        catalogStatus?: "creating" | "ready";
+        badDigest?: boolean;
+        gap?: boolean;
+        state?: Record<string, unknown>;
+    } = {}
 ) {
     const projection = createProjection({
         snapshot: {
             teamId,
             meetingId,
             version: 0,
-            state: { count: 0 },
+            state: options.state ?? { count: 0 },
             createdAt: 3,
             updatedAt: 3
         },
@@ -262,6 +267,28 @@ describe("Domain repository recovery", () => {
         expect(catalog.table("meetings").get(catalogKey("team-1", "meeting-1"))?.status).toBe(
             "ready"
         );
+        await registry.close();
+    });
+
+    it("recovers legacy state but rejects an unknown MeetingState format", async () => {
+        const legacy = readyDomain("team-1", "meeting-legacy");
+        const unsupported = readyDomain("team-1", "meeting-unsupported", {
+            state: { formatVersion: 3 }
+        });
+        const { facility } = registryFixture(
+            [legacy.catalog, unsupported.catalog],
+            [legacy.meeting, unsupported.meeting]
+        );
+        const registry = await DomainRepositoryRegistry.open({
+            storageDomain: facility,
+            authorizationValidator: allow
+        });
+        await expect(
+            registry.openMeeting({ teamId: "team-1", meetingId: "meeting-legacy" })
+        ).resolves.toBeDefined();
+        await expect(
+            registry.openMeeting({ teamId: "team-1", meetingId: "meeting-unsupported" })
+        ).rejects.toMatchObject<RepositoryError>({ code: "SCHEMA_VERSION_UNSUPPORTED" });
         await registry.close();
     });
 

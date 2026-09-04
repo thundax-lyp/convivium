@@ -26,6 +26,7 @@ import {
 import { initializeFirstMeetingTurn } from "./meeting-turn.js";
 import type { CreateStatusRuntimeOptions, MeetingToolCaller } from "./index.js";
 import type { StoredMeeting } from "./types.js";
+import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
 
 type ContinuationResolution =
     | { readonly ok: true; readonly continuation?: CreateContinuationSpec }
@@ -423,6 +424,14 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                 activeInitialState.manager.status !== "failed" &&
                 activeInitialState.manager.status !== "closed";
             if (managerRequested && managerAvailable) {
+                const catalogBinding = await captureManagerCatalogBinding(
+                    options.runtime.agentCatalog,
+                    {
+                        teamId: input.teamId,
+                        meetingId,
+                        captainSessionId: caller.sessionId
+                    }
+                );
                 const started = await repository.execute({
                     requestId: `${input.requestId}:start-manager-planning`,
                     commandKind: "start_manager_planning",
@@ -443,7 +452,8 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                                     input.selectionMode === "hybrid"
                                         ? "semantic_arbitration"
                                         : "initial_plan",
-                                now: options.runtime.now?.() ?? Date.now()
+                                now: options.runtime.now?.() ?? Date.now(),
+                                catalogBinding
                             }
                         );
                         return {

@@ -19,9 +19,36 @@
 
 ## Transport Or Invocation
 
+### Phase 1 Host consumer port
+
+Host/profile 是唯一 Catalog producer；Convivium 只通过 consumer-owned port 读取 snapshot，不读取 `examples/`、文件或 Manager 自报内容，也不实现第二 source、registry、factory、cache、queue 或 retry worker。唯一 service contract 是：
+
+```ts
+const AGENT_CATALOG_SERVICE_KEY = "convivium.agentCatalog" as const;
+
+interface AgentCatalogPort {
+  readSnapshot(request: {
+    teamId: string;
+    meetingId: string;
+    captainSessionId: string;
+  }): Promise<AgentCatalogReadResult>;
+}
+
+type AgentCatalogReadResult =
+  | { ok: true; snapshot: MeetingAgentCatalogSnapshotV1 }
+  | {
+      ok: false;
+      failure: "unavailable" | "invalid" | "unsupported" | "oversize";
+    };
+```
+
+该 contract 的 consumer owner 是 `plugin/src/runtime/services/agent-catalog.ts`，并由同一文件拥有 Cordis `Context` augmentation。`meetingConsumerPlugin` 只使用 optional `ctx.get("convivium.agentCatalog")`，不得把该 key 加入 required `inject`。resident Meeting 路径从已经授权的 `StoredMeeting` 生成 request；initial planning 路径只能在 creation ownership 已持久化后，从 validated create input 的 `teamId`、Runtime 派生的 `meetingId` 和已授权 Captain caller 的 `sessionId` 生成 request。Manager 不提供这三个字段。
+
+service 缺失、throw 或任一 failure 都使本次 attempt 持久绑定 `{ kind: "none" }`；普通 planning 继续。同一 attempt 的 claim 随后统一返回 `AGENT_CATALOG_UNAVAILABLE`，不重新读取 producer。当前 Phase 1 background capture 不向 caller 暴露 `AGENT_CATALOG_VERSION_UNSUPPORTED`。
+
 ### Catalog delivery to Manager
 
-Runtime 在创建 Manager planning request 时，可以附带当前 Catalog 的安全 projection：
+Runtime 在创建 Manager planning request 时必须附带 required `agentCatalog`。它仅在当前 V2 attempt 持有 verified binding 时为安全 projection；legacy state 或 V2 `none` binding 投影为 `null`：
 
 ```ts
 interface MeetingAgentCatalogProjectionV1 {
@@ -53,9 +80,14 @@ interface ManagerResearchNeedV1 {
   existingEvidenceIds: readonly string[];
   status: "open" | "stale" | "satisfied";
 }
+
+interface ManagerMeetingContextV1 {
+  // existing fields omitted
+  agentCatalog: MeetingAgentCatalogProjectionV1 | null;
+}
 ```
 
-该 projection 不包含 `sourceMemberName`、DSH Session ID、模型、完整 Prompt、凭据、私有工具配置或其他 Agent 的私有历史。Runtime 保留 `candidateId -> agentDefinitionId -> MeetingAgentDefinitionV1` 私有映射。
+该 projection 不包含 `sourceMemberName`、`agentDefinitionId`、DSH Session ID、模型、完整 Prompt、凭据、Preset/Skill/Tool/MCP 私有配置或其他 Agent 的私有历史。Phase 1 固定输出 `researchNeeds: []`。research role candidate 和非空 `evidenceGapIds` 的 claim 均被拒绝；Phase 1 不建立 evidence registry、freshness 或 dedup 算法。
 
 ### Manager recommendation
 
@@ -83,6 +115,8 @@ interface AttendanceRecommendationV1 extends AttendanceRecommendationClaimV1 {
 ```
 
 Manager 不得在 claim 中提供或覆盖 `recommendationId`、身份、状态、Participant ID、review responsibility、risk authority、tool filter 或 Agent Definition identity。Runtime 从当前合法 Manager caller、planning attempt 和 Catalog snapshot 绑定这些字段。
+
+claim 只能使用当前 `planningAttemptId` 已持久绑定的 verified snapshot；Runtime 不在 submission 时重新加载 Catalog。一个 planning attempt 只有一次有效业务 submission。Phase 1 recommendation ID 固定为 `${planningAttemptId}-attendance-${claimIndex}`，其中 `claimIndex` 是 validated input 中从 0 开始的顺序。
 
 ### Captain disposition
 
@@ -143,7 +177,9 @@ interface PublicAttendanceRecommendationV1 {
 }
 ```
 
-projection 不公开 Manager Session ID、agentDefinitionId、Participant Session ID 或 Catalog 私有 mapping。Plugin Frontend 只有在 recommendation 为 `pending` 时显示 Captain Approve/Reject 控制；写操作完成或返回结构化错误后必须重新读取完整 status。
+projection 不公开 Manager Session ID、agentDefinitionId、Participant Session ID 或 Catalog 私有 mapping。后续 Captain disposition UI 只有在 recommendation 为 `pending` 时才能显示 Approve/Reject 控制；该 UI 与写操作不属于 Phase 1。
+
+Phase 1 中 `DiscussionMeetingStatusBaseV1.attendanceRecommendations` 为 required。active 与 execution-terminal 对 Captain、matching Manager 和仍有效 Participant 输出同一个脱敏数组；按内部 `createdAt` 升序、再按 `recommendationId` 升序。`local_host` 与 legacy state 输出 `[]`；archiving/archived 不包含该字段。Phase 1 只产生 `status="pending"`，不输出 admission 字段，也不修改 Client/HTTP production behavior。
 
 ## Data And State Contract
 
@@ -191,7 +227,7 @@ interface MeetingAgentCatalogSnapshotV1 {
 }
 ```
 
-Catalog snapshot 必须在 recommendation 产生前固化。Manager 只看到安全 projection；Runtime 使用完整 snapshot 验证 candidate、角色版本和受控 Agent Definition mapping。Catalog 更新不得改变已经存在的 recommendation 或 admission。
+Catalog snapshot 必须在 recommendation 产生前固化。`candidateId` 必须唯一，`roleDefinitionId + version` 必须唯一，每个 candidate 必须精确匹配一个 role；违反任一条件的 snapshot 为 invalid。snapshot 的 canonical UTF-8 JSON 必须小于等于 `16 * 1024` bytes，并继续受完整 commit 的 `65_536` bytes 上限约束。Manager 只看到安全 projection；Runtime 使用完整 snapshot 验证 candidate、角色版本和受控 Agent Definition mapping。Catalog 更新不得改变已经存在的 recommendation。Phase 1 不压缩、分页或另存 snapshot。
 
 ### Initial role definitions
 
@@ -214,14 +250,18 @@ Meeting Manager 是 Runtime 为每场 Meeting 创建的内建编排角色，role
 
 ### Research deduplication
 
+本节不属于 Phase 1。Phase 1 projection 固定 `researchNeeds: []`，只接受 `evidenceGapIds: []`，并拒绝三个 research role candidate；不得据本节实现 registry、cache、freshness 或 dedup。
+
 研究类 recommendation 必须关联 Manager context 中 `status="open" | "stale"` 的 `evidenceGapIds`；非研究角色可以提交空数组。`researchNeeds` 是 Runtime 从当前 Agenda、Question、Issue、MeetingTask evidence 和已持久化 evidence reference 形成的最小规划 projection，Manager 不能自行创造 gap ID。该 projection 使 Manager 能区分“已有证据可复用”“需要刷新”和“需要独立交叉验证”。仅因存在搜索工具不得重复推荐多个 Agent 处理相同来源范围。
 
 GitHub、arXiv 和 Web research Agent 的职责按证据方法划分；其内部仍使用 DSH 授权的搜索 Tools。Agent 身份用于维持职责、上下文、query budget 和证据审计，不取代 Tool 权限控制或缓存。
 
 ### Recommendation lifecycle
 
+Phase 1 的唯一实现目标止于第 3 步；第 4 至 8 步属于后续 Captain/admission/provisioning 范围：
+
 1. Runtime 固化当前 authorized Catalog snapshot，并向 Manager 投影安全 candidate metadata。
-2. Manager 在合法 planning attempt 中提交 recommendation claim；Runtime 原子写入 recommendation、event 和 receipt。
+2. Manager 在合法 planning attempt 中提交 recommendation claim；Runtime 在既有 `submit_manager_plan` commit 中原子写入 pending recommendation、既有 `manager_plan.submitted` event、receipt 和既有 Speaker outbox。该 event payload 增加 required `recommendationIds`，无 claim 时为 `[]`；不增加 event type。
 3. recommendation 保持 `pending`，不进入 speaker candidates，也不创建 DSH Session。
 4. Captain 明确 `approve` 或 `reject`；重复请求遵守通用幂等规则。
 5. `approve` 以一个 Repository commit 原子创建 admission、Participant identity 和 provisioning outbox；外部 DSH 调用不进入该 commit。
@@ -230,6 +270,8 @@ GitHub、arXiv 和 Web research Agent 的职责按证据方法划分；其内部
 8. Meeting 进入 execution-terminal 或 `archiving` 时，所有 pending recommendation 和非 active admission 被取消。
 
 recommendation 不打断当前合法 SpeakerAttempt，也不能把推荐 Agent 插入已经提交的 Turn。若 `urgency="current_agenda"`，新 Participant 最早从后续 planning attempt 开始参与。
+
+若合法 Manager plan 因 required Participant unavailable 转为 waiting，或因 business-invalid 转为 deterministic fallback，则不得写 recommendation 或 `manager_plan.submitted`；既有 waiting/fallback 语义保持不变。
 
 ## Error And Permission Semantics
 
@@ -246,6 +288,18 @@ recommendation 不打断当前合法 SpeakerAttempt，也不能把推荐 Agent �
 | `ATTENDANCE_RECOMMENDATION_NOT_PENDING` | Captain 处置的 recommendation 已终止                                                   |
 | `PARTICIPANT_PROVISIONING_FAILED`       | 已批准 admission 无法形成有效 meeting-owned Session                                    |
 
+Phase 1 固定以下 attendance error messages，且均为 `retryable=false`。当前 background-capture/claim 路径只产生前四项：
+
+| Error                               | Fixed message                                                                      |
+| ----------------------------------- | ---------------------------------------------------------------------------------- |
+| `AGENT_CATALOG_UNAVAILABLE`         | `Agent catalog is unavailable for this planning attempt.`                          |
+| `AGENT_CANDIDATE_NOT_FOUND`         | `Agent candidate is not present in this planning attempt catalog.`                 |
+| `AGENT_CANDIDATE_UNAVAILABLE`       | `Agent candidate is unavailable in this planning attempt catalog.`                 |
+| `ATTENDANCE_RECOMMENDATION_INVALID` | `Attendance recommendation claim is invalid.`                                      |
+| `AGENT_CATALOG_VERSION_UNSUPPORTED` | `Agent catalog version is unsupported.`（Phase 1 background capture 不产生该错误） |
+
+既有 protocol Schema、caller、Meeting ownership、Repository idempotency、expected version、stale attempt 和 terminal checks 先执行；attendance 校验随后执行，并且早于 required-unavailable 和 `MANAGER_PLAN_INVALID` fallback 的副作用。attendance rejection 的 metadata 只允许 `meetingId`、当前 `meetingVersion` 和 `attemptId`，且不得 commit、receipt、outbox、version change 或 fallback。Phase 1 不使用 `ATTENDANCE_RECOMMENDATION_STALE`。
+
 - 只有当前合法 Manager Session 能提交 recommendation。
 - 只有当前 Meeting Captain 能批准或拒绝 recommendation。
 - Manager recommendation、自然语言建议或 research result 都不能替代 Captain disposition。
@@ -254,6 +308,11 @@ recommendation 不打断当前合法 SpeakerAttempt，也不能把推荐 Agent �
 - recommendation、disposition、admission 和 Session provisioning 必须保留幂等、version conflict、终态拒写和跨 Meeting 隔离。
 
 ## Compatibility
+
+- `PersistenceProjectionV1.formatVersion` 保持 `1`。canonical `MeetingState` 使用 required literal `formatVersion: 2`；当前 `ManagerPlanningAttempt.catalogBinding` required，且仅允许 verified snapshot 或 none。verified 值与 validated `MeetingAgentCatalogSnapshotV1` 逐字段同构；实现中的 Domain-owned 名称为 `MeetingAgentCatalogSnapshot`，Domain 不导入 Protocol。
+- binding 只保存在当前 active planning attempt，不复制到 Meeting 顶层或历史 attempt。Manager context 与 claim validation 从同一持久 binding 读取。
+- 无 MeetingState discriminator 的 legacy state 可恢复普通能力，Manager context 的 `agentCatalog` 为 `null`，attendance claim fail closed；不得补 default、cast 为 V2、写回或隐式 migration。
+- 未知 MeetingState format 返回既有 `SCHEMA_VERSION_UNSUPPORTED`；已识别 V2 format 但 discriminator/binding 结构损坏返回既有 `CORRUPT_DATABASE`。
 
 - 当前 `CreateMeetingInputV1.participants` 和既有会议创建行为保持不变；初始 Participant 仍由 Captain 在创建时明确提供。
 - 初始 Participant 和 recommendation admission 都必须在 Session provisioning 前解析对应 Meeting Agent Definition 及其 DSH capability 引用；`sourceMemberName` 不能作为隐式 Definition fallback。
