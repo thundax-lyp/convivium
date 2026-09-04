@@ -5,7 +5,7 @@
 本文记录当前代码相对已确认需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-09-04
-- 代码基线：`759e2ef7cec4fe5cf4f7a5ec57ea70a460afdfe8`
+- 代码基线：`8c2c40a16e2fc5375f90cc10867283d1da769a05`
 - 环境：Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、profile `web`、provider `spawn`
 - `已实现` 表示存在正式路径和相称验证；`部分实现` 表示存在局部路径但未闭合；`未实现` 表示没有产品运行路径。
 - 历史真实 profile 证据只适用于其原始 commit，不外推为当前 HEAD 证据。
@@ -40,16 +40,16 @@
 
 ## Executed Validation
 
-2026-09-04，在 target HEAD `759e2ef7cec4fe5cf4f7a5ec57ea70a460afdfe8` 执行 `pnpm --dir plugin verify`：
+2026-09-04，在 Agenda candidate 功能代码基线 `8c2c40a16e2fc5375f90cc10867283d1da769a05` 执行 `pnpm --dir plugin verify`：
 
 - Pass：format、lint、Host/Client typecheck、build、environment、contract、Agent Definition samples、package verifier。
-- Pass：74 test files、549 tests。
+- Pass：完整 Vitest suite。
 - Pass：在 `8c7c39e6705fed5a79ed228b8f494a7f96cfe83b` 执行 `pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts`，1 file、35 tests；覆盖相同 `requestId` 的 MeetingTask start receipt replay。代码同时以 repository 最新 snapshot 的 task status 约束 Catalog preview，避免已变为 `running` 的交错重试在进入 `MeetingRepository.execute()` 前触发 `INVALID_STATE_TRANSITION`。
 - Pass：在 target HEAD 执行 `pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts`，1 file、24 tests；固定 browser-ready 模式的 30 分钟 `speakerTimeoutMs`、普通模式的 60 秒和 `timeout` selector 的 250ms。
 - Pass：在 target HEAD `aa70a14bb93e7cab134bb567f5320549e058a2b5`（2026-09-04，Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`）完成 Developer Markdown focused validation：`pnpm --dir plugin exec vitest run tests/unit/projection/developer-markdown.spec.ts`、`pnpm --dir plugin exec vitest run tests/unit/runtime/developer-markdown-service.spec.ts`、`pnpm --dir plugin exec vitest run tests/contract/domain-meeting-repository.spec.ts tests/contract/domain-repository-registry.spec.ts`、`pnpm --dir plugin exec vitest run tests/unit/config.spec.ts tests/unit/index-inject.spec.ts tests/contract/meeting-runtime.spec.ts`、`pnpm --dir plugin typecheck`、`pnpm --dir plugin lint`、`pnpm --dir plugin verify` 均 Pass；包含 T1-T5 的白名单映射/archive checksum 保留、串行 latest/stale/原子写入、repository callback/registry 传递、workspace fail-closed/runtime dispose 和完整验证。
 - Pass：在 target HEAD `22ded07c3d126464684867d358fe338a9b4fe583` 运行 `CONVIVIUM_SMOKE_SCENARIO=reassign CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile`；preflight、Browser 五项 Reassign 观察、wrapper SIGINT/退出、`CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok` 和 exact temp-root cleanup 均通过。Browser 观察为 `Runtime smoke (running)`、`participant-a` 当前 Speaker、空 reason 时 `Skip current speaker` disabled、输入 `Browser reassign evidence` 后 enabled、点击后旧 attempt control 消失且 `role=alert` 为 0、刷新后旧 control 仍不存在；该 run URL 为 `http://127.0.0.1:56929`。
 
-以下 G3/G4 真实 profile 与 Browser 记录来自较早的已注明 target evidence；本次 `759e2ef` 验证没有重新执行这些运行时步骤，不得把它们外推为当前 HEAD 的新运行证据：
+以下 G3/G4 真实 profile 与 Browser 记录来自较早的已注明 target evidence；本次 `8c2c40a` 验证没有重新执行这些运行时步骤，不得把它们外推为当前 HEAD 的新运行证据：
 
 - Pass：G3 的 12 个真实 DSH profile selector，均为 `profile=web`、`provider=spawn`，且 probe `ok=true`：
   - `baseline`：`baseline-transcript-acb`、`baseline-http-pause-resume`
