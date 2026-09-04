@@ -214,6 +214,37 @@ describe("DomainRepositoryRegistry contract", () => {
         await registry.close();
     });
 
+    it("passes the projection callback to a meeting repository", async () => {
+        const { facility } = fixture([catalogRecord("team-1", "meeting-1")]);
+        const snapshots: unknown[] = [];
+        const registry = await DomainRepositoryRegistry.open({
+            storageDomain: facility,
+            authorizationValidator: allow,
+            onProjectionCommitted: (snapshot) => snapshots.push(snapshot)
+        });
+        const repository = await registry.openMeeting({
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            create: {
+                requestId: "create-meeting-1",
+                requestHash: "hash-meeting-1",
+                authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
+                initialState: { status: "created" },
+                createdAt: 1
+            }
+        });
+        await repository.completeCreate({
+            requestId: "create-meeting-1",
+            requestHash: "hash-meeting-1",
+            authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
+            initialState: { status: "created" },
+            createdAt: 1
+        });
+        expect(snapshots).toHaveLength(1);
+        expect(snapshots[0]).toMatchObject({ teamId: "team-1", meetingId: "meeting-1" });
+        await registry.close();
+    });
+
     it("rejects cached identity or domainName mismatch", async () => {
         const record = catalogRecord("team-1", "meeting-1");
         const { catalog, facility } = fixture([record]);

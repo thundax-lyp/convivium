@@ -192,6 +192,17 @@ Phase 1 必须复用现有 `submit_manager_plan`、`MeetingRepositoryPort.execut
 7. Definition resolution、Preset/Skill validation 或 DSH capability composition 任一失败时必须 fail closed，不得通过 Prompt-only、persona-only、Tool Schema 隐藏或 Convivium 自建 capability installer 降级运行。
 8. 当前 DSH `0.1.1-rc.2` 不能为 continuable child 选择不同于 parent 的 Agent Preset；在 DSH 提供公开 per-child preset composition API 前，Definition 到差异化 AgentSession 的 runtime 接线保持未实现。
 
+### FR-15：Developer Markdown Projection
+
+1. 插件配置有效 `developerMarkdownWorkspaceId` 后，Meeting Runtime 必须从每次新提交的 `MeetingSnapshot` best-effort 生成非权威 `current.md`；未配置时该能力关闭且不得改变现有会议行为。
+2. 已提交 snapshot 包含不可变 `MeetingState.archive.package` 时，Runtime 必须另外只从该 `ImmutableArchivePackage` best-effort 生成 `archive.md`。
+3. Markdown 只供本地开发和诊断。Plugin Frontend、HTTP、Tool、Agent context、会议恢复、授权、状态计算和归档完成不得读取或依赖它。
+4. 输出必须使用正式 Developer Markdown interface 的逐字段白名单；必须排除 Session、私聊、隐藏 prompt、内部工具输入输出、delivery/outbox、capability、凭据、artifact 内容和敏感或绝对文件路径。
+5. 同一 Meeting 的未执行 current render 只保留最高 `sourceMeetingVersion`；worker 执行前观察到更高 repository version 时必须跳过旧任务。
+6. 文件必须位于已配置 DSH workspace 的固定受控相对路径，并使用同目录临时文件原子替换；不得从 Meeting identity 推导 storage backend 路径，不得合并人工修改。
+7. 解析 workspace、映射、写入、替换、清理或日志失败不得回滚或阻塞 Meeting commit，不得写领域 event、receipt、outbox、MeetingState 或 Meeting version，也不得影响 pause、resume、end/archive、Session revoke、interrupt、drain 或 Runtime dispose。
+8. 该能力不得增加 durable queue、重试 timer、跨进程锁、HTTP route、Tool、Client UI、Agent API、配置 fallback 或通用 projection framework。
+
 ## Business Rules
 
 ### BR-1：Turn 含义
@@ -283,6 +294,13 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 39. 在 DSH 提供并验证 per-child preset composition API 前，系统必须把差异化 Agent capability runtime 标记为未实现；Definition 样本存在不得被描述为 capability 已安装。
 40. delegated meeting-owned Agent 不会等待无人处理的交互式 Approval，也不能从自身 Session 内扩大启动时固化的权限。
 41. Scribe 生成的纪要草稿标明覆盖范围并引用正式 message、Fact、Decision、Issue 或 task result ID；缺少引用或覆盖不连续时不会被当作权威 transcript、正式事实或决议。
+42. 未配置 `developerMarkdownWorkspaceId` 时不产生 Developer Markdown；配置不存在的 workspace 时插件启动失败，且不选择其他目录作为 fallback。
+43. 新 Meeting commit 后，`current.md` 的 `sourceMeetingVersion` 等于该 committed `MeetingSnapshot.version`，并且只包含 Developer Markdown interface 白名单字段。
+44. 同一 Meeting 连续提交时，低版本 pending 或已 stale 的 render 不会覆盖高版本文件；不同 Meeting 的路径和 pending task 相互隔离。
+45. temp write、close、rename 或 cleanup 失败保留上一个完整目标文件，并且不改变 Meeting snapshot、version、event、receipt 或 outbox。
+46. `archive.md` 只从已提交 `ImmutableArchivePackage` 生成；其缺失、损坏或生成失败不影响 capability revoke、Session interrupt/drain 和 `archived`。
+47. Developer Markdown 删除或人工修改不触发 repository 修复；后续新 commit 可以完整覆盖 `current.md`，但 Runtime 不保证文件必然存在。
+48. Developer Markdown 没有 HTTP、Tool、Client 或 Agent 读取入口；Runtime dispose 后没有 pending render、重试 timer、未处理 rejection 或本次任务遗留的 temp file。
 
 ## Confirmed Meeting Convergence Rules (D6-D10)
 
@@ -302,6 +320,7 @@ D10 fingerprint 是固定 key 顺序 JSON tuple；数组按 canonical ID 排序�
 - Agent 间会议协议：[`../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)
 - Agent 角色目录与参会推荐：[`../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md`](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)
 - Meeting Agent Definition：[`../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)
+- Developer Markdown Projection：[`../20-interfaces/DEVELOPER-MARKDOWN-PROJECTION-INTERFACE.md`](../20-interfaces/DEVELOPER-MARKDOWN-PROJECTION-INTERFACE.md)
 - 当前实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
 
 Plugin Frontend 的最小状态读取和会议控制边界由 Interface 定义；本需求文档不规定路由实现、组件结构或视觉样式。
