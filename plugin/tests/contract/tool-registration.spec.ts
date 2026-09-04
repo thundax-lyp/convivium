@@ -157,6 +157,13 @@ describe("meeting tool registration", () => {
                     code: "UNAUTHORIZED_CALLER",
                     message: "not exercised",
                     retryable: false
+                }),
+                disposeAgendaCandidate: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "UNAUTHORIZED_CALLER",
+                    message: "not exercised",
+                    retryable: false
                 })
             }
         });
@@ -219,6 +226,7 @@ describe("meeting tool registration", () => {
         expect(definitions.map((definition) => definition.name)).toEqual([
             "convivium_accept_decision",
             "convivium_dispose_decision",
+            "convivium_dispose_agenda_candidate",
             "convivium_dispose_risk",
             "convivium_create_meeting",
             "convivium_meeting_status",
@@ -457,6 +465,10 @@ describe("meeting tool registration", () => {
                     calls.push(`dispose-decision:${caller.kind}`),
                     denied()
                 ),
+                disposeAgendaCandidate: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`dispose-agenda-candidate:${caller.kind}`),
+                    denied()
+                ),
                 endMeeting: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`end:${caller.kind}`),
                     denied()
@@ -654,6 +666,14 @@ describe("meeting tool registration", () => {
                 decisionCandidateId: "candidate-1",
                 reason: "accept",
                 evidenceMessageIds: []
+            },
+            convivium_dispose_agenda_candidate: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                requestId: "request-1",
+                candidateId: "candidate-1",
+                action: "park"
             }
         };
 
@@ -668,6 +688,7 @@ describe("meeting tool registration", () => {
         expect(calls).toEqual([
             "accept:participant",
             "dispose-decision:participant",
+            "dispose-agenda-candidate:participant",
             "risk:participant",
             "create:participant",
             "status:participant",

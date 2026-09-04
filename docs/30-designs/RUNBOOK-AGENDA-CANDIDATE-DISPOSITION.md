@@ -33,21 +33,6 @@ Non-goals：自动切换 active agenda；Manager/Participant/local HTTP disposit
 
 ## 4. 机械步骤
 
-### T4：DSH Tool
-
-前置：HEAD 为已完成 T3 的唯一前一步 commit、clean、T3 已删除。允许：`plugin/src/tools/register-tools.ts::registerCreateAndStatusTools` 及其 protocol imports；修改现有 `plugin/tests/contract/tool-registration.spec.ts` 中 `meeting tool registration` suite；本 RUNBOOK。禁止 `registerSubmitAndControlTools`、HTTP、Client、tool framework 和其他 tool。
-
-动作：在 `registerCreateAndStatusTools` 的现有 Captain disposition registrations 后新增且只新增 `convivium_dispose_agenda_candidate`；使用 `CaptainAgendaCandidateDispositionInputSchema`，将 caller context/input/signal 原样交给 `runtime.disposeAgendaCandidate`。
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/tool-registration.spec.ts
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin exec prettier --check src/tools tests/contract/tool-registration.spec.ts
-git diff --check
-```
-
-PASS：单次注册、Schema、forwarding、typed envelope 全通过。随后删除 T4、写 T5 SHA、提交。STOP/恢复同 T1。
-
 ### T5：Status、archive 与 recovery
 
 前置：HEAD 为已完成 T4 的唯一前一步 commit、clean、T4 已删除。允许：`plugin/src/protocol/types.ts::DiscussionMeetingStatusBaseV1` 增加 required `parkingLot`；`plugin/src/protocol/status.ts::MeetingStatusResultSchema` 的 `active/terminal` Schema 复用现有私有 `archiveAgendaCandidate` 增加同一 required 数组；`plugin/src/projection/status.ts::projectMeetingStatus`；`plugin/tests/contract/protocol-schema.spec.ts`；`plugin/tests/contract/status-projection.spec.ts`；`plugin/tests/unit/runtime/archive.spec.ts`；`plugin/tests/recovery/recovery.spec.ts`；`plugin/tests/contract/http-boundary.spec.ts::statusResult` 增加 `parkingLot: []`；`plugin/tests/client/client-entry.client.spec.ts::statusResult` 增加 `parkingLot: []`；本 RUNBOOK。禁止 archive service、repository、HTTP/Client production code。

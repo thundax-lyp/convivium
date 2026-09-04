@@ -19,6 +19,7 @@ import type {
     CaptainRiskDispositionInputV1,
     CaptainDecisionAcceptanceInputV1,
     CaptainDecisionDispositionInputV1,
+    CaptainAgendaCandidateDispositionInputV1,
     FinishMeetingMailInputV1,
     SendMeetingMessageInputV1,
     TurnSubmissionV1
@@ -41,6 +42,7 @@ import {
     CaptainRiskDispositionInputSchema,
     CaptainDecisionAcceptanceInputSchema,
     CaptainDecisionDispositionInputSchema,
+    CaptainAgendaCandidateDispositionInputSchema,
     FinishMeetingMailInputSchema,
     SendMeetingMessageInputSchema,
     validateProtocolError
@@ -166,6 +168,30 @@ export function registerCreateAndStatusTools(
                                 ) as CaptainDecisionDispositionInputV1,
                             callers: dependencies.callers,
                             runtime: dependencies.runtime.disposeDecision.bind(
+                                dependencies.runtime
+                            ),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_dispose_agenda_candidate",
+                description:
+                    "Promote, park, or reject one agenda candidate as the meeting Captain.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                CaptainAgendaCandidateDispositionInputSchema(
+                                    value as never
+                                ) as CaptainAgendaCandidateDispositionInputV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.disposeAgendaCandidate.bind(
                                 dependencies.runtime
                             ),
                             exec
