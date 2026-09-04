@@ -480,39 +480,9 @@ Captain approval/admission/provisioning portions of FR-13.5-9 and AC 31-34 remai
 
 ## 8. 机械实施步骤
 
-### T3：optional Catalog port 与 composition
-
-前置状态：T2 PASS commit 已存在；T2 完整章节已删除；工作树 clean；canonical V2 attempts 当前均绑定 none。
-
-允许修改：新文件 `plugin/src/runtime/services/agent-catalog.ts` 的 7.2 exact exports；`plugin/src/runtime/application-service/index.ts::CreateStatusRuntimeOptions`；`plugin/src/index.ts::meetingConsumerPlugin.apply`；`plugin/tests/unit/index-inject.spec.ts`；新文件 `plugin/tests/unit/runtime/agent-catalog.spec.ts`；本 RUNBOOK 的 T3 章节。
-
-禁止修改：required `inject` array、Host producer、Domain transitions、repository、package/lock、第二 service文件。
-
-执行：
-
-1. 创建 7.2 指定文件、exports 和 Cordis module augmentation；不得增加 class、registry 或 provider implementation。
-2. 实现`captureManagerCatalogBinding`的exact normalization、candidate/role uniqueness与join、team binding、canonical byte limit和structured clone。
-3. 给 `CreateStatusRuntimeOptions` 增加 optional `agentCatalog?: AgentCatalogPort`。
-4. `meetingConsumerPlugin.apply` 调用一次 `ctx.get(AGENT_CATALOG_SERVICE_KEY)` 并把结果传给 `createCreateStatusRuntime`；不改 `meetingConsumerPlugin.inject`。
-5. 单元测试逐项固定missing、throw、四种failure、malformed result、snapshot unknown key、team mismatch、duplicate candidate、duplicate role version、zero/multiple role match、16 KiB边界与成功deep copy；composition test断言service缺失仍启动且required inject不含key。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/runtime/agent-catalog.spec.ts tests/unit/index-inject.spec.ts
-pnpm --dir plugin typecheck:host
-git diff --check
-```
-
-PASS：全部退出 0；仅 valid snapshot产生 verified；其余全部产生 none；普通 composition在 `ctx.get` 返回 undefined时保持既有注册数量。
-
-STOP：需要 package/lock、required inject、第二 source、retry或 diagnostic payload。报告首错，禁止返回 unvalidated snapshot。
-
-失败恢复：无 Host provider或外部调用；测试只用内存 fake port。保留 T3 与现场。
-
 ### T4：局部 persistence format 识别
 
-前置状态：T3 PASS；T3 完整章节已删除；`isMeetingStateV2` 已存在且测试通过。
+前置状态：T3 PASS commit 已存在；T3 完整章节已删除；工作树 clean；`isMeetingStateV2` 已存在且测试通过。
 
 允许修改：`plugin/src/repository/domain/schemas.ts::meetingStateTransport`、`PersistenceProjectionV1Schema`；`plugin/src/repository/domain/projection.ts::decodeProjection`、`UnsupportedMeetingStateFormatError`；`plugin/src/repository/domain/domain-meeting-repository.ts::DomainMeetingRepository.open`；`plugin/tests/unit/repository/domain/schemas.spec.ts`；`plugin/tests/unit/repository/domain/projection.spec.ts`；`plugin/tests/contract/domain-meeting-repository.spec.ts`；`plugin/tests/recovery/domain-recovery.spec.ts`；本RUNBOOK的T4章节。
 

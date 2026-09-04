@@ -20,6 +20,7 @@ import {
     scanMeetingMailTimeouts
 } from "../services/meeting-dispatch-service.js";
 import { resolveArchiveCleanupRuntime } from "../services/meeting-session-service.js";
+import type { AgentCatalogPort } from "../services/agent-catalog.js";
 import { recoverArchive } from "../services/meeting-archive-service.js";
 import {
     createMeetingRehydrationService,
@@ -197,6 +198,7 @@ export interface CreateStatusRuntimeOptions {
     readonly now?: () => number;
     readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
     readonly timeoutScanSleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
+    readonly agentCatalog?: AgentCatalogPort;
 }
 
 interface InternalCreateStatusRuntimeOptions extends CreateStatusRuntimeOptions {
