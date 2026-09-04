@@ -355,25 +355,85 @@ export function createMeetingTaskApplication(dependencies: MeetingTaskApplicatio
             try {
                 const currentState = authorized.recovered.snapshot!
                     .state as unknown as MeetingState;
-                const currentAttempt = currentState.manager.currentPlanningAttempt;
+                const task = currentState.meetingTasks.find(
+                    (candidate) =>
+                        candidate.meetingTaskId === input.meetingTaskId &&
+                        candidate.executionId === input.executionId
+                );
+                const taskIsActive = task?.status === "running";
+                let planningPreview: MeetingState | undefined;
+                if (input.status === "completed" && task?.status === "running") {
+                    const finished = finishMeetingTaskTransition(
+                        structuredClone(currentState),
+                        input.meetingTaskId,
+                        {
+                            status: input.status,
+                            now: options.now?.() ?? Date.now(),
+                            resultSummary: input.resultSummary,
+                            failureReason: input.failureReason
+                        }
+                    );
+                    const handRaise = createHandRaise(finished.state, {
+                        id: `${input.meetingTaskId}-hand-raise`,
+                        participantId: caller.participantId!,
+                        reason: "task_completed",
+                        summary: input.resultSummary ?? "MeetingTask finished",
+                        taskIds: [input.meetingTaskId],
+                        priority: "normal",
+                        now: options.now?.() ?? Date.now()
+                    });
+                    planningPreview = handRaise.state;
+                    const waitingForThisTask =
+                        planningPreview.status === "waiting" &&
+                        planningPreview.waitState?.taskIds.includes(input.meetingTaskId) &&
+                        planningPreview.waitState.taskIds.every((taskId) =>
+                            planningPreview!.meetingTasks.every(
+                                (candidate) =>
+                                    candidate.meetingTaskId !== taskId ||
+                                    ["completed", "failed", "cancelled"].includes(candidate.status)
+                            )
+                        );
+                    const waitingResolvedByThisTask =
+                        planningPreview.status === "waiting" &&
+                        planningPreview.waitState?.participantIds.includes(task.participantId) &&
+                        planningPreview.waitState.participantIds.every((participantId) =>
+                            planningPreview!.participants.some(
+                                (participant) =>
+                                    participant.id === participantId &&
+                                    isParticipantDispatchableNow(planningPreview!, participant)
+                            )
+                        );
+                    if (waitingForThisTask || waitingResolvedByThisTask) {
+                        planningPreview = {
+                            ...planningPreview,
+                            status: "running",
+                            currentTurn: undefined,
+                            waitState: undefined
+                        };
+                    }
+                }
+                const previewState = planningPreview ?? currentState;
+                const currentAttempt = previewState.manager.currentPlanningAttempt;
                 const managerRequested =
-                    currentState.selectionMode === "manager" ||
-                    (currentState.selectionMode === "hybrid" &&
+                    previewState.selectionMode === "manager" ||
+                    (previewState.selectionMode === "hybrid" &&
                         needsSemanticArbitration(
-                            currentState,
-                            rankRulePlanningCandidates(currentState),
+                            previewState,
+                            rankRulePlanningCandidates(previewState),
                             "normal"
                         ));
                 const mayCreatePlanningAttempt =
                     input.status === "completed" &&
-                    (currentState.status === "running" || currentState.status === "waiting") &&
-                    currentState.currentTurn === undefined &&
+                    taskIsActive &&
+                    (previewState.status === "running" || previewState.status === "waiting") &&
+                    previewState.currentTurn === undefined &&
                     (currentAttempt === undefined ||
-                        currentAttempt.observedMeetingVersion !== currentState.version + 1) &&
-                    currentState.manager.status !== "failed" &&
-                    currentState.manager.status !== "closed" &&
+                        currentAttempt.observedMeetingVersion !== previewState.version + 1) &&
+                    previewState.handRaises.some((raise) => raise.status === "pending") &&
+                    previewState.manager.status !== "failed" &&
+                    previewState.manager.status !== "closed" &&
                     managerRequested &&
-                    requiredPlanningBlockers(currentState).length === 0;
+                    requiredPlanningBlockers(previewState).length === 0;
                 const catalogBinding =
                     mayCreatePlanningAttempt && isMeetingStateV2(currentState)
                         ? await captureManagerCatalogBinding(options.agentCatalog, {
