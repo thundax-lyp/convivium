@@ -180,29 +180,9 @@ ctx
 
 ## 8. 机械执行步骤
 
-### T2：单一 worker 与文件原子性
-
-前置状态：T1 已 PASS 并已提交；`plugin/src/projection/developer-markdown.ts`、`plugin/src/projection/index.ts` 与 `plugin/tests/unit/projection/developer-markdown.spec.ts` 已存在且通过 T1 验证。
-
-允许修改：`plugin/src/runtime/services/developer-markdown-service.ts`、`plugin/tests/unit/runtime/developer-markdown-service.spec.ts`。
-
-禁止修改：repository/config/index 和其他 tests。
-
-执行：实现第 6 节 service。测试使用真实 `mkdtemp` workspace 和 mock repository；每个 case 在 `finally` 删除其唯一 temp root。覆盖未配置不在本 service、不同 Meeting、latest replacement、stale skip、identity/version error、current/archive、containment、旧文件保留、write/rename/cleanup/warn failure、并发 dispose、late completion 和 temp 清理。Node fs failure 使用 Vitest 对 `node:fs/promises` 的 module mock，不增加 production I/O adapter。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/runtime/developer-markdown-service.spec.ts
-pnpm --dir plugin typecheck
-git diff --check
-```
-
-PASS：三命令退出 0，所有 temp roots 删除。STOP：出现 timer、retry、adapter、残留目录或失败。失败恢复：终止残留 test process，删除测试输出明确打印的 temp root；不得删除其他目录。
-
 ### T3：Repository post-commit callback
 
-前置状态：T2 PASS。
+前置状态：T2 已 PASS 并已提交；`plugin/src/runtime/services/developer-markdown-service.ts` 与 `plugin/tests/unit/runtime/developer-markdown-service.spec.ts` 已存在，service 通过 T2 验证。
 
 允许修改：`plugin/src/repository/domain/domain-meeting-repository.ts`、`plugin/src/repository/domain/domain-repository-registry.ts`、`plugin/tests/contract/domain-meeting-repository.spec.ts`、`plugin/tests/contract/domain-repository-registry.spec.ts`。
 
