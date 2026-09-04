@@ -6,7 +6,7 @@
 - Node.js 满足 `plugin/package.json` 的 engines 要求。
 - pnpm 可访问或已缓存 `@deepseek-ai/dsh@0.1.1-rc.2`。
 - 不使用开发者常用的 DSH profile；脚本会创建并清理独立临时 profile、workspace、端口和 `DSH_HOME`。
-- 可选的本地 LLM 配置保存在仓库根目录 `dev.env`；从 `dev.env.example` 复制后填写。该文件只供人工真实模型验证使用，不进入 Git，也不会由自动 `smoke:profile` 加载。
+- 自动 `smoke:profile` 使用的本地 DeepSeek 凭据保存在仓库根目录 `dev.env`；从 `dev.env.example` 复制后填写。该文件不进入 Git。
 
 `dev.env` 只保存 DeepSeek 官方 provider 所需的本地凭据：
 
@@ -14,7 +14,9 @@
 DEEPSEEK_API_KEY=
 ```
 
-当前确定性 `smoke:profile` 不调用 LLM，因此不得加载或向构建、打包、依赖安装和 probe 子进程传递该凭据。人工真实模型验证只在启动需要模型的 DSH host 时显式注入 `DEEPSEEK_API_KEY`，实际请求成功才可作为 LLM 链路证据。
+`smoke:profile` 启动前必须读取 `dev.env`。文件缺失、`DEEPSEEK_API_KEY` 缺失或空值、存在其他变量时立即失败。密钥只注入真实 DSH Host 进程；构建、打包、插件安装和 `dump-config` 子进程不会取得该值。脚本不得把密钥写入 stdout、stderr、临时 profile、结果 JSON 或构建产物。
+
+当前确定性 selector 不调用 LLM；注入密钥只保证 smoke Host 与人工 Browser 验证使用同一完整 DeepSeek provider 环境，不得据此声称 LLM 请求已经验证。只有实际模型请求成功才可作为 LLM 链路证据。
 
 人工开发和调试使用仓库根目录 `dsh-workspace/`，该目录不进入 Git；自动 `smoke:profile` 不使用该目录，仍为每次运行创建并清理独立的 OS 临时 workspace，避免旧 Session、Meeting 或文件状态影响验证结果。
 
@@ -82,6 +84,8 @@ cd plugin
 pnpm dlx @deepseek-ai/dsh@0.1.1-rc.2 --version
 pnpm smoke:profile
 ```
+
+命令必须从 `plugin/` 运行，使入口能够从其父目录读取唯一的仓库根 `dev.env`。调用者 shell 中已有的 `DEEPSEEK_API_KEY` 会被忽略，不能替代该文件。
 
 其中 `pnpm smoke:profile` 内部固定调用：
 

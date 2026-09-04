@@ -1,8 +1,12 @@
 import { readFileSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
     createSmokeEnvironment,
+    loadSmokeApiKey,
     validateScenarioResult
 } from "../../../scripts/smoke-profile/index.mjs";
 
@@ -80,9 +84,73 @@ describe("createSmokeEnvironment", () => {
 
         expect(environment).toEqual({ PATH: "/bin", DSH_HOME: "/smoke" });
     });
+
+    it("injects only the explicitly loaded DeepSeek credential", () => {
+        const environment = createSmokeEnvironment(
+            { PATH: "/bin", DEEPSEEK_API_KEY: "inherited" },
+            { DSH_HOME: "/smoke", DEEPSEEK_API_KEY: "override" },
+            "dev-key"
+        );
+
+        expect(environment).toEqual({
+            PATH: "/bin",
+            DSH_HOME: "/smoke",
+            DEEPSEEK_API_KEY: "dev-key"
+        });
+    });
+});
+
+describe("loadSmokeApiKey", () => {
+    it("loads the only required value from dev.env", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-smoke-env-"));
+        const path = join(root, "dev.env");
+        try {
+            await writeFile(path, "# local secret\nDEEPSEEK_API_KEY=dev-key\n", "utf8");
+            await expect(loadSmokeApiKey(path)).resolves.toBe("dev-key");
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
+    it.each([
+        ["empty", "DEEPSEEK_API_KEY=\n", "dev.env DEEPSEEK_API_KEY must not be empty."],
+        ["missing", "OTHER=value\n", "dev.env must define only DEEPSEEK_API_KEY."],
+        [
+            "extra",
+            "DEEPSEEK_API_KEY=dev-key\nOTHER=value\n",
+            "dev.env must define only DEEPSEEK_API_KEY."
+        ]
+    ])("rejects %s dev.env content", async (_case, content, message) => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-smoke-env-"));
+        const path = join(root, "dev.env");
+        try {
+            await writeFile(path, content, "utf8");
+            await expect(loadSmokeApiKey(path)).rejects.toThrow(message);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
 });
 
 describe("smoke profile scenario guard", () => {
+    it("loads dev.env for the DSH Host without exposing it to setup commands", () => {
+        expect(smokeProfileSource).toContain(
+            'loadSmokeApiKey(resolve(pluginRoot, "..", "dev.env"))'
+        );
+        expect(smokeProfileSource).toContain("await installArtifact(env, artifact);");
+        expect(smokeProfileSource).toContain("await installProbe(env, probeDir);");
+        expect(smokeProfileSource).toContain("await dumpConfig(env, patchPath, logsDir);");
+        expect(smokeProfileSource).toContain(
+            "const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);"
+        );
+        expect(smokeProfileSource).toContain(
+            "await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port)"
+        );
+        expect(smokeProfileSource).not.toContain(
+            "await bootHost(env, patchPath, workspaceDir, logsDir, port)"
+        );
+    });
+
     it("exports the smoke result validator from the entrypoint", () => {
         expect(
             validateScenarioResult({ ok: true, scenario: "baseline", assertions: [] }, "baseline")

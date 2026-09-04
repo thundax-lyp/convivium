@@ -7,11 +7,11 @@ import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
-import { createSmokeEnvironment } from "./environment.mjs";
+import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 import { validateColdCheckpoint } from "./probe/support.js";
 import { validateScenarioResult } from "./result.mjs";
 
-export { createSmokeEnvironment } from "./environment.mjs";
+export { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 export { validateScenarioResult } from "./result.mjs";
 
 const DSH_VERSION = "0.1.1-rc.2";
@@ -379,6 +379,7 @@ async function main() {
         throw new Error(`Unsupported CONVIVIUM_SMOKE_SCENARIO: ${SMOKE_SCENARIO}.`);
     }
     await access(join(pluginRoot, "package.json"), constants.R_OK);
+    const deepSeekApiKey = await loadSmokeApiKey(resolve(pluginRoot, "..", "dev.env"));
 
     tempRoot = await mkdtemp(tempPrefix);
     const dshHome = join(tempRoot, "dsh-home");
@@ -413,7 +414,8 @@ async function main() {
     await installArtifact(env, artifact);
     await installProbe(env, probeDir);
     const dumpPath = await dumpConfig(env, patchPath, logsDir);
-    let bootLogs = await bootHost(env, patchPath, workspaceDir, logsDir, port);
+    const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);
+    let bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port);
     let probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
     if (SMOKE_SCENARIO === "cold-rebind" && probeResult.phase1Complete === true) {
         const checkpoint = validateColdCheckpoint(
@@ -429,9 +431,9 @@ async function main() {
         await stopHost();
         await writeFile(resultPath, "", "utf8");
         await rm(resultPath + ".tmp", { force: true });
-        env.CONVIVIUM_SMOKE_COLD_PHASE = "2";
-        env.CONVIVIUM_SMOKE_COLD_CHECKPOINT = coldCheckpointPath;
-        bootLogs = await bootHost(env, patchPath, workspaceDir, logsDir, port);
+        hostEnv.CONVIVIUM_SMOKE_COLD_PHASE = "2";
+        hostEnv.CONVIVIUM_SMOKE_COLD_CHECKPOINT = coldCheckpointPath;
+        bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port);
         await waitForTcp(port, BOOT_TIMEOUT_MS);
         probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
     }
