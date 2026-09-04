@@ -233,7 +233,7 @@ describe("smoke profile scenario guard", () => {
     });
 
     it("dispatches reassign to one scenario module", () => {
-        expect(smokeProfileSource).toContain("const BROWSER_SPEAKER_TIMEOUT_MS = 30 * 60 * 1000");
+        expect(smokeProfileSource).toContain("const BROWSER_SPEAKER_TIMEOUT_MS = 5 * 60 * 1000");
         expect(smokeProfileSource).toContain("BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000");
         expect(probeSource).toContain('from "./scenarios/reassign.js"');
         expect(probeSource).toContain("return runReassignScenario(runtime);");

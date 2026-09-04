@@ -27,7 +27,7 @@ const probeSourceDir = fileURLToPath(new URL("./probe", import.meta.url));
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "120000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
-const BROWSER_SPEAKER_TIMEOUT_MS = 30 * 60 * 1000;
+const BROWSER_SPEAKER_TIMEOUT_MS = 5 * 60 * 1000;
 export const SMOKE_SCENARIOS = [
     "baseline",
     "timeout",
