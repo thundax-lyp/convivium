@@ -5,6 +5,8 @@ import {
     CreateMeetingInputSchema,
     CaptainDecisionDispositionInputSchema,
     CaptainRiskDispositionInputSchema,
+    CaptainAgendaCandidateDispositionInputSchema,
+    CaptainAgendaCandidateDispositionResultSchema,
     EndMeetingInputSchema,
     EndMeetingResultSchema,
     LocalMeetingListItemSchema,
@@ -29,6 +31,125 @@ import {
 } from "../../src/protocol/index.js";
 
 describe("protocol envelope schemas", () => {
+    describe("agenda candidate disposition protocol", () => {
+        const promote = {
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            expectedMeetingVersion: 3,
+            requestId: "request-1",
+            candidateId: "candidate-1",
+            action: "promote" as const,
+            agendaItem: {
+                objective: "Decide scope",
+                inScope: ["MVP"],
+                outOfScope: ["Legacy"],
+                completionCriteria: ["output-1"],
+                requiredParticipants: ["participant-1"]
+            }
+        };
+
+        it("validates action-specific input keys", () => {
+            expect(CaptainAgendaCandidateDispositionInputSchema(promote)).toEqual(promote);
+            const park = { ...promote, action: "park" as const };
+            delete (park as { agendaItem?: unknown }).agendaItem;
+            expect(CaptainAgendaCandidateDispositionInputSchema(park)).toEqual(park);
+            expect(() =>
+                CaptainAgendaCandidateDispositionInputSchema({
+                    ...park,
+                    agendaItem: promote.agendaItem
+                })
+            ).toThrow();
+            expect(() =>
+                CaptainAgendaCandidateDispositionInputSchema({ ...promote, extra: true })
+            ).toThrow();
+        });
+
+        it("rejects invalid promotion arrays and blank fields", () => {
+            expect(() =>
+                CaptainAgendaCandidateDispositionInputSchema({
+                    ...promote,
+                    candidateId: " "
+                })
+            ).toThrow();
+            expect(() =>
+                CaptainAgendaCandidateDispositionInputSchema({
+                    ...promote,
+                    agendaItem: { ...promote.agendaItem, requiredParticipants: ["p", "p"] }
+                })
+            ).toThrow();
+            expect(() =>
+                CaptainAgendaCandidateDispositionInputSchema({
+                    ...promote,
+                    agendaItem: { ...promote.agendaItem, objective: " " }
+                })
+            ).toThrow();
+        });
+
+        it("validates conditional result keys", () => {
+            const promoted = {
+                requestId: "request-1",
+                candidateId: "candidate-1",
+                action: "promote" as const,
+                agendaItemId: "candidate-1-agenda-item"
+            };
+            const parked = {
+                requestId: "request-1",
+                candidateId: "candidate-1",
+                action: "park" as const
+            };
+            expect(CaptainAgendaCandidateDispositionResultSchema(promoted)).toEqual(promoted);
+            expect(CaptainAgendaCandidateDispositionResultSchema(parked)).toEqual(parked);
+            expect(() =>
+                CaptainAgendaCandidateDispositionResultSchema({
+                    ...promoted,
+                    agendaItemId: undefined
+                })
+            ).toThrow();
+            expect(() =>
+                CaptainAgendaCandidateDispositionResultSchema({ ...parked, agendaItemId: "x" })
+            ).toThrow();
+            expect(() =>
+                CaptainAgendaCandidateDispositionResultSchema({ ...parked, extra: true })
+            ).toThrow();
+        });
+
+        it("accepts both non-promotion actions", () => {
+            const base = {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 3,
+                requestId: "request-1",
+                candidateId: "candidate-1"
+            };
+            expect(
+                CaptainAgendaCandidateDispositionInputSchema({ ...base, action: "park" })
+            ).toEqual({ ...base, action: "park" });
+            expect(
+                CaptainAgendaCandidateDispositionInputSchema({ ...base, action: "reject" })
+            ).toEqual({ ...base, action: "reject" });
+        });
+        it("requires the promotion payload", () => {
+            expect(() =>
+                CaptainAgendaCandidateDispositionInputSchema({
+                    protocolVersion: 1,
+                    meetingId: "meeting-1",
+                    expectedMeetingVersion: 3,
+                    requestId: "request-1",
+                    candidateId: "candidate-1",
+                    action: "promote"
+                })
+            ).toThrow();
+        });
+        it("rejects blank result identity", () => {
+            expect(() =>
+                CaptainAgendaCandidateDispositionResultSchema({
+                    requestId: " ",
+                    candidateId: "candidate-1",
+                    action: "park"
+                })
+            ).toThrow();
+        });
+    });
     it("rejects malformed Captain risk disposition input before runtime", () => {
         const input = {
             protocolVersion: 1,
