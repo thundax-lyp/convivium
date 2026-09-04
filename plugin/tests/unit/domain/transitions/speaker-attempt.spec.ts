@@ -99,7 +99,8 @@ const timeoutContext = {
     agendaItemId: "agenda-1",
     now: now + 1,
     nextPlanningAttemptId: "planning-2",
-    nextPlanningDeliveryId: "planning-delivery-2"
+    nextPlanningDeliveryId: "planning-delivery-2",
+    catalogBinding: { kind: "none" as const }
 };
 
 describe("SpeakerAttempt timeout", () => {
@@ -180,7 +181,8 @@ describe("SpeakerAttempt timeout", () => {
         expect(result.state.manager.currentPlanningAttempt).toMatchObject({
             id: "planning-2",
             deliveryId: "planning-delivery-2",
-            status: "running"
+            status: "running",
+            catalogBinding: { kind: "none" }
         });
         expect(result.effect.events.map(({ type }) => type)).toContain("manager_plan.started");
     });

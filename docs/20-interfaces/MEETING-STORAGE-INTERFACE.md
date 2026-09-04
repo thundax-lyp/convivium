@@ -179,6 +179,12 @@ Repository 错误必须使用结构化 `RepositoryError`，至少区分：`MEETI
 
 V1 不读取、迁移、删除或回退到 legacy SQLite；切换前后各只有一个 production truth。现存 SQLite 数据不在本接口范围内。
 
+FR-13 Phase 1 不提升 `PersistenceProjectionV1.formatVersion`，该 envelope 继续为 `1` 并原样承载 MeetingState JSON。canonical `MeetingState` 使用 required literal `formatVersion: 2`；无 discriminator 的既有 state 走窄的 legacy decode，保留普通 Meeting 恢复，但不得进入 attendance context/claim path，也不得补 default、写回、cast 为 V2 或隐式 migration。
+
+`plugin/src/repository/domain/schemas.ts::PersistenceProjectionV1Schema` 与 `plugin/src/repository/domain/projection.ts::decodeProjection` 是现有 schema/decoder owner，只允许增加局部 MeetingState format 识别：未知 format 返回 `SCHEMA_VERSION_UNSUPPORTED`；已识别 V2 format 但 required discriminator 或 current planning attempt Catalog binding 损坏返回 `CORRUPT_DATABASE`。`plugin/src/repository/domain/domain-meeting-repository.ts::DomainMeetingRepository.open` 必须保留前一种错误，不能统一重写为 corrupt。普通 Runtime 的既有 `plugin/src/repository/types.ts::MeetingSnapshot.state: JsonObject` transport 和 casts 不属于该兼容改造范围。
+
+verified Catalog snapshot 只保存在当前 planning attempt binding，canonical UTF-8 JSON 子值不得超过 `16 * 1024` bytes；完整 commit 仍受 `MAX_COMMIT_VALUE_BYTES = 65_536` 限制。成功的 attendance claim 复用现有 `MeetingRepositoryPort.execute`，在一条 commit 中原子发布新 projection、既有 `manager_plan.submitted` event、receipt 和既有 Speaker outbox；失败不得发布其中任何一项。
+
 ### Meeting convergence commands and commit contract
 
 Convergence uses the existing `MeetingRepositoryPort.execute<T>(command: RepositoryCommand<T>)` only. A successful planning, waiting, fallback, refocus, replan, or termination transition produces exactly one `CommitRecordV1` containing the new snapshot, ordered domain events, receipt, and required outbox items; a failed put publishes none of them. The transition is pure and runs after authorization, expected-version, stale-attempt, and idempotency checks.

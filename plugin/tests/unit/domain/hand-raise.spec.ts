@@ -4,7 +4,9 @@ import type { MeetingState } from "../../../src/domain/model.js";
 
 function state(overrides: Partial<MeetingState> = {}): MeetingState {
     return {
+        formatVersion: 2,
         id: "meeting-1",
+        attendanceRecommendations: [],
         handRaises: [],
         transcript: [],
         meetingTasks: [

@@ -11,7 +11,11 @@ export type DomainErrorCode =
     | "STALE_MANAGER_ATTEMPT"
     | "UNSUPPORTED_CAPABILITY"
     | "REQUIRED_SPEAKER_UNAVAILABLE"
-    | "MANAGER_PLAN_INVALID";
+    | "MANAGER_PLAN_INVALID"
+    | "AGENT_CATALOG_UNAVAILABLE"
+    | "AGENT_CANDIDATE_NOT_FOUND"
+    | "AGENT_CANDIDATE_UNAVAILABLE"
+    | "ATTENDANCE_RECOMMENDATION_INVALID";
 
 export class DomainError extends Error {
     readonly name = "DomainError";

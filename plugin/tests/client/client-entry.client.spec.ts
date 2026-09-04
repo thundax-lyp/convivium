@@ -41,6 +41,7 @@ function statusResult(
         risks: [],
         blockingFacts: [],
         meetingTasks: [],
+        attendanceRecommendations: [],
         status,
         stallCount: 0,
         maxStalls: 3,

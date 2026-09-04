@@ -41,7 +41,8 @@ import {
     createCommitRecord,
     decodeProjection,
     encodeProjection,
-    projectionDigest
+    projectionDigest,
+    UnsupportedMeetingStateFormatError
 } from "./projection.js";
 import { diff } from "./json-patch.js";
 import { catalogKey, receiptKey, seqKey } from "./keys.js";
@@ -163,7 +164,15 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 repository.headSeq = last?.seq ?? pointer?.baseSeq ?? 0;
                 repository.headDigest =
                     last?.digest ?? (pointer ? projectionDigest(repository.projection) : null);
-            } catch {
+            } catch (error) {
+                if (error instanceof UnsupportedMeetingStateFormatError) {
+                    throw new RepositoryError(
+                        "SCHEMA_VERSION_UNSUPPORTED",
+                        false,
+                        options.meetingId,
+                        "Meeting state format is unsupported"
+                    );
+                }
                 throw new RepositoryError(
                     "CORRUPT_DATABASE",
                     false,

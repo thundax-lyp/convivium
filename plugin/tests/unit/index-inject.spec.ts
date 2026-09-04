@@ -78,6 +78,7 @@ describe("Convivium local Meeting route lifecycle", () => {
         const toolDisposers: Array<ReturnType<typeof vi.fn>> = [];
         const childOrder: string[] = [];
         const ctx = {
+            get: vi.fn(() => undefined),
             effect(setup: () => () => void | Promise<void>) {
                 effects.push(setup());
             },
@@ -131,6 +132,7 @@ describe("Convivium local Meeting route lifecycle", () => {
             effects,
             toolDisposers,
             childOrder,
+            get: ctx.get,
             dispose: async () => {
                 for (const effect of [...effects].reverse()) await effect();
             }
@@ -153,6 +155,8 @@ describe("Convivium local Meeting route lifecycle", () => {
         await fixture.dispose();
         expect(fixture.routeDispose).toHaveBeenCalledTimes(1);
         expect(fixture.toolDisposers).toHaveLength(18);
+        expect(fixture.get).toHaveBeenCalledTimes(1);
+        expect(fixture.get).toHaveBeenCalledWith("convivium.agentCatalog");
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 

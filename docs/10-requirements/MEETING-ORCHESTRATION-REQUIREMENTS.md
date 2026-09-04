@@ -175,6 +175,12 @@
 9. candidate 的 Meeting Agent Definition 不存在、其引用的 DSH Preset/Skill 无法验证，或 Session provisioning 失败时，不得产生部分可用 Participant；会议必须显示失败原因，并允许 Manager 在新状态上推荐替代 candidate。
 10. GitHub、arXiv 和 Web research 角色必须按证据来源和分析责任区分；Manager 应先参考已有 evidence 索引，不能仅因搜索工具可用而重复推荐多个 Agent 处理相同来源范围。
 
+FR-13 Phase 1 只实现对单一 Host/profile-owned Catalog producer 的 consumer boundary、当前 Manager planning attempt 绑定的安全 Catalog projection、Manager recommendation claim 和 pending recommendation status projection。Host producer 本身、Captain disposition、Participant admission、Session provisioning、FR-14 Definition resolution、research dedup、UI/HTTP、真实 smoke、stress 和 metrics 不属于 Phase 1。
+
+Catalog 只在创建将投递给 Manager 的 planning attempt 时按需读取；Meeting creation 和不创建新 planning attempt 的普通命令不读取 Catalog。Catalog service 缺失或 snapshot 无法验证时，attempt 绑定“无 Catalog”，普通 Manager planning 继续；同一 attempt 后续携带 attendance claim 时必须 fail closed，且不得写 Meeting state、event、receipt、outbox 或增加 Meeting version。Catalog/candidate/claim 校验必须在既有 Manager business-invalid fallback 之前完成，不能转换为 `MANAGER_PLAN_INVALID` fallback。
+
+Phase 1 必须复用现有 `submit_manager_plan`、`MeetingRepositoryPort.execute`、request idempotency、receipt、Meeting version 和 projection 边界；不得增加独立 command、event family、worker、repository、Catalog cache、registry、factory、queue、第二个 Catalog source 或隐式 migration。
+
 ### FR-14：Meeting Agent Definition 与 DSH composition boundary
 
 1. Convivium 必须能定义版本化 Meeting Agent Definition；Definition 只包含稳定定义 ID、版本、会议角色、显示摘要、persona、DSH Agent Preset 引用、required DSH Skill 名称、optional DSH ToolRestriction、expertise tags 和 evidence scopes。

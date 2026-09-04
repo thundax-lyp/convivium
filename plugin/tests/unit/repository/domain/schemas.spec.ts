@@ -232,4 +232,31 @@ describe("domain schemas", () => {
             PersistedOutboxV1Schema.safeParse({ ...outbox, leaseOwner: undefined }).success
         ).toBe(false);
     });
+    it("recognizes V2 MeetingState structure without rejecting legacy or unknown formats", () => {
+        const withState = (state: Record<string, unknown>) => ({
+            ...projection,
+            snapshot: {
+                teamId: "t",
+                meetingId: "m",
+                version: 1,
+                state,
+                createdAt: 1,
+                updatedAt: 1
+            }
+        });
+        expect(
+            PersistenceProjectionV1Schema.safeParse(
+                withState({ formatVersion: 2, manager: {}, attendanceRecommendations: [] })
+            ).success
+        ).toBe(true);
+        expect(
+            PersistenceProjectionV1Schema.safeParse(
+                withState({ formatVersion: 2, manager: {}, attendanceRecommendations: undefined })
+            ).success
+        ).toBe(false);
+        expect(PersistenceProjectionV1Schema.safeParse(withState({ count: 0 })).success).toBe(true);
+        expect(
+            PersistenceProjectionV1Schema.safeParse(withState({ formatVersion: 3 })).success
+        ).toBe(true);
+    });
 });

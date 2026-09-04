@@ -1,10 +1,11 @@
 import Schema from "@deepseek-ai/schemastery";
-import { ProtocolVersionSchema } from "./schema.js";
+import { AttendanceRecommendationClaimSchema, ProtocolVersionSchema } from "./schema.js";
 import type {
     CaptainRiskDispositionInputV1,
     CreateMeetingInputV1,
     CaptainDecisionDispositionInputV1,
     FinishMeetingMailInputV1,
+    ManagerPlanSubmissionV1,
     SendMeetingMessageInputV1
 } from "./types.js";
 
@@ -383,8 +384,11 @@ const managerPlanStep = Schema.object({
 });
 // Schemastery skips array minimum checks when an object element has its default {}.
 managerPlanStep.meta.default = undefined;
+const attendanceRecommendations = Schema.array(AttendanceRecommendationClaimSchema);
+// Preserve omission so the optional command field does not gain an implicit default.
+attendanceRecommendations.meta.default = undefined;
 
-export const ManagerPlanSubmissionSchema = Schema.object({
+const managerPlanSubmissionSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,
     meetingId: nonEmptyString(),
     planningAttemptId: nonEmptyString(),
@@ -395,8 +399,31 @@ export const ManagerPlanSubmissionSchema = Schema.object({
     objective: nonEmptyString(),
     expectedOutputs: array(string()),
     prohibitedTopics: array(string()),
+    attendanceRecommendations,
     steps: array(managerPlanStep).min(1)
 });
+
+export const ManagerPlanSubmissionSchema: Schema<unknown, ManagerPlanSubmissionV1> =
+    Schema.transform(managerPlanSubmissionSchema, (value) => {
+        const expected = [
+            "protocolVersion",
+            "meetingId",
+            "planningAttemptId",
+            "observedMeetingVersion",
+            "requestId",
+            "agendaItemId",
+            "intent",
+            "objective",
+            "expectedOutputs",
+            "prohibitedTopics",
+            "steps"
+        ];
+        if (Object.prototype.hasOwnProperty.call(value, "attendanceRecommendations")) {
+            expected.push("attendanceRecommendations");
+        }
+        assertExactKeys(value, expected, "ManagerPlanSubmissionV1");
+        return value as ManagerPlanSubmissionV1;
+    }) as Schema<unknown, ManagerPlanSubmissionV1>;
 
 export const TurnSubmissionSchema: Schema<Record<string, unknown>> = Schema.object({
     protocolVersion: ProtocolVersionSchema,

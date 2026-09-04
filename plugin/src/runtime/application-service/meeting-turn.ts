@@ -8,19 +8,22 @@ import {
     planRoundRobinTurn,
     planRuleBasedTurn,
     requiredPlanningBlockers,
+    isMeetingStateV2,
     submitManagerPlan as submitManagerPlanTransition,
     submitSpeakerAndAdvanceMeeting,
     type MeetingState,
     type MeetingTurn
 } from "../../domain/index.js";
 import { failManagerPlanningAndCreateFallback } from "../../domain/transitions/manager-planning.js";
+import { DomainError } from "../../domain/errors.js";
 import { serializeValidatedRequestV1 } from "../../protocol/request-idempotency.js";
 import type {
     HandRaiseSubmissionV1,
     HandRaiseResultV1,
     ManagerPlanResultV1,
     ManagerPlanSubmissionV1,
-    TurnSubmissionResultV1
+    TurnSubmissionResultV1,
+    ProtocolErrorV1
 } from "../../protocol/index.js";
 import type { DomainEventInput, JsonObject, MeetingRepositoryRuntime } from "../meeting-runtime.js";
 import {
@@ -33,9 +36,39 @@ import type { MeetingDeliveryWorkerService } from "../services/types.js";
 import type { AuthorizedTaskEvidenceResolver } from "../task-evidence.js";
 import type { CreateStatusRuntimeOptions, MeetingToolRuntime } from "./index.js";
 import type { StoredMeeting } from "./types.js";
+import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
 
 type ManagerFallbackReasonCode =
     "manager_plan_invalid" | "manager_timeout" | "manager_delivery_retry_exhausted";
+
+function mapAttendanceRecommendationError(
+    error: unknown,
+    meetingId: string,
+    meetingVersion: number,
+    attemptId: string
+): ProtocolErrorV1 | undefined {
+    if (!(error instanceof DomainError)) return undefined;
+    const messages = {
+        AGENT_CATALOG_UNAVAILABLE: "Agent catalog is unavailable for this planning attempt.",
+        AGENT_CANDIDATE_NOT_FOUND:
+            "Agent candidate is not present in this planning attempt catalog.",
+        AGENT_CANDIDATE_UNAVAILABLE:
+            "Agent candidate is unavailable in this planning attempt catalog.",
+        ATTENDANCE_RECOMMENDATION_INVALID: "Attendance recommendation claim is invalid."
+    } as const;
+    const message = messages[error.code as keyof typeof messages];
+    if (message === undefined) return undefined;
+    return {
+        protocolVersion: 1,
+        ok: false,
+        code: error.code,
+        message,
+        meetingId,
+        meetingVersion,
+        attemptId,
+        retryable: false
+    };
+}
 
 export interface ManagerFallbackInput {
     readonly repository: MeetingRepositoryRuntime;
@@ -389,6 +422,91 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
             );
             try {
                 const current = await stored.repository.read();
+                const currentState = current.state as unknown as MeetingState;
+                const taskEvidence =
+                    input.completionClaims === undefined
+                        ? []
+                        : taskEvidenceResolver.resolve({
+                              state: currentState,
+                              meetingId: input.meetingId,
+                              participantId: caller.participantId!,
+                              taskIds: [
+                                  ...(input.completionClaims.outputClaims?.flatMap(
+                                      (claim) => claim.taskIds
+                                  ) ?? []),
+                                  ...(input.completionClaims.criterionClaims?.flatMap(
+                                      (claim) => claim.taskIds
+                                  ) ?? [])
+                              ].filter(
+                                  (taskId, index, taskIds) => taskIds.indexOf(taskId) === index
+                              )
+                          });
+                const planningIds = nextManagerPlanningIds(currentState);
+                const advanceContext = {
+                    meetingId: input.meetingId,
+                    participantId: caller.participantId!,
+                    turnId: input.turnId,
+                    stepId: input.stepId,
+                    attemptId: input.attemptId,
+                    deliveryId: input.deliveryId,
+                    agendaItemId: input.agendaItemId,
+                    message: {
+                        id: messageId,
+                        content: input.content,
+                        kind: input.kind,
+                        mentions: input.mentions,
+                        ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
+                        taskIds: input.taskIds,
+                        agendaRelation: input.agendaRelation,
+                        createdAt: commandNow
+                    },
+                    now: commandNow,
+                    nextPlanningAttemptId: planningIds.planningAttemptId,
+                    nextPlanningDeliveryId: planningIds.deliveryId,
+                    issues,
+                    questions,
+                    proposals,
+                    positions,
+                    agendaCandidates,
+                    decisionCandidates,
+                    ...(input.completionClaims === undefined
+                        ? {}
+                        : {
+                              completion: {
+                                  claims: input.completionClaims,
+                                  authorizedTaskIds: taskEvidence.map(
+                                      (evidence) => evidence.meetingTaskId
+                                  ),
+                                  factId: (kind: string, index: number) =>
+                                      `completion-${input.deliveryId}-${kind}-${index}`
+                              }
+                          })
+                };
+                const currentStep =
+                    currentState.currentTurn?.steps[currentState.currentTurn.currentStepIndex];
+                const hasCurrentAttempt =
+                    currentStep?.attempt?.attemptId === input.attemptId &&
+                    currentStep.attempt.participantId === caller.participantId &&
+                    currentStep.attempt.status === "running";
+                const preview = hasCurrentAttempt
+                    ? submitSpeakerAndAdvanceMeeting(
+                          structuredClone(currentState),
+                          caller.participantId!,
+                          {
+                              ...advanceContext,
+                              catalogBinding: { kind: "none" as const }
+                          }
+                      )
+                    : undefined;
+                const shouldCapture = preview?.state.manager.currentPlanningAttempt !== undefined;
+                const catalogBinding =
+                    shouldCapture && isMeetingStateV2(currentState)
+                        ? await captureManagerCatalogBinding(options.agentCatalog, {
+                              teamId: stored.teamId,
+                              meetingId: stored.repository.meetingId,
+                              captainSessionId: stored.captainSessionId
+                          })
+                        : { kind: "none" as const };
                 const committed = await stored.repository.execute({
                     requestId: input.deliveryId,
                     commandKind: "submit_turn",
@@ -401,70 +519,12 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     expectedMeetingVersion: current.version,
                     transition: (snapshot) => {
                         const state = snapshot.state as unknown as MeetingState;
-                        const taskEvidence =
-                            input.completionClaims === undefined
-                                ? []
-                                : taskEvidenceResolver.resolve({
-                                      state,
-                                      meetingId: input.meetingId,
-                                      participantId: caller.participantId!,
-                                      taskIds: [
-                                          ...(input.completionClaims.outputClaims?.flatMap(
-                                              (claim) => claim.taskIds
-                                          ) ?? []),
-                                          ...(input.completionClaims.criterionClaims?.flatMap(
-                                              (claim) => claim.taskIds
-                                          ) ?? [])
-                                      ].filter(
-                                          (taskId, index, taskIds) =>
-                                              taskIds.indexOf(taskId) === index
-                                      )
-                                  });
-                        const planningIds = nextManagerPlanningIds(state);
                         const transition = submitSpeakerAndAdvanceMeeting(
                             state,
                             caller.participantId!,
                             {
-                                meetingId: input.meetingId,
-                                participantId: caller.participantId!,
-                                turnId: input.turnId,
-                                stepId: input.stepId,
-                                attemptId: input.attemptId,
-                                deliveryId: input.deliveryId,
-                                agendaItemId: input.agendaItemId,
-                                message: {
-                                    id: messageId,
-                                    content: input.content,
-                                    kind: input.kind,
-                                    mentions: input.mentions,
-                                    ...(input.replyTo === undefined
-                                        ? {}
-                                        : { replyTo: input.replyTo }),
-                                    taskIds: input.taskIds,
-                                    agendaRelation: input.agendaRelation,
-                                    createdAt: commandNow
-                                },
-                                now: commandNow,
-                                nextPlanningAttemptId: planningIds.planningAttemptId,
-                                nextPlanningDeliveryId: planningIds.deliveryId,
-                                issues,
-                                questions,
-                                proposals,
-                                positions,
-                                agendaCandidates,
-                                decisionCandidates,
-                                ...(input.completionClaims === undefined
-                                    ? {}
-                                    : {
-                                          completion: {
-                                              claims: input.completionClaims,
-                                              authorizedTaskIds: taskEvidence.map(
-                                                  (evidence) => evidence.meetingTaskId
-                                              ),
-                                              factId: (kind: string, index: number) =>
-                                                  `completion-${input.deliveryId}-${kind}-${index}`
-                                          }
-                                      })
+                                ...advanceContext,
+                                catalogBinding
                             }
                         );
                         const transitionState =
@@ -592,8 +652,10 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     true
                 );
             }
+            let currentMeetingVersion = input.observedMeetingVersion;
             try {
                 const current = await stored.repository.read();
+                currentMeetingVersion = current.version;
                 const recovered = await stored.repository.recover();
                 const commandNow = options.now?.() ?? Date.now();
                 const state = current.state as unknown as MeetingState;
@@ -617,7 +679,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                         capabilityId: `manager:${caller.sessionId}`,
                         attemptId: input.planningAttemptId
                     },
-                    requestHash: JSON.stringify(input),
+                    requestHash: serializeValidatedRequestV1(input),
                     expectedMeetingVersion: input.observedMeetingVersion,
                     transition: (snapshot) => {
                         const snapshotState = snapshot.state as unknown as MeetingState;
@@ -631,7 +693,8 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                                     snapshotState.manager.currentPlanningAttempt?.deliveryId ?? "",
                                 observedMeetingVersion: input.observedMeetingVersion,
                                 dispatchableParticipantIds,
-                                now: commandNow
+                                now: commandNow,
+                                managerSessionId: caller.sessionId
                             },
                             {
                                 turnId: `turn-${snapshotState.turnSeq + 1}`,
@@ -696,6 +759,13 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     committed.result as ManagerPlanResultV1
                 );
             } catch (error) {
+                const attendanceError = mapAttendanceRecommendationError(
+                    error,
+                    input.meetingId,
+                    currentMeetingVersion,
+                    input.planningAttemptId
+                );
+                if (attendanceError !== undefined) return attendanceError;
                 return commandError(
                     error,
                     "MANAGER_PLAN_INVALID",
@@ -750,6 +820,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                                 )
                                 .map((participant) => participant.id),
                             now: input.now,
+                            managerSessionId: `runtime:${input.meetingId}`,
                             reasonCode: input.reasonCode
                         },
                         ids

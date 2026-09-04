@@ -476,6 +476,7 @@ export interface ManagerMeetingContextV1 {
     continuationMaterials: readonly PublicContinuationMaterialV1[];
     limits: PublicMeetingLimitsV1;
     planningReason: string;
+    agentCatalog: MeetingAgentCatalogProjectionV1 | null;
 }
 
 export interface PublicBlockingFactV1 {
@@ -539,6 +540,94 @@ export interface PublicMeetingMessageV1 {
     createdAt: number;
 }
 
+export type AgentRoleDefinitionIdV1 =
+    | "domain_architect"
+    | "runtime_engineer"
+    | "protocol_ui_engineer"
+    | "verification_reviewer"
+    | "github_research_analyst"
+    | "arxiv_research_analyst"
+    | "web_research_analyst"
+    | "meeting_scribe";
+
+export type AgentEvidenceScopeV1 = "repository" | "github" | "arxiv" | "web";
+
+export interface AgentRoleDefinitionV1 {
+    roleDefinitionId: AgentRoleDefinitionIdV1;
+    version: string;
+    displayName: string;
+    summary: string;
+    expertiseTags: readonly string[];
+    evidenceScopes: readonly AgentEvidenceScopeV1[];
+    responsibilities: readonly string[];
+    nonResponsibilities: readonly string[];
+}
+
+export interface MeetingAgentCatalogSnapshotV1 {
+    protocolVersion: 1;
+    catalogId: string;
+    catalogVersion: string;
+    teamId: string;
+    capturedAt: number;
+    roles: readonly AgentRoleDefinitionV1[];
+    candidates: readonly {
+        candidateId: string;
+        roleDefinitionId: AgentRoleDefinitionIdV1;
+        roleDefinitionVersion: string;
+        sourceMemberName: string;
+        agentDefinitionId: string;
+        availability: "available" | "unavailable";
+    }[];
+}
+
+export interface MeetingAgentCandidateV1 {
+    candidateId: string;
+    roleDefinitionId: AgentRoleDefinitionIdV1;
+    roleDefinitionVersion: string;
+    displayName: string;
+    summary: string;
+    expertiseTags: readonly string[];
+    evidenceScopes: readonly AgentEvidenceScopeV1[];
+    responsibilities: readonly string[];
+    nonResponsibilities: readonly string[];
+    availability: "available" | "unavailable";
+}
+
+export interface ManagerResearchNeedV1 {
+    evidenceGapId: string;
+    agendaItemId: string;
+    question: string;
+    requiredScopes: readonly AgentEvidenceScopeV1[];
+    existingEvidenceIds: readonly string[];
+    status: "open" | "stale" | "satisfied";
+}
+
+export interface MeetingAgentCatalogProjectionV1 {
+    protocolVersion: 1;
+    catalogId: string;
+    catalogVersion: string;
+    candidates: readonly MeetingAgentCandidateV1[];
+    researchNeeds: readonly ManagerResearchNeedV1[];
+}
+
+export interface AttendanceRecommendationClaimV1 {
+    candidateId: string;
+    agendaItemId: string;
+    rationale: string;
+    expectedContribution: string;
+    evidenceGapIds: readonly string[];
+    urgency: "current_agenda" | "later_agenda" | "follow_up";
+}
+
+export interface PublicAttendanceRecommendationV1 extends AttendanceRecommendationClaimV1 {
+    recommendationId: string;
+    roleDefinitionId: AgentRoleDefinitionIdV1;
+    displayName: string;
+    status: "pending" | "approved" | "rejected" | "expired" | "cancelled";
+    admissionStatus?: "approved" | "provisioning" | "active" | "failed" | "cancelled";
+    failureCode?: string;
+}
+
 export interface ManagerPlanSubmissionV1 {
     protocolVersion: ProtocolVersion;
     meetingId: string;
@@ -550,6 +639,7 @@ export interface ManagerPlanSubmissionV1 {
     objective: string;
     expectedOutputs: readonly string[];
     prohibitedTopics: readonly string[];
+    attendanceRecommendations?: readonly AttendanceRecommendationClaimV1[];
     steps: readonly {
         participantId: string;
         instruction: string;
@@ -986,6 +1076,14 @@ export type KnownMeetingProtocolErrorCodeV1 =
     | "MANAGER_PLAN_INVALID"
     | "DELIVERY_RETRY_EXHAUSTED"
     | "UNSUPPORTED_CAPABILITY"
+    | "AGENT_CATALOG_UNAVAILABLE"
+    | "AGENT_CATALOG_VERSION_UNSUPPORTED"
+    | "AGENT_CANDIDATE_NOT_FOUND"
+    | "AGENT_CANDIDATE_UNAVAILABLE"
+    | "ATTENDANCE_RECOMMENDATION_INVALID"
+    | "ATTENDANCE_RECOMMENDATION_STALE"
+    | "ATTENDANCE_RECOMMENDATION_NOT_PENDING"
+    | "PARTICIPANT_PROVISIONING_FAILED"
     | "INTERNAL_ERROR";
 
 export type MeetingProtocolErrorCodeV1 = KnownMeetingProtocolErrorCodeV1 | (string & {});

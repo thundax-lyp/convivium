@@ -20,6 +20,11 @@ DSH `tool/call`、`tool/result`、Session lifecycle 和其他 DSH-owned Session 
 
 当前 Domain event 词汇包括会议生命周期（`meeting.*`）、Turn 生命周期（`turn.*`）、speaker 分配与执行（`speaker.*`、`speaker_attempt.*`）、Manager plan（`manager_plan.*`）、MeetingTask 与 HandRaise（`meeting_task.*`、`hand_raise.*`）以及正式会议事实（`message.added`、`decision.accepted`、`decision.superseded`、`decision.revoked`、`archive.sessions_closed`）。具体允许值由 `plugin/src/domain/model.ts` 的 `DomainEventTypes` 集中定义。
 
+FR-13 Phase 1 不增加 event type。`manager_plan.submitted` payload 增加 required
+`recommendationIds: string[]`，无 claim 时为 `[]`；它与 pending recommendation state、
+既有 receipt 和 Speaker outbox 由同一 `submit_manager_plan` commit 原子发布，并保持在
+`turn.planned`、`turn.started` 与 Speaker events 之前。
+
 ## Authority And Boundaries
 
 - MeetingState 是 Meeting Domain 的完整当前事实模型。
@@ -64,7 +69,7 @@ MeetingState 必须包含以下字段：
 | Formal facts | transcript, proposals, decisions, openQuestions, handRaises, meetingTasks, completionFacts, artifactRefs |
 | Progress     | turnSeq, messageSeq, eventSeq, currentTurn?, waitState?, progressFingerprint?, stallCount, replanCount   |
 | Limits       | selectionMode, limits                                                                                    |
-| Versioning   | version, createdAt, updatedAt                                                                            |
+| Versioning   | formatVersion, version, createdAt, updatedAt                                                             |
 
 核心约束：
 
@@ -89,15 +94,37 @@ status 为 creating、idle、planning、failed 或 closed。Manager 是会议控
 
 ### AttendanceRecommendation And ParticipantAdmission
 
-AttendanceRecommendation 必须包含 id、candidateId、roleDefinitionId、agentDefinitionId、agendaItemId、rationale、expectedContribution、evidenceGapIds、urgency、status、createdAt 和 Manager planning provenance。status 为 pending、approved、rejected、expired 或 cancelled。
+Phase 1 的 `MeetingState.attendanceRecommendations` 是 required collection，新 V2 Meeting 初始化为 `[]`。legacy Meeting 的 status mapper 输出 `[]`，但不向 legacy state 写回该字段。
+
+Phase 1 internal `AttendanceRecommendation` 必须包含 `id`、`candidateId`、`roleDefinitionId`、`roleDefinitionVersion`、`displayName`、私有 `agentDefinitionId`、`agendaItemId`、`rationale`、`expectedContribution`、`evidenceGapIds`、`urgency`、`recommendedByManagerSessionId`、`catalogId`、`catalogVersion`、`planningAttemptId`、literal `status: "pending"` 和 `createdAt`。它复制 verified snapshot 中形成 pending status 与后续 provenance 所需的最小字段，不保存完整 snapshot。
 
 ParticipantAdmission 必须包含 id、recommendationId、candidateId、participantId、agentDefinitionId、status 和 failureCode?。status 为 approved、provisioning、active、failed 或 cancelled。只有 active admission 对应的 Participant 才可进入发言候选集；pending recommendation 与非 active admission 不授予 Meeting capability。
 
+Captain disposition、ParticipantAdmission 和非 pending recommendation status 不在 FR-13 Phase 1 implementation 范围。
+
 ### ManagerPlanningAttempt
 
-必须包含 id、observedMeetingVersion、reason、status、deliveryId、createdAt 和 deadlineAt?。
+必须包含 id、observedMeetingVersion、reason、status、deliveryId、createdAt、deadlineAt? 和 required `catalogBinding`。
 
 reason 为 initial_plan、next_turn、semantic_arbitration、refocus、stall、replan 或 termination_review。status 为 pending、running、submitted、revoked 或 failed。
+
+FR-13 Phase 1 的 canonical `MeetingState` 包含 required literal `formatVersion: 2`。`ManagerPlanningAttempt.catalogBinding` 的 exact type 是：
+
+```ts
+type ManagerCatalogBindingV1 =
+  | { kind: "verified"; snapshot: MeetingAgentCatalogSnapshot }
+  | { kind: "none" };
+```
+
+`MeetingAgentCatalogSnapshot` 是 Domain-owned 持久值，字段与 interface 的 `MeetingAgentCatalogSnapshotV1` 同构，但 Domain 不导入 Protocol。Runtime consumer port 完成外部 Schema 校验后，在唯一 capture boundary 逐字段复制为该内部值；不得直接持久化可变 transport object，也不得增加第二 mapper。
+
+该 binding 只属于当前 attempt，不在 Meeting 顶层或历史 attempt 集合重复保存。`verified` snapshot 是 Manager safe projection 与 attendance claim validation 的唯一事实；`none` 允许普通 planning 继续但禁止 attendance claim。创建将投递给 Manager 的 attempt 时，Runtime 最多读取 producer 一次，并在创建 attempt 的同一 Meeting commit 中写入 binding；恢复后只从该字段重建 Manager context。
+
+无 `MeetingState.formatVersion` 的既有 state 保持 legacy 语义并可恢复普通能力，但不得进入 attendance context/claim path。禁止为 legacy state 补 default、转换为 V2 或建立 migration mapper。`PersistenceProjectionV1.formatVersion` 保持 `1`。
+
+`plugin/src/domain/model.ts::isMeetingStateV2(value: unknown): value is MeetingState` 是 Manager context producer 与 attendance claim consumer 共享的唯一 narrowing guard。它只在 repository 已完成 format/binding 窄校验后证明 V2；不得承担 migration、defaulting 或普通 Runtime state conversion。
+
+完整 snapshot 子值的 canonical UTF-8 JSON 不得超过 `16 * 1024` bytes，并继续受完整 commit 的 `65_536` bytes 上限约束。Domain 不实现压缩、分页、动态配额、refresh、cache、retry 或多版本 binding 状态机。
 
 ## Objective, Agenda And Issues
 

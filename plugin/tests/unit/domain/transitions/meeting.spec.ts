@@ -114,7 +114,8 @@ describe("meeting lifecycle and archive transitions", () => {
                 reason: "old",
                 deliveryId: "old-delivery",
                 status: "revoked",
-                createdAt: now
+                createdAt: now,
+                catalogBinding: { kind: "none" }
             }
         };
 
@@ -169,7 +170,8 @@ describe("meeting lifecycle and archive transitions", () => {
                 reason: "next_turn",
                 deliveryId: "manager-delivery-1",
                 status: "running",
-                createdAt: now
+                createdAt: now,
+                catalogBinding: { kind: "none" }
             }
         };
         state.meetingTasks = [
