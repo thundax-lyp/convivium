@@ -5,7 +5,7 @@
 本文记录当前代码相对已确认需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-09-04
-- 代码基线：`1a40b2250c85bb83e8a23d2689fbd7fd55c387df`
+- 代码基线：`449ea70e73df29c09eb6ba9f11ca6fdbd48dcf70`
 - 环境：Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、profile `web`、provider `spawn`
 - `已实现` 表示存在正式路径和相称验证；`部分实现` 表示存在局部路径但未闭合；`未实现` 表示没有产品运行路径。
 - 历史真实 profile 证据只适用于其原始 commit，不外推为当前 HEAD 证据。
@@ -39,7 +39,7 @@
 
 ## Executed Validation
 
-2026-09-04，在 target HEAD `1a40b2250c85bb83e8a23d2689fbd7fd55c387df` 执行 `pnpm --dir plugin verify`：
+2026-09-04，在 target HEAD `449ea70e73df29c09eb6ba9f11ca6fdbd48dcf70` 执行 `pnpm --dir plugin verify`：
 
 - Pass：format、lint、Host/Client typecheck、build、environment、contract、Agent Definition samples、package verifier。
 - Pass：74 test files、542 tests。
