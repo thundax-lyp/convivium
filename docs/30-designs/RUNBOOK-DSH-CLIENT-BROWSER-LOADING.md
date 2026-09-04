@@ -126,36 +126,9 @@ seam 按以下固定顺序执行：
 
 ## 7. 机械执行步骤
 
-### T3：固定 Browser 导航操作
-
-前置状态：前一完成 commit（T2 实现及其 focused validation PASS）已包含 `captainSessionId` producer、validator exact-key contract 和全部 T2 测试；[DSH Smoke 操作说明](../50-operations/HOW-TO-DSH-SMOKE.md#reassign-browser-ready-模式) 仍只有 URL 后五项业务断言，没有 Captain Session 导航。
-
-允许修改：`docs/50-operations/HOW-TO-DSH-SMOKE.md` 的 Reassign browser-ready 小节。
-
-禁止修改：requirements、interfaces、designs、readiness、产品代码、其他 operations 小节。
-
-执行：
-
-1. ready 判据增加 `probe.captainSessionId === "convivium-smoke-captain"`。
-2. 五项断言前增加唯一导航：打开 stdout URL；在 smoke workspace 的 session tree 选择 session ID `convivium-smoke-captain`；等待 conversation view；选择 label 精确为 `Meetings` 的 view。
-3. 写明 Harness 首页只显示“新会话”且未打开该 Session 不构成 Client 加载失败；若 session 不存在、`Meetings` view 不存在、Browser console 有 Convivium bundle evaluate/activate error，则 STOP 并记录对应证据。
-4. 保留原五项断言和 cleanup 原文语义，不增加 API key 配置或人工猜测步骤。
-
-验证：
-
-```bash
-pnpm --dir plugin exec prettier --check ../docs/50-operations/HOW-TO-DSH-SMOKE.md
-ruby -e 'files=Dir["docs/**/*.md"]; bad=[]; files.each{|p| File.read(p).scan(/\[[^\]]+\]\(([^)]+)\)/).flatten.each{|x| next if x =~ /^(https?:|#)/; f=x.split("#",2)[0]; bad << "#{p}: #{x}" unless File.exist?(File.expand_path(f,File.dirname(p)))}}; abort("missing links:\n#{bad.join("\n")}") unless bad.empty?'
-git diff --check
-```
-
-PASS：命令全为 `0`；小节同时包含固定 Session ID、`Meetings` label、三个 STOP 分类、原五项断言和 cleanup。
-
-STOP：正式 DSH UI 无法通过 session tree 选择 fixed Session，或 `conversation.view` owner 的实际 label/导航与 rc.2 不一致；报告 Browser DOM 和 rc.2 slot owner 证据，不改 Client slot。
-
 ### T4：取得当前 HEAD 的真实 Browser 证据
 
-前置状态：T1–T3 PASS；C 的 Developer Markdown 实现及 `CURRENT-IMPLEMENTATION-COVERAGE.md` Developer Markdown 行已先集成到 `origin/main`，协调者已把该 `origin/main` 同步到当前分支；`dev.env` 存在且仅含 non-empty `DEEPSEEK_API_KEY`；无旧 smoke Host 进程占用本次端口。执行者先运行以下固定 gate，不满足即 STOP，不自行 merge/rebase：
+前置状态：前一完成 commit（T3 实现及其验证 PASS）已包含固定 Session/`Meetings` 导航和全部操作文档断言；C 的 Developer Markdown 实现及 `CURRENT-IMPLEMENTATION-COVERAGE.md` Developer Markdown 行已先集成到 `origin/main`，协调者已把该 `origin/main` 同步到当前分支；`dev.env` 存在且仅含 non-empty `DEEPSEEK_API_KEY`；无旧 smoke Host 进程占用本次端口。执行者先运行以下固定 gate，不满足即 STOP，不自行 merge/rebase：
 
 ```bash
 git fetch origin
