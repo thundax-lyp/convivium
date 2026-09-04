@@ -126,32 +126,9 @@ seam 按以下固定顺序执行：
 
 ## 7. 机械执行步骤
 
-### T0：锁定执行基线
-
-前置状态：分支为 `codex/dsh-client-browser-loading`；相对产品基线 `4e77bf4c4f0a1a8dd553c1282f05e45a24c86308` 的已提交差异为空或只包含本 RUNBOOK；工作树为空或只包含本 RUNBOOK。RUNBOOK 是否已固化提交不改变产品基线判定。
-
-允许修改：无。
-
-禁止修改：全部 tracked 文件。
-
-执行：从仓库根目录运行验证命令并记录输出。
-
-验证：
-
-```bash
-test "$(git branch --show-current)" = "codex/dsh-client-browser-loading"
-test "$(git diff --name-only 4e77bf4c4f0a1a8dd553c1282f05e45a24c86308..HEAD | grep -v '^docs/30-designs/RUNBOOK-DSH-CLIENT-BROWSER-LOADING.md$' | wc -l | tr -d ' ')" = "0"
-test "$(git status --short | grep -v ' docs/30-designs/RUNBOOK-DSH-CLIENT-BROWSER-LOADING.md$' | wc -l | tr -d ' ')" = "0"
-node -e 'const p=require("./plugin/package.json"); if(p.devDependencies["@deepseek-ai/dsh-client-runtime"]!=="0.1.1-rc.2"||p.dsh?.client?.platform!=="web"||p.exports?.["./client"]?.default!=="./lib/client.js") process.exit(1)'
-```
-
-PASS：四条命令均退出 `0`；除本 RUNBOOK 外，产品、正式文档和工作树都与产品基线一致。
-
-STOP：branch、HEAD、工作树或 manifest 任一不匹配；报告实际值，不 switch、reset、clean、merge 或 pull。
-
 ### T1：增加真实 Web Client Loader preflight
 
-前置状态：T0 PASS；`plugin/scripts/smoke-profile/index.mjs` 仍在 browser mode 中先取得 `probeResult`，后打印 Browser URL。
+前置状态：前一完成 commit `a1e65e95ac3e52fb807290b4ba5c4e271c25007e` 已包含 T0 检查且 PASS；`plugin/scripts/smoke-profile/index.mjs` 仍在 browser mode 中先取得 `probeResult`，后打印 Browser URL。
 
 允许修改：
 
