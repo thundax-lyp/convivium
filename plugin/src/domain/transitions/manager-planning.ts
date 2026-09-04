@@ -455,7 +455,7 @@ export function submitManagerPlan(
         version: state.version + 1,
         updatedAt: context.now,
         manager: { ...state.manager, status: "idle", currentPlanningAttempt: undefined },
-        attendanceRecommendations: [...state.attendanceRecommendations, ...recommendations],
+        attendanceRecommendations: [...(state.attendanceRecommendations ?? []), ...recommendations],
         currentTurn: runningTurn,
         turnSeq: runningTurn.seq,
         participants: state.participants.map((participant) =>

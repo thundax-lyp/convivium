@@ -156,7 +156,7 @@ describe("meeting status projection", () => {
                         catalogVersion: "v1",
                         planningAttemptId: "planning-1",
                         status: "pending",
-                        createdAt: 2
+                        createdAt: 1
                     },
                     {
                         id: "recommendation-1",
@@ -175,7 +175,7 @@ describe("meeting status projection", () => {
                         catalogVersion: "v1",
                         planningAttemptId: "planning-1",
                         status: "pending",
-                        createdAt: 1
+                        createdAt: 2
                     }
                 ]
             } as MeetingState,
@@ -183,8 +183,8 @@ describe("meeting status projection", () => {
         );
         expect(projected).toMatchObject({
             attendanceRecommendations: [
-                { recommendationId: "recommendation-1" },
-                { recommendationId: "recommendation-2" }
+                { recommendationId: "recommendation-2" },
+                { recommendationId: "recommendation-1" }
             ]
         });
         expect(JSON.stringify(projected.attendanceRecommendations)).not.toMatch(

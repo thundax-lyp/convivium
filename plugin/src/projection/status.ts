@@ -376,7 +376,10 @@ export function projectMeetingStatus(
         attendanceRecommendations:
             caller.kind === "captain" || caller.kind === "manager" || caller.kind === "participant"
                 ? [...(state.attendanceRecommendations ?? [])]
-                      .sort((left, right) => left.id.localeCompare(right.id))
+                      .sort(
+                          (left, right) =>
+                              left.createdAt - right.createdAt || left.id.localeCompare(right.id)
+                      )
                       .map(attendanceRecommendation)
                 : []
     };
