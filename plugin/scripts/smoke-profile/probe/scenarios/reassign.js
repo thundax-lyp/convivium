@@ -50,6 +50,16 @@ export async function runReassignScenario(runtime) {
     )?.participantId;
     runtime.assert(oldAttemptId && replacementParticipantId, "reassign identifiers missing");
     if (runtime.browserMode) {
+        captain.agent.session.append(
+            "user/message",
+            {
+                id: "convivium-reassign-browser-message",
+                role: "user",
+                content: [{ type: "text", text: "Browser reassign evidence session" }],
+                source: { kind: "user" }
+            },
+            { surfaceOp: "append" }
+        );
         await ctx.sessions.flush(captain.agent.session);
         runtime.assert(runtime.workspace !== undefined, "browser smoke workspace missing");
         await runtime.workspace.attachSession(runtime.captain.agent.session.id);

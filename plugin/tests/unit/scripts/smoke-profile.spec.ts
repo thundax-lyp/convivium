@@ -152,6 +152,13 @@ describe("smoke profile scenario guard", () => {
         expect(reassignSource).toContain("export async function runReassignScenario(runtime)");
         expect(reassignSource).toContain("if (runtime.browserMode)");
         expect(reassignSource).toContain('"browser-reassign-ready"');
+        expect(reassignSource).toContain('"convivium-reassign-browser-message"');
+        expect(reassignSource.indexOf('"user/message"')).toBeLessThan(
+            reassignSource.indexOf("ctx.sessions.flush")
+        );
+        expect(reassignSource.indexOf("ctx.sessions.flush")).toBeLessThan(
+            reassignSource.indexOf("runtime.workspace.attachSession")
+        );
         expect(reassignSource.indexOf("if (runtime.browserMode)")).toBeLessThan(
             reassignSource.indexOf('"convivium_reassign_turn"')
         );
