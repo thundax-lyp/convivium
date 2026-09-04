@@ -19,6 +19,7 @@ import {
     createCreateStatusRuntime,
     LocalMeetingRecoveryUnavailableError
 } from "../../src/runtime/application-service/index.js";
+import type { AgentCatalogPort } from "../../src/runtime/services/agent-catalog.js";
 
 const roots: string[] = [];
 const storageContexts: Array<Promise<Context>> = [];
@@ -92,6 +93,7 @@ function localRuntime(
     options: {
         now?: () => number;
         validateCommand?: () => void;
+        agentCatalog?: AgentCatalogPort;
     } = {}
 ) {
     return createCreateStatusRuntime({
@@ -108,7 +110,8 @@ function localRuntime(
             validateCreate: () => undefined,
             validateCommand: options.validateCommand ?? (() => undefined)
         },
-        now: options.now
+        now: options.now,
+        agentCatalog: options.agentCatalog
     });
 }
 
@@ -119,6 +122,177 @@ afterEach(async () => {
 });
 
 describe("create/status meeting runtime", () => {
+    it("captures Catalog exactly once for an initial Manager attempt and not for rule planning", async () => {
+        const snapshot = {
+            protocolVersion: 1 as const,
+            catalogId: "catalog-1",
+            catalogVersion: "2026-09-04",
+            teamId: input.teamId,
+            capturedAt: 100,
+            roles: [
+                {
+                    roleDefinitionId: "generalist" as const,
+                    version: "1",
+                    displayName: "Generalist",
+                    summary: "General meeting support",
+                    expertiseTags: [],
+                    evidenceScopes: [],
+                    responsibilities: ["Review"],
+                    nonResponsibilities: []
+                }
+            ],
+            candidates: []
+        };
+        const readSnapshot = vi.fn(async () => ({ ok: true as const, snapshot }));
+        const managerCatalog: AgentCatalogPort = { readSnapshot };
+        const managerRoot = await mkdtemp(join(tmpdir(), "convivium-catalog-initial-"));
+        roots.push(managerRoot);
+        const managerRuntime = localRuntime(managerRoot, { agentCatalog: managerCatalog });
+        const captain = {
+            sessionId: "captain-catalog",
+            kind: "captain" as const,
+            agent: { id: "captain-catalog" } as never
+        };
+        const managerMeeting = await managerRuntime.createMeeting(
+            {
+                ...input,
+                selectionMode: "manager",
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        expect(managerMeeting).toMatchObject({ ok: true });
+        expect(readSnapshot).toHaveBeenCalledTimes(1);
+        expect(readSnapshot).toHaveBeenCalledWith({
+            teamId: input.teamId,
+            meetingId: expect.any(String),
+            captainSessionId: captain.sessionId
+        });
+        await managerRuntime.dispose();
+
+        const ruleRoot = await mkdtemp(join(tmpdir(), "convivium-catalog-rule-"));
+        roots.push(ruleRoot);
+        const ruleReadSnapshot = vi.fn(async () => ({ ok: true as const, snapshot }));
+        const ruleRuntime = localRuntime(ruleRoot, {
+            agentCatalog: { readSnapshot: ruleReadSnapshot }
+        });
+        const ruleMeeting = await ruleRuntime.createMeeting(
+            {
+                ...input,
+                requestId: "create-rule-catalog",
+                selectionMode: "rule_based",
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        expect(ruleMeeting).toMatchObject({ ok: true });
+        expect(ruleReadSnapshot).not.toHaveBeenCalled();
+        await ruleRuntime.dispose();
+    });
+
+    it("accepts a recommendation only from the attempt-bound Catalog snapshot", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-catalog-claim-"));
+        roots.push(root);
+        const readSnapshot = vi.fn(async () => ({
+            ok: true as const,
+            snapshot: {
+                protocolVersion: 1 as const,
+                catalogId: "catalog-claim",
+                catalogVersion: "v1",
+                teamId: input.teamId,
+                capturedAt: 100,
+                roles: [
+                    {
+                        roleDefinitionId: "domain_architect" as const,
+                        version: "1",
+                        displayName: "Domain Architect",
+                        summary: "Architecture review",
+                        expertiseTags: ["architecture"],
+                        evidenceScopes: [],
+                        responsibilities: ["Review"],
+                        nonResponsibilities: []
+                    }
+                ],
+                candidates: [
+                    {
+                        candidateId: "candidate-claim",
+                        roleDefinitionId: "domain_architect" as const,
+                        roleDefinitionVersion: "1",
+                        sourceMemberName: "private-member",
+                        agentDefinitionId: "private-definition",
+                        availability: "available" as const
+                    }
+                ]
+            }
+        }));
+        const captain = {
+            sessionId: "captain-claim",
+            kind: "captain" as const,
+            agent: { id: "captain-claim" } as never
+        };
+        const runtime = localRuntime(root, {
+            agentCatalog: { readSnapshot }
+        });
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                requestId: "create-catalog-claim",
+                selectionMode: "manager",
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const manager = {
+            sessionId: `${created.result.meetingId}-manager-manager`,
+            meetingId: created.result.meetingId,
+            kind: "manager" as const
+        };
+        const plan = {
+            protocolVersion: 1 as const,
+            meetingId: created.result.meetingId,
+            requestId: "catalog-claim-plan",
+            planningAttemptId: `${created.result.meetingId}-planning-1`,
+            observedMeetingVersion: created.meetingVersion,
+            agendaItemId: "agenda-agenda-1",
+            intent: "explore",
+            objective: "Review scope",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            attendanceRecommendations: [
+                {
+                    candidateId: "candidate-claim",
+                    agendaItemId: "agenda-agenda-1",
+                    rationale: "Architecture coverage is needed.",
+                    expectedContribution: "Review the scope.",
+                    evidenceGapIds: [],
+                    urgency: "current_agenda" as const
+                }
+            ],
+            steps: [
+                {
+                    participantId: "participant-one",
+                    instruction: "Review the scope",
+                    reason: "manager_selected"
+                }
+            ]
+        };
+        const committed = await runtime.submitManagerPlan(plan, manager);
+        expect(committed).toMatchObject({
+            ok: true,
+            result: { status: "planned", fallbackApplied: false }
+        });
+        expect(readSnapshot).toHaveBeenCalledTimes(1);
+        await expect(runtime.submitManagerPlan(plan, manager)).resolves.toEqual(committed);
+        await runtime.dispose();
+    });
+
     it("persists the designed default mail handling timeout", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-mail-default-"));
         roots.push(root);
@@ -1371,18 +1545,19 @@ describe("create/status meeting runtime", () => {
                 });
             }
             const executionId = `${task.result.meetingTaskId}-execution`;
-            const started = await runtime.startMeetingTask(
-                {
-                    protocolVersion: 1,
-                    meetingId,
-                    meetingTaskId: task.result.meetingTaskId,
-                    requestId: "failed-start",
-                    executionId
-                } as never,
-                participant
-            );
+            const startInput = {
+                protocolVersion: 1,
+                meetingId,
+                meetingTaskId: task.result.meetingTaskId,
+                requestId: "failed-start",
+                executionId
+            } as never;
+            const started = await runtime.startMeetingTask(startInput, participant);
             expect(started).toMatchObject({ ok: true });
             if (!started.ok) throw new Error("task start failed");
+            await expect(runtime.startMeetingTask(startInput, participant)).resolves.toEqual(
+                started
+            );
             if (pauseBeforeFinish) {
                 await expect(
                     runtime.pause(

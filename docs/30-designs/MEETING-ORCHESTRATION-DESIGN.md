@@ -1167,7 +1167,15 @@ Manager plan MUST 校验：
 
 Agent role catalog、Manager recommendation、Captain disposition 和 admission 的跨边界类型以 [Meeting Agent Role Catalog Interface](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md) 为唯一契约。Catalog candidate 与 Meeting Participant 必须保持分离。
 
-Runtime 在 Manager planning context 中附带当前 authorized Catalog 的安全 projection 和已有 evidence 的最小索引。Manager 可以随合法 planning submission 推荐 candidate，但 recommendation 不改变当前 Turn、speaker candidates、objective contract 或权限。Runtime 必须从当前 Manager caller、planning attempt、Meeting version 和固化 Catalog snapshot 绑定 recommendation identity；Manager 不能提供 recommendation 状态、Participant ID 或 agentDefinitionId。
+FR-13 Phase 1 只覆盖 Catalog safe projection、Manager recommendation claim 和 pending status projection。Host/profile 通过唯一 optional consumer port 提供 snapshot；Meeting creation 不读取 Catalog。Runtime 仅在 source state 为 V2 且现有纯 transition preview 证明当前 command 将创建 Manager planning attempt 后读取一次，并在创建 attempt 的同一 commit 中写入 required `verified | none` binding。legacy source 不读取 Catalog；service 缺失或 snapshot 失败产生 `none`，普通 planning 继续。Runtime 不缓存、不重试、不另建 repository、event、outbox 或第二事实源。
+
+Runtime 从已提交 attempt binding 生成 Manager context。verified snapshot 投影安全 candidate metadata 和 `researchNeeds: []`；legacy 或 `none` 投影 `agentCatalog: null`。Manager 可以随合法 planning submission 推荐 candidate，但 recommendation 不改变当前 Turn、speaker candidates、objective contract 或权限。Runtime 必须从当前 Manager caller、planning attempt、Meeting version 和同一 verified snapshot 绑定 recommendation identity；Manager 不能提供 recommendation 状态、Participant ID 或 agentDefinitionId。
+
+attendance validation 位于既有 caller/version/idempotency/stale/terminal checks 之后，且位于 required-unavailable 与 Manager invalid fallback 的副作用之前。拒绝时使用 Role Catalog Interface 的结构化错误并保持 state/event/receipt/outbox/version 不变。成功时复用 `submit_manager_plan` 的单一 Repository commit，新增 pending fact，并把 ordered recommendation IDs 写入既有 `manager_plan.submitted` payload；不增加 event type。required-unavailable 或 fallback 分支不得写 recommendation。
+
+无 discriminator 的 legacy Meeting 保留普通能力，但 attendance path 使用 `isMeetingStateV2` fail closed；不得迁移、补 default 或扩大为全 Runtime union 重构。
+
+以下 Captain disposition、admission 和 provisioning 流程不属于 Phase 1：
 
 Captain 使用独立 command 处置 pending recommendation：
 

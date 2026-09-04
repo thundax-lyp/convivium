@@ -4,6 +4,7 @@ import type {
     LocalMeetingListResponseV1,
     LocalMeetingListResultV1
 } from "./types.js";
+import { agentRoleDefinitionIdSchema } from "./schema.js";
 
 const requiredString = () => Schema.string().required();
 const requiredNumber = () => Schema.number().required();
@@ -375,6 +376,20 @@ const active = Schema.object({
     risks: requiredArray(risk),
     blockingFacts: requiredArray(blockingFact),
     meetingTasks: requiredArray(meetingTask),
+    attendanceRecommendations: requiredArray(
+        Schema.object({
+            recommendationId: requiredString(),
+            candidateId: requiredString(),
+            agendaItemId: requiredString(),
+            rationale: requiredString(),
+            expectedContribution: requiredString(),
+            evidenceGapIds: requiredArray(requiredString()),
+            urgency: enumOf(["current_agenda", "later_agenda", "follow_up"] as const),
+            roleDefinitionId: agentRoleDefinitionIdSchema,
+            displayName: requiredString(),
+            status: enumOf(["pending", "approved", "rejected", "expired", "cancelled"] as const)
+        })
+    ),
     status: enumOf(["created", "running", "waiting", "paused", "converging"] as const),
     stallCount: requiredNumber(),
     maxStalls: requiredNumber(),
@@ -423,6 +438,20 @@ const terminal = Schema.object({
     currentAttemptId: Schema.never(),
     pendingHandRaises: Schema.tuple([]).required(),
     meetingTasks: requiredArray(meetingTask),
+    attendanceRecommendations: requiredArray(
+        Schema.object({
+            recommendationId: requiredString(),
+            candidateId: requiredString(),
+            agendaItemId: requiredString(),
+            rationale: requiredString(),
+            expectedContribution: requiredString(),
+            evidenceGapIds: requiredArray(requiredString()),
+            urgency: enumOf(["current_agenda", "later_agenda", "follow_up"] as const),
+            roleDefinitionId: agentRoleDefinitionIdSchema,
+            displayName: requiredString(),
+            status: enumOf(["pending", "approved", "rejected", "expired", "cancelled"] as const)
+        })
+    ),
     pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
     termination: executionTermination.required(),
     completionFactIds: requiredArray(requiredString()),

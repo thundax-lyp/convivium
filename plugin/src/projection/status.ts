@@ -1,5 +1,6 @@
-import type { MeetingState } from "../domain/model.js";
+import { isMeetingStateV2, type MeetingState } from "../domain/model.js";
 import type {
+    MeetingAgentCatalogProjectionV1,
     ExecutionTerminalMeetingStatusResultV1,
     ManagerMeetingContextV1,
     MeetingStatusResultV1,
@@ -158,6 +159,21 @@ function risk(value: MeetingState["issues"][number]): PublicRiskV1 {
         ...(value.rationale === undefined ? {} : { rationale: value.rationale }),
         ...(value.ownerId === undefined ? {} : { ownerId: value.ownerId }),
         relatedTaskIds: value.relatedTaskIds
+    };
+}
+
+function attendanceRecommendation(value: MeetingState["attendanceRecommendations"][number]) {
+    return {
+        recommendationId: value.id,
+        candidateId: value.candidateId,
+        agendaItemId: value.agendaItemId,
+        rationale: value.rationale,
+        expectedContribution: value.expectedContribution,
+        evidenceGapIds: [...value.evidenceGapIds],
+        urgency: value.urgency,
+        roleDefinitionId: value.roleDefinitionId,
+        displayName: value.displayName,
+        status: value.status
     };
 }
 
@@ -356,7 +372,16 @@ export function projectMeetingStatus(
                     summary: question.text
                 }))
         ],
-        meetingTasks: state.meetingTasks.map(meetingTask)
+        meetingTasks: state.meetingTasks.map(meetingTask),
+        attendanceRecommendations:
+            caller.kind === "captain" || caller.kind === "manager" || caller.kind === "participant"
+                ? [...(state.attendanceRecommendations ?? [])]
+                      .sort(
+                          (left, right) =>
+                              left.createdAt - right.createdAt || left.id.localeCompare(right.id)
+                      )
+                      .map(attendanceRecommendation)
+                : []
     };
 
     if (isExecutionTerminalStatus(state.status)) {
@@ -438,6 +463,37 @@ export function projectManagerMeetingContext(
     if (!("messages" in status)) {
         throw new TypeError("Manager planning requires an active meeting projection");
     }
+    const catalogBinding = isMeetingStateV2(state) ? planningAttempt.catalogBinding : undefined;
+    const agentCatalog: MeetingAgentCatalogProjectionV1 | null =
+        catalogBinding?.kind === "verified"
+            ? {
+                  protocolVersion: 1,
+                  catalogId: catalogBinding.snapshot.catalogId,
+                  catalogVersion: catalogBinding.snapshot.catalogVersion,
+                  candidates: catalogBinding.snapshot.candidates.map((candidate) => {
+                      const role = catalogBinding.snapshot.roles.find(
+                          (value) =>
+                              value.roleDefinitionId === candidate.roleDefinitionId &&
+                              value.version === candidate.roleDefinitionVersion
+                      );
+                      if (role === undefined)
+                          throw new TypeError("Verified Catalog candidate role is missing");
+                      return {
+                          candidateId: candidate.candidateId,
+                          roleDefinitionId: candidate.roleDefinitionId,
+                          roleDefinitionVersion: candidate.roleDefinitionVersion,
+                          displayName: role.displayName,
+                          summary: role.summary,
+                          expertiseTags: role.expertiseTags,
+                          evidenceScopes: role.evidenceScopes,
+                          responsibilities: role.responsibilities,
+                          nonResponsibilities: role.nonResponsibilities,
+                          availability: candidate.availability
+                      };
+                  }),
+                  researchNeeds: []
+              }
+            : null;
     return {
         protocolVersion: 1,
         meetingId: state.id,
@@ -453,7 +509,8 @@ export function projectManagerMeetingContext(
         meetingTasks: status.meetingTasks,
         continuationMaterials: status.continuationMaterials,
         limits: status.limits,
-        planningReason: planningAttempt.reason
+        planningReason: planningAttempt.reason,
+        agentCatalog
     };
 }
 

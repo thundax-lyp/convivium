@@ -46,10 +46,14 @@ export {
     MeetingTaskStatusResultSchema
 } from "./results.js";
 export {
+    AttendanceRecommendationClaimSchema,
     ProtocolErrorSchema,
     KnownMeetingProtocolErrorCodeSchema,
+    MeetingAgentCatalogProjectionSchema,
+    MeetingAgentCatalogSnapshotSchema,
     MeetingProtocolErrorCodeSchema,
     ProtocolMetaSchema,
+    PublicAttendanceRecommendationSchema,
     createProtocolSuccessEnvelopeSchema,
     ProtocolVersionSchema,
     validateProtocolError,

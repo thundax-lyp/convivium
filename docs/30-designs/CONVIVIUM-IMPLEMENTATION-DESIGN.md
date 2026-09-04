@@ -190,6 +190,16 @@ domain     ──> no infrastructure module
 
 上述文件可以在实现增长后拆分，但不得跨越职责边界或创建第二个 Meeting 写入口。
 
+### FR-13 Phase 1 Runtime composition
+
+`plugin/src/runtime/services/agent-catalog.ts` 是唯一 consumer port owner，定义 `AGENT_CATALOG_SERVICE_KEY`、`AgentCatalogPort`、`AgentCatalogReadResult`、Cordis `Context` augmentation 和 result-to-binding validation。`plugin/src/index.ts::meetingConsumerPlugin.apply` 使用 optional `ctx.get("convivium.agentCatalog")`，并把结果注入 `plugin/src/runtime/application-service/index.ts::CreateStatusRuntimeOptions`；该 key 不加入 required `inject`。Host/profile 负责实现并 `ctx.provide` 同一 service；Convivium 不实现 producer、第二 source 或 service framework。
+
+Runtime 只在 source state 通过 `isMeetingStateV2` 且 existing pure transition preview 证明 command 将创建 Manager planning attempt 后读取 Catalog 一次；legacy source 不读取。preview 与最终 transition 复用同一 `now` 和 deterministic IDs；最终 transition 在 existing `MeetingRepositoryPort.execute` 中原子写 attempt binding。initial planning、task start/finish、Captain/local resume、speaker submission 和 speaker timeout 的现有 attempt producer 都使用该单一 capture helper；Domain transition 只接收 required binding，不导入 port。
+
+Protocol owner 固定为：`plugin/src/protocol/types.ts` 定义 DTO；`plugin/src/protocol/schema.ts` 定义可复用 Catalog/recommendation value schemas；`plugin/src/protocol/commands.ts::ManagerPlanSubmissionSchema` 只拥有 command extension；`plugin/src/protocol/status.ts::MeetingStatusResultSchema` 只拥有 active/execution-terminal status extension。不得把 command 或 status object schema 移入 `schema.ts`，也不得增加 adapter、registry 或 compatibility mapper。
+
+`plugin/src/domain/model.ts::MeetingState` 是 snapshot binding 与 pending recommendation 的唯一事实 owner。为遵守 Domain 不依赖 Protocol 的规则，该文件定义持久事实所需的内部同构 Catalog/claim fields，不导入 `protocol/`；`plugin/src/runtime/services/agent-catalog.ts::captureManagerCatalogBinding` 是 validated transport snapshot 到内部 snapshot 的唯一逐字段转换，不建立通用 mapper。`plugin/src/projection/status.ts::projectManagerMeetingContext` 只从当前 attempt binding 生成安全 Manager projection；`projectMeetingStatus` 只输出脱敏 pending recommendation。`plugin/src/runtime/application-service/meeting-turn.ts::submitManagerPlan` 与 `plugin/src/domain/transitions/manager-planning.ts::submitManagerPlanTransition` 复用现有 command/commit/fallback 边界，不增加 command、event、outbox worker 或 repository API。
+
 ## Persistence Algorithm And Repository Cutover
 
 当前持久化算法是 `Checkpointed Commit Log`，抽象状态、checkpoint/commit/compaction 流程、不变量和验收点见 `MEETING-PERSISTENCE-SPECIAL-DESIGN.md`。它属于带 checkpoint 与 log compaction 的 log-structured persistence，不得简称为 `Event Sourcing` 或 `WAL`。repository 只使用 `@deepseek-ai/dsh-storage-domain`：一个轻量 catalog domain 用于发现，每个 Meeting 使用独立 domain；一次 command 只写一条 commit record，checkpoint 分页写入。`src/storage/` 以 JSONL 实现标准 DSH KV backend，但不认识 Meeting 数据语义；它是 Convivium package 内的 provider child plugin，不是独立产品或发布单元。

@@ -4,8 +4,8 @@
 
 本文记录当前代码相对已确认需求的实现覆盖，不替代需求、接口或设计文档。
 
-- 记录日期：2026-09-03
-- 代码基线：`2f49e1af2d09206cb763a39676151a9d4466c80b`
+- 记录日期：2026-09-04
+- 代码基线：`759e2ef7cec4fe5cf4f7a5ec57ea70a460afdfe8`
 - 环境：Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、profile `web`、provider `spawn`
 - `已实现` 表示存在正式路径和相称验证；`部分实现` 表示存在局部路径但未闭合；`未实现` 表示没有产品运行路径。
 - 历史真实 profile 证据只适用于其原始 commit，不外推为当前 HEAD 证据。
@@ -20,29 +20,34 @@
 
 ## Requirement Coverage
 
-| Requirement                               | 状态     | 当前覆盖                                                                                                                          | 主要缺口                                                                                  |
-| ----------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| FR-1 DSH 插件形态                         | 已实现   | package、双 bundle、provider gate、profile evidence                                                                               | 高于最低版本的兼容与分发策略未决定                                                        |
-| FR-2 会议与身份隔离                       | 已实现   | Meeting、Participant、Session、repository ownership 隔离                                                                          | 远程、多用户、跨 Host 不支持，属于 V1 非目标                                              |
-| FR-3 有序连续发言                         | 已实现   | 单一 attempt、逐 Speaker delivery、前序 transcript、late/stale 拒绝、reassign/skip                                                | 无                                                                                        |
-| FR-4 发言计划与选择                       | 已实现   | Manager/round-robin planning、资格校验、required Participant waiting、确定性 fallback                                             | 自动 stall/refocus/replan 未实现，属于 Non-goal                                           |
-| FR-5 异步任务与举手                       | 已实现   | MeetingTask、HandRaise、恢复、幂等和 task evidence                                                                                | 外部副作用 exactly-once、长期压力未覆盖                                                   |
-| FR-6 议题范围与发散控制                   | 部分实现 | Question/Issue/Proposal/Position/Agenda candidate 的已实现提交和 blocking Question 校验                                           | 不属于 D1-D10 的 Agenda candidate 管理；stall/refocus 未实现，属于 Non-goal               |
-| FR-7 提案、立场与决策                     | 已实现   | Proposal revision、Position、Decision candidate、Captain acceptance、Decision/risk projection、单 Issue risk disposition          | 完整 FR-7 外的产品 UI 控制未覆盖                                                          |
-| FR-8 完成事实与会议结束                   | 已实现   | completion/end、task evidence、终态 projection、恢复和幂等                                                                        | Decision/Agenda 细节与 stall/refocus 属其他未完成范围                                     |
-| FR-9 暂停、恢复与故障隔离                 | 已实现   | pause/resume、timeout、reassign/skip、interrupt/drain、cold rebind、per-Meeting isolation                                         | 无                                                                                        |
-| FR-10 记录、隐私与归档                    | 部分实现 | transcript、meeting mail、archive、Session cleanup、continuation                                                                  | Scribe minutes 契约、projection、状态/归档路径未实现                                      |
-| FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；G4 已验证 pause/resume/end browser control | risk/Decision disposition 与 browser reassign evidence 未覆盖；metrics、远程/多用户未覆盖 |
-| FR-12 Agent 内部能力边界                  | 已实现   | 只消费正式提交和授权 task projection，不写自定义 DSH Session Event                                                                | 后续 Mail/Web/UI 路径须保持该边界                                                         |
-| FR-13 Agent 角色目录与参会推荐            | 未实现   | 已有接口契约和样本                                                                                                                | Catalog、recommendation、Captain disposition、admission、provisioning、恢复、UI           |
-| FR-14 Agent Definition 与 DSH composition | 未实现   | 9 个样本、hash 和负向 fixture                                                                                                     | Definition resolution、Preset/Skill validation、差异化 Session composition                |
+| Requirement                               | 状态     | 当前覆盖                                                                                                                                         | 主要缺口                                                                                     |
+| ----------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| FR-1 DSH 插件形态                         | 已实现   | package、双 bundle、provider gate、profile evidence                                                                                              | 高于最低版本的兼容与分发策略未决定                                                           |
+| FR-2 会议与身份隔离                       | 已实现   | Meeting、Participant、Session、repository ownership 隔离                                                                                         | 远程、多用户、跨 Host 不支持，属于 V1 非目标                                                 |
+| FR-3 有序连续发言                         | 已实现   | 单一 attempt、逐 Speaker delivery、前序 transcript、late/stale 拒绝、reassign/skip                                                               | 无                                                                                           |
+| FR-4 发言计划与选择                       | 已实现   | Manager/round-robin planning、资格校验、required Participant waiting、确定性 fallback                                                            | 自动 stall/refocus/replan 未实现，属于 Non-goal                                              |
+| FR-5 异步任务与举手                       | 已实现   | MeetingTask、HandRaise、恢复、幂等、task evidence；start replay 在最新 task snapshot 已为 `running` 时跳过 Catalog preview 并进入 receipt replay | 外部副作用 exactly-once、长期压力未覆盖                                                      |
+| FR-6 议题范围与发散控制                   | 部分实现 | Question/Issue/Proposal/Position/Agenda candidate 的已实现提交和 blocking Question 校验                                                          | 不属于 D1-D10 的 Agenda candidate 管理；stall/refocus 未实现，属于 Non-goal                  |
+| FR-7 提案、立场与决策                     | 已实现   | Proposal revision、Position、Decision candidate、Captain acceptance、Decision/risk projection、单 Issue risk disposition                         | 完整 FR-7 外的产品 UI 控制未覆盖                                                             |
+| FR-8 完成事实与会议结束                   | 已实现   | completion/end、task evidence、终态 projection、恢复和幂等                                                                                       | Decision/Agenda 细节与 stall/refocus 属其他未完成范围                                        |
+| FR-9 暂停、恢复与故障隔离                 | 已实现   | pause/resume、timeout、reassign/skip、interrupt/drain、cold rebind、per-Meeting isolation                                                        | 无                                                                                           |
+| FR-10 记录、隐私与归档                    | 部分实现 | transcript、meeting mail、archive、Session cleanup、continuation                                                                                 | Scribe minutes 契约、projection、状态/归档路径未实现                                         |
+| FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；G4 已验证 pause/resume/end browser control                | risk/Decision disposition 与 browser reassign evidence 未覆盖；metrics、远程/多用户未覆盖    |
+| FR-12 Agent 内部能力边界                  | 已实现   | 只消费正式提交和授权 task projection，不写自定义 DSH Session Event                                                                               | 后续 Mail/Web/UI 路径须保持该边界                                                            |
+| FR-13 Agent 角色目录与参会推荐            | 部分实现 | Phase 1 的 Catalog consumer、attempt binding、safe projection、recommendation claim 与 pending projection 已实现并通过本地验证                   | Captain disposition、admission、provisioning、FR-14、UI、真实 Host producer smoke 不在本阶段 |
+| FR-14 Agent Definition 与 DSH composition | 未实现   | 9 个样本、hash 和负向 fixture                                                                                                                    | Definition resolution、Preset/Skill validation、差异化 Session composition                   |
 
 ## Executed Validation
 
-2026-09-03，在 target HEAD `2f49e1af2d09206cb763a39676151a9d4466c80b` 执行 `pnpm --dir plugin verify`：
+2026-09-04，在 target HEAD `759e2ef7cec4fe5cf4f7a5ec57ea70a460afdfe8` 执行 `pnpm --dir plugin verify`：
 
 - Pass：format、lint、Host/Client typecheck、build、environment、contract、Agent Definition samples、package verifier。
-- Pass：73 test files、525 tests。
+- Pass：74 test files、549 tests。
+- Pass：在 `8c7c39e6705fed5a79ed228b8f494a7f96cfe83b` 执行 `pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts`，1 file、35 tests；覆盖相同 `requestId` 的 MeetingTask start receipt replay。代码同时以 repository 最新 snapshot 的 task status 约束 Catalog preview，避免已变为 `running` 的交错重试在进入 `MeetingRepository.execute()` 前触发 `INVALID_STATE_TRANSITION`。
+- Pass：在 target HEAD 执行 `pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts`，1 file、24 tests；固定 browser-ready 模式的 30 分钟 `speakerTimeoutMs`、普通模式的 60 秒和 `timeout` selector 的 250ms。
+
+以下 G3/G4 真实 profile 与 Browser 记录来自较早的已注明 target evidence；本次 `759e2ef` 验证没有重新执行这些运行时步骤，不得把它们外推为当前 HEAD 的新运行证据：
+
 - Pass：G3 的 12 个真实 DSH profile selector，均为 `profile=web`、`provider=spawn`，且 probe `ok=true`：
   - `baseline`：`baseline-transcript-acb`、`baseline-http-pause-resume`
   - `timeout`：无 probe assertion
@@ -80,9 +85,9 @@
 
 - 遗留 SQLite 数据不读取、不迁移、不删除。
 - 不支持 multi-Host writer、远程 filesystem、远程访问、多用户和网络部署。
-- risk/Decision disposition 没有正式 browser/HTTP/Client write control；reassign 当前没有 browser-ready fixture，故无 browser evidence；不得将其标为 Pass。
+- risk/Decision disposition 没有正式 browser/HTTP/Client write control。
 - Question 的 required-review/risk evidence、Agenda candidate 管理、Decision candidate 完整生命周期和自动 stall/refocus/replan 未实现。
-- Agent role catalog、Manager recommendation、Captain admission 和 Meeting Agent Definition runtime 未实现。
+- FR-13 Phase 1 的 Agent Catalog safe projection、Manager recommendation claim 和 pending projection 已完成本地 fake-port/isolated-storage 验证；真实 Host producer smoke、Captain admission 和 Meeting Agent Definition runtime 不在该阶段。
 - Developer Markdown、结构化 metrics、stress/长期资源泄漏和生产发布验证未实现或未覆盖。
 
 ## Closure

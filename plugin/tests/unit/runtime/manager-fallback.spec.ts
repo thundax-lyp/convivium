@@ -46,7 +46,8 @@ function planningState() {
                 reason: "initial_plan" as const,
                 deliveryId: "planning-delivery-1",
                 status: "running" as const,
-                createdAt: now
+                createdAt: now,
+                catalogBinding: { kind: "none" as const }
             }
         }
     };

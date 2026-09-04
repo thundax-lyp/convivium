@@ -37,6 +37,14 @@ export interface ManagerPlanInput {
         instruction: string;
         reason: string;
     }[];
+    attendanceRecommendations?: readonly {
+        candidateId: string;
+        agendaItemId: string;
+        rationale: string;
+        expectedContribution: string;
+        evidenceGapIds: readonly string[];
+        urgency: "current_agenda" | "later_agenda" | "follow_up";
+    }[];
 }
 
 export interface ManagerPlanIds {

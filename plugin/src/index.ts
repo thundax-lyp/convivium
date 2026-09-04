@@ -5,6 +5,7 @@ import { Config, type Config as ConfigType } from "./config.js";
 import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
 import { registerLocalMeetingHttpRoutes } from "./http/index.js";
 import { createCreateStatusRuntime } from "./runtime/index.js";
+import { AGENT_CATALOG_SERVICE_KEY } from "./runtime/services/agent-catalog.js";
 import { jsonlStoragePlugin } from "./storage/index.js";
 import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "./tools/index.js";
 
@@ -46,6 +47,7 @@ const meetingConsumerPlugin = {
         ) {
             return;
         }
+        const agentCatalog = ctx.get(AGENT_CATALOG_SERVICE_KEY);
         const runtime = createCreateStatusRuntime({
             storageDomain: ctx.storageDomain,
             provider: config.provider,
@@ -56,7 +58,8 @@ const meetingConsumerPlugin = {
             },
             maxParticipants: config.maxParticipants,
             outboxPollMs: config.outboxPollMs,
-            speakerAttemptTimeoutMs: config.speakerTimeoutMs
+            speakerAttemptTimeoutMs: config.speakerTimeoutMs,
+            agentCatalog
         });
         ctx.effect(() => () => runtime.dispose(), "convivium:runtime");
         if (ctx.webServer.host === "127.0.0.1") {
