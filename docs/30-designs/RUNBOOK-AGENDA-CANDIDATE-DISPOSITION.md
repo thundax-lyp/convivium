@@ -33,21 +33,6 @@ Non-goals：自动切换 active agenda；Manager/Participant/local HTTP disposit
 
 ## 4. 机械步骤
 
-### T2：Domain transition 与事件
-
-前置：HEAD 为已完成 T1 的唯一前一步 commit、clean、T1 已删除。允许：`plugin/src/domain/model.ts::DomainEventTypes` 只加事件；`plugin/src/domain/transitions/agenda-candidate.ts` 新增 `DisposeAgendaCandidateInput`/`disposeAgendaCandidate`；`transitions/index.ts` 导出；现有 `plugin/tests/unit/domain/transitions/agenda-candidate.spec.ts`；本 RUNBOOK。禁止其他文件。
-
-动作：新增准确内部类型：`DisposeAgendaCandidateInput` 是 `meetingId/candidateId/actorBinding/action` 加仅 promote 分支 required 的正式 `agendaItem` payload；不含 `requestId`、`reason`、`now` 或派生字段。`disposeAgendaCandidate(state: MeetingState, input: DisposeAgendaCandidateInput): TransitionResult<MeetingState>` 验证 Meeting/candidate/pending、AgendaItem 文本、participant references、objective output/criterion ID、AgendaItem ID collision。六个失败 message 依次固定为 `dispose command targets another meeting`、`agenda candidate is missing`、`agenda candidate is not pending`、`agenda item fields are invalid`、`agenda item references are invalid`、`agenda item already exists`，均使用现有 `DomainError("INVALID_ENTITY_STATE", message)`。不得访问 clock/repository/protocol。
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/transitions/agenda-candidate.spec.ts
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin exec prettier --check src/domain tests/unit/domain/transitions/agenda-candidate.spec.ts
-git diff --check
-```
-
-PASS：覆盖三 action、完整 promotion、不切 active agenda、全部拒绝零状态变化、exact event。随后删除 T2、写 T3 SHA、提交。STOP/恢复同 T1。
-
 ### T3：Runtime application 与 repository command
 
 前置：HEAD 为已完成 T2 的唯一前一步 commit、clean、T2 已删除。允许：新建 `plugin/src/runtime/application-service/meeting-agenda-candidate.ts::MeetingAgendaCandidateApplicationOptions/createMeetingAgendaCandidateApplication`；仅接入 `plugin/src/runtime/application-service/index.ts::MeetingToolRuntime/createMeetingToolRuntime`；`plugin/tests/contract/meeting-runtime.spec.ts` 增加固定 suite `agenda candidate disposition runtime`；本 RUNBOOK。禁止 repository 文件。
