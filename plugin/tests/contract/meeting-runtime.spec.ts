@@ -1545,18 +1545,19 @@ describe("create/status meeting runtime", () => {
                 });
             }
             const executionId = `${task.result.meetingTaskId}-execution`;
-            const started = await runtime.startMeetingTask(
-                {
-                    protocolVersion: 1,
-                    meetingId,
-                    meetingTaskId: task.result.meetingTaskId,
-                    requestId: "failed-start",
-                    executionId
-                } as never,
-                participant
-            );
+            const startInput = {
+                protocolVersion: 1,
+                meetingId,
+                meetingTaskId: task.result.meetingTaskId,
+                requestId: "failed-start",
+                executionId
+            } as never;
+            const started = await runtime.startMeetingTask(startInput, participant);
             expect(started).toMatchObject({ ok: true });
             if (!started.ok) throw new Error("task start failed");
+            await expect(runtime.startMeetingTask(startInput, participant)).resolves.toEqual(
+                started
+            );
             if (pauseBeforeFinish) {
                 await expect(
                     runtime.pause(
