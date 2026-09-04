@@ -33,22 +33,9 @@ Non-goals：自动切换 active agenda；Manager/Participant/local HTTP disposit
 
 ## 4. 机械步骤
 
-### T0：基线与契约门禁
-
-前置：当前分支；工作树 clean；HEAD 已包含本 RUNBOOK 与四份正式文档。允许修改：仅本 RUNBOOK（PASS 后删除 T0，并把 T1 `<T0_SHA>` 替换为提交 SHA）。禁止：`plugin/**`、其他文档。
-
-```bash
-test "$(git branch --show-current)" = codex/agenda-candidate-disposition-runbook
-test -z "$(git status --porcelain --untracked-files=all)"
-rg -n 'convivium_dispose_agenda_candidate|CaptainAgendaCandidateDispositionInputV1|agenda_candidate\.disposed|parkingLot' docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md docs/30-designs/DOMAIN-MODEL-DESIGN.md docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md
-git diff --check
-```
-
-PASS：全部退出 0。STOP：任一失败，保留 T0，不修改/提交。恢复：无外部状态。
-
 ### T1：协议类型与 Schema
 
-前置：HEAD=`<T0_SHA>`、clean、T0 已删除。允许：`plugin/src/protocol/types.ts` 新增 `CaptainAgendaCandidateDispositionInputV1`、`CaptainAgendaCandidateDispositionResultV1`；`plugin/src/protocol/commands.ts` 新增 `CaptainAgendaCandidateDispositionInputSchema`；`plugin/src/protocol/results.ts` 新增 `CaptainAgendaCandidateDispositionResultSchema`；`plugin/src/protocol/index.ts` 只导出两个 Schema；`plugin/tests/contract/protocol-schema.spec.ts` 增加固定 suite `agenda candidate disposition protocol`；本 RUNBOOK。禁止其他文件和放宽既有 Schema。
+前置：HEAD=`3998df2abbe77a690e14334f7493526012dd245a`、clean、T0 已删除。允许：`plugin/src/protocol/types.ts` 新增 `CaptainAgendaCandidateDispositionInputV1`、`CaptainAgendaCandidateDispositionResultV1`；`plugin/src/protocol/commands.ts` 新增 `CaptainAgendaCandidateDispositionInputSchema`；`plugin/src/protocol/results.ts` 新增 `CaptainAgendaCandidateDispositionResultSchema`；`plugin/src/protocol/index.ts` 只导出两个 Schema；`plugin/tests/contract/protocol-schema.spec.ts` 增加固定 suite `agenda candidate disposition protocol`；本 RUNBOOK。禁止其他文件和放宽既有 Schema。
 
 动作：逐字段实现正式接口。command 不含 `reason`。ID、AgendaItem 文本和数组成员 trim 后非空，数组成员唯一；`promote` requires `agendaItem`，另两支 forbids；result `agendaItemId` 条件相同。输入 Schema 使用 exact-key transform；结果 Schema 的导出边界沿用 `CaptainDecisionDispositionResultSchema` 的 `Schema<Record<string, unknown>>` 形式，不新增通用 helper。
 
