@@ -480,38 +480,9 @@ Captain approval/admission/provisioning portions of FR-13.5-9 and AC 31-34 remai
 
 ## 8. 机械实施步骤
 
-### T4：局部 persistence format 识别
-
-前置状态：T3 PASS commit 已存在；T3 完整章节已删除；工作树 clean；`isMeetingStateV2` 已存在且测试通过。
-
-允许修改：`plugin/src/repository/domain/schemas.ts::meetingStateTransport`、`PersistenceProjectionV1Schema`；`plugin/src/repository/domain/projection.ts::decodeProjection`、`UnsupportedMeetingStateFormatError`；`plugin/src/repository/domain/domain-meeting-repository.ts::DomainMeetingRepository.open`；`plugin/tests/unit/repository/domain/schemas.spec.ts`；`plugin/tests/unit/repository/domain/projection.spec.ts`；`plugin/tests/contract/domain-meeting-repository.spec.ts`；`plugin/tests/recovery/domain-recovery.spec.ts`；本RUNBOOK的T4章节。
-
-禁止修改：`PersistenceProjectionV1.formatVersion`、`MeetingSnapshot.state`、ordinary Runtime casts、migration/default/mapper、checkpoint/commit limits。
-
-执行：
-
-1. 在`schemas.ts`新增私有`meetingStateTransport = JsonObjectSchema.superRefine(...)`并用于`meetingSnapshot.state`：只有`formatVersion === 2`时调用`isMeetingStateV2`并对false增加Zod issue；没有discriminator或未知format在此保持JsonObject，交给decoder分类。Outer`PersistenceProjectionV1Schema.formatVersion`仍是literal 1，输出`MeetingSnapshot.state`仍是`JsonObject`。
-2. `decodeProjection` 在outer parse后执行窄检查：snapshot null直接返回；state没有own `formatVersion`时按legacy返回；own format不是literal 2时抛`UnsupportedMeetingStateFormatError`；valid V2原样返回。literal 2 malformed已由步骤1的superRefine拒绝。
-3. `DomainMeetingRepository.open` 只把 `UnsupportedMeetingStateFormatError` 映射为 non-retryable `SCHEMA_VERSION_UNSUPPORTED`；其他 decode/load异常保持 `CORRUPT_DATABASE`。
-4. 测试固定 no-discriminator legacy reopen、valid V2 checkpoint/tail reopen、unknown 3、string format、V2 missing recommendations、current attempt missing/malformed binding和malformed snapshot。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/repository/domain/schemas.spec.ts tests/unit/repository/domain/projection.spec.ts tests/contract/domain-meeting-repository.spec.ts tests/recovery/domain-recovery.spec.ts
-pnpm --dir plugin typecheck:host
-git diff --check
-```
-
-PASS：legacy和valid V2成功；unknown format只返回 `SCHEMA_VERSION_UNSUPPORTED`；recognized malformed V2只返回 `CORRUPT_DATABASE`；没有 envelope/API/cast改动。
-
-STOP：必须修改 public repository type、全仓 cast或建立 migration才能通过。报告 exact reachable path和首错。
-
-失败恢复：测试 repository使用isolated fake domain；无真实持久数据。保留 T4 与现场。
-
 ### T5：全部 Manager attempt 的一次性 Catalog capture
 
-前置状态：T4 PASS；T4 完整章节已删除；所有 producer已显式接受 required binding但仍传 none。
+前置状态：T4 PASS commit 已存在；T4 完整章节已删除；工作树 clean；所有 producer已显式接受 required binding但仍传 none。
 
 允许修改：`plugin/src/runtime/application-service/create-meeting.ts::createMeetingApplication`；`plugin/src/runtime/application-service/meeting-task.ts::createMeetingTaskApplication`的`startMeetingTask`、`finishMeetingTask`；`plugin/src/runtime/application-service/meeting-control.ts::createMeetingControlApplication`内的`transitionMeetingStatus`；`plugin/src/runtime/application-service/meeting-turn.ts::createMeetingTurnApplication.submitTurn`；`plugin/src/runtime/application-service/index.ts::scanExpiredSpeakerAttempts`；`plugin/tests/unit/domain/transitions/manager-planning.spec.ts`；`plugin/tests/unit/domain/transitions/turn-advancement.spec.ts`；`plugin/tests/contract/meeting-runtime.spec.ts`；本RUNBOOK的T5章节。
 

@@ -1,5 +1,6 @@
 import type { Domain, DomainFacility, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { RepositoryError } from "../errors.js";
+import { UnsupportedMeetingStateFormatError } from "./projection.js";
 import type { CreateMeetingInput, RepositoryAuthorizationValidator } from "../types.js";
 import { DomainMeetingRepository } from "./domain-meeting-repository.js";
 import { catalogKey, meetingDomainName } from "./keys.js";
@@ -185,7 +186,15 @@ export class DomainRepositoryRegistry {
                 throw corrupt(catalog.meetingId, "Ready meeting is missing seq one");
             try {
                 loadProjection({ domain });
-            } catch {
+            } catch (error) {
+                if (error instanceof UnsupportedMeetingStateFormatError) {
+                    throw new RepositoryError(
+                        "SCHEMA_VERSION_UNSUPPORTED",
+                        false,
+                        catalog.meetingId,
+                        "Meeting state format is unsupported"
+                    );
+                }
                 throw corrupt(catalog.meetingId, "Ready commit chain is invalid");
             }
             return;
@@ -208,7 +217,15 @@ export class DomainRepositoryRegistry {
         let projection;
         try {
             projection = loadProjection({ domain });
-        } catch {
+        } catch (error) {
+            if (error instanceof UnsupportedMeetingStateFormatError) {
+                throw new RepositoryError(
+                    "SCHEMA_VERSION_UNSUPPORTED",
+                    false,
+                    catalog.meetingId,
+                    "Meeting state format is unsupported"
+                );
+            }
             throw corrupt(catalog.meetingId, "Creating commit chain is invalid");
         }
         if (

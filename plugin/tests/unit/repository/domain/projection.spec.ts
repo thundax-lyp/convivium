@@ -6,10 +6,12 @@ import {
     encodeProjection,
     foldCommitTail,
     projectionDigest,
+    UnsupportedMeetingStateFormatError,
     MAX_COMMIT_VALUE_BYTES,
     MAX_APPLICATION_CHECKPOINT_BYTES
 } from "../../../../src/repository/domain/projection.js";
 import { CommitRecordV1Schema } from "../../../../src/repository/domain/schemas.js";
+import { encodeCanonicalJson } from "../../../../src/repository/domain/canonical-json.js";
 describe("domain projection", () => {
     const bootstrap = {
         status: "ready" as const,
@@ -27,6 +29,43 @@ describe("domain projection", () => {
     it("encodes and decodes a deterministic null-prototype projection", () => {
         const p = createProjection({ snapshot: null, bootstrap, sessionOwnership: {} });
         expect(decodeProjection(encodeProjection(p))).toEqual(p);
+    });
+    it("keeps legacy and valid V2 state while classifying unsupported and malformed formats", () => {
+        const withState = (state: Record<string, unknown>) => {
+            const base = createProjection({
+                snapshot: {
+                    teamId: "team-1",
+                    meetingId: "meeting-1",
+                    version: 0,
+                    state: { count: 0 },
+                    createdAt: 1,
+                    updatedAt: 1
+                },
+                bootstrap,
+                sessionOwnership: {}
+            });
+            return { ...base, snapshot: { ...base.snapshot!, state } };
+        };
+        expect(
+            decodeProjection(encodeCanonicalJson(withState({ count: 0 }))).snapshot?.state
+        ).toEqual({ count: 0 });
+        expect(
+            decodeProjection(
+                encodeCanonicalJson(
+                    withState({ formatVersion: 2, manager: {}, attendanceRecommendations: [] })
+                )
+            ).snapshot?.state
+        ).toMatchObject({ formatVersion: 2 });
+        expect(() =>
+            decodeProjection(encodeCanonicalJson(withState({ formatVersion: 3 })))
+        ).toThrow(UnsupportedMeetingStateFormatError);
+        expect(() =>
+            decodeProjection(
+                encodeCanonicalJson(
+                    withState({ formatVersion: 2, manager: {}, attendanceRecommendations: null })
+                )
+            )
+        ).toThrow(/MeetingState format 2 is malformed/);
     });
     it("creates and verifies a bounded deterministic commit", () => {
         const c = createCommitRecord({
