@@ -120,6 +120,7 @@ export interface DomainMeetingRepositoryOpenOptions {
     readonly meetingId: string;
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly now?: () => number;
+    readonly onProjectionCommitted?: (snapshot: MeetingSnapshot) => void;
 }
 
 export class DomainMeetingRepository implements MeetingRepositoryPort {
@@ -129,6 +130,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
     private readonly meetingDomain: MeetingDomain;
     private readonly authorizationValidator: RepositoryAuthorizationValidator;
     private readonly now: () => number;
+    private readonly onProjectionCommitted: ((snapshot: MeetingSnapshot) => void) | undefined;
     private closed = false;
     private domainClosed = false;
     private mutationChain: Promise<void> = Promise.resolve();
@@ -146,6 +148,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         this.meetingId = options.meetingId;
         this.authorizationValidator = options.authorizationValidator;
         this.now = options.now ?? Date.now;
+        this.onProjectionCommitted = options.onProjectionCommitted;
     }
 
     static async open(
@@ -314,6 +317,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         this.projection = nextProjection;
         this.headSeq = seq;
         this.headDigest = record.digest;
+        this.onProjectionCommitted?.(structuredClone(this.projection.snapshot!));
         const nextTailCount = tail.length + 1;
         if (
             nextTailCount >= APPLICATION_CHECKPOINT_TRIGGER_COMMITS ||
@@ -551,6 +555,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     status: "ready",
                     updatedAt: now
                 }));
+            this.onProjectionCommitted?.(structuredClone(this.projection.snapshot!));
             return {
                 requestId: input.requestId,
                 meetingId: this.meetingId,

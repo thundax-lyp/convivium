@@ -1,7 +1,11 @@
 import type { Domain, DomainFacility, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { RepositoryError } from "../errors.js";
 import { UnsupportedMeetingStateFormatError } from "./projection.js";
-import type { CreateMeetingInput, RepositoryAuthorizationValidator } from "../types.js";
+import type {
+    CreateMeetingInput,
+    MeetingSnapshot,
+    RepositoryAuthorizationValidator
+} from "../types.js";
 import { DomainMeetingRepository } from "./domain-meeting-repository.js";
 import { catalogKey, meetingDomainName } from "./keys.js";
 import { loadProjection } from "./projection.js";
@@ -21,6 +25,7 @@ export interface DomainRepositoryRegistryOptions {
     readonly storageDomain: Pick<DomainFacility, "open"> | DomainFacilityPort;
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly now?: () => number;
+    readonly onProjectionCommitted?: (snapshot: MeetingSnapshot) => void;
 }
 
 export interface OpenDomainMeetingInput {
@@ -71,7 +76,8 @@ export class DomainRepositoryRegistry {
         private readonly storageDomain: DomainFacilityPort,
         private readonly catalog: CatalogDomain,
         private readonly authorizationValidator: RepositoryAuthorizationValidator,
-        private readonly now: () => number
+        private readonly now: () => number,
+        private readonly onProjectionCommitted: ((snapshot: MeetingSnapshot) => void) | undefined
     ) {}
 
     static async open(options: DomainRepositoryRegistryOptions): Promise<DomainRepositoryRegistry> {
@@ -80,7 +86,8 @@ export class DomainRepositoryRegistry {
             options.storageDomain,
             catalog,
             options.authorizationValidator,
-            options.now ?? Date.now
+            options.now ?? Date.now,
+            options.onProjectionCommitted
         );
     }
 
@@ -156,7 +163,8 @@ export class DomainRepositoryRegistry {
                 teamId: input.teamId,
                 meetingId: input.meetingId,
                 authorizationValidator: this.authorizationValidator,
-                now: this.now
+                now: this.now,
+                onProjectionCommitted: this.onProjectionCommitted
             });
             if (input.create) await repository.create(input.create);
             this.opened.set(domainName, repository);

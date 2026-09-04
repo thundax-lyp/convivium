@@ -180,29 +180,9 @@ ctx
 
 ## 8. 机械执行步骤
 
-### T3：Repository post-commit callback
-
-前置状态：T2 已 PASS 并已提交；`plugin/src/runtime/services/developer-markdown-service.ts` 与 `plugin/tests/unit/runtime/developer-markdown-service.spec.ts` 已存在，service 通过 T2 验证。
-
-允许修改：`plugin/src/repository/domain/domain-meeting-repository.ts`、`plugin/src/repository/domain/domain-repository-registry.ts`、`plugin/tests/contract/domain-meeting-repository.spec.ts`、`plugin/tests/contract/domain-repository-registry.spec.ts`。
-
-禁止修改：repository schema/projection/port、domain、runtime 和其他 tests。
-
-执行：增加第 6 节 callback option/pass-through，在普通 commit 和 creation ready 两处调用。测试新 create/new command 各一次 callback；failed put、receipt replay、read、recover、no-op 为零；snapshot 是 clone；registry 原样传递。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/domain-meeting-repository.spec.ts tests/contract/domain-repository-registry.spec.ts
-pnpm --dir plugin typecheck
-git diff --check
-```
-
-PASS：三命令退出 0且 callback 计数精确。STOP：需要改 schema/port/transaction 或失败；不得新增 event。失败恢复：测试 storage fixture 自清理，无外部恢复。
-
 ### T4：Config、Runtime 与 Host 装配
 
-前置状态：T3 PASS。
+前置状态：T3 已 PASS 并已提交；`DomainMeetingRepositoryOpenOptions.onProjectionCommitted`、`DomainRepositoryRegistryOptions.onProjectionCommitted`、普通 `commit` 及 `completeCreate` callback 发布点，以及两份 contract test 已存在且 T3 focused validation 已通过。
 
 允许修改：`plugin/src/config.ts`、`plugin/src/index.ts`、`plugin/src/runtime/application-service/index.ts`、`plugin/README.md`、`plugin/tests/unit/config.spec.ts`、`plugin/tests/unit/index-inject.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`。
 
