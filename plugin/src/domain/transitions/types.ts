@@ -22,6 +22,7 @@ export interface SubmitManagerPlanContext {
     observedMeetingVersion: number;
     dispatchableParticipantIds: readonly string[];
     now: number;
+    managerSessionId: string;
 }
 
 export interface SubmitSpeakerAdvanceContext extends SpeakerSubmissionContext {

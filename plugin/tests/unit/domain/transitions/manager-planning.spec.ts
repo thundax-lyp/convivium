@@ -90,7 +90,8 @@ describe("manager planning transitions", () => {
                 deliveryId: "planning-delivery-1",
                 observedMeetingVersion: 3,
                 dispatchableParticipantIds: ["a", "c", "b"],
-                now
+                now,
+                managerSessionId: "manager-1"
             },
             { turnId: "turn-1", stepId: (index) => `step-${index}` }
         );
@@ -155,7 +156,8 @@ describe("manager planning transitions", () => {
                 deliveryId: "planning-delivery-1",
                 observedMeetingVersion: 3,
                 dispatchableParticipantIds: [],
-                now
+                now,
+                managerSessionId: "manager-1"
             },
             { turnId: "turn-1", stepId: (index) => `step-${index}` }
         );
@@ -319,7 +321,8 @@ describe("manager planning transitions", () => {
                 deliveryId: "delivery-1",
                 observedMeetingVersion: 3,
                 dispatchableParticipantIds: ["a"],
-                now
+                now,
+                managerSessionId: "manager-1"
             },
             { turnId: "turn-fallback", stepId: (index) => `step-${index}` }
         );

@@ -480,38 +480,6 @@ Captain approval/admission/provisioning portions of FR-13.5-9 and AC 31-34 remai
 
 ## 8. 机械实施步骤
 
-### T7：attendance claim 的原子提交
-
-前置状态：T6 PASS；T6 完整章节已删除；Manager context 已携带 safe Catalog projection。
-
-允许修改：`plugin/src/domain/planning.ts::ManagerPlanInput`；`plugin/src/domain/errors.ts::DomainErrorCode`；`plugin/src/domain/transitions/types.ts::SubmitManagerPlanContext`；`plugin/src/domain/transitions/manager-planning.ts::submitManagerPlan`；`plugin/src/runtime/application-service/meeting-turn.ts::submitManagerPlan`、`mapAttendanceRecommendationError`；`plugin/tests/unit/domain/transitions/manager-planning.spec.ts`；`plugin/tests/contract/meeting-runtime.spec.ts`；本RUNBOOK的T7章节。`plugin/src/protocol/request-idempotency.ts::serializeValidatedRequestV1`只允许调用，禁止修改。
-
-禁止修改：新command/event/outbox/receipt、repository、fallback helper、Captain/admission、status projection、request serializer。
-
-执行：
-
-1. `ManagerPlanInput` 增加 optional readonly claims；`SubmitManagerPlanContext` 增加 required `managerSessionId`，Runtime只传authorized caller session。
-2. `DomainErrorCode` 只增加 `AGENT_CATALOG_UNAVAILABLE | AGENT_CANDIDATE_NOT_FOUND | AGENT_CANDIDATE_UNAVAILABLE | ATTENDANCE_RECOMMENDATION_INVALID`。
-3. 在现有 stale checks之后、`requiredUnavailable`和Manager plan fallback `try`之前验证claims：缺失/空直接通过；非空要求V2 verified binding；candidate必须唯一、存在、`availability === "available"`且不是三种research role；agendaItemId必须存在；rationale/expectedContribution trim后非空；evidenceGapIds必须`[]`；urgency只用Schema union。verified binding的candidate/role referential integrity已经由T3 capture验证，不在claim阶段改写Catalog failure。按P0-E固定错误抛出。
-4. validation通过后生成`${planningAttemptId}-attendance-${claimIndex}`，复制7.1 internal fields，`createdAt=context.now`、actor=context manager；只在正常plan path append。required-unavailable waiting和manager fallback均不append。
-5. 正常submission把IDs加入唯一`manager_plan.submitted` event payload；无claims固定`[]`，事件顺序不变。
-6. Runtime在try外初始化`currentMeetingVersion = input.observedMeetingVersion`，read成功后更新为`current.version`，并取得一次`commandNow`；requestHash改为`serializeValidatedRequestV1(input)`；catch先调用`mapAttendanceRecommendationError`返回P0-E fixed code/message、`retryable:false`和`meetingId | currentMeetingVersion | attemptId`，其他error保持现有mapping。不得在catch调用fallback。
-7. tests覆盖正常0/1/多claim、ID/order/provenance/event/receipt/outbox同commit、duplicate、research、nonempty gap、unknown/unavailable candidate、legacy/none、required-unavailable、manager fallback、unauthorized/cross-meeting、stale/version/terminal、same-request replay、same-ID different-hash conflict及每个拒绝前后完整repository snapshot深相等。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/transitions/manager-planning.spec.ts tests/contract/meeting-runtime.spec.ts
-pnpm --dir plugin typecheck:host
-git diff --check
-```
-
-PASS：全部退出 0；正常claim一次commit；replay不重复；所有attendance rejection零state/event/receipt/outbox/version且`fallbackApplied`不是true；no-claim既有结果不变。
-
-STOP：任一attendance错误进入fallback、产生receipt/version，或需要新repository/outbox/event。报告exact test title、before/after diff和首个stack。
-
-失败恢复：测试使用isolated repository；失败command无commit。保留 T7 与现场，不放宽零副作用断言。
-
 ### T8：pending status、consumer fixtures 与 recovery
 
 前置状态：T7 PASS；T7 完整章节已删除；pending facts可由repository commit/replay。

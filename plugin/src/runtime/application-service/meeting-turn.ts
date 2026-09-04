@@ -15,13 +15,15 @@ import {
     type MeetingTurn
 } from "../../domain/index.js";
 import { failManagerPlanningAndCreateFallback } from "../../domain/transitions/manager-planning.js";
+import { DomainError } from "../../domain/errors.js";
 import { serializeValidatedRequestV1 } from "../../protocol/request-idempotency.js";
 import type {
     HandRaiseSubmissionV1,
     HandRaiseResultV1,
     ManagerPlanResultV1,
     ManagerPlanSubmissionV1,
-    TurnSubmissionResultV1
+    TurnSubmissionResultV1,
+    ProtocolErrorV1
 } from "../../protocol/index.js";
 import type { DomainEventInput, JsonObject, MeetingRepositoryRuntime } from "../meeting-runtime.js";
 import {
@@ -38,6 +40,35 @@ import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
 
 type ManagerFallbackReasonCode =
     "manager_plan_invalid" | "manager_timeout" | "manager_delivery_retry_exhausted";
+
+function mapAttendanceRecommendationError(
+    error: unknown,
+    meetingId: string,
+    meetingVersion: number,
+    attemptId: string
+): ProtocolErrorV1 | undefined {
+    if (!(error instanceof DomainError)) return undefined;
+    const messages = {
+        AGENT_CATALOG_UNAVAILABLE: "Agent catalog is unavailable for this planning attempt.",
+        AGENT_CANDIDATE_NOT_FOUND:
+            "Agent candidate is not present in this planning attempt catalog.",
+        AGENT_CANDIDATE_UNAVAILABLE:
+            "Agent candidate is unavailable in this planning attempt catalog.",
+        ATTENDANCE_RECOMMENDATION_INVALID: "Attendance recommendation claim is invalid."
+    } as const;
+    const message = messages[error.code as keyof typeof messages];
+    if (message === undefined) return undefined;
+    return {
+        protocolVersion: 1,
+        ok: false,
+        code: error.code,
+        message,
+        meetingId,
+        meetingVersion,
+        attemptId,
+        retryable: false
+    };
+}
 
 export interface ManagerFallbackInput {
     readonly repository: MeetingRepositoryRuntime;
@@ -608,8 +639,10 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     true
                 );
             }
+            let currentMeetingVersion = input.observedMeetingVersion;
             try {
                 const current = await stored.repository.read();
+                currentMeetingVersion = current.version;
                 const recovered = await stored.repository.recover();
                 const commandNow = options.now?.() ?? Date.now();
                 const state = current.state as unknown as MeetingState;
@@ -633,7 +666,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                         capabilityId: `manager:${caller.sessionId}`,
                         attemptId: input.planningAttemptId
                     },
-                    requestHash: JSON.stringify(input),
+                    requestHash: serializeValidatedRequestV1(input),
                     expectedMeetingVersion: input.observedMeetingVersion,
                     transition: (snapshot) => {
                         const snapshotState = snapshot.state as unknown as MeetingState;
@@ -647,7 +680,8 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                                     snapshotState.manager.currentPlanningAttempt?.deliveryId ?? "",
                                 observedMeetingVersion: input.observedMeetingVersion,
                                 dispatchableParticipantIds,
-                                now: commandNow
+                                now: commandNow,
+                                managerSessionId: caller.sessionId
                             },
                             {
                                 turnId: `turn-${snapshotState.turnSeq + 1}`,
@@ -712,6 +746,13 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     committed.result as ManagerPlanResultV1
                 );
             } catch (error) {
+                const attendanceError = mapAttendanceRecommendationError(
+                    error,
+                    input.meetingId,
+                    currentMeetingVersion,
+                    input.planningAttemptId
+                );
+                if (attendanceError !== undefined) return attendanceError;
                 return commandError(
                     error,
                     "MANAGER_PLAN_INVALID",
@@ -766,6 +807,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                                 )
                                 .map((participant) => participant.id),
                             now: input.now,
+                            managerSessionId: `runtime:${input.meetingId}`,
                             reasonCode: input.reasonCode
                         },
                         ids
