@@ -480,38 +480,9 @@ Captain approval/admission/provisioning portions of FR-13.5-9 and AC 31-34 remai
 
 ## 8. 机械实施步骤
 
-### T1：Catalog protocol types、Schema 与 command input
-
-前置状态：T0 PASS commit 已存在；T0 完整章节已删除；工作树 clean。
-
-允许修改：`plugin/src/protocol/types.ts` 的 Catalog/claim/error symbols 与 `ManagerPlanSubmissionV1`；`plugin/src/protocol/schema.ts` 的四个 Catalog Schema 与 `knownErrorCodes`；`plugin/src/protocol/commands.ts::ManagerPlanSubmissionSchema`；`plugin/src/protocol/index.ts` 的四个 Schema exports；`plugin/tests/contract/protocol-schema.spec.ts`；本 RUNBOOK 的 T1 章节。
-
-禁止修改：Domain、Runtime、status Schema、result Schema、Client、HTTP、repository、package/lock。
-
-执行：
-
-1. 按 7.1 新增唯一 protocol types；`attendanceRecommendations` 只在 Manager submission 中 optional。
-2. 在 `protocol/schema.ts` 新增四个 exact-key Schema，在 `protocol/index.ts` 的既有 `schema.ts` export block逐名导出它们，并把正式八个 error literals同步到`KnownMeetingProtocolErrorCodeV1`和`knownErrorCodes`。
-3. 把`ManagerPlanSubmissionSchema`改为typed`Schema.transform`：base required keys保持原集合，只有`attendanceRecommendations`允许缺失；存在时引用`AttendanceRecommendationClaimSchema`。transform调用`commands.ts`现有`assertExactKeys`，根据optional key是否存在选择base或base加attendance的唯一key集合。缺失与`[]`均合法；top-level或claim unknown/missing key、错误array element type、非法urgency均由Schema拒绝。非空evidence gap的Phase 1业务拒绝留给T7。
-4. 在`protocol-schema.spec.ts`增加`describe("FR-13 Catalog protocol")`，覆盖snapshot/projection/claim/public recommendation exact keys、八个known errors、submission缺失/空/多claim及top-level forbidden identity/status fields。port result runtime validation留给T3。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/contract/protocol-schema.spec.ts
-pnpm --dir plugin typecheck:host
-git diff --check
-```
-
-PASS：三条命令退出 0；既有 no-claim Manager submission 仍通过；unknown/missing key cases 全拒绝；没有 Domain/Runtime diff。
-
-STOP：必须放宽 Schema、增加 default、修改 result Schema或改变既有 command requiredness。报告首个 failing test/type error。
-
-失败恢复：仅代码与测试 diff，无 repository、DSH 或外部副作用；保留 T1 与失败现场。
-
 ### T2：V2 domain shape 与 no-Catalog baseline
 
-前置状态：T1 PASS；T1 完整章节已删除；T1 validation 仍 PASS。
+前置状态：T1 PASS commit 已存在；T1 完整章节已删除；工作树 clean。
 
 允许修改：`plugin/src/domain/model.ts`；`plugin/src/domain/create.ts::createMeetingState`；`plugin/src/domain/transitions/types.ts::StartManagerPlanningContext`、`SubmitSpeakerAdvanceContext`；`plugin/src/domain/transitions/speaker-attempt.ts::FailSpeakerAttemptContext`；`plugin/src/domain/transitions/manager-planning.ts::startManagerPlanning`；`plugin/src/domain/transitions/turn-advancement.ts::advanceAfterSpeakerSubmission`；`plugin/src/runtime/application-service/create-meeting.ts::createMeetingApplication`的initial`startManagerPlanning`context；`plugin/src/runtime/application-service/meeting-task.ts::createMeetingTaskApplication`的`startMeetingTask`和`finishMeetingTask`contexts；`plugin/src/runtime/application-service/meeting-control.ts::transitionMeetingStatus`的`currentPlanningAttempt`literal；`plugin/src/runtime/application-service/meeting-turn.ts::submitTurn`的`SubmitSpeakerAdvanceContext`；`plugin/src/runtime/application-service/index.ts::scanExpiredSpeakerAttempts`的`FailSpeakerAttemptContext`；以下fixtures：`plugin/tests/contract/continuation.spec.ts`、`plugin/tests/contract/meeting-repository-behavior.ts`、`plugin/tests/contract/status-projection.spec.ts`、`plugin/tests/recovery/recovery.spec.ts`、`plugin/tests/unit/domain/completion.spec.ts`、`plugin/tests/unit/domain/create.spec.ts`、`plugin/tests/unit/domain/hand-raise.spec.ts`、`plugin/tests/unit/domain/meeting-task.spec.ts`、`plugin/tests/unit/domain/transitions/fixtures.ts`、`plugin/tests/unit/domain/transitions/manager-planning.spec.ts`、`plugin/tests/unit/domain/transitions/meeting.spec.ts`、`plugin/tests/unit/domain/transitions/speaker-attempt.spec.ts`、`plugin/tests/unit/domain/transitions/turn-advancement.spec.ts`、`plugin/tests/unit/runtime/archive.spec.ts`、`plugin/tests/unit/runtime/manager-fallback.spec.ts`、`plugin/tests/unit/runtime/recovery.spec.ts`、`plugin/tests/unit/runtime/task-evidence.spec.ts`；本RUNBOOK的T2章节。
 
