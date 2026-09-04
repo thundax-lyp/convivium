@@ -180,29 +180,9 @@ ctx
 
 ## 8. 机械执行步骤
 
-### T1：白名单 mapper 与 renderer
-
-前置状态：已完成基线核对；当前 HEAD 包含 FR-15 requirements、Developer Markdown interface 和唯一实现 design，且不存在 Developer Markdown production/test symbol。
-
-允许修改：`plugin/src/projection/developer-markdown.ts`、`plugin/src/projection/index.ts`、`plugin/tests/unit/projection/developer-markdown.spec.ts`。
-
-禁止修改：domain/repository/runtime/config 和其他 tests。
-
-执行：创建第 5、6 节固定类型/函数；逐字段映射，按固定 JSON section 算法实现 heading、排序、escaping、empty marker 和 final newline。测试必须用完整字符串等值断言覆盖 current/archive；另覆盖每个 optional 缺失、空数组、非法 state、敏感字段缺失和相同输入/时间的确定字节输出。current fixture 必须包含源 artifact `checksum`，并断言 `mapDeveloperMeetingDocument` 的返回值与 `renderCurrentMarkdown` 输出均不含 `checksum`；archive fixture 必须在 committed `ImmutableArchivePackage.artifactRefs[]` 中包含 optional `checksum`，并断言 `renderArchiveMarkdown` 在 `Artifacts` section 原样保留该值。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/projection/developer-markdown.spec.ts
-pnpm --dir plugin typecheck
-git diff --check
-```
-
-PASS：三命令退出 0；`mapDeveloperMeetingDocument` 返回值和 current Markdown 均无 `attemptId|executionId|deliveryId|checksum|sourceMessageId`；archive Markdown 无 `attemptId|executionId|deliveryId|sourceMessageId`，且其 `Artifacts` section 精确包含 fixture 的 optional `checksum`。STOP：签名/字段不一致、archive `checksum` 被删除或转换、current 泄露 `checksum`，或命令失败；不得新增 archive mapper、脱敏层、配置、通用抽象、扩大类型或使用 spread。失败恢复：无外部副作用，保留 diff。
-
 ### T2：单一 worker 与文件原子性
 
-前置状态：T1 PASS。
+前置状态：T1 已 PASS 并已提交；`plugin/src/projection/developer-markdown.ts`、`plugin/src/projection/index.ts` 与 `plugin/tests/unit/projection/developer-markdown.spec.ts` 已存在且通过 T1 验证。
 
 允许修改：`plugin/src/runtime/services/developer-markdown-service.ts`、`plugin/tests/unit/runtime/developer-markdown-service.spec.ts`。
 
