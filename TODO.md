@@ -9,20 +9,9 @@
 
 ## 当前任务项
 
-## 待审阅任务项
-
-- [ ] `工作分支与插件基线`：AR-00 核对执行基线
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T0。
-    - 确认依据：2026-09-07，用户要求依据已修订 RUNBOOK 制定 TODO LIST；本次仅登记清单，尚未委派实现。
-    - 前置依赖：获得实施委派；无前置实现任务。
-    - 文件：不修改 tracked 文件；仅允许 T0 指定的依赖目录和验证生成物。
-
-    - 处理动作：核对分支、工作树及 DSH 版本，按 T0 frozen 安装并运行完整基线验证。
-    - 验收点：分支与 DSH 版本符合 T0；pnpm --dir plugin verify 全部通过，manifest/lockfile 未改变。
-
 - [ ] `参会拒绝协议`：AR-01 固定契约与 Schema
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T1。
-    - 确认依据：2026-09-07，用户要求依据已修订 RUNBOOK 制定 TODO LIST；本次仅登记清单，尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：AR-00 PASS。
     - 文件（7 个）：
 
@@ -39,7 +28,7 @@
 
 - [ ] `推荐状态与领域 transition`：AR-02 实现单条推荐拒绝
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T2。
-    - 确认依据：2026-09-07，用户要求依据已修订 RUNBOOK 制定 TODO LIST；本次仅登记清单，尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：AR-01 PASS。
     - 文件（7 个）：
 
@@ -56,7 +45,7 @@
 
 - [ ] `Captain Runtime 与持久事务`：AR-03 接通拒绝命令及恢复
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T3。
-    - 确认依据：2026-09-07，用户要求依据已修订 RUNBOOK 制定 TODO LIST；本次仅登记清单，尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：AR-02 PASS。
     - 文件（7 个）：
 
@@ -73,7 +62,7 @@
 
 - [ ] `DSH 拒绝推荐工具`：AR-04 注册工具并验证模型结果
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T4。
-    - 确认依据：2026-09-07，用户要求依据已修订 RUNBOOK 制定 TODO LIST；本次仅登记清单，尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：AR-03 PASS。
     - 文件（3 个）：
 
@@ -86,7 +75,7 @@
 
 - [ ] `推荐状态与归档 projection`：AR-05 闭合可见性、归档和恢复
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T5。
-    - 确认依据：2026-09-07，用户要求依据已修订 RUNBOOK 制定 TODO LIST；本次仅登记清单，尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：AR-04 PASS。
     - 文件（9 个）：
 
@@ -105,7 +94,7 @@
 
 - [ ] `真实 Loader 与完整验证`：AR-06 验证新工具拒绝路径
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T6。
-    - 确认依据：2026-09-07，用户要求依据已修订 RUNBOOK 制定 TODO LIST；本次仅登记清单，尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：AR-05 PASS。
     - 文件（4 个）：
 
@@ -119,7 +108,7 @@
 
 - [ ] `正式文档与任务收口`：AR-07 迁移证据并清理临时任务
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T7。
-    - 确认依据：2026-09-07，用户要求依据已修订 RUNBOOK 制定 TODO LIST；本次仅登记清单，尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：AR-06 PASS。
     - 文件（9 个）：
 
@@ -135,5 +124,7 @@
 
     - 处理动作：按 T7 迁移稳定契约与实际验证证据，核对完成条件后清理本 RUNBOOK 及本次 TODO 条目。
     - 验收点：S1–S4、V1–V12 均有实际证据；FR-13 仍为部分实现；未覆盖范围记录准确；删除后无残留引用、链接与 diff 检查通过，失败则恢复被删除文档和条目。
+
+## 待审阅任务项
 
 ## 待讨论项
