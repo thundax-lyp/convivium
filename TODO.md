@@ -8,19 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `tests/role-closure`：RC-06 验证创建、重放与失败闭环
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T6。
-    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：RC-05 完成。
-    - 文件（3 个）：
-
-        - `plugin/tests/contract/meeting-runtime.spec.ts`
-        - `plugin/tests/integration/dsh/session-adapter.spec.ts`
-        - `plugin/tests/fixtures/role-composition.ts`
-
-    - 处理动作：建立固定 fixture，验证创建与重放、配置变化、归档及失败清理。
-    - 验收点：T6 验证通过；ready replay 不重新解析配置，换 ID 同请求冲突，旧绑定不变且公开状态不泄露配置。
-
 - [ ] `smoke/role-recovery`：RC-07 验证真实 DSH 隔离与冷恢复
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T7。
     - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。

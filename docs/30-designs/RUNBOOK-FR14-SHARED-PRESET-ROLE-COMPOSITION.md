@@ -304,8 +304,9 @@ STOP：发现必须改变调度/恢复语义或额外捕获未规定错误。
 - `plugin/tests/contract/meeting-runtime.spec.ts`
 - `plugin/tests/integration/dsh/session-adapter.spec.ts`
 - `plugin/tests/fixtures/role-composition.ts`（新建）
+- `plugin/src/protocol/status.ts`（2026-09-07 用户授权补齐 Schema 拒绝校验）
 
-禁止修改：产品代码与测试绕过，失败只能返回对应前序步骤允许范围修复后重跑。
+禁止修改：上述 status.ts 之外的产品代码与测试绕过；其他失败返回对应前序步骤允许范围修复后重跑。
 
 执行：
 1. 新增 `plugin/tests/fixtures/role-composition.ts`，唯一导出 `roleCompositionDefinitions: readonly MeetingAgentDefinitionV1[]`，按 Manager、Participant 顺序包含以下两个完整对象；类型通过 type import 从 src/role-composition/model.ts 引入。测试需要修改配置时复制对象，不修改共享 fixture。
@@ -343,7 +344,7 @@ export const roleCompositionDefinitions: readonly MeetingAgentDefinitionV1[] = [
    创建输入固定 `managerAgentDefinitionId="fr14-manager"`，participantKey="a" 的 `agentDefinitionId="fr14-participant"`，其他 Participant 不选择 Definition。测试 parent 的 composedPreset 返回 "minimal"；Skill fixture 返回 name="fr14-fixture"、content="FR14 fixture"、invocation.modelInvocable=true。
 2. 测试合法 create→ownership→status、同request replay不再调用能力校验，修改当前config或移除Skill后ready replay仍返回原结果；不同ID同requestId冲突。
 3. 检查新配置只影响新的requestId，旧ownership/provenance不变；非法Participant选择导致零child；DSH中途失败cleanup和取消没有可用Participant。补归档后同create请求重放，断言原binding、meetingVersion及领域event数量均不变。
-4. 明确无公开字段：status和归档schema不接受persona/filter/Skill正文；继续执行原adapter followup/inspect/drain测试。
+4. 在 status.ts 的 MeetingStatusResultSchema 与 MeetingArchivePackageSchema 结构解析前，对原始顶层输入显式拒绝 persona、toolFilter、requiredSkillNames、skillContent、agentDefinition 字段；错误固定为 `Role configuration is not public meeting data.`，不输出字段值。不改变其他字段的兼容语义，不对自然语言正文做关键词过滤。明确无公开字段：status和归档schema不接受persona/filter/Skill正文；继续执行原adapter followup/inspect/drain测试。
 
 验证：
 

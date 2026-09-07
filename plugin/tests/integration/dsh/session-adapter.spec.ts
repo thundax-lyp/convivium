@@ -1,3 +1,5 @@
+import { roleCompositionDefinitions } from "../../fixtures/role-composition.js";
+import { resolveMeetingRoles } from "../../../src/role-composition/resolve.js";
 import { describe, expect, it } from "vitest";
 import type { ContinuableStart, ContinuableStartSpec } from "@deepseek-ai/dsh-subagent";
 import {
@@ -187,5 +189,49 @@ describe("DSH session adapter composition", () => {
             "wrong-parent",
             "missing-dsh-entry"
         ]);
+    });
+});
+
+describe("resolved role adapter composition", () => {
+    it("passes only persona and filter to DSH and keeps provenance outside the descriptor request", async () => {
+        const roles = await resolveMeetingRoles(
+            {
+                definitions: roleCompositionDefinitions,
+                managerAgentDefinitionId: "fr14-manager",
+                participants: [{ participantKey: "a", agentDefinitionId: "fr14-participant" }]
+            },
+            async () => {}
+        );
+        const starts = [];
+        const runtime = {
+            startContinuable: async (spec) => {
+                starts.push(spec);
+                return { childId: spec.childId, messageId: "m" };
+            }
+        };
+        const common = {
+            runtime,
+            provider: "spawn",
+            parent: { id: "captain-session" },
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            signal
+        };
+        await startManagerSession({ ...common, childId: "manager", composition: roles.manager });
+        await startParticipantSession({
+            ...common,
+            childId: "participant",
+            participantId: "a",
+            composition: roles.participants.a
+        });
+        expect(starts[0].request.persona).toBe("FR14_MANAGER_V1");
+        expect(starts[1].request).toMatchObject({
+            persona: "FR14_PARTICIPANT_V1",
+            toolFilter: { deny: ["convivium_role_probe"] }
+        });
+        for (const start of starts) {
+            expect(start.request).not.toHaveProperty("agentDefinition");
+            expect(start.request).not.toHaveProperty("requiredSkillNames");
+        }
     });
 });
