@@ -184,7 +184,7 @@ function endBody(overrides: Record<string, unknown> = {}) {
 }
 
 describe("local Meeting HTTP boundary", () => {
-    it("registers one prefix and serves all six successful routes", async () => {
+    it("registers one prefix and serves all nine successful routes", async () => {
         const { handler, runtime } = registeredHandler();
         const list = await invoke(handler, "GET", "/api/convivium/meetings");
         const status = await invoke(handler, "GET", `/api/convivium/meetings/${meetingId}`);
@@ -217,6 +217,33 @@ describe("local Meeting HTTP boundary", () => {
             contentType: "application/json"
         });
 
+        for (const [suffix, fields] of [
+            ["accept-decision", { decisionCandidateId: "candidate-1" }],
+            ["dispose-decision", { decisionId: "decision-1", action: "revoke" }],
+            ["dispose-risk", { issueId: "risk-1", decision: "accept" }]
+        ] as const) {
+            expect(
+                (
+                    await invoke(
+                        handler,
+                        "POST",
+                        `/api/convivium/meetings/${meetingId}/${suffix}`,
+                        {
+                            body: JSON.stringify({
+                                protocolVersion: 1,
+                                meetingId,
+                                expectedMeetingVersion: 2,
+                                requestId: "command-1",
+                                reason: "Reviewed evidence",
+                                evidenceMessageIds: ["message-1"],
+                                ...fields
+                            }),
+                            contentType: "application/json"
+                        }
+                    )
+                ).status
+            ).toBe(200);
+        }
         for (const response of [list, status, pause, resume, reassign, end]) {
             expect(response.status).toBe(200);
             expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
@@ -397,4 +424,196 @@ describe("local Meeting HTTP boundary", () => {
         );
         expect(invalid).toMatchObject({ status: 500, body: "" });
     });
+});
+
+describe("local decision risk routes preserve strict HTTP boundary", () => {
+    const common = {
+        protocolVersion: 1,
+        meetingId,
+        expectedMeetingVersion: 2,
+        requestId: "local-command",
+        reason: "Reviewed evidence",
+        evidenceMessageIds: ["message-1"]
+    };
+    const cases = [
+        {
+            suffix: "accept-decision",
+            method: "acceptLocalDecision" as const,
+            input: { ...common, decisionCandidateId: "candidate-1" }
+        },
+        {
+            suffix: "dispose-decision",
+            method: "disposeLocalDecision" as const,
+            input: {
+                ...common,
+                decisionId: "decision-1",
+                action: "supersede",
+                replacementCandidateId: "candidate-2"
+            }
+        },
+        {
+            suffix: "dispose-decision",
+            method: "disposeLocalDecision" as const,
+            input: { ...common, decisionId: "decision-1", action: "revoke" }
+        },
+        {
+            suffix: "dispose-risk",
+            method: "disposeLocalRisk" as const,
+            input: { ...common, issueId: "risk-1", decision: "accept" }
+        },
+        {
+            suffix: "dispose-risk",
+            method: "disposeLocalRisk" as const,
+            input: { ...common, issueId: "risk-1", decision: "reject" }
+        }
+    ];
+    it.each(cases)(
+        "dispatches $suffix $input.action $input.decision exactly",
+        async ({ suffix, method, input }) => {
+            const { handler, runtime: service } = registeredHandler();
+            if ("action" in input && input.action === "supersede")
+                service.disposeLocalDecision.mockResolvedValueOnce(
+                    success({
+                        requestId: input.requestId,
+                        decisionId: input.decisionId,
+                        action: "supersede",
+                        replacementDecisionId: "decision-candidate-2",
+                        completionFactId: "replace-fact"
+                    }) as never
+                );
+            if ("decision" in input && input.decision === "reject")
+                service.disposeLocalRisk.mockResolvedValueOnce(
+                    success({
+                        requestId: input.requestId,
+                        issueId: input.issueId,
+                        disposition: "rejected",
+                        completionFactId: "reject-fact",
+                        meetingStatus: "running"
+                    }) as never
+                );
+            const result = await invoke(
+                handler,
+                "POST",
+                `/api/convivium/meetings/${meetingId}/${suffix}`,
+                { body: JSON.stringify(input), contentType: "application/json" }
+            );
+            expect(result.status).toBe(200);
+            expect(result.headers.get("content-type")).toBe("application/json; charset=utf-8");
+            expect(service[method]).toHaveBeenCalledExactlyOnceWith(input);
+            for (const name of [
+                "acceptLocalDecision",
+                "disposeLocalDecision",
+                "disposeLocalRisk"
+            ] as const)
+                if (name !== method) expect(service[name]).not.toHaveBeenCalled();
+        }
+    );
+    it.each(cases)(
+        "rejects invalid $suffix inputs before Runtime",
+        async ({ suffix, method, input }) => {
+            const { handler, runtime: service } = registeredHandler();
+            const url = `/api/convivium/meetings/${meetingId}/${suffix}`;
+            const malformed: unknown[] = [
+                null,
+                [],
+                3,
+                { ...input, actor: "captain" },
+                { ...input, meetingId: "wrong" },
+                { ...input, protocolVersion: 2 },
+                { ...input, expectedMeetingVersion: "invalid" }
+            ];
+            for (const key of Object.keys(input)) {
+                const value = { ...input } as Record<string, unknown>;
+                delete value[key];
+                malformed.push(value);
+            }
+            if (suffix === "dispose-decision")
+                malformed.push(
+                    { ...input, action: "invalid" },
+                    {
+                        ...common,
+                        decisionId: "decision-1",
+                        action: "revoke",
+                        replacementCandidateId: "candidate-2"
+                    }
+                );
+            if (suffix === "dispose-risk") malformed.push({ ...input, decision: "invalid" });
+            for (const value of malformed) {
+                const result = await invoke(handler, "POST", url, {
+                    body: JSON.stringify(value),
+                    contentType: "application/json"
+                });
+                expect(result.status).toBe(400);
+                expect(result.json).toEqual({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "INVALID_ARGUMENT",
+                    message: "Invalid meeting request.",
+                    retryable: false
+                });
+            }
+            for (const [target, options] of [
+                [url, { body: "{", contentType: "application/json" }],
+                [url, { body: " ".repeat(16_385), contentType: "application/json" }],
+                [url, { body: JSON.stringify(input) }],
+                [url, { body: JSON.stringify(input), contentType: "text/plain" }],
+                [url + "?x=1", { body: JSON.stringify(input), contentType: "application/json" }],
+                [
+                    `/api/convivium/meetings/%ZZ/${suffix}`,
+                    { body: JSON.stringify(input), contentType: "application/json" }
+                ]
+            ] as const)
+                expect((await invoke(handler, "POST", target, options)).status).toBe(400);
+            for (const [verb, target] of [
+                ["GET", url],
+                ["POST", url + "/"],
+                ["POST", url + "/other"]
+            ]) {
+                const result = await invoke(handler, verb!, target!);
+                expect(result.status).toBe(404);
+                expect(result.body).toBe("");
+            }
+            expect(service[method]).not.toHaveBeenCalled();
+        }
+    );
+    it.each(cases)(
+        "validates $suffix envelopes and error mappings",
+        async ({ suffix, method, input }) => {
+            const { handler, runtime: service } = registeredHandler();
+            const run = () =>
+                invoke(handler, "POST", `/api/convivium/meetings/${meetingId}/${suffix}`, {
+                    body: JSON.stringify(input),
+                    contentType: "application/json"
+                });
+            for (const [code, status] of [
+                ["VERSION_CONFLICT", 409],
+                ["IDEMPOTENCY_CONFLICT", 409],
+                ["MEETING_NOT_FOUND", 404],
+                ["INVALID_ARGUMENT", 400]
+            ] as const) {
+                const error = {
+                    protocolVersion: 1,
+                    ok: false,
+                    code,
+                    message: "rejected",
+                    retryable: false
+                };
+                service[method].mockResolvedValueOnce(error as never);
+                const response = await run();
+                expect(response.status).toBe(status);
+                expect(response.json).toEqual(error);
+            }
+            service[method].mockRejectedValueOnce(
+                new LocalMeetingRecoveryUnavailableError("private recovery detail")
+            );
+            const unavailable = await run();
+            expect(unavailable.status).toBe(503);
+            expect(unavailable.headers.get("retry-after")).toBe("1");
+            expect(unavailable.body).toBe("");
+            service[method].mockRejectedValueOnce(new Error("private failure"));
+            expect(await run()).toMatchObject({ status: 500, body: "" });
+            service[method].mockResolvedValueOnce(success({ bad: "value" }) as never);
+            expect(await run()).toMatchObject({ status: 500, body: "" });
+        }
+    );
 });

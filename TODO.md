@@ -8,18 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `http/local-control`：LC-04 开放三个 loopback HTTP 写入口
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T4。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
-    - 前置依赖：LC-03 完成。
-    - 文件（2 个）：
-
-        - `plugin/src/http/index.ts`
-        - `plugin/tests/contract/http-boundary.spec.ts`
-
-    - 处理动作：接线 accept-decision、dispose-decision、dispose-risk，校验请求字段并映射类型化响应。
-    - 验收点：V4 通过；五动作分派正确，非法输入及错误响应按契约处理，非 loopback 不注册。
-
 - [ ] `client/meeting-panel`：LC-05 实现单行内操作表单
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T5。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
