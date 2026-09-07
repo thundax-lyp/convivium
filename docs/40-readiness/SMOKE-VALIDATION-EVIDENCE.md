@@ -37,6 +37,20 @@
 
 当前执行入口和分层矩阵已同步到操作文档。产品代码、公开协议、权限与存储语义未改变；TODO 无本任务登记项。新实现保留协议错误码修复以及实际归档 Schema 校验。
 
+## Retired Convergence Scenario Evidence
+
+以下仅保留已移除 selector 的历史真实运行摘要，不是当前执行入口。2026-09-07，在干净基线 `5f0cc145df8dd194242220730dc1ab359e943573`，使用 Darwin arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、web profile、spawn provider，分别执行 `CONVIVIUM_SMOKE_SCENARIO=<selector> pnpm --dir plugin smoke:profile`，均退出 0。
+
+| 已移除 selector | 当时实际观察 |
+| --- | --- |
+| `convergence-no-consensus` | 首条提交产生 blocking question，第四条后 no_consensus；最终归档保留问题，版本 7 |
+| `convergence-reset` | 第四条提交新 Proposal，stall/replan 同时归零，后续重新 refocus/replan，第七条后 partial/stalled；归档版本 10 |
+| `convergence-message-budget-completion` | maxTotalMessages=2，第二条合法 claims 先得到 converging，随后 Captain 显式 completed/objective_satisfied；归档版本 6 |
+
+三场景均观察到旧 Agent 提交被拒绝、完整归档和版本不变、meeting child inactive 且无 resident Session；wrapper 完整退出后逐次核对精确临时根不存在、端口可 exclusive bind，Restore 通过。没有调用真实模型或 Browser，也没有 Host 冷重启或长期资源压力证据。
+
+后续 Review 在 `6e7441b` 加修复工作区的边界，以正式归档 Schema 和 `ProtocolErrorV1.code` 校验结果，原五个新增收敛 selector 再次逐一通过，五次 Restore 均通过；该历史重跑不恢复已删除入口。当前规则差异由 `plugin/tests/unit/domain/transitions/turn-advancement.spec.ts` 保留回归，当前真实覆盖为 fallback、stalled 和 Turn budget 场景，结果见下方最新基线。详细旧运行表与逐步日志说明保留在 Git 历史。
+
 ## Audit Baseline Validation
 
 2026-09-07，代码基线 `743edbee564d34402fedc2bb44ebbb006790fe1a`，`codex/align-code`；本次仅 readiness 文档变化。环境：Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、profile `web`、provider `spawn`。

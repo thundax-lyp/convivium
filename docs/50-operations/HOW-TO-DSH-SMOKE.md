@@ -124,7 +124,7 @@ pnpm --dir plugin --silent smoke:profile --json         # 完整逐场景 JSON�
 | 完整 | `decision-risk-closure`、`risk-reopen` | 决策/风险工具投影、重放与冲突 |
 | 完整 | `convergence` | Manager 无效计划的 fallback 与幂等重放 |
 
-no_consensus、进展重置和另一种预算的规则差异由 `turn-advancement.spec.ts` 覆盖，不再提供 `convergence-no-consensus`、`convergence-reset`、`convergence-message-budget-completion` selector。历史五场景运行证据仍保留，但不代表当前入口。
+no_consensus、进展重置和另一种预算的规则差异由 `turn-advancement.spec.ts` 覆盖，不再提供 `convergence-no-consensus`、`convergence-reset`、`convergence-message-budget-completion` selector。已移除场景的[历史运行摘要](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#retired-convergence-scenario-evidence)仅用于追溯，不代表当前入口。
 
 ### 引用式纪要场景
 

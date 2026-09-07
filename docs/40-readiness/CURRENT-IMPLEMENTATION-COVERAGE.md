@@ -101,7 +101,7 @@ Question 的 required-review/risk evidence 与 Decision candidate reject/revoke 
 | 证据 | 原始范围与本次关系 |
 | --- | --- |
 | [DSH Runtime Vertical Slice](./DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md) | 早期创建、连续发言、恢复、归档及 Browser 历史；当前普通运行以新的 smoke 表为准 |
-| [Convergence Runtime](./CONVERGENCE-RUNTIME-VALIDATION-EVIDENCE.md) | 历史六场景；部分 selector 后来删除。当前保留的 fallback/stalled/Turn budget 已重跑，完成/规划/指纹修复回归见上方业务能力验证 |
+| [Convergence Smoke](./SMOKE-VALIDATION-EVIDENCE.md#retired-convergence-scenario-evidence) | 已移除 selector 的历史结果摘要；现行 fallback/stalled/Turn budget 结果统一记录在 smoke evidence，完成/规划/指纹回归见上方业务能力验证 |
 | [Captain Local Decision/Risk](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md) | 五动作、六条 local facts、HTTP/Client 与 LC-08 Browser；本次仅自动化与普通 decision/risk smoke 重跑 |
 | [Captain Attendance Rejection](./CAPTAIN-ATTENDANCE-REJECTION-EVIDENCE.md) | Captain reject 子闭环；不证明 approve/admission。baseline 中缺失推荐拒绝路径仍不等于 producer 成功推荐→拒绝 |
 | [FR-14 Shared Preset](./FR14-SHARED-PRESET-ROLE-COMPOSITION-EVIDENCE.md) | 初始角色隔离与配置 provenance；当前 role-composition 已重新通过双 Host 冷恢复 |
