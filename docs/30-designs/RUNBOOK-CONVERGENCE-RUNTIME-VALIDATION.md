@@ -192,9 +192,21 @@ type ConvergenceProbeResult = {
 
 实际结果：在 `codex/convergence-runtime-runbook` 分支核对基线与工作区；按执行授权允许本任务后续提交使 HEAD 前移。三个既有 suite 共 32 tests 通过，三个计划新增文件均不存在。T0 未产生代码或测试文件；后续从 T1 开始。
 
-### T1 已完成：建立 result 校验与独立 fixture
+### T1：建立 result 校验与独立 fixture
 
-实际结果：新增五个收敛 selector 的结果校验入口与独立 contract fixtures；既有 convergence 规则保持兼容。`smoke-profile-contract.spec.ts` 6 tests 通过，Prettier 与 `git diff --check` 通过。后续运行证据仍未覆盖。
+前置状态：T0 PASS。
+允许修改：`plugin/scripts/smoke-profile/result.mjs`、`plugin/tests/unit/scripts/smoke-profile-contract.spec.ts`。
+禁止修改：原 convergence 三标签、其他 result 规则、产品 Schema。
+
+执行：实现 Result 合约章节固定私有函数及五个 literal 分支；增加对应独立 fixtures 和全部负例。尚未实现的 selector 仅供 validator 单测，T1 不加入 runner allowlist。
+
+验证：
+```sh
+pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile-contract.spec.ts
+pnpm --dir plugin exec prettier scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile-contract.spec.ts --check
+```
+PASS：原用例继续通过；五种完整结果通过，所有单点破坏被拒。
+STOP：需要放宽字段、吞异常或改变其他 selector；保留 diff/首个失败。
 
 ### T2：正式空提交驱动 stalled
 

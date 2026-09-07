@@ -76,56 +76,5 @@ export function validateScenarioResult(value, expectedScenario) {
             throw new Error("Convergence smoke assertions are incomplete.");
         }
     }
-    if (expectedScenario.startsWith("convergence-") && expectedScenario !== "convergence") {
-        validateConvergenceRuntimeResult(value, expectedScenario);
-    }
     return value;
-}
-
-function validateConvergenceRuntimeResult(value, expectedScenario) {
-    const labels = {
-        "convergence-stalled": [
-            "first-progress-baseline",
-            "refocus-observed",
-            "replan-observed",
-            "partial-stalled"
-        ],
-        "convergence-no-consensus": [
-            "first-progress-baseline",
-            "refocus-observed",
-            "replan-observed",
-            "blocking-question-no-consensus"
-        ],
-        "convergence-reset": [
-            "first-progress-baseline",
-            "refocus-observed",
-            "replan-observed",
-            "progress-resets-both-counters",
-            "refocus-after-reset",
-            "replan-after-reset",
-            "partial-stalled"
-        ],
-        "convergence-turn-budget-completion": [
-            "last-valid-turn-before-budget",
-            "business-completion-before-budget",
-            "captain-completed-after-converging"
-        ],
-        "convergence-message-budget-completion": [
-            "last-valid-turn-before-budget",
-            "business-completion-before-budget",
-            "captain-completed-after-converging"
-        ]
-    }[expectedScenario];
-    if (
-        !labels ||
-        !Array.isArray(value.assertions) ||
-        value.assertions.length !== labels.length ||
-        value.assertions.some((label, index) => label !== labels[index]) ||
-        typeof value.meetingId !== "string" ||
-        value.meetingId.length === 0 ||
-        value.observed === null ||
-        typeof value.observed !== "object"
-    ) {
-        throw new Error("Convergence runtime result is invalid.");
-    }
 }
