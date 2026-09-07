@@ -1,6 +1,7 @@
 import type { CatalogDomain, MeetingDomain } from "./specs.js";
 import type { MeetingRepositoryPort } from "../meeting-repository-port.js";
 import {
+    AgentDefinitionBindingSchema,
     CatalogMeetingRecordV1Schema,
     CreationRecordV1Schema,
     type PersistenceProjectionV1,
@@ -696,7 +697,21 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         _input: SessionOwnershipInput,
         _now?: number
     ): Promise<SessionOwnership> {
-        const input = _input;
+        const parsedBinding = AgentDefinitionBindingSchema.optional().safeParse(
+            _input.agentDefinition
+        );
+        if (!parsedBinding.success)
+            throw new RepositoryError(
+                "INVALID_INPUT",
+                false,
+                this.meetingId,
+                "Invalid agent definition binding"
+            );
+        const { agentDefinition, ...identity } = _input;
+        const input = {
+            ...identity,
+            ...(agentDefinition === undefined ? {} : { agentDefinition: parsedBinding.data })
+        };
         this.ensureOpen();
         return this.enqueueMutation(async () => {
             const creation = this.meetingDomain.table("creation").get("current");
@@ -736,6 +751,12 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     existing.sessionLabel !== input.sessionLabel ||
                     existing.parentSessionId !== input.parentSessionId ||
                     existing.provider !== input.provider ||
+                    existing.agentDefinition?.agentDefinitionId !==
+                        input.agentDefinition?.agentDefinitionId ||
+                    existing.agentDefinition?.definitionVersion !==
+                        input.agentDefinition?.definitionVersion ||
+                    existing.agentDefinition?.definitionHash !==
+                        input.agentDefinition?.definitionHash ||
                     existing.role !== input.role ||
                     existing.participantId !== input.participantId ||
                     (existing.initialMessageId !== undefined &&

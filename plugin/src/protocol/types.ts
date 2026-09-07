@@ -69,6 +69,7 @@ export interface MeetingMailResultV1 {
 }
 
 export interface ParticipantSpecV1 {
+    agentDefinitionId?: string;
     participantKey: string;
     sourceMemberName?: string;
     displayName: string;
@@ -107,6 +108,7 @@ export interface ContinuationSelectionV1 {
 }
 
 export interface CreateMeetingInputV1 {
+    managerAgentDefinitionId?: string;
     protocolVersion: ProtocolVersion;
     requestId: string;
     teamId: string;

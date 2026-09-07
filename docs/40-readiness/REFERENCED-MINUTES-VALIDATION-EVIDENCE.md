@@ -116,3 +116,13 @@ T2–T8 对应上述命令及 Browser；V1–V15 全部 PASS；R4 的动态边�
 - `CONVIVIUM_SMOKE_SCENARIO=scribe-minutes CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile`：再次通过真实 Meetings view 验证 source-a、draft 三字段、刷新保持、Partial End、archived 后刷新；版本 4 → 7，结束原因 `scribe minutes smoke`。warn/error console 为空。原 PTY SIGINT 后 exit 0、`restore=PASS`、`CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`，本次精确临时根 `convivium-dsh-smoke-PjNXsX` 已删除。
 - `git diff --exit-code origin/main -- plugin/src/runtime/services/meeting-dispatch-service.ts plugin/src/runtime/application-service/meeting-mail.ts plugin/src/runtime/services/meeting-archive-service.ts`：PASS，本分支没有修改最新 main 的三项服务；归档新增事实来自 main，其测试与 minutes guard 共同通过完整 verify。
 - Not Covered 继续适用；本轮没有重新执行其他 selector 的 Browser 操作或模型质量测试。
+
+### Latest Main Integration
+
+2026-09-07 从 `d97da4d` 再合入 main `a2a6fb460713fcb8968a6578cf4528de0ebfe1ee`，保留 FR14 共享 preset/角色组合能力与引用式纪要测试。解决 coverage、README 和两组领域/runtime 测试冲突；smoke selector 合集同步为 16 个，core 仍为 5 个。
+
+- 首次 verify 因本地尚未安装 main 新增依赖而在 typecheck 失败；执行 `pnpm --dir plugin install --frozen-lockfile` 后重新验证，lockfile 无额外变化。
+- `pnpm --dir plugin verify`：exit 0，82 files / 1039 tests；format、lint、typecheck、build、environment、contract、definition samples、package 全 PASS。
+- `CONVIVIUM_SMOKE_SCENARIO=scribe-minutes pnpm --dir plugin smoke:profile`：PASS，`restore=PASS`，exit 0；覆盖 main 更新后的真实 DSH probe 打包与工具接线。
+- 本轮 `plugin/src/client` 相对 `d97da4d` 无变化；未重复 Browser 操作，上一节 Browser 证据仅对应其记录的合并边界。
+- 本轮未执行完整 16 个 smoke selector；其他 Not Covered 继续适用。

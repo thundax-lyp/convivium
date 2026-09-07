@@ -13,6 +13,7 @@ import {
     PersistedEventV1Schema,
     PersistedOutboxV1Schema,
     PersistedReceiptV1Schema,
+    AgentDefinitionBindingSchema,
     PersistenceProjectionV1Schema
 } from "../../../../src/repository/domain/schemas.js";
 
@@ -162,6 +163,37 @@ describe("domain schemas", () => {
         [CheckpointPointerV1Schema, pointer]
     ] as const;
 
+    it("accepts legacy ownership and validates optional strict role provenance", () => {
+        const binding = {
+            agentDefinitionId: "a",
+            definitionVersion: "1",
+            definitionHash: "a".repeat(64)
+        };
+        expect(CreationRecordV1Schema.safeParse(creation).success).toBe(true);
+        expect(
+            CreationRecordV1Schema.parse({
+                ...creation,
+                sessionOwnership: { s: { ...ownership.s, agentDefinition: binding } }
+            }).sessionOwnership.s.agentDefinition
+        ).toEqual(binding);
+        for (const invalid of [
+            null,
+            {},
+            { ...binding, definitionHash: "A".repeat(64) },
+            { ...binding, definitionHash: "a".repeat(63) },
+            { ...binding, extra: true },
+            { ...binding, definitionVersion: " " },
+            { ...binding, agentDefinitionId: "" }
+        ]) {
+            expect(AgentDefinitionBindingSchema.safeParse(invalid).success).toBe(false);
+            expect(
+                CreationRecordV1Schema.safeParse({
+                    ...creation,
+                    sessionOwnership: { s: { ...ownership.s, agentDefinition: invalid } }
+                }).success
+            ).toBe(false);
+        }
+    });
     it("accepts and strictly rejects every persistent record schema", () => {
         for (const [schema, value] of records) {
             expect(schema.safeParse(value).success).toBe(true);

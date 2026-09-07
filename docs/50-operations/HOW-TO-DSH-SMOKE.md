@@ -101,7 +101,7 @@ smoke 只证明真实 DSH 的组合、工具/HTTP 调用、持久化、恢复和
 
 ```sh
 pnpm --dir plugin smoke:profile                         # 默认 5 个核心场景
-pnpm --dir plugin smoke:profile --all                   # 全部 15 个场景
+pnpm --dir plugin smoke:profile --all                   # 全部 16 个场景
 env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
 pnpm --dir plugin --silent smoke:profile --json         # 完整逐场景 JSON，供诊断
 ```
@@ -128,7 +128,7 @@ no_consensus、进展重置和另一种预算的规则差异由 `turn-advancemen
 
 ### 引用式纪要场景
 
-`scribe-minutes` 是独立诊断 selector；默认核心仍为 5 个，完整套件为 15 个。沿用 `web` profile、`spawn` provider 和统一 Restore。
+`scribe-minutes` 是独立诊断 selector；默认核心仍为 5 个，完整套件为 16 个。沿用 `web` profile、`spawn` provider 和统一 Restore。
 
 从仓库根目录执行：
 
@@ -209,6 +209,32 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 - 插件完整运行验证：`pnpm verify:runtime`
 - 运行验证证据：`docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`
 - 当前 smoke 分层验证：[Smoke Validation Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)
+
+## FR-14 共享 Preset 角色隔离与冷恢复
+
+Prepare：沿用上文 dev.env、独立临时 profile 和 rc.2 版本要求；web profile 必须提供 `agentPresets`、`skills`、`minimal` Preset 与 continuable spawn provider。本场景不加入默认 CORE_SCENARIOS，也不支持 Browser 模式。
+
+Execute：从仓库根目录执行：
+
+```sh
+CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
+```
+
+Assert：真实 Captain factory 挂载 minimal；第一 Host 使用 V1 内联定义创建两种角色，第二 Host 配置改成 V2，恢复原 Captain 和 child。输出必须包含两个不同 Host PID、以下九项断言及 `PASS role-composition`、`restore=PASS`：
+
+- `phase1-checkpoint-durable`
+- `host-pid-changed`
+- `exact-parent-rebound`
+- `transcript-prefix-preserved`
+- `cold-followup-submitted`
+- `role-persona-isolated`
+- `role-tool-execution-denied`
+- `role-parent-unmodified`
+- `role-cold-config-v1-preserved`
+
+Participant 的 probe 工具同时不可见、不可执行，拒绝调用不进入 body；Manager 和 Captain 可执行。恢复后的两个 child 保留 V1 persona/filter。两个阶段只手动推进提交，不运行自动 Participant 提交。确定性场景不调用模型，不证明真实模型任务质量。
+
+Restore：wrapper 的 finally 必须停止本次 Host、确认端口释放并删除本次精确临时目录，成功打印 `restore=PASS`。任何能力缺失、断言失败或恢复失败都按失败处理，不换用 fake adapter；cleanup 失败沿上文仅处理本次精确 PID/目录，不清理其他 profile 或数据。
 
 ## Decision/Risk 本地按钮验证
 

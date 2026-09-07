@@ -184,3 +184,127 @@ describe("defaultTimeoutScanSleep", () => {
         expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
     });
 });
+
+describe("creation role preflight", () => {
+    const definitions = [
+        {
+            agentDefinitionId: "manager",
+            definitionVersion: "1",
+            roleDefinitionId: "meeting_manager",
+            displayName: "Manager",
+            summary: "Manager",
+            persona: "Manager persona",
+            dshPresetId: "minimal",
+            requiredSkillNames: ["fixture"],
+            expertiseTags: ["fixture"],
+            evidenceScopes: []
+        },
+        {
+            agentDefinitionId: "participant",
+            definitionVersion: "1",
+            roleDefinitionId: "domain_architect",
+            displayName: "Participant",
+            summary: "Participant",
+            persona: "Participant persona",
+            dshPresetId: "minimal",
+            requiredSkillNames: ["fixture"],
+            expertiseTags: ["fixture"],
+            evidenceScopes: [],
+            toolFilter: { deny: ["probe"] }
+        }
+    ];
+    const selected = {
+        ...input,
+        managerAgentDefinitionId: "manager",
+        participants: input.participants.map((p, i) => ({
+            ...p,
+            ...(i === 1 ? { agentDefinitionId: "participant" } : {})
+        }))
+    };
+    function fixture(failAt = 0) {
+        const requests = [];
+        const ownerships = [];
+        const cleaned = [];
+        const deps = dependencies({ agentDefinitions: definitions });
+        deps.parent = {
+            id: "captain-1",
+            session: { header: { cwd: "/fixture" } },
+            ctx: {
+                get: (key) =>
+                    key === "agentPresets"
+                        ? { composedPreset: () => "minimal" }
+                        : {
+                              get: async () => {
+                                  deps.calls.push("validate");
+                                  return {
+                                      content: "fixture",
+                                      invocation: { modelInvocable: true }
+                                  };
+                              }
+                          }
+            }
+        };
+        deps.continuable.startContinuable = async (spec) => {
+            requests.push(spec);
+            if (requests.length === failAt) throw new Error("child failed");
+            return { childId: spec.childId, messageId: "message" };
+        };
+        deps.repository.recordSessionOwnership = async (owned) => {
+            ownerships.push(owned);
+            deps.calls.push("owned");
+            return owned;
+        };
+        deps.cleanup = async (owned) => {
+            cleaned.push(...owned);
+        };
+        return { deps, requests, ownerships, cleaned };
+    }
+    it("preflights once and binds selection by participant key through both ownership writes", async () => {
+        const f = fixture();
+        await createMeetingRuntime(selected, f.deps);
+        expect(f.deps.calls.slice(0, 3)).toEqual(["bootstrap", "validate", "owned"]);
+        expect(f.requests).toHaveLength(4);
+        expect(f.requests[0].request.persona).toBe("Manager persona");
+        expect(f.requests[1].request.persona).toBeUndefined();
+        expect(f.requests[2].request).toMatchObject({
+            persona: "Participant persona",
+            toolFilter: { deny: ["probe"] }
+        });
+        expect(f.requests[3].request.persona).toBeUndefined();
+        expect(f.ownerships[0].agentDefinition).toEqual(f.ownerships[1].agentDefinition);
+        expect(f.ownerships[4].agentDefinition).toEqual(f.ownerships[5].agentDefinition);
+        expect(f.ownerships[4].agentDefinition.agentDefinitionId).toBe("participant");
+        expect(f.ownerships[2].agentDefinition).toBeUndefined();
+    });
+    it("rejects the last invalid selection before any child allocation or ownership", async () => {
+        const f = fixture();
+        f.deps.allocateSessionId = () => {
+            throw new Error("must not allocate");
+        };
+        await expect(
+            createMeetingRuntime(
+                {
+                    ...selected,
+                    participants: selected.participants.map((p, i) =>
+                        i === 2 ? { ...p, agentDefinitionId: "missing" } : p
+                    )
+                },
+                f.deps
+            )
+        ).rejects.toMatchObject({ code: "UNSUPPORTED_CAPABILITY" });
+        expect(f.deps.calls).toEqual(["bootstrap", "failed"]);
+        expect(f.requests).toEqual([]);
+        expect(f.ownerships).toEqual([]);
+        expect(f.cleaned).toEqual([]);
+    });
+    it("passes all allocated identities to original cleanup after the second child fails", async () => {
+        const f = fixture(2);
+        await expect(createMeetingRuntime(selected, f.deps)).rejects.toThrow("child failed");
+        expect(f.cleaned.map((o) => o.sessionId)).toEqual([
+            "manager-manager",
+            "participant-participant-p-1"
+        ]);
+        expect(f.deps.calls).not.toContain("complete");
+        expect(f.deps.calls.at(-1)).toBe("failed");
+    });
+});

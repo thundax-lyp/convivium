@@ -1,3 +1,4 @@
+import { parseAgentDefinitions } from "./role-composition/model.js";
 import { resolve } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
@@ -60,6 +61,7 @@ const meetingConsumerPlugin = {
                 );
         }
         const runtime = createCreateStatusRuntime({
+            agentDefinitions: parseAgentDefinitions(config.agentDefinitions),
             storageDomain: ctx.storageDomain,
             provider: config.provider,
             continuable: ctx.subagents,

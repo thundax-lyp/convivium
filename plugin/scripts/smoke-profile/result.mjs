@@ -63,6 +63,38 @@ export function validateScenarioResult(value, expectedScenario, validateMeetingS
         }
         return value;
     }
+    if (expectedScenario === "role-composition") {
+        const required = [
+            "phase1-checkpoint-durable",
+            "host-pid-changed",
+            "exact-parent-rebound",
+            "transcript-prefix-preserved",
+            "cold-followup-submitted",
+            "role-persona-isolated",
+            "role-tool-execution-denied",
+            "role-parent-unmodified",
+            "role-cold-config-v1-preserved"
+        ];
+        const role = value.observed?.roleComposition;
+        if (
+            value.assertions.length !== required.length ||
+            required.some((label) => !value.assertions.includes(label)) ||
+            role?.phase1Checked !== true ||
+            role?.phase2Checked !== true ||
+            role?.managerPersona !== "FR14_MANAGER_V1" ||
+            role?.participantPersona !== "FR14_PARTICIPANT_V1" ||
+            role?.phase2ConfiguredVersion !== "2.0.0" ||
+            role?.deniedTool !== "convivium_role_probe" ||
+            role?.deniedBodyCalls !== 0 ||
+            !Number.isInteger(value.observed?.phase1HostPid) ||
+            value.observed.phase1HostPid <= 0 ||
+            !Number.isInteger(value.observed?.phase2HostPid) ||
+            value.observed.phase2HostPid <= 0 ||
+            value.observed.phase1HostPid === value.observed.phase2HostPid
+        ) {
+            throw new Error("Role composition smoke result is invalid.");
+        }
+    }
     if (expectedScenario === "decision-risk-closure" && value.browserReady === true) {
         const keys = [
             "ok",

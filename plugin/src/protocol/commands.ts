@@ -33,6 +33,7 @@ function assertExactKeys(value: object, expected: readonly string[], label: stri
 }
 
 const participantSpec = Schema.object({
+    agentDefinitionId: Schema.string().pattern(/\S/),
     participantKey: string(),
     sourceMemberName: Schema.string(),
     displayName: string(),
@@ -80,6 +81,7 @@ const publicLimits = Schema.object({
 });
 
 const createMeetingInputSchema = Schema.object({
+    managerAgentDefinitionId: Schema.string().pattern(/\S/),
     protocolVersion: ProtocolVersionSchema,
     requestId: string(),
     teamId: string(),
@@ -96,6 +98,15 @@ const createMeetingInputSchema = Schema.object({
 export const CreateMeetingInputSchema: Schema<unknown, CreateMeetingInputV1> = Schema.transform(
     createMeetingInputSchema,
     (value) => {
+        if (!Array.isArray(value.participants)) throw new TypeError("Participants are required");
+        for (const id of [
+            value.managerAgentDefinitionId,
+            ...value.participants.map((participant) => participant.agentDefinitionId)
+        ]) {
+            if (id !== undefined && (typeof id !== "string" || !id.trim())) {
+                throw new TypeError("Invalid agent definition selection");
+            }
+        }
         if (!Array.isArray(value.agenda) || value.agenda.length === 0) {
             throw new TypeError("At least one agenda item is required");
         }

@@ -1,13 +1,14 @@
 # Current Implementation Coverage
 
-当前 smoke 默认覆盖 5 条关键跨层链路，完整套件保留 15 个场景；一次构建、独立场景、清理后输出 PASS。设计调整后的执行结果与边界见 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md)；下文已注明提交的旧记录仍仅代表历史验证。
+当前 smoke 默认覆盖 5 条关键跨层链路，完整套件包含 16 个场景（包含引用式纪要与 FR-14 角色场景）；一次构建、独立场景、清理后输出 PASS。设计调整后的执行结果与边界见 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md)；下文已注明提交的旧记录仍仅代表历史验证。
 
 ## Scope
 
 本文记录当前代码相对已确认需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-09-07
-- 代码基线：`46bfebc9804c9486fa4f77cccfcf2fa20486a01d`
+- 既有覆盖代码基线：`46bfebc9804c9486fa4f77cccfcf2fa20486a01d`
+- FR-14 增量基线：`6de1a1c`；全量 verify 80 files / 703 tests PASS，真实角色隔离与 cold-rebind 回归 PASS，详见专项证据。
 - 环境：Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、profile `web`、provider `spawn`
 - `已实现` 表示存在正式路径和相称验证；`部分实现` 表示存在局部路径但未闭合；`未实现` 表示没有产品运行路径。
 - 历史真实 profile 证据只适用于其原始 commit，不外推为当前 HEAD 证据。
@@ -20,7 +21,7 @@
 - MeetingTask、HandRaise、meeting mail、completion/end、risk disposition、archive 和 continuation。
 - Proposal/Position、Decision acceptance、Question/Issue/Agenda candidate 的已实现子集及对应 projection。
 
-- 引用式纪要：原任务提交 `e9f08c2` 完成收口；发布前合入 main `03e3a0e` 后重新通过完整 verify（78 files / 1000 tests）及真实 `scribe-minutes` 普通/Browser 两模式；原固定回归为 7 files / 195 tests；详细证据及未覆盖边界见 [Referenced Minutes Evidence](./REFERENCED-MINUTES-VALIDATION-EVIDENCE.md)。
+- 引用式纪要：原任务提交 `e9f08c2` 完成收口；发布前合入 main `a2a6fb4` 后重新通过完整 verify（82 files / 1039 tests）及真实 `scribe-minutes` 普通模式；Browser 证据对应先前合入 `03e3a0e` 的边界，本轮 Client 源码未变化；原固定回归为 7 files / 195 tests；详细证据及未覆盖边界见 [Referenced Minutes Evidence](./REFERENCED-MINUTES-VALIDATION-EVIDENCE.md)。
 
 ## Requirement Coverage
 
@@ -38,8 +39,8 @@
 | FR-10 记录、隐私与归档 | 已实现 | transcript、meeting mail、archive、Session cleanup、continuation；message-reference draft 的原子提交、持久恢复、status/Client/archive 与真实 DSH/Browser 均通过，见 [Referenced Minutes Evidence](./REFERENCED-MINUTES-VALIDATION-EVIDENCE.md) | 其他类型直接引用、模型质量和长期压力未覆盖；邮件增量跨层动态场景仍 Not Covered，采用未变动源码与持久上界契约证据 |
 | FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；新增五种 Decision/risk 行内操作、单表单写锁和错误恢复，见[本地控制证据](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)    | 新增五动作真实 Browser 已验证；metrics、远程/多用户未覆盖                                 |
 | FR-12 Agent 内部能力边界                  | 已实现   | 只消费正式提交和授权 task projection，不写自定义 DSH Session Event                                                                               | 后续 Mail/Web/UI 路径须保持该边界                                                            |
-| FR-13 Agent 角色目录与参会推荐 | 部分实现 | Catalog consumer、attempt binding、safe projection、Manager pending；Captain reject/status/archive/JSONL reopen 已验证，真实 Loader 缺失推荐拒绝路径通过 | approve/admission/provisioning、FR-14、UI、真实 Host producer 成功链路和本子闭环 Host 冷重启未覆盖 |
-| FR-14 Agent Definition 与 DSH composition | 未实现   | 9 个样本、hash 和负向 fixture                                                                                                                    | Definition resolution、Preset/Skill validation、差异化 Session composition                   |
+| FR-13 Agent 角色目录与参会推荐 | 部分实现 | Catalog consumer、attempt binding、safe projection、Manager pending；Captain reject/status/archive/JSONL reopen 已验证，真实 Loader 缺失推荐拒绝路径通过 | approve/admission/provisioning、与 FR-14 的动态接纳集成、UI、真实 Host producer 成功链路和本子闭环 Host 冷重启未覆盖 |
+| FR-14 共享 Preset 下的 Agent Definition | 已实现（共享父 Preset 首版） | 内联配置与显式选择、全角色预检、persona/toolFilter 注入、不可变 provenance、重放与真实双 Host 冷恢复；[验证证据](./FR14-SHARED-PRESET-ROLE-COMPOSITION-EVIDENCE.md) | 独立 per-child Preset 不纳入 Convivium，等待 DSH 升级；独占 Skill、模型配置、热切换、FR-13 admission、Browser 配置 UI 和模型任务质量不在本版 |
 | FR-15 Developer Markdown Projection       | 已实现   | committed snapshot/package → current/archive Markdown；白名单、受控路径、latest/stale、原子替换、failure isolation、dispose                      | multi-Host、远程 workspace、跨进程锁、旧文件迁移/清理未覆盖                                  |
 
 ### Captain 参会拒绝实现与证据边界

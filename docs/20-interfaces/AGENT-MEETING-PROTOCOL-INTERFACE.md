@@ -1530,7 +1530,7 @@ type MeetingProtocolErrorCodeV1 =
   | "INTERNAL_ERROR";
 ```
 
-`UNSUPPORTED_CAPABILITY` 表示输入在完整协议中合法，但当前已声明的插件运行范围尚未提供对应 capability，例如只启用 `round_robin` 的竖切收到 `manager` selection mode。该错误必须是 `retryable: false`，且在任何 catalog/creation record、Session、Meeting state、event、receipt 或 outbox 副作用前返回。实现缺陷、provider/Storage Domain 故障和未知异常仍使用 `INTERNAL_ERROR`，不得用它伪装明确的范围限制。
+`UNSUPPORTED_CAPABILITY` 表示输入在完整协议中合法，但当前已声明的插件运行范围尚未提供对应 capability，例如只启用 `round_robin` 的竖切收到 `manager` selection mode。该错误必须是 `retryable: false`。静态 capability gate 在任何 catalog/creation record、Session、Meeting state、event、receipt 或 outbox 副作用前返回；FR-14 创建前角色校验遵循 [Definition Interface](MEETING-AGENT-DEFINITION-INTERFACE.md) 的受保护 bootstrap 契约，可留下 creation_failed 记录，但不得分配 child ownership、创建 child 或发布 ready Meeting。实现缺陷、provider/Storage Domain 故障和未知异常仍使用 `INTERNAL_ERROR`，不得用它伪装明确的范围限制。
 
 `submit_turn` 内部产生的 `INVALID_ENTITY_STATE` 统一公开为非重试的 `INVALID_ARGUMENT`，不得原样返回；这覆盖非法 Question claim/resolution，也保持其他 submit claim 的内部错误码不泄露。Question 场景包括空文本、无效 target、重复 ID、unknown Question、非 caller authored answer 和已回答 Question 的再次 resolution。
 
@@ -1613,6 +1613,9 @@ The active status projection's convergence fields are mapped from the committed 
 
 本文定义 Plugin Frontend Meeting route 的路径、payload 和共享状态 projection 语义。V1 不从 DSH Web 请求取得用户或 Team authority：仅当 `webServer.host === "127.0.0.1"` 时注册 route，所有到达该 loopback Host 的请求共享本地用户边界。Host 为 `0.0.0.0`、远程访问或多用户部署不属于 V1，且必须在 route 注册前 fail closed；未来引入这些能力前必须另建用户/Team authorization interface 并以当前 DSH 公开 API 取证。
 
+## Initial Role Definition Selection
+
+创建会议工具支持可选 `managerAgentDefinitionId` 与 `participants[].agentDefinitionId`；选择、失败、兼容与持久 provenance 的规范见 [Meeting Agent Definition Interface](MEETING-AGENT-DEFINITION-INTERFACE.md) Transport Or Invocation 和 Runtime Provenance And Failure。只允许既有 Captain 创建入口提交 ID，不开放 persona、toolFilter、Preset 或 Skill 配置写入口。共享父 Preset 首版已实现，验证见 [FR-14 Evidence](../40-readiness/FR14-SHARED-PRESET-ROLE-COMPOSITION-EVIDENCE.md)。
 
 ## Captain rejection slice
 

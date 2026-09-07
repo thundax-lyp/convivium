@@ -1,9 +1,13 @@
 import Schema from "@deepseek-ai/schemastery";
 
+import { parseAgentDefinitions } from "./role-composition/model.js";
+import type { MeetingAgentDefinitionV1 } from "./role-composition/model.js";
+
 const relativeDataRoot = /^(?!\/)(?![A-Za-z]:[\\/])(?!.*(?:^|[\\/])\.\.(?:[\\/]|$))[^\0]+$/;
 
 export interface Config {
     provider: string;
+    agentDefinitions?: readonly MeetingAgentDefinitionV1[];
     dataRoot?: string;
     developerMarkdownWorkspaceId?: string;
     maxParticipants: number;
@@ -11,7 +15,8 @@ export interface Config {
     outboxPollMs: number;
 }
 
-export const Config: Schema<Config> = Schema.object({
+const runtimeConfig: Schema<Config> = Schema.object({
+    agentDefinitions: Schema.any<readonly MeetingAgentDefinitionV1[]>(),
     provider: Schema.string().pattern(/\S/).required(),
     dataRoot: Schema.string().pattern(relativeDataRoot),
     developerMarkdownWorkspaceId: Schema.string().pattern(/\S/),
@@ -19,3 +24,15 @@ export const Config: Schema<Config> = Schema.object({
     speakerTimeoutMs: Schema.natural().min(1).max(300_000).default(60_000),
     outboxPollMs: Schema.natural().min(1).max(60_000).default(1_000)
 });
+
+export const Config: Schema<Config> = Schema.transform(
+    Schema.any<Config>(),
+    (value) => {
+        const definitions = parseAgentDefinitions(value?.agentDefinitions);
+        const config = runtimeConfig(value);
+        return value?.agentDefinitions === undefined
+            ? config
+            : { ...config, agentDefinitions: definitions };
+    },
+    true
+);
