@@ -1,5 +1,10 @@
+import { materializeArchivePackage } from "../../../../src/runtime/services/meeting-archive-service.js";
 import { describe, expect, it } from "vitest";
-import { transitionMeeting } from "../../../../src/domain/index.js";
+import {
+    transitionMeeting,
+    failSpeakerAttempt,
+    reassignTurn
+} from "../../../../src/domain/index.js";
 import { archivePackage, meeting, now } from "./fixtures.js";
 
 describe("archive transitions", () => {
@@ -298,4 +303,188 @@ describe("archive transitions", () => {
         input.package.finalSummary = "mutated after transition";
         expect(result.state.archive?.package.finalSummary).toBe("summary");
     });
+});
+
+function minutesArchiveState() {
+    const state = meeting("completed");
+    state.meetingTasks = [];
+    state.agenda = [
+        {
+            id: "agenda-1",
+            title: "Agenda",
+            objective: "Objective",
+            inScope: [],
+            outOfScope: [],
+            completionCriteria: [],
+            requiredParticipants: [],
+            relatedTaskIds: [],
+            status: "discussing"
+        }
+    ];
+    state.participants = ["a", "b"].map((id) => ({
+        id,
+        displayName: id,
+        status: "available" as const,
+        consecutiveSpeeches: 0,
+        consecutiveAttemptFailures: 0,
+        totalSpeeches: 0,
+        lastDeliveredSeq: 0,
+        lastAcknowledgedSeq: 0
+    }));
+    state.transcript = [1, 2, 3].map((seq) => ({
+        id: `message-${seq}`,
+        seq,
+        turnSeq: 1,
+        turnId: "turn-1",
+        stepId: `step-${seq}`,
+        attemptId: `attempt-${seq}`,
+        speaker: "a",
+        agendaItemId: "agenda-1",
+        agendaRelation: "on_topic" as const,
+        content: seq === 3 ? "Minutes" : "Source",
+        kind: seq === 3 ? ("summary" as const) : ("statement" as const),
+        mentions: [],
+        taskIds: [],
+        createdAt: now,
+        ...(seq === 3
+            ? {
+                  minutesDraft: {
+                      status: "draft" as const,
+                      coverage: { fromSeq: 1, throughSeq: 2 },
+                      referencedMessageIds: ["message-2", "message-1"]
+                  }
+              }
+            : {})
+    }));
+    state.messageSeq = 3;
+    return state;
+}
+
+describe("referenced minutes archive", () => {
+    it.each(["status", "fromSeq", "throughSeq", "order", "remove", "inject", "null"])(
+        "rejects metadata tampering: %s",
+        (change) => {
+            const state = minutesArchiveState();
+            const before = structuredClone(state);
+            const archive = materializeArchivePackage(state, now);
+            const draft = archive.formalTranscript[2]!;
+            if (change === "status") Object.assign(draft.minutesDraft!, { status: "accepted" });
+            if (change === "fromSeq") Object.assign(draft.minutesDraft!.coverage, { fromSeq: 2 });
+            if (change === "throughSeq")
+                Object.assign(draft.minutesDraft!.coverage, { throughSeq: 3 });
+            if (change === "order")
+                Object.assign(draft.minutesDraft!, {
+                    referencedMessageIds: ["message-1", "message-2"]
+                });
+            if (change === "remove") delete draft.minutesDraft;
+            if (change === "inject") archive.formalTranscript[0]!.minutesDraft = draft.minutesDraft;
+            if (change === "null") Object.assign(draft, { minutesDraft: null });
+            expect(() =>
+                transitionMeeting(state, "archiving", { now, archive: { package: archive } })
+            ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+            expect(state).toEqual(before);
+        }
+    );
+    it("snapshots draft and all sources without aliasing or replacing finalSummary", () => {
+        const state = minutesArchiveState();
+        const archive = materializeArchivePackage(state, now);
+        const result = transitionMeeting(state, "archiving", {
+            now,
+            archive: { package: archive }
+        });
+        const expected = structuredClone(result.state.archive!.package);
+        Object.assign(state.transcript[2]!.minutesDraft!.coverage, { fromSeq: 99 });
+        Object.assign(archive.formalTranscript[2]!.minutesDraft!, { referencedMessageIds: [] });
+        expect(result.state.archive!.package).toEqual(expected);
+        expect(expected.formalTranscript.map((message) => message.id)).toEqual([
+            "message-1",
+            "message-2",
+            "message-3"
+        ]);
+        expect(expected.finalSummary).toBe(state.termination!.finalMessage);
+    });
+    it.each(["absent", "timeout", "reassign"])(
+        "ends and archives without a draft when Scribe is %s",
+        (mode) => {
+            let state = minutesArchiveState();
+            state.status = "running";
+            delete state.termination;
+            state.transcript = state.transcript.slice(0, 2);
+            state.messageSeq = 2;
+            state.activeAgendaItemId = "agenda-1";
+            state.selectionMode = "round_robin";
+            state.participants[0]!.status = "speaking";
+            state.currentTurn = {
+                id: "turn-1",
+                seq: 1,
+                agendaItemId: "agenda-1",
+                intent: "explore",
+                objective: "Objective",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                plan: ["a"],
+                status: "running",
+                currentStepIndex: 0,
+                createdAt: now,
+                steps: [
+                    {
+                        id: "step-a",
+                        speaker: "a",
+                        instruction: "summarize",
+                        reason: "manager_selected",
+                        status: "running",
+                        attempt: {
+                            attemptId: "scribe-attempt",
+                            participantId: "a",
+                            meetingId: state.id,
+                            turnId: "turn-1",
+                            stepId: "step-a",
+                            deliveryId: "scribe-delivery",
+                            contextFromSeq: 1,
+                            contextThroughSeq: 2,
+                            taskSnapshots: [],
+                            assignedAt: now,
+                            status: "running",
+                            deliveryStatus: "pending"
+                        }
+                    }
+                ]
+            };
+            const transcript = structuredClone(state.transcript);
+            if (mode === "timeout")
+                state = failSpeakerAttempt(state, {
+                    meetingId: state.id,
+                    participantId: "a",
+                    turnId: "turn-1",
+                    stepId: "step-a",
+                    attemptId: "scribe-attempt",
+                    deliveryId: "scribe-delivery",
+                    agendaItemId: "agenda-1",
+                    now,
+                    nextPlanningAttemptId: "next-plan",
+                    nextPlanningDeliveryId: "next-delivery",
+                    catalogBinding: { kind: "none" }
+                }).state;
+            if (mode === "reassign")
+                state = reassignTurn(state, {
+                    currentAttemptId: "scribe-attempt",
+                    action: "reassign",
+                    replacementParticipantId: "b",
+                    reason: "replace scribe",
+                    now
+                }).state;
+            const termination = { ...meeting("cancelled").termination!, code: "user_cancelled" };
+            const terminal = transitionMeeting(state, "cancelled", { now, termination }).state;
+            const archived = transitionMeeting(terminal, "archiving", {
+                now,
+                archive: { package: materializeArchivePackage(terminal, now) }
+            }).state;
+            expect(archived.archive!.package.formalTranscript).toEqual(transcript);
+            expect(
+                archived.archive!.package.formalTranscript.every(
+                    (message) => message.minutesDraft === undefined
+                )
+            ).toBe(true);
+        }
+    );
 });

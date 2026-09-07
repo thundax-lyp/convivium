@@ -1,3 +1,4 @@
+import { isMeetingMinutesDraft } from "../meeting-state-validation.js";
 import { DomainError } from "../errors.js";
 import type { ArchiveInput, ArchiveRecord, MeetingState } from "../model.js";
 import { terminationReferencesBelongToMeeting } from "./meeting-guards.js";
@@ -278,6 +279,21 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
                 source.speaker !== message.speaker ||
                 source.agendaItemId !== message.agendaItemId ||
                 source.content !== message.content ||
+                Object.prototype.hasOwnProperty.call(source, "minutesDraft") !==
+                    Object.prototype.hasOwnProperty.call(message, "minutesDraft") ||
+                (Object.prototype.hasOwnProperty.call(source, "minutesDraft") &&
+                    (!isMeetingMinutesDraft(source.minutesDraft) ||
+                        !isMeetingMinutesDraft(message.minutesDraft) ||
+                        source.minutesDraft.status !== message.minutesDraft.status ||
+                        source.minutesDraft.coverage.fromSeq !==
+                            message.minutesDraft.coverage.fromSeq ||
+                        source.minutesDraft.coverage.throughSeq !==
+                            message.minutesDraft.coverage.throughSeq ||
+                        source.minutesDraft.referencedMessageIds.length !==
+                            message.minutesDraft.referencedMessageIds.length ||
+                        source.minutesDraft.referencedMessageIds.some(
+                            (id, index) => id !== message.minutesDraft!.referencedMessageIds[index]
+                        ))) ||
                 (source.kind !== undefined && source.kind !== message.kind) ||
                 (source.createdAt !== undefined && source.createdAt !== message.createdAt)
             );

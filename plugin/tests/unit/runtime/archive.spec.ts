@@ -566,13 +566,48 @@ describe("archive ownership cleanup", () => {
     });
 
     it("keeps revoked ownership open for a retry when drain fails", async () => {
+        const meetingState = archiving();
+        const metadata = {
+            status: "draft" as const,
+            coverage: { fromSeq: 1, throughSeq: 1 },
+            referencedMessageIds: ["source-1"]
+        };
+        const source = {
+            id: "source-1",
+            seq: 1,
+            turnSeq: 1,
+            turnId: "turn-1",
+            stepId: "step-1",
+            attemptId: "attempt-1",
+            speaker: "participant-a",
+            agendaItemId: "agenda-1",
+            agendaRelation: "on_topic" as const,
+            kind: "statement" as const,
+            content: "source",
+            mentions: [],
+            taskIds: [],
+            createdAt: 1
+        };
+        meetingState.transcript = [
+            source,
+            {
+                ...source,
+                id: "draft-2",
+                seq: 2,
+                kind: "summary",
+                content: "minutes",
+                minutesDraft: metadata
+            }
+        ];
+        meetingState.archive!.package.formalTranscript = structuredClone(meetingState.transcript);
+        const originalArchive = structuredClone(meetingState.archive!.package);
         let current = ownerships();
         const writes: string[] = [];
         let drains = 0;
         const cleanup: Parameters<typeof cleanupOwnedSessions>[0] = {
             repository: {
                 recover: async () => ({
-                    snapshot: { state: archiving() as never },
+                    snapshot: { state: meetingState as never },
                     sessionOwnership: current,
                     bootstrap: {} as never,
                     reclaimedOutbox: 0,
@@ -626,6 +661,8 @@ describe("archive ownership cleanup", () => {
         await cleanupOwnedSessions({ ...cleanup, now: 30 });
         expect(drains).toBe(2);
         expect(writes).toHaveLength(4);
+        expect(meetingState.archive!.package).toEqual(originalArchive);
+        expect(meetingState.archive!.package.formalTranscript[1]!.minutesDraft).toEqual(metadata);
     });
 
     it("writes archived only after every owned Session is revoked and closed", async () => {

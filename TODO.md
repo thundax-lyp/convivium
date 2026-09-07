@@ -10,12 +10,6 @@
 
 以下 FR-10 任务按 T0 → T8 顺序执行，前一步 PASS 才能开始下一步。2026-09-07 用户明确要求“依次执行TODO LIST，一任务一删除一提交”；执行、逐项删除与逐项 commit 已获授权。允许文件、命令、PASS/STOP 和恢复方式以 RUNBOOK 对应步骤为准，不在此复制方案。
 
-- [ ] `FR-10 / T5 / Projection 与 Archive`：保留公开草稿和不可变归档
-    - 依据文档：[RUNBOOK T5](docs/30-designs/RUNBOOK-FR10-REFERENCED-MINUTES.md#t5公开投影与不可变归档)
-    - 确认依据：2026-09-07 用户明确要求依次执行、一任务一删除一提交。
-    - 处理动作：T4 PASS 后，补齐公开元数据映射与归档等值校验，验证缺席、失败、替换及清理重试。
-    - 验收点：指定 projection/archive 测试和 typecheck 通过；丢失、注入或篡改 metadata 被拒绝；旧数据可读，草稿不增加归档等待条件或暴露私有信息。
-
 - [ ] `FR-10 / T6 / Client`：只读展示草稿并区分会议事实
     - 依据文档：[RUNBOOK T6](docs/30-designs/RUNBOOK-FR10-REFERENCED-MINUTES.md#t6client-只读草稿标识)
     - 确认依据：2026-09-07 用户明确要求依次执行、一任务一删除一提交。

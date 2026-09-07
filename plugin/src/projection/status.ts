@@ -62,7 +62,19 @@ function message(value: MeetingState["transcript"][number]): PublicMeetingMessag
         mentions: value.mentions,
         ...(value.replyTo === undefined ? {} : { replyTo: value.replyTo }),
         taskIds: value.taskIds,
-        createdAt: value.createdAt
+        createdAt: value.createdAt,
+        ...(value.minutesDraft === undefined
+            ? {}
+            : {
+                  minutesDraft: {
+                      status: value.minutesDraft.status,
+                      coverage: {
+                          fromSeq: value.minutesDraft.coverage.fromSeq,
+                          throughSeq: value.minutesDraft.coverage.throughSeq
+                      },
+                      referencedMessageIds: [...value.minutesDraft.referencedMessageIds]
+                  }
+              })
     };
 }
 
