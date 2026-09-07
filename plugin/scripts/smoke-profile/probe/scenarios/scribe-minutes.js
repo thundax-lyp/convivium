@@ -3,13 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 export async function runScribeMinutesScenario(runtime) {
     const { ctx, scenario, browserMode } = runtime;
     const captain = runtime.captain.agent;
-    const call = async (agent, name, input) => {
-        try {
-            return await runtime.callTool(ctx, agent, name, input, runtime.nextCall());
-        } catch (error) {
-            throw new Error(name + " (" + (input.kind ?? "control") + "): " + error.message);
-        }
-    };
+    const call = (agent, name, input) =>
+        runtime.callTool(ctx, agent, name, input, runtime.nextCall());
     const input = structuredClone(runtime.createInput());
     input.participants = input.participants.filter((p) => ["a", "b"].includes(p.participantKey));
     input.participants.find((p) => p.participantKey === "b").role = "meeting_scribe";
