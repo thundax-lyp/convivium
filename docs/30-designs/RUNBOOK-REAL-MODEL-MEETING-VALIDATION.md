@@ -158,22 +158,7 @@ T2 实际结果：PASS。2026-09-07 最终补齐后 focused suite 为原定八�
 
 T3 实际结果：PASS。针对 `908c781` 的最终两个测试文件，Prettier 无变化、显式 strict tsc、focused suite 8/8、git diff --check 均退出 0。无 as any/as unknown/non-null assertion。
 
-### T4：完整本地验证与未覆盖边界
-
-前置状态：T3 PASS。
-允许修改：本步骤无手工源码修改；`plugin/lib/` 仅允许现有 build 自动产生已忽略产物。
-禁止修改：tracked product/现有 tests、共享 coverage/TODO、DSH_HOME/profile/dev.env；不使用 verify:runtime。
-
-执行：运行完整 keyless verify，检查最终 diff 范围；构建产物不是新增交付文件，不清理用户原有 build 文件。
-
-验证：
-```sh
-pnpm --dir plugin verify
-git diff --check
-git status --short
-```
-PASS：format/lint/typecheck/test/build/environment/contract/agent-definitions/package 全部退出 0，新增八个测试包含其中；tracked/untracked 差异只有本文和两个新增测试文件。
-STOP：既有 gate 失败或出现白名单外 diff；报告，禁止顺手修产品。没有 Host/Session/临时 profile；Restore 为 Not Applicable，测试数据仅内存，Vitest 进程退出即释放。不删除用户文件或运行中的其他进程。
+T4 实际结果：PASS。2026-09-07 在 `a8d2f12cc62d6e7ba5b0126912a5a5dfb5bfc5a5` 执行 `pnpm --dir plugin verify` 退出 0：75 files / 589 tests（含本次 8 tests）通过，format/lint/host-client typecheck/build/environment/contract/9 Agent definitions/package 全部通过。Node v22.23.2、pnpm 10.7.0。构建有现有 `INEFFECTIVE_DYNAMIC_IMPORT` 提示；未修改产品以消除提示。git diff --check 退出 0、工作区干净；build 仅更新忽略的 lib。未运行真实模型/Host/smoke。
 
 ### T5：长期证据与删除
 
