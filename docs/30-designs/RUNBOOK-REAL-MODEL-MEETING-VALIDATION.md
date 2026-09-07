@@ -152,13 +152,7 @@ runManagerPlan 的实现严格重复 §5.4 的 domainInput/domainContext/ids 映
 
 所有命令从仓库根目录运行。本轮没有执行这些实施步骤；后续执行者不得边读本文边改变 Scope。
 
-### T0：确认离线工作边界（已完成）
-
-T0 实际结果：PASS。分支为 `codex/real-model-meeting-runbook`，起始提交为既有 RUNBOOK 提交 `9267fffeaaa0dc27894405166213ab5149e2204c`；三个计划文件均不存在；既有聚焦基线 33 tests 全部通过。未覆盖：新增离线 fixture/contract suite 尚未创建。
-
-### T1：构造生产派生的离线样例
-
-前置状态：T0 PASS。允许新增 fixture/spec；执行 §4–5 的固定链路并实现 V1/V2/V3/V8 全部断言。验证命令为 `pnpm --dir plugin exec vitest run --project contract tests/contract/offline-meeting-protocol.spec.ts`。实现与完整断言已补齐，待本步追加提交；未覆盖 V4–V7。
+已完成进度：T0 基线检查通过（33 tests）；T1 fixture/spec 与 V1/V2/V3/V8 断言通过（focused suite）。对应机械步骤已删除；T2 仍在执行。
 
 ### T2：补齐负向与生产 surface 断点
 
