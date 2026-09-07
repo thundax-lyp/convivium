@@ -1,3 +1,4 @@
+import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type {
     ContinuableStart,
@@ -39,6 +40,7 @@ export function requireContinuableProvider(
 }
 
 export interface StartManagerSessionInput {
+    readonly composition?: { readonly persona: string; readonly toolFilter?: ToolRestriction };
     readonly runtime: Pick<SubagentRuntime, "startContinuable">;
     readonly provider: string;
     readonly parent: Agent;
@@ -72,7 +74,18 @@ export async function startManagerSession(
         provider: input.provider,
         label,
         childId: input.childId,
-        request: { parent: input.parent, prompt },
+        request: {
+            parent: input.parent,
+            prompt,
+            ...(input.composition === undefined
+                ? {}
+                : {
+                      persona: input.composition.persona,
+                      ...(input.composition.toolFilter === undefined
+                          ? {}
+                          : { toolFilter: structuredClone(input.composition.toolFilter) })
+                  })
+        },
         signal: input.signal
     });
     if (started.childId !== input.childId) {
@@ -84,6 +97,7 @@ export async function startManagerSession(
 }
 
 export interface StartParticipantSessionInput {
+    readonly composition?: { readonly persona: string; readonly toolFilter?: ToolRestriction };
     readonly runtime: Pick<SubagentRuntime, "startContinuable">;
     readonly provider: string;
     readonly parent: Agent;
@@ -120,7 +134,18 @@ export async function startParticipantSession(
         provider: input.provider,
         label,
         childId: input.childId,
-        request: { parent: input.parent, prompt },
+        request: {
+            parent: input.parent,
+            prompt,
+            ...(input.composition === undefined
+                ? {}
+                : {
+                      persona: input.composition.persona,
+                      ...(input.composition.toolFilter === undefined
+                          ? {}
+                          : { toolFilter: structuredClone(input.composition.toolFilter) })
+                  })
+        },
         signal: input.signal
     });
     if (started.childId !== input.childId) {

@@ -1,13 +1,14 @@
 # Current Implementation Coverage
 
-当前 smoke 默认覆盖 5 条关键跨层链路，完整套件保留 14 个场景；一次构建、独立场景、清理后输出 PASS。设计调整后的执行结果与边界见 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md)；下文已注明提交的旧记录仍仅代表历史验证。
+当前 smoke 默认覆盖 5 条关键跨层链路，完整套件包含 15 个场景（新增显式选择的 FR-14 角色场景）；一次构建、独立场景、清理后输出 PASS。设计调整后的执行结果与边界见 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md)；下文已注明提交的旧记录仍仅代表历史验证。
 
 ## Scope
 
 本文记录当前代码相对已确认需求的实现覆盖，不替代需求、接口或设计文档。
 
 - 记录日期：2026-09-07
-- 代码基线：`46bfebc9804c9486fa4f77cccfcf2fa20486a01d`
+- 既有覆盖代码基线：`46bfebc9804c9486fa4f77cccfcf2fa20486a01d`
+- FR-14 增量基线：`6de1a1c`；全量 verify 80 files / 703 tests PASS，真实角色隔离与 cold-rebind 回归 PASS，详见专项证据。
 - 环境：Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、profile `web`、provider `spawn`
 - `已实现` 表示存在正式路径和相称验证；`部分实现` 表示存在局部路径但未闭合；`未实现` 表示没有产品运行路径。
 - 历史真实 profile 证据只适用于其原始 commit，不外推为当前 HEAD 证据。
@@ -36,8 +37,8 @@
 | FR-10 记录、隐私与归档                    | 部分实现 | transcript、meeting mail、archive、Session cleanup、continuation                                                                                 | Scribe minutes 契约、projection、状态/归档路径未实现                                         |
 | FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；新增五种 Decision/risk 行内操作、单表单写锁和错误恢复，见[本地控制证据](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)    | 新增五动作真实 Browser 已验证；metrics、远程/多用户未覆盖                                 |
 | FR-12 Agent 内部能力边界                  | 已实现   | 只消费正式提交和授权 task projection，不写自定义 DSH Session Event                                                                               | 后续 Mail/Web/UI 路径须保持该边界                                                            |
-| FR-13 Agent 角色目录与参会推荐 | 部分实现 | Catalog consumer、attempt binding、safe projection、Manager pending；Captain reject/status/archive/JSONL reopen 已验证，真实 Loader 缺失推荐拒绝路径通过 | approve/admission/provisioning、FR-14、UI、真实 Host producer 成功链路和本子闭环 Host 冷重启未覆盖 |
-| FR-14 Agent Definition 与 DSH composition | 未实现   | 9 个样本、hash 和负向 fixture                                                                                                                    | Definition resolution、Preset/Skill validation、差异化 Session composition                   |
+| FR-13 Agent 角色目录与参会推荐 | 部分实现 | Catalog consumer、attempt binding、safe projection、Manager pending；Captain reject/status/archive/JSONL reopen 已验证，真实 Loader 缺失推荐拒绝路径通过 | approve/admission/provisioning、与 FR-14 的动态接纳集成、UI、真实 Host producer 成功链路和本子闭环 Host 冷重启未覆盖 |
+| FR-14 共享 Preset 下的 Agent Definition | 已实现（共享父 Preset 首版） | 内联配置与显式选择、全角色预检、persona/toolFilter 注入、不可变 provenance、重放与真实双 Host 冷恢复；[验证证据](./FR14-SHARED-PRESET-ROLE-COMPOSITION-EVIDENCE.md) | 独立 per-child Preset 不纳入 Convivium，等待 DSH 升级；独占 Skill、模型配置、热切换、FR-13 admission、Browser 配置 UI 和模型任务质量不在本版 |
 | FR-15 Developer Markdown Projection       | 已实现   | committed snapshot/package → current/archive Markdown；白名单、受控路径、latest/stale、原子替换、failure isolation、dispose                      | multi-Host、远程 workspace、跨进程锁、旧文件迁移/清理未覆盖                                  |
 
 ### Captain 参会拒绝实现与证据边界

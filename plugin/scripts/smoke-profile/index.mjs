@@ -10,6 +10,7 @@ import process from "node:process";
 import { assertBrowserClientPreflight } from "./browser-client-preflight.mjs";
 import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 import { validateColdCheckpoint } from "./probe/support.js";
+import { roleSmokeDefinitions } from "./probe/role-definitions.js";
 import { validateScenarioResult } from "./result.mjs";
 
 export { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
@@ -37,6 +38,7 @@ export const SMOKE_SCENARIOS = [
     "risk-reopen",
     "decision-risk-closure",
     "cold-rebind",
+    "role-composition",
     "archive-continuation",
     "mail-race",
     "cross-meeting",
@@ -59,6 +61,8 @@ export function selectScenarios(args, scenario, browserMode) {
         throw new Error("--all cannot be combined with a scenario or Browser mode.");
     if (scenario && !SMOKE_SCENARIOS.includes(scenario))
         throw new Error("Unsupported CONVIVIUM_SMOKE_SCENARIO: " + scenario);
+    if (browserMode && scenario === "role-composition")
+        throw new Error("Role composition smoke does not support Browser mode.");
     return scenario
         ? [scenario]
         : browserMode
@@ -218,12 +222,15 @@ async function packArtifact(artifactDir) {
     return artifact;
 }
 
-async function writeSmokePatch(path, scenario) {
+async function writeSmokePatch(path, scenario, phase = "1") {
     const patch = [
         "- id: convivium",
         "  config:",
         `    provider: ${PROVIDER}`,
         "    dataRoot: convivium-smoke-data",
+        ...(scenario === "role-composition"
+            ? [`    agentDefinitions: ${JSON.stringify(roleSmokeDefinitions(phase))}`]
+            : []),
         "    maxParticipants: 3",
         `    speakerTimeoutMs: ${scenario === "timeout" ? 250 : BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
         `    outboxPollMs: ${scenario === "timeout" ? 25 : 1000}`,
@@ -243,6 +250,7 @@ async function writeProbePackage(probeDir) {
                 private: true,
                 type: "module",
                 main: "index.js",
+                dependencies: { "@deepseek-ai/dsh-subagent": DSH_VERSION },
                 dsh: { bundle: { patch: "./cordis.patch.yml" } }
             },
             null,
@@ -263,7 +271,20 @@ async function installArtifact(env, artifact) {
 }
 
 async function installProbe(env, probeDir) {
-    const dsh = dshCommand(["plugin", "--profile", PROFILE, "add", probeDir]);
+    const artifactDir = resolve(probeDir, "..");
+    const { stdout } = await runCommand(
+        "pnpm",
+        ["pack", "--json", "--pack-destination", artifactDir],
+        { cwd: probeDir, env }
+    );
+    const packed = JSON.parse(stdout.trim());
+    const filename = Array.isArray(packed) ? packed[0]?.filename : packed.filename;
+    if (typeof filename !== "string" || filename === "") {
+        throw new Error("pnpm pack did not report a probe artifact filename.");
+    }
+    const artifact = resolve(artifactDir, basename(filename));
+    await access(artifact, constants.R_OK);
+    const dsh = dshCommand(["plugin", "--profile", PROFILE, "add", artifact]);
     await runCommand(dsh.command, dsh.args, { env });
 }
 
@@ -431,7 +452,8 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
     await mkdir(dshHome, { recursive: true });
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(logsDir, { recursive: true });
-    if (scenario === "cold-rebind") await mkdir(controlDir, { recursive: true });
+    if (["cold-rebind", "role-composition"].includes(scenario))
+        await mkdir(controlDir, { recursive: true });
     await writeSmokePatch(patchPath, scenario);
     await writeProbePackage(probeDir);
 
@@ -441,7 +463,7 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
         DSH_PERMISSION_MODE: "workspace-write",
         CONVIVIUM_SMOKE_RESULT: resultPath,
         CONVIVIUM_SMOKE_SCENARIO: scenario,
-        ...(scenario === "cold-rebind"
+        ...(["cold-rebind", "role-composition"].includes(scenario)
             ? { CONVIVIUM_SMOKE_COLD_CHECKPOINT: coldCheckpointPath }
             : {})
     });
@@ -453,11 +475,18 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
     const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);
     let bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port);
     let probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
-    if (scenario === "cold-rebind" && probeResult.phase1Complete === true) {
-        validateColdCheckpoint(JSON.parse(await readFile(coldCheckpointPath, "utf8")));
+    if (
+        ["cold-rebind", "role-composition"].includes(scenario) &&
+        probeResult.phase1Complete === true
+    ) {
+        const checkpoint = validateColdCheckpoint(
+            JSON.parse(await readFile(coldCheckpointPath, "utf8"))
+        );
+        if (checkpoint.scenario !== scenario) throw new Error("Cold checkpoint scenario mismatch.");
         await stopHost();
         await writeFile(resultPath, "", "utf8");
         await rm(resultPath + ".tmp", { force: true });
+        if (scenario === "role-composition") await writeSmokePatch(patchPath, scenario, "2");
         hostEnv.CONVIVIUM_SMOKE_COLD_PHASE = "2";
         hostEnv.CONVIVIUM_SMOKE_COLD_CHECKPOINT = coldCheckpointPath;
         bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port);
@@ -474,6 +503,16 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
         );
     }
     probeResult = validateScenarioResult(probeResult, scenario, validateMeetingStatus);
+    if (scenario === "role-composition")
+        console.log(
+            JSON.stringify({
+                scenario,
+                phase1HostPid: probeResult.observed.phase1HostPid,
+                phase2HostPid: probeResult.observed.phase2HostPid,
+                assertions: probeResult.assertions,
+                roleComposition: probeResult.observed.roleComposition
+            })
+        );
 
     await stat(dumpPath);
     if (BROWSER_MODE && probeResult.browserReady === true) {

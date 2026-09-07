@@ -314,9 +314,9 @@ Phase 1 固定以下 attendance error messages，且均为 `retryable=false`。�
 - 未知 MeetingState format 返回既有 `SCHEMA_VERSION_UNSUPPORTED`；已识别 V2 format 但 discriminator/binding 结构损坏返回既有 `CORRUPT_DATABASE`。
 
 - 当前 `CreateMeetingInputV1.participants` 和既有会议创建行为保持不变；初始 Participant 仍由 Captain 在创建时明确提供。
-- 初始 Participant 和 recommendation admission 都必须在 Session provisioning 前解析对应 Meeting Agent Definition 及其 DSH capability 引用；`sourceMemberName` 不能作为隐式 Definition fallback。
+- 显式选择 Definition 的初始 Participant 和后续 recommendation admission 必须在 Session provisioning 前解析对应 Definition 及其 DSH capability 引用；初始身份未选择 Definition 时沿用既有创建行为。`sourceMemberName` 不能作为隐式 Definition fallback。
 - 本接口增加的是会议运行期间的可选参会推荐与 Captain admission，不得静默改变既有 Manager plan 或 `ParticipantSpecV1` 的含义。
-- 各项契约在对应代码和 Schema 正式实现前，不得由调用方假设可用。当前 Phase 1 已实现 Host consumer port、attempt Catalog binding、安全 projection、Manager recommendation claim 和 pending status projection，并通过本地 fake-port/isolated-storage 验证；Captain reject 已实现；approve、admission、Session provisioning、自动 expired/cancelled 和 Meeting Agent Definition runtime 尚未实现，相关未来契约继续保留。真实 Host producer smoke 不在 Phase 1 验证范围内；实现与验证状态以 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
+- 各项契约在对应代码和 Schema 正式实现前，不得由调用方假设可用。当前 Phase 1 已实现 Host consumer port、attempt Catalog binding、安全 projection、Manager recommendation claim 和 pending status projection，并通过本地 fake-port/isolated-storage 验证；Captain reject 已实现；approve、admission、动态参会 Session provisioning 和自动 expired/cancelled 尚未实现，相关未来契约继续保留。FR-14 已实现初始身份的共享父 Preset Definition runtime，不代表 Catalog 动态接纳已实现。真实 Host producer smoke 不在 Phase 1 验证范围内；实现与验证状态以 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
 - 新增或修改 role definition 必须提升其 `version`；历史 Meeting 保留当时 snapshot，不随 Catalog 更新漂移。
 - 未来若允许 recommendation 修改 required reviewer、risk authority 或 objective contract，必须另行形成权限与状态迁移契约，不能扩展本接口中的 `approve` 语义。
 

@@ -175,7 +175,7 @@ convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
 
 Convivium 拥有 Meeting Agent Definition、会议身份、选择、批准和 Session ownership；DSH 拥有 Agent Preset、Skills、Tools、MCP、Sandbox、Approval、模型配置、capability composition 和 AgentSession runtime。Definition 只引用 `dshPresetId`、声明 `requiredSkillNames`、提供 persona，并可用 DSH 原生 `ToolRestriction` 收窄工具。
 
-当前 DSH `0.1.1-rc.2` 的 continuable child 自动继承 parent preset，公开 request 不能选择不同 preset。因此 Definition resolution、Preset/Skill validation 和差异化 Session provisioning 尚未接线；本设计禁止用 Prompt-only、persona-only 或 Convivium 自建 installer 绕过该缺口。
+首版在共享父 Preset 下校验 Definition 和 required Skills，并通过公开 persona/toolFilter 参数创建独立 Session，设计见 [Role Composition Design](ROLE-COMPOSITION-DESIGN.md)。缺少 Skill 不得通过 persona-only 降级；独立 per-child Preset 和 installer 不属于首版。
 
 ## 5. Runtime Model
 
@@ -1758,7 +1758,7 @@ After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fing
 - Meeting-owned Manager/Participant Session 的创建、串行调用、恢复、关闭和 capability revoke；
 - create/status/submit/raise-hand/reassign/end/manager-plan、后台任务和 meeting-scoped mailbox 工具边界；
 - Agent role catalog 安全 projection、Manager 参会 recommendation、Captain disposition 和 Participant admission/provisioning；
-- Meeting Agent Definition resolution、DSH per-child preset/Skill validation 和 fail-closed provisioning（blocked）；
+- Meeting Agent Definition resolution、共享父 Preset/Skill validation 和 fail-closed provisioning（待实现）；
 - `round_robin | rule_based | manager | hybrid` planning、Manager 语义裁决和确定性 fallback；
 - 顺序 speaker、delivery dedupe、完成判断、归档和续会；
 - Plugin Frontend projection、刷新、用户控制和连接失败展示；
@@ -1779,4 +1779,4 @@ After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fing
 7. Storage Domain、outbox、Session delivery 和 archive 的故障边界可测试、可恢复。
 8. Archived Meeting 不保留私有 AgentSession，续会不恢复旧权限和上下文。
 9. Manager 只能推荐 authorized Catalog candidate；Captain 批准和独立 Session provisioning 完成前，该 Agent 不是 Participant，也不能取得发言或权限。
-10. Definition 存在不等于 DSH capability 已安装；在 per-child preset composition 可验证前不得接线或宣称完成。
+10. Definition 存在不等于 DSH capability 已安装；共享父 Preset 首版按 FR-14 验收，独立 per-child Preset 不得宣称已实现。

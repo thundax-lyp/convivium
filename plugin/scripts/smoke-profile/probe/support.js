@@ -9,9 +9,15 @@ export function validateColdCheckpoint(value) {
         "participantSessionId",
         "managerPlanningAttemptId"
     ];
-    if (value.schemaVersion !== 1 || value.scenario !== "cold-rebind" || value.phase !== 1) {
+    if (
+        value.schemaVersion !== 1 ||
+        !["cold-rebind", "role-composition"].includes(value.scenario) ||
+        value.phase !== 1
+    ) {
         throw new Error("Cold checkpoint constants are invalid.");
     }
+    if (value.scenario === "role-composition" && value.roleCompositionChecked !== true)
+        throw new Error("Role checkpoint was not verified.");
     if (!Number.isInteger(value.hostPid) || value.hostPid <= 0) {
         throw new Error("Cold checkpoint hostPid is invalid.");
     }

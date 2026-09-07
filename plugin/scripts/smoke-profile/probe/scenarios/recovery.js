@@ -1,3 +1,5 @@
+import { assertRoleSmoke } from "./role-composition.js";
+
 export async function runColdRebindScenario(runtime) {
     const { ctx, scenario } = runtime;
     if (runtime.coldPhase === "2") {
@@ -5,28 +7,45 @@ export async function runColdRebindScenario(runtime) {
             JSON.parse(await runtime.readFile(runtime.coldCheckpointPath, "utf8"))
         );
         const signal = new AbortController().signal;
-        const preparation = await ctx.sessionPersistence.prepare(
-            checkpoint.captainSessionId,
-            signal
-        );
-        const restoredSession = preparation.session;
-        const detach = ctx.sessions.enter(restoredSession);
-        try {
-            ctx.sessions.announce(restoredSession);
-        } catch (error) {
-            detach();
-            preparation[Symbol.dispose]();
-            throw error;
-        }
-        preparation[Symbol.dispose]();
-        const registered = runtime.registerSmokeAgent(ctx, restoredSession);
-        runtime.setCaptain({
-            agent: registered.agent,
-            async dispose() {
-                await registered.dispose();
+        runtime.assert(checkpoint.scenario === scenario, "cold checkpoint scenario mismatch");
+        let restoredSession;
+        if (scenario === "role-composition") {
+            runtime.assert(
+                checkpoint.roleCompositionChecked === true,
+                "role phase1 was not checked"
+            );
+            const handle = await ctx.agents.resume({
+                resumeSessionId: checkpoint.captainSessionId,
+                setup: async (agentCtx) => {
+                    await ctx.get("agentPresets").mount(agentCtx, "minimal");
+                }
+            });
+            runtime.setCaptain(handle);
+            restoredSession = handle.agent.session;
+        } else {
+            const preparation = await ctx.sessionPersistence.prepare(
+                checkpoint.captainSessionId,
+                signal
+            );
+            restoredSession = preparation.session;
+            const detach = ctx.sessions.enter(restoredSession);
+            try {
+                ctx.sessions.announce(restoredSession);
+            } catch (error) {
                 detach();
+                preparation[Symbol.dispose]();
+                throw error;
             }
-        });
+            preparation[Symbol.dispose]();
+            const registered = runtime.registerSmokeAgent(ctx, restoredSession);
+            runtime.setCaptain({
+                agent: registered.agent,
+                async dispose() {
+                    await registered.dispose();
+                    detach();
+                }
+            });
+        }
         const reboundStatus = await runtime.callTool(
             ctx,
             runtime.captain.agent,
@@ -118,6 +137,10 @@ export async function runColdRebindScenario(runtime) {
             checkpoint.participantSessionId,
             replanned.result.firstAttemptId
         );
+        const roleResult =
+            scenario === "role-composition"
+                ? await assertRoleSmoke(runtime, manager, phase2Delivery.agent)
+                : undefined;
         const submitted = await runtime.callTool(
             ctx,
             phase2Delivery.agent,
@@ -179,9 +202,27 @@ export async function runColdRebindScenario(runtime) {
                 "host-pid-changed",
                 "exact-parent-rebound",
                 "transcript-prefix-preserved",
-                "cold-followup-submitted"
+                "cold-followup-submitted",
+                ...(roleResult
+                    ? [
+                          "role-persona-isolated",
+                          "role-tool-execution-denied",
+                          "role-parent-unmodified",
+                          "role-cold-config-v1-preserved"
+                      ]
+                    : [])
             ],
             observed: {
+                ...(roleResult
+                    ? {
+                          roleComposition: {
+                              phase1Checked: checkpoint.roleCompositionChecked,
+                              phase2Checked: true,
+                              ...roleResult,
+                              phase2ConfiguredVersion: "2.0.0"
+                          }
+                      }
+                    : {}),
                 phase1HostPid: checkpoint.hostPid,
                 phase2HostPid: runtime.hostPid,
                 captainSessionId: restoredSession.id,
@@ -206,6 +247,10 @@ export async function runColdRebindScenario(runtime) {
     }
     const input = runtime.createInput();
     input.agenda[0].requiredParticipantKeys = ["a"];
+    if (scenario === "role-composition") {
+        input.managerAgentDefinitionId = "fr14-manager";
+        input.participants[0].agentDefinitionId = "fr14-participant";
+    }
     const created = await runtime.callTool(
         ctx,
         runtime.captain.agent,
@@ -270,6 +315,10 @@ export async function runColdRebindScenario(runtime) {
     });
     runtime.setColdMaintenance(undefined, maintenancePromise);
     await maintenanceStarted;
+    const roleResult =
+        scenario === "role-composition"
+            ? await assertRoleSmoke(runtime, laterManagerAgent, delivery.agent)
+            : undefined;
     const submitted = await runtime.callTool(
         ctx,
         delivery.agent,
@@ -360,6 +409,7 @@ export async function runColdRebindScenario(runtime) {
     const checkpoint = runtime.validateColdCheckpoint({
         schemaVersion: 1,
         scenario,
+        ...(roleResult ? { roleCompositionChecked: true } : {}),
         phase: 1,
         hostPid: runtime.hostPid,
         captainSessionId: runtime.captain.agent.session.id,

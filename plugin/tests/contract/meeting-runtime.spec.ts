@@ -2,6 +2,9 @@ import {
     CaptainAttendanceDispositionInputSchema,
     CaptainAttendanceDispositionResultSchema
 } from "../../src/protocol/index.js";
+import { roleCompositionDefinitions } from "../fixtures/role-composition.js";
+import { MeetingArchivePackageSchema } from "../../src/protocol/status.js";
+
 import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebRoute } from "@deepseek-ai/dsh-host-webserver";
@@ -3102,6 +3105,254 @@ describe("create/status meeting runtime", () => {
         ).rejects.toBeInstanceOf(LocalMeetingRecoveryUnavailableError);
         await cold.dispose();
     });
+});
+
+describe("FR14 creation and replay contract", () => {
+    const selected = {
+        ...input,
+        managerAgentDefinitionId: "fr14-manager",
+        participants: [
+            { participantKey: "a", displayName: "A", agentDefinitionId: "fr14-participant" },
+            { participantKey: "b", displayName: "B" },
+            { participantKey: "c", displayName: "C" }
+        ],
+        agenda: [{ ...input.agenda[0], requiredParticipantKeys: ["a", "b", "c"] }]
+    };
+    async function fixture(failure?: "child" | "abort") {
+        const root = await mkdtemp(join(tmpdir(), "convivium-fr14-contract-"));
+        roots.push(root);
+        const definitions = structuredClone([...roleCompositionDefinitions]);
+        const starts = [];
+        const interrupted = [];
+        const drained = [];
+        const controller = new AbortController();
+        const skill = {
+            name: "fr14-fixture",
+            content: "FR14 fixture",
+            invocation: { modelInvocable: true }
+        };
+        const get = vi.fn(async () => skill);
+        const captain = {
+            kind: "captain" as const,
+            sessionId: "fr14-captain",
+            agent: {
+                id: "fr14-captain",
+                session: { header: { cwd: root } },
+                ctx: {
+                    get: (key) =>
+                        key === "agentPresets" ? { composedPreset: () => "minimal" } : { get }
+                }
+            }
+        };
+        const runtime = createCreateStatusRuntime({
+            storageDomain: storagePort(root),
+            provider: "spawn",
+            agentDefinitions: definitions,
+            now: () => 100,
+            continuable: {
+                startContinuable: async (spec) => {
+                    starts.push(spec);
+                    if (failure && starts.length === 2) {
+                        if (failure === "abort") controller.abort(new Error("cancelled"));
+                        throw new Error(failure);
+                    }
+                    return { childId: spec.childId, messageId: `initial-${spec.childId}` };
+                },
+                followup: async () => "followup",
+                listChildren: async () =>
+                    starts.map((s) => ({
+                        kind: "child",
+                        id: s.childId,
+                        activity: "inactive",
+                        hasChildren: false,
+                        mode: "continuable",
+                        label: s.label
+                    })),
+                listDescendants: async () => [],
+                interrupt: (id) => {
+                    interrupted.push(id);
+                },
+                drainContinuableChildren: async (_parent, ids) => {
+                    drained.push(ids);
+                }
+            },
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+        return {
+            root,
+            runtime,
+            definitions,
+            starts,
+            interrupted,
+            drained,
+            controller,
+            captain,
+            get,
+            skill
+        };
+    }
+    it("keeps ready and archived replay independent of current definitions and skills", async () => {
+        const f = await fixture();
+        try {
+            const created = await f.runtime.createMeeting(selected, f.captain, f.controller.signal);
+            if (!created.ok) throw new Error(JSON.stringify(created));
+            const meetingId = created.result.meetingId;
+            expect(f.get).toHaveBeenCalledTimes(1);
+            expect(f.starts[0].request.persona).toBe("FR14_MANAGER_V1");
+            expect(f.starts[1].request.persona).toBe("FR14_PARTICIPANT_V1");
+            f.definitions[0].persona = "FR14_MANAGER_V2";
+            f.definitions[0].definitionVersion = "2.0.0";
+            f.get.mockResolvedValue(undefined);
+            expect(await f.runtime.createMeeting(selected, f.captain, f.controller.signal)).toEqual(
+                created
+            );
+            expect(f.get).toHaveBeenCalledTimes(1);
+            expect(
+                await f.runtime.createMeeting(
+                    { ...selected, managerAgentDefinitionId: "other" },
+                    f.captain,
+                    f.controller.signal
+                )
+            ).toMatchObject({ ok: false, code: "IDEMPOTENCY_CONFLICT" });
+            const status = await f.runtime.getStatus({ protocolVersion: 1, meetingId }, f.captain);
+            if (!status.ok) throw new Error("status unavailable");
+            expect(MeetingStatusResultSchema(status.result)).toEqual(status.result);
+            expect(JSON.stringify(status)).not.toMatch(
+                /FR14_MANAGER|FR14_PARTICIPANT|requiredSkillNames|toolFilter|agentDefinition/
+            );
+            const ended = await f.runtime.endLocalMeeting({
+                protocolVersion: 1,
+                meetingId,
+                expectedMeetingVersion: status.meetingVersion,
+                requestId: "fr14-end",
+                outcome: "cancelled",
+                reason: "Fixture completed",
+                acceptedDecisionIds: [],
+                deferredAgendaItemIds: [],
+                waivers: []
+            });
+            expect(ended).toMatchObject({ ok: true });
+            const archived = await f.runtime.getStatus(
+                { protocolVersion: 1, meetingId },
+                f.captain
+            );
+            expect(archived).toMatchObject({ ok: true, result: { status: "archived" } });
+            expect(JSON.stringify(archived)).not.toMatch(
+                /FR14_MANAGER|FR14_PARTICIPANT|requiredSkillNames|toolFilter|agentDefinition/
+            );
+            if (!archived.ok || archived.result.status !== "archived")
+                throw new Error("archive unavailable");
+            const archivePackage = archived.result.archive.package;
+            for (const privateFields of [
+                { persona: "PRIVATE_ROLE_PERSONA" },
+                { toolFilter: { deny: ["convivium_role_probe"] } },
+                { requiredSkillNames: ["fr14-fixture"], skillContent: "PRIVATE_SKILL_BODY" }
+            ]) {
+                expect(() =>
+                    MeetingStatusResultSchema({ ...status.result, ...privateFields })
+                ).toThrow();
+                expect(() =>
+                    MeetingArchivePackageSchema({ ...archivePackage, ...privateFields })
+                ).toThrow();
+            }
+
+            expect(await f.runtime.createMeeting(selected, f.captain, f.controller.signal)).toEqual(
+                created
+            );
+            expect(await f.runtime.getStatus({ protocolVersion: 1, meetingId }, f.captain)).toEqual(
+                archived
+            );
+            expect(f.get).toHaveBeenCalledTimes(1);
+            expect(f.starts).toHaveLength(4);
+            f.get.mockResolvedValue(f.skill);
+            const fresh = await f.runtime.createMeeting(
+                { ...selected, requestId: "fresh-config" },
+                f.captain,
+                f.controller.signal
+            );
+            expect(fresh).toMatchObject({ ok: true });
+            expect(f.starts[4].request.persona).toBe("FR14_MANAGER_V2");
+            await f.runtime.dispose();
+            const registry = await openTestRegistry(f.root);
+            try {
+                const repository = await registry.openMeeting({ teamId: "team-1", meetingId });
+                const old = await repository.recover();
+                expect(
+                    old.sessionOwnership.find((o) => o.role === "manager")?.agentDefinition
+                ).toMatchObject({
+                    agentDefinitionId: "fr14-manager",
+                    definitionVersion: "1.0.0",
+                    definitionHash: expect.stringMatching(/^[a-f0-9]{64}$/)
+                });
+                expect(
+                    old.sessionOwnership.find((o) => o.participantId === "participant-a")
+                        ?.agentDefinition?.definitionVersion
+                ).toBe("1.0.0");
+                expect(old.sessionOwnership.every((o) => o.capabilityStatus === "revoked")).toBe(
+                    true
+                );
+            } finally {
+                await registry.close();
+            }
+        } finally {
+            await f.runtime.dispose();
+        }
+    });
+    it("fails closed before child creation for invalid role selection or missing skills", async () => {
+        const f = await fixture();
+        try {
+            const bad = {
+                ...selected,
+                participants: selected.participants.map((p, i) =>
+                    i === 2 ? { ...p, agentDefinitionId: "fr14-manager" } : p
+                )
+            };
+            expect(
+                await f.runtime.createMeeting(bad, f.captain, f.controller.signal)
+            ).toMatchObject({
+                ok: false,
+                code: "UNSUPPORTED_CAPABILITY",
+                retryable: false,
+                message: "Meeting role composition is unavailable."
+            });
+            expect(f.starts).toEqual([]);
+            expect(f.get).not.toHaveBeenCalled();
+            f.get.mockResolvedValue(undefined);
+            expect(
+                await f.runtime.createMeeting(
+                    { ...selected, requestId: "missing-skill" },
+                    f.captain,
+                    f.controller.signal
+                )
+            ).toMatchObject({ ok: false, code: "UNSUPPORTED_CAPABILITY" });
+            expect(f.starts).toEqual([]);
+            expect(await f.runtime.listLocalMeetings()).toMatchObject({ result: { meetings: [] } });
+        } finally {
+            await f.runtime.dispose();
+        }
+    });
+    it.each(["child", "abort"] as const)(
+        "revokes allocated identities after %s failure without publishing a meeting",
+        async (failure) => {
+            const f = await fixture(failure);
+            try {
+                expect(
+                    await f.runtime.createMeeting(selected, f.captain, f.controller.signal)
+                ).toMatchObject({ ok: false });
+                expect(f.starts).toHaveLength(2);
+                expect(f.interrupted).toHaveLength(2);
+                expect(f.drained).toHaveLength(1);
+                expect(await f.runtime.listLocalMeetings()).toMatchObject({
+                    result: { meetings: [] }
+                });
+            } finally {
+                await f.runtime.dispose();
+            }
+        }
+    );
 });
 
 describe("local decision and risk runtime", () => {

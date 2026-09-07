@@ -1,3 +1,4 @@
+import type { MeetingAgentDefinitionV1 } from "../../role-composition/model.js";
 import type { DomainFacility } from "@deepseek-ai/dsh-storage-domain";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { DomainFacilityPort } from "../../repository/domain/domain-repository-registry.js";
@@ -174,6 +175,7 @@ export interface MeetingToolRuntime {
 }
 
 export interface CreateStatusRuntimeOptions {
+    readonly agentDefinitions?: readonly MeetingAgentDefinitionV1[];
     readonly storageDomain: Pick<DomainFacility, "open"> | DomainFacilityPort;
     readonly provider: string;
     readonly continuable: Pick<

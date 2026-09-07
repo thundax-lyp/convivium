@@ -1,3 +1,6 @@
+import type { MeetingAgentDefinitionV1 } from "../role-composition/model.js";
+import { resolveMeetingRoles } from "../role-composition/resolve.js";
+import { validateSharedRoleCapabilities } from "../role-composition/dsh-capabilities.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import {
@@ -128,6 +131,7 @@ export function prepareMeetingCreation(
 }
 
 export interface MeetingCreationRuntimeDependencies {
+    readonly agentDefinitions?: readonly MeetingAgentDefinitionV1[];
     readonly repository: Pick<
         MeetingRepositoryType,
         | "meetingId"
@@ -220,6 +224,24 @@ export async function createMeetingRuntime(
     await dependencies.repository.create(createInput);
     const ownerships: { sessionId: SessionId }[] = [];
     try {
+        const roles = await resolveMeetingRoles(
+            {
+                definitions:
+                    dependencies.agentDefinitions === undefined
+                        ? []
+                        : dependencies.agentDefinitions,
+                managerAgentDefinitionId: input.managerAgentDefinitionId,
+                participants: input.participants
+            },
+            (selected) =>
+                validateSharedRoleCapabilities(dependencies.parent, selected, dependencies.signal)
+        );
+        const participantCompositions = new Map(
+            createInput.createResult?.participants?.map(({ participantKey, participantId }) => [
+                participantId,
+                roles.participants[participantKey]
+            ])
+        );
         const managerId = dependencies.allocateSessionId("manager", "manager");
         const managerLabel = encodeMeetingSessionLabel({
             role: "manager",
@@ -227,6 +249,9 @@ export async function createMeetingRuntime(
             meetingId
         });
         await dependencies.repository.recordSessionOwnership({
+            ...(roles.manager === undefined
+                ? {}
+                : { agentDefinition: roles.manager.agentDefinition }),
             sessionId: managerId,
             parentSessionId: String(dependencies.parent.id),
             sessionLabel: managerLabel,
@@ -237,6 +262,7 @@ export async function createMeetingRuntime(
         });
         ownerships.push({ sessionId: managerId });
         const manager = await startManagerSession({
+            composition: roles.manager,
             runtime: dependencies.continuable,
             provider: dependencies.provider,
             parent: dependencies.parent,
@@ -246,6 +272,9 @@ export async function createMeetingRuntime(
             signal: dependencies.signal
         });
         await dependencies.repository.recordSessionOwnership({
+            ...(roles.manager === undefined
+                ? {}
+                : { agentDefinition: roles.manager.agentDefinition }),
             sessionId: managerId,
             parentSessionId: String(dependencies.parent.id),
             sessionLabel: managerLabel,
@@ -257,6 +286,7 @@ export async function createMeetingRuntime(
         });
 
         for (const participant of state.participants) {
+            const composition = participantCompositions.get(participant.id);
             const participantId = dependencies.allocateSessionId("participant", participant.id);
             const participantLabel = encodeMeetingSessionLabel({
                 role: "participant",
@@ -265,6 +295,9 @@ export async function createMeetingRuntime(
                 participantId: participant.id
             });
             await dependencies.repository.recordSessionOwnership({
+                ...(composition === undefined
+                    ? {}
+                    : { agentDefinition: composition.agentDefinition }),
                 sessionId: participantId,
                 parentSessionId: String(dependencies.parent.id),
                 sessionLabel: participantLabel,
@@ -276,6 +309,7 @@ export async function createMeetingRuntime(
             });
             ownerships.push({ sessionId: participantId });
             const started = await startParticipantSession({
+                composition,
                 runtime: dependencies.continuable,
                 provider: dependencies.provider,
                 parent: dependencies.parent,
@@ -286,6 +320,9 @@ export async function createMeetingRuntime(
                 signal: dependencies.signal
             });
             await dependencies.repository.recordSessionOwnership({
+                ...(composition === undefined
+                    ? {}
+                    : { agentDefinition: composition.agentDefinition }),
                 sessionId: participantId,
                 parentSessionId: String(dependencies.parent.id),
                 sessionLabel: participantLabel,

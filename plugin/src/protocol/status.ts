@@ -544,7 +544,7 @@ const archiveAttendanceRejections = Schema.transform(
     }
 );
 
-export const MeetingArchivePackageSchema: Schema<unknown, PublicArchivePackageV1> =
+const structuralMeetingArchivePackageSchema: Schema<unknown, PublicArchivePackageV1> =
     Schema.transform(
         Schema.object({
             schemaVersion: Schema.const(1).required(),
@@ -589,6 +589,28 @@ export const MeetingArchivePackageSchema: Schema<unknown, PublicArchivePackageV1
             return value as PublicArchivePackageV1;
         }
     ) as Schema<unknown, PublicArchivePackageV1>;
+
+function rejectRoleConfiguration(value: Record<string, unknown>): void {
+    for (const key of [
+        "persona",
+        "toolFilter",
+        "requiredSkillNames",
+        "skillContent",
+        "agentDefinition"
+    ]) {
+        if (Object.hasOwn(value, key))
+            throw new TypeError("Role configuration is not public meeting data.");
+    }
+}
+
+export const MeetingArchivePackageSchema = Schema.transform(
+    Schema.any<Record<string, unknown>>().required(),
+    (value) => {
+        rejectRoleConfiguration(value);
+        return structuralMeetingArchivePackageSchema(value);
+    },
+    true
+);
 
 const archiving = Schema.object({
     meetingId: requiredString(),
@@ -635,8 +657,10 @@ const archived = Schema.object({
 const structuralMeetingStatusResultSchema = Schema.union([active, terminal, archiving, archived]);
 
 export const MeetingStatusResultSchema: Schema<Record<string, unknown>> = Schema.transform(
-    structuralMeetingStatusResultSchema,
-    (value) => {
+    Schema.any<Record<string, unknown>>().required(),
+    (input) => {
+        rejectRoleConfiguration(input);
+        const value = structuralMeetingStatusResultSchema(input);
         if (
             (value.status === "archiving" || value.status === "archived") &&
             (value.archive as { package: { meetingId: string } }).package.meetingId !==

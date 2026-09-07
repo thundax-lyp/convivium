@@ -278,7 +278,7 @@ interface MeetingSessionAdapter {
 }
 ```
 
-Meeting Agent Definition resolution 与 per-child DSH preset composition 尚未接线；在 DSH 提供公开且可验证的 per-child preset API 前，`MeetingSessionAdapter` 保持当前创建、followup、interrupt、drain 和 ownership 行为。
+首版 Meeting Agent Definition 采用共享父 Preset 的创建前配置解析；独立模块、接入点和失败语义见 [Role Composition Design](ROLE-COMPOSITION-DESIGN.md)。仅创建参数与 ownership provenance 扩展，followup、interrupt、drain 和会议调度行为保持既有边界。独立 per-child Preset 不纳入 Convivium 实施计划，等待 DSH 升级后再评估接入。
 
 禁止其他模块直接调用 DSH subagent `spawn`、`followup`、`interrupt`、`listChildren`、`listDescendants`、`drainContinuableChildren` 或 `drainContinuableDescendants`。
 

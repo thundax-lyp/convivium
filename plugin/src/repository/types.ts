@@ -1,3 +1,4 @@
+import type { AgentDefinitionBindingV1 } from "../role-composition/model.js";
 import type { DomainEventType } from "../domain/model.js";
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -173,6 +174,7 @@ export interface MeetingBootstrap {
 }
 
 export interface SessionOwnership {
+    agentDefinition?: AgentDefinitionBindingV1;
     sessionId: string;
     parentSessionId: string;
     sessionLabel: string;
@@ -187,6 +189,7 @@ export interface SessionOwnership {
 }
 
 export interface SessionOwnershipInput {
+    agentDefinition?: AgentDefinitionBindingV1;
     sessionId: string;
     parentSessionId: string;
     sessionLabel: string;

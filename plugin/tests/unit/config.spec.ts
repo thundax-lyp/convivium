@@ -18,6 +18,29 @@ describe("Convivium runtime config", () => {
         expect(() => Config({ provider: "   " })).toThrow(/provider/);
     });
 
+    it("validates inline definitions and keeps configuration errors safe", () => {
+        const definition = {
+            agentDefinitionId: "a",
+            definitionVersion: "1",
+            roleDefinitionId: "meeting_manager",
+            displayName: "A",
+            summary: "A",
+            persona: "private persona",
+            dshPresetId: "minimal",
+            requiredSkillNames: ["skill"],
+            expertiseTags: ["tag"],
+            evidenceScopes: []
+        };
+        const config = Config({ ...validConfig, agentDefinitions: [definition] });
+        definition.persona = "changed";
+        expect(config.agentDefinitions?.[0].persona).toBe("private persona");
+        expect(Object.isFrozen(config.agentDefinitions)).toBe(true);
+        expect(() =>
+            Config({ ...validConfig, agentDefinitions: [{ ...definition, extra: true }] })
+        ).toThrow("Invalid meeting agent definitions.");
+        expect(() => Config({ ...validConfig, agentDefinitions: null })).toThrow();
+    });
+
     it("accepts only a controlled relative data root", () => {
         expect(Config({ ...validConfig, dataRoot: "convivium-data/meetings" }).dataRoot).toBe(
             "convivium-data/meetings"
