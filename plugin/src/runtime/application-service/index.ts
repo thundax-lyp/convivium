@@ -161,6 +161,15 @@ export function createCreateStatusRuntime(
                       if (existing?.parent !== undefined) return existing.parent;
                       const recovered = await repository.recover();
                       if (
+                          recovered.snapshot?.state.status === "archived" &&
+                          recovered.sessionOwnership.every(
+                              (item) =>
+                                  item.lifecycleStatus === "closed" &&
+                                  item.capabilityStatus === "revoked"
+                          )
+                      )
+                          return;
+                      if (
                           recovered.bootstrap.status === "creation_failed" &&
                           recovered.sessionOwnership.every(
                               (item) => item.lifecycleStatus === "closed"

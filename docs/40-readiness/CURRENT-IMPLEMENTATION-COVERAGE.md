@@ -158,6 +158,12 @@ message-reference draft 的正式语义见 [Protocol](../20-interfaces/AGENT-MEE
 
 Question 的 required-review/risk evidence 与 Decision candidate reject/revoke 由 Protocol 明确排除，不作为当前实现缺口。
 
+## Archived Read Recovery Follow-up
+
+归档且所有 ownership 均为 closed/revoked 时，本地冷读取跳过 live Captain 与 Session 对账要求；未归档或仍需清理的会议保留恢复检查。`meeting-runtime.spec.ts` 的真实 JSONL 归档回归增加 Runtime 重建后的列表和详情读取，并断言没有查询 live Captain 或调用 Session runtime。修改前复现 `RECOVERY_CAPTAIN_UNAVAILABLE`；修改后 runtime/session-recovery/diagnostics 三文件 79 tests、Host/Client typecheck、相关 eslint 与格式检查通过。
+
+2026-09-08，在 `5491b5d` 加本修复的源码工作区执行完整 `pnpm --dir plugin verify`，exit 0，84 files / 1063 tests，format/lint/双端 typecheck/build/environment/contract/samples/package 全部通过。此追加验证不改写下方历史 verify/smoke 的源码基线；该修复未新增真实 Host 冷重启或 Browser 验收。
+
 ## Executed Validation
 
 2026-09-08，在上述源码工作区执行：

@@ -1507,6 +1507,37 @@ describe("create/status meeting runtime", () => {
         expect(drained).toHaveLength(2);
         await runtime.dispose();
 
+        const getCaptainParent = vi.fn(() => undefined);
+        const unexpectedSessionCall = vi.fn(async () => {
+            throw new Error("Archived reads must not call Session runtime");
+        });
+        const cold = createCreateStatusRuntime({
+            storageDomain: storagePort(root),
+            provider: "spawn",
+            getCaptainParent,
+            authorizationValidator: { validateCreate() {}, validateCommand() {} },
+            continuable: {
+                startContinuable: unexpectedSessionCall,
+                followup: unexpectedSessionCall,
+                listDescendants: unexpectedSessionCall
+            }
+        });
+        try {
+            await expect(cold.listLocalMeetings()).resolves.toMatchObject({
+                ok: true,
+                result: { meetings: [expect.objectContaining({ status: "archived" })] }
+            });
+            await expect(
+                cold.getLocalMeetingStatus({
+                    protocolVersion: 1,
+                    meetingId: created.result.meetingId
+                })
+            ).resolves.toMatchObject({ ok: true, result: { status: "archived" } });
+            expect(getCaptainParent).not.toHaveBeenCalled();
+            expect(unexpectedSessionCall).not.toHaveBeenCalled();
+        } finally {
+            await cold.dispose();
+        }
         const recovered = localRuntime(root);
         await expect(recovered.endLocalMeeting(request)).resolves.toEqual(ended);
         await recovered.dispose();
