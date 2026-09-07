@@ -162,6 +162,10 @@ export function renderObservabilitySections(detail: MeetingStatusResultV1): Reac
                           createElement(
                               "li",
                               { key: decision.id, "data-decision-id": decision.id },
+                              row("Decision ID", decision.id),
+                              row("Status", decision.status),
+                              row("Proposal ID", decision.proposalId),
+                              row("Proposal revision", String(decision.proposalRevision)),
                               decision.statement === undefined
                                   ? null
                                   : row("Statement", decision.statement),
@@ -174,6 +178,53 @@ export function renderObservabilitySections(detail: MeetingStatusResultV1): Reac
                                         "Dissent IDs",
                                         decision.dissentingPositionIds.join(", ") || "None"
                                     )
+                          )
+                      )
+                  )
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Decision history" },
+            createElement("h4", null, "Decision history"),
+            createElement(
+                "p",
+                null,
+                "All decisions, including current accepted, superseded and revoked decisions."
+            ),
+            view.decisionHistory.length === 0
+                ? createElement("p", null, "No decision history.")
+                : createElement(
+                      "ol",
+                      null,
+                      view.decisionHistory.map((decision) =>
+                          createElement(
+                              "li",
+                              { key: decision.id, "data-decision-id": decision.id },
+                              row("Decision ID", decision.id),
+                              row("Status", decision.status),
+                              row("Proposal ID", decision.proposalId),
+                              row("Proposal revision", String(decision.proposalRevision)),
+                              decision.statement === undefined
+                                  ? null
+                                  : row("Statement", decision.statement),
+                              decision.rationale === undefined
+                                  ? null
+                                  : row("Rationale", decision.rationale),
+                              decision.acceptedBy === undefined
+                                  ? null
+                                  : row("Accepted by", decision.acceptedBy.join(", ") || "None"),
+                              decision.agendaItemId === undefined
+                                  ? null
+                                  : row("Agenda item", decision.agendaItemId),
+                              decision.dissentingPositionIds === undefined
+                                  ? null
+                                  : row(
+                                        "Dissent IDs",
+                                        decision.dissentingPositionIds.join(", ") || "None"
+                                    ),
+                              decision.supersededByDecisionId === undefined
+                                  ? null
+                                  : row("Superseded by", decision.supersededByDecisionId)
                           )
                       )
                   )

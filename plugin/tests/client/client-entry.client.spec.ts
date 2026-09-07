@@ -5,6 +5,9 @@ import { apply, inject, name } from "../../src/client/index.js";
 import { ConviviumMeetingPanel } from "../../src/client/meeting-panel.js";
 import { mapMeetingPanelView } from "../../src/client/meeting-panel-view.js";
 import type { MeetingStatusResultV1 } from "../../src/protocol/index.js";
+import { MeetingStatusResultSchema } from "../../src/protocol/index.js";
+import type { PublicDecisionV1 } from "../../src/protocol/index.js";
+import { renderObservabilitySections } from "../../src/client/meeting-panel-sections.js";
 
 const meetingId = "meeting/1";
 const listItem = {
@@ -108,6 +111,119 @@ function terminalStatusResult() {
     };
 }
 
+function factStatus(status: "created" | "running" | "waiting" | "paused" | "converging") {
+    const decisions = factDecisions();
+    const base = statusResult(status === "created" ? "running" : status, 2, status !== "waiting");
+    return {
+        ...base,
+        status,
+        acceptedDecisions: [decisions[2]],
+        decisionHistory: decisions,
+        ...(status === "waiting"
+            ? {
+                  currentTurn: undefined,
+                  currentSpeakerId: undefined,
+                  currentAttemptId: undefined,
+                  waitState: {
+                      reason: "blocking_task",
+                      waitingSince: 100,
+                      taskIds: [],
+                      participantIds: ["participant-one"]
+                  }
+              }
+            : {})
+    } as MeetingStatusResultV1;
+}
+
+function factTerminalStatus(
+    status: "completed" | "partial" | "no_consensus" | "cancelled" | "failed"
+) {
+    const decisions = factDecisions();
+    return {
+        ...terminalStatusResult(),
+        status,
+        acceptedDecisions: [decisions[2]],
+        decisionHistory: decisions,
+        termination: {
+            ...terminalStatusResult().termination,
+            code: status,
+            decisionIds: ["d-current"]
+        }
+    } as MeetingStatusResultV1;
+}
+
+function factArchiveStatus(status: "archiving" | "archived") {
+    const decisions = factDecisions();
+    const message = {
+        id: "archive-message-1",
+        seq: 1,
+        turnId: "turn-1",
+        stepId: "step-1",
+        speaker: "participant-one",
+        agendaItemId: "agenda-1",
+        kind: "statement" as const,
+        content: "Archived statement",
+        mentions: [],
+        taskIds: [],
+        createdAt: 1
+    };
+    const archive = {
+        archivedAt: status === "archived" ? 300 : undefined,
+        package: {
+            schemaVersion: 1 as const,
+            meetingId,
+            teamId: "team-1",
+            objectiveContract: {
+                requiredOutputs: [],
+                acceptanceCriteria: [],
+                hardConstraints: [],
+                requiredReviewers: [],
+                riskAcceptanceAuthority: [],
+                acceptableRiskLevel: "medium" as const
+            },
+            finalSummary: "Done",
+            artifactRefs: [],
+            acceptedDecisions: [decisions[2]],
+            decisionHistory: decisions,
+            proposals: [],
+            completionFacts: [],
+            agenda: [],
+            issues: [],
+            unresolvedQuestions: [],
+            parkingLot: [],
+            formalTranscript: [message],
+            participantProvenance: [],
+            termination: {
+                code: "completed",
+                reason: "Done",
+                decisionIds: ["d-current"],
+                unresolvedQuestionIds: []
+            },
+            endedAt: 200,
+            materializedAt: 250
+        }
+    };
+    return {
+        meetingId,
+        meetingVersion: 6,
+        topic: "Runtime smoke",
+        objective: "Verify local control",
+        continuationMaterials: [],
+        limits: statusResult().limits,
+        meetingTasks: [],
+        status,
+        pendingHandRaises: [],
+        pauseControl: { action: "none" as const },
+        termination: {
+            code: "completed",
+            reason: "Done",
+            decisionIds: ["d-current"],
+            unresolvedQuestionIds: []
+        },
+        archive
+    } as MeetingStatusResultV1;
+}
+
 function success<T>(result: T, meetingVersion = 2) {
     return { protocolVersion: 1 as const, ok: true as const, meetingId, meetingVersion, result };
 }
@@ -131,6 +247,45 @@ function protocolError(message = "Version changed") {
     };
 }
 
+function factDecisions(): PublicDecisionV1[] {
+    return [
+        {
+            id: "d-old",
+            proposalId: "p-old",
+            proposalRevision: 1,
+            status: "superseded",
+            agendaItemId: "agenda-1",
+            statement: "Old decision",
+            rationale: "Old rationale",
+            acceptedBy: ["participant-one"],
+            dissentingPositionIds: ["position-dissent"],
+            supersededByDecisionId: "d-current"
+        },
+        {
+            id: "d-revoked",
+            proposalId: "p-revoked",
+            proposalRevision: 1,
+            status: "revoked",
+            agendaItemId: "agenda-1",
+            statement: "Revoked decision",
+            rationale: "Revoked rationale",
+            acceptedBy: ["participant-one"],
+            dissentingPositionIds: ["position-dissent"]
+        },
+        {
+            id: "d-current",
+            proposalId: "p-current",
+            proposalRevision: 1,
+            status: "accepted",
+            agendaItemId: "agenda-1",
+            statement: "Current decision",
+            rationale: "Current rationale",
+            acceptedBy: ["participant-one"],
+            dissentingPositionIds: ["position-dissent"]
+        }
+    ];
+}
+
 function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((done) => {
@@ -148,6 +303,102 @@ async function selectMeeting(): Promise<void> {
 describe("client entry framework", () => {
     beforeEach(() => {
         vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "request-1") });
+    });
+
+    it("fact visibility: decisions across lifecycle", () => {
+        const decisions = factDecisions();
+        const detail = {
+            ...statusResult("running", 2, true),
+            acceptedDecisions: [decisions[2]],
+            decisionHistory: decisions
+        } as MeetingStatusResultV1;
+        expect(() => MeetingStatusResultSchema(JSON.parse(JSON.stringify(detail)))).not.toThrow();
+        const view = mapMeetingPanelView(detail);
+        expect(view.acceptedDecisions.map((decision) => decision.id)).toEqual(["d-current"]);
+        expect(view.decisionHistory.map((decision) => decision.id)).toEqual([
+            "d-old",
+            "d-revoked",
+            "d-current"
+        ]);
+        render(renderObservabilitySections(detail));
+        expect(screen.getByLabelText("Accepted decisions").textContent).toContain("d-current");
+        const history = screen.getByLabelText("Decision history");
+        expect(history.textContent).toContain("d-old");
+        expect(history.textContent).toContain("superseded");
+        expect(history.textContent).toContain("d-current");
+        expect(history.textContent).toContain("Superseded by");
+    });
+
+    it.each([
+        "created",
+        "running",
+        "waiting",
+        "paused",
+        "converging",
+        "completed",
+        "partial",
+        "no_consensus",
+        "cancelled",
+        "failed",
+        "archiving",
+        "archived"
+    ] as const)("fact visibility: decision history schema and mapper for %s", (status) => {
+        const detail = ["created", "running", "waiting", "paused", "converging"].includes(status)
+            ? factStatus(status as "created" | "running" | "waiting" | "paused" | "converging")
+            : ["completed", "partial", "no_consensus", "cancelled", "failed"].includes(status)
+              ? factTerminalStatus(
+                    status as "completed" | "partial" | "no_consensus" | "cancelled" | "failed"
+                )
+              : factArchiveStatus(status as "archiving" | "archived");
+        expect(() => MeetingStatusResultSchema(JSON.parse(JSON.stringify(detail)))).not.toThrow();
+        expect(mapMeetingPanelView(detail).decisionHistory.map((decision) => decision.id)).toEqual([
+            "d-old",
+            "d-revoked",
+            "d-current"
+        ]);
+    });
+
+    it("fact visibility: panel DOM renders decision history from validated detail", async () => {
+        const detail = factStatus("running");
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (input: RequestInfo | URL) =>
+                String(input) === "/api/convivium/meetings"
+                    ? jsonResponse(listResponse())
+                    : jsonResponse(success(detail, detail.meetingVersion))
+            )
+        );
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+        await waitFor(() => {
+            expect(screen.getByLabelText("Decision history").textContent).toContain("d-revoked");
+        });
+        expect(screen.getByLabelText("Accepted decisions").textContent).toContain("d-current");
+    });
+
+    it("fact visibility: decision history keeps identity when optional fields are absent", () => {
+        const decisions = factDecisions().map(
+            ({
+                statement,
+                rationale,
+                acceptedBy,
+                agendaItemId,
+                dissentingPositionIds,
+                supersededByDecisionId,
+                ...decision
+            }) => decision
+        );
+        const detail = {
+            ...factStatus("running"),
+            acceptedDecisions: [decisions[2]],
+            decisionHistory: decisions
+        } as MeetingStatusResultV1;
+        expect(() => MeetingStatusResultSchema(JSON.parse(JSON.stringify(detail)))).not.toThrow();
+        render(renderObservabilitySections(detail));
+        const history = screen.getByLabelText("Decision history");
+        expect(history.textContent).toContain("d-old");
+        expect(history.textContent).toContain("Proposal ID");
+        expect(history.textContent).not.toContain("Old rationale");
     });
 
     it("maps active and terminal projections without mutating transcript order", () => {

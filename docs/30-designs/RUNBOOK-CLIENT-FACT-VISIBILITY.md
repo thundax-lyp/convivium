@@ -138,27 +138,6 @@ readonly turnObjective: string;
 
 全部 shell 命令从仓库根执行；不得照抄到其他目录。
 
-### T1：当前决策与历史决策
-
-前置状态：T0 PASS。
-允许修改：两个生产文件及现有 client spec（§5）。
-禁止修改：Parking Lot、风险、activity、刷新和写控制逻辑。
-
-执行：
-1. view 增加 decisionHistory 数组并按 §4.1 映射。
-2. Accepted decisions 保留原区名/空文案/顺序；每条先显示 `Decision ID`、`Status`、`Proposal ID`、`Proposal revision`，再显示既有 statement/rationale/dissent 行，新增 optional `Accepted by`、`Agenda item` 行。
-3. 在 Accepted decisions 后、Pending decisions 前新增 section，aria-label/h4 均为 `Decision history`。说明文本精确为 `All decisions, including current accepted, superseded and revoked decisions.`；空时 `No decision history.`。每项 key=id、data-decision-id=id，行与 accepted 区相同，末尾在 replacement 字段存在时显示 `Superseded by`。两区独立行结构，不抽公共 renderer。
-4. 字符串 optional 缺失时不渲染该行；optional 数组缺失时不渲染，存在但空时显示 `None`，非空 `join(", ")`；revision 用 String。所有 ID 可见，缺 statement 的旧记录也可辨认。
-5. 按 §6 建 helper 和修复两个旧 mapper-only fixture；加入测试 `fact visibility: decisions across lifecycle`，对全部 12 个 status 检查 Schema、mapper 全数组及真实 panel DOM。accepted 区只有 d-current，history 依序三项、状态、rationale、replacement ID 均可见；Pending decisions 不与正式历史混合。另测去掉全部 optional 字段后仍显示 ID/status/proposal，缺行不伪造。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run --project client tests/client/client-entry.client.spec.ts -t 'fact visibility: decisions'
-pnpm --dir plugin typecheck:client
-```
-PASS：退出码均 0；指定测试确实运行，三项历史与当前一项区分成立，旧 fixture 通过 Schema。
-STOP：解析或映射丢字段、需要修改协议/后端、测试被跳过或失败。保留未通过改动，不进入 T2，不回滚已有正式事实。
-
 ### T2：后续议题 Parking Lot
 
 前置状态：T1 PASS。

@@ -21,6 +21,7 @@ export interface MeetingPanelView {
     readonly blockingFacts: readonly PublicBlockingFactV1[];
     readonly meetingTasks: readonly MeetingTaskProjectionV1[];
     readonly acceptedDecisions: readonly PublicDecisionV1[];
+    readonly decisionHistory: readonly PublicDecisionV1[];
     readonly pendingDecisionCandidates: readonly PublicDecisionCandidateV1[];
     readonly risks: readonly PublicRiskV1[];
     readonly limits: MeetingStatusResultV1["limits"];
@@ -58,6 +59,7 @@ export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanel
         blockingFacts: discussion?.blockingFacts ?? [],
         meetingTasks: detail.meetingTasks,
         acceptedDecisions: discussion?.acceptedDecisions ?? archivePackage?.acceptedDecisions ?? [],
+        decisionHistory: discussion?.decisionHistory ?? archivePackage?.decisionHistory ?? [],
         pendingDecisionCandidates: discussion?.pendingDecisionCandidates ?? [],
         risks: discussion?.risks ?? [],
         limits: detail.limits,
