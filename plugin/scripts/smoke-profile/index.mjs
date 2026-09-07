@@ -367,15 +367,12 @@ async function restore() {
     }
 }
 
-function waitForBrowserStop() {
+export function waitForBrowserStop() {
     return new Promise((resolveStop) => {
-        const stop = () => {
-            process.off("SIGINT", stop);
-            process.off("SIGTERM", stop);
-            resolveStop();
-        };
-        process.once("SIGINT", stop);
-        process.once("SIGTERM", stop);
+        // pnpm and the terminal can both forward a stop signal. Keep the CLI
+        // handlers until process exit so a second signal cannot interrupt finally.
+        process.on("SIGINT", resolveStop);
+        process.on("SIGTERM", resolveStop);
     });
 }
 

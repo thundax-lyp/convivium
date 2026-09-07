@@ -176,6 +176,8 @@ env CONVIVIUM_SMOKE_SCENARIO=reassign \
 
 若 session tree 中不存在 `convivium-smoke-captain`、`conversation.view` 中不存在 label 精确为 `Meetings` 的 view，或 Browser console 出现 Convivium bundle evaluate/activate error，立即 STOP 并记录对应 DOM、slot owner 和 console 错误；不得修改 Client slot 或增加导航 fallback。
 
+自动化终端必须分配 PTY（`exec_command` 使用 `tty: true`），使控制字符转换为真实终止信号；向 pipe stdin 写入 Ctrl-C 或直接终止工具进程不构成正常 Restore。wrapper 在收到首个停止信号后保留 SIGINT/SIGTERM handler 至退出，避免 pnpm 的重复转发在 finally 中途终止清理。
+
 完成观察或命中上述失败条件后，在运行 wrapper 的终端发送一次 `Ctrl-C`。必须等待进程退出，并确认 stdout 出现：
 
 ```text

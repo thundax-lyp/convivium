@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,6 +16,42 @@ const smokeProfileSource = readFileSync(
     new URL("../../../scripts/smoke-profile/index.mjs", import.meta.url),
     "utf8"
 );
+
+it("keeps Browser cleanup alive through repeated forwarded stop signals", async () => {
+    const moduleUrl = new URL("../../../scripts/smoke-profile/index.mjs", import.meta.url).href;
+    const child = spawn(
+        process.execPath,
+        [
+            "--input-type=module",
+            "-e",
+            `
+        import { waitForBrowserStop } from ${JSON.stringify(moduleUrl)};
+        const keepAlive = setInterval(() => {}, 1000);
+        const stopped = waitForBrowserStop();
+        console.log('ready');
+        await stopped;
+        console.log('cleaning');
+        await new Promise(resolve => setTimeout(resolve, 200));
+        console.log('cleanup=ok');
+        clearInterval(keepAlive);
+    `
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] }
+    );
+    let output = "";
+    child.stdout.on("data", (chunk) => {
+        output += String(chunk);
+        if (String(chunk).includes("ready")) child.kill("SIGINT");
+        if (String(chunk).includes("cleaning")) child.kill("SIGTERM");
+    });
+    try {
+        const result = await once(child, "exit");
+        expect(result).toEqual([0, null]);
+        expect(output).toContain("cleanup=ok");
+    } finally {
+        if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    }
+});
 const browserClientPreflightSource = readFileSync(
     new URL("../../../scripts/smoke-profile/browser-client-preflight.mjs", import.meta.url),
     "utf8"

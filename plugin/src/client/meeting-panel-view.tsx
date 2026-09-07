@@ -5,7 +5,8 @@ import type {
     PublicBlockingFactV1,
     PublicDecisionV1,
     PublicDecisionCandidateV1,
-    PublicRiskV1,
+    PublicArchiveAgendaCandidateV1,
+    PublicArchiveIssueV1,
     PublicMeetingMessageV1,
     PublicTerminationV1
 } from "../protocol/index.js";
@@ -17,12 +18,17 @@ export interface MeetingPanelView {
     readonly currentSpeaker: string;
     readonly waitingReason: string;
     readonly waitingParticipants: string;
+    readonly turnIntent: string;
+    readonly turnReason: string;
+    readonly turnObjective: string;
     readonly messages: readonly PublicMeetingMessageV1[];
     readonly blockingFacts: readonly PublicBlockingFactV1[];
     readonly meetingTasks: readonly MeetingTaskProjectionV1[];
     readonly acceptedDecisions: readonly PublicDecisionV1[];
+    readonly decisionHistory: readonly PublicDecisionV1[];
+    readonly parkingLot: readonly PublicArchiveAgendaCandidateV1[];
     readonly pendingDecisionCandidates: readonly PublicDecisionCandidateV1[];
-    readonly risks: readonly PublicRiskV1[];
+    readonly risks: readonly PublicArchiveIssueV1[];
     readonly limits: MeetingStatusResultV1["limits"];
     readonly pauseReason: string;
     readonly pausedBy: string;
@@ -54,12 +60,17 @@ export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanel
         currentSpeaker: active?.currentSpeakerId ?? "None",
         waitingReason: waitState?.reason ?? "None",
         waitingParticipants: waitState?.participantIds.join(", ") || "None",
+        turnIntent: active?.currentTurn?.intent ?? "None",
+        turnReason: active?.currentTurn?.reason ?? "None",
+        turnObjective: active?.currentTurn?.objective ?? "None",
         messages,
         blockingFacts: discussion?.blockingFacts ?? [],
         meetingTasks: detail.meetingTasks,
         acceptedDecisions: discussion?.acceptedDecisions ?? archivePackage?.acceptedDecisions ?? [],
+        decisionHistory: discussion?.decisionHistory ?? archivePackage?.decisionHistory ?? [],
+        parkingLot: discussion?.parkingLot ?? archivePackage?.parkingLot ?? [],
         pendingDecisionCandidates: discussion?.pendingDecisionCandidates ?? [],
-        risks: discussion?.risks ?? [],
+        risks: discussion?.risks ?? archivePackage?.issues ?? [],
         limits: detail.limits,
         pauseReason: active?.pauseControl.reason ?? "None",
         pausedBy:
