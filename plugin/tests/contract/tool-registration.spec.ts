@@ -144,6 +144,13 @@ describe("meeting tool registration", () => {
                     message: "not exercised",
                     retryable: false
                 }),
+                disposeAttendanceRecommendation: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "INVALID_ARGUMENT",
+                    message: "not exercised",
+                    retryable: false
+                }),
                 acceptDecision: async () => ({
                     protocolVersion: 1,
                     ok: false,
@@ -457,6 +464,13 @@ describe("meeting tool registration", () => {
                     calls.push(`risk:${caller.kind}`),
                     denied()
                 ),
+                disposeAttendanceRecommendation: async () => ({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "INVALID_ARGUMENT",
+                    message: "not exercised",
+                    retryable: false
+                }),
                 acceptDecision: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`accept:${caller.kind}`),
                     denied()

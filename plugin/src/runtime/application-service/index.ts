@@ -1,3 +1,4 @@
+import { createMeetingAttendanceApplication } from "./meeting-attendance.js";
 import {
     DomainError,
     failSpeakerAttempt,
@@ -306,6 +307,11 @@ export function createCreateStatusRuntime(
         deliveryWorkers,
         ensureWorker
     });
+    const attendanceApplication = createMeetingAttendanceApplication({
+        options: runtimeOptions,
+        meetings,
+        recovery
+    });
     const decisionApplication = createMeetingDecisionApplication({
         options: runtimeOptions,
         meetings,
@@ -563,6 +569,7 @@ export function createCreateStatusRuntime(
         disposeRisk: controlApplication.disposeRisk,
         acceptDecision: decisionApplication.acceptDecision,
         disposeDecision: decisionApplication.disposeDecision,
+        disposeAttendanceRecommendation: attendanceApplication.disposeAttendanceRecommendation,
         disposeAgendaCandidate: agendaCandidateApplication.disposeAgendaCandidate,
         endMeeting: endApplication.endMeeting,
         endLocalMeeting: endApplication.endLocalMeeting,

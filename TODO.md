@@ -9,23 +9,6 @@
 
 ## 当前任务项
 
-- [ ] `Captain Runtime 与持久事务`：AR-03 接通拒绝命令及恢复
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T3。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：AR-02 PASS。
-    - 文件（7 个）：
-
-        - `plugin/src/runtime/application-service/meeting-attendance.ts`（新增）
-        - `plugin/src/runtime/application-service/types.ts`
-        - `plugin/src/runtime/application-service/index.ts`
-        - `plugin/tests/contract/meeting-runtime.spec.ts`
-        - `plugin/tests/contract/domain-meeting-repository.spec.ts`
-        - `plugin/tests/contract/tool-registration.spec.ts`
-        - `plugin/tests/contract/offline-meeting-protocol.spec.ts`
-
-    - 处理动作：按 T3 接通 Captain-only Runtime method、Repository execute 和结果映射，验证授权、幂等、并发、回滚与 reopen。
-    - 验收点：T3 focused tests 与 typecheck 通过；仅本会议 Captain 可写，单次提交无 outbox；重放不增版本，故障无半提交；Repository 层错误码与底层异常分开断言。
-
 - [ ] `DSH 拒绝推荐工具`：AR-04 注册工具并验证模型结果
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T4。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。

@@ -57,6 +57,7 @@ function collectToolDefinitions(): ToolDefinition[] {
     });
     const runtime: MeetingToolRuntime = {
         acceptDecision: denied,
+        disposeAttendanceRecommendation: denied,
         disposeDecision: denied,
         disposeAgendaCandidate: denied,
         sendMeetingMessage: denied,
