@@ -125,6 +125,12 @@ Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。`src/
 
 `cordis.patch.yml` 插入稳定 row ID `convivium` 并把既有 `storage-domain` row 的默认 backend 固定为 `convivium-jsonl`；不新增独立 backend row。Client entry 由 `package.json.dsh.client` 进入 DSH browser roster，不在 Host `apply()` 中手工加载或注册。
 
+### Client fact visibility
+
+`src/client/meeting-panel-view.tsx::mapMeetingPanelView` 从通过 [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) 对应 Schema 校验的完整公开 detail 映射展示字段。活动态与执行终态读取 discussion 的 decisions、Parking Lot 和 risks；archiving 与 archived 读取 archive.package 中的对应集合，并原样展示全部 issues。Accepted decisions 仅表示当前已接受集合；Decision history 保留全部决策身份、状态、撤销和替代关系，不过滤为仅历史项。
+
+`src/client/meeting-panel-sections.tsx::renderObservabilitySections` 展示候选处置、风险原因、owner 和任务引用，以及已公开的 Turn intent/reason/objective。没有 currentTurn 时显示 None，不从内部日志推断原因。Client 首次读取、5 秒轮询、focus 和 reopen 均通过 Schema 后整体替换 detail；非法响应保留上次已验证事实并禁写，合法响应恢复后清除错误状态。这些区域只读，不新增状态源或写入口。
+
 ### Dependency direction
 
 ```text
