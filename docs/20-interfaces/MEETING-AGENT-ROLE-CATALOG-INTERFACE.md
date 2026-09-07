@@ -333,7 +333,7 @@ Phase 1 固定以下 attendance error messages，且均为 `retryable=false`。�
 ## Captain rejection slice
 
 
-本节固定已实现的 Captain rejection slice 契约。协议、Runtime、DSH 工具、状态、归档和 JSONL reopen 已通过本地验证；真实 DSH Loader 的缺失推荐拒绝路径通过。见 [Captain Attendance Rejection Evidence](../40-readiness/CAPTAIN-ATTENDANCE-REJECTION-EVIDENCE.md)。
+本节固定已实现的 Captain rejection slice 契约。协议、Runtime、DSH 工具、状态、归档和 JSONL reopen 已通过本地验证；真实 DSH Loader 的缺失推荐拒绝路径通过。见 [Captain Attendance Rejection 验证索引](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#captain-attendance-rejection)。
 
 ### 输入、输出与来源
 

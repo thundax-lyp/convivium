@@ -2,7 +2,7 @@
 
 ## Purpose
 
-将 FR-14 首版实现为创建前的角色配置切面。共享父 Preset 首版已实现，验证见 [FR-14 Evidence](../40-readiness/FR14-SHARED-PRESET-ROLE-COMPOSITION-EVIDENCE.md)。
+将 FR-14 首版实现为创建前的角色配置切面。共享父 Preset 首版已实现，验证见 [FR-14 验证索引](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)。
 
 ## Scope And Non-goals
 
