@@ -418,6 +418,7 @@ Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-s
 - 日志必须包含 meeting ID、command/outbox kind、attempt ID 和结构化错误码，不记录隐藏推理、完整私聊或敏感凭据。
 - metrics 至少覆盖 active/waiting meetings、outbox backlog、dispatch latency、recovery count、rejected stale submissions 和 repository failures。
 - `repository/diagnostics.ts` 在 durable commit 后输出白名单结构化诊断，事件不重复发布幂等 receipt。失败记录不写领域事件；logger 失败不影响业务提交。指标作为 DSH logger 的数值字段输出，消费方可聚合，不新建 metrics 服务或持久状态源。恢复和归档生命周期分别输出安全错误码与失败计数。
+- 冷打开已提交 projection 时只重建 active/waiting/backlog gauges，不重放历史事件计数。Host 汇总已打开会议的 active/waiting 数量；无法打开的损坏 domain 不属于已观测集合，指标不能替代完整 list 的恢复判定。派发诊断保留 outbox kind、delivery 与可用的 turn/step/attempt ID；Speaker 时长按事件指向的 attempt 计算，不能用当前 step 代替。Captain/lifecycle 不可用和清理持久化失败均输出安全错误码。
 - 面板从现有完整 status/archive projection 展示 Proposal revision、Position、待处理 HandRaise 与 stall/replan 计数；终态不保留活动举手或收敛运行区。
 - DSH 原生 tool/session events 由 DSH 持有；Convivium 不声明自定义持久化 DSH Session Event。
 - Plugin Frontend 不能访问持久化介质、workspace 任意文件或 Session capability token。

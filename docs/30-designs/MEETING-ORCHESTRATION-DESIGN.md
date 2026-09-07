@@ -1319,7 +1319,7 @@ Worker 领取 delivery 时 MUST 使用同一 mutation chain 内的条件 commit�
 2. bootstrap `creating` 可以继续创建，或关闭已创建 Session 并标记 `creation_failed`；
 3. `created|running|waiting|paused|converging` Meeting 缺失 required Session 时按恢复规则重建；
 4. execution terminal、`archiving` 或 `archived` Meeting 不重建任何 Session；
-5. terminal/`archiving` Meeting 中仍在运行的 Session 先执行 interrupt，再由真实 direct parent 调用 `drainContinuableChildren` 等待 resident Activation 释放，最后持久提交 capability revoke；Session 不 resident 或 capability 已撤销视为正常；
+5. terminal/`archiving` Meeting 先持久撤销会议 capability，再对仍在运行的 Session 执行 interrupt，并由真实 direct parent 调用 `drainContinuableChildren` 等待 resident Activation 释放；Session 不 resident 或 capability 已撤销视为正常；
 6. `archived` Meeting 中 Session 不 resident 且 capability 已撤销视为正常；发现 resident Activation 时只执行 interrupt/drain，发现仍有效会议 capability 时只撤销 capability，不恢复讨论；
 7. 对账完成并持久化结果后，才允许启动 scheduler 和接受新请求。
 
@@ -1340,7 +1340,7 @@ Meeting Session 必须通过 catalog identity、Meeting domain identity、持久
 
 生产入口先从 DSH Agent registry 取得原 Captain 的 live Agent，并以持久 ownership 与完整 DSH parent/label 对账，再绑定 delivery worker。原 Captain 尚未打开时返回可重试恢复不可用；单 Meeting 无法证明归属时隔离，其他 Meeting 的 Agent best-effort discovery 继续。本地 list 仍整体返回不可用。
 
-中断创建采用关闭已证明归属的 Session 并标记 `creation_failed` 的分支。当前进程正在创建的 Meeting 不属于冷恢复候选。缺失 Manager/Participant 时先通过正常 pause transition 撤销旧 attempt、取消旧 delivery 和未完成 mail，再在 paused 状态原子替换已关闭且 revoked 的 ownership，补建独立新 Session；原 ownership 与 `supersededBySessionId` 替换链留在当前 projection/checkpoint 中，不再授权旧 Session。补建完成后由显式 resume 按最新事实重新规划，不重用旧 attempt。补建或持久化中断时保留 provisioning ownership，下一次对账关闭可证明的半成品并重试。
+中断创建采用关闭已证明归属的 Session 并标记 `creation_failed` 的分支。当前进程正在创建的 Meeting 不属于冷恢复候选。缺失 Manager/Participant 时先通过正常 pause transition 撤销旧 attempt，使派发端拒绝旧 delivery，并取消未完成 mail，再在 paused 状态原子替换已关闭且 revoked 的 ownership，补建独立新 Session；原 ownership 与 `supersededBySessionId` 替换链留在当前 projection/checkpoint 中，不再授权旧 Session。补建完成后由显式 resume 按最新事实重新规划，不重用旧 attempt。补建或持久化中断时保留 provisioning ownership，下一次对账关闭可证明的半成品并重试。
 
 FR-14 的历史 persona/toolFilter 由 DSH descriptor 持有，Convivium 只存 provenance 指纹。若带 Definition 的持久 Session/descriptor 丢失，无法证明原配置时必须以 `RECOVERY_ROLE_DESCRIPTOR_MISSING` 明确拒绝补建，保留 pause 和既有事实；不得套用当前 Definition 或去除权限限制。此分支落实 FR-9 的“明确说明不能恢复原因”和 FR-14 不重配既有身份的约束。已终止或归档的 Meeting 只进行安全清理，不补建 Session。
 

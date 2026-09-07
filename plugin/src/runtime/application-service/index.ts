@@ -1,3 +1,4 @@
+import { emitDiagnostic } from "../../repository/diagnostics.js";
 import { reconcileMeetingSessions } from "../services/meeting-session-recovery.js";
 import { createMeetingAttendanceApplication } from "./meeting-attendance.js";
 import {
@@ -180,15 +181,23 @@ export function createCreateStatusRuntime(
                       const parentId = recovered.sessionOwnership[0]?.parentSessionId;
                       const parent =
                           parentId === undefined ? undefined : options.getCaptainParent!(parentId);
-                      if (parent === undefined)
-                          throw new LocalMeetingRecoveryUnavailableError(
-                              "RECOVERY_CAPTAIN_UNAVAILABLE: reopen the original Captain Session."
-                          );
                       const lifecycle = resolveArchiveCleanupRuntime(options.continuable);
-                      if (lifecycle === undefined)
-                          throw new LocalMeetingRecoveryUnavailableError(
-                              "RECOVERY_LIFECYCLE_UNAVAILABLE"
-                          );
+                      if (parent === undefined || lifecycle === undefined) {
+                          const errorCode =
+                              parent === undefined
+                                  ? "RECOVERY_CAPTAIN_UNAVAILABLE"
+                                  : "RECOVERY_LIFECYCLE_UNAVAILABLE";
+                          emitDiagnostic(options.onDiagnostic, {
+                              meetingId: repository.meetingId,
+                              meetingVersion: recovered.snapshot?.version ?? 0,
+                              eventSeq: Number(recovered.snapshot?.state.eventSeq ?? 0),
+                              eventType: "recovery.failed",
+                              timestamp: options.now?.() ?? Date.now(),
+                              errorCode,
+                              metrics: { recoveryFailures: 1 }
+                          });
+                          throw new LocalMeetingRecoveryUnavailableError(errorCode);
+                      }
                       await reconcileMeetingSessions({
                           onDiagnostic: options.onDiagnostic,
                           repository,

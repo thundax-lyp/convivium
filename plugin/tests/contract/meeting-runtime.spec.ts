@@ -1,3 +1,4 @@
+import type { MeetingDiagnostic } from "../../src/repository/diagnostics.js";
 import {
     CaptainAttendanceDispositionInputSchema,
     CaptainAttendanceDispositionResultSchema
@@ -3857,6 +3858,50 @@ describe("local decision and risk runtime", () => {
             await registry.close();
         }
     });
+    it.each(["RECOVERY_CAPTAIN_UNAVAILABLE", "RECOVERY_LIFECYCLE_UNAVAILABLE"])(
+        "reports %s during local recovery without changing Meeting facts",
+        async (errorCode) => {
+            const { runtime, registry, meeting, facility } = await setupLocalControlRuntime();
+            await runtime.dispose();
+            await registry.close();
+            const before = loadProjection({ domain: meeting });
+            const records: MeetingDiagnostic[] = [];
+            const cold = createCreateStatusRuntime({
+                storageDomain: facility,
+                provider: "spawn",
+                authorizationValidator: { validateCreate() {}, validateCommand() {} },
+                getCaptainParent: () =>
+                    errorCode === "RECOVERY_CAPTAIN_UNAVAILABLE"
+                        ? undefined
+                        : ({ id: "captain-1" } as never),
+                onDiagnostic: (record) => records.push(record),
+                continuable: {
+                    startContinuable: async () => {
+                        throw new Error("Unexpected start");
+                    },
+                    followup: async () => {
+                        throw new Error("Unexpected followup");
+                    },
+                    listDescendants: async () => []
+                }
+            });
+            try {
+                await expect(
+                    cold.getLocalMeetingStatus({ protocolVersion: 1, meetingId: "meeting-1" })
+                ).rejects.toBeInstanceOf(LocalMeetingRecoveryUnavailableError);
+                expect(records).toContainEqual(
+                    expect.objectContaining({
+                        eventType: "recovery.failed",
+                        errorCode,
+                        metrics: { recoveryFailures: 1 }
+                    })
+                );
+                expect(loadProjection({ domain: meeting })).toEqual(before);
+            } finally {
+                await cold.dispose();
+            }
+        }
+    );
     it("surfaces selected recovery failures without a command commit", async () => {
         const { runtime, registry, meeting } = await setupLocalControlRuntime();
         try {

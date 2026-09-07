@@ -62,6 +62,7 @@ const meetingConsumerPlugin = {
                 );
         }
         const activeMeetings = new Map<string, number>();
+        const waitingMeetings = new Set<string>();
         const runtime = createCreateStatusRuntime({
             agentDefinitions: parseAgentDefinitions(config.agentDefinitions),
             storageDomain: ctx.storageDomain,
@@ -70,10 +71,13 @@ const meetingConsumerPlugin = {
                 if (record.metrics.activeMeeting === 0) activeMeetings.delete(record.meetingId);
                 else if (record.metrics.activeMeeting !== undefined)
                     activeMeetings.set(record.meetingId, record.metrics.activeMeeting);
+                if (record.metrics.waitingMeeting === 0) waitingMeetings.delete(record.meetingId);
+                else if (record.metrics.waitingMeeting === 1) waitingMeetings.add(record.meetingId);
                 ctx.logger("convivium:meeting").info("Meeting diagnostic %o", {
                     ...record,
                     metrics: {
                         ...record.metrics,
+                        waitingMeetings: waitingMeetings.size,
                         activeMeetings: [...activeMeetings.values()].reduce(
                             (sum, value) => sum + value,
                             0

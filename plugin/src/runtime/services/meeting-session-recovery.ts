@@ -111,14 +111,35 @@ async function reconcileOnce(input: SessionRecoveryInput): Promise<void> {
     }
     const present = new Set(inspected.observations.map((item) => item.sessionId));
     async function retire(ownership: SessionOwnership): Promise<void> {
-        await repository.recordSessionOwnership({ ...ownership, capabilityStatus: "revoked" }, now);
-        if (present.has(ownership.sessionId)) {
-            await interruptAndDrainOwnedSessions({ runtime, parent, ownerships: [ownership] });
+        let phase: "capability.revoke_failed" | "session.close_failed" = "capability.revoke_failed";
+        try {
+            await repository.recordSessionOwnership(
+                { ...ownership, capabilityStatus: "revoked" },
+                now
+            );
+            phase = "session.close_failed";
+            if (present.has(ownership.sessionId)) {
+                await interruptAndDrainOwnedSessions({ runtime, parent, ownerships: [ownership] });
+            }
+            await repository.recordSessionOwnership(
+                { ...ownership, lifecycleStatus: "closed", capabilityStatus: "revoked" },
+                now
+            );
+        } catch (error) {
+            emitDiagnostic(input.onDiagnostic, {
+                meetingId: repository.meetingId,
+                meetingVersion: recovered.snapshot?.version ?? 0,
+                eventSeq: Number(recovered.snapshot?.state.eventSeq ?? 0),
+                eventType: phase,
+                timestamp: now,
+                errorCode: "INTERNAL_ERROR",
+                metrics:
+                    phase === "capability.revoke_failed"
+                        ? { capabilityRevokeFailures: 1 }
+                        : { sessionCloseFailures: 1 }
+            });
+            throw error;
         }
-        await repository.recordSessionOwnership(
-            { ...ownership, lifecycleStatus: "closed", capabilityStatus: "revoked" },
-            now
-        );
     }
     if (recovered.bootstrap.status !== "ready") {
         for (const ownership of recovered.sessionOwnership) await retire(ownership);
@@ -159,7 +180,7 @@ async function reconcileOnce(input: SessionRecoveryInput): Promise<void> {
     );
     if (missing.length === 0) return;
     // Persist the normal pause transition before replacing any identity. It revokes
-    // current attempts and cancels their queued deliveries; resume replans explicitly.
+    // current attempts so dispatch rejects their queued deliveries; resume replans explicitly.
     if (state.status !== "paused") {
         await repository.execute({
             requestId: `recovery-pause:${state.version}`,

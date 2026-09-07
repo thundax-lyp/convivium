@@ -290,7 +290,18 @@ export async function cleanupOwnedSessions(input: CleanupOwnedSessionsInput): Pr
                     input.now
                 )
             )
-    );
+    ).catch((error) => {
+        emitDiagnostic(input.onDiagnostic, {
+            meetingId: afterState.id,
+            meetingVersion: afterState.version,
+            eventSeq: afterState.eventSeq,
+            eventType: "session.close_failed",
+            timestamp: input.now,
+            errorCode: "INTERNAL_ERROR",
+            metrics: { sessionCloseFailures: 1 }
+        });
+        throw error;
+    });
 }
 
 /** Commits archived only after every owned meeting Session is revoked and closed. */

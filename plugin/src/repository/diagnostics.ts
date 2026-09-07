@@ -11,6 +11,8 @@ export interface MeetingDiagnostic {
     stepId?: string;
     attemptId?: string;
     deliveryId?: string;
+    outboxKind?: string;
+    commandKind?: string;
     errorCode?: string;
     terminationCode?: string;
     metrics: Readonly<Record<string, number>>;
@@ -31,7 +33,8 @@ export function observeCommit(
     meetingId: string,
     before: PersistenceProjectionV1 | undefined,
     after: PersistenceProjectionV1,
-    now: number
+    now: number,
+    commandKind?: string
 ): void {
     if (sink === undefined || after.snapshot === null) return;
     const state = after.snapshot.state as unknown as MeetingState;
@@ -40,7 +43,8 @@ export function observeCommit(
         meetingId,
         meetingVersion: after.snapshot.version,
         eventSeq: state.eventSeq ?? 0,
-        timestamp: now
+        timestamp: now,
+        ...(commandKind === undefined ? {} : { commandKind })
     };
     const active = ["created", "running", "waiting", "paused", "converging"].includes(state.status);
     const metrics: Record<string, number> = {
@@ -63,8 +67,25 @@ export function observeCommit(
     for (const [key, event] of Object.entries(after.events)) {
         if (before?.events[key] !== undefined) continue;
         const values: Record<string, number> = {};
+        const attemptId =
+            event.attemptId ??
+            (typeof event.payload.attemptId === "string"
+                ? event.payload.attemptId
+                : typeof event.payload.planningAttemptId === "string"
+                  ? event.payload.planningAttemptId
+                  : undefined);
+        const turns = [previous?.currentTurn, state.currentTurn];
+        const matchingTurn =
+            attemptId === undefined
+                ? undefined
+                : turns.find((candidate) =>
+                      candidate?.steps.some((step) => step.attempt?.attemptId === attemptId)
+                  );
+        const step = matchingTurn?.steps.find(
+            (candidate) => candidate.attempt?.attemptId === attemptId
+        );
+        const attempt = step?.attempt;
         const turn = previous?.currentTurn;
-        const attempt = turn?.steps[turn.currentStepIndex]?.attempt;
         if (event.type === "turn.completed" && turn)
             values.turnDurationMs = Math.max(0, now - turn.createdAt);
         if (
@@ -91,12 +112,24 @@ export function observeCommit(
             meetingVersion: event.meetingVersion,
             timestamp: event.createdAt,
             eventType: event.type,
-            ...(event.turnId === null ? {} : { turnId: event.turnId }),
-            ...(event.attemptId === null ? {} : { attemptId: event.attemptId }),
-            ...(typeof event.payload.stepId === "string" ? { stepId: event.payload.stepId } : {}),
+            ...(event.turnId !== null
+                ? { turnId: event.turnId }
+                : typeof event.payload.turnId === "string"
+                  ? { turnId: event.payload.turnId }
+                  : matchingTurn === undefined
+                    ? {}
+                    : { turnId: matchingTurn.id }),
+            ...(attemptId === undefined ? {} : { attemptId }),
+            ...(typeof event.payload.stepId === "string"
+                ? { stepId: event.payload.stepId }
+                : step === undefined
+                  ? {}
+                  : { stepId: step.id }),
             ...(typeof event.payload.deliveryId === "string"
                 ? { deliveryId: event.payload.deliveryId }
-                : {}),
+                : attempt === undefined
+                  ? {}
+                  : { deliveryId: attempt.deliveryId }),
             ...(event.type === "meeting.ended" && state.termination
                 ? { terminationCode: state.termination.code }
                 : {}),
@@ -105,11 +138,22 @@ export function observeCommit(
     }
     for (const [id, item] of Object.entries(after.outbox)) {
         const old = before?.outbox[id];
+        const identity = {
+            deliveryId: item.deliveryId,
+            outboxKind: item.kind,
+            ...(typeof item.payload.turnId === "string" ? { turnId: item.payload.turnId } : {}),
+            ...(typeof item.payload.stepId === "string" ? { stepId: item.payload.stepId } : {}),
+            ...(typeof item.payload.attemptId === "string"
+                ? { attemptId: item.payload.attemptId }
+                : typeof item.payload.planningAttemptId === "string"
+                  ? { attemptId: item.payload.planningAttemptId }
+                  : {})
+        };
         if (item.status === "delivered" && old?.status !== "delivered") {
             emitDiagnostic(sink, {
                 ...base,
                 eventType: "delivery.completed",
-                deliveryId: item.deliveryId,
+                ...identity,
                 metrics: { dispatchDurationMs: Math.max(0, now - item.createdAt) }
             });
         }
@@ -117,7 +161,7 @@ export function observeCommit(
             emitDiagnostic(sink, {
                 ...base,
                 eventType: "delivery.retry",
-                deliveryId: item.deliveryId,
+                ...identity,
                 metrics: { deliveryRetries: 1 }
             });
         }

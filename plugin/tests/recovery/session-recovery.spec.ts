@@ -1,3 +1,6 @@
+import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
+import type { SessionId } from "@deepseek-ai/dsh-session";
+import type { Agent } from "@deepseek-ai/dsh-agent";
 import { describe, expect, it, vi } from "vitest";
 import { DomainMeetingRepository } from "../../src/repository/domain/domain-meeting-repository.js";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
@@ -33,16 +36,12 @@ async function fixture(ready = true, definition?: AgentDefinitionBindingV1) {
         initialState: JSON.parse(JSON.stringify(state)) as JsonObject
     };
     await repository.create(create);
-    const entries: Array<{
-        kind: "child";
-        mode: "continuable";
-        id: string;
-        parentId: string;
-        label: string;
-        activity: "inactive";
-        hasChildren: boolean;
-        depth: number;
-    }> = [];
+    const entries: Array<
+        Extract<
+            Awaited<ReturnType<SubagentRuntime["listDescendants"]>>[number],
+            { kind: "child"; mode: "continuable" }
+        >
+    > = [];
     for (const [role, id] of [
         ["manager", undefined],
         ...state.participants.map((item) => ["participant", item.id])
@@ -51,9 +50,10 @@ async function fixture(ready = true, definition?: AgentDefinitionBindingV1) {
         const label = encodeMeetingSessionLabel({
             teamId: state.teamId,
             meetingId: state.id,
-            role,
-            ...(id ? { participantId: id } : {})
-        } as never);
+            ...(role === "manager"
+                ? { role: "manager" }
+                : { role: "participant", participantId: id! })
+        });
         await repository.recordSessionOwnership({
             sessionId,
             sessionLabel: label,
@@ -69,8 +69,8 @@ async function fixture(ready = true, definition?: AgentDefinitionBindingV1) {
         entries.push({
             kind: "child",
             mode: "continuable",
-            id: sessionId,
-            parentId: "captain",
+            id: sessionId as SessionId,
+            parentId: "captain" as SessionId,
             label,
             activity: "inactive",
             hasChildren: false,
@@ -79,28 +79,36 @@ async function fixture(ready = true, definition?: AgentDefinitionBindingV1) {
     }
     if (ready) await repository.completeCreate(create);
     const runtime = {
-        listDescendants: vi.fn(async () => [...entries]),
-        listChildren: vi.fn(async () => [...entries]),
-        interrupt: vi.fn(),
-        drainContinuableChildren: vi.fn(async () => {}),
-        startContinuable: vi.fn(async (spec) => {
+        listDescendants: vi.fn<SubagentRuntime["listDescendants"]>(async () => [...entries]),
+        listChildren: vi.fn<SubagentRuntime["listChildren"]>(async () => [...entries]),
+        interrupt: vi.fn<SubagentRuntime["interrupt"]>(),
+        drainContinuableChildren: vi.fn<SubagentRuntime["drainContinuableChildren"]>(
+            async () => {}
+        ),
+        startContinuable: vi.fn<SubagentRuntime["startContinuable"]>(async (spec) => {
+            if (spec.childId === undefined) throw new Error("Expected reserved child identity");
             entries.push({
                 kind: "child",
                 mode: "continuable",
                 id: spec.childId,
-                parentId: "captain",
+                parentId: "captain" as SessionId,
                 activity: "inactive",
                 hasChildren: false,
                 depth: 1,
                 label: spec.label
             });
-            return { childId: spec.childId, messageId: `initial-${spec.childId}` };
+            return {
+                childId: spec.childId,
+                messageId: `initial-${spec.childId}` as Awaited<
+                    ReturnType<SubagentRuntime["startContinuable"]>
+                >["messageId"]
+            };
         })
     };
     const input = {
         repository,
-        runtime: runtime as never,
-        parent: { id: "captain" } as never,
+        runtime,
+        parent: { id: "captain" as SessionId } as Agent,
         signal: new AbortController().signal,
         now
     };
@@ -270,6 +278,30 @@ describe("meeting Session recovery", () => {
         expect(f.runtime.interrupt).not.toHaveBeenCalled();
         await f.repository.close();
     });
+    it("reports failed capability retirement without starting cleanup or exposing storage errors", async () => {
+        const f = await fixture(false);
+        const diagnostics: MeetingDiagnostic[] = [];
+        const write = vi
+            .spyOn(f.repository, "recordSessionOwnership")
+            .mockRejectedValueOnce(new Error("PRIVATE_STORAGE_DETAIL"));
+        await expect(
+            reconcileMeetingSessions({
+                ...f.input,
+                onDiagnostic: (record) => diagnostics.push(record)
+            })
+        ).rejects.toThrow("PRIVATE_STORAGE_DETAIL");
+        expect(f.runtime.interrupt).not.toHaveBeenCalled();
+        expect(diagnostics).toContainEqual(
+            expect.objectContaining({
+                eventType: "capability.revoke_failed",
+                metrics: { capabilityRevokeFailures: 1 }
+            })
+        );
+        expect(JSON.stringify(diagnostics)).not.toContain("PRIVATE_STORAGE_DETAIL");
+        write.mockRestore();
+        await reconcileMeetingSessions(f.input);
+        await f.repository.close();
+    });
     it("revokes capability before cleanup and reports a retryable recovery failure without leaking provider detail", async () => {
         const f = await fixture(false);
         const diagnostics: MeetingDiagnostic[] = [];
@@ -284,6 +316,12 @@ describe("meeting Session recovery", () => {
         ).rejects.toThrow("PRIVATE_PROVIDER_DETAIL");
         expect((await f.repository.recover()).sessionOwnership[0]?.capabilityStatus).toBe(
             "revoked"
+        );
+        expect(diagnostics).toContainEqual(
+            expect.objectContaining({
+                eventType: "session.close_failed",
+                metrics: { sessionCloseFailures: 1 }
+            })
         );
         expect(diagnostics.at(-1)).toMatchObject({
             eventType: "recovery.failed",

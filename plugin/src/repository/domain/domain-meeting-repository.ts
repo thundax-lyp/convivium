@@ -195,6 +195,15 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 );
             }
         }
+        if (repository.projection !== undefined) {
+            observeCommit(
+                repository.onDiagnostic,
+                repository.meetingId,
+                repository.projection,
+                repository.projection,
+                repository.now()
+            );
+        }
         return repository;
     }
 
@@ -203,7 +212,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
             throw new RepositoryError("CLOSED", false, this.meetingId, "Repository is closed");
     }
 
-    private enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
+    private enqueueMutation<T>(operation: () => Promise<T>, commandKind?: string): Promise<T> {
         this.ensureOpen();
         const committed = this.mutationChain.then(operation).catch((error) => {
             const state = this.projection?.snapshot?.state;
@@ -216,6 +225,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 meetingVersion: this.projection?.snapshot?.version ?? 0,
                 eventSeq: typeof state?.eventSeq === "number" ? state.eventSeq : 0,
                 eventType: "repository.failed",
+                ...(commandKind === undefined ? {} : { commandKind }),
                 timestamp: this.now(),
                 errorCode: code,
                 metrics: { failures: 1, ...(code === "STALE_ATTEMPT" ? { staleSubmits: 1 } : {}) }
@@ -345,7 +355,14 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         this.projection = nextProjection;
         this.headSeq = seq;
         this.headDigest = record.digest;
-        observeCommit(this.onDiagnostic, this.meetingId, previous, this.projection, _input.now);
+        observeCommit(
+            this.onDiagnostic,
+            this.meetingId,
+            previous,
+            this.projection,
+            _input.now,
+            _input.operation.startsWith("command:") ? _input.operation.slice(8) : undefined
+        );
         this.onProjectionCommitted?.(structuredClone(this.projection.snapshot!));
         const nextTailCount = tail.length + 1;
         if (
@@ -1580,7 +1597,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     }
                 })
             });
-        });
+        }, command.commandKind);
     }
     async claimOutbox(_input: ClaimOutboxInput): Promise<OutboxItem[]> {
         const input = _input;
