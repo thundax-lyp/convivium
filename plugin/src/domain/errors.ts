@@ -15,7 +15,8 @@ export type DomainErrorCode =
     | "AGENT_CATALOG_UNAVAILABLE"
     | "AGENT_CANDIDATE_NOT_FOUND"
     | "AGENT_CANDIDATE_UNAVAILABLE"
-    | "ATTENDANCE_RECOMMENDATION_INVALID";
+    | "ATTENDANCE_RECOMMENDATION_INVALID"
+    | "ATTENDANCE_RECOMMENDATION_NOT_PENDING";
 
 export class DomainError extends Error {
     readonly name = "DomainError";

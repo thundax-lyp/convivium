@@ -9,23 +9,6 @@
 
 ## 当前任务项
 
-- [ ] `推荐状态与领域 transition`：AR-02 实现单条推荐拒绝
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T2。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：AR-01 PASS。
-    - 文件（7 个）：
-
-        - `plugin/src/domain/model.ts`
-        - `plugin/src/domain/errors.ts`
-        - `plugin/src/domain/meeting-state-validation.ts`
-        - `plugin/src/domain/transitions/index.ts`
-        - `plugin/src/domain/transitions/attendance-rejection.ts`（新增）
-        - `plugin/tests/unit/domain/transitions/attendance-rejection.spec.ts`（新增）
-        - `plugin/tests/unit/repository/domain/projection.spec.ts`
-
-    - 处理动作：按 T2 实现 rejection 状态、纯 transition、审计事件及归档 mapper，并补齐读取兼容测试。
-    - 验收点：T2 focused tests 与 typecheck 通过；仅目标推荐与 eventSeq 改变；旧 pending 可读，非法结构抛底层异常，未知版本抛 UnsupportedMeetingStateFormatError。
-
 - [ ] `Captain Runtime 与持久事务`：AR-03 接通拒绝命令及恢复
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T3。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
