@@ -1,4 +1,6 @@
 import { isMeetingMinutesDraft } from "../meeting-state-validation.js";
+
+import { projectAttendanceRejections } from "./attendance-rejection.js";
 import { DomainError } from "../errors.js";
 import type { ArchiveInput, ArchiveRecord, MeetingState } from "../model.js";
 import { terminationReferencesBelongToMeeting } from "./meeting-guards.js";
@@ -67,6 +69,32 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
                 to: "archiving",
                 meetingVersion: state.version
             }
+        );
+    }
+    const expectedRejections = projectAttendanceRejections(state);
+    const actualRejections = archivePackage.attendanceRejections;
+    if (
+        actualRejections === undefined
+            ? expectedRejections.length !== 0
+            : actualRejections.length === 0 ||
+              actualRejections.length !== expectedRejections.length ||
+              actualRejections.some((actual, index) => {
+                  const expected = expectedRejections[index]!;
+                  return (
+                      Object.keys(actual).length !== 7 ||
+                      actual.recommendationId !== expected.recommendationId ||
+                      actual.candidateId !== expected.candidateId ||
+                      actual.roleDefinitionId !== expected.roleDefinitionId ||
+                      actual.displayName !== expected.displayName ||
+                      actual.agendaItemId !== expected.agendaItemId ||
+                      actual.reason !== expected.reason ||
+                      actual.rejectedAt !== expected.rejectedAt
+                  );
+              })
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            "Archive attendance rejections do not match meeting facts"
         );
     }
     const decisionById = new Map(state.decisions.map((decision) => [decision.id, decision]));
@@ -219,6 +247,17 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
                     (fact.authority === "captain" &&
                         fact.assertedBy.startsWith("captain:") &&
                         sourceCompletionById.get(fact.id)?.authority === "captain" &&
+                        sourceCompletionById.get(fact.id)?.assertedBy === fact.assertedBy) ||
+                    (fact.authority === "local_host" &&
+                        fact.assertedBy === "local-host:loopback-web" &&
+                        [
+                            "decision_acceptance",
+                            "decision_supersession",
+                            "decision_revocation",
+                            "risk_acceptance"
+                        ].includes(fact.kind) &&
+                        sourceCompletionById.get(fact.id)?.kind === fact.kind &&
+                        sourceCompletionById.get(fact.id)?.authority === fact.authority &&
                         sourceCompletionById.get(fact.id)?.assertedBy === fact.assertedBy)
                 ) ||
                 (sourceCompletionById.get(fact.id)?.subjectId !== undefined &&

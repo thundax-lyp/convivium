@@ -7,6 +7,8 @@ import type { AgentCatalogPort } from "../services/agent-catalog.js";
 import type { DeveloperMarkdownWarning } from "../services/developer-markdown-service.js";
 import type { MeetingOwnershipLookup } from "../../dsh/index.js";
 import type {
+    CaptainAttendanceDispositionInputV1,
+    CaptainAttendanceDispositionResultV1,
     CreateMeetingInputV1,
     CreateMeetingResultV1,
     MeetingStatusInputV1,
@@ -69,6 +71,11 @@ export interface MeetingToolCaller {
 }
 
 export interface MeetingToolRuntime {
+    disposeAttendanceRecommendation(
+        input: CaptainAttendanceDispositionInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<CaptainAttendanceDispositionResultV1> | ProtocolErrorV1>;
     acceptDecision(
         input: CaptainDecisionAcceptanceInputV1,
         caller: MeetingToolCaller,
@@ -190,6 +197,15 @@ export interface CreateStatusRuntimeOptions {
 }
 
 export interface LocalMeetingWebRuntime {
+    acceptLocalDecision(
+        input: CaptainDecisionAcceptanceInputV1
+    ): Promise<ProtocolSuccessV1<CaptainDecisionAcceptanceResultV1> | ProtocolErrorV1>;
+    disposeLocalDecision(
+        input: CaptainDecisionDispositionInputV1
+    ): Promise<ProtocolSuccessV1<CaptainDecisionDispositionResultV1> | ProtocolErrorV1>;
+    disposeLocalRisk(
+        input: CaptainRiskDispositionInputV1
+    ): Promise<ProtocolSuccessV1<CaptainRiskDispositionResultV1> | ProtocolErrorV1>;
     listLocalMeetings(): Promise<LocalMeetingListResponseV1>;
     getLocalMeetingStatus(
         input: MeetingStatusInputV1

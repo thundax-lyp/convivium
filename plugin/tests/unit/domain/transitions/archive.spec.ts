@@ -1,6 +1,10 @@
+import { createLocalDecisionRiskState } from "../../../fixtures/local-decision-risk.js";
 import { materializeArchivePackage } from "../../../../src/runtime/services/meeting-archive-service.js";
 import { describe, expect, it } from "vitest";
 import {
+    acceptDecisionCandidate,
+    disposeDecision,
+    applyCompletionClaims,
     transitionMeeting,
     failSpeakerAttempt,
     reassignTurn
@@ -487,4 +491,180 @@ describe("referenced minutes archive", () => {
             ).toBe(true);
         }
     );
+});
+
+describe("archives only committed local decision and risk facts", () => {
+    function terminal() {
+        const context = {
+            meetingId: "meeting-1",
+            actorBinding: "local-host:loopback-web",
+            authority: "local_host" as const,
+            reason: "Reviewed evidence",
+            evidenceMessageIds: ["message-1"],
+            now
+        };
+        let state = acceptDecisionCandidate(createLocalDecisionRiskState(), {
+            ...context,
+            decisionCandidateId: "candidate-1"
+        }).state;
+        state = disposeDecision(state, {
+            ...context,
+            requestId: "local-replace",
+            decisionId: "decision-candidate-1",
+            action: "supersede",
+            replacementCandidateId: "candidate-2"
+        }).state;
+        state = disposeDecision(state, {
+            ...context,
+            requestId: "local-revoke",
+            decisionId: "decision-candidate-2",
+            action: "revoke"
+        }).state;
+        for (const decision of ["accept", "reject"] as const) {
+            state = applyCompletionClaims(state, {
+                participantId: "local_host",
+                assertedBy: context.actorBinding,
+                riskAuthority: "local_host",
+                authorizedTaskIds: [],
+                now,
+                factId: (_kind, index) => `completion-local-risk-${decision}-${index}`,
+                claims: {
+                    riskAcceptance: {
+                        issueId: "risk-1",
+                        decision,
+                        reason: context.reason,
+                        evidenceMessageIds: context.evidenceMessageIds
+                    }
+                }
+            }).state;
+        }
+        state.status = "partial";
+        state.termination = meeting("partial").termination;
+        delete state.currentTurn;
+        delete state.waitState;
+        return state;
+    }
+    it("retains all six local facts, history and evidence", () => {
+        const state = terminal();
+        const before = structuredClone(state);
+        const archive = materializeArchivePackage(state, now);
+        const result = transitionMeeting(state, "archiving", {
+            now,
+            archive: { package: archive }
+        });
+        expect(state).toEqual(before);
+        expect(result.state.archive?.package.completionFacts).toEqual(state.completionFacts);
+        expect(result.state.archive?.package.completionFacts).toHaveLength(6);
+        expect(
+            result.state.archive?.package.decisionHistory.map(({ id, status }) => ({ id, status }))
+        ).toEqual(state.decisions.map(({ id, status }) => ({ id, status })));
+        expect(result.state.archive?.package.formalTranscript[0]?.id).toBe("message-1");
+    });
+    it.each(["authority", "actor", "kind", "unknown-id", "foreign-evidence", "local-waiver"])(
+        "rejects %s forgery",
+        (kind) => {
+            const state = terminal();
+            if (kind === "local-waiver") state.completionFacts[0]!.kind = "waiver";
+            const before = structuredClone(state);
+            const archive = materializeArchivePackage(state, now);
+            const fact = archive.completionFacts[0]!;
+            if (kind === "authority") fact.authority = "captain";
+            if (kind === "actor") fact.assertedBy = "local-host:another-web";
+            if (kind === "kind") fact.kind = "risk_acceptance";
+            if (kind === "unknown-id") fact.id = "unknown-fact";
+            if (kind === "foreign-evidence") fact.evidenceMessageIds = ["other-meeting-message"];
+            expect(() =>
+                transitionMeeting(state, "archiving", { now, archive: { package: archive } })
+            ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+            expect(state).toEqual(before);
+        }
+    );
+});
+
+function attendanceState() {
+    const state = meeting("running");
+    state.attendanceRecommendations = [
+        {
+            id: "recommendation-1",
+            candidateId: "candidate-1",
+            roleDefinitionId: "domain_architect",
+            roleDefinitionVersion: "1",
+            displayName: "Architect",
+            agentDefinitionId: "private-definition",
+            agendaItemId: "agenda-1",
+            rationale: "Review",
+            expectedContribution: "Review scope",
+            evidenceGapIds: [],
+            urgency: "current_agenda",
+            recommendedByManagerSessionId: "manager-session",
+            catalogId: "catalog-1",
+            catalogVersion: "1",
+            planningAttemptId: "planning-1",
+            status: "pending",
+            createdAt: 1
+        }
+    ];
+    state.meetingTasks = [];
+    const recommendation = state.attendanceRecommendations[0]!;
+    state.attendanceRecommendations = [
+        {
+            ...recommendation,
+            id: "recommendation-b",
+            status: "rejected",
+            rejection: {
+                requestId: "reject-b",
+                actorBinding: "captain:private-session",
+                reason: "Outside scope",
+                rejectedAt: 100
+            }
+        },
+        {
+            ...recommendation,
+            id: "recommendation-a",
+            status: "rejected",
+            rejection: {
+                requestId: "reject-a",
+                actorBinding: "captain:private-session",
+                reason: "Already covered",
+                rejectedAt: 101
+            }
+        },
+        { ...recommendation, id: "pending", createdAt: 2 }
+    ];
+    return state;
+}
+it("matches every rejection field, count and order and freezes the archive", () => {
+    const state = {
+        ...attendanceState(),
+        status: "completed" as const,
+        termination: meeting("completed").termination
+    };
+    const archive = materializeArchivePackage(state, now);
+    const records = archive.attendanceRejections!;
+    const invalid = [
+        undefined,
+        [],
+        [records[0]],
+        [...records].reverse(),
+        [records[0], records[0]],
+        ...Object.keys(records[0]!).map((key) => [
+            { ...records[0], [key]: key === "rejectedAt" ? 999 : "forged" },
+            records[1]
+        ]),
+        [{ ...records[0], actorBinding: "captain:secret" }, records[1]]
+    ];
+    for (const attendanceRejections of invalid) {
+        expect(() =>
+            transitionMeeting(state, "archiving", {
+                now,
+                archive: { package: { ...archive, attendanceRejections } }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    }
+    const frozen = transitionMeeting(state, "archiving", {
+        now,
+        archive: { package: archive }
+    }).state;
+    Reflect.set(archive.attendanceRejections![0]!, "reason", "mutated");
+    expect(frozen.archive!.package.attendanceRejections![0]!.reason).toBe("Already covered");
 });

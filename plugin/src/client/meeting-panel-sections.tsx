@@ -2,7 +2,15 @@ import { createElement, type ReactElement } from "react";
 import type { MeetingStatusResultV1 } from "../protocol/index.js";
 import { mapMeetingPanelView } from "./meeting-panel-view.js";
 
-export function renderObservabilitySections(detail: MeetingStatusResultV1): ReactElement {
+export interface MeetingFactControls {
+    renderCandidateActions(candidateId: string): ReactElement | null;
+    renderDecisionActions(decisionId: string): ReactElement | null;
+    renderRiskActions(issueId: string): ReactElement | null;
+}
+export function renderObservabilitySections(
+    detail: MeetingStatusResultV1,
+    controls?: MeetingFactControls
+): ReactElement {
     const view = mapMeetingPanelView(detail);
     const row = (label: string, value: string) =>
         createElement(
@@ -215,7 +223,8 @@ export function renderObservabilitySections(detail: MeetingStatusResultV1): Reac
                                   : row(
                                         "Dissent IDs",
                                         decision.dissentingPositionIds.join(", ") || "None"
-                                    )
+                                    ),
+                              controls?.renderDecisionActions(decision.id)
                           )
                       )
                   )
@@ -279,9 +288,10 @@ export function renderObservabilitySections(detail: MeetingStatusResultV1): Reac
                       view.pendingDecisionCandidates.map((candidate) =>
                           createElement(
                               "li",
-                              { key: candidate.id },
+                              { key: candidate.id, "data-candidate-id": candidate.id },
                               row("Statement", candidate.statement),
-                              row("Rationale", candidate.rationale)
+                              row("Rationale", candidate.rationale),
+                              controls?.renderCandidateActions(candidate.id)
                           )
                       )
                   )
@@ -308,7 +318,8 @@ export function renderObservabilitySections(detail: MeetingStatusResultV1): Reac
                                   ? null
                                   : row("Rationale", risk.rationale),
                               risk.ownerId === undefined ? null : row("Owner", risk.ownerId),
-                              row("Related task IDs", risk.relatedTaskIds.join(", ") || "None")
+                              row("Related task IDs", risk.relatedTaskIds.join(", ") || "None"),
+                              controls?.renderRiskActions(risk.id)
                           )
                       )
                   )

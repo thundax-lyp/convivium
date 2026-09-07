@@ -14,6 +14,8 @@ import {
     type MeetingState
 } from "../../domain/index.js";
 import type {
+    ProtocolSuccessV1,
+    ProtocolErrorV1,
     CaptainRiskDispositionInputV1,
     CaptainRiskDispositionResultV1,
     MeetingControlResultV1,
@@ -61,6 +63,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
         | "reassignTurn"
         | "reassignLocalTurn"
         | "disposeRisk"
+        | "disposeLocalRisk"
     > = {
         async pauseLocalMeeting(input) {
             const snapshots = await recovery.rehydrate({
@@ -136,99 +139,131 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
             }
             return reassignTurnForSource(input, { kind: "captain", sessionId: caller.sessionId });
         },
+        async disposeLocalRisk(input) {
+            const snapshots = await recovery.rehydrate({
+                kind: "local_meeting",
+                meetingId: input.meetingId
+            });
+            if (!snapshots?.has(input.meetingId))
+                return failure("MEETING_NOT_FOUND", "Meeting not found.");
+            return disposeRiskForSource(input, { kind: "local_host" });
+        },
         async disposeRisk(input: CaptainRiskDispositionInputV1, caller) {
             await recovery.rehydrate();
             const stored = meetings.get(input.meetingId);
             if (
                 !stored ||
                 caller.kind !== "captain" ||
-                caller.sessionId !== stored.captainSessionId
+                caller.sessionId !== stored.captainSessionId ||
+                (caller.meetingId !== undefined && caller.meetingId !== input.meetingId)
             )
                 return failure(
                     "UNAUTHORIZED_CALLER",
                     "Only the meeting Captain can dispose a risk."
                 );
-            try {
-                const committed = await stored.repository.execute({
-                    requestId: input.requestId,
-                    commandKind: "dispose_risk",
-                    authorization: {
-                        callerBinding: `session:${caller.sessionId}`,
-                        capabilityId: `captain:${caller.sessionId}`
-                    },
-                    requestHash: serializeValidatedRequestV1(input),
-                    expectedMeetingVersion: input.expectedMeetingVersion,
-                    transition: (snapshot) => {
-                        const state = snapshot.state as unknown as MeetingState;
-                        const transition = applyCompletionClaims(state, {
-                            participantId: "captain",
-                            assertedBy: `captain:${caller.sessionId}`,
-                            riskAuthority: true,
-                            now: options.now?.() ?? Date.now(),
-                            authorizedTaskIds: [],
-                            factId: (_kind, index) => `completion-${input.requestId}-risk-${index}`,
-                            claims: { riskAcceptance: input }
-                        });
-                        const judgment = judgeTurnCompletion(
-                            transition.state,
-                            options.now?.() ?? Date.now()
-                        );
-                        const nextState =
-                            judgment.kind === "completed"
-                                ? {
-                                      ...transition.state,
-                                      status: "converging" as const,
-                                      currentTurn: undefined,
-                                      waitState: undefined
-                                  }
-                                : transition.state;
-                        const events =
-                            judgment.kind === "completed"
-                                ? [
-                                      ...transition.effect.events,
-                                      {
-                                          type: "meeting.replanned" as const,
-                                          payload: {
-                                              meetingId: state.id,
-                                              from: state.status,
-                                              to: "converging",
-                                              meetingVersion: state.version,
-                                              reason: judgment.reason
-                                          }
-                                      }
-                                  ]
-                                : transition.effect.events;
-                        const fact = nextState.completionFacts.at(-1)!;
-                        return {
-                            state: nextState as unknown as JsonObject,
-                            result: {
-                                requestId: input.requestId,
-                                issueId: input.issueId,
-                                disposition: input.decision === "accept" ? "accepted" : "rejected",
-                                completionFactId: fact.id,
-                                meetingStatus: nextState.status
-                            } satisfies CaptainRiskDispositionResultV1,
-                            events: events as unknown as DomainEventInput[],
-                            outbox: []
-                        };
-                    }
-                });
-                return success(
-                    input.meetingId,
-                    committed.meetingVersion,
-                    committed.result as CaptainRiskDispositionResultV1
-                );
-            } catch (error) {
-                return commandError(
-                    error,
-                    "INVALID_ENTITY_STATE",
-                    "The risk could not be disposed.",
-                    { meetingId: input.meetingId },
-                    { INVALID_ENTITY_STATE: "INVALID_ARGUMENT" }
-                );
-            }
+            return disposeRiskForSource(input, { kind: "captain", sessionId: caller.sessionId });
         }
     };
+
+    async function disposeRiskForSource(
+        input: CaptainRiskDispositionInputV1,
+        source: MeetingControlSource
+    ): Promise<ProtocolSuccessV1<CaptainRiskDispositionResultV1> | ProtocolErrorV1> {
+        const stored = meetings.get(input.meetingId);
+        if (!stored)
+            return source.kind === "local_host"
+                ? failure("MEETING_NOT_FOUND", "Meeting not found.")
+                : failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can dispose a risk.");
+        try {
+            const committed = await stored.repository.execute({
+                requestId: input.requestId,
+                commandKind: "dispose_risk",
+                authorization: {
+                    callerBinding:
+                        source.kind === "captain"
+                            ? `session:${source.sessionId}`
+                            : "local-host:loopback-web",
+                    capabilityId:
+                        source.kind === "captain"
+                            ? `captain:${source.sessionId}`
+                            : "local-host:loopback-web"
+                },
+                requestHash: serializeValidatedRequestV1(input),
+                expectedMeetingVersion: input.expectedMeetingVersion,
+                transition: (snapshot) => {
+                    const state = snapshot.state as unknown as MeetingState;
+                    const transition = applyCompletionClaims(state, {
+                        participantId: source.kind,
+                        assertedBy:
+                            source.kind === "captain"
+                                ? `captain:${source.sessionId}`
+                                : "local-host:loopback-web",
+                        riskAuthority: source.kind,
+                        now: options.now?.() ?? Date.now(),
+                        authorizedTaskIds: [],
+                        factId: (_kind, index) => `completion-${input.requestId}-risk-${index}`,
+                        claims: { riskAcceptance: input }
+                    });
+                    const judgment = judgeTurnCompletion(
+                        transition.state,
+                        options.now?.() ?? Date.now()
+                    );
+                    const nextState =
+                        judgment.kind === "completed"
+                            ? {
+                                  ...transition.state,
+                                  status: "converging" as const,
+                                  currentTurn: undefined,
+                                  waitState: undefined
+                              }
+                            : transition.state;
+                    const events =
+                        judgment.kind === "completed"
+                            ? [
+                                  ...transition.effect.events,
+                                  {
+                                      type: "meeting.replanned" as const,
+                                      payload: {
+                                          meetingId: state.id,
+                                          from: state.status,
+                                          to: "converging",
+                                          meetingVersion: state.version,
+                                          reason: judgment.reason
+                                      }
+                                  }
+                              ]
+                            : transition.effect.events;
+                    const fact = nextState.completionFacts.at(-1)!;
+                    return {
+                        state: nextState as unknown as JsonObject,
+                        result: {
+                            requestId: input.requestId,
+                            issueId: input.issueId,
+                            disposition: input.decision === "accept" ? "accepted" : "rejected",
+                            completionFactId: fact.id,
+                            meetingStatus: nextState.status
+                        } satisfies CaptainRiskDispositionResultV1,
+                        events: events as unknown as DomainEventInput[],
+                        outbox: []
+                    };
+                }
+            });
+            return success(
+                input.meetingId,
+                committed.meetingVersion,
+                committed.result as CaptainRiskDispositionResultV1
+            );
+        } catch (error) {
+            return commandError(
+                error,
+                "INVALID_ENTITY_STATE",
+                "The risk could not be disposed.",
+                { meetingId: input.meetingId },
+                { INVALID_ENTITY_STATE: "INVALID_ARGUMENT" }
+            );
+        }
+    }
+
     async function reassignTurnForSource(input: ReassignTurnInputV1, source: MeetingControlSource) {
         const stored = meetings.get(input.meetingId);
         if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");

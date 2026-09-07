@@ -186,7 +186,15 @@ function attendanceRecommendation(value: MeetingState["attendanceRecommendations
         urgency: value.urgency,
         roleDefinitionId: value.roleDefinitionId,
         displayName: value.displayName,
-        status: value.status
+        status: value.status,
+        ...(value.status === "rejected" && value.rejection !== undefined
+            ? {
+                  rejection: {
+                      reason: value.rejection.reason,
+                      rejectedAt: value.rejection.rejectedAt
+                  }
+              }
+            : {})
     };
 }
 

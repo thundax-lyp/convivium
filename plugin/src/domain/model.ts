@@ -73,6 +73,7 @@ export const DomainEventTypes = [
     "decision.accepted",
     "decision.superseded",
     "decision.revoked",
+    "attendance_recommendation.rejected",
     "archive.sessions_closed"
 ] as const;
 
@@ -155,7 +156,13 @@ export interface AttendanceRecommendation {
     catalogId: string;
     catalogVersion: string;
     planningAttemptId: string;
-    status: "pending";
+    status: "pending" | "rejected";
+    rejection?: {
+        requestId: string;
+        actorBinding: string;
+        reason: string;
+        rejectedAt: number;
+    };
     createdAt: number;
 }
 
@@ -401,7 +408,11 @@ export interface MeetingDecision {
     rationale?: string;
     acceptedBy?: readonly string[];
     dissentingPositionIds?: readonly string[];
-    acceptanceMode: "deterministic_consensus" | "captain_acceptance" | "authorized_risk_acceptance";
+    acceptanceMode:
+        | "deterministic_consensus"
+        | "captain_acceptance"
+        | "local_host_acceptance"
+        | "authorized_risk_acceptance";
     acceptanceFactIds: readonly string[];
     supersededByDecisionId?: string;
     createdAt: number;
@@ -681,7 +692,18 @@ export interface ArchiveMessage {
     minutesDraft?: MeetingMinutesDraft;
 }
 
+export interface ArchiveAttendanceRejection {
+    recommendationId: string;
+    candidateId: string;
+    roleDefinitionId: AgentRoleDefinitionId;
+    displayName: string;
+    agendaItemId: string;
+    reason: string;
+    rejectedAt: number;
+}
+
 export interface ArchivePackage {
+    attendanceRejections?: readonly ArchiveAttendanceRejection[];
     schemaVersion: 1;
     meetingId: string;
     teamId: string;

@@ -20,7 +20,7 @@
 - MeetingTask、HandRaise、meeting mail、completion/end、risk disposition、archive 和 continuation。
 - Proposal/Position、Decision acceptance、Question/Issue/Agenda candidate 的已实现子集及对应 projection。
 
-- 引用式纪要：当前实现提交 `2854524` 加收口 diff 通过完整 verify（77 files / 803 tests）、固定回归（7 files / 195 tests）和真实 `scribe-minutes` 普通/Browser 两模式；详细证据及未覆盖边界见 [Referenced Minutes Evidence](./REFERENCED-MINUTES-VALIDATION-EVIDENCE.md)。
+- 引用式纪要：原任务提交 `e9f08c2` 完成收口；发布前合入 main `03e3a0e` 后重新通过完整 verify（78 files / 1000 tests）及真实 `scribe-minutes` 普通/Browser 两模式；原固定回归为 7 files / 195 tests；详细证据及未覆盖边界见 [Referenced Minutes Evidence](./REFERENCED-MINUTES-VALIDATION-EVIDENCE.md)。
 
 ## Requirement Coverage
 
@@ -32,15 +32,19 @@
 | FR-4 发言计划与选择                       | 已实现   | Manager/round-robin/rule-based/hybrid planning、资格校验、required Participant waiting、确定性 fallback、自动 stall/refocus/replan；新增五收敛场景真实 DSH 验证通过                                                            | 时间预算、blocking Position 分支等真实运行边界见收敛专项证据                                              |
 | FR-5 异步任务与举手                       | 已实现   | MeetingTask、HandRaise、恢复、幂等、task evidence；start replay 在最新 task snapshot 已为 `running` 时跳过 Catalog preview 并进入 receipt replay | 外部副作用 exactly-once、长期压力未覆盖                                                      |
 | FR-6 议题范围与发散控制                   | 已实现   | Question/Issue/Proposal/Position、候选 promote/park/reject、原子 commit、幂等、status/archive；全量验证及收敛真实 DSH 验证通过                                      | UI/HTTP/Client、时间预算、blocking Position 分支等真实运行边界见收敛专项证据                             |
-| FR-7 提案、立场与决策                     | 已实现   | Proposal revision、Position、Decision candidate、Captain acceptance、Decision/risk projection、单 Issue risk disposition                         | 完整 FR-7 外的产品 UI 控制未覆盖                                                             |
-| FR-8 完成事实与会议结束                   | 已实现   | completion/end、task evidence、终态 projection、恢复和幂等、收敛预算耗尽后的 stalled/no_consensus 终止；两类硬预算业务优先真实 DSH 验证通过                                                                                       | Decision/Agenda 细节属其他范围；时间预算未覆盖                                        |
+| FR-7 提案、立场与决策                     | 已实现   | Proposal revision、Position、Decision candidate、Captain/local Decision accept/supersede/revoke、单 Issue risk accept/reject、HTTP/Client 行内控制；[本地控制证据](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)                         | 本次五动作真实 DSH/Browser 已通过；其他 UI 不在范围                                                             |
+| FR-8 完成事实与会议结束                   | 已实现   | completion/end、task evidence、终态 projection、恢复和幂等、收敛预算耗尽后的 stalled/no_consensus 终止；两类硬预算业务优先真实 DSH 验证通过                                                                                       | local fact 原子性、冷恢复与归档已自动验证；时间预算未覆盖                                        |
 | FR-9 暂停、恢复与故障隔离                 | 已实现   | pause/resume、timeout、reassign/skip、interrupt/drain、cold rebind、per-Meeting isolation                                                        | 无                                                                                           |
 | FR-10 记录、隐私与归档 | 已实现 | transcript、meeting mail、archive、Session cleanup、continuation；message-reference draft 的原子提交、持久恢复、status/Client/archive 与真实 DSH/Browser 均通过，见 [Referenced Minutes Evidence](./REFERENCED-MINUTES-VALIDATION-EVIDENCE.md) | 其他类型直接引用、模型质量和长期压力未覆盖；邮件增量跨层动态场景仍 Not Covered，采用未变动源码与持久上界契约证据 |
-| FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；G4 已验证 pause/resume/end 及 Reassign Browser control    | risk/Decision disposition 未覆盖；metrics、远程/多用户未覆盖                                 |
+| FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；新增五种 Decision/risk 行内操作、单表单写锁和错误恢复，见[本地控制证据](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)    | 新增五动作真实 Browser 已验证；metrics、远程/多用户未覆盖                                 |
 | FR-12 Agent 内部能力边界                  | 已实现   | 只消费正式提交和授权 task projection，不写自定义 DSH Session Event                                                                               | 后续 Mail/Web/UI 路径须保持该边界                                                            |
-| FR-13 Agent 角色目录与参会推荐            | 部分实现 | Phase 1 的 Catalog consumer、attempt binding、safe projection、recommendation claim 与 pending projection 已实现并通过本地验证                   | Captain disposition、admission、provisioning、FR-14、UI、真实 Host producer smoke 不在本阶段 |
+| FR-13 Agent 角色目录与参会推荐 | 部分实现 | Catalog consumer、attempt binding、safe projection、Manager pending；Captain reject/status/archive/JSONL reopen 已验证，真实 Loader 缺失推荐拒绝路径通过 | approve/admission/provisioning、FR-14、UI、真实 Host producer 成功链路和本子闭环 Host 冷重启未覆盖 |
 | FR-14 Agent Definition 与 DSH composition | 未实现   | 9 个样本、hash 和负向 fixture                                                                                                                    | Definition resolution、Preset/Skill validation、差异化 Session composition                   |
 | FR-15 Developer Markdown Projection       | 已实现   | committed snapshot/package → current/archive Markdown；白名单、受控路径、latest/stale、原子替换、failure isolation、dispose                      | multi-Host、远程 workspace、跨进程锁、旧文件迁移/清理未覆盖                                  |
+
+### Captain 参会拒绝实现与证据边界
+
+2026-09-07，分支 `codex/attendance-rejection-runbook` 的代码与验证提交至 `f5cb663`：Captain 工具拒绝一个 pending recommendation，单 commit 持久化审计、receipt 和状态，status/归档脱敏，重放、并发、故障回滚与真实 JSONL reopen 保持一致。完整 verify 为 77 files / 734 tests，真实 DSH baseline 输出 `PASS baseline 6210ms restore=PASS`。详见 [Captain Attendance Rejection Evidence](./CAPTAIN-ATTENDANCE-REJECTION-EVIDENCE.md)。该证据只覆盖拒绝子闭环，不改变 FR-13 的部分实现状态。
 
 ### Convergence 实现与证据边界
 
@@ -49,6 +53,10 @@
 2026-09-07 在干净基线 `5f0cc145df8dd194242220730dc1ab359e943573` 完成原 `convergence` 和五个新增收敛 selector 的真实 DSH 运行：四次空提交至 stalled、合法 blocking question 至 no_consensus、Proposal 同时重置两计数、Turn/message 两类预算边界先 converging 后 Captain completed。五新增均归档、迟到提交拒绝且状态不变、两个 Session drained；六次 wrapper 和精确临时根/端口 Restore 均通过。完整 verify 为 75 files、3670 tests。详见 [Convergence Runtime Validation Evidence](./CONVERGENCE-RUNTIME-VALIDATION-EVIDENCE.md)。
 
 该证据只更新 FR-4/FR-6/FR-8 的收敛验证范围；fingerprint 为间接观测，时间预算、blocking Position、事务故障注入、冷重启、模型及 Browser 未覆盖。下述历史记录保持原始基线，不外推为本次其他 selector 的新运行证据。
+
+### Captain/local 决策与风险控制证据边界
+
+2026-09-07 在 `b4bed41` 基线至 `adb28ec` 实现并验证五动作及其 HTTP/Client 入口；全量 verify 为 76 files / 791 tests。领域来源、事务失败回滚、P2 事件顺序、幂等、冷 Runtime/Repository 重开、六条 local facts 与归档一致性均通过自动化验证，详见 [Captain Local Decision Risk Control Evidence](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)。本段只更新 FR-7/FR-8/FR-11 对应范围，LC-08 已在被测分支提交 `b63697d` 完成真实 DSH/Browser 七步、六条 local 审计事实和 Restore 验收；下述历史代码基线及 smoke 记录保持原含义。
 
 ## Executed Validation
 
@@ -100,9 +108,9 @@
 
 - 遗留 SQLite 数据不读取、不迁移、不删除。
 - 不支持 multi-Host writer、远程 filesystem、远程访问、多用户和网络部署。
-- risk/Decision disposition 没有正式 browser/HTTP/Client write control。
+- risk/Decision 五动作已通过正式 HTTP/Client 自动化与 LC-08 真实 DSH/Browser 验收；本轮没有验证真实 LLM 请求或 Host 冷重启。
 - Question 的 required-review/risk evidence、Decision candidate 完整生命周期未实现。自动 stall/refocus/replan 已有正式路径和单测，完整链路的真实 DSH smoke 未覆盖。
-- FR-13 Phase 1 的 Agent Catalog safe projection、Manager recommendation claim 和 pending projection 已完成本地 fake-port/isolated-storage 验证；真实 Host producer smoke、Captain admission 和 Meeting Agent Definition runtime 不在该阶段。
+- FR-13 的 Catalog/Manager pending 和 Captain reject 本地闭环已验证；真实 Loader 仅验证缺失推荐拒绝路径。真实 Host producer 成功推荐→拒绝、该子闭环 Host 冷重启、真实模型自主调用、Browser/HTTP/Client 拒绝控制、approve/admission/provisioning、自动 expired/cancelled 和 FR-14 仍未覆盖。
 - 结构化 metrics、stress/长期资源泄漏和生产发布验证未实现或未覆盖。
 - Developer Markdown 的 multi-Host、远程 workspace、跨进程锁、旧文件迁移/清理未覆盖；current/archive 文件仍为非权威本地诊断输出。
 

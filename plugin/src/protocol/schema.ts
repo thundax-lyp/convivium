@@ -264,6 +264,26 @@ export const AttendanceRecommendationClaimSchema: Schema<unknown, AttendanceReco
         }
     ) as Schema<unknown, AttendanceRecommendationClaimV1>;
 
+const attendanceRejection = Schema.transform(
+    Schema.object({
+        reason: Schema.string().required(),
+        rejectedAt: Schema.number().required()
+    }),
+    (value) => {
+        assertExactKeys(value, ["reason", "rejectedAt"], "attendance rejection");
+        if (
+            typeof value.reason !== "string" ||
+            !value.reason.trim() ||
+            typeof value.rejectedAt !== "number" ||
+            !Number.isFinite(value.rejectedAt) ||
+            value.rejectedAt < 0
+        ) {
+            throw new TypeError("Invalid attendance rejection");
+        }
+        return value;
+    }
+);
+
 export const PublicAttendanceRecommendationSchema: Schema<
     unknown,
     PublicAttendanceRecommendationV1
@@ -292,7 +312,8 @@ export const PublicAttendanceRecommendationSchema: Schema<
             "failed",
             "cancelled"
         ] as const),
-        failureCode: Schema.string()
+        failureCode: Schema.string(),
+        rejection: Schema.union([attendanceRejection, Schema.const(undefined)])
     }),
     (value) => {
         const expected = [
@@ -312,6 +333,16 @@ export const PublicAttendanceRecommendationSchema: Schema<
         }
         if (Object.prototype.hasOwnProperty.call(value, "failureCode")) {
             expected.push("failureCode");
+        }
+        if (Object.prototype.hasOwnProperty.call(value, "rejection")) {
+            if (value.rejection == null) throw new TypeError("Invalid attendance rejection");
+            expected.push("rejection");
+        }
+        if (
+            (value.status === "pending" && Object.hasOwn(value, "rejection")) ||
+            (value.status === "rejected" && value.rejection == null)
+        ) {
+            throw new TypeError("Attendance rejection must match recommendation status");
         }
         assertExactKeys(value, expected, "PublicAttendanceRecommendationV1");
         return value as PublicAttendanceRecommendationV1;

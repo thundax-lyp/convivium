@@ -23,6 +23,45 @@ export async function runBaselineScenario(runtime) {
     );
     const meetingId = created.result.meetingId;
     runtime.setMeetingId(meetingId);
+    if (scenario === "baseline") {
+        const rejected = await ctx.tools.execute({
+            callId: "convivium-smoke-attendance-reject-missing",
+            name: "convivium_dispose_attendance_recommendation",
+            arguments: {
+                input: {
+                    protocolVersion: 1,
+                    meetingId,
+                    expectedMeetingVersion: created.meetingVersion,
+                    requestId: "smoke-attendance-reject-missing",
+                    recommendationId: "missing-recommendation",
+                    decision: "reject",
+                    reason: "Verify attendance rejection boundary"
+                }
+            },
+            agent: runtime.captain.agent,
+            signal: new AbortController().signal
+        });
+        runtime.assert(
+            !rejected.isError &&
+                rejected.value?.ok === false &&
+                rejected.value.code === "INVALID_ARGUMENT" &&
+                rejected.value.retryable === false,
+            "attendance rejection did not return canonical INVALID_ARGUMENT"
+        );
+        const unchanged = await runtime.callTool(
+            ctx,
+            runtime.captain.agent,
+            "convivium_meeting_status",
+            { protocolVersion: 1, meetingId },
+            runtime.nextCall()
+        );
+        runtime.assert(
+            unchanged.meetingVersion === created.meetingVersion &&
+                Array.isArray(unchanged.result.attendanceRecommendations) &&
+                unchanged.result.attendanceRecommendations.length === 0,
+            "attendance rejection changed meeting facts"
+        );
+    }
     const manager = await runtime.waitForAgent(ctx, meetingId + "-manager-manager");
     const managerPlan = await runtime.callTool(
         ctx,
@@ -208,7 +247,13 @@ export async function runBaselineScenario(runtime) {
         ok: true,
         scenario,
         assertions:
-            scenario === "timeout" ? [] : ["baseline-transcript-acb", "baseline-http-pause-resume"],
+            scenario === "timeout"
+                ? []
+                : [
+                      "baseline-transcript-acb",
+                      "baseline-http-pause-resume",
+                      "attendance-reject-tool-zero-effects"
+                  ],
         meetingId,
         participants: runtime.participants,
         messages,

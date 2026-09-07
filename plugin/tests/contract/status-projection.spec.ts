@@ -1,5 +1,6 @@
 import { materializeArchivePackage } from "../../src/runtime/services/meeting-archive-service.js";
 import { meeting as domainMeeting } from "../unit/domain/transitions/fixtures.js";
+import { meeting } from "../unit/domain/transitions/fixtures.js";
 import type { MeetingState } from "../../src/domain/model.js";
 import {
     projectManagerMeetingContext,
@@ -952,4 +953,112 @@ describe("referenced minutes projection", () => {
             ).toEqual(metadata);
         }
     });
+});
+
+function attendanceState() {
+    const state = meeting("running");
+    state.attendanceRecommendations = [
+        {
+            id: "recommendation-1",
+            candidateId: "candidate-1",
+            roleDefinitionId: "domain_architect",
+            roleDefinitionVersion: "1",
+            displayName: "Architect",
+            agentDefinitionId: "private-definition",
+            agendaItemId: "agenda-1",
+            rationale: "Review",
+            expectedContribution: "Review scope",
+            evidenceGapIds: [],
+            urgency: "current_agenda",
+            recommendedByManagerSessionId: "manager-session",
+            catalogId: "catalog-1",
+            catalogVersion: "1",
+            planningAttemptId: "planning-1",
+            status: "pending",
+            createdAt: 1
+        }
+    ];
+    state.meetingTasks = [];
+    const recommendation = state.attendanceRecommendations[0]!;
+    state.attendanceRecommendations = [
+        {
+            ...recommendation,
+            id: "recommendation-b",
+            status: "rejected",
+            rejection: {
+                requestId: "reject-b",
+                actorBinding: "captain:private-session",
+                reason: "Outside scope",
+                rejectedAt: 100
+            }
+        },
+        {
+            ...recommendation,
+            id: "recommendation-a",
+            status: "rejected",
+            rejection: {
+                requestId: "reject-a",
+                actorBinding: "captain:private-session",
+                reason: "Already covered",
+                rejectedAt: 101
+            }
+        },
+        { ...recommendation, id: "pending", createdAt: 2 }
+    ];
+    return state;
+}
+it("projects the same safe rejections for Agents and preserves materialized archive facts", () => {
+    const source = attendanceState();
+    const callers = ["captain", "manager", "participant"] as const;
+    for (const status of ["running", "cancelled"] as const) {
+        const current = {
+            ...source,
+            status,
+            ...(status === "cancelled" ? { termination: meeting("cancelled").termination } : {})
+        };
+        const projections = callers.map((kind) =>
+            projectMeetingStatus(current, { kind, sessionId: `${kind}-1` })
+        );
+        const recommendations = projections[0].attendanceRecommendations;
+        expect(projections.map((p) => p.attendanceRecommendations)).toEqual([
+            recommendations,
+            recommendations,
+            recommendations
+        ]);
+        expect(recommendations.map((r) => r.recommendationId)).toEqual([
+            "recommendation-a",
+            "recommendation-b",
+            "pending"
+        ]);
+        expect(recommendations[0].rejection).toEqual({
+            reason: "Already covered",
+            rejectedAt: 101
+        });
+        expect(recommendations[2]).not.toHaveProperty("rejection");
+        expect(JSON.stringify(recommendations)).not.toMatch(
+            /requestId|actorBinding|private|catalogId|planningAttemptId/
+        );
+        projections.forEach((p) => expect(() => MeetingStatusResultSchema(p)).not.toThrow());
+        expect(
+            projectMeetingStatus(current, { kind: "local_host", sessionId: "loopback-web" })
+                .attendanceRecommendations
+        ).toEqual([]);
+    }
+    const terminal = { ...source, termination: meeting("cancelled").termination };
+    const archive = materializeArchivePackage(terminal, 200);
+    terminal.attendanceRecommendations = [];
+    for (const status of ["archiving", "archived"] as const) {
+        const projected = projectMeetingStatus(
+            {
+                ...terminal,
+                status,
+                archive: { package: archive, ...(status === "archived" ? { archivedAt: 201 } : {}) }
+            },
+            { kind: "captain", sessionId: "captain-1" }
+        );
+        expect(projected).not.toHaveProperty("attendanceRecommendations");
+        expect(projected.archive.package.attendanceRejections).toEqual(
+            archive.attendanceRejections
+        );
+    }
 });

@@ -1,5 +1,9 @@
+import { meeting, archivePackage } from "../unit/domain/transitions/fixtures.js";
+import { projectMeetingStatus } from "../../src/projection/index.js";
 import { describe, expect, it } from "vitest";
 import {
+    CaptainAttendanceDispositionInputSchema,
+    CaptainAttendanceDispositionResultSchema,
     AttendanceRecommendationClaimSchema,
     CreateMeetingResultSchema,
     CreateMeetingInputSchema,
@@ -1432,4 +1436,153 @@ describe("referenced minutes schema", () => {
         });
         expect(legacy.formalTranscript[0]).not.toHaveProperty("minutesDraft");
     });
+});
+
+describe("Captain attendance rejection schema", () => {
+    const input = {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 0,
+        requestId: "reject-1",
+        recommendationId: "recommendation-1",
+        decision: "reject",
+        reason: " Not needed "
+    };
+    const result = {
+        requestId: "reject-1",
+        recommendationId: "recommendation-1",
+        disposition: "rejected"
+    };
+    it("validates only the supported command and result without trimming values", () => {
+        expect(CaptainAttendanceDispositionInputSchema(input)).toEqual(input);
+        expect(CaptainAttendanceDispositionResultSchema(result)).toEqual(result);
+    });
+    it.each(Object.keys(input))("rejects missing or null %s", (key) => {
+        const missing = { ...input };
+        Reflect.deleteProperty(missing, key);
+        expect(() => CaptainAttendanceDispositionInputSchema(missing)).toThrow();
+        expect(() => CaptainAttendanceDispositionInputSchema({ ...input, [key]: null })).toThrow();
+    });
+    it.each([
+        { decision: "approve" },
+        { reason: "  " },
+        { meetingId: " " },
+        { requestId: " " },
+        { recommendationId: " " },
+        { actor: "captain:x" },
+        ...[-1, 0.5, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1].map((expectedMeetingVersion) => ({
+            expectedMeetingVersion
+        }))
+    ])("rejects invalid input %j", (change) => {
+        expect(() => CaptainAttendanceDispositionInputSchema({ ...input, ...change })).toThrow();
+    });
+    it.each([{ disposition: "approved" }, { admissionId: "a" }, { participantId: "p" }])(
+        "rejects unsupported result %j",
+        (change) => {
+            expect(() =>
+                CaptainAttendanceDispositionResultSchema({ ...result, ...change })
+            ).toThrow();
+        }
+    );
+    it.each(Object.keys(result))("rejects missing or null result %s", (key) => {
+        const missing = { ...result };
+        Reflect.deleteProperty(missing, key);
+        expect(() => CaptainAttendanceDispositionResultSchema(missing)).toThrow();
+        expect(() =>
+            CaptainAttendanceDispositionResultSchema({ ...result, [key]: null })
+        ).toThrow();
+    });
+    it("uses validated order for the request hash while preserving reason whitespace", async () => {
+        const { serializeValidatedRequestV1 } =
+            await import("../../src/protocol/request-idempotency.js");
+        const first = CaptainAttendanceDispositionInputSchema(input);
+        const reordered = CaptainAttendanceDispositionInputSchema(
+            Object.fromEntries(Object.entries(input).reverse())
+        );
+        expect(Object.keys(reordered)).toEqual(Object.keys(input));
+        expect(serializeValidatedRequestV1(first)).toBe(serializeValidatedRequestV1(reordered));
+        expect(first.reason).toBe(input.reason);
+        expect(serializeValidatedRequestV1(first)).not.toBe(
+            serializeValidatedRequestV1(
+                CaptainAttendanceDispositionInputSchema({ ...input, reason: input.reason.trim() })
+            )
+        );
+    });
+});
+
+it("validates public rejection shapes consistently in standalone, active and terminal schemas", () => {
+    const recommendation = {
+        recommendationId: "rec-1",
+        candidateId: "candidate-1",
+        roleDefinitionId: "runtime_engineer",
+        displayName: "Runtime",
+        agendaItemId: "agenda-1",
+        rationale: "Review",
+        expectedContribution: "Review",
+        evidenceGapIds: [],
+        urgency: "current_agenda",
+        status: "rejected",
+        rejection: { reason: "Not needed", rejectedAt: 100 }
+    };
+    const statuses = ["running", "cancelled"].map((status) =>
+        projectMeetingStatus(
+            { ...meeting(status), meetingTasks: [] },
+            { kind: "captain", sessionId: "captain-1" }
+        )
+    );
+    const check = (value) => {
+        PublicAttendanceRecommendationSchema(value);
+        statuses.forEach((status) =>
+            MeetingStatusResultSchema({ ...status, attendanceRecommendations: [value] })
+        );
+    };
+    expect(() => check(recommendation)).not.toThrow();
+    for (const rejection of [
+        undefined,
+        null,
+        {},
+        { reason: " ", rejectedAt: 1 },
+        { reason: "No", rejectedAt: -1 },
+        { reason: "No", rejectedAt: Infinity },
+        { reason: "No", rejectedAt: NaN },
+        { reason: "No", rejectedAt: 1, requestId: "private" }
+    ]) {
+        expect(() => check({ ...recommendation, rejection }), JSON.stringify(rejection)).toThrow();
+    }
+    expect(() => check({ ...recommendation, status: "pending" })).toThrow();
+    const { rejection: _rejection, ...pending } = recommendation;
+    expect(() => check({ ...pending, status: "pending" })).not.toThrow();
+});
+it("validates exact nonempty unique archive rejections while preserving old packages", () => {
+    const archive = archivePackage();
+    const rejection = {
+        recommendationId: "rec-1",
+        candidateId: "candidate-1",
+        roleDefinitionId: "runtime_engineer",
+        displayName: "Runtime",
+        agendaItemId: "agenda-1",
+        reason: "Not needed",
+        rejectedAt: 100
+    };
+    expect(MeetingArchivePackageSchema(archive)).not.toHaveProperty("attendanceRejections");
+    expect(
+        MeetingArchivePackageSchema({ ...archive, attendanceRejections: [rejection] })
+    ).toMatchObject({ attendanceRejections: [rejection] });
+    for (const attendanceRejections of [
+        null,
+        [],
+        [rejection, rejection],
+        ...Object.keys(rejection).map((key) => [{ ...rejection, [key]: undefined }]),
+        ...Object.keys(rejection).map((key) => [
+            { ...rejection, [key]: key === "rejectedAt" ? Infinity : " " }
+        ]),
+        [{ ...rejection, actorBinding: "secret" }],
+        [{ ...rejection, rejectedAt: -1 }],
+        [{ ...rejection, roleDefinitionId: "unknown" }]
+    ]) {
+        expect(
+            () => MeetingArchivePackageSchema({ ...archive, attendanceRejections }),
+            JSON.stringify(attendanceRejections)
+        ).toThrow();
+    }
 });

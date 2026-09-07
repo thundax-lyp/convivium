@@ -35,3 +35,5 @@ export type {
     SubmittedQuestionInput,
     SubmitSpeakerAdvanceContext
 } from "./types.js";
+
+export * from "./attendance-rejection.js";

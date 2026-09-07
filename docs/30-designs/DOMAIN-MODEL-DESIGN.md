@@ -18,7 +18,7 @@ Repository 不维护独立的事件词汇，不把 Domain event 通过字符串�
 
 DSH `tool/call`、`tool/result`、Session lifecycle 和其他 DSH-owned Session Event 不属于 Domain event。它们由 DSH 定义和持久化，不能写入 Convivium 的持久领域事件集合。
 
-当前 Domain event 词汇包括会议生命周期（`meeting.*`）、Turn 生命周期（`turn.*`）、speaker 分配与执行（`speaker.*`、`speaker_attempt.*`）、Manager plan（`manager_plan.*`）、MeetingTask 与 HandRaise（`meeting_task.*`、`hand_raise.*`）以及正式会议事实（`message.added`、`decision.accepted`、`decision.superseded`、`decision.revoked`、`archive.sessions_closed`）。具体允许值由 `plugin/src/domain/model.ts` 的 `DomainEventTypes` 集中定义。
+当前 Domain event 词汇包括会议生命周期（`meeting.*`）、Turn 生命周期（`turn.*`）、speaker 分配与执行（`speaker.*`、`speaker_attempt.*`）、Manager plan（`manager_plan.*`）、MeetingTask 与 HandRaise（`meeting_task.*`、`hand_raise.*`）以及正式会议事实（`message.added`、`attendance_recommendation.rejected`、`decision.accepted`、`decision.superseded`、`decision.revoked`、`archive.sessions_closed`）。具体允许值由 `plugin/src/domain/model.ts` 的 `DomainEventTypes` 集中定义。
 
 FR-13 Phase 1 不增加 event type。`manager_plan.submitted` payload 增加 required
 `recommendationIds: string[]`，无 claim 时为 `[]`；它与 pending recommendation state、
@@ -100,7 +100,9 @@ Phase 1 internal `AttendanceRecommendation` 必须包含 `id`、`candidateId`、
 
 ParticipantAdmission 必须包含 id、recommendationId、candidateId、participantId、agentDefinitionId、status 和 failureCode?。status 为 approved、provisioning、active、failed 或 cancelled。只有 active admission 对应的 Participant 才可进入发言候选集；pending recommendation 与非 active admission 不授予 Meeting capability。
 
-Captain disposition、ParticipantAdmission 和非 pending recommendation status 不在 FR-13 Phase 1 implementation 范围。
+当前在 Phase 1 基础上实现 Captain reject：`AttendanceRecommendation.status` 为 `"pending" | "rejected"`。pending 必须省略 rejection；rejected 必须包含精确的 `rejection: { requestId: string; actorBinding: string; reason: string; rejectedAt: number }`。requestId 非空，actorBinding 为 `captain:` 加非空 Session identity，reason 已 trim 且非空，rejectedAt 为有限非负数。推荐的其他字段不变；批准、ParticipantAdmission、provisioning、自动 expired/cancelled 尚未实现。
+
+`rejectAttendanceRecommendation` 只替换指定推荐并增加 eventSeq，产生一条 `attendance_recommendation.rejected`，payload 为 recommendationId 及上述四个 rejection 字段。它不改变 version、updatedAt、Participant、Turn、attempt、完成事实或 transcript；Repository 在同一 commit 中发布 state、event 和 receipt，outbox 为 `[]`。旧 V2 pending 原样可读，legacy 不升级且拒绝本处置写入；损坏 rejection 不填默认值。
 
 ### ManagerPlanningAttempt
 
@@ -221,7 +223,7 @@ Position 必须包含 `id`、`participantId`、`position`、`blocking` 和 `prop
 
 ### MeetingDecision
 
-Decision 必须包含 id、agendaItemId、proposalId、proposalRevision、statement、rationale、status、acceptanceMode、acceptedBy、dissentingPositionIds、acceptanceFactIds 和 createdAt，并允许 `supersededByDecisionId?`。V1 的 `acceptanceMode` 只有 `captain_acceptance`；不存在 deterministic 或 risk auto-accept。
+Decision 必须包含 id、agendaItemId、proposalId、proposalRevision、statement、rationale、status、acceptanceMode、acceptedBy、dissentingPositionIds、acceptanceFactIds 和 createdAt，并允许 `supersededByDecisionId?`。V1 新接受写入的 `acceptanceMode` 为 `captain_acceptance` 或 `local_host_acceptance`，分别对应真实 Captain 与受控 loopback local；不存在 deterministic 或 risk auto-accept。既有内部 legacy 类型不据此扩大新写入路径，也不迁移历史数据。
 
 Decision 只能由 Runtime 生成，Participant 不能直接创建或覆盖。
 
@@ -239,7 +241,7 @@ HandRaise 是调度输入，不是 transcript、Decision 或 CompletionFact。
 
 必须包含 id、kind、subjectId、assertedBy、authority?、result、evidenceMessageIds、taskIds、status 和 createdAt，并允许 reason?。
 
-事实失效时创建替代事实，不原地修改 actor、authority 或 evidence。
+事实失效时创建替代事实，不原地修改 actor、authority 或 evidence。local 决策/风险控制事实固定 `authority="local_host"`、`assertedBy="local-host:loopback-web"`；只允许 decision_acceptance、decision_supersession、decision_revocation 和 risk_acceptance 四种 kind。归档必须找到同 ID 的已提交源 fact，并核对 kind、authority 和 assertedBy；不能仅凭 local 字符串绕过来源校验。完整入口契约见 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) Local decision and risk control。
 
 ### MeetingLimits
 
@@ -254,6 +256,8 @@ HandRaise 是调度输入，不是 transcript、Decision 或 CompletionFact。
 ArchivePackage 必须包含 objectiveContract、finalSummary、artifactRefs、acceptedDecisions、decisionHistory、proposals、completionFacts、agenda、issues、unresolvedQuestions、parkingLot、formalTranscript、participantProvenance、managerPromptVersion、termination、endedAt 和 materializedAt。`acceptedDecisions` 只包含当前 accepted Decision；`decisionHistory` 保留全部 Decision。
 
 ArchivePackage 不得包含可恢复的 Agent Session ID、capability、完整 Agent 配置、工作目录、MCP、隐藏推理、私有工具过程、私有 mailbox、SpeakerAttempt、delivery/outbox payload 或完整 speaker context。
+
+`ArchivePackage.attendanceRejections` 是可选的非空数组，每条仅含 recommendationId、candidateId、roleDefinitionId、displayName、agendaItemId、reason、rejectedAt 七字段。`projectAttendanceRejections` 从已提交 rejected 推荐按原 createdAt、id 排序，供物化和 matching 共用；matching 精确比较字段、数量和顺序。有拒绝记录时不得省略，无拒绝记录时省略，旧 package 不补 `[]`。该字段不包含 requestId、actorBinding 或私有 Definition/Session 信息。
 
 ArchivePackage 物化后不可变。续会只通过显式选择的 continuation materials 创建新的 Meeting、Participant ID、Session 和 capability。
 

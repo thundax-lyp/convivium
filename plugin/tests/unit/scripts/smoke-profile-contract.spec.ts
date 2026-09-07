@@ -85,3 +85,21 @@ describe("persisted smoke observations", () => {
         );
     });
 });
+
+it("requires baseline attendance rejection evidence without changing timeout validation", () => {
+    const baseline = {
+        ok: true,
+        scenario: "baseline",
+        assertions: ["baseline-transcript-acb", "baseline-http-pause-resume"]
+    };
+    expect(() => validateScenarioResult(baseline, "baseline")).toThrow(
+        "Baseline attendance rejection assertion is missing."
+    );
+    const complete = {
+        ...baseline,
+        assertions: [...baseline.assertions, "attendance-reject-tool-zero-effects"]
+    };
+    expect(validateScenarioResult(complete, "baseline")).toEqual(complete);
+    const timeout = { ok: true, scenario: "timeout", assertions: [] };
+    expect(validateScenarioResult(timeout, "timeout")).toEqual(timeout);
+});

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { transitionMeeting } from "../../domain/transitions/index.js";
+import { transitionMeeting, projectAttendanceRejections } from "../../domain/transitions/index.js";
 import type { ArchivePackage, MeetingState } from "../../domain/model.js";
 import {
     encodeMeetingSessionLabel,
@@ -427,6 +427,7 @@ export function materializeArchivePackage(
     if (state.termination === undefined) {
         throw new TypeError("Archive materialization requires a committed termination.");
     }
+    const attendanceRejections = projectAttendanceRejections(state);
     return structuredClone({
         schemaVersion: 1 as const,
         meetingId: state.id,
@@ -465,6 +466,7 @@ export function materializeArchivePackage(
         })),
         termination: state.termination,
         endedAt: state.termination.endedAt,
-        materializedAt
+        materializedAt,
+        ...(attendanceRejections.length === 0 ? {} : { attendanceRejections })
     });
 }

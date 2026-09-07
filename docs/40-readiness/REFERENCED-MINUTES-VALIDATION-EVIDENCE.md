@@ -105,3 +105,14 @@ T2–T8 对应上述命令及 Browser；V1–V15 全部 PASS；R4 的动态边�
 - 2026-09-07：T0–T8 完成，S1–S5、R1–R11 与 V1–V15 按本文边界全部 PASS。FR-10 提升为已实现，范围限 message-reference draft 及既定记录/隐私/归档路径。
 - 长期协议/领域依据保留在正式文档；运行方式进入 [DSH Smoke](../50-operations/HOW-TO-DSH-SMOKE.md)，当前状态进入 [Coverage](./CURRENT-IMPLEMENTATION-COVERAGE.md)。
 - 已迁移并删除临时执行文档和对应 TODO；删除前本地 Markdown 链接检查 53 项 PASS，删除后 38 项 PASS，临时文件名/标题搜索无残留（rg 退出 1、无输出）；`git diff --check` PASS。未执行 push、PR 或 merge。
+
+## PR Integration Validation
+
+2026-09-07 在发布前合入 `origin/main` 的 `03e3a0ef430362888439bf01c1beaf831342165f`，父分支为 `e9f08c212d65e487a43a2f8990834d5c9639ceff`。解决共享 Schema、归档 guard、Client 测试和证据文档的冲突，保留参会推荐拒绝、本地决策/风险操作与引用式纪要全部能力。前述 T0–T8 结果仍对应原提交边界；本节记录合并工作树的新验证，不把历史计数作为当前结果。
+
+- `pnpm --dir plugin typecheck`：Host/Client PASS。
+- `pnpm --dir plugin verify`：exit 0，78 files / 1000 tests；format、lint、typecheck、build、environment、contract、9 definition samples、package 全 PASS。
+- `CONVIVIUM_SMOKE_SCENARIO=scribe-minutes pnpm --dir plugin smoke:profile`：六项 oracle 和 `restore=PASS`，exit 0。
+- `CONVIVIUM_SMOKE_SCENARIO=scribe-minutes CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile`：再次通过真实 Meetings view 验证 source-a、draft 三字段、刷新保持、Partial End、archived 后刷新；版本 4 → 7，结束原因 `scribe minutes smoke`。warn/error console 为空。原 PTY SIGINT 后 exit 0、`restore=PASS`、`CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`，本次精确临时根 `convivium-dsh-smoke-PjNXsX` 已删除。
+- `git diff --exit-code origin/main -- plugin/src/runtime/services/meeting-dispatch-service.ts plugin/src/runtime/application-service/meeting-mail.ts plugin/src/runtime/services/meeting-archive-service.ts`：PASS，本分支没有修改最新 main 的三项服务；归档新增事实来自 main，其测试与 minutes guard 共同通过完整 verify。
+- Not Covered 继续适用；本轮没有重新执行其他 selector 的 Browser 操作或模型质量测试。

@@ -1,4 +1,5 @@
 export {
+    CaptainAttendanceDispositionInputSchema,
     CaptainRiskDispositionInputSchema,
     CaptainAgendaCandidateDispositionInputSchema,
     CaptainDecisionDispositionInputSchema,
@@ -30,6 +31,7 @@ export {
     MeetingStatusResultSchema
 } from "./status.js";
 export {
+    CaptainAttendanceDispositionResultSchema,
     CaptainRiskDispositionResultSchema,
     CaptainDecisionDispositionResultSchema,
     CaptainAgendaCandidateDispositionResultSchema,

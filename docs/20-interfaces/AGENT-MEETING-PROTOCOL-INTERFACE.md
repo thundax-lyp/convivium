@@ -30,7 +30,7 @@
 4. Agent 内部信息在未通过本协议提交前，不是会议事实。
 5. MeetingTask 状态和结果是 Convivium-owned MeetingState facts；只有经过会议授权的 projection 才能进入其他会议上下文。
 6. Plugin Frontend 本地缓存和 mailbox 不是会议状态真相源；meeting-scoped mail 及其处理状态仍是私有通信数据。
-7. 正式 transcript message 只能由匹配当前 SpeakerAttempt 的合法 `convivium_submit_turn` 写入。其他正式领域事实只能由本协议明确授权的 Participant submission、Captain command 或经过验证的 DSH-owned fact 形成，并统一交给 Meeting Runtime 校验和提交；Manager、mailbox、Plugin Frontend projection 和开发者文件都不能直接写入。
+7. 正式 transcript message 只能由匹配当前 SpeakerAttempt 的合法 `convivium_submit_turn` 写入。其他正式领域事实只能由本协议明确授权的 Participant submission、Captain command、下述明确授权的 local command 或经过验证的 DSH-owned fact 形成，并统一交给 Meeting Runtime 校验和提交；Manager、mailbox、Plugin Frontend projection 和开发者文件都不能直接写入。
 
 ### Out of boundary
 
@@ -81,7 +81,7 @@ interface ProtocolMeta {
 | `convivium_dispose_decision`                  | Captain                                                  | 替代或撤销指定正式决策                                        |
 | `convivium_dispose_risk`                      | Captain                                                  | 对指定风险作出结构化接受或拒绝处置                            |
 | `convivium_dispose_agenda_candidate`          | Captain                                                  | 提升、暂存或拒绝指定 Agenda candidate                         |
-| `convivium_dispose_attendance_recommendation` | Captain                                                  | 批准或拒绝 Manager 的参会推荐                                 |
+| `convivium_dispose_attendance_recommendation` | Captain                                                  | 拒绝 Manager 的参会推荐；批准尚未实现                                 |
 | `convivium_reassign_turn`                     | Captain                                                  | 撤销并改派或跳过当前发言位置                                  |
 | `convivium_end_meeting`                       | Captain                                                  | 正常、部分、无共识或取消结束                                  |
 
@@ -267,7 +267,11 @@ interface CaptainRiskDispositionResultV1 {
   meetingStatus: MeetingStatusResultV1["status"];
 }
 
-`CaptainRiskDispositionInputV1` is Captain-only and applies to exactly one Issue. The Schema rejects extra fields, requires a non-empty `issueId`, trimmed non-empty `reason`, and at least one unique `evidenceMessageIds` entry belonging to the Meeting. The Issue must be `open` or `accepted_risk`, have a present `riskLevel` no higher than the objective `acceptableRiskLevel`, and satisfy all hard-constraint checks; missing legacy `riskLevel` fails closed without a default. `resolved|deferred|out_of_scope`, execution-terminal, `archiving`, and `archived` states reject with zero side effects. Accept writes `status=accepted_risk`, `disposition=accepted_risk`, `blocking=false`; reject writes `status=open`, `disposition=blocking`, `blocking=true`. A legal disposition supersedes the Issue's prior active `risk_acceptance` CompletionFact before creating one new active fact; a same request replays its receipt/result and a different payload conflicts. The command writes only the existing `completion_fact.added` event and `outbox=[]`.
+```
+
+`CaptainRiskDispositionInputV1` 只处置一个 Issue。Agent tool 调用仍为 Captain-only；loopback local 调用遵循 Local decision and risk control。输入必须包含非空 issueId、trim 后非空 reason 和至少一条唯一的本 Meeting evidenceMessageIds；额外字段由入口 Schema/HTTP 拒绝，证据归属由领域校验。 The Issue must be `open` or `accepted_risk`, have a present `riskLevel` no higher than the objective `acceptableRiskLevel`, and satisfy all hard-constraint checks; missing legacy `riskLevel` fails closed without a default. `resolved|deferred|out_of_scope`, execution-terminal, `archiving`, and `archived` states reject with zero side effects. Accept writes `status=accepted_risk`, `disposition=accepted_risk`, `blocking=false`; reject writes `status=open`, `disposition=blocking`, `blocking=true`. A legal disposition supersedes the Issue's prior active `risk_acceptance` CompletionFact before creating one new active fact; a same request replays its receipt/result and a different payload conflicts. 命令先写 `completion_fact.added` 并运行 `judgeTurnCompletion`；非 completed 只写该事件，completed 则同一 commit 再写 `meeting.replanned`，状态进入 `converging`，清除 `currentTurn/waitState`。两分支均为 `outbox=[]`，Meeting version 只增加一次，不自动 end/archive。`meeting.replanned` payload 为 `{meetingId, from, to:"converging", meetingVersion, reason}`，from 和 payload.meetingVersion 取输入 state，reason 取 judgment.reason；事件外层 meetingVersion 取提交版本。
+
+```ts
 
 interface CaptainAttendanceDispositionInputV1 {
   protocolVersion: 1;
@@ -275,16 +279,14 @@ interface CaptainAttendanceDispositionInputV1 {
   expectedMeetingVersion: number;
   requestId: string;
   recommendationId: string;
-  decision: "approve" | "reject";
+  decision: "reject";
   reason: string;
 }
 
 interface CaptainAttendanceDispositionResultV1 {
   requestId: string;
   recommendationId: string;
-  disposition: "approved" | "rejected";
-  admissionId?: string;
-  participantId?: string;
+  disposition: "rejected";
 }
 
 interface ReassignTurnInputV1 {
@@ -336,13 +338,31 @@ Runtime 必须在产生任何 Meeting 状态前完成以下验证和转换：
 
 `CreateMeetingResultV1.participants` 返回请求 key 到正式 Participant ID 的映射，供调用方解释创建结果。后续协议只接受正式 ID，不接受创建期 key。
 
-`CaptainRiskDispositionInputV1` 是正式会议控制命令的输入，不是 Captain 自然语言回答的格式。Captain 的文本、摘要或建议不得自动转换为风险处置。Runtime 必须验证真实 Captain Session、Meeting version、issue 当前状态、evidence 归属、objective hard constraints 和 `acceptableRiskLevel`；验证成功后生成不可变风险处置 CompletionFact，并重新计算确定性完成状态。
+`CaptainRiskDispositionInputV1` 是正式会议控制命令的输入，不是 Captain 自然语言回答的格式。Captain 的文本、摘要或建议不得自动转换为风险处置。Runtime 必须验证真实 Captain Session 或受控 loopback local 来源、Meeting version、issue 当前状态、evidence 归属、objective hard constraints 和 `acceptableRiskLevel`；验证成功后生成不可变风险处置 CompletionFact，并重新计算确定性完成状态。
 
 B-owned Decision acceptance/disposal and risk disposition request hashes use `serializeValidatedRequestV1(value: object): string` after protocol Schema validation. Its only implementation is `plugin/src/protocol/request-idempotency.ts`; it returns `JSON.stringify(value)` without crypto, repository canonical JSON, string trimming, or other normalization. Array order and object insertion order are significant, `undefined` properties are omitted, and receipt string semantics are unchanged.
 
-Captain 对风险具有独立的会议控制权限，不需要伪装成 Participant 或调用 `submit_turn`。该权限只覆盖 `issueId` 指定的风险：不能接受其他风险、不能接受无关 Decision，也不能绕过 objective contract。`decision='reject'` 表示拒绝接受该风险，风险继续按照其当前 blocking 规则处理，不等于风险已经解决。
+Captain 对风险具有独立的会议控制权限，不需要伪装成 Participant 或调用 `submit_turn`。该权限只覆盖 `issueId` 指定的风险：不能接受其他风险、不能接受无关 Decision，也不能绕过 objective contract。`decision='reject'` 表示拒绝接受该风险，风险恢复为 open/blocking/true，不等于风险已经解决。
 
 `replacementParticipantId` 在 `action='reassign'` 时必须存在，在 `action='skip'` 时必须省略。Captain 的 `completed` 请求仍须通过确定性完成校验；不满足时必须使用 `partial`、`no_consensus` 或先提交合法 waiver。
+
+### Local decision and risk control
+
+V1 的单 Host loopback 本地用户具有以下五种结构化操作权限；Agent tool 仍严格 Captain-only。类型名中的 Captain 保留以避免重命名既有 DTO，并不表示 HTTP caller 是 Captain。HTTP body 不允许 authority、actor、Session、Team 或用户字段；这些值仅由后端确定。
+
+| POST suffix under `/api/convivium/meetings/:meetingId` | Input / Result |
+| --- | --- |
+| `accept-decision` | `CaptainDecisionAcceptanceInputV1` / `CaptainDecisionAcceptanceResultV1` |
+| `dispose-decision` | `CaptainDecisionDispositionInputV1` / `CaptainDecisionDispositionResultV1` |
+| `dispose-risk` | `CaptainRiskDispositionInputV1` / `CaptainRiskDispositionResultV1` |
+
+三 body 的共同 required 字段为 `protocolVersion=1, meetingId, expectedMeetingVersion, requestId, reason, evidenceMessageIds`。accept-decision 另需 `decisionCandidateId`；dispose-decision 另需 `decisionId, action`，仅 supersede 额外 required `replacementCandidateId`，revoke 禁止；dispose-risk 另需 `issueId, decision`。无默认值或 nullable；HTTP 检查完整且唯一的字段集合，再运行对应 Schema 与 path/body ID 检查；证据归属及所有领域 guards 由 Runtime/domain 检查。成功封装 `ProtocolSuccessV1`，失败沿用 Authorized status projection 的 HTTP 映射。
+
+local 的 callerBinding、capabilityId、Decision event.actorBinding 与 CompletionFact.assertedBy 固定为 `local-host:loopback-web`；CompletionFact.authority 为 `local_host`，新 Decision.acceptanceMode 为 `local_host_acceptance`。Captain 的 session/captain bindings、authority=captain、acceptanceMode=captain_acceptance 保持不变。acceptedBy 仅来自合法 Position 的 Participant IDs，不包含 local 或 Captain Session。Participant completion claim 权限不变，local 来源不能用于提交 review、waiver、output/criterion claim 或 transcript。
+
+两入口使用相同 commandKind `accept_decision|dispose_decision|dispose_risk` 和现有 `serializeValidatedRequestV1(input)`；receipt identity 为 callerBinding/commandKind/requestId，跨来源不重放 receipt。领域 ID 生成规则不变，不建立跨来源去重或 ID 迁移；不同身份同 requestId 仍可能因实体已存在被领域规则拒绝。既有 state、fact、receipt 不改写；公开 Decision DTO 不新增 acceptanceMode 字段，归档 completionFacts 保留已提交的 local authority/assertedBy，并与源 fact 精确校验。
+
+local 恢复只读取选中 Meeting，不需要 live Captain；未发现 ready Meeting 返回 MEETING_NOT_FOUND，恢复失败按 HTTP 503。新写入均受版本、证据、终态和原子事务检查约束；receipt replay 先于终态 mutation guard。风险完成重算与 Captain 相同，具体事件顺序以 Control command payloads 为准。不新增事件类型、权限配置、Session 生命周期行为或自动 end/archive。
 
 ### Pause and resume invocation
 
@@ -460,7 +480,7 @@ interface MeetingTaskFinishResultV1 {
 
 ### Caller binding
 
-- Captain-only command 必须匹配 Meeting 所属 Team 的 Captain Session。
+- Agent tool 的 Captain-only command 必须匹配 Meeting 所属 Team 的 Captain Session；local 五种操作使用下述独立 Host binding，不经过 Session caller resolver。
 - Manager command 必须匹配当前 Meeting Manager Session。
 - Participant command 必须匹配 Meeting 中该 Participant 的专用 Session。
 - `submit_turn` 和 `create_meeting_task` 还必须匹配当前有效 SpeakerAttempt；status/start/finish 必须匹配正式 `session_ownership` 和 task execution binding。
@@ -1038,7 +1058,7 @@ interface LocalMeetingListResponseV1 {
 
 Client 必须先读取该 list；用户选择一项 `meetingId` 后才调用详情或控制 route。Client 不得从 URL/query 参数、当前 DSH Session、Agent tool result 或人工输入推断初始选择，也不得在本范围新增 Meeting 创建、跨 Meeting 导航或筛选 UI。
 
-所有 Meeting Web route 通过一个 `prefix` registration `/api/convivium/meetings` 分派。精确允许的组合只有：`GET /api/convivium/meetings`、`GET /api/convivium/meetings/:meetingId`、`POST /api/convivium/meetings/:meetingId/pause`、`POST /api/convivium/meetings/:meetingId/resume`、`POST /api/convivium/meetings/:meetingId/reassign`、`POST /api/convivium/meetings/:meetingId/end`；结尾 `/`、其他 path 或其他 method 返回 HTTP `404` 和无 body。route 不接受 query；URL 含非法 percent encoding，或 POST 缺失/错误的 JSON media type、body 超过 `16_384` bytes、JSON 无法解析、含未定义字段、path/body `meetingId` 不一致或 Schema 不合法时，返回 HTTP `400` 和 `ProtocolErrorV1`，其 `code` 固定为 `INVALID_ARGUMENT`、`message` 固定为 `Invalid meeting request.`、`retryable` 固定为 `false`；请求尚不能可信解析时省略 Meeting metadata。pause body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | requestId | reason`，resume body 只允许前四项；reassign body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | currentAttemptId | action | reason | requestId`，仅 `action='reassign'` 时额外允许 `replacementParticipantId`；end body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | outcome | reason | acceptedDecisionIds | deferredAgendaItemIds | waivers | requestId`。因此用户、Team、Agent Session、Captain 或其他 authority 字段均被拒绝。`VERSION_CONFLICT` 与 `IDEMPOTENCY_CONFLICT` 返回 HTTP `409` 和 Runtime 提供的 `ProtocolErrorV1`；`MEETING_NOT_FOUND` 返回 HTTP `404` 和 Runtime 提供的 `ProtocolErrorV1`；其他领域 `ProtocolErrorV1` 返回 HTTP `400`。data root 尚不存在或目标 repository 尚未进入 `ready` 时，list 返回空/跳过该项且单 Meeting route 返回 `MEETING_NOT_FOUND`；除此以外目标 Meeting 冷恢复失败，或 list 中任一 `ready` Meeting repository 恢复/读取失败时返回 HTTP `503`、`Retry-After: 1` 和无 body；未知异常返回 HTTP `500` 和无 body。所有成功 JSON 与 `ProtocolErrorV1` response 均设置 `content-type: application/json; charset=utf-8`；成功状态为 HTTP `200`。
+所有 Meeting Web route 通过一个 `prefix` registration `/api/convivium/meetings` 分派。精确允许的组合只有：`GET /api/convivium/meetings`、`GET /api/convivium/meetings/:meetingId`、`POST /api/convivium/meetings/:meetingId/pause`、`POST /api/convivium/meetings/:meetingId/resume`、`POST /api/convivium/meetings/:meetingId/reassign`、`POST /api/convivium/meetings/:meetingId/end`、`POST /api/convivium/meetings/:meetingId/accept-decision`、`POST /api/convivium/meetings/:meetingId/dispose-decision`、`POST /api/convivium/meetings/:meetingId/dispose-risk`；结尾 `/`、其他 path 或其他 method 返回 HTTP `404` 和无 body。route 不接受 query；URL 含非法 percent encoding，或 POST 缺失/错误的 JSON media type、body 超过 `16_384` bytes、JSON 无法解析、含未定义字段、path/body `meetingId` 不一致或 Schema 不合法时，返回 HTTP `400` 和 `ProtocolErrorV1`，其 `code` 固定为 `INVALID_ARGUMENT`、`message` 固定为 `Invalid meeting request.`、`retryable` 固定为 `false`；请求尚不能可信解析时省略 Meeting metadata。pause body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | requestId | reason`，resume body 只允许前四项；reassign body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | currentAttemptId | action | reason | requestId`，仅 `action='reassign'` 时额外允许 `replacementParticipantId`；end body 只允许 `protocolVersion | meetingId | expectedMeetingVersion | outcome | reason | acceptedDecisionIds | deferredAgendaItemIds | waivers | requestId`。因此用户、Team、Agent Session、Captain 或其他 authority 字段均被拒绝。`VERSION_CONFLICT` 与 `IDEMPOTENCY_CONFLICT` 返回 HTTP `409` 和 Runtime 提供的 `ProtocolErrorV1`；`MEETING_NOT_FOUND` 返回 HTTP `404` 和 Runtime 提供的 `ProtocolErrorV1`；其他领域 `ProtocolErrorV1` 返回 HTTP `400`。data root 尚不存在或目标 repository 尚未进入 `ready` 时，list 返回空/跳过该项且单 Meeting route 返回 `MEETING_NOT_FOUND`；除此以外目标 Meeting 冷恢复失败，或 list 中任一 `ready` Meeting repository 恢复/读取失败时返回 HTTP `503`、`Retry-After: 1` 和无 body；未知异常返回 HTTP `500` 和无 body。所有成功 JSON 与 `ProtocolErrorV1` response 均设置 `content-type: application/json; charset=utf-8`；成功状态为 HTTP `200`。
 
 | Method and route                                   | Body                  | Result                                     |
 | -------------------------------------------------- | --------------------- | ------------------------------------------ |
@@ -1049,7 +1069,7 @@ Client 必须先读取该 list；用户选择一项 `meetingId` 后才调用详�
 
 V1 route 仅在 `webServer.host === "127.0.0.1"` 注册，且对所有到达该本地 Host 的请求返回相同的完整 Web projection；它不解析用户或 Team authority，也不得接受或伪造 Agent Session ID。Agent tool 仍使用真实 caller Session 进行身份裁剪。
 
-Decision 和 risk 的写操作只通过对应的 Captain tool command 暴露；V1 不增加 HTTP decision/risk write route。现有 loopback `GET /api/convivium/meetings/:meetingId` 只读取按 caller 过滤的 status projection。
+Decision 和 risk 的写操作通过对应的 Captain tool command 及 Local decision and risk control 的三个 loopback POST 暴露。现有 loopback `GET /api/convivium/meetings/:meetingId` 只读取按 caller 过滤的 status projection。
 
 Meeting 进入 `archived` 前，仍有效的 Manager/Participant Session 可以按身份读取状态。Meeting-owned Sessions 关闭并撤销 capability 后，Manager 和 Participant 不再具有可调用身份；`archived` 状态和归档内容只能由真实 Captain Session 或 V1 loopback Web route 读取。
 
@@ -1338,7 +1358,7 @@ interface EndMeetingResultV1 {
 
 #### `convivium_accept_decision`
 
-Captain-only acceptance of an internal `MeetingDecisionCandidate` uses `CaptainDecisionAcceptanceInputV1` with `protocolVersion: 1`, `meetingId`, `expectedMeetingVersion`, `requestId`, `decisionCandidateId`, `reason`, and `evidenceMessageIds`. Success returns `CaptainDecisionAcceptanceResultV1` containing `requestId`, `decisionCandidateId`, `decisionId`, `proposalId`, `proposalRevision`, and `completionFactId`. The candidate record is internal immutable MeetingState data; its pending subset is exposed only through the typed `pendingDecisionCandidates` projection defined below. Acceptance requires the candidate's current proposal revision, one `support`/`accept` Position, no blocking `object`/`needs_revision`, and Meeting-owned evidence messages. It atomically writes the accepted Decision, accepted Proposal status, decision-acceptance CompletionFact, one `decision.accepted` event, receipt, and `outbox=[]`; version increases by one. Replay returns the original receipt. Version conflict, idempotency conflict, unauthorized Captain, invalid/stale candidate, blocking Position, invalid evidence, and terminal Meeting have zero side effects.
+Captain tool 或受控 loopback local 对 internal `MeetingDecisionCandidate` 的接受使用 `CaptainDecisionAcceptanceInputV1` with `protocolVersion: 1`, `meetingId`, `expectedMeetingVersion`, `requestId`, `decisionCandidateId`, `reason`, and `evidenceMessageIds`. Success returns `CaptainDecisionAcceptanceResultV1` containing `requestId`, `decisionCandidateId`, `decisionId`, `proposalId`, `proposalRevision`, and `completionFactId`. The candidate record is internal immutable MeetingState data; its pending subset is exposed only through the typed `pendingDecisionCandidates` projection defined below. Acceptance requires the candidate's current proposal revision, one `support`/`accept` Position, no blocking `object`/`needs_revision`, and Meeting-owned evidence messages. It atomically writes the accepted Decision, accepted Proposal status, decision-acceptance CompletionFact, one `decision.accepted` event, receipt, and `outbox=[]`; version increases by one. Replay returns the original receipt. Version conflict, idempotency conflict, unauthorized Captain, invalid/stale candidate, blocking Position, invalid evidence, and terminal Meeting have zero side effects.
 
 The candidate record remains immutable and has no persistent status. `pendingDecisionCandidates` is derived only when the candidate points to the current Proposal revision, no Decision was formed from that candidate, and the Meeting remains executable. Acceptance, a Proposal revision update, or execution-terminal status removes the candidate. Captain and the loopback local user receive the pending array; Manager and Participant callers receive `[]`. No candidate reject/revoke command exists.
 
@@ -1366,7 +1386,7 @@ interface CaptainDecisionDispositionResultV1 {
 }
 ```
 
-`CaptainDecisionDispositionInputV1` is Captain-only. Its Schema rejects extra fields, requires non-empty IDs, trimmed non-empty `reason`, and one or more unique evidence IDs belonging to the Meeting. `supersede` requires non-empty `replacementCandidateId`; `revoke` forbids that field. The target must be an accepted Decision. `supersede` uses the normal acceptance guards for the current replacement candidate and, in one Repository commit, writes replacement `decision.accepted` before old `decision.superseded`; `revoke` writes `decision.revoked`. `completed|partial|no_consensus|cancelled|failed|archiving|archived` reject the mutation with the existing terminal/archived error boundary and zero side effects. The Result Schema is exactly `CaptainDecisionDispositionResultSchema` at `plugin/src/protocol/results.ts`, directly exported by `plugin/src/protocol/index.ts`; `requestId`, `decisionId`, `action`, and `completionFactId` are always required, `replacementDecisionId` is required only for `supersede` and forbidden for `revoke`.
+`CaptainDecisionDispositionInputV1` 的 Agent tool 入口为 Captain-only，loopback local 入口使用独立 Host binding。输入必须包含非空 ID、trim 后非空 reason 和至少一条唯一的本 Meeting evidence；额外字段由入口 Schema/HTTP 拒绝，证据归属由领域校验。 `supersede` requires non-empty `replacementCandidateId`; `revoke` forbids that field. The target must be an accepted Decision. `supersede` uses the normal acceptance guards for the current replacement candidate and, in one Repository commit, writes replacement `decision.accepted` before old `decision.superseded`; `revoke` writes `decision.revoked`. `completed|partial|no_consensus|cancelled|failed|archiving|archived` reject the mutation with the existing terminal/archived error boundary and zero side effects. The Result Schema is exactly `CaptainDecisionDispositionResultSchema` at `plugin/src/protocol/results.ts`, directly exported by `plugin/src/protocol/index.ts`; `requestId`, `decisionId`, `action`, and `completionFactId` are always required, `replacementDecisionId` is required only for `supersede` and forbidden for `revoke`.
 
 #### `convivium_dispose_agenda_candidate`
 
@@ -1518,6 +1538,8 @@ type MeetingProtocolErrorCodeV1 =
 
 ### Permission matrix
 
+下表只列 Agent tool 权限。local Web 白名单独立包含 list/status、pause/resume/reassign/end 和五种 decision/risk 动作，不包含其他 Agent tool；local 身份不是表中的 Captain 或 Participant。
+
 | Operation                | Captain | Manager | Current Speaker | Other Participant |
 | ------------------------ | ------: | ------: | --------------: | ----------------: |
 | Create meeting           |     yes |      no |              no |                no |
@@ -1590,3 +1612,8 @@ The active status projection's convergence fields are mapped from the committed 
 - 实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
 
 本文定义 Plugin Frontend Meeting route 的路径、payload 和共享状态 projection 语义。V1 不从 DSH Web 请求取得用户或 Team authority：仅当 `webServer.host === "127.0.0.1"` 时注册 route，所有到达该 loopback Host 的请求共享本地用户边界。Host 为 `0.0.0.0`、远程访问或多用户部署不属于 V1，且必须在 route 注册前 fail closed；未来引入这些能力前必须另建用户/Team authorization interface 并以当前 DSH 公开 API 取证。
+
+
+## Captain rejection slice
+
+当前 command 仅支持 `decision="reject"`，结果仅为 `disposition="rejected"`，不包含 admissionId/participantId。批准及 admission 仍为尚未实现的未来能力。精确输入校验、validated-input hash、Canonical rejection、领域事件、公开状态、归档与失败顺序以 [Role Catalog Interface 的 Captain rejection slice](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md#captain-rejection-slice) 为唯一完整契约。当前协议、Captain Runtime、DSH 工具、status/archive 接线及 JSONL reopen 已实现并验证；真实 Loader 的缺失推荐拒绝路径已通过。验证边界见 [Captain Attendance Rejection Evidence](../40-readiness/CAPTAIN-ATTENDANCE-REJECTION-EVIDENCE.md)。

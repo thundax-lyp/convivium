@@ -5,9 +5,13 @@ import {
     useRef,
     useState,
     type ChangeEvent,
+    type FormEvent,
     type ReactElement
 } from "react";
 import {
+    CaptainDecisionAcceptanceResultSchema,
+    CaptainDecisionDispositionResultSchema,
+    CaptainRiskDispositionResultSchema,
     EndMeetingResultSchema,
     LocalMeetingListResponseConsumerSchema,
     MeetingControlResultSchema,
@@ -28,7 +32,20 @@ import { renderObservabilitySections } from "./meeting-panel-sections.js";
 
 const meetingsPath = "/api/convivium/meetings";
 
-class ProtocolFailure extends Error {}
+class ProtocolFailure extends Error {
+    constructor(readonly protocolError: ProtocolErrorV1) {
+        super(protocolError.message);
+    }
+}
+type FactControlAction =
+    "accept-decision" | "supersede-decision" | "revoke-decision" | "accept-risk" | "reject-risk";
+interface FactControlDraft {
+    action: FactControlAction;
+    targetId: string;
+    reason: string;
+    evidenceMessageIds: readonly string[];
+    replacementCandidateId?: string;
+}
 
 function meetingPath(meetingId: string): string {
     return `${meetingsPath}/${encodeURIComponent(meetingId)}`;
@@ -41,7 +58,7 @@ async function responseJson(response: Response): Promise<unknown> {
 function protocolFailure(value: unknown): ProtocolFailure {
     const validated = validateProtocolError(value);
     const error = validated as ProtocolErrorV1;
-    return new ProtocolFailure(error.message);
+    return new ProtocolFailure(error);
 }
 
 async function readList(response: Response): Promise<LocalMeetingListResponseV1> {
@@ -105,6 +122,8 @@ export function ConviviumMeetingPanel(): ReactElement {
         "partial"
     );
     const [writePending, setWritePending] = useState(false);
+    const [draft, setDraft] = useState<FactControlDraft>();
+    const [factError, setFactError] = useState<ProtocolErrorV1>();
 
     const mounted = useRef(true);
     const selectedIdRef = useRef<string>();
@@ -131,6 +150,8 @@ export function ConviviumMeetingPanel(): ReactElement {
         setSkipReason("");
         setEndReason("");
         setEndOutcome("partial");
+        setDraft(undefined);
+        setFactError(undefined);
         setWritePending(false);
     }, []);
 
@@ -215,6 +236,8 @@ export function ConviviumMeetingPanel(): ReactElement {
             setSkipReason("");
             setEndReason("");
             setEndOutcome("partial");
+            setDraft(undefined);
+            setFactError(undefined);
             setWritePending(false);
             void loadDetail(meetingId);
         },
@@ -366,6 +389,322 @@ export function ConviviumMeetingPanel(): ReactElement {
         return () => window.clearInterval(timer);
     }, [refreshSelectedMeeting, selectedId]);
 
+    const discussion = detail && "pendingDecisionCandidates" in detail ? detail : undefined;
+    const factWritable =
+        detail !== undefined &&
+        ["created", "running", "waiting", "paused", "converging"].includes(detail.status);
+    const targetExists =
+        draft !== undefined &&
+        discussion !== undefined &&
+        (draft.action === "accept-decision"
+            ? discussion.pendingDecisionCandidates.some((item) => item.id === draft.targetId)
+            : draft.action === "supersede-decision" || draft.action === "revoke-decision"
+              ? discussion.acceptedDecisions.some((item) => item.id === draft.targetId)
+              : discussion.risks.some(
+                    (item) =>
+                        item.id === draft.targetId &&
+                        item.riskLevel !== undefined &&
+                        item.violatedConstraintIds.length === 0 &&
+                        (draft.action === "accept-risk"
+                            ? item.status === "open"
+                            : item.status === "accepted_risk" ||
+                              (item.status === "open" && item.disposition !== "blocking"))
+                ));
+    const validDraft =
+        draft !== undefined &&
+        targetExists &&
+        factWritable &&
+        draft.reason.trim() !== "" &&
+        draft.evidenceMessageIds.length > 0 &&
+        draft.evidenceMessageIds.every((id) =>
+            discussion?.messages.some((message) => message.id === id)
+        ) &&
+        (draft.action !== "supersede-decision" ||
+            discussion?.pendingDecisionCandidates.some(
+                (item) => item.id === draft.replacementCandidateId
+            ));
+
+    useEffect(() => {
+        setDraft((current) => {
+            if (!current) return current;
+            if (!discussion || !factWritable) return undefined;
+            const exists =
+                current.action === "accept-decision"
+                    ? discussion.pendingDecisionCandidates.some(
+                          (item) => item.id === current.targetId
+                      )
+                    : current.action === "supersede-decision" ||
+                        current.action === "revoke-decision"
+                      ? discussion.acceptedDecisions.some((item) => item.id === current.targetId)
+                      : discussion.risks.some(
+                            (item) =>
+                                item.id === current.targetId &&
+                                ["open", "accepted_risk"].includes(item.status)
+                        );
+            if (!exists) return undefined;
+            if (
+                current.action === "supersede-decision" &&
+                !discussion.pendingDecisionCandidates.some(
+                    (item) => item.id === current.replacementCandidateId
+                )
+            )
+                return { ...current, replacementCandidateId: "", evidenceMessageIds: [] };
+            return {
+                ...current,
+                evidenceMessageIds: current.evidenceMessageIds.filter((id) =>
+                    discussion.messages.some((message) => message.id === id)
+                )
+            };
+        });
+    }, [discussion, factWritable]);
+
+    function openFactControl(action: FactControlAction, targetId: string): void {
+        if (!discussion || !factWritable || listCached || detailCached || writePendingRef.current)
+            return;
+        const sourceId =
+            action === "accept-decision"
+                ? discussion.pendingDecisionCandidates.find((item) => item.id === targetId)
+                      ?.sourceMessageId
+                : action === "accept-risk" || action === "reject-risk"
+                  ? discussion.risks.find((item) => item.id === targetId)?.sourceMessageId
+                  : undefined;
+        setDraft({
+            action,
+            targetId,
+            reason: "",
+            evidenceMessageIds:
+                sourceId && discussion.messages.some((message) => message.id === sourceId)
+                    ? [sourceId]
+                    : [],
+            ...(action === "supersede-decision" ? { replacementCandidateId: "" } : {})
+        });
+    }
+
+    async function submitFactControl(): Promise<void> {
+        const meetingId = selectedIdRef.current;
+        if (
+            !meetingId ||
+            meetingId !== selectedId ||
+            !detail ||
+            detail.meetingId !== meetingId ||
+            !draft ||
+            !validDraft ||
+            listCached ||
+            detailCached ||
+            writePendingRef.current
+        )
+            return;
+        const controller = new AbortController();
+        writeController.current = controller;
+        const generation = ++writeGeneration.current;
+        const current = () =>
+            mounted.current &&
+            generation === writeGeneration.current &&
+            selectedIdRef.current === meetingId;
+        writePendingRef.current = true;
+        setWritePending(true);
+        setFactError(undefined);
+        const base = {
+            protocolVersion: 1,
+            meetingId,
+            expectedMeetingVersion: detail.meetingVersion,
+            requestId: crypto.randomUUID(),
+            reason: draft.reason,
+            evidenceMessageIds: draft.evidenceMessageIds
+        };
+        const suffix =
+            draft.action === "accept-decision"
+                ? "accept-decision"
+                : draft.action === "supersede-decision" || draft.action === "revoke-decision"
+                  ? "dispose-decision"
+                  : "dispose-risk";
+        const body =
+            draft.action === "accept-decision"
+                ? { ...base, decisionCandidateId: draft.targetId }
+                : draft.action === "supersede-decision"
+                  ? {
+                        ...base,
+                        decisionId: draft.targetId,
+                        action: "supersede",
+                        replacementCandidateId: draft.replacementCandidateId
+                    }
+                  : draft.action === "revoke-decision"
+                    ? { ...base, decisionId: draft.targetId, action: "revoke" }
+                    : {
+                          ...base,
+                          issueId: draft.targetId,
+                          decision: draft.action === "accept-risk" ? "accept" : "reject"
+                      };
+        try {
+            const response = await fetch(`${meetingPath(meetingId)}/${suffix}`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(body),
+                signal: controller.signal
+            });
+            if (!current()) return;
+            const value = await responseJson(response);
+            if (!current()) return;
+            if (!response.ok) throw protocolFailure(value);
+            if (suffix === "accept-decision")
+                validateProtocolSuccessEnvelope(CaptainDecisionAcceptanceResultSchema, value);
+            else if (suffix === "dispose-decision")
+                validateProtocolSuccessEnvelope(CaptainDecisionDispositionResultSchema, value);
+            else validateProtocolSuccessEnvelope(CaptainRiskDispositionResultSchema, value);
+            setDraft(undefined);
+            setFactError(undefined);
+            await refreshSelectedMeeting(meetingId);
+        } catch (error) {
+            if (!current() || controller.signal.aborted) return;
+            setDraft(undefined);
+            if (error instanceof ProtocolFailure) {
+                setFactError(error.protocolError);
+                await refreshSelectedMeeting(meetingId);
+            } else {
+                setDetailCached(true);
+                setDetailError(failureMessage(error));
+            }
+        } finally {
+            if (current()) {
+                writePendingRef.current = false;
+                setWritePending(false);
+            }
+        }
+    }
+
+    function renderFactForm(): ReactElement | null {
+        if (!draft || !discussion) return null;
+        return createElement(
+            "form",
+            {
+                "aria-label": "Decision and risk control",
+                onSubmit: (event: FormEvent<HTMLFormElement>) => {
+                    event.preventDefault();
+                    void submitFactControl();
+                }
+            },
+            createElement(
+                "fieldset",
+                { disabled: listCached || detailCached || writePending },
+                createElement(
+                    "label",
+                    null,
+                    "Reason",
+                    createElement("textarea", {
+                        value: draft.reason,
+                        onChange: (event: ChangeEvent<HTMLTextAreaElement>) =>
+                            setDraft({ ...draft, reason: event.currentTarget.value })
+                    })
+                ),
+                draft.action === "supersede-decision"
+                    ? createElement(
+                          "label",
+                          null,
+                          "Replacement decision",
+                          createElement(
+                              "select",
+                              {
+                                  value: draft.replacementCandidateId,
+                                  onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+                                      const replacementCandidateId = event.currentTarget.value;
+                                      const sourceId = discussion.pendingDecisionCandidates.find(
+                                          (item) => item.id === replacementCandidateId
+                                      )?.sourceMessageId;
+                                      setDraft({
+                                          ...draft,
+                                          replacementCandidateId,
+                                          evidenceMessageIds:
+                                              sourceId &&
+                                              discussion.messages.some(
+                                                  (message) => message.id === sourceId
+                                              )
+                                                  ? [sourceId]
+                                                  : []
+                                      });
+                                  }
+                              },
+                              createElement("option", { value: "" }, "Select a candidate"),
+                              discussion.pendingDecisionCandidates.map((item) =>
+                                  createElement(
+                                      "option",
+                                      { key: item.id, value: item.id },
+                                      item.statement
+                                  )
+                              )
+                          )
+                      )
+                    : null,
+                createElement(
+                    "fieldset",
+                    { "aria-label": "Evidence messages" },
+                    createElement("legend", null, "Evidence messages"),
+                    discussion.messages.map((message) =>
+                        createElement(
+                            "label",
+                            { key: message.id },
+                            createElement("input", {
+                                type: "checkbox",
+                                value: message.id,
+                                checked: draft.evidenceMessageIds.includes(message.id),
+                                onChange: (event: ChangeEvent<HTMLInputElement>) =>
+                                    setDraft({
+                                        ...draft,
+                                        evidenceMessageIds: event.currentTarget.checked
+                                            ? [...draft.evidenceMessageIds, message.id]
+                                            : draft.evidenceMessageIds.filter(
+                                                  (id) => id !== message.id
+                                              )
+                                    })
+                            }),
+                            message.content
+                        )
+                    )
+                ),
+                createElement(
+                    "p",
+                    { "aria-label": "Selected evidence" },
+                    discussion.messages
+                        .filter((message) => draft.evidenceMessageIds.includes(message.id))
+                        .map((message) => message.content)
+                        .join("; ") || "No evidence selected"
+                ),
+                createElement("button", { type: "submit", disabled: !validDraft }, "Submit"),
+                createElement(
+                    "button",
+                    { type: "button", onClick: () => setDraft(undefined) },
+                    "Cancel"
+                )
+            )
+        );
+    }
+
+    function renderActions(
+        id: string,
+        actions: Array<[FactControlAction, string]>,
+        disabled = false
+    ): ReactElement | null {
+        if (!factWritable) return null;
+        return createElement(
+            "div",
+            null,
+            actions.map(([action, label]) =>
+                createElement(
+                    "button",
+                    {
+                        key: action,
+                        type: "button",
+                        disabled: disabled || listCached || detailCached || writePending,
+                        onClick: () => openFactControl(action, id)
+                    },
+                    label
+                )
+            ),
+            draft?.targetId === id && actions.some(([action]) => action === draft.action)
+                ? renderFactForm()
+                : null
+        );
+    }
+
     const selectedItem = meetings.find((item) => item.meetingId === selectedId);
     const canPause =
         detail !== undefined && ["created", "running", "waiting"].includes(detail.status);
@@ -423,12 +762,46 @@ export function ConviviumMeetingPanel(): ReactElement {
                   detailError === undefined
                       ? null
                       : createElement("p", { role: "alert" }, detailError),
+                  factError === undefined
+                      ? null
+                      : createElement(
+                            "p",
+                            { role: "alert" },
+                            `${factError.code}: ${factError.message}${factError.retryable ? " Refresh before submitting again" : ""}`
+                        ),
                   detail === undefined
                       ? createElement("p", null, "Loading meeting status…")
                       : createElement(
                             "div",
                             null,
-                            renderObservabilitySections(detail),
+                            renderObservabilitySections(detail, {
+                                renderCandidateActions: (id) =>
+                                    renderActions(id, [["accept-decision", "Accept decision"]]),
+                                renderDecisionActions: (id) =>
+                                    renderActions(id, [
+                                        ["supersede-decision", "Replace decision"],
+                                        ["revoke-decision", "Revoke decision"]
+                                    ]),
+                                renderRiskActions: (id) => {
+                                    const risk = discussion?.risks.find((item) => item.id === id);
+                                    if (!risk || !["open", "accepted_risk"].includes(risk.status))
+                                        return null;
+                                    const actions: Array<[FactControlAction, string]> = [];
+                                    if (risk.status === "open")
+                                        actions.push(["accept-risk", "Accept risk"]);
+                                    if (
+                                        risk.status === "accepted_risk" ||
+                                        risk.disposition !== "blocking"
+                                    )
+                                        actions.push(["reject-risk", "Set as blocking"]);
+                                    return renderActions(
+                                        id,
+                                        actions,
+                                        risk.riskLevel === undefined ||
+                                            risk.violatedConstraintIds.length > 0
+                                    );
+                                }
+                            }),
                             canPause
                                 ? createElement(
                                       "div",
