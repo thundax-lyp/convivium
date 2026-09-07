@@ -156,20 +156,9 @@ runManagerPlan 的实现严格重复 §5.4 的 domainInput/domainContext/ids 映
 
 T0 实际结果：PASS。分支为 `codex/real-model-meeting-runbook`，起始提交为既有 RUNBOOK 提交 `9267fffeaaa0dc27894405166213ab5149e2204c`；三个计划文件均不存在；既有聚焦基线 33 tests 全部通过。未覆盖：新增离线 fixture/contract suite 尚未创建。
 
-### T1：构造生产派生的离线样例
+### T1：构造生产派生的离线样例（已完成）
 
-前置状态：T0 PASS。
-允许修改：只新增 `plugin/tests/fixtures/offline-meeting-protocol.ts`、`plugin/tests/contract/offline-meeting-protocol.spec.ts`。
-禁止修改：所有 production、现有 tests、package/config、运行脚本。
-
-执行：按 §4–5 固定接口和九个顺序步骤实现工厂；contract spec 添加 V1/V2/V3/V8 四个 it，全部调用新工厂和实际生产函数。缺少 context/step/attempt 时显式抛错，不填写假值。只生成 B 输入，不能提交 B 或扩展到 end/archive。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run --project contract tests/contract/offline-meeting-protocol.spec.ts
-```
-PASS：四个 it 全部实际运行并通过；B 的唯一消息来自 production afterA projection，工厂无副作用且可重复；不是只跑零测试后退出 0。
-STOP：生产纯函数无法形成固定状态、input 字段不符合当前类型、版本不为1/2/3，或必须修改产品/现有 fixture。保留失败输出和新测试，不进入 T2。
+T1 实际结果：PASS。新增 fixture 与 contract spec；focused suite 4 tests 全部通过。未覆盖：V4–V7 负例与工具/provisioning surface 检查留待 T2。
 
 ### T2：补齐负向与生产 surface 断点
 
