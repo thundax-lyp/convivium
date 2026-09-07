@@ -1,0 +1,447 @@
+# 自动收敛真实 DSH 运行验证 RUNBOOK
+
+## 状态与工作边界
+
+- 建立日期：2026-09-07。
+- 模式：Author + Audit；本轮不执行下述 T0–T8。
+- 作者基线：`main` HEAD `1dd23b318f41531d02f7d03d3d543edef8259071`，初始工作区干净；作者分支 `codex/convergence-runtime-runbook`，直接使用指定项目目录，无额外 worktree。
+- 作者交付物：仅本文。实施及真实运行需要后续明确的 Execute 授权；不 commit、push、创建 PR、修改共享 coverage/TODO、正式需求、产品源码或测试。
+- 审计结论：`Executable`，适用于本文固定的正式工具驱动范围及前置 STOP。不是 runtime PASS；自动从 `converging` 进入 `completed` 不在现有调用链中，不能冒称已验证。
+
+## 执行者契约
+
+按 T0–T8 顺序执行；每步 PASS 后才能继续。允许修改的文件以各步白名单为准。不得通过调用纯 transition、修改 MeetingState、repository 写入、设置 clock、mock provider、替换 capability、修改 Session 历史、直接调用 cleanup 实现来产生 runtime 证据。脚本单测可以使用测试替身验证 probe 的拒绝行为，但输出必须标为 unit evidence。
+
+PASS 表示该步所有命令退出码 0 且所有规定断言成立；STOP 表示立即停止后续步骤并保留本次改动，不回滚用户状态，不放宽断言、Schema、错误码或超时，不改邻接产品代码。报告最后 PASS、触发条件、文件/symbol、最小命令、实际输出、继续所需决定。不得把有条件继续变成执行者自由选择。
+
+本轮已获授权的只是文档编写和审计。后续 Execute 许可不自动包含真实模型调用、Browser、发布、Git 写入或其他目录任务。执行前没有真实 DSH smoke 授权时，在 T7 前 STOP；不能以等待时间代替授权。
+
+## 目标与当前断点
+
+起点：已有 12 个 selector；`convergence` 只提交非法 Manager plan，检查 deterministic fallback、同请求重放和 active status。没有正式 Speaker 提交，因此不证明 D10。
+
+终点：保留原 selector，增加五个独立 selector；每个经真实 DSH Loader、spawn continuable Session、registered tool、repository commit、status/archive 与 lifecycle 服务得到证据，result validator 不能凭 assertions 标签接受伪绿色结果。最终业务链：create →真实 Speaker context→submit→首次进展基线→refocus→replan→自动 partial/no_consensus→Captain status 触发既有归档恢复→旧提交拒绝、Session drain→wrapper Restore。
+
+| 当前事实 | 准确证据 | 缺口与固定处理 |
+| --- | --- | --- |
+| fallback 无 Speaker 提交 | `plugin/scripts/smoke-profile/probe/scenarios/convergence.js::runConvergenceScenario` | 原行为保留，不能更名或把它替换成新场景 |
+| 首次 fingerprint、refocus、replan、终止已实现 | `plugin/src/domain/transitions/turn-advancement.ts::advanceAfterSpeakerSubmission`；`plugin/tests/unit/domain/transitions/turn-advancement.spec.ts` | 增加正式工具驱动证据；unit fixture 不迁移为运行证明 |
+| 默认 `maxStalls=3,maxReplans=1` | `plugin/src/runtime/meeting-runtime.ts::defaultLimits` | 使用默认值，active status 必须回读为 3/1；公开 create limits 不含这两个字段，禁止向输入塞内部 limits |
+| fingerprint 不在公开 DTO | `plugin/src/projection/status.ts::projectMeetingStatus` | 用第一 Turn 后 0/0、下一 Turn 1/0、结构变化后 0/0 的因果序列验证；canonical tuple 内容仅由既有 unit 覆盖 |
+| 业务完成先于硬限制 | `plugin/src/domain/completion.ts::judgeTurnCompletion` | 分离 Turn 与 message budget，各用第二条正式提交完成条件 |
+| 完成提交返回 `converging` | `advanceAfterSpeakerSubmission` completed 分支 | 先断言 `converging` 和无下一 Turn，再显式 Captain `convivium_end_meeting(outcome=completed)`；不得写“submit 自动 completed” |
+| terminal status 读取会推进归档 | `plugin/src/runtime/application-service/meeting-query.ts::createMeetingQueryApplication.getStatus` | submit result 固定 execution outcome；status 轮询允许中间 terminal/archiving，最终必须 archived，不能要求一定观测到瞬时 partial |
+| wrapper JSON 在 Restore 前输出 | `plugin/scripts/smoke-profile/index.mjs::main/restore/stopHost` | `ok:true` 不足，T7 另校验退出、临时根消失和端口释放；SIGKILL 超时分支不自行证明整个进程树退出 |
+
+## Scope 与 Non-goals
+
+Scope：S1 原 fallback 证据保持；S2 首次 fingerprint、refocus/replan、partial/stalled；S3 一个有合法未满足 criterion 依据的 blocking question 导致 no_consensus；S4 新 Proposal 进展重置两个计数；S5 Turn/message 两类最后有效讨论业务优先；S6 每个新增场景终态不可变、撤销及 drain、wrapper 清理；S7 selector/result/tests、长期证据与删除。
+
+Non-goals：领域重构、Client、Manager/hybrid 全矩阵、改变收敛预算、时间预算（不得 mock 时间或以脆弱 sleep 造最后边界）、blocking Position 分支穷举、任务/邮件取消新场景、跨 Host、SQLite、压力、真实 LLM、自动完成产品新行为、共享 coverage/TODO 整合。数据库迁移/新事件/新路由/新 provider/新持久化格式/兼容写入：`Not Applicable`，本任务不改变产品协议或状态。
+
+## 依据、结构和调用链
+
+### 真相源
+
+- [需求](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)：FR-4、FR-6、FR-8.8、BR-3、Confirmed Meeting Convergence Rules D6–D10。
+- [Agent Meeting Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)：CreateMeetingInputV1、TurnSubmissionV1、CompletionClaimsV1、EndMeetingInputV1、四阶段 MeetingStatusResultV1、工具调用者边界。
+- [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)：Meeting convergence commands and commit contract。
+- [Domain Model](./DOMAIN-MODEL-DESIGN.md)：Confirmed Meeting Convergence Domain；[Orchestration Design](./MEETING-ORCHESTRATION-DESIGN.md)：18.1、19。
+- [Architecture](../00-governance/ARCHITECTURE.md)、[Document Rules](../00-governance/DOCUMENT-RULES.md)、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[TODO Rules](../00-governance/TODO-RULES.md)、[PR Rules](../00-governance/PR-RULES.md)。
+- [DSH smoke 操作](../50-operations/HOW-TO-DSH-SMOKE.md)：自动入口、凭据隔离、失败与 Restore；不使用其中人工模型启动流程。
+
+### 正式输入与所有权
+
+所有新增场景使用 `createInput()` 的现有基础值，仅覆盖以下字段；未列字段保留基础值，不添加 `undefined`/null 占位字段：
+
+| 字段 | 固定值及来源 |
+| --- | --- |
+| `protocolVersion` | required literal `1` |
+| `requestId` | required `smoke-` + 完整 selector + `-create-1`；每个 selector 唯一 |
+| `teamId` | `smoke-team`，仅在本次独立临时 workspace |
+| `selectionMode` | `rule_based`，避免手工 Manager plan 决定 refocus/replan 原因 |
+| `participants` | `[{participantKey:"a",displayName:"A"}]`；`agenda[0].requiredParticipantKeys=["a"]` |
+| `objectiveContract` | 基础值：requiredOutputs=[]、一个未满足 `smoke-order` criterion、无 constraints/reviewers/risk authorities，acceptableRiskLevel=low |
+| `agenda` | 保留唯一 `agenda-1`，completionCriteria=["smoke-order"] |
+| `limits` | S2/S3/S4：`{maxTurns:10,maxSpeakersPerTurn:1,maxTotalMessages:100}`；Turn budget：`{maxTurns:2,maxSpeakersPerTurn:1,maxTotalMessages:100}`；message budget：`{maxTurns:10,maxSpeakersPerTurn:1,maxTotalMessages:2}` |
+
+`CreateMeetingInputSchema` 位于 `plugin/src/protocol/commands.ts`；`PublicMeetingLimitsV1` 位于 `plugin/src/protocol/types.ts`。maxStalls/maxReplans 使用 Runtime 默认值，不在 Config 中预建开关。`plugin/src/config.ts::Config` 的 speakerTimeoutMs 仍由原 smoke patch 设置 60000，不新增配置。
+
+每次 `submit_turn` 的 required 字段：`protocolVersion=1`，`meetingId` 从 create result，`turnId/stepId/attemptId/deliveryId/agendaItemId` 分别来自 `waitForSpeakerContext` 返回的 `value.turn.id/value.step.id/value.attempt.attemptId/value.attempt.deliveryId/value.activeAgendaItem.id`；`kind="statement"`，`content=selector+":a:"+提交序号`，`mentions=[]`、`taskIds=[]`、`agendaRelation="on_topic"`、`changes={}`。completion 两场景第二次 kind 为 `evidence`。optional `replyTo` 不发送，optional `completionClaims` 仅在下文指定时发送。
+
+- S3 第一提交 `changes.questions=[{text:"Unresolved smoke criterion",blocking:true,affectedOutputIds:[],affectedCriterionIds:[context.objectiveContract.acceptanceCriteria[0].id],violatedConstraintIds:[]}]`；不设置 directedTo，避免引入 direct-question 调度语义。依据 criterion 必须确实未满足。Runtime 生成 `question-${deliveryId}-1`；从 status.questions 取得并校验该 id、askedBy、blocking、status=open、criterion reference。
+- S4 第四提交 `changes.proposals=[{title:"New structured progress",description:"A new proposal after replan"}]`，不带 proposalId/expectedRevision；Runtime 生成 `${deliveryId}-proposal-1`，revision=1。该 Proposal 不解决 agenda/criterion，因此必须继续讨论。
+- S5 第二提交 `completionClaims={criterionClaims:[{subjectId:context.objectiveContract.acceptanceCriteria[0].id,evidenceMessageIds:[firstSubmit.result.messageId],taskIds:[]}],agendaResolution:{agendaItemId:context.activeAgendaItem.id,resolution:"Smoke criterion satisfied",evidenceMessageIds:[firstSubmit.result.messageId]}}`。证据必须是该会议第一条已提交消息；不使用第二次尚未提交的 ID、不引入 waiver。
+- S5 在确认第二提交 result.meetingStatus=converging 后，Captain end 输入固定 `protocolVersion=1,meetingId,expectedMeetingVersion=最新 status.meetingVersion,outcome="completed",reason="Budget boundary objective satisfied",acceptedDecisionIds=[],deferredAgendaItemIds=[],waivers=[],requestId="smoke-"+selector+"-end-1"`。期望 result.status=completed、terminationCode=objective_satisfied。
+
+调用者是工具 execute 的真实 `agent`，不是输入里自报 actor。Captain 复用原 probe captain；Speaker 必须使用 `waitForSpeakerContext(...).agent`，不能复用已 idle/disposed 的旧 Agent 提交下一 Turn。首次 attempt 可为 `attempt-0`，禁止推导为 `turn-1-attempt-0`。每次从最新 status.currentAttemptId 等待对应 context，并交叉校验 meeting/participant/turn/step/attempt/delivery。DSH callId 全部使用 `runtime.nextCall()`，只作调用追踪；submit receipt identity 是 deliveryId，不能加自造 requestId。messageId 为 Runtime 的 `message-${deliveryId}`。timestamps 由 Runtime `Date.now()` 产生；version 来自 command/status envelope，不假定初始 version 为 0；非终态一次 submit 应增加一个版本。
+
+### 内部数据与公开映射
+
+canonical owner 为 MeetingState；`progressFingerprint?:string` 仅在完成 Turn 后创建/替换，`stallCount:number,replanCount:number` 初始 0。fingerprint 固定七元 tuple：agenda `[id,status,resolution??""]`；accepted decisions `[id,proposalId,proposalRevision]`；open blocking questions `[id]`；current revision blocking objection positions `[proposalId,revision,positionId,participantId,position]`；terminal tasks `[id,status,resultSummary??""]`；latest proposals `[id,revision,status]`；active facts `[id,kind,subjectId,result,sortedEvidenceIds,sortedTaskIds]`。排序与序列化完全归 `createProgressFingerprint`，probe 不复制这个函数，不读取私有 repository。
+
+active DTO `stallCount/maxStalls/replanCount/maxReplans` required numbers 逐字段映射 committed state；`currentTurn` optional，normal 公共 reason 为 `explore`（`projection/status.ts::turn` 的 `reason ?? intent`），refocus 为 intent=refocus/reason=refocus，replan 为 intent=refocus/reason=replan。terminal/archiving/archived 不输出 active counters/currentTurn/currentAttemptId/currentSpeakerId；不能对 terminal 写 stallCount=3 断言。
+
+内部 termination 与 execution-terminal DTO required `{code,reason,decisionIds,unresolvedQuestionIds,dissentingPositionIds,blockingAgendaItemIds,finalMessage,endedAt}`，IDs 是 string[]，endedAt 为 Runtime number；archiving/archived 顶层 termination 只保留 required `{code,reason,decisionIds,unresolvedQuestionIds}`。archive.package.termination 的公开契约要求同四字段，当前 materializeArchivePackage 实际保留内部 termination 的附加字段；只比较两者共有四字段，不对完整对象 deep-equal。archive.package.endedAt 独立保存时间；不能向归档顶层 termination 索取执行阶段独有字段。S2/S4 code=stalled；S3 code=no_consensus，unresolvedQuestionIds 精确含第一提交 question；S5 code=objective_satisfied。archive.status 为 archived 时，归档包 `formalTranscript` 保存全部消息，`unresolvedQuestions` 保存 S3 question，`proposals` 保存 S4 Proposal，`completionFacts` 保存 S5 criterion_evidence/agenda_resolution；termination 的共有四字段在 status 与 archive.package 一致，当前控制与发言身份缺失、pendingHandRaises=[]。
+
+### 唯一调用链与文件/symbol
+
+1. `plugin/scripts/smoke-profile/index.mjs::main` 打包并安装插件/probe，通过 pinned `@deepseek-ai/dsh@0.1.1-rc.2` web profile 和 spawn provider 启动；`writeProbePackage` 复制已有 probe 目录。
+2. `plugin/scripts/smoke-profile/probe/index.js::run/runSelectedScenario` →新函数；`createProbeSupport::callTool` → `ctx.tools.execute({callId,name,arguments:{input},agent,signal})`。
+3. `plugin/src/tools/register-tools.ts::registerCreateAndStatusTools/registerSubmitAndControlTools` →既有 caller resolver、Schema → `plugin/src/runtime/application-service/create-meeting.ts::createMeetingApplication` → `plugin/src/runtime/application-service/initialize-meeting-turn.ts::initializeFirstMeetingTurn/assignTurnAttempt`。
+4. Speaker inbox → `plugin/src/runtime/application-service/meeting-turn.ts::createMeetingTurnApplication.submitTurn` → `plugin/src/domain/transitions/speaker-submission.ts::submitSpeakerAndAdvanceMeeting` → `plugin/src/domain/transitions/question.ts::addSubmittedQuestions` / `plugin/src/domain/completion.ts::applyCompletionClaims` → `advanceAfterSpeakerSubmission` → `judgeTurnCompletion` → fingerprint、`planRuleBasedTurn` 或 termination。
+5. `plugin/src/repository/domain/domain-meeting-repository.ts::DomainMeetingRepository.execute` 原子发布 state、events、receipt、outbox。submit requestHash=`JSON.stringify(input)`；后续 dispatch 在 commit 后，不由 probe直接调用。
+6. status → `createMeetingQueryApplication.getStatus` → `recoverArchiveForCaptain` → `plugin/src/runtime/services/meeting-archive-service.ts::recoverArchive/beginArchiveFromTermination/cleanupOwnedSessions/finalizeArchive` → capability revoke、DSH interrupt/drain、关闭 ownership → `projectMeetingStatus`。
+7. DSH `ctx.agents.get(id)` 验证 resident 消失，`ctx.subagents.listChildren(captain.agent.session.id,signal)` 验证持久 child 的 mode=continuable/activity=inactive；保留持久 Session 不等于未清理。rc.2 公开 `SubagentRuntime.listChildren`、`drainContinuableChildren` 已在本地安装声明中核对，probe只调用前者观察，绝不自己 drain。
+8. `writeResult` 经临时 JSON rename → `validateScenarioResult(value,expectedScenario)` → wrapper stdout → finally Restore。result 不是新的产品协议。
+
+事件顺序由现有 submit transition 组合：Speaker 提交事件→可选 question/proposal/completion_fact 事件→`meeting.replanned`（refocus/replan，payload meetingId/from/to/meetingVersion/reason）→下一 `turn.planned/turn.started/speaker.assigned/speaker.started/speaker_attempt.started`；耗尽时最后为 `meeting.ended`；事务编码再赋 eventSeq。仅 status/command 无法读取这些事件或 receipt/outbox 原文，因此 runtime 不宣称 event 精确顺序、rollback 或 receipt 物理内容已验证；由原有领域/repository tests 保持覆盖。
+
+## 固定场景及可达性
+
+新增 selector 与唯一 export 均位于既有 `plugin/scripts/smoke-profile/probe/scenarios/convergence.js`：
+
+| selector | 新函数，签名均 `async (runtime)` | 提交序列与必需观察 | 依据/步骤 |
+| --- | --- | --- | --- |
+| convergence（原有） | `runConvergenceScenario`（保留） | 原三标签及 fallback/replay/status 原断言 | FR-4/D8，T1/T6 |
+| convergence-stalled | `runConvergenceStalledScenario` | 空 changes ×4；前三次后 0/0 explore、1/0 refocus、2/1 replan；第四 result.meetingStatus=partial，archive code=stalled | FR-6/D10，T2 |
+| convergence-no-consensus | `runConvergenceNoConsensusScenario` | 第一提交合法 blocking question，后面空 changes ×3；前三次相同计数；第四 result.meetingStatus=no_consensus，archive code=no_consensus 且 question 未消失 | FR-6/FR-8/D10，T3 |
+| convergence-reset | `runConvergenceResetScenario` | 前三次空 changes 达到 2/1；第四新增 Proposal 后 0/0 explore；第五 1/0 refocus；第六 2/1 replan；第七 partial/stalled | FR-6/D10，T4 |
+| convergence-turn-budget-completion | `runConvergenceTurnBudgetCompletionScenario` | maxTurns=2，maxTotalMessages=100；第一条证据，第二条 criterion+agenda claims；第二条提交前 context.turn.seq=2；result=converging，无下一 Turn；Captain completed/end；archive code=objective_satisfied | FR-8.8/BR-3，T5 |
+| convergence-message-budget-completion | `runConvergenceMessageBudgetCompletionScenario` | maxTurns=10，maxTotalMessages=2；同上，第二条 result.messageSeq=2；证明没有 message_limit 抢先终止 | FR-8.8/BR-3，T5 |
+
+S2–S4 通过默认 maxStalls/maxReplans 即可到达，无配置扩展。一个 required、available Participant 无 task，不因 consecutive scoring penalty 变为不可调度。S3 使用合法 unresolved criterion 依据，不能照搬 unit 中空依据 blocking fixture。S4 Proposal 更新 fingerprint 而不满足目标，足以重置两个计数并证明不是只重置 stallCount。S5 输入已被公开 create limits 支持，不需要 Config 或领域改动。每次 submit 是一个完整、单 Speaker Turn。
+
+前置 STOP：基线无法满足本表（包括无 context、计划进入 waiting、第二 Turn 不存在、question 被拒、normal/refocus/replan 不匹配、limits 被忽略、converging 不可经 completed end 收口）时，保留实际 command/status，判为产品/组合缺口，不修改实现；如果验收被要求为“无需 Captain end 自动 completed”，当前代码无该分支，先 STOP，请求独立产品行为决定。不能新增后台结束器。maxDurationMs 临界时序、单独 maxReplans 耗尽而 maxStalls 未耗尽的分支不可用本文固定默认值独立区分，明确 Not Covered，不能伪称五个 selector 穷举全部限制。
+
+## Result 合约与脚本单测
+
+原 convergence result 兼容原结构与三标签，不能要求它输出新 observed。五个新增 selector 使用同一最小 schema；仅作本任务脚本输出，所有字段 required；只有结构中显式列出的 union 允许 null，禁止其他 null、缺失、额外字段和重复标签：
+
+```ts
+// 新的脚本 result 结构规范；不新增产品类型文件。
+type ConvergenceProbeResult = {
+  ok: true;
+  scenario: string; // 仅上表五个新 literal
+  assertions: string[];
+  meetingId: string;
+  observed: {
+    submissions: Array<{
+      turnId: string; turnSeq: number; attemptId: string; deliveryId: string;
+      messageId: string; messageSeq: number; meetingVersion: number;
+      meetingStatus: string;
+    }>;
+    checkpoints: Array<{
+      afterSubmission: number; meetingVersion: number; status: "running" | "converging";
+      stallCount: number; maxStalls: 3; replanCount: number; maxReplans: 1;
+      nextTurnId: string | null; intent: string | null; reason: string | null;
+    }>;
+    questionId: string | null;
+    proposalId: string | null;
+    endResult: { status: "completed"; terminationCode: "objective_satisfied" } | null;
+    archived: object; // 完整 archived status result，按下列字段关系校验
+    archivedVersion: number;
+    lateSubmit: { kind: "protocol" | "tool"; code: string };
+    stableAfterLateSubmit: boolean;
+    children: Array<{ id: string; mode: "continuable"; activity: "inactive" }>;
+    residentSessionIds: string[];
+  };
+};
+```
+
+上面 null 是 result-only 的显式“未发生/无下一 Turn”，不得原样发送给产品 Schema。无 optional 字段。producer 为 probe 的实际返回值；consumer 为 result.mjs 与 scripts tests；结果仅属于当前临时运行，不参与恢复、领域状态或授权。`archived` 原样保留公开 DTO，不复制产品 Schema 或引入包依赖，validator 只严格校验以下本场景相关字段，允许该产品 DTO 的其他既有字段。
+
+固定 assertions 数组按顺序构造：
+
+- stalled：`["first-progress-baseline","refocus-observed","replan-observed","partial-stalled","terminal-submit-rejected","archive-consistent","sessions-drained"]`。
+- no-consensus：同上把 `partial-stalled` 替换为 `blocking-question-no-consensus`。
+- reset：`["first-progress-baseline","refocus-observed","replan-observed","progress-resets-both-counters","refocus-after-reset","replan-after-reset","partial-stalled","terminal-submit-rejected","archive-consistent","sessions-drained"]`。
+- 两个 budget：`["last-valid-turn-before-budget","business-completion-before-budget","captain-completed-after-converging","terminal-submit-rejected","archive-consistent","sessions-drained"]`。
+
+在 `plugin/scripts/smoke-profile/result.mjs::validateScenarioResult` 为五个新 literal 增加调用唯一私有 `validateConvergenceRuntimeResult(value,expectedScenario)`，失败统一抛 `Error("Convergence runtime result is invalid.")`。不更改其他 selector 的兼容规则。该私有函数同步返回 void，验证成功仍返回原 value；不得仅相信 booleans 或标签：
+
+1. 顶层与 observed/每条 submission/checkpoint/lateSubmit/child exact keys；非空 string、有限非负整数 version/counters、正整数 seq；新五个 literal 与 expectedScenario 完全相等；assertions 精确顺序与长度一致。
+2. submissions 数量分别 4/4/7/2/2，messageSeq=1..N、turnSeq=1..N、turnId/attemptId/deliveryId/messageId 各自唯一；messageId=`message-`+deliveryId；版本严格增加。非最后提交 meetingStatus=running；末条分别 partial/no_consensus/partial/converging/converging。
+3. checkpoints 只保存前三次、前三次、前六次、两次、两次。afterSubmission 连续从 1 起；meetingVersion 等于对应 submit.meetingVersion（活跃读取无其他 command）。S2/S3 的三行 0/0 explore、1/0 refocus、2/1 replan；S4 六行重复此序列。前述 reason=explore 时 intent=explore；reason=refocus/replan 时 intent=refocus。每行 nextTurnId 非空且与下一 submission.turnId 一致，最后尚未提交的下一 Turn 也必须在 probe 回读验证。预算场景第一行同 normal，第二行 converging、0/0、nextTurnId/intent/reason=null。
+4. `observed.archived.status="archived"`，`observed.archived.meetingId` 与顶层 meetingId 一致；`observed.archivedVersion` 为 status envelope version，等于 `observed.archived.meetingVersion` 且大于最后 submit.meetingVersion；`observed.archived.archive.package.meetingId` 相同。`observed.archived.termination` 与 `observed.archived.archive.package.termination` 两处抽取 code/reason/decisionIds/unresolvedQuestionIds 后深相等、code 符合场景；`observed.archived.archive.package.endedAt` 和 `observed.archived.archive.archivedAt` 为有限 number。`observed.archived` 无 currentTurn/currentSpeakerId/currentAttemptId/stallCount/replanCount，pendingHandRaises=[]，meetingTasks=[]。
+5. `observed.archived.archive.package.formalTranscript` 与 `observed.submissions` 数量、messageId、seq、turnId 一一一致，speaker 全为 participant-a，content 为 selector+":a:"+序号；无额外消息。S3 questionId 必须为第一 delivery 派生值，termination.unresolvedQuestionIds 精确为该单元素数组，`observed.archived.archive.package.unresolvedQuestions` 有同 id/open/blocking/askedBy=participant-a。其他场景 questionId=null、unresolvedQuestionIds=[]。S4 proposalId 必须为第四 delivery 派生值且 `observed.archived.archive.package.proposals` 中对应 proposal revision=1；其他场景 proposalId=null。所有场景归档 termination.decisionIds=[]；dissentingPositionIds/blockingAgendaItemIds 不在归档顶层 termination 中，禁止在顶层断言这些数组。
+6. 预算两场景 `observed.endResult` 为规定 completed 对象；`observed.archived.archive.package.objectiveContract.acceptanceCriteria` 唯一条 satisfied=true，`observed.archived.archive.package.agenda` 唯一条 status=resolved；`observed.archived.archive.package.completionFacts` 含 active criterion_evidence 与 agenda_resolution，均以第一 messageId 为 evidenceMessageIds；`observed.archived.limits` 三个已设置公开字段精确匹配本场景，其他场景 endResult=null。
+7. children 精确包含 `meetingId+"-manager-manager"` 与 `meetingId+"-participant-participant-a"` 两个不同 ID（排序输出），mode/activity 固定，residentSessionIds=[]。stableAfterLateSubmit 必须 true，同时 probe 自己深比较归档前后，不能自行硬编码 true。
+8. lateSubmit.kind=protocol 时 code 仅 IMMUTABLE_MEETING/ARCHIVED_MEETING/UNAUTHORIZED_CALLER；kind=tool 时只允许下文从两个已知 DSH 错误精确归一化的 code。任意 ok=true、STALE_ATTEMPT、IDEMPOTENCY_CONFLICT 或未知异常在终态观察中失败。
+
+唯一新增测试文件：`plugin/tests/unit/scripts/convergence-probe.spec.ts`。按实施顺序导入已创建的 exports：T2 只导入 runConvergenceStalledScenario；T3 增加 runConvergenceNoConsensusScenario；T4 增加 runConvergenceResetScenario；T5 才增加两个 budget exports。每步同步新增该 export 的 happy-path 和负例，不提前引用后续不存在的函数。用 runtime test double 顺序喂入与场景表一致的正式工具结果/context（不 import 领域函数），捕获 callTool/ctx.tools.execute/writeResult。它只证明脚本能够驱动、检查并拒绝错误输出，不是 DSH evidence。每个场景一个 happy-path，另用表驱动逐一注入错误 counter/reason、缺少 context、非法 question、未重置 replan、错误 budget outcome、late submit 成功、归档多一条消息、child active/resident；每项必须拒绝并且不能写 ok=true。fake clock 只加速测试轮询，不进入 smoke。
+
+`plugin/tests/unit/scripts/smoke-profile-contract.spec.ts` 保留原用例，新增五场景完整 fixture 的 accept 和单字段破坏 reject：每个 required key 删除、数字错类型、重复 message/child ID、错 selector、少/多/重复/乱序 label、只标签没有 observed、错误 counters、错误 terminal code、question 缺失、proposal 缺失、预算伪 completed、late failure 未拒绝、resident 非空、archive version/内容不一致。不得将 validator 自己输出作为 fixture oracle。
+
+## 不变量及失败恢复
+
+- 不调用 `runtime.setMeetingId` 为新场景触发旧自动 driver；在 `driveParticipant` 早退列表显式加入五个 selector，防止旧 `A/C/B` 提交与新 driver 竞争。
+- 只复用 create、status、submit、budget completed end 四类正式工具；没有 Captain 手动 partial/no_consensus 来伪造自动终止。S2/S3/S4 不允许调用 endMeeting。
+- 非终态提交失败不重试、不跳下一条；首次错误即 STOP。不得因后台超时把不同 attempt 当成同一次成功。等待 context、archive 上限均 30000ms，间隔 100ms；原 speaker timeout 保留 60000ms。
+- terminal 后不 followup/resume Speaker，不自行 drain。保存最终提交的 Agent 对象和完全相同输入，通过 raw ctx.tools.execute 再调用，绕开会抛异常的 callTool，只观察失败。
+- raw result.value.ok=false 时只接受上述三种 code；result.isError=true 时 error.message 必须包含 `caller Session capability has been revoked` 或 `is not live in this store`，依次归一化为 `CAPABILITY_REVOKED` / `AGENT_NOT_LIVE`；没有匹配即失败。不把任意 thrown Error 当通过。
+- 先轮询到 archived，保存完整 result/version，再 late submit，再 Captain status：完整 result JSON 与 version 必须相等。这样不把归档自身合法版本推进误判为旧提交副作用。
+- probe 失败仍由原 run catch 输出 ok=false，原 finally dispose captain，wrapper finally stopHost/restore；不保存新持久状态，不需要产品数据回滚。保留有界错误输出，不能删除别人的临时根、终止无关进程或回滚用户文件。
+- wrapper 原 restore 验证临时根删除，但未显式 probe 端口释放；T7 独立复核。失败分支拿不到完整 JSON/PID/端口证据时 Restore 标 Not Covered 并 STOP，不补造路径、不顺手改 runner 生命周期。
+
+## 机械执行步骤
+
+以下命令工作目录均为仓库根目录。T1–T6 仅本地脚本实施/测试；T7 才是真实外部运行。本轮 Author 没有执行这些步骤。
+
+### T0：基线与许可检查
+
+前置状态：明确 Execute 授权；已完整读取本文及治理/依据。
+允许修改：无。
+禁止修改：main、其他任务目录、用户已有改动。
+
+执行：核对 HEAD 及 clean workspace（本文可以是唯一未提交文档），当前必须是本任务 codex 分支。基线变化时输出完整差异并 STOP 交 Author 重新审计，执行者不选替代 symbol。
+
+验证：
+```sh
+git branch --show-current
+git rev-parse HEAD
+git status --short
+git diff --check
+pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts tests/unit/domain/transitions/turn-advancement.spec.ts
+```
+PASS：HEAD 等于作者基线，分支 `codex/convergence-runtime-runbook`；无非本文改动；三个现有 suite 共 32 tests 通过。
+STOP：任一不符；报告 baseline/状态/测试输出，不 reset 或恢复用户状态。
+
+### T1：建立 result 校验与独立 fixture
+
+前置状态：T0 PASS。
+允许修改：`plugin/scripts/smoke-profile/result.mjs`、`plugin/tests/unit/scripts/smoke-profile-contract.spec.ts`。
+禁止修改：原 convergence 三标签、其他 result 规则、产品 Schema。
+
+执行：实现 Result 合约章节固定私有函数及五个 literal 分支；增加对应独立 fixtures 和全部负例。尚未实现的 selector 仅供 validator 单测，T1 不加入 runner allowlist。
+
+验证：
+```sh
+pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile-contract.spec.ts
+pnpm --dir plugin exec prettier scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile-contract.spec.ts --check
+```
+PASS：原用例继续通过；五种完整结果通过，所有单点破坏被拒。
+STOP：需要放宽字段、吞异常或改变其他 selector；保留 diff/首个失败。
+
+### T2：正式空提交驱动 stalled
+
+前置状态：T1 PASS。
+允许修改：`plugin/scripts/smoke-profile/probe/scenarios/convergence.js`、新建 `plugin/tests/unit/scripts/convergence-probe.spec.ts`。
+禁止修改：原 `runConvergenceScenario`、support.js、领域状态和所有 product files。
+
+执行：
+1. 新增 `runConvergenceStalledScenario(runtime)`，执行上表四条正式提交，收集实际 submissions/checkpoints。
+2. 在同一文件增加私有 `createConvergenceMeeting(runtime, limits)`，返回 `{meetingId,participantSessionId,managerSessionId}`；`submitConvergenceTurn(runtime, meetingId, ordinal, changes, completionClaims)` 返回 `{delivery,input,submitted,checkpoint}`，checkpoint 在 submit 非终态时才读取，终态固定为 null；`finishConvergenceObservation(runtime, meetingId, finalDelivery, finalInput)` 返回归档/lateSubmit/stability/children/resident 结果。三个函数仅供本文件五个当前消费者，无新抽象层。completionClaims=undefined 时不发送字段。
+3. submit helper 先 Captain status 读 currentAttemptId，等待该 attempt 的真实 context，再提交；从 context 生成唯一 IDs。从 command result 保存 terminal outcome，不先假定 status 必须为 partial。finish helper 按“不变量”执行，绝不 endMeeting。
+4. 新测试包含四条调用、0/0→1/0→2/1、partial、归档及 late/drain 拒绝用例。每个 happy-path writeResult 的结果必须再次通过 T1 validator。
+
+验证：
+```sh
+pnpm --dir plugin exec vitest run tests/unit/scripts/convergence-probe.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
+pnpm --dir plugin exec prettier scripts/smoke-profile/probe/scenarios/convergence.js tests/unit/scripts/convergence-probe.spec.ts --check
+```
+PASS：唯一 stalled driver 被测试执行且全部不变量由失败用例保护；原 fallback 源码没有 diff。
+STOP：工具/context/result 不满足固定接口，或需要写入私有状态；报告触发输入与结果。
+
+### T3：合法阻塞问题导致 no_consensus
+
+前置状态：T2 PASS。
+允许修改：`plugin/scripts/smoke-profile/probe/scenarios/convergence.js`、`plugin/tests/unit/scripts/convergence-probe.spec.ts`。
+禁止修改：question Schema、blocking 定义、领域测试 fixture。
+
+执行：新增 `runConvergenceNoConsensusScenario(runtime)`，严格使用“正式输入”中的第一条 question claim，后续三次空提交；第一 checkpoint 校验 question 后保存 ID，最终校验 no_consensus 与 unresolvedQuestionIds/归档 question。给 helper 的 changes 必须从本次 context criterion ID 构造；允许 changes 参数为本文件局部回调 `(context)=>changes`，其唯一用途是从真实 context 取得引用，所有场景空 changes 仍传 `{}`。在 T2 helper 内仅增加此固定对象/回调解析，不新增异步策略。
+
+验证：
+```sh
+pnpm --dir plugin exec vitest run tests/unit/scripts/convergence-probe.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
+```
+PASS：合法 question 输入与全程保留得到 fixture 校验；缺少 criterion 引用、wrong code、丢失 question 均拒绝。
+STOP：真实可达性与 `addSubmittedQuestions` 不符；不得使用无依据 blocking fixture、阻塞 Issue 或手动 end 替代。
+
+### T4：结构进展重置计数
+
+前置状态：T3 PASS。
+允许修改：`plugin/scripts/smoke-profile/probe/scenarios/convergence.js`、`plugin/tests/unit/scripts/convergence-probe.spec.ts`。
+禁止修改：fingerprint、Proposal 格式、预算默认值。
+
+执行：新增 `runConvergenceResetScenario(runtime)`；第四次提交唯一新 Proposal，再重复 refocus/replan 和第七次自动 stalled。捕获 Proposal ID 并校验 archive 保留；测试故意让第四 checkpoint replanCount=1 必须失败，不能只断言 stallCount。
+
+验证：
+```sh
+pnpm --dir plugin exec vitest run tests/unit/scripts/convergence-probe.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
+```
+PASS：六个 checkpoint 精确为两组 0/0、1/0、2/1，第七提交 partial/stalled；七条消息一次各一条。
+STOP：改变 Proposal 后已完成/仍耗尽/未生成下一 Turn；禁止清零状态或调整 limits。
+
+### T5：两种硬预算边界优先业务完成
+
+前置状态：T4 PASS。
+允许修改：`plugin/scripts/smoke-profile/probe/scenarios/convergence.js`、`plugin/tests/unit/scripts/convergence-probe.spec.ts`。
+禁止修改：completion guards、自动 terminal 行为、clock、Client。
+
+执行：新增两函数，严格各自 limits。第一条证据提交后，第二条 completionClaims 使用本次 context 与 first messageId；让 submit helper 的 completionClaims 同样接受唯一局部同步 `(context)=>claims` 以取得正式 ID。第二条完成后先验证 converging/no next Turn 与相应预算边界，再按固定 Captain end 输入完成。新增私有 `runConvergenceBudgetCompletion(runtime, limits)` 供两个薄 export 调用，不另建通用场景配置 registry。
+
+验证：
+```sh
+pnpm --dir plugin exec vitest run tests/unit/scripts/convergence-probe.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
+```
+PASS：两类 budget 独立通过；错误 partial/max_turns/message_limit/converging 缺失均失败；Captain end 不在其他三个新函数中出现。
+STOP：需要把 converging 假装 completed、使用 waiver 或调用领域函数；报告“自动完成/显式完成”的准确边界，禁止实施产品修复。
+
+### T6：selector 接线与完整本地验证
+
+前置状态：T5 PASS。
+允许修改：`plugin/scripts/smoke-profile/index.mjs`（仅 SMOKE_SCENARIOS）、`plugin/scripts/smoke-profile/probe/index.js`（仅 import、guard、dispatcher 和 driveParticipant 早退）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`；T1–T5 文件仅格式化本次新增段。
+禁止修改：environment.mjs、build/profile/credentials/timeout/Restore、原 selector 行为、package/lockfile、产品代码。
+
+执行：五个唯一 selector 加入 SMOKE_SCENARIOS 和 run guard；switch 各只有一个 case→对应 export。driveParticipant 五个 selector 早退；新函数不调用 setMeetingId。更新 scripts source contract，检查五个 export/import/case/early-return，以及原 convergence 的三标签。禁止加总量“17 全绿”替代每项结果。
+
+验证：
+```sh
+pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/result.mjs scripts/smoke-profile/probe/index.js scripts/smoke-profile/probe/scenarios/convergence.js tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts tests/unit/scripts/convergence-probe.spec.ts --check
+pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts tests/unit/scripts/convergence-probe.spec.ts tests/unit/domain/transitions/turn-advancement.spec.ts
+pnpm --dir plugin verify
+git diff --check
+```
+PASS：所有检查退出 0，原 fallback/其他 11 selector source contract 保持；verify 覆盖 format/lint/typecheck/test/build/environment/contract/agent definitions/package，不代表真实 runtime。
+STOP：出现白名单外修改或任何 gate 失败。只允许用同一 prettier 文件列表 `--write` 修正本次格式，其他失败停止，不顺带修复历史问题。
+
+### T7：真实 DSH 验证与隔离恢复
+
+前置状态：T6 PASS，用户明确授权本次真实 smoke；pinned DSH/provider 可用；按操作文档准备唯一根 dev.env，禁止打印内容。不设置 DSH_SMOKE_DSH_BIN，不使用 browser mode、个人 profile 或人工 dsh-workspace。
+允许修改：无 tracked file；由原 wrapper 创建其独有 OS 临时目录/端口/profile；不得人为留存凭据。
+禁止修改：任何产品/脚本；失败后不改 profile、断言、超时或切换 provider。
+
+执行：下列固定 Node 命令顺序执行六个 selector（原 convergence + 五新增），捕获 wrapper 最后 JSON，待 wrapper 完整退出后验证 Restore。每个 selector 用全新进程/临时根；首次失败终止，不执行剩余场景。端口复核只对该次输出 port 在 127.0.0.1 bind 后立即 close；不是第二个服务。禁止把此命令持久化为新 runner。
+
+验证：
+```sh
+node --input-type=module <<'NODE'
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, basename, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createServer } from 'node:net';
+import { validateScenarioResult } from './plugin/scripts/smoke-profile/result.mjs';
+if (process.env.DSH_SMOKE_DSH_BIN || process.env.CONVIVIUM_SMOKE_BROWSER_MODE === '1') {
+  throw new Error('STOP: nonstandard smoke environment');
+}
+for (const scenario of [
+  'convergence', 'convergence-stalled', 'convergence-no-consensus',
+  'convergence-reset', 'convergence-turn-budget-completion',
+  'convergence-message-budget-completion'
+]) {
+  const run = spawnSync('pnpm', ['--dir', 'plugin', 'smoke:profile'], {
+    env: {...process.env, CONVIVIUM_SMOKE_SCENARIO: scenario},
+    encoding: 'utf8', maxBuffer: 16 * 1024 * 1024
+  });
+  if (run.error || run.status !== 0) {
+    console.error(scenario, run.error?.message, run.signal, run.status);
+    console.error((run.stdout ?? '').slice(-8000), (run.stderr ?? '').slice(-8000));
+    throw new Error('STOP: wrapper failed; Restore is not proven');
+  }
+  const text = run.stdout;
+  const start = text.lastIndexOf('\n{\n  "ok": true,');
+  if (start < 0) throw new Error('STOP: final wrapper JSON missing');
+  const value = JSON.parse(text.slice(start + 1).trim());
+  if (!value.ok || value.profile !== 'web' || value.provider !== 'spawn') {
+    throw new Error('STOP: profile/provider mismatch');
+  }
+  validateScenarioResult(value.probe, scenario);
+  const root = dirname(dirname(value.dumpConfig));
+  if (!resolve(root).startsWith(resolve(tmpdir()) + sep) ||
+      !basename(root).startsWith('convivium-dsh-smoke-') || existsSync(root)) {
+    throw new Error('STOP: temporary root cleanup not proven');
+  }
+  if (!Number.isInteger(value.port) || value.port < 1 || value.port > 65535) {
+    throw new Error('STOP: invalid recorded port');
+  }
+  await new Promise((resolvePort, rejectPort) => {
+    const server = createServer();
+    server.once('error', rejectPort);
+    server.listen({host: '127.0.0.1', port: value.port, exclusive: true}, () => {
+      server.close(error => error ? rejectPort(error) : resolvePort());
+    });
+  });
+  console.log(JSON.stringify({scenario, restore: 'passed', probe: value.probe}));
+}
+NODE
+```
+PASS：六份结果逐一通过 validator，六次 wrapper 退出 0、独有临时根不存在、原端口可绑定且已释放。新增五个场景还必须 archived、两个 Session 均 inactive/无 resident；原 fallback 不提升为归档场景。记录实际日期、commit+dirty diff 边界、Node/pnpm/DSH/provider、每个 assertions/observed 与 Restore。
+STOP：首个错误；包装器未完整输出、归档失败、清理不明均不记 PASS。保存有界 stdout/stderr、已知准确路径及 port；未知时写未知。原 wrapper finally 仍需完成，不执行全局 pkill、glob rm 或 profile 迁移；如果清理需要更改 runner 生命周期，单独报告前置缺口，由原任务决定范围。
+
+### T8：长期证据迁移与删除
+
+前置状态：T7 全部 PASS；原任务已授权接收本任务专属证据并安排共享整合。本轮 Author 不进入此步。
+允许修改：新建 `docs/40-readiness/CONVERGENCE-RUNTIME-VALIDATION-EVIDENCE.md`、`docs/50-operations/HOW-TO-DSH-SMOKE.md`、本文；共享 coverage/TODO 保留给原任务。
+禁止修改：正式需求/接口以迎合测试、其他任务 evidence、共享 coverage/TODO。
+
+执行：
+1. 新 evidence 按 Scope/Validated Contract/Executed Validation/Not Covered/Closure 写实际证据，逐项映射 S1–S7；明确 fingerprint 间接观测、Captain end 边界、未覆盖时间预算/Position/事务故障/冷重启/模型。缺少真实结果时保留本文，不建立虚假的 PASS evidence。
+2. operations 的 selector 清单追加原 convergence 和五个新 selector，说明对应 assertions 与本任务 T7 的 Restore 检查；保持既有凭据/profile/端口/失败清理政策，不复制领域规则。
+3. 将 evidence 路径交原任务做总 coverage/跨任务整合；在收到“未覆盖项已进入正式 readiness、共享整合完成”证据前 STOP，不删除本文。长期产品/接口/设计规则未改变，无新增迁移；稳定 selector 入口进入 operations，实际状态进入专属 evidence。
+4. 搜索本文引用，确认结果仅为本文或本任务本次新增的纯导航引用；有其他引用即 STOP 交原任务处理，不自行编辑未知文件。重新完成 T6 全部命令与下列链接/格式检查后，删除本文及已核对只服务于本文的本任务导航引用。删除后重复检查；失败恢复本次删除的准确内容并 STOP，不留 completed/archive RUNBOOK。
+
+验证：
+```sh
+rg -n 'RUNBOOK-CONVERGENCE-RUNTIME-VALIDATION|自动收敛真实 DSH 运行验证 RUNBOOK' docs TODO.md AGENTS.md
+pnpm --dir plugin verify
+git diff --check
+```
+执行下面 Author Audit 中的相对链接命令，迁移后将文件列表改为唯一新 evidence 和 HOW-TO 两个固定路径；删除后 `rg` 无引用（退出 1 为无匹配）。
+
+PASS：专属 evidence 与操作说明落地、共享整合完成证据存在；所有验证满足、无残留引用，本文已删除且删除后检查通过。
+STOP：任一 Scope/证据/整合未完成，或者删除后出现断链；恢复本文和本次删除引用，不修改其他历史内容。
+
+## 验证矩阵与证据边界
+
+| 风险/需求 | focused validation | runtime 预期 | 范围/收口 |
+| --- | --- | --- | --- |
+| FR-4/D8 fallback + replay | 原 scripts contract，T6 | convergence 原三断言，相同 result/version | S1，专属 evidence |
+| FR-6/D10 首次/重复/终止 | domain 6 tests + 新 probe/validator tests | 4 次提交，0/0→1/0→2/1→partial/stalled | S2，T2/T7 |
+| blocking disagreement | question 输入与 no_consensus fixture 拒绝测试 | 合法 criterion question，4 次后 no_consensus，未解决 ID 保留 | S3，T3/T7 |
+| 新进展重置 | replanCount 故意错误负例 | 7 次，两组计数，Proposal 保留 | S4，T4/T7 |
+| FR-8/BR-3 业务优先 | 两 budget fixture，与错误 partial 负例 | 第二条合法 claims→converging→Captain completed；limits 独立 | S5，T5/T7 |
+| caller/capability/terminal immutability | raw late reply 负例 | 旧 Agent/旧输入失败、归档/版本不变、children inactive | S6，全新增 selector |
+| stale version、同 key 异 hash | 现有 product tests 随 verify 保持 | 本新增 selector 不主动注入；Not Covered runtime | 不扩张 scope |
+| 数组部分非法/事务 rollback/无半提交 | 现有 tests 随 verify；不新增领域测试 | status 无私有事务接口，Not Covered runtime | 不用 labels 伪造 commit 原子证据 |
+| internal fingerprint/event/receipt/outbox | 原 domain/repository tests | 仅下一真实 context、结果及投影的因果证据；内部字节/事件顺序 Not Covered runtime | S2/S7 |
+| restart/reopen/recovery | verify 既有 suite；原 cold-rebind 场景未在本次重跑 | 本任务仅 Captain status 驱动 archive recovery，冷重启 Not Covered | 不声称复测原 12 全绿 |
+| archive、终态清理与 Restore | fixture 错内容/active/resident 负例 | 公开 archive、无后续发言、两个 child drained、临时根和端口恢复 | S6/S7 |
+| build/typecheck/contract/full | T6 `pnpm verify` | 本地 gates 不代替 T7 | S7 |
+| 真实模型、Browser、时间极限、独立 replan budget 耗尽、blocking Position | Not Covered，缺少本任务正式驱动步骤 | 不调用模型、不扩大 Client/config/clock 范围 | readiness 明确保留 |
+
+## Author Audit 与实际检查
+
+2026-09-07 已完整读取规定治理和需求相关 sections，应用 convivium-runbook、dsh-plugin-development、right-size-changes，核对 manifest/lockfile rc.2 与现有公开 DSH 声明、工具/Schema、源码和测试。
+
+完整自审：Required Structure 十项齐全；Not Applicable 有原因；每个 S1–S7 均有步骤/验证/迁移，每步只服务于本范围；新文件/export/private helper 只有一个指定位置；创建/提交/claims/终态/输出字段及 owner 明确；无私有状态写入、产品重构、共享文件混改；失败恢复、逐步 PASS/STOP、T7 独立授权与 T8 删除前后检查明确。`Executable` 仅表示步骤已决策完备，不表示五个新 selector 已实现或通过真实 DSH。
+
+作者实际执行（不是 T0 Execute）：
+
+- 起始 branch/HEAD/status：main、规定 HEAD、干净；已创建独立作者分支。
+- `pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts tests/unit/domain/transitions/turn-advancement.spec.ts`：3 files、32 tests PASS。
+- 相对 Markdown 链接检查：11 个相对链接通过；26 个正文代码/文档路径通过（含两个明确计划新增路径）。`git diff --check` 退出 0。本文为未跟踪新文件，另以 `git diff --no-index --check /dev/null docs/30-designs/RUNBOOK-CONVERGENCE-RUNTIME-VALIDATION.md` 检查正文，无 whitespace 输出；该命令退出 1 仅表示新文件有差异。T7 内嵌 JavaScript 通过 `node --check --input-type=module`，只检查语法，没有执行。
+
+```sh
+python3 - <<'PY'
+from pathlib import Path
+import re
+files = [Path('docs/30-designs/RUNBOOK-CONVERGENCE-RUNTIME-VALIDATION.md')]
+count = 0
+for file in files:
+    text = re.sub(r'```.*?```', '', file.read_text(), flags=re.S)
+    for target in re.findall(r'\]\(([^)]+)\)', text):
+        if '://' in target or target.startswith('#'):
+            continue
+        path = (file.parent / target.split('#', 1)[0]).resolve()
+        assert path.exists(), (file, target)
+        count += 1
+print(f'PASS: {count} relative links')
+PY
+git diff --check
+```
+
+Not Covered：本轮没有修改或执行新增 scripts/tests、没有启动 smoke、没有读取/使用 dev.env、没有真实模型/Browser/外部运行验证、没有全量 verify、没有 commit/push/PR。没有发现必须修改产品代码才能完成本文固定正式工具链的决定缺口；首次运行若反证可达性即按前置 STOP 处理。若目标升级为纯自动 completed，则需要先确认产品结束责任，本 RUNBOOK 不授权该变更。
+
+联合审查澄清：接受 A 的两项建议，Result 校验使用完整 observed.archived 路径区分 status DTO 与内层 archive record；新增 probe 单测按 T2–T5 分阶段导入实际存在的 exports。原 Scope 不缩减，运行证据边界保持不变。
