@@ -4,8 +4,8 @@
 
 本文记录当前代码相对已确认需求的实现覆盖，不替代需求、接口或设计文档。
 
-- 记录日期：2026-09-04
-- 代码基线：`8c2c40a16e2fc5375f90cc10867283d1da769a05`
+- 记录日期：2026-09-07
+- 代码基线：`46bfebc9804c9486fa4f77cccfcf2fa20486a01d`
 - 环境：Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、profile `web`、provider `spawn`
 - `已实现` 表示存在正式路径和相称验证；`部分实现` 表示存在局部路径但未闭合；`未实现` 表示没有产品运行路径。
 - 历史真实 profile 证据只适用于其原始 commit，不外推为当前 HEAD 证据。
@@ -25,11 +25,11 @@
 | FR-1 DSH 插件形态                         | 已实现   | package、双 bundle、provider gate、profile evidence                                                                                              | 高于最低版本的兼容与分发策略未决定                                                           |
 | FR-2 会议与身份隔离                       | 已实现   | Meeting、Participant、Session、repository ownership 隔离                                                                                         | 远程、多用户、跨 Host 不支持，属于 V1 非目标                                                 |
 | FR-3 有序连续发言                         | 已实现   | 单一 attempt、逐 Speaker delivery、前序 transcript、late/stale 拒绝、reassign/skip                                                               | 无                                                                                           |
-| FR-4 发言计划与选择                       | 已实现   | Manager/round-robin planning、资格校验、required Participant waiting、确定性 fallback                                                            | 自动 stall/refocus/replan 未实现，属于 Non-goal                                              |
+| FR-4 发言计划与选择                       | 已实现   | Manager/round-robin/rule-based/hybrid planning、资格校验、required Participant waiting、确定性 fallback、自动 stall/refocus/replan                                                            | 自动收敛完整链路的真实 DSH smoke 未覆盖                                              |
 | FR-5 异步任务与举手                       | 已实现   | MeetingTask、HandRaise、恢复、幂等、task evidence；start replay 在最新 task snapshot 已为 `running` 时跳过 Catalog preview 并进入 receipt replay | 外部副作用 exactly-once、长期压力未覆盖                                                      |
-| FR-6 议题范围与发散控制                   | 已实现   | Question/Issue/Proposal/Position、候选 promote/park/reject、原子 commit、幂等、status/archive；全量验证通过                                      | 自动 stall/refocus/replan、UI/HTTP/Client、真实 DSH smoke 未覆盖                             |
+| FR-6 议题范围与发散控制                   | 已实现   | Question/Issue/Proposal/Position、候选 promote/park/reject、原子 commit、幂等、status/archive；全量验证通过                                      | UI/HTTP/Client、自动收敛完整链路的真实 DSH smoke 未覆盖                             |
 | FR-7 提案、立场与决策                     | 已实现   | Proposal revision、Position、Decision candidate、Captain acceptance、Decision/risk projection、单 Issue risk disposition                         | 完整 FR-7 外的产品 UI 控制未覆盖                                                             |
-| FR-8 完成事实与会议结束                   | 已实现   | completion/end、task evidence、终态 projection、恢复和幂等                                                                                       | Decision/Agenda 细节与 stall/refocus 属其他未完成范围                                        |
+| FR-8 完成事实与会议结束                   | 已实现   | completion/end、task evidence、终态 projection、恢复和幂等、收敛预算耗尽后的 stalled/no_consensus 终止                                                                                       | Decision/Agenda 细节属其他范围；自动收敛终止的真实 DSH smoke 未覆盖                                        |
 | FR-9 暂停、恢复与故障隔离                 | 已实现   | pause/resume、timeout、reassign/skip、interrupt/drain、cold rebind、per-Meeting isolation                                                        | 无                                                                                           |
 | FR-10 记录、隐私与归档                    | 部分实现 | transcript、meeting mail、archive、Session cleanup、continuation                                                                                 | Scribe minutes 契约、projection、状态/归档路径未实现                                         |
 | FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；G4 已验证 pause/resume/end 及 Reassign Browser control    | risk/Decision disposition 未覆盖；metrics、远程/多用户未覆盖                                 |
@@ -38,12 +38,18 @@
 | FR-14 Agent Definition 与 DSH composition | 未实现   | 9 个样本、hash 和负向 fixture                                                                                                                    | Definition resolution、Preset/Skill validation、差异化 Session composition                   |
 | FR-15 Developer Markdown Projection       | 已实现   | committed snapshot/package → current/archive Markdown；白名单、受控路径、latest/stale、原子替换、failure isolation、dispose                      | multi-Host、远程 workspace、跨进程锁、旧文件迁移/清理未覆盖                                  |
 
+### Convergence 实现与证据边界
+
+正式路径 `plugin/src/domain/transitions/speaker-submission.ts` 和 `speaker-attempt.ts` 调用 `turn-advancement.ts::advanceAfterSpeakerSubmission`，已实现 progress fingerprint、stall 计数、refocus、replan 及预算耗尽后的 `partial/stalled` 或 `no_consensus` 终止。`plugin/tests/unit/domain/transitions/turn-advancement.spec.ts` 覆盖首次 fingerprint、refocus → replan → stalled 和 blocking disagreement 下的 no_consensus；planning 与 Manager fallback 的单测分别位于 `plugin/tests/unit/domain/planning.spec.ts` 和 `plugin/tests/unit/runtime/manager-fallback.spec.ts`。
+
+下述历史 `convergence` 真实 profile 证据仅覆盖确定性 fallback、幂等重放和状态投影；不证明自动 stall/refocus/replan 至终止的完整链路已经通过真实 smoke，也不外推为当前 HEAD 的新运行证据。
+
 ## Executed Validation
 
-2026-09-04，在 Agenda candidate 功能代码基线 `8c2c40a16e2fc5375f90cc10867283d1da769a05` 执行 `pnpm --dir plugin verify`：
+2026-09-07，在当前代码基线 `46bfebc9804c9486fa4f77cccfcf2fa20486a01d` 执行 `pnpm --dir plugin verify`：
 
 - Pass：format、lint、Host/Client typecheck、build、environment、contract、Agent Definition samples、package verifier。
-- Pass：完整 Vitest suite。
+- Pass：完整 Vitest suite，77 test files、588 tests。
 - Pass：在 `8c7c39e6705fed5a79ed228b8f494a7f96cfe83b` 执行 `pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts`，1 file、35 tests；覆盖相同 `requestId` 的 MeetingTask start receipt replay。代码同时以 repository 最新 snapshot 的 task status 约束 Catalog preview，避免已变为 `running` 的交错重试在进入 `MeetingRepository.execute()` 前触发 `INVALID_STATE_TRANSITION`。
 - Pass：在 target HEAD 执行 `pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts`，1 file、24 tests；固定 browser-ready 模式的 30 分钟 `speakerTimeoutMs`、普通模式的 60 秒和 `timeout` selector 的 250ms。
 - Pass：在 target HEAD `aa70a14bb93e7cab134bb567f5320549e058a2b5`（2026-09-04，Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`）完成 Developer Markdown focused validation：`pnpm --dir plugin exec vitest run tests/unit/projection/developer-markdown.spec.ts`、`pnpm --dir plugin exec vitest run tests/unit/runtime/developer-markdown-service.spec.ts`、`pnpm --dir plugin exec vitest run tests/contract/domain-meeting-repository.spec.ts tests/contract/domain-repository-registry.spec.ts`、`pnpm --dir plugin exec vitest run tests/unit/config.spec.ts tests/unit/index-inject.spec.ts tests/contract/meeting-runtime.spec.ts`、`pnpm --dir plugin typecheck`、`pnpm --dir plugin lint`、`pnpm --dir plugin verify` 均 Pass；包含 T1-T5 的白名单映射/archive checksum 保留、串行 latest/stale/原子写入、repository callback/registry 传递、workspace fail-closed/runtime dispose 和完整验证。
@@ -89,11 +95,11 @@
 - 遗留 SQLite 数据不读取、不迁移、不删除。
 - 不支持 multi-Host writer、远程 filesystem、远程访问、多用户和网络部署。
 - risk/Decision disposition 没有正式 browser/HTTP/Client write control。
-- Question 的 required-review/risk evidence、Agenda candidate 管理、Decision candidate 完整生命周期和自动 stall/refocus/replan 未实现。
+- Question 的 required-review/risk evidence、Decision candidate 完整生命周期未实现。自动 stall/refocus/replan 已有正式路径和单测，完整链路的真实 DSH smoke 未覆盖。
 - FR-13 Phase 1 的 Agent Catalog safe projection、Manager recommendation claim 和 pending projection 已完成本地 fake-port/isolated-storage 验证；真实 Host producer smoke、Captain admission 和 Meeting Agent Definition runtime 不在该阶段。
 - 结构化 metrics、stress/长期资源泄漏和生产发布验证未实现或未覆盖。
 - Developer Markdown 的 multi-Host、远程 workspace、跨进程锁、旧文件迁移/清理未覆盖；current/archive 文件仍为非权威本地诊断输出。
 
 ## Closure
 
-当前 target HEAD 可描述为“已验证的会议后端核心与本地单用户会议控制闭环”，不可描述为完整会议产品、真实模型链路或发布就绪。真实 DSH selector、pause/resume/end browser control 和 cleanup 已在本 target evidence 中记录；历史记录仍不外推。
+当前 target HEAD 可描述为“已验证的会议后端核心与本地单用户会议控制闭环”，不可描述为完整会议产品、真实模型链路或发布就绪。当前 HEAD 的本地验证已记录；真实 DSH selector、pause/resume/end browser control 和 cleanup 仍仅适用于文中明确标注的历史 target evidence，不外推为本次 HEAD 的新运行证据。
