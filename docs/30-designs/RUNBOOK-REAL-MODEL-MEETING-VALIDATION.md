@@ -154,25 +154,11 @@ runManagerPlan 的实现严格重复 §5.4 的 domainInput/domainContext/ids 映
 
 已完成进度：T0 基线检查通过（33 tests）；T1 fixture/spec 与 V1/V2/V3/V8 断言通过（focused suite）。对应机械步骤已删除；T2 仍在执行。
 
-T2 实际结果：PASS。V4–V7 负例与 surface 断点已覆盖；focused suite 9 tests 通过（V5 独立 it 使总数为 9）；sentinel 未调用。未覆盖：T3–T5。
+T2 实际结果：PASS。V4–V7 负例与 surface 断点已覆盖；focused suite 9 tests 与 strict tsc 通过；runtime/caller sentinel 未调用。未覆盖：T3–T5。
 
 ### T3：测试本身的类型与格式门禁
 
-前置状态：T2 PASS。
-允许修改：只对两个新文件执行以下 formatter；生成物不手工编辑。
-禁止修改：tsconfig、existing tests、host/client source。
-
-执行：Vitest 默认不做完整类型检查，因此对新 fixture/spec 显式运行 tsc；不得只依赖 package typecheck（其配置排除 tests）。
-
-验证：
-```sh
-pnpm --dir plugin exec prettier tests/fixtures/offline-meeting-protocol.ts tests/contract/offline-meeting-protocol.spec.ts --write
-pnpm --dir plugin exec tsc --noEmit --strict --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext --types node --verbatimModuleSyntax tests/fixtures/offline-meeting-protocol.ts tests/contract/offline-meeting-protocol.spec.ts
-pnpm --dir plugin exec vitest run --project contract tests/contract/offline-meeting-protocol.spec.ts
-git diff --check
-```
-PASS：全部退出 0，仍为八个测试；无 as any/as unknown/non-null assertion 用于掩盖 fixture 错误。`as const` 仅用于 literal 类型，不是放宽校验。
-STOP：任何命令失败；只允许修正两个新文件使其符合既定规格，不能改 tsconfig/Schema/生产文件。修正后重跑本步骤，不扩展设计。
+前置状态：T2 PASS 后执行；当前尚未收口。
 
 ### T4：完整本地验证与未覆盖边界
 

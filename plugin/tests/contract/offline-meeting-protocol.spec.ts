@@ -110,17 +110,22 @@ describe("offline meeting protocol preparation", () => {
     });
     it("rejects missing protocol fields and text-only replies", () => {
         const f = createOfflineMeetingProtocolFixture();
+        const before = JSON.stringify(f);
         const { planningAttemptId: _p, ...missingPlanning } = structuredClone(f.managerSubmission);
         expect(() => ManagerPlanSubmissionSchema(missingPlanning)).toThrow();
         const { deliveryId: _d, ...missingDelivery } = structuredClone(f.aSubmission);
         expect(() => TurnSubmissionSchema({ ...missingDelivery })).toThrow();
         expect(() => TurnSubmissionSchema({ content: "OK" })).toThrow();
+        expect(JSON.stringify(f)).toBe(before);
     });
     it("separates schema validity from reply reference evidence", () => {
         const f = createOfflineMeetingProtocolFixture();
         const invalid = { ...f.bSubmission, replyTo: "offline-missing" };
         expect(() => TurnSubmissionSchema({ ...invalid })).not.toThrow();
         expect(f.bContext.recentMessages.some((m) => m.id === invalid.replyTo)).toBe(false);
+        const matches = f.bContext.recentMessages.filter((m) => m.id === f.bSubmission.replyTo);
+        expect(matches).toHaveLength(1);
+        expect(matches[0]).toMatchObject({ id: "offline-message-a", speaker: "participant-a" });
     });
     it("records the provisioning surface", () => {
         const envelope = createSessionProvisioningEnvelope({
@@ -193,7 +198,7 @@ describe("offline meeting protocol preparation", () => {
                     return () => undefined;
                 }
             },
-            callers: { resolve: async () => ({ sessionId: "offline", kind: "captain" as const }) },
+            callers: { resolve: denied },
             runtime
         };
         registerCreateAndStatusTools(deps);
@@ -203,7 +208,9 @@ describe("offline meeting protocol preparation", () => {
             "convivium_submit_manager_plan",
             "convivium_submit_turn"
         ]) {
-            const definition = definitions.find((d) => d.name === name);
+            const matches = definitions.filter((d) => d.name === name);
+            expect(matches).toHaveLength(1);
+            const definition = matches[0];
             expect(definition?.parameters).toEqual({
                 type: "object",
                 properties: { input: { description: "Protocol v1 command input." } },
