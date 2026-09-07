@@ -152,26 +152,9 @@ runManagerPlan 的实现严格重复 §5.4 的 domainInput/domainContext/ids 映
 
 所有命令从仓库根目录运行。本轮没有执行这些实施步骤；后续执行者不得边读本文边改变 Scope。
 
-### T0：确认离线工作边界
+### T0：确认离线工作边界（已完成）
 
-前置状态：用户明确授权执行本离线 RUNBOOK；已读治理与三个相关技能。
-允许修改：无。
-禁止修改：所有文件、profile、分支历史与其他目录。
-
-执行：确认 branch/HEAD 和初始 status；工作区除本文外必须无改动；三个计划文件必须不存在。依赖必须已安装，不运行 install。运行现有聚焦基线。
-
-验证：
-```sh
-git branch --show-current
-git rev-parse HEAD
-git status --short
-test ! -e plugin/tests/fixtures/offline-meeting-protocol.ts
-test ! -e plugin/tests/contract/offline-meeting-protocol.spec.ts
-test ! -e docs/40-readiness/OFFLINE-MEETING-PROTOCOL-PREPARATION-EVIDENCE.md
-pnpm --dir plugin exec vitest run tests/unit/domain/transitions/manager-planning.spec.ts tests/contract/tool-registration.spec.ts tests/contract/status-projection.spec.ts
-```
-PASS：基线等于 §1，当前为本文分支，无其他修改，计划文件均不存在，测试退出 0。
-STOP：任一不符，输出实际状态/测试；不复原用户状态、不改 package 或运行 smoke。无运行资源需恢复。
+T0 实际结果：PASS。分支为 `codex/real-model-meeting-runbook`，起始提交为既有 RUNBOOK 提交 `9267fffeaaa0dc27894405166213ab5149e2204c`；三个计划文件均不存在；既有聚焦基线 33 tests 全部通过。未覆盖：新增离线 fixture/contract suite 尚未创建。
 
 ### T1：构造生产派生的离线样例
 
