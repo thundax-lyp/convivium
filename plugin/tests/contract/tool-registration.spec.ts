@@ -1,6 +1,7 @@
+import { CaptainAttendanceDispositionResultSchema } from "../../src/protocol/index.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
     registerCreateAndStatusTools,
     registerSubmitAndControlTools
@@ -231,6 +232,7 @@ describe("meeting tool registration", () => {
         });
 
         expect(definitions.map((definition) => definition.name)).toEqual([
+            "convivium_dispose_attendance_recommendation",
             "convivium_accept_decision",
             "convivium_dispose_decision",
             "convivium_dispose_agenda_candidate",
@@ -464,13 +466,10 @@ describe("meeting tool registration", () => {
                     calls.push(`risk:${caller.kind}`),
                     denied()
                 ),
-                disposeAttendanceRecommendation: async () => ({
-                    protocolVersion: 1,
-                    ok: false,
-                    code: "INVALID_ARGUMENT",
-                    message: "not exercised",
-                    retryable: false
-                }),
+                disposeAttendanceRecommendation: async (
+                    _input: unknown,
+                    caller: { kind: string }
+                ) => (calls.push(`dispose-attendance:${caller.kind}`), denied()),
                 acceptDecision: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`accept:${caller.kind}`),
                     denied()
@@ -572,6 +571,15 @@ describe("meeting tool registration", () => {
                 taskIds: [],
                 agendaRelation: "on_topic",
                 changes: {}
+            },
+            convivium_dispose_attendance_recommendation: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 1,
+                requestId: "request-1",
+                recommendationId: "recommendation-1",
+                decision: "reject",
+                reason: "Outside scope"
             },
             convivium_submit_manager_plan: {
                 protocolVersion: 1,
@@ -700,6 +708,7 @@ describe("meeting tool registration", () => {
         }
 
         expect(calls).toEqual([
+            "dispose-attendance:participant",
             "accept:participant",
             "dispose-decision:participant",
             "dispose-agenda-candidate:participant",
@@ -720,5 +729,107 @@ describe("meeting tool registration", () => {
             "reassign:participant",
             "end:participant"
         ]);
+    });
+
+    it("validates, forwards, renders and unregisters Captain attendance rejection", async () => {
+        const definitions = new Map<string, ToolDefinition>();
+        const denied = vi.fn(async (): Promise<never> => {
+            throw new Error("unexpected call");
+        });
+        const success = {
+            protocolVersion: 1,
+            ok: true,
+            meetingId: "meeting-1",
+            meetingVersion: 2,
+            result: {
+                requestId: "reject-1",
+                recommendationId: "recommendation-1",
+                disposition: "rejected"
+            }
+        };
+        const dispose = vi.fn(async () => success);
+        const caller = { kind: "captain" as const, sessionId: "captain-session" };
+        const resolve = vi.fn(async () => caller);
+        const disposers = registerCreateAndStatusTools({
+            registry: {
+                register: (definition) => {
+                    definitions.set(definition.name, definition);
+                    return () => {
+                        definitions.delete(definition.name);
+                    };
+                }
+            },
+            callers: { resolve },
+            runtime: {
+                acceptDecision: denied,
+                disposeAttendanceRecommendation: dispose,
+                disposeDecision: denied,
+                disposeAgendaCandidate: denied,
+                sendMeetingMessage: denied,
+                finishMeetingMail: denied,
+                createMeeting: denied,
+                getStatus: denied,
+                createMeetingTask: denied,
+                meetingTaskStatus: denied,
+                startMeetingTask: denied,
+                finishMeetingTask: denied,
+                raiseHand: denied,
+                submitTurn: denied,
+                submitManagerPlan: denied,
+                pause: denied,
+                resume: denied,
+                reassignTurn: denied,
+                disposeRisk: denied,
+                endMeeting: denied
+            }
+        });
+        const tool = definitions.get("convivium_dispose_attendance_recommendation")!;
+        const input = {
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            expectedMeetingVersion: 1,
+            requestId: "reject-1",
+            recommendationId: "recommendation-1",
+            decision: "reject",
+            reason: " Outside scope "
+        };
+        const exec = { agent: {} as Agent, signal: new AbortController().signal } as ToolRunContext;
+        for (const invalid of [
+            { ...input, decision: "approve" },
+            { ...input, reason: " " },
+            { ...input, actor: "captain" }
+        ]) {
+            expect(await tool.execute({ input: invalid }, exec)).toMatchObject({
+                ok: false,
+                code: "INVALID_ARGUMENT",
+                retryable: false
+            });
+        }
+        expect(dispose).not.toHaveBeenCalled();
+        expect(resolve).not.toHaveBeenCalled();
+        const result = await tool.execute({ input }, exec);
+        expect(dispose).toHaveBeenCalledExactlyOnceWith(input, caller, exec.signal);
+        expect(resolve).toHaveBeenCalledExactlyOnceWith(exec.agent, exec.signal);
+        expect(result).toEqual(success);
+        expect(CaptainAttendanceDispositionResultSchema(success.result)).toEqual(success.result);
+        expect(await tool.output!.render!({ input }, result)).toEqual([
+            { type: "text", text: JSON.stringify(success) }
+        ]);
+        const error = {
+            protocolVersion: 1,
+            ok: false,
+            code: "ATTENDANCE_RECOMMENDATION_NOT_PENDING",
+            message: "The attendance recommendation is not pending.",
+            retryable: false
+        };
+        dispose.mockResolvedValueOnce(error);
+        const rejected = await tool.execute({ input }, exec);
+        expect(rejected).toEqual(error);
+        expect(await tool.output!.render!({ input }, rejected)).toEqual([
+            { type: "text", text: JSON.stringify(error) }
+        ]);
+        disposers.forEach((dispose) => dispose());
+        expect(definitions.size).toBe(0);
+        expect(denied).not.toHaveBeenCalled();
     });
 });

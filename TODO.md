@@ -9,19 +9,6 @@
 
 ## 当前任务项
 
-- [ ] `DSH 拒绝推荐工具`：AR-04 注册工具并验证模型结果
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T4。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：AR-03 PASS。
-    - 文件（3 个）：
-
-        - `plugin/src/tools/register-tools.ts`
-        - `plugin/tests/contract/tool-registration.spec.ts`
-        - `plugin/tests/contract/offline-meeting-protocol.spec.ts`
-
-    - 处理动作：按 T4 注册 convivium_dispose_attendance_recommendation，接入既有 Schema、caller、Runtime 和 JSON renderer。
-    - 验收点：T4 tool-registration、offline-meeting-protocol 与 typecheck 通过；非法输入不进入 Runtime，canonical result/render 一致，dispose 移除注册。
-
 - [ ] `推荐状态与归档 projection`：AR-05 闭合可见性、归档和恢复
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T5。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
