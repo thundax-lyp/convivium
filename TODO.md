@@ -8,22 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `runtime/role-creation`：RC-05 接入会议身份创建前的配置切面
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T5。
-    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：RC-04 完成。
-    - 文件（6 个）：
-
-        - `plugin/src/index.ts`
-        - `plugin/src/runtime/application-service/types.ts`
-        - `plugin/src/runtime/application-service/create-meeting.ts`
-        - `plugin/src/runtime/meeting-runtime.ts`
-        - `plugin/tests/unit/runtime/meeting-runtime.spec.ts`
-        - `plugin/tests/unit/index-inject.spec.ts`
-
-    - 处理动作：在首个 child 分配前预检全部角色，将配置与绑定接入原创建及清理链路。
-    - 验收点：T5 验证通过；预检失败不创建 child，中途失败不发布 ready Meeting，旧创建路径保持通过。
-
 - [ ] `tests/role-closure`：RC-06 验证创建、重放与失败闭环
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T6。
     - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。

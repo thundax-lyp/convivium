@@ -1,3 +1,4 @@
+import { RoleCompositionError } from "../../role-composition/resolve.js";
 import { createHash } from "node:crypto";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { interruptAndDrainOwnedSessions } from "../../dsh/index.js";
@@ -129,6 +130,7 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
             return commandFailure("INTERNAL_ERROR", "The meeting could not be opened.", true);
         }
         const dependencies: MeetingCreationRuntimeDependencies = {
+            agentDefinitions: options.runtime.agentDefinitions,
             repository,
             continuable: options.runtime.continuable,
             parent: caller.agent as Agent,
@@ -343,6 +345,8 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
             options.deliveryWorkers.wake(meetingId);
             return commandSuccess(meetingId, initialized.meetingVersion, result);
         } catch (error) {
+            if (error instanceof RoleCompositionError)
+                return commandFailure(error.code, error.message, false);
             if (error && typeof error === "object" && "code" in error) {
                 const code = (error as { code?: unknown }).code;
                 if (code === "UNSUPPORTED_CAPABILITY") {
