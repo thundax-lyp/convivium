@@ -342,7 +342,7 @@ describe("client entry framework", () => {
         "failed",
         "archiving",
         "archived"
-    ] as const)("fact visibility: decision history schema and mapper for %s", (status) => {
+    ] as const)("fact visibility: decision history schema and mapper for %s", async (status) => {
         const detail = ["created", "running", "waiting", "paused", "converging"].includes(status)
             ? factStatus(status as "created" | "running" | "waiting" | "paused" | "converging")
             : ["completed", "partial", "no_consensus", "cancelled", "failed"].includes(status)
@@ -356,6 +356,44 @@ describe("client entry framework", () => {
             "d-revoked",
             "d-current"
         ]);
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (input: RequestInfo | URL) =>
+                String(input) === "/api/convivium/meetings"
+                    ? jsonResponse(listResponse())
+                    : jsonResponse(success(detail, detail.meetingVersion))
+            )
+        );
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+        await waitFor(() => {
+            const accepted = screen.getByLabelText("Accepted decisions").textContent ?? "";
+            const historySection = screen.getByLabelText("Decision history");
+            const history = historySection.textContent ?? "";
+            const historyIds = [...historySection.querySelectorAll("[data-decision-id]")].map(
+                (item) => item.getAttribute("data-decision-id")
+            );
+            expect(accepted).toContain("d-current");
+            expect(historyIds).toEqual(["d-old", "d-revoked", "d-current"]);
+            for (const value of [
+                "superseded",
+                "revoked",
+                "accepted",
+                "p-old",
+                "p-revoked",
+                "p-current",
+                "Old decision",
+                "Revoked decision",
+                "Current decision",
+                "Old rationale",
+                "Revoked rationale",
+                "Current rationale",
+                "participant-one",
+                "agenda-1",
+                "position-dissent"
+            ])
+                expect(history).toContain(value);
+        });
     });
 
     it("fact visibility: panel DOM renders decision history from validated detail", async () => {
@@ -399,6 +437,19 @@ describe("client entry framework", () => {
         expect(history.textContent).toContain("d-old");
         expect(history.textContent).toContain("Proposal ID");
         expect(history.textContent).not.toContain("Old rationale");
+    });
+
+    it("fact visibility: empty decision arrays use the explicit empty state", () => {
+        const detail = factStatus("running");
+        render(
+            renderObservabilitySections({ ...detail, acceptedDecisions: [], decisionHistory: [] })
+        );
+        expect(screen.getByLabelText("Accepted decisions").textContent).toContain(
+            "No accepted decisions."
+        );
+        expect(screen.getByLabelText("Decision history").textContent).toContain(
+            "No decision history."
+        );
     });
 
     it("maps active and terminal projections without mutating transcript order", () => {
