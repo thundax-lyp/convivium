@@ -8,26 +8,9 @@
 
 ## 当前任务项
 
-## 待审阅任务项
-
-- [ ] `role-composition/config`：RC-01 建立独立定义配置与解析模块
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T1。
-    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
-    - 前置依赖：RUNBOOK T0 PASS。
-    - 文件（5 个）：
-
-        - `plugin/src/role-composition/model.ts`
-        - `plugin/src/role-composition/resolve.ts`
-        - `plugin/src/config.ts`
-        - `plugin/tests/unit/role-composition/resolve.spec.ts`
-        - `plugin/tests/unit/config.spec.ts`
-
-    - 处理动作：实现内联定义校验、角色选择、配置快照与内容指纹。
-    - 验收点：T1 验证通过；非法配置和角色选择被拒绝，无选择时不调用能力校验，模块无反向依赖。
-
 - [ ] `protocol/role-selection`：RC-02 开放创建时的 Definition ID 选择
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T2。
-    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：RC-01 完成。
     - 文件（3 个）：
 
@@ -40,7 +23,7 @@
 
 - [ ] `dsh/role-composition`：RC-03 校验共享能力并透传创建配置
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T3。
-    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：RC-02 完成。
     - 文件（6 个）：
 
@@ -56,7 +39,7 @@
 
 - [ ] `repository/role-provenance`：RC-04 保存不可变的 Definition 绑定
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T4。
-    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：RC-03 完成。
     - 文件（6 个）：
 
@@ -72,7 +55,7 @@
 
 - [ ] `runtime/role-creation`：RC-05 接入会议身份创建前的配置切面
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T5。
-    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：RC-04 完成。
     - 文件（6 个）：
 
@@ -88,7 +71,7 @@
 
 - [ ] `tests/role-closure`：RC-06 验证创建、重放与失败闭环
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T6。
-    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：RC-05 完成。
     - 文件（3 个）：
 
@@ -101,7 +84,7 @@
 
 - [ ] `smoke/role-recovery`：RC-07 验证真实 DSH 隔离与冷恢复
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T7。
-    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：RC-06 完成。
     - 文件（9 个）：
 
@@ -120,7 +103,7 @@
 
 - [ ] `readiness/fr14`：RC-08 完成 FR-14 首版验证与文档收口
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T8。
-    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
     - 前置依赖：RC-07 完成。
     - 文件（8 个）：
 
@@ -135,5 +118,7 @@
 
     - 处理动作：完成全量验证，迁移证据并更新首版覆盖；删除已完成任务与临时 RUNBOOK。
     - 验收点：T8 通过；FR-14 仅以共享父 Preset 首版标记已实现，未覆盖边界如实保留，删除前后链接与 diff 检查通过。
+
+## 待审阅任务项
 
 ## 待讨论项

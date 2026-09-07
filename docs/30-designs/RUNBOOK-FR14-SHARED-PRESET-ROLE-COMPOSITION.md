@@ -502,3 +502,7 @@ Author 实际验证：工程 Markdown 文件链接检查 101 个、缺失 0；gi
 已修复 review 两项缺口：T6 完整 fixture 与唯一导出固定；T7 在 driveParticipant 中显式排除新场景，并以执行原函数的回归测试约束零自动提交。同步删除不必要的 Preset copy，两个阶段直接 resolve/mount 已有 minimal；不新增产品模块、依赖或生命周期责任。T7 第一阶段 JS fixture 必须与 T6 TS fixture 深相等，第二阶段只有版本与 persona 的明确变化。
 
 复审结论：Executable。本次仅修订 RUNBOOK；产品实现、聚焦测试与真实 smoke 仍为 Not Covered，必须由执行阶段完成。文档链接、文件范围、步骤字段和 diff 检查结果见本次交付说明。
+
+### T0 Execution — 2026-09-07
+
+用户已授权 Execute 及逐项删除 TODO、逐项 commit。基线 `581763b6049a1d2a0522be886c232f7276ca6bfa`，分支 `codex/fr14-role-composition-runbook`，工作区干净；Node v22.23.2、pnpm 10.7.0、DSH subagent 0.1.1-rc.2，公开 request 包含 persona/toolFilter。16:06 CST 开始的完整 verify 退出 0：76 个测试文件、664 项测试通过，format/lint/typecheck/build/environment/contract/samples/package 全部通过。T0 PASS。
