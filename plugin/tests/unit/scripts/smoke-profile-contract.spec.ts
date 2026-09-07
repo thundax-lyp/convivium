@@ -455,6 +455,208 @@ describe("convergence fixture contract", () => {
     });
 });
 
+const supportedCases = fixtureCases.filter((c) => c.scenario === "convergence-stalled");
+describe.each(supportedCases)("runtime result $scenario", (c) => {
+    const fixture = createConvergenceFixture(c.scenario),
+        o = fixture.observed;
+    const O = ["observed"],
+        A = [...O, "archived"],
+        P = [...A, "archive", "package"];
+    type Mutation = {
+        name: string;
+        path: (string | number)[];
+        operation: "replace" | "delete";
+        replacement?: unknown;
+    };
+    const mutations: Mutation[] = [];
+    const change = (path: (string | number)[], replacement: unknown) =>
+        mutations.push({
+            name: path.join(".") + "=" + String(replacement),
+            path,
+            operation: "replace",
+            replacement
+        });
+    const remove = (path: (string | number)[]) =>
+        mutations.push({ name: "missing " + path.join("."), path, operation: "delete" });
+    const records: { path: (string | number)[]; record: object }[] = [
+        { path: [], record: fixture },
+        { path: O, record: o },
+        { path: [...O, "lateSubmit"], record: o.lateSubmit },
+        ...o.submissions.map((record, i) => ({ path: [...O, "submissions", i], record })),
+        ...o.checkpoints.map((record, i) => ({ path: [...O, "checkpoints", i], record })),
+        ...o.children.map((record, i) => ({ path: [...O, "children", i], record }))
+    ];
+    for (const { path, record } of records) {
+        if (path.length) {
+            change(path, null);
+            change(path, []);
+        }
+        change([...path, "extra"], true);
+        for (const [key, value] of Object.entries(record)) {
+            remove([...path, key]);
+            if (typeof value === "number")
+                for (const bad of ["1", -1, 1.5, NaN, Infinity]) change([...path, key], bad);
+            if (typeof value === "string") {
+                change([...path, key], "");
+                change([...path, key], 1);
+            }
+            if (Array.isArray(value)) change([...path, key], {});
+        }
+    }
+    change(["ok"], false);
+    change(["scenario"], "wrong");
+    for (const labels of [
+        [],
+        fixture.assertions.slice(0, -1),
+        [...fixture.assertions, "extra"],
+        fixture.assertions.map(() => fixture.assertions[0]),
+        [fixture.assertions[1], fixture.assertions[0], ...fixture.assertions.slice(2)]
+    ])
+        change(["assertions"], labels);
+    for (const key of ["submissions", "checkpoints", "children"] as const) {
+        change([...O, key], o[key].slice(0, -1));
+        change([...O, key], [...o[key], o[key][0]]);
+    }
+    for (const [i, s] of o.submissions.entries()) {
+        for (const key of ["messageSeq", "turnSeq"]) {
+            change([...O, "submissions", i, key], 0);
+            change([...O, "submissions", i, key], 99);
+        }
+        change([...O, "submissions", i, "messageId"], "bad");
+        change(
+            [...O, "submissions", i, "meetingStatus"],
+            i === c.count - 1 ? "running" : "partial"
+        );
+        if (i > 0)
+            for (const key of ["turnId", "attemptId", "deliveryId", "messageId"] as const)
+                change([...O, "submissions", i, key], o.submissions[0][key]);
+        if (i > 0)
+            change([...O, "submissions", i, "meetingVersion"], o.submissions[i - 1].meetingVersion);
+        expect(s.messageSeq).toBe(i + 1);
+    }
+    for (const [i, cp] of o.checkpoints.entries()) {
+        for (const key of [
+            "afterSubmission",
+            "meetingVersion",
+            "stallCount",
+            "maxStalls",
+            "replanCount",
+            "maxReplans"
+        ] as const)
+            change([...O, "checkpoints", i, key], cp[key] + 1);
+        for (const key of ["status", "nextTurnId", "intent", "reason"])
+            change([...O, "checkpoints", i, key], "wrong");
+    }
+    for (const path of [A, [...A, "archive"], P, [...A, "termination"], [...P, "termination"]]) {
+        remove(path);
+        change(path, null);
+        change(path, {});
+    }
+    change([...A, "status"], "running");
+    change([...A, "meetingId"], "other");
+    change([...P, "meetingId"], "other");
+    remove([...P, "meetingId"]);
+    change([...O, "archivedVersion"], o.submissions.at(-1)?.meetingVersion);
+    change([...O, "archivedVersion"], o.archivedVersion + 1);
+    for (const path of [
+        [...P, "endedAt"],
+        [...A, "archive", "archivedAt"]
+    ]) {
+        remove(path);
+        for (const bad of ["bad", NaN, Infinity]) change(path, bad);
+    }
+    for (const key of [
+        "currentTurn",
+        "currentSpeakerId",
+        "currentAttemptId",
+        "stallCount",
+        "replanCount"
+    ])
+        change([...A, key], "x");
+    for (const key of ["pendingHandRaises", "meetingTasks"]) {
+        remove([...A, key]);
+        change([...A, key], [{}]);
+    }
+    for (const path of [
+        [...A, "termination"],
+        [...P, "termination"]
+    ]) {
+        for (const key of ["code", "reason", "decisionIds", "unresolvedQuestionIds"]) {
+            remove([...path, key]);
+            change([...path, key], 1);
+        }
+        change([...path, "code"], "failed");
+        change([...path, "reason"], "other");
+        change([...path, "decisionIds"], ["x"]);
+        change([...path, "unresolvedQuestionIds"], ["x"]);
+    }
+    remove([...P, "formalTranscript"]);
+    change([...P, "formalTranscript"], {});
+    change([...P, "formalTranscript"], o.archived.archive.package.formalTranscript.slice(1));
+    change(
+        [...P, "formalTranscript"],
+        [
+            ...o.archived.archive.package.formalTranscript,
+            o.archived.archive.package.formalTranscript[0]
+        ]
+    );
+    for (let i = 0; i < c.count; i++)
+        for (const key of ["id", "seq", "turnId", "speaker", "content"]) {
+            remove([...P, "formalTranscript", i, key]);
+            change([...P, "formalTranscript", i, key], key === "seq" ? 99 : "wrong");
+        }
+    for (let i = 0; i < 2; i++) {
+        change([...O, "children", i, "id"], "other");
+        change([...O, "children", i, "id"], o.children[1 - i].id);
+        change([...O, "children", i, "mode"], "one-shot");
+        change([...O, "children", i, "activity"], "active");
+    }
+    change([...O, "residentSessionIds"], ["x"]);
+    change([...O, "stableAfterLateSubmit"], false);
+    for (const bad of ["STALE_ATTEMPT", "IDEMPOTENCY_CONFLICT", "unknown", "CAPABILITY_REVOKED"])
+        change([...O, "lateSubmit", "code"], bad);
+    change([...O, "lateSubmit", "kind"], "unknown");
+    change([...O, "lateSubmit", "kind"], "tool");
+    change([...O, "lateSubmit", "ok"], true);
+    for (const key of ["questionId", "proposalId", "endResult"]) change([...O, key], "unexpected");
+    it("accepts independently checked complete evidence", () => {
+        assertFixtureContract(fixture);
+        expect(validateScenarioResult(fixture, c.scenario)).toBe(fixture);
+    });
+    it.each(mutations)("rejects $name", (mutation) => {
+        const before = JSON.stringify(fixture);
+        const malformed = mutateFixture(
+            fixture,
+            mutation.path,
+            mutation.operation,
+            mutation.replacement
+        );
+        expect(() => validateScenarioResult(malformed, c.scenario)).toThrow(
+            new Error("Convergence runtime result is invalid.")
+        );
+        expect(JSON.stringify(fixture)).toBe(before);
+    });
+    it.each([
+        { kind: "protocol", code: "IMMUTABLE_MEETING" },
+        { kind: "protocol", code: "ARCHIVED_MEETING" },
+        { kind: "protocol", code: "UNAUTHORIZED_CALLER" },
+        { kind: "tool", code: "CAPABILITY_REVOKED" },
+        { kind: "tool", code: "AGENT_NOT_LIVE" }
+    ])("accepts known late failure $kind/$code", (late) => {
+        const f = mutateFixture(fixture, [...O, "lateSubmit"], "replace", late);
+        expect(validateScenarioResult(f, c.scenario)).toBe(f);
+    });
+    it("allows archive DTO extras without equating private termination fields", () => {
+        const f = mutateFixture(
+            fixture,
+            [...P, "termination", "endedAt"],
+            "replace",
+            1700000000100
+        );
+        expect(validateScenarioResult(f, c.scenario)).toBe(f);
+    });
+});
+
 describe("meeting convergence smoke profile", () => {
     it("requires the complete convergence assertion set", () => {
         expect(() =>

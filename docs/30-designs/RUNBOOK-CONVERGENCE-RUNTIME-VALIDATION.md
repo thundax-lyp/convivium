@@ -297,25 +297,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T1.1：PASS。五场景完整归档DTO通过生产Schema与独立固定来源断言，深拷贝隔离通过；原contract保持，6项测试及格式检查通过。尚未接线新validator。 已完成机械段删除；本次提交包含本步全部变化。
 
-#### T1.2：完整验证 stalled 的提交与终态证据
-
-前置状态：T1.1 PASS 且已提交，完整stalled及预算fixture已经存在。
-允许修改：只准 plugin/scripts/smoke-profile/result.mjs、plugin/tests/unit/scripts/smoke-profile-contract.spec.ts 与本文。
-禁止修改：产品源码、其他现有测试、runner allowlist、原 convergence 规则、共享 coverage/TODO、依赖、其他目录；本步以外半成品不得暂存。
-
-执行：新增私有validator及局部helpers，只接线 convergence-stalled。一次实现 stalled 的Result1–8全部common规则，包括归档required关系、transcript、late/children；用保留fixture先独立断言，再验证原样返回。实现K/L/S/C/A/M/H全部反例及非q/p/b null检查、允许code/合法额外DTO字段正例。不接线另外四个selector。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile-contract.spec.ts
-pnpm --dir plugin exec prettier scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile-contract.spec.ts --check
-node --check plugin/scripts/smoke-profile/result.mjs
-git diff --check
-```
-允许对本步白名单中实际编辑的文件运行上述同路径 Prettier --write，然后重跑全部命令；不得格式化其他文件。
-
-PASS：完整stalled正例和正向边界通过；上述每类每条反例统一错误；archive={}、错误字段层级、旧假阳性均拒绝。 所有命令退出0；测试数仅记录、不作唯一判据。按保留执行规则删除本步并单次提交。
-STOP：需放宽错误/字段，或common路径在合法stalled上失败却删除断言；在允许文件内修实现并重跑，未解决不得提交。 保留失败增量/输出，不删本步、不提交失败内容；报告最后PASS与继续所需决定。
+执行进度 T1.2：PASS。stalled完整证据及K/L/S/C/A/M/H单点破坏矩阵通过，585项聚焦测试；生产Schema先检fixture，归档空对象、错误层级、终态重放、resident等假阳性已拒绝，格式/语法/diff通过。其他新selector未接线。 已完成机械段删除；本次提交包含本步全部变化。
 
 #### T1.3：验证阻塞 question 导致 no_consensus
 
