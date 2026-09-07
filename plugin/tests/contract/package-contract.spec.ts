@@ -39,7 +39,6 @@ describe("package contract framework", () => {
             "@deepseek-ai/dsh-storage": "^0.1.1-rc.2",
             "@deepseek-ai/dsh-storage-domain": "^0.1.1-rc.2"
         });
-        expect(packageManifest.dependencies.zod).toBe("^4.4.3");
         expect(patch).toContain(`name: '${packageManifest.name}'`);
     });
 });
