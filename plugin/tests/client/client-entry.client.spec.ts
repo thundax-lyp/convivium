@@ -7,6 +7,7 @@ import { mapMeetingPanelView } from "../../src/client/meeting-panel-view.js";
 import type { MeetingStatusResultV1 } from "../../src/protocol/index.js";
 import { MeetingStatusResultSchema } from "../../src/protocol/index.js";
 import type { PublicDecisionV1 } from "../../src/protocol/index.js";
+import type { PublicArchiveAgendaCandidateV1 } from "../../src/protocol/index.js";
 import { renderObservabilitySections } from "../../src/client/meeting-panel-sections.js";
 
 const meetingId = "meeting/1";
@@ -119,6 +120,7 @@ function factStatus(status: "created" | "running" | "waiting" | "paused" | "conv
         status,
         acceptedDecisions: [decisions[2]],
         decisionHistory: decisions,
+        parkingLot: factParkingLot(),
         ...(status === "waiting"
             ? {
                   currentTurn: undefined,
@@ -144,6 +146,7 @@ function factTerminalStatus(
         status,
         acceptedDecisions: [decisions[2]],
         decisionHistory: decisions,
+        parkingLot: factParkingLot(),
         termination: {
             ...terminalStatusResult().termination,
             code: status,
@@ -185,12 +188,12 @@ function factArchiveStatus(status: "archiving" | "archived") {
             artifactRefs: [],
             acceptedDecisions: [decisions[2]],
             decisionHistory: decisions,
+            parkingLot: factParkingLot(),
             proposals: [],
             completionFacts: [],
             agenda: [],
             issues: [],
             unresolvedQuestions: [],
-            parkingLot: [],
             formalTranscript: [message],
             participantProvenance: [],
             termination: {
@@ -284,6 +287,15 @@ function factDecisions(): PublicDecisionV1[] {
             dissentingPositionIds: ["position-dissent"]
         }
     ];
+}
+
+function factParkingLot(): PublicArchiveAgendaCandidateV1[] {
+    return (["pending", "promoted", "parked", "rejected"] as const).map((status) => ({
+        id: `candidate-${status}`,
+        title: `Topic ${status}`,
+        reason: `Reason ${status}`,
+        status
+    }));
 }
 
 function deferred<T>() {
@@ -393,6 +405,17 @@ describe("client entry framework", () => {
                 "position-dissent"
             ])
                 expect(history).toContain(value);
+            const parking = screen.getByLabelText("Parking Lot");
+            expect(
+                [...parking.querySelectorAll("[data-candidate-id]")].map((item) =>
+                    item.getAttribute("data-candidate-id")
+                )
+            ).toEqual([
+                "candidate-pending",
+                "candidate-promoted",
+                "candidate-parked",
+                "candidate-rejected"
+            ]);
         });
     });
 
@@ -450,6 +473,26 @@ describe("client entry framework", () => {
         expect(screen.getByLabelText("Decision history").textContent).toContain(
             "No decision history."
         );
+    });
+
+    it("fact visibility: parking lot keeps all dispositions and empty state", () => {
+        const detail = factStatus("running");
+        render(renderObservabilitySections(detail));
+        const section = screen.getByLabelText("Parking Lot");
+        expect(
+            [...section.querySelectorAll("[data-candidate-id]")].map((item) =>
+                item.getAttribute("data-candidate-id")
+            )
+        ).toEqual([
+            "candidate-pending",
+            "candidate-promoted",
+            "candidate-parked",
+            "candidate-rejected"
+        ]);
+        expect(section.textContent).toContain("Reason rejected");
+        cleanup();
+        render(renderObservabilitySections({ ...detail, parkingLot: [] }));
+        expect(screen.getByLabelText("Parking Lot").textContent).toContain("No parking lot items.");
     });
 
     it("maps active and terminal projections without mutating transcript order", () => {

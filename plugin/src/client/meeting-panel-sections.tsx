@@ -151,6 +151,28 @@ export function renderObservabilitySections(detail: MeetingStatusResultV1): Reac
         ),
         createElement(
             "section",
+            { "aria-label": "Parking Lot" },
+            createElement("h4", null, "Parking Lot"),
+            createElement("p", null, "All agenda candidates and their current disposition."),
+            view.parkingLot.length === 0
+                ? createElement("p", null, "No parking lot items.")
+                : createElement(
+                      "ol",
+                      null,
+                      view.parkingLot.map((candidate) =>
+                          createElement(
+                              "li",
+                              { key: candidate.id, "data-candidate-id": candidate.id },
+                              row("Candidate ID", candidate.id),
+                              row("Title", candidate.title),
+                              row("Reason", candidate.reason),
+                              row("Status", candidate.status)
+                          )
+                      )
+                  )
+        ),
+        createElement(
+            "section",
             { "aria-label": "Accepted decisions" },
             createElement("h4", null, "Accepted decisions"),
             view.acceptedDecisions.length === 0

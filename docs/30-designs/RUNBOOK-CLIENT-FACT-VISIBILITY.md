@@ -138,22 +138,6 @@ readonly turnObjective: string;
 
 全部 shell 命令从仓库根执行；不得照抄到其他目录。
 
-### T2：后续议题 Parking Lot
-
-前置状态：T1 PASS。
-允许修改：两个生产文件及现有 client spec。
-禁止修改：后端候选处置、Task 模型、Decision 语义、写控制。
-
-执行：view 增加 parkingLot 映射；在 Meeting tasks 后、Accepted decisions 前新增 `Parking Lot` section（aria-label=h4），说明 `All agenda candidates and their current disposition.`。空文案 `No parking lot items.`。非空 ol/li，key=id、data-candidate-id=id，固定行 `Candidate ID`、`Title`、`Reason`、`Status`。不筛状态、不重排。新增 `fact visibility: parking lot across lifecycle`，全部 12 个 status 均用非空 fixture 断言四项顺序、全部 title/reason/status；独立空 fixture 只显示空文案。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run --project client tests/client/client-entry.client.spec.ts -t 'fact visibility: parking lot'
-pnpm --dir plugin typecheck:client
-```
-PASS：两个命令退出码 0，四种处置在归档前后均保留。
-STOP：缺候选、改排序、引入 owner/default 状态、断言失败；保留工作区，不执行下步。
-
 ### T3：风险与归档 issues
 
 前置状态：T2 PASS。

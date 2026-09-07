@@ -5,6 +5,7 @@ import type {
     PublicBlockingFactV1,
     PublicDecisionV1,
     PublicDecisionCandidateV1,
+    PublicArchiveAgendaCandidateV1,
     PublicRiskV1,
     PublicMeetingMessageV1,
     PublicTerminationV1
@@ -22,6 +23,7 @@ export interface MeetingPanelView {
     readonly meetingTasks: readonly MeetingTaskProjectionV1[];
     readonly acceptedDecisions: readonly PublicDecisionV1[];
     readonly decisionHistory: readonly PublicDecisionV1[];
+    readonly parkingLot: readonly PublicArchiveAgendaCandidateV1[];
     readonly pendingDecisionCandidates: readonly PublicDecisionCandidateV1[];
     readonly risks: readonly PublicRiskV1[];
     readonly limits: MeetingStatusResultV1["limits"];
@@ -60,6 +62,7 @@ export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanel
         meetingTasks: detail.meetingTasks,
         acceptedDecisions: discussion?.acceptedDecisions ?? archivePackage?.acceptedDecisions ?? [],
         decisionHistory: discussion?.decisionHistory ?? archivePackage?.decisionHistory ?? [],
+        parkingLot: discussion?.parkingLot ?? archivePackage?.parkingLot ?? [],
         pendingDecisionCandidates: discussion?.pendingDecisionCandidates ?? [],
         risks: discussion?.risks ?? [],
         limits: detail.limits,
