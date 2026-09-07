@@ -1,14 +1,14 @@
 # DSH Runtime Vertical Slice Evidence
 
-> 当前证据：本文按代码基线记录；未明确标注为当前 HEAD 的真实 profile/browser 记录均只适用于其原始 commit，不外推为当前 HEAD。当前覆盖总览以 [Current Implementation Coverage](./CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
+> 历史证据：本文各项验证仅适用于其明确记录的 commit，不随分支 HEAD 前移而更新，也不得外推到后续提交。当前覆盖总览以 [Current Implementation Coverage](./CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
 
-## Current HEAD Verification
+## Historical Baseline Verification — 46bfebc
 
 - `targetCommit`: `46bfebc9804c9486fa4f77cccfcf2fa20486a01d`
 - `date`: `2026-09-07`
 - `environment`: Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`
 - `pnpm --dir plugin verify`：Pass；format、lint、Host/Client typecheck、build、environment、contract、Agent Definition samples、package verifier 均通过；完整 Vitest suite 为 77 test files、588 tests。
-- `Not Covered`：本次未重新运行真实 DSH profile selector、Browser 交互或 bounded stress/resource validation；下方仅在明确标注为当前 HEAD 的记录可以外推。
+- `Not Covered`：该次未重新运行真实 DSH profile selector、Browser 交互或 bounded stress/resource validation；77 test files、588 tests 仅对应上述历史基线，不证明后续 snapshot、归档或测试删改已经验证。下方其他记录也仅适用于各自注明的 commit。
 
 ## PR #45 Regression Evidence
 
