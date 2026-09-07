@@ -1,8 +1,11 @@
 export function validateScenarioResult(value, expectedScenario) {
     if (
-        ["convergence-stalled", "convergence-no-consensus", "convergence-reset"].includes(
-            expectedScenario
-        )
+        [
+            "convergence-stalled",
+            "convergence-no-consensus",
+            "convergence-reset",
+            "convergence-turn-budget-completion"
+        ].includes(expectedScenario)
     ) {
         validateConvergenceRuntimeResult(value, expectedScenario);
         return value;
@@ -101,22 +104,35 @@ function validateConvergenceRuntimeResult(value, expectedScenario) {
     };
     const question = expectedScenario === "convergence-no-consensus";
     const reset = expectedScenario === "convergence-reset";
+    const budget = expectedScenario === "convergence-turn-budget-completion";
     const labels = [
-        "first-progress-baseline",
-        "refocus-observed",
-        "replan-observed",
-        ...(reset
-            ? ["progress-resets-both-counters", "refocus-after-reset", "replan-after-reset"]
-            : []),
-        question ? "blocking-question-no-consensus" : "partial-stalled",
+        ...(budget
+            ? [
+                  "last-valid-turn-before-budget",
+                  "business-completion-before-budget",
+                  "captain-completed-after-converging"
+              ]
+            : [
+                  "first-progress-baseline",
+                  "refocus-observed",
+                  "replan-observed",
+                  ...(reset
+                      ? [
+                            "progress-resets-both-counters",
+                            "refocus-after-reset",
+                            "replan-after-reset"
+                        ]
+                      : []),
+                  question ? "blocking-question-no-consensus" : "partial-stalled"
+              ]),
         "terminal-submit-rejected",
         "archive-consistent",
         "sessions-drained"
     ];
-    const count = reset ? 7 : 4,
-        checkpointCount = reset ? 6 : 3,
-        outcome = question ? "no_consensus" : "partial",
-        code = question ? "no_consensus" : "stalled";
+    const count = budget ? 2 : reset ? 7 : 4,
+        checkpointCount = budget ? 2 : reset ? 6 : 3,
+        outcome = budget ? "converging" : question ? "no_consensus" : "partial",
+        code = budget ? "objective_satisfied" : question ? "no_consensus" : "stalled";
     requireValid(exactKeys(value, ["ok", "scenario", "assertions", "meetingId", "observed"]));
     requireValid(
         value.ok === true && value.scenario === expectedScenario && nonempty(value.meetingId)
@@ -196,10 +212,20 @@ function validateConvergenceRuntimeResult(value, expectedScenario) {
         requireValid(
             c.afterSubmission === index + 1 &&
                 c.meetingVersion === o.submissions[index].meetingVersion &&
-                c.status === "running" &&
+                c.status === (budget && index === 1 ? "converging" : "running") &&
                 c.maxStalls === 3 &&
                 c.maxReplans === 1
         );
+        if (budget && index === 1) {
+            requireValid(
+                c.stallCount === 0 &&
+                    c.replanCount === 0 &&
+                    c.intent === null &&
+                    c.reason === null &&
+                    c.nextTurnId === null
+            );
+            continue;
+        }
         requireValid(
             c.stallCount === index % 3 &&
                 c.replanCount === (index % 3 === 2 ? 1 : 0) &&
@@ -251,8 +277,54 @@ function validateConvergenceRuntimeResult(value, expectedScenario) {
     requireValid(
         o.questionId === (question ? "question-" + o.submissions[0].deliveryId + "-1" : null) &&
             o.proposalId === (reset ? o.submissions[3].deliveryId + "-proposal-1" : null) &&
-            o.endResult === null
+            (budget || o.endResult === null)
     );
+    if (budget) {
+        requireValid(
+            exactKeys(o.endResult, ["status", "terminationCode"]) &&
+                o.endResult.status === "completed" &&
+                o.endResult.terminationCode === "objective_satisfied"
+        );
+        requireValid(
+            isRecord(p.objectiveContract) &&
+                Array.isArray(p.objectiveContract.acceptanceCriteria) &&
+                p.objectiveContract.acceptanceCriteria.length === 1
+        );
+        const criterion = p.objectiveContract.acceptanceCriteria[0];
+        requireValid(isRecord(criterion) && nonempty(criterion.id) && criterion.satisfied === true);
+        requireValid(
+            Array.isArray(p.agenda) &&
+                p.agenda.length === 1 &&
+                isRecord(p.agenda[0]) &&
+                nonempty(p.agenda[0].id) &&
+                p.agenda[0].status === "resolved"
+        );
+        requireValid(Array.isArray(p.completionFacts));
+        for (const [kind, subjectId] of [
+            ["criterion_evidence", criterion.id],
+            ["agenda_resolution", p.agenda[0].id]
+        ]) {
+            const facts = p.completionFacts.filter(
+                (f) =>
+                    isRecord(f) &&
+                    f.kind === kind &&
+                    f.status === "active" &&
+                    f.subjectId === subjectId
+            );
+            requireValid(
+                facts.length === 1 &&
+                    Array.isArray(facts[0].evidenceMessageIds) &&
+                    facts[0].evidenceMessageIds.length === 1 &&
+                    facts[0].evidenceMessageIds[0] === o.submissions[0].messageId
+            );
+        }
+        requireValid(
+            isRecord(a.limits) &&
+                a.limits.maxTurns === 2 &&
+                a.limits.maxSpeakersPerTurn === 1 &&
+                a.limits.maxTotalMessages === 100
+        );
+    }
     if (reset) {
         requireValid(Array.isArray(p.proposals));
         const proposals = p.proposals.filter(

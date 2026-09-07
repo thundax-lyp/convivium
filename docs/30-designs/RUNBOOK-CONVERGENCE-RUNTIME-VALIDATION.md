@@ -303,25 +303,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T1.4：PASS。reset七提交/六checkpoint两组计数、第四delivery Proposal及R/共同矩阵通过；2124项聚焦测试与格式通过。 已完成机械段删除；本次提交包含本步全部变化。
 
-#### T1.5：验证 Turn 预算的业务完成证据
-
-前置状态：T1.4 PASS 且已提交。
-允许修改：只准 plugin/scripts/smoke-profile/result.mjs、plugin/tests/unit/scripts/smoke-profile-contract.spec.ts 与本文。
-禁止修改：产品源码、其他现有测试、runner allowlist、原 convergence 规则、共享 coverage/TODO、依赖、其他目录；本步以外半成品不得暂存。
-
-执行：接线 convergence-turn-budget-completion；使用T1.1已有预算fixture，实现两条submission、budget末null checkpoint、endResult、criterion/agenda事实及limits，执行B与适用K/L/S/C/A/M/H。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile-contract.spec.ts
-pnpm --dir plugin exec prettier scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile-contract.spec.ts --check
-node --check plugin/scripts/smoke-profile/result.mjs
-git diff --check
-```
-允许对本步白名单中实际编辑的文件运行上述同路径 Prettier --write，然后重跑全部命令；不得格式化其他文件。
-
-PASS：converging→显式completed证据通过；nullable三字段与预算各项负例拒绝；前三selector保持。 所有命令退出0；测试数仅记录、不作唯一判据。按保留执行规则删除本步并单次提交。
-STOP：把converging改成自动completed，或弱化completionFacts要求。 保留失败增量/输出，不删本步、不提交失败内容；报告最后PASS与继续所需决定。
+执行进度 T1.5：PASS。Turn预算独立fixture及B/共同矩阵通过，2571项；预算末checkpoint三null、两条completionFacts、endResult与limits受严格校验。 已完成机械段删除；本次提交包含本步全部变化。
 
 #### T1.6：验证 message 预算及五 literal 接线
 

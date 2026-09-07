@@ -456,7 +456,12 @@ describe("convergence fixture contract", () => {
 });
 
 const supportedCases = fixtureCases.filter((c) =>
-    ["convergence-stalled", "convergence-no-consensus", "convergence-reset"].includes(c.scenario)
+    [
+        "convergence-stalled",
+        "convergence-no-consensus",
+        "convergence-reset",
+        "convergence-turn-budget-completion"
+    ].includes(c.scenario)
 );
 describe.each(supportedCases)("runtime result $scenario", (c) => {
     const fixture = createConvergenceFixture(c.scenario),
@@ -646,6 +651,47 @@ describe.each(supportedCases)("runtime result $scenario", (c) => {
             change([...P, "proposals", 0, key], key === "revision" ? 2 : "wrong");
         }
         change([...O, "checkpoints", 3, "replanCount"], 1);
+    }
+    if (c.count === 2) {
+        change([...O, "endResult"], null);
+        for (const key of ["status", "terminationCode"]) {
+            remove([...O, "endResult", key]);
+            change([...O, "endResult", key], "wrong");
+        }
+        change([...O, "endResult", "extra"], true);
+        change([...O, "submissions", 1, "meetingStatus"], "completed");
+        for (const key of ["nextTurnId", "intent", "reason"])
+            change([...O, "checkpoints", 1, key], "x");
+        change([...P, "objectiveContract", "acceptanceCriteria", 0, "satisfied"], false);
+        change([...P, "agenda", 0, "status"], "discussing");
+        for (const path of [
+            [...P, "objectiveContract"],
+            [...P, "objectiveContract", "acceptanceCriteria"],
+            [...P, "agenda"],
+            [...P, "completionFacts"],
+            [...A, "limits"]
+        ]) {
+            remove(path);
+            change(path, {});
+        }
+        change([...P, "completionFacts"], []);
+        for (let i = 0; i < 2; i++)
+            for (const key of ["kind", "status", "subjectId", "evidenceMessageIds"]) {
+                remove([...P, "completionFacts", i, key]);
+                change(
+                    [...P, "completionFacts", i, key],
+                    key === "evidenceMessageIds" ? ["message-d1"] : "wrong"
+                );
+            }
+        for (const key of ["maxTurns", "maxSpeakersPerTurn", "maxTotalMessages"] as const) {
+            remove([...A, "limits", key]);
+            change([...A, "limits", key], o.archived.limits[key] + 1);
+        }
+        for (const path of [
+            [...A, "termination"],
+            [...P, "termination"]
+        ])
+            for (const code of ["max_turns", "message_limit"]) change([...path, "code"], code);
     }
     it("accepts independently checked complete evidence", () => {
         assertFixtureContract(fixture);
