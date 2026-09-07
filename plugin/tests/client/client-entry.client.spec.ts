@@ -8,6 +8,7 @@ import type { MeetingStatusResultV1 } from "../../src/protocol/index.js";
 import { MeetingStatusResultSchema } from "../../src/protocol/index.js";
 import type { PublicDecisionV1 } from "../../src/protocol/index.js";
 import type { PublicArchiveAgendaCandidateV1 } from "../../src/protocol/index.js";
+import type { PublicArchiveIssueV1 } from "../../src/protocol/index.js";
 import { renderObservabilitySections } from "../../src/client/meeting-panel-sections.js";
 
 const meetingId = "meeting/1";
@@ -121,6 +122,7 @@ function factStatus(status: "created" | "running" | "waiting" | "paused" | "conv
         acceptedDecisions: [decisions[2]],
         decisionHistory: decisions,
         parkingLot: factParkingLot(),
+        risks: factRisks(),
         ...(status === "waiting"
             ? {
                   currentTurn: undefined,
@@ -147,6 +149,7 @@ function factTerminalStatus(
         acceptedDecisions: [decisions[2]],
         decisionHistory: decisions,
         parkingLot: factParkingLot(),
+        risks: factRisks(),
         termination: {
             ...terminalStatusResult().termination,
             code: status,
@@ -192,7 +195,31 @@ function factArchiveStatus(status: "archiving" | "archived") {
             proposals: [],
             completionFacts: [],
             agenda: [],
-            issues: [],
+            issues: [
+                ...factRisks().map(
+                    ({
+                        sourceMessageId,
+                        affectedOutputIds,
+                        affectedCriterionIds,
+                        violatedConstraintIds,
+                        blockingObjectionIds,
+                        blocking,
+                        safeDefaultAvailable,
+                        impact,
+                        urgency,
+                        reversibility,
+                        ...issue
+                    }) => issue
+                ),
+                {
+                    id: "issue-waiting",
+                    title: "Waiting issue",
+                    description: "Awaiting owner",
+                    disposition: "follow_up",
+                    status: "waiting",
+                    relatedTaskIds: []
+                }
+            ],
             unresolvedQuestions: [],
             formalTranscript: [message],
             participantProvenance: [],
@@ -296,6 +323,71 @@ function factParkingLot(): PublicArchiveAgendaCandidateV1[] {
         reason: `Reason ${status}`,
         status
     }));
+}
+
+function factRisks(): PublicArchiveIssueV1[] {
+    return [
+        {
+            id: "risk-accepted",
+            title: "Risk accepted",
+            description: "Description risk-accepted",
+            disposition: "accepted_risk",
+            status: "accepted_risk",
+            rationale: "Rationale risk-accepted",
+            ownerId: "participant-one",
+            relatedTaskIds: ["task-follow-up"],
+            sourceMessageId: "message-evidence",
+            affectedOutputIds: [],
+            affectedCriterionIds: [],
+            violatedConstraintIds: [],
+            blockingObjectionIds: [],
+            blocking: false,
+            safeDefaultAvailable: true,
+            impact: "bounded",
+            urgency: "later",
+            reversibility: "reversible"
+        },
+        {
+            id: "risk-follow-up",
+            title: "Risk follow-up",
+            description: "Description risk-follow-up",
+            disposition: "follow_up",
+            status: "deferred",
+            rationale: "Rationale risk-follow-up",
+            ownerId: "participant-one",
+            relatedTaskIds: ["task-follow-up"],
+            sourceMessageId: "message-evidence",
+            affectedOutputIds: [],
+            affectedCriterionIds: [],
+            violatedConstraintIds: [],
+            blockingObjectionIds: [],
+            blocking: false,
+            safeDefaultAvailable: true,
+            impact: "bounded",
+            urgency: "later",
+            reversibility: "reversible"
+        },
+        {
+            id: "risk-out",
+            title: "Risk out",
+            description: "Description risk-out",
+            disposition: "out_of_scope",
+            status: "out_of_scope",
+            rationale: "Rationale risk-out",
+            ownerId: "participant-one",
+            relatedTaskIds: ["task-follow-up"],
+            sourceMessageId: "message-evidence",
+            affectedOutputIds: [],
+            affectedCriterionIds: [],
+            violatedConstraintIds: [],
+            blockingObjectionIds: [],
+            blocking: false,
+            safeDefaultAvailable: true,
+            impact: "bounded",
+            urgency: "later",
+            reversibility: "reversible"
+        }
+    ];
 }
 
 function deferred<T>() {
@@ -493,6 +585,21 @@ describe("client entry framework", () => {
         cleanup();
         render(renderObservabilitySections({ ...detail, parkingLot: [] }));
         expect(screen.getByLabelText("Parking Lot").textContent).toContain("No parking lot items.");
+    });
+
+    it("fact visibility: risks and archived issues preserve status, reason, owner and tasks", () => {
+        const detail = factStatus("running");
+        render(renderObservabilitySections(detail));
+        const section = screen.getByLabelText("Risks");
+        expect(section.textContent).toContain("risk-accepted");
+        expect(section.textContent).toContain("Rationale risk-follow-up");
+        expect(section.textContent).toContain("participant-one");
+        expect(section.textContent).toContain("task-follow-up");
+        cleanup();
+        const archived = factArchiveStatus("archived");
+        render(renderObservabilitySections(archived));
+        expect(screen.getByLabelText("Risks").textContent).toContain("Waiting issue");
+        expect(screen.getByLabelText("Risks").textContent).toContain("waiting");
     });
 
     it("maps active and terminal projections without mutating transcript order", () => {

@@ -6,7 +6,7 @@ import type {
     PublicDecisionV1,
     PublicDecisionCandidateV1,
     PublicArchiveAgendaCandidateV1,
-    PublicRiskV1,
+    PublicArchiveIssueV1,
     PublicMeetingMessageV1,
     PublicTerminationV1
 } from "../protocol/index.js";
@@ -25,7 +25,7 @@ export interface MeetingPanelView {
     readonly decisionHistory: readonly PublicDecisionV1[];
     readonly parkingLot: readonly PublicArchiveAgendaCandidateV1[];
     readonly pendingDecisionCandidates: readonly PublicDecisionCandidateV1[];
-    readonly risks: readonly PublicRiskV1[];
+    readonly risks: readonly PublicArchiveIssueV1[];
     readonly limits: MeetingStatusResultV1["limits"];
     readonly pauseReason: string;
     readonly pausedBy: string;
@@ -64,7 +64,7 @@ export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanel
         decisionHistory: discussion?.decisionHistory ?? archivePackage?.decisionHistory ?? [],
         parkingLot: discussion?.parkingLot ?? archivePackage?.parkingLot ?? [],
         pendingDecisionCandidates: discussion?.pendingDecisionCandidates ?? [],
-        risks: discussion?.risks ?? [],
+        risks: discussion?.risks ?? archivePackage?.issues ?? [],
         limits: detail.limits,
         pauseReason: active?.pauseControl.reason ?? "None",
         pausedBy:

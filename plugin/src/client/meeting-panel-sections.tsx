@@ -282,10 +282,17 @@ export function renderObservabilitySections(detail: MeetingStatusResultV1): Reac
                       view.risks.map((risk) =>
                           createElement(
                               "li",
-                              { key: risk.id },
+                              { key: risk.id, "data-risk-id": risk.id },
+                              row("Issue ID", risk.id),
                               row("Title", risk.title),
+                              row("Description", risk.description),
                               row("Status", risk.status),
-                              row("Disposition", risk.disposition)
+                              row("Disposition", risk.disposition),
+                              risk.rationale === undefined
+                                  ? null
+                                  : row("Rationale", risk.rationale),
+                              risk.ownerId === undefined ? null : row("Owner", risk.ownerId),
+                              row("Related task IDs", risk.relatedTaskIds.join(", ") || "None")
                           )
                       )
                   )

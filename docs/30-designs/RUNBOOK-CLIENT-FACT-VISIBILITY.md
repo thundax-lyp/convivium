@@ -138,26 +138,6 @@ readonly turnObjective: string;
 
 全部 shell 命令从仓库根执行；不得照抄到其他目录。
 
-### T3：风险与归档 issues
-
-前置状态：T2 PASS。
-允许修改：两个生产文件及现有 client spec。
-禁止修改：风险接受/撤销 command、归档类型、riskLevel、blockingFacts 推导。
-
-执行：
-1. view.risks 类型改为 §4.1 的 `readonly PublicArchiveIssueV1[]`，归档从 issues 读取；移除不再使用的 PublicRiskV1 import，加入对应公开类型。直接赋值，不做 active-field 伪造或类型断言。
-2. Risks 保留 aria-label/h4；归档时增加说明 `Archived issues and risks.`。每项 key=id、data-risk-id=id；固定行 `Issue ID`、`Title`、`Description`、`Status`、`Disposition`，optional `Rationale`、`Owner`，required `Related task IDs`（空为 None）。所有状态/处置原样显示。
-3. 空数组在活动/执行终态为 `No risks.`，在归档两态为 `No archived issues or risks.`。非空任何状态均不得显示空文案。
-4. 新增 `fact visibility: risks across lifecycle`，全部 12 个 status 使用 §6；归档四项含 waiting；补 parameterized archived issue 状态 accepted、resolved、open 检查原样显示。去掉 rationale/owner 后可渲染且缺对应行；relatedTaskIds=[] 为 None。风险接受/后续事项/范围外理由与 owner、task ID 均可见。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run --project client tests/client/client-entry.client.spec.ts -t 'fact visibility: risks'
-pnpm --dir plugin typecheck:client
-```
-PASS：退出码均 0；归档含 issue-waiting 且没有 No risks 假空态，optional 缺失无伪造。
-STOP：需要把 ArchiveIssue 转成 PublicRisk、过滤掉非 open 或非 risk disposition 项、修改后台状态/Schema，或验证失败。只停止，无运行态回滚。
-
 ### T4：原因展示与刷新一致性
 
 前置状态：T3 PASS。
