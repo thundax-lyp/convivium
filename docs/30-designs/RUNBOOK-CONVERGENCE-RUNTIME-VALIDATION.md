@@ -315,20 +315,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T4：PASS。七次提交与第四次唯一Proposal已实现；第四checkpoint保留replanCount=1和归档丢失Proposal的负例拒绝。18 probe+3055 contract tests PASS。 已完成机械段删除；本次提交包含本步全部变化。
 
-### T5：两种硬预算边界优先业务完成
-
-前置状态：T4 PASS。
-允许修改：`plugin/scripts/smoke-profile/probe/scenarios/convergence.js`、`plugin/tests/unit/scripts/convergence-probe.spec.ts`。
-禁止修改：completion guards、自动 terminal 行为、clock、Client。
-
-执行：新增两函数，严格各自 limits。第一条证据提交后，第二条 completionClaims 使用本次 context 与 first messageId；让 submit helper 的 completionClaims 同样接受唯一局部同步 `(context)=>claims` 以取得正式 ID。第二条完成后先验证 converging/no next Turn 与相应预算边界，再按固定 Captain end 输入完成。新增私有 `runConvergenceBudgetCompletion(runtime, limits)` 供两个薄 export 调用，不另建通用场景配置 registry。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run tests/unit/scripts/convergence-probe.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
-```
-PASS：两类 budget 独立通过；错误 partial/max_turns/message_limit/converging 缺失均失败；Captain end 不在其他三个新函数中出现。
-STOP：需要把 converging 假装 completed、使用 waiver 或调用领域函数；报告“自动完成/显式完成”的准确边界，禁止实施产品修复。
+执行进度 T5：PASS。Turn/message预算独立limits与两个薄入口完成；第二条claims引用第一条证据，必须converging后Captain显式completed。30 probe+3055 contract tests PASS，错误终态/缺converging/end失败/证据丢失/缺criterion拒绝。 已完成机械段删除；本次提交包含本步全部变化。
 
 ### T6：selector 接线与完整本地验证
 

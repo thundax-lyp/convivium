@@ -176,7 +176,11 @@ async function submitConvergenceTurn(runtime, meetingId, ordinal, changes, compl
         agendaRelation: "on_topic",
         changes: typeof changes === "function" ? changes(c) : changes
     };
-    if (completionClaims !== undefined) input.completionClaims = completionClaims;
+    if (completionClaims !== undefined) {
+        input.kind = "evidence";
+        input.completionClaims =
+            typeof completionClaims === "function" ? completionClaims(c) : completionClaims;
+    }
     const submitted = await runtime.callTool(
         runtime.ctx,
         delivery.agent,
@@ -543,5 +547,127 @@ export async function runConvergenceResetScenario(runtime) {
             "archive-consistent",
             "sessions-drained"
         ]
+    });
+}
+
+async function runConvergenceBudgetCompletion(runtime, limits) {
+    const { meetingId } = await createConvergenceMeeting(runtime, limits);
+    const first = await submitConvergenceTurn(runtime, meetingId, 1, {});
+    assertConvergenceCheckpoint(runtime, first.checkpoint, 1);
+    const final = await submitConvergenceTurn(runtime, meetingId, 2, {}, (context) => {
+        const criterionId = context.objectiveContract.acceptanceCriteria[0]?.id;
+        runtime.assert(criterionId, "Missing completion criterion");
+        return {
+            criterionClaims: [
+                {
+                    subjectId: criterionId,
+                    evidenceMessageIds: [first.submitted.result.messageId],
+                    taskIds: []
+                }
+            ],
+            agendaResolution: {
+                agendaItemId: context.activeAgendaItem.id,
+                resolution: "Smoke criterion satisfied",
+                evidenceMessageIds: [first.submitted.result.messageId]
+            }
+        };
+    });
+    const checkpoint = final.checkpoint;
+    runtime.assert(
+        final.submitted.result.meetingStatus === "converging" &&
+            checkpoint?.status === "converging" &&
+            checkpoint.nextTurnId === null &&
+            checkpoint.intent === null &&
+            checkpoint.reason === null &&
+            checkpoint.stallCount === 0 &&
+            checkpoint.replanCount === 0,
+        "Business completion did not precede budget termination"
+    );
+    runtime.assert(
+        (limits.maxTurns === 2 && final.delivery.value.turn.seq === 2) ||
+            (limits.maxTotalMessages === 2 && final.submitted.result.messageSeq === 2),
+        "Final submission did not reach the configured budget"
+    );
+    const ended = await runtime.callTool(
+        runtime.ctx,
+        runtime.captain.agent,
+        "convivium_end_meeting",
+        {
+            protocolVersion: 1,
+            meetingId,
+            expectedMeetingVersion: checkpoint.meetingVersion,
+            outcome: "completed",
+            reason: "Budget boundary objective satisfied",
+            acceptedDecisionIds: [],
+            deferredAgendaItemIds: [],
+            waivers: [],
+            requestId: "smoke-" + runtime.scenario + "-end-1"
+        },
+        runtime.nextCall()
+    );
+    runtime.assert(
+        ended.result.status === "completed" &&
+            ended.result.terminationCode === "objective_satisfied",
+        "Captain did not complete the converging Meeting"
+    );
+    const observed = {
+        submissions: [recordConvergenceSubmission(first), recordConvergenceSubmission(final)],
+        checkpoints: [first.checkpoint, checkpoint],
+        questionId: null,
+        proposalId: null,
+        endResult: { status: ended.result.status, terminationCode: ended.result.terminationCode },
+        ...(await finishConvergenceObservation(runtime, meetingId, final.delivery, final.input))
+    };
+    assertConvergenceArchive(runtime, observed, "objective_satisfied");
+    const p = observed.archived.archive.package;
+    runtime.assert(
+        p.objectiveContract.acceptanceCriteria[0].satisfied && p.agenda[0].status === "resolved",
+        "Archived objective is not satisfied"
+    );
+    for (const [kind, subjectId] of [
+        ["criterion_evidence", p.objectiveContract.acceptanceCriteria[0].id],
+        ["agenda_resolution", p.agenda[0].id]
+    ]) {
+        runtime.assert(
+            p.completionFacts.some(
+                (fact) =>
+                    fact.kind === kind &&
+                    fact.subjectId === subjectId &&
+                    fact.status === "active" &&
+                    fact.evidenceMessageIds.length === 1 &&
+                    fact.evidenceMessageIds[0] === first.submitted.result.messageId
+            ),
+            "Archived completion evidence missing"
+        );
+    }
+    await runtime.writeResult({
+        ok: true,
+        scenario: runtime.scenario,
+        meetingId,
+        observed,
+        assertions: [
+            "last-valid-turn-before-budget",
+            "business-completion-before-budget",
+            "captain-completed-after-converging",
+            "terminal-submit-rejected",
+            "archive-consistent",
+            "sessions-drained"
+        ]
+    });
+}
+
+export async function runConvergenceTurnBudgetCompletionScenario(runtime) {
+    await runConvergenceBudgetCompletion(runtime, {
+        maxTurns: 2,
+        maxSpeakersPerTurn: 1,
+        maxTotalMessages: 100
+    });
+}
+
+export async function runConvergenceMessageBudgetCompletionScenario(runtime) {
+    await runConvergenceBudgetCompletion(runtime, {
+        maxTurns: 10,
+        maxSpeakersPerTurn: 1,
+        maxTotalMessages: 2
     });
 }

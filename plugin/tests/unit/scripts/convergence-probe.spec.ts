@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
     runConvergenceStalledScenario,
     runConvergenceNoConsensusScenario,
-    runConvergenceResetScenario
+    runConvergenceResetScenario,
+    runConvergenceTurnBudgetCompletionScenario,
+    runConvergenceMessageBudgetCompletionScenario
 } from "../../../scripts/smoke-profile/probe/scenarios/convergence.js";
 import { validateScenarioResult } from "../../../scripts/smoke-profile/result.mjs";
 import { createProbeSupport } from "../../../scripts/smoke-profile/probe/support.js";
@@ -30,7 +32,10 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
                 return {
                     meetingVersion: submitted ? o.submissions[submitted - 1]!.meetingVersion : 10,
                     result: {
-                        status: c?.status ?? "running",
+                        status:
+                            fault === "converging" && submitted === 2
+                                ? "running"
+                                : (c?.status ?? "running"),
                         currentAttemptId: "a" + submitted,
                         currentTurn:
                             c?.nextTurnId === null
@@ -55,6 +60,7 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
                 };
             }
             const archived = structuredClone(o.archived);
+            if (fault === "fact") archived.archive.package.completionFacts = [];
             if (fault === "proposal") archived.archive.package.proposals = [];
             if (fault === "question") archived.archive.package.unresolvedQuestions = [];
             if (fault === "code") archived.termination.code = "stalled";
@@ -89,7 +95,19 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
         }
         if (name === "convivium_end_meeting") {
             ended = true;
-            return { result: o.endResult };
+            expect(input).toMatchObject({
+                outcome: "completed",
+                expectedMeetingVersion: 12,
+                waivers: [],
+                acceptedDecisionIds: [],
+                deferredAgendaItemIds: []
+            });
+            return {
+                result:
+                    fault === "end"
+                        ? { status: "partial", terminationCode: "max_turns" }
+                        : o.endResult
+            };
         }
         throw new Error("Unexpected tool " + name);
     });
@@ -225,6 +243,53 @@ describe("progress reset convergence probe", () => {
     it.each(["reset", "proposal"])("rejects %s", async (fault) => {
         const runtime = harness("convergence-reset", fault);
         await expect(runConvergenceResetScenario(runtime)).rejects.toThrow();
+        expect(runtime.writeResult).not.toHaveBeenCalled();
+    });
+});
+
+describe.each([
+    {
+        scenario: "convergence-turn-budget-completion" as const,
+        run: runConvergenceTurnBudgetCompletionScenario
+    },
+    {
+        scenario: "convergence-message-budget-completion" as const,
+        run: runConvergenceMessageBudgetCompletionScenario
+    }
+])("$scenario probe", ({ scenario, run }) => {
+    it("uses earlier evidence for legal completion then explicitly ends as Captain", async () => {
+        const runtime = harness(scenario);
+        await run(runtime);
+        const turns = runtime.callTool.mock.calls.filter(
+            (call) => call[2] === "convivium_submit_turn"
+        );
+        expect(turns).toHaveLength(2);
+        expect(turns[0]![3]).not.toHaveProperty("completionClaims");
+        expect(turns[1]![3]).toMatchObject({
+            kind: "evidence",
+            completionClaims: {
+                criterionClaims: [
+                    {
+                        subjectId: "criterion-smoke-order",
+                        evidenceMessageIds: ["message-d0"],
+                        taskIds: []
+                    }
+                ],
+                agendaResolution: {
+                    agendaItemId: "agenda-agenda-1",
+                    resolution: "Smoke criterion satisfied",
+                    evidenceMessageIds: ["message-d0"]
+                }
+            }
+        });
+        expect(runtime.writeResult).toHaveBeenCalledOnce();
+        expect(
+            runtime.callTool.mock.calls.filter((call) => call[2] === "convivium_end_meeting")
+        ).toHaveLength(1);
+    });
+    it.each(["terminal", "converging", "end", "fact", "criterion"])("rejects %s", async (fault) => {
+        const runtime = harness(scenario, fault);
+        await expect(run(runtime)).rejects.toThrow();
         expect(runtime.writeResult).not.toHaveBeenCalled();
     });
 });
