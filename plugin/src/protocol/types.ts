@@ -558,6 +558,18 @@ export type PublicMessageKind =
     | "summary"
     | "decision";
 
+export interface MinutesDraftInputV1 {
+    readonly coverage: {
+        readonly fromSeq: number;
+        readonly throughSeq: number;
+    };
+    readonly referencedMessageIds: readonly string[];
+}
+
+export interface PublicMinutesDraftV1 extends MinutesDraftInputV1 {
+    readonly status: "draft";
+}
+
 export interface PublicMeetingMessageV1 {
     id: string;
     seq: number;
@@ -571,6 +583,7 @@ export interface PublicMeetingMessageV1 {
     replyTo?: string;
     taskIds: readonly string[];
     createdAt: number;
+    minutesDraft?: PublicMinutesDraftV1;
 }
 
 export type AgentRoleDefinitionIdV1 =
@@ -697,6 +710,7 @@ export interface TurnSubmissionV1 {
         "on_topic" | "supporting_context" | "new_topic_candidate" | "blocking_interrupt";
     changes: PublicMeetingChangesV1;
     completionClaims?: CompletionClaimsV1;
+    minutesDraft?: MinutesDraftInputV1;
 }
 
 export interface PublicMeetingChangesV1 {
