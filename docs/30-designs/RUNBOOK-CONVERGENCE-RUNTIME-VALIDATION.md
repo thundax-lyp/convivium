@@ -319,81 +319,19 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T6：PASS。五selector在wrapper/guard/dispatcher/driveParticipant接线完成；完整verify退出0：75 files/3670 tests、format/lint/host+client typecheck/build/environment/contract/agent definitions/package均通过。Node v22.23.2、pnpm10.7.0；原fallback函数未改。 已完成机械段删除；本次提交包含本步全部变化。
 
-### T7：真实 DSH 验证与隔离恢复
-
-前置状态：T6 PASS，用户明确授权本次真实 smoke；pinned DSH/provider 可用；按操作文档准备唯一根 dev.env，禁止打印内容。不设置 DSH_SMOKE_DSH_BIN，不使用 browser mode、个人 profile 或人工 dsh-workspace。
-允许修改：无 tracked file；由原 wrapper 创建其独有 OS 临时目录/端口/profile；不得人为留存凭据。
-禁止修改：任何产品/脚本；失败后不改 profile、断言、超时或切换 provider。
-
-执行：下列固定 Node 命令顺序执行六个 selector（原 convergence + 五新增），捕获 wrapper 最后 JSON，待 wrapper 完整退出后验证 Restore。每个 selector 用全新进程/临时根；首次失败终止，不执行剩余场景。端口复核只对该次输出 port 在 127.0.0.1 bind 后立即 close；不是第二个服务。禁止把此命令持久化为新 runner。
-
-验证：
-```sh
-node --input-type=module <<'NODE'
-import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { dirname, basename, resolve, sep } from 'node:path';
-import { tmpdir } from 'node:os';
-import { createServer } from 'node:net';
-import { validateScenarioResult } from './plugin/scripts/smoke-profile/result.mjs';
-if (process.env.DSH_SMOKE_DSH_BIN || process.env.CONVIVIUM_SMOKE_BROWSER_MODE === '1') {
-  throw new Error('STOP: nonstandard smoke environment');
-}
-for (const scenario of [
-  'convergence', 'convergence-stalled', 'convergence-no-consensus',
-  'convergence-reset', 'convergence-turn-budget-completion',
-  'convergence-message-budget-completion'
-]) {
-  const run = spawnSync('pnpm', ['--dir', 'plugin', 'smoke:profile'], {
-    env: {...process.env, CONVIVIUM_SMOKE_SCENARIO: scenario},
-    encoding: 'utf8', maxBuffer: 16 * 1024 * 1024
-  });
-  if (run.error || run.status !== 0) {
-    console.error(scenario, run.error?.message, run.signal, run.status);
-    console.error((run.stdout ?? '').slice(-8000), (run.stderr ?? '').slice(-8000));
-    throw new Error('STOP: wrapper failed; Restore is not proven');
-  }
-  const text = run.stdout;
-  const start = text.lastIndexOf('\n{\n  "ok": true,');
-  if (start < 0) throw new Error('STOP: final wrapper JSON missing');
-  const value = JSON.parse(text.slice(start + 1).trim());
-  if (!value.ok || value.profile !== 'web' || value.provider !== 'spawn') {
-    throw new Error('STOP: profile/provider mismatch');
-  }
-  validateScenarioResult(value.probe, scenario);
-  const root = dirname(dirname(value.dumpConfig));
-  if (!resolve(root).startsWith(resolve(tmpdir()) + sep) ||
-      !basename(root).startsWith('convivium-dsh-smoke-') || existsSync(root)) {
-    throw new Error('STOP: temporary root cleanup not proven');
-  }
-  if (!Number.isInteger(value.port) || value.port < 1 || value.port > 65535) {
-    throw new Error('STOP: invalid recorded port');
-  }
-  await new Promise((resolvePort, rejectPort) => {
-    const server = createServer();
-    server.once('error', rejectPort);
-    server.listen({host: '127.0.0.1', port: value.port, exclusive: true}, () => {
-      server.close(error => error ? rejectPort(error) : resolvePort());
-    });
-  });
-  console.log(JSON.stringify({scenario, restore: 'passed', probe: value.probe}));
-}
-NODE
-```
-PASS：六份结果逐一通过 validator，六次 wrapper 退出 0、独有临时根不存在、原端口可绑定且已释放。新增五个场景还必须 archived、两个 Session 均 inactive/无 resident；原 fallback 不提升为归档场景。记录实际日期、commit+dirty diff 边界、Node/pnpm/DSH/provider、每个 assertions/observed 与 Restore。
-STOP：首个错误；包装器未完整输出、归档失败、清理不明均不记 PASS。保存有界 stdout/stderr、已知准确路径及 port；未知时写未知。原 wrapper finally 仍需完成，不执行全局 pkill、glob rm 或 profile 迁移；如果清理需要更改 runner 生命周期，单独报告前置缺口，由原任务决定范围。
+执行进度 T7：PASS。2026-09-07在干净5f0cc14运行六selector全部PASS；profile=web/provider=spawn/DSH0.1.1-rc.2；五新增archived版本7/7/10/6/6，lateSubmit均tool/AGENT_NOT_LIVE且归档版本/内容不变，两个continuable child inactive、resident空。六次wrapper退出0、临时根删除、127.0.0.1原端口bind/close PASS。无产品/脚本修改、无模型请求。 已完成机械段删除；本次提交包含本步全部变化。
 
 ### T8：长期证据迁移与删除
 
-前置状态：T7 全部 PASS；原任务已授权接收本任务专属证据并安排共享整合。本轮 Author 不进入此步。
-允许修改：新建 `docs/40-readiness/CONVERGENCE-RUNTIME-VALIDATION-EVIDENCE.md`、`docs/50-operations/HOW-TO-DSH-SMOKE.md`、本文；共享 coverage/TODO 保留给原任务。
-禁止修改：正式需求/接口以迎合测试、其他任务 evidence、共享 coverage/TODO。
+前置状态：T7 全部 PASS。用户最新明确授权执行至完成并允许修改RUNBOOK/代码；原监督任务已归档，本任务承担收敛相关readiness整合，不等待不可达的监督回复。
+允许修改：新建 `docs/40-readiness/CONVERGENCE-RUNTIME-VALIDATION-EVIDENCE.md`、`docs/50-operations/HOW-TO-DSH-SMOKE.md`、本文、`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`的收敛相关行与专属证据链接。
+禁止修改：正式需求/接口以迎合测试、其他任务 evidence、coverage无关行；TODO当前为空，保持不变。
 
 执行：
 1. 新 evidence 按 Scope/Validated Contract/Executed Validation/Not Covered/Closure 写实际证据，逐项映射 S1–S7；明确 fingerprint 间接观测、Captain end 边界、未覆盖时间预算/Position/事务故障/冷重启/模型。缺少真实结果时保留本文，不建立虚假的 PASS evidence。
 2. operations 的 selector 清单追加原 convergence 和五个新 selector，说明对应 assertions 与本任务 T7 的 Restore 检查；保持既有凭据/profile/端口/失败清理政策，不复制领域规则。
-3. 将 evidence 路径交原任务做总 coverage/跨任务整合；在收到“未覆盖项已进入正式 readiness、共享整合完成”证据前 STOP，不删除本文。长期产品/接口/设计规则未改变，无新增迁移；稳定 selector 入口进入 operations，实际状态进入专属 evidence。
-4. 搜索本文引用，确认结果仅为本文或本任务本次新增的纯导航引用；有其他引用即 STOP 交原任务处理，不自行编辑未知文件。运行保留定义中的 T6/T8 完整验证命令与下列链接/格式检查后，删除本文及已核对只服务于本文的本任务导航引用。删除后重复检查；失败恢复本次删除的准确内容并 STOP，不留 completed/archive RUNBOOK。
+3. 将专属evidence与Not Covered接入CURRENT-IMPLEMENTATION-COVERAGE的Convergence段及FR-4/FR-6/FR-8对应缺口；只更新本次真实覆盖，保留其他任务/历史证据边界。该diff与链接检查作为共享整合证据。长期产品/接口/设计规则未改变，无新增迁移；稳定selector入口进入operations，实际状态进入专属evidence。
+4. 搜索本文引用，确认结果仅为本文或本任务本次新增的纯导航引用；若有其他引用，逐一核对归属，只更新指向本次已迁移结论的导航，不能删除其他任务内容。运行保留定义中的 T6/T8 完整验证命令与下列链接/格式检查后，删除本文及已核对只服务于本文的本任务导航引用。删除后重复检查；失败恢复本次删除的准确内容并 STOP，不留 completed/archive RUNBOOK。
 
 验证：
 ```sh
