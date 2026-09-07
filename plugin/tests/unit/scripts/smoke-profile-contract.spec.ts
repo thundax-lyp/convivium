@@ -456,7 +456,7 @@ describe("convergence fixture contract", () => {
 });
 
 const supportedCases = fixtureCases.filter((c) =>
-    ["convergence-stalled", "convergence-no-consensus"].includes(c.scenario)
+    ["convergence-stalled", "convergence-no-consensus", "convergence-reset"].includes(c.scenario)
 );
 describe.each(supportedCases)("runtime result $scenario", (c) => {
     const fixture = createConvergenceFixture(c.scenario),
@@ -635,6 +635,17 @@ describe.each(supportedCases)("runtime result $scenario", (c) => {
             [...P, "termination"]
         ])
             change([...path, "unresolvedQuestionIds"], []);
+    }
+    if (c.scenario === "convergence-reset") {
+        change([...O, "proposalId"], null);
+        change([...O, "proposalId"], "wrong");
+        remove([...P, "proposals"]);
+        change([...P, "proposals"], []);
+        for (const key of ["id", "revision"]) {
+            remove([...P, "proposals", 0, key]);
+            change([...P, "proposals", 0, key], key === "revision" ? 2 : "wrong");
+        }
+        change([...O, "checkpoints", 3, "replanCount"], 1);
     }
     it("accepts independently checked complete evidence", () => {
         assertFixtureContract(fixture);

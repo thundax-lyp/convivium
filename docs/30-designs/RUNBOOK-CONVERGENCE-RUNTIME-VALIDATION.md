@@ -301,25 +301,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T1.3：PASS。no-consensus独立合法fixture及Q/共同破坏矩阵通过，1180项聚焦测试；第一delivery question ID和package归档字段严格关联。 已完成机械段删除；本次提交包含本步全部变化。
 
-#### T1.4：验证 Proposal 重置后的第二组 checkpoint
-
-前置状态：T1.3 PASS 且已提交。
-允许修改：只准 plugin/scripts/smoke-profile/result.mjs、plugin/tests/unit/scripts/smoke-profile-contract.spec.ts 与本文。
-禁止修改：产品源码、其他现有测试、runner allowlist、原 convergence 规则、共享 coverage/TODO、依赖、其他目录；本步以外半成品不得暂存。
-
-执行：接线 convergence-reset；使用已有七提交六checkpoint独立fixture，实现R及重复两组0/0→1/0→2/1校验，第四delivery proposal。运行K/L/S/C/A/M/H对应七提交版本的反例。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile-contract.spec.ts
-pnpm --dir plugin exec prettier scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile-contract.spec.ts --check
-node --check plugin/scripts/smoke-profile/result.mjs
-git diff --check
-```
-允许对本步白名单中实际编辑的文件运行上述同路径 Prettier --write，然后重跑全部命令；不得格式化其他文件。
-
-PASS：reset正例通过，第四replanCount=1和丢失Proposal均拒绝，原两个selector保持。 所有命令退出0；测试数仅记录、不作唯一判据。按保留执行规则删除本步并单次提交。
-STOP：需要改变进展/Proposal/预算产品语义。 保留失败增量/输出，不删本步、不提交失败内容；报告最后PASS与继续所需决定。
+执行进度 T1.4：PASS。reset七提交/六checkpoint两组计数、第四delivery Proposal及R/共同矩阵通过；2124项聚焦测试与格式通过。 已完成机械段删除；本次提交包含本步全部变化。
 
 #### T1.5：验证 Turn 预算的业务完成证据
 
