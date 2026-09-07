@@ -27,7 +27,7 @@ export type {
     ArchiveRecoveryResult
 } from "./services/meeting-archive-service.js";
 export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
-export { recoverMeetingRuntime, rebindCaptainParent } from "./services/meeting-recovery-service.js";
+export { rebindCaptainParent } from "./services/meeting-recovery-service.js";
 export {
     createCreateStatusRuntime,
     LocalMeetingRecoveryUnavailableError
@@ -41,8 +41,4 @@ export type {
 } from "./application-service/index.js";
 export { meetingTaskEvidenceResolver, rejectUnsupportedTaskEvidence } from "./task-evidence.js";
 export type { AuthorizedTaskEvidence, AuthorizedTaskEvidenceResolver } from "./task-evidence.js";
-export type {
-    CaptainRebindDependencies,
-    MeetingRecoveryDependencies,
-    MeetingRecoveryResult
-} from "./services/meeting-recovery-service.js";
+export type { CaptainRebindDependencies } from "./services/meeting-recovery-service.js";
