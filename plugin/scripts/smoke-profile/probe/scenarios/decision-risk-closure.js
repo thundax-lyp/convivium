@@ -94,10 +94,36 @@ export async function runDecisionRiskClosureScenario(runtime) {
                         proposalRevision: 1,
                         statement: "Accept the closure proposal",
                         rationale: "The proposal satisfies the objective."
-                    }
+                    },
+                    ...(runtime.browserMode === true
+                        ? [
+                              {
+                                  proposalId: deliveryId + "-proposal-1",
+                                  proposalRevision: 1,
+                                  statement: "Accept the replacement closure proposal",
+                                  rationale: "The proposal satisfies the objective."
+                              }
+                          ]
+                        : [])
                 ],
                 questions: [],
-                issues: [],
+                issues:
+                    runtime.browserMode === true
+                        ? [
+                              {
+                                  title: "Closure risk",
+                                  description:
+                                      "The revised proposal has a high implementation risk.",
+                                  affectedOutputIds: [],
+                                  affectedCriterionIds: ["criterion-smoke-order"],
+                                  violatedConstraintIds: [],
+                                  impact: "high",
+                                  urgency: "now",
+                                  safeDefaultAvailable: false,
+                                  riskLevel: "high"
+                              }
+                          ]
+                        : [],
                 agendaCandidates: []
             }
         },
@@ -111,6 +137,103 @@ export async function runDecisionRiskClosureScenario(runtime) {
         1104
     );
     const candidates = candidateStatus.result.pendingDecisionCandidates;
+    if (runtime.browserMode === true) {
+        runtime.assert(
+            Array.isArray(candidates) && candidates.length === 2,
+            "browser candidates missing"
+        );
+        const candidate = candidates.find(
+            (item) => item.statement === "Accept the closure proposal"
+        );
+        const replacement = candidates.find(
+            (item) => item.statement === "Accept the replacement closure proposal"
+        );
+        runtime.assert(
+            candidate &&
+                replacement &&
+                candidate.id !== replacement.id &&
+                [candidate, replacement].every(
+                    (item) =>
+                        item.proposalId === deliveryId + "-proposal-1" &&
+                        item.proposalRevision === 1 &&
+                        item.sourceMessageId === submitted.result.messageId
+                ),
+            "browser candidate source mismatch"
+        );
+        const risks = candidateStatus.result.risks.filter((item) => item.title === "Closure risk");
+        runtime.assert(
+            risks.length === 1 &&
+                risks[0].status === "open" &&
+                risks[0].disposition === "blocking" &&
+                risks[0].blocking === true &&
+                risks[0].riskLevel === "high",
+            "browser risk is not pending"
+        );
+        await runtime.callTool(
+            ctx,
+            runtime.captain.agent,
+            "convivium_pause_meeting",
+            {
+                protocolVersion: 1,
+                meetingId,
+                requestId: "smoke-local-browser-pause",
+                reason: "Prepare local browser controls",
+                expectedMeetingVersion: candidateStatus.meetingVersion
+            },
+            1190
+        );
+        const paused = await runtime.callTool(
+            ctx,
+            runtime.captain.agent,
+            "convivium_meeting_status",
+            { protocolVersion: 1, meetingId },
+            1191
+        );
+        runtime.assert(
+            paused.result.status === "paused" &&
+                paused.result.currentAttemptId === undefined &&
+                paused.result.pendingDecisionCandidates.length === 2 &&
+                paused.result.pendingDecisionCandidates.every(
+                    (item) =>
+                        [candidate.id, replacement.id].includes(item.id) &&
+                        item.sourceMessageId === submitted.result.messageId
+                ) &&
+                paused.result.acceptedDecisions.length === 0,
+            "browser pause did not preserve candidates"
+        );
+        runtime.captain.agent.session.append(
+            "user/message",
+            {
+                id: "convivium-local-control-browser-message",
+                role: "user",
+                content: [{ type: "text", text: "Local decision risk browser evidence" }],
+                source: { kind: "user" }
+            },
+            { surfaceOp: "append" }
+        );
+        await ctx.sessions.flush(runtime.captain.agent.session);
+        runtime.assert(runtime.workspace !== undefined, "browser smoke workspace missing");
+        await runtime.workspace.attachSession(runtime.captain.agent.session.id);
+        runtime.setMeetingId(meetingId);
+        await runtime.writeResult({
+            ok: true,
+            scenario,
+            browserReady: true,
+            assertions: ["browser-local-decision-risk-ready"],
+            meetingId,
+            captainSessionId: runtime.captain.agent.session.id,
+            observed: {
+                meetingVersion: paused.meetingVersion,
+                status: "paused",
+                candidateId: candidate.id,
+                replacementCandidateId: replacement.id,
+                riskId: risks[0].id,
+                evidenceMessageId: submitted.result.messageId
+            }
+        });
+        return;
+    }
+
     runtime.assert(
         Array.isArray(candidates) && candidates.length === 1,
         "pending decision candidate missing"

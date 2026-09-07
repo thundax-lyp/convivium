@@ -219,3 +219,77 @@ Assert：真实 Captain factory 挂载 minimal；第一 Host 使用 V1 内联定
 Participant 的 probe 工具同时不可见、不可执行，拒绝调用不进入 body；Manager 和 Captain 可执行。恢复后的两个 child 保留 V1 persona/filter。两个阶段只手动推进提交，不运行自动 Participant 提交。确定性场景不调用模型，不证明真实模型任务质量。
 
 Restore：wrapper 的 finally 必须停止本次 Host、确认端口释放并删除本次精确临时目录，成功打印 `restore=PASS`。任何能力缺失、断言失败或恢复失败都按失败处理，不换用 fake adapter；cleanup 失败沿上文仅处理本次精确 PID/目录，不清理其他 profile 或数据。
+
+## Decision/Risk 本地按钮验证
+
+### 适用范围与状态
+
+本节是 LC-08 的固定操作规程。依赖 LC-06B 的 `decision-risk-closure` Browser 夹具和 LC-01–LC-07 实现已在待验收分支完成；夹具由 `runDecisionRiskClosureScenario` 实现，并由 `smoke-profile.spec.ts` 的 fake runtime 测试验证暂停和 ready 边界；这不代表真实 Browser 验证已通过。沿用现有临时 profile、Browser URL、PTY 停止及 cleanup，不新增 selector、Host API 或测试框架。真实 smoke 在实现分支合并前执行，验收通过后记录证据并关闭任务；不以合并作为首次冒烟的前置条件。
+
+### Browser 夹具契约
+
+在既有 `runDecisionRiskClosureScenario(runtime)` 中，仅 `runtime.browserMode === true` 改变准备数据：首次 Participant submission 同时提交两个 candidate，statement 精确为 `Accept the closure proposal` 与 `Accept the replacement closure proposal`，均引用同一当前 proposal revision=1，并提交一个 `Closure risk`。该 risk 的输入与既有场景后半段相同：affectedOutputIds=[]、affectedCriterionIds=[criterion-smoke-order]、violatedConstraintIds=[]、impact=high、urgency=now、safeDefaultAvailable=false、riskLevel=high；description 沿用既有 Closure risk。普通模式仍只提交一个 candidate，保留原工具验证流程。
+
+Browser 分支在读取首次 candidateStatus 后、任何 decision/risk tool 写操作前执行：
+
+1. 验证两 candidate 的 statement、proposalId/revision、sourceMessageId；从 candidateStatus.result.risks 按 title 取得唯一 risk，验证为 open/blocking/true、riskLevel=high。所有来源 ID 取正式 status 与 submitted.result.messageId，不硬编码生成 ID。
+2. 调用既有 `convivium_pause_meeting`，requestId=smoke-local-browser-pause、reason=`Prepare local browser controls`、expectedMeetingVersion=candidateStatus.meetingVersion，tool call ID=1190。再次调用 status，tool call ID=1191，要求 paused、无 currentAttemptId、两候选仍 pending、acceptedDecisions=[]。暂停避免等待 Browser 时发生 speaker timeout；不得用增加超时窗口替代。
+3. 按既有 reassign Browser 模式追加 Captain `user/message`（id=convivium-local-control-browser-message，text=`Local decision risk browser evidence`），await ctx.sessions.flush，然后 runtime.workspace.attachSession；workspace 缺失则失败。调用 runtime.setMeetingId(meetingId)。
+4. 写下述唯一 ready result 并 return，不执行后续 Captain accept/dispose，也不自动 end/archive。非 Browser 分支仍执行原有一个 candidate 的断言和后续工具流程。
+
+```ts
+{
+    ok: true,
+    scenario: "decision-risk-closure",
+    browserReady: true,
+    assertions: ["browser-local-decision-risk-ready"],
+    meetingId: string,
+    captainSessionId: "convivium-smoke-captain",
+    observed: {
+        meetingVersion: number,
+        status: "paused",
+        candidateId: string,
+        replacementCandidateId: string,
+        riskId: string,
+        evidenceMessageId: string
+    }
+}
+```
+
+以上为字段类型契约：全部 required，禁止额外字段；meetingVersion 为非负整数，其余 ID 非空，两个 candidate ID 不同。ID 分别取 statement 对应的两个 candidate、Closure risk 和首条提交 message；版本取暂停后的 status。`validateScenarioResult` 在普通 decision-risk assertion 检查前接受并严格验证此 Browser 分支；失败固定抛 `Local decision risk browser-ready result is invalid.`。现有 wrapper 已支持 ready preflight、URL 输出和等待 Ctrl-C，不修改 wrapper。
+
+### Prepare
+
+从仓库根执行。Node/pnpm 与 rc.2 条件沿用本文前置条件；`dev.env` 由已有脚本校验，不打印或改写凭据。工作树产品代码须为已提交的待验收版本；不存在夹具、构建失败或凭据缺失则 STOP，记录实际错误，不临场改实现。
+
+以 PTY 启动唯一命令：
+
+```sh
+env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile
+```
+
+等待顶层 ok=true、profile=web、provider=spawn，且 probe 严格符合上述 ready 契约。记录该次 stdout 的 `CONVIVIUM_SMOKE_BROWSER_URL`、`CONVIVIUM_SMOKE_TEMP_ROOT`、probe.meetingId 和 observed 全部字段。ready 只证明夹具就绪。
+
+### Execute And Assert
+
+打开该次 Browser URL，在 session tree 选择 `convivium-smoke-captain`，进入 `Meetings` view，选择 meetingId 与 ready result 相同的 `Decision risk closure` Meeting。缺少 Session、view 或面板，或出现 bundle evaluate/activate error，立即 STOP 并进入 Restore，不寻找替代入口。
+
+以下操作全部通过真实面板按钮完成。每步等待写请求结束及全量刷新；出现 alert、对象不符或预期状态未出现即停止，不自动重复提交。各理由均逐字输入。开始时必须为 paused、两个指定 pending candidate、无 accepted Decision、Closure risk 为 open/blocking。
+
+| 顺序 | 固定操作 | 必须观察的结果 |
+| --- | --- | --- |
+| 1 | 在 `Accept the closure proposal` 行点 Accept decision；核对已选证据对应 ready.evidenceMessageId，Reason 输入 `Browser accepts scope`，点 Submit | 该 candidate 消失；新增 accepted Decision，记其 ID 为 A；另一个 candidate 仍 pending |
+| 2 | 在 A 行点 Replace decision，Replacement decision 选 `Accept the replacement closure proposal`，核对同一来源证据；Reason=`Browser replaces scope`，Submit | A 在 history 为 superseded；新增 accepted Decision B，A.supersededByDecisionId=B；pending 为空 |
+| 3 | 在 B 行点 Revoke decision；确认初始证据为空，手选首条 `Use the accepted proposal` 消息；Reason=`Browser revokes scope`，Submit | accepted 为空；history 保留 A=superseded、B=revoked |
+| 4 | 在 Closure risk 行点 Accept risk；核对预选证据；Reason=`Browser accepts risk`，Submit | risk 为 accepted_risk，disposition=accepted_risk，blocking=false；按钮变为 Set as blocking |
+| 5 | 同一风险点 Set as blocking；Reason=`Browser rejects risk`，Submit | risk 为 open，disposition=blocking，blocking=true；会议仍 paused，没有自动结束 |
+| 6 | 刷新页面，按同一 Session/view/meetingId 重新打开 | A/B history 和 risk 状态与第 5 步一致；无 pending/accepted Decision |
+| 7 | 使用已有 End outcome 选择 partial、End reason 输入 `Browser local control archive`，点击一次 End meeting，等待 archived | Meeting 不再提供五种写控件，history 保留两 Decision，风险仍保留 |
+
+第 7 步只为观察已提交审计事实，不计为新增产品动作。随后在另一个 Browser tab 打开该 origin 的 `GET /api/convivium/meetings/:meetingId`（meetingId 取 ready result 并作为单个 URL path segment 编码），读取 JSON：ok=true、result.status=archived；archive.package.decisionHistory 保留 A/B 及替代关系；completionFacts 中本次五动作共六个事实（替换包含 acceptance+supersession），authority 均为 local_host、assertedBy 均为 local-host:loopback-web，理由及 evidenceMessageIds 与上述输入一致；两条 risk_acceptance fact 中旧 accept 为 superseded、新 reject 为 active。允许归档流程已有的其他事实，但不把它们计入这六条。该 GET 仅核对审计，不能替代任何按钮写操作。若浏览器禁止直接展示 JSON，可用只读 HTTP 客户端 GET 同一 loopback URL 核对，并在证据中记录实际读取方式；不得因此改用 API 执行按钮动作。
+
+### Restore And Closure
+
+无论断言成功或失败，向本次 wrapper PTY 发送一次 Ctrl-C，等待其正常退出且退出码为 0、stdout 出现 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`；wrapper 的 finally 必须完成 Host 停止、临时根删除和端口释放。用文件存在性工具核对 stdout 记录的唯一精确临时根不存在；不使用 glob、不删除其他目录、不直接 kill 工具进程来代替 Restore。
+
+将被测 commit、启动命令、ready IDs、七步结果、审计 GET 与 Restore 结果写入 `docs/40-readiness/CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md`，同步 `CURRENT-IMPLEMENTATION-COVERAGE.md`。只有所有断言和 Restore 通过才关闭 LC-08；其余保留具体失败或 Not Covered。本验证不包含真实 LLM 请求或 Host 冷重启，冷恢复自动化证据以 LC-06 为准。

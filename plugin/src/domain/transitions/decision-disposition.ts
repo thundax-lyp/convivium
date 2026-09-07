@@ -10,6 +10,7 @@ export type DisposeDecisionInput =
           action: "supersede";
           replacementCandidateId: string;
           actorBinding: string;
+          authority?: "captain" | "local_host";
           reason: string;
           evidenceMessageIds: readonly string[];
           now: number;
@@ -20,6 +21,7 @@ export type DisposeDecisionInput =
           decisionId: string;
           action: "revoke";
           actorBinding: string;
+          authority?: "captain" | "local_host";
           reason: string;
           evidenceMessageIds: readonly string[];
           now: number;
@@ -73,7 +75,7 @@ export function disposeDecision(
         kind: input.action === "supersede" ? "decision_supersession" : "decision_revocation",
         subjectId: decision.id,
         assertedBy: input.actorBinding,
-        authority: "captain",
+        authority: input.authority ?? "captain",
         result: input.action === "supersede" ? "superseded" : "revoked",
         status: "active",
         evidenceMessageIds: evidence,
@@ -109,6 +111,7 @@ export function disposeDecision(
         meetingId: input.meetingId,
         decisionCandidateId: input.replacementCandidateId,
         actorBinding: input.actorBinding,
+        authority: input.authority,
         reason: input.reason,
         evidenceMessageIds: evidence,
         now: input.now

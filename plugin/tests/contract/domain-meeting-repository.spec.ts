@@ -1,3 +1,21 @@
+import { createLocalDecisionRiskState } from "../fixtures/local-decision-risk.js";
+import {
+    now as localNow,
+    meeting as lifecycleMeeting
+} from "../unit/domain/transitions/fixtures.js";
+import {
+    acceptDecisionCandidate,
+    disposeDecision,
+    applyCompletionClaims,
+    transitionMeeting
+} from "../../src/domain/index.js";
+import type { MeetingState } from "../../src/domain/model.js";
+import type {
+    JsonObject,
+    RepositoryCommand,
+    DomainEventInput
+} from "../../src/repository/types.js";
+import { materializeArchivePackage } from "../../src/runtime/services/meeting-archive-service.js";
 import { DomainMeetingRepository } from "../../src/repository/domain/domain-meeting-repository.js";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
 import { defineMeetingRepositoryBehaviorContract } from "./meeting-repository-behavior.js";
@@ -1113,6 +1131,241 @@ it("keeps role provenance immutable through bootstrap, commit, checkpoint and re
         })
     ).rejects.toMatchObject({ code: "INVALID_STATE" });
     await reopened.close();
+});
+
+it("local control commits roll back and reopen", async () => {
+    const catalog = createFakeCatalogDomain();
+    const meetingDomain = createFakeMeetingDomain();
+    const open = () =>
+        DomainMeetingRepository.open({
+            catalogDomain: catalog,
+            meetingDomain,
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            authorizationValidator: allow,
+            now: () => localNow
+        });
+    let repository = await open();
+    const create = {
+        requestId: "create-local",
+        requestHash: "create-local",
+        authorization: { callerBinding: "session:captain-1", capabilityId: "captain:captain-1" },
+        initialState: JSON.parse(
+            JSON.stringify({ ...createLocalDecisionRiskState(), meetingTasks: [] })
+        ) as JsonObject,
+        createdAt: localNow
+    };
+    const context = {
+        meetingId: "meeting-1",
+        actorBinding: "local-host:loopback-web",
+        authority: "local_host" as const,
+        reason: "Reviewed evidence",
+        evidenceMessageIds: ["message-1"],
+        now: localNow
+    };
+    const authorization = {
+        callerBinding: context.actorBinding,
+        capabilityId: context.actorBinding
+    };
+    function command(
+        index: number,
+        evidenceMessageIds = context.evidenceMessageIds
+    ): RepositoryCommand<JsonObject> {
+        const requestId = `local-${index}`;
+        const input = { ...context, evidenceMessageIds, requestId };
+        return {
+            requestId,
+            commandKind:
+                index === 0 ? "accept_decision" : index < 3 ? "dispose_decision" : "dispose_risk",
+            authorization,
+            requestHash: JSON.stringify(input),
+            expectedMeetingVersion: index,
+            transition(snapshot) {
+                const state = snapshot.state as unknown as MeetingState;
+                const transition =
+                    index === 0
+                        ? acceptDecisionCandidate(state, {
+                              ...input,
+                              decisionCandidateId: "candidate-1"
+                          })
+                        : index === 1
+                          ? disposeDecision(state, {
+                                ...input,
+                                decisionId: "decision-candidate-1",
+                                action: "supersede",
+                                replacementCandidateId: "candidate-2"
+                            })
+                          : index === 2
+                            ? disposeDecision(state, {
+                                  ...input,
+                                  decisionId: "decision-candidate-2",
+                                  action: "revoke"
+                              })
+                            : applyCompletionClaims(state, {
+                                  participantId: "local_host",
+                                  assertedBy: context.actorBinding,
+                                  riskAuthority: "local_host",
+                                  now: localNow,
+                                  authorizedTaskIds: [],
+                                  factId: (_kind, n) => `completion-${requestId}-risk-${n}`,
+                                  claims: {
+                                      riskAcceptance: {
+                                          issueId: "risk-1",
+                                          decision: index === 3 ? "accept" : "reject",
+                                          reason: input.reason,
+                                          evidenceMessageIds
+                                      }
+                                  }
+                              });
+                const decision = transition.state.decisions.at(-1)!;
+                const result: JsonObject =
+                    index === 0
+                        ? {
+                              requestId,
+                              decisionCandidateId: "candidate-1",
+                              decisionId: decision.id,
+                              proposalId: decision.proposalId,
+                              proposalRevision: decision.proposalRevision,
+                              completionFactId: "completion-candidate-1-acceptance"
+                          }
+                        : index < 3
+                          ? {
+                                requestId,
+                                decisionId: `decision-candidate-${index}`,
+                                action: index === 1 ? "supersede" : "revoke",
+                                completionFactId: `completion-${requestId}-decision-${index === 1 ? "supersession" : "revocation"}`,
+                                ...(index === 1 ? { replacementDecisionId: decision.id } : {})
+                            }
+                          : {
+                                requestId,
+                                issueId: "risk-1",
+                                disposition: index === 3 ? "accepted" : "rejected",
+                                completionFactId: transition.state.completionFacts.at(-1)!.id,
+                                meetingStatus: transition.state.status
+                            };
+                return {
+                    state: transition.state as unknown as JsonObject,
+                    result,
+                    events: transition.effect.events as unknown as DomainEventInput[],
+                    outbox: []
+                };
+            }
+        };
+    }
+    try {
+        await repository.create(create);
+        await repository.recordSessionOwnership(
+            {
+                sessionId: "manager-1",
+                initialMessageId: "manager-initial-1",
+                parentSessionId: "captain-1",
+                sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+                provider: "spawn",
+                role: "manager",
+                lifecycleStatus: "active",
+                capabilityStatus: "active"
+            },
+            localNow
+        );
+        await repository.completeCreate(create);
+        const receipts = [];
+        for (let index = 0; index < 5; index++) {
+            const before = loadProjection({ domain: meetingDomain });
+            const snapshot = await repository.read();
+            await expect(
+                repository.execute(command(index, ["message-1", "external-message"]))
+            ).rejects.toMatchObject({ code: "INVALID_ENTITY_STATE" });
+            expect(loadProjection({ domain: meetingDomain })).toEqual(before);
+            meetingDomain.failNextPut("commits", "*");
+            await expect(repository.execute(command(index))).rejects.toThrow("fake put failure");
+            expect(await repository.read()).toEqual(snapshot);
+            expect(loadProjection({ domain: meetingDomain })).toEqual(before);
+            await repository.close();
+            repository = await open();
+            expect(await repository.read()).toEqual(snapshot);
+            expect(loadProjection({ domain: meetingDomain })).toEqual(before);
+            receipts.push(await repository.execute(command(index)));
+            const after = loadProjection({ domain: meetingDomain });
+            expect(after.snapshot!.version).toBe(before.snapshot!.version + 1);
+            expect(Object.keys(after.receipts)).toHaveLength(
+                Object.keys(before.receipts).length + 1
+            );
+            expect(after.outbox).toEqual(before.outbox);
+        }
+        await repository.close();
+        repository = await open();
+        const committed = loadProjection({ domain: meetingDomain });
+        for (let index = 0; index < 5; index++)
+            expect(await repository.execute(command(index))).toEqual(receipts[index]);
+        expect(loadProjection({ domain: meetingDomain })).toEqual(committed);
+        const state = (await repository.read())!.state as unknown as MeetingState;
+        expect(state.decisions.map(({ status }) => status)).toEqual(["superseded", "revoked"]);
+        expect(state.completionFacts).toHaveLength(6);
+        expect(
+            state.completionFacts.every(
+                (fact) =>
+                    fact.authority === "local_host" &&
+                    fact.assertedBy === context.actorBinding &&
+                    fact.evidenceMessageIds.join() === "message-1"
+            )
+        ).toBe(true);
+        for (const target of ["partial", "archiving", "archived"] as const) {
+            const snapshot = (await repository.read())!;
+            await repository.execute({
+                requestId: `archive-${target}`,
+                commandKind: `internal_${target}`,
+                authorization,
+                requestHash: target,
+                expectedMeetingVersion: snapshot.version,
+                transition(current) {
+                    const source = current.state as unknown as MeetingState;
+                    const transition = transitionMeeting(
+                        source,
+                        target,
+                        target === "partial"
+                            ? {
+                                  now: localNow,
+                                  termination: {
+                                      ...lifecycleMeeting("partial").termination!,
+                                      code: "captain_accepted"
+                                  }
+                              }
+                            : target === "archiving"
+                              ? {
+                                    now: localNow,
+                                    archive: {
+                                        package: materializeArchivePackage(source, localNow)
+                                    }
+                                }
+                              : { now: localNow, archive: { archivedAt: localNow } }
+                    );
+                    return {
+                        state: transition.state as unknown as JsonObject,
+                        result: {},
+                        events: transition.effect.events as unknown as DomainEventInput[],
+                        outbox: []
+                    };
+                }
+            });
+        }
+        const archived = loadProjection({ domain: meetingDomain });
+        const archive = ((await repository.read())!.state as unknown as MeetingState).archive!
+            .package;
+        expect(archive.completionFacts).toEqual(state.completionFacts);
+        expect(archive.decisionHistory.map(({ id, status }) => ({ id, status }))).toEqual(
+            state.decisions.map(({ id, status }) => ({ id, status }))
+        );
+        expect(archive.formalTranscript).toEqual(state.transcript);
+        await repository.close();
+        repository = await open();
+        expect(
+            ((await repository.read())!.state as unknown as MeetingState).archive!.package
+        ).toEqual(archive);
+        expect(await repository.execute(command(0))).toEqual(receipts[0]);
+        expect(loadProjection({ domain: meetingDomain })).toEqual(archived);
+    } finally {
+        await repository.close();
+    }
 });
 
 function attendanceState() {

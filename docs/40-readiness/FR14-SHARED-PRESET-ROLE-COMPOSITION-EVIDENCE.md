@@ -83,3 +83,10 @@ RC-01–RC-08 全部完成，逐项从 TODO 删除并独立提交；FR-14 仅以
 合并工作树执行 `pnpm --dir plugin verify` 退出 0：81 files / 773 tests，format、lint、双端 typecheck、build、environment、contract、samples、package 全部 PASS。相同工作树执行上述 role-composition 命令：Host PID `92904` / `92913`，九断言全过，`PASS role-composition 13472ms restore=PASS`。执行 `CONVIVIUM_SMOKE_SCENARIO=baseline pnpm --dir plugin smoke:profile`：`PASS baseline 13770ms restore=PASS`，包括 main 新增的 Captain 拒绝工具缺失推荐路径。未增加真实 Catalog producer 成功链路的覆盖。
 
 工程文档链接检查 112 项、缺失 0；冲突标记及未合并索引检查为空，git diff --check PASS。此次仅本地 merge，未 push。
+
+
+### Publication Baseline Integration
+
+发布前再次将 `origin/main` 的 `03e3a0e` 合入 `dbf1074`，保留本地决策风险控制与 FR-14 的独立测试、smoke 校验及操作说明。合并树 `pnpm --dir plugin verify` 退出 0，81 files / 900 tests，全部 format/lint/typecheck/build/environment/contract/samples/package 检查通过。
+
+`CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile` 通过九项断言，Host PID `94703` / `94761`，`PASS role-composition 13506ms restore=PASS`。`CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure pnpm --dir plugin smoke:profile` 输出 `PASS decision-risk-closure 11301ms restore=PASS`。125 项文档链接无缺失，diff 检查通过。此次未复跑 main 的真实 Browser 按钮验收，不把原提交的 Browser 证据外推为此次验证。

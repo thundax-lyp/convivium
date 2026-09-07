@@ -1,3 +1,5 @@
+import { createLocalDecisionRiskState } from "../../../fixtures/local-decision-risk.js";
+import type { MeetingState } from "../../../../src/domain/model.js";
 import { describe, expect, it } from "vitest";
 import { acceptDecisionCandidate } from "../../../../src/domain/index.js";
 import { now, questionState } from "./fixtures.js";
@@ -125,5 +127,86 @@ describe("acceptDecisionCandidate", () => {
             expect(state.decisions).toEqual([]);
             expect(state.completionFacts).toEqual([]);
         }
+    });
+});
+
+describe("local control preserves authority and guards", () => {
+    const local = {
+        ...context,
+        authority: "local_host" as const,
+        actorBinding: "local-host:loopback-web",
+        reason: "Reviewed evidence"
+    };
+    it("preserves local provenance without altering the source state", () => {
+        const state = createLocalDecisionRiskState();
+        const before = structuredClone(state);
+        const result = acceptDecisionCandidate(state, local);
+        expect(state).toEqual(before);
+        expect(result.state.decisions[0]).toMatchObject({
+            acceptanceMode: "local_host_acceptance",
+            acceptedBy: ["participant-1"]
+        });
+        expect(result.state.completionFacts[0]).toMatchObject({
+            authority: "local_host",
+            assertedBy: local.actorBinding,
+            reason: local.reason,
+            evidenceMessageIds: ["message-1"]
+        });
+        expect(result.effect.events[0]?.payload).toMatchObject({
+            actorBinding: local.actorBinding
+        });
+        expect(acceptDecisionCandidate(state, context).state.completionFacts[0]?.authority).toBe(
+            "captain"
+        );
+    });
+    it.each([
+        { reason: " " },
+        { evidenceMessageIds: [] },
+        { evidenceMessageIds: ["message-1", "message-1"] },
+        { evidenceMessageIds: ["unknown"] },
+        { evidenceMessageIds: ["message-1", "other-meeting-message"] },
+        { decisionCandidateId: "unknown" },
+        { meetingId: "other-meeting" }
+    ])("rejects invalid command %j without mutation", (patch) => {
+        const state = createLocalDecisionRiskState();
+        const before = structuredClone(state);
+        expect(() => acceptDecisionCandidate(state, { ...local, ...patch })).toThrow();
+        expect(state).toEqual(before);
+    });
+    it.each(["stale", "unsupported", "blocking", "wrong-speaker", "missing-agenda"])(
+        "rejects %s candidates",
+        (kind) => {
+            const state = createLocalDecisionRiskState();
+            if (kind === "stale") state.proposals[0]!.revision = 2;
+            if (kind === "unsupported") state.proposals[0]!.positions = [];
+            if (kind === "blocking")
+                state.proposals[0]!.positions.push({
+                    id: "position-2",
+                    participantId: "participant-2",
+                    position: "object",
+                    blocking: true,
+                    proposalRevision: 1
+                });
+            if (kind === "wrong-speaker") state.transcript[0]!.speaker = "participant-2";
+            if (kind === "missing-agenda") state.agenda = [];
+            const before = structuredClone(state);
+            expect(() => acceptDecisionCandidate(state, local)).toThrow();
+            expect(state).toEqual(before);
+        }
+    );
+    it.each<MeetingState["status"]>([
+        "completed",
+        "partial",
+        "no_consensus",
+        "cancelled",
+        "failed",
+        "archiving",
+        "archived"
+    ])("rejects %s", (status) => {
+        const state = createLocalDecisionRiskState();
+        state.status = status;
+        const before = structuredClone(state);
+        expect(() => acceptDecisionCandidate(state, local)).toThrow();
+        expect(state).toEqual(before);
     });
 });

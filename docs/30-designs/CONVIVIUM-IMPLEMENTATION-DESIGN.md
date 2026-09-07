@@ -129,7 +129,7 @@ Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。`src/
 
 `src/client/meeting-panel-view.tsx::mapMeetingPanelView` 从通过 [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) 对应 Schema 校验的完整公开 detail 映射展示字段。活动态与执行终态读取 discussion 的 decisions、Parking Lot 和 risks；archiving 与 archived 读取 archive.package 中的对应集合，并原样展示全部 issues。Accepted decisions 仅表示当前已接受集合；Decision history 保留全部决策身份、状态、撤销和替代关系，不过滤为仅历史项。
 
-`src/client/meeting-panel-sections.tsx::renderObservabilitySections` 展示候选处置、风险原因、owner 和任务引用，以及已公开的 Turn intent/reason/objective。没有 currentTurn 时显示 None，不从内部日志推断原因。Client 首次读取、5 秒轮询、focus 和 reopen 均通过 Schema 后整体替换 detail；非法响应保留上次已验证事实并禁写，合法响应恢复后清除错误状态。这些区域只读，不新增状态源或写入口。
+`src/client/meeting-panel-sections.tsx::renderObservabilitySections` 展示候选处置、风险原因、owner 和任务引用，以及已公开的 Turn intent/reason/objective。没有 currentTurn 时显示 None，不从内部日志推断原因。Client 首次读取、5 秒轮询、focus 和 reopen 均通过 Schema 后整体替换 detail；非法响应保留上次已验证事实并禁写，合法响应恢复后清除错误状态。事实展示继续从该完整投影派生；pending Decision、accepted Decision 和 Risk 行允许下述已确认的 local 控制，其他区域保持只读。读取错误和新增控制错误分开，成功 GET 不清除新增命令的 code/message/retryable。
 
 ### Dependency direction
 
@@ -245,7 +245,7 @@ Runtime 只通过以下语义级 API 读写：
 
 `requestId + commandKind + callerBinding` 形成幂等键。相同键和相同 request hash 返回已提交 receipt；相同键但不同 hash 返回冲突。已提交的 message IDs、meeting version 和结果必须来自 receipt，不能重新执行转换。
 
-FR-7 implementation owns the Proposal revision, nested `Position`, immutable Decision candidate, Decision acceptance/disposal, `MeetingIssue.riskLevel`, risk disposition and their caller-specific status projection. `pendingDecisionCandidates` is derived for Captain/local only; `decisionHistory` contains all Decisions while `acceptedDecisions` contains current accepted Decisions. The only Decision events are `decision.accepted`, `decision.superseded` and `decision.revoked`; supersede orders replacement acceptance before superseding the old Decision in one commit. Risk disposition retains all risk facts and uses the existing completion fact event. These facts are projected and archived through the existing `projection/status.ts` and archive service; no second mapper, repository, adapter, or event vocabulary is added.
+FR-7 implementation owns the Proposal revision, nested `Position`, immutable Decision candidate, Decision acceptance/disposal, `MeetingIssue.riskLevel`, risk disposition and their caller-specific status projection. `pendingDecisionCandidates` is derived for Captain/local only; `decisionHistory` contains all Decisions while `acceptedDecisions` contains current accepted Decisions. The only Decision events are `decision.accepted`, `decision.superseded` and `decision.revoked`; supersede orders replacement acceptance before superseding the old Decision in one commit. Risk disposition retains all risk facts and uses completion_fact.added; a completed judgment additionally writes meeting.replanned in the same commit as specified by the protocol. These facts are projected and archived through the existing `projection/status.ts` and archive service; no second mapper, repository, adapter, or event vocabulary is added.
 
 The sole request serializer is `plugin/src/protocol/request-idempotency.ts::serializeValidatedRequestV1(value: object): string`. It is called only after protocol Schema validation and returns `JSON.stringify(value)` with no crypto, repository canonical JSON, or receipt string changes. Convergence imports this helper after the B contract commit and does not implement another serializer.
 
@@ -321,6 +321,12 @@ decode protocol input
 ```
 
 HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，但必须保留不同 caller proof。HTTP handler 不伪造 Captain Session，tool handler 不接受前端用户身份替代真实 DSH caller。
+
+### Local decision and risk control design
+
+三个 local 方法 `acceptLocalDecision`、`disposeLocalDecision`、`disposeLocalRisk` 位于现有 decision/control application，通过 `MeetingControlSource` 复用各自领域提交路径，复用现有三个 Captain DTO/结果和一个 HTTP prefix。local 恢复按选中 Meeting 隔离；不新增 dispatcher、权限框架或领域实现副本。领域 transition 接收已验证的 authority，产生协议规定的独立 local 审计事实；archive 对 local fact 核对源记录，不改变 Participant/Session 生命周期。
+
+Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-sections.tsx` 仅渲染行内入口和当前表单。点击行自动确定目标，reason 为空；candidate/risk 预选当前 messages 中的 sourceMessageId，supersede 在选择 replacement 后预选其来源，revoke 初始证据为空。展示证据摘要并允许修改，不增加全局对象选择、弹窗或向导。Risk 不显示同状态重复动作；全部命令共用已有写互斥、abort/generation 和完整 GET 刷新，不自动 POST 重试或乐观改写事实。具体权限、输入、审计和 HTTP 失败语义以 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) Local decision and risk control 为准。
 
 ### Turn runner
 
