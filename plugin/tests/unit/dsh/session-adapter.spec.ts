@@ -575,3 +575,43 @@ describe("inspectOwnedSessions", () => {
         ]);
     });
 });
+
+describe("creation composition isolation", () => {
+    it("copies each role filter into its own request without changing the parent", async () => {
+        const requests: unknown[] = [];
+        const parent = { id: "captain" };
+        const runtime = {
+            startContinuable: async (spec) => {
+                requests.push(spec.request);
+                return { childId: spec.childId, messageId: "m" };
+            }
+        };
+        const filter = { deny: ["probe"] };
+        const common = {
+            runtime,
+            provider: "spawn",
+            parent,
+            childId: "child",
+            teamId: "t",
+            meetingId: "m",
+            signal: new AbortController().signal
+        };
+        await startManagerSession({
+            ...common,
+            composition: { persona: "manager", toolFilter: filter }
+        });
+        await startParticipantSession({
+            ...common,
+            childId: "participant",
+            participantId: "p",
+            composition: { persona: "participant", toolFilter: filter }
+        });
+        filter.deny.push("changed");
+        expect(requests[0]).toMatchObject({ persona: "manager", toolFilter: { deny: ["probe"] } });
+        expect(requests[1]).toMatchObject({
+            persona: "participant",
+            toolFilter: { deny: ["probe"] }
+        });
+        expect(parent).toEqual({ id: "captain" });
+    });
+});

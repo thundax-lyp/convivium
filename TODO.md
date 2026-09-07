@@ -8,22 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `dsh/role-composition`：RC-03 校验共享能力并透传创建配置
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T3。
-    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：RC-02 完成。
-    - 文件（6 个）：
-
-        - `plugin/src/role-composition/dsh-capabilities.ts`
-        - `plugin/src/dsh/session-adapter.ts`
-        - `plugin/package.json`
-        - `plugin/pnpm-lock.yaml`
-        - `plugin/tests/unit/role-composition/dsh-capabilities.spec.ts`
-        - `plugin/tests/unit/dsh/session-adapter.spec.ts`
-
-    - 处理动作：校验父 Preset 与 required Skills，将 persona/toolFilter 透传至 DSH 创建接口。
-    - 验收点：T3 验证通过；能力缺失拒绝，父 scope 不变，既有依赖未升级。
-
 - [ ] `repository/role-provenance`：RC-04 保存不可变的 Definition 绑定
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T4。
     - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
