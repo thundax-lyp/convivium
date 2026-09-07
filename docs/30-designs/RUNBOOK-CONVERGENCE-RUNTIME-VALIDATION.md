@@ -313,20 +313,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T3：PASS。criterion绑定的question正式提交、三个活动checkpoint及归档保留校验已实现；15 probe +3055 contract tests PASS，缺少criterion、question丢失、错误终止码均拒绝。 已完成机械段删除；本次提交包含本步全部变化。
 
-### T4：结构进展重置计数
-
-前置状态：T3 PASS。
-允许修改：`plugin/scripts/smoke-profile/probe/scenarios/convergence.js`、`plugin/tests/unit/scripts/convergence-probe.spec.ts`。
-禁止修改：fingerprint、Proposal 格式、预算默认值。
-
-执行：新增 `runConvergenceResetScenario(runtime)`；第四次提交唯一新 Proposal，再重复 refocus/replan 和第七次自动 stalled。捕获 Proposal ID 并校验 archive 保留；测试故意让第四 checkpoint replanCount=1 必须失败，不能只断言 stallCount。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run tests/unit/scripts/convergence-probe.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
-```
-PASS：六个 checkpoint 精确为两组 0/0、1/0、2/1，第七提交 partial/stalled；七条消息一次各一条。
-STOP：改变 Proposal 后已完成/仍耗尽/未生成下一 Turn；禁止清零状态或调整 limits。
+执行进度 T4：PASS。七次提交与第四次唯一Proposal已实现；第四checkpoint保留replanCount=1和归档丢失Proposal的负例拒绝。18 probe+3055 contract tests PASS。 已完成机械段删除；本次提交包含本步全部变化。
 
 ### T5：两种硬预算边界优先业务完成
 

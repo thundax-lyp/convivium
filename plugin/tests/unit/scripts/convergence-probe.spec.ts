@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
     runConvergenceStalledScenario,
-    runConvergenceNoConsensusScenario
+    runConvergenceNoConsensusScenario,
+    runConvergenceResetScenario
 } from "../../../scripts/smoke-profile/probe/scenarios/convergence.js";
 import { validateScenarioResult } from "../../../scripts/smoke-profile/result.mjs";
 import { createProbeSupport } from "../../../scripts/smoke-profile/probe/support.js";
@@ -42,7 +43,10 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
                                   },
                         activeAgendaItem: { id: "agenda-agenda-1" },
                         stallCount: fault === "stall" ? 0 : (c?.stallCount ?? 0),
-                        replanCount: fault === "replan" ? 1 : (c?.replanCount ?? 0),
+                        replanCount:
+                            fault === "replan" || (fault === "reset" && submitted === 4)
+                                ? 1
+                                : (c?.replanCount ?? 0),
                         maxStalls: 3,
                         maxReplans: 1,
                         questions: o.archived.archive.package.unresolvedQuestions,
@@ -51,6 +55,7 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
                 };
             }
             const archived = structuredClone(o.archived);
+            if (fault === "proposal") archived.archive.package.proposals = [];
             if (fault === "question") archived.archive.package.unresolvedQuestions = [];
             if (fault === "code") archived.termination.code = "stalled";
             if (fault === "archive") archived.archive.package.formalTranscript.pop();
@@ -193,6 +198,33 @@ describe("blocking question convergence probe", () => {
     it.each(["criterion", "question", "code"])("rejects %s", async (fault) => {
         const runtime = harness("convergence-no-consensus", fault);
         await expect(runConvergenceNoConsensusScenario(runtime)).rejects.toThrow();
+        expect(runtime.writeResult).not.toHaveBeenCalled();
+    });
+});
+
+describe("progress reset convergence probe", () => {
+    it("adds only the fourth Proposal and observes both counter resets", async () => {
+        const runtime = harness("convergence-reset");
+        await runConvergenceResetScenario(runtime);
+        const turns = runtime.callTool.mock.calls.filter(
+            (call) => call[2] === "convivium_submit_turn"
+        );
+        expect(turns).toHaveLength(7);
+        expect(turns[3]![3].changes).toEqual({
+            proposals: [
+                { title: "New structured progress", description: "A new proposal after replan" }
+            ]
+        });
+        expect(
+            turns
+                .filter((_, index) => index !== 3)
+                .every((call) => Object.keys(call[3].changes).length === 0)
+        ).toBe(true);
+        expect(runtime.writeResult).toHaveBeenCalledOnce();
+    });
+    it.each(["reset", "proposal"])("rejects %s", async (fault) => {
+        const runtime = harness("convergence-reset", fault);
+        await expect(runConvergenceResetScenario(runtime)).rejects.toThrow();
         expect(runtime.writeResult).not.toHaveBeenCalled();
     });
 });

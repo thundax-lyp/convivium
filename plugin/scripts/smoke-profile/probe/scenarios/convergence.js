@@ -473,3 +473,75 @@ export async function runConvergenceNoConsensusScenario(runtime) {
         ]
     });
 }
+
+export async function runConvergenceResetScenario(runtime) {
+    const { meetingId } = await createConvergenceMeeting(runtime, {
+        maxTurns: 10,
+        maxSpeakersPerTurn: 1,
+        maxTotalMessages: 100
+    });
+    const submissions = [],
+        checkpoints = [];
+    let final;
+    for (let ordinal = 1; ordinal <= 7; ordinal++) {
+        const turn = await submitConvergenceTurn(
+            runtime,
+            meetingId,
+            ordinal,
+            ordinal === 4
+                ? {
+                      proposals: [
+                          {
+                              title: "New structured progress",
+                              description: "A new proposal after replan"
+                          }
+                      ]
+                  }
+                : {}
+        );
+        submissions.push(recordConvergenceSubmission(turn));
+        if (ordinal < 7) {
+            assertConvergenceCheckpoint(runtime, turn.checkpoint, ordinal);
+            checkpoints.push(turn.checkpoint);
+        } else {
+            runtime.assert(
+                turn.submitted.result.meetingStatus === "partial" && turn.checkpoint === null,
+                "Seventh submit did not terminate partial"
+            );
+            final = turn;
+        }
+    }
+    const observed = {
+        submissions,
+        checkpoints,
+        questionId: null,
+        proposalId: submissions[3].deliveryId + "-proposal-1",
+        endResult: null,
+        ...(await finishConvergenceObservation(runtime, meetingId, final.delivery, final.input))
+    };
+    assertConvergenceArchive(runtime, observed, "stalled");
+    runtime.assert(
+        observed.archived.archive.package.proposals.some(
+            (proposal) => proposal.id === observed.proposalId && proposal.revision === 1
+        ),
+        "Reset Proposal missing from archive"
+    );
+    await runtime.writeResult({
+        ok: true,
+        scenario: runtime.scenario,
+        meetingId,
+        observed,
+        assertions: [
+            "first-progress-baseline",
+            "refocus-observed",
+            "replan-observed",
+            "progress-resets-both-counters",
+            "refocus-after-reset",
+            "replan-after-reset",
+            "partial-stalled",
+            "terminal-submit-rejected",
+            "archive-consistent",
+            "sessions-drained"
+        ]
+    });
+}
