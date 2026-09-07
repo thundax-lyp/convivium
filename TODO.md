@@ -10,12 +10,6 @@
 
 以下 FR-10 任务按 T0 → T8 顺序执行，前一步 PASS 才能开始下一步。2026-09-07 用户明确要求“依次执行TODO LIST，一任务一删除一提交”；执行、逐项删除与逐项 commit 已获授权。允许文件、命令、PASS/STOP 和恢复方式以 RUNBOOK 对应步骤为准，不在此复制方案。
 
-- [ ] `FR-10 / T7 / DSH Smoke`：验证真实引用草稿链路
-    - 依据文档：[RUNBOOK T7](docs/30-designs/RUNBOOK-FR10-REFERENCED-MINUTES.md#t7真实-dsh-引用草稿场景)
-    - 确认依据：2026-09-07 用户明确要求依次执行、一任务一删除一提交。
-    - 处理动作：T6 PASS 后，增加唯一 scribe-minutes selector，接入现有驱动和结果校验并运行真实 DSH 场景。
-    - 验收点：指定脚本测试、六项 oracle 和 Restore 全部 PASS；HTTP/archive 按第 4.5 节固定公开字段比较；内部附加字段不误报，公开字段及 metadata 篡改被拒绝；默认核心场景不变。
-
 - [ ] `FR-10 / T8 / 验证与收口`：完成整项验收并迁移证据
     - 依据文档：[RUNBOOK T8](docs/30-designs/RUNBOOK-FR10-REFERENCED-MINUTES.md#t8完整验证证据与删除)、[TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)
     - 确认依据：2026-09-07 用户明确要求依次执行、一任务一删除一提交；push/PR/merge 未授权。

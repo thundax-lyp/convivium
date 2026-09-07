@@ -82,94 +82,110 @@ describe("meeting tool registration", () => {
         });
     });
 
-    it("passes minutes metadata through execute and rejects invalid input before runtime", async () => {
-        const definitions: ToolDefinition[] = [];
-        let submitted: unknown;
-        const denied = async () => ({
-            protocolVersion: 1 as const,
-            ok: false as const,
-            code: "UNSUPPORTED_CAPABILITY" as const,
-            message: "not exercised",
-            retryable: false
-        });
-        registerSubmitAndControlTools({
-            registry: { register: (definition) => (definitions.push(definition), () => undefined) },
-            callers: {
-                resolve: async () => ({ sessionId: "participant-session", kind: "participant" })
-            },
-            runtime: {
-                createMeeting: denied,
-                getStatus: denied,
-                createMeetingTask: denied,
-                meetingTaskStatus: denied,
-                startMeetingTask: denied,
-                finishMeetingTask: denied,
-                sendMeetingMessage: denied,
-                finishMeetingMail: denied,
-                raiseHand: denied,
-                submitTurn: async (input) => {
-                    submitted = input;
-                    return {
-                        protocolVersion: 1,
-                        ok: false,
-                        code: "STALE_ATTEMPT",
-                        message: "task source is not current",
-                        retryable: false
-                    };
+    it.each([false, true])(
+        "passes minutes metadata through execute with frozen=%s and rejects invalid input before runtime",
+        async (frozen) => {
+            const definitions: ToolDefinition[] = [];
+            let submitted: unknown;
+            const denied = async () => ({
+                protocolVersion: 1 as const,
+                ok: false as const,
+                code: "UNSUPPORTED_CAPABILITY" as const,
+                message: "not exercised",
+                retryable: false
+            });
+            registerSubmitAndControlTools({
+                registry: {
+                    register: (definition) => (definitions.push(definition), () => undefined)
                 },
-                submitManagerPlan: denied,
-                pause: denied,
-                resume: denied,
-                endMeeting: denied
+                callers: {
+                    resolve: async () => ({ sessionId: "participant-session", kind: "participant" })
+                },
+                runtime: {
+                    createMeeting: denied,
+                    getStatus: denied,
+                    createMeetingTask: denied,
+                    meetingTaskStatus: denied,
+                    startMeetingTask: denied,
+                    finishMeetingTask: denied,
+                    sendMeetingMessage: denied,
+                    finishMeetingMail: denied,
+                    raiseHand: denied,
+                    submitTurn: async (input) => {
+                        submitted = input;
+                        return {
+                            protocolVersion: 1,
+                            ok: false,
+                            code: "STALE_ATTEMPT",
+                            message: "task source is not current",
+                            retryable: false
+                        };
+                    },
+                    submitManagerPlan: denied,
+                    pause: denied,
+                    resume: denied,
+                    endMeeting: denied
+                }
+            });
+
+            const submit = definitions.find(
+                (definition) => definition.name === "convivium_submit_turn"
+            );
+            const input = {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                turnId: "turn-1",
+                stepId: "step-1",
+                attemptId: "attempt-1",
+                deliveryId: "delivery-1",
+                agendaItemId: "agenda-1",
+                kind: "summary",
+                content: "message",
+                mentions: [],
+                taskIds: [],
+                minutesDraft: {
+                    coverage: { fromSeq: 1, throughSeq: 1 },
+                    referencedMessageIds: ["source-1"]
+                },
+                agendaRelation: "on_topic",
+                changes: {}
+            };
+            const before = structuredClone(input);
+            if (frozen) {
+                Object.freeze(input.minutesDraft.coverage);
+                Object.freeze(input.minutesDraft.referencedMessageIds);
+                Object.freeze(input.minutesDraft);
+                Object.freeze(input.changes);
+                Object.freeze(input.mentions);
+                Object.freeze(input.taskIds);
+                Object.freeze(input);
             }
-        });
+            const outcome = await submit?.execute({ input }, {
+                agent: {} as Agent,
+                signal: new AbortController().signal
+            } as ToolRunContext);
 
-        const submit = definitions.find(
-            (definition) => definition.name === "convivium_submit_turn"
-        );
-        const input = {
-            protocolVersion: 1,
-            meetingId: "meeting-1",
-            turnId: "turn-1",
-            stepId: "step-1",
-            attemptId: "attempt-1",
-            deliveryId: "delivery-1",
-            agendaItemId: "agenda-1",
-            kind: "summary",
-            content: "message",
-            mentions: [],
-            taskIds: [],
-            minutesDraft: {
-                coverage: { fromSeq: 1, throughSeq: 1 },
-                referencedMessageIds: ["source-1"]
-            },
-            agendaRelation: "on_topic",
-            changes: {}
-        };
-        const outcome = await submit?.execute({ input }, {
-            agent: {} as Agent,
-            signal: new AbortController().signal
-        } as ToolRunContext);
-
-        expect(submitted).toMatchObject({ minutesDraft: input.minutesDraft });
-        submitted = undefined;
-        const invalid = await submit!.execute({ input: { ...input, minutesDraft: null } }, {
-            agent: {} as Agent,
-            signal: new AbortController().signal
-        } as ToolRunContext);
-        expect(invalid).toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
-        expect(submitted).toBeUndefined();
-        expect(submit!.output.render({ input }, outcome)).toEqual([
-            { type: "text", text: JSON.stringify(outcome) }
-        ]);
-        expect(outcome).toEqual({
-            protocolVersion: 1,
-            ok: false,
-            code: "STALE_ATTEMPT",
-            message: "task source is not current",
-            retryable: false
-        });
-    });
+            expect(submitted).toMatchObject({ minutesDraft: input.minutesDraft });
+            expect(input).toEqual(before);
+            submitted = undefined;
+            const invalid = await submit!.execute({ input: { ...input, minutesDraft: null } }, {
+                agent: {} as Agent,
+                signal: new AbortController().signal
+            } as ToolRunContext);
+            expect(invalid).toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
+            expect(submitted).toBeUndefined();
+            expect(submit!.output.render({ input }, outcome)).toEqual([
+                { type: "text", text: JSON.stringify(outcome) }
+            ]);
+            expect(outcome).toEqual({
+                protocolVersion: 1,
+                ok: false,
+                code: "STALE_ATTEMPT",
+                message: "task source is not current",
+                retryable: false
+            });
+        }
+    );
 
     it("registers create and status with mandatory canonical outputs", () => {
         const definitions: ToolDefinition[] = [];

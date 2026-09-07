@@ -462,7 +462,10 @@ export function registerSubmitAndControlTools(
                     return asJson(
                         await execute(args.input, {
                             validate: (value) =>
-                                TurnSubmissionSchema(value as never) as unknown as TurnSubmissionV1,
+                                // DSH freezes arguments; Schemastery transforms may write adapted fields.
+                                TurnSubmissionSchema(
+                                    structuredClone(value) as never
+                                ) as unknown as TurnSubmissionV1,
                             callers: dependencies.callers,
                             runtime: dependencies.runtime.submitTurn.bind(dependencies.runtime),
                             exec

@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+
 export function validateScenarioResult(value, expectedScenario, validateMeetingStatus) {
     if (["convergence-stalled", "convergence-turn-budget-completion"].includes(expectedScenario)) {
         validateConvergenceRuntimeResult(value, expectedScenario, validateMeetingStatus);
@@ -8,6 +10,10 @@ export function validateScenarioResult(value, expectedScenario, validateMeetingS
     }
     if (value.scenario !== expectedScenario || !Array.isArray(value.assertions)) {
         throw new Error("Smoke result scenario contract mismatch.");
+    }
+    if (expectedScenario === "scribe-minutes") {
+        validateScribeMinutesResult(value, validateMeetingStatus);
+        return value;
     }
     if (expectedScenario === "reassign" && value.browserReady === true) {
         const validKeys = [
@@ -189,5 +195,145 @@ function validateConvergenceRuntimeResult(value, scenario, validateMeetingStatus
         );
     } catch {
         throw new Error("Convergence runtime result is invalid.");
+    }
+}
+
+function validateScribeMinutesResult(value, validateMeetingStatus) {
+    const requireValid = (condition) => {
+        if (!condition) throw new Error("Scribe minutes result is invalid.");
+    };
+    const exactKeys = (object, keys) =>
+        object &&
+        typeof object === "object" &&
+        !Array.isArray(object) &&
+        Object.keys(object).length === keys.length &&
+        keys.every((key) => Object.hasOwn(object, key));
+    try {
+        const browser = value.browserReady;
+        requireValid(
+            typeof browser === "boolean" &&
+                typeof value.meetingId === "string" &&
+                value.meetingId.trim().length > 0
+        );
+        requireValid(
+            exactKeys(value, [
+                "ok",
+                "scenario",
+                "browserReady",
+                "meetingId",
+                "observed",
+                "assertions",
+                ...(browser ? ["captainSessionId"] : [])
+            ])
+        );
+        if (browser) requireValid(value.captainSessionId === "convivium-smoke-captain");
+        requireValid(
+            isDeepStrictEqual(value.assertions, [
+                "minutes-context-visible",
+                "minutes-invalid-atomic",
+                "minutes-replay-stable",
+                "minutes-http-equal",
+                ...(browser ? [] : ["minutes-archive-equal", "minutes-sessions-drained"])
+            ])
+        );
+        const o = value.observed;
+        requireValid(
+            exactKeys(o, [
+                "source",
+                "draft",
+                "afterSubmit",
+                "afterReplay",
+                "status",
+                ...(browser ? [] : ["archived", "drainedSessionIds"])
+            ])
+        );
+        const envelope = (v) =>
+            requireValid(
+                v?.protocolVersion === 1 &&
+                    v.ok === true &&
+                    v.meetingId === value.meetingId &&
+                    Number.isSafeInteger(v.meetingVersion) &&
+                    v.meetingVersion >= 0
+            );
+        for (const receipt of [o.afterSubmit, o.afterReplay]) {
+            envelope(receipt);
+            requireValid(
+                receipt.result.messageId === o.draft.id &&
+                    receipt.result.messageSeq === o.draft.seq &&
+                    receipt.result.turnStatus === "completed" &&
+                    receipt.result.meetingStatus === "running"
+            );
+        }
+        requireValid(isDeepStrictEqual(o.afterSubmit, o.afterReplay));
+        envelope(o.status);
+        validateMeetingStatus(structuredClone(o.status.result));
+        requireValid(
+            o.status.result.meetingId === value.meetingId &&
+                o.status.result.meetingVersion === o.status.meetingVersion &&
+                o.status.meetingVersion >= o.afterSubmit.meetingVersion
+        );
+        const find = (messages, id) => {
+            const matches = messages.filter((m) => m.id === id);
+            requireValid(matches.length === 1);
+            return matches[0];
+        };
+        for (const message of [o.source, o.draft])
+            requireValid(isDeepStrictEqual(find(o.status.result.messages, message.id), message));
+        const metadata = o.draft.minutesDraft;
+        requireValid(
+            o.source.id !== o.draft.id &&
+                metadata.status === "draft" &&
+                metadata.coverage.fromSeq <= o.source.seq &&
+                metadata.coverage.throughSeq >= o.source.seq &&
+                isDeepStrictEqual(metadata.referencedMessageIds, [o.source.id])
+        );
+        if (!browser) {
+            envelope(o.archived);
+            validateMeetingStatus(structuredClone(o.archived.result));
+            requireValid(
+                o.archived.result.status === "archived" &&
+                    o.archived.result.meetingId === value.meetingId &&
+                    o.archived.result.meetingVersion === o.archived.meetingVersion &&
+                    o.archived.meetingVersion >= o.status.meetingVersion
+            );
+            const publicKeys = [
+                "id",
+                "seq",
+                "turnId",
+                "stepId",
+                "speaker",
+                "agendaItemId",
+                "kind",
+                "content",
+                "mentions",
+                "replyTo",
+                "taskIds",
+                "createdAt",
+                "minutesDraft"
+            ];
+            for (const message of [o.source, o.draft]) {
+                const archived = find(
+                    o.archived.result.archive.package.formalTranscript,
+                    message.id
+                );
+                requireValid(
+                    publicKeys.every(
+                        (key) =>
+                            Object.hasOwn(archived, key) === Object.hasOwn(message, key) &&
+                            isDeepStrictEqual(archived[key], message[key])
+                    )
+                );
+            }
+            requireValid(
+                Array.isArray(o.drainedSessionIds) &&
+                    o.drainedSessionIds.length === 3 &&
+                    new Set(o.drainedSessionIds).size === 3 &&
+                    o.drainedSessionIds.every(
+                        (id) => typeof id === "string" && id.trim().length > 0
+                    )
+            );
+        }
+    } catch {
+        throw new Error("Scribe minutes result is invalid.");
     }
 }

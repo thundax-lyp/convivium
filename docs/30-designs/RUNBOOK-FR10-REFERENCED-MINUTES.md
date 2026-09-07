@@ -362,6 +362,8 @@ STOP：必须新增顶层 state、HTTP 或 slot 才能展示。卸载测试组�
 
 ### T7：真实 DSH 引用草稿场景
 
+执行修复授权：2026-09-07 用户要求“fix it，确保RUNBOOK执行完”。真实 DSH 冻结 tool arguments，而 Schemastery 嵌套 transform 会写回 adapted 字段，导致合法草稿在工具入口被拒绝；冻结输入测试已复现。T7 额外允许修改 `plugin/src/tools/register-tools.ts` 的 submit_turn validate 回调，在原 Schema 前 `structuredClone(value)`；允许 `plugin/tests/contract/tool-registration.spec.ts` 对既有草稿测试增加冻结/非冻结两种输入及输入不变断言。保持错误文案、Schema 与授权顺序不变；额外运行该测试文件。实际最后 Speaker 提交后会释放 resident Activation；重放前使用现有 `runtime.resumeParticipantForProbe(ctx, captain, b.agent.id, "scribe-minutes-replay")` 恢复同一 continuable Session，再提交完全相同输入。scripted runtime 增加 resume 的顺序与身份断言；不改 Session 生产生命周期。这些修复不改变产品范围，修订审计结论为 Executable。
+
 前置状态：T6 PASS。
 允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/result.mjs`、`plugin/scripts/smoke-profile/probe/index.js`；新增 `plugin/scripts/smoke-profile/probe/scenarios/scribe-minutes.js`、`plugin/tests/unit/scripts/scribe-minutes-probe.spec.ts`；修改 `plugin/tests/unit/scripts/smoke-profile.spec.ts`、`plugin/tests/unit/scripts/smoke-profile-contract.spec.ts`。
 禁止修改：既有 selector 行为、CORE_SCENARIOS、Host profile/provider、production Session adapter、凭证和 cleanup 基础设施。
