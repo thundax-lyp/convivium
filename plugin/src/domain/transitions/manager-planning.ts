@@ -96,7 +96,6 @@ function attendanceRecommendations(
 function waitForRequiredParticipant(
     state: MeetingState,
     context: SubmitManagerPlanContext,
-    ids: ManagerPlanIds,
     reasonCode?: ManagerFallbackReasonCode
 ): TransitionResult<MeetingState> {
     const participantIds = requiredUnavailable(state, context);
@@ -159,14 +158,14 @@ export function failManagerPlanningAndCreateFallback(
     ids: ManagerPlanIds
 ): TransitionResult<MeetingState> {
     if (requiredUnavailable(state, context).length > 0) {
-        return waitForRequiredParticipant(state, context, ids, context.reasonCode);
+        return waitForRequiredParticipant(state, context, context.reasonCode);
     }
     const attempt = state.manager.currentPlanningAttempt!;
     const fallbackAction =
         attempt.reason === "refocus" || attempt.reason === "replan" ? attempt.reason : "normal";
     const planned = planRuleBasedTurn(
         state,
-        { turnId: ids.turnId, stepId: (participantId, index) => ids.stepId(index) },
+        { turnId: ids.turnId, stepId: (_participantId, index) => ids.stepId(index) },
         context.now,
         fallbackAction
     );
@@ -385,7 +384,7 @@ export function submitManagerPlan(
     const dispatchable = new Set(context.dispatchableParticipantIds);
     const recommendations = attendanceRecommendations(state, input, context);
     if (requiredUnavailable(state, context).length > 0) {
-        return waitForRequiredParticipant(state, context, ids);
+        return waitForRequiredParticipant(state, context);
     }
 
     let planned: MeetingTurn;

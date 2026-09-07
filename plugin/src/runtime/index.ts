@@ -7,12 +7,6 @@ export type {
     MeetingRepositoryRuntime,
     RepositoryAuthorizationValidator
 } from "./meeting-runtime.js";
-export { createTurnRunner } from "./services/meeting-turn-service.js";
-export type {
-    TurnAttemptInput,
-    TurnRunnerDependencies,
-    TurnRunnerResult
-} from "./services/meeting-turn-service.js";
 export { createOutboxWorker } from "./outbox-worker.js";
 export {
     archiveBeginCommandKind,

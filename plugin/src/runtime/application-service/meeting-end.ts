@@ -152,7 +152,6 @@ export function createMeetingEndApplication(dependencies: MeetingEndApplicationO
                     error instanceof RepositoryError &&
                     [
                         "MEETING_NOT_FOUND",
-                        "SQLITE_BUSY",
                         "SCHEMA_VERSION_UNSUPPORTED",
                         "CORRUPT_DATABASE",
                         "CLOSED"

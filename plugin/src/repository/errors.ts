@@ -6,7 +6,6 @@ export type RepositoryErrorCode =
     | "CONSTRAINT_VIOLATION"
     | "INVALID_INPUT"
     | "UNSUPPORTED_CAPABILITY"
-    | "SQLITE_BUSY"
     | "SCHEMA_VERSION_UNSUPPORTED"
     | "CORRUPT_DATABASE"
     | "LEASE_LOST"
