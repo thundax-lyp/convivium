@@ -198,7 +198,7 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 
 ### 适用范围与状态
 
-本节是 LC-08 的固定操作规程。依赖 LC-06B 的 `decision-risk-closure` Browser 夹具和 LC-01–LC-07 实现均已合并；夹具由 `runDecisionRiskClosureScenario` 实现，并由 `smoke-profile.spec.ts` 的 fake runtime 测试验证暂停和 ready 边界；这不代表真实 Browser 验证已通过。沿用现有临时 profile、Browser URL、PTY 停止及 cleanup，不新增 selector、Host API 或测试框架。自动化实现阶段只准备夹具并运行单测；真实 smoke 由协调者合并后执行。
+本节是 LC-08 的固定操作规程。依赖 LC-06B 的 `decision-risk-closure` Browser 夹具和 LC-01–LC-07 实现已在待验收分支完成；夹具由 `runDecisionRiskClosureScenario` 实现，并由 `smoke-profile.spec.ts` 的 fake runtime 测试验证暂停和 ready 边界；这不代表真实 Browser 验证已通过。沿用现有临时 profile、Browser URL、PTY 停止及 cleanup，不新增 selector、Host API 或测试框架。真实 smoke 在实现分支合并前执行，验收通过后记录证据并关闭任务；不以合并作为首次冒烟的前置条件。
 
 ### Browser 夹具契约
 
@@ -234,7 +234,7 @@ Browser 分支在读取首次 candidateStatus 后、任何 decision/risk tool �
 
 ### Prepare
 
-从仓库根执行。Node/pnpm 与 rc.2 条件沿用本文前置条件；`dev.env` 由已有脚本校验，不打印或改写凭据。工作树产品代码须为已合并版本；不存在夹具、构建失败或凭据缺失则 STOP，记录实际错误，不临场改实现。
+从仓库根执行。Node/pnpm 与 rc.2 条件沿用本文前置条件；`dev.env` 由已有脚本校验，不打印或改写凭据。工作树产品代码须为已提交的待验收版本；不存在夹具、构建失败或凭据缺失则 STOP，记录实际错误，不临场改实现。
 
 以 PTY 启动唯一命令：
 
@@ -260,10 +260,10 @@ env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure CONVIVIUM_SMOKE_BROWSER_MODE=
 | 6 | 刷新页面，按同一 Session/view/meetingId 重新打开 | A/B history 和 risk 状态与第 5 步一致；无 pending/accepted Decision |
 | 7 | 使用已有 End outcome 选择 partial、End reason 输入 `Browser local control archive`，点击一次 End meeting，等待 archived | Meeting 不再提供五种写控件，history 保留两 Decision，风险仍保留 |
 
-第 7 步只为观察已提交审计事实，不计为新增产品动作。随后在另一个 Browser tab 打开该 origin 的 `GET /api/convivium/meetings/:meetingId`（meetingId 取 ready result 并作为单个 URL path segment 编码），读取 JSON：ok=true、result.status=archived；archive.package.decisionHistory 保留 A/B 及替代关系；completionFacts 中本次五动作共六个事实（替换包含 acceptance+supersession），authority 均为 local_host、assertedBy 均为 local-host:loopback-web，理由及 evidenceMessageIds 与上述输入一致；两条 risk_acceptance fact 中旧 accept 为 superseded、新 reject 为 active。允许归档流程已有的其他事实，但不把它们计入这六条。该 GET 仅核对审计，不能替代任何按钮写操作。
+第 7 步只为观察已提交审计事实，不计为新增产品动作。随后在另一个 Browser tab 打开该 origin 的 `GET /api/convivium/meetings/:meetingId`（meetingId 取 ready result 并作为单个 URL path segment 编码），读取 JSON：ok=true、result.status=archived；archive.package.decisionHistory 保留 A/B 及替代关系；completionFacts 中本次五动作共六个事实（替换包含 acceptance+supersession），authority 均为 local_host、assertedBy 均为 local-host:loopback-web，理由及 evidenceMessageIds 与上述输入一致；两条 risk_acceptance fact 中旧 accept 为 superseded、新 reject 为 active。允许归档流程已有的其他事实，但不把它们计入这六条。该 GET 仅核对审计，不能替代任何按钮写操作。若浏览器禁止直接展示 JSON，可用只读 HTTP 客户端 GET 同一 loopback URL 核对，并在证据中记录实际读取方式；不得因此改用 API 执行按钮动作。
 
 ### Restore And Closure
 
 无论断言成功或失败，向本次 wrapper PTY 发送一次 Ctrl-C，等待其正常退出且退出码为 0、stdout 出现 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`；wrapper 的 finally 必须完成 Host 停止、临时根删除和端口释放。用文件存在性工具核对 stdout 记录的唯一精确临时根不存在；不使用 glob、不删除其他目录、不直接 kill 工具进程来代替 Restore。
 
-将合并 commit、启动命令、ready IDs、七步结果、审计 GET 与 Restore 结果写入 `docs/40-readiness/CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md`，同步 `CURRENT-IMPLEMENTATION-COVERAGE.md`。只有所有断言和 Restore 通过才关闭 LC-08；其余保留具体失败或 Not Covered。本验证不包含真实 LLM 请求或 Host 冷重启，冷恢复自动化证据以 LC-06 为准。
+将被测 commit、启动命令、ready IDs、七步结果、审计 GET 与 Restore 结果写入 `docs/40-readiness/CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md`，同步 `CURRENT-IMPLEMENTATION-COVERAGE.md`。只有所有断言和 Restore 通过才关闭 LC-08；其余保留具体失败或 Not Covered。本验证不包含真实 LLM 请求或 Host 冷重启，冷恢复自动化证据以 LC-06 为准。

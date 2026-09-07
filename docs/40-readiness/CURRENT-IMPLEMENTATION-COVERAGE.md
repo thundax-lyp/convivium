@@ -30,11 +30,11 @@
 | FR-4 发言计划与选择                       | 已实现   | Manager/round-robin/rule-based/hybrid planning、资格校验、required Participant waiting、确定性 fallback、自动 stall/refocus/replan；新增五收敛场景真实 DSH 验证通过                                                            | 时间预算、blocking Position 分支等真实运行边界见收敛专项证据                                              |
 | FR-5 异步任务与举手                       | 已实现   | MeetingTask、HandRaise、恢复、幂等、task evidence；start replay 在最新 task snapshot 已为 `running` 时跳过 Catalog preview 并进入 receipt replay | 外部副作用 exactly-once、长期压力未覆盖                                                      |
 | FR-6 议题范围与发散控制                   | 已实现   | Question/Issue/Proposal/Position、候选 promote/park/reject、原子 commit、幂等、status/archive；全量验证及收敛真实 DSH 验证通过                                      | UI/HTTP/Client、时间预算、blocking Position 分支等真实运行边界见收敛专项证据                             |
-| FR-7 提案、立场与决策                     | 已实现   | Proposal revision、Position、Decision candidate、Captain/local Decision accept/supersede/revoke、单 Issue risk accept/reject、HTTP/Client 行内控制；[本地控制证据](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)                         | 本次五动作真实 DSH/Browser 待合并后验证；其他 UI 不在范围                                                             |
+| FR-7 提案、立场与决策                     | 已实现   | Proposal revision、Position、Decision candidate、Captain/local Decision accept/supersede/revoke、单 Issue risk accept/reject、HTTP/Client 行内控制；[本地控制证据](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)                         | 本次五动作真实 DSH/Browser 已通过；其他 UI 不在范围                                                             |
 | FR-8 完成事实与会议结束                   | 已实现   | completion/end、task evidence、终态 projection、恢复和幂等、收敛预算耗尽后的 stalled/no_consensus 终止；两类硬预算业务优先真实 DSH 验证通过                                                                                       | local fact 原子性、冷恢复与归档已自动验证；时间预算未覆盖                                        |
 | FR-9 暂停、恢复与故障隔离                 | 已实现   | pause/resume、timeout、reassign/skip、interrupt/drain、cold rebind、per-Meeting isolation                                                        | 无                                                                                           |
 | FR-10 记录、隐私与归档                    | 部分实现 | transcript、meeting mail、archive、Session cleanup、continuation                                                                                 | Scribe minutes 契约、projection、状态/归档路径未实现                                         |
-| FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；新增五种 Decision/risk 行内操作、单表单写锁和错误恢复，见[本地控制证据](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)    | 新增五动作真实 Browser 待验证；metrics、远程/多用户未覆盖                                 |
+| FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；新增五种 Decision/risk 行内操作、单表单写锁和错误恢复，见[本地控制证据](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)    | 新增五动作真实 Browser 已验证；metrics、远程/多用户未覆盖                                 |
 | FR-12 Agent 内部能力边界                  | 已实现   | 只消费正式提交和授权 task projection，不写自定义 DSH Session Event                                                                               | 后续 Mail/Web/UI 路径须保持该边界                                                            |
 | FR-13 Agent 角色目录与参会推荐            | 部分实现 | Phase 1 的 Catalog consumer、attempt binding、safe projection、recommendation claim 与 pending projection 已实现并通过本地验证                   | Captain disposition、admission、provisioning、FR-14、UI、真实 Host producer smoke 不在本阶段 |
 | FR-14 Agent Definition 与 DSH composition | 未实现   | 9 个样本、hash 和负向 fixture                                                                                                                    | Definition resolution、Preset/Skill validation、差异化 Session composition                   |
@@ -50,7 +50,7 @@
 
 ### Captain/local 决策与风险控制证据边界
 
-2026-09-07 在 `b4bed41` 基线至 `adb28ec` 实现并验证五动作及其 HTTP/Client 入口；全量 verify 为 76 files / 791 tests。领域来源、事务失败回滚、P2 事件顺序、幂等、冷 Runtime/Repository 重开、六条 local facts 与归档一致性均通过自动化验证，详见 [Captain Local Decision Risk Control Evidence](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)。本段只更新 FR-7/FR-8/FR-11 对应范围，真实 DSH/Browser 留给合并后的 LC-08；下述历史代码基线及 smoke 记录保持原含义。
+2026-09-07 在 `b4bed41` 基线至 `adb28ec` 实现并验证五动作及其 HTTP/Client 入口；全量 verify 为 76 files / 791 tests。领域来源、事务失败回滚、P2 事件顺序、幂等、冷 Runtime/Repository 重开、六条 local facts 与归档一致性均通过自动化验证，详见 [Captain Local Decision Risk Control Evidence](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)。本段只更新 FR-7/FR-8/FR-11 对应范围，LC-08 已在被测分支提交 `b63697d` 完成真实 DSH/Browser 七步、六条 local 审计事实和 Restore 验收；下述历史代码基线及 smoke 记录保持原含义。
 
 ## Executed Validation
 
@@ -102,7 +102,7 @@
 
 - 遗留 SQLite 数据不读取、不迁移、不删除。
 - 不支持 multi-Host writer、远程 filesystem、远程访问、多用户和网络部署。
-- risk/Decision 五动作已有正式 HTTP/Client write control 与自动化组合验证；本轮真实 DSH/Browser、七步操作和 Restore 仍待合并后 LC-08，不引用历史 smoke 替代。
+- risk/Decision 五动作已通过正式 HTTP/Client 自动化与 LC-08 真实 DSH/Browser 验收；本轮没有验证真实 LLM 请求或 Host 冷重启。
 - Question 的 required-review/risk evidence、Decision candidate 完整生命周期未实现。自动 stall/refocus/replan 已有正式路径和单测，完整链路的真实 DSH smoke 未覆盖。
 - FR-13 Phase 1 的 Agent Catalog safe projection、Manager recommendation claim 和 pending projection 已完成本地 fake-port/isolated-storage 验证；真实 Host producer smoke、Captain admission 和 Meeting Agent Definition runtime 不在该阶段。
 - 结构化 metrics、stress/长期资源泄漏和生产发布验证未实现或未覆盖。
