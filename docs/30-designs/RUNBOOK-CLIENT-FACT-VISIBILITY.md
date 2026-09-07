@@ -3,11 +3,11 @@
 ## 1. 状态与执行者契约
 
 - 建立日期：2026-09-07。
-- 模式：Author + Audit；本轮只交付本文，不执行 T0–T6。
+- 模式：Execute + Close；2026-09-07 用户明确授权修订 RUNBOOK/代码以完成执行，每步 PASS 后删除步骤并提交。
 - 作者基线：`main` HEAD `1dd23b318f41531d02f7d03d3d543edef8259071`，起始工作区干净。
 - 作者分支：`codex/client-fact-visibility-runbook`；直接使用指定项目目录，不建立 worktree，不操作其他任务目录。
 - 审计结论：`Executable`，仅指下述有界实施方案决策完备，不代表实现、测试或 Browser 已通过。
-- 后续 Execute 必须取得用户明确授权；当前授权不包含产品代码、测试、共享 coverage/TODO 修改、commit、push、PR、真实模型或外部运行验证。
+- 当前授权包含本任务代码/测试/操作修复、RUNBOOK 修订、逐步 commit 和确定性 Browser smoke；不包含 push、PR、真实模型和相邻产品能力。
 
 执行者只允许按 T0 → T6 顺序执行。每一步全部 PASS 后才能进入下一步；不得自行选方案、修改协议、引入依赖或补做相邻产品能力。STOP 时保留现场，报告最后 PASS 步骤、触发条件、文件/symbol、复现命令、实际输出及继续所需决定，不回滚用户改动，不放宽类型、Schema、测试或空值规则。
 
@@ -202,12 +202,12 @@ stale version 写拒绝、相同请求重放、idempotency conflict、数组部�
 env CONVIVIUM_SMOKE_SCENARIO=reassign CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile
 ```
 
-等待该 operations 文档的完整 ready 条件（ok/profile/provider、browserReady、browser-reassign-ready、固定 Captain ID、oldAttemptId/currentAttemptId 一致、唯一 URL/临时根 marker）。记录输出给出的 URL、精确临时根和 wrapper session 标识；禁止猜端口/路径。5 分钟 attempt 窗口失效时 STOP 并执行 Restore；重新验证必须重新启动完整命令。
+等待该 operations 文档的完整 ready 条件（ok/profile/provider、browserReady、browser-reassign-ready、固定 Captain ID、oldAttemptId/currentAttemptId 一致、唯一 URL/临时根 marker）。记录输出给出的 URL、精确临时根和 wrapper session 标识；禁止猜端口/路径。使用 exec_command 必须设置 tty=true，确保 Ctrl-C 经 PTY 发送 SIGINT；禁止在无 PTY 的 pipe session 中发送控制字节并把工具终止进程视为正常 Restore。5 分钟 attempt 窗口失效时 STOP 并执行 Restore；重新验证必须重新启动完整命令。
 
 ### Browser Execute / Assert
 
 1. 打开 marker URL，选择 `convivium-smoke-captain` Session，再选择 label=`Meetings` view，再选择 `Runtime smoke (running)`。面板未出现/slot 激活错误即 STOP，不改导航。
-2. 只读观察：Current activity 包含 `Turn intent`=`explore`、`Turn objective`=`Reassign A to B`；`Turn reason` 非空且不是 None。使用该页面实际 GET response 的 `result.currentTurn.reason` 逐字核对 reason，不预猜后端选择文案。读取 response 只作比较，不可用 response 代替 UI。
+2. 只读观察：Current activity 包含 `Turn intent`=`explore`、`Turn objective`=`Reassign A to B`；`Turn reason` 非空且不是 None。使用同一 loopback GET `/api/convivium/meetings/:meetingId` 的实时响应（由只读 HTTP CLI 获取）中的 `result.currentTurn.reason` 逐字核对 reason，不预猜后端选择文案。读取 response 只作比较，不可用 response 代替 UI。
 3. 当前 fixture 的 Accepted decisions/Decision history/Parking Lot/Risks 应为空；检查新两个区块和各自固定空文案存在，且新区域没有写控件。记录这是空态组合证据。
 4. 刷新真实页面，重新选择同一 Session/view/Meeting，重复第 2–3 项。记录可见文本、截图、console 中有无 bundle 错误；只要超时令 fixture 改变就 STOP，不更改预期来迁就结果。
 5. 不点击 Skip/Pause/End，不创建非空数据，不调用模型。这个检查证明实际 built bundle 的 slot/组件和完整读取能显示新增行及空态；**不证明非空决策历史、Parking Lot、归档 issues 的真实 Browser 端到端链路，也不证明真实降级/收敛被触发**。上述非空行为由 V1–V6 的 component/Schema 覆盖，readiness 必须保留这项限制。
@@ -262,3 +262,5 @@ git diff --check
 缺失决定：当前限定实施范围无未决产品/技术选择。若要求非空四阶段事实必须在真实 Browser 全链路证明，现有 reassign browser-ready fixture 不满足，属于新增验证范围；执行者必须 STOP 请求单独授权并由作者固定 fixture/harness 方案，不得自行扩展本 RUNBOOK。
 
 本轮交叉审查修订：接受 C 的两项 P2 意见；waiting fixture 显式移除 Turn/attempt 三字段，刷新与非法恢复使用 v2/v5/v6 的不同事实集合并断言更新、删除和旧文本消失。仅修订本文，不执行实施步骤。
+
+本次修订审计：Executable。修订固定 PTY 启动和独立只读 GET 比对方式；不降低 UI、console、截图、自动 cleanup 或不同事实刷新门禁。前次无 PTY 运行未取得 cleanup marker，不作为 runner 缺陷已确认或 Restore PASS 证据。

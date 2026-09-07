@@ -254,6 +254,144 @@ function factArchiveStatus(status: "archiving" | "archived") {
     } as MeetingStatusResultV1;
 }
 
+function refreshFactStatus(stage: "active" | "terminal" | "archived"): MeetingStatusResultV1 {
+    if (stage === "active") return factStatus("running");
+    const decisions = factDecisions();
+    const current = {
+        ...decisions[2],
+        statement: "Current decision v5",
+        rationale: "Current rationale v5"
+    };
+    if (stage === "terminal")
+        return {
+            ...factTerminalStatus("partial"),
+            decisionHistory: [decisions[0], current],
+            acceptedDecisions: [current],
+            parkingLot: [
+                { ...factParkingLot()[0], title: "Topic pending v5", reason: "Reason pending v5" },
+                factParkingLot()[2]
+            ],
+            risks: [
+                {
+                    ...factRisks()[0],
+                    title: "Risk accepted v5",
+                    rationale: "Rationale risk-accepted v5"
+                },
+                factRisks()[1]
+            ]
+        } as MeetingStatusResultV1;
+    const archived = factArchiveStatus("archived");
+    if (archived.status !== "archived") throw new Error("Expected archive fixture");
+    const final: PublicDecisionV1 = {
+        id: "d-final",
+        proposalId: "p-final",
+        proposalRevision: 1,
+        status: "accepted",
+        statement: "Final decision v6",
+        rationale: "Final rationale v6",
+        agendaItemId: "agenda-1",
+        acceptedBy: ["participant-one"],
+        dissentingPositionIds: []
+    };
+    return {
+        ...archived,
+        termination: { ...archived.termination, decisionIds: ["d-final"] },
+        archive: {
+            ...archived.archive,
+            package: {
+                ...archived.archive.package,
+                termination: { ...archived.archive.package.termination, decisionIds: ["d-final"] },
+                decisionHistory: [
+                    {
+                        ...current,
+                        status: "revoked",
+                        statement: "Current decision revoked v6",
+                        rationale: "Current rationale v6"
+                    },
+                    final
+                ],
+                acceptedDecisions: [final],
+                parkingLot: [
+                    {
+                        id: "candidate-parked",
+                        title: "Topic promoted v6",
+                        reason: "Reason promoted v6",
+                        status: "promoted"
+                    },
+                    {
+                        id: "candidate-final",
+                        title: "Final follow-up v6",
+                        reason: "Deferred for next meeting",
+                        status: "parked"
+                    }
+                ],
+                issues: [
+                    {
+                        id: "risk-follow-up",
+                        title: "Follow-up resolved v6",
+                        description: "Follow-up complete",
+                        disposition: "follow_up",
+                        status: "resolved",
+                        rationale: "Resolved after review",
+                        ownerId: "participant-one",
+                        relatedTaskIds: ["task-follow-up"]
+                    },
+                    {
+                        id: "issue-final",
+                        title: "Final issue v6",
+                        description: "Remaining follow-up",
+                        disposition: "follow_up",
+                        status: "open",
+                        relatedTaskIds: []
+                    }
+                ]
+            }
+        }
+    };
+}
+
+function assertRefreshFacts(detail: MeetingStatusResultV1) {
+    const view = mapMeetingPanelView(detail);
+    const groups = [
+        { label: "Decision history", attr: "data-decision-id", items: view.decisionHistory },
+        { label: "Accepted decisions", attr: "data-decision-id", items: view.acceptedDecisions },
+        { label: "Parking Lot", attr: "data-candidate-id", items: view.parkingLot },
+        { label: "Risks", attr: "data-risk-id", items: view.risks }
+    ];
+    for (const { label, attr, items } of groups) {
+        const rows = [...screen.getByLabelText(label).querySelectorAll(`[${attr}]`)];
+        expect(rows.map((row) => row.getAttribute(attr))).toEqual(items.map((item) => item.id));
+        items.forEach((item, index) => {
+            const values = [...rows[index].querySelectorAll("dd")].map((dd) => dd.textContent);
+            for (const [key, value] of Object.entries(item)) {
+                if (
+                    label === "Accepted decisions" &&
+                    ["agendaItemId", "acceptedBy", "supersededByDecisionId"].includes(key)
+                )
+                    continue;
+                if (
+                    label === "Risks" &&
+                    ![
+                        "id",
+                        "title",
+                        "description",
+                        "status",
+                        "disposition",
+                        "rationale",
+                        "ownerId",
+                        "relatedTaskIds"
+                    ].includes(key)
+                )
+                    continue;
+                if (value === undefined || (Array.isArray(value) && value.length === 0)) continue;
+                if (Array.isArray(value)) {
+                    for (const entry of value) expect(values.join(" ")).toContain(entry);
+                } else expect(values).toContain(String(value));
+            }
+        });
+    }
+}
+
 function success<T>(result: T, meetingVersion = 2) {
     return { protocolVersion: 1 as const, ok: true as const, meetingId, meetingVersion, result };
 }
@@ -883,62 +1021,63 @@ describe("client entry framework", () => {
         expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 
-    it("fact visibility: focus refresh replaces complete facts and reopen uses archive", async () => {
-        const active = factStatus("running");
-        const terminal = factTerminalStatus("completed");
-        const archived = factArchiveStatus("archived");
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(active)))
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(terminal, 5)));
-        vi.stubGlobal("fetch", fetchMock);
-        const rendered = render(createElement(ConviviumMeetingPanel));
-        await selectMeeting();
-        expect(screen.getByLabelText("Decision history").textContent).toContain("d-old");
-        window.dispatchEvent(new Event("focus"));
-        await waitFor(() => expect(screen.getByLabelText("Termination")).toBeTruthy());
-        expect(screen.getByLabelText("Decision history").textContent).toContain("d-current");
-        rendered.unmount();
-        vi.stubGlobal(
-            "fetch",
-            vi.fn(async (input: RequestInfo | URL) =>
-                String(input) === "/api/convivium/meetings"
-                    ? jsonResponse(listResponse())
-                    : jsonResponse(success(archived, 6))
-            )
-        );
-        render(createElement(ConviviumMeetingPanel));
-        await selectMeeting();
-        await waitFor(() =>
-            expect(screen.getByLabelText("Risks").textContent).toContain("Waiting issue")
-        );
-        expect(screen.getByLabelText("Current activity").textContent).toContain("Turn reasonNone");
-    });
-
-    it("fact visibility: five second poll replaces the selected fact projection", async () => {
-        vi.useFakeTimers({ shouldAdvanceTime: true });
-        const active = factStatus("running");
-        const terminal = factTerminalStatus("completed");
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(active)))
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(terminal, 5)));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
-        await selectMeeting();
-        await act(async () => vi.advanceTimersByTime(5_000));
-        await waitFor(() => expect(screen.getByLabelText("Termination")).toBeTruthy());
-        expect(screen.getByLabelText("Decision history").textContent).toContain("d-current");
-    });
+    it.each(["focus", "poll"] as const)(
+        "fact visibility: %s replaces complete facts and reopen retains archive",
+        async (trigger) => {
+            if (trigger === "poll") vi.useFakeTimers({ shouldAdvanceTime: true });
+            const active = refreshFactStatus("active");
+            const terminal = refreshFactStatus("terminal");
+            const archived = refreshFactStatus("archived");
+            const originals = [active, terminal, archived].map((value) => JSON.stringify(value));
+            for (const value of [active, terminal, archived]) {
+                expect(() =>
+                    MeetingStatusResultSchema(JSON.parse(JSON.stringify(value)))
+                ).not.toThrow();
+            }
+            let selected = active;
+            vi.stubGlobal(
+                "fetch",
+                vi.fn(async (input: RequestInfo | URL) =>
+                    String(input) === "/api/convivium/meetings"
+                        ? jsonResponse(listResponse())
+                        : jsonResponse(success(selected, selected.meetingVersion))
+                )
+            );
+            const rendered = render(createElement(ConviviumMeetingPanel));
+            await selectMeeting();
+            assertRefreshFacts(active);
+            fireEvent.change(screen.getByLabelText("Pause reason"), {
+                target: { value: "Inspect facts" }
+            });
+            expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(false);
+            for (const next of [terminal, archived]) {
+                selected = next;
+                if (trigger === "poll") await act(async () => vi.advanceTimersByTime(5_000));
+                else fireEvent(window, new Event("focus"));
+                await waitFor(() => assertRefreshFacts(next));
+                const dds = [
+                    ...screen.getByLabelText("Decision history").querySelectorAll("dd")
+                ].map((dd) => dd.textContent);
+                expect(dds).not.toContain(factDecisions()[2].statement);
+                if (next === archived) expect(dds).not.toContain("Current decision v5");
+                expect(screen.getByLabelText("Current activity").textContent).toContain(
+                    "Turn reasonNone"
+                );
+            }
+            rendered.unmount();
+            render(createElement(ConviviumMeetingPanel));
+            await selectMeeting();
+            assertRefreshFacts(archived);
+            expect([active, terminal, archived].map((value) => JSON.stringify(value))).toEqual(
+                originals
+            );
+        }
+    );
 
     it.each(["decisionHistory", "parkingLot", "archiveIssues"] as const)(
         "fact visibility: malformed %s keeps cached facts until valid recovery",
         async (kind) => {
-            const active = factStatus("running");
+            const active = refreshFactStatus("active");
             const initial = active;
             const malformedSource =
                 kind === "archiveIssues" ? factArchiveStatus("archived") : active;
@@ -969,9 +1108,13 @@ describe("client entry framework", () => {
             vi.stubGlobal("fetch", fetchMock);
             render(createElement(ConviviumMeetingPanel));
             await selectMeeting();
+            fireEvent.change(screen.getByLabelText("Pause reason"), {
+                target: { value: "Inspect facts" }
+            });
+            expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(false);
             window.dispatchEvent(new Event("focus"));
             await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
-            expect(screen.getByLabelText("Decision history").textContent).toContain("d-old");
+            assertRefreshFacts(active);
             expect(screen.getByLabelText("Parking Lot").textContent).toContain("candidate-pending");
             expect(screen.getByLabelText("Risks").textContent).toContain("risk-accepted");
             expect(
@@ -979,13 +1122,11 @@ describe("client entry framework", () => {
             ).toBe(true);
             fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
             fetchMock.mockResolvedValueOnce(
-                jsonResponse(success(factArchiveStatus("archived"), 6))
+                jsonResponse(success(refreshFactStatus("archived"), 6))
             );
             window.dispatchEvent(new Event("focus"));
             await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
-            await waitFor(() =>
-                expect(screen.getByLabelText("Risks").textContent).toContain("Waiting issue")
-            );
+            await waitFor(() => assertRefreshFacts(refreshFactStatus("archived")));
             expect(screen.getByLabelText("Decision history").textContent).toContain("d-current");
         }
     );
