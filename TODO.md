@@ -8,30 +8,9 @@
 
 ## 当前任务项
 
-## 待审阅任务项
-
-- [ ] `domain/decision-risk`：LC-01 领域操作记录 local 来源
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T1。
-    - 确认依据：2026-09-07，本任务确认产品方案并要求文件级 TODO；尚未委派实现。
-    - 前置依赖：RUNBOOK T0 通过。
-    - 文件（9 个）：
-
-        - `plugin/src/domain/model.ts`
-        - `plugin/src/domain/transitions/decision-acceptance.ts`
-        - `plugin/src/domain/transitions/decision-disposition.ts`
-        - `plugin/src/domain/completion.ts`
-        - `plugin/src/runtime/application-service/meeting-control.ts`
-        - `plugin/tests/unit/domain/transitions/decision-acceptance.spec.ts`
-        - `plugin/tests/unit/domain/transitions/decision-disposition.spec.ts`
-        - `plugin/tests/unit/domain/completion.spec.ts`
-        - `plugin/tests/fixtures/local-decision-risk.ts`
-
-    - 处理动作：增加 local authority 和 acceptanceMode，透传替换决策的来源；调整风险权限参数并补测试。meeting-control.ts 仅同步参数，新建共享 fixture。
-    - 验收点：V1 通过；五动作保留独立来源，旧 Captain 行为不变，非法输入及终态无修改。
-
 - [ ] `domain/archive`：LC-02 归档校验 local 事实来源
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T2。
-    - 确认依据：2026-09-07，本任务确认产品方案并要求文件级 TODO；尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
     - 前置依赖：LC-01 完成。
     - 文件（2 个）：
 
@@ -43,7 +22,7 @@
 
 - [ ] `runtime/application-service`：LC-03 接线三个 local Runtime 方法
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T3。
-    - 确认依据：2026-09-07，本任务确认产品方案并要求文件级 TODO；尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
     - 前置依赖：LC-02 完成。
     - 文件（6 个）：
 
@@ -59,7 +38,7 @@
 
 - [ ] `http/local-control`：LC-04 开放三个 loopback HTTP 写入口
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T4。
-    - 确认依据：2026-09-07，本任务确认产品方案并要求文件级 TODO；尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
     - 前置依赖：LC-03 完成。
     - 文件（2 个）：
 
@@ -71,7 +50,7 @@
 
 - [ ] `client/meeting-panel`：LC-05 实现单行内操作表单
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T5。
-    - 确认依据：2026-09-07，本任务确认产品方案并要求文件级 TODO；尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
     - 前置依赖：LC-04 完成。
     - 文件（3 个）：
 
@@ -84,7 +63,7 @@
 
 - [ ] `tests/contract`：LC-06 验证事务、冷恢复和完整调用链
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T6。
-    - 确认依据：2026-09-07，本任务确认产品方案并要求文件级 TODO；尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
     - 前置依赖：LC-05 完成。
     - 文件（2 个）：
 
@@ -96,7 +75,7 @@
 
 - [ ] `tests/browser-fixture`：LC-06B 准备本地按钮验证夹具
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T6B；[Smoke 操作规程](docs/50-operations/HOW-TO-DSH-SMOKE.md) Decision/Risk 本地按钮验证。
-    - 确认依据：2026-09-07，用户要求按最小化设计补齐可执行方案；尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
     - 前置依赖：LC-06 完成。
     - 文件（4 个）：
 
@@ -110,7 +89,7 @@
 
 - [ ] `readiness/local-control`：LC-07 完成全量验证与文档收口
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T7–T8。
-    - 确认依据：2026-09-07，本任务确认产品方案并要求文件级 TODO；尚未委派实现。
+    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
     - 前置依赖：LC-06B 完成。
     - 文件（5 个）：
 
@@ -134,5 +113,7 @@
 
     - 处理动作：由协调者按固定规程启动夹具，执行七步按钮/刷新/归档验证、审计 GET 和清理，记录 evidence/coverage。
     - 验收点：七步、六条 local 审计事实和 Restore 全部通过；记录合并版本与实际结果，未通过时保留任务。
+
+## 待审阅任务项
 
 ## 待讨论项

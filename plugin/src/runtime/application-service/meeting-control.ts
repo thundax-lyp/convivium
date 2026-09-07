@@ -163,7 +163,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                         const transition = applyCompletionClaims(state, {
                             participantId: "captain",
                             assertedBy: `captain:${caller.sessionId}`,
-                            riskAuthority: true,
+                            riskAuthority: "captain",
                             now: options.now?.() ?? Date.now(),
                             authorizedTaskIds: [],
                             factId: (_kind, index) => `completion-${input.requestId}-risk-${index}`,

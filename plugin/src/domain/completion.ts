@@ -44,13 +44,13 @@ export interface ApplyCompletionClaimsContext {
     authorizedTaskIds: readonly string[];
     now: number;
     factId: (kind: CompletionFact["kind"], index: number) => string;
-    riskAuthority?: boolean;
+    riskAuthority?: "captain" | "local_host";
     assertedBy?: string;
 }
 
-function isCaptainRiskDisposition(context: ApplyCompletionClaimsContext): boolean {
+function isControlRiskDisposition(context: ApplyCompletionClaimsContext): boolean {
     return (
-        context.riskAuthority === true &&
+        (context.riskAuthority === "captain" || context.riskAuthority === "local_host") &&
         context.claims.riskAcceptance !== undefined &&
         (context.claims.outputClaims?.length ?? 0) === 0 &&
         (context.claims.criterionClaims?.length ?? 0) === 0 &&
@@ -166,7 +166,7 @@ export function applyCompletionClaims(
     }
     if (
         !state.participants.some((participant) => participant.id === context.participantId) &&
-        !isCaptainRiskDisposition(context)
+        !isControlRiskDisposition(context)
     ) {
         invalidClaim(state, "completion claim caller is not a meeting participant");
     }
@@ -395,7 +395,7 @@ export function applyCompletionClaims(
                 [],
                 factIndex,
                 {
-                    authority: context.riskAuthority ? "captain" : "risk_acceptance_authority",
+                    authority: context.riskAuthority ?? "risk_acceptance_authority",
                     reason: riskAcceptance.reason
                 }
             )
