@@ -97,14 +97,14 @@ export function createOfflineMeetingProtocolFixture(): OfflineMeetingProtocolFix
             speakerAttemptTimeoutMs: 60000
         }
     };
-    const parsedCreate = CreateMeetingInputSchema(createInput);
+    CreateMeetingInputSchema(createInput);
     const initial = prepareMeetingCreation(
-        parsedCreate,
+        structuredClone(createInput),
         "offline-meeting",
         { callerBinding: "session:offline-captain", capabilityId: "captain:offline-captain" },
         { now }
     ).state;
-    const planningState = startManagerPlanning(initial, {
+    const planningState = startManagerPlanning(structuredClone(initial), {
         meetingId: "offline-meeting",
         planningAttemptId: "offline-planning-1",
         deliveryId: "offline-manager-delivery-1",
@@ -138,8 +138,15 @@ export function createOfflineMeetingProtocolFixture(): OfflineMeetingProtocolFix
     };
     ManagerPlanSubmissionSchema(managerSubmission);
     const plannedState = submitManagerPlan(
-        planningState,
-        managerSubmission,
+        structuredClone(planningState),
+        {
+            agendaItemId: managerSubmission.agendaItemId,
+            intent: managerSubmission.intent,
+            objective: managerSubmission.objective,
+            expectedOutputs: [...managerSubmission.expectedOutputs],
+            prohibitedTopics: [...managerSubmission.prohibitedTopics],
+            steps: structuredClone(managerSubmission.steps)
+        },
         {
             meetingId: managerSubmission.meetingId,
             planningAttemptId: managerSubmission.planningAttemptId,
@@ -162,49 +169,56 @@ export function createOfflineMeetingProtocolFixture(): OfflineMeetingProtocolFix
         aContext,
         "Marker: amber-47. Reason: a local fixture needs no network."
     );
-    const afterAState = submitSpeakerAndAdvanceMeeting(plannedState, "participant-a", {
-        meetingId: aSubmission.meetingId,
-        turnId: aSubmission.turnId,
-        stepId: aSubmission.stepId,
-        attemptId: aSubmission.attemptId,
-        deliveryId: aSubmission.deliveryId,
-        agendaItemId: aSubmission.agendaItemId,
-        participantId: "participant-a",
-        message: {
-            id: "offline-message-a",
-            content: aSubmission.content,
-            kind: "statement",
-            mentions: [],
-            taskIds: [],
-            agendaRelation: "on_topic",
-            createdAt: now + 3
-        },
-        questions: [],
-        now: now + 3,
-        nextPlanningAttemptId: "offline-planning-2",
-        nextPlanningDeliveryId: "offline-manager-delivery-2",
-        catalogBinding: { kind: "none" }
-    }).state;
+    const afterAState = submitSpeakerAndAdvanceMeeting(
+        structuredClone(plannedState),
+        "participant-a",
+        {
+            meetingId: aSubmission.meetingId,
+            turnId: aSubmission.turnId,
+            stepId: aSubmission.stepId,
+            attemptId: aSubmission.attemptId,
+            deliveryId: aSubmission.deliveryId,
+            agendaItemId: aSubmission.agendaItemId,
+            participantId: "participant-a",
+            message: {
+                id: "offline-message-a",
+                content: aSubmission.content,
+                kind: "statement",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic",
+                createdAt: now + 3
+            },
+            questions: [],
+            now: now + 3,
+            nextPlanningAttemptId: "offline-planning-2",
+            nextPlanningDeliveryId: "offline-manager-delivery-2",
+            catalogBinding: { kind: "none" }
+        }
+    ).state;
     const bAttempt = afterAState.currentTurn?.steps[1]?.attempt;
     if (!bAttempt) throw new Error("B attempt missing");
     const bContext = projectSpeakerMeetingContext(afterAState, "participant-b", bAttempt.attemptId);
-    const aMessage = bContext.recentMessages.find((message) => message.id === "offline-message-a");
-    if (!aMessage) throw new Error("A message missing from B context");
+    const aMessages = bContext.recentMessages.filter(
+        (message) => message.id === "offline-message-a"
+    );
+    const aMessage = aMessages[0];
+    if (aMessages.length !== 1 || !aMessage) throw new Error("B context requires one A message");
     const bSubmission = speakerInput(
         bContext,
         "I cite amber-47: a local fixture needs no network.",
         aMessage.id
     );
-    return structuredClone({
-        createInput,
-        planningState,
-        managerContext,
-        managerSubmission,
-        plannedState,
-        aContext,
-        aSubmission,
-        afterAState,
-        bContext,
-        bSubmission
-    });
+    return {
+        createInput: structuredClone(createInput),
+        planningState: structuredClone(planningState),
+        managerContext: structuredClone(managerContext),
+        managerSubmission: structuredClone(managerSubmission),
+        plannedState: structuredClone(plannedState),
+        aContext: structuredClone(aContext),
+        aSubmission: structuredClone(aSubmission),
+        afterAState: structuredClone(afterAState),
+        bContext: structuredClone(bContext),
+        bSubmission: structuredClone(bSubmission)
+    };
 }

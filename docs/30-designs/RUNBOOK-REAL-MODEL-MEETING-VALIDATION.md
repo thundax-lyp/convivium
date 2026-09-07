@@ -152,11 +152,26 @@ runManagerPlan 的实现严格重复 §5.4 的 domainInput/domainContext/ids 映
 
 所有命令从仓库根目录运行。本轮没有执行这些实施步骤；后续执行者不得边读本文边改变 Scope。
 
-已完成进度：T0 基线检查通过（33 tests）；T1 fixture/spec 与 V1/V2/V3/V8 断言通过（focused suite）。对应机械步骤已删除；T2 仍在执行。
+已完成进度：T0 基线检查通过（33 tests）；T1 fixture/spec 与 V1/V2/V3/V8 断言通过。对应机械步骤已删除。
 
-T2 实际结果：PASS。V4–V7 负例与 surface 断点已覆盖；focused suite 9 tests 与 strict tsc 通过；runtime/caller sentinel 未调用。未覆盖：T3–T5。
+T2 实际结果：PASS。2026-09-07 最终补齐后 focused suite 为原定八个 it，strict tsc 退出 0。V4 原 packet 不变、V5 精确错误码及两类 projector 拒绝、V6 唯一 A 引用、V7 三工具唯一名称/完整 parameters/同一 runtime-caller sentinel 未调用/完整 provisioning instruction 与 context 字段差异均已验证。fixture 深拷贝和领域 input 映射符合 §5。先前九个测试的记录不代表本次最终验收。
 
-T3 实际结果：PASS。Prettier、strict tsc、focused suite（9 tests）和 diff check 均通过。未覆盖：T4–T5。
+### T3：重验最终测试类型与格式
+
+前置状态：T2 最终八项验收 PASS。
+允许修改：两个新增测试文件的格式与机械错误。
+禁止修改：产品、现有测试和配置。
+执行：对最终补齐版本重跑 formatter、显式 tsc、focused suite。
+
+验证：
+```sh
+pnpm --dir plugin exec prettier tests/fixtures/offline-meeting-protocol.ts tests/contract/offline-meeting-protocol.spec.ts --write
+pnpm --dir plugin exec tsc --noEmit --strict --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext --types node --verbatimModuleSyntax tests/fixtures/offline-meeting-protocol.ts tests/contract/offline-meeting-protocol.spec.ts
+pnpm --dir plugin exec vitest run --project contract tests/contract/offline-meeting-protocol.spec.ts
+git diff --check
+```
+PASS：全部退出 0、八个 it 通过、无绕过类型的断言。
+STOP：需要改变产品/Schema/配置或放宽断言。
 
 ### T4：完整本地验证与未覆盖边界
 
