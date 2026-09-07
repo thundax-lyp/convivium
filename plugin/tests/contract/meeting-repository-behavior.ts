@@ -865,6 +865,25 @@ export function defineMeetingRepositoryBehaviorContract(
                     payload: { role: "meeting_mail", mailId: "mail-1", participantId: "p2" }
                 }
             };
+            for (const invalidMail of [
+                { ...send.mail, senderParticipantId: "outsider" },
+                { ...send.mail, replyToMailId: "missing-parent" },
+                {
+                    ...send.mail,
+                    meetingContext: { ...send.mail.meetingContext, contextThroughSeq: 3 },
+                    snapshotThroughSeq: 3
+                }
+            ]) {
+                await expect(
+                    repository.sendPrivateMeetingMail({
+                        ...send,
+                        requestId: "invalid-mail",
+                        isNewDeliveryAvailable: () => true,
+                        mail: invalidMail
+                    })
+                ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+                expect(await repository.readPrivateMeetingMail("mail-1")).toBeUndefined();
+            }
             const sent = await repository.sendPrivateMeetingMail(send);
             expect(send.isNewDeliveryAvailable).toHaveBeenCalledTimes(1);
             expect(await repository.sendPrivateMeetingMail(send)).toEqual(sent);
@@ -887,6 +906,22 @@ export function defineMeetingRepositoryBehaviorContract(
             expect(await repository.readPrivateMeetingMail("mail-1")).toMatchObject({
                 status: "pending",
                 snapshotThroughSeq: 2
+            });
+            await expect(
+                repository.startPrivateMeetingMail({
+                    requestId: "start-mail-invalid",
+                    requestHash: "start-mail-invalid-hash",
+                    authorization,
+                    expectedMeetingVersion: 0,
+                    mailId: "mail-1",
+                    processingThroughSeq: 3,
+                    deliveryId: "delivery-1",
+                    deadlineAt: 110,
+                    now: 10
+                })
+            ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+            expect(await repository.readPrivateMeetingMail("mail-1")).toMatchObject({
+                status: "pending"
             });
             const processing = await repository.startPrivateMeetingMail({
                 requestId: "start-mail",
@@ -917,6 +952,20 @@ export function defineMeetingRepositoryBehaviorContract(
                     now: 10
                 })
             ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_STATE" });
+            await expect(
+                repository.finishPrivateMeetingMail({
+                    requestId: "finish-mail-stale",
+                    requestHash: "finish-mail-stale-hash",
+                    authorization,
+                    expectedMeetingVersion: 0,
+                    mailId: "mail-1",
+                    handlingAttemptId: "stale-attempt",
+                    deliveryId: "delivery-1",
+                    status: "processed",
+                    now: 20
+                })
+            ).rejects.toMatchObject({ code: "INVALID_STATE" });
+            expect(await repository.readPrivateMeetingMail("mail-1")).toEqual(processing);
             const finished = await repository.finishPrivateMeetingMail({
                 requestId: "finish-mail",
                 requestHash: "finish-mail-hash",

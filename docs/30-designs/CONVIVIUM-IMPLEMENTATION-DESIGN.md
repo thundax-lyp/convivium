@@ -162,11 +162,13 @@ domain     ──> no infrastructure module
 | `src/config.ts`                                                | 插件配置 Schema、默认值和启动期能力检查                                                              |
 | `src/protocol/*`                                               | Interface 对应的 Host/Client 共享 transport 类型、常量和无副作用 codec                               |
 | `src/domain/model.ts`                                          | Meeting 聚合、值对象和领域 read model                                                                |
+| `src/domain/meeting-state-validation.ts`                       | MeetingState V2 的运行时判别及 Catalog/recommendation 校验；仅依赖内部领域类型                        |
 | `src/domain/transitions.ts`                                    | 唯一领域状态转换集合                                                                                 |
 | `src/domain/planning.ts`                                       | candidate filtering、selection mode、turn plan 校验                                                  |
 | `src/domain/completion.ts`                                     | 完成事实、停滞和终止派生计算                                                                         |
 | `src/domain/errors.ts`                                         | 内部领域错误分类；由 transport 映射为协议错误                                                        |
 | `src/repository/domain/domain-meeting-repository.ts`           | 聚合读写、receipt、event 和 outbox 的单 commit 提交                                                  |
+| `src/repository/domain/private-mail-validation.ts`             | 私聊发送、开始和完成处理的无状态校验；授权、receipt 重放、版本检查和原子写入仍由 Repository 负责       |
 | `src/repository/domain/domain-repository-registry.ts`          | catalog discovery、每 Meeting domain 打开、缓存和关闭                                                |
 | `src/repository/domain/schemas.ts`                             | catalog、creation、projection、commit、checkpoint 和 patch 的严格 record schema                      |
 | `src/storage/index.ts`                                         | 注册 package-private `convivium-jsonl` backend provider child plugin                                 |
