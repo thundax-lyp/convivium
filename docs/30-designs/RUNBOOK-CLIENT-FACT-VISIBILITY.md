@@ -138,6 +138,25 @@ readonly turnObjective: string;
 
 全部 shell 命令从仓库根执行；不得照抄到其他目录。
 
+### T5：完整验证与真实 Browser
+
+前置状态：T4 PASS；后续执行时另已获外部 smoke/Browser 授权。当前 Author 轮一律不运行。
+允许修改：本文的执行结果记录；三个允许代码文件仅可由下列 Prettier 命令格式化，不作语义改动。
+禁止修改：smoke selector、profile 组合、dev.env 内容、其他任务目录。
+
+执行：
+1. 对三个允许代码文件运行固定格式化命令后运行完整 verify；格式化不得触及其他文件。
+2. 按 §8 Browser Prepare/Execute/Assert/Restore 完成实际 DSH 组合只读观察；失败保留记录并 STOP。非空 history/Parking Lot/archived issues 的真实 Browser 链路固定为 Not Covered，不能用 reassign 空 fixture 推断通过，也不自行扩展 smoke。
+
+验证：
+```sh
+pnpm --dir plugin exec prettier src/client/meeting-panel-view.tsx src/client/meeting-panel-sections.tsx tests/client/client-entry.client.spec.ts --write
+pnpm --dir plugin verify
+git diff --check
+```
+PASS：命令全部退出码 0，verify 的 format/lint/Host+Client typecheck/test/build/environment/contract/agent-definition/package 均通过；Browser §8 所有断言和 Restore PASS，记录明确的 Not Covered。
+STOP：完整验证或 Browser 失败、环境/凭据缺失、未授权外部运行；保留 RUNBOOK，不用单测代替 Browser。格式变化如果影响测试，重新运行完整 verify 后再判定。
+
 ### T6：证据迁移与删除
 
 前置状态：T0–T5 全部 PASS；共享覆盖由原任务整合，不在此操作。
