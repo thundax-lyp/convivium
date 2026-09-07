@@ -317,23 +317,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T5：PASS。Turn/message预算独立limits与两个薄入口完成；第二条claims引用第一条证据，必须converging后Captain显式completed。30 probe+3055 contract tests PASS，错误终态/缺converging/end失败/证据丢失/缺criterion拒绝。 已完成机械段删除；本次提交包含本步全部变化。
 
-### T6：selector 接线与完整本地验证
-
-前置状态：T5 PASS。
-允许修改：`plugin/scripts/smoke-profile/index.mjs`（仅 SMOKE_SCENARIOS）、`plugin/scripts/smoke-profile/probe/index.js`（仅 import、guard、dispatcher 和 driveParticipant 早退）、`plugin/tests/unit/scripts/smoke-profile.spec.ts`；T1–T5 文件仅格式化本次新增段。
-禁止修改：environment.mjs、build/profile/credentials/timeout/Restore、原 selector 行为、package/lockfile、产品代码。
-
-执行：五个唯一 selector 加入 SMOKE_SCENARIOS 和 run guard；switch 各只有一个 case→对应 export。driveParticipant 五个 selector 早退；新函数不调用 setMeetingId。更新 scripts source contract，检查五个 export/import/case/early-return，以及原 convergence 的三标签。禁止加总量“17 全绿”替代每项结果。
-
-验证：
-```sh
-pnpm --dir plugin exec prettier scripts/smoke-profile/index.mjs scripts/smoke-profile/result.mjs scripts/smoke-profile/probe/index.js scripts/smoke-profile/probe/scenarios/convergence.js tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts tests/unit/scripts/convergence-probe.spec.ts --check
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts tests/unit/scripts/convergence-probe.spec.ts tests/unit/domain/transitions/turn-advancement.spec.ts
-pnpm --dir plugin verify
-git diff --check
-```
-PASS：所有检查退出 0，原 fallback/其他 11 selector source contract 保持；verify 覆盖 format/lint/typecheck/test/build/environment/contract/agent definitions/package，不代表真实 runtime。
-STOP：出现白名单外修改或任何 gate 失败。只允许用同一 prettier 文件列表 `--write` 修正本次格式，其他失败停止，不顺带修复历史问题。
+执行进度 T6：PASS。五selector在wrapper/guard/dispatcher/driveParticipant接线完成；完整verify退出0：75 files/3670 tests、format/lint/host+client typecheck/build/environment/contract/agent definitions/package均通过。Node v22.23.2、pnpm10.7.0；原fallback函数未改。 已完成机械段删除；本次提交包含本步全部变化。
 
 ### T7：真实 DSH 验证与隔离恢复
 

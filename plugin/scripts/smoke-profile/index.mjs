@@ -40,7 +40,12 @@ export const SMOKE_SCENARIOS = [
     "archive-continuation",
     "mail-race",
     "cross-meeting",
-    "convergence"
+    "convergence",
+    "convergence-stalled",
+    "convergence-no-consensus",
+    "convergence-reset",
+    "convergence-turn-budget-completion",
+    "convergence-message-budget-completion"
 ];
 const SMOKE_SCENARIO = process.env.CONVIVIUM_SMOKE_SCENARIO ?? "baseline";
 

@@ -408,3 +408,25 @@ describe("smoke profile scenario guard", () => {
         expect(smokeSupportSource).toContain("createProbeSupport(outputPath)");
     });
 });
+
+describe("convergence runtime selector wiring", () => {
+    it.each([
+        ["convergence-stalled", "runConvergenceStalledScenario"],
+        ["convergence-no-consensus", "runConvergenceNoConsensusScenario"],
+        ["convergence-reset", "runConvergenceResetScenario"],
+        ["convergence-turn-budget-completion", "runConvergenceTurnBudgetCompletionScenario"],
+        ["convergence-message-budget-completion", "runConvergenceMessageBudgetCompletionScenario"]
+    ])("wires %s to %s without automatic participant submissions", (scenario, name) => {
+        expect(smokeProfileSource).toContain('"' + scenario + '"');
+        expect(probeSource).toContain('scenario !== "' + scenario + '"');
+        expect(probeSource).toContain('case "' + scenario + '":');
+        expect(probeSource.split("return " + name + "(runtime);")).toHaveLength(2);
+        expect(convergenceSource).toContain("export async function " + name + "(runtime)");
+        const driver = probeSource.slice(
+            probeSource.indexOf("async function driveParticipant"),
+            probeSource.indexOf("async function driveParticipant") + 900
+        );
+        expect(driver).toContain('scenario === "' + scenario + '"');
+        expect(convergenceSource).not.toContain("runtime.setMeetingId(");
+    });
+});

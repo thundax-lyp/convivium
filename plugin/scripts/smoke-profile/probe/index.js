@@ -7,7 +7,14 @@ import { runColdRebindScenario } from "./scenarios/recovery.js";
 import { runArchiveContinuationScenario } from "./scenarios/archive.js";
 import { runCompletionEndScenario, runTaskHandraiseScenario } from "./scenarios/completion.js";
 import { runDecisionRiskClosureScenario } from "./scenarios/decision-risk-closure.js";
-import { runConvergenceScenario } from "./scenarios/convergence.js";
+import {
+    runConvergenceScenario,
+    runConvergenceStalledScenario,
+    runConvergenceNoConsensusScenario,
+    runConvergenceResetScenario,
+    runConvergenceTurnBudgetCompletionScenario,
+    runConvergenceMessageBudgetCompletionScenario
+} from "./scenarios/convergence.js";
 import { runBaselineScenario } from "./scenarios/baseline.js";
 
 export const name = "convivium-smoke-profile-probe";
@@ -243,6 +250,14 @@ function registerSmokeAgent(ctx, session) {
 }
 
 async function driveParticipant(ctx, agent) {
+    if (
+        scenario === "convergence-stalled" ||
+        scenario === "convergence-no-consensus" ||
+        scenario === "convergence-reset" ||
+        scenario === "convergence-turn-budget-completion" ||
+        scenario === "convergence-message-budget-completion"
+    )
+        return;
     if (captain === undefined || meetingId === undefined) return;
     const participantId = "participant-" + String(agent.id).split("-").at(-1);
     const index = participants.indexOf(participantId);
@@ -333,7 +348,12 @@ async function run(ctx) {
         scenario !== "archive-continuation" &&
         scenario !== "mail-race" &&
         scenario !== "cross-meeting" &&
-        scenario !== "convergence"
+        scenario !== "convergence" &&
+        scenario !== "convergence-stalled" &&
+        scenario !== "convergence-no-consensus" &&
+        scenario !== "convergence-reset" &&
+        scenario !== "convergence-turn-budget-completion" &&
+        scenario !== "convergence-message-budget-completion"
     ) {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
@@ -448,6 +468,16 @@ async function runSelectedScenario(runtime) {
             return runMailRaceScenario(runtime);
         case "cross-meeting":
             return runCrossMeetingScenario(runtime);
+        case "convergence-stalled":
+            return runConvergenceStalledScenario(runtime);
+        case "convergence-no-consensus":
+            return runConvergenceNoConsensusScenario(runtime);
+        case "convergence-reset":
+            return runConvergenceResetScenario(runtime);
+        case "convergence-turn-budget-completion":
+            return runConvergenceTurnBudgetCompletionScenario(runtime);
+        case "convergence-message-budget-completion":
+            return runConvergenceMessageBudgetCompletionScenario(runtime);
         case "convergence":
             return runConvergenceScenario(runtime);
         default:
