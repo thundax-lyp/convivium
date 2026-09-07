@@ -55,6 +55,33 @@ function runtime() {
                 ]
             }
         })),
+        acceptLocalDecision: vi.fn(async () =>
+            success({
+                requestId: "local-accept",
+                decisionCandidateId: "candidate-1",
+                decisionId: "decision-candidate-1",
+                proposalId: "proposal-1",
+                proposalRevision: 1,
+                completionFactId: "completion-candidate-1-acceptance"
+            })
+        ),
+        disposeLocalDecision: vi.fn(async () =>
+            success({
+                requestId: "local-revoke",
+                decisionId: "decision-candidate-1",
+                action: "revoke" as const,
+                completionFactId: "completion-local-revoke-decision-revocation"
+            })
+        ),
+        disposeLocalRisk: vi.fn(async () =>
+            success({
+                requestId: "local-risk-accept",
+                issueId: "risk-1",
+                disposition: "accepted" as const,
+                completionFactId: "completion-local-risk-accept-risk-0",
+                meetingStatus: "running" as const
+            })
+        ),
         getLocalMeetingStatus: vi.fn(async () => success(statusResult)),
         pauseLocalMeeting: vi.fn(async () =>
             success({ status: "paused" as const, changed: true }, 3)

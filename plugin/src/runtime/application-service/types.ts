@@ -190,6 +190,15 @@ export interface CreateStatusRuntimeOptions {
 }
 
 export interface LocalMeetingWebRuntime {
+    acceptLocalDecision(
+        input: CaptainDecisionAcceptanceInputV1
+    ): Promise<ProtocolSuccessV1<CaptainDecisionAcceptanceResultV1> | ProtocolErrorV1>;
+    disposeLocalDecision(
+        input: CaptainDecisionDispositionInputV1
+    ): Promise<ProtocolSuccessV1<CaptainDecisionDispositionResultV1> | ProtocolErrorV1>;
+    disposeLocalRisk(
+        input: CaptainRiskDispositionInputV1
+    ): Promise<ProtocolSuccessV1<CaptainRiskDispositionResultV1> | ProtocolErrorV1>;
     listLocalMeetings(): Promise<LocalMeetingListResponseV1>;
     getLocalMeetingStatus(
         input: MeetingStatusInputV1

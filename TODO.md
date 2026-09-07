@@ -8,22 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `runtime/application-service`：LC-03 接线三个 local Runtime 方法
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T3。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
-    - 前置依赖：LC-02 完成。
-    - 文件（6 个）：
-
-        - `plugin/src/runtime/application-service/types.ts`
-        - `plugin/src/runtime/application-service/meeting-decision.ts`
-        - `plugin/src/runtime/application-service/meeting-control.ts`
-        - `plugin/src/runtime/application-service/index.ts`
-        - `plugin/tests/contract/meeting-runtime.spec.ts`
-        - `plugin/tests/contract/http-boundary.spec.ts`
-
-    - 处理动作：增加 acceptLocalDecision、disposeLocalDecision、disposeLocalRisk，复用原提交路径；HTTP 测试文件仅补 required runtime mocks。
-    - 验收点：V3 通过；caller 隔离、重放、版本冲突及风险完成重算正确，不依赖 live Captain。
-
 - [ ] `http/local-control`：LC-04 开放三个 loopback HTTP 写入口
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T4。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。

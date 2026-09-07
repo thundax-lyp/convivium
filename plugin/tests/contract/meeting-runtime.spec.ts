@@ -1,3 +1,14 @@
+import { createLocalDecisionRiskState } from "../fixtures/local-decision-risk.js";
+import {
+    createFakeCatalogDomain,
+    createFakeMeetingDomain,
+    type FakeMeetingDomain
+} from "../fixtures/domain-storage.js";
+import { loadProjection } from "../../src/repository/domain/projection.js";
+import { catalogDomainSpec } from "../../src/repository/domain/specs.js";
+import type { MeetingState } from "../../src/domain/model.js";
+import type { JsonObject } from "../../src/repository/types.js";
+import { now as localNow } from "../unit/domain/transitions/fixtures.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -3076,5 +3087,440 @@ describe("create/status meeting runtime", () => {
             })
         ).rejects.toBeInstanceOf(LocalMeetingRecoveryUnavailableError);
         await cold.dispose();
+    });
+});
+
+describe("local decision and risk runtime", () => {
+    async function setupLocalControlRuntime(
+        state: MeetingState = createLocalDecisionRiskState()
+    ): Promise<{
+        runtime: ReturnType<typeof createCreateStatusRuntime>;
+        registry: DomainRepositoryRegistry;
+        meeting: FakeMeetingDomain;
+        facility: DomainFacilityPort;
+    }> {
+        const catalog = createFakeCatalogDomain();
+        const meeting = createFakeMeetingDomain(meetingDomainName("team-1", "meeting-1"));
+        const facility: DomainFacilityPort = {
+            async open<S extends DomainSpec>(spec: S): Promise<Domain<S>> {
+                if (spec.name === catalogDomainSpec.name) return catalog as unknown as Domain<S>;
+                if (spec.name === meetingDomainName("team-1", "meeting-1"))
+                    return meeting as unknown as Domain<S>;
+                throw new Error(`Unexpected domain ${spec.name}`);
+            }
+        };
+        const authorizationValidator = {
+            validateCreate: () => undefined,
+            validateCommand: () => undefined
+        };
+        const registry = await DomainRepositoryRegistry.open({
+            storageDomain: facility,
+            authorizationValidator
+        });
+        const create = {
+            requestId: "create-local",
+            requestHash: "create-local",
+            authorization: {
+                callerBinding: "session:captain-1",
+                capabilityId: "captain:captain-1"
+            },
+            initialState: JSON.parse(JSON.stringify({ ...state, meetingTasks: [] })) as JsonObject,
+            createdAt: localNow
+        };
+        const repository = await registry.openMeeting({
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            create
+        });
+        await repository.recordSessionOwnership(
+            {
+                sessionId: "manager-1",
+                initialMessageId: "manager-initial-1",
+                parentSessionId: "captain-1",
+                sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+                provider: "spawn",
+                role: "manager",
+                lifecycleStatus: "active",
+                capabilityStatus: "active"
+            },
+            localNow
+        );
+        await repository.completeCreate(create);
+        const runtime = createCreateStatusRuntime({
+            storageDomain: facility,
+            provider: "spawn",
+            authorizationValidator,
+            now: () => localNow,
+            continuable: {
+                startContinuable: vi.fn(async () => {
+                    throw new Error("Unexpected Session start");
+                }),
+                followup: vi.fn(async () => {
+                    throw new Error("Unexpected Session followup");
+                }),
+                listDescendants: vi.fn(async () => [])
+            }
+        });
+        return { runtime, registry, meeting, facility };
+    }
+    const common = {
+        protocolVersion: 1 as const,
+        meetingId: "meeting-1",
+        reason: "Reviewed evidence",
+        evidenceMessageIds: ["message-1"]
+    };
+    const captain = {
+        kind: "captain" as const,
+        sessionId: "captain-1",
+        agent: { id: "captain-1" } as never
+    };
+    function commands(
+        runtime: ReturnType<typeof createCreateStatusRuntime>,
+        source: "local" | "captain" = "local"
+    ) {
+        return [
+            (version: number, patch = {}) => {
+                const value = {
+                    ...common,
+                    requestId: "local-accept",
+                    expectedMeetingVersion: version,
+                    decisionCandidateId: "candidate-1",
+                    ...patch
+                };
+                return source === "local"
+                    ? runtime.acceptLocalDecision(value)
+                    : runtime.acceptDecision(value, captain);
+            },
+            (version: number, patch = {}) => {
+                const value = {
+                    ...common,
+                    requestId: "local-replace",
+                    expectedMeetingVersion: version,
+                    decisionId: "decision-candidate-1",
+                    action: "supersede" as const,
+                    replacementCandidateId: "candidate-2",
+                    ...patch
+                };
+                return source === "local"
+                    ? runtime.disposeLocalDecision(value)
+                    : runtime.disposeDecision(value, captain);
+            },
+            (version: number, patch = {}) => {
+                const value = {
+                    ...common,
+                    requestId: "local-revoke",
+                    expectedMeetingVersion: version,
+                    decisionId: "decision-candidate-2",
+                    action: "revoke" as const,
+                    ...patch
+                };
+                return source === "local"
+                    ? runtime.disposeLocalDecision(value)
+                    : runtime.disposeDecision(value, captain);
+            },
+            (version: number, patch = {}) => {
+                const value = {
+                    ...common,
+                    requestId: "local-risk-accept",
+                    expectedMeetingVersion: version,
+                    issueId: "risk-1",
+                    decision: "accept" as const,
+                    ...patch
+                };
+                return source === "local"
+                    ? runtime.disposeLocalRisk(value)
+                    : runtime.disposeRisk(value, captain);
+            },
+            (version: number, patch = {}) => {
+                const value = {
+                    ...common,
+                    requestId: "local-risk-reject",
+                    expectedMeetingVersion: version,
+                    issueId: "risk-1",
+                    decision: "reject" as const,
+                    ...patch
+                };
+                return source === "local"
+                    ? runtime.disposeLocalRisk(value)
+                    : runtime.disposeRisk(value, captain);
+            }
+        ];
+    }
+    it.each(["local", "captain"] as const)(
+        "commits five %s actions with isolated replay and version gates",
+        async (source) => {
+            const { runtime, registry, meeting } = await setupLocalControlRuntime();
+            try {
+                // Recover selected state without binding a live parent for either command source.
+                await runtime.getLocalMeetingStatus({ protocolVersion: 1, meetingId: "meeting-1" });
+                const steps = commands(runtime, source);
+                const other = commands(runtime, source === "local" ? "captain" : "local");
+                for (const [index, step] of steps.entries()) {
+                    const before = loadProjection({ domain: meeting });
+                    const version = before.snapshot!.version;
+                    const result = await step(version);
+                    expect(result).toMatchObject({ ok: true, meetingVersion: version + 1 });
+                    const after = loadProjection({ domain: meeting });
+                    expect(after.snapshot!.version).toBe(version + 1);
+                    expect(Object.keys(after.receipts)).toHaveLength(
+                        Object.keys(before.receipts).length + 1
+                    );
+                    expect(Object.keys(after.outbox)).toHaveLength(0);
+                    expect(await step(version)).toEqual(result);
+                    expect(await step(version, { reason: "Changed evidence" })).toMatchObject({
+                        ok: false,
+                        code: "IDEMPOTENCY_CONFLICT"
+                    });
+                    expect(await step(version, { requestId: `stale-${index}` })).toMatchObject({
+                        ok: false,
+                        code: "VERSION_CONFLICT"
+                    });
+                    expect(await other[index]!(version)).toMatchObject({
+                        ok: false,
+                        code: "VERSION_CONFLICT"
+                    });
+                    expect(loadProjection({ domain: meeting })).toEqual(after);
+                }
+                const projection = loadProjection({ domain: meeting });
+                const state = projection.snapshot!.state as unknown as MeetingState;
+                expect(state.decisions.map(({ status }) => status)).toEqual([
+                    "superseded",
+                    "revoked"
+                ]);
+                expect(state.issues[0]).toMatchObject({
+                    status: "open",
+                    disposition: "blocking",
+                    blocking: true
+                });
+                expect(state.completionFacts).toHaveLength(6);
+                for (const fact of state.completionFacts)
+                    expect(fact).toMatchObject({
+                        authority: source === "local" ? "local_host" : "captain",
+                        assertedBy:
+                            source === "local" ? "local-host:loopback-web" : "captain:captain-1"
+                    });
+                expect(
+                    Object.values(projection.events)
+                        .slice(1)
+                        .map(({ type }) => type)
+                ).toEqual([
+                    "decision.accepted",
+                    "decision.accepted",
+                    "decision.superseded",
+                    "decision.revoked",
+                    "completion_fact.added",
+                    "completion_fact.added"
+                ]);
+            } finally {
+                await runtime.dispose();
+                await registry.close();
+            }
+        }
+    );
+    it.each([false, true])("preserves completion event order (completed=%s)", async (completed) => {
+        const state = createLocalDecisionRiskState();
+        if (completed) state.agenda[0]!.status = "resolved";
+        const { runtime, registry, meeting } = await setupLocalControlRuntime(state);
+        try {
+            expect(await commands(runtime)[3]!(0)).toMatchObject({
+                ok: true,
+                meetingVersion: 1,
+                result: { meetingStatus: completed ? "converging" : "running" }
+            });
+            const projection = loadProjection({ domain: meeting });
+            const events = Object.values(projection.events).slice(1);
+            expect(events.map(({ type }) => type)).toEqual(
+                completed
+                    ? ["completion_fact.added", "meeting.replanned"]
+                    : ["completion_fact.added"]
+            );
+            expect(events.map(({ eventSeq }) => eventSeq)).toEqual(completed ? [2, 3] : [2]);
+            expect(events.every(({ meetingVersion }) => meetingVersion === 1)).toBe(true);
+            if (completed) {
+                expect(events[1]?.payload).toMatchObject({
+                    from: "running",
+                    to: "converging",
+                    meetingVersion: 0,
+                    reason: "objective_satisfied"
+                });
+                expect(projection.snapshot?.state.currentTurn).toBeUndefined();
+                expect(projection.snapshot?.state.waitState).toBeUndefined();
+            }
+            expect(Object.keys(projection.outbox)).toHaveLength(0);
+        } finally {
+            await runtime.dispose();
+            await registry.close();
+        }
+    });
+    it("rejects other callers and unknown meetings without mutation", async () => {
+        const { runtime, registry, meeting } = await setupLocalControlRuntime();
+        try {
+            await runtime.getLocalMeetingStatus({ protocolVersion: 1, meetingId: "meeting-1" });
+            const before = loadProjection({ domain: meeting });
+            for (const caller of [
+                { ...captain, kind: "manager" as const },
+                { ...captain, kind: "participant" as const, participantId: "participant-1" },
+                { ...captain, sessionId: "wrong" },
+                { ...captain, meetingId: "wrong" }
+            ]) {
+                expect(
+                    await runtime.acceptDecision(
+                        {
+                            ...common,
+                            requestId: "denied-accept",
+                            expectedMeetingVersion: 0,
+                            decisionCandidateId: "candidate-1"
+                        },
+                        caller
+                    )
+                ).toMatchObject({ code: "UNAUTHORIZED_CALLER" });
+                expect(
+                    await runtime.disposeDecision(
+                        {
+                            ...common,
+                            requestId: "denied-revoke",
+                            expectedMeetingVersion: 0,
+                            decisionId: "decision-candidate-1",
+                            action: "revoke"
+                        },
+                        caller
+                    )
+                ).toMatchObject({ code: "UNAUTHORIZED_CALLER" });
+                expect(
+                    await runtime.disposeRisk(
+                        {
+                            ...common,
+                            requestId: "denied-risk",
+                            expectedMeetingVersion: 0,
+                            issueId: "risk-1",
+                            decision: "accept"
+                        },
+                        caller
+                    )
+                ).toMatchObject({ code: "UNAUTHORIZED_CALLER" });
+            }
+            for (const step of commands(runtime))
+                expect(await step(0, { meetingId: "unknown" })).toMatchObject({
+                    code: "MEETING_NOT_FOUND"
+                });
+            expect(loadProjection({ domain: meeting })).toEqual(before);
+        } finally {
+            await runtime.dispose();
+            await registry.close();
+        }
+    });
+    it.each<MeetingState["status"]>([
+        "completed",
+        "partial",
+        "no_consensus",
+        "cancelled",
+        "failed",
+        "archiving",
+        "archived"
+    ])("rejects new writes in %s", async (status) => {
+        const state = createLocalDecisionRiskState();
+        state.status = status;
+        const { runtime, registry, meeting } = await setupLocalControlRuntime(state);
+        try {
+            const before = loadProjection({ domain: meeting });
+            for (const step of commands(runtime))
+                expect(await step(0)).toMatchObject({
+                    ok: false,
+                    code: expect.stringMatching(/IMMUTABLE_MEETING|ARCHIVED_MEETING/)
+                });
+            expect(loadProjection({ domain: meeting })).toEqual(before);
+        } finally {
+            await runtime.dispose();
+            await registry.close();
+        }
+    });
+    it("surfaces selected recovery failures without a command commit", async () => {
+        const { runtime, registry, meeting } = await setupLocalControlRuntime();
+        try {
+            await runtime.getLocalMeetingStatus({ protocolVersion: 1, meetingId: "meeting-1" });
+            const before = loadProjection({ domain: meeting });
+            const failure = vi.spyOn(meeting, "table").mockImplementation(() => {
+                throw new Error("selected storage unavailable");
+            });
+            try {
+                for (const step of commands(runtime))
+                    await expect(step(0)).rejects.toBeInstanceOf(
+                        LocalMeetingRecoveryUnavailableError
+                    );
+            } finally {
+                failure.mockRestore();
+            }
+            expect(loadProjection({ domain: meeting })).toEqual(before);
+        } finally {
+            await runtime.dispose();
+            await registry.close();
+        }
+    });
+    it("replays committed acceptance before terminal mutation guards", async () => {
+        const { runtime, registry, meeting, facility } = await setupLocalControlRuntime();
+        const result = await commands(runtime)[0]!(0);
+        expect(result).toMatchObject({ ok: true });
+        await runtime.dispose();
+        await registry.close();
+        const authorizationValidator = {
+            validateCreate: () => undefined,
+            validateCommand: () => undefined
+        };
+        const reopened = await DomainRepositoryRegistry.open({
+            storageDomain: facility,
+            authorizationValidator
+        });
+        const repository = await reopened.openMeeting({ teamId: "team-1", meetingId: "meeting-1" });
+        await repository.execute({
+            requestId: "test-terminal",
+            commandKind: "test_terminal",
+            authorization: { callerBinding: "fixture", capabilityId: "fixture" },
+            requestHash: "terminal",
+            expectedMeetingVersion: 1,
+            transition: (snapshot) => ({
+                state: { ...snapshot.state, status: "partial" },
+                result: {},
+                events: [
+                    {
+                        type: "meeting.ended",
+                        payload: {
+                            meetingId: "meeting-1",
+                            from: "running",
+                            to: "partial",
+                            meetingVersion: 2,
+                            reason: "test terminal"
+                        }
+                    }
+                ],
+                outbox: []
+            })
+        });
+        await reopened.close();
+        const cold = createCreateStatusRuntime({
+            storageDomain: facility,
+            provider: "spawn",
+            authorizationValidator,
+            now: () => localNow,
+            continuable: {
+                startContinuable: async () => {
+                    throw new Error("Unexpected start");
+                },
+                followup: async () => {
+                    throw new Error("Unexpected followup");
+                },
+                listDescendants: async () => []
+            }
+        });
+        try {
+            const before = loadProjection({ domain: meeting });
+            expect(await commands(cold)[0]!(0)).toEqual(result);
+            expect(await commands(cold)[0]!(2, { requestId: "new-terminal" })).toMatchObject({
+                ok: false,
+                code: "IMMUTABLE_MEETING"
+            });
+            expect(loadProjection({ domain: meeting })).toEqual(before);
+        } finally {
+            await cold.dispose();
+        }
     });
 });
