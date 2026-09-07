@@ -9,20 +9,6 @@
 
 ## 当前任务项
 
-- [ ] `真实 Loader 与完整验证`：AR-06 验证新工具拒绝路径
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T6。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：AR-05 PASS。
-    - 文件（4 个）：
-
-        - `plugin/scripts/smoke-profile/probe/scenarios/baseline.js`
-        - `plugin/scripts/smoke-profile/result.mjs`
-        - `plugin/tests/unit/scripts/smoke-profile-contract.spec.ts`
-        - `plugin/tests/unit/scripts/smoke-profile.spec.ts`
-
-    - 处理动作：按 T6 为 baseline 增加缺失推荐的真实工具调用断言，并运行完整 verify 与独立 profile smoke。
-    - 验收点：T6 脚本测试、verify、baseline smoke 全部通过；新调用 INVALID_ARGUMENT 且零副作用；既有 baseline 正常，wrapper restore=PASS；不外推生产 Catalog 成功链路。
-
 - [ ] `正式文档与任务收口`：AR-07 迁移证据并清理临时任务
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T7。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。

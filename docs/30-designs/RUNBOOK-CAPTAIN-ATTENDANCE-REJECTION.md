@@ -343,14 +343,14 @@ STOP：需要迁移旧 archive、扩大 local_host active visibility、改其他
 ### T6：真实 Loader 拒绝路径与完整验证
 
 前置状态：T5 PASS。
-允许修改：`plugin/scripts/smoke-profile/probe/scenarios/baseline.js`、`plugin/scripts/smoke-profile/result.mjs`、`plugin/tests/unit/scripts/smoke-profile-contract.spec.ts`、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
+允许修改：`plugin/tests/unit/index-inject.spec.ts`、`plugin/scripts/smoke-profile/probe/scenarios/baseline.js`、`plugin/scripts/smoke-profile/result.mjs`、`plugin/tests/unit/scripts/smoke-profile-contract.spec.ts`、`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
 禁止修改：生产 Catalog producer、Host profile、其他 smoke selector、默认场景列表、构建和清理机制。
 
 执行：
 1. runBaselineScenario 中，仅 `scenario === "baseline"` 时（包括 Browser baseline），在 createMeeting 后、submit_manager_plan 前，用 `ctx.tools.execute` 通过真实 Captain 调用新工具。input 使用 created.meetingVersion 和真实 meetingId；requestId=`smoke-attendance-reject-missing`，recommendationId=`missing-recommendation`，decision=reject，reason=`Verify attendance rejection boundary`，callId=`convivium-smoke-attendance-reject-missing`。
 2. 不使用只接受 success 的 runtime.callTool 包装本次预期失败；断言 Tool execution 不是 isError，canonical value 为 ok=false/code=INVALID_ARGUMENT/retryable=false。随后正式 status 读取，version 与 created 相同且 attendanceRecommendations=[]。现有 Manager plan 保持原 created.meetingVersion 并成功。
 3. baseline 输出增加 assertion `attendance-reject-tool-zero-effects`；result.mjs::validateScenarioResult 对 expectedScenario=baseline 要求该 label，不更改其他 selector。Browser baseline 也执行相同零副作用检查并输出 label，原有 Browser UI 行为保持原样。smoke-profile-contract.spec.ts 增加 label 缺失拒绝、完整 label 接受和 timeout 不受影响的结果校验测试；smoke-profile.spec.ts 中 `exports the smoke result validator from the entrypoint` 的 baseline fixture 同步携带该 label。
-4. 执行下列命令；Prettier 只修正 T1–T6 白名单内实际改动的文件，不运行全仓库 format --write。完整 verify 不得跳过失败门禁。
+4. index-inject.spec.ts 只同步新增工具后的生命周期计数：toolDisposers=20，loopback effects=22，非 loopback effects=21；保持每个 disposer 恰好调用一次和路由断言。执行下列命令；Prettier 只修正 T1–T6 白名单内实际改动的文件，不运行全仓库 format --write。完整 verify 不得跳过失败门禁。
 
 验证：
 ```bash

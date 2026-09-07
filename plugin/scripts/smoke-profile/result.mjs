@@ -9,6 +9,12 @@ export function validateScenarioResult(value, expectedScenario, validateMeetingS
     if (value.scenario !== expectedScenario || !Array.isArray(value.assertions)) {
         throw new Error("Smoke result scenario contract mismatch.");
     }
+    if (
+        expectedScenario === "baseline" &&
+        !value.assertions.includes("attendance-reject-tool-zero-effects")
+    ) {
+        throw new Error("Baseline attendance rejection assertion is missing.");
+    }
     if (expectedScenario === "reassign" && value.browserReady === true) {
         const validKeys = [
             "ok",
