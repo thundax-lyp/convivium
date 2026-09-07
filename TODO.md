@@ -8,21 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `readiness/local-control`：LC-07 完成全量验证与文档收口
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T7–T8。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
-    - 前置依赖：LC-06B 完成。
-    - 文件（5 个）：
-
-        - `docs/40-readiness/CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md`
-        - `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`
-        - `plugin/README.md`
-        - `docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md`
-        - `TODO.md`
-
-    - 处理动作：运行完整 verify；新建 evidence、更新 coverage/README，删除 RUNBOOK 和已完成的 LC-01–LC-07（含 LC-06B），保留 LC-08。
-    - 验收点：V7–V8 通过；实际结果和未覆盖项已记录，删除前后链接与 diff 检查通过。
-
 - [ ] `readiness/runtime-smoke`：LC-08 合并后验证真实 DSH/Browser
     - 依据文档：[协议](docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) Local decision and risk control；[Smoke 操作规程](docs/50-operations/HOW-TO-DSH-SMOKE.md) Decision/Risk 本地按钮验证。
     - 确认依据：2026-09-07，本任务约定由协调者在合并后执行真实 smoke。
