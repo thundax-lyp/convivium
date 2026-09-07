@@ -9,6 +9,7 @@ import {
 } from "../../src/repository/domain/projection.js";
 import { catalogKey, receiptKey, seqKey } from "../../src/repository/domain/keys.js";
 import { CommitRecordV1Schema } from "../../src/repository/domain/schemas.js";
+import * as canonicalJson from "../../src/repository/domain/canonical-json.js";
 import { expect, it, vi } from "vitest";
 
 const allow: RepositoryAuthorizationValidator = {
@@ -162,6 +163,54 @@ it("preserves legacy reopen and distinguishes unsupported from corrupt MeetingSt
     await expect(
         openReadyState({ formatVersion: 2, manager: {}, attendanceRecommendations: null })
     ).rejects.toMatchObject({ code: "CORRUPT_DATABASE" });
+});
+
+it("reads only the snapshot and returns an isolated nested value", async () => {
+    const repository = await openReadyState({ nested: { values: [1, 2] } });
+    const encode = vi.spyOn(canonicalJson, "encodeCanonicalJson");
+    try {
+        const snapshot = await repository.read();
+        expect(encode).toHaveBeenCalled();
+        for (const [value] of encode.mock.calls) {
+            expect(value).toEqual(snapshot);
+        }
+        (snapshot.state.nested as { values: number[] }).values.push(3);
+        snapshot.version = 99;
+        await expect(repository.read()).resolves.toMatchObject({
+            version: 0,
+            state: { nested: { values: [1, 2] } }
+        });
+    } finally {
+        encode.mockRestore();
+        await repository.close();
+    }
+});
+
+it("still rejects an unsupported MeetingState format on a live snapshot read", async () => {
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: createFakeCatalogDomain(),
+        meetingDomain: createFakeMeetingDomain(),
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 1
+    });
+    try {
+        const input = {
+            requestId: "create",
+            authorization: { callerBinding: "captain:1", capabilityId: "capability:1" },
+            requestHash: "hash",
+            initialState: { formatVersion: 3 }
+        };
+        await repository.create(input);
+        await repository.completeCreate(input);
+        await expect(repository.read()).rejects.toMatchObject({
+            name: "UnsupportedMeetingStateFormatError",
+            formatVersion: 3
+        });
+    } finally {
+        await repository.close();
+    }
 });
 
 it("writes the complete seq-one projection in one create commit", async () => {
