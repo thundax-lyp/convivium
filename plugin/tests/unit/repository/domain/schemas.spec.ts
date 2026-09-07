@@ -17,7 +17,7 @@ import {
     PersistenceProjectionV1Schema
 } from "../../../../src/repository/domain/schemas.js";
 
-describe("domain schemas", () => {
+describe("Meeting persistence record schemas", () => {
     const ownership = {
         s: {
             sessionId: "s",

@@ -60,7 +60,7 @@ describe("role composition smoke contract", () => {
         expect(CORE_SCENARIOS).not.toContain("role-composition");
         expect(() => selectScenarios([], "role-composition", true)).toThrow();
     });
-    it("keeps the cross-runtime fixture exact and changes only version and persona for phase2", () => {
+    it("preserves role identity while changing configuration for cold restart", () => {
         expect(roleSmokeDefinitions("1")).toEqual(roleCompositionDefinitions);
         expect(roleSmokeDefinitions("2")).toEqual(
             roleCompositionDefinitions.map((d) => ({
@@ -92,7 +92,7 @@ describe("role composition smoke contract", () => {
         await drive({}, { id: "meeting-participant-a" });
         expect(callTool).not.toHaveBeenCalled();
     });
-    it("preserves two-host scheduling, phase config writes and cleanup", async () => {
+    it("isolates role configuration and cleanup across Host restarts", async () => {
         const a = wrapper.indexOf("async function writeSmokePatch(");
         const b = wrapper.indexOf("async function writeProbePackage(", a);
         expect(a).toBeGreaterThanOrEqual(0);
@@ -177,7 +177,7 @@ describe("role composition smoke contract", () => {
             "cold-rebind"
         );
     });
-    it("requires all nine real assertions, both phases and zero denied body calls", () => {
+    it("validates cold role isolation and denies restricted tool execution", () => {
         expect(validateScenarioResult(result, "role-composition")).toBe(result);
         for (const label of assertions)
             expect(() =>

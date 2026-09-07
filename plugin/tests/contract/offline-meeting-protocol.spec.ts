@@ -94,7 +94,7 @@ function collectToolDefinitions(): ToolDefinition[] {
     return definitions;
 }
 
-describe("offline meeting protocol preparation", () => {
+describe("meeting protocol examples and caller capabilities", () => {
     it("builds schema-valid offline inputs", () => {
         const f = createOfflineMeetingProtocolFixture();
         expect(() => CreateMeetingInputSchema({ ...f.createInput })).not.toThrow();

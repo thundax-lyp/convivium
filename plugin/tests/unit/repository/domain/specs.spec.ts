@@ -3,7 +3,7 @@ import {
     catalogDomainSpec,
     createMeetingDomainSpec
 } from "../../../../src/repository/domain/specs.js";
-describe("domain specs", () => {
+describe("Meeting Storage Domain specifications", () => {
     it("declares the exact catalog and meeting domain specs", () => {
         expect(catalogDomainSpec.name).toBe("convivium_catalog");
         expect(Object.keys(catalogDomainSpec.tables)).toEqual(["meetings"]);

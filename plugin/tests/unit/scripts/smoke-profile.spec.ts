@@ -145,7 +145,7 @@ const baselineSource = readFileSync(
     "utf8"
 );
 
-describe("createSmokeEnvironment", () => {
+describe("isolated smoke environment", () => {
     it("removes DeepSeek credentials inherited from the caller", () => {
         const environment = createSmokeEnvironment({
             PATH: "/bin",
@@ -179,7 +179,7 @@ describe("createSmokeEnvironment", () => {
     });
 });
 
-describe("loadSmokeApiKey", () => {
+describe("smoke credential loading", () => {
     it("loads the only required value from dev.env", async () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-smoke-env-"));
         const path = join(root, "dev.env");

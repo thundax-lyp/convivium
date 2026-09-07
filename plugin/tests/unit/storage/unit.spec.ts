@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { openJsonlUnit } from "../../../src/storage/unit.js";
 import { ScriptedFileSystem } from "../../fixtures/storage/scripted-filesystem.js";
 
-describe("JSONL unit", () => {
+describe("JSONL StorageUnit persistence", () => {
     it("initializes every declared table in loadAll", async () => {
         const root = await mkdtemp(join("/tmp", "unit-"));
         try {

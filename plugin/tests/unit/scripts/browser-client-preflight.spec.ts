@@ -47,7 +47,7 @@ function rejectOnAbort(signal: AbortSignal): Promise<never> {
     });
 }
 
-describe("assertBrowserClientPreflight", () => {
+describe("Browser client bundle preflight", () => {
     it("accepts the unique boot entry and bundle markers", async () => {
         const sequence = fetchSequence(
             { status: 200, body: bootHtml },

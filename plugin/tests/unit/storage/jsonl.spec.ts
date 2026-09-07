@@ -14,7 +14,7 @@ async function fixture() {
     return { path: join(root, "active.jsonl"), fs: new ScriptedFileSystem() };
 }
 const bytes = (s: string) => new TextEncoder().encode(s);
-describe("jsonl helpers", () => {
+describe("JSONL durable append and tail repair", () => {
     it("rejects before append write", async () => {
         const { path, fs } = await fixture();
         await appendLineDurably(path, bytes("A\n"), fs);
