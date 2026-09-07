@@ -8,19 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `protocol/role-selection`：RC-02 开放创建时的 Definition ID 选择
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T2。
-    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：RC-01 完成。
-    - 文件（3 个）：
-
-        - `plugin/src/protocol/types.ts`
-        - `plugin/src/protocol/commands.ts`
-        - `plugin/tests/unit/protocol/role-selection.spec.ts`
-
-    - 处理动作：为 Manager 与初始 Participant 增加可选 Definition ID，并校验输入。
-    - 验收点：T2 验证通过；旧请求无默认 ID，新 ID 进入请求序列化，非法值被拒绝。
-
 - [ ] `dsh/role-composition`：RC-03 校验共享能力并透传创建配置
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T3。
     - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
