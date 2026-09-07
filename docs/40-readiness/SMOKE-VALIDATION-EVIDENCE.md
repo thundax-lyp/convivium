@@ -1,6 +1,6 @@
 # Smoke Validation Evidence
 
-最新统一基线的运行结果见 [Current Baseline Validation](#current-baseline-validation)。下述 `bd0159b` 的 14 场景结果保留为历史证据，不是当前完整场景数。
+最新工作区的运行结果见 [Current Baseline Validation](#current-baseline-validation)。下述 `bd0159b` 的 14 场景与 `743edbee` 的 16 场景均保留为历史证据，不替代最新修复验证。
 
 ## Scope
 
@@ -37,7 +37,7 @@
 
 当前执行入口和分层矩阵已同步到操作文档。产品代码、公开协议、权限与存储语义未改变；TODO 无本任务登记项。新实现保留协议错误码修复以及实际归档 Schema 校验。
 
-## Current Baseline Validation
+## Audit Baseline Validation
 
 2026-09-07，代码基线 `743edbee564d34402fedc2bb44ebbb006790fe1a`，`codex/align-code`；本次仅 readiness 文档变化。环境：Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、profile `web`、provider `spawn`。
 
@@ -66,6 +66,37 @@ role-composition 输出两个不同 Host PID（98770、98779），九项断言�
 
 Prepare/Restore 由现有 wrapper 完成：每场景使用独立临时 profile、workspace、DSH_HOME 和端口；停止 Host、删除该场景精确临时根并验证端口可独占绑定后才打印 `restore=PASS`，命令结束清理共享构建目录。未使用 fake adapter 替代真实 provider，也未重跑本节历史失败注入。
 
-同基线 `pnpm --dir plugin verify` exit 0，82 files / 1039 tests，全部 gates PASS。源码分析另复现完成/调度偏差，详见 [Code Alignment Evidence](./CODE-ALIGNMENT-EVIDENCE.md)；本次 smoke 未覆盖这些反例，不构成缺陷关闭依据。
+同基线 `pnpm --dir plugin verify` exit 0，82 files / 1039 tests，全部 gates PASS。该历史基线的源码分析另复现完成/调度偏差；当时 smoke 未覆盖这些反例，不构成缺陷关闭依据。历史反例保留在 Git 历史，当前实现与回归见 [Implementation Coverage](./CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 本次 Not Covered：Browser 页面交互、真实模型请求、Host producer 成功 attendance recommendation→reject、完整中断创建/缺失 Session 恢复、长期压力和生产发布。当前普通模式 HTTP/Session/归档验证不替代这些范围，既有 Browser 记录保持原基线。
+
+## Current Baseline Validation
+
+2026-09-08，源码为 `6679403fc8cb6de01db1c7d2fb190d3a9484dd73`（验证在提交前的同一源码工作区执行），分支 `codex/align-code`。环境：Darwin 25.5.0 arm64、Node `v24.19.0`、项目 pnpm `10.7.0`、DSH `0.1.1-rc.2`，profile `web`、provider `spawn`。
+
+`pnpm --dir plugin smoke:profile --all` 实际退出 0；16/16 场景 PASS，总耗时 156709ms，一次构建。每个场景均在 Host 停止、独立临时根删除与端口 exclusive bind 检查通过后输出 `restore=PASS`；命令结束清理共享构建目录。没有另启 Browser 或长期 Host，没有模型请求。
+
+| 场景 | 耗时 ms | 场景及 Restore |
+| --- | ---: | --- |
+| baseline | 30251 | PASS |
+| timeout | 6637 | PASS |
+| reassign | 11362 | PASS |
+| task-handraise | 8965 | PASS |
+| completion-end | 8098 | PASS |
+| risk-reopen | 9512 | PASS |
+| decision-risk-closure | 9369 | PASS |
+| cold-rebind | 9324 | PASS |
+| role-composition | 9959 | PASS |
+| archive-continuation | 7234 | PASS |
+| mail-race | 7714 | PASS |
+| cross-meeting | 9531 | PASS |
+| convergence | 6809 | PASS |
+| convergence-stalled | 6193 | PASS |
+| convergence-turn-budget-completion | 5869 | PASS |
+| scribe-minutes | 7662 | PASS |
+
+role-composition 的两个 Host PID 为 63818、63832，九项断言齐全：持久 checkpoint、Host 更换、原 parent 重绑、transcript 前缀保留、冷 followup 提交、persona 隔离、工具拒绝、parent 不变和 V1 配置保留。两阶段角色检查均 true，受限工具 body 调用数 0，第二阶段配置 `2.0.0`，恢复仍保留 V1 persona。
+
+同一最终源码工作区 `pnpm --dir plugin verify` 实际退出 0：84 files / 1063 tests，Vitest 69.29 秒，format/lint/Host 与 Client typecheck/build/environment/plugin contract/9 Definition samples/package 全 PASS。首次因本机缺少两个已锁定 DSH 包而在 typecheck 失败，执行 frozen-lockfile install 后最终重跑通过，未改 manifest 或 lockfile。
+
+Not Covered：新面板 Browser 交互、真实模型、缺失真实 Session/创建中断故障注入、完整 metrics 采集与长期压力、FR-13 producer 成功推荐→reject 专项、生产发布和高版本兼容。cold-rebind/role-composition 不证明缺失 Session 补建；HTTP/Client 产物断言不替代 Browser。当前恢复与诊断的具体自动化边界见 [Implementation Coverage](./CURRENT-IMPLEMENTATION-COVERAGE.md)。
