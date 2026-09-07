@@ -8,18 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `tests/contract`：LC-06 验证事务、冷恢复和完整调用链
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T6。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
-    - 前置依赖：LC-05 完成。
-    - 文件（2 个）：
-
-        - `plugin/tests/contract/meeting-runtime.spec.ts`
-        - `plugin/tests/contract/domain-meeting-repository.spec.ts`
-
-    - 处理动作：补 HTTP→Runtime→Repository 组合、故障回滚、冷重开、幂等和归档保真测试。
-    - 验收点：V6 通过；五动作失败无半提交，重放不新增事实，恢复与归档内容一致。
-
 - [ ] `tests/browser-fixture`：LC-06B 准备本地按钮验证夹具
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T6B；[Smoke 操作规程](docs/50-operations/HOW-TO-DSH-SMOKE.md) Decision/Risk 本地按钮验证。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。

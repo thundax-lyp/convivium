@@ -1,3 +1,13 @@
+import { Readable } from "node:stream";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import type { WebRoute } from "@deepseek-ai/dsh-host-webserver";
+import { registerLocalMeetingHttpRoutes } from "../../src/http/index.js";
+import {
+    CaptainDecisionAcceptanceInputSchema,
+    CaptainDecisionDispositionInputSchema,
+    CaptainRiskDispositionInputSchema,
+    MeetingStatusResultSchema
+} from "../../src/protocol/index.js";
 import { createLocalDecisionRiskState } from "../fixtures/local-decision-risk.js";
 import {
     createFakeCatalogDomain,
@@ -3517,6 +3527,197 @@ describe("local decision and risk runtime", () => {
             expect(await commands(cold)[0]!(2, { requestId: "new-terminal" })).toMatchObject({
                 ok: false,
                 code: "IMMUTABLE_MEETING"
+            });
+            expect(loadProjection({ domain: meeting })).toEqual(before);
+        } finally {
+            await cold.dispose();
+        }
+    });
+    async function invokeLocalControl(
+        handler: WebRoute["handler"],
+        method: string,
+        url: string,
+        options: { body?: string; contentType?: string } = {}
+    ): Promise<{ status: number; headers: Map<string, string>; body: string; json: unknown }> {
+        const req = Readable.from(options.body === undefined ? [] : [Buffer.from(options.body)]);
+        Object.assign(req, {
+            method,
+            url,
+            headers:
+                options.contentType === undefined ? {} : { "content-type": options.contentType }
+        });
+        const headers = new Map<string, string>();
+        let body = "";
+        const res = {
+            statusCode: 200,
+            setHeader(name: string, value: string | number | readonly string[]) {
+                headers.set(name.toLowerCase(), String(value));
+            },
+            end(chunk?: string | Buffer) {
+                if (chunk !== undefined) body += chunk.toString();
+            }
+        };
+        await handler(req as IncomingMessage, res as unknown as ServerResponse);
+        return {
+            status: res.statusCode,
+            headers,
+            body,
+            json: body === "" ? undefined : JSON.parse(body)
+        };
+    }
+    it("commits the complete HTTP chain and preserves receipts through cold Runtime recovery", async () => {
+        const { runtime, registry, meeting, facility } = await setupLocalControlRuntime();
+        let route: WebRoute | undefined;
+        registerLocalMeetingHttpRoutes(
+            {
+                register: (value: WebRoute) => {
+                    route = value;
+                    return () => undefined;
+                }
+            },
+            runtime
+        );
+        const requests = [
+            [
+                "accept-decision",
+                {
+                    ...common,
+                    requestId: "local-accept",
+                    expectedMeetingVersion: 0,
+                    decisionCandidateId: "candidate-1"
+                }
+            ],
+            [
+                "dispose-decision",
+                {
+                    ...common,
+                    requestId: "local-replace",
+                    expectedMeetingVersion: 1,
+                    decisionId: "decision-candidate-1",
+                    action: "supersede",
+                    replacementCandidateId: "candidate-2"
+                }
+            ],
+            [
+                "dispose-decision",
+                {
+                    ...common,
+                    requestId: "local-revoke",
+                    expectedMeetingVersion: 2,
+                    decisionId: "decision-candidate-2",
+                    action: "revoke"
+                }
+            ],
+            [
+                "dispose-risk",
+                {
+                    ...common,
+                    requestId: "local-risk-accept",
+                    expectedMeetingVersion: 3,
+                    issueId: "risk-1",
+                    decision: "accept"
+                }
+            ],
+            [
+                "dispose-risk",
+                {
+                    ...common,
+                    requestId: "local-risk-reject",
+                    expectedMeetingVersion: 4,
+                    issueId: "risk-1",
+                    decision: "reject"
+                }
+            ]
+        ] as const;
+        const responses: unknown[] = [];
+        try {
+            for (const [suffix, body] of requests) {
+                const before = loadProjection({ domain: meeting });
+                const url = `/api/convivium/meetings/meeting-1/${suffix}`;
+                const invalid = await invokeLocalControl(route!.handler, "POST", url, {
+                    body: JSON.stringify({
+                        ...body,
+                        evidenceMessageIds: ["message-1", "external-message"]
+                    }),
+                    contentType: "application/json"
+                });
+                expect(invalid.status).toBe(400);
+                expect(invalid.json).toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
+                expect(loadProjection({ domain: meeting })).toEqual(before);
+                const response = await invokeLocalControl(route!.handler, "POST", url, {
+                    body: JSON.stringify(body),
+                    contentType: "application/json"
+                });
+                expect(response.status).toBe(200);
+                responses.push(response.json);
+                expect(loadProjection({ domain: meeting }).snapshot?.version).toBe(
+                    before.snapshot!.version + 1
+                );
+                const detail = await invokeLocalControl(
+                    route!.handler,
+                    "GET",
+                    "/api/convivium/meetings/meeting-1"
+                );
+                expect(detail.status).toBe(200);
+                expect(() =>
+                    MeetingStatusResultSchema((detail.json as { result: unknown }).result)
+                ).not.toThrow();
+            }
+            const state = loadProjection({ domain: meeting }).snapshot!
+                .state as unknown as MeetingState;
+            expect(state.decisions.map(({ status }) => status)).toEqual(["superseded", "revoked"]);
+            expect(state.issues[0]).toMatchObject({
+                status: "open",
+                blocking: true,
+                disposition: "blocking"
+            });
+        } finally {
+            await runtime.dispose();
+            await registry.close();
+        }
+        const before = loadProjection({ domain: meeting });
+        const cold = createCreateStatusRuntime({
+            storageDomain: facility,
+            provider: "spawn",
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            },
+            now: () => localNow,
+            continuable: {
+                startContinuable: async () => {
+                    throw new Error("unexpected Session start");
+                },
+                followup: async () => {
+                    throw new Error("unexpected Session followup");
+                },
+                listDescendants: async () => []
+            }
+        });
+        try {
+            for (const [index, [suffix, body]] of requests.entries()) {
+                const result =
+                    suffix === "accept-decision"
+                        ? await cold.acceptLocalDecision(CaptainDecisionAcceptanceInputSchema(body))
+                        : suffix === "dispose-decision"
+                          ? await cold.disposeLocalDecision(
+                                CaptainDecisionDispositionInputSchema(body)
+                            )
+                          : await cold.disposeLocalRisk(CaptainRiskDispositionInputSchema(body));
+                expect(result).toEqual(responses[index]);
+            }
+            const detail = await cold.getLocalMeetingStatus({
+                protocolVersion: 1,
+                meetingId: "meeting-1"
+            });
+            expect(detail).toMatchObject({
+                ok: true,
+                result: {
+                    pendingDecisionCandidates: [],
+                    acceptedDecisions: [],
+                    decisionHistory: [{ status: "superseded" }, { status: "revoked" }],
+                    risks: [{ status: "open", blocking: true }]
+                }
             });
             expect(loadProjection({ domain: meeting })).toEqual(before);
         } finally {
