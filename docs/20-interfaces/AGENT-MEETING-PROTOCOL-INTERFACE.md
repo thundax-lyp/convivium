@@ -81,7 +81,7 @@ interface ProtocolMeta {
 | `convivium_dispose_decision`                  | Captain                                                  | 替代或撤销指定正式决策                                        |
 | `convivium_dispose_risk`                      | Captain                                                  | 对指定风险作出结构化接受或拒绝处置                            |
 | `convivium_dispose_agenda_candidate`          | Captain                                                  | 提升、暂存或拒绝指定 Agenda candidate                         |
-| `convivium_dispose_attendance_recommendation` | Captain                                                  | 批准或拒绝 Manager 的参会推荐                                 |
+| `convivium_dispose_attendance_recommendation` | Captain                                                  | 拒绝 Manager 的参会推荐；批准尚未实现                                 |
 | `convivium_reassign_turn`                     | Captain                                                  | 撤销并改派或跳过当前发言位置                                  |
 | `convivium_end_meeting`                       | Captain                                                  | 正常、部分、无共识或取消结束                                  |
 
@@ -275,16 +275,14 @@ interface CaptainAttendanceDispositionInputV1 {
   expectedMeetingVersion: number;
   requestId: string;
   recommendationId: string;
-  decision: "approve" | "reject";
+  decision: "reject";
   reason: string;
 }
 
 interface CaptainAttendanceDispositionResultV1 {
   requestId: string;
   recommendationId: string;
-  disposition: "approved" | "rejected";
-  admissionId?: string;
-  participantId?: string;
+  disposition: "rejected";
 }
 
 interface ReassignTurnInputV1 {
@@ -1562,3 +1560,7 @@ The active status projection's convergence fields are mapped from the committed 
 ## Initial Role Definition Selection
 
 创建会议工具支持可选 `managerAgentDefinitionId` 与 `participants[].agentDefinitionId`；选择、失败、兼容与持久 provenance 的规范见 [Meeting Agent Definition Interface](MEETING-AGENT-DEFINITION-INTERFACE.md) Transport Or Invocation 和 Runtime Provenance And Failure。只允许既有 Captain 创建入口提交 ID，不开放 persona、toolFilter、Preset 或 Skill 配置写入口。共享父 Preset 首版已实现，验证见 [FR-14 Evidence](../40-readiness/FR14-SHARED-PRESET-ROLE-COMPOSITION-EVIDENCE.md)。
+
+## Captain rejection slice
+
+当前 command 仅支持 `decision="reject"`，结果仅为 `disposition="rejected"`，不包含 admissionId/participantId。批准及 admission 仍为尚未实现的未来能力。精确输入校验、validated-input hash、Canonical rejection、领域事件、公开状态、归档与失败顺序以 [Role Catalog Interface 的 Captain rejection slice](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md#captain-rejection-slice) 为唯一完整契约。当前协议、Captain Runtime、DSH 工具、status/archive 接线及 JSONL reopen 已实现并验证；真实 Loader 的缺失推荐拒绝路径已通过。验证边界见 [Captain Attendance Rejection Evidence](../40-readiness/CAPTAIN-ATTENDANCE-REJECTION-EVIDENCE.md)。

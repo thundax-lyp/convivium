@@ -1,3 +1,7 @@
+import {
+    CaptainAttendanceDispositionInputSchema,
+    CaptainAttendanceDispositionResultSchema
+} from "../../src/protocol/index.js";
 import { roleCompositionDefinitions } from "../fixtures/role-composition.js";
 import {
     MeetingArchivePackageSchema,
@@ -3330,4 +3334,506 @@ describe("FR14 creation and replay contract", () => {
             }
         }
     );
+});
+
+async function attendanceRuntimeFixture() {
+    const root = await mkdtemp(join(tmpdir(), "convivium-attendance-rejection-"));
+    roots.push(root);
+    const readSnapshot = vi.fn(async () => ({
+        ok: true as const,
+        snapshot: {
+            protocolVersion: 1 as const,
+            catalogId: "catalog-claim",
+            catalogVersion: "v1",
+            teamId: input.teamId,
+            capturedAt: 100,
+            roles: [
+                {
+                    roleDefinitionId: "domain_architect" as const,
+                    version: "1",
+                    displayName: "Domain Architect",
+                    summary: "Architecture review",
+                    expertiseTags: ["architecture"],
+                    evidenceScopes: [],
+                    responsibilities: ["Review"],
+                    nonResponsibilities: []
+                }
+            ],
+            candidates: [
+                {
+                    candidateId: "candidate-claim",
+                    roleDefinitionId: "domain_architect" as const,
+                    roleDefinitionVersion: "1",
+                    sourceMemberName: "private-member",
+                    agentDefinitionId: "private-definition",
+                    availability: "available" as const
+                }
+            ]
+        }
+    }));
+    const captain = {
+        sessionId: "captain-claim",
+        kind: "captain" as const,
+        agent: { id: "captain-claim" } as never
+    };
+    const runtime = localRuntime(root, {
+        agentCatalog: { readSnapshot },
+        now: () => 100
+    });
+    const created = await runtime.createMeeting(
+        {
+            ...input,
+            requestId: "create-catalog-claim",
+            selectionMode: "manager",
+            agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+            participants: [input.participants[0]!]
+        },
+        captain,
+        new AbortController().signal
+    );
+    if (!created.ok) throw new Error("create failed");
+    const manager = {
+        sessionId: `${created.result.meetingId}-manager-manager`,
+        meetingId: created.result.meetingId,
+        kind: "manager" as const
+    };
+    const plan = {
+        protocolVersion: 1 as const,
+        meetingId: created.result.meetingId,
+        requestId: "catalog-claim-plan",
+        planningAttemptId: `${created.result.meetingId}-planning-1`,
+        observedMeetingVersion: created.meetingVersion,
+        agendaItemId: "agenda-agenda-1",
+        intent: "explore",
+        objective: "Review scope",
+        expectedOutputs: [],
+        prohibitedTopics: [],
+        attendanceRecommendations: [
+            {
+                candidateId: "candidate-claim",
+                agendaItemId: "agenda-agenda-1",
+                rationale: "Architecture coverage is needed.",
+                expectedContribution: "Review the scope.",
+                evidenceGapIds: [],
+                urgency: "current_agenda" as const
+            }
+        ],
+        steps: [
+            {
+                participantId: "participant-one",
+                instruction: "Review the scope",
+                reason: "manager_selected"
+            }
+        ]
+    };
+    const committed = await runtime.submitManagerPlan(plan, manager);
+
+    if (!committed.ok) throw new Error("plan failed");
+    const request = CaptainAttendanceDispositionInputSchema({
+        protocolVersion: 1,
+        meetingId: created.result.meetingId,
+        expectedMeetingVersion: committed.meetingVersion,
+        requestId: "reject-1",
+        recommendationId: `${created.result.meetingId}-planning-1-attendance-0`,
+        decision: "reject",
+        reason: " Not needed "
+    });
+    return { root, runtime, captain, manager, readSnapshot, request };
+}
+
+describe("Captain attendance rejection runtime", () => {
+    it("commits only the rejection, replays and recovers without new provisioning", async () => {
+        const f = await attendanceRuntimeFixture();
+        const statusInput = { protocolVersion: 1 as const, meetingId: f.request.meetingId };
+        let restarted: ReturnType<typeof localRuntime> | undefined;
+        try {
+            const before = await f.runtime.getStatus(statusInput, f.captain);
+            const rejected = await f.runtime.disposeAttendanceRecommendation(
+                f.request,
+                f.captain,
+                new AbortController().signal
+            );
+            expect(rejected).toMatchObject({
+                ok: true,
+                meetingVersion: f.request.expectedMeetingVersion + 1,
+                result: {
+                    requestId: "reject-1",
+                    recommendationId: f.request.recommendationId,
+                    disposition: "rejected"
+                }
+            });
+            if (!rejected.ok) throw new Error("reject failed");
+            expect(CaptainAttendanceDispositionResultSchema(rejected.result)).toEqual(
+                rejected.result
+            );
+            const after = await f.runtime.getStatus(statusInput, f.captain);
+            if (!before.ok || !after.ok) throw new Error("status failed");
+            expect(after.result).toEqual({
+                ...before.result,
+                meetingVersion: rejected.meetingVersion,
+                attendanceRecommendations: expect.arrayContaining([
+                    expect.objectContaining({
+                        recommendationId: f.request.recommendationId,
+                        status: "rejected"
+                    })
+                ])
+            });
+            expect(f.readSnapshot).toHaveBeenCalledTimes(1);
+            await expect(
+                f.runtime.disposeAttendanceRecommendation(
+                    f.request,
+                    f.captain,
+                    new AbortController().signal
+                )
+            ).resolves.toEqual(rejected);
+            await expect(
+                f.runtime.disposeAttendanceRecommendation(
+                    { ...f.request, reason: "Different" },
+                    f.captain,
+                    new AbortController().signal
+                )
+            ).resolves.toMatchObject({ ok: false, code: "IDEMPOTENCY_CONFLICT" });
+            await expect(
+                f.runtime.disposeAttendanceRecommendation(
+                    {
+                        ...f.request,
+                        requestId: "new",
+                        expectedMeetingVersion: rejected.meetingVersion
+                    },
+                    f.captain,
+                    new AbortController().signal
+                )
+            ).resolves.toMatchObject({
+                ok: false,
+                code: "ATTENDANCE_RECOMMENDATION_NOT_PENDING",
+                message: "Attendance recommendation is not pending.",
+                retryable: false
+            });
+            await f.runtime.dispose();
+            restarted = localRuntime(f.root, {
+                now: () => 100,
+                agentCatalog: { readSnapshot: f.readSnapshot }
+            });
+            await expect(restarted.getStatus(statusInput, f.captain)).resolves.toEqual(after);
+            await expect(
+                restarted.disposeAttendanceRecommendation(
+                    f.request,
+                    f.captain,
+                    new AbortController().signal
+                )
+            ).resolves.toEqual(rejected);
+            expect(f.readSnapshot).toHaveBeenCalledTimes(1);
+        } finally {
+            await f.runtime.dispose();
+            await restarted?.dispose();
+        }
+    });
+    it("rejects invalid authority, targets, stale input and direct approve with zero effects", async () => {
+        const f = await attendanceRuntimeFixture();
+        const signal = new AbortController().signal;
+        try {
+            const before = await f.runtime.getStatus(
+                { protocolVersion: 1, meetingId: f.request.meetingId },
+                f.captain
+            );
+            for (const caller of [
+                f.manager,
+                {
+                    kind: "participant" as const,
+                    sessionId: "participant-one",
+                    meetingId: f.request.meetingId
+                },
+                { ...f.captain, sessionId: "other" },
+                { ...f.captain, meetingId: "other" }
+            ]) {
+                await expect(
+                    f.runtime.disposeAttendanceRecommendation(f.request, caller, signal)
+                ).resolves.toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
+            }
+            await expect(
+                f.runtime.disposeAttendanceRecommendation(
+                    { ...f.request, meetingId: "missing" },
+                    f.captain,
+                    signal
+                )
+            ).resolves.toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
+            await expect(
+                f.runtime.disposeAttendanceRecommendation(
+                    { ...f.request, recommendationId: "missing" },
+                    f.captain,
+                    signal
+                )
+            ).resolves.toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
+            await expect(
+                f.runtime.disposeAttendanceRecommendation(
+                    { ...f.request, expectedMeetingVersion: 0 },
+                    f.captain,
+                    signal
+                )
+            ).resolves.toMatchObject({ ok: false, code: "VERSION_CONFLICT", retryable: true });
+            const approve = { ...f.request };
+            Reflect.set(approve, "decision", "approve");
+            await expect(
+                f.runtime.disposeAttendanceRecommendation(approve, f.captain, signal)
+            ).resolves.toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
+            await expect(
+                f.runtime.disposeAttendanceRecommendation(
+                    { ...f.request, reason: " " },
+                    f.captain,
+                    signal
+                )
+            ).resolves.toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
+            await expect(
+                f.runtime.getStatus(
+                    { protocolVersion: 1, meetingId: f.request.meetingId },
+                    f.captain
+                )
+            ).resolves.toEqual(before);
+            expect(f.readSnapshot).toHaveBeenCalledTimes(1);
+        } finally {
+            await f.runtime.dispose();
+        }
+    });
+    it("allows exactly one concurrent request to win", async () => {
+        const f = await attendanceRuntimeFixture();
+        try {
+            const results = await Promise.all(
+                ["reject-a", "reject-b"].map((requestId) =>
+                    f.runtime.disposeAttendanceRecommendation(
+                        { ...f.request, requestId },
+                        f.captain,
+                        new AbortController().signal
+                    )
+                )
+            );
+            expect(results.filter((result) => result.ok)).toHaveLength(1);
+            expect(results.filter((result) => !result.ok)).toMatchObject([
+                { code: "VERSION_CONFLICT" }
+            ]);
+        } finally {
+            await f.runtime.dispose();
+        }
+    });
+});
+
+it("archives and reopens a Captain attendance rejection", async () => {
+    const root = await mkdtemp(join(tmpdir(), "convivium-attendance-rejection-"));
+    roots.push(root);
+    const readSnapshot = vi.fn(async () => ({
+        ok: true as const,
+        snapshot: {
+            protocolVersion: 1 as const,
+            catalogId: "catalog-claim",
+            catalogVersion: "v1",
+            teamId: input.teamId,
+            capturedAt: 100,
+            roles: [
+                {
+                    roleDefinitionId: "domain_architect" as const,
+                    version: "1",
+                    displayName: "Domain Architect",
+                    summary: "Architecture review",
+                    expertiseTags: ["architecture"],
+                    evidenceScopes: [],
+                    responsibilities: ["Review"],
+                    nonResponsibilities: []
+                }
+            ],
+            candidates: [
+                {
+                    candidateId: "candidate-claim",
+                    roleDefinitionId: "domain_architect" as const,
+                    roleDefinitionVersion: "1",
+                    sourceMemberName: "private-member",
+                    agentDefinitionId: "private-definition",
+                    availability: "available" as const
+                }
+            ]
+        }
+    }));
+    const captain = {
+        sessionId: "captain-claim",
+        kind: "captain" as const,
+        agent: { id: "captain-claim" } as never
+    };
+    const children: Array<{ id: string; label: string }> = [];
+    const drained: string[][] = [];
+    const interrupted: string[] = [];
+    const continuable = {
+        startContinuable: async (spec) => {
+            children.push({ id: String(spec.childId), label: spec.label });
+            return {
+                childId: spec.childId!,
+                messageId: `initial-${String(spec.childId)}` as never
+            };
+        },
+        followup: async () => "followup-message" as never,
+        listChildren: async () =>
+            children.map((child) => ({
+                kind: "child" as const,
+                id: child.id as never,
+                activity: "inactive" as const,
+                hasChildren: false,
+                mode: "continuable" as const,
+                label: child.label
+            })),
+        interrupt: (childId) => {
+            interrupted.push(String(childId));
+        },
+        drainContinuableChildren: async (_parent, childIds) => {
+            drained.push(childIds.map(String));
+        }
+    };
+    const createRuntime = () =>
+        createCreateStatusRuntime({
+            storageDomain: storagePort(root),
+            provider: "spawn",
+            continuable,
+            agentCatalog: { readSnapshot },
+            now: () => 100,
+            authorizationValidator: {
+                validateCreate: () => undefined,
+                validateCommand: () => undefined
+            }
+        });
+    const runtime = createRuntime();
+    try {
+        const created = await runtime.createMeeting(
+            {
+                ...input,
+                requestId: "create-catalog-claim",
+                selectionMode: "manager",
+                agenda: [{ ...input.agenda[0]!, requiredParticipantKeys: ["one"] }],
+                participants: [input.participants[0]!]
+            },
+            captain,
+            new AbortController().signal
+        );
+        if (!created.ok) throw new Error("create failed");
+        const manager = {
+            sessionId: `${created.result.meetingId}-manager-manager`,
+            meetingId: created.result.meetingId,
+            kind: "manager" as const
+        };
+        const plan = {
+            protocolVersion: 1 as const,
+            meetingId: created.result.meetingId,
+            requestId: "catalog-claim-plan",
+            planningAttemptId: `${created.result.meetingId}-planning-1`,
+            observedMeetingVersion: created.meetingVersion,
+            agendaItemId: "agenda-agenda-1",
+            intent: "explore",
+            objective: "Review scope",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            attendanceRecommendations: [
+                {
+                    candidateId: "candidate-claim",
+                    agendaItemId: "agenda-agenda-1",
+                    rationale: "Architecture coverage is needed.",
+                    expectedContribution: "Review the scope.",
+                    evidenceGapIds: [],
+                    urgency: "current_agenda" as const
+                }
+            ],
+            steps: [
+                {
+                    participantId: "participant-one",
+                    instruction: "Review the scope",
+                    reason: "manager_selected"
+                }
+            ]
+        };
+        const committed = await runtime.submitManagerPlan(plan, manager);
+
+        if (!committed.ok) throw new Error("plan failed");
+        const request = CaptainAttendanceDispositionInputSchema({
+            protocolVersion: 1,
+            meetingId: created.result.meetingId,
+            expectedMeetingVersion: committed.meetingVersion,
+            requestId: "reject-1",
+            recommendationId: `${created.result.meetingId}-planning-1-attendance-0`,
+            decision: "reject",
+            reason: " Not needed "
+        });
+        const rejected = await runtime.disposeAttendanceRecommendation(
+            request,
+            captain,
+            new AbortController().signal
+        );
+        expect(rejected.ok).toBe(true);
+        if (!rejected.ok) throw new Error("reject failed");
+        const ended = await runtime.endMeeting(
+            {
+                protocolVersion: 1,
+                meetingId: request.meetingId,
+                expectedMeetingVersion: rejected.meetingVersion,
+                requestId: "attendance-rejection-end",
+                outcome: "cancelled",
+                reason: "Close attendance rejection test",
+                acceptedDecisionIds: [],
+                deferredAgendaItemIds: [],
+                waivers: []
+            },
+            captain,
+            new AbortController().signal
+        );
+        expect(ended).toMatchObject({ ok: true, result: { status: "cancelled" } });
+        const statusInput = { protocolVersion: 1 as const, meetingId: request.meetingId };
+        const archived = await runtime.getStatus(statusInput, captain);
+        expect(archived).toMatchObject({
+            ok: true,
+            result: {
+                status: "archived",
+                archive: {
+                    package: {
+                        attendanceRejections: [
+                            {
+                                recommendationId: request.recommendationId,
+                                candidateId: "candidate-claim",
+                                roleDefinitionId: "domain_architect",
+                                displayName: "Domain Architect",
+                                agendaItemId: "agenda-agenda-1",
+                                reason: "Not needed",
+                                rejectedAt: 100
+                            }
+                        ]
+                    }
+                }
+            }
+        });
+        expect(drained.flat().sort()).toEqual(children.map((c) => c.id).sort());
+        expect(children).toHaveLength(2);
+        expect(interrupted.sort()).toEqual(children.map((c) => c.id).sort());
+        await runtime.dispose();
+        const reopened = createRuntime();
+        try {
+            const current = await reopened.getStatus(statusInput, captain);
+            expect(current).toEqual(archived);
+            if (!current.ok) throw new Error("status failed");
+            expect(
+                await reopened.disposeAttendanceRecommendation(
+                    {
+                        ...request,
+                        requestId: "after-archive",
+                        expectedMeetingVersion: current.meetingVersion
+                    },
+                    captain,
+                    new AbortController().signal
+                )
+            ).toMatchObject({ ok: false, code: "ARCHIVED_MEETING" });
+            expect(
+                await reopened.disposeAttendanceRecommendation(
+                    request,
+                    captain,
+                    new AbortController().signal
+                )
+            ).toEqual(rejected);
+            expect(await reopened.getStatus(statusInput, captain)).toEqual(archived);
+        } finally {
+            await reopened.dispose();
+        }
+    } finally {
+        await runtime.dispose();
+    }
 });

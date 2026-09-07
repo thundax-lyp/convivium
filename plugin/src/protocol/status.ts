@@ -1,10 +1,11 @@
 import Schema from "@deepseek-ai/schemastery";
 import type {
+    PublicArchivePackageV1,
     LocalMeetingListItemV1,
     LocalMeetingListResponseV1,
     LocalMeetingListResultV1
 } from "./types.js";
-import { agentRoleDefinitionIdSchema } from "./schema.js";
+import { agentRoleDefinitionIdSchema, PublicAttendanceRecommendationSchema } from "./schema.js";
 
 const requiredString = () => Schema.string().required();
 const requiredNumber = () => Schema.number().required();
@@ -384,20 +385,7 @@ const active = Schema.object({
     blockingFacts: requiredArray(blockingFact),
     parkingLot: requiredArray(archiveAgendaCandidate),
     meetingTasks: requiredArray(meetingTask),
-    attendanceRecommendations: requiredArray(
-        Schema.object({
-            recommendationId: requiredString(),
-            candidateId: requiredString(),
-            agendaItemId: requiredString(),
-            rationale: requiredString(),
-            expectedContribution: requiredString(),
-            evidenceGapIds: requiredArray(requiredString()),
-            urgency: enumOf(["current_agenda", "later_agenda", "follow_up"] as const),
-            roleDefinitionId: agentRoleDefinitionIdSchema,
-            displayName: requiredString(),
-            status: enumOf(["pending", "approved", "rejected", "expired", "cancelled"] as const)
-        })
-    ),
+    attendanceRecommendations: requiredArray(PublicAttendanceRecommendationSchema),
     status: enumOf(["created", "running", "waiting", "paused", "converging"] as const),
     stallCount: requiredNumber(),
     maxStalls: requiredNumber(),
@@ -447,20 +435,7 @@ const terminal = Schema.object({
     currentAttemptId: Schema.never(),
     pendingHandRaises: Schema.tuple([]).required(),
     meetingTasks: requiredArray(meetingTask),
-    attendanceRecommendations: requiredArray(
-        Schema.object({
-            recommendationId: requiredString(),
-            candidateId: requiredString(),
-            agendaItemId: requiredString(),
-            rationale: requiredString(),
-            expectedContribution: requiredString(),
-            evidenceGapIds: requiredArray(requiredString()),
-            urgency: enumOf(["current_agenda", "later_agenda", "follow_up"] as const),
-            roleDefinitionId: agentRoleDefinitionIdSchema,
-            displayName: requiredString(),
-            status: enumOf(["pending", "approved", "rejected", "expired", "cancelled"] as const)
-        })
-    ),
+    attendanceRecommendations: requiredArray(PublicAttendanceRecommendationSchema),
     pauseControl: Schema.object({ action: Schema.const("none").required() }).required(),
     termination: executionTermination.required(),
     completionFactIds: requiredArray(requiredString()),
@@ -515,35 +490,105 @@ const archiveIssue = Schema.object({
     relatedTaskIds: requiredArray(requiredString())
 });
 
-const structuralMeetingArchivePackageSchema = Schema.object({
-    schemaVersion: Schema.const(1).required(),
-    meetingId: requiredString(),
-    teamId: requiredString(),
-    sourceMeetingId: Schema.string(),
-    objectiveContract: objectiveContract.required(),
-    finalSummary: requiredString(),
-    artifactRefs: requiredArray(artifactRef),
-    acceptedDecisions: requiredArray(decision),
-    decisionHistory: requiredArray(decision),
-    proposals: requiredArray(proposal),
-    completionFacts: requiredArray(completionFact),
-    agenda: requiredArray(agendaItem),
-    issues: requiredArray(archiveIssue),
-    unresolvedQuestions: requiredArray(question),
-    parkingLot: requiredArray(archiveAgendaCandidate),
-    formalTranscript: requiredArray(message),
-    participantProvenance: requiredArray(
+const archiveAttendanceRejection = Schema.transform(
+    Schema.object({
+        recommendationId: requiredString(),
+        candidateId: requiredString(),
+        roleDefinitionId: agentRoleDefinitionIdSchema,
+        displayName: requiredString(),
+        agendaItemId: requiredString(),
+        reason: requiredString(),
+        rejectedAt: requiredNumber()
+    }),
+    (value) => {
+        assertExactKeys(
+            value,
+            [
+                "recommendationId",
+                "candidateId",
+                "roleDefinitionId",
+                "displayName",
+                "agendaItemId",
+                "reason",
+                "rejectedAt"
+            ],
+            "archive attendance rejection"
+        );
+        if (
+            [
+                value.recommendationId,
+                value.candidateId,
+                value.displayName,
+                value.agendaItemId,
+                value.reason
+            ].some((v) => typeof v !== "string" || !v.trim()) ||
+            typeof value.rejectedAt !== "number" ||
+            !Number.isFinite(value.rejectedAt) ||
+            value.rejectedAt < 0
+        ) {
+            throw new TypeError("Invalid archive attendance rejection");
+        }
+        return value;
+    }
+);
+const archiveAttendanceRejections = Schema.transform(
+    Schema.array(archiveAttendanceRejection).required(),
+    (values) => {
+        if (
+            values.length === 0 ||
+            new Set(values.map((v) => v.recommendationId)).size !== values.length
+        ) {
+            throw new TypeError("Archive attendance rejections must be nonempty and unique");
+        }
+        return values;
+    }
+);
+
+const structuralMeetingArchivePackageSchema: Schema<unknown, PublicArchivePackageV1> =
+    Schema.transform(
         Schema.object({
-            participantId: requiredString(),
-            displayName: requiredString(),
-            role: Schema.string(),
-            templateVersion: Schema.string()
-        })
-    ),
-    termination: termination.required(),
-    endedAt: requiredNumber(),
-    materializedAt: requiredNumber()
-});
+            schemaVersion: Schema.const(1).required(),
+            meetingId: requiredString(),
+            teamId: requiredString(),
+            sourceMeetingId: Schema.string(),
+            objectiveContract: objectiveContract.required(),
+            finalSummary: requiredString(),
+            artifactRefs: requiredArray(artifactRef),
+            acceptedDecisions: requiredArray(decision),
+            decisionHistory: requiredArray(decision),
+            proposals: requiredArray(proposal),
+            completionFacts: requiredArray(completionFact),
+            agenda: requiredArray(agendaItem),
+            issues: requiredArray(archiveIssue),
+            unresolvedQuestions: requiredArray(question),
+            parkingLot: requiredArray(archiveAgendaCandidate),
+            formalTranscript: requiredArray(message),
+            participantProvenance: requiredArray(
+                Schema.object({
+                    participantId: requiredString(),
+                    displayName: requiredString(),
+                    role: Schema.string(),
+                    templateVersion: Schema.string()
+                })
+            ),
+            termination: termination.required(),
+            endedAt: requiredNumber(),
+            materializedAt: requiredNumber(),
+            attendanceRejections: Schema.union([
+                archiveAttendanceRejections,
+                Schema.const(undefined)
+            ])
+        }),
+        (value) => {
+            if (
+                Object.hasOwn(value, "attendanceRejections") &&
+                value.attendanceRejections == null
+            ) {
+                throw new TypeError("Invalid archive attendance rejections");
+            }
+            return value as PublicArchivePackageV1;
+        }
+    ) as Schema<unknown, PublicArchivePackageV1>;
 
 function rejectRoleConfiguration(value: Record<string, unknown>): void {
     for (const key of [

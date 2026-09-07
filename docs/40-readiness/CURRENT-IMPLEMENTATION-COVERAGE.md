@@ -37,9 +37,13 @@
 | FR-10 记录、隐私与归档                    | 部分实现 | transcript、meeting mail、archive、Session cleanup、continuation                                                                                 | Scribe minutes 契约、projection、状态/归档路径未实现                                         |
 | FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；G4 已验证 pause/resume/end 及 Reassign Browser control    | risk/Decision disposition 未覆盖；metrics、远程/多用户未覆盖                                 |
 | FR-12 Agent 内部能力边界                  | 已实现   | 只消费正式提交和授权 task projection，不写自定义 DSH Session Event                                                                               | 后续 Mail/Web/UI 路径须保持该边界                                                            |
-| FR-13 Agent 角色目录与参会推荐            | 部分实现 | Phase 1 的 Catalog consumer、attempt binding、safe projection、recommendation claim 与 pending projection 已实现并通过本地验证                   | Captain disposition、admission、provisioning、FR-14、UI、真实 Host producer smoke 不在本阶段 |
+| FR-13 Agent 角色目录与参会推荐 | 部分实现 | Catalog consumer、attempt binding、safe projection、Manager pending；Captain reject/status/archive/JSONL reopen 已验证，真实 Loader 缺失推荐拒绝路径通过 | approve/admission/provisioning、与 FR-14 的动态接纳集成、UI、真实 Host producer 成功链路和本子闭环 Host 冷重启未覆盖 |
 | FR-14 共享 Preset 下的 Agent Definition | 已实现（共享父 Preset 首版） | 内联配置与显式选择、全角色预检、persona/toolFilter 注入、不可变 provenance、重放与真实双 Host 冷恢复；[验证证据](./FR14-SHARED-PRESET-ROLE-COMPOSITION-EVIDENCE.md) | 独立 per-child Preset 不纳入 Convivium，等待 DSH 升级；独占 Skill、模型配置、热切换、FR-13 admission、Browser 配置 UI 和模型任务质量不在本版 |
 | FR-15 Developer Markdown Projection       | 已实现   | committed snapshot/package → current/archive Markdown；白名单、受控路径、latest/stale、原子替换、failure isolation、dispose                      | multi-Host、远程 workspace、跨进程锁、旧文件迁移/清理未覆盖                                  |
+
+### Captain 参会拒绝实现与证据边界
+
+2026-09-07，分支 `codex/attendance-rejection-runbook` 的代码与验证提交至 `f5cb663`：Captain 工具拒绝一个 pending recommendation，单 commit 持久化审计、receipt 和状态，status/归档脱敏，重放、并发、故障回滚与真实 JSONL reopen 保持一致。完整 verify 为 77 files / 734 tests，真实 DSH baseline 输出 `PASS baseline 6210ms restore=PASS`。详见 [Captain Attendance Rejection Evidence](./CAPTAIN-ATTENDANCE-REJECTION-EVIDENCE.md)。该证据只覆盖拒绝子闭环，不改变 FR-13 的部分实现状态。
 
 ### Convergence 实现与证据边界
 
@@ -101,7 +105,7 @@
 - 不支持 multi-Host writer、远程 filesystem、远程访问、多用户和网络部署。
 - risk/Decision disposition 没有正式 browser/HTTP/Client write control。
 - Question 的 required-review/risk evidence、Decision candidate 完整生命周期未实现。自动 stall/refocus/replan 已有正式路径和单测，完整链路的真实 DSH smoke 未覆盖。
-- FR-13 Phase 1 的 Agent Catalog safe projection、Manager recommendation claim 和 pending projection 已完成本地 fake-port/isolated-storage 验证；真实 Host producer smoke、Captain admission 和 Meeting Agent Definition runtime 不在该阶段。
+- FR-13 的 Catalog/Manager pending 和 Captain reject 本地闭环已验证；真实 Loader 仅验证缺失推荐拒绝路径。真实 Host producer 成功推荐→拒绝、该子闭环 Host 冷重启、真实模型自主调用、Browser/HTTP/Client 拒绝控制、approve/admission/provisioning、自动 expired/cancelled 和 FR-14 仍未覆盖。
 - 结构化 metrics、stress/长期资源泄漏和生产发布验证未实现或未覆盖。
 - Developer Markdown 的 multi-Host、远程 workspace、跨进程锁、旧文件迁移/清理未覆盖；current/archive 文件仍为非权威本地诊断输出。
 

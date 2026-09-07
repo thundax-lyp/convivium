@@ -1,3 +1,4 @@
+import { CaptainAttendanceDispositionResultSchema } from "../../src/protocol/index.js";
 import { describe, expect, it, vi } from "vitest";
 import {
     createOfflineMeetingProtocolFixture,
@@ -57,6 +58,7 @@ function collectToolDefinitions(): ToolDefinition[] {
     });
     const runtime: MeetingToolRuntime = {
         acceptDecision: denied,
+        disposeAttendanceRecommendation: denied,
         disposeDecision: denied,
         disposeAgendaCandidate: denied,
         sendMeetingMessage: denied,
@@ -257,6 +259,7 @@ describe("offline meeting protocol preparation", () => {
         expect(f.bContext.attempt.deliveryId).toEqual(expect.stringMatching(/.+/));
         const definitions = collectToolDefinitions();
         for (const name of [
+            "convivium_dispose_attendance_recommendation",
             "convivium_create_meeting",
             "convivium_submit_manager_plan",
             "convivium_submit_turn"
@@ -270,5 +273,27 @@ describe("offline meeting protocol preparation", () => {
                 required: ["input"]
             });
         }
+    });
+
+    it("renders the keyless attendance rejection result as canonical JSON", async () => {
+        const tool = collectToolDefinitions().find(
+            (d) => d.name === "convivium_dispose_attendance_recommendation"
+        )!;
+        const result = {
+            requestId: "reject-1",
+            recommendationId: "recommendation-1",
+            disposition: "rejected"
+        };
+        expect(CaptainAttendanceDispositionResultSchema(result)).toEqual(result);
+        const value = {
+            protocolVersion: 1,
+            ok: true,
+            meetingId: "meeting-1",
+            meetingVersion: 2,
+            result
+        };
+        expect(await tool.output!.render!({}, value)).toEqual([
+            { type: "text", text: JSON.stringify(value) }
+        ]);
     });
 });

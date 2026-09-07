@@ -1184,7 +1184,11 @@ attendance validation 位于既有 caller/version/idempotency/stale/terminal che
 
 无 discriminator 的 legacy Meeting 保留普通能力，但 attendance path 使用 `isMeetingStateV2` fail closed；不得迁移、补 default 或扩大为全 Runtime union 重构。
 
-以下 Captain disposition、admission 和 provisioning 流程不属于 Phase 1：
+当前 Captain reject 子闭环已经实现：工具 `convivium_dispose_attendance_recommendation` 经 Input Schema 和 caller resolver 进入 `createMeetingAttendanceApplication`，恢复 Meeting 并验证 Captain Session，再调用既有 Repository.execute。receipt replay/hash conflict 先于 expected version 和 transition 的终态/推荐状态检查；同请求重放返回原结果和版本。Runtime 一次读取 now；transition trim reason 后持久化，hash 使用完整 validated input，因此原始空白变化仍是冲突。单一拒绝没有外部 outbox 或 Session 副作用。
+
+公开状态通过 `PublicAttendanceRecommendationSchema` 统一校验 active/execution-terminal 推荐，rejected 仅投影 reason/rejectedAt。Captain、合法 Manager/Participant 看到同一排序数组；local_host 和 legacy 为 `[]`。archiving/archived 只读已物化 package 中的七字段拒绝记录，不从活动状态重建；结束、Session cleanup 和续会机制沿用既有路径。新请求在终态拒绝，原 receipt 在 JSONL reopen 后仍可重放。
+
+以下 approval、admission 和 provisioning 流程仍未实现：
 
 Captain 使用独立 command 处置 pending recommendation：
 
@@ -1383,7 +1387,7 @@ execution terminal → archiving
 | `convivium_resume_meeting`                           | captain                                       | 按用户指令基于最新事实恢复 Meeting                                                     |
 | `convivium_dispose_risk`                             | captain                                       | 对一个指定风险提交结构化接受或拒绝处置                                                 |
 | `convivium_dispose_agenda_candidate`                 | captain                                       | 原子提升、暂存或拒绝一个 pending Agenda candidate；不切换 active agenda                |
-| `convivium_dispose_attendance_recommendation`        | captain                                       | 批准或拒绝一个 pending recommendation；批准后启动受控 Participant provisioning         |
+| `convivium_dispose_attendance_recommendation`        | captain                                       | 拒绝一个 pending recommendation；批准和 Participant provisioning 尚未实现         |
 | `convivium_reassign_turn`                            | captain                                       | 撤销并跳过/改派当前 step                                                               |
 | `convivium_end_meeting`                              | captain                                       | 接受、取消或以无共识结束                                                               |
 

@@ -74,3 +74,12 @@ Host Preset/Skill 部署变化后的恢复不承诺历史快照。无历史数�
 RC-01–RC-08 全部完成，逐项从 TODO 删除并独立提交；FR-14 仅以“已实现（共享父 Preset 首版）”更新覆盖。长期结论和证据迁移后，删除临时执行文档。删除前文件链接检查 113 项、删除后 103 项，缺失均为 0（检查包括 TODO、docs 和 plugin README）；临时文档名称引用检查无匹配，预期退出 1；git diff --check PASS。未 push、创建 PR 或合并。
 
 长期契约与实现结构分别保存在 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) 和 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)，复跑方式见 [DSH Smoke](../50-operations/HOW-TO-DSH-SMOKE.md)。
+
+
+## Main Integration — 2026-09-07
+
+将 `origin/main` 的 `2608b12` 合入 FR-14 分支 `3a99a57`。保留 Captain rejection 与 FR-14 两组完整测试及文档；归档 Schema 先执行角色私有字段拒绝，再执行包含 attendanceRejections 的结构校验。Catalog 文档区分已实现的初始角色配置与未实现的动态接纳。
+
+合并工作树执行 `pnpm --dir plugin verify` 退出 0：81 files / 773 tests，format、lint、双端 typecheck、build、environment、contract、samples、package 全部 PASS。相同工作树执行上述 role-composition 命令：Host PID `92904` / `92913`，九断言全过，`PASS role-composition 13472ms restore=PASS`。执行 `CONVIVIUM_SMOKE_SCENARIO=baseline pnpm --dir plugin smoke:profile`：`PASS baseline 13770ms restore=PASS`，包括 main 新增的 Captain 拒绝工具缺失推荐路径。未增加真实 Catalog producer 成功链路的覆盖。
+
+工程文档链接检查 112 项、缺失 0；冲突标记及未合并索引检查为空，git diff --check PASS。此次仅本地 merge，未 push。
