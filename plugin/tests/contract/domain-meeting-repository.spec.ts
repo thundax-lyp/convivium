@@ -1,3 +1,6 @@
+import { submitSpeakerAttempt, type MeetingState } from "../../src/domain/index.js";
+import { meeting as domainMeeting, now } from "../unit/domain/transitions/fixtures.js";
+import { createMeetingDomainSpec } from "../../src/repository/domain/specs.js";
 import { DomainMeetingRepository } from "../../src/repository/domain/domain-meeting-repository.js";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
 import { defineMeetingRepositoryBehaviorContract } from "./meeting-repository-behavior.js";
@@ -871,7 +874,7 @@ it("rolls back state, events and outbox when a commit put fails", async () => {
     await repository.close();
 });
 
-async function maintenanceFixture() {
+async function maintenanceFixture(initialState: Record<string, unknown> = { count: 0 }) {
     const meeting = createFakeMeetingDomain();
     const repository = await DomainMeetingRepository.open({
         catalogDomain: createFakeCatalogDomain(),
@@ -886,7 +889,7 @@ async function maintenanceFixture() {
         requestId: "create",
         authorization,
         requestHash: "create-hash",
-        initialState: { count: 0 },
+        initialState,
         createdAt: 1
     };
     await repository.create(input);
@@ -1008,3 +1011,230 @@ it("drains maintenance and closes the Domain exactly once", async () => {
     expect(meeting.closeCalls).toBe(1);
     await expect(repository.read()).rejects.toMatchObject({ code: "CLOSED" });
 });
+
+function minutesRepositoryState(): MeetingState {
+    const state = domainMeeting("running");
+    delete state.termination;
+    state.version = 0;
+    state.meetingTasks = [];
+    state.participants = [
+        {
+            id: "scribe",
+            displayName: "Scribe",
+            status: "speaking",
+            consecutiveSpeeches: 0,
+            consecutiveAttemptFailures: 0,
+            totalSpeeches: 0,
+            lastDeliveredSeq: 0,
+            lastAcknowledgedSeq: 0
+        }
+    ];
+    state.transcript = [
+        {
+            id: "source-1",
+            seq: 1,
+            turnSeq: 0,
+            turnId: "source-turn",
+            stepId: "source-step",
+            attemptId: "source-attempt",
+            speaker: "scribe",
+            agendaItemId: "agenda-1",
+            agendaRelation: "on_topic",
+            content: "source",
+            kind: "statement",
+            mentions: [],
+            taskIds: [],
+            createdAt: now - 1
+        }
+    ];
+    state.messageSeq = 1;
+    state.currentTurn = {
+        id: "turn-1",
+        seq: 1,
+        agendaItemId: "agenda-1",
+        intent: "explore",
+        objective: "objective",
+        expectedOutputs: [],
+        prohibitedTopics: [],
+        plan: ["scribe"],
+        status: "running",
+        currentStepIndex: 0,
+        createdAt: now,
+        steps: [
+            {
+                id: "step-1",
+                speaker: "scribe",
+                instruction: "summarize",
+                reason: "manager_selected",
+                status: "running",
+                attempt: {
+                    attemptId: "attempt-1",
+                    participantId: "scribe",
+                    meetingId: state.id,
+                    turnId: "turn-1",
+                    stepId: "step-1",
+                    deliveryId: "delivery-1",
+                    contextFromSeq: 1,
+                    contextThroughSeq: 1,
+                    taskSnapshots: [],
+                    assignedAt: now,
+                    status: "running",
+                    deliveryStatus: "pending"
+                }
+            }
+        ]
+    };
+    return state;
+}
+
+it.each([false, true])(
+    "persists referenced minutes atomically and reopens (checkpoint=%s)",
+    async (checkpoint) => {
+        const initialState = minutesRepositoryState();
+        const { meeting, repository, authorization } = await maintenanceFixture(initialState);
+        const context = {
+            meetingId: initialState.id,
+            participantId: "scribe",
+            turnId: "turn-1",
+            stepId: "step-1",
+            attemptId: "attempt-1",
+            deliveryId: "delivery-1",
+            agendaItemId: "agenda-1",
+            message: {
+                id: "draft-2",
+                kind: "summary" as const,
+                content: "Minutes",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic" as const,
+                createdAt: now,
+                minutesDraft: {
+                    status: "draft" as const,
+                    coverage: { fromSeq: 1, throughSeq: 1 },
+                    referencedMessageIds: ["source-1"]
+                }
+            }
+        };
+        const command = {
+            commandKind: "submit_turn",
+            requestId: "draft-2",
+            requestHash: "draft-2",
+            expectedMeetingVersion: 0,
+            authorization,
+            transition: (snapshot) => {
+                const transition = submitSpeakerAttempt(
+                    snapshot.state,
+                    "scribe",
+                    snapshot.version,
+                    context
+                );
+                return {
+                    state: transition.state,
+                    events: transition.effect.events,
+                    outbox: [],
+                    result: { messageId: "draft-2" }
+                };
+            }
+        };
+        try {
+            const before = structuredClone(loadProjection({ domain: meeting }));
+            meeting.failPutsInTable("commits");
+            await expect(repository.execute(command)).rejects.toThrow();
+            expect(loadProjection({ domain: meeting })).toEqual(before);
+            meeting.allowPutsInTable("commits");
+            const committed = await repository.execute(command);
+            expect(await repository.execute(command)).toEqual(committed);
+            if (checkpoint) {
+                const beforeCheckpoint = structuredClone(loadProjection({ domain: meeting }));
+                for (let i = 1; i <= 126; i++) {
+                    const snapshot = await repository.read();
+                    const receipt = await repository.execute({
+                        commandKind: "minutes_checkpoint_probe",
+                        requestId: `minutes-checkpoint-${i}`,
+                        requestHash: `minutes-checkpoint-${i}`,
+                        expectedMeetingVersion: snapshot.version,
+                        allowNoop: true,
+                        authorization,
+                        transition: () => ({
+                            state: snapshot.state,
+                            events: [],
+                            outbox: [],
+                            result: { index: i }
+                        })
+                    });
+                    expect(receipt.meetingVersion).toBe(committed.meetingVersion);
+                }
+                const after = loadProjection({ domain: meeting });
+                for (const field of ["snapshot", "events", "outbox"] as const)
+                    expect(after[field]).toEqual(beforeCheckpoint[field]);
+                expect(Object.keys(after.receipts)).toHaveLength(
+                    Object.keys(beforeCheckpoint.receipts).length + 126
+                );
+            }
+        } finally {
+            meeting.allowPutsInTable("commits");
+            await repository.close();
+        }
+        if (checkpoint)
+            expect(
+                meeting.table("checkpoint_pointer").get("current")?.baseSeq
+            ).toBeGreaterThanOrEqual(128);
+        else expect(meeting.table("checkpoint_pointer").get("current")).toBeUndefined();
+        const initial = Object.fromEntries(
+            Object.keys(createMeetingDomainSpec(meeting.name).tables).map((name) => [
+                name,
+                new Map(meeting.table(name).entries())
+            ])
+        );
+        const copied = createFakeMeetingDomain({ name: meeting.name, initial });
+        const reopened = await DomainMeetingRepository.open({
+            catalogDomain: createFakeCatalogDomain(),
+            meetingDomain: copied,
+            teamId: "team-1",
+            meetingId: "meeting-1",
+            authorizationValidator: allow,
+            now: () => 1000
+        });
+        try {
+            const snapshot = await reopened.read();
+            expect(snapshot.state.transcript).toHaveLength(2);
+            expect(snapshot.state.transcript[1]).toMatchObject(context.message);
+        } finally {
+            await reopened.close();
+        }
+    }
+);
+
+it.each(["transcript", "archive"])(
+    "rejects invalid persisted minutes in %s and accepts absent legacy metadata",
+    async (location) => {
+        for (const minutesDraft of [
+            null,
+            {},
+            {
+                status: "accepted",
+                coverage: { fromSeq: 1, throughSeq: 1 },
+                referencedMessageIds: ["source-1"]
+            },
+            {
+                status: "draft",
+                coverage: { fromSeq: 1, throughSeq: 1 },
+                referencedMessageIds: ["source-1", "source-1"]
+            }
+        ]) {
+            const state = minutesRepositoryState();
+            const messages = [{ ...state.transcript[0], minutesDraft }];
+            const invalid =
+                location === "transcript"
+                    ? { ...state, transcript: messages }
+                    : { ...state, archive: { package: { formalTranscript: messages } } };
+            await expect(openReadyState(invalid)).rejects.toThrow();
+        }
+        const legacy = await openReadyState(minutesRepositoryState());
+        try {
+            expect((await legacy.read()).state.transcript[0]).not.toHaveProperty("minutesDraft");
+        } finally {
+            await legacy.close();
+        }
+    }
+);

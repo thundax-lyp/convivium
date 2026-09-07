@@ -455,7 +455,7 @@ export function registerSubmitAndControlTools(
             defineTool({
                 name: "convivium_submit_turn",
                 description:
-                    "Submit one formal turn message only from the current meeting Participant Session.",
+                    "Submit one formal turn message only from the current meeting Participant Session. For a non-authoritative minutes draft, use kind=summary and minutesDraft={coverage:{fromSeq,throughSeq},referencedMessageIds:[messageId]}; cite existing messages in the delivered context, use on_topic, empty changes/taskIds, and omit replyTo/completionClaims.",
                 parameters: toolParameters,
                 output: { schema: protocolOutputSchema, render: renderOutcome },
                 async execute(args, exec) {

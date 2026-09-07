@@ -288,7 +288,21 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                         ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
                         taskIds: input.taskIds,
                         agendaRelation: input.agendaRelation,
-                        createdAt: commandNow
+                        createdAt: commandNow,
+                        ...(input.minutesDraft === undefined
+                            ? {}
+                            : {
+                                  minutesDraft: {
+                                      status: "draft" as const,
+                                      coverage: {
+                                          fromSeq: input.minutesDraft.coverage.fromSeq,
+                                          throughSeq: input.minutesDraft.coverage.throughSeq
+                                      },
+                                      referencedMessageIds: [
+                                          ...input.minutesDraft.referencedMessageIds
+                                      ]
+                                  }
+                              })
                     },
                     now: commandNow,
                     nextPlanningAttemptId: planningIds.planningAttemptId,
