@@ -97,17 +97,17 @@
 
 1. 参与者只能以自己的会议身份提交立场，不得代表其他参与者表态。
 2. 参与者可以提出候选决策，但不能自行写入正式决策的接受者、异议者或接受状态；候选记录不可变且不具有持久状态。
-3. 正式决策必须依据当前提案版本上的有效立场和 Captain 的明确结构化接受形成；V1 不使用自动接受，Captain 的自然语言意见不能替代该操作。
+3. 正式决策必须依据当前提案版本上的有效立场和 Captain 或单 Host loopback 本地用户的明确结构化接受形成；V1 不使用自动接受，自然语言意见不能替代该操作。
 4. 新提案版本必须独立保存，`positions` 从空集合开始，不得自动继承旧版本的立场、候选决策、正式决策或接受结果。
 5. 少数非阻塞意见必须保留在会议结果中，不得为了显示一致而删除。
 6. 只有 Captain 和 loopback local user 可以查看当前 Meeting 的 `pendingDecisionCandidates`；该 projection 只包含指向当前 Proposal revision、尚未形成 Decision 且 Meeting 仍可执行的候选，普通 Participant 不可见。候选被接受、Proposal revision 更新或 Meeting execution 进入终态后，必须从该 projection 消失；V1 不提供 candidate reject/revoke 操作。
-7. 决策被替代或撤销时，必须通过 Captain-only 的结构化 `supersede` 或 `revoke` 操作；历史决策及其依据必须仍可审计。`supersede` 必须在同一原子提交中接受 replacement candidate、生成 replacement Decision、将旧 accepted Decision 标记为 superseded 并记录替代关系；`revoke` 只能将旧 accepted Decision 标记为 revoked。
-8. Captain-only Decision disposal 必须包含 protocol version、Meeting/version expectation、request identity、目标 Decision、action、非空理由和至少一条本 Meeting 证据；`supersede` 必须提供 replacement candidate，`revoke` 不得提供。execution-terminal、archiving 和 archived 状态不得写入 Decision。
+7. 决策被替代或撤销时，必须通过 Captain 或 loopback 本地用户的结构化 `supersede` 或 `revoke` 操作；历史决策及其依据必须仍可审计。`supersede` 必须在同一原子提交中接受 replacement candidate、生成 replacement Decision、将旧 accepted Decision 标记为 superseded 并记录替代关系；`revoke` 只能将旧 accepted Decision 标记为 revoked。
+8. Captain/local Decision disposal 必须包含 protocol version、Meeting/version expectation、request identity、目标 Decision、action、非空理由和至少一条本 Meeting 证据；`supersede` 必须提供 replacement candidate，`revoke` 不得提供。execution-terminal、archiving 和 archived 状态不得写入 Decision。
 9. Captain 在自然语言中表示接受或拒绝风险只构成意见；只有通过明确的结构化风险处置操作并经系统验证后，才能改变正式风险状态。
 
 ### FR-8：完成事实与会议结束
 
-1. 会议完成事实可以来自 Agent 的正式提交、经授权的 MeetingTask result projection、required review，以及 Captain 的明确接受、豁免、风险处置或结束操作。
+1. 会议完成事实可以来自 Agent 的正式提交、经授权的 MeetingTask result projection、required review，以及 Captain 的明确接受、豁免、风险处置或结束操作；loopback 本地用户也可通过受控入口形成决策接受、替代、撤销和风险处置事实。
 2. `MeetingTask completed` 不得默认等同于 required output accepted、议题解决或会议完成。
 3. 参与者可以提交完成声明及其证据，但不能直接覆盖会议目标、验收条件或完成状态。
 4. 系统必须验证声明者身份、授权范围、证据归属、审核要求和风险接受权限。
@@ -115,7 +115,7 @@
 6. 达到业务完成条件时，即使仍有非阻塞后续事项、待讨论事项、已接受风险或少数意见，会议也可以正常完成。
 7. 会议不能完成时，必须区分部分完成、无共识、取消和内部失败，并说明原因及未解决事项。
 8. 最大 Turn 数、最大消息数、最大会议时长、每个 Turn 的最大发言人数和发言请求超时只限制继续讨论；如果最后一次有效讨论已经满足完成条件，会议必须按正常完成结束。
-9. Captain 的结构化风险处置必须明确一个 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、hard constraints、Issue status 和 Meeting lifecycle 限制；`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `disposition=blocking`、`blocking=true`。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。
+9. Captain 或 loopback 本地用户的结构化风险处置必须明确一个 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、hard constraints、Issue status 和 Meeting lifecycle 限制；`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `disposition=blocking`、`blocking=true`。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。处置后执行确定性完成重算；满足完成条件时进入 `converging` 并清除当前 Turn 和等待状态，本操作不自动结束或归档会议。
 
 ### FR-9：暂停、恢复与故障隔离
 
@@ -153,6 +153,7 @@
 6. 产品必须通过完整的会议状态读取展示正式会议事实，不得把本地缓存或自然语言摘要当作状态真相源。
 7. 用户重新打开或刷新会议后，必须看到完整且一致的当前事实；状态 projection、HTTP response、Client 只读展示和 archive-facing history 必须对同一已提交事实保持一致。
 8. 会议操作可以出现在 DSH 原生工具调用记录中，但这些记录不得替代正式会议状态、transcript 或审计记录。
+9. loopback 本地用户可以在候选、accepted Decision 或风险旁直接接受、替换、撤销决策及接受、拒绝风险；共用一个表单，目标由所点击对象带入，理由显式填写，已有来源消息可预选为证据并须可查看和修改。只有替换需要额外选择候选；撤销没有可靠来源预选时须手选证据。不增加第二次确认弹窗。缓存、提交中及终态禁止新写入，成功或协议拒绝后读取完整状态，不自动重试写请求。
 
 ### FR-12：Agent 内部能力边界
 
@@ -231,7 +232,7 @@ Agent 内部工具、命令或 MCP 失败属于 Agent 的执行过程。只有�
 
 ### BR-6：身份与授权
 
-所有正式发言、立场、审核、风险接受和决策操作都必须绑定 DSH 提供的真实调用 Session。客户端提供的显示名称或身份标识不能单独作为授权依据。
+Agent 的正式发言、立场、审核、风险接受和决策操作必须绑定 DSH 提供的真实调用 Session。仅对 FR-7、FR-8.9、FR-11.9 的五种本地决策/风险操作，允许使用单 Host loopback 边界证明独立的 local 来源，无需 live Captain Session；不得伪装成 Captain 或 Participant。客户端提供的显示名称或身份标识不能作为授权依据，Agent tool 的 Captain-only 权限不变。
 
 ### BR-7：归档边界
 
@@ -305,6 +306,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 46. `archive.md` 只从已提交 `ImmutableArchivePackage` 生成；其缺失、损坏或生成失败不影响 capability revoke、Session interrupt/drain 和 `archived`。
 47. Developer Markdown 删除或人工修改不触发 repository 修复；后续新 commit 可以完整覆盖 `current.md`，但 Runtime 不保证文件必然存在。
 48. Developer Markdown 没有 HTTP、Tool、Client 或 Agent 读取入口；Runtime dispose 后没有 pending render、重试 timer、未处理 rejection 或本次任务遗留的 temp file。
+49. 本地用户的五种操作产生独立 local 审计事实，满足与 Captain 相同的领域校验；Session tool 不因本地入口而扩大权限。风险完成重算满足条件时进入 converging，不自动 end/archive。
 
 ## Confirmed Meeting Convergence Rules (D6-D10)
 
