@@ -56,6 +56,11 @@ import {
     APPLICATION_TAIL_HARD_COMMITS
 } from "./projection.js";
 import { writeCheckpoint } from "./checkpoint.js";
+import {
+    validatePrivateMailSend,
+    validatePrivateMailStart,
+    validatePrivateMailFinish
+} from "./private-mail-validation.js";
 
 function jsonValue(value: unknown): JsonValue {
     if (
@@ -918,104 +923,14 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     this.meetingId,
                     "Meeting version is stale"
                 );
-            const state = snapshot.state;
-            const participants = state.participants;
-            const transcript = state.transcript;
-            const messageSeq = state.messageSeq;
-            const context = input.mail.meetingContext;
-            const contextFromSeq = context.contextFromSeq;
-            const contextThroughSeq = context.contextThroughSeq;
-            const relevantMessageIds = context.relevantMessageIds;
-            const terminal = [
-                "paused",
-                "completed",
-                "partial",
-                "no_consensus",
-                "cancelled",
-                "failed",
-                "archiving",
-                "archived"
-            ].includes(typeof state.status === "string" ? state.status : "");
-            const hasParticipant = (participantId: string): boolean =>
-                Array.isArray(participants) &&
-                participants.some(
-                    (participant) =>
-                        typeof participant === "object" &&
-                        participant !== null &&
-                        !Array.isArray(participant) &&
-                        participant.id === participantId
-                );
-            const recipientOwned = Object.values(this.projection.sessionOwnership).some(
-                (ownership) =>
-                    ownership.role === "participant" &&
-                    ownership.participantId === input.mail.recipientParticipantId &&
-                    ownership.lifecycleStatus === "active" &&
-                    ownership.capabilityStatus === "active"
-            );
-            const contextValid =
-                context.meetingId === this.meetingId &&
-                typeof contextFromSeq === "number" &&
-                Number.isSafeInteger(contextFromSeq) &&
-                typeof contextThroughSeq === "number" &&
-                Number.isSafeInteger(contextThroughSeq) &&
-                contextFromSeq >= 0 &&
-                contextFromSeq <= contextThroughSeq &&
-                typeof messageSeq === "number" &&
-                contextThroughSeq <= messageSeq &&
-                input.mail.snapshotThroughSeq === contextThroughSeq;
-            const messagesValid =
-                contextValid &&
-                Array.isArray(relevantMessageIds) &&
-                relevantMessageIds.every(
-                    (messageId) =>
-                        typeof messageId === "string" &&
-                        Array.isArray(transcript) &&
-                        transcript.some(
-                            (message) =>
-                                typeof message === "object" &&
-                                message !== null &&
-                                !Array.isArray(message) &&
-                                message.id === messageId &&
-                                typeof message.seq === "number" &&
-                                message.seq >= contextFromSeq &&
-                                message.seq <= contextThroughSeq
-                        )
-                );
-            const parent =
+            validatePrivateMailSend(
+                snapshot,
+                Object.values(this.projection.sessionOwnership),
                 input.mail.replyToMailId === undefined
                     ? undefined
-                    : this.projection.privateMail[input.mail.replyToMailId];
-            const replyValid =
-                input.mail.replyToMailId === undefined ||
-                (parent !== undefined &&
-                    new Set([parent.senderParticipantId, parent.recipientParticipantId]).size ===
-                        new Set([input.mail.senderParticipantId, input.mail.recipientParticipantId])
-                            .size &&
-                    [parent.senderParticipantId, parent.recipientParticipantId].every(
-                        (participantId) =>
-                            participantId === input.mail.senderParticipantId ||
-                            participantId === input.mail.recipientParticipantId
-                    ));
-            if (
-                terminal ||
-                !hasParticipant(input.mail.senderParticipantId) ||
-                !hasParticipant(input.mail.recipientParticipantId) ||
-                !recipientOwned ||
-                !messagesValid ||
-                !replyValid ||
-                input.mail.meetingId !== this.meetingId ||
-                input.outbox.kind !== "dispatch" ||
-                input.outbox.priority !== 0 ||
-                input.outbox.payload.role !== "meeting_mail" ||
-                input.outbox.payload.mailId !== input.mail.mailId ||
-                input.outbox.payload.participantId !== input.mail.recipientParticipantId
-            )
-                throw new RepositoryError(
-                    "INVALID_INPUT",
-                    false,
-                    this.meetingId,
-                    "Meeting mail participants, context, or delivery are invalid"
-                );
+                    : this.projection.privateMail[input.mail.replyToMailId],
+                input
+            );
             const now = input.mail.createdAt;
             return this.commit({
                 operation: "mail.send",
@@ -1142,41 +1057,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     "Private mail does not exist"
                 );
             const now = input.now ?? this.now();
-            const status = snapshot.state.status;
-            if (
-                mail.status !== "pending" ||
-                status === "paused" ||
-                [
-                    "completed",
-                    "partial",
-                    "no_consensus",
-                    "cancelled",
-                    "failed",
-                    "archiving",
-                    "archived"
-                ].includes(typeof status === "string" ? status : "")
-            )
-                throw new RepositoryError(
-                    "INVALID_STATE",
-                    status === "paused",
-                    this.meetingId,
-                    "Meeting mail is not dispatchable"
-                );
-            const messageSeq = snapshot.state.messageSeq;
-            if (
-                !Number.isSafeInteger(input.processingThroughSeq) ||
-                input.processingThroughSeq < 0 ||
-                typeof messageSeq !== "number" ||
-                input.processingThroughSeq > messageSeq ||
-                !Number.isFinite(input.deadlineAt) ||
-                input.deadlineAt <= now
-            )
-                throw new RepositoryError(
-                    "INVALID_INPUT",
-                    false,
-                    this.meetingId,
-                    "Meeting mail processing bounds are invalid"
-                );
+            validatePrivateMailStart(snapshot, mail, input, now);
             return this.commit({
                 operation: "mail.start",
                 now,
@@ -1253,18 +1134,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     this.meetingId,
                     "Meeting version is stale"
                 );
-            if (
-                !mail ||
-                mail.status !== "processing" ||
-                mail.handlingAttemptId !== input.handlingAttemptId ||
-                mail.deliveryId !== input.deliveryId
-            )
-                throw new RepositoryError(
-                    "INVALID_STATE",
-                    false,
-                    this.meetingId,
-                    "Mail handling is stale or terminal"
-                );
+            validatePrivateMailFinish(this.meetingId, mail, input);
             const now = input.now ?? this.now();
             return this.commit({
                 operation: "mail.finish",

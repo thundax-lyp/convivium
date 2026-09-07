@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { DomainEventTypes, isMeetingStateV2 } from "../../domain/model.js";
+import { DomainEventTypes } from "../../domain/model.js";
+import { isMeetingStateV2 } from "../../domain/meeting-state-validation.js";
 import type {
     CommandAuthorization,
     CreateMeetingResult,

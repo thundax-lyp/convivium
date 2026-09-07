@@ -7,7 +7,7 @@ import {
     type ManagerPlanIds,
     type ManagerPlanInput
 } from "../planning.js";
-import { isMeetingStateV2 } from "../model.js";
+import { isMeetingStateV2 } from "../meeting-state-validation.js";
 import type {
     DomainEffect,
     MeetingState,

@@ -1,4 +1,5 @@
-import { isMeetingStateV2, type MeetingState } from "../domain/model.js";
+import type { MeetingState } from "../domain/model.js";
+import { isMeetingStateV2 } from "../domain/meeting-state-validation.js";
 import type {
     MeetingAgentCatalogProjectionV1,
     ExecutionTerminalMeetingStatusResultV1,
