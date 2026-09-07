@@ -295,25 +295,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T1.0：PASS。两份失败增量已按hash备份并cmp通过；仅在白名单内恢复到0fcb586，diff相等；原contract 1项和Prettier通过。备份位置记录于任务消息，后续T1.1–T8未执行。用户本轮授权修订及继续执行，取代等待恢复许可。 已完成机械段删除；本次提交包含本步全部变化。
 
-#### T1.1：建立五场景独立完整 fixture
-
-前置状态：T1.0 PASS 且已提交。
-允许修改：只准 plugin/tests/unit/scripts/smoke-profile-contract.spec.ts 与本文。
-禁止修改：产品源码、其他现有测试、runner allowlist、原 convergence 规则、共享 coverage/TODO、依赖、其他目录；本步以外半成品不得暂存。
-
-执行：实现保留定义中的类型、createConvergenceFixture/assertFixtureContract/mutateFixture；添加五场景结构正例，逐一通过生产归档 Schema 及固定值断言。原 validator 不调用、不修改；新增正例名为 fixture contract，不宣称 validator 已支持。通过各kind/code组合构造的后续正例此时只检查 fixture。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile-contract.spec.ts
-pnpm --dir plugin exec prettier scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile-contract.spec.ts --check
-node --check plugin/scripts/smoke-profile/result.mjs
-git diff --check
-```
-允许对本步白名单中实际编辑的文件运行上述同路径 Prettier --write，然后重跑全部命令；不得格式化其他文件。
-
-PASS：五份归档 DTO 合法且完整字段/跨字段固定值均符合规范；一次修改某份fixture不改变另一份；原测试保持。 所有命令退出0；测试数仅记录、不作唯一判据。按保留执行规则删除本步并单次提交。
-STOP：fixture与正式DTO不符、需要cast绕过或以当前validator结果作为正确性来源。 保留失败增量/输出，不删本步、不提交失败内容；报告最后PASS与继续所需决定。
+执行进度 T1.1：PASS。五场景完整归档DTO通过生产Schema与独立固定来源断言，深拷贝隔离通过；原contract保持，6项测试及格式检查通过。尚未接线新validator。 已完成机械段删除；本次提交包含本步全部变化。
 
 #### T1.2：完整验证 stalled 的提交与终态证据
 
