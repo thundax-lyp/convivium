@@ -198,7 +198,7 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 
 ### 适用范围与状态
 
-本节是 LC-08 的固定操作规程。依赖 LC-06B 的 `decision-risk-closure` Browser 夹具和 LC-01–LC-07 实现均已合并；规程存在不表示夹具已实现或验证已通过。沿用现有临时 profile、Browser URL、PTY 停止及 cleanup，不新增 selector、Host API 或测试框架。自动化实现阶段只准备夹具并运行单测；真实 smoke 由协调者合并后执行。
+本节是 LC-08 的固定操作规程。依赖 LC-06B 的 `decision-risk-closure` Browser 夹具和 LC-01–LC-07 实现均已合并；夹具由 `runDecisionRiskClosureScenario` 实现，并由 `smoke-profile.spec.ts` 的 fake runtime 测试验证暂停和 ready 边界；这不代表真实 Browser 验证已通过。沿用现有临时 profile、Browser URL、PTY 停止及 cleanup，不新增 selector、Host API 或测试框架。自动化实现阶段只准备夹具并运行单测；真实 smoke 由协调者合并后执行。
 
 ### Browser 夹具契约
 

@@ -51,6 +51,49 @@ export function validateScenarioResult(value, expectedScenario, validateMeetingS
         }
         return value;
     }
+    if (expectedScenario === "decision-risk-closure" && value.browserReady === true) {
+        const keys = [
+            "ok",
+            "scenario",
+            "browserReady",
+            "assertions",
+            "meetingId",
+            "captainSessionId",
+            "observed"
+        ];
+        const observedKeys = [
+            "meetingVersion",
+            "status",
+            "candidateId",
+            "replacementCandidateId",
+            "riskId",
+            "evidenceMessageId"
+        ];
+        const observed = value.observed;
+        if (
+            Object.keys(value).length !== keys.length ||
+            keys.some((key) => !Object.hasOwn(value, key)) ||
+            value.assertions.length !== 1 ||
+            value.assertions[0] !== "browser-local-decision-risk-ready" ||
+            typeof value.meetingId !== "string" ||
+            value.meetingId.trim().length === 0 ||
+            value.captainSessionId !== "convivium-smoke-captain" ||
+            observed === null ||
+            typeof observed !== "object" ||
+            Object.keys(observed).length !== observedKeys.length ||
+            observedKeys.some((key) => !Object.hasOwn(observed, key)) ||
+            !Number.isInteger(observed.meetingVersion) ||
+            observed.meetingVersion < 0 ||
+            observed.status !== "paused" ||
+            ["candidateId", "replacementCandidateId", "riskId", "evidenceMessageId"].some(
+                (key) => typeof observed[key] !== "string" || observed[key].trim().length === 0
+            ) ||
+            observed.candidateId === observed.replacementCandidateId
+        ) {
+            throw new Error("Local decision risk browser-ready result is invalid.");
+        }
+        return value;
+    }
     if (expectedScenario === "decision-risk-closure") {
         const requiredAssertions = [
             "candidate-visible-to-captain",

@@ -4,7 +4,8 @@ import { once } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { runDecisionRiskClosureScenario } from "../../../scripts/smoke-profile/probe/scenarios/decision-risk-closure.js";
 
 import {
     createSmokeEnvironment,
@@ -497,5 +498,284 @@ describe("convergence runtime selector wiring", () => {
         );
         expect(driver).toContain('scenario === "' + scenario + '"');
         expect(convergenceSource).not.toContain("runtime.setMeetingId(");
+    });
+});
+
+describe("local decision risk browser fixture", () => {
+    afterEach(() => vi.restoreAllMocks());
+    function fixture() {
+        const order: string[] = [];
+        const candidates = [
+            "Accept the closure proposal",
+            "Accept the replacement closure proposal"
+        ].map((statement, i) => ({
+            id: `candidate-${i + 1}`,
+            statement,
+            proposalId: "delivery-1-proposal-1",
+            proposalRevision: 1,
+            sourceMessageId: "message-1"
+        }));
+        const pending = {
+            pendingDecisionCandidates: candidates,
+            risks: [
+                {
+                    id: "risk-1",
+                    title: "Closure risk",
+                    status: "open",
+                    disposition: "blocking",
+                    blocking: true,
+                    riskLevel: "high"
+                }
+            ]
+        };
+        const paused: typeof pending & {
+            status: string;
+            acceptedDecisions: unknown[];
+            currentAttemptId?: string;
+        } = { ...structuredClone(pending), status: "paused", acceptedDecisions: [] };
+        const runtime = {
+            browserMode: true,
+            scenario: "decision-risk-closure",
+            ctx: {
+                sessions: {
+                    flush: vi.fn(async () => {
+                        order.push("flush");
+                    })
+                }
+            },
+            captain: {
+                agent: {
+                    session: {
+                        id: "convivium-smoke-captain",
+                        append: vi.fn(() => {
+                            order.push("append");
+                        })
+                    }
+                }
+            },
+            workspace: {
+                attachSession: vi.fn(async () => {
+                    order.push("attach");
+                })
+            } as { attachSession: ReturnType<typeof vi.fn> } | undefined,
+            createInput: () => ({
+                objectiveContract: { acceptableRiskLevel: "low" },
+                agenda: [{}]
+            }),
+            waitForAgent: async () => ({ id: "manager-1" }),
+            waitForStoredManagerContext: async () => ({
+                planningAttemptId: "planning-1",
+                meetingVersion: 1
+            }),
+            waitForSpeakerContext: async () => ({
+                agent: { id: "participant-session-1" },
+                value: {
+                    turn: { id: "turn-1" },
+                    step: { id: "step-1" },
+                    attempt: { attemptId: "attempt-1", deliveryId: "delivery-1" },
+                    activeAgendaItem: { id: "agenda-1" }
+                }
+            }),
+            assert(condition: unknown, message: string) {
+                if (!condition) throw new Error(message);
+            },
+            setMeetingId: vi.fn(),
+            writeResult: vi.fn(async () => {
+                order.push("writeResult");
+            }),
+            callTool: vi.fn(
+                async (
+                    _ctx: unknown,
+                    _agent: unknown,
+                    _name: string,
+                    _input: unknown,
+                    id: number
+                ) => {
+                    order.push(String(id));
+                    switch (id) {
+                        case 1100:
+                            return { result: { meetingId: "meeting-1" } };
+                        case 1101:
+                            return { result: { activeAgendaItem: { id: "agenda-1" } } };
+                        case 1102:
+                            return { result: { firstAttemptId: "attempt-1" } };
+                        case 1103:
+                            return { result: { messageId: "message-1" } };
+                        case 1104:
+                            return { meetingVersion: 3, result: pending };
+                        case 1190:
+                            return { meetingVersion: 4, result: { status: "paused" } };
+                        case 1191:
+                            return { meetingVersion: 4, result: paused };
+                        default:
+                            throw new Error(`Unexpected tool call ${id}`);
+                    }
+                }
+            )
+        };
+        return { runtime, order, pending, paused };
+    }
+    const ready = () => ({
+        ok: true,
+        scenario: "decision-risk-closure",
+        browserReady: true,
+        assertions: ["browser-local-decision-risk-ready"],
+        meetingId: "meeting-1",
+        captainSessionId: "convivium-smoke-captain",
+        observed: {
+            meetingVersion: 4,
+            status: "paused",
+            candidateId: "candidate-1",
+            replacementCandidateId: "candidate-2",
+            riskId: "risk-1",
+            evidenceMessageId: "message-1"
+        }
+    });
+    it("pauses before exposing exact ready IDs and performs no later control writes", async () => {
+        const { runtime, order } = fixture();
+        await runDecisionRiskClosureScenario(runtime);
+        expect(order).toEqual([
+            "1100",
+            "1101",
+            "1102",
+            "1103",
+            "1104",
+            "1190",
+            "1191",
+            "append",
+            "flush",
+            "attach",
+            "writeResult"
+        ]);
+        const submission = runtime.callTool.mock.calls.find((call) => call[4] === 1103)![3];
+        expect(submission).toMatchObject({
+            changes: {
+                decisionProposals: [
+                    { statement: "Accept the closure proposal" },
+                    { statement: "Accept the replacement closure proposal" }
+                ],
+                issues: [
+                    {
+                        title: "Closure risk",
+                        affectedOutputIds: [],
+                        affectedCriterionIds: ["criterion-smoke-order"],
+                        violatedConstraintIds: [],
+                        impact: "high",
+                        urgency: "now",
+                        safeDefaultAvailable: false,
+                        riskLevel: "high"
+                    }
+                ]
+            }
+        });
+        expect(runtime.callTool.mock.calls.find((call) => call[4] === 1190)![3]).toEqual({
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            expectedMeetingVersion: 3,
+            requestId: "smoke-local-browser-pause",
+            reason: "Prepare local browser controls"
+        });
+        expect(runtime.captain.agent.session.append).toHaveBeenCalledWith(
+            "user/message",
+            {
+                id: "convivium-local-control-browser-message",
+                role: "user",
+                content: [{ type: "text", text: "Local decision risk browser evidence" }],
+                source: { kind: "user" }
+            },
+            { surfaceOp: "append" }
+        );
+        expect(runtime.ctx.sessions.flush).toHaveBeenCalledWith(runtime.captain.agent.session);
+        expect(runtime.workspace!.attachSession).toHaveBeenCalledWith("convivium-smoke-captain");
+        expect(runtime.setMeetingId).toHaveBeenCalledWith("meeting-1");
+        expect(runtime.writeResult).toHaveBeenCalledExactlyOnceWith(ready());
+    });
+    it.each([
+        "missing-candidate",
+        "foreign-source",
+        "risk-not-open",
+        "active-attempt",
+        "missing-workspace"
+    ])("rejects %s without publishing ready", async (fault) => {
+        const { runtime, pending, paused } = fixture();
+        if (fault === "missing-candidate") pending.pendingDecisionCandidates.pop();
+        if (fault === "foreign-source")
+            pending.pendingDecisionCandidates[1]!.sourceMessageId = "external";
+        if (fault === "risk-not-open") pending.risks[0]!.status = "accepted_risk";
+        if (fault === "active-attempt") paused.currentAttemptId = "attempt-1";
+        if (fault === "missing-workspace") runtime.workspace = undefined;
+        await expect(runDecisionRiskClosureScenario(runtime)).rejects.toThrow();
+        expect(runtime.writeResult).not.toHaveBeenCalled();
+    });
+    it("retains the ordinary single-candidate input and continues the Captain flow", async () => {
+        const { runtime, pending } = fixture();
+        runtime.browserMode = false;
+        pending.pendingDecisionCandidates.pop();
+        // The fake deliberately rejects the first Captain acceptance, proving the branch continues there.
+        await expect(runDecisionRiskClosureScenario(runtime)).rejects.toThrow(
+            "Unexpected tool call 1105"
+        );
+        const submission = runtime.callTool.mock.calls.find((call) => call[4] === 1103)![3] as {
+            changes: { decisionProposals: unknown[]; issues: unknown[] };
+        };
+        expect(submission.changes.decisionProposals).toHaveLength(1);
+        expect(submission.changes.issues).toEqual([]);
+        expect(runtime.callTool.mock.calls.at(-1)![2]).toBe("convivium_accept_decision");
+        expect(runtime.writeResult).not.toHaveBeenCalled();
+    });
+    it("accepts only the exact browser-ready contract", () => {
+        const value = ready();
+        expect(validateScenarioResult(value, value.scenario)).toBe(value);
+        const mutations: ((value: Record<string, unknown>) => void)[] = [
+            ...Object.keys(value).map((key) => (v: Record<string, unknown>) => {
+                delete v[key];
+            }),
+            (v) => {
+                v.extra = true;
+            },
+            (v) => {
+                v.observed = null;
+            },
+            (v) => {
+                v.meetingId = "";
+            },
+            (v) => {
+                v.captainSessionId = "other";
+            },
+            (v) => {
+                v.assertions = ["wrong"];
+            },
+            ...Object.keys(value.observed).map((key) => (v: Record<string, unknown>) => {
+                delete (v.observed as Record<string, unknown>)[key];
+            }),
+            ...["candidateId", "replacementCandidateId", "riskId", "evidenceMessageId"].flatMap(
+                (key) =>
+                    ["", " ", null, 1].map((bad) => (v: Record<string, unknown>) => {
+                        (v.observed as Record<string, unknown>)[key] = bad;
+                    })
+            ),
+            ...[-1, 1.5].map((bad) => (v: Record<string, unknown>) => {
+                (v.observed as Record<string, unknown>).meetingVersion = bad;
+            }),
+            (v) => {
+                (v.observed as Record<string, unknown>).extra = true;
+            },
+            (v) => {
+                (v.observed as Record<string, unknown>).status = "running";
+            },
+            (v) => {
+                (v.observed as Record<string, unknown>).replacementCandidateId = "candidate-1";
+            }
+        ];
+        for (const mutate of mutations) {
+            const invalid = structuredClone(value);
+            mutate(invalid);
+            expect(() => validateScenarioResult(invalid, value.scenario)).toThrow();
+        }
+        const invalid = ready();
+        invalid.observed.status = "running";
+        expect(() => validateScenarioResult(invalid, value.scenario)).toThrow(
+            "Local decision risk browser-ready result is invalid."
+        );
     });
 });

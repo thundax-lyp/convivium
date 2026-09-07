@@ -8,20 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `tests/browser-fixture`：LC-06B 准备本地按钮验证夹具
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T6B；[Smoke 操作规程](docs/50-operations/HOW-TO-DSH-SMOKE.md) Decision/Risk 本地按钮验证。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
-    - 前置依赖：LC-06 完成。
-    - 文件（4 个）：
-
-        - `plugin/scripts/smoke-profile/probe/scenarios/decision-risk-closure.js`
-        - `plugin/scripts/smoke-profile/result.mjs`
-        - `plugin/tests/unit/scripts/smoke-profile.spec.ts`
-        - `docs/50-operations/HOW-TO-DSH-SMOKE.md`
-
-    - 处理动作：复用现有 selector 增加暂停状态的 Browser 夹具、严格 ready 校验及单测，核对操作规程与实现一致。
-    - 验收点：V6B 通过；两个候选和一个风险保持未处置，ready 后停止工具写操作；普通模式不变，未运行真实 smoke。
-
 - [ ] `readiness/local-control`：LC-07 完成全量验证与文档收口
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T7–T8。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
