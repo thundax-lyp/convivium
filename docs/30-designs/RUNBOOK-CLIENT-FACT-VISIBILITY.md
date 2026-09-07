@@ -138,24 +138,6 @@ readonly turnObjective: string;
 
 全部 shell 命令从仓库根执行；不得照抄到其他目录。
 
-### T0：基线与授权门禁
-
-前置状态：用户已授权 Execute；Author 阶段不得执行本节。
-允许修改：无。
-禁止修改：所有文件、分支历史和其他目录。
-
-执行：读取 §3 治理文档与技能；核对当前独立 codex/ 分支，不切回 main。只允许作者基线加本文这一文档差异；基线变化必须 STOP 交给作者重审，不 reset 或寻找替代符号。记录开始时 tracked/untracked 状态；任何允许文件已有他人改动都 STOP。
-
-验证：
-```sh
-git branch --show-current
-git rev-parse HEAD
-git status --short
-pnpm --dir plugin exec vitest run --project client tests/client/client-entry.client.spec.ts
-```
-PASS：基线/范围符合上述条件，现有 client suite 退出码 0。
-STOP：授权缺失、基线改变、冲突或测试失败；报告输出，不开始 T1。无运行时副作用，无需数据库恢复。
-
 ### T1：当前决策与历史决策
 
 前置状态：T0 PASS。
