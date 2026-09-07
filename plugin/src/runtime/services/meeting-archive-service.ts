@@ -227,10 +227,12 @@ export async function cleanupOwnedSessions(input: CleanupOwnedSessionsInput): Pr
 
     const revoked = await Promise.all(
         expected.map((ownership) =>
-            input.repository.recordSessionOwnership(
-                { ...ownership, capabilityStatus: "revoked" },
-                input.now
-            )
+            ownership.capabilityStatus === "revoked"
+                ? ownership
+                : input.repository.recordSessionOwnership(
+                      { ...ownership, capabilityStatus: "revoked" },
+                      input.now
+                  )
         )
     );
     const notClosed = revoked.filter((ownership) => ownership.lifecycleStatus !== "closed");

@@ -16,6 +16,34 @@ function item(attempts = 1): OutboxItem {
 }
 
 describe("outbox worker", () => {
+    it("retries a plain dispatch error without retry metadata", async () => {
+        let dispatchCount = 0;
+        const completions: unknown[] = [];
+        const worker = createOutboxWorker({
+            repository: {
+                claimOutbox: async () => [item()],
+                completeOutbox: async (input) => {
+                    completions.push(input.completion);
+                    return { id: input.id, status: input.completion.status };
+                }
+            },
+            owner: "worker-1",
+            ttlMs: 100,
+            batchSize: 1,
+            pollMs: 10,
+            dispatch: async () => {
+                dispatchCount += 1;
+                throw new Error("provider unavailable");
+            },
+            now: () => 10
+        });
+        expect(await worker.runOnce()).toEqual({ claimed: 1, delivered: 0, retried: 1, failed: 0 });
+        expect(dispatchCount).toBe(1);
+        expect(completions).toEqual([
+            { status: "retry", availableAt: 20, errorCode: "DSH_DISPATCH_FAILED" }
+        ]);
+    });
+
     it("stops and waits without exposing the expected abort", async () => {
         let sleeping!: () => void;
         const enteredSleep = new Promise<void>((resolve) => {

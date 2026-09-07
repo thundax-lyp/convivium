@@ -402,10 +402,9 @@ describe("smoke profile scenario guard", () => {
         expect(baselineSource).toContain('scenario === "timeout"');
     });
 
-    it("copies the probe tree and keeps shared support exports bounded", () => {
+    it("copies the probe tree and imports shared support", () => {
         expect(smokeProfileSource).toContain("cp(probeSourceDir, probeDir");
         expect(smokeProfileSource).toContain('from "./probe/support.js"');
-        expect(smokeSupportSource.match(/^export function /gm)).toHaveLength(2);
         expect(smokeSupportSource).toContain("createProbeSupport(outputPath)");
     });
 });

@@ -567,48 +567,65 @@ describe("archive ownership cleanup", () => {
 
     it("keeps revoked ownership open for a retry when drain fails", async () => {
         let current = ownerships();
-        await expect(
-            cleanupOwnedSessions({
-                repository: {
-                    recover: async () => ({
-                        snapshot: { state: archiving() as never },
-                        sessionOwnership: current,
-                        bootstrap: {} as never,
-                        reclaimedOutbox: 0,
-                        pendingOutbox: 0
-                    }),
-                    recordSessionOwnership: async (input) => {
-                        current = current.map((item) =>
-                            item.sessionId === input.sessionId ? { ...item, ...input } : item
-                        ) as typeof current;
-                        return current.find((item) => item.sessionId === input.sessionId)!;
-                    }
-                },
-                parent: { id: "captain-session" } as never,
-                runtime: {
-                    listChildren: async () =>
-                        current.map((item) => ({
-                            kind: "child",
-                            id: item.sessionId,
-                            activity: "inactive",
-                            hasChildren: false,
-                            mode: "continuable",
-                            label: item.sessionLabel
-                        })) as never,
-                    interrupt: () => undefined,
-                    drainContinuableChildren: async () => {
-                        throw new Error("DSH_DRAIN_TIMEOUT");
-                    }
-                },
-                signal: new AbortController().signal,
-                now: 10
-            })
-        ).rejects.toThrow("DSH_DRAIN_TIMEOUT");
+        const writes: string[] = [];
+        let drains = 0;
+        const cleanup: Parameters<typeof cleanupOwnedSessions>[0] = {
+            repository: {
+                recover: async () => ({
+                    snapshot: { state: archiving() as never },
+                    sessionOwnership: current,
+                    bootstrap: {} as never,
+                    reclaimedOutbox: 0,
+                    pendingOutbox: 0
+                }),
+                recordSessionOwnership: async (input) => {
+                    writes.push(
+                        `${input.lifecycleStatus}:${input.capabilityStatus}:${input.sessionId}`
+                    );
+                    current = current.map((item) =>
+                        item.sessionId === input.sessionId ? { ...item, ...input } : item
+                    ) as typeof current;
+                    return current.find((item) => item.sessionId === input.sessionId)!;
+                }
+            },
+            parent: { id: "captain-session" } as never,
+            runtime: {
+                listChildren: async () =>
+                    current.map((item) => ({
+                        kind: "child",
+                        id: item.sessionId,
+                        activity: "inactive",
+                        hasChildren: false,
+                        mode: "continuable",
+                        label: item.sessionLabel
+                    })) as never,
+                interrupt: () => undefined,
+                drainContinuableChildren: async () => {
+                    drains += 1;
+                    if (drains === 1) throw new Error("DSH_DRAIN_TIMEOUT");
+                }
+            },
+            signal: new AbortController().signal,
+            now: 10
+        };
+        await expect(cleanupOwnedSessions(cleanup)).rejects.toThrow("DSH_DRAIN_TIMEOUT");
         expect(
             current.every(
                 (item) => item.lifecycleStatus === "active" && item.capabilityStatus === "revoked"
             )
         ).toBe(true);
+        await cleanupOwnedSessions({ ...cleanup, now: 20 });
+        expect(drains).toBe(2);
+        expect(writes).toEqual([
+            "active:revoked:manager-session",
+            "active:revoked:participant-session",
+            "closed:revoked:manager-session",
+            "closed:revoked:participant-session"
+        ]);
+        expect(current.every((item) => item.lifecycleStatus === "closed")).toBe(true);
+        await cleanupOwnedSessions({ ...cleanup, now: 30 });
+        expect(drains).toBe(2);
+        expect(writes).toHaveLength(4);
     });
 
     it("writes archived only after every owned Session is revoked and closed", async () => {

@@ -45,14 +45,6 @@ export class JsonlKvUnit implements KvUnit {
         if ((!allowClosed && this.closed) || this.poisoned)
             throw new StorageError("closed", "storage unit closed");
     }
-    private run(task: () => Promise<void>): Promise<void> {
-        const next = this.queue.then(async () => {
-            this.guard();
-            await task();
-        });
-        this.queue = next.catch(() => undefined);
-        return next;
-    }
     async loadAll() {
         this.guard();
         return { tables: structuredClone(this.tables), global: this.global };

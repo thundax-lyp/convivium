@@ -141,19 +141,6 @@ export function createMeetingRehydrationService(
     };
 }
 
-export interface MeetingRecoveryDependencies {
-    readonly repository: Pick<MeetingRepository, "recover">;
-    readonly inspection?: Pick<SubagentRuntime, "listDescendants">;
-    readonly parent?: Agent;
-    readonly signal: AbortSignal;
-    readonly now?: () => number;
-}
-
-export interface MeetingRecoveryResult extends RecoveryResult {
-    readonly parentStatus: "bound" | "absent";
-    readonly ownershipInspection?: OwnedSessionInspection;
-}
-
 export interface CaptainRebindDependencies {
     readonly parent: Agent;
     readonly expectedParentSessionId: string;
@@ -176,24 +163,4 @@ export async function rebindCaptainParent(
         ownerships: dependencies.ownerships,
         signal: dependencies.signal
     });
-}
-
-export async function recoverMeetingRuntime(
-    dependencies: MeetingRecoveryDependencies
-): Promise<MeetingRecoveryResult> {
-    const recovered = await dependencies.repository.recover({ now: dependencies.now?.() });
-    if (dependencies.parent === undefined || dependencies.inspection === undefined) {
-        return { ...recovered, parentStatus: "absent" };
-    }
-    if (recovered.snapshot === undefined) {
-        return { ...recovered, parentStatus: "absent" };
-    }
-    const ownershipInspection = await inspectOwnedSessions({
-        runtime: dependencies.inspection,
-        parentSessionId: dependencies.parent.id,
-        meetingId: recovered.snapshot.meetingId,
-        ownerships: recovered.sessionOwnership,
-        signal: dependencies.signal
-    });
-    return { ...recovered, parentStatus: "bound", ownershipInspection };
 }

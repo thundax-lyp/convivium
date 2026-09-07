@@ -814,7 +814,16 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 this.meetingId,
                 "Meeting does not exist"
             );
-        return decodeProjection(encodeProjection(this.projection!)).snapshot!;
+        // A read must not serialize unrelated receipts, events, outbox or private mail.
+        const result = PersistenceProjectionV1Schema.shape.snapshot
+            .unwrap()
+            .parse(decodeCanonicalJson(encodeCanonicalJson(snapshot)));
+        if (
+            Object.prototype.hasOwnProperty.call(result.state, "formatVersion") &&
+            result.state.formatVersion !== 2
+        )
+            throw new UnsupportedMeetingStateFormatError(result.state.formatVersion);
+        return result;
     }
     async readPrivateMeetingMail(_mailId: string): Promise<PrivateMeetingMail | undefined> {
         this.ensureOpen();
