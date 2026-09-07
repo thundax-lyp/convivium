@@ -185,16 +185,19 @@ Catalog 只在创建将投递给 Manager 的 planning attempt 时按需读取；
 
 Phase 1 必须复用现有 `submit_manager_plan`、`MeetingRepositoryPort.execute`、request idempotency、receipt、Meeting version 和 projection 边界；不得增加独立 command、event family、worker、repository、Catalog cache、registry、factory、queue、第二个 Catalog source 或隐式 migration。
 
-### FR-14：Meeting Agent Definition 与 DSH composition boundary
+### FR-14：共享 Preset 下的 Meeting Agent Definition
 
 1. Convivium 必须能定义版本化 Meeting Agent Definition；Definition 只包含稳定定义 ID、版本、会议角色、显示摘要、persona、DSH Agent Preset 引用、required DSH Skill 名称、optional DSH ToolRestriction、expertise tags 和 evidence scopes。
 2. Agent Definition 和 Meeting identity 由 Convivium 管理；Agent Preset、Skills、Tools、MCP、Sandbox、Approval、模型配置、capability composition 和 AgentSession runtime 由 DSH 管理。
-3. `dshPresetId` 只引用 DSH 原生 Agent Preset；`requiredSkillNames` 只声明未来 Host-side validation 的必需 DSH Skill；Convivium 不建立 Preset、Skill、Tool、MCP 或 permission registry/installer。
+3. `dshPresetId` 只引用 DSH 原生 Agent Preset；`requiredSkillNames` 声明创建前必须通过 Host-side validation 的 DSH Skill；Convivium 不建立 Preset、Skill、Tool、MCP 或 permission registry/installer。
 4. `toolFilter` 必须使用 DSH 原生 `ToolRestriction`，并且只能收窄目标 Preset 已提供的 Tools，不能授予新 Tool 或扩大 DSH/用户权限。
 5. `persona` 只提供 meeting-specific role instruction，不授予 Skill、Tool、MCP、Sandbox、Approval、模型或 Meeting authority；仓库 `AGENTS.md` 也不作为隐式 Agent capability。
-6. Manager recommendation 和 Captain approval 只能选择 Definition 对应的会议身份；只有 DSH 完成独立 continuable AgentSession provisioning 后，该身份才能成为可调度 Participant。
+6. 已选择 Definition 的初始身份只有在 DSH 完成独立 continuable AgentSession provisioning 后才能成为可调度 Participant。Manager recommendation、Captain approval 与动态接纳沿用 FR-13 的权限要求，其实现不作为 FR-14 首版完成前置。
 7. Definition resolution、Preset/Skill validation 或 DSH capability composition 任一失败时必须 fail closed，不得通过 Prompt-only、persona-only、Tool Schema 隐藏或 Convivium 自建 capability installer 降级运行。
-8. 当前 DSH `0.1.1-rc.2` 不能为 continuable child 选择不同于 parent 的 Agent Preset；在 DSH 提供公开 per-child preset composition API 前，Definition 到差异化 AgentSession 的 runtime 接线保持未实现。
+8. 首版在准确 Captain parent 已挂载的同一 DSH Preset 下，为初始 Manager 和 Participant 配置不同 persona 与可选 toolFilter。创建前解析 Definition、验证 dshPresetId 与 parent 当前 Preset 相同、required Skills 可供模型读取，再将配置交给 DSH startContinuable；不直接修改 Session 数据，不注册通用 hook 框架。
+9. Captain 创建请求可以显式选择 Manager 和各初始 Participant 的 Definition ID；未选择的身份沿用现有创建行为。未知定义、角色不匹配、Preset 不一致或 Skill 不可用时，选定配置的会议创建失败，不静默回退。此入口不依赖 FR-13 的动态 recommendation admission。
+10. 会议保存已采用 Definition 的 ID、版本和内容指纹；DSH 保存 persona/toolFilter 的 continuable descriptor。已有会议重放、恢复不重新应用当前 Definition，修改配置不改变已有身份。状态及归档不得泄露 persona、工具配置或 Skill 正文。
+11. 独立 per-child Preset、差异化插件安装、Skill 安装或独占 Skill 集合、模型选择配置和运行中热切换不属于首版 FR-14，独立 Preset 不纳入 Convivium 后续版本实施计划，等待 DSH 升级提供公开能力后再评估接入，不在 Convivium 自建替代机制。首版配置、权限、重放、恢复和真实 DSH 组合验证全部通过后，FR-14 才可标为已实现。
 
 ### FR-15：Developer Markdown Projection
 
@@ -294,8 +297,8 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 35. 每个 Agent Definition 都有稳定 `agentDefinitionId` 和 `definitionVersion`，并明确引用一个 `dshPresetId` 与 required DSH Skill 名称；Definition 不复制 DSH capability 内容。
 36. `toolFilter` 只能收窄目标 Preset 已有 Tools；Definition、persona 或 Skill 名称不能授予 Tool、MCP、Sandbox、Approval 或模型权限。
 37. Manager 只看到 Agent Definition 的安全摘要；recommendation 不创建 Session，Captain approval 也必须等待独立 Session provisioning 成功后才能形成可调度 Participant。
-38. Definition、Preset 或 required Skill 无法解析和验证时，provisioning 整体失败，不产生部分可用 Participant，也不使用 Prompt-only 或 Convivium installer workaround。
-39. 在 DSH 提供并验证 per-child preset composition API 前，系统必须把差异化 Agent capability runtime 标记为未实现；Definition 样本存在不得被描述为 capability 已安装。
+38. 已选择的 Definition、共享父 Preset 或 required Skill 无法解析和验证时，在第一个 child 创建前拒绝；DSH 创建失败则沿既有 creation_failed、revoke 和 drain 路径清理，不发布 ready Meeting。不得将缺少 Skill 降级为 persona-only，也不得使用 Convivium installer workaround。
+39. 在共享父 Preset 下，至少两个会议身份应用不同 persona 和工具限制，工具限制同时影响模型可见性和真实执行；冷恢复后仍保持各自配置，父 Session 与其他身份不受影响。独立 per-child Preset 不计入首版 FR-14 完成条件；样本存在仍不得被描述为 capability 已安装。
 40. delegated meeting-owned Agent 不会等待无人处理的交互式 Approval，也不能从自身 Session 内扩大启动时固化的权限。
 41. Scribe 生成的纪要草稿标明覆盖范围并引用正式 message、Fact、Decision、Issue 或 task result ID；缺少引用或覆盖不连续时不会被当作权威 transcript、正式事实或决议。
 42. 未配置 `developerMarkdownWorkspaceId` 时不产生 Developer Markdown；配置不存在的 workspace 时插件启动失败，且不选择其他目录作为 fallback。

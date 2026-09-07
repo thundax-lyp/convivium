@@ -1558,3 +1558,7 @@ The active status projection's convergence fields are mapped from the committed 
 - 实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
 
 本文定义 Plugin Frontend Meeting route 的路径、payload 和共享状态 projection 语义。V1 不从 DSH Web 请求取得用户或 Team authority：仅当 `webServer.host === "127.0.0.1"` 时注册 route，所有到达该 loopback Host 的请求共享本地用户边界。Host 为 `0.0.0.0`、远程访问或多用户部署不属于 V1，且必须在 route 注册前 fail closed；未来引入这些能力前必须另建用户/Team authorization interface 并以当前 DSH 公开 API 取证。
+
+## Initial Role Definition Selection
+
+创建会议工具支持可选 `managerAgentDefinitionId` 与 `participants[].agentDefinitionId`；选择、失败、兼容与持久 provenance 的规范见 [Meeting Agent Definition Interface](MEETING-AGENT-DEFINITION-INTERFACE.md) Transport Or Invocation 和 Runtime Provenance And Failure。只允许既有 Captain 创建入口提交 ID，不开放 persona、toolFilter、Preset 或 Skill 配置写入口。本节为首版目标契约，尚未实现。

@@ -10,4 +10,130 @@
 
 ## 待审阅任务项
 
+- [ ] `role-composition/config`：RC-01 建立独立定义配置与解析模块
+    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T1。
+    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 前置依赖：RUNBOOK T0 PASS。
+    - 文件（5 个）：
+
+        - `plugin/src/role-composition/model.ts`
+        - `plugin/src/role-composition/resolve.ts`
+        - `plugin/src/config.ts`
+        - `plugin/tests/unit/role-composition/resolve.spec.ts`
+        - `plugin/tests/unit/config.spec.ts`
+
+    - 处理动作：实现内联定义校验、角色选择、配置快照与内容指纹。
+    - 验收点：T1 验证通过；非法配置和角色选择被拒绝，无选择时不调用能力校验，模块无反向依赖。
+
+- [ ] `protocol/role-selection`：RC-02 开放创建时的 Definition ID 选择
+    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T2。
+    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 前置依赖：RC-01 完成。
+    - 文件（3 个）：
+
+        - `plugin/src/protocol/types.ts`
+        - `plugin/src/protocol/commands.ts`
+        - `plugin/tests/unit/protocol/role-selection.spec.ts`
+
+    - 处理动作：为 Manager 与初始 Participant 增加可选 Definition ID，并校验输入。
+    - 验收点：T2 验证通过；旧请求无默认 ID，新 ID 进入请求序列化，非法值被拒绝。
+
+- [ ] `dsh/role-composition`：RC-03 校验共享能力并透传创建配置
+    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T3。
+    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 前置依赖：RC-02 完成。
+    - 文件（6 个）：
+
+        - `plugin/src/role-composition/dsh-capabilities.ts`
+        - `plugin/src/dsh/session-adapter.ts`
+        - `plugin/package.json`
+        - `plugin/pnpm-lock.yaml`
+        - `plugin/tests/unit/role-composition/dsh-capabilities.spec.ts`
+        - `plugin/tests/unit/dsh/session-adapter.spec.ts`
+
+    - 处理动作：校验父 Preset 与 required Skills，将 persona/toolFilter 透传至 DSH 创建接口。
+    - 验收点：T3 验证通过；能力缺失拒绝，父 scope 不变，既有依赖未升级。
+
+- [ ] `repository/role-provenance`：RC-04 保存不可变的 Definition 绑定
+    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T4。
+    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 前置依赖：RC-03 完成。
+    - 文件（6 个）：
+
+        - `plugin/src/repository/types.ts`
+        - `plugin/src/repository/domain/schemas.ts`
+        - `plugin/src/repository/domain/domain-meeting-repository.ts`
+        - `plugin/src/dsh/caller-resolver.ts`
+        - `plugin/tests/unit/repository/domain/schemas.spec.ts`
+        - `plugin/tests/contract/domain-meeting-repository.spec.ts`
+
+    - 处理动作：扩展 ownership 类型、读写校验与持久化，保存定义 ID、版本和指纹。
+    - 验收点：T4 验证通过；旧记录可读，绑定不可后补、更改或删除，写入失败与重开保持一致。
+
+- [ ] `runtime/role-creation`：RC-05 接入会议身份创建前的配置切面
+    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T5。
+    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 前置依赖：RC-04 完成。
+    - 文件（6 个）：
+
+        - `plugin/src/index.ts`
+        - `plugin/src/runtime/application-service/types.ts`
+        - `plugin/src/runtime/application-service/create-meeting.ts`
+        - `plugin/src/runtime/meeting-runtime.ts`
+        - `plugin/tests/unit/runtime/meeting-runtime.spec.ts`
+        - `plugin/tests/unit/index-inject.spec.ts`
+
+    - 处理动作：在首个 child 分配前预检全部角色，将配置与绑定接入原创建及清理链路。
+    - 验收点：T5 验证通过；预检失败不创建 child，中途失败不发布 ready Meeting，旧创建路径保持通过。
+
+- [ ] `tests/role-closure`：RC-06 验证创建、重放与失败闭环
+    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T6。
+    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 前置依赖：RC-05 完成。
+    - 文件（3 个）：
+
+        - `plugin/tests/contract/meeting-runtime.spec.ts`
+        - `plugin/tests/integration/dsh/session-adapter.spec.ts`
+        - `plugin/tests/fixtures/role-composition.ts`
+
+    - 处理动作：建立固定 fixture，验证创建与重放、配置变化、归档及失败清理。
+    - 验收点：T6 验证通过；ready replay 不重新解析配置，换 ID 同请求冲突，旧绑定不变且公开状态不泄露配置。
+
+- [ ] `smoke/role-recovery`：RC-07 验证真实 DSH 隔离与冷恢复
+    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T7。
+    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 前置依赖：RC-06 完成。
+    - 文件（9 个）：
+
+        - `plugin/scripts/smoke-profile/index.mjs`
+        - `plugin/scripts/smoke-profile/result.mjs`
+        - `plugin/scripts/smoke-profile/probe/index.js`
+        - `plugin/scripts/smoke-profile/probe/support.js`
+        - `plugin/scripts/smoke-profile/probe/scenarios/recovery.js`
+        - `plugin/scripts/smoke-profile/probe/scenarios/role-composition.js`
+        - `plugin/scripts/smoke-profile/probe/role-definitions.js`
+        - `plugin/tests/unit/scripts/role-composition-smoke.spec.ts`
+        - `docs/50-operations/HOW-TO-DSH-SMOKE.md`
+
+    - 处理动作：增加 role-composition 双阶段场景，验证工具执行限制、persona 隔离及冷恢复。
+    - 验收点：T7 unit 与真实 smoke 通过；无自动提交竞争，两个 Host 中保留 V1 配置，九项断言及资源清理通过。
+
+- [ ] `readiness/fr14`：RC-08 完成 FR-14 首版验证与文档收口
+    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T8。
+    - 确认依据：2026-09-07，本任务已确认首版方案并要求制定 TODO；尚未委派产品实现。
+    - 前置依赖：RC-07 完成。
+    - 文件（8 个）：
+
+        - `docs/40-readiness/FR14-SHARED-PRESET-ROLE-COMPOSITION-EVIDENCE.md`
+        - `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`
+        - `plugin/README.md`
+        - `docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`
+        - `docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
+        - `docs/30-designs/ROLE-COMPOSITION-DESIGN.md`
+        - `docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md`
+        - `TODO.md`
+
+    - 处理动作：完成全量验证，迁移证据并更新首版覆盖；删除已完成任务与临时 RUNBOOK。
+    - 验收点：T8 通过；FR-14 仅以共享父 Preset 首版标记已实现，未覆盖边界如实保留，删除前后链接与 diff 检查通过。
+
 ## 待讨论项
