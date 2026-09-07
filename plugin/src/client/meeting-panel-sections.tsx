@@ -37,6 +37,9 @@ export function renderObservabilitySections(detail: MeetingStatusResultV1): Reac
                 null,
                 row("Planned speaker order", view.plannedSpeakerOrder),
                 row("Current speaker", view.currentSpeaker),
+                row("Turn intent", view.turnIntent),
+                row("Turn reason", view.turnReason),
+                row("Turn objective", view.turnObjective),
                 row("Waiting reason", view.waitingReason),
                 row("Waiting participants", view.waitingParticipants)
             )

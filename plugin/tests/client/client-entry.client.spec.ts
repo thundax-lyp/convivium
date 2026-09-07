@@ -602,6 +602,49 @@ describe("client entry framework", () => {
         expect(screen.getByLabelText("Risks").textContent).toContain("waiting");
     });
 
+    it("fact visibility: activity reasons clear when no current turn exists", () => {
+        const active = factStatus("running");
+        render(renderObservabilitySections(active));
+        expect(screen.getByLabelText("Current activity").textContent).toContain("Review scope");
+        cleanup();
+        const terminal = factTerminalStatus("completed");
+        render(renderObservabilitySections(terminal));
+        const activity = screen.getByLabelText("Current activity").textContent ?? "";
+        expect(activity).toContain("Turn intentNone");
+        expect(activity).toContain("Turn reasonNone");
+        expect(activity).toContain("Turn objectiveNone");
+    });
+
+    it("fact visibility: complete facts replace across active, terminal and archive projections", () => {
+        const active = mapMeetingPanelView(factStatus("running"));
+        const terminal = mapMeetingPanelView(factTerminalStatus("completed"));
+        const archived = mapMeetingPanelView(factArchiveStatus("archived"));
+        expect(active.decisionHistory.map((item) => item.id)).toEqual([
+            "d-old",
+            "d-revoked",
+            "d-current"
+        ]);
+        expect(terminal.decisionHistory.map((item) => item.id)).toEqual([
+            "d-old",
+            "d-revoked",
+            "d-current"
+        ]);
+        expect(archived.decisionHistory.map((item) => item.id)).toEqual([
+            "d-old",
+            "d-revoked",
+            "d-current"
+        ]);
+        expect(active.parkingLot.map((item) => item.status)).toEqual([
+            "pending",
+            "promoted",
+            "parked",
+            "rejected"
+        ]);
+        expect(archived.risks.map((item) => item.id)).toContain("issue-waiting");
+        expect(terminal.turnReason).toBe("None");
+        expect(archived.turnReason).toBe("None");
+    });
+
     it("maps active and terminal projections without mutating transcript order", () => {
         const active = statusResult("running", 2, true);
         const activeView = mapMeetingPanelView(active);
@@ -838,6 +881,82 @@ describe("client entry framework", () => {
         await screen.findByText("paused");
         expect(screen.getByRole("button", { name: /Runtime smoke \(paused\)/ })).toBeTruthy();
         expect(fetchMock).toHaveBeenCalledTimes(4);
+    });
+
+    it("fact visibility: focus refresh replaces complete facts and reopen uses archive", async () => {
+        const active = factStatus("running");
+        const terminal = factTerminalStatus("completed");
+        const archived = factArchiveStatus("archived");
+        const fetchMock = vi
+            .fn<typeof fetch>()
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(active)))
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(terminal, 5)));
+        vi.stubGlobal("fetch", fetchMock);
+        const rendered = render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+        expect(screen.getByLabelText("Decision history").textContent).toContain("d-old");
+        window.dispatchEvent(new Event("focus"));
+        await waitFor(() => expect(screen.getByLabelText("Termination")).toBeTruthy());
+        expect(screen.getByLabelText("Decision history").textContent).toContain("d-current");
+        rendered.unmount();
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (input: RequestInfo | URL) =>
+                String(input) === "/api/convivium/meetings"
+                    ? jsonResponse(listResponse())
+                    : jsonResponse(success(archived, 6))
+            )
+        );
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+        await waitFor(() =>
+            expect(screen.getByLabelText("Risks").textContent).toContain("Waiting issue")
+        );
+        expect(screen.getByLabelText("Current activity").textContent).toContain("Turn reasonNone");
+    });
+
+    it.each(["decisionHistory", "parkingLot", "archiveIssues"] as const)(
+        "fact visibility: malformed %s keeps cached facts until valid recovery",
+        async (kind) => {
+            const active = factStatus("running");
+            const malformed = JSON.parse(JSON.stringify(active)) as Record<string, unknown>;
+            if (kind === "decisionHistory") delete malformed.decisionHistory;
+            if (kind === "parkingLot") delete malformed.parkingLot;
+            if (kind === "archiveIssues") {
+                const archived = factArchiveStatus("archived");
+                malformed.archive = archived.archive;
+                delete (malformed.archive as Record<string, unknown>).package;
+            }
+            const fetchMock = vi
+                .fn<typeof fetch>()
+                .mockResolvedValueOnce(jsonResponse(listResponse()))
+                .mockResolvedValueOnce(jsonResponse(success(active)))
+                .mockResolvedValueOnce(jsonResponse(listResponse()))
+                .mockResolvedValueOnce(jsonResponse(success(malformed, 3)));
+            vi.stubGlobal("fetch", fetchMock);
+            render(createElement(ConviviumMeetingPanel));
+            await selectMeeting();
+            window.dispatchEvent(new Event("focus"));
+            await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+            expect(screen.getByLabelText("Decision history").textContent).toContain("d-old");
+        }
+    );
+
+    it("fact visibility: new fact sections remain read only and escape text", () => {
+        const detail = {
+            ...factStatus("running"),
+            decisionHistory: [
+                { ...factDecisions()[0], statement: '<img src=x onerror="alert(1)">' }
+            ]
+        } as MeetingStatusResultV1;
+        render(renderObservabilitySections(detail));
+        expect(screen.getByLabelText("Decision history").querySelector("img")).toBeNull();
+        expect(screen.getByLabelText("Decision history").textContent).toContain("<img src=x");
+        for (const label of ["Decision history", "Parking Lot", "Risks"]) {
+            expect(screen.getByLabelText(label).querySelector("button,input,select")).toBeNull();
+        }
     });
 
     it("keeps writes exclusive and refetches status after a successful write", async () => {

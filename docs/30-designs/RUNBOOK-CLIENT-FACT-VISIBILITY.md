@@ -138,27 +138,6 @@ readonly turnObjective: string;
 
 全部 shell 命令从仓库根执行；不得照抄到其他目录。
 
-### T4：原因展示与刷新一致性
-
-前置状态：T3 PASS。
-允许修改：两个生产文件及现有 client spec。
-禁止修改：meeting-panel.tsx、轮询周期、cache/error/写控制、后端原因规则。
-
-执行：
-1. view 增加 turnIntent/turnReason/turnObjective，仅从 active.currentTurn 读，缺 Turn 用 None。Current activity 在 Planned speaker order 前添加 `Turn intent`、`Turn reason`、`Turn objective` 三行。
-2. 新增 `fact visibility: activity reasons across lifecycle`：created/running/paused/converging 的 fixture 有 Turn 时显示三字段；waiting 使用 §6 明确无 Turn 的分支，显示 None 且保留 blocking_task；paused 显示 Inspect output 和 loopback-web；终态两族显示 None 且 Termination 含 Budget exhausted；converging 显示 refocus 和完整 reason。该测试只证明已公开原因，不声称展示所有历史降级事件。
-3. 新增 `fact visibility: full refresh and reopen`：以路径分发 fetch mock 的 list/detail，首次为 refreshFactStatus(active)，focus 后返回 refreshFactStatus(terminal)（version=5），推进 5000ms 后返回 refreshFactStatus(archived)（version=6）。每个阶段执行“刷新专用不同事实版本”的完整 ID/文本更新及旧项消失断言，核对 summary version 和非活动 Turn 值消失；unmount 后重新 render/select，从同一个最终 archived DTO 重建完全相同 section 文本与条目 ID，不能重新使用基础 factArchiveStatus。fake timers 遵循现有 cleanup/useRealTimers。
-4. 新增 `fact visibility: malformed refresh preserves cached facts`：每个参数用例首读 refreshFactStatus(active)。三个非法 payload 唯一取值分别为该 active JSON 删除 decisionHistory、该 active JSON 删除 parkingLot、refreshFactStatus(archived) JSON 删除 archive.package.issues；focus 返回该 payload 后，等待 alert 和 data-cached=true，完整 v2 ID/文本保持不变，现有写控件 disabled。下一次 focus 固定返回合法 refreshFactStatus(archived)（version=6），核对最终精确 ID/文本及 v2 删除项消失，缓存标记/alert 消失且 Turn 为 None，不能只改 version。
-5. 新增 `fact visibility: rendering is read only`：scope 到新 sections 与 Risks，断言没有 button/input/select；其读取和刷新仅发 GET。所有 execution-terminal/archiving/archived 无 Pause/Resume/Skip/End。加入 statement 为 `<img src=x onerror=alert(1)>` 的 literal 文本样本，断言显示原字符串、无 img 节点。将既有 `keeps writes exclusive and refetches status after a successful write` 的首次 detail 改为 factStatus(running)、写后 detail 改为 factStatus(paused) 且 meetingVersion=3/envelope=3，断言三组非空事实仍完整以及 paused 的原因；保留原请求 payload、独占、POST 次数断言。保留失败不自动重试 POST、polling/unmount 测试。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run --project client tests/client/client-entry.client.spec.ts
-pnpm --dir plugin typecheck:client
-```
-PASS：整个 client entry suite 与 client typecheck 退出码 0；新测试全部运行；刷新无旧 activity 残留，失败缓存保留且恢复后整体替换。
-STOP：需要更改 fetch/generation/缓存架构或新增运行字段，或任何原测试失败；报告最小复现，不扩大范围。
-
 ### T5：完整验证与真实 Browser
 
 前置状态：T4 PASS；后续执行时另已获外部 smoke/Browser 授权。当前 Author 轮一律不运行。

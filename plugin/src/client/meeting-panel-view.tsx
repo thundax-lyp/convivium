@@ -18,6 +18,9 @@ export interface MeetingPanelView {
     readonly currentSpeaker: string;
     readonly waitingReason: string;
     readonly waitingParticipants: string;
+    readonly turnIntent: string;
+    readonly turnReason: string;
+    readonly turnObjective: string;
     readonly messages: readonly PublicMeetingMessageV1[];
     readonly blockingFacts: readonly PublicBlockingFactV1[];
     readonly meetingTasks: readonly MeetingTaskProjectionV1[];
@@ -57,6 +60,9 @@ export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanel
         currentSpeaker: active?.currentSpeakerId ?? "None",
         waitingReason: waitState?.reason ?? "None",
         waitingParticipants: waitState?.participantIds.join(", ") || "None",
+        turnIntent: active?.currentTurn?.intent ?? "None",
+        turnReason: active?.currentTurn?.reason ?? "None",
+        turnObjective: active?.currentTurn?.objective ?? "None",
         messages,
         blockingFacts: discussion?.blockingFacts ?? [],
         meetingTasks: detail.meetingTasks,
