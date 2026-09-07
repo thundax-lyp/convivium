@@ -1,5 +1,7 @@
 # Current Implementation Coverage
 
+当前 smoke 默认覆盖 5 条关键跨层链路，完整套件保留 14 个场景；一次构建、独立场景、清理后输出 PASS。设计调整后的执行结果与边界见 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md)；下文已注明提交的旧记录仍仅代表历史验证。
+
 ## Scope
 
 本文记录当前代码相对已确认需求的实现覆盖，不替代需求、接口或设计文档。

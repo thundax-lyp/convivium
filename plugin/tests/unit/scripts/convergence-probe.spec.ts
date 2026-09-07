@@ -1,12 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
     runConvergenceStalledScenario,
-    runConvergenceNoConsensusScenario,
-    runConvergenceResetScenario,
-    runConvergenceTurnBudgetCompletionScenario,
-    runConvergenceMessageBudgetCompletionScenario
+    runConvergenceTurnBudgetCompletionScenario
 } from "../../../scripts/smoke-profile/probe/scenarios/convergence.js";
 import { validateScenarioResult } from "../../../scripts/smoke-profile/result.mjs";
+import { MeetingStatusResultSchema } from "../../../src/protocol/status.js";
 import { createProbeSupport } from "../../../scripts/smoke-profile/probe/support.js";
 import { createConvergenceFixture, type ConvergenceScenario } from "./convergence-fixture.js";
 
@@ -48,10 +46,7 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
                                   },
                         activeAgendaItem: { id: "agenda-agenda-1" },
                         stallCount: fault === "stall" ? 0 : (c?.stallCount ?? 0),
-                        replanCount:
-                            fault === "replan" || (fault === "reset" && submitted === 4)
-                                ? 1
-                                : (c?.replanCount ?? 0),
+                        replanCount: fault === "replan" ? 1 : (c?.replanCount ?? 0),
                         maxStalls: 3,
                         maxReplans: 1,
                         questions: o.archived.archive.package.unresolvedQuestions,
@@ -60,10 +55,9 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
                 };
             }
             const archived = structuredClone(o.archived);
+            if (fault === "schema")
+                Reflect.deleteProperty(archived.archive.package, "objectiveContract");
             if (fault === "fact") archived.archive.package.completionFacts = [];
-            if (fault === "proposal") archived.archive.package.proposals = [];
-            if (fault === "question") archived.archive.package.unresolvedQuestions = [];
-            if (fault === "code") archived.termination.code = "stalled";
             if (fault === "archive") archived.archive.package.formalTranscript.pop();
             if (late && fault === "changed") archived.topic = "changed";
             return { meetingVersion: o.archivedVersion, result: archived };
@@ -119,7 +113,7 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
         assert: createProbeSupport("unused").assert,
         createInput: createProbeSupport("unused").createInput,
         writeResult: vi.fn(async (result) => {
-            validateScenarioResult(result, scenario);
+            validateScenarioResult(result, scenario, MeetingStatusResultSchema);
         }),
         waitForSpeakerContext: vi.fn(async (_ctx, id, attempt) => {
             expect(id).toBe(participant.id);
@@ -148,9 +142,36 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
                         o.submissions.at(-1)!.deliveryId
                     );
                     if (fault === "throw") throw new Error("unrelated failure");
+                    if (["CAPABILITY_REVOKED", "AGENT_NOT_LIVE"].includes(fault)) {
+                        return {
+                            isError: true,
+                            error: {
+                                message:
+                                    fault === "CAPABILITY_REVOKED"
+                                        ? "caller Session capability has been revoked"
+                                        : "Agent is not live in this store"
+                            }
+                        };
+                    }
+                    if (fault === "nested")
+                        return { value: { ok: false, error: { code: "ARCHIVED_MEETING" } } };
                     return fault === "late"
                         ? { value: { ok: true } }
-                        : { value: { ok: false, error: { code: "ARCHIVED_MEETING" } } };
+                        : {
+                              value: {
+                                  protocolVersion: 1,
+                                  ok: false,
+                                  code: [
+                                      "IMMUTABLE_MEETING",
+                                      "UNAUTHORIZED_CALLER",
+                                      "UNKNOWN_ERROR"
+                                  ].includes(fault)
+                                      ? fault
+                                      : "ARCHIVED_MEETING",
+                                  message: "Rejected",
+                                  retryable: false
+                              }
+                          };
                 })
             },
             agents: { get: () => (fault === "resident" ? participant : undefined) },
@@ -160,6 +181,25 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
 }
 
 describe("stalled convergence probe", () => {
+    it.each(["schema", "archive", "fact"])("rejects %s in the persisted output", async (fault) => {
+        const runtime = harness("convergence-turn-budget-completion", fault);
+        await expect(runConvergenceTurnBudgetCompletionScenario(runtime)).rejects.toThrow(
+            "Convergence runtime result is invalid."
+        );
+        expect(runtime.writeResult).toHaveBeenCalledOnce();
+    });
+    it.each([
+        "IMMUTABLE_MEETING",
+        "ARCHIVED_MEETING",
+        "UNAUTHORIZED_CALLER",
+        "CAPABILITY_REVOKED",
+        "AGENT_NOT_LIVE"
+    ])("accepts the real %s rejection envelope", async (code) => {
+        const runtime = harness("convergence-stalled", code);
+        await runConvergenceStalledScenario(runtime);
+        expect(runtime.writeResult).toHaveBeenCalledOnce();
+        expect(runtime.writeResult.mock.calls[0]![0].observed.lateSubmit.code).toBe(code);
+    });
     it("drives four formal submits and validates the complete observation", async () => {
         const runtime = harness();
         await runConvergenceStalledScenario(runtime);
@@ -173,10 +213,11 @@ describe("stalled convergence probe", () => {
     });
     it.each([
         "context",
+        "nested",
+        "UNKNOWN_ERROR",
         "stall",
         "replan",
         "terminal",
-        "archive",
         "late",
         "changed",
         "children",
@@ -189,72 +230,10 @@ describe("stalled convergence probe", () => {
     });
 });
 
-describe("blocking question convergence probe", () => {
-    it("submits a criterion-bound question and preserves its terminal identity", async () => {
-        const runtime = harness("convergence-no-consensus");
-        await runConvergenceNoConsensusScenario(runtime);
-        const turns = runtime.callTool.mock.calls.filter(
-            (call) => call[2] === "convivium_submit_turn"
-        );
-        expect(turns).toHaveLength(4);
-        expect(turns[0]![3].changes).toEqual({
-            questions: [
-                {
-                    text: "Unresolved smoke criterion",
-                    blocking: true,
-                    affectedOutputIds: [],
-                    affectedCriterionIds: ["criterion-smoke-order"],
-                    violatedConstraintIds: []
-                }
-            ]
-        });
-        expect(turns.slice(1).every((call) => Object.keys(call[3].changes).length === 0)).toBe(
-            true
-        );
-        expect(runtime.writeResult).toHaveBeenCalledOnce();
-    });
-    it.each(["criterion", "question", "code"])("rejects %s", async (fault) => {
-        const runtime = harness("convergence-no-consensus", fault);
-        await expect(runConvergenceNoConsensusScenario(runtime)).rejects.toThrow();
-        expect(runtime.writeResult).not.toHaveBeenCalled();
-    });
-});
-
-describe("progress reset convergence probe", () => {
-    it("adds only the fourth Proposal and observes both counter resets", async () => {
-        const runtime = harness("convergence-reset");
-        await runConvergenceResetScenario(runtime);
-        const turns = runtime.callTool.mock.calls.filter(
-            (call) => call[2] === "convivium_submit_turn"
-        );
-        expect(turns).toHaveLength(7);
-        expect(turns[3]![3].changes).toEqual({
-            proposals: [
-                { title: "New structured progress", description: "A new proposal after replan" }
-            ]
-        });
-        expect(
-            turns
-                .filter((_, index) => index !== 3)
-                .every((call) => Object.keys(call[3].changes).length === 0)
-        ).toBe(true);
-        expect(runtime.writeResult).toHaveBeenCalledOnce();
-    });
-    it.each(["reset", "proposal"])("rejects %s", async (fault) => {
-        const runtime = harness("convergence-reset", fault);
-        await expect(runConvergenceResetScenario(runtime)).rejects.toThrow();
-        expect(runtime.writeResult).not.toHaveBeenCalled();
-    });
-});
-
 describe.each([
     {
         scenario: "convergence-turn-budget-completion" as const,
         run: runConvergenceTurnBudgetCompletionScenario
-    },
-    {
-        scenario: "convergence-message-budget-completion" as const,
-        run: runConvergenceMessageBudgetCompletionScenario
     }
 ])("$scenario probe", ({ scenario, run }) => {
     it("uses earlier evidence for legal completion then explicitly ends as Captain", async () => {
@@ -287,7 +266,7 @@ describe.each([
             runtime.callTool.mock.calls.filter((call) => call[2] === "convivium_end_meeting")
         ).toHaveLength(1);
     });
-    it.each(["terminal", "converging", "end", "fact", "criterion"])("rejects %s", async (fault) => {
+    it.each(["terminal", "converging", "end", "criterion"])("rejects %s", async (fault) => {
         const runtime = harness(scenario, fault);
         await expect(run(runtime)).rejects.toThrow();
         expect(runtime.writeResult).not.toHaveBeenCalled();

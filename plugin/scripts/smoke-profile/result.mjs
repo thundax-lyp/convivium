@@ -1,14 +1,6 @@
-export function validateScenarioResult(value, expectedScenario) {
-    if (
-        [
-            "convergence-stalled",
-            "convergence-no-consensus",
-            "convergence-reset",
-            "convergence-turn-budget-completion",
-            "convergence-message-budget-completion"
-        ].includes(expectedScenario)
-    ) {
-        validateConvergenceRuntimeResult(value, expectedScenario);
+export function validateScenarioResult(value, expectedScenario, validateMeetingStatus) {
+    if (["convergence-stalled", "convergence-turn-budget-completion"].includes(expectedScenario)) {
+        validateConvergenceRuntimeResult(value, expectedScenario, validateMeetingStatus);
         return value;
     }
     if (value === null || typeof value !== "object" || value.ok !== true) {
@@ -91,295 +83,111 @@ export function validateScenarioResult(value, expectedScenario) {
     return value;
 }
 
-function validateConvergenceRuntimeResult(value, expectedScenario) {
-    const isRecord = (value) =>
-        value !== null && typeof value === "object" && !Array.isArray(value);
-    const exactKeys = (value, keys) =>
-        isRecord(value) &&
-        Object.keys(value).length === keys.length &&
-        keys.every((key) => Object.hasOwn(value, key));
-    const nonempty = (value) => typeof value === "string" && value.length > 0;
-    const integer = (value) => Number.isInteger(value) && value >= 0;
+function validateConvergenceRuntimeResult(value, scenario, validateMeetingStatus) {
     const requireValid = (condition) => {
         if (!condition) throw new Error("Convergence runtime result is invalid.");
     };
-    const question = expectedScenario === "convergence-no-consensus";
-    const reset = expectedScenario === "convergence-reset";
-    const messageBudget = expectedScenario === "convergence-message-budget-completion";
-    const budget = messageBudget || expectedScenario === "convergence-turn-budget-completion";
-    const labels = [
-        ...(budget
-            ? [
-                  "last-valid-turn-before-budget",
-                  "business-completion-before-budget",
-                  "captain-completed-after-converging"
-              ]
-            : [
-                  "first-progress-baseline",
-                  "refocus-observed",
-                  "replan-observed",
-                  ...(reset
-                      ? [
-                            "progress-resets-both-counters",
-                            "refocus-after-reset",
-                            "replan-after-reset"
-                        ]
-                      : []),
-                  question ? "blocking-question-no-consensus" : "partial-stalled"
-              ]),
-        "terminal-submit-rejected",
-        "archive-consistent",
-        "sessions-drained"
-    ];
-    const count = budget ? 2 : reset ? 7 : 4,
-        checkpointCount = budget ? 2 : reset ? 6 : 3,
-        outcome = budget ? "converging" : question ? "no_consensus" : "partial",
-        code = budget ? "objective_satisfied" : question ? "no_consensus" : "stalled";
-    requireValid(exactKeys(value, ["ok", "scenario", "assertions", "meetingId", "observed"]));
-    requireValid(
-        value.ok === true && value.scenario === expectedScenario && nonempty(value.meetingId)
-    );
-    requireValid(
-        Array.isArray(value.assertions) &&
-            value.assertions.length === labels.length &&
-            labels.every((label, index) => value.assertions[index] === label)
-    );
-    const o = value.observed;
-    requireValid(
-        exactKeys(o, [
-            "submissions",
-            "checkpoints",
-            "questionId",
-            "proposalId",
-            "endResult",
-            "archived",
-            "archivedVersion",
-            "lateSubmit",
-            "stableAfterLateSubmit",
-            "children",
-            "residentSessionIds"
-        ])
-    );
-    requireValid(Array.isArray(o.submissions) && o.submissions.length === count);
-    const seen = {
-        turnId: new Set(),
-        attemptId: new Set(),
-        deliveryId: new Set(),
-        messageId: new Set()
-    };
-    for (const [index, s] of o.submissions.entries()) {
+    try {
         requireValid(
-            exactKeys(s, [
-                "turnId",
-                "turnSeq",
-                "attemptId",
-                "deliveryId",
-                "messageId",
-                "messageSeq",
-                "meetingVersion",
-                "meetingStatus"
-            ])
+            value?.ok === true && value.scenario === scenario && Array.isArray(value.assertions)
         );
+        const o = value.observed,
+            a = o.archived;
+        // Validate the real DTO using the product contract. Driver assertions own
+        // intermediate state transitions; this boundary checks the persisted result.
+        validateMeetingStatus(structuredClone(a));
+        const budget = scenario === "convergence-turn-budget-completion";
+        const count = budget ? 2 : 4;
+        const code = budget ? "objective_satisfied" : "stalled";
+        const p = a.archive.package;
         requireValid(
-            s.messageSeq === index + 1 &&
-                s.turnSeq === index + 1 &&
-                integer(s.meetingVersion) &&
-                (index === 0 || s.meetingVersion > o.submissions[index - 1].meetingVersion)
-        );
-        for (const key of Object.keys(seen)) {
-            requireValid(nonempty(s[key]) && !seen[key].has(s[key]));
-            seen[key].add(s[key]);
-        }
-        requireValid(
-            s.messageId === "message-" + s.deliveryId &&
-                s.meetingStatus === (index === count - 1 ? outcome : "running")
-        );
-    }
-    requireValid(Array.isArray(o.checkpoints) && o.checkpoints.length === checkpointCount);
-    for (const [index, c] of o.checkpoints.entries()) {
-        requireValid(
-            exactKeys(c, [
-                "afterSubmission",
-                "meetingVersion",
-                "status",
-                "stallCount",
-                "maxStalls",
-                "replanCount",
-                "maxReplans",
-                "nextTurnId",
-                "intent",
-                "reason"
-            ])
-        );
-        requireValid(
-            c.afterSubmission === index + 1 &&
-                c.meetingVersion === o.submissions[index].meetingVersion &&
-                c.status === (budget && index === 1 ? "converging" : "running") &&
-                c.maxStalls === 3 &&
-                c.maxReplans === 1
-        );
-        if (budget && index === 1) {
-            requireValid(
-                c.stallCount === 0 &&
-                    c.replanCount === 0 &&
-                    c.intent === null &&
-                    c.reason === null &&
-                    c.nextTurnId === null
-            );
-            continue;
-        }
-        requireValid(
-            c.stallCount === index % 3 &&
-                c.replanCount === (index % 3 === 2 ? 1 : 0) &&
-                c.intent === (index % 3 === 0 ? "explore" : "refocus") &&
-                c.reason === ["explore", "refocus", "replan"][index % 3] &&
-                c.nextTurnId === o.submissions[index + 1].turnId
-        );
-    }
-    const a = o.archived;
-    requireValid(
-        isRecord(a) &&
             a.status === "archived" &&
-            a.meetingId === value.meetingId &&
-            integer(o.archivedVersion) &&
-            o.archivedVersion === a.meetingVersion &&
-            o.archivedVersion > o.submissions.at(-1).meetingVersion
-    );
-    requireValid(
-        ["currentTurn", "currentSpeakerId", "currentAttemptId", "stallCount", "replanCount"].every(
-            (key) => !Object.hasOwn(a, key)
-        )
-    );
-    requireValid(
-        Array.isArray(a.pendingHandRaises) &&
-            a.pendingHandRaises.length === 0 &&
-            Array.isArray(a.meetingTasks) &&
-            a.meetingTasks.length === 0
-    );
-    requireValid(
-        isRecord(a.archive) && Number.isFinite(a.archive.archivedAt) && isRecord(a.archive.package)
-    );
-    const p = a.archive.package;
-    requireValid(p.meetingId === value.meetingId && Number.isFinite(p.endedAt));
-    for (const termination of [a.termination, p.termination]) {
-        requireValid(
-            isRecord(termination) &&
-                termination.code === code &&
-                nonempty(termination.reason) &&
-                Array.isArray(termination.decisionIds) &&
-                termination.decisionIds.length === 0 &&
-                Array.isArray(termination.unresolvedQuestionIds) &&
-                termination.unresolvedQuestionIds.length === (question ? 1 : 0) &&
-                (!question ||
-                    termination.unresolvedQuestionIds[0] ===
-                        "question-" + o.submissions[0].deliveryId + "-1")
-        );
-    }
-    requireValid(a.termination.reason === p.termination.reason);
-    requireValid(
-        o.questionId === (question ? "question-" + o.submissions[0].deliveryId + "-1" : null) &&
-            o.proposalId === (reset ? o.submissions[3].deliveryId + "-proposal-1" : null) &&
-            (budget || o.endResult === null)
-    );
-    if (budget) {
-        requireValid(
-            exactKeys(o.endResult, ["status", "terminationCode"]) &&
-                o.endResult.status === "completed" &&
-                o.endResult.terminationCode === "objective_satisfied"
+                a.meetingId === value.meetingId &&
+                p.meetingId === value.meetingId &&
+                a.meetingVersion === o.archivedVersion &&
+                a.termination.code === code &&
+                p.termination.code === code &&
+                a.termination.reason === p.termination.reason
         );
         requireValid(
-            isRecord(p.objectiveContract) &&
-                Array.isArray(p.objectiveContract.acceptanceCriteria) &&
-                p.objectiveContract.acceptanceCriteria.length === 1
+            [
+                "currentTurn",
+                "currentSpeakerId",
+                "currentAttemptId",
+                "stallCount",
+                "replanCount",
+                "maxStalls",
+                "maxReplans"
+            ].every((key) => !Object.hasOwn(a, key))
         );
-        const criterion = p.objectiveContract.acceptanceCriteria[0];
-        requireValid(isRecord(criterion) && nonempty(criterion.id) && criterion.satisfied === true);
+        requireValid(a.meetingTasks.length === 0 && a.pendingHandRaises.length === 0);
         requireValid(
-            Array.isArray(p.agenda) &&
-                p.agenda.length === 1 &&
-                isRecord(p.agenda[0]) &&
-                nonempty(p.agenda[0].id) &&
-                p.agenda[0].status === "resolved"
+            o.submissions.length === count &&
+                p.formalTranscript.length === count &&
+                o.submissions.at(-1).meetingStatus === (budget ? "converging" : "partial") &&
+                o.archivedVersion > o.submissions.at(-1).meetingVersion
         );
-        requireValid(Array.isArray(p.completionFacts));
-        for (const [kind, subjectId] of [
-            ["criterion_evidence", criterion.id],
-            ["agenda_resolution", p.agenda[0].id]
-        ]) {
-            const facts = p.completionFacts.filter(
-                (f) =>
-                    isRecord(f) &&
-                    f.kind === kind &&
-                    f.status === "active" &&
-                    f.subjectId === subjectId
-            );
+        for (const [i, message] of p.formalTranscript.entries()) {
+            const submitted = o.submissions[i];
             requireValid(
-                facts.length === 1 &&
-                    Array.isArray(facts[0].evidenceMessageIds) &&
-                    facts[0].evidenceMessageIds.length === 1 &&
-                    facts[0].evidenceMessageIds[0] === o.submissions[0].messageId
+                message.id === submitted.messageId &&
+                    message.seq === i + 1 &&
+                    message.turnId === submitted.turnId &&
+                    message.speaker === "participant-a" &&
+                    message.content === scenario + ":a:" + (i + 1)
             );
         }
+        if (budget) {
+            requireValid(
+                o.endResult.status === "completed" &&
+                    o.endResult.terminationCode === code &&
+                    a.limits.maxTurns === 2 &&
+                    a.limits.maxTotalMessages === 100 &&
+                    p.objectiveContract.acceptanceCriteria[0].satisfied &&
+                    p.agenda[0].status === "resolved"
+            );
+            for (const [kind, subjectId] of [
+                ["criterion_evidence", p.objectiveContract.acceptanceCriteria[0].id],
+                ["agenda_resolution", p.agenda[0].id]
+            ]) {
+                requireValid(
+                    p.completionFacts.some(
+                        (fact) =>
+                            fact.kind === kind &&
+                            fact.subjectId === subjectId &&
+                            fact.status === "active" &&
+                            fact.evidenceMessageIds.length === 1 &&
+                            fact.evidenceMessageIds[0] === o.submissions[0].messageId
+                    )
+                );
+            }
+        }
         requireValid(
-            isRecord(a.limits) &&
-                a.limits.maxTurns === (messageBudget ? 10 : 2) &&
-                a.limits.maxSpeakersPerTurn === 1 &&
-                a.limits.maxTotalMessages === (messageBudget ? 2 : 100)
+            (o.lateSubmit.kind === "protocol" &&
+                ["IMMUTABLE_MEETING", "ARCHIVED_MEETING", "UNAUTHORIZED_CALLER"].includes(
+                    o.lateSubmit.code
+                )) ||
+                (o.lateSubmit.kind === "tool" &&
+                    ["CAPABILITY_REVOKED", "AGENT_NOT_LIVE"].includes(o.lateSubmit.code))
         );
-    }
-    if (reset) {
-        requireValid(Array.isArray(p.proposals));
-        const proposals = p.proposals.filter(
-            (proposal) => isRecord(proposal) && proposal.id === o.proposalId
-        );
-        requireValid(proposals.length === 1 && proposals[0].revision === 1);
-    }
-    if (question) {
-        requireValid(Array.isArray(p.unresolvedQuestions));
-        const questions = p.unresolvedQuestions.filter((q) => isRecord(q) && q.id === o.questionId);
+        const ids = [
+            value.meetingId + "-manager-manager",
+            value.meetingId + "-participant-participant-a"
+        ];
         requireValid(
-            questions.length === 1 &&
-                questions[0].status === "open" &&
-                questions[0].blocking === true &&
-                questions[0].askedBy === "participant-a"
+            o.stableAfterLateSubmit === true &&
+                o.residentSessionIds.length === 0 &&
+                o.children.length === 2 &&
+                ids.every((id) =>
+                    o.children.some(
+                        (child) =>
+                            child.id === id &&
+                            child.mode === "continuable" &&
+                            child.activity === "inactive"
+                    )
+                )
         );
+    } catch {
+        throw new Error("Convergence runtime result is invalid.");
     }
-    requireValid(Array.isArray(p.formalTranscript) && p.formalTranscript.length === count);
-    for (const [index, m] of p.formalTranscript.entries()) {
-        const s = o.submissions[index];
-        requireValid(
-            isRecord(m) &&
-                m.id === s.messageId &&
-                m.seq === s.messageSeq &&
-                m.turnId === s.turnId &&
-                m.speaker === "participant-a" &&
-                m.content === expectedScenario + ":a:" + (index + 1)
-        );
-    }
-    requireValid(exactKeys(o.lateSubmit, ["kind", "code"]));
-    requireValid(
-        (o.lateSubmit.kind === "protocol" &&
-            ["IMMUTABLE_MEETING", "ARCHIVED_MEETING", "UNAUTHORIZED_CALLER"].includes(
-                o.lateSubmit.code
-            )) ||
-            (o.lateSubmit.kind === "tool" &&
-                ["CAPABILITY_REVOKED", "AGENT_NOT_LIVE"].includes(o.lateSubmit.code))
-    );
-    requireValid(
-        o.stableAfterLateSubmit === true &&
-            Array.isArray(o.residentSessionIds) &&
-            o.residentSessionIds.length === 0
-    );
-    requireValid(Array.isArray(o.children) && o.children.length === 2);
-    const childIds = [
-        value.meetingId + "-manager-manager",
-        value.meetingId + "-participant-participant-a"
-    ];
-    for (const [index, child] of o.children.entries())
-        requireValid(
-            exactKeys(child, ["id", "mode", "activity"]) &&
-                child.id === childIds[index] &&
-                child.mode === "continuable" &&
-                child.activity === "inactive"
-        );
 }

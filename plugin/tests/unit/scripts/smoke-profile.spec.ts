@@ -9,8 +9,40 @@ import { describe, expect, it } from "vitest";
 import {
     createSmokeEnvironment,
     loadSmokeApiKey,
+    loadMeetingStatusSchema,
+    selectScenarios,
+    CORE_SCENARIOS,
+    SMOKE_SCENARIOS,
     validateScenarioResult
 } from "../../../scripts/smoke-profile/index.mjs";
+import { createConvergenceFixture } from "./convergence-fixture.js";
+
+it("selects core, full and isolated diagnostic runs without ambiguous options", () => {
+    expect(selectScenarios([], undefined, false)).toEqual(CORE_SCENARIOS);
+    expect(selectScenarios(["--all"], undefined, false)).toEqual(SMOKE_SCENARIOS);
+    expect(selectScenarios(["--json"], "cold-rebind", false)).toEqual(["cold-rebind"]);
+    expect(selectScenarios([], undefined, true)).toEqual(["baseline"]);
+    expect(selectScenarios([], "reassign", true)).toEqual(["reassign"]);
+    expect(() => selectScenarios(["--all"], "baseline", false)).toThrow();
+    expect(() => selectScenarios(["--all"], undefined, true)).toThrow();
+    expect(() => selectScenarios(["--unknown"], undefined, false)).toThrow();
+    expect(() => selectScenarios([], "convergence-reset", false)).toThrow();
+});
+
+it("loads the formal archived DTO schema from an isolated temporary bundle", async () => {
+    const outDir = await mkdtemp(join(tmpdir(), "convivium-schema-test-"));
+    try {
+        const schema = await loadMeetingStatusSchema(outDir);
+        const fixture = createConvergenceFixture("convergence-stalled");
+        expect(() => validateScenarioResult(fixture, fixture.scenario, schema)).not.toThrow();
+        Reflect.deleteProperty(fixture.observed.archived.archive.package, "objectiveContract");
+        expect(() => validateScenarioResult(fixture, fixture.scenario, schema)).toThrow(
+            "Convergence runtime result is invalid."
+        );
+    } finally {
+        await rm(outDir, { recursive: true, force: true });
+    }
+});
 
 const smokeProfileSource = readFileSync(
     new URL("../../../scripts/smoke-profile/index.mjs", import.meta.url),
@@ -182,7 +214,7 @@ describe("smoke profile scenario guard", () => {
         expect(smokeProfileSource.match(/assertBrowserClientPreflight\(/g)).toHaveLength(1);
         expect(smokeProfileSource).toContain(preflightCall);
         expect(smokeProfileSource.indexOf(preflightCall)).toBeLessThan(
-            smokeProfileSource.indexOf("console.log(\n        JSON.stringify")
+            smokeProfileSource.indexOf("console.log(JSON.stringify(result))")
         );
         expect(browserClientPreflightSource).toContain(
             [
@@ -242,7 +274,9 @@ describe("smoke profile scenario guard", () => {
 
     it("keeps unknown scenario handling fail closed", () => {
         expect(probeSource).toContain('"SCENARIO_NOT_IMPLEMENTED:" + runtime.scenario');
-        expect(smokeProfileSource).toContain("if (!SMOKE_SCENARIOS.includes(SMOKE_SCENARIO))");
+        expect(() => selectScenarios([], "unknown", false)).toThrow(
+            "Unsupported CONVIVIUM_SMOKE_SCENARIO"
+        );
     });
 
     it("dispatches risk-reopen to one scenario module", () => {
@@ -450,10 +484,7 @@ describe("smoke profile scenario guard", () => {
 describe("convergence runtime selector wiring", () => {
     it.each([
         ["convergence-stalled", "runConvergenceStalledScenario"],
-        ["convergence-no-consensus", "runConvergenceNoConsensusScenario"],
-        ["convergence-reset", "runConvergenceResetScenario"],
-        ["convergence-turn-budget-completion", "runConvergenceTurnBudgetCompletionScenario"],
-        ["convergence-message-budget-completion", "runConvergenceMessageBudgetCompletionScenario"]
+        ["convergence-turn-budget-completion", "runConvergenceTurnBudgetCompletionScenario"]
     ])("wires %s to %s without automatic participant submissions", (scenario, name) => {
         expect(smokeProfileSource).toContain('"' + scenario + '"');
         expect(probeSource).toContain('scenario !== "' + scenario + '"');

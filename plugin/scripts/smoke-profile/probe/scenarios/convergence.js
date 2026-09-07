@@ -126,9 +126,7 @@ async function createConvergenceMeeting(runtime, limits) {
     );
     const meetingId = created.result.meetingId;
     return {
-        meetingId,
-        participantSessionId: meetingId + "-participant-participant-a",
-        managerSessionId: meetingId + "-manager-manager"
+        meetingId
     };
 }
 
@@ -142,7 +140,7 @@ async function convergenceStatus(runtime, meetingId) {
     );
 }
 
-async function submitConvergenceTurn(runtime, meetingId, ordinal, changes, completionClaims) {
+async function submitConvergenceTurn(runtime, meetingId, ordinal, completionClaims) {
     const before = await convergenceStatus(runtime, meetingId);
     const delivery = await runtime.waitForSpeakerContext(
         runtime.ctx,
@@ -174,7 +172,7 @@ async function submitConvergenceTurn(runtime, meetingId, ordinal, changes, compl
         mentions: [],
         taskIds: [],
         agendaRelation: "on_topic",
-        changes: typeof changes === "function" ? changes(c) : changes
+        changes: {}
     };
     if (completionClaims !== undefined) {
         input.kind = "evidence";
@@ -226,7 +224,7 @@ function recordConvergenceSubmission(turn) {
 }
 
 function assertConvergenceCheckpoint(runtime, checkpoint, ordinal) {
-    const index = (ordinal - 1) % 3;
+    const index = ordinal - 1;
     runtime.assert(
         checkpoint?.status === "running" &&
             checkpoint.stallCount === index &&
@@ -264,11 +262,9 @@ async function finishConvergenceObservation(runtime, meetingId, finalDelivery, f
     let lateSubmit;
     if (
         reply.value?.ok === false &&
-        ["IMMUTABLE_MEETING", "ARCHIVED_MEETING", "UNAUTHORIZED_CALLER"].includes(
-            reply.value.error?.code
-        )
+        ["IMMUTABLE_MEETING", "ARCHIVED_MEETING", "UNAUTHORIZED_CALLER"].includes(reply.value.code)
     ) {
-        lateSubmit = { kind: "protocol", code: reply.value.error.code };
+        lateSubmit = { kind: "protocol", code: reply.value.code };
     } else if (reply.isError && typeof reply.error?.message === "string") {
         if (reply.error.message.includes("caller Session capability has been revoked"))
             lateSubmit = { kind: "tool", code: "CAPABILITY_REVOKED" };
@@ -314,29 +310,6 @@ async function finishConvergenceObservation(runtime, meetingId, finalDelivery, f
     };
 }
 
-function assertConvergenceArchive(runtime, observed, code) {
-    const a = observed.archived,
-        p = a.archive?.package;
-    runtime.assert(
-        a.status === "archived" &&
-            a.meetingVersion === observed.archivedVersion &&
-            p &&
-            a.termination?.code === code &&
-            p.termination?.code === code &&
-            a.termination.reason === p.termination.reason &&
-            p.formalTranscript.length === observed.submissions.length &&
-            p.formalTranscript.every(
-                (message, index) =>
-                    message.id === observed.submissions[index].messageId &&
-                    message.seq === index + 1 &&
-                    message.turnId === observed.submissions[index].turnId &&
-                    message.speaker === "participant-a" &&
-                    message.content === runtime.scenario + ":a:" + (index + 1)
-            ),
-        "Convergence archive mismatch"
-    );
-}
-
 export async function runConvergenceStalledScenario(runtime) {
     const { meetingId } = await createConvergenceMeeting(runtime, {
         maxTurns: 10,
@@ -347,7 +320,7 @@ export async function runConvergenceStalledScenario(runtime) {
         checkpoints = [];
     let final;
     for (let ordinal = 1; ordinal <= 4; ordinal++) {
-        const turn = await submitConvergenceTurn(runtime, meetingId, ordinal, {});
+        const turn = await submitConvergenceTurn(runtime, meetingId, ordinal);
         submissions.push(recordConvergenceSubmission(turn));
         if (ordinal < 4) {
             assertConvergenceCheckpoint(runtime, turn.checkpoint, ordinal);
@@ -363,12 +336,9 @@ export async function runConvergenceStalledScenario(runtime) {
     const observed = {
         submissions,
         checkpoints,
-        questionId: null,
-        proposalId: null,
         endResult: null,
         ...(await finishConvergenceObservation(runtime, meetingId, final.delivery, final.input))
     };
-    assertConvergenceArchive(runtime, observed, "stalled");
     await runtime.writeResult({
         ok: true,
         scenario: runtime.scenario,
@@ -386,175 +356,12 @@ export async function runConvergenceStalledScenario(runtime) {
     });
 }
 
-export async function runConvergenceNoConsensusScenario(runtime) {
-    const { meetingId } = await createConvergenceMeeting(runtime, {
-        maxTurns: 10,
-        maxSpeakersPerTurn: 1,
-        maxTotalMessages: 100
-    });
-    const submissions = [],
-        checkpoints = [];
-    let final;
-    for (let ordinal = 1; ordinal <= 4; ordinal++) {
-        const turn = await submitConvergenceTurn(
-            runtime,
-            meetingId,
-            ordinal,
-            ordinal === 1
-                ? (context) => {
-                      const criterionId = context.objectiveContract.acceptanceCriteria[0]?.id;
-                      runtime.assert(criterionId, "Missing blocking question criterion");
-                      return {
-                          questions: [
-                              {
-                                  text: "Unresolved smoke criterion",
-                                  blocking: true,
-                                  affectedOutputIds: [],
-                                  affectedCriterionIds: [criterionId],
-                                  violatedConstraintIds: []
-                              }
-                          ]
-                      };
-                  }
-                : {}
-        );
-        submissions.push(recordConvergenceSubmission(turn));
-        if (ordinal < 4) {
-            assertConvergenceCheckpoint(runtime, turn.checkpoint, ordinal);
-            checkpoints.push(turn.checkpoint);
-            const status = await convergenceStatus(runtime, meetingId);
-            runtime.assert(
-                status.result.questions.some(
-                    (question) =>
-                        question.id === "question-" + submissions[0].deliveryId + "-1" &&
-                        question.blocking &&
-                        question.status === "open" &&
-                        question.affectedCriterionIds.includes(
-                            turn.delivery.value.objectiveContract.acceptanceCriteria[0].id
-                        )
-                ),
-                "Blocking question missing from active checkpoint"
-            );
-        } else {
-            runtime.assert(
-                turn.submitted.result.meetingStatus === "no_consensus" && turn.checkpoint === null,
-                "Blocking question did not terminate no_consensus"
-            );
-            final = turn;
-        }
-    }
-    const observed = {
-        submissions,
-        checkpoints,
-        questionId: "question-" + submissions[0].deliveryId + "-1",
-        proposalId: null,
-        endResult: null,
-        ...(await finishConvergenceObservation(runtime, meetingId, final.delivery, final.input))
-    };
-    assertConvergenceArchive(runtime, observed, "no_consensus");
-    runtime.assert(
-        observed.archived.archive.package.unresolvedQuestions.some(
-            (question) =>
-                question.id === observed.questionId &&
-                question.blocking &&
-                question.status === "open"
-        ) && observed.archived.termination.unresolvedQuestionIds.includes(observed.questionId),
-        "Blocking question was lost from archive"
-    );
-    await runtime.writeResult({
-        ok: true,
-        scenario: runtime.scenario,
-        meetingId,
-        observed,
-        assertions: [
-            "first-progress-baseline",
-            "refocus-observed",
-            "replan-observed",
-            "blocking-question-no-consensus",
-            "terminal-submit-rejected",
-            "archive-consistent",
-            "sessions-drained"
-        ]
-    });
-}
-
-export async function runConvergenceResetScenario(runtime) {
-    const { meetingId } = await createConvergenceMeeting(runtime, {
-        maxTurns: 10,
-        maxSpeakersPerTurn: 1,
-        maxTotalMessages: 100
-    });
-    const submissions = [],
-        checkpoints = [];
-    let final;
-    for (let ordinal = 1; ordinal <= 7; ordinal++) {
-        const turn = await submitConvergenceTurn(
-            runtime,
-            meetingId,
-            ordinal,
-            ordinal === 4
-                ? {
-                      proposals: [
-                          {
-                              title: "New structured progress",
-                              description: "A new proposal after replan"
-                          }
-                      ]
-                  }
-                : {}
-        );
-        submissions.push(recordConvergenceSubmission(turn));
-        if (ordinal < 7) {
-            assertConvergenceCheckpoint(runtime, turn.checkpoint, ordinal);
-            checkpoints.push(turn.checkpoint);
-        } else {
-            runtime.assert(
-                turn.submitted.result.meetingStatus === "partial" && turn.checkpoint === null,
-                "Seventh submit did not terminate partial"
-            );
-            final = turn;
-        }
-    }
-    const observed = {
-        submissions,
-        checkpoints,
-        questionId: null,
-        proposalId: submissions[3].deliveryId + "-proposal-1",
-        endResult: null,
-        ...(await finishConvergenceObservation(runtime, meetingId, final.delivery, final.input))
-    };
-    assertConvergenceArchive(runtime, observed, "stalled");
-    runtime.assert(
-        observed.archived.archive.package.proposals.some(
-            (proposal) => proposal.id === observed.proposalId && proposal.revision === 1
-        ),
-        "Reset Proposal missing from archive"
-    );
-    await runtime.writeResult({
-        ok: true,
-        scenario: runtime.scenario,
-        meetingId,
-        observed,
-        assertions: [
-            "first-progress-baseline",
-            "refocus-observed",
-            "replan-observed",
-            "progress-resets-both-counters",
-            "refocus-after-reset",
-            "replan-after-reset",
-            "partial-stalled",
-            "terminal-submit-rejected",
-            "archive-consistent",
-            "sessions-drained"
-        ]
-    });
-}
-
-async function runConvergenceBudgetCompletion(runtime, limits) {
+export async function runConvergenceTurnBudgetCompletionScenario(runtime) {
+    const limits = { maxTurns: 2, maxSpeakersPerTurn: 1, maxTotalMessages: 100 };
     const { meetingId } = await createConvergenceMeeting(runtime, limits);
-    const first = await submitConvergenceTurn(runtime, meetingId, 1, {});
+    const first = await submitConvergenceTurn(runtime, meetingId, 1);
     assertConvergenceCheckpoint(runtime, first.checkpoint, 1);
-    const final = await submitConvergenceTurn(runtime, meetingId, 2, {}, (context) => {
+    const final = await submitConvergenceTurn(runtime, meetingId, 2, (context) => {
         const criterionId = context.objectiveContract.acceptanceCriteria[0]?.id;
         runtime.assert(criterionId, "Missing completion criterion");
         return {
@@ -584,8 +391,7 @@ async function runConvergenceBudgetCompletion(runtime, limits) {
         "Business completion did not precede budget termination"
     );
     runtime.assert(
-        (limits.maxTurns === 2 && final.delivery.value.turn.seq === 2) ||
-            (limits.maxTotalMessages === 2 && final.submitted.result.messageSeq === 2),
+        final.delivery.value.turn.seq === limits.maxTurns,
         "Final submission did not reach the configured budget"
     );
     const ended = await runtime.callTool(
@@ -613,33 +419,9 @@ async function runConvergenceBudgetCompletion(runtime, limits) {
     const observed = {
         submissions: [recordConvergenceSubmission(first), recordConvergenceSubmission(final)],
         checkpoints: [first.checkpoint, checkpoint],
-        questionId: null,
-        proposalId: null,
         endResult: { status: ended.result.status, terminationCode: ended.result.terminationCode },
         ...(await finishConvergenceObservation(runtime, meetingId, final.delivery, final.input))
     };
-    assertConvergenceArchive(runtime, observed, "objective_satisfied");
-    const p = observed.archived.archive.package;
-    runtime.assert(
-        p.objectiveContract.acceptanceCriteria[0].satisfied && p.agenda[0].status === "resolved",
-        "Archived objective is not satisfied"
-    );
-    for (const [kind, subjectId] of [
-        ["criterion_evidence", p.objectiveContract.acceptanceCriteria[0].id],
-        ["agenda_resolution", p.agenda[0].id]
-    ]) {
-        runtime.assert(
-            p.completionFacts.some(
-                (fact) =>
-                    fact.kind === kind &&
-                    fact.subjectId === subjectId &&
-                    fact.status === "active" &&
-                    fact.evidenceMessageIds.length === 1 &&
-                    fact.evidenceMessageIds[0] === first.submitted.result.messageId
-            ),
-            "Archived completion evidence missing"
-        );
-    }
     await runtime.writeResult({
         ok: true,
         scenario: runtime.scenario,
@@ -653,21 +435,5 @@ async function runConvergenceBudgetCompletion(runtime, limits) {
             "archive-consistent",
             "sessions-drained"
         ]
-    });
-}
-
-export async function runConvergenceTurnBudgetCompletionScenario(runtime) {
-    await runConvergenceBudgetCompletion(runtime, {
-        maxTurns: 2,
-        maxSpeakersPerTurn: 1,
-        maxTotalMessages: 100
-    });
-}
-
-export async function runConvergenceMessageBudgetCompletionScenario(runtime) {
-    await runConvergenceBudgetCompletion(runtime, {
-        maxTurns: 10,
-        maxSpeakersPerTurn: 1,
-        maxTotalMessages: 2
     });
 }

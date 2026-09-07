@@ -93,59 +93,45 @@ pnpm smoke:profile
 pnpm dlx @deepseek-ai/dsh@0.1.1-rc.2
 ```
 
-## 成功判据
+## 自动 smoke 的分层与入口
 
-命令必须以退出码 `0` 结束，并输出包含以下结果的 JSON：
+smoke 只证明真实 DSH 的组合、工具/HTTP 调用、持久化、恢复和 Session 生命周期。领域规则组合、字段合法性和 Client 展示分别由 domain、protocol、Client tests 负责；smoke 不复制这些测试矩阵。离线协议 fixture 不替代真实 Agent Session，Client 展示测试也不替代 Host 生命周期验证。
 
-- `profile: "web"`
-- `provider: "spawn"`
-- 插件成功打包并安装到临时 profile
-- `dump-config` 同时包含 Convivium 插件、`dsh-subagent-spawn-in-process` 和 `spawn`
-- Meeting 创建成功，A/B/C transcript 顺序保持一致
-- pause 返回 `status: "paused"`
-- resume 返回 `status: "running"`
-- DSH host 启动并通过 readiness 检查
-
-## 生命周期 selector
-
-从仓库根目录逐个执行；`CONVIVIUM_SMOKE_SCENARIO` 只接受下列固定值，脚本入口是 `plugin/scripts/smoke-profile/index.mjs`，不得改写为不存在的 lifecycle runner：
+从仓库根目录执行：
 
 ```sh
-env CONVIVIUM_SMOKE_SCENARIO=timeout pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=reassign pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=task-handraise pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=completion-end pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=risk-reopen pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=archive-continuation pnpm --dir plugin smoke:profile
+pnpm --dir plugin smoke:profile                         # 默认 5 个核心场景
+pnpm --dir plugin smoke:profile --all                   # 全部 14 个场景
 env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=convergence pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=convergence-stalled pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=convergence-no-consensus pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=convergence-reset pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=convergence-turn-budget-completion pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=convergence-message-budget-completion pnpm --dir plugin smoke:profile
+pnpm --dir plugin --silent smoke:profile --json         # 完整逐场景 JSON，供诊断
 ```
 
-每条命令必须退出码为 `0`，并输出 `ok: true`、与 selector 同名的 `probe.scenario` 及该场景固定 assertions。首次失败立即停止后续 selector，保留该次命令、首个 `smoke probe failed` 及有界日志路径；不得把 Host 已启动、TCP 可连或 mock 结果当作场景通过。
+一次命令只构建、打包一次，复用同一个 artifact；每个场景仍独立创建 Host、DSH_HOME、workspace、profile 和端口。cold-rebind 在自己的目录内重启 Host。场景串行，首个失败立即停止；不跨场景共享 Meeting 或 Session。默认不打印构建日志、dump-config 或大段 DTO，失败输出有界诊断。`--all` 不能与单场景或 Browser mode 组合。
 
-### Convergence selector 判据
+| 范围 | selector | 真实边界 |
+| --- | --- | --- |
+| 核心 | `baseline` | 装包、provider 创建 Session、A/C/B transcript、HTTP pause/resume |
+| 核心 | `cold-rebind` | 冷重启、持久 Session ownership 重绑、继续提交 |
+| 核心 | `cross-meeting` | 跨 Meeting/Team 隔离，清理一场不影响另一场 |
+| 核心 | `convergence-stalled` | 自动停滞终止、归档、迟到提交拒绝、Session drain |
+| 核心 | `convergence-turn-budget-completion` | 预算边界先完成业务，再由 Captain end、归档 |
+| 完整 | `timeout`、`reassign` | 定时器与人工换人后的旧 capability/Activation 清理 |
+| 完整 | `task-handraise` | Task inbox delivery、finish、HandRaise 消费与后续提交 |
+| 完整 | `completion-end` | completion/end 竞争与终态写入拒绝 |
+| 完整 | `mail-race` | inbox/mail 竞争、隐私投影、队列可复用 |
+| 完整 | `archive-continuation` | 归档材料复制与新会议身份隔离 |
+| 完整 | `decision-risk-closure`、`risk-reopen` | 决策/风险工具投影、重放与冲突 |
+| 完整 | `convergence` | Manager 无效计划的 fallback 与幂等重放 |
 
-`convergence` 保留原三项 fallback/replay/status 断言。五个新增 selector 用正式 Speaker 工具提交，完整结果由 `plugin/scripts/smoke-profile/result.mjs` 校验，不能只依据标签判定成功：
+no_consensus、进展重置和另一种预算的规则差异由 `turn-advancement.spec.ts` 覆盖，不再提供 `convergence-no-consensus`、`convergence-reset`、`convergence-message-budget-completion` selector。历史五场景运行证据仍保留，但不代表当前入口。
 
-| selector | 核心观察 |
-| --- | --- |
-| `convergence-stalled` | 四次提交，0/0→1/0→2/1，partial/stalled |
-| `convergence-no-consensus` | 合法 blocking question 持续保留，第四次 no_consensus |
-| `convergence-reset` | 第四次新 Proposal 同时重置 stall/replan，七次提交后 stalled |
-| `convergence-turn-budget-completion` | maxTurns=2；第二次业务完成进入 converging，再由 Captain completed |
-| `convergence-message-budget-completion` | maxTotalMessages=2；第二次业务完成进入 converging，再由 Captain completed |
+## 成功与 Restore
 
-五新增都必须 archived、transcript 与每次提交一致、旧 Agent 迟到提交拒绝、归档/版本不变、两个 continuable child inactive 且无 resident Session。对应 assertions 及实际结果见 [收敛运行证据](../40-readiness/CONVERGENCE-RUNTIME-VALIDATION-EVIDENCE.md)。
+整个命令退出 0，所有选定场景均输出 `PASS <scenario> <duration>ms restore=PASS`，最后报告总耗时；出现失败不得继续后续场景。PASS 在 Host 停止、该次临时根删除且端口 exclusive bind 成功后输出，不能把 ready 当成通过。共享构建临时根也在命令退出前删除。
 
-这些自动场景的 Restore 判定须等待 wrapper 完整退出，不能只读退出前的成功 JSON。记录该次最终 JSON 的 `dumpConfig` 和 `port`，核对 dumpConfig 的上两级是 OS 临时目录下该次独有的 `convivium-dsh-smoke-` 根且已不存在；再对该 port 在 127.0.0.1 exclusive bind 后立即 close，成功才证明端口已释放。失败时停止后续场景，保留精确路径/端口和有界日志，继续沿用下述失败清理规则。
+`--json` 每行保留原 profile/provider、完整 probe、dumpConfig、bootLogs，并附 `restore: "PASS"` 与耗时。路径指向已清理目录，仅供定位该次运行；失败信息中的日志尾才是自动清理后可用的诊断。Browser mode 的 ready JSON 和 URL 仍在清理前输出，须等待停止后的 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`。
+
+两个收敛归档场景由正式 `MeetingStatusResultSchema` 校验实际 archived DTO，再核对 Meeting/transcript/termination、业务完成事实、迟到提交不变性和 Session 清理。Schema 在共享构建临时目录加载一次，随最终清理删除；中间计数由 driver 在真实状态上断言，不再在输出校验器重复实现。协议拒绝读取 `ProtocolErrorV1.code`，与 DSH 工具层拒绝分别识别。
 
 ### Reassign browser-ready 模式
 
@@ -206,3 +192,4 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 - 自动化脚本：`plugin/scripts/smoke-profile/index.mjs`
 - 插件完整运行验证：`pnpm verify:runtime`
 - 运行验证证据：`docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`
+- 当前 smoke 分层验证：[Smoke Validation Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)

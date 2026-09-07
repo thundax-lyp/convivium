@@ -10,10 +10,7 @@ import { runDecisionRiskClosureScenario } from "./scenarios/decision-risk-closur
 import {
     runConvergenceScenario,
     runConvergenceStalledScenario,
-    runConvergenceNoConsensusScenario,
-    runConvergenceResetScenario,
-    runConvergenceTurnBudgetCompletionScenario,
-    runConvergenceMessageBudgetCompletionScenario
+    runConvergenceTurnBudgetCompletionScenario
 } from "./scenarios/convergence.js";
 import { runBaselineScenario } from "./scenarios/baseline.js";
 
@@ -250,13 +247,7 @@ function registerSmokeAgent(ctx, session) {
 }
 
 async function driveParticipant(ctx, agent) {
-    if (
-        scenario === "convergence-stalled" ||
-        scenario === "convergence-no-consensus" ||
-        scenario === "convergence-reset" ||
-        scenario === "convergence-turn-budget-completion" ||
-        scenario === "convergence-message-budget-completion"
-    )
+    if (scenario === "convergence-stalled" || scenario === "convergence-turn-budget-completion")
         return;
     if (captain === undefined || meetingId === undefined) return;
     const participantId = "participant-" + String(agent.id).split("-").at(-1);
@@ -350,10 +341,7 @@ async function run(ctx) {
         scenario !== "cross-meeting" &&
         scenario !== "convergence" &&
         scenario !== "convergence-stalled" &&
-        scenario !== "convergence-no-consensus" &&
-        scenario !== "convergence-reset" &&
-        scenario !== "convergence-turn-budget-completion" &&
-        scenario !== "convergence-message-budget-completion"
+        scenario !== "convergence-turn-budget-completion"
     ) {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
@@ -470,14 +458,8 @@ async function runSelectedScenario(runtime) {
             return runCrossMeetingScenario(runtime);
         case "convergence-stalled":
             return runConvergenceStalledScenario(runtime);
-        case "convergence-no-consensus":
-            return runConvergenceNoConsensusScenario(runtime);
-        case "convergence-reset":
-            return runConvergenceResetScenario(runtime);
         case "convergence-turn-budget-completion":
             return runConvergenceTurnBudgetCompletionScenario(runtime);
-        case "convergence-message-budget-completion":
-            return runConvergenceMessageBudgetCompletionScenario(runtime);
         case "convergence":
             return runConvergenceScenario(runtime);
         default:

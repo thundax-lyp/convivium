@@ -1,11 +1,6 @@
 import type { ArchivedMeetingStatusResultV1 } from "../../../src/protocol/types.js";
 
-export type ConvergenceScenario =
-    | "convergence-stalled"
-    | "convergence-no-consensus"
-    | "convergence-reset"
-    | "convergence-turn-budget-completion"
-    | "convergence-message-budget-completion";
+export type ConvergenceScenario = "convergence-stalled" | "convergence-turn-budget-completion";
 export interface ConvergenceFixture {
     ok: true;
     scenario: ConvergenceScenario;
@@ -34,8 +29,6 @@ export interface ConvergenceFixture {
             intent: string | null;
             reason: string | null;
         }[];
-        questionId: string | null;
-        proposalId: string | null;
         endResult: { status: "completed"; terminationCode: "objective_satisfied" } | null;
         archived: ArchivedMeetingStatusResultV1;
         archivedVersion: number;
@@ -64,24 +57,6 @@ export const fixtureCases: {
         maxMessages: 100
     },
     {
-        scenario: "convergence-no-consensus",
-        count: 4,
-        checkpointCount: 3,
-        outcome: "no_consensus",
-        code: "no_consensus",
-        maxTurns: 10,
-        maxMessages: 100
-    },
-    {
-        scenario: "convergence-reset",
-        count: 7,
-        checkpointCount: 6,
-        outcome: "partial",
-        code: "stalled",
-        maxTurns: 10,
-        maxMessages: 100
-    },
-    {
         scenario: "convergence-turn-budget-completion",
         count: 2,
         checkpointCount: 2,
@@ -89,29 +64,18 @@ export const fixtureCases: {
         code: "objective_satisfied",
         maxTurns: 2,
         maxMessages: 100
-    },
-    {
-        scenario: "convergence-message-budget-completion",
-        count: 2,
-        checkpointCount: 2,
-        outcome: "converging",
-        code: "objective_satisfied",
-        maxTurns: 10,
-        maxMessages: 2
     }
 ];
 export function createConvergenceFixture(scenario: ConvergenceScenario): ConvergenceFixture {
     const c = fixtureCases.find((c) => c.scenario === scenario);
     if (!c) throw new Error("Missing fixture specification");
     const budget = c.count === 2,
-        question = scenario === "convergence-no-consensus",
-        reset = scenario === "convergence-reset",
         now = 1700000000000;
     const termination = {
         code: c.code,
         reason: c.code,
         decisionIds: [],
-        unresolvedQuestionIds: question ? ["question-d0-1"] : []
+        unresolvedQuestionIds: []
     };
     const submissions = Array.from({ length: c.count }, (_, i) => ({
         turnId: "t" + i,
@@ -138,14 +102,7 @@ export function createConvergenceFixture(scenario: ConvergenceScenario): Converg
                       "first-progress-baseline",
                       "refocus-observed",
                       "replan-observed",
-                      ...(reset
-                          ? [
-                                "progress-resets-both-counters",
-                                "refocus-after-reset",
-                                "replan-after-reset"
-                            ]
-                          : []),
-                      question ? "blocking-question-no-consensus" : "partial-stalled"
+                      "partial-stalled"
                   ]),
             "terminal-submit-rejected",
             "archive-consistent",
@@ -165,8 +122,6 @@ export function createConvergenceFixture(scenario: ConvergenceScenario): Converg
                 intent: budget && i === 1 ? null : i % 3 === 0 ? "explore" : "refocus",
                 reason: budget && i === 1 ? null : ["explore", "refocus", "replan"][i % 3]
             })),
-            questionId: question ? "question-d0-1" : null,
-            proposalId: reset ? "d3-proposal-1" : null,
             endResult: budget
                 ? { status: "completed", terminationCode: "objective_satisfied" }
                 : null,
@@ -253,34 +208,8 @@ export function createConvergenceFixture(scenario: ConvergenceScenario): Converg
                             taskIds: [],
                             createdAt: now + i
                         })),
-                        unresolvedQuestions: question
-                            ? [
-                                  {
-                                      id: "question-d0-1",
-                                      text: "Unresolved smoke criterion",
-                                      askedBy: "participant-a",
-                                      agendaItemId: "agenda-agenda-1",
-                                      blocking: true,
-                                      affectedOutputIds: [],
-                                      affectedCriterionIds: ["criterion-smoke-order"],
-                                      violatedConstraintIds: [],
-                                      status: "open"
-                                  }
-                              ]
-                            : [],
-                        proposals: reset
-                            ? [
-                                  {
-                                      id: "d3-proposal-1",
-                                      agendaItemId: "agenda-agenda-1",
-                                      title: "New structured progress",
-                                      description: "A new proposal after replan",
-                                      revision: 1,
-                                      status: "draft",
-                                      positions: []
-                                  }
-                              ]
-                            : [],
+                        unresolvedQuestions: [],
+                        proposals: [],
                         completionFacts: budget
                             ? [
                                   {

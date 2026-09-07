@@ -4,7 +4,7 @@ import { constants, createWriteStream } from "node:fs";
 import { access, cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
 import { assertBrowserClientPreflight } from "./browser-client-preflight.mjs";
@@ -42,17 +42,55 @@ export const SMOKE_SCENARIOS = [
     "cross-meeting",
     "convergence",
     "convergence-stalled",
-    "convergence-no-consensus",
-    "convergence-reset",
-    "convergence-turn-budget-completion",
-    "convergence-message-budget-completion"
+    "convergence-turn-budget-completion"
 ];
-const SMOKE_SCENARIO = process.env.CONVIVIUM_SMOKE_SCENARIO ?? "baseline";
+export const CORE_SCENARIOS = [
+    "baseline",
+    "cold-rebind",
+    "cross-meeting",
+    "convergence-stalled",
+    "convergence-turn-budget-completion"
+];
+
+export function selectScenarios(args, scenario, browserMode) {
+    if (args.some((arg) => !["--all", "--json"].includes(arg)))
+        throw new Error("Usage: smoke:profile [--all] [--json]");
+    if (args.includes("--all") && (scenario || browserMode))
+        throw new Error("--all cannot be combined with a scenario or Browser mode.");
+    if (scenario && !SMOKE_SCENARIOS.includes(scenario))
+        throw new Error("Unsupported CONVIVIUM_SMOKE_SCENARIO: " + scenario);
+    return scenario
+        ? [scenario]
+        : browserMode
+          ? ["baseline"]
+          : args.includes("--all")
+            ? [...SMOKE_SCENARIOS]
+            : [...CORE_SCENARIOS];
+}
 
 const tempPrefix = join(tmpdir(), "convivium-dsh-smoke-");
 
 let tempRoot;
 let bootProcess;
+let activePort;
+
+export async function loadMeetingStatusSchema(outDir) {
+    const { build } = await import("tsdown");
+    await build({
+        config: false,
+        logLevel: "silent",
+        entry: { status: fileURLToPath(new URL("../../src/protocol/status.ts", import.meta.url)) },
+        outDir,
+        format: "esm",
+        platform: "node",
+        target: "node22.19",
+        dts: false,
+        clean: false,
+        deps: { alwaysBundle: [/./] },
+        outExtensions: () => ({ js: ".mjs" })
+    });
+    return (await import(pathToFileURL(join(outDir, "status.mjs")).href)).MeetingStatusResultSchema;
+}
 
 function validateTimeout(value, name) {
     if (!Number.isInteger(value) || value <= 0) {
@@ -90,11 +128,9 @@ function runCommand(command, args, options = {}) {
         child.stderr.setEncoding("utf8");
         child.stdout.on("data", (chunk) => {
             stdout += chunk;
-            process.stdout.write(chunk);
         });
         child.stderr.on("data", (chunk) => {
-            stderr += chunk;
-            process.stderr.write(chunk);
+            stderr = (stderr + chunk).slice(-8000);
         });
         child.on("error", (error) => {
             settled = true;
@@ -109,7 +145,9 @@ function runCommand(command, args, options = {}) {
                 return;
             }
             rejectCommand(
-                new Error(`${command} ${args.join(" ")} exited with code ${code ?? signal}.`)
+                new Error(
+                    `${command} ${args.join(" ")} exited with code ${code ?? signal}.\n${stdout.slice(-4000)}\n${stderr}`
+                )
             );
         });
     });
@@ -180,15 +218,15 @@ async function packArtifact(artifactDir) {
     return artifact;
 }
 
-async function writeSmokePatch(path) {
+async function writeSmokePatch(path, scenario) {
     const patch = [
         "- id: convivium",
         "  config:",
         `    provider: ${PROVIDER}`,
         "    dataRoot: convivium-smoke-data",
         "    maxParticipants: 3",
-        `    speakerTimeoutMs: ${process.env.CONVIVIUM_SMOKE_SCENARIO === "timeout" ? 250 : BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
-        `    outboxPollMs: ${process.env.CONVIVIUM_SMOKE_SCENARIO === "timeout" ? 25 : 1000}`,
+        `    speakerTimeoutMs: ${scenario === "timeout" ? 250 : BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
+        `    outboxPollMs: ${scenario === "timeout" ? 25 : 1000}`,
         ""
     ].join("\n");
     await writeFile(path, patch, "utf8");
@@ -337,10 +375,10 @@ async function stopHost() {
     });
 }
 
-async function restore() {
+async function restore(root = tempRoot) {
     await stopHost();
-    if (tempRoot === undefined) return;
-    const resolvedTempRoot = resolve(tempRoot);
+    if (root === undefined) return;
+    const resolvedTempRoot = resolve(root);
     if (!resolvedTempRoot.startsWith(resolve(tmpdir()) + sep)) {
         throw new Error(`Refusing to remove non-temporary smoke root: ${resolvedTempRoot}`);
     }
@@ -365,6 +403,10 @@ async function restore() {
     if (await pathExists(resolvedTempRoot)) {
         throw new Error(`Smoke restore failed to remove ${resolvedTempRoot}.`);
     }
+    if (activePort !== undefined) {
+        await assertPortReleased(activePort);
+        activePort = undefined;
+    }
 }
 
 export function waitForBrowserStop() {
@@ -376,20 +418,11 @@ export function waitForBrowserStop() {
     });
 }
 
-async function main() {
-    validateTimeout(BOOT_TIMEOUT_MS, "CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS");
-    validateTimeout(COMMAND_TIMEOUT_MS, "CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS");
-    if (!SMOKE_SCENARIOS.includes(SMOKE_SCENARIO)) {
-        throw new Error(`Unsupported CONVIVIUM_SMOKE_SCENARIO: ${SMOKE_SCENARIO}.`);
-    }
-    await access(join(pluginRoot, "package.json"), constants.R_OK);
-    const deepSeekApiKey = await loadSmokeApiKey(resolve(pluginRoot, "..", "dev.env"));
-
+async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekApiKey) {
     tempRoot = await mkdtemp(tempPrefix);
     const dshHome = join(tempRoot, "dsh-home");
     const workspaceDir = join(tempRoot, "workspace");
     const logsDir = join(tempRoot, "logs");
-    const artifactDir = join(tempRoot, "artifact");
     const probeDir = join(tempRoot, "probe");
     const controlDir = join(tempRoot, "control");
     const patchPath = join(tempRoot, "convivium-smoke.patch.yml");
@@ -398,9 +431,8 @@ async function main() {
     await mkdir(dshHome, { recursive: true });
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(logsDir, { recursive: true });
-    await mkdir(artifactDir, { recursive: true });
-    if (SMOKE_SCENARIO === "cold-rebind") await mkdir(controlDir, { recursive: true });
-    await writeSmokePatch(patchPath);
+    if (scenario === "cold-rebind") await mkdir(controlDir, { recursive: true });
+    await writeSmokePatch(patchPath, scenario);
     await writeProbePackage(probeDir);
 
     const env = createSmokeEnvironment(process.env, {
@@ -408,30 +440,21 @@ async function main() {
         DSH_TELEMETRY_DISABLED: "1",
         DSH_PERMISSION_MODE: "workspace-write",
         CONVIVIUM_SMOKE_RESULT: resultPath,
-        CONVIVIUM_SMOKE_SCENARIO: SMOKE_SCENARIO,
-        ...(SMOKE_SCENARIO === "cold-rebind"
+        CONVIVIUM_SMOKE_SCENARIO: scenario,
+        ...(scenario === "cold-rebind"
             ? { CONVIVIUM_SMOKE_COLD_CHECKPOINT: coldCheckpointPath }
             : {})
     });
     const port = await allocatePort();
-    const artifact = await packArtifact(artifactDir);
+    activePort = port;
     await installArtifact(env, artifact);
     await installProbe(env, probeDir);
     const dumpPath = await dumpConfig(env, patchPath, logsDir);
     const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);
     let bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port);
     let probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
-    if (SMOKE_SCENARIO === "cold-rebind" && probeResult.phase1Complete === true) {
-        const checkpoint = validateColdCheckpoint(
-            JSON.parse(await readFile(coldCheckpointPath, "utf8"))
-        );
-        let missingFieldRejected = false;
-        try {
-            validateColdCheckpoint({ ...checkpoint, managerPlanningAttemptId: undefined });
-        } catch {
-            missingFieldRejected = true;
-        }
-        if (!missingFieldRejected) throw new Error("Cold checkpoint missing-field check failed.");
+    if (scenario === "cold-rebind" && probeResult.phase1Complete === true) {
+        validateColdCheckpoint(JSON.parse(await readFile(coldCheckpointPath, "utf8")));
         await stopHost();
         await writeFile(resultPath, "", "utf8");
         await rm(resultPath + ".tmp", { force: true });
@@ -450,34 +473,80 @@ async function main() {
                 `stderr tail:\n${stderrTail}`
         );
     }
-    probeResult = validateScenarioResult(probeResult, SMOKE_SCENARIO);
+    probeResult = validateScenarioResult(probeResult, scenario, validateMeetingStatus);
 
     await stat(dumpPath);
     if (BROWSER_MODE && probeResult.browserReady === true) {
         const origin = `http://${HOST}:${port}`;
         await assertBrowserClientPreflight(origin, globalThis.fetch, BOOT_TIMEOUT_MS);
     }
-    console.log(
-        JSON.stringify(
-            {
-                ok: true,
-                profile: PROFILE,
-                provider: PROVIDER,
-                port,
-                artifact: basename(artifact),
-                probe: probeResult,
-                dumpConfig: dumpPath,
-                bootLogs
-            },
-            null,
-            2
-        )
-    );
+    const result = {
+        ok: true,
+        scenario,
+        profile: PROFILE,
+        provider: PROVIDER,
+        port,
+        artifact: basename(artifact),
+        probe: probeResult,
+        dumpConfig: dumpPath,
+        bootLogs
+    };
     if (BROWSER_MODE) {
+        console.log(JSON.stringify(result));
         console.log(`CONVIVIUM_SMOKE_BROWSER_URL=http://${HOST}:${port}`);
         console.log(`CONVIVIUM_SMOKE_TEMP_ROOT=${tempRoot}`);
         await waitForBrowserStop();
     }
+    return result;
+}
+
+async function assertPortReleased(port) {
+    const server = createServer();
+    await new Promise((resolveListen, rejectListen) => {
+        server.once("error", rejectListen);
+        server.listen({ host: HOST, port, exclusive: true }, resolveListen);
+    });
+    await new Promise((resolveClose, rejectClose) =>
+        server.close((error) => (error ? rejectClose(error) : resolveClose()))
+    );
+}
+
+async function main() {
+    const args = process.argv.slice(2);
+    const scenarios = selectScenarios(args, process.env.CONVIVIUM_SMOKE_SCENARIO, BROWSER_MODE);
+    validateTimeout(BOOT_TIMEOUT_MS, "CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS");
+    validateTimeout(COMMAND_TIMEOUT_MS, "CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS");
+    const deepSeekApiKey = await loadSmokeApiKey(resolve(pluginRoot, "..", "dev.env"));
+    const buildRoot = await mkdtemp(tempPrefix);
+    const started = Date.now();
+    try {
+        const artifact = await packArtifact(buildRoot);
+        const schema = scenarios.some((scenario) => scenario.startsWith("convergence-"))
+            ? await loadMeetingStatusSchema(join(buildRoot, "validation"))
+            : undefined;
+        for (const scenario of scenarios) {
+            const start = Date.now();
+            let result;
+            try {
+                result = await runScenario(scenario, artifact, schema, deepSeekApiKey);
+            } catch (error) {
+                throw new Error(`Smoke ${scenario} failed: ${error.message}`, { cause: error });
+            } finally {
+                await restore();
+                tempRoot = undefined;
+            }
+            if (args.includes("--json"))
+                console.log(
+                    JSON.stringify({ ...result, restore: "PASS", durationMs: Date.now() - start })
+                );
+            else console.log(`PASS ${scenario} ${Date.now() - start}ms restore=PASS`);
+        }
+    } finally {
+        await restore(buildRoot);
+    }
+    if (BROWSER_MODE) console.log("CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok");
+    if (!args.includes("--json"))
+        console.log(`PASS ${scenarios.length} scenarios ${Date.now() - started}ms (one build)`);
 }
 
 const isMain =
@@ -485,8 +554,8 @@ const isMain =
 if (isMain) {
     try {
         await main();
-    } finally {
-        await restore();
-        if (BROWSER_MODE) console.log("CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok");
+    } catch (error) {
+        console.error(error.message);
+        process.exitCode = 1;
     }
 }

@@ -1,8 +1,10 @@
 # Convergence Runtime Validation Evidence
 
+本文保留原五场景验证历史。当前 smoke 已按覆盖层次精简为两个收敛归档场景；入口、被移除场景的领域测试落点和新验证结果见 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md)。
+
 ## Scope
 
-2026-09-07 在独立分支完成自动收敛的真实 DSH 验证。运行基线为干净提交 `5f0cc145df8dd194242220730dc1ab359e943573`；六次运行期间没有 tracked file 变化。后续提交仅迁移文档，不改变运行代码。
+2026-09-07 在独立分支完成自动收敛的真实 DSH 验证。首次运行基线为干净提交 `5f0cc145df8dd194242220730dc1ab359e943573`；六次运行期间没有 tracked file 变化。该轮后续收口仅迁移文档；Review 修复与重跑另记于文末。
 
 环境：Darwin arm64、Node `v22.23.2`、pnpm `10.7.0`、固定 DSH `0.1.1-rc.2`、profile `web`、provider `spawn`。通过标准 `pnpm --dir plugin smoke:profile`，分别设置六个 selector；每次独立 Host、临时 workspace、DSH_HOME、profile 和端口。未设置 DSH binary override 或 Browser mode；未调用真实模型。
 
@@ -78,3 +80,11 @@ no_consensus 的 question 为 `question-delivery-0-1`，askedBy=participant-a、
 S1–S7 的代码、正反例、六场景运行和 Restore 已完成；长期入口迁移到操作文档，收敛覆盖及剩余边界接入 [Current Implementation Coverage](./CURRENT-IMPLEMENTATION-COVERAGE.md)。没有改变正式产品协议、领域状态机或配置；TODO 无已登记的本任务项。
 
 收口时在 `ab4ef4c` 加本次文档 diff 的边界重新执行完整 `pnpm --dir plugin verify`，全部通过（75 files、3670 tests）；三个迁移文档共 8 个相对链接和 `git diff --check` 通过。执行期间按步骤完成、删除已完成机械段并分别提交；最终删除临时执行文档，并复查无残留引用及断链。历史失败增量备份保留供追溯；不自动清除用户原有备份。
+
+## Review 修复验证
+
+2026-09-07 在 `6e7441b` 加本次修复工作区的边界，迟到提交改为读取正式 `ProtocolErrorV1.code`；包装器在独立临时目录构建、加载 `MeetingStatusResultSchema` 并校验实际 archived DTO，随后执行原有关联断言。回归覆盖三个协议拒绝码、两个工具拒绝、错误嵌套 envelope、缺少必填归档字段、非法版本和嵌套值，以及归档残留活动预算字段。
+
+完整 `pnpm --dir plugin verify` 通过（76 files、3694 tests）。随后收窄测试故障注入，避免其他故障被迟到提交错误提前遮蔽，并区分 probe 内失败与输出校验失败；最终三个相关测试文件重跑通过（3131 tests）。
+
+五个新增 selector 经标准 `smoke:profile` 逐一重跑，均退出 0，实际 archived DTO 均通过正式 Schema；迟到提交仍为 `tool/AGENT_NOT_LIVE`。每次完整退出后，分别确认该次临时根已删除、端口可 exclusive bind，再启动下一场景，五次 Restore 均通过。未调用真实模型；三个协议拒绝分支由回归测试覆盖，不宣称本轮真实 DSH 运行触发了它们。
