@@ -4,6 +4,8 @@ Convivium is a DSH plugin for continuous, structured multi-agent meetings.
 
 The product is implemented independently in this directory. Product behavior and engineering contracts are defined by the repository-level `docs/` tree.
 
+`convivium_submit_turn` accepts optional `minutesDraft` metadata for a non-authoritative summary. It references only existing messages in the delivered context; the original transcript remains authoritative. The role does not grant additional permissions, and a draft cannot submit decisions or completion claims or block archival. See the [Protocol contract](../docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#referenced-minutes-draft) for fields and validation.
+
 ## Meeting Agent Definition
 
 FR-14 首版通过创建前切面为初始 Manager/Participant 注入角色配置，共享 Captain 已挂载的父 Preset。Host/profile 的 Convivium config 可内联定义，例如：

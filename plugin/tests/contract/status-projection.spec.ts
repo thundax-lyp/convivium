@@ -1,5 +1,6 @@
-import { meeting } from "../unit/domain/transitions/fixtures.js";
 import { materializeArchivePackage } from "../../src/runtime/services/meeting-archive-service.js";
+import { meeting as domainMeeting } from "../unit/domain/transitions/fixtures.js";
+import { meeting } from "../unit/domain/transitions/fixtures.js";
 import type { MeetingState } from "../../src/domain/model.js";
 import {
     projectManagerMeetingContext,
@@ -810,6 +811,148 @@ describe("meeting status projection", () => {
             );
         }
     );
+});
+
+describe("referenced minutes projection", () => {
+    it("copies public metadata across callers, contexts and lifecycle without private fields", () => {
+        const source = {
+            ...domainMeeting("running"),
+            ...structuredClone(state),
+            objectiveContract: domainMeeting().objectiveContract,
+            participants: [],
+            completionFacts: [],
+            artifactRefs: []
+        };
+        const metadata = {
+            status: "draft" as const,
+            coverage: { fromSeq: 1, throughSeq: 1 },
+            referencedMessageIds: ["source-1"]
+        };
+        const message = {
+            id: "source-1",
+            seq: 1,
+            turnSeq: 1,
+            turnId: "turn-1",
+            stepId: "step-1",
+            attemptId: "attempt-private",
+            speaker: "p1",
+            agendaItemId: "agenda-1",
+            agendaRelation: "on_topic" as const,
+            kind: "statement" as const,
+            content: "source",
+            mentions: [],
+            taskIds: [],
+            createdAt: 1
+        };
+        source.transcript = [
+            message,
+            {
+                ...message,
+                id: "draft-2",
+                seq: 2,
+                kind: "summary",
+                content: "minutes",
+                minutesDraft: metadata
+            }
+        ];
+        source.agenda = [
+            {
+                id: "agenda-1",
+                title: "Agenda",
+                objective: "Objective",
+                inScope: [],
+                outOfScope: [],
+                completionCriteria: [],
+                requiredParticipants: [],
+                relatedTaskIds: [],
+                status: "discussing"
+            }
+        ];
+        source.activeAgendaItemId = "agenda-1";
+        for (const kind of ["participant", "manager", "captain", "local_host"] as const) {
+            const projected = projectMeetingStatus(source, {
+                kind,
+                sessionId: "caller",
+                participantId: "p1"
+            });
+            expect(MeetingStatusResultSchema(projected).messages[1].minutesDraft).toEqual(metadata);
+            expect(projected.messages[0]).not.toHaveProperty("minutesDraft");
+            for (const secret of ["attempt-private", "leaseToken", "planning-1", "capability"])
+                expect(JSON.stringify(projected)).not.toContain(secret);
+            metadata.referencedMessageIds.push("temporary");
+            expect(projected.messages[1].minutesDraft.referencedMessageIds).toEqual(["source-1"]);
+            metadata.referencedMessageIds.pop();
+        }
+        source.currentTurn = {
+            id: "turn-2",
+            seq: 2,
+            agendaItemId: "agenda-1",
+            intent: "explore",
+            objective: "Objective",
+            expectedOutputs: [],
+            prohibitedTopics: [],
+            plan: ["p1"],
+            status: "running",
+            currentStepIndex: 0,
+            createdAt: 1,
+            steps: [
+                {
+                    id: "step-p1",
+                    speaker: "p1",
+                    instruction: "review",
+                    reason: "manager_selected",
+                    status: "running",
+                    attempt: {
+                        attemptId: "speaker-attempt",
+                        participantId: "p1",
+                        meetingId: source.id,
+                        turnId: "turn-2",
+                        stepId: "step-p1",
+                        deliveryId: "speaker-delivery",
+                        contextFromSeq: 2,
+                        contextThroughSeq: 2,
+                        taskSnapshots: [],
+                        assignedAt: 1,
+                        status: "running",
+                        deliveryStatus: "pending"
+                    }
+                }
+            ]
+        };
+        const context = projectSpeakerMeetingContext(source, "p1", "speaker-attempt");
+        expect(context.recentMessages.map((message) => message.id)).toEqual(["draft-2"]);
+        expect(context.recentMessages[0].minutesDraft).toEqual(metadata);
+        expect(
+            projectManagerMeetingContext(source, []).recentPublicMessages[1].minutesDraft
+        ).toEqual(metadata);
+        const terminal = {
+            ...source,
+            status: "cancelled" as const,
+            termination: { ...domainMeeting("cancelled").termination!, code: "user_cancelled" }
+        };
+        const terminalProjection = projectMeetingStatus(terminal, {
+            kind: "local_host",
+            sessionId: "caller"
+        });
+        expect(MeetingStatusResultSchema(terminalProjection).messages[1].minutesDraft).toEqual(
+            metadata
+        );
+        for (const status of ["archiving", "archived"] as const) {
+            const archived = {
+                ...terminal,
+                status,
+                archive: {
+                    package: materializeArchivePackage(terminal, 10),
+                    ...(status === "archived" ? { archivedAt: 11 } : {})
+                }
+            };
+            expect(
+                MeetingStatusResultSchema(
+                    projectMeetingStatus(archived, { kind: "local_host", sessionId: "caller" })
+                ).archive.package.formalTranscript[1].minutesDraft
+            ).toEqual(metadata);
+        }
+    });
 });
 
 function attendanceState() {

@@ -190,7 +190,28 @@ TaskStatus 为 requested、queued、running、completed、failed 或 cancelled�
 
 ### MeetingMessage
 
-必须包含 id、seq、turnSeq、turnId、stepId、attemptId、speaker、agendaItemId、agendaRelation、kind、content、mentions、taskIds 和 createdAt，并允许 replyTo?。
+必须包含 id、seq、turnSeq、turnId、stepId、attemptId、speaker、agendaItemId、agendaRelation、kind、content、mentions、taskIds 和 createdAt，并允许 replyTo? 和 minutesDraft?: MeetingMinutesDraft。
+
+### MeetingMinutesDraft
+
+FR-10.11 / AC41 的目标 Domain 结构如下；当前实现覆盖以 readiness 为准。Domain 独立定义，不依赖 Protocol 类型。
+
+```ts
+interface MeetingMinutesDraft {
+  readonly status: "draft";
+  readonly coverage: {
+    readonly fromSeq: number;
+    readonly throughSeq: number;
+  };
+  readonly referencedMessageIds: readonly string[];
+}
+```
+
+`MeetingMessage` 与 `ArchiveMessage` 均携带 optional minutesDraft；`SpeakerSubmissionContext.message` 的 Pick 包含该字段。正文只使用 content，无独立草稿 ID/集合/生命周期。对象字段、大小限制、可见范围、错误与兼容规则遵循 [Protocol 的 Referenced minutes draft](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#referenced-minutes-draft)。
+
+`isMeetingMinutesDraft` 只检查 metadata exact keys、literal status、范围整数/顺序和引用数量/元素/唯一性；V2 state guard 在 transcript 与 archive formalTranscript 中检查所有 present metadata，旧消息 absent 保持可读。当前 attempt 范围和正式 message 引用由 `submitSpeakerAttempt` 内的私有 `assertMinutesDraft` 校验；`submitSpeakerAndAdvanceMeeting` 在应用 claims 前拒绝混合草稿提交。校验失败不修改输入或产生部分领域事实。
+
+Runtime 生成 status，Domain 逐字段复制 metadata；不得共享 caller 可变数组/coverage。草稿只能追加，不能编辑或替代旧消息、完成事实和决议。Archive 克隆既有 transcript，归档 guard 对 metadata presence、status、coverage 与同序引用完整比较；清理重试不改变 package，Scribe 缺席、失败、替换不新增归档依赖。
 
 ### MeetingProposal And ParticipantPosition
 

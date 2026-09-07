@@ -1,11 +1,16 @@
 import Schema from "@deepseek-ai/schemastery";
 import type {
+    PublicMeetingMessageV1,
     PublicArchivePackageV1,
     LocalMeetingListItemV1,
     LocalMeetingListResponseV1,
     LocalMeetingListResultV1
 } from "./types.js";
-import { agentRoleDefinitionIdSchema, PublicAttendanceRecommendationSchema } from "./schema.js";
+import {
+    agentRoleDefinitionIdSchema,
+    PublicMinutesDraftSchema,
+    PublicAttendanceRecommendationSchema
+} from "./schema.js";
 
 const requiredString = () => Schema.string().required();
 const requiredNumber = () => Schema.number().required();
@@ -285,30 +290,37 @@ const turn = Schema.object({
     steps: requiredArray(step)
 });
 
-const message = Schema.object({
-    id: requiredString(),
-    seq: requiredNumber(),
-    turnId: requiredString(),
-    stepId: requiredString(),
-    speaker: requiredString(),
-    agendaItemId: requiredString(),
-    kind: enumOf([
-        "statement",
-        "question",
-        "answer",
-        "proposal",
-        "objection",
-        "evidence",
-        "review",
-        "summary",
-        "decision"
-    ] as const),
-    content: requiredString(),
-    mentions: requiredArray(requiredString()),
-    replyTo: Schema.string(),
-    taskIds: requiredArray(requiredString()),
-    createdAt: requiredNumber()
-});
+const message: Schema<unknown, PublicMeetingMessageV1> = Schema.transform(
+    Schema.object({
+        id: requiredString(),
+        seq: requiredNumber(),
+        turnId: requiredString(),
+        stepId: requiredString(),
+        speaker: requiredString(),
+        agendaItemId: requiredString(),
+        kind: enumOf([
+            "statement",
+            "question",
+            "answer",
+            "proposal",
+            "objection",
+            "evidence",
+            "review",
+            "summary",
+            "decision"
+        ] as const),
+        content: requiredString(),
+        mentions: requiredArray(requiredString()),
+        replyTo: Schema.string(),
+        taskIds: requiredArray(requiredString()),
+        createdAt: requiredNumber(),
+        minutesDraft: optionalObject(PublicMinutesDraftSchema)
+    }),
+    (value) => {
+        if (value.minutesDraft === null) throw new TypeError("Invalid minutes draft");
+        return value;
+    }
+) as Schema<unknown, PublicMeetingMessageV1>;
 
 const termination = Schema.object({
     code: requiredString(),

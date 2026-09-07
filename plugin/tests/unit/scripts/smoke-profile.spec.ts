@@ -24,6 +24,10 @@ it("selects core, full and isolated diagnostic runs without ambiguous options", 
     expect(selectScenarios(["--json"], "cold-rebind", false)).toEqual(["cold-rebind"]);
     expect(selectScenarios([], undefined, true)).toEqual(["baseline"]);
     expect(selectScenarios([], "reassign", true)).toEqual(["reassign"]);
+    expect(selectScenarios([], "scribe-minutes", false)).toEqual(["scribe-minutes"]);
+    expect(selectScenarios([], "scribe-minutes", true)).toEqual(["scribe-minutes"]);
+    expect(SMOKE_SCENARIOS).toHaveLength(16);
+    expect(CORE_SCENARIOS).toHaveLength(5);
     expect(() => selectScenarios(["--all"], "baseline", false)).toThrow();
     expect(() => selectScenarios(["--all"], undefined, true)).toThrow();
     expect(() => selectScenarios(["--unknown"], undefined, false)).toThrow();

@@ -1,5 +1,7 @@
 import Schema from "@deepseek-ai/schemastery";
 import type {
+    MinutesDraftInputV1,
+    PublicMinutesDraftV1,
     AttendanceRecommendationClaimV1,
     KnownMeetingProtocolErrorCodeV1,
     MeetingAgentCatalogProjectionV1,
@@ -403,3 +405,81 @@ export function validateProtocolSuccessEnvelope<T>(resultSchema: Schema<T>, valu
     }
     return envelope;
 }
+
+const minutesCoverage = Schema.transform(
+    Schema.object({ fromSeq: requiredNumber(), throughSeq: requiredNumber() }).required(),
+    (value) => {
+        assertExactKeys(value, ["fromSeq", "throughSeq"], "minutes coverage");
+        if (
+            typeof value.fromSeq !== "number" ||
+            typeof value.throughSeq !== "number" ||
+            !Number.isSafeInteger(value.fromSeq) ||
+            !Number.isSafeInteger(value.throughSeq) ||
+            value.fromSeq < 1 ||
+            value.throughSeq < value.fromSeq
+        ) {
+            throw new TypeError("Invalid minutes coverage");
+        }
+        return { fromSeq: value.fromSeq, throughSeq: value.throughSeq };
+    }
+);
+const minutesReferences = Schema.transform(Schema.array(requiredString()).required(), (value) => {
+    if (
+        value.length < 1 ||
+        value.length > 64 ||
+        new Set(value).size !== value.length ||
+        value.some((id) => id.length > 256 || !/\S/.test(id))
+    ) {
+        throw new TypeError("Invalid minutes references");
+    }
+    return value;
+});
+
+export const MinutesDraftInputSchema: Schema<unknown, MinutesDraftInputV1> = Schema.transform(
+    Schema.object({
+        coverage: minutesCoverage,
+        referencedMessageIds: minutesReferences
+    }).required(),
+    (value) => {
+        assertExactKeys(value, ["coverage", "referencedMessageIds"], "MinutesDraftInputV1");
+        if (
+            !value.coverage ||
+            typeof value.coverage.fromSeq !== "number" ||
+            typeof value.coverage.throughSeq !== "number" ||
+            !value.referencedMessageIds
+        )
+            throw new TypeError("Missing minutes fields");
+        return {
+            coverage: { fromSeq: value.coverage.fromSeq, throughSeq: value.coverage.throughSeq },
+            referencedMessageIds: value.referencedMessageIds
+        };
+    }
+) as Schema<unknown, MinutesDraftInputV1>;
+
+export const PublicMinutesDraftSchema: Schema<unknown, PublicMinutesDraftV1> = Schema.transform(
+    Schema.object({
+        status: Schema.const("draft").required(),
+        coverage: minutesCoverage,
+        referencedMessageIds: minutesReferences
+    }).required(),
+    (value) => {
+        assertExactKeys(
+            value,
+            ["status", "coverage", "referencedMessageIds"],
+            "PublicMinutesDraftV1"
+        );
+        if (
+            value.status !== "draft" ||
+            !value.coverage ||
+            typeof value.coverage.fromSeq !== "number" ||
+            typeof value.coverage.throughSeq !== "number" ||
+            !value.referencedMessageIds
+        )
+            throw new TypeError("Missing minutes fields");
+        return {
+            status: value.status,
+            coverage: { fromSeq: value.coverage.fromSeq, throughSeq: value.coverage.throughSeq },
+            referencedMessageIds: value.referencedMessageIds
+        };
+    }
+) as Schema<unknown, PublicMinutesDraftV1>;

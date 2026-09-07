@@ -481,14 +481,17 @@ export function registerSubmitAndControlTools(
             defineTool({
                 name: "convivium_submit_turn",
                 description:
-                    "Submit one formal turn message only from the current meeting Participant Session.",
+                    "Submit one formal turn message only from the current meeting Participant Session. For a non-authoritative minutes draft, use kind=summary and minutesDraft={coverage:{fromSeq,throughSeq},referencedMessageIds:[messageId]}; cite existing messages in the delivered context, use on_topic, empty changes/taskIds, and omit replyTo/completionClaims.",
                 parameters: toolParameters,
                 output: { schema: protocolOutputSchema, render: renderOutcome },
                 async execute(args, exec) {
                     return asJson(
                         await execute(args.input, {
                             validate: (value) =>
-                                TurnSubmissionSchema(value as never) as unknown as TurnSubmissionV1,
+                                // DSH freezes arguments; Schemastery transforms may write adapted fields.
+                                TurnSubmissionSchema(
+                                    structuredClone(value) as never
+                                ) as unknown as TurnSubmissionV1,
                             callers: dependencies.callers,
                             runtime: dependencies.runtime.submitTurn.bind(dependencies.runtime),
                             exec

@@ -755,6 +755,7 @@ interface PublicMeetingMessageV1 {
   replyTo?: string;
   taskIds: readonly string[];
   createdAt: number;
+  minutesDraft?: PublicMinutesDraftV1;
 }
 ```
 
@@ -827,10 +828,41 @@ interface TurnSubmissionV1 {
     | "blocking_interrupt";
   changes: PublicMeetingChangesV1;
   completionClaims?: CompletionClaimsV1;
+  minutesDraft?: MinutesDraftInputV1;
 }
 ```
 
 `TurnSubmissionV1` 的规范化内容构成幂等 request hash。相同 attempt 的重试不得改变内容。
+
+### Referenced minutes draft
+
+FR-10.11 / AC41 的最小契约使用已有 `convivium_submit_turn`：已授权当前 Speaker 的普通 Participant 可以提交引用式 `summary`。Scribe 是可选会议职责，role 字符串不授予额外权限；Manager、Captain 或非当前 Speaker 不因此获得提交权。本节规定目标契约，实现与验证状态仍以 readiness 为准。
+
+```ts
+interface MinutesDraftInputV1 {
+  readonly coverage: {
+    readonly fromSeq: number;
+    readonly throughSeq: number;
+  };
+  readonly referencedMessageIds: readonly string[];
+}
+
+interface PublicMinutesDraftV1 extends MinutesDraftInputV1 {
+  readonly status: "draft";
+}
+```
+
+- 输入 metadata 仅允许 coverage、referencedMessageIds；coverage 仅允许 fromSeq、throughSeq。公开/持久 metadata 额外必须包含 Runtime 生成的 literal status="draft"。未知字段、null、缺字段或类型错误均拒绝；optional minutesDraft 缺失时保持缺失，不生成默认草稿。
+- 范围必须为安全整数且 `1 <= fromSeq <= throughSeq`；引用为 1–64 个唯一非全空白字符串，每项 1–256 个 UTF-16 code units。保持原顺序和字符，不 trim、排序或去重。
+- 正文复用 content，带草稿时必须非全空白且不超过 8000 UTF-16 code units；必须 kind="summary"、agendaRelation="on_topic"、taskIds=[]、六类 changes 数组均 absent/empty，replyTo 与 completionClaims 必须 absent。mentions 沿用既有规则。
+- coverage 必须处于当前 attempt 已投递的 `[max(1, contextFromSeq), contextThroughSeq]` 内；提交前 transcript 的该区间必须逐 seq 连续且每 seq 恰好一条。每个引用必须唯一解析到区间内的既有正式 message；引用可以是区间子集。范围外、未来、自引用、其他 Meeting、私聊或其他对象类型 ID 均拒绝。没有可引用消息的首位 Speaker 仍可普通发言。
+- 首版只支持 message ID 引用，不支持 Fact/Decision/Issue/task result 的直接引用。coverage 只是声明的概括范围，不等于完整会议覆盖；引用合法不证明自然语言内容正确或已被 Captain 接受。
+- 草稿沿用当前 message identity、speaker、agenda、seq、createdAt 和 deliveryId 幂等键；Runtime 逐字段复制 metadata，preview/execute 复用同一输入与 commandNow。完整输入进入现有 request hash，相同合法请求返回原 receipt，改变正文、范围或引用顺序触发既有冲突；撤权后不得绕过授权重放。
+- 引用和混合 claims 在同一纯 transition 中校验；非法值或 commit 失败不得部分写入 state/event/receipt/outbox 或增加 version。Domain 语义拒绝使用 `INVALID_ENTITY_STATE`（固定消息 `Invalid minutes draft.`），公开映射非 retryable `INVALID_ARGUMENT`；Schema、身份、stale/version/terminal 的既有顺序与错误不变。
+- 草稿仅记录 Participant 提交的派生内容，不修改旧 transcript、CompletionFact、Decision、objective、termination 或 finalSummary，不解析正文为权威事实。无新增工具、事件、outbox、独立纪要集合或接受流程。
+- tool/HTTP/status、Speaker recentMessages、Manager 公开消息与 Client 传递相同 metadata，不扩大可见范围。Client 只读展示非权威 draft 标记、coverage 和有序引用。archive 保留草稿与来源消息；归档校验 metadata presence、status、两个边界与引用数组同序完全一致，丢失、注入或篡改拒绝。
+- 终态不能补交草稿；归档不等待 Scribe，缺席、timeout 或 reassign 沿用原流程且不影响正式记录。续会仍只导入显式选择的材料，不自动导入草稿或旧身份。
+- 保持 protocolVersion=1、MeetingState.formatVersion=2、ArchivePackage.schemaVersion=1。旧消息 absent 保持可读、不迁移或写回；不承诺新增字段写入后旧程序可降级读取，Host/Client 使用同一构建。现有 65,536 字节 commit 限制不变，字符限制不保证所有组合都可提交，超限不得半提交。
 
 ### Public meeting changes
 

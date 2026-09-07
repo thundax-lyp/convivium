@@ -44,7 +44,8 @@ export const SMOKE_SCENARIOS = [
     "cross-meeting",
     "convergence",
     "convergence-stalled",
-    "convergence-turn-budget-completion"
+    "convergence-turn-budget-completion",
+    "scribe-minutes"
 ];
 export const CORE_SCENARIOS = [
     "baseline",
@@ -560,7 +561,9 @@ async function main() {
     const started = Date.now();
     try {
         const artifact = await packArtifact(buildRoot);
-        const schema = scenarios.some((scenario) => scenario.startsWith("convergence-"))
+        const schema = scenarios.some(
+            (scenario) => scenario.startsWith("convergence-") || scenario === "scribe-minutes"
+        )
             ? await loadMeetingStatusSchema(join(buildRoot, "validation"))
             : undefined;
         for (const scenario of scenarios) {

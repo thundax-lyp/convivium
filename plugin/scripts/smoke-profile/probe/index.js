@@ -5,6 +5,7 @@ import { runMailRaceScenario } from "./scenarios/mail.js";
 import { runCrossMeetingScenario } from "./scenarios/isolation.js";
 import { runReassignScenario } from "./scenarios/reassign.js";
 import { runColdRebindScenario } from "./scenarios/recovery.js";
+import { runScribeMinutesScenario } from "./scenarios/scribe-minutes.js";
 import { runArchiveContinuationScenario } from "./scenarios/archive.js";
 import { runCompletionEndScenario, runTaskHandraiseScenario } from "./scenarios/completion.js";
 import { runDecisionRiskClosureScenario } from "./scenarios/decision-risk-closure.js";
@@ -258,6 +259,7 @@ async function driveParticipant(ctx, agent) {
         scenario === "reassign" ||
         scenario === "task-handraise" ||
         scenario === "archive-continuation" ||
+        scenario === "scribe-minutes" ||
         scenario === "mail-race" ||
         scenario === "cross-meeting" ||
         scenario === "decision-risk-closure" ||
@@ -340,6 +342,7 @@ async function run(ctx) {
         scenario !== "cold-rebind" &&
         scenario !== "role-composition" &&
         scenario !== "archive-continuation" &&
+        scenario !== "scribe-minutes" &&
         scenario !== "mail-race" &&
         scenario !== "cross-meeting" &&
         scenario !== "convergence" &&
@@ -470,6 +473,8 @@ async function runSelectedScenario(runtime) {
         case "cold-rebind":
         case "role-composition":
             return runColdRebindScenario(runtime);
+        case "scribe-minutes":
+            return runScribeMinutesScenario(runtime);
         case "archive-continuation":
             return runArchiveContinuationScenario(runtime);
         case "mail-race":

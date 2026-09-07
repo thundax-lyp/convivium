@@ -3107,6 +3107,164 @@ describe("create/status meeting runtime", () => {
     });
 });
 
+describe("referenced minutes runtime", () => {
+    it("authorizes, commits, replays and recovers a draft without an extra message", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-minutes-"));
+        roots.push(root);
+        let revoked = false;
+        const runtime = localRuntime(root, {
+            validateCommand: () => {
+                if (revoked)
+                    throw new RepositoryError("UNAUTHORIZED_CALLER", false, "meeting-1", "revoked");
+            }
+        });
+        const captain = {
+            sessionId: "captain-minutes",
+            kind: "captain" as const,
+            agent: { id: "captain-minutes" } as never
+        };
+        let meetingId = "";
+        let expected: unknown;
+        try {
+            const created = await runtime.createMeeting(
+                input,
+                captain,
+                new AbortController().signal
+            );
+            if (!created.ok) throw new Error("create failed");
+            meetingId = created.result.meetingId;
+            const caller = (key: string) => ({
+                sessionId: `${meetingId}-participant-participant-${key}`,
+                meetingId,
+                participantId: `participant-${key}`,
+                kind: "participant" as const
+            });
+            const source = {
+                protocolVersion: 1 as const,
+                meetingId,
+                turnId: "turn-1",
+                stepId: "step-participant-one-0",
+                attemptId: "attempt-0",
+                deliveryId: "delivery-0",
+                agendaItemId: "agenda-agenda-1",
+                kind: "statement" as const,
+                content: "source-a",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic" as const,
+                changes: {}
+            };
+            expect(await runtime.submitTurn(source, caller("one"))).toMatchObject({ ok: true });
+            const draft = {
+                ...source,
+                stepId: "step-participant-two-1",
+                attemptId: "turn-1-attempt-1",
+                deliveryId: "turn-1-delivery-1",
+                kind: "summary" as const,
+                content: "Minutes based on source-a",
+                minutesDraft: {
+                    coverage: { fromSeq: 1, throughSeq: 1 },
+                    referencedMessageIds: ["message-delivery-0"]
+                }
+            };
+            const before = await runtime.getStatus({ protocolVersion: 1, meetingId }, captain);
+            for (const denied of [
+                captain,
+                { ...caller("two"), kind: "manager" as const },
+                caller("one"),
+                { ...caller("two"), meetingId: "other" }
+            ])
+                expect(await runtime.submitTurn(draft, denied)).toMatchObject({ ok: false });
+            expect(
+                await runtime.submitTurn(
+                    {
+                        ...draft,
+                        minutesDraft: { ...draft.minutesDraft, referencedMessageIds: ["missing"] }
+                    },
+                    caller("two")
+                )
+            ).toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
+            expect(await runtime.getStatus({ protocolVersion: 1, meetingId }, captain)).toEqual(
+                before
+            );
+            const committed = await runtime.submitTurn(draft, caller("two"));
+            expect(committed).toMatchObject({
+                ok: true,
+                result: { messageId: "message-turn-1-delivery-1", messageSeq: 2 }
+            });
+            expect(await runtime.submitTurn(draft, caller("two"))).toEqual(committed);
+            for (const changed of [
+                { ...draft, content: "changed" },
+                {
+                    ...draft,
+                    minutesDraft: { ...draft.minutesDraft, coverage: { fromSeq: 1, throughSeq: 2 } }
+                },
+                {
+                    ...draft,
+                    minutesDraft: { ...draft.minutesDraft, referencedMessageIds: ["other"] }
+                }
+            ])
+                expect(await runtime.submitTurn(changed, caller("two"))).toMatchObject({
+                    ok: false,
+                    code: "IDEMPOTENCY_CONFLICT"
+                });
+            expect(
+                await runtime.submitTurn(
+                    {
+                        ...source,
+                        stepId: "step-participant-three-2",
+                        attemptId: "turn-1-attempt-2",
+                        deliveryId: "turn-1-delivery-2"
+                    },
+                    caller("three")
+                )
+            ).toMatchObject({ ok: true });
+            expect(await runtime.submitTurn(draft, caller("two"))).toEqual(committed);
+            revoked = true;
+            expect(await runtime.submitTurn(draft, caller("two"))).toMatchObject({ ok: false });
+            revoked = false;
+            const status = await runtime.getStatus({ protocolVersion: 1, meetingId }, captain);
+            expect(status).toMatchObject({
+                ok: true,
+                result: {
+                    messages: expect.arrayContaining([
+                        expect.objectContaining({
+                            id: "message-turn-1-delivery-1",
+                            content: draft.content
+                        })
+                    ])
+                }
+            });
+            expected = status;
+        } finally {
+            await runtime.dispose();
+        }
+        const registry = await openTestRegistry(root);
+        try {
+            const recovered = await registry.openMeeting({ teamId: "team-1", meetingId });
+            const state = (await recovered.read()).state;
+            expect(state.transcript[1]).toMatchObject({
+                content: "Minutes based on source-a",
+                minutesDraft: {
+                    status: "draft",
+                    coverage: { fromSeq: 1, throughSeq: 1 },
+                    referencedMessageIds: ["message-delivery-0"]
+                }
+            });
+        } finally {
+            await registry.close();
+        }
+        const reopened = localRuntime(root);
+        try {
+            expect(await reopened.getStatus({ protocolVersion: 1, meetingId }, captain)).toEqual(
+                expected
+            );
+        } finally {
+            await reopened.dispose();
+        }
+    });
+});
+
 describe("FR14 creation and replay contract", () => {
     const selected = {
         ...input,

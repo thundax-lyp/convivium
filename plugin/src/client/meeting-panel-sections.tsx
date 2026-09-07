@@ -112,7 +112,20 @@ export function renderObservabilitySections(
                               row("Speaker", message.speaker),
                               row("Kind", message.kind),
                               row("Content", message.content),
-                              row("Agenda item", message.agendaItemId)
+                              row("Agenda item", message.agendaItemId),
+                              ...(message.minutesDraft === undefined
+                                  ? []
+                                  : [
+                                        row("Record type", "Minutes draft (non-authoritative)"),
+                                        row(
+                                            "Coverage",
+                                            `messages ${message.minutesDraft.coverage.fromSeq}–${message.minutesDraft.coverage.throughSeq}`
+                                        ),
+                                        row(
+                                            "Referenced message IDs",
+                                            message.minutesDraft.referencedMessageIds.join(", ")
+                                        )
+                                    ])
                           )
                       )
                   )

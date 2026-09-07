@@ -1,5 +1,9 @@
 import Schema from "@deepseek-ai/schemastery";
-import { AttendanceRecommendationClaimSchema, ProtocolVersionSchema } from "./schema.js";
+import {
+    AttendanceRecommendationClaimSchema,
+    MinutesDraftInputSchema,
+    ProtocolVersionSchema
+} from "./schema.js";
 import type {
     CaptainRiskDispositionInputV1,
     CaptainAttendanceDispositionInputV1,
@@ -503,28 +507,52 @@ export const ManagerPlanSubmissionSchema: Schema<unknown, ManagerPlanSubmissionV
         return value as ManagerPlanSubmissionV1;
     }) as Schema<unknown, ManagerPlanSubmissionV1>;
 
-export const TurnSubmissionSchema: Schema<Record<string, unknown>> = Schema.object({
-    protocolVersion: ProtocolVersionSchema,
-    meetingId: string(),
-    turnId: string(),
-    stepId: string(),
-    attemptId: string(),
-    deliveryId: string(),
-    agendaItemId: string(),
-    kind: publicMessageKind,
-    content: string(),
-    mentions: array(string()),
-    replyTo: Schema.string(),
-    taskIds: array(string()),
-    agendaRelation: enumOf([
-        "on_topic",
-        "supporting_context",
-        "new_topic_candidate",
-        "blocking_interrupt"
-    ] as const),
-    changes: meetingChanges.required(),
-    completionClaims: optionalObject(completionClaims)
-});
+export const TurnSubmissionSchema: Schema<Record<string, unknown>> = Schema.transform(
+    Schema.object({
+        protocolVersion: ProtocolVersionSchema,
+        meetingId: string(),
+        turnId: string(),
+        stepId: string(),
+        attemptId: string(),
+        deliveryId: string(),
+        agendaItemId: string(),
+        kind: publicMessageKind,
+        content: string(),
+        mentions: array(string()),
+        replyTo: Schema.string(),
+        taskIds: array(string()),
+        agendaRelation: enumOf([
+            "on_topic",
+            "supporting_context",
+            "new_topic_candidate",
+            "blocking_interrupt"
+        ] as const),
+        changes: meetingChanges.required(),
+        completionClaims: optionalObject(completionClaims),
+        minutesDraft: optionalObject(MinutesDraftInputSchema)
+    }),
+    (value) => {
+        if (
+            value.minutesDraft !== undefined &&
+            (value.minutesDraft === null ||
+                value.kind !== "summary" ||
+                typeof value.content !== "string" ||
+                !/\S/.test(value.content) ||
+                value.content.length > 8000 ||
+                value.agendaRelation !== "on_topic" ||
+                !Array.isArray(value.taskIds) ||
+                value.taskIds.length !== 0 ||
+                Object.prototype.hasOwnProperty.call(value, "replyTo") ||
+                Object.prototype.hasOwnProperty.call(value, "completionClaims") ||
+                !value.changes ||
+                Object.values(value.changes).some(
+                    (claims) => Array.isArray(claims) && claims.length > 0
+                ))
+        )
+            throw new TypeError("Invalid minutes draft");
+        return value;
+    }
+);
 
 export const HandRaiseSubmissionSchema = Schema.object({
     protocolVersion: ProtocolVersionSchema,

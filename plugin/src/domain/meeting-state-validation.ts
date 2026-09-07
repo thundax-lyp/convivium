@@ -3,7 +3,8 @@ import type {
     AgentEvidenceScope,
     MeetingAgentCatalogSnapshot,
     ManagerCatalogBindingV1,
-    MeetingState
+    MeetingState,
+    MeetingMinutesDraft
 } from "./model.js";
 
 const roleDefinitionIds: readonly AgentRoleDefinitionId[] = [
@@ -191,6 +192,32 @@ function isAttendanceRecommendation(value: unknown): boolean {
     );
 }
 
+export function isMeetingMinutesDraft(value: unknown): value is MeetingMinutesDraft {
+    if (
+        !isRecord(value) ||
+        !hasExactKeys(value, ["status", "coverage", "referencedMessageIds"]) ||
+        value.status !== "draft" ||
+        !isRecord(value.coverage) ||
+        !hasExactKeys(value.coverage, ["fromSeq", "throughSeq"])
+    )
+        return false;
+    const { fromSeq, throughSeq } = value.coverage;
+    const ids = value.referencedMessageIds;
+    return (
+        typeof fromSeq === "number" &&
+        typeof throughSeq === "number" &&
+        Number.isSafeInteger(fromSeq) &&
+        Number.isSafeInteger(throughSeq) &&
+        fromSeq >= 1 &&
+        throughSeq >= fromSeq &&
+        isStringArray(ids) &&
+        ids.length >= 1 &&
+        ids.length <= 64 &&
+        new Set(ids).size === ids.length &&
+        ids.every((id) => id.length <= 256 && /\S/.test(id))
+    );
+}
+
 export function isMeetingStateV2(value: unknown): value is MeetingState {
     if (
         !isRecord(value) ||
@@ -199,6 +226,22 @@ export function isMeetingStateV2(value: unknown): value is MeetingState {
         !value.attendanceRecommendations.every(isAttendanceRecommendation)
     )
         return false;
+    const archive =
+        isRecord(value.archive) && isRecord(value.archive.package)
+            ? value.archive.package
+            : undefined;
+    for (const messages of [value.transcript, archive?.formalTranscript]) {
+        if (
+            Array.isArray(messages) &&
+            messages.some(
+                (message) =>
+                    isRecord(message) &&
+                    Object.prototype.hasOwnProperty.call(message, "minutesDraft") &&
+                    !isMeetingMinutesDraft(message.minutesDraft)
+            )
+        )
+            return false;
+    }
     if (!isRecord(value.manager)) return false;
     const attempt = value.manager.currentPlanningAttempt;
     return attempt === undefined || (isRecord(attempt) && isCatalogBinding(attempt.catalogBinding));

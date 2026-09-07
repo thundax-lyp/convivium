@@ -1,6 +1,6 @@
 # Current Implementation Coverage
 
-当前 smoke 默认覆盖 5 条关键跨层链路，完整套件包含 15 个场景（新增显式选择的 FR-14 角色场景）；一次构建、独立场景、清理后输出 PASS。设计调整后的执行结果与边界见 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md)；下文已注明提交的旧记录仍仅代表历史验证。
+当前 smoke 默认覆盖 5 条关键跨层链路，完整套件包含 16 个场景（包含引用式纪要与 FR-14 角色场景）；一次构建、独立场景、清理后输出 PASS。设计调整后的执行结果与边界见 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md)；下文已注明提交的旧记录仍仅代表历史验证。
 
 ## Scope
 
@@ -21,6 +21,8 @@
 - MeetingTask、HandRaise、meeting mail、completion/end、risk disposition、archive 和 continuation。
 - Proposal/Position、Decision acceptance、Question/Issue/Agenda candidate 的已实现子集及对应 projection。
 
+- 引用式纪要：原任务提交 `e9f08c2` 完成收口；发布前合入 main `a2a6fb4` 后重新通过完整 verify（82 files / 1039 tests）及真实 `scribe-minutes` 普通模式；Browser 证据对应先前合入 `03e3a0e` 的边界，本轮 Client 源码未变化；原固定回归为 7 files / 195 tests；详细证据及未覆盖边界见 [Referenced Minutes Evidence](./REFERENCED-MINUTES-VALIDATION-EVIDENCE.md)。
+
 ## Requirement Coverage
 
 | Requirement                               | 状态     | 当前覆盖                                                                                                                                         | 主要缺口                                                                                     |
@@ -34,7 +36,7 @@
 | FR-7 提案、立场与决策                     | 已实现   | Proposal revision、Position、Decision candidate、Captain/local Decision accept/supersede/revoke、单 Issue risk accept/reject、HTTP/Client 行内控制；[本地控制证据](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)                         | 本次五动作真实 DSH/Browser 已通过；其他 UI 不在范围                                                             |
 | FR-8 完成事实与会议结束                   | 已实现   | completion/end、task evidence、终态 projection、恢复和幂等、收敛预算耗尽后的 stalled/no_consensus 终止；两类硬预算业务优先真实 DSH 验证通过                                                                                       | local fact 原子性、冷恢复与归档已自动验证；时间预算未覆盖                                        |
 | FR-9 暂停、恢复与故障隔离                 | 已实现   | pause/resume、timeout、reassign/skip、interrupt/drain、cold rebind、per-Meeting isolation                                                        | 无                                                                                           |
-| FR-10 记录、隐私与归档                    | 部分实现 | transcript、meeting mail、archive、Session cleanup、continuation                                                                                 | Scribe minutes 契约、projection、状态/归档路径未实现                                         |
+| FR-10 记录、隐私与归档 | 已实现 | transcript、meeting mail、archive、Session cleanup、continuation；message-reference draft 的原子提交、持久恢复、status/Client/archive 与真实 DSH/Browser 均通过，见 [Referenced Minutes Evidence](./REFERENCED-MINUTES-VALIDATION-EVIDENCE.md) | 其他类型直接引用、模型质量和长期压力未覆盖；邮件增量跨层动态场景仍 Not Covered，采用未变动源码与持久上界契约证据 |
 | FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；新增五种 Decision/risk 行内操作、单表单写锁和错误恢复，见[本地控制证据](./CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md)    | 新增五动作真实 Browser 已验证；metrics、远程/多用户未覆盖                                 |
 | FR-12 Agent 内部能力边界                  | 已实现   | 只消费正式提交和授权 task projection，不写自定义 DSH Session Event                                                                               | 后续 Mail/Web/UI 路径须保持该边界                                                            |
 | FR-13 Agent 角色目录与参会推荐 | 部分实现 | Catalog consumer、attempt binding、safe projection、Manager pending；Captain reject/status/archive/JSONL reopen 已验证，真实 Loader 缺失推荐拒绝路径通过 | approve/admission/provisioning、与 FR-14 的动态接纳集成、UI、真实 Host producer 成功链路和本子闭环 Host 冷重启未覆盖 |
