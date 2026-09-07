@@ -29,7 +29,7 @@ Convivium MeetingAgentDefinition
 
 ## Transport Or Invocation
 
-首版目标 transport 为 Convivium `Config.agentDefinitions?: readonly MeetingAgentDefinitionV1[]`，由本地 Host/profile 配置提供，persona 使用内联字符串。省略等于空数组；不扫描文件、不自动加载 examples、不接受 URL 或任意文件路径。以下为目标契约，尚未实现。
+首版 transport 为 Convivium `Config.agentDefinitions?: readonly MeetingAgentDefinitionV1[]`，由本地 Host/profile 配置提供，persona 使用内联字符串。省略等于空数组；不扫描文件、不自动加载 examples、不接受 URL 或任意文件路径。实现验证见 [FR-14 Evidence](../40-readiness/FR14-SHARED-PRESET-ROLE-COMPOSITION-EVIDENCE.md)。
 
 创建工具的 `CreateMeetingInputV1.managerAgentDefinitionId?: string` 和 `ParticipantSpecV1.agentDefinitionId?: string` 是 Captain 可提交的唯一选择字段；值必须非空。未选择者不注入配置，显式选择但缺失不可回退。Manager 只能选择 `meeting_manager`，Participant 不得选择该角色；其他八种现有 roleDefinitionId 均可用于初始 Participant，不产生特殊 Meeting 权限。protocolVersion 保持 1，创建结果不变。
 
