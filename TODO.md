@@ -10,12 +10,6 @@
 
 以下 FR-10 任务按 T0 → T8 顺序执行，前一步 PASS 才能开始下一步。2026-09-07 用户明确要求“依次执行TODO LIST，一任务一删除一提交”；执行、逐项删除与逐项 commit 已获授权。允许文件、命令、PASS/STOP 和恢复方式以 RUNBOOK 对应步骤为准，不在此复制方案。
 
-- [ ] `FR-10 / T1 / 正式接口与设计`：落定引用式草稿契约
-    - 依据文档：[RUNBOOK T1](docs/30-designs/RUNBOOK-FR10-REFERENCED-MINUTES.md#t1落定正式接口与-domain-结构)
-    - 确认依据：2026-09-07 用户明确要求依次执行、一任务一删除一提交。
-    - 处理动作：T0 PASS 后，同步 Protocol、Domain Model 和 Orchestration Design 的草稿结构与边界。
-    - 验收点：字段、校验、错误、兼容与 RUNBOOK 第 4 节一致；明确仅 message 引用、非权威且无角色权限提升；文档检查通过。
-
 - [ ] `FR-10 / T2 / Protocol`：补齐可选草稿输入输出
     - 依据文档：[RUNBOOK T2](docs/30-designs/RUNBOOK-FR10-REFERENCED-MINUTES.md#t2输入与输出协议增量)
     - 确认依据：2026-09-07 用户明确要求依次执行、一任务一删除一提交。

@@ -432,6 +432,8 @@ Manager persona MUST 明确：
 
 ### 5.4 Messages and decision objects
 
+引用式纪要采用 [Domain MeetingMinutesDraft](./DOMAIN-MODEL-DESIGN.md#meetingminutesdraft) 和 [Protocol 引用式草稿契约](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#referenced-minutes-draft)。可选 Scribe 按普通 Participant 的当前 Speaker 权限调用既有 submit_turn；Runtime 映射 metadata，纯 transition 校验后通过同一 state/event/receipt/outbox commit 追加 summary。公开 status/context/HTTP 与 Client 只读传递该 metadata，不产生第二份纪要事实或独立生命周期。本文规定目标设计，尚未实现部分以 readiness 为准。
+
 ```ts
 type AgendaRelation =
   | "on_topic"
@@ -464,6 +466,7 @@ interface MeetingMessage {
   replyTo?: string;
   taskIds: string[];
   createdAt: number;
+  minutesDraft?: MeetingMinutesDraft;
 }
 
 interface ParticipantPosition {
@@ -1337,6 +1340,8 @@ Meeting Session 必须通过 catalog identity、Meeting domain identity、持久
 Convivium 不建立独立的 DSH Host availability 状态机。首选实现是在上述 reconciliation 完成后再注册 Meeting Web route 和会议工具；如果 DSH 插件装配要求 route 先存在，恢复期间只返回 HTTP `503` 和 `Retry-After`。DSH Agent factory、continuable provider、Session resume 和 followup 的失败沿调用边界转换为可安全展示的 `INTERNAL_ERROR`，并根据错误是否可重试设置 `retryable`；这些失败只进入诊断日志或既有 outbox retry，不修改 Meeting status、version 或 termination。
 
 ## 15. Archive And Session Cleanup
+
+引用式草稿随既有 transcript 物化；metadata 的不可变比较与兼容规则见 [Domain MeetingMinutesDraft](./DOMAIN-MODEL-DESIGN.md#meetingminutesdraft)。归档不等待草稿，不重建或提升草稿为 finalSummary；Scribe 缺席、timeout、reassign 不影响正式记录与原 Session cleanup 链路。
 
 归档单位是 Meeting 的正式成果和溯源事实，不是 AgentSession，也不是可恢复的 MeetingState 副本。`ArchiveRecord` 由不可变 `ArchivePackage` 和可后写的 `archivedAt` 状态 envelope 组成。
 
