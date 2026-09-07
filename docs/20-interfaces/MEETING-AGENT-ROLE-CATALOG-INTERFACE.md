@@ -129,16 +129,14 @@ interface CaptainAttendanceDispositionInputV1 {
   expectedMeetingVersion: number;
   requestId: string;
   recommendationId: string;
-  decision: "approve" | "reject";
+  decision: "reject";
   reason: string;
 }
 
 interface CaptainAttendanceDispositionResultV1 {
   requestId: string;
   recommendationId: string;
-  disposition: "approved" | "rejected";
-  admissionId?: string;
-  participantId?: string;
+  disposition: "rejected";
 }
 ```
 
@@ -329,3 +327,110 @@ Phase 1 固定以下 attendance error messages，且均为 `retryable=false`。�
 - `docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`
 - `docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`
 - `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`
+
+
+## Captain rejection slice
+
+
+本节固定 Captain rejection slice 的契约；当前仅协议类型与命令 Schema 已实现，Runtime、工具注册、状态及归档接线由后续步骤实现。
+
+### 输入、输出与来源
+
+`plugin/src/protocol/types.ts`：
+
+```ts
+export interface CaptainAttendanceDispositionInputV1 {
+    protocolVersion: 1;
+    meetingId: string;
+    expectedMeetingVersion: number;
+    requestId: string;
+    recommendationId: string;
+    decision: "reject";
+    reason: string;
+}
+export interface CaptainAttendanceDispositionResultV1 {
+    requestId: string;
+    recommendationId: string;
+    disposition: "rejected";
+}
+```
+
+代码类型仅声明本阶段可执行的 reject/rejected；approve、admissionId、participantId 仅作为正式文档中的未来能力说明，不进入当前 command 类型。本阶段 `CaptainAttendanceDispositionInputSchema` 只接受 `decision="reject"`，Result Schema 只接受 `disposition="rejected"` 且禁止 admissionId/participantId。输入必须精确为上面七个 required 字段，不接受额外字段或 null；三个 ID 和 reason 必须含非空白字符；expectedMeetingVersion 为非负安全整数。Schema 不 trim、不填默认值，沿用现有 Schema.object 的字段输出顺序，不承诺保留 raw input 的键顺序。Schema.object 字段按上面 InputV1 的声明顺序定义；hash 只作用于该 Schema 产出的 validated input，不作用于 raw input。direct Runtime 正向及重放测试必须先通过 CaptainAttendanceDispositionInputSchema 获得输入，再把同一个 validated object 交给 Runtime；负向直接调用仅用于验证运行期非法输入，不能放宽生产类型。reason 在 transition 中 trim 后持久化，因此同 request 的原始 reason 空白变化仍发生 hash conflict。
+
+工具输入来自 caller，Runtime 只接收 Schema 校验结果；direct Runtime caller 也必须遵守同一 validated-input 契约。输入不能携带 actor、时间、status、Session、权限或其他 ID。Runtime 从已认证 `MeetingToolCaller` 和恢复的 `StoredMeeting` 绑定 Captain；now 固定读取一次 `options.now?.() ?? Date.now()`。不创建 recommendationId、Participant ID 或 admission ID。request hash 严格使用 `serializeValidatedRequestV1(input)`；commandKind 固定 `dispose_attendance_recommendation`；callerBinding=`session:${caller.sessionId}`；capabilityId=`captain:${caller.sessionId}`。
+
+输出使用现有 `ProtocolSuccessV1<CaptainAttendanceDispositionResultV1>` envelope：requestId 和 recommendationId 原样来自输入，disposition 固定 rejected，admissionId/participantId 必须省略。meetingVersion 使用 Repository 的 committed.meetingVersion；重放返回原 receipt 的结果和版本。
+
+### Canonical state、审计与兼容
+
+`plugin/src/domain/model.ts::AttendanceRecommendation` 保留现有全部字段、所有权及生成方式；只把 status 改为 `"pending" | "rejected"`，新增 optional rejection：
+
+```ts
+rejection?: {
+    requestId: string;
+    actorBinding: string;
+    reason: string;
+    rejectedAt: number;
+};
+```
+
+Canonical owner 为 MeetingState。pending 必须完全省略 rejection；rejected 必须有且仅有上面四字段，不能为 null。requestId/actorBinding/reason 非空，actorBinding 必须以 `captain:` 开头且后缀非空；reason 已 trim，rejectedAt 为有限非负数。时间来自 Runtime 注入的 now；不得使用 Manager createdAt 或 caller 自报时间。原推荐全部其余字段保持不变。拒绝后不可再次修改，使用新 request 会返回 NOT_PENDING。
+
+新增一个 Domain-owned event `attendance_recommendation.rejected`，只写以下 payload（全部 required）：
+
+```ts
+{
+    recommendationId: string;
+    requestId: string;
+    actorBinding: string;
+    reason: string;
+    rejectedAt: number;
+}
+```
+
+payload 值来自同一次 rejection。transition 返回一条 event 且 state.eventSeq + 1，不修改 state.version/updatedAt；Repository 在单条 commit 中处理 version、时间、receipt 和 event envelope。outbox 固定 `[]`。不写 CompletionFact、transcript 或 DSH Session Event。独立 event 的依据是 FR-13.8 的独立 Captain 处置审计，不复用 Manager plan 或 Decision 事件。
+
+持久格式保留 MeetingState.formatVersion=2、PersistenceProjectionV1.formatVersion=1。旧 V2 pending 记录仍精确匹配旧字段集合，不补 rejection；无 discriminator 的 legacy 不写回、不升级，reject 返回 INVALID_ARGUMENT。未知版本和损坏结构仍沿用 SCHEMA_VERSION_UNSUPPORTED/CORRUPT_DATABASE；rejected 缺少 rejection、pending 携带 rejection、额外字段一律损坏。仅承诺新实现读取旧数据，不承诺旧程序能读取新 rejected 记录，不引入迁移或回退。
+
+### Public status 与 Archive
+
+`PublicAttendanceRecommendationV1` 新增 optional `rejection?: { reason: string; rejectedAt: number }`。pending 省略，rejected 输出两个字段；不输出 requestId、actorBinding、Manager Session、agentDefinitionId、Catalog private mapping。其他已定义 future status 不由本阶段产生。当前 active/execution-terminal 的授权和排序不变：Captain、matching Manager、仍有效 Participant；local_host/legacy 为 `[]`；archiving/archived 无顶层 attendanceRecommendations。
+
+新增 `plugin/src/domain/model.ts::ArchiveAttendanceRejection` 和 `plugin/src/protocol/types.ts::PublicArchiveAttendanceRejectionV1`，结构逐字段相同（全部 required，无 nullable/default）：
+
+```ts
+{
+    recommendationId: string;
+    candidateId: string;
+    roleDefinitionId: AgentRoleDefinitionId;
+    displayName: string;
+    agendaItemId: string;
+    reason: string;
+    rejectedAt: number;
+}
+```
+
+Protocol 对应 roleDefinitionId 类型使用已有 `AgentRoleDefinitionIdV1`，Domain 使用已有 `AgentRoleDefinitionId`，不得 Domain import Protocol。
+
+`ArchivePackage` 和 `PublicArchivePackageV1` 新增 optional `attendanceRejections?: readonly ...[]`。只包含本 Meeting 已提交 rejected；按原推荐 createdAt、id 升序排序。映射 id -> recommendationId，candidateId/roleDefinitionId/displayName/agendaItemId 原样复制，rejection.reason/rejectedAt 原样复制。没有拒绝记录时省略整个字段；有记录时必须非空、ID 唯一。不得把内部 recommendation 展开到 archive。
+
+materialize 从已提交 state 派生；archive matching 检查数组顺序、数量和全部七字段完全一致，有拒绝却缺字段必须拒绝。旧 package 缺字段且源 state 没有 rejected 时可读取，不填造历史。schemaVersion 保持 1；公开 Schema 校验字段非空、时间有限非负、role enum、精确键和 ID 唯一。已物化 archive 的 status 直接读取该 package，不从活动 state 重建拒绝列表。续会不增加导入种类。
+
+### 错误与顺序
+
+| 触发条件 | 结果 |
+| --- | --- |
+| Schema 错误，含 approve、空白 reason、额外 actor、非法 version | 现有工具 execute 的 INVALID_ARGUMENT；不调用 Runtime |
+| missing Meeting、非 captain、Session 不匹配、caller.meetingId 与 input 不符 | UNAUTHORIZED_CALLER，`Only the meeting Captain can reject an attendance recommendation.` |
+| 已授权相同 request identity/hash | Repository receipt replay；先于 version/terminal/domain 校验 |
+| 已授权同 identity 不同 hash | IDEMPOTENCY_CONFLICT；不进入 transition |
+| expected version 过旧 | VERSION_CONFLICT，retryable=true；不进入 transition |
+| domain 的 meetingId 不匹配、legacy、missing recommendation、非法 reason/actor/now、decision 不是 reject | INVALID_ARGUMENT |
+| completed/partial/no_consensus/cancelled/failed/archiving | IMMUTABLE_MEETING |
+| archived | ARCHIVED_MEETING |
+| 新 request 指向 rejected | ATTENDANCE_RECOMMENDATION_NOT_PENDING，`Attendance recommendation is not pending.`，retryable=false |
+| 其他底层异常 | mapCommandError 保留现有 Repository code，未知异常 INTERNAL_ERROR |
+
+Domain 先检查 Meeting identity、terminal、V2，再检查输入和 recommendation existence/status。Runtime 必须在 execute 的 transition callback 内进行业务校验，不得提前检查 NOT_PENDING/terminal 而破坏 receipt replay。Runtime 直接调用也必须校验 reject 分支和 reason，不能依赖工具 Schema 才避免 approve 副作用。
+
+除授权固定消息、NOT_PENDING 固定消息外，Runtime 错误统一 `The attendance recommendation could not be rejected.`，使用现有 mapCommandError；在新 application 的 catch 内读取 error.code，仅当其为 ATTENDANCE_RECOMMENDATION_NOT_PENDING 时选择该固定消息，其余选择统一消息，再传给 mapCommandError，不修改共享 mapper。错误 context 只传 meetingId，不泄露内部字段。所有失败的 state/event/receipt/outbox/version 均不变；已提交请求 replay 是读取原结果，不是终态新写入。

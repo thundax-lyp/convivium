@@ -2,6 +2,7 @@ import Schema from "@deepseek-ai/schemastery";
 import { AttendanceRecommendationClaimSchema, ProtocolVersionSchema } from "./schema.js";
 import type {
     CaptainRiskDispositionInputV1,
+    CaptainAttendanceDispositionInputV1,
     CaptainAgendaCandidateDispositionInputV1,
     CreateMeetingInputV1,
     CaptainDecisionDispositionInputV1,
@@ -605,3 +606,40 @@ export function validateReassignTurnInput(value: unknown) {
     }
     return result;
 }
+
+const captainAttendanceDispositionInput = Schema.object({
+    protocolVersion: Schema.const(1).required(),
+    meetingId: nonEmptyString(),
+    expectedMeetingVersion: number(),
+    requestId: nonEmptyString(),
+    recommendationId: nonEmptyString(),
+    decision: Schema.const("reject").required(),
+    reason: nonEmptyString()
+});
+
+export const CaptainAttendanceDispositionInputSchema: Schema<
+    unknown,
+    CaptainAttendanceDispositionInputV1
+> = Schema.transform(captainAttendanceDispositionInput, (value) => {
+    assertExactKeys(
+        value,
+        [
+            "protocolVersion",
+            "meetingId",
+            "expectedMeetingVersion",
+            "requestId",
+            "recommendationId",
+            "decision",
+            "reason"
+        ],
+        "captain attendance disposition input"
+    );
+    if (
+        typeof value.expectedMeetingVersion !== "number" ||
+        !Number.isSafeInteger(value.expectedMeetingVersion) ||
+        value.expectedMeetingVersion < 0
+    ) {
+        throw new TypeError("expectedMeetingVersion must be a non-negative safe integer");
+    }
+    return value;
+}) as Schema<unknown, CaptainAttendanceDispositionInputV1>;

@@ -9,23 +9,6 @@
 
 ## 当前任务项
 
-- [ ] `参会拒绝协议`：AR-01 固定契约与 Schema
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T1。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：AR-00 PASS。
-    - 文件（7 个）：
-
-        - `docs/20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md`
-        - `docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
-        - `plugin/src/protocol/types.ts`
-        - `plugin/src/protocol/commands.ts`
-        - `plugin/src/protocol/results.ts`
-        - `plugin/src/protocol/index.ts`
-        - `plugin/tests/contract/protocol-schema.spec.ts`
-
-    - 处理动作：按 T1 同步 reject/rejected 契约、输入输出类型、Schema 和导出，添加协议正负用例。
-    - 验收点：T1 protocol-schema 与 typecheck 通过；approve/额外字段被拒绝，hash 基于 validated input，raw 键顺序不同但值相同得到同一序列化结果。
-
 - [ ] `推荐状态与领域 transition`：AR-02 实现单条推荐拒绝
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T2。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。

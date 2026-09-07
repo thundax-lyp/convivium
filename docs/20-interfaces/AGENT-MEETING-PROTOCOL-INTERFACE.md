@@ -275,16 +275,14 @@ interface CaptainAttendanceDispositionInputV1 {
   expectedMeetingVersion: number;
   requestId: string;
   recommendationId: string;
-  decision: "approve" | "reject";
+  decision: "reject";
   reason: string;
 }
 
 interface CaptainAttendanceDispositionResultV1 {
   requestId: string;
   recommendationId: string;
-  disposition: "approved" | "rejected";
-  admissionId?: string;
-  participantId?: string;
+  disposition: "rejected";
 }
 
 interface ReassignTurnInputV1 {
@@ -1558,3 +1556,8 @@ The active status projection's convergence fields are mapped from the committed 
 - 实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
 
 本文定义 Plugin Frontend Meeting route 的路径、payload 和共享状态 projection 语义。V1 不从 DSH Web 请求取得用户或 Team authority：仅当 `webServer.host === "127.0.0.1"` 时注册 route，所有到达该 loopback Host 的请求共享本地用户边界。Host 为 `0.0.0.0`、远程访问或多用户部署不属于 V1，且必须在 route 注册前 fail closed；未来引入这些能力前必须另建用户/Team authorization interface 并以当前 DSH 公开 API 取证。
+
+
+## Captain rejection slice
+
+当前 command 仅支持 `decision="reject"`，结果仅为 `disposition="rejected"`，不包含 admissionId/participantId。批准及 admission 仍为尚未实现的未来能力。精确输入校验、validated-input hash、Canonical rejection、领域事件、公开状态、归档与失败顺序以 [Role Catalog Interface 的 Captain rejection slice](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md#captain-rejection-slice) 为唯一完整契约。当前仅协议类型与命令 Schema 已实现，Runtime/工具/status/archive 接线尚未实现。

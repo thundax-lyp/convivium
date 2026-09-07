@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+    CaptainAttendanceDispositionInputSchema,
+    CaptainAttendanceDispositionResultSchema,
     AttendanceRecommendationClaimSchema,
     CreateMeetingResultSchema,
     CreateMeetingInputSchema,
@@ -1228,3 +1230,75 @@ function validArchivedProjection() {
         archive: { package: validArchivePackage(), archivedAt: 1 }
     };
 }
+
+describe("Captain attendance rejection schema", () => {
+    const input = {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 0,
+        requestId: "reject-1",
+        recommendationId: "recommendation-1",
+        decision: "reject",
+        reason: " Not needed "
+    };
+    const result = {
+        requestId: "reject-1",
+        recommendationId: "recommendation-1",
+        disposition: "rejected"
+    };
+    it("validates only the supported command and result without trimming values", () => {
+        expect(CaptainAttendanceDispositionInputSchema(input)).toEqual(input);
+        expect(CaptainAttendanceDispositionResultSchema(result)).toEqual(result);
+    });
+    it.each(Object.keys(input))("rejects missing or null %s", (key) => {
+        const missing = { ...input };
+        Reflect.deleteProperty(missing, key);
+        expect(() => CaptainAttendanceDispositionInputSchema(missing)).toThrow();
+        expect(() => CaptainAttendanceDispositionInputSchema({ ...input, [key]: null })).toThrow();
+    });
+    it.each([
+        { decision: "approve" },
+        { reason: "  " },
+        { meetingId: " " },
+        { requestId: " " },
+        { recommendationId: " " },
+        { actor: "captain:x" },
+        ...[-1, 0.5, Infinity, NaN, Number.MAX_SAFE_INTEGER + 1].map((expectedMeetingVersion) => ({
+            expectedMeetingVersion
+        }))
+    ])("rejects invalid input %j", (change) => {
+        expect(() => CaptainAttendanceDispositionInputSchema({ ...input, ...change })).toThrow();
+    });
+    it.each([{ disposition: "approved" }, { admissionId: "a" }, { participantId: "p" }])(
+        "rejects unsupported result %j",
+        (change) => {
+            expect(() =>
+                CaptainAttendanceDispositionResultSchema({ ...result, ...change })
+            ).toThrow();
+        }
+    );
+    it.each(Object.keys(result))("rejects missing or null result %s", (key) => {
+        const missing = { ...result };
+        Reflect.deleteProperty(missing, key);
+        expect(() => CaptainAttendanceDispositionResultSchema(missing)).toThrow();
+        expect(() =>
+            CaptainAttendanceDispositionResultSchema({ ...result, [key]: null })
+        ).toThrow();
+    });
+    it("uses validated order for the request hash while preserving reason whitespace", async () => {
+        const { serializeValidatedRequestV1 } =
+            await import("../../src/protocol/request-idempotency.js");
+        const first = CaptainAttendanceDispositionInputSchema(input);
+        const reordered = CaptainAttendanceDispositionInputSchema(
+            Object.fromEntries(Object.entries(input).reverse())
+        );
+        expect(Object.keys(reordered)).toEqual(Object.keys(input));
+        expect(serializeValidatedRequestV1(first)).toBe(serializeValidatedRequestV1(reordered));
+        expect(first.reason).toBe(input.reason);
+        expect(serializeValidatedRequestV1(first)).not.toBe(
+            serializeValidatedRequestV1(
+                CaptainAttendanceDispositionInputSchema({ ...input, reason: input.reason.trim() })
+            )
+        );
+    });
+});
