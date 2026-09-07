@@ -307,25 +307,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T1.6：PASS。五个literal完整接线，独立message预算10/2与Turn预算2/100校验及B/共同矩阵通过；3018项聚焦测试、格式检查通过。 已完成机械段删除；本次提交包含本步全部变化。
 
-#### T1.7：核对完整矩阵并交付 T1
-
-前置状态：T1.0–T1.6均有PASS和独立提交。
-允许修改：只准本文；脚本测试修复若必要回到对应未满足验收项，重跑其完整验证并记录，不能绕过。
-禁止修改：产品源码、其他现有测试、runner allowlist、原 convergence 规则、共享 coverage/TODO、依赖、其他目录；本步以外半成品不得暂存。
-
-执行：逐组核对K/L/S/C/A/M/H/Q/R/B到具体it/case，一条不漏；读从0fcb586以来两个文件完整diff，记录完整五场景及边界的实际结果。删除仅本步及空T1容器，保留公共定义、矩阵、每步提交/证据。提交只包含本步新增文档变化，不重复提交已在历史中的代码。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile-contract.spec.ts
-pnpm --dir plugin exec prettier scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile-contract.spec.ts --check
-node --check plugin/scripts/smoke-profile/result.mjs
-git diff --check
-```
-允许对本步白名单中实际编辑的文件运行上述同路径 Prettier --write，然后重跑全部命令；不得格式化其他文件。
-
-PASS：全部矩阵与格式通过；没有未通过增量；本步提交后才进入T2。 所有命令退出0；测试数仅记录、不作唯一判据。按保留执行规则删除本步并单次提交。
-STOP：矩阵有缺项、原selector变化、fixture靠validator自证或共享文件混改。 保留失败增量/输出，不删本步、不提交失败内容；报告最后PASS与继续所需决定。
+执行进度 T1.7：PASS。K/L/S/C/A/M/H/Q/R/B逐组对应表驱动case；补齐旧messageId与archive层级回归、两预算互换、跨种类ID可同名正例。3055项contract+25项原source测试通过，格式/语法/diff通过。用户授权下仅补验证缺口，未弱化Result规则。T1全量完成，运行证据仍待T7。 已完成机械段删除；本次提交包含本步全部变化。
 
 ### T2：正式空提交驱动 stalled
 

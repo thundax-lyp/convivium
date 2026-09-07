@@ -694,6 +694,60 @@ describe.each(supportedCases)("runtime result $scenario", (c) => {
         ])
             for (const code of ["max_turns", "message_limit"]) change([...path, "code"], code);
     }
+    remove([...A, "meetingVersion"]);
+    for (const path of [
+        [...P, "unresolvedQuestions"],
+        [...P, "proposals"]
+    ]) {
+        if (
+            (c.scenario === "convergence-no-consensus" && path.at(-1) === "unresolvedQuestions") ||
+            (c.scenario === "convergence-reset" && path.at(-1) === "proposals")
+        ) {
+            change(path, null);
+            change(path, {});
+        }
+    }
+    it.each([null, [], {}])("rejects an invalid root %j", (value) => {
+        expect(() => validateScenarioResult(value, c.scenario)).toThrow(
+            new Error("Convergence runtime result is invalid.")
+        );
+    });
+    it("rejects legacy transcript messageId in place of id", () => {
+        const f = createConvergenceFixture(c.scenario),
+            m = f.observed.archived.archive.package.formalTranscript[0];
+        Reflect.set(m, "messageId", m.id);
+        Reflect.deleteProperty(m, "id");
+        expect(() => validateScenarioResult(f, c.scenario)).toThrow(
+            new Error("Convergence runtime result is invalid.")
+        );
+    });
+    it("accepts IDs unique within their own identity kinds", () => {
+        const f = createConvergenceFixture(c.scenario);
+        f.observed.submissions[0].attemptId = f.observed.submissions[0].turnId;
+        expect(validateScenarioResult(f, c.scenario)).toBe(f);
+    });
+    if (c.scenario === "convergence-no-consensus")
+        it("rejects archive-level questions instead of package questions", () => {
+            const f = createConvergenceFixture(c.scenario),
+                archive = f.observed.archived.archive;
+            Reflect.set(archive, "unresolvedQuestions", archive.package.unresolvedQuestions);
+            Reflect.deleteProperty(archive.package, "unresolvedQuestions");
+            expect(() => validateScenarioResult(f, c.scenario)).toThrow(
+                new Error("Convergence runtime result is invalid.")
+            );
+        });
+    if (c.count === 2)
+        it("rejects the other budget limits", () => {
+            const f = createConvergenceFixture(c.scenario);
+            f.observed.archived.limits = {
+                maxSpeakersPerTurn: 1,
+                maxTurns: c.maxTurns === 2 ? 10 : 2,
+                maxTotalMessages: c.maxMessages === 2 ? 100 : 2
+            };
+            expect(() => validateScenarioResult(f, c.scenario)).toThrow(
+                new Error("Convergence runtime result is invalid.")
+            );
+        });
     it("accepts independently checked complete evidence", () => {
         assertFixtureContract(fixture);
         expect(validateScenarioResult(fixture, c.scenario)).toBe(fixture);
