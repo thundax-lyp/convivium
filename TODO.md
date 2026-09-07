@@ -8,19 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `client/meeting-panel`：LC-05 实现单行内操作表单
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T5。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
-    - 前置依赖：LC-04 完成。
-    - 文件（3 个）：
-
-        - `plugin/src/client/meeting-panel.tsx`
-        - `plugin/src/client/meeting-panel-sections.tsx`
-        - `plugin/tests/client/client-entry.client.spec.ts`
-
-    - 处理动作：在对象行提供五动作，共用表单、证据预选、写锁、错误展示和刷新逻辑。
-    - 验收点：V5 通过；DOM 提交准确，无重复目标选择或自动 POST 重试，缓存和终态禁写，迟到响应隔离。
-
 - [ ] `tests/contract`：LC-06 验证事务、冷恢复和完整调用链
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T6。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
