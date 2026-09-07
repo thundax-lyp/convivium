@@ -144,7 +144,8 @@ function isAttendanceRecommendation(value: unknown): boolean {
             "catalogVersion",
             "planningAttemptId",
             "status",
-            "createdAt"
+            "createdAt",
+            ...(value.status === "rejected" ? ["rejection"] : [])
         ])
     )
         return false;
@@ -166,7 +167,26 @@ function isAttendanceRecommendation(value: unknown): boolean {
         typeof value.catalogId === "string" &&
         typeof value.catalogVersion === "string" &&
         typeof value.planningAttemptId === "string" &&
-        value.status === "pending" &&
+        (value.status === "pending" ||
+            (value.status === "rejected" &&
+                isRecord(value.rejection) &&
+                hasExactKeys(value.rejection, [
+                    "requestId",
+                    "actorBinding",
+                    "reason",
+                    "rejectedAt"
+                ]) &&
+                typeof value.rejection.requestId === "string" &&
+                value.rejection.requestId.trim() !== "" &&
+                typeof value.rejection.actorBinding === "string" &&
+                value.rejection.actorBinding.startsWith("captain:") &&
+                value.rejection.actorBinding.slice(8).trim() !== "" &&
+                typeof value.rejection.reason === "string" &&
+                value.rejection.reason.trim() !== "" &&
+                value.rejection.reason.trim() === value.rejection.reason &&
+                typeof value.rejection.rejectedAt === "number" &&
+                Number.isFinite(value.rejection.rejectedAt) &&
+                value.rejection.rejectedAt >= 0)) &&
         typeof value.createdAt === "number"
     );
 }

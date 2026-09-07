@@ -643,6 +643,31 @@ export interface MeetingAgentCatalogProjectionV1 {
     researchNeeds: readonly ManagerResearchNeedV1[];
 }
 
+/** Captain-only rejection; approval and Participant admission are not implemented. */
+export interface CaptainAttendanceDispositionInputV1 {
+    protocolVersion: 1;
+    meetingId: string;
+    expectedMeetingVersion: number;
+    requestId: string;
+    recommendationId: string;
+    decision: "reject";
+    reason: string;
+}
+export interface CaptainAttendanceDispositionResultV1 {
+    requestId: string;
+    recommendationId: string;
+    disposition: "rejected";
+}
+export interface PublicArchiveAttendanceRejectionV1 {
+    recommendationId: string;
+    candidateId: string;
+    roleDefinitionId: AgentRoleDefinitionIdV1;
+    displayName: string;
+    agendaItemId: string;
+    reason: string;
+    rejectedAt: number;
+}
+
 export interface AttendanceRecommendationClaimV1 {
     candidateId: string;
     agendaItemId: string;
@@ -653,6 +678,7 @@ export interface AttendanceRecommendationClaimV1 {
 }
 
 export interface PublicAttendanceRecommendationV1 extends AttendanceRecommendationClaimV1 {
+    rejection?: { reason: string; rejectedAt: number };
     recommendationId: string;
     roleDefinitionId: AgentRoleDefinitionIdV1;
     displayName: string;
@@ -986,6 +1012,7 @@ export interface PublicArchiveAgendaCandidateV1 {
 }
 
 export interface PublicArchivePackageV1 {
+    attendanceRejections?: readonly PublicArchiveAttendanceRejectionV1[];
     schemaVersion: 1;
     meetingId: string;
     teamId: string;

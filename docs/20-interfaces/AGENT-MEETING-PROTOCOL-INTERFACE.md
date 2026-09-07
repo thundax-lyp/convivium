@@ -81,7 +81,7 @@ interface ProtocolMeta {
 | `convivium_dispose_decision`                  | Captain                                                  | 替代或撤销指定正式决策                                        |
 | `convivium_dispose_risk`                      | Captain                                                  | 对指定风险作出结构化接受或拒绝处置                            |
 | `convivium_dispose_agenda_candidate`          | Captain                                                  | 提升、暂存或拒绝指定 Agenda candidate                         |
-| `convivium_dispose_attendance_recommendation` | Captain                                                  | 批准或拒绝 Manager 的参会推荐                                 |
+| `convivium_dispose_attendance_recommendation` | Captain                                                  | 拒绝 Manager 的参会推荐；批准尚未实现                                 |
 | `convivium_reassign_turn`                     | Captain                                                  | 撤销并改派或跳过当前发言位置                                  |
 | `convivium_end_meeting`                       | Captain                                                  | 正常、部分、无共识或取消结束                                  |
 
@@ -275,16 +275,14 @@ interface CaptainAttendanceDispositionInputV1 {
   expectedMeetingVersion: number;
   requestId: string;
   recommendationId: string;
-  decision: "approve" | "reject";
+  decision: "reject";
   reason: string;
 }
 
 interface CaptainAttendanceDispositionResultV1 {
   requestId: string;
   recommendationId: string;
-  disposition: "approved" | "rejected";
-  admissionId?: string;
-  participantId?: string;
+  disposition: "rejected";
 }
 
 interface ReassignTurnInputV1 {
@@ -1558,3 +1556,8 @@ The active status projection's convergence fields are mapped from the committed 
 - 实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
 
 本文定义 Plugin Frontend Meeting route 的路径、payload 和共享状态 projection 语义。V1 不从 DSH Web 请求取得用户或 Team authority：仅当 `webServer.host === "127.0.0.1"` 时注册 route，所有到达该 loopback Host 的请求共享本地用户边界。Host 为 `0.0.0.0`、远程访问或多用户部署不属于 V1，且必须在 route 注册前 fail closed；未来引入这些能力前必须另建用户/Team authorization interface 并以当前 DSH 公开 API 取证。
+
+
+## Captain rejection slice
+
+当前 command 仅支持 `decision="reject"`，结果仅为 `disposition="rejected"`，不包含 admissionId/participantId。批准及 admission 仍为尚未实现的未来能力。精确输入校验、validated-input hash、Canonical rejection、领域事件、公开状态、归档与失败顺序以 [Role Catalog Interface 的 Captain rejection slice](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md#captain-rejection-slice) 为唯一完整契约。当前协议、Captain Runtime、DSH 工具、status/archive 接线及 JSONL reopen 已实现并验证；真实 Loader 的缺失推荐拒绝路径已通过。验证边界见 [Captain Attendance Rejection Evidence](../40-readiness/CAPTAIN-ATTENDANCE-REJECTION-EVIDENCE.md)。

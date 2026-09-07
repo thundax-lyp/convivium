@@ -17,6 +17,7 @@ import type {
     ResumeMeetingInputV1,
     ReassignTurnInputV1,
     CaptainRiskDispositionInputV1,
+    CaptainAttendanceDispositionInputV1,
     CaptainDecisionAcceptanceInputV1,
     CaptainDecisionDispositionInputV1,
     CaptainAgendaCandidateDispositionInputV1,
@@ -40,6 +41,7 @@ import {
     MeetingTaskFinishInputSchema,
     HandRaiseSubmissionSchema,
     CaptainRiskDispositionInputSchema,
+    CaptainAttendanceDispositionInputSchema,
     CaptainDecisionAcceptanceInputSchema,
     CaptainDecisionDispositionInputSchema,
     CaptainAgendaCandidateDispositionInputSchema,
@@ -132,6 +134,30 @@ export function registerCreateAndStatusTools(
     dependencies: CreateAndStatusToolDependencies
 ): readonly (() => void)[] {
     return [
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_dispose_attendance_recommendation",
+                description:
+                    "Reject one attendance recommendation as the meeting Captain. Approval is not supported.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: (value) =>
+                                CaptainAttendanceDispositionInputSchema(
+                                    value as never
+                                ) as CaptainAttendanceDispositionInputV1,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.disposeAttendanceRecommendation.bind(
+                                dependencies.runtime
+                            ),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
         dependencies.registry.register(
             defineTool({
                 name: "convivium_accept_decision",
