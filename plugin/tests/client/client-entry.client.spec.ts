@@ -939,8 +939,13 @@ describe("client entry framework", () => {
         "fact visibility: malformed %s keeps cached facts until valid recovery",
         async (kind) => {
             const active = factStatus("running");
-            const initial = kind === "archiveIssues" ? factArchiveStatus("archived") : active;
-            const malformed = JSON.parse(JSON.stringify(initial)) as Record<string, unknown>;
+            const initial = active;
+            const malformedSource =
+                kind === "archiveIssues" ? factArchiveStatus("archived") : active;
+            const malformed = JSON.parse(JSON.stringify(malformedSource)) as Record<
+                string,
+                unknown
+            >;
             if (kind === "decisionHistory") delete malformed.decisionHistory;
             if (kind === "parkingLot") delete malformed.parkingLot;
             if (kind === "archiveIssues") {
@@ -950,21 +955,11 @@ describe("client entry framework", () => {
                         unknown
                     >
                 ).issues;
-                expect(() => MeetingStatusResultSchema(malformed)).toThrow();
-                return;
             }
             const fetchMock = vi
                 .fn<typeof fetch>()
-                .mockResolvedValueOnce(
-                    jsonResponse(
-                        listResponse([
-                            kind === "archiveIssues"
-                                ? { ...listItem, status: "archived" as const, meetingVersion: 6 }
-                                : listItem
-                        ])
-                    )
-                )
-                .mockResolvedValueOnce(jsonResponse(success(initial)))
+                .mockResolvedValueOnce(jsonResponse(listResponse([listItem])))
+                .mockResolvedValueOnce(jsonResponse(success(initial, 2)))
                 .mockResolvedValueOnce(jsonResponse(listResponse()))
                 .mockResolvedValueOnce(jsonResponse(success(malformed, 3)));
             vi.stubGlobal("fetch", fetchMock);
@@ -973,6 +968,19 @@ describe("client entry framework", () => {
             window.dispatchEvent(new Event("focus"));
             await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
             expect(screen.getByLabelText("Decision history").textContent).toContain("d-old");
+            if (kind === "archiveIssues") {
+                fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
+                fetchMock.mockResolvedValueOnce(
+                    jsonResponse(success(factArchiveStatus("archived"), 6))
+                );
+                window.dispatchEvent(new Event("focus"));
+                await waitFor(() =>
+                    expect(screen.getByLabelText("Risks").textContent).toContain("Waiting issue")
+                );
+                expect(
+                    screen.getByLabelText("Risks").querySelector("button,input,select")
+                ).toBeNull();
+            }
         }
     );
 
