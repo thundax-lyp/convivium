@@ -8,18 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `domain/archive`：LC-02 归档校验 local 事实来源
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T2。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。
-    - 前置依赖：LC-01 完成。
-    - 文件（2 个）：
-
-        - `plugin/src/domain/transitions/archive.ts`
-        - `plugin/tests/unit/domain/transitions/archive.spec.ts`
-
-    - 处理动作：允许与已提交源记录一致的 local 决策/风险事实归档，拒绝伪造来源。
-    - 验收点：V2 通过；合法事实完整保留，authority、actor、kind 或证据不匹配时拒绝。
-
 - [ ] `runtime/application-service`：LC-03 接线三个 local Runtime 方法
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-LOCAL-DECISION-RISK-CONTROL.md) T3。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO，一任务一删除一提交。

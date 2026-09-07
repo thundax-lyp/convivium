@@ -1,5 +1,12 @@
+import { createLocalDecisionRiskState } from "../../../fixtures/local-decision-risk.js";
+import { materializeArchivePackage } from "../../../../src/runtime/services/meeting-archive-service.js";
 import { describe, expect, it } from "vitest";
-import { transitionMeeting } from "../../../../src/domain/index.js";
+import {
+    acceptDecisionCandidate,
+    disposeDecision,
+    applyCompletionClaims,
+    transitionMeeting
+} from "../../../../src/domain/index.js";
 import { archivePackage, meeting, now } from "./fixtures.js";
 
 describe("archive transitions", () => {
@@ -298,4 +305,92 @@ describe("archive transitions", () => {
         input.package.finalSummary = "mutated after transition";
         expect(result.state.archive?.package.finalSummary).toBe("summary");
     });
+});
+
+describe("archives only committed local decision and risk facts", () => {
+    function terminal() {
+        const context = {
+            meetingId: "meeting-1",
+            actorBinding: "local-host:loopback-web",
+            authority: "local_host" as const,
+            reason: "Reviewed evidence",
+            evidenceMessageIds: ["message-1"],
+            now
+        };
+        let state = acceptDecisionCandidate(createLocalDecisionRiskState(), {
+            ...context,
+            decisionCandidateId: "candidate-1"
+        }).state;
+        state = disposeDecision(state, {
+            ...context,
+            requestId: "local-replace",
+            decisionId: "decision-candidate-1",
+            action: "supersede",
+            replacementCandidateId: "candidate-2"
+        }).state;
+        state = disposeDecision(state, {
+            ...context,
+            requestId: "local-revoke",
+            decisionId: "decision-candidate-2",
+            action: "revoke"
+        }).state;
+        for (const decision of ["accept", "reject"] as const) {
+            state = applyCompletionClaims(state, {
+                participantId: "local_host",
+                assertedBy: context.actorBinding,
+                riskAuthority: "local_host",
+                authorizedTaskIds: [],
+                now,
+                factId: (_kind, index) => `completion-local-risk-${decision}-${index}`,
+                claims: {
+                    riskAcceptance: {
+                        issueId: "risk-1",
+                        decision,
+                        reason: context.reason,
+                        evidenceMessageIds: context.evidenceMessageIds
+                    }
+                }
+            }).state;
+        }
+        state.status = "partial";
+        state.termination = meeting("partial").termination;
+        delete state.currentTurn;
+        delete state.waitState;
+        return state;
+    }
+    it("retains all six local facts, history and evidence", () => {
+        const state = terminal();
+        const before = structuredClone(state);
+        const archive = materializeArchivePackage(state, now);
+        const result = transitionMeeting(state, "archiving", {
+            now,
+            archive: { package: archive }
+        });
+        expect(state).toEqual(before);
+        expect(result.state.archive?.package.completionFacts).toEqual(state.completionFacts);
+        expect(result.state.archive?.package.completionFacts).toHaveLength(6);
+        expect(
+            result.state.archive?.package.decisionHistory.map(({ id, status }) => ({ id, status }))
+        ).toEqual(state.decisions.map(({ id, status }) => ({ id, status })));
+        expect(result.state.archive?.package.formalTranscript[0]?.id).toBe("message-1");
+    });
+    it.each(["authority", "actor", "kind", "unknown-id", "foreign-evidence", "local-waiver"])(
+        "rejects %s forgery",
+        (kind) => {
+            const state = terminal();
+            if (kind === "local-waiver") state.completionFacts[0]!.kind = "waiver";
+            const before = structuredClone(state);
+            const archive = materializeArchivePackage(state, now);
+            const fact = archive.completionFacts[0]!;
+            if (kind === "authority") fact.authority = "captain";
+            if (kind === "actor") fact.assertedBy = "local-host:another-web";
+            if (kind === "kind") fact.kind = "risk_acceptance";
+            if (kind === "unknown-id") fact.id = "unknown-fact";
+            if (kind === "foreign-evidence") fact.evidenceMessageIds = ["other-meeting-message"];
+            expect(() =>
+                transitionMeeting(state, "archiving", { now, archive: { package: archive } })
+            ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+            expect(state).toEqual(before);
+        }
+    );
 });
