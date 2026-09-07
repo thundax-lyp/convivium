@@ -311,20 +311,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T2：PASS。新增真实工具驱动与11项probe测试；两文件3066 tests PASS。为两个当前测试消费者提取convergence-fixture.ts并保持原3055项契约测试不变；根据用户允许修改RUNBOOK/代码的授权纳入本步，未改产品。 已完成机械段删除；本次提交包含本步全部变化。
 
-### T3：合法阻塞问题导致 no_consensus
-
-前置状态：T2 PASS。
-允许修改：`plugin/scripts/smoke-profile/probe/scenarios/convergence.js`、`plugin/tests/unit/scripts/convergence-probe.spec.ts`。
-禁止修改：question Schema、blocking 定义、领域测试 fixture。
-
-执行：新增 `runConvergenceNoConsensusScenario(runtime)`，严格使用“正式输入”中的第一条 question claim，后续三次空提交；第一 checkpoint 校验 question 后保存 ID，最终校验 no_consensus 与 unresolvedQuestionIds/归档 question。给 helper 的 changes 必须从本次 context criterion ID 构造；允许 changes 参数为本文件局部回调 `(context)=>changes`，其唯一用途是从真实 context 取得引用，所有场景空 changes 仍传 `{}`。在 T2 helper 内仅增加此固定对象/回调解析，不新增异步策略。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run tests/unit/scripts/convergence-probe.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
-```
-PASS：合法 question 输入与全程保留得到 fixture 校验；缺少 criterion 引用、wrong code、丢失 question 均拒绝。
-STOP：真实可达性与 `addSubmittedQuestions` 不符；不得使用无依据 blocking fixture、阻塞 Issue 或手动 end 替代。
+执行进度 T3：PASS。criterion绑定的question正式提交、三个活动checkpoint及归档保留校验已实现；15 probe +3055 contract tests PASS，缺少criterion、question丢失、错误终止码均拒绝。 已完成机械段删除；本次提交包含本步全部变化。
 
 ### T4：结构进展重置计数
 

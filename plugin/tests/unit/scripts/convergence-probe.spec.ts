@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { runConvergenceStalledScenario } from "../../../scripts/smoke-profile/probe/scenarios/convergence.js";
+import {
+    runConvergenceStalledScenario,
+    runConvergenceNoConsensusScenario
+} from "../../../scripts/smoke-profile/probe/scenarios/convergence.js";
 import { validateScenarioResult } from "../../../scripts/smoke-profile/result.mjs";
 import { createProbeSupport } from "../../../scripts/smoke-profile/probe/support.js";
 import { createConvergenceFixture, type ConvergenceScenario } from "./convergence-fixture.js";
@@ -48,6 +51,8 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
                 };
             }
             const archived = structuredClone(o.archived);
+            if (fault === "question") archived.archive.package.unresolvedQuestions = [];
+            if (fault === "code") archived.termination.code = "stalled";
             if (fault === "archive") archived.archive.package.formalTranscript.pop();
             if (late && fault === "changed") archived.topic = "changed";
             return { meetingVersion: o.archivedVersion, result: archived };
@@ -104,7 +109,10 @@ function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = 
                     step: { id: "step-" + submitted, participantId: "participant-a" },
                     attempt: { attemptId: attempt, deliveryId: "d" + submitted },
                     activeAgendaItem: { id: "agenda-agenda-1" },
-                    objectiveContract: o.archived.archive.package.objectiveContract
+                    objectiveContract:
+                        fault === "criterion"
+                            ? { acceptanceCriteria: [] }
+                            : o.archived.archive.package.objectiveContract
                 }
             };
         }),
@@ -154,6 +162,37 @@ describe("stalled convergence probe", () => {
     ])("rejects %s before publishing success", async (fault) => {
         const runtime = harness("convergence-stalled", fault);
         await expect(runConvergenceStalledScenario(runtime)).rejects.toThrow();
+        expect(runtime.writeResult).not.toHaveBeenCalled();
+    });
+});
+
+describe("blocking question convergence probe", () => {
+    it("submits a criterion-bound question and preserves its terminal identity", async () => {
+        const runtime = harness("convergence-no-consensus");
+        await runConvergenceNoConsensusScenario(runtime);
+        const turns = runtime.callTool.mock.calls.filter(
+            (call) => call[2] === "convivium_submit_turn"
+        );
+        expect(turns).toHaveLength(4);
+        expect(turns[0]![3].changes).toEqual({
+            questions: [
+                {
+                    text: "Unresolved smoke criterion",
+                    blocking: true,
+                    affectedOutputIds: [],
+                    affectedCriterionIds: ["criterion-smoke-order"],
+                    violatedConstraintIds: []
+                }
+            ]
+        });
+        expect(turns.slice(1).every((call) => Object.keys(call[3].changes).length === 0)).toBe(
+            true
+        );
+        expect(runtime.writeResult).toHaveBeenCalledOnce();
+    });
+    it.each(["criterion", "question", "code"])("rejects %s", async (fault) => {
+        const runtime = harness("convergence-no-consensus", fault);
+        await expect(runConvergenceNoConsensusScenario(runtime)).rejects.toThrow();
         expect(runtime.writeResult).not.toHaveBeenCalled();
     });
 });

@@ -174,7 +174,7 @@ async function submitConvergenceTurn(runtime, meetingId, ordinal, changes, compl
         mentions: [],
         taskIds: [],
         agendaRelation: "on_topic",
-        changes
+        changes: typeof changes === "function" ? changes(c) : changes
     };
     if (completionClaims !== undefined) input.completionClaims = completionClaims;
     const submitted = await runtime.callTool(
@@ -375,6 +375,98 @@ export async function runConvergenceStalledScenario(runtime) {
             "refocus-observed",
             "replan-observed",
             "partial-stalled",
+            "terminal-submit-rejected",
+            "archive-consistent",
+            "sessions-drained"
+        ]
+    });
+}
+
+export async function runConvergenceNoConsensusScenario(runtime) {
+    const { meetingId } = await createConvergenceMeeting(runtime, {
+        maxTurns: 10,
+        maxSpeakersPerTurn: 1,
+        maxTotalMessages: 100
+    });
+    const submissions = [],
+        checkpoints = [];
+    let final;
+    for (let ordinal = 1; ordinal <= 4; ordinal++) {
+        const turn = await submitConvergenceTurn(
+            runtime,
+            meetingId,
+            ordinal,
+            ordinal === 1
+                ? (context) => {
+                      const criterionId = context.objectiveContract.acceptanceCriteria[0]?.id;
+                      runtime.assert(criterionId, "Missing blocking question criterion");
+                      return {
+                          questions: [
+                              {
+                                  text: "Unresolved smoke criterion",
+                                  blocking: true,
+                                  affectedOutputIds: [],
+                                  affectedCriterionIds: [criterionId],
+                                  violatedConstraintIds: []
+                              }
+                          ]
+                      };
+                  }
+                : {}
+        );
+        submissions.push(recordConvergenceSubmission(turn));
+        if (ordinal < 4) {
+            assertConvergenceCheckpoint(runtime, turn.checkpoint, ordinal);
+            checkpoints.push(turn.checkpoint);
+            const status = await convergenceStatus(runtime, meetingId);
+            runtime.assert(
+                status.result.questions.some(
+                    (question) =>
+                        question.id === "question-" + submissions[0].deliveryId + "-1" &&
+                        question.blocking &&
+                        question.status === "open" &&
+                        question.affectedCriterionIds.includes(
+                            turn.delivery.value.objectiveContract.acceptanceCriteria[0].id
+                        )
+                ),
+                "Blocking question missing from active checkpoint"
+            );
+        } else {
+            runtime.assert(
+                turn.submitted.result.meetingStatus === "no_consensus" && turn.checkpoint === null,
+                "Blocking question did not terminate no_consensus"
+            );
+            final = turn;
+        }
+    }
+    const observed = {
+        submissions,
+        checkpoints,
+        questionId: "question-" + submissions[0].deliveryId + "-1",
+        proposalId: null,
+        endResult: null,
+        ...(await finishConvergenceObservation(runtime, meetingId, final.delivery, final.input))
+    };
+    assertConvergenceArchive(runtime, observed, "no_consensus");
+    runtime.assert(
+        observed.archived.archive.package.unresolvedQuestions.some(
+            (question) =>
+                question.id === observed.questionId &&
+                question.blocking &&
+                question.status === "open"
+        ) && observed.archived.termination.unresolvedQuestionIds.includes(observed.questionId),
+        "Blocking question was lost from archive"
+    );
+    await runtime.writeResult({
+        ok: true,
+        scenario: runtime.scenario,
+        meetingId,
+        observed,
+        assertions: [
+            "first-progress-baseline",
+            "refocus-observed",
+            "replan-observed",
+            "blocking-question-no-consensus",
             "terminal-submit-rejected",
             "archive-consistent",
             "sessions-drained"
