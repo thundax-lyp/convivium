@@ -198,16 +198,16 @@ function factArchiveStatus(status: "archiving" | "archived") {
             issues: [
                 ...factRisks().map(
                     ({
-                        sourceMessageId,
-                        affectedOutputIds,
-                        affectedCriterionIds,
-                        violatedConstraintIds,
-                        blockingObjectionIds,
-                        blocking,
-                        safeDefaultAvailable,
-                        impact,
-                        urgency,
-                        reversibility,
+                        sourceMessageId: _sourceMessageId,
+                        affectedOutputIds: _affectedOutputIds,
+                        affectedCriterionIds: _affectedCriterionIds,
+                        violatedConstraintIds: _violatedConstraintIds,
+                        blockingObjectionIds: _blockingObjectionIds,
+                        blocking: _blocking,
+                        safeDefaultAvailable: _safeDefaultAvailable,
+                        impact: _impact,
+                        urgency: _urgency,
+                        reversibility: _reversibility,
                         ...issue
                     }) => issue
                 ),
@@ -532,12 +532,12 @@ describe("client entry framework", () => {
     it("fact visibility: decision history keeps identity when optional fields are absent", () => {
         const decisions = factDecisions().map(
             ({
-                statement,
-                rationale,
-                acceptedBy,
-                agendaItemId,
-                dissentingPositionIds,
-                supersededByDecisionId,
+                statement: _statement,
+                rationale: _rationale,
+                acceptedBy: _acceptedBy,
+                agendaItemId: _agendaItemId,
+                dissentingPositionIds: _dissentingPositionIds,
+                supersededByDecisionId: _supersededByDecisionId,
                 ...decision
             }) => decision
         );
@@ -915,6 +915,24 @@ describe("client entry framework", () => {
             expect(screen.getByLabelText("Risks").textContent).toContain("Waiting issue")
         );
         expect(screen.getByLabelText("Current activity").textContent).toContain("Turn reasonNone");
+    });
+
+    it("fact visibility: five second poll replaces the selected fact projection", async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const active = factStatus("running");
+        const terminal = factTerminalStatus("completed");
+        const fetchMock = vi
+            .fn<typeof fetch>()
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(active)))
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(terminal, 5)));
+        vi.stubGlobal("fetch", fetchMock);
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+        await act(async () => vi.advanceTimersByTime(5_000));
+        await waitFor(() => expect(screen.getByLabelText("Termination")).toBeTruthy());
+        expect(screen.getByLabelText("Decision history").textContent).toContain("d-current");
     });
 
     it.each(["decisionHistory", "parkingLot", "archiveIssues"] as const)(
