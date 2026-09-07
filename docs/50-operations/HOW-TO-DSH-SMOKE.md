@@ -121,9 +121,31 @@ env CONVIVIUM_SMOKE_SCENARIO=cold-rebind pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=archive-continuation pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=cross-meeting pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=convergence pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=convergence-stalled pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=convergence-no-consensus pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=convergence-reset pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=convergence-turn-budget-completion pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=convergence-message-budget-completion pnpm --dir plugin smoke:profile
 ```
 
 每条命令必须退出码为 `0`，并输出 `ok: true`、与 selector 同名的 `probe.scenario` 及该场景固定 assertions。首次失败立即停止后续 selector，保留该次命令、首个 `smoke probe failed` 及有界日志路径；不得把 Host 已启动、TCP 可连或 mock 结果当作场景通过。
+
+### Convergence selector 判据
+
+`convergence` 保留原三项 fallback/replay/status 断言。五个新增 selector 用正式 Speaker 工具提交，完整结果由 `plugin/scripts/smoke-profile/result.mjs` 校验，不能只依据标签判定成功：
+
+| selector | 核心观察 |
+| --- | --- |
+| `convergence-stalled` | 四次提交，0/0→1/0→2/1，partial/stalled |
+| `convergence-no-consensus` | 合法 blocking question 持续保留，第四次 no_consensus |
+| `convergence-reset` | 第四次新 Proposal 同时重置 stall/replan，七次提交后 stalled |
+| `convergence-turn-budget-completion` | maxTurns=2；第二次业务完成进入 converging，再由 Captain completed |
+| `convergence-message-budget-completion` | maxTotalMessages=2；第二次业务完成进入 converging，再由 Captain completed |
+
+五新增都必须 archived、transcript 与每次提交一致、旧 Agent 迟到提交拒绝、归档/版本不变、两个 continuable child inactive 且无 resident Session。对应 assertions 及实际结果见 [收敛运行证据](../40-readiness/CONVERGENCE-RUNTIME-VALIDATION-EVIDENCE.md)。
+
+这些自动场景的 Restore 判定须等待 wrapper 完整退出，不能只读退出前的成功 JSON。记录该次最终 JSON 的 `dumpConfig` 和 `port`，核对 dumpConfig 的上两级是 OS 临时目录下该次独有的 `convivium-dsh-smoke-` 根且已不存在；再对该 port 在 127.0.0.1 exclusive bind 后立即 close，成功才证明端口已释放。失败时停止后续场景，保留精确路径/端口和有界日志，继续沿用下述失败清理规则。
 
 ### Reassign browser-ready 模式
 
