@@ -10,12 +10,6 @@
 
 以下 FR-10 任务按 T0 → T8 顺序执行，前一步 PASS 才能开始下一步。2026-09-07 用户明确要求“依次执行TODO LIST，一任务一删除一提交”；执行、逐项删除与逐项 commit 已获授权。允许文件、命令、PASS/STOP 和恢复方式以 RUNBOOK 对应步骤为准，不在此复制方案。
 
-- [ ] `FR-10 / T6 / Client`：只读展示草稿并区分会议事实
-    - 依据文档：[RUNBOOK T6](docs/30-designs/RUNBOOK-FR10-REFERENCED-MINUTES.md#t6client-只读草稿标识)
-    - 确认依据：2026-09-07 用户明确要求依次执行、一任务一删除一提交。
-    - 处理动作：T5 PASS 后，在原 Transcript 行展示草稿标记、覆盖范围和有序引用，补齐固定 DOM 验收用例。
-    - 验收点：Client 测试和 typecheck 通过；active/archive、刷新与切换不丢失或残留元数据；草稿与当前发言者、候选建议、任务、等待原因和正式决定可区分；不新增写入口。
-
 - [ ] `FR-10 / T7 / DSH Smoke`：验证真实引用草稿链路
     - 依据文档：[RUNBOOK T7](docs/30-designs/RUNBOOK-FR10-REFERENCED-MINUTES.md#t7真实-dsh-引用草稿场景)
     - 确认依据：2026-09-07 用户明确要求依次执行、一任务一删除一提交。
