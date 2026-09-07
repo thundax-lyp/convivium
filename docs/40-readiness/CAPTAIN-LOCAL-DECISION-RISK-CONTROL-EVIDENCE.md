@@ -71,6 +71,12 @@ A/B 的 ID 分别为 `decision-decision-candidate-turn-1-delivery-0-1`、`decisi
 
 Restore：关闭本轮 UI tab，向同一 PTY 发送一次 Ctrl-C；exit 0，输出 `PASS decision-risk-closure 177042ms restore=PASS`、`CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`、`PASS 1 scenarios 182273ms (one build)`。随后核对该次精确临时根不存在（TEMP_REMOVED），TCP 61420 连接被拒绝（PORT_RELEASED）。未手动删除临时根或终止用户 Host。
 
+### PR #54 合入后的组合回归
+
+2026-09-07，将 `origin/main` 的 `2608b122f4fc67e96c2b9f8eccb9e55b22f645fb`（PR #54）合入本分支 `351eef4`。README 和三个测试文件的追加位置冲突保留双方新增内容；两个功能的 Runtime、领域类型和归档校验自动合并后均保留。未删除测试或改写已有历史。
+
+在该合并结果上执行 `pnpm --dir plugin verify`，exit 0，77 files / 861 tests，测试耗时 74.28s；format、lint、双端 typecheck、build、environment、contract、Agent Definition 和 package 全通过。追加 `env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure pnpm --dir plugin smoke:profile`，exit 0，输出 `PASS decision-risk-closure 13137ms restore=PASS`、`PASS 1 scenarios 17993ms (one build)`。本次为真实 DSH 工具场景回归；七步 Browser 证据仍准确限定于前述 `b63697d`，未声称重新执行了 Browser。
+
 ## Not Covered
 
 - 本轮真实 smoke 未调用 LLM、未重启 Host，不证明 Host 冷恢复；冷恢复自动化证据仍以 LC-06 为准。历史 smoke 不计入本次结果。

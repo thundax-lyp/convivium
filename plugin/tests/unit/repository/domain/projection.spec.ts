@@ -253,3 +253,91 @@ describe("domain projection", () => {
         ).toThrow();
     });
 });
+
+describe("attendance rejection persistence projection", () => {
+    const recommendation = {
+        id: "recommendation-1",
+        candidateId: "candidate-1",
+        roleDefinitionId: "domain_architect",
+        roleDefinitionVersion: "1",
+        displayName: "Architect",
+        agentDefinitionId: "definition-private",
+        agendaItemId: "agenda-1",
+        rationale: "Review",
+        expectedContribution: "Review",
+        evidenceGapIds: [],
+        urgency: "current_agenda",
+        recommendedByManagerSessionId: "manager-private",
+        catalogId: "catalog-1",
+        catalogVersion: "1",
+        planningAttemptId: "planning-1",
+        status: "pending",
+        createdAt: 1
+    };
+    const rejection = {
+        requestId: "reject-1",
+        actorBinding: "captain:captain-1",
+        reason: "Not needed",
+        rejectedAt: 100
+    };
+    function bytes(state: Record<string, unknown>) {
+        const base = createProjection({
+            snapshot: {
+                teamId: "team-1",
+                meetingId: "meeting-1",
+                version: 1,
+                state: {},
+                createdAt: 1,
+                updatedAt: 1
+            },
+            bootstrap: {
+                status: "ready",
+                createRequestId: "create",
+                requestHash: "hash",
+                createdAt: 1,
+                updatedAt: 1
+            },
+            sessionOwnership: {}
+        });
+        return encodeCanonicalJson({ ...base, snapshot: { ...base.snapshot!, state } });
+    }
+    it("reads pending, rejected and legacy values without adding defaults", () => {
+        for (const state of [
+            { legacy: true },
+            { formatVersion: 2, manager: {}, attendanceRecommendations: [recommendation] },
+            {
+                formatVersion: 2,
+                manager: {},
+                attendanceRecommendations: [{ ...recommendation, status: "rejected", rejection }]
+            }
+        ]) {
+            expect(decodeProjection(bytes(state)).snapshot?.state).toEqual(state);
+        }
+    });
+    it.each([
+        { status: "rejected" },
+        { status: "rejected", rejection: null },
+        { rejection },
+        { status: "rejected", rejection: { ...rejection, extra: true } },
+        { status: "rejected", rejection: { ...rejection, actorBinding: "manager:x" } },
+        { status: "rejected", rejection: { ...rejection, reason: " " } },
+        { status: "rejected", rejection: { ...rejection, reason: " padded " } },
+        { status: "rejected", rejection: { ...rejection, rejectedAt: -1 } },
+        { status: "rejected", rejection: { reason: "Missing fields" } }
+    ])("rejects malformed recommendation %j at the Schema boundary", (change) => {
+        expect(() =>
+            decodeProjection(
+                bytes({
+                    formatVersion: 2,
+                    manager: {},
+                    attendanceRecommendations: [{ ...recommendation, ...change }]
+                })
+            )
+        ).toThrow(/MeetingState format 2 is malformed/);
+    });
+    it("keeps the unsupported-format exception at this layer", () => {
+        expect(() => decodeProjection(bytes({ formatVersion: 3 }))).toThrow(
+            UnsupportedMeetingStateFormatError
+        );
+    });
+});

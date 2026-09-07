@@ -394,3 +394,91 @@ describe("archives only committed local decision and risk facts", () => {
         }
     );
 });
+
+function attendanceState() {
+    const state = meeting("running");
+    state.attendanceRecommendations = [
+        {
+            id: "recommendation-1",
+            candidateId: "candidate-1",
+            roleDefinitionId: "domain_architect",
+            roleDefinitionVersion: "1",
+            displayName: "Architect",
+            agentDefinitionId: "private-definition",
+            agendaItemId: "agenda-1",
+            rationale: "Review",
+            expectedContribution: "Review scope",
+            evidenceGapIds: [],
+            urgency: "current_agenda",
+            recommendedByManagerSessionId: "manager-session",
+            catalogId: "catalog-1",
+            catalogVersion: "1",
+            planningAttemptId: "planning-1",
+            status: "pending",
+            createdAt: 1
+        }
+    ];
+    state.meetingTasks = [];
+    const recommendation = state.attendanceRecommendations[0]!;
+    state.attendanceRecommendations = [
+        {
+            ...recommendation,
+            id: "recommendation-b",
+            status: "rejected",
+            rejection: {
+                requestId: "reject-b",
+                actorBinding: "captain:private-session",
+                reason: "Outside scope",
+                rejectedAt: 100
+            }
+        },
+        {
+            ...recommendation,
+            id: "recommendation-a",
+            status: "rejected",
+            rejection: {
+                requestId: "reject-a",
+                actorBinding: "captain:private-session",
+                reason: "Already covered",
+                rejectedAt: 101
+            }
+        },
+        { ...recommendation, id: "pending", createdAt: 2 }
+    ];
+    return state;
+}
+it("matches every rejection field, count and order and freezes the archive", () => {
+    const state = {
+        ...attendanceState(),
+        status: "completed" as const,
+        termination: meeting("completed").termination
+    };
+    const archive = materializeArchivePackage(state, now);
+    const records = archive.attendanceRejections!;
+    const invalid = [
+        undefined,
+        [],
+        [records[0]],
+        [...records].reverse(),
+        [records[0], records[0]],
+        ...Object.keys(records[0]!).map((key) => [
+            { ...records[0], [key]: key === "rejectedAt" ? 999 : "forged" },
+            records[1]
+        ]),
+        [{ ...records[0], actorBinding: "captain:secret" }, records[1]]
+    ];
+    for (const attendanceRejections of invalid) {
+        expect(() =>
+            transitionMeeting(state, "archiving", {
+                now,
+                archive: { package: { ...archive, attendanceRejections } }
+            })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    }
+    const frozen = transitionMeeting(state, "archiving", {
+        now,
+        archive: { package: archive }
+    }).state;
+    Reflect.set(archive.attendanceRejections![0]!, "reason", "mutated");
+    expect(frozen.archive!.package.attendanceRejections![0]!.reason).toBe("Already covered");
+});

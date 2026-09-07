@@ -1,4 +1,5 @@
 import Schema from "@deepseek-ai/schemastery";
+import type { CaptainAttendanceDispositionResultV1 } from "./types.js";
 import { MeetingProtocolErrorCodeSchema, ProtocolVersionSchema } from "./schema.js";
 
 const string = () => Schema.string().required();
@@ -242,3 +243,22 @@ export const ProtocolErrorResultSchema = Schema.object({
     message: string(),
     retryable: Schema.boolean().required()
 });
+
+export const CaptainAttendanceDispositionResultSchema: Schema<
+    unknown,
+    CaptainAttendanceDispositionResultV1
+> = Schema.transform(
+    Schema.object({
+        requestId: nonEmptyString(),
+        recommendationId: nonEmptyString(),
+        disposition: Schema.const("rejected").required()
+    }),
+    (value) => {
+        assertExactKeys(
+            value,
+            ["requestId", "recommendationId", "disposition"],
+            "captain attendance disposition result"
+        );
+        return value;
+    }
+) as Schema<unknown, CaptainAttendanceDispositionResultV1>;

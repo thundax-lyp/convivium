@@ -1261,3 +1261,168 @@ it("local control commits roll back and reopen", async () => {
         await repository.close();
     }
 });
+
+function attendanceState() {
+    return {
+        formatVersion: 2,
+        id: "meeting-1",
+        teamId: "team-1",
+        status: "running",
+        manager: {},
+        eventSeq: 0,
+        attendanceRecommendations: [
+            {
+                id: "recommendation-1",
+                candidateId: "candidate-1",
+                roleDefinitionId: "domain_architect",
+                roleDefinitionVersion: "1",
+                displayName: "Architect",
+                agentDefinitionId: "private-definition",
+                agendaItemId: "agenda-1",
+                rationale: "Review",
+                expectedContribution: "Review",
+                evidenceGapIds: [],
+                urgency: "current_agenda",
+                recommendedByManagerSessionId: "manager-private",
+                catalogId: "catalog-1",
+                catalogVersion: "1",
+                planningAttemptId: "planning-1",
+                status: "pending",
+                createdAt: 1
+            }
+        ]
+    };
+}
+
+it("atomically persists one attendance rejection with receipt and empty outbox after a failed commit", async () => {
+    const { isMeetingStateV2, rejectAttendanceRecommendation } =
+        await import("../../src/domain/index.js");
+    const catalog = createFakeCatalogDomain(),
+        domain = createFakeMeetingDomain();
+    const options = {
+        catalogDomain: catalog,
+        meetingDomain: domain,
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 100
+    };
+    const repository = await DomainMeetingRepository.open(options);
+    let reopened: DomainMeetingRepository | undefined;
+    try {
+        const create = {
+            requestId: "create",
+            requestHash: "hash",
+            authorization: {
+                callerBinding: "session:captain-1",
+                capabilityId: "captain:captain-1"
+            },
+            initialState: attendanceState()
+        };
+        await repository.create(create);
+        await repository.completeCreate(create);
+        const before = loadProjection({ domain });
+        const command = {
+            requestId: "reject-1",
+            commandKind: "dispose_attendance_recommendation",
+            requestHash: "reject-hash",
+            authorization: create.authorization,
+            expectedMeetingVersion: 0,
+            transition: (snapshot: { state: unknown }) => {
+                if (!isMeetingStateV2(snapshot.state)) throw new Error("invalid fixture");
+                const result = rejectAttendanceRecommendation(snapshot.state, {
+                    meetingId: "meeting-1",
+                    requestId: "reject-1",
+                    recommendationId: "recommendation-1",
+                    actorBinding: "captain:captain-1",
+                    reason: "Not needed",
+                    now: 100
+                });
+                return {
+                    state: result.state,
+                    result: {
+                        requestId: "reject-1",
+                        recommendationId: "recommendation-1",
+                        disposition: "rejected"
+                    },
+                    events: result.effect.events,
+                    outbox: []
+                };
+            }
+        };
+        domain.failPutsInTable("commits");
+        try {
+            await expect(repository.execute(command)).rejects.toThrow();
+        } finally {
+            domain.allowPutsInTable("commits");
+        }
+        expect(loadProjection({ domain })).toEqual(before);
+        await expect(repository.read()).resolves.toEqual(before.snapshot);
+        const result = await repository.execute(command);
+        expect(result.meetingVersion).toBe(1);
+        const after = loadProjection({ domain });
+        expect(Object.keys(after.receipts)).toHaveLength(Object.keys(before.receipts).length + 1);
+        expect(Object.values(after.events)).toHaveLength(Object.keys(before.events).length + 1);
+        expect(Object.values(after.events).at(-1)).toMatchObject({
+            type: "attendance_recommendation.rejected",
+            payload: {
+                recommendationId: "recommendation-1",
+                requestId: "reject-1",
+                actorBinding: "captain:captain-1",
+                reason: "Not needed",
+                rejectedAt: 100
+            }
+        });
+        expect(after.outbox).toEqual(before.outbox);
+        expect(Object.keys(after.outbox)).toHaveLength(0);
+        expect(after.sessionOwnership).toEqual(before.sessionOwnership);
+        await repository.close();
+        reopened = await DomainMeetingRepository.open(options);
+        await expect(reopened.execute(command)).resolves.toEqual(result);
+        expect(loadProjection({ domain })).toEqual(after);
+    } finally {
+        domain.allowPutsInTable("commits");
+        await repository.close();
+        await reopened?.close();
+    }
+});
+
+it("maps malformed attendance rejection to repository errors without changing projection exceptions", async () => {
+    const state = attendanceState();
+    const rejection = {
+        requestId: "reject-1",
+        actorBinding: "captain:captain-1",
+        reason: "Not needed",
+        rejectedAt: 100
+    };
+    for (const change of [
+        { status: "rejected" },
+        { status: "rejected", rejection: null },
+        { rejection },
+        { status: "rejected", rejection: { ...rejection, extra: true } },
+        { status: "rejected", rejection: { reason: "missing" } }
+    ]) {
+        await expect(
+            openReadyState({
+                ...state,
+                attendanceRecommendations: [{ ...state.attendanceRecommendations[0], ...change }]
+            })
+        ).rejects.toMatchObject({ code: "CORRUPT_DATABASE" });
+    }
+    await expect(openReadyState({ formatVersion: 3 })).rejects.toMatchObject({
+        code: "SCHEMA_VERSION_UNSUPPORTED"
+    });
+    for (const record of [
+        state.attendanceRecommendations[0],
+        { ...state.attendanceRecommendations[0], status: "rejected", rejection }
+    ]) {
+        const repository = await openReadyState({ ...state, attendanceRecommendations: [record] });
+        try {
+            await expect(repository.read()).resolves.toMatchObject({
+                state: { attendanceRecommendations: [record] }
+            });
+        } finally {
+            await repository.close();
+        }
+    }
+});

@@ -252,8 +252,14 @@ describe("smoke profile scenario guard", () => {
 
     it("exports the smoke result validator from the entrypoint", () => {
         expect(
-            validateScenarioResult({ ok: true, scenario: "baseline", assertions: [] }, "baseline")
-                .ok
+            validateScenarioResult(
+                {
+                    ok: true,
+                    scenario: "baseline",
+                    assertions: ["attendance-reject-tool-zero-effects"]
+                },
+                "baseline"
+            ).ok
         ).toBe(true);
     });
 
