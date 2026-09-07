@@ -305,25 +305,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T1.5：PASS。Turn预算独立fixture及B/共同矩阵通过，2571项；预算末checkpoint三null、两条completionFacts、endResult与limits受严格校验。 已完成机械段删除；本次提交包含本步全部变化。
 
-#### T1.6：验证 message 预算及五 literal 接线
-
-前置状态：T1.5 PASS 且已提交。
-允许修改：只准 plugin/scripts/smoke-profile/result.mjs、plugin/tests/unit/scripts/smoke-profile-contract.spec.ts 与本文。
-禁止修改：产品源码、其他现有测试、runner allowlist、原 convergence 规则、共享 coverage/TODO、依赖、其他目录；本步以外半成品不得暂存。
-
-执行：接线 convergence-message-budget-completion，使用独立maxTurns10/maxTotalMessages2 fixture；复用预算检查但选择固定limits，执行B与适用共同反例。增加unknown selector原兼容正例，验证仅五literal进入新validator。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile-contract.spec.ts
-pnpm --dir plugin exec prettier scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile-contract.spec.ts --check
-node --check plugin/scripts/smoke-profile/result.mjs
-git diff --check
-```
-允许对本步白名单中实际编辑的文件运行上述同路径 Prettier --write，然后重跑全部命令；不得格式化其他文件。
-
-PASS：五正例全部通过，两个budget limits互换被拒绝，未知selector和原convergence仍保持既有行为。 所有命令退出0；测试数仅记录、不作唯一判据。按保留执行规则删除本步并单次提交。
-STOP：startsWith扩张selector、忽略独立budget limits或改动其他selector规则。 保留失败增量/输出，不删本步、不提交失败内容；报告最后PASS与继续所需决定。
+执行进度 T1.6：PASS。五个literal完整接线，独立message预算10/2与Turn预算2/100校验及B/共同矩阵通过；3018项聚焦测试、格式检查通过。 已完成机械段删除；本次提交包含本步全部变化。
 
 #### T1.7：核对完整矩阵并交付 T1
 

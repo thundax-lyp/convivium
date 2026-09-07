@@ -460,7 +460,8 @@ const supportedCases = fixtureCases.filter((c) =>
         "convergence-stalled",
         "convergence-no-consensus",
         "convergence-reset",
-        "convergence-turn-budget-completion"
+        "convergence-turn-budget-completion",
+        "convergence-message-budget-completion"
     ].includes(c.scenario)
 );
 describe.each(supportedCases)("runtime result $scenario", (c) => {

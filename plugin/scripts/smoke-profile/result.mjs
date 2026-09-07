@@ -4,7 +4,8 @@ export function validateScenarioResult(value, expectedScenario) {
             "convergence-stalled",
             "convergence-no-consensus",
             "convergence-reset",
-            "convergence-turn-budget-completion"
+            "convergence-turn-budget-completion",
+            "convergence-message-budget-completion"
         ].includes(expectedScenario)
     ) {
         validateConvergenceRuntimeResult(value, expectedScenario);
@@ -104,7 +105,8 @@ function validateConvergenceRuntimeResult(value, expectedScenario) {
     };
     const question = expectedScenario === "convergence-no-consensus";
     const reset = expectedScenario === "convergence-reset";
-    const budget = expectedScenario === "convergence-turn-budget-completion";
+    const messageBudget = expectedScenario === "convergence-message-budget-completion";
+    const budget = messageBudget || expectedScenario === "convergence-turn-budget-completion";
     const labels = [
         ...(budget
             ? [
@@ -320,9 +322,9 @@ function validateConvergenceRuntimeResult(value, expectedScenario) {
         }
         requireValid(
             isRecord(a.limits) &&
-                a.limits.maxTurns === 2 &&
+                a.limits.maxTurns === (messageBudget ? 10 : 2) &&
                 a.limits.maxSpeakersPerTurn === 1 &&
-                a.limits.maxTotalMessages === 100
+                a.limits.maxTotalMessages === (messageBudget ? 2 : 100)
         );
     }
     if (reset) {
