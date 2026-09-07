@@ -956,31 +956,37 @@ describe("client entry framework", () => {
                     >
                 ).issues;
             }
+            expect(() => MeetingStatusResultSchema(malformedSource)).not.toThrow();
+            expect(() => MeetingStatusResultSchema(malformed)).toThrow();
             const fetchMock = vi
                 .fn<typeof fetch>()
                 .mockResolvedValueOnce(jsonResponse(listResponse([listItem])))
                 .mockResolvedValueOnce(jsonResponse(success(initial, 2)))
                 .mockResolvedValueOnce(jsonResponse(listResponse()))
-                .mockResolvedValueOnce(jsonResponse(success(malformed, 3)));
+                .mockResolvedValueOnce(
+                    jsonResponse(success(malformed, malformedSource.meetingVersion))
+                );
             vi.stubGlobal("fetch", fetchMock);
             render(createElement(ConviviumMeetingPanel));
             await selectMeeting();
             window.dispatchEvent(new Event("focus"));
             await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
             expect(screen.getByLabelText("Decision history").textContent).toContain("d-old");
-            if (kind === "archiveIssues") {
-                fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
-                fetchMock.mockResolvedValueOnce(
-                    jsonResponse(success(factArchiveStatus("archived"), 6))
-                );
-                window.dispatchEvent(new Event("focus"));
-                await waitFor(() =>
-                    expect(screen.getByLabelText("Risks").textContent).toContain("Waiting issue")
-                );
-                expect(
-                    screen.getByLabelText("Risks").querySelector("button,input,select")
-                ).toBeNull();
-            }
+            expect(screen.getByLabelText("Parking Lot").textContent).toContain("candidate-pending");
+            expect(screen.getByLabelText("Risks").textContent).toContain("risk-accepted");
+            expect(
+                screen.getByRole("button", { name: "Pause meeting" }).hasAttribute("disabled")
+            ).toBe(true);
+            fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
+            fetchMock.mockResolvedValueOnce(
+                jsonResponse(success(factArchiveStatus("archived"), 6))
+            );
+            window.dispatchEvent(new Event("focus"));
+            await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+            await waitFor(() =>
+                expect(screen.getByLabelText("Risks").textContent).toContain("Waiting issue")
+            );
+            expect(screen.getByLabelText("Decision history").textContent).toContain("d-current");
         }
     );
 
