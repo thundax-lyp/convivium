@@ -1,3 +1,4 @@
+import type { AgentDefinitionBindingV1 } from "../role-composition/model.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 
 import type { ProtocolErrorV1 } from "../protocol/index.js";
@@ -18,6 +19,7 @@ export interface ResolvedMeetingCaller {
  * while keeping this DSH boundary independent of repository implementation.
  */
 export interface MeetingOwnershipRecord {
+    readonly agentDefinition?: AgentDefinitionBindingV1;
     readonly sessionId: string;
     readonly parentSessionId: string;
     readonly sessionLabel: string;

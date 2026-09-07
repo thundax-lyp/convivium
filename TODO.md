@@ -8,22 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `repository/role-provenance`：RC-04 保存不可变的 Definition 绑定
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T4。
-    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：RC-03 完成。
-    - 文件（6 个）：
-
-        - `plugin/src/repository/types.ts`
-        - `plugin/src/repository/domain/schemas.ts`
-        - `plugin/src/repository/domain/domain-meeting-repository.ts`
-        - `plugin/src/dsh/caller-resolver.ts`
-        - `plugin/tests/unit/repository/domain/schemas.spec.ts`
-        - `plugin/tests/contract/domain-meeting-repository.spec.ts`
-
-    - 处理动作：扩展 ownership 类型、读写校验与持久化，保存定义 ID、版本和指纹。
-    - 验收点：T4 验证通过；旧记录可读，绑定不可后补、更改或删除，写入失败与重开保持一致。
-
 - [ ] `runtime/role-creation`：RC-05 接入会议身份创建前的配置切面
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T5。
     - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。

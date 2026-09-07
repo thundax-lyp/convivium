@@ -58,8 +58,15 @@ const authorization = z
         attemptId: z.string().optional()
     })
     .strict() satisfies z.ZodType<CommandAuthorization>;
+export const AgentDefinitionBindingSchema = z.strictObject({
+    agentDefinitionId: z.string().refine((value) => value.trim().length > 0),
+    definitionVersion: z.string().refine((value) => value.trim().length > 0),
+    definitionHash: z.string().regex(/^[a-f0-9]{64}$/)
+});
+
 const sessionOwnership = z
     .object({
+        agentDefinition: AgentDefinitionBindingSchema.optional(),
         sessionId: z.string(),
         parentSessionId: z.string(),
         sessionLabel: z.string(),

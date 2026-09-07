@@ -1008,3 +1008,109 @@ it("drains maintenance and closes the Domain exactly once", async () => {
     expect(meeting.closeCalls).toBe(1);
     await expect(repository.read()).rejects.toMatchObject({ code: "CLOSED" });
 });
+
+it("keeps role provenance immutable through bootstrap, commit, checkpoint and reopen", async () => {
+    const catalog = createFakeCatalogDomain();
+    const meeting = createFakeMeetingDomain();
+    const options = {
+        catalogDomain: catalog,
+        meetingDomain: meeting,
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 1
+    };
+    const repository = await DomainMeetingRepository.open(options);
+    const authorization = { callerBinding: "captain", capabilityId: "cap" };
+    const input = {
+        requestId: "create",
+        authorization,
+        requestHash: "h",
+        initialState: { count: 0 },
+        createdAt: 1
+    };
+    const binding = {
+        agentDefinitionId: "a",
+        definitionVersion: "1",
+        definitionHash: "a".repeat(64)
+    };
+    const owned = {
+        sessionId: "s",
+        parentSessionId: "captain",
+        sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+        provider: "spawn",
+        role: "manager" as const,
+        lifecycleStatus: "provisioning" as const,
+        capabilityStatus: "active" as const,
+        agentDefinition: binding
+    };
+    await repository.create(input);
+    for (const invalid of [
+        null,
+        {},
+        { ...binding, extra: true },
+        { ...binding, definitionHash: "bad" }
+    ]) {
+        await expect(
+            repository.recordSessionOwnership({ ...owned, agentDefinition: invalid })
+        ).rejects.toMatchObject({
+            code: "INVALID_INPUT",
+            message: "Invalid agent definition binding"
+        });
+        expect(meeting.table("creation").get("current")?.sessionOwnership).toEqual({});
+    }
+    await repository.recordSessionOwnership(owned);
+    const saved = structuredClone(meeting.table("creation").get("current"));
+    for (const agentDefinition of [
+        undefined,
+        { ...binding, definitionVersion: "2" },
+        { ...binding, agentDefinitionId: "b" },
+        { ...binding, definitionHash: "b".repeat(64) }
+    ]) {
+        await expect(
+            repository.recordSessionOwnership({ ...owned, agentDefinition })
+        ).rejects.toMatchObject({ code: "INVALID_STATE" });
+        expect(meeting.table("creation").get("current")).toEqual(saved);
+    }
+    const legacy = { ...owned, sessionId: "legacy", agentDefinition: undefined };
+    await repository.recordSessionOwnership(legacy);
+    await expect(
+        repository.recordSessionOwnership({ ...legacy, agentDefinition: binding })
+    ).rejects.toMatchObject({ code: "INVALID_STATE" });
+    await repository.completeCreate(input);
+    const active = { ...owned, lifecycleStatus: "active" as const, initialMessageId: "message" };
+    meeting.failNextPut("commits", seqKey(2));
+    await expect(repository.recordSessionOwnership(active)).rejects.toThrow();
+    expect(loadProjection({ domain: meeting })?.sessionOwnership.s.lifecycleStatus).toBe(
+        "provisioning"
+    );
+    expect(meeting.table("commits").get(seqKey(2))).toBeUndefined();
+    await repository.recordSessionOwnership(active);
+    await repository.recordSessionOwnership({
+        ...active,
+        lifecycleStatus: "closed",
+        capabilityStatus: "revoked"
+    });
+    for (let version = 0; version < 125; version++)
+        await appendVersion(repository, authorization, version);
+    await repository.close();
+    expect(meeting.table("checkpoint_pointer").get("current")).toBeDefined();
+    const reopened = await DomainMeetingRepository.open(options);
+    expect(loadProjection({ domain: meeting })?.sessionOwnership.s).toMatchObject({
+        agentDefinition: binding,
+        lifecycleStatus: "closed",
+        capabilityStatus: "revoked"
+    });
+    expect(
+        loadProjection({ domain: meeting })?.sessionOwnership.legacy.agentDefinition
+    ).toBeUndefined();
+    await expect(
+        reopened.recordSessionOwnership({
+            ...active,
+            agentDefinition: undefined,
+            lifecycleStatus: "closed",
+            capabilityStatus: "revoked"
+        })
+    ).rejects.toMatchObject({ code: "INVALID_STATE" });
+    await reopened.close();
+});
