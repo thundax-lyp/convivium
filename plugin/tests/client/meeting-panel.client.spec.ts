@@ -542,7 +542,7 @@ async function selectMeeting(): Promise<void> {
     await screen.findByLabelText("Meeting summary");
 }
 
-describe("client entry framework", () => {
+describe("meeting panel and client plugin lifecycle", () => {
     beforeEach(() => {
         vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "request-1") });
     });
@@ -1965,5 +1965,58 @@ describe("local decision risk panel controls", () => {
             )
         );
         expect(fetchMock).toHaveBeenCalledTimes(calls);
+    });
+});
+
+describe("meeting proposal, hand raise and convergence visibility", () => {
+    it("renders proposals, revision-scoped positions, raises and convergence and replaces stale facts", () => {
+        const detail = statusResult();
+        if (detail.status !== "running") throw new Error("active fixture required");
+        detail.proposals = [
+            {
+                id: "proposal-a",
+                agendaItemId: "agenda-1",
+                title: "Reviewed proposal",
+                description: "Public proposal content",
+                revision: 2,
+                status: "under_review",
+                positions: [
+                    {
+                        id: "position-a",
+                        participantId: "participant-a",
+                        position: "needs_revision",
+                        reason: "Missing evidence",
+                        blocking: true,
+                        proposalRevision: 2
+                    }
+                ]
+            }
+        ];
+        detail.pendingHandRaises = [
+            {
+                id: "raise-a",
+                participantId: "participant-b",
+                reason: "new_evidence",
+                summary: "Evidence ready",
+                taskIds: [],
+                priority: "blocking"
+            }
+        ];
+        detail.stallCount = 2;
+        detail.replanCount = 1;
+        const rendered = render(renderObservabilitySections(detail));
+        expect(
+            screen.getByRole("region", { name: "Proposals and positions" }).textContent
+        ).toContain("needs_revision");
+        expect(
+            screen.getByRole("region", { name: "Proposals and positions" }).textContent
+        ).toContain("Missing evidence");
+        expect(screen.getByRole("region", { name: "Pending hand raises" }).textContent).toContain(
+            "Evidence ready"
+        );
+        expect(screen.getByRole("region", { name: "Convergence" }).textContent).toContain("2 / 3");
+        rendered.rerender(renderObservabilitySections(statusResult()));
+        expect(screen.queryByText("Evidence ready")).toBeNull();
+        expect(screen.queryByText("Missing evidence")).toBeNull();
     });
 });
