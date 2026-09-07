@@ -1,3 +1,4 @@
+import type { DiagnosticSink } from "../../repository/diagnostics.js";
 import type { MeetingAgentDefinitionV1 } from "../../role-composition/model.js";
 import type { DomainFacility } from "@deepseek-ai/dsh-storage-domain";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
@@ -175,6 +176,8 @@ export interface MeetingToolRuntime {
 }
 
 export interface CreateStatusRuntimeOptions {
+    readonly onDiagnostic?: DiagnosticSink;
+    readonly getCaptainParent?: (sessionId: string) => Agent | undefined;
     readonly agentDefinitions?: readonly MeetingAgentDefinitionV1[];
     readonly storageDomain: Pick<DomainFacility, "open"> | DomainFacilityPort;
     readonly provider: string;

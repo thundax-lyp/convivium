@@ -31,6 +31,11 @@ export interface MeetingRepositoryPort {
     updateCreateResult(input: UpdateCreateResultInput): Promise<CreateMeetingResult>;
     updateBootstrap(input: UpdateBootstrapInput): Promise<MeetingBootstrap>;
     recordSessionOwnership(input: SessionOwnershipInput, now?: number): Promise<SessionOwnership>;
+    replaceMissingSession(
+        previousSessionId: string,
+        replacementSessionId: string,
+        now?: number
+    ): Promise<SessionOwnership>;
     read(): Promise<MeetingSnapshot>;
     readPrivateMeetingMail(mailId: string): Promise<PrivateMeetingMail | undefined>;
     listOverduePrivateMeetingMail(now: number): Promise<PrivateMeetingMail[]>;

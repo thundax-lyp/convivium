@@ -1,3 +1,4 @@
+import { questionState, proposalWithBlockingPosition, now } from "./transitions/fixtures.js";
 import { describe, expect, it } from "vitest";
 import {
     createMeetingState,
@@ -399,5 +400,75 @@ describe("deterministic convergence planning", () => {
         });
         expect(meeting.managerPlanningSeq).toBe(0);
         expect(meeting.replanCount).toBe(0);
+    });
+});
+
+describe("proposal arbitration and participant recency", () => {
+    it("ranks and arbitrates across independent proposals, ignoring superseded positions and other agendas", () => {
+        const state = questionState();
+        state.proposals = [
+            proposalWithBlockingPosition("a", "participant-1", 8),
+            proposalWithBlockingPosition("b", "participant-2")
+        ];
+        const ranked = rankRulePlanningCandidates(state);
+        expect(needsSemanticArbitration(state, ranked, "normal")).toBe(true);
+        expect(ranked.find((x) => x.participantId === "participant-2")?.score).toBe(60);
+        state.proposals.push({
+            ...proposalWithBlockingPosition("b", "participant-2", 2),
+            positions: []
+        });
+        expect(needsSemanticArbitration(state, rankRulePlanningCandidates(state), "normal")).toBe(
+            false
+        );
+        state.proposals.push({
+            ...proposalWithBlockingPosition("c", "participant-2"),
+            agendaItemId: "other"
+        });
+        expect(needsSemanticArbitration(state, rankRulePlanningCandidates(state), "normal")).toBe(
+            false
+        );
+    });
+
+    it("awards previous-turn absence even after an earlier speech", () => {
+        const state = questionState();
+        state.turnSeq = 3;
+        state.transcript = [
+            {
+                id: "m1",
+                seq: 1,
+                turnSeq: 1,
+                turnId: "t1",
+                stepId: "s1",
+                attemptId: "a1",
+                speaker: "participant-1",
+                agendaItemId: "agenda-1",
+                agendaRelation: "on_topic",
+                kind: "statement",
+                content: "earlier",
+                mentions: [],
+                taskIds: [],
+                createdAt: now
+            },
+            {
+                id: "m2",
+                seq: 2,
+                turnSeq: 3,
+                turnId: "t3",
+                stepId: "s2",
+                attemptId: "a2",
+                speaker: "participant-2",
+                agendaItemId: "agenda-1",
+                agendaRelation: "on_topic",
+                kind: "statement",
+                content: "latest",
+                mentions: [],
+                taskIds: [],
+                createdAt: now
+            }
+        ];
+        expect(
+            rankRulePlanningCandidates(state).find((x) => x.participantId === "participant-1")
+                ?.score
+        ).toBe(22);
     });
 });

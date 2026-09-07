@@ -25,6 +25,7 @@ export interface MeetingOwnershipRecord {
     readonly sessionLabel: string;
     readonly provider: string;
     readonly initialMessageId?: string;
+    readonly supersededBySessionId?: string;
     readonly role: "manager" | "participant";
     readonly participantId?: string;
     readonly lifecycleStatus: "provisioning" | "active" | "closed";

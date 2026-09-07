@@ -106,3 +106,7 @@
 - 实现覆盖和运行验证：`docs/40-readiness/`。
 - 启动、诊断、恢复、升级和发布操作：`docs/50-operations/`。
 - 产品讨论、外部调研和决策背景：`docs/60-human/`。
+
+## Test Naming
+
+测试文件和 `describe` 按稳定的业务对象、业务能力或工程边界命名；`it`/`test` 说明触发条件和可观察结果。不得按临时任务、RUNBOOK、审计报告、阶段或 finding 编号组织长期测试；回归应归入对应对象已有测试。需求编号可写在必要的依据注释或 readiness 中，不替代测试名称。纯工程组件沿用其稳定对象名称（例如 Storage Domain、outbox、plugin lifecycle）。

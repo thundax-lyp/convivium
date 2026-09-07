@@ -1,3 +1,4 @@
+import type { MeetingDiagnostic } from "../../../src/repository/diagnostics.js";
 import { meeting } from "../domain/transitions/fixtures.js";
 import {
     beginArchiveFromTermination,
@@ -51,7 +52,7 @@ const state = {
     termination: { code: "objective_satisfied", finalMessage: "done", endedAt: 10 }
 } as unknown as MeetingState;
 
-describe("materializeArchivePackage", () => {
+describe("meeting archive materialization", () => {
     it("copies existing optional facts without fabricating missing fields", () => {
         const archive = materializeArchivePackage(state, 20);
         expect(archive.acceptedDecisions).toEqual([
@@ -246,7 +247,7 @@ describe("materializeArchivePackage", () => {
     });
 });
 
-describe("beginArchiveFromTermination", () => {
+describe("meeting termination archival", () => {
     const terminal = (): MeetingState => ({
         formatVersion: 2,
         id: "meeting-1",
@@ -566,6 +567,74 @@ describe("archive ownership cleanup", () => {
         ).toBe(true);
     });
 
+    it.each(["revoked", "closed"] as const)(
+        "reports failed %s persistence and allows cleanup retry",
+        async (failedStatus) => {
+            let current = ownerships();
+            let fail = true;
+            const diagnostics: MeetingDiagnostic[] = [];
+            const cleanup: Parameters<typeof cleanupOwnedSessions>[0] = {
+                repository: {
+                    recover: async () => ({
+                        snapshot: { state: archiving() as never } as never,
+                        sessionOwnership: current,
+                        bootstrap: {} as never,
+                        reclaimedOutbox: 0,
+                        pendingOutbox: 0
+                    }),
+                    recordSessionOwnership: async (input) => {
+                        if (
+                            fail &&
+                            (failedStatus === "revoked"
+                                ? input.lifecycleStatus === "active"
+                                : input.lifecycleStatus === "closed")
+                        )
+                            throw new Error("PRIVATE_STORAGE_DETAIL");
+                        current = current.map((item) =>
+                            item.sessionId === input.sessionId ? { ...item, ...input } : item
+                        ) as typeof current;
+                        return current.find((item) => item.sessionId === input.sessionId)!;
+                    }
+                },
+                parent: { id: "captain-session" } as never,
+                runtime: {
+                    listChildren: async () =>
+                        current.map((item) => ({
+                            kind: "child",
+                            id: item.sessionId,
+                            activity: "inactive",
+                            hasChildren: false,
+                            mode: "continuable",
+                            label: item.sessionLabel
+                        })) as never,
+                    interrupt() {},
+                    drainContinuableChildren: async () => {}
+                },
+                signal: new AbortController().signal,
+                now: 10,
+                onDiagnostic: (record) => diagnostics.push(record)
+            };
+            await expect(cleanupOwnedSessions(cleanup)).rejects.toThrow("PRIVATE_STORAGE_DETAIL");
+            expect(diagnostics).toContainEqual(
+                expect.objectContaining({
+                    eventType:
+                        failedStatus === "revoked"
+                            ? "capability.revoke_failed"
+                            : "session.close_failed",
+                    errorCode: "INTERNAL_ERROR"
+                })
+            );
+            expect(JSON.stringify(diagnostics)).not.toContain("PRIVATE_STORAGE_DETAIL");
+            fail = false;
+            await cleanupOwnedSessions(cleanup);
+            expect(
+                current.every(
+                    (item) =>
+                        item.lifecycleStatus === "closed" && item.capabilityStatus === "revoked"
+                )
+            ).toBe(true);
+        }
+    );
     it("keeps revoked ownership open for a retry when drain fails", async () => {
         const meetingState = archiving();
         const metadata = {
@@ -738,7 +807,7 @@ describe("archive ownership cleanup", () => {
     });
 });
 
-describe("recoverArchive", () => {
+describe("meeting archive recovery", () => {
     it("replays terminal materialization through the termination-derived receipt", async () => {
         const terminal = {
             id: "meeting-1",

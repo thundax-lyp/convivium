@@ -1,3 +1,4 @@
+import type { DiagnosticSink } from "../diagnostics.js";
 import type { Domain, DomainFacility, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
 import { RepositoryError } from "../errors.js";
 import { UnsupportedMeetingStateFormatError } from "./projection.js";
@@ -25,6 +26,7 @@ export interface DomainRepositoryRegistryOptions {
     readonly storageDomain: Pick<DomainFacility, "open"> | DomainFacilityPort;
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly now?: () => number;
+    readonly onDiagnostic?: DiagnosticSink;
     readonly onProjectionCommitted?: (snapshot: MeetingSnapshot) => void;
 }
 
@@ -77,6 +79,7 @@ export class DomainRepositoryRegistry {
         private readonly catalog: CatalogDomain,
         private readonly authorizationValidator: RepositoryAuthorizationValidator,
         private readonly now: () => number,
+        private readonly onDiagnostic: DiagnosticSink | undefined,
         private readonly onProjectionCommitted: ((snapshot: MeetingSnapshot) => void) | undefined
     ) {}
 
@@ -87,6 +90,7 @@ export class DomainRepositoryRegistry {
             catalog,
             options.authorizationValidator,
             options.now ?? Date.now,
+            options.onDiagnostic,
             options.onProjectionCommitted
         );
     }
@@ -164,6 +168,7 @@ export class DomainRepositoryRegistry {
                 meetingId: input.meetingId,
                 authorizationValidator: this.authorizationValidator,
                 now: this.now,
+                onDiagnostic: this.onDiagnostic,
                 onProjectionCommitted: this.onProjectionCommitted
             });
             if (input.create) await repository.create(input.create);

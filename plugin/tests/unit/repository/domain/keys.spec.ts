@@ -7,7 +7,7 @@ import {
     receiptKey,
     seqKey
 } from "../../../../src/repository/domain/keys.js";
-describe("domain keys", () => {
+describe("Meeting storage key encoding", () => {
     it("derives every key and identity formula exactly", () => {
         expect(meetingIdFor("team", "request")).toMatch(/^meeting-[0-9a-f]{32}$/);
         expect(meetingDomainName("team", "meeting")).toMatch(/^convivium_m_[0-9a-f]{32}$/);

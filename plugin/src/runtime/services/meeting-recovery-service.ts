@@ -26,6 +26,11 @@ export interface MeetingRehydrationServiceOptions {
     readonly meetings: Map<string, RecoverableMeeting>;
     readonly signal: AbortSignal;
     readonly now?: () => number;
+    readonly isCreating?: (meetingId: string) => boolean;
+    readonly reconcile?: (
+        repository: MeetingRepository,
+        existing?: RecoverableMeeting
+    ) => Promise<Agent | undefined>;
 }
 
 export interface MeetingRehydrationService {
@@ -48,6 +53,7 @@ export function createMeetingRehydrationService(
         teamId: string,
         existing?: RecoverableMeeting
     ): Promise<void> {
+        if (options.isCreating?.(meetingId)) return;
         let repository = existing?.repository;
         try {
             if (repository === undefined) {
@@ -55,6 +61,7 @@ export function createMeetingRehydrationService(
             } else if (existing?.teamId !== teamId) {
                 throw new Error("Recovered Meeting team ownership does not match catalog.");
             }
+            const parent = await options.reconcile?.(repository, existing);
             const recovered = await repository.recover();
             if (
                 recovered.bootstrap.status === "creating" ||
@@ -72,9 +79,11 @@ export function createMeetingRehydrationService(
                 options.meetings.set(meetingId, {
                     teamId,
                     captainSessionId: parentSessionId,
+                    parent,
                     repository
                 });
             }
+            if (existing !== undefined && parent !== undefined) existing.parent = parent;
             snapshots.set(meetingId, current);
         } catch (error) {
             throw unavailable(error);
@@ -112,7 +121,11 @@ export function createMeetingRehydrationService(
             }
             const catalog = await options.registry.then((registry) => registry.listMeetings());
             for (const record of catalog) {
-                if (options.meetings.has(record.meetingId)) continue;
+                if (
+                    options.meetings.has(record.meetingId) ||
+                    options.isCreating?.(record.meetingId)
+                )
+                    continue;
                 try {
                     const repository = await (
                         await options.registry
@@ -120,6 +133,7 @@ export function createMeetingRehydrationService(
                         teamId: record.teamId,
                         meetingId: record.meetingId
                     });
+                    const parent = await options.reconcile?.(repository);
                     const recovered = await repository.recover();
                     const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
                     if (
@@ -131,6 +145,7 @@ export function createMeetingRehydrationService(
                     options.meetings.set(record.meetingId, {
                         teamId: record.teamId,
                         captainSessionId: parentSessionId,
+                        parent,
                         repository
                     });
                 } catch {

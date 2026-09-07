@@ -982,7 +982,7 @@ describe("protocol envelope schemas", () => {
     });
 });
 
-describe("FR-13 Catalog protocol", () => {
+describe("Agent role catalog protocol", () => {
     const role = {
         roleDefinitionId: "runtime_engineer" as const,
         version: "1",

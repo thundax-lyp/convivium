@@ -45,6 +45,7 @@ export function renderObservabilitySections(
                 null,
                 row("Planned speaker order", view.plannedSpeakerOrder),
                 row("Current speaker", view.currentSpeaker),
+                row("Selection reason", view.selectionReason),
                 row("Turn intent", view.turnIntent),
                 row("Turn reason", view.turnReason),
                 row("Turn objective", view.turnObjective),
@@ -96,6 +97,106 @@ export function renderObservabilitySections(
                 )
             )
         ),
+        view.convergence === undefined
+            ? null
+            : createElement(
+                  "section",
+                  { "aria-label": "Convergence" },
+                  createElement("h4", null, "Convergence"),
+                  createElement(
+                      "dl",
+                      null,
+                      row(
+                          "Stalls",
+                          `${view.convergence.stallCount} / ${view.convergence.maxStalls}`
+                      ),
+                      row(
+                          "Replans",
+                          `${view.convergence.replanCount} / ${view.convergence.maxReplans}`
+                      )
+                  )
+              ),
+        createElement(
+            "section",
+            { "aria-label": "Proposals and positions" },
+            createElement("h4", null, "Proposals and positions"),
+            view.proposals.length === 0
+                ? createElement("p", null, "No proposals.")
+                : createElement(
+                      "ol",
+                      null,
+                      view.proposals.map((proposal) =>
+                          createElement(
+                              "li",
+                              { key: `${proposal.id}:${proposal.revision}` },
+                              createElement("h5", null, proposal.title),
+                              createElement(
+                                  "dl",
+                                  null,
+                                  row("Proposal ID", proposal.id),
+                                  row("Revision", String(proposal.revision)),
+                                  row("Status", proposal.status),
+                                  row("Description", proposal.description)
+                              ),
+                              proposal.positions.length === 0
+                                  ? createElement("p", null, "No positions.")
+                                  : createElement(
+                                        "ul",
+                                        null,
+                                        proposal.positions.map((position) =>
+                                            createElement(
+                                                "li",
+                                                { key: position.id },
+                                                createElement(
+                                                    "dl",
+                                                    null,
+                                                    row("Participant", position.participantId),
+                                                    row("Position", position.position),
+                                                    row(
+                                                        "Position revision",
+                                                        String(position.proposalRevision)
+                                                    ),
+                                                    row(
+                                                        "Blocking",
+                                                        position.blocking ? "Yes" : "No"
+                                                    ),
+                                                    row("Reason", position.reason ?? "None")
+                                                )
+                                            )
+                                        )
+                                    )
+                          )
+                      )
+                  )
+        ),
+        view.convergence === undefined
+            ? null
+            : createElement(
+                  "section",
+                  { "aria-label": "Pending hand raises" },
+                  createElement("h4", null, "Pending hand raises"),
+                  view.pendingHandRaises.length === 0
+                      ? createElement("p", null, "No pending hand raises.")
+                      : createElement(
+                            "ol",
+                            null,
+                            view.pendingHandRaises.map((raise) =>
+                                createElement(
+                                    "li",
+                                    { key: raise.id },
+                                    createElement(
+                                        "dl",
+                                        null,
+                                        row("Participant", raise.participantId),
+                                        row("Reason", raise.reason),
+                                        row("Summary", raise.summary),
+                                        row("Priority", raise.priority),
+                                        row("Task IDs", raise.taskIds.join(", ") || "None")
+                                    )
+                                )
+                            )
+                        )
+              ),
         createElement(
             "section",
             { "aria-label": "Transcript" },

@@ -1,3 +1,4 @@
+import { blockingPositions, currentProposals } from "./proposal-state.js";
 import { DomainError } from "./errors.js";
 import type { CompletionFact, DomainEffect, MeetingState, TransitionResult } from "./model.js";
 import { executionTerminalStatuses } from "./transitions/termination.js";
@@ -144,7 +145,8 @@ export function isObjectiveSatisfied(state: MeetingState): boolean {
                 !issue.blocking ||
                 ["resolved", "deferred", "accepted_risk", "out_of_scope"].includes(issue.status)
         ) &&
-        state.openQuestions.every((question) => !question.blocking || question.status !== "open")
+        state.openQuestions.every((question) => !question.blocking || question.status !== "open") &&
+        currentProposals(state).every((proposal) => blockingPositions(proposal).length === 0)
     );
 }
 

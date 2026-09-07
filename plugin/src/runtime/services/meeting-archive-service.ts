@@ -1,3 +1,4 @@
+import { emitDiagnostic, type DiagnosticSink } from "../../repository/diagnostics.js";
 import { createHash } from "node:crypto";
 
 import { transitionMeeting, projectAttendanceRejections } from "../../domain/transitions/index.js";
@@ -69,6 +70,7 @@ type ArchiveCleanupRuntime = Pick<
 >;
 
 export interface CleanupOwnedSessionsInput {
+    readonly onDiagnostic?: DiagnosticSink;
     readonly repository: Pick<MeetingRepository, "recover" | "recordSessionOwnership">;
     readonly parent: Agent;
     readonly runtime: ArchiveCleanupRuntime;
@@ -82,6 +84,7 @@ export interface FinalizeArchiveInput {
 }
 
 export interface RecoverArchiveInput {
+    readonly onDiagnostic?: DiagnosticSink;
     readonly repository: Pick<MeetingRepository, "execute" | "recover" | "recordSessionOwnership"> &
         Partial<
             Pick<
@@ -133,6 +136,7 @@ export function requireExpectedArchiveOwnerships(
     ownerships: readonly SessionOwnership[],
     parentSessionId: string
 ): readonly SessionOwnership[] {
+    ownerships = ownerships.filter((ownership) => ownership.supersededBySessionId === undefined);
     const expectedParticipants = new Set(state.participants.map((participant) => participant.id));
     const foundParticipants = new Set<string>();
     let managerCount = 0;
@@ -234,7 +238,18 @@ export async function cleanupOwnedSessions(input: CleanupOwnedSessionsInput): Pr
                       input.now
                   )
         )
-    );
+    ).catch((error) => {
+        emitDiagnostic(input.onDiagnostic, {
+            meetingId: state.id,
+            meetingVersion: state.version,
+            eventSeq: state.eventSeq,
+            eventType: "capability.revoke_failed",
+            timestamp: input.now,
+            errorCode: "INTERNAL_ERROR",
+            metrics: { capabilityRevokeFailures: 1 }
+        });
+        throw error;
+    });
     const notClosed = revoked.filter((ownership) => ownership.lifecycleStatus !== "closed");
     if (notClosed.length === 0) return;
 
@@ -242,6 +257,17 @@ export async function cleanupOwnedSessions(input: CleanupOwnedSessionsInput): Pr
         runtime: input.runtime,
         parent: input.parent,
         ownerships: notClosed
+    }).catch((error) => {
+        emitDiagnostic(input.onDiagnostic, {
+            meetingId: state.id,
+            meetingVersion: state.version,
+            eventSeq: state.eventSeq,
+            eventType: "session.close_failed",
+            timestamp: input.now,
+            errorCode: "INTERNAL_ERROR",
+            metrics: { sessionCloseFailures: 1 }
+        });
+        throw error;
     });
 
     const afterDrain = await input.repository.recover();
@@ -264,7 +290,18 @@ export async function cleanupOwnedSessions(input: CleanupOwnedSessionsInput): Pr
                     input.now
                 )
             )
-    );
+    ).catch((error) => {
+        emitDiagnostic(input.onDiagnostic, {
+            meetingId: afterState.id,
+            meetingVersion: afterState.version,
+            eventSeq: afterState.eventSeq,
+            eventType: "session.close_failed",
+            timestamp: input.now,
+            errorCode: "INTERNAL_ERROR",
+            metrics: { sessionCloseFailures: 1 }
+        });
+        throw error;
+    });
 }
 
 /** Commits archived only after every owned meeting Session is revoked and closed. */
@@ -336,6 +373,25 @@ export async function finalizeArchive(
 
 /** Replays only safe archive stages after plugin restart. */
 export async function recoverArchive(input: RecoverArchiveInput): Promise<ArchiveRecoveryResult> {
+    try {
+        return await recoverArchiveOnce(input);
+    } catch (error) {
+        const recovered = await input.repository.recover().catch(() => undefined);
+        const state = recovered?.snapshot?.state as unknown as MeetingState | undefined;
+        if (state !== undefined)
+            emitDiagnostic(input.onDiagnostic, {
+                meetingId: state.id,
+                meetingVersion: state.version,
+                eventSeq: state.eventSeq,
+                eventType: "archive.failed",
+                timestamp: input.now,
+                errorCode: "INTERNAL_ERROR",
+                metrics: { archiveFailures: 1 }
+            });
+        throw error;
+    }
+}
+async function recoverArchiveOnce(input: RecoverArchiveInput): Promise<ArchiveRecoveryResult> {
     const recovered = await input.repository.recover();
     let state = recovered.snapshot?.state as unknown as MeetingState | undefined;
     if (state === undefined || state.status === "archived") return "unchanged";
@@ -368,6 +424,7 @@ export async function recoverArchive(input: RecoverArchiveInput): Promise<Archiv
     if (state?.status !== "archiving") return "unchanged";
     if (input.parent === undefined || input.runtime === undefined) return "pending";
     await cleanupOwnedSessions({
+        onDiagnostic: input.onDiagnostic,
         repository: input.repository,
         parent: input.parent,
         runtime: input.runtime,

@@ -1,3 +1,4 @@
+import type { MeetingDiagnostic } from "../../src/repository/diagnostics.js";
 import {
     CaptainAttendanceDispositionInputSchema,
     CaptainAttendanceDispositionResultSchema
@@ -1506,6 +1507,37 @@ describe("create/status meeting runtime", () => {
         expect(drained).toHaveLength(2);
         await runtime.dispose();
 
+        const getCaptainParent = vi.fn(() => undefined);
+        const unexpectedSessionCall = vi.fn(async () => {
+            throw new Error("Archived reads must not call Session runtime");
+        });
+        const cold = createCreateStatusRuntime({
+            storageDomain: storagePort(root),
+            provider: "spawn",
+            getCaptainParent,
+            authorizationValidator: { validateCreate() {}, validateCommand() {} },
+            continuable: {
+                startContinuable: unexpectedSessionCall,
+                followup: unexpectedSessionCall,
+                listDescendants: unexpectedSessionCall
+            }
+        });
+        try {
+            await expect(cold.listLocalMeetings()).resolves.toMatchObject({
+                ok: true,
+                result: { meetings: [expect.objectContaining({ status: "archived" })] }
+            });
+            await expect(
+                cold.getLocalMeetingStatus({
+                    protocolVersion: 1,
+                    meetingId: created.result.meetingId
+                })
+            ).resolves.toMatchObject({ ok: true, result: { status: "archived" } });
+            expect(getCaptainParent).not.toHaveBeenCalled();
+            expect(unexpectedSessionCall).not.toHaveBeenCalled();
+        } finally {
+            await cold.dispose();
+        }
         const recovered = localRuntime(root);
         await expect(recovered.endLocalMeeting(request)).resolves.toEqual(ended);
         await recovered.dispose();
@@ -3265,7 +3297,7 @@ describe("referenced minutes runtime", () => {
     });
 });
 
-describe("FR14 creation and replay contract", () => {
+describe("Agent Definition creation and replay contract", () => {
     const selected = {
         ...input,
         managerAgentDefinitionId: "fr14-manager",
@@ -3857,6 +3889,50 @@ describe("local decision and risk runtime", () => {
             await registry.close();
         }
     });
+    it.each(["RECOVERY_CAPTAIN_UNAVAILABLE", "RECOVERY_LIFECYCLE_UNAVAILABLE"])(
+        "reports %s during local recovery without changing Meeting facts",
+        async (errorCode) => {
+            const { runtime, registry, meeting, facility } = await setupLocalControlRuntime();
+            await runtime.dispose();
+            await registry.close();
+            const before = loadProjection({ domain: meeting });
+            const records: MeetingDiagnostic[] = [];
+            const cold = createCreateStatusRuntime({
+                storageDomain: facility,
+                provider: "spawn",
+                authorizationValidator: { validateCreate() {}, validateCommand() {} },
+                getCaptainParent: () =>
+                    errorCode === "RECOVERY_CAPTAIN_UNAVAILABLE"
+                        ? undefined
+                        : ({ id: "captain-1" } as never),
+                onDiagnostic: (record) => records.push(record),
+                continuable: {
+                    startContinuable: async () => {
+                        throw new Error("Unexpected start");
+                    },
+                    followup: async () => {
+                        throw new Error("Unexpected followup");
+                    },
+                    listDescendants: async () => []
+                }
+            });
+            try {
+                await expect(
+                    cold.getLocalMeetingStatus({ protocolVersion: 1, meetingId: "meeting-1" })
+                ).rejects.toBeInstanceOf(LocalMeetingRecoveryUnavailableError);
+                expect(records).toContainEqual(
+                    expect.objectContaining({
+                        eventType: "recovery.failed",
+                        errorCode,
+                        metrics: { recoveryFailures: 1 }
+                    })
+                );
+                expect(loadProjection({ domain: meeting })).toEqual(before);
+            } finally {
+                await cold.dispose();
+            }
+        }
+    );
     it("surfaces selected recovery failures without a command commit", async () => {
         const { runtime, registry, meeting } = await setupLocalControlRuntime();
         try {
@@ -4471,6 +4547,16 @@ it("archives and reopens a Captain attendance rejection", async () => {
             };
         },
         followup: async () => "followup-message" as never,
+        listDescendants: async () =>
+            children.map((child) => ({
+                kind: "child",
+                id: child.id,
+                parentId: "captain-claim",
+                mode: "continuable",
+                label: child.label,
+                activity: "inactive",
+                hasChildren: false
+            })),
         listChildren: async () =>
             children.map((child) => ({
                 kind: "child" as const,

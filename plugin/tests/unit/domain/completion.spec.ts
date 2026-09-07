@@ -1,3 +1,5 @@
+import { endMeeting } from "../../../src/domain/transitions/termination.js";
+import { questionState, proposalWithBlockingPosition } from "./transitions/fixtures.js";
 import { createLocalDecisionRiskState } from "../../fixtures/local-decision-risk.js";
 import { describe, expect, it } from "vitest";
 import {
@@ -77,7 +79,7 @@ function state(overrides: Partial<MeetingState> = {}): MeetingState {
     };
 }
 
-describe("judgeTurnCompletion", () => {
+describe("meeting objective and completion limits", () => {
     it("returns continue while the objective is open", () => {
         expect(judgeTurnCompletion(state(), now)).toEqual({ kind: "continue", reason: "continue" });
     });
@@ -224,7 +226,7 @@ function completionState(overrides: Partial<MeetingState> = {}): MeetingState {
 
 const factId = (kind: CompletionFact["kind"], index: number) => `${kind}-${index}`;
 
-describe("applyCompletionClaims", () => {
+describe("meeting completion claims", () => {
     it("creates immutable facts and derives completion state from valid claims", () => {
         const result = applyCompletionClaims(completionState(), {
             participantId: "reviewer-1",
@@ -614,7 +616,7 @@ describe("applyCompletionClaims", () => {
     });
 });
 
-describe("local control preserves authority and guards", () => {
+describe("local decision and risk authority", () => {
     function context(decision: "accept" | "reject" = "accept") {
         return {
             participantId: "local_host",
@@ -777,4 +779,39 @@ describe("local control preserves authority and guards", () => {
             }).state.completionFacts[0]
         ).toMatchObject({ authority: "risk_acceptance_authority", assertedBy: "participant-1" });
     });
+});
+
+describe("meeting completion with blocking positions", () => {
+    it.each(["object", "needs_revision"] as const)(
+        "rejects completed with current blocking %s, retaining nonblocking dissent",
+        (position) => {
+            const state = questionState();
+            state.agenda[0]!.status = "resolved";
+            state.proposals = [proposalWithBlockingPosition("a", "participant-1")];
+            state.proposals[0]!.positions[0]!.position = position;
+            expect(isObjectiveSatisfied(state)).toBe(false);
+            expect(judgeTurnCompletion(state, now).kind).not.toBe("completed");
+            const end = () =>
+                endMeeting(state, {
+                    meetingId: state.id,
+                    captainBinding: "captain:captain-1",
+                    outcome: "completed",
+                    reason: "accept",
+                    acceptedDecisionIds: [],
+                    deferredAgendaItemIds: [],
+                    waivers: [],
+                    now,
+                    factId: (i) => `fact-${i}`
+                });
+            expect(end).toThrow();
+            state.proposals[0]!.positions[0]!.blocking = false;
+            expect(end().state.status).toBe("completed");
+            state.proposals[0]!.positions[0]!.blocking = true;
+            state.proposals.push({
+                ...proposalWithBlockingPosition("a", "participant-1", 2),
+                positions: []
+            });
+            expect(isObjectiveSatisfied(state)).toBe(true);
+        }
+    );
 });

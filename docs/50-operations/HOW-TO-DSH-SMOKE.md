@@ -124,7 +124,7 @@ pnpm --dir plugin --silent smoke:profile --json         # 完整逐场景 JSON�
 | 完整 | `decision-risk-closure`、`risk-reopen` | 决策/风险工具投影、重放与冲突 |
 | 完整 | `convergence` | Manager 无效计划的 fallback 与幂等重放 |
 
-no_consensus、进展重置和另一种预算的规则差异由 `turn-advancement.spec.ts` 覆盖，不再提供 `convergence-no-consensus`、`convergence-reset`、`convergence-message-budget-completion` selector。历史五场景运行证据仍保留，但不代表当前入口。
+no_consensus、进展重置和另一种预算的规则差异由 `turn-advancement.spec.ts` 覆盖，不再提供 `convergence-no-consensus`、`convergence-reset`、`convergence-message-budget-completion` selector。已移除场景的[历史运行摘要](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#retired-convergence-scenario-evidence)仅用于追溯，不代表当前入口。
 
 ### 引用式纪要场景
 
@@ -207,7 +207,7 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 
 - 自动化脚本：`plugin/scripts/smoke-profile/index.mjs`
 - 插件完整运行验证：`pnpm verify:runtime`
-- 运行验证证据：`docs/40-readiness/DSH-RUNTIME-VERTICAL-SLICE-EVIDENCE.md`
+- 运行验证证据：[Smoke Validation Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#historical-runtime-browser)
 - 当前 smoke 分层验证：[Smoke Validation Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)
 
 ## FR-14 共享 Preset 角色隔离与冷恢复
@@ -240,7 +240,7 @@ Restore：wrapper 的 finally 必须停止本次 Host、确认端口释放并删
 
 ### 适用范围与状态
 
-本节是 LC-08 的固定操作规程。依赖 LC-06B 的 `decision-risk-closure` Browser 夹具和 LC-01–LC-07 实现已在待验收分支完成；夹具由 `runDecisionRiskClosureScenario` 实现，并由 `smoke-profile.spec.ts` 的 fake runtime 测试验证暂停和 ready 边界；这不代表真实 Browser 验证已通过。沿用现有临时 profile、Browser URL、PTY 停止及 cleanup，不新增 selector、Host API 或测试框架。真实 smoke 在实现分支合并前执行，验收通过后记录证据并关闭任务；不以合并作为首次冒烟的前置条件。
+本节验证 Decision/risk 五种本地按钮及归档审计。使用 `decision-risk-closure` Browser 夹具；`runDecisionRiskClosureScenario` 与 `smoke-profile.spec.ts` 验证暂停和 ready 边界，ready 不代表页面验收通过。沿用独立临时 profile、Browser URL、PTY 停止及 cleanup。既有实际验收见 [Browser 历史证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)，每次复验均应记录自己的源码基线与结果。
 
 ### Browser 夹具契约
 
@@ -308,4 +308,4 @@ env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure CONVIVIUM_SMOKE_BROWSER_MODE=
 
 无论断言成功或失败，向本次 wrapper PTY 发送一次 Ctrl-C，等待其正常退出且退出码为 0、stdout 出现 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`；wrapper 的 finally 必须完成 Host 停止、临时根删除和端口释放。用文件存在性工具核对 stdout 记录的唯一精确临时根不存在；不使用 glob、不删除其他目录、不直接 kill 工具进程来代替 Restore。
 
-将被测 commit、启动命令、ready IDs、七步结果、审计 GET 与 Restore 结果写入 `docs/40-readiness/CAPTAIN-LOCAL-DECISION-RISK-CONTROL-EVIDENCE.md`，同步 `CURRENT-IMPLEMENTATION-COVERAGE.md`。只有所有断言和 Restore 通过才关闭 LC-08；其余保留具体失败或 Not Covered。本验证不包含真实 LLM 请求或 Host 冷重启，冷恢复自动化证据以 LC-06 为准。
+将被测 commit、环境、启动命令、ready IDs、七步结果、审计 GET 与 Restore 结果写入 [Smoke Validation Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)，同步 [Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#captain-local-decision-risk-control)。只有所有断言和 Restore 通过才记录本次验收通过；其余保留具体失败或 Not Covered。本验证不包含真实 LLM 请求或 Host 冷重启，自动化持久恢复的边界见验证索引。

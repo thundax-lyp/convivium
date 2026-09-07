@@ -8,10 +8,21 @@ import type {
     PublicArchiveAgendaCandidateV1,
     PublicArchiveIssueV1,
     PublicMeetingMessageV1,
+    PublicProposalV1,
+    PublicHandRaiseV1,
     PublicTerminationV1
 } from "../protocol/index.js";
 
 export interface MeetingPanelView {
+    readonly proposals: readonly PublicProposalV1[];
+    readonly pendingHandRaises: readonly PublicHandRaiseV1[];
+    readonly convergence?: {
+        stallCount: number;
+        maxStalls: number;
+        replanCount: number;
+        maxReplans: number;
+    };
+    readonly selectionReason: string;
     readonly agendaTitle: string;
     readonly agendaObjective: string;
     readonly plannedSpeakerOrder: string;
@@ -54,6 +65,19 @@ export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanel
     const steps = active?.currentTurn?.steps ?? [];
     const waitState = active !== undefined && "waitState" in active ? active.waitState : undefined;
     return {
+        proposals: discussion?.proposals ?? archivePackage?.proposals ?? [],
+        pendingHandRaises: active?.pendingHandRaises ?? [],
+        convergence:
+            active === undefined
+                ? undefined
+                : {
+                      stallCount: active.stallCount,
+                      maxStalls: active.maxStalls,
+                      replanCount: active.replanCount,
+                      maxReplans: active.maxReplans
+                  },
+        selectionReason:
+            steps.find((step) => step.participantId === active?.currentSpeakerId)?.reason ?? "None",
         agendaTitle: agenda?.title ?? "None",
         agendaObjective: agenda?.objective ?? "None",
         plannedSpeakerOrder: steps.map((step) => step.participantId).join(" → ") || "None",

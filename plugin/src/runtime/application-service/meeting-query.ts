@@ -44,6 +44,20 @@ export function createMeetingQueryApplication(options: MeetingQueryApplicationOp
     return {
         async getStatus(input: MeetingStatusInputV1, caller: MeetingQueryCaller) {
             await options.recovery.rehydrate();
+            if (!options.meetings.has(input.meetingId)) {
+                try {
+                    await options.recovery.rehydrate({
+                        kind: "local_meeting",
+                        meetingId: input.meetingId
+                    });
+                } catch {
+                    return commandFailure(
+                        "INTERNAL_ERROR",
+                        "Meeting recovery is unavailable; reopen the original Captain Session and check recovery diagnostics.",
+                        true
+                    );
+                }
+            }
             const stored = options.meetings.get(input.meetingId);
             if (stored === undefined)
                 return commandFailure("MEETING_NOT_FOUND", "Meeting not found.");
@@ -54,7 +68,7 @@ export function createMeetingQueryApplication(options: MeetingQueryApplicationOp
                 );
             }
             try {
-                await options.recoverArchiveForCaptain(stored, caller).catch(() => undefined);
+                await options.recoverArchiveForCaptain(stored, caller);
                 const snapshot = await stored.repository.read();
                 const state = JSON.parse(JSON.stringify(snapshot.state));
                 return commandSuccess(
@@ -62,8 +76,14 @@ export function createMeetingQueryApplication(options: MeetingQueryApplicationOp
                     snapshot.version,
                     projectMeetingStatus(state, caller) as MeetingStatusResultV1
                 );
-            } catch {
-                return commandFailure("MEETING_NOT_FOUND", "Meeting not found.");
+            } catch (error) {
+                return commandFailure(
+                    "INTERNAL_ERROR",
+                    error instanceof Error && /^RECOVERY_[A-Z_]+$/.test(error.message)
+                        ? error.message
+                        : "Meeting recovery is unavailable.",
+                    true
+                );
             }
         },
 

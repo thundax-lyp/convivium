@@ -128,6 +128,7 @@ interface DeveloperDecision {
   acceptanceMode:
     | "deterministic_consensus"
     | "captain_acceptance"
+    | "local_host_acceptance"
     | "authorized_risk_acceptance";
 }
 

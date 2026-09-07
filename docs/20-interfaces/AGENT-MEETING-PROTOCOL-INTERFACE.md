@@ -1615,8 +1615,8 @@ The active status projection's convergence fields are mapped from the committed 
 
 ## Initial Role Definition Selection
 
-创建会议工具支持可选 `managerAgentDefinitionId` 与 `participants[].agentDefinitionId`；选择、失败、兼容与持久 provenance 的规范见 [Meeting Agent Definition Interface](MEETING-AGENT-DEFINITION-INTERFACE.md) Transport Or Invocation 和 Runtime Provenance And Failure。只允许既有 Captain 创建入口提交 ID，不开放 persona、toolFilter、Preset 或 Skill 配置写入口。共享父 Preset 首版已实现，验证见 [FR-14 Evidence](../40-readiness/FR14-SHARED-PRESET-ROLE-COMPOSITION-EVIDENCE.md)。
+创建会议工具支持可选 `managerAgentDefinitionId` 与 `participants[].agentDefinitionId`；选择、失败、兼容与持久 provenance 的规范见 [Meeting Agent Definition Interface](MEETING-AGENT-DEFINITION-INTERFACE.md) Transport Or Invocation 和 Runtime Provenance And Failure。只允许既有 Captain 创建入口提交 ID，不开放 persona、toolFilter、Preset 或 Skill 配置写入口。共享父 Preset 首版已实现，验证见 [FR-14 验证索引](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)。
 
 ## Captain rejection slice
 
-当前 command 仅支持 `decision="reject"`，结果仅为 `disposition="rejected"`，不包含 admissionId/participantId。批准及 admission 仍为尚未实现的未来能力。精确输入校验、validated-input hash、Canonical rejection、领域事件、公开状态、归档与失败顺序以 [Role Catalog Interface 的 Captain rejection slice](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md#captain-rejection-slice) 为唯一完整契约。当前协议、Captain Runtime、DSH 工具、status/archive 接线及 JSONL reopen 已实现并验证；真实 Loader 的缺失推荐拒绝路径已通过。验证边界见 [Captain Attendance Rejection Evidence](../40-readiness/CAPTAIN-ATTENDANCE-REJECTION-EVIDENCE.md)。
+当前 command 仅支持 `decision="reject"`，结果仅为 `disposition="rejected"`，不包含 admissionId/participantId。批准及 admission 仍为尚未实现的未来能力。精确输入校验、validated-input hash、Canonical rejection、领域事件、公开状态、归档与失败顺序以 [Role Catalog Interface 的 Captain rejection slice](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md#captain-rejection-slice) 为唯一完整契约。当前协议、Captain Runtime、DSH 工具、status/archive 接线及 JSONL reopen 已实现并验证；真实 Loader 的缺失推荐拒绝路径已通过。验证边界见 [Captain Attendance Rejection 验证索引](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#captain-attendance-rejection)。

@@ -14,7 +14,7 @@ const issue = {
     safeDefaultAvailable: false
 };
 
-describe("addSubmittedIssues", () => {
+describe("submitted meeting issues", () => {
     it("creates a blocking issue linked to the submitted message", () => {
         const state = questionState();
         state.transcript = [{ id: "message-1" } as (typeof state.transcript)[number]];

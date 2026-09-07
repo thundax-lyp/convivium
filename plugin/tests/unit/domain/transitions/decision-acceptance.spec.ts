@@ -70,7 +70,7 @@ const context = {
     now
 };
 
-describe("acceptDecisionCandidate", () => {
+describe("decision candidate acceptance", () => {
     it("creates accepted decision, fact and event atomically", () => {
         const result = acceptDecisionCandidate(ready(), context);
         expect(result.state.decisions[0]).toMatchObject({
@@ -130,7 +130,7 @@ describe("acceptDecisionCandidate", () => {
     });
 });
 
-describe("local control preserves authority and guards", () => {
+describe("local decision and risk authority", () => {
     const local = {
         ...context,
         authority: "local_host" as const,

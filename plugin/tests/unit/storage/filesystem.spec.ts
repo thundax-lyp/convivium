@@ -4,7 +4,7 @@ import { ScriptedFileSystem } from "../../fixtures/storage/scripted-filesystem.j
 import { mkdtemp, readdir, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-describe("filesystem durability helpers", () => {
+describe("filesystem durable write and rename", () => {
     it("preserves target when replacement temp write fails", async () => {
         const root = await mkdtemp(join(process.env.TMPDIR ?? "/tmp", "convivium-"));
         try {

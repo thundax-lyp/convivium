@@ -1,3 +1,5 @@
+import { DomainError } from "../../domain/errors.js";
+import { emitDiagnostic, observeCommit, type DiagnosticSink } from "../diagnostics.js";
 import type { CatalogDomain, MeetingDomain } from "./specs.js";
 import type { MeetingRepositoryPort } from "../meeting-repository-port.js";
 import {
@@ -126,6 +128,7 @@ export interface DomainMeetingRepositoryOpenOptions {
     readonly meetingId: string;
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly now?: () => number;
+    readonly onDiagnostic?: DiagnosticSink;
     readonly onProjectionCommitted?: (snapshot: MeetingSnapshot) => void;
 }
 
@@ -137,6 +140,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
     private readonly authorizationValidator: RepositoryAuthorizationValidator;
     private readonly now: () => number;
     private readonly onProjectionCommitted: ((snapshot: MeetingSnapshot) => void) | undefined;
+    private readonly onDiagnostic: DiagnosticSink | undefined;
     private closed = false;
     private domainClosed = false;
     private mutationChain: Promise<void> = Promise.resolve();
@@ -155,6 +159,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
         this.authorizationValidator = options.authorizationValidator;
         this.now = options.now ?? Date.now;
         this.onProjectionCommitted = options.onProjectionCommitted;
+        this.onDiagnostic = options.onDiagnostic;
     }
 
     static async open(
@@ -190,6 +195,15 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 );
             }
         }
+        if (repository.projection !== undefined) {
+            observeCommit(
+                repository.onDiagnostic,
+                repository.meetingId,
+                repository.projection,
+                repository.projection,
+                repository.now()
+            );
+        }
         return repository;
     }
 
@@ -198,9 +212,26 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
             throw new RepositoryError("CLOSED", false, this.meetingId, "Repository is closed");
     }
 
-    private enqueueMutation<T>(operation: () => Promise<T>): Promise<T> {
+    private enqueueMutation<T>(operation: () => Promise<T>, commandKind?: string): Promise<T> {
         this.ensureOpen();
-        const committed = this.mutationChain.then(operation);
+        const committed = this.mutationChain.then(operation).catch((error) => {
+            const state = this.projection?.snapshot?.state;
+            const code =
+                error instanceof RepositoryError || error instanceof DomainError
+                    ? error.code
+                    : "INTERNAL_ERROR";
+            emitDiagnostic(this.onDiagnostic, {
+                meetingId: this.meetingId,
+                meetingVersion: this.projection?.snapshot?.version ?? 0,
+                eventSeq: typeof state?.eventSeq === "number" ? state.eventSeq : 0,
+                eventType: "repository.failed",
+                ...(commandKind === undefined ? {} : { commandKind }),
+                timestamp: this.now(),
+                errorCode: code,
+                metrics: { failures: 1, ...(code === "STALE_ATTEMPT" ? { staleSubmits: 1 } : {}) }
+            });
+            throw error;
+        });
         const maintenance = committed.then(
             () => this.runMaintenance(),
             () => undefined
@@ -320,9 +351,18 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 );
         }
         await this.meetingDomain.table("commits").put(seqKey(seq), record);
+        const previous = this.projection;
         this.projection = nextProjection;
         this.headSeq = seq;
         this.headDigest = record.digest;
+        observeCommit(
+            this.onDiagnostic,
+            this.meetingId,
+            previous,
+            this.projection,
+            _input.now,
+            _input.operation.startsWith("command:") ? _input.operation.slice(8) : undefined
+        );
         this.onProjectionCommitted?.(structuredClone(this.projection.snapshot!));
         const nextTailCount = tail.length + 1;
         if (
@@ -561,6 +601,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     status: "ready",
                     updatedAt: now
                 }));
+            observeCommit(this.onDiagnostic, this.meetingId, undefined, this.projection, now);
             this.onProjectionCommitted?.(structuredClone(this.projection.snapshot!));
             return {
                 requestId: input.requestId,
@@ -741,6 +782,13 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                 creation.status === "ready"
                     ? this.projection?.sessionOwnership[input.sessionId]
                     : creation.sessionOwnership[input.sessionId];
+            if (input.supersededBySessionId !== existing?.supersededBySessionId)
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "Only atomic Session replacement may assign supersession."
+                );
             if (
                 existing &&
                 (!isLifecycleTransitionAllowed(existing.lifecycleStatus, input.lifecycleStatus) ||
@@ -829,6 +877,58 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
             });
             return result;
         });
+    }
+    /** Retains revoked ownership and its replacement link through checkpoint compaction. */
+    async replaceMissingSession(
+        previousSessionId: string,
+        replacementSessionId: string,
+        now = this.now()
+    ): Promise<SessionOwnership> {
+        return this.enqueueMutation(async () =>
+            this.commit({
+                operation: "session.replaced",
+                now,
+                mutate: (current) => {
+                    const previous = current.sessionOwnership[previousSessionId];
+                    if (
+                        current.snapshot?.state.status !== "paused" ||
+                        previous === undefined ||
+                        previous.capabilityStatus !== "revoked" ||
+                        previous.lifecycleStatus !== "closed" ||
+                        previous.supersededBySessionId !== undefined ||
+                        !replacementSessionId ||
+                        current.sessionOwnership[replacementSessionId] !== undefined
+                    ) {
+                        throw new RepositoryError(
+                            "INVALID_STATE",
+                            false,
+                            this.meetingId,
+                            "Session replacement requires a paused Meeting and retired ownership."
+                        );
+                    }
+                    const replacement: SessionOwnership = {
+                        ...previous,
+                        sessionId: replacementSessionId,
+                        lifecycleStatus: "provisioning",
+                        capabilityStatus: "active",
+                        createdAt: now,
+                        updatedAt: now
+                    };
+                    delete replacement.initialMessageId;
+                    const ownership = { ...current.sessionOwnership };
+                    ownership[previousSessionId] = {
+                        ...previous,
+                        supersededBySessionId: replacementSessionId,
+                        updatedAt: now
+                    };
+                    ownership[replacementSessionId] = replacement;
+                    return {
+                        next: { ...current, sessionOwnership: ownership },
+                        result: replacement
+                    };
+                }
+            })
+        );
     }
     async read(): Promise<MeetingSnapshot> {
         this.ensureOpen();
@@ -1497,7 +1597,7 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
                     }
                 })
             });
-        });
+        }, command.commandKind);
     }
     async claimOutbox(_input: ClaimOutboxInput): Promise<OutboxItem[]> {
         const input = _input;

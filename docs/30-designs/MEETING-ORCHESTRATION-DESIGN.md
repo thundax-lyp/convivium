@@ -205,13 +205,11 @@ interface MeetingParticipant {
   sourceMemberName?: string;
   displayName: string;
   role?: string;
-  agentSessionId: string;
   status:
     "available" | "busy" | "speaking" | "unavailable" | "failed" | "removed";
 
   lastDeliveredSeq: number;
   lastAcknowledgedSeq: number;
-  lastSpokeTurn?: number;
   consecutiveSpeeches: number;
   consecutiveAttemptFailures: number;
   totalSpeeches: number;
@@ -903,9 +901,8 @@ interface MeetingContextProjection {
 不新增 `taskVersion`。MeetingTask 的 `executionId` 已表示一次执行，terminal result 又不可修改。
 
 ```text
-acquire short TeamState lock
-→ copy taskId/attemptId/status/filtered output/observedAt
-→ release TeamState lock
+read authorized MeetingTask projection from the current Meeting repository
+→ copy taskId/executionId/status/filtered output/observedAt
 → persist snapshot with SpeakerAttempt in one Repository commit
 ```
 
@@ -1179,7 +1176,7 @@ Manager plan MUST 校验：
 
 Agent role catalog、Manager recommendation、Captain disposition 和 admission 的跨边界类型以 [Meeting Agent Role Catalog Interface](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md) 为唯一契约。Catalog candidate 与 Meeting Participant 必须保持分离。
 
-FR-13 Phase 1 只覆盖 Catalog safe projection、Manager recommendation claim 和 pending status projection。Host/profile 通过唯一 optional consumer port 提供 snapshot；Meeting creation 不读取 Catalog。Runtime 仅在 source state 为 V2 且现有纯 transition preview 证明当前 command 将创建 Manager planning attempt 后读取一次，并在创建 attempt 的同一 commit 中写入 required `verified | none` binding。legacy source 不读取 Catalog；service 缺失或 snapshot 失败产生 `none`，普通 planning 继续。Runtime 不缓存、不重试、不另建 repository、event、outbox 或第二事实源。
+FR-13 Phase 1 只覆盖 Catalog safe projection、Manager recommendation claim 和 pending status projection。Host/profile 通过唯一 optional consumer port 提供 snapshot；Meeting creation 仅在初始规划确实创建 Manager planning attempt 时读取 Catalog；纯 rule/round-robin 创建不读取。Runtime 仅在 source state 为 V2 且现有纯 transition preview 证明当前 command 将创建 Manager planning attempt 后读取一次，并在创建 attempt 的同一 commit 中写入 required `verified | none` binding。legacy source 不读取 Catalog；service 缺失或 snapshot 失败产生 `none`，普通 planning 继续。Runtime 不缓存、不重试、不另建 repository、event、outbox 或第二事实源。
 
 Runtime 从已提交 attempt binding 生成 Manager context。verified snapshot 投影安全 candidate metadata 和 `researchNeeds: []`；legacy 或 `none` 投影 `agentCatalog: null`。Manager 可以随合法 planning submission 推荐 candidate，但 recommendation 不改变当前 Turn、speaker candidates、objective contract 或权限。Runtime 必须从当前 Manager caller、planning attempt、Meeting version 和同一 verified snapshot 绑定 recommendation identity；Manager 不能提供 recommendation 状态、Participant ID 或 agentDefinitionId。
 
@@ -1322,7 +1319,7 @@ Worker 领取 delivery 时 MUST 使用同一 mutation chain 内的条件 commit�
 2. bootstrap `creating` 可以继续创建，或关闭已创建 Session 并标记 `creation_failed`；
 3. `created|running|waiting|paused|converging` Meeting 缺失 required Session 时按恢复规则重建；
 4. execution terminal、`archiving` 或 `archived` Meeting 不重建任何 Session；
-5. terminal/`archiving` Meeting 中仍在运行的 Session 先执行 interrupt，再由真实 direct parent 调用 `drainContinuableChildren` 等待 resident Activation 释放，最后持久提交 capability revoke；Session 不 resident 或 capability 已撤销视为正常；
+5. terminal/`archiving` Meeting 先持久撤销会议 capability，再对仍在运行的 Session 执行 interrupt，并由真实 direct parent 调用 `drainContinuableChildren` 等待 resident Activation 释放；Session 不 resident 或 capability 已撤销视为正常；
 6. `archived` Meeting 中 Session 不 resident 且 capability 已撤销视为正常；发现 resident Activation 时只执行 interrupt/drain，发现仍有效会议 capability 时只撤销 capability，不恢复讨论；
 7. 对账完成并持久化结果后，才允许启动 scheduler 和接受新请求。
 
@@ -1340,6 +1337,12 @@ Meeting Session 必须通过 catalog identity、Meeting domain identity、持久
 8. archiving Meeting 只恢复归档、Session close 和 capability revoke，不恢复讨论。
 
 恢复 MUST 使用正常 transition 函数，不允许隐藏跳转。
+
+生产入口先从 DSH Agent registry 取得原 Captain 的 live Agent，并以持久 ownership 与完整 DSH parent/label 对账，再绑定 delivery worker。原 Captain 尚未打开时返回可重试恢复不可用；单 Meeting 无法证明归属时隔离，其他 Meeting 的 Agent best-effort discovery 继续。本地 list 仍整体返回不可用。
+
+中断创建采用关闭已证明归属的 Session 并标记 `creation_failed` 的分支。当前进程正在创建的 Meeting 不属于冷恢复候选。缺失 Manager/Participant 时先通过正常 pause transition 撤销旧 attempt，使派发端拒绝旧 delivery，并取消未完成 mail，再在 paused 状态原子替换已关闭且 revoked 的 ownership，补建独立新 Session；原 ownership 与 `supersededBySessionId` 替换链留在当前 projection/checkpoint 中，不再授权旧 Session。补建完成后由显式 resume 按最新事实重新规划，不重用旧 attempt。补建或持久化中断时保留 provisioning ownership，下一次对账关闭可证明的半成品并重试。
+
+FR-14 的历史 persona/toolFilter 由 DSH descriptor 持有，Convivium 只存 provenance 指纹。若带 Definition 的持久 Session/descriptor 丢失，无法证明原配置时必须以 `RECOVERY_ROLE_DESCRIPTOR_MISSING` 明确拒绝补建，保留 pause 和既有事实；不得套用当前 Definition 或去除权限限制。此分支落实 FR-9 的“明确说明不能恢复原因”和 FR-14 不重配既有身份的约束。已终止或归档的 Meeting 只进行安全清理，不补建 Session。
 
 Convivium 不建立独立的 DSH Host availability 状态机。首选实现是在上述 reconciliation 完成后再注册 Meeting Web route 和会议工具；如果 DSH 插件装配要求 route 先存在，恢复期间只返回 HTTP `503` 和 `Retry-After`。DSH Agent factory、continuable provider、Session resume 和 followup 的失败沿调用边界转换为可安全展示的 `INTERNAL_ERROR`，并根据错误是否可重试设置 `retryable`；这些失败只进入诊断日志或既有 outbox retry，不修改 Meeting status、version 或 termination。
 
@@ -1763,7 +1766,7 @@ After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fing
 - Meeting-owned Manager/Participant Session 的创建、串行调用、恢复、关闭和 capability revoke；
 - create/status/submit/raise-hand/reassign/end/manager-plan、后台任务和 meeting-scoped mailbox 工具边界；
 - Agent role catalog 安全 projection、Manager 参会 recommendation、Captain disposition 和 Participant admission/provisioning；
-- Meeting Agent Definition resolution、共享父 Preset/Skill validation 和 fail-closed provisioning（待实现）；
+- Meeting Agent Definition resolution、共享父 Preset/Skill validation 和 fail-closed provisioning（共享父 Preset 首版）；
 - `round_robin | rule_based | manager | hybrid` planning、Manager 语义裁决和确定性 fallback；
 - 顺序 speaker、delivery dedupe、完成判断、归档和续会；
 - Plugin Frontend projection、刷新、用户控制和连接失败展示；

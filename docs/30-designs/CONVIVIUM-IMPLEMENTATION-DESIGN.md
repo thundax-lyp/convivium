@@ -169,7 +169,7 @@ domain     ──> no infrastructure module
 | `src/protocol/*`                                               | Interface 对应的 Host/Client 共享 transport 类型、常量和无副作用 codec                               |
 | `src/domain/model.ts`                                          | Meeting 聚合、值对象和领域 read model                                                                |
 | `src/domain/meeting-state-validation.ts`                       | MeetingState V2 的运行时判别及 Catalog/recommendation 校验；仅依赖内部领域类型                        |
-| `src/domain/transitions.ts`                                    | 唯一领域状态转换集合                                                                                 |
+| `src/domain/transitions/`                                    | 唯一领域状态转换集合                                                                                 |
 | `src/domain/planning.ts`                                       | candidate filtering、selection mode、turn plan 校验                                                  |
 | `src/domain/completion.ts`                                     | 完成事实、停滞和终止派生计算                                                                         |
 | `src/domain/errors.ts`                                         | 内部领域错误分类；由 transport 映射为协议错误                                                        |
@@ -184,11 +184,11 @@ domain     ──> no infrastructure module
 | `src/runtime/application-service/types.ts`                     | Runtime、caller、配置及应用服务共享类型；不持有运行时状态                                             |
 | `src/runtime/application-service/continuation-selection.ts`    | 续会来源恢复、访问检查和显式素材选择                                                                  |
 | `src/runtime/application-service/initialize-meeting-turn.ts`   | 首轮初始化及共用的 SpeakerAttempt 分配；保持既有 command/commit 边界                                 |
-| `src/runtime/turn-runner.ts`                                   | Manager plan、逐 speaker dispatch、submit 和下一 step 推进                                           |
+| `src/runtime/application-service/meeting-turn.ts`                                   | Manager plan、逐 speaker dispatch、submit 和下一 step 推进                                           |
 | `src/runtime/outbox-worker.ts`                                 | 提交后 DSH 副作用、重投和结果回写                                                                    |
-| `src/runtime/mail-processor.ts`                                | meeting-scoped mail context 固化和独立处理 attempt                                                   |
-| `src/runtime/recovery.ts`                                      | 冷启动扫描、租约回收、outbox 恢复和 orphan 归属修复                                                  |
-| `src/runtime/archive.ts`                                       | 终态快照、capability revoke、Activation drain 和 archived commit                                     |
+| `src/runtime/application-service/meeting-mail.ts`                                | meeting-scoped mail context 固化和独立处理 attempt                                                   |
+| `src/runtime/services/meeting-recovery-service.ts + meeting-session-recovery.ts`                                      | 冷启动扫描、租约回收、outbox 恢复和 orphan 归属修复                                                  |
+| `src/runtime/services/meeting-archive-service.ts`                                       | 终态快照、capability revoke、Activation drain 和 archived commit                                     |
 | `src/dsh/session-adapter.ts`                                   | meeting-owned Session 创建和 followup；保留 Session ownership 操作的导出入口                         |
 | `src/dsh/session-ownership.ts`                                 | meeting-owned Session ownership 证明、枚举检查及 interrupt/drain                                     |
 | `examples/meeting-agent-definitions/*`                         | 不进入发布包的 Convivium Meeting Agent Definition 固定样本；不表示 DSH capability 已安装             |
@@ -238,7 +238,7 @@ Runtime 只通过以下语义级 API 读写：
 `execute` 是正式会议事实的唯一写入口。它在一个 Repository commit 边界内完成：
 
 1. Runtime 先通过 `RepositoryAuthorizationValidator` 校验真实 caller binding、capability 和当前 attempt；Repository 在 transition 前调用该端口，并校验 `expectedMeetingVersion`。
-2. 调用纯 `domain/transitions.ts` 得到新聚合和 effects。
+2. 调用纯 `domain/transitions/` 得到新聚合和 effects。
 3. 在一条 Domain commit 中写入聚合 patch、不可变 event、幂等 receipt 和 outbox。
 4. 单调递增 meeting version 与 event sequence。
 5. commit record 持久化成功后返回 `CommittedResult`；提交前不得调用 DSH 或生成成功响应。
@@ -409,12 +409,17 @@ Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-s
 
 恢复只通过 catalog discovery 打开已登记的 Meeting domains，不扫描 data root 或 backend 物理路径。单个 Meeting 损坏不得阻止其他 Meeting 的 Agent best-effort 恢复；需要完整一致结果的本地 list 按 Interface 整体失败。全局配置或 DSH capability 缺失则阻止插件加载。
 
+恢复实现的身份替换、失败重试、Captain 可用性与不可重建角色配置边界见 [Orchestration §14.2](./MEETING-ORCHESTRATION-DESIGN.md#142-cold-recovery)。
+
 ## Security And Observability
 
 - 所有路径由 validated `teamId` 和 `meetingId` 解析，禁止调用方提供任意文件路径。
 - repository 不接受未绑定 caller 的通用 JSON patch 或 backend operation。
 - 日志必须包含 meeting ID、command/outbox kind、attempt ID 和结构化错误码，不记录隐藏推理、完整私聊或敏感凭据。
 - metrics 至少覆盖 active/waiting meetings、outbox backlog、dispatch latency、recovery count、rejected stale submissions 和 repository failures。
+- `repository/diagnostics.ts` 在 durable commit 后输出白名单结构化诊断，事件不重复发布幂等 receipt。失败记录不写领域事件；logger 失败不影响业务提交。指标作为 DSH logger 的数值字段输出，消费方可聚合，不新建 metrics 服务或持久状态源。恢复和归档生命周期分别输出安全错误码与失败计数。
+- 冷打开已提交 projection 时只重建 active/waiting/backlog gauges，不重放历史事件计数。Host 汇总已打开会议的 active/waiting 数量；无法打开的损坏 domain 不属于已观测集合，指标不能替代完整 list 的恢复判定。派发诊断保留 outbox kind、delivery 与可用的 turn/step/attempt ID；Speaker 时长按事件指向的 attempt 计算，不能用当前 step 代替。Captain/lifecycle 不可用和清理持久化失败均输出安全错误码。
+- 面板从现有完整 status/archive projection 展示 Proposal revision、Position、待处理 HandRaise 与 stall/replan 计数；终态不保留活动举手或收敛运行区。
 - DSH 原生 tool/session events 由 DSH 持有；Convivium 不声明自定义持久化 DSH Session Event。
 - Plugin Frontend 不能访问持久化介质、workspace 任意文件或 Session capability token。
 

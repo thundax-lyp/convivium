@@ -86,7 +86,7 @@ describe("persisted smoke observations", () => {
     });
 });
 
-it("requires baseline attendance rejection evidence without changing timeout validation", () => {
+it("validates attendance rejection and speaker timeout independently", () => {
     const baseline = {
         ok: true,
         scenario: "baseline",
