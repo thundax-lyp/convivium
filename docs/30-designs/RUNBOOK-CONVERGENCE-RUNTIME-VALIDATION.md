@@ -188,24 +188,9 @@ type ConvergenceProbeResult = {
 
 以下命令工作目录均为仓库根目录。T1–T6 仅本地脚本实施/测试；T7 才是真实外部运行。本轮 Author 没有执行这些步骤。
 
-### T0：基线与许可检查
+### T0 已完成：基线与许可检查
 
-前置状态：明确 Execute 授权；已完整读取本文及治理/依据。
-允许修改：无。
-禁止修改：main、其他任务目录、用户已有改动。
-
-执行：核对 HEAD 及 clean workspace（本文可以是唯一未提交文档），当前必须是本任务 codex 分支。基线变化时输出完整差异并 STOP 交 Author 重新审计，执行者不选替代 symbol。
-
-验证：
-```sh
-git branch --show-current
-git rev-parse HEAD
-git status --short
-git diff --check
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts tests/unit/domain/transitions/turn-advancement.spec.ts
-```
-PASS：HEAD 等于作者基线，分支 `codex/convergence-runtime-runbook`；无非本文改动；三个现有 suite 共 32 tests 通过。
-STOP：任一不符；报告 baseline/状态/测试输出，不 reset 或恢复用户状态。
+实际结果：在 `codex/convergence-runtime-runbook` 分支核对基线与工作区；按执行授权允许本任务后续提交使 HEAD 前移。三个既有 suite 共 32 tests 通过，三个计划新增文件均不存在。T0 未产生代码或测试文件；后续从 T1 开始。
 
 ### T1：建立 result 校验与独立 fixture
 
