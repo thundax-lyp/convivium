@@ -202,7 +202,7 @@ Position 必须包含 `id`、`participantId`、`position`、`blocking` 和 `prop
 
 ### MeetingDecision
 
-Decision 必须包含 id、agendaItemId、proposalId、proposalRevision、statement、rationale、status、acceptanceMode、acceptedBy、dissentingPositionIds、acceptanceFactIds 和 createdAt，并允许 `supersededByDecisionId?`。V1 的 `acceptanceMode` 只有 `captain_acceptance`；不存在 deterministic 或 risk auto-accept。
+Decision 必须包含 id、agendaItemId、proposalId、proposalRevision、statement、rationale、status、acceptanceMode、acceptedBy、dissentingPositionIds、acceptanceFactIds 和 createdAt，并允许 `supersededByDecisionId?`。V1 新接受写入的 `acceptanceMode` 为 `captain_acceptance` 或 `local_host_acceptance`，分别对应真实 Captain 与受控 loopback local；不存在 deterministic 或 risk auto-accept。既有内部 legacy 类型不据此扩大新写入路径，也不迁移历史数据。
 
 Decision 只能由 Runtime 生成，Participant 不能直接创建或覆盖。
 
@@ -220,7 +220,7 @@ HandRaise 是调度输入，不是 transcript、Decision 或 CompletionFact。
 
 必须包含 id、kind、subjectId、assertedBy、authority?、result、evidenceMessageIds、taskIds、status 和 createdAt，并允许 reason?。
 
-事实失效时创建替代事实，不原地修改 actor、authority 或 evidence。
+事实失效时创建替代事实，不原地修改 actor、authority 或 evidence。local 决策/风险控制事实固定 `authority="local_host"`、`assertedBy="local-host:loopback-web"`；只允许 decision_acceptance、decision_supersession、decision_revocation 和 risk_acceptance 四种 kind。归档必须找到同 ID 的已提交源 fact，并核对 kind、authority 和 assertedBy；不能仅凭 local 字符串绕过来源校验。完整入口契约见 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) Local decision and risk control。
 
 ### MeetingLimits
 

@@ -195,6 +195,12 @@ Required-unavailable planning atomically writes `status='waiting'` and `MeetingW
 
 The existing event vocabulary is reused: convergence writes `meeting.replanned` for replan and `meeting.ended` for stall/no-consensus termination. Event payloads include the committed `meetingId`, `meetingVersion`, `eventSeq`, `turnId` when present, and deterministic reason/termination code; no new convergence event family, repository, table, or outbox worker is introduced. Outbox external delivery remains post-commit; only the A-owned terminal-failure callback may issue the fallback command after durable failed completion.
 
+### Local decision and risk commit consistency
+
+Captain/local 五种控制共享既有 command commit。local receipt 与 Captain receipt 由不同 callerBinding 隔离；local 的 authority/assertedBy 和新 Decision acceptanceMode 按 [Protocol](./AGENT-MEETING-PROTOCOL-INTERFACE.md) Local decision and risk control 保存，不改写历史值或建立第二存储。归档核对 local fact 的已提交来源并保留完整事实。
+
+风险 command 先产生 `completion_fact.added`；完成重算为 completed 时，同一 commit 追加 `meeting.replanned`、进入 converging 并清除 currentTurn/waitState，其他结果不追加事件。两分支都仅增加一个 Meeting version、outbox=[]，失败无半提交；checkpoint/tail 恢复和 receipt replay 必须保留该顺序。事件 payload 的输入版本与外层提交版本区别以 Protocol Control command payloads 为准。本契约不新增事件类型，不授权自动结束、归档或 Session 操作。
+
 ## Related Documents
 
 - `docs/00-governance/ARCHITECTURE.md`

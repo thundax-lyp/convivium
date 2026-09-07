@@ -1,5 +1,7 @@
+import { createLocalDecisionRiskState } from "../../../fixtures/local-decision-risk.js";
+import type { MeetingState } from "../../../../src/domain/model.js";
 import { describe, expect, it } from "vitest";
-import { disposeDecision } from "../../../../src/domain/index.js";
+import { acceptDecisionCandidate, disposeDecision } from "../../../../src/domain/index.js";
 import { now, questionState } from "./fixtures.js";
 
 function ready() {
@@ -128,5 +130,126 @@ describe("disposeDecision", () => {
         ).toThrow("requestId must not be empty");
         expect(state.decisions[0]?.status).toBe("accepted");
         expect(state.completionFacts).toEqual([]);
+    });
+});
+
+describe("local control preserves authority and guards", () => {
+    const local = {
+        ...base,
+        authority: "local_host" as const,
+        actorBinding: "local-host:loopback-web",
+        reason: "Reviewed evidence",
+        decisionId: "decision-candidate-1"
+    };
+    function accepted() {
+        return acceptDecisionCandidate(createLocalDecisionRiskState(), {
+            ...local,
+            decisionCandidateId: "candidate-1"
+        }).state;
+    }
+    it("keeps local provenance through replacement and revocation", () => {
+        const state = accepted();
+        const before = structuredClone(state);
+        const replaced = disposeDecision(state, {
+            ...local,
+            requestId: "local-replace",
+            action: "supersede",
+            replacementCandidateId: "candidate-2"
+        });
+        expect(state).toEqual(before);
+        expect(replaced.effect.events.map((event) => event.type)).toEqual([
+            "decision.accepted",
+            "decision.superseded"
+        ]);
+        for (const event of replaced.effect.events)
+            expect(event.payload).toMatchObject({ actorBinding: local.actorBinding });
+        expect(replaced.state.decisions[0]).toMatchObject({
+            status: "superseded",
+            supersededByDecisionId: "decision-candidate-2"
+        });
+        expect(replaced.state.decisions[1]).toMatchObject({
+            status: "accepted",
+            acceptanceMode: "local_host_acceptance"
+        });
+        const replacementBefore = structuredClone(replaced.state);
+        const revoked = disposeDecision(replaced.state, {
+            ...local,
+            decisionId: "decision-candidate-2",
+            requestId: "local-revoke",
+            action: "revoke"
+        });
+        expect(replaced.state).toEqual(replacementBefore);
+        expect(revoked.state.decisions[1]?.status).toBe("revoked");
+        expect(revoked.state.completionFacts).toHaveLength(4);
+        for (const fact of revoked.state.completionFacts)
+            expect(fact).toMatchObject({
+                authority: "local_host",
+                assertedBy: local.actorBinding,
+                evidenceMessageIds: ["message-1"],
+                reason: local.reason
+            });
+        expect(revoked.effect.events[0]?.payload).toMatchObject({
+            actorBinding: local.actorBinding
+        });
+        expect(
+            disposeDecision(state, {
+                ...base,
+                decisionId: local.decisionId,
+                action: "revoke"
+            }).state.completionFacts.at(-1)?.authority
+        ).toBe("captain");
+    });
+    it.each([
+        { reason: " " },
+        { evidenceMessageIds: [] },
+        { evidenceMessageIds: ["message-1", "message-1"] },
+        { evidenceMessageIds: ["unknown"] },
+        { evidenceMessageIds: ["message-1", "other-meeting-message"] },
+        { decisionId: "unknown" },
+        { replacementCandidateId: "unknown" },
+        { meetingId: "other-meeting" }
+    ])("rejects invalid replacement %j atomically", (patch) => {
+        const state = accepted();
+        const before = structuredClone(state);
+        expect(() =>
+            disposeDecision(state, {
+                ...local,
+                action: "supersede",
+                replacementCandidateId: "candidate-2",
+                ...patch
+            })
+        ).toThrow();
+        expect(state).toEqual(before);
+    });
+    it.each(["superseded", "revoked"] as const)("rejects %s target", (status) => {
+        const state = accepted();
+        state.decisions[0]!.status = status;
+        const before = structuredClone(state);
+        expect(() => disposeDecision(state, { ...local, action: "revoke" })).toThrow();
+        expect(state).toEqual(before);
+    });
+    it.each<MeetingState["status"]>([
+        "completed",
+        "partial",
+        "no_consensus",
+        "cancelled",
+        "failed",
+        "archiving",
+        "archived"
+    ])("rejects %s", (status) => {
+        const state = accepted();
+        state.status = status;
+        const before = structuredClone(state);
+        for (const action of ["revoke", "supersede"] as const) {
+            expect(() =>
+                disposeDecision(
+                    state,
+                    action === "revoke"
+                        ? { ...local, action }
+                        : { ...local, action, replacementCandidateId: "candidate-2" }
+                )
+            ).toThrow();
+            expect(state).toEqual(before);
+        }
     });
 });

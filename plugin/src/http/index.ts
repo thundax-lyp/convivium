@@ -1,6 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebServer } from "@deepseek-ai/dsh-host-webserver";
 import {
+    CaptainDecisionAcceptanceInputSchema,
+    CaptainDecisionAcceptanceResultSchema,
+    CaptainDecisionDispositionInputSchema,
+    CaptainDecisionDispositionResultSchema,
+    CaptainRiskDispositionInputSchema,
+    CaptainRiskDispositionResultSchema,
     EndMeetingInputSchema,
     EndMeetingResultSchema,
     LocalMeetingListResponseSchema,
@@ -117,7 +123,7 @@ export function registerLocalMeetingHttpRoutes(
                 const listRoute = rawPath === routePrefix && req.method === "GET";
                 const detailMatch = rawPath.match(/^\/api\/convivium\/meetings\/([^/]+)$/);
                 const controlMatch = rawPath.match(
-                    /^\/api\/convivium\/meetings\/([^/]+)\/(pause|resume|reassign|end)$/
+                    /^\/api\/convivium\/meetings\/([^/]+)\/(pause|resume|reassign|end|accept-decision|dispose-decision|dispose-risk)$/
                 );
                 const detailRoute = detailMatch !== null && req.method === "GET";
                 const controlRoute = controlMatch !== null && req.method === "POST";
@@ -174,6 +180,125 @@ export function registerLocalMeetingHttpRoutes(
 
                 const body = await readJsonBody(req);
                 const action = controlMatch![2]!;
+                if (action === "accept-decision") {
+                    assertExactBodyKeys(body, [
+                        "protocolVersion",
+                        "meetingId",
+                        "expectedMeetingVersion",
+                        "requestId",
+                        "reason",
+                        "evidenceMessageIds",
+                        "decisionCandidateId"
+                    ]);
+                    let input;
+                    try {
+                        input = CaptainDecisionAcceptanceInputSchema(body);
+                    } catch (error) {
+                        throw new InvalidMeetingRequestError("Meeting request is invalid.", {
+                            cause: error
+                        });
+                    }
+                    if (input.meetingId !== meetingId)
+                        throw new InvalidMeetingRequestError("Meeting ID mismatch.");
+                    const value = await runtime.acceptLocalDecision(input);
+                    if (!value.ok) {
+                        const error = validateProtocolError(value);
+                        writeJson(res, errorStatus(error), error);
+                        return;
+                    }
+                    writeJson(
+                        res,
+                        200,
+                        validateProtocolSuccessEnvelope(
+                            CaptainDecisionAcceptanceResultSchema,
+                            value as never
+                        )
+                    );
+                    return;
+                }
+
+                if (action === "dispose-decision") {
+                    assertExactBodyKeys(body, [
+                        "protocolVersion",
+                        "meetingId",
+                        "expectedMeetingVersion",
+                        "requestId",
+                        "reason",
+                        "evidenceMessageIds",
+                        "decisionId",
+                        "action",
+                        ...(body !== null &&
+                        typeof body === "object" &&
+                        "action" in body &&
+                        body.action === "supersede"
+                            ? ["replacementCandidateId"]
+                            : [])
+                    ]);
+                    let input;
+                    try {
+                        input = CaptainDecisionDispositionInputSchema(body);
+                    } catch (error) {
+                        throw new InvalidMeetingRequestError("Meeting request is invalid.", {
+                            cause: error
+                        });
+                    }
+                    if (input.meetingId !== meetingId)
+                        throw new InvalidMeetingRequestError("Meeting ID mismatch.");
+                    const value = await runtime.disposeLocalDecision(input);
+                    if (!value.ok) {
+                        const error = validateProtocolError(value);
+                        writeJson(res, errorStatus(error), error);
+                        return;
+                    }
+                    writeJson(
+                        res,
+                        200,
+                        validateProtocolSuccessEnvelope(
+                            CaptainDecisionDispositionResultSchema,
+                            value as never
+                        )
+                    );
+                    return;
+                }
+
+                if (action === "dispose-risk") {
+                    assertExactBodyKeys(body, [
+                        "protocolVersion",
+                        "meetingId",
+                        "expectedMeetingVersion",
+                        "requestId",
+                        "reason",
+                        "evidenceMessageIds",
+                        "issueId",
+                        "decision"
+                    ]);
+                    let input;
+                    try {
+                        input = CaptainRiskDispositionInputSchema(body);
+                    } catch (error) {
+                        throw new InvalidMeetingRequestError("Meeting request is invalid.", {
+                            cause: error
+                        });
+                    }
+                    if (input.meetingId !== meetingId)
+                        throw new InvalidMeetingRequestError("Meeting ID mismatch.");
+                    const value = await runtime.disposeLocalRisk(input);
+                    if (!value.ok) {
+                        const error = validateProtocolError(value);
+                        writeJson(res, errorStatus(error), error);
+                        return;
+                    }
+                    writeJson(
+                        res,
+                        200,
+                        validateProtocolSuccessEnvelope(
+                            CaptainRiskDispositionResultSchema,
+                            value as never
+                        )
+                    );
+                    return;
+                }
+
                 if (action === "pause") {
                     assertExactBodyKeys(body, [
                         "protocolVersion",

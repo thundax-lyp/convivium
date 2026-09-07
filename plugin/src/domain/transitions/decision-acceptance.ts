@@ -5,6 +5,7 @@ export interface AcceptDecisionCandidateContext {
     meetingId: string;
     decisionCandidateId: string;
     actorBinding: string;
+    authority?: "captain" | "local_host";
     reason: string;
     evidenceMessageIds: readonly string[];
     now: number;
@@ -95,7 +96,8 @@ export function acceptDecisionCandidate(
                         position === "abstain")
             )
             .map(({ id }) => id),
-        acceptanceMode: "captain_acceptance",
+        acceptanceMode:
+            context.authority === "local_host" ? "local_host_acceptance" : "captain_acceptance",
         acceptanceFactIds: [factId],
         createdAt: context.now
     };
@@ -104,7 +106,7 @@ export function acceptDecisionCandidate(
         kind: "decision_acceptance",
         subjectId: decisionId,
         assertedBy: context.actorBinding,
-        authority: "captain",
+        authority: context.authority ?? "captain",
         result: "accepted",
         status: "active",
         evidenceMessageIds: evidence,

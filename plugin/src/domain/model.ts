@@ -401,7 +401,11 @@ export interface MeetingDecision {
     rationale?: string;
     acceptedBy?: readonly string[];
     dissentingPositionIds?: readonly string[];
-    acceptanceMode: "deterministic_consensus" | "captain_acceptance" | "authorized_risk_acceptance";
+    acceptanceMode:
+        | "deterministic_consensus"
+        | "captain_acceptance"
+        | "local_host_acceptance"
+        | "authorized_risk_acceptance";
     acceptanceFactIds: readonly string[];
     supersededByDecisionId?: string;
     createdAt: number;

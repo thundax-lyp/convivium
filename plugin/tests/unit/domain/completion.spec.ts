@@ -1,3 +1,4 @@
+import { createLocalDecisionRiskState } from "../../fixtures/local-decision-risk.js";
 import { describe, expect, it } from "vitest";
 import {
     applyCompletionClaims,
@@ -465,7 +466,7 @@ describe("applyCompletionClaims", () => {
         const result = applyCompletionClaims(completionState(), {
             participantId: "captain",
             assertedBy: "captain:captain-session",
-            riskAuthority: true,
+            riskAuthority: "captain",
             authorizedTaskIds: [],
             now,
             factId,
@@ -505,7 +506,7 @@ describe("applyCompletionClaims", () => {
                 applyCompletionClaims(source, {
                     participantId: "captain",
                     assertedBy: "captain:captain-session",
-                    riskAuthority: true,
+                    riskAuthority: "captain",
                     authorizedTaskIds: [],
                     now,
                     factId,
@@ -528,7 +529,7 @@ describe("applyCompletionClaims", () => {
             applyCompletionClaims(archived, {
                 participantId: "captain",
                 assertedBy: "captain:captain-session",
-                riskAuthority: true,
+                riskAuthority: "captain",
                 authorizedTaskIds: [],
                 now,
                 factId,
@@ -550,7 +551,7 @@ describe("applyCompletionClaims", () => {
             applyCompletionClaims(completionState(), {
                 participantId: "captain",
                 assertedBy: "captain:captain-session",
-                riskAuthority: true,
+                riskAuthority: "captain",
                 authorizedTaskIds: [],
                 now,
                 factId,
@@ -610,5 +611,170 @@ describe("applyCompletionClaims", () => {
         expect(rejected.state.completionFacts).toContainEqual(
             expect.objectContaining({ result: "rejected", status: "active" })
         );
+    });
+});
+
+describe("local control preserves authority and guards", () => {
+    function context(decision: "accept" | "reject" = "accept") {
+        return {
+            participantId: "local_host",
+            riskAuthority: "local_host" as const,
+            assertedBy: "local-host:loopback-web",
+            authorizedTaskIds: [],
+            now,
+            factId: (_kind: CompletionFact["kind"], index: number) =>
+                `completion-local-risk-${decision}-${index}`,
+            claims: {
+                riskAcceptance: {
+                    issueId: "risk-1",
+                    decision,
+                    reason: "Reviewed evidence",
+                    evidenceMessageIds: ["message-1"]
+                }
+            }
+        };
+    }
+    it("accepts then rejects with distinct facts and unchanged input", () => {
+        const input = createLocalDecisionRiskState();
+        const before = structuredClone(input);
+        const accepted = applyCompletionClaims(input, context());
+        expect(input).toEqual(before);
+        expect(accepted.state.issues[0]).toMatchObject({
+            status: "accepted_risk",
+            disposition: "accepted_risk",
+            blocking: false
+        });
+        const acceptBefore = structuredClone(accepted.state);
+        const rejected = applyCompletionClaims(accepted.state, context("reject"));
+        expect(accepted.state).toEqual(acceptBefore);
+        expect(rejected.state.issues[0]).toMatchObject({
+            status: "open",
+            disposition: "blocking",
+            blocking: true
+        });
+        expect(
+            rejected.state.completionFacts.map(({ result, status }) => ({ result, status }))
+        ).toEqual([
+            { result: "accepted", status: "superseded" },
+            { result: "rejected", status: "active" }
+        ]);
+        for (const fact of rejected.state.completionFacts)
+            expect(fact).toMatchObject({
+                authority: "local_host",
+                assertedBy: "local-host:loopback-web",
+                reason: "Reviewed evidence",
+                evidenceMessageIds: ["message-1"]
+            });
+        expect(accepted.effect.events.map(({ type }) => type)).toEqual(["completion_fact.added"]);
+        expect(rejected.effect.events.map(({ type }) => type)).toEqual(["completion_fact.added"]);
+        expect(
+            applyCompletionClaims(input, {
+                ...context(),
+                participantId: "captain",
+                riskAuthority: "captain",
+                assertedBy: "session:captain-1"
+            }).state.completionFacts[0]
+        ).toMatchObject({ authority: "captain", assertedBy: "session:captain-1" });
+    });
+    it.each([
+        { reason: " " },
+        { evidenceMessageIds: [] },
+        { evidenceMessageIds: ["message-1", "message-1"] },
+        { evidenceMessageIds: ["unknown"] },
+        { evidenceMessageIds: ["message-1", "other-meeting-message"] },
+        { issueId: "unknown" }
+    ])("rejects invalid claim %j atomically", (patch) => {
+        const input = createLocalDecisionRiskState();
+        const before = structuredClone(input);
+        const ctx = context();
+        expect(() =>
+            applyCompletionClaims(input, {
+                ...ctx,
+                claims: { riskAcceptance: { ...ctx.claims.riskAcceptance, ...patch } }
+            })
+        ).toThrow();
+        expect(input).toEqual(before);
+    });
+    it.each([
+        "missing-level",
+        "high",
+        "constraint",
+        "resolved",
+        "deferred",
+        "out_of_scope"
+    ] as const)("rejects %s risk", (kind) => {
+        const input = createLocalDecisionRiskState();
+        const risk = input.issues[0]!;
+        if (kind === "missing-level") delete risk.riskLevel;
+        else if (kind === "high") risk.riskLevel = "high";
+        else if (kind === "constraint") risk.violatedConstraintIds = ["constraint-1"];
+        else risk.status = kind;
+        const before = structuredClone(input);
+        for (const decision of ["accept", "reject"] as const) {
+            expect(() => applyCompletionClaims(input, context(decision))).toThrow();
+            expect(input).toEqual(before);
+        }
+    });
+    it.each<MeetingState["status"]>([
+        "completed",
+        "partial",
+        "no_consensus",
+        "cancelled",
+        "failed",
+        "archiving",
+        "archived"
+    ])("rejects %s", (status) => {
+        const input = createLocalDecisionRiskState();
+        input.status = status;
+        const before = structuredClone(input);
+        for (const decision of ["accept", "reject"] as const) {
+            expect(() => applyCompletionClaims(input, context(decision))).toThrow();
+            expect(input).toEqual(before);
+        }
+    });
+    it("does not authorize participant risk claims or mixed local claims", () => {
+        const input = createLocalDecisionRiskState();
+        const before = structuredClone(input);
+        const ctx = context();
+        expect(() =>
+            applyCompletionClaims(input, {
+                ...ctx,
+                participantId: "participant-1",
+                riskAuthority: undefined
+            })
+        ).toThrow();
+        for (const extra of [
+            {
+                outputClaims: [
+                    { subjectId: "output-1", evidenceMessageIds: ["message-1"], taskIds: [] }
+                ]
+            },
+            {
+                criterionClaims: [
+                    { subjectId: "criterion-1", evidenceMessageIds: ["message-1"], taskIds: [] }
+                ]
+            },
+            {
+                review: {
+                    outputId: "output-1",
+                    result: "approved" as const,
+                    reason: "review",
+                    evidenceMessageIds: ["message-1"]
+                }
+            }
+        ])
+            expect(() =>
+                applyCompletionClaims(input, { ...ctx, claims: { ...ctx.claims, ...extra } })
+            ).toThrow("not a meeting participant");
+        expect(input).toEqual(before);
+        input.objectiveContract.riskAcceptanceAuthority = ["participant-1"];
+        expect(
+            applyCompletionClaims(input, {
+                ...ctx,
+                participantId: "participant-1",
+                riskAuthority: undefined,
+                assertedBy: undefined
+            }).state.completionFacts[0]
+        ).toMatchObject({ authority: "risk_acceptance_authority", assertedBy: "participant-1" });
     });
 });

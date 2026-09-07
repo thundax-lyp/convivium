@@ -245,6 +245,17 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
                     (fact.authority === "captain" &&
                         fact.assertedBy.startsWith("captain:") &&
                         sourceCompletionById.get(fact.id)?.authority === "captain" &&
+                        sourceCompletionById.get(fact.id)?.assertedBy === fact.assertedBy) ||
+                    (fact.authority === "local_host" &&
+                        fact.assertedBy === "local-host:loopback-web" &&
+                        [
+                            "decision_acceptance",
+                            "decision_supersession",
+                            "decision_revocation",
+                            "risk_acceptance"
+                        ].includes(fact.kind) &&
+                        sourceCompletionById.get(fact.id)?.kind === fact.kind &&
+                        sourceCompletionById.get(fact.id)?.authority === fact.authority &&
                         sourceCompletionById.get(fact.id)?.assertedBy === fact.assertedBy)
                 ) ||
                 (sourceCompletionById.get(fact.id)?.subjectId !== undefined &&
