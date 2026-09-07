@@ -154,20 +154,7 @@ runManagerPlan 的实现严格重复 §5.4 的 domainInput/domainContext/ids 映
 
 已完成进度：T0 基线检查通过（33 tests）；T1 fixture/spec 与 V1/V2/V3/V8 断言通过（focused suite）。对应机械步骤已删除；T2 仍在执行。
 
-### T2：补齐负向与生产 surface 断点
-
-前置状态：T1 PASS。
-允许修改：仅上述新 contract spec；fixture 仅修正本轮发现的不符合 §5 的机械实现错误，不改变规格。
-禁止修改：生产 instruction、toolParameters、context 字段；不加 runtime、mock provider、profile 或模型请求。
-
-执行：添加 §7 V4/V5/V6/V7 四个 it；按 §6 实现 collectToolDefinitions，按 §7 实现 runManagerPlan。固定注册 runtime 19 方法均为抛错 sentinel，禁止 tools.execute。负向输入用原 packet 的深拷贝，按矩阵分别检查 Schema 与 projector/domain 结果；不要声称 replyTo string Schema 验证了引用有效性。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run --project contract tests/contract/offline-meeting-protocol.spec.ts
-```
-PASS：共八个 it 全部通过；证据同时包含合法自洽输入、无效输入拒绝、当前 surface 限制；未调用 runtime/caller sentinel。
-STOP：捕获未知错误却放行、用快照更新抹掉字段差异、需要模型/prompt 修补或新授权。记录静态结构差异，不称已复现模型故障。
+T2 实际结果：PASS。V4–V7 负例与 surface 断点已覆盖；focused suite 9 tests 通过（V5 独立 it 使总数为 9）；sentinel 未调用。未覆盖：T3–T5。
 
 ### T3：测试本身的类型与格式门禁
 
