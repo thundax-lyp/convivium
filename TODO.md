@@ -10,12 +10,6 @@
 
 以下 FR-10 任务按 T0 → T8 顺序执行，前一步 PASS 才能开始下一步。2026-09-07 用户明确要求“依次执行TODO LIST，一任务一删除一提交”；执行、逐项删除与逐项 commit 已获授权。允许文件、命令、PASS/STOP 和恢复方式以 RUNBOOK 对应步骤为准，不在此复制方案。
 
-- [ ] `FR-10 / T3 / Domain`：实现草稿校验与原子追加
-    - 依据文档：[RUNBOOK T3](docs/30-designs/RUNBOOK-FR10-REFERENCED-MINUTES.md#t3领域消息附加与原子拒绝)
-    - 确认依据：2026-09-07 用户明确要求依次执行、一任务一删除一提交。
-    - 处理动作：T2 PASS 后，在既有 Speaker transition 中验证可见范围和引用、复制元数据并拒绝混合 claims。
-    - 验收点：指定领域测试和 typecheck 通过；非法提交不修改输入或产生部分事实；合法草稿只追加一次，不新增事件类型或权威副作用。
-
 - [ ] `FR-10 / T4 / Runtime 与持久恢复`：接线并验证提交一致性
     - 依据文档：[RUNBOOK T4](docs/30-designs/RUNBOOK-FR10-REFERENCED-MINUTES.md#t4runtime-接线与持久恢复)
     - 确认依据：2026-09-07 用户明确要求依次执行、一任务一删除一提交。

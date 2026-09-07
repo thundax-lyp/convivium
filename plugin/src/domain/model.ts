@@ -322,6 +322,12 @@ export interface MeetingObjectiveContract {
     acceptableRiskLevel: "low" | "medium" | "high";
 }
 
+export interface MeetingMinutesDraft {
+    readonly status: "draft";
+    readonly coverage: { readonly fromSeq: number; readonly throughSeq: number };
+    readonly referencedMessageIds: readonly string[];
+}
+
 export interface MeetingMessage {
     id: string;
     seq: number;
@@ -339,6 +345,7 @@ export interface MeetingMessage {
     replyTo?: string;
     taskIds: readonly string[];
     createdAt: number;
+    minutesDraft?: MeetingMinutesDraft;
 }
 
 export interface MeetingIssue {
@@ -671,6 +678,7 @@ export interface ArchiveMessage {
     replyTo?: string;
     taskIds: readonly string[];
     createdAt: number;
+    minutesDraft?: MeetingMinutesDraft;
 }
 
 export interface ArchivePackage {
@@ -799,6 +807,7 @@ export interface SpeakerSubmissionContext extends AttemptTransitionContext {
         | "taskIds"
         | "agendaRelation"
         | "createdAt"
+        | "minutesDraft"
     >;
 }
 

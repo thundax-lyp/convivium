@@ -17,6 +17,19 @@ export function submitSpeakerAndAdvanceMeeting(
     context: SubmitSpeakerAdvanceContext
 ): TransitionResult<MeetingState> {
     const speakerSubmission = submitSpeakerAttempt(state, participantId, state.version, context);
+    if (
+        context.message.minutesDraft !== undefined &&
+        (context.completion !== undefined ||
+            [
+                context.questions,
+                context.issues,
+                context.proposals,
+                context.positions,
+                context.agendaCandidates,
+                context.decisionCandidates
+            ].some((claims) => (claims?.length ?? 0) > 0))
+    )
+        throw new DomainError("INVALID_ENTITY_STATE", "Invalid minutes draft.");
     const questionSubmission = context.questions.length
         ? addSubmittedQuestions(
               speakerSubmission.state,

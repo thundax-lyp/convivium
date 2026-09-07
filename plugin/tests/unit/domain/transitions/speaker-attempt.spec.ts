@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { failSpeakerAttempt, type MeetingState } from "../../../../src/domain/index.js";
+import {
+    failSpeakerAttempt,
+    submitSpeakerAttempt,
+    submitSpeakerAndAdvanceMeeting,
+    type MeetingState
+} from "../../../../src/domain/index.js";
+import {
+    isMeetingMinutesDraft,
+    isMeetingStateV2
+} from "../../../../src/domain/meeting-state-validation.js";
 import { meeting, now } from "./fixtures.js";
 
 function timeoutState(
@@ -185,5 +194,220 @@ describe("SpeakerAttempt timeout", () => {
             catalogBinding: { kind: "none" }
         });
         expect(result.effect.events.map(({ type }) => type)).toContain("manager_plan.started");
+    });
+});
+
+function minutesFixture() {
+    const state = timeoutState();
+    state.meetingTasks = [];
+    const attempt = state.currentTurn!.steps[0]!.attempt!;
+    attempt.contextThroughSeq = 2;
+    state.messageSeq = 2;
+    state.transcript = [1, 2].map((seq) => ({
+        id: `source-${seq}`,
+        seq,
+        turnSeq: 0,
+        turnId: "source-turn",
+        stepId: `source-step-${seq}`,
+        attemptId: `source-attempt-${seq}`,
+        speaker: "b",
+        agendaItemId: "agenda-1",
+        agendaRelation: "on_topic" as const,
+        kind: "statement" as const,
+        content: `source ${seq}`,
+        mentions: [],
+        taskIds: [],
+        createdAt: now - 1
+    }));
+    const context = {
+        ...timeoutContext,
+        questions: [],
+        message: {
+            id: "draft-3",
+            kind: "summary" as const,
+            content: "已通过，决定发布（仅草稿）",
+            mentions: [],
+            taskIds: [],
+            agendaRelation: "on_topic" as const,
+            createdAt: now,
+            minutesDraft: {
+                status: "draft" as const,
+                coverage: { fromSeq: 1, throughSeq: 2 },
+                referencedMessageIds: ["source-2"]
+            }
+        }
+    };
+    return { state, context };
+}
+
+describe("referenced minutes domain", () => {
+    it.each([
+        [1, 2],
+        [2, 2]
+    ])(
+        "appends one non-authoritative draft over %s..%s without aliasing",
+        (fromSeq, throughSeq) => {
+            const { state, context } = minutesFixture();
+            context.message.minutesDraft.coverage = { fromSeq, throughSeq };
+            const before = structuredClone(state);
+            const result = submitSpeakerAttempt(state, "a", state.version, context);
+            const { minutesDraft: _draft, ...ordinary } = context.message;
+            const plain = submitSpeakerAttempt(state, "a", state.version, {
+                ...context,
+                message: ordinary
+            });
+            expect(result.effect).toEqual(plain.effect);
+            expect(state).toEqual(before);
+            expect(result.state.transcript).toHaveLength(3);
+            expect(result.state.transcript.slice(0, 2)).toEqual(before.transcript);
+            for (const key of [
+                "decisions",
+                "completionFacts",
+                "objectiveContract",
+                "termination",
+                "proposals",
+                "issues"
+            ] as const)
+                expect(result.state[key]).toEqual(before[key]);
+            const committed = structuredClone(result.state.transcript[2]);
+            context.message.minutesDraft.coverage.fromSeq = 99;
+            context.message.minutesDraft.referencedMessageIds.push("mutated");
+            expect(result.state.transcript[2]).toEqual(committed);
+            expect(plain.state.transcript[2]).not.toHaveProperty("minutesDraft");
+        }
+    );
+    it.each([
+        "unknown",
+        "private-mail",
+        "other-meeting-message",
+        "draft-3",
+        "fact-1",
+        "task-1",
+        "source-1"
+    ])("atomically rejects unavailable reference %s", (id) => {
+        const { state, context } = minutesFixture();
+        context.message.minutesDraft.coverage.fromSeq = 2;
+        context.message.minutesDraft.referencedMessageIds = ["source-2", id];
+        const before = structuredClone(state);
+        expect(() => submitSpeakerAttempt(state, "a", state.version, context)).toThrow(
+            "Invalid minutes draft."
+        );
+        expect(state).toEqual(before);
+    });
+    it.each(["hole", "duplicate-seq", "duplicate-id", "future", "before-context", "empty-context"])(
+        "rejects invalid coverage %s",
+        (kind) => {
+            const { state, context } = minutesFixture();
+            if (kind === "hole") state.transcript = state.transcript.slice(1);
+            if (kind === "duplicate-seq") state.transcript[0]!.seq = 2;
+            if (kind === "duplicate-id") state.transcript[0]!.id = "source-2";
+            if (kind === "future") context.message.minutesDraft.coverage.throughSeq = 3;
+            if (kind === "before-context") state.currentTurn!.steps[0]!.attempt!.contextFromSeq = 2;
+            if (kind === "empty-context")
+                state.currentTurn!.steps[0]!.attempt!.contextThroughSeq = 0;
+            const before = structuredClone(state);
+            expect(() => submitSpeakerAttempt(state, "a", state.version, context)).toThrow(
+                "Invalid minutes draft."
+            );
+            expect(state).toEqual(before);
+        }
+    );
+    it.each([
+        null,
+        {},
+        {
+            status: "accepted",
+            coverage: { fromSeq: 1, throughSeq: 2 },
+            referencedMessageIds: ["source-2"]
+        },
+        {
+            status: "draft",
+            coverage: { fromSeq: 2, throughSeq: 1 },
+            referencedMessageIds: ["source-2"]
+        },
+        {
+            status: "draft",
+            coverage: { fromSeq: 1, throughSeq: 2 },
+            referencedMessageIds: ["source-2", "source-2"]
+        }
+    ])("rejects malformed metadata through the pure transition and V2 guard %#", (metadata) => {
+        const { state, context } = minutesFixture();
+        const before = structuredClone(state);
+        const invalid = { ...context, message: { ...context.message, minutesDraft: metadata } };
+        // Deliberately malformed boundary input exercises guards without Protocol validation.
+        expect(() =>
+            Reflect.apply(submitSpeakerAttempt, undefined, [state, "a", state.version, invalid])
+        ).toThrow("Invalid minutes draft.");
+        expect(state).toEqual(before);
+        expect(isMeetingMinutesDraft(metadata)).toBe(false);
+        expect(
+            isMeetingStateV2({
+                ...state,
+                transcript: [{ ...state.transcript[0], minutesDraft: metadata }]
+            })
+        ).toBe(false);
+    });
+    it.each([
+        { content: " " },
+        { content: "x".repeat(8001) },
+        { kind: "statement" },
+        { taskIds: ["task-1"] },
+        { replyTo: "source-1" },
+        { agendaRelation: "supporting_context" }
+    ])("rejects incompatible pure message fields %#", (fields) => {
+        const { state, context } = minutesFixture();
+        const before = structuredClone(state);
+        expect(() =>
+            Reflect.apply(submitSpeakerAttempt, undefined, [
+                state,
+                "a",
+                state.version,
+                { ...context, message: { ...context.message, ...fields } }
+            ])
+        ).toThrow("Invalid minutes draft.");
+        expect(state).toEqual(before);
+    });
+    it("retains version, attempt and terminal guards", () => {
+        const { state, context } = minutesFixture();
+        expect(() => submitSpeakerAttempt(state, "a", state.version - 1, context)).toThrow();
+        expect(() =>
+            submitSpeakerAttempt(state, "a", state.version, { ...context, attemptId: "wrong" })
+        ).toThrow();
+        for (const status of [
+            "completed",
+            "partial",
+            "cancelled",
+            "archiving",
+            "archived"
+        ] as const)
+            expect(() =>
+                submitSpeakerAttempt({ ...state, status }, "a", state.version, context)
+            ).toThrow();
+    });
+    it.each([
+        "questions",
+        "issues",
+        "proposals",
+        "positions",
+        "agendaCandidates",
+        "decisionCandidates",
+        "completion"
+    ])("rejects mixed %s before any authoritative mutation", (field) => {
+        const { state, context } = minutesFixture();
+        const before = structuredClone(state);
+        const mixed = { ...context, [field]: field === "completion" ? {} : [{}] };
+        expect(() =>
+            Reflect.apply(submitSpeakerAndAdvanceMeeting, undefined, [state, "a", mixed])
+        ).toThrow("Invalid minutes draft.");
+        expect(state).toEqual(before);
+    });
+    it("advances an ordinary draft without interpreting its prose as completion", () => {
+        const { state, context } = minutesFixture();
+        const result = submitSpeakerAndAdvanceMeeting(state, "a", context);
+        expect(result.state.decisions).toEqual(state.decisions);
+        expect(result.state.completionFacts).toEqual(state.completionFacts);
+        expect(result.state.objectiveContract).toEqual(state.objectiveContract);
+        expect(result.state.transcript.at(-1)?.minutesDraft).toEqual(context.message.minutesDraft);
+        expect(result.state.status).not.toBe("completed");
     });
 });
