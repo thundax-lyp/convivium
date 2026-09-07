@@ -1,4 +1,8 @@
-export function validateScenarioResult(value, expectedScenario) {
+export function validateScenarioResult(value, expectedScenario, validateMeetingStatus) {
+    if (["convergence-stalled", "convergence-turn-budget-completion"].includes(expectedScenario)) {
+        validateConvergenceRuntimeResult(value, expectedScenario, validateMeetingStatus);
+        return value;
+    }
     if (value === null || typeof value !== "object" || value.ok !== true) {
         throw new Error("Smoke result is not successful.");
     }
@@ -77,4 +81,113 @@ export function validateScenarioResult(value, expectedScenario) {
         }
     }
     return value;
+}
+
+function validateConvergenceRuntimeResult(value, scenario, validateMeetingStatus) {
+    const requireValid = (condition) => {
+        if (!condition) throw new Error("Convergence runtime result is invalid.");
+    };
+    try {
+        requireValid(
+            value?.ok === true && value.scenario === scenario && Array.isArray(value.assertions)
+        );
+        const o = value.observed,
+            a = o.archived;
+        // Validate the real DTO using the product contract. Driver assertions own
+        // intermediate state transitions; this boundary checks the persisted result.
+        validateMeetingStatus(structuredClone(a));
+        const budget = scenario === "convergence-turn-budget-completion";
+        const count = budget ? 2 : 4;
+        const code = budget ? "objective_satisfied" : "stalled";
+        const p = a.archive.package;
+        requireValid(
+            a.status === "archived" &&
+                a.meetingId === value.meetingId &&
+                p.meetingId === value.meetingId &&
+                a.meetingVersion === o.archivedVersion &&
+                a.termination.code === code &&
+                p.termination.code === code &&
+                a.termination.reason === p.termination.reason
+        );
+        requireValid(
+            [
+                "currentTurn",
+                "currentSpeakerId",
+                "currentAttemptId",
+                "stallCount",
+                "replanCount",
+                "maxStalls",
+                "maxReplans"
+            ].every((key) => !Object.hasOwn(a, key))
+        );
+        requireValid(a.meetingTasks.length === 0 && a.pendingHandRaises.length === 0);
+        requireValid(
+            o.submissions.length === count &&
+                p.formalTranscript.length === count &&
+                o.submissions.at(-1).meetingStatus === (budget ? "converging" : "partial") &&
+                o.archivedVersion > o.submissions.at(-1).meetingVersion
+        );
+        for (const [i, message] of p.formalTranscript.entries()) {
+            const submitted = o.submissions[i];
+            requireValid(
+                message.id === submitted.messageId &&
+                    message.seq === i + 1 &&
+                    message.turnId === submitted.turnId &&
+                    message.speaker === "participant-a" &&
+                    message.content === scenario + ":a:" + (i + 1)
+            );
+        }
+        if (budget) {
+            requireValid(
+                o.endResult.status === "completed" &&
+                    o.endResult.terminationCode === code &&
+                    a.limits.maxTurns === 2 &&
+                    a.limits.maxTotalMessages === 100 &&
+                    p.objectiveContract.acceptanceCriteria[0].satisfied &&
+                    p.agenda[0].status === "resolved"
+            );
+            for (const [kind, subjectId] of [
+                ["criterion_evidence", p.objectiveContract.acceptanceCriteria[0].id],
+                ["agenda_resolution", p.agenda[0].id]
+            ]) {
+                requireValid(
+                    p.completionFacts.some(
+                        (fact) =>
+                            fact.kind === kind &&
+                            fact.subjectId === subjectId &&
+                            fact.status === "active" &&
+                            fact.evidenceMessageIds.length === 1 &&
+                            fact.evidenceMessageIds[0] === o.submissions[0].messageId
+                    )
+                );
+            }
+        }
+        requireValid(
+            (o.lateSubmit.kind === "protocol" &&
+                ["IMMUTABLE_MEETING", "ARCHIVED_MEETING", "UNAUTHORIZED_CALLER"].includes(
+                    o.lateSubmit.code
+                )) ||
+                (o.lateSubmit.kind === "tool" &&
+                    ["CAPABILITY_REVOKED", "AGENT_NOT_LIVE"].includes(o.lateSubmit.code))
+        );
+        const ids = [
+            value.meetingId + "-manager-manager",
+            value.meetingId + "-participant-participant-a"
+        ];
+        requireValid(
+            o.stableAfterLateSubmit === true &&
+                o.residentSessionIds.length === 0 &&
+                o.children.length === 2 &&
+                ids.every((id) =>
+                    o.children.some(
+                        (child) =>
+                            child.id === id &&
+                            child.mode === "continuable" &&
+                            child.activity === "inactive"
+                    )
+                )
+        );
+    } catch {
+        throw new Error("Convergence runtime result is invalid.");
+    }
 }

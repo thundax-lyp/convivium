@@ -1,5 +1,7 @@
 # Current Implementation Coverage
 
+当前 smoke 默认覆盖 5 条关键跨层链路，完整套件保留 14 个场景；一次构建、独立场景、清理后输出 PASS。设计调整后的执行结果与边界见 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md)；下文已注明提交的旧记录仍仅代表历史验证。
+
 ## Scope
 
 本文记录当前代码相对已确认需求的实现覆盖，不替代需求、接口或设计文档。
@@ -25,11 +27,11 @@
 | FR-1 DSH 插件形态                         | 已实现   | package、双 bundle、provider gate、profile evidence                                                                                              | 高于最低版本的兼容与分发策略未决定                                                           |
 | FR-2 会议与身份隔离                       | 已实现   | Meeting、Participant、Session、repository ownership 隔离                                                                                         | 远程、多用户、跨 Host 不支持，属于 V1 非目标                                                 |
 | FR-3 有序连续发言                         | 已实现   | 单一 attempt、逐 Speaker delivery、前序 transcript、late/stale 拒绝、reassign/skip                                                               | 无                                                                                           |
-| FR-4 发言计划与选择                       | 已实现   | Manager/round-robin/rule-based/hybrid planning、资格校验、required Participant waiting、确定性 fallback、自动 stall/refocus/replan                                                            | 自动收敛完整链路的真实 DSH smoke 未覆盖                                              |
+| FR-4 发言计划与选择                       | 已实现   | Manager/round-robin/rule-based/hybrid planning、资格校验、required Participant waiting、确定性 fallback、自动 stall/refocus/replan；新增五收敛场景真实 DSH 验证通过                                                            | 时间预算、blocking Position 分支等真实运行边界见收敛专项证据                                              |
 | FR-5 异步任务与举手                       | 已实现   | MeetingTask、HandRaise、恢复、幂等、task evidence；start replay 在最新 task snapshot 已为 `running` 时跳过 Catalog preview 并进入 receipt replay | 外部副作用 exactly-once、长期压力未覆盖                                                      |
-| FR-6 议题范围与发散控制                   | 已实现   | Question/Issue/Proposal/Position、候选 promote/park/reject、原子 commit、幂等、status/archive；全量验证通过                                      | UI/HTTP/Client、自动收敛完整链路的真实 DSH smoke 未覆盖                             |
+| FR-6 议题范围与发散控制                   | 已实现   | Question/Issue/Proposal/Position、候选 promote/park/reject、原子 commit、幂等、status/archive；全量验证及收敛真实 DSH 验证通过                                      | UI/HTTP/Client、时间预算、blocking Position 分支等真实运行边界见收敛专项证据                             |
 | FR-7 提案、立场与决策                     | 已实现   | Proposal revision、Position、Decision candidate、Captain acceptance、Decision/risk projection、单 Issue risk disposition                         | 完整 FR-7 外的产品 UI 控制未覆盖                                                             |
-| FR-8 完成事实与会议结束                   | 已实现   | completion/end、task evidence、终态 projection、恢复和幂等、收敛预算耗尽后的 stalled/no_consensus 终止                                                                                       | Decision/Agenda 细节属其他范围；自动收敛终止的真实 DSH smoke 未覆盖                                        |
+| FR-8 完成事实与会议结束                   | 已实现   | completion/end、task evidence、终态 projection、恢复和幂等、收敛预算耗尽后的 stalled/no_consensus 终止；两类硬预算业务优先真实 DSH 验证通过                                                                                       | Decision/Agenda 细节属其他范围；时间预算未覆盖                                        |
 | FR-9 暂停、恢复与故障隔离                 | 已实现   | pause/resume、timeout、reassign/skip、interrupt/drain、cold rebind、per-Meeting isolation                                                        | 无                                                                                           |
 | FR-10 记录、隐私与归档                    | 部分实现 | transcript、meeting mail、archive、Session cleanup、continuation                                                                                 | Scribe minutes 契约、projection、状态/归档路径未实现                                         |
 | FR-11 可观察性与用户控制                  | 已实现   | Meeting list/status、pause/resume/reassign/end、Client polling/refetch 和主要状态区块；G4 已验证 pause/resume/end 及 Reassign Browser control    | risk/Decision disposition 未覆盖；metrics、远程/多用户未覆盖                                 |
@@ -42,7 +44,9 @@
 
 正式路径 `plugin/src/domain/transitions/speaker-submission.ts` 和 `speaker-attempt.ts` 调用 `turn-advancement.ts::advanceAfterSpeakerSubmission`，已实现 progress fingerprint、stall 计数、refocus、replan 及预算耗尽后的 `partial/stalled` 或 `no_consensus` 终止。`plugin/tests/unit/domain/transitions/turn-advancement.spec.ts` 覆盖首次 fingerprint、refocus → replan → stalled 和 blocking disagreement 下的 no_consensus；planning 与 Manager fallback 的单测分别位于 `plugin/tests/unit/domain/planning.spec.ts` 和 `plugin/tests/unit/runtime/manager-fallback.spec.ts`。
 
-下述历史 `convergence` 真实 profile 证据仅覆盖确定性 fallback、幂等重放和状态投影；不证明自动 stall/refocus/replan 至终止的完整链路已经通过真实 smoke，也不外推为当前 HEAD 的新运行证据。
+2026-09-07 在干净基线 `5f0cc145df8dd194242220730dc1ab359e943573` 完成原 `convergence` 和五个新增收敛 selector 的真实 DSH 运行：四次空提交至 stalled、合法 blocking question 至 no_consensus、Proposal 同时重置两计数、Turn/message 两类预算边界先 converging 后 Captain completed。五新增均归档、迟到提交拒绝且状态不变、两个 Session drained；六次 wrapper 和精确临时根/端口 Restore 均通过。完整 verify 为 75 files、3670 tests。详见 [Convergence Runtime Validation Evidence](./CONVERGENCE-RUNTIME-VALIDATION-EVIDENCE.md)。
+
+该证据只更新 FR-4/FR-6/FR-8 的收敛验证范围；fingerprint 为间接观测，时间预算、blocking Position、事务故障注入、冷重启、模型及 Browser 未覆盖。下述历史记录保持原始基线，不外推为本次其他 selector 的新运行证据。
 
 ## Executed Validation
 

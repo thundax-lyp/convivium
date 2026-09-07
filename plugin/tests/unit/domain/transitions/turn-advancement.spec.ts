@@ -137,6 +137,57 @@ describe("convergence progress fingerprint", () => {
 });
 
 describe("convergence turn advancement", () => {
+    it("resets both counters for a new proposal and can stall again", () => {
+        const first = finishTurn(runningMeeting(), now);
+        const refocus = finishTurn(first.state as ReturnType<typeof runningMeeting>, now + 1);
+        const replan = finishTurn(refocus.state as ReturnType<typeof runningMeeting>, now + 2);
+        const progressed = structuredClone(replan.state) as ReturnType<typeof runningMeeting>;
+        progressed.proposals.push({
+            id: "proposal-1",
+            title: "New progress",
+            description: "After replan",
+            proposedBy: "participant-1",
+            revision: 1,
+            status: "draft",
+            agendaItemId: "agenda-1",
+            positions: [],
+            createdAt: now + 3,
+            updatedAt: now + 3
+        });
+        const reset = finishTurn(progressed, now + 3);
+        expect(reset.state).toMatchObject({ status: "running", stallCount: 0, replanCount: 0 });
+        const again = finishTurn(reset.state as ReturnType<typeof runningMeeting>, now + 4);
+        expect(again.state).toMatchObject({ stallCount: 1, replanCount: 0 });
+        const replanned = finishTurn(again.state as ReturnType<typeof runningMeeting>, now + 5);
+        expect(replanned.state).toMatchObject({ stallCount: 2, replanCount: 1 });
+        const terminal = finishTurn(replanned.state as ReturnType<typeof runningMeeting>, now + 6);
+        expect(terminal.state).toMatchObject({
+            status: "partial",
+            termination: { code: "stalled" }
+        });
+        expect(terminal.state.proposals[0]?.id).toBe("proposal-1");
+    });
+
+    it.each(["turn", "message"] as const)(
+        "prioritizes business completion at the %s budget boundary",
+        (budget) => {
+            const state = runningMeeting();
+            if (budget === "turn") state.limits.maxTurns = state.turnSeq;
+            else state.messageSeq = state.limits.maxTotalMessages;
+            const incomplete = finishTurn(state, now);
+            expect(incomplete.state).toMatchObject({
+                status: "partial",
+                termination: { code: budget === "turn" ? "max_turns" : "message_limit" }
+            });
+            state.objectiveContract.requiredOutputs[0]!.status = "accepted";
+            state.agenda[0]!.status = "resolved";
+            const completed = finishTurn(state, now);
+            expect(completed.state.status).toBe("converging");
+            expect(completed.state.currentTurn).toBeUndefined();
+            expect(completed.state.termination).toBeUndefined();
+        }
+    );
+
     it("persists the first fingerprint, refocuses, replans once, then terminates stalled", () => {
         const first = finishTurn(runningMeeting(), now);
         expect(first.state).toMatchObject({ stallCount: 0, replanCount: 0 });
