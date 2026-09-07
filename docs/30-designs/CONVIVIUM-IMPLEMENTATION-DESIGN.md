@@ -174,13 +174,17 @@ domain     ──> no infrastructure module
 | `src/storage/index.ts`                                         | 注册 package-private `convivium-jsonl` backend provider child plugin                                 |
 | `src/storage/backend.ts`                                       | DSH `StorageBackend`/`KvFacet` lifecycle；不导入 Meeting 业务                                        |
 | `src/storage/unit.ts`                                          | JSONL KV unit 的 replay、mutation、physical checkpoint 和关闭顺序                                    |
-| `src/runtime/application-service.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime                         |
+| `src/runtime/application-service/index.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime                         |
+| `src/runtime/application-service/types.ts`                     | Runtime、caller、配置及应用服务共享类型；不持有运行时状态                                             |
+| `src/runtime/application-service/continuation-selection.ts`    | 续会来源恢复、访问检查和显式素材选择                                                                  |
+| `src/runtime/application-service/initialize-meeting-turn.ts`   | 首轮初始化及共用的 SpeakerAttempt 分配；保持既有 command/commit 边界                                 |
 | `src/runtime/turn-runner.ts`                                   | Manager plan、逐 speaker dispatch、submit 和下一 step 推进                                           |
 | `src/runtime/outbox-worker.ts`                                 | 提交后 DSH 副作用、重投和结果回写                                                                    |
 | `src/runtime/mail-processor.ts`                                | meeting-scoped mail context 固化和独立处理 attempt                                                   |
 | `src/runtime/recovery.ts`                                      | 冷启动扫描、租约回收、outbox 恢复和 orphan 归属修复                                                  |
 | `src/runtime/archive.ts`                                       | 终态快照、capability revoke、Activation drain 和 archived commit                                     |
-| `src/dsh/session-adapter.ts`                                   | meeting-owned Session 创建、followup、interrupt、drain 和枚举                                        |
+| `src/dsh/session-adapter.ts`                                   | meeting-owned Session 创建和 followup；保留 Session ownership 操作的导出入口                         |
+| `src/dsh/session-ownership.ts`                                 | meeting-owned Session ownership 证明、枚举检查及 interrupt/drain                                     |
 | `examples/meeting-agent-definitions/*`                         | 不进入发布包的 Convivium Meeting Agent Definition 固定样本；不表示 DSH capability 已安装             |
 | `scripts/verify-agent-definition-samples.mjs`                  | 校验九个固定 Definition、文件集合和 AGENT.md hash                                                    |
 | `src/domain/meeting-task.ts`                                   | MeetingTask、HandRaise、状态转换和 task projection 的纯领域逻辑                                      |
@@ -189,6 +193,7 @@ domain     ──> no infrastructure module
 | `src/http/index.ts`                                            | 仅在 loopback Host 注册 `/api/convivium/*`；提供本地 Meeting list、status、pause 和 resume transport |
 | `src/projection/status.ts`                                     | caller-specific Meeting status projection                                                            |
 | `src/client/*`                                                 | 状态读取、暂停/继续控制和会议 UI                                                                     |
+| `src/client/meeting-panel-sections.tsx`                        | 会议观测区块的纯展示函数；轮询、请求取消和写操作状态仍由 meeting-panel 拥有                            |
 
 上述文件可以在实现增长后拆分，但不得跨越职责边界或创建第二个 Meeting 写入口。
 
