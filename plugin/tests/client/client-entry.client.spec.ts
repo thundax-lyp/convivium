@@ -939,18 +939,32 @@ describe("client entry framework", () => {
         "fact visibility: malformed %s keeps cached facts until valid recovery",
         async (kind) => {
             const active = factStatus("running");
-            const malformed = JSON.parse(JSON.stringify(active)) as Record<string, unknown>;
+            const initial = kind === "archiveIssues" ? factArchiveStatus("archived") : active;
+            const malformed = JSON.parse(JSON.stringify(initial)) as Record<string, unknown>;
             if (kind === "decisionHistory") delete malformed.decisionHistory;
             if (kind === "parkingLot") delete malformed.parkingLot;
             if (kind === "archiveIssues") {
-                const archived = factArchiveStatus("archived");
-                malformed.archive = archived.archive;
-                delete (malformed.archive as Record<string, unknown>).package;
+                delete (
+                    (malformed.archive as Record<string, unknown>).package as Record<
+                        string,
+                        unknown
+                    >
+                ).issues;
+                expect(() => MeetingStatusResultSchema(malformed)).toThrow();
+                return;
             }
             const fetchMock = vi
                 .fn<typeof fetch>()
-                .mockResolvedValueOnce(jsonResponse(listResponse()))
-                .mockResolvedValueOnce(jsonResponse(success(active)))
+                .mockResolvedValueOnce(
+                    jsonResponse(
+                        listResponse([
+                            kind === "archiveIssues"
+                                ? { ...listItem, status: "archived" as const, meetingVersion: 6 }
+                                : listItem
+                        ])
+                    )
+                )
+                .mockResolvedValueOnce(jsonResponse(success(initial)))
                 .mockResolvedValueOnce(jsonResponse(listResponse()))
                 .mockResolvedValueOnce(jsonResponse(success(malformed, 3)));
             vi.stubGlobal("fetch", fetchMock);
