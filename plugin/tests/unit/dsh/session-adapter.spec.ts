@@ -30,7 +30,7 @@ const speakerAttempt = {
     participantId: "participant-a"
 };
 
-describe("startManagerSession", () => {
+describe("Manager Session provisioning", () => {
     it("uses the reserved child identity and capability-free provisioning prompt", async () => {
         let received: unknown;
         const result = await startManagerSession({
@@ -81,7 +81,7 @@ describe("startManagerSession", () => {
     });
 });
 
-describe("startParticipantSession", () => {
+describe("Participant Session provisioning", () => {
     it("binds the reserved child identity to one participant without speaker capability", async () => {
         let received: unknown;
         const result = await startParticipantSession({
@@ -136,7 +136,7 @@ describe("startParticipantSession", () => {
     });
 });
 
-describe("followupParticipantSession", () => {
+describe("Participant Session delivery authorization", () => {
     it("uses the exact Captain parent and rechecks authorization around inbox acceptance", async () => {
         const authorizations: unknown[] = [];
         let received: unknown;
@@ -242,7 +242,7 @@ describe("followupParticipantSession", () => {
     });
 });
 
-describe("followupMeetingTaskSession", () => {
+describe("MeetingTask Session delivery", () => {
     it("authorizes queued delivery before followup and running delivery after followup", async () => {
         const phases: string[] = [];
         await followupMeetingTaskSession({
@@ -259,7 +259,7 @@ describe("followupMeetingTaskSession", () => {
     });
 });
 
-describe("followupManagerSession", () => {
+describe("Manager Session delivery authorization", () => {
     const ownership = {
         ...participantOwnership(),
         sessionId: "manager-session",
@@ -315,7 +315,7 @@ describe("followupManagerSession", () => {
     });
 });
 
-describe("interruptAndDrainOwnedSessions", () => {
+describe("owned Session interruption and drain", () => {
     it("interrupts and drains only the selected direct children of the exact Captain", async () => {
         const interrupted: unknown[] = [];
         let drained: unknown;
@@ -382,7 +382,7 @@ describe("interruptAndDrainOwnedSessions", () => {
     });
 });
 
-describe("proveArchiveOwnedChildren", () => {
+describe("archive Session ownership proof", () => {
     const input = (overrides: Record<string, unknown> = {}) => ({
         runtime: {
             listChildren: async () =>
@@ -486,7 +486,7 @@ describe("proveArchiveOwnedChildren", () => {
     });
 });
 
-describe("inspectOwnedSessions", () => {
+describe("durable Meeting Session ownership inspection", () => {
     it("returns only fully matched continuable ownerships and records diagnostics", async () => {
         const ownership = participantOwnership();
         const result = await inspectOwnedSessions({

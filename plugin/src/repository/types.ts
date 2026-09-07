@@ -180,6 +180,7 @@ export interface SessionOwnership {
     sessionLabel: string;
     provider: string;
     initialMessageId?: string;
+    supersededBySessionId?: string;
     role: "manager" | "participant";
     participantId?: string;
     lifecycleStatus: "provisioning" | "active" | "closed";
@@ -195,6 +196,7 @@ export interface SessionOwnershipInput {
     sessionLabel: string;
     provider: string;
     initialMessageId?: string;
+    supersededBySessionId?: string;
     role: "manager" | "participant";
     participantId?: string;
     lifecycleStatus: SessionOwnership["lifecycleStatus"];

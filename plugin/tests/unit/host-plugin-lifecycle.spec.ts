@@ -100,6 +100,7 @@ describe("Convivium local Meeting route lifecycle", () => {
                     throw new Error("not used");
                 },
                 listChildren: async () => [],
+                listDescendants: async () => [],
                 interrupt: () => undefined,
                 drainContinuableChildren: async () => undefined
             },

@@ -81,7 +81,7 @@ function dependencies(overrides: Record<string, unknown> = {}) {
     };
 }
 
-describe("createMeetingRuntime", () => {
+describe("meeting creation and Session provisioning", () => {
     it("creates bootstrap, four owned Sessions, and the public Meeting in order", async () => {
         const deps = dependencies();
         await createMeetingRuntime(input, deps as never);
@@ -145,7 +145,7 @@ describe("createMeetingRuntime", () => {
     });
 });
 
-describe("rejectUnsupportedTaskEvidence", () => {
+describe("unsupported task evidence rejection", () => {
     const resolverInput = {
         state: { id: "meeting-1", version: 1 } as never,
         meetingId: "meeting-1",
@@ -162,7 +162,7 @@ describe("rejectUnsupportedTaskEvidence", () => {
     });
 });
 
-describe("LocalMeetingRecoveryUnavailableError", () => {
+describe("local meeting recovery failure", () => {
     it("keeps recovery unavailability outside the public protocol code space", () => {
         const cause = new Error("storage unavailable");
         const error = new LocalMeetingRecoveryUnavailableError("recovery unavailable", { cause });
@@ -174,7 +174,7 @@ describe("LocalMeetingRecoveryUnavailableError", () => {
     });
 });
 
-describe("defaultTimeoutScanSleep", () => {
+describe("speaker timeout scan cancellation", () => {
     it("removes its abort listener after the timer completes", async () => {
         const controller = new AbortController();
         const sleeping = defaultTimeoutScanSleep(0, controller.signal);

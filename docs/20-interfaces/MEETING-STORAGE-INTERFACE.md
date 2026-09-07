@@ -30,6 +30,7 @@ export interface MeetingRepositoryPort {
     input: SessionOwnershipInput,
     now?: number,
   ): Promise<SessionOwnership>;
+  replaceMissingSession(previousSessionId: string, replacementSessionId: string, now?: number): Promise<SessionOwnership>;
   read(): Promise<MeetingSnapshot>;
   readPrivateMeetingMail(
     mailId: string,
@@ -136,6 +137,7 @@ interface SessionOwnership {
   sessionLabel: string;
   provider: string;
   initialMessageId?: string;
+  supersededBySessionId?: string;
   role: "manager" | "participant";
   participantId?: string;
   lifecycleStatus: "provisioning" | "active" | "closed";
@@ -150,6 +152,8 @@ interface SessionOwnership {
 校验顺序固定如下：先解析 label 并验证其中的 `teamId + meetingId` 属于当前 Repository，跨边界为 `INVALID_INPUT`；若同一 `sessionId` 已存在，随后比较全部不可变 identity，任一重写为 `INVALID_STATE`；只有新 `sessionId` 再验证 manager/participant 的 role、label segment 和 `participantId` 一致性，不一致为 `INVALID_INPUT`。因此既有 participant 以同一 label 改写 `participantId` 返回 `INVALID_STATE`。
 
 Runtime 可以在调用 `startContinuable()` 前使用 caller-reserved `sessionId` 写入 `provisioning` ownership。DSH 接受首次 prompt 后，Runtime 把返回的 `initialMessageId` 写入同一 ownership 并将 lifecycle 前进为 `active`；`initialMessageId` 只允许从缺失变为一个稳定值，写入后不可修改。恢复只能通过 `parentSessionId`、DSH 持久 parent-child 关系、完整 label、catalog identity 和 Meeting Domain identity 的共同证明操作 Session。
+
+`replaceMissingSession` 仅用于已暂停 Meeting 的丢失 Session 恢复。旧 identity 必须已 `closed + revoked` 且尚未被替换；新 Session ID 必须未使用。一个 `session.replaced` commit 同时保留旧 ownership、写入其 `supersededBySessionId` 并新增同角色、同 parent、同 provider 的 `provisioning` ownership。旧记录及替换链保留在当前 projection/checkpoint 中，不能依赖可被压缩回收的 commit tail。普通 `recordSessionOwnership` 不得建立或修改替换关系。读取时验证替换链无环、无分叉合流、身份一致；无该可选字段的历史记录按当前身份读取。业务派发仅选择未被替换且有效的 ownership，旧 Session 永远不能恢复已撤销 capability。
 
 ### Storage Domain schema and format
 

@@ -40,7 +40,7 @@ function state(overrides: Record<string, unknown> = {}): MeetingState {
     } as unknown as MeetingState;
 }
 
-describe("meetingTaskEvidenceResolver", () => {
+describe("authorized meeting task evidence", () => {
     it("returns the complete authorized evidence shape", () => {
         expect(
             meetingTaskEvidenceResolver.resolve({

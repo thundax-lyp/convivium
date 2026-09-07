@@ -65,6 +65,7 @@ export interface CreateMeetingApplicationOptions {
     readonly deliveryWorkers: MeetingDeliveryWorkerService;
     readonly ensureWorker: (stored: StoredMeeting) => void;
     readonly signal: AbortSignal;
+    readonly holdCreation?: (meetingId: string) => () => void;
 }
 
 export function createMeetingApplication(options: CreateMeetingApplicationOptions) {
@@ -98,214 +99,242 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
         if (!continuation.ok) return continuation.error;
         await options.recovery.rehydrate();
         const meetingId = stableMeetingId(input);
-        const now = options.runtime.now?.() ?? Date.now();
-        const authorization = {
-            callerBinding: `session:${caller.sessionId}`,
-            capabilityId: `captain:${caller.sessionId}`
-        };
-        const prepared = prepareMeetingCreation(input, meetingId, authorization, {
-            now,
-            speakerAttemptTimeoutMs: options.runtime.speakerAttemptTimeoutMs,
-            continuation: continuation.continuation
-        });
-        let repository;
+        const releaseCreation = options.holdCreation?.(meetingId);
         try {
-            repository = await openMeetingRepository({
-                registry: options.runtime.repositoryRegistry,
-                teamId: input.teamId,
-                meetingId,
-                create: prepared.createInput
+            const now = options.runtime.now?.() ?? Date.now();
+            const authorization = {
+                callerBinding: `session:${caller.sessionId}`,
+                capabilityId: `captain:${caller.sessionId}`
+            };
+            const prepared = prepareMeetingCreation(input, meetingId, authorization, {
+                now,
+                speakerAttemptTimeoutMs: options.runtime.speakerAttemptTimeoutMs,
+                continuation: continuation.continuation
             });
-        } catch (error) {
-            if (
-                error !== null &&
-                typeof error === "object" &&
-                "code" in error &&
-                error.code === "IDEMPOTENCY_CONFLICT"
-            )
-                return commandFailure(
-                    "IDEMPOTENCY_CONFLICT",
-                    "The create request conflicts with the persisted meeting."
-                );
-            return commandFailure("INTERNAL_ERROR", "The meeting could not be opened.", true);
-        }
-        const dependencies: MeetingCreationRuntimeDependencies = {
-            agentDefinitions: options.runtime.agentDefinitions,
-            repository,
-            continuable: options.runtime.continuable,
-            parent: caller.agent as Agent,
-            provider: options.runtime.provider,
-            authorization,
-            allocateSessionId: (role, key) => `${meetingId}-${role}-${key}` as never,
-            signal: commandSignal ?? options.signal,
-            now: options.runtime.now,
-            speakerAttemptTimeoutMs: options.runtime.speakerAttemptTimeoutMs,
-            continuation: continuation.continuation,
-            prepared,
-            cleanup: async (created) => {
-                const recovered = await repository.recover();
-                const owned = recovered.sessionOwnership.filter((candidate) =>
-                    created.some((item) => item.sessionId === candidate.sessionId)
-                );
-                const lifecycle = options.runtime
-                    .continuable as typeof options.runtime.continuable & {
-                    interrupt?: (sessionId: never, authority: unknown) => void;
-                    drainContinuableChildren?: (
-                        parent: Agent,
-                        ids: readonly never[]
-                    ) => Promise<void>;
-                };
+            let repository;
+            try {
+                repository = await openMeetingRepository({
+                    registry: options.runtime.repositoryRegistry,
+                    teamId: input.teamId,
+                    meetingId,
+                    create: prepared.createInput
+                });
+            } catch (error) {
                 if (
-                    caller.agent !== undefined &&
-                    lifecycle.interrupt !== undefined &&
-                    lifecycle.drainContinuableChildren !== undefined &&
-                    owned.length > 0
-                ) {
-                    await interruptAndDrainOwnedSessions({
-                        runtime: lifecycle as never,
-                        parent: caller.agent,
-                        ownerships: owned
-                    });
-                }
-                for (const ownership of owned) {
-                    await repository.recordSessionOwnership(
-                        {
-                            ...ownership,
-                            capabilityStatus: "revoked",
-                            lifecycleStatus: "closed"
-                        },
-                        options.runtime.now?.() ?? Date.now()
-                    );
-                }
-            }
-        };
-        try {
-            const existing = await repository.recover().catch(() => undefined);
-            let resumeReadyCreate = false;
-            if (
-                existing?.bootstrap.status === "ready" &&
-                existing.bootstrap.createResult !== undefined
-            ) {
-                if (existing.bootstrap.requestHash !== requestHash(input)) {
+                    error !== null &&
+                    typeof error === "object" &&
+                    "code" in error &&
+                    error.code === "IDEMPOTENCY_CONFLICT"
+                )
                     return commandFailure(
                         "IDEMPOTENCY_CONFLICT",
                         "The create request conflicts with the persisted meeting."
                     );
-                }
-                const persistedCaptain = existing.sessionOwnership[0]?.parentSessionId;
-                if (persistedCaptain !== caller.sessionId) {
-                    return commandFailure(
-                        "UNAUTHORIZED_CALLER",
-                        "Only the original meeting Captain can replay creation."
-                    );
-                }
-                const resident = options.meetings.get(meetingId);
-                if (resident?.parent !== undefined) {
-                    const persisted = existing.bootstrap.createResult;
-                    return commandSuccess(
-                        meetingId,
-                        persisted.meetingVersion,
-                        persisted as CreateMeetingResultV1
-                    );
-                }
-                if (resident !== undefined) {
-                    options.meetings.delete(meetingId);
-                }
-                const replayedMeeting: StoredMeeting = {
-                    teamId: input.teamId,
-                    captainSessionId: caller.sessionId,
-                    repository
-                };
-                options.meetings.set(meetingId, replayedMeeting);
-                options.ensureWorker(replayedMeeting);
-                const persisted = existing.bootstrap.createResult;
-                if (
-                    (persisted.status === "running" || persisted.status === "waiting") &&
-                    persisted.participants !== undefined
-                ) {
-                    return commandSuccess(
-                        meetingId,
-                        persisted.meetingVersion,
-                        persisted as CreateMeetingResultV1
-                    );
-                }
-                resumeReadyCreate = true;
+                return commandFailure("INTERNAL_ERROR", "The meeting could not be opened.", true);
             }
-            if (!resumeReadyCreate) await createMeetingRuntime(input, dependencies);
-            const initial = await repository.read();
-            const initialState = initial.state as unknown as MeetingState;
-            const firstAgenda = initialState.agenda[0];
-            const activeInitialState: MeetingState = {
-                ...initialState,
-                activeAgendaItemId: initialState.activeAgendaItemId ?? firstAgenda?.id,
-                agenda: initialState.agenda.map((agenda, index) =>
-                    index === 0 ? { ...agenda, status: "discussing" as const } : agenda
-                )
-            };
-            const managerRequested =
-                input.selectionMode === "manager" ||
-                (input.selectionMode === "hybrid" &&
-                    needsSemanticArbitration(
-                        activeInitialState,
-                        rankRulePlanningCandidates(activeInitialState),
-                        "normal"
-                    ));
-            const managerAvailable =
-                activeInitialState.manager.status !== "failed" &&
-                activeInitialState.manager.status !== "closed";
-            if (managerRequested && managerAvailable) {
-                const catalogBinding = await captureManagerCatalogBinding(
-                    options.runtime.agentCatalog,
-                    {
-                        teamId: input.teamId,
-                        meetingId,
-                        captainSessionId: caller.sessionId
+            const dependencies: MeetingCreationRuntimeDependencies = {
+                agentDefinitions: options.runtime.agentDefinitions,
+                repository,
+                continuable: options.runtime.continuable,
+                parent: caller.agent as Agent,
+                provider: options.runtime.provider,
+                authorization,
+                allocateSessionId: (role, key) => `${meetingId}-${role}-${key}` as never,
+                signal: commandSignal ?? options.signal,
+                now: options.runtime.now,
+                speakerAttemptTimeoutMs: options.runtime.speakerAttemptTimeoutMs,
+                continuation: continuation.continuation,
+                prepared,
+                cleanup: async (created) => {
+                    const recovered = await repository.recover();
+                    const owned = recovered.sessionOwnership.filter((candidate) =>
+                        created.some((item) => item.sessionId === candidate.sessionId)
+                    );
+                    const lifecycle = options.runtime
+                        .continuable as typeof options.runtime.continuable & {
+                        interrupt?: (sessionId: never, authority: unknown) => void;
+                        drainContinuableChildren?: (
+                            parent: Agent,
+                            ids: readonly never[]
+                        ) => Promise<void>;
+                    };
+                    if (
+                        caller.agent !== undefined &&
+                        lifecycle.interrupt !== undefined &&
+                        lifecycle.drainContinuableChildren !== undefined &&
+                        owned.length > 0
+                    ) {
+                        await interruptAndDrainOwnedSessions({
+                            runtime: lifecycle as never,
+                            parent: caller.agent,
+                            ownerships: owned
+                        });
                     }
-                );
-                const started = await repository.execute({
-                    requestId: `${input.requestId}:start-manager-planning`,
-                    commandKind: "start_manager_planning",
-                    authorization: dependencies.authorization,
-                    requestHash: `${requestHash(input)}:start-manager-planning`,
-                    expectedMeetingVersion: 0,
-                    transition: (snapshot) => {
-                        const planningIds = nextManagerPlanningIds(
-                            snapshot.state as unknown as MeetingState
-                        );
-                        const transition = startManagerPlanning(
-                            snapshot.state as unknown as MeetingState,
+                    for (const ownership of owned) {
+                        await repository.recordSessionOwnership(
                             {
-                                meetingId,
-                                planningAttemptId: planningIds.planningAttemptId,
-                                deliveryId: planningIds.deliveryId,
-                                reason:
-                                    input.selectionMode === "hybrid"
-                                        ? "semantic_arbitration"
-                                        : "initial_plan",
-                                now: options.runtime.now?.() ?? Date.now(),
-                                catalogBinding
-                            }
+                                ...ownership,
+                                capabilityStatus: "revoked",
+                                lifecycleStatus: "closed"
+                            },
+                            options.runtime.now?.() ?? Date.now()
                         );
-                        return {
-                            state: transition.state as unknown as JsonObject,
-                            result: { status: "planning" },
-                            events: transition.effect.events as unknown as DomainEventInput[],
-                            outbox: [
-                                {
-                                    deliveryId: planningIds.deliveryId,
-                                    kind: "dispatch",
-                                    payload: {
-                                        role: "manager",
-                                        planningAttemptId: planningIds.planningAttemptId
-                                    }
-                                }
-                            ]
-                        };
                     }
-                });
-                const result = runningCreateResult(input, meetingId, started.meetingVersion);
+                }
+            };
+            try {
+                const existing = await repository.recover().catch(() => undefined);
+                let resumeReadyCreate = false;
+                if (
+                    existing?.bootstrap.status === "ready" &&
+                    existing.bootstrap.createResult !== undefined
+                ) {
+                    if (existing.bootstrap.requestHash !== requestHash(input)) {
+                        return commandFailure(
+                            "IDEMPOTENCY_CONFLICT",
+                            "The create request conflicts with the persisted meeting."
+                        );
+                    }
+                    const persistedCaptain = existing.sessionOwnership[0]?.parentSessionId;
+                    if (persistedCaptain !== caller.sessionId) {
+                        return commandFailure(
+                            "UNAUTHORIZED_CALLER",
+                            "Only the original meeting Captain can replay creation."
+                        );
+                    }
+                    const resident = options.meetings.get(meetingId);
+                    if (resident?.parent !== undefined) {
+                        const persisted = existing.bootstrap.createResult;
+                        return commandSuccess(
+                            meetingId,
+                            persisted.meetingVersion,
+                            persisted as CreateMeetingResultV1
+                        );
+                    }
+                    if (resident !== undefined) {
+                        options.meetings.delete(meetingId);
+                    }
+                    const replayedMeeting: StoredMeeting = {
+                        teamId: input.teamId,
+                        captainSessionId: caller.sessionId,
+                        repository
+                    };
+                    options.meetings.set(meetingId, replayedMeeting);
+                    options.ensureWorker(replayedMeeting);
+                    const persisted = existing.bootstrap.createResult;
+                    if (
+                        (persisted.status === "running" || persisted.status === "waiting") &&
+                        persisted.participants !== undefined
+                    ) {
+                        return commandSuccess(
+                            meetingId,
+                            persisted.meetingVersion,
+                            persisted as CreateMeetingResultV1
+                        );
+                    }
+                    resumeReadyCreate = true;
+                }
+                if (!resumeReadyCreate) await createMeetingRuntime(input, dependencies);
+                const initial = await repository.read();
+                const initialState = initial.state as unknown as MeetingState;
+                const firstAgenda = initialState.agenda[0];
+                const activeInitialState: MeetingState = {
+                    ...initialState,
+                    activeAgendaItemId: initialState.activeAgendaItemId ?? firstAgenda?.id,
+                    agenda: initialState.agenda.map((agenda, index) =>
+                        index === 0 ? { ...agenda, status: "discussing" as const } : agenda
+                    )
+                };
+                const managerRequested =
+                    input.selectionMode === "manager" ||
+                    (input.selectionMode === "hybrid" &&
+                        needsSemanticArbitration(
+                            activeInitialState,
+                            rankRulePlanningCandidates(activeInitialState),
+                            "normal"
+                        ));
+                const managerAvailable =
+                    activeInitialState.manager.status !== "failed" &&
+                    activeInitialState.manager.status !== "closed";
+                if (managerRequested && managerAvailable) {
+                    const catalogBinding = await captureManagerCatalogBinding(
+                        options.runtime.agentCatalog,
+                        {
+                            teamId: input.teamId,
+                            meetingId,
+                            captainSessionId: caller.sessionId
+                        }
+                    );
+                    const started = await repository.execute({
+                        requestId: `${input.requestId}:start-manager-planning`,
+                        commandKind: "start_manager_planning",
+                        authorization: dependencies.authorization,
+                        requestHash: `${requestHash(input)}:start-manager-planning`,
+                        expectedMeetingVersion: 0,
+                        transition: (snapshot) => {
+                            const planningIds = nextManagerPlanningIds(
+                                snapshot.state as unknown as MeetingState
+                            );
+                            const transition = startManagerPlanning(
+                                snapshot.state as unknown as MeetingState,
+                                {
+                                    meetingId,
+                                    planningAttemptId: planningIds.planningAttemptId,
+                                    deliveryId: planningIds.deliveryId,
+                                    reason:
+                                        input.selectionMode === "hybrid"
+                                            ? "semantic_arbitration"
+                                            : "initial_plan",
+                                    now: options.runtime.now?.() ?? Date.now(),
+                                    catalogBinding
+                                }
+                            );
+                            return {
+                                state: transition.state as unknown as JsonObject,
+                                result: { status: "planning" },
+                                events: transition.effect.events as unknown as DomainEventInput[],
+                                outbox: [
+                                    {
+                                        deliveryId: planningIds.deliveryId,
+                                        kind: "dispatch",
+                                        payload: {
+                                            role: "manager",
+                                            planningAttemptId: planningIds.planningAttemptId
+                                        }
+                                    }
+                                ]
+                            };
+                        }
+                    });
+                    const result = runningCreateResult(input, meetingId, started.meetingVersion);
+                    await repository.updateCreateResult({
+                        expectedMeetingVersion: started.meetingVersion,
+                        result,
+                        now: options.runtime.now?.()
+                    });
+                    options.meetings.set(meetingId, {
+                        teamId: input.teamId,
+                        captainSessionId: caller.sessionId,
+                        repository,
+                        parent: caller.agent
+                    });
+                    options.ensureWorker(options.meetings.get(meetingId)!);
+                    options.deliveryWorkers.wake(meetingId);
+                    return commandSuccess(meetingId, started.meetingVersion, result);
+                }
+                const initialized = await initializeFirstMeetingTurn(
+                    repository,
+                    options.runtime.now?.() ?? Date.now(),
+                    managerRequested
+                );
+                const result = runningCreateResult(
+                    input,
+                    meetingId,
+                    initialized.meetingVersion,
+                    initialized.status
+                );
                 await repository.updateCreateResult({
-                    expectedMeetingVersion: started.meetingVersion,
+                    expectedMeetingVersion: initialized.meetingVersion,
                     result,
                     now: options.runtime.now?.()
                 });
@@ -317,46 +346,23 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                 });
                 options.ensureWorker(options.meetings.get(meetingId)!);
                 options.deliveryWorkers.wake(meetingId);
-                return commandSuccess(meetingId, started.meetingVersion, result);
-            }
-            const initialized = await initializeFirstMeetingTurn(
-                repository,
-                options.runtime.now?.() ?? Date.now(),
-                managerRequested
-            );
-            const result = runningCreateResult(
-                input,
-                meetingId,
-                initialized.meetingVersion,
-                initialized.status
-            );
-            await repository.updateCreateResult({
-                expectedMeetingVersion: initialized.meetingVersion,
-                result,
-                now: options.runtime.now?.()
-            });
-            options.meetings.set(meetingId, {
-                teamId: input.teamId,
-                captainSessionId: caller.sessionId,
-                repository,
-                parent: caller.agent
-            });
-            options.ensureWorker(options.meetings.get(meetingId)!);
-            options.deliveryWorkers.wake(meetingId);
-            return commandSuccess(meetingId, initialized.meetingVersion, result);
-        } catch (error) {
-            if (error instanceof RoleCompositionError)
-                return commandFailure(error.code, error.message, false);
-            if (error && typeof error === "object" && "code" in error) {
-                const code = (error as { code?: unknown }).code;
-                if (code === "UNSUPPORTED_CAPABILITY") {
-                    return commandFailure("UNSUPPORTED_CAPABILITY", String(error));
+                return commandSuccess(meetingId, initialized.meetingVersion, result);
+            } catch (error) {
+                if (error instanceof RoleCompositionError)
+                    return commandFailure(error.code, error.message, false);
+                if (error && typeof error === "object" && "code" in error) {
+                    const code = (error as { code?: unknown }).code;
+                    if (code === "UNSUPPORTED_CAPABILITY") {
+                        return commandFailure("UNSUPPORTED_CAPABILITY", String(error));
+                    }
+                    if (code === "INVALID_CREATE_INPUT") {
+                        return commandFailure("INVALID_ARGUMENT", String(error));
+                    }
                 }
-                if (code === "INVALID_CREATE_INPUT") {
-                    return commandFailure("INVALID_ARGUMENT", String(error));
-                }
+                return commandFailure("INTERNAL_ERROR", "The meeting could not be created.", true);
             }
-            return commandFailure("INTERNAL_ERROR", "The meeting could not be created.", true);
+        } finally {
+            releaseCreation?.();
         }
     };
 }

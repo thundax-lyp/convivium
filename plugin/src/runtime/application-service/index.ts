@@ -1,3 +1,4 @@
+import { reconcileMeetingSessions } from "../services/meeting-session-recovery.js";
 import { createMeetingAttendanceApplication } from "./meeting-attendance.js";
 import {
     DomainError,
@@ -87,6 +88,7 @@ export function createCreateStatusRuntime(
     let developerMarkdownService: DeveloperMarkdownService | undefined;
     const repositoryRegistry = DomainRepositoryRegistry.open({
         storageDomain: options.storageDomain,
+        onDiagnostic: options.onDiagnostic,
         authorizationValidator: options.authorizationValidator,
         now: options.now,
         onProjectionCommitted: (snapshot) => developerMarkdownService?.schedule(snapshot)
@@ -136,11 +138,80 @@ export function createCreateStatusRuntime(
             release();
         };
     };
+    const creatingMeetings = new Map<string, number>();
+    const holdCreation = (meetingId: string) => {
+        creatingMeetings.set(meetingId, (creatingMeetings.get(meetingId) ?? 0) + 1);
+        return () => {
+            const count = creatingMeetings.get(meetingId)! - 1;
+            if (count === 0) creatingMeetings.delete(meetingId);
+            else creatingMeetings.set(meetingId, count);
+        };
+    };
     const repositoryRecovery = createMeetingRehydrationService({
         registry: repositoryRegistry,
+        isCreating: (meetingId) => creatingMeetings.has(meetingId),
         meetings,
         signal,
-        now: options.now
+        now: options.now,
+        ...(options.getCaptainParent === undefined
+            ? {}
+            : {
+                  reconcile: async (repository, existing) => {
+                      if (existing?.parent !== undefined) return existing.parent;
+                      const recovered = await repository.recover();
+                      if (
+                          recovered.bootstrap.status === "creation_failed" &&
+                          recovered.sessionOwnership.every(
+                              (item) => item.lifecycleStatus === "closed"
+                          )
+                      )
+                          return;
+                      if (
+                          recovered.bootstrap.status === "creating" &&
+                          recovered.sessionOwnership.length === 0
+                      ) {
+                          await repository.updateBootstrap({
+                              status: "creation_failed",
+                              failureCode: "CREATION_INTERRUPTED",
+                              now: options.now?.() ?? Date.now()
+                          });
+                          return;
+                      }
+                      const parentId = recovered.sessionOwnership[0]?.parentSessionId;
+                      const parent =
+                          parentId === undefined ? undefined : options.getCaptainParent!(parentId);
+                      if (parent === undefined)
+                          throw new LocalMeetingRecoveryUnavailableError(
+                              "RECOVERY_CAPTAIN_UNAVAILABLE: reopen the original Captain Session."
+                          );
+                      const lifecycle = resolveArchiveCleanupRuntime(options.continuable);
+                      if (lifecycle === undefined)
+                          throw new LocalMeetingRecoveryUnavailableError(
+                              "RECOVERY_LIFECYCLE_UNAVAILABLE"
+                          );
+                      await reconcileMeetingSessions({
+                          onDiagnostic: options.onDiagnostic,
+                          repository,
+                          parent,
+                          runtime: {
+                              ...lifecycle,
+                              listChildren: lifecycle.listChildren.bind(lifecycle),
+                              interrupt: lifecycle.interrupt.bind(lifecycle),
+                              drainContinuableChildren:
+                                  lifecycle.drainContinuableChildren.bind(lifecycle),
+                              listDescendants: options.continuable.listDescendants.bind(
+                                  options.continuable
+                              ),
+                              startContinuable: options.continuable.startContinuable.bind(
+                                  options.continuable
+                              )
+                          },
+                          signal,
+                          now: options.now?.() ?? Date.now()
+                      });
+                      return parent;
+                  }
+              })
     });
     const recovery: MeetingRehydrationService = {
         async rehydrate(mode) {
@@ -149,8 +220,10 @@ export function createCreateStatusRuntime(
             if (mode !== undefined && mode.kind !== "agent_best_effort") return snapshots;
             for (const [meetingId, stored] of meetings) {
                 if (knownMeetingIds.has(meetingId)) continue;
+                if (stored.parent !== undefined) ensureWorker(stored);
                 try {
                     await recoverArchive({
+                        onDiagnostic: options.onDiagnostic,
                         repository: stored.repository,
                         signal,
                         now: options.now?.() ?? Date.now()
@@ -175,9 +248,33 @@ export function createCreateStatusRuntime(
         ) {
             return;
         }
-        if (stored.parent === undefined) stored.parent = caller.agent;
+        if (stored.parent === undefined) {
+            const lifecycle = resolveArchiveCleanupRuntime(options.continuable);
+            if (lifecycle !== undefined)
+                await reconcileMeetingSessions({
+                    onDiagnostic: options.onDiagnostic,
+                    repository: stored.repository,
+                    parent: caller.agent,
+                    runtime: {
+                        listChildren: lifecycle.listChildren.bind(lifecycle),
+                        interrupt: lifecycle.interrupt.bind(lifecycle),
+                        drainContinuableChildren:
+                            lifecycle.drainContinuableChildren.bind(lifecycle),
+                        listDescendants: options.continuable.listDescendants.bind(
+                            options.continuable
+                        ),
+                        startContinuable: options.continuable.startContinuable.bind(
+                            options.continuable
+                        )
+                    },
+                    signal,
+                    now: options.now?.() ?? Date.now()
+                });
+            stored.parent = caller.agent;
+        }
         ensureWorker(stored);
         await recoverArchive({
+            onDiagnostic: options.onDiagnostic,
             repository: stored.repository,
             parent: stored.parent,
             runtime: resolveArchiveCleanupRuntime(options.continuable),
@@ -200,6 +297,7 @@ export function createCreateStatusRuntime(
     async function recoverArchiveForLocal(stored: StoredMeeting): Promise<void> {
         assertLocalArchiveRecoveryAvailable(stored);
         await recoverArchive({
+            onDiagnostic: options.onDiagnostic,
             repository: stored.repository,
             parent: stored.parent,
             runtime: resolveArchiveCleanupRuntime(options.continuable),
@@ -264,6 +362,7 @@ export function createCreateStatusRuntime(
     }
 
     const createMeeting = createMeetingApplication({
+        holdCreation,
         runtime: runtimeOptions,
         meetings,
         recovery,

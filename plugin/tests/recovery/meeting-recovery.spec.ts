@@ -24,7 +24,7 @@ const ownership = {
     updatedAt: 1
 };
 
-describe("recovery controls", () => {
+describe("meeting recovery and Captain ownership", () => {
     it("does not rebind an Agent with a different persisted parent id", async () => {
         await expect(
             rebindCaptainParent({

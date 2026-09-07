@@ -72,6 +72,7 @@ const sessionOwnership = z
         sessionLabel: z.string(),
         provider: z.string(),
         initialMessageId: z.string().optional(),
+        supersededBySessionId: z.string().min(1).optional(),
         role: z.enum(["manager", "participant"]),
         participantId: z.string().optional(),
         lifecycleStatus: z.enum(["provisioning", "active", "closed"]),
@@ -80,6 +81,54 @@ const sessionOwnership = z
         updatedAt: z.number().int()
     })
     .strict() satisfies z.ZodType<SessionOwnership>;
+const sessionOwnershipMap = safeRecord(sessionOwnership).superRefine((ownerships, ctx) => {
+    const successors = new Set<string>();
+    for (const [id, ownership] of Object.entries(ownerships)) {
+        const successorId = ownership.supersededBySessionId;
+        if (successorId === undefined) continue;
+        const successor = ownerships[successorId];
+        if (
+            id !== ownership.sessionId ||
+            successor === undefined ||
+            successors.has(successorId) ||
+            ownership.lifecycleStatus !== "closed" ||
+            ownership.capabilityStatus !== "revoked" ||
+            successor.sessionId !== successorId ||
+            successor.parentSessionId !== ownership.parentSessionId ||
+            successor.sessionLabel !== ownership.sessionLabel ||
+            successor.provider !== ownership.provider ||
+            successor.role !== ownership.role ||
+            successor.participantId !== ownership.participantId ||
+            successor.agentDefinition?.agentDefinitionId !==
+                ownership.agentDefinition?.agentDefinitionId ||
+            successor.agentDefinition?.definitionVersion !==
+                ownership.agentDefinition?.definitionVersion ||
+            successor.agentDefinition?.definitionHash !== ownership.agentDefinition?.definitionHash
+        ) {
+            ctx.addIssue({
+                code: "custom",
+                path: [id],
+                message: "Invalid Session supersession identity"
+            });
+            continue;
+        }
+        successors.add(successorId);
+        const visited = new Set([id]);
+        let next: string | undefined = successorId;
+        while (next !== undefined) {
+            if (visited.has(next)) {
+                ctx.addIssue({
+                    code: "custom",
+                    path: [id],
+                    message: "Cyclic Session supersession"
+                });
+                break;
+            }
+            visited.add(next);
+            next = ownerships[next]?.supersededBySessionId;
+        }
+    }
+});
 const createResult = z
     .object({
         meetingId: z.string(),
@@ -179,7 +228,7 @@ export const CreationRecordV1Schema = z
         initialState: JsonObjectSchema,
         createResult: createResult.nullable(),
         initialOutbox: z.array(outboxSeed),
-        sessionOwnership: safeRecord(sessionOwnership),
+        sessionOwnership: sessionOwnershipMap,
         createdAt: z.number().int(),
         updatedAt: z.number().int(),
         failureCode: z.string().nullable()
@@ -238,7 +287,7 @@ export const PersistenceProjectionV1Schema = z
         receipts: safeRecord(PersistedReceiptV1Schema),
         events: safeRecord(PersistedEventV1Schema),
         outbox: safeRecord(PersistedOutboxV1Schema),
-        sessionOwnership: safeRecord(sessionOwnership),
+        sessionOwnership: sessionOwnershipMap,
         privateMail: safeRecord(privateMail),
         nextEventSeq: z.number().int()
     })

@@ -51,7 +51,7 @@ const state = {
     termination: { code: "objective_satisfied", finalMessage: "done", endedAt: 10 }
 } as unknown as MeetingState;
 
-describe("materializeArchivePackage", () => {
+describe("meeting archive materialization", () => {
     it("copies existing optional facts without fabricating missing fields", () => {
         const archive = materializeArchivePackage(state, 20);
         expect(archive.acceptedDecisions).toEqual([
@@ -246,7 +246,7 @@ describe("materializeArchivePackage", () => {
     });
 });
 
-describe("beginArchiveFromTermination", () => {
+describe("meeting termination archival", () => {
     const terminal = (): MeetingState => ({
         formatVersion: 2,
         id: "meeting-1",
@@ -738,7 +738,7 @@ describe("archive ownership cleanup", () => {
     });
 });
 
-describe("recoverArchive", () => {
+describe("meeting archive recovery", () => {
     it("replays terminal materialization through the termination-derived receipt", async () => {
         const terminal = {
             id: "meeting-1",

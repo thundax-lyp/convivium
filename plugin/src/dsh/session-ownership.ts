@@ -113,12 +113,15 @@ export async function proveArchiveOwnedChildren(
         observed.add(sessionId);
     }
 
-    for (const sessionId of expected.keys()) {
-        if (!observed.has(sessionId)) {
+    for (const [sessionId, ownership] of expected) {
+        if (
+            !observed.has(sessionId) &&
+            (ownership.lifecycleStatus !== "closed" || ownership.capabilityStatus !== "revoked")
+        ) {
             throw new Error("Archive cleanup ownership is missing from the direct-child listing.");
         }
     }
-    return input.ownerships;
+    return input.ownerships.filter((ownership) => observed.has(ownership.sessionId));
 }
 
 export interface OwnedSessionObservation {

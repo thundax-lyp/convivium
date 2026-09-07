@@ -43,6 +43,7 @@ const meetingConsumerPlugin = {
             typeof ctx.tools?.register !== "function" ||
             typeof ctx.subagents?.startContinuable !== "function" ||
             typeof ctx.subagents?.listChildren !== "function" ||
+            typeof ctx.subagents?.listDescendants !== "function" ||
             typeof ctx.subagents?.interrupt !== "function" ||
             typeof ctx.subagents?.drainContinuableChildren !== "function"
         ) {
@@ -60,11 +61,28 @@ const meetingConsumerPlugin = {
                     `Developer Markdown workspace is not registered: ${config.developerMarkdownWorkspaceId}`
                 );
         }
+        const activeMeetings = new Map<string, number>();
         const runtime = createCreateStatusRuntime({
             agentDefinitions: parseAgentDefinitions(config.agentDefinitions),
             storageDomain: ctx.storageDomain,
             provider: config.provider,
+            onDiagnostic: (record) => {
+                if (record.metrics.activeMeeting === 0) activeMeetings.delete(record.meetingId);
+                else if (record.metrics.activeMeeting !== undefined)
+                    activeMeetings.set(record.meetingId, record.metrics.activeMeeting);
+                ctx.logger("convivium:meeting").info("Meeting diagnostic %o", {
+                    ...record,
+                    metrics: {
+                        ...record.metrics,
+                        activeMeetings: [...activeMeetings.values()].reduce(
+                            (sum, value) => sum + value,
+                            0
+                        )
+                    }
+                });
+            },
             continuable: ctx.subagents,
+            getCaptainParent: (sessionId) => ctx.agents.get(sessionId as never),
             authorizationValidator: {
                 validateCreate: () => undefined,
                 validateCommand: () => undefined

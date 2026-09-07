@@ -116,6 +116,7 @@ export async function scanMeetingMailTimeouts(input: {
         const ownership = recovered.sessionOwnership.find(
             (candidate) =>
                 candidate.role === "participant" &&
+                candidate.supersededBySessionId === undefined &&
                 candidate.participantId === mail.recipientParticipantId &&
                 candidate.parentSessionId === String(input.parent.id)
         );
@@ -161,7 +162,9 @@ export function createMeetingDeliveryDispatcher(
             turnId: string;
         };
         const ownership = recovered.sessionOwnership.find(
-            (candidate) => candidate.participantId === payload.participantId
+            (candidate) =>
+                candidate.supersededBySessionId === undefined &&
+                candidate.participantId === payload.participantId
         );
         if (ownership === undefined) {
             throw terminalDispatchError(
@@ -237,7 +240,8 @@ export function createMeetingDeliveryDispatcher(
             planningAttemptId: string;
         };
         const ownership = recovered.sessionOwnership.find(
-            (candidate) => candidate.role === "manager"
+            (candidate) =>
+                candidate.supersededBySessionId === undefined && candidate.role === "manager"
         );
         if (ownership === undefined) {
             throw terminalDispatchError(

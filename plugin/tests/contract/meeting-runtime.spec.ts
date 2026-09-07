@@ -3265,7 +3265,7 @@ describe("referenced minutes runtime", () => {
     });
 });
 
-describe("FR14 creation and replay contract", () => {
+describe("Agent Definition creation and replay contract", () => {
     const selected = {
         ...input,
         managerAgentDefinitionId: "fr14-manager",
@@ -4471,6 +4471,16 @@ it("archives and reopens a Captain attendance rejection", async () => {
             };
         },
         followup: async () => "followup-message" as never,
+        listDescendants: async () =>
+            children.map((child) => ({
+                kind: "child",
+                id: child.id,
+                parentId: "captain-claim",
+                mode: "continuable",
+                label: child.label,
+                activity: "inactive",
+                hasChildren: false
+            })),
         listChildren: async () =>
             children.map((child) => ({
                 kind: "child" as const,
