@@ -1,0 +1,159 @@
+import { describe, expect, it, vi } from "vitest";
+import { runConvergenceStalledScenario } from "../../../scripts/smoke-profile/probe/scenarios/convergence.js";
+import { validateScenarioResult } from "../../../scripts/smoke-profile/result.mjs";
+import { createProbeSupport } from "../../../scripts/smoke-profile/probe/support.js";
+import { createConvergenceFixture, type ConvergenceScenario } from "./convergence-fixture.js";
+
+function harness(scenario: ConvergenceScenario = "convergence-stalled", fault = "") {
+    const o = createConvergenceFixture(scenario).observed;
+    let submitted = 0,
+        ended = false,
+        late = false,
+        call = 0;
+    const participant = { id: "m-participant-participant-a" };
+    const captain = { agent: { session: { id: "captain" } } };
+    const callTool = vi.fn(async (_ctx, agent, name, input) => {
+        if (name === "convivium_create_meeting") {
+            expect(input.selectionMode).toBe("rule_based");
+            expect(input.participants).toEqual([{ participantKey: "a", displayName: "A" }]);
+            expect(input.limits).toEqual(o.archived.limits);
+            return { result: { meetingId: "m" } };
+        }
+        if (name === "convivium_meeting_status") {
+            expect(agent).toBe(captain.agent);
+            if (submitted < o.submissions.length || (o.endResult && !ended)) {
+                const c = o.checkpoints[submitted - 1];
+                return {
+                    meetingVersion: submitted ? o.submissions[submitted - 1]!.meetingVersion : 10,
+                    result: {
+                        status: c?.status ?? "running",
+                        currentAttemptId: "a" + submitted,
+                        currentTurn:
+                            c?.nextTurnId === null
+                                ? undefined
+                                : {
+                                      id: "t" + submitted,
+                                      seq: submitted + 1,
+                                      intent: c?.intent ?? "explore",
+                                      reason: c?.reason ?? "explore"
+                                  },
+                        activeAgendaItem: { id: "agenda-agenda-1" },
+                        stallCount: fault === "stall" ? 0 : (c?.stallCount ?? 0),
+                        replanCount: fault === "replan" ? 1 : (c?.replanCount ?? 0),
+                        maxStalls: 3,
+                        maxReplans: 1,
+                        questions: o.archived.archive.package.unresolvedQuestions,
+                        proposals: o.archived.archive.package.proposals
+                    }
+                };
+            }
+            const archived = structuredClone(o.archived);
+            if (fault === "archive") archived.archive.package.formalTranscript.pop();
+            if (late && fault === "changed") archived.topic = "changed";
+            return { meetingVersion: o.archivedVersion, result: archived };
+        }
+        if (name === "convivium_submit_turn") {
+            expect(agent).toBe(participant);
+            const s = o.submissions[submitted]!;
+            expect(input).toMatchObject({
+                meetingId: "m",
+                turnId: s.turnId,
+                attemptId: s.attemptId,
+                deliveryId: s.deliveryId,
+                stepId: "step-" + submitted,
+                agendaItemId: "agenda-agenda-1",
+                content: scenario + ":a:" + (submitted + 1)
+            });
+            submitted++;
+            return {
+                meetingVersion: s.meetingVersion,
+                result: {
+                    messageId: s.messageId,
+                    messageSeq: s.messageSeq,
+                    meetingStatus:
+                        fault === "terminal" && submitted === o.submissions.length
+                            ? "completed"
+                            : s.meetingStatus
+                }
+            };
+        }
+        if (name === "convivium_end_meeting") {
+            ended = true;
+            return { result: o.endResult };
+        }
+        throw new Error("Unexpected tool " + name);
+    });
+    return {
+        scenario,
+        captain,
+        callTool,
+        nextCall: () => ++call,
+        assert: createProbeSupport("unused").assert,
+        createInput: createProbeSupport("unused").createInput,
+        writeResult: vi.fn(async (result) => {
+            validateScenarioResult(result, scenario);
+        }),
+        waitForSpeakerContext: vi.fn(async (_ctx, id, attempt) => {
+            expect(id).toBe(participant.id);
+            expect(attempt).toBe("a" + submitted);
+            return {
+                agent: participant,
+                value: {
+                    meetingId: fault === "context" ? "wrong" : "m",
+                    turn: { id: "t" + submitted, seq: submitted + 1 },
+                    step: { id: "step-" + submitted, participantId: "participant-a" },
+                    attempt: { attemptId: attempt, deliveryId: "d" + submitted },
+                    activeAgendaItem: { id: "agenda-agenda-1" },
+                    objectiveContract: o.archived.archive.package.objectiveContract
+                }
+            };
+        }),
+        ctx: {
+            tools: {
+                execute: vi.fn(async (request) => {
+                    late = true;
+                    expect(request.agent).toBe(participant);
+                    expect(request.arguments.input.deliveryId).toBe(
+                        o.submissions.at(-1)!.deliveryId
+                    );
+                    if (fault === "throw") throw new Error("unrelated failure");
+                    return fault === "late"
+                        ? { value: { ok: true } }
+                        : { value: { ok: false, error: { code: "ARCHIVED_MEETING" } } };
+                })
+            },
+            agents: { get: () => (fault === "resident" ? participant : undefined) },
+            subagents: { listChildren: vi.fn(async () => (fault === "children" ? [] : o.children)) }
+        }
+    };
+}
+
+describe("stalled convergence probe", () => {
+    it("drives four formal submits and validates the complete observation", async () => {
+        const runtime = harness();
+        await runConvergenceStalledScenario(runtime);
+        expect(runtime.writeResult).toHaveBeenCalledOnce();
+        expect(
+            runtime.callTool.mock.calls.filter((call) => call[2] === "convivium_submit_turn")
+        ).toHaveLength(4);
+        expect(
+            runtime.callTool.mock.calls.some((call) => call[2] === "convivium_end_meeting")
+        ).toBe(false);
+    });
+    it.each([
+        "context",
+        "stall",
+        "replan",
+        "terminal",
+        "archive",
+        "late",
+        "changed",
+        "children",
+        "resident",
+        "throw"
+    ])("rejects %s before publishing success", async (fault) => {
+        const runtime = harness("convergence-stalled", fault);
+        await expect(runConvergenceStalledScenario(runtime)).rejects.toThrow();
+        expect(runtime.writeResult).not.toHaveBeenCalled();
+    });
+});

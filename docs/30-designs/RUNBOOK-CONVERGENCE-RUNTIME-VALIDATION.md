@@ -309,25 +309,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T1.7：PASS。K/L/S/C/A/M/H/Q/R/B逐组对应表驱动case；补齐旧messageId与archive层级回归、两预算互换、跨种类ID可同名正例。3055项contract+25项原source测试通过，格式/语法/diff通过。用户授权下仅补验证缺口，未弱化Result规则。T1全量完成，运行证据仍待T7。 已完成机械段删除；本次提交包含本步全部变化。
 
-### T2：正式空提交驱动 stalled
-
-前置状态：T1.7 PASS且提交；plugin/tests/unit/scripts/convergence-probe.spec.ts尚不存在，若已有内容先STOP核对归属。
-允许修改：`plugin/scripts/smoke-profile/probe/scenarios/convergence.js`、新建 `plugin/tests/unit/scripts/convergence-probe.spec.ts`。
-禁止修改：原 `runConvergenceScenario`、support.js、领域状态和所有 product files。
-
-执行：
-1. 新增 `runConvergenceStalledScenario(runtime)`，执行上表四条正式提交，收集实际 submissions/checkpoints。
-2. 在同一文件增加私有 `createConvergenceMeeting(runtime, limits)`，返回 `{meetingId,participantSessionId,managerSessionId}`；`submitConvergenceTurn(runtime, meetingId, ordinal, changes, completionClaims)` 返回 `{delivery,input,submitted,checkpoint}`，checkpoint 在 submit 非终态时才读取，终态固定为 null；`finishConvergenceObservation(runtime, meetingId, finalDelivery, finalInput)` 返回归档/lateSubmit/stability/children/resident 结果。三个函数仅供本文件五个当前消费者，无新抽象层。completionClaims=undefined 时不发送字段。
-3. submit helper 先 Captain status 读 currentAttemptId，等待该 attempt 的真实 context，再提交；从 context 生成唯一 IDs。从 command result 保存 terminal outcome，不先假定 status 必须为 partial。finish helper 按“不变量”执行，绝不 endMeeting。
-4. 新测试包含四条调用、0/0→1/0→2/1、partial、归档及 late/drain 拒绝用例。每个 happy-path writeResult 的结果必须再次通过 T1 validator。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run tests/unit/scripts/convergence-probe.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
-pnpm --dir plugin exec prettier scripts/smoke-profile/probe/scenarios/convergence.js tests/unit/scripts/convergence-probe.spec.ts --check
-```
-PASS：唯一 stalled driver 被测试执行且全部不变量由失败用例保护；原 fallback 源码没有 diff。
-STOP：工具/context/result 不满足固定接口，或需要写入私有状态；报告触发输入与结果。
+执行进度 T2：PASS。新增真实工具驱动与11项probe测试；两文件3066 tests PASS。为两个当前测试消费者提取convergence-fixture.ts并保持原3055项契约测试不变；根据用户允许修改RUNBOOK/代码的授权纳入本步，未改产品。 已完成机械段删除；本次提交包含本步全部变化。
 
 ### T3：合法阻塞问题导致 no_consensus
 
