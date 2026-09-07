@@ -455,7 +455,9 @@ describe("convergence fixture contract", () => {
     });
 });
 
-const supportedCases = fixtureCases.filter((c) => c.scenario === "convergence-stalled");
+const supportedCases = fixtureCases.filter((c) =>
+    ["convergence-stalled", "convergence-no-consensus"].includes(c.scenario)
+);
 describe.each(supportedCases)("runtime result $scenario", (c) => {
     const fixture = createConvergenceFixture(c.scenario),
         o = fixture.observed;
@@ -619,6 +621,21 @@ describe.each(supportedCases)("runtime result $scenario", (c) => {
     change([...O, "lateSubmit", "kind"], "tool");
     change([...O, "lateSubmit", "ok"], true);
     for (const key of ["questionId", "proposalId", "endResult"]) change([...O, key], "unexpected");
+    if (c.scenario === "convergence-no-consensus") {
+        change([...O, "questionId"], null);
+        change([...O, "questionId"], "question-d3-1");
+        remove([...P, "unresolvedQuestions"]);
+        change([...P, "unresolvedQuestions"], []);
+        for (const key of ["id", "status", "blocking", "askedBy"]) {
+            remove([...P, "unresolvedQuestions", 0, key]);
+            change([...P, "unresolvedQuestions", 0, key], key === "blocking" ? false : "wrong");
+        }
+        for (const path of [
+            [...A, "termination"],
+            [...P, "termination"]
+        ])
+            change([...path, "unresolvedQuestionIds"], []);
+    }
     it("accepts independently checked complete evidence", () => {
         assertFixtureContract(fixture);
         expect(validateScenarioResult(fixture, c.scenario)).toBe(fixture);

@@ -1,5 +1,5 @@
 export function validateScenarioResult(value, expectedScenario) {
-    if (expectedScenario === "convergence-stalled") {
+    if (["convergence-stalled", "convergence-no-consensus"].includes(expectedScenario)) {
         validateConvergenceRuntimeResult(value, expectedScenario);
         return value;
     }
@@ -95,19 +95,20 @@ function validateConvergenceRuntimeResult(value, expectedScenario) {
     const requireValid = (condition) => {
         if (!condition) throw new Error("Convergence runtime result is invalid.");
     };
+    const question = expectedScenario === "convergence-no-consensus";
     const labels = [
         "first-progress-baseline",
         "refocus-observed",
         "replan-observed",
-        "partial-stalled",
+        question ? "blocking-question-no-consensus" : "partial-stalled",
         "terminal-submit-rejected",
         "archive-consistent",
         "sessions-drained"
     ];
     const count = 4,
         checkpointCount = 3,
-        outcome = "partial",
-        code = "stalled";
+        outcome = question ? "no_consensus" : "partial",
+        code = question ? "no_consensus" : "stalled";
     requireValid(exactKeys(value, ["ok", "scenario", "assertions", "meetingId", "observed"]));
     requireValid(
         value.ok === true && value.scenario === expectedScenario && nonempty(value.meetingId)
@@ -232,11 +233,28 @@ function validateConvergenceRuntimeResult(value, expectedScenario) {
                 Array.isArray(termination.decisionIds) &&
                 termination.decisionIds.length === 0 &&
                 Array.isArray(termination.unresolvedQuestionIds) &&
-                termination.unresolvedQuestionIds.length === 0
+                termination.unresolvedQuestionIds.length === (question ? 1 : 0) &&
+                (!question ||
+                    termination.unresolvedQuestionIds[0] ===
+                        "question-" + o.submissions[0].deliveryId + "-1")
         );
     }
     requireValid(a.termination.reason === p.termination.reason);
-    requireValid(o.questionId === null && o.proposalId === null && o.endResult === null);
+    requireValid(
+        o.questionId === (question ? "question-" + o.submissions[0].deliveryId + "-1" : null) &&
+            o.proposalId === null &&
+            o.endResult === null
+    );
+    if (question) {
+        requireValid(Array.isArray(p.unresolvedQuestions));
+        const questions = p.unresolvedQuestions.filter((q) => isRecord(q) && q.id === o.questionId);
+        requireValid(
+            questions.length === 1 &&
+                questions[0].status === "open" &&
+                questions[0].blocking === true &&
+                questions[0].askedBy === "participant-a"
+        );
+    }
     requireValid(Array.isArray(p.formalTranscript) && p.formalTranscript.length === count);
     for (const [index, m] of p.formalTranscript.entries()) {
         const s = o.submissions[index];

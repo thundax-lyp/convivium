@@ -299,25 +299,7 @@ T1 是步骤容器；只有 T1.7 PASS 才满足后续“ T1 PASS ”。
 
 执行进度 T1.2：PASS。stalled完整证据及K/L/S/C/A/M/H单点破坏矩阵通过，585项聚焦测试；生产Schema先检fixture，归档空对象、错误层级、终态重放、resident等假阳性已拒绝，格式/语法/diff通过。其他新selector未接线。 已完成机械段删除；本次提交包含本步全部变化。
 
-#### T1.3：验证阻塞 question 导致 no_consensus
-
-前置状态：T1.2 PASS 且已提交。
-允许修改：只准 plugin/scripts/smoke-profile/result.mjs、plugin/tests/unit/scripts/smoke-profile-contract.spec.ts 与本文。
-禁止修改：产品源码、其他现有测试、runner allowlist、原 convergence 规则、共享 coverage/TODO、依赖、其他目录；本步以外半成品不得暂存。
-
-执行：接线 convergence-no-consensus，复用common规则并实现Q；已有独立fixture使用question-d0-1与正确package层级。该selector再运行K/L/S/C/A/M/H适用反例，终态expected改no_consensus；原stalled保持。
-
-验证：
-```sh
-pnpm --dir plugin exec vitest run tests/unit/scripts/smoke-profile-contract.spec.ts
-pnpm --dir plugin exec prettier scripts/smoke-profile/result.mjs tests/unit/scripts/smoke-profile-contract.spec.ts --check
-node --check plugin/scripts/smoke-profile/result.mjs
-git diff --check
-```
-允许对本步白名单中实际编辑的文件运行上述同路径 Prettier --write，然后重跑全部命令；不得格式化其他文件。
-
-PASS：no-consensus完整合法输入通过，Q各破坏及共同反例拒绝，第四delivery错ID与archive错层级回归被拒绝。 所有命令退出0；测试数仅记录、不作唯一判据。按保留执行规则删除本步并单次提交。
-STOP：需用无依据blocking fixture或修改产品question语义。 保留失败增量/输出，不删本步、不提交失败内容；报告最后PASS与继续所需决定。
+执行进度 T1.3：PASS。no-consensus独立合法fixture及Q/共同破坏矩阵通过，1180项聚焦测试；第一delivery question ID和package归档字段严格关联。 已完成机械段删除；本次提交包含本步全部变化。
 
 #### T1.4：验证 Proposal 重置后的第二组 checkpoint
 
