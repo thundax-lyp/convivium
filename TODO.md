@@ -8,25 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `smoke/role-recovery`：RC-07 验证真实 DSH 隔离与冷恢复
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T7。
-    - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：RC-06 完成。
-    - 文件（9 个）：
-
-        - `plugin/scripts/smoke-profile/index.mjs`
-        - `plugin/scripts/smoke-profile/result.mjs`
-        - `plugin/scripts/smoke-profile/probe/index.js`
-        - `plugin/scripts/smoke-profile/probe/support.js`
-        - `plugin/scripts/smoke-profile/probe/scenarios/recovery.js`
-        - `plugin/scripts/smoke-profile/probe/scenarios/role-composition.js`
-        - `plugin/scripts/smoke-profile/probe/role-definitions.js`
-        - `plugin/tests/unit/scripts/role-composition-smoke.spec.ts`
-        - `docs/50-operations/HOW-TO-DSH-SMOKE.md`
-
-    - 处理动作：增加 role-composition 双阶段场景，验证工具执行限制、persona 隔离及冷恢复。
-    - 验收点：T7 unit 与真实 smoke 通过；无自动提交竞争，两个 Host 中保留 V1 配置，九项断言及资源清理通过。
-
 - [ ] `readiness/fr14`：RC-08 完成 FR-14 首版验证与文档收口
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-FR14-SHARED-PRESET-ROLE-COMPOSITION.md) T8。
     - 确认依据：2026-09-07，用户要求依次执行 TODO LIST，一任务一删除一提交。
