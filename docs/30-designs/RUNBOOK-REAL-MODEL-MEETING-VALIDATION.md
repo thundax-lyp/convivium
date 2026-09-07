@@ -156,9 +156,7 @@ runManagerPlan 的实现严格重复 §5.4 的 domainInput/domainContext/ids 映
 
 T2 实际结果：PASS。V4–V7 负例与 surface 断点已覆盖；focused suite 9 tests 与 strict tsc 通过；runtime/caller sentinel 未调用。未覆盖：T3–T5。
 
-### T3：测试本身的类型与格式门禁
-
-前置状态：T2 PASS 后执行；当前尚未收口。
+T3 实际结果：PASS。Prettier、strict tsc、focused suite（9 tests）和 diff check 均通过。未覆盖：T4–T5。
 
 ### T4：完整本地验证与未覆盖边界
 
