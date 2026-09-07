@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addSubmittedQuestions } from "../../../../src/domain/index.js";
 import { now, questionState } from "./fixtures.js";
 
-describe("addSubmittedQuestions", () => {
+describe("submitted meeting questions", () => {
     it("creates one canonical non-blocking question", () => {
         const state = questionState();
         const result = addSubmittedQuestions(state, "participant-1", "agenda-1", [

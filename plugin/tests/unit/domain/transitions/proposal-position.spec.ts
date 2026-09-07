@@ -9,7 +9,7 @@ const proposal = {
     now
 };
 
-describe("applySubmittedProposalPositionClaims", () => {
+describe("submitted proposals and positions", () => {
     it("creates a canonical proposal and binds its position to the caller", () => {
         const state = questionState();
         const result = applySubmittedProposalPositionClaims(

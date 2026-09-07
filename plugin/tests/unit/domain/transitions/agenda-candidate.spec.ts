@@ -15,7 +15,7 @@ const candidate = {
     now
 };
 
-describe("addSubmittedAgendaCandidates", () => {
+describe("submitted agenda candidates", () => {
     it("binds the candidate to its speaker and committed source message", () => {
         const state = questionState();
         state.transcript = [{ id: "message-1" } as (typeof state.transcript)[number]];
@@ -68,7 +68,7 @@ describe("addSubmittedAgendaCandidates", () => {
     });
 });
 
-describe("disposeAgendaCandidate", () => {
+describe("agenda candidate disposition", () => {
     function stateWithCandidate() {
         const state = questionState();
         state.objectiveContract.requiredOutputs = [

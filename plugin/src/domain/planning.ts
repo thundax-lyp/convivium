@@ -1,3 +1,4 @@
+import { blockingPositions, currentProposals } from "./proposal-state.js";
 import { DomainError } from "./errors.js";
 import { participantHasActiveMeetingTask } from "./hand-raise.js";
 import type {
@@ -72,31 +73,23 @@ function latestSpeakerTurnSeq(state: MeetingState, participantId: string): numbe
     return turns.length === 0 ? undefined : Math.max(...turns);
 }
 
-function currentProposal(state: MeetingState) {
-    const proposals = state.proposals.filter(
-        (proposal) => proposal.agendaItemId === state.activeAgendaItemId
+function blockingPositionOwners(state: MeetingState): Set<string> {
+    return new Set(
+        currentProposals(state)
+            .filter((proposal) => proposal.agendaItemId === state.activeAgendaItemId)
+            .flatMap(blockingPositions)
+            .map((position) => position.participantId)
     );
-    return proposals.sort((left, right) => right.revision - left.revision)[0];
 }
 
 export function rankRulePlanningCandidates(
     state: MeetingState
 ): readonly ScoredPlanningCandidate[] {
     const agenda = currentAgenda(state);
-    const proposal = currentProposal(state);
     const latestMessage = [...state.transcript]
         .filter((message) => message.agendaItemId === state.activeAgendaItemId)
         .sort((left, right) => right.seq - left.seq)[0];
-    const blockingPositionOwners = new Set(
-        (proposal?.positions ?? [])
-            .filter(
-                (position) =>
-                    position.proposalRevision === proposal?.revision &&
-                    position.blocking &&
-                    (position.position === "object" || position.position === "needs_revision")
-            )
-            .map((position) => position.participantId)
-    );
+    const objectionOwners = blockingPositionOwners(state);
     const directedQuestionOwners = new Set(
         state.openQuestions
             .filter(
@@ -126,7 +119,6 @@ export function rankRulePlanningCandidates(
     const required = new Set<string>();
     const scoreByParticipant = new Map<string, number>();
     for (const participant of state.participants) {
-        const neverSpoke = latestSpeakerTurnSeq(state, participant.id) === undefined;
         const explicitlyMentioned = latestMessage?.mentions.includes(participant.id) ?? false;
         const agendaOwner = agenda?.owner === participant.id;
         const handRaise = state.handRaises.some(
@@ -156,8 +148,8 @@ export function rankRulePlanningCandidates(
         if (requiredReviewers.has(participant.id)) score += 60;
         if (agendaOwner) score += 50;
         if (freshTaskReporters.has(participant.id)) score += 40;
-        if (blockingPositionOwners.has(participant.id)) score += 25;
-        if (neverSpoke) score += 20;
+        if (objectionOwners.has(participant.id)) score += 25;
+        if (lastTurnSeq === undefined || lastTurnSeq < state.turnSeq) score += 20;
         score += recency;
         if (latestMessage?.speaker === participant.id) score -= 25;
         if (participant.consecutiveSpeeches + 1 >= state.limits.maxConsecutiveSpeechesPerSpeaker) {
@@ -292,17 +284,7 @@ export function needsSemanticArbitration(
     if (action === "refocus" || action === "replan") return true;
     const limit = state.limits.maxSpeakersPerTurn;
     const boundaryTie = ranked.length > limit && ranked[limit - 1]?.score === ranked[limit]?.score;
-    const proposal = currentProposal(state);
-    const owners = new Set(
-        (proposal?.positions ?? [])
-            .filter(
-                (position) =>
-                    position.proposalRevision === proposal?.revision &&
-                    position.blocking &&
-                    (position.position === "object" || position.position === "needs_revision")
-            )
-            .map((position) => position.participantId)
-    );
+    const owners = blockingPositionOwners(state);
     return boundaryTie || owners.size >= 2;
 }
 

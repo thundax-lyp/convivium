@@ -86,7 +86,7 @@ const base = {
     now
 };
 
-describe("disposeDecision", () => {
+describe("decision supersession and revocation", () => {
     it("supersedes with accepted replacement and ordered events", () => {
         const result = disposeDecision(ready(), {
             ...base,
@@ -133,7 +133,7 @@ describe("disposeDecision", () => {
     });
 });
 
-describe("local control preserves authority and guards", () => {
+describe("local decision and risk authority", () => {
     const local = {
         ...base,
         authority: "local_host" as const,

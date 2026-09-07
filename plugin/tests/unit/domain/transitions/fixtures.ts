@@ -1,3 +1,4 @@
+import type { MeetingProposal } from "../../../../src/domain/model.js";
 import type { ArchivePackage, MeetingState } from "../../../../src/domain/index.js";
 
 export const now = 1_700_000_000_000;
@@ -166,4 +167,31 @@ export function questionState(): MeetingState {
     ];
     state.activeAgendaItemId = "agenda-1";
     return state;
+}
+
+export function proposalWithBlockingPosition(
+    id: string,
+    participantId: string,
+    revision = 1
+): MeetingProposal {
+    return {
+        id,
+        agendaItemId: "agenda-1",
+        revision,
+        title: id,
+        description: id,
+        status: "under_review",
+        proposedBy: participantId,
+        createdAt: now,
+        updatedAt: now,
+        positions: [
+            {
+                id: `pos-${id}`,
+                participantId,
+                proposalRevision: revision,
+                position: "object",
+                blocking: true
+            }
+        ]
+    };
 }

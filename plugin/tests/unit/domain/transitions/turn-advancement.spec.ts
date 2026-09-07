@@ -1,3 +1,4 @@
+import { questionState, proposalWithBlockingPosition } from "./fixtures.js";
 import { describe, expect, it } from "vitest";
 import {
     advanceAfterSpeakerSubmission,
@@ -280,5 +281,23 @@ describe("convergence turn advancement", () => {
         });
         expect(result.state.currentTurn).toMatchObject({ id: "turn-1", status: "completed" });
         expect(result.effect.events.map((event) => event.type)).toEqual(["meeting.waiting"]);
+    });
+});
+
+describe("canonical progress fingerprint", () => {
+    it("canonicalizes positions within each proposal independent of input order", () => {
+        const state = questionState();
+        const a = proposalWithBlockingPosition("a", "participant-1");
+        a.positions = [
+            ...a.positions,
+            { ...a.positions[0]!, id: "pos-b", participantId: "participant-2" }
+        ];
+        state.proposals = [a, proposalWithBlockingPosition("b", "participant-2")];
+        const before = createProgressFingerprint(state);
+        state.proposals.reverse();
+        a.positions = [...a.positions].reverse();
+        expect(createProgressFingerprint(state)).toBe(before);
+        a.positions[0]!.blocking = false;
+        expect(createProgressFingerprint(state)).not.toBe(before);
     });
 });

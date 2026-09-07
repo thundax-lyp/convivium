@@ -72,7 +72,7 @@ export function createProgressFingerprint(state: MeetingState): string {
                         ] as const
                 )
         )
-        .sort(([left], [right]) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        .sort((left, right) => left[0].localeCompare(right[0]) || left[2].localeCompare(right[2]));
     const tasks = (state.meetingTasks ?? [])
         .filter((task) => ["completed", "failed", "cancelled"].includes(task.status))
         .map((task) => [task.meetingTaskId, task.status, task.resultSummary ?? ""] as const)

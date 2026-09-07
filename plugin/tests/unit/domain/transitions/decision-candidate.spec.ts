@@ -50,7 +50,7 @@ const candidate = (id: string, revision = 1) => ({
     createdAt: now
 });
 
-describe("addSubmittedDecisionCandidates", () => {
+describe("submitted decision candidates", () => {
     it("binds candidate fields to the participant and source message", () => {
         const result = addSubmittedDecisionCandidates(
             stateWithProposal(),
