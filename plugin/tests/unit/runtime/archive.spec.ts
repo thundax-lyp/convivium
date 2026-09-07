@@ -1,3 +1,4 @@
+import { meeting } from "../domain/transitions/fixtures.js";
 import {
     beginArchiveFromTermination,
     cleanupOwnedSessions,
@@ -777,4 +778,81 @@ describe("recoverArchive", () => {
             })
         ).resolves.toBe("pending");
     });
+});
+
+function attendanceState() {
+    const state = meeting("running");
+    state.attendanceRecommendations = [
+        {
+            id: "recommendation-1",
+            candidateId: "candidate-1",
+            roleDefinitionId: "domain_architect",
+            roleDefinitionVersion: "1",
+            displayName: "Architect",
+            agentDefinitionId: "private-definition",
+            agendaItemId: "agenda-1",
+            rationale: "Review",
+            expectedContribution: "Review scope",
+            evidenceGapIds: [],
+            urgency: "current_agenda",
+            recommendedByManagerSessionId: "manager-session",
+            catalogId: "catalog-1",
+            catalogVersion: "1",
+            planningAttemptId: "planning-1",
+            status: "pending",
+            createdAt: 1
+        }
+    ];
+    state.meetingTasks = [];
+    const recommendation = state.attendanceRecommendations[0]!;
+    state.attendanceRecommendations = [
+        {
+            ...recommendation,
+            id: "recommendation-b",
+            status: "rejected",
+            rejection: {
+                requestId: "reject-b",
+                actorBinding: "captain:private-session",
+                reason: "Outside scope",
+                rejectedAt: 100
+            }
+        },
+        {
+            ...recommendation,
+            id: "recommendation-a",
+            status: "rejected",
+            rejection: {
+                requestId: "reject-a",
+                actorBinding: "captain:private-session",
+                reason: "Already covered",
+                rejectedAt: 101
+            }
+        },
+        { ...recommendation, id: "pending", createdAt: 2 }
+    ];
+    return state;
+}
+it("materializes only safe rejection facts in canonical order without aliasing", () => {
+    const source = { ...attendanceState(), termination: meeting("completed").termination };
+    const archive = materializeArchivePackage(source, 200);
+    expect(archive.attendanceRejections?.map((r) => r.recommendationId)).toEqual([
+        "recommendation-a",
+        "recommendation-b"
+    ]);
+    expect(Object.keys(archive.attendanceRejections![0]!).sort()).toEqual(
+        [
+            "recommendationId",
+            "candidateId",
+            "roleDefinitionId",
+            "displayName",
+            "agendaItemId",
+            "reason",
+            "rejectedAt"
+        ].sort()
+    );
+    source.attendanceRecommendations[1]!.rejection!.reason = "changed";
+    expect(archive.attendanceRejections![0]!.reason).toBe("Already covered");
+    expect(
+        materializeArchivePackage({ ...source, attendanceRecommendations: [] }, 200)
+    ).not.toHaveProperty("attendanceRejections");
 });

@@ -9,25 +9,6 @@
 
 ## 当前任务项
 
-- [ ] `推荐状态与归档 projection`：AR-05 闭合可见性、归档和恢复
-    - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T5。
-    - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。
-    - 前置依赖：AR-04 PASS。
-    - 文件（9 个）：
-
-        - `plugin/src/projection/status.ts`
-        - `plugin/src/protocol/status.ts`
-        - `plugin/src/runtime/services/meeting-archive-service.ts`
-        - `plugin/src/domain/transitions/archive.ts`
-        - `plugin/tests/contract/status-projection.spec.ts`
-        - `plugin/tests/unit/runtime/archive.spec.ts`
-        - `plugin/tests/unit/domain/transitions/archive.spec.ts`
-        - `plugin/tests/contract/meeting-runtime.spec.ts`
-        - `plugin/tests/contract/protocol-schema.spec.ts`
-
-    - 处理动作：按 T5 增加脱敏拒绝信息和 archive matching，使用完整 continuable fixture 验证 cancelled 结束后的归档与 reopen。
-    - 验收点：T5 focused tests 与 typecheck 通过；三类 Agent 状态一致、local_host active 仍为 []；getStatus 确认为 archived，归档仅七字段且恢复不变，终态新写被拒绝、原请求可重放。
-
 - [ ] `真实 Loader 与完整验证`：AR-06 验证新工具拒绝路径
     - 依据文档：[RUNBOOK](docs/30-designs/RUNBOOK-CAPTAIN-ATTENDANCE-REJECTION.md) T6。
     - 确认依据：2026-09-07，用户明确要求依次执行 TODO LIST，一任务一删除一提交。

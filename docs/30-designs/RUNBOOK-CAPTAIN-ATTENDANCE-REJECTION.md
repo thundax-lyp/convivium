@@ -3,7 +3,7 @@
 ## 状态与工作边界
 
 - 建立日期：2026-09-07。
-- 模式：Author；仅编写执行方案，未实施产品代码。
+- 模式：Execute；2026-09-07 用户授权以最小实现修复冲突并执行至收口。
 - 审计结论：Executable（步骤及本地闭环验收决策完备；不代表实现或运行验证已通过）。
 - 工作分支：`codex/attendance-rejection-runbook`；工作目录为本仓库根目录。
 - 用户确认范围：本任务选择 FR-13 的 Captain 拒绝参会推荐子闭环，用户随后要求形成 RUNBOOK。
@@ -317,11 +317,11 @@ STOP：需要改变权限解析、外部生命周期或工具 policy；不得添
 ### T5：状态、归档与旧数据一致性
 
 前置状态：T4 PASS。
-允许修改：`plugin/src/projection/status.ts`、`plugin/src/protocol/status.ts`、`plugin/src/runtime/services/meeting-archive-service.ts`、`plugin/src/domain/transitions/archive.ts`、`plugin/tests/contract/status-projection.spec.ts`、`plugin/tests/unit/runtime/archive.spec.ts`、`plugin/tests/unit/domain/transitions/archive.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/contract/protocol-schema.spec.ts`。
+允许修改：`plugin/src/protocol/schema.ts`、`plugin/src/projection/status.ts`、`plugin/src/protocol/status.ts`、`plugin/src/runtime/services/meeting-archive-service.ts`、`plugin/src/domain/transitions/archive.ts`、`plugin/tests/contract/status-projection.spec.ts`、`plugin/tests/unit/runtime/archive.spec.ts`、`plugin/tests/unit/domain/transitions/archive.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/contract/protocol-schema.spec.ts`。
 禁止修改：归档关闭/重试/cleanup/continuation 逻辑、其他归档字段、Client、Developer Markdown。
 
 执行：
-1. attendanceRecommendation 仅对 rejected 增加 rejection.reason/rejectedAt；status.ts 的 active 和 execution-terminal attendance Schema 同步增加 optional rejection，精确两键、reason/时间校验，pending 禁止出现、rejected 必须出现。其余 future status 不要求该字段。
+1. attendanceRecommendation 仅对 rejected 增加 rejection.reason/rejectedAt；schema.ts 的 PublicAttendanceRecommendationSchema 增加 optional rejection，status.ts 的 active 和 execution-terminal 直接复用该已有公开 Schema，精确两键、reason/时间校验，pending 禁止出现、rejected 必须出现。其余 future status 不要求该字段。
 2. materializeArchivePackage 调用 projectAttendanceRejections；非空时写 attendanceRejections，为空时省略。assertArchivePackageMatchesMeeting 对派生数组和 input.package 的对应七字段、顺序、数量逐项精确比较；不改变其他 matching 逻辑。
 3. MeetingArchivePackageSchema 增加 optional attendanceRejections，使用前述完整校验；既有 archived status 通过 package 原样透传该字段，禁止从 state 另算一份。旧 package 缺字段继续可读且不添加 []。
 4. status-projection.spec.ts 覆盖三种合法 Agent caller 一致、local_host=[]、pending 无 rejection、rejected 无敏感字段、排序；archiving/archived 的 package 包含拒绝事实且无顶层推荐数组。
