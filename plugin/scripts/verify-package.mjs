@@ -56,8 +56,7 @@ const bundledClientRequires = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmoki
 
 const result = {
     exportsMatchArtifacts: JSON.stringify(manifest?.exports) === JSON.stringify(expectedExports),
-    filesAllowlistIsClosed:
-        JSON.stringify(files) === JSON.stringify(["lib", "cordis.patch.yml", "README.md"]),
+    filesAllowlistIsClosed: JSON.stringify(files) === JSON.stringify(["lib", "cordis.patch.yml"]),
     bundlePatchMatchesPackageName: Boolean(packageName && patch.includes(packageName)),
     clientManifestIsComplete:
         client?.platform === "web" && Array.isArray(client.inject) && client.inject.length > 0,

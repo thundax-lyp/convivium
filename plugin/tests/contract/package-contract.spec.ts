@@ -16,7 +16,7 @@ const packageManifest = JSON.parse(
 };
 const patch = readFileSync(new URL("../../cordis.patch.yml", import.meta.url), "utf8");
 
-describe("package contract framework", () => {
+describe("plugin package contract", () => {
     it("publishes the closed bundle and client manifest contract", () => {
         expect(Object.keys(packageManifest.exports)).toEqual([
             ".",
@@ -24,7 +24,7 @@ describe("package contract framework", () => {
             "./cordis.patch.yml",
             "./package.json"
         ]);
-        expect(packageManifest.files).toEqual(["lib", "cordis.patch.yml", "README.md"]);
+        expect(packageManifest.files).toEqual(["lib", "cordis.patch.yml"]);
         expect(packageManifest.dsh.bundle.patch).toBe("./cordis.patch.yml");
         expect(packageManifest.dsh.client.platform).toBe("web");
         expect(packageManifest.dsh.client.inject).toEqual([
