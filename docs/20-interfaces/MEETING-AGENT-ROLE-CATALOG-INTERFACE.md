@@ -172,12 +172,13 @@ interface PublicAttendanceRecommendationV1 {
   admissionStatus?:
     "approved" | "provisioning" | "active" | "failed" | "cancelled";
   failureCode?: string;
+  rejection?: { reason: string; rejectedAt: number };
 }
 ```
 
 projection 不公开 Manager Session ID、agentDefinitionId、Participant Session ID 或 Catalog 私有 mapping。后续 Captain disposition UI 只有在 recommendation 为 `pending` 时才能显示 Approve/Reject 控制；该 UI 与写操作不属于 Phase 1。
 
-Phase 1 中 `DiscussionMeetingStatusBaseV1.attendanceRecommendations` 为 required。active 与 execution-terminal 对 Captain、matching Manager 和仍有效 Participant 输出同一个脱敏数组；按内部 `createdAt` 升序、再按 `recommendationId` 升序。`local_host` 与 legacy state 输出 `[]`；archiving/archived 不包含该字段。Phase 1 只产生 `status="pending"`，不输出 admission 字段，也不修改 Client/HTTP production behavior。
+Phase 1 中 `DiscussionMeetingStatusBaseV1.attendanceRecommendations` 为 required。active 与 execution-terminal 对 Captain、matching Manager 和仍有效 Participant 输出同一个脱敏数组；按内部 `createdAt` 升序、再按 `recommendationId` 升序。`local_host` 与 legacy state 输出 `[]`；archiving/archived 不包含该字段。Phase 1 的 Manager 只产生 `status="pending"`；Captain reject 子闭环另产生 `rejected` 及精确两键 rejection，pending 禁止携带 rejection。公开独立 Schema、active 和 execution-terminal 采用同一校验；不输出 admission 字段，也不修改 Client/HTTP production behavior。
 
 ## Data And State Contract
 
@@ -315,7 +316,7 @@ Phase 1 固定以下 attendance error messages，且均为 `retryable=false`。�
 - 当前 `CreateMeetingInputV1.participants` 和既有会议创建行为保持不变；初始 Participant 仍由 Captain 在创建时明确提供。
 - 初始 Participant 和 recommendation admission 都必须在 Session provisioning 前解析对应 Meeting Agent Definition 及其 DSH capability 引用；`sourceMemberName` 不能作为隐式 Definition fallback。
 - 本接口增加的是会议运行期间的可选参会推荐与 Captain admission，不得静默改变既有 Manager plan 或 `ParticipantSpecV1` 的含义。
-- 各项契约在对应代码和 Schema 正式实现前，不得由调用方假设可用。当前 Phase 1 已实现 Host consumer port、attempt Catalog binding、安全 projection、Manager recommendation claim 和 pending status projection，并通过本地 fake-port/isolated-storage 验证；Captain disposition、admission、Session provisioning 和 Meeting Agent Definition runtime 尚未实现，相关契约继续保留。真实 Host producer smoke 不在 Phase 1 验证范围内；实现与验证状态以 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
+- 各项契约在对应代码和 Schema 正式实现前，不得由调用方假设可用。当前 Phase 1 已实现 Host consumer port、attempt Catalog binding、安全 projection、Manager recommendation claim 和 pending status projection，并通过本地 fake-port/isolated-storage 验证；Captain reject 已实现；approve、admission、Session provisioning、自动 expired/cancelled 和 Meeting Agent Definition runtime 尚未实现，相关未来契约继续保留。真实 Host producer smoke 不在 Phase 1 验证范围内；实现与验证状态以 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
 - 新增或修改 role definition 必须提升其 `version`；历史 Meeting 保留当时 snapshot，不随 Catalog 更新漂移。
 - 未来若允许 recommendation 修改 required reviewer、risk authority 或 objective contract，必须另行形成权限与状态迁移契约，不能扩展本接口中的 `approve` 语义。
 
@@ -332,7 +333,7 @@ Phase 1 固定以下 attendance error messages，且均为 `retryable=false`。�
 ## Captain rejection slice
 
 
-本节固定 Captain rejection slice 的契约；当前仅协议类型与命令 Schema 已实现，Runtime、工具注册、状态及归档接线由后续步骤实现。
+本节固定已实现的 Captain rejection slice 契约。协议、Runtime、DSH 工具、状态、归档和 JSONL reopen 已通过本地验证；真实 DSH Loader 的缺失推荐拒绝路径通过。见 [Captain Attendance Rejection Evidence](../40-readiness/CAPTAIN-ATTENDANCE-REJECTION-EVIDENCE.md)。
 
 ### 输入、输出与来源
 
