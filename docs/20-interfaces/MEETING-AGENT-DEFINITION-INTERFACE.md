@@ -2,152 +2,153 @@
 
 ## Purpose
 
-本文定义 Convivium 拥有的 Meeting Agent Definition 配置契约。Definition 描述会议角色并引用 DSH 原生能力；它不是 DSH Agent Preset、Skill registry、Tool registry、MCP 配置、permission profile 或 AgentSession runtime。
+本文定义初次发布的会议角色描述、DSH 原生能力引用及 Host 模型绑定契约。2026-09-08 已确认此目标；当前代码仍是旧输入结构，本文不表示实现或部署已完成，见 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)。
 
 ## Boundary And Ownership
 
-Convivium MeetingAgentDefinition
--> Manager 可见安全摘要 / Captain 选择与批准
--> Convivium 读取 dshPresetId、requiredSkillNames、persona、toolFilter、agentOptions
--> 创建前核对共享父 Preset / required Skills，DSH 原生 Tool / policy 执行收窄
--> DSH 创建独立 continuable AgentSession
--> Convivium 保存 Meeting identity <-> DSH Session ownership
+Convivium Definition → Captain 按 ID 选择 → 全角色预检 → 角色说明转换为 DSH persona；Host 模型覆盖 → DSH agentOptions；DSH 创建独立 continuable Session → Convivium 保存 provenance、DSH 保存有效运行配置。
 
-| 字段                 | Required | Owner / producer        | Consumer                                           | 固定语义                                                                                |
-| -------------------- | -------- | ----------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `agentDefinitionId`  | 是       | Convivium configuration | Catalog/runtime                                    | 稳定定义 ID；不能充当 Session、Participant、Preset 或 Skill ID                          |
-| `definitionVersion`  | 是       | Convivium configuration | Catalog/snapshot                                   | 定义内容变化时提升；本次样本固定 `1.0.0`                                                |
-| `roleDefinitionId`   | 是       | Convivium               | Manager projection/runtime                         | 会议职责分类；`meeting_manager` 不进入 Participant catalog                              |
-| `displayName`        | 是       | Convivium               | Manager/Captain projection                         | 非授权显示值                                                                            |
-| `summary`            | 是       | Convivium               | Manager projection                                 | 一句话参会价值，不包含 secret、Prompt 或工具配置                                        |
-| `persona`            | 是       | Convivium               | `startContinuable().request.persona` 的创建 caller | 会议角色说明；不授予 Tool、Skill、MCP 或 authority                                      |
-| `dshPresetId`        | 是       | Convivium 引用          | 创建前 resolver                           | 只引用 DSH 原生 Agent Preset；Convivium 不复制或安装 Preset                             |
-| `requiredSkillNames` | 是       | Convivium 声明          | DSH Skill registry 的创建前校验器                    | DSH 原生 Skill 名称；不是 set ref，也没有 Convivium version wrapper                     |
-| `toolFilter`         | 否       | Convivium               | DSH `startContinuable()`                           | `@deepseek-ai/dsh-tools` 原生类型；只能收窄 Preset 已提供的 global tools，不能授予 Tool |
-| `agentOptions` | 否 | Host/profile configuration | DSH continuable creation | 原生 provider/model/reasoningEffort 覆盖，不授予凭据或执行权限 |
-| `expertiseTags`      | 是       | Convivium               | Manager projection                                 | 推荐相关性元数据，不授予能力                                                            |
-| `evidenceScopes`     | 是       | Convivium               | Manager planning                                   | 研究来源范围；不是 Tool/MCP 权限                                                        |
+| 内容 | Owner | 固定边界 |
+| --- | --- | --- |
+| 角色职责、安全摘要、专长、研究来源范围 | Convivium | 推荐与参会描述，不授予权限 |
+| Preset/Skill 名称 | Definition 引用、DSH 管理 | 校验已挂载/可读取，不安装，不展开正文 |
+| 通用工作方法、工具组合、模型默认值 | DSH Host/profile | 通过原生 Preset/Skills/模型配置提供 |
+| 必要角色模型差异 | Host agentModelOverrides | 仅 provider/model/reasoningEffort；不成为完整 Agent 配置 |
+| ToolRestriction | Convivium 提供上限、DSH 执行 | 收窄 global/祖先 scope 的继承工具；child 自己注册的工具不被屏蔽 |
+| 实际发言资格、批准与当次 capability | Convivium Runtime | 根据真实 Session、身份和当前状态判定；不存进 Definition |
+| 已应用 persona/filter/模型 | DSH descriptor | 持久恢复依据；不通过当前配置重新生成 |
+
+包内 DSH 部署资源可随插件发布，但由 DSH Loader/Skill provider 应用；它们不构成 Convivium capability registry、installer 或持久配置副本。Skill 可读取与已被模型加载是两个不同事实。
 
 ## Transport Or Invocation
 
-首版 transport 为 Convivium `Config.agentDefinitions?: readonly MeetingAgentDefinitionV1[]`，由本地 Host/profile 配置提供，persona 使用内联字符串。省略等于空数组；不扫描文件、不自动加载 examples、不接受 URL 或任意文件路径。实现验证见 [FR-14 验证索引](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)。
+本地 Host `Config.agentDefinitions?: readonly MeetingAgentDefinitionV1[]` 与 `Config.agentModelOverrides?: MeetingAgentModelOverrides` 是唯一配置输入。Definition 数组省略为无定义，map 省略或空对象为无覆盖；不扫描用户目录、不接受 Definition URL/路径。部署 patch 可在受信任 Loader 边界读取包内固定 JSON，交给 Config 的仍是内联数组。
 
-创建工具的 `CreateMeetingInputV1.managerAgentDefinitionId?: string` 和 `ParticipantSpecV1.agentDefinitionId?: string` 是 Captain 可提交的唯一选择字段；值必须非空。未选择者不注入配置，显式选择但缺失不可回退。Manager 只能选择 `meeting_manager`，Participant 不得选择该角色；其他八种现有 roleDefinitionId 均可用于初始 Participant，不产生特殊 Meeting 权限。protocolVersion 保持 1，创建结果不变。
+Captain 仅通过 `CreateMeetingInputV1.managerAgentDefinitionId` 和 `ParticipantSpecV1.agentDefinitionId` 选择定义。Manager 只能选择 meeting_manager，Participant 不得选择 meeting_manager；没有显式选择时保持无定义路径。Manager recommendation 不等于选择批准或授权；本接口不新增动态 admission。
 
-创建前逐项解析所有已选择定义，调用准确 parent scope 的 `agentPresets.composedPreset(parent.ctx)` 和 `skills.get(name, {scope: parent, cwd: parent.session.header.cwd, signal})`；required Skill 必须存在、可被模型调用且 content 非空。所有定义通过后才允许第一个 child 的创建。`dshPresetId` 是对共享父 Preset 的相等断言，不是选择另一个 Preset 的指令。父 Preset 在异步 Skill 校验前后必须一致。执行中的配置变更不重新配置已有 child。
-
-独立模块只返回创建参数与 provenance；通过 `startContinuable().request.persona/toolFilter/agentOptions` 应用配置，不监听 Session event、改写 header、调用 recompose 或另建生命周期管理器。
+创建前检查所有定义和 Host map，再解析选定角色。对准确 Captain parent scope 调用 `agentPresets.composedPreset(parent.ctx)`，它必须等于每项 dshPresetId；异步 Skill 校验前后结果必须一致。`skills.get(name, {scope: parent, cwd: parent.session.header.cwd, signal})` 必须得到 modelInvocable 且正文非空的 Skill。第一个 child 分配前全部通过，不允许部分创建。
 
 ## Data And State Contract
 
 ```ts
+import type { AgentOptions } from "@deepseek-ai/dsh-agent";
 import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
 
 type MeetingAgentRoleDefinitionIdV1 =
-  | "meeting_manager"
-  | "domain_architect"
-  | "runtime_engineer"
-  | "protocol_ui_engineer"
-  | "verification_reviewer"
-  | "github_research_analyst"
-  | "arxiv_research_analyst"
-  | "web_research_analyst"
-  | "meeting_scribe";
-
+    | "meeting_manager" | "domain_architect" | "runtime_engineer"
+    | "protocol_ui_engineer" | "verification_reviewer"
+    | "github_research_analyst" | "arxiv_research_analyst"
+    | "web_research_analyst" | "meeting_scribe";
 type AgentEvidenceScopeV1 = "repository" | "github" | "arxiv" | "web";
 
 interface MeetingAgentDefinitionV1 {
-  agentDefinitionId: string;
-  definitionVersion: string;
-  roleDefinitionId: MeetingAgentRoleDefinitionIdV1;
-  displayName: string;
-  summary: string;
-  persona: string;
-  dshPresetId: string;
-  requiredSkillNames: readonly string[];
-  toolFilter?: ToolRestriction;
-  agentOptions?: {
-    provider?: string;
-    model?: string;
-    reasoningEffort?: string;
-  };
-  expertiseTags: readonly string[];
-  evidenceScopes: readonly AgentEvidenceScopeV1[];
+    agentDefinitionId: string;
+    definitionVersion: string;
+    roleDefinitionId: MeetingAgentRoleDefinitionIdV1;
+    displayName: string;
+    summary: string;
+    roleDescription: string;
+    expertiseTags: readonly string[];
+    evidenceScopes: readonly AgentEvidenceScopeV1[];
+    dshPresetId: string;
+    requiredSkillNames: readonly string[];
+    toolFilter?: ToolRestriction;
+}
+
+type MeetingAgentModelOverrides = Readonly<Record<string,
+    Readonly<Pick<AgentOptions, "provider" | "model" | "reasoningEffort">>>>;
+
+interface MeetingAgentDefinitionsDocumentV1 {
+    schemaVersion: 1;
+    definitions: readonly MeetingAgentDefinitionV1[];
 }
 ```
 
-空值规则：`persona`、ID、version、display、summary 均为非空字符串；`requiredSkillNames` 与 `expertiseTags` 至少一项且不得重复；`evidenceScopes` 可为空但不得重复；`toolFilter` 省略表示不增加定义级收窄，不能解释为“允许全部”。
+### Definition fields
+
+所有字段除 toolFilter 外 required，不接受 null 或未知字段。ID、version、displayName、summary、roleDescription、dshPresetId 是非空字符串；roleDescription 拒绝 `{{` 模板语法。requiredSkillNames 与 expertiseTags 至少一项、元素非空且无重复；evidenceScopes 可空但不得重复。数组最多 64 项，ID 唯一，每项完整 JSON UTF-8 不超过 16 KiB；返回深拷贝和冻结结果。
+
+summary 是 Manager 可见的一句话参会价值，不包含私有正文、凭据或配置。roleDescription 只描述会议职责、预期贡献、会议输出和行为边界，不承载通用检索/编码/验证方法。expertiseTags 是推荐元数据；evidenceScopes 是研究来源范围，不是访问权限、真实引用或参会 provenance。
+
+dshPresetId 是共享父 Preset 的相等断言，不是选择另一个 Preset 的指令。requiredSkillNames 是 DSH 原生 Skill 名称，不是版本 wrapper、正文注入或独占 Skill 白名单。
+
+toolFilter 只接受 optional allow/deny 字符串数组，至少一个键；元素非空且不重复，数组可空。省略表示不增加 Definition 级限制；allow: [] 表示隐藏全部继承工具。global 与祖先 scope（含 Preset）的工具均参与过滤，当前 child 自己注册的工具保留。它不授予工具，也不替代文件、网络或操作系统隔离；最终资源权限由 DSH policy 决定。
+
+### Host model overrides
+
+map 的 key 必须存在于同一配置的 agentDefinitions 中，最多 64 项；即使角色没有被本次会议选择，未知 key 也拒绝。value 只接受 provider、model、reasoningEffort 三个 optional 非空字符串，至少一项；拒绝 null、空 value、未知字段和 maxTokens。map 省略或 {} 为无覆盖。校验后使用无原型对象承载深拷贝、冻结结果，不因 ID 与对象原型名称相同而改变语义。
+
+未覆盖值由 DSH 继承父 Agent/原生创建默认值，不在 Convivium 复制父 options。reasoningEffort 是 adapter-owned ID，不固定枚举；模型支持性、路由、凭据由 DSH 校验。只绑定 DSH descriptor 可持久保持的三字段，不接受初次生效但恢复丢失的 maxTokens。
+
+### Creation conversion
+
+resolver 输出仍为 DSH 接口使用的 persona/toolFilter/agentOptions，不把 DSH 的 persona 字段改名。persona 的固定构造为：
 
 ```ts
-interface MeetingAgentDefinitionDocumentV1 extends Omit<
-  MeetingAgentDefinitionV1,
-  "persona"
-> {
-  schemaVersion: 1;
-  persona: {
-    path: "AGENT.md";
-    sha256: string;
-  };
-}
+roleDescription + "\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载："
+    + requiredSkillNames.join("、")
+    + "。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。"
 ```
 
-每个样本目录固定包含 `agent-definition.json` 与 `AGENT.md`；root direct entry 集合为 `README.md` 加九个固定目录，样本目录 direct entry 集合为 `agent-definition.json` 与 `AGENT.md`。验证器读取 UTF-8 `AGENT.md`，验证 SHA-256 后把全文视为 `MeetingAgentDefinitionV1.persona`；不支持其他 path、URL、绝对路径、父目录、symlink、glob、include 或继承。
+模型通过原生 `skill` 工具加载正文；Convivium 不在 resolver 注入 Skill body、不自动调用工具、不监听加载顺序形成会议状态。发布验收必须观察原生 Session 的成功 tool/result，不能用 get 成功代替模型加载证据。
 
-| directory                 | roleDefinitionId          | requiredSkillNames            | evidenceScopes   | toolFilter                                                                   |
-| ------------------------- | ------------------------- | ----------------------------- | ---------------- | ---------------------------------------------------------------------------- |
-| `meeting-manager`         | `meeting_manager`         | `["meeting-management"]`      | `[]`             | `{ "allow": ["convivium_meeting_status", "convivium_submit_manager_plan"] }` |
-| `domain-architect`        | `domain_architect`        | `["domain-architecture"]`     | `["repository"]` | 省略                                                                         |
-| `runtime-engineer`        | `runtime_engineer`        | `["dsh-runtime-engineering"]` | `["repository"]` | 省略                                                                         |
-| `protocol-ui-engineer`    | `protocol_ui_engineer`    | `["protocol-ui-engineering"]` | `["repository"]` | 省略                                                                         |
-| `verification-reviewer`   | `verification_reviewer`   | `["verification-review"]`     | `["repository"]` | 省略                                                                         |
-| `github-research-analyst` | `github_research_analyst` | `["github-source-research"]`  | `["github"]`     | 省略                                                                         |
-| `arxiv-research-analyst`  | `arxiv_research_analyst`  | `["arxiv-paper-analysis"]`    | `["arxiv"]`      | 省略                                                                         |
-| `web-research-analyst`    | `web_research_analyst`    | `["web-source-research"]`     | `["web"]`        | 省略                                                                         |
-| `meeting-scribe`          | `meeting_scribe`          | `["referenced-minutes"]`      | `[]`             | `{ "allow": ["convivium_meeting_status", "convivium_submit_turn"] }`         |
+agentOptions 只取 map[agentDefinitionId]，无 entry 就省略。startContinuable.request 使用上述 persona、原生 toolFilter 和 agentOptions。改变 Host 模型覆盖不改变 Definition 指纹；DSH descriptor 记录新 Session 实际有效模型。
 
-`agentOptions` 只接受上述三个可选字段；提供对象时至少设置一项。provider、model、reasoningEffort 必须非空。省略字段交给 DSH 继承父 Agent 配置，Convivium 不复制父配置或建立模型 registry。reasoningEffort 是 adapter-owned ID，不在 Convivium 固定枚举；模型、Provider route、reasoning 支持和凭据由 DSH 校验和执行。continuable provider 以 prepareContinuable 为能力入口，不把 one-shot capabilities 标志当作 continuable 的准入条件。
+### First-release assets
 
-目标 DSH `0.1.2-rc.1` 的 continuable descriptor 只保留 provider、model 和 reasoningEffort；maxTokens 虽可用于初次创建，但 cold resume 不恢复该字段，因此本配置拒绝 maxTokens，不提供创建后静默失效的角色配置。
+唯一发布数据为 `plugin/meeting-roles/definitions.json`；schemaVersion=1，九项 definitionVersion 均为 1.0.0，dshPresetId 均为 convivium。ID 为 `convivium.` 加下表 roleDefinitionId。显示摘要、专长、研究来源保持各角色含义。没有逐角色 AGENT.md path/hash manifest 或第二份 JSON 配置。
 
-Host 可为初始 Manager 与 Participant 配置不同 agentOptions；Captain 创建命令只选择 Definition ID，不能提交任意模型配置。新配置参与 Definition 指纹但不进入公开 projection 或归档；既有无 agentOptions 的指纹保持不变。取消、创建失败清理和冷恢复沿用既有 DSH 所有权，不重新解析配置覆盖已创建 child。
+| roleDefinitionId | requiredSkillNames | evidenceScopes |
+| --- | --- | --- |
+| meeting_manager | meeting-management | [] |
+| domain_architect | domain-architecture | [repository] |
+| runtime_engineer | dsh-runtime-engineering | [repository] |
+| protocol_ui_engineer | protocol-ui-engineering | [repository] |
+| verification_reviewer | verification-review | [repository] |
+| github_research_analyst | github-source-research | [github] |
+| arxiv_research_analyst | arxiv-paper-analysis | [arxiv] |
+| web_research_analyst | web-source-research | [web] |
+| meeting_scribe | referenced-minutes | [] |
+
+Manager toolFilter.allow 为 [skill, convivium_meeting_status, convivium_submit_manager_plan]；Scribe 为 [skill, convivium_meeting_status, convivium_submit_turn]；其他角色省略。skill 必须显式保留，否则共享 Preset 继承的正文加载工具会被过滤。Manager/Scribe 不保留继承的 shell/fs/web 工具；其他角色仍受 Host policy 限制。
 
 ## Error And Permission Semantics
 
-- Definition/Preset/Skill 缺失：fail closed，不创建或激活 Participant。
-- `toolFilter` 只能收窄 DSH Preset 已有 Tools。
-- `persona`、Skill 名称和 evidence scope 不授予 capability 或 Meeting authority。
-- MCP、Sandbox、Approval、模型和凭据错误由 DSH preset/policy 边界处理，Convivium 不重新映射其内部错误。
+配置格式错误在 Host 加载时报固定错误，不输出正文、模型参数或凭据。Definition 格式错误为 `Invalid meeting agent definitions.`；Host map 格式错误为 `Invalid meeting agent model overrides.`。
 
-## Runtime Provenance And Failure
+创建时未知定义、角色不匹配、Preset/Skill 不可用或 direct-call 的配置非法统一为 `RoleCompositionError`，code=UNSUPPORTED_CAPABILITY、retryable=false、message=`Meeting role composition is unavailable.`。取消沿原取消路径，不改写为成功。DSH 路由、凭据、创建失败保留原错误与清理边界，不建立另一套模型错误映射。
+
+校验失败不分配 child；允许已有 bootstrap 按 creation_failed 记录。中途创建失败沿原 revoke/interrupt/drain 清理，不能发布 ready Meeting。Skill 加载或外部检索失败不能用空实现或 persona-only 结果宣称能力可用；运行中的失败不新增会议授权事件。
+
+## Runtime Provenance And Recovery
 
 ```ts
 interface AgentDefinitionBindingV1 {
-  agentDefinitionId: string;
-  definitionVersion: string;
-  definitionHash: string; // lowercase SHA-256, 64 hex characters
+    agentDefinitionId: string;
+    definitionVersion: string;
+    definitionHash: string;
 }
 ```
 
-`SessionOwnership.agentDefinition?: AgentDefinitionBindingV1` 是内部会议 provenance，按既有 `teamId + meetingId + sessionId` 所有权保存；provisioning 和 active 写入必须相同。既有记录没有该字段时更新不能新增；有值时更新不得删除或修改。创建时间与更新时间仍由 repository 的 now 产生，不增加独立时间戳、actor、领域 event、receipt 或 outbox 类型。归档后的 repository ownership 保留该值；公开 status、ArchivePackage 不新增此字段，也不包含 persona/toolFilter/Skill 正文。
+provisioning/active 的 SessionOwnership.agentDefinition 必须一致，不可删除、修改或为无值旧记录回填。它按既有 teamId + meetingId + sessionId ownership 保存，更新时间沿原 repository；不新增 actor、事件、receipt 或 outbox。
 
-内容指纹由 resolver 生成：对完整已校验定义按字段固定顺序 `agentDefinitionId, definitionVersion, roleDefinitionId, displayName, summary, persona, dshPresetId, requiredSkillNames, toolFilter, agentOptions, expertiseTags, evidenceScopes` 执行 JSON.stringify；省略不存在的 toolFilter 和 agentOptions，filter 子字段顺序 allow、deny，agentOptions 子字段顺序 provider、model、reasoningEffort；数组保留输入顺序；UTF-8 SHA-256 小写十六进制。返回对象及数组深拷贝并冻结。指纹只用于 provenance，不是授权或全局 registry 键。
+指纹对完整校验的 Definition 按固定顺序 JSON.stringify：agentDefinitionId、definitionVersion、roleDefinitionId、displayName、summary、roleDescription、dshPresetId、requiredSkillNames、toolFilter、expertiseTags、evidenceScopes；toolFilter 省略不存在的值，子键 allow 后 deny；数组保留顺序。对 UTF-8 取 SHA-256 小写十六进制。模型覆盖、Skill 正文、部署目录不加入指纹；指纹是 provenance，不是授权或 DSH capability 历史快照。
 
-Runtime 配置限制：最多 64 项；每项完整 JSON UTF-8 不超过 16 KiB，字符串必须非空，不接受未知字段、重复 ID、重复数组元素或 null。toolFilter 只接受可选 allow/deny 字符串数组，提供对象时至少有一个字段；不得含空名称；persona 不接受 `{{` 模板变量语法，首版作为固定角色文本。requiredSkillNames 与 expertiseTags 至少一项，evidenceScopes 可为空，其他枚举沿用上文。配置格式错误在 Host 启动时报固定配置错误；不输出 persona 正文。
+ready 请求重放使用已有结果，不读取当前 Definition/map/Skill registry；requestId/hash 规则不变。creation_failed 重放也不重新 provisioning，补齐部署后重试必须新 requestId。公开 status、archive 和错误不新增私有角色或模型字段。
 
-选定定义缺失、角色不匹配、Preset/Skill 校验失败或服务缺失，抛出 `RoleCompositionError`，`code="UNSUPPORTED_CAPABILITY"`，公开返回同名已有协议错误、retryable=false、固定 message `Meeting role composition is unavailable.`。取消沿既有取消路径，不改写为成功。原有未选择 Definition 的请求不要求 agentPresets/skills service。
-
-解析发生在 createMeetingRuntime 的受保护创建阶段、第一个 ownership/child 分配之前。允许留下既有创建 bootstrap；失败按既有 creation_failed 规则记录，不能发布 ready Meeting。ready 请求重放必须先使用已有结果，不访问当前 Definition 配置或 Skill registry；原 input/requestId/hash 继续决定重放及冲突，定义内容不加入创建请求 hash。creation_failed 请求重放也必须在解析配置和创建 Session 前停止，即使当前宿主已补齐能力且首次失败没有 ownership。角色预检失败以 `RoleCompositionError` 保存到既有 failureCode，并重放上述固定公开错误；历史仅记为 `Error` 的记录无法还原失败类别，沿用通用创建错误，但同样不得再次 provisioning。修正能力后重新创建必须使用新 requestId。
-
-DSH continuable descriptor 是已注入 persona/toolFilter/agentOptions 的持久所有者。恢复不重新解析当前定义、不重放 hook；本次保证在 Host Preset/Skill 部署不变时恢复配置一致，不承诺把 Host Preset/Skill 内容做历史快照。变更 DSH 部署后的可恢复性属于宿主运维边界。
+冷恢复由 DSH descriptor 恢复 persona/toolFilter/provider/model/reasoningEffort，不重新运行 resolver。descriptor 丢失仍拒绝角色补建，沿 RECOVERY_ROLE_DESCRIPTOR_MISSING 保持 pause；不得套用新配置。独立 Session 不共享身份状态。Host Preset/Skill 部署内容改变后的历史内容快照不在此保证中。
 
 ## Compatibility
 
-schemaVersion 固定为 1；definitionVersion 固定使用非空版本字符串，本次样本为 1.0.0。字段删除、改名或语义变化需要新的文档 schemaVersion；Definition 内容变化提升 definitionVersion。既有无 Definition 的请求与 ownership 继续可读、可执行，不回填默认定义；本次不迁移历史数据，也不提供旧 Template manifest 读取。运行时配置与文档样本格式分离：内联 persona 不要求 AGENT.md 文件或 hash。样本格式与验证器保持原规则。
+本契约是未发布产品的首个 V1 格式，definitionVersion=1.0.0、文档 schemaVersion=1、会议 protocolVersion=1。旧未发布 Definition.persona、Definition.agentOptions 和逐角色 manifest 不是兼容输入；不提供 alias、双读或迁移器。已有会议恢复不重解释配置的安全规则仍保留。
+
+后续已发布字段删除、改名或语义变化必须升级对应文档 schemaVersion；定义内容变化提升 definitionVersion。Host 模型覆盖的变化不改变角色版本，生效与恢复由 DSH descriptor 管理。
 
 ## Related Documents
 
 - [Architecture](../00-governance/ARCHITECTURE.md)
-- [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
-- [Meeting Agent Role Catalog Interface](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)
-- [Meeting Orchestration Design](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
-- [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)
+- [Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
+- [Role Catalog Interface](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)
+- [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)
+- [Meeting Roles Operations](../50-operations/HOW-TO-MEETING-ROLES.md)
+- [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)

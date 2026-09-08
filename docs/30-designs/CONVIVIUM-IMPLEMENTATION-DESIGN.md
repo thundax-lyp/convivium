@@ -52,6 +52,7 @@ plugin/
 ├── package.json
 ├── pnpm-lock.yaml
 ├── cordis.patch.yml
+├── meeting-roles/                 # 首发目标：同包原生 Preset/Skills/Definition，尚待实现
 ├── tsconfig.json
 ├── tsconfig.client.json
 ├── tsdown.config.ts
@@ -193,8 +194,8 @@ domain     ──> no infrastructure module
 | `src/runtime/services/meeting-archive-service.ts`                                       | 终态快照、capability revoke、Activation drain 和 archived commit                                     |
 | `src/dsh/session-adapter.ts`                                   | meeting-owned Session 创建和 followup；保留 Session ownership 操作的导出入口                         |
 | `src/dsh/session-ownership.ts`                                 | meeting-owned Session ownership 证明、枚举检查及 interrupt/drain                                     |
-| `examples/meeting-agent-definitions/*`                         | 不进入发布包的 Convivium Meeting Agent Definition 固定样本；不表示 DSH capability 已安装             |
-| `scripts/verify-agent-definition-samples.mjs`                  | 校验九个固定 Definition、文件集合和 AGENT.md hash                                                    |
+| `meeting-roles/`（首发目标） | 同包交付的 Definition、共享 Preset、九个原生 Skills 与显式部署 patch；由 DSH Loader 应用，尚待实现 |
+| `scripts/verify-agent-definition-samples.mjs` | 首发目标为校验九角色部署文件集合、原生引用与 Skill 正文；旧 AGENT.md hash 规则在实施时移除 |
 | `src/domain/meeting-task.ts`                                   | MeetingTask、HandRaise、状态转换和 task projection 的纯领域逻辑                                      |
 | `src/dsh/caller-resolver.ts`                                   | 将真实 DSH caller Session 解析为 Captain、Manager 或 Participant                                     |
 | `src/tools/register-tools.ts`                                  | 注册 `convivium_*` 工具并绑定协议 Schema                                                             |

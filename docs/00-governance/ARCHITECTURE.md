@@ -21,7 +21,7 @@
 - Convivium 正式运行会议前，宿主组合必须提供一个具备 `prepareContinuable` 能力的 continuable subagent provider；仅声明或注入 `dsh-subagent` service 不构成该能力。当前确认的宿主 profile provider 是 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.2-rc.1`，provider name 为 `spawn`，由 profile 作为组合依赖管理，不由 Convivium 自行实现、隐式携带或写入插件 package manifest。插件必须在独立 DSH profile 中验证该 provider 与 `startContinuable()` 的实际创建链路。
 - 插件依赖 DSH 提供 AgentSession、continuable Agent、工具注册、Web 路由、DSH 原生 Session Event 和插件 UI 宿主能力。
 - Convivium 拥有会议角色目录、Meeting Agent Definition、Manager 可见安全摘要、参会选择与批准状态；DSH Host 或 profile 拥有 Agent Preset、Skills、Tools、MCP、Sandbox、Approval、模型配置及其安装和执行。
-- Meeting Agent Definition 只引用 DSH 原生 Agent Preset 和 Skill 名称，并可用 DSH 原生 ToolRestriction 收窄工具；Convivium 不复制、安装或持久化 DSH capability composition。Definition 存在不证明 capability 已安装；缺少可验证的 DSH composition 时必须 fail closed。
+- Meeting Agent Definition 只描述会议角色、引用 DSH 原生 Agent Preset 和 Skill 名称，并可用原生 ToolRestriction 收窄从 global 与祖先 scope（包括共享 Preset）继承的工具；当前 child 自己注册的工具不受此 filter 屏蔽。发行包可附带原生 Preset/Skills 部署资源，但 Convivium Runtime 不复制、安装或持久化 DSH capability composition，实际组合由 Host 的 DSH Loader 应用。Definition 存在不证明 capability 已安装；缺少可验证的 DSH composition 时必须 fail closed。
 - 插件包含清晰分离的插件前端和插件后端会议运行时。
 - 每个 Meeting 在任何会议副作用前获得稳定 `meetingId`，并以 `teamId + meetingId` 形成独立 repository ownership。Convivium 只通过 `@deepseek-ai/dsh-storage-domain` 使用一个轻量 catalog domain 和每 Meeting 独立 domain；不得定位、扫描或依赖 backend 的物理布局。
 - [Meeting Persistence Design](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) 已确认采用 `Checkpointed Commit Log`：一次 command 编码为一条原子 commit，当前真相由已发布分页 checkpoint 与连续有界 commit tail 合成。`plugin/src/storage/` 通过 `@deepseek-ai/dsh-storage` 实现仅供 Convivium 使用的 JSONL KV backend，只认识 unit、table、key 和 value；`plugin/src/repository/domain/` 只消费 `@deepseek-ai/dsh-storage-domain` 和自身 record schema。顶层 Convivium plugin 先挂载 backend provider child plugin，再由依赖完整 DSH services 与 `storageDomain` 的 Meeting consumer child plugin 注册业务能力；宿主组合中的现有 `storage-domain` row 路由到 backend `convivium-jsonl`。Storage Domain 是唯一会议事实源；禁止双写、fallback 和自动迁移。遗留 `.sqlite` 数据不读取、不迁移、不删除，属于当前实现范围外的数据。
@@ -58,7 +58,7 @@
 - DSH 负责 Session 创建、`sendMessage` 投递、interrupt、事件和生命周期能力。
 - Convivium 负责会议身份、上下文投影、发言 capability 和 Session ownership，不把 AgentSession 当作会议领域真相源。
 - Convivium 只定义 Agent 之间及 Agent 与 Meeting Runtime 之间的会议协议，不拥有或解释 Agent 内部的 Prompt、Skills、Tools、MCP、推理、命令、工作流和重试过程。
-- Convivium 可以保存 Meeting Agent Definition identity 与 meeting-owned DSH Session ownership；MCP、Sandbox、Approval、模型和其他 Host 私有能力配置仍由 DSH 管理。首版允许通过创建前解析函数校验共享父 Preset 与 required Skills，并用 DSH 公开 persona/toolFilter/agentOptions 参数配置独立 continuable Session；Definition ID、版本和指纹属于会议 provenance，运行配置由 DSH descriptor 持有。独立 per-child Preset 不属于首版；实现状态以 readiness 为准。
+- Convivium 可以保存 Meeting Agent Definition identity 与 meeting-owned DSH Session ownership；MCP、Sandbox、Approval、模型和其他 Host 私有能力配置仍由 DSH 管理。首发目标通过创建前解析函数校验共享父 Preset 与 required Skills，将 Definition.roleDescription 转换为 DSH persona，并将 Host 独立 agentModelOverrides 交给 DSH 原生 agentOptions；toolFilter 保留原生继承工具收窄语义。Definition 不保存模型配置；ID、版本和指纹属于会议 provenance，运行配置由 DSH descriptor 持有。独立 per-child Preset 不属于首版；实现状态以 readiness 为准。
 - Agent 内部能力、Sandbox 和 Approval 由 DSH 管理；Convivium 只向 DSH 提供会议身份对应的授权上限，不得扩大用户或 DSH 已授予的权限。
 
 ## Identity And Session Isolation
@@ -88,7 +88,7 @@
 ## Source Layout And Verification
 
 - `plugin/` 包含 Convivium DSH 插件的 Host、Client、Meeting 业务、JSONL Storage Backend 和全部验证；仓库级 `docs/` 不参与插件打包。
-- `plugin/examples/meeting-agent-definitions/` 保存不进入发布包的 Convivium Meeting Agent Definition 样本；样本不是 DSH Agent Preset、不是 capability registry，也不证明运行时已安装差异化能力。
+- 首发目标的 `plugin/meeting-roles/` 保存同一插件 package 随包交付的 Definition 数据、共享 `convivium` Preset、九个原生 DSH Skills 和显式部署 patch。它是静态数据/DSH 部署资源，不是第二个工程或 Runtime installer；只经 Host Loader 使用，不允许前端或会议输入指定任意读取路径。旧 `plugin/examples/meeting-agent-definitions/` 不作为首发交付格式，实施时移除；当前是否已落地以 readiness 为准。
 - `plugin/` 独立安装、类型检查、构建和验证；根目录不建立 workspace 或 monorepo 层。
 - `plugin/` 的 TypeScript 源码支持 `@/*` 映射到 `src/*`，Host 与 Client 共用该映射；导入保留 NodeNext 所需的 `.js` 扩展名，例如 `@/protocol/types.js`。Vitest 同步解析别名，构建时将声明文件中的别名转换为相对路径，发布产物不要求消费者配置 `@`。
 - JSONL backend 不从 package root 导出，不拥有独立 manifest 或 profile row；它的 backend contract、恢复和生命周期测试位于 `plugin/tests/`，并由同一 package 的 `verify` 与真实 DSH profile smoke 覆盖。

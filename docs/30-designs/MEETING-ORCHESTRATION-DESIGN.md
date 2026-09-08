@@ -173,9 +173,11 @@ convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
 
 ### 4.4 Meeting Agent Definition boundary
 
-Convivium 拥有 Meeting Agent Definition、会议身份、选择、批准和 Session ownership；DSH 拥有 Agent Preset、Skills、Tools、MCP、Sandbox、Approval、模型配置、capability composition 和 AgentSession runtime。Definition 只引用 `dshPresetId`、声明 `requiredSkillNames`、提供 persona，并可用 DSH 原生 `ToolRestriction` 收窄工具。
+Convivium 拥有 Meeting Agent Definition、会议身份、选择、批准和 Session ownership。首发 Definition 使用 roleDescription 描述会议职责，引用 dshPresetId/requiredSkillNames，并可通过 DSH 原生 ToolRestriction 收窄 global/祖先 scope（包括共享 Preset）的继承工具；不屏蔽 child 自己注册的工具。
 
-首版在共享父 Preset 下校验 Definition 和 required Skills，并通过公开 persona/toolFilter 参数创建独立 Session，设计见 [Role Composition Design](ROLE-COMPOSITION-DESIGN.md)。缺少 Skill 不得通过 persona-only 降级；独立 per-child Preset 和 installer 不属于首版。
+Host 通过独立 agentModelOverrides 提供必要的模型差异，默认值、Preset、Skills、Tools、MCP、Sandbox、Approval 与执行由 DSH 管理。resolver 将 roleDescription 和 Skill 加载指令转换为原生 persona，再与 filter/模型覆盖交给 startContinuable。运行时不安装或展开 Skill 正文。
+
+首发交付同 package 的共享 convivium Preset、九个原生 Skills 和九个可组合角色；必须通过真实九 Session/Skill 加载/研究工具/权限与恢复验收。目标结构见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)，实现落点见 [Role Composition Design](ROLE-COMPOSITION-DESIGN.md)。这是已确认、尚待实现的目标；动态 admission 和独立 per-child Preset 不包含在内。
 
 ## 5. Runtime Model
 
