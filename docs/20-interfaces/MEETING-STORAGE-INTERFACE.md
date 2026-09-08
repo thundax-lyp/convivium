@@ -2,11 +2,11 @@
 
 ## Purpose
 
-本文定义 Convivium Meeting Repository 在 Storage Domain 上的稳定行为、持久 record、原子 commit、恢复和错误边界。DSH backend 的物理 JSONL 格式不属于本接口。
+本文定义 Convivium Meeting Repository 在 Storage Domain 上的稳定行为、持久 record、原子 commit、恢复和错误边界。DSH backend 的物理介质格式不属于本接口。
 
 ## Boundary And Ownership
 
-- `MeetingRepositoryPort` 只服务一个已验证的 `teamId + meetingId`，不接受任意文件路径、SQL 或通用 JSON patch；链路为 DSH profile -> storage hub -> child backend `convivium-jsonl` -> Storage Domain -> repository。
+- `MeetingRepositoryPort` 只服务一个已验证的 `teamId + meetingId`，不接受任意文件路径、SQL 或通用 JSON patch；链路为 DSH Host/profile -> storage hub + 官方 SQLite provider -> Storage Domain -> repository；Host/profile 拥有介质与路由，Convivium 不管理数据库文件。
 - Repository 负责打开并关闭一个 Meeting Domain，把聚合快照、领域事件、幂等 receipt、outbox、Session ownership 和 private mail 作为一个可恢复 projection 原子推进。
 - Domain transition 由 Runtime 提供纯函数；Repository 不选择 speaker、不调用 DSH、不执行外部副作用。
 - Runtime 通过 `RepositoryAuthorizationValidator` 验证真实 caller、会议 capability 和当前 attempt；Repository 只接受已带 `CommandAuthorization` 的 command，并在 transition 前调用该验证端口。

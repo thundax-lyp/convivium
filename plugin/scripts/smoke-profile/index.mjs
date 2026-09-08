@@ -3,7 +3,7 @@ import { createConnection, createServer } from "node:net";
 import { constants, createWriteStream } from "node:fs";
 import { access, cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join, resolve, sep } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
@@ -224,12 +224,24 @@ async function packArtifact(artifactDir) {
     return artifact;
 }
 
-async function writeSmokePatch(path, scenario, phase = "1") {
+export async function writeSmokePatch(path, scenario, phase = "1") {
     const patch = [
+        "- insert:",
+        "    - id: convivium-smoke-storage-sqlite",
+        "      name: '@deepseek-ai/dsh-storage-sqlite'",
+        "      config:",
+        `        path: ${JSON.stringify(join(dirname(path), "convivium-storage.sqlite"))}`,
+        "        journalMode: wal",
+        "- id: storage-domain",
+        "  config:",
+        "    backend: sqlite",
+        "    routes:",
+        "      workspace: json",
+        "      session_projcache: json",
+        "      message_feedback: json",
         "- id: convivium",
         "  config:",
         `    provider: ${PROVIDER}`,
-        "    dataRoot: convivium-smoke-data",
         ...(scenario === "role-composition"
             ? [
                   `    agentDefinitions: ${JSON.stringify(roleSmokeDefinitions(phase))}`,
@@ -262,7 +274,8 @@ async function writeProbePackage(probeDir) {
                 main: "index.js",
                 dependencies: {
                     "@deepseek-ai/dsh-subagent": DSH_VERSION,
-                    "@deepseek-ai/dsh-llm": DSH_VERSION
+                    "@deepseek-ai/dsh-llm": DSH_VERSION,
+                    "@deepseek-ai/dsh-storage-sqlite": DSH_VERSION
                 },
                 dsh: { bundle: { patch: "./cordis.patch.yml" } }
             },
@@ -314,6 +327,9 @@ async function dumpConfig(env, patchPath, logsDir, roleAssetRoot) {
     await writeFile(dumpPath, result.stdout, "utf8");
     for (const expected of [
         CONVIVIUM_PACKAGE,
+        "@deepseek-ai/dsh-storage-sqlite",
+        "convivium-smoke-storage-sqlite",
+        "convivium-storage.sqlite",
         "@deepseek-ai/dsh-subagent-spawn-in-process",
         PROVIDER
     ]) {
@@ -321,6 +337,8 @@ async function dumpConfig(env, patchPath, logsDir, roleAssetRoot) {
             throw new Error(`dump-config did not include ${expected}.`);
         }
     }
+    if (/convivium-jsonl|dataRoot/.test(result.stdout))
+        throw new Error("dump-config contains obsolete Convivium storage configuration.");
     return dumpPath;
 }
 

@@ -20,7 +20,9 @@ DEEPSEEK_API_KEY=
 
 人工开发和调试使用仓库根目录 `dsh-workspace/`，该目录不进入 Git；自动 `smoke:profile` 不使用该目录，仍为每次运行创建并清理独立的 OS 临时 workspace，避免旧 Session、Meeting 或文件状态影响验证结果。
 
-## 人工真实模型验证
+## 替换前人工真实模型验证（历史入口）
+
+以下人工步骤记录替换前组合，缺少当前 SQLite provider 接线，不作为当前首次发布或 SQLite 验收入口。当前验证使用下文“标准入口”和“新 SQLite profile”；不对已有 profile 自动应用替换。
 
 ### Prepare
 
@@ -214,6 +216,20 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 脚本的 finally 必须停止其记录的 Host PID、确认临时端口释放并删除唯一 `convivium-dsh-smoke-*` 临时根。`cold-rebind` 会在同一临时 DSH_HOME、workspace、profile、data root 和端口上依次启动两个不同 Host PID；只在 phase 2 完成后执行一次最终 Restore。Restore 失败时即使场景断言通过也不得记为 Pass。
 
 除 meeting-roles 外，上述 selector 不调用远程 LLM，只证明当前锁定 DSH runtime/provider、真实 Session persistence、inbox、interrupt/drain、tool caller、Storage Domain composition/cold recovery、status/archive 和 Meeting 隔离路径。Decision/Agenda、developer Markdown、metrics/stress、浏览器未列出的其他控制、遗留 SQLite migration/deletion、multi-Host writer、remote filesystem 和生产发布不在这些 selector 的证明范围内。
+
+## 新 SQLite profile
+
+标准 `smoke:profile` 为每场景创建全新隔离 profile。`scripts/smoke-profile/index.mjs::writeProbePackage` 生成 test-only manifest，安装 `@deepseek-ai/dsh-storage-sqlite@0.1.2-rc.1`；Convivium 产品包不携带 provider。`writeSmokePatch` 配置唯一 SQLite row、临时根下的 `convivium-storage.sqlite` 与 `journalMode: wal`，将 Storage Domain 默认 backend 设为 `sqlite`，workspace、session_projcache、message_feedback 三个精确 domain 名留在 `json`。既有 storage-json row 保持不变，禁止前缀通配路由。
+
+`cold-rebind` 两个 Host 使用同一 SQLite 文件；脚本不得在两 phase 之间删除或重建数据库。首次发布不迁移开发期 JSONL/SQLite 数据、不做兼容读取或 fallback，也不修改已有 Host/profile 或删除开发者文件。数据库、profile、workspace 和端口仅由本次 wrapper 创建和 Restore；成功判据包含实际 Loader、业务恢复断言和 Restore，具体运行结果见 [SQLite 验证证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation)。
+
+## SQLite 替换的关闭与冷重启验收
+
+本次替换遵循 [已接受的关闭限制](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)。人工操作在对话完成后停止发起新操作、等待再关闭 Host；不规定“等待若干秒即可安全”的承诺。以下定义 SQLite 冒烟的验收边界；实际执行结果见 [SQLite 验证证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation)。
+
+自动探针必须先等待目标 tool/command 成功及对应状态断言，再输出阶段结果。`cold-rebind` 的 `plugin/scripts/smoke-profile/probe/scenarios/recovery.js::runColdRebindScenario` 在 phase 1 中执行以下流程：成功提交消息、确认 Captain/Manager Session flush 成功、核对 checkpointStatus 的版本与消息 ID、写出恢复 checkpoint，最后输出 `phase1Complete`；wrapper 读取该结果后才停止 phase 1 Host。phase 2 必须用同一介质的新 Host 验证记录前缀、版本和 ownership，并成功继续提交。阶段结果不是“Host 全部后台写入已排空”的证明；持久化的 pending 工作仍按冷恢复契约继续处理。
+
+不得仅凭 UI 完成、Agent idle、固定 sleep 或进程已退出判断持久化通过。关闭时未完成写入自动排空以及内部 close 顺序不在本次验收承诺内；已确认数据缺失、领域恢复失败、场景断言失败和 Restore 失败仍必须判 FAIL。遇到 `closed` 错误时核对它是否影响阶段事实和恢复结果，记录错误与未完成操作，不得统一吞错或直接归为可忽略。若现有脚本缺少目标事实的成功屏障，先修订对应有界步骤再实施，不临时添加延时或篡改结果。
 
 ## 失败处理
 

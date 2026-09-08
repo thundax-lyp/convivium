@@ -42,7 +42,7 @@ checkpoint 不是命令原子性的来源。它只是某个稳定序号上的已
 - [Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)（当前已实现契约，不是算法定义）
 - [Convivium Implementation Design](./CONVIVIUM-IMPLEMENTATION-DESIGN.md)
 
-当前实现只通过 DSH Storage Domain 使用 package-private JSONL backend，且不启用双写、fallback 或遗留数据迁移。
+当前实现只通过 DSH Storage Domain 使用 Host/profile 拥有的官方 SQLite provider，且不启用双写、fallback 或遗留数据迁移。
 
 ## Responsibilities And Dependencies
 

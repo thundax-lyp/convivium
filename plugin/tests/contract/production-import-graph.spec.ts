@@ -64,10 +64,16 @@ function importGraph(entries: readonly string[]) {
 }
 
 describe("production import graph", () => {
-    it("reaches the package-private backend without reaching legacy SQLite", () => {
+    it("keeps the plugin graph on Storage Domain without a physical backend", () => {
         const graph = importGraph(["index.ts"]);
-        expect(graph.files).toContain("storage/index.ts");
-        expect(graph.files).toContain("storage/backend.ts");
+        expect(graph.files.filter((file) => file.startsWith("storage/"))).toEqual([]);
+        expect(graph.externals).toContain("@deepseek-ai/dsh-storage-domain");
+        for (const dependency of [
+            "@deepseek-ai/dsh-storage",
+            "@deepseek-ai/dsh-storage-sqlite",
+            "@deepseek-ai/dsh-storage-json"
+        ])
+            expect(graph.externals).not.toContain(dependency);
         expect(graph.files).not.toEqual(
             expect.arrayContaining([
                 "repository/sqlite-meeting-repository.ts",

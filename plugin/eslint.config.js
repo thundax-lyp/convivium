@@ -12,7 +12,6 @@ const publicModules = [
     "projection",
     "protocol",
     "runtime",
-    "storage",
     "tools"
 ];
 

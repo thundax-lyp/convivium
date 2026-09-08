@@ -8,7 +8,7 @@
 
 ### Scope
 
-- `plugin/` 内 Meeting consumer 与 JSONL backend provider 两个 Cordis child plugins 的职责和生命周期边界。
+- `plugin/` 内 Meeting consumer 与 Host/profile 拥有的官方 SQLite provider 的职责和生命周期边界。
 - Meeting domain、repository port、DSH Storage Domain adapter、Meeting Runtime、DSH adapter、HTTP、projection 和 client 的依赖关系。
 - 当前 Storage Domain repository 的打开、关闭和恢复生命周期，以及遗留数据的 fail-closed 边界。
 - 所有 meeting-owned AgentSession 的统一调用和 capability revoke 检查入口。
@@ -63,7 +63,6 @@ plugin/
 │   ├── protocol/
 │   ├── domain/
 │   ├── repository/
-│   ├── storage/                  # package-private JSONL backend child plugin
 │   ├── runtime/
 │   ├── dsh/
 │   ├── tools/
@@ -103,7 +102,7 @@ plugin/
 
 ### Package topology and build faces
 
-Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。`src/storage/` 实现只认识 DSH KV 语义的 JSONL `StorageBackend` provider child plugin；Meeting Runtime 作为 consumer child plugin，只通过 `@deepseek-ai/dsh-storage-domain` 使用自身 record schema。顶层 `src/index.ts` 负责挂载二者并约束生命周期；宿主组合中的 `storage-domain` row 只负责把 Domain Facility 路由到 `convivium-jsonl`。不建立第二个 package、backend 公共导出、adapter hierarchy 或未来 provider factory。
+Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。Meeting Runtime 作为 consumer child plugin，只通过 `@deepseek-ai/dsh-storage-domain` 使用自身 record schema。顶层 `src/index.ts` 只挂载 consumer；Host/profile 负责安装和配置官方 SQLite provider、数据库路径及 Domain 路由。插件不实现物理存储、不导出 backend，也不建立 adapter hierarchy 或 provider factory。
 
 会议运行依赖宿主组合中的 continuable subagent provider。`@deepseek-ai/dsh-subagent` 只提供 `ctx.subagents` service definition；它不自动提供具备 `prepareContinuable` 能力的 provider。选定 provider 包、宿主 profile 组合和最终分发方式前，不能将会议 Session 创建描述为可运行；`smoke:profile` 必须在独立 profile 中验证 provider、`startContinuable()`、冷恢复和释放链路。
 
@@ -126,7 +125,7 @@ Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。`src/
 
 构建分为两个明确步骤：TypeScript 生成 `lib/types/**` 声明和构建中间 JavaScript，`tsdown` 生成 `lib/index.js` 与 `lib/client.js`。Client 构建使用独立 `tsconfig.client.json`，不得把 Node.js、持久化实现、workspace 文件系统或 Host-only DSH service 打入浏览器 bundle。
 
-`cordis.patch.yml` 插入稳定 row ID `convivium` 并把既有 `storage-domain` row 的默认 backend 固定为 `convivium-jsonl`；不新增独立 backend row。Client entry 由 `package.json.dsh.client` 进入 DSH browser roster，不在 Host `apply()` 中手工加载或注册。
+`cordis.patch.yml` 仅插入稳定 row ID `convivium`，不添加 provider row 或覆盖 `storage-domain` 路由。Client entry 由 `package.json.dsh.client` 进入 DSH browser roster，不在 Host `apply()` 中手工加载或注册。
 
 ### Client fact visibility
 
@@ -180,9 +179,6 @@ domain     ──> no infrastructure module
 | `src/repository/domain/private-mail-validation.ts`             | 私聊发送、开始和完成处理的无状态校验；授权、receipt 重放、版本检查和原子写入仍由 Repository 负责       |
 | `src/repository/domain/domain-repository-registry.ts`          | catalog discovery、每 Meeting domain 打开、缓存和关闭                                                |
 | `src/repository/domain/schemas.ts`                             | catalog、creation、projection、commit、checkpoint 和 patch 的严格 record schema                      |
-| `src/storage/index.ts`                                         | 注册 package-private `convivium-jsonl` backend provider child plugin                                 |
-| `src/storage/backend.ts`                                       | DSH `StorageBackend`/`KvFacet` lifecycle；不导入 Meeting 业务                                        |
-| `src/storage/unit.ts`                                          | JSONL KV unit 的 replay、mutation、physical checkpoint 和关闭顺序                                    |
 | `src/runtime/application-service/index.ts#createCreateStatusRuntime` | 当前所有公开命令的唯一应用服务入口；增量功能复用该入口，不另建第二个 Runtime                         |
 | `src/runtime/application-service/types.ts`                     | Runtime、caller、配置及应用服务共享类型；不持有运行时状态                                             |
 | `src/runtime/application-service/continuation-selection.ts`    | 续会来源恢复、访问检查和显式素材选择                                                                  |
@@ -218,7 +214,7 @@ Protocol owner 固定为：`plugin/src/protocol/types.ts` 定义 DTO；`plugin/s
 
 ## Persistence Algorithm And Repository Cutover
 
-当前持久化算法是 `Checkpointed Commit Log`，抽象状态、checkpoint/commit/compaction 流程、不变量和验收点见 `MEETING-PERSISTENCE-SPECIAL-DESIGN.md`。它属于带 checkpoint 与 log compaction 的 log-structured persistence，不得简称为 `Event Sourcing` 或 `WAL`。repository 只使用 `@deepseek-ai/dsh-storage-domain`：一个轻量 catalog domain 用于发现，每个 Meeting 使用独立 domain；一次 command 只写一条 commit record，checkpoint 分页写入。`src/storage/` 以 JSONL 实现标准 DSH KV backend，但不认识 Meeting 数据语义；它是 Convivium package 内的 provider child plugin，不是独立产品或发布单元。
+当前持久化算法是 `Checkpointed Commit Log`，抽象状态、checkpoint/commit/compaction 流程、不变量和验收点见 `MEETING-PERSISTENCE-SPECIAL-DESIGN.md`。它属于带 checkpoint 与 log compaction 的 log-structured persistence，不得简称为 `Event Sourcing` 或 `WAL`。repository 只使用 `@deepseek-ai/dsh-storage-domain`：一个轻量 catalog domain 用于发现，每个 Meeting 使用独立 domain；一次 command 只写一条 commit record，checkpoint 分页写入。物理介质由 Host/profile 的官方 SQLite provider 管理，Convivium 保留领域 commit/checkpoint 算法，不直接调用 backend 或 SQL。
 
 Storage Domain 是当前唯一会议事实源。实现不双写、不 fallback，也不定位、读取或扫描 backend 的物理布局。遗留 `.sqlite` 数据不读取、不迁移、不删除，属于当前实现和恢复流程之外；缺少 catalog record 时不得据遗留文件猜测 Meeting 存在。
 
@@ -227,8 +223,8 @@ Storage Domain 是当前唯一会议事实源。实现不双写、不 fallback�
 - catalog domain 只保存 `teamId + meetingId` 到 Meeting domain identity 的严格记录；每个 Meeting domain 独立持有 creation、projection、commit、checkpoint 与 pointer records。
 - Runtime 只经 `DomainRepositoryRegistry` 打开 catalog 和 Meeting domains；registry 负责缓存、恢复隔离与关闭顺序。
 - record schema 拒绝未知字段、危险 map key、digest 冲突、sequence gap 和超过上限的 projection/checkpoint。
-- repository close 先排空 mutation/checkpoint maintenance，再关闭 Meeting domain；consumer 全部关闭后 provider 才注销 backend。
-- backend 物理布局只属于 `src/storage/`，Meeting repository、Runtime、tools、HTTP 和 client 均不得导入文件系统、backend package 或物理路径规则。
+- repository close 先排空 mutation/checkpoint maintenance，再关闭 Meeting domain；Host/provider 的并发卸载适用 [已接受的关闭限制](#accepted-storage-shutdown-limitation)，不承诺 consumer 全部关闭后才注销 backend。
+- backend 物理布局只属于 Host/profile 的 SQLite provider，Meeting repository、Runtime、tools、HTTP 和 client 均不得导入文件系统、backend package 或物理路径规则。
 
 ### Repository API
 
@@ -356,7 +352,7 @@ Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-s
 
 #### Minimal implementation boundary
 
-- Outbox 由 Convivium Meeting Runtime 和 Meeting Repository 共同拥有；DSH、Storage Domain 和 JSONL backend 只分别提供被调用能力或持久载体，不拥有 outbox 语义。
+- Outbox 由 Convivium Meeting Runtime 和 Meeting Repository 共同拥有；DSH、Storage Domain 和 SQLite provider 只分别提供被调用能力或持久载体，不拥有 outbox 语义。
 - V1 只允许 `OUTBOX_KINDS` 已声明的单一 `dispatch` kind。worker 只执行固定链路 `claim -> MeetingSessionAdapter call -> complete`，不得接受任意函数、脚本、tool name、backend operation 或调用方提供的 handler。
 - pending item 必须与产生它的 Meeting 状态、event 和 receipt 位于同一个 repository commit；worker 不在 commit 前执行 DSH 调用，也不把调用中的临时结果当作 Meeting 事实。
 - 实现只使用当前单 Host 内的一个有界 worker、batch claim、lease/renew、completion 和冷恢复；不增加独立进程、消息 broker、分布式锁、跨 Host 协调、通用 scheduler 或第二条持久化队列。
@@ -387,16 +383,23 @@ Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-s
 
 ## Plugin Composition And Lifecycle
 
-`src/index.ts` 的启动顺序：
+Host/profile 与 `src/index.ts` 的启动顺序：
 
-1. 顶层无依赖 compositor 解析 Config，使其可以在 `storage-domain` 等待 backend 时先激活。
-2. 用 `<resolved dataRoot>/storage` 挂载 `src/storage/index.ts#jsonlStoragePlugin` provider child plugin；provider 注册 `convivium-jsonl` backend service。
-3. 挂载依赖完整 DSH services 与 `storageDomain` 的 Meeting consumer child plugin；依赖尚未就绪时 consumer 保持 pending，不暴露部分 Meeting 能力。
-4. consumer 打开 catalog domain 和 Meeting domains，完成冷恢复，再构造 Meeting Runtime、outbox worker 和 recovery coordinator。
-5. consumer 注册 tools 和 system prompt contribution，通过可选 webServer 子作用域注册 HTTP routes；Client bundle 由 DSH 根据 package manifest 独立装载。
-6. consumer 启动有界 outbox worker。
+1. Host/profile 安装 SQLite provider 并配置 Storage Domain 路由；Convivium 顶层解析 Config，只挂载 Meeting consumer。
+2. consumer 依赖完整 DSH services 与 `storageDomain`；服务尚未就绪时不激活、不暴露部分 Meeting 能力。
+3. services 已就绪但配置的 subagent provider 尚未注册时，consumer 通过 DSH 公开 `subagent/provider-added` 等待指定名称；忽略其他 provider。provider 已存在或到达后，先校验 `prepareContinuable` 再执行原初始化。一次性监听随 consumer 作用域释放，不以固定延时推断 provider 就绪。
+4. consumer 打开 catalog domain 和 Meeting domains、完成冷恢复并构造 Meeting Runtime、outbox worker 和 recovery coordinator；注册 tools 和 system prompt contribution，通过可选 webServer 子作用域注册 HTTP routes。Client bundle 由 DSH 按 package manifest 独立装载。
+5. consumer 启动有界 outbox worker。
 
-若步骤 1 至 4 失败，插件加载失败且不暴露部分工具或路由。DSH 自托管注册随 fiber 释放，普通 registry 的 disposer 由 consumer effect 托管；停止时 consumer 先停止接收新命令、停止 worker、释放租约并关闭 Meeting/catalog domains，随后 provider 注销 backend service、注销 backend name 并关闭介质。停止过程不把进行中 Meeting 改成业务终态，后续启动通过 recovery 继续处理。
+依赖未满足期间不暴露 Meeting 能力；provider 到达但能力不合格或初始化失败时仍 fail closed。DSH 自托管注册随 fiber 释放，普通 registry 的 disposer 由 consumer effect 托管；consumer 停止接收新命令、停止 worker、释放租约并关闭 Meeting/catalog domains；Host/profile provider 负责注销 backend service/name 并关闭介质。当前 DSH 不保证两方在 Host 卸载时按上述职责顺序完成，适用下述已接受限制。停止过程不把进行中 Meeting 改成业务终态，后续启动通过 recovery 继续处理。
+
+### Accepted Storage Shutdown Limitation
+
+2026-09-08 用户确认：首次发布容忍 DSH/Cordis 在存储 provider 卸载或 Host/根 Context 关闭时，尚未完成的排队写入可能因介质提前关闭而以 `closed` 拒绝。人工操作可以在对话完成后保留 Host、停止发起新操作并等待写入完成，再自行关闭；对话显示完成不等于持久化完成，没有已验证的固定安全等待时长。本限制不要求升级 DSH、不阻塞 SQLite provider 替换，也不引入 Convivium 自有关闭协调器、存储 wrapper 或本地上游补丁。
+
+成功响应仍必须晚于领域 commit 持久化；已确认成功的状态、receipt、事件与 outbox 重开后必须保持一致。容忍范围仅是关闭与未完成工作竞争时的失败，不容忍已确认数据丢失、半提交、损坏被静默忽略或失败被报告为成功。单独关闭 AgentSession 是否触发相同问题尚未验证，不把本限制描述为“关闭 Session 必定丢最后一条”。领域 command/receipt/outbox/checkpoint 算法与恢复要求保持不变。
+
+自动验证以关闭前已确认的事实作为恢复 oracle：等待断言所涉及的写操作成功完成，记录版本、消息 ID 和必要的 Session flush 结果，再关闭并用新进程/Context 重开。已持久化的 pending outbox 可以留给冷恢复，不要求所有 Meeting 已终止或全部后台任务完成。测试不把全局队列静默、自动排空在途写入或 consumer/provider 的内部 close 调用顺序作为本次 mandatory 条件；也不得用固定 sleep、忽略错误或删掉重开断言来制造 PASS。人工等待只能降低触发概率，不能替代上述机器可观察条件。
 
 ### Optional Web Composition
 

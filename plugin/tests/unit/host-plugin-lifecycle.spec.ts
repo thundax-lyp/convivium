@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
 import SystemPrompt from "@deepseek-ai/dsh-system-prompt";
+import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import Tools from "@deepseek-ai/dsh-tools";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 
 import { apply, assertContinuableProvider, inject } from "@/index.js";
 import { requireContinuableProvider } from "@/dsh/index.js";
@@ -162,10 +160,7 @@ describe("Convivium local Meeting route lifecycle", () => {
 
     it("registers and disposes exactly one prefix on loopback", async () => {
         const fixture = await host("127.0.0.1");
-        expect(fixture.childOrder).toEqual([
-            "convivium-storage-jsonl",
-            "convivium-meeting-consumer"
-        ]);
+        expect(fixture.childOrder).toEqual(["convivium-meeting-consumer"]);
         expect(fixture.register).toHaveBeenCalledTimes(1);
         expect(fixture.register.mock.calls[0]?.[0]).toMatchObject({
             kind: "prefix",
@@ -242,64 +237,94 @@ describe("Convivium local Meeting route lifecycle", () => {
 });
 
 describe("Convivium Cordis service lifecycle", () => {
-    it("keeps native tools alive while WebServer mounts, unloads and remounts", async () => {
-        const directory = await mkdtemp(join(tmpdir(), "convivium-composition-"));
-        const root = new Context();
-        try {
-            await root.plugin(SystemPrompt, {});
-            await root.plugin(Tools, { mode: "native" });
-            root.provide("agents", { get: () => undefined });
-            root.provide("sessions", {});
-            root.provide("subagents", {
-                getProvider: () => ({ prepareContinuable: async () => ({}) }),
-                startContinuable: async () => {
-                    throw new Error("Unexpected start");
-                },
-                listChildren: async () => [],
-                listDescendants: async () => [],
-                interrupt() {},
-                drainContinuableChildren: async () => {}
-            });
-            root.provide("storageDomain", createFakeDomainFacility());
-            const plugin = await root.plugin({
-                name: "convivium-composition-test",
-                apply: (ctx) => apply(ctx, { ...config, dataRoot: directory })
-            });
-            await vi.waitFor(() =>
+    it.each([false, true])(
+        "keeps tools gated on the configured provider and independent of WebServer (late provider: %s)",
+        async (lateProvider) => {
+            const root = new Context();
+            try {
+                await root.plugin(SystemPrompt, {});
+                await root.plugin(Tools, { mode: "native" });
+                root.provide("agents", { get: () => undefined });
+                root.provide("sessions", {});
+                const spawnProvider: SubagentProvider = {
+                    name: "spawn",
+                    capabilities: {},
+                    inheritsParentContext: false,
+                    async start() {
+                        throw new Error("Unexpected start");
+                    },
+                    async prepareContinuable() {
+                        return { inheritParentContext: false };
+                    }
+                };
+                let registeredProvider = lateProvider ? undefined : spawnProvider;
+                root.provide("subagents", {
+                    getProvider: () => registeredProvider,
+                    startContinuable: async () => {
+                        throw new Error("Unexpected start");
+                    },
+                    listChildren: async () => [],
+                    listDescendants: async () => [],
+                    interrupt() {},
+                    drainContinuableChildren: async () => {}
+                });
+                root.provide("storageDomain", createFakeDomainFacility());
+                const plugin = await root.plugin({
+                    name: "convivium-composition-test",
+                    apply: (ctx) => apply(ctx, config)
+                });
+                if (lateProvider) {
+                    expect(
+                        root.tools.schemas().filter((s) => s.name.startsWith("convivium_"))
+                    ).toEqual([]);
+                    root.emit("subagent/provider-added", { ...spawnProvider, name: "other" });
+                    expect(
+                        root.tools.schemas().filter((s) => s.name.startsWith("convivium_"))
+                    ).toEqual([]);
+                    registeredProvider = spawnProvider;
+                    root.emit("subagent/provider-added", spawnProvider);
+                }
+                await vi.waitFor(() =>
+                    expect(
+                        root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
+                    ).toBe(20)
+                );
+                const register = vi.fn(() => vi.fn());
+                const web = await root.plugin({
+                    name: "test-web-server",
+                    apply(ctx) {
+                        ctx.provide("webServer", { host: "127.0.0.1", register });
+                    }
+                });
+                await vi.waitFor(() => expect(register).toHaveBeenCalledTimes(1));
+                await web.dispose();
+                await vi.waitFor(() =>
+                    expect(register.mock.results[0].value).toHaveBeenCalledTimes(1)
+                );
                 expect(
                     root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                ).toBe(20)
-            );
-            const register = vi.fn(() => vi.fn());
-            const web = await root.plugin({
-                name: "test-web-server",
-                apply(ctx) {
-                    ctx.provide("webServer", { host: "127.0.0.1", register });
-                }
-            });
-            await vi.waitFor(() => expect(register).toHaveBeenCalledTimes(1));
-            await web.dispose();
-            await vi.waitFor(() => expect(register.mock.results[0].value).toHaveBeenCalledTimes(1));
-            expect(root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length).toBe(
-                20
-            );
-            await root.plugin({
-                name: "test-web-server-again",
-                apply(ctx) {
-                    ctx.provide("webServer", { host: "127.0.0.1", register });
-                }
-            });
-            await vi.waitFor(() => expect(register).toHaveBeenCalledTimes(2));
-            await plugin.dispose();
-            await vi.waitFor(() =>
+                ).toBe(20);
+                await root.plugin({
+                    name: "test-web-server-again",
+                    apply(ctx) {
+                        ctx.provide("webServer", { host: "127.0.0.1", register });
+                    }
+                });
+                await vi.waitFor(() => expect(register).toHaveBeenCalledTimes(2));
+                await plugin.dispose();
+                await vi.waitFor(() =>
+                    expect(
+                        root.tools.schemas().filter((s) => s.name.startsWith("convivium_"))
+                    ).toEqual([])
+                );
+                expect(register.mock.results[1].value).toHaveBeenCalledTimes(1);
+                root.emit("subagent/provider-added", spawnProvider);
                 expect(root.tools.schemas().filter((s) => s.name.startsWith("convivium_"))).toEqual(
                     []
-                )
-            );
-            expect(register.mock.results[1].value).toHaveBeenCalledTimes(1);
-        } finally {
-            await root.fiber.dispose();
-            await rm(directory, { recursive: true, force: true });
+                );
+            } finally {
+                await root.fiber.dispose();
+            }
         }
-    });
+    );
 });

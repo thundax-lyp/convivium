@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
     selectScenarios,
@@ -76,7 +76,7 @@ describe("meeting roles deployment smoke", () => {
             wrapper.indexOf("async function bootHost(")
         );
         const runCommand = vi.fn().mockResolvedValue({
-            stdout: "@convivium/dsh-plugin @deepseek-ai/dsh-subagent-spawn-in-process spawn"
+            stdout: "@convivium/dsh-plugin @deepseek-ai/dsh-subagent-spawn-in-process spawn @deepseek-ai/dsh-storage-sqlite convivium-smoke-storage-sqlite convivium-storage.sqlite"
         });
         const dump = runInNewContext(source + "\ndumpConfig", {
             PROFILE: "web",
@@ -111,6 +111,8 @@ describe("meeting roles deployment smoke", () => {
         const writePatch = runInNewContext(source + "\nwriteSmokePatch", {
             PROVIDER: "spawn",
             BROWSER_MODE: false,
+            dirname,
+            join,
             writeFile
         });
         await writePatch("patch", "meeting-roles");
@@ -413,6 +415,8 @@ describe("native deployment patch composition", () => {
             const writePatch = runInNewContext(source + "\nwriteSmokePatch", {
                 PROVIDER: "spawn",
                 BROWSER_MODE: false,
+                dirname,
+                join,
                 writeFile
             });
             await writePatch("control", "meeting-roles");
@@ -420,6 +424,7 @@ describe("native deployment patch composition", () => {
             const warnings = vi.fn();
             const rows = applyEntryPatches(
                 [
+                    { id: "storage-domain", config: { backend: "json" } },
                     { id: "agent-presets", config: { default: "standard" } },
                     { id: "convivium", config: { provider: "spawn" } }
                 ],
@@ -434,8 +439,11 @@ describe("native deployment patch composition", () => {
                     env: { CONVIVIUM_MEETING_ROLES_ROOT: assets }
                 }
             };
-            const preset = interpolate(context, rows[0].config);
-            const meeting = interpolate(context, rows[1].config);
+            const preset = interpolate(
+                context,
+                rows.find((row) => row.id === "agent-presets").config
+            );
+            const meeting = interpolate(context, rows.find((row) => row.id === "convivium").config);
             expect(preset.default).toBe("convivium");
             expect(preset.roots).toEqual([{ path: join(assets, "presets"), trust: "system" }]);
             expect(
@@ -443,7 +451,6 @@ describe("native deployment patch composition", () => {
             ).toContain("skill-filesystem");
             expect(meeting).toEqual({
                 provider: "spawn",
-                dataRoot: "convivium-smoke-data",
                 maxParticipants: 8,
                 speakerTimeoutMs: 300000,
                 outboxPollMs: 1000,
@@ -453,8 +460,12 @@ describe("native deployment patch composition", () => {
                 ...context,
                 process: { getBuiltinModule: process.getBuiltinModule, env: {} }
             };
-            expect(() => interpolate(missing, rows[0].config)).toThrow();
-            expect(() => interpolate(missing, rows[1].config)).toThrow();
+            expect(() =>
+                interpolate(missing, rows.find((row) => row.id === "agent-presets").config)
+            ).toThrow();
+            expect(() =>
+                interpolate(missing, rows.find((row) => row.id === "convivium").config)
+            ).toThrow();
         } finally {
             await rm(root, { recursive: true, force: true });
         }

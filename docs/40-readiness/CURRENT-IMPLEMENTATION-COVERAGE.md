@@ -5,20 +5,26 @@
 ## Scope
 
 - 记录日期：2026-09-08。
-- 源码边界：`8c3b7ab0359828f4b2e33554300c134f95bacecd`，分支 `codex/upgrade-dsh-0.1.2-rc.1`；验证在提交前的同一源码工作区执行。
+- 当前源码边界：`859ac1e` 加 SQLite 替换的测试契约同步；分支 `codex/jsonl-storage-backend-dsh-first`。此前 `8c3b7ab` 的升级证据保留为替换前历史；当前证据见 [SQLite Provider Integration](./DSH-CAPABILITY-INTEGRATION-EVIDENCE.md#sqlite-provider-integration)。
 - 环境：Darwin arm64、Node `v22.23.2`、DSH `0.1.2-rc.1`、Cordis `4.0.2`；真实运行使用独立 `web` profile、`spawn` provider。
-- 依据：当前 Requirements、Interfaces、Designs；源码及回归落点见下方业务能力验证，实际运行结果见 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md#current-baseline-validation)。
+- 依据：当前 Requirements、Interfaces、Designs；源码及回归落点见下方业务能力验证，实际运行结果见 [SQLite Smoke Validation](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation)。
 - `已实现` 表示当前确认范围有正式运行路径及相称验证，不表示全部运行组合均已验证；`部分实现` 表示存在已知行为偏差或必需路径缺失。非目标与验证缺口分别说明。
-- 历史专项记录保留原始基线。本次 verify 和普通 smoke 是新的当前基线证据；未重新执行的 Browser、故障注入和真实模型验证不外推。
+- 历史专项记录保留原始基线。SQLite 替换的 verify 和五核心 smoke 是新的当前基线证据；未重新执行的 Browser、故障注入和真实模型验证不外推。
 
 ## Validated Contract
 
 - 单 package 的 Host/Client 构建、DSH bundle 安装、continuable provider gate 和 loopback HTTP。
 - 正式 Meeting/Participant/Session ownership、顺序 speaker、前序 transcript、caller/capability、timeout/reassign、Task/HandRaise、mail 及归档/续会的既有核心路径。
-- Storage Domain 单 commit、receipt、版本冲突、checkpoint/tail、JSONL 恢复、outbox 与 catalog；持久化恢复通过不等于所有 Session 故障恢复均实现。
+- Storage Domain 单 commit、receipt、版本冲突、checkpoint/tail、SQLite 恢复、outbox 与 catalog；持久化恢复通过不等于所有 Session 故障恢复均实现。
 - Proposal revision、Position、candidate acceptance、Decision supersede/revoke、单 Issue risk disposition、Captain/local 独立审计及主要 Client 控制。
 - message-reference minutes draft、初始共享 Preset Definition 预检/注入/冷恢复、Developer Markdown 单向派生。
 - 收敛 fallback/stalled/Turn budget completion 的当前真实 DSH 场景通过；多 Proposal、Position 排序及完成阻塞偏差已由回归锁定修复。
+
+## SQLite Storage Coverage
+
+物理介质已经交回 Host/profile 的官方 `@deepseek-ai/dsh-storage-sqlite@0.1.2-rc.1`；Convivium 仅消费 Storage Domain。10 个物理存储生产文件、12 个专属测试/夹具和 `dataRoot` 已删除，领域 command commit、receipt、outbox、checkpoint 算法保持不变。真实 Loader 暴露的 spawn 注册竞态通过公开 provider-added 事件门控解决，未新增存储 wrapper 或上游补丁。
+
+验证矩阵、完整工程检查和未覆盖边界统一见 [SQLite Provider Integration](./DSH-CAPABILITY-INTEGRATION-EVIDENCE.md#sqlite-provider-integration)，五核心真实 Host 运行及 Restore 见 [SQLite Provider Validation](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation)。本次不把历史 16 selector、Browser 或真实模型结果提升为新组合全部通过；首次发布无开发期迁移或已有版本升级任务。
 
 ## Requirement Coverage
 
@@ -36,7 +42,7 @@
 | FR-10 记录、隐私与归档 | 已实现（message-reference 纪要首版） | transcript、mail 隐私、归档物化、revoke/drain、显式续会、引用式纪要；archive-continuation、mail-race、scribe-minutes 及归档 tests | Fact/Decision/Issue/task result 直接纪要引用不属于首版；邮件延迟增量/重试完整动态组合、模型质量和长期压力未覆盖 |
 | FR-11 可观察性与用户控制 | 展示/基础诊断已实现，验收未完 | 本地 list/status、pause/resume/reassign/end、五种 Decision/risk 行内控制、轮询/focus/error 恢复；HTTP/Client tests | Proposal/Position、HandRaise、收敛展示和白名单日志/metrics 已实现；本轮补齐冷打开 gauges、失败与关联字段。新区域只有 jsdom，完整观测系统和 Browser 尚未验收 |
 | FR-12 Agent 内部能力边界 | 已实现 | 只消费正式提交和授权 task projection；无自定义持久 DSH Session Event；caller/tool/module-boundary tests | 真实模型自主遵守协议与内部工具失败后的模型行为未验证 |
-| FR-13 Agent 角色目录与参会推荐 | 部分实现 | optional Host consumer、attempt snapshot、安全 projection、Manager pending、Captain reject、status/archive、JSONL reopen | approve/admission/provisioning、自动 expired/cancelled、research freshness/dedup 未实现；真实 Host producer 成功链路、动态 FR-14 接入、UI 和专项 Host 冷重启未验证 |
+| FR-13 Agent 角色目录与参会推荐 | 部分实现 | optional Host consumer、attempt snapshot、安全 projection、Manager pending、Captain reject、status/archive、SQLite reopen | approve/admission/provisioning、自动 expired/cancelled、research freshness/dedup 未实现；真实 Host producer 成功链路、动态 FR-14 接入、UI 和专项 Host 冷重启未验证 |
 | FR-14 共享 Preset 下的 Agent Definition | 角色模型/部署已实现，本轮验收含抓取豁免 | roleDescription、Host 模型绑定、同包九角色/九 Skill、三研究搜索、权限拒绝、双 Host 冷恢复、完整 verify 与五核心 PASS | web_fetch 按用户要求 Not Covered；完整无豁免部署验收与长期模型质量未证明，见 [本轮证据](./SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment) |
 | FR-15 Developer Markdown Projection | 已实现（本地辅助输出） | committed snapshot/package → current/archive Markdown；白名单、路径、stale、原子替换、失败隔离、dispose；专项 unit/contract tests 随当前 verify 通过 | Interface 已同步 local_host_acceptance 枚举；真实文件输出未纳入当前 smoke，multi-Host/remote workspace/旧文件迁移不支持 |
 
@@ -64,9 +70,9 @@
 | 输入与工具边界 | `contract/protocol-schema.spec.ts`、`contract/tool-registration.spec.ts`：reject-only 输入、非法字段拒绝、reason 原始空白参与 hash、参数转发与 canonical JSON；offline protocol 与 index-inject suites 覆盖注册和 disposer |
 | 权限、事务与幂等 | `unit/domain/transitions/attendance-rejection.spec.ts`、repository 与 `contract/meeting-runtime.spec.ts`：Captain 身份隔离、单 event/receipt、version/eventSeq +1、outbox 为空；stale/终态拒绝、重放/hash conflict、并发仅一次成功、commit 失败无半提交 |
 | 投影与归档 | projection、status-projection、domain/runtime archive suites：旧 pending/package 读取、损坏数据拒绝、三类 Agent 一致可见性、七字段归档、排序/深复制及伪造拒绝 |
-| JSONL reopen | `contract/meeting-runtime.spec.ts` 的 `archives and reopens a Captain attendance rejection`：测试 Catalog 经正式 create/Manager plan 生成 pending 后成功拒绝，cancelled 后归档；Manager/Participant drain，dispose/reopen 后归档不变、新请求拒绝、原 receipt 重放成功 |
+| SQLite reopen | `contract/meeting-runtime.spec.ts` 的 `archives and reopens a Captain attendance rejection`：测试 Catalog 经正式 create/Manager plan 生成 pending 后成功拒绝，cancelled 后归档；Manager/Participant drain，dispose/reopen 后归档不变、新请求拒绝、原 receipt 重放成功 |
 
-真实 Loader 仅证明缺失推荐的拒绝路径，见 [历史运行结果](./SMOKE-VALIDATION-EVIDENCE.md#captain-attendance-rejection-loader)。测试 Catalog 与 JSONL reopen 不证明生产 Catalog 成功推荐→拒绝或真实 Host 冷重启；拒绝 UI、真实模型和专项长期压力未覆盖。approve/admission/provisioning、自动 expired/cancelled 仍未实现；初始 FR-14 角色组合已实现，动态 admission 接入不属于该首版。
+真实 Loader 仅证明缺失推荐的拒绝路径，见 [历史运行结果](./SMOKE-VALIDATION-EVIDENCE.md#captain-attendance-rejection-loader)。测试 Catalog 与 SQLite reopen 不证明生产 Catalog 成功推荐→拒绝或真实 Host 冷重启；拒绝 UI、真实模型和专项长期压力未覆盖。approve/admission/provisioning、自动 expired/cancelled 仍未实现；初始 FR-14 角色组合已实现，动态 admission 接入不属于该首版。
 
 ### Captain Local Decision Risk Control
 
@@ -166,7 +172,7 @@ Question 的 required-review/risk evidence 与 Decision candidate reject/revoke 
 
 ## Archived Read Recovery Follow-up
 
-归档且所有 ownership 均为 closed/revoked 时，本地冷读取跳过 live Captain 与 Session 对账要求；未归档或仍需清理的会议保留恢复检查。`meeting-runtime.spec.ts` 的真实 JSONL 归档回归增加 Runtime 重建后的列表和详情读取，并断言没有查询 live Captain 或调用 Session runtime。修改前复现 `RECOVERY_CAPTAIN_UNAVAILABLE`；修改后 runtime/session-recovery/diagnostics 三文件 79 tests、Host/Client typecheck、相关 eslint 与格式检查通过。
+归档且所有 ownership 均为 closed/revoked 时，本地冷读取跳过 live Captain 与 Session 对账要求；未归档或仍需清理的会议保留恢复检查。替换前历史 `meeting-runtime.spec.ts` 的真实 JSONL 归档回归增加 Runtime 重建后的列表和详情读取，并断言没有查询 live Captain 或调用 Session runtime。修改前复现 `RECOVERY_CAPTAIN_UNAVAILABLE`；修改后 runtime/session-recovery/diagnostics 三文件 79 tests、Host/Client typecheck、相关 eslint 与格式检查通过。
 
 2026-09-08，在 `5491b5d` 加本修复的源码工作区执行完整 `pnpm --dir plugin verify`，exit 0，84 files / 1063 tests，format/lint/双端 typecheck/build/environment/contract/samples/package 全部通过。此追加验证不改写下方历史 verify/smoke 的源码基线；该修复未新增真实 Host 冷重启或 Browser 验收。
 

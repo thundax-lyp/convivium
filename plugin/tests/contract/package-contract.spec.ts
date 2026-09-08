@@ -33,9 +33,13 @@ describe("plugin package contract", () => {
             "@deepseek-ai/dsh-client-ui-conversation"
         ]);
         expect(packageManifest.peerDependencies).toMatchObject({
-            "@deepseek-ai/dsh-storage": "0.1.2-rc.1",
             "@deepseek-ai/dsh-storage-domain": "0.1.2-rc.1"
         });
+        for (const dependency of ["@deepseek-ai/dsh-storage", "@deepseek-ai/dsh-storage-sqlite"]) {
+            expect(packageManifest.peerDependencies).not.toHaveProperty(dependency);
+            expect(packageManifest.dependencies).not.toHaveProperty(dependency);
+        }
+        expect(patch).not.toMatch(/storage-domain|storage-sqlite/);
         expect(patch).toContain(`name: '${packageManifest.name}'`);
     });
 });
