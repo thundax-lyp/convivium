@@ -8,17 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `SQLite / Provider 生命周期`：验证 SQLite provider 生命周期
-    - 依据文档：[Architecture：已确认的 provider 替换](docs/00-governance/ARCHITECTURE.md#confirmed-storage-provider-transition)、[模块公开入口](docs/00-governance/ARCHITECTURE.md#public-module-entrypoints)；[Storage Interface：职责边界](docs/20-interfaces/MEETING-STORAGE-INTERFACE.md#boundary-and-ownership)；[Implementation Design：装配与生命周期](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#plugin-composition-and-lifecycle)（JSONL 当前实现描述由已确认替换条款变更）。
-    - 执行步骤：[RUNBOOK T2](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t2验证-sqlite-provider-生命周期)
-    - 新增文件：`plugin/tests/integration/storage/provider-composition.spec.ts`，suite=`Storage provider composition`。
-    - 只读入口：`plugin/src/index.ts::meetingConsumerPlugin`；公开 DSH Storage/Storage Domain/SQLite provider exports。
-    - 前置依赖：T1 PASS；按 [已接受的关闭限制](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)继续使用固定官方依赖，不等待上游修复发布。
-    - 确认补充：2026-09-08 用户接受关闭时未完成写入的限制，要求写入设计并同步冒烟验收；替代此前等待正式修复版本的决定。
-    - 确认依据：2026-09-08 用户明确要求依次执行 TODO LIST，一任务一提交。
-    - 处理动作：验证缺 provider 不激活、到达后读写、写入已成功且显式关闭 Domain 后卸载，以及同路径重开。
-    - 验收点：单文件 suite 和 typecheck 通过，V5 全部成立；无句柄或临时目录残留，不新增生产 wrapper。
-
 - [ ] `SQLite / 领域故障恢复`：验证 SQLite 领域提交与故障恢复
     - 依据文档：[Meeting Requirements：FR-9 暂停、恢复与故障隔离](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#fr-9暂停恢复与故障隔离)、[FR-10 会议记录、隐私与归档](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#fr-10会议记录隐私与归档)；[Architecture：已确认的 provider 替换](docs/00-governance/ARCHITECTURE.md#confirmed-storage-provider-transition)；[Meeting Storage Interface：Repository Port](docs/20-interfaces/MEETING-STORAGE-INTERFACE.md#repository-port)、[幂等](docs/20-interfaces/MEETING-STORAGE-INTERFACE.md#idempotency)、[恢复](docs/20-interfaces/MEETING-STORAGE-INTERFACE.md#recovery)；[Persistence Design：不变量](docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md#algorithm-invariants)、[验收](docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md#acceptance)。
     - 执行步骤：[RUNBOOK T3](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t3验证-sqlite-领域提交与故障恢复)
