@@ -579,12 +579,10 @@ describe("live child capability probes", () => {
 
 describe("explicit fetch waiver", () => {
     it("skips fetch while still requiring a real search result and role status", async () => {
-        const execute = vi
-            .fn()
-            .mockResolvedValue({
-                isError: false,
-                value: { sources: [{ url: "https://github.com/deepseek-ai" }] }
-            });
+        const execute = vi.fn().mockResolvedValue({
+            isError: false,
+            value: { sources: [{ url: "https://github.com/deepseek-ai" }] }
+        });
         const call = vi.fn();
         const source = scenarioSource.slice(
             scenarioSource.indexOf("    const execute ="),
