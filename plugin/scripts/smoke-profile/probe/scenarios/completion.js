@@ -170,16 +170,16 @@ export async function runTaskHandraiseScenario(runtime) {
         "finished task HandRaise is not visible"
     );
     const managerSessionId = meetingId + "-manager-manager";
+    const managerContext = await runtime.waitForStoredManagerContext(
+        managerSessionId,
+        meetingId,
+        firstPlan.result.planningAttemptId ?? meetingId + "-planning-1"
+    );
     const secondManager = await runtime.resumeParticipantForProbe(
         ctx,
         runtime.captain.agent,
         managerSessionId,
         "convivium-smoke-manager-plan-2"
-    );
-    const managerContext = await runtime.waitForStoredManagerContext(
-        managerSessionId,
-        meetingId,
-        firstPlan.result.planningAttemptId ?? meetingId + "-planning-1"
     );
     const secondPlan = await runtime.callTool(
         ctx,
@@ -357,16 +357,16 @@ export async function runCompletionEndScenario(runtime) {
         { protocolVersion: 1, meetingId },
         504
     );
+    const managerContext = await runtime.waitForStoredManagerContext(
+        managerSessionId,
+        meetingId,
+        firstPlan.result.planningAttemptId ?? meetingId + "-planning-1"
+    );
     const secondManager = await runtime.resumeParticipantForProbe(
         ctx,
         runtime.captain.agent,
         managerSessionId,
         "convivium-smoke-completion-plan-2"
-    );
-    const managerContext = await runtime.waitForStoredManagerContext(
-        managerSessionId,
-        meetingId,
-        firstPlan.result.planningAttemptId ?? meetingId + "-planning-1"
     );
     const secondPlan = await runtime.callTool(
         ctx,

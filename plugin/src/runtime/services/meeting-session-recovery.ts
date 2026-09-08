@@ -178,7 +178,26 @@ async function reconcileOnce(input: SessionRecoveryInput): Promise<void> {
             item.supersededBySessionId === undefined &&
             (!present.has(item.sessionId) || item.lifecycleStatus === "provisioning")
     );
-    if (missing.length === 0) return;
+    if (missing.length === 0) {
+        if (state.status === "paused") return;
+        const deliveryIds: string[] = [];
+        const planning = state.manager.currentPlanningAttempt;
+        if (planning?.status === "running") deliveryIds.push(planning.deliveryId);
+        for (const step of state.currentTurn?.steps ?? []) {
+            if (step.attempt?.status === "running") deliveryIds.push(step.attempt.deliveryId);
+        }
+        for (const task of state.meetingTasks ?? []) {
+            // A started task may already have external effects; only re-admit unstarted work.
+            if (task.status === "queued") deliveryIds.push(task.deliveryId);
+        }
+        if (deliveryIds.length > 0)
+            await repository.requeueAcceptedOutbox({
+                deliveryIds,
+                expectedMeetingVersion: state.version,
+                now
+            });
+        return;
+    }
     // Persist the normal pause transition before replacing any identity. It revokes
     // current attempts so dispatch rejects their queued deliveries; resume replans explicitly.
     if (state.status !== "paused") {

@@ -117,7 +117,12 @@ export async function runBaselineScenario(runtime) {
                 if (timeoutSessionId === undefined)
                     throw new Error("timeout owned session missing");
                 if (ctx.agents.get(timeoutSessionId) !== undefined) {
-                    throw new Error("timed-out participant Agent is still resident");
+                    runtime.assert(
+                        beforeSubmit.result.messages.length === 0,
+                        "next speaker committed before timed-out Agent drained"
+                    );
+                    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+                    continue;
                 }
                 const listSignal = new AbortController();
                 const children = await ctx.subagents.listChildren(

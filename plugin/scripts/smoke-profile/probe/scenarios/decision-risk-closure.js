@@ -1,3 +1,5 @@
+import { deepStrictEqual } from "node:assert";
+
 export async function runDecisionRiskClosureScenario(runtime) {
     const { ctx, scenario } = runtime;
     const input = runtime.createInput();
@@ -26,7 +28,7 @@ export async function runDecisionRiskClosureScenario(runtime) {
     const managerContext = await runtime.waitForStoredManagerContext(manager.id, meetingId, "");
     const plan = await runtime.callTool(
         ctx,
-        manager,
+        await runtime.waitForAgent(ctx, manager.id),
         "convivium_submit_manager_plan",
         {
             protocolVersion: 1,
@@ -316,7 +318,7 @@ export async function runDecisionRiskClosureScenario(runtime) {
     );
     const replacementPlan = await runtime.callTool(
         ctx,
-        manager,
+        await runtime.waitForAgent(ctx, manager.id),
         "convivium_submit_manager_plan",
         {
             protocolVersion: 1,
@@ -434,8 +436,9 @@ export async function runDecisionRiskClosureScenario(runtime) {
         supersedeInput,
         1113
     );
-    runtime.assert(
-        JSON.stringify(supersedeReplay.result) === JSON.stringify(superseded.result),
+    deepStrictEqual(
+        supersedeReplay.result,
+        superseded.result,
         "decision supersede replay result mismatch"
     );
     runtime.assert(
@@ -545,7 +548,7 @@ export async function runDecisionRiskClosureScenario(runtime) {
     );
     const riskPlan = await runtime.callTool(
         ctx,
-        manager,
+        await runtime.waitForAgent(ctx, manager.id),
         "convivium_submit_manager_plan",
         {
             protocolVersion: 1,
@@ -671,10 +674,7 @@ export async function runDecisionRiskClosureScenario(runtime) {
         riskAcceptInput,
         1124
     );
-    runtime.assert(
-        JSON.stringify(riskReplay.result) === JSON.stringify(riskAccepted.result),
-        "risk replay result mismatch"
-    );
+    deepStrictEqual(riskReplay.result, riskAccepted.result, "risk replay result mismatch");
     runtime.assert(
         riskReplay.meetingVersion === riskAccepted.meetingVersion,
         "risk replay changed meeting version"

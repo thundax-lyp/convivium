@@ -52,6 +52,11 @@ export interface MeetingRepositoryPort {
   execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>;
   claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>;
   completeOutbox(input: CompleteOutboxInput): Promise<OutboxCompletionResult>;
+  requeueAcceptedOutbox(input: {
+    deliveryIds: readonly string[];
+    expectedMeetingVersion: number;
+    now?: number;
+  }): Promise<number>;
   renewOutboxLease(input: RenewOutboxLeaseInput): Promise<number>;
   recover(input?: RecoverInput): Promise<RecoveryResult>;
   close(): Promise<void>;
@@ -65,6 +70,10 @@ The seven private-mail methods belong to the same per-Meeting `MeetingRepository
 全部必需 Session 已创建后，Runtime 使用同一原始创建输入调用 `completeCreate`。该方法重新校验当前 caller，并以 seq 1 的单个 `create.complete` commit 同时建立 ready snapshot、`meeting.created` event、初始 outbox、成功 create receipt、已记录的 Session ownership 和 ready bootstrap；该 commit 成功后才把 creation record 和 catalog record 发布为 `ready`。不要求当前 caller 与 `create` caller 相同；只有 `completeCreate` 当前 caller 通过授权校验且 request ID/hash 匹配时才能创建公开 Meeting。只有 `ready` bootstrap 对应公开 Meeting；`creation_failed` 不生成公开 Meeting。重复 `create` 只接受相同 request ID/hash，重复 `completeCreate` 在再次通过当前 caller 校验后返回原 receipt。
 
 若首个 Turn 或 Manager planning 在 `completeCreate` 后由独立领域提交启动，Runtime 必须在首次成功响应前调用 `updateCreateResult`，以一个 `create.result` commit 原子替换 projection bootstrap 和 create receipt 中的公开结果。该方法不修改 MeetingState、不新增领域事件或 outbox，不直接更新 creation/catalog record；只允许 `ready` Meeting 且要求 `result.meetingId`、`result.meetingVersion` 与当前快照完全一致。崩溃重试可以幂等补齐启动提交和该结果；已经返回给 caller 的创建结果后续必须原样重放，不得用当前状态重新合成。
+
+`requeueAcceptedOutbox` 是 Runtime 冷绑定恢复使用的内部接口。它在同一 mutation/commit 中校验 expectedMeetingVersion，只把给定 deliveryIds 中 status=delivered 的 dispatch 记录恢复为 pending，保留原 id、deliveryId、payload 和 attempts，清除交付时间与旧 lease。它不修改 MeetingState、Meeting version、receipt 或领域事件；重复恢复 pending 记录是 no-op，版本冲突不能部分提交。
+
+DSH acceptance 不等于业务完成。准确 Captain 恢复绑定且 Session ownership 校验通过后，Runtime 仅选择仍 running 的 Manager planning/SpeakerAttempt 和仍 queued 的 MeetingTask 重投；paused、终态、已完成或撤销的请求不重投。已开始的 MeetingTask 不因恢复而重新执行外部效果；Mail processing 继续使用既有 lease/retry。恢复在 worker 启动前完成，不解析 DSH 私有日志来猜测业务完成，也不要求已取消的 DSH inbox 保留 pending 输入。重投仍经原有投递前后权限和提交去重校验。
 
 ## Persistent Data Contract
 

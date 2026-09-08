@@ -116,6 +116,80 @@ async function fixture(ready = true, definition?: AgentDefinitionBindingV1) {
 }
 
 describe("meeting Session recovery", () => {
+    it("re-admits unfinished planning once after a cold bind and skips paused meetings", async () => {
+        for (const paused of [false, true]) {
+            const f = await fixture();
+            try {
+                const before = await f.repository.read();
+                await f.repository.execute({
+                    requestId: "plan",
+                    requestHash: "plan",
+                    commandKind: "test-plan",
+                    expectedMeetingVersion: before.version,
+                    authorization: { callerBinding: "captain", capabilityId: "captain" },
+                    transition: (snapshot) => ({
+                        state: {
+                            ...snapshot.state,
+                            status: paused ? "paused" : "running",
+                            manager: {
+                                ...snapshot.state.manager,
+                                currentPlanningAttempt: {
+                                    id: "planning",
+                                    meetingId: "meeting-1",
+                                    observedMeetingVersion: 1,
+                                    reason: "initial_plan",
+                                    createdAt: now,
+                                    catalogBinding: { kind: "none" },
+                                    status: "running",
+                                    deliveryId: "planning-delivery"
+                                }
+                            }
+                        },
+                        result: {},
+                        events: [{ type: "turn.planned", payload: { turnId: "planning" } }],
+                        outbox: [
+                            {
+                                id: "planning-outbox",
+                                kind: "dispatch",
+                                deliveryId: "planning-delivery",
+                                payload: { role: "manager", planningAttemptId: "planning" }
+                            }
+                        ]
+                    })
+                });
+                const [item] = await f.repository.claimOutbox({
+                    owner: "before-restart",
+                    ttlMs: 100,
+                    batchSize: 1,
+                    now
+                });
+                await f.repository.completeOutbox({
+                    id: item.id,
+                    leaseOwner: item.leaseOwner,
+                    leaseToken: item.leaseToken,
+                    completion: { status: "delivered" },
+                    now
+                });
+                const snapshot = await f.repository.read();
+                await Promise.all([
+                    reconcileMeetingSessions(f.input),
+                    reconcileMeetingSessions(f.input)
+                ]);
+                const replay = await f.repository.claimOutbox({
+                    owner: "after-restart",
+                    ttlMs: 100,
+                    batchSize: 10,
+                    now
+                });
+                expect(replay).toHaveLength(paused ? 0 : 1);
+                if (!paused) expect(replay[0].deliveryId).toBe("planning-delivery");
+                expect(await f.repository.read()).toEqual(snapshot);
+                expect(f.runtime.startContinuable).not.toHaveBeenCalled();
+            } finally {
+                await f.repository.close();
+            }
+        }
+    });
     it("retires interrupted creation with verified cleanup and no public partial Meeting", async () => {
         const f = await fixture(false);
         await reconcileMeetingSessions(f.input);

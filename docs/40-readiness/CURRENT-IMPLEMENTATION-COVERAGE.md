@@ -5,8 +5,8 @@
 ## Scope
 
 - 记录日期：2026-09-08。
-- 源码边界：`6679403fc8cb6de01db1c7d2fb190d3a9484dd73`（验证在提交前的同一源码工作区执行），分支 `codex/align-code`。
-- 环境：Darwin 25.5.0 arm64、Node `v24.19.0`、pnpm `10.7.0`、DSH `0.1.1-rc.2`；真实运行使用独立 `web` profile、`spawn` provider。
+- 源码边界：`8c3b7ab0359828f4b2e33554300c134f95bacecd`，分支 `codex/upgrade-dsh-0.1.2-rc.1`；验证在提交前的同一源码工作区执行。
+- 环境：Darwin arm64、Node `v22.23.2`、DSH `0.1.2-rc.1`、Cordis `4.0.2`；真实运行使用独立 `web` profile、`spawn` provider。
 - 依据：当前 Requirements、Interfaces、Designs；源码及回归落点见下方业务能力验证，实际运行结果见 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md#current-baseline-validation)。
 - `已实现` 表示当前确认范围有正式运行路径及相称验证，不表示全部运行组合均已验证；`部分实现` 表示存在已知行为偏差或必需路径缺失。非目标与验证缺口分别说明。
 - 历史专项记录保留原始基线。本次 verify 和普通 smoke 是新的当前基线证据；未重新执行的 Browser、故障注入和真实模型验证不外推。
@@ -24,7 +24,7 @@
 
 | Requirement | 状态 | 当前覆盖与证据 | 剩余边界 |
 | --- | --- | --- | --- |
-| FR-1 DSH 插件形态 | 已实现（锁定 rc.2 验证） | package、双 bundle、provider gate、真实安装与 Host；verify、baseline | 高于最低版本兼容与最终分发/发布策略未验证或未决定 |
+| FR-1 DSH 插件形态 | 已实现（锁定 0.1.2-rc.1 验证） | package、双 bundle、provider gate、真实安装与 Host；verify、baseline | 其他 DSH 版本与独立 ACP/SDK/TUI 部署未验证；最终分发/发布策略未决定 |
 | FR-2 会议与身份隔离 | 已实现 | 独立 Meeting/Participant/Session、repository ownership；create/caller contract、cross-meeting、role-composition | 远程、多用户、跨 Host 为 V1 非目标；异常恢复边界见 FR-9 |
 | FR-3 有序连续发言 | 已实现 | 单活动 attempt、逐 Speaker delivery、前序 transcript、late/stale 拒绝；baseline、timeout、reassign | 没有长期高负载证据 |
 | FR-4 发言计划与选择 | 已实现（当前选择规则） | 四种 selection mode、required waiting、fallback、refocus/replan；planning/manager-fallback 测试和 convergence smoke | 多 Proposal blocking owners 与上一 Turn 缺席加分已通过规划回归；真实模型规划质量未验证 |
@@ -32,12 +32,12 @@
 | FR-6 议题范围与发散控制 | 已实现（当前领域契约） | Question evidence、Issue、Proposal/Position、Agenda candidate promote/park/reject、parkingLot、自动收敛 | 裁决、fingerprint 与完成阻塞偏差已修复；Agenda candidate 仅 Captain tool 处置，未新增 local UI 写入口 |
 | FR-7 提案、立场与决策 | 已实现（当前结构化契约） | revision 隔离、不可变 candidate、Captain/local accept/supersede/revoke、risk 控制；decision-risk-closure、risk-reopen、contract/Client tests | 本次未重跑五动作 Browser；candidate reject/revoke 明确不属于 V1；会议整体完成的 Position guard 已补齐，见 FR-8 |
 | FR-8 完成事实与会议结束 | 已实现（当前完成契约） | CompletionFact、task evidence、risk 重算、end/archive、预算完成优先；completion-end、Turn budget smoke | judge/completed end 的 blocking Position guard 已修复；时间预算只有本地代码/测试核对，没有当前真实边界场景 |
-| FR-9 暂停、恢复与故障隔离 | 实现已补齐，故障验收未完 | pause/resume、timeout、reassign/skip、interrupt/drain、完整 ownership 的 cold-rebind 与 role 冷恢复通过 | 中断创建清理、默认角色补建和持久身份替换已接生产并通过 fake DSH 回归；缺失真实 Session/强杀 Host 尚未故障注入；Definition descriptor 丢失明确拒绝补建 |
+| FR-9 暂停、恢复与故障隔离 | 实现已补齐，故障验收未完 | pause/resume、timeout、reassign/skip、interrupt/drain、完整 ownership 的 cold-rebind、角色配置保持及未完成 delivery 原标识重投通过 | 中断创建清理、默认角色补建和持久身份替换已接生产并通过 fake DSH 回归；缺失真实 Session/强杀 Host 尚未故障注入；Definition descriptor 丢失明确拒绝补建 |
 | FR-10 记录、隐私与归档 | 已实现（message-reference 纪要首版） | transcript、mail 隐私、归档物化、revoke/drain、显式续会、引用式纪要；archive-continuation、mail-race、scribe-minutes 及归档 tests | Fact/Decision/Issue/task result 直接纪要引用不属于首版；邮件延迟增量/重试完整动态组合、模型质量和长期压力未覆盖 |
 | FR-11 可观察性与用户控制 | 展示/基础诊断已实现，验收未完 | 本地 list/status、pause/resume/reassign/end、五种 Decision/risk 行内控制、轮询/focus/error 恢复；HTTP/Client tests | Proposal/Position、HandRaise、收敛展示和白名单日志/metrics 已实现；本轮补齐冷打开 gauges、失败与关联字段。新区域只有 jsdom，完整观测系统和 Browser 尚未验收 |
 | FR-12 Agent 内部能力边界 | 已实现 | 只消费正式提交和授权 task projection；无自定义持久 DSH Session Event；caller/tool/module-boundary tests | 真实模型自主遵守协议与内部工具失败后的模型行为未验证 |
 | FR-13 Agent 角色目录与参会推荐 | 部分实现 | optional Host consumer、attempt snapshot、安全 projection、Manager pending、Captain reject、status/archive、JSONL reopen | approve/admission/provisioning、自动 expired/cancelled、research freshness/dedup 未实现；真实 Host producer 成功链路、动态 FR-14 接入、UI 和专项 Host 冷重启未验证 |
-| FR-14 共享 Preset 下的 Agent Definition | 已实现（共享父 Preset 首版） | 内联定义、显式初始选择、全角色预检、persona/toolFilter、不可变 provenance、ready replay；当前 role-composition 双 Host 验证通过 | 独立 per-child Preset、独占 Skill、模型配置、热切换、动态 admission、Browser 配置 UI 不属于首版；宿主 capability 部署变化不保证历史快照 |
+| FR-14 共享 Preset 下的 Agent Definition | 已实现（共享父 Preset 首版） | 内联定义、显式初始选择、全角色预检、persona/toolFilter/agentOptions、不可变 provenance、ready replay；双 Host 验证保留 V1 provider/model/reasoningEffort | 独立 per-child Preset、独占 Skill、热切换、动态 admission、Browser 配置 UI 不属于首版；maxTokens 不支持冷恢复保持；宿主 capability 部署变化不保证历史快照 |
 | FR-15 Developer Markdown Projection | 已实现（本地辅助输出） | committed snapshot/package → current/archive Markdown；白名单、路径、stale、原子替换、失败隔离、dispose；专项 unit/contract tests 随当前 verify 通过 | Interface 已同步 local_host_acceptance 枚举；真实文件输出未纳入当前 smoke，multi-Host/remote workspace/旧文件迁移不支持 |
 
 ### 业务能力验证
@@ -49,11 +49,11 @@
 | 完成判断 | `src/domain/completion.ts` 与 `proposal-state.ts` 检查每个 Proposal 当前 revision 的 blocking object/needs_revision；`tests/unit/domain/completion.spec.ts` 覆盖 judge/completed end、非阻塞意见和旧 revision | 未新增真实 DSH blocking Position 反例 |
 | 发言规划 | `src/domain/planning.ts` 汇集同议题所有独立 Proposal 的 blocking owners，并为上一 Turn 缺席者加 20 分；`tests/unit/domain/planning.spec.ts` 覆盖独立 revision、其他议题和历史发言者 | 真实模型规划质量未验证 |
 | 收敛指纹 | `src/domain/transitions/turn-advancement.ts` 按 Proposal ID、Position ID 排序；`tests/unit/domain/transitions/turn-advancement.spec.ts` 验证重排不改变 fingerprint | 不声称生产写入曾实际发生重排 |
-| Session 恢复 | `src/runtime/services/meeting-session-recovery.ts` 接入 rehydration/Captain 生产路径；`tests/recovery/session-recovery.spec.ts` 9 项覆盖中断创建、缺失角色、并发恢复、跨身份拒绝、失败重试、checkpoint 替换链、Definition 丢失、终态清理和失败脱敏 | 缺失真实 Session/创建中断的 Host 故障注入仍未执行 |
+| Session 恢复 | `src/runtime/services/meeting-session-recovery.ts` 接入 rehydration/Captain 生产路径；`tests/recovery/session-recovery.spec.ts` 10 项覆盖未完成 planning 原标识重投、暂停排除、中断创建、缺失角色、并发恢复、跨身份拒绝、失败重试、checkpoint 替换链、Definition 丢失、终态清理和失败脱敏 | 缺失真实 Session/创建中断的 Host 故障注入仍未执行 |
 | 面板事实 | `tests/client/meeting-panel.client.spec.ts` 65 项覆盖 Proposal/Position、HandRaise、stall/replan、selection reason 与完整事实刷新等面板行为 | 新区域只有 jsdom 证据，未执行实际 Browser 观察 |
 | 结构化诊断 | `src/repository/diagnostics.ts` 接 DSH logger；`tests/unit/repository/diagnostics.spec.ts` 5 项及 runtime/恢复/归档回归覆盖冷打开 gauges、日志失败隔离、拒绝提交、派发关联和清理失败 | 外部采集、完整失败路径和长期容量未验收 |
 
-恢复使用锁定 rc.2 的 `SubagentRuntime.listDescendants/listChildren/startContinuable/interrupt/drainContinuableChildren`；生产 `getCaptainParent` 接 `ctx.agents.get`。同进程创建不参与冷对账；旧 Session 的 closed/revoked ownership 与 `supersededBySessionId` 保留在 checkpoint，caller 拒绝旧身份，dispatch/archive 选择未被替换的身份。缺失角色补建前正常 pause，旧 outbox 由 Meeting/attempt guard 拒绝，不立即删除队列；未完成 mail 取消，补建后显式 resume。历史 Definition descriptor 丢失时返回 `RECOVERY_ROLE_DESCRIPTOR_MISSING`，保持 pause，不套用当前 Definition；终态只清理，不补建。
+恢复使用锁定 `0.1.2-rc.1` 的 `SubagentRuntime.listDescendants/listChildren/startContinuable/interrupt/drainContinuableChildren`；生产 `getCaptainParent` 接 `ctx.agents.get`。同进程创建不参与冷对账；旧 Session 的 closed/revoked ownership 与 `supersededBySessionId` 保留在 checkpoint，caller 拒绝旧身份，dispatch/archive 选择未被替换的身份。缺失角色补建前正常 pause，旧 outbox 由 Meeting/attempt guard 拒绝，不立即删除队列；未完成 mail 取消，补建后显式 resume。历史 Definition descriptor 丢失时返回 `RECOVERY_ROLE_DESCRIPTOR_MISSING`，保持 pause，不套用当前 Definition；终态只清理，不补建。完整身份冷重绑后的 delivery 重投范围和失败语义见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)，不把 DSH input acceptance 当作业务完成。
 
 ### Captain Attendance Rejection
 
@@ -103,9 +103,9 @@
 | 配置与共享能力 | `unit/role-composition/resolve.spec.ts`、`unit/config.spec.ts`、role-selection/request-idempotency、dsh-capabilities suites：数量/大小/未知字段/重复值和角色匹配、共享 Preset/Skill 只读预检、异步前后父 Preset 一致 |
 | 创建与持久化 | session-adapter、meeting-runtime、domain schemas/repository suites：全部预检后才分配身份、末项非法零 child、中途失败 revoke/interrupt/drain；provisioning/active binding 不可变，failed put 不改读值，旧记录不回填 |
 | 重放与公开边界 | runtime、status-projection、protocol-schema suites：ready/归档 receipt 重放不读取新配置，同 request 换 ID 冲突；status/archive 不泄露角色配置，错误信息脱敏 |
-| 真实角色隔离与恢复 | [当前 role-composition smoke](./SMOKE-VALIDATION-EVIDENCE.md#current-baseline-validation)：父 assembly 不变、child persona/toolFilter 隔离、禁用工具 body 零调用、两个 Host 冷恢复保留 V1 descriptor/assembly，即使第二阶段配置为 V2 |
+| 真实角色隔离与恢复 | [当前 role-composition smoke](./SMOKE-VALIDATION-EVIDENCE.md#current-baseline-validation)：父 assembly/model route 不变、child persona/toolFilter/agentOptions 隔离、禁用工具 body 零调用；两个 Host 冷恢复保留 V1 descriptor/assembly/provider/model/reasoningEffort，即使第二阶段配置为 V2 |
 
-独立 per-child Preset、独占 Skill、模型配置、热切换、动态 admission、Browser 配置 UI 和模型任务质量不由本首版证明。Host Preset/Skill 部署变化不保证历史能力快照。早期 smoke 曾因目录链接安装无法解析 probe 依赖失败，改用 pack tarball 经 DSH plugin add 安装后通过；原失败轮清理成功，历史命令及逐步提交保留在 Git。
+原生 provider/model/reasoningEffort 配置及冷恢复已验证；独立 per-child Preset、独占 Skill、maxTokens 冷恢复、热切换、动态 admission、Browser 配置 UI 和真实模型任务质量未覆盖。Host Preset/Skill 部署变化不保证历史能力快照。早期 smoke 曾因目录链接安装无法解析 probe 依赖失败，改用 pack tarball 经 DSH plugin add 安装后通过；原失败轮清理成功，历史命令及逐步提交保留在 Git。
 
 ### Offline Meeting Protocol Preparation
 
@@ -166,11 +166,22 @@ Question 的 required-review/risk evidence 与 Decision candidate reject/revoke 
 
 ## Executed Validation
 
-2026-09-08，在上述源码工作区执行：
+2026-09-08，在 Scope 所列升级工作区执行：
+
+- `pnpm --dir plugin verify`：exit 0，84 files / 1082 tests；format、lint、Host/Client typecheck、build、environment、plugin contract、9 Definition samples 和 package 全 PASS。
+- `pnpm --dir plugin smoke:profile --all`：exit 0，16/16 场景 PASS，156717ms，一次构建；每场景 Restore 均 PASS。
+- 最后两处 smoke 探针调整后，`pnpm --dir plugin exec vitest run tests/unit/scripts`：7 files / 143 tests PASS；对应 ESLint、Prettier 和 `git diff --check` PASS。完整 verify 后生产代码未再修改。
+- 能力采用、失败轮修复及未验证边界见 [DSH Capability Integration Evidence](./DSH-CAPABILITY-INTEGRATION-EVIDENCE.md)。
+
+### Historical Alignment Validation
+
+以下记录属于 `6679403fc8cb6de01db1c7d2fb190d3a9484dd73` / `codex/align-code`、DSH `0.1.1-rc.2`、Node `v24.19.0` 的历史工作区，不是当前升级基线。
+
+2026-09-08，在该历史源码工作区执行：
 
 - `pnpm --dir plugin install --frozen-lockfile`：补齐已锁定的两项 DSH 依赖，manifest/lockfile 无变更。首次 verify 因本机缺依赖未过 Host typecheck，恢复后最终 verify 通过。
 - `pnpm --dir plugin verify`：exit 0，84 files / 1063 tests，Vitest 69.29 秒；format、lint、Host/Client typecheck、build、environment、plugin contract、9 Definition samples 和 package 全 PASS。
-- `pnpm --dir plugin smoke:profile --all`：exit 0；16/16 PASS，156709ms，一次构建；每场景 Restore 均 PASS，详见 [当前 smoke 结果](./SMOKE-VALIDATION-EVIDENCE.md#current-baseline-validation)。
+- `pnpm --dir plugin smoke:profile --all`：exit 0；16/16 PASS，156709ms，一次构建；每场景 Restore 均 PASS，详见 [历史 smoke 结果](./SMOKE-VALIDATION-EVIDENCE.md#historical-alignment-baseline-validation)。
 - `git diff --check`、readiness 相对文件链接、TODO、README 和临时交接引用收口检查：通过；TODO 无登记项，根 README 无 diff，临时交接文件已删除且无残留引用。
 
 2026-09-08 的测试命名终审使用 TypeScript AST 提取 840 个静态 suite/case 标题定义，未发现按审计任务、需求或阶段编号组织的长期测试。恢复 fake 使用 DSH 公开方法签名约束，保留 branded ID 与 live Agent fixture 类型断言。聚焦验证先后覆盖恢复/diagnostics 13 项、runtime/归档 84 项；补充 attempt 关联后 diagnostics 5 项通过，最终全量 verify 覆盖全部源码修改。
@@ -200,4 +211,4 @@ Question 的 required-review/risk evidence 与 Decision candidate reject/revoke 
 
 ## Closure
 
-当前完成/调度偏差已修复，Session 恢复、身份替换、面板事实与诊断已有对应实现和回归。未执行的故障注入、Browser、模型与完整 metrics 仍以 Not Covered 保留；FR-13 等后续功能不在本轮完成范围。不得描述为全部需求或生产发布就绪。
+DSH `0.1.2-rc.1` 升级、公开 API 适配、原生角色模型配置和生命周期组合已落地，完整 verify 与 16 个真实 smoke 场景通过；本轮实现已提交，尚未推送或发布。Session 恢复、身份替换、面板事实与诊断已有对应实现和回归。未执行的故障注入、Browser、模型与完整 metrics 仍以 Not Covered 保留；FR-13 等后续功能不在本轮完成范围。不得描述为全部需求或生产发布就绪。

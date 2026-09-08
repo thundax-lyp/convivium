@@ -66,7 +66,8 @@ describe("role composition smoke contract", () => {
             roleCompositionDefinitions.map((d) => ({
                 ...d,
                 definitionVersion: "2.0.0",
-                persona: d.persona.replace("V1", "V2")
+                persona: d.persona.replace("V1", "V2"),
+                agentOptions: { ...d.agentOptions, model: d.agentOptions.model.replace("v1", "v2") }
             }))
         );
         const fresh = roleSmokeDefinitions("1");

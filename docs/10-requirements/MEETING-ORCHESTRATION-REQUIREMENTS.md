@@ -195,10 +195,10 @@ Phase 1 必须复用现有 `submit_manager_plan`、`MeetingRepositoryPort.execut
 5. `persona` 只提供 meeting-specific role instruction，不授予 Skill、Tool、MCP、Sandbox、Approval、模型或 Meeting authority；仓库 `AGENTS.md` 也不作为隐式 Agent capability。
 6. 已选择 Definition 的初始身份只有在 DSH 完成独立 continuable AgentSession provisioning 后才能成为可调度 Participant。Manager recommendation、Captain approval 与动态接纳沿用 FR-13 的权限要求，其实现不作为 FR-14 首版完成前置。
 7. Definition resolution、Preset/Skill validation 或 DSH capability composition 任一失败时必须 fail closed，不得通过 Prompt-only、persona-only、Tool Schema 隐藏或 Convivium 自建 capability installer 降级运行。
-8. 首版在准确 Captain parent 已挂载的同一 DSH Preset 下，为初始 Manager 和 Participant 配置不同 persona 与可选 toolFilter。创建前解析 Definition、验证 dshPresetId 与 parent 当前 Preset 相同、required Skills 可供模型读取，再将配置交给 DSH startContinuable；不直接修改 Session 数据，不注册通用 hook 框架。
+8. 首版在准确 Captain parent 已挂载的同一 DSH Preset 下，为初始 Manager 和 Participant 配置不同 persona、可选 toolFilter 和可选 DSH 原生 agentOptions（provider、model、reasoningEffort）。创建前解析 Definition、验证 dshPresetId 与 parent 当前 Preset 相同、required Skills 可供模型读取，再将配置交给 DSH startContinuable；不直接修改 Session 数据，不注册通用 hook 框架。
 9. Captain 创建请求可以显式选择 Manager 和各初始 Participant 的 Definition ID；未选择的身份沿用现有创建行为。未知定义、角色不匹配、Preset 不一致或 Skill 不可用时，选定配置的会议创建失败，不静默回退。此入口不依赖 FR-13 的动态 recommendation admission。
-10. 会议保存已采用 Definition 的 ID、版本和内容指纹；DSH 保存 persona/toolFilter 的 continuable descriptor。已有会议重放、恢复不重新应用当前 Definition，修改配置不改变已有身份。状态及归档不得泄露 persona、工具配置或 Skill 正文。
-11. 独立 per-child Preset、差异化插件安装、Skill 安装或独占 Skill 集合、模型选择配置和运行中热切换不属于首版 FR-14，独立 Preset 不纳入 Convivium 后续版本实施计划，等待 DSH 升级提供公开能力后再评估接入，不在 Convivium 自建替代机制。首版配置、权限、重放、恢复和真实 DSH 组合验证全部通过后，FR-14 才可标为已实现。
+10. 会议保存已采用 Definition 的 ID、版本和内容指纹；DSH 保存 persona/toolFilter/agentOptions 的 continuable descriptor。已有会议重放、恢复不重新应用当前 Definition，修改配置不改变已有身份。状态及归档不得泄露 persona、工具配置或 Skill 正文。
+11. 独立 per-child Preset、差异化插件安装、Skill 安装或独占 Skill 集合和运行中热切换不属于首版 FR-14，独立 Preset 不纳入 Convivium 后续版本实施计划，等待 DSH 升级提供公开能力后再评估接入，不在 Convivium 自建替代机制。首版配置、权限、重放、恢复和真实 DSH 组合验证全部通过后，FR-14 才可标为已实现。
 
 ### FR-15：Developer Markdown Projection
 

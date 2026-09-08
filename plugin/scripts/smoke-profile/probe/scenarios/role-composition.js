@@ -1,5 +1,41 @@
+import { LlmAdapter } from "@deepseek-ai/dsh-llm";
 import { foldSubagentDescriptor } from "@deepseek-ai/dsh-subagent";
 import { roleSmokeDefinitions } from "../role-definitions.js";
+
+// Test-only provider: exercise native model routing without a remote model call.
+class RoleSmokeAdapter extends LlmAdapter {
+    async resolveModel(provider, model) {
+        return {
+            provider,
+            id: model,
+            name: model,
+            reasoning: {
+                efforts: [
+                    { id: "high", name: "High" },
+                    { id: "low", name: "Low" }
+                ]
+            }
+        };
+    }
+    async *stream(options) {
+        options.signal?.throwIfAborted();
+        yield { type: "block-start", index: 0, blockType: "text" };
+        yield { type: "text-delta", index: 0, text: "Role fixture response" };
+        yield {
+            type: "block-end",
+            index: 0,
+            block: { type: "text", text: "Role fixture response" }
+        };
+        // Keep the real Agent resident until the scenario interrupts/drains it.
+        // This models an in-flight provider request without timing sleeps.
+        await new Promise((_resolve, reject) => {
+            if (options.signal.aborted) return reject(options.signal.reason);
+            options.signal.addEventListener("abort", () => reject(options.signal.reason), {
+                once: true
+            });
+        });
+    }
+}
 
 export async function prepareRoleSmoke(ctx, phase) {
     roleSmokeDefinitions(phase);
@@ -7,6 +43,9 @@ export async function prepareRoleSmoke(ctx, phase) {
     const skills = ctx.get("skills");
     if (!presets || !skills || !(await presets.resolve("minimal")))
         throw new Error("Role smoke requires minimal preset and skills.");
+    const llm = ctx.get("llm");
+    if (!llm) throw new Error("Role smoke requires LLM service.");
+    llm.registerAdapter(["convivium-role-smoke"], new RoleSmokeAdapter());
     let calls = 0;
     ctx.effect(() => {
         ctx.tools.register({
@@ -45,13 +84,30 @@ export async function prepareRoleSmoke(ctx, phase) {
 
 export async function assertRoleSmoke(runtime, manager, participant) {
     const { assert, ctx, roleSmoke } = runtime;
-    const managerDescriptor = foldSubagentDescriptor(manager.session.events);
-    const participantDescriptor = foldSubagentDescriptor(participant.session.events);
+    const managerDescriptor = foldSubagentDescriptor(manager.session.ownEvents());
+    const participantDescriptor = foldSubagentDescriptor(participant.session.ownEvents());
     assert(managerDescriptor?.persona === "FR14_MANAGER_V1", "Manager descriptor persona changed");
     assert(
         participantDescriptor?.persona === "FR14_PARTICIPANT_V1",
         "Participant descriptor persona changed"
     );
+    for (const [agent, descriptor, model, effort] of [
+        [manager, managerDescriptor, "manager-v1", "high"],
+        [participant, participantDescriptor, "participant-v1", "low"]
+    ]) {
+        assert(
+            descriptor.agentProvider === "convivium-role-smoke" &&
+                descriptor.agentModel === model &&
+                descriptor.agentReasoningEffort === effort,
+            "Role descriptor model route changed"
+        );
+        assert(
+            agent.options.provider === "convivium-role-smoke" &&
+                agent.options.model === model &&
+                agent.options.reasoningEffort === effort,
+            "Live or resumed role model route changed"
+        );
+    }
     assert(managerDescriptor.toolFilter === undefined, "Manager filter changed");
     assert(
         JSON.stringify(participantDescriptor.toolFilter) ===
@@ -73,6 +129,7 @@ export async function assertRoleSmoke(runtime, manager, participant) {
         );
     }
     const parent = runtime.captain.agent;
+    assert(parent.options.provider !== "convivium-role-smoke", "Parent model route changed");
     const assembly = await parent.ctx.systemPrompt.assemble({ scope: parent });
     assert(
         !assembly.sections.some((s) => /FR14_(MANAGER|PARTICIPANT)_V[12]/.test(s.text)),

@@ -89,7 +89,7 @@ describe("DSH session adapter composition", () => {
         const participant = ownership();
         const messageId = await followupParticipantSession({
             runtime: {
-                followup: async (...args) => {
+                sendMessage: async (...args) => {
                     calls.push(args);
                     return "accepted-message" as never;
                 }
@@ -153,7 +153,7 @@ describe("DSH session adapter composition", () => {
 
         await expect(
             followupParticipantSession({
-                runtime: { followup: async () => "must-not-run" as never },
+                runtime: { sendMessage: async () => "must-not-run" as never },
                 parent: { id: "other-captain" } as never,
                 ownership: ownership({ capabilityStatus: "revoked" }),
                 attempt: {
@@ -193,10 +193,16 @@ describe("DSH session adapter composition", () => {
 });
 
 describe("resolved role adapter composition", () => {
-    it("passes only persona and filter to DSH and keeps provenance outside the descriptor request", async () => {
+    it("passes persona, filter and independent model options to DSH and keeps provenance outside the descriptor request", async () => {
         const roles = await resolveMeetingRoles(
             {
-                definitions: roleCompositionDefinitions,
+                definitions: roleCompositionDefinitions.map((definition, index) => ({
+                    ...definition,
+                    agentOptions: {
+                        provider: "fixture",
+                        model: index === 0 ? "manager-model" : "participant-model"
+                    }
+                })),
                 managerAgentDefinitionId: "fr14-manager",
                 participants: [{ participantKey: "a", agentDefinitionId: "fr14-participant" }]
             },
@@ -229,6 +235,16 @@ describe("resolved role adapter composition", () => {
             persona: "FR14_PARTICIPANT_V1",
             toolFilter: { deny: ["convivium_role_probe"] }
         });
+        expect(starts[0].request.agentOptions).toEqual({
+            provider: "fixture",
+            model: "manager-model"
+        });
+        expect(starts[1].request.agentOptions).toEqual({
+            provider: "fixture",
+            model: "participant-model"
+        });
+        expect(starts[0].request.agentOptions).not.toBe(roles.manager?.agentOptions);
+        expect(common.parent).not.toHaveProperty("options");
         for (const start of starts) {
             expect(start.request).not.toHaveProperty("agentDefinition");
             expect(start.request).not.toHaveProperty("requiredSkillNames");

@@ -16,14 +16,7 @@ export type { Config as ConfigType } from "./config.js";
 
 export const name = "convivium";
 
-const meetingServices = [
-    "agents",
-    "sessions",
-    "subagents",
-    "systemPrompt",
-    "tools",
-    "webServer"
-] as const;
+const meetingServices = ["agents", "sessions", "subagents", "systemPrompt", "tools"] as const;
 
 export const inject = [] as const;
 
@@ -39,16 +32,6 @@ const meetingConsumerPlugin = {
     inject: [...meetingServices, "storageDomain"] as const,
     apply(ctx: Context, config: ConfigType): void {
         assertContinuableProvider(ctx, config.provider);
-        if (
-            typeof ctx.tools?.register !== "function" ||
-            typeof ctx.subagents?.startContinuable !== "function" ||
-            typeof ctx.subagents?.listChildren !== "function" ||
-            typeof ctx.subagents?.listDescendants !== "function" ||
-            typeof ctx.subagents?.interrupt !== "function" ||
-            typeof ctx.subagents?.drainContinuableChildren !== "function"
-        ) {
-            return;
-        }
         const agentCatalog = ctx.get(AGENT_CATALOG_SERVICE_KEY);
         let workspace: { path: string } | undefined;
         if (config.developerMarkdownWorkspaceId !== undefined) {
@@ -108,12 +91,13 @@ const meetingConsumerPlugin = {
                   })
         });
         ctx.effect(() => () => runtime.dispose(), "convivium:runtime");
-        if (ctx.webServer.host === "127.0.0.1") {
-            ctx.effect(
-                () => registerLocalMeetingHttpRoutes(ctx.webServer, runtime),
+        ctx.inject(["webServer"], (webContext) => {
+            if (webContext.webServer.host !== "127.0.0.1") return;
+            webContext.effect(
+                () => registerLocalMeetingHttpRoutes(webContext.webServer, runtime),
                 "convivium:local-routes"
             );
-        }
+        });
         const callers = {
             async resolve(agent: Parameters<typeof resolveMeetingCaller>[0], signal: AbortSignal) {
                 const meetingCaller = await resolveMeetingCaller(agent, runtime, signal);
@@ -129,12 +113,8 @@ const meetingConsumerPlugin = {
                 return meetingCaller;
             }
         };
-        for (const dispose of [
-            ...registerCreateAndStatusTools({ registry: ctx.tools, runtime, callers }),
-            ...registerSubmitAndControlTools({ registry: ctx.tools, runtime, callers })
-        ]) {
-            ctx.effect(() => dispose, "convivium:tool");
-        }
+        registerCreateAndStatusTools({ registry: ctx.tools, runtime, callers });
+        registerSubmitAndControlTools({ registry: ctx.tools, runtime, callers });
     }
 };
 

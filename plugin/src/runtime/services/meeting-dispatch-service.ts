@@ -60,7 +60,7 @@ function requireDispatchableMeeting(
 }
 
 export interface MeetingDeliveryDispatcherOptions {
-    readonly continuable: Pick<SubagentRuntime, "followup">;
+    readonly continuable: Pick<SubagentRuntime, "sendMessage">;
     readonly now?: () => number;
 }
 
@@ -80,7 +80,7 @@ export interface MeetingDeliveryDispatcher {
 export async function scanMeetingMailTimeouts(input: {
     readonly repository: MeetingRepositoryRuntime;
     readonly parent: Agent;
-    readonly continuable: Pick<SubagentRuntime, "followup"> &
+    readonly continuable: Pick<SubagentRuntime, "sendMessage"> &
         Partial<Pick<SubagentRuntime, "interrupt">>;
     readonly now: number;
 }): Promise<number> {

@@ -1,3 +1,4 @@
+import type { AgentOptions } from "@deepseek-ai/dsh-agent";
 import { createHash } from "node:crypto";
 import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
 import { parseAgentDefinitions } from "./model.js";
@@ -6,6 +7,7 @@ import type { AgentDefinitionBindingV1, MeetingAgentDefinitionV1 } from "./model
 export interface ResolvedRoleComposition {
     readonly persona: string;
     readonly toolFilter?: ToolRestriction;
+    readonly agentOptions?: Pick<AgentOptions, "provider" | "model" | "reasoningEffort">;
     readonly agentDefinition: AgentDefinitionBindingV1;
 }
 export interface ResolveMeetingRolesInput {
@@ -51,6 +53,7 @@ function definitionHash(d: MeetingAgentDefinitionV1): string {
                                   : { deny: d.toolFilter.deny })
                           }
                       }),
+                ...(d.agentOptions === undefined ? {} : { agentOptions: d.agentOptions }),
                 expertiseTags: d.expertiseTags,
                 evidenceScopes: d.evidenceScopes
             })
@@ -83,6 +86,9 @@ export async function resolveMeetingRoles(
         return Object.freeze({
             persona: d.persona,
             ...(d.toolFilter === undefined ? {} : { toolFilter: d.toolFilter }),
+            ...(d.agentOptions === undefined
+                ? {}
+                : { agentOptions: d.agentOptions as AgentOptions }),
             agentDefinition: Object.freeze({
                 agentDefinitionId: d.agentDefinitionId,
                 definitionVersion: d.definitionVersion,

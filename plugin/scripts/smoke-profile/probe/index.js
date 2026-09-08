@@ -138,10 +138,9 @@ function waitForInbox(ctx, agentId, select) {
 
 async function resumeParticipantForProbe(ctx, parent, childId, marker) {
     const delivery = waitForInbox(ctx, childId, (message) =>
-        messageText(message)?.includes(marker) ? marker : undefined
+        messageTexts(message).some((text) => text.includes(marker)) ? marker : undefined
     );
-    await ctx.subagents.followup(parent, childId, [{ type: "text", text: marker }], {
-        source: { kind: "coordinator", form: "relay", senderSessionId: parent.id },
+    await ctx.subagents.sendMessage(parent, childId, [{ type: "text", text: marker }], {
         signal: new AbortController().signal
     });
     return (await delivery).agent;
@@ -149,14 +148,15 @@ async function resumeParticipantForProbe(ctx, parent, childId, marker) {
 
 async function waitForSpeakerContext(ctx, agentId, attemptId) {
     return waitForInbox(ctx, agentId, (message) => {
-        const text = messageText(message);
-        const marker = typeof text === "string" ? text.indexOf("speaker context: ") : -1;
-        if (marker < 0) return undefined;
-        try {
-            const context = JSON.parse(text.slice(marker + "speaker context: ".length));
-            if (context.attempt?.attemptId === attemptId) return context;
-        } catch {
-            // Ignore non-context inbox messages.
+        for (const text of messageTexts(message)) {
+            const marker = text.indexOf("speaker context: ");
+            if (marker < 0) continue;
+            try {
+                const context = JSON.parse(text.slice(marker + "speaker context: ".length));
+                if (context.attempt?.attemptId === attemptId) return context;
+            } catch {
+                // Ignore non-context text blocks.
+            }
         }
         return undefined;
     });
@@ -164,15 +164,12 @@ async function waitForSpeakerContext(ctx, agentId, attemptId) {
 
 async function waitForTaskDelivery(ctx, agentId, meetingTaskId) {
     return waitForInbox(ctx, agentId, (message) => {
-        const text = messageText(message);
-        if (
-            typeof text !== "string" ||
-            !text.startsWith("Execute MeetingTask " + meetingTaskId + ":")
-        )
-            return undefined;
-        const executionId = text.match(/^executionId: (.+)$/m)?.[1];
-        const deliveryId = text.match(/^deliveryId: (.+)$/m)?.[1];
-        if (executionId && deliveryId) return { executionId, deliveryId };
+        for (const text of messageTexts(message)) {
+            if (!text.startsWith("Execute MeetingTask " + meetingTaskId + ":")) continue;
+            const executionId = text.match(/^executionId: (.+)$/m)?.[1];
+            const deliveryId = text.match(/^deliveryId: (.+)$/m)?.[1];
+            if (executionId && deliveryId) return { executionId, deliveryId };
+        }
         return undefined;
     });
 }
@@ -185,9 +182,8 @@ async function waitForStoredManagerContext(
 ) {
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
-        for (const message of observedInboxMessages.get(String(agentId)) ?? []) {
-            const text = messageText(message);
-            if (typeof text !== "string") continue;
+        const texts = (observedInboxMessages.get(String(agentId)) ?? []).flatMap(messageTexts);
+        for (const text of texts) {
             try {
                 const marker = text.indexOf("manager context: ");
                 const context = JSON.parse(
@@ -203,7 +199,7 @@ async function waitForStoredManagerContext(
                 )
                     return context;
             } catch {
-                // Ignore non-context inbox messages.
+                // Ignore non-context text blocks.
             }
         }
         await new Promise((resolveWait) => setTimeout(resolveWait, 100));
@@ -448,7 +444,7 @@ async function run(ctx) {
     } catch (error) {
         await writeResult({
             ok: false,
-            error: error instanceof Error ? error.message : String(error)
+            error: error instanceof Error ? (error.stack ?? error.message) : String(error)
         });
     } finally {
         if (!browserMode) await captain?.dispose();

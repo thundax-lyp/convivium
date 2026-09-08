@@ -117,9 +117,11 @@ Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。`src/
 
 - 通过 `dsh.bundle.patch` 指向 `cordis.patch.yml`；package 是 bundle，不是 profile，仓库不得维护用户 profile manifest。
 - 同时导出 `.`、`./client`、`./cordis.patch.yml` 和 `./package.json`。
-- 声明 `dsh.client.platform = "web"`，并在 `dsh.client.inject` 中列出 Client 启动所需的 DSH client packages。
+- 声明 `dsh.client.platform = "web"`；`dsh.client.inject` 只列出当前直接消费的 `@deepseek-ai/dsh-client-ui-renderer` 和 `@deepseek-ai/dsh-client-ui-conversation`。该字段记录 package 关系，不替代 Cordis service `inject` 或 browser module external 声明。
 - 使用 `files` allowlist 只发布 Host bundle、Client bundle、类型声明、patch、README 和必要资产。
 - 将 Cordis、React 和 DSH 共享 runtime identity 声明为 peer；构建、类型检查和测试所需版本同时出现在 dev dependencies。只由插件内部使用且不要求与 Host 共享 identity 的库使用普通 dependency。
+
+`dsh-client-locale`、`dsh-client-ui-layout`、`dsh-client-ui-primitives` 和 `dsh-client-ui-slots` 仅作为上游 Client 类型声明所需的开发依赖保留，不要求为本插件单独注入或声明 Host peer。工具边界使用的 `JsonValue` 从 `dsh-util-values` 导入，作为开发类型依赖；不使用 `dsh-tools` 的旧 re-export。
 
 构建分为两个明确步骤：TypeScript 生成 `lib/types/**` 声明和构建中间 JavaScript，`tsdown` 生成 `lib/index.js` 与 `lib/client.js`。Client 构建使用独立 `tsconfig.client.json`，不得把 Node.js、持久化实现、workspace 文件系统或 Host-only DSH service 打入浏览器 bundle。
 
@@ -280,7 +282,9 @@ interface MeetingSessionAdapter {
 
 首版 Meeting Agent Definition 采用共享父 Preset 的创建前配置解析；独立模块、接入点和失败语义见 [Role Composition Design](ROLE-COMPOSITION-DESIGN.md)。仅创建参数与 ownership provenance 扩展，followup、interrupt、drain 和会议调度行为保持既有边界。独立 per-child Preset 不纳入 Convivium 实施计划，等待 DSH 升级后再评估接入。
 
-禁止其他模块直接调用 DSH subagent `spawn`、`followup`、`interrupt`、`listChildren`、`listDescendants`、`drainContinuableChildren` 或 `drainContinuableDescendants`。
+禁止其他模块直接调用 DSH subagent `spawn`、`sendMessage`、`interrupt`、`listChildren`、`listDescendants`、`drainContinuableChildren` 或 `drainContinuableDescendants`。
+
+业务 adapter 保留 `followup*Session` 命名，由同一个 sendAuthorizedMeetingMessage helper 执行投递前后校验，底层使用 DSH `0.1.2-rc.1` 公开 `sendMessage`，不依赖 `/internal`。消息发送身份、steer、acceptance 和业务完成边界以 [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#compatibility) 为准。`participantQueues` 继续负责现有业务投递串行约束，其中 Mail 持有队列直到业务终态或超时；它不保证每条消息独占一个 DSH turn。
 
 ### Capability check
 
@@ -388,10 +392,16 @@ Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-s
 2. 用 `<resolved dataRoot>/storage` 挂载 `src/storage/index.ts#jsonlStoragePlugin` provider child plugin；provider 注册 `convivium-jsonl` backend service。
 3. 挂载依赖完整 DSH services 与 `storageDomain` 的 Meeting consumer child plugin；依赖尚未就绪时 consumer 保持 pending，不暴露部分 Meeting 能力。
 4. consumer 打开 catalog domain 和 Meeting domains，完成冷恢复，再构造 Meeting Runtime、outbox worker 和 recovery coordinator。
-5. consumer 注册 tools、HTTP routes 和 system prompt contribution；Client bundle 由 DSH 根据 package manifest 独立装载。
+5. consumer 注册 tools 和 system prompt contribution，通过可选 webServer 子作用域注册 HTTP routes；Client bundle 由 DSH 根据 package manifest 独立装载。
 6. consumer 启动有界 outbox worker。
 
-若步骤 1 至 4 失败，插件加载失败且不暴露部分工具或路由。所有注册动作必须返回 disposer；停止时 consumer 先停止接收新命令、停止 worker、释放租约并关闭 Meeting/catalog domains，随后 provider 注销 backend service、注销 backend name 并关闭介质。停止过程不把进行中 Meeting 改成业务终态，后续启动通过 recovery 继续处理。
+若步骤 1 至 4 失败，插件加载失败且不暴露部分工具或路由。DSH 自托管注册随 fiber 释放，普通 registry 的 disposer 由 consumer effect 托管；停止时 consumer 先停止接收新命令、停止 worker、释放租约并关闭 Meeting/catalog domains，随后 provider 注销 backend service、注销 backend name 并关闭介质。停止过程不把进行中 Meeting 改成业务终态，后续启动通过 recovery 继续处理。
+
+### Optional Web Composition
+
+Meeting consumer 只声明核心 Agent、Session、Subagent、SystemPrompt、Tools 和 Storage Domain 依赖。Web routes 使用 Cordis `ctx.inject(["webServer"], ...)` 子作用域，在 loopback 服务存在时注册，并随该服务或父插件卸载释放；runtime 的清理仍由 consumer 拥有。DSH Tools.register 已托管 contribution effect，consumer 直接注册工具，不重复包装 disposer。业务串行队列、outbox 和 Session/Meeting 归属校验继续由 Convivium 负责。冷绑定在重启 worker 前，用原 deliveryId 重排已被 DSH 接受但仍未完成的 planning/speaker 与未开始 Task；范围和原子性见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
+
+冷绑定在重启 worker 前，用原 deliveryId 重排已被 DSH 接受但仍未完成的 planning/speaker 与未开始 Task；范围和原子性见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
 
 ## State And Failure Handling
 

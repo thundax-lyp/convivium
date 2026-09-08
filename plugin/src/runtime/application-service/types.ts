@@ -183,7 +183,7 @@ export interface CreateStatusRuntimeOptions {
     readonly provider: string;
     readonly continuable: Pick<
         SubagentRuntime,
-        "startContinuable" | "followup" | "listDescendants"
+        "startContinuable" | "sendMessage" | "listDescendants"
     > &
         Partial<Pick<SubagentRuntime, "listChildren" | "interrupt" | "drainContinuableChildren">>;
     readonly authorizationValidator: RepositoryAuthorizationValidator;
