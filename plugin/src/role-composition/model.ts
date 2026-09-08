@@ -6,13 +6,6 @@ const names = z.array(text).refine((values) => new Set(values).size === values.l
 const filter = z
     .strictObject({ allow: names.optional(), deny: names.optional() })
     .refine((value) => value.allow !== undefined || value.deny !== undefined);
-const agentOptions = z
-    .strictObject({
-        provider: text.optional(),
-        model: text.optional(),
-        reasoningEffort: text.optional()
-    })
-    .refine((value) => Object.values(value).some((item) => item !== undefined));
 const definition = z.strictObject({
     agentDefinitionId: text,
     definitionVersion: text,
@@ -29,11 +22,10 @@ const definition = z.strictObject({
     ]),
     displayName: text,
     summary: text,
-    persona: text.refine((value) => !value.includes("{{")),
+    roleDescription: text.refine((value) => !value.includes("{{")),
     dshPresetId: text,
     requiredSkillNames: names.refine((value) => value.length > 0),
     toolFilter: filter.optional(),
-    agentOptions: agentOptions.optional(),
     expertiseTags: names.refine((value) => value.length > 0),
     evidenceScopes: z
         .array(z.enum(["repository", "github", "arxiv", "web"]))
@@ -77,7 +69,6 @@ export function parseAgentDefinitions(value: unknown): readonly MeetingAgentDefi
                 if (item.toolFilter.deny) Object.freeze(item.toolFilter.deny);
                 Object.freeze(item.toolFilter);
             }
-            if (item.agentOptions) Object.freeze(item.agentOptions);
             Object.freeze(item);
         }
         return Object.freeze(parsed);

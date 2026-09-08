@@ -10,14 +10,6 @@
 
 2026-09-08 用户明确授权依次执行 TODO LIST，一任务一提交。MAD 编号用于任务依赖，RUNBOOK 的 T1–T6 仍是阶段门禁；阶段内拆分不新增范围，也不允许以部分任务完成代替整个阶段 PASS。T0 已确认，不列待办。每项相关文件均为仓库相对路径；计划新增路径不表示文件已存在。
 
-- [ ] `MAD-02 / role-composition`：实现输入校验与原生创建转换
-    - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、BR-11、验收 35/36/38；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) Definition fields、Host model overrides、Creation conversion、Error And Permission Semantics、Runtime Provenance And Recovery；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Role and model inputs、Creation conversion；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) T2 动作 1/3/4。
-    - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
-    - 前置：MAD-01 PASS；与 MAD-03 共同完成 T2 后才进入资源阶段。
-    - 相关文件：修改 `plugin/src/role-composition/model.ts`、`plugin/src/role-composition/resolve.ts`；新增 `plugin/src/role-composition/model-options.ts`。测试修改 `plugin/tests/fixtures/role-composition.ts`、`plugin/tests/unit/role-composition/resolve.spec.ts`、`plugin/tests/unit/role-composition/dsh-capabilities.spec.ts`、`plugin/tests/integration/dsh/session-adapter.spec.ts` 的 resolved role adapter composition suite；新增 `plugin/tests/unit/role-composition/model-options.spec.ts`。只读保持 `plugin/src/role-composition/dsh-capabilities.ts`、`plugin/src/dsh/session-adapter.ts`。
-    - 处理动作：修改 MeetingAgentDefinitionV1/parseAgentDefinitions、ResolveMeetingRolesInput/resolveMeetingRoles/definitionHash，新增 MeetingAgentModelOverrides/parseAgentModelOverrides；fixture 拆分 roleCompositionDefinitions 与 roleCompositionModelOverrides。
-    - 验收点：对应 role-composition 与 session-adapter focused suites 通过：旧字段/未知 ID/非法 map 拒绝，空 map 与原型名 ID 正常，深拷贝冻结、脱敏、派生 persona、模型透传与指纹分离符合契约；全角色预检保持。T2 全局 lint/typecheck 在 MAD-03 接线完成后统一验收，不把中间态视为可交付。
-
 - [ ] `MAD-03 / Host config / Meeting creation`：接通独立模型覆盖的创建链路
     - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 38/39；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) Transport Or Invocation、Error And Permission Semantics、Runtime Provenance And Recovery；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Role and model inputs、State And Failure Handling、Security And Observability；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) Exact Transformation And Call Chain、T2 动作 2/5。
     - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
