@@ -1,6 +1,6 @@
 # Agent Preset、Persona 与上下文插件
 
-本 reference 固定 `dsh-v0.1.2-rc.1`。Profile 选择应用组合，Preset 选择 Agent 组合，Persona 贡献 prompt；三者不能互换。Profile/Loader 见 [组合配置](composition-config-credentials.md)，Scope 继承见 [Scoped registration](scoped-registration.md)。
+本文固定 `dsh-v0.1.2-rc.1`。Profile 选择应用组合，Preset 选择 Agent 组合，Persona 贡献 prompt；三者不能互换。Profile/Loader 见 [组合配置](composition-config-credentials.md)，Scope 继承见 [Scoped registration](scoped-registration.md)。
 
 ## 条件补读
 

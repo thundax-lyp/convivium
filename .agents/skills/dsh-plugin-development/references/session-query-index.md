@@ -1,6 +1,6 @@
 # Session 查询、索引与导出
 
-本 reference 固定 `dsh-v0.1.2-rc.1`。session-query 拥有 live-preferred logical corpus、exact read/filter/trace；session-query-sqlite 提供派生全文索引。应用分页与 observation 租约见 [Session API](session-workspace-api.md)。
+本文固定 `dsh-v0.1.2-rc.1`。session-query 拥有 live-preferred logical corpus、exact read/filter/trace；session-query-sqlite 提供派生全文索引。应用分页与 observation 租约见 [Session API](session-workspace-api.md)。
 
 ## 条件补读
 

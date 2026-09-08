@@ -1,6 +1,6 @@
 # DSH Skill Provider 与调用策略
 
-本 reference 针对 `dsh-v0.1.2-rc.1` 内部的 `ctx.skills`，与本仓库 Codex Skill 的 agents/openai.yaml 策略不是同一个系统。不要混用两者的配置字段。
+本文针对 `dsh-v0.1.2-rc.1` 内部的 `ctx.skills`，与本仓库 Codex Skill 的 agents/openai.yaml 策略不是同一个系统。不要混用两者的配置字段。
 
 ## 条件补读
 

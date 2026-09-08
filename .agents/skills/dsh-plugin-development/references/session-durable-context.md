@@ -1,6 +1,6 @@
 # Session event 与持久模型上下文
 
-本 reference 覆盖 v0.1.2-rc.1 的 Session 扩展、回放所有权、prompt section、skill 和会进入模型上下文的 Agent 输入。
+本文覆盖 v0.1.2-rc.1 的 Session 扩展、回放所有权、prompt section、skill 和会进入模型上下文的 Agent 输入。
 
 ## 条件补读
 

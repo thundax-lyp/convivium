@@ -1,11 +1,12 @@
 # Storage 与 Session projection
 
-本 reference 用于选择 v0.1.2-rc.1 的持久事实载体。不要因为都能“保存状态”而混用 Session log、Storage domain 与 projection。
+本文用于选择 v0.1.2-rc.1 的持久事实载体。不要因为都能“保存状态”而混用 Session log、Storage domain 与 projection。
 
 **阅读导航：** 先读[三类状态的选择](#三类状态的选择)。插件持久数据接着读[Storage domain](#storage-domain)和[提交顺序](#生命周期与提交顺序)；日志读模型读[Session projection](#session-projection)与[领域 fold](#领域-fold-与能力缺失)。缓存、统计、message feedback 分别按实际修改补读，最后核对[必需证据](#必需证据)。
 
 ## 条件补读
 
+- 新增或替换存储介质时读[Storage Backend 开发](storage-backend-development.md)，不从 Domain 消费契约推断 Backend 实现。
 - 新增权威 Session event 先读[Session](session-durable-context.md)；不为查询需求复制一份事实源
 
 ## 三类状态的选择
@@ -20,7 +21,14 @@
 
 ## Storage domain
 
-产品 Consumer 依赖 typed domain facility，不直接调用 JSON/SQLite backend。Domain owner 用 `defineDomain()` 声明唯一名称、非负 format version、可选 global 和 typed tables；table key 优先使用 producer-owned branded id。Schema 在打开现有介质时验证数据。默认 `layout: single`，也可选 `per-record`。`compatibleVersions` 只声明当前 schema 可读取的更旧版本，写入仍标记当前 version；不代表任意格式迁移。默认 invalid record 拒绝打开；仅对可丢弃派生数据使用 `invalidRecords: backup-and-skip`，且 backend 必须提供 `backupRecord()`，否则仍拒绝。Global slot 始终拒绝无效值，权威业务数据不应使用跳过恢复。
+产品 Consumer 依赖 typed domain facility，不直接调用具体 backend。Domain owner 用 `defineDomain()` 声明唯一名称、非负 format version、可选 global 和 typed tables；table key 优先使用 producer-owned branded id。Schema 在打开现有介质时验证数据。布局与版本语义见下表；选择前先确定业务数据是否允许被视作缺失。默认 invalid record 拒绝打开；仅对可丢弃派生数据使用 `invalidRecords: backup-and-skip`，且 backend 必须提供 `backupRecord()`，否则仍拒绝。Global slot 始终拒绝无效值，权威业务数据不应使用跳过恢复。
+
+| 布局 | 版本与 key 边界 |
+| --- | --- |
+| `single`（默认） | 整个 unit 的版本必须精确匹配，`compatibleVersions` 不放宽此检查；不匹配报 `version-mismatch`。记录 key 为 opaque string，不因 branded type 自动变成安全路径。 |
+| `per-record` | JSON backend 接受当前版本及 `compatibleVersions` 中的记录；写入标记当前版本。key 必须匹配 `[a-zA-Z0-9_-]+`，含 `/`、`:` 等复合 key 会在写入时拒绝，需先确定稳定且无碰撞的编码。 |
+
+JSON `per-record` 对 malformed 或不在接受版本集合内的文档按记录缺失处理，这发生在 Domain schema 验证之前，不能被 `invalidRecords: reject` 补救。因此该布局不能直接承诺所有损坏和旧版本都会拒绝打开；权威数据需证明这与恢复要求一致。Legacy whole-unit bootstrap 仅在新树没有任何 document path 时尝试，接受版本才导入，否则保持旧文件并呈现空 unit；新树有 unreadable/stale document 也会抑制 bootstrap。它不是通用迁移。`compatibleVersions` 只声明旧 schema 可读性，不运行升级转换。
 
 Backend route 属于 domain facility 的部署配置。多个 backend 可以同时存在；不要假设 hub 有一个全局默认介质，也不要在 Consumer 内选择具体 backend 实现。
 

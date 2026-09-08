@@ -1,6 +1,6 @@
 # 动态 Cordis 扩展
 
-本 reference 覆盖 `dsh-v0.1.2-rc.1` 的 dynamic runner。它与发布到 workspace 的普通包不同；进程内定义和运行不代表已经产生可发布的 package artifact。
+本文覆盖 `dsh-v0.1.2-rc.1` 的 dynamic runner。它与发布到 workspace 的普通包不同；进程内定义和运行不代表已经产生可发布的 package artifact。
 
 ## 条件补读
 

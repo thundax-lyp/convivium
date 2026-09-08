@@ -1,6 +1,6 @@
 # Cordis 生命周期
 
-本 reference 覆盖 `dsh-v0.1.2-rc.1` 的 Cordis 插件形式与 effect 所有权。
+本文覆盖 `dsh-v0.1.2-rc.1` 的 Cordis 插件形式与 effect 所有权。
 
 ## 架构与插件形式
 

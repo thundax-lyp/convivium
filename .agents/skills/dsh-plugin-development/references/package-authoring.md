@@ -1,6 +1,6 @@
 # DSH 包开发
 
-本 reference 覆盖 `dsh-v0.1.2-rc.1` 的包文件、编译配置、入口骨架、invariant 与 README 交付规则。
+本文覆盖 `dsh-v0.1.2-rc.1` 的包文件、编译配置、入口骨架、invariant 与 README 交付规则。
 
 ## 先区分开发环境
 

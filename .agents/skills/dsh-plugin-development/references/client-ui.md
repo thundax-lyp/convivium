@@ -1,6 +1,6 @@
 # DSH Client UI
 
-本 reference 提供 `dsh-v0.1.2-rc.1` 的 Browser UI 插件集成模式。
+本文提供 `dsh-v0.1.2-rc.1` 的 Browser UI 插件集成模式。
 
 **阅读导航：** 新建 UI 插件从 Runtime 模型、包配置读到 Host 与 browser 入口；已有 UI 行为修改先读[数据与呈现所有权](#数据与呈现所有权)、[按 key 订阅](#按-key-订阅)和[Slots 与产品服务](#slots模块交付与产品服务)。涉及 slot 注册时同时读 Runtime 模型的 activation/teardown 规则。两条路径最后都核对[生命周期测试](#聚焦生命周期测试)；无需为局部行为修改复制整套包骨架。
 

@@ -1,6 +1,6 @@
 # 测试与文档交付
 
-本 reference 覆盖插件开发的证据选择、v0.1.2-rc.1 命令、公共文档交付、生成物与 runtime invariant。
+本文覆盖插件开发的证据选择、v0.1.2-rc.1 命令、公共文档交付、生成物与 runtime invariant。
 
 ## 按变更面选择证据
 

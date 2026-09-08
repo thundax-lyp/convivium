@@ -1,6 +1,6 @@
 # 防御性生命周期
 
-本 reference 适用于 lifecycle、并发、subprocess、socket、后台任务和 teardown 代码。下面规则针对 v0.1.2-rc.1 已出现过或险些出现的 bug class。
+本文适用于 lifecycle、并发、subprocess、socket、后台任务和 teardown 代码。下面规则针对 v0.1.2-rc.1 已出现过或险些出现的 bug class。
 
 ## 防御性生命周期
 

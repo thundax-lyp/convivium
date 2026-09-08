@@ -1,6 +1,6 @@
 # 文件系统与观察策略
 
-本 reference 针对 `dsh-v0.1.2-rc.1` 的 FileSystem Provider 和模型文件工具。图片与执行环境映射另见 [运行时资源](runtime-resources.md)。
+本文针对 `dsh-v0.1.2-rc.1` 的 FileSystem Provider 和模型文件工具。图片与执行环境映射另见 [运行时资源](runtime-resources.md)。
 
 ## 条件补读
 

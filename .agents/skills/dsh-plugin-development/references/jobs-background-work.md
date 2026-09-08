@@ -1,6 +1,6 @@
 # Jobs 后台工作与完成通知
 
-本 reference 固定 `dsh-v0.1.2-rc.1`。Jobs 分为 jobs Definition、jobs-local Provider 和 tool-jobs Consumer。它是进程内执行契约，不是持久调度器；未来提醒见 [Schedule](planning-scheduling.md)。
+本文固定 `dsh-v0.1.2-rc.1`。Jobs 分为 jobs Definition、jobs-local Provider 和 tool-jobs Consumer。它是进程内执行契约，不是持久调度器；未来提醒见 [Schedule](planning-scheduling.md)。
 
 ## 条件补读
 

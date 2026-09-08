@@ -1,6 +1,6 @@
 # Client Conversation Node
 
-本 reference 用于把一族 durable Session event 投影为 Web Client Chat 中的业务 Node。普通 slot contribution 继续使用 `client-ui.md`；只有需要增量事件组装时读取本文件。
+本文用于把一族 durable Session event 投影为 Web Client Chat 中的业务 Node。普通 slot contribution 继续使用 `client-ui.md`；只有需要增量事件组装时读取本文件。
 
 ## 条件补读
 

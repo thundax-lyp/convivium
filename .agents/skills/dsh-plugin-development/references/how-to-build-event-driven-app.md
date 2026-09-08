@@ -30,7 +30,7 @@
 
 ## 步骤 2：把业务选择写成规则
 
-规则插件声明 `inject = ['webhookRuntime']`，通过 `ctx.webhookRuntime.register()` 注册，并用 `ctx.effect()` 托管返回的 disposer。匹配以下条件才返回 Session 请求，否则返回 `null`：
+规则插件声明 `inject = ['webhookRuntime']`，直接调用 `ctx.webhookRuntime.register()` 注册；该 API 已创建调用 fiber 的 effect。上游示例额外包了一层 `ctx.effect()`，本篇配套模块省去该冗余层，不把它当成注册要求。匹配以下条件才返回 Session 请求，否则返回 `null`：
 
 - source 为 `primary-github`；
 - event 为 `pull_request`，action 为 `ready_for_review`；
@@ -44,9 +44,34 @@ Session 请求包含 `workspacePath`、`title`、`prompt`、`agentPreset` 和 `p
 
 需要目标仓库的本地 checkout、可用的 DSH 模型配置、入站 webhook secret，以及 GitHub 能到达的独立 TLS 入口。入站 secret 只验证来源；如果评审要读取私有 PR，出站 GitHub 访问权限须另外具备。
 
-在目标部署中配置仓库名和 Workspace 路径。上游示例硬编码的 `deepseek-harness/deepseek-harness` 是示例匹配值，不会自动取当前 Git remote；直接照搬可能导致事件永远不匹配。
+本篇自带[规则模块](../assets/github-review/github-ready-review-rule.mjs)、[overlay](../assets/github-review/cordis.yml)和[本地入站探针](../assets/github-review/send-fixture.mjs)，不需要另取上游源码。模块按固定 tag 的真实规则改编；overlay 将仓库与 Workspace 改为必填环境配置，避免默默使用示例仓库或启动目录。
 
-对已安装 DSH，最明确的加载方式是按上游永久 profile 方式，把规则模块放到 `$DSH_HOME/profiles/web/cordis.patch.yml` 旁，将 overlay 的 rows 追加到该 patch，保留已有配置，再运行 `dsh web`。若改用外部 `--patch` 文件，必须核对 Loader 的模块解析锚点；必要时将规则 row 的 `name` 改为规则模块的绝对路径。不能因两个文件放在同一外部目录，就假定 `./github-ready-review-rule.mjs` 相对 patch 文件解析。详见[组合配置](composition-config-credentials.md)。
+在 shell 中将 `DSH_SKILL_DIR` 设为本 Skill 目录的绝对路径，选择一个专用、可丢弃的 `DSH_HOME`，并设置以下部署值：
+
+```sh
+export DSH_SKILL_DIR=/absolute/path/to/dsh-plugin-development
+export DSH_HOME=/absolute/path/to/review-example-home
+export DSH_GITHUB_REVIEW_WORKSPACE=/absolute/path/to/target-repository
+export DSH_GITHUB_REVIEW_REPOSITORY=owner/repository
+export DSH_GITHUB_WEBHOOK_PORT=3081
+```
+
+用安全的本地凭证方式设置非空 `DSH_GITHUB_WEBHOOK_SECRET`；真实接入时 GitHub 使用相同 secret。不要将值写进示例文件或日志。使用 `dsh-v0.1.2-rc.1` 对应的已安装 CLI，在专用 home 中准备 Web profile：
+
+```sh
+dsh --profile web --dump-config
+mkdir -p "$DSH_HOME/profiles/web"
+cp "$DSH_SKILL_DIR/assets/github-review/github-ready-review-rule.mjs" "$DSH_HOME/profiles/web/github-ready-review-rule.mjs"
+```
+
+将配套 overlay 的三个顶层 insert rows 合并到该 profile 的 `cordis.patch.yml`，保留已有内容并检查 row id 不重复。空 profile 可以直接使用整个配套 overlay；已有 profile 应按 YAML patch-list 合并，不能覆盖已有配置。规则模块位于 profile 解析锚点，因此 row 的相对 module path 有确定含义。外部 `--patch` 方式必须改为可解析的 module path，不能假定模块相对 patch 文件解析。
+
+```sh
+dsh --profile web --dump-config
+dsh web
+```
+
+Dump 只证明配置展开；启动后还应确认 webhook/runtime/rule/adapter 激活且独立端口可访问。运行真实评审前在此 home 配置可用模型及所需只读仓库访问；未配置时不能把 Session 创建当成评审成功。
 
 监听默认是 loopback 的 3081 端口和 `/github` 路径，Web UI 保留在 3080。将独立入口转发给 GitHub，配置 Pull requests 事件、JSON content type 和一致的 secret。公网入口、secret 和真实 GitHub 配置属于运行部署步骤；阅读或设计本案例不需要执行这些外部操作。
 
@@ -77,7 +102,18 @@ GitHub ready_for_review delivery
 
 ## 步骤 6：验证组合，再迁移到自己的场景
 
-设计阶段列出预期即可；实现阶段先用本地 fixture 验证匹配/不匹配、签名失败和重复交付语义，再用真实 Loader 验证依赖、隔离与规则模块解析。上游的 webhook runtime、GitHub handler 和 Loader 测试是可参考证据，不等于目标部署已经验证。真实 GitHub/模型验证另记录实际结果。
+设计阶段列出预期即可。已启动上述应用时，在另一个继承相同环境配置的 shell 中运行：
+
+```sh
+node "$DSH_SKILL_DIR/assets/github-review/send-fixture.mjs"
+node "$DSH_SKILL_DIR/assets/github-review/send-fixture.mjs" --bad-signature
+```
+
+第一条发送已签名但 action 不匹配的 fixture，预期 `202` 且没有新评审 Session；第二条预期 `401` 且没有 Session。探针仅连接 loopback，不打印 secret。
+
+只有明确要执行一次模型任务时再加 `--match`：预期 `202` 后出现有标题的 Session，但 fixture 的 PR/SHA 为合成值，不能用它证明真实评审成功。重复该命令使用相同 delivery id，可能生成多个 Session；这验证没有内置去重。随后观察 Session 的任务与失败内容，并结束自己启动的进程。真实 PR 验证仍需另行提供真实输入、模型和访问配置。
+
+本地 probe 的 HTTP 成功不替代真实 Loader 激活、UI/API 隔离与 Agent 结果验证。上游的 webhook runtime、GitHub handler 和 Loader 测试是可参考证据，不等于目标部署已经验证。真实 GitHub/模型验证另记录实际结果。
 
 迁移时按以下顺序替换，而不是先增加框架：
 

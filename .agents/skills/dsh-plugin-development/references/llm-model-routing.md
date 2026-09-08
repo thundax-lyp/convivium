@@ -1,6 +1,6 @@
 # 模型目录、内置 Adapter 与图像请求
 
-本 reference 固定 `dsh-v0.1.2-rc.1` 的已实现路由，不以外部厂商当前能力替代本 tag。实现新 Adapter 的 stream/replay 规则见 [LLM Adapter](llm-provider-adapters.md)。
+本文固定 `dsh-v0.1.2-rc.1` 的已实现路由，不以外部厂商当前能力替代本 tag。实现新 Adapter 的 stream/replay 规则见 [LLM Adapter](llm-provider-adapters.md)。
 
 ## 条件补读
 

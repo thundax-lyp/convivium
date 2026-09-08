@@ -1,6 +1,6 @@
 # Claude Code 与 Codex Hook 桥接
 
-本 reference 记录 `dsh-v0.1.2-rc.1` 实现的兼容子集，不声称等价于外部产品的全部协议。原生功能优先使用 [工具 pipeline](tools.md#策略与观察) 和 Agent 事件；有现成 command hook 时才选 bridge。
+本文记录 `dsh-v0.1.2-rc.1` 实现的兼容子集，不声称等价于外部产品的全部协议。原生功能优先使用 [工具 pipeline](tools.md#策略与观察) 和 Agent 事件；有现成 command hook 时才选 bridge。
 
 ## 条件补读
 

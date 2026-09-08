@@ -16,11 +16,40 @@
 
 ## 专题证据
 
+### 需求澄清流程
+
+对应 [requirements-discovery.md](../references/requirements-discovery.md)。
+
+这是 Skill 自有的需求整理方法，不宣称 DSH 实现了需求管理能力。流程中的 DSH 可行性判断转入对应能力专题核对；不以源码路径数量证明需求覆盖。
+
+### Storage Backend 开发
+
+对应 [storage-backend-development.md](../references/storage-backend-development.md)。
+
+**类型与实现**
+
+- `packages/storage/storage/src/backend.ts`
+- `packages/storage/storage/src/index.ts`
+- `packages/storage/storage/src/registry.ts`
+- `packages/storage/storage/src/error.ts`
+- `packages/storage/storage-domain/src/index.ts`
+- `packages/storage/storage-json/src/index.ts`
+- `packages/storage/storage-json/src/format.ts`
+- `packages/storage/storage-json/src/per-record-unit.ts`
+
+**行为测试**
+
+- `packages/storage/storage/tests/contract.ts`
+
+**文档参考**
+
+- `packages/storage/storage/README.md`
+
 ### HOW-TO：事件驱动应用案例
 
 对应 [how-to-build-event-driven-app.md](../references/how-to-build-event-driven-app.md)。
 
-案例行为取自上游 GitHub review guide 与真实 overlay/rule；步骤组织和迁移问题为 Skill 导读。外部 patch 的相对模块路径按 profile Loader 解析规则核对，不因 guide 展示启动命令而推断相对于 patch 目录。
+案例行为取自上游 GitHub review guide 与真实 overlay/rule；步骤组织和迁移问题为 Skill 导读。`assets/github-review/` 提供改编模块与配置：直接使用 self-binding register，仓库和 Workspace 改为必填环境配置。本地探针由 Skill 编写，只验证入站 acknowledgement，不能替代 DSH 组合测试。外部 patch 的相对模块路径按 profile Loader 解析规则核对，不因 guide 展示启动命令而推断相对于 patch 目录。
 
 **类型与实现**
 

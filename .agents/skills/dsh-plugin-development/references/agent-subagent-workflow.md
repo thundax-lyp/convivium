@@ -1,6 +1,6 @@
 # Agent、Subagent、Agent Teams 与 Workflow
 
-本 reference 覆盖 v0.1.2-rc.1 的 live Agent 生命周期，以及可选的 Subagent、实验性 Agent Teams 和 Workflow 扩展接缝。这里说明所有权与集成规则，不枚举每个生成的方法签名。
+本文覆盖 v0.1.2-rc.1 的 live Agent 生命周期，以及可选的 Subagent、实验性 Agent Teams 和 Workflow 扩展接缝。这里说明所有权与集成规则，不枚举每个生成的方法签名。
 
 **阅读导航：** 创建/恢复 Agent：从[生命周期](#agent-生命周期)读到[创建与请求](#创建publication-与请求扩展)。委派：先读[Subagent 接缝](#subagent-接缝)及其消息/模型子节，再读[Provider 能力](#已有-provider-的-start-能力)；实现 Provider 时补[实现清单](#provider-实现清单)。Workflow 与[实验 Teams](#实验性-agent-teams)各自按任务选择，不是普通委派的必读前置。最后核对[验证](#验证)。
 

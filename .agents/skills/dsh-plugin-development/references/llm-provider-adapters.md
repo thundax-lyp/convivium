@@ -1,6 +1,6 @@
 # LLM Provider Adapter
 
-本 reference 覆盖 v0.1.2-rc.1 的 LLM adapter registry、request/stream 转换、凭证、replay state 与 Provider 验证。
+本文覆盖 v0.1.2-rc.1 的 LLM adapter registry、request/stream 转换、凭证、replay state 与 Provider 验证。
 
 ## 条件补读
 

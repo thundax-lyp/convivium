@@ -1,6 +1,6 @@
 # Scoped registration
 
-本 reference 针对 `dsh-v0.1.2-rc.1` 的可见性、继承和注册所有权。`dsh-scope` 是库原语，不是 `ctx.scope` Service。普通 Cordis 插件形式见 [生命周期](cordis-lifecycle.md)。
+本文针对 `dsh-v0.1.2-rc.1` 的可见性、继承和注册所有权。`dsh-scope` 是库原语，不是 `ctx.scope` Service。普通 Cordis 插件形式见 [生命周期](cordis-lifecycle.md)。
 
 ## Identity 与调用方
 

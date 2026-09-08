@@ -1,6 +1,6 @@
 # 组合、配置与凭证
 
-本 reference 覆盖 v0.1.2-rc.1 的 profile、bundle、Cordis 配置、插件选项验证、credential reference 与生成的配置表面。
+本文覆盖 v0.1.2-rc.1 的 profile、bundle、Cordis 配置、插件选项验证、credential reference 与生成的配置表面。
 
 ## 组合所有权
 

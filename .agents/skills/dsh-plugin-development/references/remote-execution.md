@@ -1,6 +1,6 @@
 # E2B 远程执行环境
 
-本 reference 固定 `dsh-v0.1.2-rc.1` 的 opt-in E2B Provider family。它替换 FileSystem/Subprocess 的执行环境，不把整个 Harness 搬到远端，也不是 ctx.sandbox 的 OS file-policy Provider。
+本文固定 `dsh-v0.1.2-rc.1` 的 opt-in E2B Provider family。它替换 FileSystem/Subprocess 的执行环境，不把整个 Harness 搬到远端，也不是 ctx.sandbox 的 OS file-policy Provider。
 
 ## 条件补读
 
@@ -30,4 +30,4 @@ Terminal 不具备准确 fd0 syscall wait evidence，通用 backend 退回 contr
 
 ## 验证
 
-使用 fake SDK 证明创建/失败回滚、readiness-dispose 竞态、同一远端 cwd、env 边界、pid 未就绪、output cap 与真实 SDK retention 区别、sandbox 消失、cancel/tree cleanup。真实 E2B 调用另需授权和凭证，本 reference 更新不等于执行过云端验证。
+使用 fake SDK 证明创建/失败回滚、readiness-dispose 竞态、同一远端 cwd、env 边界、pid 未就绪、output cap 与真实 SDK retention 区别、sandbox 消失、cancel/tree cleanup。真实 E2B 调用另需授权和凭证，本文更新不等于执行过云端验证。

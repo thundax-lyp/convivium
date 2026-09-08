@@ -1,6 +1,6 @@
 # Web ingress
 
-本 reference 覆盖 `dsh-v0.1.2-rc.1` 的 Webhook runtime、GitHub adapter 和通用入站 HTTP 所有权。
+本文覆盖 `dsh-v0.1.2-rc.1` 的 Webhook runtime、GitHub adapter 和通用入站 HTTP 所有权。
 
 ## 条件补读
 

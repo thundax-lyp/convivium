@@ -1,6 +1,6 @@
 # 模型工具
 
-本 reference 覆盖 v0.1.2-rc.1 的 tool definition、execution、policy、result 与 presentation 表面。
+本文覆盖 v0.1.2-rc.1 的 tool definition、execution、policy、result 与 presentation 表面。
 
 ## 条件补读
 

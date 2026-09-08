@@ -1,6 +1,6 @@
 # 内置工具的组合与行为契约
 
-本 reference 固定 `dsh-v0.1.2-rc.1`，帮助替换、配置和测试已有工具。名称出现在源码不等于当前 preset 暴露；最终 schema 由 [Tools](tools.md) 的注册、restriction、mode 与 scope 决定。这里记录选择和边界，不复制生成 schema catalog。Subagent 与 Workflow 的 toolName 可配置；MCP 根据远端 discovery 动态构造名字，不存在固定的远端工具全集。
+本文固定 `dsh-v0.1.2-rc.1`，帮助替换、配置和测试已有工具。名称出现在源码不等于当前 preset 暴露；最终 schema 由 [Tools](tools.md) 的注册、restriction、mode 与 scope 决定。这里记录选择和边界，不复制生成 schema catalog。Subagent 与 Workflow 的 toolName 可配置；MCP 根据远端 discovery 动态构造名字，不存在固定的远端工具全集。
 
 ## 条件补读
 

@@ -1,6 +1,6 @@
 # Web 搜索与抓取
 
-本 reference 覆盖 `dsh-v0.1.2-rc.1` 的出站 Web 能力。外部系统主动投递 HTTP 使用 [Web ingress](web-ingress.md)。
+本文覆盖 `dsh-v0.1.2-rc.1` 的出站 Web 能力。外部系统主动投递 HTTP 使用 [Web ingress](web-ingress.md)。
 
 ## 条件补读
 

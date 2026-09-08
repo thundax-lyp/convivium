@@ -1,6 +1,6 @@
 # 用户设置
 
-本 reference 用于实现 v0.1.2-rc.1 的用户可编辑插件设置及其 Browser 卡片。
+本文用于实现 v0.1.2-rc.1 的用户可编辑插件设置及其 Browser 卡片。
 
 ## Config、Settings 与 Credential
 

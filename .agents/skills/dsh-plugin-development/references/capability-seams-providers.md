@@ -1,6 +1,6 @@
 # 能力接缝与 Provider
 
-本 reference 说明 v0.1.2-rc.1 中与具体 Provider 无关的能力设计。它不枚举全部已发布接缝；准确方法和 event 以目标包 README 为准。
+本文说明 v0.1.2-rc.1 中与具体 Provider 无关的能力设计。它不枚举全部已发布接缝；准确方法和 event 以目标包 README 为准。
 
 ## 条件补读
 

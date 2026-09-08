@@ -1,6 +1,6 @@
 # SDK 与 ACP 集成
 
-本 reference 固定到 `dsh-v0.1.2-rc.1`，适用于修改协议 adapter、SDK launcher 或把插件装配进 SDK/ACP 应用。Profile 所有权见 [应用 Profile](composition-config-credentials.md#应用-profile)。
+本文固定到 `dsh-v0.1.2-rc.1`，适用于修改协议 adapter、SDK launcher 或把插件装配进 SDK/ACP 应用。Profile 所有权见 [应用 Profile](composition-config-credentials.md#应用-profile)。
 
 **阅读导航：** SDK 集成依次读[启动](#sdk-启动契约)、[Prompt 与持久化](#prompt结果与持久化)、[Handle 与结果](#sdk-handle-与协议结果)。ACP adapter 再读[ACP 表面](#acp-表面)；只改 ACP 协议时也须核对其涉及的启动和取消契约。最后读[验证](#验证)。
 

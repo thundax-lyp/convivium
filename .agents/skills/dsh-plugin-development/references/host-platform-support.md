@@ -1,6 +1,6 @@
 # Host 平台、启动环境与支持库
 
-本 reference 固定 `dsh-v0.1.2-rc.1`，覆盖应用周边能力和实现支持。它们不自动成为模型工具；实际应用入口见 [组合配置](composition-config-credentials.md)。
+本文固定 `dsh-v0.1.2-rc.1`，覆盖应用周边能力和实现支持。它们不自动成为模型工具；实际应用入口见 [组合配置](composition-config-credentials.md)。
 
 ## 条件补读
 
