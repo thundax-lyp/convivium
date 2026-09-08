@@ -332,6 +332,24 @@ pnpm --dir plugin exec vitest run tests/unit/scripts/role-composition-smoke.spec
 PASS：脚本/unit gate 全部 exit 0，原恢复断言未弱化，新场景只用交付包内容和真实 native Skill/tool 路径。此步不宣称真实部署已通过。
 STOP：需要虚构 native event、修改生产生命周期或改用 fixture 结果才能通过；缺少真实 schema 时回报准确工具与版本，不猜字段。
 
+### T4a：同步漏列的 package contract
+
+前置状态：T4 PASS；2026-09-08 用户已授权校准 RUNBOOK 后继续执行。首次 T5 verify 的 package contract 仍断言旧 files/exports，暂停 T5，按既定 Native Deployment Contract 同步该遗漏。
+允许修改：`plugin/tests/contract/package-contract.spec.ts` 的闭合 files/exports 预期；本文件执行记录。
+禁止修改：生产代码、package.json、断言类型或其余 package contract。
+
+执行：exports 数组末尾精确增加 `./meeting-roles/cordis.patch.yml`，files 数组末尾增加 `meeting-roles`；保持 toEqual 的闭合集合语义。单独提交此校准补齐后，从 T5 第一条命令重新执行。
+
+验证：
+```bash
+pnpm --dir plugin exec prettier tests/contract/package-contract.spec.ts --write
+pnpm --dir plugin exec vitest run tests/contract/package-contract.spec.ts
+pnpm --dir plugin lint
+git diff --check
+```
+PASS：指定命令 exit 0，预期与正式分发契约一致；不是删除或放宽断言。
+STOP：需要改动上述范围之外的生产或测试行为。
+
 ### T5：完成全量验证、实际部署和正式证据
 
 前置状态：T4 PASS；现有 dev.env 凭据流程可用。仅检查配置存在，不打印 secret；不在本任务购买或填写凭据。
@@ -449,3 +467,5 @@ Not Covered：本轮未改生产代码、测试或部署资源；仅运行 Confi
 2026-09-08 MAD-08 / T4 PASS：实现九角色真实 Session/Skill 探针、三研究角色原生 search/fetch、四次 UNKNOWN_TOOL 拒绝和 paused 事实不变断言；结果门禁拒绝缺项、重复与 false。校准 pause 只持久化会议状态的事实，由 probe 沿 recovery.js 的原生 ancestor interrupt/whenIdle 建立有界探针起点。prettier、lint、Host/Client typecheck、3 files / 70 tests、V-DOC/diff check 全 PASS。未运行实际部署，真实证据由 MAD-10 获取。
 
 2026-09-08 MAD-09 PASS：两份 operations 和随包 README 已对齐同包安装/解包、独立 workspace、显式 Captain Preset、Host 模型覆盖、17 场景/5 CORE 与无 Browser 边界。明确四次工具拒绝与模型调用范围，保留真实部署待验证标记。V-DOC、operations shell 语法和 diff check PASS；未执行人工日常 Host 操作。
+
+2026-09-08 T4a PASS：首次 T5 verify 为 85 files / 1133 tests PASS、package-contract 一项旧 exports 断言失败，未进入 build/Host smoke。按本次校准授权补入漏列的既有 contract，仅同步精确 exports/files 预期；1 个 contract test、prettier、lint、V-DOC/diff check PASS。T5 从完整 verify 重新开始。
