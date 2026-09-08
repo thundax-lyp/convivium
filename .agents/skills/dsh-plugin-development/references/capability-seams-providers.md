@@ -1,6 +1,10 @@
 # 能力接缝与 Provider
 
-本 reference 说明 rc.2 中与具体 Provider 无关的能力设计。它不枚举全部已发布接缝；准确方法和 event 以目标包 README 为准。
+本文说明 v0.1.2-rc.1 中与具体 Provider 无关的能力设计。它不枚举全部已发布接缝；准确方法和 event 以目标包 README 为准。
+
+## 条件补读
+
+- 按[开发路由](plugin-development-routing.md#选择主路径)定位当前能力的契约专题并阅读；新包才补[包规范](package-authoring.md)
 
 ## 三角色接缝
 

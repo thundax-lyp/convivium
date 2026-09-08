@@ -1,12 +1,12 @@
 # 防御性生命周期
 
-本 reference 适用于 lifecycle、并发、subprocess、socket、后台任务和 teardown 代码。下面规则针对 rc.2 已出现过或险些出现的 bug class。
+本文适用于 lifecycle、并发、subprocess、socket、后台任务和 teardown 代码。下面规则针对 v0.1.2-rc.1 已出现过或险些出现的 bug class。
 
 ## 防御性生命周期
 
 - 正交 outcome 分别报告。Timeout、signal 和 exit code 可以同时成立；不要因为 exit code 为零就隐藏 timed-out fact。
 - 先规范化 public API 的 outcome，再交给 Consumer。Provider error、aborted finish 与 wrapper/consumer defect 的表示不能让调用方靠 catch 来源猜测。
-- 异步状态不等于某个操作的结果。`followup()` 没有逐消息 completion；whole-Agent idle 可能覆盖多个 followup、steering 与 injection。需要等待时明确定义 caller 真正拥有的 interval，并处理根本没有 transition 可等的分支。
+- 异步状态不等于某个操作的结果。`subagents.sendMessage()` 只确认 inbox acceptance，没有逐消息 completion；whole-Agent idle 可能覆盖多个 queued input、steering 与 injection。需要等待时明确定义 caller 真正拥有的 interval，并处理根本没有 transition 可等的分支。
 - Dispose 必须达到 quiescence。先关闭 listener/notification 入口，再 abort/kill child，最后等待 `done`/exit；仅发出停止请求就返回会留下 orphan 或 late callback。
 - Dispatcher 隔离 user callback failure。一个 listener throw/reject 不能阻止后续 listener，也不能推翻已经 authoritative 的提交；在拥有 dispatch loop 的层统一 contain 和记录。
 - Spawned command 使用 shared scrubbed parent environment，移除 credential-shaped 与受管字段；只有受信配置可以在 scrub 后显式补入 child environment。临时或 spill 文件使用 private directory、随机名称和 exclusive owner-only create。

@@ -1,28 +1,67 @@
 # Web ingress
 
-本 reference 提供 `dsh-v0.1.1-rc.2` 的入站 HTTP webhook 设计约束。
+本文覆盖 `dsh-v0.1.2-rc.1` 的 Webhook runtime、GitHub adapter 和通用入站 HTTP 所有权。
 
-## rc.2 Webhook 接收器
+## 条件补读
 
-### 可用性与支持的 primitive
+- 新协议 adapter 补[能力接缝](capability-seams-providers.md)及[组合测试](composition-config-credentials.md#组合测试步骤)
 
-`dsh-v0.1.1-rc.2` 没有 `dsh-webhook` 包、webhook registry 或 Provider API。不要把较新分支的 webhook API 复制进 rc.2 插件。rc.2 支持的扩展点是 Host WebServer Service：通过 `ctx.webServer.register()` 注册 exact/prefix HTTP route，并用 `ctx.effect()` 把返回 disposer 交给 plugin fiber。
+## Webhook 接收器
 
-`WebRoute.handler` 拥有完整 response 生命周期；WebServer 只匹配路由，并在 handler throw/reject 时记录 warning 后返回 `400` 或销毁已经发送 headers 的 response。它不提供 body limit、认证、signature、replay protection、payload schema 或 delivery acknowledgement。rc.2 的现有 route Consumer 是内部 HMR 与 Client bundle carrier，不能当作不可信 webhook 的安全模板。
+### Runtime 与 Provider
 
-### 设计要求
+`ctx.webhookRuntime` 提供 `register(rule)` 与 `dispatch(delivery)`。Provider adapter 拥有 HTTP、认证、body limit 和解析；可信规则拥有业务条件与外部操作；runtime 拥有 callback 生命周期和可选的 Workspace root Session 创建。不要把签名验证成功等同于 event-specific 业务字段已经验证。
 
-Webhook 插件必须在自己的代码中完成 rc.2 WebServer 没有提供的通用边界，不能只做 `JSON.parse()` 后把 `unknown` 交给同进程 listener：
+`VerifiedWebhookDelivery` 包含 kind、source、deliveryId、event 和 receivedAt；runtime 验证、分离并冻结 lossless JSON。`WebhookEventMap` 可按 Provider kind 扩展。`WebhookRule.run(delivery, signal)` 返回 `null` 或一份 `WebhookSessionRequest`；注册自动成为调用 fiber 的 effect，卸载先移除规则，再 abort/drain 活动调用。
 
-1. exact route、允许的 HTTP method、content type 与 body byte limit；
-2. 通过 Schemastery 或等价 parser 把 JSON 验证成具体 payload type；
-3. 把验证后的中立 request 交给有明确 acceptance 语义的 Service；
-4. 只在 acceptance 成功后返回 Provider 期望的 status。
+`dispatch()` 调度匹配规则后立即返回，各规则失败相互隔离。它没有 durable queue、重试、去重、状态查询或完成结果。deliveryId 仅是 provenance；相同 delivery 可重复执行并创建多个 Session。需要可靠业务投递时，由独立 owner 实现持久化与幂等，不能用裸 event 或 dispatch 返回值冒充事务完成。
 
-外部 Provider 协议要求认证、signature、timestamp 或 replay window 时，实现并测试该协议规定的准确算法与失败行为。认证或签名使用 secret 时，Config 只保存 credential reference；插件注入 `credentials`，在每次请求开始时通过 `credentialRef()` 与 `ctx.credentials.resolve()` 读取当前值，使轮换影响下一次请求。Secret 不进入 log、error、Session event 或 Client projection。公开且无 secret 的协议不得为了套用模板而虚构 credential。
+### 规则骨架
 
-不要用裸 `ctx.emit()` 表示可靠交付。rc.2 的 `emit` 同步调用 listener：同步 throw 会冒泡，返回的 rejected Promise 不会被等待。若 observer failure 不应改变 acknowledgement，由拥有操作结果的 Service 先提交，再使用显式 containment 的通知；若所有处理必须完成后才能确认，Service method 返回 typed acceptance result。
+这个规则验证自身消费的字段并创建一个 root Session。部署配置明确指定 workspace 和两类 preset；实际接入时按业务 schema 收紧 Provider event。
 
-### 必需证据
+```ts
+import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import { WebhookRuleId } from '@deepseek-ai/dsh-webhook'
 
-分别测试 route 生命周期、method/content type、过大 body、malformed JSON、schema failure、accepted delivery、同步与异步 observer failure，以及 response completion。协议要求认证、signature、timestamp、replay protection 或 secret rotation 时，再覆盖对应成功与失败路径。通过真实 Loader 在 port zero 安装 `dsh-host-webserver`；只有使用 credential seam 时才安装 Credential Provider。发送实际 HTTP request，并在 dispose 后证明 route 与 server connection 静默。
+export const name = 'webhook-task-rule'
+export const inject = ['webhookRuntime']
+export interface Config {
+  workspacePath: string
+  agentPreset: string
+  permissionPreset: string
+}
+export const Config: z<Config> = z.object({
+  workspacePath: z.string().required(),
+  agentPreset: z.string().required(),
+  permissionPreset: z.string().required(),
+})
+
+export function apply(ctx: Context, config: Config): void {
+  ctx.webhookRuntime.register({
+    id: WebhookRuleId('task-rule'),
+    kind: 'task-provider',
+    run(delivery, signal) {
+      signal.throwIfAborted()
+      const event = delivery.event
+      if (event === null || typeof event !== 'object' || Array.isArray(event)) return null
+      if (typeof event.title !== 'string' || typeof event.prompt !== 'string') return null
+      if (!event.title.trim() || !event.prompt.trim()) return null
+      return { ...config, title: event.title, prompt: event.prompt }
+    },
+  })
+}
+```
+
+Runtime 在 publication 前校验 preset、解析 canonical Workspace、创建并配置 Agent；先 attach Session，再应用 permission/title/prompt。初始消息记录 `source.kind: webhook` 及 provider/source/delivery/rule 信息。Inbox acceptance 是此创建操作的提交点，不等待 turn，也不特殊 flush。失败按所在提交阶段撤销 attach/Agent；并发可能使用的 Workspace 不随失败删除。
+
+### GitHub 与其他 HTTP adapter
+
+内置 `dsh-webhook-github` 注入 webServer、webhookRuntime、credentials。配置 source、exact path、secretEnv credential reference 和 maxBodyBytes；每次请求解析 secret，验证原始 JSON body 的签名后解析，内存 dispatch 成功即返回 202。规则完成与否不改变已经返回的 202；没有内置 replay protection。
+
+其他 adapter 可用 `ctx.webServer.register()`，由 `ctx.effect()` 接管 route disposer。Handler 拥有 response 生命周期；自行限制 method、content type、body bytes，验证协议字段，决定 acknowledgement。外部协议要求 signature、timestamp 或 replay window 时按准确协议实施；无需凭证的协议不虚构 secret。挂载面向公网的 ingress 时，组合 owner 应明确路由与 Web UI/API 的暴露范围，不能因为挂载 webhook 就默认暴露整个应用。
+
+## 必需证据
+
+分别测试 route dispose、method/content type、过大 body、无效 JSON、签名/credential 轮换、业务字段校验、dispatch 后即响应、重复 delivery、规则失败隔离和 abort/drain。Session 创建覆盖 preset/Workspace preflight、attach 后失败与 inbox admission。用真实 Loader、port zero 与实际 HTTP 请求验证 adapter；不得用外部生产 webhook 作为默认测试。
