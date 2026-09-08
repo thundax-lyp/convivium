@@ -39,7 +39,7 @@ repository 仍只消费 Binding 的三个 provenance 字段，不能保存 Host 
 
 ### Native deployment resources
 
-新增 `plugin/meeting-roles/` 是同一 package 中的静态发行资源：definitions.json、README、显式 cordis.patch.yml、presets/convivium/preset.yml、agent.cordis.yml 和九个 skills/<name>/SKILL.md。旧 examples/meeting-agent-definitions 在实施时移除，不再维护另一份角色 manifest。
+`plugin/meeting-roles/` 是同一 package 中的静态发行资源：definitions.json、README、显式 cordis.patch.yml、presets/convivium/preset.yml、agent.cordis.yml 和九个 skills/<name>/SKILL.md。旧 examples/meeting-agent-definitions 已移除，不再维护另一份角色 manifest。
 
 DSH 原生 skill-filesystem 指向 Preset 相对 skills/，providerName=convivium-roles、includeDefaultRoots=false、watch=false；原生 tool-skill 提供目录和正文加载。其余 Host provider 仍可贡献 Skills，不宣称全局独占。共享 Preset 提供通用 persona、平台 shell、filesystem/search、web search/fetch 和 compaction；不附带任意子代理/workflow 管理工具。
 

@@ -177,7 +177,7 @@ Convivium 拥有 Meeting Agent Definition、会议身份、选择、批准和 Se
 
 Host 通过独立 agentModelOverrides 提供必要的模型差异，默认值、Preset、Skills、Tools、MCP、Sandbox、Approval 与执行由 DSH 管理。resolver 将 roleDescription 和 Skill 加载指令转换为原生 persona，再与 filter/模型覆盖交给 startContinuable。运行时不安装或展开 Skill 正文。
 
-首发交付同 package 的共享 convivium Preset、九个原生 Skills 和九个可组合角色；必须通过真实九 Session/Skill 加载/研究工具/权限与恢复验收。目标结构见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)，实现落点见 [Role Composition Design](ROLE-COMPOSITION-DESIGN.md)。这是已确认、尚待实现的目标；动态 admission 和独立 per-child Preset 不包含在内。
+首发交付同 package 的共享 convivium Preset、九个原生 Skills 和九个可组合角色；必须通过真实九 Session/Skill 加载/研究工具/权限与恢复验收。结构见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)，实现落点见 [Role Composition Design](ROLE-COMPOSITION-DESIGN.md)。角色模型与部署资源已实现；实际验收范围及本轮 web_fetch 豁免见 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)，抓取可用性仍未验证。动态 admission 和独立 per-child Preset 不包含在内。
 
 ## 5. Runtime Model
 
