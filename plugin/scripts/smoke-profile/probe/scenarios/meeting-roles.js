@@ -27,6 +27,9 @@ function loadedSkill(events, skillName, methods, sentAt, previousSeq, assert) {
     let loadedSeq;
     for (const event of events) {
         if (event.seq <= previousSeq || event.time < sentAt) continue;
+        if (event.type === "turn/end" && event.data.reason?.kind === "error") {
+            throw new Error("Native role turn failed before Skill confirmation: " + skillName);
+        }
         if (event.type === "tool/call" && event.data.name === "skill") {
             let args;
             try {
@@ -79,7 +82,7 @@ export async function runMeetingRolesScenario(runtime) {
     const { definitions } = JSON.parse(await readFile(join(assetRoot, "definitions.json"), "utf8"));
     assert(definitions.length === 9, "Expected nine deployed definitions");
     assert(
-        ctx.agentPresets.composedPreset(captain.ctx) === "convivium",
+        ctx.get("agentPresets")?.composedPreset(captain.ctx) === "convivium",
         "Captain did not mount convivium"
     );
     const call = (agent, name, input) =>
@@ -143,66 +146,6 @@ export async function runMeetingRolesScenario(runtime) {
     const paused = await read();
     assert(paused.result.status === "paused", "Meeting did not pause");
     const skillLoads = [];
-    const agents = new Map();
-    for (const { definition, sessionId } of identities) {
-        const skillName = definition.requiredSkillNames[0];
-        const body = await readFile(
-            join(assetRoot, "presets/convivium/skills", skillName, "SKILL.md"),
-            "utf8"
-        );
-        const methods = [...body.matchAll(/^\d\. (.+)$/gm)].map((match) => match[1]);
-        assert(methods.length === 4, "Deployed Skill must contain four methods");
-        await bounded(180000, async (signal) => {
-            const previous = ctx.sessions.get(sessionId);
-            const previousSeq = previous
-                ? Math.max(-1, ...[...previous.ownEvents()].map((event) => event.seq))
-                : -1;
-            const sentAt = Date.now();
-            await ctx.subagents.sendMessage(
-                captain,
-                sessionId,
-                [
-                    {
-                        type: "text",
-                        text: "本次只验证角色部署。先调用 skill 加载你的 required Skill，成功后回复 ROLE_READY，不执行正式会议操作或修改文件。"
-                    }
-                ],
-                { signal }
-            );
-            const agent = await runtime.waitForAgent(ctx, sessionId);
-            agents.set(definition.roleDefinitionId, agent);
-            const descriptor = foldSubagentDescriptor(agent.session.ownEvents());
-            const persona =
-                definition.roleDescription +
-                "\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：" +
-                definition.requiredSkillNames.join("、") +
-                "。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。";
-            assert(
-                descriptor?.persona === persona,
-                "Child persona differs from deployed role: " + definition.roleDefinitionId
-            );
-            while (
-                !loadedSkill(
-                    agent.session.ownEvents(),
-                    skillName,
-                    methods,
-                    sentAt,
-                    previousSeq,
-                    assert
-                )
-            ) {
-                signal.throwIfAborted();
-                await new Promise((resolveWait) => setTimeout(resolveWait, 100));
-            }
-            await agent.whenIdle();
-        });
-        skillLoads.push({
-            roleDefinitionId: definition.roleDefinitionId,
-            skillName,
-            sessionId,
-            loaded: true
-        });
-    }
     const execute = (agent, name, args) =>
         ctx.tools.execute({
             callId: "meeting-roles-" + runtime.nextCall(),
@@ -212,7 +155,7 @@ export async function runMeetingRolesScenario(runtime) {
             signal: new AbortController().signal
         });
     const research = [];
-    for (const [roleDefinitionId, domain, query, url] of [
+    const researchTargets = [
         [
             "github_research_analyst",
             "github.com",
@@ -231,50 +174,163 @@ export async function runMeetingRolesScenario(runtime) {
             "site:typescriptlang.org documentation",
             "https://www.typescriptlang.org/docs/"
         ]
-    ]) {
-        const agent = agents.get(roleDefinitionId);
-        const search = await execute(agent, "web_search", { queries: [query] });
-        assert(
-            search.isError === false &&
-                search.value.sources.some((source) => {
-                    const hostname = new URL(source.url).hostname;
-                    return hostname === domain || hostname.endsWith("." + domain);
-                }),
-            "Research search failed: " + roleDefinitionId
-        );
-        const fetched = await execute(agent, "web_fetch", { url });
-        assert(
-            fetched.isError === false &&
-                fetched.value.statusCode >= 200 &&
-                fetched.value.statusCode < 300 &&
-                typeof fetched.value.body.content === "string" &&
-                fetched.value.body.content.trim().length > 0,
-            "Research fetch failed: " + roleDefinitionId
-        );
-        research.push({ roleDefinitionId, search: true, fetch: true });
-    }
-    for (const [role, forbidden] of [
-        ["meeting_manager", "convivium_submit_turn"],
-        ["meeting_scribe", "convivium_submit_manager_plan"]
-    ]) {
-        const agent = agents.get(role);
-        assert(
-            ctx.tools.schemas(agent).some((schema) => schema.name === "skill"),
-            "Restricted role lost native Skill loader"
-        );
-        for (const [name, args] of [
-            [forbidden, { input: {} }],
-            ["web_search", { queries: ["deployment restriction probe"] }]
-        ]) {
-            const result = await execute(agent, name, args);
+    ];
+    async function probeLiveRole(agent, roleDefinitionId) {
+        const target = researchTargets.find(([role]) => role === roleDefinitionId);
+        if (target) {
+            const [, domain, query, url] = target;
+            const search = await execute(agent, "web_search", { queries: [query] });
             assert(
-                result.isError === true && result.error.code === "UNKNOWN_TOOL",
-                "Role tool was not denied at lookup: " + role + "/" + name
+                search.isError === false &&
+                    search.value.sources.some((source) => {
+                        const hostname = new URL(source.url).hostname;
+                        return hostname === domain || hostname.endsWith("." + domain);
+                    }),
+                "Research search failed: " +
+                    roleDefinitionId +
+                    " " +
+                    JSON.stringify(
+                        search.isError
+                            ? { code: search.error.info?.code, message: search.error.message }
+                            : {
+                                  domains: search.value.sources.map(
+                                      (source) => new URL(source.url).hostname
+                                  )
+                              }
+                    )
             );
+            const fetched = await execute(agent, "web_fetch", { url });
+            assert(
+                fetched.isError === false &&
+                    fetched.value.statusCode >= 200 &&
+                    fetched.value.statusCode < 300 &&
+                    typeof fetched.value.body.content === "string" &&
+                    fetched.value.body.content.trim().length > 0,
+                "Research fetch failed: " +
+                    roleDefinitionId +
+                    " " +
+                    JSON.stringify(
+                        fetched.isError
+                            ? { code: fetched.error.info?.code, message: fetched.error.message }
+                            : {
+                                  statusCode: fetched.value.statusCode,
+                                  bodyKind: fetched.value.body.kind,
+                                  contentLength: fetched.value.body.content?.length
+                              }
+                    )
+            );
+            research.push({ roleDefinitionId, search: true, fetch: true });
         }
-    }
-    for (const agent of agents.values())
+        const restrictions = [
+            ["meeting_manager", "convivium_submit_turn"],
+            ["meeting_scribe", "convivium_submit_manager_plan"]
+        ];
+        const restriction = restrictions.find(([role]) => role === roleDefinitionId);
+        if (restriction) {
+            const [role, forbidden] = restriction;
+            assert(
+                ctx.tools.schemas(agent).some((schema) => schema.name === "skill"),
+                "Restricted role lost native Skill loader"
+            );
+            for (const [name, args] of [
+                [forbidden, { input: {} }],
+                ["web_search", { queries: ["deployment restriction probe"] }]
+            ]) {
+                const result = await execute(agent, name, args);
+                assert(
+                    result.isError === true && result.error.info?.code === "UNKNOWN_TOOL",
+                    "Role tool was not denied at lookup: " + role + "/" + name
+                );
+            }
+        }
         await call(agent, "convivium_meeting_status", { protocolVersion: 1, meetingId });
+    }
+
+    for (const { definition, sessionId } of identities) {
+        const skillName = definition.requiredSkillNames[0];
+        const body = await readFile(
+            join(assetRoot, "presets/convivium/skills", skillName, "SKILL.md"),
+            "utf8"
+        );
+        const methods = [...body.matchAll(/^\d\. (.+)$/gm)].map((match) => match[1]);
+        assert(methods.length === 4, "Deployed Skill must contain four methods");
+        let probeError;
+        let probed = false;
+        const dispose = ctx.on("tools/post-execute", async (exec, result, next) => {
+            const decision = await next();
+            if (
+                exec.agent.id === sessionId &&
+                exec.name === "skill" &&
+                !result.isError &&
+                !probed
+            ) {
+                probed = true;
+                try {
+                    await probeLiveRole(exec.agent, definition.roleDefinitionId);
+                } catch (error) {
+                    probeError = error;
+                }
+            }
+            return decision;
+        });
+        try {
+            await bounded(180000, async (signal) => {
+                const previous = ctx.sessions.get(sessionId);
+                const previousSeq = previous
+                    ? Math.max(-1, ...[...previous.ownEvents()].map((event) => event.seq))
+                    : -1;
+                const sentAt = Date.now();
+                await ctx.subagents.sendMessage(
+                    captain,
+                    sessionId,
+                    [
+                        {
+                            type: "text",
+                            text: "本次只验证角色部署。先调用 skill 加载你的 required Skill，成功后回复 ROLE_READY，不执行正式会议操作或修改文件。"
+                        }
+                    ],
+                    { signal }
+                );
+                const agent = await runtime.waitForAgent(ctx, sessionId);
+
+                const descriptor = foldSubagentDescriptor(agent.session.ownEvents());
+                const persona =
+                    definition.roleDescription +
+                    "\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：" +
+                    definition.requiredSkillNames.join("、") +
+                    "。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。";
+                assert(
+                    descriptor?.persona === persona,
+                    "Child persona differs from deployed role: " + definition.roleDefinitionId
+                );
+                while (
+                    !loadedSkill(
+                        agent.session.ownEvents(),
+                        skillName,
+                        methods,
+                        sentAt,
+                        previousSeq,
+                        assert
+                    )
+                ) {
+                    if (probeError) throw probeError;
+                    signal.throwIfAborted();
+                    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+                }
+                if (probeError) throw probeError;
+                assert(probed, "Live role checks were not executed");
+                await agent.whenIdle();
+            });
+        } finally {
+            dispose();
+        }
+        skillLoads.push({
+            roleDefinitionId: definition.roleDefinitionId,
+            skillName,
+            sessionId,
+            loaded: true
+        });
+    }
     const after = await read();
     assert(
         after.result.status === "paused" &&

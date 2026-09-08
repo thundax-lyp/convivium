@@ -14,7 +14,7 @@
     - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 35–40；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) Runtime Provenance And Recovery；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Acceptance；[TODO 规则](docs/00-governance/TODO-RULES.md) Verification Check；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) T5、Validation Matrix；[角色操作](docs/50-operations/HOW-TO-MEETING-ROLES.md) 与 [Smoke 操作](docs/50-operations/HOW-TO-DSH-SMOKE.md) 为执行入口。
     - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
     - 前置：MAD-09 文档就绪、T4 PASS、现有 dev.env 流程可用；按已有授权边界执行。
-    - 修复授权：2026-09-08 用户追加授权解决部署断点并完成全部 TODO；先执行 RUNBOOK T4b 的原生资源定位/config 组合修复与回归，单独提交，再从完整 verify 重跑本项。历史失败证据保留。
+    - 修复授权：2026-09-08 用户追加授权解决部署断点并完成全部 TODO；先执行 RUNBOOK T4b 的原生资源定位/config 组合修复与回归，单独提交，再从完整 verify 重跑本项。历史失败证据保留。部署/探针接线已补回归，当前真实抓取被本机 Shadowrocket Fake-IP DNS 拒绝（WEB_BLOCKED_URL）；须先恢复目标公网域名的真实解析，再从完整 verify 执行四条门禁，不能删除此项。
     - 相关文件：更新 `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` 的 FR-14/Shared Preset Role Composition、`docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md` 的新 Meeting Roles Deployment 小节、RUNBOOK 执行记录；据实更新 MAD-09 三文件的验证标记。运行入口为 `plugin/package.json` 和 `plugin/scripts/smoke-profile/index.mjs`，此项不改生产或验证脚本。
     - 处理动作：顺序执行完整 verify、role-composition smoke、meeting-roles smoke、默认五核心 smoke，将实际运行边界及 Prepare/Execute/Assert/Restore 迁入正式证据。
     - 验收点：T5 四条固定命令 exit 0、所有 Restore PASS，随后 V-DOC/diff check 通过；九角色加载、三类研究能力、权限拒绝、模型差异和冷恢复均有本次证据；首次失败 STOP，不能把必过项列为 Not Covered 后关闭。

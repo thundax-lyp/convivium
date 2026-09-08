@@ -2,7 +2,7 @@
 
 ## Purpose And Status
 
-本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。**2026-09-08 状态：角色模型、发行资源和自动探针已实现并通过定向门禁；完整 verify 和 role-composition 已通过；meeting-roles 在 Captain Preset 挂载失败，部署路径/config 组合待修复，尚不能宣称部署通过。** 完成 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition) 的首发验证后才能移除此状态说明。
+本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。**2026-09-08 状态：角色模型、发行资源和自动探针已实现并通过定向门禁；完整 verify 和 role-composition 已通过；部署接线已修复，九 Skill 加载已有真实证据；meeting-roles 当前被本机 Fake-IP DNS 的 WEB_BLOCKED_URL 阻断，尚不能宣称部署通过。** 完成 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition) 的首发验证后才能移除此状态说明。
 
 本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)，资源结构见 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。
 
@@ -90,7 +90,8 @@ env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
 ```
 
-前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。meeting-roles 不支持 Browser 模式，也不加入默认五个核心场景。它从同一 tarball 解包资源，按部署 patch → 临时控制 patch 加载，显式挂载 convivium Captain；控制 patch 设八人容量和 300000ms speaker timeout，并重述同一资源 JSON 的读取表达式以保留角色定义。创建后暂停会议并中断当前 child 执行，再逐个发送固定 Skill 验证请求；每个 child 最多 180000ms，场景结果最多等待 2400000ms。
+前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。meeting-roles 不支持 Browser 模式，也不加入默认五个核心场景。它从同一 tarball 解包资源，按部署 patch → 临时控制 patch 加载，显式挂载 convivium Captain，并通过原生 agentOptions 选择 deepseek-official/deepseek-v4-flash，供子会话继承；控制 patch 设八人容量和 300000ms speaker timeout，并重述同一资源 JSON 的读取表达式以保留角色定义。创建后暂停会议并中断当前 child 执行，再逐个发送固定 Skill 验证请求；每个 child 最多 180000ms，场景结果最多等待 2400000ms。
+部署探针在目标 child 成功 Skill 调用的原生 tools/post-execute 回调内完成研究工具、权限拒绝与 status 检查，返回原 decision，并在 finally 注销回调。continuable child 空闲后可被 DSH 释放，不能缓存旧 Agent 在 idle 后调用工具。检查仍要求真实 Provider 结果，Fake-IP DNS 的非公网地址拒绝不能计为抓取通过；应由运行环境为目标公网域名提供真实公网解析，不放宽 DSH 检查。
 
 ## Restore And Failure Handling
 

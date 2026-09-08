@@ -11,6 +11,7 @@ import {
     CORE_SCENARIOS,
     SMOKE_SCENARIOS
 } from "../../../scripts/smoke-profile/index.mjs";
+import { runMeetingRolesScenario } from "../../../scripts/smoke-profile/probe/scenarios/meeting-roles.js";
 import { validateScenarioResult } from "../../../scripts/smoke-profile/result.mjs";
 const wrapper = readFileSync(
     new URL("../../../scripts/smoke-profile/index.mjs", import.meta.url),
@@ -40,6 +41,34 @@ describe("meeting roles deployment smoke", () => {
         });
         await drive({}, {});
         expect(callTool).not.toHaveBeenCalled();
+    });
+    it("creates the deployed Captain with a native model selection and shared Preset", async () => {
+        const create = vi.fn().mockResolvedValue({});
+        const mount = vi.fn();
+        const source = probe.slice(
+            probe.indexOf('captain = ["role-composition", "meeting-roles"]'),
+            probe.indexOf(
+                "        const runtime = {",
+                probe.indexOf('captain = ["role-composition", "meeting-roles"]')
+            )
+        );
+        await runInNewContext(
+            "(async () => { let captain; " + source.slice(0, source.lastIndexOf("}")) + " })()",
+            {
+                scenario: "meeting-roles",
+                ctx: { agents: { create }, get: () => ({ mount }) },
+                process: { cwd: () => "/workspace" }
+            }
+        );
+        const config = create.mock.calls[0][0];
+        expect(config.agentOptions).toEqual({
+            provider: "deepseek-official",
+            model: "deepseek-v4-flash"
+        });
+        expect(config.meta.agentPreset).toBe("convivium");
+        const agentCtx = {};
+        await config.setup(agentCtx);
+        expect(mount).toHaveBeenCalledWith(agentCtx, "convivium");
     });
     it("loads the tarball deployment patch before the temporary control patch", async () => {
         const source = wrapper.slice(
@@ -289,6 +318,20 @@ describe("native Skill loading evidence", () => {
         unmatched[1].data.message.content[0].toolCallId = "other";
         expect(loaded(unmatched, "required", methods, 100, 9, assert)).toBe(false);
     });
+    it("fails immediately when the native turn ends with an error", () => {
+        const failed = [
+            {
+                type: "turn/end",
+                seq: 10,
+                time: 100,
+                data: { reason: { kind: "error", error: { code: "UNKNOWN" } } }
+            }
+        ];
+        expect(() => loaded(failed, "required", methods, 100, 9, assert)).toThrow(
+            "Native role turn failed before Skill confirmation: required"
+        );
+        expect(loaded(failed, "required", methods, 101, 9, assert)).toBe(false);
+    });
     it("fails on tool errors or missing method content", () => {
         const failed = JSON.parse(JSON.stringify(events()));
         failed[1].data.message.content[0].isError = true;
@@ -406,4 +449,119 @@ describe("native deployment patch composition", () => {
             await rm(root, { recursive: true, force: true });
         }
     });
+});
+
+describe("meeting roles probe service boundary", () => {
+    it("resolves the optional preset service before creating the eight-participant meeting", async () => {
+        vi.stubEnv(
+            "CONVIVIUM_MEETING_ROLES_ROOT",
+            fileURLToPath(new URL("../../../meeting-roles", import.meta.url))
+        );
+        try {
+            const composedPreset = vi.fn().mockReturnValue("convivium");
+            const get = vi.fn().mockReturnValue({ composedPreset });
+            const callTool = vi.fn().mockRejectedValue(new Error("creation boundary reached"));
+            const captain = { ctx: {} };
+            await expect(
+                runMeetingRolesScenario({
+                    ctx: { get },
+                    captain: { agent: captain },
+                    assert: (condition: boolean, message: string) => {
+                        if (!condition) throw new Error(message);
+                    },
+                    createInput: () => ({ agenda: [{}] }),
+                    callTool,
+                    nextCall: () => 1
+                })
+            ).rejects.toThrow("creation boundary reached");
+            expect(get).toHaveBeenCalledWith("agentPresets");
+            expect(composedPreset).toHaveBeenCalledWith(captain.ctx);
+            const input = callTool.mock.calls[0][3];
+            expect(input.participants).toHaveLength(8);
+            expect(input.agenda[0].requiredParticipantKeys).toEqual(
+                input.participants.map((p: { participantKey: string }) => p.participantKey)
+            );
+            expect(input.managerAgentDefinitionId).toBe("convivium.meeting_manager");
+        } finally {
+            vi.unstubAllEnvs();
+        }
+    });
+});
+
+describe("live child capability probes", () => {
+    it("awaits native capability checks before returning the unchanged Skill policy decision", async () => {
+        let handler: (
+            exec: { agent: { id: string }; name: string },
+            result: { isError: boolean },
+            next: () => Promise<unknown>
+        ) => Promise<unknown>;
+        let finish: () => void;
+        const pending = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        const probeLiveRole = vi.fn().mockReturnValue(pending);
+        const source = scenarioSource.slice(
+            scenarioSource.indexOf("        let probeError;"),
+            scenarioSource.indexOf("        try {\n            await bounded(180000")
+        );
+        runInNewContext(source, {
+            ctx: {
+                on: (_event: string, callback: typeof handler) => {
+                    handler = callback;
+                }
+            },
+            sessionId: "live-child",
+            definition: { roleDefinitionId: "github_research_analyst" },
+            probeLiveRole
+        });
+        const decision = { action: "accept" };
+        const agent = { id: "live-child" };
+        let returned = false;
+        const call = handler!(
+            { agent, name: "skill" },
+            { isError: false },
+            async () => decision
+        ).then((value) => {
+            returned = true;
+            return value;
+        });
+        await vi.waitFor(() =>
+            expect(probeLiveRole).toHaveBeenCalledWith(agent, "github_research_analyst")
+        );
+        expect(returned).toBe(false);
+        finish!();
+        expect(await call).toBe(decision);
+    });
+    it.each(["UNKNOWN_TOOL", "WEB_PROVIDER_ERROR"])(
+        "requires native lookup denial, received %s",
+        async (code) => {
+            const execute = vi.fn().mockResolvedValue({ isError: true, error: { info: { code } } });
+            const call = vi.fn();
+            const source = scenarioSource.slice(
+                scenarioSource.indexOf("    const execute ="),
+                scenarioSource.indexOf("    for (const { definition, sessionId } of identities)")
+            );
+            const run = runInNewContext(source + "\nprobeLiveRole", {
+                ctx: { tools: { execute, schemas: () => [{ name: "skill" }] } },
+                runtime: { nextCall: () => 1 },
+                call,
+                meetingId: "meeting",
+                AbortController,
+                URL,
+                assert: (condition: boolean, message: string) => {
+                    if (!condition) throw new Error(message);
+                }
+            });
+            if (code === "UNKNOWN_TOOL") {
+                await run({ id: "live-child" }, "meeting_manager");
+                expect(execute).toHaveBeenCalledTimes(2);
+                expect(call).toHaveBeenCalledTimes(1);
+            } else {
+                await expect(run({ id: "live-child" }, "meeting_manager")).rejects.toThrow(
+                    "Role tool was not denied at lookup"
+                );
+                expect(call).not.toHaveBeenCalled();
+            }
+        }
+    );
 });

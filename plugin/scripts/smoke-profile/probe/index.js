@@ -363,6 +363,10 @@ async function run(ctx) {
             captain = ["role-composition", "meeting-roles"].includes(scenario)
                 ? await ctx.agents.create({
                       sessionId: "convivium-smoke-captain",
+                      agentOptions:
+                          scenario === "meeting-roles"
+                              ? { provider: "deepseek-official", model: "deepseek-v4-flash" }
+                              : undefined,
                       meta: {
                           cwd: process.cwd(),
                           agentPreset: scenario === "meeting-roles" ? "convivium" : "minimal"

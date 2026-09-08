@@ -134,11 +134,12 @@ no_consensus、进展重置和另一种预算的规则差异由 `turn-advancemen
 env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile
 ```
 
-资源取自本次安装的同一 tarball，wrapper 解包至临时根的 role-package/package/meeting-roles；部署 patch 在临时控制 patch 前加载，两者通过非敏感 Host 变量 CONVIVIUM_MEETING_ROLES_ROOT 指向该目录；控制 patch 重述同源 agentDefinitions 读取表达式，避免 config 整体替换丢失定义。真实 Captain 显式挂载 convivium，创建一位 Manager 和八位 Participant。探针暂停会议，使用原生 ancestor interrupt 等待当前执行结束，然后逐个观察各自 Session 的 skill tool/call、成功 tool/result 四步正文与 ROLE_READY；每身份上限 180000ms，结果等待上限 2400000ms。
+资源取自本次安装的同一 tarball，wrapper 解包至临时根的 role-package/package/meeting-roles；部署 patch 在临时控制 patch 前加载，两者通过非敏感 Host 变量 CONVIVIUM_MEETING_ROLES_ROOT 指向该目录；控制 patch 重述同源 agentDefinitions 读取表达式，避免 config 整体替换丢失定义。真实 Captain 显式挂载 convivium，并以原生 agentOptions 选择 deepseek-official/deepseek-v4-flash，子会话继承模型；创建一位 Manager 和八位 Participant。探针暂停会议，使用原生 ancestor interrupt 等待当前执行结束，然后逐个观察各自 Session 的 skill tool/call、成功 tool/result 四步正文与 ROLE_READY；每身份上限 180000ms，结果等待上限 2400000ms。
+部署探针在目标 child 成功 Skill 调用的原生 tools/post-execute 回调内完成研究工具、权限拒绝与 status 检查，返回原 decision，并在 finally 注销回调。continuable child 空闲后可被 DSH 释放，不能缓存旧 Agent 在 idle 后调用工具。检查仍要求真实 Provider 结果，Fake-IP DNS 的非公网地址拒绝不能计为抓取通过；应由运行环境为目标公网域名提供真实公网解析，不放宽 DSH 检查。
 
 三研究角色的原生 web_search 必须返回对应域来源，web_fetch 必须返回 2xx 与非空正文。Manager/Scribe 的越权会议工具及 web_search 共四次调用必须 UNKNOWN_TOOL，九身份 status 可读且暂停后的 Meeting version/messages 不变。失败或超时沿原 finally 停止 Host、释放端口并删除本次资源；不能通过更换 fixture 或放大超时继续判为成功。
 
-完整人工部署与模型覆盖步骤见 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md)。本场景已接线并通过定向测试；2026-09-08 真实部署在 Captain Preset 挂载失败，资源定位及 config 覆盖尚待修复，见 [本轮失败证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)。
+完整人工部署与模型覆盖步骤见 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md)。本场景已接线并通过定向测试；2026-09-08 部署接线和九 Skill 加载已通过，真实抓取被本机 Fake-IP DNS 的 WEB_BLOCKED_URL 阻断，见 [本轮失败证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)。
 
 ### 引用式纪要场景
 

@@ -230,3 +230,55 @@ role-composition 的两个 Host PID 为 63818、63832，九项断言齐全：持
 同一最终源码工作区 `pnpm --dir plugin verify` 实际退出 0：84 files / 1063 tests，Vitest 69.29 秒，format/lint/Host 与 Client typecheck/build/environment/plugin contract/9 Definition samples/package 全 PASS。首次因本机缺少两个已锁定 DSH 包而在 typecheck 失败，执行 frozen-lockfile install 后最终重跑通过，未改 manifest 或 lockfile。
 
 Not Covered：新面板 Browser 交互、真实模型、缺失真实 Session/创建中断故障注入、完整 metrics 采集与长期压力、FR-13 producer 成功推荐→reject 专项、生产发布和高版本兼容。cold-rebind/role-composition 不证明缺失 Session 补建；HTTP/Client 产物断言不替代 Browser。当前恢复与诊断的具体自动化边界见 [Implementation Coverage](./CURRENT-IMPLEMENTATION-COVERAGE.md)。
+
+## Meeting Roles Deployment
+
+### Scope And Prepare
+
+2026-09-08，分支 `codex/meeting-agent-role-description`，运行基线 `accb2b8`（完整 SHA 可由该 commit 查询）；验证启动时工作树干净。Node v22.23.2、pnpm 10.7.0、DSH 0.1.2-rc.1，web profile、spawn provider。本轮交付 roleDescription、Host agentModelOverrides、九角色原生资产与部署探针；不沿用旧 schema 的历史 smoke 作为首发部署成功证据。
+
+沿现有 wrapper 的 dev.env 校验与 Host-only 注入；构建、打包、安装和 dump-config 不取得密钥。每个命令构建一个 tarball，角色部署场景从同一 tarball 安装插件并解包资源；仅使用独立临时 DSH_HOME、workspace、端口，未修改日常 profile。
+
+### Executed Validation And Assert
+
+| 命令 | 本轮结果 |
+| --- | --- |
+| `pnpm --dir plugin verify` | 最终 exit 0；86 files / 1134 tests；format/lint/双端 typecheck/build/environment/contract/九角色资源/package 全 PASS，打包 missingArtifacts 和 forbiddenPublishedPaths 均为空 |
+| `env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile` | exit 0；场景 12494ms、命令 17173ms；九项断言全部通过，restore=PASS |
+| `env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile` | exit 1；Captain setup/mount 阶段失败，错误 `agent-presets: preset "convivium" not found (available: standard, ptc, minimal, cordis)` |
+| `pnpm --dir plugin smoke:profile` | 按失败即停止规则未执行，不能用历史五核心结果替代本轮 |
+
+第一次完整 verify 在 `ce669d7` 的旧 package contract exports 预期失败（85 files / 1133 tests PASS、1 test FAIL）；按本次校准授权补齐闭合 files/exports 预期并单独提交 `accb2b8`，没有放宽断言。表中完整 verify 为修正后从首条命令重新执行的结果。
+
+role-composition 的 Host PID 为 69905、69914。两阶段角色检查均 true，phase 2 配置为 2.0.0，恢复仍保留 V1 派生 persona/filter/provider/model/reasoningEffort；父配置未变、拒绝工具 body 调用数为 0。该确定性适配器验证不证明远程模型质量。
+
+### Deployment Failure Diagnosis
+
+只读核对安装的 cordis-plugin-loader 1.0.3 与 cordis-plugin-include 1.0.7，并直接调用其 `evaluate` / `applyEntryPatches` 复现：
+
+- `evaluate({baseUrl:"file:///isolated/dsh-home/profiles/web/"}, "new URL('presets/', baseUrl).href")` 返回 profile 下的 presets 路径；外部 patch 文件不成为该表达式的 baseUrl。当前随包 patch 因而没有指向解包的角色资源目录。
+- `applyEntryPatches` 对同 id 的后一个 config 做整体替换。当前 smoke 控制 patch 仅重述 provider/dataRoot/容量/超时，因此覆盖部署 patch 的 agentDefinitions；复现结果 `laterControlPreservesDefinitions:false`。该问题在修复 Preset 定位后仍会阻止定义选择。
+
+需要先校准原生部署资源定位和完整 config 组合契约，再修改随包 patch、wrapper、对应测试及操作说明。当前 T5 不允许修改这些实现，故在此 STOP；没有扩大权限、复制 Preset、注入假 Skill 或更换 provider 继续测试。
+
+### Restore
+
+失败场景临时根 `convivium-dsh-smoke-bVrI9u` 已由 wrapper finally 删除，实际存在性检查为 absent；该轮 loopback 端口 49494 可重新 exclusive bind 并关闭。wrapper 仍返回原始 probe 错误，没有 Restore 错误；外层 finally 同时清理共享构建根。role-composition 明确输出 restore=PASS。失败诊断不保存临时访问 token、密钥或模型/工具正文。
+
+### Not Covered And Closure
+
+后续修复和定向执行见下节；三研究角色完整 search/fetch、Manager/Scribe 全部权限断言仍未通过，属于阻止交付的必过项，不作为可豁免范围。默认五核心复验尚未运行。MAD-10、MAD-11 未完成，临时 RUNBOOK 与 TODO 保留。
+
+长期模型任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 和 Host capability 内容变更后的历史快照继续不在本次范围。当前结论是角色模型与静态资源已实现、真实部署阻塞，不能称为部署完善。
+
+### Native Probe Repairs And Current Network Blocker
+
+在 cd9b105 上完整 verify 为 86 files / 1135 tests PASS；role-composition 为 12529ms、Host PID 72275/72288、restore=PASS。其后定向部署逐项定位并修复：非 inject 的 agentPresets 改为 ctx.get；Captain 使用 CreateAgentOptions.agentOptions 选择 deepseek-official/deepseek-v4-flash；continuable child idle 后自动释放，研究/权限/status 检查移到原生 Skill 的 tools/post-execute 内，返回原 decision 并 finally 注销；ToolFailure 读取 error.info.code。回归覆盖模型创建边界、turn/end error 及时失败、异步检查完成前不返回 Skill decision、原生 UNKNOWN_TOOL 与 Provider error 的区别。本轮 77 focused tests、lint、双端 typecheck、九角色门禁和文档检查 PASS。
+
+定向场景 qGdmUI/1VxCbs/O5CCZO 已完成九次真实 Skill 加载，再因复用已释放 Agent 调用 search 而失败；未把这些失败当完整部署通过。生命周期修复后 FEnbiA 场景完成前五角色 Skill/status 和 Manager 两次真实 UNKNOWN_TOOL 拒绝，GitHub 原生 search 返回 github.com 来源；web_fetch 报 WEB_BLOCKED_URL：github.com resolves to a non-public IP address。由于按序停止，其后三研究完整结果及 Scribe 权限尚无本轮成功证据。
+
+只读 Node dns.lookup 证明 github.com、arxiv.org、www.typescriptlang.org 均返回 198.18.*；系统 DNS 指向 Shadowrocket MacPacketTunnel 的 Fake-IP 解析。curl 经系统代理成功不能替代原生抓取的公网 DNS 与固定连接检查。未放宽 DSH 地址校验或替换 Provider；仓库外网络调整已请求用户确认，电脑控制工具未获权限，尚未修改配置。
+
+上述临时根均由 wrapper finally 清理；最近 FEnbiA 轮无 Restore 错误，原始失败正常返回。诊断只记录失败码、域名、配置边界与阶段，不保存 token、密钥或模型/工具正文。最终四命令顺序门禁未完成，MAD-10/MAD-11 保留。
+
+修复工作区随后完整 `pnpm --dir plugin verify` exit 0：86 files / 1141 tests，Vitest 78.52 秒；format/lint/双端 typecheck/build/environment/contract/九资源/package 全 PASS，missingArtifacts 与 forbiddenPublishedPaths 为空。最近 FEnbiA 临时根再次核对 absent，51528 端口 exclusive bind/close PASS。此门禁覆盖本小步修复，不替代网络恢复后的完整 T5 顺序复验。
