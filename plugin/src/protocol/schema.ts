@@ -339,7 +339,7 @@ export const PublicAttendanceRecommendationSchema: Schema<
             expected.push("rejection");
         }
         if (
-            (value.status === "pending" && Object.hasOwn(value, "rejection")) ||
+            (value.status !== "rejected" && Object.hasOwn(value, "rejection")) ||
             (value.status === "rejected" && value.rejection == null)
         ) {
             throw new TypeError("Attendance rejection must match recommendation status");

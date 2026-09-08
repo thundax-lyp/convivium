@@ -1548,9 +1548,22 @@ it("validates public rejection shapes consistently in standalone, active and ter
     ]) {
         expect(() => check({ ...recommendation, rejection }), JSON.stringify(rejection)).toThrow();
     }
-    expect(() => check({ ...recommendation, status: "pending" })).toThrow();
-    const { rejection: _rejection, ...pending } = recommendation;
-    expect(() => check({ ...pending, status: "pending" })).not.toThrow();
+    const validators = [
+        (value) => PublicAttendanceRecommendationSchema(value),
+        ...statuses.map(
+            (status) => (value) =>
+                MeetingStatusResultSchema({ ...status, attendanceRecommendations: [value] })
+        )
+    ];
+    const { rejection: _rejection, ...withoutRejection } = recommendation;
+    for (const validate of validators) {
+        expect(() => validate(recommendation)).not.toThrow();
+        expect(() => validate(withoutRejection)).toThrow();
+        for (const status of ["pending", "approved", "expired", "cancelled"]) {
+            expect(() => validate({ ...recommendation, status }), status).toThrow();
+            expect(() => validate({ ...withoutRejection, status }), status).not.toThrow();
+        }
+    }
 });
 it("validates exact nonempty unique archive rejections while preserving old packages", () => {
     const archive = archivePackage();
