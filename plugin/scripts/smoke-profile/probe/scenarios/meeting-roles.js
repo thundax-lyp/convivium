@@ -74,7 +74,7 @@ function loadedSkill(events, skillName, methods, sentAt, previousSeq, assert) {
 export async function runMeetingRolesScenario(runtime) {
     const { ctx, assert } = runtime;
     const captain = runtime.captain.agent;
-    const assetRoot = process.env.CONVIVIUM_SMOKE_ROLE_ASSET_ROOT;
+    const assetRoot = process.env.CONVIVIUM_MEETING_ROLES_ROOT;
     assert(assetRoot, "Missing tarball role asset root");
     const { definitions } = JSON.parse(await readFile(join(assetRoot, "definitions.json"), "utf8"));
     assert(definitions.length === 9, "Expected nine deployed definitions");

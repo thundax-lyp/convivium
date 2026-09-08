@@ -236,6 +236,11 @@ async function writeSmokePatch(path, scenario, phase = "1") {
                   `    agentModelOverrides: ${JSON.stringify(roleSmokeModelOverrides(phase))}`
               ]
             : []),
+        ...(scenario === "meeting-roles"
+            ? [
+                  "    agentDefinitions: !!js \"JSON.parse(process.getBuiltinModule('node:fs').readFileSync(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'definitions.json'), 'utf8')).definitions\""
+              ]
+            : []),
         `    maxParticipants: ${scenario === "meeting-roles" ? 8 : 3}`,
         `    speakerTimeoutMs: ${scenario === "meeting-roles" ? 300000 : scenario === "timeout" ? 250 : BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
         `    outboxPollMs: ${scenario === "timeout" ? 25 : 1000}`,
@@ -483,7 +488,7 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
         await access(join(roleAssetRoot, "cordis.patch.yml"), constants.R_OK);
     }
     const env = createSmokeEnvironment(process.env, {
-        ...(roleAssetRoot ? { CONVIVIUM_SMOKE_ROLE_ASSET_ROOT: roleAssetRoot } : {}),
+        ...(roleAssetRoot ? { CONVIVIUM_MEETING_ROLES_ROOT: roleAssetRoot } : {}),
         DSH_HOME: dshHome,
         DSH_TELEMETRY_DISABLED: "1",
         DSH_PERMISSION_MODE: "workspace-write",

@@ -22,7 +22,7 @@ Convivium Definition → Captain 按 ID 选择 → 全角色预检 → 角色说
 
 ## Transport Or Invocation
 
-本地 Host `Config.agentDefinitions?: readonly MeetingAgentDefinitionV1[]` 与 `Config.agentModelOverrides?: MeetingAgentModelOverrides` 是唯一配置输入。Definition 数组省略为无定义，map 省略或空对象为无覆盖；不扫描用户目录、不接受 Definition URL/路径。部署 patch 可在受信任 Loader 边界读取包内固定 JSON，交给 Config 的仍是内联数组。
+本地 Host `Config.agentDefinitions?: readonly MeetingAgentDefinitionV1[]` 与 `Config.agentModelOverrides?: MeetingAgentModelOverrides` 是唯一配置输入。Definition 数组省略为无定义，map 省略或空对象为无覆盖；不扫描用户目录、不接受 Definition URL/路径。部署 patch 可在受信任 Loader 边界读取包内固定 JSON，交给 Config 的仍是内联数组。Host 通过非敏感环境变量 `CONVIVIUM_MEETING_ROLES_ROOT` 提供同 tarball 解包后的角色资源绝对目录；该变量只供 Loader 与部署探针定位固定子路径，不是 Meeting 输入或 Convivium Config。Cordis 后层 patch 整体替换 config；运行参数或模型覆盖 patch 必须保留同源 agentDefinitions 表达式与部署 provider/容量。
 
 Captain 仅通过 `CreateMeetingInputV1.managerAgentDefinitionId` 和 `ParticipantSpecV1.agentDefinitionId` 选择定义。Manager 只能选择 meeting_manager，Participant 不得选择 meeting_manager；没有显式选择时保持无定义路径。Manager recommendation 不等于选择批准或授权；本接口不新增动态 admission。
 

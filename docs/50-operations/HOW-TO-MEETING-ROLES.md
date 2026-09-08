@@ -2,7 +2,7 @@
 
 ## Purpose And Status
 
-本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。**2026-09-08 状态：角色模型、发行资源和自动探针已实现并通过定向门禁；完整 verify、真实安装/加载、模型及研究 Provider 验收待执行，尚不能宣称部署通过。** 完成 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition) 的首发验证后才能移除此状态说明。
+本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。**2026-09-08 状态：角色模型、发行资源和自动探针已实现并通过定向门禁；完整 verify 和 role-composition 已通过；meeting-roles 在 Captain Preset 挂载失败，部署路径/config 组合待修复，尚不能宣称部署通过。** 完成 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition) 的首发验证后才能移除此状态说明。
 
 本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)，资源结构见 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。
 
@@ -57,6 +57,7 @@
     . "$role_repo_root/dev.env"
     set +a
     export DSH_HOME="$role_deploy_root/dsh-home"
+    export CONVIVIUM_MEETING_ROLES_ROOT="$role_deploy_root/resources/package/meeting-roles"
     cd "$role_deploy_root/workspace"
     exec pnpm dlx @deepseek-ai/dsh@0.1.2-rc.1 web \
         --patch "$role_patch" \
@@ -67,7 +68,9 @@
 
 在本地页面新建 Captain Session，**显式选择 convivium Preset**。Host Settings 的默认选择可能优先于 patch 的 default，不能仅凭默认值推断已经选择成功。选择定义时 Manager 为 convivium.meeting_manager；八位 Participant 分别使用其余八个 Definition ID，名单见 Interface。不需要为每位角色另装 Preset、改写 JSON 或部署第二个 package。
 
-模型默认值在 DSH 配置/Settings 中管理。必要角色差异通过额外 Host 控制 patch 的 convivium.config.agentModelOverrides 提供，key 为 Definition ID，value 只含 provider/model/reasoningEffort；该控制 patch 在角色部署 patch 后加载。这里的值必须来自宿主已配置、支持的真实模型路由，不提供猜测的模型 ID，不编辑 Definition/Skill 或 credentials 来实现覆盖。
+`CONVIVIUM_MEETING_ROLES_ROOT` 是非敏感 Host 部署变量，仅定位同 tarball 的固定资产；不能使用 patch 表达式的 baseUrl 推导该位置。变量缺失时 Loader 必须失败。
+
+模型默认值在 DSH 配置/Settings 中管理。必要角色差异通过额外 Host 控制 patch 的 convivium.config.agentModelOverrides 提供，key 为 Definition ID，value 只含 provider/model/reasoningEffort；该控制 patch 在角色部署 patch 后加载。Cordis 整体替换 config，必须同时保留 provider: spawn、maxParticipants: 8 和部署 patch 中的完整 agentDefinitions 读取表达式，再加入 agentModelOverrides，不能只写模型 map。这里的值必须来自宿主已配置、支持的真实模型路由，不提供猜测的模型 ID，不编辑 Definition/Skill 或 credentials 来实现覆盖。
 
 ## Assert
 
@@ -87,7 +90,7 @@ env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
 ```
 
-前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。meeting-roles 不支持 Browser 模式，也不加入默认五个核心场景。它从同一 tarball 解包资源，按部署 patch → 临时控制 patch 加载，显式挂载 convivium Captain；控制 patch 设八人容量和 300000ms speaker timeout，不替换交付的角色定义。创建后暂停会议并中断当前 child 执行，再逐个发送固定 Skill 验证请求；每个 child 最多 180000ms，场景结果最多等待 2400000ms。
+前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。meeting-roles 不支持 Browser 模式，也不加入默认五个核心场景。它从同一 tarball 解包资源，按部署 patch → 临时控制 patch 加载，显式挂载 convivium Captain；控制 patch 设八人容量和 300000ms speaker timeout，并重述同一资源 JSON 的读取表达式以保留角色定义。创建后暂停会议并中断当前 child 执行，再逐个发送固定 Skill 验证请求；每个 child 最多 180000ms，场景结果最多等待 2400000ms。
 
 ## Restore And Failure Handling
 
@@ -99,6 +102,6 @@ env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
 
 ## Evidence And Not Covered
 
-执行后将日期、版本、artifact 边界、命令、九角色结果、权限拒绝、恢复和 Restore 写入 [Smoke Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)，并更新 Coverage。本文尚无本轮真实部署成功证据；定向测试不替代该证据。
+执行后将日期、版本、artifact 边界、命令、九角色结果、权限拒绝、恢复和 Restore 写入 [Smoke Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)，并更新 Coverage。本轮失败与清理证据见 [Meeting Roles Deployment](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)；修复前不要据上述命令宣称九角色部署成功。
 
 长期模型任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 和 Host capability 内容变更后的历史快照不在本流程内；必需的九角色部署与研究工具可用性不能作为 Not Covered 跳过。

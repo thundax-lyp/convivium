@@ -1,4 +1,8 @@
 import { readFileSync } from "node:fs";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { createRequire } from "node:module";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -84,7 +88,8 @@ describe("meeting roles deployment smoke", () => {
         const patch = writeFile.mock.calls[0][1];
         expect(patch).toContain("maxParticipants: 8");
         expect(patch).toContain("speakerTimeoutMs: 300000");
-        expect(patch).not.toContain("agentDefinitions");
+        expect(patch).toContain("agentDefinitions: !!js");
+        expect(patch).toContain("CONVIVIUM_MEETING_ROLES_ROOT");
         expect(patch).not.toContain("agentModelOverrides");
     });
     it.each(["skill loading failed", "result timeout"])(
@@ -324,6 +329,81 @@ describe("native Skill loading evidence", () => {
             expect(vi.getTimerCount()).toBe(0);
         } finally {
             vi.useRealTimers();
+        }
+    });
+});
+
+describe("native deployment patch composition", () => {
+    it("preserves packaged definitions and runtime controls with separate profile and asset roots", async () => {
+        const nativeRequire = createRequire(import.meta.resolve("@deepseek-ai/dsh-agent-presets"));
+        const { applyEntryPatches, entryListSchema } = await import(
+            nativeRequire.resolve("@deepseek-ai/cordis-plugin-include")
+        );
+        const { interpolate } = await import(
+            nativeRequire.resolve("@deepseek-ai/cordis-plugin-loader")
+        );
+        const { load } = nativeRequire("js-yaml");
+        const root = await mkdtemp(join(tmpdir(), "convivium-role-composition-"));
+        try {
+            const assets = join(root, "resources/meeting-roles");
+            await cp(fileURLToPath(new URL("../../../meeting-roles", import.meta.url)), assets, {
+                recursive: true
+            });
+            const deployment = load(readFileSync(join(assets, "cordis.patch.yml"), "utf8"), {
+                schema: entryListSchema
+            });
+            const writeFile = vi.fn();
+            const source = wrapper.slice(
+                wrapper.indexOf("async function writeSmokePatch("),
+                wrapper.indexOf("async function writeProbePackage(")
+            );
+            const writePatch = runInNewContext(source + "\nwriteSmokePatch", {
+                PROVIDER: "spawn",
+                BROWSER_MODE: false,
+                writeFile
+            });
+            await writePatch("control", "meeting-roles");
+            const control = load(writeFile.mock.calls[0][1], { schema: entryListSchema });
+            const warnings = vi.fn();
+            const rows = applyEntryPatches(
+                [
+                    { id: "agent-presets", config: { default: "standard" } },
+                    { id: "convivium", config: { provider: "spawn" } }
+                ],
+                [...deployment, ...control],
+                warnings
+            );
+            expect(warnings).not.toHaveBeenCalled();
+            const context = {
+                baseUrl: pathToFileURL(join(root, "profile/")).href,
+                process: {
+                    getBuiltinModule: process.getBuiltinModule,
+                    env: { CONVIVIUM_MEETING_ROLES_ROOT: assets }
+                }
+            };
+            const preset = interpolate(context, rows[0].config);
+            const meeting = interpolate(context, rows[1].config);
+            expect(preset.default).toBe("convivium");
+            expect(preset.roots).toEqual([{ path: join(assets, "presets"), trust: "system" }]);
+            expect(
+                readFileSync(join(preset.roots[0].path, "convivium/agent.cordis.yml"), "utf8")
+            ).toContain("skill-filesystem");
+            expect(meeting).toEqual({
+                provider: "spawn",
+                dataRoot: "convivium-smoke-data",
+                maxParticipants: 8,
+                speakerTimeoutMs: 300000,
+                outboxPollMs: 1000,
+                agentDefinitions: deployed.definitions
+            });
+            const missing = {
+                ...context,
+                process: { getBuiltinModule: process.getBuiltinModule, env: {} }
+            };
+            expect(() => interpolate(missing, rows[0].config)).toThrow();
+            expect(() => interpolate(missing, rows[1].config)).toThrow();
+        } finally {
+            await rm(root, { recursive: true, force: true });
         }
     });
 });

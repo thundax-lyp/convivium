@@ -47,7 +47,7 @@ Model 默认值、search/fetch provider、Sandbox/Approval 与 Session persisten
 
 核心插件 patch 保持无 Web/有 Web 的原边界；meeting-roles 的显式部署 patch 修改 web profile 的 agent-presets 与 convivium row，将所有定义绑定 convivium、maxParticipants=8、provider=spawn。此 patch 只用于独立会议 profile，不隐式替换日常 profile 的 roots/default。
 
-发行 tarball 同时安装插件与提供解包后的静态 patch。DSH --patch 首先加载该资源 patch，然后加载本次控制参数 patch；两者来自同一发布边界。Convivium Runtime 不读取任意文件路径、不复制或安装能力。
+发行 tarball 同时安装插件与提供解包后的静态 patch。Host 将非敏感环境变量 `CONVIVIUM_MEETING_ROLES_ROOT` 设为同包解包后 meeting-roles 的绝对目录；部署 patch 只拼接固定 presets/ 和 definitions.json，缺变量时 Loader 失败。外部 patch 的表达式 baseUrl 属于 profile，不能用于定位资产。DSH --patch 首先加载该资源 patch，然后加载本次控制参数 patch；Cordis 会整体替换同 row 的 config，后层必须重述原定义加载表达式及 provider/容量，再叠加所需运行参数或 agentModelOverrides。两层引用同一文件，不复制角色定义或模拟 Preset；Convivium Runtime 仍只接收内联数组，不读取任意路径、不安装能力。
 
 ## State And Failure Handling
 

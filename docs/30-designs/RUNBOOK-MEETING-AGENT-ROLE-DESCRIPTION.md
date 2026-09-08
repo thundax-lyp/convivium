@@ -3,7 +3,7 @@
 ## Status And Executor Contract
 
 - 日期：2026-09-08；分支：`codex/meeting-agent-role-description`；工作目录：仓库根目录。
-- 模式：Execute；2026-09-08 用户明确授权依次执行 TODO LIST，一任务一提交；按 MAD-01–MAD-11 执行 T1–T6，未授权 push、PR 或 merge。作者基线核验已完成。
+- 模式：Execute；2026-09-08 用户明确授权依次执行 TODO LIST，一任务一提交，并追加授权“你来解决，确保TODO全部执行完”，包含本部署链路缺陷的校准、修复与复验；按 MAD-01–MAD-11 执行 T1–T6，未授权 push、PR 或 merge。作者基线核验已完成。
 - 目标：初次发布直接交付最终角色模型、原生 DSH Skills、一个共享 Preset，以及九个角色在同一会议中的完整部署验收。不能以旧 schema、旧样本或原验证器的方便程度限制设计。
 - 用户确认：2026-09-08 本任务中明确要求“直达目标”“初次发布，不考虑迁移”“九个样本应该部署完善”。此前仅精简样本文字的范围已被替代。
 - 部署边界：交付可分发资源，并在独立临时 DSH `web` profile 安装、运行、恢复和清理；不改日常 profile。用户若另行指定日常 profile，单独记录目标后执行，不将其作为本 RUNBOOK 的隐含写权限。
@@ -182,13 +182,13 @@ Meeting Manager 的 toolFilter 固定 allow `["skill", "convivium_meeting_status
     includeShippedRoot: true
     includeUserRoot: true
     roots:
-      - path: !!js "process.getBuiltinModule('node:url').fileURLToPath(new URL('presets/', baseUrl))"
+      - path: !!js "process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'presets')"
         trust: system
 - id: convivium
   config:
     provider: spawn
     maxParticipants: 8
-    agentDefinitions: !!js "JSON.parse(process.getBuiltinModule('node:fs').readFileSync(new URL('definitions.json', baseUrl), 'utf8')).definitions"
+    agentDefinitions: !!js "JSON.parse(process.getBuiltinModule('node:fs').readFileSync(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'definitions.json'), 'utf8')).definitions"
 ```
 
 只在独立 meeting profile 使用该 roots/default 覆盖；不改变用户现有 profile 的设置。DSH Settings 的 default 仍可能覆盖配置，因此验收和操作说明必须显式选择 `convivium` Captain Preset。文件读取发生在受信任 DSH Loader 配置求值边界；Convivium Config 仍只接收内联数组，不新增路径读取能力。
@@ -313,8 +313,8 @@ STOP：本地 schema/资源门禁失败、所列 DSH row 不能解析、需要�
 执行：
 1. roleSmokeDefinitions 继续返回两个 fixture Definition，但使用 roleDescription；同文件新 `roleSmokeModelOverrides(phase)` 返回独立 map，phase 只接受 "1"/"2"。wrapper 的 writeSmokePatch 同时配置该 map。phase 2 仍改变角色文本与模型；assertRoleSmoke 的 native descriptor/assembly 预期改为 resolver 的确定性派生文本，继续证明 phase 1 被恢复。result contract 用新的完整 persona 预期，不削弱隔离、禁用工具 body 零调用、父路由不变或两 Host 恢复断言。
 2. 新 selector `meeting-roles` 加到 SMOKE_SCENARIOS、run 的允许集合和 runSelectedScenario，排除 CORE_SCENARIOS 并拒绝 Browser mode；现有 smoke-profile.spec.ts 的总数断言由 16 改为 17；`driveParticipant` 对该 selector 立即返回，不用旧三位 Participant driver 自动代提交。
-3. wrapper 在本场景将同一 tarball 用 `tar -xzf` 解包到 `tempRoot/role-package`；只使用 `role-package/package/meeting-roles`。installArtifact/installProbe 仍用同一 native CLI；dumpConfig/bootHost 的参数顺序固定为部署 patch 后控制 patch。控制 patch 只设置临时 dataRoot、8 人容量、speakerTimeoutMs=300000、outboxPollMs=1000，不替换交付 definitions/Preset/Skills。本场景 waitForJson 的 result timeout 固定为 2400000ms（九个 180s 模型探针及六个外部工具调用的串行上界加清理余量），启动/安装 timeout 及其他 scenario 不变；不能失败后再放大。
-4. probe 为新 selector 创建真实 Captain，sessionId 使用原 `convivium-smoke-captain`，meta.agentPreset 为 convivium，setup 调用原生 agentPresets.mount；不使用 registerSmokeAgent 代替真实 Captain。部署资产路径由 wrapper 通过 `CONVIVIUM_SMOKE_ROLE_ASSET_ROOT` 传递给 probe，仅此 test process 消费，不加生产配置。
+3. wrapper 在本场景将同一 tarball 用 `tar -xzf` 解包到 `tempRoot/role-package`；只使用 `role-package/package/meeting-roles`。installArtifact/installProbe 仍用同一 native CLI；dumpConfig/bootHost 的参数顺序固定为部署 patch 后控制 patch。控制 patch 设置临时 dataRoot、8 人容量、speakerTimeoutMs=300000、outboxPollMs=1000，并重述同一包 definitions.json 的只读加载表达式，以适配 Cordis config 整体替换语义；不替换交付 definitions 的内容、Preset 或 Skills。本场景 waitForJson 的 result timeout 固定为 2400000ms（九个 180s 模型探针及六个外部工具调用的串行上界加清理余量），启动/安装 timeout 及其他 scenario 不变；不能失败后再放大。
+4. probe 为新 selector 创建真实 Captain，sessionId 使用原 `convivium-smoke-captain`，meta.agentPreset 为 convivium，setup 调用原生 agentPresets.mount；不使用 registerSmokeAgent 代替真实 Captain。部署资产路径由 wrapper 通过 `CONVIVIUM_MEETING_ROLES_ROOT` 传递给 probe，同时由 Host Loader 的部署/控制 patch 消费，Convivium Config 仍只接收内联数组，不新增 Runtime 路径配置。
 5. 新模块唯一导出 `async function runMeetingRolesScenario(runtime)`。读取包内 definitions，验证 runtime Captain scope composedPreset=convivium。用原 createInput() 的议题/目标，替换 participants 为八个非 Manager 角色，participantKey 取 roleDefinitionId（不解析 Session ID 后缀）；每项固定 `{participantKey: d.roleDefinitionId, displayName: d.displayName, agentDefinitionId: d.agentDefinitionId}`；agenda[0].requiredParticipantKeys 同步为八个 key，移除旧 a/b/c 引用；Manager ID 选择 convivium.meeting_manager。通过真实 convivium_create_meeting 创建；assert 返回八 Participant 且 runtime 持久 children 为九个独立 Session。立即由 Captain 调用 convivium_pause_meeting，input 固定 `{protocolVersion:1, meetingId, expectedMeetingVersion: 当前 status 的 meetingVersion, requestId:"meeting-roles-pause", reason:"Verify deployed roles without formal writes"}`，确认 paused 后，由 probe 对九个 childId 调用 `ctx.subagents.interrupt(childId, {kind:"ancestor", agent: captain})`，对当时 resident Agent 的 `whenIdle()` 等待至多 30000ms，再开始技能/外部能力探针。pause 只提交会议状态，不假设它会中断 DSH；此处沿现有 recovery probe 的公开中断调用，不改变生产生命周期；不恢复会议或让 probe 代写正式发言。
 6. 逐个读取真实 child：预期 childId 沿现有 allocator `${meetingId}-manager-manager` 或 `${meetingId}-participant-${participantId}`；participantId 必须取 create result 中与 participantKey 对应的 canonical ID，并断言其为 `participant-${participantKey}`，因此完整 Participant Session ID 为 `${meetingId}-participant-participant-${participantKey}`。依据是 `plugin/src/runtime/application-service/create-meeting.ts` 的 runningCreateResult/allocateSessionId 和 `plugin/src/runtime/meeting-runtime.ts` 的 createMeetingRuntime；不要改 allocator，不从 Session ID 反解业务身份。pause 可能释放 resident Activation，先通过准确 Captain 的 sendMessage（允许 DSH 原生 cold resume）给每个 child 固定指令：“本次只验证角色部署。先调用 skill 加载你的 required Skill，成功后回复 ROLE_READY，不执行正式会议操作或修改文件。”sendMessage 后通过 waitForAgent 取得真实 live child，先核对派生 persona 与自己的 roleDescription/Skill 名，再观察它自己的 Session。每个 child 从 sendMessage 前开始最多等待 180000ms，必须在它自己的原生 Session 事件中看到该 Skill 的 tool/call 和成功 tool/result，正文包含对应四条方法，再出现 ROLE_READY；不能用 ctx.skills.get 或直接伪造 session.append 代替。
 7. 在 GitHub/arXiv/Web 三个真实 child 上，使用 ctx.tools.execute 调用原生 web_search 与 web_fetch，原生 arguments 固定为 web_search 的 `{queries:[query]}` 和 web_fetch 的 `{url}`，不包裹会议工具的 input。固定 search 查询分别为 `site:github.com/deepseek-ai/deepseek-harness`、`site:arxiv.org Attention Is All You Need`、`site:typescriptlang.org documentation`；fetch URL 分别为 `https://github.com/deepseek-ai/deepseek-harness`、`https://arxiv.org/abs/1706.03762`、`https://www.typescriptlang.org/docs/`。要求 search result.isError=false 且 result.value.sources 至少一个 URL 的 hostname 是对应域或其子域；fetch result.isError=false、result.value.statusCode 为 2xx、result.value.body.content 非空。这里证明部署 Provider 可工作，不声称模型自主完成研究质量验收。
@@ -350,6 +350,31 @@ git diff --check
 PASS：指定命令 exit 0，预期与正式分发契约一致；不是删除或放宽断言。
 STOP：需要改动上述范围之外的生产或测试行为。
 
+### T4b：修复原生部署组合并补回归
+
+前置状态：2026-09-08 用户明确授权解决部署断点并执行完全部 TODO；保留失败证据。
+允许修改：`plugin/meeting-roles/cordis.patch.yml`、`plugin/meeting-roles/presets/convivium/agent.cordis.yml`、`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/scenarios/meeting-roles.js`、`plugin/tests/unit/scripts/meeting-roles-smoke.spec.ts`、`plugin/tests/unit/scripts/smoke-profile.spec.ts`；Definition Interface 的部署说明、Role Composition Design 的 Native deployment resources、两份 operations、包内 README、本文件和 TODO。不新增文件/依赖。T5 成功后允许同步 Requirements FR-14、Definition Interface、Architecture、Role Composition Design 中本任务的过期实现状态语句；不改其业务契约。
+禁止修改：生产 Runtime/权限/allocator/恢复、定义角色职责、实际成功判据、既有场景超时、用户日常 profile。
+
+执行：
+1. Host 环境变量 `CONVIVIUM_MEETING_ROLES_ROOT` 固定为本次同 tarball 解包后的 meeting-roles 绝对目录。部署 patch 的 roots 与 definitions 都用 node:path.join 在此目录读取固定子路径，缺变量时 Loader 报错；不以 profile baseUrl 或 cwd 猜资源。
+2. Cordis 后层 config 整体替换。smoke 控制 patch 重述与部署 patch 相同的只读 definitions 表达式，最终完整配置包含定义、spawn、8 人容量与原临时运行参数。probe 使用同一环境变量。模型 override 操作文档也明确后层必须保留完整 convivium.config。
+3. 在既有 meeting-roles suite 通过已安装 dsh-agent-presets 的 peer 解析 native include/loader 与 js-yaml，测试用真实 entryListSchema/applyEntryPatches/evaluate：profile 与资源根分离后仍读取九定义/正确 Preset 路径；控制参数完整；缺资源变量失败。使用临时拷贝并 finally 清理，不复制 patch 算法。
+4. 实际部署出现本步骤所列资产或 probe 接线缺陷时，在相同授权范围修复并补行为回归；不得降级为 fixture、跳过九次 Skill、三类研究、权限或隔离断言，也不放大超时。正式服务不可用时记录实际阻塞，不伪造结果。
+5. 同步独立部署命令导出非敏感资源根变量、patch 整体替换语义，修复单独提交；随后恢复 T5 的四条顺序命令。
+
+验证：
+```bash
+pnpm --dir plugin exec prettier meeting-roles scripts/smoke-profile tests/unit/scripts/meeting-roles-smoke.spec.ts tests/unit/scripts/smoke-profile.spec.ts --write
+pnpm --dir plugin lint
+pnpm --dir plugin typecheck
+pnpm --dir plugin exec vitest run tests/unit/scripts/meeting-roles-smoke.spec.ts tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/role-composition-smoke.spec.ts
+pnpm --dir plugin verify:agent-definitions
+```
+并执行 V-DOC、git diff --check。
+PASS：native 组合回归和指定门禁 exit 0；之后实际部署成功由 T5 判定。
+STOP：需修改禁止范围、增加依赖/权限、放宽验收或真实服务不可用。
+
 ### T5：完成全量验证、实际部署和正式证据
 
 前置状态：T4 PASS；现有 dev.env 凭据流程可用。仅检查配置存在，不打印 secret；不在本任务购买或填写凭据。
@@ -359,7 +384,7 @@ STOP：需要改动上述范围之外的生产或测试行为。
 执行：
 1. 本轮 Author 已创建目标 operations；实现后核对并补齐实际命令证据，再移除“尚未实现/验证”标记。operations 固定说明 native plugin add、同 tarball 解包、web --patch、显式 convivium Captain、八角色初始选择、Host model override patch、恢复与清理。它必须给出唯一可执行命令序列，从仓库构建 artifact，写入仅本次专用 dsh-workspace/meeting-roles-deployment 目录，不覆盖现有目录；沿既有 HOW-TO 的 dev.env 子进程注入。由包内 README 链接，用户无需编辑九个定义才能组合运行。
 2. HOW-TO-DSH-SMOKE 更新新场景与总数为 17，CORE 仍 5；同步 role-composition 的 Host model map 说明。新场景没有 Browser 入口。
-3. 按以下顺序运行，首次失败 STOP。native 新部署不得跳过，不以 keyless tests 替代；网络/凭据失败记录为阻塞，不能交付为“部署完善”。完整 verify 通过后才运行 Host smoke。
+3. 按以下顺序运行，首次失败停止后续命令；本次用户已授权的部署/探针缺陷回到 T4b 修复，再从完整 verify 重跑。超出 T4b、扩大产品/权限/依赖、凭据或外部服务阻塞时 STOP。native 新部署不得跳过，不以 keyless tests 替代；网络/凭据失败记录为阻塞，不能交付为“部署完善”。完整 verify 通过后才运行 Host smoke。
 
 验证：
 ```bash
@@ -469,3 +494,7 @@ Not Covered：本轮未改生产代码、测试或部署资源；仅运行 Confi
 2026-09-08 MAD-09 PASS：两份 operations 和随包 README 已对齐同包安装/解包、独立 workspace、显式 Captain Preset、Host 模型覆盖、17 场景/5 CORE 与无 Browser 边界。明确四次工具拒绝与模型调用范围，保留真实部署待验证标记。V-DOC、operations shell 语法和 diff check PASS；未执行人工日常 Host 操作。
 
 2026-09-08 T4a PASS：首次 T5 verify 为 85 files / 1133 tests PASS、package-contract 一项旧 exports 断言失败，未进入 build/Host smoke。按本次校准授权补入漏列的既有 contract，仅同步精确 exports/files 预期；1 个 contract test、prettier、lint、V-DOC/diff check PASS。T5 从完整 verify 重新开始。
+
+2026-09-08 T5 STOP：accb2b8 完整 verify（86 files / 1134 tests）和 role-composition（12494ms、Host PID 69905/69914、restore=PASS）通过；meeting-roles 在 Captain setup/mount 失败，原始错误为 `preset "convivium" not found (available: standard, ptc, minimal, cordis)`。安装版 evaluate/applyEntryPatches 只读复现 baseUrl 指向 profile、后层 config 整体替换导致 agentDefinitions 丢失。失败临时根已删除、49494 端口 exclusive bind PASS；默认核心命令未执行。当前 T5 不允许修改部署 patch/wrapper；需先确认并校准这两处原生组合行为后恢复实施。正式失败证据已迁入 Smoke Evidence 的 Meeting Roles Deployment；MAD-10/11 保留，不 commit 未完成任务。
+
+2026-09-08 T4b 初次修复 PASS：按追加授权使用 Host 明确资源根，并在控制 patch 重述同源 definitions；安装版 entryListSchema/applyEntryPatches/interpolate 回归覆盖两层配置、异目录和缺变量失败。71 focused tests、lint、双端 typecheck、九资源门禁、V-DOC/diff check PASS。真实部署继续由 T5 判定。
