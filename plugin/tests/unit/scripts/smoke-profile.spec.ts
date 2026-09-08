@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { runDecisionRiskClosureScenario } from "../../../scripts/smoke-profile/probe/scenarios/decision-risk-closure.js";
 
 import {
+    writeSmokePatch,
     createSmokeEnvironment,
     loadSmokeApiKey,
     loadMeetingStatusSchema,
@@ -831,4 +832,32 @@ it("finds meeting deliveries after DSH sender text without assuming the first bl
         planningAttemptId: "p2",
         meetingVersion: 2
     });
+});
+
+it("routes meeting storage to the same profile-owned SQLite file across cold phases", async () => {
+    const root = await mkdtemp(join(tmpdir(), "convivium-sqlite-profile-"));
+    const patchPath = join(root, "smoke.yml");
+    try {
+        const phases = [];
+        for (const phase of ["1", "2"]) {
+            await writeSmokePatch(patchPath, "cold-rebind", phase);
+            const patch = readFileSync(patchPath, "utf8");
+            phases.push(patch);
+            expect(patch.match(/id: convivium-smoke-storage-sqlite/g)).toHaveLength(1);
+            expect(patch).toContain("name: '@deepseek-ai/dsh-storage-sqlite'");
+            expect(patch).toContain(
+                `path: ${JSON.stringify(join(root, "convivium-storage.sqlite"))}`
+            );
+            expect(patch).toContain("journalMode: wal");
+            expect(patch).toContain(
+                "- id: storage-domain\n  config:\n    backend: sqlite\n    routes:\n      workspace: json\n      session_projcache: json\n      message_feedback: json"
+            );
+            expect(patch).not.toMatch(/dataRoot|convivium-jsonl|\*/);
+            expect(patch).not.toContain("id: storage-json");
+        }
+        expect(phases[0]).toBe(phases[1]);
+        expect(smokeProfileSource).toContain('"@deepseek-ai/dsh-storage-sqlite": DSH_VERSION');
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
 });

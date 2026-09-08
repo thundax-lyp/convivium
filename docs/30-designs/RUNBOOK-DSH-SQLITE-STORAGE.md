@@ -365,3 +365,5 @@ T3 的 V1–V4 使用落盘 SQLite。测试内读取生产公开 Domain，允许
 - 2026-09-08 T3 PASS：新增真实 SQLite 恢复 6 tests，与 checkpoint/domain recovery 合计 26 tests 通过；Host/Client typecheck 通过。V1–V4 均通过新 Context 同库重开验证，生产算法未修改。夹具使用公开诊断 get 获取已打开 Domain；人工写 checkpoint 后先重开 repository 再追加，避免绕过其内存游标。
 
 - 2026-09-08 T4 PASS：删除 10 个物理存储生产文件及 12 个专属测试/夹具文件；保留 consumer 和领域算法。补入模块边界测试依赖修订后 4 suites/23 tests、lint、Host/Client typecheck、build、plugin contract 通过；旧 backend/dataRoot 源码与测试搜索无匹配，repository/runtime 相对替换前零 diff。lockfile-only 未产生依赖升级。
+
+- 2026-09-08 T5 PASS：隔离 probe manifest 安装固定 SQLite provider，patch 显式配置 sqlite/default 与三个精确 json routes，同根 DB 路径供两 phase 复用；40 smoke-profile tests 与 lint 通过。尚未以此声明 Loader PASS。

@@ -8,16 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `smoke-profile / SQLite 接线`：配置隔离 profile 的 SQLite 组合
-    - 依据文档：[Architecture：Host/profile 所有权](docs/00-governance/ARCHITECTURE.md#confirmed-storage-provider-transition)；[Implementation Design：Storage Domain 生命周期](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#storage-domain-ownership-and-lifecycle)；[Smoke 操作规则：分层与入口](docs/50-operations/HOW-TO-DSH-SMOKE.md#自动-smoke-的分层与入口)、[成功与 Restore](docs/50-operations/HOW-TO-DSH-SMOKE.md#成功与-restore)。
-    - 执行步骤：[RUNBOOK T5](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t5配置隔离-profile-的-sqlite-组合)
-    - 修改文件：`plugin/scripts/smoke-profile/index.mjs::writeProbePackage`、`writeSmokePatch`、`dumpConfig`；`plugin/tests/unit/scripts/smoke-profile.spec.ts`。
-    - 只读边界：`plugin/scripts/smoke-profile/environment.mjs` 与现有 scenario/result 模块，不修改凭据、selector 或已有 profile。
-    - 前置依赖：T4 PASS。
-    - 确认依据：2026-09-08 用户明确要求依次执行 TODO LIST，一任务一提交。
-    - 处理动作：配置 test-only profile provider 依赖、SQLite row 和精确 Domain 路由，并验证生成配置。
-    - 验收点：配置测试与 lint 通过；phase 1/2 复用同一 DB 路径；本项不声称真实 Loader 已验证。
-
 - [ ] `smoke-profile / 真实运行`：验证真实 profile 冷重启与清理
     - 依据文档：[Architecture：Host/profile 所有权](docs/00-governance/ARCHITECTURE.md#confirmed-storage-provider-transition)；[Implementation Design：Storage Domain 生命周期](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#storage-domain-ownership-and-lifecycle)；[Smoke 操作规则：分层与入口](docs/50-operations/HOW-TO-DSH-SMOKE.md#自动-smoke-的分层与入口)、[成功与 Restore](docs/50-operations/HOW-TO-DSH-SMOKE.md#成功与-restore)。
     - 执行步骤：[RUNBOOK T6](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t6验证真实-profile-冷重启与清理)
