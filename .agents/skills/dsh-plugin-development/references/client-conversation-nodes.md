@@ -4,7 +4,9 @@
 
 ## Conversation Node
 
-Host producer 拥有事件类型、payload 和 branded business id。Client plugin 拥有 `ConversationNodeDefinition`、typed Location data、target Node payload 与 keyed renderer。Renderer 只消费已组装数据，不读取 Host service，不扫描 Session window，也不把 live object 放进 Node。
+Host producer 拥有事件类型、payload 和 branded business id。Client plugin 拥有 `ui-conversation` 的 `ConversationNodeDefinition`、typed Location data、`ui-chat` 的 target Node payload 与 keyed renderer。Renderer 只消费已组装数据，不读取 Host service，不扫描 Session window，也不把 live object 放进 Node。
+
+通过 `ctx.uiConversation.events.register(definition)` 贡献事件组装，通过 `conversation.chat.node` slot 注册 keyed renderer。组装器在 ui-conversation，业务 Node 在 ui-chat，Session controller 持有事件窗口与连接，不能在中央 Session dispatcher 添加业务 switch。
 
 ## 事件族与 identity
 
@@ -20,6 +22,12 @@ Append path 对每个 Definition 只匹配当前 event，命中后按 key 常量
 
 Publication 使用 `immediate` 处理结构/terminal 变化，`animation-frame` 合并高频可见 delta，`none` 延迟只供后续 publication 使用的 state。Cadence 不改变 log-order fold。暂时隐藏已发布 Node 使用相同 key 加 `visibility: hidden`，不要撤回后重新创建 identity。
 
+## Packed history 与目标激活
+
+`match` 接收 `SessionEventLike`。历史 assistant delta 可能以 `chunkrow/text-chunks`、`chunkrow/reasoning-chunks`、`chunkrow/tool-call-chunks` 到达；它们只能是 update，顶层 seq/time 指向第一逻辑成员。消费这些事件的 Definition 同时处理 scalar 与 packed 分支，一组 packed row 保持一个 Match，不先展开为全部成员；不消费该类型时返回 null。
+
+创建 target source 本身不执行 builder。显式选择或首次订阅才激活 target 并执行一次完整 replace；后续变化传播到已激活 target，重复激活不重复 rebuild。Cadence 只影响 publication，不能改变 fold 的顺序或丢失事实。
+
 ## 必需证据
 
-证明 complete replace、update-only tail 加 prepend start、history 加 live append 与 combined replay 得到相同 State/Location/Node；旧页 prepend 不替换未变化 keyed Node；高频 delta 保持 key 并按 cadence 发布；renderer 只消费 node data 与 constrained Location hooks。产品可见变化再覆盖 Client bundle composition、Session replay 和 GUI rendering。
+证明 complete replace、update-only tail 加 prepend start、history 加 live append 与 combined replay 得到相同 State/Location/Node；旧页 prepend 不替换未变化 keyed Node；高频 delta 保持 key 并按 cadence 发布；renderer 只消费 node data 与 constrained Location hooks。补充 scalar/packed replay 等价、目标未激活不构建、首次激活完整重建及重复激活不重建。产品可见变化再覆盖 Client bundle composition、Session replay 和 GUI rendering。

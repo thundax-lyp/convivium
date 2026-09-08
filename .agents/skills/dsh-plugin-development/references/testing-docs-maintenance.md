@@ -1,6 +1,6 @@
 # 测试、文档与 Skill 维护
 
-本 reference 覆盖证据选择、rc.2 命令、公共文档交付、生成物与本离线 skill 的维护。
+本 reference 覆盖证据选择、v0.1.2-rc.1 命令、公共文档交付、生成物与本离线 skill 的维护。
 
 ## 按变更面选择证据
 
@@ -24,47 +24,66 @@
 
 ## 验证命令矩阵
 
-从仓库根目录运行最小适用集合，只报告实际观察到输出的命令。
+下表命令只适用于精确目标版本的 DSH monorepo，从其根目录运行。独立插件先检查自身 package.json、贡献规则与验证入口，把上节的证据要求映射到已有测试、构建和真实 Profile smoke；不要照搬上游目录、脚本、README gate 或新建 monorepo 结构。缺少能覆盖变更面的检查时，说明缺少的证据，不把命令不存在当成产品失败，也不把其他检查替代为通过。只报告实际观察到输出的命令。
 
-| 变更面                               | Convivium 命令                                                          | 前置条件与证据                                                                                                                   |
+| 变更面                               | v0.1.2-rc.1 命令                                                       | 前置条件与证据                                                                                                                   |
 | ------------------------------------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 聚焦 unit/composition spec           | `pnpm --dir plugin exec vitest run tests/<path>/<file>.spec.ts` | 从仓库根目录运行；证明局部行为与 cleanup。 |
-| Type API、declaration merge、exports | `pnpm --dir plugin typecheck` | 解析 Host 与 Client compiler face。 |
-| Static source                        | `pnpm --dir plugin lint` | 修正所属源码，不压制规则。 |
-| Plugin/package Markdown 或 JSDoc     | `pnpm --dir plugin format:check` | 仓库没有上游 `doc-sync`；Markdown link、heading 和 skill 文档按本仓库规则检查。 |
-| 模型/用户组合行为                    | `pnpm --dir plugin test` | 使用所属 unit、contract 或 integration fixture；真实 DSH profile 另跑 `pnpm --dir plugin smoke:profile`。 |
-| 产品可见插件 wiring                  | `pnpm --dir plugin test` | 包含当前 plugin 的 runtime、contract、integration 测试。 |
-| Client code                          | `pnpm --dir plugin test --project client` | 本仓库没有上游 `test:gui`。 |
-| Built runtime entry                  | `pnpm --dir plugin build` 后运行所属 built smoke | Source test 不能证明发布 artifact。 |
-| Provider transport                   | `pnpm --dir plugin smoke:profile` | 使用仓库固定 `web` profile 与 `spawn` provider；外部凭证依赖必须准确报告未覆盖。 |
-| Package contract                      | `pnpm --dir plugin verify:contract && pnpm --dir plugin verify:package` | 验证 manifest、bundle、exports 和发布 allowlist。 |
-| 全量插件改动或 outgoing branch/push | `pnpm --dir plugin verify` | 覆盖 format、lint、Host/Client typecheck、test、build、environment、contract、samples 和 package。 |
+| 聚焦 unit/composition spec           | `pnpm exec vitest run packages/<group>/<package>/tests/<file>.spec.ts` | 替换为真实路径；证明局部行为与 cleanup。                                                                                         |
+| 新 workspace package                 | `pnpm install` 然后 `pnpm run constraints`                             | 注册 workspace 并检查 manifest/package 规则。                                                                                    |
+| Type API、declaration merge、exports | `pnpm run typecheck`                                                   | 解析 Host 与 Client compiler face。                                                                                              |
+| Static source                        | `pnpm run lint`                                                        | 修正所属源码，不压制规则。                                                                                                       |
+| Package/docs Markdown 或 JSDoc       | `pnpm run doc-sync`                                                    | 运行 v0.1.2-rc.1 文档 generator 与 gate。                                                                                        |
+| Website navigation/link              | `pnpm run website:build`                                               | 构建 VitePress 并检测死链。                                                                                                      |
+| 模型/用户组合行为                    | `pnpm run test:snapshot -- -t '<case name>'`                           | 使用窄化的已有或新增 fixture。                                                                                                   |
+| 产品可见插件 wiring                  | `pnpm exec vitest run packages/<group>/<package>/tests`                | 包含真实 Loader/应用组合测试。                                                                                                   |
+| Client code                          | `pnpm run test:gui`                                                    | 运行 Client 与 Host-side GUI suites。                                                                                            |
+| 组合 browser/output                  | `DSH_SNAPSHOT=replay pnpm run test:web`                                | 重建并运行 keyless replay/browser lane。                                                                                         |
+| Built runtime entry                  | `pnpm run build` 后运行所属 built smoke                                | Source test 不能证明发布 artifact。                                                                                              |
+| Provider transport                   | `pnpm run test:e2e`                                                    | 需要 Provider key；准确报告 self-skip。                                                                                          |
+| Outgoing branch/push                 | 按 outgoing diff 选择上面的最小适用集合                                | 遵循仓库 `dsh-pre-push-checks`；只有 manifest、public export、build config 或发布路径等相关变更才运行适用的 hygiene/build gate。 |
 
-`pnpm --dir plugin test:stress` 是显式的 stress 入口；默认 `pnpm --dir plugin verify` 不包含真实 DSH profile smoke。仓库没有 `constraints`、`doc-sync`、`website:build`、`test:gui` 或 `test:web` 等上游 DSH monorepo 脚本；需要这些能力时必须标记为未覆盖，不得把上游命令当作本仓库验证入口。
+`pnpm run test:coverage` 是 CI coverage gate，不是默认本地命令。仅在明确要求、诊断 CI 或聚焦证据无法覆盖时运行。`pnpm run check:windows-wine` 只用于已知 Windows failure。`pnpm run test:docs` 运行不要求 build 的 doc-quick aggregate；`pnpm run test:expected` 运行 owner-local CLI/process expected-output suites。它们不替代 recorded-session snapshot 或声明编译。
+
+录制 Session 驱动的 fixtures 位于顶层 `snapshots/session`、`snapshots/sdk`、`snapshots/acp`、`snapshots/web`；普通 expected output 留在 owner-local tests/expected。TypeScript 与 Python SDK projection 分别验证，普通 test 不证明两者。Browser record/refresh 和真实 Provider 调用需要独立授权与明确变更目的；keyless replay 不修改预期输出。
 
 ## 文档交付
 
 Public behavior 变化时同步更新 JSDoc 与所属包 README。记录 parameter、non-void return、event dispatch mode、failure、timing、cancellation、ownership 与 safe-use fact。使用当前状态表述，一项事实只有一个位置；不要叙述实现历史或复述代码。
 
-包 README 的准确 Model Experience/KV Cache/Known Limitations 模板在 package-authoring reference 中。Generated catalog 是 projection：修改源并运行所属 generator，不手工编辑生成区域。
+DSH monorepo 的包 README 使用 package-authoring reference 中的 Model Experience/KV Cache/Known Limitations 模板；独立插件按目标仓库的文档归属记录相同的相关行为事实，不引入上游 gate 专属格式。Generated catalog 是 projection：修改源并运行所属 generator，不手工编辑生成区域。
 
 非平凡设计决策按仓库活跃 decision-record 惯例记录；不得修改 archived record。例行局部或机械修改可按目标仓库规则豁免。
 
 ## Skill 发布维护
 
-本 skill 只针对 `dsh-v0.1.1-rc.2`。改变基线前，更新 [真相源映射](source-map.md)，在新 tag 检查每个映射文件，并用已发布 manifest、可执行 gate 与源码重新对齐所有示例。不得静默读取 moving branch。较新分支才有的 API 在 pinned tag 缺失时，应明确写“不可用”，不要复制。
+本 skill 只针对 `dsh-v0.1.2-rc.1`。改变基线前，更新 [真相源映射](source-map.md)，在新 tag 检查每个映射文件，并用已发布 manifest、可执行 gate 与源码重新对齐所有示例。不得静默读取 moving branch。较新分支才有的 API 在 pinned tag 缺失时，应明确写“不可用”，不要复制。
 
 发布 skill 必须离线：skill 目录内不得出现 HTTP(S) URL。每个 reference 对其路由主题自包含，每项事实只有一个归属；router 可以使用本地相对链接。仓库依据只记录在本地 `source-map.md`，正常插件开发不读取该映射。
 
-每次修改执行：
+每次维护在独立 worktree 精确检出目标 tag，不切换或借用 moving branch 的声明。先从旧 source-map 逐路径比对类型、实现、gate 与测试；再比较两版 DOCS，把新增/变化指导回查目标源码；合并去重后刷新 references、router、入口和 source-map。文档滞后或相互冲突时记录裁决依据，不复制未实现设计。临时差异、checker 修改和构建日志放在维护工作目录，不进入 Skill。
 
-1. 临时把 `references/*.md` 加入仓库 Markdown TypeScript-fence checker。
-2. 运行 pinned declaration build，再运行 `DSH_DOC_TYPECHECK_USE_BUILD_OUTPUT=1 pnpm run doc-typecheck:contracts-ready`。
-3. 恢复 checker 临时修改，确认其源码无 diff。
-4. 用 JSON parser 解析所有 `json` fence。
-5. 解析全部本地 Markdown target 与 heading anchor。
-6. 拒绝发布 skill 内的 HTTP(S) URL。
-7. 在 pinned tag 解析 `source-map.md` 的每个 repository path。
-8. 运行 skill quick validator、trailing-whitespace 与 diff check。
+发布验证分为 DSH checkout 与 Skill 维护仓库两个上下文，不能混用工作目录。先从实际维护仓库的 package.json 确认 `verify:skill`、`verify:examples` 与 `test:validation` 存在并定位其实现；复制到项目中的 Skill 目录不包含这些工具，DSH checkout 也不提供它们。维护仓库不可定位或脚本缺失时，继续可执行的本地结构与固定 tag 源码核对，明确列出未执行的检查器回归测试和示例编译；不得宣称发布验证完整，也不要在消费项目中临时重建维护工具。
 
-Code-fence compilation 是必需证据。报告准确命令、总 compiled blocks、本 skill blocks 数，以及与 contracts-ready 结果分开的无关 build failure。
+1. 在精确 DSH tag checkout 安装 pinned lockfile 依赖，运行 `pnpm run build:lib:host` 和 `pnpm run typecheck:contracts-ready`，准备 Host/Client 与 generated Remote 声明。
+2. 在本 Skill **维护仓库根目录**运行 `pnpm verify:skill --dsh <DSH-checkout>`：验证所有本地 Markdown 文件/标题锚点、JSON 代码块、离线边界、格式空白以及 source-map 路径；HEAD 和 tag 都必须解析到 source-map 中的固定 commit。不带 `--dsh` 时只做结构验证，并明确输出源码路径验证未运行。
+3. 在同一维护仓库运行 `pnpm verify:examples --dsh <DSH-checkout>`。命令拒绝错误基线或有 tracked 修改的 DSH checkout，使用唯一临时目录及 checker 副本调用上游 Host 检查，再按 Client compiler face 单独编译 Client 片段。上游文件不被改写，成功或失败均清理自身临时资源；编译失败以非零退出，不以“已运行 checker”冒充通过。
+4. 当前 `ts ignore-check` 的 Client 片段由维护命令显式归类并检查；新增未归类 TypeScript fence 会失败，必须完善分类后再发布。Host/Client Context 不在同一个 program 混编，Remote 类型从实际所属 manifest 导出解析，不手工伪造声明。
+5. 运行 Skill quick validator、仓库格式检查和 `git diff --check`，核对元数据、基线及任务差异；报告 Host/Client 实际检查数量，以及上游 ignored/type-equiv/derivative 等不属于本次编译的片段。
+
+这些维护命令由 Skill 仓库的 scripts/package.json 提供，不是 DSH CLI 命令，也不是复制 Skill 目录到其他项目后自带的工具。检查器回归测试使用 `pnpm test:validation`，与真实 DSH runtime 测试分开。
+
+Code-fence compilation 是发布必需证据。缺少依赖、构建声明或不兼容上游 checker 时，命令失败；记录失败位置与未验证部分，不禁用诊断或删示例来通过。CI 覆盖以实际维护仓库的 workflow 为准；只有执行了对应检查才能计入证据，不从 job 名称推断示例编译或源码路径核对已经完成。
+
+## Runtime invariant 的注册边界
+
+Invariant 检查包拥有的可观察关系，不检查 service/method 是否存在。Registry 的 allowlist/blocklist 使用 RegExp source，blocklist 优先，过滤在 service 生命周期固定。即使 installer 被过滤，package name 仍被保留；失败必须撤销 child fiber 与 reservation，HMR 后才能同名重装。
+
+不要根据叙述文档中“每包必须有空 companion”的旧规则新增空 invariant；目标 gate 只允许拥有实际关系的 companion。包文件要求见 [Invariant 与 README](package-authoring.md#invariant-companion)。
+
+## 完整性审计
+
+版本升级不能只从旧 source-map 出发：另列两版 package/exports/bin、Service/Remote、默认 bundle/preset、配置/数据格式、仓库 gate 和 DOCS 的完整变化。每项标记“补充”“已有覆盖”或“不纳入及理由”，附代码 owner 与目标 reference；实验包、示例和翻译可按明确类别处置，不能直接从清单删除。文件/符号差异清单是索引，不是语义审计已完成的证明。
+
+聚焦 specs 会与其他 worker/gate 并发；独占端口、临时路径、环境和子进程并可靠 teardown，不能以仅单跑成功掩盖污染。修改 Client 文案运行 verify-client-ui-i18n，修改包分层/exports 运行对应 package-dependency 与 module-boundary gate；catalog、subsystem page、README omission 等文档规则由各可执行 gate 决定。
+
+完整 DOCS 对照还要检查目标版本未发生 diff 的章节：旧 reference 可能一直没有覆盖该契约。逐项记录保留、补充、删除/替换或不纳入的依据。发现文档与目标代码/gate 冲突时保留代码裁决，不能以“同步 docs”为由重新引入旧 API、空 invariant 或旧格式限制。

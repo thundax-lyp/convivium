@@ -1,10 +1,18 @@
 # DSH 包开发
 
-本 reference 覆盖 `dsh-v0.1.1-rc.2` 的包文件、编译配置、入口骨架、invariant 与 README 交付规则。
+本 reference 覆盖 `dsh-v0.1.2-rc.1` 的包文件、编译配置、入口骨架、invariant 与 README 交付规则。
+
+## 先区分开发环境
+
+以下目录、`workspace:^`、vendor project references 和仓库 gate 适用于 DSH monorepo 内开发。维护现有 DSH 包时沿用其布局；在独立插件项目中不要复制这些本地依赖和编译路径。
+
+目标版本 app-boot 的 Profile 实现允许在 profile 的 package.json 安装仓库外插件依赖，并从安装目录和 profile 解析包；具体装配见[应用 Profile](composition-config-credentials.md#应用-profile)。这证明外部插件的加载入口存在，不证明这里的 monorepo manifest 是可直接发布的独立模板。
+
+独立项目仍遵循已验证的 Cordis 导出、公开类型和生命周期契约，但必须依据实际安装的目标版本包确定可解析的依赖版本、共享 Cordis identity、构建输出与 Profile patch。当前参考库没有经独立安装与加载测试的完整模板；不得把 workspace 依赖机械替换成猜测的 npm 版本后声称可运行。发布前需要验证包导出、安装解析和真实 Profile 加载/卸载；缺少这些验证时明确报告未覆盖。
 
 ## 包文件集合
 
-在 `packages/<group>/<package>/` 创建包；group 只是目录。普通包包含 `package.json`、`tsconfig.json`、`src/index.ts`、`src/invariant.ts`、聚焦测试和 `README.md`。先复制最接近的同角色包，再替换 identity、release metadata、build 文件与依赖。
+以下为 monorepo 内规则。在 `packages/<group>/<package>/` 创建包；group 只是目录。普通包包含 `package.json`、`tsconfig.json`、`src/index.ts`、按需的 `src/invariant.ts`、聚焦测试和 `README.md`。先复制最接近的同角色包，再替换 identity、release metadata、build 文件与依赖。
 
 普通非 experimental 包属于 release：不写 `private`，设置 `publishConfig.access: public`，只发布构建后的 `lib` 入口。Experimental 包遵循自身 privacy 规则。所有包为 ESM；source 内相对 import 使用显式 `.ts` 后缀。
 
@@ -16,7 +24,7 @@ Cordis 同时出现在 `peerDependencies` 与 `devDependencies` 且版本一致�
 {
   "name": "@deepseek-ai/dsh-tool-example",
   "description": "One-sentence package responsibility",
-  "version": "0.1.1-rc.2",
+  "version": "0.1.2-rc.1",
   "publishConfig": { "access": "public" },
   "repository": {
     "type": "git",
@@ -28,20 +36,17 @@ Cordis 同时出现在 `peerDependencies` 与 `devDependencies` 且版本一致�
   "types": "lib/types/index.d.ts",
   "exports": {
     ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
-    "./invariant": { "types": "./lib/types/invariant.d.ts", "default": "./lib/invariant.js" },
     "./package.json": "./package.json"
   },
-  "files": ["lib/index.js", "lib/invariant.js", "lib/types/**/*.d.ts"],
+  "files": ["lib/index.js", "lib/types/**/*.d.ts"],
   "license": "MIT",
   "dependencies": { "@deepseek-ai/schemastery": "workspace:^" },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-tools": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-tools": "workspace:^"
   }
 }
@@ -60,13 +65,18 @@ Cordis 同时出现在 `peerDependencies` 与 `devDependencies` 且版本一致�
     { "path": "../../../vendor/cosmokit" },
     { "path": "../../../vendor/cordis" },
     { "path": "../../../vendor/schemastery" },
-    { "path": "../../core/tools" },
-    { "path": "../../runtime-diagnostics/invariants" }
+    { "path": "../../core/tools" }
   ]
 }
 ```
 
-把 DSH references 替换为所有直接 source dependency。保留 invariant reference；只有源码导入 Schemastery 时保留其 reference。普通包只加入一个 aggregate：Host 使用 `tsconfig.host.json`，Client 使用 `tsconfig.client.json`。新增 manifest 后运行 `pnpm install`。
+把 DSH references 替换为所有直接 source dependency。只有发布 invariant 时保留其 reference；只有源码导入 Schemastery 时保留其 reference。普通包只加入一个 aggregate：Host 使用 `tsconfig.host.json`，Client 使用 `tsconfig.client.json`。新增 manifest 后运行 `pnpm install`。
+
+## 分离 Host 与 Client 编译面
+
+真正同时拥有不同 Context 声明和运行时依赖的包采用 tsconfig.host.json、tsconfig.client.json 两个 leaf，加 solution-only root；它们分别进入对应 aggregate。目标版本的 Session/Workspace controller 是实例，不能沿用“只有 api/remotes 可拆编译面”的旧限制。普通只有 node seat 和 browser entry 的 UI 插件仍不因此拆成两套。
+
+Pure types 从 owner 的 browser-safe entry 导入。Agent 的共享 identity 在 types，Host runtime face 再增强 live capabilities；JsonValue、freeze/snapshot/assert helpers 在 dsh-util-values，不再从 Session、LLM 或 Tools 的旧 re-export 导入。另有 crypto、time、deque、workspace-path 的窄工具包，选实际 owner，不能为复用 helper 引入 Host Service 总入口。
 
 ## 完整入口骨架
 
@@ -125,22 +135,11 @@ Loader 读取函数插件导出的 `Config` 或 Service class 的 `static Config
 
 ## Invariant companion
 
-每个包拥有 `./invariant`。存在权威 runtime relationship 时注册真实断言；确实没有时，用包专属理由与空 installer，不要断言 method presence 或 plugin metadata。
+只有存在可独立观察、可能分歧的 runtime relationship 时才发布 `./invariant`。断言使用包 manifest name，检查实际拥有的关系并处理 reporter；不得检查 service/method presence、plugin metadata 或固定示例。
 
-```ts
-import type { Context } from '@deepseek-ai/cordis'
-import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
+没有该关系时省略 `src/invariant.ts`、export、files/build entry、依赖与 tsconfig reference，并在包 README 写具体理由，例如本 timer 插件没有与定时器独立维护的状态。空 installer 和忽略 reporter 的 companion 会被 gate 拒绝。
 
-const PACKAGE_NAME = '@deepseek-ai/dsh-tool-example'
-export const name = 'tool-example-invariant'
-export const inject = ['invariants']
-
-// No runtime invariant: this example owns only one effect-scoped timer.
-const install: InvariantInstaller = () => {}
-
-export const apply = (ctx: Context): Promise<() => void> =>
-  Promise.resolve(ctx.invariants.register(PACKAGE_NAME, install))
-```
+普通 Host 包的直接 DSH peers 继续镜像到 devDependencies；Client 与特定 Host 包由 dependency policy 分类，不能把这条镜像规则套到全部包。Browser/type-only 输入通常 dev-only，Host runtime 输入依其共享 identity 要求选择 dependency 或 peer；核对 `verify-package-dependencies`，不靠人工扁平化猜测。
 
 ## 包 README 交付结构
 
@@ -176,4 +175,4 @@ State whether behavior is append-only, prefix-stable, replacing, or independent,
 
 每个独立 scoped 模型上下文项使用一个 H3，三个 H4 必须按模板顺序排列且各有一段。稳定长文本放在带标题 H5 的 `markdown` fence；data-dependent/provider-owned 文本只做摘要。当 prompt 与 schema 可被独立 scope 隐藏时分开记录。KV Cache 字段区分 append-only growth、可复用 prefix、replacement 与独立 request；Provider cache availability/eviction 不属于包承诺。
 
-只有已进入 rc.2 gate 审计表的包可用短格式：一句以 `None, as ` 或 `Indirectly, through ` 开头并以句点结束的话，随后是 `#### KV Cache effect` 与一段。只有审计为 model-agnostic 的包可省略 Model Experience。Known Limitations 独立审计：使用准确 H2、包含顶层 bullet、置于 README 最后；确实无内容时必须加入带理由的 gate omission。
+只有已进入 v0.1.2-rc.1 gate 审计表的包可用短格式：一句以 `None, as ` 或 `Indirectly, through ` 开头并以句点结束的话，随后是 `#### KV Cache effect` 与一段。只有审计为 model-agnostic 的包可省略 Model Experience。Known Limitations 独立审计：使用准确 H2、包含顶层 bullet、作为 README 最后一个 H2；确实无内容时必须加入带理由的 gate omission。

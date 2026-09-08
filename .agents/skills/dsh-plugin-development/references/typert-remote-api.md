@@ -1,6 +1,6 @@
 # Typert Remote API
 
-本 reference 提供 `dsh-v0.1.1-rc.2` 的生成式 Typert Remote API 集成模式。
+本 reference 提供 `dsh-v0.1.2-rc.1` 的生成式 Typert Remote API 集成模式。
 
 ## Typert Remote API
 
@@ -87,7 +87,6 @@ Browser code 需要命名可复用 wire payload 时，把它们放进 client-saf
   },
   "files": [
     "lib/index.js",
-    "lib/invariant.js",
     "lib/types/**/*.js",
     "lib/types/**/*.d.ts",
     "lib/typert.host.js",
@@ -98,7 +97,7 @@ Browser code 需要命名可复用 wire payload 时，把它们放进 client-saf
 }
 ```
 
-普通 manifest 还必须把 Cordis、`dsh-typert-protocol` 与每个 Service dependency 同时列入匹配的 peer/development dependencies；Service 有 `Config` 时 Schemastery 是 runtime dependency。TypeScript project reference 包含 protocol、Cordis、Schemastery、每个 source dependency 与 invariants。
+普通 manifest 还必须把 Cordis、`dsh-typert-protocol` 与每个 Service dependency 同时列入匹配的 peer/development dependencies；Service 有 `Config` 时 Schemastery 是 runtime dependency。TypeScript project reference 包含 protocol、Cordis、Schemastery、每个 source dependency ；只有发布 invariant 时引用 invariants。
 
 仅生成 artifact 不会让 Remote method 可见；Client assembly 必须 import 并 mount 生成 contribution。在 shipped web 应用中，把它加入 API remotes browser entry 的 contribution list，并把所属包加入该 assembly 的 peer/development dependencies。Standalone Client assembly 使用下面的完整 mount plugin：
 
@@ -114,7 +113,44 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
 }
 ```
 
-`@deepseek-ai/dsh-goal/remote` 是 rc.2 中可编译的实际 contribution；新包将它替换为自己生成的 `./remote`。Import 并 mount contribution 后才会提供 typed Remote namespace。Gateway 必须已存在，Host 组合必须安装对应 Service。缺少 mount 会使生成 namespace 不可用；缺少 Host Service 或 lookup 属于 composition failure，不得静默跳过。
+`@deepseek-ai/dsh-goal/remote` 是 v0.1.2-rc.1 中可编译的实际 contribution；新包将它替换为自己生成的 `./remote`。Import 并 mount contribution 后才会提供 typed Remote namespace。Gateway 必须已存在，Host 组合必须安装对应 Service。缺少 mount 会使生成 namespace 不可用；缺少 Host Service 或 lookup 属于 composition failure，不得静默跳过。
+
+### 错误、Stream 与事件
+
+业务失败使用 `RemoteError`，在生产者包对 `RemoteErrorDetailsMap` declaration merge 声明 `<domain>/<reason>` 与 JSON-safe details，然后在失败点抛出。未分类异常由 Gateway 映射为 `gateway/internal`；cause 留在同进程，不能作为 wire 数据。跨 bundle 判断按 code，而不是 instanceof。
+
+Client unary 返回 `RemoteResult<T>` 的 ok/value 或 error 分支，carrier failure 与取消进入 error；错误 arity、未 mount、已撤销 contribution 等 assembly defect 仍会 reject。实际调用方声明 `inject: ['remote', 'remote.<namespace>']`，仅负责 mount 的 assembly 不代替 Consumer 声明业务依赖。
+
+Stream method 使用 `@Remote({ mode: 'stream' })`，返回 Iterable/AsyncIterable，并遵守相同参数/lookup/cancellation 约束。Gateway 的 stream carrier 校验每个 item；不能通过 unary invoke 调用。Client `$stream()` 管理物理连接代次和取消，不自动赋予业务 replay 语义；需要恢复时由 domain 明确 resume cursor 或 replacement baseline。
+
+应用通过 API remotes 选择可转发的 Host events，Client 使用 `$on()`。普通通知失败隔离且重连不回放；Agent-scoped waterfall 可返回答案或 next，并拥有 pending 生命周期。不要转发未经选择的事件、复制 Host 签名或假设该通道自动脱敏。
+
+```ts
+import type { Context } from '@deepseek-ai/cordis'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    'example/invalid-count': { readonly count: number }
+  }
+}
+
+export class CounterService extends TypertRemoteService {
+  constructor(ctx: Context) { super(ctx, 'exampleCounter') }
+
+  @Remote({ mode: 'stream' })
+  async *count(limit: number, signal: AbortSignal): AsyncIterable<number> {
+    if (!Number.isSafeInteger(limit) || limit < 0 || limit > 100) {
+      throw new RemoteError('example/invalid-count', 'count must be between 0 and 100', { count: limit })
+    }
+    for (let value = 0; value < limit; value++) {
+      signal.throwIfAborted()
+      yield value
+    }
+  }
+}
+export default CounterService
+```
 
 ### 聚焦 API 测试
 
@@ -162,4 +198,4 @@ describe('Remote greeting service', () => {
 })
 ```
 
-随后运行拥有 Typert generation 的 Host build，typecheck Client face，并添加调用生成 Client namespace 的 Gateway/carrier 测试。Consumer test 必须 import 生成的 `./remote` declaration；没有 import 时，该 namespace 必须无法 typecheck。
+随后运行拥有 Typert generation 的 Host build，typecheck Client face，并添加调用生成 Client namespace 的 Gateway/carrier 测试。包含 Client mount 的 `ignore-check` fence 在独立 Client compiler face 编译，不作为未检查的示意图。Consumer test 必须 import 生成的 `./remote` declaration；没有 import 时，该 namespace 必须无法 typecheck。

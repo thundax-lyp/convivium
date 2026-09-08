@@ -1,68 +1,91 @@
 # 插件开发路由
 
-本索引指向离线的 rc.2 reference 库。目标仓库说明可以收紧本地实现要求，但不要把 rc.2 之后才出现的 API 引入本 skill 的基线。
+本索引用于 `dsh-v0.1.2-rc.1` 的离线参考库。按任务结果选择入口，不按文件名顺序通读；后面的表是检索索引，不是必读清单。事实优先级：公开类型与实现 → 可执行门禁 → 行为测试 → 所属包 README → 其他文档。
 
-事实冲突时按以下顺序裁决：公开类型与运行时代码、执行中的 repository gate、行为测试、所属包 README、其他叙述文档。
+## 阅读流程
 
-## 每次先做
+1. **确认基线与目标。** 检查目标版本、目标仓库贡献规则及现有实现。确定要改变的可观察行为及其所属包；不把后续版本 API 套进当前基线。
+2. **选主路径。** 在下表选与当前结果最直接相关的一行，按“先读”进入。复合任务可选多行，合并重复前置；不要预先加载整组文档。
+3. **先契约，后骨架。** 阅读文档开头的适用范围与导航，再读相关完整章节，包括同一契约的失败、取消、权限、持久化、恢复与清理。跨章节的这些约束不能因为按需阅读而跳过。
+4. **条件补读。** 只在实现确实触及第三列或横切条件时继续。链接是定位线索，不自动构成新的必读依赖；已读且未变的内容不用重复加载。
+5. **转入实现与验证。** 能确定 owner、公开接口、失败/资源边界和验证方式后停止扩展阅读，检查目标实现并动手；发现具体缺口再回查对应章节。验证清单应在设计时选好，完成后执行。
 
-1. 从 manifest 和 lockfile 记录准确的 DSH package 版本。版本不是 `0.1.1-rc.2` 时停止使用本文的 API 结论。
-2. 在目标 package、已安装的 `@deepseek-ai/dsh-*` declarations 和同类生产代码中查找用户点名的 service key、event name、tool、slot 或 Provider。
-3. 找到 owner package 后，读取它导出的类型、运行时代码、README 和行为测试。示例代码只能帮助定位，不能单独决定签名或默认值。
-4. 按下表选择用户要求的具体功能。每个命中行都要完整读取；没有命中行时先报告缺少哪类功能入口，不自行归入相近概念。
+首次编写或改变 Cordis 插件注册时，先读[架构与插件形式](cordis-lifecycle.md#架构与插件形式)和[生命周期与 effect](cordis-lifecycle.md#生命周期与-effect)。仅改现有文案、配置值或纯转换逻辑时，不要求重读整套生命周期资料。
 
-## 按具体功能读取
+## 选择主路径
 
-| 用户要求插件做什么                                         | 必须读取                                                                                                                                                                                    | 实现前必须确认                                                                                          | 默认动作与禁止项                                                                                                      |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| 调用一个必定存在的 Host 或 Client Service                  | [Service 与依赖](cordis-lifecycle.md#service-与依赖)                                                                                                                                        | owner package 的 `Context` declaration merge、准确 service key、公开方法签名和当前 Provider             | 把准确 key 写入 `inject` 后调用 `ctx.<key>`；禁止增加启动排序、ready polling 或 service cache                         |
-| 调用一个可能不存在、但缺失时插件仍可工作的 Service         | [Service 与依赖](cordis-lifecycle.md#service-与依赖)                                                                                                                                        | rc.2 是否声明该 key、缺失时的产品行为、调用点能否处理 `undefined`                                       | 不把 key 写入 `inject`；在调用点使用 `ctx.get(key)`；禁止建立 optional-service registry、adapter 或 fallback Provider |
-| 向其他插件提供新的 `ctx.<key>`                             | [三角色接缝](capability-seams-providers.md#三角色接缝)；[Service 与依赖](cordis-lifecycle.md#service-与依赖)                                                                                | 已有 DSH service key 是否满足需求、当前 Consumer 和实现数量、request/result/error/cancellation owner    | 单一 Consumer 与单一实现默认留在当前插件；没有当前替换需求时禁止拆 Definition/Provider/Consumer 包                    |
-| 在 profile 中选择或替换 Service 实现                       | [选择与失败](capability-seams-providers.md#选择与失败)；[组合所有权](composition-config-credentials.md#组合所有权)                                                                          | Definition key、所有实际 Provider、Consumer、缺失与重复 Provider 的现有失败行为                         | 通过 `cordis.yml`、profile patch 或 overlay 选择；禁止在 Consumer 中增加 Provider selector 或环境 fallback            |
-| 注册模型可以调用的 Tool                                    | [工具职责](tools.md#工具职责)；[完整定义骨架](tools.md#完整定义骨架)；[展示意图](tools.md#展示意图)                                                                                         | `@deepseek-ai/dsh-tools` 的 `defineTool`/`ctx.tools.register` 签名、同类 schema/result/render 和 policy | 使用 DSH Tool API；禁止直接操作 Cordis registry、从 prose 解析结果或返回未声明字段                                    |
-| 监听或发送 DSH Cordis Event                                | [生命周期与 effect](cordis-lifecycle.md#生命周期与-effect)                                                                                                                                  | owner package 的 `Events` declaration merge、准确 payload、dispatch site 和 mode                        | 使用已声明的 `ctx.on`/dispatch method；禁止从 event name 猜 payload、同步性或错误传播                                 |
-| 创建、恢复、queue、steer、inject 或 interrupt Agent        | [Agent 生命周期](agent-subagent-workflow.md#agent-生命周期)；[Agent 输入选择](session-durable-context.md#agent-输入选择)                                                                    | live `Agent` owner、driver、对应 Session event、取消与 dispose 路径                                     | 调用 DSH Agent/Session API；禁止把 Session id 当 live Agent、绕过 driver 或修改 agent loop                            |
-| 委派 child Agent 或跨 activation 继续 child Session        | [Subagent 接缝](agent-subagent-workflow.md#subagent-接缝)；[Provider 实现清单](agent-subagent-workflow.md#provider-实现清单)                                                                | Provider descriptor、one-shot/continuable 类型、parent Agent、取消和 drain API                          | 使用 `ctx.subagents` 的已声明操作；禁止自建 child-session manager 或混用 one-shot 与 continuable result               |
-| 执行 workflow script 或协调 task DAG                       | [Workflow 接缝](agent-subagent-workflow.md#workflow-接缝)；仅明确要求 Agent Teams 时读[实验性 Agent Teams](agent-subagent-workflow.md#实验性-agent-teams)                                   | workflow owner、run/result/dispose、task revision 与当前实验边界                                        | 普通委派不使用 Agent Teams；禁止把 experimental API 当稳定 Subagent seam                                              |
-| 把稳定 instruction、动态 context 或 skill 放入模型请求     | [Prompt section、runtime context 与 skill](session-durable-context.md#prompt-sectionruntime-context-与-skill)；[Agent 输入选择](session-durable-context.md#agent-输入选择)                  | 内容何时变化、注册 scope、对应 Session log 或 runtime-context snapshot                                  | 稳定前缀用 section，逐次求值事实用 context；禁止把动态事实冻结进 section 或创建无法回放的隐藏输入                     |
-| 添加用户直接执行的 `/command`                              | [机制选择](human-interaction.md#机制选择)；[Human command](human-interaction.md#human-command)                                                                                              | command definition、scope、attachment、取消和 UI adapter                                                | 使用 Human command；禁止把无需模型解释的确定操作包装成 Tool                                                           |
-| Tool 或插件必须等待用户填写答案                            | [机制选择](human-interaction.md#机制选择)；[普通用户提问](human-interaction.md#普通用户提问)                                                                                                | live runtime root、question Provider、结构化答案、取消和 no-provider failure                            | 使用 user-question seam；禁止轮询 UI 状态或把自由文本偷偷当结构化批准                                                 |
-| 敏感动作执行前必须取得一次 allow/reject                    | [机制选择](human-interaction.md#机制选择)；[动作审批](human-interaction.md#动作审批)                                                                                                        | policy、answerer waterfall、audit event pair、abort 和 headless 行为                                    | 使用 approval seam 并 fail closed；禁止把 UI 可见、prompt 提示或 schema omission 当授权执行                           |
-| 向 Browser 已有区域加入 component、store、action 或 locale | [Client UI 插件](client-ui.md#client-ui-插件)                                                                                                                                               | slot owner、准确 slot name/props、同类 contribution 和 Client aggregate                                 | 注册最小 slot contribution；已有 props 提供数据时禁止再经 Host 拉取或替换整个 UI 区域                                 |
-| 把 Session event 显示成 Conversation 中的业务行            | [Conversation Node](client-conversation-nodes.md#conversation-node)；[事件族与 identity](client-conversation-nodes.md#事件族与-identity)；[增量组装](client-conversation-nodes.md#增量组装) | event producer、Definition、identity key、分页/replay/live 输入                                         | 扩展现有 assembler 和 keyed renderer；禁止保存第二份 conversation 事实或只验证 live 路径                              |
-| Browser 或 SDK 调用 Host Service method                    | [Typert Remote API](typert-remote-api.md#typert-remote-api)                                                                                                                                 | Host Service、generated Remote、Client type face、mount contribution 和 Gateway carrier                 | 使用 Typert Remote；禁止手写重复 DTO、并行 RPC registry 或未挂载的 namespace                                          |
-| 外部系统通过 HTTP 主动投递请求                             | [rc.2 Webhook 接收器](web-ingress.md#rc2-webhook-接收器)                                                                                                                                    | `ctx.webServer` 是否存在、认证、body limit、schema、replay 和 acknowledgement owner                     | rc.2 只使用受控 WebServer route；禁止假设存在命名 webhook API 或用裸 `ctx.emit()` 表示可靠交付                        |
-| 转换 vendor LLM 请求和流式响应                             | [Adapter 职责](llm-provider-adapters.md#adapter-职责)；[完整 Adapter 入口](llm-provider-adapters.md#完整-adapter-入口)；[凭证与配置](llm-provider-adapters.md#凭证与配置)                   | provider-neutral request、vendor wire、stream chunk、credential reference、replay 与 transport test     | 在 LLM Adapter 中转换；禁止让 Consumer 依赖 vendor wire 字段                                                          |
-| 翻译 Webhook、LLM 之外的第三方协议                         | [Provider 边界](capability-seams-providers.md#provider-边界)；[组合测试步骤](composition-config-credentials.md#组合测试步骤)                                                                | 外部认证、解析、错误转换、内部 DSH Service 和真实 carrier                                               | 协议代码留在 Provider 边界；禁止把外部 wire type 暴露给 Consumer                                                      |
+### 工具、模型与执行能力
 
-## 同时要求以下结果时追加读取
+| 用户要改变的结果                               | 先读                                                                         | 条件补读                                                                                                                                         |
+| ---------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 新增模型工具或改变执行/结果                    | [Tools](tools.md)：职责与策略，再读结果/replay、展示意图和骨架               | 修改已有工具先用[内置工具](builtin-tool-contracts.md)定位工具族；Native/PTC、restriction、timeout 变更读 Tools 对应章节                          |
+| 替换已有工具实现或调整工具选型                 | [内置工具契约](builtin-tool-contracts.md)：能力与 owner，再选对应行为段      | 改 schema/执行/渲染再读[Tools](tools.md)；文件、Jobs、PTY 等按工具表链接补读                                                                     |
+| 定义 Service/Provider 或替换实现               | [能力接缝](capability-seams-providers.md)：三角色、选择与失败、Provider 边界 | 同时阅读该能力对应的下列专题；新包才补[包规范](package-authoring.md)                                                                             |
+| 实现 LLM Adapter、stream/replay 或 retry       | [LLM Adapter](llm-provider-adapters.md)：职责与流式契约，再看骨架和验证      | 内置 route、模型/effort、图像 Files 配置读[模型路由](llm-model-routing.md)                                                                       |
+| 调整已有模型、认证或图像请求                   | [模型路由](llm-model-routing.md)：Service 边界，再选 DeepSeek 或 pi-ai       | 改 Adapter 协议或官方请求字段读[LLM Adapter](llm-provider-adapters.md)；账号 flow 读[授权](credentials-authorization.md)                         |
+| 读写文件、观察版本或限制文件操作               | [文件系统策略](filesystem-policy.md)                                         | 图片和进程路径映射读[运行时资源](runtime-resources.md)；修改 shell confinement 再读[权限与 Sandbox](human-interaction.md#plan权限预设与-sandbox) |
+| 图片附件、Spill、Subprocess、Shell 或 Terminal | [运行时资源](runtime-resources.md)：按开头导航选完整能力段                   | 发布后台 handle 读[Jobs](jobs-background-work.md)；实现异步资源 owner 读[防御性生命周期](defensive-lifecycle.md)                                 |
+| LSP 或 MCP 集成                                | [运行时资源](runtime-resources.md)：LSP 段，或连续读取 MCP 两段              | 修改工具 schema/输出读[Tools](tools.md)；MCP 不桥接的协议能力不能自行假定存在                                                                    |
+| E2B 或远程文件/进程执行                        | [远程执行](remote-execution.md)：三包组合，再读路径和终止边界                | 改公共文件/进程契约时分别补[文件策略](filesystem-policy.md)与[运行时资源](runtime-resources.md)                                                  |
+| 后台任务、输出收集和完成通知                   | [Jobs](jobs-background-work.md)：准入 → Producer 状态 → 输出与通知           | Producer 是子进程/PTY 时补[运行时资源](runtime-resources.md)；工具暴露读[Tools](tools.md)                                                        |
+| 出站 Web 搜索、抓取或网络策略                  | [Web 能力](web-capabilities.md)：选择 → 请求 → 网络边界                      | 新 Provider 读[能力接缝](capability-seams-providers.md)；这不属于入站 Webhook 路径                                                               |
 
-| 用户同时要求什么                                       | 必须读取                                                                                                                                                                                              | 实现前必须确认                                                                      | 默认动作与禁止项                                                                          |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| 新建 package 或把现有代码拆成多个 package              | [包文件集合](package-authoring.md#包文件集合)；[完整入口骨架](package-authoring.md#完整入口骨架)                                                                                                      | 现有 package 为什么不能拥有该职责、是否必须独立发布或替换                           | 没有独立 owner 或发布需求时保持原 package；禁止只为目录整洁拆包                           |
-| 新事实必须进入 Session 历史并参与 replay               | [持久事实源](session-durable-context.md#持久事实源)；[扩展 Session event](session-durable-context.md#扩展-session-event)；[回放与 projection 清单](session-durable-context.md#回放与-projection-清单) | event owner、append、load、replay fold、projection 和 SDK output                    | 只增加一个 owner event；禁止另存同一事实或只实现 live listener                            |
-| 插件数据必须跨 Host 重启，但不属于 Session 历史        | [三类状态的选择](storage-projections.md#三类状态的选择)；[Storage domain](storage-projections.md#storage-domain)；[生命周期与提交顺序](storage-projections.md#生命周期与提交顺序)                     | domain spec、schema、format version、backend route、commit 与 close                 | 使用 Storage domain；禁止扫描 backend 物理文件、双写或静默迁移                            |
-| UI、SDK 或 Host 需要从 Session log 读取当前值          | [Session projection](storage-projections.md#session-projection)；[回放与 projection 清单](session-durable-context.md#回放与-projection-清单)                                                          | event producer、纯 fold、wire schema、state version 和 carrier                      | 从 Session log 投影；禁止让 Consumer 自行扫日志或保存第二份事实                           |
-| 插件创建 timer、socket、process、worker 或长期异步任务 | [生命周期与 effect](cordis-lifecycle.md#生命周期与-effect)；[防御性生命周期](defensive-lifecycle.md#防御性生命周期)                                                                                   | 唯一 owner、取消、rollback、callback containment 和 quiescent teardown              | 由一个 `ctx.effect()` 或已有 Service lifecycle 拥有；禁止新增平行 lifecycle manager       |
-| endpoint、timeout、Provider 或启用组合因部署而变化     | [组合所有权](composition-config-credentials.md#组合所有权)；[配置规则](composition-config-credentials.md#配置规则)；[组合测试步骤](composition-config-credentials.md#组合测试步骤)                    | 哪个值真正在部署间变化、Config schema、profile/bundle owner                         | 使用验证后的 Config 或 profile patch；禁止隐藏 runtime 默认值或用环境变量选择整组插件     |
-| 用户运行时修改插件设置                                 | [Config、Settings 与 Credential](user-settings.md#configsettings-与-credential)；[Host namespace](user-settings.md#host-namespace)；[Browser 设置卡片](user-settings.md#browser-设置卡片)             | namespace、base/user/resolved snapshot、revision、secret redaction 和 Client bundle | 使用 Settings seam；禁止让 Client 直接写配置文件或返回 secret value                       |
-| 插件读取或轮换 secret                                  | [凭证所有权](composition-config-credentials.md#凭证所有权)；[凭证与配置](llm-provider-adapters.md#凭证与配置)                                                                                         | credential reference、解析时机、授权和失败行为                                      | 使用 `ctx.credentials`；禁止把 secret 写入 Config、log、event、error 或 Client projection |
-| 代码变更需要测试、公共文档或生成物                     | [按变更面选择证据](testing-docs-maintenance.md#按变更面选择证据)；[文档交付](testing-docs-maintenance.md#文档交付)                                                                                    | 实际变更面、用户/模型可见输出、所属 generator 和 package README                     | 只运行覆盖实际变更面的证据；禁止用 unit-only fixture 证明 Loader 或 built artifact        |
+### Agent、上下文与持久状态
 
-## 完成前
+| 用户要改变的结果                                                 | 先读                                                                                      | 条件补读                                                                                                                                |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent 创建、恢复、输入或调度                                     | [Agent 生命周期](agent-subagent-workflow.md#agent-生命周期)及后续创建/publication 章节    | 改 queue/steer/inject 或输入事实时读[Agent 输入](session-durable-context.md#agent-输入选择)                                             |
+| Subagent、亲子消息、Workflow 或实验 Teams                        | [Agent/Subagent](agent-subagent-workflow.md)：按导航选择对应契约                          | one-shot 先核对 Provider flags；修改 workflow/ralph 工具读[内置工具](builtin-tool-contracts.md#workflow-与-ralph)；普通委派不必读 Teams |
+| Prompt、runtime context 或新的 Session 事实                      | [Session 与持久上下文](session-durable-context.md)：事实源，再选 Prompt、event 或输入章节 | 按 scope 注册读[作用域](scoped-registration.md)；实际改压缩/恢复才读[上下文恢复](context-recovery.md)                                   |
+| Preset、Persona、workspace instructions、时间上下文              | [Preset 与 Context](presets-context.md)：选择相应能力段                                   | 改模型可见持久事实读[Session](session-durable-context.md)；改组合共享/可见性读[作用域](scoped-registration.md)                          |
+| Skill discovery、正文加载或调用策略                              | [Skill Provider](skill-providers.md)：发现 → 调用资格 → 模型目录                          | 改 Prompt/event 的记录方式读[Session](session-durable-context.md)                                                                       |
+| Compaction、TokenMeter、checkpoint 或 crash recovery             | [上下文恢复](context-recovery.md)                                                         | 不熟悉 log 与 surface 区别时先读[Session 事实源](session-durable-context.md#持久事实源)；不把 flush 当外部效果 exactly-once             |
+| 插件持久数据、Session projection、cache、统计或 feedback sidecar | [Storage 与 Projection](storage-projections.md)：先做三类状态选择，再按导航读分支         | 新增权威 Session event 先读[Session](session-durable-context.md)；不为查询需求复制一份事实源                                            |
+| 冷查询、全文索引、trace 或日志导出                               | [Session 查询](session-query-index.md)                                                    | 改 live/history carrier 读[Session/Workspace API](session-workspace-api.md)；改 cache/fold 读[Projection](storage-projections.md)       |
+| Plan、Goal、Todo 或提醒                                          | [规划与调度](planning-scheduling.md)：按意图表选分支                                      | Schedule 必须连读时间和 live/fork/durability；改实际权限才补[人类交互](human-interaction.md)                                            |
 
-实现完成后读取[按变更面选择证据](testing-docs-maintenance.md#按变更面选择证据)和[验证命令矩阵](testing-docs-maintenance.md#验证命令矩阵)，选择覆盖实际变更面的最小检查。
+### 人类交互、Client 与集成
 
-## 证据与生成物
+| 用户要改变的结果                                     | 先读                                                                              | 条件补读                                                                                                                     |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Human command、业务提问或单次动作审批                | [人类交互](human-interaction.md)：机制选择，再读命中机制与证据                    | 只有修改权限预设/Sandbox 才进入该分支；账号登录不是单次审批，走[授权](credentials-authorization.md)                          |
+| Credential record、账号 flow、登录与取消             | [凭证与授权](credentials-authorization.md)                                        | UI 设置入口补[用户设置](user-settings.md)；普通 env reference 使用[凭证所有权](composition-config-credentials.md#凭证所有权) |
+| Claude Code/Codex hooks                              | [Hooks](hooks-compatibility.md)：支持点、决策和未实现协议                         | 改事件持久化补[Session](session-durable-context.md)；外部协议要求不能代替当前已实现契约                                      |
+| Client slot、component、store、action、locale 或主题 | [Client UI](client-ui.md)                                                         | 设置卡片补[用户设置](user-settings.md)；会话行使用下一行，不自行扫描日志造第二份状态                                         |
+| Conversation Node 与历史展示                         | [Conversation Node](client-conversation-nodes.md)：事件族 → 增量 → packed history | 新 Client 插件先读[Client UI](client-ui.md)；改变权威 event 时补[Session](session-durable-context.md)                        |
+| Session/Workspace 命令、历史、分页与重连             | [应用 API](session-workspace-api.md)                                              | 改底层 Remote descriptor/carrier 再读[Typert](typert-remote-api.md)；冷索引读[Session 查询](session-query-index.md)          |
+| 新 Remote method、stream 或选定事件转发              | [Typert Remote API](typert-remote-api.md)                                         | 新增 Client 消费端读[Client UI](client-ui.md)；先复用现成 Session/Workspace API，避免重复暴露控制面                          |
+| SDK launcher、Python 分发或 ACP 协议                 | [SDK/ACP](sdk-acp-integration.md)：按导航先启动/结果，再看协议                    | 改应用装配读[组合配置](composition-config-credentials.md)；只消费 SDK 不要求先读 Typert 实现                                 |
+| WebServer、入站 Webhook 或签名验证                   | [Web ingress](web-ingress.md)                                                     | 新协议 adapter 补[能力接缝](capability-seams-providers.md)及[组合测试](composition-config-credentials.md#组合测试步骤)       |
+| 动态 Cordis define/run、inspection 或 Client half    | [动态 Cordis](dynamic-cordis.md)：发现 → Package/Run → Client                     | 仅在确实使用 Client half 时补[Client UI](client-ui.md)；遵守精确 run 与清理边界                                              |
+| Host 环境、目录选择、inventory 或实验平台            | [Host 支持](host-platform-support.md)：按目标能力选段                             | 平台进程行为补[运行时资源](runtime-resources.md)；实验入口不能按稳定 Node/默认 profile 推断                                  |
 
-- 用生成的 catalog 发现事实，但修改其源并运行所属 generator/check；不要手工编辑生成区域。
-- 示例只证明一种组合，不等于已发布默认值。除非用户明确改变产品边界，实验包保持 opt-in。
-- 仅在包 README、cookbook 或源码注释指向与当前决策相关的 Agent Note 时读取。Archived note 是历史记录，不是当前要求。
+## 叠加横切路径
 
-## 最终检查
+以下能力也可以直接成为主任务。先阅读会影响接口和数据设计的前置，再写代码；不在实现完后才发现 owner 或持久化选错。
 
-1. 实现拥有自己的状态、清理和失败行为。
-2. 所有模型可见行为都能从 Session log 重建。
-3. 插件生命周期结束时，其注册全部消失。
-4. 聚焦测试覆盖实际 Loader/应用路径。
-5. 只在所属事实变化时更新文档、生成物、snapshot 与 Agent Note。
+| 触发条件                                | 阅读顺序                                                                                                                                         |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 新建/拆分包或改变 exports/build faces   | [包规范](package-authoring.md)：包文件与 Host/Client 编译面 → 骨架 → invariant/README 规则                                                       |
+| 注册/隔离/shadow/re-parent 的作用域改变 | [Cordis 生命周期](cordis-lifecycle.md) → [Scoped 注册](scoped-registration.md) → 所属能力契约                                                    |
+| 新增长期异步资源或修改 teardown         | [生命周期与 effect](cordis-lifecycle.md#生命周期与-effect) → [防御性生命周期](defensive-lifecycle.md) → 具体资源 Provider                        |
+| 新增持久事实或改变恢复关系              | [Session 事实源](session-durable-context.md#持久事实源) → [三类状态选择](storage-projections.md#三类状态的选择) → 选中 owner 的完整提交/恢复契约 |
+| 修改 Profile、bundle、boot 或配置       | [组合配置](composition-config-credentials.md)：组合所有权 → 相关 profile/配置 → 组合测试                                                         |
+| 用户可编辑 Settings 或设置卡片          | [用户设置](user-settings.md)：Config/Settings/Credential 区别 → Host namespace → 有 UI 时再读 Browser 卡片                                       |
+
+## 验证与停止条件
+
+在实现前从[按变更面选择证据](testing-docs-maintenance.md#按变更面选择证据)和[验证命令矩阵](testing-docs-maintenance.md#验证命令矩阵)确定检查；实现后运行选中的验证，并补齐发生变化的公开文档。当前任务能回答以下问题时，不再为了“读全”加载其他专题：
+
+- 行为由哪个包、Service/Provider/Consumer 和生命周期 owner 负责？
+- 使用哪些公开接口，输入/结果/权限及失败、取消、清理如何处理？
+- 模型可见或跨重启事实由谁记录，回放/恢复有什么边界？不涉及持久事实时明确不适用。
+- 哪些实际检查能覆盖组合后的行为，哪些仍未验证？
+
+生成 catalog 只用于发现，修改其源并运行所属生成器；只在相关源码或 README 指向时读取 Agent Note，Archived note 不作为当前要求。示例、实验包和外部协议不自动扩大任务范围或授权。
+
+## 维护路径
+
+只有维护本 Skill、升级基线或审计参考依据时使用此路径。先读[Skill 发布维护](testing-docs-maintenance.md#skill-发布维护)与[完整性审计](testing-docs-maintenance.md#完整性审计)，再按待核对专题进入[source-map](source-map.md)，读取精确 tag 的类型、实现、测试与文档。
+
+普通插件开发无需通读 source-map。单专题维护只查该专题及实际依赖；完整基线升级才按维护流程遍历全部证据和 DOCS，不能把普通开发的按需阅读规则用来跳过升级审计。
