@@ -28,16 +28,12 @@ describe("plugin package contract", () => {
         expect(packageManifest.dsh.bundle.patch).toBe("./cordis.patch.yml");
         expect(packageManifest.dsh.client.platform).toBe("web");
         expect(packageManifest.dsh.client.inject).toEqual([
-            "@deepseek-ai/dsh-client-runtime",
-            "@deepseek-ai/dsh-client-locale",
-            "@deepseek-ai/dsh-client-ui-layout",
-            "@deepseek-ai/dsh-client-ui-conversation",
-            "@deepseek-ai/dsh-client-ui-primitives",
-            "@deepseek-ai/dsh-client-ui-slots"
+            "@deepseek-ai/dsh-client-ui-renderer",
+            "@deepseek-ai/dsh-client-ui-conversation"
         ]);
         expect(packageManifest.peerDependencies).toMatchObject({
-            "@deepseek-ai/dsh-storage": "^0.1.1-rc.2",
-            "@deepseek-ai/dsh-storage-domain": "^0.1.1-rc.2"
+            "@deepseek-ai/dsh-storage": "0.1.2-rc.1",
+            "@deepseek-ai/dsh-storage-domain": "0.1.2-rc.1"
         });
         expect(patch).toContain(`name: '${packageManifest.name}'`);
     });

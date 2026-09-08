@@ -117,9 +117,11 @@ Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。`src/
 
 - 通过 `dsh.bundle.patch` 指向 `cordis.patch.yml`；package 是 bundle，不是 profile，仓库不得维护用户 profile manifest。
 - 同时导出 `.`、`./client`、`./cordis.patch.yml` 和 `./package.json`。
-- 声明 `dsh.client.platform = "web"`，并在 `dsh.client.inject` 中列出 Client 启动所需的 DSH client packages。
+- 声明 `dsh.client.platform = "web"`；`dsh.client.inject` 只列出当前直接消费的 `@deepseek-ai/dsh-client-ui-renderer` 和 `@deepseek-ai/dsh-client-ui-conversation`。该字段记录 package 关系，不替代 Cordis service `inject` 或 browser module external 声明。
 - 使用 `files` allowlist 只发布 Host bundle、Client bundle、类型声明、patch、README 和必要资产。
 - 将 Cordis、React 和 DSH 共享 runtime identity 声明为 peer；构建、类型检查和测试所需版本同时出现在 dev dependencies。只由插件内部使用且不要求与 Host 共享 identity 的库使用普通 dependency。
+
+`dsh-client-locale`、`dsh-client-ui-layout`、`dsh-client-ui-primitives` 和 `dsh-client-ui-slots` 仅作为上游 Client 类型声明所需的开发依赖保留，不要求为本插件单独注入或声明 Host peer。工具边界使用的 `JsonValue` 从 `dsh-util-values` 导入，作为开发类型依赖；不使用 `dsh-tools` 的旧 re-export。
 
 构建分为两个明确步骤：TypeScript 生成 `lib/types/**` 声明和构建中间 JavaScript，`tsdown` 生成 `lib/index.js` 与 `lib/client.js`。Client 构建使用独立 `tsconfig.client.json`，不得把 Node.js、持久化实现、workspace 文件系统或 Host-only DSH service 打入浏览器 bundle。
 
