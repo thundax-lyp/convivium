@@ -8,17 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `SQLite / 领域故障恢复`：验证 SQLite 领域提交与故障恢复
-    - 依据文档：[Meeting Requirements：FR-9 暂停、恢复与故障隔离](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#fr-9暂停恢复与故障隔离)、[FR-10 会议记录、隐私与归档](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#fr-10会议记录隐私与归档)；[Architecture：已确认的 provider 替换](docs/00-governance/ARCHITECTURE.md#confirmed-storage-provider-transition)；[Meeting Storage Interface：Repository Port](docs/20-interfaces/MEETING-STORAGE-INTERFACE.md#repository-port)、[幂等](docs/20-interfaces/MEETING-STORAGE-INTERFACE.md#idempotency)、[恢复](docs/20-interfaces/MEETING-STORAGE-INTERFACE.md#recovery)；[Persistence Design：不变量](docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md#algorithm-invariants)、[验收](docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md#acceptance)。
-    - 执行步骤：[RUNBOOK T3](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t3验证-sqlite-领域提交与故障恢复)
-    - 新增文件：`plugin/tests/recovery/sqlite-meeting-recovery.spec.ts`，suite=`Meeting persistence on SQLite`。
-    - 只读入口：`plugin/src/repository/domain/domain-repository-registry.ts::DomainRepositoryRegistry`、`plugin/src/repository/domain/checkpoint.ts::writeCheckpoint`、`plugin/src/repository/domain/projection.ts::loadProjection`。
-    - 回归文件：`plugin/tests/unit/repository/domain/checkpoint.spec.ts`、`plugin/tests/recovery/domain-recovery.spec.ts`；复用 `plugin/tests/unit/domain/transitions/fixtures.ts::meeting`，不修改这些文件。
-    - 前置依赖：T2 PASS。
-    - 确认依据：2026-09-08 用户明确要求依次执行 TODO LIST，一任务一提交。
-    - 处理动作：通过局部故障注入和新 Context 重开验证 command 原子性、checkpoint 发布边界、损坏与版本拒绝。
-    - 验收点：V1–V4、既有容量/恢复回归和 typecheck 通过，生产代码及共享 fixture 无改动。
-
 - [ ] `plugin/src/storage / Host 装配`：删除插件自有物理存储
     - 依据文档：[Architecture：已确认的 provider 替换](docs/00-governance/ARCHITECTURE.md#confirmed-storage-provider-transition)、[模块公开入口](docs/00-governance/ARCHITECTURE.md#public-module-entrypoints)；[Storage Interface：职责边界](docs/20-interfaces/MEETING-STORAGE-INTERFACE.md#boundary-and-ownership)；[Implementation Design：装配与生命周期](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#plugin-composition-and-lifecycle)（JSONL 当前实现描述由已确认替换条款变更）。
     - 执行步骤：[RUNBOOK T4](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t4删除插件自有物理存储)

@@ -360,3 +360,5 @@ T3 的 V1–V4 使用落盘 SQLite。测试内读取生产公开 Domain，允许
 - 2026-09-08 关闭限制确认：用户接受关闭时尚未完成写入可能失败，要求写入设计并同步冒烟判据。此前等待正式修复包及卸载自动排空的继续条件撤销；保持固定官方依赖，不接入本地修复包。T2 改验显式 await 写入和 Domain close 后的卸载、撤销与同库重开；T6 以关闭前已确认事实为恢复断言，不声称自然卸载能排空全部后台写入。设计、Architecture、操作和证据边界同步；T2–T9 仍未完成，本次文档修订不构成新的测试或 smoke PASS。
 
 - 2026-09-08 T2 PASS：真实 SQLite provider 门控、显式关闭、撤销后拒绝写入与新 Context 同库重开验证通过（1 test）；Host/Client typecheck 通过。资源经 finally 关闭并删除；不声称自然卸载排空在途写入。
+
+- 2026-09-08 T3 PASS：新增真实 SQLite 恢复 6 tests，与 checkpoint/domain recovery 合计 26 tests 通过；Host/Client typecheck 通过。V1–V4 均通过新 Context 同库重开验证，生产算法未修改。夹具使用公开诊断 get 获取已打开 Domain；人工写 checkpoint 后先重开 repository 再追加，避免绕过其内存游标。
