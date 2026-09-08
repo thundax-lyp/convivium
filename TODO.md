@@ -10,14 +10,6 @@
 
 2026-09-08 用户明确授权依次执行 TODO LIST，一任务一提交。MAD 编号用于任务依赖，RUNBOOK 的 T1–T6 仍是阶段门禁；阶段内拆分不新增范围，也不允许以部分任务完成代替整个阶段 PASS。T0 已确认，不列待办。每项相关文件均为仓库相对路径；计划新增路径不表示文件已存在。
 
-- [ ] `MAD-08 / meeting-roles smoke 探针`：验证九角色原生能力与权限结果
-    - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、BR-11、验收 36/38/39；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) Transport Or Invocation、Creation conversion、First-release assets、Error And Permission Semantics；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Security And Observability、Acceptance；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) Invariants And Failure Oracles、T4 动作 5–10。
-    - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
-    - 前置：MAD-07 的 wrapper/probe 接线已准备。
-    - 相关文件：新增 `plugin/scripts/smoke-profile/probe/scenarios/meeting-roles.js`，唯一导出 runMeetingRolesScenario(runtime)；修改 `plugin/scripts/smoke-profile/result.mjs`，补齐 `plugin/tests/unit/scripts/meeting-roles-smoke.spec.ts` 的结果/失败用例。只读保持生产权限与恢复实现。
-    - 处理动作：真实创建并暂停九身份会议，逐个观察 Skill tool/call/result，执行三研究角色 search/fetch 和 Manager/Scribe 权限探针；严格校验固定 assertions/observed。
-    - 验收点：T4 指定格式检查、lint、typecheck 和全部 focused tests PASS；九 Session 唯一、九 Skill 成功、三类研究结果、两次会议工具和两次继承工具 UNKNOWN_TOOL 拒绝、会议状态不变均有断言，缺项/重复/false 拒绝；不以单元测试替代 MAD-10 的真实证据。
-
 - [ ] `MAD-09 / 部署操作文档`：同步可独立执行的首发部署步骤
     - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 39；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Native deployment resources；[文档规则](docs/00-governance/DOCUMENT-RULES.md) 50-operations、Document Sync；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) T5 动作 1/2、Native Deployment Contract。
     - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。

@@ -11,6 +11,10 @@ export function validateScenarioResult(value, expectedScenario, validateMeetingS
     if (value.scenario !== expectedScenario || !Array.isArray(value.assertions)) {
         throw new Error("Smoke result scenario contract mismatch.");
     }
+    if (expectedScenario === "meeting-roles") {
+        validateMeetingRolesResult(value);
+        return value;
+    }
     if (expectedScenario === "scribe-minutes") {
         validateScribeMinutesResult(value, validateMeetingStatus);
         return value;
@@ -418,5 +422,84 @@ function validateScribeMinutesResult(value, validateMeetingStatus) {
         }
     } catch {
         throw new Error("Scribe minutes result is invalid.");
+    }
+}
+
+function validateMeetingRolesResult(value) {
+    const exactKeys = (object, keys) =>
+        object &&
+        typeof object === "object" &&
+        !Array.isArray(object) &&
+        Object.keys(object).length === keys.length &&
+        keys.every((key) => Object.hasOwn(object, key));
+    const requireValid = (condition) => {
+        if (!condition) throw new Error("Meeting roles smoke result is invalid.");
+    };
+    const roles = [
+        ["meeting_manager", "meeting-management"],
+        ["domain_architect", "domain-architecture"],
+        ["runtime_engineer", "dsh-runtime-engineering"],
+        ["protocol_ui_engineer", "protocol-ui-engineering"],
+        ["verification_reviewer", "verification-review"],
+        ["github_research_analyst", "github-source-research"],
+        ["arxiv_research_analyst", "arxiv-paper-analysis"],
+        ["web_research_analyst", "web-source-research"],
+        ["meeting_scribe", "referenced-minutes"]
+    ];
+    requireValid(exactKeys(value, ["ok", "scenario", "assertions", "observed"]));
+    requireValid(
+        isDeepStrictEqual(value.assertions, [
+            "shared-preset-mounted",
+            "nine-independent-sessions",
+            "nine-native-skills-loaded",
+            "research-tools-operational",
+            "meeting-authority-preserved"
+        ])
+    );
+    const o = value.observed;
+    requireValid(
+        exactKeys(o, [
+            "presetId",
+            "definitionCount",
+            "participantCount",
+            "skillLoads",
+            "research",
+            "deniedMeetingWrites",
+            "deniedPresetTools"
+        ])
+    );
+    requireValid(
+        o.presetId === "convivium" &&
+            o.definitionCount === 9 &&
+            o.participantCount === 8 &&
+            o.deniedMeetingWrites === 2 &&
+            o.deniedPresetTools === 2
+    );
+    requireValid(
+        Array.isArray(o.skillLoads) &&
+            o.skillLoads.length === 9 &&
+            Array.isArray(o.research) &&
+            o.research.length === 3
+    );
+    for (const [i, [role, skill]] of roles.entries()) {
+        const load = o.skillLoads[i];
+        requireValid(exactKeys(load, ["roleDefinitionId", "skillName", "sessionId", "loaded"]));
+        requireValid(
+            load.roleDefinitionId === role &&
+                load.skillName === skill &&
+                load.loaded === true &&
+                typeof load.sessionId === "string" &&
+                load.sessionId.trim().length > 0
+        );
+    }
+    requireValid(new Set(o.skillLoads.map((load) => load.sessionId)).size === 9);
+    for (const [i, role] of [
+        "github_research_analyst",
+        "arxiv_research_analyst",
+        "web_research_analyst"
+    ].entries()) {
+        requireValid(
+            isDeepStrictEqual(o.research[i], { roleDefinitionId: role, search: true, fetch: true })
+        );
     }
 }
