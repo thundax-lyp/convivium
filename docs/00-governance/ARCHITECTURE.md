@@ -56,7 +56,7 @@
 - DSH 负责 Session 创建、`sendMessage` 投递、interrupt、事件和生命周期能力。
 - Convivium 负责会议身份、上下文投影、发言 capability 和 Session ownership，不把 AgentSession 当作会议领域真相源。
 - Convivium 只定义 Agent 之间及 Agent 与 Meeting Runtime 之间的会议协议，不拥有或解释 Agent 内部的 Prompt、Skills、Tools、MCP、推理、命令、工作流和重试过程。
-- Convivium 可以保存 Meeting Agent Definition identity 与 meeting-owned DSH Session ownership；MCP、Sandbox、Approval、模型和其他 Host 私有能力配置仍由 DSH 管理。首版允许通过创建前解析函数校验共享父 Preset 与 required Skills，并用 DSH 公开 persona/toolFilter 参数配置独立 continuable Session；Definition ID、版本和指纹属于会议 provenance，运行配置由 DSH descriptor 持有。独立 per-child Preset 不属于首版；实现状态以 readiness 为准。
+- Convivium 可以保存 Meeting Agent Definition identity 与 meeting-owned DSH Session ownership；MCP、Sandbox、Approval、模型和其他 Host 私有能力配置仍由 DSH 管理。首版允许通过创建前解析函数校验共享父 Preset 与 required Skills，并用 DSH 公开 persona/toolFilter/agentOptions 参数配置独立 continuable Session；Definition ID、版本和指纹属于会议 provenance，运行配置由 DSH descriptor 持有。独立 per-child Preset 不属于首版；实现状态以 readiness 为准。
 - Agent 内部能力、Sandbox 和 Approval 由 DSH 管理；Convivium 只向 DSH 提供会议身份对应的授权上限，不得扩大用户或 DSH 已授予的权限。
 
 ## Identity And Session Isolation

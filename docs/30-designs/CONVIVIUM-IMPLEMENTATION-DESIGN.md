@@ -284,7 +284,7 @@ interface MeetingSessionAdapter {
 
 禁止其他模块直接调用 DSH subagent `spawn`、`sendMessage`、`interrupt`、`listChildren`、`listDescendants`、`drainContinuableChildren` 或 `drainContinuableDescendants`。
 
-业务 adapter 保留 `followup*Session` 命名，底层统一使用 DSH `0.1.2-rc.1` 公开 `sendMessage`，不依赖 `/internal`。消息发送身份、steer、acceptance 和业务完成边界以 [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#compatibility) 为准。`participantQueues` 继续负责现有业务投递串行约束，其中 Mail 持有队列直到业务终态或超时；它不保证每条消息独占一个 DSH turn。
+业务 adapter 保留 `followup*Session` 命名，由同一个 sendAuthorizedMeetingMessage helper 执行投递前后校验，底层使用 DSH `0.1.2-rc.1` 公开 `sendMessage`，不依赖 `/internal`。消息发送身份、steer、acceptance 和业务完成边界以 [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#compatibility) 为准。`participantQueues` 继续负责现有业务投递串行约束，其中 Mail 持有队列直到业务终态或超时；它不保证每条消息独占一个 DSH turn。
 
 ### Capability check
 

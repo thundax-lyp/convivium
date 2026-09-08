@@ -137,16 +137,11 @@ export async function runReassignScenario(runtime) {
         ctx.agents.get(replacement.id) === replacement,
         "replacement Agent is not live in store"
     );
-    const envelope = await runtime.waitForInbox(ctx, replacement.id, (message) => {
-        const text = runtime.messageText(message);
-        const marker = typeof text === "string" ? text.indexOf("speaker context: ") : -1;
-        if (marker < 0) return undefined;
-        try {
-            return JSON.parse(text.slice(marker + "speaker context: ".length));
-        } catch {
-            return undefined;
-        }
-    });
+    const envelope = await runtime.waitForSpeakerContext(
+        ctx,
+        replacement.id,
+        reassigned.result.replacementAttemptId
+    );
     runtime.assert(
         envelope.value.meetingId === meetingId &&
             envelope.value.step?.participantId === replacementParticipantId &&

@@ -71,45 +71,31 @@ export async function runColdRebindScenario(runtime) {
             runtime.assert(child.diagnostic === undefined, "cold child diagnostic " + sessionId);
             return child;
         });
-        runtime.assert(
-            ctx.agents.get(checkpoint.managerSessionId) === undefined,
-            "cold Manager unexpectedly resident before followup"
-        );
-        const manager = await runtime.resumeParticipantForProbe(
+        const managerDelivery = await runtime.waitForInbox(
             ctx,
-            runtime.captain.agent,
             checkpoint.managerSessionId,
-            "convivium-smoke-cold-manager"
-        );
-        let managerContext;
-        let managerContextMessageId;
-        for (const message of [
-            ...(manager.inbox.nextTurn ?? []),
-            ...(manager.inbox.nextStep ?? [])
-        ]) {
-            for (const text of runtime.messageTexts(message)) {
-                const marker = text.indexOf("manager context: ");
-                try {
-                    const parsed = JSON.parse(
-                        marker >= 0 ? text.slice(marker + "manager context: ".length) : text
-                    );
-                    if (
-                        parsed.meetingId === checkpoint.meetingId &&
-                        parsed.planningAttemptId === checkpoint.managerPlanningAttemptId &&
-                        parsed.meetingVersion === checkpoint.managerPlanningMeetingVersion
-                    ) {
-                        managerContext = parsed;
-                        managerContextMessageId = message.id;
+            (message) => {
+                for (const text of runtime.messageTexts(message)) {
+                    const marker = text.indexOf("manager context: ");
+                    try {
+                        const context = JSON.parse(
+                            marker >= 0 ? text.slice(marker + "manager context: ".length) : text
+                        );
+                        if (
+                            context.meetingId === checkpoint.meetingId &&
+                            context.planningAttemptId === checkpoint.managerPlanningAttemptId &&
+                            context.meetingVersion === checkpoint.managerPlanningMeetingVersion
+                        )
+                            return { context, messageId: message.id };
+                    } catch {
+                        // Sender attribution and other text blocks are not meeting contexts.
                     }
-                } catch {
-                    // Ignore non-context inbox messages.
                 }
             }
-        }
-        runtime.assert(
-            managerContext && managerContextMessageId,
-            "cold persisted Manager inbox context missing"
         );
+        const manager = managerDelivery.agent;
+        const managerContext = managerDelivery.value.context;
+        const managerContextMessageId = managerDelivery.value.messageId;
         const replanned = await runtime.callTool(
             ctx,
             manager,
@@ -302,6 +288,12 @@ export async function runColdRebindScenario(runtime) {
             manager.id,
             "convivium-smoke-cold-manager-barrier"
         );
+    if (scenario === "role-composition") {
+        ctx.subagents.interrupt(laterManagerAgent.id, {
+            kind: "ancestor",
+            agent: runtime.captain.agent
+        });
+    }
     await laterManagerAgent.whenIdle();
     let maintenanceStartedResolve;
     const maintenanceStarted = new Promise((resolveStarted) => {

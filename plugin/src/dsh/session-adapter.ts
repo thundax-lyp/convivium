@@ -1,5 +1,5 @@
 import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
-import type { Agent } from "@deepseek-ai/dsh-agent";
+import type { Agent, AgentOptions } from "@deepseek-ai/dsh-agent";
 import type {
     ContinuableStart,
     ContinuableStartSpec,
@@ -40,7 +40,11 @@ export function requireContinuableProvider(
 }
 
 export interface StartManagerSessionInput {
-    readonly composition?: { readonly persona: string; readonly toolFilter?: ToolRestriction };
+    readonly composition?: {
+        readonly persona: string;
+        readonly toolFilter?: ToolRestriction;
+        readonly agentOptions?: Pick<AgentOptions, "provider" | "model" | "reasoningEffort">;
+    };
     readonly runtime: Pick<SubagentRuntime, "startContinuable">;
     readonly provider: string;
     readonly parent: Agent;
@@ -83,7 +87,10 @@ export async function startManagerSession(
                       persona: input.composition.persona,
                       ...(input.composition.toolFilter === undefined
                           ? {}
-                          : { toolFilter: structuredClone(input.composition.toolFilter) })
+                          : { toolFilter: structuredClone(input.composition.toolFilter) }),
+                      ...(input.composition.agentOptions === undefined
+                          ? {}
+                          : { agentOptions: structuredClone(input.composition.agentOptions) })
                   })
         },
         signal: input.signal
@@ -97,7 +104,11 @@ export async function startManagerSession(
 }
 
 export interface StartParticipantSessionInput {
-    readonly composition?: { readonly persona: string; readonly toolFilter?: ToolRestriction };
+    readonly composition?: {
+        readonly persona: string;
+        readonly toolFilter?: ToolRestriction;
+        readonly agentOptions?: Pick<AgentOptions, "provider" | "model" | "reasoningEffort">;
+    };
     readonly runtime: Pick<SubagentRuntime, "startContinuable">;
     readonly provider: string;
     readonly parent: Agent;
@@ -143,7 +154,10 @@ export async function startParticipantSession(
                       persona: input.composition.persona,
                       ...(input.composition.toolFilter === undefined
                           ? {}
-                          : { toolFilter: structuredClone(input.composition.toolFilter) })
+                          : { toolFilter: structuredClone(input.composition.toolFilter) }),
+                      ...(input.composition.agentOptions === undefined
+                          ? {}
+                          : { agentOptions: structuredClone(input.composition.agentOptions) })
                   })
         },
         signal: input.signal
@@ -226,6 +240,25 @@ function assertSpeakerFollowupOwnership(input: FollowupParticipantSessionInput):
     }
 }
 
+/** Acceptance is not business completion; DSH owns sender attribution and activation. */
+async function sendAuthorizedMeetingMessage(
+    input: Pick<
+        FollowupParticipantSessionInput,
+        "runtime" | "parent" | "ownership" | "prompt" | "signal"
+    >,
+    authorize: (phase: "before" | "after") => Promise<void>
+): Promise<ContinuableStart["messageId"]> {
+    await authorize("before");
+    const messageId = await input.runtime.sendMessage(
+        input.parent,
+        input.ownership.sessionId as SessionId,
+        input.prompt,
+        { signal: input.signal }
+    );
+    await authorize("after");
+    return messageId;
+}
+
 export async function followupParticipantSession(
     input: FollowupParticipantSessionInput
 ): Promise<ContinuableStart["messageId"]> {
@@ -235,17 +268,7 @@ export async function followupParticipantSession(
         attempt: input.attempt,
         signal: input.signal
     };
-    await input.authorize(authorization);
-    const messageId = await input.runtime.sendMessage(
-        input.parent,
-        input.ownership.sessionId as SessionId,
-        input.prompt,
-        {
-            signal: input.signal
-        }
-    );
-    await input.authorize(authorization);
-    return messageId;
+    return sendAuthorizedMeetingMessage(input, () => input.authorize(authorization));
 }
 
 export interface FollowupMeetingTaskSessionInput {
@@ -281,17 +304,7 @@ export async function followupMeetingMailSession(
     ) {
         throw new Error("Meeting mail followup requires an active owned Participant Session.");
     }
-    await input.authorize("before");
-    const messageId = await input.runtime.sendMessage(
-        input.parent,
-        input.ownership.sessionId as SessionId,
-        input.prompt,
-        {
-            signal: input.signal
-        }
-    );
-    await input.authorize("after");
-    return messageId;
+    return sendAuthorizedMeetingMessage(input, (phase) => input.authorize(phase));
 }
 
 export async function followupMeetingTaskSession(
@@ -307,17 +320,7 @@ export async function followupMeetingTaskSession(
     ) {
         throw new Error("MeetingTask followup requires an active Participant Session.");
     }
-    await input.authorize("before");
-    const messageId = await input.runtime.sendMessage(
-        input.parent,
-        input.ownership.sessionId as SessionId,
-        input.prompt,
-        {
-            signal: input.signal
-        }
-    );
-    await input.authorize("after");
-    return messageId;
+    return sendAuthorizedMeetingMessage(input, (phase) => input.authorize(phase));
 }
 
 export async function followupManagerSession(
@@ -337,17 +340,7 @@ export async function followupManagerSession(
         attempt: input.attempt,
         signal: input.signal
     };
-    await input.authorize(authorization);
-    const messageId = await input.runtime.sendMessage(
-        input.parent,
-        input.ownership.sessionId as SessionId,
-        input.prompt,
-        {
-            signal: input.signal
-        }
-    );
-    await input.authorize(authorization);
-    return messageId;
+    return sendAuthorizedMeetingMessage(input, () => input.authorize(authorization));
 }
 
 export {

@@ -10,6 +10,11 @@ export const roleCompositionDefinitions: readonly MeetingAgentDefinitionV1[] = [
         persona: "FR14_MANAGER_V1",
         dshPresetId: "minimal",
         requiredSkillNames: ["fr14-fixture"],
+        agentOptions: {
+            provider: "convivium-role-smoke",
+            model: "manager-v1",
+            reasoningEffort: "high"
+        },
         expertiseTags: ["fixture"],
         evidenceScopes: []
     },
@@ -23,6 +28,11 @@ export const roleCompositionDefinitions: readonly MeetingAgentDefinitionV1[] = [
         dshPresetId: "minimal",
         requiredSkillNames: ["fr14-fixture"],
         toolFilter: { deny: ["convivium_role_probe"] },
+        agentOptions: {
+            provider: "convivium-role-smoke",
+            model: "participant-v1",
+            reasoningEffort: "low"
+        },
         expertiseTags: ["fixture"],
         evidenceScopes: []
     }

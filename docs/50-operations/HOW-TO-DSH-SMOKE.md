@@ -4,7 +4,7 @@
 
 - 在 `plugin/` 目录执行命令。
 - Node.js 满足 `plugin/package.json` 的 engines 要求。
-- pnpm 可访问或已缓存 `@deepseek-ai/dsh@0.1.1-rc.2`。
+- pnpm 可访问或已缓存 `@deepseek-ai/dsh@0.1.2-rc.1`。
 - 不使用开发者常用的 DSH profile；脚本会创建并清理独立临时 profile、workspace、端口和 `DSH_HOME`。
 - 自动 `smoke:profile` 使用的本地 DeepSeek 凭据保存在仓库根目录 `dev.env`；从 `dev.env.example` 复制后填写。该文件不进入 Git。
 
@@ -34,7 +34,7 @@ cd plugin
 pnpm build
 artifact_name="$(pnpm pack --json --pack-destination ../dsh-workspace/artifacts | node -e 'let input = ""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => { const value = JSON.parse(input); process.stdout.write((Array.isArray(value) ? value[0] : value).filename); });')"
 artifact_path="$(cd ../dsh-workspace/artifacts && pwd)/$(basename "$artifact_name")"
-DSH_HOME="$(cd ../dsh-workspace/dsh-home && pwd)" pnpm dlx @deepseek-ai/dsh@0.1.1-rc.2 plugin --profile web add "$artifact_path"
+DSH_HOME="$(cd ../dsh-workspace/dsh-home && pwd)" pnpm dlx @deepseek-ai/dsh@0.1.2-rc.1 plugin --profile web add "$artifact_path"
 cd ..
 ```
 
@@ -55,7 +55,7 @@ chmod 600 dev.env
     . ../dev.env
     set +a
     export DSH_HOME="$PWD/dsh-home"
-    exec pnpm dlx @deepseek-ai/dsh@0.1.1-rc.2 web \
+    exec pnpm dlx @deepseek-ai/dsh@0.1.2-rc.1 web \
         --no-open \
         --host 127.0.0.1 \
         --port 31828 \
@@ -81,7 +81,7 @@ Convivium 后续的标准 DSH 插件冒烟测试统一使用发布版 DSH CLI/ru
 
 ```sh
 cd plugin
-pnpm dlx @deepseek-ai/dsh@0.1.1-rc.2 --version
+pnpm dlx @deepseek-ai/dsh@0.1.2-rc.1 --version
 pnpm smoke:profile
 ```
 
@@ -90,7 +90,7 @@ pnpm smoke:profile
 其中 `pnpm smoke:profile` 内部固定调用：
 
 ```text
-pnpm dlx @deepseek-ai/dsh@0.1.1-rc.2
+pnpm dlx @deepseek-ai/dsh@0.1.2-rc.1
 ```
 
 ## 自动 smoke 的分层与入口

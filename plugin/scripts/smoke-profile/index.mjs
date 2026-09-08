@@ -16,7 +16,7 @@ import { validateScenarioResult } from "./result.mjs";
 export { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 export { validateScenarioResult } from "./result.mjs";
 
-const DSH_VERSION = "0.1.1-rc.2";
+const DSH_VERSION = "0.1.2-rc.1";
 const PROFILE = "web";
 const PROVIDER = "spawn";
 const DSH_PACKAGE = `@deepseek-ai/dsh@${DSH_VERSION}`;
@@ -251,7 +251,10 @@ async function writeProbePackage(probeDir) {
                 private: true,
                 type: "module",
                 main: "index.js",
-                dependencies: { "@deepseek-ai/dsh-subagent": DSH_VERSION },
+                dependencies: {
+                    "@deepseek-ai/dsh-subagent": DSH_VERSION,
+                    "@deepseek-ai/dsh-llm": DSH_VERSION
+                },
                 dsh: { bundle: { patch: "./cordis.patch.yml" } }
             },
             null,

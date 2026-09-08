@@ -1,3 +1,5 @@
+import { runInNewContext } from "node:vm";
+import { createProbeSupport } from "../../../scripts/smoke-profile/probe/support.js";
 import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -787,5 +789,46 @@ describe("local decision risk browser fixture", () => {
         expect(() => validateScenarioResult(invalid, value.scenario)).toThrow(
             "Local decision risk browser-ready result is invalid."
         );
+    });
+});
+
+it("finds meeting deliveries after DSH sender text without assuming the first block", async () => {
+    const { messageTexts } = createProbeSupport("unused");
+    const wrap = (text) => ({
+        content: [
+            { type: "text", text: "Agent captain sent a message: " },
+            { type: "text", text }
+        ]
+    });
+    let message = wrap('Meeting x speaker context: {"attempt":{"attemptId":"a"}}');
+    const managerMessages = new Map([
+        [
+            "manager",
+            [wrap(JSON.stringify({ meetingId: "m", planningAttemptId: "p2", meetingVersion: 2 }))]
+        ]
+    ]);
+    const begin = probeSource.indexOf("async function waitForSpeakerContext(");
+    const end = probeSource.indexOf("function createSmokeAgent(", begin);
+    const helpers = runInNewContext(
+        probeSource.slice(begin, end) +
+            "\n({ waitForSpeakerContext, waitForTaskDelivery, waitForStoredManagerContext })",
+        {
+            messageTexts,
+            observedInboxMessages: managerMessages,
+            waitForInbox: async (_ctx, _agentId, select) => select(message)
+        }
+    );
+    expect(await helpers.waitForSpeakerContext({}, "participant", "a")).toEqual({
+        attempt: { attemptId: "a" }
+    });
+    message = wrap("Execute MeetingTask t:\nexecutionId: e\ndeliveryId: d");
+    expect(await helpers.waitForTaskDelivery({}, "participant", "t")).toEqual({
+        executionId: "e",
+        deliveryId: "d"
+    });
+    expect(await helpers.waitForStoredManagerContext("manager", "m", "p1", 2)).toEqual({
+        meetingId: "m",
+        planningAttemptId: "p2",
+        meetingVersion: 2
     });
 });

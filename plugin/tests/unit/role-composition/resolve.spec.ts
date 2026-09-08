@@ -48,6 +48,48 @@ describe("role composition configuration and resolution", () => {
         expect(Object.isFrozen(result.participants.__proto__.toolFilter?.allow)).toBe(true);
         expect(Object.isFrozen(result.manager?.agentDefinition)).toBe(true);
     });
+    it("snapshots native model options and includes them in stable role provenance", async () => {
+        const options = { model: "model-a", provider: "provider-a", reasoningEffort: "high" };
+        const resolve = async (agentOptions: Record<string, unknown>) =>
+            resolveMeetingRoles(
+                {
+                    definitions: parseAgentDefinitions([{ ...manager, agentOptions }]),
+                    managerAgentDefinitionId: "manager",
+                    participants: []
+                },
+                async () => {}
+            );
+        const original = await resolve(options);
+        const reordered = await resolve(Object.fromEntries(Object.entries(options).reverse()));
+        expect(original.manager?.agentOptions).toEqual(options);
+        expect(Object.isFrozen(original.manager?.agentOptions)).toBe(true);
+        expect(reordered.manager?.agentDefinition).toEqual(original.manager?.agentDefinition);
+        options.model = "model-b";
+        const changed = await resolve(options);
+        expect(original.manager?.agentOptions?.model).toBe("model-a");
+        expect(changed.manager?.agentDefinition.definitionHash).not.toBe(
+            original.manager?.agentDefinition.definitionHash
+        );
+    });
+    it.each([
+        {},
+        null,
+        { maxTokens: 1024 },
+        { model: " " },
+        { provider: "" },
+        { reasoningEffort: " " },
+        { maxTokens: 0 },
+        { maxTokens: -1 },
+        { maxTokens: 1.5 },
+        { maxTokens: Infinity },
+        { maxTokens: Number.MAX_SAFE_INTEGER + 1 },
+        { apiKey: "secret" },
+        { model: "x", extra: true }
+    ])("rejects invalid native model options without leaking configuration", (agentOptions) => {
+        expect(() => parseAgentDefinitions([{ ...manager, agentOptions }])).toThrow(
+            "Invalid meeting agent definitions."
+        );
+    });
     it("does not validate capabilities without selections", async () => {
         const validate = vi.fn();
         expect(
