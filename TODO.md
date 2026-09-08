@@ -10,14 +10,6 @@
 
 2026-09-08 用户明确授权依次执行 TODO LIST，一任务一提交。MAD 编号用于任务依赖，RUNBOOK 的 T1–T6 仍是阶段门禁；阶段内拆分不新增范围，也不允许以部分任务完成代替整个阶段 PASS。T0 已确认，不列待办。每项相关文件均为仓库相对路径；计划新增路径不表示文件已存在。
 
-- [ ] `MAD-06 / role-composition smoke`：适配既有模型差异与冷恢复场景
-    - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 39；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) Creation conversion、Runtime Provenance And Recovery；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) State And Failure Handling；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) T4 动作 1；[Smoke 操作](docs/50-operations/HOW-TO-DSH-SMOKE.md) FR-14 共享 Preset 角色隔离与冷恢复。
-    - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
-    - 前置：MAD-05 PASS（T3 完成）。
-    - 相关文件：修改 `plugin/scripts/smoke-profile/probe/role-definitions.js`、`plugin/scripts/smoke-profile/probe/scenarios/role-composition.js`、`plugin/scripts/smoke-profile/probe/scenarios/recovery.js`、`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/result.mjs`、`plugin/tests/unit/scripts/role-composition-smoke.spec.ts`。
-    - 处理动作：拆分 roleSmokeDefinitions 与新增 roleSmokeModelOverrides(phase)，同步 writeSmokePatch、assertRoleSmoke 和结果预期，继续验证 phase 1 descriptor 在 phase 2 配置下恢复。
-    - 验收点：role-composition-smoke focused suite 通过；保留 persona/filter/provider/model/reasoningEffort、禁用工具 body 零调用、父路由不变和双 Host 隔离断言；真实冷恢复运行由 MAD-10 验收。
-
 - [ ] `MAD-07 / meeting-roles smoke 启动`：接通真实发布资源、场景路由与清理
     - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 39；[架构](docs/00-governance/ARCHITECTURE.md) DSH Plugin Host、Source Layout And Verification；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Native deployment resources；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) T4 动作 2/3/4/10；[Smoke 操作](docs/50-operations/HOW-TO-DSH-SMOKE.md) 成功与 Restore、失败处理。
     - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。

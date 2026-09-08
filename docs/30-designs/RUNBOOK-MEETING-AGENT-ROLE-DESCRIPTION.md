@@ -439,3 +439,5 @@ Not Covered：本轮未改生产代码、测试或部署资源；仅运行 Confi
 2026-09-08 MAD-04 PASS：九角色原生资源与部署验证器完成，指定旧 19 文件已删除；verify:agent-definitions、16 个 samples tests、角色正文与原元数据逐项核对、V-DOC/diff check 全 PASS。打包与真实 Loader 验收仍待后续任务。
 
 2026-09-08 MAD-05 / T3 PASS：files/exports 与十四项角色资产门禁已更新；build、verify:contract、verify:package 全 PASS，missingArtifacts/forbiddenPublishedPaths 均为空。core patch 与 package root JS exports 保持；未宣称真实部署通过。
+
+2026-09-08 MAD-06 PASS：旧 role-composition smoke 已拆分模型 map，完整派生 persona 与冷恢复断言同步；7 个 focused tests、diff check PASS，保留禁止另一身份标记、禁用 body 零调用与父配置隔离。真实双 Host 验收待 MAD-10。

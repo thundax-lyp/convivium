@@ -81,8 +81,10 @@ export function validateScenarioResult(value, expectedScenario, validateMeetingS
             required.some((label) => !value.assertions.includes(label)) ||
             role?.phase1Checked !== true ||
             role?.phase2Checked !== true ||
-            role?.managerPersona !== "FR14_MANAGER_V1" ||
-            role?.participantPersona !== "FR14_PARTICIPANT_V1" ||
+            role?.managerPersona !==
+                "FR14_MANAGER_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。" ||
+            role?.participantPersona !==
+                "FR14_PARTICIPANT_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。" ||
             role?.phase2ConfiguredVersion !== "2.0.0" ||
             role?.deniedTool !== "convivium_role_probe" ||
             role?.deniedBodyCalls !== 0 ||

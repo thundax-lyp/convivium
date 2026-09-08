@@ -10,7 +10,7 @@ import process from "node:process";
 import { assertBrowserClientPreflight } from "./browser-client-preflight.mjs";
 import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 import { validateColdCheckpoint } from "./probe/support.js";
-import { roleSmokeDefinitions } from "./probe/role-definitions.js";
+import { roleSmokeDefinitions, roleSmokeModelOverrides } from "./probe/role-definitions.js";
 import { validateScenarioResult } from "./result.mjs";
 
 export { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
@@ -230,7 +230,10 @@ async function writeSmokePatch(path, scenario, phase = "1") {
         `    provider: ${PROVIDER}`,
         "    dataRoot: convivium-smoke-data",
         ...(scenario === "role-composition"
-            ? [`    agentDefinitions: ${JSON.stringify(roleSmokeDefinitions(phase))}`]
+            ? [
+                  `    agentDefinitions: ${JSON.stringify(roleSmokeDefinitions(phase))}`,
+                  `    agentModelOverrides: ${JSON.stringify(roleSmokeModelOverrides(phase))}`
+              ]
             : []),
         "    maxParticipants: 3",
         `    speakerTimeoutMs: ${scenario === "timeout" ? 250 : BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
