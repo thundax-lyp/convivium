@@ -196,13 +196,11 @@ describe("resolved role adapter composition", () => {
     it("passes persona, filter and independent model options to DSH and keeps provenance outside the descriptor request", async () => {
         const roles = await resolveMeetingRoles(
             {
-                definitions: roleCompositionDefinitions.map((definition, index) => ({
-                    ...definition,
-                    agentOptions: {
-                        provider: "fixture",
-                        model: index === 0 ? "manager-model" : "participant-model"
-                    }
-                })),
+                definitions: roleCompositionDefinitions,
+                agentModelOverrides: {
+                    "fr14-manager": { provider: "fixture", model: "manager-model" },
+                    "fr14-participant": { provider: "fixture", model: "participant-model" }
+                },
                 managerAgentDefinitionId: "fr14-manager",
                 participants: [{ participantKey: "a", agentDefinitionId: "fr14-participant" }]
             },
@@ -230,9 +228,12 @@ describe("resolved role adapter composition", () => {
             participantId: "a",
             composition: roles.participants.a
         });
-        expect(starts[0].request.persona).toBe("FR14_MANAGER_V1");
+        expect(starts[0].request.persona).toBe(
+            "FR14_MANAGER_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。"
+        );
         expect(starts[1].request).toMatchObject({
-            persona: "FR14_PARTICIPANT_V1",
+            persona:
+                "FR14_PARTICIPANT_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。",
             toolFilter: { deny: ["convivium_role_probe"] }
         });
         expect(starts[0].request.agentOptions).toEqual({

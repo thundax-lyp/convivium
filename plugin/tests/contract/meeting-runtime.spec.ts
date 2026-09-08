@@ -3,7 +3,10 @@ import {
     CaptainAttendanceDispositionInputSchema,
     CaptainAttendanceDispositionResultSchema
 } from "@/protocol/index.js";
-import { roleCompositionDefinitions } from "../fixtures/role-composition.js";
+import {
+    roleCompositionDefinitions,
+    roleCompositionModelOverrides
+} from "../fixtures/role-composition.js";
 import { MeetingArchivePackageSchema } from "@/protocol/status.js";
 
 import { Readable } from "node:stream";
@@ -3338,6 +3341,7 @@ describe("Agent Definition creation and replay contract", () => {
             storageDomain: storagePort(root),
             provider: "spawn",
             agentDefinitions: definitions,
+            agentModelOverrides: structuredClone(roleCompositionModelOverrides),
             now: () => 100,
             continuable: {
                 startContinuable: async (spec) => {
@@ -3391,9 +3395,19 @@ describe("Agent Definition creation and replay contract", () => {
             if (!created.ok) throw new Error(JSON.stringify(created));
             const meetingId = created.result.meetingId;
             expect(f.get).toHaveBeenCalledTimes(1);
-            expect(f.starts[0].request.persona).toBe("FR14_MANAGER_V1");
-            expect(f.starts[1].request.persona).toBe("FR14_PARTICIPANT_V1");
-            f.definitions[0].persona = "FR14_MANAGER_V2";
+            expect(f.starts[0].request.persona).toBe(
+                "FR14_MANAGER_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。"
+            );
+            expect(f.starts[1].request.persona).toBe(
+                "FR14_PARTICIPANT_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。"
+            );
+            expect(f.starts[0].request.agentOptions).toEqual(
+                roleCompositionModelOverrides["fr14-manager"]
+            );
+            expect(f.starts[1].request.agentOptions).toEqual(
+                roleCompositionModelOverrides["fr14-participant"]
+            );
+            f.definitions[0].roleDescription = "FR14_MANAGER_V2";
             f.definitions[0].definitionVersion = "2.0.0";
             f.get.mockResolvedValue(undefined);
             expect(await f.runtime.createMeeting(selected, f.captain, f.controller.signal)).toEqual(
@@ -3464,7 +3478,9 @@ describe("Agent Definition creation and replay contract", () => {
                 f.controller.signal
             );
             expect(fresh).toMatchObject({ ok: true });
-            expect(f.starts[4].request.persona).toBe("FR14_MANAGER_V2");
+            expect(f.starts[4].request.persona).toBe(
+                "FR14_MANAGER_V2\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。"
+            );
             await f.runtime.dispose();
             const registry = await openTestRegistry(f.root);
             try {

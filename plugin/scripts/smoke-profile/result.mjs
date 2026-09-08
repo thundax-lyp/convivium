@@ -1,6 +1,11 @@
 import { isDeepStrictEqual } from "node:util";
 
-export function validateScenarioResult(value, expectedScenario, validateMeetingStatus) {
+export function validateScenarioResult(
+    value,
+    expectedScenario,
+    validateMeetingStatus,
+    skipWebFetch = false
+) {
     if (["convergence-stalled", "convergence-turn-budget-completion"].includes(expectedScenario)) {
         validateConvergenceRuntimeResult(value, expectedScenario, validateMeetingStatus);
         return value;
@@ -10,6 +15,10 @@ export function validateScenarioResult(value, expectedScenario, validateMeetingS
     }
     if (value.scenario !== expectedScenario || !Array.isArray(value.assertions)) {
         throw new Error("Smoke result scenario contract mismatch.");
+    }
+    if (expectedScenario === "meeting-roles") {
+        validateMeetingRolesResult(value, skipWebFetch);
+        return value;
     }
     if (expectedScenario === "scribe-minutes") {
         validateScribeMinutesResult(value, validateMeetingStatus);
@@ -81,8 +90,10 @@ export function validateScenarioResult(value, expectedScenario, validateMeetingS
             required.some((label) => !value.assertions.includes(label)) ||
             role?.phase1Checked !== true ||
             role?.phase2Checked !== true ||
-            role?.managerPersona !== "FR14_MANAGER_V1" ||
-            role?.participantPersona !== "FR14_PARTICIPANT_V1" ||
+            role?.managerPersona !==
+                "FR14_MANAGER_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。" ||
+            role?.participantPersona !==
+                "FR14_PARTICIPANT_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。" ||
             role?.phase2ConfiguredVersion !== "2.0.0" ||
             role?.deniedTool !== "convivium_role_probe" ||
             role?.deniedBodyCalls !== 0 ||
@@ -416,5 +427,88 @@ function validateScribeMinutesResult(value, validateMeetingStatus) {
         }
     } catch {
         throw new Error("Scribe minutes result is invalid.");
+    }
+}
+
+function validateMeetingRolesResult(value, skipWebFetch) {
+    const exactKeys = (object, keys) =>
+        object &&
+        typeof object === "object" &&
+        !Array.isArray(object) &&
+        Object.keys(object).length === keys.length &&
+        keys.every((key) => Object.hasOwn(object, key));
+    const requireValid = (condition) => {
+        if (!condition) throw new Error("Meeting roles smoke result is invalid.");
+    };
+    const roles = [
+        ["meeting_manager", "meeting-management"],
+        ["domain_architect", "domain-architecture"],
+        ["runtime_engineer", "dsh-runtime-engineering"],
+        ["protocol_ui_engineer", "protocol-ui-engineering"],
+        ["verification_reviewer", "verification-review"],
+        ["github_research_analyst", "github-source-research"],
+        ["arxiv_research_analyst", "arxiv-paper-analysis"],
+        ["web_research_analyst", "web-source-research"],
+        ["meeting_scribe", "referenced-minutes"]
+    ];
+    requireValid(exactKeys(value, ["ok", "scenario", "assertions", "observed"]));
+    requireValid(
+        isDeepStrictEqual(value.assertions, [
+            "shared-preset-mounted",
+            "nine-independent-sessions",
+            "nine-native-skills-loaded",
+            skipWebFetch ? "research-search-operational" : "research-tools-operational",
+            "meeting-authority-preserved"
+        ])
+    );
+    const o = value.observed;
+    requireValid(
+        exactKeys(o, [
+            "presetId",
+            "definitionCount",
+            "participantCount",
+            "skillLoads",
+            "research",
+            "deniedMeetingWrites",
+            "deniedPresetTools"
+        ])
+    );
+    requireValid(
+        o.presetId === "convivium" &&
+            o.definitionCount === 9 &&
+            o.participantCount === 8 &&
+            o.deniedMeetingWrites === 2 &&
+            o.deniedPresetTools === 2
+    );
+    requireValid(
+        Array.isArray(o.skillLoads) &&
+            o.skillLoads.length === 9 &&
+            Array.isArray(o.research) &&
+            o.research.length === 3
+    );
+    for (const [i, [role, skill]] of roles.entries()) {
+        const load = o.skillLoads[i];
+        requireValid(exactKeys(load, ["roleDefinitionId", "skillName", "sessionId", "loaded"]));
+        requireValid(
+            load.roleDefinitionId === role &&
+                load.skillName === skill &&
+                load.loaded === true &&
+                typeof load.sessionId === "string" &&
+                load.sessionId.trim().length > 0
+        );
+    }
+    requireValid(new Set(o.skillLoads.map((load) => load.sessionId)).size === 9);
+    for (const [i, role] of [
+        "github_research_analyst",
+        "arxiv_research_analyst",
+        "web_research_analyst"
+    ].entries()) {
+        requireValid(
+            isDeepStrictEqual(o.research[i], {
+                roleDefinitionId: role,
+                search: true,
+                fetch: skipWebFetch ? "skipped:user-waiver" : true
+            })
+        );
     }
 }

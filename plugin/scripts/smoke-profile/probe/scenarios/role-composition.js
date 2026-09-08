@@ -86,9 +86,14 @@ export async function assertRoleSmoke(runtime, manager, participant) {
     const { assert, ctx, roleSmoke } = runtime;
     const managerDescriptor = foldSubagentDescriptor(manager.session.ownEvents());
     const participantDescriptor = foldSubagentDescriptor(participant.session.ownEvents());
-    assert(managerDescriptor?.persona === "FR14_MANAGER_V1", "Manager descriptor persona changed");
     assert(
-        participantDescriptor?.persona === "FR14_PARTICIPANT_V1",
+        managerDescriptor?.persona ===
+            "FR14_MANAGER_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。",
+        "Manager descriptor persona changed"
+    );
+    assert(
+        participantDescriptor?.persona ===
+            "FR14_PARTICIPANT_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。",
         "Participant descriptor persona changed"
     );
     for (const [agent, descriptor, model, effort] of [
@@ -115,14 +120,22 @@ export async function assertRoleSmoke(runtime, manager, participant) {
         "Participant descriptor filter changed"
     );
     for (const [agent, own, other] of [
-        [manager, "FR14_MANAGER_V1", "FR14_PARTICIPANT_V1"],
-        [participant, "FR14_PARTICIPANT_V1", "FR14_MANAGER_V1"]
+        [
+            manager,
+            "FR14_MANAGER_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。",
+            "FR14_PARTICIPANT_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。"
+        ],
+        [
+            participant,
+            "FR14_PARTICIPANT_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。",
+            "FR14_MANAGER_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。"
+        ]
     ]) {
         const assembly = await agent.ctx.systemPrompt.assemble({ scope: agent });
         const text = assembly.sections.map((section) => section.text).join("\n");
         assert(
             text.includes(own) &&
-                !text.includes(other) &&
+                !text.includes(other.split("\n")[0]) &&
                 !text.includes("FR14_MANAGER_V2") &&
                 !text.includes("FR14_PARTICIPANT_V2"),
             "Role assembly is not isolated"

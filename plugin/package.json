@@ -17,11 +17,13 @@
             "default": "./lib/client.js"
         },
         "./cordis.patch.yml": "./cordis.patch.yml",
-        "./package.json": "./package.json"
+        "./package.json": "./package.json",
+        "./meeting-roles/cordis.patch.yml": "./meeting-roles/cordis.patch.yml"
     },
     "files": [
         "lib",
-        "cordis.patch.yml"
+        "cordis.patch.yml",
+        "meeting-roles"
     ],
     "engines": {
         "node": "^22.19.0 || >=24.11.0"

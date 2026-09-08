@@ -22,9 +22,10 @@ describe("plugin package contract", () => {
             ".",
             "./client",
             "./cordis.patch.yml",
-            "./package.json"
+            "./package.json",
+            "./meeting-roles/cordis.patch.yml"
         ]);
-        expect(packageManifest.files).toEqual(["lib", "cordis.patch.yml"]);
+        expect(packageManifest.files).toEqual(["lib", "cordis.patch.yml", "meeting-roles"]);
         expect(packageManifest.dsh.bundle.patch).toBe("./cordis.patch.yml");
         expect(packageManifest.dsh.client.platform).toBe("web");
         expect(packageManifest.dsh.client.inject).toEqual([

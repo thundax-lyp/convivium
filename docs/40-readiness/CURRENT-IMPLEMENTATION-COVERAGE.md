@@ -43,7 +43,7 @@
 | FR-11 可观察性与用户控制 | 展示/基础诊断已实现，验收未完 | 本地 list/status、pause/resume/reassign/end、五种 Decision/risk 行内控制、轮询/focus/error 恢复；HTTP/Client tests | Proposal/Position、HandRaise、收敛展示和白名单日志/metrics 已实现；本轮补齐冷打开 gauges、失败与关联字段。新区域只有 jsdom，完整观测系统和 Browser 尚未验收 |
 | FR-12 Agent 内部能力边界 | 已实现 | 只消费正式提交和授权 task projection；无自定义持久 DSH Session Event；caller/tool/module-boundary tests | 真实模型自主遵守协议与内部工具失败后的模型行为未验证 |
 | FR-13 Agent 角色目录与参会推荐 | 部分实现 | optional Host consumer、attempt snapshot、安全 projection、Manager pending、Captain reject、status/archive、SQLite reopen | approve/admission/provisioning、自动 expired/cancelled、research freshness/dedup 未实现；真实 Host producer 成功链路、动态 FR-14 接入、UI 和专项 Host 冷重启未验证 |
-| FR-14 共享 Preset 下的 Agent Definition | 已实现（共享父 Preset 首版） | 内联定义、显式初始选择、全角色预检、persona/toolFilter/agentOptions、不可变 provenance、ready replay；双 Host 验证保留 V1 provider/model/reasoningEffort | 独立 per-child Preset、独占 Skill、热切换、动态 admission、Browser 配置 UI 不属于首版；maxTokens 不支持冷恢复保持；宿主 capability 部署变化不保证历史快照 |
+| FR-14 共享 Preset 下的 Agent Definition | 角色模型/部署已实现，本轮验收含抓取豁免 | roleDescription、Host 模型绑定、同包九角色/九 Skill、三研究搜索、权限拒绝、双 Host 冷恢复、完整 verify 与五核心 PASS | web_fetch 按用户要求 Not Covered；完整无豁免部署验收与长期模型质量未证明，见 [本轮证据](./SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment) |
 | FR-15 Developer Markdown Projection | 已实现（本地辅助输出） | committed snapshot/package → current/archive Markdown；白名单、路径、stale、原子替换、失败隔离、dispose；专项 unit/contract tests 随当前 verify 通过 | Interface 已同步 local_host_acceptance 枚举；真实文件输出未纳入当前 smoke，multi-Host/remote workspace/旧文件迁移不支持 |
 
 ### 业务能力验证
@@ -101,6 +101,12 @@
 [历史 Browser 空态及清理证据](./SMOKE-VALIDATION-EVIDENCE.md#client-fact-visibility-browser) 限于 `0cb0193` 的公开字段、四个空态区和刷新一致性。该轮非空事实只有自动化证据；后来 Decision/risk 的独立 Browser 结果不补足 Parking Lot、全部 archived issues 或本轮新增面板区域的端到端验证。早期清理失败轮不计 Restore PASS。
 
 ### Shared Preset Role Composition
+
+2026-09-08 当前结果：源码 b3f02c2 的完整 verify（86 files / 1143 tests）、角色双 Host 冷恢复、九角色部署（web_fetch 用户豁免）和默认五核心按顺序全部通过，所有 Restore PASS。Definition 只保留角色职责/原生引用/必要限制，模型差异由 Host agentModelOverrides 提供并由 DSH descriptor 恢复。同 tarball 九个独立 child 均真实加载自己的 Skill；GitHub/arXiv/Web 搜索、四次权限拒绝与会议状态不变通过。web_fetch 三项明确 skipped:user-waiver，保留为 Not Covered，不代表完整无豁免部署验收通过。完整证据及失败修复历史见 [Meeting Roles Deployment](./SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)。下方作者基线与文档阶段记录属于历史边界。
+
+2026-09-08 作者基线核验：源码 `299d3996c5938e5e8398cf592faad195835b964b`，分支 `codex/meeting-agent-role-description`，仅 docs/ 有本轮差异；Node v22.23.2、pnpm 10.7.0。逐项读取声明与安装 manifest，18 个 `@deepseek-ai/dsh-*` 包均为 0.1.2-rc.1；`pnpm --dir plugin verify:agent-definitions` 为 9 samples PASS；`pnpm --dir plugin exec vitest run tests/unit/role-composition tests/unit/config.spec.ts tests/unit/scripts/agent-definition-samples.spec.ts` 为 4 files / 35 tests PASS，均 exit 0。未安装或修改依赖，未改代码/测试，未执行完整 verify 或真实 Host 部署。这些结果只覆盖旧实现基线，不覆盖下述首发新目标。
+
+2026-09-08 文档状态更新：已确认首发最终角色模型与九角色部署，见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) 和 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。本轮仅修改文档，生产代码、测试、发行资源和部署入口未改；下列表格是旧模型的既有证据。新字段、Host map、九原生 Skills、同一会议九 Session、研究工具和新部署 patch 均为 Not Covered，不能据旧两角色 smoke 宣称已实现。
 
 共享父 Preset 首版的正式语义见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) 与 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。下列现存测试纳入上述源码基线完整 verify，路径相对 `plugin/tests/`。
 

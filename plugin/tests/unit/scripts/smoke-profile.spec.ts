@@ -29,7 +29,7 @@ it("selects core, full and isolated diagnostic runs without ambiguous options", 
     expect(selectScenarios([], "reassign", true)).toEqual(["reassign"]);
     expect(selectScenarios([], "scribe-minutes", false)).toEqual(["scribe-minutes"]);
     expect(selectScenarios([], "scribe-minutes", true)).toEqual(["scribe-minutes"]);
-    expect(SMOKE_SCENARIOS).toHaveLength(16);
+    expect(SMOKE_SCENARIOS).toHaveLength(17);
     expect(CORE_SCENARIOS).toHaveLength(5);
     expect(() => selectScenarios(["--all"], "baseline", false)).toThrow();
     expect(() => selectScenarios(["--all"], undefined, true)).toThrow();
@@ -245,12 +245,14 @@ describe("smoke profile scenario guard", () => {
         );
         expect(smokeProfileSource).toContain("await installArtifact(env, artifact);");
         expect(smokeProfileSource).toContain("await installProbe(env, probeDir);");
-        expect(smokeProfileSource).toContain("await dumpConfig(env, patchPath, logsDir);");
+        expect(smokeProfileSource).toContain(
+            "await dumpConfig(env, patchPath, logsDir, roleAssetRoot);"
+        );
         expect(smokeProfileSource).toContain(
             "const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);"
         );
         expect(smokeProfileSource).toContain(
-            "await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port)"
+            "await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot)"
         );
         expect(smokeProfileSource).not.toContain(
             "await bootHost(env, patchPath, workspaceDir, logsDir, port)"

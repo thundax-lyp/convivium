@@ -3,13 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 import { parseAgentDefinitions } from "@/role-composition/model.js";
 import { resolveMeetingRoles, RoleCompositionError } from "@/role-composition/resolve.js";
 
+const skillInstruction =
+    "\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。";
+
 const manager = {
     agentDefinitionId: "manager",
     definitionVersion: "1",
     roleDefinitionId: "meeting_manager",
     displayName: "Manager",
     summary: "Manage",
-    persona: "Manager persona",
+    roleDescription: "Manager persona",
     dshPresetId: "minimal",
     requiredSkillNames: ["fixture"],
     expertiseTags: ["fixture"],
@@ -45,12 +48,17 @@ describe("role composition configuration and resolution", () => {
         expect(Object.isFrozen(result.participants.__proto__.toolFilter?.allow)).toBe(true);
         expect(Object.isFrozen(result.manager?.agentDefinition)).toBe(true);
     });
-    it("snapshots native model options and includes them in stable role provenance", async () => {
+    it("snapshots Host model overrides without changing role provenance", async () => {
         const options = { model: "model-a", provider: "provider-a", reasoningEffort: "high" };
-        const resolve = async (agentOptions: Record<string, unknown>) =>
+        const resolve = async (agentOptions: {
+            provider?: string;
+            model?: string;
+            reasoningEffort?: string;
+        }) =>
             resolveMeetingRoles(
                 {
-                    definitions: parseAgentDefinitions([{ ...manager, agentOptions }]),
+                    definitions: definitions(),
+                    agentModelOverrides: { manager: agentOptions },
                     managerAgentDefinitionId: "manager",
                     participants: []
                 },
@@ -64,7 +72,7 @@ describe("role composition configuration and resolution", () => {
         options.model = "model-b";
         const changed = await resolve(options);
         expect(original.manager?.agentOptions?.model).toBe("model-a");
-        expect(changed.manager?.agentDefinition.definitionHash).not.toBe(
+        expect(changed.manager?.agentDefinition.definitionHash).toBe(
             original.manager?.agentDefinition.definitionHash
         );
     });
@@ -86,6 +94,42 @@ describe("role composition configuration and resolution", () => {
         expect(() => parseAgentDefinitions([{ ...manager, agentOptions }])).toThrow(
             "Invalid meeting agent definitions."
         );
+    });
+    it("derives persona, leaves defaults to DSH and hashes role text changes", async () => {
+        const resolve = (roleDescription: string) =>
+            resolveMeetingRoles(
+                {
+                    definitions: parseAgentDefinitions([{ ...manager, roleDescription }]),
+                    managerAgentDefinitionId: "manager",
+                    participants: []
+                },
+                async () => {}
+            );
+        const original = await resolve(manager.roleDescription);
+        const changed = await resolve("Changed responsibility");
+        expect(original.manager?.persona).toBe(manager.roleDescription + skillInstruction);
+        expect(original.manager).not.toHaveProperty("agentOptions");
+        expect(changed.manager?.agentDefinition.definitionHash).not.toBe(
+            original.manager?.agentDefinition.definitionHash
+        );
+        expect(() => parseAgentDefinitions([{ ...manager, persona: "legacy" }])).toThrow(
+            "Invalid meeting agent definitions."
+        );
+    });
+    it("rejects invalid direct-call overrides before capability checks even without selections", async () => {
+        for (const agentModelOverrides of [
+            { unknown: { model: "private" } },
+            { manager: { model: " " } }
+        ]) {
+            const validate = vi.fn();
+            await expect(
+                resolveMeetingRoles(
+                    { definitions: definitions(), agentModelOverrides, participants: [] },
+                    validate
+                )
+            ).rejects.toThrow("Meeting role composition is unavailable.");
+            expect(validate).not.toHaveBeenCalled();
+        }
     });
     it("does not validate capabilities without selections", async () => {
         const validate = vi.fn();
@@ -131,7 +175,7 @@ describe("role composition configuration and resolution", () => {
             [null],
             [manager, manager],
             [{ ...manager, extra: true }],
-            [{ ...manager, persona: "{{secret}}" }],
+            [{ ...manager, roleDescription: "{{secret}}" }],
             [{ ...manager, summary: " " }],
             [{ ...manager, requiredSkillNames: [] }],
             [{ ...manager, requiredSkillNames: ["x", "x"] }],
@@ -158,12 +202,14 @@ describe("role composition configuration and resolution", () => {
         expect(() =>
             parseAgentDefinitions([...items, { ...manager, agentDefinitionId: "64" }])
         ).toThrow();
-        const base = { ...manager, persona: "" };
+        const base = { ...manager, roleDescription: "" };
         const remaining = 16384 - Buffer.byteLength(JSON.stringify(base));
-        const boundary = { ...base, persona: "x".repeat(remaining) };
+        const boundary = { ...base, roleDescription: "x".repeat(remaining) };
         expect(parseAgentDefinitions([boundary])).toHaveLength(1);
         expect(() =>
-            parseAgentDefinitions([{ ...boundary, persona: boundary.persona + "中" }])
+            parseAgentDefinitions([
+                { ...boundary, roleDescription: boundary.roleDescription + "中" }
+            ])
         ).toThrow();
     });
     it("snapshots before asynchronous validation and hashes independent of input key order", async () => {
@@ -178,11 +224,11 @@ describe("role composition configuration and resolution", () => {
                 participants: [{ participantKey: "a", agentDefinitionId: "participant" }]
             },
             async () => {
-                mutable[0].persona = "changed";
+                mutable[0].roleDescription = "changed";
             }
         );
         const result = await pending;
-        expect(result.participants.a.persona).toBe(participant.persona);
+        expect(result.participants.a.persona).toBe(participant.roleDescription + skillInstruction);
         const reversed = parseAgentDefinitions([
             Object.fromEntries(Object.entries(participant).reverse())
         ]);
