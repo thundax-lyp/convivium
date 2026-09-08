@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { Context } from "@deepseek-ai/cordis";
+import SystemPrompt from "@deepseek-ai/dsh-system-prompt";
+import Tools from "@deepseek-ai/dsh-tools";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 import { apply, assertContinuableProvider, inject } from "../../src/index.js";
 import { requireContinuableProvider } from "../../src/dsh/index.js";
@@ -72,7 +78,7 @@ describe("Convivium continuable provider gate", () => {
 
 describe("Convivium local Meeting route lifecycle", () => {
     async function host(
-        host: "127.0.0.1" | "0.0.0.0",
+        host: "127.0.0.1" | "0.0.0.0" | undefined,
         runtimeConfig = config,
         workspace: { path: string } | undefined = undefined,
         includeWorkspaceRegistry = false
@@ -108,10 +114,15 @@ describe("Convivium local Meeting route lifecycle", () => {
                 register: vi.fn(() => {
                     const disposer = vi.fn();
                     toolDisposers.push(disposer);
+                    effects.push(disposer);
                     return disposer;
                 })
             },
-            webServer: { host, register },
+            webServer: host === undefined ? undefined : { host, register },
+            inject(keys: string[], callback: (context: unknown) => void) {
+                expect(keys).toEqual(["webServer"]);
+                if (ctx.webServer !== undefined) callback(ctx);
+            },
             async plugin(
                 plugin: { name?: string; apply(context: unknown, value: unknown): unknown },
                 value: unknown
@@ -125,7 +136,6 @@ describe("Convivium local Meeting route lifecycle", () => {
                             "subagents",
                             "systemPrompt",
                             "tools",
-                            "webServer",
                             "storageDomain"
                         ]
                     });
@@ -168,6 +178,14 @@ describe("Convivium local Meeting route lifecycle", () => {
         expect(fixture.toolDisposers).toHaveLength(20);
         expect(fixture.get).toHaveBeenCalledTimes(1);
         expect(fixture.get).toHaveBeenCalledWith("convivium.agentCatalog");
+        for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
+    });
+
+    it("registers meeting tools without a WebServer", async () => {
+        const fixture = await host(undefined);
+        expect(fixture.register).not.toHaveBeenCalled();
+        expect(fixture.toolDisposers).toHaveLength(20);
+        await fixture.dispose();
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
@@ -220,5 +238,68 @@ describe("Convivium local Meeting route lifecycle", () => {
         await expect(
             host("0.0.0.0", { ...config, developerMarkdownWorkspaceId: "missing" }, undefined, true)
         ).rejects.toThrow("Developer Markdown workspace is not registered: missing");
+    });
+});
+
+describe("Convivium Cordis service lifecycle", () => {
+    it("keeps native tools alive while WebServer mounts, unloads and remounts", async () => {
+        const directory = await mkdtemp(join(tmpdir(), "convivium-composition-"));
+        const root = new Context();
+        try {
+            await root.plugin(SystemPrompt, {});
+            await root.plugin(Tools, { mode: "native" });
+            root.provide("agents", { get: () => undefined });
+            root.provide("sessions", {});
+            root.provide("subagents", {
+                getProvider: () => ({ prepareContinuable: async () => ({}) }),
+                startContinuable: async () => {
+                    throw new Error("Unexpected start");
+                },
+                listChildren: async () => [],
+                listDescendants: async () => [],
+                interrupt() {},
+                drainContinuableChildren: async () => {}
+            });
+            root.provide("storageDomain", createFakeDomainFacility());
+            const plugin = await root.plugin({
+                name: "convivium-composition-test",
+                apply: (ctx) => apply(ctx, { ...config, dataRoot: directory })
+            });
+            await vi.waitFor(() =>
+                expect(
+                    root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
+                ).toBe(20)
+            );
+            const register = vi.fn(() => vi.fn());
+            const web = await root.plugin({
+                name: "test-web-server",
+                apply(ctx) {
+                    ctx.provide("webServer", { host: "127.0.0.1", register });
+                }
+            });
+            await vi.waitFor(() => expect(register).toHaveBeenCalledTimes(1));
+            await web.dispose();
+            await vi.waitFor(() => expect(register.mock.results[0].value).toHaveBeenCalledTimes(1));
+            expect(root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length).toBe(
+                20
+            );
+            await root.plugin({
+                name: "test-web-server-again",
+                apply(ctx) {
+                    ctx.provide("webServer", { host: "127.0.0.1", register });
+                }
+            });
+            await vi.waitFor(() => expect(register).toHaveBeenCalledTimes(2));
+            await plugin.dispose();
+            await vi.waitFor(() =>
+                expect(root.tools.schemas().filter((s) => s.name.startsWith("convivium_"))).toEqual(
+                    []
+                )
+            );
+            expect(register.mock.results[1].value).toHaveBeenCalledTimes(1);
+        } finally {
+            await root.fiber.dispose();
+            await rm(directory, { recursive: true, force: true });
+        }
     });
 });

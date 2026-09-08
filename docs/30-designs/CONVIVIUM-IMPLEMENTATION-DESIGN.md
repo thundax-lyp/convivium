@@ -392,10 +392,14 @@ Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-s
 2. 用 `<resolved dataRoot>/storage` 挂载 `src/storage/index.ts#jsonlStoragePlugin` provider child plugin；provider 注册 `convivium-jsonl` backend service。
 3. 挂载依赖完整 DSH services 与 `storageDomain` 的 Meeting consumer child plugin；依赖尚未就绪时 consumer 保持 pending，不暴露部分 Meeting 能力。
 4. consumer 打开 catalog domain 和 Meeting domains，完成冷恢复，再构造 Meeting Runtime、outbox worker 和 recovery coordinator。
-5. consumer 注册 tools、HTTP routes 和 system prompt contribution；Client bundle 由 DSH 根据 package manifest 独立装载。
+5. consumer 注册 tools 和 system prompt contribution，通过可选 webServer 子作用域注册 HTTP routes；Client bundle 由 DSH 根据 package manifest 独立装载。
 6. consumer 启动有界 outbox worker。
 
-若步骤 1 至 4 失败，插件加载失败且不暴露部分工具或路由。所有注册动作必须返回 disposer；停止时 consumer 先停止接收新命令、停止 worker、释放租约并关闭 Meeting/catalog domains，随后 provider 注销 backend service、注销 backend name 并关闭介质。停止过程不把进行中 Meeting 改成业务终态，后续启动通过 recovery 继续处理。
+若步骤 1 至 4 失败，插件加载失败且不暴露部分工具或路由。DSH 自托管注册随 fiber 释放，普通 registry 的 disposer 由 consumer effect 托管；停止时 consumer 先停止接收新命令、停止 worker、释放租约并关闭 Meeting/catalog domains，随后 provider 注销 backend service、注销 backend name 并关闭介质。停止过程不把进行中 Meeting 改成业务终态，后续启动通过 recovery 继续处理。
+
+### Optional Web Composition
+
+Meeting consumer 只声明核心 Agent、Session、Subagent、SystemPrompt、Tools 和 Storage Domain 依赖。Web routes 使用 Cordis `ctx.inject(["webServer"], ...)` 子作用域，在 loopback 服务存在时注册，并随该服务或父插件卸载释放；runtime 的清理仍由 consumer 拥有。DSH Tools.register 已托管 contribution effect，consumer 直接注册工具，不重复包装 disposer。业务串行队列、outbox 和 Session/Meeting 归属校验继续由 Convivium 负责。冷绑定在重启 worker 前，用原 deliveryId 重排已被 DSH 接受但仍未完成的 planning/speaker 与未开始 Task；范围和原子性见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
 
 冷绑定在重启 worker 前，用原 deliveryId 重排已被 DSH 接受但仍未完成的 planning/speaker 与未开始 Task；范围和原子性见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
 

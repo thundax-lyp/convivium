@@ -37,6 +37,8 @@
 - 负责底层 Agent 生命周期和模型调用；会议领域状态不以 DSH Session 内部状态为真相源。
 - Convivium 不绕过 DSH 权限和生命周期接口直接控制宿主内部资源。
 
+会议工具与 runtime 不依赖 WebServer 的存在。Meeting Web route 作为依赖 webServer 的 Cordis 子作用域按服务可用性挂载与卸载；移除 WebServer 不重建会议 runtime 或工具。无 Web 的宿主仍须提供既有 Agent、Session、continuable provider 和 Storage Domain 组合；这不授予远程访问或多用户能力。
+
 ### Plugin Frontend
 
 - 承载团队、会议现场、人类控制以及 Agent 和 Session 状态展示。
