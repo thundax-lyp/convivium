@@ -47,6 +47,7 @@ const meetingConsumerPlugin = {
         const waitingMeetings = new Set<string>();
         const runtime = createCreateStatusRuntime({
             agentDefinitions: parseAgentDefinitions(config.agentDefinitions),
+            agentModelOverrides: config.agentModelOverrides,
             storageDomain: ctx.storageDomain,
             provider: config.provider,
             onDiagnostic: (record) => {

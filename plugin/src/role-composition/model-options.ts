@@ -11,7 +11,11 @@ const options = z
     .strictObject({
         provider: text.optional(),
         model: text.optional(),
-        reasoningEffort: text.optional()
+        reasoningEffort: z
+            .custom<NonNullable<AgentOptions["reasoningEffort"]>>(
+                (value) => typeof value === "string" && value.trim().length > 0
+            )
+            .optional()
     })
     .refine((value) => Object.values(value).some((item) => item !== undefined));
 

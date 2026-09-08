@@ -199,7 +199,7 @@ describe("Convivium local Meeting route lifecycle", () => {
                     roleDefinitionId: "meeting_manager",
                     displayName: "Role",
                     summary: "Role",
-                    persona: "Role",
+                    roleDescription: "Role",
                     dshPresetId: "minimal",
                     requiredSkillNames: ["fixture"],
                     expertiseTags: ["fixture"],

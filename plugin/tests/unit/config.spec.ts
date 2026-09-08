@@ -25,15 +25,37 @@ describe("Convivium runtime config", () => {
             roleDefinitionId: "meeting_manager",
             displayName: "A",
             summary: "A",
-            persona: "private persona",
+            roleDescription: "private persona",
             dshPresetId: "minimal",
             requiredSkillNames: ["skill"],
             expertiseTags: ["tag"],
             evidenceScopes: []
         };
         const config = Config({ ...validConfig, agentDefinitions: [definition] });
-        definition.persona = "changed";
-        expect(config.agentDefinitions?.[0].persona).toBe("private persona");
+        const overrides = { a: { model: "model-a", reasoningEffort: "high" } };
+        const bound = Config({
+            ...validConfig,
+            agentDefinitions: [definition],
+            agentModelOverrides: overrides
+        });
+        overrides.a.model = "changed";
+        expect(bound.agentModelOverrides?.a.model).toBe("model-a");
+        expect(Object.isFrozen(bound.agentModelOverrides?.a)).toBe(true);
+        expect(Object.getPrototypeOf(bound.agentModelOverrides)).toBeNull();
+        expect(Object.isFrozen(bound)).toBe(true);
+        for (const agentModelOverrides of [
+            { unknown: { model: "private" } },
+            { a: {} },
+            { a: { maxTokens: 1 } },
+            null
+        ]) {
+            expect(() =>
+                Config({ ...validConfig, agentDefinitions: [definition], agentModelOverrides })
+            ).toThrow("Invalid meeting agent model overrides.");
+        }
+        expect(Config({ ...validConfig, agentModelOverrides: {} }).agentModelOverrides).toEqual({});
+        definition.roleDescription = "changed";
+        expect(config.agentDefinitions?.[0].roleDescription).toBe("private persona");
         expect(Object.isFrozen(config.agentDefinitions)).toBe(true);
         expect(() =>
             Config({ ...validConfig, agentDefinitions: [{ ...definition, extra: true }] })

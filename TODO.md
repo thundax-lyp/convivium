@@ -10,14 +10,6 @@
 
 2026-09-08 用户明确授权依次执行 TODO LIST，一任务一提交。MAD 编号用于任务依赖，RUNBOOK 的 T1–T6 仍是阶段门禁；阶段内拆分不新增范围，也不允许以部分任务完成代替整个阶段 PASS。T0 已确认，不列待办。每项相关文件均为仓库相对路径；计划新增路径不表示文件已存在。
 
-- [ ] `MAD-03 / Host config / Meeting creation`：接通独立模型覆盖的创建链路
-    - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 38/39；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) Transport Or Invocation、Error And Permission Semantics、Runtime Provenance And Recovery；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Role and model inputs、State And Failure Handling、Security And Observability；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) Exact Transformation And Call Chain、T2 动作 2/5。
-    - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
-    - 前置：MAD-02 的输入与 resolver 已实现。
-    - 相关文件：修改 `plugin/src/config.ts`、`plugin/src/index.ts`、`plugin/src/runtime/application-service/types.ts`、`plugin/src/runtime/application-service/create-meeting.ts`、`plugin/src/runtime/meeting-runtime.ts`；测试修改 `plugin/tests/unit/config.spec.ts`、`plugin/tests/unit/runtime/meeting-runtime.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/unit/host-plugin-lifecycle.spec.ts`，使用 MAD-02 的共享 fixture。
-    - 处理动作：由 Config transform 顺序解析两项配置，经 meetingConsumerPlugin.apply、CreateStatusRuntimeOptions、createMeetingApplication、MeetingCreationRuntimeDependencies 传给 resolver；不扩展 Captain/HTTP 输入。
-    - 验收点：执行 T2 完整格式检查、lint、typecheck 和指定 focused tests，全部 PASS；配置错误不泄露私有值，身份创建原子性与失败清理保持，重放不重新解析，未改 adapter 签名及 repository/domain/protocol/client。
-
 - [ ] `MAD-04 / meeting-roles 资源`：替换九角色资源并校验原生格式
     - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 35/36/38/39；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) First-release assets、Compatibility；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Native deployment resources；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) Deployment Assets、Fixed Role And Skill Content、Native Deployment Contract、T3 动作 1/2/3/5。DSH 格式参考：[Preset 契约](.agents/skills/dsh-plugin-development/references/presets-context.md)、[Skill 契约](.agents/skills/dsh-plugin-development/references/skill-providers.md)。
     - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。

@@ -1,3 +1,4 @@
+import type { MeetingAgentModelOverrides } from "@/role-composition/model-options.js";
 import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
 import { resolveMeetingRoles, RoleCompositionError } from "@/role-composition/resolve.js";
 import { validateSharedRoleCapabilities } from "@/role-composition/dsh-capabilities.js";
@@ -131,6 +132,7 @@ export function prepareMeetingCreation(
 }
 
 export interface MeetingCreationRuntimeDependencies {
+    readonly agentModelOverrides?: MeetingAgentModelOverrides;
     readonly agentDefinitions?: readonly MeetingAgentDefinitionV1[];
     readonly repository: Pick<
         MeetingRepositoryType,
@@ -230,6 +232,7 @@ export async function createMeetingRuntime(
     try {
         const roles = await resolveMeetingRoles(
             {
+                agentModelOverrides: dependencies.agentModelOverrides,
                 definitions:
                     dependencies.agentDefinitions === undefined
                         ? []
