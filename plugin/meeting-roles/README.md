@@ -8,4 +8,4 @@
 
 Skill 只提供方法；实际发言资格由 Meeting Runtime 判断，资源权限由 DSH Sandbox/Approval 管理。Manager/Scribe 保留 skill 与各自会议工具，继承的 shell/fs/web 被收窄；其余角色仍服从 Host 权限。不会安装独立 child Preset 或创建能力安装器。
 
-当前真实部署、研究工具与冷恢复验收尚未执行。
+自动入口为 `CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile`（仓库根目录）；该场景不支持 Browser 模式。模型差异与冷恢复另由 role-composition 场景验证。两个入口已通过定向测试；当前真实部署、研究工具与本轮冷恢复验收尚未执行。

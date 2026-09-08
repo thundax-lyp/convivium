@@ -10,14 +10,6 @@
 
 2026-09-08 用户明确授权依次执行 TODO LIST，一任务一提交。MAD 编号用于任务依赖，RUNBOOK 的 T1–T6 仍是阶段门禁；阶段内拆分不新增范围，也不允许以部分任务完成代替整个阶段 PASS。T0 已确认，不列待办。每项相关文件均为仓库相对路径；计划新增路径不表示文件已存在。
 
-- [ ] `MAD-09 / 部署操作文档`：同步可独立执行的首发部署步骤
-    - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 39；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Native deployment resources；[文档规则](docs/00-governance/DOCUMENT-RULES.md) 50-operations、Document Sync；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) T5 动作 1/2、Native Deployment Contract。
-    - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
-    - 前置：MAD-08 PASS（T4 完成）；当前 HOW-TO 草案已存在，只补齐实现后的差异。
-    - 相关文件：修改 `docs/50-operations/HOW-TO-MEETING-ROLES.md`、`docs/50-operations/HOW-TO-DSH-SMOKE.md`、`plugin/meeting-roles/README.md`。
-    - 处理动作：对齐同 tarball 安装/解包、web patch 顺序、显式 Captain Preset、八 Participant、模型覆盖、凭据注入与清理命令，更新场景数和恢复说明。
-    - 验收点：V-DOC/diff check 通过，操作链路与实际脚本一致；17 场景/5 CORE、Browser 边界明确；实际部署通过前保留未验证标记，MAD-10 通过后据实更新。
-
 - [ ] `MAD-10 / 部署验证与 readiness`：执行完整门禁并保存真实证据
     - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 35–40；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) Runtime Provenance And Recovery；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Acceptance；[TODO 规则](docs/00-governance/TODO-RULES.md) Verification Check；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) T5、Validation Matrix；[角色操作](docs/50-operations/HOW-TO-MEETING-ROLES.md) 与 [Smoke 操作](docs/50-operations/HOW-TO-DSH-SMOKE.md) 为执行入口。
     - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。

@@ -2,7 +2,7 @@
 
 ## Purpose And Status
 
-本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。**2026-09-08 状态：目标已确认，代码与发行资源尚未实现，以下安装/启动命令尚未验证，当前不能据本文宣称可部署。** 完成 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition) 的首发验证后才能移除此状态说明。
+本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。**2026-09-08 状态：角色模型、发行资源和自动探针已实现并通过定向门禁；完整 verify、真实安装/加载、模型及研究 Provider 验收待执行，尚不能宣称部署通过。** 完成 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition) 的首发验证后才能移除此状态说明。
 
 本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)，资源结构见 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。
 
@@ -16,7 +16,7 @@
 
 ## Prepare
 
-以下为实现完成后的目标命令。由仓库根目录执行；资源实现缺失时 test/verify 必须失败，不能跳过。
+由仓库根目录执行以下命令；资源缺失或 verify 失败时停止，不能跳过。
 
 ```sh
 (
@@ -28,6 +28,7 @@
     mkdir -p dsh-workspace/meeting-roles-deployment/artifacts
     mkdir -p dsh-workspace/meeting-roles-deployment/resources
     mkdir -p dsh-workspace/meeting-roles-deployment/dsh-home
+    mkdir -p dsh-workspace/meeting-roles-deployment/workspace
     chmod 700 dsh-workspace/meeting-roles-deployment
     role_deploy_root="$PWD/dsh-workspace/meeting-roles-deployment"
     cd plugin
@@ -56,7 +57,7 @@
     . "$role_repo_root/dev.env"
     set +a
     export DSH_HOME="$role_deploy_root/dsh-home"
-    cd "$role_repo_root/dsh-workspace"
+    cd "$role_deploy_root/workspace"
     exec pnpm dlx @deepseek-ai/dsh@0.1.2-rc.1 web \
         --patch "$role_patch" \
         --no-open --host 127.0.0.1 --port 31828 \
@@ -76,17 +77,17 @@
 - 同一会议创建一位 Manager、八位 Participant，九个独立 continuable Session；不是九条静态目录记录。
 - 每个 child 原生 Session 中出现 skill tool/call 和成功 tool/result，正文包含其方法步骤。只有目录发现或服务 get 成功不算加载。
 - GitHub/arXiv/Web 三类研究角色的真实 search 返回对应域的非空来源，fetch 返回成功 HTTP 与非空正文；缺 Provider 或凭据是失败。
-- Manager/Scribe 的越权会议写入被真实工具执行层拒绝，Meeting 事实不变；验证继承的 shell/fs/web 对 Manager/Scribe 不可见且直接执行被拒绝，skill 仍可执行；不将该过滤等同于 OS Sandbox。
+- Manager/Scribe 的越权会议写入被真实工具执行层拒绝，Meeting 事实不变；自动探针各执行一次越权会议工具和 web_search，均须返回 DSH UNKNOWN_TOOL，skill 仍可见；shell/fs 的上限由发布定义的原生 allowlist 表达，本探针不直接执行它们；不将该过滤等同于 OS Sandbox。
 - 不同角色的模型覆盖保持差异，父 Session 未被更改，冷恢复保留原 descriptor；配置变化不重配旧角色。
 
-自动验收入口在实现后为：
+自动验收入口为：
 
 ```sh
 env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile
 env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
 ```
 
-前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。当前新 selector 尚未实现。
+前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。meeting-roles 不支持 Browser 模式，也不加入默认五个核心场景。它从同一 tarball 解包资源，按部署 patch → 临时控制 patch 加载，显式挂载 convivium Captain；控制 patch 设八人容量和 300000ms speaker timeout，不替换交付的角色定义。创建后暂停会议并中断当前 child 执行，再逐个发送固定 Skill 验证请求；每个 child 最多 180000ms，场景结果最多等待 2400000ms。
 
 ## Restore And Failure Handling
 
@@ -98,6 +99,6 @@ env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
 
 ## Evidence And Not Covered
 
-执行后将日期、版本、artifact 边界、命令、九角色结果、权限拒绝、恢复和 Restore 写入 [Smoke Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)，并更新 Coverage。本文当前没有执行证据。
+执行后将日期、版本、artifact 边界、命令、九角色结果、权限拒绝、恢复和 Restore 写入 [Smoke Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)，并更新 Coverage。本文尚无本轮真实部署成功证据；定向测试不替代该证据。
 
 长期模型任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 和 Host capability 内容变更后的历史快照不在本流程内；必需的九角色部署与研究工具可用性不能作为 Not Covered 跳过。
