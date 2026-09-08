@@ -2,6 +2,10 @@
 
 本 reference 固定 `dsh-v0.1.2-rc.1`。Jobs 分为 jobs Definition、jobs-local Provider 和 tool-jobs Consumer。它是进程内执行契约，不是持久调度器；未来提醒见 [Schedule](planning-scheduling.md)。
 
+## 条件补读
+
+- Producer 是子进程/PTY 时补[运行时资源](runtime-resources.md)；工具暴露读[Tools](tools.md)
+
 ## API 与准入
 
 `ctx.jobs.start(spec)` 同步返回 branded JobId（kind-N）；list/get 返回 fresh snapshot，read 读取增量输出，kill 返回 requested/already-finished，wait(id,timeoutMs,caller,signal) 等待并返回 snapshot。onJobDone/onJobsChanged 注册通知，attachController(name) 声明此作用域能收集/停止工作；注册的 disposer 按实际 API effect 所有权清理。

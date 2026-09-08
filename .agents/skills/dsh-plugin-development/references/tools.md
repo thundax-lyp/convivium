@@ -2,6 +2,10 @@
 
 本 reference 覆盖 v0.1.2-rc.1 的 tool definition、execution、policy、result 与 presentation 表面。
 
+## 条件补读
+
+- 修改已有工具先用[内置工具](builtin-tool-contracts.md)定位工具族；Native/PTC、restriction、timeout 变更读 Tools 对应章节
+
 ## 工具职责
 
 First-party TypeScript tool 使用 `ctx.tools.register(defineTool(...))` 注册；registry 把贡献绑定到调用 fiber。一个 tool 拥有 model input schema、唯一规范 JSON output schema、execution、model rendering 与可选 UI presentation projection。外部提供的 tool 仍可使用 raw JSON Schema，但 `defineTool` 使用 DSH 自己的 parameter 与 ValueSchemaSpec DSL。

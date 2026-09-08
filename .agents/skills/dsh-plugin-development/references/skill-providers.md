@@ -2,6 +2,10 @@
 
 本 reference 针对 `dsh-v0.1.2-rc.1` 内部的 `ctx.skills`，与本仓库 Codex Skill 的 agents/openai.yaml 策略不是同一个系统。不要混用两者的配置字段。
 
+## 条件补读
+
+- 改 Prompt/event 的记录方式读[Session](session-durable-context.md)
+
 ## Discovery 与作用域
 
 Provider 注册同步完成；远程初始化与发现放进 awaited list。Provider 名称在每个 scope layer 唯一；有效列表合并 global 与 viewing scope chain，更近 layer 的同名 Skill 直接胜出，同层再按 rank、Provider 顺序、local 顺序决胜。传入 calling Agent 对应的 view scope，不能只按 cwd 缓存所有 Session 的目录。

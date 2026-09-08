@@ -2,6 +2,10 @@
 
 本 reference 说明 v0.1.2-rc.1 中与具体 Provider 无关的能力设计。它不枚举全部已发布接缝；准确方法和 event 以目标包 README 为准。
 
+## 条件补读
+
+- 按[开发路由](plugin-development-routing.md#选择主路径)定位当前能力的契约专题并阅读；新包才补[包规范](package-authoring.md)
+
 ## 三角色接缝
 
 一个可替换能力包含 Service Definition、一个或多个 Service Provider，以及一个或多个 Consumer。Definition 拥有与 Provider 无关的 request、result、错误、取消、选择规则和 service key。Provider 拥有具体 process、vendor、protocol、storage backend、凭证、资源生命周期和转换逻辑。Consumer 拥有拿到中立结果后的模型/用户行为。

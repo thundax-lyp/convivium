@@ -2,6 +2,10 @@
 
 本 reference 覆盖 `dsh-v0.1.2-rc.1` 的 dynamic runner。它与发布到 workspace 的普通包不同；进程内定义和运行不代表已经产生可发布的 package artifact。
 
+## 条件补读
+
+- 仅在确实使用 Client half 时补[Client UI](client-ui.md)；遵守精确 run 与清理边界
+
 ## 发现后再实现
 
 `cordis_inspect_list` 发现 Host/Client inspection Provider，`cordis_inspect_query` 使用准确 Provider、method 与 input schema。Catalog 来自当前实际 Service、slot 和 tool 表面；不能沿用旧 client/runtime 的类型、从文档猜方法名，或把未挂载 Provider 当可用 API。

@@ -4,6 +4,11 @@
 
 **阅读导航：** 创建/恢复 Agent：从[生命周期](#agent-生命周期)读到[创建与请求](#创建publication-与请求扩展)。委派：先读[Subagent 接缝](#subagent-接缝)及其消息/模型子节，再读[Provider 能力](#已有-provider-的-start-能力)；实现 Provider 时补[实现清单](#provider-实现清单)。Workflow 与[实验 Teams](#实验性-agent-teams)各自按任务选择，不是普通委派的必读前置。最后核对[验证](#验证)。
 
+## 条件补读
+
+- 改 queue/steer/inject 或输入事实时读[Agent 输入](session-durable-context.md#agent-输入选择)
+- one-shot 先核对 Provider flags；修改 workflow/ralph 工具读[内置工具](builtin-tool-contracts.md#workflow-与-ralph)；普通委派不必读 Teams
+
 ## Agent 生命周期
 
 `ctx.agents` 拥有 live Agent 的创建与恢复。用户或插件输入通过 Agent API 进入；不要通过修改 Session 来调度工作。Driver 观察 live `agent/*` event 以处理 queue、status、steering、continuation 和 request policy；需要可回放 transcript 的 Consumer 观察 `session/event`。

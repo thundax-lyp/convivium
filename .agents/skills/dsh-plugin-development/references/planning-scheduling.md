@@ -11,6 +11,10 @@
 
 **阅读导航：** 根据开头的意图表选择 Plan、Goal/Todo 或 Schedule。提醒任务必须连续读[时间与重放](#schedule-的时间与重放)和[交付与持久化](#live-deliveryfork-与-durability)，不能只读创建参数。最后核对[验证](#验证)。
 
+## 条件补读
+
+- Schedule 必须连读时间和 live/fork/durability；改实际权限才补[人类交互](human-interaction.md)
+
 ## Plan 的已记录状态与 pending
 
 Plan 是 soft prompt guidance，Sandbox/Approval 独立执行限制。set 选择 pending state，不立即向无 turn 的位置追加 plan/mode，也不强迫产生新 turn。下一次 downstream 接受的 in-turn pre-step 才提交；发生在最后 accepted step 之后的选择可能留到下一轮，未提交前进程退出会丢失。

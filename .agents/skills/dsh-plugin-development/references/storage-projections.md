@@ -4,6 +4,10 @@
 
 **阅读导航：** 先读[三类状态的选择](#三类状态的选择)。插件持久数据接着读[Storage domain](#storage-domain)和[提交顺序](#生命周期与提交顺序)；日志读模型读[Session projection](#session-projection)与[领域 fold](#领域-fold-与能力缺失)。缓存、统计、message feedback 分别按实际修改补读，最后核对[必需证据](#必需证据)。
 
+## 条件补读
+
+- 新增权威 Session event 先读[Session](session-durable-context.md)；不为查询需求复制一份事实源
+
 ## 三类状态的选择
 
 | 数据                                                  | 选择                     | 权威来源                                 |

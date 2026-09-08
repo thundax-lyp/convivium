@@ -2,6 +2,10 @@
 
 本 reference 用于把一族 durable Session event 投影为 Web Client Chat 中的业务 Node。普通 slot contribution 继续使用 `client-ui.md`；只有需要增量事件组装时读取本文件。
 
+## 条件补读
+
+- 新 Client 插件先读[Client UI](client-ui.md)；改变权威 event 时补[Session](session-durable-context.md)
+
 ## Conversation Node
 
 Host producer 拥有事件类型、payload 和 branded business id。Client plugin 拥有 `ui-conversation` 的 `ConversationNodeDefinition`、typed Location data、`ui-chat` 的 target Node payload 与 keyed renderer。Renderer 只消费已组装数据，不读取 Host service，不扫描 Session window，也不把 live object 放进 Node。

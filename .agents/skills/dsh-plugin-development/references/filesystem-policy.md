@@ -2,6 +2,10 @@
 
 本 reference 针对 `dsh-v0.1.2-rc.1` 的 FileSystem Provider 和模型文件工具。图片与执行环境映射另见 [运行时资源](runtime-resources.md)。
 
+## 条件补读
+
+- 图片和进程路径映射读[运行时资源](runtime-resources.md)；修改 shell confinement 再读[权限与 Sandbox](human-interaction.md#plan权限预设与-sandbox)
+
 ## Provider、策略与 Consumer
 
 `ctx.fs` 拥有 backend primitive；fs-local 等 Provider 拥有介质操作；fs-observation-policy 通过事件决定 freshness guard；tool-fs 负责工具执行和呈现。Observation policy 不提供 Service，Consumer 不能调用其内部方法。

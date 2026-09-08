@@ -2,6 +2,12 @@
 
 本 reference 提供 `dsh-v0.1.2-rc.1` 的 Browser UI 插件集成模式。
 
+**阅读导航：** 新建 UI 插件从 Runtime 模型、包配置读到 Host 与 browser 入口；已有 UI 行为修改先读[数据与呈现所有权](#数据与呈现所有权)、[按 key 订阅](#按-key-订阅)和[Slots 与产品服务](#slots模块交付与产品服务)。涉及 slot 注册时同时读 Runtime 模型的 activation/teardown 规则。两条路径最后都核对[生命周期测试](#聚焦生命周期测试)；无需为局部行为修改复制整套包骨架。
+
+## 条件补读
+
+- 设置卡片补[用户设置](user-settings.md)；会话行读[Conversation Node](client-conversation-nodes.md)，不自行扫描日志造第二份状态
+
 ## Client UI 插件
 
 ### Runtime 模型
@@ -187,7 +193,7 @@ describe('attachment badge browser plugin', () => {
 })
 ```
 
-Host 与 Client code fence 分别用对应 compiler face 验证；这里的 `ignore-check` 仅避开上游 Host-only 文档 checker，发布时仍须单独编译这些 Client 示例。先运行聚焦 client spec。在 DSH monorepo 内，任何改变 assembled browser 或可见输出的变更，还要运行 v0.1.2-rc.1 GUI lane 与 web replay lane：先 `pnpm run test:gui`，再 `DSH_SNAPSHOT=replay pnpm run test:web`。独立插件按[验证命令矩阵](testing-docs-maintenance.md#验证命令矩阵)映射到自己的 Client 测试与真实 Profile 中的浏览器组合证据，不直接套用上游命令。
+Host 与 Client code fence 分别用对应 compiler face 验证；这里的 `ignore-check` 仅避开上游 Host-only 文档 checker，发布时仍须单独编译这些 Client 示例。先运行聚焦 client spec。在 DSH monorepo 内，任何改变 assembled browser 或可见输出的变更，还要运行 v0.1.2-rc.1 GUI lane 与 web replay lane：先 `pnpm run test:gui`，再 `DSH_SNAPSHOT=replay pnpm run test:web`。独立插件按[验证命令矩阵](testing-docs.md#验证命令矩阵)映射到自己的 Client 测试与真实 Profile 中的浏览器组合证据，不直接套用上游命令。
 
 ## Slots、模块交付与产品服务
 

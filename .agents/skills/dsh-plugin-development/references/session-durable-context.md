@@ -2,6 +2,10 @@
 
 本 reference 覆盖 v0.1.2-rc.1 的 Session 扩展、回放所有权、prompt section、skill 和会进入模型上下文的 Agent 输入。
 
+## 条件补读
+
+- 按 scope 注册读[作用域](scoped-registration.md)；实际改压缩/恢复才读[上下文恢复](context-recovery.md)
+
 ## 持久事实源
 
 Session 是只追加的 typed event log，payload 必须是 lossless JSON。模型 conversation 从该日志派生，不存在另一份可变 history。核心 event 为 turn/step 划定边界，并保存 user message、assistant stream chunk、合成 assistant message、tool call/result 与 request header。

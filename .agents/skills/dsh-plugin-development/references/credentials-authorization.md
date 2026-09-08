@@ -2,6 +2,10 @@
 
 本 reference 固定 `dsh-v0.1.2-rc.1`。`ctx.credentials` 有两个互不相交的 key space；`ctx.authorization` 是取得 record 的交互流程，不是 tool approval。组合与 secret reference 使用见 [凭证配置](composition-config-credentials.md#凭证所有权)。
 
+## 条件补读
+
+- UI 设置入口补[用户设置](user-settings.md)；普通 env reference 使用[凭证所有权](composition-config-credentials.md#凭证所有权)
+
 ## 两类地址和数据
 
 | 地址                            | 数据与读取                                                                      | 写入与删除                                     |

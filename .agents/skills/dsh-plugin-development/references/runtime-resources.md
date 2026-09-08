@@ -4,6 +4,11 @@
 
 **阅读导航：** 附件：先读[执行环境](#文件与图片的执行环境)，再读[存取契约](#attachmentstore-的存取契约)。输出保留读[Spill](#spill-的可恢复性与保留期)；进程/PTY 读[子进程与终端](#子进程与终端)；语言服务读[LSP](#lsp-坐标与注册)；MCP 连续读[命名作用域](#mcp-命名作用域)与[同步恢复](#mcp-同步恢复与兼容子集)。最后检查[验证](#验证)中命中的分支。
 
+## 条件补读
+
+- 发布后台 handle 读[Jobs](jobs-background-work.md)；实现异步资源 owner 读[防御性生命周期](defensive-lifecycle.md)
+- 修改工具 schema/输出读[Tools](tools.md)；MCP 不桥接的协议能力不能自行假定存在
+
 ## 文件与图片的执行环境
 
 FileSystem 的 `processPath(target)` 返回该 Provider 执行环境中的路径。`processPathFromHostPath(hostPath)` 只有在两边确实指向同一文件时才给出映射；默认返回 undefined。AttachmentStore 的 `imageHostPath(ref)` 对非 Host-file-backed Provider 同样可以返回 undefined。不能把 Host 路径直接交给远程、隔离或不共享磁盘的工具进程。

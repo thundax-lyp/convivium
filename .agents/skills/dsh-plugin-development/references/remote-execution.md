@@ -2,6 +2,10 @@
 
 本 reference 固定 `dsh-v0.1.2-rc.1` 的 opt-in E2B Provider family。它替换 FileSystem/Subprocess 的执行环境，不把整个 Harness 搬到远端，也不是 ctx.sandbox 的 OS file-policy Provider。
 
+## 条件补读
+
+- 改公共文件/进程契约时分别补[文件策略](filesystem-policy.md)与[运行时资源](runtime-resources.md)
+
 ## 三包组合与 owner
 
 组合 e2b、fs-e2b、subprocess-e2b，三者共享 ctx.e2b 的一个 remote Linux sandbox。E2BRuntime 在构造时开始连接，getSandbox 等 readiness 并检查 disposal；创建 cwd 后才向 adapters 返回。apiKey 缺省读 E2B_API_KEY，cwd 默认 /home/user/workspace 且必须 POSIX absolute，timeoutMs 默认 300000，是 sandbox lifetime 而非单命令 timeout。

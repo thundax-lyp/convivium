@@ -2,6 +2,10 @@
 
 本 reference 固定 `dsh-v0.1.2-rc.1`，覆盖应用周边能力和实现支持。它们不自动成为模型工具；实际应用入口见 [组合配置](composition-config-credentials.md)。
 
+## 条件补读
+
+- 平台进程行为补[运行时资源](runtime-resources.md)；实验入口不能按稳定 Node/默认 profile 推断
+
 ## 启动与环境
 
 App boot 拥有 dshHomePath、profile resolution、ordered patches、launch environment 和 Loader 生命周期；cmdlineArgs/appReady/appExit 是 CLI 注入的可选能力，插件不能假定裸 Cordis/SDK tree 总有这些字段。后台启动和 ready completion 分开，退出经 owner 清理，不把 process.exit 放进普通 feature。
@@ -38,7 +42,7 @@ Anonymous user id 属于 Harness home 与进程，在 .anonymous-user-id 持久 
 | test-support                           | loader-smoke、agent-loop-testkit、client-runtime、llm-mock-server/llm-replay、session-snapshot 用于对应真实边界；不装入用户产品组合 |
 | vendor Cordis/Loader/HMR/timer/include | 使用其公开 lifecycle/config/patch 边界；vendored source 不是可以随意 patch 的第三方 API                                             |
 
-这些库是实现支撑，不应各自伪造一个模型可见功能。发布入口/peer dependency/Host-Client 编译按 [包规范](package-authoring.md)，实际 gate 按 [验证](testing-docs-maintenance.md)。
+这些库是实现支撑，不应各自伪造一个模型可见功能。发布入口/peer dependency/Host-Client 编译按 [包规范](package-authoring.md)，实际 gate 按 [验证](testing-docs.md)。
 
 ## 私有实验与未发布入口
 

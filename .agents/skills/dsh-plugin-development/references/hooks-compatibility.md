@@ -2,6 +2,10 @@
 
 本 reference 记录 `dsh-v0.1.2-rc.1` 实现的兼容子集，不声称等价于外部产品的全部协议。原生功能优先使用 [工具 pipeline](tools.md#策略与观察) 和 Agent 事件；有现成 command hook 时才选 bridge。
 
+## 条件补读
+
+- 改事件持久化补[Session](session-durable-context.md)；外部协议要求不能代替当前已实现契约
+
 ## 组合与输入
 
 hook-protocol 是共享库，无需单独配置为 Service；选择 hooks-claude-code 或 hooks-codex。configPath 必填，启动时读取一次，relative path 基于进程启动目录；读取/解析失败仅警告并不注册 hooks。不是每 Session 发现配置，也没有分层项目策略或热重载。

@@ -2,6 +2,10 @@
 
 本 reference 覆盖 `dsh-v0.1.2-rc.1` 的出站 Web 能力。外部系统主动投递 HTTP 使用 [Web ingress](web-ingress.md)。
 
+## 条件补读
+
+- 新 Provider 读[能力接缝](capability-seams-providers.md)；这不属于入站 Webhook 路径
+
 ## 接缝与选择
 
 `ctx.web` 是搜索/抓取 Provider registry。Provider 通过 `registerSearchProvider()` 或 `registerFetchProvider()` 注册唯一 id，工具调用 Service 的 search/fetch；注册返回已绑定 effect 的 disposer。Provider-specific endpoint、认证、HTML/结果转换属于 Provider，tool 负责模型 schema、规范结果和纯展示。重复 Provider 与缺失选择显式失败，不让 Consumer 直接绕过 registry 发请求。

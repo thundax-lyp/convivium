@@ -2,6 +2,12 @@
 
 本 reference 提供 `dsh-v0.1.2-rc.1` 的生成式 Typert Remote API 集成模式。
 
+**阅读导航：** 新增 Remote Service 按 Runtime 与生成物 → Service API 与配置 → Manifest 与 Client assembly 阅读；修改已有 method/stream 时先核对 Runtime 的签名约束，再读[错误、Stream 与事件](#错误stream-与事件)。Client 集成需读[Manifest 与 Client assembly](#manifest-与-client-assembly)。各路径均须核对错误/取消/事件边界及[聚焦 API 测试](#聚焦-api-测试)，不只读取成功调用示例。
+
+## 条件补读
+
+- 新增 Client 消费端读[Client UI](client-ui.md)；先复用现成 Session/Workspace API，避免重复暴露控制面
+
 ## Typert Remote API
 
 ### Runtime 与生成物

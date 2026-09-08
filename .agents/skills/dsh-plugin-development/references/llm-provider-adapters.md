@@ -2,6 +2,10 @@
 
 本 reference 覆盖 v0.1.2-rc.1 的 LLM adapter registry、request/stream 转换、凭证、replay state 与 Provider 验证。
 
+## 条件补读
+
+- 内置 route、模型/effort、图像 Files 配置读[模型路由](llm-model-routing.md)
+
 ## Adapter 职责
 
 LLM Adapter 把组装好的 provider-neutral request 转为 vendor traffic，再把 vendor delta 转为 DSH `StreamChunk`。它不拥有 prompt assembly、tool policy、Session persistence 或 UI rendering。Vendor request type、transport/SSE parser、delta translator 和 Adapter class 应拆到职责清晰的模块。

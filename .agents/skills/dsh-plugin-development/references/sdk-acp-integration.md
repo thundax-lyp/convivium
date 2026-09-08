@@ -4,6 +4,10 @@
 
 **阅读导航：** SDK 集成依次读[启动](#sdk-启动契约)、[Prompt 与持久化](#prompt结果与持久化)、[Handle 与结果](#sdk-handle-与协议结果)。ACP adapter 再读[ACP 表面](#acp-表面)；只改 ACP 协议时也须核对其涉及的启动和取消契约。最后读[验证](#验证)。
 
+## 条件补读
+
+- 改应用装配读[组合配置](composition-config-credentials.md)；只消费 SDK 不要求先读 Typert 实现
+
 ## SDK 启动契约
 
 TypeScript `HarnessClientOptions` 使用 `dshBin`、`profile`、有序 `patches`、`dshHome`、`processCwd`、`env` 和超时配置。旧 command/args/cwd 的任意进程启动接口不可用。默认解析同版本 DSH CLI；初始化握手有界，默认 initializeTimeoutMs 为 10000。不要把旧 demo bin 或任意 argv 入口包装成新 SDK 的支持路径。

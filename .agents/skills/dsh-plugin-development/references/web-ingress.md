@@ -2,6 +2,10 @@
 
 本 reference 覆盖 `dsh-v0.1.2-rc.1` 的 Webhook runtime、GitHub adapter 和通用入站 HTTP 所有权。
 
+## 条件补读
+
+- 新协议 adapter 补[能力接缝](capability-seams-providers.md)及[组合测试](composition-config-credentials.md#组合测试步骤)
+
 ## Webhook 接收器
 
 ### Runtime 与 Provider

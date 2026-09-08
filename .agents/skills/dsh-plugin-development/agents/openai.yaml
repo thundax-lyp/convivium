@@ -1,6 +1,6 @@
 interface:
     display_name: "DSH 插件开发"
-    short_description: "按 DSH 扩展点开发和修改 DeepSeek Harness Cordis 插件"
-    default_prompt: "使用 $dsh-plugin-development 添加或修改 DeepSeek Harness 插件。"
+    short_description: "从需求选择 DSH 能力并组合应用，设计和开发 Cordis 插件"
+    default_prompt: "使用 $dsh-plugin-development 将项目需求映射到 DSH 能力，设计应用组合，或按已确认方案开发插件。"
 policy:
     allow_implicit_invocation: true

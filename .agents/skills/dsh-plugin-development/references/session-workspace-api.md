@@ -2,6 +2,10 @@
 
 本 reference 针对 `dsh-v0.1.2-rc.1` 的 Browser/Host 应用接缝。它区分持久数据查询、应用命令、活动控制与传输；新增领域 Remote 的通用声明规则见 [Typert Remote](typert-remote-api.md)。
 
+## 条件补读
+
+- 改底层 Remote descriptor/carrier 再读[Typert](typert-remote-api.md)；冷索引读[Session 查询](session-query-index.md)
+
 ## 职责与迁移
 
 旧 `dsh-host-apiproxy` 包不可用。应用能力分别由 `dsh-api-session-controller`、`dsh-api-workspace-controller`、`dsh-api-settings-controller` 拥有；Gateway 负责通用分发，API remotes 选择和挂载生成的 contribution。不要把 Session 命令、Workspace 数据或业务 event switch 重新放进 Gateway。

@@ -2,6 +2,10 @@
 
 本 reference 固定 `dsh-v0.1.2-rc.1` 的已实现路由，不以外部厂商当前能力替代本 tag。实现新 Adapter 的 stream/replay 规则见 [LLM Adapter](llm-provider-adapters.md)。
 
+## 条件补读
+
+- 改 Adapter 协议或官方请求字段读[LLM Adapter](llm-provider-adapters.md)；账号 flow 读[授权](credentials-authorization.md)
+
 ## LLM Service 的能力边界
 
 `ctx.llm` 注册 Adapter routes、configurable provider metadata、listProviders/listModels、endpoint discovery 与 exact model resolution；它不是带 retry/cache/rate-limit 的网络客户端。每个 stream 是一次 attempt，以唯一 terminal finish 表达正常、error 或 aborted；BlockAssembler 聚合核心 blocks，插件新增 block 也必须正确闭合。

@@ -2,6 +2,10 @@
 
 本 reference 固定 `dsh-v0.1.2-rc.1`。Profile 选择应用组合，Preset 选择 Agent 组合，Persona 贡献 prompt；三者不能互换。Profile/Loader 见 [组合配置](composition-config-credentials.md)，Scope 继承见 [Scoped registration](scoped-registration.md)。
 
+## 条件补读
+
+- 改模型可见持久事实读[Session](session-durable-context.md)；改组合共享/可见性读[作用域](scoped-registration.md)
+
 ## Preset roster 与 authoring
 
 `ctx.agentPresets` 从 roots 扫描含 `agent.cordis.yml` 的目录。default 必填；includeShippedRoot/includeUserRoot 默认 true，shipped system root 在最前，配置 roots 在中间，用户根在最后；同 id 先发现者胜出。roots 的 trust 默认 user，第一 user root 是唯一 authoring root。设置 namespace agent-presets 可覆盖 default，改变只作用于之后创建的 Session。
