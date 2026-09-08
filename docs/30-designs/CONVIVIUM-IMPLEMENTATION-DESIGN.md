@@ -397,6 +397,8 @@ Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-s
 
 若步骤 1 至 4 失败，插件加载失败且不暴露部分工具或路由。所有注册动作必须返回 disposer；停止时 consumer 先停止接收新命令、停止 worker、释放租约并关闭 Meeting/catalog domains，随后 provider 注销 backend service、注销 backend name 并关闭介质。停止过程不把进行中 Meeting 改成业务终态，后续启动通过 recovery 继续处理。
 
+冷绑定在重启 worker 前，用原 deliveryId 重排已被 DSH 接受但仍未完成的 planning/speaker 与未开始 Task；范围和原子性见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
+
 ## State And Failure Handling
 
 | Failure                                        | Required handling                                                     |

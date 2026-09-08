@@ -1762,3 +1762,83 @@ it("maps malformed attendance rejection to repository errors without changing pr
         }
     }
 });
+
+it("requeues only selected accepted deliveries without changing facts or delivery identity", async () => {
+    const options = {
+        catalogDomain: createFakeCatalogDomain(),
+        meetingDomain: createFakeMeetingDomain(),
+        teamId: "team-1",
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 10
+    };
+    let repository = await DomainMeetingRepository.open(options);
+    try {
+        const input = {
+            requestId: "create",
+            requestHash: "hash",
+            authorization: { callerBinding: "captain", capabilityId: "captain" },
+            initialState: { status: "created" },
+            createdAt: 1,
+            outbox: ["active", "completed"].map((id) => ({
+                id,
+                deliveryId: id + "-delivery",
+                kind: "dispatch" as const,
+                payload: { id }
+            }))
+        };
+        await repository.create(input);
+        await repository.completeCreate(input);
+        const before = await repository.read();
+        const items = await repository.claimOutbox({
+            owner: "first",
+            ttlMs: 100,
+            batchSize: 2,
+            now: 10
+        });
+        for (const item of items)
+            await repository.completeOutbox({
+                id: item.id,
+                leaseOwner: item.leaseOwner,
+                leaseToken: item.leaseToken,
+                completion: { status: "delivered" },
+                now: 11
+            });
+        await repository.close();
+        repository = await DomainMeetingRepository.open(options);
+        const recovery = {
+            deliveryIds: ["active-delivery", "missing"],
+            expectedMeetingVersion: before.version,
+            now: 12
+        };
+        await expect(
+            repository.requeueAcceptedOutbox({
+                ...recovery,
+                expectedMeetingVersion: before.version + 1
+            })
+        ).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
+        expect(await repository.requeueAcceptedOutbox(recovery)).toBe(1);
+        expect(await repository.requeueAcceptedOutbox(recovery)).toBe(0);
+        expect(await repository.read()).toEqual(before);
+        await repository.close();
+        repository = await DomainMeetingRepository.open(options);
+        const replay = await repository.claimOutbox({
+            owner: "second",
+            ttlMs: 100,
+            batchSize: 2,
+            now: 13
+        });
+        expect(replay).toHaveLength(1);
+        expect(replay[0]).toMatchObject({
+            id: "active",
+            deliveryId: "active-delivery",
+            payload: { id: "active" },
+            attempts: 2
+        });
+        expect(replay[0].leaseToken).not.toBe(
+            items.find((item) => item.id === "active")?.leaseToken
+        );
+    } finally {
+        await repository.close();
+    }
+});

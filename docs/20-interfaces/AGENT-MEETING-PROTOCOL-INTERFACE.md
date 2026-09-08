@@ -1570,7 +1570,7 @@ Convivium 当前依赖固定为 DSH `0.1.2-rc.1`，并使用该版本的 `dsh-su
 
 本文的会议 followup 指业务上的继续投递，由 adapter 调用公开 `sendMessage(liveCaptain, childSessionId, content, { signal })`。Captain 是 DSH 消息发送身份；上下文由 Runtime 根据已授权会议状态组装，会议中的实际身份、attempt 和 delivery 仍由业务 envelope 和 Repository 校验，不从 DSH `agent-message` 来源推导。DSH 自动记录 Captain 的发送来源，adapter 不再传入 `coordinator` source。
 
-`sendMessage` 对运行中的 child 使用 steer，对 idle child 启动 turn，对不存在的 direct child 执行 cold resume；一次业务 delivery 不保证对应独立 DSH turn。返回 `MessageId` 仅代表 inbox acceptance，取消信号只约束 acceptance 之前的工作。会议结果仍须经授权工具提交；保留业务串行队列、durable outbox 和投递前后 capability 检查。该迁移改变了消息归属和运行中投递语义，build 与 mock 测试不能替代真实 DSH 组合验证。
+`sendMessage` 对运行中的 child 使用 steer，对 idle child 启动 turn，对不存在的 direct child 执行 cold resume；一次业务 delivery 不保证对应独立 DSH turn。返回 `MessageId` 仅代表 inbox acceptance，取消信号只约束 acceptance 之前的工作。会议结果仍须经授权工具提交；保留业务串行队列、durable outbox 和投递前后 capability 检查。该迁移改变了消息归属和运行中投递语义。Host 重启后，DSH 已接受但会议业务未完成的请求按 [Storage Interface](./MEETING-STORAGE-INTERFACE.md) 的 requeueAcceptedOutbox 契约恢复；不能仅依赖 DSH pending inbox 在正常退出后仍存在。
 
 插件装配发现 DSH 或 `dsh-subagent` 低于该能力基线时必须拒绝加载会议能力并报告兼容错误，不得静默退化为只调用 `interrupt`。归档、恢复和权限判断不得依赖 DSH 物理删除 Session 数据。
 

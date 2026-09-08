@@ -1658,6 +1658,50 @@ export class DomainMeetingRepository implements MeetingRepositoryPort {
             });
         });
     }
+    /** Re-admit unfinished business deliveries after a Host restart, preserving identity. */
+    async requeueAcceptedOutbox(input: {
+        deliveryIds: readonly string[];
+        expectedMeetingVersion: number;
+        now?: number;
+    }): Promise<number> {
+        this.ensureOpen();
+        return this.enqueueMutation(async () => {
+            if (this.projection?.snapshot?.version !== input.expectedMeetingVersion) {
+                throw new RepositoryError(
+                    "VERSION_CONFLICT",
+                    true,
+                    this.meetingId,
+                    "Meeting changed during delivery recovery"
+                );
+            }
+            const ids = new Set(input.deliveryIds);
+            const items = Object.values(this.projection.outbox).filter(
+                (item) =>
+                    item.kind === "dispatch" &&
+                    item.status === "delivered" &&
+                    ids.has(item.deliveryId)
+            );
+            if (items.length === 0) return 0;
+            const now = input.now ?? this.now();
+            return this.commit({
+                operation: "outbox.requeue-accepted",
+                now,
+                mutate: (current) => {
+                    for (const item of items)
+                        current.outbox[item.id] = {
+                            ...item,
+                            status: "pending",
+                            availableAt: now,
+                            deliveredAt: null,
+                            leaseOwner: null,
+                            leaseToken: null,
+                            leaseDeadline: null
+                        };
+                    return { next: current, result: items.length };
+                }
+            });
+        });
+    }
     async completeOutbox(_input: CompleteOutboxInput): Promise<OutboxCompletionResult> {
         const input = _input;
         this.ensureOpen();

@@ -49,6 +49,11 @@ export interface MeetingRepositoryPort {
     execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>;
     claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>;
     completeOutbox(input: CompleteOutboxInput): Promise<OutboxCompletionResult>;
+    requeueAcceptedOutbox(input: {
+        deliveryIds: readonly string[];
+        expectedMeetingVersion: number;
+        now?: number;
+    }): Promise<number>;
     renewOutboxLease(input: RenewOutboxLeaseInput): Promise<number>;
     recover(input?: RecoverInput): Promise<RecoveryResult>;
     close(): Promise<void>;
