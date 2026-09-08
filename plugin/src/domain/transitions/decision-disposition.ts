@@ -1,5 +1,5 @@
-import { DomainError } from "../errors.js";
-import type { CompletionFact, MeetingState, TransitionResult } from "../model.js";
+import { DomainError } from "@/domain/errors.js";
+import type { CompletionFact, MeetingState, TransitionResult } from "@/domain/model.js";
 import { acceptDecisionCandidate } from "./decision-acceptance.js";
 
 export type DisposeDecisionInput =

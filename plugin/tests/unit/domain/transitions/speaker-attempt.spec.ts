@@ -5,11 +5,8 @@ import {
     submitSpeakerAttempt,
     submitSpeakerAndAdvanceMeeting,
     type MeetingState
-} from "../../../../src/domain/index.js";
-import {
-    isMeetingMinutesDraft,
-    isMeetingStateV2
-} from "../../../../src/domain/meeting-state-validation.js";
+} from "@/domain/index.js";
+import { isMeetingMinutesDraft, isMeetingStateV2 } from "@/domain/meeting-state-validation.js";
 import { meeting, now } from "./fixtures.js";
 
 function timeoutState(

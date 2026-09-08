@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { StorageError } from "@deepseek-ai/dsh-storage";
-import { JsonlStorageBackend } from "../../../src/storage/backend.js";
+import { JsonlStorageBackend } from "@/storage/backend.js";
 
 describe("JsonlStorageBackend lifecycle", () => {
     it("rejects duplicate opens and makes close idempotent", async () => {

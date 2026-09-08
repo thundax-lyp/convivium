@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     createSessionProvisioningEnvelope,
     serializeSessionProvisioningEnvelope
-} from "../../../src/dsh/provisioning.js";
+} from "@/dsh/provisioning.js";
 
 describe("session provisioning envelope", () => {
     it("creates deterministic capability-free manager and participant prompts", () => {

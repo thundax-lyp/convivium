@@ -1,12 +1,12 @@
-import { isMeetingMinutesDraft } from "../meeting-state-validation.js";
-import { DomainError } from "../errors.js";
-import { cancelRequestedMeetingTasksForAttempts } from "../meeting-task.js";
+import { isMeetingMinutesDraft } from "@/domain/meeting-state-validation.js";
+import { DomainError } from "@/domain/errors.js";
+import { cancelRequestedMeetingTasksForAttempts } from "@/domain/meeting-task.js";
 import type {
     MeetingState,
     SpeakerAttempt,
     SpeakerSubmissionContext,
     TransitionResult
-} from "../model.js";
+} from "@/domain/model.js";
 import { transitionAttempt, transitionStep } from "./kernel.js";
 import { executionTerminalStatuses } from "./termination.js";
 import { advanceAfterSpeakerSubmission } from "./turn-advancement.js";
@@ -229,7 +229,7 @@ export interface FailSpeakerAttemptContext {
     readonly now: number;
     readonly nextPlanningAttemptId: string;
     readonly nextPlanningDeliveryId: string;
-    readonly catalogBinding: import("../model.js").ManagerCatalogBindingV1;
+    readonly catalogBinding: import("@/domain/model.js").ManagerCatalogBindingV1;
 }
 
 /** Records one expired current attempt; the normal turn-advance path owns the next step. */

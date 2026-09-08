@@ -127,30 +127,38 @@ function isWithin(root: string, candidate: string): boolean {
     return path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
 }
 
+function localImportPath(file: string, specifier: string): string | undefined {
+    if (specifier.startsWith("@/")) return resolve(sourceRoot, specifier.slice(2));
+    if (specifier.startsWith(".")) return resolve(dirname(file), specifier);
+    return undefined;
+}
+
 const storageRoot = join(sourceRoot, "storage");
 function storageBoundaryViolations(file: string, specifiers: readonly string[]): string[] {
     return specifiers.flatMap((specifier) => {
+        const local = localImportPath(file, specifier);
         const allowed =
             specifier.startsWith("node:") ||
             specifier === "@deepseek-ai/cordis" ||
             specifier === "@deepseek-ai/dsh-storage" ||
-            (specifier.startsWith(".") && isWithin(storageRoot, resolve(dirname(file), specifier)));
+            (local !== undefined && isWithin(storageRoot, local));
         return allowed ? [] : [`${relative(sourceRoot, file)} may not import ${specifier}`];
     });
 }
 
 function repositoryDomainBoundaryViolations(file: string, specifiers: readonly string[]): string[] {
     return specifiers.flatMap((specifier) => {
+        const local = localImportPath(file, specifier);
         const forbidden =
             specifier === "@deepseek-ai/dsh-storage" ||
-            (specifier.startsWith(".") && isWithin(storageRoot, resolve(dirname(file), specifier)));
+            (local !== undefined && isWithin(storageRoot, local));
         return forbidden ? [`${relative(sourceRoot, file)} may not import ${specifier}`] : [];
     });
 }
 
 function importedModule(file: string, specifier: string): ModuleName | undefined {
-    if (!specifier.startsWith(".")) return undefined;
-    const candidate = resolve(dirname(file), specifier);
+    const candidate = localImportPath(file, specifier);
+    if (candidate === undefined) return undefined;
     const candidateWithoutExtension = candidate.replace(/\.(?:m?js|tsx?)$/, "");
     const path = sourceFiles(sourceRoot).find((sourceFile) => {
         const withoutExtension = sourceFile.replace(/\.(?:m?js|tsx?)$/, "");
@@ -160,8 +168,9 @@ function importedModule(file: string, specifier: string): ModuleName | undefined
 }
 
 function resolvesTo(file: string, specifier: string, target: string): boolean {
-    if (!specifier.startsWith(".")) return false;
-    const candidate = resolve(dirname(file), specifier).replace(/\.(?:m?js|tsx?)$/, "");
+    const local = localImportPath(file, specifier);
+    if (local === undefined) return false;
+    const candidate = local.replace(/\.(?:m?js|tsx?)$/, "");
     return candidate === target.replace(/\.(?:m?js|tsx?)$/, "");
 }
 
@@ -208,7 +217,8 @@ describe("plugin module boundaries", () => {
                 "node:fs",
                 "@deepseek-ai/cordis",
                 "@deepseek-ai/dsh-storage",
-                "./format.js"
+                "./format.js",
+                "@/storage/format.js"
             ])
         ).toEqual([]);
         expect(
@@ -225,10 +235,12 @@ describe("plugin module boundaries", () => {
         expect(
             repositoryDomainBoundaryViolations(join(domainRoot, "model.ts"), [
                 "../../storage/index.js",
+                "@/storage/index.js",
                 "@deepseek-ai/dsh-storage"
             ])
         ).toEqual([
             "repository/domain/model.ts may not import ../../storage/index.js",
+            "repository/domain/model.ts may not import @/storage/index.js",
             "repository/domain/model.ts may not import @deepseek-ai/dsh-storage"
         ]);
         expect(
@@ -257,11 +269,12 @@ describe("plugin module boundaries", () => {
         expect(importers).toEqual(["index.ts"]);
     });
 
-    it("rejects a temporary Client-to-Host import", () => {
-        expect(violations("client", ["../runtime/index.js"])).toEqual([
-            "client may not import runtime"
-        ]);
-    });
+    it.each(["../runtime/index.js", "@/runtime/index.js"])(
+        "rejects Client-to-Host import %s",
+        (specifier) => {
+            expect(violations("client", [specifier])).toEqual(["client may not import runtime"]);
+        }
+    );
 
     it("keeps repository recovery free of archive lifecycle orchestration", () => {
         const recoverySource = readFileSync(

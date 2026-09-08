@@ -9,9 +9,9 @@ import {
     UnsupportedMeetingStateFormatError,
     MAX_COMMIT_VALUE_BYTES,
     MAX_APPLICATION_CHECKPOINT_BYTES
-} from "../../../../src/repository/domain/projection.js";
-import { CommitRecordV1Schema } from "../../../../src/repository/domain/schemas.js";
-import { encodeCanonicalJson } from "../../../../src/repository/domain/canonical-json.js";
+} from "@/repository/domain/projection.js";
+import { CommitRecordV1Schema } from "@/repository/domain/schemas.js";
+import { encodeCanonicalJson } from "@/repository/domain/canonical-json.js";
 describe("domain projection", () => {
     const bootstrap = {
         status: "ready" as const,

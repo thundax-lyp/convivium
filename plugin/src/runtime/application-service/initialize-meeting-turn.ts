@@ -5,8 +5,12 @@ import {
     requiredPlanningBlockers,
     type MeetingState,
     type MeetingTurn
-} from "../../domain/index.js";
-import type { DomainEventInput, JsonObject, MeetingRepositoryRuntime } from "../meeting-runtime.js";
+} from "@/domain/index.js";
+import type {
+    DomainEventInput,
+    JsonObject,
+    MeetingRepositoryRuntime
+} from "@/runtime/meeting-runtime.js";
 
 export function assignTurnAttempt(
     state: MeetingState,

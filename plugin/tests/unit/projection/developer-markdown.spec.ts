@@ -4,7 +4,7 @@ import {
     mapDeveloperMeetingDocument,
     renderArchiveMarkdown,
     renderCurrentMarkdown
-} from "../../../src/projection/index.js";
+} from "@/projection/index.js";
 import { archivePackage, meeting, now } from "../domain/transitions/fixtures.js";
 
 describe("Developer Markdown projection", () => {

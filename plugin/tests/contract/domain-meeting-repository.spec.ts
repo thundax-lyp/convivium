@@ -1,6 +1,6 @@
-import { submitSpeakerAttempt } from "../../src/domain/index.js";
+import { submitSpeakerAttempt } from "@/domain/index.js";
 import { meeting as domainMeeting, now } from "../unit/domain/transitions/fixtures.js";
-import { createMeetingDomainSpec } from "../../src/repository/domain/specs.js";
+import { createMeetingDomainSpec } from "@/repository/domain/specs.js";
 import { createLocalDecisionRiskState } from "../fixtures/local-decision-risk.js";
 import {
     now as localNow,
@@ -11,26 +11,22 @@ import {
     disposeDecision,
     applyCompletionClaims,
     transitionMeeting
-} from "../../src/domain/index.js";
-import type { MeetingState } from "../../src/domain/model.js";
-import type {
-    JsonObject,
-    RepositoryCommand,
-    DomainEventInput
-} from "../../src/repository/types.js";
-import { materializeArchivePackage } from "../../src/runtime/services/meeting-archive-service.js";
-import { DomainMeetingRepository } from "../../src/repository/domain/domain-meeting-repository.js";
+} from "@/domain/index.js";
+import type { MeetingState } from "@/domain/model.js";
+import type { JsonObject, RepositoryCommand, DomainEventInput } from "@/repository/types.js";
+import { materializeArchivePackage } from "@/runtime/services/meeting-archive-service.js";
+import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
 import { defineMeetingRepositoryBehaviorContract } from "./meeting-repository-behavior.js";
-import type { RepositoryAuthorizationValidator } from "../../src/repository/types.js";
+import type { RepositoryAuthorizationValidator } from "@/repository/types.js";
 import {
     createCommitRecord,
     createProjection,
     loadProjection
-} from "../../src/repository/domain/projection.js";
-import { catalogKey, receiptKey, seqKey } from "../../src/repository/domain/keys.js";
-import { CommitRecordV1Schema } from "../../src/repository/domain/schemas.js";
-import * as canonicalJson from "../../src/repository/domain/canonical-json.js";
+} from "@/repository/domain/projection.js";
+import { catalogKey, receiptKey, seqKey } from "@/repository/domain/keys.js";
+import { CommitRecordV1Schema } from "@/repository/domain/schemas.js";
+import * as canonicalJson from "@/repository/domain/canonical-json.js";
 import { expect, it, vi } from "vitest";
 
 const allow: RepositoryAuthorizationValidator = {
@@ -1631,8 +1627,7 @@ function attendanceState() {
 }
 
 it("atomically persists one attendance rejection with receipt and empty outbox after a failed commit", async () => {
-    const { isMeetingStateV2, rejectAttendanceRecommendation } =
-        await import("../../src/domain/index.js");
+    const { isMeetingStateV2, rejectAttendanceRecommendation } = await import("@/domain/index.js");
     const catalog = createFakeCatalogDomain(),
         domain = createFakeMeetingDomain();
     const options = {

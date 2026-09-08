@@ -1,17 +1,17 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { MeetingState } from "../../domain/index.js";
-import { projectMeetingStatus } from "../../projection/index.js";
+import type { MeetingState } from "@/domain/index.js";
+import { projectMeetingStatus } from "@/projection/index.js";
 import {
     LocalMeetingListResponseSchema,
     MeetingStatusResultSchema,
     type MeetingStatusInputV1,
     type MeetingStatusResultV1
-} from "../../protocol/index.js";
-import { commandFailure, commandSuccess } from "../services/command-result-service.js";
+} from "@/protocol/index.js";
+import { commandFailure, commandSuccess } from "@/runtime/services/command-result-service.js";
 import {
     LocalMeetingRecoveryUnavailableError,
     type MeetingRehydrationService
-} from "../services/meeting-recovery-service.js";
+} from "@/runtime/services/meeting-recovery-service.js";
 import type { StoredMeeting } from "./types.js";
 
 export interface MeetingQueryCaller {

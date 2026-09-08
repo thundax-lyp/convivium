@@ -3,6 +3,52 @@ import prettier from "eslint-config-prettier";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+// These top-level modules expose index.ts (or index.tsx) as their public entry.
+const publicModules = [
+    "client",
+    "domain",
+    "dsh",
+    "http",
+    "projection",
+    "protocol",
+    "runtime",
+    "storage",
+    "tools"
+];
+
+function sourceImportRules(owner, root = false) {
+    const externalModules = publicModules.filter((name) => name !== owner).join("|");
+    const patterns = [
+        {
+            regex: "(?:^|/)\\.\\.(?:/|$)",
+            message: "禁止父级相对导入。请使用 @/，跨模块通过公开 index.js，并保留 .js 扩展名。"
+        },
+        {
+            regex: `^@/(?:${externalModules})(?:/(?!index\\.js$)|$)`,
+            message: "禁止跨模块引用内部文件；请从 @/<module>/index.js 导入已有公开符号。"
+        }
+    ];
+    if (root) {
+        patterns.push({
+            regex: `^(?:\\./)+(?:${externalModules})(?:/(?!index\\.js$)|$)`,
+            message: "插件装配必须通过 ./<module>/index.js 使用模块公开入口。"
+        });
+    }
+    return {
+        "no-restricted-imports": ["error", { patterns }],
+        "no-restricted-syntax": [
+            "error",
+            ...patterns.map(({ regex, message }) => {
+                const selectorPattern = regex.replaceAll("/", "\\u002F");
+                return {
+                    selector: `ImportExpression[source.value=/${selectorPattern}/], TSImportType[source.value=/${selectorPattern}/]`,
+                    message
+                };
+            })
+        ]
+    };
+}
+
 export default tseslint.config(
     {
         ignores: ["dist", "lib", "node_modules"]
@@ -41,7 +87,32 @@ export default tseslint.config(
     {
         files: ["src/**/*.{ts,tsx}"],
         rules: {
-            "no-console": "error"
+            "no-console": "error",
+            ...sourceImportRules()
+        }
+    },
+    ...publicModules.map((name) => ({
+        files: [`src/${name}/**/*.{ts,tsx}`],
+        rules: sourceImportRules(name)
+    })),
+    {
+        files: ["src/*.{ts,tsx}"],
+        rules: sourceImportRules(undefined, true)
+    },
+    {
+        files: ["tests/**/*.{ts,tsx}"],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                {
+                    patterns: [
+                        {
+                            regex: "^(?:\\.\\./)+src(?:/|$)",
+                            message: "测试导入 src 必须使用 @/；测试 fixture 之间可保留相对路径。"
+                        }
+                    ]
+                }
+            ]
         }
     },
     prettier

@@ -12,7 +12,7 @@ import {
     nextManagerPlanningIds,
     transitionMeeting,
     type MeetingState
-} from "../../domain/index.js";
+} from "@/domain/index.js";
 import type {
     ProtocolSuccessV1,
     ProtocolErrorV1,
@@ -21,20 +21,20 @@ import type {
     MeetingControlResultV1,
     ReassignTurnInputV1,
     ReassignTurnResultV1
-} from "../../protocol/index.js";
-import { serializeValidatedRequestV1 } from "../../protocol/request-idempotency.js";
-import { RepositoryError } from "../../repository/errors.js";
-import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
+} from "@/protocol/index.js";
+import { serializeValidatedRequestV1 } from "@/protocol/index.js";
+import { RepositoryError } from "@/repository/errors.js";
+import type { DomainEventInput, JsonObject } from "@/runtime/meeting-runtime.js";
 import {
     commandFailure as failure,
     commandSuccess as success,
     mapCommandError as commandError
-} from "../services/command-result-service.js";
+} from "@/runtime/services/command-result-service.js";
 import {
     LocalMeetingRecoveryUnavailableError,
     type MeetingRehydrationService
-} from "../services/meeting-recovery-service.js";
-import type { MeetingDeliveryWorkerService } from "../services/types.js";
+} from "@/runtime/services/meeting-recovery-service.js";
+import type { MeetingDeliveryWorkerService } from "@/runtime/services/types.js";
 import type {
     CreateStatusRuntimeOptions,
     LocalMeetingWebRuntime,
@@ -42,7 +42,7 @@ import type {
 } from "./index.js";
 import { assignTurnAttempt } from "./meeting-turn.js";
 import type { MeetingControlSource, StoredMeeting } from "./types.js";
-import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
+import { captureManagerCatalogBinding } from "@/runtime/services/agent-catalog.js";
 
 export interface MeetingControlApplicationOptions {
     readonly options: CreateStatusRuntimeOptions;

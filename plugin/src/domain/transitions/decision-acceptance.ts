@@ -1,5 +1,10 @@
-import { DomainError } from "../errors.js";
-import type { CompletionFact, MeetingDecision, MeetingState, TransitionResult } from "../model.js";
+import { DomainError } from "@/domain/errors.js";
+import type {
+    CompletionFact,
+    MeetingDecision,
+    MeetingState,
+    TransitionResult
+} from "@/domain/model.js";
 
 export interface AcceptDecisionCandidateContext {
     meetingId: string;

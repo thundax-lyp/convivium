@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DomainError, transitionMeeting } from "../../../../src/domain/index.js";
+import { DomainError, transitionMeeting } from "@/domain/index.js";
 import { archivePackage, meeting, now } from "./fixtures.js";
 
 describe("meeting lifecycle and archive transitions", () => {

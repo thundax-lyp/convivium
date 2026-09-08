@@ -1,14 +1,11 @@
-import { prepareMeetingCreation } from "../../src/runtime/meeting-runtime.js";
-import {
-    projectManagerMeetingContext,
-    projectSpeakerMeetingContext
-} from "../../src/projection/status.js";
+import { prepareMeetingCreation } from "@/runtime/meeting-runtime.js";
+import { projectManagerMeetingContext, projectSpeakerMeetingContext } from "@/projection/status.js";
 import {
     startManagerPlanning,
     submitManagerPlan,
     submitSpeakerAndAdvanceMeeting,
     type MeetingState
-} from "../../src/domain/index.js";
+} from "@/domain/index.js";
 import {
     CreateMeetingInputSchema,
     ManagerPlanSubmissionSchema,
@@ -18,7 +15,7 @@ import {
     type SpeakerMeetingContextV1,
     type ManagerPlanSubmissionV1,
     type TurnSubmissionV1
-} from "../../src/protocol/index.js";
+} from "@/protocol/index.js";
 
 export interface OfflineMeetingProtocolFixture {
     createInput: CreateMeetingInputV1;

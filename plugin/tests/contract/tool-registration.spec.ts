@@ -1,11 +1,8 @@
-import { CaptainAttendanceDispositionResultSchema } from "../../src/protocol/index.js";
+import { CaptainAttendanceDispositionResultSchema } from "@/protocol/index.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { describe, expect, it, vi } from "vitest";
-import {
-    registerCreateAndStatusTools,
-    registerSubmitAndControlTools
-} from "../../src/tools/index.js";
+import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "@/tools/index.js";
 
 describe("meeting tool registration", () => {
     it("passes task-linked submit_turn through the registration boundary as a canonical value", async () => {

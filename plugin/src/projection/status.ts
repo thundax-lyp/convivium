@@ -1,5 +1,5 @@
-import type { MeetingState } from "../domain/model.js";
-import { isMeetingStateV2 } from "../domain/meeting-state-validation.js";
+import type { MeetingState } from "@/domain/index.js";
+import { isMeetingStateV2 } from "@/domain/index.js";
 import type {
     MeetingAgentCatalogProjectionV1,
     ExecutionTerminalMeetingStatusResultV1,
@@ -15,7 +15,7 @@ import type {
     PublicDecisionCandidateV1,
     PublicDecisionV1,
     PublicRiskV1
-} from "../protocol/index.js";
+} from "@/protocol/index.js";
 
 const executionTerminalStatuses = new Set<MeetingState["status"]>([
     "completed",

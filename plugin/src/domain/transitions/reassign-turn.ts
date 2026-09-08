@@ -1,7 +1,7 @@
-import { DomainError } from "../errors.js";
-import { completedTaskSnapshots, participantHasActiveMeetingTask } from "../hand-raise.js";
-import { cancelRequestedMeetingTasksForAttempts } from "../meeting-task.js";
-import type { MeetingState, SpeakerAttempt, TransitionResult } from "../model.js";
+import { DomainError } from "@/domain/errors.js";
+import { completedTaskSnapshots, participantHasActiveMeetingTask } from "@/domain/hand-raise.js";
+import { cancelRequestedMeetingTasksForAttempts } from "@/domain/meeting-task.js";
+import type { MeetingState, SpeakerAttempt, TransitionResult } from "@/domain/model.js";
 
 export interface ReassignTurnContext {
     readonly currentAttemptId: string;

@@ -7,7 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { z } from "zod";
-import { JsonlStorageBackend, jsonlStoragePlugin } from "../../../src/storage/index.js";
+import { JsonlStorageBackend, jsonlStoragePlugin } from "@/storage/index.js";
 
 const spec = defineDomain({
     name: "convivium_storage_child_test",

@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { runScribeMinutesScenario } from "../../../scripts/smoke-profile/probe/scenarios/scribe-minutes.js";
 import { validateScenarioResult } from "../../../scripts/smoke-profile/result.mjs";
 import { createProbeSupport } from "../../../scripts/smoke-profile/probe/support.js";
-import { TurnSubmissionSchema } from "../../../src/protocol/commands.js";
-import { MeetingStatusResultSchema } from "../../../src/protocol/status.js";
-import { projectMeetingStatus } from "../../../src/projection/status.js";
-import { materializeArchivePackage } from "../../../src/runtime/services/meeting-archive-service.js";
+import { TurnSubmissionSchema } from "@/protocol/commands.js";
+import { MeetingStatusResultSchema } from "@/protocol/status.js";
+import { projectMeetingStatus } from "@/projection/status.js";
+import { materializeArchivePackage } from "@/runtime/services/meeting-archive-service.js";
 import { meeting } from "../domain/transitions/fixtures.js";
 
 function fixture() {

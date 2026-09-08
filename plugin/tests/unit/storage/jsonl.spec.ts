@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { appendFailurePhase, appendLineDurably, readJsonl } from "../../../src/storage/jsonl.js";
+import { appendFailurePhase, appendLineDurably, readJsonl } from "@/storage/jsonl.js";
 import { ScriptedFileSystem } from "../../fixtures/storage/scripted-filesystem.js";
 
 const roots: string[] = [];

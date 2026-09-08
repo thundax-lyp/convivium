@@ -6,8 +6,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { apply, assertContinuableProvider, inject } from "../../src/index.js";
-import { requireContinuableProvider } from "../../src/dsh/index.js";
+import { apply, assertContinuableProvider, inject } from "@/index.js";
+import { requireContinuableProvider } from "@/dsh/index.js";
 import { createFakeDomainFacility } from "../fixtures/domain-storage.js";
 
 const config = {

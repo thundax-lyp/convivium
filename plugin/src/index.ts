@@ -3,16 +3,15 @@ import { resolve } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import type { WorkspaceId } from "@deepseek-ai/dsh-workspace";
-import { Config, type Config as ConfigType } from "@/config.js";
+import { Config, type Config as ConfigType } from "./config.js";
 import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
 import { registerLocalMeetingHttpRoutes } from "./http/index.js";
-import { createCreateStatusRuntime } from "./runtime/index.js";
-import { AGENT_CATALOG_SERVICE_KEY } from "./runtime/services/agent-catalog.js";
+import { createCreateStatusRuntime, AGENT_CATALOG_SERVICE_KEY } from "./runtime/index.js";
 import { jsonlStoragePlugin } from "./storage/index.js";
 import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "./tools/index.js";
 
 export { Config };
-export type { Config as ConfigType } from "@/config.js";
+export type { Config as ConfigType } from "./config.js";
 
 export const name = "convivium";
 

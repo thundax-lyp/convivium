@@ -1,7 +1,7 @@
-import { DomainError } from "../../domain/errors.js";
-import { emitDiagnostic, observeCommit, type DiagnosticSink } from "../diagnostics.js";
+import { DomainError } from "@/domain/index.js";
+import { emitDiagnostic, observeCommit, type DiagnosticSink } from "@/repository/diagnostics.js";
 import type { CatalogDomain, MeetingDomain } from "./specs.js";
-import type { MeetingRepositoryPort } from "../meeting-repository-port.js";
+import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import {
     AgentDefinitionBindingSchema,
     CatalogMeetingRecordV1Schema,
@@ -38,7 +38,7 @@ import type {
     FinishPrivateMeetingMailInput,
     UpdateBootstrapInput,
     UpdateCreateResultInput
-} from "../types.js";
+} from "@/repository/types.js";
 import {
     createProjection,
     createCommitRecord,
@@ -51,7 +51,7 @@ import { diff } from "./json-patch.js";
 import { catalogKey, receiptKey, seqKey } from "./keys.js";
 import { loadProjection } from "./projection.js";
 import { decodeCanonicalJson, encodeCanonicalJson, type JsonValue } from "./canonical-json.js";
-import { RepositoryError } from "../errors.js";
+import { RepositoryError } from "@/repository/errors.js";
 import {
     APPLICATION_CHECKPOINT_TRIGGER_BYTES,
     APPLICATION_CHECKPOINT_TRIGGER_COMMITS,

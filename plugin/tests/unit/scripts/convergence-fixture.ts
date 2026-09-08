@@ -1,4 +1,4 @@
-import type { ArchivedMeetingStatusResultV1 } from "../../../src/protocol/types.js";
+import type { ArchivedMeetingStatusResultV1 } from "@/protocol/types.js";
 
 export type ConvergenceScenario = "convergence-stalled" | "convergence-turn-budget-completion";
 export interface ConvergenceFixture {

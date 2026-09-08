@@ -2,10 +2,10 @@ import {
     mapDeveloperMeetingDocument,
     renderArchiveMarkdown,
     renderCurrentMarkdown
-} from "../../projection/index.js";
-import type { ImmutableArchivePackage } from "../../domain/index.js";
-import type { MeetingRepositoryPort } from "../../repository/meeting-repository-port.js";
-import type { MeetingSnapshot } from "../../repository/types.js";
+} from "@/projection/index.js";
+import type { ImmutableArchivePackage } from "@/domain/index.js";
+import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
+import type { MeetingSnapshot } from "@/repository/types.js";
 
 export type DeveloperMarkdownOperation =
     | "read_snapshot"

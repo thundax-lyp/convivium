@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { meetingTaskEvidenceResolver } from "../../../src/runtime/task-evidence.js";
-import type { MeetingState } from "../../../src/domain/model.js";
+import { meetingTaskEvidenceResolver } from "@/runtime/task-evidence.js";
+import type { MeetingState } from "@/domain/model.js";
 
 function state(overrides: Record<string, unknown> = {}): MeetingState {
     return {

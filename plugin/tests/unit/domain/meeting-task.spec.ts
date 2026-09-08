@@ -5,8 +5,8 @@ import {
     finishMeetingTask,
     queueMeetingTasks,
     startMeetingTask
-} from "../../../src/domain/index.js";
-import type { MeetingState } from "../../../src/domain/model.js";
+} from "@/domain/index.js";
+import type { MeetingState } from "@/domain/model.js";
 
 function state(): MeetingState {
     return {

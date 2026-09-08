@@ -1,4 +1,4 @@
-import { RepositoryError } from "../errors.js";
+import { RepositoryError } from "@/repository/errors.js";
 import type {
     MeetingSnapshot,
     PrivateMeetingMail,
@@ -6,7 +6,7 @@ import type {
     SendPrivateMeetingMailInput,
     StartPrivateMeetingMailInput,
     FinishPrivateMeetingMailInput
-} from "../types.js";
+} from "@/repository/types.js";
 
 // Repository owns authorization, receipt replay, version checks and the commit boundary.
 // These checks only inspect the supplied values; they never access storage or mutate state.

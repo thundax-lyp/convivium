@@ -1,5 +1,5 @@
 import { createElement, type ReactElement } from "react";
-import type { MeetingStatusResultV1 } from "../protocol/index.js";
+import type { MeetingStatusResultV1 } from "@/protocol/index.js";
 import { mapMeetingPanelView } from "./meeting-panel-view.js";
 
 export interface MeetingFactControls {

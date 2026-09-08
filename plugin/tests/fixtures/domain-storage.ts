@@ -1,7 +1,7 @@
 import type { Domain, KvTable } from "@deepseek-ai/dsh-storage-domain";
 import type { DomainSpec } from "@deepseek-ai/dsh-storage-domain";
-import type { CatalogDomain, MeetingDomain } from "../../src/repository/domain/specs.js";
-import { catalogDomainSpec, createMeetingDomainSpec } from "../../src/repository/domain/specs.js";
+import type { CatalogDomain, MeetingDomain } from "@/repository/domain/specs.js";
+import { catalogDomainSpec, createMeetingDomainSpec } from "@/repository/domain/specs.js";
 
 export interface FakeDomainPutCall {
     readonly table: string;

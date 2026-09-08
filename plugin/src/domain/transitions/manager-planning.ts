@@ -1,20 +1,20 @@
-import { DomainError, invalidStateTransition } from "../errors.js";
-import { completedTaskSnapshots, consumeHandRaise } from "../hand-raise.js";
+import { DomainError, invalidStateTransition } from "@/domain/errors.js";
+import { completedTaskSnapshots, consumeHandRaise } from "@/domain/hand-raise.js";
 import {
     planManagerTurn,
     planRuleBasedTurn,
     requiredPlanningBlockers,
     type ManagerPlanIds,
     type ManagerPlanInput
-} from "../planning.js";
-import { isMeetingStateV2 } from "../meeting-state-validation.js";
+} from "@/domain/planning.js";
+import { isMeetingStateV2 } from "@/domain/meeting-state-validation.js";
 import type {
     DomainEffect,
     MeetingState,
     MeetingTurn,
     ManagerPlanningAttempt,
     TransitionResult
-} from "../model.js";
+} from "@/domain/model.js";
 import { transitionManagerAttempt } from "./kernel.js";
 import { transitionMeeting } from "./meeting.js";
 import type { StartManagerPlanningContext, SubmitManagerPlanContext } from "./types.js";

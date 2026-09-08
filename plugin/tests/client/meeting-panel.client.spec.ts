@@ -1,15 +1,15 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { apply, inject, name } from "../../src/client/index.js";
-import { ConviviumMeetingPanel } from "../../src/client/meeting-panel.js";
-import { mapMeetingPanelView } from "../../src/client/meeting-panel-view.js";
-import type { MeetingStatusResultV1 } from "../../src/protocol/index.js";
-import { MeetingStatusResultSchema } from "../../src/protocol/index.js";
-import type { PublicDecisionV1 } from "../../src/protocol/index.js";
-import type { PublicArchiveAgendaCandidateV1 } from "../../src/protocol/index.js";
-import type { PublicArchiveIssueV1 } from "../../src/protocol/index.js";
-import { renderObservabilitySections } from "../../src/client/meeting-panel-sections.js";
+import { apply, inject, name } from "@/client/index.js";
+import { ConviviumMeetingPanel } from "@/client/meeting-panel.js";
+import { mapMeetingPanelView } from "@/client/meeting-panel-view.js";
+import type { MeetingStatusResultV1 } from "@/protocol/index.js";
+import { MeetingStatusResultSchema } from "@/protocol/index.js";
+import type { PublicDecisionV1 } from "@/protocol/index.js";
+import type { PublicArchiveAgendaCandidateV1 } from "@/protocol/index.js";
+import type { PublicArchiveIssueV1 } from "@/protocol/index.js";
+import { renderObservabilitySections } from "@/client/meeting-panel-sections.js";
 
 const meetingId = "meeting/1";
 const listItem = {

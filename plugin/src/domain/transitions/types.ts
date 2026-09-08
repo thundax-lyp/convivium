@@ -1,9 +1,9 @@
-import type { ApplyCompletionClaimsContext } from "../completion.js";
+import type { ApplyCompletionClaimsContext } from "@/domain/completion.js";
 import type {
     ManagerCatalogBindingV1,
     ManagerPlanningAttempt,
     SpeakerSubmissionContext
-} from "../model.js";
+} from "@/domain/model.js";
 
 export interface StartManagerPlanningContext {
     meetingId: string;

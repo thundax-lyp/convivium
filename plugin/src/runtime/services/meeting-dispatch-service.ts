@@ -4,18 +4,15 @@ import {
     followupMeetingMailSession,
     followupMeetingTaskSession,
     followupParticipantSession
-} from "../../dsh/index.js";
+} from "@/dsh/index.js";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import { isParticipantDispatchableNow, type MeetingState } from "../../domain/index.js";
-import {
-    projectManagerMeetingContext,
-    projectSpeakerMeetingContext
-} from "../../projection/index.js";
-import { RepositoryError } from "../../repository/errors.js";
-import type { OutboxItem } from "../../repository/types.js";
-import type { MeetingRepositoryRuntime } from "../meeting-runtime.js";
-import { createOutboxWorker } from "../outbox-worker.js";
+import { isParticipantDispatchableNow, type MeetingState } from "@/domain/index.js";
+import { projectManagerMeetingContext, projectSpeakerMeetingContext } from "@/projection/index.js";
+import { RepositoryError } from "@/repository/errors.js";
+import type { OutboxItem } from "@/repository/types.js";
+import type { MeetingRepositoryRuntime } from "@/runtime/meeting-runtime.js";
+import { createOutboxWorker } from "@/runtime/outbox-worker.js";
 import type { MeetingDeliveryWorkerService } from "./types.js";
 
 function terminalDispatchError(code: string, message: string): Error {

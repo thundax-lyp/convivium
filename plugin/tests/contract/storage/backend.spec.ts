@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { JsonlStorageBackend } from "../../../src/storage/backend.js";
+import { JsonlStorageBackend } from "@/storage/backend.js";
 
 describe("JsonlStorageBackend contract", () => {
     it("opens a KV unit and exposes the exact KvUnit operations", async () => {

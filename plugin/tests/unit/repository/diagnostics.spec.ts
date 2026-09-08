@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { observeCommit, type MeetingDiagnostic } from "../../../src/repository/diagnostics.js";
-import { createProjection } from "../../../src/repository/domain/projection.js";
+import { observeCommit, type MeetingDiagnostic } from "@/repository/diagnostics.js";
+import { createProjection } from "@/repository/domain/projection.js";
 import { meeting, now } from "../domain/transitions/fixtures.js";
-import { DomainMeetingRepository } from "../../../src/repository/domain/domain-meeting-repository.js";
+import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../../fixtures/domain-storage.js";
-import { DomainError } from "../../../src/domain/errors.js";
+import { DomainError } from "@/domain/errors.js";
 
 function projection() {
     const state = meeting("waiting");

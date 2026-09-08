@@ -1,4 +1,4 @@
-import type { MeetingBootstrap, MeetingSnapshot, SessionOwnership } from "../types.js";
+import type { MeetingBootstrap, MeetingSnapshot, SessionOwnership } from "@/repository/types.js";
 import { applyPatch } from "./json-patch.js";
 import {
     decodeCanonicalJson,

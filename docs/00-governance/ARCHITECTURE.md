@@ -95,6 +95,23 @@
 - 外部参考项目只用于只读调研 DSH 接口和可选实现思路；其源码、文档、发布记录、品牌、协议命名和持久化格式不得进入产品工程。
 - `plugin/package.json` 提供 `typecheck`、`test`、`build` 和 `verify`；组合边界还必须用真实 DSH profile 验证 backend 注册、Storage Domain 打开、Host 冷重启和关闭顺序。
 
+## Import Paths
+
+- `plugin/src/` 内禁止使用 `../`、`../../` 等父级相对模块路径，必须使用 `@/`；适用于普通导入、类型导入、重新导出和动态 `import()`。例如 `src/runtime/` 导入 `../domain/index.js` 必须写为 `@/domain/index.js`。跨模块引用同时遵守下节公开入口约束，模块内引用保持原目标文件。
+- 同目录和子目录的 `./` 引用在符合公开入口规则时保留；保留 `.js` 扩展名，不改变导入符号的实现归属。
+- `plugin/tests/` 引用 `src/` 必须使用 `@/`；测试 fixture 和辅助文件之间允许使用相对路径，`@/` 不指向测试目录。
+- `plugin/scripts/` 中直接由 Node 执行的脚本不使用 TypeScript 路径别名；文件系统路径和 `new URL(..., import.meta.url)` 不属于模块导入规则。
+- `plugin/eslint.config.js` 强制检查上述源码引用和测试静态导入。不得通过禁用 lint、扩大例外或创建转发文件绕过规则。
+
+### Public Module Entrypoints
+
+- `client`、`domain`、`dsh`、`http`、`projection`、`protocol`、`runtime`、`storage`、`tools` 是当前具有公开入口的顶层源码模块，模块对其他生产源码只公开自身 `index.ts` / `index.tsx` 导出的符号。源码模块公开不等于 package 对外导出；例如 Storage 仍为 package-private。
+- 跨模块导入必须使用 `@/<module>/index.js`；`src/` 根目录装配可保留等价的 `./<module>/index.js`。普通导入、类型导入、重新导出和动态导入遵循同一边界。不得用别名或相对路径直接访问另一个模块的内部文件。
+- 模块内部可以直接引用自身文件，无须经由自身入口；`domain/transitions/` 和 `runtime/application-service/` 属于各自顶层模块内部，不因有 `index.ts` 就成为独立封装单元。`repository`、`role-composition` 尚无入口，不为本规则新增转发文件。
+- 测试可以直接引用被测模块内部文件；直接执行的 Node 脚本继续遵守既有运行和路径约束。
+- 入口缺少外部所需符号时，先核对当前调用依据和模块职责，只显式补充必要导出，不批量公开 internal。当前 Domain 公开 Runtime 使用的 Manager planning fallback，Protocol 公开请求序列化函数，Runtime 公开根插件装配所需的 Agent catalog service key；函数实现和 port ownership 保留在原文件。
+- ESLint 使用固定模块列表按导入方作用域应用内置规则；新增或改变模块入口时同步更新本节与配置。
+
 ## Undecided Architecture
 
 以下内容尚未确认，不得从本文推断为既定方案：

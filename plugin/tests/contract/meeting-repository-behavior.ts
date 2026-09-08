@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { RepositoryError } from "../../src/repository/errors.js";
+import { RepositoryError } from "@/repository/errors.js";
 import type {
     CommandAuthorization,
     MeetingRepositoryPort,
     RepositoryAuthorizationValidator,
     RepositoryCommand,
     SessionOwnershipInput
-} from "../../src/repository/types.js";
+} from "@/repository/types.js";
 
 export interface MeetingRepositoryHarness {
     open(authorizationValidator?: RepositoryAuthorizationValidator): Promise<MeetingRepositoryPort>;

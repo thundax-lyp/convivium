@@ -1,7 +1,7 @@
 import { createLocalDecisionRiskState } from "../../../fixtures/local-decision-risk.js";
-import type { MeetingState } from "../../../../src/domain/model.js";
+import type { MeetingState } from "@/domain/model.js";
 import { describe, expect, it } from "vitest";
-import { acceptDecisionCandidate, disposeDecision } from "../../../../src/domain/index.js";
+import { acceptDecisionCandidate, disposeDecision } from "@/domain/index.js";
 import { now, questionState } from "./fixtures.js";
 
 function ready() {

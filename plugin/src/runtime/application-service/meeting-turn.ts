@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import {
     createHandRaise,
+    DomainError,
+    failManagerPlanningAndCreateFallback,
     findPendingEquivalentHandRaise,
     isParticipantDispatchableNow,
     nextManagerPlanningIds,
@@ -8,10 +10,8 @@ import {
     submitManagerPlan as submitManagerPlanTransition,
     submitSpeakerAndAdvanceMeeting,
     type MeetingState
-} from "../../domain/index.js";
-import { failManagerPlanningAndCreateFallback } from "../../domain/transitions/manager-planning.js";
-import { DomainError } from "../../domain/errors.js";
-import { serializeValidatedRequestV1 } from "../../protocol/request-idempotency.js";
+} from "@/domain/index.js";
+import { serializeValidatedRequestV1 } from "@/protocol/index.js";
 import type {
     HandRaiseSubmissionV1,
     HandRaiseResultV1,
@@ -19,19 +19,23 @@ import type {
     ManagerPlanSubmissionV1,
     TurnSubmissionResultV1,
     ProtocolErrorV1
-} from "../../protocol/index.js";
-import type { DomainEventInput, JsonObject, MeetingRepositoryRuntime } from "../meeting-runtime.js";
+} from "@/protocol/index.js";
+import type {
+    DomainEventInput,
+    JsonObject,
+    MeetingRepositoryRuntime
+} from "@/runtime/meeting-runtime.js";
 import {
     commandFailure as failure,
     commandSuccess as success,
     mapCommandError as commandError
-} from "../services/command-result-service.js";
-import type { MeetingRehydrationService } from "../services/meeting-recovery-service.js";
-import type { MeetingDeliveryWorkerService } from "../services/types.js";
-import type { AuthorizedTaskEvidenceResolver } from "../task-evidence.js";
+} from "@/runtime/services/command-result-service.js";
+import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
+import type { MeetingDeliveryWorkerService } from "@/runtime/services/types.js";
+import type { AuthorizedTaskEvidenceResolver } from "@/runtime/task-evidence.js";
 import type { CreateStatusRuntimeOptions, MeetingToolRuntime } from "./index.js";
 import type { StoredMeeting } from "./types.js";
-import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
+import { captureManagerCatalogBinding } from "@/runtime/services/agent-catalog.js";
 
 type ManagerFallbackReasonCode =
     "manager_plan_invalid" | "manager_timeout" | "manager_delivery_retry_exhausted";

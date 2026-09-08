@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { decodeMeetingSessionLabel, encodeMeetingSessionLabel } from "../../../src/dsh/labels.js";
+import { decodeMeetingSessionLabel, encodeMeetingSessionLabel } from "@/dsh/labels.js";
 
 describe("meeting session labels", () => {
     it("round-trips strict manager and participant identities", () => {

@@ -1,4 +1,4 @@
-import type { MeetingState } from "../../src/domain/model.js";
+import type { MeetingState } from "@/domain/model.js";
 import { now, questionState } from "../unit/domain/transitions/fixtures.js";
 
 export function createLocalDecisionRiskState(): MeetingState {

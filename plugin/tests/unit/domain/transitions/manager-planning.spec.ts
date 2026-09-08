@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { startManagerPlanning, submitManagerPlan } from "../../../../src/domain/index.js";
+import { startManagerPlanning, submitManagerPlan } from "@/domain/index.js";
 import { meeting, now } from "./fixtures.js";
 
 describe("manager planning transitions", () => {

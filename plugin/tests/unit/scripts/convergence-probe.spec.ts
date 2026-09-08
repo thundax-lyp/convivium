@@ -4,7 +4,7 @@ import {
     runConvergenceTurnBudgetCompletionScenario
 } from "../../../scripts/smoke-profile/probe/scenarios/convergence.js";
 import { validateScenarioResult } from "../../../scripts/smoke-profile/result.mjs";
-import { MeetingStatusResultSchema } from "../../../src/protocol/status.js";
+import { MeetingStatusResultSchema } from "@/protocol/status.js";
 import { createProbeSupport } from "../../../scripts/smoke-profile/probe/support.js";
 import { createConvergenceFixture, type ConvergenceScenario } from "./convergence-fixture.js";
 

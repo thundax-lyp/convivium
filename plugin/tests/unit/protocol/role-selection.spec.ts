@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CreateMeetingInputSchema } from "../../../src/protocol/commands.js";
-import { serializeValidatedRequestV1 } from "../../../src/protocol/request-idempotency.js";
+import { CreateMeetingInputSchema } from "@/protocol/commands.js";
+import { serializeValidatedRequestV1 } from "@/protocol/request-idempotency.js";
 import { createOfflineMeetingProtocolFixture } from "../../fixtures/offline-meeting-protocol.js";
 
 describe("initial role definition selection", () => {

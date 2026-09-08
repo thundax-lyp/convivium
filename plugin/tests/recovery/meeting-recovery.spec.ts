@@ -5,11 +5,11 @@ import { describe, expect, it } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
 import Storage from "@deepseek-ai/dsh-storage";
 import * as storageDomainPlugin from "@deepseek-ai/dsh-storage-domain";
-import { endMeeting, type MeetingState } from "../../src/domain/index.js";
-import { DomainRepositoryRegistry } from "../../src/repository/domain/domain-repository-registry.js";
-import type { JsonObject, RepositoryCommand } from "../../src/repository/types.js";
-import { jsonlStoragePlugin } from "../../src/storage/index.js";
-import { rebindCaptainParent } from "../../src/runtime/services/meeting-recovery-service.js";
+import { endMeeting, type MeetingState } from "@/domain/index.js";
+import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
+import type { JsonObject, RepositoryCommand } from "@/repository/types.js";
+import { jsonlStoragePlugin } from "@/storage/index.js";
+import { rebindCaptainParent } from "@/runtime/services/meeting-recovery-service.js";
 
 const ownership = {
     sessionId: "participant-session",

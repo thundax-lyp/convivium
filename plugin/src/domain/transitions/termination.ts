@@ -1,12 +1,12 @@
-import { cancelNonTerminalMeetingTasks } from "../meeting-task.js";
-import { DomainError } from "../errors.js";
+import { cancelNonTerminalMeetingTasks } from "@/domain/meeting-task.js";
+import { DomainError } from "@/domain/errors.js";
 import type {
     CompletionFact,
     DomainEffect,
     MeetingState,
     MeetingStatus,
     TransitionResult
-} from "../model.js";
+} from "@/domain/model.js";
 import { transitionMeeting } from "./meeting.js";
 
 export interface EndMeetingTransitionContext {

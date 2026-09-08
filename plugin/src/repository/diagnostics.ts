@@ -1,4 +1,4 @@
-import type { MeetingState } from "../domain/model.js";
+import type { MeetingState } from "@/domain/index.js";
 import type { PersistenceProjectionV1 } from "./domain/schemas.js";
 
 export interface MeetingDiagnostic {

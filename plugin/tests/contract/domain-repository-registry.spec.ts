@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
     DomainRepositoryRegistry,
     type DomainFacilityPort
-} from "../../src/repository/domain/domain-repository-registry.js";
-import { catalogKey, meetingDomainName } from "../../src/repository/domain/keys.js";
-import { RepositoryError } from "../../src/repository/errors.js";
+} from "@/repository/domain/domain-repository-registry.js";
+import { catalogKey, meetingDomainName } from "@/repository/domain/keys.js";
+import { RepositoryError } from "@/repository/errors.js";
 import {
     createFakeCatalogDomain,
     createFakeMeetingDomain,

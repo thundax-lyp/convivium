@@ -8,7 +8,7 @@ import {
     proveArchiveOwnedChildren,
     startManagerSession,
     startParticipantSession
-} from "../../../src/dsh/session-adapter.js";
+} from "@/dsh/session-adapter.js";
 
 const participantOwnership = (overrides = {}) => ({
     sessionId: "participant-session",

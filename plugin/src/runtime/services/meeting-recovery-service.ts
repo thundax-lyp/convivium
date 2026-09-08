@@ -1,9 +1,9 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import { inspectOwnedSessions, type OwnedSessionInspection } from "../../dsh/index.js";
+import { inspectOwnedSessions, type OwnedSessionInspection } from "@/dsh/index.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { DomainRepositoryRegistry } from "../../repository/domain/domain-repository-registry.js";
-import type { MeetingRepositoryPort as MeetingRepository } from "../../repository/meeting-repository-port.js";
-import type { MeetingSnapshot, RecoveryResult } from "../../repository/types.js";
+import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
+import type { MeetingRepositoryPort as MeetingRepository } from "@/repository/meeting-repository-port.js";
+import type { MeetingSnapshot, RecoveryResult } from "@/repository/types.js";
 
 export class LocalMeetingRecoveryUnavailableError extends Error {
     readonly name = "LocalMeetingRecoveryUnavailableError";

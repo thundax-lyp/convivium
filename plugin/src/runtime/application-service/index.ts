@@ -1,5 +1,5 @@
-import { emitDiagnostic } from "../../repository/diagnostics.js";
-import { reconcileMeetingSessions } from "../services/meeting-session-recovery.js";
+import { emitDiagnostic } from "@/repository/diagnostics.js";
+import { reconcileMeetingSessions } from "@/runtime/services/meeting-session-recovery.js";
 import { createMeetingAttendanceApplication } from "./meeting-attendance.js";
 import {
     DomainError,
@@ -7,27 +7,27 @@ import {
     isMeetingStateV2,
     nextManagerPlanningIds,
     type MeetingState
-} from "../../domain/index.js";
-import { RepositoryError } from "../../repository/errors.js";
-import { DomainRepositoryRegistry } from "../../repository/domain/domain-repository-registry.js";
-import { openMeetingRepository } from "../meeting-runtime.js";
-import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
+} from "@/domain/index.js";
+import { RepositoryError } from "@/repository/errors.js";
+import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
+import { openMeetingRepository } from "@/runtime/meeting-runtime.js";
+import type { DomainEventInput, JsonObject } from "@/runtime/meeting-runtime.js";
 import {
     createMeetingDeliveryDispatcher,
     createMeetingDeliveryWorkerService,
     scanMeetingMailTimeouts
-} from "../services/meeting-dispatch-service.js";
-import { resolveArchiveCleanupRuntime } from "../services/meeting-session-service.js";
+} from "@/runtime/services/meeting-dispatch-service.js";
+import { resolveArchiveCleanupRuntime } from "@/runtime/services/meeting-session-service.js";
 import {
     createDeveloperMarkdownService,
     type DeveloperMarkdownService
-} from "../services/developer-markdown-service.js";
-import { recoverArchive } from "../services/meeting-archive-service.js";
+} from "@/runtime/services/developer-markdown-service.js";
+import { recoverArchive } from "@/runtime/services/meeting-archive-service.js";
 import {
     createMeetingRehydrationService,
     LocalMeetingRecoveryUnavailableError,
     type MeetingRehydrationService
-} from "../services/meeting-recovery-service.js";
+} from "@/runtime/services/meeting-recovery-service.js";
 import { createMeetingTurnApplication, type ManagerFallbackInput } from "./meeting-turn.js";
 import { createMeetingQueryApplication } from "./meeting-query.js";
 import { createMeetingApplication } from "./create-meeting.js";
@@ -38,8 +38,8 @@ import { createMeetingMailApplication } from "./meeting-mail.js";
 import { createMeetingDecisionApplication } from "./meeting-decision.js";
 import { createMeetingAgendaCandidateApplication } from "./meeting-agenda-candidate.js";
 import type { StoredMeeting } from "./types.js";
-import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
-import { meetingTaskEvidenceResolver } from "../task-evidence.js";
+import { captureManagerCatalogBinding } from "@/runtime/services/agent-catalog.js";
+import { meetingTaskEvidenceResolver } from "@/runtime/task-evidence.js";
 
 import type {
     MeetingToolCaller,
@@ -58,7 +58,7 @@ interface InternalCreateStatusRuntimeOptions extends CreateStatusRuntimeOptions 
     readonly repositoryRegistry: Promise<DomainRepositoryRegistry>;
 }
 
-export { LocalMeetingRecoveryUnavailableError } from "../services/meeting-recovery-service.js";
+export { LocalMeetingRecoveryUnavailableError } from "@/runtime/services/meeting-recovery-service.js";
 
 export function defaultTimeoutScanSleep(delayMs: number, signal: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {

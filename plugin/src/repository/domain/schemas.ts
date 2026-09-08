@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { DomainEventTypes } from "../../domain/model.js";
-import { isMeetingStateV2 } from "../../domain/meeting-state-validation.js";
+import { DomainEventTypes, isMeetingStateV2 } from "@/domain/index.js";
 import type {
     CommandAuthorization,
     CreateMeetingResult,
@@ -10,7 +9,7 @@ import type {
     OutboxKind,
     PrivateMeetingMail,
     SessionOwnership
-} from "../types.js";
+} from "@/repository/types.js";
 import type { JsonValue } from "./canonical-json.js";
 
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>

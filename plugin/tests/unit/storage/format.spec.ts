@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeRecord, encodeRecord } from "../../../src/storage/format.js";
+import { decodeRecord, encodeRecord } from "@/storage/format.js";
 
 describe("JSONL storage format validation", () => {
     it("round trips operation records", () => {

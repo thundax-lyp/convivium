@@ -1,5 +1,5 @@
 import { createLocalDecisionRiskState } from "../../../fixtures/local-decision-risk.js";
-import { materializeArchivePackage } from "../../../../src/runtime/services/meeting-archive-service.js";
+import { materializeArchivePackage } from "@/runtime/services/meeting-archive-service.js";
 import { describe, expect, it } from "vitest";
 import {
     acceptDecisionCandidate,
@@ -8,7 +8,7 @@ import {
     transitionMeeting,
     failSpeakerAttempt,
     reassignTurn
-} from "../../../../src/domain/index.js";
+} from "@/domain/index.js";
 import { archivePackage, meeting, now } from "./fixtures.js";
 
 describe("archive transitions", () => {

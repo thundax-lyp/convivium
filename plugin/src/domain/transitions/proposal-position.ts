@@ -1,5 +1,5 @@
-import { DomainError } from "../errors.js";
-import type { MeetingProposal, MeetingState, TransitionResult } from "../model.js";
+import { DomainError } from "@/domain/errors.js";
+import type { MeetingProposal, MeetingState, TransitionResult } from "@/domain/model.js";
 import type { SubmittedPositionInput, SubmittedProposalInput } from "./types.js";
 
 export function applySubmittedProposalPositionClaims(

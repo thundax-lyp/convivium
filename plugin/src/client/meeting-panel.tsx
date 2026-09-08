@@ -27,7 +27,7 @@ import {
     type ProtocolErrorV1,
     type ProtocolSuccessV1,
     type ReassignTurnResultV1
-} from "../protocol/index.js";
+} from "@/protocol/index.js";
 import { renderObservabilitySections } from "./meeting-panel-sections.js";
 
 const meetingsPath = "/api/convivium/meetings";

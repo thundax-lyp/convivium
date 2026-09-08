@@ -1,7 +1,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
 import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
-import { ConviviumMeetingPanel } from "@/client/meeting-panel.js";
+import { ConviviumMeetingPanel } from "./meeting-panel.js";
 
 export const name = "convivium-client";
 

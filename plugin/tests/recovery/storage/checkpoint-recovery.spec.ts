@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { openJsonlUnit } from "../../../src/storage/unit.js";
+import { openJsonlUnit } from "@/storage/unit.js";
 import { ScriptedFileSystem, type FaultPoint } from "../../fixtures/storage/scripted-filesystem.js";
 
 type Additional =

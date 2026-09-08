@@ -1,31 +1,31 @@
-import type { MeetingDiagnostic } from "../../src/repository/diagnostics.js";
+import type { MeetingDiagnostic } from "@/repository/diagnostics.js";
 import {
     CaptainAttendanceDispositionInputSchema,
     CaptainAttendanceDispositionResultSchema
-} from "../../src/protocol/index.js";
+} from "@/protocol/index.js";
 import { roleCompositionDefinitions } from "../fixtures/role-composition.js";
-import { MeetingArchivePackageSchema } from "../../src/protocol/status.js";
+import { MeetingArchivePackageSchema } from "@/protocol/status.js";
 
 import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebRoute } from "@deepseek-ai/dsh-host-webserver";
-import { registerLocalMeetingHttpRoutes } from "../../src/http/index.js";
+import { registerLocalMeetingHttpRoutes } from "@/http/index.js";
 import {
     CaptainDecisionAcceptanceInputSchema,
     CaptainDecisionDispositionInputSchema,
     CaptainRiskDispositionInputSchema,
     MeetingStatusResultSchema
-} from "../../src/protocol/index.js";
+} from "@/protocol/index.js";
 import { createLocalDecisionRiskState } from "../fixtures/local-decision-risk.js";
 import {
     createFakeCatalogDomain,
     createFakeMeetingDomain,
     type FakeMeetingDomain
 } from "../fixtures/domain-storage.js";
-import { loadProjection } from "../../src/repository/domain/projection.js";
-import { catalogDomainSpec } from "../../src/repository/domain/specs.js";
-import type { MeetingState } from "../../src/domain/model.js";
-import type { JsonObject } from "../../src/repository/types.js";
+import { loadProjection } from "@/repository/domain/projection.js";
+import { catalogDomainSpec } from "@/repository/domain/specs.js";
+import type { MeetingState } from "@/domain/model.js";
+import type { JsonObject } from "@/repository/types.js";
 import { now as localNow } from "../unit/domain/transitions/fixtures.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -35,20 +35,20 @@ import { Context } from "@deepseek-ai/cordis";
 import Storage from "@deepseek-ai/dsh-storage";
 import * as storageDomainPlugin from "@deepseek-ai/dsh-storage-domain";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
-import { openMeetingRepository } from "../../src/runtime/index.js";
-import { RepositoryError } from "../../src/repository/errors.js";
+import { openMeetingRepository } from "@/runtime/index.js";
+import { RepositoryError } from "@/repository/errors.js";
 import {
     DomainRepositoryRegistry,
     type DomainFacilityPort
-} from "../../src/repository/domain/domain-repository-registry.js";
-import { jsonlStoragePlugin } from "../../src/storage/index.js";
-import { meetingDomainName, seqKey } from "../../src/repository/domain/keys.js";
-import { createMeetingDomainSpec } from "../../src/repository/domain/specs.js";
+} from "@/repository/domain/domain-repository-registry.js";
+import { jsonlStoragePlugin } from "@/storage/index.js";
+import { meetingDomainName, seqKey } from "@/repository/domain/keys.js";
+import { createMeetingDomainSpec } from "@/repository/domain/specs.js";
 import {
     createCreateStatusRuntime,
     LocalMeetingRecoveryUnavailableError
-} from "../../src/runtime/application-service/index.js";
-import type { AgentCatalogPort } from "../../src/runtime/services/agent-catalog.js";
+} from "@/runtime/application-service/index.js";
+import type { AgentCatalogPort } from "@/runtime/services/agent-catalog.js";
 
 const roots: string[] = [];
 const storageContexts: Array<Promise<Context>> = [];

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     failManagerPlanningAndCreateFallback,
     submitManagerPlan
-} from "../../../src/domain/transitions/manager-planning.js";
+} from "@/domain/transitions/manager-planning.js";
 import { meeting, now } from "../domain/transitions/fixtures.js";
 
 function planningState() {

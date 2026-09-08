@@ -1,5 +1,5 @@
-import type { MeetingProposal } from "../../../../src/domain/model.js";
-import type { ArchivePackage, MeetingState } from "../../../../src/domain/index.js";
+import type { MeetingProposal } from "@/domain/model.js";
+import type { ArchivePackage, MeetingState } from "@/domain/index.js";
 
 export const now = 1_700_000_000_000;
 

@@ -1,4 +1,4 @@
-import { DomainError } from "../errors.js";
+import { DomainError } from "@/domain/errors.js";
 import type {
     ArchiveInput,
     DomainEffect,
@@ -7,9 +7,9 @@ import type {
     MeetingTurn,
     TransitionContext,
     TransitionResult
-} from "../model.js";
+} from "@/domain/model.js";
 import { assertArchivePackageMatchesMeeting, sameTermination, snapshotArchive } from "./archive.js";
-import { cancelRequestedMeetingTasksForAttempts } from "../meeting-task.js";
+import { cancelRequestedMeetingTasksForAttempts } from "@/domain/meeting-task.js";
 import {
     assertCompletionReady,
     terminationCodesByStatus,
