@@ -1,19 +1,31 @@
 # Smoke Validation Evidence
 
-最新工作区的运行结果见 [Current Baseline Validation](#current-baseline-validation)。下述 `bd0159b` 的 14 场景与 `743edbee` 的 16 场景均保留为历史证据，不替代最新修复验证。
+当前 DSH `0.1.2-rc.1` 的结果见下节；其余章节保留各自的历史源码与环境边界，不外推为当前 Browser 或模型验证。
 
-## Scope
+## Current Baseline Validation
+
+2026-09-08，源码为 `8c3b7ab0359828f4b2e33554300c134f95bacecd`，分支 `codex/upgrade-dsh-0.1.2-rc.1`；验证在提交前的同一源码工作区执行。Darwin arm64、Node `v22.23.2`、DSH `0.1.2-rc.1`，独立 `web` profile、`spawn` provider。
+
+`pnpm --dir plugin smoke:profile --all` 实际退出 0，16/16 场景 PASS，总耗时 156717ms，一次构建，每场景均 `restore=PASS`。角色配置使用测试专用 LlmAdapter，验证真实 Agent 和双 Host 冷恢复，不证明真实外部模型配置可用。
+
+场景清单、探针适配、业务重投修复、完整 verify 及 Not Covered 统一见 [DSH Capability Integration Evidence](./DSH-CAPABILITY-INTEGRATION-EVIDENCE.md#executed-validation)。历史 `6679403` 的结果见 [Historical Alignment Baseline Validation](#historical-alignment-baseline-validation)。
+
+## Historical Smoke Layering
+
+以下 Scope 至 Closure 均属于 `bd0159b` 后的历史 smoke 分层调整。
+
+### Scope
 
 2026-09-07，基于 `bd0159b` 加本次工作区调整，重新划分整个 smoke 的覆盖层次。保留已合入的离线协议测试、Client 事实展示及 Browser 重复停止信号修复。环境为 Darwin arm64、Node 22.23.2、pnpm 10.7.0、DSH 0.1.1-rc.2，profile=web、provider=spawn。
 
-## Validated Contract
+### Validated Contract
 
 - 默认运行 5 个核心场景，`--all` 运行 14 个场景，环境变量仍支持单场景诊断；覆盖目的见 [操作入口](../50-operations/HOW-TO-DSH-SMOKE.md)。
 - 每次命令只构建、打包一次；场景之间独立 Host、profile、workspace、DSH_HOME、端口。失败停止后续场景，清理通过后才输出 PASS。
 - no_consensus 保留现有领域测试；新增 Proposal 重置后再次停滞及 Turn/message 两类预算完成优先级测试，删除对应三个重复 smoke selector。领域测试不宣称真实 DSH 故障注入。
 - 实际归档 DTO 复用正式 Schema；中间状态断言在 driver 执行，输出校验保留关键持久化关联与生命周期证据。移除按字段穷举的 smoke 测试矩阵，保留已知错误 envelope、非法归档与关键关联回归。
 
-## Executed Validation
+### Executed Validation
 
 | 命令或检查 | 结果 |
 | --- | --- |
@@ -28,12 +40,12 @@
 
 最终移除被删除场景遗留的无用参数和分支后，相关 lint、两个脚本测试文件（55 tests）及真实 Turn 预算完成场景重跑通过。相对 `bd0159b`，插件代码与测试净减少 804 行。
 
-## Not Covered
+### Not Covered
 
 - 本次 Browser mode 仅验证宿主 ready/preflight 和退出清理，未重新执行人工页面交互；Client 展示由已合入测试覆盖，历史 Browser 证据不外推。
 - 没有真实模型调用、跨 Host、生产发布或长期资源压力证明；三种已移除 selector 的历史真实运行仅保留作历史证据。
 
-## Closure
+### Closure
 
 当前执行入口和分层矩阵已同步到操作文档。产品代码、公开协议、权限与存储语义未改变；TODO 无本任务登记项。新实现保留协议错误码修复以及实际归档 Schema 校验。
 
@@ -49,13 +61,13 @@
 
 三场景均观察到旧 Agent 提交被拒绝、完整归档和版本不变、meeting child inactive 且无 resident Session；wrapper 完整退出后逐次核对精确临时根不存在、端口可 exclusive bind，Restore 通过。没有调用真实模型或 Browser，也没有 Host 冷重启或长期资源压力证据。
 
-后续 Review 在 `6e7441b` 加修复工作区的边界，以正式归档 Schema 和 `ProtocolErrorV1.code` 校验结果，原五个新增收敛 selector 再次逐一通过，五次 Restore 均通过；该历史重跑不恢复已删除入口。当前规则差异由 `plugin/tests/unit/domain/transitions/turn-advancement.spec.ts` 保留回归，当前真实覆盖为 fallback、stalled 和 Turn budget 场景，结果见下方最新基线。详细旧运行表与逐步日志说明保留在 Git 历史。
+后续 Review 在 `6e7441b` 加修复工作区的边界，以正式归档 Schema 和 `ProtocolErrorV1.code` 校验结果，原五个新增收敛 selector 再次逐一通过，五次 Restore 均通过；该历史重跑不恢复已删除入口。当前规则差异由 `plugin/tests/unit/domain/transitions/turn-advancement.spec.ts` 保留回归，当前真实覆盖为 fallback、stalled 和 Turn budget 场景，当前结果见上方 Current Baseline Validation。详细旧运行表与逐步日志说明保留在 Git 历史。
 
 ## Captain Attendance Rejection Loader
 
 2026-09-07，在 `f5cb663`，使用 Darwin 25.5.0 arm64、Node `v22.23.2`、pnpm `10.7.0`、DSH `0.1.1-rc.2`、独立 web profile、spawn provider，执行 `CONVIVIUM_SMOKE_SCENARIO=baseline pnpm --dir plugin smoke:profile`，退出 0；场景 6210ms，总耗时 9888ms，一次构建，Restore PASS。
 
-真实 Captain 经 Loader 调用新工具，缺失 recommendation 返回 `INVALID_ARGUMENT`、`retryable=false`，version 不变且推荐仍为空，随后 Manager plan 正常；既有 ACB transcript 和 HTTP pause/resume 断言通过。wrapper 完成 Host、进程、端口及临时资源清理。该断言保留在现行 baseline 中，后续全量运行见下方最新基线。
+真实 Captain 经 Loader 调用新工具，缺失 recommendation 返回 `INVALID_ARGUMENT`、`retryable=false`，version 不变且推荐仍为空，随后 Manager plan 正常；既有 ACB transcript 和 HTTP pause/resume 断言通过。wrapper 完成 Host、进程、端口及临时资源清理。该断言保留在现行 baseline 中，后续全量运行见上方 Current Baseline Validation。
 
 Not Covered：没有生产 Catalog 成功推荐→拒绝、真实模型自主推荐/拒绝、拒绝 Browser/HTTP/Client 控制展示、专项 Host 冷重启或长期压力证据。成功拒绝与 JSONL reopen 的自动化证据见 [验证索引](./CURRENT-IMPLEMENTATION-COVERAGE.md#captain-attendance-rejection)，不外推为真实 Host 成功链路。历史分步命令及测试数量保留在 Git 历史。
 
@@ -151,7 +163,7 @@ CONVIVIUM_SMOKE_SCENARIO=scribe-minutes CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --di
 
 - `CONVIVIUM_SMOKE_SCENARIO=scribe-minutes CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile`：再次通过真实 Meetings view 验证 source-a、draft 三字段、刷新保持、Partial End、archived 后刷新；版本 4 → 7，结束原因 `scribe minutes smoke`。warn/error console 为空。原 PTY SIGINT 后 exit 0、`restore=PASS`、`CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`，本次精确临时根 `convivium-dsh-smoke-PjNXsX` 已删除。
 
-后续从 `d97da4d` 合入 main `a2a6fb460713fcb8968a6578cf4528de0ebfe1ee` 仅重跑普通 scribe-minutes，未重复 Browser；以上页面结果保持各自验证边界。当前普通场景结果见下方最新基线。
+后续从 `d97da4d` 合入 main `a2a6fb460713fcb8968a6578cf4528de0ebfe1ee` 仅重跑普通 scribe-minutes，未重复 Browser；以上页面结果保持各自验证边界。当前普通场景结果见上方 Current Baseline Validation。
 
 Not Covered：两轮确定性 DSH/HTTP/Browser 接线不证明 LLM 纪要质量、长期压力或生产发布。邮件“发送后新增 transcript 再派发”的跨层动态场景未由本验收覆盖；完整范围及自动化索引见 [Referenced Minutes](./CURRENT-IMPLEMENTATION-COVERAGE.md#referenced-minutes)。
 
@@ -188,7 +200,7 @@ Prepare/Restore 由现有 wrapper 完成：每场景使用独立临时 profile�
 
 本次 Not Covered：Browser 页面交互、真实模型请求、Host producer 成功 attendance recommendation→reject、完整中断创建/缺失 Session 恢复、长期压力和生产发布。当前普通模式 HTTP/Session/归档验证不替代这些范围，既有 Browser 记录保持原基线。
 
-## Current Baseline Validation
+## Historical Alignment Baseline Validation
 
 2026-09-08，源码为 `6679403fc8cb6de01db1c7d2fb190d3a9484dd73`（验证在提交前的同一源码工作区执行），分支 `codex/align-code`。环境：Darwin 25.5.0 arm64、Node `v24.19.0`、项目 pnpm `10.7.0`、DSH `0.1.1-rc.2`，profile `web`、provider `spawn`。
 
