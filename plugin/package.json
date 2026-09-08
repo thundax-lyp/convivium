@@ -43,7 +43,7 @@
         "format:check": "prettier . --check",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
-        "build": "rm -rf lib && tsc -p tsconfig.json && tsc -p tsconfig.client.json && tsdown --config tsdown.config.ts",
+        "build": "rm -rf lib && tsc -p tsconfig.json && tsc -p tsconfig.client.json && tsc-alias -p tsconfig.json && tsdown --config tsdown.config.ts",
         "typecheck:host": "tsc -p tsconfig.json --noEmit",
         "typecheck:client": "tsc -p tsconfig.client.json --noEmit",
         "typecheck": "pnpm typecheck:host && pnpm typecheck:client",
@@ -167,7 +167,8 @@
         "vitest": "4.1.8",
         "@deepseek-ai/dsh-agent-presets": "0.1.2-rc.1",
         "@deepseek-ai/dsh-skill": "0.1.2-rc.1",
-        "@deepseek-ai/dsh-util-values": "0.1.2-rc.1"
+        "@deepseek-ai/dsh-util-values": "0.1.2-rc.1",
+        "tsc-alias": "^1.8.16"
     },
     "packageManager": "pnpm@10.7.0"
 }

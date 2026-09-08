@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { Config } from "../../src/config.js";
+import { Config } from "@/config.js";
 
 const validConfig = {
     provider: "spawn"
