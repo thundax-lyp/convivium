@@ -133,7 +133,7 @@ function localRuntime(
                 childId: spec.childId!,
                 messageId: `initial-${String(spec.childId)}` as never
             }),
-            followup: async () => "followup-message" as never
+            sendMessage: async () => "followup-message" as never
         },
         authorizationValidator: {
             validateCreate: () => undefined,
@@ -668,8 +668,8 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async (_parent, sessionId) => {
-                    deliveryOrder.push(`followup:${String(sessionId)}`);
+                sendMessage: async (_parent, sessionId) => {
+                    deliveryOrder.push(`sendMessage:${String(sessionId)}`);
                     return "followup-message" as never;
                 },
                 interrupt: (sessionId) => {
@@ -706,7 +706,7 @@ describe("create/status meeting runtime", () => {
         if (!created.ok) throw new Error("create failed");
         const firstSessionId = `${created.result.meetingId}-participant-participant-one`;
         const secondSessionId = `${created.result.meetingId}-participant-participant-two`;
-        await vi.waitFor(() => expect(deliveryOrder).toContain(`followup:${firstSessionId}`));
+        await vi.waitFor(() => expect(deliveryOrder).toContain(`sendMessage:${firstSessionId}`));
         await runtime.scanExpiredSpeakerAttempts();
         expect(
             await runtime.getStatus(
@@ -716,7 +716,7 @@ describe("create/status meeting runtime", () => {
         ).toMatchObject({ ok: true, meetingVersion: created.meetingVersion });
         time += 10;
         await runtime.scanExpiredSpeakerAttempts();
-        await vi.waitFor(() => expect(deliveryOrder).toContain(`followup:${secondSessionId}`));
+        await vi.waitFor(() => expect(deliveryOrder).toContain(`sendMessage:${secondSessionId}`));
         const status = await runtime.getStatus(
             { protocolVersion: 1, meetingId: created.result.meetingId },
             captain
@@ -731,7 +731,7 @@ describe("create/status meeting runtime", () => {
             deliveryOrder.indexOf(`drain:start:${firstSessionId}`)
         );
         expect(deliveryOrder.indexOf(`drain:end:${firstSessionId}`)).toBeLessThan(
-            deliveryOrder.indexOf(`followup:${secondSessionId}`)
+            deliveryOrder.indexOf(`sendMessage:${secondSessionId}`)
         );
         await runtime.scanExpiredSpeakerAttempts();
         expect(
@@ -782,7 +782,7 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async (_parent, _sessionId, prompt) => {
+                sendMessage: async (_parent, _sessionId, prompt) => {
                     const text = prompt[0]?.type === "text" ? prompt[0].text : undefined;
                     if (typeof text === "string" && text.startsWith("{")) {
                         managerContexts.push(
@@ -930,7 +930,7 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async () => "followup-message" as never
+                sendMessage: async () => "followup-message" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -1009,7 +1009,7 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async () => "followup-message" as never
+                sendMessage: async () => "followup-message" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -1444,7 +1444,7 @@ describe("create/status meeting runtime", () => {
                         messageId: `initial-${String(spec.childId)}` as never
                     };
                 },
-                followup: async () => "followup-message" as never,
+                sendMessage: async () => "followup-message" as never,
                 listChildren: async () =>
                     children.map((child) => ({
                         kind: "child" as const,
@@ -1518,7 +1518,7 @@ describe("create/status meeting runtime", () => {
             authorizationValidator: { validateCreate() {}, validateCommand() {} },
             continuable: {
                 startContinuable: unexpectedSessionCall,
-                followup: unexpectedSessionCall,
+                sendMessage: unexpectedSessionCall,
                 listDescendants: unexpectedSessionCall
             }
         });
@@ -1556,7 +1556,7 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async (_parent, _sessionId, prompt) => {
+                sendMessage: async (_parent, _sessionId, prompt) => {
                     const text = prompt[0]?.type === "text" ? prompt[0].text : undefined;
                     if (typeof text === "string") prompts.push(text);
                     return "followup-message" as never;
@@ -1660,7 +1660,7 @@ describe("create/status meeting runtime", () => {
                         childId: spec.childId!,
                         messageId: `initial-${String(spec.childId)}` as never
                     }),
-                    followup: async (_parent, _sessionId, prompt) => {
+                    sendMessage: async (_parent, _sessionId, prompt) => {
                         const text = prompt[0]?.type === "text" ? prompt[0].text : undefined;
                         if (typeof text === "string") prompts.push(text);
                         return `followup-message-${prompts.length}` as never;
@@ -1882,7 +1882,7 @@ describe("create/status meeting runtime", () => {
                     startContinuable: async () => {
                         throw new Error("recovery must not create Sessions");
                     },
-                    followup: async () => {
+                    sendMessage: async () => {
                         throw new Error("recovery must not dispatch a terminal task");
                     }
                 },
@@ -1931,7 +1931,7 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async () => "followup-message" as never
+                sendMessage: async () => "followup-message" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -1989,7 +1989,7 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async () => "followup-message" as never
+                sendMessage: async () => "followup-message" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -2050,7 +2050,7 @@ describe("create/status meeting runtime", () => {
                         messageId: `initial-${String(spec.childId)}` as never
                     };
                 },
-                followup: async () => "followup-message" as never,
+                sendMessage: async () => "followup-message" as never,
                 listChildren: async () =>
                     children.map((child) => ({
                         kind: "child" as const,
@@ -2265,7 +2265,7 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async () => "followup-message" as never
+                sendMessage: async () => "followup-message" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -2300,7 +2300,7 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async () => {
+                sendMessage: async () => {
                     followups += 1;
                     if (followups === 1) {
                         throw new Error("provider unavailable");
@@ -2340,7 +2340,7 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async (_parent, _sessionId, prompt) => {
+                sendMessage: async (_parent, _sessionId, prompt) => {
                     followups += 1;
                     const text = prompt[0]?.type === "text" ? prompt[0].text : undefined;
                     if (typeof text === "string" && text.startsWith("{")) {
@@ -2498,7 +2498,7 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async () => "followup-message" as never
+                sendMessage: async () => "followup-message" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -2552,7 +2552,7 @@ describe("create/status meeting runtime", () => {
                     childId: spec.childId!,
                     messageId: `initial-${String(spec.childId)}` as never
                 }),
-                followup: async () => "initial-followup" as never
+                sendMessage: async () => "initial-followup" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -2575,7 +2575,7 @@ describe("create/status meeting runtime", () => {
                 startContinuable: async () => {
                     throw new Error("recovery must not create Sessions");
                 },
-                followup: async () => {
+                sendMessage: async () => {
                     throw new Error("an unbound recovery must not dispatch");
                 }
             },
@@ -2623,7 +2623,7 @@ describe("create/status meeting runtime", () => {
                 listDescendants: async () => {
                     throw new Error("cold status must not inspect descendants");
                 },
-                followup: async () => {
+                sendMessage: async () => {
                     followups += 1;
                     return "recovered-followup" as never;
                 }
@@ -2652,7 +2652,7 @@ describe("create/status meeting runtime", () => {
                     starts += 1;
                     return { childId: spec.childId!, messageId: "initial" as never };
                 },
-                followup: async () => "followup-message" as never
+                sendMessage: async () => "followup-message" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -2693,7 +2693,7 @@ describe("create/status meeting runtime", () => {
                     starts += 1;
                     return { childId: spec.childId!, messageId: "initial" as never };
                 },
-                followup: async () => "followup-message" as never
+                sendMessage: async () => "followup-message" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -2730,7 +2730,7 @@ describe("create/status meeting runtime", () => {
                     starts += 1;
                     return { childId: spec.childId!, messageId: "initial" as never };
                 },
-                followup: async () => "followup-message" as never
+                sendMessage: async () => "followup-message" as never
             },
             authorizationValidator: {
                 validateCreate: () => undefined,
@@ -3348,7 +3348,7 @@ describe("Agent Definition creation and replay contract", () => {
                     }
                     return { childId: spec.childId, messageId: `initial-${spec.childId}` };
                 },
-                followup: async () => "followup",
+                sendMessage: async () => "followup",
                 listChildren: async () =>
                     starts.map((s) => ({
                         kind: "child",
@@ -3610,7 +3610,7 @@ describe("local decision and risk runtime", () => {
                 startContinuable: vi.fn(async () => {
                     throw new Error("Unexpected Session start");
                 }),
-                followup: vi.fn(async () => {
+                sendMessage: vi.fn(async () => {
                     throw new Error("Unexpected Session followup");
                 }),
                 listDescendants: vi.fn(async () => [])
@@ -3910,7 +3910,7 @@ describe("local decision and risk runtime", () => {
                     startContinuable: async () => {
                         throw new Error("Unexpected start");
                     },
-                    followup: async () => {
+                    sendMessage: async () => {
                         throw new Error("Unexpected followup");
                     },
                     listDescendants: async () => []
@@ -4004,7 +4004,7 @@ describe("local decision and risk runtime", () => {
                 startContinuable: async () => {
                     throw new Error("Unexpected start");
                 },
-                followup: async () => {
+                sendMessage: async () => {
                     throw new Error("Unexpected followup");
                 },
                 listDescendants: async () => []
@@ -4177,7 +4177,7 @@ describe("local decision and risk runtime", () => {
                 startContinuable: async () => {
                     throw new Error("unexpected Session start");
                 },
-                followup: async () => {
+                sendMessage: async () => {
                     throw new Error("unexpected Session followup");
                 },
                 listDescendants: async () => []
@@ -4546,7 +4546,7 @@ it("archives and reopens a Captain attendance rejection", async () => {
                 messageId: `initial-${String(spec.childId)}` as never
             };
         },
-        followup: async () => "followup-message" as never,
+        sendMessage: async () => "followup-message" as never,
         listDescendants: async () =>
             children.map((child) => ({
                 kind: "child",

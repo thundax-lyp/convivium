@@ -89,7 +89,7 @@ describe("DSH session adapter composition", () => {
         const participant = ownership();
         const messageId = await followupParticipantSession({
             runtime: {
-                followup: async (...args) => {
+                sendMessage: async (...args) => {
                     calls.push(args);
                     return "accepted-message" as never;
                 }
@@ -153,7 +153,7 @@ describe("DSH session adapter composition", () => {
 
         await expect(
             followupParticipantSession({
-                runtime: { followup: async () => "must-not-run" as never },
+                runtime: { sendMessage: async () => "must-not-run" as never },
                 parent: { id: "other-captain" } as never,
                 ownership: ownership({ capabilityStatus: "revoked" }),
                 attempt: {

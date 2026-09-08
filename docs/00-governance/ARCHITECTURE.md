@@ -17,8 +17,8 @@
 - V1 运行在单个本地 DSH Host 中，仅服务该 Host 的一位本地用户；不提供远程访问、多用户协作、跨 Host 共享或网络部署。Meeting Web route 只允许在 DSH `webServer.host === "127.0.0.1"` 时注册；V1 不绑定 Web 用户身份、不校验 Team 权限，也不建立 per-user authority，所有到达该 loopback Host 的请求共享该本地用户边界。后续引入远程或多用户能力必须先补充独立的授权、身份、隔离和部署契约。
 - Convivium 使用 TypeScript 独立实现，不导入或派生外部参考项目源码。
 - 仓库只包含一个可构建、测试和交付的 Convivium DSH 插件工程 `plugin/`。Meeting Runtime 和 JSONL `StorageBackend` 保持源码职责分离，但作为同一 package 内的 Cordis child plugins 组合；不为 JSONL backend 建立第二个顶层工程、package、lockfile 或发布单元。
-- Convivium 支持的最低 DSH 版本为 `0.1.1-rc.2`；实现可以依赖该版本 `dsh-subagent` 提供的持久子 Session 枚举和 continuable Activation drain 能力。
-- Convivium 正式运行会议前，宿主组合必须提供一个具备 `prepareContinuable` 能力的 continuable subagent provider；仅声明或注入 `dsh-subagent` service 不构成该能力。当前确认的宿主 profile provider 是 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.1-rc.2`，provider name 为 `spawn`，由 profile 作为组合依赖管理，不由 Convivium 自行实现、隐式携带或写入插件 package manifest。插件必须在独立 DSH profile 中验证该 provider 与 `startContinuable()` 的实际创建链路。
+- Convivium 当前 DSH 依赖固定为 `0.1.2-rc.1`；实现可以依赖该版本 `dsh-subagent` 提供的持久子 Session 枚举和 continuable Activation drain 能力。
+- Convivium 正式运行会议前，宿主组合必须提供一个具备 `prepareContinuable` 能力的 continuable subagent provider；仅声明或注入 `dsh-subagent` service 不构成该能力。当前确认的宿主 profile provider 是 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.2-rc.1`，provider name 为 `spawn`，由 profile 作为组合依赖管理，不由 Convivium 自行实现、隐式携带或写入插件 package manifest。插件必须在独立 DSH profile 中验证该 provider 与 `startContinuable()` 的实际创建链路。
 - 插件依赖 DSH 提供 AgentSession、continuable Agent、工具注册、Web 路由、DSH 原生 Session Event 和插件 UI 宿主能力。
 - Convivium 拥有会议角色目录、Meeting Agent Definition、Manager 可见安全摘要、参会选择与批准状态；DSH Host 或 profile 拥有 Agent Preset、Skills、Tools、MCP、Sandbox、Approval、模型配置及其安装和执行。
 - Meeting Agent Definition 只引用 DSH 原生 Agent Preset 和 Skill 名称，并可用 DSH 原生 ToolRestriction 收窄工具；Convivium 不复制、安装或持久化 DSH capability composition。Definition 存在不证明 capability 已安装；缺少可验证的 DSH composition 时必须 fail closed。
@@ -27,7 +27,7 @@
 - [Meeting Persistence Design](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) 已确认采用 `Checkpointed Commit Log`：一次 command 编码为一条原子 commit，当前真相由已发布分页 checkpoint 与连续有界 commit tail 合成。`plugin/src/storage/` 通过 `@deepseek-ai/dsh-storage` 实现仅供 Convivium 使用的 JSONL KV backend，只认识 unit、table、key 和 value；`plugin/src/repository/domain/` 只消费 `@deepseek-ai/dsh-storage-domain` 和自身 record schema。顶层 Convivium plugin 先挂载 backend provider child plugin，再由依赖完整 DSH services 与 `storageDomain` 的 Meeting consumer child plugin 注册业务能力；宿主组合中的现有 `storage-domain` row 路由到 backend `convivium-jsonl`。Storage Domain 是唯一会议事实源；禁止双写、fallback 和自动迁移。遗留 `.sqlite` 数据不读取、不迁移、不删除，属于当前实现范围外的数据。
 - Meeting Runtime 若 best-effort 生成供开发者阅读的 Markdown 辅助文件，只能从已提交 Meeting projection 单向派生；Markdown 不是产品接口或事实源，不参与恢复、授权、状态计算、Session 关闭与 capability 撤销或归档完成判断。
 - DSH AgentSession 是独立运行主体，拥有独立 Prompt、Skills、工作目录、模型、MCP、权限和运行模式。
-- AgentSession 必须支持 followup、interrupt、恢复，以及通过 `drainContinuableChildren` 释放指定会议 Session 的 resident Activation。会议 Session 的持久不可继续语义由 Convivium capability revoke 保证，不要求 DSH 删除持久 Session 数据。
+- AgentSession 必须支持通过 `sendMessage` 继续投递、interrupt、恢复，以及通过 `drainContinuableChildren` 释放指定会议 Session 的 resident Activation。会议 Session 的持久不可继续语义由 Convivium capability revoke 保证，不要求 DSH 删除持久 Session 数据。
 
 ## Runtime Boundaries
 
@@ -53,7 +53,7 @@
 ### DSH Agent Sessions
 
 - 每个会议身份使用独立的 DSH continuable AgentSession。
-- DSH 负责 Session 创建、followup、interrupt、事件和生命周期能力。
+- DSH 负责 Session 创建、`sendMessage` 投递、interrupt、事件和生命周期能力。
 - Convivium 负责会议身份、上下文投影、发言 capability 和 Session ownership，不把 AgentSession 当作会议领域真相源。
 - Convivium 只定义 Agent 之间及 Agent 与 Meeting Runtime 之间的会议协议，不拥有或解释 Agent 内部的 Prompt、Skills、Tools、MCP、推理、命令、工作流和重试过程。
 - Convivium 可以保存 Meeting Agent Definition identity 与 meeting-owned DSH Session ownership；MCP、Sandbox、Approval、模型和其他 Host 私有能力配置仍由 DSH 管理。首版允许通过创建前解析函数校验共享父 Preset 与 required Skills，并用 DSH 公开 persona/toolFilter 参数配置独立 continuable Session；Definition ID、版本和指纹属于会议 provenance，运行配置由 DSH descriptor 持有。独立 per-child Preset 不属于首版；实现状态以 readiness 为准。

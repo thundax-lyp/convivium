@@ -140,8 +140,7 @@ async function resumeParticipantForProbe(ctx, parent, childId, marker) {
     const delivery = waitForInbox(ctx, childId, (message) =>
         messageText(message)?.includes(marker) ? marker : undefined
     );
-    await ctx.subagents.followup(parent, childId, [{ type: "text", text: marker }], {
-        source: { kind: "coordinator", form: "relay", senderSessionId: parent.id },
+    await ctx.subagents.sendMessage(parent, childId, [{ type: "text", text: marker }], {
         signal: new AbortController().signal
     });
     return (await delivery).agent;

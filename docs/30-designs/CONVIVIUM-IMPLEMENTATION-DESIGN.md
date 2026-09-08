@@ -282,7 +282,9 @@ interface MeetingSessionAdapter {
 
 首版 Meeting Agent Definition 采用共享父 Preset 的创建前配置解析；独立模块、接入点和失败语义见 [Role Composition Design](ROLE-COMPOSITION-DESIGN.md)。仅创建参数与 ownership provenance 扩展，followup、interrupt、drain 和会议调度行为保持既有边界。独立 per-child Preset 不纳入 Convivium 实施计划，等待 DSH 升级后再评估接入。
 
-禁止其他模块直接调用 DSH subagent `spawn`、`followup`、`interrupt`、`listChildren`、`listDescendants`、`drainContinuableChildren` 或 `drainContinuableDescendants`。
+禁止其他模块直接调用 DSH subagent `spawn`、`sendMessage`、`interrupt`、`listChildren`、`listDescendants`、`drainContinuableChildren` 或 `drainContinuableDescendants`。
+
+业务 adapter 保留 `followup*Session` 命名，底层统一使用 DSH `0.1.2-rc.1` 公开 `sendMessage`，不依赖 `/internal`。消息发送身份、steer、acceptance 和业务完成边界以 [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#compatibility) 为准。`participantQueues` 继续负责现有业务投递串行约束，其中 Mail 持有队列直到业务终态或超时；它不保证每条消息独占一个 DSH turn。
 
 ### Capability check
 

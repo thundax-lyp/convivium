@@ -27,13 +27,13 @@ export function requireContinuableProvider(
     if (provider === undefined) {
         throw new Error(
             `Convivium requires continuable subagent provider "${providerName}" ` +
-                "from the host DSH 0.1.1-rc.2 profile; it is not registered."
+                "from the host DSH 0.1.2-rc.1 profile; it is not registered."
         );
     }
     if (typeof provider.prepareContinuable !== "function") {
         throw new Error(
             `Convivium requires provider "${providerName}" to implement prepareContinuable() ` +
-                "in the host DSH 0.1.1-rc.2 profile."
+                "in the host DSH 0.1.2-rc.1 profile."
         );
     }
     return provider;
@@ -176,7 +176,7 @@ export interface AuthorizeSpeakerFollowupInput {
 export type AuthorizeSpeakerFollowup = (input: AuthorizeSpeakerFollowupInput) => Promise<void>;
 
 export interface FollowupParticipantSessionInput {
-    readonly runtime: Pick<SubagentRuntime, "followup">;
+    readonly runtime: Pick<SubagentRuntime, "sendMessage">;
     readonly parent: Agent;
     readonly ownership: MeetingOwnershipRecord;
     readonly attempt: SpeakerFollowupAttempt;
@@ -199,7 +199,7 @@ export interface AuthorizeManagerFollowupInput {
 export type AuthorizeManagerFollowup = (input: AuthorizeManagerFollowupInput) => Promise<void>;
 
 export interface FollowupManagerSessionInput {
-    readonly runtime: Pick<SubagentRuntime, "followup">;
+    readonly runtime: Pick<SubagentRuntime, "sendMessage">;
     readonly parent: Agent;
     readonly ownership: MeetingOwnershipRecord;
     readonly attempt: ManagerFollowupAttempt;
@@ -236,16 +236,11 @@ export async function followupParticipantSession(
         signal: input.signal
     };
     await input.authorize(authorization);
-    const messageId = await input.runtime.followup(
+    const messageId = await input.runtime.sendMessage(
         input.parent,
         input.ownership.sessionId as SessionId,
         input.prompt,
         {
-            source: {
-                kind: "coordinator",
-                form: "relay",
-                senderSessionId: input.parent.id as SessionId
-            },
             signal: input.signal
         }
     );
@@ -254,7 +249,7 @@ export async function followupParticipantSession(
 }
 
 export interface FollowupMeetingTaskSessionInput {
-    readonly runtime: Pick<SubagentRuntime, "followup">;
+    readonly runtime: Pick<SubagentRuntime, "sendMessage">;
     readonly parent: Agent;
     readonly ownership: MeetingOwnershipRecord;
     readonly meetingTaskId: string;
@@ -265,7 +260,7 @@ export interface FollowupMeetingTaskSessionInput {
 }
 
 export interface FollowupMeetingMailSessionInput {
-    readonly runtime: Pick<SubagentRuntime, "followup">;
+    readonly runtime: Pick<SubagentRuntime, "sendMessage">;
     readonly parent: Agent;
     readonly ownership: MeetingOwnershipRecord;
     readonly participantId: string;
@@ -287,16 +282,11 @@ export async function followupMeetingMailSession(
         throw new Error("Meeting mail followup requires an active owned Participant Session.");
     }
     await input.authorize("before");
-    const messageId = await input.runtime.followup(
+    const messageId = await input.runtime.sendMessage(
         input.parent,
         input.ownership.sessionId as SessionId,
         input.prompt,
         {
-            source: {
-                kind: "coordinator",
-                form: "relay",
-                senderSessionId: input.parent.id as SessionId
-            },
             signal: input.signal
         }
     );
@@ -318,16 +308,11 @@ export async function followupMeetingTaskSession(
         throw new Error("MeetingTask followup requires an active Participant Session.");
     }
     await input.authorize("before");
-    const messageId = await input.runtime.followup(
+    const messageId = await input.runtime.sendMessage(
         input.parent,
         input.ownership.sessionId as SessionId,
         input.prompt,
         {
-            source: {
-                kind: "coordinator",
-                form: "relay",
-                senderSessionId: input.parent.id as SessionId
-            },
             signal: input.signal
         }
     );
@@ -353,16 +338,11 @@ export async function followupManagerSession(
         signal: input.signal
     };
     await input.authorize(authorization);
-    const messageId = await input.runtime.followup(
+    const messageId = await input.runtime.sendMessage(
         input.parent,
         input.ownership.sessionId as SessionId,
         input.prompt,
         {
-            source: {
-                kind: "coordinator",
-                form: "relay",
-                senderSessionId: input.parent.id as SessionId
-            },
             signal: input.signal
         }
     );

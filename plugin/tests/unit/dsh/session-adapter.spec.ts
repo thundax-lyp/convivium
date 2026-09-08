@@ -142,7 +142,7 @@ describe("Participant Session delivery authorization", () => {
         let received: unknown;
         const result = await followupParticipantSession({
             runtime: {
-                followup: async (...args) => {
+                sendMessage: async (...args) => {
                     received = args;
                     return "message-3" as never;
                 }
@@ -159,16 +159,12 @@ describe("Participant Session delivery authorization", () => {
 
         expect(result).toBe("message-3");
         expect(authorizations).toHaveLength(2);
-        expect(received).toMatchObject([
+        expect(received).toEqual([
             { id: "captain-session" },
             "participant-session",
             [{ type: "text", text: "speak" }],
             {
-                source: {
-                    kind: "coordinator",
-                    form: "relay",
-                    senderSessionId: "captain-session"
-                }
+                signal: expect.any(AbortSignal)
             }
         ]);
     });
@@ -183,7 +179,7 @@ describe("Participant Session delivery authorization", () => {
         await expect(
             followupParticipantSession({
                 runtime: {
-                    followup: async () => {
+                    sendMessage: async () => {
                         delivered = true;
                         return "message-3" as never;
                     }
@@ -204,7 +200,7 @@ describe("Participant Session delivery authorization", () => {
         await expect(
             followupParticipantSession({
                 runtime: {
-                    followup: async () => {
+                    sendMessage: async () => {
                         delivered = true;
                         return "message-3" as never;
                     }
@@ -226,7 +222,7 @@ describe("Participant Session delivery authorization", () => {
         let checks = 0;
         await expect(
             followupParticipantSession({
-                runtime: { followup: async () => "message-3" as never },
+                runtime: { sendMessage: async () => "message-3" as never },
                 parent: { id: "captain-session" } as never,
                 ownership: participantOwnership(),
                 attempt: speakerAttempt,
@@ -246,7 +242,7 @@ describe("MeetingTask Session delivery", () => {
     it("authorizes queued delivery before followup and running delivery after followup", async () => {
         const phases: string[] = [];
         await followupMeetingTaskSession({
-            runtime: { followup: async () => "task-message" as never },
+            runtime: { sendMessage: async () => "task-message" as never },
             parent: { id: "captain-session" } as never,
             ownership: participantOwnership(),
             meetingTaskId: "task-1",
@@ -272,7 +268,7 @@ describe("Manager Session delivery authorization", () => {
         const calls: unknown[] = [];
         const result = await followupManagerSession({
             runtime: {
-                followup: async (...args) => {
+                sendMessage: async (...args) => {
                     calls.push(args);
                     return "manager-message" as never;
                 }
@@ -298,7 +294,7 @@ describe("Manager Session delivery authorization", () => {
         await expect(
             followupManagerSession({
                 runtime: {
-                    followup: async () => {
+                    sendMessage: async () => {
                         delivered = true;
                         return "message" as never;
                     }

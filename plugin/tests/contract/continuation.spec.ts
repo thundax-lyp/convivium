@@ -98,7 +98,7 @@ function runtime(root: string, starts: string[]) {
                     messageId: `initial-${String(spec.childId)}` as never
                 };
             },
-            followup: async () => "followup-message" as never
+            sendMessage: async () => "followup-message" as never
         },
         authorizationValidator: {
             validateCreate: () => undefined,
