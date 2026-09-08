@@ -12,9 +12,19 @@
 
 ## SQLite Shutdown Acceptance Boundary
 
-2026-09-08 用户接受 [设计中的关闭限制](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)。SQLite 替换仍待执行验证，本次只确认验收范围：重开必须保留关闭前已确认成功的事实，关闭与未完成写入竞争时的自动排空不作为 mandatory。操作与失败判据见 [SQLite 关闭与冷重启验收](../50-operations/HOW-TO-DSH-SMOKE.md#sqlite-替换的关闭与冷重启验收)。
+2026-09-08 用户接受 [设计中的关闭限制](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)。本次 SQLite 五核心场景已通过，验收范围为：重开必须保留关闭前已确认成功的事实，关闭与未完成写入竞争时的自动排空不作为 mandatory。操作与失败判据见 [SQLite 关闭与冷重启验收](../50-operations/HOW-TO-DSH-SMOKE.md#sqlite-替换的关闭与冷重启验收)。
 
-Not Covered：SQLite 新组合的真实 profile smoke 尚未完成；不证明人工固定等待时长安全、单独关闭 AgentSession 的行为或任意时序卸载时所有排队写入都成功。上述历史基线结果不重新标记为 SQLite 替换验证通过。
+Not Covered：本次仅运行五核心 selector；不证明人工固定等待时长安全、单独关闭 AgentSession 的行为或任意时序卸载时所有排队写入都成功。上述历史基线结果不重新标记为 SQLite 替换验证通过。
+
+## SQLite Provider Validation
+
+- 日期：2026-09-08；分支 `codex/jsonl-storage-backend-dsh-first`；运行基线 `9389402` 加本次 consumer 启动门控修复，官方 DSH/SQLite `0.1.2-rc.1`、Cordis `4.0.2`、Node `v22.23.2`、pnpm `10.7.0`。
+- 命令：`pnpm --dir plugin smoke:profile`，退出 0；单次 build，合计 51509ms。baseline 9484ms、cold-rebind 11143ms、cross-meeting 10765ms、convergence-stalled 7452ms、convergence-turn-budget-completion 8422ms，全部 `PASS ... restore=PASS`。
+- 组合：test-only probe manifest 安装官方 SQLite；dump-config 验证 package、唯一 provider row、DB 路径和旧配置无残留。profile 将会议路由到 SQLite，workspace/session_projcache/message_feedback 保持 JSON；独立临时 DSH_HOME、workspace、DB 与端口，未修改已有 profile 或用户数据库。
+- 冷恢复：目标提交成功、Captain/Manager flush 与 checkpoint 已确认后才停止首个 Host；第二 Host 使用同一 SQLite 文件核对版本、消息前缀、durable ownership，并成功继续提交。仅证明已确认事实的恢复，不证明任意在途写入自动排空。
+- 首次运行失败及修复：去掉 JSONL 初始化后暴露 provider 注册竞态，Host 输出 `spawn ... not registered`，baseline 等待结果超时；finally 完成清理且对应临时根已核对不存在。consumer 改用公开 `subagent/provider-added` 等待指定 provider，保留 prepareContinuable 检查，不添加延时或放宽断言；真实 Cordis 先到/后到、无关 provider、卸载测试及原 lifecycle 共 12 tests、typecheck、lint 通过，再重跑上述五场景全部通过。
+- Restore：wrapper 在成功与失败路径均停止自己创建的 Host、检查端口释放、删除各场景临时根和打包根；最终五场景成功行出现在对应 Restore 之后。
+- Not Covered：其余 11 个 selector、本次新增真实模型调用、真实断电/硬件故障、性能/压力、多进程写入、关闭时任意在途写入自动排空。开发期迁移和已有版本升级为 Not Applicable（首次发布）。历史 16 场景结果仍只代表原基线。
 
 ## Historical Smoke Layering
 

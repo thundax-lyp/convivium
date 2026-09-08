@@ -219,13 +219,14 @@ STOP：配置测试失败、公开配置接口不匹配或需要修改 scenario/
 ### T6：验证真实 profile 冷重启与清理
 
 前置状态：T5 PASS。
-允许修改：本文的执行结果记录；`docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md` 中本次 SQLite 运行证据。
-禁止修改：产品与测试代码、profile 接线、scenario/result、用户凭据和已有 Host/profile。
+允许修改：本文的执行结果记录；`docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md` 中本次 SQLite 运行证据；`plugin/src/index.ts::meetingConsumerPlugin.apply` 与 `plugin/tests/unit/host-plugin-lifecycle.spec.ts` 仅修复下述已复现的 provider 到达竞态。
+禁止修改：除上述启动门控外的产品与测试代码、profile 接线、scenario/result、用户凭据和已有 Host/profile。
 
 执行：
-1. 先按 [关闭与冷重启验收](../50-operations/HOW-TO-DSH-SMOKE.md#sqlite-替换的关闭与冷重启验收)只读核对 cold-rebind 的成功提交、状态/Session flush、checkpoint 与 `phase1Complete` 顺序，以及 wrapper 读取阶段结果后才停止 Host 的屏障。然后执行现有默认五核心 smoke；由 wrapper 创建独立 profile 并完成 Prepare/Execute/Assert/Restore，不调用常用 profile。
-2. 核对 dumpConfig 的 SQLite package、唯一 row、新 DB 路径和无旧 backend 配置；观察 baseline、cold-rebind、cross-meeting 及两个核心归档场景的原断言。
-3. 记录实际日期、分支/工作区边界、Node/pnpm/DSH 版本、命令、五场景结果和 Restore；记录本次关闭验收仅覆盖已确认操作的恢复，不证明 Host 全部后台写入排空。持久化 pending 工作允许按既有契约恢复。失败只记录实际失败与脱敏诊断，不能改 driver、增加固定 sleep 或忽略错误来获得 PASS。
+1. 真实 Loader 已复现 `spawn` 尚未注册时 consumer 激活失败（baseline result timeout，Host 输出 not registered）。依据用户本轮授权解决执行问题：consumer 在 provider 已存在时立即执行原初始化；缺失时通过公开 `subagent/provider-added` 仅等待配置名称，注销一次性监听后执行原初始化与 prepareContinuable 检查。缺失期间不暴露 Meeting 能力；监听归 consumer 作用域，不用 sleep，不改变 runtime/repository。真实 Cordis 测试覆盖先到/后到、无关 provider、卸载后不重新注册；运行该测试、lint、typecheck、build，再重新执行五场景。
+2. 先按 [关闭与冷重启验收](../50-operations/HOW-TO-DSH-SMOKE.md#sqlite-替换的关闭与冷重启验收)只读核对 cold-rebind 的成功提交、状态/Session flush、checkpoint 与 `phase1Complete` 顺序，以及 wrapper 读取阶段结果后才停止 Host 的屏障。然后执行现有默认五核心 smoke；由 wrapper 创建独立 profile 并完成 Prepare/Execute/Assert/Restore，不调用常用 profile。
+3. 核对 dumpConfig 的 SQLite package、唯一 row、新 DB 路径和无旧 backend 配置；观察 baseline、cold-rebind、cross-meeting 及两个核心归档场景的原断言。
+4. 记录实际日期、分支/工作区边界、Node/pnpm/DSH 版本、命令、五场景结果和 Restore；记录本次关闭验收仅覆盖已确认操作的恢复，不证明 Host 全部后台写入排空。持久化 pending 工作允许按既有契约恢复。失败只记录实际失败与脱敏诊断，不能改 driver、增加固定 sleep 或忽略错误来获得 PASS。
 
 验证：
 ```bash
@@ -367,3 +368,5 @@ T3 的 V1–V4 使用落盘 SQLite。测试内读取生产公开 Domain，允许
 - 2026-09-08 T4 PASS：删除 10 个物理存储生产文件及 12 个专属测试/夹具文件；保留 consumer 和领域算法。补入模块边界测试依赖修订后 4 suites/23 tests、lint、Host/Client typecheck、build、plugin contract 通过；旧 backend/dataRoot 源码与测试搜索无匹配，repository/runtime 相对替换前零 diff。lockfile-only 未产生依赖升级。
 
 - 2026-09-08 T5 PASS：隔离 probe manifest 安装固定 SQLite provider，patch 显式配置 sqlite/default 与三个精确 json routes，同根 DB 路径供两 phase 复用；40 smoke-profile tests 与 lint 通过。尚未以此声明 Loader PASS。
+
+- 2026-09-08 T6 PASS：首次 baseline 暴露 spawn 注册时序并已修复；12 lifecycle tests、typecheck、lint 通过。重新执行默认五核心真实 smoke 全部 PASS/restore=PASS，合计 51509ms；运行组合、恢复屏障与失败清理证据已迁入 SMOKE-VALIDATION-EVIDENCE 的 SQLite Provider Validation。未更改领域算法或 scenario 断言。

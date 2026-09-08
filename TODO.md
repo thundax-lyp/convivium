@@ -8,16 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `smoke-profile / 真实运行`：验证真实 profile 冷重启与清理
-    - 依据文档：[Architecture：Host/profile 所有权](docs/00-governance/ARCHITECTURE.md#confirmed-storage-provider-transition)；[Implementation Design：Storage Domain 生命周期](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#storage-domain-ownership-and-lifecycle)；[Smoke 操作规则：分层与入口](docs/50-operations/HOW-TO-DSH-SMOKE.md#自动-smoke-的分层与入口)、[成功与 Restore](docs/50-operations/HOW-TO-DSH-SMOKE.md#成功与-restore)。
-    - 执行步骤：[RUNBOOK T6](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t6验证真实-profile-冷重启与清理)
-    - 执行入口：`plugin/scripts/smoke-profile/index.mjs`；只读 `plugin/scripts/smoke-profile/probe/scenarios/recovery.js`、`plugin/scripts/smoke-profile/probe/scenarios/isolation.js` 及其他原核心场景。
-    - 记录文件：`docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md`；RUNBOOK 的执行结果记录。
-    - 前置依赖：T5 PASS。
-    - 确认依据：2026-09-08 用户明确要求依次执行 TODO LIST，一任务一提交。
-    - 处理动作：运行默认五核心 smoke，核对实际 Loader、冷重启、隔离、归档与 Restore，记录真实结果。
-    - 验收点：按已接受的关闭限制验证关闭前已确认事实的冷恢复；五场景全部 PASS/restore=PASS，V8 运行部分通过；无临时资源残留，失败不得通过改代码或 driver 绕过。
-
 - [ ] `Storage / 正式文档`：同步正式存储与操作文档
     - 依据文档：[Document Rules：同步与证据职责](docs/00-governance/DOCUMENT-RULES.md#document-sync)；[Architecture：替换决定](docs/00-governance/ARCHITECTURE.md#confirmed-storage-provider-transition)；[Persistence Design：验收](docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md#acceptance)；[Implementation Design：验证设计](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#verification-design)。
     - 执行步骤：[RUNBOOK T7](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t7同步正式存储与操作文档)
