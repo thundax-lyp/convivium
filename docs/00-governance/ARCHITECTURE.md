@@ -24,12 +24,22 @@
 - Meeting Agent Definition 只引用 DSH 原生 Agent Preset 和 Skill 名称，并可用 DSH 原生 ToolRestriction 收窄工具；Convivium 不复制、安装或持久化 DSH capability composition。Definition 存在不证明 capability 已安装；缺少可验证的 DSH composition 时必须 fail closed。
 - 插件包含清晰分离的插件前端和插件后端会议运行时。
 - 每个 Meeting 在任何会议副作用前获得稳定 `meetingId`，并以 `teamId + meetingId` 形成独立 repository ownership。Convivium 只通过 `@deepseek-ai/dsh-storage-domain` 使用一个轻量 catalog domain 和每 Meeting 独立 domain；不得定位、扫描或依赖 backend 的物理布局。
-- [Meeting Persistence Design](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) 已确认采用 `Checkpointed Commit Log`：一次 command 编码为一条原子 commit，当前真相由已发布分页 checkpoint 与连续有界 commit tail 合成。`plugin/src/storage/` 通过 `@deepseek-ai/dsh-storage` 实现仅供 Convivium 使用的 JSONL KV backend，只认识 unit、table、key 和 value；`plugin/src/repository/domain/` 只消费 `@deepseek-ai/dsh-storage-domain` 和自身 record schema。顶层 Convivium plugin 先挂载 backend provider child plugin，再由依赖完整 DSH services 与 `storageDomain` 的 Meeting consumer child plugin 注册业务能力；宿主组合中的现有 `storage-domain` row 路由到 backend `convivium-jsonl`。Storage Domain 是唯一会议事实源；禁止双写、fallback 和自动迁移。遗留 `.sqlite` 数据不读取、不迁移、不删除，属于当前实现范围外的数据。
+- [Meeting Persistence Design](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) 已确认采用 `Checkpointed Commit Log`：一次 command 编码为一条原子 commit，当前真相由已发布分页 checkpoint 与连续有界 commit tail 合成。`plugin/src/storage/` 通过 `@deepseek-ai/dsh-storage` 实现仅供 Convivium 使用的 JSONL KV backend，只认识 unit、table、key 和 value；`plugin/src/repository/domain/` 只消费 `@deepseek-ai/dsh-storage-domain` 和自身 record schema。顶层 Convivium plugin 先挂载 backend provider child plugin，再由依赖完整 DSH services 与 `storageDomain` 的 Meeting consumer child plugin 注册业务能力；宿主组合中的现有 `storage-domain` row 路由到 backend `convivium-jsonl`。Storage Domain 是唯一会议事实源；禁止双写、fallback 和自动迁移。本项目为首次发布，不提供开发期存储格式的迁移或兼容。
 - Meeting Runtime 若 best-effort 生成供开发者阅读的 Markdown 辅助文件，只能从已提交 Meeting projection 单向派生；Markdown 不是产品接口或事实源，不参与恢复、授权、状态计算、Session 关闭与 capability 撤销或归档完成判断。
 - DSH AgentSession 是独立运行主体，拥有独立 Prompt、Skills、工作目录、模型、MCP、权限和运行模式。
 - AgentSession 必须支持通过 `sendMessage` 继续投递、interrupt、恢复，以及通过 `drainContinuableChildren` 释放指定会议 Session 的 resident Activation。会议 Session 的持久不可继续语义由 Convivium capability revoke 保证，不要求 DSH 删除持久 Session 数据。
 
 ## Runtime Boundaries
+
+### Confirmed Storage Provider Transition
+
+2026-09-08 已确认下一步将介质责任交回 Host/profile 安装和配置的 `@deepseek-ai/dsh-storage-sqlite@0.1.2-rc.1`。上文及现有设计中的 JSONL child backend 描述是替换前实现状态；本节明确授权删除该实现，不能据旧实现描述要求继续保留它。替换尚未实现或验证，当前完成度仍以 readiness 为准。
+
+- Convivium 仅消费 `storageDomain`；删除自有物理存储、backend child plugin 和 `dataRoot` 配置，不在产品包携带 SQLite provider。Host/profile 拥有 provider、数据库路径和 Domain 路由；插件 bundle 不覆盖 Host 的默认 backend。
+- 保留现有 catalog、每 Meeting 独立 domain、command commit、receipt、outbox、领域 checkpoint、串行化、容量限制和恢复算法。不得改为单 record Meeting 聚合，不新增跨 record transaction 或 SQL 访问。
+- 本项目为首次发布，SQLite 是首次发布的存储介质。不设计开发期 JSONL/SQLite 数据迁移、兼容读取、双写、fallback 或数据清理流程，也不为遗留数据建立测试与验收要求。此决定不授权删除开发者本地文件。
+- 本阶段实现和运行验证只使用新建的隔离 profile；不自动修改已有 Host/profile。DSH Domain 路由按精确名称匹配，不能使用 Meeting 名称前缀通配。组合必须保留其他 Host domain 的既有介质路由。
+- 完成替换后同步移除本文和正式设计中的旧当前实现描述，再将本节稳定结论并入对应基线和依赖规则，不长期保留过渡状态。
 
 ### DSH Plugin Host
 
