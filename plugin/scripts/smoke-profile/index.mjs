@@ -536,7 +536,16 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
                 `stderr tail:\n${stderrTail}`
         );
     }
-    probeResult = validateScenarioResult(probeResult, scenario, validateMeetingStatus);
+    probeResult = validateScenarioResult(
+        probeResult,
+        scenario,
+        validateMeetingStatus,
+        process.env.CONVIVIUM_SMOKE_SKIP_WEB_FETCH === "1"
+    );
+    if (scenario === "meeting-roles" && process.env.CONVIVIUM_SMOKE_SKIP_WEB_FETCH === "1")
+        console.log(
+            "Not Covered: web_fetch skipped by explicit user waiver; search and role checks remain required."
+        );
     if (scenario === "role-composition")
         console.log(
             JSON.stringify({

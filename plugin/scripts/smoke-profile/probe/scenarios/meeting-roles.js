@@ -76,6 +76,7 @@ function loadedSkill(events, skillName, methods, sentAt, previousSeq, assert) {
 
 export async function runMeetingRolesScenario(runtime) {
     const { ctx, assert } = runtime;
+    const skipWebFetch = process.env.CONVIVIUM_SMOKE_SKIP_WEB_FETCH === "1";
     const captain = runtime.captain.agent;
     const assetRoot = process.env.CONVIVIUM_MEETING_ROLES_ROOT;
     assert(assetRoot, "Missing tarball role asset root");
@@ -199,27 +200,33 @@ export async function runMeetingRolesScenario(runtime) {
                               }
                     )
             );
-            const fetched = await execute(agent, "web_fetch", { url });
-            assert(
-                fetched.isError === false &&
-                    fetched.value.statusCode >= 200 &&
-                    fetched.value.statusCode < 300 &&
-                    typeof fetched.value.body.content === "string" &&
-                    fetched.value.body.content.trim().length > 0,
-                "Research fetch failed: " +
-                    roleDefinitionId +
-                    " " +
-                    JSON.stringify(
-                        fetched.isError
-                            ? { code: fetched.error.info?.code, message: fetched.error.message }
-                            : {
-                                  statusCode: fetched.value.statusCode,
-                                  bodyKind: fetched.value.body.kind,
-                                  contentLength: fetched.value.body.content?.length
-                              }
-                    )
-            );
-            research.push({ roleDefinitionId, search: true, fetch: true });
+            if (!skipWebFetch) {
+                const fetched = await execute(agent, "web_fetch", { url });
+                assert(
+                    fetched.isError === false &&
+                        fetched.value.statusCode >= 200 &&
+                        fetched.value.statusCode < 300 &&
+                        typeof fetched.value.body.content === "string" &&
+                        fetched.value.body.content.trim().length > 0,
+                    "Research fetch failed: " +
+                        roleDefinitionId +
+                        " " +
+                        JSON.stringify(
+                            fetched.isError
+                                ? { code: fetched.error.info?.code, message: fetched.error.message }
+                                : {
+                                      statusCode: fetched.value.statusCode,
+                                      bodyKind: fetched.value.body.kind,
+                                      contentLength: fetched.value.body.content?.length
+                                  }
+                        )
+                );
+            }
+            research.push({
+                roleDefinitionId,
+                search: true,
+                fetch: skipWebFetch ? "skipped:user-waiver" : true
+            });
         }
         const restrictions = [
             ["meeting_manager", "convivium_submit_turn"],
@@ -345,7 +352,7 @@ export async function runMeetingRolesScenario(runtime) {
             "shared-preset-mounted",
             "nine-independent-sessions",
             "nine-native-skills-loaded",
-            "research-tools-operational",
+            skipWebFetch ? "research-search-operational" : "research-tools-operational",
             "meeting-authority-preserved"
         ],
         observed: {

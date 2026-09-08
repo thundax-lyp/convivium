@@ -1,6 +1,11 @@
 import { isDeepStrictEqual } from "node:util";
 
-export function validateScenarioResult(value, expectedScenario, validateMeetingStatus) {
+export function validateScenarioResult(
+    value,
+    expectedScenario,
+    validateMeetingStatus,
+    skipWebFetch = false
+) {
     if (["convergence-stalled", "convergence-turn-budget-completion"].includes(expectedScenario)) {
         validateConvergenceRuntimeResult(value, expectedScenario, validateMeetingStatus);
         return value;
@@ -12,7 +17,7 @@ export function validateScenarioResult(value, expectedScenario, validateMeetingS
         throw new Error("Smoke result scenario contract mismatch.");
     }
     if (expectedScenario === "meeting-roles") {
-        validateMeetingRolesResult(value);
+        validateMeetingRolesResult(value, skipWebFetch);
         return value;
     }
     if (expectedScenario === "scribe-minutes") {
@@ -425,7 +430,7 @@ function validateScribeMinutesResult(value, validateMeetingStatus) {
     }
 }
 
-function validateMeetingRolesResult(value) {
+function validateMeetingRolesResult(value, skipWebFetch) {
     const exactKeys = (object, keys) =>
         object &&
         typeof object === "object" &&
@@ -452,7 +457,7 @@ function validateMeetingRolesResult(value) {
             "shared-preset-mounted",
             "nine-independent-sessions",
             "nine-native-skills-loaded",
-            "research-tools-operational",
+            skipWebFetch ? "research-search-operational" : "research-tools-operational",
             "meeting-authority-preserved"
         ])
     );
@@ -499,7 +504,11 @@ function validateMeetingRolesResult(value) {
         "web_research_analyst"
     ].entries()) {
         requireValid(
-            isDeepStrictEqual(o.research[i], { roleDefinitionId: role, search: true, fetch: true })
+            isDeepStrictEqual(o.research[i], {
+                roleDefinitionId: role,
+                search: true,
+                fetch: skipWebFetch ? "skipped:user-waiver" : true
+            })
         );
     }
 }

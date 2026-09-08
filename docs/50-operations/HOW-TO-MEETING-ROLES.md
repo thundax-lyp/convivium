@@ -93,6 +93,8 @@ env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
 前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。meeting-roles 不支持 Browser 模式，也不加入默认五个核心场景。它从同一 tarball 解包资源，按部署 patch → 临时控制 patch 加载，显式挂载 convivium Captain，并通过原生 agentOptions 选择 deepseek-official/deepseek-v4-flash，供子会话继承；控制 patch 设八人容量和 300000ms speaker timeout，并重述同一资源 JSON 的读取表达式以保留角色定义。创建后暂停会议并中断当前 child 执行，再逐个发送固定 Skill 验证请求；每个 child 最多 180000ms，场景结果最多等待 2400000ms。
 部署探针在目标 child 成功 Skill 调用的原生 tools/post-execute 回调内完成研究工具、权限拒绝与 status 检查，返回原 decision，并在 finally 注销回调。continuable child 空闲后可被 DSH 释放，不能缓存旧 Agent 在 idle 后调用工具。检查仍要求真实 Provider 结果，Fake-IP DNS 的非公网地址拒绝不能计为抓取通过；应由运行环境为目标公网域名提供真实公网解析，不放宽 DSH 检查。
 
+本轮验收豁免（2026-09-08 用户确认）：使用 `env CONVIVIUM_SMOKE_SCENARIO=meeting-roles CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1 pnpm --dir plugin smoke:profile` 跳过三次 web_fetch。默认命令仍检查抓取；豁免结果固定记录 `fetch: "skipped:user-waiver"` 和 `research-search-operational`，stdout 输出 Not Covered，不能作为抓取可用证据。三类搜索、九角色 Skill、权限和会议状态检查仍必须通过；本轮不修改代理/DNS。
+
 ## Restore And Failure Handling
 
 前台 Host 用 Ctrl+C 停止，确认本次 Host 退出且 31828 端口释放。不能通过杀掉所有 DSH 进程或清空日常 profile 处理失败。
@@ -105,4 +107,4 @@ env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
 
 执行后将日期、版本、artifact 边界、命令、九角色结果、权限拒绝、恢复和 Restore 写入 [Smoke Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)，并更新 Coverage。本轮失败与清理证据见 [Meeting Roles Deployment](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)；修复前不要据上述命令宣称九角色部署成功。
 
-长期模型任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 和 Host capability 内容变更后的历史快照不在本流程内；必需的九角色部署与研究工具可用性不能作为 Not Covered 跳过。
+长期模型任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 和 Host capability 内容变更后的历史快照不在本流程内；除本轮已明确豁免的 web_fetch 外，九角色部署与研究搜索仍必须验证。

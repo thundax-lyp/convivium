@@ -282,3 +282,7 @@ role-composition 的 Host PID 为 69905、69914。两阶段角色检查均 true�
 上述临时根均由 wrapper finally 清理；最近 FEnbiA 轮无 Restore 错误，原始失败正常返回。诊断只记录失败码、域名、配置边界与阶段，不保存 token、密钥或模型/工具正文。最终四命令顺序门禁未完成，MAD-10/MAD-11 保留。
 
 修复工作区随后完整 `pnpm --dir plugin verify` exit 0：86 files / 1141 tests，Vitest 78.52 秒；format/lint/双端 typecheck/build/environment/contract/九资源/package 全 PASS，missingArtifacts 与 forbiddenPublishedPaths 为空。最近 FEnbiA 临时根再次核对 absent，51528 端口 exclusive bind/close PASS。此门禁覆盖本小步修复，不替代网络恢复后的完整 T5 顺序复验。
+
+### User-authorized Fetch Waiver
+
+2026-09-08 用户明确要求“web_fetch 先跳过吧”。本轮仅豁免三个研究角色的真实抓取，保留部署资源中的 web_fetch 能力和默认严格 smoke；不改 DNS 或代理。显式 CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1 将结果记录为 skipped:user-waiver，搜索、九角色 Skill、权限、状态不变及其他 smoke 仍必过。该未覆盖项不阻止本轮已授权任务收口，但不能据此宣称原生抓取通过。最终运行结果随后记录。

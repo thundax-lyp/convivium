@@ -1,5 +1,13 @@
 # Meeting Agent Definition 首发角色模型与部署 RUNBOOK
 
+## 本轮 web_fetch 验收豁免
+
+2026-09-08 用户明确要求“web_fetch 先跳过吧”，本节替代下文将抓取失败视为本轮关闭阻塞的要求。产品仍提供原生抓取能力；仅本轮真实抓取验收记为 Not Covered，不计通过，不修改 DNS/代理。其余九 Session/九 Skill、三研究搜索、四次拒绝、会议状态不变、冷恢复和五核心均必过。完成这些验证后可关闭 MAD-10/11，抓取未覆盖事实迁入正式 readiness。
+
+允许在 T4b 既有范围增加 `plugin/scripts/smoke-profile/result.mjs`。wrapper 与 probe 读取唯一显式开关 CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1，默认仍执行抓取；probe 在跳过时固定 research[].fetch="skipped:user-waiver"，第四条 assertion 为 research-search-operational。validator 第四参数 skipWebFetch 默认 false，必须与结果严格一致，未显式开关不接受跳过或缺失结果。wrapper 输出 Not Covered。定向回归须证明默认严格、开关与结果一致、跳过不调用抓取但搜索/status 仍执行，其他断言保持。
+
+校准后按 T4b focused/lint/typecheck/resource/V-DOC/diff gate 提交此小步，然后按 T5 四命令顺序完成验收；第三条明确带豁免开关。最终声明是“已完成本轮授权范围，web_fetch 按用户要求未验证”，不能声称无豁免的完整部署 PASS。
+
 ## Status And Executor Contract
 
 - 日期：2026-09-08；分支：`codex/meeting-agent-role-description`；工作目录：仓库根目录。
@@ -390,7 +398,7 @@ STOP：需修改禁止范围、增加依赖/权限、放宽验收或真实服务
 ```bash
 pnpm --dir plugin verify
 env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=meeting-roles CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1 pnpm --dir plugin smoke:profile
 pnpm --dir plugin smoke:profile
 ```
 随后执行 V-DOC 与 `git diff --check`。

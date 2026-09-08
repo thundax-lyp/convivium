@@ -193,6 +193,16 @@ function deploymentResult() {
     };
 }
 describe("meeting roles evidence result", () => {
+    it("accepts an explicit fetch waiver only with matching skipped evidence", () => {
+        const result = deploymentResult();
+        result.assertions[3] = "research-search-operational";
+        for (const research of result.observed.research)
+            Reflect.set(research, "fetch", "skipped:user-waiver");
+        expect(() => validateScenarioResult(result, "meeting-roles")).toThrow();
+        expect(validateScenarioResult(result, "meeting-roles", undefined, true)).toBe(result);
+        result.observed.research[0].fetch = true;
+        expect(() => validateScenarioResult(result, "meeting-roles", undefined, true)).toThrow();
+    });
     it("accepts all nine distinct roles and three successful research scopes", () => {
         const result = deploymentResult();
         expect(validateScenarioResult(result, "meeting-roles")).toBe(result);
@@ -546,6 +556,7 @@ describe("live child capability probes", () => {
                 runtime: { nextCall: () => 1 },
                 call,
                 meetingId: "meeting",
+                skipWebFetch: false,
                 AbortController,
                 URL,
                 assert: (condition: boolean, message: string) => {
@@ -564,4 +575,40 @@ describe("live child capability probes", () => {
             }
         }
     );
+});
+
+describe("explicit fetch waiver", () => {
+    it("skips fetch while still requiring a real search result and role status", async () => {
+        const execute = vi
+            .fn()
+            .mockResolvedValue({
+                isError: false,
+                value: { sources: [{ url: "https://github.com/deepseek-ai" }] }
+            });
+        const call = vi.fn();
+        const source = scenarioSource.slice(
+            scenarioSource.indexOf("    const execute ="),
+            scenarioSource.indexOf("    for (const { definition, sessionId } of identities)")
+        );
+        const run = runInNewContext(source + "\nprobeLiveRole", {
+            ctx: { tools: { execute } },
+            runtime: { nextCall: () => 1 },
+            call,
+            meetingId: "meeting",
+            skipWebFetch: true,
+            AbortController,
+            URL,
+            assert: (condition: boolean, message: string) => {
+                if (!condition) throw new Error(message);
+            }
+        });
+        await run({ id: "live" }, "github_research_analyst");
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(execute.mock.calls[0][0].name).toBe("web_search");
+        expect(call).toHaveBeenCalledTimes(1);
+        execute.mockResolvedValue({ isError: false, value: { sources: [] } });
+        await expect(run({ id: "live" }, "github_research_analyst")).rejects.toThrow(
+            "Research search failed"
+        );
+    });
 });
