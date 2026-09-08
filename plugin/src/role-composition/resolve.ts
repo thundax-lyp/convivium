@@ -1,6 +1,8 @@
 import type { AgentOptions } from "@deepseek-ai/dsh-agent";
 import { createHash } from "node:crypto";
 import type { ToolRestriction } from "@deepseek-ai/dsh-tools";
+import { parseAgentModelOverrides } from "./model-options.js";
+import type { MeetingAgentModelOverrides } from "./model-options.js";
 import { parseAgentDefinitions } from "./model.js";
 import type { AgentDefinitionBindingV1, MeetingAgentDefinitionV1 } from "./model.js";
 
@@ -11,6 +13,7 @@ export interface ResolvedRoleComposition {
     readonly agentDefinition: AgentDefinitionBindingV1;
 }
 export interface ResolveMeetingRolesInput {
+    readonly agentModelOverrides?: MeetingAgentModelOverrides;
     readonly definitions: readonly MeetingAgentDefinitionV1[];
     readonly managerAgentDefinitionId?: string;
     readonly participants: readonly {
@@ -39,7 +42,7 @@ function definitionHash(d: MeetingAgentDefinitionV1): string {
                 roleDefinitionId: d.roleDefinitionId,
                 displayName: d.displayName,
                 summary: d.summary,
-                persona: d.persona,
+                roleDescription: d.roleDescription,
                 dshPresetId: d.dshPresetId,
                 requiredSkillNames: d.requiredSkillNames,
                 ...(d.toolFilter === undefined
@@ -54,7 +57,6 @@ function definitionHash(d: MeetingAgentDefinitionV1): string {
                                   : { deny: d.toolFilter.deny })
                           }
                       }),
-                ...(d.agentOptions === undefined ? {} : { agentOptions: d.agentOptions }),
                 expertiseTags: d.expertiseTags,
                 evidenceScopes: d.evidenceScopes
             })
@@ -68,8 +70,10 @@ export async function resolveMeetingRoles(
     validate: (selected: readonly MeetingAgentDefinitionV1[]) => Promise<void>
 ): Promise<ResolvedMeetingRoles> {
     let definitions: readonly MeetingAgentDefinitionV1[];
+    let overrides: MeetingAgentModelOverrides;
     try {
         definitions = parseAgentDefinitions(input.definitions);
+        overrides = parseAgentModelOverrides(input.agentModelOverrides, definitions);
     } catch {
         throw new RoleCompositionError();
     }
@@ -85,11 +89,13 @@ export async function resolveMeetingRoles(
             throw new RoleCompositionError();
         selected.push(d);
         return Object.freeze({
-            persona: d.persona,
+            persona:
+                d.roleDescription +
+                "\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：" +
+                d.requiredSkillNames.join("、") +
+                "。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。",
             ...(d.toolFilter === undefined ? {} : { toolFilter: d.toolFilter }),
-            ...(d.agentOptions === undefined
-                ? {}
-                : { agentOptions: d.agentOptions as AgentOptions }),
+            ...(overrides[id] === undefined ? {} : { agentOptions: overrides[id] }),
             agentDefinition: Object.freeze({
                 agentDefinitionId: d.agentDefinitionId,
                 definitionVersion: d.definitionVersion,

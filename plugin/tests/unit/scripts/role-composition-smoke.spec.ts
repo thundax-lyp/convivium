@@ -1,8 +1,14 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
-import { roleCompositionDefinitions } from "../../fixtures/role-composition.js";
-import { roleSmokeDefinitions } from "../../../scripts/smoke-profile/probe/role-definitions.js";
+import {
+    roleCompositionDefinitions,
+    roleCompositionModelOverrides
+} from "../../fixtures/role-composition.js";
+import {
+    roleSmokeDefinitions,
+    roleSmokeModelOverrides
+} from "../../../scripts/smoke-profile/probe/role-definitions.js";
 import {
     selectScenarios,
     CORE_SCENARIOS,
@@ -44,8 +50,10 @@ const result = {
         roleComposition: {
             phase1Checked: true,
             phase2Checked: true,
-            managerPersona: "FR14_MANAGER_V1",
-            participantPersona: "FR14_PARTICIPANT_V1",
+            managerPersona:
+                "FR14_MANAGER_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。",
+            participantPersona:
+                "FR14_PARTICIPANT_V1\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fr14-fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。",
             phase2ConfiguredVersion: "2.0.0",
             deniedTool: "convivium_role_probe",
             deniedBodyCalls: 0
@@ -66,10 +74,19 @@ describe("role composition smoke contract", () => {
             roleCompositionDefinitions.map((d) => ({
                 ...d,
                 definitionVersion: "2.0.0",
-                persona: d.persona.replace("V1", "V2"),
-                agentOptions: { ...d.agentOptions, model: d.agentOptions.model.replace("v1", "v2") }
+                roleDescription: d.roleDescription.replace("V1", "V2")
             }))
         );
+        expect(roleSmokeModelOverrides("1")).toEqual(roleCompositionModelOverrides);
+        expect(roleSmokeModelOverrides("2")).toEqual(
+            Object.fromEntries(
+                Object.entries(roleCompositionModelOverrides).map(([id, options]) => [
+                    id,
+                    { ...options, model: options.model.replace("v1", "v2") }
+                ])
+            )
+        );
+        expect(() => roleSmokeModelOverrides("3")).toThrow(TypeError);
         const fresh = roleSmokeDefinitions("1");
         fresh[0].requiredSkillNames.push("changed");
         expect(roleSmokeDefinitions("1")).toEqual(roleCompositionDefinitions);
@@ -103,12 +120,17 @@ describe("role composition smoke contract", () => {
             writeFile,
             PROVIDER: "spawn",
             BROWSER_MODE: false,
-            roleSmokeDefinitions
+            roleSmokeDefinitions,
+            roleSmokeModelOverrides
         });
         await writePatch("patch", "role-composition", "1");
         await writePatch("patch", "role-composition", "2");
         for (const [i, phase] of ["1", "2"].entries()) {
             const yaml = writeFile.mock.calls[i][1];
+            const modelRaw = yaml.split("\n").find((line) => line.includes("agentModelOverrides:"));
+            expect(JSON.parse(modelRaw.slice(modelRaw.indexOf(":") + 1))).toEqual(
+                roleSmokeModelOverrides(phase)
+            );
             const raw = yaml.split("\n").find((line) => line.includes("agentDefinitions:"));
             expect(JSON.parse(raw.slice(raw.indexOf(":") + 1))).toEqual(
                 roleSmokeDefinitions(phase)

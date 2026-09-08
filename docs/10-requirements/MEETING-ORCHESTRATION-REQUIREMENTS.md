@@ -188,17 +188,20 @@ Phase 1 必须复用现有 `submit_manager_plan`、`MeetingRepositoryPort.execut
 
 ### FR-14：共享 Preset 下的 Meeting Agent Definition
 
-1. Convivium 必须能定义版本化 Meeting Agent Definition；Definition 只包含稳定定义 ID、版本、会议角色、显示摘要、persona、DSH Agent Preset 引用、required DSH Skill 名称、optional DSH ToolRestriction、expertise tags 和 evidence scopes。
-2. Agent Definition 和 Meeting identity 由 Convivium 管理；Agent Preset、Skills、Tools、MCP、Sandbox、Approval、模型配置、capability composition 和 AgentSession runtime 由 DSH 管理。
-3. `dshPresetId` 只引用 DSH 原生 Agent Preset；`requiredSkillNames` 声明创建前必须通过 Host-side validation 的 DSH Skill；Convivium 不建立 Preset、Skill、Tool、MCP 或 permission registry/installer。
-4. `toolFilter` 必须使用 DSH 原生 `ToolRestriction`，并且只能收窄目标 Preset 已提供的 Tools，不能授予新 Tool 或扩大 DSH/用户权限。
-5. `persona` 只提供 meeting-specific role instruction，不授予 Skill、Tool、MCP、Sandbox、Approval、模型或 Meeting authority；仓库 `AGENTS.md` 也不作为隐式 Agent capability。
-6. 已选择 Definition 的初始身份只有在 DSH 完成独立 continuable AgentSession provisioning 后才能成为可调度 Participant。Manager recommendation、Captain approval 与动态接纳沿用 FR-13 的权限要求，其实现不作为 FR-14 首版完成前置。
-7. Definition resolution、Preset/Skill validation 或 DSH capability composition 任一失败时必须 fail closed，不得通过 Prompt-only、persona-only、Tool Schema 隐藏或 Convivium 自建 capability installer 降级运行。
-8. 首版在准确 Captain parent 已挂载的同一 DSH Preset 下，为初始 Manager 和 Participant 配置不同 persona、可选 toolFilter 和可选 DSH 原生 agentOptions（provider、model、reasoningEffort）。创建前解析 Definition、验证 dshPresetId 与 parent 当前 Preset 相同、required Skills 可供模型读取，再将配置交给 DSH startContinuable；不直接修改 Session 数据，不注册通用 hook 框架。
-9. Captain 创建请求可以显式选择 Manager 和各初始 Participant 的 Definition ID；未选择的身份沿用现有创建行为。未知定义、角色不匹配、Preset 不一致或 Skill 不可用时，选定配置的会议创建失败，不静默回退。此入口不依赖 FR-13 的动态 recommendation admission。
-10. 会议保存已采用 Definition 的 ID、版本和内容指纹；DSH 保存 persona/toolFilter/agentOptions 的 continuable descriptor。已有会议重放、恢复不重新应用当前 Definition，修改配置不改变已有身份。状态及归档不得泄露 persona、工具配置或 Skill 正文。
-11. 独立 per-child Preset、差异化插件安装、Skill 安装或独占 Skill 集合和运行中热切换不属于首版 FR-14，独立 Preset 不纳入 Convivium 后续版本实施计划，等待 DSH 升级提供公开能力后再评估接入，不在 Convivium 自建替代机制。首版配置、权限、重放、恢复和真实 DSH 组合验证全部通过后，FR-14 才可标为已实现。
+本节为 2026-09-08 确认的初次发布目标；角色模型与部署资源已实现，本轮验收包含用户明确豁免的 web_fetch，完整无豁免覆盖以 [readiness](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition) 为准。
+
+1. Convivium 提供版本化 Meeting Agent Definition，只保存稳定定义 ID、版本、会议角色、显示摘要、`roleDescription`、专长、研究来源范围、DSH Preset/Skill 引用及 optional DSH ToolRestriction。Definition 不包含通用 persona 正文、模型配置或 capability 安装内容。
+2. Convivium 拥有会议角色、选择、批准、动态发言资格和 Session ownership；DSH 拥有模型默认值、Agent Preset、Skills、Tools、MCP、Sandbox、Approval、组合与执行。
+3. 发行包必须附带一个共享 `convivium` Preset、九个原生 DSH Skills 和九个可组合 Definition。Host 使用 DSH 原生 Loader、Skill provider 和 profile patch 部署；Convivium Runtime 不建立 capability registry/installer，也不复制或展开 Skill 正文。
+4. `toolFilter` 使用 DSH 原生 ToolRestriction，只能收窄从 global 与祖先 scope（包括共享 Preset）继承的工具；当前 child 自己注册的工具不受此 filter 屏蔽，不能据此授予工具或扩大 DSH/用户权限；文件、网络和执行权限仍由 Host policy 管理。
+5. `roleDescription` 只表达会议职责、会议输出和会议边界；通用方法放在 DSH Skills。创建时将角色说明及原生 Skill 加载指令转换为 DSH persona。Skill 名称、描述或已加载正文均不授予 Meeting authority；仓库 AGENTS.md 也不是隐式 capability。
+6. 初始 Manager 与八类 Participant 在同一 Captain parent Preset 下，各自使用独立 meeting-owned continuable AgentSession；只有 provisioning 成功后 Participant 才可被调度。动态推荐与接纳仍遵循 FR-13，不是本项新增能力。
+7. 所有选定角色在第一个 child 分配前完成 Definition、共享父 Preset 和 required Skill 预检。缺失能力时 fail closed，不允许 persona-only、假 Skill、隐藏 Schema 或自建 installer 降级。
+8. 模型默认值直接使用 DSH 配置。Host 可通过独立 `agentModelOverrides` 按 Definition ID 提供必要的 provider/model/reasoningEffort 原生覆盖；Definition 本身不保存这些值。Captain/Manager/HTTP 不可提交任意模型配置。模型覆盖不改变 Definition 内容指纹，实际有效值由 DSH descriptor 持有。
+9. Captain 创建请求只选择 Manager/Participant 的 Definition ID；未选择的身份仍允许按已有无 Definition 路径创建。未知定义、角色不匹配、不同父 Preset、Skill 不可用或非法 Host 绑定不得静默回退。
+10. 会议只持久化 Definition ID、版本和内容指纹；DSH 持久化派生 persona/toolFilter/有效模型。既有会议重放、冷恢复不重新解析当前 Definition 或 Host override，不因配置变化重配已有身份；缺失 descriptor 不以新定义补建。公开 status/archive 不泄露模型覆盖、角色私有正文或 Skill 正文。
+11. 首发包必须在独立 DSH profile 通过真实 Loader 验证：同一会议的一位 Manager 和八位 Participant 均创建成功；九个 Session 经原生 skill 工具加载各自正文；GitHub/arXiv/Web 研究角色的真实搜索与抓取可用；会议越权写入被拒绝；模型差异、隔离和冷恢复保持。
+12. 初次发布直接采用新契约，不读取或迁移未发布的旧 Definition/schema 样本。独立 per-child Preset、独占 Skill、差异化插件安装、热切换、完整 Agent 配置平台和日常 profile 改写不属于首发范围。首发模型与上述部署验收全部通过后，FR-14 才可标为已实现。
 
 ### FR-15：Developer Markdown Projection
 
@@ -296,10 +299,10 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 33. 被批准 Agent 的 provisioning 失败时，会议中不存在部分可用 Participant；失败可恢复、可审计，且不影响其他 Meeting 或 Participant Session。
 34. 已有证据满足当前 freshness 和来源范围时，Manager 不会仅因 GitHub、arXiv 或 Web 搜索能力可用而重复推荐相同研究工作；明确的独立交叉验证除外。
 35. 每个 Agent Definition 都有稳定 `agentDefinitionId` 和 `definitionVersion`，并明确引用一个 `dshPresetId` 与 required DSH Skill 名称；Definition 不复制 DSH capability 内容。
-36. `toolFilter` 只能收窄目标 Preset 已有 Tools；Definition、persona 或 Skill 名称不能授予 Tool、MCP、Sandbox、Approval 或模型权限。
+36. `toolFilter` 只能收窄继承的 global/祖先 scope 工具，不屏蔽 child 自己注册的工具，也不是操作系统资源隔离机制；Definition、roleDescription、persona 或 Skill 名称不能授予 Tool、MCP、Sandbox、Approval 或模型权限。
 37. Manager 只看到 Agent Definition 的安全摘要；recommendation 不创建 Session，Captain approval 也必须等待独立 Session provisioning 成功后才能形成可调度 Participant。
 38. 已选择的 Definition、共享父 Preset 或 required Skill 无法解析和验证时，在第一个 child 创建前拒绝；DSH 创建失败则沿既有 creation_failed、revoke 和 drain 路径清理，不发布 ready Meeting。不得将缺少 Skill 降级为 persona-only，也不得使用 Convivium installer workaround。
-39. 在共享父 Preset 下，至少两个会议身份应用不同 persona 和工具限制，工具限制同时影响模型可见性和真实执行；冷恢复后仍保持各自配置，父 Session 与其他身份不受影响。独立 per-child Preset 不计入首版 FR-14 完成条件；样本存在仍不得被描述为 capability 已安装。
+39. 发布包内九个角色在同一共享父 Preset 的会议中形成九个独立 child，分别通过原生 skill 工具加载正文；三类研究角色的真实搜索与抓取可用。继承工具的限制同时影响可见性和真实执行，会议越权写入被拒绝。至少两个角色的模型差异与 persona/toolFilter 经 Host 冷重启保持，父 Session 不受影响；目录或样本存在不能替代这些验收。
 40. delegated meeting-owned Agent 不会等待无人处理的交互式 Approval，也不能从自身 Session 内扩大启动时固化的权限。
 41. Scribe 生成的纪要草稿标明覆盖范围并引用正式 message、Fact、Decision、Issue 或 task result ID；缺少引用或覆盖不连续时不会被当作权威 transcript、正式事实或决议。
 42. 未配置 `developerMarkdownWorkspaceId` 时不产生 Developer Markdown；配置不存在的 workspace 时插件启动失败，且不选择其他目录作为 fallback。

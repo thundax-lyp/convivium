@@ -134,6 +134,7 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
             }
             const dependencies: MeetingCreationRuntimeDependencies = {
                 agentDefinitions: options.runtime.agentDefinitions,
+                agentModelOverrides: options.runtime.agentModelOverrides,
                 repository,
                 continuable: options.runtime.continuable,
                 parent: caller.agent as Agent,

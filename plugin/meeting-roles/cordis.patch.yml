@@ -1,0 +1,13 @@
+- id: agent-presets
+  config:
+    default: convivium
+    includeShippedRoot: true
+    includeUserRoot: true
+    roots:
+      - path: !!js "process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'presets')"
+        trust: system
+- id: convivium
+  config:
+    provider: spawn
+    maxParticipants: 8
+    agentDefinitions: !!js "JSON.parse(process.getBuiltinModule('node:fs').readFileSync(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'definitions.json'), 'utf8')).definitions"

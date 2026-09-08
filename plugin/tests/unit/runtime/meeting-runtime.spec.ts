@@ -193,7 +193,7 @@ describe("creation role preflight", () => {
             roleDefinitionId: "meeting_manager",
             displayName: "Manager",
             summary: "Manager",
-            persona: "Manager persona",
+            roleDescription: "Manager persona",
             dshPresetId: "minimal",
             requiredSkillNames: ["fixture"],
             expertiseTags: ["fixture"],
@@ -205,7 +205,7 @@ describe("creation role preflight", () => {
             roleDefinitionId: "domain_architect",
             displayName: "Participant",
             summary: "Participant",
-            persona: "Participant persona",
+            roleDescription: "Participant persona",
             dshPresetId: "minimal",
             requiredSkillNames: ["fixture"],
             expertiseTags: ["fixture"],
@@ -264,10 +264,13 @@ describe("creation role preflight", () => {
         await createMeetingRuntime(selected, f.deps);
         expect(f.deps.calls.slice(0, 3)).toEqual(["bootstrap", "validate", "owned"]);
         expect(f.requests).toHaveLength(4);
-        expect(f.requests[0].request.persona).toBe("Manager persona");
+        expect(f.requests[0].request.persona).toBe(
+            "Manager persona\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。"
+        );
         expect(f.requests[1].request.persona).toBeUndefined();
         expect(f.requests[2].request).toMatchObject({
-            persona: "Participant persona",
+            persona:
+                "Participant persona\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：fixture。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。",
             toolFilter: { deny: ["probe"] }
         });
         expect(f.requests[3].request.persona).toBeUndefined();

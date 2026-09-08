@@ -31,7 +31,21 @@ const requiredArtifacts = [
     "lib/types/index.d.ts",
     "lib/client.js",
     "lib/types/client/index.d.ts",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "meeting-roles/definitions.json",
+    "meeting-roles/README.md",
+    "meeting-roles/cordis.patch.yml",
+    "meeting-roles/presets/convivium/preset.yml",
+    "meeting-roles/presets/convivium/agent.cordis.yml",
+    "meeting-roles/presets/convivium/skills/meeting-management/SKILL.md",
+    "meeting-roles/presets/convivium/skills/domain-architecture/SKILL.md",
+    "meeting-roles/presets/convivium/skills/dsh-runtime-engineering/SKILL.md",
+    "meeting-roles/presets/convivium/skills/protocol-ui-engineering/SKILL.md",
+    "meeting-roles/presets/convivium/skills/verification-review/SKILL.md",
+    "meeting-roles/presets/convivium/skills/github-source-research/SKILL.md",
+    "meeting-roles/presets/convivium/skills/arxiv-paper-analysis/SKILL.md",
+    "meeting-roles/presets/convivium/skills/web-source-research/SKILL.md",
+    "meeting-roles/presets/convivium/skills/referenced-minutes/SKILL.md"
 ];
 const expectedExports = {
     ".": { types: "./lib/types/index.d.ts", default: "./lib/index.js" },
@@ -40,7 +54,8 @@ const expectedExports = {
         default: "./lib/client.js"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./meeting-roles/cordis.patch.yml": "./meeting-roles/cordis.patch.yml"
 };
 const forbiddenPublishedPaths = files.filter((path) => /^(src|tests|docs)(\/|$)|\*\*/.test(path));
 if (existsSync(resolve(packageRoot, "storage-plugin")))
@@ -56,7 +71,8 @@ const bundledClientRequires = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmoki
 
 const result = {
     exportsMatchArtifacts: JSON.stringify(manifest?.exports) === JSON.stringify(expectedExports),
-    filesAllowlistIsClosed: JSON.stringify(files) === JSON.stringify(["lib", "cordis.patch.yml"]),
+    filesAllowlistIsClosed:
+        JSON.stringify(files) === JSON.stringify(["lib", "cordis.patch.yml", "meeting-roles"]),
     bundlePatchMatchesPackageName: Boolean(packageName && patch.includes(packageName)),
     clientManifestIsComplete:
         client?.platform === "web" && Array.isArray(client.inject) && client.inject.length > 0,

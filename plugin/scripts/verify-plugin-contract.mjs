@@ -25,6 +25,16 @@ if (!pkg.files?.includes("lib")) failures.push("package files must include lib")
 if (!pkg.files?.includes("cordis.patch.yml"))
     failures.push("package files must include cordis.patch.yml");
 
+if (!pkg.files?.includes("meeting-roles"))
+    failures.push("package files must include meeting-roles");
+if (pkg.exports?.["./meeting-roles/cordis.patch.yml"] !== "./meeting-roles/cordis.patch.yml")
+    failures.push("meeting-roles patch export is required");
+try {
+    await readFile(join(root, "meeting-roles/cordis.patch.yml"), "utf8");
+} catch {
+    failures.push("meeting-roles patch asset is missing");
+}
+
 const patchName = patch.match(/^\s*name:\s*['"]?([^'"\s]+)['"]?\s*$/m)?.[1];
 if (!patchName) failures.push("cordis.patch.yml must contain a package name");
 if (patchName && patchName !== pkg.name) {

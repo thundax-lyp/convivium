@@ -16,7 +16,7 @@ DEEPSEEK_API_KEY=
 
 `smoke:profile` 启动前必须读取 `dev.env`。文件缺失、`DEEPSEEK_API_KEY` 缺失或空值、存在其他变量时立即失败。密钥只注入真实 DSH Host 进程；构建、打包、插件安装和 `dump-config` 子进程不会取得该值。脚本不得把密钥写入 stdout、stderr、临时 profile、结果 JSON 或构建产物。
 
-当前确定性 selector 不调用 LLM；注入密钥只保证 smoke Host 与人工 Browser 验证使用同一完整 DeepSeek provider 环境，不得据此声称 LLM 请求已经验证。只有实际模型请求成功才可作为 LLM 链路证据。
+除 meeting-roles 外，当前确定性 selector 不调用远程 LLM；注入密钥只保证 smoke Host 与人工 Browser 验证使用同一完整 DeepSeek provider 环境，不得据此声称 LLM 请求已经验证。只有实际模型请求成功才可作为 LLM 链路证据。
 
 人工开发和调试使用仓库根目录 `dsh-workspace/`，该目录不进入 Git；自动 `smoke:profile` 不使用该目录，仍为每次运行创建并清理独立的 OS 临时 workspace，避免旧 Session、Meeting 或文件状态影响验证结果。
 
@@ -101,7 +101,7 @@ smoke 只证明真实 DSH 的组合、工具/HTTP 调用、持久化、恢复和
 
 ```sh
 pnpm --dir plugin smoke:profile                         # 默认 5 个核心场景
-pnpm --dir plugin smoke:profile --all                   # 全部 16 个场景
+pnpm --dir plugin smoke:profile --all                   # 全部 17 个场景
 env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
 pnpm --dir plugin --silent smoke:profile --json         # 完整逐场景 JSON，供诊断
 ```
@@ -123,12 +123,29 @@ pnpm --dir plugin --silent smoke:profile --json         # 完整逐场景 JSON�
 | 完整 | `scribe-minutes` | 引用草稿上下文、原子拒绝、重放、HTTP、归档、三个 Session 清理；支持 Browser 模式 |
 | 完整 | `decision-risk-closure`、`risk-reopen` | 决策/风险工具投影、重放与冲突 |
 | 完整 | `convergence` | Manager 无效计划的 fallback 与幂等重放 |
+| 完整 | `role-composition` | 独立 Host 模型覆盖、persona/filter 隔离与双 Host 冷恢复；无 Browser 模式 |
+| 完整 | `meeting-roles` | 同 tarball 部署九角色、九次原生 Skill 加载、三研究 Provider 和权限拒绝；调用真实模型，无 Browser 模式 |
 
 no_consensus、进展重置和另一种预算的规则差异由 `turn-advancement.spec.ts` 覆盖，不再提供 `convergence-no-consensus`、`convergence-reset`、`convergence-message-budget-completion` selector。已移除场景的[历史运行摘要](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#retired-convergence-scenario-evidence)仅用于追溯，不代表当前入口。
 
+### 九角色部署场景
+
+```sh
+env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile
+```
+
+资源取自本次安装的同一 tarball，wrapper 解包至临时根的 role-package/package/meeting-roles；部署 patch 在临时控制 patch 前加载，两者通过非敏感 Host 变量 CONVIVIUM_MEETING_ROLES_ROOT 指向该目录；控制 patch 重述同源 agentDefinitions 读取表达式，避免 config 整体替换丢失定义。真实 Captain 显式挂载 convivium，并以原生 agentOptions 选择 deepseek-official/deepseek-v4-flash，子会话继承模型；创建一位 Manager 和八位 Participant。探针暂停会议，使用原生 ancestor interrupt 等待当前执行结束，然后逐个观察各自 Session 的 skill tool/call、成功 tool/result 四步正文与 ROLE_READY；每身份上限 180000ms，结果等待上限 2400000ms。
+部署探针在目标 child 成功 Skill 调用的原生 tools/post-execute 回调内完成研究工具、权限拒绝与 status 检查，返回原 decision，并在 finally 注销回调。continuable child 空闲后可被 DSH 释放，不能缓存旧 Agent 在 idle 后调用工具。检查仍要求真实 Provider 结果，Fake-IP DNS 的非公网地址拒绝不能计为抓取通过；应由运行环境为目标公网域名提供真实公网解析，不放宽 DSH 检查。
+
+本轮验收豁免（2026-09-08 用户确认）：使用 `env CONVIVIUM_SMOKE_SCENARIO=meeting-roles CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1 pnpm --dir plugin smoke:profile` 跳过三次 web_fetch。默认命令仍检查抓取；豁免结果固定记录 `fetch: "skipped:user-waiver"` 和 `research-search-operational`，stdout 输出 Not Covered，不能作为抓取可用证据。三类搜索、九角色 Skill、权限和会议状态检查仍必须通过；本轮不修改代理/DNS。
+
+三研究角色的原生 web_search 必须返回对应域来源，web_fetch 必须返回 2xx 与非空正文。Manager/Scribe 的越权会议工具及 web_search 共四次调用必须 UNKNOWN_TOOL，九身份 status 可读且暂停后的 Meeting version/messages 不变。失败或超时沿原 finally 停止 Host、释放端口并删除本次资源；不能通过更换 fixture 或放大超时继续判为成功。
+
+完整人工部署与模型覆盖步骤见 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md)。2026-09-08 本场景在用户明确豁免 web_fetch 后通过：九 Skill、三研究搜索、权限及状态检查全部 PASS，抓取 Not Covered；完整 verify、角色冷恢复和默认五核心亦通过，见 [本轮证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)。
+
 ### 引用式纪要场景
 
-`scribe-minutes` 是独立诊断 selector；默认核心仍为 5 个，完整套件为 16 个。沿用 `web` profile、`spawn` provider 和统一 Restore。
+`scribe-minutes` 是独立诊断 selector；默认核心仍为 5 个，完整套件为 17 个。沿用 `web` profile、`spawn` provider 和统一 Restore。
 
 从仓库根目录执行：
 
@@ -196,7 +213,7 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 
 脚本的 finally 必须停止其记录的 Host PID、确认临时端口释放并删除唯一 `convivium-dsh-smoke-*` 临时根。`cold-rebind` 会在同一临时 DSH_HOME、workspace、profile、data root 和端口上依次启动两个不同 Host PID；只在 phase 2 完成后执行一次最终 Restore。Restore 失败时即使场景断言通过也不得记为 Pass。
 
-上述 selector 不调用 LLM，只证明当前锁定 DSH runtime/provider、真实 Session persistence、inbox、interrupt/drain、tool caller、Storage Domain composition/cold recovery、status/archive 和 Meeting 隔离路径。Decision/Agenda、developer Markdown、metrics/stress、浏览器未列出的其他控制、遗留 SQLite migration/deletion、multi-Host writer、remote filesystem 和生产发布不在这些 selector 的证明范围内。
+除 meeting-roles 外，上述 selector 不调用远程 LLM，只证明当前锁定 DSH runtime/provider、真实 Session persistence、inbox、interrupt/drain、tool caller、Storage Domain composition/cold recovery、status/archive 和 Meeting 隔离路径。Decision/Agenda、developer Markdown、metrics/stress、浏览器未列出的其他控制、遗留 SQLite migration/deletion、multi-Host writer、remote filesystem 和生产发布不在这些 selector 的证明范围内。
 
 ## 失败处理
 
@@ -212,7 +229,7 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 
 ## FR-14 共享 Preset 角色隔离与冷恢复
 
-Prepare：沿用上文 dev.env、独立临时 profile 和 rc.2 版本要求；web profile 必须提供 `agentPresets`、`skills`、`minimal` Preset 与 continuable spawn provider。本场景不加入默认 CORE_SCENARIOS，也不支持 Browser 模式。
+Prepare：沿用上文 dev.env、独立临时 profile 和 0.1.2-rc.1 版本要求；web profile 必须提供 `agentPresets`、`skills`、`minimal` Preset 与 continuable spawn provider。本场景不加入默认 CORE_SCENARIOS，也不支持 Browser 模式。
 
 Execute：从仓库根目录执行：
 
@@ -220,7 +237,7 @@ Execute：从仓库根目录执行：
 CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
 ```
 
-Assert：真实 Captain factory 挂载 minimal；第一 Host 使用 V1 内联定义创建两种角色，第二 Host 配置改成 V2，恢复原 Captain 和 child。输出必须包含两个不同 Host PID、以下九项断言及 `PASS role-composition`、`restore=PASS`：
+Assert：真实 Captain factory 挂载 minimal；第一 Host 使用 V1 内联 roleDescription 定义及独立 agentModelOverrides 创建两种角色，第二 Host 将定义与模型覆盖改成 V2，恢复原 Captain 和 child。输出必须包含两个不同 Host PID、以下九项断言及 `PASS role-composition`、`restore=PASS`：
 
 - `phase1-checkpoint-durable`
 - `host-pid-changed`
@@ -232,7 +249,7 @@ Assert：真实 Captain factory 挂载 minimal；第一 Host 使用 V1 内联定
 - `role-parent-unmodified`
 - `role-cold-config-v1-preserved`
 
-Participant 的 probe 工具同时不可见、不可执行，拒绝调用不进入 body；Manager 和 Captain 可执行。恢复后的两个 child 保留 V1 persona/filter。两个阶段只手动推进提交，不运行自动 Participant 提交。确定性场景不调用模型，不证明真实模型任务质量。
+Participant 的 probe 工具同时不可见、不可执行，拒绝调用不进入 body；Manager 和 Captain 可执行。恢复后的两个 child 保留 V1 派生 persona/filter/provider/model/reasoningEffort，父模型路由不变。两个阶段只手动推进提交，不运行自动 Participant 提交。确定性场景不调用模型，不证明真实模型任务质量。
 
 Restore：wrapper 的 finally 必须停止本次 Host、确认端口释放并删除本次精确临时目录，成功打印 `restore=PASS`。任何能力缺失、断言失败或恢复失败都按失败处理，不换用 fake adapter；cleanup 失败沿上文仅处理本次精确 PID/目录，不清理其他 profile 或数据。
 

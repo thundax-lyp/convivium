@@ -9,7 +9,7 @@ const definitions = parseAgentDefinitions([
         roleDefinitionId: "meeting_manager",
         displayName: "A",
         summary: "A",
-        persona: "A",
+        roleDescription: "A",
         dshPresetId: "minimal",
         requiredSkillNames: ["fixture"],
         expertiseTags: ["fixture"],

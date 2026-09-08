@@ -1,3 +1,5 @@
+import { parseAgentModelOverrides } from "./role-composition/model-options.js";
+import type { MeetingAgentModelOverrides } from "./role-composition/model-options.js";
 import Schema from "@deepseek-ai/schemastery";
 
 import { parseAgentDefinitions } from "./role-composition/model.js";
@@ -7,6 +9,7 @@ const relativeDataRoot = /^(?!\/)(?![A-Za-z]:[\\/])(?!.*(?:^|[\\/])\.\.(?:[\\/]|
 
 export interface Config {
     provider: string;
+    agentModelOverrides?: MeetingAgentModelOverrides;
     agentDefinitions?: readonly MeetingAgentDefinitionV1[];
     dataRoot?: string;
     developerMarkdownWorkspaceId?: string;
@@ -16,6 +19,7 @@ export interface Config {
 }
 
 const runtimeConfig: Schema<Config> = Schema.object({
+    agentModelOverrides: Schema.any<MeetingAgentModelOverrides>(),
     agentDefinitions: Schema.any<readonly MeetingAgentDefinitionV1[]>(),
     provider: Schema.string().pattern(/\S/).required(),
     dataRoot: Schema.string().pattern(relativeDataRoot),
@@ -29,10 +33,13 @@ export const Config: Schema<Config> = Schema.transform(
     Schema.any<Config>(),
     (value) => {
         const definitions = parseAgentDefinitions(value?.agentDefinitions);
+        const overrides = parseAgentModelOverrides(value?.agentModelOverrides, definitions);
         const config = runtimeConfig(value);
-        return value?.agentDefinitions === undefined
-            ? config
-            : { ...config, agentDefinitions: definitions };
+        return Object.freeze({
+            ...config,
+            ...(value?.agentDefinitions === undefined ? {} : { agentDefinitions: definitions }),
+            ...(value?.agentModelOverrides === undefined ? {} : { agentModelOverrides: overrides })
+        });
     },
     true
 );
