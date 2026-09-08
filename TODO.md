@@ -10,14 +10,6 @@
 
 2026-09-08 用户明确授权依次执行 TODO LIST，一任务一提交。MAD 编号用于任务依赖，RUNBOOK 的 T1–T6 仍是阶段门禁；阶段内拆分不新增范围，也不允许以部分任务完成代替整个阶段 PASS。T0 已确认，不列待办。每项相关文件均为仓库相对路径；计划新增路径不表示文件已存在。
 
-- [ ] `MAD-05 / 发布包`：纳入角色资源并封闭打包契约
-    - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14 首发分发与部署要求；[架构](docs/00-governance/ARCHITECTURE.md) Source Layout And Verification；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) First-release assets；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Native deployment resources；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) Native Deployment Contract、T3 动作 4。
-    - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
-    - 前置：MAD-04 的新资源与验证器通过。
-    - 相关文件：修改 `plugin/package.json`、`plugin/scripts/verify-package.mjs`、`plugin/scripts/verify-plugin-contract.mjs`；只读保持 `plugin/cordis.patch.yml` 和 package root JS exports。
-    - 处理动作：更新 files/exports、闭合 allowlist、requiredArtifacts 与 expectedExports，增加唯一 meeting-roles patch export 并验证资产存在。
-    - 验收点：T3 的 build、verify:contract、verify:package 通过；tarball 包含五个固定资源与九个 SKILL.md，无 checkout 路径；verify:agent-definitions 命令及 verify 顺序保持，MAD-04/05 共同满足 T3 PASS。
-
 - [ ] `MAD-06 / role-composition smoke`：适配既有模型差异与冷恢复场景
     - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 39；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) Creation conversion、Runtime Provenance And Recovery；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) State And Failure Handling；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) T4 动作 1；[Smoke 操作](docs/50-operations/HOW-TO-DSH-SMOKE.md) FR-14 共享 Preset 角色隔离与冷恢复。
     - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
