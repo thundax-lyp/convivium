@@ -8,7 +8,7 @@ import * as storageDomainPlugin from "@deepseek-ai/dsh-storage-domain";
 import { endMeeting, type MeetingState } from "@/domain/index.js";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import type { JsonObject, RepositoryCommand } from "@/repository/types.js";
-import { jsonlStoragePlugin } from "@/storage/index.js";
+import * as storageSqlite from "@deepseek-ai/dsh-storage-sqlite";
 import { rebindCaptainParent } from "@/runtime/services/meeting-recovery-service.js";
 
 const ownership = {
@@ -136,14 +136,17 @@ describe("meeting recovery and Captain ownership", () => {
 
         try {
             await context.plugin(Storage);
-            await context.plugin(jsonlStoragePlugin, { root: join(root, "storage") });
+            await context.plugin(storageSqlite, {
+                path: join(root, "storage.sqlite"),
+                journalMode: "wal"
+            });
             await context.plugin(
                 {
                     name: storageDomainPlugin.name,
                     inject: storageDomainPlugin.inject,
                     apply: storageDomainPlugin.apply
                 },
-                { backend: "convivium-jsonl" }
+                { backend: "sqlite" }
             );
             const create = {
                 requestId: "create-1",
@@ -175,14 +178,17 @@ describe("meeting recovery and Captain ownership", () => {
             await context.fiber.dispose();
 
             await reopenedContext.plugin(Storage);
-            await reopenedContext.plugin(jsonlStoragePlugin, { root: join(root, "storage") });
+            await reopenedContext.plugin(storageSqlite, {
+                path: join(root, "storage.sqlite"),
+                journalMode: "wal"
+            });
             await reopenedContext.plugin(
                 {
                     name: storageDomainPlugin.name,
                     inject: storageDomainPlugin.inject,
                     apply: storageDomainPlugin.apply
                 },
-                { backend: "convivium-jsonl" }
+                { backend: "sqlite" }
             );
 
             reopenedRegistry = await DomainRepositoryRegistry.open({

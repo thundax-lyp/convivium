@@ -41,7 +41,7 @@ import {
     DomainRepositoryRegistry,
     type DomainFacilityPort
 } from "@/repository/domain/domain-repository-registry.js";
-import { jsonlStoragePlugin } from "@/storage/index.js";
+import * as storageSqlite from "@deepseek-ai/dsh-storage-sqlite";
 import { meetingDomainName, seqKey } from "@/repository/domain/keys.js";
 import { createMeetingDomainSpec } from "@/repository/domain/specs.js";
 import {
@@ -57,14 +57,14 @@ function storagePort(root: string): DomainFacilityPort {
     const mounting = (async () => {
         const ctx = new Context();
         await ctx.plugin(Storage);
-        await ctx.plugin(jsonlStoragePlugin, { root: join(root, "storage") });
+        await ctx.plugin(storageSqlite, { path: join(root, "storage.sqlite"), journalMode: "wal" });
         await ctx.plugin(
             {
                 name: storageDomainPlugin.name,
                 inject: storageDomainPlugin.inject,
                 apply: storageDomainPlugin.apply
             },
-            { backend: "convivium-jsonl" }
+            { backend: "sqlite" }
         );
         return ctx;
     })();

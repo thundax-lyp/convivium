@@ -4,9 +4,9 @@
 
 - 建立日期：2026-09-08。
 - 工作边界：仓库根目录；分支 `codex/jsonl-storage-backend-dsh-first`。
-- 模式：Author；审计结论 `Executable`，实施步骤尚未执行。
+- 模式：Execute；审计结论 `Executable`，从 T1 顺序执行。
 - 确认依据：用户于 2026-09-08 同意“回归 DSH provider、保留领域事务算法”的评估并要求制定最小 RUNBOOK，随后明确这是首次发布、无需考虑迁移；正式授权见 [Architecture / Confirmed Storage Provider Transition](../00-governance/ARCHITECTURE.md)。
-- 基线已由作者确认，依次执行 T1–T9。只改每步白名单；PASS 才进入下一步。不得 commit、push、创建 PR、合并或修改已有 Host/profile；这些操作没有包含在本 RUNBOOK 的执行授权中。
+- 基线已由作者确认，依次执行 T1–T9。只改每步白名单；PASS 才进入下一步。用户于 2026-09-08 明确授权依次执行、一任务一提交；每项提交同步删除已完成 TODO。不得 push、创建 PR、合并或修改已有 Host/profile。
 - 禁止新增生产 adapter、存储 factory、迁移器、配置兼容层、通用 fault framework；禁止修改 `plugin/src/repository/`、`plugin/src/runtime/`、业务 Domain、Protocol、HTTP、Tools 和 Client。
 - STOP 时保留工作区，报告最后 PASS 步骤、触发条件、文件/symbol、最小复现命令、退出码、脱敏输出和继续所需决定。不得删除用户文件、回滚用户改动、放宽 Schema、类型、断言或 lint。
 - 本文内所有命令从仓库根运行。测试临时文件只能由对应 fixture 的 `finally`/`afterEach` 清理；任何失败都必须先停止所创建 Host、关闭 Domain/Context，再删除该次临时目录。
@@ -348,3 +348,7 @@ T3 的 V1–V4 使用落盘 SQLite。测试内读取生产公开 Domain，允许
 2026-09-08 Author、首次发布范围及九步拆分修订实际检查：本地相对链接及 heading anchor 核对 PASS；`git diff --check` PASS；按 RUNBOOK Rules 的 Required Structure、数据/符号、步骤依赖、Scope 双向追踪、失败恢复、验证矩阵及删除条件逐项 Audit，结论 `Executable`。替换前基线验证已通过；替换后实现与真实 profile 验证为 Not Covered，等待 Execute；`Executable` 只表示步骤决策完备。
 
 完成定义：S1–S4 全部完成、V1–V9 mandatory 通过、T6 Restore 成功、长期文档和证据落位、本文按 T9 删除。任何 STOP 或缺失真实 smoke 证据均不构成完成。
+
+## Execute 记录
+
+- 2026-09-08 T1 PASS：三个既有 SQLite 装配 suite 共 72 tests 通过；`pnpm --dir plugin typecheck` 通过。仅增加固定版本 devDependency 与替换测试 provider，业务断言及生产代码不变。下一步 T2。
