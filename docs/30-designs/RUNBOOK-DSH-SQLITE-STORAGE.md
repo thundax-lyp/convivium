@@ -164,7 +164,7 @@ STOP：任一一致性、容量、版本或损坏断言失败；清理测试资�
 ### T4：删除插件自有物理存储
 
 前置状态：T3 PASS。
-允许修改：`plugin/src/index.ts`、`plugin/src/config.ts`、`plugin/cordis.patch.yml`、`plugin/package.json`、`plugin/pnpm-lock.yaml`、`plugin/eslint.config.js`、`plugin/scripts/verify-plugin-contract.mjs`、`plugin/tests/unit/config.spec.ts`、`plugin/tests/unit/host-plugin-lifecycle.spec.ts`。允许删除文件限下表。
+允许修改：`plugin/src/index.ts`、`plugin/src/config.ts`、`plugin/cordis.patch.yml`、`plugin/package.json`、`plugin/pnpm-lock.yaml`、`plugin/eslint.config.js`、`plugin/scripts/verify-plugin-contract.mjs`、`plugin/tests/unit/config.spec.ts`、`plugin/tests/unit/host-plugin-lifecycle.spec.ts`、`plugin/tests/unit/module-boundaries.spec.ts`。允许删除文件限下表。
 禁止修改：Meeting consumer 的业务接线和顶层 public exports；全部 repository/runtime 生产文件；`verify-package.mjs` 的既有发布保护。
 
 | 删除集合 | 精确文件（均相对仓库根） |
@@ -178,12 +178,13 @@ STOP：任一一致性、容量、版本或损坏断言失败；清理测试资�
 2. 按配置表删除 `dataRoot` 和 regex；删除其专用配置测试。Host lifecycle 的 `childOrder` 只剩 `convivium-meeting-consumer`；真实 Cordis 测试删除仅用于 dataRoot 的 mkdtemp/rm/path/os 引用及临时目录，不改变 WebServer/工具断言。
 3. bundle patch 只保留插入 `convivium` 的 row；删除 `storage-domain` override。
 4. 删除表中全部文件。ESLint `publicModules` 仅移除已删除的 `storage`；其他规则不变。package 移除 `@deepseek-ai/dsh-storage` peerDependencies 和对应 peerDependenciesMeta，保留 devDependency。`pnpm install --lockfile-only` 机械更新 lockfile，不升级其他包。
-5. contract script 保留精确 publicExports 检查，删除只服务旧 backend 的 symbol 循环；增加检查：bundle 不出现 `storage-domain`/`storage-sqlite` row，package dependencies/peerDependencies 不含 `@deepseek-ai/dsh-storage-sqlite`。不放宽原检查。
+5. `module-boundaries.spec.ts` 删除已移除物理模块的存在性、专用 helper 与导入允许断言；保留 repository-domain 扫描，禁止直接依赖 Storage/SQLite/JSON provider，并以这些 provider 的负例替代旧本地 storage 路径负例。此遗漏依赖依据用户本轮“发生问题你来解决”的授权补入，不改变产品或领域算法。
+6. contract script 保留精确 publicExports 检查，删除只服务旧 backend 的 symbol 循环；增加检查：bundle 不出现 `storage-domain`/`storage-sqlite` row，package dependencies/peerDependencies 不含 `@deepseek-ai/dsh-storage-sqlite`。不放宽原检查。
 
 验证：
 ```bash
 pnpm --dir plugin install --lockfile-only
-pnpm --dir plugin exec vitest run tests/unit/config.spec.ts tests/unit/host-plugin-lifecycle.spec.ts tests/integration/storage/provider-composition.spec.ts
+pnpm --dir plugin exec vitest run tests/unit/config.spec.ts tests/unit/host-plugin-lifecycle.spec.ts tests/unit/module-boundaries.spec.ts tests/integration/storage/provider-composition.spec.ts
 pnpm --dir plugin lint
 pnpm --dir plugin typecheck
 pnpm --dir plugin build
@@ -362,3 +363,5 @@ T3 的 V1–V4 使用落盘 SQLite。测试内读取生产公开 Domain，允许
 - 2026-09-08 T2 PASS：真实 SQLite provider 门控、显式关闭、撤销后拒绝写入与新 Context 同库重开验证通过（1 test）；Host/Client typecheck 通过。资源经 finally 关闭并删除；不声称自然卸载排空在途写入。
 
 - 2026-09-08 T3 PASS：新增真实 SQLite 恢复 6 tests，与 checkpoint/domain recovery 合计 26 tests 通过；Host/Client typecheck 通过。V1–V4 均通过新 Context 同库重开验证，生产算法未修改。夹具使用公开诊断 get 获取已打开 Domain；人工写 checkpoint 后先重开 repository 再追加，避免绕过其内存游标。
+
+- 2026-09-08 T4 PASS：删除 10 个物理存储生产文件及 12 个专属测试/夹具文件；保留 consumer 和领域算法。补入模块边界测试依赖修订后 4 suites/23 tests、lint、Host/Client typecheck、build、plugin contract 通过；旧 backend/dataRoot 源码与测试搜索无匹配，repository/runtime 相对替换前零 diff。lockfile-only 未产生依赖升级。

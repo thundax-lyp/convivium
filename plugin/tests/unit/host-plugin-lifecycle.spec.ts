@@ -2,9 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
 import SystemPrompt from "@deepseek-ai/dsh-system-prompt";
 import Tools from "@deepseek-ai/dsh-tools";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 
 import { apply, assertContinuableProvider, inject } from "@/index.js";
 import { requireContinuableProvider } from "@/dsh/index.js";
@@ -162,10 +159,7 @@ describe("Convivium local Meeting route lifecycle", () => {
 
     it("registers and disposes exactly one prefix on loopback", async () => {
         const fixture = await host("127.0.0.1");
-        expect(fixture.childOrder).toEqual([
-            "convivium-storage-jsonl",
-            "convivium-meeting-consumer"
-        ]);
+        expect(fixture.childOrder).toEqual(["convivium-meeting-consumer"]);
         expect(fixture.register).toHaveBeenCalledTimes(1);
         expect(fixture.register.mock.calls[0]?.[0]).toMatchObject({
             kind: "prefix",
@@ -243,7 +237,6 @@ describe("Convivium local Meeting route lifecycle", () => {
 
 describe("Convivium Cordis service lifecycle", () => {
     it("keeps native tools alive while WebServer mounts, unloads and remounts", async () => {
-        const directory = await mkdtemp(join(tmpdir(), "convivium-composition-"));
         const root = new Context();
         try {
             await root.plugin(SystemPrompt, {});
@@ -263,7 +256,7 @@ describe("Convivium Cordis service lifecycle", () => {
             root.provide("storageDomain", createFakeDomainFacility());
             const plugin = await root.plugin({
                 name: "convivium-composition-test",
-                apply: (ctx) => apply(ctx, { ...config, dataRoot: directory })
+                apply: (ctx) => apply(ctx, config)
             });
             await vi.waitFor(() =>
                 expect(
@@ -299,7 +292,6 @@ describe("Convivium Cordis service lifecycle", () => {
             expect(register.mock.results[1].value).toHaveBeenCalledTimes(1);
         } finally {
             await root.fiber.dispose();
-            await rm(directory, { recursive: true, force: true });
         }
     });
 });

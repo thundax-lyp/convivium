@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, extname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 type ModuleName =
@@ -122,36 +122,20 @@ function allModuleSpecifiersOf(source: string): string[] {
     return [...new Set([...importsOf(source), ...reexportsOf(source), ...typeOnlyImports])];
 }
 
-function isWithin(root: string, candidate: string): boolean {
-    const path = relative(root, candidate);
-    return path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
-}
-
 function localImportPath(file: string, specifier: string): string | undefined {
     if (specifier.startsWith("@/")) return resolve(sourceRoot, specifier.slice(2));
     if (specifier.startsWith(".")) return resolve(dirname(file), specifier);
     return undefined;
 }
 
-const storageRoot = join(sourceRoot, "storage");
-function storageBoundaryViolations(file: string, specifiers: readonly string[]): string[] {
-    return specifiers.flatMap((specifier) => {
-        const local = localImportPath(file, specifier);
-        const allowed =
-            specifier.startsWith("node:") ||
-            specifier === "@deepseek-ai/cordis" ||
-            specifier === "@deepseek-ai/dsh-storage" ||
-            (local !== undefined && isWithin(storageRoot, local));
-        return allowed ? [] : [`${relative(sourceRoot, file)} may not import ${specifier}`];
-    });
-}
-
 function repositoryDomainBoundaryViolations(file: string, specifiers: readonly string[]): string[] {
     return specifiers.flatMap((specifier) => {
-        const local = localImportPath(file, specifier);
-        const forbidden =
-            specifier === "@deepseek-ai/dsh-storage" ||
-            (local !== undefined && isWithin(storageRoot, local));
+        const forbidden = [
+            "@deepseek-ai/dsh-storage",
+            "@deepseek-ai/dsh-storage-sqlite",
+            "@deepseek-ai/dsh-storage-json",
+            "node:sqlite"
+        ].includes(specifier);
         return forbidden ? [`${relative(sourceRoot, file)} may not import ${specifier}`] : [];
     });
 }
@@ -165,13 +149,6 @@ function importedModule(file: string, specifier: string): ModuleName | undefined
         return sourceFile === candidate || withoutExtension === candidateWithoutExtension;
     });
     return path ? moduleForFile(path) : undefined;
-}
-
-function resolvesTo(file: string, specifier: string, target: string): boolean {
-    const local = localImportPath(file, specifier);
-    if (local === undefined) return false;
-    const candidate = local.replace(/\.(?:m?js|tsx?)$/, "");
-    return candidate === target.replace(/\.(?:m?js|tsx?)$/, "");
 }
 
 function violations(module: ModuleName, specifiers: readonly string[]): string[] {
@@ -193,14 +170,7 @@ function violations(module: ModuleName, specifiers: readonly string[]): string[]
 }
 
 describe("plugin module boundaries", () => {
-    it("keeps package-private storage and repository-domain boundaries explicit", () => {
-        const storageFiles = sourceFiles(storageRoot);
-        expect(storageFiles.length).toBeGreaterThan(0);
-        expect(
-            storageFiles.flatMap((file) =>
-                storageBoundaryViolations(file, allModuleSpecifiersOf(readFileSync(file, "utf8")))
-            )
-        ).toEqual([]);
+    it("keeps repository domains independent of physical storage providers", () => {
         const domainRoot = join(sourceRoot, "repository", "domain");
         const domainFiles = existsSync(domainRoot) ? sourceFiles(domainRoot) : [];
         expect(domainFiles.length).toBeGreaterThan(0);
@@ -213,34 +183,14 @@ describe("plugin module boundaries", () => {
             )
         ).toEqual([]);
         expect(
-            storageBoundaryViolations(join(storageRoot, "unit.ts"), [
-                "node:fs",
-                "@deepseek-ai/cordis",
-                "@deepseek-ai/dsh-storage",
-                "./format.js",
-                "@/storage/format.js"
-            ])
-        ).toEqual([]);
-        expect(
-            storageBoundaryViolations(join(storageRoot, "unit.ts"), [
-                "../domain/model.js",
-                "@deepseek-ai/dsh-storage-domain",
-                "zod"
-            ])
-        ).toEqual([
-            "storage/unit.ts may not import ../domain/model.js",
-            "storage/unit.ts may not import @deepseek-ai/dsh-storage-domain",
-            "storage/unit.ts may not import zod"
-        ]);
-        expect(
             repositoryDomainBoundaryViolations(join(domainRoot, "model.ts"), [
-                "../../storage/index.js",
-                "@/storage/index.js",
+                "@deepseek-ai/dsh-storage-sqlite",
+                "@deepseek-ai/dsh-storage-json",
                 "@deepseek-ai/dsh-storage"
             ])
         ).toEqual([
-            "repository/domain/model.ts may not import ../../storage/index.js",
-            "repository/domain/model.ts may not import @/storage/index.js",
+            "repository/domain/model.ts may not import @deepseek-ai/dsh-storage-sqlite",
+            "repository/domain/model.ts may not import @deepseek-ai/dsh-storage-json",
             "repository/domain/model.ts may not import @deepseek-ai/dsh-storage"
         ]);
         expect(
@@ -257,16 +207,19 @@ describe("plugin module boundaries", () => {
         expect(errors).toEqual([]);
     });
 
-    it("keeps storage composition at the package root", () => {
-        const storageEntry = join(storageRoot, "index.ts");
-        const importers = sourceFiles(sourceRoot).flatMap((file) =>
-            allModuleSpecifiersOf(readFileSync(file, "utf8")).some((specifier) =>
-                resolvesTo(file, specifier, storageEntry)
+    it("leaves physical storage composition to the Host profile", () => {
+        const forbidden = new Set([
+            "@deepseek-ai/dsh-storage",
+            "@deepseek-ai/dsh-storage-sqlite",
+            "@deepseek-ai/dsh-storage-json"
+        ]);
+        expect(
+            sourceFiles(sourceRoot).flatMap((file) =>
+                allModuleSpecifiersOf(readFileSync(file, "utf8")).filter((specifier) =>
+                    forbidden.has(specifier)
+                )
             )
-                ? [relative(sourceRoot, file)]
-                : []
-        );
-        expect(importers).toEqual(["index.ts"]);
+        ).toEqual([]);
     });
 
     it.each(["../runtime/index.js", "@/runtime/index.js"])(

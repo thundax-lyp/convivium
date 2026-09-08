@@ -41,16 +41,6 @@ describe("Convivium runtime config", () => {
         expect(() => Config({ ...validConfig, agentDefinitions: null })).toThrow();
     });
 
-    it("accepts only a controlled relative data root", () => {
-        expect(Config({ ...validConfig, dataRoot: "convivium-data/meetings" }).dataRoot).toBe(
-            "convivium-data/meetings"
-        );
-
-        for (const dataRoot of ["/tmp/convivium", "../outside", "data/../outside", "C:\\temp"]) {
-            expect(() => Config({ ...validConfig, dataRoot })).toThrow(/dataRoot/);
-        }
-    });
-
     it("accepts a non-empty Developer Markdown workspace id", () => {
         expect(
             Config({ ...validConfig, developerMarkdownWorkspaceId: "workspace-1" })

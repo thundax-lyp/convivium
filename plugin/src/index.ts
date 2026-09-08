@@ -1,5 +1,4 @@
 import { parseAgentDefinitions } from "./role-composition/model.js";
-import { resolve } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import type { WorkspaceId } from "@deepseek-ai/dsh-workspace";
@@ -7,7 +6,6 @@ import { Config, type Config as ConfigType } from "./config.js";
 import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
 import { registerLocalMeetingHttpRoutes } from "./http/index.js";
 import { createCreateStatusRuntime, AGENT_CATALOG_SERVICE_KEY } from "./runtime/index.js";
-import { jsonlStoragePlugin } from "./storage/index.js";
 import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "./tools/index.js";
 
 export { Config };
@@ -118,8 +116,5 @@ const meetingConsumerPlugin = {
 };
 
 export async function apply(ctx: Context, config: ConfigType): Promise<void> {
-    await ctx.plugin(jsonlStoragePlugin, {
-        root: resolve(process.cwd(), config.dataRoot ?? ".convivium", "storage")
-    });
     await ctx.plugin(meetingConsumerPlugin, config);
 }
