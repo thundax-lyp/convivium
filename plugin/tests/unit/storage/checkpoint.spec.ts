@@ -1,14 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import {
-    loadPhysicalCheckpoint,
-    writePhysicalCheckpoint
-} from "../../../src/storage/checkpoint.js";
+import { loadPhysicalCheckpoint, writePhysicalCheckpoint } from "@/storage/checkpoint.js";
 import { ScriptedFileSystem } from "../../fixtures/storage/scripted-filesystem.js";
-import { encodeRecord } from "../../../src/storage/format.js";
-import { encodeCanonicalJson, sha256Hex } from "../../../src/storage/canonical-json.js";
-import { openJsonlUnit } from "../../../src/storage/unit.js";
+import { encodeRecord } from "@/storage/format.js";
+import { encodeCanonicalJson, sha256Hex } from "@/storage/canonical-json.js";
+import { openJsonlUnit } from "@/storage/unit.js";
 
 async function fixture() {
     const root = await mkdtemp(join("/tmp", "cp-"));

@@ -1,7 +1,7 @@
-import { applyCompletionClaims } from "../completion.js";
-import { DomainError } from "../errors.js";
-import { queueMeetingTasks } from "../meeting-task.js";
-import type { MeetingState, TransitionResult } from "../model.js";
+import { applyCompletionClaims } from "@/domain/completion.js";
+import { DomainError } from "@/domain/errors.js";
+import { queueMeetingTasks } from "@/domain/meeting-task.js";
+import type { MeetingState, TransitionResult } from "@/domain/model.js";
 import { addSubmittedQuestions } from "./question.js";
 import { addSubmittedIssues } from "./issue.js";
 import { addSubmittedAgendaCandidates } from "./agenda-candidate.js";

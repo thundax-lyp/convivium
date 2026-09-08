@@ -20,11 +20,11 @@ import {
     validateProtocolError,
     validateProtocolSuccessEnvelope,
     type ProtocolErrorV1
-} from "../protocol/index.js";
+} from "@/protocol/index.js";
 import {
     LocalMeetingRecoveryUnavailableError,
     type LocalMeetingWebRuntime
-} from "../runtime/index.js";
+} from "@/runtime/index.js";
 
 const routePrefix = "/api/convivium/meetings";
 const maxBodyBytes = 16_384;

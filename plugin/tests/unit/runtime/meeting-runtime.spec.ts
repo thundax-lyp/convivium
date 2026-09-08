@@ -1,12 +1,12 @@
 import { getEventListeners } from "node:events";
 import { describe, expect, it } from "vitest";
-import { createMeetingRuntime } from "../../../src/runtime/meeting-runtime.js";
-import { rejectUnsupportedTaskEvidence } from "../../../src/runtime/task-evidence.js";
-import type { CreateMeetingInputV1 } from "../../../src/protocol/index.js";
+import { createMeetingRuntime } from "@/runtime/meeting-runtime.js";
+import { rejectUnsupportedTaskEvidence } from "@/runtime/task-evidence.js";
+import type { CreateMeetingInputV1 } from "@/protocol/index.js";
 import {
     defaultTimeoutScanSleep,
     LocalMeetingRecoveryUnavailableError
-} from "../../../src/runtime/application-service/index.js";
+} from "@/runtime/application-service/index.js";
 
 const input: CreateMeetingInputV1 = {
     protocolVersion: 1,

@@ -1,4 +1,4 @@
-import { endMeeting } from "../../../src/domain/transitions/termination.js";
+import { endMeeting } from "@/domain/transitions/termination.js";
 import { questionState, proposalWithBlockingPosition } from "./transitions/fixtures.js";
 import { createLocalDecisionRiskState } from "../../fixtures/local-decision-risk.js";
 import { describe, expect, it } from "vitest";
@@ -8,7 +8,7 @@ import {
     isObjectiveSatisfied,
     type CompletionFact,
     type MeetingState
-} from "../../../src/domain/index.js";
+} from "@/domain/index.js";
 
 const now = 1_700_000_000_000;
 

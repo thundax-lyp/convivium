@@ -2,18 +2,18 @@ import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { describe, expect, it, vi } from "vitest";
-import { DomainMeetingRepository } from "../../src/repository/domain/domain-meeting-repository.js";
+import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
 import { questionState, now } from "../unit/domain/transitions/fixtures.js";
-import { encodeMeetingSessionLabel } from "../../src/dsh/index.js";
-import { reconcileMeetingSessions } from "../../src/runtime/services/meeting-session-recovery.js";
-import { endMeeting } from "../../src/domain/transitions/termination.js";
-import type { MeetingState } from "../../src/domain/model.js";
-import type { DomainEventInput } from "../../src/repository/types.js";
-import type { MeetingDiagnostic } from "../../src/repository/diagnostics.js";
-import { resolveMeetingCaller } from "../../src/dsh/caller-resolver.js";
-import type { AgentDefinitionBindingV1 } from "../../src/role-composition/model.js";
-import type { JsonObject } from "../../src/repository/types.js";
+import { encodeMeetingSessionLabel } from "@/dsh/index.js";
+import { reconcileMeetingSessions } from "@/runtime/services/meeting-session-recovery.js";
+import { endMeeting } from "@/domain/transitions/termination.js";
+import type { MeetingState } from "@/domain/model.js";
+import type { DomainEventInput } from "@/repository/types.js";
+import type { MeetingDiagnostic } from "@/repository/diagnostics.js";
+import { resolveMeetingCaller } from "@/dsh/caller-resolver.js";
+import type { AgentDefinitionBindingV1 } from "@/role-composition/model.js";
+import type { JsonObject } from "@/repository/types.js";
 
 async function fixture(ready = true, definition?: AgentDefinitionBindingV1) {
     const state = questionState();

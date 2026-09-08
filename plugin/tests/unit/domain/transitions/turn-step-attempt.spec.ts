@@ -6,7 +6,7 @@ import {
     transitionManagerAttempt,
     transitionStep,
     transitionTurn
-} from "../../../../src/domain/index.js";
+} from "@/domain/index.js";
 import { attemptContext, managerAttemptContext, meeting, now } from "./fixtures.js";
 
 describe("turn, step and attempt transitions", () => {

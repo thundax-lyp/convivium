@@ -1,5 +1,5 @@
 import { roleCompositionDefinitions } from "../../fixtures/role-composition.js";
-import { resolveMeetingRoles } from "../../../src/role-composition/resolve.js";
+import { resolveMeetingRoles } from "@/role-composition/resolve.js";
 import { describe, expect, it } from "vitest";
 import type { ContinuableStart, ContinuableStartSpec } from "@deepseek-ai/dsh-subagent";
 import {
@@ -9,7 +9,7 @@ import {
     requireContinuableProvider,
     startManagerSession,
     startParticipantSession
-} from "../../../src/dsh/index.js";
+} from "@/dsh/index.js";
 
 const signal = new AbortController().signal;
 

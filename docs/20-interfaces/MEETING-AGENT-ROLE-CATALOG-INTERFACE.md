@@ -395,7 +395,7 @@ payload 值来自同一次 rejection。transition 返回一条 event 且 state.e
 
 ### Public status 与 Archive
 
-`PublicAttendanceRecommendationV1` 新增 optional `rejection?: { reason: string; rejectedAt: number }`。pending 省略，rejected 输出两个字段；不输出 requestId、actorBinding、Manager Session、agentDefinitionId、Catalog private mapping。其他已定义 future status 不由本阶段产生。当前 active/execution-terminal 的授权和排序不变：Captain、matching Manager、仍有效 Participant；local_host/legacy 为 `[]`；archiving/archived 无顶层 attendanceRecommendations。
+`PublicAttendanceRecommendationV1` 新增 optional `rejection?: { reason: string; rejectedAt: number }`。rejected 必须输出精确两个字段；所有其他状态（pending、approved、expired、cancelled）必须完全省略 rejection。独立公开 Schema、active 和 execution-terminal 响应采用同一约束。不输出 requestId、actorBinding、Manager Session、agentDefinitionId、Catalog private mapping。其他已定义 future status 不由本阶段产生。当前 active/execution-terminal 的授权和排序不变：Captain、matching Manager、仍有效 Participant；local_host/legacy 为 `[]`；archiving/archived 无顶层 attendanceRecommendations。
 
 新增 `plugin/src/domain/model.ts::ArchiveAttendanceRejection` 和 `plugin/src/protocol/types.ts::PublicArchiveAttendanceRejectionV1`，结构逐字段相同（全部 required，无 nullable/default）：
 

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { MeetingAgentCatalogSnapshotV1 } from "../../../src/protocol/index.js";
+import type { MeetingAgentCatalogSnapshotV1 } from "@/protocol/index.js";
 import {
     captureManagerCatalogBinding,
     type AgentCatalogPort,
     type AgentCatalogReadFailure
-} from "../../../src/runtime/services/agent-catalog.js";
-import { encodeCanonicalJson } from "../../../src/repository/domain/canonical-json.js";
+} from "@/runtime/services/agent-catalog.js";
+import { encodeCanonicalJson } from "@/repository/domain/canonical-json.js";
 
 const request = {
     teamId: "team-1",

@@ -6,4 +6,4 @@ export {
     type MeetingToolCallerResolver,
     type SubmitAndControlToolDependencies
 } from "./register-tools.js";
-export type { MeetingToolCaller, MeetingToolRuntime } from "../runtime/index.js";
+export type { MeetingToolCaller, MeetingToolRuntime } from "@/runtime/index.js";

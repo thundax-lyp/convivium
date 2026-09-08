@@ -1,12 +1,12 @@
-import type { DiagnosticSink } from "../diagnostics.js";
+import type { DiagnosticSink } from "@/repository/diagnostics.js";
 import type { Domain, DomainFacility, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
-import { RepositoryError } from "../errors.js";
+import { RepositoryError } from "@/repository/errors.js";
 import { UnsupportedMeetingStateFormatError } from "./projection.js";
 import type {
     CreateMeetingInput,
     MeetingSnapshot,
     RepositoryAuthorizationValidator
-} from "../types.js";
+} from "@/repository/types.js";
 import { DomainMeetingRepository } from "./domain-meeting-repository.js";
 import { catalogKey, meetingDomainName } from "./keys.js";
 import { loadProjection } from "./projection.js";

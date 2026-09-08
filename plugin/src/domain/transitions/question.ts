@@ -1,5 +1,5 @@
-import { DomainError } from "../errors.js";
-import type { MeetingState, TransitionResult } from "../model.js";
+import { DomainError } from "@/domain/errors.js";
+import type { MeetingState, TransitionResult } from "@/domain/model.js";
 import type { SubmittedQuestionInput } from "./types.js";
 
 export function addSubmittedQuestions(

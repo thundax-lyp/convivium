@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { openJsonlUnit } from "../../../src/storage/unit.js";
+import { openJsonlUnit } from "@/storage/unit.js";
 
 describe("tail recovery", () => {
     it("truncates incomplete final-line suffix", async () => {

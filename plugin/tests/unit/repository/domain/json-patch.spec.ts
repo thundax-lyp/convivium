@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPatch, diff } from "../../../../src/repository/domain/json-patch.js";
+import { applyPatch, diff } from "@/repository/domain/json-patch.js";
 describe("domain JSON patch", () => {
     it("orders remove, recursive and set operations deterministically", () => {
         const before = { a: [1, 2], remove: true };

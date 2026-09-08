@@ -1,4 +1,4 @@
-import type { OutboxItem, WorkerLease } from "../repository/types.js";
+import type { OutboxItem, WorkerLease } from "@/repository/types.js";
 
 export interface OutboxWorkerRepository {
     claimOutbox(input: WorkerLease & { batchSize: number; now?: number }): Promise<OutboxItem[]>;

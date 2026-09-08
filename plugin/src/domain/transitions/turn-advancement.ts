@@ -1,6 +1,6 @@
-import { judgeTurnCompletion } from "../completion.js";
-import { completedTaskSnapshots, consumeHandRaise } from "../hand-raise.js";
-import { cancelNonTerminalMeetingTasks } from "../meeting-task.js";
+import { judgeTurnCompletion } from "@/domain/completion.js";
+import { completedTaskSnapshots, consumeHandRaise } from "@/domain/hand-raise.js";
+import { cancelNonTerminalMeetingTasks } from "@/domain/meeting-task.js";
 import {
     isParticipantDispatchableNow,
     needsSemanticArbitration,
@@ -9,14 +9,14 @@ import {
     rankRulePlanningCandidates,
     requiredPlanningBlockers,
     type ConvergenceAction
-} from "../planning.js";
+} from "@/domain/planning.js";
 import type {
     MeetingState,
     MeetingTurn,
     ManagerPlanningAttempt,
     SpeakerAttempt,
     TransitionResult
-} from "../model.js";
+} from "@/domain/model.js";
 import type { SubmitSpeakerAdvanceContext } from "./types.js";
 
 type SpeakerAdvanceContext = Pick<

@@ -65,3 +65,4 @@ export {
     validateProtocolSuccessEnvelope
 } from "./schema.js";
 export * from "./types.js";
+export { serializeValidatedRequestV1 } from "./request-idempotency.js";

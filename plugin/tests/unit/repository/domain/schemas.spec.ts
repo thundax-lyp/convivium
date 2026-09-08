@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DomainEventTypes } from "../../../../src/domain/model.js";
+import { DomainEventTypes } from "@/domain/model.js";
 import {
     CatalogMeetingRecordV1Schema,
     CheckpointPageV1Schema,
@@ -15,7 +15,7 @@ import {
     PersistedReceiptV1Schema,
     AgentDefinitionBindingSchema,
     PersistenceProjectionV1Schema
-} from "../../../../src/repository/domain/schemas.js";
+} from "@/repository/domain/schemas.js";
 
 describe("Meeting persistence record schemas", () => {
     const ownership = {

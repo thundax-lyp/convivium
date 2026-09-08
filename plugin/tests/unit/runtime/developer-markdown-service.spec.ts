@@ -7,9 +7,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
     createDeveloperMarkdownService,
     type DeveloperMarkdownWarning
-} from "../../../src/runtime/services/developer-markdown-service.js";
-import type { MeetingRepositoryPort } from "../../../src/repository/meeting-repository-port.js";
-import type { MeetingSnapshot } from "../../../src/repository/types.js";
+} from "@/runtime/services/developer-markdown-service.js";
+import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
+import type { MeetingSnapshot } from "@/repository/types.js";
 import { archivePackage, meeting, now } from "../domain/transitions/fixtures.js";
 
 const roots: string[] = [];

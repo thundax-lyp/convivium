@@ -1,6 +1,6 @@
-import { isObjectiveSatisfied } from "../completion.js";
-import { DomainError } from "../errors.js";
-import type { MeetingState, MeetingStatus } from "../model.js";
+import { isObjectiveSatisfied } from "@/domain/completion.js";
+import { DomainError } from "@/domain/errors.js";
+import type { MeetingState, MeetingStatus } from "@/domain/model.js";
 
 export const terminationCodesByStatus: Readonly<Record<MeetingStatus, readonly string[]>> = {
     created: [],

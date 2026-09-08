@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addSubmittedQuestions } from "../../../../src/domain/index.js";
+import { addSubmittedQuestions } from "@/domain/index.js";
 import { now, questionState } from "./fixtures.js";
 
 describe("submitted meeting questions", () => {

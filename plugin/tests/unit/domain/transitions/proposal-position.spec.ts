@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applySubmittedProposalPositionClaims } from "../../../../src/domain/index.js";
+import { applySubmittedProposalPositionClaims } from "@/domain/index.js";
 import { now, questionState } from "./fixtures.js";
 
 const proposal = {

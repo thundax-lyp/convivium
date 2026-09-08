@@ -1,17 +1,17 @@
-import { endMeeting as endMeetingTransition, type MeetingState } from "../../domain/index.js";
-import type { EndMeetingInputV1, EndMeetingResultV1 } from "../../protocol/index.js";
-import { RepositoryError } from "../../repository/errors.js";
-import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
+import { endMeeting as endMeetingTransition, type MeetingState } from "@/domain/index.js";
+import type { EndMeetingInputV1, EndMeetingResultV1 } from "@/protocol/index.js";
+import { RepositoryError } from "@/repository/errors.js";
+import type { DomainEventInput, JsonObject } from "@/runtime/meeting-runtime.js";
 import {
     commandFailure as failure,
     commandSuccess as success,
     mapCommandError as commandError
-} from "../services/command-result-service.js";
+} from "@/runtime/services/command-result-service.js";
 import {
     LocalMeetingRecoveryUnavailableError,
     type MeetingRehydrationService
-} from "../services/meeting-recovery-service.js";
-import type { MeetingDeliveryWorkerService } from "../services/types.js";
+} from "@/runtime/services/meeting-recovery-service.js";
+import type { MeetingDeliveryWorkerService } from "@/runtime/services/types.js";
 import type {
     CreateStatusRuntimeOptions,
     LocalMeetingWebRuntime,

@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
     DomainRepositoryRegistry,
     type DomainFacilityPort
-} from "../../src/repository/domain/domain-repository-registry.js";
-import { createCommitRecord, createProjection } from "../../src/repository/domain/projection.js";
-import { catalogKey, meetingDomainName, seqKey } from "../../src/repository/domain/keys.js";
-import { RepositoryError } from "../../src/repository/errors.js";
+} from "@/repository/domain/domain-repository-registry.js";
+import { createCommitRecord, createProjection } from "@/repository/domain/projection.js";
+import { catalogKey, meetingDomainName, seqKey } from "@/repository/domain/keys.js";
+import { RepositoryError } from "@/repository/errors.js";
 import {
     createFakeCatalogDomain,
     createFakeMeetingDomain,

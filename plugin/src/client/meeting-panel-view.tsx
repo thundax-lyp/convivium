@@ -11,7 +11,7 @@ import type {
     PublicProposalV1,
     PublicHandRaiseV1,
     PublicTerminationV1
-} from "../protocol/index.js";
+} from "@/protocol/index.js";
 
 export interface MeetingPanelView {
     readonly proposals: readonly PublicProposalV1[];

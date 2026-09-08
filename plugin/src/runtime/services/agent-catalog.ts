@@ -1,9 +1,9 @@
-import type { ManagerCatalogBindingV1, MeetingAgentCatalogSnapshot } from "../../domain/model.js";
+import type { ManagerCatalogBindingV1, MeetingAgentCatalogSnapshot } from "@/domain/index.js";
 import {
     MeetingAgentCatalogSnapshotSchema,
     type MeetingAgentCatalogSnapshotV1
-} from "../../protocol/index.js";
-import { encodeCanonicalJson } from "../../repository/domain/canonical-json.js";
+} from "@/protocol/index.js";
+import { encodeCanonicalJson } from "@/repository/domain/canonical-json.js";
 
 export const AGENT_CATALOG_SERVICE_KEY = "convivium.agentCatalog";
 

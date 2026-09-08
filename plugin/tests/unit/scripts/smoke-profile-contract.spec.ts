@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateScenarioResult as validateResult } from "../../../scripts/smoke-profile/index.mjs";
-import { MeetingStatusResultSchema } from "../../../src/protocol/status.js";
+import { MeetingStatusResultSchema } from "@/protocol/status.js";
 import { createConvergenceFixture } from "./convergence-fixture.js";
 const validateScenarioResult = (value: unknown, scenario: string) =>
     validateResult(value, scenario, MeetingStatusResultSchema);

@@ -1,4 +1,4 @@
-import type { ProtocolErrorV1, ProtocolSuccessV1 } from "../../protocol/index.js";
+import type { ProtocolErrorV1, ProtocolSuccessV1 } from "@/protocol/index.js";
 
 export function commandSuccess<T>(
     meetingId: string,

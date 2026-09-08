@@ -1,19 +1,15 @@
-import {
-    DomainError,
-    isMeetingStateV2,
-    rejectAttendanceRecommendation
-} from "../../domain/index.js";
-import type { CaptainAttendanceDispositionResultV1 } from "../../protocol/index.js";
-import { serializeValidatedRequestV1 } from "../../protocol/request-idempotency.js";
+import { DomainError, isMeetingStateV2, rejectAttendanceRecommendation } from "@/domain/index.js";
+import type { CaptainAttendanceDispositionResultV1 } from "@/protocol/index.js";
+import { serializeValidatedRequestV1 } from "@/protocol/index.js";
 import type { CreateStatusRuntimeOptions, MeetingToolRuntime } from "./index.js";
 import type { StoredMeeting } from "./types.js";
-import type { MeetingRehydrationService } from "../services/meeting-recovery-service.js";
+import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
 import {
     commandFailure,
     commandSuccess,
     mapCommandError
-} from "../services/command-result-service.js";
-import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
+} from "@/runtime/services/command-result-service.js";
+import type { DomainEventInput, JsonObject } from "@/runtime/meeting-runtime.js";
 
 export interface MeetingAttendanceApplicationOptions {
     readonly options: CreateStatusRuntimeOptions;

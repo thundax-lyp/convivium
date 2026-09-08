@@ -7,7 +7,7 @@ import {
     planRoundRobinTurn,
     type CanonicalIdAllocator,
     type CreateMeetingSpec
-} from "../../../src/domain/index.js";
+} from "@/domain/index.js";
 
 const ids: CanonicalIdAllocator = {
     allocate: (kind, key) => `${kind}:${key}`

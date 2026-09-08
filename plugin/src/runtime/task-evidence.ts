@@ -1,4 +1,4 @@
-import { DomainError, type MeetingState } from "../domain/index.js";
+import { DomainError, type MeetingState } from "@/domain/index.js";
 
 export interface AuthorizedTaskEvidence {
     meetingId: string;

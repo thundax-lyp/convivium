@@ -1,7 +1,7 @@
-import type { AgentDefinitionBindingV1 } from "../role-composition/model.js";
+import type { AgentDefinitionBindingV1 } from "@/role-composition/model.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 
-import type { ProtocolErrorV1 } from "../protocol/index.js";
+import type { ProtocolErrorV1 } from "@/protocol/index.js";
 import { decodeMeetingSessionLabel } from "./labels.js";
 
 export interface ResolvedMeetingCaller {

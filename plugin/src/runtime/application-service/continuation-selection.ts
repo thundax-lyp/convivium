@@ -1,7 +1,7 @@
-import type { ArchivePackage, CreateContinuationSpec, MeetingState } from "../../domain/index.js";
-import type { CreateMeetingInputV1 } from "../../protocol/index.js";
-import { commandFailure } from "../services/command-result-service.js";
-import type { MeetingRehydrationService } from "../services/meeting-recovery-service.js";
+import type { ArchivePackage, CreateContinuationSpec, MeetingState } from "@/domain/index.js";
+import type { CreateMeetingInputV1 } from "@/protocol/index.js";
+import { commandFailure } from "@/runtime/services/command-result-service.js";
+import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
 import type { MeetingToolCaller, StoredMeeting } from "./types.js";
 
 type ContinuationResolution =

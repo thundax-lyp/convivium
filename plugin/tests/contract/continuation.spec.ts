@@ -7,14 +7,14 @@ import { Context } from "@deepseek-ai/cordis";
 import Storage from "@deepseek-ai/dsh-storage";
 import * as storageDomainPlugin from "@deepseek-ai/dsh-storage-domain";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
-import type { ArchivePackage, MeetingState } from "../../src/domain/index.js";
-import { openMeetingRepository } from "../../src/runtime/index.js";
-import { createCreateStatusRuntime } from "../../src/runtime/application-service/index.js";
+import type { ArchivePackage, MeetingState } from "@/domain/index.js";
+import { openMeetingRepository } from "@/runtime/index.js";
+import { createCreateStatusRuntime } from "@/runtime/application-service/index.js";
 import {
     DomainRepositoryRegistry,
     type DomainFacilityPort
-} from "../../src/repository/domain/domain-repository-registry.js";
-import { jsonlStoragePlugin } from "../../src/storage/index.js";
+} from "@/repository/domain/domain-repository-registry.js";
+import { jsonlStoragePlugin } from "@/storage/index.js";
 
 const roots: string[] = [];
 const storageContexts: Array<Promise<Context>> = [];

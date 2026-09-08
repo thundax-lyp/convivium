@@ -5,14 +5,14 @@ import type {
     ProtocolErrorV1,
     ProtocolSuccessV1,
     SendMeetingMessageInputV1
-} from "../../protocol/index.js";
+} from "@/protocol/index.js";
 import {
     commandFailure,
     commandSuccess,
     mapCommandError
-} from "../services/command-result-service.js";
-import type { MeetingRehydrationService } from "../services/meeting-recovery-service.js";
-import type { MeetingDeliveryWorkerService } from "../services/types.js";
+} from "@/runtime/services/command-result-service.js";
+import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
+import type { MeetingDeliveryWorkerService } from "@/runtime/services/types.js";
 import type { CreateStatusRuntimeOptions, MeetingToolCaller } from "./index.js";
 import type { StoredMeeting } from "./types.js";
 

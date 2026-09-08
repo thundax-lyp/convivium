@@ -1,13 +1,13 @@
-import type { DiagnosticSink } from "../../repository/diagnostics.js";
-import type { MeetingAgentDefinitionV1 } from "../../role-composition/model.js";
+import type { DiagnosticSink } from "@/repository/diagnostics.js";
+import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
 import type { DomainFacility } from "@deepseek-ai/dsh-storage-domain";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { DomainFacilityPort } from "../../repository/domain/domain-repository-registry.js";
-import type { RepositoryAuthorizationValidator } from "../meeting-runtime.js";
-import type { AuthorizedTaskEvidenceResolver } from "../task-evidence.js";
-import type { AgentCatalogPort } from "../services/agent-catalog.js";
-import type { DeveloperMarkdownWarning } from "../services/developer-markdown-service.js";
-import type { MeetingOwnershipLookup } from "../../dsh/index.js";
+import type { DomainFacilityPort } from "@/repository/domain/domain-repository-registry.js";
+import type { RepositoryAuthorizationValidator } from "@/runtime/meeting-runtime.js";
+import type { AuthorizedTaskEvidenceResolver } from "@/runtime/task-evidence.js";
+import type { AgentCatalogPort } from "@/runtime/services/agent-catalog.js";
+import type { DeveloperMarkdownWarning } from "@/runtime/services/developer-markdown-service.js";
+import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type {
     CaptainAttendanceDispositionInputV1,
     CaptainAttendanceDispositionResultV1,
@@ -50,9 +50,9 @@ import type {
     CaptainDecisionDispositionResultV1,
     CaptainAgendaCandidateDispositionInputV1,
     CaptainAgendaCandidateDispositionResultV1
-} from "../../protocol/index.js";
+} from "@/protocol/index.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { MeetingRepositoryRuntime } from "../meeting-runtime.js";
+import type { MeetingRepositoryRuntime } from "@/runtime/meeting-runtime.js";
 
 export interface StoredMeeting {
     readonly teamId: string;

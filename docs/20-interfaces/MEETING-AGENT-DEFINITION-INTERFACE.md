@@ -136,7 +136,7 @@ Runtime 配置限制：最多 64 项；每项完整 JSON UTF-8 不超过 16 KiB�
 
 选定定义缺失、角色不匹配、Preset/Skill 校验失败或服务缺失，抛出 `RoleCompositionError`，`code="UNSUPPORTED_CAPABILITY"`，公开返回同名已有协议错误、retryable=false、固定 message `Meeting role composition is unavailable.`。取消沿既有取消路径，不改写为成功。原有未选择 Definition 的请求不要求 agentPresets/skills service。
 
-解析发生在 createMeetingRuntime 的受保护创建阶段、第一个 ownership/child 分配之前。允许留下既有创建 bootstrap；失败按既有 creation_failed 规则记录，不能发布 ready Meeting。ready 请求重放必须先使用已有结果，不访问当前 Definition 配置或 Skill registry；原 input/requestId/hash 继续决定重放及冲突，定义内容不加入创建请求 hash。失败创建的再次尝试不得用同一已写 ownership 偷换定义。
+解析发生在 createMeetingRuntime 的受保护创建阶段、第一个 ownership/child 分配之前。允许留下既有创建 bootstrap；失败按既有 creation_failed 规则记录，不能发布 ready Meeting。ready 请求重放必须先使用已有结果，不访问当前 Definition 配置或 Skill registry；原 input/requestId/hash 继续决定重放及冲突，定义内容不加入创建请求 hash。creation_failed 请求重放也必须在解析配置和创建 Session 前停止，即使当前宿主已补齐能力且首次失败没有 ownership。角色预检失败以 `RoleCompositionError` 保存到既有 failureCode，并重放上述固定公开错误；历史仅记为 `Error` 的记录无法还原失败类别，沿用通用创建错误，但同样不得再次 provisioning。修正能力后重新创建必须使用新 requestId。
 
 DSH continuable descriptor 是已注入 persona/toolFilter/agentOptions 的持久所有者。恢复不重新解析当前定义、不重放 hook；本次保证在 Host Preset/Skill 部署不变时恢复配置一致，不承诺把 Host Preset/Skill 内容做历史快照。变更 DSH 部署后的可恢复性属于宿主运维边界。
 

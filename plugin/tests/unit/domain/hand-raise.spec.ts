@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createHandRaise } from "../../../src/domain/hand-raise.js";
-import type { MeetingState } from "../../../src/domain/model.js";
+import { createHandRaise } from "@/domain/hand-raise.js";
+import type { MeetingState } from "@/domain/model.js";
 
 function state(overrides: Partial<MeetingState> = {}): MeetingState {
     return {

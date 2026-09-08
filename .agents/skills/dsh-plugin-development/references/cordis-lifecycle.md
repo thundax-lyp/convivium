@@ -6,7 +6,7 @@
 
 DSH 是 Cordis plugin harness。Context 是 Service 容器；Provider 占用稳定的 `ctx.<key>`，Consumer 在 `inject` 中声明这些 key。是否就绪由拓扑而非启动顺序决定。把行为放在能拥有它的最小现有 Service、event、tool、profile 或 durable Session extension 上。Agent loop 是组合叶节点；插件扩展点足以表达行为时不要修改 loop。
 
-Loader 有两种入口。Service 包默认导出 Service class；函数插件具名导出 `name`、`inject`、可选 `Config` 和 `apply`，且没有 default export。不要混用。只有已声明 injection 的 Service 才通过 context property 访问；可选 Service 使用 `ctx.get(name)` 并处理 `undefined`。
+Loader 有两种入口。Service 包默认导出 Service class；函数插件具名导出 `name`、`apply`，并按依赖与配置需要声明 `inject`、`Config`，且没有 default export。没有 Service 依赖时无需导出空 `inject`。不要混用。只有已声明 injection 的 Service 才通过 context property 访问；可选 Service 使用 `ctx.get(name)` 并处理 `undefined`。
 
 ## 生命周期与 effect
 

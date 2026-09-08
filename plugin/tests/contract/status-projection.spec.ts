@@ -1,13 +1,13 @@
-import { materializeArchivePackage } from "../../src/runtime/services/meeting-archive-service.js";
+import { materializeArchivePackage } from "@/runtime/services/meeting-archive-service.js";
 import { meeting as domainMeeting } from "../unit/domain/transitions/fixtures.js";
 import { meeting } from "../unit/domain/transitions/fixtures.js";
-import type { MeetingState } from "../../src/domain/model.js";
+import type { MeetingState } from "@/domain/model.js";
 import {
     projectManagerMeetingContext,
     projectMeetingStatus,
     projectSpeakerMeetingContext
-} from "../../src/projection/index.js";
-import { MeetingStatusResultSchema } from "../../src/protocol/index.js";
+} from "@/projection/index.js";
+import { MeetingStatusResultSchema } from "@/protocol/index.js";
 import { describe, expect, it } from "vitest";
 
 const state = {

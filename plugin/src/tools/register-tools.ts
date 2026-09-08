@@ -25,8 +25,8 @@ import type {
     FinishMeetingMailInputV1,
     SendMeetingMessageInputV1,
     TurnSubmissionV1
-} from "../protocol/index.js";
-import type { MeetingToolCaller, MeetingToolRuntime } from "../runtime/index.js";
+} from "@/protocol/index.js";
+import type { MeetingToolCaller, MeetingToolRuntime } from "@/runtime/index.js";
 import {
     CreateMeetingInputSchema,
     EndMeetingInputSchema,
@@ -49,7 +49,7 @@ import {
     FinishMeetingMailInputSchema,
     SendMeetingMessageInputSchema,
     validateProtocolError
-} from "../protocol/index.js";
+} from "@/protocol/index.js";
 
 export interface MeetingToolCallerResolver {
     resolve(agent: Agent, signal: AbortSignal): Promise<MeetingToolCaller | ProtocolErrorV1>;

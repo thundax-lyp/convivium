@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addSubmittedIssues } from "../../../../src/domain/index.js";
+import { addSubmittedIssues } from "@/domain/index.js";
 import { questionState } from "./fixtures.js";
 
 const issue = {

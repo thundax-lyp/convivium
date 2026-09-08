@@ -1,4 +1,4 @@
-import type { MeetingDiagnostic } from "../../../src/repository/diagnostics.js";
+import type { MeetingDiagnostic } from "@/repository/diagnostics.js";
 import { meeting } from "../domain/transitions/fixtures.js";
 import {
     beginArchiveFromTermination,
@@ -8,9 +8,9 @@ import {
     recoverArchive,
     requireExpectedArchiveOwnerships,
     terminationIdentity
-} from "../../../src/runtime/services/meeting-archive-service.js";
-import type { MeetingState } from "../../../src/domain/model.js";
-import type { RepositoryCommand } from "../../../src/repository/types.js";
+} from "@/runtime/services/meeting-archive-service.js";
+import type { MeetingState } from "@/domain/model.js";
+import type { RepositoryCommand } from "@/repository/types.js";
 import { describe, expect, it } from "vitest";
 
 const state = {

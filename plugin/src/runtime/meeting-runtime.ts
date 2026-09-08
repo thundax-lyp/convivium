@@ -1,6 +1,6 @@
-import type { MeetingAgentDefinitionV1 } from "../role-composition/model.js";
-import { resolveMeetingRoles } from "../role-composition/resolve.js";
-import { validateSharedRoleCapabilities } from "../role-composition/dsh-capabilities.js";
+import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
+import { resolveMeetingRoles, RoleCompositionError } from "@/role-composition/resolve.js";
+import { validateSharedRoleCapabilities } from "@/role-composition/dsh-capabilities.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import {
@@ -8,25 +8,25 @@ import {
     type CanonicalIdAllocator,
     type CreateContinuationSpec,
     type MeetingLimits
-} from "../domain/index.js";
+} from "@/domain/index.js";
 import {
     encodeMeetingSessionLabel,
     startManagerSession,
     startParticipantSession
-} from "../dsh/index.js";
+} from "@/dsh/index.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import { DomainRepositoryRegistry } from "../repository/domain/domain-repository-registry.js";
-import type { DomainMeetingRepository } from "../repository/domain/domain-meeting-repository.js";
+import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
+import type { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
 import type {
     CommandAuthorization,
     CreateMeetingInput,
     DomainEventInput,
     JsonObject
-} from "../repository/types.js";
-import type { MeetingRepositoryPort as MeetingRepositoryType } from "../repository/meeting-repository-port.js";
-import type { RepositoryAuthorizationValidator } from "../repository/types.js";
-import type { CreateMeetingInputV1 } from "../protocol/index.js";
-import type { JsonValue } from "../repository/domain/canonical-json.js";
+} from "@/repository/types.js";
+import type { MeetingRepositoryPort as MeetingRepositoryType } from "@/repository/meeting-repository-port.js";
+import type { RepositoryAuthorizationValidator } from "@/repository/types.js";
+import type { CreateMeetingInputV1 } from "@/protocol/index.js";
+import type { JsonValue } from "@/repository/domain/canonical-json.js";
 
 export interface MeetingRepositoryOpenInput {
     readonly registry: Promise<DomainRepositoryRegistry>;
@@ -221,7 +221,11 @@ export async function createMeetingRuntime(
             continuation: dependencies.continuation
         });
     const { state, createInput } = prepared;
-    await dependencies.repository.create(createInput);
+    const bootstrap = await dependencies.repository.create(createInput);
+    if (bootstrap.status === "creation_failed") {
+        if (bootstrap.failureCode === "RoleCompositionError") throw new RoleCompositionError();
+        throw new Error("Meeting creation previously failed.");
+    }
     const ownerships: { sessionId: SessionId }[] = [];
     try {
         const roles = await resolveMeetingRoles(

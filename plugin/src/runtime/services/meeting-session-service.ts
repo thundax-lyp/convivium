@@ -1,6 +1,6 @@
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { MeetingState } from "../../domain/index.js";
-import type { MeetingRepositoryRuntime } from "../meeting-runtime.js";
+import type { MeetingState } from "@/domain/index.js";
+import type { MeetingRepositoryRuntime } from "@/runtime/meeting-runtime.js";
 
 export type ArchiveCleanupRuntime = Pick<
     SubagentRuntime,

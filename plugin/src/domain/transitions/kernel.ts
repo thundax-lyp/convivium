@@ -1,4 +1,4 @@
-import { DomainError, invalidStateTransition } from "../errors.js";
+import { DomainError, invalidStateTransition } from "@/domain/errors.js";
 import type {
     AttemptStatus,
     AttemptTransitionContext,
@@ -13,7 +13,7 @@ import type {
     StepStatus,
     TransitionResult,
     TurnStatus
-} from "../model.js";
+} from "@/domain/model.js";
 
 export const meetingTransitions: Readonly<Record<MeetingStatus, readonly MeetingStatus[]>> = {
     created: ["running", "paused", "cancelled", "failed"],

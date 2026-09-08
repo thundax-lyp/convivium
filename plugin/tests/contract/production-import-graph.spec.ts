@@ -28,8 +28,10 @@ function staticSpecifiers(file: string): string[] {
 }
 
 function resolveLocal(importer: string, specifier: string): string | undefined {
-    if (!specifier.startsWith(".")) return undefined;
-    const base = resolve(dirname(importer), specifier.replace(/\.(?:m?js|tsx?)$/, ""));
+    if (!specifier.startsWith(".") && !specifier.startsWith("@/")) return undefined;
+    const base = specifier.startsWith("@/")
+        ? resolve(sourceRoot, specifier.slice(2).replace(/\.(?:m?js|tsx?)$/, ""))
+        : resolve(dirname(importer), specifier.replace(/\.(?:m?js|tsx?)$/, ""));
     for (const candidate of [
         `${base}.ts`,
         `${base}.tsx`,

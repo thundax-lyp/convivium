@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { JsonObject } from "../types.js";
+import type { JsonObject } from "@/repository/types.js";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };

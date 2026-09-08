@@ -1,19 +1,13 @@
 import { describe, expect, it } from "vitest";
-import {
-    encodeCanonicalJson,
-    sha256Hex
-} from "../../../../src/repository/domain/canonical-json.js";
-import { generation, seqKey } from "../../../../src/repository/domain/keys.js";
+import { encodeCanonicalJson, sha256Hex } from "@/repository/domain/canonical-json.js";
+import { generation, seqKey } from "@/repository/domain/keys.js";
 import {
     createCommitRecord,
     createProjection,
     loadProjection,
     projectionDigest
-} from "../../../../src/repository/domain/projection.js";
-import {
-    collectApplicationOrphans,
-    writeCheckpoint
-} from "../../../../src/repository/domain/checkpoint.js";
+} from "@/repository/domain/projection.js";
+import { collectApplicationOrphans, writeCheckpoint } from "@/repository/domain/checkpoint.js";
 import { createFakeMeetingDomain } from "../../../../tests/fixtures/domain-storage.js";
 
 const makeProjection = (requestId = "r") =>

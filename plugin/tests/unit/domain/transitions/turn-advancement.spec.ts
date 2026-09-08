@@ -4,7 +4,7 @@ import {
     advanceAfterSpeakerSubmission,
     createProgressFingerprint,
     hasBlockingDisagreement
-} from "../../../../src/domain/transitions/turn-advancement.js";
+} from "@/domain/transitions/turn-advancement.js";
 import { meeting, now } from "./fixtures.js";
 
 function runningMeeting(selectionMode: "rule_based" | "manager" = "rule_based") {

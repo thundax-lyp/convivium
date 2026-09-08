@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { parseAgentDefinitions } from "../../../src/role-composition/model.js";
-import {
-    resolveMeetingRoles,
-    RoleCompositionError
-} from "../../../src/role-composition/resolve.js";
+import { parseAgentDefinitions } from "@/role-composition/model.js";
+import { resolveMeetingRoles, RoleCompositionError } from "@/role-composition/resolve.js";
 
 const manager = {
     agentDefinitionId: "manager",

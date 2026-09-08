@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { submitSpeakerAndAdvanceMeeting } from "../../../../src/domain/index.js";
+import { submitSpeakerAndAdvanceMeeting } from "@/domain/index.js";
 import { meeting, now } from "./fixtures.js";
 
 describe("speaker submission and turn advancement", () => {

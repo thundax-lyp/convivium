@@ -1,5 +1,5 @@
 import { meeting, archivePackage } from "../unit/domain/transitions/fixtures.js";
-import { projectMeetingStatus } from "../../src/projection/index.js";
+import { projectMeetingStatus } from "@/projection/index.js";
 import { describe, expect, it } from "vitest";
 import {
     CaptainAttendanceDispositionInputSchema,
@@ -32,7 +32,7 @@ import {
     CaptainDecisionDispositionResultSchema,
     validateReassignTurnInput,
     TurnSubmissionSchema
-} from "../../src/protocol/index.js";
+} from "@/protocol/index.js";
 
 describe("protocol envelope schemas", () => {
     describe("agenda candidate disposition protocol", () => {
@@ -1493,8 +1493,7 @@ describe("Captain attendance rejection schema", () => {
         ).toThrow();
     });
     it("uses validated order for the request hash while preserving reason whitespace", async () => {
-        const { serializeValidatedRequestV1 } =
-            await import("../../src/protocol/request-idempotency.js");
+        const { serializeValidatedRequestV1 } = await import("@/protocol/request-idempotency.js");
         const first = CaptainAttendanceDispositionInputSchema(input);
         const reordered = CaptainAttendanceDispositionInputSchema(
             Object.fromEntries(Object.entries(input).reverse())
@@ -1549,9 +1548,22 @@ it("validates public rejection shapes consistently in standalone, active and ter
     ]) {
         expect(() => check({ ...recommendation, rejection }), JSON.stringify(rejection)).toThrow();
     }
-    expect(() => check({ ...recommendation, status: "pending" })).toThrow();
-    const { rejection: _rejection, ...pending } = recommendation;
-    expect(() => check({ ...pending, status: "pending" })).not.toThrow();
+    const validators = [
+        (value) => PublicAttendanceRecommendationSchema(value),
+        ...statuses.map(
+            (status) => (value) =>
+                MeetingStatusResultSchema({ ...status, attendanceRecommendations: [value] })
+        )
+    ];
+    const { rejection: _rejection, ...withoutRejection } = recommendation;
+    for (const validate of validators) {
+        expect(() => validate(recommendation)).not.toThrow();
+        expect(() => validate(withoutRejection)).toThrow();
+        for (const status of ["pending", "approved", "expired", "cancelled"]) {
+            expect(() => validate({ ...recommendation, status }), status).toThrow();
+            expect(() => validate({ ...withoutRejection, status }), status).not.toThrow();
+        }
+    }
 });
 it("validates exact nonempty unique archive rejections while preserving old packages", () => {
     const archive = archivePackage();

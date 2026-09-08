@@ -1,8 +1,8 @@
-import { isMeetingMinutesDraft } from "../meeting-state-validation.js";
+import { isMeetingMinutesDraft } from "@/domain/meeting-state-validation.js";
 
 import { projectAttendanceRejections } from "./attendance-rejection.js";
-import { DomainError } from "../errors.js";
-import type { ArchiveInput, ArchiveRecord, MeetingState } from "../model.js";
+import { DomainError } from "@/domain/errors.js";
+import type { ArchiveInput, ArchiveRecord, MeetingState } from "@/domain/model.js";
 import { terminationReferencesBelongToMeeting } from "./meeting-guards.js";
 
 export function sameTermination(

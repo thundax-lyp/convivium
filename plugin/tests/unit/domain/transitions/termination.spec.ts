@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DomainError, endMeeting } from "../../../../src/domain/index.js";
+import { DomainError, endMeeting } from "@/domain/index.js";
 import { meeting, now } from "./fixtures.js";
 
 describe("meeting termination", () => {

@@ -1,19 +1,19 @@
-import { RoleCompositionError } from "../../role-composition/resolve.js";
+import { RoleCompositionError } from "@/role-composition/resolve.js";
 import { createHash } from "node:crypto";
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import { interruptAndDrainOwnedSessions } from "../../dsh/index.js";
+import { interruptAndDrainOwnedSessions } from "@/dsh/index.js";
 import {
     needsSemanticArbitration,
     nextManagerPlanningIds,
     rankRulePlanningCandidates,
     startManagerPlanning,
     type MeetingState
-} from "../../domain/index.js";
-import type { CreateMeetingInputV1, CreateMeetingResultV1 } from "../../protocol/index.js";
-import type { DomainRepositoryRegistry } from "../../repository/domain/domain-repository-registry.js";
-import { commandFailure, commandSuccess } from "../services/command-result-service.js";
-import type { MeetingRehydrationService } from "../services/meeting-recovery-service.js";
-import type { MeetingDeliveryWorkerService } from "../services/types.js";
+} from "@/domain/index.js";
+import type { CreateMeetingInputV1, CreateMeetingResultV1 } from "@/protocol/index.js";
+import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
+import { commandFailure, commandSuccess } from "@/runtime/services/command-result-service.js";
+import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
+import type { MeetingDeliveryWorkerService } from "@/runtime/services/types.js";
 import {
     createMeetingRuntime,
     openMeetingRepository,
@@ -21,11 +21,11 @@ import {
     type DomainEventInput,
     type JsonObject,
     type MeetingCreationRuntimeDependencies
-} from "../meeting-runtime.js";
+} from "@/runtime/meeting-runtime.js";
 import { initializeFirstMeetingTurn } from "./meeting-turn.js";
 import type { CreateStatusRuntimeOptions, MeetingToolCaller } from "./index.js";
 import type { StoredMeeting } from "./types.js";
-import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
+import { captureManagerCatalogBinding } from "@/runtime/services/agent-catalog.js";
 import { resolveContinuationSelection } from "./continuation-selection.js";
 
 function stableMeetingId(input: CreateMeetingInputV1): string {

@@ -1,5 +1,5 @@
-import type { AgentDefinitionBindingV1 } from "../role-composition/model.js";
-import type { DomainEventType } from "../domain/model.js";
+import type { AgentDefinitionBindingV1 } from "@/role-composition/model.js";
+import type { DomainEventType } from "@/domain/index.js";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };

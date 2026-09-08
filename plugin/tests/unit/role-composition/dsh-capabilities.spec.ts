@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { validateSharedRoleCapabilities } from "../../../src/role-composition/dsh-capabilities.js";
-import { parseAgentDefinitions } from "../../../src/role-composition/model.js";
+import { validateSharedRoleCapabilities } from "@/role-composition/dsh-capabilities.js";
+import { parseAgentDefinitions } from "@/role-composition/model.js";
 
 const definitions = parseAgentDefinitions([
     {

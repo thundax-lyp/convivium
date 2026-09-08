@@ -6,7 +6,7 @@ import {
     resolveMeetingCaller,
     type MeetingOwnershipLookup,
     type MeetingOwnershipRecord
-} from "../../../src/dsh/caller-resolver.js";
+} from "@/dsh/caller-resolver.js";
 
 function agent(id: string): Agent {
     return { id: SessionId(id) } as Agent;

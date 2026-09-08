@@ -1,6 +1,6 @@
-import { DomainError } from "../errors.js";
-import { isMeetingStateV2 } from "../meeting-state-validation.js";
-import type { ArchiveAttendanceRejection, MeetingState, TransitionResult } from "../model.js";
+import { DomainError } from "@/domain/errors.js";
+import { isMeetingStateV2 } from "@/domain/meeting-state-validation.js";
+import type { ArchiveAttendanceRejection, MeetingState, TransitionResult } from "@/domain/model.js";
 
 export interface RejectAttendanceRecommendationInput {
     readonly meetingId: string;

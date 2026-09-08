@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeCanonicalJson, encodeCanonicalJson } from "../../../src/storage/canonical-json.js";
+import { decodeCanonicalJson, encodeCanonicalJson } from "@/storage/canonical-json.js";
 
 describe("canonical JSON", () => {
     it("sorts object keys and preserves arrays", () => {

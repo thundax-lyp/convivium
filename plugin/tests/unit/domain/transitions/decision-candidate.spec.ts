@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addSubmittedDecisionCandidates } from "../../../../src/domain/index.js";
+import { addSubmittedDecisionCandidates } from "@/domain/index.js";
 import { now, questionState } from "./fixtures.js";
 
 function stateWithProposal() {

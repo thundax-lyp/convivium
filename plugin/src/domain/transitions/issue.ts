@@ -1,5 +1,5 @@
-import { DomainError } from "../errors.js";
-import type { MeetingIssue, MeetingState, TransitionResult } from "../model.js";
+import { DomainError } from "@/domain/errors.js";
+import type { MeetingIssue, MeetingState, TransitionResult } from "@/domain/model.js";
 import type { SubmittedIssueInput } from "./types.js";
 
 function unique(values: readonly string[]): boolean {

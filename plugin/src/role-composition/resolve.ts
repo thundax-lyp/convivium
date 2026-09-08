@@ -23,6 +23,7 @@ export interface ResolvedMeetingRoles {
     readonly participants: Readonly<Record<string, ResolvedRoleComposition>>;
 }
 export class RoleCompositionError extends Error {
+    readonly name = "RoleCompositionError";
     readonly code = "UNSUPPORTED_CAPABILITY";
     constructor() {
         super("Meeting role composition is unavailable.");

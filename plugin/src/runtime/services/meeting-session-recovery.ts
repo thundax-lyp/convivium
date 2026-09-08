@@ -1,5 +1,5 @@
 import { rebindCaptainParent } from "./meeting-recovery-service.js";
-import { emitDiagnostic, type DiagnosticSink } from "../../repository/diagnostics.js";
+import { emitDiagnostic, type DiagnosticSink } from "@/repository/diagnostics.js";
 import { randomUUID } from "node:crypto";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
@@ -8,10 +8,10 @@ import {
     startManagerSession,
     startParticipantSession,
     interruptAndDrainOwnedSessions
-} from "../../dsh/index.js";
-import { transitionMeeting, type MeetingState } from "../../domain/index.js";
-import type { MeetingRepositoryPort } from "../../repository/meeting-repository-port.js";
-import type { DomainEventInput, JsonObject, SessionOwnership } from "../../repository/types.js";
+} from "@/dsh/index.js";
+import { transitionMeeting, type MeetingState } from "@/domain/index.js";
+import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
+import type { DomainEventInput, JsonObject, SessionOwnership } from "@/repository/types.js";
 import { requireExpectedArchiveOwnerships, recoverArchive } from "./meeting-archive-service.js";
 
 export interface SessionRecoveryInput {

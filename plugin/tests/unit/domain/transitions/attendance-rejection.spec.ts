@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-    projectAttendanceRejections,
-    rejectAttendanceRecommendation
-} from "../../../../src/domain/index.js";
+import { projectAttendanceRejections, rejectAttendanceRecommendation } from "@/domain/index.js";
 import { meeting } from "./fixtures.js";
 
 function pending() {

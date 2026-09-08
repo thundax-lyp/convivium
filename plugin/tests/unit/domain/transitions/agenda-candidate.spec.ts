@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-    addSubmittedAgendaCandidates,
-    disposeAgendaCandidate
-} from "../../../../src/domain/index.js";
+import { addSubmittedAgendaCandidates, disposeAgendaCandidate } from "@/domain/index.js";
 import { now, questionState } from "./fixtures.js";
 
 const candidate = {

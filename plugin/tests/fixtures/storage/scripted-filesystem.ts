@@ -1,5 +1,5 @@
-import type { FileHandlePort, FileSystemPort } from "../../../src/storage/filesystem.js";
-import { nodeFileSystemPort } from "../../../src/storage/filesystem.js";
+import type { FileHandlePort, FileSystemPort } from "@/storage/filesystem.js";
+import { nodeFileSystemPort } from "@/storage/filesystem.js";
 
 export type FaultPoint =
     | "append.write"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { replaceFileDurably } from "../../../src/storage/filesystem.js";
+import { replaceFileDurably } from "@/storage/filesystem.js";
 import { ScriptedFileSystem } from "../../fixtures/storage/scripted-filesystem.js";
 import { mkdtemp, readdir, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";

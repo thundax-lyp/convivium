@@ -6,7 +6,11 @@ export {
 } from "./kernel.js";
 export { transitionMeeting } from "./meeting.js";
 export { endMeeting, type EndMeetingTransitionContext } from "./termination.js";
-export { startManagerPlanning, submitManagerPlan } from "./manager-planning.js";
+export {
+    startManagerPlanning,
+    submitManagerPlan,
+    failManagerPlanningAndCreateFallback
+} from "./manager-planning.js";
 export { failSpeakerAttempt, submitSpeakerAttempt } from "./speaker-attempt.js";
 export type { FailSpeakerAttemptContext } from "./speaker-attempt.js";
 export { reassignTurn, type ReassignTurnContext } from "./reassign-turn.js";

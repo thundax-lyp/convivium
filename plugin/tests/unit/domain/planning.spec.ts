@@ -13,7 +13,7 @@ import {
     type CreateMeetingSpec,
     type DomainError,
     type ManagerPlanInput
-} from "../../../src/domain/index.js";
+} from "@/domain/index.js";
 
 const ids: CanonicalIdAllocator = {
     allocate: (kind, key) => `${kind}:${key}`

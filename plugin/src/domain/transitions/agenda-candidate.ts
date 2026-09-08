@@ -1,10 +1,10 @@
-import { DomainError } from "../errors.js";
+import { DomainError } from "@/domain/errors.js";
 import type {
     AgendaCandidate,
     MeetingAgendaItem,
     MeetingState,
     TransitionResult
-} from "../model.js";
+} from "@/domain/model.js";
 import { executionTerminalStatuses } from "./termination.js";
 import type { SubmittedAgendaCandidateInput } from "./types.js";
 

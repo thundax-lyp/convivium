@@ -15,7 +15,7 @@ import {
     startMeetingTask as startMeetingTaskTransition,
     type ManagerCatalogBindingV1,
     type MeetingState
-} from "../../domain/index.js";
+} from "@/domain/index.js";
 import type {
     MeetingTaskFinishInputV1,
     MeetingTaskFinishResultV1,
@@ -25,19 +25,19 @@ import type {
     MeetingTaskStartResultV1,
     MeetingTaskStatusInputV1,
     MeetingTaskStatusResultV1
-} from "../../protocol/index.js";
-import type { DomainEventInput, JsonObject } from "../meeting-runtime.js";
+} from "@/protocol/index.js";
+import type { DomainEventInput, JsonObject } from "@/runtime/meeting-runtime.js";
 import { assignTurnAttempt } from "./meeting-turn.js";
 import {
     commandFailure as failure,
     commandSuccess as success,
     mapCommandError as commandError
-} from "../services/command-result-service.js";
-import type { MeetingRehydrationService } from "../services/meeting-recovery-service.js";
-import { readAuthorizedMeetingTask } from "../services/meeting-session-service.js";
+} from "@/runtime/services/command-result-service.js";
+import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
+import { readAuthorizedMeetingTask } from "@/runtime/services/meeting-session-service.js";
 import type { CreateStatusRuntimeOptions, MeetingToolRuntime } from "./index.js";
 import type { StoredMeeting } from "./types.js";
-import { captureManagerCatalogBinding } from "../services/agent-catalog.js";
+import { captureManagerCatalogBinding } from "@/runtime/services/agent-catalog.js";
 
 function meetingTaskId(participantId: string, requestId: string): string {
     return `meeting-task-${createHash("sha256")

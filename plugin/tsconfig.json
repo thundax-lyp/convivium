@@ -8,6 +8,9 @@
         "declarationDir": "lib/types",
         "outDir": "lib",
         "rootDir": "src",
+        "paths": {
+            "@/*": ["./src/*"]
+        },
         "types": ["node"],
         "strict": true,
         "skipLibCheck": true,

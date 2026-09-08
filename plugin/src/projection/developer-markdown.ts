@@ -3,8 +3,8 @@ import {
     type ArchivePackage,
     type ImmutableArchivePackage,
     type MeetingState
-} from "../domain/index.js";
-import type { MeetingSnapshot } from "../repository/types.js";
+} from "@/domain/index.js";
+import type { MeetingSnapshot } from "@/repository/types.js";
 
 export interface DeveloperMeetingDocument {
     schemaVersion: 1;

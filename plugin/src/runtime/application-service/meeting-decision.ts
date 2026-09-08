@@ -5,18 +5,18 @@ import type {
     CaptainDecisionDispositionResultV1,
     ProtocolErrorV1,
     ProtocolSuccessV1
-} from "../../protocol/index.js";
-import { acceptDecisionCandidate, disposeDecision } from "../../domain/index.js";
-import { serializeValidatedRequestV1 } from "../../protocol/request-idempotency.js";
+} from "@/protocol/index.js";
+import { acceptDecisionCandidate, disposeDecision } from "@/domain/index.js";
+import { serializeValidatedRequestV1 } from "@/protocol/index.js";
 import type { MeetingToolCaller, MeetingToolRuntime, CreateStatusRuntimeOptions } from "./index.js";
-import type { MeetingRehydrationService } from "../services/meeting-recovery-service.js";
+import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
 import type { StoredMeeting, MeetingControlSource, LocalMeetingWebRuntime } from "./types.js";
 import {
     commandFailure as failure,
     commandSuccess as success,
     mapCommandError
-} from "../services/command-result-service.js";
-import type { JsonObject } from "../meeting-runtime.js";
+} from "@/runtime/services/command-result-service.js";
+import type { JsonObject } from "@/runtime/meeting-runtime.js";
 
 export interface MeetingDecisionApplicationOptions {
     readonly options: CreateStatusRuntimeOptions;

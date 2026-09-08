@@ -1,18 +1,18 @@
-import { emitDiagnostic, type DiagnosticSink } from "../../repository/diagnostics.js";
+import { emitDiagnostic, type DiagnosticSink } from "@/repository/diagnostics.js";
 import { createHash } from "node:crypto";
 
-import { transitionMeeting, projectAttendanceRejections } from "../../domain/transitions/index.js";
-import type { ArchivePackage, MeetingState } from "../../domain/model.js";
+import { transitionMeeting, projectAttendanceRejections } from "@/domain/index.js";
+import type { ArchivePackage, MeetingState } from "@/domain/index.js";
 import {
     encodeMeetingSessionLabel,
     interruptAndDrainOwnedSessions,
     proveArchiveOwnedChildren
-} from "../../dsh/index.js";
+} from "@/dsh/index.js";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { CommandAuthorization, CommittedResult, JsonObject } from "../../repository/types.js";
-import type { MeetingRepositoryPort as MeetingRepository } from "../../repository/meeting-repository-port.js";
+import type { CommandAuthorization, CommittedResult, JsonObject } from "@/repository/types.js";
+import type { MeetingRepositoryPort as MeetingRepository } from "@/repository/meeting-repository-port.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { SessionOwnership } from "../../repository/types.js";
+import type { SessionOwnership } from "@/repository/types.js";
 
 const executionTerminalStatuses = new Set<MeetingState["status"]>([
     "completed",

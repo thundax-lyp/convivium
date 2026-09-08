@@ -1,4 +1,4 @@
-import { CaptainAttendanceDispositionResultSchema } from "../../src/protocol/index.js";
+import { CaptainAttendanceDispositionResultSchema } from "@/protocol/index.js";
 import { describe, expect, it, vi } from "vitest";
 import {
     createOfflineMeetingProtocolFixture,
@@ -8,21 +8,18 @@ import {
     CreateMeetingInputSchema,
     ManagerPlanSubmissionSchema,
     TurnSubmissionSchema
-} from "../../src/protocol/index.js";
-import { createSessionProvisioningEnvelope } from "../../src/dsh/provisioning.js";
-import { projectSpeakerMeetingContext } from "../../src/projection/status.js";
+} from "@/protocol/index.js";
+import { createSessionProvisioningEnvelope } from "@/dsh/provisioning.js";
+import { projectSpeakerMeetingContext } from "@/projection/status.js";
 import {
     submitManagerPlan,
     DomainError,
     type MeetingState,
     type TransitionResult
-} from "../../src/domain/index.js";
-import type { MeetingToolRuntime } from "../../src/runtime/index.js";
+} from "@/domain/index.js";
+import type { MeetingToolRuntime } from "@/runtime/index.js";
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
-import {
-    registerCreateAndStatusTools,
-    registerSubmitAndControlTools
-} from "../../src/tools/index.js";
+import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "@/tools/index.js";
 
 function runManagerPlan(
     f: OfflineMeetingProtocolFixture,
