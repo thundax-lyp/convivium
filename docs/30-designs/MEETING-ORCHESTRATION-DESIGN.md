@@ -1186,7 +1186,7 @@ attendance validation 位于既有 caller/version/idempotency/stale/terminal che
 
 当前 Captain reject 子闭环已经实现：工具 `convivium_dispose_attendance_recommendation` 经 Input Schema 和 caller resolver 进入 `createMeetingAttendanceApplication`，恢复 Meeting 并验证 Captain Session，再调用既有 Repository.execute。receipt replay/hash conflict 先于 expected version 和 transition 的终态/推荐状态检查；同请求重放返回原结果和版本。Runtime 一次读取 now；transition trim reason 后持久化，hash 使用完整 validated input，因此原始空白变化仍是冲突。单一拒绝没有外部 outbox 或 Session 副作用。
 
-公开状态通过 `PublicAttendanceRecommendationSchema` 统一校验 active/execution-terminal 推荐，rejected 仅投影 reason/rejectedAt。Captain、合法 Manager/Participant 看到同一排序数组；local_host 和 legacy 为 `[]`。archiving/archived 只读已物化 package 中的七字段拒绝记录，不从活动状态重建；结束、Session cleanup 和续会机制沿用既有路径。新请求在终态拒绝，原 receipt 在 JSONL reopen 后仍可重放。
+公开状态通过 `PublicAttendanceRecommendationSchema` 统一校验 active/execution-terminal 推荐，rejected 仅投影 reason/rejectedAt。Captain、合法 Manager/Participant 看到同一排序数组；local_host 和 legacy 为 `[]`。archiving/archived 只读已物化 package 中的七字段拒绝记录，不从活动状态重建；结束、Session cleanup 和续会机制沿用既有路径。新请求在终态拒绝，原 receipt 在同一 SQLite 介质重开后仍可重放。
 
 以下 approval、admission 和 provisioning 流程仍未实现：
 
@@ -1520,7 +1520,7 @@ MeetingTask 状态只能作为 evidence。除非 objective contract 明确声明
 - `agentSessionId`、`managerSessionId`、delivery payload 和 tool output 视为敏感运行时数据，不进入普通 UI event、日志或归档。
 - transcript 只保存 Agent 明确提交的会议内容，不保存隐藏推理、完整 prompt、私有 mailbox 或未经筛选的工具输出。
 - task output 投影必须经过权限检查、大小限制和敏感信息过滤。
-- JSONL backend 介质沿用本地 data root 权限边界且只由 provider child 访问；Runtime 不接受任意路径，跨 workspace 查询和未授权 meeting ID 枚举必须拒绝。
+- SQLite 介质路径和权限由 Host/profile 管理且只由官方 provider 访问；Runtime 不接受任意路径，跨 workspace 查询和未授权 meeting ID 枚举必须拒绝。
 - Convivium 的授权只能收窄会议身份可执行的会议操作，不能扩大 DSH、Sandbox、Approval 或用户授权；下层任何许可也不能绕过会议发言权和身份校验。
 
 ### 17.2 Observability contract

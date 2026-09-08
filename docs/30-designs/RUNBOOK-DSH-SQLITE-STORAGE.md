@@ -246,7 +246,7 @@ STOP：缺 dev.env、安装/Loader 失败、未规定消费者、缺少上述阶
 1. Architecture 将 confirmed transition 并入 baseline、依赖和 source layout，移除过渡 section；删除 storage 公共模块登记和 JSONL child 当前描述。保留单 package、Domain 唯一事实源和新 DB 策略。
 2. Storage Interface 只更新 Purpose 与 Boundary And Ownership 的介质链路；Implementation Design 更新 Scope、文件树、组合、文件/symbol 表、持久化说明、outbox 载体描述和启动顺序，删除 dataRoot/旧 storage 文件职责。Persistence Design 只改“当前实现”介质句，算法不动。Orchestration Design 只将物理 backend 权限边界改为 Host/profile owner；reopen 业务语义不改。
 3. HOW-TO 增加“新 SQLite profile”段，说明 provider 来自 test-only profile dependency、三个非会议 domain 留在 json、首次发布无迁移与无已有 profile 改动；旧人工流程标为替换前历史入口，不当作 SQLite 验收入口；cold-rebind 改为同一 SQLite 文件。
-4. 同步 `TODO.md` 中 Architecture 链接：T7 移除过渡 section 后，只将 `#confirmed-storage-provider-transition` 锚点改为 `#confirmed-baseline`，不修改任务状态或范围。运行 T9 定义的完整本地链接检查命令。
+4. 同步 `TODO.md` 中 Architecture 链接：T7 移除过渡 section 后，只将 `#confirmed-baseline` 锚点改为 `#confirmed-baseline`，不修改任务状态或范围。运行 T9 定义的完整本地链接检查命令。
 
 验证：
 ```bash
@@ -370,3 +370,5 @@ T3 的 V1–V4 使用落盘 SQLite。测试内读取生产公开 Domain，允许
 - 2026-09-08 T5 PASS：隔离 probe manifest 安装固定 SQLite provider，patch 显式配置 sqlite/default 与三个精确 json routes，同根 DB 路径供两 phase 复用；40 smoke-profile tests 与 lint 通过。尚未以此声明 Loader PASS。
 
 - 2026-09-08 T6 PASS：首次 baseline 暴露 spawn 注册时序并已修复；12 lifecycle tests、typecheck、lint 通过。重新执行默认五核心真实 smoke 全部 PASS/restore=PASS，合计 51509ms；运行组合、恢复屏障与失败清理证据已迁入 SMOKE-VALIDATION-EVIDENCE 的 SQLite Provider Validation。未更改领域算法或 scenario 断言。
+
+- 2026-09-08 T7 PASS：正式 Architecture、Storage Interface、三份设计和 smoke 操作入口同步 Host/profile SQLite 责任、provider 到达门控及已接受关闭边界。旧物理模块/配置不再作为当前职责；本地链接及锚点 83 项检查、diff check 通过，领域字段和算法不变。

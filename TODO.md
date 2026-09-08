@@ -8,19 +8,8 @@
 
 ## 当前任务项
 
-- [ ] `Storage / 正式文档`：同步正式存储与操作文档
-    - 依据文档：[Document Rules：同步与证据职责](docs/00-governance/DOCUMENT-RULES.md#document-sync)；[Architecture：替换决定](docs/00-governance/ARCHITECTURE.md#confirmed-storage-provider-transition)；[Persistence Design：验收](docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md#acceptance)；[Implementation Design：验证设计](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#verification-design)。
-    - 执行步骤：[RUNBOOK T7](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t7同步正式存储与操作文档)
-    - 修改文档：`docs/00-governance/ARCHITECTURE.md`、`docs/20-interfaces/MEETING-STORAGE-INTERFACE.md`、`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`、`docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md`、`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`。
-    - 操作文档：`docs/50-operations/HOW-TO-DSH-SMOKE.md`。
-    - 导航同步：`TODO.md` 仅将已移除过渡 section 的 Architecture 锚点改为 confirmed-baseline，不改变任务状态。
-    - 前置依赖：T6 PASS。
-    - 确认依据：2026-09-08 用户明确要求依次执行 TODO LIST，一任务一提交。
-    - 处理动作：同步介质职责、装配、文件布局和操作说明，保留领域算法及业务契约。
-    - 验收点：diff、链接检查通过；无旧 JSONL 当前职责描述，历史材料明确标记，业务字段/算法无变化。
-
 - [ ] `Storage / 完整验证与证据`：完成全量验证并归集 readiness 证据
-    - 依据文档：[Document Rules：同步与证据职责](docs/00-governance/DOCUMENT-RULES.md#document-sync)；[Architecture：替换决定](docs/00-governance/ARCHITECTURE.md#confirmed-storage-provider-transition)；[Persistence Design：验收](docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md#acceptance)；[Implementation Design：验证设计](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#verification-design)。
+    - 依据文档：[Document Rules：同步与证据职责](docs/00-governance/DOCUMENT-RULES.md#document-sync)；[Architecture：替换决定](docs/00-governance/ARCHITECTURE.md#confirmed-baseline)；[Persistence Design：验收](docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md#acceptance)；[Implementation Design：验证设计](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#verification-design)。
     - 执行步骤：[RUNBOOK T8](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t8完成全量验证并归集-readiness-证据)
     - 证据文件：`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`、`docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md`、`docs/40-readiness/DSH-CAPABILITY-INTEGRATION-EVIDENCE.md`。
     - 允许格式化：仅 RUNBOOK T1–T5 白名单内尚存代码文件，不扩大到其他文件。

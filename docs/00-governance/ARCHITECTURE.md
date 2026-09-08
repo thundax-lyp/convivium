@@ -16,7 +16,7 @@
 - Convivium 是纯 DSH 插件，不是独立 Electron 应用。
 - V1 运行在单个本地 DSH Host 中，仅服务该 Host 的一位本地用户；不提供远程访问、多用户协作、跨 Host 共享或网络部署。Meeting Web route 只允许在 DSH `webServer.host === "127.0.0.1"` 时注册；V1 不绑定 Web 用户身份、不校验 Team 权限，也不建立 per-user authority，所有到达该 loopback Host 的请求共享该本地用户边界。后续引入远程或多用户能力必须先补充独立的授权、身份、隔离和部署契约。
 - Convivium 使用 TypeScript 独立实现，不导入或派生外部参考项目源码。
-- 仓库只包含一个可构建、测试和交付的 Convivium DSH 插件工程 `plugin/`。Meeting Runtime 和 JSONL `StorageBackend` 保持源码职责分离，但作为同一 package 内的 Cordis child plugins 组合；不为 JSONL backend 建立第二个顶层工程、package、lockfile 或发布单元。
+- 仓库只包含一个可构建、测试和交付的 Convivium DSH 插件工程 `plugin/`。Meeting consumer 通过 Storage Domain 使用 Host/profile 安装配置的官方 SQLite provider；插件不携带物理存储实现，也不为 backend 建立顶层工程、package 或发布单元。
 - Convivium 当前 DSH 依赖固定为 `0.1.2-rc.1`；实现可以依赖该版本 `dsh-subagent` 提供的持久子 Session 枚举和 continuable Activation drain 能力。
 - Convivium 正式运行会议前，宿主组合必须提供一个具备 `prepareContinuable` 能力的 continuable subagent provider；仅声明或注入 `dsh-subagent` service 不构成该能力。当前确认的宿主 profile provider 是 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.2-rc.1`，provider name 为 `spawn`，由 profile 作为组合依赖管理，不由 Convivium 自行实现、隐式携带或写入插件 package manifest。插件必须在独立 DSH profile 中验证该 provider 与 `startContinuable()` 的实际创建链路。
 - 插件依赖 DSH 提供 AgentSession、continuable Agent、工具注册、Web 路由、DSH 原生 Session Event 和插件 UI 宿主能力。
@@ -24,23 +24,15 @@
 - Meeting Agent Definition 只引用 DSH 原生 Agent Preset 和 Skill 名称，并可用 DSH 原生 ToolRestriction 收窄工具；Convivium 不复制、安装或持久化 DSH capability composition。Definition 存在不证明 capability 已安装；缺少可验证的 DSH composition 时必须 fail closed。
 - 插件包含清晰分离的插件前端和插件后端会议运行时。
 - 每个 Meeting 在任何会议副作用前获得稳定 `meetingId`，并以 `teamId + meetingId` 形成独立 repository ownership。Convivium 只通过 `@deepseek-ai/dsh-storage-domain` 使用一个轻量 catalog domain 和每 Meeting 独立 domain；不得定位、扫描或依赖 backend 的物理布局。
-- [Meeting Persistence Design](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) 已确认采用 `Checkpointed Commit Log`：一次 command 编码为一条原子 commit，当前真相由已发布分页 checkpoint 与连续有界 commit tail 合成。`plugin/src/storage/` 通过 `@deepseek-ai/dsh-storage` 实现仅供 Convivium 使用的 JSONL KV backend，只认识 unit、table、key 和 value；`plugin/src/repository/domain/` 只消费 `@deepseek-ai/dsh-storage-domain` 和自身 record schema。顶层 Convivium plugin 先挂载 backend provider child plugin，再由依赖完整 DSH services 与 `storageDomain` 的 Meeting consumer child plugin 注册业务能力；宿主组合中的现有 `storage-domain` row 路由到 backend `convivium-jsonl`。Storage Domain 是唯一会议事实源；禁止双写、fallback 和自动迁移。本项目为首次发布，不提供开发期存储格式的迁移或兼容。
+- [Meeting Persistence Design](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) 采用 `Checkpointed Commit Log`：一次 command 编码为一条原子 commit，当前真相由已发布分页 checkpoint 与连续有界 commit tail 合成。`plugin/src/repository/domain/` 只消费 `@deepseek-ai/dsh-storage-domain` 和自身 record schema；保留 catalog、每 Meeting 独立 domain、command commit、receipt、outbox、领域 checkpoint、串行化、容量限制和恢复算法，不新增跨 record transaction、SQL 或单 record Meeting 聚合。
+- Host/profile 安装并配置 `@deepseek-ai/dsh-storage-sqlite@0.1.2-rc.1`，拥有 provider、数据库路径和 Domain 路由；Convivium 仅挂载 Meeting consumer，bundle 不覆盖 Host 默认 backend，产品包不携带 SQLite provider，也不提供 `dataRoot` 配置。Domain 路由按精确名称匹配，不使用 Meeting 名称前缀通配；其他 Host domain 保留既有介质路由。
+- Storage Domain 是唯一会议事实源，禁止双写和 fallback。本项目为首次发布，SQLite 为首次发布介质，不设计开发期 JSONL/SQLite 数据迁移、兼容读取、已有版本升级或开发者数据清理。运行验证使用新建隔离 profile，不自动修改已有 Host/profile。
+- 首次发布接受 [Storage Shutdown Limitation](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)：关闭时尚未完成写入的自动排空不作为保证；已确认成功的持久性与恢复不变量不变。固定官方依赖，不接入本地上游修复包。
 - Meeting Runtime 若 best-effort 生成供开发者阅读的 Markdown 辅助文件，只能从已提交 Meeting projection 单向派生；Markdown 不是产品接口或事实源，不参与恢复、授权、状态计算、Session 关闭与 capability 撤销或归档完成判断。
 - DSH AgentSession 是独立运行主体，拥有独立 Prompt、Skills、工作目录、模型、MCP、权限和运行模式。
 - AgentSession 必须支持通过 `sendMessage` 继续投递、interrupt、恢复，以及通过 `drainContinuableChildren` 释放指定会议 Session 的 resident Activation。会议 Session 的持久不可继续语义由 Convivium capability revoke 保证，不要求 DSH 删除持久 Session 数据。
 
 ## Runtime Boundaries
-
-### Confirmed Storage Provider Transition
-
-2026-09-08 已确认下一步将介质责任交回 Host/profile 安装和配置的 `@deepseek-ai/dsh-storage-sqlite@0.1.2-rc.1`。上文及现有设计中的 JSONL child backend 描述是替换前实现状态；本节明确授权删除该实现，不能据旧实现描述要求继续保留它。替换尚未实现或验证，当前完成度仍以 readiness 为准。
-
-- Convivium 仅消费 `storageDomain`；删除自有物理存储、backend child plugin 和 `dataRoot` 配置，不在产品包携带 SQLite provider。Host/profile 拥有 provider、数据库路径和 Domain 路由；插件 bundle 不覆盖 Host 的默认 backend。
-- 保留现有 catalog、每 Meeting 独立 domain、command commit、receipt、outbox、领域 checkpoint、串行化、容量限制和恢复算法。不得改为单 record Meeting 聚合，不新增跨 record transaction 或 SQL 访问。
-- 本项目为首次发布，SQLite 是首次发布的存储介质。不设计开发期 JSONL/SQLite 数据迁移、兼容读取、双写、fallback 或数据清理流程，也不为遗留数据建立测试与验收要求。此决定不授权删除开发者本地文件。
-- 本阶段实现和运行验证只使用新建的隔离 profile；不自动修改已有 Host/profile。DSH Domain 路由按精确名称匹配，不能使用 Meeting 名称前缀通配。组合必须保留其他 Host domain 的既有介质路由。
-- 首次发布接受 [Storage Shutdown Limitation](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)：关闭时未完成写入的排空不作为 provider 替换前置条件；成功提交后的持久性与恢复不变量不变。继续使用已固定的官方依赖，不为此接入本地上游修复包。
-- 完成替换后同步移除本文和正式设计中的旧当前实现描述，再将本节稳定结论并入对应基线和依赖规则，不长期保留过渡状态。
 
 ### DSH Plugin Host
 
@@ -98,13 +90,13 @@
 
 ## Source Layout And Verification
 
-- `plugin/` 包含 Convivium DSH 插件的 Host、Client、Meeting 业务、JSONL Storage Backend 和全部验证；仓库级 `docs/` 不参与插件打包。
+- `plugin/` 包含 Convivium DSH 插件的 Host、Client、Meeting 业务和全部验证；仓库级 `docs/` 不参与插件打包。
 - `plugin/examples/meeting-agent-definitions/` 保存不进入发布包的 Convivium Meeting Agent Definition 样本；样本不是 DSH Agent Preset、不是 capability registry，也不证明运行时已安装差异化能力。
 - `plugin/` 独立安装、类型检查、构建和验证；根目录不建立 workspace 或 monorepo 层。
 - `plugin/` 的 TypeScript 源码支持 `@/*` 映射到 `src/*`，Host 与 Client 共用该映射；导入保留 NodeNext 所需的 `.js` 扩展名，例如 `@/protocol/types.js`。Vitest 同步解析别名，构建时将声明文件中的别名转换为相对路径，发布产物不要求消费者配置 `@`。
-- JSONL backend 不从 package root 导出，不拥有独立 manifest 或 profile row；它的 backend contract、恢复和生命周期测试位于 `plugin/tests/`，并由同一 package 的 `verify` 与真实 DSH profile smoke 覆盖。
+- SQLite provider 仅作为测试 devDependency 和隔离 profile 组合依赖；生产代码不导入 Storage backend/SQLite/JSON provider。介质组合与恢复由同一 package 的验证和真实 DSH profile smoke 覆盖。
 - 外部参考项目只用于只读调研 DSH 接口和可选实现思路；其源码、文档、发布记录、品牌、协议命名和持久化格式不得进入产品工程。
-- `plugin/package.json` 提供 `typecheck`、`test`、`build` 和 `verify`；组合边界还必须用真实 DSH profile 验证 backend 注册、Storage Domain 打开、Host 冷重启和关闭顺序。
+- `plugin/package.json` 提供 `typecheck`、`test`、`build` 和 `verify`；组合边界还必须用真实 DSH profile 验证 backend 注册、Storage Domain 打开、Host 冷重启和关闭前已确认事实的恢复。
 
 ## Import Paths
 
@@ -116,7 +108,7 @@
 
 ### Public Module Entrypoints
 
-- `client`、`domain`、`dsh`、`http`、`projection`、`protocol`、`runtime`、`storage`、`tools` 是当前具有公开入口的顶层源码模块，模块对其他生产源码只公开自身 `index.ts` / `index.tsx` 导出的符号。源码模块公开不等于 package 对外导出；例如 Storage 仍为 package-private。
+- `client`、`domain`、`dsh`、`http`、`projection`、`protocol`、`runtime`、`tools` 是当前具有公开入口的顶层源码模块，模块对其他生产源码只公开自身 `index.ts` / `index.tsx` 导出的符号。源码模块公开不等于 package 对外导出。
 - 跨模块导入必须使用 `@/<module>/index.js`；`src/` 根目录装配可保留等价的 `./<module>/index.js`。普通导入、类型导入、重新导出和动态导入遵循同一边界。不得用别名或相对路径直接访问另一个模块的内部文件。
 - 模块内部可以直接引用自身文件，无须经由自身入口；`domain/transitions/` 和 `runtime/application-service/` 属于各自顶层模块内部，不因有 `index.ts` 就成为独立封装单元。`repository`、`role-composition` 尚无入口，不为本规则新增转发文件。
 - 测试可以直接引用被测模块内部文件；直接执行的 Node 脚本继续遵守既有运行和路径约束。
