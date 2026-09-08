@@ -1,5 +1,5 @@
 import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
-import { resolveMeetingRoles } from "@/role-composition/resolve.js";
+import { resolveMeetingRoles, RoleCompositionError } from "@/role-composition/resolve.js";
 import { validateSharedRoleCapabilities } from "@/role-composition/dsh-capabilities.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
@@ -221,7 +221,11 @@ export async function createMeetingRuntime(
             continuation: dependencies.continuation
         });
     const { state, createInput } = prepared;
-    await dependencies.repository.create(createInput);
+    const bootstrap = await dependencies.repository.create(createInput);
+    if (bootstrap.status === "creation_failed") {
+        if (bootstrap.failureCode === "RoleCompositionError") throw new RoleCompositionError();
+        throw new Error("Meeting creation previously failed.");
+    }
     const ownerships: { sessionId: SessionId }[] = [];
     try {
         const roles = await resolveMeetingRoles(

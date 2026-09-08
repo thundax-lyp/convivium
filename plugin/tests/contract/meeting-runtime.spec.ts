@@ -3308,8 +3308,8 @@ describe("Agent Definition creation and replay contract", () => {
         ],
         agenda: [{ ...input.agenda[0], requiredParticipantKeys: ["a", "b", "c"] }]
     };
-    async function fixture(failure?: "child" | "abort") {
-        const root = await mkdtemp(join(tmpdir(), "convivium-fr14-contract-"));
+    async function fixture(failure?: "child" | "abort", existingRoot?: string) {
+        const root = existingRoot ?? (await mkdtemp(join(tmpdir(), "convivium-fr14-contract-")));
         roots.push(root);
         const definitions = structuredClone([...roleCompositionDefinitions]);
         const starts = [];
@@ -3486,6 +3486,52 @@ describe("Agent Definition creation and replay contract", () => {
                 );
             } finally {
                 await registry.close();
+            }
+        } finally {
+            await f.runtime.dispose();
+        }
+    });
+    it("replays failed creation after skills recover without provisioning, including after restart", async () => {
+        const f = await fixture();
+        try {
+            f.get.mockResolvedValue(undefined);
+            const failed = await f.runtime.createMeeting(selected, f.captain, f.controller.signal);
+            expect(failed).toMatchObject({
+                ok: false,
+                code: "UNSUPPORTED_CAPABILITY",
+                retryable: false
+            });
+            f.get.mockResolvedValue(f.skill);
+            expect(await f.runtime.createMeeting(selected, f.captain, f.controller.signal)).toEqual(
+                failed
+            );
+            expect(f.starts).toEqual([]);
+            expect(f.get).toHaveBeenCalledTimes(1);
+            await f.runtime.dispose();
+            const restarted = await fixture(undefined, f.root);
+            try {
+                expect(
+                    await restarted.runtime.createMeeting(
+                        selected,
+                        restarted.captain,
+                        restarted.controller.signal
+                    )
+                ).toEqual(failed);
+                expect(restarted.starts).toEqual([]);
+                expect(restarted.get).not.toHaveBeenCalled();
+                expect(await restarted.runtime.listLocalMeetings()).toMatchObject({
+                    result: { meetings: [] }
+                });
+                expect(
+                    await restarted.runtime.createMeeting(
+                        { ...selected, requestId: "recovered-skill" },
+                        restarted.captain,
+                        restarted.controller.signal
+                    )
+                ).toMatchObject({ ok: true });
+                expect(restarted.starts).toHaveLength(4);
+            } finally {
+                await restarted.runtime.dispose();
             }
         } finally {
             await f.runtime.dispose();
