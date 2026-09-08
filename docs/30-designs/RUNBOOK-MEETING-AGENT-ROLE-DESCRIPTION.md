@@ -3,7 +3,7 @@
 ## Status And Executor Contract
 
 - 日期：2026-09-08；分支：`codex/meeting-agent-role-description`；工作目录：仓库根目录。
-- 模式：Author；用户最新要求为“先改文档，不落代码”。本轮同步正式文档与 RUNBOOK，不执行产品实现、安装或部署；作者已完成基线核验；T1–T6 是后续获得实现授权后使用的步骤。
+- 模式：Execute；2026-09-08 用户明确授权依次执行 TODO LIST，一任务一提交；按 MAD-01–MAD-11 执行 T1–T6，未授权 push、PR 或 merge。作者基线核验已完成。
 - 目标：初次发布直接交付最终角色模型、原生 DSH Skills、一个共享 Preset，以及九个角色在同一会议中的完整部署验收。不能以旧 schema、旧样本或原验证器的方便程度限制设计。
 - 用户确认：2026-09-08 本任务中明确要求“直达目标”“初次发布，不考虑迁移”“九个样本应该部署完善”。此前仅精简样本文字的范围已被替代。
 - 部署边界：交付可分发资源，并在独立临时 DSH `web` profile 安装、运行、恢复和清理；不改日常 profile。用户若另行指定日常 profile，单独记录目标后执行，不将其作为本 RUNBOOK 的隐含写权限。
@@ -429,3 +429,5 @@ CHECK
 2026-09-08 Author 实际检查：26 个 Markdown 文件的本地链接目标 PASS；RUNBOOK/operations 中 shell 命令通过 sh -n、内嵌 Python 通过语法编译（只检查语法，未执行这些操作）；git diff --check 无空白错误；新增文件单独以 no-index whitespace check 核对。读取安装包确认 dsh-subagent 为 0.1.2-rc.1；ToolRuntime.view 的继承过滤语义与同版本源码一致。
 
 Not Covered：本轮未改生产代码、测试或部署资源；仅运行 Confirmed Baseline 所列现有样本校验与 35 项 focused tests，未运行完整 tests/typecheck/build/smoke，未安装或调用模型/搜索 Provider，未修改日常 profile。新角色模型和部署验收仍是后续工作，不能填成本次 PASS。
+
+2026-09-08 MAD-01 / T1 PASS：复核六份正式文档的首发字段、Host 模型所有权、DSH 原生输出、九角色资源、权限和恢复约束，无需重复改写；字段检索、V-DOC 与 git diff --check 通过。用户已授权按 TODO 顺序实施并逐项提交；此前 Author 的仅文档授权描述属于历史边界。
