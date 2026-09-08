@@ -39,6 +39,7 @@ export const SMOKE_SCENARIOS = [
     "decision-risk-closure",
     "cold-rebind",
     "role-composition",
+    "meeting-roles",
     "archive-continuation",
     "mail-race",
     "cross-meeting",
@@ -62,7 +63,7 @@ export function selectScenarios(args, scenario, browserMode) {
         throw new Error("--all cannot be combined with a scenario or Browser mode.");
     if (scenario && !SMOKE_SCENARIOS.includes(scenario))
         throw new Error("Unsupported CONVIVIUM_SMOKE_SCENARIO: " + scenario);
-    if (browserMode && scenario === "role-composition")
+    if (browserMode && ["role-composition", "meeting-roles"].includes(scenario))
         throw new Error("Role composition smoke does not support Browser mode.");
     return scenario
         ? [scenario]
@@ -235,8 +236,8 @@ async function writeSmokePatch(path, scenario, phase = "1") {
                   `    agentModelOverrides: ${JSON.stringify(roleSmokeModelOverrides(phase))}`
               ]
             : []),
-        "    maxParticipants: 3",
-        `    speakerTimeoutMs: ${scenario === "timeout" ? 250 : BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
+        `    maxParticipants: ${scenario === "meeting-roles" ? 8 : 3}`,
+        `    speakerTimeoutMs: ${scenario === "meeting-roles" ? 300000 : scenario === "timeout" ? 250 : BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
         `    outboxPollMs: ${scenario === "timeout" ? 25 : 1000}`,
         ""
     ].join("\n");
@@ -295,8 +296,14 @@ async function installProbe(env, probeDir) {
     await runCommand(dsh.command, dsh.args, { env });
 }
 
-async function dumpConfig(env, patchPath, logsDir) {
-    const dsh = dshCommand([PROFILE, "--patch", patchPath, "--dump-config"]);
+async function dumpConfig(env, patchPath, logsDir, roleAssetRoot) {
+    const dsh = dshCommand([
+        PROFILE,
+        ...(roleAssetRoot ? ["--patch", join(roleAssetRoot, "cordis.patch.yml")] : []),
+        "--patch",
+        patchPath,
+        "--dump-config"
+    ]);
     const result = await runCommand(dsh.command, dsh.args, { env });
     const dumpPath = join(logsDir, "dump-config.yml");
     await writeFile(dumpPath, result.stdout, "utf8");
@@ -312,13 +319,14 @@ async function dumpConfig(env, patchPath, logsDir) {
     return dumpPath;
 }
 
-async function bootHost(env, patchPath, workspaceDir, logsDir, port) {
+async function bootHost(env, patchPath, workspaceDir, logsDir, port, roleAssetRoot) {
     const stdoutPath = join(logsDir, "boot.stdout.log");
     const stderrPath = join(logsDir, "boot.stderr.log");
     const stdout = createWriteStream(stdoutPath);
     const stderr = createWriteStream(stderrPath);
     const dsh = dshCommand([
         PROFILE,
+        ...(roleAssetRoot ? ["--patch", join(roleAssetRoot, "cordis.patch.yml")] : []),
         "--patch",
         patchPath,
         "--no-open",
@@ -464,7 +472,18 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
     await writeSmokePatch(patchPath, scenario);
     await writeProbePackage(probeDir);
 
+    let roleAssetRoot;
+    if (scenario === "meeting-roles") {
+        const unpackRoot = join(tempRoot, "role-package");
+        await mkdir(unpackRoot, { recursive: true });
+        await runCommand("tar", ["-xzf", artifact, "-C", unpackRoot], {
+            env: createSmokeEnvironment(process.env)
+        });
+        roleAssetRoot = join(unpackRoot, "package", "meeting-roles");
+        await access(join(roleAssetRoot, "cordis.patch.yml"), constants.R_OK);
+    }
     const env = createSmokeEnvironment(process.env, {
+        ...(roleAssetRoot ? { CONVIVIUM_SMOKE_ROLE_ASSET_ROOT: roleAssetRoot } : {}),
         DSH_HOME: dshHome,
         DSH_TELEMETRY_DISABLED: "1",
         DSH_PERMISSION_MODE: "workspace-write",
@@ -478,10 +497,13 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
     activePort = port;
     await installArtifact(env, artifact);
     await installProbe(env, probeDir);
-    const dumpPath = await dumpConfig(env, patchPath, logsDir);
+    const dumpPath = await dumpConfig(env, patchPath, logsDir, roleAssetRoot);
     const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);
-    let bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port);
-    let probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
+    let bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
+    let probeResult = await waitForJson(
+        resultPath,
+        scenario === "meeting-roles" ? 2400000 : BOOT_TIMEOUT_MS
+    );
     if (
         ["cold-rebind", "role-composition"].includes(scenario) &&
         probeResult.phase1Complete === true
@@ -496,7 +518,7 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
         if (scenario === "role-composition") await writeSmokePatch(patchPath, scenario, "2");
         hostEnv.CONVIVIUM_SMOKE_COLD_PHASE = "2";
         hostEnv.CONVIVIUM_SMOKE_COLD_CHECKPOINT = coldCheckpointPath;
-        bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port);
+        bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
         await waitForTcp(port, BOOT_TIMEOUT_MS);
         probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
     }

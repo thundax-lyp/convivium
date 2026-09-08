@@ -245,6 +245,7 @@ function registerSmokeAgent(ctx, session) {
 }
 
 async function driveParticipant(ctx, agent) {
+    if (scenario === "meeting-roles") return;
     if (scenario === "convergence-stalled" || scenario === "convergence-turn-budget-completion")
         return;
     if (captain === undefined || meetingId === undefined) return;
@@ -337,6 +338,7 @@ async function run(ctx) {
         scenario !== "decision-risk-closure" &&
         scenario !== "cold-rebind" &&
         scenario !== "role-composition" &&
+        scenario !== "meeting-roles" &&
         scenario !== "archive-continuation" &&
         scenario !== "scribe-minutes" &&
         scenario !== "mail-race" &&
@@ -355,19 +357,26 @@ async function run(ctx) {
         const coldPhase = process.env.CONVIVIUM_SMOKE_COLD_PHASE ?? "1";
         const roleSmoke =
             scenario === "role-composition" ? await prepareRoleSmoke(ctx, coldPhase) : undefined;
-        if (scenario === "role-composition" && browserMode)
+        if (["role-composition", "meeting-roles"].includes(scenario) && browserMode)
             throw new Error("Role smoke rejects Browser mode");
         if (!(["cold-rebind", "role-composition"].includes(scenario) && coldPhase === "2")) {
-            captain =
-                scenario === "role-composition"
-                    ? await ctx.agents.create({
-                          sessionId: "convivium-smoke-captain",
-                          meta: { cwd: process.cwd(), agentPreset: "minimal" },
-                          setup: async (agentCtx) => {
-                              await ctx.get("agentPresets").mount(agentCtx, "minimal");
-                          }
-                      })
-                    : createSmokeAgent(ctx, "convivium-smoke-captain");
+            captain = ["role-composition", "meeting-roles"].includes(scenario)
+                ? await ctx.agents.create({
+                      sessionId: "convivium-smoke-captain",
+                      meta: {
+                          cwd: process.cwd(),
+                          agentPreset: scenario === "meeting-roles" ? "convivium" : "minimal"
+                      },
+                      setup: async (agentCtx) => {
+                          await ctx
+                              .get("agentPresets")
+                              .mount(
+                                  agentCtx,
+                                  scenario === "meeting-roles" ? "convivium" : "minimal"
+                              );
+                      }
+                  })
+                : createSmokeAgent(ctx, "convivium-smoke-captain");
         }
         const runtime = {
             ctx,
@@ -469,6 +478,8 @@ async function runSelectedScenario(runtime) {
         case "cold-rebind":
         case "role-composition":
             return runColdRebindScenario(runtime);
+        case "meeting-roles":
+            return (await import("./scenarios/meeting-roles.js")).runMeetingRolesScenario(runtime);
         case "scribe-minutes":
             return runScribeMinutesScenario(runtime);
         case "archive-continuation":

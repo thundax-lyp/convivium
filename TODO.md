@@ -10,14 +10,6 @@
 
 2026-09-08 用户明确授权依次执行 TODO LIST，一任务一提交。MAD 编号用于任务依赖，RUNBOOK 的 T1–T6 仍是阶段门禁；阶段内拆分不新增范围，也不允许以部分任务完成代替整个阶段 PASS。T0 已确认，不列待办。每项相关文件均为仓库相对路径；计划新增路径不表示文件已存在。
 
-- [ ] `MAD-07 / meeting-roles smoke 启动`：接通真实发布资源、场景路由与清理
-    - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 39；[架构](docs/00-governance/ARCHITECTURE.md) DSH Plugin Host、Source Layout And Verification；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Native deployment resources；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) T4 动作 2/3/4/10；[Smoke 操作](docs/50-operations/HOW-TO-DSH-SMOKE.md) 成功与 Restore、失败处理。
-    - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
-    - 前置：MAD-06 的旧场景适配完成；与 MAD-08 同属 T4，不交付未接通场景。
-    - 相关文件：修改 `plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/probe/index.js`、`plugin/tests/unit/scripts/smoke-profile.spec.ts`；新增测试 `plugin/tests/unit/scripts/meeting-roles-smoke.spec.ts` 的启动/路由/清理用例。场景导入目标由 MAD-08 新建。
-    - 处理动作：新增 selector，更新 SMOKE_SCENARIOS/runSelectedScenario/driveParticipant；同 tarball 安装并解包，部署 patch 先于控制 patch，真实 Captain 显式挂载 convivium；沿既有 finally 清理。
-    - 验收点：smoke-profile 与 meeting-roles-smoke 对应 focused 用例通过：总场景 17、CORE 仍 5、Browser 拒绝、资产路径与 patch 顺序正确；超时/加载失败进入 Restore，其他场景 timeout 不变；完整 T4 lint/typecheck 在 MAD-08 完成后运行。
-
 - [ ] `MAD-08 / meeting-roles smoke 探针`：验证九角色原生能力与权限结果
     - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、BR-11、验收 36/38/39；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) Transport Or Invocation、Creation conversion、First-release assets、Error And Permission Semantics；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Security And Observability、Acceptance；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) Invariants And Failure Oracles、T4 动作 5–10。
     - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
