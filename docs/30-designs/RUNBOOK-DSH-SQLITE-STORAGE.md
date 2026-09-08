@@ -352,3 +352,7 @@ T3 的 V1–V4 使用落盘 SQLite。测试内读取生产公开 Domain，允许
 ## Execute 记录
 
 - 2026-09-08 T1 PASS：三个既有 SQLite 装配 suite 共 72 tests 通过；`pnpm --dir plugin typecheck` 通过。仅增加固定版本 devDependency 与替换测试 provider，业务断言及生产代码不变。下一步 T2。
+
+- 2026-09-08 T2 STOP：`pnpm --dir plugin exec vitest run tests/integration/storage/provider-composition.spec.ts` 退出 1。真实 provider dispose 时，`backend.close()` 进入顺序为 0，首次 Domain close 完成顺序为 3，未满足“Domain close 后 provider close”。仅比较两个 Promise 完成的顺序会通过，但不足以证明 backend 关闭前 Domain 已释放，故保留严格断言。`pnpm --dir plugin typecheck` 退出 0；finally 已 dispose Context、restore 局部 spy 并删除临时目录。测试保留未提交，T2 TODO 不关闭，T3–T9 未执行。继续前需确认是否先调查上游卸载时在途 Domain 写入的生命周期保证并修订本步骤；不据此直接判定数据丢失，也不添加生产 wrapper。
+
+- 2026-09-08 调查与继续条件：用户授权独立修复上游，随后明确选择等待官方发布版本，不将本地修复包接入 Convivium。直接 `domain.close()` 可排空 100 次写入；官方 rc.1 的 provider/root dispose 分别出现 99/98 次 `closed` 拒绝，已确认写入重开后存在。修复涉及 storage-domain、storage-sqlite、storage-json 的分组清理，以及 Cordis 保留卸载中依赖供关闭方等待；仅存储包的分组不足以保证所有插件注册顺序。T2–T9 保持未完成；正式修复版本发布并同步依赖基线后，T2 必须同时覆盖卸载在途写入、消费者排空和重开验证，不能仅比较 close 调用顺序。
