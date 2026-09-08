@@ -34,6 +34,10 @@ function sourceImportRules(owner, root = false) {
             message: "插件装配必须通过 ./<module>/index.js 使用模块公开入口。"
         });
     }
+    return importRules(patterns);
+}
+
+function importRules(patterns) {
     return {
         "no-restricted-imports": ["error", { patterns }],
         "no-restricted-syntax": [
@@ -101,19 +105,12 @@ export default tseslint.config(
     },
     {
         files: ["tests/**/*.{ts,tsx}"],
-        rules: {
-            "no-restricted-imports": [
-                "error",
-                {
-                    patterns: [
-                        {
-                            regex: "^(?:\\.\\./)+src(?:/|$)",
-                            message: "测试导入 src 必须使用 @/；测试 fixture 之间可保留相对路径。"
-                        }
-                    ]
-                }
-            ]
-        }
+        rules: importRules([
+            {
+                regex: "^(?:\\.\\./)+src(?:/|$)",
+                message: "测试导入 src 必须使用 @/；测试 fixture 之间可保留相对路径。"
+            }
+        ])
     },
     prettier
 );
