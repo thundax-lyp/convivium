@@ -58,7 +58,7 @@
 - DSH 负责 Session 创建、`sendMessage` 投递、interrupt、事件和生命周期能力。
 - Convivium 负责会议身份、上下文投影、发言 capability 和 Session ownership，不把 AgentSession 当作会议领域真相源。
 - Convivium 只定义 Agent 之间及 Agent 与 Meeting Runtime 之间的会议协议，不拥有或解释 Agent 内部的 Prompt、Skills、Tools、MCP、推理、命令、工作流和重试过程。
-- Convivium 可以保存 Meeting Agent Definition identity 与 meeting-owned DSH Session ownership；MCP、Sandbox、Approval、模型和其他 Host 私有能力配置仍由 DSH 管理。首发目标通过创建前解析函数校验共享父 Preset 与 required Skills，将 Definition.roleDescription 转换为 DSH persona，并将 Host 独立 agentModelOverrides 交给 DSH 原生 agentOptions；toolFilter 保留原生继承工具收窄语义。Definition 不保存模型配置；ID、版本和指纹属于会议 provenance，运行配置由 DSH descriptor 持有。独立 per-child Preset 不属于首版；实现状态以 readiness 为准。
+- Convivium 可以保存 Meeting Agent Definition identity 与 meeting-owned DSH Session ownership；MCP、Sandbox、Approval、模型和其他 Host 私有能力配置仍由 DSH 管理。通过创建前解析函数校验共享父 Preset 与 required Skills，将 Definition.roleDescription 转换为 DSH persona，并将 Host 独立 agentModelOverrides 交给 DSH 原生 agentOptions；toolFilter 保留原生继承工具收窄语义。Definition 不保存模型配置；ID、版本和指纹属于会议 provenance，运行配置由 DSH descriptor 持有。独立 per-child Preset 不属于首版；实现状态以 readiness 为准。
 - Agent 内部能力、Sandbox 和 Approval 由 DSH 管理；Convivium 只向 DSH 提供会议身份对应的授权上限，不得扩大用户或 DSH 已授予的权限。
 
 ## Identity And Session Isolation
@@ -88,7 +88,7 @@
 ## Source Layout And Verification
 
 - `plugin/` 包含 Convivium DSH 插件的 Host、Client、Meeting 业务、JSONL Storage Backend 和全部验证；仓库级 `docs/` 不参与插件打包。
-- 首发目标的 `plugin/meeting-roles/` 保存同一插件 package 随包交付的 Definition 数据、共享 `convivium` Preset、九个原生 DSH Skills 和显式部署 patch。它是静态数据/DSH 部署资源，不是第二个工程或 Runtime installer；只经 Host Loader 使用，不允许前端或会议输入指定任意读取路径。旧 `plugin/examples/meeting-agent-definitions/` 不作为首发交付格式，实施时移除；当前是否已落地以 readiness 为准。
+- `plugin/meeting-roles/` 保存同一插件 package 随包交付的 Definition 数据、共享 `convivium` Preset、九个原生 DSH Skills 和显式部署 patch。它是静态数据/DSH 部署资源，不是第二个工程或 Runtime installer；只经 Host Loader 使用，不允许前端或会议输入指定任意读取路径。旧 `plugin/examples/meeting-agent-definitions/` 已移除；实际验收范围以 readiness 为准。
 - `plugin/` 独立安装、类型检查、构建和验证；根目录不建立 workspace 或 monorepo 层。
 - `plugin/` 的 TypeScript 源码支持 `@/*` 映射到 `src/*`，Host 与 Client 共用该映射；导入保留 NodeNext 所需的 `.js` 扩展名，例如 `@/protocol/types.js`。Vitest 同步解析别名，构建时将声明文件中的别名转换为相对路径，发布产物不要求消费者配置 `@`。
 - JSONL backend 不从 package root 导出，不拥有独立 manifest 或 profile row；它的 backend contract、恢复和生命周期测试位于 `plugin/tests/`，并由同一 package 的 `verify` 与真实 DSH profile smoke 覆盖。

@@ -2,7 +2,7 @@
 
 ## Purpose And Status
 
-本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。**2026-09-08 状态：角色模型、发行资源和自动探针已实现并通过定向门禁；完整 verify 和 role-composition 已通过；部署接线已修复，九 Skill 加载已有真实证据；meeting-roles 当前被本机 Fake-IP DNS 的 WEB_BLOCKED_URL 阻断，尚不能宣称部署通过。** 完成 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition) 的首发验证后才能移除此状态说明。
+本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。**2026-09-08 状态：完整 verify、双 Host 冷恢复、九角色/九 Skill、三研究搜索、权限与状态检查、默认五核心全部通过；web_fetch 按用户明确要求跳过，未验证。** 具体范围见 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)，不能据本轮结果宣称抓取可用。
 
 本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)，资源结构见 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。
 
@@ -105,6 +105,6 @@ env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
 
 ## Evidence And Not Covered
 
-执行后将日期、版本、artifact 边界、命令、九角色结果、权限拒绝、恢复和 Restore 写入 [Smoke Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)，并更新 Coverage。本轮失败与清理证据见 [Meeting Roles Deployment](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)；修复前不要据上述命令宣称九角色部署成功。
+执行后将日期、版本、artifact 边界、命令、九角色结果、权限拒绝、恢复和 Restore 写入 [Smoke Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)，并更新 Coverage。本轮通过、抓取豁免和历史失败清理证据见 [Meeting Roles Deployment](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)。
 
 长期模型任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 和 Host capability 内容变更后的历史快照不在本流程内；除本轮已明确豁免的 web_fetch 外，九角色部署与研究搜索仍必须验证。

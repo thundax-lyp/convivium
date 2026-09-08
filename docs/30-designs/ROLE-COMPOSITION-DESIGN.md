@@ -2,7 +2,7 @@
 
 ## Purpose
 
-把 FR-14 实现为会议角色解析与 DSH 原生部署的边界。2026-09-08 确认首发最终模型：Definition 只描述会议角色，Host 单独绑定模型差异，九个角色共享一个可部署 Preset。本文是目标设计，尚未落代码；旧实现与实际证据见 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)。
+把 FR-14 实现为会议角色解析与 DSH 原生部署的边界。2026-09-08 确认首发最终模型：Definition 只描述会议角色，Host 单独绑定模型差异，九个角色共享一个可部署 Preset。本设计已落地；实际验证及本轮 web_fetch 豁免见 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)。
 
 ## Scope And Non-goals
 
@@ -15,7 +15,7 @@ Scope：初始 Manager/Participant 的 roleDescription、原生 Preset/Skill 引
 - [Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)：FR-14、BR-11、验收 35–40。
 - [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)：字段、Host map、派生 persona、指纹和错误真相源。
 - [Architecture](../00-governance/ARCHITECTURE.md)：同 package 资源、DSH 与会议事实分离、Import Paths。
-- [Meeting Roles Operations](../50-operations/HOW-TO-MEETING-ROLES.md)：目标部署流程与验收边界。
+- [Meeting Roles Operations](../50-operations/HOW-TO-MEETING-ROLES.md)：部署流程与验收边界。
 
 ## Responsibilities And Dependencies
 

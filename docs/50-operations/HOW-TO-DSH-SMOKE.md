@@ -141,7 +141,7 @@ env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile
 
 三研究角色的原生 web_search 必须返回对应域来源，web_fetch 必须返回 2xx 与非空正文。Manager/Scribe 的越权会议工具及 web_search 共四次调用必须 UNKNOWN_TOOL，九身份 status 可读且暂停后的 Meeting version/messages 不变。失败或超时沿原 finally 停止 Host、释放端口并删除本次资源；不能通过更换 fixture 或放大超时继续判为成功。
 
-完整人工部署与模型覆盖步骤见 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md)。本场景已接线并通过定向测试；2026-09-08 部署接线和九 Skill 加载已通过，真实抓取被本机 Fake-IP DNS 的 WEB_BLOCKED_URL 阻断，见 [本轮失败证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)。
+完整人工部署与模型覆盖步骤见 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md)。2026-09-08 本场景在用户明确豁免 web_fetch 后通过：九 Skill、三研究搜索、权限及状态检查全部 PASS，抓取 Not Covered；完整 verify、角色冷恢复和默认五核心亦通过，见 [本轮证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)。
 
 ### 引用式纪要场景
 

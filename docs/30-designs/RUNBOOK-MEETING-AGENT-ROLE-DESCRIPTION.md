@@ -518,3 +518,6 @@ Not Covered：本轮未改生产代码、测试或部署资源；仅运行 Confi
 本轮修复门禁：77 focused tests、lint、双端 typecheck、九角色资源、V-DOC/diff check PASS。原生 search 成功后，FEnbiA 场景在 github.com 抓取被 WEB_BLOCKED_URL 拒绝；根已由 finally 清理，无 Restore 错误。完整 verify/双 Host/九角色/默认核心的最终 T5 顺序仍待完成。
 
 本小步修复最终完整 verify PASS：86 files / 1141 tests，78.52 秒；format/lint/typecheck/build/environment/contract/九资源/package 全通过。FEnbiA absent 与 51528 exclusive bind/close PASS。网络配置尚未授权/改变，最终 T5 仍需在恢复后完整顺序执行。
+
+
+2026-09-08 MAD-10 / T5 PASS（仅 web_fetch 用户豁免）：b3f02c2 干净工作树顺序执行完整 verify（86 files / 1143 tests，72.32s）、role-composition（22369ms，Host 79528/79544）、meeting-roles + CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1（60856ms）、默认五核心（91213ms）。全部 exit 0、Restore PASS；三研究 search、九 Skill、四次 UNKNOWN_TOOL、状态不变和双 Host 模型差异恢复全部通过，fetch 三项为 skipped:user-waiver。长期边界和完整 Prepare/Execute/Assert/Restore 已迁入 Smoke Evidence 的 Final Authorized Validation，Coverage 与正式依据过期状态同步。历史失败保留在正式证据；不修改 DNS/代理。本项通过 V-DOC/diff/package 后删除 MAD-10 并提交，随后执行 T6。

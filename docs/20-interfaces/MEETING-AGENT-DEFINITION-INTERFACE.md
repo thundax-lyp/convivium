@@ -2,7 +2,7 @@
 
 ## Purpose
 
-本文定义初次发布的会议角色描述、DSH 原生能力引用及 Host 模型绑定契约。2026-09-08 已确认此目标；当前代码仍是旧输入结构，本文不表示实现或部署已完成，见 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)。
+本文定义初次发布的会议角色描述、DSH 原生能力引用及 Host 模型绑定契约。2026-09-08 角色模型与原生部署接线已实现；实际验收及本轮 web_fetch 豁免见 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)。
 
 ## Boundary And Ownership
 

@@ -188,7 +188,7 @@ Phase 1 必须复用现有 `submit_manager_plan`、`MeetingRepositoryPort.execut
 
 ### FR-14：共享 Preset 下的 Meeting Agent Definition
 
-本节为 2026-09-08 确认的初次发布目标；角色模型与完整部署尚未实现，实际覆盖以 readiness 为准。
+本节为 2026-09-08 确认的初次发布目标；角色模型与部署资源已实现，本轮验收包含用户明确豁免的 web_fetch，完整无豁免覆盖以 [readiness](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition) 为准。
 
 1. Convivium 提供版本化 Meeting Agent Definition，只保存稳定定义 ID、版本、会议角色、显示摘要、`roleDescription`、专长、研究来源范围、DSH Preset/Skill 引用及 optional DSH ToolRestriction。Definition 不包含通用 persona 正文、模型配置或 capability 安装内容。
 2. Convivium 拥有会议角色、选择、批准、动态发言资格和 Session ownership；DSH 拥有模型默认值、Agent Preset、Skills、Tools、MCP、Sandbox、Approval、组合与执行。

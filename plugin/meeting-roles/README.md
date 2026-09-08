@@ -8,4 +8,4 @@
 
 Skill 只提供方法；实际发言资格由 Meeting Runtime 判断，资源权限由 DSH Sandbox/Approval 管理。Manager/Scribe 保留 skill 与各自会议工具，继承的 shell/fs/web 被收窄；其余角色仍服从 Host 权限。不会安装独立 child Preset 或创建能力安装器。
 
-自动入口为 `CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile`（仓库根目录）；该场景不支持 Browser 模式。模型差异与冷恢复另由 role-composition 场景验证。两个入口已通过定向测试，role-composition 本轮冷恢复 PASS；meeting-roles 部署接线已修复，九次真实 Skill 加载已有证据，当前公网抓取被运行环境 Fake-IP DNS 的 WEB_BLOCKED_URL 阻断，三研究工具及完整权限验收仍待通过。当前资源不能宣称部署完善。
+自动入口为 `CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile`（仓库根目录）；该场景不支持 Browser 模式。模型差异与冷恢复另由 role-composition 场景验证。2026-09-08 本轮完整 verify、双 Host 冷恢复、九角色 Skill、三研究搜索、权限和状态检查、默认五核心均通过。web_fetch 按用户明确要求未验证；本轮命令额外设置 `CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1`，结果标注 skipped:user-waiver，默认入口仍要求抓取成功。此结果不证明抓取可用，完整记录见上述操作文档。

@@ -233,7 +233,9 @@ Not Covered：新面板 Browser 交互、真实模型、缺失真实 Session/创
 
 ## Meeting Roles Deployment
 
-### Scope And Prepare
+### Initial Attempt Scope And Prepare
+
+以下保留首次失败及修复过程；当前验收结论见本节末尾 Final Authorized Validation。
 
 2026-09-08，分支 `codex/meeting-agent-role-description`，运行基线 `accb2b8`（完整 SHA 可由该 commit 查询）；验证启动时工作树干净。Node v22.23.2、pnpm 10.7.0、DSH 0.1.2-rc.1，web profile、spawn provider。本轮交付 roleDescription、Host agentModelOverrides、九角色原生资产与部署探针；不沿用旧 schema 的历史 smoke 作为首发部署成功证据。
 
@@ -259,19 +261,19 @@ role-composition 的 Host PID 为 69905、69914。两阶段角色检查均 true�
 - `evaluate({baseUrl:"file:///isolated/dsh-home/profiles/web/"}, "new URL('presets/', baseUrl).href")` 返回 profile 下的 presets 路径；外部 patch 文件不成为该表达式的 baseUrl。当前随包 patch 因而没有指向解包的角色资源目录。
 - `applyEntryPatches` 对同 id 的后一个 config 做整体替换。当前 smoke 控制 patch 仅重述 provider/dataRoot/容量/超时，因此覆盖部署 patch 的 agentDefinitions；复现结果 `laterControlPreservesDefinitions:false`。该问题在修复 Preset 定位后仍会阻止定义选择。
 
-需要先校准原生部署资源定位和完整 config 组合契约，再修改随包 patch、wrapper、对应测试及操作说明。当前 T5 不允许修改这些实现，故在此 STOP；没有扩大权限、复制 Preset、注入假 Skill 或更换 provider 继续测试。
+需要先校准原生部署资源定位和完整 config 组合契约，再修改随包 patch、wrapper、对应测试及操作说明。该轮 T5 不允许修改这些实现，故在此 STOP；没有扩大权限、复制 Preset、注入假 Skill 或更换 provider 继续测试。
 
 ### Restore
 
 失败场景临时根 `convivium-dsh-smoke-bVrI9u` 已由 wrapper finally 删除，实际存在性检查为 absent；该轮 loopback 端口 49494 可重新 exclusive bind 并关闭。wrapper 仍返回原始 probe 错误，没有 Restore 错误；外层 finally 同时清理共享构建根。role-composition 明确输出 restore=PASS。失败诊断不保存临时访问 token、密钥或模型/工具正文。
 
-### Not Covered And Closure
+### Initial Failure Boundary
 
 后续修复和定向执行见下节；三研究角色完整 search/fetch、Manager/Scribe 全部权限断言仍未通过，属于阻止交付的必过项，不作为可豁免范围。默认五核心复验尚未运行。MAD-10、MAD-11 未完成，临时 RUNBOOK 与 TODO 保留。
 
-长期模型任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 和 Host capability 内容变更后的历史快照继续不在本次范围。当前结论是角色模型与静态资源已实现、真实部署阻塞，不能称为部署完善。
+长期模型任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 和 Host capability 内容变更后的历史快照继续不在本次范围。该轮结论是角色模型与静态资源已实现、真实部署阻塞，不能称为部署完善。
 
-### Native Probe Repairs And Current Network Blocker
+### Native Probe Repairs And Network Diagnosis
 
 在 cd9b105 上完整 verify 为 86 files / 1135 tests PASS；role-composition 为 12529ms、Host PID 72275/72288、restore=PASS。其后定向部署逐项定位并修复：非 inject 的 agentPresets 改为 ctx.get；Captain 使用 CreateAgentOptions.agentOptions 选择 deepseek-official/deepseek-v4-flash；continuable child idle 后自动释放，研究/权限/status 检查移到原生 Skill 的 tools/post-execute 内，返回原 decision 并 finally 注销；ToolFailure 读取 error.info.code。回归覆盖模型创建边界、turn/end error 及时失败、异步检查完成前不返回 Skill decision、原生 UNKNOWN_TOOL 与 Provider error 的区别。本轮 77 focused tests、lint、双端 typecheck、九角色门禁和文档检查 PASS。
 
@@ -279,10 +281,34 @@ role-composition 的 Host PID 为 69905、69914。两阶段角色检查均 true�
 
 只读 Node dns.lookup 证明 github.com、arxiv.org、www.typescriptlang.org 均返回 198.18.*；系统 DNS 指向 Shadowrocket MacPacketTunnel 的 Fake-IP 解析。curl 经系统代理成功不能替代原生抓取的公网 DNS 与固定连接检查。未放宽 DSH 地址校验或替换 Provider；仓库外网络调整已请求用户确认，电脑控制工具未获权限，尚未修改配置。
 
-上述临时根均由 wrapper finally 清理；最近 FEnbiA 轮无 Restore 错误，原始失败正常返回。诊断只记录失败码、域名、配置边界与阶段，不保存 token、密钥或模型/工具正文。最终四命令顺序门禁未完成，MAD-10/MAD-11 保留。
+上述临时根均由 wrapper finally 清理；最近 FEnbiA 轮无 Restore 错误，原始失败正常返回。诊断只记录失败码、域名、配置边界与阶段，不保存 token、密钥或模型/工具正文。该轮四命令顺序门禁未完成，MAD-10/MAD-11 当时保留。
 
 修复工作区随后完整 `pnpm --dir plugin verify` exit 0：86 files / 1141 tests，Vitest 78.52 秒；format/lint/双端 typecheck/build/environment/contract/九资源/package 全 PASS，missingArtifacts 与 forbiddenPublishedPaths 为空。最近 FEnbiA 临时根再次核对 absent，51528 端口 exclusive bind/close PASS。此门禁覆盖本小步修复，不替代网络恢复后的完整 T5 顺序复验。
 
 ### User-authorized Fetch Waiver
 
-2026-09-08 用户明确要求“web_fetch 先跳过吧”。本轮仅豁免三个研究角色的真实抓取，保留部署资源中的 web_fetch 能力和默认严格 smoke；不改 DNS 或代理。显式 CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1 将结果记录为 skipped:user-waiver，搜索、九角色 Skill、权限、状态不变及其他 smoke 仍必过。该未覆盖项不阻止本轮已授权任务收口，但不能据此宣称原生抓取通过。最终运行结果随后记录。
+2026-09-08 用户明确要求“web_fetch 先跳过吧”。本轮仅豁免三个研究角色的真实抓取，保留部署资源中的 web_fetch 能力和默认严格 smoke；不改 DNS 或代理。显式 CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1 将结果记录为 skipped:user-waiver，搜索、九角色 Skill、权限、状态不变及其他 smoke 仍必过。该未覆盖项不阻止本轮已授权任务收口，但不能据此宣称原生抓取通过。最终结果如下。
+
+
+### Final Authorized Validation
+
+2026-09-08，分支 codex/meeting-agent-role-description，完整源码基线 `b3f02c2a75621f3f05f724c61dacdf45fe4264d6`，四条命令执行期间工作树干净。Node v22.23.2、pnpm 10.7.0、DSH 0.1.2-rc.1，独立 web profile、spawn provider；后续仅更新状态/证据文档与角色 README。8b7fae0 首轮 format gate 失败，b3f02c2 修正测试链式调用格式后从第一条命令重跑，无测试断言变化。
+
+| 顺序命令 | 实际结果 |
+| --- | --- |
+| `pnpm --dir plugin verify` | exit 0；86 files / 1143 tests，Vitest 72.32 秒；format/lint/双端 typecheck/build/environment/contract/九角色资源/package 全 PASS，missingArtifacts/forbiddenPublishedPaths 为空 |
+| `env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile` | exit 0；场景 22369ms，命令 39441ms；9 项断言、两阶段角色核验、restore=PASS |
+| `env CONVIVIUM_SMOKE_SCENARIO=meeting-roles CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1 pnpm --dir plugin smoke:profile` | exit 0；场景 60856ms，命令 74058ms；5 项授权范围断言，stdout 明示 web_fetch Not Covered，restore=PASS |
+| `pnpm --dir plugin smoke:profile` | exit 0；5 个核心场景共 91213ms（one build），每场景 restore=PASS |
+
+Prepare：每条 smoke 构建并打包当前代码，只在自己的临时 DSH_HOME/workspace/端口安装运行。九角色使用同 tarball 的 definitions、共享 convivium Preset 和九 Skills，部署 patch → 完整控制 patch 顺序，CONVIVIUM_MEETING_ROLES_ROOT 精确定位解包资产。仅 Host 注入 dev.env 密钥；未更改用户日常 profile、DNS、代理或凭据。
+
+Assert：九角色命令的严格 validator 接受九个不同 Session 的有序 Skill 成功记录，分别为 meeting-management、domain-architecture、dsh-runtime-engineering、protocol-ui-engineering、verification-review、github-source-research、arxiv-paper-analysis、web-source-research、referenced-minutes。每项均来自原生 skill 调用/结果四步正文及随后 ROLE_READY。GitHub/arXiv/Web 三个真实 child 的原生 search 均有对应域来源；三项 fetch 精确为 skipped:user-waiver，未执行抓取、未计成功。Manager/Scribe 各一次越权会议写工具、一次 web_search 均在 lookup 返回 UNKNOWN_TOOL；九身份 status 成功，暂停状态/version/messages 不变。assertions 为 shared-preset-mounted、nine-independent-sessions、nine-native-skills-loaded、research-search-operational、meeting-authority-preserved。
+
+Cold recovery：Host PID 79528 → 79544，phase1Checked/phase2Checked 均 true；第二 Host 配置版本为 2.0.0，恢复仍持有既有 V1 派生 persona/filter/provider/model/reasoningEffort，父配置不变，禁用工具 body 调用数为 0。两个模型差异由原生 descriptor 和确定性适配器断言验证，不等于两个远程模型的质量评测。
+
+Core：baseline 19205ms、cold-rebind 21420ms、cross-meeting 16909ms、convergence-stalled 8609ms、convergence-turn-budget-completion 10155ms，全部 PASS。
+
+Restore：三条 smoke 的每场景均由 wrapper finally 停止本次 Host、删除临时资源并验证端口释放；外层共享构建根也清理完成，全部正常 exit 0，无 Restore 错误。未保存密钥、访问 token 或模型/工具正文。
+
+Closure：本轮用户授权范围已验证完成，可关闭部署验收与临时计划。**Not Covered：web_fetch 按 2026-09-08 用户明确要求跳过，原生抓取可用性仍未验证**；默认命令继续严格验证抓取，解除 Fake-IP 环境问题后可重新运行，不需要修改产品或降低原生地址检查。完整无豁免的 FR-14 部署验收、模型长期任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 与 Host capability 内容历史快照不由本次证据证明。
