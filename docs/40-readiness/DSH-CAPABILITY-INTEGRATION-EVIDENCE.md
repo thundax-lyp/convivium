@@ -1,5 +1,7 @@
 # DSH Capability Integration Evidence
 
+当前存储组合与验证见 [SQLite Provider Integration](#sqlite-provider-integration)。下述 Scope 至 Closure 为 `8c3b7ab` 的替换前 DSH 升级历史记录，保留其原始结果与边界。
+
 ## Scope
 
 - 日期：2026-09-08。
@@ -47,3 +49,42 @@
 ## Closure
 
 本轮范围内的实现、完整工程检查及 16 场景真实 DSH 回归已完成。代码、协议、设计与验证证据一同维护；实现提交为 `7a6a29f`、`5c7be6e`、`8c3b7ab`；尚未推送或发布。未使用 DSH 内部入口，未修改相邻 DSH 源码仓库。
+
+
+## SQLite Provider Integration
+
+### Scope
+
+2026-09-08，分支 `codex/jsonl-storage-backend-dsh-first`，源码基线 `859ac1e` 加本次三个测试契约同步。Darwin arm64、Node `v22.23.2`、pnpm `10.7.0`、官方 DSH/Storage Domain/SQLite `0.1.2-rc.1`、Cordis `4.0.2`。产品不依赖本地上游源码或修复包。
+
+### Validated Contract
+
+| 验收边界 | 实际落点与结果 |
+| --- | --- |
+| 单 command 完整持久化与有界增量写入 | `sqlite-meeting-recovery.spec.ts`：一个真实 commit put，DSH JSON 编码不超过 65536 bytes；状态、事件、receipt、pending outbox 重开一致，重放不增版本或事件 |
+| commit 失败无半提交 | 同 suite：put 委托前 reject，内存 snapshot 与完整持久 projection 不变；新 Context 同库重开保持旧真相，相同请求随后成功 |
+| 领域 checkpoint 发布/清理故障 | 同 suite：pointer 发布前 reject，由旧 pointer+tail 恢复；发布后 obsolete commit delete reject，仍恢复完整新 projection；原 checkpoint/domain recovery 共 20 tests 保留容量、GC 和损坏边界 |
+| 损坏与版本检查 | 同 suite：schema 合法但 digest 损坏，重开拒绝 `CORRUPT_DATABASE`；同名 Domain 版本变化拒绝 `version-mismatch` |
+| provider 生命周期 | `provider-composition.spec.ts`：缺 provider 门控、到达后读写、await 成功与显式 Domain close 后卸载、撤销后拒绝写入、新 Context 同库重开 |
+| caller/version/terminal/idempotency 与业务一致性 | 既有 repository/domain、runtime、continuation、recovery suites 保留原断言；三个原 SQLite 装配 suite 在替换时共 72 tests 通过 |
+| Host 组合与冷重启 | 五核心真实 profile 全部通过，包含双 Host 同 SQLite 文件恢复；三个非会议 domain 保持 JSON，全部 Restore 成功，详见 [运行证据](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation) |
+| 生产依赖与算法边界 | 不携带物理 provider、不覆盖 bundle 默认介质；package/import graph/module-boundary tests 通过；相对替换前 `146d56e` 的 repository/runtime/domain/protocol/http/tools/client 全部零 diff |
+
+### Executed Validation
+
+- `pnpm --dir plugin format`：通过，无额外改动。
+- `pnpm --dir plugin verify`：最终退出 0；75 个测试文件、1042 tests 全部通过（Vitest 10.90s）；format check、lint、Host/Client typecheck、build、environment、plugin contract、9 个 Agent Definition 样本和发布包检查全部通过；缺失/禁止发布路径均为空。
+- 首轮完整 verify 的三个失败均为遗漏测试契约：旧 Storage peer、旧物理模块可达性、role smoke VM 未注入 dirname/join。同步后 focused 3 files/10 tests 通过，再重跑上述完整 verify；没有跳过测试或放宽业务断言。
+- `pnpm --dir plugin smoke:profile`：五核心场景全部 PASS/restore=PASS，51509ms；复用同一生产代码与 smoke 配置的运行结果，随后未改生产代码或 driver。详细日期、组合、首次启动失败修复与 Restore 见 [SQLite Provider Validation](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation)。
+- `git diff --exit-code 146d56e -- plugin/src/repository plugin/src/runtime plugin/src/domain plugin/src/protocol plugin/src/http plugin/src/tools plugin/src/client`：退出 0；删除的是物理日志/checkpoint，领域事务算法逐字未变。旧 backend/dataRoot 的生产搜索无匹配；`git diff --check` 与本地文档链接检查通过。
+- 非阻断提示：Node 的 SQLite experimental 提示和现有 Client bundle dependency 提示；构建成功。旧 JSONL 静态/动态 import 重叠提示随物理实现删除消失。
+
+### Not Covered
+
+仅覆盖本次五核心真实 selector；其余 11 个 selector、Browser、新增真实模型调用、真实断电/硬件故障、性能/压力、多进程写入与任意时序在途写入自动排空未覆盖。开发期数据迁移、已有版本升级为 Not Applicable（首次发布），不登记待办、不清理开发者文件。关闭限制以 [正式设计](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation) 为准。
+
+前期官方 rc.1 的真实 SQLite 排队写入探针：显式 `domain.close()` 后 100 次写入全部完成；provider/root dispose 分别有 99/98 次 `closed` 拒绝，已确认写入重开后存在。该结果不证明已确认数据丢失，也不证明单独关闭 AgentSession 会触发相同问题。用户接受这一关闭边界，替换不等待上游发布；本次验收不声称修复了上游自动排空。
+
+### Closure
+
+物理存储替换、必要启动门控、真实 profile 和完整工程验证已完成。长期职责、配置与关闭边界已进入 Architecture、Storage Interface、实现设计和 smoke 操作说明；本次不代表全部会议产品、全部部署组合或发布流程完成，未 push、创建 PR、合并或发布。

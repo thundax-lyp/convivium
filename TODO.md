@@ -8,17 +8,6 @@
 
 ## 当前任务项
 
-- [ ] `Storage / 完整验证与证据`：完成全量验证并归集 readiness 证据
-    - 依据文档：[Document Rules：同步与证据职责](docs/00-governance/DOCUMENT-RULES.md#document-sync)；[Architecture：替换决定](docs/00-governance/ARCHITECTURE.md#confirmed-baseline)；[Persistence Design：验收](docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md#acceptance)；[Implementation Design：验证设计](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#verification-design)。
-    - 执行步骤：[RUNBOOK T8](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t8完成全量验证并归集-readiness-证据)
-    - 证据文件：`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`、`docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md`、`docs/40-readiness/DSH-CAPABILITY-INTEGRATION-EVIDENCE.md`。
-    - 允许格式化：仅 RUNBOOK T1–T5 白名单内尚存代码文件，不扩大到其他文件。
-    - 验证入口：`plugin/package.json::scripts.verify` 与 RUNBOOK T8 的领域代码零 diff 检查。
-    - 前置依赖：T7 PASS；可执行代码或 smoke 配置变化时重跑 T6，否则复用其运行证据。
-    - 确认依据：2026-09-08 用户明确要求依次执行 TODO LIST，一任务一提交。
-    - 处理动作：执行完整验证并归集 V1–V9 的命令、环境、结果和未覆盖边界。
-    - 验收点：verify、diff 检查通过，领域生产代码零 diff，mandatory 项齐全，历史 JSONL 证据不重标。
-
 - [ ] `Storage / 收口`：迁移证据并删除临时 RUNBOOK
     - 依据文档：[TODO Rules：收口](docs/00-governance/TODO-RULES.md#closure-rules)；[RUNBOOK Rules：完成与删除](docs/00-governance/RUNBOOK-RULES.md#completion-and-deletion)；[Document Rules：文档生命周期](docs/00-governance/DOCUMENT-RULES.md#document-lifecycle)。
     - 执行步骤：[RUNBOOK T9](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t9迁移证据并删除临时-runbook)

@@ -1,8 +1,10 @@
 # Smoke Validation Evidence
 
-当前 DSH `0.1.2-rc.1` 的结果见下节；其余章节保留各自的历史源码与环境边界，不外推为当前 Browser 或模型验证。
+当前 SQLite 组合的五核心 smoke 见 [SQLite Provider Validation](#sqlite-provider-validation)，全量工程检查见 [SQLite Provider Integration](./DSH-CAPABILITY-INTEGRATION-EVIDENCE.md#sqlite-provider-integration)。下述升级基线及其他章节保留各自历史边界，不外推为当前 Browser 或模型验证。
 
 ## Current Baseline Validation
+
+本节为 SQLite 替换前的 DSH 升级历史基线；标题锚点保留供既有证据引用。
 
 2026-09-08，源码为 `8c3b7ab0359828f4b2e33554300c134f95bacecd`，分支 `codex/upgrade-dsh-0.1.2-rc.1`；验证在提交前的同一源码工作区执行。Darwin arm64、Node `v22.23.2`、DSH `0.1.2-rc.1`，独立 `web` profile、`spawn` provider。
 

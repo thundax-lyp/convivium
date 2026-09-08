@@ -260,12 +260,13 @@ STOP：正式依据冲突、链接失效或需要修改业务语义；保留文�
 ### T8：完成全量验证并归集 readiness 证据
 
 前置状态：T7 PASS。
-允许修改：`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`、`docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md`、`docs/40-readiness/DSH-CAPABILITY-INTEGRATION-EVIDENCE.md`；T1–T5 白名单内尚存代码文件仅允许 Prettier 格式化。
+允许修改：`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`、`docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md`、`docs/40-readiness/DSH-CAPABILITY-INTEGRATION-EVIDENCE.md`；T1–T5 白名单内尚存代码文件仅允许 Prettier 格式化；`plugin/tests/contract/package-contract.spec.ts`、`plugin/tests/contract/production-import-graph.spec.ts`、`plugin/tests/unit/scripts/role-composition-smoke.spec.ts` 仅同步本次替换遗漏的断言/VM 输入。
 禁止修改：需求、领域契约字段与算法；历史验证不得改写为新 SQLite 证据；不得改根 AGENTS/Skill/CI 治理规则。
 
 执行：
-1. 三个 readiness 文件新增本次 SQLite 小节/索引，记录日期、分支/工作区边界、版本、执行命令、结果、数据库与 profile 隔离、Restore。旧 JSONL 成功证据保留并标明替换前历史；更新 current coverage 的当前载体为 SQLite，不把旧测试结果重标。
-2. 运行下列完整验证；T6 已通过的相同五 core smoke 证据直接复用，不重复运行。若此后修改了可执行代码或 smoke 配置，必须重新执行 T6；若无变化，直接复用 T6，不重复 smoke。
+1. 全量 verify 已复现三处遗漏夹具：package peer 与 import graph 仍断言旧 backend 存在，role smoke VM 缺少 dirname/join。依据用户授权解决问题：package contract 反向断言不携带 Storage/SQLite，import graph 保留 Domain 且禁止物理 backend，role VM 注入实际 Node 路径函数；保留所有业务、安全、phase 和 cleanup 断言。先运行这三个文件再重跑完整 verify，不更改生产代码，不重跑已通过的真实 smoke。
+2. 三个 readiness 文件新增本次 SQLite 小节/索引，记录日期、分支/工作区边界、版本、执行命令、结果、数据库与 profile 隔离、Restore。旧 JSONL 成功证据保留并标明替换前历史；更新 current coverage 的当前载体为 SQLite，不把旧测试结果重标。
+3. 运行下列完整验证；T6 已通过的相同五 core smoke 证据直接复用，不重复运行。若此后修改了可执行代码或 smoke 配置，必须重新执行 T6；若无变化，直接复用 T6，不重复 smoke。
 
 验证：
 ```bash
@@ -372,3 +373,5 @@ T3 的 V1–V4 使用落盘 SQLite。测试内读取生产公开 Domain，允许
 - 2026-09-08 T6 PASS：首次 baseline 暴露 spawn 注册时序并已修复；12 lifecycle tests、typecheck、lint 通过。重新执行默认五核心真实 smoke 全部 PASS/restore=PASS，合计 51509ms；运行组合、恢复屏障与失败清理证据已迁入 SMOKE-VALIDATION-EVIDENCE 的 SQLite Provider Validation。未更改领域算法或 scenario 断言。
 
 - 2026-09-08 T7 PASS：正式 Architecture、Storage Interface、三份设计和 smoke 操作入口同步 Host/profile SQLite 责任、provider 到达门控及已接受关闭边界。旧物理模块/配置不再作为当前职责；本地链接及锚点 83 项检查、diff check 通过，领域字段和算法不变。
+
+- 2026-09-08 T8 PASS：首次全量失败的三个遗漏测试契约已同步，focused 10 tests 通过后完整 verify 退出 0；75 files/1042 tests 全部通过，format 无额外改动、lint/typecheck/build/contract/environment/9 samples/package 全部通过。相对 146d56e 的七个业务生产目录零 diff；SQLite 五核心 smoke 复用同生产基线。V1–V9 与未覆盖边界已归集 SQLite Provider Integration。

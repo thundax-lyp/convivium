@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import { roleCompositionDefinitions } from "../../fixtures/role-composition.js";
@@ -101,6 +102,8 @@ describe("role composition smoke contract", () => {
         const writeFile = vi.fn();
         const writePatch = runInNewContext(wrapper.slice(a, b) + "\nwriteSmokePatch", {
             writeFile,
+            dirname,
+            join,
             PROVIDER: "spawn",
             BROWSER_MODE: false,
             roleSmokeDefinitions
