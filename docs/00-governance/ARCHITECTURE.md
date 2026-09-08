@@ -39,6 +39,7 @@
 - 保留现有 catalog、每 Meeting 独立 domain、command commit、receipt、outbox、领域 checkpoint、串行化、容量限制和恢复算法。不得改为单 record Meeting 聚合，不新增跨 record transaction 或 SQL 访问。
 - 本项目为首次发布，SQLite 是首次发布的存储介质。不设计开发期 JSONL/SQLite 数据迁移、兼容读取、双写、fallback 或数据清理流程，也不为遗留数据建立测试与验收要求。此决定不授权删除开发者本地文件。
 - 本阶段实现和运行验证只使用新建的隔离 profile；不自动修改已有 Host/profile。DSH Domain 路由按精确名称匹配，不能使用 Meeting 名称前缀通配。组合必须保留其他 Host domain 的既有介质路由。
+- 首次发布接受 [Storage Shutdown Limitation](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)：关闭时未完成写入的排空不作为 provider 替换前置条件；成功提交后的持久性与恢复不变量不变。继续使用已固定的官方依赖，不为此接入本地上游修复包。
 - 完成替换后同步移除本文和正式设计中的旧当前实现描述，再将本节稳定结论并入对应基线和依赖规则，不长期保留过渡状态。
 
 ### DSH Plugin Host

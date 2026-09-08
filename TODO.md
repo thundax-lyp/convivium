@@ -13,10 +13,10 @@
     - 执行步骤：[RUNBOOK T2](docs/30-designs/RUNBOOK-DSH-SQLITE-STORAGE.md#t2验证-sqlite-provider-生命周期)
     - 新增文件：`plugin/tests/integration/storage/provider-composition.spec.ts`，suite=`Storage provider composition`。
     - 只读入口：`plugin/src/index.ts::meetingConsumerPlugin`；公开 DSH Storage/Storage Domain/SQLite provider exports。
-    - 前置依赖：T1 PASS；等待包含 Storage Domain/provider 与 Cordis 卸载修复的官方发布版本，选定版本并同步正式依赖基线后才能继续。
-    - 阻塞处置：2026-09-08 用户明确选择等待上游正式修复版本；不使用本地源码、tarball 或依赖补丁继续验收。
+    - 前置依赖：T1 PASS；按 [已接受的关闭限制](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)继续使用固定官方依赖，不等待上游修复发布。
+    - 确认补充：2026-09-08 用户接受关闭时未完成写入的限制，要求写入设计并同步冒烟验收；替代此前等待正式修复版本的决定。
     - 确认依据：2026-09-08 用户明确要求依次执行 TODO LIST，一任务一提交。
-    - 处理动作：验证缺 provider 不激活、到达后读写、卸载关闭顺序与同路径重开。
+    - 处理动作：验证缺 provider 不激活、到达后读写、写入已成功且显式关闭 Domain 后卸载，以及同路径重开。
     - 验收点：单文件 suite 和 typecheck 通过，V5 全部成立；无句柄或临时目录残留，不新增生产 wrapper。
 
 - [ ] `SQLite / 领域故障恢复`：验证 SQLite 领域提交与故障恢复
@@ -61,7 +61,7 @@
     - 前置依赖：T5 PASS。
     - 确认依据：2026-09-08 用户明确要求依次执行 TODO LIST，一任务一提交。
     - 处理动作：运行默认五核心 smoke，核对实际 Loader、冷重启、隔离、归档与 Restore，记录真实结果。
-    - 验收点：五场景全部 PASS/restore=PASS，V8 运行部分通过；无临时资源残留，失败不得通过改代码或 driver 绕过。
+    - 验收点：按已接受的关闭限制验证关闭前已确认事实的冷恢复；五场景全部 PASS/restore=PASS，V8 运行部分通过；无临时资源残留，失败不得通过改代码或 driver 绕过。
 
 - [ ] `Storage / 正式文档`：同步正式存储与操作文档
     - 依据文档：[Document Rules：同步与证据职责](docs/00-governance/DOCUMENT-RULES.md#document-sync)；[Architecture：替换决定](docs/00-governance/ARCHITECTURE.md#confirmed-storage-provider-transition)；[Persistence Design：验收](docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md#acceptance)；[Implementation Design：验证设计](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#verification-design)。

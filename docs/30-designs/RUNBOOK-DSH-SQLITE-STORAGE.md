@@ -4,7 +4,7 @@
 
 - 建立日期：2026-09-08。
 - 工作边界：仓库根目录；分支 `codex/jsonl-storage-backend-dsh-first`。
-- 模式：Execute；审计结论 `Executable`，从 T1 顺序执行。
+- 模式：Execute；审计结论 `Executable`，T1 已完成，从 T2 顺序执行。
 - 确认依据：用户于 2026-09-08 同意“回归 DSH provider、保留领域事务算法”的评估并要求制定最小 RUNBOOK，随后明确这是首次发布、无需考虑迁移；正式授权见 [Architecture / Confirmed Storage Provider Transition](../00-governance/ARCHITECTURE.md)。
 - 基线已由作者确认，依次执行 T1–T9。只改每步白名单；PASS 才进入下一步。用户于 2026-09-08 明确授权依次执行、一任务一提交；每项提交同步删除已完成 TODO。不得 push、创建 PR、合并或修改已有 Host/profile。
 - 禁止新增生产 adapter、存储 factory、迁移器、配置兼容层、通用 fault framework；禁止修改 `plugin/src/repository/`、`plugin/src/runtime/`、业务 Domain、Protocol、HTTP、Tools 和 Client。
@@ -122,14 +122,14 @@ STOP：安装、公开 API 或原业务测试失败；先关闭 fixture 资源�
 
 ### T2：验证 SQLite provider 生命周期
 
-前置状态：T1 PASS。
+前置状态：T1 PASS；遵循 [已接受的关闭限制](CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)，继续使用固定官方依赖，不等待上游修复发布。
 允许修改：新增 `plugin/tests/integration/storage/provider-composition.spec.ts`。
 禁止修改：所有生产代码、依赖、既有测试和共享 fixture。
 
 执行：
 1. 新 suite 固定为 `Storage provider composition`；局部 Context 依次组合 Storage、Domain 与官方 SQLite，使用临时落盘 DB。
-2. 覆盖 V5：缺 provider 时 consumer 不激活；provider 到达后激活，put/delete 可观察；Domain close 后 provider close，同路径重开保持写入/删除结果；provider 撤销后 consumer 不再写。
-3. 生命周期顺序通过局部 spy 记录，finally restore；每个 Context 都在删除临时目录前 dispose。不修改上游原型实现，不新增生产 lifecycle wrapper。
+2. 覆盖 V5：缺 provider 时 consumer 不激活；provider 到达后激活。逐一 await 真实 put/delete，并读回断言保留记录存在、已删除记录不存在；显式 await `domain.close()` 后再 dispose provider。断言 consumer 已撤销，持有的旧 Domain 拒绝新写入；使用新 Context/Domain 打开同一路径，核对已确认的写入和删除结果。
+3. 不再断言自然卸载时内部 close 的先后顺序或在途写入自动排空；移除草稿中对应的顺序 spy 断言，保留服务门控、撤销和重开断言。finally 关闭所有 Domain、dispose 每个 Context，再删除临时目录。不修改上游原型实现，不新增生产 lifecycle wrapper。
 
 验证：
 ```bash
@@ -138,7 +138,7 @@ pnpm --dir plugin typecheck
 ```
 
 PASS：V5 全部断言通过；重复打开使用新 Context/Domain；无未关闭句柄或临时文件。
-STOP：激活、关闭顺序或 reopen 失败；清理测试资源后停止，不修改 DSH 或补生产防御。
+STOP：服务门控、显式关闭、撤销或 reopen 断言失败，已确认的写入/删除结果未保持，或资源清理失败；清理测试资源后停止，不修改 DSH 或补生产防御。
 
 ### T3：验证 SQLite 领域提交与故障恢复
 
@@ -222,17 +222,17 @@ STOP：配置测试失败、公开配置接口不匹配或需要修改 scenario/
 禁止修改：产品与测试代码、profile 接线、scenario/result、用户凭据和已有 Host/profile。
 
 执行：
-1. 执行现有默认五核心 smoke；由 wrapper 创建独立 profile 并完成 Prepare/Execute/Assert/Restore，不调用常用 profile。
+1. 先按 [关闭与冷重启验收](../50-operations/HOW-TO-DSH-SMOKE.md#sqlite-替换的关闭与冷重启验收)只读核对 cold-rebind 的成功提交、状态/Session flush、checkpoint 与 `phase1Complete` 顺序，以及 wrapper 读取阶段结果后才停止 Host 的屏障。然后执行现有默认五核心 smoke；由 wrapper 创建独立 profile 并完成 Prepare/Execute/Assert/Restore，不调用常用 profile。
 2. 核对 dumpConfig 的 SQLite package、唯一 row、新 DB 路径和无旧 backend 配置；观察 baseline、cold-rebind、cross-meeting 及两个核心归档场景的原断言。
-3. 记录实际日期、分支/工作区边界、Node/pnpm/DSH 版本、命令、五场景结果和 Restore；失败只记录实际失败与脱敏诊断，不能改 driver 或降低标准。
+3. 记录实际日期、分支/工作区边界、Node/pnpm/DSH 版本、命令、五场景结果和 Restore；记录本次关闭验收仅覆盖已确认操作的恢复，不证明 Host 全部后台写入排空。持久化 pending 工作允许按既有契约恢复。失败只记录实际失败与脱敏诊断，不能改 driver、增加固定 sleep 或忽略错误来获得 PASS。
 
 验证：
 ```bash
 pnpm --dir plugin smoke:profile
 ```
 
-PASS：五个 core scenarios 全部输出 `PASS ... restore=PASS`；cold-rebind 两个 Host 进程使用同库恢复，非会议 json consumers 正常；无临时 Host、端口或文件残留，V8 运行部分通过。
-STOP：缺 dev.env、安装/Loader 失败、未规定消费者或任一场景/Restore 失败。先执行 wrapper Restore，记录失败并停止；不修改凭据、生产代码、driver 或改为 :memory:。
+PASS：五个 core scenarios 全部输出 `PASS ... restore=PASS`；cold-rebind 两个 Host 进程使用同库恢复关闭前已确认的记录、版本与 ownership，并成功继续提交，非会议 json consumers 正常；无临时 Host、端口或文件残留，V8 运行部分通过。
+STOP：缺 dev.env、安装/Loader 失败、未规定消费者、缺少上述阶段屏障、已确认事实恢复失败或任一场景/Restore 失败。缺少屏障时先报告并修订对应步骤的范围，不在本步越界改代码。先执行 wrapper Restore，记录失败并停止；不修改凭据、生产代码、driver 或改为 :memory:。
 
 ### T7：同步正式存储与操作文档
 
@@ -333,13 +333,13 @@ T3 的 V1–V4 使用落盘 SQLite。测试内读取生产公开 Domain，允许
 | V2 / S2 | commits put 在委托真实 put 前一次 reject；command 拒绝；内存与重开后 snapshot/version/events/receipts/outbox 与提交前相同；解除 fault 后相同请求可成功 | 同上 |
 | V3 / S2 | 用 `writeCheckpoint` 写当前 projection，在 checkpoint_pointer put 前 reject；重开由旧 pointer+tail 恢复相同 projection，未发布页不参与真相。另例 pointer 成功后 commits delete 一次 reject，重开仍为同一 projection；通过 `loadProjection` 比较 receipt/outbox/events | 同上；保留 `unit/repository/domain/checkpoint.spec.ts` 的完整容量和 GC 测试 |
 | V4 / S2 | 通过 Domain 向 ready meeting 的 commit 写入 schema 合法但 digest 被更改的值；关闭重开后 registry/repository 拒绝 `CORRUPT_DATABASE`，不返回部分状态；独立低级测试同名 unit version 1 写入后 version 2 打开拒绝 `version-mismatch` | 同上；版本用公开 `defineDomain` 声明，独立临时 DB |
-| V5 / S1,S3 | provider 缺失不激活；到达后读写并重开；Domain 在介质关闭前释放 | 新 `provider-composition.spec.ts` |
+| V5 / S1,S3 | provider 缺失不激活；到达后 await 读写及显式 Domain close，再卸载；撤销后拒绝写入，新 Context 同库重开保持已确认结果 | 新 `provider-composition.spec.ts` |
 | V6 / S2 | caller/capability 拒绝、stale version、terminal immutability、相同请求重放、不同 hash 冲突、数组含非法项原子拒绝 | 既有 `contract/domain-meeting-repository.spec.ts`、`meeting-repository-behavior.ts` 和 `meeting-runtime.spec.ts`；全量 verify 原断言保持 |
 | V7 / S2 | state/event/receipt/outbox/public projection/archive 一致；旧 archived 请求重放、新请求拒绝；续会身份隔离 | 已换 SQLite 的 `meeting-runtime.spec.ts`、`continuation.spec.ts`、`meeting-recovery.spec.ts` |
-| V8 / S1,S3 | 真实 Loader 安装 provider，五核心场景全部通过，cold-rebind 两个进程同库恢复、非会议 domain 留在 json、Restore 成功 | T5 配置测试 + T6 smoke/dumpConfig |
+| V8 / S1,S3 | 真实 Loader 安装 provider，五核心场景全部通过，cold-rebind 两个进程同库恢复关闭前已确认事实并继续提交、非会议 domain 留在 json、Restore 成功 | T5 配置测试 + T6 smoke/dumpConfig |
 | V9 / S4 | typecheck/lint/build/package contract/全部自动测试通过；无领域生产 diff；文档链接有效 | T8 verify、diff、T7/T9 链接检查 |
 
-跨 record transaction：Not Applicable，未引入该能力；V2 的“回滚”指 command 未发布，不声称能回滚已成功的多个 KV put。真实进程重启由 V8 覆盖；V2/V3 是操作边界故障注入，不声称模拟断电。UI 新行为/新 actor/新事件数组：Not Applicable，保留原 suite 即可。高负载吞吐、磁盘满和真实掉电：Not Covered，本次无新增保证。
+跨 record transaction：Not Applicable，未引入该能力；V2 的“回滚”指 command 未发布，不声称能回滚已成功的多个 KV put。真实进程重启由 V8 覆盖；V2/V3 是操作边界故障注入，不声称模拟断电。UI 新行为/新 actor/新事件数组：Not Applicable，保留原 suite 即可。高负载吞吐、磁盘满和真实掉电：Not Covered，本次无新增保证。关闭时任意在途写入自动排空：Not Covered，按已接受的关闭限制执行；这不豁免已确认结果的持久性与恢复断言。
 
 ## 作者检查与完成定义
 
@@ -353,6 +353,8 @@ T3 的 V1–V4 使用落盘 SQLite。测试内读取生产公开 Domain，允许
 
 - 2026-09-08 T1 PASS：三个既有 SQLite 装配 suite 共 72 tests 通过；`pnpm --dir plugin typecheck` 通过。仅增加固定版本 devDependency 与替换测试 provider，业务断言及生产代码不变。下一步 T2。
 
-- 2026-09-08 T2 STOP：`pnpm --dir plugin exec vitest run tests/integration/storage/provider-composition.spec.ts` 退出 1。真实 provider dispose 时，`backend.close()` 进入顺序为 0，首次 Domain close 完成顺序为 3，未满足“Domain close 后 provider close”。仅比较两个 Promise 完成的顺序会通过，但不足以证明 backend 关闭前 Domain 已释放，故保留严格断言。`pnpm --dir plugin typecheck` 退出 0；finally 已 dispose Context、restore 局部 spy 并删除临时目录。测试保留未提交，T2 TODO 不关闭，T3–T9 未执行。继续前需确认是否先调查上游卸载时在途 Domain 写入的生命周期保证并修订本步骤；不据此直接判定数据丢失，也不添加生产 wrapper。
+- 2026-09-08 T2 STOP（历史判据，后续确认已替代继续条件）：`pnpm --dir plugin exec vitest run tests/integration/storage/provider-composition.spec.ts` 退出 1。真实 provider dispose 时，`backend.close()` 进入顺序为 0，首次 Domain close 完成顺序为 3，未满足“Domain close 后 provider close”。仅比较两个 Promise 完成的顺序会通过，但不足以证明 backend 关闭前 Domain 已释放，故保留严格断言。`pnpm --dir plugin typecheck` 退出 0；finally 已 dispose Context、restore 局部 spy 并删除临时目录。测试保留未提交，T2 TODO 不关闭，T3–T9 未执行。继续前需确认是否先调查上游卸载时在途 Domain 写入的生命周期保证并修订本步骤；不据此直接判定数据丢失，也不添加生产 wrapper。
 
-- 2026-09-08 调查与继续条件：用户授权独立修复上游，随后明确选择等待官方发布版本，不将本地修复包接入 Convivium。直接 `domain.close()` 可排空 100 次写入；官方 rc.1 的 provider/root dispose 分别出现 99/98 次 `closed` 拒绝，已确认写入重开后存在。修复涉及 storage-domain、storage-sqlite、storage-json 的分组清理，以及 Cordis 保留卸载中依赖供关闭方等待；仅存储包的分组不足以保证所有插件注册顺序。T2–T9 保持未完成；正式修复版本发布并同步依赖基线后，T2 必须同时覆盖卸载在途写入、消费者排空和重开验证，不能仅比较 close 调用顺序。
+- 2026-09-08 调查与继续条件（历史决定，已被下项替代）：用户授权独立修复上游，随后明确选择等待官方发布版本，不将本地修复包接入 Convivium。直接 `domain.close()` 可排空 100 次写入；官方 rc.1 的 provider/root dispose 分别出现 99/98 次 `closed` 拒绝，已确认写入重开后存在。修复涉及 storage-domain、storage-sqlite、storage-json 的分组清理，以及 Cordis 保留卸载中依赖供关闭方等待；仅存储包的分组不足以保证所有插件注册顺序。T2–T9 保持未完成；正式修复版本发布并同步依赖基线后，T2 必须同时覆盖卸载在途写入、消费者排空和重开验证，不能仅比较 close 调用顺序。
+
+- 2026-09-08 关闭限制确认：用户接受关闭时尚未完成写入可能失败，要求写入设计并同步冒烟判据。此前等待正式修复包及卸载自动排空的继续条件撤销；保持固定官方依赖，不接入本地修复包。T2 改验显式 await 写入和 Domain close 后的卸载、撤销与同库重开；T6 以关闭前已确认事实为恢复断言，不声称自然卸载能排空全部后台写入。设计、Architecture、操作和证据边界同步；T2–T9 仍未完成，本次文档修订不构成新的测试或 smoke PASS。

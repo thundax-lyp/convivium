@@ -10,6 +10,12 @@
 
 场景清单、探针适配、业务重投修复、完整 verify 及 Not Covered 统一见 [DSH Capability Integration Evidence](./DSH-CAPABILITY-INTEGRATION-EVIDENCE.md#executed-validation)。历史 `6679403` 的结果见 [Historical Alignment Baseline Validation](#historical-alignment-baseline-validation)。
 
+## SQLite Shutdown Acceptance Boundary
+
+2026-09-08 用户接受 [设计中的关闭限制](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)。SQLite 替换仍待执行验证，本次只确认验收范围：重开必须保留关闭前已确认成功的事实，关闭与未完成写入竞争时的自动排空不作为 mandatory。操作与失败判据见 [SQLite 关闭与冷重启验收](../50-operations/HOW-TO-DSH-SMOKE.md#sqlite-替换的关闭与冷重启验收)。
+
+Not Covered：SQLite 新组合的真实 profile smoke 尚未完成；不证明人工固定等待时长安全、单独关闭 AgentSession 的行为或任意时序卸载时所有排队写入都成功。上述历史基线结果不重新标记为 SQLite 替换验证通过。
+
 ## Historical Smoke Layering
 
 以下 Scope 至 Closure 均属于 `bd0159b` 后的历史 smoke 分层调整。

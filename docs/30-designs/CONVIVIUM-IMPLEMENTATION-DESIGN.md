@@ -395,7 +395,15 @@ Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-s
 5. consumer 注册 tools 和 system prompt contribution，通过可选 webServer 子作用域注册 HTTP routes；Client bundle 由 DSH 根据 package manifest 独立装载。
 6. consumer 启动有界 outbox worker。
 
-若步骤 1 至 4 失败，插件加载失败且不暴露部分工具或路由。DSH 自托管注册随 fiber 释放，普通 registry 的 disposer 由 consumer effect 托管；停止时 consumer 先停止接收新命令、停止 worker、释放租约并关闭 Meeting/catalog domains，随后 provider 注销 backend service、注销 backend name 并关闭介质。停止过程不把进行中 Meeting 改成业务终态，后续启动通过 recovery 继续处理。
+若步骤 1 至 4 失败，插件加载失败且不暴露部分工具或路由。DSH 自托管注册随 fiber 释放，普通 registry 的 disposer 由 consumer effect 托管；consumer 的停止职责是停止接收新命令、停止 worker、释放租约并关闭 Meeting/catalog domains；provider 负责注销 backend service/name 并关闭介质。当前 DSH 不保证这两方在 Host 卸载时按上述职责顺序完成，适用下述已接受限制。停止过程不把进行中 Meeting 改成业务终态，后续启动通过 recovery 继续处理。
+
+### Accepted Storage Shutdown Limitation
+
+2026-09-08 用户确认：首次发布容忍 DSH/Cordis 在存储 provider 卸载或 Host/根 Context 关闭时，尚未完成的排队写入可能因介质提前关闭而以 `closed` 拒绝。人工操作可以在对话完成后保留 Host、停止发起新操作并等待写入完成，再自行关闭；对话显示完成不等于持久化完成，没有已验证的固定安全等待时长。本限制不要求升级 DSH、不阻塞 SQLite provider 替换，也不引入 Convivium 自有关闭协调器、存储 wrapper 或本地上游补丁。
+
+成功响应仍必须晚于领域 commit 持久化；已确认成功的状态、receipt、事件与 outbox 重开后必须保持一致。容忍范围仅是关闭与未完成工作竞争时的失败，不容忍已确认数据丢失、半提交、损坏被静默忽略或失败被报告为成功。单独关闭 AgentSession 是否触发相同问题尚未验证，不把本限制描述为“关闭 Session 必定丢最后一条”。领域 command/receipt/outbox/checkpoint 算法与恢复要求保持不变。
+
+自动验证以关闭前已确认的事实作为恢复 oracle：等待断言所涉及的写操作成功完成，记录版本、消息 ID 和必要的 Session flush 结果，再关闭并用新进程/Context 重开。已持久化的 pending outbox 可以留给冷恢复，不要求所有 Meeting 已终止或全部后台任务完成。测试不把全局队列静默、自动排空在途写入或 consumer/provider 的内部 close 调用顺序作为本次 mandatory 条件；也不得用固定 sleep、忽略错误或删掉重开断言来制造 PASS。人工等待只能降低触发概率，不能替代上述机器可观察条件。
 
 ### Optional Web Composition
 

@@ -198,6 +198,14 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 
 上述 selector 不调用 LLM，只证明当前锁定 DSH runtime/provider、真实 Session persistence、inbox、interrupt/drain、tool caller、Storage Domain composition/cold recovery、status/archive 和 Meeting 隔离路径。Decision/Agenda、developer Markdown、metrics/stress、浏览器未列出的其他控制、遗留 SQLite migration/deletion、multi-Host writer、remote filesystem 和生产发布不在这些 selector 的证明范围内。
 
+## SQLite 替换的关闭与冷重启验收
+
+本次替换遵循 [已接受的关闭限制](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)。人工操作在对话完成后停止发起新操作、等待再关闭 Host；不规定“等待若干秒即可安全”的承诺。以下是 SQLite 冒烟的验收边界，不表示 SQLite 组合已经验证通过。
+
+自动探针必须先等待目标 tool/command 成功及对应状态断言，再输出阶段结果。`cold-rebind` 的 `plugin/scripts/smoke-profile/probe/scenarios/recovery.js::runColdRebindScenario` 在 phase 1 中执行以下流程：成功提交消息、核对 checkpointStatus 的版本与消息 ID、确认 Captain/Manager Session flush 成功、写出恢复 checkpoint，最后输出 `phase1Complete`；wrapper 读取该结果后才停止 phase 1 Host。phase 2 必须用同一介质的新 Host 验证记录前缀、版本和 ownership，并成功继续提交。阶段结果不是“Host 全部后台写入已排空”的证明；持久化的 pending 工作仍按冷恢复契约继续处理。
+
+不得仅凭 UI 完成、Agent idle、固定 sleep 或进程已退出判断持久化通过。关闭时未完成写入自动排空以及内部 close 顺序不在本次验收承诺内；已确认数据缺失、领域恢复失败、场景断言失败和 Restore 失败仍必须判 FAIL。遇到 `closed` 错误时核对它是否影响阶段事实和恢复结果，记录错误与未完成操作，不得统一吞错或直接归为可忽略。若现有脚本缺少目标事实的成功屏障，先修订对应有界步骤再实施，不临时添加延时或篡改结果。
+
 ## 失败处理
 
 - 首次运行无法取得 DSH 包时，检查网络或 pnpm store；不得改用未记录版本的 DSH CLI 继续判定结果。
