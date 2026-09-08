@@ -1,0 +1,13 @@
+- id: agent-presets
+  config:
+    default: convivium
+    includeShippedRoot: true
+    includeUserRoot: true
+    roots:
+      - path: !!js "process.getBuiltinModule('node:url').fileURLToPath(new URL('presets/', baseUrl))"
+        trust: system
+- id: convivium
+  config:
+    provider: spawn
+    maxParticipants: 8
+    agentDefinitions: !!js "JSON.parse(process.getBuiltinModule('node:fs').readFileSync(new URL('definitions.json', baseUrl), 'utf8')).definitions"

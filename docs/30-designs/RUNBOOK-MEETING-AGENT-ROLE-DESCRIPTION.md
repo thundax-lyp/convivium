@@ -435,3 +435,5 @@ Not Covered：本轮未改生产代码、测试或部署资源；仅运行 Confi
 2026-09-08 MAD-02 PASS：纯角色输入、Host map 校验和 resolver 转换完成；role-composition 与 session-adapter 共 4 files / 44 tests PASS。原型名 ID 测试发现 z.record 丢失 __proto__，改为逐项校验并写入无原型 map 后通过。T2 lint/typecheck 依计划在 MAD-03 接线完成后执行。
 
 2026-09-08 MAD-03 / T2 PASS：Host Config 到 resolver 的独立模型 map 接线完成；reasoningEffort 按非空字符串契约经 Zod runtime predicate 解析为 DSH branded ID，无类型断言绕过。lint、Host/Client typecheck、8 files / 135 focused tests、diff check 全 PASS。
+
+2026-09-08 MAD-04 PASS：九角色原生资源与部署验证器完成，指定旧 19 文件已删除；verify:agent-definitions、16 个 samples tests、角色正文与原元数据逐项核对、V-DOC/diff check 全 PASS。打包与真实 Loader 验收仍待后续任务。

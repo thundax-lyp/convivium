@@ -10,14 +10,6 @@
 
 2026-09-08 用户明确授权依次执行 TODO LIST，一任务一提交。MAD 编号用于任务依赖，RUNBOOK 的 T1–T6 仍是阶段门禁；阶段内拆分不新增范围，也不允许以部分任务完成代替整个阶段 PASS。T0 已确认，不列待办。每项相关文件均为仓库相对路径；计划新增路径不表示文件已存在。
 
-- [ ] `MAD-04 / meeting-roles 资源`：替换九角色资源并校验原生格式
-    - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14、验收 35/36/38/39；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) First-release assets、Compatibility；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Native deployment resources；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) Deployment Assets、Fixed Role And Skill Content、Native Deployment Contract、T3 动作 1/2/3/5。DSH 格式参考：[Preset 契约](.agents/skills/dsh-plugin-development/references/presets-context.md)、[Skill 契约](.agents/skills/dsh-plugin-development/references/skill-providers.md)。
-    - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
-    - 前置：MAD-03 PASS（T2 完成）。
-    - 相关文件：新增 `plugin/meeting-roles/definitions.json`、`plugin/meeting-roles/README.md`、`plugin/meeting-roles/cordis.patch.yml`、`plugin/meeting-roles/presets/convivium/preset.yml`、`plugin/meeting-roles/presets/convivium/agent.cordis.yml`，以及 `plugin/meeting-roles/presets/convivium/skills/` 下九个目录各自的 `SKILL.md`：`meeting-management`、`domain-architecture`、`dsh-runtime-engineering`、`protocol-ui-engineering`、`verification-review`、`github-source-research`、`arxiv-paper-analysis`、`web-source-research`、`referenced-minutes`。删除 `plugin/examples/meeting-agent-definitions/README.md` 及 RUNBOOK 角色表九目录各自的 `AGENT.md`/`agent-definition.json`（共 19 文件）。修改 `plugin/scripts/verify-agent-definition-samples.mjs`、`plugin/tests/unit/scripts/agent-definition-samples.spec.ts`。
-    - 处理动作：按固定正文与部署配置交付共享 convivium Preset 和九个 Skills，将验证器改为 verifyMeetingAgentDefinitions(root)，移除旧 manifest/hash 校验；只删除指定旧文件。
-    - 验收点：T3 的 verify:agent-definitions、samples suite 和 V-DOC 通过；完整资源经 parseAgentDefinitions 通过；漏 Skill、name 错误、不可模型调用、空正文、不同 Preset、旧字段、symlink 和未知文件均失败；旧目录无残留，Runtime 不增加资源读取。
-
 - [ ] `MAD-05 / 发布包`：纳入角色资源并封闭打包契约
     - 依据文档：[需求](docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-14 首发分发与部署要求；[架构](docs/00-governance/ARCHITECTURE.md) Source Layout And Verification；[接口](docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) First-release assets；[设计](docs/30-designs/ROLE-COMPOSITION-DESIGN.md) Native deployment resources；[RUNBOOK](docs/30-designs/RUNBOOK-MEETING-AGENT-ROLE-DESCRIPTION.md) Native Deployment Contract、T3 动作 4。
     - 确认依据：2026-09-08 本任务对话确认初发最终模型、无迁移和九角色完整部署；2026-09-08 用户授权依次实施并逐项提交。
