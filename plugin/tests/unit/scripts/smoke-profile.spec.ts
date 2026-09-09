@@ -265,7 +265,12 @@ describe("smoke profile scenario guard", () => {
                 {
                     ok: true,
                     scenario: "baseline",
-                    assertions: ["attendance-reject-tool-zero-effects"]
+                    assertions: [
+                        "attendance-reject-tool-zero-effects",
+                        "baseline-transcript-acb",
+                        "baseline-remote-pause-resume",
+                        "baseline-remote-stream-reconnect"
+                    ]
                 },
                 "baseline"
             ).ok

@@ -8,14 +8,7 @@
 
 ## 当前任务项
 
-以下任务按 M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
-
-- [ ] `smoke-profile/websocket`：M13a 补齐真实 WebSocket 门禁
-    - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M13a。
-    - 关联文件：[plugin/scripts/smoke-profile/index.mjs::writeProbePackage](plugin/scripts/smoke-profile/index.mjs)、[plugin/scripts/smoke-profile/probe/support.js::createRemoteProbe](plugin/scripts/smoke-profile/probe/support.js)、[plugin/scripts/smoke-profile/probe/index.js](plugin/scripts/smoke-profile/probe/index.js)、[plugin/scripts/smoke-profile/probe/scenarios/baseline.js](plugin/scripts/smoke-profile/probe/scenarios/baseline.js)、[plugin/scripts/smoke-profile/result.mjs](plugin/scripts/smoke-profile/result.mjs)；`plugin/tests/unit/scripts/remote-probe.spec.ts`、[plugin/tests/unit/scripts/smoke-profile.spec.ts](plugin/tests/unit/scripts/smoke-profile.spec.ts)、[plugin/tests/unit/scripts/smoke-profile-contract.spec.ts](plugin/tests/unit/scripts/smoke-profile-contract.spec.ts)；新 `plugin/scripts/smoke-profile/probe/remote-stream.js`；[plugin/package.json](plugin/package.json)、[plugin/pnpm-lock.yaml](plugin/pnpm-lock.yaml)。
-    - 确认依据：2026-09-09 本任务中用户确认九接口一次迁移、替换五秒轮询及 review 修复；设计提交 `f7b6812`；本轮要求据此制定 TODO。
-    - 处理动作：复用 baseline pause/resume 验证订阅、断开、重开与完整补读。
-    - 验收点：baseline-remote-pause-resume、baseline-remote-stream-reconnect、restore=PASS 均出现，socket 全部关闭。
+以下任务按 M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
 
 - [ ] `plugin/dependencies`：M14 拔除废弃依赖与入口残留
     - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M14。

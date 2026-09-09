@@ -1,3 +1,5 @@
+import { openMeetingStream } from "./remote-stream.js";
+
 export function validateColdCheckpoint(value) {
     if (value === null || typeof value !== "object") {
         throw new Error("Cold checkpoint must be an object.");
@@ -165,6 +167,7 @@ export async function createRemoteProbe(connection, origin) {
     if (!cookie) throw new Error("Remote probe session cookie missing.");
     let sequence = 0;
     return {
+        openUpdates: () => openMeetingStream(origin, cookie),
         async callRemote(method, input) {
             const rpcId = "convivium-smoke-remote-" + ++sequence;
             const response = await fetch(origin + "/api/conviviumMeetings/" + method, {

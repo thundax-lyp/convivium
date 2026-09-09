@@ -30,6 +30,16 @@ export function validateScenarioResult(
     ) {
         throw new Error("Baseline attendance rejection assertion is missing.");
     }
+    if (
+        expectedScenario === "baseline" &&
+        ![
+            "baseline-transcript-acb",
+            "baseline-remote-pause-resume",
+            "baseline-remote-stream-reconnect"
+        ].every((marker) => value.assertions.includes(marker))
+    ) {
+        throw new Error("Baseline Remote assertions are missing.");
+    }
     if (expectedScenario === "reassign" && value.browserReady === true) {
         const validKeys = [
             "ok",

@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Execute；执行者从 M13a 继续；前序修复证据见提交历史。
+- 模式：Execute；执行者从 M14 继续；前序修复证据见提交历史。
 - 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,31 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M13a：补齐真实 WebSocket 断开与重开门禁
-
-前置状态：M13 PASS。
-允许修改：`plugin/scripts/smoke-profile/index.mjs::writeProbePackage`、`plugin/scripts/smoke-profile/probe/support.js::createRemoteProbe`、`plugin/scripts/smoke-profile/probe/index.js`、`plugin/scripts/smoke-profile/probe/scenarios/baseline.js`、`plugin/scripts/smoke-profile/result.mjs`；`plugin/tests/unit/scripts/remote-probe.spec.ts`、`plugin/tests/unit/scripts/smoke-profile.spec.ts`、`plugin/tests/unit/scripts/smoke-profile-contract.spec.ts`；新 `plugin/scripts/smoke-profile/probe/remote-stream.js`；`plugin/package.json`、`plugin/pnpm-lock.yaml`。
-禁止修改：生产 Client/Host、认证规则、DSH 源码、模型请求数量、scribe 场景业务流程。
-
-执行：
-1. plugin devDependencies 与 writeProbePackage 生成的临时 probe dependencies 均固定加入 ws=8.18.3；这是测试直接依赖，不加入生产 peer/inject。执行 pnpm --dir plugin install。脚本使用 JS，无新增 @types/ws。不得借用 DSH 的传递 node_modules 路径。
-2. 新 remote-stream.js 导出 async openMeetingUpdates(origin,cookie)，使用 ws 连接同一 origin 的 ws URL /api/remote.mux，带 Cookie/Origin。open 后发送 {type:"open",streamId:"convivium-smoke-updates",endpoint:"conviviumMeetings/watchUpdates",payload:{args:{}}}。仅接受同 streamId 的 item 且 value exact {kind:"refresh"}；error/非预期 end/非法 JSON 均 reject。返回 {nextRefresh,disconnect,dispose}：nextRefresh 消费有界 dirty 通知或等待下一条；disconnect 先监听 close 再 terminate 并等待 close；dispose 幂等，若 socket 已打开先发送 cancel 再 close，等待 close，移除监听并结束 waiter。所有网络等待固定 10 秒 deadline，超时 reject/finally 清理，不能把超时当 PASS。
-3. createRemoteProbe 保留 M13 unary 调用返回契约；给返回的 callRemote 函数附加 openUpdates()，闭包复用同一次认证 cookie 并调用 openMeetingUpdates；probe/index 传递 runtime.openUpdates=callRemote.openUpdates。token/cookie 只在闭包/握手中使用，不进入结果和日志。
-4. baseline 仅在既有 pause/resume 段增加：pause 前打开订阅并消费首帧、完整 list/getStatus；然后 pause，等待 refresh，再完整 list/getStatus，断言 paused 且版本等于 pause 结果。关闭实际 socket 并 await close，随后沿用原 resume 操作；此时没有订阅。重新打开一个实际 socket、等待首帧，再完整 list/getStatus，断言 running 且版本等于 resume 结果，最后 dispose。所有路径 finally dispose 当前及旧 socket，不新增业务写。新增 marker baseline-remote-stream-reconnect；保留 baseline-remote-pause-resume 和原 ACB 断言。
-5. result.mjs 将 baseline 新 marker 纳入必需断言；脚本测试增加缺 marker 必须失败，以及真实 helper 的帧校验、断线结束 waiter、重开首帧、finally close。单测使用 ws 本地测试 server 和临时端口，不模拟 message 事件来宣称网络覆盖；对应连接带 cookie/origin 断言，测试 finally 关闭 server/socket。真实 profile 才证明 DSH 认证、Service 与业务 commit 链。
-
-验证：
-```bash
-pnpm --dir plugin install
-pnpm --dir plugin test tests/unit/scripts/remote-probe.spec.ts tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts
-CONVIVIUM_SMOKE_SCENARIO=baseline pnpm --dir plugin smoke:profile
-```
-
-PASS：全部退出 0；baseline-remote-pause-resume、baseline-remote-stream-reconnect 与 restore=PASS 都存在，两个不同实际 socket 的订阅/提交刷新/断线期间写入/重开补读/关闭通过。
-STOP：任一 marker 缺失、以直接 Gateway 调用替代网络、socket/进程未清理或认证被绕过；按执行者契约报告并停止。
-
-覆盖边界：此门禁验证真实 DSH WebSocket carrier 的断开、重新订阅与补读；M08/M11 验证正式 RemoteStream 和组件禁写/恢复。两项组合不等于真实浏览器内 DSH 自动重连端到端已经通过，该边界保留 Not Covered。
 
 ### M14：拔除废弃依赖与旧入口残留
 

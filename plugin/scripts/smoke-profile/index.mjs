@@ -275,7 +275,8 @@ async function writeProbePackage(probeDir) {
                 dependencies: {
                     "@deepseek-ai/dsh-subagent": DSH_VERSION,
                     "@deepseek-ai/dsh-llm": DSH_VERSION,
-                    "@deepseek-ai/dsh-storage-sqlite": DSH_VERSION
+                    "@deepseek-ai/dsh-storage-sqlite": DSH_VERSION,
+                    ws: "8.18.3"
                 },
                 dsh: { bundle: { patch: "./cordis.patch.yml" } }
             },

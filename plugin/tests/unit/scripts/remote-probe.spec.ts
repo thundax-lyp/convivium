@@ -1,9 +1,55 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRemoteProbe } from "../../../scripts/smoke-profile/probe/support.js";
+import { openMeetingStream } from "../../../scripts/smoke-profile/probe/remote-stream.js";
+import { WebSocketServer } from "ws";
+import { once } from "node:events";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Remote smoke probe", () => {
+    it("opens and reopens actual sockets with the same authenticated session", async () => {
+        const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+        await once(server, "listening");
+        const address = server.address();
+        if (typeof address === "string") throw new Error("Expected TCP socket");
+        const origin = `http://127.0.0.1:${address.port}`;
+        const requests: unknown[] = [];
+        const cookies: (string | undefined)[] = [];
+        server.on("connection", (socket, request) => {
+            cookies.push(request.headers.cookie);
+            socket.on("message", (data) => {
+                const message = JSON.parse(data.toString());
+                requests.push(message);
+                socket.send(
+                    JSON.stringify({
+                        type: "item",
+                        streamId: message.streamId,
+                        value: { kind: "refresh" }
+                    })
+                );
+            });
+        });
+        let stream;
+        try {
+            for (let i = 0; i < 2; i++) {
+                stream = await openMeetingStream(origin, "session=test");
+                await expect(stream.next()).resolves.toEqual({ kind: "refresh" });
+                await stream.close();
+            }
+            expect(cookies).toEqual(["session=test", "session=test"]);
+            expect(requests).toEqual(
+                Array(2).fill({
+                    type: "open",
+                    streamId: "convivium-smoke-updates",
+                    endpoint: "conviviumMeetings/watchUpdates",
+                    payload: { args: {} }
+                })
+            );
+        } finally {
+            await stream?.close();
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+    });
     it("authenticates once and preserves the RPC and domain envelopes", async () => {
         const domain = { protocolVersion: 1, ok: false, code: "VERSION_CONFLICT" };
         const requests: { url: string; options?: RequestInit }[] = [];
