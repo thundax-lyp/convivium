@@ -600,7 +600,7 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
 
     await stat(dumpPath);
     let browserLaunchUrl;
-    if (BROWSER_MODE && probeResult.browserReady === true) {
+    if (BROWSER_MODE) {
         const origin = `http://${HOST}:${port}`;
         browserLaunchUrl = await waitForBrowserLaunchUrl(bootLogs.stdoutPath, origin);
         const authenticatedFetch = await createAuthenticatedBrowserFetch(

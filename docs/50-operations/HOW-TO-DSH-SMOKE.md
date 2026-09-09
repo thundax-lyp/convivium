@@ -110,6 +110,8 @@ pnpm --dir plugin --silent smoke:profile --json         # 完整逐场景 JSON�
 
 一次命令只构建、打包一次，复用同一个 artifact；每个场景仍独立创建 Host、DSH_HOME、workspace、profile 和端口。cold-rebind 在自己的目录内重启 Host。场景串行，首个失败立即停止；不跨场景共享 Meeting 或 Session。默认不打印构建日志、dump-config 或大段 DTO，失败输出有界诊断。`--all` 不能与单场景或 Browser mode 组合。
 
+设置 `CONVIVIUM_SMOKE_BROWSER_MODE=1` 且未指定 selector 时仅运行 `baseline`。所有被接受的 Browser 场景均在输出 `CONVIVIUM_SMOKE_BROWSER_URL` 前取得认证启动 URL，并完成根页面与客户端 bundle 预检；此流程不依赖场景是否返回 `browserReady`。认证或预检失败则退出并执行清理，不输出浏览器入口或进入等待。成功后打开输出的完整 URL；结束时向原进程发送 Ctrl-C，等待 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`。
+
 | 范围 | selector | 真实边界 |
 | --- | --- | --- |
 | 核心 | `baseline` | 装包、provider 创建 Session、A/C/B transcript、HTTP pause/resume |

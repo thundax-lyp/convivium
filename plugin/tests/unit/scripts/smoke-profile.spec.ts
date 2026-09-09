@@ -215,6 +215,77 @@ describe("smoke credential loading", () => {
 });
 
 describe("smoke profile scenario guard", () => {
+    it.each([
+        { browserMode: true, browserReady: undefined },
+        { browserMode: true, browserReady: false },
+        { browserMode: true, browserReady: true },
+        { browserMode: false, browserReady: undefined },
+        { browserMode: true, browserReady: undefined, preflightFails: true }
+    ])("publishes only a preflighted Browser entry: %j", async (options) => {
+        const events: string[] = [];
+        const output: string[] = [];
+        const launchUrl = "http://127.0.0.1:4567/?token=test-token";
+        const authenticatedFetch = vi.fn();
+        const probeResult = { ok: true, browserReady: options.browserReady };
+        // Execute the runner's actual handoff branch with external I/O replaced.
+        const start = smokeProfileSource.indexOf("    await stat(dumpPath);");
+        const end = smokeProfileSource.indexOf("\n}", start);
+        const run = runInNewContext(`(async () => {${smokeProfileSource.slice(start, end)}\n})`, {
+            BROWSER_MODE: options.browserMode,
+            HOST: "127.0.0.1",
+            port: 4567,
+            BOOT_TIMEOUT_MS: 1000,
+            PROFILE: "web",
+            PROVIDER: "test",
+            scenario: selectScenarios([], undefined, options.browserMode)[0],
+            probeResult,
+            dumpPath: "/test/dump.yml",
+            bootLogs: { stdoutPath: "/test/stdout.log" },
+            artifact: "plugin.tgz",
+            basename: (value: string) => value,
+            tempRoot: "/test",
+            stat: async () => {},
+            waitForBrowserLaunchUrl: async () => {
+                events.push("url");
+                return launchUrl;
+            },
+            createAuthenticatedBrowserFetch: async (url: string, origin: string) => {
+                expect(url).toBe(launchUrl);
+                expect(origin).toBe("http://127.0.0.1:4567");
+                events.push("auth");
+                return authenticatedFetch;
+            },
+            assertBrowserClientPreflight: async (_origin: string, fetch: unknown) => {
+                expect(fetch).toBe(authenticatedFetch);
+                events.push("preflight");
+                if (options.preflightFails) throw new Error("preflight failed");
+            },
+            console: {
+                log: (value: string) => {
+                    events.push("output");
+                    output.push(value);
+                }
+            },
+            waitForBrowserStop: async () => {
+                events.push("wait");
+            }
+        });
+        if (options.preflightFails) {
+            await expect(run()).rejects.toThrow("preflight failed");
+            expect(events).toEqual(["url", "auth", "preflight"]);
+            expect(output).toEqual([]);
+        } else {
+            expect(await run()).toMatchObject({ ok: true, probe: probeResult });
+            expect(events).toEqual(
+                options.browserMode
+                    ? ["url", "auth", "preflight", "output", "output", "output", "wait"]
+                    : []
+            );
+            if (options.browserMode)
+                expect(output[1]).toBe(`CONVIVIUM_SMOKE_BROWSER_URL=${launchUrl}`);
+        }
+    });
+
     it("uses the one preflight seam before browser output", () => {
         const preflightCall =
             "await assertBrowserClientPreflight(origin, authenticatedFetch, BOOT_TIMEOUT_MS)";
