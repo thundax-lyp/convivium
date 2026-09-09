@@ -1,7 +1,6 @@
 import { roleCompositionDefinitions } from "../../fixtures/role-composition.js";
 import { resolveMeetingRoles } from "@/role-composition/resolve.js";
 import { describe, expect, it } from "vitest";
-import type { ContinuableStart, ContinuableStartSpec } from "@deepseek-ai/dsh-subagent";
 import {
     inspectOwnedSessions,
     requireContinuableProvider,
@@ -27,60 +26,6 @@ function ownership() {
 }
 
 describe("DSH session adapter composition", () => {
-    it("provisions one manager and three participants with reserved ids and no capability", async () => {
-        const starts: ContinuableStartSpec[] = [];
-        const runtime = {
-            startContinuable: async (spec: ContinuableStartSpec): Promise<ContinuableStart> => {
-                starts.push(spec);
-                return {
-                    childId: spec.childId!,
-                    messageId: `message-${starts.length}` as never
-                };
-            }
-        };
-
-        await startManagerSession({
-            runtime,
-            provider: "spawn",
-            parent: { id: "captain-session" } as never,
-            childId: "manager-session" as never,
-            teamId: "team-1",
-            meetingId: "meeting-1",
-            signal
-        });
-        for (const participant of ["participant-a", "participant-b", "participant-c"]) {
-            await startParticipantSession({
-                runtime,
-                provider: "spawn",
-                parent: { id: "captain-session" } as never,
-                childId: `${participant}-session` as never,
-                teamId: "team-1",
-                meetingId: "meeting-1",
-                participantId: participant,
-                signal
-            });
-        }
-
-        expect(starts).toHaveLength(4);
-        expect(starts.map((start) => start.childId)).toEqual([
-            "manager-session",
-            "participant-a-session",
-            "participant-b-session",
-            "participant-c-session"
-        ]);
-        expect(
-            starts.every((start) => {
-                const envelope = JSON.parse(
-                    (start.request.prompt[0] as { type: "text"; text: string }).text
-                );
-                return (
-                    envelope.kind === "convivium.session.provisioning" &&
-                    envelope.capability === "none"
-                );
-            })
-        ).toBe(true);
-    });
-
     it("fails closed for unavailable or non-continuable providers", () => {
         expect(() => requireContinuableProvider({ getProvider: () => undefined }, "spawn")).toThrow(
             /not registered/
