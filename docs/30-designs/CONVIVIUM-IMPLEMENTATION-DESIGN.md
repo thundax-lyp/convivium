@@ -145,7 +145,7 @@ Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。Meeti
 
 ### Client control primitives
 
-实施状态：迁移待执行。
+实施状态：已实现；验证见 [UI primitives migration](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration)。
 
 依据 Meeting Requirements 的 FR-9/FR-11 和 Agent Meeting Protocol Interface 的 Meeting Web routes，面板所有既有普通动作按钮使用 DSH Button，三个单行 Pause/Skip/End reason 输入使用 DSH Input。保留动态 replacement select、证据 checkbox、多行 textarea、持续错误提示及原业务请求处理。Submit 保持 type=submit，其他按钮 type=button；普通按钮 outline/sm，Submit primary/sm。
 

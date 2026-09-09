@@ -8,14 +8,7 @@
 
 ## 当前任务项
 
-按 T11 → T12 顺序执行；每项 PASS 后删除对应 TODO 并单独提交。
-
-- [ ] `UI primitives/证据迁移`：同步正式设计与实际验证证据
-    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T11。
-    - 关联文件：修改 [docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md)、[docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md](docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md)、[docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md](docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)；核对 assets/ui-primitives 中的六张截图。
-    - 确认依据：2026-09-09 用户明确要求依次执行 TODO List，一任务一提交。
-    - 处理动作：按 T11 更新正式设计、readiness 和 coverage。
-    - 验收点：实际测试、Browser 证据、六张截图及 Not Covered 可追溯，正式设计与验证证据链接有效，链接与 diff 检查通过。
+执行 T12；每项 PASS 后删除对应 TODO 并单独提交。
 
 - [ ] `UI primitives/迁移收口`：关闭迁移任务并删除临时 RUNBOOK
     - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T12。

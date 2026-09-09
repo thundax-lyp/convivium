@@ -1,6 +1,6 @@
 # RUNBOOK：会议面板 UI Primitives 迁移
 
-状态：剩余证据迁移与收口。
+状态：剩余删除与引用清理。
 建立日期：2026-09-09。工作分支：`codex/ui-primitives-research`。
 执行从仓库根目录开始。
 
@@ -10,9 +10,9 @@
 
 本文件固定用户已同意的迁移范围和其技术实现。依据为 FR-9/FR-11、现有 Protocol 与用户已同意的结束结果单选组方向。控件技术决定已在正式设计的 Client control primitives 小节固定；不新增产品能力。
 
-执行者只能顺序执行 T11 → T12，每一步 PASS 后才进入下一步。失败记录最后 PASS 步骤、文件/symbol、命令、输出与所需人工决定后 STOP。不得跳过、换工具结果冒充 Browser、改用 mocks 绕过真实 primitives、放宽类型/断言/Schema、扩大修改范围或修改本 RUNBOOK 后自行继续。
+执行者只能顺序执行 T12，每一步 PASS 后才进入下一步。失败记录最后 PASS 步骤、文件/symbol、命令、输出与所需人工决定后 STOP。不得跳过、换工具结果冒充 Browser、改用 mocks 绕过真实 primitives、放宽类型/断言/Schema、扩大修改范围或修改本 RUNBOOK 后自行继续。
 
-用户已授权依次执行 TODO，一任务一提交；已完成项按 TODO Rules 在对应提交中删除，剩余项移入当前任务并补充确认依据。恢复顺序为 T11 → T12。不得 push、PR 或 merge。不得修改相邻 DSH checkout、用户凭据或常用 profile。保留用户已有内容；human 调查稿不进入本分支提交。
+用户已授权依次执行 TODO，一任务一提交；已完成项按 TODO Rules 在对应提交中删除，剩余项移入当前任务并补充确认依据。恢复顺序为 T12。不得 push、PR 或 merge。不得修改相邻 DSH checkout、用户凭据或常用 profile。保留用户已有内容；human 调查稿不进入本分支提交。
 
 ## 2. 起点、终点与断点
 
@@ -20,7 +20,6 @@
 
 | 当前断点 | 代码/文档证据 | 解决步骤 |
 | --- | --- | --- |
-| 正式设计仍为迁移待执行，readiness 缺本次证据 | Implementation Design 的 Client control primitives；SMOKE-VALIDATION-EVIDENCE | T11 |
 | 临时方案与剩余任务尚未收口 | 本 RUNBOOK、TODO | T12 |
 
 ## 3. Scope、Non-goals 与真相源
@@ -112,27 +111,6 @@ I6：从包根共享导入 Button/Input，不私带 React，不引入 JSX、Reac
 
 ## 7. 机械步骤
 
-### T11：迁移设计与实际验证证据
-
-前置状态：Skip 与 End Browser 验证和资源清理通过；六张截图已核对内容。
-允许修改：Implementation Design、SMOKE-VALIDATION-EVIDENCE.md、CURRENT-IMPLEMENTATION-COVERAGE.md。
-禁止修改：源码、历史验证数字、其他 Not Covered、Skill。
-
-执行：
-1. 将 Implementation Design 的 Client control primitives 小节中的唯一 `实施状态：迁移待执行。` 改为 `实施状态：已实现；验证见 [UI primitives migration](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration)。`。
-2. 在 SMOKE-VALIDATION-EVIDENCE.md 末尾新增 `## UI primitives migration`。写入下列固定字段；值直接取本次实际工具结果，缺值 STOP，不补猜测：日期；实际工作树/commit边界；React及primitives版本；本次已执行的控件迁移与回归测试命令/数量/退出码（来自既有工具输出，不要求重做已完成步骤）；认证修复测试、verify各子命令与artifact；Skip 与 End 的 Browser 产品名、两个ready场景、每项断言、截图链接；两个R的退出码/cleanup/路径不存在结果；sourcemap警告是否出现。
-3. 同小节写 `Not Covered`：未采用的组件、其他DSH/React版本、非Web、完整可访问性审计、真实模型质量、压力/长期资源泄漏。Closure 只有在全部门禁通过时写“本次迁移验证完成”，不能扩大到 FR-11 全量验收。
-4. Current Coverage 的 `### Client Fact Visibility` 表追加一行：`UI controls | Button/Input 与 End outcome 单选组的真实包、键盘、缓存禁写、重复提交、Browser/Restore；见 [UI primitives migration](./SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration)`。保留现有其他行与全局 Not Covered。
-
-验证：
-```bash
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：两命令退出0；每个实际结果有本次实际工具输出依据、6张图片路径有效、没有将本文件作为长期依据的新增引用。
-STOP：任何证据缺失、图片不可读或历史边界被覆盖；保留 RUNBOOK。
-
 ### T12：关闭与删除
 
 前置状态：T11 PASS；实际验证证据已迁移到T11。
@@ -166,7 +144,6 @@ STOP：删除后任一检查失败，必须先从保留文本恢复本 RUNBOOK �
 
 | Scope/不变量 | 正式依据与入口 | 剩余步骤 | 验证/证据 |
 | --- | --- | --- | --- |
-| 证据迁移 | Document Rules；实际测试与 Browser 工具输出 | T11 | 正式设计、readiness、六张截图与链接 |
 | 关闭任务 | TODO Rules、RUNBOOK Rules | T12 | 删除检查与引用清理 |
 
 Not Applicable：本任务不改变caller/capability、后端幂等、事务、数组原子性、存储重放、重启恢复、事件/receipt/outbox，因此不新增相应专项外部验证；现有verify仍必须通过。真实模型质量、长期压力与完整无障碍审计不由这次局部迁移证明。依赖/Schema/生成器修改不在scope，遇到即STOP。
