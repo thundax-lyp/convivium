@@ -961,6 +961,7 @@ describe("meeting panel and client plugin lifecycle", () => {
             vi
                 .fn<Rpc>()
                 .mockResolvedValueOnce(remoteResult(listResponse()))
+                .mockResolvedValueOnce(remoteResult(listResponse()))
                 .mockResolvedValueOnce(remoteResult(success(detail)))
         );
         render(createElement(ConviviumMeetingPanel, { api }));
@@ -1002,6 +1003,7 @@ describe("meeting panel and client plugin lifecycle", () => {
         const rpcMock = vi
             .fn<Rpc>()
             .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(success(statusResult("paused", 3), 3)));
         setRpc(rpcMock);
         render(createElement(ConviviumMeetingPanel, { api }));
@@ -1016,7 +1018,7 @@ describe("meeting panel and client plugin lifecycle", () => {
 
         fireEvent.click(item);
         await screen.findByLabelText("Meeting summary");
-        expect(rpcMock.mock.calls[1]?.[0]).toBe("getStatus");
+        expect(rpcMock.mock.calls[2]?.[0]).toBe("getStatus");
         expect(screen.getByLabelText("Resume meeting")).toBeTruthy();
         expect(screen.queryByLabelText("Pause meeting")).toBeNull();
         expect(screen.getByLabelText("Meeting summary").textContent).toContain("paused");
@@ -1030,6 +1032,7 @@ describe("meeting panel and client plugin lifecycle", () => {
         const rpcMock = vi
             .fn<Rpc>()
             .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(success(statusResult())))
             .mockResolvedValueOnce(remoteResult(listResponse([pausedListItem])))
             .mockResolvedValueOnce(remoteResult(success(statusResult("paused", 3), 3)));
@@ -1041,7 +1044,7 @@ describe("meeting panel and client plugin lifecycle", () => {
 
         await screen.findByText("paused");
         expect(screen.getByRole("button", { name: /Runtime smoke \(paused\)/ })).toBeTruthy();
-        expect(rpcMock).toHaveBeenCalledTimes(4);
+        expect(rpcMock).toHaveBeenCalledTimes(5);
     });
 
     it.each(["focus", "poll"] as const)(
@@ -1122,6 +1125,7 @@ describe("meeting panel and client plugin lifecycle", () => {
             const rpcMock = vi
                 .fn<Rpc>()
                 .mockResolvedValueOnce(remoteResult(listResponse([listItem])))
+                .mockResolvedValueOnce(remoteResult(listResponse()))
                 .mockResolvedValueOnce(remoteResult(success(initial, 2)))
                 .mockResolvedValueOnce(remoteResult(listResponse()))
                 .mockResolvedValueOnce(
@@ -1166,11 +1170,90 @@ describe("meeting panel and client plugin lifecycle", () => {
         }
     });
 
+    it("coalesces refresh requests during an active read into one following cycle", async () => {
+        const pending = deferred<RemoteResult<unknown>>();
+        const mock = vi.fn<Rpc>(async (method) =>
+            remoteResult(method === "list" ? listResponse() : success(statusResult()))
+        );
+        setRpc(mock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        mock.mockClear();
+        mock.mockImplementationOnce(() => pending.promise);
+        fireEvent.focus(window);
+        for (let i = 0; i < 3; i++) fireEvent.focus(window);
+        expect(mock).toHaveBeenCalledTimes(2);
+        await act(async () => pending.resolve(remoteResult(listResponse())));
+        await waitFor(() => expect(mock).toHaveBeenCalledTimes(4));
+        expect(mock.mock.calls.filter(([method]) => method === "getStatus")).toHaveLength(2);
+    });
+
+    it("ignores a read invalidated by a write and shows the post-write version", async () => {
+        const pending = deferred<RemoteResult<unknown>>();
+        let hold = false;
+        let version = 2;
+        const mock = vi.fn<Rpc>(async (method) => {
+            if (method === "list") return remoteResult(listResponse());
+            if (method === "getStatus")
+                return hold
+                    ? pending.promise
+                    : remoteResult(success(statusResult("running", version), version));
+            version = 4;
+            hold = false;
+            return remoteResult(success({ status: "paused", changed: true }, version));
+        });
+        setRpc(mock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        hold = true;
+        fireEvent.focus(window);
+        fireEvent.change(screen.getByLabelText("Pause reason"), { target: { value: "Review" } });
+        fireEvent.click(screen.getByLabelText("Pause meeting"));
+        await act(async () =>
+            pending.resolve(remoteResult(success(statusResult("running", 3), 3)))
+        );
+        await waitFor(() =>
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain(
+                "Meeting version4"
+            )
+        );
+        expect(mock.mock.calls.filter(([method]) => method === "pause")).toHaveLength(1);
+    });
+
+    it("keeps the new selection when a previous detail resolves late", async () => {
+        const pending = deferred<RemoteResult<unknown>>();
+        const other = { ...listItem, meetingId: "meeting/2", topic: "Second meeting" };
+        setRpc(async (method, options) => {
+            if (method === "list") return remoteResult(listResponse([listItem, other]));
+            const input = options.input;
+            if (
+                input &&
+                typeof input === "object" &&
+                "meetingId" in input &&
+                input.meetingId === meetingId
+            )
+                return pending.promise;
+            return remoteResult({
+                ...success({ ...statusResult(), meetingId: other.meetingId, topic: other.topic }),
+                meetingId: other.meetingId
+            });
+        });
+        render(createElement(ConviviumMeetingPanel, { api }));
+        fireEvent.click(await screen.findByRole("button", { name: /Runtime smoke/ }));
+        fireEvent.click(screen.getByRole("button", { name: /Second meeting/ }));
+        await act(async () => pending.resolve(remoteResult(success(statusResult()))));
+        await waitFor(() =>
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain("Second meeting")
+        );
+        expect(screen.getByLabelText("Meeting summary").textContent).not.toContain("Runtime smoke");
+    });
+
     it("keeps writes exclusive and refetches status after a successful write", async () => {
         const post = deferred<RemoteResult<unknown>>();
         const pausedListItem = { ...listItem, status: "paused" as const, meetingVersion: 3 };
         const rpcMock = vi
             .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(success(statusResult())))
             .mockImplementationOnce(() => post.promise)
@@ -1185,21 +1268,21 @@ describe("meeting panel and client plugin lifecycle", () => {
         });
         fireEvent.click(screen.getByLabelText("Pause meeting"));
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
-        expect(rpcMock).toHaveBeenCalledTimes(3);
+        expect(rpcMock).toHaveBeenCalledTimes(4);
 
         window.dispatchEvent(new Event("focus"));
         await act(async () => Promise.resolve());
-        expect(rpcMock).toHaveBeenCalledTimes(3);
+        expect(rpcMock).toHaveBeenCalledTimes(4);
 
         await act(async () => {
             post.resolve(remoteResult(success({ status: "paused", changed: true }, 3)));
             await post.promise;
         });
         await screen.findByText("paused");
-        expect(rpcMock).toHaveBeenCalledTimes(5);
+        expect(rpcMock).toHaveBeenCalledTimes(6);
         expect(screen.getByRole("button", { name: /Runtime smoke \(paused\)/ })).toBeTruthy();
         expect(rpcMock.mock.calls.filter((call) => isWrite(call[0]))).toHaveLength(1);
-        expect(rpcMock.mock.calls[2]?.[1]?.input).toEqual({
+        expect(rpcMock.mock.calls[3]?.[1]?.input).toEqual({
             protocolVersion: 1,
             meetingId,
             expectedMeetingVersion: 2,
@@ -1211,6 +1294,7 @@ describe("meeting panel and client plugin lifecycle", () => {
     it("shows Skip only for a visible current attempt and posts the fixed skip payload", async () => {
         const rpcMock = vi
             .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(success(statusResult("running", 2, true))))
             .mockResolvedValueOnce(
@@ -1227,9 +1311,9 @@ describe("meeting panel and client plugin lifecycle", () => {
             target: { value: "Move on" }
         });
         fireEvent.click(screen.getByLabelText("Skip current speaker"));
-        await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(5));
-        expect(rpcMock.mock.calls[2]?.[0]).toBe("reassign");
-        expect(rpcMock.mock.calls[2]?.[1]?.input).toEqual({
+        await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(6));
+        expect(rpcMock.mock.calls[3]?.[0]).toBe("reassign");
+        expect(rpcMock.mock.calls[3]?.[1]?.input).toEqual({
             protocolVersion: 1,
             meetingId,
             expectedMeetingVersion: 2,
@@ -1238,7 +1322,7 @@ describe("meeting panel and client plugin lifecycle", () => {
             reason: "Move on",
             requestId: "request-1"
         });
-        expect(JSON.stringify(rpcMock.mock.calls[2]?.[1]?.input)).not.toContain(
+        expect(JSON.stringify(rpcMock.mock.calls[3]?.[1]?.input)).not.toContain(
             "replacementParticipantId"
         );
     });
@@ -1246,6 +1330,7 @@ describe("meeting panel and client plugin lifecycle", () => {
     it("limits End outcomes and posts the fixed empty completion fields", async () => {
         const rpcMock = vi
             .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(success(statusResult("converging", 2))))
             .mockResolvedValueOnce(
@@ -1267,9 +1352,9 @@ describe("meeting panel and client plugin lifecycle", () => {
             target: { value: "No consensus reached" }
         });
         fireEvent.click(screen.getByLabelText("End meeting"));
-        await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(5));
-        expect(rpcMock.mock.calls[2]?.[0]).toBe("end");
-        expect(rpcMock.mock.calls[2]?.[1]?.input).toEqual({
+        await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(6));
+        expect(rpcMock.mock.calls[3]?.[0]).toBe("end");
+        expect(rpcMock.mock.calls[3]?.[1]?.input).toEqual({
             protocolVersion: 1,
             meetingId,
             expectedMeetingVersion: 2,
@@ -1286,6 +1371,7 @@ describe("meeting panel and client plugin lifecycle", () => {
         const rpcMock = vi
             .fn<Rpc>()
             .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(success(statusResult())))
             .mockResolvedValueOnce(remoteResult(protocolError("Safe conflict")))
             .mockResolvedValueOnce(remoteResult(listResponse()))
@@ -1297,7 +1383,7 @@ describe("meeting panel and client plugin lifecycle", () => {
         fireEvent.change(screen.getByLabelText("Pause reason"), { target: { value: "Reason" } });
         fireEvent.click(screen.getByLabelText("Pause meeting"));
 
-        await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(5));
+        await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(6));
         expect(rpcMock.mock.calls.filter((call) => isWrite(call[0]))).toHaveLength(1);
         await waitFor(() =>
             expect(screen.getByLabelText("Meeting summary").textContent).toContain("3")
@@ -1309,6 +1395,7 @@ describe("meeting panel and client plugin lifecycle", () => {
         const rpcMock = vi
             .fn<Rpc>()
             .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(success(statusResult())))
             .mockRejectedValueOnce(new TypeError("network write"));
         setRpc(rpcMock);
@@ -1319,7 +1406,7 @@ describe("meeting panel and client plugin lifecycle", () => {
         fireEvent.click(screen.getByLabelText("Pause meeting"));
 
         await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
-        expect(rpcMock).toHaveBeenCalledTimes(3);
+        expect(rpcMock).toHaveBeenCalledTimes(4);
         expect(rpcMock.mock.calls.filter((call) => isWrite(call[0]))).toHaveLength(1);
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
         expect(screen.getByLabelText("Meeting summary").textContent).toContain("2");
@@ -1328,6 +1415,7 @@ describe("meeting panel and client plugin lifecycle", () => {
     it("does not expose controls for a terminal projection", async () => {
         const rpcMock = vi
             .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(success(terminalStatusResult(), 5)));
         setRpc(rpcMock);
@@ -1344,6 +1432,7 @@ describe("meeting panel and client plugin lifecycle", () => {
     it("disables meeting writes when the list projection becomes cached", async () => {
         const rpcMock = vi
             .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(success(statusResult())))
             .mockRejectedValueOnce(new TypeError("network list"));
@@ -1362,10 +1451,12 @@ describe("meeting panel and client plugin lifecycle", () => {
         const rpcMock = vi
             .fn<Rpc>()
             .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(success(statusResult())))
             .mockRejectedValueOnce(new TypeError("network list"))
             .mockRejectedValueOnce(new TypeError("network detail"))
             .mockRejectedValueOnce(new TypeError("network list"))
+            .mockRejectedValueOnce(new TypeError("network detail"))
             .mockResolvedValueOnce(remoteResult(listResponse()))
             .mockResolvedValueOnce(remoteResult(success(statusResult("running", 4), 4)));
         setRpc(rpcMock);
@@ -1858,15 +1949,13 @@ describe("local decision risk panel controls", () => {
         await selectMeeting();
         await act(async () =>
             pending.resolve(
-                remoteResult(
-                    {
-                        protocolVersion: 1,
-                        ok: false,
-                        code: "VERSION_CONFLICT",
-                        message: "late failure",
-                        retryable: false
-                    }
-                )
+                remoteResult({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "VERSION_CONFLICT",
+                    message: "late failure",
+                    retryable: false
+                })
             )
         );
         expect(screen.queryByRole("alert")).toBeNull();
@@ -1961,15 +2050,13 @@ describe("local decision risk panel controls", () => {
         const calls = rpcMock.mock.calls.length;
         await act(async () =>
             pending.resolve(
-                remoteResult(
-                    {
-                        protocolVersion: 1,
-                        ok: false,
-                        code: "VERSION_CONFLICT",
-                        message: "late",
-                        retryable: false
-                    }
-                )
+                remoteResult({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "VERSION_CONFLICT",
+                    message: "late",
+                    retryable: false
+                })
             )
         );
         expect(rpcMock).toHaveBeenCalledTimes(calls);

@@ -8,14 +8,7 @@
 
 ## 当前任务项
 
-以下任务按 M10—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
-
-- [ ] `client/refresh-scheduling`：M10 串行化刷新与写后补读
-    - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M10。
-    - 关联文件：[plugin/src/client/meeting-panel.tsx](plugin/src/client/meeting-panel.tsx)；[plugin/tests/client/meeting-panel.client.spec.ts](plugin/tests/client/meeting-panel.client.spec.ts)。
-    - 确认依据：2026-09-09 本任务中用户确认九接口一次迁移、替换五秒轮询及 review 修复；设计提交 `f7b6812`；本轮要求据此制定 TODO。
-    - 处理动作：统一刷新入口，加入 dirty 合并、读取失效及写后解锁补读。
-    - 验收点：R1/R2/R3/R6 与原 UI 测试通过；无写后死锁，旧响应不能覆盖新状态。
+以下任务按 M11—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
 
 - [ ] `client/refresh-stream`：M11 以 stream 替换五秒轮询
     - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M11。

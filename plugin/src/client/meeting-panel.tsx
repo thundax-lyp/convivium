@@ -57,6 +57,16 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
     const listGeneration = useRef(0);
     const detailGeneration = useRef(0);
     const writeGeneration = useRef(0);
+    const refreshReading = useRef(false);
+    const refreshDirty = useRef(false);
+    const refreshEpoch = useRef(0);
+    const invalidateReads = useCallback(() => {
+        refreshEpoch.current += 1;
+        listGeneration.current += 1;
+        detailGeneration.current += 1;
+        listController.current?.abort();
+        detailController.current?.abort();
+    }, []);
 
     const clearSelection = useCallback(() => {
         detailController.current?.abort();
@@ -78,17 +88,16 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         setWritePending(false);
     }, []);
 
-    const loadList = useCallback(async () => {
+    const loadList = useCallback(async (): Promise<boolean> => {
         listController.current?.abort();
         const controller = new AbortController();
         listController.current = controller;
         const generation = ++listGeneration.current;
         try {
             const validated = await api.list(controller.signal);
-            if (!mounted.current || generation !== listGeneration.current) return;
+            if (!mounted.current || generation !== listGeneration.current) return false;
             const nextMeetings = validated.result.meetings;
             setMeetings(nextMeetings);
-            setListCached(false);
             setListError(undefined);
             const currentId = selectedIdRef.current;
             if (
@@ -97,10 +106,12 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             ) {
                 clearSelection();
             }
+            return true;
         } catch (error) {
-            if (controller.signal.aborted || generation !== listGeneration.current) return;
+            if (controller.signal.aborted || generation !== listGeneration.current) return false;
             setListCached(true);
             setListError(failureMessage(error));
+            return false;
         }
     }, [api, clearSelection]);
 
@@ -123,7 +134,6 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                     return false;
                 }
                 setDetail(validated.result);
-                setDetailCached(false);
                 setDetailError(undefined);
                 return true;
             } catch (error) {
@@ -142,14 +152,38 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         [api]
     );
 
-    const refreshSelectedMeeting = useCallback(
-        async (meetingId: string) => Promise.all([loadList(), loadDetail(meetingId)]),
-        [loadDetail, loadList]
-    );
+    const requestRefresh = useCallback(() => {
+        refreshDirty.current = true;
+        if (refreshReading.current || writePendingRef.current || !mounted.current) return;
+        refreshReading.current = true;
+        void (async () => {
+            try {
+                while (refreshDirty.current && !writePendingRef.current && mounted.current) {
+                    refreshDirty.current = false;
+                    const epoch = refreshEpoch.current;
+                    const meetingId = selectedIdRef.current;
+                    const [listOk, detailOk] = await Promise.all([
+                        loadList(),
+                        meetingId === undefined ? Promise.resolve(true) : loadDetail(meetingId)
+                    ]);
+                    if (
+                        mounted.current &&
+                        epoch === refreshEpoch.current &&
+                        meetingId === selectedIdRef.current
+                    ) {
+                        setListCached(!listOk);
+                        setDetailCached(!detailOk || !listOk);
+                    }
+                }
+            } finally {
+                refreshReading.current = false;
+            }
+        })();
+    }, [loadList, loadDetail]);
 
     const selectMeeting = useCallback(
         (meetingId: string) => {
-            detailController.current?.abort();
+            invalidateReads();
             writeController.current?.abort();
             detailGeneration.current += 1;
             writeGeneration.current += 1;
@@ -166,9 +200,9 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             setDraft(undefined);
             setFactError(undefined);
             setWritePending(false);
-            void loadDetail(meetingId);
+            requestRefresh();
         },
-        [loadDetail]
+        [invalidateReads, requestRefresh]
     );
 
     const controlMeeting = useCallback(
@@ -186,6 +220,8 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             writeController.current = controller;
             const generation = ++writeGeneration.current;
             writePendingRef.current = true;
+            invalidateReads();
+            setDetailCached(true);
             setWritePending(true);
             setDetailError(undefined);
             let shouldRefetch = false;
@@ -251,9 +287,6 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                         throw error;
                     }
                 }
-                if (generation === writeGeneration.current && selectedIdRef.current === meetingId) {
-                    await refreshSelectedMeeting(meetingId);
-                }
             } catch (error) {
                 if (
                     !controller.signal.aborted &&
@@ -272,6 +305,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                     writePendingRef.current = false;
                     setWritePending(false);
                     if (!shouldRefetch) setDetailCached(true);
+                    if (shouldRefetch || refreshDirty.current) requestRefresh();
                 }
             }
         },
@@ -282,14 +316,15 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             endOutcome,
             endReason,
             pauseReason,
-            refreshSelectedMeeting,
+            requestRefresh,
+            invalidateReads,
             skipReason
         ]
     );
 
     useEffect(() => {
         mounted.current = true;
-        void loadList();
+        requestRefresh();
         return () => {
             mounted.current = false;
             listController.current?.abort();
@@ -299,27 +334,18 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             detailGeneration.current += 1;
             writeGeneration.current += 1;
         };
-    }, [loadList]);
+    }, [requestRefresh]);
 
     useEffect(() => {
-        const onFocus = () => {
-            const meetingId = selectedIdRef.current;
-            if (meetingId === undefined) void loadList();
-            else if (!writePendingRef.current) void refreshSelectedMeeting(meetingId);
-        };
-        window.addEventListener("focus", onFocus);
-        return () => window.removeEventListener("focus", onFocus);
-    }, [loadList, refreshSelectedMeeting]);
+        window.addEventListener("focus", requestRefresh);
+        return () => window.removeEventListener("focus", requestRefresh);
+    }, [requestRefresh]);
 
     useEffect(() => {
         if (selectedId === undefined) return;
-        const timer = window.setInterval(() => {
-            if (!writePendingRef.current && selectedIdRef.current !== undefined) {
-                void refreshSelectedMeeting(selectedIdRef.current);
-            }
-        }, 5_000);
+        const timer = window.setInterval(requestRefresh, 5_000);
         return () => window.clearInterval(timer);
-    }, [refreshSelectedMeeting, selectedId]);
+    }, [requestRefresh, selectedId]);
 
     const discussion = detail && "pendingDecisionCandidates" in detail ? detail : undefined;
     const factWritable =
@@ -434,6 +460,8 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             generation === writeGeneration.current &&
             selectedIdRef.current === meetingId;
         writePendingRef.current = true;
+        invalidateReads();
+        setDetailCached(true);
         setWritePending(true);
         setFactError(undefined);
         const base = {
@@ -478,13 +506,13 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             if (!current() || controller.signal.aborted) return;
             setDraft(undefined);
             setFactError(undefined);
-            await refreshSelectedMeeting(meetingId);
+            refreshDirty.current = true;
         } catch (error) {
             if (!current() || controller.signal.aborted) return;
             setDraft(undefined);
             if (error instanceof ProtocolFailure) {
                 setFactError(error.protocolError);
-                await refreshSelectedMeeting(meetingId);
+                refreshDirty.current = true;
             } else {
                 setDetailCached(true);
                 setDetailError(failureMessage(error));
@@ -493,6 +521,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             if (current()) {
                 writePendingRef.current = false;
                 setWritePending(false);
+                if (refreshDirty.current) requestRefresh();
             }
         }
     }
@@ -649,7 +678,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         createElement("h2", null, "Meetings"),
         createElement(
             "button",
-            { type: "button", "aria-label": "Reload meetings", onClick: () => void loadList() },
+            { type: "button", "aria-label": "Reload meetings", onClick: requestRefresh },
             "Reload"
         ),
         createElement(

@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Execute；执行者从 M10 继续；前序修复证据见提交历史。
+- 模式：Execute；执行者从 M11 继续；前序修复证据见提交历史。
 - 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M10—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M11—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,26 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M10：串行化刷新与写后补读
-
-前置状态：M09 PASS。
-允许修改：`plugin/src/client/meeting-panel.tsx`；`plugin/tests/client/meeting-panel.client.spec.ts`。
-禁止修改：stream 实例、定时轮询删除、展示样式。
-
-执行：
-1. 按 D3 增加 refreshReading/Dirty/Epoch；本步 streamReady 固定 true、streamEpoch 固定 0，使调度器可独立测试。实现 requestRefresh/drainRefresh，把首次、选择、focus、旧 interval、写后入口统一改成 requestRefresh。
-2. loadList 改 Promise<boolean>；loadList/loadDetail 捕获 epochs、成功不独立清 cached；drain 统一成功解除。读完成或 finally 只有一个入口消费 dirty。两个写 handler 开始时 invalidate/abort 原读；原写后的 await refresh 移到 finally 释放写互斥之后，防止等待被自身锁住。
-3. 加入 D3 R1/R2/R3/R6 的 deferred 顺序测试。保留原控制错误与 factError，完整读成功不清 factError。
-
-验证：
-```bash
-pnpm --dir plugin typecheck:client
-pnpm --dir plugin test tests/client/meeting-panel.client.spec.ts
-```
-
-PASS：R1/R2/R3/R6 与全部原 UI 断言通过，无写后死锁。
-STOP：读写相互 await 卡住、dirty 丢失或旧响应覆盖新状态；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
 
 ### M11：以 Remote stream 替换五秒轮询
 
