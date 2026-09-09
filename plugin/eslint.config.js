@@ -11,6 +11,7 @@ const publicModules = [
     "http",
     "projection",
     "protocol",
+    "remote",
     "runtime",
     "tools"
 ];

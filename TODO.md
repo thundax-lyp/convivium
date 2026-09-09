@@ -10,13 +10,6 @@
 
 以下任务按 M03—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
 
-- [ ] `remote`：M03 实现九方法 Remote Service
-    - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M03。
-    - 关联文件：新 `plugin/src/remote/index.ts`、新 `plugin/src/remote/types.ts`；[plugin/package.json](plugin/package.json)、[plugin/pnpm-lock.yaml](plugin/pnpm-lock.yaml)、[plugin/eslint.config.js](plugin/eslint.config.js)。
-    - 确认依据：2026-09-09 本任务中用户确认九接口一次迁移、替换五秒轮询及 review 修复；设计提交 `f7b6812`；本轮要求据此制定 TODO。
-    - 处理动作：按既定输入、错误契约实现 Service、wire 类型和 Service 私有取消生命周期。
-    - 验收点：Host 类型检查通过；仅新增规定的五个 DSH 依赖，业务 DTO/Schema 不变。
-
 - [ ] `plugin/build`：M04 生成可发布 Remote contract
     - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M04。
     - 关联文件：新 `plugin/scripts/generate-typert.mjs`；[plugin/package.json](plugin/package.json)、[plugin/tsdown.config.ts](plugin/tsdown.config.ts)；[plugin/scripts/verify-package.mjs](plugin/scripts/verify-package.mjs)；[plugin/tests/contract/package-contract.spec.ts](plugin/tests/contract/package-contract.spec.ts)；新 `plugin/tests/contract/remote-generation.spec.ts`。
