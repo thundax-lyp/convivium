@@ -1,5 +1,6 @@
 import type { ClientRemote, RemoteStream } from "@deepseek-ai/dsh-api-gateway/client";
 import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
+import type Schema from "@deepseek-ai/schemastery";
 import type {} from "@convivium/dsh-plugin/remote";
 import {
     CaptainDecisionAcceptanceResultSchema,
@@ -111,15 +112,20 @@ async function unwrap<T>(
     try {
         return schema(result.value);
     } catch (error) {
-        if (typeof result.value === "object" && result.value !== null && "ok" in result.value) {
+        if (
+            typeof result.value === "object" &&
+            result.value !== null &&
+            "ok" in result.value &&
+            result.value.ok === false
+        ) {
             throw protocolFailure(result.value);
         }
         throw error;
     }
 }
 
-function success<T>(schema: unknown, value: unknown): T {
-    return validateProtocolSuccessEnvelope(schema as never, value) as T;
+function success<T>(schema: Schema, value: unknown): T {
+    return validateProtocolSuccessEnvelope(schema, value) as T;
 }
 
 export function createMeetingClient(remote: ClientRemote): MeetingClient {
@@ -178,10 +184,7 @@ export function createMeetingClient(remote: ClientRemote): MeetingClient {
                 name: "convivium-meetings",
                 open: (signal) => service.watchUpdates(signal),
                 ended: () => new Error("Meeting update stream ended."),
-                carrierFailed: (error) => {
-                    if (error instanceof Error && error.name === "RemoteStreamCarrierError")
-                        onUnavailable();
-                }
+                carrierFailed: onUnavailable
             })
     };
 }

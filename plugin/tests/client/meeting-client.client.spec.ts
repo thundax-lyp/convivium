@@ -3,6 +3,8 @@ import type { ClientRemote } from "@deepseek-ai/dsh-api-gateway/client";
 import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
 import { createMeetingClient, ProtocolFailure } from "@/client/meeting-client.js";
 import type { MeetingStatusResultV1 } from "@/protocol/index.js";
+import { createRemoteClient } from "../fixtures/remote-client.js";
+import { createControlledMeetingStream } from "../fixtures/remote-stream.js";
 
 function status(): MeetingStatusResultV1 {
     return {
@@ -34,6 +36,59 @@ function status(): MeetingStatusResultV1 {
 }
 
 describe("MeetingClient", () => {
+    it("mounts the published Client namespace and removes it on unmount", async () => {
+        const call = vi.fn(async () => ({
+            ok: true as const,
+            value: {
+                protocolVersion: 1,
+                ok: true,
+                result: { meetings: [] }
+            }
+        }));
+        const fixture = await createRemoteClient(call);
+        try {
+            await expect(createMeetingClient(fixture.ctx.remote).list()).resolves.toEqual({
+                protocolVersion: 1,
+                ok: true,
+                result: { meetings: [] }
+            });
+            expect(call).toHaveBeenCalledWith(
+                "/api",
+                "conviviumMeetings/list",
+                { args: {} },
+                expect.any(AbortSignal)
+            );
+            await fixture.unmount();
+            expect(fixture.ctx.get("remote.conviviumMeetings")).toBeUndefined();
+        } finally {
+            await fixture.dispose();
+        }
+    });
+
+    it("reopens a real RemoteStream after carrier loss and closes pending reads", async () => {
+        const unavailable = vi.fn();
+        const fixture = createControlledMeetingStream(unavailable);
+        const iterator = fixture.stream[Symbol.asyncIterator]();
+        try {
+            const first = await iterator.next();
+            if (first.done) throw new Error("Missing opening refresh");
+            first.value.accept();
+            const pending = iterator.next();
+            fixture.disconnect();
+            await vi.waitFor(() => expect(unavailable).toHaveBeenCalledOnce());
+            fixture.reconnect();
+            const next = await pending;
+            if (next.done) throw new Error("Missing reconnect refresh");
+            expect(next.value.generation).toBeGreaterThan(first.value.generation);
+            expect(first.value.signal.aborted).toBe(true);
+            next.value.accept();
+            const closing = iterator.next();
+            await fixture.stream.dispose();
+            await expect(closing).resolves.toMatchObject({ done: true });
+        } finally {
+            await fixture.stream.dispose();
+        }
+    });
     it("forwards input and signal and validates the success envelope", async () => {
         const signal = new AbortController().signal;
         const getStatus = vi.fn(

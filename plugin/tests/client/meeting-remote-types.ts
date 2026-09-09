@@ -17,9 +17,7 @@ const statusCall: Promise<
     RemoteResult<ProtocolSuccessV1<MeetingStatusResultV1> | ProtocolErrorV1>
 > = remote.conviviumMeetings.getStatus(input);
 void statusCall;
-const stream: RemoteStream<MeetingRefreshNoticeV1> = createControlledMeetingStream({
-    generation: { getSnapshot: () => undefined, subscribe: () => () => undefined }
-}).stream;
+const stream: RemoteStream<MeetingRefreshNoticeV1> = createControlledMeetingStream().stream;
 const adapterStream: ReturnType<MeetingClient["openUpdates"]> = stream;
 void adapterStream;
 void ({} as typeof loadRemoteClientModule);

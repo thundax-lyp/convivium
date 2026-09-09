@@ -102,42 +102,45 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             setListCached(true);
             setListError(failureMessage(error));
         }
-    }, [clearSelection]);
+    }, [api, clearSelection]);
 
-    const loadDetail = useCallback(async (meetingId: string): Promise<boolean> => {
-        detailController.current?.abort();
-        const controller = new AbortController();
-        detailController.current = controller;
-        const generation = ++detailGeneration.current;
-        try {
-            const validated = await api.getStatus(
-                { protocolVersion: 1, meetingId },
-                controller.signal
-            );
-            if (
-                !mounted.current ||
-                generation !== detailGeneration.current ||
-                selectedIdRef.current !== meetingId
-            ) {
+    const loadDetail = useCallback(
+        async (meetingId: string): Promise<boolean> => {
+            detailController.current?.abort();
+            const controller = new AbortController();
+            detailController.current = controller;
+            const generation = ++detailGeneration.current;
+            try {
+                const validated = await api.getStatus(
+                    { protocolVersion: 1, meetingId },
+                    controller.signal
+                );
+                if (
+                    !mounted.current ||
+                    generation !== detailGeneration.current ||
+                    selectedIdRef.current !== meetingId
+                ) {
+                    return false;
+                }
+                setDetail(validated.result);
+                setDetailCached(false);
+                setDetailError(undefined);
+                return true;
+            } catch (error) {
+                if (
+                    controller.signal.aborted ||
+                    generation !== detailGeneration.current ||
+                    selectedIdRef.current !== meetingId
+                ) {
+                    return false;
+                }
+                setDetailCached(true);
+                setDetailError(failureMessage(error));
                 return false;
             }
-            setDetail(validated.result);
-            setDetailCached(false);
-            setDetailError(undefined);
-            return true;
-        } catch (error) {
-            if (
-                controller.signal.aborted ||
-                generation !== detailGeneration.current ||
-                selectedIdRef.current !== meetingId
-            ) {
-                return false;
-            }
-            setDetailCached(true);
-            setDetailError(failureMessage(error));
-            return false;
-        }
-    }, []);
+        },
+        [api]
+    );
 
     const refreshSelectedMeeting = useCallback(
         async (meetingId: string) => Promise.all([loadList(), loadDetail(meetingId)]),
@@ -273,6 +276,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             }
         },
         [
+            api,
             detail,
             detailCached,
             endOutcome,
@@ -471,6 +475,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                     controller.signal
                 );
             }
+            if (!current() || controller.signal.aborted) return;
             setDraft(undefined);
             setFactError(undefined);
             await refreshSelectedMeeting(meetingId);

@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Execute；M01—M08 已完成，执行者从 M09 继续。
+- 模式：Execute；执行者从 M10 继续；前序修复证据见提交历史。
 - 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M09—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M10—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,27 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M09：将面板九调用切换到注入 API
-
-前置状态：M08 PASS。
-允许修改：`plugin/src/client/index.tsx`、`plugin/src/client/meeting-panel.tsx`；`plugin/tests/client/meeting-panel.client.spec.ts`。
-禁止修改：轮询/focus 调度、表单和展示文件。
-
-执行：
-1. Client apply 改为 async Promise<void>，外层 inject=["remote"]；default import self remote contribution，await ctx.remote.$mount；子作用域 inject=["slots","remote","remote.conviviumMeetings"]，通过 slots injected props 给原组件 api=createMeetingClient(ctx.remote)。id/label/order 不变。
-2. panel 参数改为 {api:MeetingClient}，按照 D1 最后一段替换九调用，删旧 meetingsPath/meetingPath/responseJson/read helpers，导入 M07 ProtocolFailure；删除原 panel 的结果 Schema 与 validateProtocolError/validateProtocolSuccessEnvelope 值导入，protocol 类型导入只保留 LocalMeetingListItemV1、MeetingStatusResultV1、ProtocolErrorV1。保留当前轮询和 focus，下一步才改刷新控制。
-3. 原 client 测试逐个用注入 api stub 替换 fetch mock：原 Response 成功对应 resolve 原 parsed envelope，业务失败对应 reject ProtocolFailure，transport/坏输出对应 reject Error。保留所有表单选择、disabled、文本和请求体断言，URL/header 断言改成 D1 方法/参数。
-
-验证：
-```bash
-pnpm --dir plugin typecheck
-pnpm --dir plugin test tests/client/meeting-panel.client.spec.ts
-pnpm --dir plugin build
-```
-
-PASS：所有原 UI 业务用例通过、bundle 仍是同一 module factory。
-STOP：需要改表单、隐藏原控制或修改领域输入；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
 
 ### M10：串行化刷新与写后补读
 

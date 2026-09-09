@@ -1,4 +1,5 @@
 import type { Context } from "@deepseek-ai/cordis";
+import { createElement } from "react";
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
 import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
 import contribution from "@convivium/dsh-plugin/remote";
@@ -9,9 +10,10 @@ export const name = "convivium-client";
 
 export const inject = ["remote"] as const;
 
-export function apply(ctx: Context): void {
+export async function apply(ctx: Context): Promise<void> {
+    await ctx.remote.$mount(contribution);
     ctx.inject(["slots", "remote", "remote.conviviumMeetings"], (remoteContext) => {
-        void remoteContext.remote.$mount(contribution);
+        const api = createMeetingClient(remoteContext.remote);
         remoteContext.slots.inject("conversation.view", () =>
             remoteContext.slots.register(
                 {
@@ -20,11 +22,7 @@ export function apply(ctx: Context): void {
                     label: "Meetings",
                     order: 100
                 },
-                (props) =>
-                    ConviviumMeetingPanel({
-                        ...props,
-                        api: createMeetingClient(remoteContext.remote)
-                    })
+                () => createElement(ConviviumMeetingPanel, { api })
             )
         );
     });
