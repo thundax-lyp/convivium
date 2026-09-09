@@ -1,3 +1,4 @@
+import type { RemoteStreamOptions } from "@deepseek-ai/dsh-api-gateway/client";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,33 +16,37 @@ let rpc: Rpc;
 let api: MeetingClient;
 let streams: ReturnType<typeof createControlledMeetingStream>[];
 let clientFixture: Awaited<ReturnType<typeof createRemoteClient>>;
-beforeEach(async () => {
-    rpc = async () => {
-        throw new Error("Unexpected RPC");
-    };
-    clientFixture = await createRemoteClient(async (_channel, endpoint, payload, signal) => {
-        if (!payload || typeof payload !== "object" || !("args" in payload))
-            throw new Error("Missing args");
-        const args = payload.args;
-        if (!args || typeof args !== "object") throw new Error("Invalid args");
-        return rpc(endpoint.slice("conviviumMeetings/".length), {
-            input: "input" in args ? args.input : undefined,
-            signal
+function useRemoteFixture() {
+    beforeEach(async () => {
+        rpc = async () => {
+            throw new Error("Unexpected RPC");
+        };
+        clientFixture = await createRemoteClient(async (_channel, endpoint, payload, signal) => {
+            if (!payload || typeof payload !== "object" || !("args" in payload))
+                throw new Error("Missing args");
+            const args = payload.args;
+            if (!args || typeof args !== "object") throw new Error("Invalid args");
+            return rpc(endpoint.slice("conviviumMeetings/".length), {
+                input: "input" in args ? args.input : undefined,
+                signal
+            });
         });
+        api = createMeetingClient(clientFixture.ctx.remote);
+        streams = [];
+        api.openUpdates = (unavailable) => {
+            const fixture = createControlledMeetingStream(unavailable);
+            streams.push(fixture);
+            return fixture.stream;
+        };
     });
-    api = createMeetingClient(clientFixture.ctx.remote);
-    streams = [];
-    api.openUpdates = (unavailable) => {
-        const fixture = createControlledMeetingStream(unavailable);
-        streams.push(fixture);
-        return fixture.stream;
-    };
-});
-afterEach(async () => {
-    cleanup();
-    await Promise.all(streams.map((fixture) => fixture.stream.dispose()));
-    await clientFixture.dispose();
-});
+    afterEach(async () => {
+        cleanup();
+        await Promise.all(streams.map((fixture) => fixture.stream.dispose()));
+        await clientFixture.dispose();
+    });
+}
+afterEach(cleanup);
+
 function setRpc(mock: Rpc) {
     rpc = mock;
 }
@@ -398,12 +403,20 @@ function refreshFactStatus(stage: "active" | "terminal" | "archived"): MeetingSt
 }
 
 function assertRefreshFacts(detail: MeetingStatusResultV1) {
-    const view = mapMeetingPanelView(detail);
+    // Expected facts come directly from the supplied protocol DTO, not the renderer mapper.
+    const facts =
+        detail.status === "archiving" || detail.status === "archived"
+            ? detail.archive.package
+            : detail;
     const groups = [
-        { label: "Decision history", attr: "data-decision-id", items: view.decisionHistory },
-        { label: "Accepted decisions", attr: "data-decision-id", items: view.acceptedDecisions },
-        { label: "Parking Lot", attr: "data-candidate-id", items: view.parkingLot },
-        { label: "Risks", attr: "data-risk-id", items: view.risks }
+        { label: "Decision history", attr: "data-decision-id", items: facts.decisionHistory },
+        { label: "Accepted decisions", attr: "data-decision-id", items: facts.acceptedDecisions },
+        { label: "Parking Lot", attr: "data-candidate-id", items: facts.parkingLot },
+        {
+            label: "Risks",
+            attr: "data-risk-id",
+            items: "issues" in facts ? facts.issues : facts.risks
+        }
     ];
     for (const { label, attr, items } of groups) {
         const rows = [...screen.getByLabelText(label).querySelectorAll(`[${attr}]`)];
@@ -605,11 +618,7 @@ function expectSelectedEndOutcome(name: string): HTMLButtonElement {
     return selected;
 }
 
-describe("meeting panel and client plugin lifecycle", () => {
-    beforeEach(() => {
-        vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "request-1") });
-    });
-
+describe("meeting fact projection and rendering", () => {
     it("fact visibility: decisions across lifecycle", () => {
         const decisions = factDecisions();
         const detail = {
@@ -633,101 +642,6 @@ describe("meeting panel and client plugin lifecycle", () => {
         expect(history.textContent).toContain("d-current");
         expect(history.textContent).toContain("Superseded by");
     });
-
-    it.each([
-        "created",
-        "running",
-        "waiting",
-        "paused",
-        "converging",
-        "completed",
-        "partial",
-        "no_consensus",
-        "cancelled",
-        "failed",
-        "archiving",
-        "archived"
-    ] as const)("fact visibility: decision history schema and mapper for %s", async (status) => {
-        const detail = ["created", "running", "waiting", "paused", "converging"].includes(status)
-            ? factStatus(status as "created" | "running" | "waiting" | "paused" | "converging")
-            : ["completed", "partial", "no_consensus", "cancelled", "failed"].includes(status)
-              ? factTerminalStatus(
-                    status as "completed" | "partial" | "no_consensus" | "cancelled" | "failed"
-                )
-              : factArchiveStatus(status as "archiving" | "archived");
-        expect(() => MeetingStatusResultSchema(JSON.parse(JSON.stringify(detail)))).not.toThrow();
-        expect(mapMeetingPanelView(detail).decisionHistory.map((decision) => decision.id)).toEqual([
-            "d-old",
-            "d-revoked",
-            "d-current"
-        ]);
-        setRpc(
-            vi.fn(async (input: string) =>
-                String(input) === "list"
-                    ? remoteResult(listResponse())
-                    : remoteResult(success(detail, detail.meetingVersion))
-            )
-        );
-        render(createElement(ConviviumMeetingPanel, { api }));
-        await selectMeeting();
-        await waitFor(() => {
-            const accepted = screen.getByLabelText("Accepted decisions").textContent ?? "";
-            const historySection = screen.getByLabelText("Decision history");
-            const history = historySection.textContent ?? "";
-            const historyIds = [...historySection.querySelectorAll("[data-decision-id]")].map(
-                (item) => item.getAttribute("data-decision-id")
-            );
-            expect(accepted).toContain("d-current");
-            expect(historyIds).toEqual(["d-old", "d-revoked", "d-current"]);
-            for (const value of [
-                "superseded",
-                "revoked",
-                "accepted",
-                "p-old",
-                "p-revoked",
-                "p-current",
-                "Old decision",
-                "Revoked decision",
-                "Current decision",
-                "Old rationale",
-                "Revoked rationale",
-                "Current rationale",
-                "participant-one",
-                "agenda-1",
-                "position-dissent"
-            ])
-                expect(history).toContain(value);
-            const parking = screen.getByLabelText("Parking Lot");
-            expect(
-                [...parking.querySelectorAll("[data-candidate-id]")].map((item) =>
-                    item.getAttribute("data-candidate-id")
-                )
-            ).toEqual([
-                "candidate-pending",
-                "candidate-promoted",
-                "candidate-parked",
-                "candidate-rejected"
-            ]);
-        });
-    });
-
-    it("fact visibility: panel DOM renders decision history from validated detail", async () => {
-        const detail = factStatus("running");
-        setRpc(
-            vi.fn(async (input: string) =>
-                String(input) === "list"
-                    ? remoteResult(listResponse())
-                    : remoteResult(success(detail, detail.meetingVersion))
-            )
-        );
-        render(createElement(ConviviumMeetingPanel, { api }));
-        await selectMeeting();
-        await waitFor(() => {
-            expect(screen.getByLabelText("Decision history").textContent).toContain("d-revoked");
-        });
-        expect(screen.getByLabelText("Accepted decisions").textContent).toContain("d-current");
-    });
-
     it("fact visibility: decision history keeps identity when optional fields are absent", () => {
         const decisions = factDecisions().map(
             ({
@@ -752,7 +666,6 @@ describe("meeting panel and client plugin lifecycle", () => {
         expect(history.textContent).toContain("Proposal ID");
         expect(history.textContent).not.toContain("Old rationale");
     });
-
     it("fact visibility: empty decision arrays use the explicit empty state", () => {
         const detail = factStatus("running");
         render(
@@ -765,7 +678,6 @@ describe("meeting panel and client plugin lifecycle", () => {
             "No decision history."
         );
     });
-
     it("fact visibility: parking lot keeps all dispositions and empty state", () => {
         const detail = factStatus("running");
         render(renderObservabilitySections(detail));
@@ -785,7 +697,6 @@ describe("meeting panel and client plugin lifecycle", () => {
         render(renderObservabilitySections({ ...detail, parkingLot: [] }));
         expect(screen.getByLabelText("Parking Lot").textContent).toContain("No parking lot items.");
     });
-
     it("fact visibility: risks and archived issues preserve status, reason, owner and tasks", () => {
         const detail = factStatus("running");
         render(renderObservabilitySections(detail));
@@ -800,7 +711,6 @@ describe("meeting panel and client plugin lifecycle", () => {
         expect(screen.getByLabelText("Risks").textContent).toContain("Waiting issue");
         expect(screen.getByLabelText("Risks").textContent).toContain("waiting");
     });
-
     it("fact visibility: activity reasons clear when no current turn exists", () => {
         const active = factStatus("running");
         render(renderObservabilitySections(active));
@@ -813,7 +723,6 @@ describe("meeting panel and client plugin lifecycle", () => {
         expect(activity).toContain("Turn reasonNone");
         expect(activity).toContain("Turn objectiveNone");
     });
-
     it("fact visibility: complete facts replace across active, terminal and archive projections", () => {
         const active = mapMeetingPanelView(factStatus("running"));
         const terminal = mapMeetingPanelView(factTerminalStatus("completed"));
@@ -843,7 +752,6 @@ describe("meeting panel and client plugin lifecycle", () => {
         expect(terminal.turnReason).toBe("None");
         expect(archived.turnReason).toBe("None");
     });
-
     it("maps active and terminal projections without mutating transcript order", () => {
         const active = statusResult("running", 2, true);
         const activeView = mapMeetingPanelView(active);
@@ -876,7 +784,6 @@ describe("meeting panel and client plugin lifecycle", () => {
         expect(ordered.blockingFacts).toEqual([]);
         expect(ordered.acceptedDecisions).toEqual([]);
     });
-
     it("maps waiting state without a current turn and archive package facts", () => {
         const waiting = {
             ...statusResult("running"),
@@ -963,6 +870,104 @@ describe("meeting panel and client plugin lifecycle", () => {
         expect(mapMeetingPanelView(archived)).toMatchObject({
             messages: [message],
             acceptedDecisions: [decision]
+        });
+    });
+    it("fact visibility: new fact sections remain read only and escape text", () => {
+        const detail = {
+            ...factStatus("running"),
+            decisionHistory: [
+                { ...factDecisions()[0], statement: '<img src=x onerror="alert(1)">' }
+            ]
+        } as MeetingStatusResultV1;
+        render(renderObservabilitySections(detail));
+        expect(screen.getByLabelText("Decision history").querySelector("img")).toBeNull();
+        expect(screen.getByLabelText("Decision history").textContent).toContain("<img src=x");
+        for (const label of ["Decision history", "Parking Lot", "Risks"]) {
+            expect(screen.getByLabelText(label).querySelector("button,input,select")).toBeNull();
+        }
+    });
+});
+
+describe("meeting panel and client plugin lifecycle", () => {
+    useRemoteFixture();
+    beforeEach(() => {
+        vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "request-1") });
+    });
+
+    it.each([
+        "created",
+        "running",
+        "waiting",
+        "paused",
+        "converging",
+        "completed",
+        "partial",
+        "no_consensus",
+        "cancelled",
+        "failed",
+        "archiving",
+        "archived"
+    ] as const)("fact visibility: decision history schema and mapper for %s", async (status) => {
+        const detail = ["created", "running", "waiting", "paused", "converging"].includes(status)
+            ? factStatus(status as "created" | "running" | "waiting" | "paused" | "converging")
+            : ["completed", "partial", "no_consensus", "cancelled", "failed"].includes(status)
+              ? factTerminalStatus(
+                    status as "completed" | "partial" | "no_consensus" | "cancelled" | "failed"
+                )
+              : factArchiveStatus(status as "archiving" | "archived");
+        expect(() => MeetingStatusResultSchema(JSON.parse(JSON.stringify(detail)))).not.toThrow();
+        expect(mapMeetingPanelView(detail).decisionHistory.map((decision) => decision.id)).toEqual([
+            "d-old",
+            "d-revoked",
+            "d-current"
+        ]);
+        setRpc(
+            vi.fn(async (input: string) =>
+                String(input) === "list"
+                    ? remoteResult(listResponse())
+                    : remoteResult(success(detail, detail.meetingVersion))
+            )
+        );
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        await waitFor(() => {
+            const accepted = screen.getByLabelText("Accepted decisions").textContent ?? "";
+            const historySection = screen.getByLabelText("Decision history");
+            const history = historySection.textContent ?? "";
+            const historyIds = [...historySection.querySelectorAll("[data-decision-id]")].map(
+                (item) => item.getAttribute("data-decision-id")
+            );
+            expect(accepted).toContain("d-current");
+            expect(historyIds).toEqual(["d-old", "d-revoked", "d-current"]);
+            for (const value of [
+                "superseded",
+                "revoked",
+                "accepted",
+                "p-old",
+                "p-revoked",
+                "p-current",
+                "Old decision",
+                "Revoked decision",
+                "Current decision",
+                "Old rationale",
+                "Revoked rationale",
+                "Current rationale",
+                "participant-one",
+                "agenda-1",
+                "position-dissent"
+            ])
+                expect(history).toContain(value);
+            const parking = screen.getByLabelText("Parking Lot");
+            expect(
+                [...parking.querySelectorAll("[data-candidate-id]")].map((item) =>
+                    item.getAttribute("data-candidate-id")
+                )
+            ).toEqual([
+                "candidate-pending",
+                "candidate-promoted",
+                "candidate-parked",
+                "candidate-rejected"
+            ]);
         });
     });
 
@@ -1182,21 +1187,6 @@ describe("meeting panel and client plugin lifecycle", () => {
         }
     );
 
-    it("fact visibility: new fact sections remain read only and escape text", () => {
-        const detail = {
-            ...factStatus("running"),
-            decisionHistory: [
-                { ...factDecisions()[0], statement: '<img src=x onerror="alert(1)">' }
-            ]
-        } as MeetingStatusResultV1;
-        render(renderObservabilitySections(detail));
-        expect(screen.getByLabelText("Decision history").querySelector("img")).toBeNull();
-        expect(screen.getByLabelText("Decision history").textContent).toContain("<img src=x");
-        for (const label of ["Decision history", "Parking Lot", "Risks"]) {
-            expect(screen.getByLabelText(label).querySelector("button,input,select")).toBeNull();
-        }
-    });
-
     it("keeps selected meeting controls disabled until the list and detail both refresh", async () => {
         const listRead = deferred<RemoteResult<unknown>>();
         let holdList = false;
@@ -1221,6 +1211,30 @@ describe("meeting panel and client plugin lifecycle", () => {
     });
 
     it("disables cached controls on carrier loss until both reconnect reads succeed", async () => {
+        const remote = clientFixture.ctx.remote;
+        const carrierFailure = vi.fn();
+        api.openUpdates = (unavailable) => {
+            const fixture = createControlledMeetingStream(
+                unavailable,
+                true,
+                (connection, options, RemoteStream) => {
+                    return createMeetingClient({
+                        ...remote,
+                        conviviumMeetings: {
+                            ...remote.conviviumMeetings,
+                            watchUpdates: (signal) => options.open(signal!)
+                        },
+                        $stream: <T>(configuration: RemoteStreamOptions<T>) =>
+                            new RemoteStream(connection, configuration)
+                    }).openUpdates(() => {
+                        carrierFailure();
+                        unavailable();
+                    });
+                }
+            );
+            streams.push(fixture);
+            return fixture.stream;
+        };
         let hold = false;
         const detailRead = deferred<RemoteResult<unknown>>();
         setRpc(async (method) =>
@@ -1235,6 +1249,7 @@ describe("meeting panel and client plugin lifecycle", () => {
         fireEvent.change(screen.getByLabelText("Pause reason"), { target: { value: "Review" } });
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(false);
         await act(async () => streams[0]!.disconnect());
+        expect(carrierFailure).toHaveBeenCalledOnce();
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
         expect(screen.getByLabelText("Meeting summary").textContent).toContain("Meeting version2");
         hold = true;
@@ -1273,6 +1288,7 @@ describe("meeting panel and client plugin lifecycle", () => {
     });
 
     it("does not perform periodic reads and closes its stream on unmount", async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
         const mock = vi.fn<Rpc>(async (method) =>
             remoteResult(method === "list" ? listResponse() : success(statusResult()))
         );
@@ -1280,7 +1296,6 @@ describe("meeting panel and client plugin lifecycle", () => {
         const panel = render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
         const count = mock.mock.calls.length;
-        vi.useFakeTimers();
         await act(async () => vi.advanceTimersByTime(15_000));
         expect(mock).toHaveBeenCalledTimes(count);
         panel.unmount();
@@ -1969,6 +1984,7 @@ describe("referenced minutes Client", () => {
 });
 
 describe("local decision risk panel controls", () => {
+    useRemoteFixture();
     function localControlStatus(): MeetingStatusResultV1 {
         const decision = {
             id: "decision-old",
