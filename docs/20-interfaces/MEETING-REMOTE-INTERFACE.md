@@ -2,7 +2,7 @@
 
 ## Purpose And Status
 
-2026-09-09 确认的迁移目标：九个 Meeting Web 操作一次迁移到 DSH `0.1.2-rc.1` Typert Remote；以插件自有 stream 通知和完整 refetch 替换 5 秒轮询。本文规定的传输契约已实现，实际验证边界见 [Implementation Results](../40-readiness/MEETING-REMOTE-FEASIBILITY-EVIDENCE.md#implementation-results)。业务 DTO、权限、状态及 receipt 继续由 [Meeting Protocol](./AGENT-MEETING-PROTOCOL-INTERFACE.md) 定义；实现覆盖以 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
+2026-09-09 确认的迁移目标：九个 Meeting Web 操作一次迁移到 DSH `0.1.2-rc.1` Typert Remote；以插件自有 stream 通知和完整 refetch 替换 5 秒轮询。本文规定的传输契约已实现，实际验证边界见 [Remote Migration Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-remote-migration)。业务 DTO、权限、状态及 receipt 继续由 [Meeting Protocol](./AGENT-MEETING-PROTOCOL-INTERFACE.md) 定义；实现覆盖以 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
 
 本契约满足 [Requirements FR-11](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#fr-11可观察性与用户控制)。不增加创建会议、Agent 管理、增量状态同步或远程部署功能。
 
@@ -46,7 +46,7 @@ Host 的最后一个 `signal: AbortSignal` 是所有方法的必需实现参数�
 
 ### Preserve Unknown Fields Until Validation
 
-DSH 该版本生成的普通对象 codec 会剥离未知字段。不得让它在现有严格入口校验之前吞掉调用方提交的 authority。八个有 input 方法的 wire 类型固定为 `DTO & Record<string, RemoteJsonValue>`，使 generated codec 保留额外 JSON 字段，再由 Service 的精确键校验拒绝。该 index signature 不授权任何额外业务字段。
+DSH 该版本生成的普通对象 codec 会剥离未知字段。不得让它在现有严格入口校验之前吞掉调用方提交的 authority。八个有 input 方法的 wire 类型固定为 `DTO & Record<string, RemoteJsonValue>`，使 generated codec 保留额外 JSON 字段，再由 Service 的精确键校验拒绝。该 index signature 不授权任何额外业务字段。该版本 generator 不支持 `Record<string, unknown>`，不得用它替代已验证的递归 JSON 类型。
 
 ```ts
 export type RemoteJsonValue =
@@ -115,4 +115,4 @@ export interface MeetingRefreshNoticeV1 {
 ## Related Documents
 
 - [Remote Design](../30-designs/MEETING-REMOTE-DESIGN.md)
-- [Feasibility Evidence](../40-readiness/MEETING-REMOTE-FEASIBILITY-EVIDENCE.md)
+- [Remote Migration Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-remote-migration)
