@@ -90,13 +90,24 @@ describe("MeetingTask transitions", () => {
         expect(finished.effect.events.map(({ type }) => type)).toEqual(["meeting_task.completed"]);
     });
 
-    it("rejects queueing a task from another Participant attempt", () => {
+    it.each([
+        ["Participant", "participant-2", "attempt-1"],
+        ["attempt", "participant-1", "attempt-2"]
+    ])("rejects queueing with a different originating %s", (_kind, participantId, attemptId) => {
         const created = createMeetingTask(state(), input());
+        // A later message citing the task must not transfer its originating attempt binding.
+        created.state.transcript.push({
+            ...created.state.transcript[0]!,
+            id: "message-2",
+            seq: 2,
+            attemptId: "attempt-2"
+        });
+        const before = structuredClone(created.state);
 
         expect(() =>
-            queueMeetingTasks(created.state, ["task-1"], "participant-2", "attempt-2", 2)
-        ).toThrowError("MeetingTasks can only be queued by their originating Participant attempt");
-        expect(created.state.meetingTasks[0]?.status).toBe("requested");
+            queueMeetingTasks(created.state, ["task-1"], participantId, attemptId, 2)
+        ).toThrowError(expect.objectContaining({ code: "STALE_ATTEMPT" }));
+        expect(created.state).toEqual(before);
     });
 
     it("rejects duplicate and invalid lifecycle operations without effects", () => {
