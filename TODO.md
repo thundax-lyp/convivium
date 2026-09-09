@@ -8,23 +8,9 @@
 
 ## 当前任务项
 
-- [ ] `UI primitives/正式设计`：写入唯一正式设计
-    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T1。
-    - 关联文件：修改 [docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md](docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md)。
-    - 确认依据：2026-09-09 用户明确要求阅读 TODO Rules 后依次执行 TODO List，一任务一提交。
-    - 处理动作：按 T1 修正 primitives 依赖定位并加入 Client control primitives 设计。
-    - 验收点：正式设计包含固定控件、交互及共享依赖约束，文档链接与 diff 检查通过。
-
 ## 待审阅任务项
 
 按 T1–T12 顺序执行，前一步 PASS 后进入下一步；具体文件、动作、命令和 STOP 条件以各项链接的 RUNBOOK 步骤为准。
-
-- [ ] `UI primitives/普通按钮`：迁移九处按钮并接通真实包 CSS
-    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T2。
-    - 关联文件：修改 [plugin/src/client/meeting-panel.tsx](plugin/src/client/meeting-panel.tsx)、[plugin/vitest.config.ts](plugin/vitest.config.ts)；验证 [plugin/tests/client/meeting-panel.client.spec.ts](plugin/tests/client/meeting-panel.client.spec.ts)。
-    - 确认依据：2026-09-09 用户要求根据 RUNBOOK 制定 TODO；执行迁移待确认。
-    - 处理动作：按 T2 替换九处 Button 调用并配置 Client Vitest 的精确 inline 规则。
-    - 验收点：原 DOM 属性保留，客户端类型检查与原有 Client 测试通过，测试加载真实 primitives。
 
 - [ ] `UI primitives/理由输入`：迁移三个单行输入与操作行布局
     - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T3。

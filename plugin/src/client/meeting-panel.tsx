@@ -29,6 +29,7 @@ import {
     type ReassignTurnResultV1
 } from "@/protocol/index.js";
 import { renderObservabilitySections } from "./meeting-panel-sections.js";
+import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 
 const meetingsPath = "/api/convivium/meetings";
 
@@ -668,10 +669,19 @@ export function ConviviumMeetingPanel(): ReactElement {
                         .map((message) => message.content)
                         .join("; ") || "No evidence selected"
                 ),
-                createElement("button", { type: "submit", disabled: !validDraft }, "Submit"),
                 createElement(
-                    "button",
-                    { type: "button", onClick: () => setDraft(undefined) },
+                    Button,
+                    { type: "submit", variant: "primary", size: "sm", disabled: !validDraft },
+                    "Submit"
+                ),
+                createElement(
+                    Button,
+                    {
+                        type: "button",
+                        variant: "outline",
+                        size: "sm",
+                        onClick: () => setDraft(undefined)
+                    },
                     "Cancel"
                 )
             )
@@ -689,7 +699,7 @@ export function ConviviumMeetingPanel(): ReactElement {
             null,
             actions.map(([action, label]) =>
                 createElement(
-                    "button",
+                    Button,
                     {
                         key: action,
                         type: "button",
@@ -723,8 +733,14 @@ export function ConviviumMeetingPanel(): ReactElement {
         { "data-testid": "convivium-meeting-panel", "aria-label": "Convivium meetings" },
         createElement("h2", null, "Meetings"),
         createElement(
-            "button",
-            { type: "button", "aria-label": "Reload meetings", onClick: () => void loadList() },
+            Button,
+            {
+                type: "button",
+                variant: "outline",
+                size: "sm",
+                "aria-label": "Reload meetings",
+                onClick: () => void loadList()
+            },
             "Reload"
         ),
         createElement(
@@ -741,10 +757,12 @@ export function ConviviumMeetingPanel(): ReactElement {
                               "li",
                               { key: item.meetingId },
                               createElement(
-                                  "button",
+                                  Button,
                                   {
                                       type: "button",
-                                      "data-meeting-id": item.meetingId,
+                                      variant: "outline",
+                                      size: "sm",
+                                      ...{ "data-meeting-id": item.meetingId },
                                       onClick: () => selectMeeting(item.meetingId)
                                   },
                                   `${item.topic} (${item.status})`
@@ -813,9 +831,11 @@ export function ConviviumMeetingPanel(): ReactElement {
                                               setPauseReason(event.currentTarget.value)
                                       }),
                                       createElement(
-                                          "button",
+                                          Button,
                                           {
                                               type: "button",
+                                              variant: "outline",
+                                              size: "sm",
                                               "aria-label": "Pause meeting",
                                               disabled: writesDisabled || pauseReason.trim() === "",
                                               onClick: () => void controlMeeting("pause")
@@ -826,9 +846,11 @@ export function ConviviumMeetingPanel(): ReactElement {
                                 : null,
                             canResume
                                 ? createElement(
-                                      "button",
+                                      Button,
                                       {
                                           type: "button",
+                                          variant: "outline",
+                                          size: "sm",
                                           "aria-label": "Resume meeting",
                                           disabled: writesDisabled,
                                           onClick: () => void controlMeeting("resume")
@@ -847,9 +869,11 @@ export function ConviviumMeetingPanel(): ReactElement {
                                               setSkipReason(event.currentTarget.value)
                                       }),
                                       createElement(
-                                          "button",
+                                          Button,
                                           {
                                               type: "button",
+                                              variant: "outline",
+                                              size: "sm",
                                               "aria-label": "Skip current speaker",
                                               disabled: writesDisabled || skipReason.trim() === "",
                                               onClick: () => void controlMeeting("reassign")
@@ -892,9 +916,11 @@ export function ConviviumMeetingPanel(): ReactElement {
                                               setEndReason(event.currentTarget.value)
                                       }),
                                       createElement(
-                                          "button",
+                                          Button,
                                           {
                                               type: "button",
+                                              variant: "outline",
+                                              size: "sm",
                                               "aria-label": "End meeting",
                                               disabled: writesDisabled || endReason.trim() === "",
                                               onClick: () => void controlMeeting("end")
