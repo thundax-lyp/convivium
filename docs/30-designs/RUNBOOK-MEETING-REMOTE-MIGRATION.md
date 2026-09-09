@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Execute；M01—M03 已完成，执行者从 M04 继续。
+- 模式：Execute；M01—M05 已完成，执行者从 M06 继续。
 - 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M04—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M06—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,50 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M04：生成可发布 Host 与 Client contract
-
-前置状态：M03 PASS。
-允许修改：新 `plugin/scripts/generate-typert.mjs`；`plugin/package.json`、`plugin/tsdown.config.ts`；`plugin/scripts/verify-package.mjs`；`plugin/tests/contract/package-contract.spec.ts`；新 `plugin/tests/contract/remote-generation.spec.ts`。
-禁止修改：源码布局、node_modules 内容、Host 装配、手改 lib。
-
-执行：
-1. 实现 Design Package And Build 的 generateTypert(pluginRoot:string):void；CLI 只在直接执行时调用，测试 import 不运行 CLI。staging 为 mkdtemp，复制完整 src，临时 root 只 re-export Service；登记正式 protocol declarations 和 aggregate references，finally 删除临时目录。
-2. package.exports 尾部按顺序追加 ./typert、./remote、./remote-types、./protocol-types，值精确使用 Design 的表；files 尾部按顺序追加 lib/typert.host.js、lib/typert.host.d.ts、lib/typert.remote-client.js、lib/typert.remote-client.d.ts。verify-package 的 expectedExports/files 使用同顺序；requiredArtifacts 增加四 generated 文件和两个纯类型 export 的 js/d.ts；package-contract.spec.ts 中 Object.keys(exports) 与 files 的精确数组同步追加相同顺序，保留其余断言。
-3. generate:typert 为 node scripts/generate-typert.mjs；build 精确为 rm -rf lib && pnpm generate:typert && tsc -p tsconfig.json && tsc -p tsconfig.client.json && tsc-alias -p tsconfig.json && tsdown --config tsdown.config.ts。Host tsdown entries 增加 remote/types 和 protocol/types 指向原文件；Host 插件只注册 typertPlugin().transform，不执行其 writeBundle。
-4. 生成测试在临时 plugin 副本链接正式 node_modules，调用 generateTypert；assert 10 invocations，其中 watchUpdates mode=stream，其余 9 unary；parse pause 额外 authority 后仍保留；两次生成内容相同、产物无临时绝对路径；finally 删除副本。
-
-验证：
-```bash
-pnpm --dir plugin generate:typert
-pnpm --dir plugin exec vitest run tests/contract/remote-generation.spec.ts tests/contract/package-contract.spec.ts
-pnpm --dir plugin build
-pnpm --dir plugin verify:package
-```
-
-PASS：全部退出 0；四 generated 文件可加载、type subpath 对应真实产物，临时文件清理。
-STOP：generator 需要读取 DSH checkout、不能引用 DTO 或必须放宽 package 校验；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
-
-### M05：用正式 Gateway 验证源码边界
-
-前置状态：M04 PASS。
-允许修改：`plugin/vitest.config.ts`、`plugin/package.json`；新 `plugin/tests/fixtures/remote-gateway.ts`；新 `plugin/tests/contract/remote-boundary.spec.ts`。
-禁止修改：Host 装配、HTTP 删除、Client。
-
-执行：
-1. Vitest 保留 projects/alias，仅追加 name=typert-test-decorators、enforce=pre、transform=typertPlugin().transform 的插件。typecheck:client、test、test:integration、test:recovery 在原命令前加 pnpm generate:typert &&。
-2. fixture 导出 `createRemoteGateway(runtime:LocalMeetingWebRuntime)`：按 Registry→Gateway→原始源码 Service 顺序 await plugin(...).await；register(TYPERT)；返回 ctx/serviceFiber、invoke(method,args,signal) 与 async dispose。invoke 固定 namespace=conviviumMeetings，转发 ctx.typertGateway.invoke；dispose 解除 descriptor 后 await ctx.fiber.dispose。fixture 不模拟 Service。
-3. 复制旧 HTTP 测试的 statusResult/success/runtime 数据到新 remote-boundary；只替换 transport fixture。按 D4 完成九正常方法与所有输入/错误用例，此时保留旧 HTTP 测试文件。
-4. 增加调用前已取消 Runtime 0 次、serviceFiber.dispose 后 Gateway 拒绝、有效请求恰委托一次。增加真实 Gateway.stream 调用：runtime 的 watch 委托 M01 真实 feed，保持调用者 signal 未取消，消费首帧并 hold next，await serviceFiber.dispose 后 pending next 必须 done；捕获传给 runtime 的合并 signal 并断言 aborted，原 caller.signal 仍未 aborted，Runtime.dispose 未调用且读取仍可用。finally 关闭 iterator/feed/Context。错误 code 严格按 D2，不把 generated input-invalid 写成业务 invalid-request。
-
-验证：
-```bash
-pnpm --dir plugin typecheck
-pnpm --dir plugin test tests/contract/remote-generation.spec.ts tests/contract/remote-boundary.spec.ts
-```
-
-PASS：源码 @Remote 直接运行、D2/D4 全部断言通过。
-STOP：需要把测试改为只导入 lib 或放宽错误断言；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
 
 ### M06：切换可选 Host 子作用域
 
