@@ -8,11 +8,11 @@
 
 仍只有 `plugin/` 一个工程。生产源码不迁入 DSH，也不改成 DSH monorepo 布局。正式 npm 包固定 DSH `0.1.2-rc.1`、Cordis `4.0.2`。新增 `@deepseek-ai/dsh-typert-protocol`、`@deepseek-ai/dsh-api-gateway` 为 optional peer 和同版本 dev dependency；`@deepseek-ai/dsh-typert-generator`、`@deepseek-ai/dsh-typert-registry`、`@deepseek-ai/dsh-client-connection` 仅新增为 dev dependency。沿用现有 TypeScript、tsdown、Vitest、jsdom 与 zod 版本，不扩大升级。
 
-新 `plugin/scripts/generate-typert.mjs` 是唯一生成入口，导出 `generateTypert(pluginRoot: string): void`（JS 用 JSDoc 标注）。CLI 仅对脚本所属 plugin 根调用；contract 测试向此函数传入完整临时 plugin 副本，不修改真实 src/lib。生成规则：
+新 `plugin/scripts/generate-typert.mjs` 是唯一生成入口，导出 `generateTypert(pluginRoot: string): Promise<GeneratedPackage>`（JS 用 JSDoc 标注参数；返回正式生成器的单包产物供 contract 比较）。CLI 仅对脚本所属 plugin 根调用；contract 测试向此函数传入完整临时 plugin 副本，不修改真实 src/lib。生成规则：
 
 1. 用 `mkdtemp` 在 OS tmp 创建 staging，`finally` 删除。复制本插件 `src` 到 `packages/plugin/src`；临时 `src/index.ts` 仅重新导出 `./remote/index.js` 的 Service，避免把无关能力加入反射根。这个文件仅在 staging 中替换。
 2. 通过正式安装包的 package.json 定位 protocol 的根，复制其发布声明到 `packages/protocol/lib/types`，复制 manifest；不得读取 `../deepseek-harness`、复制上游源码或写 node_modules。protocol 的临时 tsconfig include `lib/types/**/*.d.ts`。
-3. staging 根的 `tsconfig.host.json` 显式 references `./packages/protocol`、`./packages/plugin`。两个 compilerOptions 均设置 ES2022、ESNext、Bundler、strict、skipLibCheck、noEmit、`types:[]`；`@/*` 指向 staging plugin/src，protocol 包名指向 staging protocol/lib/types/index.d.ts，Cordis 指向本插件正式安装声明。staging 根 node_modules 链接到插件 node_modules，仅供依赖解析。
+3. staging 根的 `tsconfig.host.json` 显式 references `./packages/protocol`、`./packages/plugin`。根与 protocol compilerOptions 设置 ES2022、ESNext、Bundler、strict、skipLibCheck、noEmit、`types:[]`；staging plugin 沿用工程 Host tsconfig（NodeNext、`types:["node"]`、排除 Client），以解析 Service 的真实 Runtime 类型引用；`@/*` 指向 staging plugin/src，protocol 包名指向 staging protocol/lib/types/index.d.ts，Cordis 指向本插件正式安装声明。staging 根 node_modules 链接到插件 node_modules，仅供依赖解析。
 4. staging plugin manifest 使用真实目标 exports，保留 `lib/types` 路径，由 generator 解析对应 src 声明来源；自身源码保持 `@/protocol/index.js` 等公开入口导入。临时布局是真实文件，不能只 symlink plugin，因为 generator 用 realpath 检查 packages 归属。
 5. 调用 `new WorkspaceTypertGenerator(stage).generate(["@convivium/dsh-plugin"], ["host"])`，断言只有一个包、remote 产物存在、九个 unary 加一个 stream。将 `js/dts/remote.js/remote.dts` 写到下表四个 lib 文件。失败非零退出，不保留旧产物冒充新生成成功。
 
