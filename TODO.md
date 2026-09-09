@@ -8,30 +8,16 @@
 
 ## 当前任务项
 
-- [ ] `UI primitives/会议切换`：验证跨会议选择重置
-    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T5。
+- [ ] `UI primitives/提交互斥`：验证提交中互斥与拒绝后解锁
+    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T7。
     - 关联文件：修改 [plugin/tests/client/meeting-panel.client.spec.ts](plugin/tests/client/meeting-panel.client.spec.ts)；被测对象 [plugin/src/client/meeting-panel.tsx](plugin/src/client/meeting-panel.tsx)（只读）。
     - 确认依据：2026-09-09 用户明确要求阅读 TODO Rules 后依次执行 TODO List，一任务一提交。
-    - 处理动作：按 T5 加入第二会议 fixture 和选择重置测试。
-    - 验收点：切换会议后显示第二会议且恢复 Partial，全程零 POST。
+    - 处理动作：按 T7 加入延迟响应、重复点击及 409 拒绝后的刷新测试。
+    - 验收点：提交期间不能改选且仅一次 POST，拒绝后刷新并解锁，完整 Client 测试、类型检查和 lint 通过。
 
 ## 待审阅任务项
 
 按 T1–T12 顺序执行，前一步 PASS 后进入下一步；具体文件、动作、命令和 STOP 条件以各项链接的 RUNBOOK 步骤为准。
-
-- [ ] `UI primitives/缓存禁写`：分别验证列表缓存与详情缓存禁写和恢复
-    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T6。
-    - 关联文件：修改 [plugin/tests/client/meeting-panel.client.spec.ts](plugin/tests/client/meeting-panel.client.spec.ts)；被测对象 [plugin/src/client/meeting-panel.tsx](plugin/src/client/meeting-panel.tsx)（只读）。
-    - 确认依据：2026-09-09 用户要求根据 RUNBOOK 制定 TODO；执行迁移待确认。
-    - 处理动作：按 T6 加入列表、详情两种缓存场景的参数化测试。
-    - 验收点：缓存状态全部 radio 禁用且不能改选，恢复后重新可选，全程零 POST。
-
-- [ ] `UI primitives/提交互斥`：验证提交中互斥与拒绝后解锁
-    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T7。
-    - 关联文件：修改 [plugin/tests/client/meeting-panel.client.spec.ts](plugin/tests/client/meeting-panel.client.spec.ts)；被测对象 [plugin/src/client/meeting-panel.tsx](plugin/src/client/meeting-panel.tsx)（只读）。
-    - 确认依据：2026-09-09 用户要求根据 RUNBOOK 制定 TODO；执行迁移待确认。
-    - 处理动作：按 T7 加入延迟响应、重复点击及 409 拒绝后的刷新测试。
-    - 验收点：提交期间不能改选且仅一次 POST，拒绝后刷新并解锁，完整 Client 测试、类型检查和 lint 通过。
 
 - [ ] `UI primitives/工程验证`：验证完整工程和构建共享依赖
     - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T8。

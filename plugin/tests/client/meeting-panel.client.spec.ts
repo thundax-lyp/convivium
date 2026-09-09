@@ -1316,6 +1316,87 @@ describe("meeting panel and client plugin lifecycle", () => {
         ).toHaveLength(0);
     });
 
+    it("resets End outcome when selecting another meeting", async () => {
+        const secondId = "meeting/2";
+        const secondDetail = {
+            ...statusResult(),
+            meetingId: secondId,
+            topic: "Second meeting"
+        };
+        const fetchMock = vi
+            .fn<typeof fetch>()
+            .mockResolvedValueOnce(
+                jsonResponse(
+                    listResponse([
+                        listItem,
+                        { ...listItem, meetingId: secondId, topic: "Second meeting" }
+                    ])
+                )
+            )
+            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+            .mockResolvedValueOnce(jsonResponse({ ...success(secondDetail), meetingId: secondId }));
+        vi.stubGlobal("fetch", fetchMock);
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+        fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
+        expectSelectedEndOutcome("Cancelled");
+        fireEvent.click(
+            screen.getByRole("button", { name: "Second meeting (running)", exact: true })
+        );
+        await waitFor(() =>
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain("Second meeting")
+        );
+        expectSelectedEndOutcome("Partial");
+        expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/convivium/meetings/meeting%2F2");
+        expect(
+            fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
+        ).toHaveLength(0);
+    });
+
+    it.each(["list", "detail"] as const)(
+        "locks End outcome for cached %s and unlocks after a valid refresh",
+        async (source) => {
+            const fetchMock = vi
+                .fn<typeof fetch>()
+                .mockResolvedValueOnce(jsonResponse(listResponse()))
+                .mockResolvedValueOnce(jsonResponse(success(statusResult())));
+            vi.stubGlobal("fetch", fetchMock);
+            render(createElement(ConviviumMeetingPanel));
+            await selectMeeting();
+            fireEvent.click(screen.getByRole("radio", { name: "No consensus", exact: true }));
+            if (source === "detail") fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
+            fetchMock.mockRejectedValueOnce(new TypeError("cached " + source));
+            if (source === "list") fireEvent.click(screen.getByLabelText("Reload meetings"));
+            else fireEvent.focus(window);
+            await waitFor(() =>
+                expect(screen.getByRole(source === "list" ? "status" : "alert")).toBeTruthy()
+            );
+            const selected = expectSelectedEndOutcome("No consensus");
+            for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
+                expect(radio.disabled).toBe(true);
+            }
+            fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
+            fireEvent.keyDown(selected, { key: "ArrowRight" });
+            expectSelectedEndOutcome("No consensus");
+            fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
+            if (source === "detail") {
+                fetchMock.mockResolvedValueOnce(
+                    jsonResponse(success(statusResult("running", 3), 3))
+                );
+                fireEvent.focus(window);
+            } else fireEvent.click(screen.getByLabelText("Reload meetings"));
+            await waitFor(() => {
+                for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
+                    expect(radio.disabled).toBe(false);
+                }
+            });
+            expectSelectedEndOutcome("No consensus");
+            expect(
+                fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
+            ).toHaveLength(0);
+        }
+    );
+
     it("refetches after a validated protocol error without retrying the POST", async () => {
         const fetchMock = vi
             .fn<typeof fetch>()
