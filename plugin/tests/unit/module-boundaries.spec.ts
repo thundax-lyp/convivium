@@ -161,7 +161,13 @@ function violations(module: ModuleName, specifiers: readonly string[]): string[]
             return [`${module} may not import ${imported}`];
         if (
             boundary.forbiddenRuntimeImports.some((forbidden) =>
-                forbidden.endsWith("-") ? specifier.includes(forbidden) : specifier === forbidden
+                forbidden.endsWith("-")
+                    ? specifier.includes(forbidden) &&
+                      !(
+                          module === "client" &&
+                          specifier === "@deepseek-ai/dsh-client-ui-primitives"
+                      )
+                    : specifier === forbidden
             )
         ) {
             return [`${module} may not import ${specifier}`];

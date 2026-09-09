@@ -4,6 +4,8 @@
 
 **阅读导航：** 新建 UI 插件从 Runtime 模型、包配置读到 Host 与 browser 入口；已有 UI 行为修改先读[数据与呈现所有权](#数据与呈现所有权)、[按 key 订阅](#按-key-订阅)和[Slots 与产品服务](#slots模块交付与产品服务)。涉及 slot 注册时同时读 Runtime 模型的 activation/teardown 规则。两条路径最后都核对[生命周期测试](#聚焦生命周期测试)；无需为局部行为修改复制整套包骨架。
 
+仅选择或复用标准控件、浮层、图标或输出 renderer 时，直接读 [UI Primitives](client-ui-primitives.md) 的选型、调用方职责与验证指导；涉及插件集成变化时再按上面的路径补读。
+
 ## 条件补读
 
 - 设置卡片补[用户设置](user-settings.md)；会话行读[Conversation Node](client-conversation-nodes.md)，不自行扫描日志造第二份状态

@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { assertBrowserClientPreflight } from "../../../scripts/smoke-profile/browser-client-preflight.mjs";
+import {
+    assertBrowserClientPreflight,
+    createAuthenticatedBrowserFetch,
+    parseBrowserLaunchUrl,
+    redactBrowserCredentials
+} from "../../../scripts/smoke-profile/browser-client-preflight.mjs";
 
 const rootUrl = "http://127.0.0.1:4567/";
-const bundleUrl = "http://127.0.0.1:4567/plugins/@convivium/dsh-plugin/client.js?rev=0123456789ab";
+const bundleUrl =
+    "http://127.0.0.1:4567/plugins/??@convivium/dsh-plugin/client.js&rev=0123456789ab";
 const bootGraph = {
     rev: "abcdef012345",
     entries: [
         {
             id: "@convivium/dsh-plugin",
-            url: "/plugins/@convivium/dsh-plugin/client.js?rev=0123456789ab",
+            url: "/plugins/??@convivium/dsh-plugin/client.js&rev=0123456789ab",
             rev: "0123456789ab"
         }
     ]
@@ -85,12 +91,12 @@ describe("Browser client bundle preflight", () => {
             [
                 {
                     id: "@convivium/dsh-plugin",
-                    url: "/plugins/@convivium/dsh-plugin/client.js?rev=0123456789ab",
+                    url: "/plugins/??@convivium/dsh-plugin/client.js&rev=0123456789ab",
                     rev: "0123456789ab"
                 },
                 {
                     id: "@convivium/dsh-plugin",
-                    url: "/plugins/@convivium/dsh-plugin/client.js?rev=0123456789ab",
+                    url: "/plugins/??@convivium/dsh-plugin/client.js&rev=0123456789ab",
                     rev: "0123456789ab"
                 }
             ]
@@ -115,7 +121,7 @@ describe("Browser client bundle preflight", () => {
             entries: [
                 {
                     id: "@convivium/dsh-plugin",
-                    url: "/plugins/wrong.js?rev=0123456789ab",
+                    url: "/plugins/??wrong.js&rev=0123456789ab",
                     rev: "0123456789ab"
                 }
             ]
@@ -195,6 +201,57 @@ describe("Browser client bundle preflight", () => {
 
         await expect(assertBrowserClientPreflight(rootUrl, fetchImpl, 10)).rejects.toThrow(
             "browser client preflight: bundle body read timed out."
+        );
+    });
+});
+
+describe("Browser launch authentication", () => {
+    const token = "a".repeat(43);
+    const launchUrl = `http://127.0.0.1:4567/?token=${token}`;
+
+    it("parses one authenticated launch URL and rejects ambiguity", () => {
+        expect(parseBrowserLaunchUrl(`dsh web: ${launchUrl}\n`, rootUrl)).toBe(launchUrl);
+        expect(() =>
+            parseBrowserLaunchUrl(`dsh web: ${launchUrl}\ndsh web: ${launchUrl}\n`, rootUrl)
+        ).toThrow("browser authentication: ambiguous launch URL");
+        expect(parseBrowserLaunchUrl("other output\n", rootUrl)).toBeUndefined();
+    });
+
+    it("exchanges the launch token and carries only the cookie to same-origin requests", async () => {
+        const calls: Array<[string, RequestInit | undefined]> = [];
+        const fetchImpl = async (url: string, init?: RequestInit) => {
+            calls.push([url, init]);
+            if (calls.length === 1)
+                return new Response(null, {
+                    status: 303,
+                    headers: {
+                        location: "/",
+                        "set-cookie": "dsh_session=abc; Path=/; HttpOnly; SameSite=Strict"
+                    }
+                });
+            return new Response(bootHtml, { status: 200 });
+        };
+        const authenticated = await createAuthenticatedBrowserFetch(
+            launchUrl,
+            rootUrl,
+            fetchImpl,
+            timeoutMs
+        );
+        await authenticated(rootUrl);
+        expect(calls[1][1]?.headers).toBeInstanceOf(Headers);
+        expect(new Headers(calls[1][1]?.headers).get("Cookie")).toBe("dsh_session=abc");
+        await expect(authenticated("http://evil.example/")).rejects.toThrow(
+            "browser authentication: cross-origin request"
+        );
+        expect(calls).toHaveLength(2);
+    });
+
+    it("redacts token and credential headers", () => {
+        expect(redactBrowserCredentials(`url=${launchUrl} Cookie: secret`)).toContain(
+            "token=<redacted>"
+        );
+        expect(redactBrowserCredentials("Authorization: Bearer secret")).toBe(
+            "Authorization: <redacted>"
         );
     });
 });

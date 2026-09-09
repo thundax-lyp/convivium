@@ -55,7 +55,7 @@
 | Human command、业务提问或单次动作审批 | [人类交互](human-interaction.md)：机制选择，再读命中机制与证据 |
 | Credential record、账号 flow、登录与取消 | [凭证与授权](credentials-authorization.md) |
 | Claude Code/Codex hooks | [Hooks](hooks-compatibility.md)：支持点、决策和未实现协议 |
-| Client slot、component、store、action、locale 或主题 | [Client UI](client-ui.md) |
+| Client slot、component、store、action、locale、主题或 UI Primitives 复用 | [Client UI](client-ui.md)：按阅读导航选择集成或组件复用路径 |
 | Conversation Node 与历史展示 | [Conversation Node](client-conversation-nodes.md)：事件族 → 增量 → packed history |
 | Session/Workspace 命令、历史、分页与重连 | [应用 API](session-workspace-api.md) |
 | 新 Remote method、stream 或选定事件转发 | [Typert Remote API](typert-remote-api.md) |

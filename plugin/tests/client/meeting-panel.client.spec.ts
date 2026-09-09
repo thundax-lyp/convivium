@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apply, inject, name } from "@/client/index.js";
@@ -584,6 +584,25 @@ async function selectMeeting(): Promise<void> {
     const item = await screen.findByRole("button", { name: /Runtime smoke/ });
     fireEvent.click(item);
     await screen.findByLabelText("Meeting summary");
+}
+
+function expectSelectedEndOutcome(name: string): HTMLButtonElement {
+    const group = within(screen.getByRole("radiogroup", { name: "End outcome" }));
+    const radios = group.getAllByRole("radio") as HTMLButtonElement[];
+    expect(radios.map((radio) => radio.textContent)).toEqual([
+        "Partial",
+        "No consensus",
+        "Cancelled"
+    ]);
+    const selected = group.getByRole("radio", { name, exact: true }) as HTMLButtonElement;
+    expect(radios.filter((radio) => radio.getAttribute("aria-checked") === "true")).toEqual([
+        selected
+    ]);
+    for (const radio of radios) {
+        expect(radio.tabIndex).toBe(radio === selected ? 0 : -1);
+        expect(radio.type).toBe("button");
+    }
+    return selected;
 }
 
 describe("meeting panel and client plugin lifecycle", () => {
@@ -1463,10 +1482,11 @@ describe("meeting panel and client plugin lifecycle", () => {
         render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
 
-        expect(screen.queryByRole("option", { name: "Completed" })).toBeNull();
-        fireEvent.change(screen.getByLabelText("End outcome"), {
-            target: { value: "no_consensus" }
-        });
+        expectSelectedEndOutcome("Partial");
+        expect(screen.queryByRole("radio", { name: "Completed" })).toBeNull();
+        fireEvent.click(screen.getByRole("radio", { name: "No consensus", exact: true }));
+        expectSelectedEndOutcome("No consensus");
+        expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(0);
         fireEvent.change(screen.getByLabelText("End reason"), {
             target: { value: "No consensus reached" }
         });
@@ -1484,6 +1504,163 @@ describe("meeting panel and client plugin lifecycle", () => {
             waivers: [],
             requestId: "request-1"
         });
+    });
+
+    it("keeps one End outcome selected through keyboard navigation", async () => {
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult())));
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        let selected = expectSelectedEndOutcome("Partial");
+        selected.focus();
+        for (const [key, name] of [
+            ["ArrowRight", "No consensus"],
+            ["ArrowDown", "Cancelled"],
+            ["ArrowRight", "Partial"],
+            ["ArrowLeft", "Cancelled"],
+            ["ArrowUp", "No consensus"],
+            ["Home", "Partial"],
+            ["End", "Cancelled"],
+            ["Home", "Partial"]
+        ] as const) {
+            expect(fireEvent.keyDown(selected, { key })).toBe(false);
+            selected = expectSelectedEndOutcome(name);
+            expect(document.activeElement).toBe(selected);
+        }
+        expect(fireEvent.keyDown(selected, { key: "Tab" })).toBe(true);
+        fireEvent.click(selected);
+        expectSelectedEndOutcome("Partial");
+        expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(0);
+    });
+
+    it("resets End outcome when selecting another meeting", async () => {
+        const secondId = "meeting/2";
+        const secondDetail = {
+            ...statusResult(),
+            meetingId: secondId,
+            topic: "Second meeting"
+        };
+        const rpcMock = vi.fn<Rpc>(async (method, options) => {
+            if (method === "list")
+                return remoteResult(
+                    listResponse([
+                        listItem,
+                        { ...listItem, meetingId: secondId, topic: "Second meeting" }
+                    ])
+                );
+            const input = options.input;
+            return remoteResult(
+                input &&
+                    typeof input === "object" &&
+                    "meetingId" in input &&
+                    input.meetingId === secondId
+                    ? { ...success(secondDetail), meetingId: secondId }
+                    : success(statusResult())
+            );
+        });
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
+        expectSelectedEndOutcome("Cancelled");
+        fireEvent.click(
+            screen.getByRole("button", { name: "Second meeting (running)", exact: true })
+        );
+        await waitFor(() =>
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain("Second meeting")
+        );
+        expectSelectedEndOutcome("Partial");
+        expect(rpcMock.mock.calls.at(-1)?.[1]?.input).toEqual({
+            protocolVersion: 1,
+            meetingId: secondId
+        });
+        expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(0);
+    });
+
+    it.each(["list", "detail"] as const)(
+        "locks End outcome for cached %s and unlocks after a valid refresh",
+        async (source) => {
+            const rpcMock = vi
+                .fn<Rpc>()
+                .mockResolvedValueOnce(remoteResult(listResponse()))
+                .mockResolvedValueOnce(remoteResult(listResponse()))
+                .mockResolvedValueOnce(remoteResult(success(statusResult())));
+            setRpc(rpcMock);
+            render(createElement(ConviviumMeetingPanel, { api }));
+            await selectMeeting();
+            fireEvent.click(screen.getByRole("radio", { name: "No consensus", exact: true }));
+            if (source === "detail") rpcMock.mockResolvedValueOnce(remoteResult(listResponse()));
+            rpcMock.mockRejectedValueOnce(new TypeError("cached " + source));
+            if (source === "list") fireEvent.click(screen.getByLabelText("Reload meetings"));
+            else fireEvent.focus(window);
+            await waitFor(() =>
+                expect(screen.getByRole(source === "list" ? "status" : "alert")).toBeTruthy()
+            );
+            const selected = expectSelectedEndOutcome("No consensus");
+            for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
+                expect(radio.disabled).toBe(true);
+            }
+            fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
+            fireEvent.keyDown(selected, { key: "ArrowRight" });
+            expectSelectedEndOutcome("No consensus");
+            rpcMock.mockResolvedValueOnce(remoteResult(listResponse()));
+            rpcMock.mockResolvedValueOnce(remoteResult(success(statusResult("running", 3), 3)));
+            if (source === "detail") fireEvent.focus(window);
+            else fireEvent.click(screen.getByLabelText("Reload meetings"));
+            await waitFor(() => {
+                for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
+                    expect(radio.disabled).toBe(false);
+                }
+            });
+            expectSelectedEndOutcome("No consensus");
+            expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(0);
+        }
+    );
+
+    it("locks End outcome during a pending write and does not duplicate the POST", async () => {
+        const reply = deferred<RemoteResult<unknown>>();
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult())))
+            .mockReturnValueOnce(reply.promise)
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult("running", 3), 3)));
+        setRpc(rpcMock);
+        const rendered = render(createElement(ConviviumMeetingPanel, { api }));
+        try {
+            await selectMeeting();
+            fireEvent.change(screen.getByLabelText("End reason"), {
+                target: { value: "Reviewed" }
+            });
+            const end = screen.getByLabelText("End meeting");
+            act(() => {
+                fireEvent.click(end);
+                fireEvent.click(end);
+            });
+            const selected = expectSelectedEndOutcome("Partial");
+            for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
+                expect(radio.disabled).toBe(true);
+            }
+            fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
+            fireEvent.keyDown(selected, { key: "End" });
+            expectSelectedEndOutcome("Partial");
+            expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(1);
+            await act(async () => {
+                reply.resolve(remoteResult(protocolError("Safe conflict")));
+            });
+            await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(6));
+            await waitFor(() => expect(expectSelectedEndOutcome("Partial").disabled).toBe(false));
+            expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(1);
+        } finally {
+            reply.resolve(remoteResult(protocolError("Safe conflict")));
+            rendered.unmount();
+        }
     });
 
     it("refetches after a validated protocol error without retrying the write", async () => {
@@ -2112,7 +2289,7 @@ describe("local decision risk panel controls", () => {
         for (const [label] of actions)
             expect(screen.queryByRole("button", { name: label })).toBeNull();
     });
-    it("invalidates replacement and evidence on polling while preserving the reason", async () => {
+    it("invalidates replacement and evidence on refresh while preserving the reason", async () => {
         const state = localControlStatus();
         mount(state);
         await selectMeeting();
@@ -2124,7 +2301,7 @@ describe("local decision risk panel controls", () => {
             target: { value: "Reviewed evidence" }
         });
         state.pendingDecisionCandidates = state.pendingDecisionCandidates.slice(0, 1);
-        // A focus refresh uses the same full-detail path as the existing five-second poll.
+        // A focus refresh rebuilds the subscription and reloads complete facts.
         fireEvent.focus(window);
         await waitFor(() =>
             expect((screen.getByLabelText("Replacement decision") as HTMLSelectElement).value).toBe(

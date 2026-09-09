@@ -30,7 +30,8 @@ export default defineConfig({
                 test: {
                     name: "client",
                     include: ["tests/client/**/*.spec.ts", "tests/client/**/*.spec.tsx"],
-                    environment: "jsdom"
+                    environment: "jsdom",
+                    server: { deps: { inline: [/@deepseek-ai\/dsh-client-ui-primitives/] } }
                 }
             },
             {

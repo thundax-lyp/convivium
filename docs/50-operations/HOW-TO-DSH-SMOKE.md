@@ -110,6 +110,8 @@ pnpm --dir plugin --silent smoke:profile --json         # 完整逐场景 JSON�
 
 一次命令只构建、打包一次，复用同一个 artifact；每个场景仍独立创建 Host、DSH_HOME、workspace、profile 和端口。cold-rebind 在自己的目录内重启 Host。场景串行，首个失败立即停止；不跨场景共享 Meeting 或 Session。默认不打印构建日志、dump-config 或大段 DTO，失败输出有界诊断。`--all` 不能与单场景或 Browser mode 组合。
 
+设置 `CONVIVIUM_SMOKE_BROWSER_MODE=1` 且未指定 selector 时仅运行 `baseline`。所有被接受的 Browser 场景均在输出 `CONVIVIUM_SMOKE_BROWSER_URL` 前取得认证启动 URL，并完成根页面与客户端 bundle 预检；此流程不依赖场景是否返回 `browserReady`。认证或预检失败则退出并执行清理，不输出浏览器入口或进入等待。成功后打开输出的完整 URL；结束时向原进程发送 Ctrl-C，等待 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`。
+
 | 范围 | selector | 真实边界 |
 | --- | --- | --- |
 | 核心 | `baseline` | 装包、provider 创建 Session、A/C/B transcript、HTTP pause/resume |
@@ -158,7 +160,7 @@ CONVIVIUM_SMOKE_SCENARIO=scribe-minutes CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --di
 
 普通模式检查六项 oracle：Speaker 上下文含来源消息、非法引用不改变状态、同一 Session 恢复后原请求重放 receipt 不变、HTTP 公开消息相等、归档公开消息相等、Manager/a/b 三个 Session 已清理。归档比较固定公开字段，保留其余内部归档字段。字段及非权威边界见 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#referenced-minutes-draft)。
 
-Browser 模式完成前四项后输出 `browserReady: true` 和实际 URL/临时根。打开该 URL，在 smoke workspace 中选择 `convivium-smoke-captain` Session，再进入 `Meetings` view。核对 `Minutes draft (non-authoritative)`、Coverage、Referenced message IDs 和正文，刷新后保持一致；使用既有 End 控制选择 partial、输入 `scribe minutes smoke`，等待 archived 后刷新并再次核对。随后在原 PTY 发送 Ctrl-C，等待 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok` 并确认该精确临时根消失。此场景不证明模型生成纪要的质量。
+Browser 模式完成前四项后输出 `browserReady: true` 和带一次性 token 的实际启动 URL/临时根。打开该完整 `/?token=...` URL，由 DSH 交换 HttpOnly、SameSite=Strict cookie 后转到干净的 `/`；Node preflight 使用独立 cookie 完成同样交换。token/cookie 不复制到证据、截图或 readiness。随后在 smoke workspace 中选择 `convivium-smoke-captain` Session，再进入 `Meetings` view。核对 `Minutes draft (non-authoritative)`、Coverage、Referenced message IDs 和正文，刷新后保持一致；使用既有 End 控制选择 partial、输入 `scribe minutes smoke`，等待 archived 后刷新并再次核对。随后在原 PTY 发送 Ctrl-C，等待 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok` 并确认该精确临时根消失。此场景不证明模型生成纪要的质量。
 
 ## 成功与 Restore
 
@@ -183,7 +185,7 @@ env CONVIVIUM_SMOKE_SCENARIO=reassign \
 - 顶层结果为 `ok: true`、`profile: "web"`、`provider: "spawn"`。
 - `probe.scenario` 为 `reassign`，`probe.browserReady` 为 `true`，`probe.assertions` 精确等于 `["browser-reassign-ready"]`。
 - `probe.meetingId`、`probe.captainSessionId`、`probe.observed.oldAttemptId` 和 `probe.observed.meetingVersion` 均存在；`probe.captainSessionId` 精确为 `convivium-smoke-captain`；`probe.observed.currentSpeakerId` 为 `participant-a`，`probe.observed.currentAttemptId` 等于 `probe.observed.oldAttemptId`。
-- stdout 打印唯一的 `CONVIVIUM_SMOKE_BROWSER_URL=http://127.0.0.1:<port>` 和 `CONVIVIUM_SMOKE_TEMP_ROOT=<absolute-path>`；分别记录 URL 与临时根路径。
+- stdout 打印唯一的 `CONVIVIUM_SMOKE_BROWSER_URL=http://127.0.0.1:<port>/?token=<43-char-token>` 和 `CONVIVIUM_SMOKE_TEMP_ROOT=<absolute-path>`；Browser 使用完整 token URL，报告中将 token 替换为 `<redacted>`。
 
 在真实 Browser 打开该次 stdout 给出的 `CONVIVIUM_SMOKE_BROWSER_URL`，先在 smoke workspace 的 session tree 选择 session ID `convivium-smoke-captain`，等待 `conversation.view` 加载，再选择 label 精确为 `Meetings` 的 view，最后只通过现有 Convivium Meeting panel 完成以下操作。Harness 首页只显示“新会话”且尚未打开该 Session，不构成 Client 加载失败：
 
@@ -342,3 +344,12 @@ env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure CONVIVIUM_SMOKE_BROWSER_MODE=
 无论断言成功或失败，向本次 wrapper PTY 发送一次 Ctrl-C，等待其正常退出且退出码为 0、stdout 出现 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`；wrapper 的 finally 必须完成 Host 停止、临时根删除和端口释放。用文件存在性工具核对 stdout 记录的唯一精确临时根不存在；不使用 glob、不删除其他目录、不直接 kill 工具进程来代替 Restore。
 
 将被测 commit、环境、启动命令、ready IDs、七步结果、审计 GET 与 Restore 结果写入 [Smoke Validation Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)，同步 [Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#captain-local-decision-risk-control)。只有所有断言和 Restore 通过才记录本次验收通过；其余保留具体失败或 Not Covered。本验证不包含真实 LLM 请求或 Host 冷重启，自动化持久恢复的边界见验证索引。
+
+
+### Browser 自动化会话与截图
+
+每轮运行从本次 ready URL 新建临时标签。Codex In-app Browser 的未保留临时标签会在对话轮次结束后关闭；下一轮不能复用已关闭的 tab handle，也不能据此判断 DSH 页面生命周期故障。进入页面后先关闭“内测声明”，读取新的 DOM snapshot，等待唯一 `role=tab`、名称 `Meetings` 的节点，再进入面板。会议按钮必须位于 `data-testid=convivium-meeting-panel` 内且 `data-meeting-id` 与本次 ready 一致；点击后等待 `Meeting summary`，不要将点击方法返回当作详情加载成功。
+
+响应式验证改变 viewport 后，等待侧栏布局稳定再读几何和截图；768px 下侧栏折叠，主题切换前先恢复 1280px 宽屏以使用可见的“设置”按钮。主题验证后恢复原选项和 viewport。DSH Input wrapper 的 computed height 为 32px；content-box 下外框高度还包含上下 padding 和 border，几何断言应根据这些 computed 值计算，不能直接把 32px 当成外框高度。
+
+截图使用当前标签的 `tab.screenshot()` 返回字节直接保存为 PNG，再打开文件确认其包含目标页面。不得把空白截图或无关桌面截图作为页面证据。使用系统截图时只截取已确认的目标窗口；保存成功和 PNG 尺寸正确不代表内容正确。
