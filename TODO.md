@@ -8,23 +8,16 @@
 
 ## 当前任务项
 
-- [ ] `UI primitives/工程验证`：验证完整工程和构建共享依赖
-    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T8。
-    - 关联文件：验证入口 [plugin/package.json](plugin/package.json) 的 verify（只读）；检查生成产物 `plugin/lib/client.js`（ignored，不手工编辑）。
+- [ ] `UI primitives/Skip 浏览器验证`：验证真实 Skip 控件
+    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T9。
+    - 关联文件：只读执行入口 [plugin/scripts/smoke-profile/index.mjs](plugin/scripts/smoke-profile/index.mjs)、场景 [plugin/scripts/smoke-profile/probe/scenarios/reassign.js](plugin/scripts/smoke-profile/probe/scenarios/reassign.js)；新增截图 `docs/40-readiness/assets/ui-primitives/skip-after.png`。
     - 确认依据：2026-09-09 用户明确要求阅读 TODO Rules 后依次执行 TODO List，一任务一提交。
-    - 处理动作：按 T8 执行 plugin verify 与 Client artifact 固定检查。
-    - 验收点：verify 通过，artifact 外部请求仅 react/primitives，ModuleLoader 与指定特征检查通过；宿主加载和交互继续由 T9–T10 验证。
+    - 处理动作：按 T9 执行 reassign Browser 场景并完成 R 清理。
+    - 验收点：填写理由后 Skip 成功且刷新不回退，保存 skip-after.png，场景和资源清理均 PASS。
 
 ## 待审阅任务项
 
 按 T1–T12 顺序执行，前一步 PASS 后进入下一步；具体文件、动作、命令和 STOP 条件以各项链接的 RUNBOOK 步骤为准。
-
-- [ ] `UI primitives/工程验证`：验证完整工程和构建共享依赖
-    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T8。
-    - 关联文件：验证入口 [plugin/package.json](plugin/package.json) 的 verify（只读）；检查生成产物 `plugin/lib/client.js`（ignored，不手工编辑）。
-    - 确认依据：2026-09-09 用户要求根据 RUNBOOK 制定 TODO；执行迁移待确认。
-    - 处理动作：按 T8 执行 plugin verify 与 Client artifact 固定检查。
-    - 验收点：verify 通过，artifact 外部请求仅 react/primitives，ModuleLoader 与指定特征检查通过；宿主加载和交互继续由 T9–T10 验证。
 
 - [ ] `UI primitives/Skip 浏览器验证`：验证真实 Skip 控件
     - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T9。

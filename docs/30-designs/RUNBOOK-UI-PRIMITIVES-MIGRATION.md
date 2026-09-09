@@ -90,6 +90,7 @@ type EndOutcome = (typeof END_OUTCOMES)[number]["value"];
 | --- | --- |
 | `plugin/src/client/meeting-panel.tsx` | ConviviumMeetingPanel 的渲染；新增 END_OUTCOMES/EndOutcome；保留 controlMeeting、submitFactControl、renderActions 的业务体 |
 | `plugin/vitest.config.ts` | 仅 name=client project 的 test.server.deps.inline |
+| `plugin/tests/unit/module-boundaries.spec.ts` | T8 允许 Client 从包根导入 `@deepseek-ai/dsh-client-ui-primitives`；其他 DSH 依赖仍禁止 |
 | `plugin/tests/client/meeting-panel.client.spec.ts` | 既有 meeting panel and client plugin lifecycle suite；新增测试 helper expectSelectedEndOutcome；local decision risk panel controls 只运行、不改写 |
 | `docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md` | primitives 依赖说明、新增 Client control primitives 小节 |
 | `docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md` | 新增 UI primitives migration 小节，记录实际命令/Browser/Restore |
@@ -521,8 +522,8 @@ STOP：任何完整文件回归；不削弱旧用例。finally 必须执行，�
 ### T8：完整工程和构建共享依赖
 
 前置状态：T7 PASS。
-允许修改：命令生成 ignored plugin/lib，不手工编辑；本步骤不修改其他文件。
-禁止修改：源代码、配置、依赖、断言。
+允许修改：`plugin/tests/unit/module-boundaries.spec.ts` 中 Client 对 `@deepseek-ai/dsh-client-ui-primitives` 的唯一例外；命令生成 ignored plugin/lib，不手工编辑。
+禁止修改：其他源代码、配置、依赖、断言或模块边界例外。
 
 执行与验证：
 ```bash
