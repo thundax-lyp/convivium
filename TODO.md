@@ -8,14 +8,7 @@
 
 ## 当前任务项
 
-以下任务按 M07—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
-
-- [ ] `client/meeting-client`：M07 建立九方法 Client adapter
-    - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M07。
-    - 关联文件：新 `plugin/src/client/meeting-client.ts`；[plugin/tsconfig.client.json](plugin/tsconfig.client.json)；新 `plugin/tests/client/meeting-client.client.spec.ts`。
-    - 确认依据：2026-09-09 本任务中用户确认九接口一次迁移、替换五秒轮询及 review 修复；设计提交 `f7b6812`；本轮要求据此制定 TODO。
-    - 处理动作：显式导入 generated augmentation，封装九方法及结果和错误校验。
-    - 验收点：本步独立 Client 类型检查通过；九方法参数、signal、成功与错误行为符合契约。
+以下任务按 M08—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
 
 - [ ] `client/remote-tests`：M08 验证生成客户端与测试类型
     - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M08。
