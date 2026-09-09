@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Execute；执行者从 M14 继续；前序修复证据见提交历史。
+- 模式：Execute；执行者从 M15 继续；前序修复证据见提交历史。
 - 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M15—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,34 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M14：拔除废弃依赖与旧入口残留
-
-前置状态：M13a PASS。
-允许修改：`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/src/client/meeting-panel.tsx` 的废弃导入/适配代码；`plugin/package.json`、`plugin/pnpm-lock.yaml`；`plugin/eslint.config.js`、`plugin/tests/unit/module-boundaries.spec.ts` 的旧 http 模块映射。
-禁止修改：D5 保留项、整个 dependency tree、DSH profile、业务 Schema、第三方包内容。
-
-执行：
-1. 照 D5 删除旧 req/res fixture、其四个 import 和 panel 已移入 adapter 的结果 Schema import。删除 http 模块映射但保留禁止 Node 内建 http 的规则字符串；不是全局替换所有 http 文本。
-2. package 的新增项严格为 M03 五个 DSH 包与 M13a 测试专用 ws；dsh-typert-loader 不得出现在 dependencies/devDependencies/peerDependencies。若执行者曾按旧草案加入，删除这三个直接声明以及它的 peerDependenciesMeta；D5 其余现有依赖逐项保持。
-3. 运行 pnpm install，让 lockfile importer/snapshots 自动与 manifest 一致，不手工删除仍被其它正式包依赖的 loader。下面的 Node 断言只检查直接声明；传递 loader 仍存在是允许结果。
-4. 执行三组精确 rg：第一组只限产品调用方；第二组只限 Runtime 测试旧适配器；第三组查 http 源模块导入。三组都必须无匹配，不能删除合法 Host webServer 或 smoke 的 Node HTTP server。
-
-验证：
-```bash
-pnpm --dir plugin install
-node --input-type=module -e 'import fs from "node:fs";import assert from "node:assert/strict";const p=JSON.parse(fs.readFileSync("plugin/package.json","utf8"));for(const k of ["dependencies","devDependencies","peerDependencies"])assert.equal(p[k]?.["@deepseek-ai/dsh-typert-loader"],undefined);for(const k of ["peerDependencies","devDependencies"])assert.equal(p[k]["@deepseek-ai/dsh-host-webserver"],"0.1.2-rc.1");assert.equal(p.devDependencies.ws,"8.18.3");assert.equal(p.peerDependencies.ws,undefined);console.log("PASS direct dependency disposition")'
-rg -n 'registerLocalMeetingHttpRoutes|/api/convivium/meetings|callHttp|meetingsPath|meetingPath' plugin/src plugin/scripts plugin/tests
-rg -n 'Readable|IncomingMessage|ServerResponse|WebRoute|node:http|node:stream' plugin/tests/contract/meeting-runtime.spec.ts
-rg -n '@/http/|src/http/index' plugin/src plugin/tests plugin/scripts
-pnpm --dir plugin lint
-pnpm --dir plugin typecheck
-pnpm --dir plugin build
-pnpm --dir plugin verify:package
-```
-
-PASS：install/Node/lint/typecheck/build/package 全退出0，三组rg无匹配退出1；原npm直接依赖保持，新增只限五个 DSH 包与测试 ws，锁文件由pnpm生成。
-STOP：D5保留依赖被删除、存在旧调用方/fixture、使用手工删lock snapshot或需要放宽校验；报告具体声明/import和命令输出，不自行扩大清理范围。
 
 ### M15：验证迁移结果
 

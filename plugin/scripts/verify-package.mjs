@@ -97,15 +97,15 @@ const result = {
     exportsMatchArtifacts: JSON.stringify(manifest?.exports) === JSON.stringify(expectedExports),
     filesAllowlistIsClosed:
         JSON.stringify(files) ===
-            JSON.stringify([
-                "lib",
-                "cordis.patch.yml",
-                "meeting-roles",
-                "lib/typert.host.js",
-                "lib/typert.host.d.ts",
-                "lib/typert.remote-client.js",
-                "lib/typert.remote-client.d.ts"
-            ]),
+        JSON.stringify([
+            "lib",
+            "cordis.patch.yml",
+            "meeting-roles",
+            "lib/typert.host.js",
+            "lib/typert.host.d.ts",
+            "lib/typert.remote-client.js",
+            "lib/typert.remote-client.d.ts"
+        ]),
     bundlePatchMatchesPackageName: Boolean(packageName && patch.includes(packageName)),
     clientManifestIsComplete:
         client?.platform === "web" && Array.isArray(client.inject) && client.inject.length > 0,

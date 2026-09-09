@@ -8,14 +8,7 @@
 
 ## 当前任务项
 
-以下任务按 M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
-
-- [ ] `plugin/dependencies`：M14 拔除废弃依赖与入口残留
-    - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M14。
-    - 关联文件：[plugin/tests/contract/meeting-runtime.spec.ts](plugin/tests/contract/meeting-runtime.spec.ts)、[plugin/src/client/meeting-panel.tsx](plugin/src/client/meeting-panel.tsx) 的废弃导入/适配代码；[plugin/package.json](plugin/package.json)、[plugin/pnpm-lock.yaml](plugin/pnpm-lock.yaml)；[plugin/eslint.config.js](plugin/eslint.config.js)、[plugin/tests/unit/module-boundaries.spec.ts](plugin/tests/unit/module-boundaries.spec.ts) 的旧 http 模块映射。
-    - 确认依据：2026-09-09 本任务中用户确认九接口一次迁移、替换五秒轮询及 review 修复；设计提交 `f7b6812`；本轮要求据此制定 TODO。
-    - 处理动作：按 D5 清理旧 fixture、导入和映射，并同步直接依赖及锁文件。
-    - 验收点：三组残留检索零匹配；新增仅五个 DSH 包与测试 ws；lint/typecheck/build/package 全通过。
+以下任务按 M15—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
 
 - [ ] `readiness/remote-migration`：M15 验证迁移并记录证据
     - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M15。

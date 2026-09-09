@@ -33,12 +33,12 @@ const moduleBoundaries: readonly ModuleBoundary[] = [
     {
         name: "repository",
         mayImport: ["domain"],
-        forbiddenRuntimeImports: ["@deepseek-ai/dsh-storage", "react", "remote"]
+        forbiddenRuntimeImports: ["@deepseek-ai/dsh-storage", "react", "http", "remote"]
     },
     {
         name: "runtime",
         mayImport: ["protocol", "domain", "repository", "dsh", "projection"],
-        forbiddenRuntimeImports: ["node:sqlite", "react", "remote"]
+        forbiddenRuntimeImports: ["node:sqlite", "react", "http", "remote"]
     },
     {
         name: "dsh",
@@ -70,6 +70,7 @@ const moduleBoundaries: readonly ModuleBoundary[] = [
             "runtime",
             "dsh",
             "tools",
+            "http",
             "remote",
             "@deepseek-ai/dsh-"
         ]
