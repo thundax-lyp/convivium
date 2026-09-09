@@ -1397,6 +1397,51 @@ describe("meeting panel and client plugin lifecycle", () => {
         }
     );
 
+    it("locks End outcome during a pending write and does not duplicate the POST", async () => {
+        const reply = deferred<Response>();
+        const fetchMock = vi
+            .fn<typeof fetch>()
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+            .mockReturnValueOnce(reply.promise)
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 3), 3)));
+        vi.stubGlobal("fetch", fetchMock);
+        const rendered = render(createElement(ConviviumMeetingPanel));
+        try {
+            await selectMeeting();
+            fireEvent.change(screen.getByLabelText("End reason"), {
+                target: { value: "Reviewed" }
+            });
+            const end = screen.getByLabelText("End meeting");
+            act(() => {
+                fireEvent.click(end);
+                fireEvent.click(end);
+            });
+            const selected = expectSelectedEndOutcome("Partial");
+            for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
+                expect(radio.disabled).toBe(true);
+            }
+            fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
+            fireEvent.keyDown(selected, { key: "End" });
+            expectSelectedEndOutcome("Partial");
+            expect(
+                fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
+            ).toHaveLength(1);
+            await act(async () => {
+                reply.resolve(jsonResponse(protocolError("Safe conflict"), 409));
+            });
+            await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+            await waitFor(() => expect(expectSelectedEndOutcome("Partial").disabled).toBe(false));
+            expect(
+                fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
+            ).toHaveLength(1);
+        } finally {
+            reply.resolve(jsonResponse(protocolError("Safe conflict"), 409));
+            rendered.unmount();
+        }
+    });
+
     it("refetches after a validated protocol error without retrying the POST", async () => {
         const fetchMock = vi
             .fn<typeof fetch>()

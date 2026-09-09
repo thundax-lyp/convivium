@@ -8,12 +8,12 @@
 
 ## 当前任务项
 
-- [ ] `UI primitives/提交互斥`：验证提交中互斥与拒绝后解锁
-    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T7。
-    - 关联文件：修改 [plugin/tests/client/meeting-panel.client.spec.ts](plugin/tests/client/meeting-panel.client.spec.ts)；被测对象 [plugin/src/client/meeting-panel.tsx](plugin/src/client/meeting-panel.tsx)（只读）。
+- [ ] `UI primitives/工程验证`：验证完整工程和构建共享依赖
+    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T8。
+    - 关联文件：验证入口 [plugin/package.json](plugin/package.json) 的 verify（只读）；检查生成产物 `plugin/lib/client.js`（ignored，不手工编辑）。
     - 确认依据：2026-09-09 用户明确要求阅读 TODO Rules 后依次执行 TODO List，一任务一提交。
-    - 处理动作：按 T7 加入延迟响应、重复点击及 409 拒绝后的刷新测试。
-    - 验收点：提交期间不能改选且仅一次 POST，拒绝后刷新并解锁，完整 Client 测试、类型检查和 lint 通过。
+    - 处理动作：按 T8 执行 plugin verify 与 Client artifact 固定检查。
+    - 验收点：verify 通过，artifact 外部请求仅 react/primitives，ModuleLoader 与指定特征检查通过；宿主加载和交互继续由 T9–T10 验证。
 
 ## 待审阅任务项
 
