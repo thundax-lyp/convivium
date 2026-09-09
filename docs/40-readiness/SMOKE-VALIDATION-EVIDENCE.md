@@ -343,7 +343,7 @@ Closure：本轮用户授权范围已验证完成，可关闭部署验收与临�
 
 ### Scope
 
-2026-09-09，在 `codex/ui-primitives-research` 验证会议面板 Button/Input 迁移和 End outcome 单选组。完整 verify 与 Browser 证据的代码基线为 `57a47b7`；`dc57b25` 替换错误 Skip 截图，`d8c5662` 提交 End Browser 证据和操作约束。最终源码边界为 `d2f8aa4`，该提交修改 smoke-profile 的 Browser 认证预检分支并新增定向测试，未重跑完整 verify，不能将旧基线的结果描述为最终脚本的完整验证。环境：macOS、DSH Web `0.1.2-rc.1`、spawn provider、React/React DOM `18.3.1`、`@deepseek-ai/dsh-client-ui-primitives@0.1.2-rc.1`。
+2026-09-09，在 `codex/ui-primitives-research` 验证会议面板 Button/Input 迁移和 End outcome 单选组。完整 verify 与 Browser 证据的代码基线为 `57a47b7`；`dc57b25` 替换错误 Skip 截图，`d8c5662` 提交 End Browser 证据和操作约束。PR #65 合并时的源码边界为 `d2f8aa4`，该提交修改 smoke-profile 的 Browser 认证预检分支并新增定向测试，未重跑完整 verify，不能将旧基线的结果描述为最终脚本的完整验证。环境：macOS、DSH Web `0.1.2-rc.1`、spawn provider、React/React DOM `18.3.1`、`@deepseek-ai/dsh-client-ui-primitives@0.1.2-rc.1`。
 
 ### Validated Contract
 
@@ -377,6 +377,8 @@ Closure：本轮用户授权范围已验证完成，可关闭部署验收与临�
 - [刷新后归档](./assets/ui-primitives/archived.png)
 
 ### Not Covered
+
+后续 UI 修复 `51b2234` 为事实操作按钮补齐 `outline/sm`；生成 Remote 入口后，面板 Client 测试 78 项通过，Prettier 检查通过。未重跑该 UI 版本的真实 Browser 视觉验证或完整 verify，本节旧截图与布局结果仅适用于 `57a47b7`，不证明这些事实操作按钮的最终外观。
 
 `d2f8aa4` 的最终 Browser 认证预检分支未在本轮重跑完整 verify 或真实 Browser 场景；此前的完整验证和截图不能补足这一证据缺口。
 
