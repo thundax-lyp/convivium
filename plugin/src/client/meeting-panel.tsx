@@ -29,7 +29,7 @@ import {
     type ReassignTurnResultV1
 } from "@/protocol/index.js";
 import { renderObservabilitySections } from "./meeting-panel-sections.js";
-import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
+import { Button, Input } from "@deepseek-ai/dsh-client-ui-primitives";
 
 const meetingsPath = "/api/convivium/meetings";
 
@@ -823,8 +823,15 @@ export function ConviviumMeetingPanel(): ReactElement {
                             canPause
                                 ? createElement(
                                       "div",
-                                      null,
-                                      createElement("input", {
+                                      {
+                                          style: {
+                                              display: "flex",
+                                              flexWrap: "wrap",
+                                              alignItems: "center",
+                                              gap: 8
+                                          }
+                                      },
+                                      createElement(Input, {
                                           "aria-label": "Pause reason",
                                           value: pauseReason,
                                           onChange: (event: ChangeEvent<HTMLInputElement>) =>
@@ -861,8 +868,15 @@ export function ConviviumMeetingPanel(): ReactElement {
                             canSkip
                                 ? createElement(
                                       "div",
-                                      null,
-                                      createElement("input", {
+                                      {
+                                          style: {
+                                              display: "flex",
+                                              flexWrap: "wrap",
+                                              alignItems: "center",
+                                              gap: 8
+                                          }
+                                      },
+                                      createElement(Input, {
                                           "aria-label": "Skip reason",
                                           value: skipReason,
                                           onChange: (event: ChangeEvent<HTMLInputElement>) =>
@@ -885,7 +899,14 @@ export function ConviviumMeetingPanel(): ReactElement {
                             canEnd
                                 ? createElement(
                                       "div",
-                                      null,
+                                      {
+                                          style: {
+                                              display: "flex",
+                                              flexWrap: "wrap",
+                                              alignItems: "center",
+                                              gap: 8
+                                          }
+                                      },
                                       createElement(
                                           "select",
                                           {
@@ -909,7 +930,7 @@ export function ConviviumMeetingPanel(): ReactElement {
                                               "Cancelled"
                                           )
                                       ),
-                                      createElement("input", {
+                                      createElement(Input, {
                                           "aria-label": "End reason",
                                           value: endReason,
                                           onChange: (event: ChangeEvent<HTMLInputElement>) =>

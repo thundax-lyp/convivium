@@ -12,13 +12,6 @@
 
 按 T1–T12 顺序执行，前一步 PASS 后进入下一步；具体文件、动作、命令和 STOP 条件以各项链接的 RUNBOOK 步骤为准。
 
-- [ ] `UI primitives/理由输入`：迁移三个单行输入与操作行布局
-    - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T3。
-    - 关联文件：修改 [plugin/src/client/meeting-panel.tsx](plugin/src/client/meeting-panel.tsx)；验证 [plugin/tests/client/meeting-panel.client.spec.ts](plugin/tests/client/meeting-panel.client.spec.ts)。
-    - 确认依据：2026-09-09 用户要求根据 RUNBOOK 制定 TODO；执行迁移待确认。
-    - 处理动作：按 T3 替换 Pause、Skip、End reason 为 Input，并修改指定操作行布局。
-    - 验收点：三个输入保留名称、值与禁用行为，类型检查及 Client 测试通过。
-
 - [ ] `UI primitives/结束结果`：实现结束结果单选交互并固定提交与键盘测试
     - 依据文档：[UI Primitives Migration RUNBOOK](docs/30-designs/RUNBOOK-UI-PRIMITIVES-MIGRATION.md)，T4。
     - 关联文件：修改 [plugin/src/client/meeting-panel.tsx](plugin/src/client/meeting-panel.tsx)、[plugin/tests/client/meeting-panel.client.spec.ts](plugin/tests/client/meeting-panel.client.spec.ts)。
