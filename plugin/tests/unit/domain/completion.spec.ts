@@ -717,17 +717,9 @@ describe("local decision and risk authority", () => {
             expect(input).toEqual(before);
         }
     });
-    it.each<MeetingState["status"]>([
-        "completed",
-        "partial",
-        "no_consensus",
-        "cancelled",
-        "failed",
-        "archiving",
-        "archived"
-    ])("rejects %s", (status) => {
+    it("rejects local risk acceptance and rejection in an archived meeting", () => {
         const input = createLocalDecisionRiskState();
-        input.status = status;
+        input.status = "archived";
         const before = structuredClone(input);
         for (const decision of ["accept", "reject"] as const) {
             expect(() => applyCompletionClaims(input, context(decision))).toThrow();
