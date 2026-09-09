@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Execute；执行者从 M11 继续；前序修复证据见提交历史。
+- 模式：Execute；执行者从 M12 继续；前序修复证据见提交历史。
 - 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M11—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M12—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,27 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M11：以 Remote stream 替换五秒轮询
-
-前置状态：M10 PASS。
-允许修改：`plugin/src/client/meeting-panel.tsx`；`plugin/tests/client/meeting-panel.client.spec.ts`。
-禁止修改：Remote 契约、timer/retry 机制、增量状态合并。
-
-执行：
-1. 按 D3 将 streamReady 初值改 false，补齐 streamEpoch/Ref/ReplacementRef，实现 markUnavailable/replaceUpdates/consumeUpdates。挂载/focus 调用 replaceUpdates 和 requestRefresh，删除整段 window.setInterval effect，不保留 fallback。
-2. 严格按 D3 的首帧次序先使旧读失效，再 accept/ready/refetch；physical signal listener 用 generation fence。carrierFailed 与 current stream terminal 立即标缓存，完整 list/detail 成功才解除禁写。
-3. 补 D3 R4/R5/R7/R8/R9/R10，以及 terminal 后 focus 重建；Test API 的 openUpdates 返回 M08 createControlledMeetingStream 的真实 stream。dispose 用原类实现并结束 pending next，不用结构 mock 或类型断言，不用真实网络定时。
-
-验证：
-```bash
-pnpm --dir plugin typecheck:client
-pnpm --dir plugin test tests/client/meeting-panel.client.spec.ts
-rg -n "setInterval|clearInterval|meetingsPath|meetingPath" plugin/src/client/meeting-panel.tsx
-```
-
-PASS：前两命令退出 0，rg 无匹配退出 1；R1—R10 全通过，pnpm test 前置的 typecheck:remote-test 同时验证真实 fixture 类型。
-STOP：需要新 timer、取消未闭合或断线仍可写；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
 
 ### M12：移除旧 HTTP 实现及迁移 Runtime 边界用例
 

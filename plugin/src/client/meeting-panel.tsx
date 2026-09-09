@@ -60,6 +60,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
     const refreshReading = useRef(false);
     const refreshDirty = useRef(false);
     const refreshEpoch = useRef(0);
+    const streamReady = useRef(false);
     const invalidateReads = useCallback(() => {
         refreshEpoch.current += 1;
         listGeneration.current += 1;
@@ -169,6 +170,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                     if (
                         mounted.current &&
                         epoch === refreshEpoch.current &&
+                        streamReady.current &&
                         meetingId === selectedIdRef.current
                     ) {
                         setListCached(!listOk);
@@ -211,6 +213,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             if (
                 meetingId === undefined ||
                 detail === undefined ||
+                listCached ||
                 detailCached ||
                 writePendingRef.current
             ) {
@@ -313,6 +316,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             api,
             detail,
             detailCached,
+            listCached,
             endOutcome,
             endReason,
             pauseReason,
@@ -324,7 +328,6 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
 
     useEffect(() => {
         mounted.current = true;
-        requestRefresh();
         return () => {
             mounted.current = false;
             listController.current?.abort();
@@ -337,15 +340,85 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
     }, [requestRefresh]);
 
     useEffect(() => {
-        window.addEventListener("focus", requestRefresh);
-        return () => window.removeEventListener("focus", requestRefresh);
-    }, [requestRefresh]);
-
-    useEffect(() => {
-        if (selectedId === undefined) return;
-        const timer = window.setInterval(requestRefresh, 5_000);
-        return () => window.clearInterval(timer);
-    }, [requestRefresh, selectedId]);
+        let stopped = false;
+        let desired = 0;
+        let restarting = false;
+        let active: ReturnType<MeetingClient["openUpdates"]> | undefined;
+        let removeAbortListener = () => {};
+        const invalidate = () => {
+            if (stopped) return;
+            streamReady.current = false;
+            invalidateReads();
+            setListCached(true);
+            setDetailCached(true);
+        };
+        const consume = async (stream: ReturnType<MeetingClient["openUpdates"]>, epoch: number) => {
+            let generation: number | undefined;
+            try {
+                for await (const item of stream) {
+                    if (stopped || epoch !== desired) break;
+                    if (item.value?.kind !== "refresh" || Object.keys(item.value).length !== 1)
+                        throw new Error("Invalid meeting refresh notice.");
+                    if (generation !== item.generation) {
+                        removeAbortListener();
+                        invalidate();
+                        generation = item.generation;
+                        item.signal.addEventListener("abort", invalidate, { once: true });
+                        removeAbortListener = () =>
+                            item.signal.removeEventListener("abort", invalidate);
+                        if (item.signal.aborted) continue;
+                        streamReady.current = true;
+                    }
+                    item.accept();
+                    requestRefresh();
+                }
+            } catch {
+                if (!stopped && epoch === desired) invalidate();
+            } finally {
+                if (!stopped && epoch === desired) {
+                    invalidate();
+                    await stream.dispose();
+                }
+            }
+        };
+        const restart = () => {
+            desired += 1;
+            invalidate();
+            if (restarting) return;
+            restarting = true;
+            void (async () => {
+                try {
+                    let epoch: number;
+                    do {
+                        epoch = desired;
+                        removeAbortListener();
+                        await active?.dispose();
+                        active = undefined;
+                        if (stopped) return;
+                    } while (epoch !== desired);
+                    const stream = api.openUpdates(() => {
+                        if (!stopped && desired === epoch) invalidate();
+                    });
+                    active = stream;
+                    void consume(stream, epoch);
+                } catch {
+                    invalidate();
+                } finally {
+                    restarting = false;
+                }
+            })();
+        };
+        restart();
+        window.addEventListener("focus", restart);
+        return () => {
+            stopped = true;
+            desired += 1;
+            streamReady.current = false;
+            removeAbortListener();
+            window.removeEventListener("focus", restart);
+            void active?.dispose();
+        };
+    }, [api, invalidateReads, requestRefresh]);
 
     const discussion = detail && "pendingDecisionCandidates" in detail ? detail : undefined;
     const factWritable =

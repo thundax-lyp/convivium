@@ -5,7 +5,10 @@ import type {
 import type { MeetingRefreshNoticeV1 } from "@/protocol/index.js";
 import { loadRemoteClientModule } from "./remote-client.js";
 
-export function createControlledMeetingStream(onUnavailable: () => void = () => {}) {
+export function createControlledMeetingStream(
+    onUnavailable: () => void = () => {},
+    initialNotice = true
+) {
     const { RemoteStream, RemoteStreamCarrierError } = loadRemoteClientModule();
     let id = 1;
     let snapshot: ConnectionGeneration | undefined = { id, host: { home: "/test" } };
@@ -26,7 +29,7 @@ export function createControlledMeetingStream(onUnavailable: () => void = () => 
     const stream = new RemoteStream<MeetingRefreshNoticeV1>(connection, {
         name: "convivium-test-updates",
         open(signal) {
-            const queue: MeetingRefreshNoticeV1[] = [{ kind: "refresh" }];
+            const queue: MeetingRefreshNoticeV1[] = initialNotice ? [{ kind: "refresh" }] : [];
             let closed = false;
             let failure: Error | undefined;
             let pending:

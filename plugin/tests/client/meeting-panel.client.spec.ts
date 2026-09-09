@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apply, inject, name } from "@/client/index.js";
 import { createMeetingClient, type MeetingClient } from "@/client/meeting-client.js";
+import { createControlledMeetingStream } from "../fixtures/remote-stream.js";
 import { createRemoteClient } from "../fixtures/remote-client.js";
 import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
 
@@ -12,6 +13,7 @@ type Rpc = (
 ) => Promise<RemoteResult<unknown>>;
 let rpc: Rpc;
 let api: MeetingClient;
+let streams: ReturnType<typeof createControlledMeetingStream>[];
 let clientFixture: Awaited<ReturnType<typeof createRemoteClient>>;
 beforeEach(async () => {
     rpc = async () => {
@@ -28,9 +30,16 @@ beforeEach(async () => {
         });
     });
     api = createMeetingClient(clientFixture.ctx.remote);
+    streams = [];
+    api.openUpdates = (unavailable) => {
+        const fixture = createControlledMeetingStream(unavailable);
+        streams.push(fixture);
+        return fixture.stream;
+    };
 });
 afterEach(async () => {
     cleanup();
+    await Promise.all(streams.map((fixture) => fixture.stream.dispose()));
     await clientFixture.dispose();
 });
 function setRpc(mock: Rpc) {
@@ -1047,10 +1056,9 @@ describe("meeting panel and client plugin lifecycle", () => {
         expect(rpcMock).toHaveBeenCalledTimes(5);
     });
 
-    it.each(["focus", "poll"] as const)(
+    it.each(["focus", "notice"] as const)(
         "fact visibility: %s replaces complete facts and reopen retains archive",
         async (trigger) => {
-            if (trigger === "poll") vi.useFakeTimers({ shouldAdvanceTime: true });
             const active = refreshFactStatus("active");
             const terminal = refreshFactStatus("terminal");
             const archived = refreshFactStatus("archived");
@@ -1077,7 +1085,7 @@ describe("meeting panel and client plugin lifecycle", () => {
             expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(false);
             for (const next of [terminal, archived]) {
                 selected = next;
-                if (trigger === "poll") await act(async () => vi.advanceTimersByTime(5_000));
+                if (trigger === "notice") await act(async () => streams.at(-1)!.push());
                 else fireEvent(window, new Event("focus"));
                 await waitFor(() => assertRefreshFacts(next));
                 const dds = [
@@ -1170,6 +1178,117 @@ describe("meeting panel and client plugin lifecycle", () => {
         }
     });
 
+    it("disables cached controls on carrier loss until both reconnect reads succeed", async () => {
+        let hold = false;
+        const detailRead = deferred<RemoteResult<unknown>>();
+        setRpc(async (method) =>
+            method === "list"
+                ? remoteResult(listResponse())
+                : hold
+                  ? detailRead.promise
+                  : remoteResult(success(statusResult()))
+        );
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        fireEvent.change(screen.getByLabelText("Pause reason"), { target: { value: "Review" } });
+        expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(false);
+        await act(async () => streams[0]!.disconnect());
+        expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("Meeting version2");
+        hold = true;
+        await act(async () => streams[0]!.reconnect());
+        expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
+        await act(async () =>
+            detailRead.resolve(remoteResult(success(statusResult("running", 4), 4)))
+        );
+        await waitFor(() =>
+            expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(false)
+        );
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("Meeting version4");
+    });
+
+    it("coalesces focus while disposing and creates only one replacement stream", async () => {
+        setRpc(async (method) =>
+            remoteResult(method === "list" ? listResponse() : success(statusResult()))
+        );
+        const open = vi.spyOn(api, "openUpdates");
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        const stream = streams[0]!.stream;
+        const dispose = stream.dispose.bind(stream);
+        const released = deferred<void>();
+        const spy = vi.spyOn(stream, "dispose").mockImplementation(async () => {
+            await released.promise;
+            await dispose();
+        });
+        for (let i = 0; i < 3; i++) fireEvent.focus(window);
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(open).toHaveBeenCalledTimes(1);
+        await act(async () => released.resolve());
+        await waitFor(() => expect(open).toHaveBeenCalledTimes(2));
+        expect(spy).toHaveBeenCalledTimes(1);
+        spy.mockRestore();
+    });
+
+    it("does not perform periodic reads and closes its stream on unmount", async () => {
+        const mock = vi.fn<Rpc>(async (method) =>
+            remoteResult(method === "list" ? listResponse() : success(statusResult()))
+        );
+        setRpc(mock);
+        const panel = render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        const count = mock.mock.calls.length;
+        vi.useFakeTimers();
+        await act(async () => vi.advanceTimersByTime(15_000));
+        expect(mock).toHaveBeenCalledTimes(count);
+        panel.unmount();
+        expect(streams[0]!.stream.signal.aborted).toBe(true);
+        await act(async () => streams[0]!.push());
+        expect(mock).toHaveBeenCalledTimes(count);
+    });
+
+    it("invalidates pre-frame reads and waits for both fresh projections", async () => {
+        api.openUpdates = (unavailable) => {
+            const fixture = createControlledMeetingStream(unavailable, false);
+            streams.push(fixture);
+            return fixture.stream;
+        };
+        const oldDetail = deferred<RemoteResult<unknown>>();
+        const newList = deferred<RemoteResult<unknown>>();
+        const newDetail = deferred<RemoteResult<unknown>>();
+        let firstFrame = false;
+        const mock = vi.fn<Rpc>(async (method) => {
+            if (method === "list")
+                return firstFrame ? newList.promise : remoteResult(listResponse());
+            return firstFrame ? newDetail.promise : oldDetail.promise;
+        });
+        setRpc(mock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        fireEvent.click(screen.getByLabelText("Reload meetings"));
+        fireEvent.click(await screen.findByRole("button", { name: /Runtime smoke/ }));
+        await waitFor(() =>
+            expect(mock.mock.calls.some(([method]) => method === "getStatus")).toBe(true)
+        );
+        firstFrame = true;
+        await act(async () => streams[0]!.push());
+        await act(async () =>
+            oldDetail.resolve(remoteResult(success(statusResult("running", 3), 3)))
+        );
+        expect(screen.queryByLabelText("Meeting summary")).toBeNull();
+        await act(async () => newList.resolve(remoteResult(listResponse())));
+        expect(screen.queryByLabelText("Meeting summary")).toBeNull();
+        await act(async () =>
+            newDetail.resolve(remoteResult(success(statusResult("running", 4), 4)))
+        );
+        fireEvent.change(await screen.findByLabelText("Pause reason"), {
+            target: { value: "Review" }
+        });
+        await waitFor(() =>
+            expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(false)
+        );
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("Meeting version4");
+    });
+
     it("coalesces refresh requests during an active read into one following cycle", async () => {
         const pending = deferred<RemoteResult<unknown>>();
         const mock = vi.fn<Rpc>(async (method) =>
@@ -1180,8 +1299,8 @@ describe("meeting panel and client plugin lifecycle", () => {
         await selectMeeting();
         mock.mockClear();
         mock.mockImplementationOnce(() => pending.promise);
-        fireEvent.focus(window);
-        for (let i = 0; i < 3; i++) fireEvent.focus(window);
+        fireEvent.click(screen.getByLabelText("Reload meetings"));
+        for (let i = 0; i < 3; i++) fireEvent.click(screen.getByLabelText("Reload meetings"));
         expect(mock).toHaveBeenCalledTimes(2);
         await act(async () => pending.resolve(remoteResult(listResponse())));
         await waitFor(() => expect(mock).toHaveBeenCalledTimes(4));
@@ -1206,7 +1325,7 @@ describe("meeting panel and client plugin lifecycle", () => {
         render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
         hold = true;
-        fireEvent.focus(window);
+        fireEvent.click(screen.getByLabelText("Reload meetings"));
         fireEvent.change(screen.getByLabelText("Pause reason"), { target: { value: "Review" } });
         fireEvent.click(screen.getByLabelText("Pause meeting"));
         await act(async () =>
@@ -1446,7 +1565,7 @@ describe("meeting panel and client plugin lifecycle", () => {
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
     });
 
-    it("preserves cached data on failures, polls the selection, and aborts on unmount", async () => {
+    it("preserves cached data on failures, refreshes on notice, and aborts on unmount", async () => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
         const rpcMock = vi
             .fn<Rpc>()
@@ -1476,7 +1595,7 @@ describe("meeting panel and client plugin lifecycle", () => {
         );
         expect(screen.getByRole("alert").parentElement?.getAttribute("data-cached")).toBe("true");
 
-        await act(async () => vi.advanceTimersByTime(5_000));
+        await act(async () => streams.at(-1)!.push());
         await waitFor(() =>
             expect(screen.getByLabelText("Meeting summary").textContent).toContain("4")
         );
