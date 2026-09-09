@@ -84,6 +84,70 @@ class DocumentLinksTest(unittest.TestCase):
             "Paragraph\n    [real](target.md)\n\n[real](other.md)\n"
         )), [(6, "target.md"), (8, "other.md")])
 
+    def test_list_paragraphs_are_checked_and_list_code_is_ignored(self):
+        source = (
+            "- Item\n\n    [broken](missing.md)\n\n"
+            "      [example](code.md)\n\n"
+            "    - Nested\n\n      [nested](nested.md)\n\n"
+            "          [example](nested-code.md)\n\n"
+            "Outside\n\n    [example](outside-code.md)\n"
+        )
+        self.assertEqual(list(checker["links"](source)), [
+            (3, "missing.md"), (9, "nested.md"),
+        ])
+        self.assertEqual(list(checker["links"](
+            "10. Item\n\n    [numbered](numbered.md)\n\n"
+            "        [example](code.md)\n"
+        )), [(3, "numbered.md")])
+
+    def test_code_inside_heading_links_preserves_only_the_label(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "guide.md").write_text("# Guide\n")
+            (root / "target.md").write_text(
+                "# [`API`](guide.md)\n# [`API`][ref]\n"
+                "# `[literal](hidden.md)`\n# [`Collapsed`][]\n"
+                "[ref]: guide.md\n[`Collapsed`]: guide.md\n"
+            )
+            (root / "source.md").write_text(
+                "[valid](target.md#api)\n[duplicate](target.md#api-1)\n"
+                "[literal](target.md#literalhiddenmd)\n"
+                "[invalid](target.md#apiguidemd)\n[collapsed](target.md#collapsed)\n"
+            )
+            _, errors = checker["check"](root)
+            self.assertEqual(errors, [
+                "source.md:4: missing anchor: target.md#apiguidemd",
+            ])
+
+    def test_multiline_definitions_and_parenthesized_titles_report_missing_targets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "target.md").write_text("# Target\n")
+            (root / "source.md").write_text(
+                "[ref]:\n  missing.md\n"
+                "[valid]:\n  target.md\n"
+                "[broken](missing.md (旧版))\n"
+                "[valid](target.md (说明))\n"
+                "[unfinished]:\n\n"
+            )
+            count, errors = checker["check"](root)
+            self.assertEqual(count, 4)
+            self.assertEqual(errors, [
+                "source.md:1: missing target: missing.md",
+                "source.md:5: missing target: missing.md",
+            ])
+            self.assertEqual(checker["anchors"](
+                "# [Title][ref]\n\n[ref]:\n  target.md\n"
+            ), {"title"})
+
+    def test_heading_autolinks_keep_visible_text_but_html_tags_do_not(self):
+        self.assertEqual(checker["anchors"](
+            "# <https://example.com>\n# <user@example.com>\n"
+            "# <em>Title</em>\n# `<https://example.com>`\n"
+        ), {"httpsexamplecom", "userexamplecom", "title", "httpsexamplecom-1"})
+
     def test_existing_targets_outside_repository_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)
