@@ -8,6 +8,14 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 
+def unquote_container(line):
+    depth = 0
+    while (marker := re.match(r"^ {0,3}> ?", line)):
+        depth += 1
+        line = line[marker.end():]
+    return depth, line
+
+
 def prose(source):
     """Remove code blocks while retaining line numbers for diagnostics."""
     fence = None
@@ -15,8 +23,10 @@ def prose(source):
     previous_blank = True
     lines = []
     list_indents = []
+    quote_depth = 0
     for line in source.splitlines():
         line = line.expandtabs(4)
+        depth, line = unquote_container(line)
         indent = len(line) - len(line.lstrip(" "))
         if line.strip() and not fence:
             while list_indents and indent < list_indents[-1]:
@@ -27,7 +37,13 @@ def prose(source):
             list_indents.append((list_indents[-1] if list_indents else 0) + item.end())
             content = content[item.end():]
         # Code indentation is relative to the containing list item's content.
-        line = content
+        inner_depth, line = unquote_container(content)
+        depth += inner_depth
+        if depth != quote_depth:
+            fence = None
+            indented = False
+            previous_blank = True
+        quote_depth = depth
         marker = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
         if fence:
             if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence):
@@ -76,8 +92,31 @@ def destination(text, start):
 
 
 def inline_links(text):
-    for match in re.finditer(r"!?\[([^]\n]*)\]\(\s*", text):
-        parsed = destination(text, match.end())
+    pos = 0
+    while pos < len(text):
+        if text[pos] == "\\":
+            pos += 2
+            continue
+        if text[pos] != "[":
+            pos += 1
+            continue
+        start, label_start = pos, pos + 1
+        depth = 1
+        pos += 1
+        while pos < len(text) and depth:
+            if text[pos] == "\\":
+                pos += 2
+                continue
+            if text[pos] == "[":
+                depth += 1
+            elif text[pos] == "]":
+                depth -= 1
+            pos += 1
+        if depth or text[pos:pos + 1] != "(":
+            continue
+        label = text[label_start:pos - 1]
+        opening = re.match(r"\(\s*", text[pos:])
+        parsed = destination(text, pos + opening.end())
         if parsed:
             target, end = parsed
             closing = re.match(
@@ -85,7 +124,8 @@ def inline_links(text):
                 r"\((?:\\.|[^()\\])*\)))?\s*\)", text[end:]
             )
             if closing:
-                yield match.start(), end + closing.end(), match[1], target
+                pos = end + closing.end()
+                yield start, pos, label, target
 
 
 def label_key(label):
@@ -102,7 +142,10 @@ def heading_text(title, references):
 
     def mask(match):
         token = f"{prefix}{len(spans)}\ue001"
-        spans[token] = (match[0], match[2])
+        code = match[2].replace("\n", " ")
+        if code.startswith(" ") and code.endswith(" ") and code.strip(" "):
+            code = code[1:-1]
+        spans[token] = (match[0], code)
         return token
 
     def restore(text, literal=True):

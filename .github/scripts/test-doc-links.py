@@ -148,6 +148,37 @@ class DocumentLinksTest(unittest.TestCase):
             "# <em>Title</em>\n# `<https://example.com>`\n"
         ), {"httpsexamplecom", "userexamplecom", "title", "httpsexamplecom-1"})
 
+    def test_quoted_fences_skip_examples_without_hiding_body_links(self):
+        self.assertEqual(list(checker["links"](
+            "> ```md\n> [sample](missing.md)\n> ```\n"
+            "> [real](quoted.md)\n\n[real](outside.md)\n"
+            "> > ~~~\n> > [sample](nested-code.md)\n> > ~~~\n"
+            "> > [real](nested.md)\n"
+            "> ```\n> example\n[outside unclosed quote](after.md)\n"
+        )), [(4, "quoted.md"), (6, "outside.md"), (10, "nested.md"), (13, "after.md")])
+
+    def test_nested_and_escaped_link_labels_check_missing_targets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "source.md").write_text(
+                "[outer [inner]](missing.md)\n"
+                r"[label \]](missing.md)" + "\n"
+                r"\[not a link](ignored.md)" + "\n"
+            )
+            count, errors = checker["check"](root)
+            self.assertEqual(count, 2)
+            self.assertEqual(errors, [
+                "source.md:1: missing target: missing.md",
+                "source.md:2: missing target: missing.md",
+            ])
+
+    def test_code_span_padding_removes_exactly_one_space_from_each_end(self):
+        self.assertEqual(checker["anchors"](
+            "# ` foo `\n# `  foo  `\n# `   `\n# `foo `\n"
+            "# [`` bar ``](guide.md)\n"
+        ), {"foo", "-foo-", "---", "foo-", "bar"})
+
     def test_existing_targets_outside_repository_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)
