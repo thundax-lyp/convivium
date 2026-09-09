@@ -338,3 +338,48 @@ Core：baseline 19205ms、cold-rebind 21420ms、cross-meeting 16909ms、converge
 Restore：三条 smoke 的每场景均由 wrapper finally 停止本次 Host、删除临时资源并验证端口释放；外层共享构建根也清理完成，全部正常 exit 0，无 Restore 错误。未保存密钥、访问 token 或模型/工具正文。
 
 Closure：本轮用户授权范围已验证完成，可关闭部署验收与临时计划。**Not Covered：web_fetch 按 2026-09-08 用户明确要求跳过，原生抓取可用性仍未验证**；默认命令继续严格验证抓取，解除 Fake-IP 环境问题后可重新运行，不需要修改产品或降低原生地址检查。完整无豁免的 FR-14 部署验收、模型长期任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 与 Host capability 内容历史快照不由本次证据证明。
+
+## UI primitives migration
+
+### Scope
+
+2026-09-09，在 `codex/ui-primitives-research` 验证会议面板 Button/Input 迁移和 End outcome 单选组。产品与脚本代码边界为 `57a47b7`，后续 `dc57b25` 替换错误 Skip 截图、`d8c5662` 提交 End Browser 证据和操作约束；后续提交未修改产品源码。环境：macOS、DSH Web `0.1.2-rc.1`、spawn provider、React/React DOM `18.3.1`、`@deepseek-ai/dsh-client-ui-primitives@0.1.2-rc.1`。
+
+### Validated Contract
+
+普通按钮使用 DSH Button，Pause/Skip/End reason 使用 Input，End outcome 为三个 radio 语义 Button。选择只修改草稿，End meeting 独立提交；缓存禁写与提交中的互斥由真实包 Client 测试覆盖。协议、后端领域语义和状态 owner 未改变。
+
+### Executed Validation
+
+- 本轮重跑 `pnpm --dir plugin verify`，退出 0；format:check、lint、Host/Client typecheck、test、build、verify:environment、verify:contract、verify:agent-definitions、verify:package 全部通过。77 个测试文件、1109 项测试通过；9 个角色定义验证通过，package 检查全部通过。
+- 认证修复时执行 `pnpm --dir plugin exec vitest run tests/unit/scripts/browser-client-preflight.spec.ts tests/unit/scripts/smoke-profile.spec.ts`：55 项通过；本轮完整 verify 再次覆盖这些测试以及控件迁移、缓存禁写和重复提交回归。
+- 本轮读取 `plugin/lib/client.js`：ModuleLoader 注册存在，全部 require 的唯一依赖为 `react` 与 `@deepseek-ai/dsh-client-ui-primitives`；无 `react/jsx-runtime`、`react/jsx-dev-runtime`、React 私有 internals 标记，独立断言退出 0。
+- 仍出现上游 primitives 发布包缺少 `index.js.map` 的 Vite sourcemap 警告及 Node SQLite experimental warning；测试、构建和 Browser 均通过。
+
+实际 Browser 为 **Codex In-app Browser**，通过 DOM locator、只读属性/几何查询、真实键盘和页面截图验证；未使用 Chrome 扩展会话。每次先关闭内测声明，在当前 DOM 中选择 Meetings tab 和与 ready meetingId 一致的按钮，并等待详情。此前“列表点击后没有详情”在本轮未复现；上一轮结束后失效的 tab handle 不能作为产品故障证据。没有据此改写产品事件处理代码。
+
+| 场景 | 启动与 ready | 真实页面结果 | Restore |
+| --- | --- | --- | --- |
+| Skip | `env CONVIVIUM_SMOKE_SCENARIO=reassign CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile`；ok/web/spawn、browserReady、browser-reassign-ready 通过，participant-a 与 turn-1-attempt-0 一致 | running/version 2；空理由 Skip 禁用，输入 `Browser reassign evidence` 后启用；点击后 Skip 消失、alert=0；刷新后 waiting/version 3，仍无 Skip、无 console error | 标签关闭；退出0，`PASS reassign 402752ms restore=PASS`、cleanup=ok；场景根 basename 为 convivium-dsh-smoke-LPWO8P，独立核对不存在、端口55837可独占绑定，退出0 |
+| End | `env CONVIVIUM_SMOKE_SCENARIO=scribe-minutes CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile`；ok/web/spawn、browserReady 和 minutes-context-visible、minutes-invalid-atomic、minutes-replay-stable、minutes-http-equal 四项通过 | 默认 Partial=true/0，其余 false/-1；空理由 End 禁用；键盘和四种布局通过；理由 `UI primitives browser evidence` 启用 End，点击后 archived/version 9；刷新仍 archived，End 与单选组不存在 | 主题恢复跟随系统、viewport reset、标签关闭；退出0，`PASS scribe-minutes 754096ms restore=PASS`、cleanup=ok；场景根 basename 为 convivium-dsh-smoke-kEkjNB，独立核对不存在、端口55318可独占绑定，退出0 |
+
+两个场景的 meetingId 均为夹具确定值 `meeting-d99cf43fc6f1029c56eff81fcf5958cb`，分别运行于独立临时 Host。End 归档后原消息 `message-turn-1-delivery-0` 的 `source-a` 和纪要 `message-turn-1-delivery-1` 的 `Minutes draft based on source-a` 仍显示；`Minutes draft (non-authoritative)`、coverage messages 1–1、referenced ID 保持，控制台无 error。
+
+键盘序列：Shift+Tab 离开 Partial 到 Pause reason，Tab 返回 Partial；ArrowRight→No consensus→Cancelled→Partial，ArrowLeft→Cancelled，Home→Partial，End→Cancelled，Home→Partial，Space 保持 Partial。每步焦点与唯一 checked 项一致，Tab 出组到 End reason。
+
+四种布局为 light/dark × 1280×900/768×900。radio 外框均28px、间距4px、无重叠；Input 外框与 End 不重叠，全部处于面板水平边界内。Input computed height=32px、content-box、上下 padding=0、上下 border 各1px，外框34px，按盒模型核验通过；原先把32px直接用于外框的断言已纠正。选中背景浅色为 rgb(15,17,21)、深色为 rgb(249,250,251)，与未选中透明背景不同；文字非透明，键盘聚焦 Partial 的 outline 为 auto/1px。主题与 viewport 通过宿主 UI/Browser capability 设置，不注入样式。窄屏侧栏动画结束后读取最终几何与截图。
+
+截图直接保存当前标签返回字节并逐张打开核验。`270430f` 原 Skip 截图内容错误，不作为证据；有效截图由 `dc57b25` 替换。
+
+- [Skip 刷新后](./assets/ui-primitives/skip-after.png)
+- [浅色宽屏](./assets/ui-primitives/light-wide.png)、[浅色窄屏](./assets/ui-primitives/light-narrow.png)
+- [深色宽屏](./assets/ui-primitives/dark-wide.png)、[深色窄屏](./assets/ui-primitives/dark-narrow.png)
+- [刷新后归档](./assets/ui-primitives/archived.png)
+
+### Not Covered
+
+未采用的 primitives、其他 DSH/React 版本、独立 Chrome 浏览器、非 Web 平台、完整可访问性审计、真实模型质量、压力和长期资源泄漏不在本次证明范围。截图未覆盖长页面全部内容，业务断言以读取的完整 DOM 为准。
+
+### Closure
+
+本次迁移验证完成，不扩大为 FR-11 全量验收。操作会话与截图要求见 [Smoke 操作手册](../50-operations/HOW-TO-DSH-SMOKE.md)。

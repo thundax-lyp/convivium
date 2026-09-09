@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apply, inject, name } from "@/client/index.js";
@@ -540,6 +540,25 @@ async function selectMeeting(): Promise<void> {
     const item = await screen.findByRole("button", { name: /Runtime smoke/ });
     fireEvent.click(item);
     await screen.findByLabelText("Meeting summary");
+}
+
+function expectSelectedEndOutcome(name: string): HTMLButtonElement {
+    const group = within(screen.getByRole("radiogroup", { name: "End outcome" }));
+    const radios = group.getAllByRole("radio") as HTMLButtonElement[];
+    expect(radios.map((radio) => radio.textContent)).toEqual([
+        "Partial",
+        "No consensus",
+        "Cancelled"
+    ]);
+    const selected = group.getByRole("radio", { name, exact: true }) as HTMLButtonElement;
+    expect(radios.filter((radio) => radio.getAttribute("aria-checked") === "true")).toEqual([
+        selected
+    ]);
+    for (const radio of radios) {
+        expect(radio.tabIndex).toBe(radio === selected ? 0 : -1);
+        expect(radio.type).toBe("button");
+    }
+    return selected;
 }
 
 describe("meeting panel and client plugin lifecycle", () => {
@@ -1239,10 +1258,13 @@ describe("meeting panel and client plugin lifecycle", () => {
         render(createElement(ConviviumMeetingPanel));
         await selectMeeting();
 
-        expect(screen.queryByRole("option", { name: "Completed" })).toBeNull();
-        fireEvent.change(screen.getByLabelText("End outcome"), {
-            target: { value: "no_consensus" }
-        });
+        expectSelectedEndOutcome("Partial");
+        expect(screen.queryByRole("radio", { name: "Completed" })).toBeNull();
+        fireEvent.click(screen.getByRole("radio", { name: "No consensus", exact: true }));
+        expectSelectedEndOutcome("No consensus");
+        expect(
+            fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
+        ).toHaveLength(0);
         fireEvent.change(screen.getByLabelText("End reason"), {
             target: { value: "No consensus reached" }
         });
@@ -1260,6 +1282,164 @@ describe("meeting panel and client plugin lifecycle", () => {
             waivers: [],
             requestId: "request-1"
         });
+    });
+
+    it("keeps one End outcome selected through keyboard navigation", async () => {
+        const fetchMock = vi
+            .fn<typeof fetch>()
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(statusResult())));
+        vi.stubGlobal("fetch", fetchMock);
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+        let selected = expectSelectedEndOutcome("Partial");
+        selected.focus();
+        for (const [key, name] of [
+            ["ArrowRight", "No consensus"],
+            ["ArrowDown", "Cancelled"],
+            ["ArrowRight", "Partial"],
+            ["ArrowLeft", "Cancelled"],
+            ["ArrowUp", "No consensus"],
+            ["Home", "Partial"],
+            ["End", "Cancelled"],
+            ["Home", "Partial"]
+        ] as const) {
+            expect(fireEvent.keyDown(selected, { key })).toBe(false);
+            selected = expectSelectedEndOutcome(name);
+            expect(document.activeElement).toBe(selected);
+        }
+        expect(fireEvent.keyDown(selected, { key: "Tab" })).toBe(true);
+        fireEvent.click(selected);
+        expectSelectedEndOutcome("Partial");
+        expect(
+            fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
+        ).toHaveLength(0);
+    });
+
+    it("resets End outcome when selecting another meeting", async () => {
+        const secondId = "meeting/2";
+        const secondDetail = {
+            ...statusResult(),
+            meetingId: secondId,
+            topic: "Second meeting"
+        };
+        const fetchMock = vi
+            .fn<typeof fetch>()
+            .mockResolvedValueOnce(
+                jsonResponse(
+                    listResponse([
+                        listItem,
+                        { ...listItem, meetingId: secondId, topic: "Second meeting" }
+                    ])
+                )
+            )
+            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+            .mockResolvedValueOnce(jsonResponse({ ...success(secondDetail), meetingId: secondId }));
+        vi.stubGlobal("fetch", fetchMock);
+        render(createElement(ConviviumMeetingPanel));
+        await selectMeeting();
+        fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
+        expectSelectedEndOutcome("Cancelled");
+        fireEvent.click(
+            screen.getByRole("button", { name: "Second meeting (running)", exact: true })
+        );
+        await waitFor(() =>
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain("Second meeting")
+        );
+        expectSelectedEndOutcome("Partial");
+        expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/convivium/meetings/meeting%2F2");
+        expect(
+            fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
+        ).toHaveLength(0);
+    });
+
+    it.each(["list", "detail"] as const)(
+        "locks End outcome for cached %s and unlocks after a valid refresh",
+        async (source) => {
+            const fetchMock = vi
+                .fn<typeof fetch>()
+                .mockResolvedValueOnce(jsonResponse(listResponse()))
+                .mockResolvedValueOnce(jsonResponse(success(statusResult())));
+            vi.stubGlobal("fetch", fetchMock);
+            render(createElement(ConviviumMeetingPanel));
+            await selectMeeting();
+            fireEvent.click(screen.getByRole("radio", { name: "No consensus", exact: true }));
+            if (source === "detail") fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
+            fetchMock.mockRejectedValueOnce(new TypeError("cached " + source));
+            if (source === "list") fireEvent.click(screen.getByLabelText("Reload meetings"));
+            else fireEvent.focus(window);
+            await waitFor(() =>
+                expect(screen.getByRole(source === "list" ? "status" : "alert")).toBeTruthy()
+            );
+            const selected = expectSelectedEndOutcome("No consensus");
+            for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
+                expect(radio.disabled).toBe(true);
+            }
+            fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
+            fireEvent.keyDown(selected, { key: "ArrowRight" });
+            expectSelectedEndOutcome("No consensus");
+            fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
+            if (source === "detail") {
+                fetchMock.mockResolvedValueOnce(
+                    jsonResponse(success(statusResult("running", 3), 3))
+                );
+                fireEvent.focus(window);
+            } else fireEvent.click(screen.getByLabelText("Reload meetings"));
+            await waitFor(() => {
+                for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
+                    expect(radio.disabled).toBe(false);
+                }
+            });
+            expectSelectedEndOutcome("No consensus");
+            expect(
+                fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
+            ).toHaveLength(0);
+        }
+    );
+
+    it("locks End outcome during a pending write and does not duplicate the POST", async () => {
+        const reply = deferred<Response>();
+        const fetchMock = vi
+            .fn<typeof fetch>()
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+            .mockReturnValueOnce(reply.promise)
+            .mockResolvedValueOnce(jsonResponse(listResponse()))
+            .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 3), 3)));
+        vi.stubGlobal("fetch", fetchMock);
+        const rendered = render(createElement(ConviviumMeetingPanel));
+        try {
+            await selectMeeting();
+            fireEvent.change(screen.getByLabelText("End reason"), {
+                target: { value: "Reviewed" }
+            });
+            const end = screen.getByLabelText("End meeting");
+            act(() => {
+                fireEvent.click(end);
+                fireEvent.click(end);
+            });
+            const selected = expectSelectedEndOutcome("Partial");
+            for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
+                expect(radio.disabled).toBe(true);
+            }
+            fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
+            fireEvent.keyDown(selected, { key: "End" });
+            expectSelectedEndOutcome("Partial");
+            expect(
+                fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
+            ).toHaveLength(1);
+            await act(async () => {
+                reply.resolve(jsonResponse(protocolError("Safe conflict"), 409));
+            });
+            await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+            await waitFor(() => expect(expectSelectedEndOutcome("Partial").disabled).toBe(false));
+            expect(
+                fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
+            ).toHaveLength(1);
+        } finally {
+            reply.resolve(jsonResponse(protocolError("Safe conflict"), 409));
+            rendered.unmount();
+        }
     });
 
     it("refetches after a validated protocol error without retrying the POST", async () => {

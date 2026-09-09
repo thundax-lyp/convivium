@@ -101,9 +101,10 @@ Convivium 仅消费 Storage Domain，物理介质由 Host/profile 的官方 SQLi
 | 正式事实展示 | `src/client/meeting-panel-view.tsx`、`meeting-panel-sections.tsx` 及 Client suites：12 种 status 的非空 DTO 经 HTTP JSON/Schema/DOM 消费；Decision accepted/history、四类 Parking Lot 处置、risk/archive issues、公开 intent/reason/objective 与无 Turn 时旧值清除 |
 | 完整刷新与错误恢复 | Client suites 的 `refreshFactStatus`：focus/5000ms poll 对不同版本集合逐条替换、删除及卸载重开；分别缺少 decisionHistory、parkingLot、archive.package.issues 时保留缓存、禁写，合法刷新后恢复并清除 alert，输入 JSON 不变 |
 | 展示边界 | 文本 HTML 不创建 img、终态禁写；原事实展示增量不新增后端权限或命令。后来增加的 Decision/risk 五动作见上方独立验证索引，不沿用旧“区域无写控件”作为当前总体结论 |
+| UI controls | Button/Input 与 End outcome 单选组的真实包、键盘、缓存禁写、重复提交、Browser/Restore；见 [UI primitives migration](./SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration) |
 | Browser 清理 | `tests/unit/scripts/smoke-profile.spec.ts`：真实子进程 SIGINT 后清理期间再次收到 SIGTERM，仍输出 cleanup marker 并正常退出；不证明一般进程树或长期资源无泄漏 |
 
-历史页面验证见 [Client Fact Visibility Browser](./SMOKE-VALIDATION-EVIDENCE.md#client-fact-visibility-browser)。新增面板区域仍只有 jsdom 证据。
+历史页面验证见 [Client Fact Visibility Browser](./SMOKE-VALIDATION-EVIDENCE.md#client-fact-visibility-browser)。本次控件迁移另有上表 UI controls 的真实页面证据；其他新增区域保持原验证边界。
 
 ### Shared Preset Role Composition
 

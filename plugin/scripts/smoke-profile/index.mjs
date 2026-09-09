@@ -7,7 +7,12 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
-import { assertBrowserClientPreflight } from "./browser-client-preflight.mjs";
+import {
+    assertBrowserClientPreflight,
+    createAuthenticatedBrowserFetch,
+    parseBrowserLaunchUrl,
+    redactBrowserCredentials
+} from "./browser-client-preflight.mjs";
 import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 import { validateColdCheckpoint } from "./probe/support.js";
 import { roleSmokeDefinitions, roleSmokeModelOverrides } from "./probe/role-definitions.js";
@@ -416,6 +421,24 @@ async function waitForJson(path, timeoutMs) {
     throw new Error(`Timed out waiting for smoke result at ${path}.`);
 }
 
+async function waitForBrowserLaunchUrl(stdoutPath, origin) {
+    const deadline = Date.now() + BOOT_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+        try {
+            const stdout = await readFile(stdoutPath, "utf8");
+            const lineEnd = stdout.lastIndexOf("\n");
+            if (lineEnd >= 0) {
+                const launchUrl = parseBrowserLaunchUrl(stdout.slice(0, lineEnd + 1), origin);
+                if (launchUrl !== undefined) return launchUrl;
+            }
+        } catch (error) {
+            if (error?.code !== "ENOENT") throw error;
+        }
+        await new Promise((resolveWait) => setTimeout(resolveWait, 250));
+    }
+    throw new Error("browser authentication: launch URL timeout");
+}
+
 async function stopHost() {
     if (bootProcess === undefined) return;
     const child = bootProcess;
@@ -576,9 +599,17 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
         );
 
     await stat(dumpPath);
-    if (BROWSER_MODE && probeResult.browserReady === true) {
+    let browserLaunchUrl;
+    if (BROWSER_MODE) {
         const origin = `http://${HOST}:${port}`;
-        await assertBrowserClientPreflight(origin, globalThis.fetch, BOOT_TIMEOUT_MS);
+        browserLaunchUrl = await waitForBrowserLaunchUrl(bootLogs.stdoutPath, origin);
+        const authenticatedFetch = await createAuthenticatedBrowserFetch(
+            browserLaunchUrl,
+            origin,
+            globalThis.fetch,
+            BOOT_TIMEOUT_MS
+        );
+        await assertBrowserClientPreflight(origin, authenticatedFetch, BOOT_TIMEOUT_MS);
     }
     const result = {
         ok: true,
@@ -593,7 +624,7 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
     };
     if (BROWSER_MODE) {
         console.log(JSON.stringify(result));
-        console.log(`CONVIVIUM_SMOKE_BROWSER_URL=http://${HOST}:${port}`);
+        console.log(`CONVIVIUM_SMOKE_BROWSER_URL=${browserLaunchUrl}`);
         console.log(`CONVIVIUM_SMOKE_TEMP_ROOT=${tempRoot}`);
         await waitForBrowserStop();
     }
@@ -657,7 +688,7 @@ if (isMain) {
     try {
         await main();
     } catch (error) {
-        console.error(error.message);
+        console.error(redactBrowserCredentials(error.message));
         process.exitCode = 1;
     }
 }
