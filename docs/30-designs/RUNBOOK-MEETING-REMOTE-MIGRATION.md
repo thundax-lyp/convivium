@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Execute；执行者从 M12 继续；前序修复证据见提交历史。
+- 模式：Execute；执行者从 M13 继续；前序修复证据见提交历史。
 - 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M12—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,26 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M12：移除旧 HTTP 实现及迁移 Runtime 边界用例
-
-前置状态：M11 PASS。
-允许修改：删除 `plugin/src/http/index.ts`、删除 `plugin/tests/contract/http-boundary.spec.ts`；`plugin/tests/contract/remote-boundary.spec.ts`；`plugin/tests/contract/meeting-runtime.spec.ts`；`plugin/eslint.config.js`、`plugin/tests/unit/module-boundaries.spec.ts`、`plugin/tests/contract/production-import-graph.spec.ts`。
-禁止修改：领域测试断言、Runtime 实现、其它测试删除。
-
-执行：
-1. 依 D4 核对 M05 remote-boundary 覆盖后删除旧两个文件；不再保留 URL兼容函数。
-2. meeting-runtime 内 invokeLocalControl 改为 M05 fixture.invoke(method,{input})；原 list 无 input；原 route 构造改为 createRemoteGateway(runtime)。同时删除 Readable、IncomingMessage、ServerResponse、WebRoute 四个 import 和 req/res 构造；旧测试数组 URL 以 D1 method 替换；删除 status/header 断言，业务 json 断言直接针对返回 envelope；错误用例依据 D2。cold recovery 时先 dispose Gateway 再 runtime，重开后新建 Gateway，receipt/projection 对比保持。
-3. ESLint 与 module-boundaries 用 remote 替换 http（保留 Node 内建 "http" 禁用条目）；client 仍不得 import 后端。production-import-graph 增加 client entry 图中无 remote/index.ts、Node API、typert-generator 的断言，不移除原 storage tests。
-
-验证：
-```bash
-pnpm --dir plugin test tests/contract/remote-boundary.spec.ts tests/contract/meeting-runtime.spec.ts tests/contract/production-import-graph.spec.ts tests/unit/module-boundaries.spec.ts
-pnpm --dir plugin lint
-```
-
-PASS：全部退出 0；原领域/幂等/恢复断言保留。
-STOP：D4 未迁移完整或需要放宽 lint 才能跨模块导入；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
 
 ### M13：迁移真实 profile 的 unary probe
 

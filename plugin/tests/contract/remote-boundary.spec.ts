@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { LocalMeetingWebRuntime } from "@/runtime/index.js";
+import {
+    LocalMeetingRecoveryUnavailableError,
+    type LocalMeetingWebRuntime
+} from "@/runtime/index.js";
 import { createRemoteGateway } from "../fixtures/remote-gateway.js";
 
 const meetingId = "meeting-1";
@@ -144,6 +147,79 @@ const input = {
     requestId: "request-1"
 };
 
+const cases: readonly [string, Record<string, unknown>][] = [
+    ["getStatus", { protocolVersion: 1, meetingId }],
+    ["pause", { ...input, reason: "pause" }],
+    ["resume", { ...input }],
+    ["reassign", { ...input, currentAttemptId: "attempt-1", action: "skip", reason: "skip" }],
+    [
+        "reassign",
+        {
+            ...input,
+            currentAttemptId: "attempt-1",
+            action: "reassign",
+            replacementParticipantId: "participant-2",
+            reason: "replace"
+        }
+    ],
+    [
+        "end",
+        {
+            ...input,
+            outcome: "cancelled",
+            reason: "end",
+            acceptedDecisionIds: [],
+            deferredAgendaItemIds: [],
+            waivers: []
+        }
+    ],
+    [
+        "acceptDecision",
+        { ...input, decisionCandidateId: "candidate-1", reason: "accept", evidenceMessageIds: [] }
+    ],
+    [
+        "disposeDecision",
+        {
+            ...input,
+            decisionId: "decision-1",
+            action: "revoke",
+            reason: "revoke",
+            evidenceMessageIds: []
+        }
+    ],
+    [
+        "disposeDecision",
+        {
+            ...input,
+            decisionId: "decision-1",
+            action: "supersede",
+            replacementCandidateId: "candidate-2",
+            reason: "replace",
+            evidenceMessageIds: []
+        }
+    ],
+    [
+        "disposeRisk",
+        {
+            ...input,
+            issueId: "risk-1",
+            decision: "accept",
+            reason: "accept",
+            evidenceMessageIds: ["message-1"]
+        }
+    ],
+    [
+        "disposeRisk",
+        {
+            ...input,
+            issueId: "risk-1",
+            decision: "reject",
+            reason: "reject",
+            evidenceMessageIds: ["message-1"]
+        }
+    ]
+];
+
 describe("Remote Gateway boundary", () => {
     let gateway: Awaited<ReturnType<typeof createRemoteGateway>> | undefined;
 
@@ -242,6 +318,89 @@ describe("Remote Gateway boundary", () => {
             gateway.invoke("pause", { input: { ...input, reason: "pause", authority: "captain" } })
         ).rejects.toMatchObject({ code: "convivium/invalid-request" });
         expect(fixture.calls.get("pause")?.mock.calls).toHaveLength(0);
+    });
+
+    it.each(cases)("rejects malformed %s inputs before Runtime", async (method, valid) => {
+        const fixture = runtimeFixture();
+        gateway = await createRemoteGateway(fixture.runtime);
+        const malformed: unknown[] = [
+            null,
+            [],
+            3,
+            { ...valid, authority: "captain" },
+            { ...valid, protocolVersion: 2 },
+            { ...valid, meetingId: "" },
+            { ...valid, reason: "x".repeat(16_385) }
+        ];
+        for (const key of Object.keys(valid)) {
+            const missing = { ...valid };
+            delete missing[key];
+            malformed.push(missing);
+        }
+        for (const value of malformed)
+            await expect(
+                gateway.invoke(method, { input: value }),
+                JSON.stringify(value).slice(0, 300)
+            ).rejects.toBeDefined();
+        expect(fixture.calls.get(method)).not.toHaveBeenCalled();
+    });
+
+    it.each(cases)(
+        "preserves %s domain failures and sanitizes broken outputs",
+        async (method, valid) => {
+            const fixture = runtimeFixture();
+            gateway = await createRemoteGateway(fixture.runtime);
+            const call = fixture.calls.get(method)!;
+            for (const code of [
+                "VERSION_CONFLICT",
+                "IDEMPOTENCY_CONFLICT",
+                "MEETING_NOT_FOUND",
+                "INVALID_ARGUMENT"
+            ]) {
+                const failure = {
+                    protocolVersion: 1,
+                    ok: false,
+                    code,
+                    message: "safe failure",
+                    retryable: false
+                };
+                call.mockResolvedValueOnce(failure);
+                await expect(gateway.invoke(method, { input: valid })).resolves.toEqual(failure);
+            }
+            for (const value of [
+                { ok: true },
+                { protocolVersion: 1, ok: false, code: "private", message: "private" }
+            ]) {
+                call.mockResolvedValueOnce(value);
+                await expect(gateway.invoke(method, { input: valid })).rejects.toMatchObject({
+                    code: "convivium/internal",
+                    message: "Meeting data is unavailable."
+                });
+            }
+            call.mockRejectedValueOnce(new Error("private exception"));
+            await expect(gateway.invoke(method, { input: valid })).rejects.toMatchObject({
+                code: "convivium/internal",
+                message: "Meeting data is unavailable."
+            });
+            call.mockRejectedValueOnce(
+                new LocalMeetingRecoveryUnavailableError("private recovery")
+            );
+            await expect(gateway.invoke(method, { input: valid })).rejects.toMatchObject({
+                code: "convivium/recovery-unavailable",
+                message: "Meeting data is unavailable."
+            });
+        }
+    );
+
+    it("rejects an already cancelled call without invoking Runtime", async () => {
+        const fixture = runtimeFixture();
+        gateway = await createRemoteGateway(fixture.runtime);
+        const controller = new AbortController();
+        controller.abort(new Error("cancelled"));
+        await expect(
+            gateway.invoke("pause", { input: { ...input, reason: "pause" } }, controller.signal)
+        ).rejects.toBeDefined();
+        expect(fixture.calls.get("pause")).not.toHaveBeenCalled();
     });
 
     it("merges caller and Service lifetime cancellation for streams", async () => {

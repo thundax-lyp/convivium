@@ -8,14 +8,7 @@
 
 ## 当前任务项
 
-以下任务按 M12—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
-
-- [ ] `plugin/http-removal`：M12 移除旧 HTTP 实现
-    - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M12。
-    - 关联文件：删除 [plugin/src/http/index.ts](plugin/src/http/index.ts)、删除 [plugin/tests/contract/http-boundary.spec.ts](plugin/tests/contract/http-boundary.spec.ts)；`plugin/tests/contract/remote-boundary.spec.ts`；[plugin/tests/contract/meeting-runtime.spec.ts](plugin/tests/contract/meeting-runtime.spec.ts)；[plugin/eslint.config.js](plugin/eslint.config.js)、[plugin/tests/unit/module-boundaries.spec.ts](plugin/tests/unit/module-boundaries.spec.ts)、[plugin/tests/contract/production-import-graph.spec.ts](plugin/tests/contract/production-import-graph.spec.ts)。
-    - 确认依据：2026-09-09 本任务中用户确认九接口一次迁移、替换五秒轮询及 review 修复；设计提交 `f7b6812`；本轮要求据此制定 TODO。
-    - 处理动作：删除旧 transport，并将 Runtime 边界用例和模块约束迁移到 Remote。
-    - 验收点：原领域、幂等及恢复断言保留；边界测试和 lint 通过，Client 不导入 Host 实现。
+以下任务按 M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
 
 - [ ] `smoke-profile/unary`：M13 迁移真实 profile unary 探针
     - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M13。

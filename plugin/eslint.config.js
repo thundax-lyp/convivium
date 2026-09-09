@@ -8,7 +8,6 @@ const publicModules = [
     "client",
     "domain",
     "dsh",
-    "http",
     "projection",
     "protocol",
     "remote",

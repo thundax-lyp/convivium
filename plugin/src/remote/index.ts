@@ -72,6 +72,9 @@ function validateInput<T>(
     const bytes = Buffer.byteLength(JSON.stringify(input), "utf8");
     if (bytes > maxInputBytes) throw new TypeError("Meeting input is too large.");
     assertExactInputKeys(input, expected);
+    if (!("meetingId" in input) || typeof input.meetingId !== "string" || !input.meetingId.trim()) {
+        throw new TypeError("Meeting ID must not be empty.");
+    }
     return (schema as (value: unknown) => T)(input);
 }
 
@@ -344,14 +347,9 @@ export class ConviviumRemoteService extends TypertRemoteService {
         try {
             return validateResult(resultSchema, value);
         } catch (cause) {
-            if (isProtocolError(value)) return validateProtocolError(value);
             throw internalFailure(cause);
         }
     }
-}
-
-function isProtocolError(value: unknown): value is ProtocolErrorV1 {
-    return typeof value === "object" && value !== null && (value as { ok?: unknown }).ok === false;
 }
 
 function mapFailure(signal: AbortSignal, cause: unknown): RemoteError | never {
