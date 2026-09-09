@@ -323,93 +323,126 @@ describe("meeting lifecycle and archive transitions", () => {
         ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
     });
 
-    it("requires verified outputs, criteria, and reviews before completion", () => {
-        const state = meeting("running");
-        state.objectiveContract.requiredOutputs = [
-            { id: "output-1", description: "output", status: "pending" }
-        ];
-        state.objectiveContract.acceptanceCriteria = [
-            { id: "criterion-1", description: "criterion", satisfied: false }
-        ];
-        state.objectiveContract.requiredReviewers = ["reviewer-1"];
-        expect(() =>
-            transitionMeeting(state, "completed", {
-                now,
-                termination: {
-                    code: "objective_satisfied",
-                    reason: "done",
-                    decisionIds: [],
-                    unresolvedQuestionIds: [],
-                    dissentingPositionIds: [],
-                    blockingAgendaItemIds: [],
-                    finalMessage: "done",
-                    endedAt: now
+    it.each(["output", "criterion", "review"])(
+        "rejects completion with only %s unresolved",
+        (blocker) => {
+            const state = meeting("running");
+            state.objectiveContract.requiredOutputs = [
+                { id: "output-1", description: "output", status: "accepted" }
+            ];
+            state.objectiveContract.acceptanceCriteria = [
+                { id: "criterion-1", description: "criterion", satisfied: true }
+            ];
+            state.objectiveContract.requiredReviewers = ["reviewer-1"];
+            state.completionFacts = [
+                {
+                    id: "review-1",
+                    kind: "review",
+                    subjectId: "output-1",
+                    assertedBy: "reviewer-1",
+                    authority: "required_reviewer",
+                    result: "approved",
+                    status: "active",
+                    evidenceMessageIds: [],
+                    taskIds: [],
+                    createdAt: now
                 }
-            })
-        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
-    });
+            ];
+            if (blocker === "output")
+                state.objectiveContract.requiredOutputs[0]!.status = "pending";
+            if (blocker === "criterion")
+                state.objectiveContract.acceptanceCriteria[0]!.satisfied = false;
+            if (blocker === "review") state.completionFacts = [];
+            const before = structuredClone(state);
+            expect(() =>
+                transitionMeeting(state, "completed", {
+                    now,
+                    termination: {
+                        code: "objective_satisfied",
+                        reason: "done",
+                        decisionIds: [],
+                        unresolvedQuestionIds: [],
+                        dissentingPositionIds: [],
+                        blockingAgendaItemIds: [],
+                        finalMessage: "done",
+                        endedAt: now
+                    }
+                })
+            ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+            expect(state).toEqual(before);
+        }
+    );
 
-    it("requires agenda and blocking facts to be settled before completion", () => {
-        const state = meeting("running");
-        state.agenda = [
-            {
-                id: "agenda-1",
-                title: "agenda",
-                objective: "objective",
-                inScope: [],
-                outOfScope: [],
-                completionCriteria: [],
-                requiredParticipants: [],
-                relatedTaskIds: [],
-                status: "pending"
-            }
-        ];
-        state.issues = [
-            {
-                id: "issue-1",
-                title: "blocker",
-                description: "blocker",
-                sourceMessageId: "message-1",
-                affectedOutputIds: [],
-                affectedCriterionIds: [],
-                violatedConstraintIds: [],
-                blockingObjectionIds: [],
-                blocking: true,
-                impact: "blocks completion",
-                urgency: "now",
-                reversibility: "reversible",
-                safeDefaultAvailable: false,
-                disposition: "blocking",
-                status: "open",
-                relatedTaskIds: []
-            }
-        ];
-        state.openQuestions = [
-            {
-                id: "question-1",
-                text: "question",
-                askedBy: "participant-1",
-                agendaItemId: "agenda-1",
-                blocking: true,
-                createdAt: now,
-                status: "open"
-            }
-        ];
-
-        expect(() =>
-            transitionMeeting(state, "completed", {
-                now,
-                termination: {
-                    code: "objective_satisfied",
-                    reason: "done",
-                    decisionIds: [],
-                    unresolvedQuestionIds: [],
-                    dissentingPositionIds: [],
-                    blockingAgendaItemIds: [],
-                    finalMessage: "done",
-                    endedAt: now
+    it.each(["agenda", "issue", "question"])(
+        "rejects completion with only blocking %s unresolved",
+        (blocker) => {
+            const state = meeting("running");
+            state.agenda = [
+                {
+                    id: "agenda-1",
+                    title: "agenda",
+                    objective: "objective",
+                    inScope: [],
+                    outOfScope: [],
+                    completionCriteria: [],
+                    requiredParticipants: [],
+                    relatedTaskIds: [],
+                    status: "resolved"
                 }
-            })
-        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
-    });
+            ];
+            state.issues = [
+                {
+                    id: "issue-1",
+                    title: "blocker",
+                    description: "blocker",
+                    sourceMessageId: "message-1",
+                    affectedOutputIds: [],
+                    affectedCriterionIds: [],
+                    violatedConstraintIds: [],
+                    blockingObjectionIds: [],
+                    blocking: true,
+                    impact: "blocks completion",
+                    urgency: "now",
+                    reversibility: "reversible",
+                    safeDefaultAvailable: false,
+                    disposition: "blocking",
+                    status: "resolved",
+                    relatedTaskIds: []
+                }
+            ];
+            state.openQuestions = [
+                {
+                    id: "question-1",
+                    text: "question",
+                    askedBy: "participant-1",
+                    agendaItemId: "agenda-1",
+                    blocking: true,
+                    createdAt: now,
+                    status: "answered"
+                }
+            ];
+
+            if (blocker === "agenda") state.agenda[0]!.status = "pending";
+            if (blocker === "issue") state.issues[0]!.status = "open";
+            if (blocker === "question") state.openQuestions[0]!.status = "open";
+            const before = structuredClone(state);
+
+            expect(() =>
+                transitionMeeting(state, "completed", {
+                    now,
+                    termination: {
+                        code: "objective_satisfied",
+                        reason: "done",
+                        decisionIds: [],
+                        unresolvedQuestionIds: [],
+                        dissentingPositionIds: [],
+                        blockingAgendaItemIds: [],
+                        finalMessage: "done",
+                        endedAt: now
+                    }
+                })
+            ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+            expect(state).toEqual(before);
+        }
+    );
 });

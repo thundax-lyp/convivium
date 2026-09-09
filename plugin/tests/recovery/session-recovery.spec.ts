@@ -15,8 +15,11 @@ import { resolveMeetingCaller } from "@/dsh/caller-resolver.js";
 import type { AgentDefinitionBindingV1 } from "@/role-composition/model.js";
 import type { JsonObject } from "@/repository/types.js";
 
-async function fixture(ready = true, definition?: AgentDefinitionBindingV1) {
-    const state = questionState();
+async function fixture(
+    ready = true,
+    definition?: AgentDefinitionBindingV1,
+    state = questionState()
+) {
     state.version = 0;
     state.eventSeq = 0;
     const domain = createFakeMeetingDomain();
@@ -208,7 +211,28 @@ describe("meeting Session recovery", () => {
         await f.repository.close();
     });
     it("replaces missing Manager and Participant, preserves facts and serializes concurrent recovery", async () => {
-        const f = await fixture();
+        const state = questionState();
+        state.turnSeq = 1;
+        state.messageSeq = 1;
+        state.transcript = [
+            {
+                id: "message-1",
+                seq: 1,
+                turnSeq: 1,
+                turnId: "turn-1",
+                stepId: "step-1",
+                attemptId: "attempt-1",
+                speaker: "participant-1",
+                agendaItemId: "agenda-1",
+                agendaRelation: "on_topic",
+                content: "Committed evidence before Session recovery.",
+                kind: "statement",
+                mentions: [],
+                taskIds: [],
+                createdAt: now
+            }
+        ];
+        const f = await fixture(true, undefined, state);
         const before = await f.repository.read();
         const old = f.entries.splice(0, 2).map((item) => item.id);
         await Promise.all([reconcileMeetingSessions(f.input), reconcileMeetingSessions(f.input)]);

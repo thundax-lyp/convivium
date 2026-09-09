@@ -44,22 +44,6 @@ function input() {
 }
 
 describe("MeetingTask transitions", () => {
-    it("rejects task writes after execution terminal state without mutation", () => {
-        const meeting = { ...state(), status: "archived" as const };
-        const before = structuredClone(meeting);
-
-        expect(() => createMeetingTask(meeting, input())).toThrowError(
-            expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
-        );
-        expect(() => startMeetingTask(meeting, "task-1", 3)).toThrowError(
-            expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
-        );
-        expect(() =>
-            finishMeetingTask(meeting, "task-1", { status: "completed", now: 4 })
-        ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
-        expect(meeting).toEqual(before);
-    });
-
     it("moves a task through requested, queued, running and completed", () => {
         const created = createMeetingTask(state(), input());
         const queued = queueMeetingTasks(
@@ -90,13 +74,24 @@ describe("MeetingTask transitions", () => {
         expect(finished.effect.events.map(({ type }) => type)).toEqual(["meeting_task.completed"]);
     });
 
-    it("rejects queueing a task from another Participant attempt", () => {
+    it.each([
+        ["Participant", "participant-2", "attempt-1"],
+        ["attempt", "participant-1", "attempt-2"]
+    ])("rejects queueing with a different originating %s", (_kind, participantId, attemptId) => {
         const created = createMeetingTask(state(), input());
+        // A later message citing the task must not transfer its originating attempt binding.
+        created.state.transcript.push({
+            ...created.state.transcript[0]!,
+            id: "message-2",
+            seq: 2,
+            attemptId: "attempt-2"
+        });
+        const before = structuredClone(created.state);
 
         expect(() =>
-            queueMeetingTasks(created.state, ["task-1"], "participant-2", "attempt-2", 2)
-        ).toThrowError("MeetingTasks can only be queued by their originating Participant attempt");
-        expect(created.state.meetingTasks[0]?.status).toBe("requested");
+            queueMeetingTasks(created.state, ["task-1"], participantId, attemptId, 2)
+        ).toThrowError(expect.objectContaining({ code: "STALE_ATTEMPT" }));
+        expect(created.state).toEqual(before);
     });
 
     it("rejects duplicate and invalid lifecycle operations without effects", () => {
@@ -140,17 +135,79 @@ describe("MeetingTask transitions", () => {
             expect(() => startMeetingTask(meeting, "task-1", 2)).toThrowError(
                 expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
             );
+            if (status === "archived") {
+                expect(() =>
+                    finishMeetingTask(meeting, "task-1", { status: "completed", now: 4 })
+                ).toThrowError(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+            }
             expect(meeting).toEqual(before);
         }
     });
 
     it("cancels every non-terminal task and leaves terminal facts unchanged", () => {
-        const created = createMeetingTask(state(), input());
-        const cancelled = cancelNonTerminalMeetingTasks(created.state, 5);
-        expect(cancelled.state.meetingTasks[0]).toMatchObject({
-            status: "cancelled",
-            finishedAt: 5
-        });
-        expect(cancelled.effect.events[0]?.type).toBe("meeting_task.cancelled");
+        const meeting = state();
+        meeting.meetingTasks = [
+            { ...input(), status: "requested", createdAt: 1 },
+            {
+                ...input(),
+                meetingTaskId: "queued",
+                participantId: "participant-2",
+                status: "queued",
+                createdAt: 1,
+                queuedAt: 2
+            },
+            {
+                ...input(),
+                meetingTaskId: "running",
+                participantId: "participant-3",
+                status: "running",
+                createdAt: 1,
+                queuedAt: 2,
+                startedAt: 3
+            },
+            {
+                ...input(),
+                meetingTaskId: "completed",
+                status: "completed",
+                createdAt: 1,
+                finishedAt: 4,
+                resultSummary: "passed"
+            },
+            {
+                ...input(),
+                meetingTaskId: "failed",
+                status: "failed",
+                createdAt: 1,
+                finishedAt: 4,
+                failureReason: "provider failed"
+            },
+            {
+                ...input(),
+                meetingTaskId: "cancelled",
+                status: "cancelled",
+                createdAt: 1,
+                finishedAt: 4
+            }
+        ];
+        const before = structuredClone(meeting);
+        const cancelled = cancelNonTerminalMeetingTasks(meeting, 5);
+        expect(meeting).toEqual(before);
+        expect(cancelled.state.meetingTasks).toEqual([
+            ...before.meetingTasks
+                .slice(0, 3)
+                .map((task) => ({ ...task, status: "cancelled", finishedAt: 5 })),
+            ...before.meetingTasks.slice(3)
+        ]);
+        expect(cancelled.effect.events).toEqual(
+            ["task-1", "queued", "running"].map((meetingTaskId, index) => ({
+                type: "meeting_task.cancelled",
+                payload: {
+                    meetingId: "meeting-1",
+                    meetingTaskId,
+                    participantId: `participant-${index + 1}`,
+                    status: "cancelled"
+                }
+            }))
+        );
     });
 });

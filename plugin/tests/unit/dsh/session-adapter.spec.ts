@@ -56,6 +56,7 @@ describe("Manager Session provisioning", () => {
         });
         const spec = received as { request: { prompt: Array<{ text: string }> } };
         expect(JSON.parse(spec.request.prompt[0]!.text)).toMatchObject({
+            kind: "convivium.session.provisioning",
             role: "manager",
             capability: "none"
         });
@@ -109,6 +110,7 @@ describe("Participant Session provisioning", () => {
         });
         const spec = received as { request: { prompt: Array<{ text: string }> } };
         expect(JSON.parse(spec.request.prompt[0]!.text)).toMatchObject({
+            kind: "convivium.session.provisioning",
             role: "participant",
             participantId: "participant-a",
             capability: "none"

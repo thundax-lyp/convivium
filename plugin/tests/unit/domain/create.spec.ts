@@ -114,7 +114,7 @@ describe("canonical meeting creation", () => {
             createMeetingState(
                 input({
                     participants: [
-                        { key: "participant-1", displayName: "One" },
+                        ...input().participants,
                         { key: "participant-1", displayName: "Duplicate" }
                     ]
                 }),
