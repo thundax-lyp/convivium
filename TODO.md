@@ -8,14 +8,7 @@
 
 ## 当前任务项
 
-以下任务按 M02—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
-
-- [ ] `runtime/application-service`：M02 接入提交后刷新通知
-    - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M02。
-    - 关联文件：[plugin/src/runtime/application-service/types.ts](plugin/src/runtime/application-service/types.ts)；[plugin/src/runtime/application-service/index.ts](plugin/src/runtime/application-service/index.ts)；[plugin/tests/contract/meeting-runtime.spec.ts](plugin/tests/contract/meeting-runtime.spec.ts)；[plugin/tests/contract/http-boundary.spec.ts](plugin/tests/contract/http-boundary.spec.ts) 仅补 fixture 的新 watch 方法。
-    - 确认依据：2026-09-09 本任务中用户确认九接口一次迁移、替换五秒轮询及 review 修复；设计提交 `f7b6812`；本轮要求据此制定 TODO。
-    - 处理动作：将 feed 接入既有 onProjectionCommitted 和 Runtime 生命周期。
-    - 验收点：成功提交后状态可读再通知；失败提交无通知；重开首帧与清理测试通过。
+以下任务按 M03—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
 
 - [ ] `remote`：M03 实现九方法 Remote Service
     - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M03。

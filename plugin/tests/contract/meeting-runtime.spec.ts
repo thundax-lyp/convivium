@@ -3763,6 +3763,83 @@ describe("local decision and risk runtime", () => {
             }
         ];
     }
+
+    it("publishes refreshes after successful controls and not after failed commits", async () => {
+        const { runtime, registry, meeting } = await setupLocalControlRuntime();
+        const controller = new AbortController();
+        const updates = runtime.watchLocalMeetingUpdates(controller.signal)[Symbol.asyncIterator]();
+        try {
+            await expect(updates.next()).resolves.toEqual({
+                done: false,
+                value: { kind: "refresh" }
+            });
+            const beforePause = loadProjection({ domain: meeting });
+            const expectedPauseVersion = beforePause.snapshot!.version;
+            const firstRefresh = updates.next();
+            const paused = await runtime.pauseLocalMeeting({
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: expectedPauseVersion,
+                requestId: "refresh-pause-1",
+                reason: "refresh test"
+            });
+            expect(paused).toMatchObject({ ok: true, result: { status: "paused" } });
+            await expect(firstRefresh).resolves.toEqual({
+                done: false,
+                value: { kind: "refresh" }
+            });
+            expect(paused).toMatchObject({ ok: true, result: { status: "paused" } });
+
+            const noReadRefresh = updates.next();
+            await Promise.resolve();
+            await expect(
+                Promise.race([noReadRefresh.then(() => "notified"), Promise.resolve("pending")])
+            ).resolves.toBe("pending");
+
+            const acceptedRefresh = updates.next();
+            const accepted = await runtime.acceptLocalDecision({
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: paused.meetingVersion,
+                requestId: "refresh-accept-1",
+                decisionCandidateId: "candidate-1",
+                reason: "refresh test",
+                evidenceMessageIds: ["message-1"]
+            });
+            expect(accepted).toMatchObject({
+                ok: true,
+                result: { decisionId: expect.any(String) }
+            });
+            await expect(acceptedRefresh).resolves.toEqual({
+                done: false,
+                value: { kind: "refresh" }
+            });
+
+            meeting.failPutsInTable("commits");
+            const failedRefresh = updates.next();
+            await expect(
+                runtime.disposeLocalDecision({
+                    protocolVersion: 1,
+                    meetingId: "meeting-1",
+                    expectedMeetingVersion: accepted.meetingVersion,
+                    requestId: "refresh-dispose-failed",
+                    decisionId: accepted.result.decisionId,
+                    action: "revoke",
+                    reason: "refresh failure test",
+                    evidenceMessageIds: ["message-1"]
+                })
+            ).resolves.toMatchObject({ ok: false });
+            await expect(
+                Promise.race([failedRefresh.then(() => "notified"), Promise.resolve("pending")])
+            ).resolves.toBe("pending");
+            meeting.allowPutsInTable("commits");
+        } finally {
+            controller.abort();
+            await updates.return?.();
+            await runtime.dispose();
+            await registry.close();
+        }
+    });
     it.each(["local", "captain"] as const)(
         "commits five %s actions with isolated replay and version gates",
         async (source) => {

@@ -94,7 +94,12 @@ function runtime() {
         ),
         endLocalMeeting: vi.fn(async () =>
             success({ status: "cancelled" as const, terminationCode: "user_cancelled" }, 6)
-        )
+        ),
+        watchLocalMeetingUpdates: () => ({
+            async *[Symbol.asyncIterator]() {
+                return;
+            }
+        })
     };
 }
 
