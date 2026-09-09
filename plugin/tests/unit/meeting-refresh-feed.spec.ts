@@ -64,11 +64,8 @@ describe("meeting refresh feed", () => {
         await expect(iterator.next()).resolves.toEqual({ done: false, value: { kind: "refresh" } });
         const pending = iterator.next();
         feed.notify("meeting-1", 1);
-        const race = await Promise.race([
-            pending.then(() => "notified"),
-            Promise.resolve("pending")
-        ]);
-        expect(race).toBe("pending");
         await iterator.return?.();
+        await expect(pending).resolves.toEqual({ done: true, value: undefined });
+        feed.dispose();
     });
 });

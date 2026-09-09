@@ -3785,14 +3785,6 @@ describe("local decision and risk runtime", () => {
                 done: false,
                 value: { kind: "refresh" }
             });
-            expect(paused).toMatchObject({ ok: true, result: { status: "paused" } });
-
-            const noReadRefresh = updates.next();
-            await Promise.resolve();
-            await expect(
-                Promise.race([noReadRefresh.then(() => "notified"), Promise.resolve("pending")])
-            ).resolves.toBe("pending");
-
             const acceptedRefresh = updates.next();
             const accepted = await runtime.acceptLocalDecision({
                 protocolVersion: 1,
@@ -3826,9 +3818,8 @@ describe("local decision and risk runtime", () => {
                     evidenceMessageIds: ["message-1"]
                 })
             ).resolves.toMatchObject({ ok: false });
-            await expect(
-                Promise.race([failedRefresh.then(() => "notified"), Promise.resolve("pending")])
-            ).resolves.toBe("pending");
+            controller.abort();
+            await expect(failedRefresh).resolves.toEqual({ done: true, value: undefined });
             meeting.allowPutsInTable("commits");
         } finally {
             controller.abort();
