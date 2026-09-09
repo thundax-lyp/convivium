@@ -6,6 +6,7 @@ import {
     useState,
     type ChangeEvent,
     type FormEvent,
+    type KeyboardEvent,
     type ReactElement
 } from "react";
 import {
@@ -32,6 +33,12 @@ import { renderObservabilitySections } from "./meeting-panel-sections.js";
 import { Button, Input } from "@deepseek-ai/dsh-client-ui-primitives";
 
 const meetingsPath = "/api/convivium/meetings";
+const END_OUTCOMES = [
+    { value: "partial", label: "Partial" },
+    { value: "no_consensus", label: "No consensus" },
+    { value: "cancelled", label: "Cancelled" }
+] as const;
+type EndOutcome = (typeof END_OUTCOMES)[number]["value"];
 
 class ProtocolFailure extends Error {
     constructor(readonly protocolError: ProtocolErrorV1) {
@@ -119,9 +126,7 @@ export function ConviviumMeetingPanel(): ReactElement {
     const [pauseReason, setPauseReason] = useState("");
     const [skipReason, setSkipReason] = useState("");
     const [endReason, setEndReason] = useState("");
-    const [endOutcome, setEndOutcome] = useState<"partial" | "no_consensus" | "cancelled">(
-        "partial"
-    );
+    const [endOutcome, setEndOutcome] = useState<EndOutcome>("partial");
     const [writePending, setWritePending] = useState(false);
     const [draft, setDraft] = useState<FactControlDraft>();
     const [factError, setFactError] = useState<ProtocolErrorV1>();
@@ -908,26 +913,85 @@ export function ConviviumMeetingPanel(): ReactElement {
                                           }
                                       },
                                       createElement(
-                                          "select",
+                                          "div",
                                           {
+                                              role: "radiogroup",
                                               "aria-label": "End outcome",
-                                              value: endOutcome,
-                                              onChange: (event: ChangeEvent<HTMLSelectElement>) =>
-                                                  setEndOutcome(
-                                                      event.currentTarget.value as
-                                                          "partial" | "no_consensus" | "cancelled"
-                                                  )
+                                              style: { display: "flex", flexWrap: "wrap", gap: 4 }
                                           },
-                                          createElement("option", { value: "partial" }, "Partial"),
-                                          createElement(
-                                              "option",
-                                              { value: "no_consensus" },
-                                              "No consensus"
-                                          ),
-                                          createElement(
-                                              "option",
-                                              { value: "cancelled" },
-                                              "Cancelled"
+                                          END_OUTCOMES.map((option, index) =>
+                                              createElement(
+                                                  Button,
+                                                  {
+                                                      key: option.value,
+                                                      type: "button",
+                                                      size: "sm",
+                                                      variant:
+                                                          endOutcome === option.value
+                                                              ? "primary"
+                                                              : "outline",
+                                                      role: "radio",
+                                                      ...{ "data-end-outcome": option.value },
+                                                      "aria-checked": endOutcome === option.value,
+                                                      tabIndex:
+                                                          endOutcome === option.value ? 0 : -1,
+                                                      disabled: writesDisabled,
+                                                      onClick: () => {
+                                                          if (
+                                                              writesDisabled ||
+                                                              writePendingRef.current
+                                                          )
+                                                              return;
+                                                          setEndOutcome(option.value);
+                                                      },
+                                                      onKeyDown: (
+                                                          event: KeyboardEvent<HTMLButtonElement>
+                                                      ) => {
+                                                          let nextIndex: number;
+                                                          switch (event.key) {
+                                                              case "ArrowRight":
+                                                              case "ArrowDown":
+                                                                  nextIndex =
+                                                                      (index + 1) %
+                                                                      END_OUTCOMES.length;
+                                                                  break;
+                                                              case "ArrowLeft":
+                                                              case "ArrowUp":
+                                                                  nextIndex =
+                                                                      (index +
+                                                                          END_OUTCOMES.length -
+                                                                          1) %
+                                                                      END_OUTCOMES.length;
+                                                                  break;
+                                                              case "Home":
+                                                                  nextIndex = 0;
+                                                                  break;
+                                                              case "End":
+                                                                  nextIndex =
+                                                                      END_OUTCOMES.length - 1;
+                                                                  break;
+                                                              default:
+                                                                  return;
+                                                          }
+                                                          event.preventDefault();
+                                                          if (
+                                                              writesDisabled ||
+                                                              writePendingRef.current
+                                                          )
+                                                              return;
+                                                          const nextOption =
+                                                              END_OUTCOMES[nextIndex];
+                                                          if (nextOption === undefined) return;
+                                                          setEndOutcome(nextOption.value);
+                                                          event.currentTarget.parentElement
+                                                              ?.querySelector<HTMLButtonElement>(
+                                                                  `[data-end-outcome="${nextOption.value}"]`
+                                                              )
+                                                              ?.focus();
+                                                      }
+                                                  },
+                                                  option.label
+                                              )
                                           )
                                       ),
                                       createElement(Input, {
