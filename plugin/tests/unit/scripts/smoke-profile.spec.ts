@@ -340,7 +340,12 @@ describe("smoke profile scenario guard", () => {
                 {
                     ok: true,
                     scenario: "baseline",
-                    assertions: ["attendance-reject-tool-zero-effects"]
+                    assertions: [
+                        "attendance-reject-tool-zero-effects",
+                        "baseline-transcript-acb",
+                        "baseline-remote-pause-resume",
+                        "baseline-remote-stream-reconnect"
+                    ]
                 },
                 "baseline"
             ).ok
@@ -561,7 +566,7 @@ describe("smoke profile scenario guard", () => {
         expect(probeSource.match(/runBaselineScenario\(runtime\)/g)).toHaveLength(1);
         expect(baselineSource).toContain("export async function runBaselineScenario(runtime)");
         expect(baselineSource).toContain('"baseline-transcript-acb"');
-        expect(baselineSource).toContain('"baseline-http-pause-resume"');
+        expect(baselineSource).toContain('"baseline-remote-pause-resume"');
         expect(baselineSource).toContain('scenario === "timeout"');
     });
 

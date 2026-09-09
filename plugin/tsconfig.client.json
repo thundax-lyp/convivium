@@ -7,6 +7,6 @@
         "declarationDir": "lib/types",
         "rootDir": "src"
     },
-    "include": ["src/client/**/*.tsx", "src/protocol/**/*.ts"],
+    "include": ["src/client/**/*.tsx", "src/client/**/*.ts", "src/protocol/**/*.ts"],
     "exclude": ["tests/**"]
 }

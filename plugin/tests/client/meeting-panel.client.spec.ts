@@ -2,6 +2,53 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apply, inject, name } from "@/client/index.js";
+import { createMeetingClient, type MeetingClient } from "@/client/meeting-client.js";
+import { createControlledMeetingStream } from "../fixtures/remote-stream.js";
+import { createRemoteClient } from "../fixtures/remote-client.js";
+import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
+
+type Rpc = (
+    method: string,
+    options: { input: unknown; signal?: AbortSignal }
+) => Promise<RemoteResult<unknown>>;
+let rpc: Rpc;
+let api: MeetingClient;
+let streams: ReturnType<typeof createControlledMeetingStream>[];
+let clientFixture: Awaited<ReturnType<typeof createRemoteClient>>;
+beforeEach(async () => {
+    rpc = async () => {
+        throw new Error("Unexpected RPC");
+    };
+    clientFixture = await createRemoteClient(async (_channel, endpoint, payload, signal) => {
+        if (!payload || typeof payload !== "object" || !("args" in payload))
+            throw new Error("Missing args");
+        const args = payload.args;
+        if (!args || typeof args !== "object") throw new Error("Invalid args");
+        return rpc(endpoint.slice("conviviumMeetings/".length), {
+            input: "input" in args ? args.input : undefined,
+            signal
+        });
+    });
+    api = createMeetingClient(clientFixture.ctx.remote);
+    streams = [];
+    api.openUpdates = (unavailable) => {
+        const fixture = createControlledMeetingStream(unavailable);
+        streams.push(fixture);
+        return fixture.stream;
+    };
+});
+afterEach(async () => {
+    cleanup();
+    await Promise.all(streams.map((fixture) => fixture.stream.dispose()));
+    await clientFixture.dispose();
+});
+function setRpc(mock: Rpc) {
+    rpc = mock;
+}
+function isWrite(method: string) {
+    return method !== "list" && method !== "getStatus";
+}
+
 import { ConviviumMeetingPanel } from "@/client/meeting-panel.js";
 import { mapMeetingPanelView } from "@/client/meeting-panel-view.js";
 import type { MeetingStatusResultV1 } from "@/protocol/index.js";
@@ -396,11 +443,8 @@ function success<T>(result: T, meetingVersion = 2) {
     return { protocolVersion: 1 as const, ok: true as const, meetingId, meetingVersion, result };
 }
 
-function jsonResponse(value: unknown, status = 200): Response {
-    return new Response(JSON.stringify(value), {
-        status,
-        headers: { "content-type": "application/json" }
-    });
+function remoteResult(value: unknown): RemoteResult<unknown> {
+    return { ok: true, value: JSON.parse(JSON.stringify(value)) };
 }
 
 function protocolError(message = "Version changed") {
@@ -617,15 +661,14 @@ describe("meeting panel and client plugin lifecycle", () => {
             "d-revoked",
             "d-current"
         ]);
-        vi.stubGlobal(
-            "fetch",
-            vi.fn(async (input: RequestInfo | URL) =>
-                String(input) === "/api/convivium/meetings"
-                    ? jsonResponse(listResponse())
-                    : jsonResponse(success(detail, detail.meetingVersion))
+        setRpc(
+            vi.fn(async (input: string) =>
+                String(input) === "list"
+                    ? remoteResult(listResponse())
+                    : remoteResult(success(detail, detail.meetingVersion))
             )
         );
-        render(createElement(ConviviumMeetingPanel));
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
         await waitFor(() => {
             const accepted = screen.getByLabelText("Accepted decisions").textContent ?? "";
@@ -670,15 +713,14 @@ describe("meeting panel and client plugin lifecycle", () => {
 
     it("fact visibility: panel DOM renders decision history from validated detail", async () => {
         const detail = factStatus("running");
-        vi.stubGlobal(
-            "fetch",
-            vi.fn(async (input: RequestInfo | URL) =>
-                String(input) === "/api/convivium/meetings"
-                    ? jsonResponse(listResponse())
-                    : jsonResponse(success(detail, detail.meetingVersion))
+        setRpc(
+            vi.fn(async (input: string) =>
+                String(input) === "list"
+                    ? remoteResult(listResponse())
+                    : remoteResult(success(detail, detail.meetingVersion))
             )
         );
-        render(createElement(ConviviumMeetingPanel));
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
         await waitFor(() => {
             expect(screen.getByLabelText("Decision history").textContent).toContain("d-revoked");
@@ -943,14 +985,14 @@ describe("meeting panel and client plugin lifecycle", () => {
             messages: [{ ...message, id: "m2", seq: 2 }, message],
             blockingFacts: [{ id: "b1", kind: "risk" as const, subjectId: "s1", summary: "risk" }]
         };
-        vi.stubGlobal(
-            "fetch",
+        setRpc(
             vi
-                .fn<typeof fetch>()
-                .mockResolvedValueOnce(jsonResponse(listResponse()))
-                .mockResolvedValueOnce(jsonResponse(success(detail)))
+                .fn<Rpc>()
+                .mockResolvedValueOnce(remoteResult(listResponse()))
+                .mockResolvedValueOnce(remoteResult(listResponse()))
+                .mockResolvedValueOnce(remoteResult(success(detail)))
         );
-        render(createElement(ConviviumMeetingPanel));
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
         const transcript = screen.getByLabelText("Transcript");
         expect(
@@ -968,42 +1010,34 @@ describe("meeting panel and client plugin lifecycle", () => {
         vi.useRealTimers();
     });
 
-    it("registers the meeting panel only through the conversation view injection", () => {
-        let contribution: unknown;
-        const register = vi.fn((_options, component) => {
-            contribution = component;
-            return vi.fn();
-        });
+    it("mounts the namespace before registering the meeting panel", async () => {
+        const register = vi.fn(() => () => {});
         const slotInject = vi.fn((_key, callback: () => unknown) => callback());
-
+        const ctx = clientFixture.ctx;
+        await clientFixture.unmount();
+        ctx.provide("slots", { inject: slotInject, register });
         expect(name).toBe("convivium-client");
-        expect(inject).toEqual(["slots"]);
-        apply({ slots: { inject: slotInject, register } } as never);
-
-        expect(slotInject).toHaveBeenCalledTimes(1);
+        expect(inject).toEqual(["remote"]);
+        await ctx.plugin({ name, inject, apply });
+        await waitFor(() => expect(register).toHaveBeenCalledOnce());
         expect(slotInject).toHaveBeenCalledWith("conversation.view", expect.any(Function));
         expect(register).toHaveBeenCalledWith(
-            {
-                name: "conversation.view",
-                id: "convivium-meetings",
-                label: "Meetings",
-                order: 100
-            },
-            ConviviumMeetingPanel
+            { name: "conversation.view", id: "convivium-meetings", label: "Meetings", order: 100 },
+            expect.any(Function)
         );
-        expect(contribution).toBe(ConviviumMeetingPanel);
     });
 
     it("loads only the list initially, then renders a validated full paused projection", async () => {
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult("paused", 3), 3)));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult("paused", 3), 3)));
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
 
         const item = await screen.findByRole("button", { name: /Runtime smoke/ });
-        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(rpcMock).toHaveBeenCalledTimes(1);
         expect(item.getAttribute("data-meeting-id")).toBe(meetingId);
         expect(screen.getByTestId("convivium-meeting-panel").getAttribute("aria-label")).toBe(
             "Convivium meetings"
@@ -1012,7 +1046,7 @@ describe("meeting panel and client plugin lifecycle", () => {
 
         fireEvent.click(item);
         await screen.findByLabelText("Meeting summary");
-        expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/convivium/meetings/meeting%2F1");
+        expect(rpcMock.mock.calls[2]?.[0]).toBe("getStatus");
         expect(screen.getByLabelText("Resume meeting")).toBeTruthy();
         expect(screen.queryByLabelText("Pause meeting")).toBeNull();
         expect(screen.getByLabelText("Meeting summary").textContent).toContain("paused");
@@ -1023,27 +1057,27 @@ describe("meeting panel and client plugin lifecycle", () => {
 
     it("refreshes both the selected detail and list summary when the window regains focus", async () => {
         const pausedListItem = { ...listItem, status: "paused" as const, meetingVersion: 3 };
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
-            .mockResolvedValueOnce(jsonResponse(listResponse([pausedListItem])))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult("paused", 3), 3)));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult())))
+            .mockResolvedValueOnce(remoteResult(listResponse([pausedListItem])))
+            .mockResolvedValueOnce(remoteResult(success(statusResult("paused", 3), 3)));
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
 
         window.dispatchEvent(new Event("focus"));
 
         await screen.findByText("paused");
         expect(screen.getByRole("button", { name: /Runtime smoke \(paused\)/ })).toBeTruthy();
-        expect(fetchMock).toHaveBeenCalledTimes(4);
+        expect(rpcMock).toHaveBeenCalledTimes(5);
     });
 
-    it.each(["focus", "poll"] as const)(
+    it.each(["focus", "notice"] as const)(
         "fact visibility: %s replaces complete facts and reopen retains archive",
         async (trigger) => {
-            if (trigger === "poll") vi.useFakeTimers({ shouldAdvanceTime: true });
             const active = refreshFactStatus("active");
             const terminal = refreshFactStatus("terminal");
             const archived = refreshFactStatus("archived");
@@ -1054,15 +1088,14 @@ describe("meeting panel and client plugin lifecycle", () => {
                 ).not.toThrow();
             }
             let selected = active;
-            vi.stubGlobal(
-                "fetch",
-                vi.fn(async (input: RequestInfo | URL) =>
-                    String(input) === "/api/convivium/meetings"
-                        ? jsonResponse(listResponse())
-                        : jsonResponse(success(selected, selected.meetingVersion))
+            setRpc(
+                vi.fn(async (input: string) =>
+                    String(input) === "list"
+                        ? remoteResult(listResponse())
+                        : remoteResult(success(selected, selected.meetingVersion))
                 )
             );
-            const rendered = render(createElement(ConviviumMeetingPanel));
+            const rendered = render(createElement(ConviviumMeetingPanel, { api }));
             await selectMeeting();
             assertRefreshFacts(active);
             fireEvent.change(screen.getByLabelText("Pause reason"), {
@@ -1071,7 +1104,7 @@ describe("meeting panel and client plugin lifecycle", () => {
             expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(false);
             for (const next of [terminal, archived]) {
                 selected = next;
-                if (trigger === "poll") await act(async () => vi.advanceTimersByTime(5_000));
+                if (trigger === "notice") await act(async () => streams.at(-1)!.push());
                 else fireEvent(window, new Event("focus"));
                 await waitFor(() => assertRefreshFacts(next));
                 const dds = [
@@ -1084,7 +1117,7 @@ describe("meeting panel and client plugin lifecycle", () => {
                 );
             }
             rendered.unmount();
-            render(createElement(ConviviumMeetingPanel));
+            render(createElement(ConviviumMeetingPanel, { api }));
             await selectMeeting();
             assertRefreshFacts(archived);
             expect([active, terminal, archived].map((value) => JSON.stringify(value))).toEqual(
@@ -1116,16 +1149,17 @@ describe("meeting panel and client plugin lifecycle", () => {
             }
             expect(() => MeetingStatusResultSchema(malformedSource)).not.toThrow();
             expect(() => MeetingStatusResultSchema(malformed)).toThrow();
-            const fetchMock = vi
-                .fn<typeof fetch>()
-                .mockResolvedValueOnce(jsonResponse(listResponse([listItem])))
-                .mockResolvedValueOnce(jsonResponse(success(initial, 2)))
-                .mockResolvedValueOnce(jsonResponse(listResponse()))
+            const rpcMock = vi
+                .fn<Rpc>()
+                .mockResolvedValueOnce(remoteResult(listResponse([listItem])))
+                .mockResolvedValueOnce(remoteResult(listResponse()))
+                .mockResolvedValueOnce(remoteResult(success(initial, 2)))
+                .mockResolvedValueOnce(remoteResult(listResponse()))
                 .mockResolvedValueOnce(
-                    jsonResponse(success(malformed, malformedSource.meetingVersion))
+                    remoteResult(success(malformed, malformedSource.meetingVersion))
                 );
-            vi.stubGlobal("fetch", fetchMock);
-            render(createElement(ConviviumMeetingPanel));
+            setRpc(rpcMock);
+            render(createElement(ConviviumMeetingPanel, { api }));
             await selectMeeting();
             fireEvent.change(screen.getByLabelText("Pause reason"), {
                 target: { value: "Inspect facts" }
@@ -1139,10 +1173,8 @@ describe("meeting panel and client plugin lifecycle", () => {
             expect(
                 screen.getByRole("button", { name: "Pause meeting" }).hasAttribute("disabled")
             ).toBe(true);
-            fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
-            fetchMock.mockResolvedValueOnce(
-                jsonResponse(success(refreshFactStatus("archived"), 6))
-            );
+            rpcMock.mockResolvedValueOnce(remoteResult(listResponse()));
+            rpcMock.mockResolvedValueOnce(remoteResult(success(refreshFactStatus("archived"), 6)));
             window.dispatchEvent(new Event("focus"));
             await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
             await waitFor(() => assertRefreshFacts(refreshFactStatus("archived")));
@@ -1165,18 +1197,231 @@ describe("meeting panel and client plugin lifecycle", () => {
         }
     });
 
+    it("keeps selected meeting controls disabled until the list and detail both refresh", async () => {
+        const listRead = deferred<RemoteResult<unknown>>();
+        let holdList = false;
+        const mock = vi.fn<Rpc>(async (method) =>
+            method === "list"
+                ? holdList
+                    ? listRead.promise
+                    : remoteResult(listResponse())
+                : remoteResult(success(statusResult("paused")))
+        );
+        setRpc(mock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await screen.findByRole("button", { name: /Runtime smoke/ });
+        holdList = true;
+        await selectMeeting();
+        const resume = screen.getByLabelText("Resume meeting");
+        expect(resume.hasAttribute("disabled")).toBe(true);
+        fireEvent.click(resume);
+        expect(mock.mock.calls.some(([method]) => isWrite(method))).toBe(false);
+        await act(async () => listRead.resolve(remoteResult(listResponse())));
+        await waitFor(() => expect(resume.hasAttribute("disabled")).toBe(false));
+    });
+
+    it("disables cached controls on carrier loss until both reconnect reads succeed", async () => {
+        let hold = false;
+        const detailRead = deferred<RemoteResult<unknown>>();
+        setRpc(async (method) =>
+            method === "list"
+                ? remoteResult(listResponse())
+                : hold
+                  ? detailRead.promise
+                  : remoteResult(success(statusResult()))
+        );
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        fireEvent.change(screen.getByLabelText("Pause reason"), { target: { value: "Review" } });
+        expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(false);
+        await act(async () => streams[0]!.disconnect());
+        expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("Meeting version2");
+        hold = true;
+        await act(async () => streams[0]!.reconnect());
+        expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
+        await act(async () =>
+            detailRead.resolve(remoteResult(success(statusResult("running", 4), 4)))
+        );
+        await waitFor(() =>
+            expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(false)
+        );
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("Meeting version4");
+    });
+
+    it("coalesces focus while disposing and creates only one replacement stream", async () => {
+        setRpc(async (method) =>
+            remoteResult(method === "list" ? listResponse() : success(statusResult()))
+        );
+        const open = vi.spyOn(api, "openUpdates");
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        const stream = streams[0]!.stream;
+        const dispose = stream.dispose.bind(stream);
+        const released = deferred<void>();
+        const spy = vi.spyOn(stream, "dispose").mockImplementation(async () => {
+            await released.promise;
+            await dispose();
+        });
+        for (let i = 0; i < 3; i++) fireEvent.focus(window);
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(open).toHaveBeenCalledTimes(1);
+        await act(async () => released.resolve());
+        await waitFor(() => expect(open).toHaveBeenCalledTimes(2));
+        expect(spy).toHaveBeenCalledTimes(1);
+        spy.mockRestore();
+    });
+
+    it("does not perform periodic reads and closes its stream on unmount", async () => {
+        const mock = vi.fn<Rpc>(async (method) =>
+            remoteResult(method === "list" ? listResponse() : success(statusResult()))
+        );
+        setRpc(mock);
+        const panel = render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        const count = mock.mock.calls.length;
+        vi.useFakeTimers();
+        await act(async () => vi.advanceTimersByTime(15_000));
+        expect(mock).toHaveBeenCalledTimes(count);
+        panel.unmount();
+        expect(streams[0]!.stream.signal.aborted).toBe(true);
+        await act(async () => streams[0]!.push());
+        expect(mock).toHaveBeenCalledTimes(count);
+    });
+
+    it("invalidates pre-frame reads and waits for both fresh projections", async () => {
+        api.openUpdates = (unavailable) => {
+            const fixture = createControlledMeetingStream(unavailable, false);
+            streams.push(fixture);
+            return fixture.stream;
+        };
+        const oldDetail = deferred<RemoteResult<unknown>>();
+        const newList = deferred<RemoteResult<unknown>>();
+        const newDetail = deferred<RemoteResult<unknown>>();
+        let firstFrame = false;
+        const mock = vi.fn<Rpc>(async (method) => {
+            if (method === "list")
+                return firstFrame ? newList.promise : remoteResult(listResponse());
+            return firstFrame ? newDetail.promise : oldDetail.promise;
+        });
+        setRpc(mock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        fireEvent.click(screen.getByLabelText("Reload meetings"));
+        fireEvent.click(await screen.findByRole("button", { name: /Runtime smoke/ }));
+        await waitFor(() =>
+            expect(mock.mock.calls.some(([method]) => method === "getStatus")).toBe(true)
+        );
+        firstFrame = true;
+        await act(async () => streams[0]!.push());
+        await act(async () =>
+            oldDetail.resolve(remoteResult(success(statusResult("running", 3), 3)))
+        );
+        expect(screen.queryByLabelText("Meeting summary")).toBeNull();
+        await act(async () => newList.resolve(remoteResult(listResponse())));
+        expect(screen.queryByLabelText("Meeting summary")).toBeNull();
+        await act(async () =>
+            newDetail.resolve(remoteResult(success(statusResult("running", 4), 4)))
+        );
+        fireEvent.change(await screen.findByLabelText("Pause reason"), {
+            target: { value: "Review" }
+        });
+        await waitFor(() =>
+            expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(false)
+        );
+        expect(screen.getByLabelText("Meeting summary").textContent).toContain("Meeting version4");
+    });
+
+    it("coalesces refresh requests during an active read into one following cycle", async () => {
+        const pending = deferred<RemoteResult<unknown>>();
+        const mock = vi.fn<Rpc>(async (method) =>
+            remoteResult(method === "list" ? listResponse() : success(statusResult()))
+        );
+        setRpc(mock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        mock.mockClear();
+        mock.mockImplementationOnce(() => pending.promise);
+        fireEvent.click(screen.getByLabelText("Reload meetings"));
+        for (let i = 0; i < 3; i++) fireEvent.click(screen.getByLabelText("Reload meetings"));
+        expect(mock).toHaveBeenCalledTimes(2);
+        await act(async () => pending.resolve(remoteResult(listResponse())));
+        await waitFor(() => expect(mock).toHaveBeenCalledTimes(4));
+        expect(mock.mock.calls.filter(([method]) => method === "getStatus")).toHaveLength(2);
+    });
+
+    it("ignores a read invalidated by a write and shows the post-write version", async () => {
+        const pending = deferred<RemoteResult<unknown>>();
+        let hold = false;
+        let version = 2;
+        const mock = vi.fn<Rpc>(async (method) => {
+            if (method === "list") return remoteResult(listResponse());
+            if (method === "getStatus")
+                return hold
+                    ? pending.promise
+                    : remoteResult(success(statusResult("running", version), version));
+            version = 4;
+            hold = false;
+            return remoteResult(success({ status: "paused", changed: true }, version));
+        });
+        setRpc(mock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        hold = true;
+        fireEvent.click(screen.getByLabelText("Reload meetings"));
+        fireEvent.change(screen.getByLabelText("Pause reason"), { target: { value: "Review" } });
+        fireEvent.click(screen.getByLabelText("Pause meeting"));
+        await act(async () =>
+            pending.resolve(remoteResult(success(statusResult("running", 3), 3)))
+        );
+        await waitFor(() =>
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain(
+                "Meeting version4"
+            )
+        );
+        expect(mock.mock.calls.filter(([method]) => method === "pause")).toHaveLength(1);
+    });
+
+    it("keeps the new selection when a previous detail resolves late", async () => {
+        const pending = deferred<RemoteResult<unknown>>();
+        const other = { ...listItem, meetingId: "meeting/2", topic: "Second meeting" };
+        setRpc(async (method, options) => {
+            if (method === "list") return remoteResult(listResponse([listItem, other]));
+            const input = options.input;
+            if (
+                input &&
+                typeof input === "object" &&
+                "meetingId" in input &&
+                input.meetingId === meetingId
+            )
+                return pending.promise;
+            return remoteResult({
+                ...success({ ...statusResult(), meetingId: other.meetingId, topic: other.topic }),
+                meetingId: other.meetingId
+            });
+        });
+        render(createElement(ConviviumMeetingPanel, { api }));
+        fireEvent.click(await screen.findByRole("button", { name: /Runtime smoke/ }));
+        fireEvent.click(screen.getByRole("button", { name: /Second meeting/ }));
+        await act(async () => pending.resolve(remoteResult(success(statusResult()))));
+        await waitFor(() =>
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain("Second meeting")
+        );
+        expect(screen.getByLabelText("Meeting summary").textContent).not.toContain("Runtime smoke");
+    });
+
     it("keeps writes exclusive and refetches status after a successful write", async () => {
-        const post = deferred<Response>();
+        const post = deferred<RemoteResult<unknown>>();
         const pausedListItem = { ...listItem, status: "paused" as const, meetingVersion: 3 };
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult())))
             .mockImplementationOnce(() => post.promise)
-            .mockResolvedValueOnce(jsonResponse(listResponse([pausedListItem])))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult("paused", 3), 3)));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
+            .mockResolvedValueOnce(remoteResult(listResponse([pausedListItem])))
+            .mockResolvedValueOnce(remoteResult(success(statusResult("paused", 3), 3)));
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
 
         fireEvent.change(screen.getByLabelText("Pause reason"), {
@@ -1184,21 +1429,21 @@ describe("meeting panel and client plugin lifecycle", () => {
         });
         fireEvent.click(screen.getByLabelText("Pause meeting"));
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
-        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(rpcMock).toHaveBeenCalledTimes(4);
 
         window.dispatchEvent(new Event("focus"));
         await act(async () => Promise.resolve());
-        expect(fetchMock).toHaveBeenCalledTimes(3);
+        expect(rpcMock).toHaveBeenCalledTimes(4);
 
         await act(async () => {
-            post.resolve(jsonResponse(success({ status: "paused", changed: true }, 3)));
+            post.resolve(remoteResult(success({ status: "paused", changed: true }, 3)));
             await post.promise;
         });
         await screen.findByText("paused");
-        expect(fetchMock).toHaveBeenCalledTimes(5);
+        expect(rpcMock).toHaveBeenCalledTimes(6);
         expect(screen.getByRole("button", { name: /Runtime smoke \(paused\)/ })).toBeTruthy();
-        expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
-        expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+        expect(rpcMock.mock.calls.filter((call) => isWrite(call[0]))).toHaveLength(1);
+        expect(rpcMock.mock.calls[3]?.[1]?.input).toEqual({
             protocolVersion: 1,
             meetingId,
             expectedMeetingVersion: 2,
@@ -1208,17 +1453,18 @@ describe("meeting panel and client plugin lifecycle", () => {
     });
 
     it("shows Skip only for a visible current attempt and posts the fixed skip payload", async () => {
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 2, true))))
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult("running", 2, true))))
             .mockResolvedValueOnce(
-                jsonResponse(success({ revokedAttemptId: "attempt-1", action: "skip" }, 3))
+                remoteResult(success({ revokedAttemptId: "attempt-1", action: "skip" }, 3))
             )
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 3))));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult("running", 3))));
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
 
         expect(screen.getByLabelText("Skip current speaker")).toBeTruthy();
@@ -1226,9 +1472,9 @@ describe("meeting panel and client plugin lifecycle", () => {
             target: { value: "Move on" }
         });
         fireEvent.click(screen.getByLabelText("Skip current speaker"));
-        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
-        expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/convivium/meetings/meeting%2F1/reassign");
-        expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+        await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(6));
+        expect(rpcMock.mock.calls[3]?.[0]).toBe("reassign");
+        expect(rpcMock.mock.calls[3]?.[1]?.input).toEqual({
             protocolVersion: 1,
             meetingId,
             expectedMeetingVersion: 2,
@@ -1237,41 +1483,40 @@ describe("meeting panel and client plugin lifecycle", () => {
             reason: "Move on",
             requestId: "request-1"
         });
-        expect(
-            JSON.stringify(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body)))
-        ).not.toContain("replacementParticipantId");
+        expect(JSON.stringify(rpcMock.mock.calls[3]?.[1]?.input)).not.toContain(
+            "replacementParticipantId"
+        );
     });
 
     it("limits End outcomes and posts the fixed empty completion fields", async () => {
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult("converging", 2))))
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult("converging", 2))))
             .mockResolvedValueOnce(
-                jsonResponse(
+                remoteResult(
                     success({ status: "no_consensus", terminationCode: "no_consensus" }, 3)
                 )
             )
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(terminalStatusResult()));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(terminalStatusResult()));
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
 
         expectSelectedEndOutcome("Partial");
         expect(screen.queryByRole("radio", { name: "Completed" })).toBeNull();
         fireEvent.click(screen.getByRole("radio", { name: "No consensus", exact: true }));
         expectSelectedEndOutcome("No consensus");
-        expect(
-            fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
-        ).toHaveLength(0);
+        expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(0);
         fireEvent.change(screen.getByLabelText("End reason"), {
             target: { value: "No consensus reached" }
         });
         fireEvent.click(screen.getByLabelText("End meeting"));
-        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
-        expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/convivium/meetings/meeting%2F1/end");
-        expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+        await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(6));
+        expect(rpcMock.mock.calls[3]?.[0]).toBe("end");
+        expect(rpcMock.mock.calls[3]?.[1]?.input).toEqual({
             protocolVersion: 1,
             meetingId,
             expectedMeetingVersion: 2,
@@ -1285,12 +1530,13 @@ describe("meeting panel and client plugin lifecycle", () => {
     });
 
     it("keeps one End outcome selected through keyboard navigation", async () => {
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult())));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult())));
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
         let selected = expectSelectedEndOutcome("Partial");
         selected.focus();
@@ -1311,9 +1557,7 @@ describe("meeting panel and client plugin lifecycle", () => {
         expect(fireEvent.keyDown(selected, { key: "Tab" })).toBe(true);
         fireEvent.click(selected);
         expectSelectedEndOutcome("Partial");
-        expect(
-            fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
-        ).toHaveLength(0);
+        expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(0);
     });
 
     it("resets End outcome when selecting another meeting", async () => {
@@ -1323,20 +1567,26 @@ describe("meeting panel and client plugin lifecycle", () => {
             meetingId: secondId,
             topic: "Second meeting"
         };
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(
-                jsonResponse(
+        const rpcMock = vi.fn<Rpc>(async (method, options) => {
+            if (method === "list")
+                return remoteResult(
                     listResponse([
                         listItem,
                         { ...listItem, meetingId: secondId, topic: "Second meeting" }
                     ])
-                )
-            )
-            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
-            .mockResolvedValueOnce(jsonResponse({ ...success(secondDetail), meetingId: secondId }));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
+                );
+            const input = options.input;
+            return remoteResult(
+                input &&
+                    typeof input === "object" &&
+                    "meetingId" in input &&
+                    input.meetingId === secondId
+                    ? { ...success(secondDetail), meetingId: secondId }
+                    : success(statusResult())
+            );
+        });
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
         fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
         expectSelectedEndOutcome("Cancelled");
@@ -1347,25 +1597,27 @@ describe("meeting panel and client plugin lifecycle", () => {
             expect(screen.getByLabelText("Meeting summary").textContent).toContain("Second meeting")
         );
         expectSelectedEndOutcome("Partial");
-        expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/convivium/meetings/meeting%2F2");
-        expect(
-            fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
-        ).toHaveLength(0);
+        expect(rpcMock.mock.calls.at(-1)?.[1]?.input).toEqual({
+            protocolVersion: 1,
+            meetingId: secondId
+        });
+        expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(0);
     });
 
     it.each(["list", "detail"] as const)(
         "locks End outcome for cached %s and unlocks after a valid refresh",
         async (source) => {
-            const fetchMock = vi
-                .fn<typeof fetch>()
-                .mockResolvedValueOnce(jsonResponse(listResponse()))
-                .mockResolvedValueOnce(jsonResponse(success(statusResult())));
-            vi.stubGlobal("fetch", fetchMock);
-            render(createElement(ConviviumMeetingPanel));
+            const rpcMock = vi
+                .fn<Rpc>()
+                .mockResolvedValueOnce(remoteResult(listResponse()))
+                .mockResolvedValueOnce(remoteResult(listResponse()))
+                .mockResolvedValueOnce(remoteResult(success(statusResult())));
+            setRpc(rpcMock);
+            render(createElement(ConviviumMeetingPanel, { api }));
             await selectMeeting();
             fireEvent.click(screen.getByRole("radio", { name: "No consensus", exact: true }));
-            if (source === "detail") fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
-            fetchMock.mockRejectedValueOnce(new TypeError("cached " + source));
+            if (source === "detail") rpcMock.mockResolvedValueOnce(remoteResult(listResponse()));
+            rpcMock.mockRejectedValueOnce(new TypeError("cached " + source));
             if (source === "list") fireEvent.click(screen.getByLabelText("Reload meetings"));
             else fireEvent.focus(window);
             await waitFor(() =>
@@ -1378,36 +1630,32 @@ describe("meeting panel and client plugin lifecycle", () => {
             fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
             fireEvent.keyDown(selected, { key: "ArrowRight" });
             expectSelectedEndOutcome("No consensus");
-            fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
-            if (source === "detail") {
-                fetchMock.mockResolvedValueOnce(
-                    jsonResponse(success(statusResult("running", 3), 3))
-                );
-                fireEvent.focus(window);
-            } else fireEvent.click(screen.getByLabelText("Reload meetings"));
+            rpcMock.mockResolvedValueOnce(remoteResult(listResponse()));
+            rpcMock.mockResolvedValueOnce(remoteResult(success(statusResult("running", 3), 3)));
+            if (source === "detail") fireEvent.focus(window);
+            else fireEvent.click(screen.getByLabelText("Reload meetings"));
             await waitFor(() => {
                 for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
                     expect(radio.disabled).toBe(false);
                 }
             });
             expectSelectedEndOutcome("No consensus");
-            expect(
-                fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
-            ).toHaveLength(0);
+            expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(0);
         }
     );
 
     it("locks End outcome during a pending write and does not duplicate the POST", async () => {
-        const reply = deferred<Response>();
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+        const reply = deferred<RemoteResult<unknown>>();
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult())))
             .mockReturnValueOnce(reply.promise)
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 3), 3)));
-        vi.stubGlobal("fetch", fetchMock);
-        const rendered = render(createElement(ConviviumMeetingPanel));
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult("running", 3), 3)));
+        setRpc(rpcMock);
+        const rendered = render(createElement(ConviviumMeetingPanel, { api }));
         try {
             await selectMeeting();
             fireEvent.change(screen.getByLabelText("End reason"), {
@@ -1425,40 +1673,37 @@ describe("meeting panel and client plugin lifecycle", () => {
             fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
             fireEvent.keyDown(selected, { key: "End" });
             expectSelectedEndOutcome("Partial");
-            expect(
-                fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
-            ).toHaveLength(1);
+            expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(1);
             await act(async () => {
-                reply.resolve(jsonResponse(protocolError("Safe conflict"), 409));
+                reply.resolve(remoteResult(protocolError("Safe conflict")));
             });
-            await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+            await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(6));
             await waitFor(() => expect(expectSelectedEndOutcome("Partial").disabled).toBe(false));
-            expect(
-                fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
-            ).toHaveLength(1);
+            expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(1);
         } finally {
-            reply.resolve(jsonResponse(protocolError("Safe conflict"), 409));
+            reply.resolve(remoteResult(protocolError("Safe conflict")));
             rendered.unmount();
         }
     });
 
-    it("refetches after a validated protocol error without retrying the POST", async () => {
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
-            .mockResolvedValueOnce(jsonResponse(protocolError("Safe conflict"), 409))
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 3), 3)));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
+    it("refetches after a validated protocol error without retrying the write", async () => {
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult())))
+            .mockResolvedValueOnce(remoteResult(protocolError("Safe conflict")))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult("running", 3), 3)));
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
 
         fireEvent.change(screen.getByLabelText("Pause reason"), { target: { value: "Reason" } });
         fireEvent.click(screen.getByLabelText("Pause meeting"));
 
-        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
-        expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
+        await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(6));
+        expect(rpcMock.mock.calls.filter((call) => isWrite(call[0]))).toHaveLength(1);
         await waitFor(() =>
             expect(screen.getByLabelText("Meeting summary").textContent).toContain("3")
         );
@@ -1466,32 +1711,34 @@ describe("meeting panel and client plugin lifecycle", () => {
     });
 
     it("does not retry a transport-failed write and keeps the projection read-only", async () => {
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult())))
             .mockRejectedValueOnce(new TypeError("network write"));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
 
         fireEvent.change(screen.getByLabelText("Pause reason"), { target: { value: "Reason" } });
         fireEvent.click(screen.getByLabelText("Pause meeting"));
 
         await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
-        expect(fetchMock).toHaveBeenCalledTimes(3);
-        expect(fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")).toHaveLength(1);
+        expect(rpcMock).toHaveBeenCalledTimes(4);
+        expect(rpcMock.mock.calls.filter((call) => isWrite(call[0]))).toHaveLength(1);
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
         expect(screen.getByLabelText("Meeting summary").textContent).toContain("2");
     });
 
     it("does not expose controls for a terminal projection", async () => {
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(terminalStatusResult(), 5)));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(terminalStatusResult(), 5)));
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
 
         expect(screen.getByLabelText("Meeting summary").textContent).toContain("completed");
@@ -1502,13 +1749,14 @@ describe("meeting panel and client plugin lifecycle", () => {
     });
 
     it("disables meeting writes when the list projection becomes cached", async () => {
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult())))
             .mockRejectedValueOnce(new TypeError("network list"));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
 
         fireEvent.click(screen.getByLabelText("Reload meetings"));
@@ -1517,19 +1765,21 @@ describe("meeting panel and client plugin lifecycle", () => {
         expect(screen.getByLabelText("Pause meeting").hasAttribute("disabled")).toBe(true);
     });
 
-    it("preserves cached data on failures, polls the selection, and aborts on unmount", async () => {
+    it("preserves cached data on failures, refreshes on notice, and aborts on unmount", async () => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
-        const fetchMock = vi
-            .fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult())))
+        const rpcMock = vi
+            .fn<Rpc>()
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult())))
             .mockRejectedValueOnce(new TypeError("network list"))
             .mockRejectedValueOnce(new TypeError("network detail"))
             .mockRejectedValueOnce(new TypeError("network list"))
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 4), 4)));
-        vi.stubGlobal("fetch", fetchMock);
-        const rendered = render(createElement(ConviviumMeetingPanel));
+            .mockRejectedValueOnce(new TypeError("network detail"))
+            .mockResolvedValueOnce(remoteResult(listResponse()))
+            .mockResolvedValueOnce(remoteResult(success(statusResult("running", 4), 4)));
+        setRpc(rpcMock);
+        const rendered = render(createElement(ConviviumMeetingPanel, { api }));
         await selectMeeting();
 
         window.dispatchEvent(new Event("focus"));
@@ -1545,11 +1795,11 @@ describe("meeting panel and client plugin lifecycle", () => {
         );
         expect(screen.getByRole("alert").parentElement?.getAttribute("data-cached")).toBe("true");
 
-        await act(async () => vi.advanceTimersByTime(5_000));
+        await act(async () => streams.at(-1)!.push());
         await waitFor(() =>
             expect(screen.getByLabelText("Meeting summary").textContent).toContain("4")
         );
-        const lastSignal = fetchMock.mock.calls.at(-1)?.[1]?.signal;
+        const lastSignal = rpcMock.mock.calls.at(-1)?.[1]?.signal;
         rendered.unmount();
         expect(lastSignal?.aborted).toBe(true);
     });
@@ -1791,19 +2041,17 @@ describe("local decision risk panel controls", () => {
     });
     function mount(
         state = localControlStatus(),
-        post: () => Promise<Response> = async () => jsonResponse({})
+        post: () => Promise<RemoteResult<unknown>> = async () => remoteResult({})
     ) {
-        const fetchMock = vi.fn<typeof fetch>(async (url, options) => {
-            if (options?.method === "POST") return post();
-            return jsonResponse(
-                String(url) === "/api/convivium/meetings"
-                    ? listResponse()
-                    : success(state, state.meetingVersion)
+        const rpcMock = vi.fn<Rpc>(async (url) => {
+            if (isWrite(url)) return post();
+            return remoteResult(
+                String(url) === "list" ? listResponse() : success(state, state.meetingVersion)
             );
         });
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
-        return fetchMock;
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        return rpcMock;
     }
     function open(label: string) {
         fireEvent.click(screen.getAllByRole("button", { name: label })[0]!);
@@ -1811,7 +2059,7 @@ describe("local decision risk panel controls", () => {
     const actions = [
         [
             "Accept decision",
-            "accept-decision",
+            "acceptDecision",
             { decisionCandidateId: "candidate-1" },
             {
                 requestId: "request-local",
@@ -1824,7 +2072,7 @@ describe("local decision risk panel controls", () => {
         ],
         [
             "Replace decision",
-            "dispose-decision",
+            "disposeDecision",
             {
                 decisionId: "decision-old",
                 action: "supersede",
@@ -1840,7 +2088,7 @@ describe("local decision risk panel controls", () => {
         ],
         [
             "Revoke decision",
-            "dispose-decision",
+            "disposeDecision",
             { decisionId: "decision-old", action: "revoke" },
             {
                 requestId: "request-local",
@@ -1851,7 +2099,7 @@ describe("local decision risk panel controls", () => {
         ],
         [
             "Accept risk",
-            "dispose-risk",
+            "disposeRisk",
             { issueId: "risk-1", decision: "accept" },
             {
                 requestId: "request-local",
@@ -1863,7 +2111,7 @@ describe("local decision risk panel controls", () => {
         ],
         [
             "Set as blocking",
-            "dispose-risk",
+            "disposeRisk",
             { issueId: "risk-1", decision: "reject" },
             {
                 requestId: "request-local",
@@ -1884,9 +2132,9 @@ describe("local decision risk panel controls", () => {
                     disposition: "accepted_risk",
                     blocking: false
                 });
-            const fetchMock = mount(state, async () => {
+            const rpcMock = mount(state, async () => {
                 state.meetingVersion = 3;
-                return jsonResponse(success(result, 3));
+                return remoteResult(success(result, 3));
             });
             await selectMeeting();
             open(label);
@@ -1922,10 +2170,10 @@ describe("local decision risk panel controls", () => {
                     "Meeting version3"
                 )
             );
-            const posts = fetchMock.mock.calls.filter(([, options]) => options?.method === "POST");
+            const posts = rpcMock.mock.calls.filter(([method]) => isWrite(method));
             expect(posts).toHaveLength(1);
-            expect(posts[0]![0]).toBe(`/api/convivium/meetings/meeting%2F1/${suffix}`);
-            expect(JSON.parse(posts[0]![1]!.body as string)).toEqual({
+            expect(posts[0]![0]).toBe(suffix);
+            expect(posts[0]![1]!.input).toEqual({
                 protocolVersion: 1,
                 meetingId,
                 expectedMeetingVersion: 2,
@@ -1956,7 +2204,7 @@ describe("local decision risk panel controls", () => {
         fireEvent.focus(window);
         await waitFor(() => expect(screen.queryByRole("form")).toBeNull());
     });
-    it("preserves structured refusal after GET and never retries POST", async () => {
+    it("preserves structured refusal after refresh and never retries the write", async () => {
         const error = {
             protocolVersion: 1,
             ok: false,
@@ -1964,7 +2212,7 @@ describe("local decision risk panel controls", () => {
             message: "Version changed",
             retryable: true
         };
-        const fetchMock = mount(localControlStatus(), async () => jsonResponse(error, 409));
+        const rpcMock = mount(localControlStatus(), async () => remoteResult(error));
         await selectMeeting();
         open("Accept decision");
         fireEvent.change(screen.getByLabelText("Reason"), {
@@ -1978,14 +2226,12 @@ describe("local decision risk panel controls", () => {
                 "VERSION_CONFLICT: Version changed Refresh before submitting again"
             )
         );
-        expect(
-            fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
-        ).toHaveLength(1);
+        expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(1);
     });
     it.each(["transport", "invalid"])("fails closed on %s without retry", async (kind) => {
-        const fetchMock = mount(localControlStatus(), async () => {
+        const rpcMock = mount(localControlStatus(), async () => {
             if (kind === "transport") throw new Error("offline");
-            return jsonResponse(success({ invalid: true }));
+            return remoteResult(success({ invalid: true }));
         });
         await selectMeeting();
         open("Accept risk");
@@ -1997,9 +2243,7 @@ describe("local decision risk panel controls", () => {
         expect(
             (screen.getByRole("button", { name: "Accept risk" }) as HTMLButtonElement).disabled
         ).toBe(true);
-        expect(
-            fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
-        ).toHaveLength(1);
+        expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(1);
         fireEvent.focus(window);
         await waitFor(() =>
             expect(
@@ -2008,8 +2252,8 @@ describe("local decision risk panel controls", () => {
         );
     });
     it("shares the existing write lock and ignores a late refusal after reopen", async () => {
-        const pending = deferred<Response>();
-        const fetchMock = mount(localControlStatus(), () => pending.promise);
+        const pending = deferred<RemoteResult<unknown>>();
+        const rpcMock = mount(localControlStatus(), () => pending.promise);
         await selectMeeting();
         open("Accept decision");
         fireEvent.change(screen.getByLabelText("Reason"), {
@@ -2020,22 +2264,17 @@ describe("local decision risk panel controls", () => {
             (screen.getByRole("button", { name: "Pause meeting" }) as HTMLButtonElement).disabled
         ).toBe(true);
         fireEvent.submit(screen.getByRole("form"));
-        expect(
-            fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
-        ).toHaveLength(1);
+        expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(1);
         await selectMeeting();
         await act(async () =>
             pending.resolve(
-                jsonResponse(
-                    {
-                        protocolVersion: 1,
-                        ok: false,
-                        code: "VERSION_CONFLICT",
-                        message: "late failure",
-                        retryable: false
-                    },
-                    409
-                )
+                remoteResult({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "VERSION_CONFLICT",
+                    message: "late failure",
+                    retryable: false
+                })
             )
         );
         expect(screen.queryByRole("alert")).toBeNull();
@@ -2073,7 +2312,7 @@ describe("local decision risk panel controls", () => {
         for (const [label] of actions)
             expect(screen.queryByRole("button", { name: label })).toBeNull();
     });
-    it("invalidates replacement and evidence on polling while preserving the reason", async () => {
+    it("invalidates replacement and evidence on refresh while preserving the reason", async () => {
         const state = localControlStatus();
         mount(state);
         await selectMeeting();
@@ -2085,7 +2324,7 @@ describe("local decision risk panel controls", () => {
             target: { value: "Reviewed evidence" }
         });
         state.pendingDecisionCandidates = state.pendingDecisionCandidates.slice(0, 1);
-        // A focus refresh uses the same full-detail path as the existing five-second poll.
+        // A focus refresh rebuilds the subscription and reloads complete facts.
         fireEvent.focus(window);
         await waitFor(() =>
             expect((screen.getByLabelText("Replacement decision") as HTMLSelectElement).value).toBe(
@@ -2101,50 +2340,45 @@ describe("local decision risk panel controls", () => {
         );
     });
     it("blocks submission when list facts become cached", async () => {
-        const fetchMock = mount();
+        const rpcMock = mount();
         await selectMeeting();
         open("Accept decision");
         fireEvent.change(screen.getByLabelText("Reason"), {
             target: { value: "Reviewed evidence" }
         });
-        fetchMock.mockRejectedValueOnce(new Error("list unavailable"));
+        rpcMock.mockRejectedValueOnce(new Error("list unavailable"));
         fireEvent.click(screen.getByRole("button", { name: "Reload meetings" }));
         await waitFor(() =>
             expect(screen.getByRole("status").textContent).toContain("Meeting data is unavailable")
         );
         fireEvent.submit(screen.getByRole("form"));
-        expect(
-            fetchMock.mock.calls.filter(([, options]) => options?.method === "POST")
-        ).toHaveLength(0);
+        expect(rpcMock.mock.calls.filter(([method]) => isWrite(method))).toHaveLength(0);
     });
     it("aborts an unmounted write and ignores its late result", async () => {
-        const pending = deferred<Response>();
-        const fetchMock = mount(localControlStatus(), () => pending.promise);
+        const pending = deferred<RemoteResult<unknown>>();
+        const rpcMock = mount(localControlStatus(), () => pending.promise);
         await selectMeeting();
         open("Accept decision");
         fireEvent.change(screen.getByLabelText("Reason"), {
             target: { value: "Reviewed evidence" }
         });
         fireEvent.click(screen.getByRole("button", { name: "Submit" }));
-        const post = fetchMock.mock.calls.find(([, options]) => options?.method === "POST")!;
+        const post = rpcMock.mock.calls.find(([method]) => isWrite(method))!;
         cleanup();
         expect(post[1]?.signal?.aborted).toBe(true);
-        const calls = fetchMock.mock.calls.length;
+        const calls = rpcMock.mock.calls.length;
         await act(async () =>
             pending.resolve(
-                jsonResponse(
-                    {
-                        protocolVersion: 1,
-                        ok: false,
-                        code: "VERSION_CONFLICT",
-                        message: "late",
-                        retryable: false
-                    },
-                    409
-                )
+                remoteResult({
+                    protocolVersion: 1,
+                    ok: false,
+                    code: "VERSION_CONFLICT",
+                    message: "late",
+                    retryable: false
+                })
             )
         );
-        expect(fetchMock).toHaveBeenCalledTimes(calls);
+        expect(rpcMock).toHaveBeenCalledTimes(calls);
     });
 });
 

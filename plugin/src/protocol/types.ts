@@ -1,5 +1,10 @@
 export type ProtocolVersion = 1;
 
+/** Ephemeral invalidation signal; the consumer must refetch complete facts. */
+export interface MeetingRefreshNoticeV1 {
+    readonly kind: "refresh";
+}
+
 export interface ProtocolMeta {
     protocolVersion: ProtocolVersion;
     meetingId: string;

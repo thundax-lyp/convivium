@@ -163,19 +163,19 @@ export async function runScribeMinutesScenario(runtime) {
             "minutes public message mismatch"
         );
     compare(sourceContext, source);
-    const http = await runtime.callHttp(
-        "http://127.0.0.1:" +
-            ctx.webServer.port +
-            "/api/convivium/meetings/" +
-            encodeURIComponent(meetingId)
+    const remote = await runtime.createRemoteProbe(
+        ctx.connection,
+        "http://127.0.0.1:" + ctx.webServer.port
     );
-    for (const message of [source, draft]) compare(find(http.result.messages, message.id), message);
+    const remoteStatus = await remote.callRemote("getStatus", { protocolVersion: 1, meetingId });
+    for (const message of [source, draft])
+        compare(find(remoteStatus.result.messages, message.id), message);
     const observed = { source, draft, afterSubmit, afterReplay, status };
     const assertions = [
         "minutes-context-visible",
         "minutes-invalid-atomic",
         "minutes-replay-stable",
-        "minutes-http-equal"
+        "minutes-remote-equal"
     ];
     if (browserMode) {
         await runtime.writeResult({

@@ -64,6 +64,15 @@ function importGraph(entries: readonly string[]) {
 }
 
 describe("production import graph", () => {
+    it("keeps Client on generated contribution and away from Host runtime", () => {
+        const graph = importGraph(["client/index.tsx"]);
+        expect(graph.files.some((file) => /^(runtime|remote|repository|dsh)\//.test(file))).toBe(
+            false
+        );
+        expect(graph.externals).toContain("@convivium/dsh-plugin/remote");
+        expect(graph.externals.filter((name) => name.startsWith("node:"))).toEqual([]);
+    });
+
     it("keeps the plugin graph on Storage Domain without a physical backend", () => {
         const graph = importGraph(["index.ts"]);
         expect(graph.files.filter((file) => file.startsWith("storage/"))).toEqual([]);

@@ -1,3 +1,5 @@
+import { openMeetingStream } from "./remote-stream.js";
+
 export function validateColdCheckpoint(value) {
     if (value === null || typeof value !== "object") {
         throw new Error("Cold checkpoint must be an object.");
@@ -78,19 +80,6 @@ export function createProbeSupport(outputPath) {
         return result.value;
     }
 
-    async function callHttp(url, options) {
-        const response = await fetch(url, options);
-        assert(
-            response.status === 200,
-            "unexpected HTTP status for " + url + ": " + response.status
-        );
-        assert(
-            response.headers.get("content-type")?.startsWith("application/json") === true,
-            "unexpected HTTP content type for " + url
-        );
-        return response.json();
-    }
-
     function createInput() {
         return {
             protocolVersion: 1,
@@ -160,11 +149,47 @@ export function createProbeSupport(outputPath) {
     return {
         assert,
         callTool,
-        callHttp,
         createInput,
         writeResult,
         observedMessages,
         messageText,
         messageTexts
+    };
+}
+
+export async function createRemoteProbe(connection, origin) {
+    const auth = await fetch(connection.authenticatedUrl(origin + "/"), { redirect: "manual" });
+    if (auth.status !== 303) throw new Error("Remote probe authentication failed.");
+    const cookie = auth.headers
+        .getSetCookie()
+        .map((value) => value.split(";", 1)[0])
+        .join("; ");
+    if (!cookie) throw new Error("Remote probe session cookie missing.");
+    let sequence = 0;
+    return {
+        openUpdates: () => openMeetingStream(origin, cookie),
+        async callRemote(method, input) {
+            const rpcId = "convivium-smoke-remote-" + ++sequence;
+            const response = await fetch(origin + "/api/conviviumMeetings/" + method, {
+                method: "POST",
+                headers: { "content-type": "application/json", cookie, origin },
+                body: JSON.stringify({
+                    type: "client-request",
+                    rpcId,
+                    method: "conviviumMeetings/" + method,
+                    payload: { args: input === undefined ? {} : { input } }
+                })
+            });
+            if (response.status !== 200)
+                throw new Error("Remote probe transport failed: " + response.status);
+            const message = await response.json();
+            if (
+                message.type !== "server-response" ||
+                message.rpcId !== rpcId ||
+                message.result?.ok !== true
+            )
+                throw new Error("Remote probe response contract failed.");
+            return message.result.value;
+        }
     };
 }

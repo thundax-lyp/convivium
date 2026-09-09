@@ -1,4 +1,5 @@
 import { defineConfig } from "tsdown";
+import { typertPlugin } from "@deepseek-ai/dsh-typert-generator/tsdown";
 
 const sharedExternal = [/^@deepseek-ai\//, "react", "react-dom"] as const;
 const clientExternal = [
@@ -10,7 +11,11 @@ const clientAlwaysBundle = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmokit"]
 
 export default defineConfig([
     {
-        entry: { index: "src/index.ts" },
+        entry: {
+            index: "src/index.ts",
+            "remote/types": "src/remote/types.ts",
+            "protocol/types": "src/protocol/types.ts"
+        },
         outDir: "lib",
         platform: "node",
         target: "node22.19.0",
@@ -18,7 +23,11 @@ export default defineConfig([
         dts: false,
         fixedExtension: false,
         deps: { neverBundle: sharedExternal },
-        tsconfig: "tsconfig.json"
+        tsconfig: "tsconfig.json",
+        plugins: (() => {
+            const plugin = typertPlugin({ mode: "package", faces: ["host"] });
+            return [{ name: plugin.name, transform: plugin.transform }];
+        })()
     },
     {
         entry: { client: "src/client/index.tsx" },

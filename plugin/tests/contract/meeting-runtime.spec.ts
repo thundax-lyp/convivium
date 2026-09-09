@@ -9,10 +9,7 @@ import {
 } from "../fixtures/role-composition.js";
 import { MeetingArchivePackageSchema } from "@/protocol/status.js";
 
-import { Readable } from "node:stream";
-import type { IncomingMessage, ServerResponse } from "node:http";
-import type { WebRoute } from "@deepseek-ai/dsh-host-webserver";
-import { registerLocalMeetingHttpRoutes } from "@/http/index.js";
+import { createRemoteGateway } from "../fixtures/remote-gateway.js";
 import {
     CaptainDecisionAcceptanceInputSchema,
     CaptainDecisionDispositionInputSchema,
@@ -3763,6 +3760,74 @@ describe("local decision and risk runtime", () => {
             }
         ];
     }
+
+    it("publishes refreshes after successful controls and not after failed commits", async () => {
+        const { runtime, registry, meeting } = await setupLocalControlRuntime();
+        const controller = new AbortController();
+        const updates = runtime.watchLocalMeetingUpdates(controller.signal)[Symbol.asyncIterator]();
+        try {
+            await expect(updates.next()).resolves.toEqual({
+                done: false,
+                value: { kind: "refresh" }
+            });
+            const beforePause = loadProjection({ domain: meeting });
+            const expectedPauseVersion = beforePause.snapshot!.version;
+            const firstRefresh = updates.next();
+            const paused = await runtime.pauseLocalMeeting({
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: expectedPauseVersion,
+                requestId: "refresh-pause-1",
+                reason: "refresh test"
+            });
+            expect(paused).toMatchObject({ ok: true, result: { status: "paused" } });
+            await expect(firstRefresh).resolves.toEqual({
+                done: false,
+                value: { kind: "refresh" }
+            });
+            const acceptedRefresh = updates.next();
+            const accepted = await runtime.acceptLocalDecision({
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: paused.meetingVersion,
+                requestId: "refresh-accept-1",
+                decisionCandidateId: "candidate-1",
+                reason: "refresh test",
+                evidenceMessageIds: ["message-1"]
+            });
+            expect(accepted).toMatchObject({
+                ok: true,
+                result: { decisionId: expect.any(String) }
+            });
+            await expect(acceptedRefresh).resolves.toEqual({
+                done: false,
+                value: { kind: "refresh" }
+            });
+
+            meeting.failPutsInTable("commits");
+            const failedRefresh = updates.next();
+            await expect(
+                runtime.disposeLocalDecision({
+                    protocolVersion: 1,
+                    meetingId: "meeting-1",
+                    expectedMeetingVersion: accepted.meetingVersion,
+                    requestId: "refresh-dispose-failed",
+                    decisionId: accepted.result.decisionId,
+                    action: "revoke",
+                    reason: "refresh failure test",
+                    evidenceMessageIds: ["message-1"]
+                })
+            ).resolves.toMatchObject({ ok: false });
+            controller.abort();
+            await expect(failedRefresh).resolves.toEqual({ done: true, value: undefined });
+            meeting.allowPutsInTable("commits");
+        } finally {
+            controller.abort();
+            await updates.return?.();
+            await runtime.dispose();
+            await registry.close();
+        }
+    });
     it.each(["local", "captain"] as const)(
         "commits five %s actions with isolated replay and version gates",
         async (source) => {
@@ -4084,53 +4149,12 @@ describe("local decision and risk runtime", () => {
             await cold.dispose();
         }
     });
-    async function invokeLocalControl(
-        handler: WebRoute["handler"],
-        method: string,
-        url: string,
-        options: { body?: string; contentType?: string } = {}
-    ): Promise<{ status: number; headers: Map<string, string>; body: string; json: unknown }> {
-        const req = Readable.from(options.body === undefined ? [] : [Buffer.from(options.body)]);
-        Object.assign(req, {
-            method,
-            url,
-            headers:
-                options.contentType === undefined ? {} : { "content-type": options.contentType }
-        });
-        const headers = new Map<string, string>();
-        let body = "";
-        const res = {
-            statusCode: 200,
-            setHeader(name: string, value: string | number | readonly string[]) {
-                headers.set(name.toLowerCase(), String(value));
-            },
-            end(chunk?: string | Buffer) {
-                if (chunk !== undefined) body += chunk.toString();
-            }
-        };
-        await handler(req as IncomingMessage, res as unknown as ServerResponse);
-        return {
-            status: res.statusCode,
-            headers,
-            body,
-            json: body === "" ? undefined : JSON.parse(body)
-        };
-    }
-    it("commits the complete HTTP chain and preserves receipts through cold Runtime recovery", async () => {
+    it("commits the complete Remote chain and preserves receipts through cold Runtime recovery", async () => {
         const { runtime, registry, meeting, facility } = await setupLocalControlRuntime();
-        let route: WebRoute | undefined;
-        registerLocalMeetingHttpRoutes(
-            {
-                register: (value: WebRoute) => {
-                    route = value;
-                    return () => undefined;
-                }
-            },
-            runtime
-        );
+        const gateway = await createRemoteGateway(runtime);
         const requests = [
             [
-                "accept-decision",
+                "acceptDecision",
                 {
                     ...common,
                     requestId: "local-accept",
@@ -4139,7 +4163,7 @@ describe("local decision and risk runtime", () => {
                 }
             ],
             [
-                "dispose-decision",
+                "disposeDecision",
                 {
                     ...common,
                     requestId: "local-replace",
@@ -4150,7 +4174,7 @@ describe("local decision and risk runtime", () => {
                 }
             ],
             [
-                "dispose-decision",
+                "disposeDecision",
                 {
                     ...common,
                     requestId: "local-revoke",
@@ -4160,7 +4184,7 @@ describe("local decision and risk runtime", () => {
                 }
             ],
             [
-                "dispose-risk",
+                "disposeRisk",
                 {
                     ...common,
                     requestId: "local-risk-accept",
@@ -4170,7 +4194,7 @@ describe("local decision and risk runtime", () => {
                 }
             ],
             [
-                "dispose-risk",
+                "disposeRisk",
                 {
                     ...common,
                     requestId: "local-risk-reject",
@@ -4184,34 +4208,23 @@ describe("local decision and risk runtime", () => {
         try {
             for (const [suffix, body] of requests) {
                 const before = loadProjection({ domain: meeting });
-                const url = `/api/convivium/meetings/meeting-1/${suffix}`;
-                const invalid = await invokeLocalControl(route!.handler, "POST", url, {
-                    body: JSON.stringify({
-                        ...body,
-                        evidenceMessageIds: ["message-1", "external-message"]
-                    }),
-                    contentType: "application/json"
+                const invalid = await gateway.invoke(suffix, {
+                    input: { ...body, evidenceMessageIds: ["message-1", "external-message"] }
                 });
-                expect(invalid.status).toBe(400);
-                expect(invalid.json).toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
+                expect(invalid).toMatchObject({ ok: false, code: "INVALID_ARGUMENT" });
                 expect(loadProjection({ domain: meeting })).toEqual(before);
-                const response = await invokeLocalControl(route!.handler, "POST", url, {
-                    body: JSON.stringify(body),
-                    contentType: "application/json"
-                });
-                expect(response.status).toBe(200);
-                responses.push(response.json);
+                const response = await gateway.invoke(suffix, { input: body });
+                expect(response).toMatchObject({ ok: true });
+                responses.push(response);
                 expect(loadProjection({ domain: meeting }).snapshot?.version).toBe(
                     before.snapshot!.version + 1
                 );
-                const detail = await invokeLocalControl(
-                    route!.handler,
-                    "GET",
-                    "/api/convivium/meetings/meeting-1"
-                );
-                expect(detail.status).toBe(200);
+                const detail = await gateway.invoke("getStatus", {
+                    input: { protocolVersion: 1, meetingId: "meeting-1" }
+                });
+                expect(detail).toMatchObject({ ok: true });
                 expect(() =>
-                    MeetingStatusResultSchema((detail.json as { result: unknown }).result)
+                    MeetingStatusResultSchema((detail as { result: unknown }).result)
                 ).not.toThrow();
             }
             const state = loadProjection({ domain: meeting }).snapshot!
@@ -4223,6 +4236,7 @@ describe("local decision and risk runtime", () => {
                 disposition: "blocking"
             });
         } finally {
+            await gateway.dispose();
             await runtime.dispose();
             await registry.close();
         }
@@ -4248,9 +4262,9 @@ describe("local decision and risk runtime", () => {
         try {
             for (const [index, [suffix, body]] of requests.entries()) {
                 const result =
-                    suffix === "accept-decision"
+                    suffix === "acceptDecision"
                         ? await cold.acceptLocalDecision(CaptainDecisionAcceptanceInputSchema(body))
-                        : suffix === "dispose-decision"
+                        : suffix === "disposeDecision"
                           ? await cold.disposeLocalDecision(
                                 CaptainDecisionDispositionInputSchema(body)
                             )

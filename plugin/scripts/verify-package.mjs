@@ -31,6 +31,14 @@ const requiredArtifacts = [
     "lib/types/index.d.ts",
     "lib/client.js",
     "lib/types/client/index.d.ts",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts",
+    "lib/remote/types.js",
+    "lib/types/remote/types.d.ts",
+    "lib/protocol/types.js",
+    "lib/types/protocol/types.d.ts",
     "cordis.patch.yml",
     "meeting-roles/definitions.json",
     "meeting-roles/README.md",
@@ -53,6 +61,22 @@ const expectedExports = {
         types: "./lib/types/client/index.d.ts",
         default: "./lib/client.js"
     },
+    "./typert": {
+        types: "./lib/typert.host.d.ts",
+        default: "./lib/typert.host.js"
+    },
+    "./remote": {
+        types: "./lib/typert.remote-client.d.ts",
+        default: "./lib/typert.remote-client.js"
+    },
+    "./remote-types": {
+        types: "./lib/types/remote/types.d.ts",
+        default: "./lib/remote/types.js"
+    },
+    "./protocol-types": {
+        types: "./lib/types/protocol/types.d.ts",
+        default: "./lib/protocol/types.js"
+    },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json",
     "./meeting-roles/cordis.patch.yml": "./meeting-roles/cordis.patch.yml"
@@ -72,7 +96,16 @@ const bundledClientRequires = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmoki
 const result = {
     exportsMatchArtifacts: JSON.stringify(manifest?.exports) === JSON.stringify(expectedExports),
     filesAllowlistIsClosed:
-        JSON.stringify(files) === JSON.stringify(["lib", "cordis.patch.yml", "meeting-roles"]),
+        JSON.stringify(files) ===
+        JSON.stringify([
+            "lib",
+            "cordis.patch.yml",
+            "meeting-roles",
+            "lib/typert.host.js",
+            "lib/typert.host.d.ts",
+            "lib/typert.remote-client.js",
+            "lib/typert.remote-client.d.ts"
+        ]),
     bundlePatchMatchesPackageName: Boolean(packageName && patch.includes(packageName)),
     clientManifestIsComplete:
         client?.platform === "web" && Array.isArray(client.inject) && client.inject.length > 0,

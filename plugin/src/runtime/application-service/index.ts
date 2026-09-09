@@ -40,6 +40,7 @@ import { createMeetingAgendaCandidateApplication } from "./meeting-agenda-candid
 import type { StoredMeeting } from "./types.js";
 import { captureManagerCatalogBinding } from "@/runtime/services/agent-catalog.js";
 import { meetingTaskEvidenceResolver } from "@/runtime/task-evidence.js";
+import { createMeetingRefreshFeed } from "@/runtime/services/meeting-refresh-feed.js";
 
 import type {
     MeetingToolCaller,
@@ -87,12 +88,16 @@ export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
 ): MeetingRuntimeWithCallerLookup {
     let developerMarkdownService: DeveloperMarkdownService | undefined;
+    const refreshFeed = createMeetingRefreshFeed();
     const repositoryRegistry = DomainRepositoryRegistry.open({
         storageDomain: options.storageDomain,
         onDiagnostic: options.onDiagnostic,
         authorizationValidator: options.authorizationValidator,
         now: options.now,
-        onProjectionCommitted: (snapshot) => developerMarkdownService?.schedule(snapshot)
+        onProjectionCommitted: (snapshot) => {
+            developerMarkdownService?.schedule(snapshot);
+            refreshFeed.notify(snapshot.meetingId, snapshot.version);
+        }
     });
     if (options.developerMarkdown !== undefined) {
         developerMarkdownService = createDeveloperMarkdownService({
@@ -663,6 +668,7 @@ export function createCreateStatusRuntime(
     })();
 
     return {
+        watchLocalMeetingUpdates: (watchSignal) => refreshFeed.watch(watchSignal),
         createMeeting,
         sendMeetingMessage: mailApplication.sendMeetingMessage,
         finishMeetingMail: mailApplication.finishMeetingMail,
@@ -696,6 +702,7 @@ export function createCreateStatusRuntime(
         scanExpiredSpeakerAttempts,
         findBySessionId: queryApplication.findBySessionId,
         async dispose() {
+            refreshFeed.dispose();
             runtimeController.abort(new Error("Meeting runtime disposed"));
             timeoutController.abort(new Error("Speaker timeout monitor disposed"));
             await timeoutMonitor;
