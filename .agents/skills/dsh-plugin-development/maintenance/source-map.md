@@ -278,6 +278,12 @@
 - `packages/client/ui-primitives/src/Input.tsx`
 - `packages/client/ui-primitives/src/Pill.tsx`
 - `packages/client/ui-primitives/src/StateDot.tsx`
+- `packages/client/ui-primitives/src/DisclosureRow.tsx`
+- `packages/client/ui-primitives/src/ReferenceIcon.tsx`
+- `packages/client/ui-primitives/src/FishLogo.tsx`
+- `packages/client/ui-primitives/src/BrandWordmark.tsx`
+- `packages/client/ui-primitives/src/icons/index.tsx`
+- `packages/client/ui-primitives/src/icons/props.ts`
 - `packages/client/ui-primitives/src/Toast.tsx`
 - `packages/client/ui-primitives/src/Modal.tsx`
 - `packages/client/ui-primitives/src/RiskConfirmation.tsx`
@@ -285,6 +291,11 @@
 - `packages/client/ui-primitives/src/ConnectionIndicator.tsx`
 - `packages/client/ui-primitives/src/markdown/MarkdownText.tsx`
 - `packages/client/ui-primitives/src/markdown/MessageText.tsx`
+- `packages/client/ui-primitives/src/markdown/CodeBlock.tsx`
+- `packages/client/ui-primitives/src/markdown/JsonBlock.tsx`
+- `packages/client/ui-primitives/src/markdown/plain-text.ts`
+- `packages/client/ui-primitives/src/JsonTree.tsx`
+- `packages/client/ui-primitives/src/TerminalBlock.tsx`
 - `packages/client/web/src/platform.ts`
 - `packages/client/web/src/seed.ts`
 - `packages/client/ui-primitives/src/Menu.tsx`
