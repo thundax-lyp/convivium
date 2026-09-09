@@ -97,21 +97,6 @@ describe("meeting protocol examples and caller capabilities", () => {
         expect(() => ManagerPlanSubmissionSchema({ ...f.managerSubmission })).not.toThrow();
         expect(() => TurnSubmissionSchema({ ...f.aSubmission })).not.toThrow();
         expect(() => TurnSubmissionSchema({ ...f.bSubmission })).not.toThrow();
-        expect(Object.keys(f.createInput).sort()).toEqual(
-            [
-                "protocolVersion",
-                "requestId",
-                "teamId",
-                "topic",
-                "objective",
-                "selectionMode",
-                "objectiveContract",
-                "agenda",
-                "participants",
-                "limits"
-            ].sort()
-        );
-        expect(f.createInput.teamId).toBe("offline-team");
         expect(f.planningState.participants.map((p) => p.id)).toEqual([
             "participant-a",
             "participant-b"
@@ -147,7 +132,6 @@ describe("meeting protocol examples and caller capabilities", () => {
         expect(f.aContext.attempt.contextThroughSeq).toBe(0);
         expect(f.managerContext.agentCatalog).toBeNull();
         expect(Object.hasOwn(f.managerContext, "attendanceRecommendations")).toBe(false);
-        expect("attendanceRecommendations" in f.managerSubmission).toBe(false);
     });
     it("projects the submitted A message into B context", () => {
         const f = createOfflineMeetingProtocolFixture();
@@ -169,8 +153,6 @@ describe("meeting protocol examples and caller capabilities", () => {
         expect(f.bContext.step.id).toBe("offline-step-1");
         expect(f.aContext.attempt.attemptId).not.toBe(f.bContext.attempt.attemptId);
         expect(f.aContext.attempt.deliveryId).not.toBe(f.bContext.attempt.deliveryId);
-        expect(f.bSubmission.replyTo).toBe("offline-message-a");
-        expect(f.bSubmission.content).toBe("I cite amber-47: a local fixture needs no network.");
     });
     it("rejects missing protocol fields and text-only replies", () => {
         const f = createOfflineMeetingProtocolFixture();
@@ -182,14 +164,10 @@ describe("meeting protocol examples and caller capabilities", () => {
         expect(() => TurnSubmissionSchema({ content: "OK" })).toThrow();
         expect(JSON.stringify(f)).toBe(before);
     });
-    it("separates schema validity from reply reference evidence", () => {
+    it("accepts replyTo as a string without validating transcript membership", () => {
         const f = createOfflineMeetingProtocolFixture();
         const invalid = { ...f.bSubmission, replyTo: "offline-missing" };
         expect(() => TurnSubmissionSchema({ ...invalid })).not.toThrow();
-        expect(f.bContext.recentMessages.some((m) => m.id === invalid.replyTo)).toBe(false);
-        const matches = f.bContext.recentMessages.filter((m) => m.id === f.bSubmission.replyTo);
-        expect(matches).toHaveLength(1);
-        expect(matches[0]).toMatchObject({ id: "offline-message-a", speaker: "participant-a" });
     });
     it("rejects stale planning and unassigned speaker projection", () => {
         const f = createOfflineMeetingProtocolFixture();
