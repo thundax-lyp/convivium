@@ -736,6 +736,8 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                     {
                         key: action,
                         type: "button",
+                        variant: "outline",
+                        size: "sm",
                         disabled: disabled || listCached || detailCached || writePending,
                         onClick: () => openFactControl(action, id)
                     },
