@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Author；本文件不代表已开始产品迁移。
-- 审计状态：Executable；环境与迁移前 baseline 由作者在本轮完成，执行者直接从 M01 开始。
+- 模式：Execute；M01—M03 已完成，执行者从 M04 继续。
+- 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M01—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M04—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,69 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M01：实现有界刷新 feed
-
-前置状态：作者环境与 baseline 已通过。
-允许修改：`plugin/src/protocol/types.ts`；新 `plugin/src/runtime/services/meeting-refresh-feed.ts`；新 `plugin/tests/unit/meeting-refresh-feed.spec.ts`。
-禁止修改：Runtime 接线、Repository、UI、构建脚本。
-
-执行：
-1. 增加 `MeetingRefreshNoticeV1 {readonly kind:"refresh"}`；实现 Design 中 `MeetingRefreshFeed`、`createMeetingRefreshFeed()` 的精确签名。只用 disposed、Map(meetingId→version)、Set(subscriber)。subscriber 字段固定 closed/dirty/pending/abort disposer。
-2. watch 在调用时注册，不推迟到第一次 next；初始 dirty=true。next 在 dirty 时交付并清 dirty，否则等待；notify 同版本直接返回，新版本更新 Map 后向每个 subscriber 投递一个 refresh。若已有 pending，立即 resolve 并清 dirty；否则置 dirty。
-3. iterator.return、signal.abort、feed.dispose 全部走同一关闭函数：移除 Set/listener，pending resolve {done:true,value:undefined}；重复关闭无操作。使用显式 AsyncIterableIterator，不用等待无法唤醒的 async generator。
-4. 测试首帧、2 次同版本只 1 通知、3 次新版本在 next 前合并、两个订阅分别收到、先 notify 再 watch 仅首帧，以及 pending next 经 abort/return/dispose 全部结束；测试操作均 await 确定完成，不用超时猜测。
-
-验证：
-```bash
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin exec vitest run tests/unit/meeting-refresh-feed.spec.ts
-```
-
-PASS：两命令退出 0；所有通知数量和 done 断言通过。
-STOP：需要新增 timer/持久队列，或 next 无法退出；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
-
-### M02：把 feed 接到现有提交回调
-
-前置状态：M01 PASS。
-允许修改：`plugin/src/runtime/application-service/types.ts`；`plugin/src/runtime/application-service/index.ts`；`plugin/tests/contract/meeting-runtime.spec.ts`；`plugin/tests/contract/http-boundary.spec.ts` 仅补 fixture 的新 watch 方法。
-禁止修改：Repository commit/ready 顺序、九个业务方法、HTTP 行为。
-
-执行：
-1. LocalMeetingWebRuntime 增加 `watchLocalMeetingUpdates(signal:AbortSignal):AsyncIterable<MeetingRefreshNoticeV1>`；createCreateStatusRuntime 在 registry 创建前实例化 feed。onProjectionCommitted 保留 Markdown schedule，随后 feed.notify(snapshot.meetingId,snapshot.version)。
-2. 返回对象增加 watchLocalMeetingUpdates: signal => feed.watch(signal)；dispose 第一行调用 feed.dispose，原清理次序随后不变。HTTP fixture 增加立即结束的 watch iterator，不能增加定时器。
-3. 在 meeting-runtime 的 local control describe 内使用现有 setupLocalControlRuntime：消费首帧后 pause 成功，下一帧到达时 getLocalMeetingStatus 已是 paused；打开 pending next，读取同状态不产生新帧；随后 resume 成功产生新帧。
-4. 用 meeting.failPutsInTable("commits") 使下一条合法控制提交失败：断言 projection/version 等于提交前，pending 仍未交付；finally allowPutsInTable("commits")、abort subscriber、dispose runtime/registry。按现有 cold recovery fixture 用原 facility 新建 Runtime，首帧后状态等于已确认成功事实。
-
-验证：
-```bash
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin exec vitest run tests/contract/meeting-runtime.spec.ts tests/contract/http-boundary.spec.ts
-```
-
-PASS：退出 0；提交后状态可读、失败无通知、reopen 首帧通过。
-STOP：需要修改 Repository 或领域 transition；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
-
-### M03：实现静态 Remote Service 与类型
-
-前置状态：M02 PASS。
-允许修改：新 `plugin/src/remote/index.ts`、新 `plugin/src/remote/types.ts`；`plugin/package.json`、`plugin/pnpm-lock.yaml`、`plugin/eslint.config.js`。
-禁止修改：根插件装配、Client、原协议 Schema、DSH checkout。
-
-执行：
-1. package devDependencies 新增 dsh-typert-protocol、dsh-api-gateway、dsh-typert-generator、dsh-typert-registry、dsh-client-connection（均带 @deepseek-ai/ 前缀且值精确 0.1.2-rc.1）；前两项同时为同版本 peer、peerDependenciesMeta optional=true。只增加这些键，运行一次 pnpm install 更新 lock。
-2. ESLint publicModules 追加 remote，暂时保留 http。types.ts 按 Interface 定义八个 DTO & Record<string,RemoteJsonValue> alias 及三个 RemoteErrorDetailsMap 声明合并，不复制业务 DTO。
-3. 实现 ConviviumRemoteService extends TypertRemoteService；constructor(ctx:Context,runtime:LocalMeetingWebRuntime)，super(ctx,"conviviumMeetings")。D1 九方法与 watchUpdates 全部按精确签名声明、装饰。
-4. 逐方法落实 D2 五阶段，exact Keys 逐行照 D1；禁止动态 dispatcher；constructor 在 super 后创建一个 Service 私有 lifetime AbortController，并通过 ctx.effect 注册 () => lifetime.abort()；watchUpdates 返回 runtime.watchLocalMeetingUpdates(AbortSignal.any([signal, lifetime.signal]))。卸载只关闭该 Service 的订阅，不 dispose Runtime。
-
-验证：
-```bash
-pnpm --dir plugin install
-pnpm --dir plugin typecheck:host
-```
-
-PASS：退出 0；新增依赖只有规定五包；原 package 版本不变。
-STOP：类型无法编译而需改业务 DTO/Schema 或引入新依赖；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
 
 ### M04：生成可发布 Host 与 Client contract
 
