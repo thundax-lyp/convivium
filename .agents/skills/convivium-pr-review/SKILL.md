@@ -36,7 +36,7 @@ node .agents/skills/convivium-pr-review/scripts/collect-review-context.mjs snaps
 
 先读取：
 
-- `docs/AGENTS.md`
+- `AGENTS.md`
 - `docs/00-governance/ARCHITECTURE.md`
 - `docs/00-governance/PR-RULES.md`
 - `.github/pull_request_template.md`

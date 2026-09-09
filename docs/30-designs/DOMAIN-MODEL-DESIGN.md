@@ -10,6 +10,21 @@
 
 本文不定义调度算法、状态转换流程、Repository record schema、DSH 调用、HTTP、工具、UI 或 Agent 内部能力。
 
+## Scope And Non-goals
+
+Scope 为领域对象结构、枚举、引用和数据不变量；状态转换与调度见编排设计，持久 record schema 和公开 DTO 见接口契约。本文不通过复制旧示例声明扩展当前字段或权限。
+
+## Related Requirements And Interfaces
+
+- [Meeting Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
+- [Agent Meeting Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)
+- [Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)
+- [Meeting Orchestration Design](./MEETING-ORCHESTRATION-DESIGN.md)
+
+## Responsibilities And Dependencies
+
+Domain 拥有会议事实对象；Runtime 负责调用 transition，Repository 负责无损持久化，Protocol 负责公开映射。依赖和权限边界如下，不由其他设计再次定义领域结构。
+
 ## Domain Event Ownership
 
 Domain event 是 Convivium 会议事实的唯一事件语义来源。`DomainEventType` 和 `DomainEvent` 由 Domain 定义，描述已经发生的会议事实；Repository 只原样持久化 Domain event，并附加 `eventSeq`、`meetingVersion`、时间和索引字段等存储元数据。
@@ -78,11 +93,37 @@ MeetingState 必须包含以下字段：
 - waiting 状态必须有 waitState；离开 waiting 时清除 waitState。
 - 当前事实由 published checkpoint 与连续 commit tail 合成的 Meeting projection 恢复，不从 Markdown、自然语言摘要或 event-only replay 猜测。
 
+### State vocabulary
+
+以下枚举集中定义对象可表示的值；合法转换及各状态允许的操作见 [Orchestration State Machines](./MEETING-ORCHESTRATION-DESIGN.md#7-state-machines)。
+
+| 对象字段 | 允许值 |
+| --- | --- |
+| MeetingState.status | `created`, `running`, `waiting`, `paused`, `converging`, `completed`, `partial`, `no_consensus`, `cancelled`, `failed`, `archiving`, `archived` |
+| MeetingState.selectionMode | `round_robin`, `rule_based`, `manager`, `hybrid` |
+| MeetingTurn.status | `planned`, `running`, `completed`, `truncated`, `cancelled`, `failed` |
+| SpeakerStep.status | `pending`, `assigned`, `running`, `submitted`, `skipped`, `revoked`, `failed` |
+| SpeakerAttempt.status | `assigned`, `running`, `submitted`, `revoked`, `failed` |
+| SpeakerAttempt.deliveryStatus | `pending`, `accepted`, `acknowledged`, `failed` |
+| SpeakerSelectionReason | `explicit_mention`, `direct_question`, `required_reviewer`, `agenda_owner`, `task_result_owner`, `blocking_objection_owner`, `hand_raise`, `rule_score`, `manager_selected`, `round_robin_fallback`, `captain_summary` |
+| MeetingMessage.kind | `statement`, `question`, `answer`, `proposal`, `objection`, `evidence`, `review`, `summary`, `decision` |
+| MeetingProposal.status | `draft`, `under_review`, `accepted`, `rejected`, `superseded` |
+| ParticipantPosition.position | `support`, `accept`, `object`, `needs_revision`, `abstain` |
+| MeetingDecision.status | `accepted`, `superseded`, `revoked` |
+| MeetingQuestion.status | `open`, `answered`, `withdrawn`, `deferred` |
+| AgendaCandidate.status | `pending`, `promoted`, `parked`, `rejected` |
+| AgendaCandidate.relationToActiveAgenda | `related`, `adjacent`, `unrelated` |
+| AgendaCandidate.urgency | `now`, `before_release`, `later` |
+| CompletionFact.kind | `output_evidence`, `criterion_evidence`, `review`, `question_resolution`, `agenda_resolution`, `risk_acceptance`, `decision_acceptance`, `decision_supersession`, `decision_revocation`, `waiver` |
+| CompletionFact.result | `supported`, `approved`, `changes_required`, `accepted`, `rejected`, `resolved`, `deferred`, `superseded`, `revoked`, `waived` |
+| CompletionFact.status | `active`, `superseded`, `revoked` |
+| MeetingTermination.code | `objective_satisfied`, `captain_accepted`, `no_consensus`, `stalled`, `max_turns`, `message_limit`, `time_limit`, `all_participants_unavailable`, `user_cancelled`, `internal_error` |
+
 ## Participant And Manager
 
 ### MeetingParticipant
 
-必须包含 sourceMemberName?、displayName、role?、status、lastDeliveredSeq、lastAcknowledgedSeq、consecutiveSpeeches、consecutiveAttemptFailures 和 totalSpeeches。
+必须包含 id、sourceMemberName?、displayName、role?、status、lastDeliveredSeq、lastAcknowledgedSeq、consecutiveSpeeches、consecutiveAttemptFailures 和 totalSpeeches。
 
 status 为 available、busy、speaking、unavailable、failed 或 removed。Participant 与 meeting-owned AgentSession 的绑定属于 Runtime，不进入 MeetingState。
 
@@ -162,9 +203,11 @@ pending candidate 不参与 completion blocking。Meeting 结束时不自动改�
 
 ### MeetingTurn
 
-必须包含 id、seq、agendaItemId、intent、objective、expectedOutputs、prohibitedTopics、plan、currentStepIndex、status、createdAt 和 completedAt?。
+必须包含 id、seq、agendaItemId、intent、objective、expectedOutputs、prohibitedTopics、plan、currentStepIndex、steps、status、createdAt 和 completedAt?。
 
 intent 为 explore、clarify、challenge、review、resolve_objection、synthesize、decide、report_task_result 或 refocus。
+
+MeetingTurn.steps 是有序 SpeakerStep 集合，currentStepIndex 指向当前执行位置；plan 保存给定讨论计划，不能代替 steps。
 
 ### SpeakerStep
 
@@ -172,7 +215,7 @@ intent 为 explore、clarify、challenge、review、resolve_objection、synthesi
 
 ### SpeakerAttempt
 
-必须包含 attemptId、participantId、contextFromSeq、contextThroughSeq、deliveryId、deliveryStatus、taskSnapshots、assignedAt，以及 startedAt?、completedAt?、deadlineAt?、deliveredAt? 和 acknowledgedAt?。
+必须包含 attemptId、participantId、contextFromSeq、contextThroughSeq、deliveryId、status、deliveryStatus、taskSnapshots、assignedAt，以及 startedAt?、completedAt?、deadlineAt?、deliveredAt? 和 acknowledgedAt?。
 
 一个 Meeting 同时最多一个活动 SpeakerAttempt。重试必须创建新 Attempt，不能复活旧 capability。context 范围和 taskSnapshots 在 Attempt 创建时固化，重投不得漂移。
 
@@ -253,13 +296,17 @@ HandRaise 是调度输入，不是 transcript、Decision 或 CompletionFact。
 
 ## Archive And Continuation
 
-ArchivePackage 必须包含 objectiveContract、finalSummary、artifactRefs、acceptedDecisions、decisionHistory、proposals、completionFacts、agenda、issues、unresolvedQuestions、parkingLot、formalTranscript、participantProvenance、managerPromptVersion、termination、endedAt 和 materializedAt。`acceptedDecisions` 只包含当前 accepted Decision；`decisionHistory` 保留全部 Decision。
+ArchivePackage 必须包含 `schemaVersion: 1`、meetingId、teamId、sourceMeetingId?、objectiveContract、finalSummary、artifactRefs、acceptedDecisions、decisionHistory、proposals、completionFacts、agenda、issues、unresolvedQuestions、parkingLot、formalTranscript、participantProvenance、managerPromptVersion、termination、endedAt 和 materializedAt。`acceptedDecisions` 只包含当前 accepted Decision；`decisionHistory` 保留全部 Decision。
 
 ArchivePackage 不得包含可恢复的 Agent Session ID、capability、完整 Agent 配置、工作目录、MCP、隐藏推理、私有工具过程、私有 mailbox、SpeakerAttempt、delivery/outbox payload 或完整 speaker context。
 
 `ArchivePackage.attendanceRejections` 是可选的非空数组，每条仅含 recommendationId、candidateId、roleDefinitionId、displayName、agendaItemId、reason、rejectedAt 七字段。`projectAttendanceRejections` 从已提交 rejected 推荐按原 createdAt、id 排序，供物化和 matching 共用；matching 精确比较字段、数量和顺序。有拒绝记录时不得省略，无拒绝记录时省略，旧 package 不补 `[]`。该字段不包含 requestId、actorBinding 或私有 Definition/Session 信息。
 
 ArchivePackage 物化后不可变。续会只通过显式选择的 continuation materials 创建新的 Meeting、Participant ID、Session 和 capability。
+
+ArchiveRecord 包含不可变 package 与可选 archivedAt；清理完成时间不改变 package。ContinuationMaterial 必须包含 sourceMeetingId、sourceKind、summary，可选 sourceObjectId、checksum；sourceKind 为 `final_summary|decision|issue|risk|evidence|artifact`。除最终摘要外必须保留 sourceObjectId；选择、复制和失败语义由 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) 的续会契约约束。
+
+产物和 Participant provenance 使用明确的归档投影，公开字段以 Protocol Archive projection 为准；不得从旧编排示例恢复已被当前接口替代的 `artifacts` 命名或私有字段。
 
 ## Initial State And Defaults
 
@@ -309,6 +356,14 @@ Rule planning derives recency from transcript and `turnSeq`; it never persists a
 The progress fingerprint is a fixed-key JSON tuple over agenda id/status/resolution; accepted decision id/proposalId/proposalRevision; open blocking questions; current-revision blocking positions; terminal task id/status/resultSummary; proposal id/revision/status; and active CompletionFact id/kind/subjectId/result/evidenceMessageIds/taskIds. Arrays are sorted by canonical ID. Text similarity, current time, Map/Set iteration and informal summaries are excluded. First completed Turn stores the fingerprint with `stallCount=0`; change resets stall and replan counters; unchanged progress creates refocus, then bounded replan, then termination. Blocking disagreement yields `status='no_consensus'` and `termination.code='no_consensus'`; otherwise stall yields `status='partial'` and `termination.code='stalled'`. Termination IDs are state-derived and ownership-validated.
 
 Initial convergence defaults are `stallCount=0`, `replanCount=0`, `managerPlanningSeq=0`; `maxStalls=3` and `maxReplans=1` are the existing confirmed defaults. Waiting clears on the sole Captain/local resume transition only when all required Participants are dispatchable. Terminal state rejects new planning, fallback, wait, or speaker facts.
+
+## State And Failure Handling
+
+初始状态按 Initial State And Defaults 创建；后续状态只能由编排设计定义的 transition 产生。持久化读取必须校验对象结构与引用，非法数据不得用猜测或默认值修复；明确的 legacy 边界按各对象及 Storage Interface 处理。
+
+## Security And Observability
+
+Domain 只接受 Runtime 已验证的授权输入，不以字段值或 Session label 自证权限。领域事件仅记录正式会议事实；私有 Session、capability、隐藏上下文和投递实现信息不进入公开归档。公开观测由 Protocol projection 裁剪，不能反向改变当前事实。
 
 ## Acceptance
 

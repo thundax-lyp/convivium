@@ -32,7 +32,6 @@ jobs:
             README.md
             TODO.md
             .github/pull_request_template.md
-            docs/AGENTS.md
             docs/00-governance/ARCHITECTURE.md
             docs/00-governance/COMMIT-RULES.md
             docs/00-governance/DOCUMENT-RULES.md

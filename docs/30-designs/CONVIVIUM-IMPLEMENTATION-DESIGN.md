@@ -145,8 +145,8 @@ tools ──caller context─────────┘       ├──> dsh
 
 repository ──> domain types
 repository/domain ──> @deepseek-ai/dsh-storage-domain
-storage ──> @deepseek-ai/dsh-storage
-index ──> storage provider child + Meeting consumer child
+Host/profile ──> official SQLite provider ──> Storage Domain backend
+index ──> Meeting consumer child
 dsh        ──> domain ports
 projection ──> domain read models + protocol projections
 protocol   ──> no infrastructure or domain module
@@ -214,7 +214,7 @@ Protocol owner 固定为：`plugin/src/protocol/types.ts` 定义 DTO；`plugin/s
 
 ## Persistence Algorithm And Repository Cutover
 
-当前持久化算法是 `Checkpointed Commit Log`，抽象状态、checkpoint/commit/compaction 流程、不变量和验收点见 `MEETING-PERSISTENCE-SPECIAL-DESIGN.md`。它属于带 checkpoint 与 log compaction 的 log-structured persistence，不得简称为 `Event Sourcing` 或 `WAL`。repository 只使用 `@deepseek-ai/dsh-storage-domain`：一个轻量 catalog domain 用于发现，每个 Meeting 使用独立 domain；一次 command 只写一条 commit record，checkpoint 分页写入。物理介质由 Host/profile 的官方 SQLite provider 管理，Convivium 保留领域 commit/checkpoint 算法，不直接调用 backend 或 SQL。
+当前持久化算法是 `Checkpointed Commit Log`，抽象状态、checkpoint/commit/compaction 流程、不变量和验收点见 [Persistence Design](./MEETING-PERSISTENCE-SPECIAL-DESIGN.md)。它属于带 checkpoint 与 log compaction 的 log-structured persistence，不得简称为 `Event Sourcing` 或 `WAL`。repository 只使用 `@deepseek-ai/dsh-storage-domain`：一个轻量 catalog domain 用于发现，每个 Meeting 使用独立 domain；一次 command 只写一条 commit record，checkpoint 分页写入。物理介质由 Host/profile 的官方 SQLite provider 管理，Convivium 保留领域 commit/checkpoint 算法，不直接调用 backend 或 SQL。
 
 Storage Domain 是当前唯一会议事实源。实现不双写、不 fallback，也不定位、读取或扫描 backend 的物理布局。遗留 `.sqlite` 数据不读取、不迁移、不删除，属于当前实现和恢复流程之外；缺少 catalog record 时不得据遗留文件猜测 Meeting 存在。
 
@@ -404,8 +404,6 @@ Host/profile 与 `src/index.ts` 的启动顺序：
 ### Optional Web Composition
 
 Meeting consumer 只声明核心 Agent、Session、Subagent、SystemPrompt、Tools 和 Storage Domain 依赖。Web routes 使用 Cordis `ctx.inject(["webServer"], ...)` 子作用域，在 loopback 服务存在时注册，并随该服务或父插件卸载释放；runtime 的清理仍由 consumer 拥有。DSH Tools.register 已托管 contribution effect，consumer 直接注册工具，不重复包装 disposer。业务串行队列、outbox 和 Session/Meeting 归属校验继续由 Convivium 负责。冷绑定在重启 worker 前，用原 deliveryId 重排已被 DSH 接受但仍未完成的 planning/speaker 与未开始 Task；范围和原子性见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
-
-冷绑定在重启 worker 前，用原 deliveryId 重排已被 DSH 接受但仍未完成的 planning/speaker 与未开始 Task；范围和原子性见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
 
 ## State And Failure Handling
 

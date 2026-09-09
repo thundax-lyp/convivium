@@ -20,7 +20,7 @@ description: 为 Convivium 创建、细化、审计或机械执行临时 RUNBOOK
 
 ## 共同前置
 
-1. 读取 `docs/AGENTS.md`、`docs/00-governance/ARCHITECTURE.md`、`docs/00-governance/DOCUMENT-RULES.md` 和 `docs/00-governance/RUNBOOK-RULES.md`。
+1. 读取 `AGENTS.md`、`docs/00-governance/ARCHITECTURE.md`、`docs/00-governance/DOCUMENT-RULES.md` 和 `docs/00-governance/RUNBOOK-RULES.md`。
 2. Close 或涉及 TODO/验证收口时读取 `docs/00-governance/TODO-RULES.md`。
 3. 按任务读取最小必要 requirements、interfaces、designs、readiness 和代码；讨论稿只作背景。
 4. 读取工作树状态并保留用户已有修改。

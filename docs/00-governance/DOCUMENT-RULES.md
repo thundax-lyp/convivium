@@ -25,7 +25,7 @@
 
 - 保存稳定、跨任务适用的工程规则。
 - 不记录一次任务的执行过程、临时方案或完成历史。
-- 规则变化时必须检查根 `AGENTS.md`、`docs/AGENTS.md` 和相关 Skill 是否需要同步。
+- 规则变化时检查相关 Skill；只有入口约束或读取路由变化时才同步根 `AGENTS.md`。
 - 暂存、提交和历史修改规则统一由 `COMMIT-RULES.md` 定义。
 - 分支、PR、Review、CI 和合并规则统一由 `PR-RULES.md` 定义。
 
@@ -65,6 +65,24 @@
 - 保存产品讨论稿、外部调研、决策背景、会议记录和历史材料。
 - 文件必须清楚标记其状态以及是否可以作为实现依据。
 - 已确认结论应迁移到对应工程文档；不在多处保留相互竞争的当前口径。
+
+## Repository Entry And Design Ownership
+
+根 `AGENTS.md` 是唯一仓库任务路由入口，保存长期协作要求、必读文档映射和少量带权威链接的关键约束提醒，不另设重复的文档目录任务入口。完整规则只在对应治理文档维护；Skill 负责应用规则，不重复建立仓库规则真相源。
+
+根入口不记录 Current State、阶段进度、依赖版本、源码模块清单或验证结果。实际实现覆盖由 `40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` 维护；入口仅引用它。只有协作规则、关键约束或文档路由变化时修改根入口，不因普通功能交付更新它。
+
+当前设计文档按以下职责维护，其他文档使用摘要和链接，不重复定义：
+
+| 文档 | 唯一维护的设计内容 |
+| --- | --- |
+| [Implementation](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md) | 工程目录、模块接线、统一 adapter、插件生命周期和验证入口 |
+| [Domain Model](../30-designs/DOMAIN-MODEL-DESIGN.md) | 领域对象字段、引用、集合、初始化和数据不变量 |
+| [Orchestration](../30-designs/MEETING-ORCHESTRATION-DESIGN.md) | 会议状态转换、调度、上下文投递、恢复和归档流程 |
+| [Persistence](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) | commit、checkpoint、compaction 算法及失败边界 |
+| [Role Composition](../30-designs/ROLE-COMPOSITION-DESIGN.md) | 角色解析、DSH 能力预检及原生部署资源组合 |
+
+产品行为、公开字段、错误和存储 record schema 仍由需求及接口契约约束。去重时先核对唯一内容和已确认口径，再迁移或删除；不得把过时类型声明直接复制到当前真相源。
 
 ## File Naming
 
@@ -147,10 +165,10 @@ readiness 证据至少包含：
 - 实现结构、状态机或失败处理变化：`30-designs/`。
 - 验证范围、交付状态或已知缺口变化：`40-readiness/`。
 - 启动、恢复、升级或发布方式变化：`50-operations/`。
-- 文档路由变化：根 `AGENTS.md` 和 `docs/AGENTS.md`。
+- 文档路由变化：根 `AGENTS.md`。
 - 项目工程工作流变化：对应 `.agents/skills/`。
-- RUNBOOK 治理变化：`RUNBOOK-RULES.md`、根 `AGENTS.md`、`docs/AGENTS.md` 和 `.agents/skills/convivium-runbook/`。
-- Commit 规则变化：`COMMIT-RULES.md`、根 `AGENTS.md` 和 `docs/AGENTS.md`。
+- RUNBOOK 治理变化：`RUNBOOK-RULES.md` 和 `.agents/skills/convivium-runbook/`；读取路由或入口约束变化时同步根 `AGENTS.md`。
+- Commit 规则变化：`COMMIT-RULES.md`；读取路由或入口约束变化时同步根 `AGENTS.md`。
 - PR 交付规则变化：`PR-RULES.md` 和 `.github/pull_request_template.md`。
 
 纯实现补齐且未改变既有口径时，不应顺手改写无关文档。

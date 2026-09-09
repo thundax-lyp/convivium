@@ -19,7 +19,7 @@ description: Human-invoked workflow for publishing completed Convivium branch wo
 
 开始前读取：
 
-1. `docs/AGENTS.md`
+1. `AGENTS.md`
 2. `docs/00-governance/ARCHITECTURE.md`
 3. `docs/00-governance/PR-RULES.md`
 4. `.github/pull_request_template.md`

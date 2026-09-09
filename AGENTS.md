@@ -1,72 +1,39 @@
 # Repository Guidelines
 
+## Project And Authority
+
+Convivium 是使用 TypeScript 独立实现的纯 DSH 插件。项目边界以 [Architecture](docs/00-governance/ARCHITECTURE.md) 为准；根 `README.md` 只提供项目简介，不是需求或实现依据。
+
+当前实现范围、验证证据与未覆盖项见 [Current Implementation Coverage](docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)；不得从设计文档推断功能已经实现。
+
+不得根据讨论稿自行确定未决产品范围、框架、数据库、通信方式或部署形态。找不到覆盖目标行为和验收标准的有效需求时，不得开始产品功能实现，应先记录并确认需求。
+
 ## Read Order
 
-- 先读取 `docs/AGENTS.md`，按当前任务选择最小必要文档。
-- 实现或评审前，必须读取 `docs/00-governance/ARCHITECTURE.md`。
-- 修改文档时，必须读取 `docs/00-governance/DOCUMENT-RULES.md`。
-- 创建、修改、审计、执行或收口 RUNBOOK 时，必须读取 `docs/00-governance/RUNBOOK-RULES.md` 并使用 `.agents/skills/convivium-runbook/`。
-- 处理 TODO、验证或任务收口时，必须读取 `docs/00-governance/TODO-RULES.md`。
-- 处理暂存、提交或提交历史时，必须读取 `docs/00-governance/COMMIT-RULES.md`。
-- 处理分支、PR、Review、CI 或合并时，必须读取 `docs/00-governance/PR-RULES.md`。
-- 根目录 `README.md` 只提供项目简介，不是需求或实现依据。
+只读取当前任务必需的文档，不默认全量加载 `docs/` 或无依赖关系的模块文档。文档职责、优先级和冲突处理以 [Document Rules](docs/00-governance/DOCUMENT-RULES.md) 为准；`docs/60-human/` 仅用于必要背景，不覆盖正式工程依据。
 
-## Current State
+| 任务 | 必读依据 |
+| --- | --- |
+| 实现或评审 | [Architecture](docs/00-governance/ARCHITECTURE.md) 与相关 `docs/10-requirements/` |
+| 文档修改 | [Document Rules](docs/00-governance/DOCUMENT-RULES.md) |
+| 协议、事件、配置或数据格式 | 相关 `docs/20-interfaces/` |
+| 具体实现方案 | 相关 `docs/30-designs/` |
+| TODO、验证或任务收口 | [TODO Rules](docs/00-governance/TODO-RULES.md) 与相关 `docs/40-readiness/` |
+| 运行、诊断或发布操作 | 相关 `docs/50-operations/` |
+| 创建、修改、审计、执行或收口 RUNBOOK | [RUNBOOK Rules](docs/00-governance/RUNBOOK-RULES.md)，并使用 `.agents/skills/convivium-runbook/` |
+| 暂存、提交或提交历史 | [Commit Rules](docs/00-governance/COMMIT-RULES.md) |
+| 分支、PR、Review、CI 或合并 | [PR Rules](docs/00-governance/PR-RULES.md) |
 
-- Convivium 已在 `plugin/` 初始化独立的 DSH 插件工程。
-- `plugin/` 提供最小构建和类型检查入口；会议能力尚未实现，不得把工程骨架描述为产品已完成。
-- 不得根据讨论稿自行确定未决产品范围、框架、数据库、通信方式或部署形态。
+## Key Constraints
 
-## Project Direction
+- 必须遵守 [Architecture 的 Implementation Economy](docs/00-governance/ARCHITECTURE.md#implementation-economy)：新增机制必须有当前依据，采用保持必要不变量的最小安全改动，不顺带扩张范围。
+- 必须遵守 [Import Paths](docs/00-governance/ARCHITECTURE.md#import-paths) 和 [Public Module Entrypoints](docs/00-governance/ARCHITECTURE.md#public-module-entrypoints)：源码禁止父级相对导入；测试引用源码使用 `@/`；生产代码跨模块只引用登记的公开入口。不得通过禁用 lint、放宽规则或创建转发文件绕过检查。
+- 实现前明确业务不变量与反例，测试检查可观察行为；具体要求见 [Engineering Checks](docs/00-governance/ARCHITECTURE.md#engineering-checks) 和 [Test Naming](docs/00-governance/ARCHITECTURE.md#test-naming)。
 
-- Convivium 是使用 TypeScript 独立实现的纯 DSH 插件。外部项目只能作为只读调研材料，不是源码基线、运行依赖或兼容目标。
-- 插件前端不得直接管理 Agent Session、会议运行时、任意文件访问或敏感权限；这些能力只能由插件后端通过受控工具和路由提供。
-- 每个 Agent 在具体会议身份下使用独立 DSH continuable AgentSession；不得跨身份共享会话状态。
-- 后续新增顶层工程目录前，必须先在架构文档中明确其职责、依赖方向和验证入口。
-
-## Implementation Economy
-
-- 默认采用满足当前已确认行为和必要不变量的最小安全改动，不为仅有假设性未来价值的能力预建机制。
-- 新增抽象、状态、事件、adapter、worker、依赖、兼容层或扩展点前，必须指出至少一项当前依据：需求或接口契约、架构或安全不变量、可复现失败、必要隔离边界，或多个当前消费者需要的稳定共享语义。
-- 单一消费者、单一实现、文件数量或代码行数只能触发进一步检查，不能单独证明过度设计；权限、事务、持久化、外部系统和生命周期边界可以因隔离责任而独立存在。
-- finding 是否成立与建议方案是否合适必须分别判断；较小方案能够消除同一触发条件并保持必要边界时，采用较小方案。
-- 未经当前任务确认，不顺带重构稳定路径、建立通用框架、扩展协议或实现后续阶段；完成当前范围必须扩张时，停止并报告新增范围。
-
-## Hard Rules
-
-- **MUST** 遵守 `docs/00-governance/ARCHITECTURE.md` 的 Import Paths：`plugin/src/` 中禁止 `../`、`../../` 等父级相对模块引用，必须改为 `@/` 引用对应模块的公开入口或模块内原目标文件；覆盖普通导入、类型导入、重新导出和动态导入。
-- **MUST** 在测试导入 `plugin/src/` 时使用 `@/`。同目录 `./` 引用、测试辅助文件之间的相对引用和直接由 Node 执行的脚本按 Import Paths 的适用边界处理。
-- **MUST** 遵守 Architecture 的 Public Module Entrypoints：生产代码跨模块只引用已登记模块的 `index.js`；模块内部可直接引用自身实现，测试可引用被测内部文件。缺少公开符号时先核对职责和当前调用依据，不得为通过 lint 批量导出 internal。
-- **MUST NOT** 为消除 lint 报错添加 `eslint-disable`、放宽规则或创建转发文件。路径迁移保持导入符号的实现归属和 `.js` 扩展名；已有 `./` 引用在符合公开入口规则时保留。完成后运行 `pnpm --dir plugin lint` 和受影响验证。
-
-## Engineering Checks
-
-按任务风险执行以下检查，可复用已有依据和证据，不为检查本身新增文档或审批环节：
-
-- 实现前：从已确认需求和契约中明确关键业务不变量，列出能暴露错误实现的反例；验证预期不得仅从当前代码推导。
-- 写测试前：明确触发条件、可观察结果及所属业务对象或能力，优先归入对应已有测试；命名遵循 `docs/00-governance/ARCHITECTURE.md` 的 Test Naming，不以实现细节断言代替行为验证。
-
-## Review Language
-
-- 面向仓库协作者的 review comment、PR review summary 与 review reply 使用中文。
-- 代码、协议、类型、字段、错误码、命令和工具名称保留英文原文；必要时在中文说明中引用。
-
-## Documentation Governance
-
-- 稳定工程规则放在 `docs/00-governance/`。
-- 已确认、可验收的需求放在 `docs/10-requirements/`。
-- 接口、事件、IPC、配置和数据格式契约放在 `docs/20-interfaces/`。
-- 模块设计、专项设计和临时 RUNBOOK 放在 `docs/30-designs/`。
-- 实现覆盖、验证结果和发布准备证据放在 `docs/40-readiness/`。
-- 启动、诊断、恢复、升级和发布操作放在 `docs/50-operations/`。
-- 调研、讨论、决策背景和历史材料放在 `docs/60-human/`，不作为默认实现依据。
-- 项目专用的 Codex 工作流放在 `.agents/skills/`，不在 `docs/` 中保存 Prompt 集合。
-- RUNBOOK 的稳定治理规则以 `docs/00-governance/RUNBOOK-RULES.md` 为准；对应 Skill 只负责应用和审计规则。
-
-## Change Rules
+## Collaboration
 
 - 保留用户已有改动，不混入与当前任务无关的修改。
-- 行为、接口、架构规则或开发流程变化时，同步更新对应文档。
-- 只把已经确认的结论提升为需求、契约或治理规则；未决内容留在 `TODO.md` 或 `docs/60-human/`。
-- 使用最窄的相关验证；没有自动化验证时，明确记录未验证边界。
+- 行为、接口、架构或流程变化时，按 Document Rules 同步对应文档；只提升已确认结论，未决内容留在 `TODO.md` 或 `docs/60-human/`。
+- 使用最窄的相关验证，明确未验证边界，不把未执行检查描述为通过。
 - 开发改动通过独立分支和 PR 进入 `main`；不自动合并 PR，除非用户明确要求。
+- 面向仓库协作者的 review comment、PR review summary 与 review reply 使用中文；代码、协议、类型、字段、错误码、命令和工具名称保留英文原文。

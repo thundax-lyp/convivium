@@ -11,7 +11,7 @@ description: Assess whether a Convivium implementation or PR is genuinely ready 
 
 根据用户范围读取最小必要材料：
 
-- `docs/AGENTS.md`、`docs/00-governance/ARCHITECTURE.md`
+- `AGENTS.md`、`docs/00-governance/ARCHITECTURE.md`
 - 相关 `10-requirements/`、`20-interfaces/`、`30-designs/`
 - `docs/40-readiness/` 中相关证据
 - `docs/00-governance/PR-RULES.md`、`TODO.md`、`.github/workflows/pr-verify.yml`
