@@ -1,7 +1,17 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
+import { typertPlugin } from "@deepseek-ai/dsh-typert-generator/tsdown";
+
+const decoratorPlugin = typertPlugin({ mode: "package", faces: ["host"] });
 
 export default defineConfig({
+    plugins: [
+        {
+            name: decoratorPlugin.name,
+            enforce: "pre",
+            transform: decoratorPlugin.transform
+        }
+    ],
     resolve: {
         alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) }
     },
