@@ -59,7 +59,7 @@
 
 ### Public Module Entrypoints
 
-- `client`、`domain`、`dsh`、`projection`、`protocol`、`runtime`、`tools` 通过自身 `index.ts` / `index.tsx` 对其他生产源码公开符号。Web transport 迁移前为 `http`，按 [Remote Design](../30-designs/MEETING-REMOTE-DESIGN.md) 一次替换为 `remote`；实施覆盖由 readiness 记录。源码模块公开不等于 package 对外导出；生成器使用的纯类型 package 子路径不授权跨模块导入源码内部文件。
+- `client`、`domain`、`dsh`、`projection`、`protocol`、`remote`、`runtime`、`tools` 通过自身 `index.ts` / `index.tsx` 对其他生产源码公开符号。Web transport 的 `remote` 公开入口已按 [Remote Design](../30-designs/MEETING-REMOTE-DESIGN.md) 实现；验证边界由 readiness 记录。源码模块公开不等于 package 对外导出；生成器使用的纯类型 package 子路径不授权跨模块导入源码内部文件。
 - 跨模块导入必须使用 `@/<module>/index.js`；`src/` 根目录装配可保留等价的 `./<module>/index.js`。普通导入、类型导入、重新导出和动态导入遵循同一边界。不得用别名或相对路径直接访问另一个模块的内部文件。
 - 模块内部可以直接引用自身文件，无须经由自身入口；`domain/transitions/` 和 `runtime/application-service/` 属于各自顶层模块内部，不因有 `index.ts` 就成为独立封装单元。`repository`、`role-composition` 尚无入口，不为本规则新增转发文件。
 - 测试可以直接引用被测模块内部文件；直接执行的 Node 脚本继续遵守既有运行和路径约束。

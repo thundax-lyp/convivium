@@ -2,7 +2,7 @@
 
 ## Purpose And Status
 
-2026-09-09 确认的迁移目标：九个 Meeting Web 操作一次迁移到 DSH `0.1.2-rc.1` Typert Remote；以插件自有 stream 通知和完整 refetch 替换 5 秒轮询。本文规定迁移后的传输契约，不表示代码已实现。业务 DTO、权限、状态及 receipt 继续由 [Meeting Protocol](./AGENT-MEETING-PROTOCOL-INTERFACE.md) 定义；实现覆盖以 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
+2026-09-09 确认的迁移目标：九个 Meeting Web 操作一次迁移到 DSH `0.1.2-rc.1` Typert Remote；以插件自有 stream 通知和完整 refetch 替换 5 秒轮询。本文规定的传输契约已实现，实际验证边界见 [Implementation Results](../40-readiness/MEETING-REMOTE-FEASIBILITY-EVIDENCE.md#implementation-results)。业务 DTO、权限、状态及 receipt 继续由 [Meeting Protocol](./AGENT-MEETING-PROTOCOL-INTERFACE.md) 定义；实现覆盖以 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为准。
 
 本契约满足 [Requirements FR-11](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#fr-11可观察性与用户控制)。不增加创建会议、Agent 管理、增量状态同步或远程部署功能。
 

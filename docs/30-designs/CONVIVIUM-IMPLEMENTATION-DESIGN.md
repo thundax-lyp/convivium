@@ -2,7 +2,7 @@
 
 ## Meeting Transport Migration
 
-九个 Web 操作及刷新生命周期的目标方案由 [Meeting Remote Design](./MEETING-REMOTE-DESIGN.md) 专项维护。下文目录树和旧 HTTP 入口映射记录迁移起点；迁移时用 remote 替换 http，除该专项明确的传输、生成和生命周期调整外，其余依赖、业务与持久化边界不变。实现覆盖仍由 readiness 维护。
+九个 Web 操作及刷新生命周期的当前接线由 [Meeting Remote Design](./MEETING-REMOTE-DESIGN.md) 专项维护。九个操作已使用 Remote，refresh stream 已替换轮询；其余依赖、业务与持久化边界不变。实现覆盖仍由 readiness 维护。
 
 ## Purpose
 
@@ -70,7 +70,7 @@ plugin/
 │   ├── runtime/
 │   ├── dsh/
 │   ├── tools/
-│   ├── http/
+│   ├── remote/
 │   ├── projection/
 │   └── client/
 │       └── index.tsx               # Browser entry
@@ -183,7 +183,7 @@ domain     ──> no infrastructure module
 2. `domain/` 不导入 protocol、DSH、repository、HTTP、React 或文件系统模块。
 3. `repository/` 不调用 DSH，也不选择 speaker 或判断会议完成。
 4. `dsh/` 只实现 Runtime 所需 port，不写 Meeting 领域状态。
-5. `tools/` 和 `http/` 只做 transport 解析、caller binding、调用 Runtime 和结果编码。
+5. `tools/` 和 `remote/` 只做 transport 解析、caller binding、调用 Runtime 和结果编码。
 6. `client/` 只使用 `protocol/` 定义的 Web projection，不导入 host 代码、domain aggregate 或数据库类型。
 7. `projection/` 只能读取已提交事实并映射为 protocol projection；Markdown 和 UI projection 都不能反向驱动状态转换。
 
@@ -219,7 +219,7 @@ domain     ──> no infrastructure module
 | `src/domain/meeting-task.ts`                                   | MeetingTask、HandRaise、状态转换和 task projection 的纯领域逻辑                                      |
 | `src/dsh/caller-resolver.ts`                                   | 将真实 DSH caller Session 解析为 Captain、Manager 或 Participant                                     |
 | `src/tools/register-tools.ts`                                  | 注册 `convivium_*` 工具并绑定协议 Schema                                                             |
-| `src/http/index.ts`                                            | 仅在 loopback Host 注册 `/api/convivium/*`；提供本地 Meeting list、status、pause 和 resume transport |
+| `src/remote/index.ts`                                            | 仅在 loopback Host 装配 `ConviviumRemoteService`；提供九个 Remote 方法与 refresh stream |
 | `src/projection/status.ts`                                     | caller-specific Meeting status projection                                                            |
 | `src/client/*`                                                 | 状态读取、暂停/继续控制和会议 UI                                                                     |
 | `src/client/meeting-panel-sections.tsx`                        | 会议观测区块的纯展示函数；轮询、请求取消和写操作状态仍由 meeting-panel 拥有                            |
