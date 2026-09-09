@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { CreateMeetingInputSchema } from "@/protocol/commands.js";
 import { serializeValidatedRequestV1 } from "@/protocol/request-idempotency.js";
-import { createOfflineMeetingProtocolFixture } from "../../fixtures/offline-meeting-protocol.js";
+import { createOfflineMeetingInput } from "../../fixtures/create-meeting-input.js";
 
 describe("initial role definition selection", () => {
     it("preserves legacy requests without default definition IDs", () => {
-        const input = createOfflineMeetingProtocolFixture().createInput;
+        const input = createOfflineMeetingInput();
         input.agenda = input.agenda.map((item) => ({ ...item, relatedTaskIds: [] }));
         expect(CreateMeetingInputSchema(structuredClone(input))).toEqual(input);
         expect(CreateMeetingInputSchema(input).managerAgentDefinitionId).toBeUndefined();
     });
     it("retains explicit IDs in request serialization and distinguishes changes", () => {
-        const input = createOfflineMeetingProtocolFixture().createInput;
+        const input = createOfflineMeetingInput();
         input.agenda = input.agenda.map((item) => ({ ...item, relatedTaskIds: [] }));
         const selected = {
             ...input,
@@ -45,7 +45,7 @@ describe("initial role definition selection", () => {
     it.each(["", "  ", null, 1, {}, []])(
         "rejects invalid optional ID %j at either position",
         (id) => {
-            const input = createOfflineMeetingProtocolFixture().createInput;
+            const input = createOfflineMeetingInput();
             input.agenda = input.agenda.map((item) => ({ ...item, relatedTaskIds: [] }));
             expect(() =>
                 CreateMeetingInputSchema({ ...input, managerAgentDefinitionId: id })
