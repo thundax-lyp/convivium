@@ -2,7 +2,7 @@
 
 ## Purpose
 
-本文定义实现和评审中的工程取舍、验证要求与测试命名。系统组成、所有权、依赖方向和模块导入边界由 [Architecture](./ARCHITECTURE.md) 定义；本文不改变产品需求或接口契约。
+本文定义实现和评审中的工程取舍与通用验证要求。测试体系与命名由 [Test Rules](./TEST-RULES.md) 定义；系统组成、所有权、依赖方向和模块导入边界由 [Architecture](./ARCHITECTURE.md) 定义；本文不改变产品需求或接口契约。
 
 ## Scope
 
@@ -24,7 +24,7 @@
 按任务风险执行以下检查，可复用已有依据和证据，不为检查本身新增文档或审批环节：
 
 - 实现前：从已确认需求和契约中明确关键业务不变量，列出能暴露错误实现的反例；验证预期不得仅从当前代码推导。
-- 写测试前：明确触发条件、可观察结果及所属业务对象或能力，优先归入对应已有测试；命名遵循下节 Test Naming，不以实现细节断言代替行为验证。
+- 编写、修改或评审测试：应用 [Test Rules](./TEST-RULES.md) 的行为依据、反馈、资产取舍与命名规则；测试设计与实现由 `test-driven-development` 随相关任务被动触发；`convivium-testcase-review` 仅由用户显式调用，普通评审直接遵循 Test Rules。
 - 确定性状态和失败分支由单元或 integration test 覆盖；真实 DSH profile 覆盖必须依赖 provider、Session ownership 或 plugin composition 的代表性路径。两类证据不能互相替代；重复真实运行须说明独有证据价值。
 - 路径或公开模块入口迁移后，运行 `pnpm --dir plugin lint` 和受影响验证；不得为检查本身新增文档或审批环节。
 
@@ -38,4 +38,4 @@
 
 ## Test Naming
 
-测试文件和 `describe` 按稳定的业务对象、业务能力或工程边界命名；`it`/`test` 说明触发条件和可观察结果。不得按临时任务、RUNBOOK、审计报告、阶段或 finding 编号组织长期测试；回归应归入对应对象已有测试。需求编号可写在必要的依据注释或 readiness 中，不替代测试名称。纯工程组件沿用其稳定对象名称（例如 Storage Domain、outbox、plugin lifecycle）。
+命名规则统一维护在 [Test Rules — Test Naming](./TEST-RULES.md#test-naming)；本节保留为已有链接的读取入口。

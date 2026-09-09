@@ -29,6 +29,8 @@ description: Review the complete current implementation of a Convivium plugin mo
 
 ## Review model
 
+测试部分按 [Test Rules](../../../docs/00-governance/TEST-RULES.md) 检查有效性与资产成本。不自动调用 convivium-testcase-review；只有用户显式调用该 Skill 时才组合使用，并保留本次模块范围、只读边界和输出格式。
+
 先判断目标属于哪类职责：
 
 - `domain`：Meeting、Participant、Turn、权限和完成事实的纯领域规则。

@@ -1529,13 +1529,13 @@ it("validates public rejection shapes consistently in standalone, active and ter
             { kind: "captain", sessionId: "captain-1" }
         )
     );
-    const check = (value) => {
-        PublicAttendanceRecommendationSchema(value);
-        statuses.forEach((status) =>
-            MeetingStatusResultSchema({ ...status, attendanceRecommendations: [value] })
-        );
-    };
-    expect(() => check(recommendation)).not.toThrow();
+    const validators = [
+        (value) => PublicAttendanceRecommendationSchema(value),
+        ...statuses.map(
+            (status) => (value) =>
+                MeetingStatusResultSchema({ ...status, attendanceRecommendations: [value] })
+        )
+    ];
     for (const rejection of [
         undefined,
         null,
@@ -1546,15 +1546,12 @@ it("validates public rejection shapes consistently in standalone, active and ter
         { reason: "No", rejectedAt: NaN },
         { reason: "No", rejectedAt: 1, requestId: "private" }
     ]) {
-        expect(() => check({ ...recommendation, rejection }), JSON.stringify(rejection)).toThrow();
+        for (const validate of validators)
+            expect(
+                () => validate({ ...recommendation, rejection }),
+                JSON.stringify(rejection)
+            ).toThrow();
     }
-    const validators = [
-        (value) => PublicAttendanceRecommendationSchema(value),
-        ...statuses.map(
-            (status) => (value) =>
-                MeetingStatusResultSchema({ ...status, attendanceRecommendations: [value] })
-        )
-    ];
     const { rejection: _rejection, ...withoutRejection } = recommendation;
     for (const validate of validators) {
         expect(() => validate(recommendation)).not.toThrow();

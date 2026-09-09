@@ -25,6 +25,8 @@ description: Assess whether a Convivium implementation or PR is genuinely ready 
 
 没有实际命令输出时，不得写成“验证通过”；可以写“配置了验证入口”或“未覆盖”。
 
+测试充分性按 [Test Rules](../../../docs/00-governance/TEST-RULES.md) 判断行为依据和真实保护；本 Skill 的领域清单用于定位证据，不意味着每项都要新增 case。测试精简必须核对保护承接，不能只凭用例数或覆盖率升降判断 readiness。
+
 ## Coverage ledger
 
 建立一份闭环表，至少追踪：

@@ -2,7 +2,7 @@
 
 ## Meeting Remote Migration Boundary
 
-2026-09-09：九个操作已迁移到正式 DSH Remote，插件自有 refresh stream 和完整 refetch 已替换五秒轮询，旧自有 HTTP 路由已删除。合入 main 后 `539d632` 的 verify（81 文件、1128 用例）与 baseline、scribe-minutes 真实 profile 均通过，restore=PASS；命令、marker 和边界见 [Implementation Results](./MEETING-REMOTE-FEASIBILITY-EVIDENCE.md#implementation-results)。真实 WebSocket 断开/重开及补读已覆盖；真实浏览器内自动重连端到端仍为 Not Covered。下方历史 HTTP 证据仅代表其当时基线。
+2026-09-09：九个操作已迁移到正式 DSH Remote，插件自有 refresh stream 和完整 refetch 已替换五秒轮询，旧自有 HTTP 路由已删除。合入 main 后 `539d632` 的 verify（81 文件、1128 用例）与 baseline、scribe-minutes 真实 profile 均通过，restore=PASS；命令、marker 和边界见 [Remote Migration Evidence](./SMOKE-VALIDATION-EVIDENCE.md#meeting-remote-migration)。真实 WebSocket 断开/重开及补读已覆盖；真实浏览器内自动重连端到端仍为 Not Covered。下方历史 HTTP 证据仅代表其当时基线。
 
 ## Scope
 

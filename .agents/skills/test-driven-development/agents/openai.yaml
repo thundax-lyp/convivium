@@ -1,0 +1,6 @@
+interface:
+  display_name: "测试驱动开发"
+  short_description: "以可信行为依据和红绿反馈指导实现，保留必要且轻量的长期测试"
+  default_prompt: "使用 $test-driven-development 完成本次行为变更，以可信依据形成最小测试并验证实现。"
+policy:
+  allow_implicit_invocation: true

@@ -26,7 +26,7 @@
 - 保存稳定、跨任务适用的工程规则。
 - 不记录一次任务的执行过程、临时方案或完成历史。
 - 规则变化时检查相关 Skill；只有入口约束或读取路由变化时才同步根 `AGENTS.md`。
-- 系统组成、所有权和依赖边界由 `ARCHITECTURE.md` 定义；工程取舍、验证方法与测试命名由 `ENGINEERING-RULES.md` 定义。依赖版本、provider 与源码接线由对应设计维护，治理文档只引用其入口。
+- 系统组成、所有权和依赖边界由 `ARCHITECTURE.md` 定义；工程取舍和通用验证方法由 `ENGINEERING-RULES.md` 定义；测试体系、资产取舍与测试命名由 `TEST-RULES.md` 定义。依赖版本、provider 与源码接线由对应设计维护，治理文档只引用其入口。
 - 暂存、提交和历史修改规则统一由 `COMMIT-RULES.md` 定义。
 - 分支、PR、Review、CI 和合并规则统一由 `PR-RULES.md` 定义。
 

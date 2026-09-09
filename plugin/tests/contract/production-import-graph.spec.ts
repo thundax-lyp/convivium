@@ -83,14 +83,13 @@ describe("production import graph", () => {
             "@deepseek-ai/dsh-storage-json"
         ])
             expect(graph.externals).not.toContain(dependency);
-        expect(graph.files).not.toEqual(
-            expect.arrayContaining([
-                "repository/sqlite-meeting-repository.ts",
-                "repository/schema.ts",
-                "repository/migrations.ts",
-                "runtime/services/meeting-repository-locator.ts"
-            ])
-        );
+        for (const file of [
+            "repository/sqlite-meeting-repository.ts",
+            "repository/schema.ts",
+            "repository/migrations.ts",
+            "runtime/services/meeting-repository-locator.ts"
+        ])
+            expect(graph.files).not.toContain(file);
         expect(graph.externals).not.toContain("node:sqlite");
     });
 

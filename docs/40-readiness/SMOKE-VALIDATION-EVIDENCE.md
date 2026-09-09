@@ -343,7 +343,7 @@ Closure：本轮用户授权范围已验证完成，可关闭部署验收与临�
 
 ### Scope
 
-2026-09-09，在 `codex/ui-primitives-research` 验证会议面板 Button/Input 迁移和 End outcome 单选组。产品与脚本代码边界为 `57a47b7`，后续 `dc57b25` 替换错误 Skip 截图、`d8c5662` 提交 End Browser 证据和操作约束；后续提交未修改产品源码。环境：macOS、DSH Web `0.1.2-rc.1`、spawn provider、React/React DOM `18.3.1`、`@deepseek-ai/dsh-client-ui-primitives@0.1.2-rc.1`。
+2026-09-09，在 `codex/ui-primitives-research` 验证会议面板 Button/Input 迁移和 End outcome 单选组。完整 verify 与 Browser 证据的代码基线为 `57a47b7`；`dc57b25` 替换错误 Skip 截图，`d8c5662` 提交 End Browser 证据和操作约束。PR #65 合并时的源码边界为 `d2f8aa4`，该提交修改 smoke-profile 的 Browser 认证预检分支并新增定向测试，未重跑完整 verify，不能将旧基线的结果描述为最终脚本的完整验证。环境：macOS、DSH Web `0.1.2-rc.1`、spawn provider、React/React DOM `18.3.1`、`@deepseek-ai/dsh-client-ui-primitives@0.1.2-rc.1`。
 
 ### Validated Contract
 
@@ -351,8 +351,8 @@ Closure：本轮用户授权范围已验证完成，可关闭部署验收与临�
 
 ### Executed Validation
 
-- 本轮重跑 `pnpm --dir plugin verify`，退出 0；format:check、lint、Host/Client typecheck、test、build、verify:environment、verify:contract、verify:agent-definitions、verify:package 全部通过。77 个测试文件、1109 项测试通过；9 个角色定义验证通过，package 检查全部通过。
-- 认证修复时执行 `pnpm --dir plugin exec vitest run tests/unit/scripts/browser-client-preflight.spec.ts tests/unit/scripts/smoke-profile.spec.ts`：55 项通过；本轮完整 verify 再次覆盖这些测试以及控件迁移、缓存禁写和重复提交回归。
+- 在 `57a47b7` 基线重跑 `pnpm --dir plugin verify`，退出 0；format:check、lint、Host/Client typecheck、test、build、verify:environment、verify:contract、verify:agent-definitions、verify:package 全部通过。77 个测试文件、1109 项测试通过；9 个角色定义验证通过，package 检查全部通过。
+- 前期认证修复时执行 `pnpm --dir plugin exec vitest run tests/unit/scripts/browser-client-preflight.spec.ts tests/unit/scripts/smoke-profile.spec.ts`：55 项通过；`57a47b7` 的完整 verify 覆盖当时的认证、控件迁移、缓存禁写和重复提交测试，不包含 `d2f8aa4` 新增的最终分支回归。
 - 本轮读取 `plugin/lib/client.js`：ModuleLoader 注册存在，全部 require 的唯一依赖为 `react` 与 `@deepseek-ai/dsh-client-ui-primitives`；无 `react/jsx-runtime`、`react/jsx-dev-runtime`、React 私有 internals 标记，独立断言退出 0。
 - 仍出现上游 primitives 发布包缺少 `index.js.map` 的 Vite sourcemap 警告及 Node SQLite experimental warning；测试、构建和 Browser 均通过。
 
@@ -378,8 +378,43 @@ Closure：本轮用户授权范围已验证完成，可关闭部署验收与临�
 
 ### Not Covered
 
+后续 UI 修复 `51b2234` 为事实操作按钮补齐 `outline/sm`；生成 Remote 入口后，面板 Client 测试 78 项通过，Prettier 检查通过。未重跑该 UI 版本的真实 Browser 视觉验证或完整 verify，本节旧截图与布局结果仅适用于 `57a47b7`，不证明这些事实操作按钮的最终外观。
+
+`d2f8aa4` 的最终 Browser 认证预检分支未在本轮重跑完整 verify 或真实 Browser 场景；此前的完整验证和截图不能补足这一证据缺口。
+
 未采用的 primitives、其他 DSH/React 版本、独立 Chrome 浏览器、非 Web 平台、完整可访问性审计、真实模型质量、压力和长期资源泄漏不在本次证明范围。截图未覆盖长页面全部内容，业务断言以读取的完整 DOM 为准。
 
 ### Closure
 
 本次迁移验证完成，不扩大为 FR-11 全量验收。操作会话与截图要求见 [Smoke 操作手册](../50-operations/HOW-TO-DSH-SMOKE.md)。
+
+## Meeting Remote Migration
+
+### Scope
+
+2026-09-09，代码基线 `539d632`（合入 main `8c08063`，迁移实现截至 `48a772a`）。Node v22.23.2、pnpm 10.7.0；正式 DSH 0.1.2-rc.1、Cordis 4.0.2。未修改 DSH checkout，未以其源码作为依赖。下列命令串行执行，避免生成和构建共享 `lib` 目录相互覆盖。
+
+### Executed Validation
+
+| command | exitCode | testFiles | tests | marker | cleanup |
+| --- | --- | --- | --- | --- | --- |
+| `pnpm --dir plugin verify` | 0 | 81 | 1128 | format/lint、Host/Client/fixture 类型、测试、生成/构建、environment、contract、9 definitions、package 全通过 | N/A |
+| `CONVIVIUM_SMOKE_SCENARIO=baseline pnpm --dir plugin smoke:profile` | 0 | N/A | N/A | baseline-transcript-acb、baseline-remote-pause-resume、baseline-remote-stream-reconnect、attendance-reject-tool-zero-effects；9047ms，含构建17467ms | restore=PASS |
+| `CONVIVIUM_SMOKE_SCENARIO=scribe-minutes pnpm --dir plugin smoke:profile` | 0 | N/A | N/A | minutes-remote-equal；10104ms，含构建18072ms | restore=PASS |
+| `node .github/scripts/check-doc-links.mjs` | 0 | N/A | N/A | 561 local file links，0 errors（不检查 anchors） | N/A |
+| `git diff --check` | 0 | N/A | N/A | 无空白错误 | N/A |
+
+真实 profile 使用正式认证 RPC 读取和写入；baseline 在订阅收到首帧后执行 pause，验证通知和完整读取，再关闭真实 WebSocket、执行 resume、重新打开订阅并完整补读新版本。scribe-minutes 经 Remote status 校验纪要相等。上述 marker 是脚本 PASS 的必需断言，不是根据日志标题推测。
+
+源码测试覆盖九方法严格输入/结果、领域错误与恢复、真实 generated Client 装配、刷新串行化、断线禁写和完整补读后解锁。Client fixture 使用正式 Client/RemoteStream，unary 的连接调用仍为测试替身；真实 carrier 由独立 profile 冒烟验证。main 的 Primitives 和键盘交互测试保留并适配 Remote。正式 UI 包的 source map 缺失警告不影响测试结果。
+
+旧自有 HTTP 路由、调用 helper、req/res fixture 与五秒轮询已删除。原有直接 npm 依赖没有仅服务旧 HTTP 的包，故删除清单为空；保留 webServer 的 loopback 职责及 UI/Schema 依赖。新增固定 Remote 包与测试用 ws，不直接新增 typert-loader。
+
+
+### Not Covered
+
+真实浏览器内 Connection 自动重连端到端仍未验证。正式 RemoteStream 的 jsdom 测试与真实 WebSocket 断开/重开冒烟分别覆盖各自层次，不能合并推断浏览器端到端已通过。未执行所有 smoke scenario、长期连接压力或任意断线时序验证；业务测试通过不等于全场景真实模型验收。
+
+### Closure
+
+九个操作的 Remote 迁移与两个指定真实 profile 已在上述基线验证；可复现入口为仓库的 verify 与 smoke:profile。当前覆盖摘要见 [Current Implementation Coverage](./CURRENT-IMPLEMENTATION-COVERAGE.md#meeting-remote-migration-boundary)，契约和实现分别由 [Remote Interface](../20-interfaces/MEETING-REMOTE-INTERFACE.md) 与 [Remote Design](../30-designs/MEETING-REMOTE-DESIGN.md) 维护。

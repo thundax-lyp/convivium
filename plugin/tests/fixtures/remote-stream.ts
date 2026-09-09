@@ -1,3 +1,4 @@
+import type { RemoteStream, RemoteStreamOptions } from "@deepseek-ai/dsh-api-gateway/client";
 import type {
     ConnectionGeneration,
     ConnectionHandle
@@ -7,7 +8,12 @@ import { loadRemoteClientModule } from "./remote-client.js";
 
 export function createControlledMeetingStream(
     onUnavailable: () => void = () => {},
-    initialNotice = true
+    initialNotice = true,
+    createStream?: (
+        connection: Pick<ConnectionHandle, "generation">,
+        options: RemoteStreamOptions<MeetingRefreshNoticeV1>,
+        Stream: typeof RemoteStream
+    ) => RemoteStream<MeetingRefreshNoticeV1>
 ) {
     const { RemoteStream, RemoteStreamCarrierError } = loadRemoteClientModule();
     let id = 1;
@@ -26,7 +32,7 @@ export function createControlledMeetingStream(
     };
     let deliver: ((value: MeetingRefreshNoticeV1) => void) | undefined;
     let fail: ((error: Error) => void) | undefined;
-    const stream = new RemoteStream<MeetingRefreshNoticeV1>(connection, {
+    const options: RemoteStreamOptions<MeetingRefreshNoticeV1> = {
         name: "convivium-test-updates",
         open(signal) {
             const queue: MeetingRefreshNoticeV1[] = initialNotice ? [{ kind: "refresh" }] : [];
@@ -80,7 +86,10 @@ export function createControlledMeetingStream(
         },
         ended: () => new Error("Meeting update stream ended."),
         carrierFailed: onUnavailable
-    });
+    };
+    const stream = createStream
+        ? createStream(connection, options, RemoteStream)
+        : new RemoteStream(connection, options);
     return {
         stream,
         push(notice: MeetingRefreshNoticeV1 = { kind: "refresh" }) {

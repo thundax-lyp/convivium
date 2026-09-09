@@ -2,7 +2,7 @@
 
 ## Status And Authority
 
-2026-09-09 已实现；实际验证边界见 [Implementation Results](../40-readiness/MEETING-REMOTE-FEASIBILITY-EVIDENCE.md#implementation-results)。范围由 [FR-11](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#fr-11可观察性与用户控制) 与 [Remote Interface](../20-interfaces/MEETING-REMOTE-INTERFACE.md) 确定。本文拥有 Remote 生成、装配及通知实现；业务状态、恢复和持久化设计不变。[Evidence](../40-readiness/MEETING-REMOTE-FEASIBILITY-EVIDENCE.md) 区分已经验证的可行性与实施后门禁。
+2026-09-09 已实现；实际验证边界见 [Remote Migration Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-remote-migration)。范围由 [FR-11](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#fr-11可观察性与用户控制) 与 [Remote Interface](../20-interfaces/MEETING-REMOTE-INTERFACE.md) 确定。本文拥有 Remote 生成、装配及通知实现；业务状态、恢复和持久化设计不变。
 
 ## Package And Build
 
