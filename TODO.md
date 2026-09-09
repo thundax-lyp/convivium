@@ -8,14 +8,7 @@
 
 ## 当前任务项
 
-以下任务按 M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
-
-- [ ] `smoke-profile/unary`：M13 迁移真实 profile unary 探针
-    - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M13。
-    - 关联文件：[plugin/scripts/smoke-profile/probe/support.js](plugin/scripts/smoke-profile/probe/support.js)、[plugin/scripts/smoke-profile/probe/index.js](plugin/scripts/smoke-profile/probe/index.js)、[plugin/scripts/smoke-profile/probe/scenarios/baseline.js](plugin/scripts/smoke-profile/probe/scenarios/baseline.js)、[plugin/scripts/smoke-profile/probe/scenarios/scribe-minutes.js](plugin/scripts/smoke-profile/probe/scenarios/scribe-minutes.js)、[plugin/scripts/smoke-profile/result.mjs](plugin/scripts/smoke-profile/result.mjs)；[plugin/tests/unit/scripts/smoke-profile.spec.ts](plugin/tests/unit/scripts/smoke-profile.spec.ts)、[plugin/tests/unit/scripts/smoke-profile-contract.spec.ts](plugin/tests/unit/scripts/smoke-profile-contract.spec.ts)、[plugin/tests/unit/scripts/scribe-minutes-probe.spec.ts](plugin/tests/unit/scripts/scribe-minutes-probe.spec.ts)；新 `plugin/tests/unit/scripts/remote-probe.spec.ts`。
-    - 确认依据：2026-09-09 本任务中用户确认九接口一次迁移、替换五秒轮询及 review 修复；设计提交 `f7b6812`；本轮要求据此制定 TODO。
-    - 处理动作：将 baseline 和 scribe-minutes 探针改为带正式认证的 DSH RPC。
-    - 验收点：探针测试通过；旧路径与 callHttp 零匹配；原 transcript/minutes 业务断言保留。
+以下任务按 M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
 
 - [ ] `smoke-profile/websocket`：M13a 补齐真实 WebSocket 门禁
     - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M13a。

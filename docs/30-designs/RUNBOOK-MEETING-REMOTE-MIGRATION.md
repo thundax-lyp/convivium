@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Execute；执行者从 M13 继续；前序修复证据见提交历史。
+- 模式：Execute；执行者从 M13a 继续；前序修复证据见提交历史。
 - 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,27 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M13：迁移真实 profile 的 unary probe
-
-前置状态：M12 PASS。
-允许修改：`plugin/scripts/smoke-profile/probe/support.js`、`plugin/scripts/smoke-profile/probe/index.js`、`plugin/scripts/smoke-profile/probe/scenarios/baseline.js`、`plugin/scripts/smoke-profile/probe/scenarios/scribe-minutes.js`、`plugin/scripts/smoke-profile/result.mjs`；`plugin/tests/unit/scripts/smoke-profile.spec.ts`、`plugin/tests/unit/scripts/smoke-profile-contract.spec.ts`、`plugin/tests/unit/scripts/scribe-minutes-probe.spec.ts`；新 `plugin/tests/unit/scripts/remote-probe.spec.ts`。
-禁止修改：profile 认证配置、凭据、其它业务场景。
-
-执行：
-1. 在 support.js 导出 async createRemoteProbe(connection,origin)，返回 async callRemote(method,input)。严格使用 Design Smoke Transport 的 authenticatedUrl→303→Set-Cookie 会话交换和 client-request/server-response envelope，不调用 Gateway.invoke 代替网络。
-2. probe/index inject 追加 connection；在当前 ctx 可用的 apply 内创建 probe 并放到 scenario runtime.callRemote，删除原 callHttp 的解构和 runtime 属性；support 删除旧 callHttp。
-3. baseline 中 list/getStatus/pause/resume 改方法名+原 body，scribe 改 getStatus；marker 逐字替换 baseline-http-pause-resume→baseline-remote-pause-resume、minutes-http-equal→minutes-remote-equal，同时替换 result 和三个现有脚本测试字面量。
-4. 新 remote-probe 测试 mock fetch：交换不是303、没有cookie、响应rpcId不符、外层ok=false均reject；正常请求 exact args/list空args、带匹配Origin/Cookie，返回原value。assert 错误文本和stdout不含token/cookie；不得把认证关闭。
-
-验证：
-```bash
-pnpm --dir plugin test tests/unit/scripts/smoke-profile.spec.ts tests/unit/scripts/smoke-profile-contract.spec.ts tests/unit/scripts/scribe-minutes-probe.spec.ts tests/unit/scripts/remote-probe.spec.ts
-rg -n "registerLocalMeetingHttpRoutes|/api/convivium/meetings|baseline-http-pause-resume|minutes-http-equal|callHttp" plugin/src plugin/scripts plugin/tests
-```
-
-PASS：测试退出 0，rg 无匹配退出 1；原 transcript/minutes 业务断言不变。
-STOP：存在旧caller或需要绕过DSH认证；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
 
 ### M13a：补齐真实 WebSocket 断开与重开门禁
 

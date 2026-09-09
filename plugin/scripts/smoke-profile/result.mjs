@@ -324,7 +324,7 @@ function validateScribeMinutesResult(value, validateMeetingStatus) {
                 "minutes-context-visible",
                 "minutes-invalid-atomic",
                 "minutes-replay-stable",
-                "minutes-http-equal",
+                "minutes-remote-equal",
                 ...(browser ? [] : ["minutes-archive-equal", "minutes-sessions-drained"])
             ])
         );
