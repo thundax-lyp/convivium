@@ -230,7 +230,10 @@ describe("Domain repository recovery", () => {
         await registry.close();
     });
 
-    it("rejects a different request or hash for a creating catalog record", async () => {
+    it.each([
+        ["requestId", { requestId: "different-request" }],
+        ["requestHash", { requestHash: "different-hash" }]
+    ])("rejects a different %s for a creating catalog record", async (_field, overrides) => {
         const record = catalogRecord("team-1", "meeting-1");
         const meeting = createFakeMeetingDomain({ name: record.domainName });
         const { facility } = registryFixture([record], [meeting]);
@@ -238,15 +241,19 @@ describe("Domain repository recovery", () => {
             storageDomain: facility,
             authorizationValidator: allow
         });
-
-        await expect(
-            registry.openMeeting({
-                teamId: "team-1",
-                meetingId: "meeting-1",
-                create: createInput("meeting-1", "different-request")
-            })
-        ).rejects.toMatchObject<RepositoryError>({ code: "IDEMPOTENCY_CONFLICT" });
-        await registry.close();
+        try {
+            await expect(
+                registry.openMeeting({
+                    teamId: "team-1",
+                    meetingId: "meeting-1",
+                    create: { ...createInput("meeting-1"), ...overrides }
+                })
+            ).rejects.toMatchObject<RepositoryError>({ code: "IDEMPOTENCY_CONFLICT" });
+            expect(meeting.table("creation").get("current")).toBeUndefined();
+            expect(meeting.putCalls).toEqual([]);
+        } finally {
+            await registry.close();
+        }
     });
 
     it("repairs creating catalog and creation status when seq 1 is valid", async () => {
