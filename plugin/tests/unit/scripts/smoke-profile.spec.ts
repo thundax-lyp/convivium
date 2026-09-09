@@ -217,10 +217,14 @@ describe("smoke credential loading", () => {
 describe("smoke profile scenario guard", () => {
     it("uses the one preflight seam before browser output", () => {
         const preflightCall =
-            "await assertBrowserClientPreflight(origin, globalThis.fetch, BOOT_TIMEOUT_MS)";
+            "await assertBrowserClientPreflight(origin, authenticatedFetch, BOOT_TIMEOUT_MS)";
         expect(smokeProfileSource).toContain('from "./browser-client-preflight.mjs"');
         expect(smokeProfileSource.match(/assertBrowserClientPreflight\(/g)).toHaveLength(1);
         expect(smokeProfileSource).toContain(preflightCall);
+        expect(smokeProfileSource).toContain(
+            "waitForBrowserLaunchUrl(bootLogs.stdoutPath, origin)"
+        );
+        expect(smokeProfileSource).toContain("createAuthenticatedBrowserFetch(");
         expect(smokeProfileSource.indexOf(preflightCall)).toBeLessThan(
             smokeProfileSource.indexOf("console.log(JSON.stringify(result))")
         );

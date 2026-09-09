@@ -1,6 +1,6 @@
 # RUNBOOK：会议面板 UI Primitives 迁移
 
-状态：Author/Audit 完成，Executable；尚未开始 Execute。
+状态：T9 尚未完成，真实 Browser 验证尚未通过。
 建立日期：2026-09-09。工作分支：`codex/ui-primitives-research`。
 执行从仓库根目录开始。
 
@@ -8,11 +8,11 @@
 
 本任务同时跨越呈现、选择交互、测试依赖转换、浏览器装配和正式文档边界，不是一次标签替换，适用 RUNBOOK。
 
-本文件固定用户已同意的迁移范围和其技术实现。依据为 FR-9/FR-11、现有 Protocol 与用户已同意的结束结果单选组方向。T1 将稳定技术决定同步到正式设计；不新增产品能力。
+本文件固定用户已同意的迁移范围和其技术实现。依据为 FR-9/FR-11、现有 Protocol 与用户已同意的结束结果单选组方向。控件技术决定已在正式设计的 Client control primitives 小节固定；不新增产品能力。
 
-执行者只能顺序执行 T1–T12，每一步 PASS 后才进入下一步。失败记录最后 PASS 步骤、文件/symbol、命令、输出与所需人工决定后 STOP。不得跳过、换工具结果冒充 Browser、改用 mocks 绕过真实 primitives、放宽类型/断言/Schema、扩大修改范围或修改本 RUNBOOK 后自行继续。
+执行者只能顺序执行 T9 → T10 → T11 → T12，每一步 PASS 后才进入下一步。失败记录最后 PASS 步骤、文件/symbol、命令、输出与所需人工决定后 STOP。不得跳过、换工具结果冒充 Browser、改用 mocks 绕过真实 primitives、放宽类型/断言/Schema、扩大修改范围或修改本 RUNBOOK 后自行继续。
 
-当前仅获授权编写准备材料；收到执行迁移指令后，先按 [TODO Rules](../00-governance/TODO-RULES.md) 将授权范围内的 `UI primitives/` 任务移入当前任务项并补充确认依据，再开始 T1。Execute 不包含 commit、push、PR 或 merge。不得修改相邻 DSH checkout、用户凭据或常用 profile。保留进入 Execute 时用户已有文件内容；不使用 reset/checkout 清除改动。
+用户已授权依次执行 TODO，一任务一提交；已完成项按 TODO Rules 在对应提交中删除，剩余项移入当前任务并补充确认依据。恢复顺序为 T9 → T10 → T11 → T12。不得 push、PR 或 merge。不得修改相邻 DSH checkout、用户凭据或常用 profile。保留用户已有内容；human 调查稿不进入本分支提交。
 
 ## 2. 起点、终点与断点
 
@@ -20,16 +20,13 @@
 
 | 当前断点 | 代码/文档证据 | 解决步骤 |
 | --- | --- | --- |
-| 原生按钮、三个理由输入 | `plugin/src/client/meeting-panel.tsx::ConviviumMeetingPanel` | T2–T3 |
-| 结束结果由原生 select 选择 | 同文件 `endOutcome`、`canEnd` 分支 | T4–T7 |
-| primitives 包入口 CSS 不能直接被现有 Vitest 处理 | 作者已复现 StateDot.module.css 导入失败，窄 inline 探针通过；`plugin/vitest.config.ts` Client project | T2–T3 |
-| 设计写 primitives 仅为类型依赖 | Implementation Design 的包接线说明 | T1 |
-| React 声明范围与运行实例需分开验证 | 两仓库实际均 18.3.1；宿主 platform/seed | T8–T10 |
-| 旧测试依赖 End outcome select change | `meeting-panel.client.spec.ts` 的 `limits End outcomes and posts the fixed empty completion fields` | T4–T7 |
+| 真实 Skip、单选键盘、主题及归档交互尚未验证 | 本次 T9 未到 ready；当前 Client 单元测试不替代 Browser | T9–T10 |
+| 正式设计仍为迁移待执行，readiness 缺本次证据 | Implementation Design 的 Client control primitives；SMOKE-VALIDATION-EVIDENCE | T11 |
+| 临时方案与剩余任务尚未收口 | 本 RUNBOOK、TODO | T12 |
 
 ## 3. Scope、Non-goals 与真相源
 
-Scope S1：Button/Input 呈现替换及真实包测试加载。S2：结束结果三选一交互。S3：React 与 Client artifact/宿主装配验证。S4：设计、readiness 同步和临时文档收口。
+剩余 Scope S1：修复 smoke Browser 认证接线并重跑工程门禁。S2：验证既有 Button/Input 和结束结果单选组的真实交互。S3：验证 React 与 Client artifact/宿主装配。S4：同步设计、readiness 并关闭临时任务。
 
 Non-goals：改 DSH；升级 React/依赖/锁文件；Typert/轮询/locale；Pill/Toast/Markdown/StateDot；替代候选 select、证据 checkbox、textarea；新增页面/slot/服务/公共控件库；后端协议、权限、状态机、数据库与归档逻辑；Skill 更新。
 
@@ -49,7 +46,7 @@ Non-goals：改 DSH；升级 React/依赖/锁文件；Typert/轮询/locale；Pil
 
 `endOutcome` 属于 ConviviumMeetingPanel 的 React 临时状态。值集合固定 `partial | no_consensus | cancelled`，required、非 nullable、默认 partial。现有会议选择/清空重置仍设置 partial。不写入持久状态、URL 或独立 store。
 
-新增常量仅在 `plugin/src/client/meeting-panel.tsx` 的 meetingsPath 之后：
+现有常量位于 `plugin/src/client/meeting-panel.tsx` 的 meetingsPath 之后：
 
 ```ts
 const END_OUTCOMES = [
@@ -60,7 +57,7 @@ const END_OUTCOMES = [
 type EndOutcome = (typeof END_OUTCOMES)[number]["value"];
 ```
 
-二者均不 export；endOutcome 的 useState 泛型改为 EndOutcome，其他状态不重构。控件选中态由 `endOutcome === option.value` 派生，不新增 selectedIndex 状态。
+二者均不 export；endOutcome 的 useState 泛型为 EndOutcome，保持现有状态实现。控件选中态由 `endOutcome === option.value` 派生，不新增 selectedIndex 状态。
 
 ### 4.2 提交契约保持不变
 
@@ -88,13 +85,10 @@ type EndOutcome = (typeof END_OUTCOMES)[number]["value"];
 
 | 文件 | 允许 symbol/内容 |
 | --- | --- |
-| `plugin/src/client/meeting-panel.tsx` | ConviviumMeetingPanel 的渲染；新增 END_OUTCOMES/EndOutcome；保留 controlMeeting、submitFactControl、renderActions 的业务体 |
-| `plugin/vitest.config.ts` | 仅 name=client project 的 test.server.deps.inline |
-| `plugin/tests/unit/module-boundaries.spec.ts` | T8 允许 Client 从包根导入 `@deepseek-ai/dsh-client-ui-primitives`；其他 DSH 依赖仍禁止 |
-| `plugin/tests/client/meeting-panel.client.spec.ts` | 既有 meeting panel and client plugin lifecycle suite；新增测试 helper expectSelectedEndOutcome；local decision risk panel controls 只运行、不改写 |
-| `docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md` | primitives 依赖说明、新增 Client control primitives 小节 |
+| `docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md` | T11 更新既有 Client control primitives 实施状态及证据链接 |
 | `docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md` | 新增 UI primitives migration 小节，记录实际命令/Browser/Restore |
 | `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` | Client Fact Visibility 增加本次证据索引，保留其他 Not Covered |
+| `docs/50-operations/HOW-TO-DSH-SMOKE.md` | T9/T10 Browser 入口与 Restore 约束 |
 | `docs/40-readiness/assets/ui-primitives/` | T9/T10 仅新增下文指定的6张 PNG：skip-after、light-wide、light-narrow、dark-wide、dark-narrow、archived |
 | `TODO.md` | 按 TODO Rules 在获得执行授权后移动本次 `UI primitives/` 任务并填写确认依据；T12 删除已完成的本次任务及其顺序说明，保留其他内容 |
 | 本 RUNBOOK | T12 删除；执行期间不回填进度或日志 |
@@ -116,437 +110,13 @@ I6：从包根共享导入 Button/Input，不私带 React，不引入 JSX、Reac
 
 共同 STOP 输出：最后 PASS 的步骤、失败步骤、文件/symbol、实际执行命令或 Browser 动作、退出码/DOM/脱敏日志、仍存活的本次进程/目录以及需要作者解决的具体问题。任何非零测试/检查退出立即 STOP；仅已知 primitives 的 index.js.map 缺失警告允许保留输出后继续。无论何种失败，不减断言、不 mock primitives、不改 Schema、不改依赖、不顺手修复非允许文件。源码失败保留 diff，不回滚用户修改；Browser 失败先执行 R（第8节）再报告。
 
-除每步列出的局部检查外，完整工程检查只在 T8 执行一次。T8 后任何源码变更使其结果失效；执行者必须 STOP 交回作者，不自行跳回改代码再勾选原结果。
+认证修复和完整工程验证已通过。此后任何源码变更都 STOP 交回作者，不复用旧结果。
 
 ## 7. 机械步骤
 
-### T1：写入唯一正式设计
-
-前置状态：用户已授权 Execute。
-允许修改：`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`。
-禁止修改：requirements、Protocol、治理规则与产品代码。
-
-执行：
-1. 找到以“`dsh-client-locale`、`dsh-client-ui-layout`、`dsh-client-ui-primitives` 和 `dsh-client-ui-slots` 仅作为”开头的现有段落。只替换第一句为下面目标文字；后面的 JsonValue 说明保持。
-
-```text
-`dsh-client-locale`、`dsh-client-ui-layout` 和 `dsh-client-ui-slots` 仅作为上游 Client 类型声明所需的开发依赖保留。`dsh-client-ui-primitives` 作为 DSH Web 平台提供的共享 Browser 静态库，由 Client 从包根导入 Button/Input；保留固定版本 devDependency，不新增 Host peer、Cordis service inject 或 dsh.client.external。
-```
-
-2. 在 `### Client fact visibility` 小节结束、下一标题之前插入以下目标内容。现有小节正文不删改。
-
-```markdown
-### Client control primitives
-
-实施状态：迁移待执行。
-
-依据 Meeting Requirements 的 FR-9/FR-11 和 Agent Meeting Protocol Interface 的 Meeting Web routes，面板所有既有普通动作按钮使用 DSH Button，三个单行 Pause/Skip/End reason 输入使用 DSH Input。保留动态 replacement select、证据 checkbox、多行 textarea、持续错误提示及原业务请求处理。Submit 保持 type=submit，其他按钮 type=button；普通按钮 outline/sm，Submit primary/sm。
-
-End outcome 使用局部 END_OUTCOMES 常量与现有 endOutcome 状态，固定 partial、no_consensus、cancelled，默认和会议选择重置均为 partial。三个 Button 组成名为 End outcome 的 radiogroup，使用 radio/aria-checked、一个 tabIndex=0 和选中 primary、未选中 outline。点击或 Space/Enter 只选择，不提交；四方向键循环选择并聚焦，Home/End 选择首尾，Tab 不拦截。writesDisabled 或 writePendingRef.current 为真时禁止改变选项。End meeting 仍单独提交原请求并按现有逻辑刷新。
-
-Browser 共享 React/React DOM 18.3.1 与同版本 primitives，不把库私带到 Client bundle。继续使用 createElement，不引入 JSX 或新的公共控件模块。Client Vitest project 对 primitives 做窄范围 server.deps.inline 转换，以加载发布包 CSS；其他 project 不变。按钮组和三个理由操作行使用局部 flex/wrap/gap 排列，不改变宿主主题与业务状态 owner。
-```
-
-验证：
-```bash
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：两命令退出0；新标题恰有一个，目标文字完整，原 Client fact visibility 与 JsonValue 说明仍在。
-STOP：锚定段落/标题不唯一或缺失、出现正式依据冲突；不猜替换位置。
-
-### T2：迁移九处按钮并接通真实包 CSS
-
-前置状态：T1 PASS。
-允许修改：`plugin/vitest.config.ts`、`plugin/src/client/meeting-panel.tsx`。
-禁止修改：测试用例、input/select/textarea、请求逻辑与其他 Vitest project。
-
-执行：
-1. 仅在 name="client" project 的 test 对象添加目标属性：
-
-```ts
-server: { deps: { inline: [/@deepseek-ai\/dsh-client-ui-primitives/] } }
-```
-
-2. 在 meeting-panel.tsx 的 imports 中新增 `import { Button } from "@deepseek-ai/dsh-client-ui-primitives";`。
-3. 仅将以下九处 createElement 的第一个实参从原生字符串 button 改为 Button；在其原 props 添加 variant/size。会议列表按钮原直接属性 `"data-meeting-id": item.meetingId` 必须改为对象展开 `...{ "data-meeting-id": item.meetingId }`，其运行时键和值保持。其他 props/children 不变。Button 的公开类型未声明自定义 data 属性，不能直接把它写为 props 对象字面量的额外属性；不增加 any、类型断言、类型扩充或上游修改。
-
-| 唯一定位 | variant | size | 原 type 必须保留 |
-| --- | --- | --- | --- |
-| renderFactForm 中 children=Submit | primary | sm | submit |
-| renderFactForm 中 children=Cancel | outline | sm | button |
-| renderActions 的 actions.map 内按钮 | outline | sm | button |
-| aria-label=Reload meetings | outline | sm | button |
-| meetings.map 的 data-meeting-id 按钮 | outline | sm | button |
-| aria-label=Pause meeting | outline | sm | button |
-| aria-label=Resume meeting | outline | sm | button |
-| aria-label=Skip current speaker | outline | sm | button |
-| aria-label=End meeting | outline | sm | button |
-
-验证：
-```bash
-pnpm --dir plugin exec prettier src/client/meeting-panel.tsx vitest.config.ts --write
-pnpm --dir plugin typecheck:client
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel.client.spec.ts
-```
-
-PASS：三命令退出0；现有65项保持通过；无 CSS extension error；九个位置全迁移。
-STOP：定位数量不是9、缺失 type、CSS仍失败或业务用例失败；禁止用全局 inline、mock 或改既有断言过关。
-
-### T3：迁移三个单行输入与操作行布局
-
-前置状态：T2 PASS。
-允许修改：`plugin/src/client/meeting-panel.tsx`。
-禁止修改：所有回调体、checkbox、两个 select、textarea、任何事实区或测试。
-
-执行：
-1. 将上步 import 改为 `{ Button, Input }`。
-2. 仅将 aria-label 分别为 Pause reason、Skip reason、End reason 的 createElement("input", props) 改为 createElement(Input, props)，不删改 value/onChange/aria-label。
-3. 分别找到包含这三个输入的最近一层 createElement("div", null, ...)；把该层 null 改为以下目标 props。End outcome select 暂时保持。
-
-```ts
-{ style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 } }
-```
-
-验证：
-```bash
-pnpm --dir plugin exec prettier src/client/meeting-panel.tsx --write
-pnpm --dir plugin typecheck:client
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel.client.spec.ts
-```
-
-PASS：三命令退出0；三个文本输入被迁移，checkbox 仍是原生 input，两个 select 与 textarea 保留。
-STOP：无法唯一定位三层操作行或必须更改父级事实布局；不新建 CSS/组件文件。
-
-### T4：实现结束结果单选交互并固定提交与键盘测试
-
-前置状态：T3 PASS。
-允许修改：`plugin/src/client/meeting-panel.tsx`、`plugin/tests/client/meeting-panel.client.spec.ts`。
-禁止修改：controlMeeting、submitFactControl、effect、第二个 select、协议与后端。
-
-执行：
-1. 采用第4.1节 END_OUTCOMES/EndOutcome，endOutcome useState 改为 `useState<EndOutcome>("partial")`。React type imports 增加 KeyboardEvent，不增加 useRef 或全局 listener。
-2. 只把 aria-label=End outcome 的 createElement("select", ...) 整个表达式替换为以下目标代码：
-
-```ts
-createElement(
-    "div",
-    {
-        role: "radiogroup",
-        "aria-label": "End outcome",
-        style: { display: "flex", flexWrap: "wrap", gap: 4 }
-    },
-    END_OUTCOMES.map((option, index) =>
-        createElement(
-            Button,
-            {
-                key: option.value,
-                type: "button",
-                size: "sm",
-                variant: endOutcome === option.value ? "primary" : "outline",
-                role: "radio",
-                ...{ "data-end-outcome": option.value },
-                "aria-checked": endOutcome === option.value,
-                tabIndex: endOutcome === option.value ? 0 : -1,
-                disabled: writesDisabled,
-                onClick: () => {
-                    if (writesDisabled || writePendingRef.current) return;
-                    setEndOutcome(option.value);
-                },
-                onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => {
-                    let nextIndex: number;
-                    switch (event.key) {
-                        case "ArrowRight":
-                        case "ArrowDown":
-                            nextIndex = (index + 1) % END_OUTCOMES.length;
-                            break;
-                        case "ArrowLeft":
-                        case "ArrowUp":
-                            nextIndex = (index + END_OUTCOMES.length - 1) % END_OUTCOMES.length;
-                            break;
-                        case "Home":
-                            nextIndex = 0;
-                            break;
-                        case "End":
-                            nextIndex = END_OUTCOMES.length - 1;
-                            break;
-                        default:
-                            return;
-                    }
-                    event.preventDefault();
-                    if (writesDisabled || writePendingRef.current) return;
-                    const nextOption = END_OUTCOMES[nextIndex];
-                    if (nextOption === undefined) return;
-                    setEndOutcome(nextOption.value);
-                    event.currentTarget.parentElement
-                        ?.querySelector<HTMLButtonElement>(
-                            `[data-end-outcome="${nextOption.value}"]`
-                        )
-                        ?.focus();
-                }
-            },
-            option.label
-        )
-    )
-)
-```
-
-3. 测试文件 Testing Library import 添加 within；在现有 `async function selectMeeting()` 之后、第一个 describe 之前新增以下唯一 test helper：
-
-```ts
-function expectSelectedEndOutcome(name: string): HTMLButtonElement {
-    const group = within(screen.getByRole("radiogroup", { name: "End outcome" }));
-    const radios = group.getAllByRole("radio") as HTMLButtonElement[];
-    expect(radios.map((radio) => radio.textContent)).toEqual([
-        "Partial", "No consensus", "Cancelled"
-    ]);
-    const selected = group.getByRole("radio", { name, exact: true }) as HTMLButtonElement;
-    expect(radios.filter((radio) => radio.getAttribute("aria-checked") === "true"))
-        .toEqual([selected]);
-    for (const radio of radios) {
-        expect(radio.tabIndex).toBe(radio === selected ? 0 : -1);
-        expect(radio.type).toBe("button");
-    }
-    return selected;
-}
-```
-
-4. 在既有 `limits End outcomes and posts the fixed empty completion fields` 中，只把 Completed option 断言与 End outcome fireEvent.change 替换为以下代码；mock 队列、End reason 输入、End meeting 点击、完整 POST body 与刷新断言原样保留。
-
-```ts
-expectSelectedEndOutcome("Partial");
-expect(screen.queryByRole("radio", { name: "Completed" })).toBeNull();
-fireEvent.click(screen.getByRole("radio", { name: "No consensus", exact: true }));
-expectSelectedEndOutcome("No consensus");
-expect(fetchMock.mock.calls.filter(([, options]) => options?.method === "POST"))
-    .toHaveLength(0);
-```
-
-5. 紧跟该用例后插入以下目标测试（同一既有 suite）：
-
-```ts
-it("keeps one End outcome selected through keyboard navigation", async () => {
-    const fetchMock = vi.fn<typeof fetch>()
-        .mockResolvedValueOnce(jsonResponse(listResponse()))
-        .mockResolvedValueOnce(jsonResponse(success(statusResult())));
-    vi.stubGlobal("fetch", fetchMock);
-    render(createElement(ConviviumMeetingPanel));
-    await selectMeeting();
-    let selected = expectSelectedEndOutcome("Partial");
-    selected.focus();
-    for (const [key, name] of [
-        ["ArrowRight", "No consensus"], ["ArrowDown", "Cancelled"],
-        ["ArrowRight", "Partial"], ["ArrowLeft", "Cancelled"],
-        ["ArrowUp", "No consensus"], ["Home", "Partial"],
-        ["End", "Cancelled"], ["Home", "Partial"]
-    ] as const) {
-        expect(fireEvent.keyDown(selected, { key })).toBe(false);
-        selected = expectSelectedEndOutcome(name);
-        expect(document.activeElement).toBe(selected);
-    }
-    expect(fireEvent.keyDown(selected, { key: "Tab" })).toBe(true);
-    fireEvent.click(selected);
-    expectSelectedEndOutcome("Partial");
-    expect(fetchMock.mock.calls.filter(([, options]) => options?.method === "POST"))
-        .toHaveLength(0);
-});
-```
-
-验证：
-```bash
-pnpm --dir plugin exec prettier src/client/meeting-panel.tsx tests/client/meeting-panel.client.spec.ts --write
-pnpm --dir plugin typecheck:client
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel.client.spec.ts -t 'limits End outcomes|keeps one End outcome'
-```
-
-PASS：三命令退出0，两项指定用例通过；提交 payload 保持原完整断言。jsdom 不宣称 Tab 原生移动或 Space 生成 click，真实行为留到 T10。
-STOP：目标代码编译失败或 focused 用例失败；不以类型断言/更换键盘语义修复，报告作者。
-
-### T5：验证跨会议选择重置
-
-前置状态：T4 PASS。
-允许修改：`plugin/tests/client/meeting-panel.client.spec.ts`。
-禁止修改：生产代码、已有 helpers、其他用例。
-
-执行：紧跟上步新增用例插入目标代码。注意现有 success() 将 envelope.meetingId 固定为第一个 ID，因此第二个响应必须显式覆盖；不修改公共 helper。
-
-```ts
-it("resets End outcome when selecting another meeting", async () => {
-    const secondId = "meeting/2";
-    const secondDetail = { ...statusResult(), meetingId: secondId, topic: "Second meeting" };
-    const fetchMock = vi.fn<typeof fetch>()
-        .mockResolvedValueOnce(jsonResponse(listResponse([
-            listItem, { ...listItem, meetingId: secondId, topic: "Second meeting" }
-        ])))
-        .mockResolvedValueOnce(jsonResponse(success(statusResult())))
-        .mockResolvedValueOnce(jsonResponse({ ...success(secondDetail), meetingId: secondId }));
-    vi.stubGlobal("fetch", fetchMock);
-    render(createElement(ConviviumMeetingPanel));
-    await selectMeeting();
-    fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
-    expectSelectedEndOutcome("Cancelled");
-    fireEvent.click(screen.getByRole("button", { name: "Second meeting (running)", exact: true }));
-    await waitFor(() => expect(screen.getByLabelText("Meeting summary").textContent)
-        .toContain("Second meeting"));
-    expectSelectedEndOutcome("Partial");
-    expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/convivium/meetings/meeting%2F2");
-    expect(fetchMock.mock.calls.filter(([, options]) => options?.method === "POST"))
-        .toHaveLength(0);
-});
-```
-
-验证：
-```bash
-pnpm --dir plugin exec prettier tests/client/meeting-panel.client.spec.ts --write
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel.client.spec.ts -t 'resets End outcome when selecting another meeting'
-```
-
-PASS：指定用例通过；读取第二个 Meeting 完成后 partial 唯一选中，无 POST。
-STOP：响应 Schema 或选择重置失败；不改 selection 状态逻辑、helper 或 Schema。
-
-### T6：分别验证列表缓存与详情缓存禁写/恢复
-
-前置状态：T5 PASS。
-允许修改：`plugin/tests/client/meeting-panel.client.spec.ts`。
-禁止修改：生产缓存逻辑、定时器配置、旧失败断言。
-
-执行：紧跟上步用例插入下列参数化测试。两个分支由 case 字符串唯一决定，不由执行者选择。
-
-```ts
-it.each(["list", "detail"] as const)(
-    "locks End outcome for cached %s and unlocks after a valid refresh",
-    async (source) => {
-        const fetchMock = vi.fn<typeof fetch>()
-            .mockResolvedValueOnce(jsonResponse(listResponse()))
-            .mockResolvedValueOnce(jsonResponse(success(statusResult())));
-        vi.stubGlobal("fetch", fetchMock);
-        render(createElement(ConviviumMeetingPanel));
-        await selectMeeting();
-        fireEvent.click(screen.getByRole("radio", { name: "No consensus", exact: true }));
-        if (source === "detail") fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
-        fetchMock.mockRejectedValueOnce(new TypeError("cached " + source));
-        if (source === "list") fireEvent.click(screen.getByLabelText("Reload meetings"));
-        else fireEvent.focus(window);
-        await waitFor(() => expect(screen.getByRole(source === "list" ? "status" : "alert"))
-            .toBeTruthy());
-        const selected = expectSelectedEndOutcome("No consensus");
-        for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
-            expect(radio.disabled).toBe(true);
-        }
-        fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
-        fireEvent.keyDown(selected, { key: "ArrowRight" });
-        expectSelectedEndOutcome("No consensus");
-        fetchMock.mockResolvedValueOnce(jsonResponse(listResponse()));
-        if (source === "detail") {
-            fetchMock.mockResolvedValueOnce(jsonResponse(success(statusResult("running", 3), 3)));
-            fireEvent.focus(window);
-        } else fireEvent.click(screen.getByLabelText("Reload meetings"));
-        await waitFor(() => {
-            for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
-                expect(radio.disabled).toBe(false);
-            }
-        });
-        expectSelectedEndOutcome("No consensus");
-        expect(fetchMock.mock.calls.filter(([, options]) => options?.method === "POST"))
-            .toHaveLength(0);
-    }
-);
-```
-
-验证：
-```bash
-pnpm --dir plugin exec prettier tests/client/meeting-panel.client.spec.ts --write
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel.client.spec.ts -t 'locks End outcome for cached'
-```
-
-PASS：两个 case 都通过，缓存失败时不改变选择，合法恢复后可选但不重置草稿。
-STOP：任何队列顺序、缓存恢复或断言失败；不把这两个场景合为一个模糊“缓存情况”用例。
-
-### T7：验证提交中互斥与拒绝后解锁
-
-前置状态：T6 PASS。
-允许修改：`plugin/tests/client/meeting-panel.client.spec.ts`。
-禁止修改：生产 write guard、请求重试与失败映射。
-
-执行：紧跟上步用例插入目标测试。复用文件已存在的 deferred<Response>()，finally 负责结束未决 promise 与卸载，不新建资源管理 helper。
-
-```ts
-it("locks End outcome during a pending write and does not duplicate the POST", async () => {
-    const reply = deferred<Response>();
-    const fetchMock = vi.fn<typeof fetch>()
-        .mockResolvedValueOnce(jsonResponse(listResponse()))
-        .mockResolvedValueOnce(jsonResponse(success(statusResult())))
-        .mockReturnValueOnce(reply.promise)
-        .mockResolvedValueOnce(jsonResponse(listResponse()))
-        .mockResolvedValueOnce(jsonResponse(success(statusResult("running", 3), 3)));
-    vi.stubGlobal("fetch", fetchMock);
-    const rendered = render(createElement(ConviviumMeetingPanel));
-    try {
-        await selectMeeting();
-        fireEvent.change(screen.getByLabelText("End reason"), { target: { value: "Reviewed" } });
-        const end = screen.getByLabelText("End meeting");
-        act(() => { fireEvent.click(end); fireEvent.click(end); });
-        const selected = expectSelectedEndOutcome("Partial");
-        for (const radio of screen.getAllByRole("radio") as HTMLButtonElement[]) {
-            expect(radio.disabled).toBe(true);
-        }
-        fireEvent.click(screen.getByRole("radio", { name: "Cancelled", exact: true }));
-        fireEvent.keyDown(selected, { key: "End" });
-        expectSelectedEndOutcome("Partial");
-        expect(fetchMock.mock.calls.filter(([, options]) => options?.method === "POST"))
-            .toHaveLength(1);
-        await act(async () => { reply.resolve(jsonResponse(protocolError("Safe conflict"), 409)); });
-        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
-        await waitFor(() => expect(expectSelectedEndOutcome("Partial").disabled).toBe(false));
-        expect(fetchMock.mock.calls.filter(([, options]) => options?.method === "POST"))
-            .toHaveLength(1);
-    } finally {
-        reply.resolve(jsonResponse(protocolError("Safe conflict"), 409));
-        rendered.unmount();
-    }
-});
-```
-
-验证：
-```bash
-pnpm --dir plugin exec prettier tests/client/meeting-panel.client.spec.ts --write
-pnpm --dir plugin exec vitest run --project client tests/client/meeting-panel.client.spec.ts
-pnpm --dir plugin typecheck:client
-pnpm --dir plugin lint
-```
-
-PASS：全 Client 文件通过，原65项未删除，新增4个测试声明（其中缓存参数化为2项，合计新增5次测试执行）；原 local decision risk controls 的 Submit、checkbox、replacement select、拒绝后刷新等用例也通过。
-STOP：任何完整文件回归；不削弱旧用例。finally 必须执行，不能遗留 pending mock 掩盖失败。
-
-### T8：完整工程和构建共享依赖
-
-前置状态：T7 PASS。
-允许修改：`plugin/tests/unit/module-boundaries.spec.ts` 中 Client 对 `@deepseek-ai/dsh-client-ui-primitives` 的唯一例外；命令生成 ignored plugin/lib，不手工编辑。
-禁止修改：其他源代码、配置、依赖、断言或模块边界例外。
-
-执行与验证：
-```bash
-pnpm --dir plugin verify
-node --input-type=module - <<'JS'
-import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-const text = readFileSync('plugin/lib/client.js','utf8');
-const requests = [...text.matchAll(/require\(["']([^"']+)["']\)/g)].map(m => m[1]);
-assert.deepEqual([...new Set(requests)].sort(), ['@deepseek-ai/dsh-client-ui-primitives','react']);
-assert.ok(text.includes('window.__ModuleLoader__.load'));
-assert.ok(!/react\.development|react\.production|ReactCurrentDispatcher|StateDot\.module\.css/.test(text));
-console.log('Client external requests PASS');
-JS
-git diff --check
-```
-
-PASS：全部退出0，verify 各子命令通过，artifact 外部请求仅 react/primitives。标记检查不单独证明完整 React 单例行为，Browser 继续验证加载和交互。
-STOP：任何失败、额外 require 或越界依赖；不能改 tsdown/manifest 或省略检查。
-
 ### T9：真实 Skip 控件验证
 
-前置状态：T8 PASS；Browser 控制工具已可调用。
+前置状态：认证修复与完整工程、artifact 检查已通过；Browser 工具必须支持 Chrome、只读 DOM 属性查询、真实键盘、视口设置和保存截图。只有 AX/截图能力不足以执行 N/G，必须在启动 Host 前 STOP，不能先消耗 attempt 窗口。
 允许修改：本次新建临时 profile/workspace；截图 `docs/40-readiness/assets/ui-primitives/skip-after.png`。
 禁止修改：smoke 源码、常用 profile、凭据；不发聊天消息或直接发 HTTP 业务命令。
 
@@ -612,8 +182,8 @@ STOP：任何步骤无法定位、键盘/几何/主题断言失败、等待超�
 禁止修改：源码、历史验证数字、其他 Not Covered、Skill。
 
 执行：
-1. 将 T1 新增小节中的唯一 `实施状态：迁移待执行。` 改为 `实施状态：已实现；验证见 [UI primitives migration](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration)。`。
-2. 在 SMOKE-VALIDATION-EVIDENCE.md 末尾新增 `## UI primitives migration`。写入下列固定字段；值直接取本次实际工具结果，缺值 STOP，不补猜测：日期；实际工作树/commit边界；React及primitives版本；T2–T7每次测试命令/数量/退出码；T8 verify各子命令与artifact；T9/T10的Browser产品名、两个ready场景、每项断言、截图链接；两个R的退出码/cleanup/路径不存在结果；sourcemap警告是否出现。
+1. 将 Implementation Design 的 Client control primitives 小节中的唯一 `实施状态：迁移待执行。` 改为 `实施状态：已实现；验证见 [UI primitives migration](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration)。`。
+2. 在 SMOKE-VALIDATION-EVIDENCE.md 末尾新增 `## UI primitives migration`。写入下列固定字段；值直接取本次实际工具结果，缺值 STOP，不补猜测：日期；实际工作树/commit边界；React及primitives版本；本次已执行的控件迁移与回归测试命令/数量/退出码（来自既有工具输出，不要求重做已完成步骤）；认证修复测试、verify各子命令与artifact；T9/T10的Browser产品名、两个ready场景、每项断言、截图链接；两个R的退出码/cleanup/路径不存在结果；sourcemap警告是否出现。
 3. 同小节写 `Not Covered`：未采用的组件、其他DSH/React版本、非Web、完整可访问性审计、真实模型质量、压力/长期资源泄漏。Closure 只有在全部门禁通过时写“本次迁移验证完成”，不能扩大到 FR-11 全量验收。
 4. Current Coverage 的 `### Client Fact Visibility` 表追加一行：`UI controls | Button/Input 与 End outcome 单选组的真实包、键盘、缓存禁写、重复提交、Browser/Restore；见 [UI primitives migration](./SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration)`。保留现有其他行与全局 Not Covered。
 
@@ -628,8 +198,8 @@ STOP：任何证据缺失、图片不可读或历史边界被覆盖；保留 RUN
 
 ### T12：关闭与删除
 
-前置状态：T1–T11全部PASS；T8后无源码修改；实际验证证据已迁移到T11。
-允许修改：删除本 RUNBOOK；按 [TODO Rules](../00-governance/TODO-RULES.md) 删除 `TODO.md` 中本次已完成的 `UI primitives/` 任务及其顺序说明。禁止修改：其他 TODO、用户其他文件、源码；不commit/push/PR/merge。
+前置状态：T9、T10、T11全部PASS；实际验证证据已迁移到T11。
+允许修改：删除本 RUNBOOK；按 [TODO Rules](../00-governance/TODO-RULES.md) 删除 `TODO.md` 中本次已完成的 `UI primitives/` 任务及其顺序说明。禁止修改：其他 TODO、用户其他文件、源码；按一任务一提交执行收口 commit；不push/PR/merge。
 
 执行：
 1. 运行下列查询。rg 预期仅匹配本文件和 `TODO.md` 中本次 `UI primitives/` 任务的依据链接；若有其他引用，STOP交作者处理，不删除陌生引用。git diff 白名单只允许第4.3节指定文件与6张PNG；后端/依赖检查必须零diff。
@@ -643,7 +213,7 @@ node .github/scripts/check-doc-links.mjs
 git diff --check
 ```
 
-2. 在工具会话内保留本文件与 `TODO.md` 完整文本。核对本次剩余 `UI primitives/` 任务的验收点均已满足（T12 的删除后检查在本步完成）；删除这些任务及其顺序说明，保留三个固定区域和其他任务。然后使用文件编辑工具删除本 RUNBOOK，不创建archive副本。此时 TODO 删除为工作区同步，只有本步 PASS 才视为完成；未授权 commit。再运行：
+2. 在工具会话内保留本文件与 `TODO.md` 完整文本。核对本次剩余 `UI primitives/` 任务的验收点均已满足（T12 的删除后检查在本步完成）；删除这些任务及其顺序说明，保留三个固定区域和其他任务。然后使用文件编辑工具删除本 RUNBOOK，不创建archive副本。此时 TODO 删除为工作区同步，只有本步 PASS 才视为完成；删除后检查通过再创建本任务 commit。再运行：
 
 ```bash
 node .github/scripts/check-doc-links.mjs
@@ -663,7 +233,7 @@ STOP：删除后任一检查失败，必须先从保留文本恢复本 RUNBOOK �
 
 用 exec_command 分配 tty=true 启动该步骤命令，保留其返回的 session handle；每次读取输出的等待不超过60秒。ready前失败同样调用R。脚本boot超时固定沿用现有120秒，不改环境覆盖。
 
-必须从同一个 stdout JSON 对象读取：顶层 ok=true、profile=web、provider=spawn、scenario=本次场景；`probe.ok=true`、`probe.scenario=本次场景`、`probe.browserReady=true`、`probe.meetingId` 非空、`probe.captainSessionId=convivium-smoke-captain`。URL取唯一 `CONVIVIUM_SMOKE_BROWSER_URL=` 行，根目录取唯一 `CONVIVIUM_SMOKE_TEMP_ROOT=` 行。把根目录和JSON顶层port分别在工具会话中保存为 UI_SMOKE_TEMP_ROOT 与 UI_SMOKE_PORT；port必须是1–65535的整数，且与URL端口一致。不能从旧输出或端口猜测。
+必须从同一个 stdout JSON 对象读取：顶层 ok=true、profile=web、provider=spawn、scenario=本次场景；`probe.ok=true`、`probe.scenario=本次场景`、`probe.browserReady=true`、`probe.meetingId` 非空、`probe.captainSessionId=convivium-smoke-captain`。URL取唯一 `CONVIVIUM_SMOKE_BROWSER_URL=` 行，根目录取唯一 `CONVIVIUM_SMOKE_TEMP_ROOT=` 行。把根目录和JSON顶层port分别在工具会话中保存为 UI_SMOKE_TEMP_ROOT 与 UI_SMOKE_PORT；port必须是1–65535的整数，且与URL端口一致。URL必须为本次 127.0.0.1 origin 的 `/`，只包含一个43字符 base64url token；不能丢弃 query。Browser 首次访问由 DSH 交换 cookie 并重定向到裸 `/`，后续刷新沿用 cookie。token/cookie 不进入提交、截图或 readiness，报告 URL 时将 token 值替换为 `<redacted>`。不能从旧输出或端口猜测。
 
 reassign 另要求 probe.assertions 精确为 [browser-reassign-ready]，probe.observed.currentSpeakerId=participant-a、currentAttemptId=oldAttemptId，且oldAttemptId非空。scribe-minutes 另要求 assertions精确为 [minutes-context-visible, minutes-invalid-atomic, minutes-replay-stable, minutes-http-equal]；source/draft取probe.observed.source/draft。
 
@@ -749,12 +319,11 @@ JS
 
 ## 9. 验证矩阵与适用边界
 
-| Scope/不变量 | 正式依据与入口 | 实施步骤 | 验证/证据 |
+| Scope/不变量 | 正式依据与入口 | 剩余步骤 | 验证/证据 |
 | --- | --- | --- | --- |
-| S1/I4 | FR-9/11；ConviviumMeetingPanel/renderFactForm/renderActions | T2按钮、T3输入 | 原65项、T7全文件、T8 verify、T9 Skip、T10真实Input |
-| S2/I1/I2 | EndMeetingInputV1；endOutcome/controlMeeting | T4交互、T5重置 | 原POST完整断言、键盘、第二会议envelope、T10原生键盘/归档 |
-| S2/I3/I5 | FR-11缓存/事实；writePendingRef/writesDisabled | T6缓存、T7 pending | 两种缓存/恢复、一次POST、旧拒绝/terminal/checkbox/select用例 |
-| S3/I6 | Architecture；包根/平台共享入口 | T8 | verify、外部依赖检查、T9/T10真实React加载与交互 |
-| S4 | Document Rules | T1/T11/T12 | 正式设计、readiness、6张截图、链接/diff/删除检查 |
+| S1/I6 | DSH 启动认证、smoke preflight | 已完成 | token交换、cookie隔离、错误脱敏、完整verify |
+| S2/I1–I5 | FR-9/11；Client control primitives | T9/T10 | Skip、radio键盘、Input、主题、刷新与归档；现有70项Client测试由verify重跑 |
+| S3/I6 | Architecture；平台共享入口 | T9/T10 | artifact外部依赖已验证；真实宿主加载及交互待验证 |
+| S4 | Document Rules、TODO Rules | T11/T12 | 正式设计、readiness、6张截图、链接及删除检查 |
 
 Not Applicable：本任务不改变caller/capability、后端幂等、事务、数组原子性、存储重放、重启恢复、事件/receipt/outbox，因此不新增相应专项外部验证；现有verify仍必须通过。真实模型质量、长期压力与完整无障碍审计不由这次局部迁移证明。依赖/Schema/生成器修改不在scope，遇到即STOP。
