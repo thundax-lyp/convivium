@@ -34,6 +34,50 @@ class DocumentLinksTest(unittest.TestCase):
             self.assertIn("source.md:10: missing target", errors[0])
             self.assertIn("source.md:11: missing anchor", errors[1])
 
+    def test_balanced_and_escaped_destinations_reach_real_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "guide_(old).md").write_text("# Guide\n")
+            (root / "nested_(one_(two)).md").write_text("# Nested\n")
+            (root / "source.md").write_text(
+                '[guide](guide_(old).md#guide "Title")\n'
+                '[nested](nested_(one_(two)).md)\n'
+                r'[escaped](guide_\(old\).md)' + "\n"
+                '[angle](<guide_(old).md>)\n'
+                '[ref]: guide_(old).md "Title"\n'
+                '[missing](missing_(old).md)\n'
+            )
+            count, errors = checker["check"](root)
+            self.assertEqual(count, 6)
+            self.assertEqual(errors, ["source.md:6: missing target: missing_(old).md"])
+
+    def test_rendered_heading_entities_and_reference_labels(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "target.md").write_text(
+                "# Fish &amp; Chips\n# Fish &#38; Chips\n"
+                "# [Guide][ref]\n# [Collapsed][]\n# [Unknown][missing]\n"
+                "# `&amp;`\n# [Inline](guide_(old).md)\n"
+                "[ref]: https://example.invalid\n"
+                "[Collapsed]: https://example.invalid\n"
+            )
+            (root / "guide_(old).md").write_text("# Guide\n")
+            (root / "source.md").write_text(
+                "[a](target.md#fish--chips)\n[b](target.md#fish--chips-1)\n"
+                "[c](target.md#guide)\n[d](target.md#collapsed)\n"
+                "[e](target.md#unknownmissing)\n[f](target.md#amp)\n"
+                "[g](target.md#inline)\n"
+                "[bad entity](target.md#fish-amp-chips)\n"
+                "[bad reference](target.md#guideref)\n"
+            )
+            _, errors = checker["check"](root)
+            self.assertEqual(errors, [
+                "source.md:8: missing anchor: target.md#fish-amp-chips",
+                "source.md:9: missing anchor: target.md#guideref",
+            ])
+
     def test_heading_formats_and_fenced_examples(self):
         result = checker["anchors"](
             "# `Code` **title**\n# Repeat\n# Repeat\n# Repeat-1\n"

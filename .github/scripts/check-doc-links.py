@@ -1,5 +1,6 @@
 """Check repository Markdown local links; no network or third-party dependencies."""
 
+import html
 import re
 import subprocess
 import sys
@@ -25,9 +26,75 @@ def prose(source):
     return "\n".join(lines)
 
 
+def destination(text, start):
+    """Read a Markdown destination, balancing unescaped parentheses."""
+    angle = text[start:start + 1] == "<"
+    pos = start + int(angle)
+    begin, depth = pos, 0
+    while pos < len(text):
+        char = text[pos]
+        if char == "\\" and pos + 1 < len(text):
+            pos += 2
+            continue
+        if angle:
+            if char == ">":
+                return text[begin:pos], pos + 1
+            if char in "<\n":
+                return None
+        else:
+            if char.isspace() or (char == ")" and depth == 0):
+                break
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+        pos += 1
+    if angle or depth:
+        return None
+    return text[begin:pos], pos
+
+
+def inline_links(text):
+    for match in re.finditer(r"!?\[([^]\n]*)\]\(\s*", text):
+        parsed = destination(text, match.end())
+        if parsed:
+            target, end = parsed
+            closing = re.match(r"(?:\s+[\"'][^\n]*?[\"']\s*)?\)", text[end:])
+            if closing:
+                yield match.start(), end + closing.end(), match[1], target
+
+
+def label_key(label):
+    return " ".join(label.split()).casefold()
+
+
+def heading_text(title, references):
+    # Code spans render literally: do not decode entities or links inside them.
+    parts = re.split(r"(`+)(.*?)\1", title)
+    rendered = []
+    for index in range(0, len(parts), 3):
+        text = parts[index]
+        for start, end, label, _ in reversed(list(inline_links(text))):
+            text = text[:start] + label + text[end:]
+        text = re.sub(
+            r"!?\[([^]]+)\]\[([^]]*)\]",
+            lambda m: m[1] if label_key(m[2] or m[1]) in references else m[0],
+            text,
+        )
+        text = re.sub(r"<[^>]+>", "", text)
+        rendered.append(html.unescape(text))
+        if index + 2 < len(parts):
+            rendered.append(parts[index + 2])
+    return "".join(rendered)
+
+
 def anchors(source):
     used = set()
     lines = prose(source).splitlines()
+    references = {
+        label_key(m[1]) for line in lines
+        if (m := re.match(r"^ {0,3}\[([^]]+)\]:\s*\S", line))
+    }
     for i, line in enumerate(lines):
         heading = re.match(r"^ {0,3}#{1,6}\s+(.+?)(?:\s+#+)?\s*$", line)
         title = heading[1] if heading else None
@@ -35,8 +102,7 @@ def anchors(source):
             title = line.strip()
         if title is None:
             continue
-        title = re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", title)
-        title = re.sub(r"<[^>]+>", "", title)
+        title = heading_text(title, references)
         slug = re.sub(r"[^\w\- ]", "", title.lower()).replace(" ", "-")
         candidate, suffix = slug, 0
         while candidate in used:
@@ -47,17 +113,19 @@ def anchors(source):
     return used
 
 
+def decode_destination(target):
+    return html.unescape(re.sub(r"\\([!\"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])", r"\1", target))
+
+
 def links(source):
     text = prose(source)
-    # Destinations used by this repository: bare URLs or <angle-bracket paths>.
-    destination = r'(<[^>\n]+>|[^\s)]+)'
     for number, line in enumerate(text.splitlines(), 1):
         line = re.sub(r"(`+).*?\1", "", line)
-        for match in re.finditer(r"!?\[[^]\n]*\]\(" + destination + r'(?:\s+["\'][^\n]*["\'])?\)', line):
-            yield number, match[1].strip("<>")
-        definition = re.match(r"^ {0,3}\[[^]]+\]:\s*" + destination, line)
-        if definition:
-            yield number, definition[1].strip("<>")
+        for _, _, _, target in inline_links(line):
+            yield number, decode_destination(target)
+        definition = re.match(r"^ {0,3}\[[^]]+\]:\s*", line)
+        if definition and (parsed := destination(line, definition.end())):
+            yield number, decode_destination(parsed[0])
 
 
 def check(root):
