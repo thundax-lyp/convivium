@@ -177,6 +177,10 @@ SQLite 构建仅有 Node SQLite experimental 与既有 Client bundle dependency 
 - 同一工作区后续规则修订：通用验证归 Engineering，TODO 仅管理登记任务，PR 配置引用 workflow/远端状态，文档结构按语义覆盖，RUNBOOK 作者与机械执行边界分离；入口、授权措辞及模板同步。551 个相对链接/锚点、Governance structure、模板/路由/清理与机械执行约束检查及 `git diff --check` PASS；未查询或修改远端 Ruleset，未执行 GitHub Actions。
 - 未重新执行 plugin verify、Host、Browser 或模型验证；本轮整理不是全量需求/契约/源码一致性审计。
 
+`f76ffd6` 后的治理补漏工作区（2026-09-09）：旧审查 Skill 按 Storage Domain 与 MeetingTask 更新，文档冲突不再以更新时间作为确认依据；PR 禁止 squash merge，Governance 补齐 RUNBOOK Rules 并共用 `.github/scripts/check-doc-links.py`。553 个本地链接目标/锚点检查、检查器 2 项回归测试（含断链、失效锚点、重复标题与代码示例）、实际 Governance structure shell 步骤及 diff 检查 PASS。未执行远端 CI 或修改远端保护配置。
+
+Document Review Skill 验证：在实际仓库枚举确认规则模式匹配 6 份文件、设计目录匹配 5 份文件、`Engineering Rules` 标题唯一命中；零匹配及 `**` 零层/多层语义检查 PASS。同名标题双候选、只读权限和 P0–P3 分级进行了静态场景走查：旧存储口径/冲突依据为 P2，漏检规则文件为 P3，不因关键词升级 P0/P1。以上为当前会话走查与临时匹配验证，不是独立模型的端到端调用测试，也不证明所有 Agent 都能正确执行。
+
 ## Not Covered
 
 以下集中列出当前缺口；专项章节中的 fake/DOM/历史限定只解释证据的证明范围。

@@ -17,7 +17,7 @@
 
 `docs/60-human/` 保存调研、讨论、决策背景和历史材料，不作为默认实现依据。其结论只有迁移到前述工程文档后，才能约束实现。
 
-当文档之间发生冲突时，不得静默选择方便实现的一方。应先判断文档职责和更新时间；无法消解时，将冲突记录为待讨论项并请求人工确认。
+当文档之间发生冲突时，不得静默选择方便实现的一方。应按文档职责、适用范围和已确认的需求、契约或决策依据判断。更新时间仅用于追溯变更，不能证明新内容已经确认，也不能让讨论稿或当前代码覆盖正式口径；无法消解时，将冲突记录为待讨论项并请求人工确认。
 
 ## Directory Responsibilities
 
@@ -175,6 +175,8 @@ readiness 证据覆盖：
 - PR 交付规则变化：`PR-RULES.md` 和 `.github/pull_request_template.md`。
 
 纯实现补齐且未改变既有口径时，不应顺手改写无关文档。
+
+Markdown 本地链接与标题锚点检查入口为 `python3 .github/scripts/check-doc-links.py`，由本地与 Governance CI 共用。该检查覆盖 Git 清单中的 Markdown 内联链接目标和引用式链接定义，跳过代码示例；不核验未定义的引用标签、远程 URL、产品语义或实际运行状态。检查器自身的回归验证入口为 `python3 .github/scripts/test-doc-links.py`。
 
 ## Skill Boundary
 

@@ -37,6 +37,7 @@ jobs:
             docs/00-governance/COMMIT-RULES.md
             docs/00-governance/DOCUMENT-RULES.md
             docs/00-governance/PR-RULES.md
+            docs/00-governance/RUNBOOK-RULES.md
             docs/00-governance/TODO-RULES.md
           )
 
@@ -59,6 +60,12 @@ jobs:
           done
 
           test ! -d docs/50-prompts
+
+      - name: Verify documentation links
+        run: python3 .github/scripts/check-doc-links.py
+
+      - name: Test documentation link checker
+        run: python3 .github/scripts/test-doc-links.py
 
       - name: Verify pull request diff formatting
         shell: bash
