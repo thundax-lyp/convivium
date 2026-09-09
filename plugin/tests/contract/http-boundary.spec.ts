@@ -96,8 +96,8 @@ function runtime() {
             success({ status: "cancelled" as const, terminationCode: "user_cancelled" }, 6)
         ),
         watchLocalMeetingUpdates: () => ({
-            async *[Symbol.asyncIterator]() {
-                return;
+            [Symbol.asyncIterator]() {
+                return { next: async () => ({ done: true as const, value: undefined }) };
             }
         })
     };

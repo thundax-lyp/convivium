@@ -49,10 +49,9 @@ export function createMeetingRefreshFeed(): MeetingRefreshFeed {
                 return closedIterable();
             }
 
-            let subscriber!: Subscriber;
             const onAbort = (): void => close(subscriber);
             signal.addEventListener("abort", onAbort, { once: true });
-            subscriber = {
+            const subscriber: Subscriber = {
                 closed: false,
                 dirty: true,
                 removeAbortListener: () => signal.removeEventListener("abort", onAbort)
@@ -92,8 +91,8 @@ export function createMeetingRefreshFeed(): MeetingRefreshFeed {
 
 function closedIterable(): AsyncIterable<MeetingRefreshNoticeV1> {
     return {
-        async *[Symbol.asyncIterator]() {
-            return;
+        [Symbol.asyncIterator]() {
+            return { next: async () => ({ done: true, value: undefined }) };
         }
     };
 }
