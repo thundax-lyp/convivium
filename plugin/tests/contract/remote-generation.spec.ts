@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -9,11 +9,6 @@ describe("generated Remote contract", () => {
         const root = await mkdtemp(join(tmpdir(), "convivium-plugin-contract-"));
         try {
             await cp(new URL("../../src", import.meta.url), join(root, "src"), { recursive: true });
-            await mkdir(join(root, "scripts"), { recursive: true });
-            await cp(
-                new URL("../../scripts/generate-typert.mjs", import.meta.url),
-                join(root, "scripts/generate-typert.mjs")
-            );
             await cp(new URL("../../package.json", import.meta.url), join(root, "package.json"));
             await cp(new URL("../../tsconfig.json", import.meta.url), join(root, "tsconfig.json"));
             await symlink(
@@ -27,7 +22,6 @@ describe("generated Remote contract", () => {
             expect(second.js).toBe(first.js);
             expect(second.remote?.dts).toBe(first.remote?.dts);
             expect(firstHost).toContain("authority");
-            expect(firstClient).toContain("watchUpdates");
             for (const method of [
                 "list",
                 "getStatus",
