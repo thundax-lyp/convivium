@@ -342,3 +342,12 @@ env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure CONVIVIUM_SMOKE_BROWSER_MODE=
 无论断言成功或失败，向本次 wrapper PTY 发送一次 Ctrl-C，等待其正常退出且退出码为 0、stdout 出现 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`；wrapper 的 finally 必须完成 Host 停止、临时根删除和端口释放。用文件存在性工具核对 stdout 记录的唯一精确临时根不存在；不使用 glob、不删除其他目录、不直接 kill 工具进程来代替 Restore。
 
 将被测 commit、环境、启动命令、ready IDs、七步结果、审计 GET 与 Restore 结果写入 [Smoke Validation Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)，同步 [Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#captain-local-decision-risk-control)。只有所有断言和 Restore 通过才记录本次验收通过；其余保留具体失败或 Not Covered。本验证不包含真实 LLM 请求或 Host 冷重启，自动化持久恢复的边界见验证索引。
+
+
+### Browser 自动化会话与截图
+
+每轮运行从本次 ready URL 新建临时标签。Codex In-app Browser 的未保留临时标签会在对话轮次结束后关闭；下一轮不能复用已关闭的 tab handle，也不能据此判断 DSH 页面生命周期故障。进入页面后先关闭“内测声明”，读取新的 DOM snapshot，等待唯一 `role=tab`、名称 `Meetings` 的节点，再进入面板。会议按钮必须位于 `data-testid=convivium-meeting-panel` 内且 `data-meeting-id` 与本次 ready 一致；点击后等待 `Meeting summary`，不要将点击方法返回当作详情加载成功。
+
+响应式验证改变 viewport 后，等待侧栏布局稳定再读几何和截图；768px 下侧栏折叠，主题切换前先恢复 1280px 宽屏以使用可见的“设置”按钮。主题验证后恢复原选项和 viewport。DSH Input wrapper 的 computed height 为 32px；content-box 下外框高度还包含上下 padding 和 border，几何断言应根据这些 computed 值计算，不能直接把 32px 当成外框高度。
+
+截图使用当前标签的 `tab.screenshot()` 返回字节直接保存为 PNG，再打开文件确认其包含目标页面。不得把空白截图或无关桌面截图作为页面证据。使用系统截图时只截取已确认的目标窗口；保存成功和 PNG 尺寸正确不代表内容正确。
