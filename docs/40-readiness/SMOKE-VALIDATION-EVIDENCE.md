@@ -343,7 +343,7 @@ Closure：本轮用户授权范围已验证完成，可关闭部署验收与临�
 
 ### Scope
 
-2026-09-09，在 `codex/ui-primitives-research` 验证会议面板 Button/Input 迁移和 End outcome 单选组。产品与脚本代码边界为 `57a47b7`，后续 `dc57b25` 替换错误 Skip 截图、`d8c5662` 提交 End Browser 证据和操作约束；后续提交未修改产品源码。环境：macOS、DSH Web `0.1.2-rc.1`、spawn provider、React/React DOM `18.3.1`、`@deepseek-ai/dsh-client-ui-primitives@0.1.2-rc.1`。
+2026-09-09，在 `codex/ui-primitives-research` 验证会议面板 Button/Input 迁移和 End outcome 单选组。完整 verify 与 Browser 证据的代码基线为 `57a47b7`；`dc57b25` 替换错误 Skip 截图，`d8c5662` 提交 End Browser 证据和操作约束。最终源码边界为 `d2f8aa4`，该提交修改 smoke-profile 的 Browser 认证预检分支并新增定向测试，未重跑完整 verify，不能将旧基线的结果描述为最终脚本的完整验证。环境：macOS、DSH Web `0.1.2-rc.1`、spawn provider、React/React DOM `18.3.1`、`@deepseek-ai/dsh-client-ui-primitives@0.1.2-rc.1`。
 
 ### Validated Contract
 
@@ -351,8 +351,8 @@ Closure：本轮用户授权范围已验证完成，可关闭部署验收与临�
 
 ### Executed Validation
 
-- 本轮重跑 `pnpm --dir plugin verify`，退出 0；format:check、lint、Host/Client typecheck、test、build、verify:environment、verify:contract、verify:agent-definitions、verify:package 全部通过。77 个测试文件、1109 项测试通过；9 个角色定义验证通过，package 检查全部通过。
-- 认证修复时执行 `pnpm --dir plugin exec vitest run tests/unit/scripts/browser-client-preflight.spec.ts tests/unit/scripts/smoke-profile.spec.ts`：55 项通过；本轮完整 verify 再次覆盖这些测试以及控件迁移、缓存禁写和重复提交回归。
+- 在 `57a47b7` 基线重跑 `pnpm --dir plugin verify`，退出 0；format:check、lint、Host/Client typecheck、test、build、verify:environment、verify:contract、verify:agent-definitions、verify:package 全部通过。77 个测试文件、1109 项测试通过；9 个角色定义验证通过，package 检查全部通过。
+- 前期认证修复时执行 `pnpm --dir plugin exec vitest run tests/unit/scripts/browser-client-preflight.spec.ts tests/unit/scripts/smoke-profile.spec.ts`：55 项通过；`57a47b7` 的完整 verify 覆盖当时的认证、控件迁移、缓存禁写和重复提交测试，不包含 `d2f8aa4` 新增的最终分支回归。
 - 本轮读取 `plugin/lib/client.js`：ModuleLoader 注册存在，全部 require 的唯一依赖为 `react` 与 `@deepseek-ai/dsh-client-ui-primitives`；无 `react/jsx-runtime`、`react/jsx-dev-runtime`、React 私有 internals 标记，独立断言退出 0。
 - 仍出现上游 primitives 发布包缺少 `index.js.map` 的 Vite sourcemap 警告及 Node SQLite experimental warning；测试、构建和 Browser 均通过。
 
@@ -377,6 +377,8 @@ Closure：本轮用户授权范围已验证完成，可关闭部署验收与临�
 - [刷新后归档](./assets/ui-primitives/archived.png)
 
 ### Not Covered
+
+`d2f8aa4` 的最终 Browser 认证预检分支未在本轮重跑完整 verify 或真实 Browser 场景；此前的完整验证和截图不能补足这一证据缺口。
 
 未采用的 primitives、其他 DSH/React 版本、独立 Chrome 浏览器、非 Web 平台、完整可访问性审计、真实模型质量、压力和长期资源泄漏不在本次证明范围。截图未覆盖长页面全部内容，业务断言以读取的完整 DOM 为准。
 
