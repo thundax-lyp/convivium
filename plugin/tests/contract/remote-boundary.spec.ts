@@ -203,6 +203,38 @@ describe("Remote Gateway boundary", () => {
         );
     });
 
+    it("preserves conditional replacement fields and rejects them on other actions", async () => {
+        const fixture = runtimeFixture();
+        gateway = await createRemoteGateway(fixture.runtime);
+        const reassign = {
+            ...input,
+            currentAttemptId: "attempt-1",
+            action: "reassign",
+            reason: "replace",
+            replacementParticipantId: "participant-2"
+        };
+        await gateway.invoke("reassign", { input: reassign });
+        expect(fixture.calls.get("reassign")).toHaveBeenCalledWith(reassign);
+        const supersede = {
+            ...input,
+            decisionId: "decision-1",
+            action: "supersede",
+            reason: "replace",
+            evidenceMessageIds: [],
+            replacementCandidateId: "candidate-2"
+        };
+        await gateway.invoke("disposeDecision", { input: supersede });
+        expect(fixture.calls.get("disposeDecision")).toHaveBeenCalledWith(supersede);
+        await expect(
+            gateway.invoke("reassign", { input: { ...reassign, action: "skip" } })
+        ).rejects.toMatchObject({ code: "convivium/invalid-request" });
+        await expect(
+            gateway.invoke("disposeDecision", { input: { ...supersede, action: "revoke" } })
+        ).rejects.toMatchObject({ code: "convivium/invalid-request" });
+        expect(fixture.calls.get("reassign")).toHaveBeenCalledOnce();
+        expect(fixture.calls.get("disposeDecision")).toHaveBeenCalledOnce();
+    });
+
     it("rejects extra fields before Runtime invocation", async () => {
         const fixture = runtimeFixture();
         gateway = await createRemoteGateway(fixture.runtime);

@@ -205,6 +205,7 @@ export class ConviviumRemoteService extends TypertRemoteService {
                 "expectedMeetingVersion",
                 "currentAttemptId",
                 "action",
+                ...(input?.action === "reassign" ? ["replacementParticipantId"] : []),
                 "reason",
                 "requestId"
             ],
@@ -277,6 +278,7 @@ export class ConviviumRemoteService extends TypertRemoteService {
                 "requestId",
                 "decisionId",
                 "action",
+                ...(input?.action === "supersede" ? ["replacementCandidateId"] : []),
                 "reason",
                 "evidenceMessageIds"
             ],
