@@ -8,14 +8,7 @@
 
 ## 当前任务项
 
-以下任务按 M03—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
-
-- [ ] `plugin/build`：M04 生成可发布 Remote contract
-    - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M04。
-    - 关联文件：新 `plugin/scripts/generate-typert.mjs`；[plugin/package.json](plugin/package.json)、[plugin/tsdown.config.ts](plugin/tsdown.config.ts)；[plugin/scripts/verify-package.mjs](plugin/scripts/verify-package.mjs)；[plugin/tests/contract/package-contract.spec.ts](plugin/tests/contract/package-contract.spec.ts)；新 `plugin/tests/contract/remote-generation.spec.ts`。
-    - 确认依据：2026-09-09 本任务中用户确认九接口一次迁移、替换五秒轮询及 review 修复；设计提交 `f7b6812`；本轮要求据此制定 TODO。
-    - 处理动作：使用正式包在临时 staging 生成并打包 Host/Client contract。
-    - 验收点：十个 endpoint、四个生成文件和类型 exports 验证通过；staging 清理，不依赖 DSH checkout。
+以下任务按 M05—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
 
 - [ ] `remote/tests`：M05 验证源码 Gateway 边界
     - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M05。

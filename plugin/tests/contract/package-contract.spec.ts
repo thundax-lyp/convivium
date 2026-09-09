@@ -21,11 +21,23 @@ describe("plugin package contract", () => {
         expect(Object.keys(packageManifest.exports)).toEqual([
             ".",
             "./client",
+            "./typert",
+            "./remote",
+            "./remote-types",
+            "./protocol-types",
             "./cordis.patch.yml",
             "./package.json",
             "./meeting-roles/cordis.patch.yml"
         ]);
-        expect(packageManifest.files).toEqual(["lib", "cordis.patch.yml", "meeting-roles"]);
+        expect(packageManifest.files).toEqual([
+            "lib",
+            "cordis.patch.yml",
+            "meeting-roles",
+            "lib/typert.host.js",
+            "lib/typert.host.d.ts",
+            "lib/typert.remote-client.js",
+            "lib/typert.remote-client.d.ts"
+        ]);
         expect(packageManifest.dsh.bundle.patch).toBe("./cordis.patch.yml");
         expect(packageManifest.dsh.client.platform).toBe("web");
         expect(packageManifest.dsh.client.inject).toEqual([
