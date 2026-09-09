@@ -20,7 +20,7 @@ description: Human-invoked workflow for publishing completed Convivium branch wo
 开始前读取：
 
 1. `AGENTS.md`
-2. `docs/00-governance/ARCHITECTURE.md`
+2. `docs/00-governance/ARCHITECTURE.md`、`docs/00-governance/ENGINEERING-RULES.md`
 3. `docs/00-governance/PR-RULES.md`
 4. `.github/pull_request_template.md`
 5. `.github/workflows/pr-verify.yml`
@@ -28,7 +28,7 @@ description: Human-invoked workflow for publishing completed Convivium branch wo
 按实际操作追加最小必要上下文：
 
 - 需要创建 commit、检查 commit message、整理历史，或创建/更新 PR 需要确定标题中的 Project Registry：完整读取 `docs/00-governance/COMMIT-RULES.md`；
-- diff 涉及 TODO、RUNBOOK 或任务收口：完整读取 `docs/00-governance/TODO-RULES.md`；
+- diff 涉及已登记 TODO：读取 `docs/00-governance/TODO-RULES.md`；涉及 RUNBOOK 时读取其专项规则；
 - diff 涉及文档、治理、workflow 或 skill：读取 `docs/00-governance/DOCUMENT-RULES.md`；
 - diff 涉及插件实现：按 diff 范围读取相关需求、接口和设计文档。
 
@@ -69,7 +69,7 @@ git remote -v
 
 ### 4. 本地收口与验证
 
-如果 diff 涉及 TODO、RUNBOOK 或任务收口，按 `TODO-RULES.md` 检查收口状态；所有 diff 都要检查文档同步和范围完整性。根据 diff 选择最窄验证：
+如果 diff 涉及已登记 TODO，按 `TODO-RULES.md` 检查任务状态；RUNBOOK 按专项规则收口。文档同步引用 Document Rules，通用验证引用 Engineering Rules；根据 diff 选择最窄验证：
 
 - 文档、skill、PR 或 workflow：至少运行 `git diff --check`，检查旧路径引用和治理入口；
 - 插件改动：按 `plugin/package.json` 运行受影响的 `format:check`、`lint`、`typecheck`、`test`、`build` 或 `verify:package`；

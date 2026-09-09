@@ -9,14 +9,8 @@
 
 ## Verification Evidence
 
-- [ ] PR workflow: `Governance`
-- [ ] PR workflow: `Plugin Format`
-- [ ] PR workflow: `Plugin Lint`
-- [ ] PR workflow: `Plugin Typecheck`
-- [ ] PR workflow: `Plugin Test`
-- [ ] PR workflow: `Plugin Build`
-- [ ] PR workflow: `Package Contract`
-- [ ] `git diff --check`
+- CI / required checks：运行或检查结果链接、状态及未完成项；以当前 workflow 和远端要求为准。
+- `git diff --check`：结果。
 - Documentation navigation check：结果或 `N/A` 及原因。
 - Relevant automated checks：命令与结果，或 `N/A` 及原因。
 - Manual or runtime verification：步骤与结果，或 `N/A` 及原因。
@@ -29,8 +23,8 @@
 ## Cross-boundary Impact
 
 - [ ] 无跨边界影响
-- [ ] Electron Main / Preload / Renderer
-- [ ] Meeting Runtime / ACP Session
+- [ ] DSH Host / Plugin Frontend
+- [ ] Meeting Runtime / DSH AgentSession
 - [ ] Interface / event / configuration / persistence
 - [ ] Permission / filesystem / external process
 

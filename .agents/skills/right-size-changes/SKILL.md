@@ -7,7 +7,7 @@ description: Use when planning, implementing, or refactoring code that risks spe
 
 实现满足当前已证实需求的最小完整设计。使用最少必要的概念、状态、接口和依赖，同时满足当前行为、已知失败模式、安全边界、数据完整性和明确兼容性。不要以减少 LOC 代替设计判断。
 
-仓库约束以 [Architecture 的 Implementation Economy 与 Engineering Checks](../../../docs/00-governance/ARCHITECTURE.md#implementation-economy) 为准；以下步骤用于应用这些规则，不建立另一份规则来源。
+仓库约束以 [Engineering Rules 的 Implementation Economy 与 Engineering Checks](../../../docs/00-governance/ENGINEERING-RULES.md#implementation-economy) 为准；以下步骤用于应用这些规则，不建立另一份规则来源。
 
 ## 确认范围
 

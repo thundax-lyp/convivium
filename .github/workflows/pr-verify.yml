@@ -33,6 +33,7 @@ jobs:
             TODO.md
             .github/pull_request_template.md
             docs/00-governance/ARCHITECTURE.md
+            docs/00-governance/ENGINEERING-RULES.md
             docs/00-governance/COMMIT-RULES.md
             docs/00-governance/DOCUMENT-RULES.md
             docs/00-governance/PR-RULES.md

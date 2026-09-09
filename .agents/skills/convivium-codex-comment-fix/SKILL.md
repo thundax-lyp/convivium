@@ -67,7 +67,7 @@ You have reached your Codex usage limits for code reviews.
 ## 固定流程
 
 1. 读取当前分支、工作区、PR head/base、未解决 threads、PR review summaries、review comments 和 issue comments；确认 PR 属于当前仓库、状态为 open 或 merged、base 是 `main`。已关闭且未合并的 PR 必须停止。在确认 PR 存在且满足状态条件前不得添加 reaction、修改代码、commit 或 push。指定其他 PR 时，`comment PR` 的 head 可以不是当前分支，但不得把当前分支的 commit 冒充为该 PR 的修复。
-2. 读取 `AGENTS.md`、`docs/00-governance/ARCHITECTURE.md`、`PR-RULES.md`、`COMMIT-RULES.md`，并按评论涉及范围读取需求、接口和设计文档。
+2. 读取 `AGENTS.md`、`docs/00-governance/ARCHITECTURE.md`、`docs/00-governance/ENGINEERING-RULES.md`、`PR-RULES.md`、`COMMIT-RULES.md`，并按评论涉及范围读取需求、接口和设计文档。
 3. 先按“冗余额度提示”规则删除可确认的额度提示，并重新读取其来源和 threads；再对每条剩余 Codex finding 建立触发条件、影响、代码证据和正式依据，按“Finding 与建议方案分离”分类：
    - `accept-as-proposed` 或 `accept-with-smaller-fix`：先对原评论添加 👍，再实现最小安全修复和回归测试。
    - `reject`：添加 👎，不修改代码，并在回复中说明 finding 不成立或明确超出当前范围的具体依据。

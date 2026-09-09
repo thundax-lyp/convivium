@@ -11,7 +11,7 @@
 - 只有跨越多个文件、接口、状态或验证边界，且不能由一个直接改动安全完成的临时任务，才建立 `docs/30-designs/RUNBOOK-*.md`。
 - 简单、局部、可直接实现和验证的任务不建立 RUNBOOK。
 - RUNBOOK 不是需求、接口、架构或稳定设计的真相源，不得自行确认未决产品范围。
-- RUNBOOK 必须服从 `ARCHITECTURE.md`、正式 requirements、interfaces 和 designs；冲突时停止编写或执行并请求人工决定。
+- RUNBOOK 必须服从 `ARCHITECTURE.md`、`ENGINEERING-RULES.md`、正式 requirements、interfaces 和 designs；作者按下述 Authoring And Audit 消解有依据的过时描述；无法消解时请求人工决定。机械执行者遇到冲突必须 STOP。
 - RUNBOOK 可以固定已确认范围内的实现步骤，但不能借执行细节改变正式业务语义。
 
 ## Target Executor Model
@@ -68,7 +68,7 @@ RUNBOOK 必须做到决策完备：对每个实施步骤，执行者只能得到
 9. 验证矩阵、固定命令、失败处理和恢复方式。
 10. 完成定义、readiness 迁移和删除步骤。
 
-只有不涉及某类边界时才可省略对应细节，并必须明确写出 `Not Applicable` 及原因。例如纯文档分类任务可以将数据库迁移标记为 `Not Applicable`，不能静默缺失。
+不涉及的边界可以集中列为 `Not Applicable` 并说明原因，无须逐步重复；适用边界的精确结构和机械步骤不得省略。
 
 ## Traceability Requirements
 
@@ -164,7 +164,9 @@ STOP：确定触发条件、必须报告的证据和禁止采取的替代动作�
 
 ## Validation Requirements
 
-验证矩阵必须按当前风险选择并明确列出：
+“完整验证”是作者依据 [Engineering Rules](./ENGINEERING-RULES.md#validation-and-evidence) 按任务风险预先确定并在 RUNBOOK 固定的完整验证集合，不自动等同于全产品套件。纯文档任务可以限定为链接、结构和 diff；作者说明选择依据，不适用项集中记录。执行者不得临场缩减、替换或豁免固定门禁。
+
+验证矩阵从以下范围选择适用项并明确列出：
 
 - 正常成功路径；
 - 边界输入和非法输入；
@@ -175,14 +177,14 @@ STOP：确定触发条件、必须报告的证据和禁止采取的替代动作�
 - transaction rollback 和无半提交；
 - restart/reopen/recovery；
 - internal state、event、receipt、outbox、projection 和 Archive 一致性；
-- focused tests、typecheck/build/contract checks 和仓库完整验证入口；
+- focused tests、typecheck/build/contract checks 及需要时的全产品验证入口；
 - 真实外部运行验证，或明确 `Not Applicable` 及依据。
 
 每个验证项必须写明预期结果。只有命令名称而没有断言不构成可执行验证。
 
 ## STOP Semantics
 
-STOP 是正常且强制的执行结果，不是失败后继续发挥的提示。至少在以下情况停止：
+本节约束机械执行者；作者的调查与修订遵循 Authoring And Audit。STOP 是正常且强制的执行结果，不是失败后继续发挥的提示。至少在以下情况停止：
 
 - 正式文档冲突或缺少授权当前行为的需求；
 - 指定文件、symbol、Schema、错误码或命令不存在；
@@ -198,9 +200,9 @@ STOP 报告必须包含：已完成的最后一步、触发条件、相关文件
 
 RUNBOOK 作者在交付前必须：
 
-1. 读取本规则、架构、文档规则和任务所需的正式需求/接口/设计。
+1. 读取本规则、架构、工程规则、文档规则和任务所需的正式需求/接口/设计。
 2. 调查当前代码、测试、构建入口和工作树状态。
-3. 先完成产品与技术判断，再写机械步骤；未决判断形成前置 STOP。
+3. 在授权范围内先完成产品与技术判断，再写机械步骤。作者可按 Document Rules 的权威与职责划分，修正有明确正式依据的过时描述并同步来源；不得靠当前代码或更新时间自行确认新产品行为。无法消解的正式依据冲突形成前置 STOP 并请求决定；只读审计仅报告、不修改。
 4. 核对所有路径、symbol 和命令真实存在，计划新增项有唯一名称和位置。
 5. 从低级 LLM 视角逐步 dry-run，删除所有隐含选择。
 6. 检查每个 scope 项都有实施步骤和验证，每个步骤都能追溯到 scope。
@@ -215,7 +217,7 @@ RUNBOOK 作者在交付前必须：
 
 ## Completion And Deletion
 
-- RUNBOOK 只能在所有 scope、验证矩阵和完整验证满足后关闭。
+- RUNBOOK 只能在所有 scope 和预先固定的完整验证集合满足后关闭；不以本节临时增加与任务无关的全产品验证。
 - 长期产品行为迁移到 requirements，跨边界语义迁移到 interfaces，稳定实现方案迁移到 designs，验证事实迁移到 readiness，运行流程迁移到 operations。
 - 未覆盖项必须进入正式 coverage/readiness 或 TODO，不能仅留在即将删除的 RUNBOOK。
 - 迁移完成后删除 RUNBOOK，并使用 `rg` 删除所有仅用于指向该 RUNBOOK 的残留引用。
@@ -226,5 +228,6 @@ RUNBOOK 作者在交付前必须：
 
 - [Document Rules](./DOCUMENT-RULES.md)
 - [Architecture](./ARCHITECTURE.md)
+- [Engineering Rules](./ENGINEERING-RULES.md)
 - [TODO Rules](./TODO-RULES.md)
 - [项目 RUNBOOK Skill](../../.agents/skills/convivium-runbook/SKILL.md)

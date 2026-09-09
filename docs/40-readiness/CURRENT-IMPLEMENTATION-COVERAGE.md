@@ -173,6 +173,8 @@ SQLite 构建仅有 Node SQLite experimental 与既有 Client bundle dependency 
 
 - `95bafe6` 提交前：508 个相对链接/锚点、实际 Governance structure shell 步骤、旧入口引用清零、5 份设计文档检查通过；`git diff --check` 和 `git diff --cached --check` PASS。
 - readiness 初次归并：511 个相对链接/锚点、删除文件引用清零、2 份 readiness 检查通过。最终去重后 519 个相对链接/锚点、FR 表 15 项、必要章节与重复运行结果检查通过，`git diff --check` PASS；链接数量不是产品覆盖率。
+- `0999640` 后的 Architecture 精简工作区：工程取舍/检查/测试命名逐段原文迁移到 `ENGINEERING-RULES.md`，固定依赖与 provider 接线归 Implementation，根入口、Skill 与 CI 路由同步。532 个相对链接/锚点、实际 Governance structure 步骤、迁移段落完整性及 `git diff --check` PASS。
+- 同一工作区后续规则修订：通用验证归 Engineering，TODO 仅管理登记任务，PR 配置引用 workflow/远端状态，文档结构按语义覆盖，RUNBOOK 作者与机械执行边界分离；入口、授权措辞及模板同步。551 个相对链接/锚点、Governance structure、模板/路由/清理与机械执行约束检查及 `git diff --check` PASS；未查询或修改远端 Ruleset，未执行 GitHub Actions。
 - 未重新执行 plugin verify、Host、Browser 或模型验证；本轮整理不是全量需求/契约/源码一致性审计。
 
 ## Not Covered

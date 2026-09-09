@@ -100,6 +100,16 @@ plugin/
 
 `src/index.ts` 只负责解析配置、构造依赖、注册 DSH 插件能力和绑定 disposer。业务转换不得直接写在插件入口、HTTP handler 或 tool handler 中。
 
+### Host dependency composition
+
+Convivium 固定官方 DSH `0.1.2-rc.1`，不接入本地上游修复包。该版本提供持久子 Session 枚举与 continuable Activation drain；宿主必须组合具备 `prepareContinuable` 的 provider，不能仅凭 `dsh-subagent` service 存在就开始创建会议。当前 provider 为 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.2-rc.1`，name 为 `spawn`，由 Host/profile 管理，不隐式携带或写入插件 package manifest。
+
+Host/profile 安装并配置 `@deepseek-ai/dsh-storage-sqlite@0.1.2-rc.1`，持有数据库路径与精确 Domain 名称路由；不使用 Meeting 前缀通配，不改变其他 Host domain 的既有介质。插件仅挂载 Meeting consumer，不覆盖默认 backend，不提供 `dataRoot`。SQLite provider 仅作为测试 devDependency 和隔离 profile 组合依赖；生产代码不导入 Storage backend/SQLite/JSON provider，也不新增跨 record transaction、SQL 或单 record Meeting 聚合。
+
+真实组合验证使用新建隔离 profile，不自动修改已有 Host/profile；必须覆盖 provider 注册、`startContinuable()` 实际创建、Storage Domain 打开、Host 冷重启、resident Activation 释放及关闭前已确认事实的恢复。完整入口见 Verification Design。
+
+Host/Client TypeScript 共用 `@/*` → `src/*`，Vitest 同步解析；构建将声明文件别名转换为相对路径，发布物不要求消费者配置 `@`。具体导入约束由 Architecture 的 Import Paths 维护。
+
 ### Package topology and build faces
 
 Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。Meeting Runtime 作为 consumer child plugin，只通过 `@deepseek-ai/dsh-storage-domain` 使用自身 record schema。顶层 `src/index.ts` 只挂载 consumer；Host/profile 负责安装和配置官方 SQLite provider、数据库路径及 Domain 路由。插件不实现物理存储、不导出 backend，也不建立 adapter hierarchy 或 provider factory。
@@ -377,7 +387,7 @@ Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-s
 ### Frontend
 
 - `client/` 通过 `/api/convivium/meetings/:meetingId` 读取完整 projection。
-- polling、写成功后的立即 refetch 和页面重新聚焦后的 refetch 整体替换缓存。
+- polling、写成功后的立即 refetch 和页面重新聚焦后的 refetch 整体替换缓存；不建立进程内 projection invalidation 通道。
 - 请求失败时保留带 stale 标记的最后成功 projection，并禁用写操作。
 - 暂停和继续按钮调用 Interface 定义的路由，不直接调用 DSH Session 或 Runtime 内部 API。
 

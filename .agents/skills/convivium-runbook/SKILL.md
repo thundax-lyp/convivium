@@ -20,8 +20,8 @@ description: 为 Convivium 创建、细化、审计或机械执行临时 RUNBOOK
 
 ## 共同前置
 
-1. 读取 `AGENTS.md`、`docs/00-governance/ARCHITECTURE.md`、`docs/00-governance/DOCUMENT-RULES.md` 和 `docs/00-governance/RUNBOOK-RULES.md`。
-2. Close 或涉及 TODO/验证收口时读取 `docs/00-governance/TODO-RULES.md`。
+1. 读取 `AGENTS.md`、`docs/00-governance/ARCHITECTURE.md`、`docs/00-governance/ENGINEERING-RULES.md`、`docs/00-governance/DOCUMENT-RULES.md` 和 `docs/00-governance/RUNBOOK-RULES.md`。
+2. 涉及已登记 TODO 的创建、修改或关闭时读取 `docs/00-governance/TODO-RULES.md`；其他验证遵循 Engineering Rules。
 3. 按任务读取最小必要 requirements、interfaces、designs、readiness 和代码；讨论稿只作背景。
 4. 读取工作树状态并保留用户已有修改。
 5. 涉及 DSH 插件实现时同时使用 `dsh-plugin-development`，但 RUNBOOK 结构仍由本 Skill 和 RUNBOOK Rules 控制。
@@ -30,13 +30,13 @@ description: 为 Convivium 创建、细化、审计或机械执行临时 RUNBOOK
 
 1. 调查需求、设计、接口、代码、测试和验证入口，先形成当前断点表。
 2. 判断任务是否真的需要 RUNBOOK；简单局部任务直接报告不适用，不创建形式化文件。
-3. 在写步骤前完成所有产品、接口和技术决定。无法从正式依据完成的决定写成前置 STOP，不得交给执行者选择。
+3. 在授权范围内完成产品、接口和技术决定；按 RUNBOOK Rules 的 Authoring And Audit 修正有正式依据的文档漂移，无法消解的冲突写成前置 STOP。不得让执行者选择方案，也不得从代码推断新的产品决定。
 4. 按 RUNBOOK Rules 写出：执行者契约、scope/non-goals、精确数据结构、完整调用链、文件/symbol 映射、不变量、机械步骤、验证矩阵和删除条件。
 5. 每一步固定允许文件、精确动作、命令、可观察 PASS 和强制 STOP；删除“或等价”“按需”“相关文件”“必要测试”等模糊措辞。
 6. 核对所有既有路径、symbol 和命令；新增路径和 symbol 必须只有一个指定位置与签名。
 7. 对照 scope 做双向追踪：每个 scope 项都有步骤和验证，每个步骤都由 scope 与正式依据授权。
 8. 运行仓库文档链接检查（若仓库没有专用脚本，则用 `rg` 核对所有相对链接目标存在）、`git diff --check`，并记录未验证边界。
-9. 完成 Audit；只有 `Executable` 才向用户交付为可执行 RUNBOOK。
+9. 按任务风险固定完整验证集合及选择依据；不适用边界集中说明。完成 Audit；只有 `Executable` 才向用户交付为可执行 RUNBOOK。
 
 ## Audit
 
@@ -71,11 +71,11 @@ Audit 用户只要求评审时不得修改文件；用户要求创建、细化�
 
 ## Close
 
-1. 逐项核对 scope、验证矩阵、完整验证和 readiness evidence。
+1. 逐项核对 scope、作者预先固定的完整验证集合和 readiness evidence；不临时扩大或缩减验证门禁。
 2. 把长期结论迁移到正式 requirements/interfaces/designs/operations，把实际验证迁移到 readiness。
 3. 把真实未覆盖项保留在 coverage/readiness 或按 TODO Rules 登记。
 4. 使用 `rg` 查找 RUNBOOK 文件名和标题引用。
-5. 先完成所有完整验证和 `git diff --check`；仅在全部通过后，删除 RUNBOOK 及已核对为“仅服务于它”的引用。删除后再次运行文档链接检查和 `git diff --check`；任一删除后检查失败都必须恢复被删除的 RUNBOOK/引用并停止。
+5. 先完成预先固定的全部验证和 `git diff --check`；仅在全部通过后，删除 RUNBOOK 及已核对为“仅服务于它”的引用。删除后再次运行文档链接检查和 `git diff --check`；任一删除后检查失败都必须恢复被删除的 RUNBOOK/引用并停止。
 6. 任一条件不满足时保留 RUNBOOK，不得把状态写成 completed。
 
 ## 输出

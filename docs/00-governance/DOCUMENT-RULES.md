@@ -26,6 +26,7 @@
 - 保存稳定、跨任务适用的工程规则。
 - 不记录一次任务的执行过程、临时方案或完成历史。
 - 规则变化时检查相关 Skill；只有入口约束或读取路由变化时才同步根 `AGENTS.md`。
+- 系统组成、所有权和依赖边界由 `ARCHITECTURE.md` 定义；工程取舍、验证方法与测试命名由 `ENGINEERING-RULES.md` 定义。依赖版本、provider 与源码接线由对应设计维护，治理文档只引用其入口。
 - 暂存、提交和历史修改规则统一由 `COMMIT-RULES.md` 定义。
 - 分支、PR、Review、CI 和合并规则统一由 `PR-RULES.md` 定义。
 
@@ -107,7 +108,9 @@
 
 ## Required Structures
 
-需求文档至少包含：
+以下清单规定必须覆盖的语义，不要求逐项使用同名独立章节。可以合并标题、表格或引用已有真相源；不得省略当前任务相关的内容，也不为无关主题填充空泛段落。不适用项可以集中说明及给出原因。RUNBOOK 的机械结构仍遵循其专项规则。
+
+需求文档覆盖：
 
 - `Purpose`
 - `Scope`
@@ -117,7 +120,7 @@
 - `Acceptance Criteria`
 - `Related Documents`
 
-接口文档至少包含：
+接口文档覆盖：
 
 - `Purpose`
 - `Boundary And Ownership`
@@ -127,7 +130,7 @@
 - `Compatibility`
 - `Related Documents`
 
-设计文档至少包含：
+设计文档覆盖：
 
 - `Purpose`
 - `Scope And Non-goals`
@@ -137,7 +140,7 @@
 - `Security And Observability`
 - `Acceptance`
 
-readiness 证据至少包含：
+readiness 证据覆盖：
 
 - `Scope`
 - `Validated Contract`
@@ -181,11 +184,4 @@ readiness 证据至少包含：
 - Skill 可以引用治理、需求、接口、设计和操作文档，但不能成为产品需求或业务契约的唯一真相源。
 - `.agents/skills/` 中的 Skill 不能直接作为 Convivium 产品运行时角色或会议模板的真相源。
 
-| 内容 | 归属 | 当前路径 |
-| --- | --- | --- |
-| 开发、审查、启动和发布等工程工作流 | 项目 Skill | `.agents/skills/<skill>/` |
-| 产品内角色 Prompt 和角色模板 | 产品数据或版本化模板 | 待产品需求与工程结构确认 |
-| Meeting Runtime 的主持、摘要和推荐模板 | 对应运行时模块的版本化资源 | 待模块设计确认 |
-| 一次性操作指令 | 不作为长期工程资产保存 | 无 |
-
-在产品数据和运行时源码结构确认前，不得为了存放 Prompt 自行创建新的顶层目录。
+产品内角色与运行时模板属于产品数据或版本化资源，不属于工程 Skill。已确认的角色资源归属见 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md#native-deployment-resources)，其他源码接线见 [Implementation Design](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#responsibilities-and-dependencies)；本文不维护资源清单或实现进度。新增顶层工程仍须先按 Architecture 明确其职责。

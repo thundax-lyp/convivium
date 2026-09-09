@@ -40,7 +40,7 @@
 - Meeting Agent Definition：[`../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)。
 - Domain 数据结构唯一真相源：[`DOMAIN-MODEL-DESIGN.md`](./DOMAIN-MODEL-DESIGN.md)。
 - 源码落点与接线：[`CONVIVIUM-IMPLEMENTATION-DESIGN.md`](./CONVIVIUM-IMPLEMENTATION-DESIGN.md)。
-- 增量实现的范围控制：[Architecture Implementation Economy](../00-governance/ARCHITECTURE.md#implementation-economy) 与本文 [Implementation Scope](#20-implementation-scope)。
+- 增量实现的范围控制：[Engineering Rules Implementation Economy](../00-governance/ENGINEERING-RULES.md#implementation-economy) 与本文 [Implementation Scope](#20-implementation-scope)。
 - Interface 已定义 Plugin Frontend 的最小状态读取及暂停/恢复路由；组件结构、视觉样式和非会议控制路由不属于本文。
 - 外部协作插件只能作为只读调研材料，不是本设计的源码基线、依赖或兼容目标。
 - Convivium 不提供独立 Electron、ACP adapter 或脱离 DSH 的运行模式。
@@ -98,7 +98,7 @@
 
 ### 4.1 Product form and source ownership
 
-产品形态、固定 DSH 依赖和前后端隔离以 [Architecture](../00-governance/ARCHITECTURE.md) 为准；目录、模块职责和依赖接线由 [Implementation Design](./CONVIVIUM-IMPLEMENTATION-DESIGN.md#responsibilities-and-dependencies) 唯一维护。本设计描述这些边界内的会议流程，不重复声明版本或模块表。
+产品形态和前后端隔离以 [Architecture](../00-governance/ARCHITECTURE.md) 为准；固定 DSH 依赖、目录、模块职责和依赖接线由 [Implementation Design](./CONVIVIUM-IMPLEMENTATION-DESIGN.md#responsibilities-and-dependencies) 唯一维护。本设计描述这些边界内的会议流程，不重复声明版本或模块表。
 
 ### 4.2 Session hierarchy
 
@@ -1268,7 +1268,7 @@ After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fing
 
 ### 20.1 Incremental scope control
 
-每次增量遵守 [Architecture Implementation Economy](../00-governance/ARCHITECTURE.md#implementation-economy) 和 [Engineering Checks](../00-governance/ARCHITECTURE.md#engineering-checks)。本节不删减正式需求，也不把暂缓机制改为永久 Non-goal；整体目标的实现覆盖以 readiness 为准。
+每次增量遵守 [Engineering Rules Implementation Economy](../00-governance/ENGINEERING-RULES.md#implementation-economy) 和 [Engineering Checks](../00-governance/ENGINEERING-RULES.md#engineering-checks)。本节不删减正式需求，也不把暂缓机制改为永久 Non-goal；整体目标的实现覆盖以 readiness 为准。
 
 - 新增 `selectionMode` 或调度分支应增量接入；未经当前任务确认，不重写已工作的 `round_robin` 或其他稳定路径。
 - Speaker timeout 自动推进、resident parent 重绑与自动续投、用户级恢复入口和专用诊断协议是需要独立确认的高扩张风险示例，不得顺带纳入其他增量。实现前分别明确触发条件、状态转换、失败语义、恢复边界和验收证据。

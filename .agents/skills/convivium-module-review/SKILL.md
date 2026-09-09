@@ -19,7 +19,7 @@ description: Review the complete current implementation of a Convivium plugin mo
 先读取：
 
 1. `AGENTS.md`
-2. `docs/00-governance/ARCHITECTURE.md`
+2. `docs/00-governance/ARCHITECTURE.md`、`docs/00-governance/ENGINEERING-RULES.md`
 3. `docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`
 4. `docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
 5. `docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`

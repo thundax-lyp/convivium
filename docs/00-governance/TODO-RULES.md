@@ -64,30 +64,13 @@
 - 完成整项：在真正完成该任务的 commit 中删除对应 TODO。
 - 只完成部分：把 TODO 收窄为准确的剩余范围。
 - 发现拆分错误：停止扩张范围，重写为正确的待审阅或待讨论项。
-- 任务产生长期结论：在关闭前迁移到对应治理、需求、接口、设计、readiness 或 operations 文档。
-- 临时 RUNBOOK 完成后：迁移长期结论和验证证据，再删除 RUNBOOK 及残留引用。
+- 任务产生长期结论时按 Document Rules 迁移；涉及 RUNBOOK 时按 RUNBOOK Rules 核对其删除条件，不以删除 TODO 代替 RUNBOOK 收口。
 
 未创建 commit 时可以在工作区同步更新 TODO，但不得把尚未完成的任务标记为关闭。
 
 ## Verification Check
 
-任务收口前至少检查：
-
-- 目标行为是否达到可运行、可观察或可审阅状态。
-- 是否覆盖关键成功路径、失败路径和权限边界。
-- 是否需要新增或更新自动化测试。
-- 是否需要同步需求、接口、设计、操作或文档路由。
-- 是否记录了不能执行或未通过的验证，而不是把它描述成成功。
-- 工作区是否混入其他不相关修改。
-
-验证脚本如创建临时数据、进程、目录或环境变量，应遵循：
-
-1. `Prepare`
-2. `Execute`
-3. `Assert`
-4. `Restore`
-
-失败路径也必须执行 `Restore`。
+关闭或收窄已登记任务时，核对该项验收点和真实剩余范围。通用验证、证据及资源清理由 [Engineering Rules](./ENGINEERING-RULES.md#validation-and-evidence) 定义；文档迁移由 [Document Rules](./DOCUMENT-RULES.md#document-sync) 定义，不在本文重复维护检查清单。
 
 ## Commit And PR Boundary
 

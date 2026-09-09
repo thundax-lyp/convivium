@@ -9,7 +9,7 @@ Commit 用于记录一个明确的工程判断或小步能力变化，不代表�
 ## Authorization
 
 - 修改完成后默认保留在工作区；只有用户明确要求“提交”时，才执行暂存和 commit。
-- 暂存、commit、push、创建 PR 和合并 PR 是不同操作，不能从其中一个授权推断其他授权。
+- 暂存、commit、push、创建 PR 和合并 PR 是不同操作，不能从单项授权推断用户未表达的其他操作。用户可以在一句请求中同时授权多项操作；已明确的组合授权持续有效，不逐步重复确认。
 - 用户只要求修改、检查或验证时，不得自动 commit。
 - 用户明确要求提交时，只提交当前任务范围内的文件，不纳入无关或归属不明的工作区改动。
 
@@ -81,19 +81,13 @@ Verification: <覆盖各工程及跨工程契约的验证>
 
 提交前必须：
 
-1. 检查 `git status`，识别当前任务文件和用户已有改动。
-2. 阅读完整待提交 diff，确认没有凭据、临时数据、绝对路径或无关变化。
-3. 运行与改动风险匹配的最窄验证。
-4. 对未运行、失败或被阻塞的验证如实说明，不得描述为通过。
-5. 检查行为、接口、架构、操作或开发流程变化是否要求同步文档。
-6. 确认真正完成的已登记 TODO 已删除或收窄，未完成任务仍保留。
+1. 检查 `git status` 并阅读完整待提交 diff，确认仅包含当前任务改动，无凭据、临时数据或无关个人路径。
+2. 确认满足 [Engineering Rules](./ENGINEERING-RULES.md#validation-and-evidence) 的相关验证与证据要求；适用证据可以复用，不要求仅因 commit 再运行相同检查。
+3. 按下节核对文档和已登记任务同步；明确本 commit 的工程判断，不能把未完成范围描述为完成。
 
 ## TODO And Document Sync
 
-- 完成已登记任务时，在完成该任务的 commit 中同步删除或收窄对应 TODO。
-- 任务产生的长期结论必须进入对应 governance、requirements、interfaces、designs、readiness 或 operations 文档。
-- 临时 RUNBOOK 中仍有长期价值的结论和证据必须先迁移，再删除 RUNBOOK。
-- 纯实现补齐且没有改变现有文档口径时，不修改无关文档。
+文档同步按 [Document Rules](./DOCUMENT-RULES.md#document-sync)。涉及已登记 TODO 时，按 [TODO Closure Rules](./TODO-RULES.md#closure-rules) 在完成该项的 commit 中删除或收窄；涉及 RUNBOOK 时按其 [Completion And Deletion](./RUNBOOK-RULES.md#completion-and-deletion) 处理。未涉及的项目不新增检查记录或文档。
 
 ## History Safety
 

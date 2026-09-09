@@ -2,121 +2,52 @@
 
 ## Purpose
 
-本文档定义 Convivium 当前已经确认的仓库级技术边界和依赖约束。本文不替代产品需求、接口契约或模块设计，也不把讨论中的候选方案视为既定技术决策。
+本文定义 Convivium 的系统组成、所有权、依赖方向和不可跨越的边界。具体接线由设计文档维护；工程取舍和验证方法见 [Engineering Rules](./ENGINEERING-RULES.md)，文档路由见根 `AGENTS.md`。
 
-## Scope
+## Product Boundary
 
-- DSH 插件宿主、插件后端、插件前端和 Agent Session 之间的职责边界。
-- DSH 工具、Web 路由、DSH 原生 Session Event 和插件 UI 的安全边界。
-- Agent 身份与 DSH continuable AgentSession 的隔离原则。
-- 新增顶层工程或跨进程依赖时必须遵守的约束。
-
-## Confirmed Baseline
-
-- Convivium 是纯 DSH 插件，不是独立 Electron 应用。
-- V1 运行在单个本地 DSH Host 中，仅服务该 Host 的一位本地用户；不提供远程访问、多用户协作、跨 Host 共享或网络部署。Meeting Web route 只允许在 DSH `webServer.host === "127.0.0.1"` 时注册；V1 不绑定 Web 用户身份、不校验 Team 权限，也不建立 per-user authority，所有到达该 loopback Host 的请求共享该本地用户边界。后续引入远程或多用户能力必须先补充独立的授权、身份、隔离和部署契约。
-- Convivium 使用 TypeScript 独立实现，不导入或派生外部参考项目源码。
-- 仓库只包含一个可构建、测试和交付的 Convivium DSH 插件工程 `plugin/`。Meeting consumer 通过 Storage Domain 使用 Host/profile 安装配置的官方 SQLite provider；插件不携带物理存储实现，也不为 backend 建立顶层工程、package 或发布单元。
-- Convivium 当前 DSH 依赖固定为 `0.1.2-rc.1`；实现可以依赖该版本 `dsh-subagent` 提供的持久子 Session 枚举和 continuable Activation drain 能力。
-- Convivium 正式运行会议前，宿主组合必须提供一个具备 `prepareContinuable` 能力的 continuable subagent provider；仅声明或注入 `dsh-subagent` service 不构成该能力。当前确认的宿主 profile provider 是 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.2-rc.1`，provider name 为 `spawn`，由 profile 作为组合依赖管理，不由 Convivium 自行实现、隐式携带或写入插件 package manifest。插件必须在独立 DSH profile 中验证该 provider 与 `startContinuable()` 的实际创建链路。
-- 插件依赖 DSH 提供 AgentSession、continuable Agent、工具注册、Web 路由、DSH 原生 Session Event 和插件 UI 宿主能力。
-- Convivium 拥有会议角色目录、Meeting Agent Definition、Manager 可见安全摘要、参会选择与批准状态；DSH Host 或 profile 拥有 Agent Preset、Skills、Tools、MCP、Sandbox、Approval、模型配置及其安装和执行。
-- Meeting Agent Definition 只描述会议角色、引用 DSH 原生 Agent Preset 和 Skill 名称，并可用原生 ToolRestriction 收窄从 global 与祖先 scope（包括共享 Preset）继承的工具；当前 child 自己注册的工具不受此 filter 屏蔽。发行包可附带原生 Preset/Skills 部署资源，但 Convivium Runtime 不复制、安装或持久化 DSH capability composition，实际组合由 Host 的 DSH Loader 应用。Definition 存在不证明 capability 已安装；缺少可验证的 DSH composition 时必须 fail closed。
-- 插件包含清晰分离的插件前端和插件后端会议运行时。
-- 每个 Meeting 在任何会议副作用前获得稳定 `meetingId`，并以 `teamId + meetingId` 形成独立 repository ownership。Convivium 只通过 `@deepseek-ai/dsh-storage-domain` 使用一个轻量 catalog domain 和每 Meeting 独立 domain；不得定位、扫描或依赖 backend 的物理布局。
-- [Meeting Persistence Design](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) 采用 `Checkpointed Commit Log`：一次 command 编码为一条原子 commit，当前真相由已发布分页 checkpoint 与连续有界 commit tail 合成。`plugin/src/repository/domain/` 只消费 `@deepseek-ai/dsh-storage-domain` 和自身 record schema；保留 catalog、每 Meeting 独立 domain、command commit、receipt、outbox、领域 checkpoint、串行化、容量限制和恢复算法，不新增跨 record transaction、SQL 或单 record Meeting 聚合。
-- Host/profile 安装并配置 `@deepseek-ai/dsh-storage-sqlite@0.1.2-rc.1`，拥有 provider、数据库路径和 Domain 路由；Convivium 仅挂载 Meeting consumer，bundle 不覆盖 Host 默认 backend，产品包不携带 SQLite provider，也不提供 `dataRoot` 配置。Domain 路由按精确名称匹配，不使用 Meeting 名称前缀通配；其他 Host domain 保留既有介质路由。
-- Storage Domain 是唯一会议事实源，禁止双写和 fallback。本项目为首次发布，SQLite 为首次发布介质，不设计开发期 JSONL/SQLite 数据迁移、兼容读取、已有版本升级或开发者数据清理。运行验证使用新建隔离 profile，不自动修改已有 Host/profile。
-- 首次发布接受 [Storage Shutdown Limitation](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)：关闭时尚未完成写入的自动排空不作为保证；已确认成功的持久性与恢复不变量不变。固定官方依赖，不接入本地上游修复包。
-- Meeting Runtime 若 best-effort 生成供开发者阅读的 Markdown 辅助文件，只能从已提交 Meeting projection 单向派生；Markdown 不是产品接口或事实源，不参与恢复、授权、状态计算、Session 关闭与 capability 撤销或归档完成判断。
-- DSH AgentSession 是独立运行主体，拥有独立 Prompt、Skills、工作目录、模型、MCP、权限和运行模式。
-- AgentSession 必须支持通过 `sendMessage` 继续投递、interrupt、恢复，以及通过 `drainContinuableChildren` 释放指定会议 Session 的 resident Activation。会议 Session 的持久不可继续语义由 Convivium capability revoke 保证，不要求 DSH 删除持久 Session 数据。
+- Convivium 是使用 TypeScript 独立实现的纯 DSH 插件，只有 `plugin/` 一个可构建、测试和交付的工程；不建立独立 Meeting Server、应用壳、backend 发布单元或根 workspace/monorepo。新增顶层工程前必须在本文明确职责、依赖方向和验证入口。
+- 外部项目仅作只读调研，不作为源码基线、运行依赖或兼容目标；不得复制其源码、文档、品牌、协议命名和持久化格式进入产品。
+- V1 仅服务单个本地 DSH Host 的一位用户。Meeting Web route 只在 `webServer.host === "127.0.0.1"` 时注册；到达该 Host 的请求共享本地用户边界，不虚构 Web 用户或 Team authority。远程、多用户、跨 Host 或网络部署必须先形成独立的身份、授权、隔离和部署契约。
+- 插件依赖 DSH 公开能力，不绕过宿主权限或生命周期接口。固定依赖版本、provider 组合和装配入口见 [Implementation Design](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#host-dependency-composition)。
 
 ## Runtime Boundaries
 
-### DSH Plugin Host
+| 边界 | 所有权与限制 |
+| --- | --- |
+| DSH Host/profile | 提供插件加载、AgentSession、continuable provider、Tools、Web/UI 宿主和原生 Session Event；拥有 Preset、Skills、MCP、Sandbox、Approval、模型配置及其安装执行 |
+| Meeting Runtime | 插件后端内的会议领域执行者；拥有 Meeting/Participant/Turn/MeetingTask、发言 capability、Session ownership、持久化和投影，不脱离 DSH 运行 |
+| Plugin Frontend | 通过后端公开、类型化且受 Host/identity 边界约束的入口展示会议和执行用户控制；不直接管理 Session、介质、敏感配置或任意文件访问，不判定最终领域状态或权限 |
+| DSH AgentSession | 独立运行主体，拥有独立上下文和能力；其内部推理、Prompt、Skills、Tools、工作流与重试过程由 DSH/Agent 管理，不是会议领域事实源 |
 
-- 提供插件加载、AgentSession、continuable Agent、工具注册、Web 路由、DSH 原生 Session Event 和前端挂载能力。
-- 负责底层 Agent 生命周期和模型调用；会议领域状态不以 DSH Session 内部状态为真相源。
-- Convivium 不绕过 DSH 权限和生命周期接口直接控制宿主内部资源。
-
-会议工具与 runtime 不依赖 WebServer 的存在。Meeting Web route 作为依赖 webServer 的 Cordis 子作用域按服务可用性挂载与卸载；移除 WebServer 不重建会议 runtime 或工具。无 Web 的宿主仍须提供既有 Agent、Session、continuable provider 和 Storage Domain 组合；这不授予远程访问或多用户能力。
-
-### Plugin Frontend
-
-- 承载团队、会议现场、人类控制以及 Agent 和 Session 状态展示。
-- 只能调用插件后端公开、类型化且受已确认 Host/identity 边界约束的 Web 路由或工具；V1 loopback Web 使用 Host registration gate，不虚构用户/Team authority。
-- 不直接管理 AgentSession，不直接访问持久化介质、敏感配置或任意文件系统路径。
-- 不承担会议领域状态、发言权和权限判定的最终责任。
-
-### Meeting Runtime
-
-- 作为 DSH 插件后端的一部分，承担会议生命周期、Participant、发言权、AgentSession、持久化和事件投影。
-- 必须与 Plugin Frontend 保持可测试的路由和事件边界。
-- 不作为独立 Meeting Server，也不要求脱离 DSH 运行。
-
-### DSH Agent Sessions
-
-- 每个会议身份使用独立的 DSH continuable AgentSession。
-- DSH 负责 Session 创建、`sendMessage` 投递、interrupt、事件和生命周期能力。
-- Convivium 负责会议身份、上下文投影、发言 capability 和 Session ownership，不把 AgentSession 当作会议领域真相源。
-- Convivium 只定义 Agent 之间及 Agent 与 Meeting Runtime 之间的会议协议，不拥有或解释 Agent 内部的 Prompt、Skills、Tools、MCP、推理、命令、工作流和重试过程。
-- Convivium 可以保存 Meeting Agent Definition identity 与 meeting-owned DSH Session ownership；MCP、Sandbox、Approval、模型和其他 Host 私有能力配置仍由 DSH 管理。通过创建前解析函数校验共享父 Preset 与 required Skills，将 Definition.roleDescription 转换为 DSH persona，并将 Host 独立 agentModelOverrides 交给 DSH 原生 agentOptions；toolFilter 保留原生继承工具收窄语义。Definition 不保存模型配置；ID、版本和指纹属于会议 provenance，运行配置由 DSH descriptor 持有。独立 per-child Preset 不属于首版；实现状态以 readiness 为准。
-- Agent 内部能力、Sandbox 和 Approval 由 DSH 管理；Convivium 只向 DSH 提供会议身份对应的授权上限，不得扩大用户或 DSH 已授予的权限。
+会议工具和 runtime 不依赖 WebServer；Web 服务可用性只影响路由挂载，不重建会议 runtime 或工具。无 Web 的组合仍须提供核心 Session、continuable provider 和 Storage Domain 能力；接线见 [Optional Web Composition](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#optional-web-composition)。
 
 ## Identity And Session Isolation
 
-- 调度器选择的是会议中的 Participant，不是底层 Agent 实例。
-- Agent role catalog 中的 candidate 不是 Participant。Manager recommendation 不是接纳或授权；只有 Captain 明确批准且 Runtime 完成独立 meeting-owned Session provisioning 后，candidate 才成为可调度 Participant。
-- TeamMember、Participant、Manager、Captain 和 AgentSession 必须保持概念分离。
-- 同一个底层 Agent 表示不同会议身份时，必须使用不同 AgentSession。
-- 不同会议、不同身份或不同授权范围的上下文不得通过共享 Session 静默混合。
-- 代理发言必须保留 Speaker、实际 Controller、委托范围和确认状态，不能伪装成人类本人。
+- 调度选择的是会议内 Participant。TeamMember、Participant、Manager、Captain 和 AgentSession 保持概念分离；每个具体会议身份使用独立 continuable AgentSession，不跨会议、身份或授权范围共享上下文。
+- Manager 只读取 Catalog 安全投影并推荐 candidate；推荐不构成接纳或授权。Captain 批准且 Runtime 完成独立 Session provisioning 后，candidate 才可调度。Manager 不能批准自身推荐、取得 capability secret、任意创建角色或扩大权限。
+- Convivium 拥有 Definition、Catalog snapshot、推荐/批准与 provenance；后续 Catalog 更新不得改变已固化会议事实。Definition 只引用 DSH 公开角色能力，不能用 persona 或 Runtime installer 假装安装能力；创建前必须验证宿主组合，缺能力时 fail closed。
+- DSH 拥有实际运行配置与 descriptor，Convivium 只保存会议 identity/provenance 与 Session ownership。角色解析、工具限制和原生资源部署见 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。
+- Convivium 只提供会议身份的授权上限，不扩大用户或 DSH 已授予的权限。代理发言必须保留 Speaker、实际 Controller、委托范围和确认状态，不能伪装成人类本人。
+- Session 创建、继续投递、interrupt、恢复与 resident Activation 释放只通过受控 DSH adapter。归档后的持久不可继续语义由 capability revoke 保证，不要求删除 DSH 持久 Session 数据；调用边界见 [Meeting Session Adapter](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#meeting-session-adapter)。
+
+## State And Storage Ownership
+
+- Meeting 在任何会议副作用前获得稳定 `meetingId`；以 `teamId + meetingId` 统一持有 Meeting domain、Session ownership、归档与开发者 Markdown 的生命周期。
+- Storage Domain 是唯一会议事实源，禁止双写与 fallback。Convivium 只消费 Storage Domain：轻量 catalog 负责发现，每个 Meeting 使用独立 domain；不定位、扫描或依赖 backend 物理布局。
+- Host/profile 拥有官方 SQLite provider、数据库位置与 Domain 路由。Convivium 不携带物理存储实现、不覆盖 Host 默认介质，也不提供调用方可指定的存储路径。具体组合见 [Implementation](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#host-dependency-composition)。
+- 一次 command 的领域状态、事件、receipt 和 outbox 必须原子提交；外部副作用在提交后执行。`Checkpointed Commit Log` 的有界写入、恢复与 compaction 由 [Persistence Design](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) 定义，record schema 与失败语义由 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md) 定义。
+- 首次发布使用 SQLite，不设计开发期介质迁移、兼容读取或已有版本升级，不自动清理开发者数据。已接受的 [关闭限制](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation) 不弱化已确认成功事实的持久性或恢复不变量。
+- MeetingTask 属于 MeetingState；领域只消费 Agent 明确提交的边界结果和授权投影，不能从内部 Tool Schema、调用顺序、隐藏推理或 DSH Session log 推导当前事实。
+- DSH 原生 tool/session events 由 DSH 定义和持久化；Convivium 不复制或扩展其语义，也不向 DSH Session 写入插件自定义持久化事件。会议领域事件保存在会议 commit 内。
+- Frontend 与开发者 Markdown 只能单向读取已提交投影。Markdown 不是产品接口，不参与恢复、授权、状态计算、Session 清理或归档完成；人工编辑、缺失或滞后不回写会议事实。UI 刷新与 Markdown 生成方式见 [Projection And Frontend](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#projection-and-frontend) 和 [Developer Markdown generation](../30-designs/MEETING-ORCHESTRATION-DESIGN.md#83-developer-markdown-generation)。
 
 ## Dependency Rules
 
-- Plugin Frontend 只能依赖公开的类型化路由和事件契约，不能依赖插件后端实现细节。
-- 会议领域规则不能依赖 DSH UI 组件。
-- DSH AgentSession 不能成为 Meeting、Participant、Turn 或权限模型的真相源。
-- Convivium 实现必须保持会议领域、DSH Session adapter、持久化和 UI projection 的模块边界。
-- Meeting domain、开发者 Markdown、Session ownership 和归档数据必须以 `teamId + meetingId` 为共同生命周期 ownership；调用方不得假设或推导 backend 的物理路径。
-- 会议领域只能消费 Agent 明确提交的边界结果和经授权的 MeetingTask projection，不得依赖具体 Skill、内部 Tool Schema、隐藏推理或工具调用顺序。MeetingTask 属于 Convivium MeetingState，不属于 DSH runtime facts。
-- Convivium 不得向 DSH Session 写入插件自定义的持久化事件类型。会议领域事件与状态在同一 Storage Domain commit 中原子持久化；插件前端只通过定时读取、写操作成功后重新读取和页面重新聚焦后读取完整类型化状态投影，不建立进程内 projection invalidation 通道。
-- Manager 只能消费 Agent catalog 的安全 projection 并提交参会 recommendation，不能取得 DSH capability secret、创建任意角色、批准自己的推荐或扩大 DSH/Meeting 权限。Catalog 更新不能改变 Meeting 已固化的 Catalog snapshot、recommendation、admission 或 Participant provenance。
-- Meeting Agent Definition 只能引用 DSH 公开的 Preset、Skill 和 ToolRestriction；Convivium 不得用 Prompt、persona 或自建 installer 假装安装 DSH capability。
-- 开发者 Markdown 只能单向派生自已提交 Meeting projection。人工修改、文件缺失或旧版本内容不得反向写入会议状态；该文件不形成 Plugin Frontend 或 Agent 可依赖的契约。
-- DSH 原生 `tool/call`、`tool/result` 及其他 DSH-owned Session Events 继续由 DSH 定义和持久化；Convivium 不复制、重命名或扩展其语义。
-- 新增 Web 路由、工具、事件、外部访问或文件权限前，必须先形成对应接口契约和失败语义。
-
-## Source Layout And Verification
-
-- `plugin/` 包含 Convivium DSH 插件的 Host、Client、Meeting 业务和全部验证；仓库级 `docs/` 不参与插件打包。
-- `plugin/meeting-roles/` 保存同一插件 package 随包交付的 Definition 数据、共享 `convivium` Preset、九个原生 DSH Skills 和显式部署 patch。它是静态数据/DSH 部署资源，不是第二个工程或 Runtime installer；只经 Host Loader 使用，不允许前端或会议输入指定任意读取路径。旧 `plugin/examples/meeting-agent-definitions/` 已移除；实际验收范围以 readiness 为准。
-- `plugin/` 独立安装、类型检查、构建和验证；根目录不建立 workspace 或 monorepo 层。
-- `plugin/` 的 TypeScript 源码支持 `@/*` 映射到 `src/*`，Host 与 Client 共用该映射；导入保留 NodeNext 所需的 `.js` 扩展名，例如 `@/protocol/types.js`。Vitest 同步解析别名，构建时将声明文件中的别名转换为相对路径，发布产物不要求消费者配置 `@`。
-- SQLite provider 仅作为测试 devDependency 和隔离 profile 组合依赖；生产代码不导入 Storage backend/SQLite/JSON provider。介质组合与恢复由同一 package 的验证和真实 DSH profile smoke 覆盖。
-- 外部参考项目只用于只读调研 DSH 接口和可选实现思路；其源码、文档、发布记录、品牌、协议命名和持久化格式不得进入产品工程。
-- `plugin/package.json` 提供 `typecheck`、`test`、`build` 和 `verify`；组合边界还必须用真实 DSH profile 验证 backend 注册、Storage Domain 打开、Host 冷重启和关闭前已确认事实的恢复。
-
-## Implementation Economy
-
-- 默认采用满足当前已确认行为和必要不变量的最小安全改动，不为仅有假设性未来价值的能力预建机制。
-- 新增抽象、状态、事件、adapter、worker、依赖、兼容层或扩展点前，必须指出至少一项当前依据：需求或接口契约、架构或安全不变量、可复现失败、必要隔离边界，或多个当前消费者需要的稳定共享语义。
-- 单一消费者、单一实现、文件数量或代码行数只能触发进一步检查，不能单独证明过度设计；权限、事务、持久化、外部系统和生命周期边界可以因隔离责任而独立存在。
-- finding 是否成立与建议方案是否合适必须分别判断；较小方案能够消除同一触发条件并保持必要边界时，采用较小方案。
-- 未经当前任务确认，不顺带重构稳定路径、建立通用框架、扩展协议或实现后续阶段；完成当前范围必须扩张时，停止并报告新增范围。
-- 同一 command commit 内、外部不可观察且对恢复无价值的中间状态保持为局部值；新增持久状态必须影响跨 command 行为、恢复、授权或公开 projection。
-- 接口只约束输入、输出、授权、幂等和失败语义；没有跨边界依据时，不强制内部 Error 子类、结果包装、同义类型或日志 schema。
-- 范围收窄不得弱化 caller binding、capability、ownership、stale attempt、幂等和数据完整性；无法安全处理的失败必须 fail closed，不以隐式降级或自动跳过替代正式失败边界。
-
-## Engineering Checks
-
-按任务风险执行以下检查，可复用已有依据和证据，不为检查本身新增文档或审批环节：
-
-- 实现前：从已确认需求和契约中明确关键业务不变量，列出能暴露错误实现的反例；验证预期不得仅从当前代码推导。
-- 写测试前：明确触发条件、可观察结果及所属业务对象或能力，优先归入对应已有测试；命名遵循 `docs/00-governance/ARCHITECTURE.md` 的 Test Naming，不以实现细节断言代替行为验证。
-- 确定性状态和失败分支由单元或 integration test 覆盖；真实 DSH profile 覆盖必须依赖 provider、Session ownership 或 plugin composition 的代表性路径。两类证据不能互相替代；重复真实运行须说明独有证据价值。
-- 路径或公开模块入口迁移后，运行 `pnpm --dir plugin lint` 和受影响验证；不得为检查本身新增文档或审批环节。
+- 必须保持 Domain、DSH adapter、Repository 和 UI projection 的模块边界；Domain 不依赖 Protocol、DSH、Repository、UI 或文件系统，Frontend 只依赖公开 Protocol，不引用后端实现。
+- Runtime、tools、HTTP 和 recovery 共用受控领域写入口；Repository 不执行调度或 DSH 调用，projection 不能反向驱动状态转换。具体模块接线见 [Implementation Dependency direction](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#dependency-direction)。
+- 新增 Web 路由、工具、事件、外部访问或文件权限前，必须先形成接口契约和失败语义。
+- Host/Client、业务与验证同属 `plugin/`，独立安装、构建和验证；仓库 `docs/` 不参与插件打包。同包角色资源是静态部署资源，不是第二工程或 Runtime installer；发行结构和验证入口见 Implementation Design。
 
 ## Import Paths
 
@@ -137,19 +68,4 @@
 
 ## Undecided Architecture
 
-以下内容尚未确认，不得从本文推断为既定方案：
-
-- 插件分发方式和高于最低版本的兼容策略。
-
-## Document Routing
-
-- 产品行为和验收标准：`docs/10-requirements/`。
-- Web 路由、工具、事件、配置和数据契约：`docs/20-interfaces/`。
-- 模块结构、状态机和专项方案：`docs/30-designs/`。
-- 实现覆盖和运行验证：`docs/40-readiness/`。
-- 启动、诊断、恢复、升级和发布操作：`docs/50-operations/`。
-- 产品讨论、外部调研和决策背景：`docs/60-human/`。
-
-## Test Naming
-
-测试文件和 `describe` 按稳定的业务对象、业务能力或工程边界命名；`it`/`test` 说明触发条件和可观察结果。不得按临时任务、RUNBOOK、审计报告、阶段或 finding 编号组织长期测试；回归应归入对应对象已有测试。需求编号可写在必要的依据注释或 readiness 中，不替代测试名称。纯工程组件沿用其稳定对象名称（例如 Storage Domain、outbox、plugin lifecycle）。
+插件分发方式和高于固定依赖版本的兼容策略尚未确认，不得从当前安装验证推断为已决定。
