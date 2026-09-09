@@ -85,7 +85,7 @@ function finishTurn(state: ReturnType<typeof runningMeeting>, at: number) {
 }
 
 describe("convergence progress fingerprint", () => {
-    it("is stable for canonical array order and changes for each structured component", () => {
+    it("ignores continuation materials but detects agenda resolution changes", () => {
         const state = meeting();
         state.agenda = [
             {
@@ -113,6 +113,74 @@ describe("convergence progress fingerprint", () => {
         expect(createProgressFingerprint(state)).toBe(first);
         state.agenda[0]!.resolution = "resolved";
         expect(createProgressFingerprint(state)).not.toBe(first);
+    });
+
+    it.each([
+        { meetingTaskId: "task-renamed" },
+        { status: "failed" as const },
+        { resultSummary: "New evidence" }
+    ])("detects terminal task progress %j independent of task order", (change) => {
+        const state = meeting();
+        state.meetingTasks = ["task-b", "task-a"].map((meetingTaskId) => ({
+            meetingTaskId,
+            participantId: "participant-1",
+            originatingSpeakerAttemptId: "attempt-1",
+            title: "Inspect evidence",
+            description: "Inspect the current proposal",
+            blocking: false,
+            status: "completed",
+            createdAt: now - 2,
+            finishedAt: now - 1,
+            resultSummary: "Original evidence"
+        }));
+        const before = createProgressFingerprint(state);
+        const reordered = { ...state, meetingTasks: [...state.meetingTasks].reverse() };
+        expect(createProgressFingerprint(reordered)).toBe(before);
+        const changed = {
+            ...state,
+            meetingTasks: [{ ...state.meetingTasks[0]!, ...change }, state.meetingTasks[1]!]
+        };
+        expect(createProgressFingerprint(changed)).not.toBe(before);
+    });
+
+    it.each([
+        { id: "fact-renamed" },
+        { kind: "criterion_evidence" as const },
+        { subjectId: "output-2" },
+        { result: "approved" as const },
+        { evidenceMessageIds: ["message-c"] },
+        { taskIds: ["task-c"] }
+    ])("detects active completion fact progress %j independent of reference order", (change) => {
+        const state = meeting();
+        state.completionFacts = ["fact-b", "fact-a"].map((id) => ({
+            id,
+            kind: "output_evidence",
+            subjectId: "output-1",
+            assertedBy: "participant-1",
+            result: "supported",
+            status: "active",
+            evidenceMessageIds: ["message-b", "message-a"],
+            taskIds: ["task-b", "task-a"],
+            createdAt: now
+        }));
+        const before = createProgressFingerprint(state);
+        const reordered = {
+            ...state,
+            completionFacts: [...state.completionFacts].reverse().map((fact) => ({
+                ...fact,
+                evidenceMessageIds: [...fact.evidenceMessageIds].reverse(),
+                taskIds: [...fact.taskIds].reverse()
+            }))
+        };
+        expect(createProgressFingerprint(reordered)).toBe(before);
+        const changed = {
+            ...state,
+            completionFacts: [
+                { ...state.completionFacts[0]!, ...change },
+                state.completionFacts[1]!
+            ]
+        };
+        expect(createProgressFingerprint(changed)).not.toBe(before);
     });
 
     it("detects only current open blocking questions and positions", () => {
