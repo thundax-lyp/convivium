@@ -10,9 +10,11 @@ const base = { protocolVersion: 1 as const, meetingId, meetingVersion: 2 };
 
 function runtimeFixture() {
     const calls = new Map<string, ReturnType<typeof vi.fn>>();
+    const results = new Map<string, unknown>();
     const method = (name: string, result: unknown) => {
         const fn = vi.fn(async () => result);
         calls.set(name, fn);
+        results.set(name, result);
         return fn;
     };
     let streamSignal: AbortSignal | undefined;
@@ -134,6 +136,7 @@ function runtimeFixture() {
     return {
         runtime,
         calls,
+        results,
         get streamSignal() {
             return streamSignal;
         }
@@ -228,55 +231,18 @@ describe("Remote Gateway boundary", () => {
         gateway = undefined;
     });
 
-    it("dispatches all nine unary methods through the generated Gateway", async () => {
+    it("preserves inputs and successful results through all nine Gateway methods", async () => {
         const fixture = runtimeFixture();
         gateway = await createRemoteGateway(fixture.runtime);
-        await gateway.invoke("list", {});
-        await gateway.invoke("getStatus", { input: { protocolVersion: 1, meetingId } });
-        await gateway.invoke("pause", { input: { ...input, reason: "pause" } });
-        await gateway.invoke("resume", { input });
-        await gateway.invoke("reassign", {
-            input: { ...input, currentAttemptId: "attempt-1", action: "skip", reason: "skip" }
-        });
-        await gateway.invoke("end", {
-            input: {
-                ...input,
-                outcome: "cancelled",
-                reason: "end",
-                acceptedDecisionIds: [],
-                deferredAgendaItemIds: [],
-                waivers: []
-            }
-        });
-        await gateway.invoke("acceptDecision", {
-            input: {
-                ...input,
-                decisionCandidateId: "candidate-1",
-                reason: "accept",
-                evidenceMessageIds: []
-            }
-        });
-        await gateway.invoke("disposeDecision", {
-            input: {
-                ...input,
-                decisionId: "decision-1",
-                action: "revoke",
-                reason: "revoke",
-                evidenceMessageIds: []
-            }
-        });
-        await gateway.invoke("disposeRisk", {
-            input: {
-                ...input,
-                issueId: "risk-1",
-                decision: "accept",
-                reason: "accept",
-                evidenceMessageIds: ["evidence-1"]
-            }
-        });
-        expect([...fixture.calls.values()].every((call) => call.mock.calls.length === 1)).toBe(
-            true
-        );
+        await expect(gateway.invoke("list", {})).resolves.toEqual(fixture.results.get("list"));
+        expect(fixture.calls.get("list")).toHaveBeenCalledExactlyOnceWith();
+        for (const [method, valid] of cases) {
+            const call = fixture.calls.get(method)!;
+            call.mockClear();
+            const expected = structuredClone(fixture.results.get(method));
+            await expect(gateway.invoke(method, { input: valid })).resolves.toEqual(expected);
+            expect(call).toHaveBeenCalledExactlyOnceWith(valid);
+        }
     });
 
     it("preserves conditional replacement fields and rejects them on other actions", async () => {
@@ -345,52 +311,50 @@ describe("Remote Gateway boundary", () => {
         expect(fixture.calls.get(method)).not.toHaveBeenCalled();
     });
 
-    it.each(cases)(
-        "preserves %s domain failures and sanitizes broken outputs",
-        async (method, valid) => {
-            const fixture = runtimeFixture();
-            gateway = await createRemoteGateway(fixture.runtime);
-            const call = fixture.calls.get(method)!;
-            for (const code of [
-                "VERSION_CONFLICT",
-                "IDEMPOTENCY_CONFLICT",
-                "MEETING_NOT_FOUND",
-                "INVALID_ARGUMENT"
-            ]) {
-                const failure = {
-                    protocolVersion: 1,
-                    ok: false,
-                    code,
-                    message: "safe failure",
-                    retryable: false
-                };
-                call.mockResolvedValueOnce(failure);
-                await expect(gateway.invoke(method, { input: valid })).resolves.toEqual(failure);
-            }
-            for (const value of [
-                { ok: true },
-                { protocolVersion: 1, ok: false, code: "private", message: "private" }
-            ]) {
-                call.mockResolvedValueOnce(value);
-                await expect(gateway.invoke(method, { input: valid })).rejects.toMatchObject({
-                    code: "convivium/internal",
-                    message: "Meeting data is unavailable."
-                });
-            }
-            call.mockRejectedValueOnce(new Error("private exception"));
+    // Action-specific input checks retain every row; output/error mapping is shared per method.
+    it.each(
+        cases.filter(([method], index) => cases.findIndex(([name]) => name === method) === index)
+    )("preserves %s domain failures and sanitizes broken outputs", async (method, valid) => {
+        const fixture = runtimeFixture();
+        gateway = await createRemoteGateway(fixture.runtime);
+        const call = fixture.calls.get(method)!;
+        for (const code of [
+            "VERSION_CONFLICT",
+            "IDEMPOTENCY_CONFLICT",
+            "MEETING_NOT_FOUND",
+            "INVALID_ARGUMENT"
+        ]) {
+            const failure = {
+                protocolVersion: 1,
+                ok: false,
+                code,
+                message: "safe failure",
+                retryable: false
+            };
+            call.mockResolvedValueOnce(failure);
+            await expect(gateway.invoke(method, { input: valid })).resolves.toEqual(failure);
+        }
+        for (const value of [
+            { ok: true },
+            { protocolVersion: 1, ok: false, code: "private", message: "private" }
+        ]) {
+            call.mockResolvedValueOnce(value);
             await expect(gateway.invoke(method, { input: valid })).rejects.toMatchObject({
                 code: "convivium/internal",
                 message: "Meeting data is unavailable."
             });
-            call.mockRejectedValueOnce(
-                new LocalMeetingRecoveryUnavailableError("private recovery")
-            );
-            await expect(gateway.invoke(method, { input: valid })).rejects.toMatchObject({
-                code: "convivium/recovery-unavailable",
-                message: "Meeting data is unavailable."
-            });
         }
-    );
+        call.mockRejectedValueOnce(new Error("private exception"));
+        await expect(gateway.invoke(method, { input: valid })).rejects.toMatchObject({
+            code: "convivium/internal",
+            message: "Meeting data is unavailable."
+        });
+        call.mockRejectedValueOnce(new LocalMeetingRecoveryUnavailableError("private recovery"));
+        await expect(gateway.invoke(method, { input: valid })).rejects.toMatchObject({
+            code: "convivium/recovery-unavailable",
+            message: "Meeting data is unavailable."
+        });
+    });
 
     it("rejects an already cancelled call without invoking Runtime", async () => {
         const fixture = runtimeFixture();
@@ -403,17 +367,28 @@ describe("Remote Gateway boundary", () => {
         expect(fixture.calls.get("pause")).not.toHaveBeenCalled();
     });
 
-    it("merges caller and Service lifetime cancellation for streams", async () => {
-        const fixture = runtimeFixture();
-        gateway = await createRemoteGateway(fixture.runtime);
-        const caller = new AbortController();
-        const stream = await gateway.stream("watchUpdates", {}, caller.signal);
-        const iterator = stream[Symbol.asyncIterator]();
-        await expect(iterator.next()).resolves.toEqual({ value: { kind: "refresh" }, done: false });
-        const pending = iterator.next();
-        await gateway.serviceFiber.dispose();
-        await expect(pending).resolves.toMatchObject({ done: true });
-        expect(caller.signal.aborted).toBe(false);
-        expect(fixture.streamSignal?.aborted).toBe(true);
-    });
+    it.each(["caller", "service"] as const)(
+        "ends the stream on %s cancellation",
+        async (source) => {
+            const fixture = runtimeFixture();
+            gateway = await createRemoteGateway(fixture.runtime);
+            const caller = new AbortController();
+            const stream = await gateway.stream("watchUpdates", {}, caller.signal);
+            const iterator = stream[Symbol.asyncIterator]();
+            await expect(iterator.next()).resolves.toEqual({
+                value: { kind: "refresh" },
+                done: false
+            });
+            const pending = iterator.next();
+            const finished =
+                source === "caller"
+                    ? expect(pending).rejects.toMatchObject({ code: "gateway/cancelled" })
+                    : expect(pending).resolves.toMatchObject({ done: true });
+            if (source === "caller") caller.abort();
+            else await gateway.serviceFiber.dispose();
+            expect(fixture.streamSignal?.aborted).toBe(true);
+            await finished;
+            expect(caller.signal.aborted).toBe(source === "caller");
+        }
+    );
 });

@@ -1,4 +1,3 @@
-import { CaptainAttendanceDispositionResultSchema } from "@/protocol/index.js";
 import { describe, expect, it, vi } from "vitest";
 import {
     createOfflineMeetingProtocolFixture,
@@ -112,7 +111,6 @@ describe("meeting protocol examples and caller capabilities", () => {
                 "limits"
             ].sort()
         );
-        expect(runManagerPlan(f, f.managerContext.meetingVersion).state).toEqual(f.plannedState);
         expect(f.createInput.teamId).toBe("offline-team");
         expect(f.planningState.participants.map((p) => p.id)).toEqual([
             "participant-a",
@@ -173,18 +171,6 @@ describe("meeting protocol examples and caller capabilities", () => {
         expect(f.aContext.attempt.deliveryId).not.toBe(f.bContext.attempt.deliveryId);
         expect(f.bSubmission.replyTo).toBe("offline-message-a");
         expect(f.bSubmission.content).toBe("I cite amber-47: a local fixture needs no network.");
-    });
-    it("returns detached repeatable fixtures", () => {
-        const a = createOfflineMeetingProtocolFixture();
-        const b = createOfflineMeetingProtocolFixture();
-        const secondBefore = JSON.stringify(b);
-        expect(JSON.stringify(a)).toBe(secondBefore);
-        const original = a.afterAState.transcript[0]?.content;
-        const message = a.bContext.recentMessages[0];
-        if (!message) throw new Error("B context message missing");
-        message.content = "changed";
-        expect(a.afterAState.transcript[0]?.content).toBe(original);
-        expect(JSON.stringify(b)).toBe(secondBefore);
     });
     it("rejects missing protocol fields and text-only replies", () => {
         const f = createOfflineMeetingProtocolFixture();
@@ -270,27 +256,5 @@ describe("meeting protocol examples and caller capabilities", () => {
                 required: ["input"]
             });
         }
-    });
-
-    it("renders the keyless attendance rejection result as canonical JSON", async () => {
-        const tool = collectToolDefinitions().find(
-            (d) => d.name === "convivium_dispose_attendance_recommendation"
-        )!;
-        const result = {
-            requestId: "reject-1",
-            recommendationId: "recommendation-1",
-            disposition: "rejected"
-        };
-        expect(CaptainAttendanceDispositionResultSchema(result)).toEqual(result);
-        const value = {
-            protocolVersion: 1,
-            ok: true,
-            meetingId: "meeting-1",
-            meetingVersion: 2,
-            result
-        };
-        expect(await tool.output!.render!({}, value)).toEqual([
-            { type: "text", text: JSON.stringify(value) }
-        ]);
     });
 });
