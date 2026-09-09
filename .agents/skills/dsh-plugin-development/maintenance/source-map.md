@@ -265,6 +265,69 @@
 
 - `docs/subsystems/conversation.md`
 
+### DSH UI Primitives
+
+对应 [client-ui-primitives.md](../references/client-ui-primitives.md)。公开能力按根 exports 与固定版本实现核对；CSS runner 诊断与消费方验证步骤是集成指导，不是上游运行时契约或已执行产品验收。
+
+维护裁决：`Tooltip` 关于 hover/focus 都清除才隐藏的内部注释与实现不符，采用 `onMouseLeave` 的实际处理及对应测试；Markdown 原始 HTML 处理采用 `markdown/render.tsx` 的文字呈现分支，不把 README 的 dropped 描述解释为删除文字。发行包 `.d.ts` 保留部分 JSDoc；references 补足组合与行为限制，不以“发行包没有注释”为维护前提。
+
+**类型与实现**
+
+- `packages/client/ui-primitives/src/index.ts`
+- `packages/client/ui-primitives/src/Button.tsx`
+- `packages/client/ui-primitives/src/Input.tsx`
+- `packages/client/ui-primitives/src/Pill.tsx`
+- `packages/client/ui-primitives/src/StateDot.tsx`
+- `packages/client/ui-primitives/src/Toast.tsx`
+- `packages/client/ui-primitives/src/Modal.tsx`
+- `packages/client/ui-primitives/src/RiskConfirmation.tsx`
+- `packages/client/ui-primitives/src/OnboardingSurface.tsx`
+- `packages/client/ui-primitives/src/ConnectionIndicator.tsx`
+- `packages/client/ui-primitives/src/markdown/MarkdownText.tsx`
+- `packages/client/ui-primitives/src/markdown/MessageText.tsx`
+- `packages/client/web/src/platform.ts`
+- `packages/client/web/src/seed.ts`
+- `packages/client/ui-primitives/src/Menu.tsx`
+- `packages/client/ui-primitives/src/Tooltip.tsx`
+- `packages/client/ui-primitives/src/HoverCard.tsx`
+- `packages/client/ui-primitives/src/user-text.tsx`
+- `packages/client/ui-primitives/src/ReadBlock.tsx`
+- `packages/client/ui-primitives/src/DiffBlock.tsx`
+- `packages/client/ui-primitives/src/SearchBlock.tsx`
+- `packages/client/ui-primitives/src/WebBlock.tsx`
+- `packages/client/ui-primitives/src/clipboard.ts`
+- `packages/client/ui-primitives/src/relative-time.ts`
+- `packages/client/ui-primitives/src/useDismissOnOutsidePointer.ts`
+- `packages/client/ui-primitives/src/useAnchoredPosition.ts`
+- `packages/client/ui-primitives/src/useAnchoredMaxHeight.ts`
+- `packages/client/ui-primitives/src/markdown/render.tsx`
+- `packages/client/ui-primitives/src/Button.module.css`
+- `packages/client/ui-primitives/src/Input.module.css`
+- `packages/client/ui-primitives/src/Pill.module.css`
+
+**规则与验证工具**
+
+- `packages/client/AGENTS.md`
+- `packages/client/tsdown.client.ts`
+- `scripts/verify-client-packages.ts`
+
+**行为测试**
+
+- `packages/client/ui-primitives/tests/markdown-incremental.client.spec.tsx`
+- `packages/client/ui-primitives/tests/tooltip.client.spec.tsx`
+- `packages/client/ui-primitives/tests/atoms.client.spec.tsx`
+- `packages/client/ui-primitives/tests/hover-card.client.spec.tsx`
+- `packages/client/ui-primitives/tests/toast.client.spec.tsx`
+- `packages/client/ui-primitives/tests/user-text.client.spec.tsx`
+- `packages/client/ui-primitives/tests/markdown.client.spec.tsx`
+
+**包与文档**
+
+- `packages/client/ui-primitives/package.json`
+- `packages/client/ui-primitives/README.md`
+- `docs/subsystems/web-client.md`
+- `docs/web-styling.md`
+
 ### DSH Client UI
 
 对应 [client-ui.md](../references/client-ui.md)。
