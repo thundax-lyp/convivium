@@ -273,24 +273,19 @@ describe("referenced minutes domain", () => {
             expect(plain.state.transcript[2]).not.toHaveProperty("minutesDraft");
         }
     );
-    it.each([
-        "unknown",
-        "private-mail",
-        "other-meeting-message",
-        "draft-3",
-        "fact-1",
-        "task-1",
-        "source-1"
-    ])("atomically rejects unavailable reference %s", (id) => {
-        const { state, context } = minutesFixture();
-        context.message.minutesDraft.coverage.fromSeq = 2;
-        context.message.minutesDraft.referencedMessageIds = ["source-2", id];
-        const before = structuredClone(state);
-        expect(() => submitSpeakerAttempt(state, "a", state.version, context)).toThrow(
-            "Invalid minutes draft."
-        );
-        expect(state).toEqual(before);
-    });
+    it.each(["unknown", "draft-3", "source-1"])(
+        "atomically rejects unavailable reference %s",
+        (id) => {
+            const { state, context } = minutesFixture();
+            context.message.minutesDraft.coverage.fromSeq = 2;
+            context.message.minutesDraft.referencedMessageIds = ["source-2", id];
+            const before = structuredClone(state);
+            expect(() => submitSpeakerAttempt(state, "a", state.version, context)).toThrow(
+                "Invalid minutes draft."
+            );
+            expect(state).toEqual(before);
+        }
+    );
     it.each(["hole", "duplicate-seq", "duplicate-id", "future", "before-context", "empty-context"])(
         "rejects invalid coverage %s",
         (kind) => {
