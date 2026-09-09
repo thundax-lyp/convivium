@@ -131,7 +131,7 @@ Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。Meeti
 - 使用 `files` allowlist 只发布 Host bundle、Client bundle、类型声明、patch、README 和必要资产。
 - 将 Cordis、React 和 DSH 共享 runtime identity 声明为 peer；构建、类型检查和测试所需版本同时出现在 dev dependencies。只由插件内部使用且不要求与 Host 共享 identity 的库使用普通 dependency。
 
-`dsh-client-locale`、`dsh-client-ui-layout`、`dsh-client-ui-primitives` 和 `dsh-client-ui-slots` 仅作为上游 Client 类型声明所需的开发依赖保留，不要求为本插件单独注入或声明 Host peer。工具边界使用的 `JsonValue` 从 `dsh-util-values` 导入，作为开发类型依赖；不使用 `dsh-tools` 的旧 re-export。
+`dsh-client-locale`、`dsh-client-ui-layout` 和 `dsh-client-ui-slots` 仅作为上游 Client 类型声明所需的开发依赖保留。`dsh-client-ui-primitives` 作为 DSH Web 平台提供的共享 Browser 静态库，由 Client 从包根导入 Button/Input；保留固定版本 devDependency，不新增 Host peer、Cordis service inject 或 dsh.client.external。工具边界使用的 `JsonValue` 从 `dsh-util-values` 导入，作为开发类型依赖；不使用 `dsh-tools` 的旧 re-export。
 
 构建分为两个明确步骤：TypeScript 生成 `lib/types/**` 声明和构建中间 JavaScript，`tsdown` 生成 `lib/index.js` 与 `lib/client.js`。Client 构建使用独立 `tsconfig.client.json`，不得把 Node.js、持久化实现、workspace 文件系统或 Host-only DSH service 打入浏览器 bundle。
 
@@ -142,6 +142,16 @@ Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。Meeti
 `src/client/meeting-panel-view.tsx::mapMeetingPanelView` 从通过 [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) 对应 Schema 校验的完整公开 detail 映射展示字段。活动态与执行终态读取 discussion 的 decisions、Parking Lot 和 risks；archiving 与 archived 读取 archive.package 中的对应集合，并原样展示全部 issues。Accepted decisions 仅表示当前已接受集合；Decision history 保留全部决策身份、状态、撤销和替代关系，不过滤为仅历史项。
 
 `src/client/meeting-panel-sections.tsx::renderObservabilitySections` 展示候选处置、风险原因、owner 和任务引用，以及已公开的 Turn intent/reason/objective。没有 currentTurn 时显示 None，不从内部日志推断原因。Client 首次读取、5 秒轮询、focus 和 reopen 均通过 Schema 后整体替换 detail；非法响应保留上次已验证事实并禁写，合法响应恢复后清除错误状态。事实展示继续从该完整投影派生；pending Decision、accepted Decision 和 Risk 行允许下述已确认的 local 控制，其他区域保持只读。读取错误和新增控制错误分开，成功 GET 不清除新增命令的 code/message/retryable。
+
+### Client control primitives
+
+实施状态：迁移待执行。
+
+依据 Meeting Requirements 的 FR-9/FR-11 和 Agent Meeting Protocol Interface 的 Meeting Web routes，面板所有既有普通动作按钮使用 DSH Button，三个单行 Pause/Skip/End reason 输入使用 DSH Input。保留动态 replacement select、证据 checkbox、多行 textarea、持续错误提示及原业务请求处理。Submit 保持 type=submit，其他按钮 type=button；普通按钮 outline/sm，Submit primary/sm。
+
+End outcome 使用局部 END_OUTCOMES 常量与现有 endOutcome 状态，固定 partial、no_consensus、cancelled，默认和会议选择重置均为 partial。三个 Button 组成名为 End outcome 的 radiogroup，使用 radio/aria-checked、一个 tabIndex=0 和选中 primary、未选中 outline。点击或 Space/Enter 只选择，不提交；四方向键循环选择并聚焦，Home/End 选择首尾，Tab 不拦截。writesDisabled 或 writePendingRef.current 为真时禁止改变选项。End meeting 仍单独提交原请求并按现有逻辑刷新。
+
+Browser 共享 React/React DOM 18.3.1 与同版本 primitives，不把库私带到 Client bundle。继续使用 createElement，不引入 JSX 或新的公共控件模块。Client Vitest project 对 primitives 做窄范围 server.deps.inline 转换，以加载发布包 CSS；其他 project 不变。按钮组和三个理由操作行使用局部 flex/wrap/gap 排列，不改变宿主主题与业务状态 owner。
 
 ### Dependency direction
 
