@@ -16,7 +16,7 @@
 
 ## Main Branch Protection
 
-项目期望：`main` 的变更必须经过 PR，禁止删除与 force-push，合并前解决全部 Review 对话并基于最新目标分支通过所有必需检查。默认使用普通 merge commit 保留小步历史；只有用户明确要求时才 squash，且远端策略必须允许。
+项目期望：`main` 的变更必须经过 PR，禁止删除与 force-push，合并前解决全部 Review 对话并基于最新目标分支通过所有必需检查。PR 使用普通 merge commit 合并，保留分支上的全部提交及完整历史；禁止 squash merge。
 
 执行合并前核对远端 Ruleset、required checks、审批要求、允许的合并方式及 PR 最新状态。不能以本文或历史记录代替实时状态；不能因 workflow 未触发就把缺失检查当作成功。远端策略与项目期望不一致时报告差异，不绕过保护；修改规则须有对应授权并回读确认。
 

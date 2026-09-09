@@ -11,7 +11,7 @@ description: Human-invoked workflow for publishing completed Convivium branch wo
 
 - `commit`、`push`、创建或更新 PR、回复评论、提交修复和 `merge` 是不同操作；只执行用户明确授权的操作。
 - 用户要求 push 或创建/更新 PR 时，可以执行相应的 `push` 和 PR 写操作；如果需要创建 `commit`，必须先取得明确的 commit 授权，仍不得自动 merge。
-- 不要 squash merge；不要把改动直接 push 到 `main`。
+- PR 合并按 `docs/00-governance/PR-RULES.md` 的 Main Branch Protection 使用普通 merge commit，保留完整提交历史，禁止 squash merge；不要把改动直接 push 到 `main`。
 - 只有在首次发布前、能够证明尚未发布且用户明确确认后，才可以整理本地 commit 历史；不得隐式 amend、rebase、force push 或改写远端历史。
 - 保留用户已有改动；无法判断归属的改动不得混入本 PR。
 
