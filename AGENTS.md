@@ -17,7 +17,7 @@ Convivium 是使用 TypeScript 独立实现的纯 DSH 插件。项目边界以 [
 | 产品实现或代码/设计评审 | [Architecture](docs/00-governance/ARCHITECTURE.md)、[Engineering Rules](docs/00-governance/ENGINEERING-RULES.md) 与相关 `docs/10-requirements/` |
 | 只读治理规则评审 | 被评审规则及其直接引用；涉及架构或工程取舍时补读对应规则，不默认加载产品需求 |
 | 文档修改 | [Document Rules](docs/00-governance/DOCUMENT-RULES.md) |
-| 编写、修改、评审或精简测试 | [Test Rules](docs/00-governance/TEST-RULES.md)；测试设计与实现由 `.agents/skills/test-driven-development/` 随相关任务被动触发；`.agents/skills/testcase-review/` 仅由用户显式调用 |
+| 编写、修改、评审或精简测试 | [Test Rules](docs/00-governance/TEST-RULES.md)；测试设计与实现由 `.agents/skills/test-driven-development/` 随相关任务被动触发；`.agents/skills/convivium-testcase-review/` 仅由用户显式调用 |
 | 协议、事件、配置或数据格式 | 相关 `docs/20-interfaces/` |
 | 具体实现方案 | 相关 `docs/30-designs/` |
 | 创建、修改或关闭已登记 TODO | [TODO Rules](docs/00-governance/TODO-RULES.md) |

@@ -41,4 +41,4 @@ description: 为 Convivium 新增行为、修复缺陷或编写和修改测试�
 
 将必要复现保留为回归测试或吸收到已有 case，清理本次临时 probe、print 和脚本。运行受影响验证，报告结果及证据缺口。
 
-当前要求已有必要保护时停止，不按测试数量或覆盖率继续生成，不自动调用 testcase-review。
+当前要求已有必要保护时停止，不按测试数量或覆盖率继续生成，不自动调用 convivium-testcase-review。

@@ -4,7 +4,7 @@
 
 本文规定 Convivium 测试的有效性、保留价值和维护要求，适用于新增、修改、评审及精简测试。目标是在满足必要验证要求的前提下，减少无效断言、重复代码和不合理的执行成本。
 
-行为依据的优先级遵循 [Document Rules](./DOCUMENT-RULES.md)。测试运行、证据复用、资源清理和交付要求遵循 [Engineering Rules](./ENGINEERING-RULES.md#validation-and-evidence)。本文定义判断标准；[TDD](../../.agents/skills/test-driven-development/SKILL.md) 和 [Testcase Review](../../.agents/skills/testcase-review/SKILL.md) 分别说明开发与审查方法，触发方式由根 `AGENTS.md` 和各 Skill 配置维护。
+行为依据的优先级遵循 [Document Rules](./DOCUMENT-RULES.md)。测试运行、证据复用、资源清理和交付要求遵循 [Engineering Rules](./ENGINEERING-RULES.md#validation-and-evidence)。本文定义判断标准；[TDD](../../.agents/skills/test-driven-development/SKILL.md) 和 [Convivium Testcase Review](../../.agents/skills/convivium-testcase-review/SKILL.md) 分别说明开发与审查方法，触发方式由根 `AGENTS.md` 和各 Skill 配置维护。
 
 ## Terms
 

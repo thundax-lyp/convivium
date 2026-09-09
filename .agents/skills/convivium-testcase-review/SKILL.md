@@ -1,15 +1,15 @@
 ---
-name: testcase-review
+name: convivium-testcase-review
 description: 仅在用户显式调用并给出范围参数时，审查 Convivium 测试的有效性、重复、合并机会及成本；参数支持模糊的路径、模块、文件或函数名及通配符。默认只读，用户要求清理时实施范围内修改。
 ---
 
-# Testcase Review
+# Convivium Testcase Review
 
 仅由用户显式调用。按 [Test Rules](../../../docs/00-governance/TEST-RULES.md) 判断测试是否有效、值得保留及可以简化，按根 `AGENTS.md` 读取行为依据，按 [Engineering Rules](../../../docs/00-governance/ENGINEERING-RULES.md#validation-and-evidence) 处理验证证据。
 
 ## 确定范围
 
-调用方式：`$testcase-review <范围>`。范围是自然语言线索，可以是路径名、模块名、文件名或函数名，允许模糊名称和通配符，例如 `持久化`、`*checkpoint*`、`plugin/**/*.test.ts`。未给出范围时请用户补充，不默认审查全仓。
+调用方式：`$convivium-testcase-review <范围>`。范围是自然语言线索，可以是路径名、模块名、文件名或函数名，允许模糊名称和通配符，例如 `持久化`、`*checkpoint*`、`plugin/**/*.test.ts`。未给出范围时请用户补充，不默认审查全仓。
 
 由 AI 结合仓库结构、符号定义和引用关系理解范围，不用脚本解析参数，也不要求固定参数语法。使用文件和文本搜索定位候选；通配符作为匹配线索，不作为命令执行。目标为生产代码时，追踪验证其行为的测试，不能只匹配测试文件名。
 

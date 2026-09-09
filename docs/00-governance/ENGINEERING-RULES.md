@@ -24,7 +24,7 @@
 按任务风险执行以下检查，可复用已有依据和证据，不为检查本身新增文档或审批环节：
 
 - 实现前：从已确认需求和契约中明确关键业务不变量，列出能暴露错误实现的反例；验证预期不得仅从当前代码推导。
-- 编写、修改或评审测试：应用 [Test Rules](./TEST-RULES.md) 的行为依据、反馈、资产取舍与命名规则；测试设计与实现由 `test-driven-development` 随相关任务被动触发；`testcase-review` 仅由用户显式调用，普通评审直接遵循 Test Rules。
+- 编写、修改或评审测试：应用 [Test Rules](./TEST-RULES.md) 的行为依据、反馈、资产取舍与命名规则；测试设计与实现由 `test-driven-development` 随相关任务被动触发；`convivium-testcase-review` 仅由用户显式调用，普通评审直接遵循 Test Rules。
 - 确定性状态和失败分支由单元或 integration test 覆盖；真实 DSH profile 覆盖必须依赖 provider、Session ownership 或 plugin composition 的代表性路径。两类证据不能互相替代；重复真实运行须说明独有证据价值。
 - 路径或公开模块入口迁移后，运行 `pnpm --dir plugin lint` 和受影响验证；不得为检查本身新增文档或审批环节。
 
