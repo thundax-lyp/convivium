@@ -1,0 +1,6 @@
+interface:
+  display_name: "测试用例评审"
+  short_description: "审查测试的有效性、重复保护、合并机会、代码负担与执行成本"
+  default_prompt: "使用 $testcase-review 审查指定测试范围，提出有证据的保留、增强、合并、简化或删除建议。"
+policy:
+  allow_implicit_invocation: false

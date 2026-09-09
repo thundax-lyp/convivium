@@ -56,6 +56,7 @@ node .agents/skills/convivium-pr-review/scripts/collect-review-context.mjs snaps
 ## 4. 审查完整 diff
 
 - 逐个覆盖脚本返回的 changed files；测试、配置、迁移、脚本和文档不能因不是业务代码而跳过。
+- 涉及测试时读取 [Test Rules](../../../docs/00-governance/TEST-RULES.md)，核对行为依据、增量保护、合并/代码减量与成本。不自动调用 testcase-review；只有用户显式调用该 Skill 时才组合使用，并继承本次 diff、只读与输出边界。
 - 对改动建立 producer → adapter → validator → consumer/sink 链路，必要时追踪 fallback、历史数据、迁移、等价路径和测试。
 - 对每条从正式文档提取的承诺，至少记录一个真实 validator、consumer/sink 或明确的终点；找不到时标记为 deferred，而不是凭经验补全规则。
 - 对当前 PR 至少推演一个异常、并发、权限、恢复、历史数据或治理失败反例。
