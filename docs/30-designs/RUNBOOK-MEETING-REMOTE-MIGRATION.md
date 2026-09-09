@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Execute；M01—M06 已完成，执行者从 M07 继续。
+- 模式：Execute；M01—M08 已完成，执行者从 M09 继续。
 - 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M07—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M09—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,51 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M07：建立九方法 Client adapter
-
-前置状态：M06 PASS。
-允许修改：新 `plugin/src/client/meeting-client.ts`；`plugin/tsconfig.client.json`；新 `plugin/tests/client/meeting-client.client.spec.ts`。
-禁止修改：panel 和 slots 装配、UI 行为、生成文件。
-
-执行：
-1. tsconfig.client include 追加 src/client/**/*.ts。在新 meeting-client.ts 顶部显式加入 import type {} from "@convivium/dsh-plugin/remote"，加载生成的 namespace augmentation；不能依靠尚未修改的 entry 或测试文件。创建 D1 MeetingClient、ProtocolFailure、createMeetingClient(remote:ClientRemote)；openUpdates 使用 Design 固定 $stream options。
-2. 从原 panel 复制 readList/readStatus/readControl/readReassign/readEnd 和三事实结果校验；本步不删 panel 原函数。新 helper 入参为 unknown；先区分 RemoteResult 外层 false，再检查内层 ok。list 使用 LocalMeetingListResponseConsumerSchema，其他使用 D1 result Schema。
-3. 每个 adapter 明确调用 remote.conviviumMeetings.<method>({...input},signal)；不使用类型断言适配 index signature。D2 的 invalid-request 造固定 ProtocolFailure，其余 Remote failure 原样 reject；ProtocolError 使用 validateProtocolError 后包装。
-4. 用结构匹配的 generated namespace stub 验证每个方法参数和 signal 原样、外层失败、内层失败、非法成功结果。不得把缺方法 stub 强转成 ClientRemote；fixture 通过完整实现公开所需服务创建。
-
-验证：
-```bash
-pnpm --dir plugin typecheck:client
-pnpm --dir plugin test tests/client/meeting-client.client.spec.ts
-```
-
-PASS：九个 adapter 返回/错误行为与 D1/D2 相符；原 panel 仍编译；本步独立 typecheck:client 即能解析 remote.conviviumMeetings，不依赖 M08/M09。
-STOP：需要把 Host 实现导入产品 Client 或跳过 schema；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
-
-### M08：验证 generated Client 装配与开发类型
-
-前置状态：M07 PASS。
-允许修改：新 `plugin/tests/fixtures/remote-client.ts`；新 `plugin/tests/fixtures/remote-stream.ts`；`plugin/tests/client/meeting-client.client.spec.ts`；新 `plugin/tests/client/meeting-remote-types.ts`；新 `plugin/tsconfig.remote-test.json`；`plugin/package.json`。
-禁止修改：产品 Client、真实 carrier 实现、测试规则放宽。
-
-执行：
-1. fixture 组合 M05 Host，另建 Client Context+正式 Registry，以 VM 的 window.__ModuleLoader__.load(row) 捕获正式 api-gateway/client 工厂，仅提供其正式 external Cordis。安装完整 TestConnection Service：isLoopback=true，generation 提供 getSnapshot/subscribe，start/registerGenerationSource 返回可清理句柄。
-2. 该 fixture 仅测 unary：rpc.call 把 payload.args JSON roundtrip 后调用 M05 invoke，再 JSON roundtrip RemoteResult；rpc.open 明确抛 No streams in unary tests，不宣称覆盖 WS。mount self remote default contribution 后返回 client Context/unmount/dispose；finally 关闭两个 Context。
-3. 把 M07 stub adapter 测试另加正式 generated unary/mount/unmount 组，检查 namespace 移除、服务卸载、非法输入本地拒绝、不可信结果不更新 consumer。
-4. tsconfig.remote-test extends tsconfig.client，compilerOptions noEmit=true/rootDir="."，exclude=[]、include=["tests/client/meeting-remote-types.ts"]。类型文件从 self remote 导入 augmentation，以 Context.remote 的 namespace 检查九个合法方法与错误 input literal/@ts-expect-error。
-5. remote-client.ts 将 VM 加载封装为同步 loadRemoteClientModule(): typeof import("@deepseek-ai/dsh-api-gateway/client") 并导出，供两个 fixture 使用；该函数只加载模块，不创建 Host/Client Context；新增 remote-stream.ts 的 createControlledMeetingStream，构造该模块真实 RemoteStream<MeetingRefreshNoticeV1>。constructor 的 connection 参数严格实现 Pick<ConnectionHandle,"generation">；options.open 返回单 consumer 的 deferred iterator，signal abort/return 结束 pending next。仅控制 generation source 与原始 notice，不模拟 RemoteStreamItem/accept/restart/dispose。返回 {stream, push, disconnect, reconnect}；disconnect 令当前 open iterator 抛正式 RemoteStreamCarrierError 并发布离线 generation，reconnect 发布新的在线 generation。
-6. meeting-remote-types.ts 增加返回值赋值检查：createControlledMeetingStream 的 stream 必须可直接赋给 ReturnType<MeetingClient["openUpdates"]>；tsconfig.remote-test 的 types 加入 ["node"] 供导入的 VM fixture 使用，不放宽 strict。被导入的 fixture 也必须通过 tsc，不得以 any、as unknown as 或删去检查适配私有成员。
-7. 新增 typecheck:remote-test = pnpm generate:typert && tsc -p tsconfig.remote-test.json；test 改为 pnpm typecheck:remote-test && vitest run。
-
-验证：
-```bash
-pnpm --dir plugin typecheck:remote-test
-pnpm --dir plugin test tests/client/meeting-client.client.spec.ts
-```
-
-PASS：generated Client 调用/mount/unmount 通过；错误类型使 @ts-expect-error 有效。
-STOP：只靠 stub 通过而 generated 装配失败；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
 
 ### M09：将面板九调用切换到注入 API
 
