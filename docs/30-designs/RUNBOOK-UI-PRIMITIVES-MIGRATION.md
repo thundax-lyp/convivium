@@ -1,6 +1,6 @@
 # RUNBOOK：会议面板 UI Primitives 迁移
 
-状态：T9 尚未完成，真实 Browser 验证尚未通过。
+状态：T10 尚未完成，真实单选、布局、主题与归档验证尚未通过。
 建立日期：2026-09-09。工作分支：`codex/ui-primitives-research`。
 执行从仓库根目录开始。
 
@@ -10,9 +10,9 @@
 
 本文件固定用户已同意的迁移范围和其技术实现。依据为 FR-9/FR-11、现有 Protocol 与用户已同意的结束结果单选组方向。控件技术决定已在正式设计的 Client control primitives 小节固定；不新增产品能力。
 
-执行者只能顺序执行 T9 → T10 → T11 → T12，每一步 PASS 后才进入下一步。失败记录最后 PASS 步骤、文件/symbol、命令、输出与所需人工决定后 STOP。不得跳过、换工具结果冒充 Browser、改用 mocks 绕过真实 primitives、放宽类型/断言/Schema、扩大修改范围或修改本 RUNBOOK 后自行继续。
+执行者只能顺序执行 T10 → T11 → T12，每一步 PASS 后才进入下一步。失败记录最后 PASS 步骤、文件/symbol、命令、输出与所需人工决定后 STOP。不得跳过、换工具结果冒充 Browser、改用 mocks 绕过真实 primitives、放宽类型/断言/Schema、扩大修改范围或修改本 RUNBOOK 后自行继续。
 
-用户已授权依次执行 TODO，一任务一提交；已完成项按 TODO Rules 在对应提交中删除，剩余项移入当前任务并补充确认依据。恢复顺序为 T9 → T10 → T11 → T12。不得 push、PR 或 merge。不得修改相邻 DSH checkout、用户凭据或常用 profile。保留用户已有内容；human 调查稿不进入本分支提交。
+用户已授权依次执行 TODO，一任务一提交；已完成项按 TODO Rules 在对应提交中删除，剩余项移入当前任务并补充确认依据。恢复顺序为 T10 → T11 → T12。不得 push、PR 或 merge。不得修改相邻 DSH checkout、用户凭据或常用 profile。保留用户已有内容；human 调查稿不进入本分支提交。
 
 ## 2. 起点、终点与断点
 
@@ -20,7 +20,7 @@
 
 | 当前断点 | 代码/文档证据 | 解决步骤 |
 | --- | --- | --- |
-| 真实 Skip、单选键盘、主题及归档交互尚未验证 | 本次 T9 未到 ready；当前 Client 单元测试不替代 Browser | T9–T10 |
+| 真实单选、主题及归档交互尚未验证 | 当前 Client 单元测试不替代 Browser | T10 |
 | 正式设计仍为迁移待执行，readiness 缺本次证据 | Implementation Design 的 Client control primitives；SMOKE-VALIDATION-EVIDENCE | T11 |
 | 临时方案与剩余任务尚未收口 | 本 RUNBOOK、TODO | T12 |
 
@@ -88,8 +88,8 @@ type EndOutcome = (typeof END_OUTCOMES)[number]["value"];
 | `docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md` | T11 更新既有 Client control primitives 实施状态及证据链接 |
 | `docs/40-readiness/SMOKE-VALIDATION-EVIDENCE.md` | 新增 UI primitives migration 小节，记录实际命令/Browser/Restore |
 | `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` | Client Fact Visibility 增加本次证据索引，保留其他 Not Covered |
-| `docs/50-operations/HOW-TO-DSH-SMOKE.md` | T9/T10 Browser 入口与 Restore 约束 |
-| `docs/40-readiness/assets/ui-primitives/` | T9/T10 仅新增下文指定的6张 PNG：skip-after、light-wide、light-narrow、dark-wide、dark-narrow、archived |
+| `docs/50-operations/HOW-TO-DSH-SMOKE.md` | T10 Browser 入口与 Restore 约束 |
+| `docs/40-readiness/assets/ui-primitives/` | T10 仅新增下文指定的5张 PNG：skip-after、light-wide、light-narrow、dark-wide、dark-narrow、archived |
 | `TODO.md` | 按 TODO Rules 在获得执行授权后移动本次 `UI primitives/` 任务并填写确认依据；T12 删除已完成的本次任务及其顺序说明，保留其他内容 |
 | 本 RUNBOOK | T12 删除；执行期间不回填进度或日志 |
 
@@ -114,38 +114,9 @@ I6：从包根共享导入 Button/Input，不私带 React，不引入 JSX、Reac
 
 ## 7. 机械步骤
 
-### T9：真实 Skip 控件验证
-
-前置状态：认证修复与完整工程、artifact 检查已通过；Browser 工具必须支持 Chrome、只读 DOM 属性查询、真实键盘、视口设置和保存截图。只有 AX/截图能力不足以执行 N/G，必须在启动 Host 前 STOP，不能先消耗 attempt 窗口。
-允许修改：本次新建临时 profile/workspace；截图 `docs/40-readiness/assets/ui-primitives/skip-after.png`。
-禁止修改：smoke 源码、常用 profile、凭据；不发聊天消息或直接发 HTTP 业务命令。
-
-执行：
-1. 按第8节 B 的固定方法启动 reassign，保存 PTY handle。命令：
-
-```bash
-env CONVIVIUM_SMOKE_SCENARIO=reassign CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile
-```
-
-2. 使用第8节 N 的唯一导航方法进入面板，按下表逐项操作和只读断言，不凭截图主观判定。
-
-| 顺序 | 操作 | 必须成立 |
-| --- | --- | --- |
-| 1 | 在面板会议列表选含 data-meeting-id=probe.meetingId 的唯一按钮 | Meeting summary 的 Status 为 running；Current activity 当前 speaker 显示 participant-a；Skip current speaker 与 Skip reason 都存在 |
-| 2 | 保持 Skip reason 空 | Skip current speaker.disabled=true |
-| 3 | 在 Skip reason 输入 `Browser reassign evidence` | 输入 value 完全相等，Skip current speaker.disabled=false |
-| 4 | 点击 Skip current speaker 一次 | 30秒内该控件消失；面板 role=alert 数量0 |
-| 5 | 浏览器刷新，重复 N 导航并选择同一会议 | 旧 Skip 控件不出现；保存 skip-after.png；面板无加载/React错误 |
-
-3. 无论表中通过还是失败，都执行 R；R PASS 后本步骤才可 PASS。
-
-验证：上表全部 DOM 断言、B 的 ready 判据和 R 的清理断言。
-PASS：全部满足，截图已写入唯一文件，实际输出与 R 结果均可从工具结果核对。
-STOP：若初见页面时旧 attempt 已超时或 Skip 消失，先 R，再报告“attempt窗口失效”，不得把此轮计作 Browser Pass，也不现场延长 timeout/重试；其他断言失败同样先 R。
-
 ### T10：真实单选键盘、布局、主题与结束验证
 
-前置状态：T9 含 R 已 PASS。
+前置状态：Skip Browser 验证含 R 已 PASS。
 允许修改：本次临时 profile/workspace；下表指定5张截图。
 禁止修改：任何源码、profile 外设置、根 CSS/token 注入、HTTP 直接提交、真实聊天输入。
 
@@ -183,7 +154,7 @@ STOP：任何步骤无法定位、键盘/几何/主题断言失败、等待超�
 
 执行：
 1. 将 Implementation Design 的 Client control primitives 小节中的唯一 `实施状态：迁移待执行。` 改为 `实施状态：已实现；验证见 [UI primitives migration](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration)。`。
-2. 在 SMOKE-VALIDATION-EVIDENCE.md 末尾新增 `## UI primitives migration`。写入下列固定字段；值直接取本次实际工具结果，缺值 STOP，不补猜测：日期；实际工作树/commit边界；React及primitives版本；本次已执行的控件迁移与回归测试命令/数量/退出码（来自既有工具输出，不要求重做已完成步骤）；认证修复测试、verify各子命令与artifact；T9/T10的Browser产品名、两个ready场景、每项断言、截图链接；两个R的退出码/cleanup/路径不存在结果；sourcemap警告是否出现。
+2. 在 SMOKE-VALIDATION-EVIDENCE.md 末尾新增 `## UI primitives migration`。写入下列固定字段；值直接取本次实际工具结果，缺值 STOP，不补猜测：日期；实际工作树/commit边界；React及primitives版本；本次已执行的控件迁移与回归测试命令/数量/退出码（来自既有工具输出，不要求重做已完成步骤）；认证修复测试、verify各子命令与artifact；T10的Browser产品名、两个ready场景、每项断言、截图链接；两个R的退出码/cleanup/路径不存在结果；sourcemap警告是否出现。
 3. 同小节写 `Not Covered`：未采用的组件、其他DSH/React版本、非Web、完整可访问性审计、真实模型质量、压力/长期资源泄漏。Closure 只有在全部门禁通过时写“本次迁移验证完成”，不能扩大到 FR-11 全量验收。
 4. Current Coverage 的 `### Client Fact Visibility` 表追加一行：`UI controls | Button/Input 与 End outcome 单选组的真实包、键盘、缓存禁写、重复提交、Browser/Restore；见 [UI primitives migration](./SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration)`。保留现有其他行与全局 Not Covered。
 
@@ -198,7 +169,7 @@ STOP：任何证据缺失、图片不可读或历史边界被覆盖；保留 RUN
 
 ### T12：关闭与删除
 
-前置状态：T9、T10、T11全部PASS；实际验证证据已迁移到T11。
+前置状态：T10、T11全部PASS；实际验证证据已迁移到T11。
 允许修改：删除本 RUNBOOK；按 [TODO Rules](../00-governance/TODO-RULES.md) 删除 `TODO.md` 中本次已完成的 `UI primitives/` 任务及其顺序说明。禁止修改：其他 TODO、用户其他文件、源码；按一任务一提交执行收口 commit；不push/PR/merge。
 
 执行：
@@ -227,7 +198,7 @@ STOP：删除后任一检查失败，必须先从保留文本恢复本 RUNBOOK �
 
 ## 8. Browser 固定操作规约
 
-本节属于 T9/T10 的必需动作，不是可选建议。动作使用 Browser 工具；读取 DOM/计算样式只读执行，不从页面脚本调用业务服务。工具不能执行某一指定动作时 STOP，不自行改为 HTTP 或源码注入。
+本节属于 T10 的必需动作，不是可选建议。动作使用 Browser 工具；读取 DOM/计算样式只读执行，不从页面脚本调用业务服务。工具不能执行某一指定动作时 STOP，不自行改为 HTTP 或源码注入。
 
 ### B：启动与唯一 ready 数据
 
@@ -268,7 +239,7 @@ reassign 另要求 probe.assertions 精确为 [browser-reassign-ready]，probe.o
 - 三个radio都是可见、可用；Partial aria-checked=true；其backgroundColor不同于No consensus，且两者computed color均非透明。
 - 点击Partial后document.activeElement是该radio；用真实Tab出组再Shift+Tab回来，焦点仍为Partial。读取focus时outlineStyle/outlineWidth；若outline为none或宽度为0且boxShadow为none，STOP，不能宣称可见焦点。
 
-不以人类审美判断替代这些断言；截图补充可审阅证据。截图用工具写到T9/T10指定精确PNG路径，文件可读取才通过。
+不以人类审美判断替代这些断言；截图补充可审阅证据。截图用工具写到T10指定精确PNG路径，文件可读取才通过。
 
 ### R：分别判断任务结果与清理结果
 
@@ -277,7 +248,7 @@ reassign 另要求 probe.assertions 精确为 [browser-reassign-ready]，probe.o
 1. 在工具会话中保存本次是否创建标签、初始视口、初始主题及PTY状态。已改主题则按H恢复；已建标签则恢复视口并关闭。任何UI恢复失败都保留该失败并继续以下进程停止，不因浏览器失败留下Host。
 2. 先查看本次PTY工具返回的状态。若已提供最终exit_code，则保存它，不向已退出的handle发送Ctrl-C。只有仍在运行的PTY才发送一次Ctrl-C；分段等待，每次最多30秒、总计最多120秒，直到工具提供最终退出状态。超时不强杀未知进程，报告handle和本次输出并STOP。
 3. 正常场景完成后主动停止wrapper：要求最终exit_code=0且stdout出现 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`。这表示脚本成功路径已走完Host停止、场景根/构建根清理和端口检查。仍使用下方命令独立核对已公开的场景根和端口。
-4. 脚本在ready前或运行中异常退出：允许最终exit_code非0且缺少cleanup标记，因为该标记在main成功返回路径上，异常时不会打印。如果UI_SMOKE_TEMP_ROOT和UI_SMOKE_PORT均已从本次B输出取得，运行下方独立检查；通过时只能报告“原任务失败；已公开场景资源清理通过”，未知的构建根/进程树仍Not Verified。该分支不能让T9/T10获得PASS。
+4. 脚本在ready前或运行中异常退出：允许最终exit_code非0且缺少cleanup标记，因为该标记在main成功返回路径上，异常时不会打印。如果UI_SMOKE_TEMP_ROOT和UI_SMOKE_PORT均已从本次B输出取得，运行下方独立检查；通过时只能报告“原任务失败；已公开场景资源清理通过”，未知的构建根/进程树仍Not Verified。该分支不能让T10获得PASS。
 5. 若异常发生在资源信息输出之前，缺少根路径或端口，则不运行缺参命令、不猜路径、不glob扫描。报告“原任务失败；资源信息未公开，清理结果Not Verified”，附最终退出状态与脱敏错误。缺少成功标记本身不是清理失败证据。后续由作者决定如何取得缺失诊断，执行者不改smoke脚本。
 
 独立检查命令只在两个变量都已取得时执行：在同一检查shell中，将 UI_SMOKE_TEMP_ROOT 与 UI_SMOKE_PORT 分别设为工具会话保存的本次精确值并export；不得取环境中先前残留值。命令只检查根存在性并临时独占绑定该loopback端口，成功后立即关闭监听，不发HTTP请求、不删除文件。
@@ -322,8 +293,8 @@ JS
 | Scope/不变量 | 正式依据与入口 | 剩余步骤 | 验证/证据 |
 | --- | --- | --- | --- |
 | S1/I6 | DSH 启动认证、smoke preflight | 已完成 | token交换、cookie隔离、错误脱敏、完整verify |
-| S2/I1–I5 | FR-9/11；Client control primitives | T9/T10 | Skip、radio键盘、Input、主题、刷新与归档；现有70项Client测试由verify重跑 |
-| S3/I6 | Architecture；平台共享入口 | T9/T10 | artifact外部依赖已验证；真实宿主加载及交互待验证 |
+| S2/I1–I5 | FR-9/11；Client control primitives | T10 | Skip、radio键盘、Input、主题、刷新与归档；现有70项Client测试由verify重跑 |
+| S3/I6 | Architecture；平台共享入口 | T10 | artifact外部依赖已验证；真实宿主加载及交互待验证 |
 | S4 | Document Rules、TODO Rules | T11/T12 | 正式设计、readiness、6张截图、链接及删除检查 |
 
 Not Applicable：本任务不改变caller/capability、后端幂等、事务、数组原子性、存储重放、重启恢复、事件/receipt/outbox，因此不新增相应专项外部验证；现有verify仍必须通过。真实模型质量、长期压力与完整无障碍审计不由这次局部迁移证明。依赖/Schema/生成器修改不在scope，遇到即STOP。
