@@ -100,6 +100,16 @@ plugin/
 
 `src/index.ts` 只负责解析配置、构造依赖、注册 DSH 插件能力和绑定 disposer。业务转换不得直接写在插件入口、HTTP handler 或 tool handler 中。
 
+### Host dependency composition
+
+Convivium 固定官方 DSH `0.1.2-rc.1`，不接入本地上游修复包。该版本提供持久子 Session 枚举与 continuable Activation drain；宿主必须组合具备 `prepareContinuable` 的 provider，不能仅凭 `dsh-subagent` service 存在就开始创建会议。当前 provider 为 `@deepseek-ai/dsh-subagent-spawn-in-process@0.1.2-rc.1`，name 为 `spawn`，由 Host/profile 管理，不隐式携带或写入插件 package manifest。
+
+Host/profile 安装并配置 `@deepseek-ai/dsh-storage-sqlite@0.1.2-rc.1`，持有数据库路径与精确 Domain 名称路由；不使用 Meeting 前缀通配，不改变其他 Host domain 的既有介质。插件仅挂载 Meeting consumer，不覆盖默认 backend，不提供 `dataRoot`。SQLite provider 仅作为测试 devDependency 和隔离 profile 组合依赖；生产代码不导入 Storage backend/SQLite/JSON provider，也不新增跨 record transaction、SQL 或单 record Meeting 聚合。
+
+真实组合验证使用新建隔离 profile，不自动修改已有 Host/profile；必须覆盖 provider 注册、`startContinuable()` 实际创建、Storage Domain 打开、Host 冷重启、resident Activation 释放及关闭前已确认事实的恢复。完整入口见 Verification Design。
+
+Host/Client TypeScript 共用 `@/*` → `src/*`，Vitest 同步解析；构建将声明文件别名转换为相对路径，发布物不要求消费者配置 `@`。具体导入约束由 Architecture 的 Import Paths 维护。
+
 ### Package topology and build faces
 
 Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。Meeting Runtime 作为 consumer child plugin，只通过 `@deepseek-ai/dsh-storage-domain` 使用自身 record schema。顶层 `src/index.ts` 只挂载 consumer；Host/profile 负责安装和配置官方 SQLite provider、数据库路径及 Domain 路由。插件不实现物理存储、不导出 backend，也不建立 adapter hierarchy 或 provider factory。
@@ -145,8 +155,8 @@ tools ──caller context─────────┘       ├──> dsh
 
 repository ──> domain types
 repository/domain ──> @deepseek-ai/dsh-storage-domain
-storage ──> @deepseek-ai/dsh-storage
-index ──> storage provider child + Meeting consumer child
+Host/profile ──> official SQLite provider ──> Storage Domain backend
+index ──> Meeting consumer child
 dsh        ──> domain ports
 projection ──> domain read models + protocol projections
 protocol   ──> no infrastructure or domain module
@@ -214,7 +224,7 @@ Protocol owner 固定为：`plugin/src/protocol/types.ts` 定义 DTO；`plugin/s
 
 ## Persistence Algorithm And Repository Cutover
 
-当前持久化算法是 `Checkpointed Commit Log`，抽象状态、checkpoint/commit/compaction 流程、不变量和验收点见 `MEETING-PERSISTENCE-SPECIAL-DESIGN.md`。它属于带 checkpoint 与 log compaction 的 log-structured persistence，不得简称为 `Event Sourcing` 或 `WAL`。repository 只使用 `@deepseek-ai/dsh-storage-domain`：一个轻量 catalog domain 用于发现，每个 Meeting 使用独立 domain；一次 command 只写一条 commit record，checkpoint 分页写入。物理介质由 Host/profile 的官方 SQLite provider 管理，Convivium 保留领域 commit/checkpoint 算法，不直接调用 backend 或 SQL。
+当前持久化算法是 `Checkpointed Commit Log`，抽象状态、checkpoint/commit/compaction 流程、不变量和验收点见 [Persistence Design](./MEETING-PERSISTENCE-SPECIAL-DESIGN.md)。它属于带 checkpoint 与 log compaction 的 log-structured persistence，不得简称为 `Event Sourcing` 或 `WAL`。repository 只使用 `@deepseek-ai/dsh-storage-domain`：一个轻量 catalog domain 用于发现，每个 Meeting 使用独立 domain；一次 command 只写一条 commit record，checkpoint 分页写入。物理介质由 Host/profile 的官方 SQLite provider 管理，Convivium 保留领域 commit/checkpoint 算法，不直接调用 backend 或 SQL。
 
 Storage Domain 是当前唯一会议事实源。实现不双写、不 fallback，也不定位、读取或扫描 backend 的物理布局。遗留 `.sqlite` 数据不读取、不迁移、不删除，属于当前实现和恢复流程之外；缺少 catalog record 时不得据遗留文件猜测 Meeting 存在。
 
@@ -377,7 +387,7 @@ Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-s
 ### Frontend
 
 - `client/` 通过 `/api/convivium/meetings/:meetingId` 读取完整 projection。
-- polling、写成功后的立即 refetch 和页面重新聚焦后的 refetch 整体替换缓存。
+- polling、写成功后的立即 refetch 和页面重新聚焦后的 refetch 整体替换缓存；不建立进程内 projection invalidation 通道。
 - 请求失败时保留带 stale 标记的最后成功 projection，并禁用写操作。
 - 暂停和继续按钮调用 Interface 定义的路由，不直接调用 DSH Session 或 Runtime 内部 API。
 
@@ -405,8 +415,6 @@ Host/profile 与 `src/index.ts` 的启动顺序：
 
 Meeting consumer 只声明核心 Agent、Session、Subagent、SystemPrompt、Tools 和 Storage Domain 依赖。Web routes 使用 Cordis `ctx.inject(["webServer"], ...)` 子作用域，在 loopback 服务存在时注册，并随该服务或父插件卸载释放；runtime 的清理仍由 consumer 拥有。DSH Tools.register 已托管 contribution effect，consumer 直接注册工具，不重复包装 disposer。业务串行队列、outbox 和 Session/Meeting 归属校验继续由 Convivium 负责。冷绑定在重启 worker 前，用原 deliveryId 重排已被 DSH 接受但仍未完成的 planning/speaker 与未开始 Task；范围和原子性见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
 
-冷绑定在重启 worker 前，用原 deliveryId 重排已被 DSH 接受但仍未完成的 planning/speaker 与未开始 Task；范围和原子性见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
-
 ## State And Failure Handling
 
 | Failure                                        | Required handling                                                     |
@@ -418,7 +426,7 @@ Meeting consumer 只声明核心 Agent、Session、Subagent、SystemPrompt、Too
 | Delivery succeeded but completion write failed | 使用稳定 delivery ID 重投/查询；提交端幂等 receipt 防止重复 message   |
 | Late speaker or manager result                 | 当前 capability 校验失败，记录 rejected observation，不修改正式事实   |
 | Markdown generation failed                     | 记录日志并继续；不影响正式状态                                        |
-| Required speaker not dispatchable              | 返回 Interface 定义的结构化错误，不自动换人                           |
+| Required speaker not dispatchable              | 规划时提交 waiting，不产生部分计划；resume 仍有 blocker 才返回结构化错误；恢复条件见 Protocol Required speaker unavailable                           |
 | Process crash                                  | 回滚未提交事务；恢复过期 lease、未完成 outbox 和非终态 Meeting        |
 
 恢复只通过 catalog discovery 打开已登记的 Meeting domains，不扫描 data root 或 backend 物理路径。单个 Meeting 损坏不得阻止其他 Meeting 的 Agent best-effort 恢复；需要完整一致结果的本地 list 按 Interface 整体失败。全局配置或 DSH capability 缺失则阻止插件加载。

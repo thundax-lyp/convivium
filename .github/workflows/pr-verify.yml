@@ -32,11 +32,12 @@ jobs:
             README.md
             TODO.md
             .github/pull_request_template.md
-            docs/AGENTS.md
             docs/00-governance/ARCHITECTURE.md
+            docs/00-governance/ENGINEERING-RULES.md
             docs/00-governance/COMMIT-RULES.md
             docs/00-governance/DOCUMENT-RULES.md
             docs/00-governance/PR-RULES.md
+            docs/00-governance/RUNBOOK-RULES.md
             docs/00-governance/TODO-RULES.md
           )
 
@@ -59,6 +60,16 @@ jobs:
           done
 
           test ! -d docs/50-prompts
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+
+      - name: Install documentation checker
+        run: npm ci --prefix .github --ignore-scripts
+
+      - name: Verify documentation links
+        run: node .github/scripts/check-doc-links.mjs
 
       - name: Verify pull request diff formatting
         shell: bash

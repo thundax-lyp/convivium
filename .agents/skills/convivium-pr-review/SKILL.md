@@ -36,8 +36,8 @@ node .agents/skills/convivium-pr-review/scripts/collect-review-context.mjs snaps
 
 先读取：
 
-- `docs/AGENTS.md`
-- `docs/00-governance/ARCHITECTURE.md`
+- `AGENTS.md`
+- `docs/00-governance/ARCHITECTURE.md`、`docs/00-governance/ENGINEERING-RULES.md`
 - `docs/00-governance/PR-RULES.md`
 - `.github/pull_request_template.md`
 - `docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`

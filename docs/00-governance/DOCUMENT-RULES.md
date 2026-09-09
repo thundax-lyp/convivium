@@ -17,7 +17,7 @@
 
 `docs/60-human/` 保存调研、讨论、决策背景和历史材料，不作为默认实现依据。其结论只有迁移到前述工程文档后，才能约束实现。
 
-当文档之间发生冲突时，不得静默选择方便实现的一方。应先判断文档职责和更新时间；无法消解时，将冲突记录为待讨论项并请求人工确认。
+当文档之间发生冲突时，不得静默选择方便实现的一方。应按文档职责、适用范围和已确认的需求、契约或决策依据判断。更新时间仅用于追溯变更，不能证明新内容已经确认，也不能让讨论稿或当前代码覆盖正式口径；无法消解时，将冲突记录为待讨论项并请求人工确认。
 
 ## Directory Responsibilities
 
@@ -25,7 +25,8 @@
 
 - 保存稳定、跨任务适用的工程规则。
 - 不记录一次任务的执行过程、临时方案或完成历史。
-- 规则变化时必须检查根 `AGENTS.md`、`docs/AGENTS.md` 和相关 Skill 是否需要同步。
+- 规则变化时检查相关 Skill；只有入口约束或读取路由变化时才同步根 `AGENTS.md`。
+- 系统组成、所有权和依赖边界由 `ARCHITECTURE.md` 定义；工程取舍、验证方法与测试命名由 `ENGINEERING-RULES.md` 定义。依赖版本、provider 与源码接线由对应设计维护，治理文档只引用其入口。
 - 暂存、提交和历史修改规则统一由 `COMMIT-RULES.md` 定义。
 - 分支、PR、Review、CI 和合并规则统一由 `PR-RULES.md` 定义。
 
@@ -66,6 +67,24 @@
 - 文件必须清楚标记其状态以及是否可以作为实现依据。
 - 已确认结论应迁移到对应工程文档；不在多处保留相互竞争的当前口径。
 
+## Repository Entry And Design Ownership
+
+根 `AGENTS.md` 是唯一仓库任务路由入口，保存长期协作要求、必读文档映射和少量带权威链接的关键约束提醒，不另设重复的文档目录任务入口。完整规则只在对应治理文档维护；Skill 负责应用规则，不重复建立仓库规则真相源。
+
+根入口不记录 Current State、阶段进度、依赖版本、源码模块清单或验证结果。实际实现覆盖由 `40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md` 维护；入口仅引用它。只有协作规则、关键约束或文档路由变化时修改根入口，不因普通功能交付更新它。
+
+当前设计文档按以下职责维护，其他文档使用摘要和链接，不重复定义：
+
+| 文档 | 唯一维护的设计内容 |
+| --- | --- |
+| [Implementation](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md) | 工程目录、模块接线、统一 adapter、插件生命周期和验证入口 |
+| [Domain Model](../30-designs/DOMAIN-MODEL-DESIGN.md) | 领域对象字段、引用、集合、初始化和数据不变量 |
+| [Orchestration](../30-designs/MEETING-ORCHESTRATION-DESIGN.md) | 会议状态转换、调度、上下文投递、恢复和归档流程 |
+| [Persistence](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) | commit、checkpoint、compaction 算法及失败边界 |
+| [Role Composition](../30-designs/ROLE-COMPOSITION-DESIGN.md) | 角色解析、DSH 能力预检及原生部署资源组合 |
+
+产品行为、公开字段、错误和存储 record schema 仍由需求及接口契约约束。去重时先核对唯一内容和已确认口径，再迁移或删除；不得把过时类型声明直接复制到当前真相源。
+
 ## File Naming
 
 - 工程文档文件名使用大写英文单词，以 `-` 分隔，不使用中文或空格。
@@ -89,7 +108,9 @@
 
 ## Required Structures
 
-需求文档至少包含：
+以下清单规定必须覆盖的语义，不要求逐项使用同名独立章节。可以合并标题、表格或引用已有真相源；不得省略当前任务相关的内容，也不为无关主题填充空泛段落。不适用项可以集中说明及给出原因。RUNBOOK 的机械结构仍遵循其专项规则。
+
+需求文档覆盖：
 
 - `Purpose`
 - `Scope`
@@ -99,7 +120,7 @@
 - `Acceptance Criteria`
 - `Related Documents`
 
-接口文档至少包含：
+接口文档覆盖：
 
 - `Purpose`
 - `Boundary And Ownership`
@@ -109,7 +130,7 @@
 - `Compatibility`
 - `Related Documents`
 
-设计文档至少包含：
+设计文档覆盖：
 
 - `Purpose`
 - `Scope And Non-goals`
@@ -119,7 +140,7 @@
 - `Security And Observability`
 - `Acceptance`
 
-readiness 证据至少包含：
+readiness 证据覆盖：
 
 - `Scope`
 - `Validated Contract`
@@ -147,13 +168,17 @@ readiness 证据至少包含：
 - 实现结构、状态机或失败处理变化：`30-designs/`。
 - 验证范围、交付状态或已知缺口变化：`40-readiness/`。
 - 启动、恢复、升级或发布方式变化：`50-operations/`。
-- 文档路由变化：根 `AGENTS.md` 和 `docs/AGENTS.md`。
+- 文档路由变化：根 `AGENTS.md`。
 - 项目工程工作流变化：对应 `.agents/skills/`。
-- RUNBOOK 治理变化：`RUNBOOK-RULES.md`、根 `AGENTS.md`、`docs/AGENTS.md` 和 `.agents/skills/convivium-runbook/`。
-- Commit 规则变化：`COMMIT-RULES.md`、根 `AGENTS.md` 和 `docs/AGENTS.md`。
+- RUNBOOK 治理变化：`RUNBOOK-RULES.md` 和 `.agents/skills/convivium-runbook/`；读取路由或入口约束变化时同步根 `AGENTS.md`。
+- Commit 规则变化：`COMMIT-RULES.md`；读取路由或入口约束变化时同步根 `AGENTS.md`。
 - PR 交付规则变化：`PR-RULES.md` 和 `.github/pull_request_template.md`。
 
 纯实现补齐且未改变既有口径时，不应顺手改写无关文档。
+
+轻量本地文件链接检查入口为 `node .github/scripts/check-doc-links.mjs`；首次运行先执行 `npm ci --prefix .github --ignore-scripts`。Markdown 语法解析使用 `Marked`，脚本只读取链接、图片及引用定义的目标并检查相对文件目标存在性，不自行实现 Markdown 解析器。依赖及锁文件位于 `.github/`，仅供治理工具使用，不进入产品包。
+
+锚点、远程 URL、站点根路径、HTML 内链接、未定义引用标签及扩展语法不在门禁承诺内，由文档审查核对。针对这些已排除能力的 review 要求按超出范围拒绝并引用本节；不为此扩充自制解析逻辑或维护解析库的语法测试矩阵。承诺范围内的真实误报、漏报或执行失败仍须修复。
 
 ## Skill Boundary
 
@@ -163,11 +188,4 @@ readiness 证据至少包含：
 - Skill 可以引用治理、需求、接口、设计和操作文档，但不能成为产品需求或业务契约的唯一真相源。
 - `.agents/skills/` 中的 Skill 不能直接作为 Convivium 产品运行时角色或会议模板的真相源。
 
-| 内容 | 归属 | 当前路径 |
-| --- | --- | --- |
-| 开发、审查、启动和发布等工程工作流 | 项目 Skill | `.agents/skills/<skill>/` |
-| 产品内角色 Prompt 和角色模板 | 产品数据或版本化模板 | 待产品需求与工程结构确认 |
-| Meeting Runtime 的主持、摘要和推荐模板 | 对应运行时模块的版本化资源 | 待模块设计确认 |
-| 一次性操作指令 | 不作为长期工程资产保存 | 无 |
-
-在产品数据和运行时源码结构确认前，不得为了存放 Prompt 自行创建新的顶层目录。
+产品内角色与运行时模板属于产品数据或版本化资源，不属于工程 Skill。已确认的角色资源归属见 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md#native-deployment-resources)，其他源码接线见 [Implementation Design](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#responsibilities-and-dependencies)；本文不维护资源清单或实现进度。新增顶层工程仍须先按 Architecture 明确其职责。

@@ -40,7 +40,7 @@
 - Meeting Agent Definition：[`../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)。
 - Domain 数据结构唯一真相源：[`DOMAIN-MODEL-DESIGN.md`](./DOMAIN-MODEL-DESIGN.md)。
 - 源码落点与接线：[`CONVIVIUM-IMPLEMENTATION-DESIGN.md`](./CONVIVIUM-IMPLEMENTATION-DESIGN.md)。
-- 增量实现的范围控制：[`MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md`](./MEETING-ORCHESTRATION-SCOPE-CONTROL-SPECIAL-DESIGN.md)。
+- 增量实现的范围控制：[Engineering Rules Implementation Economy](../00-governance/ENGINEERING-RULES.md#implementation-economy) 与本文 [Implementation Scope](#20-implementation-scope)。
 - Interface 已定义 Plugin Frontend 的最小状态读取及暂停/恢复路由；组件结构、视觉样式和非会议控制路由不属于本文。
 - 外部协作插件只能作为只读调研材料，不是本设计的源码基线、依赖或兼容目标。
 - Convivium 不提供独立 Electron、ACP adapter 或脱离 DSH 的运行模式。
@@ -98,22 +98,7 @@
 
 ### 4.1 Product form and source ownership
 
-- Convivium MUST 作为 DSH 插件加载和运行。
-- 仓库顶层 `plugin/` 是唯一产品工程。它独立实现全部产品模块，不使用 submodule、不依赖相邻参考项目工作区，也不建设独立应用壳或通用 ACP adapter。
-- 最低 DSH 版本为 `0.1.1-rc.2`。插件依赖该版本 `dsh-subagent` 提供的 `listChildren`、`listDescendants`、`drainContinuableChildren` 和 `drainContinuableDescendants`；缺失这些能力时插件加载失败，不提供弱化的会议生命周期。
-- 插件后端拥有 Meeting Runtime、Storage Domain repository、AgentSession 生命周期、工具、Web 路由和会议领域事件。
-- `client/*` 作为 DSH 插件前端，只消费插件后端 projection，不拥有会议领域状态。
-- 外部参考源码、文档、发布记录、品牌、协议名和持久化格式不得复制到 `plugin/`。
-
-| 文件或模块         | 职责                                                                |
-| ------------------ | ------------------------------------------------------------------- |
-| `src/domain/*`     | Meeting、Participant、Turn、Agenda、Decision 和终止状态机           |
-| `src/repository/*` | Storage Domain record schema、commit、checkpoint、幂等收据和 outbox |
-| `src/runtime/*`    | Manager、speaker、mail、任务和恢复编排                              |
-| `src/dsh/*`        | DSH Session、subagent、工具和生命周期适配                           |
-| `src/http/*`       | 类型化状态读取与人类控制路由                                        |
-| `src/projection/*` | 前端状态和开发者 Markdown 的单向投影                                |
-| `src/client/*`     | 会议时间线、议题、当前 speaker、等待和归档视图                      |
+产品形态和前后端隔离以 [Architecture](../00-governance/ARCHITECTURE.md) 为准；固定 DSH 依赖、目录、模块职责和依赖接线由 [Implementation Design](./CONVIVIUM-IMPLEMENTATION-DESIGN.md#responsibilities-and-dependencies) 唯一维护。本设计描述这些边界内的会议流程，不重复声明版本或模块表。
 
 ### 4.2 Session hierarchy
 
@@ -132,44 +117,13 @@ Captain Session
 
 ### 4.3 Session creation boundary
 
-`src/dsh/session-adapter.ts` MUST 提供统一的 meeting-owned Session 创建入口：
-
-```ts
-createMeetingAgentSession(input: {
-  parent: Agent
-  childId: SessionId
-  label: string
-  initialPrompt: ContentBlock[]
-  persona: string
-  toolFilter: ToolFilter
-  provider: string
-  model?: string
-  maxTokens?: number
-  signal: AbortSignal
-}): Promise<{ sessionId: SessionId; initialMessageId: MessageId }>
-```
-
-然后分别实现：
-
-```ts
-createMeetingManager(...)
-createMeetingParticipant(...)
-```
-
-Meeting Runtime、tool handler、HTTP handler 和 recovery 不得绕过该 adapter 直接调用 DSH spawn、followup、interrupt 或 drain。完整 adapter 和 capability 检查规则见 `CONVIVIUM-IMPLEMENTATION-DESIGN.md`。
+Meeting Runtime、tool handler、HTTP handler 和 recovery 必须通过 [Implementation 的统一 Meeting Session Adapter](./CONVIVIUM-IMPLEMENTATION-DESIGN.md#meeting-session-adapter) 创建和操作 meeting-owned Session，不在本文另定义创建函数签名。角色输入转换与能力预检见 [Role Composition Design](./ROLE-COMPOSITION-DESIGN.md#creation-conversion)。
 
 `startContinuable()` 不提供“只创建空 Session”的模式；`initialPrompt` 是创建契约的必填部分。Meeting Runtime 必须把首次消息限定为确定性的 Session provisioning envelope：它只声明会议身份、协议版本和当前没有 Speaker/Manager planning capability，不能创建 transcript、Turn、Decision 或其他会议事实。Manager 和所有 Participant 可以在创建期接收该 provisioning prompt；只有后续带有效 attempt/delivery capability 的 followup 才是正式会议请求。Provisioning 阶段发生的模型输出或未授权工具调用不是会议事实，必须被 Runtime 权限校验拒绝。
 
 Runtime 在 DSH 调用前分配 `childId` 并持久化 `parentSessionId`、provider、label 和 `provisioning` ownership；首次消息被 DSH inbox 接受后，再持久化稳定 `initialMessageId` 并把 lifecycle 前进为 `active`。当前 Session 树中 Manager 和 Participant 都是创建会议的 Captain Session 的 direct child。进程重启后，Runtime 可以使用持久 parent-child 关系和 label 检查归属，但只有同一 Captain Session 再次成为 live Agent 时，才能恢复需要精确 parent Agent 的 followup 或 drain。
 
-Label MUST 稳定且可诊断：
-
-```text
-convivium:meeting-manager:<teamId>:<meetingId>
-convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
-```
-
-这些 label 同时是冷恢复时的 ownership 证明。Runtime 只能操作由上述命名空间创建、且能够解析出完整 `teamId`、`meetingId` 和身份 ID 的 Session；不得根据模糊前缀或显示名称中断、关闭 Session 或撤销 capability。
+稳定 label 格式见 [Implementation Session ownership](./CONVIVIUM-IMPLEMENTATION-DESIGN.md#session-ownership)。冷恢复必须将 label 与持久 ownership、parent-child 关系交叉核对；仅有 label、显示名称或模糊前缀不能授权 Session 操作。
 
 ### 4.4 Meeting Agent Definition boundary
 
@@ -183,244 +137,21 @@ Host 通过独立 agentModelOverrides 提供必要的模型差异，默认值、
 
 本节的核心 Domain 数据结构唯一真相源为 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESIGN.md)。本设计只描述状态转换、调度、持久化、恢复、归档和跨边界流程。
 
-以下类型表达必须持久化的语义；实现可以拆分文件，但不能改变所有权和不变量。
+本节只说明这些对象在编排中的作用，字段和枚举不在此重复声明。
 
 ### 5.1 Meeting and Participant
 
-```ts
-type MeetingStatus =
-  | "created"
-  | "running"
-  | "waiting"
-  | "paused"
-  | "converging"
-  | "completed"
-  | "partial"
-  | "no_consensus"
-  | "cancelled"
-  | "failed"
-  | "archiving"
-  | "archived";
-
-interface MeetingParticipant {
-  id: string;
-  sourceMemberName?: string;
-  displayName: string;
-  role?: string;
-  status:
-    "available" | "busy" | "speaking" | "unavailable" | "failed" | "removed";
-
-  lastDeliveredSeq: number;
-  lastAcknowledgedSeq: number;
-  consecutiveSpeeches: number;
-  consecutiveAttemptFailures: number;
-  totalSpeeches: number;
-
-  permissions: string[];
-}
-
-type MeetingSelectionMode = "round_robin" | "rule_based" | "manager" | "hybrid";
-
-interface MeetingState {
-  id: string;
-  teamId: string;
-  sourceMeetingId?: string;
-  topic: string;
-  objective: string;
-  objectiveContract: MeetingObjectiveContract;
-  status: MeetingStatus;
-
-  manager: MeetingManagerRuntime;
-  participants: MeetingParticipant[];
-  agenda: AgendaItem[];
-  activeAgendaItemId?: string;
-  issues: MeetingIssue[];
-  agendaCandidates: AgendaCandidate[];
-  transcript: MeetingMessage[];
-  proposals: MeetingProposal[];
-  decisions: MeetingDecision[];
-  openQuestions: MeetingQuestion[];
-  handRaises: MeetingHandRaise[];
-  completionFacts: CompletionFact[];
-  continuationMaterials: ContinuationMaterial[];
-
-  turnSeq: number;
-  messageSeq: number;
-  eventSeq: number;
-  currentTurn?: MeetingTurn;
-  waitState?: MeetingWaitState;
-  lastCommittedSpeaker?: string;
-
-  progressFingerprint?: string;
-  stallCount: number;
-  replanCount: number;
-
-  selectionMode: MeetingSelectionMode;
-  limits: MeetingLimits;
-  termination?: MeetingTermination;
-  archive?: ArchiveRecord;
-
-  version: number;
-  createdAt: number;
-  updatedAt: number;
-}
-
-interface ArchivePackage {
-  schemaVersion: 1;
-  meetingId: string;
-  teamId: string;
-  sourceMeetingId?: string;
-  objectiveContract: MeetingObjectiveContract;
-  finalSummary: string;
-  artifacts: ArchiveArtifactRef[];
-  acceptedDecisions: MeetingDecision[];
-  proposals: MeetingProposal[];
-  completionFacts: CompletionFact[];
-  agenda: AgendaItem[];
-  issues: MeetingIssue[];
-  unresolvedQuestions: MeetingQuestion[];
-  parkingLot: AgendaCandidate[];
-  formalTranscript: MeetingMessage[];
-  participantProvenance: ArchiveParticipantProvenance[];
-  managerPromptVersion: string;
-  termination: MeetingTermination;
-  endedAt: number;
-  materializedAt: number;
-}
-
-interface ArchiveRecord {
-  package: ArchivePackage;
-  archivedAt?: number;
-}
-
-interface ContinuationMaterial {
-  sourceMeetingId: string;
-  sourceKind:
-    "final_summary" | "decision" | "issue" | "risk" | "evidence" | "artifact";
-  sourceObjectId?: string;
-  summary: string;
-  checksum?: string;
-}
-
-interface ArchiveArtifactRef {
-  artifactId: string;
-  title: string;
-  version?: string;
-  checksum?: string;
-  sourceTaskId?: string;
-  uri?: string;
-}
-
-interface ArchiveParticipantProvenance {
-  participantId: string;
-  displayName: string;
-  role?: string;
-  sourceMemberName?: string;
-  templateVersion?: string;
-}
-```
+[MeetingState](./DOMAIN-MODEL-DESIGN.md#meetingstate) 持有会议当前事实；[Participant 与 Manager](./DOMAIN-MODEL-DESIGN.md#participant-and-manager) 保持身份分离；终态快照和续会素材见 [Archive And Continuation](./DOMAIN-MODEL-DESIGN.md#archive-and-continuation)。
 
 ### 5.2 Turn, step and attempt
 
-```ts
-type TurnIntent =
-  | "explore"
-  | "clarify"
-  | "challenge"
-  | "review"
-  | "resolve_objection"
-  | "synthesize"
-  | "decide"
-  | "report_task_result"
-  | "refocus";
-
-interface MeetingTurn {
-  id: string;
-  seq: number;
-  agendaItemId: string;
-  intent: TurnIntent;
-  objective: string;
-  expectedOutputs: string[];
-  prohibitedTopics: string[];
-  plan: readonly string[];
-  currentStepIndex: number;
-  steps: SpeakerStep[];
-  status:
-    "planned" | "running" | "completed" | "truncated" | "cancelled" | "failed";
-  createdAt: number;
-  completedAt?: number;
-}
-
-interface SpeakerStep {
-  id: string;
-  speaker: string;
-  instruction: string;
-  reason: SpeakerSelectionReason;
-  status:
-    | "pending"
-    | "assigned"
-    | "running"
-    | "submitted"
-    | "skipped"
-    | "revoked"
-    | "failed";
-  attempt?: SpeakerAttempt;
-}
-
-interface SpeakerAttempt {
-  attemptId: string;
-  status: "assigned" | "running" | "submitted" | "revoked" | "failed";
-  contextFromSeq: number;
-  contextThroughSeq: number;
-  deliveryId: string;
-  deliveryStatus: "pending" | "accepted" | "acknowledged" | "failed";
-  taskSnapshots: MeetingTaskSnapshot[];
-  assignedAt: number;
-  startedAt?: number;
-  completedAt?: number;
-  deadlineAt?: number;
-  deliveredAt?: number;
-  acknowledgedAt?: number;
-}
-
-interface MeetingTaskSnapshot {
-  meetingTaskId: string;
-  status:
-    "requested" | "queued" | "running" | "completed" | "failed" | "cancelled";
-  resultSummary?: string;
-  observedAt: number;
-}
-```
+对象结构见 [Domain Turn, Step And Attempt](./DOMAIN-MODEL-DESIGN.md#turn-step-and-attempt)。
 
 `turn` 是一次有序讨论周期；`attempt` 才是单次写入 capability。本文不使用 `round` 状态。
 
 ### 5.3 Manager
 
-```ts
-interface MeetingManagerRuntime {
-  promptVersion: string;
-  status: "creating" | "idle" | "planning" | "failed" | "closed";
-  currentPlanningAttempt?: ManagerPlanningAttempt;
-  lastDecisionMeetingVersion?: number;
-}
-
-interface ManagerPlanningAttempt {
-  id: string;
-  observedMeetingVersion: number;
-  reason:
-    | "initial_plan"
-    | "next_turn"
-    | "semantic_arbitration"
-    | "refocus"
-    | "stall"
-    | "replan"
-    | "termination_review";
-  status: "pending" | "running" | "submitted" | "revoked" | "failed";
-  deliveryId: string;
-  createdAt: number;
-  deadlineAt?: number;
-}
-```
+运行状态与固化 planning binding 见 [Domain ManagerPlanningAttempt](./DOMAIN-MODEL-DESIGN.md#managerplanningattempt)。
 
 Manager persona MUST 明确：
 
@@ -432,180 +163,9 @@ Manager persona MUST 明确：
 
 ### 5.4 Messages and decision objects
 
+正式消息、提案、立场和决策字段见 [Domain Messages, Proposals And Decisions](./DOMAIN-MODEL-DESIGN.md#messages-proposals-and-decisions)；提交输入与公开投影由 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) 定义。
+
 引用式纪要采用 [Domain MeetingMinutesDraft](./DOMAIN-MODEL-DESIGN.md#meetingminutesdraft) 和 [Protocol 引用式草稿契约](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#referenced-minutes-draft)。可选 Scribe 按普通 Participant 的当前 Speaker 权限调用既有 submit_turn；Runtime 映射 metadata，纯 transition 校验后通过同一 state/event/receipt/outbox commit 追加 summary。公开 status/context/HTTP 与 Client 只读传递该 metadata，不产生第二份纪要事实或独立生命周期。本文规定目标设计，尚未实现部分以 readiness 为准。
-
-```ts
-type AgendaRelation =
-  | "on_topic"
-  | "supporting_context"
-  | "new_topic_candidate"
-  | "blocking_interrupt";
-
-interface MeetingMessage {
-  id: string;
-  seq: number;
-  turnSeq: number;
-  turnId: string;
-  stepId: string;
-  attemptId: string;
-  speaker: string;
-  agendaItemId: string;
-  agendaRelation: AgendaRelation;
-  kind:
-    | "statement"
-    | "question"
-    | "answer"
-    | "proposal"
-    | "objection"
-    | "evidence"
-    | "review"
-    | "summary"
-    | "decision";
-  content: string;
-  mentions: string[];
-  replyTo?: string;
-  taskIds: string[];
-  createdAt: number;
-  minutesDraft?: MeetingMinutesDraft;
-}
-
-interface ParticipantPosition {
-  id: string;
-  participantId: string;
-  position: "support" | "accept" | "object" | "needs_revision" | "abstain";
-  reason?: string;
-  blocking: boolean;
-  proposalRevision: number;
-}
-
-type SpeakerSelectionReason =
-  | "explicit_mention"
-  | "direct_question"
-  | "required_reviewer"
-  | "agenda_owner"
-  | "task_result_owner"
-  | "blocking_objection_owner"
-  | "hand_raise"
-  | "rule_score"
-  | "manager_selected"
-  | "round_robin_fallback"
-  | "captain_summary";
-
-interface MeetingQuestion {
-  id: string;
-  text: string;
-  askedBy: string;
-  directedTo?: string;
-  agendaItemId: string;
-  blocking: boolean;
-  status: "open" | "answered" | "withdrawn" | "deferred";
-  answerMessageId?: string;
-  createdAt: number;
-}
-
-interface MeetingProposal {
-  id: string;
-  title: string;
-  description: string;
-  proposedBy: string;
-  agendaItemId: string;
-  revision: number;
-  status: "draft" | "under_review" | "accepted" | "rejected" | "superseded";
-  positions: ParticipantPosition[];
-  createdAt: number;
-  updatedAt: number;
-}
-
-interface MeetingDecision {
-  id: string;
-  agendaItemId: string;
-  proposalId: string;
-  proposalRevision: number;
-  statement: string;
-  rationale: string;
-  status: "accepted" | "superseded" | "revoked";
-  acceptanceMode: "captain_acceptance" | "local_host_acceptance";
-  acceptedBy: string[];
-  dissentingPositionIds: string[];
-  acceptanceFactIds: string[];
-  supersededByDecisionId?: string;
-  createdAt: number;
-}
-
-interface DecisionProposalInput {
-  proposalId: string;
-  proposalRevision: number;
-  statement: string;
-  rationale: string;
-}
-
-interface MeetingWaitState {
-  reason:
-    "blocking_task" | "required_participant_unavailable" | "captain_action";
-  taskIds: string[];
-  participantIds: string[];
-  waitingSince: number;
-  deadlineAt?: number;
-  resumeAgendaItemId?: string;
-}
-
-type MeetingTerminationCode =
-  | "objective_satisfied"
-  | "captain_accepted"
-  | "no_consensus"
-  | "stalled"
-  | "max_turns"
-  | "message_limit"
-  | "time_limit"
-  | "all_participants_unavailable"
-  | "user_cancelled"
-  | "internal_error";
-
-interface MeetingTermination {
-  code: MeetingTerminationCode;
-  reason: string;
-  decisionIds: string[];
-  unresolvedQuestionIds: string[];
-  dissentingPositionIds: string[];
-  blockingAgendaItemIds: string[];
-  finalMessage: string;
-  endedAt: number;
-}
-
-interface CompletionFact {
-  id: string;
-  kind:
-    | "output_evidence"
-    | "criterion_evidence"
-    | "review"
-    | "question_resolution"
-    | "agenda_resolution"
-    | "risk_acceptance"
-    | "decision_acceptance"
-    | "decision_supersession"
-    | "decision_revocation"
-    | "waiver";
-  subjectId: string;
-  assertedBy: string;
-  authority?: string;
-  result:
-    | "supported"
-    | "approved"
-    | "changes_required"
-    | "accepted"
-    | "rejected"
-    | "resolved"
-    | "deferred"
-    | "superseded"
-    | "revoked"
-    | "waived";
-  evidenceMessageIds: string[];
-  taskIds: string[];
-  reason?: string;
-  status: "active" | "superseded" | "revoked";
-  createdAt: number;
-}
-```
 
 Question、Proposal 和 Decision MUST 拥有稳定 ID。Proposal revision 变化时必须新增不可变 revision snapshot，并将旧 revision 标记为 `superseded`；旧 revision 的 Position 不得自动继承。`MeetingState.proposals` 保留当前 revision、被 Decision/CompletionFact 引用的历史 revision，以及仍需审计的异议依据。MeetingDecision 是 Runtime 生成的正式结果，不是 Participant 可以直接创建或覆盖的输入对象。
 
@@ -621,39 +181,7 @@ ObjectiveContract 和 AgendaItem 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./D
 
 ### 6.2 Primary and secondary issues
 
-```ts
-type IssueDisposition =
-  "blocking" | "follow_up" | "parking_lot" | "accepted_risk" | "out_of_scope";
-
-interface MeetingIssue {
-  id: string;
-  title: string;
-  description: string;
-  sourceMessageId: string;
-  agendaItemId?: string;
-  affectedOutputIds: string[];
-  affectedCriterionIds: string[];
-  violatedConstraintIds: string[];
-  blockingObjectionIds: string[];
-  blocking: boolean;
-  riskLevel: "low" | "medium" | "high";
-  impact: "none" | "low" | "medium" | "high" | "critical";
-  urgency: "now" | "before_release" | "later";
-  reversibility: "easy" | "moderate" | "hard" | "irreversible";
-  safeDefaultAvailable: boolean;
-  disposition: IssueDisposition;
-  rationale: string;
-  owner?: string;
-  relatedTaskIds: string[];
-  status:
-    | "open"
-    | "accepted_risk"
-    | "waiting"
-    | "resolved"
-    | "deferred"
-    | "out_of_scope";
-}
-```
+Issue 结构见 [Domain MeetingIssue](./DOMAIN-MODEL-DESIGN.md#meetingissue)。
 
 Issue 只有引用 required output、acceptance criterion、hard constraint 或 blocking objection 时，才允许标记为 `blocking`。没有有效依据的问题 MUST 进入 follow-up、parking lot、accepted risk 或 out-of-scope。
 
@@ -677,28 +205,15 @@ Issue 只有引用 required output、acceptance criterion、hard constraint 或 
 
 ### 6.2.1 Decision And Risk Closure
 
-Proposal revision 是独立 immutable snapshot；新 revision 的 `positions=[]`，不继承旧 Position、Decision、Candidate 或 acceptance。`Position` 的 canonical shape 是 `participantId`、`proposalRevision`、`position`、`blocking` 与可选 `reason`。Candidate 保持内部 immutable record，不保存 status；`pendingDecisionCandidates` 由当前 revision、未形成 Decision 且 Meeting 仍可执行三个条件派生，Captain 与 loopback local user 可见，其他 caller 返回 `[]`。Acceptance、revision update 或 execution-terminal 后 candidate 不再 pending。
+Proposal revision 是独立 immutable snapshot；新 revision 的 `positions=[]`，不继承旧 Position、Decision、Candidate 或 acceptance。Position 字段见 [Domain MeetingProposal And ParticipantPosition](./DOMAIN-MODEL-DESIGN.md#meetingproposal-and-participantposition)。Candidate 保持内部 immutable record，不保存 status；`pendingDecisionCandidates` 由当前 revision、未形成 Decision 且 Meeting 仍可执行三个条件派生，Captain 与 loopback local user 可见，其他 caller 返回 `[]`。Acceptance、revision update 或 execution-terminal 后 candidate 不再 pending。
 
-正式 acceptance 只能由 Captain 结构化 command 产生 `decision.accepted`，不使用 auto-accept。Decision disposal 由 Captain-only `convivium_dispose_decision` 执行：`supersede` 在一个 commit 中先写 replacement `decision.accepted`，再写旧 `decision.superseded` 并设置 `supersededByDecisionId`；`revoke` 写 `decision.revoked`。execution-terminal、`archiving` 与 `archived` 拒绝写入。`decisionHistory` 保留全部 Decision，`acceptedDecisions` 只保留当前 accepted。
+正式 acceptance 与 disposal 只经 [Protocol Local decision and risk control](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#local-decision-and-risk-control) 规定的 Captain tool 或 loopback local 入口执行，保留独立 caller proof，不使用 auto-accept。Decision disposal：`supersede` 在一个 commit 中先写 replacement `decision.accepted`，再写旧 `decision.superseded` 并设置 `supersededByDecisionId`；`revoke` 写 `decision.revoked`。execution-terminal、`archiving` 与 `archived` 拒绝写入。`decisionHistory` 保留全部 Decision，`acceptedDecisions` 只保留当前 accepted。
 
 Risk disposition 只作用于一个 Issue。新 Issue 要求 `riskLevel`；legacy 读取可以缺失但处置 fail closed。可处置 status 仅为 `open|accepted_risk`；accept 写 `accepted_risk/accepted_risk/false`，reject 写 `open/blocking/true`。reason trim 后非空，evidence 至少一个、唯一且属于本 Meeting；risk level 不得高于 `acceptableRiskLevel` 且 hard constraints 必须通过。不同 request 先 supersede 旧 active `risk_acceptance` fact 再创建新 active fact；相同 request replay/conflict。全部 Issue 和 risk facts 进入 archive。
 
 ### 6.3 Parking Lot and refocus
 
-```ts
-interface AgendaCandidate {
-  id: string;
-  proposedBy: string;
-  sourceMessageId: string;
-  title: string;
-  reason: string;
-  relationToActiveAgenda: "related" | "adjacent" | "unrelated";
-  urgency: "now" | "before_release" | "later";
-  suggestedParticipants: string[];
-  status: "pending" | "promoted" | "parked" | "rejected";
-  createdAt: number;
-}
-```
+候选结构见 [Domain AgendaCandidate](./DOMAIN-MODEL-DESIGN.md#agendacandidate)。
 
 `new_topic_candidate` MUST 进入 `AgendaCandidate`，不能自动切换议题。`blocking_interrupt` MUST 引用有效阻塞依据，并且只能在当前 speaker 提交后截断 turn。
 
@@ -774,36 +289,11 @@ interface InvalidStateTransitionError {
 
 ### 8.1 Authority
 
-Storage Domain 是 Meeting Runtime 的唯一持久化真相。Convivium 使用一个 catalog domain 发现 Meeting，并为每个 `teamId + meetingId` 打开独立 Meeting domain；Runtime、repository、tools 和 UI 不定位、扫描或依赖 backend 物理布局。遗留 `.sqlite` 数据不读取、不迁移、不删除，也不作为 recovery fallback。
-
-`catalogDomainSpec` 和 `createMeetingDomainSpec` 是 record schema 的机器真相源。Meeting domain 只包含 `creation`、`commits`、`checkpoint_pages`、`checkpoint_roots` 和 `checkpoint_pointer` tables；ready projection 中的 MeetingState、events、receipts、outbox、Session ownership 和 private mail 只通过 seq 1 或后续 `CommitRecordV1` 形成。
-
-`creation.status` 只允许 `creating | ready | creation_failed`：
-
-- 在任何 Session 创建前写入 `teamId + meetingId` catalog correlation、规范化 `requestHash` 和 `creating` creation record；
-- 全部必需 Session 创建后，以 seq 1 `create.complete` commit 同时建立公开 Meeting、`meeting.created` event、成功 receipt、ownership 和初始 outbox，再发布 creation/catalog `ready`；
-- 无法安全继续创建时转为 `creation_failed`，保留安全失败码和 ownership 供冷恢复识别，不对外暴露为可运行 Meeting；
-- `ready` 必须能从 published checkpoint 与连续 commit tail 恢复完整 projection；`creation_failed` 不得自动创建新 Session。
-
-Bootstrap 不承担 caller ownership。`create` 和 `completeCreate` 都必须实时校验当前 caller，但不要求两次调用来自同一 caller；只有 `completeCreate` 当前授权校验通过且 correlation 匹配时才能创建公开 Meeting。
+Meeting 当前事实只从已提交持久化 projection 恢复。catalog、record schema、creation 状态和 caller 校验由 [Meeting Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md) 定义；创建接线见 [Implementation Meeting creation](./CONVIVIUM-IMPLEMENTATION-DESIGN.md#meeting-creation)。部分创建不得暴露为可运行 Meeting，Runtime 不扫描物理存储或猜测 Session ownership。
 
 ### 8.2 Command commit and recovery
 
-一次成功 command 只追加一个有界 `CommitRecordV1`，其中包含 projection patch、不可变领域事件、首次幂等 receipt 和 pending outbox。commit put 成功前不得更新权威内存 projection、执行外部副作用或返回成功；put 失败保持提交前 projection。
-
-```text
-enter per-Meeting mutation chain
-→ validate caller, capability, request hash and expected meeting version
-→ return matching committed receipt or reject idempotency conflict
-→ run pure transition
-→ canonicalize patch, events, receipt and outbox
-→ validate record size, sequence and previous digest
-→ put one immutable CommitRecordV1
-→ publish the committed projection in memory
-→ schedule post-commit effects
-```
-
-恢复只读取 published checkpoint 和从 `baseSeq + 1` 开始的最长连续 commit tail。checkpoint 缺页、digest/identity 冲突、非法前驱、sequence gap、unknown field 或 record 超限必须 fail loud 并隔离该 Meeting；不得返回部分 projection。checkpoint 只控制恢复成本，不改变单 command 原子性。
+一次 command 的 state、events、receipt 和 pending outbox 在同一有界 commit 中发布。成功响应和外部投递只能发生在 commit 成功后；失败保持提交前事实。原子写入、checkpoint 发布、连续 tail 校验及损坏拒绝算法见 [Persistence Design](./MEETING-PERSISTENCE-SPECIAL-DESIGN.md#state-and-failure-handling)，Runtime 命令接线见 [Implementation Command pipeline](./CONVIVIUM-IMPLEMENTATION-DESIGN.md#command-pipeline)。会议恢复如何处理 Session 和活动 attempt 由本文 §14 定义。
 
 ### 8.3 Developer Markdown generation
 
@@ -1057,7 +547,7 @@ MeetingHandRaise 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESI
 - HandRaise 不修改当前 turn 的未执行 plan；普通 HandRaise 进入下一 turn。
 - Blocking HandRaise MAY 在当前 speaker 提交后截断 turn。
 - 非阻塞后台任务运行时，会议继续其他议题。
-- 强阻塞任务使 Meeting 进入 `waiting`；完成后通过 event/HandRaise 恢复。
+- 强阻塞任务使 Meeting 进入 `waiting`；task finish 的等待清除与后续规划条件见 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#required-speaker-unavailable)。
 
 Agent 内部工具、MCP、命令重试和私有工作流不计入 Meeting Runtime。Runtime 只观察 speaker attempt、Session、outbox、提交协议和 MeetingTask 的跨边界结果。
 
@@ -1119,7 +609,7 @@ function dispatchableNow(state: MeetingState): MeetingParticipant[];
 
 同一 speaker 默认每 turn 只出现一次。Plan 长度不得超过 `maxSpeakersPerTurn`。
 
-Required speaker 不属于 `dispatchableNow` 时，同步与后台规划都必须以一个 Repository commit 进入 `waiting`，使用 `reason='required_participant_unavailable'`、去重并按 canonical ID 排序的 `participantIds`、`taskIds=[]`、Runtime `now` 的 `waitingSince`，以及存在时当前 active agenda 的 `resumeAgendaItemId`；不得返回裸 planning error，不得创建部分 Turn、Step 或 Attempt。相同 Meeting version 与相同排序 participant IDs 只提交一次，后续不得自动重试。只有既有 Captain/local resume command 在全部 required Participant dispatchable 时清除 wait 并重新规划；否则返回 `REQUIRED_SPEAKER_UNAVAILABLE` 且零副作用。自动替换、豁免和部分计划均禁止。
+Required speaker 不属于 `dispatchableNow` 时，同步与后台规划都必须以一个 Repository commit 进入 `waiting`，使用 `reason='required_participant_unavailable'`、去重并按 canonical ID 排序的 `participantIds`、`taskIds=[]`、Runtime `now` 的 `waitingSince`，以及存在时当前 active agenda 的 `resumeAgendaItemId`；不得返回裸 planning error，不得创建部分 Turn、Step 或 Attempt。相同 Meeting version 与相同排序 participant IDs 只提交一次，后续不得自动重试。Captain/local resume command 在全部 required Participant dispatchable 时清除 wait 并重新规划；否则返回 `REQUIRED_SPEAKER_UNAVAILABLE` 且零副作用。任务完成引起的恢复见 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#required-speaker-unavailable)。自动替换、豁免和部分计划均禁止。
 
 ### 12.3 Rule score
 
@@ -1651,7 +1141,7 @@ The planning path is deterministic unless the confirmed `hybrid` predicate is tr
 
 Manager unavailable before attempt creation uses the rule plan. Schema parse failure does not commit and is resolved only by the attempt deadline timeout fallback. A business-invalid submission commits failed attempt + `manager_plan.failed` + deterministic fallback Turn + receipt + Speaker outbox in one Repository commit and returns `fallbackApplied=true`. Timeout and delivery retry exhaustion use identity `manager-fallback:<attemptId>:<reasonCode>`, caller `runtime:<meetingId>`, and the B serializer over `{ attemptId, reasonCode, observedMeetingVersion }`. Same request replays; different content conflicts; stale attempts and terminal Meetings have zero side effects.
 
-Required-unavailable sync/background/overflow paths commit waiting with fixed `MeetingWaitState`; no bare planning error or partial plan is returned. Same Meeting version plus sorted participant IDs is deduped. Captain/local resume is the only recovery path and clears waiting only after every required Participant is dispatchable; otherwise it returns `REQUIRED_SPEAKER_UNAVAILABLE` without commit.
+Required-unavailable sync/background/overflow paths commit waiting with fixed `MeetingWaitState`; no bare planning error or partial plan is returned. Same Meeting version plus sorted participant IDs is deduped. 恢复入口与 MeetingTask finish 条件以 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#required-speaker-unavailable) 为准；Captain/local resume 在 required Participants 仍不可调度时返回 `REQUIRED_SPEAKER_UNAVAILABLE`，不提交。
 
 After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fingerprint defined by the Domain Model. First completion stores it with `stallCount=0`; a changed fingerprint resets `stallCount` and `replanCount`; unchanged progress increments stall and creates deterministic refocus on the first occurrence, then increments replan budget and replans on the second while budget remains. If `stallCount+1 >= maxStalls` or `replanCount >= maxReplans`, terminate. Reuse `meeting.replanned` and `meeting.ended`; blocking disagreement terminates as `no_consensus`, otherwise as `partial`/`stalled`. Active projection maps counters and `MeetingTurn.reason`; no second convergence state, event vocabulary, repository, mapper, adapter or scheduler exists.
 
@@ -1775,6 +1265,15 @@ After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fing
 - 全部验证矩阵、崩溃点测试和压力验证。
 
 并行议题分支和 token 级实时多人对话仍属于 Non-goals，不作为后续阶段暗示保留在实现范围中。
+
+### 20.1 Incremental scope control
+
+每次增量遵守 [Engineering Rules Implementation Economy](../00-governance/ENGINEERING-RULES.md#implementation-economy) 和 [Engineering Checks](../00-governance/ENGINEERING-RULES.md#engineering-checks)。本节不删减正式需求，也不把暂缓机制改为永久 Non-goal；整体目标的实现覆盖以 readiness 为准。
+
+- 新增 `selectionMode` 或调度分支应增量接入；未经当前任务确认，不重写已工作的 `round_robin` 或其他稳定路径。
+- Speaker timeout 自动推进、resident parent 重绑与自动续投、用户级恢复入口和专用诊断协议是需要独立确认的高扩张风险示例，不得顺带纳入其他增量。实现前分别明确触发条件、状态转换、失败语义、恢复边界和验收证据。
+- 当前增量无法安全处理的失败必须 fail closed，保留既有 receipt/outbox 诊断事实；不能借此新增自动跳过、隐式降级或恢复状态机。
+- 完成当前目标必须扩大上述范围时，先报告新增范围并形成独立依据和验收标准，再执行扩展。范围收窄不得弱化会议身份、ownership、capability、stale attempt 或 delivery 幂等校验。
 
 ## 21. Acceptance
 

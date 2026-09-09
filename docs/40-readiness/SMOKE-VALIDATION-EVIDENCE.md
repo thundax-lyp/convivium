@@ -1,6 +1,6 @@
 # Smoke Validation Evidence
 
-当前 SQLite 组合的五核心 smoke 见 [SQLite Provider Validation](#sqlite-provider-validation)，全量工程检查见 [SQLite Provider Integration](./DSH-CAPABILITY-INTEGRATION-EVIDENCE.md#sqlite-provider-integration)。下述升级基线及其他章节保留各自历史边界，不外推为当前 Browser 或模型验证。
+当前 SQLite 组合的五核心 smoke 见 [SQLite Provider Validation](#sqlite-provider-validation)，全量工程检查见 [SQLite Provider Integration](./CURRENT-IMPLEMENTATION-COVERAGE.md#sqlite-provider-integration)。下述升级基线及其他章节保留各自历史边界，不外推为当前 Browser 或模型验证。
 
 ## Current Baseline Validation
 
@@ -10,13 +10,21 @@
 
 `pnpm --dir plugin smoke:profile --all` 实际退出 0，16/16 场景 PASS，总耗时 156717ms，一次构建，每场景均 `restore=PASS`。角色配置使用测试专用 LlmAdapter，验证真实 Agent 和双 Host 冷恢复，不证明真实外部模型配置可用。
 
-场景清单、探针适配、业务重投修复、完整 verify 及 Not Covered 统一见 [DSH Capability Integration Evidence](./DSH-CAPABILITY-INTEGRATION-EVIDENCE.md#executed-validation)。历史 `6679403` 的结果见 [Historical Alignment Baseline Validation](#historical-alignment-baseline-validation)。
+场景为 baseline、timeout、reassign、task-handraise、completion-end、risk-reopen、decision-risk-closure、cold-rebind、role-composition、archive-continuation、mail-race、cross-meeting、convergence、convergence-stalled、convergence-turn-budget-completion、scribe-minutes。此前分别执行的 baseline、timeout、reassign、role-composition 也通过；role-composition 使用测试专用 LlmAdapter 验证 descriptor、assembly、工具限制与双 Host 恢复，未发起外部模型路由测试。
+
+失败轮不计 PASS：旧探针读取首个 text block、依赖旧 `Session.events`、将异步释放视作同步、等待上下文期间保留已失效 Agent，以及按 JSON 字段顺序比较重放结果。分别改为公开消息/Session 接口、明确等待释放、获取当前 live Agent 和结构化结果比较。冷恢复 inbox 丢失则通过正式 repository 重投修复；最终全场景在这些修改后通过。
+
+Not Covered：独立 ACP、SDK、TUI/headless profile、真实外部模型 provider/model/reasoningEffort 的凭证与质量、历史 Browser 重验、长期压力、强杀 Host、真实缺失 Session 故障注入和动态 admission。无 WebServer 的组合测试不等于这些 profile 已验收；本轮未修改相邻 DSH 源码或使用内部入口。
+
+完整工程检查、能力采用和历史收口见 [DSH Upgrade Baseline Validation](./CURRENT-IMPLEMENTATION-COVERAGE.md#dsh-upgrade-baseline-validation)。历史 `6679403` 的结果见 [Historical Alignment Baseline Validation](#historical-alignment-baseline-validation)。
 
 ## SQLite Shutdown Acceptance Boundary
 
 2026-09-08 用户接受 [设计中的关闭限制](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)。本次 SQLite 五核心场景已通过，验收范围为：重开必须保留关闭前已确认成功的事实，关闭与未完成写入竞争时的自动排空不作为 mandatory。操作与失败判据见 [SQLite 关闭与冷重启验收](../50-operations/HOW-TO-DSH-SMOKE.md#sqlite-替换的关闭与冷重启验收)。
 
 Not Covered：本次仅运行五核心 selector；不证明人工固定等待时长安全、单独关闭 AgentSession 的行为或任意时序卸载时所有排队写入都成功。上述历史基线结果不重新标记为 SQLite 替换验证通过。
+
+前期官方 rc.1 的真实 SQLite 排队写入探针：显式 `domain.close()` 后 100 次写入全部完成；provider/root dispose 分别有 99/98 次 `closed` 拒绝，已确认写入重开后存在。该结果不证明已确认数据丢失，也不证明单独关闭 AgentSession 会触发相同问题。用户接受这一关闭边界，替换不等待上游发布；本次验收不声称修复了上游自动排空。
 
 ## SQLite Provider Validation
 

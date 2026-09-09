@@ -11,7 +11,7 @@ description: Human-invoked workflow for publishing completed Convivium branch wo
 
 - `commit`、`push`、创建或更新 PR、回复评论、提交修复和 `merge` 是不同操作；只执行用户明确授权的操作。
 - 用户要求 push 或创建/更新 PR 时，可以执行相应的 `push` 和 PR 写操作；如果需要创建 `commit`，必须先取得明确的 commit 授权，仍不得自动 merge。
-- 不要 squash merge；不要把改动直接 push 到 `main`。
+- PR 合并按 `docs/00-governance/PR-RULES.md` 的 Main Branch Protection 使用普通 merge commit，保留完整提交历史，禁止 squash merge；不要把改动直接 push 到 `main`。
 - 只有在首次发布前、能够证明尚未发布且用户明确确认后，才可以整理本地 commit 历史；不得隐式 amend、rebase、force push 或改写远端历史。
 - 保留用户已有改动；无法判断归属的改动不得混入本 PR。
 
@@ -19,8 +19,8 @@ description: Human-invoked workflow for publishing completed Convivium branch wo
 
 开始前读取：
 
-1. `docs/AGENTS.md`
-2. `docs/00-governance/ARCHITECTURE.md`
+1. `AGENTS.md`
+2. `docs/00-governance/ARCHITECTURE.md`、`docs/00-governance/ENGINEERING-RULES.md`
 3. `docs/00-governance/PR-RULES.md`
 4. `.github/pull_request_template.md`
 5. `.github/workflows/pr-verify.yml`
@@ -28,7 +28,7 @@ description: Human-invoked workflow for publishing completed Convivium branch wo
 按实际操作追加最小必要上下文：
 
 - 需要创建 commit、检查 commit message、整理历史，或创建/更新 PR 需要确定标题中的 Project Registry：完整读取 `docs/00-governance/COMMIT-RULES.md`；
-- diff 涉及 TODO、RUNBOOK 或任务收口：完整读取 `docs/00-governance/TODO-RULES.md`；
+- diff 涉及已登记 TODO：读取 `docs/00-governance/TODO-RULES.md`；涉及 RUNBOOK 时读取其专项规则；
 - diff 涉及文档、治理、workflow 或 skill：读取 `docs/00-governance/DOCUMENT-RULES.md`；
 - diff 涉及插件实现：按 diff 范围读取相关需求、接口和设计文档。
 
@@ -69,7 +69,7 @@ git remote -v
 
 ### 4. 本地收口与验证
 
-如果 diff 涉及 TODO、RUNBOOK 或任务收口，按 `TODO-RULES.md` 检查收口状态；所有 diff 都要检查文档同步和范围完整性。根据 diff 选择最窄验证：
+如果 diff 涉及已登记 TODO，按 `TODO-RULES.md` 检查任务状态；RUNBOOK 按专项规则收口。文档同步引用 Document Rules，通用验证引用 Engineering Rules；根据 diff 选择最窄验证：
 
 - 文档、skill、PR 或 workflow：至少运行 `git diff --check`，检查旧路径引用和治理入口；
 - 插件改动：按 `plugin/package.json` 运行受影响的 `format:check`、`lint`、`typecheck`、`test`、`build` 或 `verify:package`；

@@ -99,17 +99,11 @@ CurrentState(headSeq)
 4. 不可变追加该 `Commit`。持久化成功前不得更新权威内存 projection、执行外部副作用或返回成功。
 5. 追加成功后才把 commit 应用于内存 projection，并允许后续工作观察它。
 
-FR-7 Decision and risk lifecycle uses this same single-commit boundary. Decision acceptance writes `decision.accepted`; supersede writes replacement `decision.accepted` followed by old `decision.superseded` in one ordered commit; revoke writes `decision.revoked`. Risk disposition writes the existing `completion_fact.added` event, supersedes prior active risk acceptance facts before adding the new active fact, and writes `outbox=[]`. `decisionHistory` and all Issue/risk facts are part of the snapshot projection and therefore recover from the checkpoint plus continuous commit tail without a second store.
-
-All B-owned command request hashes are produced after Schema validation by `serializeValidatedRequestV1(value: object): string`, whose sole implementation returns `JSON.stringify(value)`. Undefined properties are omitted, array/object insertion order is significant, and no crypto, repository canonical JSON, or receipt string rewrite is permitted.
-
 如果进程在追加返回前终止，恢复时读取同一 `seq`：record 不存在表示未提交；内容与 digest 一致表示完整提交；同 key 内容冲突表示存储不一致，必须隔离而不是猜测。
 
 ### Local decision and risk commit consistency
 
-Captain/local 五种控制共享既有 command commit。local receipt 与 Captain receipt 由不同 callerBinding 隔离；local 的 authority/assertedBy 和新 Decision acceptanceMode 按 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) Local decision and risk control 保存，不改写历史值或建立第二存储。归档核对 local fact 的已提交来源并保留完整事实。
-
-风险 command 先产生 `completion_fact.added`；完成重算为 completed 时，同一 commit 追加 `meeting.replanned`、进入 converging 并清除 currentTurn/waitState，其他结果不追加事件。两分支都仅增加一个 Meeting version、outbox=[]，失败无半提交；checkpoint/tail 恢复和 receipt replay 必须保留该顺序。事件 payload 的输入版本与外层提交版本区别以 Protocol Control command payloads 为准。本契约不新增事件类型，不授权自动结束、归档或 Session 操作。
+决策与风险控制沿用上述单 command 原子提交，不建立第二份存储。业务事件顺序、caller receipt 隔离、请求序列化和归档来源校验由 [Protocol Control command payloads](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#control-command-payloads) 与 [Local decision and risk control](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#local-decision-and-risk-control) 唯一定义；应用接线见 [Implementation](./CONVIVIUM-IMPLEMENTATION-DESIGN.md#local-decision-and-risk-control-design)。checkpoint 与 tail 必须无损保留这些已提交事实及其顺序。
 
 ### Recovery
 
