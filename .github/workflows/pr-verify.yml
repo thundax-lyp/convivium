@@ -61,11 +61,15 @@ jobs:
 
           test ! -d docs/50-prompts
 
-      - name: Verify documentation links
-        run: python3 .github/scripts/check-doc-links.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
 
-      - name: Test documentation link checker
-        run: python3 .github/scripts/test-doc-links.py
+      - name: Install documentation checker
+        run: npm ci --prefix .github --ignore-scripts
+
+      - name: Verify documentation links
+        run: node .github/scripts/check-doc-links.mjs
 
       - name: Verify pull request diff formatting
         shell: bash

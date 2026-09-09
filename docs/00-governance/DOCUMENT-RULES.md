@@ -176,7 +176,9 @@ readiness 证据覆盖：
 
 纯实现补齐且未改变既有口径时，不应顺手改写无关文档。
 
-Markdown 本地链接与标题锚点检查入口为 `python3 .github/scripts/check-doc-links.py`，由本地与 Governance CI 共用。该检查覆盖 Git 清单中的 Markdown 内联链接目标和引用式链接定义，跳过代码示例；不核验未定义的引用标签、远程 URL、产品语义或实际运行状态。检查器自身的回归验证入口为 `python3 .github/scripts/test-doc-links.py`。
+轻量本地文件链接检查入口为 `node .github/scripts/check-doc-links.mjs`；首次运行先执行 `npm ci --prefix .github --ignore-scripts`。Markdown 语法解析使用 `Marked`，脚本只读取链接、图片及引用定义的目标并检查相对文件目标存在性，不自行实现 Markdown 解析器。依赖及锁文件位于 `.github/`，仅供治理工具使用，不进入产品包。
+
+锚点、远程 URL、站点根路径、HTML 内链接、未定义引用标签及扩展语法不在门禁承诺内，由文档审查核对。针对这些已排除能力的 review 要求按超出范围拒绝并引用本节；不为此扩充自制解析逻辑或维护解析库的语法测试矩阵。承诺范围内的真实误报、漏报或执行失败仍须修复。
 
 ## Skill Boundary
 

@@ -183,6 +183,8 @@ Document Review Skill 验证：在实际仓库枚举确认规则模式匹配 6 �
 
 `f3f1e04` 后的文档审查修订：用户确认最低 DSH 为 `0.1.2-rc.1`、禁止 migration，其余冲突按当前代码核对。核对 `meeting-task.ts` 的 task/Participant 等待清除与重新规划分支、`meeting-control.ts` 的 resume blocker 拒绝、repository ownership 的 optional agentDefinition 和九角色探针入口；统一接口与设计，删除旧协议注释并归并操作说明。562 个链接/锚点及 `git diff --check` PASS；仅静态核对代码，未修改产品或重跑产品、Host、Browser、模型验证。
 
+2026-09-09，`37aaad9` 后按用户确认收敛链接门禁：删除 Python 自制解析器和语法回归测试，改为 `.mjs` 调用 `Marked` 的文件链接检查。自动覆盖边界以 Document Rules 为准，旧锚点/语法测试结果仅属于上述历史基线，不代表当前门禁能力。当前仓库文件链接检查及临时隔离仓库的有效/缺失目标验证、`git diff --check` 通过；未重跑产品或远端 CI。
+
 ## Not Covered
 
 以下集中列出当前缺口；专项章节中的 fake/DOM/历史限定只解释证据的证明范围。

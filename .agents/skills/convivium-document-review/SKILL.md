@@ -76,7 +76,7 @@ $convivium-document-review "Engineering Rules"
 
 以治理规则为依据应用上述检查，不把每个审查建议自动提升为仓库强制要求。只有入口或读取路由变化才修改根 `AGENTS.md`；规则变化检查相关 Skill，证据范围变化同步对应 readiness。未决产品结论按 Document Rules 处理，不由整理任务代为决定。
 
-验证遵循 [Engineering Rules](../../../docs/00-governance/ENGINEERING-RULES.md#validation-and-evidence)：检查迁移前后语义保留、受影响链接与锚点、旧引用、相关结构检查和 diff。链接检查复用 Document Rules 的 `python3 .github/scripts/check-doc-links.py` 入口及其覆盖边界，不另写一套检查器。按改动风险选取验证，不因纯文档整理默认运行产品套件，也不为记录一次审查新增 readiness 文件。
+验证遵循 [Engineering Rules](../../../docs/00-governance/ENGINEERING-RULES.md#validation-and-evidence)：检查迁移前后语义保留、受影响链接与锚点、旧引用、相关结构检查和 diff。链接检查复用 Document Rules 的 `node .github/scripts/check-doc-links.mjs` 入口及其覆盖边界，不另写一套检查器。按改动风险选取验证，不因纯文档整理默认运行产品套件，也不为记录一次审查新增 readiness 文件。
 
 ## Output
 
