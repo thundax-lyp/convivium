@@ -33,8 +33,8 @@ description: Review the complete current implementation of a Convivium plugin mo
 
 - `domain`：Meeting、Participant、Turn、权限和完成事实的纯领域规则。
 - `runtime`：命令入口、逐一调度、outbox、mail、恢复和归档编排。
-- `repository`：SQLite schema、migration、事务、event、receipt、outbox 和 locator。
-- `dsh`：AgentSession、TeamTask、caller binding 和 capability 的受控适配。
+- `repository`：Storage Domain record、原子 command commit、receipt、outbox、分页 checkpoint、有界 commit tail 和恢复；具体边界以 `docs/30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md` 及 `docs/20-interfaces/MEETING-STORAGE-INTERFACE.md` 为准，不将 Host provider 的物理存储或 migration 作为插件职责。
+- `dsh`：AgentSession、caller binding 和 capability 的受控适配。
 - `tools/http`：transport 解析、授权绑定、错误映射和协议编码。
 - `projection/client`：只读状态投影、UI 状态展示和类型化路由调用。
 
@@ -49,10 +49,10 @@ description: Review the complete current implementation of a Convivium plugin mo
 - caller identity、Speaker、Controller、委托范围和 capability 是否来自受控 DSH 上下文，而非客户端显示字段。
 - `requestId + commandKind + callerBinding` 幂等、expected version、receipt、event 和 outbox 是否在同一事务语义下成立。
 - DSH 副作用是否只发生在事务提交之后；重复投递、超时、失败和重试是否不会重复正式会议事实。
-- TeamTask 结果、Agent 内部工具过程、私聊和隐藏推理是否被错误写入 transcript 或完成状态。
+- MeetingTask 结果是否只经授权 projection 进入会议上下文；Agent 内部工具过程、私聊和隐藏推理是否被错误写入 transcript 或完成状态。
 - 完成判断是否遵守“业务完成优先于硬限制”，required review、风险处置、少数意见和未解决事项是否保持语义。
 - 恢复、orphan Session、租约、archive、capability revoke、Activation drain 的顺序和会议边界。
-- Markdown 是否只能从 SQLite 单向派生，不能成为状态、授权、恢复或归档完成的事实源。
+- Markdown 是否只能从已提交 Meeting projection 单向派生，不能成为状态、授权、恢复或归档完成的事实源。
 - 输入校验、路径所有权、越权、敏感信息日志、错误语义和资源关闭。
 - 成功路径、失败路径、边界、并发/重复执行和恢复测试是否锁定了需求中的验收标准。
 - 检查新增或现存机制是否只有假设性未来用途，是否增加了无当前证据价值的状态、分支、持久化或维护成本。
