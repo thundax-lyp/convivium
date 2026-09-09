@@ -8,14 +8,7 @@
 
 ## 当前任务项
 
-以下任务按 M08—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
-
-- [ ] `client/remote-tests`：M08 验证生成客户端与测试类型
-    - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M08。
-    - 关联文件：新 `plugin/tests/fixtures/remote-client.ts`；新 `plugin/tests/fixtures/remote-stream.ts`；`plugin/tests/client/meeting-client.client.spec.ts`；新 `plugin/tests/client/meeting-remote-types.ts`；新 `plugin/tsconfig.remote-test.json`；[plugin/package.json](plugin/package.json)。
-    - 确认依据：2026-09-09 本任务中用户确认九接口一次迁移、替换五秒轮询及 review 修复；设计提交 `f7b6812`；本轮要求据此制定 TODO。
-    - 处理动作：验证真实 generated contribution 装卸和 unary 调用，并提供真实 RemoteStream fixture。
-    - 验收点：mount/unmount、合法与非法参数测试通过；类型反例和 fixture 通过 typecheck:remote-test。
+以下任务按 M09—M13、M13a、M14—M16 顺序执行，前一步 PASS 才能进入下一步；关联文件来自对应 RUNBOOK 的允许修改清单，保留“新”和“删除”标记；命令、文件内修改范围与 STOP 仍以 RUNBOOK 为准。各步骤另可同步本文件对应任务，文件列表不扩大修改许可。环境与迁移前 baseline 已完成，不另列环境确认任务。任务关闭遵循 [TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)，不在此保留执行日志。
 
 - [ ] `client/meeting-panel`：M09 切换面板九个调用
     - 依据文档：[Meeting Remote Migration RUNBOOK][remote-migration-runbook]，M09。

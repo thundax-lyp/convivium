@@ -1,0 +1,10 @@
+{
+    "extends": "./tsconfig.client.json",
+    "compilerOptions": {
+        "noEmit": true,
+        "rootDir": ".",
+        "types": ["node"]
+    },
+    "include": ["tests/client/meeting-remote-types.ts"],
+    "exclude": []
+}
