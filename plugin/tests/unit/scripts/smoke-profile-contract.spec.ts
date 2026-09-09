@@ -90,7 +90,11 @@ it("validates attendance rejection and speaker timeout independently", () => {
     const baseline = {
         ok: true,
         scenario: "baseline",
-        assertions: ["baseline-transcript-acb", "baseline-http-pause-resume"]
+        assertions: [
+            "baseline-transcript-acb",
+            "baseline-remote-pause-resume",
+            "baseline-remote-stream-reconnect"
+        ]
     };
     expect(() => validateScenarioResult(baseline, "baseline")).toThrow(
         "Baseline attendance rejection assertion is missing."

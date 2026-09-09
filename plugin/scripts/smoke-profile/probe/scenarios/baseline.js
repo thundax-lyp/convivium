@@ -205,49 +205,61 @@ export async function runBaselineScenario(runtime) {
         "next planning unexpectedly exposed a current turn"
     );
     const baseUrl = "http://127.0.0.1:" + ctx.webServer.port;
-    const meetingsUrl = baseUrl + "/api/convivium/meetings";
-    const selectedUrl = meetingsUrl + "/" + encodeURIComponent(meetingId);
-    const list = await runtime.callHttp(meetingsUrl);
+    const remote = await runtime.createRemoteProbe(ctx.connection, baseUrl);
+    const statusInput = { protocolVersion: 1, meetingId };
+    const list = await remote.callRemote("list");
     runtime.assert(
         list.result.meetings.some((meeting) => meeting.meetingId === meetingId),
-        "HTTP list did not include the smoke Meeting"
+        "Remote list did not include the smoke Meeting"
     );
-    const webStatus = await runtime.callHttp(selectedUrl);
-    const paused = await runtime.callHttp(selectedUrl + "/pause", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+    let updates;
+    try {
+        updates = await remote.openUpdates();
+        await updates.next();
+        const webStatus = await remote.callRemote("getStatus", statusInput);
+        const paused = await remote.callRemote("pause", {
             protocolVersion: 1,
             meetingId,
             expectedMeetingVersion: webStatus.meetingVersion,
-            requestId: "smoke-http-pause-1",
+            requestId: "smoke-remote-pause-1",
             reason: "Verify local host control"
-        })
-    });
-    runtime.assert(paused.result.status === "paused", "HTTP pause did not return paused");
-    const pausedStatus = await runtime.callHttp(selectedUrl);
-    runtime.assert(pausedStatus.result.status === "paused", "HTTP status did not project paused");
-    runtime.assert(
-        pausedStatus.result.pauseControl.pausedBy.kind === "local_host" &&
-            pausedStatus.result.pauseControl.pausedBy.actorId === "loopback-web",
-        "HTTP pause actor was not local_host/loopback-web"
-    );
-    const resumed = await runtime.callHttp(selectedUrl + "/resume", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+        });
+        runtime.assert(paused.result.status === "paused", "Remote pause did not return paused");
+        await updates.next();
+        const pausedStatus = await remote.callRemote("getStatus", statusInput);
+        runtime.assert(
+            pausedStatus.result.status === "paused",
+            "Remote status did not project paused"
+        );
+        runtime.assert(
+            pausedStatus.result.pauseControl.pausedBy.kind === "local_host" &&
+                pausedStatus.result.pauseControl.pausedBy.actorId === "loopback-web",
+            "Remote pause actor was not local_host/loopback-web"
+        );
+        await updates.close();
+        const resumed = await remote.callRemote("resume", {
             protocolVersion: 1,
             meetingId,
             expectedMeetingVersion: pausedStatus.meetingVersion,
-            requestId: "smoke-http-resume-1"
-        })
-    });
-    runtime.assert(resumed.result.status === "running", "HTTP resume did not return running");
-    const resumedStatus = await runtime.callHttp(selectedUrl);
-    runtime.assert(
-        resumedStatus.result.status === "running",
-        "HTTP status did not return to running"
-    );
+            requestId: "smoke-remote-resume-1"
+        });
+        runtime.assert(resumed.result.status === "running", "Remote resume did not return running");
+        updates = await remote.openUpdates();
+        await updates.next();
+        const refreshedList = await remote.callRemote("list");
+        runtime.assert(
+            refreshedList.result.meetings.some((meeting) => meeting.meetingId === meetingId),
+            "Remote reconnect list lost Meeting"
+        );
+        const resumedStatus = await remote.callRemote("getStatus", statusInput);
+        runtime.assert(
+            resumedStatus.result.status === "running" &&
+                resumedStatus.meetingVersion === resumed.meetingVersion,
+            "Remote status did not return to running"
+        );
+    } finally {
+        await updates?.close();
+    }
     await runtime.writeResult({
         ok: true,
         scenario,
@@ -256,7 +268,8 @@ export async function runBaselineScenario(runtime) {
                 ? []
                 : [
                       "baseline-transcript-acb",
-                      "baseline-http-pause-resume",
+                      "baseline-remote-pause-resume",
+                      "baseline-remote-stream-reconnect",
                       "attendance-reject-tool-zero-effects"
                   ],
         meetingId,
@@ -273,7 +286,7 @@ export async function runBaselineScenario(runtime) {
         timeoutStartedAt,
         nextSpeakerSubmittedAt,
         nextPlanObserved: status.result.currentTurn === undefined,
-        httpRouteUsed: true,
+        remoteRouteUsed: true,
         captainSessionId: "convivium-smoke-captain",
         webUrl: baseUrl
     });

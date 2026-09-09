@@ -1,5 +1,5 @@
 import { prepareRoleSmoke } from "./scenarios/role-composition.js";
-import { createProbeSupport, validateColdCheckpoint } from "./support.js";
+import { createProbeSupport, createRemoteProbe, validateColdCheckpoint } from "./support.js";
 import { runRiskReopenScenario } from "./scenarios/risk-reopen.js";
 import { runMailRaceScenario } from "./scenarios/mail.js";
 import { runCrossMeetingScenario } from "./scenarios/isolation.js";
@@ -24,22 +24,15 @@ export const inject = [
     "subagents",
     "tools",
     "webServer",
+    "connection",
     "workspaceRegistry"
 ];
 
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
 const browserMode = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 const scenario = process.env.CONVIVIUM_SMOKE_SCENARIO || "baseline";
-const {
-    assert,
-    callTool,
-    callHttp,
-    createInput,
-    writeResult,
-    observedMessages,
-    messageText,
-    messageTexts
-} = createProbeSupport(outputPath);
+const { assert, callTool, createInput, writeResult, observedMessages, messageText, messageTexts } =
+    createProbeSupport(outputPath);
 const participants = ["participant-a", "participant-c", "participant-b"];
 let captain;
 let meetingId;
@@ -401,7 +394,7 @@ async function run(ctx) {
             },
             assert,
             callTool,
-            callHttp,
+            createRemoteProbe,
             createInput,
             writeResult,
             waitForAgent,

@@ -10,29 +10,14 @@ import {
     type ReactElement
 } from "react";
 import {
-    CaptainDecisionAcceptanceResultSchema,
-    CaptainDecisionDispositionResultSchema,
-    CaptainRiskDispositionResultSchema,
-    EndMeetingResultSchema,
-    LocalMeetingListResponseConsumerSchema,
-    MeetingControlResultSchema,
-    MeetingStatusResultSchema,
-    ReassignTurnResultSchema,
-    validateProtocolError,
-    validateProtocolSuccessEnvelope,
     type LocalMeetingListItemV1,
-    type LocalMeetingListResponseV1,
-    type EndMeetingResultV1,
-    type MeetingControlResultV1,
     type MeetingStatusResultV1,
-    type ProtocolErrorV1,
-    type ProtocolSuccessV1,
-    type ReassignTurnResultV1
+    type ProtocolErrorV1
 } from "@/protocol/index.js";
+import { ProtocolFailure, type MeetingClient } from "./meeting-client.js";
 import { renderObservabilitySections } from "./meeting-panel-sections.js";
 import { Button, Input } from "@deepseek-ai/dsh-client-ui-primitives";
 
-const meetingsPath = "/api/convivium/meetings";
 const END_OUTCOMES = [
     { value: "partial", label: "Partial" },
     { value: "no_consensus", label: "No consensus" },
@@ -40,11 +25,6 @@ const END_OUTCOMES = [
 ] as const;
 type EndOutcome = (typeof END_OUTCOMES)[number]["value"];
 
-class ProtocolFailure extends Error {
-    constructor(readonly protocolError: ProtocolErrorV1) {
-        super(protocolError.message);
-    }
-}
 type FactControlAction =
     "accept-decision" | "supersede-decision" | "revoke-decision" | "accept-risk" | "reject-risk";
 interface FactControlDraft {
@@ -55,67 +35,11 @@ interface FactControlDraft {
     replacementCandidateId?: string;
 }
 
-function meetingPath(meetingId: string): string {
-    return `${meetingsPath}/${encodeURIComponent(meetingId)}`;
-}
-
-async function responseJson(response: Response): Promise<unknown> {
-    return response.json() as Promise<unknown>;
-}
-
-function protocolFailure(value: unknown): ProtocolFailure {
-    const validated = validateProtocolError(value);
-    const error = validated as ProtocolErrorV1;
-    return new ProtocolFailure(error);
-}
-
-async function readList(response: Response): Promise<LocalMeetingListResponseV1> {
-    const value = await responseJson(response);
-    if (!response.ok) throw protocolFailure(value);
-    return LocalMeetingListResponseConsumerSchema(value) as LocalMeetingListResponseV1;
-}
-
-async function readStatus(response: Response): Promise<ProtocolSuccessV1<MeetingStatusResultV1>> {
-    const value = await responseJson(response);
-    if (!response.ok) throw protocolFailure(value);
-    return validateProtocolSuccessEnvelope(
-        MeetingStatusResultSchema,
-        value
-    ) as unknown as ProtocolSuccessV1<MeetingStatusResultV1>;
-}
-
-async function readControl(response: Response): Promise<ProtocolSuccessV1<MeetingControlResultV1>> {
-    const value = await responseJson(response);
-    if (!response.ok) throw protocolFailure(value);
-    return validateProtocolSuccessEnvelope(
-        MeetingControlResultSchema,
-        value
-    ) as ProtocolSuccessV1<MeetingControlResultV1>;
-}
-
-async function readReassign(response: Response): Promise<ProtocolSuccessV1<ReassignTurnResultV1>> {
-    const value = await responseJson(response);
-    if (!response.ok) throw protocolFailure(value);
-    return validateProtocolSuccessEnvelope(
-        ReassignTurnResultSchema,
-        value
-    ) as ProtocolSuccessV1<ReassignTurnResultV1>;
-}
-
-async function readEnd(response: Response): Promise<ProtocolSuccessV1<EndMeetingResultV1>> {
-    const value = await responseJson(response);
-    if (!response.ok) throw protocolFailure(value);
-    return validateProtocolSuccessEnvelope(
-        EndMeetingResultSchema,
-        value
-    ) as ProtocolSuccessV1<EndMeetingResultV1>;
-}
-
 function failureMessage(_error: unknown): string {
     return "Meeting data is unavailable.";
 }
 
-export function ConviviumMeetingPanel(): ReactElement {
+export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactElement {
     const [meetings, setMeetings] = useState<readonly LocalMeetingListItemV1[]>([]);
     const [selectedId, setSelectedId] = useState<string>();
     const [detail, setDetail] = useState<MeetingStatusResultV1>();
@@ -140,6 +64,17 @@ export function ConviviumMeetingPanel(): ReactElement {
     const listGeneration = useRef(0);
     const detailGeneration = useRef(0);
     const writeGeneration = useRef(0);
+    const refreshReading = useRef(false);
+    const refreshDirty = useRef(false);
+    const refreshEpoch = useRef(0);
+    const streamReady = useRef(false);
+    const invalidateReads = useCallback(() => {
+        refreshEpoch.current += 1;
+        listGeneration.current += 1;
+        detailGeneration.current += 1;
+        listController.current?.abort();
+        detailController.current?.abort();
+    }, []);
 
     const clearSelection = useCallback(() => {
         detailController.current?.abort();
@@ -161,18 +96,16 @@ export function ConviviumMeetingPanel(): ReactElement {
         setWritePending(false);
     }, []);
 
-    const loadList = useCallback(async () => {
+    const loadList = useCallback(async (): Promise<boolean> => {
         listController.current?.abort();
         const controller = new AbortController();
         listController.current = controller;
         const generation = ++listGeneration.current;
         try {
-            const response = await fetch(meetingsPath, { signal: controller.signal });
-            const validated = await readList(response);
-            if (!mounted.current || generation !== listGeneration.current) return;
+            const validated = await api.list(controller.signal);
+            if (!mounted.current || generation !== listGeneration.current) return false;
             const nextMeetings = validated.result.meetings;
             setMeetings(nextMeetings);
-            setListCached(false);
             setListError(undefined);
             const currentId = selectedIdRef.current;
             if (
@@ -181,54 +114,85 @@ export function ConviviumMeetingPanel(): ReactElement {
             ) {
                 clearSelection();
             }
-        } catch (error) {
-            if (controller.signal.aborted || generation !== listGeneration.current) return;
-            setListCached(true);
-            setListError(failureMessage(error));
-        }
-    }, [clearSelection]);
-
-    const loadDetail = useCallback(async (meetingId: string): Promise<boolean> => {
-        detailController.current?.abort();
-        const controller = new AbortController();
-        detailController.current = controller;
-        const generation = ++detailGeneration.current;
-        try {
-            const response = await fetch(meetingPath(meetingId), { signal: controller.signal });
-            const validated = await readStatus(response);
-            if (
-                !mounted.current ||
-                generation !== detailGeneration.current ||
-                selectedIdRef.current !== meetingId
-            ) {
-                return false;
-            }
-            setDetail(validated.result);
-            setDetailCached(false);
-            setDetailError(undefined);
             return true;
         } catch (error) {
-            if (
-                controller.signal.aborted ||
-                generation !== detailGeneration.current ||
-                selectedIdRef.current !== meetingId
-            ) {
-                return false;
-            }
-            setDetailCached(true);
-            setDetailError(failureMessage(error));
+            if (controller.signal.aborted || generation !== listGeneration.current) return false;
+            setListCached(true);
+            setListError(failureMessage(error));
             return false;
         }
-    }, []);
+    }, [api, clearSelection]);
 
-    const refreshSelectedMeeting = useCallback(
-        async (meetingId: string) => Promise.all([loadList(), loadDetail(meetingId)]),
-        [loadDetail, loadList]
+    const loadDetail = useCallback(
+        async (meetingId: string): Promise<boolean> => {
+            detailController.current?.abort();
+            const controller = new AbortController();
+            detailController.current = controller;
+            const generation = ++detailGeneration.current;
+            try {
+                const validated = await api.getStatus(
+                    { protocolVersion: 1, meetingId },
+                    controller.signal
+                );
+                if (
+                    !mounted.current ||
+                    generation !== detailGeneration.current ||
+                    selectedIdRef.current !== meetingId
+                ) {
+                    return false;
+                }
+                setDetail(validated.result);
+                setDetailError(undefined);
+                return true;
+            } catch (error) {
+                if (
+                    controller.signal.aborted ||
+                    generation !== detailGeneration.current ||
+                    selectedIdRef.current !== meetingId
+                ) {
+                    return false;
+                }
+                setDetailCached(true);
+                setDetailError(failureMessage(error));
+                return false;
+            }
+        },
+        [api]
     );
+
+    const requestRefresh = useCallback(() => {
+        refreshDirty.current = true;
+        if (refreshReading.current || writePendingRef.current || !mounted.current) return;
+        refreshReading.current = true;
+        void (async () => {
+            try {
+                while (refreshDirty.current && !writePendingRef.current && mounted.current) {
+                    refreshDirty.current = false;
+                    const epoch = refreshEpoch.current;
+                    const meetingId = selectedIdRef.current;
+                    const [listOk, detailOk] = await Promise.all([
+                        loadList(),
+                        meetingId === undefined ? Promise.resolve(true) : loadDetail(meetingId)
+                    ]);
+                    if (
+                        mounted.current &&
+                        epoch === refreshEpoch.current &&
+                        streamReady.current &&
+                        meetingId === selectedIdRef.current
+                    ) {
+                        setListCached(!listOk);
+                        setDetailCached(!detailOk || !listOk);
+                    }
+                }
+            } finally {
+                refreshReading.current = false;
+            }
+        })();
+    }, [loadList, loadDetail]);
 
     const selectMeeting = useCallback(
         (meetingId: string) => {
-            detailController.current?.abort();
+            invalidateReads();
             writeController.current?.abort();
             detailGeneration.current += 1;
             writeGeneration.current += 1;
@@ -236,7 +200,7 @@ export function ConviviumMeetingPanel(): ReactElement {
             writePendingRef.current = false;
             setSelectedId(meetingId);
             setDetail(undefined);
-            setDetailCached(false);
+            setDetailCached(true);
             setDetailError(undefined);
             setPauseReason("");
             setSkipReason("");
@@ -245,9 +209,9 @@ export function ConviviumMeetingPanel(): ReactElement {
             setDraft(undefined);
             setFactError(undefined);
             setWritePending(false);
-            void loadDetail(meetingId);
+            requestRefresh();
         },
-        [loadDetail]
+        [invalidateReads, requestRefresh]
     );
 
     const controlMeeting = useCallback(
@@ -256,6 +220,7 @@ export function ConviviumMeetingPanel(): ReactElement {
             if (
                 meetingId === undefined ||
                 detail === undefined ||
+                listCached ||
                 detailCached ||
                 writePendingRef.current
             ) {
@@ -265,57 +230,63 @@ export function ConviviumMeetingPanel(): ReactElement {
             writeController.current = controller;
             const generation = ++writeGeneration.current;
             writePendingRef.current = true;
+            invalidateReads();
+            setDetailCached(true);
             setWritePending(true);
             setDetailError(undefined);
-            const body =
-                action === "pause"
-                    ? {
-                          protocolVersion: 1,
-                          meetingId,
-                          expectedMeetingVersion: detail.meetingVersion,
-                          requestId: crypto.randomUUID(),
-                          reason: pauseReason
-                      }
-                    : action === "resume"
-                      ? {
-                            protocolVersion: 1,
-                            meetingId,
-                            expectedMeetingVersion: detail.meetingVersion,
-                            requestId: crypto.randomUUID()
-                        }
-                      : action === "reassign"
-                        ? {
-                              protocolVersion: 1,
-                              meetingId,
-                              expectedMeetingVersion: detail.meetingVersion,
-                              currentAttemptId: detail.currentAttemptId!,
-                              action: "skip" as const,
-                              reason: skipReason,
-                              requestId: crypto.randomUUID()
-                          }
-                        : {
-                              protocolVersion: 1,
-                              meetingId,
-                              expectedMeetingVersion: detail.meetingVersion,
-                              outcome: endOutcome,
-                              reason: endReason,
-                              acceptedDecisionIds: [],
-                              deferredAgendaItemIds: [],
-                              waivers: [],
-                              requestId: crypto.randomUUID()
-                          };
             let shouldRefetch = false;
             try {
-                const response = await fetch(`${meetingPath(meetingId)}/${action}`, {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify(body),
-                    signal: controller.signal
-                });
                 try {
-                    if (action === "pause" || action === "resume") await readControl(response);
-                    else if (action === "reassign") await readReassign(response);
-                    else await readEnd(response);
+                    if (action === "pause") {
+                        await api.pause(
+                            {
+                                protocolVersion: 1,
+                                meetingId,
+                                expectedMeetingVersion: detail.meetingVersion,
+                                requestId: crypto.randomUUID(),
+                                reason: pauseReason
+                            },
+                            controller.signal
+                        );
+                    } else if (action === "resume") {
+                        await api.resume(
+                            {
+                                protocolVersion: 1,
+                                meetingId,
+                                expectedMeetingVersion: detail.meetingVersion,
+                                requestId: crypto.randomUUID()
+                            },
+                            controller.signal
+                        );
+                    } else if (action === "reassign") {
+                        await api.reassign(
+                            {
+                                protocolVersion: 1,
+                                meetingId,
+                                expectedMeetingVersion: detail.meetingVersion,
+                                currentAttemptId: detail.currentAttemptId!,
+                                action: "skip",
+                                reason: skipReason,
+                                requestId: crypto.randomUUID()
+                            },
+                            controller.signal
+                        );
+                    } else {
+                        await api.end(
+                            {
+                                protocolVersion: 1,
+                                meetingId,
+                                expectedMeetingVersion: detail.meetingVersion,
+                                outcome: endOutcome,
+                                reason: endReason,
+                                acceptedDecisionIds: [],
+                                deferredAgendaItemIds: [],
+                                waivers: [],
+                                requestId: crypto.randomUUID()
+                            },
+                            controller.signal
+                        );
+                    }
                     shouldRefetch = true;
                 } catch (error) {
                     if (error instanceof ProtocolFailure) {
@@ -325,9 +296,6 @@ export function ConviviumMeetingPanel(): ReactElement {
                     } else {
                         throw error;
                     }
-                }
-                if (generation === writeGeneration.current && selectedIdRef.current === meetingId) {
-                    await refreshSelectedMeeting(meetingId);
                 }
             } catch (error) {
                 if (
@@ -347,23 +315,26 @@ export function ConviviumMeetingPanel(): ReactElement {
                     writePendingRef.current = false;
                     setWritePending(false);
                     if (!shouldRefetch) setDetailCached(true);
+                    if (shouldRefetch || refreshDirty.current) requestRefresh();
                 }
             }
         },
         [
+            api,
             detail,
             detailCached,
+            listCached,
             endOutcome,
             endReason,
             pauseReason,
-            refreshSelectedMeeting,
+            requestRefresh,
+            invalidateReads,
             skipReason
         ]
     );
 
     useEffect(() => {
         mounted.current = true;
-        void loadList();
         return () => {
             mounted.current = false;
             listController.current?.abort();
@@ -373,27 +344,88 @@ export function ConviviumMeetingPanel(): ReactElement {
             detailGeneration.current += 1;
             writeGeneration.current += 1;
         };
-    }, [loadList]);
+    }, [requestRefresh]);
 
     useEffect(() => {
-        const onFocus = () => {
-            const meetingId = selectedIdRef.current;
-            if (meetingId === undefined) void loadList();
-            else if (!writePendingRef.current) void refreshSelectedMeeting(meetingId);
+        let stopped = false;
+        let desired = 0;
+        let restarting = false;
+        let active: ReturnType<MeetingClient["openUpdates"]> | undefined;
+        let removeAbortListener = () => {};
+        const invalidate = () => {
+            if (stopped) return;
+            streamReady.current = false;
+            invalidateReads();
+            setListCached(true);
+            setDetailCached(true);
         };
-        window.addEventListener("focus", onFocus);
-        return () => window.removeEventListener("focus", onFocus);
-    }, [loadList, refreshSelectedMeeting]);
-
-    useEffect(() => {
-        if (selectedId === undefined) return;
-        const timer = window.setInterval(() => {
-            if (!writePendingRef.current && selectedIdRef.current !== undefined) {
-                void refreshSelectedMeeting(selectedIdRef.current);
+        const consume = async (stream: ReturnType<MeetingClient["openUpdates"]>, epoch: number) => {
+            let generation: number | undefined;
+            try {
+                for await (const item of stream) {
+                    if (stopped || epoch !== desired) break;
+                    if (item.value?.kind !== "refresh" || Object.keys(item.value).length !== 1)
+                        throw new Error("Invalid meeting refresh notice.");
+                    if (generation !== item.generation) {
+                        removeAbortListener();
+                        invalidate();
+                        generation = item.generation;
+                        item.signal.addEventListener("abort", invalidate, { once: true });
+                        removeAbortListener = () =>
+                            item.signal.removeEventListener("abort", invalidate);
+                        if (item.signal.aborted) continue;
+                        streamReady.current = true;
+                    }
+                    item.accept();
+                    requestRefresh();
+                }
+            } catch {
+                if (!stopped && epoch === desired) invalidate();
+            } finally {
+                if (!stopped && epoch === desired) {
+                    invalidate();
+                    await stream.dispose();
+                }
             }
-        }, 5_000);
-        return () => window.clearInterval(timer);
-    }, [refreshSelectedMeeting, selectedId]);
+        };
+        const restart = () => {
+            desired += 1;
+            invalidate();
+            if (restarting) return;
+            restarting = true;
+            void (async () => {
+                try {
+                    let epoch: number;
+                    do {
+                        epoch = desired;
+                        removeAbortListener();
+                        await active?.dispose();
+                        active = undefined;
+                        if (stopped) return;
+                    } while (epoch !== desired);
+                    const stream = api.openUpdates(() => {
+                        if (!stopped && desired === epoch) invalidate();
+                    });
+                    active = stream;
+                    void consume(stream, epoch);
+                } catch {
+                    invalidate();
+                } finally {
+                    restarting = false;
+                }
+            })();
+        };
+        restart();
+        window.addEventListener("focus", restart);
+        return () => {
+            stopped = true;
+            desired += 1;
+            streamReady.current = false;
+            removeAbortListener();
+            window.removeEventListener("focus", restart);
+            void active?.dispose();
+        };
+    }, [api, invalidateReads, requestRefresh]);
 
     const discussion = detail && "pendingDecisionCandidates" in detail ? detail : undefined;
     const factWritable =
@@ -508,64 +540,59 @@ export function ConviviumMeetingPanel(): ReactElement {
             generation === writeGeneration.current &&
             selectedIdRef.current === meetingId;
         writePendingRef.current = true;
+        invalidateReads();
+        setDetailCached(true);
         setWritePending(true);
         setFactError(undefined);
         const base = {
-            protocolVersion: 1,
+            protocolVersion: 1 as const,
             meetingId,
             expectedMeetingVersion: detail.meetingVersion,
             requestId: crypto.randomUUID(),
             reason: draft.reason,
             evidenceMessageIds: draft.evidenceMessageIds
         };
-        const suffix =
-            draft.action === "accept-decision"
-                ? "accept-decision"
-                : draft.action === "supersede-decision" || draft.action === "revoke-decision"
-                  ? "dispose-decision"
-                  : "dispose-risk";
-        const body =
-            draft.action === "accept-decision"
-                ? { ...base, decisionCandidateId: draft.targetId }
-                : draft.action === "supersede-decision"
-                  ? {
+        try {
+            if (draft.action === "accept-decision") {
+                await api.acceptDecision(
+                    { ...base, decisionCandidateId: draft.targetId },
+                    controller.signal
+                );
+            } else if (
+                draft.action === "supersede-decision" ||
+                draft.action === "revoke-decision"
+            ) {
+                await api.disposeDecision(
+                    {
                         ...base,
                         decisionId: draft.targetId,
-                        action: "supersede",
-                        replacementCandidateId: draft.replacementCandidateId
-                    }
-                  : draft.action === "revoke-decision"
-                    ? { ...base, decisionId: draft.targetId, action: "revoke" }
-                    : {
-                          ...base,
-                          issueId: draft.targetId,
-                          decision: draft.action === "accept-risk" ? "accept" : "reject"
-                      };
-        try {
-            const response = await fetch(`${meetingPath(meetingId)}/${suffix}`, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify(body),
-                signal: controller.signal
-            });
-            if (!current()) return;
-            const value = await responseJson(response);
-            if (!current()) return;
-            if (!response.ok) throw protocolFailure(value);
-            if (suffix === "accept-decision")
-                validateProtocolSuccessEnvelope(CaptainDecisionAcceptanceResultSchema, value);
-            else if (suffix === "dispose-decision")
-                validateProtocolSuccessEnvelope(CaptainDecisionDispositionResultSchema, value);
-            else validateProtocolSuccessEnvelope(CaptainRiskDispositionResultSchema, value);
+                        action: draft.action === "supersede-decision" ? "supersede" : "revoke",
+                        ...(draft.action === "supersede-decision"
+                            ? { replacementCandidateId: draft.replacementCandidateId }
+                            : {})
+                    },
+                    controller.signal
+                );
+            } else {
+                await api.disposeRisk(
+                    {
+                        ...base,
+                        issueId: draft.targetId,
+                        decision: draft.action === "accept-risk" ? "accept" : "reject"
+                    },
+                    controller.signal
+                );
+            }
+            if (!current() || controller.signal.aborted) return;
             setDraft(undefined);
             setFactError(undefined);
-            await refreshSelectedMeeting(meetingId);
+            refreshDirty.current = true;
         } catch (error) {
             if (!current() || controller.signal.aborted) return;
             setDraft(undefined);
             if (error instanceof ProtocolFailure) {
                 setFactError(error.protocolError);
-                await refreshSelectedMeeting(meetingId);
+                refreshDirty.current = true;
             } else {
                 setDetailCached(true);
                 setDetailError(failureMessage(error));
@@ -574,6 +601,7 @@ export function ConviviumMeetingPanel(): ReactElement {
             if (current()) {
                 writePendingRef.current = false;
                 setWritePending(false);
+                if (refreshDirty.current) requestRefresh();
             }
         }
     }
@@ -744,7 +772,7 @@ export function ConviviumMeetingPanel(): ReactElement {
                 variant: "outline",
                 size: "sm",
                 "aria-label": "Reload meetings",
-                onClick: () => void loadList()
+                onClick: requestRefresh
             },
             "Reload"
         ),

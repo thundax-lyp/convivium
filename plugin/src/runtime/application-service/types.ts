@@ -52,6 +52,7 @@ import type {
     CaptainAgendaCandidateDispositionInputV1,
     CaptainAgendaCandidateDispositionResultV1
 } from "@/protocol/index.js";
+import type { MeetingRefreshNoticeV1 } from "@/protocol/index.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { MeetingRepositoryRuntime } from "@/runtime/meeting-runtime.js";
 
@@ -204,6 +205,7 @@ export interface CreateStatusRuntimeOptions {
 }
 
 export interface LocalMeetingWebRuntime {
+    watchLocalMeetingUpdates(signal: AbortSignal): AsyncIterable<MeetingRefreshNoticeV1>;
     acceptLocalDecision(
         input: CaptainDecisionAcceptanceInputV1
     ): Promise<ProtocolSuccessV1<CaptainDecisionAcceptanceResultV1> | ProtocolErrorV1>;

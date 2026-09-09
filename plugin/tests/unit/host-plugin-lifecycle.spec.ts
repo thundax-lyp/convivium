@@ -117,8 +117,10 @@ describe("Convivium local Meeting route lifecycle", () => {
                 })
             },
             webServer: host === undefined ? undefined : { host, register },
+            typertGateway: {},
+            typert: {},
             inject(keys: string[], callback: (context: unknown) => void) {
-                expect(keys).toEqual(["webServer"]);
+                expect(keys).toEqual(["webServer", "typertGateway", "typert"]);
                 if (ctx.webServer !== undefined) callback(ctx);
             },
             async plugin(
@@ -126,6 +128,7 @@ describe("Convivium local Meeting route lifecycle", () => {
                 value: unknown
             ) {
                 childOrder.push(plugin.name ?? "anonymous");
+                if (plugin.name === "ConviviumRemoteService") return;
                 if (plugin.name === "convivium-meeting-consumer") {
                     expect(plugin).toMatchObject({
                         inject: [
@@ -158,18 +161,16 @@ describe("Convivium local Meeting route lifecycle", () => {
         };
     }
 
-    it("registers and disposes exactly one prefix on loopback", async () => {
+    it("registers exactly one Remote Service on loopback", async () => {
         const fixture = await host("127.0.0.1");
-        expect(fixture.childOrder).toEqual(["convivium-meeting-consumer"]);
-        expect(fixture.register).toHaveBeenCalledTimes(1);
-        expect(fixture.register.mock.calls[0]?.[0]).toMatchObject({
-            kind: "prefix",
-            path: "/api/convivium/meetings"
-        });
-        expect(fixture.effects).toHaveLength(22);
-        expect(fixture.register).toHaveBeenCalledTimes(1);
+        expect(fixture.childOrder).toEqual([
+            "convivium-meeting-consumer",
+            "ConviviumRemoteService"
+        ]);
+        expect(fixture.register).not.toHaveBeenCalled();
+        expect(fixture.effects).toHaveLength(21);
         await fixture.dispose();
-        expect(fixture.routeDispose).toHaveBeenCalledTimes(1);
+        expect(fixture.routeDispose).not.toHaveBeenCalled();
         expect(fixture.toolDisposers).toHaveLength(20);
         expect(fixture.get).toHaveBeenCalledTimes(1);
         expect(fixture.get).toHaveBeenCalledWith("convivium.agentCatalog");
@@ -296,11 +297,8 @@ describe("Convivium Cordis service lifecycle", () => {
                         ctx.provide("webServer", { host: "127.0.0.1", register });
                     }
                 });
-                await vi.waitFor(() => expect(register).toHaveBeenCalledTimes(1));
+                expect(register).not.toHaveBeenCalled();
                 await web.dispose();
-                await vi.waitFor(() =>
-                    expect(register.mock.results[0].value).toHaveBeenCalledTimes(1)
-                );
                 expect(
                     root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
                 ).toBe(20);
@@ -310,14 +308,13 @@ describe("Convivium Cordis service lifecycle", () => {
                         ctx.provide("webServer", { host: "127.0.0.1", register });
                     }
                 });
-                await vi.waitFor(() => expect(register).toHaveBeenCalledTimes(2));
+                expect(register).not.toHaveBeenCalled();
                 await plugin.dispose();
                 await vi.waitFor(() =>
                     expect(
                         root.tools.schemas().filter((s) => s.name.startsWith("convivium_"))
                     ).toEqual([])
                 );
-                expect(register.mock.results[1].value).toHaveBeenCalledTimes(1);
                 root.emit("subagent/provider-added", spawnProvider);
                 expect(root.tools.schemas().filter((s) => s.name.startsWith("convivium_"))).toEqual(
                     []

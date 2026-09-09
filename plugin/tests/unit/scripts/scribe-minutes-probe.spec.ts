@@ -78,7 +78,7 @@ function fixture() {
             "minutes-context-visible",
             "minutes-invalid-atomic",
             "minutes-replay-stable",
-            "minutes-http-equal",
+            "minutes-remote-equal",
             "minutes-archive-equal",
             "minutes-sessions-drained"
         ],
@@ -221,13 +221,16 @@ function harness(browserMode = false, fault = "") {
             }
             throw new Error("Unexpected tool " + name);
         }),
-        callHttp: vi.fn(async (url) => {
-            log.push("http");
-            expect(url).toBe("http://127.0.0.1:1234/api/convivium/meetings/meeting-1");
-            const value = structuredClone(o.status);
-            if (fault === "http") Reflect.set(value.result as object, "messages", []);
-            return value;
-        }),
+        createRemoteProbe: vi.fn(async () => ({
+            callRemote: vi.fn(async (method, input) => {
+                log.push("http");
+                expect(method).toBe("getStatus");
+                expect(input).toEqual({ protocolVersion: 1, meetingId: "meeting-1" });
+                const value = structuredClone(o.status);
+                if (fault === "http") Reflect.set(value.result as object, "messages", []);
+                return value;
+            })
+        })),
         ctx: {
             webServer: { port: 1234 },
             sessions: { flush: vi.fn() },

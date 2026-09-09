@@ -1,8 +1,12 @@
 # Current Implementation Coverage
 
+## Meeting Remote Migration Boundary
+
+2026-09-09：九个操作已迁移到正式 DSH Remote，插件自有 refresh stream 和完整 refetch 已替换五秒轮询，旧自有 HTTP 路由已删除。合入 main 后 `539d632` 的 verify（81 文件、1128 用例）与 baseline、scribe-minutes 真实 profile 均通过，restore=PASS；命令、marker 和边界见 [Implementation Results](./MEETING-REMOTE-FEASIBILITY-EVIDENCE.md#implementation-results)。真实 WebSocket 断开/重开及补读已覆盖；真实浏览器内自动重连端到端仍为 Not Covered。下方历史 HTTP 证据仅代表其当时基线。
+
 ## Scope
 
-- 更新日期：2026-09-09。本次只整理 readiness，没有重新执行产品测试或运行验收。
+- 更新日期：2026-09-09。本次执行迁移后完整 verify 和两个真实 Remote profile，具体边界见上节。
 - 本文维护当前需求覆盖、自动化证据索引和剩余缺口。真实 Host、Browser、失败轮及 Restore 结果统一由 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md) 保存。
 - 产品验证有多个源码基线，见 [Executed Validation](#executed-validation)；不得将某次历史结果套用到当前所有能力。最近角色部署证据为 `b3f02c2`，SQLite 替换工程证据为 `61f7de2`；两者保留各自范围。
 - `已实现` 表示正式运行路径及相称证据存在，不表示所有运行组合已验证；`部分实现` 表示仍有必需路径缺失。设计不是实现完成证明。
@@ -89,8 +93,8 @@ Convivium 仅消费 Storage Domain，物理介质由 Host/profile 的官方 SQLi
 | --- | --- |
 | 权限、领域与审计 | decision-acceptance、decision-disposition、completion suites：Captain capability 与后端绑定 local authority、非法对象/证据/终态拒绝、替换双事实、撤销历史、risk 重开；满足完成判断时同事务 converging，版本只增一次，不自动 end/archive |
 | 原子性与重放 | `contract/meeting-runtime.spec.ts`、`contract/domain-meeting-repository.spec.ts`、`recovery/domain-recovery.spec.ts`：逐动作 commit 失败无半提交、重试一次、混入外部证据整体拒绝、来源 receipt 隔离及终态重放 |
-| HTTP、持久恢复与归档 | http-boundary、protocol-schema、runtime 与 archive suites：类型化 POST 执行五动作，GET 经正式 Schema 校验；fake Domain 上重建 Runtime 保持 projection/receipt，Repository 冷重开保留两 Decision history、六条 local facts，拒绝伪造来源和证据；不证明真实 Host 冷重启 |
-| Client 与 Browser 夹具 | Client suites 覆盖五动作表单、写锁、证据预选、409、完整刷新、迟到响应及终态禁写；smoke-profile suite 验证两候选与 blocking risk 的暂停/ready 边界。DOM 与 fake runtime 不替代实际页面验收 |
+| Remote、持久恢复与归档 | remote-boundary、protocol-schema、runtime 与 archive suites：Remote 执行五动作，读取经正式 Schema 校验；fake Domain 上重建 Runtime 保持 projection/receipt，Repository 冷重开保留两 Decision history、六条 local facts，拒绝伪造来源和证据；不证明真实 Host 冷重启 |
+| Client 与 Browser 夹具 | Client suites 覆盖五动作表单、写锁、证据预选、版本冲突、完整刷新、迟到响应及终态禁写；smoke-profile suite 验证两候选与 blocking risk 的暂停/ready 边界。DOM 与 fake runtime 不替代实际页面验收 |
 
 历史页面验证见 [Local Decision Risk Browser](./SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)；该页面证据不由本次文档整理更新。
 
@@ -98,8 +102,8 @@ Convivium 仅消费 Storage Domain，物理介质由 Host/profile 的官方 SQLi
 
 | 验证范围 | 自动化证据与边界 |
 | --- | --- |
-| 正式事实展示 | `src/client/meeting-panel-view.tsx`、`meeting-panel-sections.tsx` 及 Client suites：12 种 status 的非空 DTO 经 HTTP JSON/Schema/DOM 消费；Decision accepted/history、四类 Parking Lot 处置、risk/archive issues、公开 intent/reason/objective 与无 Turn 时旧值清除 |
-| 完整刷新与错误恢复 | Client suites 的 `refreshFactStatus`：focus/5000ms poll 对不同版本集合逐条替换、删除及卸载重开；分别缺少 decisionHistory、parkingLot、archive.package.issues 时保留缓存、禁写，合法刷新后恢复并清除 alert，输入 JSON 不变 |
+| 正式事实展示 | `src/client/meeting-panel-view.tsx`、`meeting-panel-sections.tsx` 及 Client suites：12 种 status 的非空 DTO 经 Remote/Schema/DOM 消费；Decision accepted/history、四类 Parking Lot 处置、risk/archive issues、公开 intent/reason/objective 与无 Turn 时旧值清除 |
+| 完整刷新与错误恢复 | Client suites 的 `refreshFactStatus`：stream/focus 完整刷新 对不同版本集合逐条替换、删除及卸载重开；分别缺少 decisionHistory、parkingLot、archive.package.issues 时保留缓存、禁写，合法刷新后恢复并清除 alert，输入 JSON 不变 |
 | 展示边界 | 文本 HTML 不创建 img、终态禁写；原事实展示增量不新增后端权限或命令。后来增加的 Decision/risk 五动作见上方独立验证索引，不沿用旧“区域无写控件”作为当前总体结论 |
 | UI controls | Button/Input 与 End outcome 单选组的真实包、键盘、缓存禁写、重复提交、Browser/Restore；见 [UI primitives migration](./SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration) |
 | Browser 清理 | `tests/unit/scripts/smoke-profile.spec.ts`：真实子进程 SIGINT 后清理期间再次收到 SIGTERM，仍输出 cleanup marker 并正常退出；不证明一般进程树或长期资源无泄漏 |
@@ -135,7 +139,7 @@ message-reference draft 正式语义见 [Referenced minutes draft](../20-interfa
 | Schema、上下文与引用 | protocol-schema、speaker-attempt/speaker-submission suites：连续 coverage、有序引用子集；非法结构、scope 洞、未来/self/跨会议/私聊引用、混合合法非法引用整体拒绝；仅允许 delivered context 内正式消息 |
 | 权限与原子提交 | tool-registration、meeting-runtime、domain-meeting-repository suites：caller/attempt/version/终态拒绝，message/event/receipt/outbox/version 无部分提交；冻结 tool arguments 在校验前复制，回归锁定嵌套 transform 不写回冻结输入 |
 | 幂等与持久恢复 | runtime/repository suites：原 receipt 重放、hash conflict、撤权拒绝、commit 失败后重试、tail/checkpoint reopen、旧消息 metadata absent 兼容；非法结构拒绝读取 |
-| 跨层可见性与归档 | status-projection、Client、domain/runtime archive suites：同一 committed message 经 status/context/HTTP/Client/archive 保留 metadata，刷新一致、无私有字段；按公开 own-property presence/值/数组顺序校验，归档篡改拒绝 |
+| 跨层可见性与归档 | status-projection、Client、domain/runtime archive suites：同一 committed message 经 status/context/Remote/Client/archive 保留 metadata，刷新一致、无私有字段；按公开 own-property presence/值/数组顺序校验，归档篡改拒绝 |
 | 非权威草稿与会议结束 | submission、archive、Client、continuation suites：草稿文字不创建 Decision/CompletionFact 或改变 objective/finalSummary，独立展示；Scribe 缺席/失败/替换不阻塞原 end/archive；续会不自动继承草稿或旧身份 |
 | FR-10 既有隐私与生命周期 | repository shared behavior、status、runtime/archive、continuation suites：私聊独立状态与持久处理上界、公开投影白名单、正式事实/终止快照、revoke→drain→close 后归档、失败重试、显式选材续会与身份隔离 |
 

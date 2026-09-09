@@ -9,7 +9,9 @@
         "outDir": "lib",
         "rootDir": "src",
         "paths": {
-            "@/*": ["./src/*"]
+            "@/*": ["./src/*"],
+            "@convivium/dsh-plugin/protocol-types": ["./src/protocol/types.ts"],
+            "@convivium/dsh-plugin/remote-types": ["./src/remote/types.ts"]
         },
         "types": ["node"],
         "strict": true,

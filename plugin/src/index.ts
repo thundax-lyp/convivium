@@ -1,14 +1,16 @@
 import { parseAgentDefinitions } from "./role-composition/model.js";
 import type { Context } from "@deepseek-ai/cordis";
+import type {} from "@deepseek-ai/dsh-host-webserver";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import type { WorkspaceId } from "@deepseek-ai/dsh-workspace";
 import { Config, type Config as ConfigType } from "./config.js";
 import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
-import { registerLocalMeetingHttpRoutes } from "./http/index.js";
+import { ConviviumRemoteService } from "./remote/index.js";
 import { createCreateStatusRuntime, AGENT_CATALOG_SERVICE_KEY } from "./runtime/index.js";
 import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "./tools/index.js";
 
 export { Config };
+export { ConviviumRemoteService };
 export type { Config as ConfigType } from "./config.js";
 
 export const name = "convivium";
@@ -103,12 +105,9 @@ const meetingConsumerPlugin = {
                       })
             });
             ctx.effect(() => () => runtime.dispose(), "convivium:runtime");
-            ctx.inject(["webServer"], (webContext) => {
+            ctx.inject(["webServer", "typertGateway", "typert"], (webContext) => {
                 if (webContext.webServer.host !== "127.0.0.1") return;
-                webContext.effect(
-                    () => registerLocalMeetingHttpRoutes(webContext.webServer, runtime),
-                    "convivium:local-routes"
-                );
+                webContext.plugin(ConviviumRemoteService, runtime);
             });
             const callers = {
                 async resolve(
