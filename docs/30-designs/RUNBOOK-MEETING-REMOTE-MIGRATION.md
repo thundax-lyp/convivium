@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Execute；M01—M05 已完成，执行者从 M06 继续。
+- 模式：Execute；M01—M06 已完成，执行者从 M07 继续。
 - 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M06—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M07—M13、M13a、M14—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,28 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M06：切换可选 Host 子作用域
-
-前置状态：M05 PASS。
-允许修改：`plugin/src/index.ts`；`plugin/tests/unit/host-plugin-lifecycle.spec.ts`；`plugin/scripts/verify-plugin-contract.mjs`。
-禁止修改：核心 inject、Runtime 创建/清理归属、旧 http 文件本体。
-
-执行：
-1. 根入口增加 `import type {} from "@deepseek-ai/dsh-host-webserver"` 以保留 Context.webServer 声明，新增 Service re-export，并把 registerLocalMeetingHttpRoutes import/调用替换为 ctx.inject(["webServer","typertGateway","typert"],...)；仅 host === "127.0.0.1" 时 ctx.plugin(ConviviumRemoteService,runtime)。不得自行再次 register generated TYPERT，真实 Loader 拥有元数据注册。
-2. expectedPublicExports 精确改为 ["Config","ConviviumRemoteService","apply","assertContinuableProvider","inject","name"]。
-3. 生命周期测试固定 6 组：loopback+依赖齐→1 Service；localhost/0.0.0.0→0；分别缺 Web/Gateway/Registry→0且 tools 保留；Web 子域 dispose→Service 结束但 Runtime 未 dispose；父 dispose→Runtime 1次；Web 重注入→只有1个 live Service。
-
-验证：
-```bash
-pnpm --dir plugin typecheck:host
-pnpm --dir plugin exec vitest run tests/unit/host-plugin-lifecycle.spec.ts tests/contract/remote-boundary.spec.ts
-pnpm --dir plugin build
-pnpm --dir plugin verify:contract
-```
-
-PASS：全部退出 0；旧 prefix 不再注册。
-STOP：缺 Web 导致 tools 不可用或重复 Runtime/Service；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
 
 ### M07：建立九方法 Client adapter
 
