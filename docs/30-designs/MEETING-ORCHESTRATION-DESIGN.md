@@ -547,7 +547,7 @@ MeetingHandRaise 的字段定义以 [DOMAIN-MODEL-DESIGN.md](./DOMAIN-MODEL-DESI
 - HandRaise 不修改当前 turn 的未执行 plan；普通 HandRaise 进入下一 turn。
 - Blocking HandRaise MAY 在当前 speaker 提交后截断 turn。
 - 非阻塞后台任务运行时，会议继续其他议题。
-- 强阻塞任务使 Meeting 进入 `waiting`；完成后通过 event/HandRaise 恢复。
+- 强阻塞任务使 Meeting 进入 `waiting`；task finish 的等待清除与后续规划条件见 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#required-speaker-unavailable)。
 
 Agent 内部工具、MCP、命令重试和私有工作流不计入 Meeting Runtime。Runtime 只观察 speaker attempt、Session、outbox、提交协议和 MeetingTask 的跨边界结果。
 
@@ -609,7 +609,7 @@ function dispatchableNow(state: MeetingState): MeetingParticipant[];
 
 同一 speaker 默认每 turn 只出现一次。Plan 长度不得超过 `maxSpeakersPerTurn`。
 
-Required speaker 不属于 `dispatchableNow` 时，同步与后台规划都必须以一个 Repository commit 进入 `waiting`，使用 `reason='required_participant_unavailable'`、去重并按 canonical ID 排序的 `participantIds`、`taskIds=[]`、Runtime `now` 的 `waitingSince`，以及存在时当前 active agenda 的 `resumeAgendaItemId`；不得返回裸 planning error，不得创建部分 Turn、Step 或 Attempt。相同 Meeting version 与相同排序 participant IDs 只提交一次，后续不得自动重试。只有既有 Captain/local resume command 在全部 required Participant dispatchable 时清除 wait 并重新规划；否则返回 `REQUIRED_SPEAKER_UNAVAILABLE` 且零副作用。自动替换、豁免和部分计划均禁止。
+Required speaker 不属于 `dispatchableNow` 时，同步与后台规划都必须以一个 Repository commit 进入 `waiting`，使用 `reason='required_participant_unavailable'`、去重并按 canonical ID 排序的 `participantIds`、`taskIds=[]`、Runtime `now` 的 `waitingSince`，以及存在时当前 active agenda 的 `resumeAgendaItemId`；不得返回裸 planning error，不得创建部分 Turn、Step 或 Attempt。相同 Meeting version 与相同排序 participant IDs 只提交一次，后续不得自动重试。Captain/local resume command 在全部 required Participant dispatchable 时清除 wait 并重新规划；否则返回 `REQUIRED_SPEAKER_UNAVAILABLE` 且零副作用。任务完成引起的恢复见 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#required-speaker-unavailable)。自动替换、豁免和部分计划均禁止。
 
 ### 12.3 Rule score
 
@@ -1141,7 +1141,7 @@ The planning path is deterministic unless the confirmed `hybrid` predicate is tr
 
 Manager unavailable before attempt creation uses the rule plan. Schema parse failure does not commit and is resolved only by the attempt deadline timeout fallback. A business-invalid submission commits failed attempt + `manager_plan.failed` + deterministic fallback Turn + receipt + Speaker outbox in one Repository commit and returns `fallbackApplied=true`. Timeout and delivery retry exhaustion use identity `manager-fallback:<attemptId>:<reasonCode>`, caller `runtime:<meetingId>`, and the B serializer over `{ attemptId, reasonCode, observedMeetingVersion }`. Same request replays; different content conflicts; stale attempts and terminal Meetings have zero side effects.
 
-Required-unavailable sync/background/overflow paths commit waiting with fixed `MeetingWaitState`; no bare planning error or partial plan is returned. Same Meeting version plus sorted participant IDs is deduped. Captain/local resume is the only recovery path and clears waiting only after every required Participant is dispatchable; otherwise it returns `REQUIRED_SPEAKER_UNAVAILABLE` without commit.
+Required-unavailable sync/background/overflow paths commit waiting with fixed `MeetingWaitState`; no bare planning error or partial plan is returned. Same Meeting version plus sorted participant IDs is deduped. 恢复入口与 MeetingTask finish 条件以 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#required-speaker-unavailable) 为准；Captain/local resume 在 required Participants 仍不可调度时返回 `REQUIRED_SPEAKER_UNAVAILABLE`，不提交。
 
 After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fingerprint defined by the Domain Model. First completion stores it with `stallCount=0`; a changed fingerprint resets `stallCount` and `replanCount`; unchanged progress increments stall and creates deterministic refocus on the first occurrence, then increments replan budget and replans on the second while budget remains. If `stallCount+1 >= maxStalls` or `replanCount >= maxReplans`, terminate. Reuse `meeting.replanned` and `meeting.ended`; blocking disagreement terminates as `no_consensus`, otherwise as `partial`/`stalled`. Active projection maps counters and `MeetingTurn.reason`; no second convergence state, event vocabulary, repository, mapper, adapter or scheduler exists.
 

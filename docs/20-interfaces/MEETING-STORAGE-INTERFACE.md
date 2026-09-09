@@ -141,6 +141,7 @@ convivium:meeting-participant:<teamId>:<meetingId>:<participantId>
 
 ```ts
 interface SessionOwnership {
+  agentDefinition?: AgentDefinitionBindingV1;
   sessionId: string;
   parentSessionId: string;
   sessionLabel: string;
@@ -155,6 +156,8 @@ interface SessionOwnership {
   updatedAt: number;
 }
 ```
+
+`SessionOwnershipInput` 同样接受 optional `agentDefinition`。其字段、缺省语义和不可变约束以 [Definition provenance](./MEETING-AGENT-DEFINITION-INTERFACE.md#runtime-provenance-and-recovery) 为准；Repository 不另建 Binding 结构，也不为旧记录回填。
 
 `parentSessionId` 是创建 meeting-owned Session 时使用的精确 DSH direct parent Session；当前会议树中必须等于创建会议的 Captain Session。`provider` 是首次创建时解析的 continuable subagent provider name。两者与 `sessionId`、`sessionLabel`、`role`、`participantId` 一样，首次写入后不可修改。
 
@@ -204,7 +207,7 @@ Convergence uses the existing `MeetingRepositoryPort.execute<T>(command: Reposit
 
 Manager fallback uses request identity `manager-fallback:<attemptId>:<reasonCode>`, caller binding `runtime:<meetingId>`, and `serializeValidatedRequestV1({ attemptId, reasonCode, observedMeetingVersion })` as the request hash. A business-invalid Manager submission atomically writes the failed planning attempt, `manager_plan.failed`, deterministic fallback Turn, receipt, and Speaker outbox. Timeout and delivery-retry exhaustion use the same command. A Manager-unavailable branch creates no planning attempt. Equal request identity/hash replays the receipt; unequal hash returns `IDEMPOTENCY_CONFLICT`; an old attempt or terminal Meeting is rejected without side effects.
 
-Required-unavailable planning atomically writes `status='waiting'` and `MeetingWaitState` with `reason='required_participant_unavailable'`, sorted canonical `participantIds`, `taskIds: []`, `waitingSince=Runtime now`, and optional current `resumeAgendaItemId`; it never writes a partial Turn. The same Meeting version and sorted participant IDs are committed once. The existing Captain/local resume command is the sole recovery entrypoint and creates a new plan only after all required Participants are dispatchable.
+Required-unavailable planning atomically writes `status='waiting'` and `MeetingWaitState` with `reason='required_participant_unavailable'`, sorted canonical `participantIds`, `taskIds: []`, `waitingSince=Runtime now`, and optional current `resumeAgendaItemId`; it never writes a partial Turn. The same Meeting version and sorted participant IDs are committed once. 恢复入口与任务完成触发条件以 [Protocol](./AGENT-MEETING-PROTOCOL-INTERFACE.md#required-speaker-unavailable) 为准；Captain/local resume 在 required Participants 仍不可调度时拒绝，符合条件的 MeetingTask finish 也可清除等待。
 
 The existing event vocabulary is reused: convergence writes `meeting.replanned` for replan and `meeting.ended` for stall/no-consensus termination. Event payloads include the committed `meetingId`, `meetingVersion`, `eventSeq`, `turnId` when present, and deterministic reason/termination code; no new convergence event family, repository, table, or outbox worker is introduced. Outbox external delivery remains post-commit; only the A-owned terminal-failure callback may issue the fallback command after durable failed completion.
 

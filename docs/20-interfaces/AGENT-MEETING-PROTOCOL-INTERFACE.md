@@ -1027,7 +1027,9 @@ HandRaise 是调度输入，不是正式发言，不得直接形成 transcript�
 
 ### Required speaker unavailable
 
-Required speaker 当前不可调度时，同步与后台规划必须提交 `waiting`，使用 `reason='required_participant_unavailable'`、排序后的去重 `participantIds`、`taskIds=[]`、Runtime `waitingSince` 和可选当前 active agenda `resumeAgendaItemId`，不得返回裸 planning error 或创建部分 Turn、Step、Attempt。相同 Meeting version 与排序 participant IDs 只提交一次。Captain/local resume 是唯一恢复入口；未全部 dispatchable 时返回 `REQUIRED_SPEAKER_UNAVAILABLE` 且零副作用，全部 dispatchable 时清除 wait 并重新规划。
+Required speaker 当前不可调度时，同步与后台规划必须提交 `waiting`，使用 `reason='required_participant_unavailable'`、排序后的去重 `participantIds`、`taskIds=[]`、Runtime `waitingSince` 和可选当前 active agenda `resumeAgendaItemId`，不得返回裸 planning error 或创建部分 Turn、Step、Attempt。相同 Meeting version 与排序 participant IDs 只提交一次。Captain/local resume 在 required Participants 未全部 dispatchable 时返回 `REQUIRED_SPEAKER_UNAVAILABLE` 且零副作用，全部 dispatchable 时清除 wait 并重新规划。
+
+MeetingTask finish 也可解除等待：当前 Meeting 为 waiting，且结束的 task 在 `waitState.taskIds` 中、所列任务均已 terminal 时，清除 wait；或者该 task 成功 completed、所属 Participant 在 `waitState.participantIds` 中且所列 Participant 全部 dispatchable 时，清除 wait。两条路径均转为 running 并清除 currentTurn。仅 completed 创建 task-linked HandRaise；其后满足无 currentTurn、无 current planning attempt 且存在 pending HandRaise 时进入规划，并重新检查 required blockers，仍有 blocker 则重新提交 waiting。失败任务解除 task 等待不等于自动创建新计划，paused Meeting 不被任务 finish 自动恢复。具体实现为 `plugin/src/runtime/application-service/meeting-task.ts`，这些已提交状态变化不属于无状态变化下的自动重试。
 
 ### Authorized status projection
 
@@ -1583,29 +1585,6 @@ Convivium 当前依赖固定为 DSH `0.1.2-rc.1`，并使用该版本的 `dsh-su
 7. Meeting Runtime 必须拒绝不支持的 `protocolVersion`，不得按相近版本猜测解释。
 8. `meetingContext` 是 Convivium mail 的 optional 字段；不含该字段的普通 TeamMember mail 使用普通身份解析、投递和处理行为。
 9. 不识别 meeting-scoped recipient 的实现必须明确拒绝，不能把 Participant ID 当成 TeamMember 名称进行投递。
-
-<!-- D6-D10 protocol details are integrated into the canonical declarations above. -->
-<!--
-
-```ts
-interface PublicMeetingWaitStateV1 {
-  reason: "blocking_task" | "required_participant_unavailable" | "captain_action";
-  waitingSince: number;
-  taskIds: readonly string[];
-  participantIds: readonly string[];
-  deadlineAt?: number;
-  resumeAgendaItemId?: string;
-}
-```
-
-`ActiveMeetingStatusResultV1` additionally requires `stallCount`, `maxStalls`, `replanCount`, and `maxReplans`; terminal, archiving, and archived result branches do not expose these active-only fields. `PublicTurnV1.reason` is required and is a deterministic display value; convergence actions are represented by `currentTurn.intent` and this reason, not by a second status.
-
-`ManagerPlanResultV1` is a union of the committed plan result and the waiting/fallback result. A fallback result has `fallbackApplied: true`, the committed `turnId`, `firstStepId`, and `firstAttemptId`; a waiting result has `waiting: true`, the committed `waitState`, and no partial Turn. Schema parse failure has no result and waits for the attempt deadline; a business-invalid submission returns the committed fallback result. `REQUIRED_SPEAKER_UNAVAILABLE`, `IDEMPOTENCY_CONFLICT`, `VERSION_CONFLICT`, stale-attempt and terminal errors retain the existing `ProtocolErrorV1` envelope and have zero side effects when rejected.
-
-The D8 fallback request identity is `manager-fallback:<attemptId>:<reasonCode>`, caller binding is `runtime:<meetingId>`, and its request hash is the B serializer output for the insertion-ordered object `{ attemptId, reasonCode, observedMeetingVersion }`. Equal identity and serialization replays the original receipt; equal identity with different serialization returns `IDEMPOTENCY_CONFLICT`. Required-unavailable wait uses sorted canonical participant IDs, `taskIds: []`, Runtime `now` for `waitingSince`, and the current active agenda as `resumeAgendaItemId` when present. Resume is the only recovery entrypoint and succeeds only when every required Participant is dispatchable.
-
-The active status projection's convergence fields are mapped from the committed MeetingState without a second mapper. D10 reuses `meeting.replanned` and `meeting.ended`; no convergence-specific event type is added. Termination payload IDs are derived from current MeetingState and ownership-validated before commit.
--->
 
 ## Related Documents
 

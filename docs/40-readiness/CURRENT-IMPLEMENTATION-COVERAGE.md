@@ -181,6 +181,8 @@ SQLite 构建仅有 Node SQLite experimental 与既有 Client bundle dependency 
 
 Document Review Skill 验证：在实际仓库枚举确认规则模式匹配 6 份文件、设计目录匹配 5 份文件、`Engineering Rules` 标题唯一命中；零匹配及 `**` 零层/多层语义检查 PASS。同名标题双候选、只读权限和 P0–P3 分级进行了静态场景走查：旧存储口径/冲突依据为 P2，漏检规则文件为 P3，不因关键词升级 P0/P1。以上为当前会话走查与临时匹配验证，不是独立模型的端到端调用测试，也不证明所有 Agent 都能正确执行。
 
+`f3f1e04` 后的文档审查修订：用户确认最低 DSH 为 `0.1.2-rc.1`、禁止 migration，其余冲突按当前代码核对。核对 `meeting-task.ts` 的 task/Participant 等待清除与重新规划分支、`meeting-control.ts` 的 resume blocker 拒绝、repository ownership 的 optional agentDefinition 和九角色探针入口；统一接口与设计，删除旧协议注释并归并操作说明。562 个链接/锚点及 `git diff --check` PASS；仅静态核对代码，未修改产品或重跑产品、Host、Browser、模型验证。
+
 ## Not Covered
 
 以下集中列出当前缺口；专项章节中的 fake/DOM/历史限定只解释证据的证明范围。

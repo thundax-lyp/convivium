@@ -329,7 +329,7 @@ ArchiveRecord 包含不可变 package 与可选 archivedAt；清理完成时间�
 - Domain model 是 Meeting projection 中 `MeetingState` 的 canonical shape；读取时必须进行结构校验。
 - Domain model 不等同于 Protocol projection、Repository record schema 或 DSH Session ownership。
 - Protocol、Repository、Archive 和 Runtime 必须提供显式字段映射。
-- 新增必填字段、枚举删除、结构变更和字段重命名必须有显式 migration。
+- 禁止 migration；新增必填字段、枚举删除、结构变更和字段重命名必须明确格式识别与拒绝边界。仅保留正式契约已明确的 legacy 窄读取，不补默认值、不转换版本、不回写旧数据。
 - Session ID、capability、outbox payload、私聊和内部运行数据不得进入 ArchivePackage。
 - ArchivePackage 可以保留 agentDefinitionId 作为非敏感 provenance，但不保存 persona 或 DSH capability 配置。
 
@@ -355,7 +355,7 @@ Rule planning derives recency from transcript and `turnSeq`; it never persists a
 
 The progress fingerprint is a fixed-key JSON tuple over agenda id/status/resolution; accepted decision id/proposalId/proposalRevision; open blocking questions; current-revision blocking positions; terminal task id/status/resultSummary; proposal id/revision/status; and active CompletionFact id/kind/subjectId/result/evidenceMessageIds/taskIds. Arrays are sorted by canonical ID. Text similarity, current time, Map/Set iteration and informal summaries are excluded. First completed Turn stores the fingerprint with `stallCount=0`; change resets stall and replan counters; unchanged progress creates refocus, then bounded replan, then termination. Blocking disagreement yields `status='no_consensus'` and `termination.code='no_consensus'`; otherwise stall yields `status='partial'` and `termination.code='stalled'`. Termination IDs are state-derived and ownership-validated.
 
-Initial convergence defaults are `stallCount=0`, `replanCount=0`, `managerPlanningSeq=0`; `maxStalls=3` and `maxReplans=1` are the existing confirmed defaults. Waiting clears on the sole Captain/local resume transition only when all required Participants are dispatchable. Terminal state rejects new planning, fallback, wait, or speaker facts.
+Initial convergence defaults are `stallCount=0`, `replanCount=0`, `managerPlanningSeq=0`; `maxStalls=3` and `maxReplans=1` are the existing confirmed defaults. 等待清除条件见 [Protocol Required speaker unavailable](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#required-speaker-unavailable)：Captain/local resume 与 MeetingTask finish 均有受控恢复路径，不能把所有等待限制为人工恢复。 Terminal state rejects new planning, fallback, wait, or speaker facts.
 
 ## State And Failure Handling
 

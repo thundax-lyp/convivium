@@ -426,7 +426,7 @@ Meeting consumer 只声明核心 Agent、Session、Subagent、SystemPrompt、Too
 | Delivery succeeded but completion write failed | 使用稳定 delivery ID 重投/查询；提交端幂等 receipt 防止重复 message   |
 | Late speaker or manager result                 | 当前 capability 校验失败，记录 rejected observation，不修改正式事实   |
 | Markdown generation failed                     | 记录日志并继续；不影响正式状态                                        |
-| Required speaker not dispatchable              | 返回 Interface 定义的结构化错误，不自动换人                           |
+| Required speaker not dispatchable              | 规划时提交 waiting，不产生部分计划；resume 仍有 blocker 才返回结构化错误；恢复条件见 Protocol Required speaker unavailable                           |
 | Process crash                                  | 回滚未提交事务；恢复过期 lease、未完成 outbox 和非终态 Meeting        |
 
 恢复只通过 catalog discovery 打开已登记的 Meeting domains，不扫描 data root 或 backend 物理路径。单个 Meeting 损坏不得阻止其他 Meeting 的 Agent best-effort 恢复；需要完整一致结果的本地 list 按 Interface 整体失败。全局配置或 DSH capability 缺失则阻止插件加载。
