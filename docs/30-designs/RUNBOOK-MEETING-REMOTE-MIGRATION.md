@@ -3,14 +3,14 @@
 ## Status And Work Boundary
 
 - 建立日期：2026-09-09。
-- 模式：Execute；执行者从 M15 继续；前序修复证据见提交历史。
+- 模式：Execute；执行者从 M16 继续；前序修复证据见提交历史。
 - 审计状态：Executable；环境与迁移前 baseline 已完成，不重复确认。
 - 分支：`codex/dsh-frontend-backend-communication`，代码调查基线 `e640f43`。工作目录固定为仓库根目录。
 - 授权范围：九个接口一次切换 Remote，同时用插件自有 stream 通知 + 完整 refetch 替换 5 秒轮询。依赖正式 npm 包，保持一个独立 plugin 工程。
 
 ## Executor Contract
 
-完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。依次执行 M15—M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
+完整读取本文、[RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md)、[Architecture](../00-governance/ARCHITECTURE.md)、[Engineering Rules](../00-governance/ENGINEERING-RULES.md) 和 [Document Rules](../00-governance/DOCUMENT-RULES.md)。执行 M16，仅修改各步骤清单中的文件；新增文件明确标记“新”。每一步 PASS 才进入下一步。保留用户已有修改；不得用 checkout/reset/clean 清除用户工作。
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
@@ -218,29 +218,6 @@ consumeUpdates：局部保存当前 physical generation，初值 undefined。对
 当前 package 没有 axios/node-fetch/express 或其它仅服务自有 HTTP 路由的 npm 包，因此本次**现有 npm 直接依赖删除清单为空**。不伪造包删除；实际应清的是旧实现、导入、fixture、配置映射和未使用的新增依赖。M14 以锁文件与 importer 对照验证此结论，不能对整个 node_modules 执行手工 prune。
 
 ## Mechanical Steps
-
-### M15：验证迁移结果
-
-前置状态：M14 PASS。
-允许修改：M01—M14（含 M13a）清单中已经修改的文件仅格式化；`docs/40-readiness/MEETING-REMOTE-FEASIBILITY-EVIDENCE.md`、`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`。
-禁止修改：环境调查、修改凭据、缩减门禁、语义修复。
-
-执行：
-1. 对 M01—M14（含 M13a）明列并实际改动的文件执行 Prettier 写入；运行下列门禁。这里是迁移后回归验证，不是要求重新确认环境。语义失败保留 diff 并 STOP。
-2. evidence 追加 Implementation Results 表，每行固定 command/exitCode/testFiles/tests/marker/cleanup；未适用统计写 N/A，未运行写 Not Run，不能填写推测值。baseline 要求 ACB、remote pause/resume 与 baseline-remote-stream-reconnect，scribe 要求 minutes-remote-equal；两个 smoke restore=PASS。
-3. Coverage 的 Meeting Remote Migration Boundary 改为九操作Remote与refresh stream已经迁移，并链接实际结果。真实 WS carrier 断开/重开与补读仅在 M13a 通过后记为 Covered；真实浏览器内自动重连仍 Not Covered，不能以分层测试推断端到端通过。
-
-验证：
-```bash
-pnpm --dir plugin verify
-CONVIVIUM_SMOKE_SCENARIO=baseline pnpm --dir plugin smoke:profile
-CONVIVIUM_SMOKE_SCENARIO=scribe-minutes pnpm --dir plugin smoke:profile
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：全部退出 0，真实新carrier marker及清理通过，证据可回溯。
-STOP：任一失败/未运行，旧HTTP冒充Remote或残留profile进程；报告最后 PASS、路径/symbol、命令与去敏输出，不改变本文既定方案。
 
 ### M16：更新完成状态并删除临时RUNBOOK
 

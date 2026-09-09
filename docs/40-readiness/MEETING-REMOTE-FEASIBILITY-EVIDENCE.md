@@ -2,9 +2,9 @@
 
 ## Boundary
 
-日期：2026-09-09。Convivium 基线 `e640f43`；当前工作分支 `codex/dsh-frontend-backend-communication`。目标见 [Remote Interface](../20-interfaces/MEETING-REMOTE-INTERFACE.md)、[Remote Design](../30-designs/MEETING-REMOTE-DESIGN.md)。以下是迁移前隔离实验，不能作为 Convivium 已迁移的证据。
+日期：2026-09-09。Convivium 基线 `e640f43`；当前工作分支 `codex/dsh-frontend-backend-communication`。目标见 [Remote Interface](../20-interfaces/MEETING-REMOTE-INTERFACE.md)、[Remote Design](../30-designs/MEETING-REMOTE-DESIGN.md)。迁移前隔离实验与作者 baseline 保留为历史；当前迁移结果见 [Implementation Results](#implementation-results)。
 
-依赖仅使用正式 npm：DSH `0.1.2-rc.1`、Cordis `4.0.2`；开发测试 Node `22.23.2`、pnpm `10.7.0`、Vitest `4.1.8`、jsdom `29.1.1`。没有修改 DSH checkout 或 Convivium 产品源码。
+依赖仅使用正式 npm：DSH `0.1.2-rc.1`、Cordis `4.0.2`；开发测试 Node `22.23.2`、pnpm `10.7.0`、Vitest `4.1.8`、jsdom `29.1.1`。隔离实验期间没有修改 DSH checkout 或 Convivium 产品源码；后续迁移仅修改 Convivium。
 
 ## Verified
 
@@ -22,18 +22,33 @@
 - protocol 声明必须来自正式安装包，并成为 aggregate reference；单纯 node_modules resolution 不足以被该版本 decorator 分析识别。
 - 普通生成对象 codec 会丢未知字段；递归 JSON index signature 可保留字段。`Record<string, unknown>` 不能生成，不能用它代替已验证的 JSON 类型。
 - 默认 Vitest 不能直接执行该 decorator 源码；正式 generator/tsdown 的 transform 以 pre 接入后，源码测试通过，不需要把开发测试改为只测构建产物。
-- DSH `$stream` 提供取消、物理代次及 carrier 重连监督；现有 Repository 有提交后 observer。插件自有 invalidation stream 方案据此可实现，尚未运行迁移后的 feed 或浏览器重连用例。
+- DSH `$stream` 提供取消、物理代次及 carrier 重连监督；现有 Repository 有提交后 observer。插件自有 invalidation stream 方案据此可实现，实验时尚未运行迁移后的 feed 或浏览器重连用例，当前边界见下节。
 
 ## Not Covered
 
-- Convivium 九接口迁移代码与旧路由删除尚未执行。当前 HTTP 基线的全部产品测试及两个真实 profile 已在本轮作者环境核验执行，结果见下节；它们不是迁移后验证。
-- 最小 smoke 的 carrier 是进程内 JSON 测试替身；VM module-factory loader 不是真实 Browser 或完整 DSH Loader。没有以此证明 HTTP/WebSocket、认证或完整 profile 可用。
-- DTO 实验的方法体为 fixture，占位返回不证明业务运行；额外字段实验验证保留能力，不等于九方法严格输入校验已经实现。
-- stream 生命周期、网络断线重连、focus/reopen 和写入通知竞争目前属于目标设计，不能写成 PASS。
+- 真实浏览器内 Connection 自动重连端到端仍为 Not Covered。正式 RemoteStream 的 jsdom 测试与真实 WebSocket 断开/重开冒烟分别覆盖各自层次，不能合并推断浏览器端到端已通过。
+- 初期最小 smoke 的进程内 JSON carrier、VM module-factory loader 和 DTO 占位方法仅证明隔离实验的能力；完整 profile 的认证 RPC 与真实 WebSocket 证据见下节。
+- 未执行所有 smoke scenario、长期连接压力或任意断线时序验证；原有业务测试通过不等于全场景真实模型验收。
 
-## Implementation Evidence To Record
+## Implementation Results
 
-执行迁移后逐项追加实际 commit/worktree、Node/pnpm、固定命令、退出码、测试统计、两个 profile scenario 的产物断言与清理结果。来源入口见 [Coverage](./CURRENT-IMPLEMENTATION-COVERAGE.md)。真实 Browser/WS 若未执行，继续保留 Not Covered，不随 RUNBOOK 删除而丢失。
+2026-09-09，代码基线 `539d632`（合入 main `8c08063`，迁移实现截至 `48a772a`）。Node v22.23.2、pnpm 10.7.0；正式 DSH 0.1.2-rc.1、Cordis 4.0.2。未修改 DSH checkout，未以其源码作为依赖。下列命令串行执行，避免生成和构建共享 `lib` 目录相互覆盖。
+
+| command | exitCode | testFiles | tests | marker | cleanup |
+| --- | --- | --- | --- | --- | --- |
+| `pnpm --dir plugin verify` | 0 | 81 | 1128 | format/lint、Host/Client/fixture 类型、测试、生成/构建、environment、contract、9 definitions、package 全通过 | N/A |
+| `CONVIVIUM_SMOKE_SCENARIO=baseline pnpm --dir plugin smoke:profile` | 0 | N/A | N/A | baseline-transcript-acb、baseline-remote-pause-resume、baseline-remote-stream-reconnect、attendance-reject-tool-zero-effects；9047ms，含构建17467ms | restore=PASS |
+| `CONVIVIUM_SMOKE_SCENARIO=scribe-minutes pnpm --dir plugin smoke:profile` | 0 | N/A | N/A | minutes-remote-equal；10104ms，含构建18072ms | restore=PASS |
+| `node .github/scripts/check-doc-links.mjs` | 0 | N/A | N/A | 561 local file links，0 errors（不检查 anchors） | N/A |
+| `git diff --check` | 0 | N/A | N/A | 无空白错误 | N/A |
+
+真实 profile 使用正式认证 RPC 读取和写入；baseline 在订阅收到首帧后执行 pause，验证通知和完整读取，再关闭真实 WebSocket、执行 resume、重新打开订阅并完整补读新版本。scribe-minutes 经 Remote status 校验纪要相等。上述 marker 是脚本 PASS 的必需断言，不是根据日志标题推测。
+
+源码测试覆盖九方法严格输入/结果、领域错误与恢复、真实 generated Client 装配、刷新串行化、断线禁写和完整补读后解锁。Client fixture 使用正式 Client/RemoteStream，unary 的连接调用仍为测试替身；真实 carrier 由独立 profile 冒烟验证。main 的 Primitives 和键盘交互测试保留并适配 Remote。正式 UI 包的 source map 缺失警告不影响测试结果。
+
+旧自有 HTTP 路由、调用 helper、req/res fixture 与五秒轮询已删除。原有直接 npm 依赖没有仅服务旧 HTTP 的包，故删除清单为空；保留 webServer 的 loopback 职责及 UI/Schema 依赖。新增固定 Remote 包与测试用 ws，不直接新增 typert-loader。
+
+可复现入口为仓库的 verify 与 smoke:profile 脚本。作者本机临时日志为 `/tmp/convivium-verify-main-merge.log`、`/tmp/convivium-baseline-main-merge.log`、`/tmp/convivium-scribe-main-merge.log`；日志不是 CI 输入，长期结果由本节保存。
 
 ## Author Environment And Baseline
 
