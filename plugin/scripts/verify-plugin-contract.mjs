@@ -9,7 +9,14 @@ const patch = await readFile(join(root, "cordis.patch.yml"), "utf8");
 const failures = [];
 const runtime = await import(join(root, "lib/index.js"));
 const publicExports = Object.keys(runtime).sort();
-const expectedPublicExports = ["Config", "apply", "assertContinuableProvider", "inject", "name"];
+const expectedPublicExports = [
+    "Config",
+    "ConviviumRemoteService",
+    "apply",
+    "assertContinuableProvider",
+    "inject",
+    "name"
+];
 if (JSON.stringify(publicExports) !== JSON.stringify(expectedPublicExports))
     failures.push(`public exports mismatch: ${publicExports.join(",")}`);
 if (/storage-domain|storage-sqlite/.test(patch))
