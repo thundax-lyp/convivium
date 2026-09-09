@@ -14,6 +14,8 @@
 
 任一步失败立即 STOP，报告最后 PASS 步骤、文件/symbol、命令、退出码与去敏输出；不得放宽 Schema、类型、断言，跳过测试，添加 HTTP fallback，改 DSH，换库或临时发明方案。执行期间命令出现环境错误也应报告 STOP；不得把环境调查、分支创建、版本选择或 baseline 重跑加入实施步骤。本文不授权 commit、push、创建 PR 或合并。
 
+每步清单另允许按 [TODO Rules](../00-governance/TODO-RULES.md#closure-rules) 同步根 `TODO.md` 的对应任务：已完成项删除，部分完成仅收窄剩余范围；不得提前关闭后续项。提交仍需用户明确授权，不因任务同步获得提交许可。
+
 普通步骤失败保留当前 diff 以便诊断；临时 Context/profile/订阅必须 finally 清理，不回滚已成功的业务事实。测试只使用测试数据和 smoke 自建临时 profile；没有生产数据迁移或删除动作。
 
 ## Goal And Current Breakpoints
@@ -573,17 +575,17 @@ STOP：任一失败/未运行，旧HTTP冒充Remote或残留profile进程；报�
 ### M16：更新完成状态并删除临时RUNBOOK
 
 前置状态：M15 PASS。
-允许修改：本文；`docs/30-designs/MEETING-REMOTE-DESIGN.md`、`docs/20-interfaces/MEETING-REMOTE-INTERFACE.md`、`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`、`docs/00-governance/ARCHITECTURE.md`。
+允许修改：本文；根 `TODO.md` 中本批迁移任务及其专用链接定义；`docs/30-designs/MEETING-REMOTE-DESIGN.md`、`docs/20-interfaces/MEETING-REMOTE-INTERFACE.md`、`docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`、`docs/00-governance/ARCHITECTURE.md`。
 禁止修改：产品代码、重新组织设计文档、删除历史证据。
 
 执行：
 1. 仅把 Remote Design/Interface 开头“尚未实现/不表示代码已实现”改为“已实现，验证边界见 readiness”；Architecture 的 Web transport 迁移前/替换句改为 remote 公开入口已实现。Implementation 目录树 http/改 remote/，原 src/http/index.ts 映射行替换为 src/remote/index.ts Service；Migration 段改为当前接线见 Remote Design。其它 HTTP 历史文字受 Protocol 的 Local Web Transport Authority 限定，不在本步重新整理。
-2. 执行下列 rg。仅本文命中时继续；若其它文件引用本文即 STOP，报告路径，不自行扩张允许修改文件。先完成链接/diff检查，备份本文内容到内存，再删除本文。
-3. 删除后重复链接/diff检查，失败立即从内存恢复本文并STOP；成功不保留 completed/archive 副本。M15 evidence 不删除。
+2. 核对本批 M01—M15（含 M13a）均已完成；备份本文和 TODO 内容到内存。根 TODO 中仅移除已经完成的本批前序项、M16 收口项及 remote-migration-runbook 专用链接定义，保留其它任务。此为待检查的收口修改，检查通过前不得宣告 M16 完成。执行下列 rg，仅本文命中时继续；若其它引用仍存在，恢复 TODO 并 STOP，不扩张修改范围。先完成链接/diff检查，再删除本文。从移除 TODO 开始，任一收口检查失败（包括删除前的链接/diff检查）都必须恢复备份的 TODO；若本文已删除，同时恢复本文，然后 STOP。不得留下已消失但尚未完成的 M16 任务。
+3. 删除后重复链接/diff检查，任一失败立即恢复本文及 TODO 并 STOP；成功不保留 completed/archive 副本，M16 才可关闭。M15 evidence 不删除；获得提交授权后，在完成收口的同一 commit 中提交文档与 TODO 删除。
 
 验证：
 ```bash
-rg -n "RUNBOOK-MEETING-REMOTE-MIGRATION|RUNBOOK: Meeting Remote Migration" docs AGENTS.md
+rg -n "RUNBOOK-MEETING-REMOTE-MIGRATION|RUNBOOK: Meeting Remote Migration" docs AGENTS.md TODO.md
 node .github/scripts/check-doc-links.mjs
 git diff --check
 ```
