@@ -200,7 +200,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             writePendingRef.current = false;
             setSelectedId(meetingId);
             setDetail(undefined);
-            setDetailCached(false);
+            setDetailCached(true);
             setDetailError(undefined);
             setPauseReason("");
             setSkipReason("");

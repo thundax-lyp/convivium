@@ -1197,6 +1197,29 @@ describe("meeting panel and client plugin lifecycle", () => {
         }
     });
 
+    it("keeps selected meeting controls disabled until the list and detail both refresh", async () => {
+        const listRead = deferred<RemoteResult<unknown>>();
+        let holdList = false;
+        const mock = vi.fn<Rpc>(async (method) =>
+            method === "list"
+                ? holdList
+                    ? listRead.promise
+                    : remoteResult(listResponse())
+                : remoteResult(success(statusResult("paused")))
+        );
+        setRpc(mock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await screen.findByRole("button", { name: /Runtime smoke/ });
+        holdList = true;
+        await selectMeeting();
+        const resume = screen.getByLabelText("Resume meeting");
+        expect(resume.hasAttribute("disabled")).toBe(true);
+        fireEvent.click(resume);
+        expect(mock.mock.calls.some(([method]) => isWrite(method))).toBe(false);
+        await act(async () => listRead.resolve(remoteResult(listResponse())));
+        await waitFor(() => expect(resume.hasAttribute("disabled")).toBe(false));
+    });
+
     it("disables cached controls on carrier loss until both reconnect reads succeed", async () => {
         let hold = false;
         const detailRead = deferred<RemoteResult<unknown>>();
