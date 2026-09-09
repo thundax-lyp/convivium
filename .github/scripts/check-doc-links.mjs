@@ -11,7 +11,7 @@ const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclud
 let checked = 0;
 let errors = 0;
 function check(url, file) {
-    const target = url.split('#')[0];
+    const target = url.split(/[?#]/)[0];
     if (!target || /^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(target)) return;
     checked++;
     try {
