@@ -78,6 +78,30 @@ class DocumentLinksTest(unittest.TestCase):
                 "source.md:9: missing anchor: target.md#guideref",
             ])
 
+    def test_indented_examples_are_ignored_but_paragraph_continuations_are_checked(self):
+        self.assertEqual(list(checker["links"](
+            "    [sample](missing.md)\n\n\t[sample](missing.md)\n\n"
+            "Paragraph\n    [real](target.md)\n\n[real](other.md)\n"
+        )), [(6, "target.md"), (8, "other.md")])
+
+    def test_existing_targets_outside_repository_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory)
+            root = parent / "repo"
+            root.mkdir()
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            outside = parent / "outside.md"
+            outside.write_text("# Outside\n")
+            (root / "escape.md").symlink_to(outside)
+            (root / "source.md").write_text(
+                f"[absolute]({outside})\n[relative](../outside.md)\n"
+                "[symlink](escape.md)\n"
+            )
+            count, errors = checker["check"](root)
+            self.assertEqual(count, 3)
+            self.assertEqual(len(errors), 3)
+            self.assertTrue(all("target outside repository" in e for e in errors))
+
     def test_heading_formats_and_fenced_examples(self):
         result = checker["anchors"](
             "# `Code` **title**\n# Repeat\n# Repeat\n# Repeat-1\n"

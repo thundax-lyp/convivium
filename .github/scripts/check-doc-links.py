@@ -9,8 +9,10 @@ from urllib.parse import unquote, urlsplit
 
 
 def prose(source):
-    """Remove fenced code while retaining line numbers for diagnostics."""
+    """Remove code blocks while retaining line numbers for diagnostics."""
     fence = None
+    indented = False
+    previous_blank = True
     lines = []
     for line in source.splitlines():
         marker = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
@@ -21,8 +23,14 @@ def prose(source):
         elif marker:
             fence = marker[1]
             lines.append("")
+        elif line.startswith(("    ", "\t")) and (indented or previous_blank):
+            indented = True
+            lines.append("")
         else:
+            if line.strip():
+                indented = False
             lines.append(line)
+        previous_blank = not line.strip()
     return "\n".join(lines)
 
 
@@ -132,6 +140,7 @@ def check(root):
     names = subprocess.check_output(
         ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=root
     ).decode().split("\0")
+    root = root.resolve()
     count, errors, cache = 0, [], {}
     for name in sorted(set(names)):
         path = root / name
@@ -143,7 +152,9 @@ def check(root):
                 continue
             count += 1
             linked = (path.parent / unquote(url.path)).resolve() if url.path else path.resolve()
-            if not linked.exists():
+            if not linked.is_relative_to(root):
+                errors.append(f"{name}:{line}: target outside repository: {target}")
+            elif not linked.exists():
                 errors.append(f"{name}:{line}: missing target: {target}")
             elif url.fragment and linked.suffix.lower() == ".md":
                 if linked not in cache:
