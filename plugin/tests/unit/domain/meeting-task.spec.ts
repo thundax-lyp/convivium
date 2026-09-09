@@ -156,12 +156,69 @@ describe("MeetingTask transitions", () => {
     });
 
     it("cancels every non-terminal task and leaves terminal facts unchanged", () => {
-        const created = createMeetingTask(state(), input());
-        const cancelled = cancelNonTerminalMeetingTasks(created.state, 5);
-        expect(cancelled.state.meetingTasks[0]).toMatchObject({
-            status: "cancelled",
-            finishedAt: 5
-        });
-        expect(cancelled.effect.events[0]?.type).toBe("meeting_task.cancelled");
+        const meeting = state();
+        meeting.meetingTasks = [
+            { ...input(), status: "requested", createdAt: 1 },
+            {
+                ...input(),
+                meetingTaskId: "queued",
+                participantId: "participant-2",
+                status: "queued",
+                createdAt: 1,
+                queuedAt: 2
+            },
+            {
+                ...input(),
+                meetingTaskId: "running",
+                participantId: "participant-3",
+                status: "running",
+                createdAt: 1,
+                queuedAt: 2,
+                startedAt: 3
+            },
+            {
+                ...input(),
+                meetingTaskId: "completed",
+                status: "completed",
+                createdAt: 1,
+                finishedAt: 4,
+                resultSummary: "passed"
+            },
+            {
+                ...input(),
+                meetingTaskId: "failed",
+                status: "failed",
+                createdAt: 1,
+                finishedAt: 4,
+                failureReason: "provider failed"
+            },
+            {
+                ...input(),
+                meetingTaskId: "cancelled",
+                status: "cancelled",
+                createdAt: 1,
+                finishedAt: 4
+            }
+        ];
+        const before = structuredClone(meeting);
+        const cancelled = cancelNonTerminalMeetingTasks(meeting, 5);
+        expect(meeting).toEqual(before);
+        expect(cancelled.state.meetingTasks).toEqual([
+            ...before.meetingTasks
+                .slice(0, 3)
+                .map((task) => ({ ...task, status: "cancelled", finishedAt: 5 })),
+            ...before.meetingTasks.slice(3)
+        ]);
+        expect(cancelled.effect.events).toEqual(
+            ["task-1", "queued", "running"].map((meetingTaskId, index) => ({
+                type: "meeting_task.cancelled",
+                payload: {
+                    meetingId: "meeting-1",
+                    meetingTaskId,
+                    participantId: `participant-${index + 1}`,
+                    status: "cancelled"
+                }
+            }))
+        );
     });
 });
