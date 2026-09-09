@@ -1,5 +1,9 @@
 # Convivium Implementation Design
 
+## Meeting Transport Migration
+
+九个 Web 操作及刷新生命周期的目标方案由 [Meeting Remote Design](./MEETING-REMOTE-DESIGN.md) 专项维护。下文目录树和旧 HTTP 入口映射记录迁移起点；迁移时用 remote 替换 http，除该专项明确的传输、生成和生命周期调整外，其余依赖、业务与持久化边界不变。实现覆盖仍由 readiness 维护。
+
 ## Purpose
 
 本文定义 Convivium 独立 DSH 插件的源码落点、模块职责、依赖方向、持久化入口、DSH adapter、启动恢复和验证结构。本文解决“实现放在哪里、模块如何协作、哪些入口必须唯一”的问题；会议业务规则和跨边界字段分别以 Requirements、Protocol Interface 和 Meeting Orchestration Design 为准。
@@ -141,7 +145,7 @@ Convivium 保持为 `plugin/` 单 package、单 lockfile 和单发布物。Meeti
 
 `src/client/meeting-panel-view.tsx::mapMeetingPanelView` 从通过 [Agent Meeting Protocol Interface](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) 对应 Schema 校验的完整公开 detail 映射展示字段。活动态与执行终态读取 discussion 的 decisions、Parking Lot 和 risks；archiving 与 archived 读取 archive.package 中的对应集合，并原样展示全部 issues。Accepted decisions 仅表示当前已接受集合；Decision history 保留全部决策身份、状态、撤销和替代关系，不过滤为仅历史项。
 
-`src/client/meeting-panel-sections.tsx::renderObservabilitySections` 展示候选处置、风险原因、owner 和任务引用，以及已公开的 Turn intent/reason/objective。没有 currentTurn 时显示 None，不从内部日志推断原因。Client 首次读取、5 秒轮询、focus 和 reopen 均通过 Schema 后整体替换 detail；非法响应保留上次已验证事实并禁写，合法响应恢复后清除错误状态。事实展示继续从该完整投影派生；pending Decision、accepted Decision 和 Risk 行允许下述已确认的 local 控制，其他区域保持只读。读取错误和新增控制错误分开，成功 GET 不清除新增命令的 code/message/retryable。
+`src/client/meeting-panel-sections.tsx::renderObservabilitySections` 展示候选处置、风险原因、owner 和任务引用，以及已公开的 Turn intent/reason/objective。没有 currentTurn 时显示 None，不从内部日志推断原因。Client 首次读取、提交后通知、写后、focus 和 reopen 均通过 Schema 后整体替换 detail；非法响应保留上次已验证事实并禁写，合法响应恢复后清除错误状态。事实展示继续从该完整投影派生；pending Decision、accepted Decision 和 Risk 行允许下述已确认的 local 控制，其他区域保持只读。读取错误和新增控制错误分开，成功 GET 不清除新增命令的 code/message/retryable。
 
 ### Dependency direction
 
@@ -387,7 +391,7 @@ Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-s
 ### Frontend
 
 - `client/` 通过 `/api/convivium/meetings/:meetingId` 读取完整 projection。
-- polling、写成功后的立即 refetch 和页面重新聚焦后的 refetch 整体替换缓存；不建立进程内 projection invalidation 通道。
+- 插件自有 Remote stream 仅通知 refetch；首次订阅、重连、提交后通知、写后及 focus/reopen 均完整读取并替换缓存，不进行增量合并。取消、合并和禁写规则见 Remote Design。
 - 请求失败时保留带 stale 标记的最后成功 projection，并禁用写操作。
 - 暂停和继续按钮调用 Interface 定义的路由，不直接调用 DSH Session 或 Runtime 内部 API。
 
@@ -413,7 +417,7 @@ Host/profile 与 `src/index.ts` 的启动顺序：
 
 ### Optional Web Composition
 
-Meeting consumer 只声明核心 Agent、Session、Subagent、SystemPrompt、Tools 和 Storage Domain 依赖。Web routes 使用 Cordis `ctx.inject(["webServer"], ...)` 子作用域，在 loopback 服务存在时注册，并随该服务或父插件卸载释放；runtime 的清理仍由 consumer 拥有。DSH Tools.register 已托管 contribution effect，consumer 直接注册工具，不重复包装 disposer。业务串行队列、outbox 和 Session/Meeting 归属校验继续由 Convivium 负责。冷绑定在重启 worker 前，用原 deliveryId 重排已被 DSH 接受但仍未完成的 planning/speaker 与未开始 Task；范围和原子性见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
+Meeting consumer 只声明核心 Agent、Session、Subagent、SystemPrompt、Tools 和 Storage Domain 依赖。Remote Service 使用 Cordis `ctx.inject(["webServer", "typertGateway", "typert"], ...)` 可选子作用域，仅在精确 loopback 时装配，并随该作用域或父插件卸载释放；Runtime 的清理仍由 consumer 拥有。接线见 Remote Design。DSH Tools.register 已托管 contribution effect，consumer 直接注册工具，不重复包装 disposer。业务串行队列、outbox 和 Session/Meeting 归属校验继续由 Convivium 负责。冷绑定在重启 worker 前，用原 deliveryId 重排已被 DSH 接受但仍未完成的 planning/speaker 与未开始 Task；范围和原子性见 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md)。
 
 ## State And Failure Handling
 

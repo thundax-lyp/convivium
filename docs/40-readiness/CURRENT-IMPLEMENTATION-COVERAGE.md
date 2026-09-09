@@ -1,5 +1,9 @@
 # Current Implementation Coverage
 
+## Meeting Remote Migration Boundary
+
+2026-09-09：九接口 Remote 与 stream 替换轮询已确认目标，尚未迁移产品代码。正式 npm 包最小 smoke、源码开发测试及真实业务 DTO 生成证据见 [Remote Feasibility](./MEETING-REMOTE-FEASIBILITY-EVIDENCE.md)。本文下方 HTTP 覆盖仍是当前实现事实，不得将目标设计视为已通过验证的能力。
+
 ## Scope
 
 - 更新日期：2026-09-09。本次只整理 readiness，没有重新执行产品测试或运行验收。

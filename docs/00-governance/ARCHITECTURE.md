@@ -8,7 +8,7 @@
 
 - Convivium 是使用 TypeScript 独立实现的纯 DSH 插件，只有 `plugin/` 一个可构建、测试和交付的工程；不建立独立 Meeting Server、应用壳、backend 发布单元或根 workspace/monorepo。新增顶层工程前必须在本文明确职责、依赖方向和验证入口。
 - 外部项目仅作只读调研，不作为源码基线、运行依赖或兼容目标；不得复制其源码、文档、品牌、协议命名和持久化格式进入产品。
-- V1 仅服务单个本地 DSH Host 的一位用户。Meeting Web route 只在 `webServer.host === "127.0.0.1"` 时注册；到达该 Host 的请求共享本地用户边界，不虚构 Web 用户或 Team authority。远程、多用户、跨 Host 或网络部署必须先形成独立的身份、授权、隔离和部署契约。
+- V1 仅服务单个本地 DSH Host 的一位用户。Meeting Web 接口只在 `webServer.host === "127.0.0.1"` 时注册；到达该 Host 的请求共享本地用户边界，不虚构 Web 用户或 Team authority。远程、多用户、跨 Host 或网络部署必须先形成独立的身份、授权、隔离和部署契约。
 - 插件依赖 DSH 公开能力，不绕过宿主权限或生命周期接口。固定依赖版本、provider 组合和装配入口见 [Implementation Design](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#host-dependency-composition)。
 
 ## Runtime Boundaries
@@ -44,8 +44,8 @@
 
 ## Dependency Rules
 
-- 必须保持 Domain、DSH adapter、Repository 和 UI projection 的模块边界；Domain 不依赖 Protocol、DSH、Repository、UI 或文件系统，Frontend 只依赖公开 Protocol，不引用后端实现。
-- Runtime、tools、HTTP 和 recovery 共用受控领域写入口；Repository 不执行调度或 DSH 调用，projection 不能反向驱动状态转换。具体模块接线见 [Implementation Dependency direction](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#dependency-direction)。
+- 必须保持 Domain、DSH adapter、Repository 和 UI projection 的模块边界；Domain 不依赖 Protocol、DSH、Repository、UI 或文件系统，Frontend 只依赖公开 Protocol 和生成的 Remote contract，不引用后端实现。
+- Runtime、tools、Web transport 和 recovery 共用受控领域写入口；Repository 不执行调度或 DSH 调用，projection 不能反向驱动状态转换。具体模块接线见 [Implementation Dependency direction](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#dependency-direction)。
 - 新增 Web 路由、工具、事件、外部访问或文件权限前，必须先形成接口契约和失败语义。
 - Host/Client、业务与验证同属 `plugin/`，独立安装、构建和验证；仓库 `docs/` 不参与插件打包。同包角色资源是静态部署资源，不是第二工程或 Runtime installer；发行结构和验证入口见 Implementation Design。
 
@@ -59,7 +59,7 @@
 
 ### Public Module Entrypoints
 
-- `client`、`domain`、`dsh`、`http`、`projection`、`protocol`、`runtime`、`tools` 是当前具有公开入口的顶层源码模块，模块对其他生产源码只公开自身 `index.ts` / `index.tsx` 导出的符号。源码模块公开不等于 package 对外导出。
+- `client`、`domain`、`dsh`、`projection`、`protocol`、`runtime`、`tools` 通过自身 `index.ts` / `index.tsx` 对其他生产源码公开符号。Web transport 迁移前为 `http`，按 [Remote Design](../30-designs/MEETING-REMOTE-DESIGN.md) 一次替换为 `remote`；实施覆盖由 readiness 记录。源码模块公开不等于 package 对外导出；生成器使用的纯类型 package 子路径不授权跨模块导入源码内部文件。
 - 跨模块导入必须使用 `@/<module>/index.js`；`src/` 根目录装配可保留等价的 `./<module>/index.js`。普通导入、类型导入、重新导出和动态导入遵循同一边界。不得用别名或相对路径直接访问另一个模块的内部文件。
 - 模块内部可以直接引用自身文件，无须经由自身入口；`domain/transitions/` 和 `runtime/application-service/` 属于各自顶层模块内部，不因有 `index.ts` 就成为独立封装单元。`repository`、`role-composition` 尚无入口，不为本规则新增转发文件。
 - 测试可以直接引用被测模块内部文件；直接执行的 Node 脚本继续遵守既有运行和路径约束。

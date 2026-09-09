@@ -836,7 +836,7 @@ Meeting Session 必须通过 catalog identity、Meeting domain identity、持久
 
 FR-14 的历史 persona/toolFilter 由 DSH descriptor 持有，Convivium 只存 provenance 指纹。若带 Definition 的持久 Session/descriptor 丢失，无法证明原配置时必须以 `RECOVERY_ROLE_DESCRIPTOR_MISSING` 明确拒绝补建，保留 pause 和既有事实；不得套用当前 Definition 或去除权限限制。此分支落实 FR-9 的“明确说明不能恢复原因”和 FR-14 不重配既有身份的约束。已终止或归档的 Meeting 只进行安全清理，不补建 Session。
 
-Convivium 不建立独立的 DSH Host availability 状态机。首选实现是在上述 reconciliation 完成后再注册 Meeting Web route 和会议工具；如果 DSH 插件装配要求 route 先存在，恢复期间只返回 HTTP `503` 和 `Retry-After`。DSH Agent factory、continuable provider、Session resume 和 followup 的失败沿调用边界转换为可安全展示的 `INTERNAL_ERROR`，并根据错误是否可重试设置 `retryable`；这些失败只进入诊断日志或既有 outbox retry，不修改 Meeting status、version 或 termination。
+Convivium 不建立独立的 DSH Host availability 状态机。首选实现是在上述 reconciliation 完成后再注册 Meeting Web route 和会议工具；如果 DSH 插件装配要求 route 先存在，恢复期间只返回 Remote `convivium/recovery-unavailable`，具体映射见 [Remote Interface](../20-interfaces/MEETING-REMOTE-INTERFACE.md#result-and-error-contract)。DSH Agent factory、continuable provider、Session resume 和 followup 的失败沿调用边界转换为可安全展示的 `INTERNAL_ERROR`，并根据错误是否可重试设置 `retryable`；这些失败只进入诊断日志或既有 outbox retry，不修改 Meeting status、version 或 termination。
 
 ## 15. Archive And Session Cleanup
 
@@ -1049,14 +1049,16 @@ flowchart LR
 
     Commit -->|yes| Result[Return committed receipt]
     Result --> DSHResult[DSH native tool/result: success]
-    Poll[Timer, successful write or page focus] --> Projection[Read authorized full projection]
+    Commit -->|yes, after publication| Notify[Ephemeral refresh notice]
+    Notify --> Poll[Refresh notice, write or page focus]
+    Poll --> Projection[Read authorized full projection]
 
     Commit --> Outbox[Durable outbox worker]
     Outbox --> External[Agent delivery, task, Session close or capability revoke]
     External -->|result or acknowledgement| Next[New meeting command and commit]
 ```
 
-图中 Meeting 领域真相的唯一持久化路径是 Repository commit。DSH 原生工具事件只记录调用过程；Plugin Frontend 通过 polling 和明确 refetch 读取完整 projection；outbox 负责需要重试的外部副作用。它们都不能修改或替代已提交的 Meeting 状态。
+图中 Meeting 领域真相的唯一持久化路径是 Repository commit。DSH 原生工具事件只记录调用过程；Plugin Frontend 通过提交后刷新通知和明确 refetch 读取完整 projection；outbox 负责需要重试的外部副作用。它们都不能修改或替代已提交的 Meeting 状态。
 
 #### 17.3.2 Domain event rules
 
@@ -1102,11 +1104,11 @@ meeting.archived
 
 这些类型是 Meeting Runtime 的持久领域事件，不加入 DSH `SessionEventMap`，也不写入 Agent Session。恢复当前状态必须读取 published checkpoint 与连续 commit tail 合成的 projection；领域事件用于有序审计和诊断，不得仅通过重放事件另建第二份当前状态。
 
-会议工具调用产生的 DSH 原生 `tool/call` 和 `tool/result` 继续由 DSH 自动记录，Meeting Runtime 不复制这些记录，也不从 Repository commit 发布 Plugin Frontend 状态事件。
+会议工具调用产生的 DSH 原生 `tool/call` 和 `tool/result` 继续由 DSH 自动记录，Meeting Runtime 不复制这些记录，只在 commit 后发布不含状态的瞬时刷新通知，不将其作为领域事件持久化。
 
-UI MUST 通过受控 Web route 读取完整 projection；Agent 使用 `convivium_meeting_status`。Plugin Frontend 使用固定 polling、写操作成功后的立即 refetch 和页面重新获得焦点后的 refetch，三种路径都整体替换本地缓存。
+UI MUST 通过 [Meeting Remote](../20-interfaces/MEETING-REMOTE-INTERFACE.md) 读取完整 projection；Agent 使用 `convivium_meeting_status`。Plugin Frontend 用自有 stream 刷新通知替换固定 polling；首次订阅、重连、写后和 focus/reopen 均完整 refetch 并替换缓存。通知不包含状态，具体取消、合并及 freshness 门禁由 Remote 契约规定。
 
-Plugin Frontend 以 fetch 的成功或失败维护仅存在于内存中的连接提示，不从 Meeting projection 推断 DSH Host 健康度。请求失败时可以保留最后一次成功 projection 供只读参考，但必须标记为缓存并禁用会议写操作；下一次请求成功后用完整 projection 整体替换缓存。连接提示不写 Repository、不产生会议事件，也不递增 Meeting version。
+Plugin Frontend 以 Remote 读取结果与 stream 连接状态维护仅存在于内存中的连接提示，不从 Meeting projection 推断 DSH Host 健康度。请求失败时可以保留最后一次成功 projection 供只读参考，但必须标记为缓存并禁用会议写操作；当前连接代次的 list 与选中详情完整补读成功后才解除缓存禁写，具体要求见 Remote Interface。连接提示不写 Repository、不产生会议事件，也不递增 Meeting version。
 
 ### 17.4 UI projection
 
@@ -1230,8 +1232,8 @@ After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fing
 
 - Meeting Runtime 不向 DSH Session 写入 `convivium/meeting-*` 或其他插件自定义持久化事件。
 - 每次领域状态变更在同一 CommitRecordV1 中提交 projection patch、领域事件、receipt 和必要 outbox；事件序号与 meeting version 保持单调。
-- 定时 polling、写操作成功后的立即 refetch 和页面聚焦 refetch 都读取完整 projection，并整体替换缓存。
-- 没有 Plugin Frontend projection invalidation、状态增量事件或事件 payload 合并路径。
+- stream 刷新通知、写后和页面聚焦 refetch 都读取完整 projection，并整体替换缓存；首次连接和重连补读，删除固定 5 秒轮询。
+- Plugin Frontend 只接收不含状态的刷新通知；没有状态增量事件或事件 payload 合并路径。
 - DSH 原生 `tool/call` 和 `tool/result` 只出现一次，Meeting Runtime 不复制为自定义 Session Event。
 - 删除、破坏或人工修改 `current.md` 后可从已提交 Meeting projection 重建，且不会改变 MeetingState。
 - 活动或归档 Markdown 渲染滞后、缺失或失败不回滚 Meeting commit，也不进入 Meeting 协议状态。
