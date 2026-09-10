@@ -40,7 +40,7 @@ describe("meeting role Host model overrides", () => {
         { "fr14-manager": { model: "private", apiKey: "secret" } }
     ])("rejects invalid or unbound overrides with a fixed error", (value) => {
         expect(() => parseAgentModelOverrides(value, roleCompositionDefinitions)).toThrow(
-            "Invalid meeting agent model overrides."
+            expect.objectContaining({ message: "Invalid meeting agent model overrides." })
         );
     });
 });

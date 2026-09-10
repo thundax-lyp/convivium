@@ -79,7 +79,7 @@ describe("role composition configuration and resolution", () => {
     it("rejects legacy Definition agentOptions without leaking configuration", () => {
         expect(() =>
             parseAgentDefinitions([{ ...manager, agentOptions: { model: "legacy" } }])
-        ).toThrow("Invalid meeting agent definitions.");
+        ).toThrow(expect.objectContaining({ message: "Invalid meeting agent definitions." }));
     });
     it("derives persona, leaves defaults to DSH and hashes role text changes", async () => {
         const resolve = (roleDescription: string) =>
@@ -99,7 +99,7 @@ describe("role composition configuration and resolution", () => {
             original.manager?.agentDefinition.definitionHash
         );
         expect(() => parseAgentDefinitions([{ ...manager, persona: "legacy" }])).toThrow(
-            "Invalid meeting agent definitions."
+            expect.objectContaining({ message: "Invalid meeting agent definitions." })
         );
     });
     it("rejects invalid direct-call overrides before capability checks even without selections", async () => {
@@ -175,7 +175,7 @@ describe("role composition configuration and resolution", () => {
             [{ ...manager, toolFilter: { other: [] } }]
         ]) {
             expect(() => parseAgentDefinitions(value)).toThrow(
-                "Invalid meeting agent definitions."
+                expect.objectContaining({ message: "Invalid meeting agent definitions." })
             );
         }
     });

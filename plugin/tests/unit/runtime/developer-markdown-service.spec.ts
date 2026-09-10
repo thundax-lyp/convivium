@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
     createDeveloperMarkdownService,
@@ -47,29 +47,47 @@ afterEach(async () => {
 });
 
 describe("Developer Markdown service", () => {
-    it("coalesces versions and atomically writes current and archive files", async () => {
+    it("coalesces pending versions and writes the latest current and archive files", async () => {
         const root = await workspace();
-        const current = snapshot(2);
+        const current = snapshot(3);
         current.state.archive = { package: archivePackage() };
         const warnings: DeveloperMarkdownWarning[] = [];
+        let releaseRead!: () => void;
+        const readGate = new Promise<void>((resolve) => {
+            releaseRead = resolve;
+        });
         const service = createDeveloperMarkdownService({
             workspaceRoot: root,
-            openRepository: async () => repository(current),
+            openRepository: async () => {
+                await readGate;
+                return repository(current);
+            },
             now: () => now,
             warn: (value) => warnings.push(value)
         });
 
-        service.schedule(current);
-        await service.dispose();
         const directory = join(root, ".convivium", "meetings", "dGVhbS0x", "bWVldGluZy0x");
-        expect(await readFile(join(directory, "current.md"), "utf8")).toContain(
-            "sourceMeetingVersion: 2"
-        );
+        try {
+            // Keep the first task in flight so all later versions compete for one pending slot.
+            service.schedule(snapshot(1));
+            service.schedule(snapshot(2));
+            service.schedule(current);
+            service.schedule(snapshot(2));
+            releaseRead();
+            await vi.waitFor(async () => {
+                expect(await readFile(join(directory, "current.md"), "utf8")).toContain(
+                    "sourceMeetingVersion: 3"
+                );
+                expect(await readFile(join(directory, "archive.md"), "utf8")).toContain(
+                    "# Archived Meeting Projection"
+                );
+            });
+        } finally {
+            releaseRead();
+            await service.dispose();
+        }
         expect(await readFile(join(directory, "current.md"), "utf8")).toContain(
             `generatedAt: ${JSON.stringify(new Date(now).toISOString())}`
-        );
-        expect(await readFile(join(directory, "archive.md"), "utf8")).toContain(
-            "# Archived Meeting Projection"
         );
         expect((await readdir(directory)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
         expect(warnings).toEqual([]);
@@ -97,11 +115,14 @@ describe("Developer Markdown service", () => {
         const service = createDeveloperMarkdownService({
             workspaceRoot: join(root, "missing-root"),
             openRepository: async () => repository(snapshot(1)),
-            warn: (value) => warnings.push(value)
+            warn: (value) => {
+                warnings.push(value);
+                throw new Error("warning sink unavailable");
+            }
         });
 
         expect(() => service.schedule(snapshot(1))).not.toThrow();
-        await service.dispose();
+        await expect(service.dispose()).resolves.toBeUndefined();
 
         expect(warnings[0]).toMatchObject({ operation: "resolve_directory" });
     });

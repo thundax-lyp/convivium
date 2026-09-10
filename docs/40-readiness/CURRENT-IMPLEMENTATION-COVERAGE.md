@@ -151,6 +151,7 @@ message-reference draft 正式语义见 [Referenced minutes draft](../20-interfa
 
 | 日期 / 源码边界 | 工程检查与实际结果 | 适用边界 |
 | --- | --- | --- |
+| 2026-09-10 / `eba973f` 加 runtime 测试修复 | `pnpm --dir plugin exec vitest run --project host tests/unit/runtime`：8 files / 53 tests PASS；修改的 `archive.spec.ts`、`developer-markdown-service.spec.ts` 定向 ESLint、Prettier PASS。隔离副本分别移除归档撤权、关闭、warning 异常隔离，以及允许 pending 低版本覆盖、禁止 pending 升级，运行这两个文件均由对应场景失败；副本已清理 | 独立验证归档双门禁、日志失败不影响 dispose、pending 最高版本；合并一次归档字段与副本验证，保留原断言。生产代码未变；Not Covered：完整 verify、真实 DSH profile、原子替换失败时旧文件完整性 |
 | 2026-09-08 / `b3f02c2a75621f3f05f724c61dacdf45fe4264d6` | 最新角色模型的完整 verify 结果见 [Final Authorized Validation](./SMOKE-VALIDATION-EVIDENCE.md#final-authorized-validation) 的四命令顺序记录 | 首发角色部署授权范围；保留 web_fetch 豁免，不外推模型质量 |
 | 2026-09-08 / `859ac1e` 加测试同步，收口 `61f7de2` | `pnpm --dir plugin verify` exit 0，75 files / 1042 tests，Vitest 10.90s；`pnpm --dir plugin format` 无额外改动 | SQLite 替换；首次失败为旧 peer/模块可达性/VM dirname、join 三处测试契约，修正后 focused 3 files / 10 tests 及完整 verify 通过，未放宽业务断言 |
 | 2026-09-08 / `8c3b7ab0359828f4b2e33554300c134f95bacecd` | 完整 verify PASS，84 files / 1082 tests；探针修改后 `pnpm --dir plugin exec vitest run tests/unit/scripts` 为 7 files / 143 tests，相关 ESLint、Prettier、diff 检查 PASS | SQLite 替换前的 DSH 升级；对照 tag `dsh-v0.1.2-rc.1`（`a66e4702047846cdaa10c66c9d3df3951f5ea70d`）与安装包公开类型；当时 JSONL import 非阻断提示已随后续替换消失 |

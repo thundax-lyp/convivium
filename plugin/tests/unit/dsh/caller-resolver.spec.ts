@@ -32,7 +32,10 @@ function ownership(overrides: Partial<MeetingOwnershipRecord> = {}): MeetingOwne
 function lookup(
     value: Awaited<ReturnType<MeetingOwnershipLookup["findBySessionId"]>>
 ): MeetingOwnershipLookup {
-    return { findBySessionId: async () => value };
+    return {
+        findBySessionId: async (sessionId) =>
+            value?.ownership.sessionId === sessionId ? value : undefined
+    };
 }
 
 describe("meeting caller resolver", () => {
