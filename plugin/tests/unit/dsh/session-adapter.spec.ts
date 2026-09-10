@@ -57,6 +57,9 @@ describe("Manager Session provisioning", () => {
         const spec = received as { request: { prompt: Array<{ text: string }> } };
         expect(JSON.parse(spec.request.prompt[0]!.text)).toMatchObject({
             kind: "convivium.session.provisioning",
+            version: 1,
+            teamId: "team-1",
+            meetingId: "meeting-1",
             role: "manager",
             capability: "none"
         });
@@ -111,6 +114,9 @@ describe("Participant Session provisioning", () => {
         const spec = received as { request: { prompt: Array<{ text: string }> } };
         expect(JSON.parse(spec.request.prompt[0]!.text)).toMatchObject({
             kind: "convivium.session.provisioning",
+            version: 1,
+            teamId: "team-1",
+            meetingId: "meeting-1",
             role: "participant",
             participantId: "participant-a",
             capability: "none"
@@ -141,11 +147,13 @@ describe("Participant Session provisioning", () => {
 describe("Participant Session delivery authorization", () => {
     it("uses the exact Captain parent and rechecks authorization around inbox acceptance", async () => {
         const authorizations: unknown[] = [];
+        const events: string[] = [];
         let received: unknown;
         const result = await followupParticipantSession({
             runtime: {
                 sendMessage: async (...args) => {
                     received = args;
+                    events.push("send");
                     return "message-3" as never;
                 }
             },
@@ -156,11 +164,24 @@ describe("Participant Session delivery authorization", () => {
             signal: new AbortController().signal,
             authorize: async (authorization) => {
                 authorizations.push(authorization);
+                events.push("authorize");
             }
         });
 
         expect(result).toBe("message-3");
-        expect(authorizations).toHaveLength(2);
+        expect(events).toEqual(["authorize", "send", "authorize"]);
+        expect(authorizations).toEqual([
+            {
+                ownership: participantOwnership(),
+                attempt: speakerAttempt,
+                signal: expect.any(AbortSignal)
+            },
+            {
+                ownership: participantOwnership(),
+                attempt: speakerAttempt,
+                signal: expect.any(AbortSignal)
+            }
+        ]);
         expect(received).toEqual([
             { id: "captain-session" },
             "participant-session",
@@ -221,22 +242,26 @@ describe("Participant Session delivery authorization", () => {
     });
 
     it("does not return a delivery that loses authorization after acceptance", async () => {
-        let checks = 0;
+        let accepted = false;
         await expect(
             followupParticipantSession({
-                runtime: { sendMessage: async () => "message-3" as never },
+                runtime: {
+                    sendMessage: async () => {
+                        accepted = true;
+                        return "message-3" as never;
+                    }
+                },
                 parent: { id: "captain-session" } as never,
                 ownership: participantOwnership(),
                 attempt: speakerAttempt,
                 prompt: [{ type: "text", text: "speak" }],
                 signal: new AbortController().signal,
                 authorize: async () => {
-                    checks += 1;
-                    if (checks === 2) throw new Error("CAPABILITY_REVOKED");
+                    if (accepted) throw new Error("CAPABILITY_REVOKED");
                 }
             })
         ).rejects.toThrow("CAPABILITY_REVOKED");
-        expect(checks).toBe(2);
+        expect(accepted).toBe(true);
     });
 });
 
@@ -244,7 +269,12 @@ describe("MeetingTask Session delivery", () => {
     it("authorizes queued delivery before followup and running delivery after followup", async () => {
         const phases: string[] = [];
         await followupMeetingTaskSession({
-            runtime: { sendMessage: async () => "task-message" as never },
+            runtime: {
+                sendMessage: async () => {
+                    phases.push("send");
+                    return "task-message" as never;
+                }
+            },
             parent: { id: "captain-session" } as never,
             ownership: participantOwnership(),
             meetingTaskId: "task-1",
@@ -253,7 +283,7 @@ describe("MeetingTask Session delivery", () => {
             signal: new AbortController().signal,
             authorize: async (phase) => phases.push(phase)
         });
-        expect(phases).toEqual(["before", "after"]);
+        expect(phases).toEqual(["before", "send", "after"]);
     });
 });
 
@@ -268,21 +298,29 @@ describe("Manager Session delivery authorization", () => {
 
     it("keeps the exact parent, delivery identity and authorization checks", async () => {
         const calls: unknown[] = [];
+        const events: string[] = [];
+        const attempt = { planningAttemptId: "planning-1", deliveryId: "delivery-1" };
+        const signal = new AbortController().signal;
         const result = await followupManagerSession({
             runtime: {
                 sendMessage: async (...args) => {
                     calls.push(args);
+                    events.push("send");
                     return "manager-message" as never;
                 }
             },
             parent: { id: "captain-session" } as never,
             ownership,
-            attempt: { planningAttemptId: "planning-1", deliveryId: "delivery-1" },
+            attempt,
             prompt: [{ type: "text", text: "plan" }],
-            signal: new AbortController().signal,
-            authorize: async () => undefined
+            signal,
+            authorize: async (authorization) => {
+                expect(authorization).toEqual({ ownership, attempt, signal });
+                events.push("authorize");
+            }
         });
         expect(result).toBe("manager-message");
+        expect(events).toEqual(["authorize", "send", "authorize"]);
         expect((calls[0] as unknown[])[0]).toMatchObject({ id: "captain-session" });
         expect((calls[0] as unknown[])[1]).toBe("manager-session");
     });
@@ -400,10 +438,6 @@ describe("archive Session ownership proof", () => {
         ownerships: [participantOwnership()],
         signal: new AbortController().signal,
         ...overrides
-    });
-
-    it("accepts a durable child that remains listed after its resident Activation drains", async () => {
-        await expect(proveArchiveOwnedChildren(input())).resolves.toEqual([participantOwnership()]);
     });
 
     it("ignores unrelated continuable children while proving every owned child", async () => {

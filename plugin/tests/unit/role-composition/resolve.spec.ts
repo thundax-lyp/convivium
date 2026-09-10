@@ -76,24 +76,10 @@ describe("role composition configuration and resolution", () => {
             original.manager?.agentDefinition.definitionHash
         );
     });
-    it.each([
-        {},
-        null,
-        { maxTokens: 1024 },
-        { model: " " },
-        { provider: "" },
-        { reasoningEffort: " " },
-        { maxTokens: 0 },
-        { maxTokens: -1 },
-        { maxTokens: 1.5 },
-        { maxTokens: Infinity },
-        { maxTokens: Number.MAX_SAFE_INTEGER + 1 },
-        { apiKey: "secret" },
-        { model: "x", extra: true }
-    ])("rejects invalid native model options without leaking configuration", (agentOptions) => {
-        expect(() => parseAgentDefinitions([{ ...manager, agentOptions }])).toThrow(
-            "Invalid meeting agent definitions."
-        );
+    it("rejects legacy Definition agentOptions without leaking configuration", () => {
+        expect(() =>
+            parseAgentDefinitions([{ ...manager, agentOptions: { model: "legacy" } }])
+        ).toThrow(expect.objectContaining({ message: "Invalid meeting agent definitions." }));
     });
     it("derives persona, leaves defaults to DSH and hashes role text changes", async () => {
         const resolve = (roleDescription: string) =>
@@ -113,7 +99,7 @@ describe("role composition configuration and resolution", () => {
             original.manager?.agentDefinition.definitionHash
         );
         expect(() => parseAgentDefinitions([{ ...manager, persona: "legacy" }])).toThrow(
-            "Invalid meeting agent definitions."
+            expect.objectContaining({ message: "Invalid meeting agent definitions." })
         );
     });
     it("rejects invalid direct-call overrides before capability checks even without selections", async () => {
@@ -189,7 +175,7 @@ describe("role composition configuration and resolution", () => {
             [{ ...manager, toolFilter: { other: [] } }]
         ]) {
             expect(() => parseAgentDefinitions(value)).toThrow(
-                "Invalid meeting agent definitions."
+                expect.objectContaining({ message: "Invalid meeting agent definitions." })
             );
         }
     });
@@ -204,11 +190,11 @@ describe("role composition configuration and resolution", () => {
         ).toThrow();
         const base = { ...manager, roleDescription: "" };
         const remaining = 16384 - Buffer.byteLength(JSON.stringify(base));
-        const boundary = { ...base, roleDescription: "x".repeat(remaining) };
+        const boundary = { ...base, roleDescription: "中" + "x".repeat(remaining - 3) };
         expect(parseAgentDefinitions([boundary])).toHaveLength(1);
         expect(() =>
             parseAgentDefinitions([
-                { ...boundary, roleDescription: boundary.roleDescription + "中" }
+                { ...boundary, roleDescription: boundary.roleDescription + "x" }
             ])
         ).toThrow();
     });

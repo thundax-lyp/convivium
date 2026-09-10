@@ -275,7 +275,7 @@ Restore：wrapper 的 finally 必须停止本次 Host、确认端口释放并删
 
 ### 适用范围与状态
 
-本节验证 Decision/risk 五种本地按钮及归档审计。使用 `decision-risk-closure` Browser 夹具；`runDecisionRiskClosureScenario` 与 `smoke-profile.spec.ts` 验证暂停和 ready 边界，ready 不代表页面验收通过。沿用独立临时 profile、Browser URL、PTY 停止及 cleanup。既有实际验收见 [Browser 历史证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)，每次复验均应记录自己的源码基线与结果。
+本节验证 Decision/risk 五种本地按钮及归档审计。使用 `decision-risk-closure` Browser 夹具；`runDecisionRiskClosureScenario` 在实际 Host 中验证暂停和 ready 边界，ready 不代表页面验收通过。沿用独立临时 profile、Browser URL、PTY 停止及 cleanup。既有实际验收见 [Browser 历史证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)，每次复验均应记录自己的源码基线与结果。
 
 ### Browser 夹具契约
 

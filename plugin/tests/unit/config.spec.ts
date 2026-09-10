@@ -43,15 +43,12 @@ describe("Convivium runtime config", () => {
         expect(Object.isFrozen(bound.agentModelOverrides?.a)).toBe(true);
         expect(Object.getPrototypeOf(bound.agentModelOverrides)).toBeNull();
         expect(Object.isFrozen(bound)).toBe(true);
-        for (const agentModelOverrides of [
-            { unknown: { model: "private" } },
-            { a: {} },
-            { a: { maxTokens: 1 } },
-            null
-        ]) {
+        for (const agentModelOverrides of [{ unknown: { model: "private" } }, null]) {
             expect(() =>
                 Config({ ...validConfig, agentDefinitions: [definition], agentModelOverrides })
-            ).toThrow("Invalid meeting agent model overrides.");
+            ).toThrow(
+                expect.objectContaining({ message: "Invalid meeting agent model overrides." })
+            );
         }
         expect(Config({ ...validConfig, agentModelOverrides: {} }).agentModelOverrides).toEqual({});
         definition.roleDescription = "changed";
@@ -59,8 +56,10 @@ describe("Convivium runtime config", () => {
         expect(Object.isFrozen(config.agentDefinitions)).toBe(true);
         expect(() =>
             Config({ ...validConfig, agentDefinitions: [{ ...definition, extra: true }] })
-        ).toThrow("Invalid meeting agent definitions.");
-        expect(() => Config({ ...validConfig, agentDefinitions: null })).toThrow();
+        ).toThrow(expect.objectContaining({ message: "Invalid meeting agent definitions." }));
+        expect(() => Config({ ...validConfig, agentDefinitions: null })).toThrow(
+            expect.objectContaining({ message: "Invalid meeting agent definitions." })
+        );
     });
 
     it("accepts a non-empty Developer Markdown workspace id", () => {

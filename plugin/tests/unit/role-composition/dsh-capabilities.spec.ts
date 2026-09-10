@@ -23,7 +23,7 @@ const skill = {
 };
 function fixture() {
     const presets = { composedPreset: vi.fn(() => "minimal") };
-    const skills = { get: vi.fn(async () => skill) };
+    const skills = { get: vi.fn(async (name: string) => ({ ...skill, name })) };
     const parent = {
         ctx: { get: vi.fn((key: string) => (key === "agentPresets" ? presets : skills)) },
         session: { header: { cwd: "/fixture" } }
@@ -31,16 +31,23 @@ function fixture() {
     return { parent, presets, skills, signal: new AbortController().signal };
 }
 describe("shared role capabilities", () => {
+    const sharedDefinitions = parseAgentDefinitions([
+        ...definitions,
+        { ...definitions[0], agentDefinitionId: "b", requiredSkillNames: ["fixture", "second"] }
+    ]);
     it("checks the exact parent scope and cwd with deduplicated skill names", async () => {
         const f = fixture();
-        await validateSharedRoleCapabilities(f.parent, [...definitions, ...definitions], f.signal);
+        await validateSharedRoleCapabilities(f.parent, sharedDefinitions, f.signal);
         expect(f.presets.composedPreset).toHaveBeenNthCalledWith(1, f.parent.ctx);
         expect(f.presets.composedPreset).toHaveBeenCalledTimes(2);
-        expect(f.skills.get).toHaveBeenCalledExactlyOnceWith("fixture", {
-            scope: f.parent,
-            cwd: "/fixture",
-            signal: f.signal
-        });
+        expect(f.skills.get).toHaveBeenCalledTimes(2);
+        for (const name of ["fixture", "second"]) {
+            expect(f.skills.get).toHaveBeenCalledWith(name, {
+                scope: f.parent,
+                cwd: "/fixture",
+                signal: f.signal
+            });
+        }
     });
     it("skips all services for empty selection", async () => {
         const f = fixture();
@@ -72,13 +79,13 @@ describe("shared role capabilities", () => {
     it("rejects unavailable, non-model, empty, throwing or changed capabilities safely", async () => {
         for (const result of [
             undefined,
-            { ...skill, content: " " },
-            { ...skill, invocation: { modelInvocable: false, userInvocable: true } }
+            { ...skill, name: "second", content: " " },
+            { ...skill, name: "second", invocation: { modelInvocable: false, userInvocable: true } }
         ]) {
             const f = fixture();
-            f.skills.get.mockResolvedValue(result);
+            f.skills.get.mockResolvedValueOnce(skill).mockResolvedValueOnce(result);
             await expect(
-                validateSharedRoleCapabilities(f.parent, definitions, f.signal)
+                validateSharedRoleCapabilities(f.parent, sharedDefinitions, f.signal)
             ).rejects.toThrow("Meeting role composition is unavailable.");
         }
         const f = fixture();

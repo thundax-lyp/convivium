@@ -53,8 +53,9 @@ const state = {
 } as unknown as MeetingState;
 
 describe("meeting archive materialization", () => {
-    it("copies existing optional facts without fabricating missing fields", () => {
-        const archive = materializeArchivePackage(state, 20);
+    it("copies existing optional facts without fabricating fields or retaining aliases", () => {
+        const source = structuredClone(state);
+        const archive = materializeArchivePackage(source, 20);
         expect(archive.acceptedDecisions).toEqual([
             { id: "decision-1", proposalId: "proposal-1", proposalRevision: 1, status: "accepted" }
         ]);
@@ -82,11 +83,6 @@ describe("meeting archive materialization", () => {
         expect(archive.parkingLot).toEqual([
             { id: "candidate-1", title: "later", reason: "parking", status: "parked" }
         ]);
-    });
-
-    it("deep-copies committed facts", () => {
-        const source = structuredClone(state);
-        const archive = materializeArchivePackage(source, 20);
         source.agendaCandidates[0].title = "mutated";
         source.issues[0].title = "mutated";
 
@@ -786,25 +782,37 @@ describe("archive ownership cleanup", () => {
         });
     });
 
-    it("does not finalize while an owned Session remains open", async () => {
-        await expect(
-            finalizeArchive({
-                repository: {
-                    recover: async () => ({
-                        snapshot: { state: archiving() as never },
-                        sessionOwnership: ownerships(),
-                        bootstrap: {} as never,
-                        reclaimedOutbox: 0,
-                        pendingOutbox: 0
-                    }),
-                    execute: async () => {
-                        throw new Error("must not execute");
-                    }
-                },
-                now: 11
-            })
-        ).rejects.toThrow(/revoked and closed/);
-    });
+    it.each([
+        { lifecycleStatus: "active", capabilityStatus: "revoked" },
+        { lifecycleStatus: "closed", capabilityStatus: "active" }
+    ] as const)(
+        "does not finalize with one $lifecycleStatus/$capabilityStatus Session",
+        async (unfinished) => {
+            const current = ownerships().map((ownership, index) => ({
+                ...ownership,
+                ...(index === 1
+                    ? unfinished
+                    : { lifecycleStatus: "closed" as const, capabilityStatus: "revoked" as const })
+            }));
+            await expect(
+                finalizeArchive({
+                    repository: {
+                        recover: async () => ({
+                            snapshot: { state: archiving() as never },
+                            sessionOwnership: current,
+                            bootstrap: {} as never,
+                            reclaimedOutbox: 0,
+                            pendingOutbox: 0
+                        }),
+                        execute: async () => {
+                            throw new Error("must not execute");
+                        }
+                    },
+                    now: 11
+                })
+            ).rejects.toThrow(/revoked and closed/);
+        }
+    );
 });
 
 describe("meeting archive recovery", () => {

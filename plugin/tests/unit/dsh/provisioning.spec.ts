@@ -19,23 +19,24 @@ describe("session provisioning envelope", () => {
             participantId: "participant-1"
         });
 
-        expect(manager).toMatchObject({
+        expect(JSON.parse(serializeSessionProvisioningEnvelope(manager))).toMatchObject({
             kind: "convivium.session.provisioning",
             version: 1,
+            teamId: "team-1",
+            meetingId: "meeting-1",
             capability: "none",
             role: "manager"
         });
         expect(manager.participantId).toBeUndefined();
-        expect(participant).toMatchObject({
+        expect(JSON.parse(serializeSessionProvisioningEnvelope(participant))).toMatchObject({
+            teamId: "team-1",
+            meetingId: "meeting-1",
             capability: "none",
             role: "participant",
             participantId: "participant-1"
         });
         expect(manager.instruction).toContain("no planning or speaker capability");
         expect(manager.instruction).toContain("attemptId and deliveryId");
-        expect(serializeSessionProvisioningEnvelope(participant)).toBe(
-            serializeSessionProvisioningEnvelope(participant)
-        );
     });
 
     it("rejects identity shapes that could grant the wrong role", () => {
