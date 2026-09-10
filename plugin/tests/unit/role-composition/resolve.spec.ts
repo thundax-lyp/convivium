@@ -76,24 +76,10 @@ describe("role composition configuration and resolution", () => {
             original.manager?.agentDefinition.definitionHash
         );
     });
-    it.each([
-        {},
-        null,
-        { maxTokens: 1024 },
-        { model: " " },
-        { provider: "" },
-        { reasoningEffort: " " },
-        { maxTokens: 0 },
-        { maxTokens: -1 },
-        { maxTokens: 1.5 },
-        { maxTokens: Infinity },
-        { maxTokens: Number.MAX_SAFE_INTEGER + 1 },
-        { apiKey: "secret" },
-        { model: "x", extra: true }
-    ])("rejects invalid native model options without leaking configuration", (agentOptions) => {
-        expect(() => parseAgentDefinitions([{ ...manager, agentOptions }])).toThrow(
-            "Invalid meeting agent definitions."
-        );
+    it("rejects legacy Definition agentOptions without leaking configuration", () => {
+        expect(() =>
+            parseAgentDefinitions([{ ...manager, agentOptions: { model: "legacy" } }])
+        ).toThrow("Invalid meeting agent definitions.");
     });
     it("derives persona, leaves defaults to DSH and hashes role text changes", async () => {
         const resolve = (roleDescription: string) =>
