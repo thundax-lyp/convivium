@@ -73,7 +73,7 @@ DSH 打开 Browser UI 后，新建 Captain Session，并显式选择 `convivium`
 
 升级时重新执行原安装入口；入口自动取得并记录新的实际版本。版本对应 release 已存在时安装停止，不覆盖原资源。项目当前不提供数据或 schema migration；升级前不得假定旧数据兼容，也不得自动删除或覆盖 SQLite。
 
-安装失败时保留精确命令和 DSH 错误。缺少 SQLite provider、`spawn` provider、角色资源、模型或凭据都应 fail closed；不得改用 smoke profile、测试 patch、旧 tarball 或其他用户 profile 继续宣称安装成功。
+安装失败时保留精确命令和 DSH 错误，并直接重跑同一安装命令。安装器会删除本次新建的 release 目录和 artifact，避免半成品阻断重试；已有的 `dev.env`、storage patch 与 workspace 数据保持不变。缺少 SQLite provider、`spawn` provider、角色资源、模型或凭据都应 fail closed；不得改用 smoke profile、测试 patch、旧 tarball 或其他用户 profile 继续宣称安装成功。
 
 ## Related Documents
 

@@ -57,7 +57,31 @@ require_command pnpm
 require_command tar
 
 temporary_root=$(mktemp -d "${TMPDIR:-/tmp}/convivium-install.XXXXXX")
-trap 'rm -rf "$temporary_root"' EXIT HUP INT TERM
+installed_artifact=""
+release_root=""
+installed_artifact_created=0
+release_root_created=0
+installation_completed=0
+
+cleanup() {
+    status=$?
+    trap - EXIT HUP INT TERM
+    if [ "$installation_completed" -ne 1 ]; then
+        if [ "$release_root_created" -eq 1 ]; then
+            rm -rf "$release_root"
+        fi
+        if [ "$installed_artifact_created" -eq 1 ]; then
+            rm -f "$installed_artifact"
+        fi
+    fi
+    rm -rf "$temporary_root"
+    exit "$status"
+}
+
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [ -z "$artifact_path" ]; then
     require_command npm
@@ -118,7 +142,9 @@ fi
 
 mkdir -p "$artifact_root" "$install_root/releases" "$install_root/dsh-home" "$workspace_root"
 cp "$artifact_path" "$installed_artifact"
+installed_artifact_created=1
 mkdir "$release_root"
+release_root_created=1
 tar -xzf "$installed_artifact" -C "$release_root"
 
 if [ ! -e "$install_root/storage.patch.yml" ]; then
@@ -153,6 +179,7 @@ cp "$release_root/package/scripts/start.sh" "$install_root/start.sh"
 chmod 755 "$install_root/start.sh"
 printf '%s\n' "$workspace_root" >"$workspace_path_file"
 printf '%s\n' "$release_version" >"$install_root/release"
+installation_completed=1
 
 printf 'Installed %s %s in %s\n' "$PACKAGE_NAME" "$release_version" "$install_root"
 printf 'Set DEEPSEEK_API_KEY in %s/dev.env, then run %s/start.sh\n' "$install_root" "$install_root"
