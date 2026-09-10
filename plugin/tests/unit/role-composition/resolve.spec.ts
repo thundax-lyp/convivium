@@ -190,11 +190,11 @@ describe("role composition configuration and resolution", () => {
         ).toThrow();
         const base = { ...manager, roleDescription: "" };
         const remaining = 16384 - Buffer.byteLength(JSON.stringify(base));
-        const boundary = { ...base, roleDescription: "x".repeat(remaining) };
+        const boundary = { ...base, roleDescription: "中" + "x".repeat(remaining - 3) };
         expect(parseAgentDefinitions([boundary])).toHaveLength(1);
         expect(() =>
             parseAgentDefinitions([
-                { ...boundary, roleDescription: boundary.roleDescription + "中" }
+                { ...boundary, roleDescription: boundary.roleDescription + "x" }
             ])
         ).toThrow();
     });
