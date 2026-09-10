@@ -890,17 +890,26 @@ describe("protocol envelope schemas", () => {
         ).toThrow();
     });
 
-    it("requires archive completion basis objects", () => {
-        const archivePackage = validArchivePackage();
-        expect(() => MeetingArchivePackageSchema(archivePackage)).not.toThrow();
+    it("accepts the archive package and rejects an empty package", () => {
+        expect(() => MeetingArchivePackageSchema(validArchivePackage())).not.toThrow();
         expect(() => MeetingArchivePackageSchema({})).toThrow();
-        expect(() =>
-            MeetingArchivePackageSchema({
-                ...archivePackage,
-                objectiveContract: undefined,
-                termination: undefined
-            })
-        ).toThrow();
+    });
+
+    it.each([
+        "objectiveContract",
+        "termination",
+        "participantProvenance",
+        "schemaVersion",
+        "participant displayName"
+    ])("rejects an archive with invalid %s", (field) => {
+        const archive = validArchivePackage();
+        if (field === "schemaVersion") archive.schemaVersion = 999;
+        else if (field === "participant displayName")
+            Reflect.set(archive, "participantProvenance", [
+                { participantId: "participant-a", displayName: 123 }
+            ]);
+        else Reflect.deleteProperty(archive, field);
+        expect(() => MeetingArchivePackageSchema(archive)).toThrow();
     });
 
     it("requires the archive package to belong to the projected meeting", () => {

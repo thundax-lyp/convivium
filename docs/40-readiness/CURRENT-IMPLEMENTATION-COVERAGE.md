@@ -94,7 +94,7 @@ Convivium 仅消费 Storage Domain，物理介质由 Host/profile 的官方 SQLi
 | 权限、领域与审计 | decision-acceptance、decision-disposition、completion suites：Captain capability 与后端绑定 local authority、非法对象/证据/终态拒绝、替换双事实、撤销历史、risk 重开；满足完成判断时同事务 converging，版本只增一次，不自动 end/archive |
 | 原子性与重放 | `contract/meeting-runtime.spec.ts`、`contract/domain-meeting-repository.spec.ts`、`recovery/domain-recovery.spec.ts`：逐动作 commit 失败无半提交、重试一次、混入外部证据整体拒绝、来源 receipt 隔离及终态重放 |
 | Remote、持久恢复与归档 | remote-boundary、protocol-schema、runtime 与 archive suites：Remote 执行五动作，读取经正式 Schema 校验；fake Domain 上重建 Runtime 保持 projection/receipt，Repository 冷重开保留两 Decision history、六条 local facts，拒绝伪造来源和证据；不证明真实 Host 冷重启 |
-| Client 与 Browser 夹具 | Client suites 覆盖五动作表单、写锁、证据预选、版本冲突、完整刷新、迟到响应及终态禁写；smoke-profile suite 验证两候选与 blocking risk 的暂停/ready 边界。DOM 与 fake runtime 不替代实际页面验收 |
+| Client 与 Browser 夹具 | Client suites 覆盖五动作表单、写锁、证据预选、版本冲突、完整刷新、迟到响应及终态禁写；两候选与 blocking risk 的暂停/ready 边界由真实 Browser smoke 场景检查，不保留夹具自测。DOM 测试不替代实际页面验收 |
 
 历史页面验证见 [Local Decision Risk Browser](./SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)；该页面证据不由本次文档整理更新。
 
@@ -106,7 +106,7 @@ Convivium 仅消费 Storage Domain，物理介质由 Host/profile 的官方 SQLi
 | 完整刷新与错误恢复 | Client suites 的 `refreshFactStatus`：stream/focus 完整刷新 对不同版本集合逐条替换、删除及卸载重开；分别缺少 decisionHistory、parkingLot、archive.package.issues 时保留缓存、禁写，合法刷新后恢复并清除 alert，输入 JSON 不变 |
 | 展示边界 | 文本 HTML 不创建 img、终态禁写；原事实展示增量不新增后端权限或命令。后来增加的 Decision/risk 五动作见上方独立验证索引，不沿用旧“区域无写控件”作为当前总体结论 |
 | UI controls | Button/Input 与 End outcome 单选组的真实包、键盘、缓存禁写、重复提交、Browser/Restore；见 [UI primitives migration](./SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration) |
-| Browser 清理 | `tests/unit/scripts/smoke-profile.spec.ts`：真实子进程 SIGINT 后清理期间再次收到 SIGTERM，仍输出 cleanup marker 并正常退出；不证明一般进程树或长期资源无泄漏 |
+| Browser 清理 | 脚本信号处理自测已按 Test Rules 移除；停止、端口释放和临时目录清理由实际 Browser smoke 的 Restore 验证，不据历史自测宣称当前无泄漏 |
 
 历史页面验证见 [Client Fact Visibility Browser](./SMOKE-VALIDATION-EVIDENCE.md#client-fact-visibility-browser)。本次控件迁移另有上表 UI controls 的真实页面证据；其他新增区域保持原验证边界。
 
@@ -118,6 +118,7 @@ Convivium 仅消费 Storage Domain，物理介质由 Host/profile 的官方 SQLi
 
 | 验证范围 | 自动化证据 |
 | --- | --- |
+| 发布资源 | `contract/meeting-roles-deployment.spec.ts`：九角色发布 JSON 经生产 parser 接受；真实 DSH patch 合并/插值在独立 profile 与资源根下保留 Definition、Preset 和运行控制，缺资源根拒绝。`verify:agent-definitions` 继续直接校验资源集合与 Skill 正文 |
 | 配置与共享能力 | `unit/role-composition/resolve.spec.ts`、`unit/config.spec.ts`、role-selection/request-idempotency、dsh-capabilities suites：数量/大小/未知字段/重复值和角色匹配、共享 Preset/Skill 只读预检、异步前后父 Preset 一致 |
 | 创建与持久化 | session-adapter、meeting-runtime、domain schemas/repository suites：全部预检后才分配身份、末项非法零 child、中途失败 revoke/interrupt/drain；provisioning/active binding 不可变，failed put 不改读值，旧记录不回填 |
 | 重放与公开边界 | runtime、status-projection、protocol-schema suites：ready/归档 receipt 重放不读取新配置，同 request 换 ID 冲突；status/archive 不泄露角色配置，错误信息脱敏 |
@@ -152,6 +153,7 @@ message-reference draft 正式语义见 [Referenced minutes draft](../20-interfa
 | 日期 / 源码边界 | 工程检查与实际结果 | 适用边界 |
 | --- | --- | --- |
 | 2026-09-10 / `eba973f` 加 runtime 测试修复 | `pnpm --dir plugin exec vitest run --project host tests/unit/runtime`：8 files / 53 tests PASS；修改的 `archive.spec.ts`、`developer-markdown-service.spec.ts` 定向 ESLint、Prettier PASS。隔离副本分别移除归档撤权、关闭、warning 异常隔离，以及允许 pending 低版本覆盖、禁止 pending 升级，运行这两个文件均由对应场景失败；副本已清理 | 独立验证归档双门禁、日志失败不影响 dispose、pending 最高版本；合并一次归档字段与副本验证，保留原断言。生产代码未变；Not Covered：完整 verify、真实 DSH profile、原子替换失败时旧文件完整性 |
+| 2026-09-10 / `7e99229` 后脚本自测清理工作区 | `pnpm --dir plugin exec vitest run --project host --project contract`：62 files / 723 tests PASS，另两套件因缺生成的 typert 未加载；`pnpm --dir plugin typecheck:remote-test` PASS 后，定向重跑 `contract/meeting-runtime.spec.ts`、`contract/remote-boundary.spec.ts`：2 files / 92 tests PASS。合计 64 files / 815 tests；lint、改动测试 Prettier、verify:agent-definitions（9 roles）、文档文件链接（556 项）及 diff 检查 PASS | 删除验证设施自测与孤立 fixture，保留发布资源组合和直接 Schema 保护，净减少 194 cases；纪要保护由既有 contract 承接。Not Covered：完整 verify、真实 Host/Browser、重复停止信号的独立设施回归；实际 smoke 与 Restore 要求保留 |
 | 2026-09-08 / `b3f02c2a75621f3f05f724c61dacdf45fe4264d6` | 最新角色模型的完整 verify 结果见 [Final Authorized Validation](./SMOKE-VALIDATION-EVIDENCE.md#final-authorized-validation) 的四命令顺序记录 | 首发角色部署授权范围；保留 web_fetch 豁免，不外推模型质量 |
 | 2026-09-08 / `859ac1e` 加测试同步，收口 `61f7de2` | `pnpm --dir plugin verify` exit 0，75 files / 1042 tests，Vitest 10.90s；`pnpm --dir plugin format` 无额外改动 | SQLite 替换；首次失败为旧 peer/模块可达性/VM dirname、join 三处测试契约，修正后 focused 3 files / 10 tests 及完整 verify 通过，未放宽业务断言 |
 | 2026-09-08 / `8c3b7ab0359828f4b2e33554300c134f95bacecd` | 完整 verify PASS，84 files / 1082 tests；探针修改后 `pnpm --dir plugin exec vitest run tests/unit/scripts` 为 7 files / 143 tests，相关 ESLint、Prettier、diff 检查 PASS | SQLite 替换前的 DSH 升级；对照 tag `dsh-v0.1.2-rc.1`（`a66e4702047846cdaa10c66c9d3df3951f5ea70d`）与安装包公开类型；当时 JSONL import 非阻断提示已随后续替换消失 |
