@@ -26,7 +26,12 @@ import type {
     SendMeetingMessageInputV1,
     TurnSubmissionV1
 } from "@/protocol/index.js";
-import type { MeetingToolCaller, MeetingToolRuntime } from "@/runtime/index.js";
+import {
+    managerPlanAllowedIntents,
+    managerPlanAllowedStepReasons,
+    type MeetingToolCaller,
+    type MeetingToolRuntime
+} from "@/runtime/index.js";
 import {
     CreateMeetingInputSchema,
     EndMeetingInputSchema,
@@ -79,6 +84,32 @@ const submitTurnToolParameters = {
         required: true,
         description:
             "TurnSubmissionV1 object. Required keys: protocolVersion, meetingId, turnId, stepId, attemptId, deliveryId, agendaItemId, kind, content, mentions, taskIds, agendaRelation, changes. Copy identity values from the current speaker delivery; use changes={} when there are no claims. Optional: replyTo, completionClaims, minutesDraft={coverage:{fromSeq,throughSeq},referencedMessageIds:[messageId]}. The outer tool argument is {input:<this object>}, not a JSON string."
+    }
+} as const;
+
+const submitManagerPlanToolParameters = {
+    input: {
+        type: "json",
+        required: true,
+        description: `ManagerPlanSubmissionV1 object. Required keys: protocolVersion, meetingId, planningAttemptId, observedMeetingVersion, requestId, agendaItemId, intent, objective, expectedOutputs, prohibitedTopics, steps. Allowed intent values: ${managerPlanAllowedIntents.join(", ")}. Each step requires participantId, instruction, reason; at least one step is required. Allowed step reason values: ${managerPlanAllowedStepReasons.join(", ")}. Copy identity and version values from the current manager delivery. Optional: attendanceRecommendations. The outer tool argument is {input:<this object>}, not a JSON string.`
+    }
+} as const;
+
+const createMeetingToolParameters = {
+    input: {
+        type: "json",
+        required: true,
+        description:
+            "CreateMeetingInputV1 object. Required keys: protocolVersion, requestId, teamId, topic, objective, objectiveContract, agenda, participants. objectiveContract requires requiredOutputs, acceptanceCriteria, hardConstraints, requiredReviewerKeys, riskAcceptanceAuthorityKeys, acceptableRiskLevel. Each agenda item requires key, title, objective, inScope, outOfScope, completionCriteria, requiredParticipantKeys; completionCriteria must reference requiredOutputs or acceptanceCriteria by key, canonical id, or exact description. Each participant requires participantKey and displayName; for native agent definitions set agentDefinitionId and omit sourceMemberName for native agent definitions unless binding an existing team member. Optional: managerAgentDefinitionId, selectionMode, continuation, limits. The outer tool argument is {input:<this object>}, not a JSON string."
+    }
+} as const;
+
+const endMeetingToolParameters = {
+    input: {
+        type: "json",
+        required: true,
+        description:
+            "EndMeetingInputV1 object. Required keys: protocolVersion, meetingId, expectedMeetingVersion, outcome, reason, acceptedDecisionIds, deferredAgendaItemIds, waivers, requestId. outcome must be completed, partial, no_consensus, or cancelled. Use empty arrays when there are no accepted decisions, deferred agenda items, or waivers; waivers entries require subjectId, kind, reason, where kind is required_review or agenda_item. Copy expectedMeetingVersion from the latest meeting_status. The outer tool argument is {input:<this object>}, not a JSON string."
     }
 } as const;
 
@@ -263,8 +294,8 @@ export function registerCreateAndStatusTools(
             defineTool({
                 name: "convivium_create_meeting",
                 description:
-                    "Create a meeting as its Captain. The caller identity comes from DSH, never tool input.",
-                parameters: toolParameters,
+                    "Create a meeting as its Captain. The caller identity comes from DSH, never tool input. Unless the user explicitly requests another value, omit limits.speakerAttemptTimeoutMs so the runtime default of 600000 ms (10 minutes) applies.",
+                parameters: createMeetingToolParameters,
                 output: { schema: protocolOutputSchema, render: renderOutcome },
                 async execute(args, exec) {
                     return asJson(
@@ -470,7 +501,7 @@ export function registerSubmitAndControlTools(
                 name: "convivium_submit_manager_plan",
                 description:
                     "Submit one ordered Manager turn plan only from the current meeting Manager Session.",
-                parameters: toolParameters,
+                parameters: submitManagerPlanToolParameters,
                 output: { schema: protocolOutputSchema, render: renderOutcome },
                 async execute(args, exec) {
                     return asJson(
@@ -576,7 +607,7 @@ export function registerSubmitAndControlTools(
             defineTool({
                 name: "convivium_end_meeting",
                 description: "End a meeting as its Captain with a structured terminal outcome.",
-                parameters: toolParameters,
+                parameters: endMeetingToolParameters,
                 output: { schema: protocolOutputSchema, render: renderOutcome },
                 async execute(args, exec) {
                     return asJson(

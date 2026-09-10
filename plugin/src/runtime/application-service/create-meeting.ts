@@ -89,18 +89,18 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
         if (input.agenda.length === 0) {
             return commandFailure("INVALID_ARGUMENT", "At least one agenda item is required.");
         }
-        const continuation = await resolveContinuationSelection(
-            input.continuation,
-            input.teamId,
-            caller,
-            options.recovery,
-            options.meetings
-        );
-        if (!continuation.ok) return continuation.error;
-        await options.recovery.rehydrate();
         const meetingId = stableMeetingId(input);
         const releaseCreation = options.holdCreation?.(meetingId);
         try {
+            const continuation = await resolveContinuationSelection(
+                input.continuation,
+                input.teamId,
+                caller,
+                options.recovery,
+                options.meetings
+            );
+            if (!continuation.ok) return continuation.error;
+            await options.recovery.rehydrate();
             const now = options.runtime.now?.() ?? Date.now();
             const authorization = {
                 callerBinding: `session:${caller.sessionId}`,
@@ -362,6 +362,16 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                 }
                 return commandFailure("INTERNAL_ERROR", "The meeting could not be created.", true);
             }
+        } catch (error) {
+            if (
+                error !== null &&
+                typeof error === "object" &&
+                "code" in error &&
+                error.code === "INVALID_CREATE_INPUT"
+            ) {
+                return commandFailure("INVALID_ARGUMENT", String(error));
+            }
+            return commandFailure("INTERNAL_ERROR", "The meeting could not be created.", true);
         } finally {
             releaseCreation?.();
         }

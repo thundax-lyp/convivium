@@ -119,7 +119,7 @@ Captain Session
 
 Meeting Runtime、tool handler、HTTP handler 和 recovery 必须通过 [Implementation 的统一 Meeting Session Adapter](./CONVIVIUM-IMPLEMENTATION-DESIGN.md#meeting-session-adapter) 创建和操作 meeting-owned Session，不在本文另定义创建函数签名。角色输入转换与能力预检见 [Role Composition Design](./ROLE-COMPOSITION-DESIGN.md#creation-conversion)。
 
-`startContinuable()` 不提供“只创建空 Session”的模式；`initialPrompt` 是创建契约的必填部分。Meeting Runtime 必须把首次消息限定为确定性的 Session provisioning envelope：它只声明会议身份、协议版本和当前没有 Speaker/Manager planning capability，不能创建 transcript、Turn、Decision 或其他会议事实。Manager 和所有 Participant 可以在创建期接收该 provisioning prompt；只有后续带有效 attempt/delivery capability 的 followup 才是正式会议请求。Provisioning 阶段发生的模型输出或未授权工具调用不是会议事实，必须被 Runtime 权限校验拒绝。
+`startContinuable()` 不提供“只创建空 Session”的模式；`initialPrompt` 是创建契约的必填部分。Meeting Runtime 必须把首次消息限定为确定性的 Session provisioning envelope：它只声明会议身份、协议版本和当前没有 Speaker/Manager planning capability，不能创建 transcript、Turn、Decision 或其他会议事实。Manager provisioning 明确要求在收到 `planningAttemptId + deliveryId` 后才能使用 planning write，Participant provisioning 明确要求在收到 `attemptId + deliveryId` 后才能使用 speaker write；MeetingTask 和 mail followup 继续使用各自的 delivery identity。只有匹配当前授权的 followup 才是正式会议请求。Provisioning 阶段发生的模型输出或未授权工具调用不是会议事实，必须被 Runtime 权限校验拒绝。
 
 Runtime 在 DSH 调用前分配 `childId` 并持久化 `parentSessionId`、provider、label 和 `provisioning` ownership；首次消息被 DSH inbox 接受后，再持久化稳定 `initialMessageId` 并把 lifecycle 前进为 `active`。当前 Session 树中 Manager 和 Participant 都是创建会议的 Captain Session 的 direct child。进程重启后，Runtime 可以使用持久 parent-child 关系和 label 检查归属，但只有同一 Captain Session 再次成为 live Agent 时，才能恢复需要精确 parent Agent 的 followup 或 drain。
 
@@ -389,6 +389,8 @@ interface MeetingContextProjection {
 `recentMessages` MUST 使用固化范围 `contextFromSeq..contextThroughSeq`。重投不得刷新范围。超限时生成共享摘要，但原始 transcript 仍保留在 Meeting projection。
 
 Speaker outbox 投递在该权威 context 之后附加模型可见的 `convivium_submit_turn` 调用指导：envelope 的 `meetingId/turnId/stepId/attemptId/deliveryId/agendaItemId` 直接取当前 projection，普通提交模板固定包含 `mentions=[]`、`taskIds=[]`、`agendaRelation="on_topic"` 和 `changes={}`。存在可引用正式消息时另给出 `minutesDraft` 示例，并将 `coverage.fromSeq` 收敛为 `max(1, contextFromSeq)`；否则明确省略 `minutesDraft`。该指导只帮助 Agent 构造工具输入，不进入 MeetingState、正式 transcript、request hash 或公开 projection；正式接受仍以 Protocol Schema、当前 caller 与 attempt 校验为准。
+
+Manager outbox 同样在权威 context 之后附加模型可见的 `convivium_submit_manager_plan` 调用指导。模板使用当前 `meetingId/planningAttemptId/meetingVersion/agendaItemId`，固定给出 `{input: ManagerPlanSubmissionV1}` 外层结构和本 attempt 的确定性 `requestId`；示例 step 优先选择当前可投递的 required speaker，否则选择首个 `dispatchableParticipantId`。指导分别列出 `requiredSpeakerIds` 与 `dispatchableParticipantIds`，要求不伪造不可投递身份；没有可投递 Participant 时明确不能形成满足 `steps.min(1)` 的有效 plan。该模板不替代 Manager 的计划判断，也不改变 caller、stale attempt、version、required participant 或业务 fallback 校验，不进入 MeetingState、event、receipt 或公开 projection。
 
 ### 9.3 Task snapshots
 

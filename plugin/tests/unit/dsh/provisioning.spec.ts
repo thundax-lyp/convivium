@@ -35,8 +35,11 @@ describe("session provisioning envelope", () => {
             role: "participant",
             participantId: "participant-1"
         });
-        expect(manager.instruction).toContain("no planning or speaker capability");
-        expect(manager.instruction).toContain("attemptId and deliveryId");
+        expect(manager.instruction).toContain("no planning capability");
+        expect(manager.instruction).toContain("planningAttemptId and deliveryId");
+        expect(manager.instruction).not.toContain("includes attemptId and deliveryId");
+        expect(participant.instruction).toContain("attemptId and deliveryId");
+        expect(participant.instruction).toContain("no speaker capability");
     });
 
     it("rejects identity shapes that could grant the wrong role", () => {

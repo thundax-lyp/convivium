@@ -21,7 +21,10 @@ const runtimeConfig: Schema<Config> = Schema.object({
     provider: Schema.string().pattern(/\S/).required(),
     developerMarkdownWorkspaceId: Schema.string().pattern(/\S/),
     maxParticipants: Schema.natural().min(3).max(32).default(3),
-    speakerTimeoutMs: Schema.natural().min(1).max(300_000).default(60_000),
+    speakerTimeoutMs: Schema.natural()
+        .min(1)
+        .max(60 * 60_000)
+        .default(10 * 60_000),
     outboxPollMs: Schema.natural().min(1).max(60_000).default(1_000)
 });
 

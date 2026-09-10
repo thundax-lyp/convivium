@@ -208,7 +208,7 @@ describe("meeting protocol examples and caller capabilities", () => {
         expect(envelope.capability).toBe("none");
         expect(envelope).not.toHaveProperty("participantId");
         expect(envelope.instruction).toBe(
-            "This message establishes your meeting identity only. You have no planning or speaker capability yet. Wait for a later request that includes attemptId and deliveryId before using any meeting write tool."
+            "This message establishes your meeting identity only. You have no planning capability yet. Wait for a later request that includes planningAttemptId and deliveryId before using the manager planning write tool."
         );
         const f = createOfflineMeetingProtocolFixture();
         expect(f.managerContext).toHaveProperty("planningAttemptId");
@@ -219,11 +219,7 @@ describe("meeting protocol examples and caller capabilities", () => {
         expect(f.bContext.attempt.attemptId).toEqual(expect.stringMatching(/.+/));
         expect(f.bContext.attempt.deliveryId).toEqual(expect.stringMatching(/.+/));
         const definitions = collectToolDefinitions();
-        for (const name of [
-            "convivium_dispose_attendance_recommendation",
-            "convivium_create_meeting",
-            "convivium_submit_manager_plan"
-        ]) {
+        for (const name of ["convivium_dispose_attendance_recommendation"]) {
             const matches = definitions.filter((d) => d.name === name);
             expect(matches).toHaveLength(1);
             const definition = matches[0];
@@ -233,6 +229,47 @@ describe("meeting protocol examples and caller capabilities", () => {
                 required: ["input"]
             });
         }
+        const createMeeting = definitions.find(
+            (definition) => definition.name === "convivium_create_meeting"
+        );
+        expect(createMeeting?.parameters).toMatchObject({
+            type: "object",
+            properties: {
+                input: {
+                    description: expect.stringContaining(
+                        "completionCriteria must reference requiredOutputs or acceptanceCriteria"
+                    )
+                }
+            },
+            required: ["input"]
+        });
+        expect(
+            (createMeeting?.parameters.properties as Record<string, { description?: string }>).input
+                .description
+        ).toContain("omit sourceMemberName for native agent definitions");
+        const submitManagerPlan = definitions.find(
+            (definition) => definition.name === "convivium_submit_manager_plan"
+        );
+        expect(submitManagerPlan?.parameters).toMatchObject({
+            type: "object",
+            properties: {
+                input: {
+                    description: expect.stringContaining(
+                        "protocolVersion, meetingId, planningAttemptId, observedMeetingVersion, requestId, agendaItemId"
+                    )
+                }
+            },
+            required: ["input"]
+        });
+        expect(
+            (submitManagerPlan?.parameters.properties as Record<string, { description?: string }>)
+                .input.description
+        ).toContain("Allowed intent values: explore, clarify, challenge");
+        expect(
+            (submitManagerPlan?.parameters.properties as Record<string, { description?: string }>)
+                .input.description
+        ).toContain("Allowed step reason values: explicit_mention, direct_question");
+        expect(createMeeting?.description).toContain("omit limits.speakerAttemptTimeoutMs");
         const submitTurn = definitions.find(
             (definition) => definition.name === "convivium_submit_turn"
         );
@@ -253,5 +290,23 @@ describe("meeting protocol examples and caller capabilities", () => {
         ).toContain(
             "minutesDraft={coverage:{fromSeq,throughSeq},referencedMessageIds:[messageId]}"
         );
+        const endMeeting = definitions.find(
+            (definition) => definition.name === "convivium_end_meeting"
+        );
+        expect(endMeeting?.parameters).toMatchObject({
+            type: "object",
+            properties: {
+                input: {
+                    description: expect.stringContaining(
+                        "protocolVersion, meetingId, expectedMeetingVersion, outcome, reason, acceptedDecisionIds, deferredAgendaItemIds, waivers, requestId"
+                    )
+                }
+            },
+            required: ["input"]
+        });
+        expect(
+            (endMeeting?.parameters.properties as Record<string, { description?: string }>).input
+                .description
+        ).toContain("waivers entries require subjectId, kind, reason");
     });
 });

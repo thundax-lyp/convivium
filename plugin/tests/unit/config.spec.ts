@@ -11,7 +11,7 @@ describe("Convivium runtime config", () => {
         expect(Config(validConfig)).toEqual({
             provider: "spawn",
             maxParticipants: 3,
-            speakerTimeoutMs: 60_000,
+            speakerTimeoutMs: 10 * 60_000,
             outboxPollMs: 1_000
         });
         expect(() => Config({})).toThrow(/provider/);
@@ -85,5 +85,12 @@ describe("Convivium runtime config", () => {
                 new RegExp(key)
             );
         }
+
+        expect(Config({ ...validConfig, speakerTimeoutMs: 10 * 60_000 })).toMatchObject({
+            speakerTimeoutMs: 10 * 60_000
+        });
+        expect(() => Config({ ...validConfig, speakerTimeoutMs: 60 * 60_000 + 1 })).toThrow(
+            /speakerTimeoutMs/
+        );
     });
 });

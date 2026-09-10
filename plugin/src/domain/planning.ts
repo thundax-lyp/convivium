@@ -301,7 +301,7 @@ export function nextManagerPlanningIds(state: MeetingState): {
     };
 }
 
-const turnIntents: readonly TurnIntent[] = [
+export const managerTurnIntents: readonly TurnIntent[] = [
     "explore",
     "clarify",
     "challenge",
@@ -313,7 +313,7 @@ const turnIntents: readonly TurnIntent[] = [
     "refocus"
 ];
 
-const speakerSelectionReasons: readonly SpeakerSelectionReason[] = [
+export const managerSpeakerSelectionReasons: readonly SpeakerSelectionReason[] = [
     "explicit_mention",
     "direct_question",
     "required_reviewer",
@@ -454,7 +454,7 @@ export function planManagerTurn(
         invalidManagerPlan("agenda item does not match active agenda");
     requireNonEmpty(input.intent, "intent");
     requireNonEmpty(input.objective, "objective");
-    if (!turnIntents.includes(input.intent as TurnIntent)) {
+    if (!managerTurnIntents.includes(input.intent as TurnIntent)) {
         invalidManagerPlan(`unknown intent ${input.intent}`);
     }
     if (input.steps.length === 0) invalidManagerPlan("steps must not be empty");
@@ -474,7 +474,7 @@ export function planManagerTurn(
         selectedIds.add(step.participantId);
         requireNonEmpty(step.instruction, `steps[${index}].instruction`);
         requireNonEmpty(step.reason, `steps[${index}].reason`);
-        if (!speakerSelectionReasons.includes(step.reason as SpeakerSelectionReason)) {
+        if (!managerSpeakerSelectionReasons.includes(step.reason as SpeakerSelectionReason)) {
             invalidManagerPlan(`unknown reason ${step.reason}`);
         }
     }

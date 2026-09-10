@@ -7,13 +7,21 @@ import {
 } from "@/dsh/index.js";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import { isParticipantDispatchableNow, type MeetingState } from "@/domain/index.js";
+import {
+    isParticipantDispatchableNow,
+    managerSpeakerSelectionReasons,
+    managerTurnIntents,
+    type MeetingState
+} from "@/domain/index.js";
 import { projectManagerMeetingContext, projectSpeakerMeetingContext } from "@/projection/index.js";
 import { RepositoryError } from "@/repository/errors.js";
 import type { OutboxItem } from "@/repository/types.js";
 import type { MeetingRepositoryRuntime } from "@/runtime/meeting-runtime.js";
 import { createOutboxWorker } from "@/runtime/outbox-worker.js";
 import type { MeetingDeliveryWorkerService } from "./types.js";
+
+export const managerPlanAllowedIntents = managerTurnIntents;
+export const managerPlanAllowedStepReasons = managerSpeakerSelectionReasons;
 
 function terminalDispatchError(code: string, message: string): Error {
     return Object.assign(new Error(message), { code, retryable: false });
@@ -103,6 +111,50 @@ function speakerSubmissionGuidance(
             }
         },
         referencedMinutes
+    };
+}
+
+function managerSubmissionGuidance(
+    context: ReturnType<typeof projectManagerMeetingContext>
+): object {
+    const firstParticipantId =
+        context.requiredSpeakerIds.find((participantId) =>
+            context.dispatchableParticipantIds.includes(participantId)
+        ) ?? context.dispatchableParticipantIds[0];
+    return {
+        tool: "convivium_submit_manager_plan",
+        dispatchableParticipantIds: context.dispatchableParticipantIds,
+        requiredSpeakerIds: context.requiredSpeakerIds,
+        allowedIntents: managerPlanAllowedIntents,
+        allowedStepReasons: managerPlanAllowedStepReasons,
+        instruction:
+            firstParticipantId === undefined
+                ? "No participant is currently dispatchable, so a valid plan with at least one step cannot be submitted. Do not invent a participantId."
+                : "Submit the outer tool argument exactly as {input:<ManagerPlanSubmissionV1 object>}. Replace planning content, but keep the current identity and version values. Every step participantId must come from dispatchableParticipantIds. Include each requiredSpeakerId that is dispatchable; never invent an unavailable participantId.",
+        submitManagerPlan: {
+            input: {
+                protocolVersion: 1,
+                meetingId: context.meetingId,
+                planningAttemptId: context.planningAttemptId,
+                observedMeetingVersion: context.meetingVersion,
+                requestId: `${context.planningAttemptId}:submission`,
+                agendaItemId: context.activeAgendaItem.id,
+                intent: "explore",
+                objective: "<replace with the turn objective>",
+                expectedOutputs: [],
+                prohibitedTopics: [],
+                steps:
+                    firstParticipantId === undefined
+                        ? []
+                        : [
+                              {
+                                  participantId: firstParticipantId,
+                                  instruction: "<replace with the speaker instruction>",
+                                  reason: "manager_selected"
+                              }
+                          ]
+            }
+        }
     };
 }
 
@@ -325,6 +377,8 @@ export function createMeetingDeliveryDispatcher(
                     )
             )
             .map((participant) => participant.id);
+        const context = projectManagerMeetingContext(state, dispatchableParticipantIds);
+        const guidance = managerSubmissionGuidance(context);
         await followupManagerSession({
             runtime: options.continuable,
             parent: input.parent,
@@ -336,9 +390,11 @@ export function createMeetingDeliveryDispatcher(
             prompt: [
                 {
                     type: "text",
-                    text: JSON.stringify(
-                        projectManagerMeetingContext(state, dispatchableParticipantIds)
-                    )
+                    text: JSON.stringify(context)
+                },
+                {
+                    type: "text",
+                    text: `Convivium manager submission guidance: ${JSON.stringify(guidance)}`
                 }
             ],
             signal: input.signal,
