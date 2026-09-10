@@ -92,7 +92,7 @@ const missingArtifacts = requiredArtifacts.filter(
 const packageName = typeof manifest?.name === "string" ? manifest.name : "";
 const installBinIsPublished = manifest?.bin?.["convivium-install"] === "scripts/install.sh";
 const client = manifest?.dsh?.client;
-const bundledClientRequires = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmokit"].flatMap(
+const bundledClientRequires = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmokit", "zod"].flatMap(
     (packageName) => [`require("${packageName}")`, `require('${packageName}')`]
 );
 

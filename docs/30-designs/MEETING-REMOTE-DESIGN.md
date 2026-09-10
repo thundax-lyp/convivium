@@ -29,7 +29,7 @@
 
 `tsdown.config.ts` 的 Host bundle 与 `vitest.config.ts` 使用正式 `typertPlugin().transform` 转换 Stage-3 decorators；tsdown 注册只有 name/transform 的转换插件，不调用依赖 monorepo 的自动生成 hook。Vitest 的转换插件另外设 `enforce:"pre"`，既有 projects/alias 保持。生成脚本先于测试，测试仍通过 `@/remote/index.js` 导入原始源码，不改成测 lib。
 
-Client self import `@convivium/dsh-plugin/remote` 包入原有 client.js 工厂，不交给宿主模块加载器解析新的 self module ID；现有 DeepSeek 模块 external 策略保持。不将 Host Service、Node API 或 generator 打入 Client。
+Client self import `@convivium/dsh-plugin/remote` 包入原有 client.js 工厂，不交给宿主模块加载器解析新的 self module ID；现有 DeepSeek 模块 external 策略保持。生成的 Remote strict schema 运行时依赖 `zod`，它不属于 DSH Browser platform module，必须与 `schemastery`、`cosmokit` 一样打入 `client.js`；package gate 拒绝三者残留裸 `require()`。不将 Host Service、Node API 或 generator 打入 Client。
 
 ## Host Service
 
