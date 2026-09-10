@@ -43,6 +43,8 @@ const requiredArtifacts = [
     "meeting-roles/definitions.json",
     "meeting-roles/README.md",
     "meeting-roles/cordis.patch.yml",
+    "scripts/install.sh",
+    "scripts/start.sh",
     "meeting-roles/presets/convivium/preset.yml",
     "meeting-roles/presets/convivium/agent.cordis.yml",
     "meeting-roles/presets/convivium/skills/meeting-management/SKILL.md",
@@ -88,6 +90,7 @@ const missingArtifacts = requiredArtifacts.filter(
     (path) => !existsSync(resolve(packageRoot, path))
 );
 const packageName = typeof manifest?.name === "string" ? manifest.name : "";
+const installBinIsPublished = manifest?.bin?.["convivium-install"] === "scripts/install.sh";
 const client = manifest?.dsh?.client;
 const bundledClientRequires = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmokit"].flatMap(
     (packageName) => [`require("${packageName}")`, `require('${packageName}')`]
@@ -101,12 +104,15 @@ const result = {
             "lib",
             "cordis.patch.yml",
             "meeting-roles",
+            "scripts/install.sh",
+            "scripts/start.sh",
             "lib/typert.host.js",
             "lib/typert.host.d.ts",
             "lib/typert.remote-client.js",
             "lib/typert.remote-client.d.ts"
         ]),
     bundlePatchMatchesPackageName: Boolean(packageName && patch.includes(packageName)),
+    installBinIsPublished,
     clientManifestIsComplete:
         client?.platform === "web" && Array.isArray(client.inject) && client.inject.length > 0,
     clientBundleIsSelfContained: bundledClientRequires.every(
@@ -122,6 +128,7 @@ if (
     !result.exportsMatchArtifacts ||
     !result.filesAllowlistIsClosed ||
     !result.bundlePatchMatchesPackageName ||
+    !result.installBinIsPublished ||
     !result.clientManifestIsComplete ||
     !result.clientBundleIsSelfContained ||
     result.forbiddenPublishedPaths.length > 0 ||

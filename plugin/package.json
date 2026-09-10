@@ -1,10 +1,13 @@
 {
     "name": "@convivium/dsh-plugin",
-    "version": "0.0.0",
+    "version": "0.1.0-alpha.1",
     "description": "DSH plugin for continuous, structured multi-agent meetings",
     "private": true,
     "license": "UNLICENSED",
     "type": "module",
+    "bin": {
+        "convivium-install": "scripts/install.sh"
+    },
     "main": "lib/index.js",
     "types": "lib/types/index.d.ts",
     "exports": {
@@ -40,6 +43,8 @@
         "lib",
         "cordis.patch.yml",
         "meeting-roles",
+        "scripts/install.sh",
+        "scripts/start.sh",
         "lib/typert.host.js",
         "lib/typert.host.d.ts",
         "lib/typert.remote-client.js",

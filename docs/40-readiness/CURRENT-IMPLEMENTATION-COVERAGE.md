@@ -6,7 +6,7 @@
 
 ## Scope
 
-- 更新日期：2026-09-10。最新更新为测试回归保护与资产精简；未新增真实 Host/Browser 验收。
+- 更新日期：2026-09-10。最新更新为源码/npm 安装入口与发布契约；未新增真实 Host/Browser 验收。
 - 本文维护当前需求覆盖、自动化证据索引和剩余缺口。真实 Host、Browser、失败轮及 Restore 结果统一由 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md) 保存。
 - 各次验证的源码基线和适用范围见 [Executed Validation](#executed-validation)，历史结果不代表当前全部能力。
 - `已实现` 表示正式运行路径及相称证据存在，不表示所有运行组合已验证；`部分实现` 表示仍有必需路径缺失。设计不是实现完成证明。
@@ -38,6 +38,10 @@
 ## Automated Evidence
 
 以下源码路径相对 `plugin/`；专项表格是测试索引，执行基线见 [Executed Validation](#executed-validation)。fake DSH、DOM 和 SQLite reopen 各自只证明其测试边界。
+
+### User Installation Entrypoints
+
+`scripts/install-from-source.sh` 负责 frozen install、构建和打包；npm `convivium-install` 与内部 artifact 路径复用发布物中的 `scripts/install.sh`。`installation-entrypoints.spec.ts` 通过实际 tar 解包和 npm-bin symlink 验证无版本输入安装、manifest release 选择、默认及显式 DSH workspace、同 tarball 资源、持久配置及启动绑定；仅替换 DSH `pnpm` 调用，不证明 registry 下载或真实 profile 安装成功。`package-contract.spec.ts` 与 `verify:package` 验证安装入口及启动脚本进入关闭的发布 allowlist。
 
 ### SQLite Provider Integration
 
@@ -152,6 +156,7 @@ message-reference draft 正式语义见 [Referenced minutes draft](../20-interfa
 
 | 日期 / 源码边界 | 工程检查与实际结果 | 适用边界 |
 | --- | --- | --- |
+| 2026-09-10 / 安装脚本工作区 | `pnpm build`、`pnpm test`：73 files / 918 tests PASS；`pnpm lint` exit 0（44 个既有 complexity/max-lines warnings），format、package contract、shell 语法、npm pack 清单、文档文件链接 565 项及 diff 检查 PASS | manifest 隐式版本、npm-bin symlink、持久安装配置与已安装 release 启动。Not Covered：真实 npm registry、真实 DSH profile/Browser、源码入口的实际依赖下载 |
 | 2026-09-10 / `2dd1196` | [PR #70 CI](https://github.com/thundax-lyp/convivium/actions/runs/34429070514)：Ubuntu、Node 22.19.0、pnpm 10.7.0，7 项检查 PASS；本地 deployment contract 2 tests、定向 Prettier/ESLint、文档文件链接 556 项及 diff 检查 PASS | 固定 control patch 承接原生部署组合保护；生产代码未变。Not Covered：本地完整 verify、真实 Host/Browser |
 | 2026-09-10 / `be08a16` | `pnpm --dir plugin typecheck:remote-test`、`pnpm --dir plugin exec vitest run --project host --project contract`：64 files / 803 tests PASS；改动测试 Prettier/ESLint、`verify:agent-definitions`（9 roles）、文档文件链接 556 项及 diff 检查 PASS。相同 runtime 测试内容另经 8 files / 53 tests 和隔离故障注入验证：移除归档撤权/关闭门禁、warning 异常隔离或 pending 最高版本约束时，对应场景失败；副本已清理 | 汇总配置、角色、Session、归档与 Markdown 回归，移除脚本设施自测。Not Covered：本地完整 verify、真实 Host/Browser、重复停止信号的独立设施回归、原子替换失败时旧文件完整性 |
 | 2026-09-08 / `b3f02c2a75621f3f05f724c61dacdf45fe4264d6` | 最新角色模型的完整 verify 结果见 [Final Authorized Validation](./SMOKE-VALIDATION-EVIDENCE.md#final-authorized-validation) 的四命令顺序记录 | 首发角色部署授权范围；保留 web_fetch 豁免，不外推模型质量 |
@@ -187,7 +192,7 @@ SQLite 构建仅有 Node SQLite experimental 与既有 Client bundle dependency 
 
 | 范围 | 尚未实现或未验证 |
 | --- | --- |
-| FR-1 / 发布 | 最终分发与发布策略、其他 DSH 版本及独立 ACP/SDK/TUI/headless profile 未验证；无 WebServer 回归不等于这些部署已验收 |
+| FR-1 / 发布 | npm 与源码安装入口已实现但未用真实 registry 和 DSH profile 验收；最终发布策略、其他 DSH 版本及独立 ACP/SDK/TUI/headless profile 未验证；无 WebServer 回归不等于这些部署已验收 |
 | FR-4 / FR-8 | 真实模型规划质量、时间预算的真实完成边界、blocking Position 的真实 DSH 反例未验证 |
 | FR-7 | 历史五动作 Browser 证据未在最新源码组合重跑，专项真实 Host 冷重启未验证 |
 | FR-9 | 强杀 Host、真实缺失 Session、中断创建清理及默认角色补建的真实故障注入未执行；Definition descriptor 丢失按契约拒绝补建 |
