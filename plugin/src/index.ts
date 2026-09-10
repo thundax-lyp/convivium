@@ -1,5 +1,6 @@
 import { parseAgentDefinitions } from "./role-composition/model.js";
 import type { Context } from "@deepseek-ai/cordis";
+// Load the Cordis augmentation for ctx.webServer without a runtime import.
 import type {} from "@deepseek-ai/dsh-host-webserver";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import type { WorkspaceId } from "@deepseek-ai/dsh-workspace";

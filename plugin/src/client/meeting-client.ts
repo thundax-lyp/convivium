@@ -1,6 +1,7 @@
 import type { ClientRemote, RemoteStream } from "@deepseek-ai/dsh-api-gateway/client";
 import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
 import type Schema from "@deepseek-ai/schemastery";
+// Load the generated ClientRemote namespace augmentation without a runtime import.
 import type {} from "@convivium/dsh-plugin/remote";
 import {
     CaptainDecisionAcceptanceResultSchema,

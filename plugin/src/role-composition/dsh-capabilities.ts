@@ -1,4 +1,5 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
+// Load the Cordis augmentations for ctx.agentPresets and ctx.skills without runtime imports.
 import type {} from "@deepseek-ai/dsh-agent-presets";
 import type {} from "@deepseek-ai/dsh-skill";
 import type { MeetingAgentDefinitionV1 } from "./model.js";
