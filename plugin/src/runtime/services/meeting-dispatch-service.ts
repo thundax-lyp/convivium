@@ -117,20 +117,23 @@ function speakerSubmissionGuidance(
 function managerSubmissionGuidance(
     context: ReturnType<typeof projectManagerMeetingContext>
 ): object {
-    const firstParticipantId =
-        context.requiredSpeakerIds.find((participantId) =>
-            context.dispatchableParticipantIds.includes(participantId)
-        ) ?? context.dispatchableParticipantIds[0];
+    const requiredParticipantIds = context.requiredSpeakerIds.filter((participantId) =>
+        context.dispatchableParticipantIds.includes(participantId)
+    );
+    const prefilledParticipantIds =
+        requiredParticipantIds.length > 0
+            ? requiredParticipantIds
+            : context.dispatchableParticipantIds.slice(0, 1);
+    const hasDispatchableParticipant = prefilledParticipantIds.length > 0;
     return {
         tool: "convivium_submit_manager_plan",
         dispatchableParticipantIds: context.dispatchableParticipantIds,
         requiredSpeakerIds: context.requiredSpeakerIds,
         allowedIntents: managerPlanAllowedIntents,
         allowedStepReasons: managerPlanAllowedStepReasons,
-        instruction:
-            firstParticipantId === undefined
-                ? "No participant is currently dispatchable, so a valid plan with at least one step cannot be submitted. Do not invent a participantId."
-                : "Submit the outer tool argument exactly as {input:<ManagerPlanSubmissionV1 object>}. Replace planning content, but keep the current identity and version values. Every step participantId must come from dispatchableParticipantIds. Include each requiredSpeakerId that is dispatchable; never invent an unavailable participantId.",
+        instruction: hasDispatchableParticipant
+            ? "Submit the outer tool argument exactly as {input:<ManagerPlanSubmissionV1 object>}. Replace planning content, but keep the current identity and version values. Every step participantId must come from dispatchableParticipantIds. Include each requiredSpeakerId that is dispatchable; never invent an unavailable participantId."
+            : "No participant is currently dispatchable, so a valid plan with at least one step cannot be submitted. Do not invent a participantId.",
         submitManagerPlan: {
             input: {
                 protocolVersion: 1,
@@ -143,16 +146,11 @@ function managerSubmissionGuidance(
                 objective: "<replace with the turn objective>",
                 expectedOutputs: [],
                 prohibitedTopics: [],
-                steps:
-                    firstParticipantId === undefined
-                        ? []
-                        : [
-                              {
-                                  participantId: firstParticipantId,
-                                  instruction: "<replace with the speaker instruction>",
-                                  reason: "manager_selected"
-                              }
-                          ]
+                steps: prefilledParticipantIds.map((participantId) => ({
+                    participantId,
+                    instruction: "<replace with the speaker instruction>",
+                    reason: "manager_selected"
+                }))
             }
         }
     };

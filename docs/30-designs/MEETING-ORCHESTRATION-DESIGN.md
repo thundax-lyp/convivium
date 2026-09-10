@@ -390,7 +390,7 @@ interface MeetingContextProjection {
 
 Speaker outbox 投递在该权威 context 之后附加模型可见的 `convivium_submit_turn` 调用指导：envelope 的 `meetingId/turnId/stepId/attemptId/deliveryId/agendaItemId` 直接取当前 projection，普通提交模板固定包含 `mentions=[]`、`taskIds=[]`、`agendaRelation="on_topic"` 和 `changes={}`。存在可引用正式消息时另给出 `minutesDraft` 示例，并将 `coverage.fromSeq` 收敛为 `max(1, contextFromSeq)`；否则明确省略 `minutesDraft`。该指导只帮助 Agent 构造工具输入，不进入 MeetingState、正式 transcript、request hash 或公开 projection；正式接受仍以 Protocol Schema、当前 caller 与 attempt 校验为准。
 
-Manager outbox 同样在权威 context 之后附加模型可见的 `convivium_submit_manager_plan` 调用指导。模板使用当前 `meetingId/planningAttemptId/meetingVersion/agendaItemId`，固定给出 `{input: ManagerPlanSubmissionV1}` 外层结构和本 attempt 的确定性 `requestId`；示例 step 优先选择当前可投递的 required speaker，否则选择首个 `dispatchableParticipantId`。指导分别列出 `requiredSpeakerIds` 与 `dispatchableParticipantIds`，要求不伪造不可投递身份；没有可投递 Participant 时明确不能形成满足 `steps.min(1)` 的有效 plan。该模板不替代 Manager 的计划判断，也不改变 caller、stale attempt、version、required participant 或业务 fallback 校验，不进入 MeetingState、event、receipt 或公开 projection。
+Manager outbox 同样在权威 context 之后附加模型可见的 `convivium_submit_manager_plan` 调用指导。模板使用当前 `meetingId/planningAttemptId/meetingVersion/agendaItemId`，固定给出 `{input: ManagerPlanSubmissionV1}` 外层结构和本 attempt 的确定性 `requestId`；示例 steps 按 `requiredSpeakerIds` 顺序覆盖全部当前可投递的 required speakers，没有 required speaker 时才选择首个 `dispatchableParticipantId`。指导分别列出 `requiredSpeakerIds` 与 `dispatchableParticipantIds`，要求不伪造不可投递身份；没有可投递 Participant 时明确不能形成满足 `steps.min(1)` 的有效 plan。该模板不替代 Manager 的计划判断，也不改变 caller、stale attempt、version、required participant 或业务 fallback 校验，不进入 MeetingState、event、receipt 或公开 projection。
 
 ### 9.3 Task snapshots
 

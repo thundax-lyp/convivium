@@ -19,6 +19,16 @@ function activeManagerState(): MeetingState {
             lastAcknowledgedSeq: 0
         },
         {
+            id: "participant-required-second",
+            displayName: "Second Required Reviewer",
+            status: "available",
+            consecutiveSpeeches: 0,
+            consecutiveAttemptFailures: 0,
+            totalSpeeches: 0,
+            lastDeliveredSeq: 0,
+            lastAcknowledgedSeq: 0
+        },
+        {
             id: "participant-unavailable",
             displayName: "Unavailable Reviewer",
             status: "unavailable",
@@ -37,7 +47,7 @@ function activeManagerState(): MeetingState {
             inScope: [],
             outOfScope: [],
             completionCriteria: [],
-            requiredParticipants: ["participant-required"],
+            requiredParticipants: ["participant-required", "participant-required-second"],
             relatedTaskIds: [],
             status: "discussing"
         }
@@ -82,10 +92,21 @@ describe("meeting manager dispatch", () => {
             role: "participant" as const,
             participantId: "participant-required"
         };
+        const secondParticipantOwnership = {
+            ...managerOwnership,
+            sessionId: "participant-session-second",
+            sessionLabel: "convivium/team-1/meeting-1/participant-required-second",
+            role: "participant" as const,
+            participantId: "participant-required-second"
+        };
         const repository = {
             recover: vi.fn().mockResolvedValue({
                 snapshot: { state },
-                sessionOwnership: [managerOwnership, participantOwnership]
+                sessionOwnership: [
+                    managerOwnership,
+                    participantOwnership,
+                    secondParticipantOwnership
+                ]
             })
         } as unknown as MeetingRepositoryRuntime;
         const sendMessage = vi.fn().mockResolvedValue("accepted-message");
@@ -116,8 +137,8 @@ describe("meeting manager dispatch", () => {
         expect(prompt[1]?.text.startsWith(prefix)).toBe(true);
         expect(JSON.parse(prompt[1]!.text.slice(prefix.length))).toEqual({
             tool: "convivium_submit_manager_plan",
-            dispatchableParticipantIds: ["participant-required"],
-            requiredSpeakerIds: ["participant-required"],
+            dispatchableParticipantIds: ["participant-required", "participant-required-second"],
+            requiredSpeakerIds: ["participant-required", "participant-required-second"],
             allowedIntents: [
                 "explore",
                 "clarify",
@@ -159,6 +180,11 @@ describe("meeting manager dispatch", () => {
                     steps: [
                         {
                             participantId: "participant-required",
+                            instruction: "<replace with the speaker instruction>",
+                            reason: "manager_selected"
+                        },
+                        {
+                            participantId: "participant-required-second",
                             instruction: "<replace with the speaker instruction>",
                             reason: "manager_selected"
                         }
