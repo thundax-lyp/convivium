@@ -52,16 +52,22 @@ describe("Developer Markdown service", () => {
         const current = snapshot(3);
         current.state.archive = { package: archivePackage() };
         const warnings: DeveloperMarkdownWarning[] = [];
+        let notifyReadStarted!: () => void;
+        const readStarted = new Promise<void>((resolve) => {
+            notifyReadStarted = resolve;
+        });
         let releaseRead!: () => void;
         const readGate = new Promise<void>((resolve) => {
             releaseRead = resolve;
         });
+        const openRepository = vi.fn(async () => {
+            notifyReadStarted();
+            await readGate;
+            return repository(current);
+        });
         const service = createDeveloperMarkdownService({
             workspaceRoot: root,
-            openRepository: async () => {
-                await readGate;
-                return repository(current);
-            },
+            openRepository,
             now: () => now,
             warn: (value) => warnings.push(value)
         });
@@ -70,6 +76,7 @@ describe("Developer Markdown service", () => {
         try {
             // Keep the first task in flight so all later versions compete for one pending slot.
             service.schedule(snapshot(1));
+            await readStarted;
             service.schedule(snapshot(2));
             service.schedule(current);
             service.schedule(snapshot(2));
@@ -90,6 +97,7 @@ describe("Developer Markdown service", () => {
             `generatedAt: ${JSON.stringify(new Date(now).toISOString())}`
         );
         expect((await readdir(directory)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+        expect(openRepository).toHaveBeenCalledTimes(2);
         expect(warnings).toEqual([]);
     });
 
