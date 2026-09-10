@@ -6,7 +6,7 @@
 
 ## Scope
 
-- 更新日期：2026-09-10。最新更新为 Client `zod` 自包含修复；未新增真实 Host/Browser 验收。
+- 更新日期：2026-09-10。最新更新为 Speaker `submit_turn` 调用指导与 Client `zod` 自包含修复；未新增真实 Host/Browser 验收。
 - 本文维护当前需求覆盖、自动化证据索引和剩余缺口。真实 Host、Browser、失败轮及 Restore 结果统一由 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md) 保存。
 - 各次验证的源码基线和适用范围见 [Executed Validation](#executed-validation)，历史结果不代表当前全部能力。
 - `已实现` 表示正式运行路径及相称证据存在，不表示所有运行组合已验证；`部分实现` 表示仍有必需路径缺失。设计不是实现完成证明。
@@ -146,6 +146,7 @@ message-reference draft 正式语义见 [Referenced minutes draft](../20-interfa
 | 幂等与持久恢复 | runtime/repository suites：原 receipt 重放、hash conflict、撤权拒绝、commit 失败后重试、tail/checkpoint reopen、旧消息 metadata absent 兼容；非法结构拒绝读取 |
 | 跨层可见性与归档 | status-projection、Client、domain/runtime archive suites：同一 committed message 经 status/context/Remote/Client/archive 保留 metadata，刷新一致、无私有字段；按公开 own-property presence/值/数组顺序校验，归档篡改拒绝 |
 | 非权威草稿与会议结束 | submission、archive、Client、continuation suites：草稿文字不创建 Decision/CompletionFact 或改变 objective/finalSummary，独立展示；Scribe 缺席/失败/替换不阻塞原 end/archive；续会不自动继承草稿或旧身份 |
+| 模型调用可发现性 | tool surface 明确 `TurnSubmissionV1` required/optional 字段和 `{input: object}` envelope；Speaker delivery 在权威 context 后附带当前 attempt 的完整提交模板，有引用时固定生成 `max(1, contextFromSeq)..contextThroughSeq` 的 minutes 示例，无引用时明确省略。`meeting-speaker-dispatch.spec.ts` 覆盖 `contextFromSeq=0` 两个分支；既有 tool-registration 回归保持 malformed input 的 `ProtocolErrorV1` 语义 |
 | FR-10 既有隐私与生命周期 | repository shared behavior、status、runtime/archive、continuation suites：私聊独立状态与持久处理上界、公开投影白名单、正式事实/终止快照、revoke→drain→close 后归档、失败重试、显式选材续会与身份隔离 |
 
 运行与页面证据分别见 [scribe-minutes 历史运行](./SMOKE-VALIDATION-EVIDENCE.md#current-baseline-validation) 和 [Referenced Minutes Browser](./SMOKE-VALIDATION-EVIDENCE.md#referenced-minutes-browser)。
@@ -156,6 +157,7 @@ message-reference draft 正式语义见 [Referenced minutes draft](../20-interfa
 
 | 日期 / 源码边界 | 工程检查与实际结果 | 适用边界 |
 | --- | --- | --- |
+| 2026-09-10 / Speaker submit guidance 工作区 | `pnpm --dir plugin test`：74 files / 919 tests PASS；`pnpm --dir plugin build`、`verify:contract`、`verify:agent-definitions`（9 roles）、`verify:package`、format PASS；lint exit 0（44 个既有 warnings）。回归先在泛化 tool description 和单段 Speaker context 上分别观察到目标失败，再在上下文模板及兼容错误 envelope 下通过 | 当前 attempt 身份模板、`contextFromSeq=0` 时 coverage 下界、无引用时省略草稿，以及原 `INVALID_ARGUMENT` handler 边界。Not Covered：真实模型首次调用、重新安装后的 DSH Host/Browser 复验 |
 | 2026-09-10 / Client `zod` bundle 工作区 | package gate 加入 `zod` 后在旧 `client.js` 上按预期失败；加入 `alwaysBundle` 后 `pnpm build` 与 `verify:package` PASS，产物裸 `require()` 只剩平台提供的 React/primitives。`pnpm test`：73 files / 918 tests PASS；lint exit 0（44 个既有 warnings），format、文档链接 565 项及 diff 检查 PASS | Typert strict schema 保留且 `zod` 随 Client 发布物加载。Not Covered：重新安装后的真实 DSH Loader/Browser 复验 |
 | 2026-09-10 / 安装脚本工作区 | `pnpm build`、`pnpm test`：73 files / 918 tests PASS；`pnpm lint` exit 0（44 个既有 complexity/max-lines warnings），format、package contract、shell 语法、npm pack 清单、文档文件链接 565 项及 diff 检查 PASS | manifest 隐式版本、npm-bin symlink、持久安装配置与已安装 release 启动。Not Covered：真实 npm registry、真实 DSH profile/Browser、源码入口的实际依赖下载 |
 | 2026-09-10 / `2dd1196` | [PR #70 CI](https://github.com/thundax-lyp/convivium/actions/runs/34429070514)：Ubuntu、Node 22.19.0、pnpm 10.7.0，7 项检查 PASS；本地 deployment contract 2 tests、定向 Prettier/ESLint、文档文件链接 556 项及 diff 检查 PASS | 固定 control patch 承接原生部署组合保护；生产代码未变。Not Covered：本地完整 verify、真实 Host/Browser |

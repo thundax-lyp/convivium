@@ -71,6 +71,17 @@ const toolParameters = {
     input: { type: "json", required: true, description: "Protocol v1 command input." }
 } as const;
 
+// Keep validation in the protocol handler so malformed calls still return ProtocolErrorV1.
+// The detailed description and per-delivery template provide the model-facing shape.
+const submitTurnToolParameters = {
+    input: {
+        type: "json",
+        required: true,
+        description:
+            "TurnSubmissionV1 object. Required keys: protocolVersion, meetingId, turnId, stepId, attemptId, deliveryId, agendaItemId, kind, content, mentions, taskIds, agendaRelation, changes. Copy identity values from the current speaker delivery; use changes={} when there are no claims. Optional: replyTo, completionClaims, minutesDraft={coverage:{fromSeq,throughSeq},referencedMessageIds:[messageId]}. The outer tool argument is {input:<this object>}, not a JSON string."
+    }
+} as const;
+
 function error(
     code: ProtocolErrorV1["code"],
     message: string,
@@ -483,7 +494,7 @@ export function registerSubmitAndControlTools(
                 name: "convivium_submit_turn",
                 description:
                     "Submit one formal turn message only from the current meeting Participant Session. For a non-authoritative minutes draft, use kind=summary and minutesDraft={coverage:{fromSeq,throughSeq},referencedMessageIds:[messageId]}; cite existing messages in the delivered context, use on_topic, empty changes/taskIds, and omit replyTo/completionClaims.",
-                parameters: toolParameters,
+                parameters: submitTurnToolParameters,
                 output: { schema: protocolOutputSchema, render: renderOutcome },
                 async execute(args, exec) {
                     return asJson(

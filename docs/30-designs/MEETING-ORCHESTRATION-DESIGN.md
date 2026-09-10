@@ -388,6 +388,8 @@ interface MeetingContextProjection {
 
 `recentMessages` MUST 使用固化范围 `contextFromSeq..contextThroughSeq`。重投不得刷新范围。超限时生成共享摘要，但原始 transcript 仍保留在 Meeting projection。
 
+Speaker outbox 投递在该权威 context 之后附加模型可见的 `convivium_submit_turn` 调用指导：envelope 的 `meetingId/turnId/stepId/attemptId/deliveryId/agendaItemId` 直接取当前 projection，普通提交模板固定包含 `mentions=[]`、`taskIds=[]`、`agendaRelation="on_topic"` 和 `changes={}`。存在可引用正式消息时另给出 `minutesDraft` 示例，并将 `coverage.fromSeq` 收敛为 `max(1, contextFromSeq)`；否则明确省略 `minutesDraft`。该指导只帮助 Agent 构造工具输入，不进入 MeetingState、正式 transcript、request hash 或公开 projection；正式接受仍以 Protocol Schema、当前 caller 与 attempt 校验为准。
+
 ### 9.3 Task snapshots
 
 不新增 `taskVersion`。MeetingTask 的 `executionId` 已表示一次执行，terminal result 又不可修改。

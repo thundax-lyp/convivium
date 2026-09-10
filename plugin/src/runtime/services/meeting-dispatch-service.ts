@@ -56,6 +56,56 @@ function requireDispatchableMeeting(
     }
 }
 
+function speakerSubmissionGuidance(
+    context: ReturnType<typeof projectSpeakerMeetingContext>
+): object {
+    const coverageFromSeq = Math.max(1, context.attempt.contextFromSeq);
+    const referencedMessageIds = context.recentMessages
+        .filter(
+            (message) =>
+                message.seq >= coverageFromSeq && message.seq <= context.attempt.contextThroughSeq
+        )
+        .map((message) => message.id);
+    const referencedMinutes =
+        referencedMessageIds.length > 0 && coverageFromSeq <= context.attempt.contextThroughSeq
+            ? {
+                  instruction:
+                      "For a minutes draft, change kind to summary, keep agendaRelation=on_topic, changes={}, taskIds=[], omit replyTo/completionClaims, and add this minutesDraft object.",
+                  minutesDraft: {
+                      coverage: {
+                          fromSeq: coverageFromSeq,
+                          throughSeq: context.attempt.contextThroughSeq
+                      },
+                      referencedMessageIds
+                  }
+              }
+            : {
+                  instruction:
+                      "No formal message is referenceable in this delivery; omit minutesDraft."
+              };
+    return {
+        tool: "convivium_submit_turn",
+        submitTurn: {
+            input: {
+                protocolVersion: 1,
+                meetingId: context.meetingId,
+                turnId: context.turn.id,
+                stepId: context.step.id,
+                attemptId: context.attempt.attemptId,
+                deliveryId: context.attempt.deliveryId,
+                agendaItemId: context.activeAgendaItem.id,
+                kind: "statement",
+                content: "<replace with the formal message>",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic",
+                changes: {}
+            }
+        },
+        referencedMinutes
+    };
+}
+
 export interface MeetingDeliveryDispatcherOptions {
     readonly continuable: Pick<SubagentRuntime, "sendMessage">;
     readonly now?: () => number;
@@ -179,6 +229,12 @@ export function createMeetingDeliveryDispatcher(
                 "Speaker Session ownership is no longer authorized."
             );
         }
+        const context = projectSpeakerMeetingContext(
+            state,
+            payload.participantId,
+            payload.attemptId
+        );
+        const guidance = speakerSubmissionGuidance(context);
         await followupParticipantSession({
             runtime: options.continuable,
             parent: input.parent,
@@ -191,13 +247,11 @@ export function createMeetingDeliveryDispatcher(
             prompt: [
                 {
                     type: "text",
-                    text: `Meeting ${input.meetingId} speaker context: ${JSON.stringify(
-                        projectSpeakerMeetingContext(
-                            state,
-                            payload.participantId,
-                            payload.attemptId
-                        )
-                    )}`
+                    text: `Meeting ${input.meetingId} speaker context: ${JSON.stringify(context)}`
+                },
+                {
+                    type: "text",
+                    text: `Convivium speaker submission guidance: ${JSON.stringify(guidance)}`
                 }
             ],
             signal: input.signal,

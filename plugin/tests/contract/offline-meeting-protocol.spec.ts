@@ -222,8 +222,7 @@ describe("meeting protocol examples and caller capabilities", () => {
         for (const name of [
             "convivium_dispose_attendance_recommendation",
             "convivium_create_meeting",
-            "convivium_submit_manager_plan",
-            "convivium_submit_turn"
+            "convivium_submit_manager_plan"
         ]) {
             const matches = definitions.filter((d) => d.name === name);
             expect(matches).toHaveLength(1);
@@ -234,5 +233,25 @@ describe("meeting protocol examples and caller capabilities", () => {
                 required: ["input"]
             });
         }
+        const submitTurn = definitions.find(
+            (definition) => definition.name === "convivium_submit_turn"
+        );
+        expect(submitTurn?.parameters).toMatchObject({
+            type: "object",
+            properties: {
+                input: {
+                    description: expect.stringContaining(
+                        "protocolVersion, meetingId, turnId, stepId, attemptId, deliveryId, agendaItemId"
+                    )
+                }
+            },
+            required: ["input"]
+        });
+        expect(
+            (submitTurn?.parameters.properties as Record<string, { description?: string }>).input
+                .description
+        ).toContain(
+            "minutesDraft={coverage:{fromSeq,throughSeq},referencedMessageIds:[messageId]}"
+        );
     });
 });
