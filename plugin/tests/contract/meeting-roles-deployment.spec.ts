@@ -6,7 +6,6 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { parseAgentDefinitions } from "@/role-composition/model.js";
-import { writeSmokePatch } from "../../scripts/smoke-profile/index.mjs";
 
 const deployed = JSON.parse(
     readFileSync(new URL("../../meeting-roles/definitions.json", import.meta.url), "utf8")
@@ -35,9 +34,18 @@ describe("native deployment patch composition", () => {
             const deployment = load(readFileSync(join(assets, "cordis.patch.yml"), "utf8"), {
                 schema: entryListSchema
             });
-            const controlPath = join(root, "control.yml");
-            await writeSmokePatch(controlPath, "meeting-roles");
-            const control = load(readFileSync(controlPath, "utf8"), { schema: entryListSchema });
+            // Later patches replace the config, so explicitly retain the deployed definitions.
+            const control = load(
+                `- id: convivium
+  config:
+    provider: spawn
+    maxParticipants: 8
+    speakerTimeoutMs: 300000
+    outboxPollMs: 1000
+    agentDefinitions: !!js "JSON.parse(process.getBuiltinModule('node:fs').readFileSync(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'definitions.json'), 'utf8')).definitions"
+`,
+                { schema: entryListSchema }
+            );
             const warnings = vi.fn();
             const rows = applyEntryPatches(
                 [

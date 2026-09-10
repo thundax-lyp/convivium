@@ -118,7 +118,7 @@ Convivium 仅消费 Storage Domain，物理介质由 Host/profile 的官方 SQLi
 
 | 验证范围 | 自动化证据 |
 | --- | --- |
-| 发布资源 | `contract/meeting-roles-deployment.spec.ts`：九角色发布 JSON 经生产 parser 接受；真实 DSH patch 合并/插值在独立 profile 与资源根下保留 Definition、Preset 和运行控制，缺资源根拒绝。`verify:agent-definitions` 继续直接校验资源集合与 Skill 正文 |
+| 发布资源 | `contract/meeting-roles-deployment.spec.ts`：九角色发布 JSON 经生产 parser 接受；使用内联固定 control patch，真实 DSH patch 合并/插值在独立 profile 与资源根下保留 Definition、Preset 和运行控制，缺资源根拒绝；不依赖或验证 smoke helper。`verify:agent-definitions` 继续直接校验资源集合与 Skill 正文 |
 | 配置与共享能力 | `unit/role-composition/resolve.spec.ts`、`unit/config.spec.ts`、role-selection/request-idempotency、dsh-capabilities suites：数量/大小/未知字段/重复值和角色匹配、共享 Preset/Skill 只读预检、异步前后父 Preset 一致 |
 | 创建与持久化 | session-adapter、meeting-runtime、domain schemas/repository suites：全部预检后才分配身份、末项非法零 child、中途失败 revoke/interrupt/drain；provisioning/active binding 不可变，failed put 不改读值，旧记录不回填 |
 | 重放与公开边界 | runtime、status-projection、protocol-schema suites：ready/归档 receipt 重放不读取新配置，同 request 换 ID 冲突；status/archive 不泄露角色配置，错误信息脱敏 |
