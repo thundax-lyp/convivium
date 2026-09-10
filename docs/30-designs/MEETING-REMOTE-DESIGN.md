@@ -95,4 +95,4 @@ baseline 另外使用测试专用 `ws=8.18.3`（plugin dev 和临时 probe depen
 
 源码 decorator、边界与生成产物分别验证，不能互相替代。新增生成 contract 验证独立 staging 清理、十个 endpoint、命名类型 export 与额外 authority 保留；Remote boundary 验证九个委托、领域失败、非法输入/输出、取消；feed 单测验证等待中的 return、提交合并与 dispose；Runtime contract 验证 commit 后通知、失败无通知、重开初始 refresh；Client jsdom 验证全部旧交互与断线/焦点/通知竞争。
 
-`pnpm --dir plugin verify` 与两个指定真实 profile smoke 是实现完成门禁。本次 Author 文档检查只证明文件与决策一致，不证明迁移实现或真实 WebSocket 可用。baseline 的真实 WebSocket marker 也是完成门禁；真实浏览器内自动重连端到端在 readiness 保留 Not Covered；不据此宣称完整生产通信已经验证。
+从仓库根执行的 `pnpm verify` 与两个指定真实 profile smoke 是实现完成门禁。本次 Author 文档检查只证明文件与决策一致，不证明迁移实现或真实 WebSocket 可用。baseline 的真实 WebSocket marker 也是完成门禁；真实浏览器内自动重连端到端在 readiness 保留 Not Covered；不据此宣称完整生产通信已经验证。

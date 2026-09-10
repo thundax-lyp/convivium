@@ -7,6 +7,7 @@
 ## Product Boundary
 
 - Convivium 是使用 TypeScript 独立实现的纯 DSH 插件，只有 `plugin/` 一个可构建、测试和交付的工程；不建立独立 Meeting Server、应用壳、backend 发布单元或根 workspace/monorepo。新增顶层工程前必须在本文明确职责、依赖方向和验证入口。
+- 仓库根 `package.json` 只提供代理到 `plugin/package.json` 的同名开发和验证命令；不声明 workspace、依赖、构建产物或交付单元，不能据此把仓库根视为第二个工程。
 - 外部项目仅作只读调研，不作为源码基线、运行依赖或兼容目标；不得复制其源码、文档、品牌、协议命名和持久化格式进入产品。
 - V1 仅服务单个本地 DSH Host 的一位用户。Meeting Web 接口只在 `webServer.host === "127.0.0.1"` 时注册；到达该 Host 的请求共享本地用户边界，不虚构 Web 用户或 Team authority。远程、多用户、跨 Host 或网络部署必须先形成独立的身份、授权、隔离和部署契约。
 - 插件依赖 DSH 公开能力，不绕过宿主权限或生命周期接口。固定依赖版本、provider 组合和装配入口见 [Implementation Design](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#host-dependency-composition)。
@@ -68,4 +69,4 @@
 
 ## Undecided Architecture
 
-插件分发方式和高于固定依赖版本的兼容策略尚未确认，不得从当前安装验证推断为已决定。
+用户可以从源码构建 tarball，或从 npm registry 获取已发布的同版本 tarball；两者进入相同的 DSH profile 安装、Host 依赖和角色部署流程。npm registry、发布版本和高于固定依赖版本的兼容策略仍须由发布流程明确，不得从当前安装验证推断。

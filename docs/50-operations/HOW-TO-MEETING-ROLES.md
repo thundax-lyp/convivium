@@ -6,6 +6,8 @@
 
 本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)，资源结构见 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。
 
+本文聚焦角色资源部署和验收；用户从源码或 npm 包安装插件、配置持久 SQLite 并启动 DSH Web 的完整流程见 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md)。
+
 ## Preconditions
 
 - 本地 Node/pnpm 满足 plugin/package.json，DSH 固定 0.1.2-rc.1。
@@ -24,7 +26,7 @@
     test -f plugin/meeting-roles/definitions.json
     test -f plugin/meeting-roles/cordis.patch.yml
     test ! -e dsh-workspace/meeting-roles-deployment
-    pnpm --dir plugin verify
+    pnpm verify
     mkdir -p dsh-workspace/meeting-roles-deployment/artifacts
     mkdir -p dsh-workspace/meeting-roles-deployment/resources
     mkdir -p dsh-workspace/meeting-roles-deployment/dsh-home
@@ -86,8 +88,8 @@
 自动验收入口为：
 
 ```sh
-env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile
-env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm smoke:profile
 ```
 
 前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。自动探针的装配、超时、回调、权限断言与抓取开关统一见 [Smoke Operations 九角色部署场景](./HOW-TO-DSH-SMOKE.md#九角色部署场景)，本节不重复维护实现流程。
