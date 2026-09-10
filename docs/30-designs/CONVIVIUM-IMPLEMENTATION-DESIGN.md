@@ -477,7 +477,7 @@ Host 测试运行在 Node.js；Client 测试运行在 browser-compatible test en
 
 ### Package commands
 
-`plugin/package.json` 最终必须提供：
+`plugin/package.json` 最终必须提供下列插件工程命令；仓库根 `package.json` 作为无依赖、非 workspace 的命令门面代理这些命令，使同名命令可从仓库根执行，而不建立第二个构建、测试或交付工程：
 
 ```text
 pnpm typecheck

@@ -1,0 +1,29 @@
+{
+  "name": "@convivium/repository",
+  "private": true,
+  "description": "Repository command facade for the Convivium DSH plugin",
+  "scripts": {
+    "format": "pnpm --dir plugin format",
+    "format:check": "pnpm --dir plugin format:check",
+    "lint": "pnpm --dir plugin lint",
+    "lint:fix": "pnpm --dir plugin lint:fix",
+    "build": "pnpm --dir plugin build",
+    "typecheck:host": "pnpm --dir plugin typecheck:host",
+    "typecheck:client": "pnpm --dir plugin typecheck:client",
+    "typecheck:remote-test": "pnpm --dir plugin typecheck:remote-test",
+    "typecheck": "pnpm --dir plugin typecheck",
+    "test": "pnpm --dir plugin test",
+    "test:integration": "pnpm --dir plugin test:integration",
+    "test:recovery": "pnpm --dir plugin test:recovery",
+    "test:stress": "pnpm --dir plugin test:stress",
+    "smoke:profile": "pnpm --dir plugin smoke:profile",
+    "verify:agent-definitions": "pnpm --dir plugin verify:agent-definitions",
+    "verify:environment": "pnpm --dir plugin verify:environment",
+    "verify:contract": "pnpm --dir plugin verify:contract",
+    "verify:package": "pnpm --dir plugin verify:package",
+    "generate:typert": "pnpm --dir plugin generate:typert",
+    "verify": "pnpm --dir plugin verify",
+    "verify:runtime": "pnpm --dir plugin verify:runtime"
+  },
+  "packageManager": "pnpm@10.7.0"
+}
