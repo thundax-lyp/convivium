@@ -9,8 +9,11 @@ export interface SessionProvisioningEnvelope {
     readonly instruction: string;
 }
 
-const instruction =
-    "This message establishes your meeting identity only. You have no planning or speaker capability yet. Wait for a later request that includes attemptId and deliveryId before using any meeting write tool.";
+const managerInstruction =
+    "This message establishes your meeting identity only. You have no planning capability yet. Wait for a later request that includes planningAttemptId and deliveryId before using the manager planning write tool.";
+
+const participantInstruction =
+    "This message establishes your meeting identity only. You have no speaker capability yet. Wait for a later request that includes attemptId and deliveryId before using a speaker write tool.";
 
 export function createSessionProvisioningEnvelope(input: {
     readonly teamId: string;
@@ -36,7 +39,7 @@ export function createSessionProvisioningEnvelope(input: {
         role: input.role,
         ...(input.role === "participant" ? { participantId: input.participantId } : {}),
         capability: "none",
-        instruction
+        instruction: input.role === "manager" ? managerInstruction : participantInstruction
     };
 }
 

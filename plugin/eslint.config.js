@@ -90,6 +90,50 @@ export default tseslint.config(
     {
         files: ["src/**/*.{ts,tsx}"],
         rules: {
+            "max-lines": [
+                "warn",
+                {
+                    max: 1000,
+                    skipBlankLines: true,
+                    skipComments: true
+                }
+            ],
+            "max-lines-per-function": [
+                "warn",
+                {
+                    max: 300,
+                    skipBlankLines: true,
+                    skipComments: true
+                }
+            ],
+            complexity: ["warn", 40]
+        }
+    },
+    {
+        files: ["tests/**/*.{ts,tsx}"],
+        rules: {
+            "max-lines": [
+                "warn",
+                {
+                    max: 1200,
+                    skipBlankLines: true,
+                    skipComments: true
+                }
+            ],
+            "max-lines-per-function": [
+                "warn",
+                {
+                    max: 300,
+                    skipBlankLines: true,
+                    skipComments: true
+                }
+            ],
+            complexity: ["warn", 15]
+        }
+    },
+    {
+        files: ["src/**/*.{ts,tsx}"],
+        rules: {
             "no-console": "error",
             ...sourceImportRules()
         }

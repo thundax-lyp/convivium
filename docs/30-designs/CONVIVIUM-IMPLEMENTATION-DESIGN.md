@@ -52,6 +52,7 @@ V1 固定运行于单个本地 DSH Host，并只面向该 Host 的一位本地�
 ### Product tree
 
 ```text
+package.json                        # Repository command facade; no workspace or dependencies
 plugin/
 ├── package.json
 ├── pnpm-lock.yaml
@@ -477,7 +478,7 @@ Host 测试运行在 Node.js；Client 测试运行在 browser-compatible test en
 
 ### Package commands
 
-`plugin/package.json` 最终必须提供：
+`plugin/package.json` 最终必须提供下列插件工程命令；仓库根 `package.json` 作为无依赖、非 workspace 的命令门面代理这些命令，使同名命令可从仓库根执行，而不建立第二个构建、测试或交付工程：
 
 ```text
 pnpm typecheck
@@ -495,9 +496,10 @@ pnpm verify
 
 ### Distribution build
 
-插件分发方式仍由 Architecture 决定，但每种方式必须满足对应构建契约：
+用户安装支持源码构建 tarball 和 npm registry 已发布 tarball 两种来源；两者必须满足对应构建契约并进入同一 Host/profile 组合：
 
 - npm 或 tarball：发布物必须已经包含 `lib/index.js`、`lib/client.js` 和 `lib/types/**`，消费者安装时不依赖源码构建。
+- 发布物包含 `install.sh` 和 `start.sh`。npm 用户通过 `convivium-install` 取得当前发布包；源码入口只负责 frozen install、构建和打包，随后复用同一安装脚本。安装版本与 release 目录名从 tarball manifest 读取，不由用户输入；DSH workspace 由 `--workspace` 显式指定，未提供时为执行目录下的 `dsh-workspace/`。
 - Git dependency：package 必须提供自包含 `prepare` 构建，不能依赖相邻 DSH checkout、仓库外绝对路径或只存在于开发环境的 TypeScript project references；文档必须说明 pnpm 10 `allowBuilds` 授权和按 commit pin 安装。
 
 选择 Git dependency 时，`prepare` 只负责从已下载源码生成可加载产物，不替代 CI 中的 typecheck 和 test。无论采用哪种分发方式，`smoke:profile` 都必须验证用户实际安装路径，而不只验证源码目录内直接 import。

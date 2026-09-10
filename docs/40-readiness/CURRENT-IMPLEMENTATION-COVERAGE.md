@@ -2,11 +2,11 @@
 
 ## Meeting Remote Migration Boundary
 
-2026-09-09：九个操作已迁移到正式 DSH Remote，插件自有 refresh stream 和完整 refetch 已替换五秒轮询，旧自有 HTTP 路由已删除。合入 main 后 `539d632` 的 verify（81 文件、1128 用例）与 baseline、scribe-minutes 真实 profile 均通过，restore=PASS；命令、marker 和边界见 [Remote Migration Evidence](./SMOKE-VALIDATION-EVIDENCE.md#meeting-remote-migration)。真实 WebSocket 断开/重开及补读已覆盖；真实浏览器内自动重连端到端仍为 Not Covered。下方历史 HTTP 证据仅代表其当时基线。
+2026-09-09：九个操作已迁移到正式 DSH Remote，插件自有 refresh stream 和完整 refetch 已替换五秒轮询，旧自有 HTTP 路由已删除。合入 main 后 `539d632` 的 verify（81 文件、1128 用例）与 baseline、scribe-minutes 真实 profile 均通过，restore=PASS；命令、marker 和边界见 [Remote Migration Evidence](./SMOKE-VALIDATION-EVIDENCE.md#meeting-remote-migration)。生成的 strict schema 依赖 `zod`；当前 Client bundle 已将其内联并由 package gate 拒绝裸 `require("zod")`。真实 WebSocket 断开/重开及补读已覆盖；修正后的安装包尚未重跑真实 Browser。下方历史 HTTP 证据仅代表其当时基线。
 
 ## Scope
 
-- 更新日期：2026-09-10。最新更新为测试回归保护与资产精简；未新增真实 Host/Browser 验收。
+- 更新日期：2026-09-10。最新更新为 Speaker `submit_turn` 调用指导与 Client `zod` 自包含修复；未新增真实 Host/Browser 验收。
 - 本文维护当前需求覆盖、自动化证据索引和剩余缺口。真实 Host、Browser、失败轮及 Restore 结果统一由 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md) 保存。
 - 各次验证的源码基线和适用范围见 [Executed Validation](#executed-validation)，历史结果不代表当前全部能力。
 - `已实现` 表示正式运行路径及相称证据存在，不表示所有运行组合已验证；`部分实现` 表示仍有必需路径缺失。设计不是实现完成证明。
@@ -38,6 +38,10 @@
 ## Automated Evidence
 
 以下源码路径相对 `plugin/`；专项表格是测试索引，执行基线见 [Executed Validation](#executed-validation)。fake DSH、DOM 和 SQLite reopen 各自只证明其测试边界。
+
+### User Installation Entrypoints
+
+`scripts/install-from-source.sh` 负责 frozen install、构建和打包；npm `convivium-install` 与内部 artifact 路径复用发布物中的 `scripts/install.sh`。`installation-entrypoints.spec.ts` 通过实际 tar 解包和 npm-bin symlink 验证无版本输入安装、manifest release 选择、默认及显式 DSH workspace、同 tarball 资源、持久配置及启动绑定；仅替换 DSH `pnpm` 调用，不证明 registry 下载或真实 profile 安装成功。`package-contract.spec.ts` 与 `verify:package` 验证安装入口及启动脚本进入关闭的发布 allowlist。
 
 ### SQLite Provider Integration
 
@@ -127,7 +131,7 @@ Convivium 消费 Host/profile 的官方 SQLite Storage Domain provider；领域 
 
 `tests/fixtures/offline-meeting-protocol.ts` 与 `tests/contract/offline-meeting-protocol.spec.ts` 使用固定时间和深拷贝，经生产 create/planning/context/submit 及 Schema 形成 Manager plan、A 提交和含 A 消息的 B context/input。B 输入仅构造校验，未执行 B 提交。
 
-覆盖版本推进、上下文传递、独立 attempt/delivery、非法字段与纯文本拒绝、stale planning/未分配 Speaker 拒绝、可重复与深拷贝；另检查 replyTo 的 Schema 合法性与引用匹配、工具名称/参数及 provisioning envelope。历史独立类型检查见 Executed Validation。
+覆盖版本推进、上下文传递、独立 attempt/delivery、非法字段与纯文本拒绝、stale planning/未分配 Speaker 拒绝、可重复与深拷贝；另检查 replyTo 的 Schema 合法性与引用匹配、工具名称/参数及按角色区分 attempt 字段的 provisioning envelope。Manager delivery 回归另锁定当前 `planningAttemptId/meetingVersion/agendaItemId`、完整 `{input: object}` 模板及 dispatchable/required 身份边界。历史独立类型检查见 Executed Validation。
 
 此 fixture 不执行 Session/caller/capability、持久化、副作用、恢复、UI 或真实模型；不能据它宣称真实模型协议闭环通过。尚存的 provisioning 提示观察见 Not Covered。
 
@@ -142,6 +146,7 @@ message-reference draft 正式语义见 [Referenced minutes draft](../20-interfa
 | 幂等与持久恢复 | runtime/repository suites：原 receipt 重放、hash conflict、撤权拒绝、commit 失败后重试、tail/checkpoint reopen、旧消息 metadata absent 兼容；非法结构拒绝读取 |
 | 跨层可见性与归档 | status-projection、Client、domain/runtime archive suites：同一 committed message 经 status/context/Remote/Client/archive 保留 metadata，刷新一致、无私有字段；按公开 own-property presence/值/数组顺序校验，归档篡改拒绝 |
 | 非权威草稿与会议结束 | submission、archive、Client、continuation suites：草稿文字不创建 Decision/CompletionFact 或改变 objective/finalSummary，独立展示；Scribe 缺席/失败/替换不阻塞原 end/archive；续会不自动继承草稿或旧身份 |
+| 模型调用可发现性 | tool surface 明确 `CreateMeetingInputV1`、`ManagerPlanSubmissionV1`、`TurnSubmissionV1`、`EndMeetingInputV1` 的 required/optional 字段和 `{input: object}` envelope；create 额外说明 `completionCriteria` 的已登记引用约束与原生 Definition 不填写 `sourceMemberName`，Manager delivery 从领域白名单给出 `allowedIntents` / `allowedStepReasons` 及合法默认值。Speaker/Manager delivery 在权威 context 后附带当前 attempt 的完整提交模板。`meeting-speaker-dispatch.spec.ts` 覆盖 `contextFromSeq=0` 两个分支；tool-registration 与 runtime 回归保持 malformed input 及建会语义错误的 `ProtocolErrorV1` 语义 |
 | FR-10 既有隐私与生命周期 | repository shared behavior、status、runtime/archive、continuation suites：私聊独立状态与持久处理上界、公开投影白名单、正式事实/终止快照、revoke→drain→close 后归档、失败重试、显式选材续会与身份隔离 |
 
 运行与页面证据分别见 [scribe-minutes 历史运行](./SMOKE-VALIDATION-EVIDENCE.md#current-baseline-validation) 和 [Referenced Minutes Browser](./SMOKE-VALIDATION-EVIDENCE.md#referenced-minutes-browser)。
@@ -152,6 +157,11 @@ message-reference draft 正式语义见 [Referenced minutes draft](../20-interfa
 
 | 日期 / 源码边界 | 工程检查与实际结果 | 适用边界 |
 | --- | --- | --- |
+| 2026-09-10 / 真实安装与 Manager 契约复验工作区 | 首轮真实 DSH 暴露语义非法 `completionCriteria` 被外层折叠成 `INTERNAL_ERROR`；修正后全新安装成功创建并归档 Meeting，三位 Participant 形成 4 条正式消息，终态 version 10，默认 `speakerAttemptTimeoutMs=600000`。该轮又暴露 Manager 自然语言 `intent/reason` 触发 fallback；领域白名单接入 delivery/tool 后第三个全新安装中 Manager plan 实际 `fallbackApplied=false`，turn reason=`review`、step reason=`required_reviewer`，终态 archived/version 5。最终 `pnpm --dir plugin verify` PASS：75 files / 921 tests；lint exit 0（46 个既有 warnings）；新增 EndMeeting tool description 后定向 contract、format、lint、Host typecheck PASS | 源码安装、workspace-write、Client Loader、create/status/Manager/Participant/end/archive、10 分钟默认值及报告落盘的真实 Host/Browser 证据。Not Covered：npm registry 安装、失败恢复/Host 冷重启、性能与长期运行；EndMeeting 新描述尚未重新安装做模型首次调用复验 |
+| 2026-09-10 / Manager submit guidance 工作区 | 回归先在旧 Manager 单段 context、泛化 tool description 和错误 provisioning 字段上观察到目标失败；修正兼容性回归后，`pnpm --dir plugin typecheck`、`test`（75 files / 920 tests）、`build`、`verify:contract`、`verify:agent-definitions`（9 roles）、`verify:package`、format PASS；lint exit 0（44 个既有 warnings） | 当前 planning attempt 的完整 `{input: object}` 模板、dispatchable/required 身份边界、Manager/Participant provisioning 字段，以及建会时默认省略 `speakerAttemptTimeoutMs` 的模型提示。Not Covered：修复后真实模型首次提交、Host/Browser 复验及自主失败恢复 |
+| 2026-09-10 / Speaker submit guidance 工作区 | `pnpm --dir plugin test`：74 files / 919 tests PASS；`pnpm --dir plugin build`、`verify:contract`、`verify:agent-definitions`（9 roles）、`verify:package`、format PASS；lint exit 0（44 个既有 warnings）。回归先在泛化 tool description 和单段 Speaker context 上分别观察到目标失败，再在上下文模板及兼容错误 envelope 下通过 | 当前 attempt 身份模板、`contextFromSeq=0` 时 coverage 下界、无引用时省略草稿，以及原 `INVALID_ARGUMENT` handler 边界。Not Covered：真实模型首次调用、重新安装后的 DSH Host/Browser 复验 |
+| 2026-09-10 / Client `zod` bundle 工作区 | package gate 加入 `zod` 后在旧 `client.js` 上按预期失败；加入 `alwaysBundle` 后 `pnpm build` 与 `verify:package` PASS，产物裸 `require()` 只剩平台提供的 React/primitives。`pnpm test`：73 files / 918 tests PASS；lint exit 0（44 个既有 warnings），format、文档链接 565 项及 diff 检查 PASS | Typert strict schema 保留且 `zod` 随 Client 发布物加载。Not Covered：重新安装后的真实 DSH Loader/Browser 复验 |
+| 2026-09-10 / 安装脚本工作区 | `pnpm build`、`pnpm test`：73 files / 918 tests PASS；`pnpm lint` exit 0（44 个既有 complexity/max-lines warnings），format、package contract、shell 语法、npm pack 清单、文档文件链接 565 项及 diff 检查 PASS | manifest 隐式版本、npm-bin symlink、持久安装配置与已安装 release 启动。Not Covered：真实 npm registry、真实 DSH profile/Browser、源码入口的实际依赖下载 |
 | 2026-09-10 / `2dd1196` | [PR #70 CI](https://github.com/thundax-lyp/convivium/actions/runs/34429070514)：Ubuntu、Node 22.19.0、pnpm 10.7.0，7 项检查 PASS；本地 deployment contract 2 tests、定向 Prettier/ESLint、文档文件链接 556 项及 diff 检查 PASS | 固定 control patch 承接原生部署组合保护；生产代码未变。Not Covered：本地完整 verify、真实 Host/Browser |
 | 2026-09-10 / `be08a16` | `pnpm --dir plugin typecheck:remote-test`、`pnpm --dir plugin exec vitest run --project host --project contract`：64 files / 803 tests PASS；改动测试 Prettier/ESLint、`verify:agent-definitions`（9 roles）、文档文件链接 556 项及 diff 检查 PASS。相同 runtime 测试内容另经 8 files / 53 tests 和隔离故障注入验证：移除归档撤权/关闭门禁、warning 异常隔离或 pending 最高版本约束时，对应场景失败；副本已清理 | 汇总配置、角色、Session、归档与 Markdown 回归，移除脚本设施自测。Not Covered：本地完整 verify、真实 Host/Browser、重复停止信号的独立设施回归、原子替换失败时旧文件完整性 |
 | 2026-09-08 / `b3f02c2a75621f3f05f724c61dacdf45fe4264d6` | 最新角色模型的完整 verify 结果见 [Final Authorized Validation](./SMOKE-VALIDATION-EVIDENCE.md#final-authorized-validation) 的四命令顺序记录 | 首发角色部署授权范围；保留 web_fetch 豁免，不外推模型质量 |
@@ -187,13 +197,13 @@ SQLite 构建仅有 Node SQLite experimental 与既有 Client bundle dependency 
 
 | 范围 | 尚未实现或未验证 |
 | --- | --- |
-| FR-1 / 发布 | 最终分发与发布策略、其他 DSH 版本及独立 ACP/SDK/TUI/headless profile 未验证；无 WebServer 回归不等于这些部署已验收 |
+| FR-1 / 发布 | npm 与源码安装入口已实现但未用真实 registry 和 DSH profile 验收；最终发布策略、其他 DSH 版本及独立 ACP/SDK/TUI/headless profile 未验证；无 WebServer 回归不等于这些部署已验收 |
 | FR-4 / FR-8 | 真实模型规划质量、时间预算的真实完成边界、blocking Position 的真实 DSH 反例未验证 |
 | FR-7 | 历史五动作 Browser 证据未在最新源码组合重跑，专项真实 Host 冷重启未验证 |
 | FR-9 | 强杀 Host、真实缺失 Session、中断创建清理及默认角色补建的真实故障注入未执行；Definition descriptor 丢失按契约拒绝补建 |
 | FR-10 | 邮件 snapshot 后新增 transcript 的完整跨层派发/重试组合未执行；历史持久上界契约不证明该组合通过；模型纪要质量未验证 |
 | FR-11 | 新增面板区域只有 jsdom；Parking Lot、全部 archived issues、Proposal/Position 与收敛区域的完整 Browser 验收未完成；全部 repository 失败诊断、外部采集/聚合和完整 metrics 验证未完成 |
-| FR-12 | 模型自主遵守会议协议及内部工具失败后的行为未验证。离线观察中 `src/dsh/provisioning.ts` 要求 attemptId/deliveryId，而 Manager context 使用 planningAttemptId；提示措辞差异未修复，不是模型失败复现 |
+| FR-12 | 模型自主遵守会议协议及内部工具失败后的行为仍未完整验证。Manager 的 provisioning 字段与 `submit_manager_plan` 调用模板已按真实失败补齐自动化回归；修复后真实模型首次提交、失败后的自主恢复及长期讨论质量尚未复验 |
 | FR-13 | approve/admission/provisioning、自动 expired/cancelled、research freshness/dedup 未实现；生产 Host Catalog 成功推荐→拒绝、专项 Host 冷重启、动态 FR-14 接入和推荐/拒绝 UI 未验证 |
 | FR-14 | web_fetch 为用户授权跳过；完整无豁免部署验收、远程模型差异的配额/凭证与长期质量未证明；maxTokens 冷恢复、热切换、Browser 配置 UI 未验证，Host capability 变更不保证历史内容快照 |
 | FR-15 | 真实 current/archive Markdown 文件输出未纳入当前 smoke；原子替换失败时旧文件完整性未验证 |

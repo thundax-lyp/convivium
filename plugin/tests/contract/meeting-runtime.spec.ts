@@ -150,6 +150,38 @@ afterEach(async () => {
     await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
+describe("meeting creation input failures", () => {
+    it("maps semantic preparation failures to INVALID_ARGUMENT", async () => {
+        const root = await mkdtemp(join(tmpdir(), "convivium-invalid-create-"));
+        roots.push(root);
+        const runtime = localRuntime(root);
+        const result = await runtime.createMeeting(
+            {
+                ...input,
+                agenda: [
+                    {
+                        ...input.agenda[0]!,
+                        completionCriteria: ["unregistered natural-language criterion"]
+                    }
+                ]
+            },
+            {
+                sessionId: "captain-invalid-create",
+                kind: "captain",
+                agent: { id: "captain-invalid-create" } as never
+            },
+            new AbortController().signal
+        );
+
+        expect(result).toMatchObject({
+            protocolVersion: 1,
+            ok: false,
+            code: "INVALID_ARGUMENT",
+            retryable: false
+        });
+    });
+});
+
 describe("agenda candidate disposition runtime", () => {
     async function setup() {
         const root = await mkdtemp(join(tmpdir(), "convivium-agenda-candidate-dispose-"));

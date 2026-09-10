@@ -1,5 +1,6 @@
 import type { Context } from "@deepseek-ai/cordis";
 import { createElement } from "react";
+// Load the client Context and conversation slot augmentations without runtime imports.
 import type {} from "@deepseek-ai/dsh-client-ui-renderer/client";
 import type {} from "@deepseek-ai/dsh-client-ui-conversation/client";
 import contribution from "@convivium/dsh-plugin/remote";

@@ -29,7 +29,7 @@
 
 `tsdown.config.ts` 的 Host bundle 与 `vitest.config.ts` 使用正式 `typertPlugin().transform` 转换 Stage-3 decorators；tsdown 注册只有 name/transform 的转换插件，不调用依赖 monorepo 的自动生成 hook。Vitest 的转换插件另外设 `enforce:"pre"`，既有 projects/alias 保持。生成脚本先于测试，测试仍通过 `@/remote/index.js` 导入原始源码，不改成测 lib。
 
-Client self import `@convivium/dsh-plugin/remote` 包入原有 client.js 工厂，不交给宿主模块加载器解析新的 self module ID；现有 DeepSeek 模块 external 策略保持。不将 Host Service、Node API 或 generator 打入 Client。
+Client self import `@convivium/dsh-plugin/remote` 包入原有 client.js 工厂，不交给宿主模块加载器解析新的 self module ID；现有 DeepSeek 模块 external 策略保持。生成的 Remote strict schema 运行时依赖 `zod`，它不属于 DSH Browser platform module，必须与 `schemastery`、`cosmokit` 一样打入 `client.js`；package gate 拒绝三者残留裸 `require()`。不将 Host Service、Node API 或 generator 打入 Client。
 
 ## Host Service
 
@@ -95,4 +95,4 @@ baseline 另外使用测试专用 `ws=8.18.3`（plugin dev 和临时 probe depen
 
 源码 decorator、边界与生成产物分别验证，不能互相替代。新增生成 contract 验证独立 staging 清理、十个 endpoint、命名类型 export 与额外 authority 保留；Remote boundary 验证九个委托、领域失败、非法输入/输出、取消；feed 单测验证等待中的 return、提交合并与 dispose；Runtime contract 验证 commit 后通知、失败无通知、重开初始 refresh；Client jsdom 验证全部旧交互与断线/焦点/通知竞争。
 
-`pnpm --dir plugin verify` 与两个指定真实 profile smoke 是实现完成门禁。本次 Author 文档检查只证明文件与决策一致，不证明迁移实现或真实 WebSocket 可用。baseline 的真实 WebSocket marker 也是完成门禁；真实浏览器内自动重连端到端在 readiness 保留 Not Covered；不据此宣称完整生产通信已经验证。
+从仓库根执行的 `pnpm verify` 与两个指定真实 profile smoke 是实现完成门禁。本次 Author 文档检查只证明文件与决策一致，不证明迁移实现或真实 WebSocket 可用。baseline 的真实 WebSocket marker 也是完成门禁；真实浏览器内自动重连端到端在 readiness 保留 Not Covered；不据此宣称完整生产通信已经验证。

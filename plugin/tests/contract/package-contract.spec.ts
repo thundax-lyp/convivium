@@ -7,6 +7,7 @@ const packageManifest = JSON.parse(
     name: string;
     exports: Record<string, unknown>;
     files: string[];
+    bin: Record<string, string>;
     dsh: {
         bundle: { patch: string };
         client: { platform: string; inject: string[] };
@@ -33,11 +34,14 @@ describe("plugin package contract", () => {
             "lib",
             "cordis.patch.yml",
             "meeting-roles",
+            "scripts/install.sh",
+            "scripts/start.sh",
             "lib/typert.host.js",
             "lib/typert.host.d.ts",
             "lib/typert.remote-client.js",
             "lib/typert.remote-client.d.ts"
         ]);
+        expect(packageManifest.bin).toEqual({ "convivium-install": "scripts/install.sh" });
         expect(packageManifest.dsh.bundle.patch).toBe("./cordis.patch.yml");
         expect(packageManifest.dsh.client.platform).toBe("web");
         expect(packageManifest.dsh.client.inject).toEqual([

@@ -7,7 +7,7 @@ const clientExternal = [
     "react",
     "react-dom"
 ] as const;
-const clientAlwaysBundle = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmokit"] as const;
+const clientAlwaysBundle = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmokit", "zod"] as const;
 
 export default defineConfig([
     {

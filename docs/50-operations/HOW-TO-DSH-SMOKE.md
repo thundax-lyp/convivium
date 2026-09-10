@@ -2,7 +2,7 @@
 
 ## 前置条件
 
-- 在 `plugin/` 目录执行命令。
+- 默认从仓库根目录执行命令；只有显式包含 `cd plugin` 的人工打包步骤进入插件目录。
 - Node.js 满足 `plugin/package.json` 的 engines 要求。
 - pnpm 可访问或已缓存 `@deepseek-ai/dsh@0.1.2-rc.1`。
 - 不使用开发者常用的 DSH profile；脚本会创建并清理独立临时 profile、workspace、端口和 `DSH_HOME`。
@@ -82,12 +82,11 @@ chmod 600 dev.env
 Convivium 后续的标准 DSH 插件冒烟测试统一使用发布版 DSH CLI/runtime：
 
 ```sh
-cd plugin
-pnpm dlx @deepseek-ai/dsh@0.1.2-rc.1 --version
+pnpm --dir plugin dlx @deepseek-ai/dsh@0.1.2-rc.1 --version
 pnpm smoke:profile
 ```
 
-命令必须从 `plugin/` 运行，使入口能够从其父目录读取唯一的仓库根 `dev.env`。调用者 shell 中已有的 `DEEPSEEK_API_KEY` 会被忽略，不能替代该文件。
+命令必须从仓库根运行；根脚本以 `plugin/` 为工作目录调用真实入口，使其从父目录读取唯一的仓库根 `dev.env`。调用者 shell 中已有的 `DEEPSEEK_API_KEY` 会被忽略，不能替代该文件。
 
 其中 `pnpm smoke:profile` 内部固定调用：
 
@@ -102,10 +101,10 @@ smoke 只证明真实 DSH 的组合、工具/HTTP 调用、持久化、恢复和
 从仓库根目录执行：
 
 ```sh
-pnpm --dir plugin smoke:profile                         # 默认 5 个核心场景
-pnpm --dir plugin smoke:profile --all                   # 全部 17 个场景
-env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm --dir plugin smoke:profile
-pnpm --dir plugin --silent smoke:profile --json         # 完整逐场景 JSON，供诊断
+pnpm smoke:profile                                      # 默认 5 个核心场景
+pnpm smoke:profile --all                                # 全部 17 个场景
+env CONVIVIUM_SMOKE_SCENARIO=mail-race pnpm smoke:profile
+pnpm --silent smoke:profile --json                      # 完整逐场景 JSON，供诊断
 ```
 
 一次命令只构建、打包一次，复用同一个 artifact；每个场景仍独立创建 Host、DSH_HOME、workspace、profile 和端口。cold-rebind 在自己的目录内重启 Host。场景串行，首个失败立即停止；不跨场景共享 Meeting 或 Session。默认不打印构建日志、dump-config 或大段 DTO，失败输出有界诊断。`--all` 不能与单场景或 Browser mode 组合。
@@ -135,13 +134,13 @@ no_consensus、进展重置和另一种预算的规则差异由 `turn-advancemen
 ### 九角色部署场景
 
 ```sh
-env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm smoke:profile
 ```
 
 资源取自本次安装的同一 tarball，wrapper 解包至临时根的 role-package/package/meeting-roles；部署 patch 在临时控制 patch 前加载，两者通过非敏感 Host 变量 CONVIVIUM_MEETING_ROLES_ROOT 指向该目录；控制 patch 重述同源 agentDefinitions 读取表达式，避免 config 整体替换丢失定义。真实 Captain 显式挂载 convivium，并以原生 agentOptions 选择 deepseek-official/deepseek-v4-flash，子会话继承模型；创建一位 Manager 和八位 Participant。探针暂停会议，使用原生 ancestor interrupt 等待当前执行结束，然后逐个观察各自 Session 的 skill tool/call、成功 tool/result 四步正文与 ROLE_READY；每身份上限 180000ms，结果等待上限 2400000ms。
 部署探针在目标 child 成功 Skill 调用的原生 tools/post-execute 回调内完成研究工具、权限拒绝与 status 检查，返回原 decision，并在 finally 注销回调。continuable child 空闲后可被 DSH 释放，不能缓存旧 Agent 在 idle 后调用工具。检查仍要求真实 Provider 结果，Fake-IP DNS 的非公网地址拒绝不能计为抓取通过；应由运行环境为目标公网域名提供真实公网解析，不放宽 DSH 检查。
 
-仅在本次验收已有明确跳过抓取的授权时，使用 `env CONVIVIUM_SMOKE_SCENARIO=meeting-roles CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1 pnpm --dir plugin smoke:profile`。默认命令仍检查抓取；开关使结果记录 `fetch: "skipped:user-waiver"` 和 `research-search-operational`，stdout 输出 Not Covered，不能作为抓取可用证据。三类搜索、九角色 Skill、权限和会议状态检查仍必须通过。历史授权与运行结果统一见 [User-authorized Fetch Waiver](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#user-authorized-fetch-waiver)，不构成新一轮运行的自动豁免。
+仅在本次验收已有明确跳过抓取的授权时，使用 `env CONVIVIUM_SMOKE_SCENARIO=meeting-roles CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1 pnpm smoke:profile`。默认命令仍检查抓取；开关使结果记录 `fetch: "skipped:user-waiver"` 和 `research-search-operational`，stdout 输出 Not Covered，不能作为抓取可用证据。三类搜索、九角色 Skill、权限和会议状态检查仍必须通过。历史授权与运行结果统一见 [User-authorized Fetch Waiver](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#user-authorized-fetch-waiver)，不构成新一轮运行的自动豁免。
 
 三研究角色的原生 web_search 必须返回对应域来源，web_fetch 必须返回 2xx 与非空正文。Manager/Scribe 的越权会议工具及 web_search 共四次调用必须 UNKNOWN_TOOL，九身份 status 可读且暂停后的 Meeting version/messages 不变。失败或超时沿原 finally 停止 Host、释放端口并删除本次资源；不能通过更换 fixture 或放大超时继续判为成功。
 
@@ -154,8 +153,8 @@ env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm --dir plugin smoke:profile
 从仓库根目录执行：
 
 ```sh
-CONVIVIUM_SMOKE_SCENARIO=scribe-minutes pnpm --dir plugin smoke:profile
-CONVIVIUM_SMOKE_SCENARIO=scribe-minutes CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile
+CONVIVIUM_SMOKE_SCENARIO=scribe-minutes pnpm smoke:profile
+CONVIVIUM_SMOKE_SCENARIO=scribe-minutes CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm smoke:profile
 ```
 
 普通模式检查六项 oracle：Speaker 上下文含来源消息、非法引用不改变状态、同一 Session 恢复后原请求重放 receipt 不变、HTTP 公开消息相等、归档公开消息相等、Manager/a/b 三个 Session 已清理。归档比较固定公开字段，保留其余内部归档字段。字段及非权威边界见 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#referenced-minutes-draft)。
@@ -177,7 +176,7 @@ Browser 模式完成前四项后输出 `browserReady: true` 和带一次性 toke
 ```sh
 env CONVIVIUM_SMOKE_SCENARIO=reassign \
     CONVIVIUM_SMOKE_BROWSER_MODE=1 \
-    pnpm --dir plugin smoke:profile
+    pnpm smoke:profile
 ```
 
 等待 stdout 同时满足以下 ready 判据后才能打开 Browser；Host 会继续运行并等待终止信号：
@@ -252,7 +251,7 @@ Prepare：沿用上文 dev.env、独立临时 profile 和 0.1.2-rc.1 版本要�
 Execute：从仓库根目录执行：
 
 ```sh
-CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm --dir plugin smoke:profile
+CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm smoke:profile
 ```
 
 Assert：真实 Captain factory 挂载 minimal；第一 Host 使用 V1 内联 roleDescription 定义及独立 agentModelOverrides 创建两种角色，第二 Host 将定义与模型覆盖改成 V2，恢复原 Captain 和 child。输出必须包含两个不同 Host PID、以下九项断言及 `PASS role-composition`、`restore=PASS`：
@@ -316,7 +315,7 @@ Browser 分支在读取首次 candidateStatus 后、任何 decision/risk tool �
 以 PTY 启动唯一命令：
 
 ```sh
-env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile
+env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm smoke:profile
 ```
 
 等待顶层 ok=true、profile=web、provider=spawn，且 probe 严格符合上述 ready 契约。记录该次 stdout 的 `CONVIVIUM_SMOKE_BROWSER_URL`、`CONVIVIUM_SMOKE_TEMP_ROOT`、probe.meetingId 和 observed 全部字段。ready 只证明夹具就绪。
