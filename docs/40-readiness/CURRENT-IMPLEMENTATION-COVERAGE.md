@@ -6,9 +6,9 @@
 
 ## Scope
 
-- 更新日期：2026-09-09。本次执行迁移后完整 verify 和两个真实 Remote profile，具体边界见上节。
+- 更新日期：2026-09-10。最新更新为测试回归保护与资产精简；未新增真实 Host/Browser 验收。
 - 本文维护当前需求覆盖、自动化证据索引和剩余缺口。真实 Host、Browser、失败轮及 Restore 结果统一由 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md) 保存。
-- 产品验证有多个源码基线，见 [Executed Validation](#executed-validation)；不得将某次历史结果套用到当前所有能力。最近角色部署证据为 `b3f02c2`，SQLite 替换工程证据为 `61f7de2`；两者保留各自范围。
+- 各次验证的源码基线和适用范围见 [Executed Validation](#executed-validation)，历史结果不代表当前全部能力。
 - `已实现` 表示正式运行路径及相称证据存在，不表示所有运行组合已验证；`部分实现` 表示仍有必需路径缺失。设计不是实现完成证明。
 
 ## Validated Contract
@@ -37,11 +37,11 @@
 
 ## Automated Evidence
 
-以下源码路径相对 `plugin/`。这些是既有自动化证据，不是 2026-09-09 重跑结果；各次完整验证的 commit、环境及结果见 Executed Validation。测试中的 fake DSH、DOM 或 SQLite reopen 只证明对应测试边界。
+以下源码路径相对 `plugin/`；专项表格是测试索引，执行基线见 [Executed Validation](#executed-validation)。fake DSH、DOM 和 SQLite reopen 各自只证明其测试边界。
 
 ### SQLite Provider Integration
 
-Convivium 仅消费 Storage Domain，物理介质由 Host/profile 的官方 SQLite provider 管理。替换删除了 10 个物理存储生产文件、12 个专属测试/夹具和 `dataRoot`，保留领域 command/receipt/outbox/checkpoint 算法。测试契约与完整验证基线为 `859ac1e` 加同步改动，收口提交 `61f7de2`。
+Convivium 消费 Host/profile 的官方 SQLite Storage Domain provider；领域 command/receipt/outbox/checkpoint 算法保持原有边界。替换验证基线为 `859ac1e` 加同步改动，收口提交 `61f7de2`。
 
 | 验收边界 | 实际落点与结果 |
 | --- | --- |
@@ -53,7 +53,7 @@ Convivium 仅消费 Storage Domain，物理介质由 Host/profile 的官方 SQLi
 | caller/version/terminal/idempotency 与业务一致性 | 既有 repository/domain、runtime、continuation、recovery suites 保留原断言；三个原 SQLite 装配 suite 在替换时共 72 tests 通过 |
 | 生产依赖与算法边界 | 不携带物理 provider、不覆盖 bundle 默认介质；package/import graph/module-boundary tests 通过；相对替换前 `146d56e` 的 repository/runtime/domain/protocol/http/tools/client 全部零 diff |
 
-相对 `146d56e` 执行 `git diff --exit-code 146d56e -- plugin/src/repository plugin/src/runtime plugin/src/domain plugin/src/protocol plugin/src/http plugin/src/tools plugin/src/client` 退出 0；旧 backend/dataRoot 生产搜索无匹配。启动 provider 竞态修复、五核心 Host 组合和恢复结果见 [SQLite Provider Validation](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation)，关闭探针见 [Shutdown Boundary](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-shutdown-acceptance-boundary)。
+启动 provider、五核心 Host 组合和恢复结果见 [SQLite Provider Validation](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation)，关闭探针见 [Shutdown Boundary](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-shutdown-acceptance-boundary)。
 
 ### 业务能力验证
 
@@ -94,9 +94,9 @@ Convivium 仅消费 Storage Domain，物理介质由 Host/profile 的官方 SQLi
 | 权限、领域与审计 | decision-acceptance、decision-disposition、completion suites：Captain capability 与后端绑定 local authority、非法对象/证据/终态拒绝、替换双事实、撤销历史、risk 重开；满足完成判断时同事务 converging，版本只增一次，不自动 end/archive |
 | 原子性与重放 | `contract/meeting-runtime.spec.ts`、`contract/domain-meeting-repository.spec.ts`、`recovery/domain-recovery.spec.ts`：逐动作 commit 失败无半提交、重试一次、混入外部证据整体拒绝、来源 receipt 隔离及终态重放 |
 | Remote、持久恢复与归档 | remote-boundary、protocol-schema、runtime 与 archive suites：Remote 执行五动作，读取经正式 Schema 校验；fake Domain 上重建 Runtime 保持 projection/receipt，Repository 冷重开保留两 Decision history、六条 local facts，拒绝伪造来源和证据；不证明真实 Host 冷重启 |
-| Client 与 Browser 夹具 | Client suites 覆盖五动作表单、写锁、证据预选、版本冲突、完整刷新、迟到响应及终态禁写；两候选与 blocking risk 的暂停/ready 边界由真实 Browser smoke 场景检查，不保留夹具自测。DOM 测试不替代实际页面验收 |
+| Client 与 Browser 夹具 | Client suites 覆盖五动作表单、写锁、证据预选、版本冲突、完整刷新、迟到响应及终态禁写；两候选与 blocking risk 的暂停/ready 边界由实际 Browser smoke 验证 |
 
-历史页面验证见 [Local Decision Risk Browser](./SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)；该页面证据不由本次文档整理更新。
+历史页面验证见 [Local Decision Risk Browser](./SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)。
 
 ### Client Fact Visibility
 
@@ -104,21 +104,21 @@ Convivium 仅消费 Storage Domain，物理介质由 Host/profile 的官方 SQLi
 | --- | --- |
 | 正式事实展示 | `src/client/meeting-panel-view.tsx`、`meeting-panel-sections.tsx` 及 Client suites：12 种 status 的非空 DTO 经 Remote/Schema/DOM 消费；Decision accepted/history、四类 Parking Lot 处置、risk/archive issues、公开 intent/reason/objective 与无 Turn 时旧值清除 |
 | 完整刷新与错误恢复 | Client suites 的 `refreshFactStatus`：stream/focus 完整刷新 对不同版本集合逐条替换、删除及卸载重开；分别缺少 decisionHistory、parkingLot、archive.package.issues 时保留缓存、禁写，合法刷新后恢复并清除 alert，输入 JSON 不变 |
-| 展示边界 | 文本 HTML 不创建 img、终态禁写；原事实展示增量不新增后端权限或命令。后来增加的 Decision/risk 五动作见上方独立验证索引，不沿用旧“区域无写控件”作为当前总体结论 |
+| 展示边界 | 文本 HTML 不创建 img、终态禁写；Decision/risk 五动作见上方独立验证索引 |
 | UI controls | Button/Input 与 End outcome 单选组的真实包、键盘、缓存禁写、重复提交、Browser/Restore；见 [UI primitives migration](./SMOKE-VALIDATION-EVIDENCE.md#ui-primitives-migration) |
-| Browser 清理 | 脚本信号处理自测已按 Test Rules 移除；停止、端口释放和临时目录清理由实际 Browser smoke 的 Restore 验证，不据历史自测宣称当前无泄漏 |
+| Browser 清理 | 停止、端口释放和临时目录清理由实际 Browser smoke 的 Restore 验证 |
 
-历史页面验证见 [Client Fact Visibility Browser](./SMOKE-VALIDATION-EVIDENCE.md#client-fact-visibility-browser)。本次控件迁移另有上表 UI controls 的真实页面证据；其他新增区域保持原验证边界。
+历史页面验证见 [Client Fact Visibility Browser](./SMOKE-VALIDATION-EVIDENCE.md#client-fact-visibility-browser)。
 
 ### Shared Preset Role Composition
 
-当前角色模型见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) 与 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。最新授权部署验证为 `b3f02c2`：结果与失败修复过程唯一记录在 [Meeting Roles Deployment](./SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)。**web_fetch 按用户授权跳过，抓取可用性未验证**；旧模型预检不能代替新模型部署验收。
+当前角色模型见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md) 与 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。角色部署基线 `b3f02c2` 的结果见 [Meeting Roles Deployment](./SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)；web_fetch 豁免及剩余范围见 [Not Covered](#not-covered)。
 
 以下为既有自动化测试索引，路径相对 `plugin/tests/`：
 
 | 验证范围 | 自动化证据 |
 | --- | --- |
-| 发布资源 | `contract/meeting-roles-deployment.spec.ts`：九角色发布 JSON 经生产 parser 接受；使用内联固定 control patch，真实 DSH patch 合并/插值在独立 profile 与资源根下保留 Definition、Preset 和运行控制，缺资源根拒绝；不依赖或验证 smoke helper。`verify:agent-definitions` 继续直接校验资源集合与 Skill 正文 |
+| 发布资源 | `contract/meeting-roles-deployment.spec.ts`：九角色 JSON 经生产 parser 接受；发布 patch 与固定 control patch 经原生合并/插值，在独立 profile 与资源根下保留 Definition、Preset 和运行控制，缺资源根拒绝。`verify:agent-definitions` 校验资源集合与 Skill 正文 |
 | 配置与共享能力 | `unit/role-composition/resolve.spec.ts`、`unit/config.spec.ts`、role-selection/request-idempotency、dsh-capabilities suites：数量/大小/未知字段/重复值和角色匹配、共享 Preset/Skill 只读预检、异步前后父 Preset 一致 |
 | 创建与持久化 | session-adapter、meeting-runtime、domain schemas/repository suites：全部预检后才分配身份、末项非法零 child、中途失败 revoke/interrupt/drain；provisioning/active binding 不可变，failed put 不改读值，旧记录不回填 |
 | 重放与公开边界 | runtime、status-projection、protocol-schema suites：ready/归档 receipt 重放不读取新配置，同 request 换 ID 冲突；status/archive 不泄露角色配置，错误信息脱敏 |
@@ -152,8 +152,8 @@ message-reference draft 正式语义见 [Referenced minutes draft](../20-interfa
 
 | 日期 / 源码边界 | 工程检查与实际结果 | 适用边界 |
 | --- | --- | --- |
-| 2026-09-10 / `eba973f` 加 runtime 测试修复 | `pnpm --dir plugin exec vitest run --project host tests/unit/runtime`：8 files / 53 tests PASS；修改的 `archive.spec.ts`、`developer-markdown-service.spec.ts` 定向 ESLint、Prettier PASS。隔离副本分别移除归档撤权、关闭、warning 异常隔离，以及允许 pending 低版本覆盖、禁止 pending 升级，运行这两个文件均由对应场景失败；副本已清理 | 独立验证归档双门禁、日志失败不影响 dispose、pending 最高版本；合并一次归档字段与副本验证，保留原断言。生产代码未变；Not Covered：完整 verify、真实 DSH profile、原子替换失败时旧文件完整性 |
-| 2026-09-10 / `7e99229` 后脚本自测清理工作区 | `pnpm --dir plugin exec vitest run --project host --project contract`：62 files / 723 tests PASS，另两套件因缺生成的 typert 未加载；`pnpm --dir plugin typecheck:remote-test` PASS 后，定向重跑 `contract/meeting-runtime.spec.ts`、`contract/remote-boundary.spec.ts`：2 files / 92 tests PASS。合计 64 files / 815 tests；lint、改动测试 Prettier、verify:agent-definitions（9 roles）、文档文件链接（556 项）及 diff 检查 PASS | 删除验证设施自测与孤立 fixture，保留发布资源组合和直接 Schema 保护，净减少 194 cases；纪要保护由既有 contract 承接。Not Covered：完整 verify、真实 Host/Browser、重复停止信号的独立设施回归；实际 smoke 与 Restore 要求保留 |
+| 2026-09-10 / `2dd1196` | [PR #70 CI](https://github.com/thundax-lyp/convivium/actions/runs/34429070514)：Ubuntu、Node 22.19.0、pnpm 10.7.0，7 项检查 PASS；本地 deployment contract 2 tests、定向 Prettier/ESLint、文档文件链接 556 项及 diff 检查 PASS | 固定 control patch 承接原生部署组合保护；生产代码未变。Not Covered：本地完整 verify、真实 Host/Browser |
+| 2026-09-10 / `be08a16` | `pnpm --dir plugin typecheck:remote-test`、`pnpm --dir plugin exec vitest run --project host --project contract`：64 files / 803 tests PASS；改动测试 Prettier/ESLint、`verify:agent-definitions`（9 roles）、文档文件链接 556 项及 diff 检查 PASS。相同 runtime 测试内容另经 8 files / 53 tests 和隔离故障注入验证：移除归档撤权/关闭门禁、warning 异常隔离或 pending 最高版本约束时，对应场景失败；副本已清理 | 汇总配置、角色、Session、归档与 Markdown 回归，移除脚本设施自测。Not Covered：本地完整 verify、真实 Host/Browser、重复停止信号的独立设施回归、原子替换失败时旧文件完整性 |
 | 2026-09-08 / `b3f02c2a75621f3f05f724c61dacdf45fe4264d6` | 最新角色模型的完整 verify 结果见 [Final Authorized Validation](./SMOKE-VALIDATION-EVIDENCE.md#final-authorized-validation) 的四命令顺序记录 | 首发角色部署授权范围；保留 web_fetch 豁免，不外推模型质量 |
 | 2026-09-08 / `859ac1e` 加测试同步，收口 `61f7de2` | `pnpm --dir plugin verify` exit 0，75 files / 1042 tests，Vitest 10.90s；`pnpm --dir plugin format` 无额外改动 | SQLite 替换；首次失败为旧 peer/模块可达性/VM dirname、join 三处测试契约，修正后 focused 3 files / 10 tests 及完整 verify 通过，未放宽业务断言 |
 | 2026-09-08 / `8c3b7ab0359828f4b2e33554300c134f95bacecd` | 完整 verify PASS，84 files / 1082 tests；探针修改后 `pnpm --dir plugin exec vitest run tests/unit/scripts` 为 7 files / 143 tests，相关 ESLint、Prettier、diff 检查 PASS | SQLite 替换前的 DSH 升级；对照 tag `dsh-v0.1.2-rc.1`（`a66e4702047846cdaa10c66c9d3df3951f5ea70d`）与安装包公开类型；当时 JSONL import 非阻断提示已随后续替换消失 |
@@ -177,21 +177,9 @@ SQLite 构建仅有 Node SQLite experimental 与既有 Client bundle dependency 
 
 ### Documentation Ownership Validation
 
-2026-09-09，`95bafe63fbd7021376b269b0deade1f29ff8ca2c` 的入口/设计整理及其后 readiness 工作区；Darwin arm64、Python 3.12.4、Git 2.50.1。依据 [Document Rules](../00-governance/DOCUMENT-RULES.md#repository-entry-and-design-ownership)，本轮只变更文档、Skill 路由和 CI 所需入口。
+2026-09-09，`95bafe6` 至 `f3f1e04` 后的文档工作区完成入口、设计与治理职责归并；Darwin arm64、Python 3.12.4、Git 2.50.1。各轮文档链接/锚点、Governance structure 和 diff 检查通过；逐轮数量、迁移过程及临时 Skill 走查保留在 Git 历史，不作为产品验收证据。
 
-- `95bafe6` 提交前：508 个相对链接/锚点、实际 Governance structure shell 步骤、旧入口引用清零、5 份设计文档检查通过；`git diff --check` 和 `git diff --cached --check` PASS。
-- readiness 初次归并：511 个相对链接/锚点、删除文件引用清零、2 份 readiness 检查通过。最终去重后 519 个相对链接/锚点、FR 表 15 项、必要章节与重复运行结果检查通过，`git diff --check` PASS；链接数量不是产品覆盖率。
-- `0999640` 后的 Architecture 精简工作区：工程取舍/检查/测试命名逐段原文迁移到 `ENGINEERING-RULES.md`，固定依赖与 provider 接线归 Implementation，根入口、Skill 与 CI 路由同步。532 个相对链接/锚点、实际 Governance structure 步骤、迁移段落完整性及 `git diff --check` PASS。
-- 同一工作区后续规则修订：通用验证归 Engineering，TODO 仅管理登记任务，PR 配置引用 workflow/远端状态，文档结构按语义覆盖，RUNBOOK 作者与机械执行边界分离；入口、授权措辞及模板同步。551 个相对链接/锚点、Governance structure、模板/路由/清理与机械执行约束检查及 `git diff --check` PASS；未查询或修改远端 Ruleset，未执行 GitHub Actions。
-- 未重新执行 plugin verify、Host、Browser 或模型验证；本轮整理不是全量需求/契约/源码一致性审计。
-
-`f76ffd6` 后的治理补漏工作区（2026-09-09）：旧审查 Skill 按 Storage Domain 与 MeetingTask 更新，文档冲突不再以更新时间作为确认依据；PR 禁止 squash merge，Governance 补齐 RUNBOOK Rules 并共用 `.github/scripts/check-doc-links.py`。553 个本地链接目标/锚点检查、检查器 2 项回归测试（含断链、失效锚点、重复标题与代码示例）、实际 Governance structure shell 步骤及 diff 检查 PASS。未执行远端 CI 或修改远端保护配置。
-
-Document Review Skill 验证：在实际仓库枚举确认规则模式匹配 6 份文件、设计目录匹配 5 份文件、`Engineering Rules` 标题唯一命中；零匹配及 `**` 零层/多层语义检查 PASS。同名标题双候选、只读权限和 P0–P3 分级进行了静态场景走查：旧存储口径/冲突依据为 P2，漏检规则文件为 P3，不因关键词升级 P0/P1。以上为当前会话走查与临时匹配验证，不是独立模型的端到端调用测试，也不证明所有 Agent 都能正确执行。
-
-`f3f1e04` 后的文档审查修订：用户确认最低 DSH 为 `0.1.2-rc.1`、禁止 migration，其余冲突按当前代码核对。核对 `meeting-task.ts` 的 task/Participant 等待清除与重新规划分支、`meeting-control.ts` 的 resume blocker 拒绝、repository ownership 的 optional agentDefinition 和九角色探针入口；统一接口与设计，删除旧协议注释并归并操作说明。562 个链接/锚点及 `git diff --check` PASS；仅静态核对代码，未修改产品或重跑产品、Host、Browser、模型验证。
-
-2026-09-09，`37aaad9` 后按用户确认收敛链接门禁：删除 Python 自制解析器和语法回归测试，改为 `.mjs` 调用 `Marked` 的文件链接检查。自动覆盖边界以 Document Rules 为准，旧锚点/语法测试结果仅属于上述历史基线，不代表当前门禁能力。当前仓库文件链接检查及临时隔离仓库的有效/缺失目标验证、`git diff --check` 通过；未重跑产品或远端 CI。
+`37aaad9` 后，链接门禁改用 `Marked` 的文件链接检查；有效/缺失目标隔离验证和 diff 检查通过。当前边界由 [Document Rules](../00-governance/DOCUMENT-RULES.md#document-sync) 定义，历史锚点及解析器自测不属于当前门禁。上述整理未重跑产品、Host/Browser 或模型验证，未修改远端保护配置。
 
 ## Not Covered
 
@@ -208,11 +196,11 @@ Document Review Skill 验证：在实际仓库枚举确认规则模式匹配 6 �
 | FR-12 | 模型自主遵守会议协议及内部工具失败后的行为未验证。离线观察中 `src/dsh/provisioning.ts` 要求 attemptId/deliveryId，而 Manager context 使用 planningAttemptId；提示措辞差异未修复，不是模型失败复现 |
 | FR-13 | approve/admission/provisioning、自动 expired/cancelled、research freshness/dedup 未实现；生产 Host Catalog 成功推荐→拒绝、专项 Host 冷重启、动态 FR-14 接入和推荐/拒绝 UI 未验证 |
 | FR-14 | web_fetch 为用户授权跳过；完整无豁免部署验收、远程模型差异的配额/凭证与长期质量未证明；maxTokens 冷恢复、热切换、Browser 配置 UI 未验证，Host capability 变更不保证历史内容快照 |
-| FR-15 | 真实 current/archive Markdown 文件输出未纳入当前 smoke |
+| FR-15 | 真实 current/archive Markdown 文件输出未纳入当前 smoke；原子替换失败时旧文件完整性未验证 |
 | 通用运行边界 | stress/长期 soak、memory/FD、容量预算、一般资源泄漏、真实断电/硬件故障、多进程写入及任意时序在途写入自动排空未验证；`test:stress` 仍为 Not Covered 占位入口 |
 
 V1 非目标：远程、多用户、跨 Host、独立 per-child Preset、独占 Skill、开发期迁移与已有版本升级；candidate reject/revoke、Question required-review/risk evidence、直接引用 Fact/Decision/task/file/research 的纪要不属于当前首版。外部副作用 exactly-once 不承诺。这些不是本轮待补齐任务。
 
 ## Closure
 
-已有实现及证据支持上表中的当前状态；FR-13 仍部分实现，恢复故障、完整页面/观测验收及抓取等边界未关闭，不能称为全部需求或生产发布就绪。2026-09-09 仅完成文档职责整理与证据归并，不新增产品验收结论；提交和发布状态以 Git/PR 为准。
+已有实现及证据支持上表中的当前状态；FR-13 仍部分实现，恢复故障、完整页面/观测验收及抓取等边界未关闭，不能称为全部需求或生产发布就绪。最新测试精简与回归补强未新增真实运行验收；提交和发布状态以 Git/PR 为准。
