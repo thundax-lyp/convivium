@@ -4,6 +4,9 @@ import {
     assertContributionEvidenceMessages,
     contributionWorkComplete,
     evaluateContributionProgress,
+    transitionContributionLifecycle,
+    transitionMeeting,
+    failContributionDelivery,
     endMeeting,
     type MeetingState,
     isMeetingStateV2
@@ -242,6 +245,122 @@ describe("contribution agenda advancement", () => {
             "complete"
         );
         expect(reviewed.state.transcript).toEqual(state.transcript);
+    });
+});
+
+describe("contribution suspension and deadlines", () => {
+    function running(): MeetingState {
+        return {
+            ...contributionMeeting(),
+            contributions: validContributionState() as MeetingState["contributions"]
+        };
+    }
+    it("freezes phase time, revokes the old generation and restores only remaining time", () => {
+        const state = running();
+        const paused = transitionMeeting(state, "paused", {
+            now: contributionNow + 100,
+            reason: "Pause",
+            pause: { at: contributionNow + 100, by: { kind: "captain", actorId: "captain-1" } }
+        });
+        expect(paused.state.contributions!.tasks["contribution-1"]).toMatchObject({
+            generation: 2,
+            pausedRemainingMs: 599900
+        });
+        const resumed = transitionMeeting(paused.state, "running", { now: contributionNow + 1000 });
+        expect(resumed.state.contributions!.tasks["contribution-1"]).toMatchObject({
+            generation: 3,
+            deadlineAt: contributionNow + 600900
+        });
+        expect(resumed.state.contributions!.tasks["contribution-1"]).not.toHaveProperty(
+            "pausedRemainingMs"
+        );
+    });
+    it("counts paused time in the total budget and completes before exhausted budget on resume", () => {
+        const state = running();
+        state.status = "paused";
+        state.limits.maxDurationMs = 1;
+        const partial = transitionMeeting(state, "running", { now: contributionNow });
+        expect(partial.state.status).toBe("partial");
+        expect(
+            partial.effect.events.some(
+                (v) => v.type === "contribution.controlled" && v.payload.action === "resume"
+            )
+        ).toBe(false);
+        state.agenda[0]!.status = "resolved";
+        expect(transitionMeeting(state, "running", { now: contributionNow }).state.status).toBe(
+            "completed"
+        );
+    });
+    it("expires at the exact phase deadline once and retains drafts", () => {
+        const state = running();
+        expect(
+            transitionContributionLifecycle(state, "tick", contributionNow + 599999).effect.events
+        ).toEqual([]);
+        const expired = transitionContributionLifecycle(state, "tick", contributionNow + 600000);
+        expect(expired.state.contributions!.tasks["contribution-1"]).toMatchObject({
+            phase: "captain_action",
+            generation: 2,
+            drafts: {}
+        });
+        expect(expired.effect.events.map((v) => v.type)).toEqual([
+            "contribution.expired",
+            "contribution.manager_notified"
+        ]);
+        expect(
+            transitionContributionLifecycle(expired.state, "tick", contributionNow + 600000).effect
+                .events
+        ).toEqual([]);
+    });
+    it("moves an idle expired Manager to Captain waiting without a fallback", () => {
+        const state = running();
+        state.contributions!.tasks = {};
+        const waiting = transitionContributionLifecycle(state, "tick", contributionNow + 600000);
+        expect(waiting.state).toMatchObject({
+            status: "waiting",
+            waitState: {
+                reason: "captain_action",
+                waitingSince: contributionNow + 600000,
+                taskIds: [],
+                participantIds: []
+            }
+        });
+        expect(
+            transitionContributionLifecycle(waiting.state, "tick", contributionNow + 600001).effect
+                .events
+        ).toEqual([]);
+    });
+    it("ignores stale failure callbacks and converts a current permanent failure to Captain action", () => {
+        const state = running();
+        expect(
+            failContributionDelivery(state, {
+                kind: "task",
+                contributionId: "contribution-1",
+                generation: 0,
+                reason: "FAILED",
+                now: contributionNow
+            }).state
+        ).toBe(state);
+        const failed = failContributionDelivery(state, {
+            kind: "task",
+            contributionId: "contribution-1",
+            generation: 1,
+            reason: "FAILED",
+            now: contributionNow
+        });
+        expect(failed.state.contributions!.tasks["contribution-1"]).toMatchObject({
+            phase: "captain_action",
+            generation: 2,
+            reason: "FAILED"
+        });
+        expect(
+            failContributionDelivery(failed.state, {
+                kind: "task",
+                contributionId: "contribution-1",
+                generation: 1,
+                reason: "FAILED",
+                now: contributionNow
+            }).state
+        ).toBe(failed.state);
     });
 });
 

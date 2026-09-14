@@ -3,6 +3,7 @@ export * from "./completion.js";
 export * from "./contribution.js";
 export {
     evaluateContributionProgress,
+    failContributionDelivery,
     transitionContributionLifecycle
 } from "./transitions/contribution.js";
 export * from "./errors.js";

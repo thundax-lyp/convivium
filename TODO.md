@@ -16,12 +16,6 @@
 
 ### 协作闭环
 
-- [ ] `暂停与超时`：暂停恢复与阶段超时（T6c）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T6c。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：接通阶段期限冻结、恢复授权、扫描和永久投递失败处置。
-    - 验收点：阶段剩余时间与总预算口径一致；过期提交拒绝；失败进入 Captain 状态；无多余重投。
-
 - [ ] `冷恢复`：一次性恢复授权（T6d）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T6d。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

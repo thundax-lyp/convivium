@@ -311,9 +311,16 @@ export function transitionMeeting(
 
     const contributionCleanup = isExecutionTerminal
         ? transitionContributionLifecycle(next, "end", context.now)
-        : { state: next, effect: { events: [] } };
+        : to === "paused"
+          ? transitionContributionLifecycle(next, "pause", context.now)
+          : resumingFromPause && next.contributions !== undefined
+            ? transitionContributionLifecycle(next, "resume", context.now)
+            : { state: next, effect: { events: [] } };
     return {
-        state: contributionCleanup.state,
+        state:
+            next.contributions === undefined
+                ? contributionCleanup.state
+                : { ...contributionCleanup.state, version: next.version },
         effect: {
             events: [
                 {
@@ -327,7 +334,11 @@ export function transitionMeeting(
                     }
                 },
                 ...(lifecycleCleanup?.events ?? []),
-                ...contributionCleanup.effect.events,
+                ...contributionCleanup.effect.events.map((event) =>
+                    next.contributions !== undefined && "meetingVersion" in event.payload
+                        ? { ...event, payload: { ...event.payload, meetingVersion: next.version } }
+                        : event
+                ),
                 ...(requestedTaskCleanup?.effect.events ?? [])
             ]
         }

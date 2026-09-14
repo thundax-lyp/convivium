@@ -28,7 +28,117 @@ export function transitionContributionLifecycle(
     now: number
 ): TransitionResult<MeetingState> {
     if (state.contributions === undefined) return { state, effect: { events: [] } };
-    if (action !== "end") throw new Error("Contribution lifecycle implementation pending");
+    if (action === "recover") throw new Error("Contribution lifecycle implementation pending");
+    if (action === "tick" || action === "resume") {
+        if (action === "tick" && !["running", "waiting"].includes(state.status))
+            return { state, effect: { events: [] } };
+        const progress = evaluateContributionProgress(state, now);
+        if (executionTerminalStatuses.includes(progress.state.status)) return progress;
+        if (action === "tick") {
+            let next = progress.state;
+            const events = [...progress.effect.events];
+            for (const task of Object.values(next.contributions!.tasks)) {
+                if (!activeContribution(task) || task.deadlineAt > now) continue;
+                const stage =
+                    task.phase === "published"
+                        ? "evidence"
+                        : task.phase === "boundary_review"
+                          ? "boundary"
+                          : "prepare";
+                const tasks = {
+                    ...next.contributions!.tasks,
+                    [task.id]: {
+                        ...task,
+                        generation: task.generation + 1,
+                        updatedAt: now,
+                        reason: "deadline_expired",
+                        ...(task.phase === "published"
+                            ? { reviewStatus: "captain_action" as const }
+                            : { phase: "captain_action" as const })
+                    }
+                };
+                next = { ...next, contributions: { ...next.contributions!, tasks } };
+                events.push({
+                    type: "contribution.expired",
+                    payload: {
+                        contributionId: task.id,
+                        generation: task.generation + 1,
+                        actor: "runtime",
+                        at: now,
+                        stage
+                    }
+                });
+            }
+            if (events.some((event) => event.type === "contribution.expired")) {
+                const notice = notifyContributionManager(next, now);
+                next = notice.state;
+                events.push(...notice.effect.events);
+            } else if (
+                !Object.values(next.contributions!.tasks).some(activeContribution) &&
+                next.contributions!.managerDeadlineAt <= now &&
+                !(next.status === "waiting" && next.waitState?.reason === "captain_action")
+            ) {
+                const waiting = contributionWaiting(next, now);
+                next = waiting.state;
+                events.push(...waiting.effect.events);
+            }
+            return events.length === 0
+                ? { state, effect: { events: [] } }
+                : {
+                      state: {
+                          ...next,
+                          version: state.version + 1,
+                          updatedAt: now,
+                          eventSeq: state.eventSeq + events.length
+                      },
+                      effect: { events }
+                  };
+        }
+        state = progress.state;
+        const resumed = resumeContributionStages(state, now);
+        return {
+            state: resumed.state,
+            effect: { events: [...progress.effect.events, ...resumed.effect.events] }
+        };
+    }
+    if (action === "pause") {
+        const tasks = { ...state.contributions.tasks };
+        const events: TransitionResult<MeetingState>["effect"]["events"] = [];
+        for (const task of Object.values(tasks)) {
+            if (!activeContribution(task)) continue;
+            tasks[task.id] = {
+                ...task,
+                generation: task.generation + 1,
+                pausedRemainingMs: Math.max(0, task.deadlineAt - now),
+                updatedAt: now
+            };
+            events.push({
+                type: "contribution.controlled",
+                payload: {
+                    contributionId: task.id,
+                    generation: task.generation + 1,
+                    actor: "runtime",
+                    at: now,
+                    action: "pause",
+                    reason: "meeting_paused"
+                }
+            });
+        }
+        return {
+            state: {
+                ...state,
+                contributions: {
+                    ...state.contributions,
+                    tasks,
+                    managerPausedRemainingMs: Math.max(
+                        0,
+                        state.contributions.managerDeadlineAt - now
+                    )
+                }
+            },
+            effect: { events }
+        };
+    }
     const tasks = { ...state.contributions.tasks };
     const events: TransitionResult<MeetingState>["effect"]["events"] = [];
     for (const task of Object.values(tasks)) {
@@ -63,6 +173,190 @@ export function transitionContributionLifecycle(
     }
     return {
         state: { ...state, contributions: { ...state.contributions, tasks } },
+        effect: { events }
+    };
+}
+
+function activeContribution(task: ContributionTask): boolean {
+    return (
+        ["preparing", "returned", "boundary_review"].includes(task.phase) ||
+        (task.phase === "published" && task.reviewStatus === "pending")
+    );
+}
+
+function notifyContributionManager(
+    state: MeetingState,
+    now: number
+): TransitionResult<MeetingState> {
+    const noticeSeq = state.contributions!.managerNoticeSeq + 1;
+    return {
+        state: {
+            ...state,
+            contributions: {
+                ...state.contributions!,
+                managerNoticeSeq: noticeSeq,
+                managerDeadlineAt: now + 600_000
+            }
+        },
+        effect: {
+            events: [
+                {
+                    type: "contribution.manager_notified",
+                    payload: {
+                        noticeSeq,
+                        contextThroughSeq: state.messageSeq,
+                        actor: "runtime",
+                        at: now
+                    }
+                }
+            ]
+        }
+    };
+}
+
+function contributionWaiting(state: MeetingState, now: number): TransitionResult<MeetingState> {
+    if (state.status === "waiting" && state.waitState?.reason === "captain_action")
+        return { state, effect: { events: [] } };
+    if (state.status === "waiting") {
+        return {
+            state: {
+                ...state,
+                version: state.version + 1,
+                updatedAt: now,
+                waitState: {
+                    reason: "captain_action",
+                    waitingSince: now,
+                    taskIds: [],
+                    participantIds: [],
+                    ...(state.activeAgendaItemId === undefined
+                        ? {}
+                        : { resumeAgendaItemId: state.activeAgendaItemId })
+                }
+            },
+            effect: {
+                events: [
+                    {
+                        type: "meeting.waiting",
+                        payload: {
+                            meetingId: state.id,
+                            from: "waiting",
+                            to: "waiting",
+                            meetingVersion: state.version + 1,
+                            reason: "captain_action"
+                        }
+                    }
+                ]
+            }
+        };
+    }
+    return transitionMeeting(state, "waiting", {
+        now,
+        wait: {
+            reason: "captain_action",
+            waitingSince: now,
+            taskIds: [],
+            participantIds: [],
+            ...(state.activeAgendaItemId === undefined
+                ? {}
+                : { resumeAgendaItemId: state.activeAgendaItemId })
+        }
+    });
+}
+
+function resumeContributionStages(
+    state: MeetingState,
+    now: number
+): TransitionResult<MeetingState> {
+    const contributions = { ...state.contributions!, tasks: { ...state.contributions!.tasks } };
+    const events: TransitionResult<MeetingState>["effect"]["events"] = [];
+    for (const task of Object.values(contributions.tasks)) {
+        if (!activeContribution(task)) continue;
+        const next = {
+            ...task,
+            generation: task.generation + 1,
+            deadlineAt: now + (task.pausedRemainingMs ?? Math.max(0, task.deadlineAt - now)),
+            updatedAt: now
+        };
+        delete next.pausedRemainingMs;
+        contributions.tasks[task.id] = next;
+        events.push({
+            type: "contribution.controlled",
+            payload: {
+                contributionId: task.id,
+                generation: next.generation,
+                actor: "runtime",
+                at: now,
+                action: "resume",
+                reason: "meeting_resumed"
+            }
+        });
+    }
+    contributions.managerDeadlineAt =
+        now +
+        (contributions.managerPausedRemainingMs ??
+            Math.max(0, contributions.managerDeadlineAt - now));
+    delete contributions.managerPausedRemainingMs;
+    const notice = notifyContributionManager({ ...state, contributions }, now);
+    notice.state.contributions!.managerDeadlineAt = contributions.managerDeadlineAt;
+    return { state: notice.state, effect: { events: [...events, ...notice.effect.events] } };
+}
+
+export function failContributionDelivery(
+    state: MeetingState,
+    input: (
+        | { kind: "task"; contributionId: string; generation: number }
+        | { kind: "manager"; noticeSeq: number }
+    ) & { reason: string; now: number }
+): TransitionResult<MeetingState> {
+    if (state.contributions === undefined || !["running", "waiting"].includes(state.status))
+        return { state, effect: { events: [] } };
+    if (input.kind === "manager")
+        return input.noticeSeq === state.contributions.managerNoticeSeq
+            ? contributionWaiting(state, input.now)
+            : { state, effect: { events: [] } };
+    const task = state.contributions.tasks[input.contributionId];
+    if (task === undefined || task.generation !== input.generation || !activeContribution(task))
+        return { state, effect: { events: [] } };
+    const next = {
+        ...task,
+        generation: task.generation + 1,
+        updatedAt: input.now,
+        reason: input.reason,
+        ...(task.phase === "published"
+            ? { reviewStatus: "captain_action" as const }
+            : { phase: "captain_action" as const })
+    };
+    const notice = notifyContributionManager(
+        {
+            ...state,
+            contributions: {
+                ...state.contributions,
+                tasks: { ...state.contributions.tasks, [task.id]: next }
+            }
+        },
+        input.now
+    );
+    const events = [
+        {
+            type: "contribution.controlled" as const,
+            payload: {
+                contributionId: task.id,
+                generation: next.generation,
+                actor: "runtime",
+                at: input.now,
+                action: "delivery_failed",
+                reason: input.reason
+            }
+        },
+        ...notice.effect.events
+    ];
+    return {
+        state: {
+            ...notice.state,
+            version: state.version + 1,
+            updatedAt: input.now,
+            eventSeq: state.eventSeq + events.length
+        },
         effect: { events }
     };
 }

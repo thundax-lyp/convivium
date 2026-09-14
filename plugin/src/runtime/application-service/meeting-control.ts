@@ -15,6 +15,8 @@ import {
     type MeetingState
 } from "@/domain/index.js";
 import type { DomainEvent } from "@/domain/index.js";
+import { interruptAndDrainOwnedSessions } from "@/dsh/index.js";
+import { JsonObjectSchema } from "@/repository/domain/schemas.js";
 import {
     contributionOutbox,
     interruptCancelledContributions
@@ -435,6 +437,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
             const current = await stored.repository.read();
             const currentState = current.state as unknown as MeetingState;
             const shouldCapture =
+                currentState.contributions === undefined &&
                 target === "running" &&
                 currentState.currentTurn === undefined &&
                 requiredPlanningBlockers(currentState).length === 0 &&
@@ -455,6 +458,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                           captainSessionId: stored.captainSessionId
                       })
                     : { kind: "none" as const };
+            let contributionControlCommitted = false;
             const committed = await stored.repository.execute({
                 requestId: input.requestId,
                 commandKind: target === "paused" ? "pause_meeting" : "resume_meeting",
@@ -505,6 +509,28 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                               }
                             : {})
                     });
+                    if (currentState.contributions !== undefined) {
+                        contributionControlCommitted = true;
+                        return {
+                            state: JsonObjectSchema.parse(
+                                JSON.parse(JSON.stringify(transition.state))
+                            ),
+                            result: { status: transition.state.status, changed: true },
+                            events: transition.effect.events.map((event) => ({
+                                type: event.type,
+                                payload: JsonObjectSchema.parse(
+                                    JSON.parse(JSON.stringify(event.payload))
+                                )
+                            })),
+                            outbox: [
+                                ...contributionOutbox(
+                                    currentState,
+                                    transition.state,
+                                    transition.effect.events
+                                )
+                            ]
+                        };
+                    }
                     let nextState = transition.state as MeetingState;
                     let extraEvents: DomainEventInput[] = [];
                     let outbox: Array<{
@@ -668,6 +694,35 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                     };
                 }
             });
+            if (
+                contributionControlCommitted &&
+                target === "paused" &&
+                stored.parent !== undefined &&
+                options.continuable.interrupt !== undefined &&
+                options.continuable.drainContinuableChildren !== undefined
+            ) {
+                try {
+                    const recovered = await stored.repository.recover();
+                    await interruptAndDrainOwnedSessions({
+                        parent: stored.parent,
+                        runtime: {
+                            interrupt: options.continuable.interrupt.bind(options.continuable),
+                            drainContinuableChildren:
+                                options.continuable.drainContinuableChildren.bind(
+                                    options.continuable
+                                )
+                        },
+                        ownerships: recovered.sessionOwnership.filter(
+                            (item) =>
+                                item.parentSessionId === String(stored.parent!.id) &&
+                                item.capabilityStatus === "active" &&
+                                item.lifecycleStatus === "active"
+                        )
+                    });
+                } catch {
+                    // Pause is durable and old generations remain revoked even if DSH cleanup fails.
+                }
+            }
             if (target === "running" && stored.parent !== undefined) {
                 ensureWorker(stored);
                 deliveryWorkers.wake(input.meetingId);

@@ -20,6 +20,10 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { MeetingToolRuntime } from "@/runtime/index.js";
 import { createMeetingDeliveryDispatcher } from "@/runtime/services/meeting-dispatch-service.js";
 import { createOutboxWorker } from "@/runtime/outbox-worker.js";
+import {
+    scanContributionTimeouts,
+    recordContributionDeliveryFailure
+} from "@/runtime/services/contribution-runtime-service.js";
 
 async function fixture(prepare?: (state: MeetingState) => void) {
     const domain = createFakeMeetingDomain();
@@ -190,6 +194,69 @@ describe("contribution agenda advancement", () => {
 });
 
 describe("contribution application transactions", () => {
+    it("commits a due timeout once under concurrent scans without repeating dispatch", async () => {
+        const f = await fixture();
+        try {
+            expect(
+                await f.application.applyContribution(
+                    f.assign((await f.repository.read()).version),
+                    f.manager,
+                    f.signal
+                )
+            ).toMatchObject({ ok: true });
+            const before = await f.repository.read();
+            await scanContributionTimeouts({ repository: f.repository, now: now + 599999 });
+            expect((await f.repository.read()).version).toBe(before.version);
+            await Promise.all([
+                scanContributionTimeouts({ repository: f.repository, now: now + 600000 }),
+                scanContributionTimeouts({ repository: f.repository, now: now + 600000 })
+            ]);
+            const after = await f.repository.read();
+            expect(after.version).toBe(before.version + 1);
+            expect(
+                Object.values((after.state as unknown as MeetingState).contributions!.tasks)[0]
+            ).toMatchObject({ phase: "captain_action", generation: 2 });
+            const projection = loadProjection({ domain: f.domain });
+            await scanContributionTimeouts({ repository: f.repository, now: now + 600000 });
+            expect(loadProjection({ domain: f.domain })).toEqual(projection);
+        } finally {
+            await f.repository.close();
+        }
+    });
+    it("records terminal delivery failure without replaying the callback or undoing the assignment", async () => {
+        const f = await fixture();
+        try {
+            const assign = f.assign((await f.repository.read()).version);
+            const assigned = await f.application.applyContribution(assign, f.manager, f.signal);
+            expect(assigned).toMatchObject({ ok: true });
+            const item = Object.values(loadProjection({ domain: f.domain }).outbox)[0]!;
+            await recordContributionDeliveryFailure({
+                repository: f.repository,
+                item,
+                errorCode: "DELIVERY_FAILED",
+                now
+            });
+            expect(
+                Object.values(
+                    ((await f.repository.read()).state as unknown as MeetingState).contributions!
+                        .tasks
+                )[0]
+            ).toMatchObject({ phase: "captain_action", generation: 2, reason: "DELIVERY_FAILED" });
+            const projection = loadProjection({ domain: f.domain });
+            await recordContributionDeliveryFailure({
+                repository: f.repository,
+                item,
+                errorCode: "DELIVERY_FAILED",
+                now
+            });
+            expect(loadProjection({ domain: f.domain })).toEqual(projection);
+            expect(await f.application.applyContribution(assign, f.manager, f.signal)).toEqual(
+                assigned
+            );
+        } finally {
+            await f.repository.close();
+        }
+    });
     it("commits assignment and dispatch together, replays receipts, rejects CAS and mismatched caller without side effects", async () => {
         const f = await fixture();
         try {

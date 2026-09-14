@@ -177,26 +177,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T6c：暂停恢复与阶段超时
-
-前置状态：T6b PASS。
-允许修改：`plugin/src/domain/transitions/contribution.ts`；`plugin/src/domain/contribution.ts`；`plugin/src/domain/transitions/meeting.ts`；`plugin/src/domain/index.ts`；`plugin/src/runtime/services/contribution-runtime-service.ts`；`plugin/src/runtime/application-service/index.ts`；`plugin/tests/unit/domain/contribution.spec.ts`；`plugin/tests/contract/contribution-runtime.spec.ts`；`plugin/src/runtime/application-service/meeting-control.ts`。
-禁止修改：冷恢复 epoch、Session replacement、archive。
-
-执行：
-1. 完成 pause/resume/tick、failContributionDelivery、scanContributionTimeouts、recordContributionDeliveryFailure，并接现有控制、扫描与 worker 失败回调。
-2. pause 保存阶段剩余时间后失效 generation；resume 先构造 running 候选，再调用已完成的进度判定，非终止才恢复授权。tick 不自动通过或 fallback；stale failure no-op。
-3. 新增 describe="contribution suspension and deadlines"：扫描迟到仍拒绝提交、暂停期间总时长继续计入、恢复时目标/预算优先级、deadline 精确边界、Manager timeout、永久失败、CAS 竞争下只有一个合法 commit。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/contribution.spec.ts tests/contract/contribution-runtime.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：命令退出 0；阶段冻结/总预算口径一致；超时和永久失败进入明确 Captain 状态；没有多余重投。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
 ### T6d：冷恢复与一次性重授权
 
 前置状态：T6c PASS。

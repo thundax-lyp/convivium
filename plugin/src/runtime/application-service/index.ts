@@ -3,6 +3,10 @@ import { reconcileMeetingSessions } from "@/runtime/services/meeting-session-rec
 import { createMeetingAttendanceApplication } from "./meeting-attendance.js";
 import { createMeetingContributionApplication } from "./meeting-contribution.js";
 import {
+    scanContributionTimeouts,
+    recordContributionDeliveryFailure
+} from "@/runtime/services/contribution-runtime-service.js";
+import {
     DomainError,
     failSpeakerAttempt,
     isMeetingStateV2,
@@ -358,6 +362,7 @@ export function createCreateStatusRuntime(
             },
             scan: async (now) => {
                 if (stored.parent === undefined) return;
+                await scanContributionTimeouts({ repository: stored.repository, now });
                 await scanMeetingMailTimeouts({
                     repository: stored.repository,
                     parent: stored.parent,
@@ -367,6 +372,15 @@ export function createCreateStatusRuntime(
             },
             onTerminalFailure: async (item, _errorCode, failedAt) => {
                 const payload = item.payload as { role?: string; planningAttemptId?: string };
+                if (payload.role === "contribution" || payload.role === "contribution_manager") {
+                    await recordContributionDeliveryFailure({
+                        repository: stored.repository,
+                        item,
+                        errorCode: _errorCode,
+                        now: failedAt
+                    });
+                    return;
+                }
                 if (payload.role !== "manager" || payload.planningAttemptId === undefined) return;
                 const snapshot = await stored.repository.read();
                 const attempt = (snapshot.state as unknown as MeetingState).manager
@@ -463,6 +477,15 @@ export function createCreateStatusRuntime(
             try {
                 const parent = stored.parent;
                 if (parent === undefined) continue;
+                const contributionSnapshot = await stored.repository.read();
+                if (
+                    isMeetingStateV2(contributionSnapshot.state) &&
+                    contributionSnapshot.state.contributions !== undefined
+                ) {
+                    await scanContributionTimeouts({ repository: stored.repository, now });
+                    deliveryWorkers.wake(stored.repository.meetingId);
+                    continue;
+                }
                 await scanMeetingMailTimeouts({
                     repository: stored.repository,
                     parent,
