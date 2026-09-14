@@ -159,6 +159,15 @@ export type DomainContributionCommand =
           generation: number;
           expectedDraftRevision: number;
           draft: ContributionDraft;
+      }
+    | {
+          action: "boundary_review";
+          contributionId: string;
+          generation: number;
+          draftRevision: number;
+          decision: "approve" | "return";
+          reason: string;
+          checkedThroughSeq: number;
       };
 
 const phases: readonly ContributionPhase[] = [

@@ -165,26 +165,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T3b：边界退回与原子发布
-
-前置状态：T3a PASS。
-允许修改：`plugin/src/domain/contribution.ts`；`plugin/src/domain/transitions/contribution.ts`；`plugin/src/domain/index.ts`；`plugin/src/domain/transitions/index.ts`；`plugin/tests/unit/domain/contribution.spec.ts`；`plugin/tests/fixtures/contribution.ts`。
-禁止修改：独立核验、Captain retry/cancel、DSH 调用。
-
-执行：
-1. 实现 boundary_review:return/approve：精确 revision/generation/checkedThroughSeq；前两次退回重新授权，第三次 captain_action。
-2. approve 在同一纯转换中追加确切消息并调用 T2 的 applyPublicSubmission；正文与 claims 不拆成两个执行步骤或 commit。
-3. 新增 describe="contribution publication"：退回历史、旧批准拒绝、一个非法 claim 整体失败、合法非完成类 claims 与原文同时公开；需要核验的发布产生 pending 状态。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/contribution.spec.ts tests/unit/domain/transitions/speaker-submission.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：命令退出 0；原文与 claims 同成同败；被退回旧稿不公开；每个合法版本只生成一个 messageId。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
 ### T3c：独立核验与支持依据
 
 前置状态：T3b PASS。

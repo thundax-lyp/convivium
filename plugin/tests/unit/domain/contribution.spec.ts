@@ -64,6 +64,68 @@ function evidenceVersion(revision: number) {
     };
 }
 
+function boundaryReviewState() {
+    const state = { ...contributionMeeting(), contributions: validContributionState() };
+    const task = state.contributions!.tasks["contribution-1"]!;
+    return {
+        ...state,
+        contributions: {
+            ...state.contributions!,
+            tasks: {
+                ...state.contributions!.tasks,
+                "contribution-1": {
+                    ...task,
+                    phase: "boundary_review" as const,
+                    currentDraftRevision: 1,
+                    drafts: {
+                        "1": {
+                            revision: 1,
+                            basedOnSeq: 0,
+                            submittedAt: contributionNow,
+                            message: {
+                                id: "message-contribution-1-1",
+                                content: "A public question.",
+                                kind: "question" as const,
+                                mentions: [],
+                                taskIds: [],
+                                agendaRelation: "on_topic" as const,
+                                createdAt: contributionNow
+                            },
+                            claims: {
+                                questions: [
+                                    {
+                                        id: "question-contribution-1",
+                                        text: "What remains?",
+                                        blocking: false,
+                                        createdAt: contributionNow
+                                    }
+                                ],
+                                issues: [],
+                                proposals: [],
+                                positions: [],
+                                agendaCandidates: [],
+                                decisionCandidates: []
+                            },
+                            citations: []
+                        }
+                    }
+                }
+            }
+        }
+    };
+}
+
+function managerContext(now = contributionNow) {
+    return {
+        now,
+        actor: { kind: "manager" as const },
+        newContributionId: "unused",
+        newEvidenceId: "unused",
+        completionFactId: (kind: string, index: number) => `${kind}-${index}`
+    };
+}
+
+
 describe("contribution state structure", () => {
     describe("contribution preparation", () => {
         it("allows two participants to prepare distinct contributions", () => {
@@ -212,6 +274,186 @@ describe("contribution state structure", () => {
             expect(submitted.state.transcript).toEqual(state.transcript);
         });
     });
+
+    describe("contribution publication", () => {
+        it("returns twice then requires Captain action without publishing the draft", () => {
+            let state = boundaryReviewState();
+            for (const expectedPhase of ["returned", "returned", "captain_action"] as const) {
+                const result = applyContributionCommand(
+                    state,
+                    {
+                        action: "boundary_review",
+                        contributionId: "contribution-1",
+                        generation: state.contributions!.tasks["contribution-1"]!.generation,
+                        draftRevision: 1,
+                        decision: "return",
+                        reason: "Needs more detail.",
+                        checkedThroughSeq: state.messageSeq
+                    },
+                    managerContext()
+                );
+                expect(result.state.contributions!.tasks["contribution-1"]!.phase).toBe(
+                    expectedPhase
+                );
+                expect(result.state.transcript).toEqual(state.transcript);
+                state = {
+                    ...result.state,
+                    contributions: {
+                        ...result.state.contributions!,
+                        tasks: {
+                            ...result.state.contributions!.tasks,
+                            "contribution-1": {
+                                ...result.state.contributions!.tasks["contribution-1"]!,
+                                phase: "boundary_review",
+                                currentDraftRevision: 1
+                            }
+                        }
+                    }
+                };
+            }
+        });
+
+        it("rejects an approval for a returned generation without mutation", () => {
+            const state = boundaryReviewState();
+            const returned = applyContributionCommand(
+                state,
+                {
+                    action: "boundary_review",
+                    contributionId: "contribution-1",
+                    generation: 1,
+                    draftRevision: 1,
+                    decision: "return",
+                    reason: "Needs more detail.",
+                    checkedThroughSeq: state.messageSeq
+                },
+                managerContext()
+            ).state;
+            const before = structuredClone(returned);
+            expect(() =>
+                applyContributionCommand(
+                    returned,
+                    {
+                        action: "boundary_review",
+                        contributionId: "contribution-1",
+                        generation: 1,
+                        draftRevision: 1,
+                        decision: "approve",
+                        reason: "Approved.",
+                        checkedThroughSeq: returned.messageSeq
+                    },
+                    managerContext()
+                )
+            ).toThrow("Contribution review is stale.");
+            expect(returned).toEqual(before);
+        });
+
+        it("publishes the exact approved draft and its claims atomically", () => {
+            const base = boundaryReviewState();
+            const draft = base.contributions!.tasks["contribution-1"]!.drafts["1"]!;
+            const state = {
+                ...base,
+                contributions: {
+                    ...base.contributions!,
+                    tasks: {
+                        ...base.contributions!.tasks,
+                        "contribution-1": {
+                            ...base.contributions!.tasks["contribution-1"]!,
+                            requiresEvidenceReview: true,
+                            drafts: {
+                                "1": {
+                                    ...draft,
+                                    citations: [
+                                        {
+                                            evidenceKey: "evidence-1:1",
+                                            claim: "fixture",
+                                            locator: "fixture",
+                                            inference: "fixture"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            const result = applyContributionCommand(
+                state,
+                {
+                    action: "boundary_review",
+                    contributionId: "contribution-1",
+                    generation: 1,
+                    draftRevision: 1,
+                    decision: "approve",
+                    reason: "Approved.",
+                    checkedThroughSeq: state.messageSeq
+                },
+                managerContext()
+            );
+            const task = result.state.contributions!.tasks["contribution-1"]!;
+            expect(task.phase).toBe("published");
+            expect(task.reviewStatus).toBe("pending");
+            expect(task.messageId).toBe("message-contribution-1-1");
+            expect(result.state.version).toBe(state.version + 1);
+            expect(result.state.transcript).toHaveLength(state.transcript.length + 1);
+            expect(result.state.openQuestions.map(({ id }) => id)).toContain(
+                "question-contribution-1"
+            );
+            expect(result.state.contributions!.managerNoticeSeq).toBe(1);
+            expect(result.state.contributions!.managerDeadlineAt).toBe(contributionNow + 600_000);
+            expect(result.effect.events.map(({ type }) => type)).toContain(
+                "contribution.manager_notified"
+            );
+        });
+
+        it("does not publish the body when any approved claim is invalid", () => {
+            const base = boundaryReviewState();
+            const draft = base.contributions!.tasks["contribution-1"]!.drafts["1"]!;
+            const state = {
+                ...base,
+                contributions: {
+                    ...base.contributions!,
+                    tasks: {
+                        ...base.contributions!.tasks,
+                        "contribution-1": {
+                            ...base.contributions!.tasks["contribution-1"]!,
+                            drafts: {
+                                "1": {
+                                    ...draft,
+                                    message: {
+                                        ...draft.message,
+                                        kind: "summary",
+                                        minutesDraft: {
+                                            status: "draft",
+                                            coverage: { fromSeq: 1, throughSeq: 1 },
+                                            referencedMessageIds: ["message-1"]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            const before = structuredClone(state);
+            expect(() =>
+                applyContributionCommand(
+                    state,
+                    {
+                        action: "boundary_review",
+                        contributionId: "contribution-1",
+                        generation: 1,
+                        draftRevision: 1,
+                        decision: "approve",
+                        reason: "Approved.",
+                        checkedThroughSeq: state.messageSeq
+                    },
+                    managerContext()
+                )
+            ).toThrow("Invalid minutes draft.");
+            expect(state).toEqual(before);
+        });
+    });
+
 
     it("applies public claims without a current Turn", () => {
         const state = contributionMeeting();

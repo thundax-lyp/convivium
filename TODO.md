@@ -14,12 +14,6 @@
 
 ### 基础
 
-- [ ] `贡献发布`：边界审核与原子发布（T3b）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T3b。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现退回、精确版本批准，以及正文与 claims 的原子公开。
-    - 验收点：第三次退回进入 Captain 处置；旧批准拒绝；正文与 claims 同成同败。
-
 - [ ] `证据核验`：独立核验与支持依据（T3c）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T3c。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
