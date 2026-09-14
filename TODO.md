@@ -14,12 +14,6 @@
 
 ### 基础
 
-- [ ] `贡献控制`：Captain 任务控制（T3d）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T3d。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现 retry、cancel、notify_manager，并完成所有命令分支。
-    - 验收点：旧授权失效；审核重试不重发正文；历史保留；阶段性未实现分支全部移除。
-
 - [ ] `持久化与投影`：版本保存与受控读取（T4）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T4。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

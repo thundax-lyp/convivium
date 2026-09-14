@@ -395,6 +395,110 @@ export function applyContributionCommand(
             }
         };
     }
+    if (
+        command.action === "retry" ||
+        command.action === "cancel" ||
+        command.action === "notify_manager"
+    ) {
+        if (context.actor.kind !== "captain" && context.actor.kind !== "local_host")
+            throw new DomainError(
+                "UNAUTHORIZED_CALLER",
+                "Only the Captain or local host can control contributions."
+            );
+        if (!command.reason.trim())
+            throw new DomainError("INVALID_ARGUMENT", "Contribution control reason is required.");
+        if (command.action === "notify_manager") {
+            if (state.status !== "running" && state.status !== "waiting")
+                throw new DomainError(
+                    "INVALID_STATE_TRANSITION",
+                    "Manager cannot be notified now."
+                );
+            const managerNoticeSeq = state.contributions.managerNoticeSeq + 1;
+            return {
+                state: {
+                    ...state,
+                    status: state.status === "waiting" ? "running" : state.status,
+                    updatedAt: context.now,
+                    contributions: {
+                        ...state.contributions,
+                        managerNoticeSeq,
+                        managerDeadlineAt: context.now + 600_000
+                    },
+                    eventSeq: state.eventSeq + 1
+                },
+                effect: {
+                    events: [
+                        {
+                            type: "contribution.manager_notified",
+                            payload: {
+                                noticeSeq: managerNoticeSeq,
+                                contextThroughSeq: state.messageSeq,
+                                actor: context.actor.kind,
+                                at: context.now
+                            }
+                        }
+                    ]
+                }
+            };
+        }
+        const task = state.contributions.tasks[command.contributionId];
+        if (task === undefined || task.generation !== command.generation)
+            throw new DomainError("STALE_ATTEMPT", "Contribution control is stale.");
+        if (command.action === "cancel") {
+            if (task.phase === "published")
+                throw new DomainError(
+                    "INVALID_STATE_TRANSITION",
+                    "Published contributions cannot be cancelled."
+                );
+            const next = {
+                ...task,
+                generation: task.generation + 1,
+                phase: "cancelled" as const,
+                reason: command.reason,
+                updatedAt: context.now
+            };
+            return controlledContribution(state, next, command.action, command.reason, context);
+        }
+        if (task.phase === "published") {
+            if (task.reviewStatus !== "captain_action")
+                throw new DomainError(
+                    "INVALID_STATE_TRANSITION",
+                    "Contribution cannot be retried."
+                );
+            const next = {
+                ...task,
+                generation: task.generation + 1,
+                reviewStatus: "pending" as const,
+                deadlineAt: context.now + 600_000,
+                reason: undefined,
+                updatedAt: context.now
+            };
+            return controlledContribution(state, next, command.action, command.reason, context);
+        }
+        if (
+            !["returned", "captain_action", "cancelled"].includes(task.phase) ||
+            task.agendaItemId !== state.activeAgendaItemId ||
+            Object.values(state.contributions.tasks).some(
+                (candidate) =>
+                    candidate.id !== task.id &&
+                    candidate.participantId === task.participantId &&
+                    !["published", "cancelled"].includes(candidate.phase)
+            )
+        )
+            throw new DomainError("INVALID_STATE_TRANSITION", "Contribution cannot be retried.");
+        const next = {
+            ...task,
+            generation: task.generation + 1,
+            phase: "preparing" as const,
+            returnCount: 0,
+            deadlineAt: context.now + 600_000,
+            reason: undefined,
+            updatedAt: context.now
+        };
+        return controlledContribution(state, next, command.action, command.reason, context);
+    }
+    if (command.action !== "assign")
+        throw new DomainError("INVALID_STATE_TRANSITION", "Invalid contribution command.");
     if (context.actor.kind !== "manager")
         throw new DomainError(
             "INVALID_STATE_TRANSITION",
@@ -462,5 +566,51 @@ export function applyContributionCommand(
                 }
             ]
         }
+    };
+}
+
+function controlledContribution(
+    state: MeetingState,
+    task: ContributionTask,
+    action: "retry" | "cancel",
+    reason: string,
+    context: ContributionTransitionContext
+): TransitionResult<MeetingState> {
+    const managerNoticeSeq = state.contributions!.managerNoticeSeq + 1;
+    const events = [
+        {
+            type: "contribution.controlled" as const,
+            payload: {
+                contributionId: task.id,
+                generation: task.generation,
+                action,
+                reason,
+                actor: context.actor.kind,
+                at: context.now
+            }
+        },
+        {
+            type: "contribution.manager_notified" as const,
+            payload: {
+                noticeSeq: managerNoticeSeq,
+                contextThroughSeq: state.messageSeq,
+                actor: context.actor.kind,
+                at: context.now
+            }
+        }
+    ];
+    return {
+        state: {
+            ...state,
+            updatedAt: context.now,
+            contributions: {
+                ...state.contributions!,
+                managerNoticeSeq,
+                managerDeadlineAt: context.now + 600_000,
+                tasks: { ...state.contributions!.tasks, [task.id]: task }
+            },
+            eventSeq: state.eventSeq + events.length
+        },
+        effect: { events }
     };
 }

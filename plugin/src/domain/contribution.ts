@@ -182,6 +182,16 @@ export type DomainContributionCommand =
               result: string;
               limitations: string;
           }[];
+      }
+    | {
+          action: "retry" | "cancel";
+          contributionId: string;
+          generation: number;
+          reason: string;
+      }
+    | {
+          action: "notify_manager";
+          reason: string;
       };
 
 const phases: readonly ContributionPhase[] = [

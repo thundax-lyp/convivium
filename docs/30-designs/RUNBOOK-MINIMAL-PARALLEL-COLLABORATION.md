@@ -165,27 +165,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T3d：Captain 任务控制
-
-前置状态：T3c PASS。
-允许修改：`plugin/src/domain/contribution.ts`；`plugin/src/domain/transitions/contribution.ts`；`plugin/src/domain/index.ts`；`plugin/src/domain/transitions/index.ts`；`plugin/tests/unit/domain/contribution.spec.ts`；`plugin/tests/fixtures/contribution.ts`。
-禁止修改：Meeting pause/resume/end、自动完成与外部 interrupt。
-
-执行：
-1. 实现 retry/cancel/notify_manager 的纯转换：权限、任务状态、单人占用、审核互斥及旧议题 retry 拒绝；已发布任务 retry 只能重投审核。
-2. 新增 describe="contribution task control"：取消保留历史、required 不豁免、重新准备 generation 更新、审核 retry 不重发正文、notify 刷新一次 notice。
-3. 删除 applyContributionCommand 的全部阶段性未实现分支，所有 DomainContributionCommand action 均走最终接口行为；核对不存在阶段性 Error 文案。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/contribution.spec.ts tests/unit/domain/completion.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：命令退出 0；所有 action 的最终纯转换已完成；没有生产可调用的未实现分支；T3a～T3c 反例继续通过。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
-
 ### T4：保存版本并实现受控投影
 
 前置状态：T3d PASS。

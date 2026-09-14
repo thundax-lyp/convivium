@@ -127,6 +127,10 @@ function managerContext(now = contributionNow) {
     };
 }
 
+function captainContext(now = contributionNow) {
+    return { ...managerContext(now), actor: { kind: "captain" as const } };
+}
+
 function evidenceReviewState() {
     const base = boundaryReviewState();
     const task = base.contributions!.tasks["contribution-1"]!;
@@ -737,6 +741,90 @@ describe("contribution state structure", () => {
                     }
                 })
             ).toBe(false);
+        });
+    });
+
+    describe("contribution task control", () => {
+        it("retries a cancelled private contribution with a new generation", () => {
+            const state = boundaryReviewState();
+            const task = state.contributions!.tasks["contribution-1"]!;
+            const cancelled = {
+                ...state,
+                contributions: {
+                    ...state.contributions!,
+                    tasks: {
+                        ...state.contributions!.tasks,
+                        [task.id]: { ...task, phase: "cancelled" as const, returnCount: 2 }
+                    }
+                }
+            };
+            const result = applyContributionCommand(
+                cancelled,
+                { action: "retry", contributionId: task.id, generation: 1, reason: "Resume." },
+                captainContext()
+            );
+            const next = result.state.contributions!.tasks[task.id]!;
+            expect(next).toMatchObject({ phase: "preparing", generation: 2, returnCount: 0 });
+            expect(next.drafts).toEqual(task.drafts);
+            expect(result.effect.events.map(({ type }) => type)).toEqual([
+                "contribution.controlled",
+                "contribution.manager_notified"
+            ]);
+        });
+
+        it("retries only the review of an already published contribution", () => {
+            const state = evidenceReviewState();
+            const task = state.contributions!.tasks["contribution-1"]!;
+            const blockedReview = {
+                ...state,
+                contributions: {
+                    ...state.contributions!,
+                    tasks: {
+                        ...state.contributions!.tasks,
+                        [task.id]: { ...task, reviewStatus: "captain_action" as const }
+                    }
+                }
+            };
+            const result = applyContributionCommand(
+                blockedReview,
+                {
+                    action: "retry",
+                    contributionId: task.id,
+                    generation: 1,
+                    reason: "Review again."
+                },
+                captainContext()
+            );
+            expect(result.state.transcript).toEqual(blockedReview.transcript);
+            expect(result.state.contributions!.tasks[task.id]).toMatchObject({
+                phase: "published",
+                reviewStatus: "pending",
+                generation: 2
+            });
+        });
+
+        it("cancels only private work and notify_manager wakes a waiting meeting once", () => {
+            const state = boundaryReviewState();
+            const task = state.contributions!.tasks["contribution-1"]!;
+            const cancelled = applyContributionCommand(
+                state,
+                { action: "cancel", contributionId: task.id, generation: 1, reason: "Stop." },
+                captainContext()
+            );
+            expect(cancelled.state.contributions!.tasks[task.id]).toMatchObject({
+                phase: "cancelled",
+                generation: 2,
+                reason: "Stop."
+            });
+            expect(cancelled.state.contributions!.tasks[task.id]!.drafts).toEqual(task.drafts);
+            const notified = applyContributionCommand(
+                { ...state, status: "waiting" },
+                { action: "notify_manager", reason: "Need attention." },
+                captainContext()
+            );
+            expect(notified.state.status).toBe("running");
+            expect(notified.state.contributions!.managerNoticeSeq).toBe(1);
+            expect(notified.effect.events).toHaveLength(1);
         });
     });
 
