@@ -98,6 +98,23 @@ pnpm dlx @deepseek-ai/dsh@0.1.2-rc.1
 
 smoke 只证明真实 DSH 的组合、工具/HTTP 调用、持久化、恢复和 Session 生命周期。领域规则组合、字段合法性和 Client 展示分别由 domain、protocol、Client tests 负责；smoke 不复制这些测试矩阵。离线协议 fixture 不替代真实 Agent Session，Client 展示测试也不替代 Host 生命周期验证。
 
+### 首次发布的当前入口
+
+新版本不兼容替换前 selector。T10 后当前唯一有效的确定性 selector、默认核心场景和 Browser 场景均为 `parallel-contribution`：
+
+```sh
+CONVIVIUM_SMOKE_SCENARIO=parallel-contribution pnpm --dir plugin smoke:profile --json
+CONVIVIUM_SMOKE_SCENARIO=parallel-contribution CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile --json
+```
+
+不设置 selector 时运行同一核心场景。`--all` 在固定真实模型场景加入前也只运行该场景。下方替换前 catalog 中的 `baseline`、`cold-rebind`、`cross-meeting`、`convergence-*`、`timeout`、`reassign`、`task-handraise`、`completion-end`、`mail-race`、`archive-continuation`、`scribe-minutes`、`decision-risk-closure`、`risk-reopen`、`convergence`、`role-composition` 和 `meeting-roles` 均会在 Host 启动前被明确拒绝；旧 probe 源文件仅保留为历史记录，不能作为当前验证入口或通过证据。
+
+Browser ready 后打开 stdout 给出的完整认证 URL，选择 `convivium-smoke-captain`、`Meetings` 和本次 `Parallel evidence`。核对 B 的 revision 1 材料 `amber-47`、`supports` 核验、两条正式 Transcript，Reload 后再次核对；用原 End 表单选择 `partial` 并填写 `browser contribution check`。状态变为 `archived` 后再次读取材料，随后在原 PTY 发送 Ctrl-C。成功必须同时看到 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`，并用 stdout 给出的精确 `CONVIVIUM_SMOKE_TEMP_ROOT` 执行 `test ! -e '<完整路径>'` 得到退出码 0。认证信息不得进入证据。
+
+本轮实际证据见 [最小并行协作验证证据](../40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)。
+
+### 替换前入口（历史）
+
 从仓库根目录执行：
 
 ```sh

@@ -176,22 +176,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T10：真实 DSH probe 与 Browser
-
-前置状态：T9 PASS；已有 smoke 入口可按 operations 读取凭据。
-允许修改：新增 `plugin/scripts/smoke-profile/probe/scenarios/parallel-contribution.js`；`plugin/scripts/smoke-profile/probe/index.js`、`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/result.mjs`；新增 `docs/40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md`；`docs/50-operations/HOW-TO-DSH-SMOKE.md`。
-禁止修改：用户 profile、dev.env 内容、DSH provider；不代填真实模型讨论结论。
-
-执行：严格实现下文 Probe Contract；注册 parallel-contribution 到 SMOKE_SCENARIOS、probe guard/switch、result validator；新 scenario 禁用旧 driveParticipant 自动 Turn 提交。新创建已切换，旧 smoke 的 Turn 脚本不再是有效入口：SMOKE_SCENARIOS 改为 [parallel-contribution]，CORE_SCENARIOS 同值；旧 selector 由 selectScenarios 在启动 Host 前明确拒绝。T11 再把 parallel-contribution-model 加入 SMOKE_SCENARIOS，CORE_SCENARIOS 仍只含 deterministic 场景，--all 运行两项。保留旧 probe 源文件作为旧记录路径的既有代码，本切片不重新启用或宣称它们通过；在 operations 新节列出失效 selector 与替代入口。Browser 仅停在可检查的 live fixture，按 Browser Script 做 read/control/end。
-
-验证：
-```bash
-CONVIVIUM_SMOKE_SCENARIO=parallel-contribution pnpm --dir plugin smoke:profile --json
-CONVIVIUM_SMOKE_SCENARIO=parallel-contribution CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile --json
-```
-
-PASS：exact result 及 V15 全部满足，Browser 操作回读一致；Ctrl-C 后出现 CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok，精确临时根不存在。
-STOP：工具权限、Session 生命周期、归档或 cleanup 未证实；finally 恢复本次自有资源并记录脱敏失败，不删除用户资源。
 
 ### T11：固定真实模型讨论
 

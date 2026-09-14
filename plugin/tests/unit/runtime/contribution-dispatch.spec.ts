@@ -96,6 +96,19 @@ function fixture() {
 }
 
 describe("contribution dispatch authorization and queues", () => {
+    it("labels Participant and Manager context messages for deterministic consumers", async () => {
+        const f = fixture();
+        const sendMessage = vi.fn(async () => "accepted");
+        const dispatcher = createMeetingDeliveryDispatcher({
+            continuable: { sendMessage },
+            now: () => now
+        });
+        await dispatcher.dispatch({ ...f.input, item: f.item("participant-1") });
+        await dispatcher.dispatch({ ...f.input, item: f.item("manager") });
+        expect(sendMessage.mock.calls[0]![2][0].text).toMatch(/^contribution context: /);
+        expect(sendMessage.mock.calls[1]![2][0].text).toMatch(/^contribution manager context: /);
+    });
+
     it("serializes actual Session sends while a different Session proceeds independently", async () => {
         const f = fixture();
         const entered = gate(),

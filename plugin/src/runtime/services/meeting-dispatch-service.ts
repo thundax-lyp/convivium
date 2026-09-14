@@ -408,7 +408,13 @@ export function createMeetingDeliveryDispatcher(
                 ...(participantId === undefined ? {} : { participantId }),
                 signal: input.signal,
                 prompt: [
-                    { type: "text", text: JSON.stringify(context) },
+                    {
+                        type: "text",
+                        text:
+                            (delivery.role === "contribution_manager"
+                                ? "contribution manager context: "
+                                : "contribution context: ") + JSON.stringify(context)
+                    },
                     {
                         type: "text",
                         text: "Use convivium_contribution and convivium_read_contribution with protocolVersion=1 and this meetingId. Writes require a fresh requestId and expectedMeetingVersion. Follow the supplied task and generation. Keep drafts private until Manager approval; evidence_review is independent verification, never a claim that publication proves support. On VERSION_CONFLICT read status and use a new requestId; replay the same requestId only to recover an uncertain result."

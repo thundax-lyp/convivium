@@ -18,12 +18,6 @@
 
 ### 交付验证
 
-- [ ] `真实 DSH 与 Browser`：确定性 probe 与面板验收（T10）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T10。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现并运行指定真实 DSH 场景及 Browser 操作，记录证据和清理结果。
-    - 验收点：并行、独立审核、精确版本、幂等与归档回读断言通过；Browser 控制正确；临时资源清理成功。
-
 - [ ] `真实模型讨论`：固定业务讨论验收（T11）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T11。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

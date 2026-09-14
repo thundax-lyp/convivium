@@ -34,32 +34,8 @@ const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "1
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 const BROWSER_SPEAKER_TIMEOUT_MS = 5 * 60 * 1000;
-export const SMOKE_SCENARIOS = [
-    "baseline",
-    "timeout",
-    "reassign",
-    "task-handraise",
-    "completion-end",
-    "risk-reopen",
-    "decision-risk-closure",
-    "cold-rebind",
-    "role-composition",
-    "meeting-roles",
-    "archive-continuation",
-    "mail-race",
-    "cross-meeting",
-    "convergence",
-    "convergence-stalled",
-    "convergence-turn-budget-completion",
-    "scribe-minutes"
-];
-export const CORE_SCENARIOS = [
-    "baseline",
-    "cold-rebind",
-    "cross-meeting",
-    "convergence-stalled",
-    "convergence-turn-budget-completion"
-];
+export const SMOKE_SCENARIOS = ["parallel-contribution"];
+export const CORE_SCENARIOS = ["parallel-contribution"];
 
 export function selectScenarios(args, scenario, browserMode) {
     if (args.some((arg) => !["--all", "--json"].includes(arg)))
@@ -73,7 +49,7 @@ export function selectScenarios(args, scenario, browserMode) {
     return scenario
         ? [scenario]
         : browserMode
-          ? ["baseline"]
+          ? ["parallel-contribution"]
           : args.includes("--all")
             ? [...SMOKE_SCENARIOS]
             : [...CORE_SCENARIOS];

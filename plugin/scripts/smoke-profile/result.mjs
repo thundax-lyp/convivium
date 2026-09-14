@@ -6,6 +6,10 @@ export function validateScenarioResult(
     validateMeetingStatus,
     skipWebFetch = false
 ) {
+    if (expectedScenario === "parallel-contribution") {
+        validateParallelContributionResult(value, validateMeetingStatus);
+        return value;
+    }
     if (["convergence-stalled", "convergence-turn-budget-completion"].includes(expectedScenario)) {
         validateConvergenceRuntimeResult(value, expectedScenario, validateMeetingStatus);
         return value;
@@ -189,6 +193,77 @@ export function validateScenarioResult(
         }
     }
     return value;
+}
+
+function validateParallelContributionResult(value, _validateMeetingStatus) {
+    const exact = (object, keys) =>
+        object &&
+        typeof object === "object" &&
+        !Array.isArray(object) &&
+        Object.keys(object).length === keys.length &&
+        keys.every((key) => Object.hasOwn(object, key));
+    const required = [
+        "parallel-inflight",
+        "private-before-approval",
+        "public-exact-version",
+        "independent-review",
+        "idempotent-publication",
+        "stale-rejected",
+        "pause-resume-generations"
+    ];
+    try {
+        const browser = value.browserReady;
+        const observed = value.observed;
+        if (
+            value.ok !== true ||
+            value.scenario !== "parallel-contribution" ||
+            typeof browser !== "boolean" ||
+            !exact(value, [
+                "ok",
+                "scenario",
+                "browserReady",
+                "meetingId",
+                "captainSessionId",
+                "assertions",
+                "observed"
+            ]) ||
+            value.captainSessionId !== "convivium-smoke-captain" ||
+            typeof value.meetingId !== "string" ||
+            !value.meetingId.trim() ||
+            !isDeepStrictEqual(value.assertions, [
+                ...required,
+                ...(browser ? [] : ["archived-material-readable"])
+            ]) ||
+            !exact(observed, [
+                "participantSessionIds",
+                "contributionIds",
+                "messageIds",
+                "evidenceKey",
+                "reviewVerdict",
+                "status",
+                "meetingVersion"
+            ]) ||
+            observed.participantSessionIds.length !== 3 ||
+            new Set(observed.participantSessionIds).size !== 3 ||
+            observed.contributionIds.length !== 2 ||
+            new Set(observed.contributionIds).size !== 2 ||
+            observed.messageIds.length !== 2 ||
+            new Set(observed.messageIds).size !== 2 ||
+            ![
+                ...observed.participantSessionIds,
+                ...observed.contributionIds,
+                ...observed.messageIds,
+                observed.evidenceKey
+            ].every((item) => typeof item === "string" && item.trim().length > 0) ||
+            observed.reviewVerdict !== "supports" ||
+            observed.status !== (browser ? "running" : "archived") ||
+            !Number.isSafeInteger(observed.meetingVersion) ||
+            observed.meetingVersion < 0
+        )
+            throw new Error("invalid");
+    } catch {
+        throw new Error("Parallel contribution result is invalid.");
+    }
 }
 
 function validateConvergenceRuntimeResult(value, scenario, validateMeetingStatus) {

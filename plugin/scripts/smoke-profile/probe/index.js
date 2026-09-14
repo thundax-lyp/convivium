@@ -15,6 +15,7 @@ import {
     runConvergenceTurnBudgetCompletionScenario
 } from "./scenarios/convergence.js";
 import { runBaselineScenario } from "./scenarios/baseline.js";
+import { runParallelContributionScenario } from "./scenarios/parallel-contribution.js";
 
 export const name = "convivium-smoke-profile-probe";
 export const inject = [
@@ -129,6 +130,31 @@ function waitForInbox(ctx, agentId, select) {
     });
 }
 
+function waitForContributionContext(ctx, agentId, contributionId, purpose) {
+    const prefix =
+        purpose === "manager" ? "contribution manager context: " : "contribution context: ";
+    return waitForInbox(ctx, agentId, (message) => {
+        for (const text of messageTexts(message)) {
+            if (!text.startsWith(prefix)) continue;
+            try {
+                const context = JSON.parse(text.slice(prefix.length));
+                if (
+                    context.purpose === purpose &&
+                    (purpose === "manager"
+                        ? contributionId === undefined ||
+                          context.work?.pending?.some((task) => task.id === contributionId)
+                        : context.work?.task?.id === contributionId ||
+                          context.work?.submission?.task?.id === contributionId)
+                )
+                    return context;
+            } catch {
+                // Ignore non-context text blocks.
+            }
+        }
+        return undefined;
+    });
+}
+
 async function resumeParticipantForProbe(ctx, parent, childId, marker) {
     const delivery = waitForInbox(ctx, childId, (message) =>
         messageTexts(message).some((text) => text.includes(marker)) ? marker : undefined
@@ -238,6 +264,7 @@ function registerSmokeAgent(ctx, session) {
 }
 
 async function driveParticipant(ctx, agent) {
+    if (scenario === "parallel-contribution") return;
     if (scenario === "meeting-roles") return;
     if (scenario === "convergence-stalled" || scenario === "convergence-turn-budget-completion")
         return;
@@ -321,25 +348,7 @@ function scheduleParticipant(ctx, agent) {
 
 async function run(ctx) {
     if (!outputPath) return;
-    if (
-        scenario !== "baseline" &&
-        scenario !== "timeout" &&
-        scenario !== "reassign" &&
-        scenario !== "task-handraise" &&
-        scenario !== "completion-end" &&
-        scenario !== "risk-reopen" &&
-        scenario !== "decision-risk-closure" &&
-        scenario !== "cold-rebind" &&
-        scenario !== "role-composition" &&
-        scenario !== "meeting-roles" &&
-        scenario !== "archive-continuation" &&
-        scenario !== "scribe-minutes" &&
-        scenario !== "mail-race" &&
-        scenario !== "cross-meeting" &&
-        scenario !== "convergence" &&
-        scenario !== "convergence-stalled" &&
-        scenario !== "convergence-turn-budget-completion"
-    ) {
+    if (scenario !== "parallel-contribution") {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -402,6 +411,7 @@ async function run(ctx) {
             waitForSpeakerContext,
             waitForTaskDelivery,
             waitForInbox,
+            waitForContributionContext,
             waitForStoredManagerContext,
             messageTexts,
             messageText,
@@ -459,6 +469,8 @@ async function run(ctx) {
 
 async function runSelectedScenario(runtime) {
     switch (runtime.scenario) {
+        case "parallel-contribution":
+            return runParallelContributionScenario(runtime);
         case "baseline":
         case "timeout":
             return runBaselineScenario(runtime);
