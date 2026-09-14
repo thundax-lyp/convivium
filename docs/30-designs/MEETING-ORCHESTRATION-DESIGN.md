@@ -1302,4 +1302,4 @@ After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fing
 
 ## Minimal Contribution Execution
 
-最小切片的状态转换、文件／符号、Session 接受与业务完成、暂停／恢复／结束流程已固定于 [Contribution Design](./MEETING-CONTRIBUTION-DESIGN.md)，数据结构见 [Domain Model](./DOMAIN-MODEL-DESIGN.md#minimal-contribution-state)。新会议不调用 Turn 推进；旧会议继续既有状态机收尾。本文旧编排不覆盖该目标，尚未实现。
+最小切片的状态转换、文件／符号、Session 接受与业务完成、暂停／恢复／结束流程已固定于 [Contribution Design](./MEETING-CONTRIBUTION-DESIGN.md)，数据结构见 [Domain Model](./DOMAIN-MODEL-DESIGN.md#minimal-contribution-state)。本版本不调用 Turn 推进，也不要求旧状态机兼容或收尾；不自动迁移、删除用户数据。本文旧编排不覆盖该目标，实现覆盖以 readiness 为准。

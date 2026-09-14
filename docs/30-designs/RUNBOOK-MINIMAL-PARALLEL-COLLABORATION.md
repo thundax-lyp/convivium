@@ -25,7 +25,7 @@
 | S5 暂停、完成、预算、恢复、归档 | Meeting Requirements BR-1～BR-3；Minimal Delivery Scope | T6a～T6e、T7 | V10～V14 |
 | S6 受控面板与真实业务验收 | Minimal Delivery Scope 的 Slice Acceptance | T8a～T8c、T9～T12 | V15、V16 |
 
-Non-goals：主动／紧急申请、合并申请、自动语义影响判断、动态入会、自动抓取／代码执行／来源去重／关联重审、复杂评分／停滞重规划、PDF／截图上传和分块、多用户或跨 Host。新会议不适配后台 MeetingTask／Mailbox；旧会议保留既有行为。不增加 provider、服务器、事件总线、数据库迁移、依赖版本或通用工作流平台。
+Non-goals：主动／紧急申请、合并申请、自动语义影响判断、动态入会、自动抓取／代码执行／来源去重／关联重审、复杂评分／停滞重规划、PDF／截图上传和分块、多用户或跨 Host。不适配后台 MeetingTask／Mailbox，不实现旧版本兼容；不迁移、删除或重写用户数据。不增加 provider、服务器、事件总线、数据库迁移、依赖版本或通用工作流平台。
 
 ## Formal Sources And Decision Closure
 
@@ -44,7 +44,7 @@ Non-goals：主动／紧急申请、合并申请、自动语义影响判断、�
 - Q1：小型文本、代码补丁、固定版本来源；无二进制／分块。
 - A1：材料≤8192 bytes；完整输入≤16384 bytes；128 个材料／稿件版本、64 个任务；唯一 Meeting domain；keyed records、immutable versions、归档引用，不改变 commit/checkpoint 限制。
 - A2：exact action/result、actor 来源、generation、稿件版本、公开／核验分离、错误及事件顺序，全部按 Interface。无需执行者选状态机。
-- A3：新创建显式 reviewer key；旧 ready receipt／旧状态机保留，新增 optional contributions 不是开关；公共来源逐层兼容；legacy 启动提取及测试处置见 T7。
+- A3：2026-09-15 用户确认新版本不要求向后兼容；只验收当前贡献模型和本版本合法请求幂等，不新增 legacy 启动、旧回执绕行或历史测试迁移；不自动迁移／删除用户数据。
 - A4：复用 DSH 接受回执、同 Session 队列、Manager notice、600000 ms 阶段时限；暂停冻结任务 deadline、会议总时长仍包括暂停；cold epoch 防重；T10/T11 固定真实验证。
 
 实现前完整读取上述新契约和设计，字段定义不在 RUNBOOK 重抄。以下每一步明确指向其中的结构和签名；不得用只读本文件的方式跳过 required/optional 或权限表。
@@ -86,12 +86,11 @@ pnpm --dir plugin exec vitest run tests/unit/domain/contribution.spec.ts tests/c
 
 所有新子步骤除指定 focused command 外都做 typecheck；Client 子步骤使用完整 typecheck（含 Client）。这些是执行门禁，不要求作者现在实现产品后运行。沿用已记录环境检查，不恢复 T0。
 
-已有 production 文件／符号的责任在 [Design File Manifest](./MEETING-CONTRIBUTION-DESIGN.md#file-manifest)；新文件／签名在其 Domain Symbols、Runtime Symbols、DSH、Legacy Startup、Public DTO sections。下述允许文件均为精确路径；同目录缩写不授权修改整个目录。没有列出则 STOP。
+已有 production 文件／符号的责任在 [Design File Manifest](./MEETING-CONTRIBUTION-DESIGN.md#file-manifest)；新文件／签名在其 Domain Symbols、Runtime Symbols、DSH、Release Boundary、Public DTO sections。下述允许文件均为精确路径；同目录缩写不授权修改整个目录。没有列出则 STOP。
 
 允许新增测试只有：
 
 - `plugin/tests/fixtures/contribution.ts`：固定三人数据与临时 repository 构造；不实现被测状态机。
-- `plugin/tests/fixtures/legacy-runtime.ts`：T7 的历史 Meeting 构造；不实现生产授权或重放。
 - `plugin/tests/contract/contribution-protocol.spec.ts`、`plugin/tests/contract/contribution-evidence.spec.ts`、`plugin/tests/contract/contribution-runtime.spec.ts`。
 - `plugin/tests/unit/domain/contribution.spec.ts`、`plugin/tests/unit/runtime/contribution-dispatch.spec.ts`、`plugin/tests/recovery/contribution-recovery.spec.ts`。
 
@@ -177,13 +176,13 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T7：新建切换与历史兼容
+### T7：新版本贡献启动
 
-前置状态：T6e PASS。
-允许修改：新增 `plugin/src/runtime/application-service/initialize-legacy-meeting.ts`、`plugin/tests/fixtures/legacy-runtime.ts`；`plugin/src/runtime/application-service/create-meeting.ts`、`plugin/src/runtime/meeting-runtime.ts`、`plugin/src/runtime/application-service/meeting-turn.ts`、`plugin/src/runtime/application-service/meeting-task.ts`、`plugin/src/runtime/application-service/meeting-mail.ts`、`plugin/src/runtime/application-service/meeting-attendance.ts`、`plugin/src/runtime/application-service/meeting-control.ts`、`plugin/src/runtime/application-service/index.ts`；`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/contract/continuation.spec.ts`、`plugin/tests/contract/contribution-runtime.spec.ts`、`plugin/tests/unit/runtime/meeting-runtime.spec.ts`、`plugin/tests/fixtures/contribution.ts`。
-禁止修改：公开 legacy 模式开关、旧数据版本、低层历史 Domain 的业务语义。
+前置状态：T6e PASS；2026-09-15 用户确认本次发布不要求兼容旧版本。
+允许修改：`plugin/src/protocol/types.ts`、`plugin/src/protocol/commands.ts`；`plugin/src/runtime/application-service/create-meeting.ts`、`plugin/src/runtime/meeting-runtime.ts`、`plugin/src/runtime/application-service/meeting-turn.ts`、`plugin/src/runtime/application-service/meeting-task.ts`、`plugin/src/runtime/application-service/meeting-mail.ts`、`plugin/src/runtime/application-service/meeting-attendance.ts`、`plugin/src/runtime/application-service/meeting-control.ts`、`plugin/src/runtime/application-service/index.ts`、`plugin/src/runtime/services/meeting-recovery-service.ts`、`plugin/src/runtime/application-service/meeting-query.ts`；`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/contract/continuation.spec.ts`、`plugin/tests/contract/contribution-runtime.spec.ts`、`plugin/tests/unit/runtime/meeting-runtime.spec.ts`、`plugin/tests/fixtures/contribution.ts`。
+禁止修改：用户持久数据、数据库迁移、生产兼容开关；不创建 initialize-legacy-meeting.ts 或 legacy-runtime.ts。
 
-执行：按 Compatibility Matrix 和 Legacy Fixture Procedure（下文）完成切换。新创建前置 required reviewer 校验必须在首次 storage create/Session provisioning 前；旧 ready receipt 的原 caller/hash 重放先处理且不重跑 role provisioning。新初始 commit 产生 Manager notice，不产生 Turn；成功创建后接 T6d 指定的 recoveredContributionMeetings.add(meetingId)；旧未完成启动记录调用提取的 initializeLegacyMeeting。新状态旧写入口拒绝，旧状态继续原逻辑。
+执行：按下文 Release Boundary And Test Migration 切换。evidenceReviewerKey 在类型和 Schema 必填；Runtime 校验 reviewer、选择模式和限制，首次 storage create／provisioning 前完成。只为本版本合法输入提供原 caller/hash 幂等回执。初始 commit 产生 running、首议题 discussing、noticeSeq=1 与 Manager outbox，不产生 Turn；成功创建后加入 recoveredContributionMeetings。停用写入口返回 UNSUPPORTED_CAPABILITY，不分流旧会议。恢复不执行缺少 contributions 的记录，不自动迁移或删改数据。迁移仍有效的业务测试，取消仅针对旧版本兼容的验收。
 
 验证：
 ```bash
@@ -191,8 +190,8 @@ pnpm --dir plugin exec vitest run tests/contract/contribution-runtime.spec.ts te
 pnpm --dir plugin typecheck:host
 ```
 
-PASS：新创建不带 reviewer／非法限制零副作用；旧成功 receipt 可原样重放；旧会议读取、收尾、恢复保护仍成立；新路径不产生 Turn 事件。
-STOP：通过输入开关新建旧会议、自动补 reviewer、隐藏旧会议、删除旧 suite 或对 invalid create 执行 provisioning。
+PASS：非法新建零副作用；当前合法请求幂等；无 Turn 启动事件或 legacy 分支；身份、权限、原子性、当前恢复与归档约束成立；未改写用户旧记录。
+STOP：为通过门禁删除当前有效安全断言、skip、自动补 reviewer，或对非法 create 执行 provisioning；不以无兼容要求推断数据删除授权。
 
 ### T8a：Remote 与 typed client
 
@@ -224,7 +223,7 @@ STOP：上述命令或断言失败，或必须修改未列文件才能继续；�
 执行：
 1. 按 Design 固定文案实现 Contributions、详情、版本选择与三个 local action；先读最新版本再写，缺连接/缓存状态禁止写。
 2. 切换 Meeting 时取消旧请求、清除旧 detail，旧请求迟到不得覆盖当前会议。
-3. 校验私有/公开字段、按钮状态、Reason、核验结果；新会议隐藏 Turn reassign，旧会议保持原样。
+3. 校验私有/公开字段、按钮状态、Reason、核验结果；面板不提供 Turn reassign，不要求保留旧版本视图。
 
 验证：
 ```bash
@@ -232,7 +231,7 @@ pnpm --dir plugin exec vitest run tests/client/meeting-panel.client.spec.ts test
 pnpm --dir plugin typecheck
 ```
 
-PASS：命令退出 0；界面结果与 Remote 投影一致；无跨会议旧详情污染；新旧操作入口正确。
+PASS：命令退出 0；界面结果与 Remote 投影一致；无跨会议旧详情污染；当前贡献操作入口正确。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
 ### T8c：角色权限与 Scribe 闭环
@@ -242,8 +241,8 @@ STOP：上述命令或断言失败，或必须修改未列文件才能继续；�
 禁止修改：其它 Definition 版本、已固化 Session descriptor、模型/provider。
 
 执行：
-1. 按 Design 更新 Manager/Scribe allowlist 与 1.1.0 版本，其余 Definition 不变；三个 Skill 的新旧入口、精确审核、纪要 claims 限制按固定契约。
-2. 新增 describe="contribution scribe authorization"：真实角色过滤允许新 submit/read，合法 summary/minutesDraft 经 Manager approve 后公开，零额外 claims；旧纪要路径保留。
+1. 按 Design 更新 Manager/Scribe allowlist 与 1.1.0 版本，其余 Definition 不变；三个 Skill 的当前贡献入口、精确审核、纪要 claims 限制按固定契约；不提供旧 Turn 指导。
+2. 新增 describe="contribution scribe authorization"：真实角色过滤允许新 submit/read，合法 summary/minutesDraft 经 Manager approve 后公开，零额外 claims；不新增旧纪要兼容分支。
 3. 按下面固定命令分别验证部署资源、运行行为和完整类型检查。
 
 验证：
@@ -253,7 +252,7 @@ pnpm --dir plugin verify:agent-definitions
 pnpm --dir plugin typecheck
 ```
 
-PASS：命令退出 0；角色资源部署与 Scribe 新旧链路通过；没有回写历史定义或扩大其他角色权限。
+PASS：命令退出 0；角色资源部署与 Scribe 当前贡献链路通过；没有回写历史定义或扩大其他角色权限。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
 
@@ -357,30 +356,14 @@ PYBACKUP
 PASS：预先固定门禁全部通过，证据可追溯，删除后没有残余链接；没有把 RUNBOOK 长期保留为 completed/archive。
 STOP：任何未执行／失败／未迁移项；保留 RUNBOOK。rg 无匹配时退出 1 是正常无残余，不是测试失败。
 
-## Compatibility Matrix And Legacy Fixture Procedure
+## Release Boundary And Test Migration
 
-| 路径 | 新会议 | 旧持久记录 | 验证处置 |
-| --- | --- | --- | --- |
-| 创建／重复 create | reviewer 必填、初次 Manager notice | 已存在 ready receipt 原 caller/hash 重放；未完 startup 调 initializeLegacyMeeting | 新 creation/replay 在 contribution-runtime；原 Agent Definition 创建 suite 使用新合法输入 |
-| submitTurn/submitManagerPlan/raiseHand/reassignTurn | UNSUPPORTED_CAPABILITY | 原逻辑 | 原纯 Domain、旧投递测试不改；Runtime 历史用例预置 legacy 数据 |
-| MeetingTask/Mailbox/attendance 写 | UNSUPPORTED_CAPABILITY | 原逻辑；仍可读 | 不在新上下文暗示这些工具可用；历史测试保留 |
-| Question/Issue/Proposal/Position/DecisionCandidate | 仅批准后应用 | 原语义 | T2 原 suite + T3/T5 atomic publication |
-| Captain decision/risk/agenda 处置 | 原权限、事实与 receipt；改新完成/notice | 原逻辑 | 保留原 authority/rollback/concurrency 反例；另验新门槛 |
-| Scribe/continuation | 原文引用新或旧消息均可；证据以归档白名单读，不能跨 Meeting 当本会议材料 | 原规则 | 原纪要、continuation tests 保留；新增贡献纪要路径 |
-| status、archive、cold recovery | 新字段完整校验与权限 | 无新字段原样读取／收尾 | 双形态断言，不填默认值、不迁移 |
+本版本只验收贡献模型，不实现旧版本 API、创建回执、状态机、存储记录和面板兼容。旧记录不进入新执行路径；保留数据原样，不迁移或删除。此处的“不兼容”不影响同一贡献内部的稿件／材料版本追溯、旧 generation 拒绝和本版本持久恢复。
 
-T7 的历史 helper 只构造测试数据：`createLegacyRuntimeFixture(options:CreateStatusRuntimeOptions):MeetingRuntimeWithCallerLookup`。内部持有真实 DomainRepositoryRegistry 和原 Captain map，调用真正 createCreateStatusRuntime（getCaptainParent 查 map）。其 createMeeting 测试方法依次：
-
-1. caller 不是带 agent 的 Captain 时直接调用真正 runtime.createMeeting，不进行预置；其余输入先通过与基线相同的 prepareMeetingCreation 校验，校验失败沿基线错误映射返回，不建立记录。新创建测试禁止调用此 helper。通过校验的历史 fixture 依据基线 stableMeetingId 算法生成 meetingId；注册 caller.agent 到测试 map；用 prepareMeetingCreation（输入没有 reviewer）和相同授权打开临时真实 repository。
-2. 调用原 createMeetingRuntime 生成 owned Sessions／bootstrap；依赖字段逐项按 MeetingCreationRuntimeDependencies 传入，allocateSessionId=`<meetingId>-<role>-<key>`。不 mock 掉授权、Repository.execute 或领域转换。
-3. 调 initializeLegacyMeeting，updateCreateResult 为 `{meetingId,meetingVersion,status,participants:input.participants.map(participantKey→participant-<key>)}`。
-4. 调原 runtime.createMeeting 重放 ready receipt，再 getStatus 触发真实 rehydrate；返回该 receipt。已有 ready record 跳过 2/3，直接执行 4。creation_failed 不重置、不重新 provisioning，返回原失败。
-
-helper 使用真实 storageDomain，不 mock Repository 或 recovery。DSH port 仍由每个原测试提供。测试 helper 用同一个可变 port 对象接入 runtime；仅在上述步骤 2～4 的初始化期间，为缺失的 listDescendants/listChildren、interrupt、drainContinuableChildren 补齐测试实现：列表来自该 case 实际创建的 childId、原 parent、label、lifecycle；interrupt 记录调用，drain 返回这些 child 的实际关闭状态。不得覆盖原测试显式提供的接口，包括会失败的接口。已有所有 Session 必须都出现在列表中；步骤 4 断言恢复没有调用补齐的 interrupt/drain、没有替换 Session、没有改变初始 Turn/attempt 或会议版本，且 getStatus 成功；否则 STOP。步骤 4 的 finally 恢复所有临时补齐接口原有的缺失状态，之后才把 runtime 交给测试执行动作。这样真实 rehydrate 获得 parent，而后续动作仍面对该 case 原本的能力条件；特别是 `fails local End before committing when archive cleanup capability is unavailable` 必须继续因 cleanup 能力缺失失败，不能通过永久补齐能力使反例失效。所有 mock resource 都属于该 case，dispose 与原 afterEach 统一关闭。不增加生产依赖注入开关。
-
-该 helper 只供 `plugin/tests/contract/meeting-runtime.spec.ts` 内 `agenda candidate disposition runtime`、`create/status meeting runtime`、`referenced minutes runtime`、`Captain attendance rejection runtime` 四个既有 describe 使用；仅将这些 suite 的 createCreateStatusRuntime/localRuntime 构造替换为 helper，保留原断言。`meeting creation input failures`、`Agent Definition creation and replay contract` 保持真实新 create；输入加 reviewerKey=现有第二个 participantKey，去除旧 Turn 限制，不改身份／创建失败断言。`local decision and risk runtime` 原来直接加载 canonical fixture，保持原样。若某个测试使用 new input 验证非法 role／空 agenda，不修正其故意非法部分。
-
-低层 `plugin/tests/unit/runtime/meeting-runtime.spec.ts`、纯 offline fixture 和 Domain suites 保持无 contributions 的历史输入，验证原 primitive 与 compatibility，不把它们描述为新建入口验收。新创建的 caller、ready replay、失败 provisioning、输入限制另由 contribution-runtime 明确覆盖。helper 不能提供生产开关、跳过 domain 校验或再次复制完整旧 application。
+1. 创建测试使用显式 evidenceReviewerKey、至少两位 Participant、selectionMode=manager 或省略，移除旧 Turn 限制；故意非法输入仍保留为拒绝反例。
+2. 保留真实 Runtime／Repository 的 caller、原子提交、CAS、相同请求幂等、创建失败清理、暂停／恢复、完成门槛和归档测试，改用当前贡献输入；不预置 legacy 数据来让新入口运行旧模型。
+3. 仅验证旧 Turn／ManagerPlan／Mailbox／MeetingTask 成功执行或旧回执兼容的测试可删除，改由停用入口 UNSUPPORTED_CAPABILITY／零副作用断言覆盖；在提交说明列出取消行为和替代覆盖。不得机械删除整个混合 suite。
+4. 纯 Domain 规则测试可继续覆盖仍使用的不变量，但不算作旧版本兼容验收；不新增 legacy fixture／适配器或跳过测试。完整 verify 与真实 DSH／Browser／模型验收保持要求。
 
 ## Probe Contract
 
@@ -457,7 +440,7 @@ T1～T9（含全部子步骤）失败只保留工作区文件与测试自有数�
 
 ## Author Audit And Execution Evidence
 
-Author 审计必须检查：字段／输入／结果／actor／ID／时间／版本；事件与 outbox；真实 Session 接受；legacy 适用范围；T1～T12 文件与签名；双向 scope 追踪；固定断言、失败恢复及删除后恢复。不得仅因链接通过就标 Executable。
+Author 审计必须检查：字段／输入／结果／actor／ID／时间／版本；事件与 outbox；真实 Session 接受；新版本发布边界；T3c～T12 文件与签名；双向 scope 追踪；固定断言、失败恢复及删除后恢复。不得仅因链接通过就标 Executable。
 
 执行记录初始为空：上述 24 个执行单元均未执行。当前仅形成目标契约／设计／RUNBOOK；目标功能测试、真实 DSH 组合、Browser 与模型讨论均为 Not Covered。不借用历史测试作为本次通过。
 
@@ -473,7 +456,7 @@ Author 审计必须检查：字段／输入／结果／actor／ID／时间／版
 | 消息／事实／事件／outbox | State Transitions、Events 与 Design Runtime Chain；pending 不应用 claims、负面结论保留、无半提交 |
 | 调度与失败恢复 | Design DSH/Recovery；固定 Session queue、接收回执、epoch、deadline、失败回调；没有假 Turn 或隐藏后台任务 |
 | 文件与签名 | Design File Manifest 与每步允许文件；新增 planning.ts 与 referenced-minutes/SKILL.md 已核对存在；指定新增文件保持唯一位置 |
-| 兼容与测试迁移 | Compatibility Matrix/Legacy Fixture Procedure；旧 receipt 与业务保护保留，新入口单独验证；无生产测试开关 |
+| 发布边界与测试迁移 | Release Boundary And Test Migration；当前贡献模型、本版本幂等与安全保护；无 legacy helper／生产兼容开关 |
 | 验证、PASS/STOP、恢复 | 24 个执行单元各有固定文件、依赖、独立验证与 PASS/STOP；全部命令／预期明确；T10/T11 用固定输入／结果；语义质量不交给执行者裁决 |
 | readiness 和删除 | T12 固定迁移目的地、完整门禁、删除后检查和失败恢复 |
 

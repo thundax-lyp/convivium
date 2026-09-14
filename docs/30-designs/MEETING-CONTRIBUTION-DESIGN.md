@@ -1,6 +1,6 @@
 # Meeting Contribution Design
 
-状态：最小并行贡献的目标设计，尚未实现。行为、字段、权限、容量和兼容策略唯一依据为 [Contribution Interface](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md)。本文固定代码所有权、接线与验证；既有 Turn 设计只适用于缺少 contributions 字段的历史会议。
+状态：最小并行贡献的目标设计，尚未实现。行为、字段、权限、容量和兼容策略唯一依据为 [Contribution Interface](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md)。本文固定代码所有权、接线与验证。本版本不要求兼容旧版本；不新增旧启动分支、兼容适配器或历史测试迁移。保留的内部旧类型不代表对旧记录的执行承诺，用户数据不自动迁移或删除。
 
 ## Responsibility And Dependency
 
@@ -151,28 +151,17 @@ function followupContributionSession(input: FollowupContributionSessionInput):
 
 MeetingDeliveryDispatcher 增私有 dispatchContribution/dispatchContributionManager，签名均 `(input:MeetingDeliveryInput):Promise<void>`。现有 participantQueues 改按实际 ownership.sessionId 作 key，Manager 也进入同一队列；旧身份的队列语义保持。dispatch 后 ack 仅证明 DSH 接受消息；仍由后续合法 command 证明业务完成。旧 outbox generation 不匹配标记不可重试 STALE_ATTEMPT；Manager 过期 notice 直接 ack，不发送旧任务。
 
-创建成功之后使用与旧 start_manager_planning 相同的 repository 原子启动点：status=running、首议题 discussing、无 currentTurn、manager 状态 idle、新增 noticeSeq=1 和 Manager outbox。updateCreateResult 及 partial creation repair 继续原机制；旧 ready receipt 先校验原 caller/hash 再返回，不能因没有新增 reviewer 字段阻挡重放。新的 provisioning 指导同时说明“此消息只建立身份；等待正式任务／规划通知”，不能要求不存在的 Turn attempt。
+创建成功之后使用与旧 start_manager_planning 相同的 repository 原子启动点：status=running、首议题 discussing、无 currentTurn、manager 状态 idle、新增 noticeSeq=1 和 Manager outbox。updateCreateResult 及本版本 partial creation repair 继续原机制；创建和重放均先校验本版本输入，再验证原 caller/hash，不支持旧版本创建回执。新的 provisioning 指导同时说明“此消息只建立身份；等待正式任务／规划通知”，不能要求不存在的 Turn attempt。
 
 恢复：在 createCreateStatusRuntime 内创建一次 `contributionRecoveryEpoch=randomUUID()`，并持有 `Set<string> recoveredContributionMeetings`。只有实际冷恢复、完成既有 Session reconcile 且原 parent 可用后，调用 recoverContributionWork；成功后入 Set，同一 runtime 后续 read 不重复增加 generation。fresh create 同时入 Set，避免首次 status 当成冷恢复。recover command requestId=`recover-contribution:<recoveryEpoch>`，commandKind=contribution:recover，hash 同 requestId；receipt 重放不生成新 outbox。缺 parent 不入 Set，保留后续合法恢复机会。退出 runtime 时集合自然释放；不写 recoveryEpoch 到产品模型。
 
 恢复 paused Meeting 不重投、不变 generation；恢复终态只走旧 archive recovery；恢复 running/waiting 原 deadline 未过期则 generation+1 后重投准备／审核／Manager，过期走 tick 的 Captain 状态。暂停保留剩余时间；会议总预算沿现有 now-createdAt，包括暂停与停机时间，不新增暂停累计时长字段。resume 与正常进度检查使用相同顺序：先判断 completed，未满足再判断总预算；耗尽则 partial。两种终止都不发送新研究任务。
 
-## Legacy Startup Extraction
+## Release Boundary
 
-新建校验不得破坏已 ready 的旧 create receipt，也不得为测试添加可创建旧会议的 public flag。将 create-meeting.ts 中从 activeInitialState 到旧 start_manager_planning／initializeFirstMeetingTurn 的启动分支原样提取到唯一新增文件 `plugin/src/runtime/application-service/initialize-legacy-meeting.ts`：
+本版本不实现 `initializeLegacyMeeting` 或历史 Runtime fixture；create-meeting.ts 只启动贡献模型。当前输入必须显式提供有效 evidenceReviewerKey，Schema 与 Runtime 均拒绝缺失或非法值；启动事务写入 running、首议题 discussing、noticeSeq=1、无 currentTurn。本版本 partial creation 可用原 receipt 修复，旧版本记录不进入执行或自动迁移。旧 Turn／Mailbox／MeetingTask 写入口返回 UNSUPPORTED_CAPABILITY，不增设按记录版本分流的适配器。
 
-```ts
-function initializeLegacyMeeting(input: {
-  repository: MeetingRepositoryRuntime;
-  selectionMode: MeetingState["selectionMode"];
-  agentCatalog?: AgentCatalogPort;
-  captainSessionId: string;
-  authorization: CommandAuthorization;
-  createRequestId: string; createRequestHash: string; now: number;
-}): Promise<{meetingVersion: number; status: "running" | "waiting"}>;
-```
-
-只用于恢复已存在、缺 contributions、尚未完成启动的旧 ready 创建记录；不存在旧 repository 时不能从该路径创建。保留基线 Manager Catalog、ID、event、outbox、fallback 和初始 Turn 规则。新创建及新记录恢复不得调用它。归档／未决业务的旧规则继续原模块，不复制整份 Runtime。
+测试按当前有效业务意图迁移：身份、权限、原子性、幂等、恢复和归档反例继续覆盖；只测试已取消旧 Turn 行为的用例可删除，并在提交中列明被替代的行为与新断言。不得为通过门禁删除当前模型的安全断言或使用 skip。
 
 ## Public DTO And UI
 
@@ -193,9 +182,9 @@ MeetingProjectionCaller 复用现有 status.ts 的同名 exported type，不创�
 
 ConviviumRemoteService 新 `readContribution(input:RemoteReadContributionInput, signal:AbortSignal)`、`controlContribution(input:RemoteContributionControlInput, signal:AbortSignal)`；对应 RemoteInput 类型放 remote/types.ts，输入经 validateInput 保留未知字段再拒绝。Client 的 MeetingClient 同名方法返回 ProtocolSuccess；使用现有请求取消与 envelope/result Schema。生成物只能运行 generate:typert 得到。
 
-现有面板新增标题精确为 `Contributions` 的区：任务摘要行显示作者、状态、核验状态；选择任务调用 readContribution；材料按版本 key 显示正文／来源、主张、核验方法和限制。材料详情标签固定 Material/Source/Claim/Verification/Method/Limitations；按钮文案固定 View contribution、Retry contribution、Cancel contribution、Notify Manager，原因输入标签 Reason，历史稿件选择标签 Draft revision，默认当前版本。Captain/local 可见 retry/cancel/notify_manager 表单，按钮出现条件与接口状态表完全相同，reason 必填。刷新到最新版本后再提交；取消切换会议请求并清除前一会议 detail；禁止缓存状态写入。新会议隐藏 Turn reassign，旧会议保留。
+现有面板新增标题精确为 `Contributions` 的区：任务摘要行显示作者、状态、核验状态；选择任务调用 readContribution；材料按版本 key 显示正文／来源、主张、核验方法和限制。材料详情标签固定 Material/Source/Claim/Verification/Method/Limitations；按钮文案固定 View contribution、Retry contribution、Cancel contribution、Notify Manager，原因输入标签 Reason，历史稿件选择标签 Draft revision，默认当前版本。Captain/local 可见 retry/cancel/notify_manager 表单，按钮出现条件与接口状态表完全相同，reason 必填。刷新到最新版本后再提交；取消切换会议请求并清除前一会议 detail；禁止缓存状态写入。面板不提供 Turn reassign，不要求保留旧版本视图。
 
-产品角色资源固定更新 `plugin/meeting-roles/definitions.json`：Manager 与 Scribe 保留原 allowlist，均加入 convivium_contribution/convivium_read_contribution，definitionVersion 从 1.0.0 升为 1.1.0；其余 Definition 版本保持。meeting-management 和 referenced-minutes Skill 按有无 contributions 选择新旧提交入口。Scribe 的新纪要通过 contribution submit 保存（kind=summary、minutesDraft、changes={}、无 completionClaims），仍由 Manager 批准后公开；旧 submit_turn 路径保留。verification-review Skill 固定逐版本／主张、独立审核、不得执行提交代码。只更新未来角色资源，不改历史固化 descriptor。
+产品角色资源固定更新 `plugin/meeting-roles/definitions.json`：Manager 与 Scribe 均加入 convivium_contribution/convivium_read_contribution，definitionVersion 从 1.0.0 升为 1.1.0；其余 Definition 版本保持。meeting-management 和 referenced-minutes Skill 只指导当前贡献提交入口，不提供旧版本分流。Scribe 的纪要通过 contribution submit 保存（kind=summary、minutesDraft、changes={}、无 completionClaims），仍由 Manager 批准后公开；不保留旧 submit_turn 成功路径的验收要求。verification-review Skill 固定逐版本／主张、独立审核、不得执行提交代码。只更新未来角色资源，不改历史固化 descriptor。
 
 ## File Manifest
 
@@ -211,10 +200,10 @@ ConviviumRemoteService 新 `readContribution(input:RemoteReadContributionInput, 
 | `plugin/src/domain/transitions/termination.ts` | endMeeting：先校验正式完成事实与贡献门槛，再撤销在途任务 |
 | `plugin/src/domain/transitions/archive.ts` | assertArchivePackageMatchesMeeting、snapshotArchive：新引用白名单与封存校验 |
 | `plugin/src/domain/index.ts`、`plugin/src/domain/transitions/index.ts` | 仅导出本文 Runtime 使用的新符号 |
-| `plugin/src/runtime/meeting-runtime.ts` | prepareMeetingCreation：reviewerKey present 时初始化贡献，低层历史数据构造 absent 时保持旧模型；生产新建前置在 createMeetingApplication |
-| `plugin/src/runtime/application-service/create-meeting.ts` | createMeetingApplication：新输入 preflight、初次 notice；旧成功 create receipt 重放先处理 |
+| `plugin/src/runtime/meeting-runtime.ts` | prepareMeetingCreation：校验 evidenceReviewerKey 并初始化贡献；createMeetingApplication 在首次存储和 provisioning 前执行同一约束 |
+| `plugin/src/runtime/application-service/create-meeting.ts` | createMeetingApplication：当前输入 preflight、初次 notice、本版本合法请求幂等；不分流旧启动 |
 | `plugin/src/runtime/application-service/meeting-turn.ts` | createMeetingTurnApplication：新状态旧工具拒绝；复用 normalizer |
-| `plugin/src/runtime/application-service/meeting-task.ts`、`plugin/src/runtime/application-service/meeting-mail.ts`、`plugin/src/runtime/application-service/meeting-attendance.ts` | 新会议的写入口拒绝；查询／legacy 原路径保留 |
+| `plugin/src/runtime/application-service/meeting-task.ts`、`plugin/src/runtime/application-service/meeting-mail.ts`、`plugin/src/runtime/application-service/meeting-attendance.ts` | 停用的写入口拒绝，不分流旧会议；当前有效查询保留 |
 | `plugin/src/runtime/application-service/meeting-control.ts` | createMeetingControlApplication：新暂停／恢复无 Turn 重规划；新 reassignTurn 拒绝；risk 处置后检查贡献完成 |
 | `plugin/src/runtime/application-service/meeting-decision.ts`、`plugin/src/runtime/application-service/meeting-agenda-candidate.ts` | Captain 正式事实变更后检查完成／预算，再 Manager notice；不创建 Turn |
 | `plugin/src/runtime/application-service/meeting-end.ts` | createMeetingEndApplication：新终态路径复用归档，结束后不投递 |

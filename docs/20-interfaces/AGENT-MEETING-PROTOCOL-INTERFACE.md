@@ -1609,4 +1609,4 @@ Convivium 当前依赖固定为 DSH `0.1.2-rc.1`，并使用该版本的 `dsh-su
 
 ## Minimal Contribution Contract
 
-新建最小并行会议的字段、工具、权限、状态与旧入口处置由 [Contribution Interface](./MEETING-CONTRIBUTION-INTERFACE.md) 固定。本文的旧 Turn 契约保留给历史记录与其收尾；目标契约尚未实现。
+新建最小并行会议的字段、工具、权限、状态与停用入口处置由 [Contribution Interface](./MEETING-CONTRIBUTION-INTERFACE.md) 固定。本次新版本不要求向后兼容；本文其余 Turn 契约不构成旧记录执行或收尾承诺。实现覆盖以 readiness 为准。

@@ -10,13 +10,13 @@
 
 ## Creation And Compatibility
 
-`CreateMeetingInputV1` 增加 optional `evidenceReviewerKey:string`。新建时 required：省略返回 `INVALID_ARGUMENT`，不按姓名或 role 猜测；保持类型 optional 仅为旧创建 receipt 和纯历史 fixture 解码。该 key 必须在 participants 中，且会议至少两位 Participant。创建 Schema 保留旧字段解码，新 Runtime 在持久化和 Session provisioning 前执行新增约束。
+`CreateMeetingInputV1` 增加 required `evidenceReviewerKey:string`。省略返回 `INVALID_ARGUMENT`，不按姓名或 role 猜测；该 key 必须在 participants 中，且会议至少两位 Participant。Schema 与 Runtime 在持久化和 Session provisioning 前执行校验。只保证本版本合法输入的原 caller/hash 创建回执重放，不为旧版本输入绕过新增约束。
 
-新会议总是初始化 `MeetingState.contributions`；仍为 formatVersion=2，不提供开关。该字段 absent 的旧记录保持原样，继续既有读取、receipt 重放、暂停、结束和归档恢复；旧进行中会议仍按其原状态机收尾，不自动升级。新字段 present 但非法时恢复失败，不能当成旧记录。
+新会议总是初始化 `MeetingState.contributions`；仍为 formatVersion=2，不提供开关。按需求的本次新版本发布边界，不提供旧记录兼容、旧启动恢复或自动升级；缺少 contributions 的记录不进入新模型执行，返回 `UNSUPPORTED_CAPABILITY`，不改写记录。字段 present 但非法时恢复失败，不能作为缺省值继续执行。本版本的暂停、结束、冷恢复、归档和幂等保证不变。
 
-新创建只接受 selectionMode 省略或 manager；拒绝非 manager 值及 limits 中 maxTurns/maxSpeakersPerTurn/maxConsecutiveSpeechesPerSpeaker/maxStalls/maxReplans。仍接收 maxTotalMessages、maxDurationMs，省略分别使用 32 和 1800000 ms；旧 canonical limits 继续保留原值形状，但新流程不消费 Turn 限制。contribution 与 review timeout 固定 600000 ms，不新增配置。
+新创建只接受 selectionMode 省略或 manager；拒绝非 manager 值及 limits 中 maxTurns/maxSpeakersPerTurn/maxConsecutiveSpeechesPerSpeaker/maxStalls/maxReplans。仍接收 maxTotalMessages、maxDurationMs，省略分别使用 32 和 1800000 ms；内部尚存的 Turn 字段不构成旧版本兼容承诺，新流程不消费 Turn 限制。contribution 与 review timeout 固定 600000 ms，不新增配置。
 
-对新会议，submitTurn、submitManagerPlan、raiseHand、reassignTurn、MeetingTask 创建／开始／完成、MeetingMail 发送／完成、动态 attendance 处置返回 `UNSUPPORTED_CAPABILITY` 且零副作用；保留它们对旧会议的原行为和读取。首版研究在贡献任务中进行，原异步 MeetingTask／Mailbox 不接入新任务授权。Decision 接受／处置、Risk 处置、AgendaCandidate 处置、Scribe 正文及 continuation 保留业务约束；移除这些路径对新会议重新启动 Turn 的调用，改为下文 Manager 通知。此差异不删除旧数据或已有纯规则。
+submitTurn、submitManagerPlan、raiseHand、reassignTurn、MeetingTask 创建／开始／完成、MeetingMail 发送／完成、动态 attendance 处置返回 `UNSUPPORTED_CAPABILITY` 且零副作用；不提供旧会议分流执行。研究在贡献任务中进行，原异步 MeetingTask／Mailbox 不接入新任务授权。Decision 接受／处置、Risk 处置、AgendaCandidate 处置、Scribe 正文及本版本 continuation 保留业务约束；不重新启动 Turn，改为下文 Manager 通知。此差异不删除用户数据。
 
 ## Wire Contract
 
@@ -207,7 +207,7 @@ Status 增 optional `contributions:{reviewerId,tasks:ContributionSummaryV1[]}`�
 
 读取权限：Captain/local/Manager 可看本会议全部版本及边界记录；作者只看自己的未公开稿与记录；固定 reviewer 在 requiresEvidenceReview=true 且 phase=boundary_review 时可读 currentDraftRevision 及引用材料，不能读取旧退回稿或 boundaryReviews，也不能提前写核验结果；其他 Participant 只能看 published 的 currentDraftRevision、空 boundaryReviews、该稿的 evidenceReviews。evidenceKey 仅可读取此视图稿件引用的版本；Captain/local/Manager 或材料作者还可读取自己的任务尚未引用但已保存的版本。不存在／无权限私有项统一 UNAUTHORIZED_CALLER，避免泄漏。
 
-MeetingMessage、PublicMeetingMessageV1、ArchiveMessage 增 optional contributionId/contributionRevision。MeetingMessage 的旧 turnSeq/turnId/stepId/attemptId 改 optional；PublicMeetingMessageV1 和 ArchiveMessage 仅有的旧 turnId/stepId 改 optional，不新增其原本没有的字段。各层两套来源必须恰有一套完整；新消息不填虚构 Turn。公开序号、正文、作者、时间及其他字段沿用原有语义。Client 新会议显示贡献状态，隐藏 Turn 操作；旧会议保留原视图。
+MeetingMessage、PublicMeetingMessageV1、ArchiveMessage 增 optional contributionId/contributionRevision。MeetingMessage 的旧 turnSeq/turnId/stepId/attemptId 改 optional；PublicMeetingMessageV1 和 ArchiveMessage 仅有的旧 turnId/stepId 改 optional，不新增其原本没有的字段。各层两套来源必须恰有一套完整；新消息不填虚构 Turn。公开序号、正文、作者、时间及其他字段沿用原有语义。这些内部来源类型不构成旧版本兼容承诺。Client 显示贡献状态，不提供 Turn 操作，不要求保留旧视图。
 
 ArchivePackage 增 optional `contributionRefs:{taskIds:readonly string[],evidenceKeys:readonly string[]}`。只引用 published 任务及其 citations/patchEvidenceKeys 的可见依赖闭包，排序去重；材料仍在封存的 snapshot，核验记录仍在任务，不能复制 contributions 到 archive。归档后 public read 限于这份白名单；Captain/local 的原审计读取权限保留；专用 Manager/Participant Session 归档后已撤销 capability，不承诺这些已关闭 Session 仍能调用读取工具，不能通过公共 archive 导出私有草稿。
 
