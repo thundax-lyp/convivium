@@ -4,6 +4,10 @@
 协议所有者：Convivium DSH Plugin
 基础运行时：DSH
 
+## Parallel Collaboration Contract Boundary
+
+2026-09-14 [Meeting Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) 已确认并行贡献、先审后发布及不依赖轮次的完成判断。本文现有 Turn、单一 SpeakerAttempt、串行请求、直接提交及按轮次预算契约描述尚未迁移的既有协议，不构成新行为的实现依据。新契约须补齐按身份及任务授权、待审与审核发布、增量上下文、预算与停滞检测及生命周期处置；在此之前不虚构新字段或把旧 Turn 数当作任务数。既有 caller binding、幂等、数据完整性和权限边界仍须保持，实现状态见 readiness。
+
 ## Local Web Transport Authority
 
 九个本地 Web 操作的目标传输契约统一由 [Meeting Remote Interface](./MEETING-REMOTE-INTERFACE.md) 维护。2026-09-09 已确认一次切换 Remote 并用刷新 stream 替换 5 秒轮询；本文其余章节保留的 HTTP/POST/GET/status code 表述只描述迁移前入口，不再约束迁移后的传输。业务 DTO、caller、version、receipt、领域错误和归档规则仍以本文为准。代码实际迁移状态见 readiness，不能从目标契约推断已实现。

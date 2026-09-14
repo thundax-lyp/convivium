@@ -9,6 +9,8 @@
 
 本文只规定用户和会议参与者可以观察到的行为、业务边界及验收结果，不规定数据库、模块、类、状态机、事务、消息格式、工具名称或具体调度算法。
 
+2026-09-14 确认产品以协作求解为主线：明确目标、建立候选路径、搜集并分析证据、修订路径，形成一致性方案。讨论、发言安排与审核服务于方案形成，不以辩论、发言次数或全员口头赞同作为目标。角色职责、公共成果组织及一致性判据见[协作求解要求](./MEETING-SPEECH-REVIEW-REQUIREMENTS.md#collaborative-problem-solving)。
+
 ## Scope
 
 - 在 DSH 中创建、运行、暂停、恢复和结束一场多 Agent 会议。
@@ -21,7 +23,7 @@
 ## Non-goals
 
 - 不提供脱离 DSH 运行的独立桌面应用或独立 Agent Host。
-- 不要求多个 Agent 同时生成发言。
+- 不要求所有 Agent 同时启动、同时完成或对每次 Transcript 更新都发言。
 - 不要求一次会议解决所有发现的问题。
 - 不把 MeetingTask 完成直接等同于会议目标完成。
 - 不共享 Agent 的隐藏推理、私有工具过程或与会议无关的 Session 历史。
@@ -48,35 +50,38 @@
 7. 新建会议的目标、议题、提案和验收条件必须从明确的未完成初始状态开始，不得在创建时被预先标记为已接受、已满足或已解决。
 8. 每场会议必须具有稳定且唯一的身份，其数据和会议专用 Session 不得与其他会议混淆。
 
-### FR-3：有序连续发言
+### FR-3：并行贡献与有序发布
 
-1. 任意时刻，一场会议最多只能有一位 Agent 获得有效发言权。
-2. 主持机制可以为一次讨论周期选择若干参与者，并确定发言顺序。
-3. 被选参与者必须按顺序逐个收到发言请求；不得先并发请求全部参与者再排队提交。
-4. 后一位发言者必须能获得本次讨论周期中前序参与者已经正式提交的内容。
-5. 参与者必须能够回应、质疑、补证、修正、支持或总结前序内容。
-6. 发言权被撤销、超时或重新分配后，旧请求的迟到结果不得进入正式会议记录。
+1. 不同 Participant 可以同时获得各自的贡献任务授权，基于已公开 Transcript 并行取证、分析、准备和提交待审稿；不得以全会议单一发言权或固定发言次序限制准备与提交。
+2. Manager 围绕待解决问题、证据缺口和路径修订安排贡献；明确指派与主动申请的规则见[发言及证据审核需求](./MEETING-SPEECH-REVIEW-REQUIREMENTS.md)。不要求全体参会者同步开始、逐人发言或完成同一轮。
+3. 每个 Participant 同时最多处理一项发言任务，待审及退回修改仍属于该任务；其他 Participant 的任务可以独立推进。
+4. 每项准备绑定所依据的公开 Transcript 版本。后续相关公开内容须可获取；发布前若新增内容实质影响稿件，应更新并重新审核，无关变化不强制重做。
+5. 参与者必须能够回应、质疑、补证、修正、支持或总结已公开内容。待审内容不作为其他参会者的公共讨论依据，授权核验访问遵循专项需求。
+6. 正式内容必须先经 Manager 边界审核，再由 Runtime 发布确切版本，并形成稳定、可引用和可审计的发布顺序。发布顺序记录已经发生的事实，不预先决定谁先准备或提交。
+7. 任务授权被撤销、超时或重新分配后，旧请求及其迟到审核结果不得发布内容；一人的失效不得使其他人的有效授权失效。
+
+2026-09-14 确认上述并行协作取代串行轮次要求；既有串行请求、直接提交与 Turn 驱动流程尚未迁移，不能作为新要求的覆盖证据。
 
 ### FR-4：发言计划与选择
 
 1. 发言计划必须围绕当前议题和本次讨论目标形成。
 2. 显式点名、直接问题、必需复核、议题负责人、相关任务结果和阻塞异议必须优先获得处理。
 3. 主持机制可以在规则足以决定时使用确定性规则，在需要语义判断时请求独立主持 Agent 建议。
-4. 主持 Agent 的建议必须受到参与者资格、权限、议题、每个 Turn 的最大发言人数、发言请求超时和发言顺序约束。
+4. 主持 Agent 的安排必须受到参与者资格、权限、议题、贡献任务与审核时限及会议预算约束；不得以固定轮次或预定发言顺序替代按问题安排。
 5. 主持 Agent 不得自行代表参与者接受决策、接受风险或宣布会议业务目标已经完成。
-6. 主持 Agent 不可用或建议无效时，会议必须存在确定性的降级选择方式。
-7. 必须参与当前计划的 Participant 不可调度时，会议必须停止本次规划并向用户报告具体身份和原因，不得自动替换、豁免或产生部分发言计划。
+6. 主持 Agent 不可用或安排无效时，会议必须明确报告原因并采取有界的失败处理；既有确定性选择不能代替边界审核，不得自动发布未审内容。
+7. 某项工作所必需的 Participant 不可调度时，停止依赖该身份的安排并向用户报告具体身份和原因，不得自动替换或豁免；无依赖的已授权工作可继续，必需贡献或审核未满足时不得宣布相应目标完成。
 8. 相同会议状态没有发生变化时，不得自动重复调度同一个不可用的必需 Participant。
 
 ### FR-5：异步任务与举手
 
-1. 长时间构建、测试、调研或外部等待不得持续占用会议发言权。
-2. 参与者必须能够创建 Convivium-owned MeetingTask，并以简短状态结束当前发言；任务实际执行复用该 Participant 的 DSH continuable Session。
+1. 长时间构建、测试、调研或外部等待不得阻塞其他 Participant 的独立贡献。
+2. 参与者必须能够将长时间工作交由 Convivium-owned MeetingTask 承载并结束当前发言任务；状态通知不自动成为正式正文，任务实际执行复用该 Participant 的 DSH continuable Session。
 3. 异步任务完成或出现新证据时，相关参与者必须能够申请在后续讨论中发言。
 4. 发言申请本身不是正式会议发言，不得直接形成决策或修改正式 transcript。
 5. 非阻塞任务运行期间，会议应能继续讨论其他相关内容。
 6. 当前目标确实依赖某项未完成任务时，会议可以进入等待，并在条件满足后恢复。
-7. 会议运行时必须验证请求者的会议身份、当前 SpeakerAttempt 和授权，再创建 MeetingTask；Participant 不因此获得 Captain 或其他 Participant 权限。
+7. 会议运行时必须验证请求者的会议身份、当前有效任务授权和所属上下文，再创建 MeetingTask；Participant 不因此获得 Captain 或其他 Participant 权限。
 8. MeetingTask 必须能够追溯到所属 Meeting、参与者和当时的正式发言上下文；其结果只有经 Meeting Runtime 授权的 projection 才能进入会议。
 
 ### FR-6：议题范围与发散控制
@@ -114,8 +119,8 @@
 5. 会议完成状态必须由经过验证的完成事实和确定性业务规则得出，不得仅根据自然语言总结宣布完成。
 6. 达到业务完成条件时，即使仍有非阻塞后续事项、待讨论事项、已接受风险或少数意见，会议也可以正常完成。
 7. 会议不能完成时，必须区分部分完成、无共识、取消和内部失败，并说明原因及未解决事项。
-8. 最大 Turn 数、最大消息数、最大会议时长、每个 Turn 的最大发言人数和发言请求超时只限制继续讨论；如果最后一次有效讨论已经满足完成条件，会议必须按正常完成结束。
-9. Captain 或 loopback 本地用户的结构化风险处置必须明确一个 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、hard constraints、Issue status 和 Meeting lifecycle 限制；`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `disposition=blocking`、`blocking=true`。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。处置后执行确定性完成重算；满足完成条件时进入 `converging` 并清除当前 Turn 和等待状态，本操作不自动结束或归档会议。
+8. 最大正式消息数、最大会议时长、任务与审核时限限制继续工作；不得以轮次数或每轮发言人数作为并行协作的推进条件。最后一次合法事实更新同时满足完成条件与预算边界时，按正常完成处理；不得在预算耗尽后绕过审核继续发布。
+9. Captain 或 loopback 本地用户的结构化风险处置必须明确一个 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、hard constraints、Issue status 和 Meeting lifecycle 限制；`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `disposition=blocking`、`blocking=true`。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。处置后执行确定性完成重算；满足完成条件时进入 `converging` 并停止新贡献安排、清除不再适用的等待状态，本操作不自动结束或归档会议。
 
 ### FR-9：暂停、恢复与故障隔离
 
@@ -136,7 +141,7 @@
 3. 会议 Participant 之间必须能够使用 Convivium 的受控 mailbox 进行异步私聊；meeting-scoped mail 必须携带发送时可见的会议上下文快照。
 4. Agent 实际处理 meeting-scoped mail 前，必须在权限范围内补充快照之后新增的正式 transcript，并固化本次处理使用的上下文上界。
 5. 私聊处理结果不得直接修改正式 transcript、决策或完成状态；需要公开讨论时必须申请发言，长时间工作必须转为异步任务。
-6. 用户必须能够区分当前发言者、主持建议、异步任务、等待原因和正式决策。
+6. 用户必须能够区分当前准备与待审任务、主持建议、异步任务、等待原因和正式决策。
 7. 会议结束后必须形成内容完备、不可运行的归档包，至少包含最终成果、完成依据、正式记录、未解决事项和来源信息。
 8. 归档包只保留 Participant 的会议身份、角色和必要模板版本等溯源信息，不得包含完整运行配置、私有 Session 历史或权限 capability。已关闭 Session 数据可以按 workspace/DSH retention policy 保留，但不得通过归档包、UI 或续会暴露。
 9. 会议进入 `archiving` 后不得恢复讨论；只有全部会议专用 Session 已停止、关闭并失去继续参与该会议的权限后才能进入 `archived`。物理删除 Session 数据不是归档完成条件。
@@ -146,9 +151,9 @@
 
 ### FR-11：可观察性与用户控制
 
-1. 用户必须能够查看当前议题、当前讨论目标、计划发言者、当前发言者、正式 transcript、阻塞项、后续事项、异步任务、适用的 Turn/消息/时长/发言人数/超时限制、结束结果，以及 Captain/local 可见的 pending decision candidates、accepted decision history 和 risks projection；普通 Participant 不得通过该状态读取获得这些 Captain/local 专属数组。
+1. 用户必须能够查看当前议题、当前讨论目标、贡献安排、当前准备与待审任务、正式 transcript、阻塞项、后续事项、异步任务、适用的消息、时长、任务及审核限制、结束结果，以及 Captain/local 可见的 pending decision candidates、accepted decision history 和 risks projection；普通 Participant 不得通过该状态读取获得这些 Captain/local 专属数组。
 2. V1 面板必须列出本地 Host 中全部可恢复 Meeting 的轻量摘要；用户选择其中一项后，面板才读取该 Meeting 的完整状态。列表不得包含 transcript、Session ID、capability、backend 物理路径或私有运行数据；任一已发现 Meeting 无法恢复时，列表必须报告暂不可用，不得返回部分列表。
-3. 用户必须能够暂停、恢复、结束会议，以及在适用的会议控制入口中撤销或重新分配当前发言权。V1 的插件面板运行于单个 loopback DSH Host，不绑定 Web 用户身份、不校验 Team 权限；到达该 Host 的请求共享该本地用户边界。
+3. 用户必须能够暂停、恢复、结束会议，以及在适用的会议控制入口中撤销或重新分配指定贡献任务的授权。V1 的插件面板运行于单个 loopback DSH Host，不绑定 Web 用户身份、不校验 Team 权限；到达该 Host 的请求共享该本地用户边界。
 4. 会议运行时，面板必须显示“暂停”；会议已暂停时，面板必须显示“继续”，并清楚显示暂停原因和发起者。
 5. 任何降级选择、强制结束、审核豁免、风险接受和部分完成都必须向用户显示原因。
 6. 产品必须通过完整的会议状态读取展示正式会议事实，不得把本地缓存或自然语言摘要当作状态真相源。
@@ -218,17 +223,19 @@ Phase 1 必须复用现有 `submit_manager_plan`、`MeetingRepositoryPort.execut
 
 ## Business Rules
 
-### BR-1：Turn 含义
+### BR-1：按贡献推进
 
-一个 Turn 是主持机制围绕一个议题安排的有序发言周期，可以包含一位或多位参与者。Turn 中的参与者完成、跳过、撤销或失败后，该 Turn 才结束。产品不另设含义重叠的 Round 计数。
+会议以公开成果、证据及待解决问题推进，不以 Turn 或 Round 划分参会者必须遵守的发言周期。不得要求其他人完成、跳过或失败后才允许某项独立贡献推进。正式 Transcript 的发布序号只用于引用和审计，不授予发言优先权。
 
-### BR-2：单一有效发言权
+### BR-2：每个身份的有效任务授权
 
-一场会议同时最多存在一个有效发言请求。重新分配、恢复或重试必须使旧请求失效。
+不同 Participant 的贡献任务授权可以同时有效；每个身份最多有一项尚未结束的发言任务，包括准备、待审和退回修改。重新分配、恢复或重试必须防止旧授权继续产生新事实，并保留重复请求的幂等结果；不能以全会议单一 SpeakerAttempt 代替按身份及任务校验。
 
 ### BR-3：完成判断边界
 
-会议级完成判断和硬限制判断在 Turn 结束时进行，顺序为先判断业务完成，再判断是否允许创建下一 Turn。单个 Turn 内仍可在每次发言结束后检查是否允许继续请求下一位发言者。
+每次影响完成条件的合法事实更新后重新判断业务完成，包括正式发布、有效审核、授权任务结果和 Captain/local 处置，不等待整轮或全员完成。待审稿及其尚未生效的附带声明不参与完成判断。
+
+预算边界检查不等待任何任务结束；先根据已生效事实判断完成，再决定是否允许继续工作。满足目标后不得因无关准备任务继续等待，也不得因有未审稿就视为完成。结束、暂停及撤销后，相关提交和审核须遵守生命周期与授权检查；终态后不能通过迟到结果追加正式事实。预算的具体字段与计数方式在后续协议中落实，不把旧 Turn 数直接解释为任务数。
 
 ### BR-4：主要问题与次要问题
 
@@ -266,10 +273,10 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 
 ## Acceptance Criteria
 
-1. 创建包含至少三位 Agent 的会议后，任意时刻最多只有一位 Agent 被请求发言。
-2. 同一 Turn 中第二位 Agent 收到的会议上下文包含第一位 Agent 已正式提交的发言。
-3. 当前发言权被重新分配后，原 Agent 的迟到提交被拒绝且不进入 transcript。
-4. 长时间任务创建为 MeetingTask 后，合法的简短 `submit_turn` 可以释放发言权；任务完成后相关 Participant 可以申请后续发言。
+1. 创建包含至少三位 Agent 的会议后，至少两位可以同时获得独立任务并准备、提交待审稿；其中一位未完成，不阻止另一位通过审核后发布。同一身份在待审时不会再启动第二项发言任务。
+2. Participant 基于明确的公开 Transcript 版本准备，能获取后续相关正式内容；无关更新不要求重做，实质影响稿件的更新需要修订并重新审核。正式发布具有稳定顺序，无固定轮次或全员同步门槛。
+3. 指定贡献任务重新分配后，旧授权的迟到提交及审核不能发布；其他 Participant 的有效任务不受影响。
+4. 长时间工作交由 MeetingTask 后，不阻塞其他身份的独立贡献；任务完成后相关 Participant 可以申请后续贡献，其结果不绕过公开审核。
 5. 新出现但不影响目标验收的问题被记录为后续事项或待讨论事项，不阻止会议完成。
 6. 没有有效阻塞依据的问题不能阻止会议完成。
 7. Participant 不能为其他身份提交立场，也不能直接指定正式决策的接受者或状态；候选不是正式 Decision，且普通 Participant 不获得 pending candidate projection。
@@ -277,15 +284,15 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 9. MeetingTask 完成但 required review 未通过时，会议不能把对应产出标记为 accepted。
 10. 经过授权和证据验证的完成声明可以更新相应产出、验收条件、议题、问题或风险状态。
 11. 所有必要产出和验收条件满足后，即使存在非阻塞后续事项或少数意见，会议仍能正常完成。
-12. 最后一个 Turn 同时满足完成条件和硬限制时，结果为正常完成，而不是部分完成。
+12. 合法事实更新同时满足完成条件和预算边界时，结果为正常完成；即使另一位 Participant 仍有非阻塞准备任务，也不等待其提交或整轮结束。终态后的迟到提交、审核不能改变会议事实。
 13. 插件重启后，正式提交内容不丢失，重复投递不产生重复会议事实；request identity 相同且 validated request serialization 相同的重试必须重放原 receipt/result，identity 相同但 serialization 不同必须拒绝。
 14. 会议创建中断后，已经产生的会议专用 Session 仍能被确定性归属和安全关闭，不会影响其他会议或团队的 Session。
 15. `archived` 对外可见时，所有会议专用 Session 已停止、关闭并失去会议 capability；归档包不包含可恢复 Session、完整 Agent 运行配置或私有 Session 历史，但底层已关闭数据可以按 DSH retention policy 保留。
-16. 用户可以观察当前议题、发言计划、当前发言者、等待原因、阻塞项、异步任务、决策 history、当前 accepted decisions、按权限过滤的 pending candidates/risks 和结束原因；状态读取不得暴露 Session、capability 或 backend 物理细节。
+16. 用户可以观察当前议题、贡献安排、当前准备与待审任务、等待原因、阻塞项、异步任务、决策 history、当前 accepted decisions、按权限过滤的 pending candidates/risks 和结束原因；状态读取不得暴露 Session、capability 或 backend 物理细节。
 17. 更换 Agent 的内部 Skills、Tools 或执行顺序，在其仍遵守相同会议协议时，不改变会议编排的正确性。
 18. Agent 内部工具失败但随后仍能合法提交发言时，会议不会因此增加会议级失败计数。
 19. Participant、Manager 和 Captain 只能调用其获授权的 Convivium 会议操作，但 Convivium 不枚举或接管其普通 DSH Tools。
-20. 必需 Participant 不可调度时，本次规划失败并显示身份和原因；会议不产生部分计划，也不会在状态未变化时自动重复规划。
+20. 必需 Participant 不可调度时，依赖它的工作停止并显示身份和原因；无依赖的已授权工作继续，不自动替换或豁免必需身份，也不在状态未变化时重复安排同一不可用身份。
 21. Meeting-scoped mail 保存发送时上下文范围；延迟处理时补充截至处理开始的可见 transcript，随后重试使用同一固定范围。
 22. 同一个会议身份不会同时处理私聊和正式发言请求；mail 回复不会自动进入 transcript 或取得发言权。
 23. 普通 TeamMember mailbox 不携带会议上下文时保持原有行为；会议参与者不需要复用或伪装成 TeamMember Session 即可收发会议私聊。
@@ -318,7 +325,9 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 
 ## Confirmed Meeting Convergence Rules (D6-D10)
 
-本节把 2026-09-03 已确认的 D6-D10 提升为本需求的正式验收依据。D6 的 rule plan 使用 `recency = never spoke ? 15 : min(15, max(0, state.turnSeq - lastCommittedSpeakerTurnSeq))`，其中 `never spoke` 和 `lastCommittedSpeakerTurnSeq` 从已提交 transcript 推导，不新增持久字段；删除 repeated-content 分数 `-30`。consecutive penalty 只在再次选择会达到 `maxConsecutiveSpeechesPerSpeaker` 时应用。required Participant 永远先排；其余候选按既有 score 降序；同分按 `MeetingState.participants[]` index。required 数量超过 `maxSpeakersPerTurn` 不截断，必须进入 `waiting`。
+本节保留 2026-09-03 D6-D10 的串行流程基线，仅用于追溯既有实现和历史验证。2026-09-14 的 FR-3、FR-4、BR-1～BR-3 及对应验收标准已替代其中的轮次选择、全计划等待、fallback Turn 和按 Turn 检查停滞要求；以下算法不作为并行协作的新验收依据。并行模式的停滞检测、调度预算及失败处理仍须形成后续契约，不从旧字段推导默认值。身份、幂等、迟到拒绝和必要完成事实不因并行化而放宽。
+
+历史规则：D6 的 rule plan 使用 `recency = never spoke ? 15 : min(15, max(0, state.turnSeq - lastCommittedSpeakerTurnSeq))`，其中 `never spoke` 和 `lastCommittedSpeakerTurnSeq` 从已提交 transcript 推导，不新增持久字段；删除 repeated-content 分数 `-30`。consecutive penalty 只在再次选择会达到 `maxConsecutiveSpeechesPerSpeaker` 时应用。required Participant 永远先排；其余候选按既有 score 降序；同分按 `MeetingState.participants[]` index。required 数量超过 `maxSpeakersPerTurn` 不截断，必须进入 `waiting`。
 
 `selectionMode` 的语义固定为：`round_robin` 只使用 round-robin；`rule_based` 只使用 rule plan；`manager` 只使用 Manager；`hybrid` 仅当最后可用席位出现同分竞争、至少两个不同 Participant 拥有 current blocking objection、或 current convergence action 为 `refocus|replan` 时调用 Manager，其余情况直接使用 rule plan。Manager mode 始终为 `Manager`；Manager 不可用时不创建 planning attempt，直接使用 rule plan。
 

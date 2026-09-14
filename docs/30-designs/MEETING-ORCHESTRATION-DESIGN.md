@@ -6,6 +6,8 @@
 
 本文是实现设计，不表示功能已经完成。本文中的 `MUST`、`MUST NOT`、`SHOULD` 和 `MAY` 分别表示必须、禁止、建议和可选行为。
 
+2026-09-14 [Meeting Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) 已确认并行贡献与不依赖轮次的完成判断。本文的有序 Turn、单一 SpeakerAttempt、直接提交及按轮次收敛流程保留为既有设计基线，尚未按新需求迁移，不能约束新并行行为。后续设计须落实任务授权、审核发布、增量上下文、预算与停滞检测和在途工作处置；不同身份可并行不改变同一 DSH Session 的串行调用、原子提交或权限不变量。
+
 ## 2. Scope And Non-goals
 
 ### 2.1 Scope

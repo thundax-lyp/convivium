@@ -193,6 +193,16 @@ SQLite 构建仅有 Node SQLite experimental 与既有 Client bundle dependency 
 
 ## Not Covered
 
+- 2026-09-14 确认的[并行协作需求](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-3、FR-4、BR-1～BR-3 及对应验收尚未实现：不同身份并行准备与提交待审稿、按任务独立授权、审核后有序发布、依赖范围内等待，以及不依赖 Turn 的完成、预算和停滞处理。既有串行 SpeakerAttempt、D6-D10 与按轮次验证仅证明原基线，不证明修订后验收已通过；协议和设计已标明待迁移边界。
+
+- 2026-09-14 确认的[证据提交与公共访问要求](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md#evidence-submission-and-shared-access)尚未实现：公共证据材料保存与授权读取、待审与公开隔离、版本绑定、逐主张核验，以及代码固定基线和复现材料。现有正文引用或 artifact reference 不证明审核人能访问相同版本的完整材料。
+
+- 2026-09-14 确认的[协作求解主线](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md#collaborative-problem-solving)尚未完成验证：求解路径、关键未知、取证分析、路径修订与一致性方案之间的追溯，以及按问题缺口组织贡献，不能由既有发言或审核计数证明。
+
+- 独立证据审核尚未实现：关键及被质疑证据的核验安排、待核验标识、关联主张的审核结论与禁止自审，见[发言及证据审核需求](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md)。现有成果审核不能作为该能力的覆盖证据。
+
+- 2026-09-14 已确认的[发言边界审核](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md)尚未实现：当前没有先审后发布、越界退回重提及审核超时交由召集人处理的完整流程。正文指引不能替代准入控制，已有直接提交与投递测试不证明该新需求已覆盖。
+
 以下集中列出当前缺口；专项章节中的 fake/DOM/历史限定只解释证据的证明范围。
 
 | 范围 | 尚未实现或未验证 |
