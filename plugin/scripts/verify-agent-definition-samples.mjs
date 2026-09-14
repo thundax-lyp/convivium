@@ -100,9 +100,19 @@ export async function verifyMeetingAgentDefinitions(root) {
                     const [role, skill] = roles[i];
                     const allow =
                         i === 0
-                            ? ["skill", "convivium_meeting_status", "convivium_submit_manager_plan"]
+                            ? [
+                                  "skill",
+                                  "convivium_meeting_status",
+                                  "convivium_contribution",
+                                  "convivium_read_contribution"
+                              ]
                             : i === 8
-                              ? ["skill", "convivium_meeting_status", "convivium_submit_turn"]
+                              ? [
+                                    "skill",
+                                    "convivium_meeting_status",
+                                    "convivium_contribution",
+                                    "convivium_read_contribution"
+                                ]
                               : undefined;
                     const expectedFields = [...fields, ...(allow ? ["toolFilter"] : [])].sort();
                     if (
@@ -110,7 +120,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                         !same(Object.keys(d).sort(), expectedFields) ||
                         d.agentDefinitionId !== `convivium.${role}` ||
                         d.roleDefinitionId !== role ||
-                        d.definitionVersion !== "1.0.0" ||
+                        d.definitionVersion !== (i === 0 || i === 8 ? "1.1.0" : "1.0.0") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||
                         ![d.displayName, d.summary, d.roleDescription].every(nonempty) ||

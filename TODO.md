@@ -18,12 +18,6 @@
 
 ### 交付验证
 
-- [ ] `角色资源`：角色权限与 Scribe 闭环（T8c）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T8c。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：更新 Manager/Scribe 权限和版本，以及对应角色指导。
-    - 验收点：定义校验通过；Scribe 经真实工具过滤提交纪要并由 Manager 批准；无额外 claims 或历史定义回写。
-
 - [ ] `工程验证`：完整工程门禁（T9）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T9。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

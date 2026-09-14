@@ -656,7 +656,24 @@ function readDraft(value: unknown): ContributionDraftV1 {
     requiredText(message.id, "id");
     nonNegativeInteger(message.createdAt, "createdAt");
     const { id: _id, createdAt: _createdAt, ...body } = message;
-    normalizeBody({ ...body, changes: {} });
+    const minutesDraft =
+        body.minutesDraft === undefined
+            ? undefined
+            : readRecord(body.minutesDraft, ["status", "coverage", "referencedMessageIds"]);
+    if (minutesDraft !== undefined && minutesDraft.status !== "draft")
+        throw new TypeError("Invalid minutes draft status");
+    normalizeBody({
+        ...body,
+        ...(minutesDraft === undefined
+            ? {}
+            : {
+                  minutesDraft: {
+                      coverage: minutesDraft.coverage,
+                      referencedMessageIds: minutesDraft.referencedMessageIds
+                  }
+              }),
+        changes: {}
+    });
     const claims = readRecord(
         row.claims,
         ["questions", "issues", "proposals", "positions", "agendaCandidates", "decisionCandidates"],

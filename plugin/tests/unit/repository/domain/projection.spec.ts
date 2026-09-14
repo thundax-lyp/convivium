@@ -12,6 +12,8 @@ import {
 } from "@/repository/domain/projection.js";
 import { CommitRecordV1Schema } from "@/repository/domain/schemas.js";
 import { encodeCanonicalJson } from "@/repository/domain/canonical-json.js";
+import { meeting } from "../../domain/transitions/fixtures.js";
+const persistedMeeting = () => JSON.parse(JSON.stringify(meeting())) as Record<string, unknown>;
 describe("domain projection", () => {
     const bootstrap = {
         status: "ready" as const,
@@ -50,11 +52,7 @@ describe("domain projection", () => {
             decodeProjection(encodeCanonicalJson(withState({ count: 0 }))).snapshot?.state
         ).toEqual({ count: 0 });
         expect(
-            decodeProjection(
-                encodeCanonicalJson(
-                    withState({ formatVersion: 2, manager: {}, attendanceRecommendations: [] })
-                )
-            ).snapshot?.state
+            decodeProjection(encodeCanonicalJson(withState(persistedMeeting()))).snapshot?.state
         ).toMatchObject({ formatVersion: 2 });
         expect(() =>
             decodeProjection(encodeCanonicalJson(withState({ formatVersion: 3 })))
@@ -304,10 +302,9 @@ describe("attendance rejection persistence projection", () => {
     it("reads pending, rejected and legacy values without adding defaults", () => {
         for (const state of [
             { legacy: true },
-            { formatVersion: 2, manager: {}, attendanceRecommendations: [recommendation] },
+            { ...persistedMeeting(), attendanceRecommendations: [recommendation] },
             {
-                formatVersion: 2,
-                manager: {},
+                ...persistedMeeting(),
                 attendanceRecommendations: [{ ...recommendation, status: "rejected", rejection }]
             }
         ]) {

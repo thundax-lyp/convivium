@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DomainEventTypes } from "@/domain/model.js";
+import { meeting } from "../../domain/transitions/fixtures.js";
+const persistedMeeting = () => JSON.parse(JSON.stringify(meeting())) as Record<string, unknown>;
 import {
     CatalogMeetingRecordV1Schema,
     CheckpointPageV1Schema,
@@ -276,11 +278,9 @@ describe("Meeting persistence record schemas", () => {
                 updatedAt: 1
             }
         });
-        expect(
-            PersistenceProjectionV1Schema.safeParse(
-                withState({ formatVersion: 2, manager: {}, attendanceRecommendations: [] })
-            ).success
-        ).toBe(true);
+        expect(PersistenceProjectionV1Schema.safeParse(withState(persistedMeeting())).success).toBe(
+            true
+        );
         expect(
             PersistenceProjectionV1Schema.safeParse(
                 withState({ formatVersion: 2, manager: {}, attendanceRecommendations: undefined })

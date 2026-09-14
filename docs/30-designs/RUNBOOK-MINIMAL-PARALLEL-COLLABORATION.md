@@ -176,28 +176,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T8c：角色权限与 Scribe 闭环
-
-前置状态：T8b PASS。
-允许修改：`plugin/meeting-roles/definitions.json`；`plugin/meeting-roles/README.md`；`plugin/meeting-roles/presets/convivium/skills/meeting-management/SKILL.md`；`plugin/meeting-roles/presets/convivium/skills/verification-review/SKILL.md`；`plugin/meeting-roles/presets/convivium/skills/referenced-minutes/SKILL.md`；`plugin/tests/contract/meeting-roles-deployment.spec.ts`；`plugin/tests/contract/contribution-runtime.spec.ts`。
-禁止修改：其它 Definition 版本、已固化 Session descriptor、模型/provider。
-
-执行：
-1. 按 Design 更新 Manager/Scribe allowlist 与 1.1.0 版本，其余 Definition 不变；三个 Skill 的当前贡献入口、精确审核、纪要 claims 限制按固定契约；不提供旧 Turn 指导。
-2. 新增 describe="contribution scribe authorization"：真实角色过滤允许新 submit/read，合法 summary/minutesDraft 经 Manager approve 后公开，零额外 claims；不新增旧纪要兼容分支。
-3. 按下面固定命令分别验证部署资源、运行行为和完整类型检查。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/contract/meeting-roles-deployment.spec.ts tests/contract/contribution-runtime.spec.ts
-pnpm --dir plugin verify:agent-definitions
-pnpm --dir plugin typecheck
-```
-
-PASS：命令退出 0；角色资源部署与 Scribe 当前贡献链路通过；没有回写历史定义或扩大其他角色权限。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
-
 ### T9：完整工程验证
 
 前置状态：T8c PASS。

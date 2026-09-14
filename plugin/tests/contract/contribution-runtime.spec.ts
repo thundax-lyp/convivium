@@ -20,6 +20,9 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { MeetingToolRuntime } from "@/runtime/index.js";
 import { createMeetingDeliveryDispatcher } from "@/runtime/services/meeting-dispatch-service.js";
 import { createOutboxWorker } from "@/runtime/outbox-worker.js";
+import { parseAgentDefinitions } from "@/role-composition/model.js";
+import { resolveMeetingRoles } from "@/role-composition/resolve.js";
+import { readFileSync } from "node:fs";
 import {
     scanContributionTimeouts,
     recordContributionDeliveryFailure
@@ -192,6 +195,224 @@ describe("contribution agenda advancement", () => {
             expect(await f.application.controlLocalContribution(command, f.signal)).toEqual(result);
             expect(loadProjection({ domain: f.domain })).toEqual(projection);
             expect(f.interrupt).toHaveBeenCalledTimes(1);
+        } finally {
+            await f.repository.close();
+        }
+    });
+});
+
+describe("contribution scribe authorization", () => {
+    it("filters Scribe to current tools and publishes an approved referenced summary without claims", async () => {
+        const f = await fixture();
+        try {
+            const definitions: ToolDefinition[] = [];
+            registerSubmitAndControlTools({
+                registry: {
+                    register: (definition) => {
+                        definitions.push(definition);
+                        return () => undefined;
+                    }
+                },
+                runtime: f.application as MeetingToolRuntime,
+                callers: {
+                    resolve: (agent, abort) =>
+                        resolveMeetingCaller(
+                            agent,
+                            {
+                                async findBySessionId(sessionId: string) {
+                                    const ownership = (
+                                        await f.repository.recover()
+                                    ).sessionOwnership.find((item) => item.sessionId === sessionId);
+                                    return ownership === undefined
+                                        ? undefined
+                                        : { teamId: "team-1", meetingId: "meeting-1", ownership };
+                                }
+                            },
+                            abort
+                        )
+                }
+            });
+            const deployed = parseAgentDefinitions(
+                JSON.parse(
+                    readFileSync(
+                        new URL("../../meeting-roles/definitions.json", import.meta.url),
+                        "utf8"
+                    )
+                ).definitions
+            );
+            const roles = await resolveMeetingRoles(
+                {
+                    definitions: deployed,
+                    participants: [
+                        {
+                            participantKey: "scribe",
+                            agentDefinitionId: "convivium.meeting_scribe"
+                        }
+                    ]
+                },
+                async () => undefined
+            );
+            const allowed = new Set(roles.participants.scribe!.toolFilter!.allow);
+            const scribeTools = definitions.filter(({ name }) => allowed.has(name));
+            expect(scribeTools.map(({ name }) => name).sort()).toEqual([
+                "convivium_contribution",
+                "convivium_read_contribution"
+            ]);
+            const invoke = async (name: string, input: object, sessionId: string) =>
+                scribeTools.find((definition) => definition.name === name)!.execute!(
+                    { input: JsonObjectSchema.parse(input) },
+                    { agent: { id: sessionId } as Agent, signal: f.signal } as ToolRunContext
+                );
+            const version = () => f.repository.read().then(({ version }) => version);
+            const sourceAssignment = await f.application.applyContribution(
+                { ...f.assign(await version()), requestId: "assign-source" },
+                f.manager,
+                f.signal
+            );
+            if (!sourceAssignment.ok || !("contributionId" in sourceAssignment.result))
+                throw new Error("Source assignment failed");
+            const sourceContributionId = sourceAssignment.result.contributionId;
+            expect(
+                await f.application.applyContribution(
+                    {
+                        protocolVersion: 1,
+                        meetingId: "meeting-1",
+                        requestId: "submit-source",
+                        expectedMeetingVersion: await version(),
+                        action: "submit",
+                        contributionId: sourceContributionId,
+                        generation: 1,
+                        expectedDraftRevision: 0,
+                        basedOnSeq: 0,
+                        body: {
+                            kind: "statement",
+                            content: "Source statement",
+                            mentions: [],
+                            taskIds: [],
+                            agendaRelation: "on_topic",
+                            changes: {}
+                        },
+                        citations: []
+                    },
+                    f.author,
+                    f.signal
+                )
+            ).toMatchObject({ ok: true, result: { phase: "boundary_review" } });
+            const sourceApproved = await f.application.applyContribution(
+                {
+                    protocolVersion: 1,
+                    meetingId: "meeting-1",
+                    requestId: "approve-source",
+                    expectedMeetingVersion: await version(),
+                    action: "boundary_review",
+                    contributionId: sourceContributionId,
+                    generation: 1,
+                    draftRevision: 1,
+                    decision: "approve",
+                    reason: "Within scope",
+                    checkedThroughSeq: 0
+                },
+                f.manager,
+                f.signal
+            );
+            if (!sourceApproved.ok || !("messageId" in sourceApproved.result))
+                throw new Error("Source approval failed");
+            const sourceMessageId = sourceApproved.result.messageId!;
+            const assigned = await f.application.applyContribution(
+                {
+                    ...f.assign(await version()),
+                    requestId: "assign-scribe",
+                    participantId: "participant-2",
+                    instruction: "Prepare referenced minutes"
+                },
+                f.manager,
+                f.signal
+            );
+            if (!assigned.ok || !("contributionId" in assigned.result))
+                throw new Error("Scribe assignment failed");
+            const contributionId = assigned.result.contributionId;
+            expect(
+                await invoke(
+                    "convivium_contribution",
+                    {
+                        protocolVersion: 1,
+                        meetingId: "meeting-1",
+                        requestId: "submit-scribe",
+                        expectedMeetingVersion: await version(),
+                        action: "submit",
+                        contributionId,
+                        generation: 1,
+                        expectedDraftRevision: 0,
+                        basedOnSeq: 1,
+                        body: {
+                            kind: "summary",
+                            content: "Referenced summary",
+                            mentions: [],
+                            taskIds: [],
+                            agendaRelation: "on_topic",
+                            changes: {},
+                            minutesDraft: {
+                                coverage: { fromSeq: 1, throughSeq: 1 },
+                                referencedMessageIds: [sourceMessageId]
+                            }
+                        },
+                        citations: []
+                    },
+                    "author-2"
+                )
+            ).toMatchObject({ result: { phase: "boundary_review", draftRevision: 1 } });
+            expect(
+                await invoke(
+                    "convivium_read_contribution",
+                    { protocolVersion: 1, meetingId: "meeting-1", contributionId },
+                    "author-2"
+                )
+            ).toMatchObject({ result: { drafts: [{ revision: 1 }] } });
+            expect(
+                await f.application.applyContribution(
+                    {
+                        protocolVersion: 1,
+                        meetingId: "meeting-1",
+                        requestId: "approve-scribe",
+                        expectedMeetingVersion: await version(),
+                        action: "boundary_review",
+                        contributionId,
+                        generation: 1,
+                        draftRevision: 1,
+                        decision: "approve",
+                        reason: "Accurate summary",
+                        checkedThroughSeq: 1
+                    },
+                    f.manager,
+                    f.signal
+                )
+            ).toMatchObject({ ok: true, result: { phase: "published" } });
+            const state = (await f.repository.read()).state as unknown as MeetingState;
+            expect(state.transcript[1]).toMatchObject({
+                kind: "summary",
+                content: "Referenced summary",
+                minutesDraft: {
+                    coverage: { fromSeq: 1, throughSeq: 1 },
+                    referencedMessageIds: [sourceMessageId]
+                }
+            });
+            expect({
+                questions: state.openQuestions,
+                issues: state.issues,
+                proposals: state.proposals,
+                positions: state.proposals.flatMap((proposal) => proposal.positions),
+                agendaCandidates: state.agendaCandidates,
+                decisionCandidates: state.decisionCandidates,
+                completionFacts: state.completionFacts
+            }).toEqual({
+                questions: [],
+                issues: [],
+                proposals: [],
+                positions: [],
+                agendaCandidates: [],
+                decisionCandidates: [],
+                completionFacts: []
+            });
         } finally {
             await f.repository.close();
         }

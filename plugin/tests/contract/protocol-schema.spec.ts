@@ -723,6 +723,7 @@ describe("protocol envelope schemas", () => {
                     }
                 ],
                 limits: { maxDurationMs: 60_000 },
+                evidenceReviewerKey: "reviewer",
                 participants: [
                     { participantKey: "reviewer", displayName: "Reviewer" },
                     { participantKey: "captain", displayName: "Captain" }
@@ -746,7 +747,8 @@ describe("protocol envelope schemas", () => {
                     acceptableRiskLevel: "low"
                 },
                 agenda: [],
-                participants: [],
+                evidenceReviewerKey: "reviewer",
+                participants: [{ participantKey: "reviewer", displayName: "Reviewer" }],
                 limits: { maxTurns: 3 }
             })
         ).toThrow(/agenda item/);

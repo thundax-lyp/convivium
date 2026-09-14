@@ -12,6 +12,6 @@ user-invocable: true
 3. 区分直接记录、已接受决定、参与者观点与压缩表述
 4. 报告缺失引用和相互冲突，不补造材料或把草稿当作正式决定
 
-正式提交必须复用当前 Speaker 投递附带的 `convivium_submit_turn` envelope 和身份字段，不猜测字段名或旧 attempt。引用式纪要使用 `kind="summary"`、`agendaRelation="on_topic"`、`changes={}`、`taskIds=[]`，省略 `replyTo` 与 `completionClaims`；`minutesDraft.coverage.fromSeq` 固定取 `max(1, contextFromSeq)`。没有可引用正式消息时省略 `minutesDraft`，只提交普通发言。
+收到当前 contribution context 后，使用 `convivium_read_contribution` 核对引用的精确稿件或材料版本，再复用上下文中的 `meetingId`、`contributionId`、`generation` 和当前版本，通过 `convivium_contribution` 提交。引用式纪要使用 `kind="summary"`、`agendaRelation="on_topic"`、`changes={}`、`taskIds=[]`、`citations=[]`，省略 `replyTo` 与 `completionClaims`；`minutesDraft.coverage` 只覆盖上下文中连续可引用的正式消息，`referencedMessageIds` 只列该范围内的 canonical message ID。没有可引用正式消息时不提交纪要稿，报告材料缺口。稿件须经 Manager 对精确 draft revision 批准后才公开。
 
 只报告实际观察或执行的结果，说明证据不足与适用限制。工具和角色文本不扩大 Host 或任务授予的权限。

@@ -645,7 +645,8 @@ describe("meeting tool registration", () => {
                         requiredParticipantKeys: []
                     }
                 ],
-                participants: []
+                evidenceReviewerKey: "reviewer",
+                participants: [{ participantKey: "reviewer", displayName: "Reviewer" }]
             },
             convivium_meeting_status: { protocolVersion: 1, meetingId: "meeting-1" },
             convivium_create_meeting_task: {
