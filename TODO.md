@@ -16,12 +16,6 @@
 
 ### 协作闭环
 
-- [ ] `DSH 投递`：Session adapter 与投递队列（T5b）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T5b。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现新 adapter、dispatcher 分支及按真实 Session 串行投递。
-    - 验收点：同 Session 无重叠发送；不同 Session 独立；接收失败不 ack；前后授权检查通过。
-
 - [ ] `会议工具`：工具装配与并行闭环（T5c）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T5c。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

@@ -1,4 +1,52 @@
 import Schema from "@deepseek-ai/schemastery";
+import type {
+    PublicObjectiveContractV1,
+    PublicAgendaItemV1,
+    PublicMeetingMessageV1,
+    PublicDecisionV1,
+    PublicBlockingFactV1
+} from "./types.js";
+
+export type ContributionDelivery =
+    | {
+          role: "contribution";
+          contributionId: string;
+          generation: number;
+          purpose: "prepare" | "evidence_review";
+          draftRevision: number;
+          contextThroughSeq: number;
+      }
+    | { role: "contribution_manager"; noticeSeq: number; contextThroughSeq: number };
+
+export interface ContributionPublicContextV1 {
+    topic: string;
+    objective: string;
+    objectiveContract: PublicObjectiveContractV1;
+    activeAgendaItem: PublicAgendaItemV1;
+    messages: readonly PublicMeetingMessageV1[];
+    acceptedDecisions: readonly PublicDecisionV1[];
+    blockingFacts: readonly PublicBlockingFactV1[];
+    participants: readonly { id: string; displayName: string }[];
+}
+
+export interface ContributionContextV1 {
+    protocolVersion: 1;
+    meetingId: string;
+    meetingVersion: number;
+    deliveryId: string;
+    purpose: "prepare" | "evidence_review" | "manager";
+    contextThroughSeq: number;
+    publicContext: ContributionPublicContextV1;
+    work:
+        | {
+              kind: "prepare";
+              task: ContributionSummaryV1;
+              instruction: string;
+              returnReason?: string;
+          }
+        | { kind: "evidence_review"; submission: ReadContributionResultV1 }
+        | { kind: "manager"; pending: readonly ContributionSummaryV1[] };
+}
 import { TurnSubmissionSchema } from "./commands.js";
 import { ProtocolVersionSchema } from "./schema.js";
 import type {

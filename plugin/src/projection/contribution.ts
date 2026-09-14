@@ -13,6 +13,98 @@ import {
     type ReadContributionResultV1
 } from "@/protocol/index.js";
 import type { MeetingProjectionCaller } from "./status.js";
+import { projectMeetingStatus } from "./status.js";
+import type { ContributionContextV1, ContributionDelivery } from "@/protocol/index.js";
+
+export function projectContributionContext(
+    state: MeetingState,
+    viewer: MeetingProjectionCaller,
+    delivery: ContributionDelivery,
+    deliveryId: string
+): ContributionContextV1 {
+    if (!isMeetingStateV2(state) || state.contributions === undefined)
+        throw new DomainError("INVALID_ARGUMENT", "Invalid contribution state.");
+    const status = projectMeetingStatus(state, viewer);
+    if (!("messages" in status) || status.activeAgendaItem === undefined)
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            "Contribution context requires an active agenda."
+        );
+    let work: ContributionContextV1["work"];
+    if (delivery.role === "contribution_manager") {
+        if (viewer.kind !== "manager") denied();
+        work = {
+            kind: "manager",
+            pending: projectContributionSummaries(state, viewer).filter(
+                (task) =>
+                    task.phase !== "cancelled" &&
+                    (task.phase !== "published" ||
+                        task.reviewStatus === "pending" ||
+                        task.reviewStatus === "captain_action")
+            )
+        };
+    } else if (delivery.purpose === "prepare") {
+        const task = state.contributions.tasks[delivery.contributionId];
+        if (task === undefined || !author(task, viewer)) denied();
+        work = {
+            kind: "prepare",
+            task: summary(task),
+            instruction: task.instruction,
+            ...(task.phase === "returned" && task.reason !== undefined
+                ? { returnReason: task.reason }
+                : {})
+        };
+    } else {
+        work = {
+            kind: "evidence_review",
+            submission: projectContributionRead(state, viewer, {
+                protocolVersion: 1,
+                meetingId: state.id,
+                contributionId: delivery.contributionId,
+                draftRevision: delivery.draftRevision
+            })
+        };
+    }
+    return {
+        protocolVersion: 1,
+        meetingId: state.id,
+        meetingVersion: state.version,
+        deliveryId,
+        purpose: delivery.role === "contribution_manager" ? "manager" : delivery.purpose,
+        contextThroughSeq: delivery.contextThroughSeq,
+        publicContext: {
+            topic: state.topic,
+            objective: state.objective,
+            objectiveContract: {
+                requiredOutputs: state.objectiveContract.requiredOutputs.map((v) => ({
+                    id: v.id,
+                    description: v.description,
+                    status: v.status
+                })),
+                acceptanceCriteria: state.objectiveContract.acceptanceCriteria.map((v) => ({
+                    id: v.id,
+                    description: v.description,
+                    satisfied: v.satisfied
+                })),
+                hardConstraints: state.objectiveContract.hardConstraints.map((v) => ({
+                    id: v.id,
+                    description: v.description
+                })),
+                requiredReviewers: [...state.objectiveContract.requiredReviewers],
+                riskAcceptanceAuthority: [...state.objectiveContract.riskAcceptanceAuthority],
+                acceptableRiskLevel: state.objectiveContract.acceptableRiskLevel
+            },
+            activeAgendaItem: status.activeAgendaItem,
+            messages: status.messages.filter(
+                (message) => message.seq <= delivery.contextThroughSeq
+            ),
+            acceptedDecisions: status.acceptedDecisions,
+            blockingFacts: status.blockingFacts,
+            participants: state.participants.map((v) => ({ id: v.id, displayName: v.displayName }))
+        },
+        work
+    };
+}
 
 function summary(task: ContributionTask): ContributionSummaryV1 {
     return {

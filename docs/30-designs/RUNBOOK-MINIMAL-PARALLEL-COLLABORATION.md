@@ -177,26 +177,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T5b：Session adapter 与投递队列
-
-前置状态：T5a PASS。
-允许修改：`plugin/src/runtime/services/meeting-dispatch-service.ts`；`plugin/src/dsh/session-adapter.ts`；`plugin/src/dsh/index.ts`；`plugin/src/dsh/provisioning.ts`；`plugin/tests/unit/runtime/contribution-dispatch.spec.ts`。
-禁止修改：工具注册、outbox-worker 算法、模型执行循环。
-
-执行：
-1. 实现 followupContributionSession 与两个 dispatcher 分支；按实际 ownership.sessionId 排队，Manager 同样串行。
-2. before/after 查 ownership 与任务 generation，DSH 接受后才 ack；当前 Manager notice 以外的旧通知直接 ack。
-3. 用 gate 覆盖同 Session 不重叠、两个 Session 独立、接受失败不 ack、post-send revoke、旧 generation 与重复 outbox；初始 provisioning 文案只建立身份，不提前授权。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/unit/runtime/contribution-dispatch.spec.ts tests/unit/runtime/meeting-manager-dispatch.spec.ts tests/unit/runtime/meeting-speaker-dispatch.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：命令退出 0；新旧投递授权成立；外部接受与业务完成区分；共享 Session 队列无并发发送。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
 ### T5c：工具装配与并行闭环
 
 前置状态：T5b PASS。
