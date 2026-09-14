@@ -116,3 +116,7 @@ export interface MeetingRefreshNoticeV1 {
 
 - [Remote Design](../30-designs/MEETING-REMOTE-DESIGN.md)
 - [Remote Migration Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-remote-migration)
+
+## Minimal Contribution Methods
+
+目标新增 readContribution 和 controlContribution（仅 retry/cancel/notify_manager），具体 DTO、权限和错误见 [Contribution Interface](./MEETING-CONTRIBUTION-INTERFACE.md#projection-read-and-archive)。保持 loopback、16384 bytes 输入限制、AbortSignal 和已有刷新流；本地用户不代行边界审核／证据核验。尚未实现，原有方法保持各自适用边界。

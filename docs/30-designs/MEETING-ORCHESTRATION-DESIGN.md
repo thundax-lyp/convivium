@@ -1299,3 +1299,7 @@ After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fing
 8. Archived Meeting 不保留私有 AgentSession，续会不恢复旧权限和上下文。
 9. Manager 只能推荐 authorized Catalog candidate；Captain 批准和独立 Session provisioning 完成前，该 Agent 不是 Participant，也不能取得发言或权限。
 10. Definition 存在不等于 DSH capability 已安装；共享父 Preset 首版按 FR-14 验收，独立 per-child Preset 不得宣称已实现。
+
+## Minimal Contribution Execution
+
+最小切片的状态转换、文件／符号、Session 接受与业务完成、暂停／恢复／结束流程已固定于 [Contribution Design](./MEETING-CONTRIBUTION-DESIGN.md)，数据结构见 [Domain Model](./DOMAIN-MODEL-DESIGN.md#minimal-contribution-state)。新会议不调用 Turn 推进；旧会议继续既有状态机收尾。本文旧编排不覆盖该目标，尚未实现。

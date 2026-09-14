@@ -193,6 +193,8 @@ SQLite 构建仅有 Node SQLite experimental 与既有 Client bundle dependency 
 
 ## Not Covered
 
+- 2026-09-14 用户确认按[最小交付范围](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md#minimal-delivery-scope)分阶段实施；本轮只编写执行计划；目标字段与流程已固定于[贡献接口](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md)和[贡献设计](../30-designs/MEETING-CONTRIBUTION-DESIGN.md)，尚无产品实现或验证证据。主动申请、自动增量判断、自动抓取与执行验证、自动关联重审、动态入会及复杂调度不属于首个切片，完整目标需求仍未覆盖。
+
 - 2026-09-14 确认的[并行协作需求](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-3、FR-4、BR-1～BR-3 及对应验收尚未实现：不同身份并行准备与提交待审稿、按任务独立授权、审核后有序发布、依赖范围内等待，以及不依赖 Turn 的完成、预算和停滞处理。既有串行 SpeakerAttempt、D6-D10 与按轮次验证仅证明原基线，不证明修订后验收已通过；协议和设计已标明待迁移边界。
 
 - 2026-09-14 确认的[证据提交与公共访问要求](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md#evidence-submission-and-shared-access)尚未实现：公共证据材料保存与授权读取、待审与公开隔离、版本绑定、逐主张核验，以及代码固定基线和复现材料。现有正文引用或 artifact reference 不证明审核人能访问相同版本的完整材料。

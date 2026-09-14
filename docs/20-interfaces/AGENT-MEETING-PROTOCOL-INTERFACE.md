@@ -1606,3 +1606,7 @@ Convivium 当前依赖固定为 DSH `0.1.2-rc.1`，并使用该版本的 `dsh-su
 ## Captain rejection slice
 
 当前 command 仅支持 `decision="reject"`，结果仅为 `disposition="rejected"`，不包含 admissionId/participantId。批准及 admission 仍为尚未实现的未来能力。精确输入校验、validated-input hash、Canonical rejection、领域事件、公开状态、归档与失败顺序以 [Role Catalog Interface 的 Captain rejection slice](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md#captain-rejection-slice) 为唯一完整契约。当前协议、Captain Runtime、DSH 工具、status/archive 接线及 JSONL reopen 已实现并验证；真实 Loader 的缺失推荐拒绝路径已通过。验证边界见 [Captain Attendance Rejection 验证索引](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#captain-attendance-rejection)。
+
+## Minimal Contribution Contract
+
+新建最小并行会议的字段、工具、权限、状态与旧入口处置由 [Contribution Interface](./MEETING-CONTRIBUTION-INTERFACE.md) 固定。本文的旧 Turn 契约保留给历史记录与其收尾；目标契约尚未实现。
