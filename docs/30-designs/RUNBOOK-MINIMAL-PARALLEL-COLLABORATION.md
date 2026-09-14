@@ -177,27 +177,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T5c：工具装配与并行闭环
-
-前置状态：T5b PASS。
-允许修改：`plugin/src/tools/register-tools.ts`；`plugin/src/runtime/application-service/index.ts`；`plugin/tests/contract/tool-registration.spec.ts`；`plugin/tests/contract/contribution-runtime.spec.ts`。
-禁止修改：新的存储语义、adapter 重构、公开新建切换。
-
-执行：
-1. 注册两个工具并接 T5a application，复用真实 caller resolver；worker 消费 T5b 新角色 payload。
-2. 新增 describe="contribution tool concurrency"：使用真实工具注册/权限与真实 repository、受控 DSH gate，A 研究未返回时 B 已收到任务并提交；再检查 A 迟到拒绝与重复发布幂等。
-3. 通过工具结果和 durable state 证明闭环，不以 Promise.all、日志数量或 role 字符串代替权限与并行证据。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/contract/tool-registration.spec.ts tests/contract/contribution-runtime.spec.ts tests/unit/runtime/contribution-dispatch.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：命令退出 0；完整工具到 commit 到投递链路通过；不同作者不等待研究结果；同身份串行。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
-
 ### T6a：完成判定与终止撤权
 
 前置状态：T5c PASS。

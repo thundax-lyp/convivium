@@ -16,12 +16,6 @@
 
 ### 协作闭环
 
-- [ ] `会议工具`：工具装配与并行闭环（T5c）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T5c。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：注册贡献工具并接通事务、worker 和投递链路。
-    - 验收点：A 研究未返回时 B 已收到任务并提交；迟到提交拒绝；重复发布幂等。
-
 - [ ] `完成与终止`：完成判定与终止撤权（T6a）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T6a。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

@@ -172,6 +172,7 @@ export function applyContributionCommand(
                     meetingVersion: state.version + 1
                 }
             },
+            ...published.effect.events,
             {
                 type: "contribution.manager_notified" as const,
                 payload: {
@@ -180,8 +181,7 @@ export function applyContributionCommand(
                     actor: "manager",
                     at: context.now
                 }
-            },
-            ...published.effect.events
+            }
         ];
         return {
             state: {
@@ -370,14 +370,17 @@ export function applyContributionCommand(
             deadlineAt: context.now + 600000,
             updatedAt: context.now
         };
+        const managerNoticeSeq = state.contributions.managerNoticeSeq + 1;
         return {
             state: {
                 ...state,
                 contributions: {
                     ...state.contributions,
+                    managerNoticeSeq,
+                    managerDeadlineAt: context.now + 600_000,
                     tasks: { ...state.contributions.tasks, [task.id]: next }
                 },
-                eventSeq: state.eventSeq + 1
+                eventSeq: state.eventSeq + 2
             },
             effect: {
                 events: [
@@ -387,6 +390,15 @@ export function applyContributionCommand(
                             contributionId: task.id,
                             generation: task.generation,
                             draftRevision: draft.revision,
+                            actor: task.participantId,
+                            at: context.now
+                        }
+                    },
+                    {
+                        type: "contribution.manager_notified",
+                        payload: {
+                            noticeSeq: managerNoticeSeq,
+                            contextThroughSeq: state.messageSeq,
                             actor: task.participantId,
                             at: context.now
                         }

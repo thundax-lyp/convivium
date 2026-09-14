@@ -11,6 +11,14 @@ import {
     createFakeDomainFacility
 } from "../fixtures/domain-storage.js";
 import type { ContributionCommandV1 } from "@/protocol/index.js";
+import { ContributionResultSchema } from "@/protocol/index.js";
+import { encodeMeetingSessionLabel, resolveMeetingCaller } from "@/dsh/index.js";
+import { registerSubmitAndControlTools } from "@/tools/index.js";
+import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
+import type { Agent } from "@deepseek-ai/dsh-agent";
+import type { MeetingToolRuntime } from "@/runtime/index.js";
+import { createMeetingDeliveryDispatcher } from "@/runtime/services/meeting-dispatch-service.js";
+import { createOutboxWorker } from "@/runtime/outbox-worker.js";
 
 async function fixture() {
     const domain = createFakeMeetingDomain();
@@ -25,7 +33,12 @@ async function fixture() {
     });
     const state = contributionMeeting();
     delete state.termination;
-    state.contributions = createContributionState("participant-2", now);
+    state.participants.push({
+        ...state.participants[1]!,
+        id: "participant-3",
+        displayName: "Reviewer"
+    });
+    state.contributions = createContributionState("participant-3", now);
     state.meetingTasks = [];
     const create = {
         requestId: "create",
@@ -38,7 +51,8 @@ async function fixture() {
     for (const [sessionId, role, participantId] of [
         ["manager-1", "manager", undefined],
         ["author-1", "participant", "participant-1"],
-        ["reviewer-1", "participant", "participant-2"]
+        ["author-2", "participant", "participant-2"],
+        ["reviewer-1", "participant", "participant-3"]
     ] as const) {
         await repository.recordSessionOwnership(
             {
@@ -46,7 +60,16 @@ async function fixture() {
                 role,
                 ...(participantId === undefined ? {} : { participantId }),
                 parentSessionId: "captain-1",
-                sessionLabel: sessionId,
+                sessionLabel: encodeMeetingSessionLabel(
+                    role === "manager"
+                        ? { role, meetingId: "meeting-1", teamId: "team-1" }
+                        : {
+                              role,
+                              meetingId: "meeting-1",
+                              teamId: "team-1",
+                              participantId: participantId!
+                          }
+                ),
                 provider: "fixture",
                 lifecycleStatus: "active",
                 capabilityStatus: "active"
@@ -197,7 +220,7 @@ describe("contribution application transactions", () => {
                         kind: "participant",
                         sessionId: "reviewer-1",
                         meetingId: "meeting-1",
-                        participantId: "participant-2"
+                        participantId: "participant-3"
                     },
                     f.signal
                 )
@@ -207,6 +230,214 @@ describe("contribution application transactions", () => {
             });
             expect(loadProjection({ domain: f.domain })).toEqual(committed);
         } finally {
+            await f.repository.close();
+        }
+    });
+});
+
+describe("contribution tool concurrency", () => {
+    it("delivers B and commits its exact draft while A is researching, then rejects cancelled A and replays publication", async () => {
+        const f = await fixture();
+        const definitions: ToolDefinition[] = [];
+        const signal = f.signal;
+        const lookup = {
+            async findBySessionId(sessionId: string) {
+                const ownership = (await f.repository.recover()).sessionOwnership.find(
+                    (v) => v.sessionId === sessionId
+                );
+                return ownership === undefined
+                    ? undefined
+                    : { teamId: "team-1", meetingId: "meeting-1", ownership };
+            }
+        };
+        registerSubmitAndControlTools({
+            registry: {
+                register: (definition) => {
+                    definitions.push(definition);
+                    return () => undefined;
+                }
+            },
+            runtime: f.application as MeetingToolRuntime,
+            callers: { resolve: (agent, abort) => resolveMeetingCaller(agent, lookup, abort) }
+        });
+        const tool = definitions.find((v) => v.name === "convivium_contribution")!;
+        async function invoke(input: object, sessionId: string): Promise<unknown> {
+            return tool.execute!({ input: JsonObjectSchema.parse(input) }, {
+                agent: { id: sessionId } as Agent,
+                signal
+            } as ToolRunContext);
+        }
+        function id(result: unknown): string {
+            if (!result || typeof result !== "object" || !("result" in result))
+                throw new Error("Expected successful contribution result");
+            const parsed = ContributionResultSchema(result.result);
+            if (!("contributionId" in parsed)) throw new Error("Missing contribution ID");
+            return parsed.contributionId;
+        }
+        const command = async (requestId: string) => ({
+            protocolVersion: 1,
+            meetingId: "meeting-1",
+            requestId,
+            expectedMeetingVersion: (await f.repository.read()).version
+        });
+        let releaseA!: () => void, releaseB!: () => void;
+        const researchA = new Promise<void>((resolve) => {
+            releaseA = resolve;
+        });
+        const admissionB = new Promise<void>((resolve) => {
+            releaseB = resolve;
+        });
+        let aWork: Promise<unknown> | undefined,
+            bWork: Promise<unknown> | undefined,
+            aReturned = false;
+        const received: string[] = [];
+        let worker: ReturnType<typeof createOutboxWorker> | undefined;
+        try {
+            const assignment = {
+                action: "assign",
+                agendaItemId: "agenda-1",
+                instruction: "Research",
+                targetIds: [],
+                requiredForCompletion: false,
+                requiresEvidenceReview: false
+            };
+            const a = id(
+                await invoke(
+                    {
+                        ...(await command("assign-a")),
+                        ...assignment,
+                        participantId: "participant-1"
+                    },
+                    "manager-1"
+                )
+            );
+            const b = id(
+                await invoke(
+                    {
+                        ...(await command("assign-b")),
+                        ...assignment,
+                        participantId: "participant-2"
+                    },
+                    "manager-1"
+                )
+            );
+            const submit = async (contributionId: string, sessionId: string, text: string) =>
+                invoke(
+                    {
+                        ...(await command(`submit-${sessionId}`)),
+                        action: "submit",
+                        contributionId,
+                        generation: 1,
+                        expectedDraftRevision: 0,
+                        basedOnSeq: 0,
+                        citations: [],
+                        body: {
+                            kind: "statement",
+                            content: text,
+                            mentions: [],
+                            taskIds: [],
+                            agendaRelation: "on_topic",
+                            changes: {}
+                        }
+                    },
+                    sessionId
+                );
+            const sendMessage = vi.fn(async (_parent, sessionId: string) => {
+                received.push(sessionId);
+                if (sessionId === "author-1")
+                    aWork = researchA.then(async () => {
+                        aReturned = true;
+                        return submit(a, "author-1", "late A");
+                    });
+                if (sessionId === "author-2")
+                    bWork = admissionB.then(() => submit(b, "author-2", "exact B statement"));
+                return "DSH accepted";
+            });
+            const dispatcher = createMeetingDeliveryDispatcher({
+                continuable: { sendMessage },
+                now: () => now
+            });
+            worker = createOutboxWorker({
+                repository: f.repository,
+                owner: "contribution-worker",
+                ttlMs: 10000,
+                batchSize: 8,
+                pollMs: 1000,
+                now: () => now,
+                dispatch: (item, abort) =>
+                    dispatcher.dispatch({
+                        repository: f.repository,
+                        parent: { id: "captain-1" } as Agent,
+                        meetingId: "meeting-1",
+                        signal: abort,
+                        item
+                    })
+            });
+            expect(await worker.runOnce()).toMatchObject({ delivered: 2 });
+            expect(received).toEqual(["author-1", "author-2"]);
+            expect(aReturned).toBe(false);
+            releaseB();
+            expect(await bWork).toMatchObject({
+                ok: true,
+                result: { phase: "boundary_review", draftRevision: 1 }
+            });
+            expect(aReturned).toBe(false);
+            const draftSnapshot = (await f.repository.read()).state;
+            expect(draftSnapshot.transcript).toEqual([]);
+            expect(await worker.runOnce()).toMatchObject({ delivered: 1 });
+            expect(received).toEqual(["author-1", "author-2", "manager-1"]);
+            const approval = {
+                ...(await command("approve-b")),
+                action: "boundary_review",
+                contributionId: b,
+                generation: 1,
+                draftRevision: 1,
+                decision: "approve",
+                reason: "Within scope",
+                checkedThroughSeq: 0
+            };
+            const published = await invoke(approval, "manager-1");
+            expect(published).toMatchObject({
+                ok: true,
+                result: { phase: "published", draftRevision: 1, messageId: `message-${b}-1` }
+            });
+            const after = loadProjection({ domain: f.domain });
+            expect(await invoke(approval, "manager-1")).toEqual(published);
+            expect(loadProjection({ domain: f.domain })).toEqual(after);
+            expect((await f.repository.read()).state.transcript).toMatchObject([
+                {
+                    id: `message-${b}-1`,
+                    content: "exact B statement",
+                    contributionId: b,
+                    contributionRevision: 1
+                }
+            ]);
+            expect(
+                await f.application.controlLocalContribution(
+                    {
+                        ...(await command("cancel-a")),
+                        protocolVersion: 1,
+                        action: "cancel",
+                        contributionId: a,
+                        generation: 1,
+                        reason: "No longer needed"
+                    },
+                    signal
+                )
+            ).toMatchObject({ ok: true });
+            const cancelled = loadProjection({ domain: f.domain });
+            releaseA();
+            expect(await aWork).toMatchObject({ ok: false, code: "STALE_ATTEMPT" });
+            expect(loadProjection({ domain: f.domain })).toEqual(cancelled);
+            expect(
+                await invoke({ ...approval, requestId: "forged" }, "unknown-session")
+            ).toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
+        } finally {
+            releaseA();
+            releaseB();
+            await Promise.allSettled([aWork, bWork]);
+            worker?.stop();
+            await worker?.wait();
             await f.repository.close();
         }
     });

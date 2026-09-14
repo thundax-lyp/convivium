@@ -345,6 +345,8 @@ describe("meeting tool registration", () => {
             "convivium_create_meeting",
             "convivium_meeting_status",
             "convivium_create_meeting_task",
+            "convivium_contribution",
+            "convivium_read_contribution",
             "convivium_send_message",
             "convivium_finish_meeting_mail",
             "convivium_meeting_task_status",

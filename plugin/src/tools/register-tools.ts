@@ -33,6 +33,8 @@ import {
     type MeetingToolRuntime
 } from "@/runtime/index.js";
 import {
+    ContributionCommandSchema,
+    ReadContributionInputSchema,
     CreateMeetingInputSchema,
     EndMeetingInputSchema,
     MeetingStatusInputSchema,
@@ -359,6 +361,48 @@ export function registerSubmitAndControlTools(
     dependencies: SubmitAndControlToolDependencies
 ): readonly (() => void)[] {
     return [
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_contribution",
+                description:
+                    "Write a contribution as the authenticated meeting caller. Input requires protocolVersion=1, meetingId, requestId, expectedMeetingVersion, action. Manager: assign(participantId,agendaItemId,instruction,targetIds,requiredForCompletion,requiresEvidenceReview), boundary_review(contributionId,generation,draftRevision,decision=approve|return,reason,checkedThroughSeq). Author: save_evidence(contributionId,generation,evidenceId?,expectedEvidenceRevision,material), submit(contributionId,generation,expectedDraftRevision,basedOnSeq,body,citations). Fixed independent reviewer: evidence_review(contributionId,generation,draftRevision,reviews). Captain: retry/cancel(contributionId,generation,reason), notify_manager(reason). body has kind,content,mentions,taskIds,agendaRelation,changes and optional replyTo/completionClaims/minutesDraft. Never supply actor or Session identity. Drafts stay private until exact-version approval; publication does not prove support. Read meeting_status for CAS; repeat requestId only for the identical uncertain request.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: ContributionCommandSchema,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.applyContribution.bind(
+                                dependencies.runtime
+                            ),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
+        dependencies.registry.register(
+            defineTool({
+                name: "convivium_read_contribution",
+                description:
+                    "Read one permitted contribution draft revision and optional exact evidence version. Input: {protocolVersion:1,meetingId,contributionId,draftRevision?,evidenceKey?}. Omit draftRevision for current. Authors see their drafts; other participants see published work; the assigned reviewer can inspect the current boundary-review draft. Captain and Manager can audit history. No filesystem access or URL fetching; a source is not automatically verified.",
+                parameters: toolParameters,
+                output: { schema: protocolOutputSchema, render: renderOutcome },
+                async execute(args, exec) {
+                    return asJson(
+                        await execute(args.input, {
+                            validate: ReadContributionInputSchema,
+                            callers: dependencies.callers,
+                            runtime: dependencies.runtime.readContribution.bind(
+                                dependencies.runtime
+                            ),
+                            exec
+                        })
+                    );
+                }
+            })
+        ),
         dependencies.registry.register(
             defineTool({
                 name: "convivium_send_message",
