@@ -175,8 +175,8 @@ export function applyContributionCommand(
             {
                 type: "contribution.manager_notified" as const,
                 payload: {
-                    meetingId: state.id,
                     noticeSeq: managerNoticeSeq,
+                    contextThroughSeq: message.seq,
                     actor: "manager",
                     at: context.now
                 }

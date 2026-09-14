@@ -446,9 +446,15 @@ describe("contribution state structure", () => {
             );
             expect(result.state.contributions!.managerNoticeSeq).toBe(1);
             expect(result.state.contributions!.managerDeadlineAt).toBe(contributionNow + 600_000);
-            expect(result.effect.events.map(({ type }) => type)).toContain(
-                "contribution.manager_notified"
-            );
+            expect(result.effect.events).toContainEqual({
+                type: "contribution.manager_notified",
+                payload: {
+                    noticeSeq: 1,
+                    contextThroughSeq: state.messageSeq + 1,
+                    actor: "manager",
+                    at: contributionNow
+                }
+            });
         });
 
         it("does not publish the body when any approved claim is invalid", () => {
