@@ -34,6 +34,7 @@ export {
     assertPublicMinutes,
     type PublicSubmissionContext
 } from "./public-submission.js";
+export { applyContributionCommand, type ContributionTransitionContext } from "./contribution.js";
 export type {
     StartManagerPlanningContext,
     SubmitManagerPlanContext,

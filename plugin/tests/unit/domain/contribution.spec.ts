@@ -1,4 +1,8 @@
-import { applyPublicSubmission, isMeetingStateV2 } from "@/domain/index.js";
+import {
+    applyContributionCommand,
+    applyPublicSubmission,
+    isMeetingStateV2
+} from "@/domain/index.js";
 import { contributionMeeting, contributionNow } from "../../fixtures/contribution.js";
 import { describe, expect, it } from "vitest";
 
@@ -61,6 +65,154 @@ function evidenceVersion(revision: number) {
 }
 
 describe("contribution state structure", () => {
+    describe("contribution preparation", () => {
+        it("allows two participants to prepare distinct contributions", () => {
+            const state = {
+                ...contributionMeeting(),
+                contributions: { ...validContributionState(), tasks: {}, evidence: {} }
+            };
+            const context = {
+                now: contributionNow,
+                actor: { kind: "manager" as const },
+                newContributionId: "contribution-1",
+                newEvidenceId: "evidence-1",
+                completionFactId: (kind: string, index: number) => `${kind}-${index}`
+            };
+            const first = applyContributionCommand(
+                state,
+                {
+                    action: "assign",
+                    participantId: state.participants[0]!.id,
+                    agendaItemId: state.agenda[0]!.id,
+                    instruction: "Research.",
+                    targetIds: [],
+                    requiredForCompletion: false,
+                    requiresEvidenceReview: false
+                },
+                context
+            );
+            const second = applyContributionCommand(
+                first.state,
+                {
+                    action: "assign",
+                    participantId: state.participants[1]!.id,
+                    agendaItemId: state.agenda[0]!.id,
+                    instruction: "Review.",
+                    targetIds: [],
+                    requiredForCompletion: false,
+                    requiresEvidenceReview: false
+                },
+                { ...context, newContributionId: "contribution-2" }
+            );
+            expect(Object.keys(second.state.contributions!.tasks)).toEqual([
+                "contribution-1",
+                "contribution-2"
+            ]);
+        });
+
+        it("rejects a second active assignment for the same participant without mutation", () => {
+            const state = {
+                ...contributionMeeting(),
+                contributions: { ...validContributionState() }
+            };
+            const before = structuredClone(state);
+            const context = {
+                now: contributionNow,
+                actor: { kind: "manager" as const },
+                newContributionId: "contribution-2",
+                newEvidenceId: "evidence-1",
+                completionFactId: (kind: string, index: number) => `${kind}-${index}`
+            };
+            expect(() =>
+                applyContributionCommand(
+                    state,
+                    {
+                        action: "assign",
+                        participantId: state.participants[0]!.id,
+                        agendaItemId: state.agenda[0]!.id,
+                        instruction: "Duplicate.",
+                        targetIds: [],
+                        requiredForCompletion: false,
+                        requiresEvidenceReview: false
+                    },
+                    context
+                )
+            ).toThrow("Participant already has an active contribution.");
+            expect(state).toEqual(before);
+        });
+
+        it("keeps evidence versions and submitted drafts private", () => {
+            const state = { ...contributionMeeting(), contributions: validContributionState() };
+            const actor = {
+                kind: "participant" as const,
+                participantId: state.participants[0]!.id
+            };
+            const context = {
+                now: contributionNow,
+                actor,
+                newContributionId: "unused",
+                newEvidenceId: "evidence-1",
+                completionFactId: (kind: string, index: number) => `${kind}-${index}`
+            };
+            const saved = applyContributionCommand(
+                state,
+                {
+                    action: "save_evidence",
+                    contributionId: "contribution-1",
+                    generation: 1,
+                    expectedEvidenceRevision: 0,
+                    material: {
+                        ...evidenceVersion(1),
+                        evidenceId: undefined as never,
+                        revision: undefined as never,
+                        key: undefined as never,
+                        submittedBy: undefined as never,
+                        submittedAt: undefined as never
+                    }
+                },
+                context
+            );
+            const submitted = applyContributionCommand(
+                saved.state,
+                {
+                    action: "submit",
+                    contributionId: "contribution-1",
+                    generation: 1,
+                    expectedDraftRevision: 0,
+                    draft: {
+                        revision: 1,
+                        basedOnSeq: 0,
+                        submittedAt: contributionNow,
+                        message: {
+                            id: "message-private",
+                            content: "draft",
+                            kind: "statement",
+                            mentions: [],
+                            taskIds: [],
+                            agendaRelation: "on_topic",
+                            createdAt: contributionNow
+                        },
+                        claims: {
+                            questions: [],
+                            issues: [],
+                            proposals: [],
+                            positions: [],
+                            agendaCandidates: [],
+                            decisionCandidates: []
+                        },
+                        citations: []
+                    }
+                },
+                context
+            );
+            expect(Object.keys(saved.state.contributions!.evidence)).toEqual(["evidence-1:1"]);
+            expect(submitted.state.contributions!.tasks["contribution-1"]!.phase).toBe(
+                "boundary_review"
+            );
+            expect(submitted.state.transcript).toEqual(state.transcript);
+        });
+    });
+
     it("applies public claims without a current Turn", () => {
         const state = contributionMeeting();
         delete state.currentTurn;

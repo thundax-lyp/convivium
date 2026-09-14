@@ -14,12 +14,6 @@
 
 ### 基础
 
-- [ ] `贡献准备`：指派、材料版本与私稿（T3a）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T3a。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现指派、材料保存和仅写私稿的提交转换。
-    - 验收点：不同作者可同时准备；重复占用及 stale 拒绝；旧材料保留；私稿不产生公共事实。
-
 - [ ] `贡献发布`：边界审核与原子发布（T3b）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T3b。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

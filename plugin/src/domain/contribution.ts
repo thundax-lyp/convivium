@@ -132,6 +132,35 @@ export interface ContributionState {
     evidence: Readonly<Record<string, EvidenceVersion>>;
 }
 
+export type ContributionActor =
+    | { kind: "manager" | "captain" | "local_host" | "runtime" }
+    | { kind: "participant"; participantId: string };
+export type DomainContributionCommand =
+    | {
+          action: "assign";
+          participantId: string;
+          agendaItemId: string;
+          instruction: string;
+          targetIds: readonly string[];
+          requiredForCompletion: boolean;
+          requiresEvidenceReview: boolean;
+      }
+    | {
+          action: "save_evidence";
+          contributionId: string;
+          generation: number;
+          evidenceId?: string;
+          expectedEvidenceRevision: number;
+          material: EvidenceMaterial;
+      }
+    | {
+          action: "submit";
+          contributionId: string;
+          generation: number;
+          expectedDraftRevision: number;
+          draft: ContributionDraft;
+      };
+
 const phases: readonly ContributionPhase[] = [
     "preparing",
     "boundary_review",
