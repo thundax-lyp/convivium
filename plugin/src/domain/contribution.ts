@@ -168,6 +168,20 @@ export type DomainContributionCommand =
           decision: "approve" | "return";
           reason: string;
           checkedThroughSeq: number;
+      }
+    | {
+          action: "evidence_review";
+          contributionId: string;
+          generation: number;
+          draftRevision: number;
+          reviews: readonly {
+              evidenceKey: string;
+              claim: string;
+              verdict: EvidenceVerdict;
+              method: string;
+              result: string;
+              limitations: string;
+          }[];
       };
 
 const phases: readonly ContributionPhase[] = [
@@ -501,6 +515,78 @@ export function createContributionState(reviewerId: string, now: number): Contri
         tasks: {},
         evidence: {}
     };
+}
+
+export function assertContributionEvidenceMessages(
+    state: MeetingState,
+    messageIds: readonly string[]
+): void {
+    if (state.contributions === undefined) return;
+    if (messageIds.length === 0)
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            "Contribution completion claims require supported evidence messages."
+        );
+    for (const messageId of messageIds) {
+        const message = state.transcript.find((candidate) => candidate.id === messageId);
+        const task =
+            message?.contributionId === undefined
+                ? undefined
+                : state.contributions.tasks[message.contributionId];
+        const draft =
+            task === undefined || message?.contributionRevision === undefined
+                ? undefined
+                : task.drafts[String(message.contributionRevision)];
+        if (
+            message === undefined ||
+            task === undefined ||
+            draft === undefined ||
+            draft.citations.length === 0 ||
+            !draft.citations.every((citation) =>
+                task.evidenceReviews.some(
+                    (review) =>
+                        review.draftRevision === draft.revision &&
+                        review.evidenceKey === citation.evidenceKey &&
+                        review.claim === citation.claim &&
+                        review.verdict === "supports"
+                )
+            )
+        )
+            throw new DomainError(
+                "INVALID_STATE_TRANSITION",
+                "Contribution completion claims require supported evidence messages."
+            );
+    }
+}
+
+export function contributionWorkComplete(state: MeetingState): boolean {
+    if (state.contributions === undefined) return true;
+    try {
+        for (const fact of state.completionFacts) {
+            const isPositiveFact =
+                (fact.kind === "output_evidence" || fact.kind === "criterion_evidence") &&
+                fact.result === "supported";
+            const isSupportedResolution =
+                fact.kind === "agenda_resolution" && fact.result === "resolved";
+            const isApprovedReview = fact.kind === "review" && fact.result === "approved";
+            const isAcceptedDecision =
+                fact.kind === "decision_acceptance" && fact.result === "accepted";
+            if (
+                fact.status !== "active" ||
+                !(isPositiveFact || isSupportedResolution || isApprovedReview || isAcceptedDecision)
+            )
+                continue;
+            assertContributionEvidenceMessages(state, fact.evidenceMessageIds);
+        }
+        return Object.values(state.contributions.tasks).every(
+            (task) =>
+                !task.requiredForCompletion ||
+                (task.phase === "published" &&
+                    (!task.requiresEvidenceReview || task.reviewStatus === "complete"))
+        );
+    } catch {
+        return false;
+    }
 }
 
 export function isContributionState(value: unknown): value is ContributionState {

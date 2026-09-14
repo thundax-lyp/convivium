@@ -165,26 +165,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T3c：独立核验与支持依据
-
-前置状态：T3b PASS。
-允许修改：`plugin/src/domain/contribution.ts`；`plugin/src/domain/transitions/contribution.ts`；`plugin/src/domain/index.ts`；`plugin/src/domain/transitions/index.ts`；`plugin/tests/unit/domain/contribution.spec.ts`；`plugin/tests/fixtures/contribution.ts`。
-禁止修改：自动完成会议、Captain 接受入口和生命周期。
-
-执行：
-1. 实现 evidence_review 全部 verdict、citation 精确覆盖和材料作者排除；实现 assertContributionEvidenceMessages，并接入 submit/approve 的正向完成声明校验。
-2. 实现 contributionWorkComplete 的 required 任务、核验状态、active 正向完成事实检查；legacy 返回 true，不调用 isObjectiveSatisfied。
-3. 新增 describe="contribution evidence support"：四种结论保留、不自审、同材料不同 claim 不泛化、pending/非 supports 不能支持完成声明；required cancel 不豁免，非 required 未完不阻塞；核验不修改正文。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/contribution.spec.ts tests/unit/domain/completion.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：命令退出 0；证据支持谓词独立验证；正向声明只有引用已 supports 公共消息才可发布；负面结论保留。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
 ### T3d：Captain 任务控制
 
 前置状态：T3c PASS。

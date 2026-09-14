@@ -1,6 +1,8 @@
 import {
     applyContributionCommand,
     applyPublicSubmission,
+    assertContributionEvidenceMessages,
+    contributionWorkComplete,
     isMeetingStateV2
 } from "@/domain/index.js";
 import { contributionMeeting, contributionNow } from "../../fixtures/contribution.js";
@@ -125,6 +127,50 @@ function managerContext(now = contributionNow) {
     };
 }
 
+function evidenceReviewState() {
+    const base = boundaryReviewState();
+    const task = base.contributions!.tasks["contribution-1"]!;
+    const draft = task.drafts["1"]!;
+    const publishedMessage = {
+        ...draft.message,
+        seq: base.messageSeq + 1,
+        contributionId: task.id,
+        contributionRevision: draft.revision,
+        speaker: task.participantId,
+        agendaItemId: task.agendaItemId
+    };
+    return {
+        ...base,
+        transcript: [...base.transcript, publishedMessage],
+        messageSeq: publishedMessage.seq,
+        contributions: {
+            ...base.contributions!,
+            evidence: { "evidence-1:1": evidenceVersion(1) },
+            tasks: {
+                ...base.contributions!.tasks,
+                "contribution-1": {
+                    ...task,
+                    phase: "published" as const,
+                    requiresEvidenceReview: true,
+                    reviewStatus: "pending" as const,
+                    drafts: {
+                        "1": {
+                            ...draft,
+                            citations: [
+                                {
+                                    evidenceKey: "evidence-1:1",
+                                    claim: "fixture",
+                                    locator: "fixture",
+                                    inference: "fixture"
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    };
+}
 
 describe("contribution state structure", () => {
     describe("contribution preparation", () => {
@@ -454,6 +500,239 @@ describe("contribution state structure", () => {
         });
     });
 
+    describe("contribution evidence support", () => {
+        it.each(["supports", "partially_supports", "does_not_support", "unverifiable"] as const)(
+            "preserves the %s verdict from the independent reviewer",
+            (verdict) => {
+                const state = evidenceReviewState();
+                const result = applyContributionCommand(
+                    state,
+                    {
+                        action: "evidence_review",
+                        contributionId: "contribution-1",
+                        generation: 1,
+                        draftRevision: 1,
+                        reviews: [
+                            {
+                                evidenceKey: "evidence-1:1",
+                                claim: "fixture",
+                                verdict,
+                                method: "fixture",
+                                result: "fixture",
+                                limitations: "fixture"
+                            }
+                        ]
+                    },
+                    {
+                        ...managerContext(),
+                        actor: {
+                            kind: "participant",
+                            participantId: state.contributions!.reviewerId
+                        }
+                    }
+                );
+                expect(result.state.contributions!.tasks["contribution-1"]!.reviewStatus).toBe(
+                    "complete"
+                );
+                expect(
+                    result.state.contributions!.tasks["contribution-1"]!.evidenceReviews[0]!.verdict
+                ).toBe(verdict);
+                expect(result.state.transcript).toEqual(state.transcript);
+                expect(result.effect.events.map(({ type }) => type)).toEqual([
+                    "contribution.evidence_reviewed",
+                    "contribution.manager_notified"
+                ]);
+            }
+        );
+
+        it("rejects a material author reviewing their own evidence without mutation", () => {
+            const state = evidenceReviewState();
+            const before = structuredClone(state);
+            expect(() =>
+                applyContributionCommand(
+                    state,
+                    {
+                        action: "evidence_review",
+                        contributionId: "contribution-1",
+                        generation: 1,
+                        draftRevision: 1,
+                        reviews: [
+                            {
+                                evidenceKey: "evidence-1:1",
+                                claim: "fixture",
+                                verdict: "supports",
+                                method: "fixture",
+                                result: "fixture",
+                                limitations: "fixture"
+                            }
+                        ]
+                    },
+                    {
+                        ...managerContext(),
+                        actor: {
+                            kind: "participant",
+                            participantId: state.participants[0]!.id
+                        }
+                    }
+                )
+            ).toThrow("Only the independent reviewer can review evidence.");
+            expect(state).toEqual(before);
+        });
+
+        it("requires supports for every cited claim before a completion message can be used", () => {
+            const state = evidenceReviewState();
+            const task = state.contributions!.tasks["contribution-1"]!;
+            const draft = task.drafts["1"]!;
+            const before = structuredClone(state);
+            expect(() => assertContributionEvidenceMessages(state, [draft.message.id])).toThrow(
+                "require supported evidence messages"
+            );
+            expect(state).toEqual(before);
+            const completionFact = {
+                id: "completion-output",
+                kind: "output_evidence" as const,
+                subjectId: "output",
+                assertedBy: task.participantId,
+                result: "supported" as const,
+                evidenceMessageIds: [draft.message.id],
+                taskIds: [],
+                status: "active" as const,
+                createdAt: contributionNow
+            };
+            expect(contributionWorkComplete({ ...state, completionFacts: [completionFact] })).toBe(
+                false
+            );
+
+            const reviewed = applyContributionCommand(
+                state,
+                {
+                    action: "evidence_review",
+                    contributionId: task.id,
+                    generation: task.generation,
+                    draftRevision: draft.revision,
+                    reviews: [
+                        {
+                            evidenceKey: "evidence-1:1",
+                            claim: "fixture",
+                            verdict: "supports",
+                            method: "fixture",
+                            result: "fixture",
+                            limitations: "fixture"
+                        }
+                    ]
+                },
+                {
+                    ...managerContext(),
+                    actor: { kind: "participant", participantId: state.contributions!.reviewerId }
+                }
+            ).state;
+            assertContributionEvidenceMessages(reviewed, [draft.message.id]);
+            expect(
+                contributionWorkComplete({ ...reviewed, completionFacts: [completionFact] })
+            ).toBe(true);
+        });
+
+        it("does not treat a supports verdict for one claim as support for another claim", () => {
+            const state = evidenceReviewState();
+            const task = state.contributions!.tasks["contribution-1"]!;
+            const draft = task.drafts["1"]!;
+            const withSecondClaim = {
+                ...state,
+                contributions: {
+                    ...state.contributions!,
+                    tasks: {
+                        ...state.contributions!.tasks,
+                        [task.id]: {
+                            ...task,
+                            drafts: {
+                                ...task.drafts,
+                                [String(draft.revision)]: {
+                                    ...draft,
+                                    citations: [
+                                        ...draft.citations,
+                                        {
+                                            evidenceKey: "evidence-1:1",
+                                            claim: "different claim",
+                                            locator: "fixture",
+                                            inference: "fixture"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            const before = structuredClone(withSecondClaim);
+            expect(() =>
+                applyContributionCommand(
+                    withSecondClaim,
+                    {
+                        action: "evidence_review",
+                        contributionId: task.id,
+                        generation: task.generation,
+                        draftRevision: draft.revision,
+                        reviews: [
+                            {
+                                evidenceKey: "evidence-1:1",
+                                claim: "fixture",
+                                verdict: "supports",
+                                method: "fixture",
+                                result: "fixture",
+                                limitations: "fixture"
+                            }
+                        ]
+                    },
+                    {
+                        ...managerContext(),
+                        actor: {
+                            kind: "participant",
+                            participantId: withSecondClaim.contributions!.reviewerId
+                        }
+                    }
+                )
+            ).toThrow("exactly cover contribution citations");
+            expect(withSecondClaim).toEqual(before);
+        });
+
+        it("requires every required contribution to be published and reviewed", () => {
+            const state = evidenceReviewState();
+            const task = state.contributions!.tasks["contribution-1"]!;
+            expect(contributionWorkComplete(state)).toBe(true);
+            expect(
+                contributionWorkComplete({
+                    ...state,
+                    contributions: {
+                        ...state.contributions!,
+                        tasks: {
+                            ...state.contributions!.tasks,
+                            [task.id]: {
+                                ...task,
+                                requiredForCompletion: true,
+                                reviewStatus: "pending"
+                            }
+                        }
+                    }
+                })
+            ).toBe(false);
+            expect(
+                contributionWorkComplete({
+                    ...state,
+                    contributions: {
+                        ...state.contributions!,
+                        tasks: {
+                            ...state.contributions!.tasks,
+                            [task.id]: {
+                                ...task,
+                                requiredForCompletion: true,
+                                phase: "cancelled"
+                            }
+                        }
+                    }
+                })
+            ).toBe(false);
+        });
+    });
 
     it("applies public claims without a current Turn", () => {
         const state = contributionMeeting();

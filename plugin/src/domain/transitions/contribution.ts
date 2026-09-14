@@ -1,9 +1,11 @@
 import { DomainError } from "@/domain/errors.js";
+import type { DomainCompletionClaims } from "@/domain/completion.js";
 import type {
     ContributionActor,
     DomainContributionCommand,
     ContributionTask
 } from "@/domain/contribution.js";
+import { assertContributionEvidenceMessages } from "@/domain/contribution.js";
 import type { MeetingState, TransitionResult } from "@/domain/model.js";
 import { applyPublicSubmission, assertPublicMinutes } from "./public-submission.js";
 
@@ -15,6 +17,20 @@ export interface ContributionTransitionContext {
     completionFactId: (kind: string, index: number) => string;
 }
 
+function assertCompletionEvidenceSupport(
+    state: MeetingState,
+    claims: DomainCompletionClaims
+): void {
+    for (const messageIds of [
+        ...(claims.outputClaims ?? []).map((claim) => claim.evidenceMessageIds),
+        ...(claims.criterionClaims ?? []).map((claim) => claim.evidenceMessageIds),
+        ...(claims.agendaResolution === undefined
+            ? []
+            : [claims.agendaResolution.evidenceMessageIds]),
+        ...(claims.review?.result === "approved" ? [claims.review.evidenceMessageIds] : [])
+    ])
+        assertContributionEvidenceMessages(state, messageIds);
+}
 export function applyContributionCommand(
     state: MeetingState,
     command: DomainContributionCommand,
@@ -94,6 +110,8 @@ export function applyContributionCommand(
                 "INVALID_STATE_TRANSITION",
                 "Evidence-reviewed contributions require citations."
             );
+        if (draft.claims.completion !== undefined)
+            assertCompletionEvidenceSupport(state, draft.claims.completion);
         assertPublicMinutes(state, draft.message, 0, command.checkedThroughSeq);
         const message = {
             ...draft.message,
@@ -181,6 +199,105 @@ export function applyContributionCommand(
             effect: { events }
         };
     }
+    if (command.action === "evidence_review") {
+        const task = state.contributions.tasks[command.contributionId];
+        const draft = task?.drafts[String(command.draftRevision)];
+        if (context.actor.kind !== "participant")
+            throw new DomainError(
+                "UNAUTHORIZED_CALLER",
+                "Only the independent reviewer can review evidence."
+            );
+        const reviewerId = context.actor.participantId;
+        if (reviewerId !== state.contributions.reviewerId)
+            throw new DomainError(
+                "UNAUTHORIZED_CALLER",
+                "Only the independent reviewer can review evidence."
+            );
+        if (
+            task === undefined ||
+            draft === undefined ||
+            task.phase !== "published" ||
+            task.reviewStatus !== "pending" ||
+            task.generation !== command.generation ||
+            task.currentDraftRevision !== command.draftRevision ||
+            task.deadlineAt <= context.now
+        )
+            throw new DomainError("STALE_ATTEMPT", "Contribution evidence review is stale.");
+        const citations = new Set(
+            draft.citations.map((citation) => `${citation.evidenceKey}\0${citation.claim}`)
+        );
+        const reviews = new Set(
+            command.reviews.map((review) => `${review.evidenceKey}\0${review.claim}`)
+        );
+        if (
+            command.reviews.length !== citations.size ||
+            reviews.size !== command.reviews.length ||
+            [...reviews].some((key) => !citations.has(key))
+        )
+            throw new DomainError(
+                "INVALID_STATE_TRANSITION",
+                "Evidence reviews must exactly cover contribution citations."
+            );
+        if (
+            draft.citations.some(
+                (citation) =>
+                    state.contributions!.evidence[citation.evidenceKey]?.submittedBy === reviewerId
+            )
+        )
+            throw new DomainError(
+                "UNAUTHORIZED_CALLER",
+                "Only the independent reviewer can review evidence."
+            );
+        const evidenceReviews = command.reviews.map((review) => ({
+            ...review,
+            draftRevision: command.draftRevision,
+            actor: reviewerId,
+            reviewedAt: context.now
+        }));
+        const next = {
+            ...task,
+            reviewStatus: "complete" as const,
+            updatedAt: context.now,
+            evidenceReviews: [...task.evidenceReviews, ...evidenceReviews]
+        };
+        const managerNoticeSeq = state.contributions.managerNoticeSeq + 1;
+        return {
+            state: {
+                ...state,
+                contributions: {
+                    ...state.contributions,
+                    managerNoticeSeq,
+                    managerDeadlineAt: context.now + 600_000,
+                    tasks: { ...state.contributions.tasks, [task.id]: next }
+                },
+                eventSeq: state.eventSeq + 2
+            },
+            effect: {
+                events: [
+                    {
+                        type: "contribution.evidence_reviewed",
+                        payload: {
+                            contributionId: task.id,
+                            generation: task.generation,
+                            draftRevision: command.draftRevision,
+                            verdicts: command.reviews.map((review) => review.verdict),
+                            actor: reviewerId,
+                            at: context.now
+                        }
+                    },
+                    {
+                        type: "contribution.manager_notified",
+                        payload: {
+                            noticeSeq: managerNoticeSeq,
+                            contextThroughSeq: state.messageSeq,
+                            actor: "manager",
+                            at: context.now
+                        }
+                    }
+                ]
+            }
+        };
+    }
     if (command.action === "save_evidence" || command.action === "submit") {
         const task = state.contributions.tasks[command.contributionId];
         if (
@@ -242,6 +359,8 @@ export function applyContributionCommand(
             command.draft.revision !== command.expectedDraftRevision + 1
         )
             throw new DomainError("STALE_ATTEMPT", "Draft revision is stale.");
+        if (command.draft.claims.completion !== undefined)
+            assertCompletionEvidenceSupport(state, command.draft.claims.completion);
         const draft = { ...command.draft, citations: [...command.draft.citations] };
         const next = {
             ...task,

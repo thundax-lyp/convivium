@@ -14,12 +14,6 @@
 
 ### 基础
 
-- [ ] `证据核验`：独立核验与支持依据（T3c）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T3c。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现逐材料/主张核验、支持依据检查和 required 任务完成谓词。
-    - 验收点：四种结论保留；自审拒绝；pending/非 supports 不能支持完成声明；取消不豁免 required。
-
 - [ ] `贡献控制`：Captain 任务控制（T3d）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T3d。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
