@@ -18,12 +18,6 @@
 
 ### 交付验证
 
-- [ ] `会议面板`：贡献详情与控制交互（T8b）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T8b。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现贡献列表、版本详情和本地控制表单。
-    - 验收点：跨会议迟到响应不覆盖当前详情；按钮权限正确；贡献面板不提供 Turn 操作，不要求保留旧版本视图。
-
 - [ ] `角色资源`：角色权限与 Scribe 闭环（T8c）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T8c。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

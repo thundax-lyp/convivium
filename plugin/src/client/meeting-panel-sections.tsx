@@ -1,11 +1,68 @@
 import { createElement, type ReactElement } from "react";
-import type { MeetingStatusResultV1 } from "@/protocol/index.js";
+import type { MeetingStatusResultV1, ReadContributionResultV1 } from "@/protocol/index.js";
 import { mapMeetingPanelView } from "./meeting-panel-view.js";
 
 export interface MeetingFactControls {
     renderCandidateActions(candidateId: string): ReactElement | null;
     renderDecisionActions(decisionId: string): ReactElement | null;
     renderRiskActions(issueId: string): ReactElement | null;
+    renderContributionActions?(contributionId: string): ReactElement | null;
+    renderContributionFooter?(): ReactElement | null;
+}
+
+export function renderContributionDetail(detail: ReadContributionResultV1): ReactElement {
+    const draft = detail.drafts[0];
+    const evidence = detail.evidence;
+    const text =
+        evidence?.material.kind === "text"
+            ? evidence.material.text
+            : evidence?.material.kind === "reference"
+              ? evidence.material.uri
+              : (draft?.message.content ?? "None");
+    return createElement(
+        "section",
+        { "aria-label": "Contribution detail" },
+        createElement("h5", null, `Contribution ${detail.task.id}`),
+        createElement(
+            "dl",
+            null,
+            createElement("dt", null, "Material"),
+            createElement("dd", null, text),
+            createElement("dt", null, "Source"),
+            createElement("dd", null, evidence?.source ?? "None"),
+            createElement("dt", null, "Claim"),
+            createElement(
+                "dd",
+                null,
+                draft?.citations.map((citation) => citation.claim).join("; ") || "None"
+            ),
+            createElement("dt", null, "Verification"),
+            createElement(
+                "dd",
+                null,
+                detail.evidenceReviews
+                    .map((review) => `${review.verdict}: ${review.result}`)
+                    .join("; ") || "None"
+            ),
+            createElement("dt", null, "Method"),
+            createElement(
+                "dd",
+                null,
+                detail.evidenceReviews.map((review) => review.method).join("; ") || "None"
+            ),
+            createElement("dt", null, "Limitations"),
+            createElement(
+                "dd",
+                null,
+                [
+                    evidence?.limitations,
+                    ...detail.evidenceReviews.map((review) => review.limitations)
+                ]
+                    .filter((value): value is string => Boolean(value))
+                    .join("; ") || "None"
+            )
+        )
+    );
 }
 export function renderObservabilitySections(
     detail: MeetingStatusResultV1,
@@ -35,6 +92,32 @@ export function renderObservabilitySections(
                 row("Current agenda title", view.agendaTitle),
                 row("Current agenda objective", view.agendaObjective)
             )
+        ),
+        createElement(
+            "section",
+            { "aria-label": "Contributions" },
+            createElement("h4", null, "Contributions"),
+            detail.contributions === undefined || detail.contributions.tasks.length === 0
+                ? createElement("p", null, "No contributions.")
+                : createElement(
+                      "ol",
+                      null,
+                      detail.contributions.tasks.map((task) =>
+                          createElement(
+                              "li",
+                              { key: task.id, "data-contribution-id": task.id },
+                              createElement(
+                                  "dl",
+                                  null,
+                                  row("Author", task.participantId),
+                                  row("Status", task.phase),
+                                  row("Review status", task.reviewStatus)
+                              ),
+                              controls?.renderContributionActions?.(task.id)
+                          )
+                      )
+                  ),
+            controls?.renderContributionFooter?.()
         ),
         createElement(
             "section",

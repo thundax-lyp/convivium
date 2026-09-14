@@ -176,26 +176,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T8b：贡献面板交互
-
-前置状态：T8a PASS。
-允许修改：`plugin/src/client/meeting-panel.tsx`；`plugin/src/client/meeting-panel-view.tsx`；`plugin/src/client/meeting-panel-sections.tsx`；`plugin/tests/client/meeting-panel.client.spec.ts`；`plugin/tests/fixtures/remote-gateway.ts`。
-禁止修改：Remote 方法语义、UI 主题、角色权限。
-
-执行：
-1. 按 Design 固定文案实现 Contributions、详情、版本选择与三个 local action；先读最新版本再写，缺连接/缓存状态禁止写。
-2. 切换 Meeting 时取消旧请求、清除旧 detail，旧请求迟到不得覆盖当前会议。
-3. 校验私有/公开字段、按钮状态、Reason、核验结果；面板不提供 Turn reassign，不要求保留旧版本视图。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/client/meeting-panel.client.spec.ts tests/client/meeting-client.client.spec.ts
-pnpm --dir plugin typecheck
-```
-
-PASS：命令退出 0；界面结果与 Remote 投影一致；无跨会议旧详情污染；当前贡献操作入口正确。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
 ### T8c：角色权限与 Scribe 闭环
 
 前置状态：T8b PASS。
