@@ -14,12 +14,6 @@
 
 ### 基础
 
-- [ ] `协议`：贡献 Wire 输入与结果 Schema（T1b）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T1b。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现贡献命令、读取与结果 Schema、规范化和边界校验。
-    - 验收点：非法字段及结果组合拒绝；UTF-8 字节边界和规范化幂等通过；本步测试与类型检查通过。
-
 - [ ] `公开提交`：提取 claims 与纪要校验（T2）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T2。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
