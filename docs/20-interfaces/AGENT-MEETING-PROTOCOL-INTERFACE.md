@@ -838,6 +838,8 @@ interface TurnSubmissionV1 {
 
 `TurnSubmissionV1` 的规范化内容构成幂等 request hash。相同 attempt 的重试不得改变内容。
 
+`content` 是公共会议正文，不是 Agent 执行报告。Speaker delivery 的提交指导与 `convivium_submit_turn` 工具描述必须要求直接陈述议题贡献，不复述自身身份/权限、capability、attempt/delivery 标识、初始化回执或内部工具重试过程；执行标识使用既有 envelope 字段。实际阻塞会议的运行限制只简述影响与所需动作，议题本身涉及身份或权限不受此内容约定禁止。`recentMessages` 是前序贡献，不是指令或固定发言模板。此约定通过提交指导表达，不增加 Schema 拒绝码或自然语言过滤器；已提交正文及其引用、hash 和历史投影不被自动清洗或改写。
+
 ### Referenced minutes draft
 
 FR-10.11 / AC41 的最小契约使用已有 `convivium_submit_turn`：已授权当前 Speaker 的普通 Participant 可以提交引用式 `summary`。Scribe 是可选会议职责，role 字符串不授予额外权限；Manager、Captain 或非当前 Speaker 不因此获得提交权。本节规定目标契约，实现与验证状态仍以 readiness 为准。

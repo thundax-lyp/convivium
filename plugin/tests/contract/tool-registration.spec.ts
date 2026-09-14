@@ -50,6 +50,9 @@ describe("meeting tool registration", () => {
         const submit = definitions.find(
             (definition) => definition.name === "convivium_submit_turn"
         );
+        expect(submit?.description).toContain(
+            "content is public meeting speech, not an execution report."
+        );
         const input = {
             protocolVersion: 1,
             meetingId: "meeting-1",
