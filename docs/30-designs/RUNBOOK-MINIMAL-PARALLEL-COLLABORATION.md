@@ -165,13 +165,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T1bR：贡献读取协议补齐
-
-允许修改：`plugin/src/protocol/types.ts`；`plugin/src/protocol/contribution.ts`；`plugin/src/protocol/index.ts`；`plugin/tests/contract/contribution-protocol.spec.ts`；`TODO.md`。
-执行：按正式接口补齐 ContributionSummaryV1、ReadContributionResultV1 及 strict Schema/export。
-验证：`pnpm --dir plugin exec vitest run tests/contract/contribution-protocol.spec.ts`；`pnpm --dir plugin typecheck:host`。
-PASS：未知字段拒绝，读取 DTO 不含 Session/capability。
-
 ### T4：保存版本并实现受控投影
 
 前置状态：T3d PASS。

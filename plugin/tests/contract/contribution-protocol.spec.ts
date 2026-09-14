@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
     ContributionCommandSchema,
     ContributionResultSchema,
+    ContributionSummarySchema,
+    ReadContributionResultSchema,
     ReadContributionInputSchema
 } from "@/protocol/index.js";
 
@@ -38,6 +40,187 @@ const material = {
 } as const;
 
 describe("contribution protocol", () => {
+    const task = {
+        id: "contribution-1",
+        participantId: "participant-1",
+        agendaItemId: "agenda-1",
+        phase: "preparing",
+        generation: 1,
+        currentDraftRevision: 0,
+        requiredForCompletion: false,
+        requiresEvidenceReview: false,
+        reviewStatus: "not_required",
+        deadlineAt: 1700000600000
+    };
+
+    it("loads the read schema and accepts an empty draft result", () => {
+        const result = { task, drafts: [], boundaryReviews: [], evidenceReviews: [] };
+        expect(ReadContributionResultSchema(result)).toEqual(result);
+        expect(ContributionSummarySchema(task)).toEqual(task);
+    });
+
+    it.each([
+        { ...task, sessionId: "private-session" },
+        { ...task, generation: 0 },
+        { ...task, reviewStatus: "approved" },
+        { ...task, requiredForCompletion: "false" },
+        { ...task, deadlineAt: NaN }
+    ])("rejects malformed or private summary fields", (invalidTask) => {
+        expect(() =>
+            ReadContributionResultSchema({
+                task: invalidTask,
+                drafts: [],
+                boundaryReviews: [],
+                evidenceReviews: []
+            })
+        ).toThrow();
+    });
+
+    it("rejects malformed read result containers", () => {
+        const result = { task, drafts: [], boundaryReviews: [], evidenceReviews: [] };
+        for (const invalid of [
+            { ...result, capability: "secret" },
+            { ...result, drafts: [null] },
+            { ...result, evidence: null },
+            { ...result, boundaryReviews: "invalid" }
+        ])
+            expect(() => ReadContributionResultSchema(invalid)).toThrow();
+    });
+
+    function readResult() {
+        return {
+            task: { ...task, currentDraftRevision: 1, phase: "published", messageId: "message-1" },
+            drafts: [
+                {
+                    revision: 1,
+                    basedOnSeq: 0,
+                    submittedAt: 1,
+                    message: {
+                        id: "message-1",
+                        kind: "statement",
+                        content: "Public finding",
+                        mentions: [],
+                        taskIds: [],
+                        agendaRelation: "on_topic",
+                        createdAt: 1
+                    },
+                    claims: {
+                        questions: [],
+                        issues: [],
+                        proposals: [],
+                        positions: [],
+                        agendaCandidates: [],
+                        decisionCandidates: []
+                    },
+                    citations: [
+                        {
+                            evidenceKey: "evidence-1:1",
+                            claim: "Guard exists",
+                            locator: "src/index.ts",
+                            inference: "Inspection"
+                        }
+                    ]
+                }
+            ],
+            boundaryReviews: [
+                {
+                    draftRevision: 1,
+                    decision: "approve",
+                    reason: "In scope",
+                    checkedThroughSeq: 0,
+                    actor: "manager",
+                    reviewedAt: 2
+                }
+            ],
+            evidenceReviews: [
+                {
+                    draftRevision: 1,
+                    evidenceKey: "evidence-1:1",
+                    claim: "Guard exists",
+                    verdict: "supports",
+                    method: "Inspection",
+                    result: "Guard found",
+                    limitations: "Static only",
+                    actor: "reviewer",
+                    reviewedAt: 3
+                }
+            ],
+            evidence: {
+                ...material,
+                evidenceId: "evidence-1",
+                revision: 1,
+                key: "evidence-1:1",
+                submittedBy: "participant-1",
+                submittedAt: 1
+            }
+        };
+    }
+
+    it("preserves the selected draft, review records and material version", () => {
+        const result = readResult();
+        expect(ReadContributionResultSchema(result)).toEqual(result);
+    });
+
+    it("rejects private fields at every nested read boundary", () => {
+        const result = readResult();
+        const draft = result.drafts[0]!;
+        const invalidResults = [
+            { ...result, drafts: [{ ...draft, sessionId: "secret" }] },
+            {
+                ...result,
+                drafts: [{ ...draft, message: { ...draft.message, capability: "secret" } }]
+            },
+            {
+                ...result,
+                drafts: [{ ...draft, claims: { ...draft.claims, privateNotes: "secret" } }]
+            },
+            {
+                ...result,
+                drafts: [
+                    {
+                        ...draft,
+                        claims: {
+                            ...draft.claims,
+                            questions: [
+                                {
+                                    id: "q",
+                                    text: "Question",
+                                    blocking: false,
+                                    createdAt: 1,
+                                    prompt: "secret"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            { ...result, boundaryReviews: [{ ...result.boundaryReviews[0], prompt: "secret" }] },
+            { ...result, evidenceReviews: [{ ...result.evidenceReviews[0], sessionId: "secret" }] },
+            { ...result, evidence: { ...result.evidence, capability: "secret" } },
+            {
+                ...result,
+                evidence: {
+                    ...result.evidence,
+                    material: { kind: "text", text: "Visible", secret: "secret" }
+                }
+            }
+        ];
+        for (const invalid of invalidResults)
+            expect(() => ReadContributionResultSchema(invalid)).toThrow();
+    });
+
+    it("rejects mixed draft versions and corrupted material or review records", () => {
+        const result = readResult();
+        for (const invalid of [
+            { ...result, drafts: [...result.drafts, ...result.drafts] },
+            { ...result, boundaryReviews: [{ ...result.boundaryReviews[0], draftRevision: 2 }] },
+            { ...result, evidenceReviews: [{ ...result.evidenceReviews[0], verdict: "approved" }] },
+            { ...result, evidence: { ...result.evidence, key: "evidence-1:2" } },
+            { ...result, drafts: [{ ...result.drafts[0], claims: {} }] }
+        ])
+            expect(() => ReadContributionResultSchema(invalid)).toThrow();
+    });
+
     it("normalizes valid contribution commands independent of input property order", () => {
         const command = {
             ...base,

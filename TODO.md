@@ -14,11 +14,6 @@
 
 ### 基础
 
-- [ ] `贡献读取协议`：补齐受控读取 DTO（T1bR）
-    - 依据文档：[贡献接口](docs/20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md) 202–204 行。
-    - 处理动作：补齐读取 DTO、strict Schema/export；不实现投影或 Runtime。
-    - 验收点：白名单读取字段、未知字段拒绝、既有命令不回归。
-
 - [ ] `持久化与投影`：版本保存与受控读取（T4）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T4。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

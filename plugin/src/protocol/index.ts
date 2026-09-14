@@ -25,6 +25,8 @@ export {
 export {
     ContributionCommandSchema,
     ContributionResultSchema,
+    ReadContributionResultSchema,
+    ContributionSummarySchema,
     ReadContributionInputSchema
 } from "./contribution.js";
 export {

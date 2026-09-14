@@ -5,8 +5,14 @@ import type {
     ContributionBodyV1,
     ContributionCommandV1,
     ContributionResultV1,
+    ContributionSummaryV1,
+    ContributionDraftV1,
+    BoundaryReviewV1,
+    EvidenceReviewV1,
+    EvidenceVersionV1,
     EvidenceMaterialV1,
-    ReadContributionInputV1
+    ReadContributionInputV1,
+    ReadContributionResultV1
 } from "./types.js";
 
 const phases = [
@@ -497,3 +503,333 @@ export const ContributionResultSchema: Schema<unknown, ContributionResultV1> = S
         } as ContributionResultV1;
     }
 ) as Schema<unknown, ContributionResultV1>;
+
+function readRecord(
+    value: unknown,
+    required: readonly string[],
+    optional: readonly string[] = []
+): Record<string, unknown> {
+    if (!isRecord(value)) throw new TypeError("Read record must be an object");
+    assertExactKeys(
+        value,
+        [...required, ...optional.filter((key) => Object.hasOwn(value, key))],
+        "read record"
+    );
+    return value;
+}
+
+function positiveInteger(value: unknown, label: string): number {
+    const result = nonNegativeInteger(value, label);
+    if (result === 0) throw new TypeError(`${label} must be positive`);
+    return result;
+}
+
+function readBoundaryReview(value: unknown): BoundaryReviewV1 {
+    const row = readRecord(value, [
+        "draftRevision",
+        "decision",
+        "reason",
+        "checkedThroughSeq",
+        "actor",
+        "reviewedAt"
+    ]);
+    if (row.decision !== "approve" && row.decision !== "return")
+        throw new TypeError("Invalid boundary decision");
+    return {
+        draftRevision: positiveInteger(row.draftRevision, "draftRevision"),
+        decision: row.decision,
+        reason: requiredText(row.reason, "reason", 2048),
+        checkedThroughSeq: nonNegativeInteger(row.checkedThroughSeq, "checkedThroughSeq"),
+        actor: requiredText(row.actor, "actor"),
+        reviewedAt: nonNegativeInteger(row.reviewedAt, "reviewedAt")
+    };
+}
+
+function readEvidenceReview(value: unknown): EvidenceReviewV1 {
+    const row = readRecord(value, [
+        "draftRevision",
+        "evidenceKey",
+        "claim",
+        "verdict",
+        "method",
+        "result",
+        "limitations",
+        "actor",
+        "reviewedAt"
+    ]);
+    const verdict = verdicts.find((item) => item === row.verdict);
+    if (verdict === undefined) throw new TypeError("Invalid evidence verdict");
+    return {
+        draftRevision: positiveInteger(row.draftRevision, "draftRevision"),
+        evidenceKey: requiredText(row.evidenceKey, "evidenceKey"),
+        claim: requiredText(row.claim, "claim", 1024),
+        verdict,
+        method: requiredText(row.method, "method", 2048),
+        result: requiredText(row.result, "result", 2048),
+        limitations: requiredText(row.limitations, "limitations", 2048),
+        actor: requiredText(row.actor, "actor"),
+        reviewedAt: nonNegativeInteger(row.reviewedAt, "reviewedAt")
+    };
+}
+
+function readEvidence(value: unknown): EvidenceVersionV1 {
+    if (!isRecord(value)) throw new TypeError("Evidence version must be an object");
+    const { evidenceId, revision, key, submittedBy, submittedAt, ...material } = value;
+    const id = requiredText(evidenceId, "evidenceId");
+    const version = positiveInteger(revision, "revision");
+    if (key !== `${id}:${version}`) throw new TypeError("Evidence key must match its version");
+    return {
+        ...normalizeMaterial(material),
+        evidenceId: id,
+        revision: version,
+        key,
+        submittedBy: requiredText(submittedBy, "submittedBy"),
+        submittedAt: nonNegativeInteger(submittedAt, "submittedAt")
+    };
+}
+
+function readDraft(value: unknown): ContributionDraftV1 {
+    const row = readRecord(value, [
+        "revision",
+        "basedOnSeq",
+        "submittedAt",
+        "message",
+        "claims",
+        "citations"
+    ]);
+    positiveInteger(row.revision, "revision");
+    nonNegativeInteger(row.basedOnSeq, "basedOnSeq");
+    nonNegativeInteger(row.submittedAt, "submittedAt");
+    const message = readRecord(
+        row.message,
+        ["id", "kind", "content", "mentions", "taskIds", "agendaRelation", "createdAt"],
+        ["replyTo", "minutesDraft"]
+    );
+    requiredText(message.id, "id");
+    nonNegativeInteger(message.createdAt, "createdAt");
+    const { id: _id, createdAt: _createdAt, ...body } = message;
+    normalizeBody({ ...body, changes: {} });
+    const claims = readRecord(
+        row.claims,
+        ["questions", "issues", "proposals", "positions", "agendaCandidates", "decisionCandidates"],
+        ["completion"]
+    );
+    const validateClaims = (
+        name: string,
+        required: readonly string[],
+        optional: readonly string[],
+        numbers: readonly string[] = [],
+        arrays: readonly string[] = [],
+        booleans: readonly string[] = []
+    ) => {
+        const entries = claims[name];
+        if (!Array.isArray(entries)) throw new TypeError(`${name} must be an array`);
+        for (const entry of entries) {
+            const item = readRecord(entry, required, optional);
+            for (const [key, field] of Object.entries(item)) {
+                if (numbers.includes(key)) nonNegativeInteger(field, key);
+                else if (arrays.includes(key)) uniqueTextArray(field, key);
+                else if (booleans.includes(key)) {
+                    if (typeof field !== "boolean") throw new TypeError(`${key} must be boolean`);
+                } else requiredText(field, key, 4096);
+            }
+        }
+        return entries;
+    };
+    validateClaims(
+        "questions",
+        ["id", "text", "blocking", "createdAt"],
+        ["directedTo", "affectedOutputIds", "affectedCriterionIds", "violatedConstraintIds"],
+        ["createdAt"],
+        ["affectedOutputIds", "affectedCriterionIds", "violatedConstraintIds"],
+        ["blocking"]
+    );
+    const issues = validateClaims(
+        "issues",
+        [
+            "id",
+            "title",
+            "description",
+            "affectedOutputIds",
+            "affectedCriterionIds",
+            "violatedConstraintIds",
+            "impact",
+            "urgency",
+            "safeDefaultAvailable"
+        ],
+        ["riskLevel"],
+        [],
+        ["affectedOutputIds", "affectedCriterionIds", "violatedConstraintIds"],
+        ["safeDefaultAvailable"]
+    );
+    for (const item of issues) {
+        if (
+            !["now", "before_release", "later"].includes(item.urgency) ||
+            (item.riskLevel !== undefined && !["low", "medium", "high"].includes(item.riskLevel))
+        )
+            throw new TypeError("Invalid issue enum");
+    }
+    validateClaims(
+        "proposals",
+        ["id", "title", "description", "now"],
+        ["proposalId", "expectedRevision"],
+        ["now", "expectedRevision"]
+    );
+    const positions = validateClaims(
+        "positions",
+        ["id", "proposalId", "proposalRevision", "position", "blocking", "now"],
+        ["reason"],
+        ["proposalRevision", "now"],
+        [],
+        ["blocking"]
+    );
+    for (const item of positions)
+        if (!["support", "accept", "object", "needs_revision", "abstain"].includes(item.position))
+            throw new TypeError("Invalid position");
+    const agendas = validateClaims(
+        "agendaCandidates",
+        [
+            "id",
+            "title",
+            "reason",
+            "relationToActiveAgenda",
+            "urgency",
+            "suggestedParticipants",
+            "now"
+        ],
+        [],
+        ["now"],
+        ["suggestedParticipants"]
+    );
+    for (const item of agendas)
+        if (
+            !["related", "adjacent", "unrelated"].includes(item.relationToActiveAgenda) ||
+            !["now", "before_release", "later"].includes(item.urgency)
+        )
+            throw new TypeError("Invalid agenda candidate");
+    validateClaims(
+        "decisionCandidates",
+        [
+            "id",
+            "proposalId",
+            "proposalRevision",
+            "statement",
+            "rationale",
+            "sourceMessageId",
+            "agendaItemId",
+            "createdAt"
+        ],
+        [],
+        ["proposalRevision", "createdAt"]
+    );
+    if (Object.hasOwn(claims, "completion"))
+        normalizeBody({ ...body, changes: {}, completionClaims: claims.completion });
+    if (!Array.isArray(row.citations) || row.citations.length > 8)
+        throw new TypeError("Invalid citations");
+    const seen = new Set<string>();
+    for (const citation of row.citations) {
+        const item = readRecord(citation, ["evidenceKey", "claim", "locator", "inference"]);
+        const key = requiredText(item.evidenceKey, "evidenceKey");
+        const claim = requiredText(item.claim, "claim", 1024);
+        requiredText(item.locator, "locator", 1024);
+        requiredText(item.inference, "inference", 1024);
+        const identity = JSON.stringify([key, claim]);
+        if (seen.has(identity)) throw new TypeError("Duplicate citation");
+        seen.add(identity);
+    }
+    return structuredClone(value) as ContributionDraftV1;
+}
+
+export const ReadContributionResultSchema: Schema<unknown, ReadContributionResultV1> =
+    Schema.transform(Schema.any<Record<string, unknown>>().required(), (value) => {
+        if (!isRecord(value)) throw new TypeError("Read contribution result must be an object");
+        assertExactKeys(
+            value,
+            Object.hasOwn(value, "evidence")
+                ? ["task", "drafts", "boundaryReviews", "evidenceReviews", "evidence"]
+                : ["task", "drafts", "boundaryReviews", "evidenceReviews"],
+            "ReadContributionResultV1"
+        );
+        if (
+            !isRecord(value.task) ||
+            !Array.isArray(value.drafts) ||
+            !Array.isArray(value.boundaryReviews) ||
+            !Array.isArray(value.evidenceReviews)
+        )
+            throw new TypeError("Read contribution result is invalid");
+        if (value.drafts.length > 1) throw new TypeError("Only one selected draft may be returned");
+        const task = ContributionSummarySchema(value.task);
+        const drafts = value.drafts.map(readDraft);
+        const boundaryReviews = value.boundaryReviews.map(readBoundaryReview);
+        const evidenceReviews = value.evidenceReviews.map(readEvidenceReview);
+        const selectedRevision = drafts[0]?.revision;
+        if (
+            (selectedRevision !== undefined && selectedRevision > task.currentDraftRevision) ||
+            [...boundaryReviews, ...evidenceReviews].some(
+                (review) => review.draftRevision !== selectedRevision
+            )
+        )
+            throw new TypeError("Read records must reference the selected draft");
+        return {
+            task,
+            drafts,
+            boundaryReviews,
+            evidenceReviews,
+            ...(Object.hasOwn(value, "evidence") ? { evidence: readEvidence(value.evidence) } : {})
+        };
+    }) as Schema<unknown, ReadContributionResultV1>;
+
+export const ContributionSummarySchema: Schema<unknown, ContributionSummaryV1> = Schema.transform(
+    Schema.any<unknown>().required(),
+    (value): ContributionSummaryV1 => {
+        if (!isRecord(value)) throw new TypeError("Contribution summary must be an object");
+        assertExactKeys(
+            value,
+            [
+                "id",
+                "participantId",
+                "agendaItemId",
+                "phase",
+                "generation",
+                "currentDraftRevision",
+                "requiredForCompletion",
+                "requiresEvidenceReview",
+                "reviewStatus",
+                "deadlineAt",
+                ...(Object.hasOwn(value, "messageId") ? ["messageId"] : [])
+            ],
+            "ContributionSummaryV1"
+        );
+        const phase = phases.find((item) => item === value.phase);
+        const reviewStatus = (
+            ["not_required", "pending", "complete", "captain_action"] as const
+        ).find((item) => item === value.reviewStatus);
+        if (
+            phase === undefined ||
+            reviewStatus === undefined ||
+            typeof value.requiredForCompletion !== "boolean" ||
+            typeof value.requiresEvidenceReview !== "boolean"
+        )
+            throw new TypeError("Contribution summary has invalid state fields");
+        const generation = nonNegativeInteger(value.generation, "generation");
+        if (generation === 0) throw new TypeError("generation must be positive");
+        return {
+            id: requiredText(value.id, "id"),
+            participantId: requiredText(value.participantId, "participantId"),
+            agendaItemId: requiredText(value.agendaItemId, "agendaItemId"),
+            phase,
+            generation,
+            currentDraftRevision: nonNegativeInteger(
+                value.currentDraftRevision,
+                "currentDraftRevision"
+            ),
+            requiredForCompletion: value.requiredForCompletion,
+            requiresEvidenceReview: value.requiresEvidenceReview,
+            reviewStatus,
+            deadlineAt: nonNegativeInteger(value.deadlineAt, "deadlineAt"),
+            ...(Object.hasOwn(value, "messageId")
+                ? { messageId: requiredText(value.messageId, "messageId") }
+                : {})
+        };
+    }
+);

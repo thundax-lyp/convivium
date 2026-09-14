@@ -1,3 +1,10 @@
+import type {
+    ContributionDraft,
+    BoundaryReview,
+    EvidenceReview,
+    EvidenceVersion
+} from "@/domain/index.js";
+
 export type ProtocolVersion = 1;
 
 /** Ephemeral invalidation signal; the consumer must refetch complete facts. */
@@ -1309,6 +1316,32 @@ export interface ReadContributionInputV1 {
     evidenceKey?: string;
     draftRevision?: number;
 }
+
+export interface ContributionSummaryV1 {
+    id: string;
+    participantId: string;
+    agendaItemId: string;
+    phase: ContributionPhaseV1;
+    generation: number;
+    currentDraftRevision: number;
+    requiredForCompletion: boolean;
+    requiresEvidenceReview: boolean;
+    reviewStatus: "not_required" | "pending" | "complete" | "captain_action";
+    deadlineAt: number;
+    messageId?: string;
+}
+export interface ReadContributionResultV1 {
+    task: ContributionSummaryV1;
+    drafts: readonly ContributionDraftV1[];
+    boundaryReviews: readonly BoundaryReviewV1[];
+    evidenceReviews: readonly EvidenceReviewV1[];
+    evidence?: EvidenceVersionV1;
+}
+
+export type ContributionDraftV1 = ContributionDraft;
+export type BoundaryReviewV1 = BoundaryReview;
+export type EvidenceReviewV1 = EvidenceReview;
+export type EvidenceVersionV1 = EvidenceVersion;
 
 export type ContributionResultV1 =
     | { contributionId: string; generation: number; phase: ContributionPhaseV1 }
