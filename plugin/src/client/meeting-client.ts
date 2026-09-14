@@ -7,10 +7,12 @@ import {
     CaptainDecisionAcceptanceResultSchema,
     CaptainDecisionDispositionResultSchema,
     CaptainRiskDispositionResultSchema,
+    ContributionResultSchema,
     EndMeetingResultSchema,
     LocalMeetingListResponseConsumerSchema,
     MeetingControlResultSchema,
     MeetingStatusResultSchema,
+    ReadContributionResultSchema,
     ReassignTurnResultSchema,
     validateProtocolError,
     validateProtocolSuccessEnvelope,
@@ -20,6 +22,8 @@ import {
     type CaptainDecisionDispositionResultV1,
     type CaptainRiskDispositionInputV1,
     type CaptainRiskDispositionResultV1,
+    type ContributionCommandV1,
+    type ContributionResultV1,
     type EndMeetingInputV1,
     type EndMeetingResultV1,
     type LocalMeetingListResponseV1,
@@ -32,7 +36,9 @@ import {
     type ReassignTurnInputV1,
     type ReassignTurnResultV1,
     type PauseMeetingInputV1,
-    type ResumeMeetingInputV1
+    type ResumeMeetingInputV1,
+    type ReadContributionInputV1,
+    type ReadContributionResultV1
 } from "@/protocol/index.js";
 
 export class ProtocolFailure extends Error {
@@ -43,6 +49,14 @@ export class ProtocolFailure extends Error {
 }
 
 export interface MeetingClient {
+    readContribution(
+        input: ReadContributionInputV1,
+        signal?: AbortSignal
+    ): Promise<ProtocolSuccessV1<ReadContributionResultV1>>;
+    controlContribution(
+        input: Extract<ContributionCommandV1, { action: "retry" | "cancel" | "notify_manager" }>,
+        signal?: AbortSignal
+    ): Promise<ProtocolSuccessV1<ContributionResultV1>>;
     list(signal?: AbortSignal): Promise<LocalMeetingListResponseV1>;
     getStatus(
         input: MeetingStatusInputV1,
@@ -132,6 +146,17 @@ function success<T>(schema: Schema, value: unknown): T {
 export function createMeetingClient(remote: ClientRemote): MeetingClient {
     const service = remote.conviviumMeetings;
     return {
+        readContribution: (input, signal) =>
+            unwrap(service.readContribution({ ...input }, signal), (value) =>
+                success<ProtocolSuccessV1<ReadContributionResultV1>>(
+                    ReadContributionResultSchema,
+                    value
+                )
+            ),
+        controlContribution: (input, signal) =>
+            unwrap(service.controlContribution({ ...input }, signal), (value) =>
+                success<ProtocolSuccessV1<ContributionResultV1>>(ContributionResultSchema, value)
+            ),
         list: (signal) => unwrap(service.list(signal), LocalMeetingListResponseConsumerSchema),
         getStatus: (input, signal) =>
             unwrap(service.getStatus({ ...input }, signal), (value) =>

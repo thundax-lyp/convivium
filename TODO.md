@@ -18,12 +18,6 @@
 
 ### 交付验证
 
-- [ ] `Remote 与 Client`：受控 Remote 与 typed client（T8a）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T8a。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现读取和控制 Remote 方法，生成契约并接 typed client。
-    - 验收点：生成契约包含两个方法；本地不能代批准/核验；取消、权限和结果解析通过。
-
 - [ ] `会议面板`：贡献详情与控制交互（T8b）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T8b。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

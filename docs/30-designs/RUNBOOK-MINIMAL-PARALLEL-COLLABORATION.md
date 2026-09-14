@@ -176,27 +176,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T8a：Remote 与 typed client
-
-前置状态：T7 PASS。
-允许修改：`plugin/src/remote/index.ts`；`plugin/src/remote/types.ts`；`plugin/src/client/meeting-client.ts`；`plugin/tests/fixtures/remote-gateway.ts`；`plugin/tests/client/meeting-client.client.spec.ts`；`plugin/tests/client/meeting-remote-types.ts`；`plugin/tests/contract/remote-boundary.spec.ts`；`plugin/tests/contract/remote-generation.spec.ts`。Typert 输出只由 generate:typert 生成：plugin/lib/typert.host.js、plugin/lib/typert.host.d.ts、plugin/lib/typert.remote-client.js、plugin/lib/typert.remote-client.d.ts。
-禁止修改：面板 UI、角色资源、手改生成文件。
-
-执行：
-1. 实现 readContribution/controlContribution Remote methods 与 typed client；输入、caller、AbortSignal、envelope/result Schema 按 Design。
-2. 验证 local 控制只允许 retry/cancel/notify，不能冒充 Manager/reviewer；异常、取消和版本冲突不更新缓存为成功。
-3. 运行下面的生成、验证命令；生成失败不得手改产物。
-
-验证：
-```bash
-pnpm --dir plugin generate:typert
-pnpm --dir plugin exec vitest run tests/client/meeting-client.client.spec.ts tests/contract/remote-boundary.spec.ts tests/contract/remote-generation.spec.ts
-pnpm --dir plugin typecheck
-```
-
-PASS：命令退出 0；生成 contract 含两个方法；真实 Remote 权限与 typed client 结果解析通过。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
 ### T8b：贡献面板交互
 
 前置状态：T8a PASS。
