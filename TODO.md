@@ -14,12 +14,6 @@
 
 ### 基础
 
-- [ ] `公开提交`：提取 claims 与纪要校验（T2）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T2。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：提取并复用公开 claims、纪要校验和输入规范化逻辑。
-    - 验收点：无 currentTurn 也可应用合法 claims；非法集合整体拒绝；旧 Speaker 行为回归通过。
-
 - [ ] `贡献准备`：指派、材料版本与私稿（T3a）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T3a。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

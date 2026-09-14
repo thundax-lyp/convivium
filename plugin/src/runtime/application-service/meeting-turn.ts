@@ -36,6 +36,7 @@ import type { AuthorizedTaskEvidenceResolver } from "@/runtime/task-evidence.js"
 import type { CreateStatusRuntimeOptions, MeetingToolRuntime } from "./index.js";
 import type { StoredMeeting } from "./types.js";
 import { captureManagerCatalogBinding } from "@/runtime/services/agent-catalog.js";
+import { preparePublicSubmission } from "@/runtime/services/public-submission-service.js";
 
 type ManagerFallbackReasonCode =
     "manager_plan_invalid" | "manager_timeout" | "manager_delivery_retry_exhausted";
@@ -192,68 +193,20 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
             }
             const messageId = `message-${input.deliveryId}`;
             const commandNow = options.now?.() ?? Date.now();
-            const questions = (input.changes.questions ?? []).map((claim, index) => ({
-                id: `question-${input.deliveryId}-${index + 1}`,
-                text: claim.text.trim(),
-                ...(claim.directedTo === undefined ? {} : { directedTo: claim.directedTo }),
-                blocking: claim.blocking,
-                affectedOutputIds: [...(claim.affectedOutputIds ?? [])],
-                affectedCriterionIds: [...(claim.affectedCriterionIds ?? [])],
-                violatedConstraintIds: [...(claim.violatedConstraintIds ?? [])],
-                createdAt: commandNow
-            }));
-            const issues = (input.changes.issues ?? []).map((claim, index) => ({
-                id: `issue-${input.deliveryId}-${index + 1}`,
-                title: claim.title,
-                description: claim.description,
-                affectedOutputIds: claim.affectedOutputIds,
-                affectedCriterionIds: claim.affectedCriterionIds,
-                violatedConstraintIds: claim.violatedConstraintIds,
-                impact: claim.impact,
-                urgency: claim.urgency,
-                safeDefaultAvailable: claim.safeDefaultAvailable,
-                ...(claim.riskLevel === undefined ? {} : { riskLevel: claim.riskLevel })
-            }));
-            const proposals = (input.changes.proposals ?? []).map((claim, index) => ({
-                id: `${input.deliveryId}-proposal-${index + 1}`,
-                ...(claim.proposalId === undefined ? {} : { proposalId: claim.proposalId }),
-                ...(claim.expectedRevision === undefined
-                    ? {}
-                    : { expectedRevision: claim.expectedRevision }),
-                title: claim.title,
-                description: claim.description,
+            const prepared = preparePublicSubmission(input, {
+                messageId,
+                idSeed: input.deliveryId,
+                agendaItemId: input.agendaItemId,
                 now: commandNow
-            }));
-            const positions = (input.changes.positions ?? []).map((claim, index) => ({
-                id: `${input.deliveryId}-position-${index + 1}`,
-                proposalId: claim.proposalId,
-                proposalRevision: claim.proposalRevision,
-                position: claim.position,
-                ...(claim.reason === undefined ? {} : { reason: claim.reason }),
-                blocking: claim.blocking,
-                now: commandNow
-            }));
-            const agendaCandidates = (input.changes.agendaCandidates ?? []).map((claim, index) => ({
-                id: `${input.deliveryId}-agenda-candidate-${index + 1}`,
-                title: claim.title,
-                reason: claim.reason,
-                relationToActiveAgenda: claim.relationToActiveAgenda,
-                urgency: claim.urgency,
-                suggestedParticipants: claim.suggestedParticipants,
-                now: commandNow
-            }));
-            const decisionCandidates = (input.changes.decisionProposals ?? []).map(
-                (claim, index) => ({
-                    id: `decision-candidate-${input.deliveryId}-${index + 1}`,
-                    proposalId: claim.proposalId,
-                    proposalRevision: claim.proposalRevision,
-                    statement: claim.statement,
-                    rationale: claim.rationale,
-                    sourceMessageId: messageId,
-                    agendaItemId: input.agendaItemId,
-                    createdAt: commandNow
-                })
-            );
+            });
+            const {
+                questions,
+                issues,
+                proposals,
+                positions,
+                agendaCandidates,
+                decisionCandidates
+            } = prepared.claims;
             try {
                 const current = await stored.repository.read();
                 const currentState = current.state as unknown as MeetingState;
@@ -284,30 +237,7 @@ export function createMeetingTurnApplication(dependencies: MeetingTurnApplicatio
                     attemptId: input.attemptId,
                     deliveryId: input.deliveryId,
                     agendaItemId: input.agendaItemId,
-                    message: {
-                        id: messageId,
-                        content: input.content,
-                        kind: input.kind,
-                        mentions: input.mentions,
-                        ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
-                        taskIds: input.taskIds,
-                        agendaRelation: input.agendaRelation,
-                        createdAt: commandNow,
-                        ...(input.minutesDraft === undefined
-                            ? {}
-                            : {
-                                  minutesDraft: {
-                                      status: "draft" as const,
-                                      coverage: {
-                                          fromSeq: input.minutesDraft.coverage.fromSeq,
-                                          throughSeq: input.minutesDraft.coverage.throughSeq
-                                      },
-                                      referencedMessageIds: [
-                                          ...input.minutesDraft.referencedMessageIds
-                                      ]
-                                  }
-                              })
-                    },
+                    message: prepared.message,
                     now: commandNow,
                     nextPlanningAttemptId: planningIds.planningAttemptId,
                     nextPlanningDeliveryId: planningIds.deliveryId,

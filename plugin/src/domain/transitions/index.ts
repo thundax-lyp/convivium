@@ -29,6 +29,11 @@ export {
 export { disposeDecision, type DisposeDecisionInput } from "./decision-disposition.js";
 export { applySubmittedProposalPositionClaims } from "./proposal-position.js";
 export { submitSpeakerAndAdvanceMeeting } from "./speaker-submission.js";
+export {
+    applyPublicSubmission,
+    assertPublicMinutes,
+    type PublicSubmissionContext
+} from "./public-submission.js";
 export type {
     StartManagerPlanningContext,
     SubmitManagerPlanContext,

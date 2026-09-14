@@ -1,4 +1,4 @@
-import { isMeetingStateV2 } from "@/domain/index.js";
+import { applyPublicSubmission, isMeetingStateV2 } from "@/domain/index.js";
 import { contributionMeeting, contributionNow } from "../../fixtures/contribution.js";
 import { describe, expect, it } from "vitest";
 
@@ -61,6 +61,35 @@ function evidenceVersion(revision: number) {
 }
 
 describe("contribution state structure", () => {
+    it("applies public claims without a current Turn", () => {
+        const state = contributionMeeting();
+        delete state.currentTurn;
+        const participantId = state.participants[0]!.id;
+        const result = applyPublicSubmission(state, participantId, {
+            agendaItemId: state.agenda[0]!.id,
+            now: contributionNow,
+            message: {
+                id: "message-contribution-1-1",
+                content: "A public question.",
+                kind: "question",
+                mentions: [],
+                taskIds: [],
+                agendaRelation: "on_topic",
+                createdAt: contributionNow
+            },
+            questions: [
+                {
+                    id: "question-contribution-1",
+                    text: "What remains?",
+                    blocking: false,
+                    createdAt: contributionNow
+                }
+            ]
+        });
+        expect(result.state.openQuestions).toHaveLength(1);
+        expect(result.effect.events.map(({ type }) => type)).toEqual(["question.added"]);
+    });
+
     it("keeps a legacy meeting readable and accepts one complete contribution state", () => {
         const legacy = contributionMeeting();
         expect(isMeetingStateV2(legacy)).toBe(true);
