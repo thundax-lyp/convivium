@@ -22,7 +22,11 @@ import {
 } from "@/protocol/index.js";
 import { JsonObjectSchema } from "@/repository/domain/schemas.js";
 import { preparePublicSubmission } from "@/runtime/services/public-submission-service.js";
-import { contributionOutbox } from "@/runtime/services/contribution-runtime-service.js";
+import {
+    contributionOutbox,
+    interruptCancelledContributions
+} from "@/runtime/services/contribution-runtime-service.js";
+import type { DomainEvent } from "@/domain/index.js";
 import { commandSuccess, mapCommandError } from "@/runtime/services/command-result-service.js";
 import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
 import type { MeetingDeliveryWorkerService } from "@/runtime/services/types.js";
@@ -204,6 +208,7 @@ export function createMeetingContributionApplication({
             const newId = `contribution-${hash}`,
                 newEvidenceId = `evidence-${hash}`;
             signal.throwIfAborted();
+            let committedEvents: readonly DomainEvent[] = [];
             const committed = await binding.stored.repository.execute<ContributionResultV1>({
                 requestId: input.requestId,
                 commandKind: `contribution:${input.action}`,
@@ -245,10 +250,15 @@ export function createMeetingContributionApplication({
                             (event) => event.type !== "contribution.manager_notified"
                         ),
                         ...progress.effect.events,
-                        ...transition.effect.events.filter(
+                        ...(progress.effect.events.some(
                             (event) => event.type === "contribution.manager_notified"
                         )
+                            ? []
+                            : transition.effect.events.filter(
+                                  (event) => event.type === "contribution.manager_notified"
+                              ))
                     ];
+                    committedEvents = events;
                     assertContributionCapacity(progress.state);
                     return {
                         state: JsonObjectSchema.parse(JSON.parse(JSON.stringify(progress.state))),
@@ -260,6 +270,12 @@ export function createMeetingContributionApplication({
                         outbox: [...contributionOutbox(before, progress.state, events)]
                     };
                 }
+            });
+            await interruptCancelledContributions({
+                repository: binding.stored.repository,
+                parent: binding.stored.parent,
+                runtime: options.continuable,
+                events: committedEvents
             });
             deliveryWorkers.wake(input.meetingId);
             return commandSuccess(input.meetingId, committed.meetingVersion, committed.result);

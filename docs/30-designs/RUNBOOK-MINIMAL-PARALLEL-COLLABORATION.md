@@ -72,9 +72,9 @@ I1 caller 必须真实绑定；I2 一人一项、同 Session 串行；I3 未审�
 
 批内步骤实现完成且 format/lint/build 通过后，删除对应 TODO/RUNBOOK 步骤并独立提交；提交说明明确测试尚待批次验证，不宣称未经执行的测试通过。删除步骤前保留该批待执行的测试命令于本节；第四步提交前执行该批全部测试。任何批次失败先修复，不进入下一批；不得用删除断言、skip、放宽 Schema 或减少最终验证集合处理失败。后续批次按剩余步骤顺序每四步分组。
 
-当前下一批测试命令：
+当前批次为 T6b、T6c、T6d、T6e；测试命令：
 ```bash
-pnpm --dir plugin exec vitest run tests/contract/contribution-evidence.spec.ts tests/contract/contribution-runtime.spec.ts tests/contract/domain-meeting-repository.spec.ts tests/unit/runtime/contribution-dispatch.spec.ts tests/unit/runtime/meeting-manager-dispatch.spec.ts tests/unit/runtime/meeting-speaker-dispatch.spec.ts tests/contract/tool-registration.spec.ts tests/unit/domain/contribution.spec.ts tests/unit/domain/completion.spec.ts
+pnpm --dir plugin exec vitest run tests/unit/domain/contribution.spec.ts tests/contract/contribution-runtime.spec.ts tests/recovery/contribution-recovery.spec.ts tests/recovery/meeting-recovery.spec.ts tests/unit/domain/transitions/archive.spec.ts
 ```
 
 
@@ -175,26 +175,6 @@ pnpm --dir plugin typecheck:host
 ```
 
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
-### T6b：议题顺序推进
-
-前置状态：T6a PASS。
-允许修改：`plugin/src/domain/transitions/contribution.ts`；`plugin/src/domain/contribution.ts`；`plugin/src/domain/transitions/meeting.ts`；`plugin/src/domain/index.ts`；`plugin/src/runtime/services/contribution-runtime-service.ts`；`plugin/src/runtime/application-service/index.ts`；`plugin/tests/unit/domain/contribution.spec.ts`；`plugin/tests/contract/contribution-runtime.spec.ts`；`plugin/src/runtime/application-service/meeting-decision.ts`；`plugin/src/runtime/application-service/meeting-agenda-candidate.ts`。
-禁止修改：修改议题选择策略、required 豁免、冷恢复或 archive。
-
-执行：
-1. 在 evaluateContributionProgress 的未终止分支实现 Interface Agenda Advancement：依数组顺序选 pending，required 门槛未闭合不切换。
-2. 同事务取消旧非 required 私稿、保留 published pending 核验、追加 agenda_advanced 及一次 Manager notice；commit 后仅 interrupt 被取消任务作者。
-3. 新增 describe="contribution agenda advancement"：双议题、required 未完、合法切换、无下一议题、旧稿迟到/重试、旧公开审核跨议题完成以及与终止同时满足时不推进。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/contribution.spec.ts tests/contract/contribution-runtime.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：命令退出 0；无隐式择优或 Turn；消息/任务/事件/outbox 与当前议题一致；终止优先。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
 ### T6c：暂停恢复与阶段超时

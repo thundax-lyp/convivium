@@ -1,5 +1,63 @@
 import type { DomainEvent, MeetingState } from "@/domain/index.js";
+import { isMeetingStateV2 } from "@/domain/index.js";
+import type { Agent } from "@deepseek-ai/dsh-agent";
+import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
+import type { MeetingRepositoryRuntime } from "@/runtime/meeting-runtime.js";
 import type { JsonObject } from "@/runtime/meeting-runtime.js";
+
+export async function interruptCancelledContributions(input: {
+    repository: MeetingRepositoryRuntime;
+    parent?: Agent;
+    runtime: Partial<Pick<SubagentRuntime, "interrupt">>;
+    events: readonly DomainEvent[];
+}): Promise<void> {
+    const cancellations = input.events.filter(
+        (event) => event.type === "contribution.controlled" && event.payload.action === "cancel"
+    );
+    if (
+        cancellations.length === 0 ||
+        input.parent === undefined ||
+        input.runtime.interrupt === undefined
+    )
+        return;
+    // Admission was already revoked atomically; cleanup cannot turn the committed receipt into failure.
+    try {
+        const recovered = await input.repository.recover();
+        const state = recovered.snapshot?.state;
+        if (!isMeetingStateV2(state) || state.contributions === undefined) return;
+        for (const event of cancellations) {
+            const task = state.contributions.tasks[String(event.payload.contributionId)];
+            if (task?.phase !== "cancelled" || task.generation !== event.payload.generation)
+                continue;
+            if (
+                Object.values(state.contributions.tasks).some(
+                    (other) =>
+                        other.participantId === task.participantId &&
+                        other.id !== task.id &&
+                        !["cancelled", "published"].includes(other.phase)
+                )
+            )
+                continue;
+            const ownership = recovered.sessionOwnership.find(
+                (item) =>
+                    item.role === "participant" &&
+                    item.participantId === task.participantId &&
+                    item.parentSessionId === String(input.parent!.id) &&
+                    item.capabilityStatus === "active" &&
+                    item.lifecycleStatus === "active"
+            );
+            if (ownership !== undefined)
+                input.runtime.interrupt(
+                    ownership.sessionId as Parameters<
+                        NonNullable<typeof input.runtime.interrupt>
+                    >[0],
+                    { kind: "ancestor", agent: input.parent }
+                );
+        }
+    } catch {
+        // A later delivery still fails the durable generation check if DSH interruption is unavailable.
+    }
+}
 
 export function contributionOutbox(
     before: MeetingState,

@@ -136,6 +136,115 @@ describe("contribution completion and termination", () => {
     });
 });
 
+describe("contribution agenda advancement", () => {
+    function twoAgendas(): MeetingState {
+        const state = contributionMeeting();
+        state.contributions = validContributionState() as MeetingState["contributions"];
+        state.agenda[0]!.status = "resolved";
+        state.agenda.push({ ...state.agenda[0]!, id: "agenda-2", status: "pending" });
+        return state;
+    }
+    it("advances in array order, cancels only old optional drafts and notifies once", () => {
+        const state = twoAgendas();
+        state.agenda.push({ ...state.agenda[1]!, id: "agenda-0" });
+        const before = structuredClone(state);
+        const result = evaluateContributionProgress(state, contributionNow);
+        expect(state).toEqual(before);
+        expect(result.state.activeAgendaItemId).toBe("agenda-2");
+        expect(result.state.agenda.map((v) => v.status)).toEqual([
+            "resolved",
+            "discussing",
+            "pending"
+        ]);
+        expect(result.state.contributions!.tasks["contribution-1"]).toMatchObject({
+            phase: "cancelled",
+            generation: 2,
+            reason: "agenda_advanced"
+        });
+        expect(result.effect.events.map((v) => v.type)).toEqual([
+            "contribution.controlled",
+            "contribution.agenda_advanced",
+            "contribution.manager_notified"
+        ]);
+        expect(result.state.contributions!.managerNoticeSeq).toBe(1);
+        expect(evaluateContributionProgress(result.state, contributionNow).effect.events).toEqual(
+            []
+        );
+        expect(() =>
+            applyContributionCommand(
+                result.state,
+                {
+                    action: "retry",
+                    contributionId: "contribution-1",
+                    generation: 2,
+                    reason: "Old agenda"
+                },
+                captainContext()
+            )
+        ).toThrow();
+    });
+    it("does not advance unfinished required work or reopen an exhausted agenda", () => {
+        const state = twoAgendas();
+        state.contributions!.tasks["contribution-1"]!.requiredForCompletion = true;
+        expect(evaluateContributionProgress(state, contributionNow).state).toBe(state);
+        state.contributions!.tasks["contribution-1"]!.phase = "cancelled";
+        expect(evaluateContributionProgress(state, contributionNow).state).toBe(state);
+        state.contributions!.tasks["contribution-1"]!.requiredForCompletion = false;
+        state.agenda.pop();
+        state.agenda[0]!.status = "discussing";
+        expect(evaluateContributionProgress(state, contributionNow).state.activeAgendaItemId).toBe(
+            "agenda-1"
+        );
+    });
+    it("terminates on budget before advancing", () => {
+        const state = twoAgendas();
+        state.limits.maxTotalMessages = 0;
+        const result = evaluateContributionProgress(state, contributionNow);
+        expect(result.state.status).toBe("partial");
+        expect(result.state.activeAgendaItemId).toBe("agenda-1");
+        expect(result.effect.events.some((v) => v.type === "contribution.agenda_advanced")).toBe(
+            false
+        );
+    });
+    it("preserves published pending review and permits the fixed reviewer to finish across agendas", () => {
+        const state = evidenceReviewState() as MeetingState;
+        state.agenda[0]!.status = "resolved";
+        state.agenda.push({ ...state.agenda[0]!, id: "agenda-2", status: "pending" });
+        const advanced = evaluateContributionProgress(state, contributionNow).state;
+        expect(advanced.activeAgendaItemId).toBe("agenda-2");
+        expect(advanced.contributions!.tasks["contribution-1"]).toEqual(
+            state.contributions!.tasks["contribution-1"]
+        );
+        const reviewed = applyContributionCommand(
+            advanced,
+            {
+                action: "evidence_review",
+                contributionId: "contribution-1",
+                generation: 1,
+                draftRevision: 1,
+                reviews: [
+                    {
+                        evidenceKey: "evidence-1:1",
+                        claim: "fixture",
+                        verdict: "supports",
+                        method: "Read exact material",
+                        result: "Matches",
+                        limitations: "Fixture only"
+                    }
+                ]
+            },
+            {
+                ...managerContext(),
+                actor: { kind: "participant", participantId: advanced.contributions!.reviewerId }
+            }
+        );
+        expect(reviewed.state.contributions!.tasks["contribution-1"]!.reviewStatus).toBe(
+            "complete"
+        );
+        expect(reviewed.state.transcript).toEqual(state.transcript);
+    });
+});
+
 function validContributionState() {
     const state = contributionMeeting();
     const authorId = state.participants[0]!.id;
@@ -283,6 +392,7 @@ function evidenceReviewState() {
                 "contribution-1": {
                     ...task,
                     phase: "published" as const,
+                    messageId: publishedMessage.id,
                     requiresEvidenceReview: true,
                     reviewStatus: "pending" as const,
                     drafts: {

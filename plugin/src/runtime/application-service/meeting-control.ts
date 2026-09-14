@@ -14,6 +14,11 @@ import {
     transitionMeeting,
     type MeetingState
 } from "@/domain/index.js";
+import type { DomainEvent } from "@/domain/index.js";
+import {
+    contributionOutbox,
+    interruptCancelledContributions
+} from "@/runtime/services/contribution-runtime-service.js";
 import type {
     ProtocolSuccessV1,
     ProtocolErrorV1,
@@ -176,6 +181,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                 ? failure("MEETING_NOT_FOUND", "Meeting not found.")
                 : failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can dispose a risk.");
         try {
+            let committedEvents: readonly DomainEvent[] = [];
             const committed = await stored.repository.execute({
                 requestId: input.requestId,
                 commandKind: "dispose_risk",
@@ -243,6 +249,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                                 ]
                               : transition.effect.events;
                     const fact = nextState.completionFacts.at(-1)!;
+                    committedEvents = events;
                     return {
                         state: nextState as unknown as JsonObject,
                         result: {
@@ -253,9 +260,15 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                             meetingStatus: nextState.status
                         } satisfies CaptainRiskDispositionResultV1,
                         events: events as unknown as DomainEventInput[],
-                        outbox: []
+                        outbox: [...contributionOutbox(state, nextState, events)]
                     };
                 }
+            });
+            await interruptCancelledContributions({
+                repository: stored.repository,
+                parent: stored.parent,
+                runtime: options.continuable,
+                events: committedEvents
             });
             return success(
                 input.meetingId,

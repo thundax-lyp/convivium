@@ -16,12 +16,6 @@
 
 ### 协作闭环
 
-- [ ] `议题推进`：按既定顺序推进议题（T6b）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T6b。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现议题切换、旧私稿处置和一次 Manager 通知。
-    - 验收点：required 未闭合不切换；合法双议题按数组顺序推进；保留已公开待核验材料；终止优先。
-
 - [ ] `暂停与超时`：暂停恢复与阶段超时（T6c）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T6c。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

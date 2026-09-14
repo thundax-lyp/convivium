@@ -6,6 +6,11 @@ import type {
 } from "@/protocol/index.js";
 import { disposeAgendaCandidate } from "@/domain/index.js";
 import { evaluateContributionProgress } from "@/domain/index.js";
+import type { DomainEvent, MeetingState } from "@/domain/index.js";
+import {
+    contributionOutbox,
+    interruptCancelledContributions
+} from "@/runtime/services/contribution-runtime-service.js";
 import { serializeValidatedRequestV1 } from "@/protocol/index.js";
 import type { MeetingToolCaller, MeetingToolRuntime, CreateStatusRuntimeOptions } from "./index.js";
 import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
@@ -47,6 +52,7 @@ export function createMeetingAgendaCandidateApplication({
                     "Only the meeting Captain can dispose an agenda candidate."
                 );
             try {
+                let committedEvents: readonly DomainEvent[] = [];
                 const committed = await stored.repository.execute({
                     requestId: input.requestId,
                     commandKind: "dispose_agenda_candidate",
@@ -76,6 +82,7 @@ export function createMeetingAgendaCandidateApplication({
                             transition.state,
                             options.now?.() ?? Date.now()
                         );
+                        committedEvents = [...transition.effect.events, ...progress.effect.events];
                         return {
                             state: progress.state as unknown as JsonObject,
                             result: {
@@ -90,14 +97,26 @@ export function createMeetingAgendaCandidateApplication({
                                 ...transition.effect.events,
                                 ...progress.effect.events
                             ] as never,
-                            outbox: []
+                            outbox: [
+                                ...contributionOutbox(
+                                    snapshot.state as unknown as MeetingState,
+                                    progress.state,
+                                    committedEvents
+                                )
+                            ]
                         } satisfies {
                             state: JsonObject;
                             result: CaptainAgendaCandidateDispositionResultV1;
                             events: never;
-                            outbox: never[];
+                            outbox: ReturnType<typeof contributionOutbox>;
                         };
                     }
+                });
+                await interruptCancelledContributions({
+                    repository: stored.repository,
+                    parent: stored.parent,
+                    runtime: options.continuable,
+                    events: committedEvents
                 });
                 return success(
                     input.meetingId,

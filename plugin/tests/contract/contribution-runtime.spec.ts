@@ -11,6 +11,7 @@ import {
     createFakeDomainFacility
 } from "../fixtures/domain-storage.js";
 import type { ContributionCommandV1 } from "@/protocol/index.js";
+import type { MeetingState } from "@/domain/index.js";
 import { ContributionResultSchema } from "@/protocol/index.js";
 import { encodeMeetingSessionLabel, resolveMeetingCaller } from "@/dsh/index.js";
 import { registerSubmitAndControlTools } from "@/tools/index.js";
@@ -20,7 +21,7 @@ import type { MeetingToolRuntime } from "@/runtime/index.js";
 import { createMeetingDeliveryDispatcher } from "@/runtime/services/meeting-dispatch-service.js";
 import { createOutboxWorker } from "@/runtime/outbox-worker.js";
 
-async function fixture() {
+async function fixture(prepare?: (state: MeetingState) => void) {
     const domain = createFakeMeetingDomain();
     const authorizationValidator = { validateCreate() {}, validateCommand() {} };
     const repository = await DomainMeetingRepository.open({
@@ -40,6 +41,7 @@ async function fixture() {
     });
     state.contributions = createContributionState("participant-3", now);
     state.meetingTasks = [];
+    prepare?.(state);
     const create = {
         requestId: "create",
         requestHash: "create",
@@ -79,6 +81,7 @@ async function fixture() {
         );
     }
     const wake = vi.fn();
+    const interrupt = vi.fn();
     const application = createMeetingContributionApplication({
         options: {
             storageDomain: createFakeDomainFacility(),
@@ -88,11 +91,20 @@ async function fixture() {
             continuable: {
                 startContinuable: vi.fn(),
                 sendMessage: vi.fn(),
-                listDescendants: vi.fn()
+                listDescendants: vi.fn(),
+                interrupt
             }
         },
         meetings: new Map([
-            ["meeting-1", { captainSessionId: "captain-1", teamId: "team-1", repository }]
+            [
+                "meeting-1",
+                {
+                    captainSessionId: "captain-1",
+                    teamId: "team-1",
+                    repository,
+                    parent: { id: "captain-1" } as Agent
+                }
+            ]
         ]),
         recovery: { rehydrate: async () => undefined },
         deliveryWorkers: { ensure() {}, wake, async dispose() {} }
@@ -118,8 +130,64 @@ async function fixture() {
         requiredForCompletion: false,
         requiresEvidenceReview: false
     });
-    return { application, repository, domain, wake, manager, author, signal, assign };
+    return { application, repository, domain, wake, interrupt, manager, author, signal, assign };
 }
+
+describe("contribution agenda advancement", () => {
+    it("commits a single next-agenda notice and interrupts only the cancelled author, without repeating effects on replay", async () => {
+        const f = await fixture((state) =>
+            state.agenda.push({ ...state.agenda[0]!, id: "agenda-2", status: "pending" })
+        );
+        try {
+            expect(
+                await f.application.applyContribution(
+                    f.assign((await f.repository.read()).version),
+                    f.manager,
+                    f.signal
+                )
+            ).toMatchObject({ ok: true });
+            await f.repository.execute({
+                requestId: "resolve-fixture",
+                commandKind: "fixture",
+                requestHash: "resolve-fixture",
+                authorization: { callerBinding: "runtime", capabilityId: "runtime" },
+                expectedMeetingVersion: (await f.repository.read()).version,
+                transition(snapshot) {
+                    const state = structuredClone(snapshot.state) as unknown as MeetingState;
+                    state.agenda[0]!.status = "resolved";
+                    return {
+                        state: JsonObjectSchema.parse(state),
+                        result: {},
+                        events: [],
+                        outbox: []
+                    };
+                }
+            });
+            const command = {
+                protocolVersion: 1 as const,
+                meetingId: "meeting-1",
+                requestId: "advance",
+                expectedMeetingVersion: (await f.repository.read()).version,
+                action: "notify_manager" as const,
+                reason: "Advance agenda"
+            };
+            const result = await f.application.controlLocalContribution(command, f.signal);
+            expect(result).toMatchObject({ ok: true });
+            expect((await f.repository.read()).state.activeAgendaItemId).toBe("agenda-2");
+            expect(f.interrupt.mock.calls.map((call) => call[0])).toEqual(["author-1"]);
+            const projection = loadProjection({ domain: f.domain });
+            const notices = Object.values(projection.outbox).filter(
+                (item) => item.payload.role === "contribution_manager"
+            );
+            expect(notices).toHaveLength(1);
+            expect(await f.application.controlLocalContribution(command, f.signal)).toEqual(result);
+            expect(loadProjection({ domain: f.domain })).toEqual(projection);
+            expect(f.interrupt).toHaveBeenCalledTimes(1);
+        } finally {
+            await f.repository.close();
+        }
+    });
+});
 
 describe("contribution application transactions", () => {
     it("commits assignment and dispatch together, replays receipts, rejects CAS and mismatched caller without side effects", async () => {

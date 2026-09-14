@@ -87,7 +87,91 @@ export function evaluateContributionProgress(
                   now - state.createdAt >= state.limits.maxDurationMs
                 ? "time_limit"
                 : undefined;
-    if (code === undefined) return { state, effect: { events: [] } };
+    if (code === undefined) {
+        const current = state.agenda.find((item) => item.id === state.activeAgendaItemId);
+        const next = state.agenda.find((item) => item.status === "pending");
+        if (
+            current === undefined ||
+            !["resolved", "deferred"].includes(current.status) ||
+            next === undefined ||
+            Object.values(state.contributions.tasks).some(
+                (task) =>
+                    task.agendaItemId === current.id &&
+                    task.requiredForCompletion &&
+                    (task.phase !== "published" ||
+                        (task.requiresEvidenceReview && task.reviewStatus !== "complete"))
+            )
+        )
+            return { state, effect: { events: [] } };
+        const tasks = { ...state.contributions.tasks };
+        const events: TransitionResult<MeetingState>["effect"]["events"] = [];
+        for (const task of Object.values(tasks)) {
+            if (
+                task.agendaItemId !== current.id ||
+                task.requiredForCompletion ||
+                ["published", "cancelled"].includes(task.phase)
+            )
+                continue;
+            tasks[task.id] = {
+                ...task,
+                phase: "cancelled",
+                generation: task.generation + 1,
+                reason: "agenda_advanced",
+                updatedAt: now
+            };
+            events.push({
+                type: "contribution.controlled",
+                payload: {
+                    contributionId: task.id,
+                    generation: task.generation + 1,
+                    actor: "runtime",
+                    at: now,
+                    action: "cancel",
+                    reason: "agenda_advanced"
+                }
+            });
+        }
+        const noticeSeq = state.contributions.managerNoticeSeq + 1;
+        events.push(
+            {
+                type: "contribution.agenda_advanced",
+                payload: {
+                    fromAgendaItemId: current.id,
+                    toAgendaItemId: next.id,
+                    actor: "runtime",
+                    at: now
+                }
+            },
+            {
+                type: "contribution.manager_notified",
+                payload: {
+                    noticeSeq,
+                    contextThroughSeq: state.messageSeq,
+                    actor: "runtime",
+                    at: now
+                }
+            }
+        );
+        return {
+            state: {
+                ...state,
+                version: state.version + 1,
+                updatedAt: now,
+                eventSeq: state.eventSeq + events.length,
+                activeAgendaItemId: next.id,
+                agenda: state.agenda.map((item) =>
+                    item.id === next.id ? { ...item, status: "discussing" } : item
+                ),
+                contributions: {
+                    ...state.contributions,
+                    tasks,
+                    managerNoticeSeq: noticeSeq,
+                    managerDeadlineAt: now + 600_000
+                }
+            },
+            effect: { events }
+        };
+    }
     return transitionMeeting(state, code === "objective_satisfied" ? "completed" : "partial", {
         now,
         reason: code,
