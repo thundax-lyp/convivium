@@ -229,14 +229,23 @@ describe("contribution state structure", () => {
                 agendaRelation: "on_topic",
                 createdAt: contributionNow
             },
-            questions: [
-                {
-                    id: "question-contribution-1",
-                    text: "What remains?",
-                    blocking: false,
-                    createdAt: contributionNow
-                }
-            ]
+            claims: {
+                questions: [
+                    {
+                        id: "question-contribution-1",
+                        text: "What remains?",
+                        blocking: false,
+                        createdAt: contributionNow
+                    }
+                ],
+                issues: [],
+                proposals: [],
+                positions: [],
+                agendaCandidates: [],
+                decisionCandidates: []
+            },
+            authorizedTaskIds: [],
+            completionFactId: (kind, index) => `completion-${kind}-${index}`
         });
         expect(result.state.openQuestions).toHaveLength(1);
         expect(result.effect.events.map(({ type }) => type)).toEqual(["question.added"]);

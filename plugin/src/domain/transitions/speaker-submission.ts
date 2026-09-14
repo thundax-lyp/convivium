@@ -11,12 +11,37 @@ export function submitSpeakerAndAdvanceMeeting(
     participantId: string,
     context: SubmitSpeakerAdvanceContext
 ): TransitionResult<MeetingState> {
+    if (context.message.minutesDraft !== undefined && context.completion !== undefined)
+        throw new DomainError("INVALID_ENTITY_STATE", "Invalid minutes draft.");
     const speakerSubmission = submitSpeakerAttempt(state, participantId, state.version, context);
-    const completedSubmission = applyPublicSubmission(
-        speakerSubmission.state,
-        participantId,
-        context
-    );
+    const completedSubmission = applyPublicSubmission(speakerSubmission.state, participantId, {
+        agendaItemId: context.agendaItemId,
+        message: context.message,
+        now: context.now,
+        claims: {
+            questions: context.questions,
+            issues: context.issues ?? [],
+            proposals: context.proposals ?? [],
+            positions: context.positions ?? [],
+            agendaCandidates: context.agendaCandidates ?? [],
+            decisionCandidates: context.decisionCandidates ?? [],
+            ...(context.completion === undefined ? {} : { completion: context.completion.claims })
+        },
+        authorizedTaskIds: context.completion?.authorizedTaskIds ?? [],
+        completionFactId: (kind, index) => {
+            if (
+                context.completion === undefined ||
+                (kind !== "output_evidence" &&
+                    kind !== "criterion_evidence" &&
+                    kind !== "review" &&
+                    kind !== "question_resolution" &&
+                    kind !== "agenda_resolution" &&
+                    kind !== "risk_acceptance")
+            )
+                throw new Error("Unexpected public completion fact kind.");
+            return context.completion.factId(kind, index);
+        }
+    });
     const omittedTask = (speakerSubmission.state.meetingTasks ?? []).find(
         (task) =>
             task.status === "requested" &&

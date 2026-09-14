@@ -7,21 +7,16 @@ import { addSubmittedDecisionCandidates } from "./decision-candidate.js";
 import { addSubmittedIssues } from "./issue.js";
 import { applySubmittedProposalPositionClaims } from "./proposal-position.js";
 import { addSubmittedQuestions } from "./question.js";
-import type { SubmitSpeakerAdvanceContext } from "./types.js";
+import type { ContributionClaims } from "@/domain/contribution.js";
 
-export type PublicSubmissionContext = Pick<
-    SubmitSpeakerAdvanceContext,
-    | "agendaItemId"
-    | "message"
-    | "now"
-    | "questions"
-    | "issues"
-    | "proposals"
-    | "positions"
-    | "agendaCandidates"
-    | "decisionCandidates"
-    | "completion"
->;
+export interface PublicSubmissionContext {
+    agendaItemId: string;
+    message: SpeakerSubmissionContext["message"];
+    claims: ContributionClaims;
+    now: number;
+    authorizedTaskIds: readonly string[];
+    completionFactId: (kind: string, index: number) => string;
+}
 
 export function assertPublicMinutes(
     state: MeetingState,
@@ -63,62 +58,69 @@ export function applyPublicSubmission(
 ): TransitionResult<MeetingState> {
     if (
         context.message.minutesDraft !== undefined &&
-        (context.completion !== undefined ||
+        (context.claims.completion !== undefined ||
             [
-                context.questions,
-                context.issues,
-                context.proposals,
-                context.positions,
-                context.agendaCandidates,
-                context.decisionCandidates
+                context.claims.questions,
+                context.claims.issues,
+                context.claims.proposals,
+                context.claims.positions,
+                context.claims.agendaCandidates,
+                context.claims.decisionCandidates
             ].some((claims) => (claims?.length ?? 0) > 0))
     ) {
         throw new DomainError("INVALID_ENTITY_STATE", "Invalid minutes draft.");
     }
-    const question = context.questions.length
-        ? addSubmittedQuestions(state, participantId, context.agendaItemId, context.questions)
+    const question = context.claims.questions.length
+        ? addSubmittedQuestions(
+              state,
+              participantId,
+              context.agendaItemId,
+              context.claims.questions
+          )
         : { state, effect: { events: [] } };
     const issue =
-        (context.issues?.length ?? 0)
+        (context.claims.issues?.length ?? 0)
             ? addSubmittedIssues(
                   question.state,
                   participantId,
                   context.agendaItemId,
-                  context.issues!
+                  context.claims.issues!
               )
             : { state: question.state, effect: { events: [] } };
     const proposal =
-        (context.proposals?.length ?? 0) || (context.positions?.length ?? 0)
+        (context.claims.proposals?.length ?? 0) || (context.claims.positions?.length ?? 0)
             ? applySubmittedProposalPositionClaims(
                   issue.state,
                   participantId,
                   context.agendaItemId,
-                  context.proposals ?? [],
-                  context.positions ?? []
+                  context.claims.proposals ?? [],
+                  context.claims.positions ?? []
               )
             : { state: issue.state, effect: { events: [] } };
     const agenda =
-        (context.agendaCandidates?.length ?? 0)
+        (context.claims.agendaCandidates?.length ?? 0)
             ? addSubmittedAgendaCandidates(
                   proposal.state,
                   participantId,
                   context.message.id,
-                  context.agendaCandidates!
+                  context.claims.agendaCandidates!
               )
             : { state: proposal.state, effect: { events: [] } };
     const decision =
-        (context.decisionCandidates?.length ?? 0)
+        (context.claims.decisionCandidates?.length ?? 0)
             ? addSubmittedDecisionCandidates(
                   agenda.state,
                   participantId,
                   context.agendaItemId,
                   context.message.id,
-                  context.decisionCandidates!
+                  context.claims.decisionCandidates!
               )
             : { state: agenda.state, effect: { events: [] } };
-    const completion = context.completion
+    const completion = context.claims.completion
         ? applyCompletionClaims(decision.state, {
-              ...context.completion,
+              claims: context.claims.completion,
+              authorizedTaskIds: context.authorizedTaskIds,
+              factId: context.completionFactId,
               participantId,
               now: context.now
           })
