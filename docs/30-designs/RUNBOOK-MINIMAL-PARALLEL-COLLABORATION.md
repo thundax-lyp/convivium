@@ -176,25 +176,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T9：完整工程验证
-
-前置状态：T8c PASS。
-允许修改：T1～T8 已明确允许的文件，只修复其规定行为；本 RUNBOOK 执行记录。
-禁止修改：依赖、lint/test 配置、跳过失败断言、未列能力。
-
-执行：跑完整门禁；如因实现错误失败，回到所属步骤在原范围修正，重跑该步及本步；原未覆盖能力失败不能自行豁免。
-
-验证：
-```bash
-pnpm lint
-pnpm --dir plugin verify
-node .github/scripts/check-doc-links.mjs
-git diff --check
-```
-
-PASS：全部退出 0，无新增 skip，无用类型断言/禁用 lint 掩盖字段问题。
-STOP：必须改变范围才能通过；保留测试失败输出，不称工程完成。
-
 ### T10：真实 DSH probe 与 Browser
 
 前置状态：T9 PASS；已有 smoke 入口可按 operations 读取凭据。

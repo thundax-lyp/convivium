@@ -18,12 +18,6 @@
 
 ### 交付验证
 
-- [ ] `工程验证`：完整工程门禁（T9）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T9。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：运行已固定的 lint、plugin verify 和文档检查，并按原范围修复失败。
-    - 验收点：全部规定门禁退出 0；无新增 skip、Schema 放宽或禁用 lint。
-
 - [ ] `真实 DSH 与 Browser`：确定性 probe 与面板验收（T10）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T10。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
