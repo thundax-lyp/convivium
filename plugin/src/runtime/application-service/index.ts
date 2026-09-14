@@ -1,9 +1,11 @@
 import { emitDiagnostic } from "@/repository/diagnostics.js";
+import { randomUUID } from "node:crypto";
 import { reconcileMeetingSessions } from "@/runtime/services/meeting-session-recovery.js";
 import { createMeetingAttendanceApplication } from "./meeting-attendance.js";
 import { createMeetingContributionApplication } from "./meeting-contribution.js";
 import {
     scanContributionTimeouts,
+    recoverContributionWork,
     recordContributionDeliveryFailure
 } from "@/runtime/services/contribution-runtime-service.js";
 import {
@@ -118,6 +120,8 @@ export function createCreateStatusRuntime(
         repositoryRegistry
     };
     const meetings = new Map<string, StoredMeeting>();
+    const contributionRecoveryEpoch = randomUUID();
+    const recoveredContributionMeetings = new Set<string>();
     const deliveryWorkers = createMeetingDeliveryWorkerService({
         pollMs: options.outboxPollMs ?? 1_000,
         now: options.now
@@ -201,6 +205,12 @@ export function createCreateStatusRuntime(
                       const parent =
                           parentId === undefined ? undefined : options.getCaptainParent!(parentId);
                       const lifecycle = resolveArchiveCleanupRuntime(options.continuable);
+                      if (
+                          parent === undefined &&
+                          isMeetingStateV2(recovered.snapshot?.state) &&
+                          recovered.snapshot.state.contributions !== undefined
+                      )
+                          return;
                       if (parent === undefined || lifecycle === undefined) {
                           const errorCode =
                               parent === undefined
@@ -245,6 +255,25 @@ export function createCreateStatusRuntime(
         async rehydrate(mode) {
             const knownMeetingIds = new Set(meetings.keys());
             const snapshots = await repositoryRecovery.rehydrate(mode);
+            for (const [meetingId, stored] of meetings) {
+                if (
+                    stored.parent === undefined ||
+                    recoveredContributionMeetings.has(meetingId) ||
+                    creatingMeetings.has(meetingId)
+                )
+                    continue;
+                const snapshot = await stored.repository.read();
+                if (!isMeetingStateV2(snapshot.state) || snapshot.state.contributions === undefined)
+                    continue;
+                await recoverContributionWork({
+                    repository: stored.repository,
+                    now: options.now?.() ?? Date.now(),
+                    recoveryEpoch: contributionRecoveryEpoch
+                });
+                recoveredContributionMeetings.add(meetingId);
+                snapshots?.set(meetingId, await stored.repository.read());
+                ensureWorker(stored);
+            }
             if (mode !== undefined && mode.kind !== "agent_best_effort") return snapshots;
             for (const [meetingId, stored] of meetings) {
                 if (knownMeetingIds.has(meetingId)) continue;
@@ -299,6 +328,17 @@ export function createCreateStatusRuntime(
                     now: options.now?.() ?? Date.now()
                 });
             stored.parent = caller.agent;
+        }
+        if (!recoveredContributionMeetings.has(stored.repository.meetingId)) {
+            const snapshot = await stored.repository.read();
+            if (isMeetingStateV2(snapshot.state) && snapshot.state.contributions !== undefined) {
+                await recoverContributionWork({
+                    repository: stored.repository,
+                    now: options.now?.() ?? Date.now(),
+                    recoveryEpoch: contributionRecoveryEpoch
+                });
+                recoveredContributionMeetings.add(stored.repository.meetingId);
+            }
         }
         ensureWorker(stored);
         await recoverArchive({

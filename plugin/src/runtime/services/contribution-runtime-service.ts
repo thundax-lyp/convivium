@@ -66,6 +66,41 @@ export async function scanContributionTimeouts(input: {
     }
 }
 
+export async function recoverContributionWork(input: {
+    repository: MeetingRepositoryRuntime;
+    now: number;
+    recoveryEpoch: string;
+}): Promise<void> {
+    const snapshot = await input.repository.read();
+    if (
+        !isMeetingStateV2(snapshot.state) ||
+        snapshot.state.contributions === undefined ||
+        !["running", "waiting"].includes(snapshot.state.status)
+    )
+        return;
+    const requestId = `recover-contribution:${input.recoveryEpoch}`;
+    await input.repository.execute({
+        requestId,
+        commandKind: "contribution:recover",
+        requestHash: requestId,
+        authorization: { callerBinding: "runtime:convivium", capabilityId: "runtime:recovery" },
+        expectedMeetingVersion: snapshot.version,
+        transition(current) {
+            if (!isMeetingStateV2(current.state)) throw new Error("Invalid contribution snapshot");
+            const result = transitionContributionLifecycle(current.state, "recover", input.now);
+            return {
+                state: JsonObjectSchema.parse(JSON.parse(JSON.stringify(result.state))),
+                result: {},
+                events: result.effect.events.map((event) => ({
+                    type: event.type,
+                    payload: JsonObjectSchema.parse(JSON.parse(JSON.stringify(event.payload)))
+                })),
+                outbox: [...contributionOutbox(current.state, result.state, result.effect.events)]
+            };
+        }
+    });
+}
+
 export async function recordContributionDeliveryFailure(input: {
     repository: MeetingRepositoryRuntime;
     item: OutboxItem;

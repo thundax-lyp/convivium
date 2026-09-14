@@ -16,12 +16,6 @@
 
 ### 协作闭环
 
-- [ ] `冷恢复`：一次性恢复授权（T6d）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T6d。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：接通真实 Session reconcile 后的贡献恢复及实例内防重。
-    - 验收点：重复读取不重复增加 generation；paused 不重投；缺 parent 只读；lifecycle 临时分支移除。
-
 - [ ] `归档`：归档引用与清理恢复（T6e）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T6e。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

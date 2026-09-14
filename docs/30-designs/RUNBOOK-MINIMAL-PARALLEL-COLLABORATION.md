@@ -177,26 +177,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T6d：冷恢复与一次性重授权
-
-前置状态：T6c PASS。
-允许修改：`plugin/src/runtime/services/contribution-runtime-service.ts`；`plugin/src/runtime/services/meeting-session-recovery.ts`；`plugin/src/runtime/application-service/index.ts`；`plugin/src/domain/transitions/contribution.ts`；`plugin/tests/recovery/contribution-recovery.spec.ts`；`plugin/tests/contract/contribution-runtime.spec.ts`。
-禁止修改：archive 格式、旧 Session 恢复语义、自动创建替代 Captain。
-
-执行：
-1. 完成 recover 分支与 recoverContributionWork，既有 Session reconcile 后执行；实例内 epoch+Set 防止重复 read 增加 generation。
-2. fresh create 入 Set 的唯一位置固定为 createMeetingApplication 新状态启动 commit 与 updateCreateResult 成功之后、返回 success 之前，由 T7 实际接线；本步恢复测试使用真实保存状态/reopen，不走尚未切换的创建入口。
-3. 新增 describe="contribution cold recovery"：running/waiting 过期与未过期、paused/终态、缺 parent、重复 status、重开后的原文材料与 receipt 一致；recovery command 重放不生成新 outbox。删除所有 lifecycle 阶段性未实现分支后才能 PASS。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/recovery/contribution-recovery.spec.ts tests/recovery/meeting-recovery.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：命令退出 0；每实例一次重授权；缺 parent 只读；paused 不重投；旧 Session 保护不退化。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
 ### T6e：归档引用与清理恢复
 
 前置状态：T6d PASS。

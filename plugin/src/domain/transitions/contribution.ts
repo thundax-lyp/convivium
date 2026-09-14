@@ -28,7 +28,60 @@ export function transitionContributionLifecycle(
     now: number
 ): TransitionResult<MeetingState> {
     if (state.contributions === undefined) return { state, effect: { events: [] } };
-    if (action === "recover") throw new Error("Contribution lifecycle implementation pending");
+    if (action === "recover") {
+        if (!["running", "waiting"].includes(state.status))
+            return { state, effect: { events: [] } };
+        const checked = transitionContributionLifecycle(state, "tick", now);
+        if (executionTerminalStatuses.includes(checked.state.status)) return checked;
+        const contributions = {
+            ...checked.state.contributions!,
+            tasks: { ...checked.state.contributions!.tasks }
+        };
+        const events = [...checked.effect.events];
+        for (const task of Object.values(contributions.tasks)) {
+            if (!activeContribution(task)) continue;
+            const next = { ...task, generation: task.generation + 1, updatedAt: now };
+            contributions.tasks[task.id] = next;
+            events.push({
+                type: "contribution.controlled",
+                payload: {
+                    contributionId: task.id,
+                    generation: next.generation,
+                    actor: "runtime",
+                    at: now,
+                    action: "resume",
+                    reason: "runtime_recovery"
+                }
+            });
+        }
+        if (
+            contributions.managerDeadlineAt > now &&
+            !events.some((event) => event.type === "contribution.manager_notified")
+        ) {
+            contributions.managerNoticeSeq += 1;
+            events.push({
+                type: "contribution.manager_notified",
+                payload: {
+                    noticeSeq: contributions.managerNoticeSeq,
+                    contextThroughSeq: checked.state.messageSeq,
+                    actor: "runtime",
+                    at: now
+                }
+            });
+        }
+        return events.length === 0
+            ? checked
+            : {
+                  state: {
+                      ...checked.state,
+                      contributions,
+                      version: state.version + 1,
+                      updatedAt: now,
+                      eventSeq: state.eventSeq + events.length
+                  },
+                  effect: { events }
+              };
+    }
     if (action === "tick" || action === "resume") {
         if (action === "tick" && !["running", "waiting"].includes(state.status))
             return { state, effect: { events: [] } };
