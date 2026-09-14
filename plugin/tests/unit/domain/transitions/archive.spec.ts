@@ -12,6 +12,15 @@ import {
 import { archivePackage, meeting, now } from "./fixtures.js";
 
 describe("archive transitions", () => {
+    it("does not add contribution references to historical archives and rejects injected references", () => {
+        const state = meeting("completed");
+        const materialized = materializeArchivePackage(state, now);
+        expect(materialized).not.toHaveProperty("contributionRefs");
+        materialized.contributionRefs = { taskIds: [], evidenceKeys: [] };
+        expect(() =>
+            transitionMeeting(state, "archiving", { now, archive: { package: materialized } })
+        ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
+    });
     it("requires a materialized archive before archived", () => {
         const archivingMeeting = meeting("archiving");
         expect(() => transitionMeeting(archivingMeeting, "archived", { now })).toThrowError(

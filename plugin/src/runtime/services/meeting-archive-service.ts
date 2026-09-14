@@ -1,7 +1,11 @@
 import { emitDiagnostic, type DiagnosticSink } from "@/repository/diagnostics.js";
 import { createHash } from "node:crypto";
 
-import { transitionMeeting, projectAttendanceRejections } from "@/domain/index.js";
+import {
+    transitionMeeting,
+    projectAttendanceRejections,
+    contributionArchiveReferences
+} from "@/domain/index.js";
 import type { ArchivePackage, MeetingState } from "@/domain/index.js";
 import {
     encodeMeetingSessionLabel,
@@ -485,6 +489,7 @@ export function materializeArchivePackage(
         throw new TypeError("Archive materialization requires a committed termination.");
     }
     const attendanceRejections = projectAttendanceRejections(state);
+    const contributionRefs = contributionArchiveReferences(state);
     return structuredClone({
         schemaVersion: 1 as const,
         meetingId: state.id,
@@ -524,6 +529,7 @@ export function materializeArchivePackage(
         termination: state.termination,
         endedAt: state.termination.endedAt,
         materializedAt,
+        ...(contributionRefs === undefined ? {} : { contributionRefs }),
         ...(attendanceRejections.length === 0 ? {} : { attendanceRejections })
     });
 }

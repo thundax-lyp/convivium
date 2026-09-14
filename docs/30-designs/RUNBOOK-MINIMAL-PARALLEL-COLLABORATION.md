@@ -177,27 +177,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T6e：归档引用与清理恢复
-
-前置状态：T6d PASS。
-允许修改：`plugin/src/domain/transitions/archive.ts`；`plugin/src/runtime/services/meeting-archive-service.ts`；`plugin/src/runtime/application-service/meeting-end.ts`；`plugin/src/runtime/application-service/index.ts`；`plugin/tests/recovery/contribution-recovery.spec.ts`；`plugin/tests/contract/contribution-runtime.spec.ts`；`plugin/tests/unit/domain/transitions/archive.spec.ts`。
-禁止修改：新数据库、复制材料、修改 DSH 持久 Session 数据。
-
-执行：
-1. 实现 Archive contributionRefs、assertArchivePackageMatchesMeeting 和 materializeArchivePackage；只保存公开任务与材料引用闭包。
-2. 接已有 beginArchiveFromTermination/cleanup/finalize，清理失败保持 archiving，恢复不重复正文/事实；将 T6a 保留的公共 Runtime end 与自动完成路径接到 beginArchiveFromTermination，不改 legacy 分支。
-3. 新增 describe="contribution archive recovery"：最大允许任务/材料/稿件状态结束归档，每次 commit≤65536 bytes；reopen 后材料逐字一致；私稿不在公开白名单；cleanup 失败再恢复成功。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/recovery/contribution-recovery.spec.ts tests/contract/contribution-runtime.spec.ts tests/unit/domain/transitions/archive.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：命令退出 0；终止到 archived 全链路通过；容量、白名单与清理证据均满足；无重复物化材料。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
-
 ### T7：新建切换与历史兼容
 
 前置状态：T6e PASS。

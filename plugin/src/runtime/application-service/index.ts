@@ -362,6 +362,19 @@ export function createCreateStatusRuntime(
         }
     }
 
+    async function recoverContributionArchive(stored: StoredMeeting, now: number): Promise<void> {
+        const snapshot = await stored.repository.read();
+        if (!isMeetingStateV2(snapshot.state) || snapshot.state.contributions === undefined) return;
+        await recoverArchive({
+            onDiagnostic: options.onDiagnostic,
+            repository: stored.repository,
+            parent: stored.parent,
+            runtime: resolveArchiveCleanupRuntime(options.continuable),
+            signal,
+            now
+        });
+    }
+
     async function recoverArchiveForLocal(stored: StoredMeeting): Promise<void> {
         assertLocalArchiveRecoveryAvailable(stored);
         await recoverArchive({
@@ -403,6 +416,7 @@ export function createCreateStatusRuntime(
             scan: async (now) => {
                 if (stored.parent === undefined) return;
                 await scanContributionTimeouts({ repository: stored.repository, now });
+                await recoverContributionArchive(stored, now);
                 await scanMeetingMailTimeouts({
                     repository: stored.repository,
                     parent: stored.parent,
@@ -523,6 +537,7 @@ export function createCreateStatusRuntime(
                     contributionSnapshot.state.contributions !== undefined
                 ) {
                     await scanContributionTimeouts({ repository: stored.repository, now });
+                    await recoverContributionArchive(stored, now);
                     deliveryWorkers.wake(stored.repository.meetingId);
                     continue;
                 }

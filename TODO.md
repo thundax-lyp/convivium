@@ -16,12 +16,6 @@
 
 ### 协作闭环
 
-- [ ] `归档`：归档引用与清理恢复（T6e）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T6e。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现公开贡献引用白名单，并接通终止至归档及 cleanup 重试。
-    - 验收点：最大允许状态可在 commit 限额内归档；材料不复制；清理失败保持 archiving，恢复不重发。
-
 - [ ] `会议创建与兼容`：切换新建并保留历史路径（T7）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T7。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

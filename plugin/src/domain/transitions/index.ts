@@ -5,6 +5,7 @@ export {
     transitionTurn
 } from "./kernel.js";
 export { transitionMeeting } from "./meeting.js";
+export { contributionArchiveReferences } from "./archive.js";
 export { endMeeting, type EndMeetingTransitionContext } from "./termination.js";
 export {
     startManagerPlanning,

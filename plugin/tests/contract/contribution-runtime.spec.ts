@@ -162,7 +162,12 @@ describe("contribution agenda advancement", () => {
                     return {
                         state: JsonObjectSchema.parse(state),
                         result: {},
-                        events: [],
+                        events: [
+                            {
+                                type: "meeting.replanned",
+                                payload: { reason: "fixture agenda resolution" }
+                            }
+                        ],
                         outbox: []
                     };
                 }
