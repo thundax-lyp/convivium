@@ -366,11 +366,268 @@ function isCitation(value: unknown): value is EvidenceCitation {
     return (
         isRecord(value) &&
         hasOnlyKeys(value, ["evidenceKey", "claim", "locator", "inference"]) &&
-        [value.evidenceKey, value.claim, value.locator, value.inference].every(isString)
+        isString(value.evidenceKey) &&
+        value.evidenceKey.length <= 256 &&
+        [value.claim, value.locator, value.inference].every(
+            (text) => isString(text) && text.length <= 1024
+        )
+    );
+}
+
+function isClaimRecord(
+    value: unknown,
+    required: readonly string[],
+    optional: readonly string[] = [],
+    numbers: readonly string[] = [],
+    arrays: readonly string[] = [],
+    booleans: readonly string[] = []
+): boolean {
+    return (
+        isRecord(value) &&
+        hasOnlyKeys(value, required, optional) &&
+        Object.entries(value).every(([key, field]) =>
+            numbers.includes(key)
+                ? isNonNegativeInteger(field)
+                : arrays.includes(key)
+                  ? isStringArray(field) && new Set(field).size === field.length
+                  : booleans.includes(key)
+                    ? typeof field === "boolean"
+                    : isString(field) && field.length <= 4096
+        )
+    );
+}
+
+function isCompletionClaims(value: unknown): boolean {
+    if (
+        !isRecord(value) ||
+        !hasOnlyKeys(
+            value,
+            [],
+            [
+                "outputClaims",
+                "criterionClaims",
+                "agendaResolution",
+                "review",
+                "questionResolutions",
+                "riskAcceptance"
+            ]
+        )
+    )
+        return false;
+    for (const key of ["outputClaims", "criterionClaims"]) {
+        const items = value[key];
+        if (
+            items !== undefined &&
+            (!Array.isArray(items) ||
+                !items.every((v) =>
+                    isClaimRecord(
+                        v,
+                        ["subjectId", "evidenceMessageIds", "taskIds"],
+                        [],
+                        [],
+                        ["evidenceMessageIds", "taskIds"]
+                    )
+                ))
+        )
+            return false;
+    }
+    if (
+        value.agendaResolution !== undefined &&
+        !isClaimRecord(
+            value.agendaResolution,
+            ["agendaItemId", "resolution", "evidenceMessageIds"],
+            [],
+            [],
+            ["evidenceMessageIds"]
+        )
+    )
+        return false;
+    if (
+        value.review !== undefined &&
+        (!isClaimRecord(
+            value.review,
+            ["outputId", "result", "reason", "evidenceMessageIds"],
+            [],
+            [],
+            ["evidenceMessageIds"]
+        ) ||
+            !isRecord(value.review) ||
+            !["approved", "changes_required"].includes(value.review.result as string))
+    )
+        return false;
+    if (
+        value.riskAcceptance !== undefined &&
+        (!isClaimRecord(
+            value.riskAcceptance,
+            ["issueId", "decision", "reason", "evidenceMessageIds"],
+            [],
+            [],
+            ["evidenceMessageIds"]
+        ) ||
+            !isRecord(value.riskAcceptance) ||
+            !["accept", "reject"].includes(value.riskAcceptance.decision as string))
+    )
+        return false;
+    return (
+        value.questionResolutions === undefined ||
+        (Array.isArray(value.questionResolutions) &&
+            value.questionResolutions.every((v) =>
+                isClaimRecord(v, ["questionId", "answerMessageId"])
+            ))
+    );
+}
+
+function isClaims(value: Record<string, unknown>): boolean {
+    const fields = [
+        "questions",
+        "issues",
+        "proposals",
+        "positions",
+        "agendaCandidates",
+        "decisionCandidates"
+    ];
+    if (
+        !hasOnlyKeys(value, fields, ["completion"]) ||
+        !fields.every((key) => Array.isArray(value[key]))
+    )
+        return false;
+    const every = (key: string, validate: (v: unknown) => boolean) => {
+        const items = value[key];
+        return Array.isArray(items) && items.every(validate);
+    };
+    return (
+        every("questions", (v) =>
+            isClaimRecord(
+                v,
+                ["id", "text", "blocking", "createdAt"],
+                [
+                    "directedTo",
+                    "affectedOutputIds",
+                    "affectedCriterionIds",
+                    "violatedConstraintIds"
+                ],
+                ["createdAt"],
+                ["affectedOutputIds", "affectedCriterionIds", "violatedConstraintIds"],
+                ["blocking"]
+            )
+        ) &&
+        every(
+            "issues",
+            (v) =>
+                isClaimRecord(
+                    v,
+                    [
+                        "id",
+                        "title",
+                        "description",
+                        "affectedOutputIds",
+                        "affectedCriterionIds",
+                        "violatedConstraintIds",
+                        "impact",
+                        "urgency",
+                        "safeDefaultAvailable"
+                    ],
+                    ["riskLevel"],
+                    [],
+                    ["affectedOutputIds", "affectedCriterionIds", "violatedConstraintIds"],
+                    ["safeDefaultAvailable"]
+                ) &&
+                isRecord(v) &&
+                ["now", "before_release", "later"].includes(v.urgency as string) &&
+                (v.riskLevel === undefined ||
+                    ["low", "medium", "high"].includes(v.riskLevel as string))
+        ) &&
+        every("proposals", (v) =>
+            isClaimRecord(
+                v,
+                ["id", "title", "description", "now"],
+                ["proposalId", "expectedRevision"],
+                ["now", "expectedRevision"]
+            )
+        ) &&
+        every(
+            "positions",
+            (v) =>
+                isClaimRecord(
+                    v,
+                    ["id", "proposalId", "proposalRevision", "position", "blocking", "now"],
+                    ["reason"],
+                    ["proposalRevision", "now"],
+                    [],
+                    ["blocking"]
+                ) &&
+                isRecord(v) &&
+                ["support", "accept", "object", "needs_revision", "abstain"].includes(
+                    v.position as string
+                )
+        ) &&
+        every(
+            "agendaCandidates",
+            (v) =>
+                isClaimRecord(
+                    v,
+                    [
+                        "id",
+                        "title",
+                        "reason",
+                        "relationToActiveAgenda",
+                        "urgency",
+                        "suggestedParticipants",
+                        "now"
+                    ],
+                    [],
+                    ["now"],
+                    ["suggestedParticipants"]
+                ) &&
+                isRecord(v) &&
+                ["related", "adjacent", "unrelated"].includes(v.relationToActiveAgenda as string) &&
+                ["now", "before_release", "later"].includes(v.urgency as string)
+        ) &&
+        every("decisionCandidates", (v) =>
+            isClaimRecord(
+                v,
+                [
+                    "id",
+                    "proposalId",
+                    "proposalRevision",
+                    "statement",
+                    "rationale",
+                    "sourceMessageId",
+                    "agendaItemId",
+                    "createdAt"
+                ],
+                [],
+                ["proposalRevision", "createdAt"]
+            )
+        ) &&
+        (value.completion === undefined || isCompletionClaims(value.completion))
+    );
+}
+
+function isDraftMinutes(value: unknown): boolean {
+    if (
+        !isRecord(value) ||
+        !hasOnlyKeys(value, ["status", "coverage", "referencedMessageIds"]) ||
+        value.status !== "draft" ||
+        !isRecord(value.coverage)
+    )
+        return false;
+    return (
+        hasOnlyKeys(value.coverage, ["fromSeq", "throughSeq"]) &&
+        isNonNegativeInteger(value.coverage.fromSeq) &&
+        value.coverage.fromSeq >= 1 &&
+        isNonNegativeInteger(value.coverage.throughSeq) &&
+        value.coverage.throughSeq >= value.coverage.fromSeq &&
+        isStringArray(value.referencedMessageIds) &&
+        value.referencedMessageIds.length >= 1 &&
+        value.referencedMessageIds.length <= 64 &&
+        new Set(value.referencedMessageIds).size === value.referencedMessageIds.length
     );
 }
 
 function isDraft(value: unknown, revision: number): value is ContributionDraft {
+    if (!isRecord(value) || !isRecord(value.claims)) return false;
+    const claims = value.claims;
     return (
         isRecord(value) &&
         hasOnlyKeys(value, [
@@ -385,8 +642,49 @@ function isDraft(value: unknown, revision: number): value is ContributionDraft {
         isNonNegativeInteger(value.basedOnSeq) &&
         isTimestamp(value.submittedAt) &&
         isRecord(value.message) &&
+        hasOnlyKeys(
+            value.message,
+            ["id", "kind", "content", "mentions", "taskIds", "agendaRelation", "createdAt"],
+            ["replyTo", "minutesDraft"]
+        ) &&
+        isString(value.message.id) &&
+        isString(value.message.content) &&
+        value.message.content.length <= 4096 &&
+        [
+            "statement",
+            "question",
+            "proposal",
+            "answer",
+            "objection",
+            "evidence",
+            "review",
+            "summary",
+            "decision"
+        ].includes(value.message.kind as string) &&
+        ["on_topic", "supporting_context", "new_topic_candidate", "blocking_interrupt"].includes(
+            value.message.agendaRelation as string
+        ) &&
+        isStringArray(value.message.mentions) &&
+        isStringArray(value.message.taskIds) &&
+        isTimestamp(value.message.createdAt) &&
+        (value.message.replyTo === undefined || isString(value.message.replyTo)) &&
+        (value.message.minutesDraft === undefined || isDraftMinutes(value.message.minutesDraft)) &&
         isRecord(value.claims) &&
+        hasOnlyKeys(
+            value.claims,
+            [
+                "questions",
+                "issues",
+                "proposals",
+                "positions",
+                "agendaCandidates",
+                "decisionCandidates"
+            ],
+            ["completion"]
+        ) &&
+        isClaims(claims) &&
         Array.isArray(value.citations) &&
+        value.citations.length <= 8 &&
         value.citations.every(isCitation) &&
         new Set(value.citations.map((citation) => `${citation.evidenceKey}\0${citation.claim}`))
             .size === value.citations.length
@@ -661,12 +959,46 @@ export function contributionReferencesBelongToMeeting(state: MeetingState): bool
     const contribution = state.contributions;
     if (contribution === undefined) return true;
     if (!isContributionState(contribution)) return false;
+    try {
+        assertContributionCapacity(state);
+    } catch (error) {
+        if (error instanceof DomainError) return false;
+        throw error;
+    }
     const participants = new Set(state.participants.map((participant) => participant.id));
     const agenda = new Set(state.agenda.map((item) => item.id));
     if (!participants.has(contribution.reviewerId)) return false;
     for (const evidence of Object.values(contribution.evidence)) {
         if (!participants.has(evidence.submittedBy)) return false;
+        if (
+            evidence.code?.patchEvidenceKeys.some((key) => {
+                const dependency = contribution.evidence[key];
+                return (
+                    dependency === undefined ||
+                    key === evidence.key ||
+                    dependency.submittedAt > evidence.submittedAt
+                );
+            })
+        )
+            return false;
     }
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+    const acyclic = (key: string): boolean => {
+        if (visiting.has(key)) return false;
+        if (visited.has(key)) return true;
+        visiting.add(key);
+        if (
+            contribution.evidence[key]!.code?.patchEvidenceKeys.some(
+                (dependency) => !acyclic(dependency)
+            )
+        )
+            return false;
+        visiting.delete(key);
+        visited.add(key);
+        return true;
+    };
+    if (Object.keys(contribution.evidence).some((key) => !acyclic(key))) return false;
     for (const task of Object.values(contribution.tasks)) {
         if (!participants.has(task.participantId) || !agenda.has(task.agendaItemId)) return false;
         if (
@@ -707,14 +1039,45 @@ export function contributionReferencesBelongToMeeting(state: MeetingState): bool
 export function assertContributionCapacity(state: MeetingState): void {
     const contribution = state.contributions;
     if (contribution === undefined) return;
+    const {
+        contributions: _contributions,
+        archive: _archive,
+        termination,
+        pauseReason,
+        pausedAt: _pausedAt,
+        pausedBy: _pausedBy,
+        pausedFromStatus: _pausedFromStatus,
+        waitState,
+        version: _version,
+        updatedAt: _updatedAt,
+        eventSeq: _eventSeq,
+        status: _status,
+        ...base
+    } = state;
+    const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
     if (
+        bytes(base) > 24_576 ||
+        (termination !== undefined && bytes(termination) > 4096) ||
+        (waitState !== undefined && bytes(waitState) > 4096) ||
+        (pauseReason !== undefined && pauseReason.length > 2048) ||
+        Object.values(contribution.evidence).some((value) => {
+            const {
+                evidenceId: _id,
+                revision: _revision,
+                key: _key,
+                submittedBy: _by,
+                submittedAt: _at,
+                ...material
+            } = value;
+            return bytes(material) > 8192;
+        }) ||
         Object.keys(contribution.tasks).length > 64 ||
         Object.keys(contribution.evidence).length > 128 ||
         Object.values(contribution.tasks).reduce(
             (count, task) => count + Object.keys(task.drafts).length,
             0
         ) > 128 ||
-        Buffer.byteLength(JSON.stringify(contribution), "utf8") > 2_097_152
+        bytes(contribution) > 2_097_152
     ) {
         throw new DomainError("INVALID_ARGUMENT", "Contribution state exceeds its fixed capacity.");
     }

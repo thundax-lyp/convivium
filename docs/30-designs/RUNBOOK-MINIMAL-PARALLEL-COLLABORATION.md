@@ -2,13 +2,13 @@
 
 ## Status And Executor Contract
 
-建立：2026-09-14；源码基线 `391a1d4`；分支 `codex/project-goal-tests-and-direction`。模式 Author；审计结论：**Executable**。当前仅编写文档，不执行产品代码、不提交。本 RUNBOOK 为临时执行编排，产品契约不以它为唯一依据。
+建立：2026-09-14；源码基线 `391a1d4`；分支 `codex/project-goal-tests-and-direction`。模式 Execute；用户已明确授权补齐最小实现、修正 RUNBOOK、依序完成、删除并独立提交。本 RUNBOOK 为临时执行编排，产品契约不以它为唯一依据。
 
-执行者只做规定文件／符号的修改、规定验证及 PASS/STOP，不选择产品行为、字段、存储方案、恢复策略或测试取舍。按下方 24 个执行单元的固定顺序执行；只有本步全部断言通过才前进。预期 RED 仅限新行为的测试断言，缺模块／编译／环境错误不算 RED。
+执行者只做规定文件／符号的修改、规定验证及 PASS/STOP，不选择产品行为、字段、存储方案、恢复策略或测试取舍。按下方剩余执行单元顺序执行；验证频率遵循“用户确认的验证节奏”。预期 RED 仅限新行为的测试断言，缺模块／编译／环境错误不算 RED。
 
 发现指定基线／入口不存在、正式依据冲突、需要未列文件的业务修改、需要进入 Non-goals、基线验证失败，或必须放宽 Schema／权限／断言时 STOP。报告最后 PASS 步骤、命令、实际输出、文件／符号、保留的改动和缺失决定。禁止 reset/clean、迁移或删除用户数据，禁止自行扩大修改范围。
 
-收到执行请求后直接开始 T1a；commit/push/PR/merge/生产安装不在本 RUNBOOK 的授权内。若当前分支为 main 则 STOP，不在 main 修改；已有 codex/ 独立分支沿用，不另行选择分支。源码执行期间遵循 TDD Skill；本次 Author 的文档验证与产品执行验证分开记录。
+从首个剩余步骤继续；用户已授权 commit，但没有授权 push/PR/merge/生产安装。若当前分支为 main 则 STOP，不在 main 修改；已有 codex/ 独立分支沿用，不另行选择分支。源码执行期间遵循 TDD Skill，测试运行频率以本对话最新用户要求为准；文档验证与产品执行验证分开记录。
 
 ## Goal And Scope
 
@@ -65,6 +65,18 @@ Non-goals：主动／紧急申请、合并申请、自动语义影响判断、�
 I1 caller 必须真实绑定；I2 一人一项、同 Session 串行；I3 未审无公共事实；I4 新版本不能复用旧批准；I5 公开不等于证实；I6 receipt 不跨 caller、不重复提交；I7 state/event/receipt/outbox 原子；I8 不自审、不隐藏负面结论；I9 required 任务未闭合不 completed；I10 终态不可新增事实；I11 cleanup 失败不 archived；I12 不截断材料或放大存储上限。
 
 ## Phases And Fixed File Rules
+
+### 用户确认的验证节奏
+
+2026-09-15 本对话确认：每个任务对改动文件执行 Prettier format，并执行 `pnpm --dir plugin lint`、`pnpm --dir plugin build`；自动测试改为每完成四个机械步骤统一执行一次，最后不足四步也执行。T4 已运行的测试保留为证据，下一批固定为 T5a、T5b、T5c、T6a。本节覆盖各步原先逐步执行 test 的频率，不删除测试用例，不改变行为断言或最终交付验证集合。
+
+批内步骤实现完成且 format/lint/build 通过后，删除对应 TODO/RUNBOOK 步骤并独立提交；提交说明明确测试尚待批次验证，不宣称未经执行的测试通过。删除步骤前保留该批待执行的测试命令于本节；第四步提交前执行该批全部测试。任何批次失败先修复，不进入下一批；不得用删除断言、skip、放宽 Schema 或减少最终验证集合处理失败。后续批次按剩余步骤顺序每四步分组。
+
+当前下一批测试命令：
+```bash
+pnpm --dir plugin exec vitest run tests/contract/contribution-evidence.spec.ts tests/contract/contribution-runtime.spec.ts tests/contract/domain-meeting-repository.spec.ts tests/unit/runtime/contribution-dispatch.spec.ts tests/unit/runtime/meeting-manager-dispatch.spec.ts tests/unit/runtime/meeting-speaker-dispatch.spec.ts tests/contract/tool-registration.spec.ts tests/unit/domain/contribution.spec.ts tests/unit/domain/completion.spec.ts
+```
+
 
 三阶段：基础（T1～T4）、协作闭环（T5～T7）、交付验证（T8～T12）。阶段 2 通过不等于已交付，阶段 3 必须执行；括号内组号包含该组全部子步骤。
 
@@ -164,23 +176,6 @@ pnpm --dir plugin typecheck:host
 
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
-### T4：保存版本并实现受控投影
-
-前置状态：T3d PASS。
-允许修改：新增 `plugin/src/projection/contribution.ts`；`plugin/src/projection/status.ts`、`plugin/src/projection/index.ts`、`plugin/src/projection/developer-markdown.ts`；`plugin/src/repository/domain/schemas.ts`、`plugin/src/repository/domain/domain-meeting-repository.ts`；`plugin/src/domain/meeting-state-validation.ts`、`plugin/src/domain/contribution.ts`；新增 `plugin/tests/contract/contribution-evidence.spec.ts`；`plugin/tests/contract/status-projection.spec.ts`。
-禁止修改：commit/checkpoint 限制、物理 provider、文件读取／URL 抓取；不新增证据数据库。
-
-执行：新 state 写入前和恢复时校验结构与容量；复用 execute 唯一事务、JSON object diff、receipt 和 outbox。实现 projectContributionSummaries/projectContributionRead 精确白名单；允许受指派 reviewer 读当前待审引用，其他身份不可见。归档 whitelist 和 patch 依赖闭包按 Interface；损坏版本失败，不能返回截断材料。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/contract/contribution-evidence.spec.ts tests/contract/domain-meeting-repository.spec.ts tests/contract/status-projection.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：本步只认领 V3～V5 的数据可见性/材料边界、V8 的 Repository 回滚、V10 的持久化 reopen 部分；旧版本更新后仍可读；故障注入后 state/event/receipt/outbox 均保持旧值；公共 status/Markdown 无待审正文。DSH revoke 与 cold Session recovery 分别由 T5b/T6d 验证，不要求本步提前实现。
-STOP：写失败留下部分材料，或必须扩大存储限制。临时 domain 在 finally 关闭。
 
 ### T5a：Runtime 受控读写事务
 

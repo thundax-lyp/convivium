@@ -1,5 +1,6 @@
 import type { MeetingState } from "@/domain/index.js";
 import { isMeetingStateV2 } from "@/domain/index.js";
+import { projectContributionSummaries } from "./contribution.js";
 import type {
     MeetingAgentCatalogProjectionV1,
     ExecutionTerminalMeetingStatusResultV1,
@@ -267,6 +268,14 @@ export function projectMeetingStatus(
     const base = {
         meetingId: state.id,
         meetingVersion: state.version,
+        ...(state.contributions === undefined
+            ? {}
+            : {
+                  contributions: {
+                      reviewerId: state.contributions.reviewerId,
+                      tasks: projectContributionSummaries(state, caller)
+                  }
+              }),
         topic: state.topic,
         objective: state.objective,
         continuationMaterials: state.continuationMaterials.map((material) => ({ ...material })),

@@ -907,6 +907,7 @@ export interface PublicExecutionTerminationV1 extends PublicTerminationV1 {
 }
 
 export interface MeetingStatusBaseV1 {
+    contributions?: { reviewerId: string; tasks: readonly ContributionSummaryV1[] };
     meetingId: string;
     meetingVersion: number;
     topic: string;

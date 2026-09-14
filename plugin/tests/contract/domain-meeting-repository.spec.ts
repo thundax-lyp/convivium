@@ -1602,6 +1602,7 @@ function attendanceState() {
         status: "running",
         manager: {},
         eventSeq: 0,
+        transcript: [],
         attendanceRecommendations: [
             {
                 id: "recommendation-1",

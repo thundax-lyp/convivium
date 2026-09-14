@@ -14,12 +14,6 @@
 
 ### 基础
 
-- [ ] `持久化与投影`：版本保存与受控读取（T4）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T4。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：接入真实 Repository 校验、版本读取和按身份生成的安全投影。
-    - 验收点：旧版本可回读；故障后 state/event/receipt/outbox 均回滚；公共投影不含私稿。
-
 ### 协作闭环
 
 - [ ] `贡献 Runtime`：受控读写事务（T5a）

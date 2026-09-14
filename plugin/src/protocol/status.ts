@@ -1,4 +1,5 @@
 import Schema from "@deepseek-ai/schemastery";
+import { ContributionSummarySchema } from "./contribution.js";
 import type {
     PublicMeetingMessageV1,
     PublicArchivePackageV1,
@@ -389,7 +390,19 @@ const archiveAgendaCandidate = Schema.object({
     status: enumOf(["pending", "promoted", "parked", "rejected"] as const)
 });
 
+const contributions = Schema.transform(
+    Schema.object({
+        reviewerId: requiredString(),
+        tasks: requiredArray(ContributionSummarySchema)
+    }),
+    (value) => {
+        assertExactKeys(value, ["reviewerId", "tasks"], "contribution summaries");
+        return value;
+    }
+);
+
 const active = Schema.object({
+    contributions: optionalObject(contributions),
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
     topic: requiredString(),
@@ -435,6 +448,7 @@ const active = Schema.object({
 });
 
 const terminal = Schema.object({
+    contributions: optionalObject(contributions),
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
     topic: requiredString(),
@@ -635,6 +649,7 @@ export const MeetingArchivePackageSchema = Schema.transform(
 );
 
 const archiving = Schema.object({
+    contributions: optionalObject(contributions),
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
     topic: requiredString(),
@@ -656,6 +671,7 @@ const archiving = Schema.object({
 });
 
 const archived = Schema.object({
+    contributions: optionalObject(contributions),
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
     topic: requiredString(),

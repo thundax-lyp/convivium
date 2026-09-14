@@ -254,7 +254,8 @@ export function isMeetingStateV2(value: unknown): value is MeetingState {
     if (!isRecord(value.manager)) return false;
     if (!contributionReferencesBelongToMeeting(value as unknown as MeetingState)) return false;
     const hasTurnOrigin = (message: Record<string, unknown>) =>
-        ["turnSeq", "turnId", "stepId", "attemptId"].every((key) => isString(message[key]));
+        isNonNegativeInteger(message.turnSeq) &&
+        ["turnId", "stepId", "attemptId"].every((key) => isString(message[key]));
     const hasContributionOrigin = (message: Record<string, unknown>) =>
         isString(message.contributionId) &&
         isNonNegativeInteger(message.contributionRevision) &&
@@ -266,13 +267,24 @@ export function isMeetingStateV2(value: unknown): value is MeetingState {
         if (
             !Array.isArray(messages) ||
             messages.some((message) => {
-                if (!isRecord(message)) return false;
+                if (!isRecord(message)) return true;
                 const contribution = hasContributionOrigin(message);
                 const turn =
                     archive === undefined || messages !== archive.formalTranscript
                         ? hasTurnOrigin(message)
                         : isString(message.turnId) && isString(message.stepId);
-                return turn === contribution;
+                const turnKeys =
+                    messages === archive?.formalTranscript
+                        ? ["turnId", "stepId"]
+                        : ["turnSeq", "turnId", "stepId", "attemptId"];
+                return (
+                    turn === contribution ||
+                    (contribution && turnKeys.some((key) => message[key] !== undefined)) ||
+                    (turn &&
+                        ["contributionId", "contributionRevision"].some(
+                            (key) => message[key] !== undefined
+                        ))
+                );
             })
         )
             return false;

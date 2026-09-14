@@ -72,7 +72,7 @@ function uniqueTextArray(value: unknown, label: string): string[] {
 }
 
 function canonicalBytes(value: object): number {
-    return Buffer.byteLength(JSON.stringify(value), "utf8");
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }
 
 function normalizeBody(value: unknown): ContributionBodyV1 {
