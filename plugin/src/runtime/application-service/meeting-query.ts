@@ -68,6 +68,16 @@ export function createMeetingQueryApplication(options: MeetingQueryApplicationOp
                 );
             }
             try {
+                const beforeRecovery = await stored.repository.read();
+                if (
+                    (beforeRecovery.state as { readonly contributions?: unknown }).contributions ===
+                    undefined
+                ) {
+                    return commandFailure(
+                        "UNSUPPORTED_CAPABILITY",
+                        "This stored Meeting is not supported by the current release."
+                    );
+                }
                 await options.recoverArchiveForCaptain(stored, caller);
                 const snapshot = await stored.repository.read();
                 const state = JSON.parse(JSON.stringify(snapshot.state));

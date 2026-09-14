@@ -176,23 +176,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T7：新版本贡献启动
-
-前置状态：T6e PASS；2026-09-15 用户确认本次发布不要求兼容旧版本。
-允许修改：`plugin/src/protocol/types.ts`、`plugin/src/protocol/commands.ts`；`plugin/src/runtime/application-service/create-meeting.ts`、`plugin/src/runtime/meeting-runtime.ts`、`plugin/src/runtime/application-service/meeting-turn.ts`、`plugin/src/runtime/application-service/meeting-task.ts`、`plugin/src/runtime/application-service/meeting-mail.ts`、`plugin/src/runtime/application-service/meeting-attendance.ts`、`plugin/src/runtime/application-service/meeting-control.ts`、`plugin/src/runtime/application-service/index.ts`、`plugin/src/runtime/services/meeting-recovery-service.ts`、`plugin/src/runtime/application-service/meeting-query.ts`；`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/contract/continuation.spec.ts`、`plugin/tests/contract/contribution-runtime.spec.ts`、`plugin/tests/unit/runtime/meeting-runtime.spec.ts`、`plugin/tests/fixtures/contribution.ts`。
-禁止修改：用户持久数据、数据库迁移、生产兼容开关；不创建 initialize-legacy-meeting.ts 或 legacy-runtime.ts。
-
-执行：按下文 Release Boundary And Test Migration 切换。evidenceReviewerKey 在类型和 Schema 必填；Runtime 校验 reviewer、选择模式和限制，首次 storage create／provisioning 前完成。只为本版本合法输入提供原 caller/hash 幂等回执。初始 commit 产生 running、首议题 discussing、noticeSeq=1 与 Manager outbox，不产生 Turn；成功创建后加入 recoveredContributionMeetings。停用写入口返回 UNSUPPORTED_CAPABILITY，不分流旧会议。恢复不执行缺少 contributions 的记录，不自动迁移或删改数据。迁移仍有效的业务测试，取消仅针对旧版本兼容的验收。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/contract/contribution-runtime.spec.ts tests/contract/meeting-runtime.spec.ts tests/contract/continuation.spec.ts tests/unit/runtime/meeting-runtime.spec.ts tests/contract/offline-meeting-protocol.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：非法新建零副作用；当前合法请求幂等；无 Turn 启动事件或 legacy 分支；身份、权限、原子性、当前恢复与归档约束成立；未改写用户旧记录。
-STOP：为通过门禁删除当前有效安全断言、skip、自动补 reviewer，或对非法 create 执行 provisioning；不以无兼容要求推断数据删除授权。
-
 ### T8a：Remote 与 typed client
 
 前置状态：T7 PASS。

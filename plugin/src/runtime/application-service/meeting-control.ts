@@ -6,7 +6,6 @@ import {
     rankRulePlanningCandidates,
     requiredPlanningBlockers,
     isMeetingStateV2,
-    reassignTurn as reassignTurnTransition,
     applyCompletionClaims,
     judgeTurnCompletion,
     evaluateContributionProgress,
@@ -27,8 +26,7 @@ import type {
     CaptainRiskDispositionInputV1,
     CaptainRiskDispositionResultV1,
     MeetingControlResultV1,
-    ReassignTurnInputV1,
-    ReassignTurnResultV1
+    ReassignTurnInputV1
 } from "@/protocol/index.js";
 import { serializeValidatedRequestV1 } from "@/protocol/index.js";
 import { RepositoryError } from "@/repository/errors.js";
@@ -288,128 +286,17 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
         }
     }
 
-    async function reassignTurnForSource(input: ReassignTurnInputV1, source: MeetingControlSource) {
-        const stored = meetings.get(input.meetingId);
-        if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-        if (stored.parent === undefined && source.kind === "captain") {
-            return failure(
-                "INTERNAL_ERROR",
-                "The live Captain parent is unavailable for speaker dispatch.",
-                true
-            );
+    async function reassignTurnForSource(
+        input: ReassignTurnInputV1,
+        _source: MeetingControlSource
+    ) {
+        if (!meetings.has(input.meetingId)) {
+            return failure("MEETING_NOT_FOUND", "Meeting not found.");
         }
-        const authorization =
-            source.kind === "captain"
-                ? {
-                      callerBinding: `session:${source.sessionId}`,
-                      capabilityId: `captain:${source.sessionId}`,
-                      attemptId: input.currentAttemptId
-                  }
-                : {
-                      callerBinding: "local-host:loopback-web",
-                      capabilityId: "local-host:loopback-web",
-                      attemptId: input.currentAttemptId
-                  };
-        try {
-            const committed = await stored.repository.execute({
-                requestId: input.requestId,
-                commandKind: "reassign_turn",
-                authorization,
-                requestHash: JSON.stringify(input),
-                expectedMeetingVersion: input.expectedMeetingVersion,
-                transition: (snapshot) => {
-                    if (stored.parent === undefined) {
-                        throw new LocalMeetingRecoveryUnavailableError(
-                            "The live Captain parent is unavailable for speaker dispatch."
-                        );
-                    }
-                    const transition = reassignTurnTransition(
-                        snapshot.state as unknown as MeetingState,
-                        {
-                            currentAttemptId: input.currentAttemptId,
-                            action: input.action,
-                            ...(input.replacementParticipantId === undefined
-                                ? {}
-                                : { replacementParticipantId: input.replacementParticipantId }),
-                            reason: input.reason,
-                            now: options.now?.() ?? Date.now()
-                        }
-                    );
-                    const current = transition.state.currentTurn;
-                    const nextAttempt = current?.steps[current.currentStepIndex]?.attempt;
-                    return {
-                        state: transition.state as unknown as JsonObject,
-                        result: {
-                            revokedAttemptId: input.currentAttemptId,
-                            ...(input.action === "skip" || nextAttempt === undefined
-                                ? {}
-                                : { replacementAttemptId: nextAttempt.attemptId }),
-                            action: input.action
-                        } satisfies ReassignTurnResultV1,
-                        events: transition.effect.events as unknown as DomainEventInput[],
-                        outbox:
-                            nextAttempt === undefined
-                                ? []
-                                : [
-                                      {
-                                          deliveryId: nextAttempt.deliveryId,
-                                          kind: "dispatch" as const,
-                                          payload: {
-                                              role: "participant",
-                                              participantId: nextAttempt.participantId,
-                                              attemptId: nextAttempt.attemptId,
-                                              turnId: current!.id,
-                                              stepId: current!.steps[current!.currentStepIndex]!.id
-                                          }
-                                      }
-                                  ]
-                    };
-                }
-            });
-            deliveryWorkers.wake(input.meetingId);
-            return success<ReassignTurnResultV1>(
-                input.meetingId,
-                committed.meetingVersion,
-                committed.result as ReassignTurnResultV1
-            );
-        } catch (error) {
-            if (source.kind === "local_host") {
-                if (
-                    error instanceof RepositoryError &&
-                    [
-                        "MEETING_NOT_FOUND",
-                        "SCHEMA_VERSION_UNSUPPORTED",
-                        "CORRUPT_DATABASE",
-                        "CLOSED"
-                    ].includes(error.code)
-                ) {
-                    throw new LocalMeetingRecoveryUnavailableError(
-                        "Local meeting control recovery is unavailable.",
-                        { cause: error }
-                    );
-                }
-                if (
-                    error instanceof RepositoryError &&
-                    error.code !== "VERSION_CONFLICT" &&
-                    error.code !== "IDEMPOTENCY_CONFLICT"
-                ) {
-                    throw error;
-                }
-                if (!(error instanceof RepositoryError) && !(error instanceof DomainError)) {
-                    throw error;
-                }
-            }
-            return commandError(
-                error,
-                "STALE_ATTEMPT",
-                "The speaker attempt is stale or cannot be reassigned.",
-                { meetingId: input.meetingId, attemptId: input.currentAttemptId },
-                {
-                    INVALID_ENTITY_STATE: "INVALID_ARGUMENT",
-                    REQUIRED_SPEAKER_UNAVAILABLE: "REQUIRED_SPEAKER_UNAVAILABLE"
-                }
-            );
-        }
+        return failure(
+            "UNSUPPORTED_CAPABILITY",
+            "Turn reassignment is not supported by this release."
+        );
     }
     async function transitionMeetingStatus(
         input: {

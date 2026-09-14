@@ -53,6 +53,7 @@ async function openTestRegistry(root: string): Promise<DomainRepositoryRegistry>
 }
 
 const baseInput = {
+    evidenceReviewerKey: "two",
     protocolVersion: 1 as const,
     requestId: "source-create",
     teamId: "team-1",
@@ -74,10 +75,13 @@ const baseInput = {
             inScope: ["MVP"],
             outOfScope: [],
             completionCriteria: ["Reviewed"],
-            requiredParticipantKeys: ["one"]
+            requiredParticipantKeys: ["one", "two"]
         }
     ],
-    participants: [{ participantKey: "one", displayName: "One" }]
+    participants: [
+        { participantKey: "one", displayName: "One" },
+        { participantKey: "two", displayName: "Two" }
+    ]
 };
 
 const captain = {
@@ -337,8 +341,8 @@ describe("archive continuation create contract", () => {
         expect(status.result.continuationMaterials).toHaveLength(6);
         expect(JSON.stringify(status.result.continuationMaterials)).not.toContain("Do not copy");
         expect(targetId).not.toBe(sourceMeetingId);
-        expect(starts.filter((id) => id.includes(sourceMeetingId))).toHaveLength(2);
-        expect(starts.filter((id) => id.includes(targetId))).toHaveLength(2);
+        expect(starts.filter((id) => id.includes(sourceMeetingId))).toHaveLength(3);
+        expect(starts.filter((id) => id.includes(targetId))).toHaveLength(3);
         expect(await meetingIds(targetRuntime)).toEqual(
             expect.arrayContaining([...beforeMeetingIds, targetId])
         );

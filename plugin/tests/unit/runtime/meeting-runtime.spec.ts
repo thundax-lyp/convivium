@@ -9,6 +9,7 @@ import {
 } from "@/runtime/application-service/index.js";
 
 const input: CreateMeetingInputV1 = {
+    evidenceReviewerKey: "p-3",
     protocolVersion: 1,
     requestId: "create-1",
     teamId: "team-1",
@@ -38,7 +39,7 @@ const input: CreateMeetingInputV1 = {
         { participantKey: "p-2", displayName: "Two" },
         { participantKey: "p-3", displayName: "Three" }
     ],
-    selectionMode: "round_robin"
+    selectionMode: "manager"
 };
 
 function dependencies(overrides: Record<string, unknown> = {}) {

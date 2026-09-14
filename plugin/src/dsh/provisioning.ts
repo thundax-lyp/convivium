@@ -10,10 +10,10 @@ export interface SessionProvisioningEnvelope {
 }
 
 const managerInstruction =
-    "This message establishes your meeting identity only and grants no work capability. Wait for a formal contribution planning notice with deliveryId before assigning or reviewing work. For a legacy meeting, wait for planningAttemptId and deliveryId before using the manager planning write tool.";
+    "This message establishes your meeting identity only and grants no work capability. Wait for a formal contribution planning notice with deliveryId before assigning or reviewing work.";
 
 const participantInstruction =
-    "This message establishes your meeting identity only and grants no work capability. Wait for a formal contribution task with contributionId, generation and deliveryId before preparing or reviewing work. For a legacy meeting, wait for attemptId and deliveryId before using a speaker write tool.";
+    "This message establishes your meeting identity only and grants no work capability. Wait for a formal contribution task with contributionId, generation and deliveryId before preparing or reviewing work.";
 
 export function createSessionProvisioningEnvelope(input: {
     readonly teamId: string;

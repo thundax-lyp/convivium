@@ -460,6 +460,7 @@ export function createCreateStatusRuntime(
         recovery,
         deliveryWorkers,
         ensureWorker,
+        markContributionRecovered: (meetingId) => recoveredContributionMeetings.add(meetingId),
         signal
     });
     const taskApplication = createMeetingTaskApplication({

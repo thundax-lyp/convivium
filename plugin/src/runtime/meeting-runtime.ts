@@ -6,6 +6,7 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import {
     createMeetingState,
+    createContributionState,
     type CanonicalIdAllocator,
     type CreateContinuationSpec,
     type MeetingLimits
@@ -54,6 +55,30 @@ export interface PreparedMeetingCreation {
     readonly createInput: CreateMeetingInput;
 }
 
+const retiredCreationLimits = [
+    "maxTurns",
+    "maxSpeakersPerTurn",
+    "maxConsecutiveSpeechesPerSpeaker"
+] as const;
+
+export function assertContributionCreationInput(input: CreateMeetingInputV1): void {
+    const participantKeys = new Set(input.participants.map(({ participantKey }) => participantKey));
+    if (input.participants.length < 2 || !participantKeys.has(input.evidenceReviewerKey)) {
+        throw new TypeError("INVALID_CREATE_INPUT: evidenceReviewerKey must name a Participant.");
+    }
+    if (input.selectionMode !== undefined && input.selectionMode !== "manager") {
+        throw new TypeError(
+            "INVALID_CREATE_INPUT: only Manager contribution selection is supported."
+        );
+    }
+    if (
+        input.limits !== undefined &&
+        retiredCreationLimits.some((key) => Object.prototype.hasOwnProperty.call(input.limits, key))
+    ) {
+        throw new TypeError("INVALID_CREATE_INPUT: Turn limits are not supported.");
+    }
+}
+
 function jsonValue(value: unknown): JsonValue {
     if (
         value === null ||
@@ -94,6 +119,7 @@ export function prepareMeetingCreation(
         readonly continuation?: CreateContinuationSpec;
     }
 ): PreparedMeetingCreation {
+    assertContributionCreationInput(input);
     const allocator: CanonicalIdAllocator = {
         allocate: (kind, key) => `${kind}-${key}`
     };
@@ -119,6 +145,13 @@ export function prepareMeetingCreation(
         },
         allocator
     );
+    state.contributions = createContributionState(
+        `participant-${input.evidenceReviewerKey}`,
+        options.now
+    );
+    state.limits.maxTotalMessages = input.limits?.maxTotalMessages ?? 32;
+    state.limits.maxDurationMs = input.limits?.maxDurationMs ?? 1800000;
+    state.selectionMode = "manager";
     return {
         state,
         createInput: authorizationInput(

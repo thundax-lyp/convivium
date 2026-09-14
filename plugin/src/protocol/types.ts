@@ -120,6 +120,7 @@ export interface ContinuationSelectionV1 {
 }
 
 export interface CreateMeetingInputV1 {
+    evidenceReviewerKey: string;
     managerAgentDefinitionId?: string;
     protocolVersion: ProtocolVersion;
     requestId: string;

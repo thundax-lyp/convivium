@@ -37,6 +37,13 @@ export interface MeetingRehydrationService {
     rehydrate(mode?: RehydrateMode): Promise<Map<string, MeetingSnapshot> | undefined>;
 }
 
+function supportsContributionRuntime(snapshot: MeetingSnapshot | undefined): boolean {
+    return (
+        snapshot !== undefined &&
+        (snapshot.state as { readonly contributions?: unknown }).contributions !== undefined
+    );
+}
+
 /** Owns catalog discovery and repository recovery; it makes no meeting command decisions. */
 export function createMeetingRehydrationService(
     options: MeetingRehydrationServiceOptions
@@ -61,7 +68,6 @@ export function createMeetingRehydrationService(
             } else if (existing?.teamId !== teamId) {
                 throw new Error("Recovered Meeting team ownership does not match catalog.");
             }
-            const parent = await options.reconcile?.(repository, existing);
             const recovered = await repository.recover();
             if (
                 recovered.bootstrap.status === "creating" ||
@@ -74,6 +80,8 @@ export function createMeetingRehydrationService(
             if (recovered.snapshot === undefined || parentSessionId === undefined) {
                 throw new Error("Ready Meeting recovery is incomplete.");
             }
+            if (!supportsContributionRuntime(recovered.snapshot)) return;
+            const parent = await options.reconcile?.(repository, existing);
             const current = await repository.read();
             if (existing === undefined) {
                 options.meetings.set(meetingId, {
@@ -133,15 +141,16 @@ export function createMeetingRehydrationService(
                         teamId: record.teamId,
                         meetingId: record.meetingId
                     });
-                    const parent = await options.reconcile?.(repository);
                     const recovered = await repository.recover();
                     const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
                     if (
                         recovered.bootstrap.status !== "ready" ||
                         recovered.snapshot === undefined ||
+                        !supportsContributionRuntime(recovered.snapshot) ||
                         parentSessionId === undefined
                     )
                         continue;
+                    const parent = await options.reconcile?.(repository);
                     options.meetings.set(record.meetingId, {
                         teamId: record.teamId,
                         captainSessionId: parentSessionId,
