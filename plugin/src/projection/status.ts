@@ -53,8 +53,12 @@ function message(value: MeetingState["transcript"][number]): PublicMeetingMessag
     return {
         id: value.id,
         seq: value.seq,
-        turnId: value.turnId,
-        stepId: value.stepId,
+        ...(value.turnId === undefined ? {} : { turnId: value.turnId }),
+        ...(value.stepId === undefined ? {} : { stepId: value.stepId }),
+        ...(value.contributionId === undefined ? {} : { contributionId: value.contributionId }),
+        ...(value.contributionRevision === undefined
+            ? {}
+            : { contributionRevision: value.contributionRevision }),
         speaker: value.speaker,
         agendaItemId: value.agendaItemId,
         kind: value.kind,

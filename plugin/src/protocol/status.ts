@@ -294,8 +294,10 @@ const message: Schema<unknown, PublicMeetingMessageV1> = Schema.transform(
     Schema.object({
         id: requiredString(),
         seq: requiredNumber(),
-        turnId: requiredString(),
-        stepId: requiredString(),
+        turnId: optionalObject(requiredString()),
+        stepId: optionalObject(requiredString()),
+        contributionId: optionalObject(requiredString()),
+        contributionRevision: optionalObject(requiredNumber()),
         speaker: requiredString(),
         agendaItemId: requiredString(),
         kind: enumOf([
@@ -318,6 +320,14 @@ const message: Schema<unknown, PublicMeetingMessageV1> = Schema.transform(
     }),
     (value) => {
         if (value.minutesDraft === null) throw new TypeError("Invalid minutes draft");
+        const turn = value.turnId !== undefined && value.stepId !== undefined;
+        const contribution =
+            value.contributionId !== undefined && value.contributionRevision !== undefined;
+        if (
+            turn === contribution ||
+            (typeof value.contributionRevision === "number" && value.contributionRevision < 1)
+        )
+            throw new TypeError("Meeting message requires exactly one origin.");
         return value;
     }
 ) as Schema<unknown, PublicMeetingMessageV1>;

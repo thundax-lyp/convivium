@@ -14,12 +14,6 @@
 
 ### 基础
 
-- [ ] `领域模型`：canonical 结构与消息来源兼容（T1a）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T1a。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：实现 canonical 类型、结构与容量校验，并适配新旧消息来源。
-    - 验收点：合法新旧状态可解析；损坏引用与混合来源拒绝；旧投影不补默认字段；本步测试与类型检查通过。
-
 - [ ] `协议`：贡献 Wire 输入与结果 Schema（T1b）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T1b。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

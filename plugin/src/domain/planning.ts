@@ -69,7 +69,14 @@ function currentAgenda(state: MeetingState) {
 function latestSpeakerTurnSeq(state: MeetingState, participantId: string): number | undefined {
     const turns = state.transcript
         .filter((message) => message.speaker === participantId)
-        .map((message) => message.turnSeq);
+        .flatMap((message) =>
+            message.turnSeq !== undefined &&
+            message.turnId !== undefined &&
+            message.stepId !== undefined &&
+            message.attemptId !== undefined
+                ? [message.turnSeq]
+                : []
+        );
     return turns.length === 0 ? undefined : Math.max(...turns);
 }
 

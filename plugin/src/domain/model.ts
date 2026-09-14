@@ -74,7 +74,16 @@ export const DomainEventTypes = [
     "decision.superseded",
     "decision.revoked",
     "attendance_recommendation.rejected",
-    "archive.sessions_closed"
+    "archive.sessions_closed",
+    "contribution.assigned",
+    "contribution.evidence_saved",
+    "contribution.submitted",
+    "contribution.boundary_reviewed",
+    "contribution.evidence_reviewed",
+    "contribution.controlled",
+    "contribution.expired",
+    "contribution.manager_notified",
+    "contribution.agenda_advanced"
 ] as const;
 
 export type DomainEventType = (typeof DomainEventTypes)[number];
@@ -338,10 +347,12 @@ export interface MeetingMinutesDraft {
 export interface MeetingMessage {
     id: string;
     seq: number;
-    turnSeq: number;
-    turnId: string;
-    stepId: string;
-    attemptId: string;
+    turnSeq?: number;
+    turnId?: string;
+    stepId?: string;
+    attemptId?: string;
+    contributionId?: string;
+    contributionRevision?: number;
     speaker: string;
     agendaItemId: string;
     agendaRelation:
@@ -670,8 +681,10 @@ export interface ArchiveParkingLotItem {
 export interface ArchiveMessage {
     id: string;
     seq: number;
-    turnId: string;
-    stepId: string;
+    turnId?: string;
+    stepId?: string;
+    contributionId?: string;
+    contributionRevision?: number;
     speaker: string;
     agendaItemId: string;
     kind:
@@ -724,6 +737,10 @@ export interface ArchivePackage {
     termination: MeetingTermination;
     endedAt: number;
     materializedAt: number;
+    contributionRefs?: {
+        readonly taskIds: readonly string[];
+        readonly evidenceKeys: readonly string[];
+    };
 }
 
 type DeepReadonly<T> = T extends (...args: never[]) => unknown
@@ -776,6 +793,7 @@ export interface MeetingState {
     attendanceRecommendations: AttendanceRecommendation[];
     artifactRefs: ArchiveArtifactRef[];
     continuationMaterials: ContinuationMaterial[];
+    contributions?: import("./contribution.js").ContributionState;
     turnSeq: number;
     messageSeq: number;
     eventSeq: number;

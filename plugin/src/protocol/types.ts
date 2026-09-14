@@ -580,8 +580,10 @@ export interface PublicMinutesDraftV1 extends MinutesDraftInputV1 {
 export interface PublicMeetingMessageV1 {
     id: string;
     seq: number;
-    turnId: string;
-    stepId: string;
+    turnId?: string;
+    stepId?: string;
+    contributionId?: string;
+    contributionRevision?: number;
     speaker: string;
     agendaItemId: string;
     kind: PublicMessageKind;
