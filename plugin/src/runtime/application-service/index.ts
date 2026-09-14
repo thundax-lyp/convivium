@@ -1,6 +1,7 @@
 import { emitDiagnostic } from "@/repository/diagnostics.js";
 import { reconcileMeetingSessions } from "@/runtime/services/meeting-session-recovery.js";
 import { createMeetingAttendanceApplication } from "./meeting-attendance.js";
+import { createMeetingContributionApplication } from "./meeting-contribution.js";
 import {
     DomainError,
     failSpeakerAttempt,
@@ -434,6 +435,12 @@ export function createCreateStatusRuntime(
         meetings,
         recovery
     });
+    const contributionApplication = createMeetingContributionApplication({
+        options,
+        meetings,
+        recovery,
+        deliveryWorkers
+    });
     const decisionApplication = createMeetingDecisionApplication({
         options: runtimeOptions,
         meetings,
@@ -669,6 +676,7 @@ export function createCreateStatusRuntime(
 
     return {
         watchLocalMeetingUpdates: (watchSignal) => refreshFeed.watch(watchSignal),
+        ...contributionApplication,
         createMeeting,
         sendMeetingMessage: mailApplication.sendMeetingMessage,
         finishMeetingMail: mailApplication.finishMeetingMail,

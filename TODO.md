@@ -16,12 +16,6 @@
 
 ### 协作闭环
 
-- [ ] `贡献 Runtime`：受控读写事务（T5a）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T5a。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：装配贡献 application methods 与 outbox 映射，验证事务和 caller 边界。
-    - 验收点：CAS、receipt 重放/冲突、abort 和读权限成立；重复成功请求无新消息或 outbox。
-
 - [ ] `DSH 投递`：Session adapter 与投递队列（T5b）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T5b。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

@@ -10,6 +10,10 @@ import type { AgentCatalogPort } from "@/runtime/services/agent-catalog.js";
 import type { DeveloperMarkdownWarning } from "@/runtime/services/developer-markdown-service.js";
 import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type {
+    ContributionCommandV1,
+    ContributionResultV1,
+    ReadContributionInputV1,
+    ReadContributionResultV1,
     CaptainAttendanceDispositionInputV1,
     CaptainAttendanceDispositionResultV1,
     CreateMeetingInputV1,
@@ -75,6 +79,16 @@ export interface MeetingToolCaller {
 }
 
 export interface MeetingToolRuntime {
+    applyContribution(
+        input: ContributionCommandV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ContributionResultV1> | ProtocolErrorV1>;
+    readContribution(
+        input: ReadContributionInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ReadContributionResultV1> | ProtocolErrorV1>;
     disposeAttendanceRecommendation(
         input: CaptainAttendanceDispositionInputV1,
         caller: MeetingToolCaller,
@@ -205,6 +219,14 @@ export interface CreateStatusRuntimeOptions {
 }
 
 export interface LocalMeetingWebRuntime {
+    controlLocalContribution(
+        input: Extract<ContributionCommandV1, { action: "retry" | "cancel" | "notify_manager" }>,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ContributionResultV1> | ProtocolErrorV1>;
+    readLocalContribution(
+        input: ReadContributionInputV1,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ReadContributionResultV1> | ProtocolErrorV1>;
     watchLocalMeetingUpdates(signal: AbortSignal): AsyncIterable<MeetingRefreshNoticeV1>;
     acceptLocalDecision(
         input: CaptainDecisionAcceptanceInputV1

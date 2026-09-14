@@ -177,26 +177,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T5a：Runtime 受控读写事务
-
-前置状态：T4 PASS。
-允许修改：`plugin/src/runtime/application-service/meeting-contribution.ts`；`plugin/src/runtime/services/contribution-runtime-service.ts`；`plugin/src/runtime/application-service/types.ts`；`plugin/src/runtime/application-service/index.ts`；`plugin/src/runtime/index.ts`；`plugin/tests/contract/contribution-runtime.spec.ts`。
-禁止修改：工具注册、dispatcher 与真实 DSH 发送。
-
-执行：
-1. 实现 Design 四个 application methods、contributionOutbox、Runtime 类型与装配；Schema→caller→repository.execute→纯转换→commit→wake 按既定顺序。
-2. 将新 dispatch payload 写入真实 repository；此步测试不启动 delivery worker，由 T5b 验证消费者。旧运行路径保持原样，新创建仍未启用。
-3. 新增 describe="contribution application transactions"：用真实 repository 和 caller 绑定测试读权限、CAS、receipt 重放/冲突、abort、故障回滚及 state/event/receipt/outbox 一致。新状态使用已保存 canonical fixture，不通过尚未切换的新 create 构造。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/contract/contribution-runtime.spec.ts tests/contract/domain-meeting-repository.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：命令退出 0；提交结果来自 durable commit；拒绝零副作用；相同成功请求重放无新增消息或 outbox。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
 ### T5b：Session adapter 与投递队列
 
 前置状态：T5a PASS。
