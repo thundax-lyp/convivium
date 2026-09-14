@@ -3,10 +3,138 @@ import {
     applyPublicSubmission,
     assertContributionEvidenceMessages,
     contributionWorkComplete,
+    evaluateContributionProgress,
+    endMeeting,
+    type MeetingState,
     isMeetingStateV2
 } from "@/domain/index.js";
 import { contributionMeeting, contributionNow } from "../../fixtures/contribution.js";
 import { describe, expect, it } from "vitest";
+
+describe("contribution completion and termination", () => {
+    function ready(): MeetingState {
+        const state = contributionMeeting();
+        state.agenda[0]!.status = "resolved";
+        state.contributions = validContributionState() as MeetingState["contributions"];
+        return state;
+    }
+    const end = {
+        meetingId: "meeting-1",
+        captainBinding: "captain-1",
+        outcome: "completed" as const,
+        reason: "Accepted",
+        acceptedDecisionIds: [],
+        deferredAgendaItemIds: [],
+        waivers: [],
+        now: contributionNow,
+        factId: (index: number) => `fact-${index}`
+    };
+    it("rejects Captain completion while a required contribution is unfinished, including cancelled work", () => {
+        const state = ready();
+        const task = state.contributions!.tasks["contribution-1"]!;
+        task.requiredForCompletion = true;
+        expect(() => endMeeting(state, end)).toThrow();
+        expect(evaluateContributionProgress(state, contributionNow).state).toBe(state);
+        task.phase = "cancelled";
+        expect(() => endMeeting(state, end)).toThrow();
+        expect(state.status).toBe("running");
+        expect(state.completionFacts).toEqual([]);
+    });
+    it("completes before either budget, atomically cancels unrelated research and rejects late writes", () => {
+        const state = ready();
+        state.limits.maxTotalMessages = 0;
+        state.limits.maxDurationMs = 1;
+        const original = structuredClone(state);
+        const result = evaluateContributionProgress(state, contributionNow);
+        expect(result.state).toMatchObject({
+            status: "completed",
+            termination: {
+                code: "objective_satisfied",
+                reason: "objective_satisfied",
+                finalMessage: "objective_satisfied",
+                endedAt: contributionNow
+            },
+            contributions: {
+                tasks: {
+                    "contribution-1": { phase: "cancelled", generation: 2, reason: "meeting_ended" }
+                }
+            }
+        });
+        expect(state).toEqual(original);
+        expect(result.effect.events.map((v) => v.type)).toContain("contribution.controlled");
+        expect(() =>
+            applyContributionCommand(
+                result.state,
+                {
+                    action: "retry",
+                    contributionId: "contribution-1",
+                    generation: 2,
+                    reason: "late"
+                },
+                captainContext()
+            )
+        ).toThrow();
+        expect(evaluateContributionProgress(result.state, contributionNow).effect.events).toEqual(
+            []
+        );
+    });
+    it.each(["message_limit", "time_limit"] as const)(
+        "returns partial for %s when the objective is unfinished",
+        (code) => {
+            const state = ready();
+            state.agenda[0]!.status = "discussing";
+            if (code === "message_limit") state.limits.maxTotalMessages = 0;
+            else state.limits.maxDurationMs = 1;
+            expect(evaluateContributionProgress(state, contributionNow).state).toMatchObject({
+                status: "partial",
+                termination: { code, reason: code, finalMessage: code }
+            });
+        }
+    );
+    it("does not auto-complete a paused or legacy meeting", () => {
+        const state = ready();
+        state.status = "paused";
+        expect(evaluateContributionProgress(state, contributionNow).state).toBe(state);
+        state.status = "running";
+        delete state.contributions;
+        expect(evaluateContributionProgress(state, contributionNow).state).toBe(state);
+    });
+    it("retains published drafts and evidence when ending pending review", () => {
+        const pending = boundaryReviewState() as MeetingState;
+        pending.contributions!.tasks["contribution-1"]!.requiresEvidenceReview = true;
+        pending.contributions!.tasks["contribution-1"]!.drafts["1"]!.citations = [
+            { evidenceKey: "evidence-1:1", claim: "A bounded observation" }
+        ];
+        pending.contributions!.evidence["evidence-1:1"] = evidenceVersion(1) as never;
+        const state = applyContributionCommand(
+            pending,
+            {
+                action: "boundary_review",
+                contributionId: "contribution-1",
+                generation: 1,
+                draftRevision: 1,
+                decision: "approve",
+                reason: "In scope",
+                checkedThroughSeq: 0
+            },
+            managerContext()
+        ).state;
+        const task = state.contributions!.tasks["contribution-1"]!;
+        expect(state.transcript).toHaveLength(1);
+        expect(task.reviewStatus).toBe("pending");
+        const before = structuredClone(state);
+        const ended = endMeeting(state, { ...end, outcome: "partial" });
+        expect(ended.state.contributions!.tasks[task.id]).toMatchObject({
+            phase: "published",
+            reviewStatus: "captain_action",
+            generation: 2,
+            reason: "meeting_ended",
+            drafts: task.drafts
+        });
+        expect(ended.state.transcript).toEqual(before.transcript);
+        expect(ended.state.contributions!.evidence).toEqual(before.contributions!.evidence);
+    });
+});
 
 function validContributionState() {
     const state = contributionMeeting();

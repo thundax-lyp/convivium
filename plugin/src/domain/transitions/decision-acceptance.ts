@@ -1,4 +1,5 @@
 import { DomainError } from "@/domain/errors.js";
+import { assertContributionEvidenceMessages } from "@/domain/contribution.js";
 import type {
     CompletionFact,
     MeetingDecision,
@@ -36,6 +37,7 @@ export function acceptDecisionCandidate(
         throw new DomainError("IMMUTABLE_MEETING", "meeting is immutable");
     if (!context.reason.trim()) throw invalid("accept reason must not be empty");
     const evidence = context.evidenceMessageIds.map((id) => id.trim());
+    assertContributionEvidenceMessages(state, evidence);
     if (
         !evidence.length ||
         evidence.some((id) => !id) ||

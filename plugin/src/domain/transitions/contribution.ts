@@ -6,6 +6,11 @@ import type {
     ContributionTask
 } from "@/domain/contribution.js";
 import { assertContributionEvidenceMessages } from "@/domain/contribution.js";
+import { contributionWorkComplete } from "@/domain/contribution.js";
+import { isObjectiveSatisfied } from "@/domain/completion.js";
+import { blockingPositions, currentProposals } from "@/domain/proposal-state.js";
+import { transitionMeeting } from "./meeting.js";
+import { executionTerminalStatuses } from "./termination.js";
 import type { MeetingState, TransitionResult } from "@/domain/model.js";
 import { applyPublicSubmission, assertPublicMinutes } from "./public-submission.js";
 
@@ -15,6 +20,99 @@ export interface ContributionTransitionContext {
     newContributionId: string;
     newEvidenceId: string;
     completionFactId: (kind: string, index: number) => string;
+}
+
+export function transitionContributionLifecycle(
+    state: MeetingState,
+    action: "pause" | "resume" | "end" | "recover" | "tick",
+    now: number
+): TransitionResult<MeetingState> {
+    if (state.contributions === undefined) return { state, effect: { events: [] } };
+    if (action !== "end") throw new Error("Contribution lifecycle implementation pending");
+    const tasks = { ...state.contributions.tasks };
+    const events: TransitionResult<MeetingState>["effect"]["events"] = [];
+    for (const task of Object.values(tasks)) {
+        if (
+            task.phase === "cancelled" ||
+            (task.phase === "published" &&
+                !["pending", "captain_action"].includes(task.reviewStatus))
+        )
+            continue;
+        const next: ContributionTask = {
+            ...task,
+            generation: task.generation + 1,
+            updatedAt: now,
+            reason: "meeting_ended",
+            ...(task.phase === "published"
+                ? { reviewStatus: "captain_action" as const }
+                : { phase: "cancelled" as const })
+        };
+        delete next.pausedRemainingMs;
+        tasks[task.id] = next;
+        events.push({
+            type: "contribution.controlled",
+            payload: {
+                contributionId: task.id,
+                generation: next.generation,
+                actor: "runtime",
+                at: now,
+                action: "end",
+                reason: "meeting_ended"
+            }
+        });
+    }
+    return {
+        state: { ...state, contributions: { ...state.contributions, tasks } },
+        effect: { events }
+    };
+}
+
+export function evaluateContributionProgress(
+    state: MeetingState,
+    now: number
+): TransitionResult<MeetingState> {
+    if (
+        state.contributions === undefined ||
+        state.status === "created" ||
+        state.status === "paused" ||
+        executionTerminalStatuses.includes(state.status)
+    )
+        return { state, effect: { events: [] } };
+    const code =
+        isObjectiveSatisfied(state) && contributionWorkComplete(state)
+            ? "objective_satisfied"
+            : state.messageSeq >= state.limits.maxTotalMessages
+              ? "message_limit"
+              : state.limits.maxDurationMs !== undefined &&
+                  now - state.createdAt >= state.limits.maxDurationMs
+                ? "time_limit"
+                : undefined;
+    if (code === undefined) return { state, effect: { events: [] } };
+    return transitionMeeting(state, code === "objective_satisfied" ? "completed" : "partial", {
+        now,
+        reason: code,
+        termination: {
+            code,
+            reason: code,
+            finalMessage: code,
+            endedAt: now,
+            decisionIds: state.decisions
+                .filter((v) => v.status === "accepted")
+                .map((v) => v.id)
+                .sort(),
+            unresolvedQuestionIds: state.openQuestions
+                .filter((v) => v.status === "open" || v.status === "deferred")
+                .map((v) => v.id)
+                .sort(),
+            blockingAgendaItemIds: state.agenda
+                .filter((v) => v.status === "blocked")
+                .map((v) => v.id)
+                .sort(),
+            dissentingPositionIds: currentProposals(state)
+                .flatMap((v) => blockingPositions(v).map((p) => p.id))
+                .sort()
+        }
+    });
 }
 
 function assertCompletionEvidenceSupport(
@@ -38,6 +136,11 @@ export function applyContributionCommand(
 ): TransitionResult<MeetingState> {
     if (state.contributions === undefined)
         throw new DomainError("INVALID_STATE_TRANSITION", "Invalid contribution command.");
+    if (!["running", "waiting"].includes(state.status))
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            "Meeting contributions are not writable."
+        );
     if (command.action === "boundary_review") {
         if (context.actor.kind !== "manager")
             throw new DomainError(

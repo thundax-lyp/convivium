@@ -177,26 +177,6 @@ pnpm --dir plugin typecheck:host
 PASS：命令退出 0；普通私稿路径完整；被拒绝命令不改变输入 state；transcript/正式 claims 不增加。
 STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
 
-### T6a：完成判定与终止撤权
-
-前置状态：T5c PASS。
-允许修改：`plugin/src/domain/transitions/contribution.ts`；`plugin/src/domain/contribution.ts`；`plugin/src/domain/transitions/meeting.ts`；`plugin/src/domain/index.ts`；`plugin/src/runtime/services/contribution-runtime-service.ts`；`plugin/src/runtime/application-service/index.ts`；`plugin/tests/unit/domain/contribution.spec.ts`；`plugin/tests/contract/contribution-runtime.spec.ts`；`plugin/src/domain/completion.ts`；`plugin/src/domain/transitions/meeting-guards.ts`；`plugin/src/domain/transitions/termination.ts`；`plugin/src/runtime/application-service/meeting-end.ts`；`plugin/src/runtime/application-service/meeting-decision.ts`；`plugin/src/runtime/application-service/meeting-agenda-candidate.ts`；`plugin/src/runtime/application-service/meeting-control.ts`。
-禁止修改：暂停冻结、冷恢复、议题切换和 archive 格式。
-
-执行：
-1. 将 T3c 支持依据/required 门槛接入 assertCompletionReady 和 Captain 接受路径；实现 evaluateContributionProgress 的 completed→message_limit→time_limit 顺序及固定 termination 字段。
-2. 实现 transitionContributionLifecycle 的 end 分支，终止事务中撤销全部活跃 generation，保留公开正文；显式 end 保留原 waiver 语义。非终止分支的议题推进归 T6b，不临时接回 Turn。
-3. 新增 describe="contribution completion and termination"：required 不足拒绝 Captain completed；满足目标且无关任务在途仍 completed；目标和预算同时满足优先 completed；不足则 partial；终态迟到提交拒绝。本步新增用例使用纯 Domain 或真实 repository.execute 验收到 termination/revoke；不调用会自动进入 archive 的公共 Runtime end。新状态自动 beginArchiveFromTermination 的接线和公共 end 端到端验收归 T6e，旧会议归档接线保持。
-
-验证：
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/contribution.spec.ts tests/contract/contribution-runtime.spec.ts tests/unit/domain/completion.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：命令退出 0；完成门槛在所有正式入口一致；终止原子失效任务，且无恢复投递。
-STOP：上述命令或断言失败，或必须修改未列文件才能继续；记录实际失败和最后 PASS 子步骤，保留工作树，不放宽断言／类型／Schema；测试自有资源在 finally 清理。
-
 ### T6b：议题顺序推进
 
 前置状态：T6a PASS。

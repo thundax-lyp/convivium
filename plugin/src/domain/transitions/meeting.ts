@@ -1,4 +1,5 @@
 import { DomainError } from "@/domain/errors.js";
+import { transitionContributionLifecycle } from "./contribution.js";
 import type {
     ArchiveInput,
     DomainEffect,
@@ -308,8 +309,11 @@ export function transitionMeeting(
             : {})
     };
 
+    const contributionCleanup = isExecutionTerminal
+        ? transitionContributionLifecycle(next, "end", context.now)
+        : { state: next, effect: { events: [] } };
     return {
-        state: next,
+        state: contributionCleanup.state,
         effect: {
             events: [
                 {
@@ -323,6 +327,7 @@ export function transitionMeeting(
                     }
                 },
                 ...(lifecycleCleanup?.events ?? []),
+                ...contributionCleanup.effect.events,
                 ...(requestedTaskCleanup?.effect.events ?? [])
             ]
         }

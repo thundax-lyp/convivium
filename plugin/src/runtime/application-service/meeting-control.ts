@@ -9,6 +9,7 @@ import {
     reassignTurn as reassignTurnTransition,
     applyCompletionClaims,
     judgeTurnCompletion,
+    evaluateContributionProgress,
     nextManagerPlanningIds,
     transitionMeeting,
     type MeetingState
@@ -208,31 +209,39 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                         transition.state,
                         options.now?.() ?? Date.now()
                     );
+                    const progress = evaluateContributionProgress(
+                        transition.state,
+                        options.now?.() ?? Date.now()
+                    );
                     const nextState =
-                        judgment.kind === "completed"
-                            ? {
-                                  ...transition.state,
-                                  status: "converging" as const,
-                                  currentTurn: undefined,
-                                  waitState: undefined
-                              }
-                            : transition.state;
+                        state.contributions !== undefined
+                            ? progress.state
+                            : judgment.kind === "completed"
+                              ? {
+                                    ...transition.state,
+                                    status: "converging" as const,
+                                    currentTurn: undefined,
+                                    waitState: undefined
+                                }
+                              : transition.state;
                     const events =
-                        judgment.kind === "completed"
-                            ? [
-                                  ...transition.effect.events,
-                                  {
-                                      type: "meeting.replanned" as const,
-                                      payload: {
-                                          meetingId: state.id,
-                                          from: state.status,
-                                          to: "converging",
-                                          meetingVersion: state.version,
-                                          reason: judgment.reason
-                                      }
-                                  }
-                              ]
-                            : transition.effect.events;
+                        state.contributions !== undefined
+                            ? [...transition.effect.events, ...progress.effect.events]
+                            : judgment.kind === "completed"
+                              ? [
+                                    ...transition.effect.events,
+                                    {
+                                        type: "meeting.replanned" as const,
+                                        payload: {
+                                            meetingId: state.id,
+                                            from: state.status,
+                                            to: "converging",
+                                            meetingVersion: state.version,
+                                            reason: judgment.reason
+                                        }
+                                    }
+                                ]
+                              : transition.effect.events;
                     const fact = nextState.completionFacts.at(-1)!;
                     return {
                         state: nextState as unknown as JsonObject,

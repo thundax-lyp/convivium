@@ -5,6 +5,7 @@ import type {
     ProtocolSuccessV1
 } from "@/protocol/index.js";
 import { disposeAgendaCandidate } from "@/domain/index.js";
+import { evaluateContributionProgress } from "@/domain/index.js";
 import { serializeValidatedRequestV1 } from "@/protocol/index.js";
 import type { MeetingToolCaller, MeetingToolRuntime, CreateStatusRuntimeOptions } from "./index.js";
 import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
@@ -23,6 +24,7 @@ export interface MeetingAgendaCandidateApplicationOptions {
 }
 
 export function createMeetingAgendaCandidateApplication({
+    options,
     meetings,
     recovery
 }: MeetingAgendaCandidateApplicationOptions): Pick<MeetingToolRuntime, "disposeAgendaCandidate"> {
@@ -70,8 +72,12 @@ export function createMeetingAgendaCandidateApplication({
                                       actorBinding: `captain:${caller.sessionId}`,
                                       action: input.action
                                   });
+                        const progress = evaluateContributionProgress(
+                            transition.state,
+                            options.now?.() ?? Date.now()
+                        );
                         return {
-                            state: transition.state as unknown as JsonObject,
+                            state: progress.state as unknown as JsonObject,
                             result: {
                                 requestId: input.requestId,
                                 candidateId: input.candidateId,
@@ -80,7 +86,10 @@ export function createMeetingAgendaCandidateApplication({
                                     ? { agendaItemId: `${input.candidateId}-agenda-item` }
                                     : {})
                             },
-                            events: transition.effect.events as never,
+                            events: [
+                                ...transition.effect.events,
+                                ...progress.effect.events
+                            ] as never,
                             outbox: []
                         } satisfies {
                             state: JsonObject;

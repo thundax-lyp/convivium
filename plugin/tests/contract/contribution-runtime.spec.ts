@@ -72,6 +72,7 @@ async function fixture() {
                 ),
                 provider: "fixture",
                 lifecycleStatus: "active",
+                initialMessageId: `initial-${sessionId}`,
                 capabilityStatus: "active"
             },
             now
@@ -374,7 +375,9 @@ describe("contribution tool concurrency", () => {
                     })
             });
             expect(await worker.runOnce()).toMatchObject({ delivered: 2 });
-            expect(received).toEqual(["author-1", "author-2"]);
+            expect([...received].sort()).toEqual(["author-1", "author-2"]);
+            expect(aWork).toBeDefined();
+            expect(bWork).toBeDefined();
             expect(aReturned).toBe(false);
             releaseB();
             expect(await bWork).toMatchObject({
@@ -385,7 +388,7 @@ describe("contribution tool concurrency", () => {
             const draftSnapshot = (await f.repository.read()).state;
             expect(draftSnapshot.transcript).toEqual([]);
             expect(await worker.runOnce()).toMatchObject({ delivered: 1 });
-            expect(received).toEqual(["author-1", "author-2", "manager-1"]);
+            expect([...received].sort()).toEqual(["author-1", "author-2", "manager-1"]);
             const approval = {
                 ...(await command("approve-b")),
                 action: "boundary_review",

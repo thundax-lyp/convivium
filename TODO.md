@@ -16,12 +16,6 @@
 
 ### 协作闭环
 
-- [ ] `完成与终止`：完成判定与终止撤权（T6a）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T6a。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：将 required/支持依据门槛接入完成入口，并实现完成、预算和终止撤权顺序。
-    - 验收点：目标满足优先 completed；不足且预算耗尽为 partial；终止原子失效在途任务。
-
 - [ ] `议题推进`：按既定顺序推进议题（T6b）
     - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T6b。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

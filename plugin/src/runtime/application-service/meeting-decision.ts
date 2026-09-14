@@ -7,6 +7,7 @@ import type {
     ProtocolSuccessV1
 } from "@/protocol/index.js";
 import { acceptDecisionCandidate, disposeDecision } from "@/domain/index.js";
+import { evaluateContributionProgress } from "@/domain/index.js";
 import { serializeValidatedRequestV1 } from "@/protocol/index.js";
 import type { MeetingToolCaller, MeetingToolRuntime, CreateStatusRuntimeOptions } from "./index.js";
 import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
@@ -128,8 +129,9 @@ export function createMeetingDecisionApplication({
                         now
                     });
                     const decision = result.state.decisions.at(-1)!;
+                    const progress = evaluateContributionProgress(result.state, now);
                     return {
-                        state: result.state as unknown as JsonObject,
+                        state: progress.state as unknown as JsonObject,
                         result: {
                             requestId: input.requestId,
                             decisionCandidateId: input.decisionCandidateId,
@@ -138,7 +140,7 @@ export function createMeetingDecisionApplication({
                             proposalRevision: decision.proposalRevision,
                             completionFactId: `completion-${input.decisionCandidateId}-acceptance`
                         },
-                        events: result.effect.events as never,
+                        events: [...result.effect.events, ...progress.effect.events] as never,
                         outbox: []
                     };
                 }
@@ -220,8 +222,9 @@ export function createMeetingDecisionApplication({
                                   evidenceMessageIds: input.evidenceMessageIds,
                                   now
                               });
+                    const progress = evaluateContributionProgress(transition.state, now);
                     return {
-                        state: transition.state as unknown as JsonObject,
+                        state: progress.state as unknown as JsonObject,
                         result: {
                             requestId: input.requestId,
                             decisionId: input.decisionId,
@@ -233,7 +236,7 @@ export function createMeetingDecisionApplication({
                                   }
                                 : {})
                         },
-                        events: transition.effect.events as never,
+                        events: [...transition.effect.events, ...progress.effect.events] as never,
                         outbox: []
                     } satisfies {
                         state: JsonObject;

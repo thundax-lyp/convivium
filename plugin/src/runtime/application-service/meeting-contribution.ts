@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
     applyContributionCommand,
+    evaluateContributionProgress,
     assertContributionCapacity,
     DomainError,
     isMeetingStateV2,
@@ -238,21 +239,25 @@ export function createMeetingContributionApplication({
                         completionFactId: (kind, index) =>
                             `completion-${id}-${revision}-${kind}-${index}`
                     });
-                    assertContributionCapacity(transition.state);
+                    const progress = evaluateContributionProgress(transition.state, now);
+                    const events = [
+                        ...transition.effect.events.filter(
+                            (event) => event.type !== "contribution.manager_notified"
+                        ),
+                        ...progress.effect.events,
+                        ...transition.effect.events.filter(
+                            (event) => event.type === "contribution.manager_notified"
+                        )
+                    ];
+                    assertContributionCapacity(progress.state);
                     return {
-                        state: JsonObjectSchema.parse(JSON.parse(JSON.stringify(transition.state))),
-                        result: commandResult(input, transition.state, newId, newEvidenceId),
-                        events: transition.effect.events.map((event) => ({
+                        state: JsonObjectSchema.parse(JSON.parse(JSON.stringify(progress.state))),
+                        result: commandResult(input, progress.state, newId, newEvidenceId),
+                        events: events.map((event) => ({
                             type: event.type,
                             payload: JsonObjectSchema.parse(event.payload)
                         })),
-                        outbox: [
-                            ...contributionOutbox(
-                                before,
-                                transition.state,
-                                transition.effect.events
-                            )
-                        ]
+                        outbox: [...contributionOutbox(before, progress.state, events)]
                     };
                 }
             });

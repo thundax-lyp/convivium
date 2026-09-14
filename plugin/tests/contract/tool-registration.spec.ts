@@ -517,6 +517,14 @@ describe("meeting tool registration", () => {
                     calls.push(`create:${caller.kind}`),
                     denied()
                 ),
+                applyContribution: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`contribution:${caller.kind}`),
+                    denied()
+                ),
+                readContribution: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`read-contribution:${caller.kind}`),
+                    denied()
+                ),
                 getStatus: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`status:${caller.kind}`),
                     denied()
@@ -599,6 +607,19 @@ describe("meeting tool registration", () => {
         registerSubmitAndControlTools(dependencies);
 
         const commands: Record<string, unknown> = {
+            convivium_contribution: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                requestId: "notify-1",
+                expectedMeetingVersion: 1,
+                action: "notify_manager",
+                reason: "Review pending work"
+            },
+            convivium_read_contribution: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                contributionId: "contribution-1"
+            },
             convivium_create_meeting: {
                 protocolVersion: 1,
                 requestId: "request-1",
@@ -823,6 +844,8 @@ describe("meeting tool registration", () => {
             "create:participant",
             "status:participant",
             "task-create:participant",
+            "contribution:participant",
+            "read-contribution:participant",
             "send-message:participant",
             "finish-mail:participant",
             "task-status:participant",

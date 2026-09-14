@@ -1,4 +1,5 @@
 import { isObjectiveSatisfied } from "@/domain/completion.js";
+import { contributionWorkComplete } from "@/domain/contribution.js";
 import { DomainError } from "@/domain/errors.js";
 import type { MeetingState, MeetingStatus } from "@/domain/model.js";
 
@@ -19,7 +20,7 @@ export const terminationCodesByStatus: Readonly<Record<MeetingStatus, readonly s
 
 export function assertCompletionReady(state: MeetingState, to: MeetingStatus): void {
     if (to !== "completed") return;
-    if (!isObjectiveSatisfied(state)) {
+    if (!isObjectiveSatisfied(state) || !contributionWorkComplete(state)) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
             `meeting ${state.id} is not ready to complete`,
