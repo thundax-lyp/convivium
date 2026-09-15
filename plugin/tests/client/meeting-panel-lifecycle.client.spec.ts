@@ -40,6 +40,12 @@ useRemoteFixture();
 beforeEach(() => {
     vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "request-1") });
 });
+afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+});
 
 describe("meeting panel and client plugin lifecycle", () => {
     it.each([
@@ -154,13 +160,6 @@ describe("meeting panel and client plugin lifecycle", () => {
             )
         ).toEqual(["1", "2"]);
         expect(screen.getByLabelText("Blocking items").textContent).toContain("risk");
-    });
-
-    afterEach(() => {
-        cleanup();
-        vi.restoreAllMocks();
-        vi.unstubAllGlobals();
-        vi.useRealTimers();
     });
 
     it("mounts the namespace before registering the meeting panel", async () => {
