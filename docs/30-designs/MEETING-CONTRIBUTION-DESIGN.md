@@ -211,9 +211,9 @@ ConviviumRemoteService 新 `readContribution(input:RemoteReadContributionInput, 
 | `plugin/src/runtime/services/meeting-dispatch-service.ts` | createMeetingDeliveryDispatcher：新增角色分支、Session 队列和前后授权 |
 | `plugin/src/runtime/services/meeting-session-recovery.ts` | reconcileMeetingSessions：新状态不修复／启动旧 Speaker，沿原 ownership 恢复；返回后由 application 接恢复贡献 |
 | `plugin/src/runtime/services/meeting-archive-service.ts` | 原切片 materializeArchivePackage 只引用已发布任务／证据；新共享材料归档范围未实现；cleanupOwnedSessions/finalizeArchive 保持原成功判据 |
-| `plugin/src/repository/domain/schemas.ts`、`plugin/src/repository/domain/domain-meeting-repository.ts` | state Schema 保持单写；所有新状态入 commit 前调用容量校验，非法命令转 INVALID_ARGUMENT；恢复不回填 |
+| `plugin/src/repository/domain/schemas.ts`、`plugin/src/repository/domain/domain-meeting-repository.ts`、`plugin/src/repository/domain/domain-meeting-repository-core.ts` | state Schema 保持单写；所有新状态入 commit 前调用容量校验，非法命令转 INVALID_ARGUMENT；恢复不回填 |
 | `plugin/src/dsh/session-adapter.ts`、`plugin/src/dsh/index.ts`、`plugin/src/dsh/provisioning.ts` | 新 adapter/导出及不提前授权的初始指导 |
-| `plugin/src/protocol/types.ts`、`plugin/src/protocol/commands.ts`、`plugin/src/protocol/status.ts`、`plugin/src/protocol/index.ts` | 创建输入、来源、status/archive/result Schema 和公开导出 |
+| `plugin/src/protocol/types.ts`、`plugin/src/protocol/meeting-status-types.ts`、`plugin/src/protocol/contribution-types.ts`、`plugin/src/protocol/commands.ts`、`plugin/src/protocol/status.ts`、`plugin/src/protocol/index.ts` | 创建输入、来源、status/archive/result Schema 和公开导出 |
 | `plugin/src/projection/status.ts`、`plugin/src/projection/index.ts`、`plugin/src/projection/developer-markdown.ts` | 新摘要／显式可见性、message 来源；Markdown 仅公开内容，不复制私有草稿 |
 | `plugin/src/tools/register-tools.ts` | registerCreateAndStatusTools/registerSubmitAndControlTools：注册两个新工具与 Schema；复用 caller resolver |
 | `plugin/src/remote/index.ts`、`plugin/src/remote/types.ts` | 两个本地方法与 RemoteInput 类型 |
