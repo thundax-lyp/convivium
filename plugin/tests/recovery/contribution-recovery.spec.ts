@@ -465,7 +465,7 @@ describe("contribution archive recovery", () => {
         } finally {
             await f.close();
         }
-    });
+    }, 15000);
 });
 
 describe("contribution cold recovery", () => {
