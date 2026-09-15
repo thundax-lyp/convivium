@@ -125,37 +125,60 @@ async function initializeContributionMeeting(
     return { meetingVersion: committed.meetingVersion, status: "running" };
 }
 
+function validateCreateMeetingRequest(
+    input: CreateMeetingInputV1,
+    caller: MeetingToolCaller,
+    maxParticipants: number | undefined
+): ReturnType<typeof commandFailure> | undefined {
+    if (caller.kind !== "captain" || caller.agent === undefined) {
+        return commandFailure(
+            "UNAUTHORIZED_CALLER",
+            "Only a live Captain Agent can create a meeting."
+        );
+    }
+    try {
+        assertContributionCreationInput(input);
+    } catch (error) {
+        return commandFailure(
+            "INVALID_ARGUMENT",
+            error instanceof Error ? error.message : "The contribution meeting input is invalid."
+        );
+    }
+    if (maxParticipants !== undefined && input.participants.length > maxParticipants) {
+        return commandFailure("INVALID_ARGUMENT", "The participant limit was exceeded.");
+    }
+    if (input.agenda.length === 0) {
+        return commandFailure("INVALID_ARGUMENT", "At least one agenda item is required.");
+    }
+}
+
+function meetingRepositoryOpenFailure(error: unknown): ReturnType<typeof commandFailure> {
+    if (
+        error !== null &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "IDEMPOTENCY_CONFLICT"
+    ) {
+        return commandFailure(
+            "IDEMPOTENCY_CONFLICT",
+            "The create request conflicts with the persisted meeting."
+        );
+    }
+    return commandFailure("INTERNAL_ERROR", "The meeting could not be opened.", true);
+}
+
 export function createMeetingApplication(options: CreateMeetingApplicationOptions) {
     return async function createMeeting(
         input: CreateMeetingInputV1,
         caller: MeetingToolCaller,
         commandSignal: AbortSignal
     ) {
-        if (caller.kind !== "captain" || caller.agent === undefined) {
-            return commandFailure(
-                "UNAUTHORIZED_CALLER",
-                "Only a live Captain Agent can create a meeting."
-            );
-        }
-        try {
-            assertContributionCreationInput(input);
-        } catch (error) {
-            return commandFailure(
-                "INVALID_ARGUMENT",
-                error instanceof Error
-                    ? error.message
-                    : "The contribution meeting input is invalid."
-            );
-        }
-        if (
-            options.runtime.maxParticipants !== undefined &&
-            input.participants.length > options.runtime.maxParticipants
-        ) {
-            return commandFailure("INVALID_ARGUMENT", "The participant limit was exceeded.");
-        }
-        if (input.agenda.length === 0) {
-            return commandFailure("INVALID_ARGUMENT", "At least one agenda item is required.");
-        }
+        const invalid = validateCreateMeetingRequest(
+            input,
+            caller,
+            options.runtime.maxParticipants
+        );
+        if (invalid !== undefined) return invalid;
         const meetingId = stableMeetingId(input);
         const releaseCreation = options.holdCreation?.(meetingId);
         try {
@@ -187,17 +210,7 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                     create: prepared.createInput
                 });
             } catch (error) {
-                if (
-                    error !== null &&
-                    typeof error === "object" &&
-                    "code" in error &&
-                    error.code === "IDEMPOTENCY_CONFLICT"
-                )
-                    return commandFailure(
-                        "IDEMPOTENCY_CONFLICT",
-                        "The create request conflicts with the persisted meeting."
-                    );
-                return commandFailure("INTERNAL_ERROR", "The meeting could not be opened.", true);
+                return meetingRepositoryOpenFailure(error);
             }
             const dependencies: MeetingCreationRuntimeDependencies = {
                 agentDefinitions: options.runtime.agentDefinitions,

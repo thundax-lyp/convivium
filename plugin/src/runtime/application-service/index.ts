@@ -90,6 +90,30 @@ function isConcurrentTimeoutLoser(error: unknown): boolean {
     );
 }
 
+function hasExpiredManagerPlanning(state: MeetingState, now: number): boolean {
+    const planningAttempt = state.manager.currentPlanningAttempt;
+    return (
+        state.status === "running" &&
+        planningAttempt?.status === "running" &&
+        planningAttempt.deadlineAt !== undefined &&
+        planningAttempt.deadlineAt <= now
+    );
+}
+
+function hasExpiredSpeakerAttempt(state: MeetingState, now: number): boolean {
+    const turn = state.currentTurn;
+    const step = turn?.steps[turn.currentStepIndex];
+    const attempt = step?.attempt;
+    return (
+        state.status === "running" &&
+        turn?.status === "running" &&
+        step?.status === "running" &&
+        attempt?.status === "running" &&
+        attempt.deadlineAt !== undefined &&
+        attempt.deadlineAt <= now
+    );
+}
+
 export function createCreateStatusRuntime(
     options: CreateStatusRuntimeOptions
 ): MeetingRuntimeWithCallerLookup {
@@ -160,6 +184,248 @@ export function createCreateStatusRuntime(
             else creatingMeetings.set(meetingId, count);
         };
     };
+    const {
+        recovery,
+        recoverArchiveForCaptain,
+        assertLocalArchiveRecoveryAvailable,
+        recoverContributionArchive,
+        recoverArchiveForLocal
+    } = createRuntimeRecoveryFacade({
+        options,
+        repositoryRegistry,
+        creatingMeetings,
+        meetings,
+        signal,
+        recoveredContributionMeetings,
+        contributionRecoveryEpoch,
+        ensureWorker
+    });
+
+    const queryApplication = createMeetingQueryApplication({
+        meetings,
+        recovery,
+        recoverArchiveForCaptain
+    });
+
+    const fallbackManagerPlanning: {
+        current?: (input: ManagerFallbackInput) => Promise<void>;
+    } = {};
+
+    function ensureWorker(stored: StoredMeeting): void {
+        const meetingId = stored.repository.meetingId;
+        deliveryWorkers.ensure({
+            meetingId,
+            repository: stored.repository,
+            parent: stored.parent,
+            dispatch: async (item, workerSignal) => {
+                await timeoutDispatchHolds.get(meetingId);
+                return deliveryDispatcher.dispatch({
+                    repository: stored.repository,
+                    parent: stored.parent!,
+                    meetingId,
+                    signal: AbortSignal.any([signal, workerSignal]),
+                    item
+                });
+            },
+            scan: async (now) => {
+                if (stored.parent === undefined) return;
+                await scanContributionTimeouts({ repository: stored.repository, now });
+                await recoverContributionArchive(stored, now);
+                await scanMeetingMailTimeouts({
+                    repository: stored.repository,
+                    parent: stored.parent,
+                    continuable: options.continuable,
+                    now
+                });
+            },
+            onTerminalFailure: async (item, _errorCode, failedAt) => {
+                const payload = item.payload as { role?: string; planningAttemptId?: string };
+                if (payload.role === "contribution" || payload.role === "contribution_manager") {
+                    await recordContributionDeliveryFailure({
+                        repository: stored.repository,
+                        item,
+                        errorCode: _errorCode,
+                        now: failedAt
+                    });
+                    return;
+                }
+                if (payload.role !== "manager" || payload.planningAttemptId === undefined) return;
+                const snapshot = await stored.repository.read();
+                const attempt = (snapshot.state as unknown as MeetingState).manager
+                    .currentPlanningAttempt;
+                if (attempt?.id !== payload.planningAttemptId || attempt.status !== "running")
+                    return;
+                await fallbackManagerPlanning.current?.({
+                    repository: stored.repository,
+                    meetingId: stored.repository.meetingId,
+                    attemptId: attempt.id,
+                    reasonCode: "manager_delivery_retry_exhausted",
+                    observedMeetingVersion: attempt.observedMeetingVersion,
+                    now: failedAt
+                });
+            }
+        });
+    }
+
+    const createMeeting = createMeetingApplication({
+        holdCreation,
+        runtime: runtimeOptions,
+        meetings,
+        recovery,
+        deliveryWorkers,
+        ensureWorker,
+        markContributionRecovered: (meetingId) => recoveredContributionMeetings.add(meetingId),
+        signal
+    });
+    const taskApplication = createMeetingTaskApplication({
+        meetings,
+        recovery
+    });
+    const turnApplication = createMeetingTurnApplication({
+        meetings,
+        recovery
+    });
+    fallbackManagerPlanning.current = turnApplication.fallbackManagerPlanning;
+    const controlApplication = createMeetingControlApplication({
+        options: runtimeOptions,
+        meetings,
+        recovery,
+        deliveryWorkers,
+        ensureWorker
+    });
+    const endApplication = createMeetingEndApplication({
+        options: runtimeOptions,
+        meetings,
+        recovery,
+        deliveryWorkers,
+        recoverArchiveForCaptain,
+        assertLocalArchiveRecoveryAvailable,
+        recoverArchiveForLocal
+    });
+    const mailApplication = createMeetingMailApplication({
+        meetings,
+        recovery
+    });
+    const attendanceApplication = createMeetingAttendanceApplication({
+        options: runtimeOptions,
+        meetings,
+        recovery
+    });
+    const contributionApplication = createMeetingContributionApplication({
+        options,
+        meetings,
+        recovery,
+        deliveryWorkers
+    });
+    const decisionApplication = createMeetingDecisionApplication({
+        options: runtimeOptions,
+        meetings,
+        recovery
+    });
+    const agendaCandidateApplication = createMeetingAgendaCandidateApplication({
+        options: runtimeOptions,
+        meetings,
+        recovery
+    });
+
+    const scanExpiredSpeakerAttempts = createRuntimeTimeoutScanner({
+        options,
+        recovery,
+        meetings,
+        timeoutAttemptsInFlight,
+        fallbackManagerPlanning,
+        deliveryWorkers,
+        holdTimeoutDispatch,
+        recoverContributionArchive
+    });
+
+    const scanSleep = options.timeoutScanSleep ?? defaultTimeoutScanSleep;
+    const timeoutMonitor = (async () => {
+        while (!timeoutSignal.aborted) {
+            try {
+                await scanExpiredSpeakerAttempts();
+            } catch {
+                // The public scan preserves the error. The lifecycle monitor retries on its next poll.
+            }
+            try {
+                await scanSleep(options.outboxPollMs ?? 1_000, timeoutSignal);
+            } catch {
+                if (timeoutSignal.aborted) return;
+                throw new Error("Speaker timeout monitor sleep failed.");
+            }
+        }
+    })();
+
+    return {
+        watchLocalMeetingUpdates: (watchSignal) => refreshFeed.watch(watchSignal),
+        ...contributionApplication,
+        createMeeting,
+        sendMeetingMessage: mailApplication.sendMeetingMessage,
+        finishMeetingMail: mailApplication.finishMeetingMail,
+        getStatus: queryApplication.getStatus,
+        listLocalMeetings: queryApplication.listLocalMeetings,
+        getLocalMeetingStatus: queryApplication.getLocalMeetingStatus,
+
+        pauseLocalMeeting: controlApplication.pauseLocalMeeting,
+        resumeLocalMeeting: controlApplication.resumeLocalMeeting,
+        reassignLocalTurn: controlApplication.reassignLocalTurn,
+        createMeetingTask: taskApplication.createMeetingTask,
+        meetingTaskStatus: taskApplication.meetingTaskStatus,
+        startMeetingTask: taskApplication.startMeetingTask,
+        finishMeetingTask: taskApplication.finishMeetingTask,
+        raiseHand: turnApplication.raiseHand,
+        submitTurn: turnApplication.submitTurn,
+        submitManagerPlan: turnApplication.submitManagerPlan,
+        pause: controlApplication.pause,
+        resume: controlApplication.resume,
+        reassignTurn: controlApplication.reassignTurn,
+        disposeLocalRisk: controlApplication.disposeLocalRisk,
+        acceptLocalDecision: decisionApplication.acceptLocalDecision,
+        disposeLocalDecision: decisionApplication.disposeLocalDecision,
+        disposeRisk: controlApplication.disposeRisk,
+        acceptDecision: decisionApplication.acceptDecision,
+        disposeDecision: decisionApplication.disposeDecision,
+        disposeAttendanceRecommendation: attendanceApplication.disposeAttendanceRecommendation,
+        disposeAgendaCandidate: agendaCandidateApplication.disposeAgendaCandidate,
+        endMeeting: endApplication.endMeeting,
+        endLocalMeeting: endApplication.endLocalMeeting,
+        scanExpiredSpeakerAttempts,
+        findBySessionId: queryApplication.findBySessionId,
+        async dispose() {
+            refreshFeed.dispose();
+            runtimeController.abort(new Error("Meeting runtime disposed"));
+            timeoutController.abort(new Error("Speaker timeout monitor disposed"));
+            await timeoutMonitor;
+            await deliveryWorkers.dispose();
+            await developerMarkdownService?.dispose();
+            await (await repositoryRegistry).close();
+            meetings.clear();
+        }
+    } satisfies MeetingRuntimeWithCallerLookup;
+}
+
+interface RuntimeRecoveryFacadeOptions {
+    readonly options: CreateStatusRuntimeOptions;
+    readonly repositoryRegistry: Promise<DomainRepositoryRegistry>;
+    readonly creatingMeetings: Map<string, number>;
+    readonly meetings: Map<string, StoredMeeting>;
+    readonly signal: AbortSignal;
+    readonly recoveredContributionMeetings: Set<string>;
+    readonly contributionRecoveryEpoch: string;
+    readonly ensureWorker: (stored: StoredMeeting) => void;
+}
+
+function createRuntimeRecoveryFacade(dependencies: RuntimeRecoveryFacadeOptions) {
+    const {
+        options,
+        repositoryRegistry,
+        creatingMeetings,
+        meetings,
+        signal,
+        recoveredContributionMeetings,
+        contributionRecoveryEpoch,
+        ensureWorker
+    } = dependencies;
     const repositoryRecovery = createMeetingRehydrationService({
         registry: repositoryRegistry,
         isCreating: (meetingId) => creatingMeetings.has(meetingId),
@@ -385,133 +651,37 @@ export function createCreateStatusRuntime(
         });
     }
 
-    const queryApplication = createMeetingQueryApplication({
-        meetings,
+    return {
         recovery,
-        recoverArchiveForCaptain
-    });
-
-    const fallbackManagerPlanning: {
-        current?: (input: ManagerFallbackInput) => Promise<void>;
-    } = {};
-
-    function ensureWorker(stored: StoredMeeting): void {
-        const meetingId = stored.repository.meetingId;
-        deliveryWorkers.ensure({
-            meetingId,
-            repository: stored.repository,
-            parent: stored.parent,
-            dispatch: async (item, workerSignal) => {
-                await timeoutDispatchHolds.get(meetingId);
-                return deliveryDispatcher.dispatch({
-                    repository: stored.repository,
-                    parent: stored.parent!,
-                    meetingId,
-                    signal: AbortSignal.any([signal, workerSignal]),
-                    item
-                });
-            },
-            scan: async (now) => {
-                if (stored.parent === undefined) return;
-                await scanContributionTimeouts({ repository: stored.repository, now });
-                await recoverContributionArchive(stored, now);
-                await scanMeetingMailTimeouts({
-                    repository: stored.repository,
-                    parent: stored.parent,
-                    continuable: options.continuable,
-                    now
-                });
-            },
-            onTerminalFailure: async (item, _errorCode, failedAt) => {
-                const payload = item.payload as { role?: string; planningAttemptId?: string };
-                if (payload.role === "contribution" || payload.role === "contribution_manager") {
-                    await recordContributionDeliveryFailure({
-                        repository: stored.repository,
-                        item,
-                        errorCode: _errorCode,
-                        now: failedAt
-                    });
-                    return;
-                }
-                if (payload.role !== "manager" || payload.planningAttemptId === undefined) return;
-                const snapshot = await stored.repository.read();
-                const attempt = (snapshot.state as unknown as MeetingState).manager
-                    .currentPlanningAttempt;
-                if (attempt?.id !== payload.planningAttemptId || attempt.status !== "running")
-                    return;
-                await fallbackManagerPlanning.current?.({
-                    repository: stored.repository,
-                    meetingId: stored.repository.meetingId,
-                    attemptId: attempt.id,
-                    reasonCode: "manager_delivery_retry_exhausted",
-                    observedMeetingVersion: attempt.observedMeetingVersion,
-                    now: failedAt
-                });
-            }
-        });
-    }
-
-    const createMeeting = createMeetingApplication({
-        holdCreation,
-        runtime: runtimeOptions,
-        meetings,
-        recovery,
-        deliveryWorkers,
-        ensureWorker,
-        markContributionRecovered: (meetingId) => recoveredContributionMeetings.add(meetingId),
-        signal
-    });
-    const taskApplication = createMeetingTaskApplication({
-        meetings,
-        recovery
-    });
-    const turnApplication = createMeetingTurnApplication({
-        meetings,
-        recovery
-    });
-    fallbackManagerPlanning.current = turnApplication.fallbackManagerPlanning;
-    const controlApplication = createMeetingControlApplication({
-        options: runtimeOptions,
-        meetings,
-        recovery,
-        deliveryWorkers,
-        ensureWorker
-    });
-    const endApplication = createMeetingEndApplication({
-        options: runtimeOptions,
-        meetings,
-        recovery,
-        deliveryWorkers,
         recoverArchiveForCaptain,
         assertLocalArchiveRecoveryAvailable,
+        recoverContributionArchive,
         recoverArchiveForLocal
-    });
-    const mailApplication = createMeetingMailApplication({
-        meetings,
-        recovery
-    });
-    const attendanceApplication = createMeetingAttendanceApplication({
-        options: runtimeOptions,
-        meetings,
-        recovery
-    });
-    const contributionApplication = createMeetingContributionApplication({
-        options,
-        meetings,
-        recovery,
-        deliveryWorkers
-    });
-    const decisionApplication = createMeetingDecisionApplication({
-        options: runtimeOptions,
-        meetings,
-        recovery
-    });
-    const agendaCandidateApplication = createMeetingAgendaCandidateApplication({
-        options: runtimeOptions,
-        meetings,
-        recovery
-    });
+    };
+}
 
+interface RuntimeTimeoutScannerOptions {
+    readonly options: CreateStatusRuntimeOptions;
+    readonly recovery: MeetingRehydrationService;
+    readonly meetings: Map<string, StoredMeeting>;
+    readonly timeoutAttemptsInFlight: Set<string>;
+    readonly fallbackManagerPlanning: { current?: (input: ManagerFallbackInput) => Promise<void> };
+    readonly deliveryWorkers: ReturnType<typeof createMeetingDeliveryWorkerService>;
+    readonly holdTimeoutDispatch: (meetingId: string) => () => void;
+    readonly recoverContributionArchive: (stored: StoredMeeting, now: number) => Promise<void>;
+}
+
+function createRuntimeTimeoutScanner(dependencies: RuntimeTimeoutScannerOptions) {
+    const {
+        options,
+        recovery,
+        meetings,
+        timeoutAttemptsInFlight,
+        fallbackManagerPlanning,
+        deliveryWorkers,
+        holdTimeoutDispatch,
+        recoverContributionArchive
+    } = dependencies;
     async function scanExpiredSpeakerAttempts(): Promise<void> {
         await recovery.rehydrate();
         const now = options.now?.() ?? Date.now();
@@ -542,12 +712,7 @@ export function createCreateStatusRuntime(
                 const current = await stored.repository.read();
                 const state = current.state as unknown as MeetingState;
                 const planningAttempt = state.manager.currentPlanningAttempt;
-                if (
-                    state.status === "running" &&
-                    planningAttempt?.status === "running" &&
-                    planningAttempt.deadlineAt !== undefined &&
-                    planningAttempt.deadlineAt <= now
-                ) {
+                if (hasExpiredManagerPlanning(state, now) && planningAttempt !== undefined) {
                     if (timeoutAttemptsInFlight.has(planningAttempt.id)) continue;
                     timeoutAttemptsInFlight.add(planningAttempt.id);
                     try {
@@ -569,12 +734,9 @@ export function createCreateStatusRuntime(
                 const step = turn?.steps[turn.currentStepIndex];
                 const attempt = step?.attempt;
                 if (
-                    state.status !== "running" ||
-                    turn?.status !== "running" ||
-                    step?.status !== "running" ||
-                    attempt?.status !== "running" ||
-                    attempt.deadlineAt === undefined ||
-                    attempt.deadlineAt > now
+                    !hasExpiredSpeakerAttempt(state, now) ||
+                    turn === undefined ||
+                    attempt === undefined
                 ) {
                     continue;
                 }
@@ -727,67 +889,5 @@ export function createCreateStatusRuntime(
         if (firstError !== undefined) throw firstError;
     }
 
-    const scanSleep = options.timeoutScanSleep ?? defaultTimeoutScanSleep;
-    const timeoutMonitor = (async () => {
-        while (!timeoutSignal.aborted) {
-            try {
-                await scanExpiredSpeakerAttempts();
-            } catch {
-                // The public scan preserves the error. The lifecycle monitor retries on its next poll.
-            }
-            try {
-                await scanSleep(options.outboxPollMs ?? 1_000, timeoutSignal);
-            } catch {
-                if (timeoutSignal.aborted) return;
-                throw new Error("Speaker timeout monitor sleep failed.");
-            }
-        }
-    })();
-
-    return {
-        watchLocalMeetingUpdates: (watchSignal) => refreshFeed.watch(watchSignal),
-        ...contributionApplication,
-        createMeeting,
-        sendMeetingMessage: mailApplication.sendMeetingMessage,
-        finishMeetingMail: mailApplication.finishMeetingMail,
-        getStatus: queryApplication.getStatus,
-        listLocalMeetings: queryApplication.listLocalMeetings,
-        getLocalMeetingStatus: queryApplication.getLocalMeetingStatus,
-
-        pauseLocalMeeting: controlApplication.pauseLocalMeeting,
-        resumeLocalMeeting: controlApplication.resumeLocalMeeting,
-        reassignLocalTurn: controlApplication.reassignLocalTurn,
-        createMeetingTask: taskApplication.createMeetingTask,
-        meetingTaskStatus: taskApplication.meetingTaskStatus,
-        startMeetingTask: taskApplication.startMeetingTask,
-        finishMeetingTask: taskApplication.finishMeetingTask,
-        raiseHand: turnApplication.raiseHand,
-        submitTurn: turnApplication.submitTurn,
-        submitManagerPlan: turnApplication.submitManagerPlan,
-        pause: controlApplication.pause,
-        resume: controlApplication.resume,
-        reassignTurn: controlApplication.reassignTurn,
-        disposeLocalRisk: controlApplication.disposeLocalRisk,
-        acceptLocalDecision: decisionApplication.acceptLocalDecision,
-        disposeLocalDecision: decisionApplication.disposeLocalDecision,
-        disposeRisk: controlApplication.disposeRisk,
-        acceptDecision: decisionApplication.acceptDecision,
-        disposeDecision: decisionApplication.disposeDecision,
-        disposeAttendanceRecommendation: attendanceApplication.disposeAttendanceRecommendation,
-        disposeAgendaCandidate: agendaCandidateApplication.disposeAgendaCandidate,
-        endMeeting: endApplication.endMeeting,
-        endLocalMeeting: endApplication.endLocalMeeting,
-        scanExpiredSpeakerAttempts,
-        findBySessionId: queryApplication.findBySessionId,
-        async dispose() {
-            refreshFeed.dispose();
-            runtimeController.abort(new Error("Meeting runtime disposed"));
-            timeoutController.abort(new Error("Speaker timeout monitor disposed"));
-            await timeoutMonitor;
-            await deliveryWorkers.dispose();
-            await developerMarkdownService?.dispose();
-            await (await repositoryRegistry).close();
-            meetings.clear();
-        }
-    } satisfies MeetingRuntimeWithCallerLookup;
+    return scanExpiredSpeakerAttempts;
 }

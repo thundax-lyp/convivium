@@ -58,8 +58,74 @@ export interface MeetingControlApplicationOptions {
     readonly ensureWorker: (stored: StoredMeeting) => void;
 }
 
+function controlAuthorization(source: MeetingControlSource) {
+    return source.kind === "captain"
+        ? {
+              callerBinding: `session:${source.sessionId}`,
+              capabilityId: `captain:${source.sessionId}`
+          }
+        : {
+              callerBinding: "local-host:loopback-web",
+              capabilityId: "local-host:loopback-web"
+          };
+}
+
+function needsResumeCatalogBinding(state: MeetingState, target: "paused" | "running"): boolean {
+    return (
+        state.contributions === undefined &&
+        target === "running" &&
+        state.currentTurn === undefined &&
+        requiredPlanningBlockers(state).length === 0 &&
+        (state.selectionMode === "manager" ||
+            (state.selectionMode === "hybrid" &&
+                needsSemanticArbitration(state, rankRulePlanningCandidates(state), "normal"))) &&
+        state.manager.status !== "failed" &&
+        state.manager.status !== "closed"
+    );
+}
+
+function controlTransitionFailure(
+    error: unknown,
+    input: { meetingId: string; expectedMeetingVersion: number },
+    target: "paused" | "running",
+    source: MeetingControlSource
+): ProtocolErrorV1 {
+    if (source.kind === "local_host") {
+        if (
+            error instanceof RepositoryError &&
+            [
+                "MEETING_NOT_FOUND",
+                "SCHEMA_VERSION_UNSUPPORTED",
+                "CORRUPT_DATABASE",
+                "CLOSED"
+            ].includes(error.code)
+        ) {
+            throw new LocalMeetingRecoveryUnavailableError(
+                "Local meeting control recovery is unavailable.",
+                { cause: error }
+            );
+        }
+        if (
+            error instanceof RepositoryError &&
+            error.code !== "VERSION_CONFLICT" &&
+            error.code !== "IDEMPOTENCY_CONFLICT"
+        ) {
+            throw error;
+        }
+        if (!(error instanceof RepositoryError) && !(error instanceof DomainError)) {
+            throw error;
+        }
+    }
+    return commandError(
+        error,
+        "INTERNAL_ERROR",
+        `${error instanceof Error ? error.message : `The meeting could not be ${target}.`}`,
+        { meetingId: input.meetingId, meetingVersion: input.expectedMeetingVersion }
+    );
+}
+
 export function createMeetingControlApplication(dependencies: MeetingControlApplicationOptions) {
-    const { options, meetings, recovery, deliveryWorkers, ensureWorker } = dependencies;
+    const { options, meetings, recovery } = dependencies;
     const application: Pick<
         MeetingToolRuntime & LocalMeetingWebRuntime,
         | "pauseLocalMeeting"
@@ -78,7 +144,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
             });
             if (!snapshots?.has(input.meetingId))
                 return failure("MEETING_NOT_FOUND", "Meeting not found.");
-            return transitionMeetingStatus(input, "paused", { kind: "local_host" });
+            return transitionMeetingStatus(dependencies, input, "paused", { kind: "local_host" });
         },
 
         async resumeLocalMeeting(input) {
@@ -88,7 +154,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
             });
             if (!snapshots?.has(input.meetingId))
                 return failure("MEETING_NOT_FOUND", "Meeting not found.");
-            return transitionMeetingStatus(input, "running", { kind: "local_host" });
+            return transitionMeetingStatus(dependencies, input, "running", { kind: "local_host" });
         },
 
         async reassignLocalTurn(input) {
@@ -110,7 +176,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                 caller.sessionId !== stored.captainSessionId
             )
                 return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can pause it.");
-            return transitionMeetingStatus(input, "paused", {
+            return transitionMeetingStatus(dependencies, input, "paused", {
                 kind: "captain",
                 sessionId: caller.sessionId
             });
@@ -124,7 +190,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                 caller.sessionId !== stored.captainSessionId
             )
                 return failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can resume it.");
-            return transitionMeetingStatus(input, "running", {
+            return transitionMeetingStatus(dependencies, input, "running", {
                 kind: "captain",
                 sessionId: caller.sessionId
             });
@@ -298,364 +364,306 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
             "Turn reassignment is not supported by this release."
         );
     }
-    async function transitionMeetingStatus(
-        input: {
-            meetingId: string;
-            expectedMeetingVersion: number;
-            requestId: string;
-            reason?: string;
-        },
-        target: "paused" | "running",
-        source: MeetingControlSource
-    ) {
-        const stored = meetings.get(input.meetingId);
-        if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-        const authorization =
-            source.kind === "captain"
-                ? {
-                      callerBinding: `session:${source.sessionId}`,
-                      capabilityId: `captain:${source.sessionId}`
-                  }
-                : {
-                      callerBinding: "local-host:loopback-web",
-                      capabilityId: "local-host:loopback-web"
-                  };
-        try {
-            const current = await stored.repository.read();
-            const currentState = current.state as unknown as MeetingState;
-            const shouldCapture =
-                currentState.contributions === undefined &&
-                target === "running" &&
-                currentState.currentTurn === undefined &&
-                requiredPlanningBlockers(currentState).length === 0 &&
-                (currentState.selectionMode === "manager" ||
-                    (currentState.selectionMode === "hybrid" &&
-                        needsSemanticArbitration(
-                            currentState,
-                            rankRulePlanningCandidates(currentState),
-                            "normal"
-                        ))) &&
-                currentState.manager.status !== "failed" &&
-                currentState.manager.status !== "closed";
-            const catalogBinding =
-                shouldCapture && isMeetingStateV2(currentState)
-                    ? await captureManagerCatalogBinding(options.agentCatalog, {
-                          teamId: stored.teamId,
-                          meetingId: stored.repository.meetingId,
-                          captainSessionId: stored.captainSessionId
-                      })
-                    : { kind: "none" as const };
-            let contributionControlCommitted = false;
-            const committed = await stored.repository.execute({
-                requestId: input.requestId,
-                commandKind: target === "paused" ? "pause_meeting" : "resume_meeting",
-                authorization,
-                requestHash: JSON.stringify(input),
-                expectedMeetingVersion: input.expectedMeetingVersion,
-                transition: (snapshot) => {
-                    if (target === "running" && stored.parent === undefined) {
-                        if (source.kind === "local_host") {
-                            throw new LocalMeetingRecoveryUnavailableError(
-                                "The live Captain parent is unavailable for resume dispatch."
-                            );
-                        }
-                        throw new Error(
+    return application;
+}
+
+async function transitionMeetingStatus(
+    dependencies: MeetingControlApplicationOptions,
+    input: {
+        meetingId: string;
+        expectedMeetingVersion: number;
+        requestId: string;
+        reason?: string;
+    },
+    target: "paused" | "running",
+    source: MeetingControlSource
+) {
+    const { options, meetings, deliveryWorkers, ensureWorker } = dependencies;
+    const stored = meetings.get(input.meetingId);
+    if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
+    const authorization = controlAuthorization(source);
+    try {
+        const current = await stored.repository.read();
+        const currentState = current.state as unknown as MeetingState;
+        const shouldCapture = needsResumeCatalogBinding(currentState, target);
+        const catalogBinding =
+            shouldCapture && isMeetingStateV2(currentState)
+                ? await captureManagerCatalogBinding(options.agentCatalog, {
+                      teamId: stored.teamId,
+                      meetingId: stored.repository.meetingId,
+                      captainSessionId: stored.captainSessionId
+                  })
+                : { kind: "none" as const };
+        let contributionControlCommitted = false;
+        const committed = await stored.repository.execute({
+            requestId: input.requestId,
+            commandKind: target === "paused" ? "pause_meeting" : "resume_meeting",
+            authorization,
+            requestHash: JSON.stringify(input),
+            expectedMeetingVersion: input.expectedMeetingVersion,
+            transition: (snapshot) => {
+                if (target === "running" && stored.parent === undefined) {
+                    if (source.kind === "local_host") {
+                        throw new LocalMeetingRecoveryUnavailableError(
                             "The live Captain parent is unavailable for resume dispatch."
                         );
                     }
-                    const currentState = snapshot.state as unknown as MeetingState;
-                    if (
-                        target === "running" &&
-                        currentState.waitState?.reason === "required_participant_unavailable"
-                    ) {
-                        const blockers = requiredPlanningBlockers(currentState);
-                        if (blockers.length > 0) {
-                            throw new DomainError(
-                                "REQUIRED_SPEAKER_UNAVAILABLE",
-                                `required Participants remain unavailable: ${blockers.join(",")}`
-                            );
-                        }
+                    throw new Error("The live Captain parent is unavailable for resume dispatch.");
+                }
+                const currentState = snapshot.state as unknown as MeetingState;
+                if (
+                    target === "running" &&
+                    currentState.waitState?.reason === "required_participant_unavailable"
+                ) {
+                    const blockers = requiredPlanningBlockers(currentState);
+                    if (blockers.length > 0) {
+                        throw new DomainError(
+                            "REQUIRED_SPEAKER_UNAVAILABLE",
+                            `required Participants remain unavailable: ${blockers.join(",")}`
+                        );
                     }
-                    const transition = transitionMeeting(currentState, target, {
-                        now: options.now?.() ?? Date.now(),
-                        reason:
-                            input.reason ??
-                            `${source.kind === "captain" ? "captain" : "local host"} ${target} meeting`,
-                        ...(target === "paused"
-                            ? {
-                                  pause: {
-                                      at: options.now?.() ?? Date.now(),
-                                      by: {
-                                          kind: source.kind,
-                                          actorId:
-                                              source.kind === "captain"
-                                                  ? source.sessionId
-                                                  : "loopback-web"
-                                      }
+                }
+                const transition = transitionMeeting(currentState, target, {
+                    now: options.now?.() ?? Date.now(),
+                    reason:
+                        input.reason ??
+                        `${source.kind === "captain" ? "captain" : "local host"} ${target} meeting`,
+                    ...(target === "paused"
+                        ? {
+                              pause: {
+                                  at: options.now?.() ?? Date.now(),
+                                  by: {
+                                      kind: source.kind,
+                                      actorId:
+                                          source.kind === "captain"
+                                              ? source.sessionId
+                                              : "loopback-web"
                                   }
                               }
-                            : {})
-                    });
-                    if (currentState.contributions !== undefined) {
-                        contributionControlCommitted = true;
-                        return {
-                            state: JsonObjectSchema.parse(
-                                JSON.parse(JSON.stringify(transition.state))
-                            ),
-                            result: { status: transition.state.status, changed: true },
-                            events: transition.effect.events.map((event) => ({
-                                type: event.type,
-                                payload: JsonObjectSchema.parse(
-                                    JSON.parse(JSON.stringify(event.payload))
-                                )
-                            })),
-                            outbox: [
-                                ...contributionOutbox(
-                                    currentState,
-                                    transition.state,
-                                    transition.effect.events
-                                )
-                            ]
-                        };
-                    }
-                    let nextState = transition.state as MeetingState;
-                    let extraEvents: DomainEventInput[] = [];
-                    let outbox: Array<{
-                        deliveryId: string;
-                        kind: "dispatch";
-                        payload: JsonObject;
-                    }> = [];
-                    if (target === "running" && nextState.currentTurn === undefined) {
-                        nextState = {
-                            ...nextState,
-                            participants: nextState.participants.map((participant) =>
-                                participant.status === "speaking" || participant.status === "busy"
-                                    ? { ...participant, status: "available" as const }
-                                    : participant
-                            )
-                        };
-                        const planningNow = options.now?.() ?? Date.now();
-                        const managerRequested =
-                            nextState.selectionMode === "manager" ||
-                            (nextState.selectionMode === "hybrid" &&
-                                needsSemanticArbitration(
-                                    nextState,
-                                    rankRulePlanningCandidates(nextState),
-                                    "normal"
-                                ));
-                        const managerAvailable =
-                            nextState.manager.status !== "failed" &&
-                            nextState.manager.status !== "closed";
-                        if (managerRequested && managerAvailable) {
-                            const planningIds = nextManagerPlanningIds(nextState);
-                            nextState = {
-                                ...nextState,
-                                managerPlanningSeq: planningIds.managerPlanningSeq,
-                                manager: {
-                                    ...nextState.manager,
-                                    status: "planning",
-                                    currentPlanningAttempt: {
-                                        id: planningIds.planningAttemptId,
-                                        meetingId: nextState.id,
-                                        observedMeetingVersion: nextState.version,
-                                        reason: "next_turn",
-                                        deliveryId: planningIds.deliveryId,
-                                        status: "running",
-                                        createdAt: planningNow,
-                                        catalogBinding,
-                                        ...(nextState.limits.speakerAttemptTimeoutMs === undefined
-                                            ? {}
-                                            : {
-                                                  deadlineAt:
-                                                      planningNow +
-                                                      nextState.limits.speakerAttemptTimeoutMs
-                                              })
-                                    }
-                                }
-                            };
-                            outbox = [
-                                {
-                                    deliveryId: planningIds.deliveryId,
-                                    kind: "dispatch",
-                                    payload: {
-                                        role: "manager",
-                                        planningAttemptId: planningIds.planningAttemptId
-                                    }
-                                }
-                            ];
-                            extraEvents = [
-                                {
-                                    type: "manager_plan.started",
-                                    payload: {
-                                        meetingId: nextState.id,
-                                        planningAttemptId: planningIds.planningAttemptId,
-                                        deliveryId: planningIds.deliveryId,
-                                        meetingVersion: nextState.version
-                                    }
-                                }
-                            ];
-                            return {
-                                state: nextState as unknown as JsonObject,
-                                result: { status: target, changed: true },
-                                events: [
-                                    ...(transition.effect.events as unknown as DomainEventInput[]),
-                                    ...extraEvents
-                                ],
-                                outbox
-                            };
-                        }
-                        const planned =
-                            nextState.selectionMode === "round_robin"
-                                ? planRoundRobinTurn(
-                                      nextState,
-                                      {
-                                          turnId: `turn-${nextState.turnSeq + 1}`,
-                                          stepId: (participantId, index) =>
-                                              `step-${participantId}-${index}`
-                                      },
-                                      planningNow
-                                  )
-                                : planRuleBasedTurn(
-                                      nextState,
-                                      {
-                                          turnId: `turn-${nextState.turnSeq + 1}`,
-                                          stepId: (participantId, index) =>
-                                              `step-${participantId}-${index}`
-                                      },
-                                      planningNow,
-                                      "normal"
-                                  );
-                        const directedPlan =
-                            managerRequested && !managerAvailable
-                                ? {
-                                      ...planned,
-                                      reason: "manager_fallback" as const
-                                  }
-                                : planned;
-                        const running = assignTurnAttempt(nextState, directedPlan, 0, planningNow);
-                        const speaker = running.steps[0];
-                        nextState = {
-                            ...nextState,
-                            currentTurn: running,
-                            turnSeq: running.seq,
-                            participants: nextState.participants.map((participant) =>
-                                participant.id === speaker?.speaker
-                                    ? { ...participant, status: "speaking" as const }
-                                    : participant
-                            )
-                        };
-                        if (speaker?.attempt !== undefined) {
-                            outbox = [
-                                {
-                                    deliveryId: speaker.attempt.deliveryId,
-                                    kind: "dispatch",
-                                    payload: {
-                                        participantId: speaker.attempt.participantId,
-                                        attemptId: speaker.attempt.attemptId,
-                                        turnId: running.id,
-                                        stepId: speaker.id
-                                    }
-                                }
-                            ];
-                        }
-                        extraEvents = [
-                            { type: "turn.started", payload: { turnId: running.id } },
-                            ...(speaker?.attempt === undefined
-                                ? []
-                                : [
-                                      {
-                                          type: "speaker_attempt.started" as const,
-                                          payload: { attemptId: speaker.attempt.attemptId }
-                                      }
-                                  ])
-                        ];
-                    }
+                          }
+                        : {})
+                });
+                if (currentState.contributions !== undefined) {
+                    contributionControlCommitted = true;
                     return {
-                        state: nextState as unknown as JsonObject,
-                        result: { status: target, changed: true },
-                        events: [
-                            ...(transition.effect.events as unknown as DomainEventInput[]),
-                            ...extraEvents
-                        ],
-                        outbox
+                        state: JsonObjectSchema.parse(JSON.parse(JSON.stringify(transition.state))),
+                        result: { status: transition.state.status, changed: true },
+                        events: transition.effect.events.map((event) => ({
+                            type: event.type,
+                            payload: JsonObjectSchema.parse(
+                                JSON.parse(JSON.stringify(event.payload))
+                            )
+                        })),
+                        outbox: [
+                            ...contributionOutbox(
+                                currentState,
+                                transition.state,
+                                transition.effect.events
+                            )
+                        ]
                     };
                 }
-            });
-            if (
-                contributionControlCommitted &&
-                target === "paused" &&
-                stored.parent !== undefined &&
-                options.continuable.interrupt !== undefined &&
-                options.continuable.drainContinuableChildren !== undefined
-            ) {
-                try {
-                    const recovered = await stored.repository.recover();
-                    await interruptAndDrainOwnedSessions({
-                        parent: stored.parent,
-                        runtime: {
-                            interrupt: options.continuable.interrupt.bind(options.continuable),
-                            drainContinuableChildren:
-                                options.continuable.drainContinuableChildren.bind(
-                                    options.continuable
-                                )
-                        },
-                        ownerships: recovered.sessionOwnership.filter(
-                            (item) =>
-                                item.parentSessionId === String(stored.parent!.id) &&
-                                item.capabilityStatus === "active" &&
-                                item.lifecycleStatus === "active"
+                let nextState = transition.state as MeetingState;
+                let extraEvents: DomainEventInput[] = [];
+                let outbox: Array<{
+                    deliveryId: string;
+                    kind: "dispatch";
+                    payload: JsonObject;
+                }> = [];
+                if (target === "running" && nextState.currentTurn === undefined) {
+                    nextState = {
+                        ...nextState,
+                        participants: nextState.participants.map((participant) =>
+                            participant.status === "speaking" || participant.status === "busy"
+                                ? { ...participant, status: "available" as const }
+                                : participant
                         )
-                    });
-                } catch {
-                    // Pause is durable and old generations remain revoked even if DSH cleanup fails.
+                    };
+                    const planningNow = options.now?.() ?? Date.now();
+                    const managerRequested =
+                        nextState.selectionMode === "manager" ||
+                        (nextState.selectionMode === "hybrid" &&
+                            needsSemanticArbitration(
+                                nextState,
+                                rankRulePlanningCandidates(nextState),
+                                "normal"
+                            ));
+                    const managerAvailable =
+                        nextState.manager.status !== "failed" &&
+                        nextState.manager.status !== "closed";
+                    if (managerRequested && managerAvailable) {
+                        const planningIds = nextManagerPlanningIds(nextState);
+                        nextState = {
+                            ...nextState,
+                            managerPlanningSeq: planningIds.managerPlanningSeq,
+                            manager: {
+                                ...nextState.manager,
+                                status: "planning",
+                                currentPlanningAttempt: {
+                                    id: planningIds.planningAttemptId,
+                                    meetingId: nextState.id,
+                                    observedMeetingVersion: nextState.version,
+                                    reason: "next_turn",
+                                    deliveryId: planningIds.deliveryId,
+                                    status: "running",
+                                    createdAt: planningNow,
+                                    catalogBinding,
+                                    ...(nextState.limits.speakerAttemptTimeoutMs === undefined
+                                        ? {}
+                                        : {
+                                              deadlineAt:
+                                                  planningNow +
+                                                  nextState.limits.speakerAttemptTimeoutMs
+                                          })
+                                }
+                            }
+                        };
+                        outbox = [
+                            {
+                                deliveryId: planningIds.deliveryId,
+                                kind: "dispatch",
+                                payload: {
+                                    role: "manager",
+                                    planningAttemptId: planningIds.planningAttemptId
+                                }
+                            }
+                        ];
+                        extraEvents = [
+                            {
+                                type: "manager_plan.started",
+                                payload: {
+                                    meetingId: nextState.id,
+                                    planningAttemptId: planningIds.planningAttemptId,
+                                    deliveryId: planningIds.deliveryId,
+                                    meetingVersion: nextState.version
+                                }
+                            }
+                        ];
+                        return {
+                            state: nextState as unknown as JsonObject,
+                            result: { status: target, changed: true },
+                            events: [
+                                ...(transition.effect.events as unknown as DomainEventInput[]),
+                                ...extraEvents
+                            ],
+                            outbox
+                        };
+                    }
+                    const planned =
+                        nextState.selectionMode === "round_robin"
+                            ? planRoundRobinTurn(
+                                  nextState,
+                                  {
+                                      turnId: `turn-${nextState.turnSeq + 1}`,
+                                      stepId: (participantId, index) =>
+                                          `step-${participantId}-${index}`
+                                  },
+                                  planningNow
+                              )
+                            : planRuleBasedTurn(
+                                  nextState,
+                                  {
+                                      turnId: `turn-${nextState.turnSeq + 1}`,
+                                      stepId: (participantId, index) =>
+                                          `step-${participantId}-${index}`
+                                  },
+                                  planningNow,
+                                  "normal"
+                              );
+                    const directedPlan =
+                        managerRequested && !managerAvailable
+                            ? {
+                                  ...planned,
+                                  reason: "manager_fallback" as const
+                              }
+                            : planned;
+                    const running = assignTurnAttempt(nextState, directedPlan, 0, planningNow);
+                    const speaker = running.steps[0];
+                    nextState = {
+                        ...nextState,
+                        currentTurn: running,
+                        turnSeq: running.seq,
+                        participants: nextState.participants.map((participant) =>
+                            participant.id === speaker?.speaker
+                                ? { ...participant, status: "speaking" as const }
+                                : participant
+                        )
+                    };
+                    if (speaker?.attempt !== undefined) {
+                        outbox = [
+                            {
+                                deliveryId: speaker.attempt.deliveryId,
+                                kind: "dispatch",
+                                payload: {
+                                    participantId: speaker.attempt.participantId,
+                                    attemptId: speaker.attempt.attemptId,
+                                    turnId: running.id,
+                                    stepId: speaker.id
+                                }
+                            }
+                        ];
+                    }
+                    extraEvents = [
+                        { type: "turn.started", payload: { turnId: running.id } },
+                        ...(speaker?.attempt === undefined
+                            ? []
+                            : [
+                                  {
+                                      type: "speaker_attempt.started" as const,
+                                      payload: { attemptId: speaker.attempt.attemptId }
+                                  }
+                              ])
+                    ];
                 }
+                return {
+                    state: nextState as unknown as JsonObject,
+                    result: { status: target, changed: true },
+                    events: [
+                        ...(transition.effect.events as unknown as DomainEventInput[]),
+                        ...extraEvents
+                    ],
+                    outbox
+                };
             }
-            if (target === "running" && stored.parent !== undefined) {
-                ensureWorker(stored);
-                deliveryWorkers.wake(input.meetingId);
+        });
+        if (
+            contributionControlCommitted &&
+            target === "paused" &&
+            stored.parent !== undefined &&
+            options.continuable.interrupt !== undefined &&
+            options.continuable.drainContinuableChildren !== undefined
+        ) {
+            try {
+                const recovered = await stored.repository.recover();
+                await interruptAndDrainOwnedSessions({
+                    parent: stored.parent,
+                    runtime: {
+                        interrupt: options.continuable.interrupt.bind(options.continuable),
+                        drainContinuableChildren: options.continuable.drainContinuableChildren.bind(
+                            options.continuable
+                        )
+                    },
+                    ownerships: recovered.sessionOwnership.filter(
+                        (item) =>
+                            item.parentSessionId === String(stored.parent!.id) &&
+                            item.capabilityStatus === "active" &&
+                            item.lifecycleStatus === "active"
+                    )
+                });
+            } catch {
+                // Pause is durable and old generations remain revoked even if DSH cleanup fails.
             }
-            return success<MeetingControlResultV1>(
-                input.meetingId,
-                committed.meetingVersion,
-                committed.result as MeetingControlResultV1
-            );
-        } catch (error) {
-            if (source.kind === "local_host") {
-                if (
-                    error instanceof RepositoryError &&
-                    [
-                        "MEETING_NOT_FOUND",
-                        "SCHEMA_VERSION_UNSUPPORTED",
-                        "CORRUPT_DATABASE",
-                        "CLOSED"
-                    ].includes(error.code)
-                ) {
-                    throw new LocalMeetingRecoveryUnavailableError(
-                        "Local meeting control recovery is unavailable.",
-                        { cause: error }
-                    );
-                }
-                if (
-                    error instanceof RepositoryError &&
-                    error.code !== "VERSION_CONFLICT" &&
-                    error.code !== "IDEMPOTENCY_CONFLICT"
-                ) {
-                    throw error;
-                }
-                if (!(error instanceof RepositoryError) && !(error instanceof DomainError)) {
-                    throw error;
-                }
-            }
-            return commandError(
-                error,
-                "INTERNAL_ERROR",
-                `${error instanceof Error ? error.message : `The meeting could not be ${target}.`}`,
-                {
-                    meetingId: input.meetingId,
-                    meetingVersion: input.expectedMeetingVersion
-                }
-            );
         }
+        if (target === "running" && stored.parent !== undefined) {
+            ensureWorker(stored);
+            deliveryWorkers.wake(input.meetingId);
+        }
+        return success<MeetingControlResultV1>(
+            input.meetingId,
+            committed.meetingVersion,
+            committed.result as MeetingControlResultV1
+        );
+    } catch (error) {
+        return controlTransitionFailure(error, input, target, source);
     }
-    return application;
 }

@@ -256,176 +256,7 @@ export function createMeetingDeliveryDispatcher(
         return next;
     }
 
-    function contributionDelivery(input: MeetingDeliveryInput): ContributionDelivery {
-        const value = input.item.payload;
-        const integer = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
-        if (
-            value.role === "contribution_manager" &&
-            Object.keys(value).length === 3 &&
-            integer(value.noticeSeq) &&
-            integer(value.contextThroughSeq)
-        )
-            return {
-                role: "contribution_manager",
-                noticeSeq: Number(value.noticeSeq),
-                contextThroughSeq: Number(value.contextThroughSeq)
-            };
-        if (
-            value.role === "contribution" &&
-            Object.keys(value).length === 6 &&
-            typeof value.contributionId === "string" &&
-            value.contributionId.length > 0 &&
-            integer(value.generation) &&
-            Number(value.generation) > 0 &&
-            (value.purpose === "prepare" || value.purpose === "evidence_review") &&
-            integer(value.draftRevision) &&
-            integer(value.contextThroughSeq)
-        )
-            return {
-                role: "contribution",
-                contributionId: value.contributionId,
-                generation: Number(value.generation),
-                purpose: value.purpose,
-                draftRevision: Number(value.draftRevision),
-                contextThroughSeq: Number(value.contextThroughSeq)
-            };
-        throw terminalDispatchError("INVALID_ARGUMENT", "Invalid contribution delivery.");
-    }
-
-    async function dispatchContribution(input: MeetingDeliveryInput): Promise<void> {
-        const delivery = contributionDelivery(input);
-        const recovered = await input.repository.recover();
-        const state = recovered.snapshot?.state;
-        if (!isMeetingStateV2(state) || state.contributions === undefined)
-            throw terminalDispatchError("STALE_ATTEMPT", "Contribution state is unavailable.");
-        if (
-            delivery.role === "contribution_manager" &&
-            delivery.noticeSeq !== state.contributions.managerNoticeSeq
-        )
-            return;
-        const expectedRole = delivery.role === "contribution_manager" ? "manager" : "participant";
-        const participantId =
-            delivery.role === "contribution_manager"
-                ? undefined
-                : delivery.purpose === "evidence_review"
-                  ? state.contributions.reviewerId
-                  : state.contributions.tasks[delivery.contributionId]?.participantId;
-        const ownership = recovered.sessionOwnership.find(
-            (v) =>
-                v.role === expectedRole &&
-                v.participantId === participantId &&
-                v.supersededBySessionId === undefined
-        );
-        if (ownership === undefined)
-            throw terminalDispatchError(
-                "SESSION_OWNERSHIP_MISSING",
-                "Contribution Session ownership is missing."
-            );
-        await enqueueSession(ownership.sessionId, async () => {
-            async function authorize() {
-                input.signal.throwIfAborted();
-                const latest = await input.repository.recover();
-                const current = latest.snapshot?.state;
-                const owned = latest.sessionOwnership.find(
-                    (v) => v.sessionId === ownership!.sessionId
-                );
-                if (
-                    owned === undefined ||
-                    owned.parentSessionId !== String(input.parent.id) ||
-                    owned.role !== expectedRole ||
-                    owned.participantId !== participantId ||
-                    owned.lifecycleStatus !== "active" ||
-                    owned.capabilityStatus !== "active" ||
-                    owned.supersededBySessionId !== undefined
-                )
-                    throw terminalDispatchError(
-                        "SESSION_CAPABILITY_REVOKED",
-                        "Contribution Session is no longer authorized."
-                    );
-                if (
-                    !isMeetingStateV2(current) ||
-                    current.contributions === undefined ||
-                    !["running", "waiting"].includes(current.status) ||
-                    delivery.contextThroughSeq > current.messageSeq
-                )
-                    throw terminalDispatchError("STALE_ATTEMPT", "Contribution delivery is stale.");
-                const now = options.now?.() ?? Date.now();
-                if (delivery.role === "contribution_manager") {
-                    if (
-                        delivery.noticeSeq !== current.contributions.managerNoticeSeq ||
-                        current.contributions.managerDeadlineAt <= now
-                    )
-                        throw terminalDispatchError("STALE_ATTEMPT", "Manager notice is stale.");
-                } else {
-                    const task = current.contributions.tasks[delivery.contributionId];
-                    if (
-                        task === undefined ||
-                        task.generation !== delivery.generation ||
-                        task.deadlineAt <= now ||
-                        (delivery.purpose === "prepare"
-                            ? !["preparing", "returned"].includes(task.phase) ||
-                              delivery.draftRevision !== 0 ||
-                              task.participantId !== participantId ||
-                              task.agendaItemId !== current.activeAgendaItemId
-                            : task.phase !== "published" ||
-                              task.reviewStatus !== "pending" ||
-                              !task.requiresEvidenceReview ||
-                              task.currentDraftRevision !== delivery.draftRevision ||
-                              current.contributions.reviewerId !== participantId ||
-                              task.participantId === participantId)
-                    )
-                        throw terminalDispatchError(
-                            "STALE_ATTEMPT",
-                            "Contribution generation or phase is stale."
-                        );
-                }
-                return current;
-            }
-            if (delivery.role === "contribution_manager") {
-                const latest = await input.repository.read();
-                if (
-                    isMeetingStateV2(latest.state) &&
-                    latest.state.contributions?.managerNoticeSeq !== delivery.noticeSeq
-                )
-                    return;
-            }
-            const current = await authorize();
-            const context = projectContributionContext(
-                current,
-                {
-                    kind: expectedRole,
-                    sessionId: ownership.sessionId,
-                    ...(participantId === undefined ? {} : { participantId })
-                },
-                delivery,
-                input.item.deliveryId
-            );
-            await followupContributionSession({
-                runtime: options.continuable,
-                parent: input.parent,
-                ownership,
-                expectedRole,
-                ...(participantId === undefined ? {} : { participantId }),
-                signal: input.signal,
-                prompt: [
-                    {
-                        type: "text",
-                        text:
-                            (delivery.role === "contribution_manager"
-                                ? "contribution manager context: "
-                                : "contribution context: ") + JSON.stringify(context)
-                    },
-                    {
-                        type: "text",
-                        text: "Use convivium_contribution and convivium_read_contribution with protocolVersion=1 and this meetingId. Writes require a fresh requestId and expectedMeetingVersion. Follow the supplied task and generation. Keep drafts private until Manager approval; evidence_review is independent verification, never a claim that publication proves support. On VERSION_CONFLICT read status and use a new requestId; replay the same requestId only to recover an uncertain result."
-                    }
-                ],
-                authorize: async () => {
-                    await authorize();
-                }
-            });
-        });
-    }
+    const dispatchContribution = createContributionDispatcher(options, enqueueSession);
 
     async function dispatchContributionManager(input: MeetingDeliveryInput): Promise<void> {
         return dispatchContribution(input);
@@ -679,130 +510,6 @@ export function createMeetingDeliveryDispatcher(
         });
     }
 
-    async function dispatchMail(input: MeetingDeliveryInput): Promise<void> {
-        const payload = input.item.payload as {
-            role: "meeting_mail";
-            mailId: string;
-            participantId: string;
-        };
-        const now = options.now?.() ?? Date.now();
-        const snapshot = await input.repository.read();
-        const state = snapshot.state as unknown as MeetingState;
-        requireDispatchableMeeting(state);
-        const timeout = state.limits.mailHandlingTimeoutMs;
-        if (!Number.isFinite(timeout) || timeout === undefined || timeout <= 0) {
-            throw terminalDispatchError(
-                "UNSUPPORTED_CAPABILITY",
-                "Mail handling timeout is unavailable."
-            );
-        }
-        await input.repository.startPrivateMeetingMail({
-            requestId: `mail-processing:${payload.mailId}`,
-            requestHash: `${payload.mailId}\0${input.item.deliveryId}`,
-            authorization: {
-                callerBinding: "runtime:convivium",
-                capabilityId: "runtime:mail"
-            },
-            expectedMeetingVersion: snapshot.version,
-            mailId: payload.mailId,
-            deliveryId: input.item.deliveryId,
-            processingThroughSeq: state.messageSeq,
-            deadlineAt: now + timeout,
-            now
-        });
-        const recovered = await input.repository.recover();
-        const mail = await input.repository.readPrivateMeetingMail(payload.mailId);
-        const processingState = recovered.snapshot?.state as unknown as MeetingState | undefined;
-        const ownership = recovered.sessionOwnership.find(
-            (candidate) =>
-                candidate.role === "participant" &&
-                candidate.participantId === payload.participantId &&
-                candidate.lifecycleStatus === "active" &&
-                candidate.capabilityStatus === "active"
-        );
-        if (
-            mail === undefined ||
-            mail.recipientParticipantId !== payload.participantId ||
-            ownership === undefined ||
-            ownership.parentSessionId !== String(input.parent.id)
-        ) {
-            throw terminalDispatchError(
-                "SESSION_CAPABILITY_REVOKED",
-                "Mail Participant Session is unavailable."
-            );
-        }
-        await followupMeetingMailSession({
-            runtime: options.continuable,
-            parent: input.parent,
-            ownership,
-            participantId: payload.participantId,
-            prompt: [
-                {
-                    type: "text",
-                    text: JSON.stringify({
-                        kind: "meeting_mail",
-                        mailId: mail.mailId,
-                        senderParticipantId: mail.senderParticipantId,
-                        content: mail.content,
-                        meetingContext: mail.meetingContext,
-                        transcriptDelta: (processingState?.transcript ?? []).filter(
-                            (message) =>
-                                message.seq > mail.snapshotThroughSeq &&
-                                message.seq <=
-                                    (mail.processingThroughSeq ?? mail.snapshotThroughSeq)
-                        ),
-                        processingThroughSeq: mail.processingThroughSeq,
-                        handlingAttemptId: mail.handlingAttemptId,
-                        deliveryId: mail.deliveryId,
-                        instruction:
-                            "After handling, call convivium_finish_meeting_mail with mailId, handlingAttemptId, deliveryId and a terminal status. Mail content must not enter transcript, decisions, or completion facts; use convivium_raise_hand for public discussion and convivium_create_meeting_task for long work."
-                    })
-                }
-            ],
-            signal: input.signal,
-            authorize: async () => {
-                const active = await input.repository.readPrivateMeetingMail(payload.mailId);
-                if (
-                    active?.status !== "processing" ||
-                    active.deliveryId !== input.item.deliveryId
-                ) {
-                    throw terminalDispatchError(
-                        "STALE_MAIL_ATTEMPT",
-                        "Mail handling is no longer authorized."
-                    );
-                }
-            }
-        });
-
-        const leaseTtlMs = Math.max(1, input.item.leaseDeadline - now);
-        let leaseDeadline = input.item.leaseDeadline;
-        for (;;) {
-            const active = await input.repository.readPrivateMeetingMail(payload.mailId);
-            if (active?.status !== "processing") return;
-            const currentNow = options.now?.() ?? Date.now();
-            if (leaseDeadline - currentNow <= leaseTtlMs / 2) {
-                leaseDeadline = await input.repository.renewOutboxLease({
-                    id: input.item.id,
-                    leaseOwner: input.item.leaseOwner,
-                    leaseToken: input.item.leaseToken,
-                    ttlMs: leaseTtlMs,
-                    now: currentNow
-                });
-            }
-            if (active.deadlineAt !== undefined && active.deadlineAt <= currentNow) {
-                await scanMeetingMailTimeouts({
-                    repository: input.repository,
-                    parent: input.parent,
-                    continuable: options.continuable,
-                    now: currentNow
-                });
-                continue;
-            }
-            const remaining = Math.max(1, (active.deadlineAt ?? currentNow + 25) - currentNow);
-            await waitForMailState(Math.min(25, remaining), input.signal);
-        }
-    }
-
     return {
         async dispatch(input) {
             const payload = input.item.payload as { role?: string };
@@ -812,7 +519,7 @@ export function createMeetingDeliveryDispatcher(
             const operation = () => {
                 if (payload.role === "manager") return dispatchManager(input);
                 if (payload.role === "meeting_task") return dispatchTask(input);
-                if (payload.role === "meeting_mail") return dispatchMail(input);
+                if (payload.role === "meeting_mail") return dispatchMail(input, options);
                 return dispatchParticipant(input);
             };
             const recovered = await input.repository.recover();
@@ -828,6 +535,309 @@ export function createMeetingDeliveryDispatcher(
                 : enqueueSession(ownership.sessionId, operation);
         }
     };
+}
+
+type EnqueueSession = <T>(sessionId: string, operation: () => Promise<T>) => Promise<T>;
+
+function createContributionDispatcher(
+    options: MeetingDeliveryDispatcherOptions,
+    enqueueSession: EnqueueSession
+) {
+    function contributionDelivery(input: MeetingDeliveryInput): ContributionDelivery {
+        const value = input.item.payload;
+        const integer = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
+        if (
+            value.role === "contribution_manager" &&
+            Object.keys(value).length === 3 &&
+            integer(value.noticeSeq) &&
+            integer(value.contextThroughSeq)
+        )
+            return {
+                role: "contribution_manager",
+                noticeSeq: Number(value.noticeSeq),
+                contextThroughSeq: Number(value.contextThroughSeq)
+            };
+        if (
+            value.role === "contribution" &&
+            Object.keys(value).length === 6 &&
+            typeof value.contributionId === "string" &&
+            value.contributionId.length > 0 &&
+            integer(value.generation) &&
+            Number(value.generation) > 0 &&
+            (value.purpose === "prepare" || value.purpose === "evidence_review") &&
+            integer(value.draftRevision) &&
+            integer(value.contextThroughSeq)
+        )
+            return {
+                role: "contribution",
+                contributionId: value.contributionId,
+                generation: Number(value.generation),
+                purpose: value.purpose,
+                draftRevision: Number(value.draftRevision),
+                contextThroughSeq: Number(value.contextThroughSeq)
+            };
+        throw terminalDispatchError("INVALID_ARGUMENT", "Invalid contribution delivery.");
+    }
+
+    async function dispatchContribution(input: MeetingDeliveryInput): Promise<void> {
+        const delivery = contributionDelivery(input);
+        const recovered = await input.repository.recover();
+        const state = recovered.snapshot?.state;
+        if (!isMeetingStateV2(state) || state.contributions === undefined)
+            throw terminalDispatchError("STALE_ATTEMPT", "Contribution state is unavailable.");
+        if (
+            delivery.role === "contribution_manager" &&
+            delivery.noticeSeq !== state.contributions.managerNoticeSeq
+        )
+            return;
+        const expectedRole = delivery.role === "contribution_manager" ? "manager" : "participant";
+        const participantId =
+            delivery.role === "contribution_manager"
+                ? undefined
+                : delivery.purpose === "evidence_review"
+                  ? state.contributions.reviewerId
+                  : state.contributions.tasks[delivery.contributionId]?.participantId;
+        const ownership = recovered.sessionOwnership.find(
+            (v) =>
+                v.role === expectedRole &&
+                v.participantId === participantId &&
+                v.supersededBySessionId === undefined
+        );
+        if (ownership === undefined)
+            throw terminalDispatchError(
+                "SESSION_OWNERSHIP_MISSING",
+                "Contribution Session ownership is missing."
+            );
+        await enqueueSession(ownership.sessionId, async () => {
+            async function authorize() {
+                input.signal.throwIfAborted();
+                const latest = await input.repository.recover();
+                const current = latest.snapshot?.state;
+                const owned = latest.sessionOwnership.find(
+                    (v) => v.sessionId === ownership!.sessionId
+                );
+                if (
+                    owned === undefined ||
+                    owned.parentSessionId !== String(input.parent.id) ||
+                    owned.role !== expectedRole ||
+                    owned.participantId !== participantId ||
+                    owned.lifecycleStatus !== "active" ||
+                    owned.capabilityStatus !== "active" ||
+                    owned.supersededBySessionId !== undefined
+                )
+                    throw terminalDispatchError(
+                        "SESSION_CAPABILITY_REVOKED",
+                        "Contribution Session is no longer authorized."
+                    );
+                if (
+                    !isMeetingStateV2(current) ||
+                    current.contributions === undefined ||
+                    !["running", "waiting"].includes(current.status) ||
+                    delivery.contextThroughSeq > current.messageSeq
+                )
+                    throw terminalDispatchError("STALE_ATTEMPT", "Contribution delivery is stale.");
+                const now = options.now?.() ?? Date.now();
+                if (delivery.role === "contribution_manager") {
+                    if (
+                        delivery.noticeSeq !== current.contributions.managerNoticeSeq ||
+                        current.contributions.managerDeadlineAt <= now
+                    )
+                        throw terminalDispatchError("STALE_ATTEMPT", "Manager notice is stale.");
+                } else {
+                    const task = current.contributions.tasks[delivery.contributionId];
+                    if (
+                        task === undefined ||
+                        task.generation !== delivery.generation ||
+                        task.deadlineAt <= now ||
+                        (delivery.purpose === "prepare"
+                            ? !["preparing", "returned"].includes(task.phase) ||
+                              delivery.draftRevision !== 0 ||
+                              task.participantId !== participantId ||
+                              task.agendaItemId !== current.activeAgendaItemId
+                            : task.phase !== "published" ||
+                              task.reviewStatus !== "pending" ||
+                              !task.requiresEvidenceReview ||
+                              task.currentDraftRevision !== delivery.draftRevision ||
+                              current.contributions.reviewerId !== participantId ||
+                              task.participantId === participantId)
+                    )
+                        throw terminalDispatchError(
+                            "STALE_ATTEMPT",
+                            "Contribution generation or phase is stale."
+                        );
+                }
+                return current;
+            }
+            if (delivery.role === "contribution_manager") {
+                const latest = await input.repository.read();
+                if (
+                    isMeetingStateV2(latest.state) &&
+                    latest.state.contributions?.managerNoticeSeq !== delivery.noticeSeq
+                )
+                    return;
+            }
+            const current = await authorize();
+            const context = projectContributionContext(
+                current,
+                {
+                    kind: expectedRole,
+                    sessionId: ownership.sessionId,
+                    ...(participantId === undefined ? {} : { participantId })
+                },
+                delivery,
+                input.item.deliveryId
+            );
+            await followupContributionSession({
+                runtime: options.continuable,
+                parent: input.parent,
+                ownership,
+                expectedRole,
+                ...(participantId === undefined ? {} : { participantId }),
+                signal: input.signal,
+                prompt: [
+                    {
+                        type: "text",
+                        text:
+                            (delivery.role === "contribution_manager"
+                                ? "contribution manager context: "
+                                : "contribution context: ") + JSON.stringify(context)
+                    },
+                    {
+                        type: "text",
+                        text: "Use convivium_contribution and convivium_read_contribution with protocolVersion=1 and this meetingId. Writes require a fresh requestId and expectedMeetingVersion. Follow the supplied task and generation. Keep drafts private until Manager approval; evidence_review is independent verification, never a claim that publication proves support. On VERSION_CONFLICT read status and use a new requestId; replay the same requestId only to recover an uncertain result."
+                    }
+                ],
+                authorize: async () => {
+                    await authorize();
+                }
+            });
+        });
+    }
+
+    return dispatchContribution;
+}
+
+async function dispatchMail(
+    input: MeetingDeliveryInput,
+    options: MeetingDeliveryDispatcherOptions
+): Promise<void> {
+    const payload = input.item.payload as {
+        role: "meeting_mail";
+        mailId: string;
+        participantId: string;
+    };
+    const now = options.now?.() ?? Date.now();
+    const snapshot = await input.repository.read();
+    const state = snapshot.state as unknown as MeetingState;
+    requireDispatchableMeeting(state);
+    const timeout = state.limits.mailHandlingTimeoutMs;
+    if (!Number.isFinite(timeout) || timeout === undefined || timeout <= 0) {
+        throw terminalDispatchError(
+            "UNSUPPORTED_CAPABILITY",
+            "Mail handling timeout is unavailable."
+        );
+    }
+    await input.repository.startPrivateMeetingMail({
+        requestId: `mail-processing:${payload.mailId}`,
+        requestHash: `${payload.mailId}\0${input.item.deliveryId}`,
+        authorization: {
+            callerBinding: "runtime:convivium",
+            capabilityId: "runtime:mail"
+        },
+        expectedMeetingVersion: snapshot.version,
+        mailId: payload.mailId,
+        deliveryId: input.item.deliveryId,
+        processingThroughSeq: state.messageSeq,
+        deadlineAt: now + timeout,
+        now
+    });
+    const recovered = await input.repository.recover();
+    const mail = await input.repository.readPrivateMeetingMail(payload.mailId);
+    const processingState = recovered.snapshot?.state as unknown as MeetingState | undefined;
+    const ownership = recovered.sessionOwnership.find(
+        (candidate) =>
+            candidate.role === "participant" &&
+            candidate.participantId === payload.participantId &&
+            candidate.lifecycleStatus === "active" &&
+            candidate.capabilityStatus === "active"
+    );
+    if (
+        mail === undefined ||
+        mail.recipientParticipantId !== payload.participantId ||
+        ownership === undefined ||
+        ownership.parentSessionId !== String(input.parent.id)
+    ) {
+        throw terminalDispatchError(
+            "SESSION_CAPABILITY_REVOKED",
+            "Mail Participant Session is unavailable."
+        );
+    }
+    await followupMeetingMailSession({
+        runtime: options.continuable,
+        parent: input.parent,
+        ownership,
+        participantId: payload.participantId,
+        prompt: [
+            {
+                type: "text",
+                text: JSON.stringify({
+                    kind: "meeting_mail",
+                    mailId: mail.mailId,
+                    senderParticipantId: mail.senderParticipantId,
+                    content: mail.content,
+                    meetingContext: mail.meetingContext,
+                    transcriptDelta: (processingState?.transcript ?? []).filter(
+                        (message) =>
+                            message.seq > mail.snapshotThroughSeq &&
+                            message.seq <= (mail.processingThroughSeq ?? mail.snapshotThroughSeq)
+                    ),
+                    processingThroughSeq: mail.processingThroughSeq,
+                    handlingAttemptId: mail.handlingAttemptId,
+                    deliveryId: mail.deliveryId,
+                    instruction:
+                        "After handling, call convivium_finish_meeting_mail with mailId, handlingAttemptId, deliveryId and a terminal status. Mail content must not enter transcript, decisions, or completion facts; use convivium_raise_hand for public discussion and convivium_create_meeting_task for long work."
+                })
+            }
+        ],
+        signal: input.signal,
+        authorize: async () => {
+            const active = await input.repository.readPrivateMeetingMail(payload.mailId);
+            if (active?.status !== "processing" || active.deliveryId !== input.item.deliveryId) {
+                throw terminalDispatchError(
+                    "STALE_MAIL_ATTEMPT",
+                    "Mail handling is no longer authorized."
+                );
+            }
+        }
+    });
+
+    const leaseTtlMs = Math.max(1, input.item.leaseDeadline - now);
+    let leaseDeadline = input.item.leaseDeadline;
+    for (;;) {
+        const active = await input.repository.readPrivateMeetingMail(payload.mailId);
+        if (active?.status !== "processing") return;
+        const currentNow = options.now?.() ?? Date.now();
+        if (leaseDeadline - currentNow <= leaseTtlMs / 2) {
+            leaseDeadline = await input.repository.renewOutboxLease({
+                id: input.item.id,
+                leaseOwner: input.item.leaseOwner,
+                leaseToken: input.item.leaseToken,
+                ttlMs: leaseTtlMs,
+                now: currentNow
+            });
+        }
+        if (active.deadlineAt !== undefined && active.deadlineAt <= currentNow) {
+            await scanMeetingMailTimeouts({
+                repository: input.repository,
+                parent: input.parent,
+                continuable: options.continuable,
+                now: currentNow
+            });
+            continue;
+        }
+        const remaining = Math.max(1, (active.deadlineAt ?? currentNow + 25) - currentNow);
+        await waitForMailState(Math.min(25, remaining), input.signal);
+    }
 }
 
 export interface MeetingDeliveryWorkerServiceOptions {

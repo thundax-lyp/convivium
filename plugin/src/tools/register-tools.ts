@@ -361,6 +361,15 @@ export function registerSubmitAndControlTools(
     dependencies: SubmitAndControlToolDependencies
 ): readonly (() => void)[] {
     return [
+        ...registerContributionAndTaskTools(dependencies),
+        ...registerTurnAndControlTools(dependencies)
+    ];
+}
+
+function registerContributionAndTaskTools(
+    dependencies: SubmitAndControlToolDependencies
+): readonly (() => void)[] {
+    return [
         dependencies.registry.register(
             defineTool({
                 name: "convivium_contribution",
@@ -520,7 +529,14 @@ export function registerSubmitAndControlTools(
                     );
                 }
             })
-        ),
+        )
+    ];
+}
+
+function registerTurnAndControlTools(
+    dependencies: SubmitAndControlToolDependencies
+): readonly (() => void)[] {
+    return [
         dependencies.registry.register(
             defineTool({
                 name: "convivium_raise_hand",
