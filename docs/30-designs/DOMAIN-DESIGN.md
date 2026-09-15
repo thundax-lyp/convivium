@@ -35,7 +35,10 @@ Domain 接受完整的当前 MeetingState 与已认证 actor、时间和命令�
 | `agenda` | 按 agendaId 唯一的 `AgendaItem[]` |
 | `agendaCandidates` | 按 candidateId 唯一的 `AgendaCandidate[]` |
 | `rounds` | 按 roundId 唯一的 `Round[]` |
+| `opportunityRequests` | 仅含无 open Round 时的未处置 `EvidenceOpportunityRequest[]`；按 requestId 和 `(agendaId, contributorId)` 唯一 |
+| `pendingHandRaises` | 仅含未处置的 `PendingHandRaise[]`；按 `(roundId, contributorId)` 唯一 |
 | `contributions` | 按 contributionId 唯一的 `Contribution[]` |
+| `formatApprovals` | 仅含待消费的 `FormatApproval[]`；按 contributionId 唯一，不含草稿内容 |
 | `completionDeclarations` | 按 declarationId 唯一的不可变 CompletionDeclaration 数组 |
 | `evidencePackages` | 按 packageId 唯一的 `EvidencePackage[]` |
 | `registrations` / `reviews` / `reviewDeliveries` | 按各自 ID 唯一的事实数组 |
@@ -77,17 +80,31 @@ local controller 不是 `captain` 的别名；`manager` 不能创建 Position、
 
 `Round` 必含 `id`、`agendaId`、`publicBaselinePublicationIds`、`openedAt`、`status`、`contributionIds`、`deadlineAt?`、`publicationId?`。status 为 `open|published|aborted`。baseline 必须恰等于创建时全部 Publication ID；published 后不可变。
 
-`Contribution` 必含 `id`、`roundId`、`contributorId`、`handRaise`、`acceptedAt`、`status`、`packageId?`、`substantiveSupplementCount`、`pendingSupplementHand?`、`exitReason?`、`response?`。status 为 `preparing|format_correction|registered|under_review|awaiting_response|withdrawn|submission_missing|timed_out|supplement_rejected|closed`。pendingSupplementHand 必含 reviewId、raisedAt、purpose，且只在 awaiting_response 存在；Manager 接纳后才允许新版本。同一 contributor/round 至多一个；同一 contributor 同时至多一个非终态 Contribution。拒绝或暂缓初次举手不创建 Contribution。
+`EvidenceOpportunityRequest` 必含 `id`、`agendaId`、`contributorId`、`purpose`、`requestedAt`；只在 running Meeting 没有 open Round 时创建，指向 active Agenda，同一身份/议题至多一条 pending request。它不授予 Contribution。Manager `open_round` 原子把该 Agenda 的请求转为本轮 `PendingHandRaise`，申请原记录随即移除；Manager `dispose_evidence_opportunity` 可拒绝/暂缓并移除，须将理由通知本人。跨 Agenda、重复、已有未结束贡献或任务均拒绝。
+
+`PendingHandRaise` 必含 `roundId`、`contributorId`、`purpose`、`raisedAt`；只允许指向 open Round、已认证且可参与的 contributor，按 `(roundId, contributorId)` 唯一。`raise_hand` 原子加入一个 pending request；Manager `dispose_hand_raise` 原子移除它。接纳时将其内容写入新 Contribution 的 handRaise，拒绝/暂缓时不保留待处置记录，也不创建 Contribution。Repository 追加申请与处置 fact 用于审计，不是另一份待处置业务状态；恢复只读 MeetingState 的 pending 集合。
+
+`Contribution` 必含 `id`、`roundId`、`contributorId`、`handRaise`、`acceptedAt`、`status`、`packageId?`、`substantiveSupplementCount`、`supplementHand?`、`exitReason?`、`response?`。status 为 `preparing|format_correction|registered|under_review|awaiting_response|withdrawn|submission_missing|timed_out|supplement_rejected|closed`。`supplementHand` 若存在，必含 `purpose`、`raisedAt`、`status: pending|accepted`、`acceptedAt?`；只在同一未结束 Contribution 内存在，Manager 接纳后才允许新私有草稿格式审核。格式驳回会移除该 hand，作者重新申请并说明补正内容；未登记私有草稿的重复申请不消耗实质补充次数。已送达当前审核后，重新申请须早于 sentAt + responseDeadlineMs；还须早于持久 Round 或适用 MeetingTask 期限。同一 contributor/round 至多一个 Contribution；同一 contributor 同时至多一个非终态 Contribution。拒绝或暂缓初次举手不创建 Contribution。
+
+`FormatApproval` 必含 `id`、`contributionId`、`managerId`、`evidenceHash`、`approvedAt`，只保存草稿的规范 SHA-256 hash，不保存作者私有材料。每个 Contribution 至多一个未消费批准；新 accepted 审核替换旧批准，作者 `submit_evidence` 仅在 payload hash 完全匹配时原子消费。rejected/deferred 私有草稿不创建 FormatApproval、EvidencePackage、EvidenceVersion 或 Registration；只把 Contribution 置于格式补正阶段、回报缺失要素，原草稿由作者自行留存。已退出 Contribution 的未消费批准必须移除。
 
 `EvidencePackage` 必含 `id`、`roundId`、`contributionId`、`authorId`、`agendaId`、`currentVersionId`、`versions[]`。`EvidenceVersion` 必含 `id`、`ordinal`、`observation`、`interpretation`、`method`、`falsifiers[]`、`uncertainties[]`、`limitations[]`、`claims[]`、`materials[]`、`submittedAt`。ordinal 从 1 连续递增；新版本不能改写旧版本。每个 Material 必含 `id`、`kind`、`originalSource`、`version`、`locator`、`location`、`verificationConditions`、`limitations`、`sharedDependencies`；unknown/not-applicable 使用显式值及原因。
 
-`Registration` 必含 `id`、`versionId`、`managerId`、`status`、`missingFields[]`、`createdAt`；status 为 `complete|needs_correction|deferred`。它不得存储评分、真实性或观点判断。
+`Registration` 必含 `id`、`versionId`、`managerId`、`status=complete`、`missingFields=[]`、`createdAt`；只在作者提交与已批准草稿 hash 完全相同的材料、创建 EvidenceVersion 的同一转换中产生。格式驳回/暂缓无 Registration，不得存储评分、真实性或观点判断。
 
-`EvidenceReview` 必含 `id`、`versionId`、`reviewerId`、`baselinePublicationIds`、`scope`、`dimensions`、`createdAt`。dimensions 的 source/credibility/completeness/support 每项均为 `{score:0|1|2|3|unable_to_assess, reason}`。baseline 必须等于所属 Round baseline。`ReviewDelivery` 必含 `id`、`reviewId`、`authorId`、`status`、`sentAt?`、`failedAt?`；仅 `sent` 可产生 `sentAt` 并开启一分钟期限。
+`EvidenceReview` 必含 `id`、`versionId`、`reviewerId`、`baselinePublicationIds`、`scope`、`dimensions`、`createdAt`。dimensions 的 source/credibility/completeness/support 每项均为 `{score:0|1|2|3|unable_to_assess, scope, reason, baselineEvidenceIds[]}`；引用上一轮证据时，ID 必属于所属 Round baseline 的已公开最终版本。baseline 必须等于所属 Round baseline。`ReviewDelivery` 必含 `id`、`reviewId`、`authorId`、`status`、`sentAt?`、`failedAt?`；同一 review 可有多次 failed 尝试，但最多一次 sent，仅 `sent` 可产生 `sentAt` 并开启一分钟期限。
+
+每个 current version 的唯一指定 reviewer 按 Agenda.requiredReviewerIds 顺序选择首位非作者、具 evidence_reviewer 角色且 reviewResponsibilityIds 包含该 Agenda 的 identity；无合格者不得提交该版本，Review 不接受另一审核员代替。正常 Round 收口还要求每份最终当前 Review 至少有一次 sent ReviewDelivery；只有 failed 的审核不得被当作已向作者送达。
+
+`Material` 还必须保存 `originator`、`sourcePublishedAt`、`acquiredAt` 三个 required 文本字段；原始作者/机构、来源发布时刻、取得或观察时刻无法获知或不适用时，文本明确写“未知”或“不适用”并附非空 reason。`originalSource`、`version`、`locator`、`location`、`verificationConditions`、`limitations` 仍为必填且非空；此结构与 Meeting Interface 的 MaterialInput 逐字段对应，不能塞进无法辨认的合并说明。
+
+每次成功的 `raise_supplement_hand` 都把非空 purpose 同时写入 Contribution.response 作为明确继续事实；补充版登记时清除此旧响应。count=2 的第三次举手仍为 pending，Manager 只可 rejected/deferred 并将 Contribution 置 supplement_rejected；当前版 under_review 时普通申请只能 deferred 且不退出。已明确继续但没有待 Manager 处置的 pending hand、到 currentVersion.submittedAt + taskDeadlineMs 与 Round/适用 Task deadline 的最早值仍未推进时，可以以“继续申请未完成” timed_out；有 pending hand 不因作者沉默超时。只有当前最终 Review 已 sent 才能按无响应的 sentAt+60000 标记静默超时。
+
+原 Contribution 的默认准备期限：首次登记前是 acceptedAt + taskDeadlineMs，登记后补证是 package.currentVersion.submittedAt + taskDeadlineMs；两者分别与存在的 Round/适用 MeetingTask deadline 取最早值。重新申请与获批准后的正文提交都须早于该值，送达后的申请还须早于首次 sentAt + 60000。
 
 ## Publication, Outcome And Termination
 
-`Publication` 必含 `id`、`roundId`、`seq`、`finalVersionIds`、`finalReviewIds`、`publishedAt`、`exitReasons[]`。每个接纳 Contribution 必须有确定终态，且每个登记 package 的 currentVersion 必须有最终 Review，才可创建 Publication。
+`Publication` 必含 `id`、`roundId`、`seq`、`finalVersionIds`、`finalReviewIds`、`publishedAt`、`exitReasons[]`。本轮 pending hand raises 必须全部处置；每个接纳 Contribution 必须有确定终态，且每个登记 package 的 currentVersion 必须有最终 Review，才可创建 Publication。格式驳回而未登记的私有草稿不形成 finalVersionId/finalReviewId。
 
 `FormalMessage` 必含 `id`、`seq`、`actorId`、`agendaId`、`kind`、`body`、`publicationId`、`relatedIds[]`、`createdAt`；seq 全局严格递增。Message 只在 Publication 时产生。
 
@@ -102,6 +119,8 @@ Task extension: MeetingTask also requires authorizationId, authorizationStatus, 
 ManagerPlan requires id, agendaId, managerId, basedOnPublicationId optional, kind, rationale, blockingReason optional, createdAt, and status. kind is open_round, continue_agenda, stop_agenda, raise_agenda_candidate, or wait_for_required_identity. status is active, superseded, or completed. Manager creates a plan only when no Round is open; the plan does not alter Agenda, Round, Participant, or authority. Captain candidate disposition and Manager open-round execution remain separate transitions.
 
 PrivateMail requires id, senderId, recipientId, agendaId optional, body, relatedIds, sendContextPublicationUpperBound, processingContextPublicationUpperBound optional, status, deadlineAt, createdAt, processingStartedAt optional, completedAt optional, failureReason optional. status is queued, processing, completed, timed_out, or cancelled. Processing starts by once computing the recipient-visible Publication range from the send upper bound through processing start; every retry reuses that range. A recipient may not process a mail while it has a claimed formal Contribution or another processing mail. Timeout/cancel releases the identity and never creates FormalMessage, Decision, or CompletionFact.
+
+Publication.exitReasons 与所属 Round.contributionIds 等长且同顺序；每个已接纳 Contribution 的终态必须有非空 exitReason，私有草稿未登记而退出者的原因也保留，但不制造 finalVersionId 或 FormalMessage。
 
 ## Derived Rules
 

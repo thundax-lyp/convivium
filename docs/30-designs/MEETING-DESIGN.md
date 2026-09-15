@@ -53,21 +53,20 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 
 ### Evidence round
 
-`open_round` 只由 Manager 在 active Agenda 上执行。它在同一瞬间固定现有全部 Publication ID 为 baseline，创建 `open` Round；同轮不按投稿顺序公开，任何新公开内容只能进入下一轮 baseline。
+`open_round` 只由 Manager 在 active Agenda 上执行。它在同一瞬间固定现有全部 Publication ID 为 baseline，创建 `open` Round，并把该 Agenda 已排队的 opportunity requests 原子转换为本轮 pending hand raises；仍须逐条由 Manager 处置，不自动授予 Contribution。同轮不按投稿顺序公开，任何新公开内容只能进入下一轮 baseline。
 
 | 转换 | 允许 actor | 前提 | 成功事实/效果 | 拒绝或无操作 |
 | --- | --- | --- | --- | --- |
-| `raise_hand` | Contributor | open Round；该身份可参与且本轮未已有 Contribution | 只记录可接受的 request/hand raise | 不接受、暂缓或重复举手均不创建 Contribution |
-| `accept_hand_raise` / `reject_hand_raise` | Manager | 对应 hand raise 未处置 | accept 创建一个 `preparing` Contribution；reject/defer 仅返回申请者理由，不记录 Meeting hand raise | accept 不替换 contributor；同 contributor/round 不能第二个 Contribution |
-| `submit_evidence` | Contribution 作者 | own Contribution preparing/format_correction/awaiting_response；结构完整 | 初版或新 `EvidenceVersion`，进入 registration effect | 不完整进入格式补正而非观点否决；版本不能覆盖旧版 |
-| `register_evidence` | Manager | 目标是当前版本；只检格式/可访问性 | `complete` 进入 review；`needs_correction` 回作者；`deferred` 保持未审核 | Manager 写观点评分、结论或真实性判断拒绝 |
-| `submit_review` | 指定 reviewer | 当前已 complete version；reviewer 非作者；baseline 精确相等 | 一个四维独立 Review 和 delivery effect | 自审、旧版本、错误 baseline、重复 reviewer/version 拒绝 |
+| `request_evidence_opportunity` / `dispose_evidence_opportunity` | Contributor / Manager | running Meeting、无 open Round、active Agenda；申请者有 active owned Session，未持有未结束贡献或任务；处置只针对 pending ID | 申请排队；拒绝/暂缓移除并向本人说明，不创建 Round/Contribution | 重复、错误身份或已存在未结束任务拒绝；不自动开轮 |
+| `raise_hand` | Contributor | open Round；该身份可参与且本轮未已有 Contribution 或 pending 举手 | 原子创建一个可恢复的 pending hand raise，不创建 Contribution | 重复举手或已有未结束任务拒绝；不预先给发言权 |
+| `dispose_hand_raise` | Manager | 对应 `(roundId, contributorId)` pending hand raise 未处置 | 原子移除 pending；accepted 创建一个 `preparing` Contribution；rejected/deferred 只通知申请者理由且不保留 Meeting 举手/Contribution | accept 不替换 contributor；同 contributor/round 不能第二个 Contribution |
+| `review_evidence_draft` | Manager | 目标为同一非终态 Contribution 的作者私有草稿；首份已接纳举手，后续有获接纳 supplement hand；只检格式/可访问性 | accepted 只存一个待消费 FormatApproval hash；rejected/deferred 反馈缺失要素并进入格式补正，不存草稿内容、EvidenceVersion 或 Registration | Manager 写观点评分/真实性判断拒绝；原草稿仍由贡献者自行保存 |
+| `submit_evidence` | Contribution 作者 | own Contribution；payload hash 与未消费 FormatApproval 相同；首次或有获接纳 supplement hand；当前已登记版本不在审核中 | 原子消费批准/hand，初版创建唯一 EvidencePackage + Version ordinal 1 + complete Registration，后续同包新 Version + complete Registration 并计实质补充一次 | 不匹配、未经批准、旧版本被覆盖、第三次实质补充均拒绝；格式驳回不计次数 |
+| `submit_review` | 唯一指定 reviewer | 当前已 complete version；reviewer 非作者；baseline 从 Round 自动复制，每维只引用该 baseline 中公开最终版本 | 一个四维独立 Review 和 delivery effect | 自审、旧版本、错误上一轮引用、重复 version 审核拒绝 |
 | `record_review_delivery` | effect dispatcher（可信系统 actor） | 对应 Review 已提交且未 delivered | sent 时写 sentAt 并开始 60 秒 response deadline；failed 只记录失败 | delivery failure 不使作者放弃，不创建 publication |
-| `respond_to_review` | 作者 | delivery 已 sent 且未过期 | response 事实；Contribution 进入可收口状态 | 未送达、过期或他人回应拒绝 |
-| `raise_supplement_hand` / `dispose_supplement_hand` | 作者 / Manager | sent Review 后作者已明确继续；当前版本已审；计数少于二 | Manager 接纳后记录唯一 pending supplement authorization | 拒绝/defer 不改变 Version 或退出状态 |
-| `submit_supplement` | 作者 | 对应 supplement hand 已获接纳；计数少于二 | 新 EvidenceVersion，原子消耗 authorization、递增 substantive count，重新 registration/review | 初始/格式补正不消耗次数；第三次实质补充拒绝 |
-| `withdraw_contribution` / `mark_submission_missing` / `mark_timed_out` | 作者；或可信 deadline handler | 目标仍非终态，且角色/期限符合 | 设置确定 exit reason/status | handler 只能按传入 Clock 的到期事实执行，不猜测 Agent 失败 |
-| `publish_round` | Manager 或可信 close handler | `isRoundClosable` 为真；每个接纳 Contribution 已有合法终态；每个登记 current version 有最终 Review | 单一 Publication、FormalMessage 批次、Round published、refresh/Markdown effect | 任一未满足即 `ROUND_NOT_CLOSABLE`；没有局部发布 |
+| `raise_supplement_hand` / `dispose_supplement_hand` | 作者 / Manager | 原 Contribution 未终态；非空补证 purpose；无第二个 hand；已送达审核的申请须早于 sentAt+60000，并早于准备/持久 Round/适用 Task 期限 | 初次及再次申请走同一 Manager 处置；每次成功举手均记录 response=purpose；只有计数低于二、当前版不在审核中才可接纳并进入私有草稿格式审核 | 计数低于二且正在审核时只能暂缓；第三次申请仍送 Manager 但不得接纳，拒绝/暂缓均以 supplement_rejected 收口并说明次数已尽；普通暂缓不退出；格式草稿驳回后重新申请不计次数 |
+| `close_contribution` | 作者；或可信 deadline handler | 目标仍非终态；作者只可 withdrawn，handler 只可在可信期限到达后 submission_missing/timed_out | 设置确定 exit reason/status；格式驳回不自动退出 | 未送达审核不能据沉默 timed_out；未审版本不能正常公开 |
+| `publish_round` | Manager | `isRoundClosable` 为真；每个接纳 Contribution 已有合法终态；每个登记 current version 有最终 Review 及 sent delivery | 单一 Publication、FormalMessage 批次、Round published、refresh/Markdown effect | 任一未满足即 `ROUND_NOT_CLOSABLE`；没有局部发布 |
 
 Round 的 `aborted` 只由 Captain 在不能继续时设置，必须给出原因并将所有未终态 Contribution 以确定 exit reason 关闭；它不产生 Publication。
 
