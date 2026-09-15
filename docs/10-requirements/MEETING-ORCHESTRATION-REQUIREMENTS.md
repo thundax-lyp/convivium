@@ -9,7 +9,7 @@
 
 本文只规定用户和会议参与者可以观察到的行为、业务边界及验收结果，不规定数据库、模块、类、状态机、事务、消息格式、工具名称或具体调度算法。
 
-2026-09-14 确认产品以协作求解为主线：明确目标、建立候选路径、搜集并分析证据、修订路径，形成一致性方案。讨论、发言安排与审核服务于方案形成，不以辩论、发言次数或全员口头赞同作为目标。角色职责、公共成果组织及一致性判据见[协作求解要求](./MEETING-SPEECH-REVIEW-REQUIREMENTS.md#collaborative-problem-solving)。
+产品以协作求解为主线：明确目标、建立候选路径、搜集并分析证据、修订路径，形成一致性方案。讨论、发言安排与审核服务于方案形成，不以辩论、发言次数或全员口头赞同作为目标。举手、证据审核、轮次收口与公开以 [Meeting Evidence Round Requirements](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md) 为唯一现行业务依据；本文件负责会议目标、议题规划、公共成果与结束条件。
 
 ## Scope
 
@@ -33,13 +33,15 @@
 
 ## Functional Requirements
 
-### FR-1：DSH 插件形态
+本文件的功能需求使用 `MO-FR-*`，只定义会议级行为；证据轮次的细则与验收由 [ER-FR](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#functional-requirements) 单独定义。跨文档引用必须包含前缀，不以裸 `FR-*` 指代任何一份需求。
+
+### MO-FR-1：DSH 插件形态
 
 1. Convivium 必须作为 DSH 插件安装、加载和运行。
 2. 用户不得被要求同时启动一个独立的 Convivium 应用才能使用会议功能。
 3. Convivium 支持的最低 DSH 版本必须为 `0.1.2-rc.1`；低于该版本时插件必须拒绝加载并说明版本要求，不得以缺失生命周期能力的降级模式运行会议。
 
-### FR-2：会议与身份隔离
+### MO-FR-2：会议与身份隔离
 
 1. 每场会议必须拥有独立的会议目标、议程、参与者、发言记录、问题、提案、立场、决策和结束结果。
 2. 每个 Agent 在一场会议中的具体身份必须拥有独立、可持续的 DSH Session。
@@ -50,30 +52,30 @@
 7. 新建会议的目标、议题、提案和验收条件必须从明确的未完成初始状态开始，不得在创建时被预先标记为已接受、已满足或已解决。
 8. 每场会议必须具有稳定且唯一的身份，其数据和会议专用 Session 不得与其他会议混淆。
 
-### FR-3：并行贡献与有序发布
+### MO-FR-3：并行贡献与有序发布
 
-1. 不同 Participant 可以同时获得各自的贡献任务授权，基于已公开 Transcript 并行取证、分析、准备和提交待审稿；不得以全会议单一发言权或固定发言次序限制准备与提交。
-2. Manager 围绕待解决问题、证据缺口和路径修订安排贡献；明确指派与主动申请的规则见[发言及证据审核需求](./MEETING-SPEECH-REVIEW-REQUIREMENTS.md)。不要求全体参会者同步开始、逐人发言或完成同一轮。
+1. 不同 Participant 可以在同一会议议题下拥有并行的有效贡献授权，独立准备和提交；不得以全会议单一发言权或固定发言次序限制各自工作。轮次公开基线及轮内权限仅由 [ER-FR-1](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-1轮次计划公开基线与角色) 与 [ER-FR-4](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-4要素确认登记与轮内可见性) 定义。
+2. Manager 围绕待解决问题、证据缺口和路径修订规划议题；贡献者如何举手、Manager 如何接纳或拒绝以及轮次何时收口，仅由 [ER-FR-2](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-2举手与-manager-安排) 与 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 定义。
 3. 每个 Participant 同时最多处理一项发言任务，待审及退回修改仍属于该任务；其他 Participant 的任务可以独立推进。
-4. 每项准备绑定所依据的公开 Transcript 版本。后续相关公开内容须可获取；发布前若新增内容实质影响稿件，应更新并重新审核，无关变化不强制重做。
+4. 会议的公开内容必须具有稳定、可追溯的版本与发布顺序，后续贡献者能取得已公开的相关内容；固定审核基线、同轮隔离和更新重审仅由 [ER-FR-1](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-1轮次计划公开基线与角色) 与 [ER-FR-6](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-6审核意见两次补充与响应) 定义。
 5. 参与者必须能够回应、质疑、补证、修正、支持或总结已公开内容。待审内容不作为其他参会者的公共讨论依据，授权核验访问遵循专项需求。
-6. 正式内容必须先经 Manager 边界审核，再由 Runtime 发布确切版本，并形成稳定、可引用和可审计的发布顺序。发布顺序记录已经发生的事实，不预先决定谁先准备或提交。
+6. 正式公共论证须遵守本文的正文边界，不得绕过边界确认或改写已审确切版本；轮内登记、独立证据审核和轮末统一公开仅由 [ER-FR-4](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-4要素确认登记与轮内可见性)、[ER-FR-5](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-5独立审核与四维评分) 与 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 定义。正文边界审核不能代替证据内容审核。
 7. 任务授权被撤销、超时或重新分配后，旧请求及其迟到审核结果不得发布内容；一人的失效不得使其他人的有效授权失效。
 
-2026-09-14 确认上述并行协作取代串行轮次要求；既有串行请求、直接提交与 Turn 驱动流程尚未迁移，不能作为新要求的覆盖证据。
+2026-09-15 确认同轮并行准备、轮末统一公开的业务轮次，取代 2026-09-14 的无轮次门槛表述；既有串行 Turn、直接提交和立即公开路径不能作为新要求的覆盖证据。
 
-### FR-4：发言计划与选择
+### MO-FR-4：发言计划与选择
 
 1. 发言计划必须围绕当前议题和本次讨论目标形成。
 2. 显式点名、直接问题、必需复核、议题负责人、相关任务结果和阻塞异议必须优先获得处理。
 3. 主持机制可以在规则足以决定时使用确定性规则，在需要语义判断时请求独立主持 Agent 建议。
-4. 主持 Agent 的安排必须受到参与者资格、权限、议题、贡献任务与审核时限及会议预算约束；不得以固定轮次或预定发言顺序替代按问题安排。
+4. 主持 Agent 的安排必须受到参与者资格、权限、议题、贡献任务与审核时限及会议预算约束；不得以预定发言顺序替代按问题安排。业务轮次的固定基线、收口与公开由 [ER-FR-1](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-1轮次计划公开基线与角色) 和 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 定义。
 5. 主持 Agent 不得自行代表参与者接受决策、接受风险或宣布会议业务目标已经完成。
 6. 主持 Agent 不可用或安排无效时，会议必须明确报告原因并采取有界的失败处理；既有确定性选择不能代替边界审核，不得自动发布未审内容。
 7. 某项工作所必需的 Participant 不可调度时，停止依赖该身份的安排并向用户报告具体身份和原因，不得自动替换或豁免；无依赖的已授权工作可继续，必需贡献或审核未满足时不得宣布相应目标完成。
 8. 相同会议状态没有发生变化时，不得自动重复调度同一个不可用的必需 Participant。
 
-### FR-5：异步任务与举手
+### MO-FR-5：异步任务与举手
 
 1. 长时间构建、测试、调研或外部等待不得阻塞其他 Participant 的独立贡献。
 2. 参与者必须能够将长时间工作交由 Convivium-owned MeetingTask 承载并结束当前发言任务；状态通知不自动成为正式正文，任务实际执行复用该 Participant 的 DSH continuable Session。
@@ -84,7 +86,7 @@
 7. 会议运行时必须验证请求者的会议身份、当前有效任务授权和所属上下文，再创建 MeetingTask；Participant 不因此获得 Captain 或其他 Participant 权限。
 8. MeetingTask 必须能够追溯到所属 Meeting、参与者和当时的正式发言上下文；其结果只有经 Meeting Runtime 授权的 projection 才能进入会议。
 
-### FR-6：议题范围与发散控制
+### MO-FR-6：议题范围与发散控制
 
 1. 会议必须有明确的总体目标、预期产出、验收条件和约束。
 2. 同一时刻必须有一个明确的当前议题；发言默认服务于当前议题。
@@ -98,7 +100,7 @@
 10. 同一 candidate 只能处置一次。处置失败不得写入 Meeting state、event、receipt、outbox 或增加 Meeting version；成功处置不产生 outbox。
 11. 当前状态必须以稳定顺序公开 `parkingLot` 的 `id`、`title`、`reason` 和 `status`；归档保留相同事实。未处置的 candidate 不阻塞会议结束，并以 `pending` 原样进入归档。
 
-### FR-7：提案、立场与决策
+### MO-FR-7：提案、立场与决策
 
 1. 参与者只能以自己的会议身份提交立场，不得代表其他参与者表态。
 2. 参与者可以提出候选决策，但不能自行写入正式决策的接受者、异议者或接受状态；候选记录不可变且不具有持久状态。
@@ -110,7 +112,7 @@
 8. Captain/local Decision disposal 必须包含 protocol version、Meeting/version expectation、request identity、目标 Decision、action、非空理由和至少一条本 Meeting 证据；`supersede` 必须提供 replacement candidate，`revoke` 不得提供。execution-terminal、archiving 和 archived 状态不得写入 Decision。
 9. Captain 在自然语言中表示接受或拒绝风险只构成意见；只有通过明确的结构化风险处置操作并经系统验证后，才能改变正式风险状态。
 
-### FR-8：完成事实与会议结束
+### MO-FR-8：完成事实与会议结束
 
 1. 会议完成事实可以来自 Agent 的正式提交、经授权的 MeetingTask result projection、required review，以及 Captain 的明确接受、豁免、风险处置或结束操作；loopback 本地用户也可通过受控入口形成决策接受、替代、撤销和风险处置事实。
 2. `MeetingTask completed` 不得默认等同于 required output accepted、议题解决或会议完成。
@@ -119,10 +121,10 @@
 5. 会议完成状态必须由经过验证的完成事实和确定性业务规则得出，不得仅根据自然语言总结宣布完成。
 6. 达到业务完成条件时，即使仍有非阻塞后续事项、待讨论事项、已接受风险或少数意见，会议也可以正常完成。
 7. 会议不能完成时，必须区分部分完成、无共识、取消和内部失败，并说明原因及未解决事项。
-8. 最大正式消息数、最大会议时长、任务与审核时限限制继续工作；不得以轮次数或每轮发言人数作为并行协作的推进条件。最后一次合法事实更新同时满足完成条件与预算边界时，按正常完成处理；不得在预算耗尽后绕过审核继续发布。
+8. 最大正式消息数、最大会议时长、任务与审核时限限制继续工作；不得以固定轮次数或每轮发言人数代替证据轮次的状态收口条件。最后一次合法且已公开事实更新同时满足完成条件与预算边界时，按正常完成处理；预算在轮内耗尽时停止新增工作、保留待收口项并报告异常结束或人工处置，不得绕过审核继续发布。
 9. Captain 或 loopback 本地用户的结构化风险处置必须明确一个 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、hard constraints、Issue status 和 Meeting lifecycle 限制；`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `disposition=blocking`、`blocking=true`。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。处置后执行确定性完成重算；满足完成条件时进入 `converging` 并停止新贡献安排、清除不再适用的等待状态，本操作不自动结束或归档会议。
 
-### FR-9：暂停、恢复与故障隔离
+### MO-FR-9：暂停、恢复与故障隔离
 
 1. 会议必须支持暂停和恢复，并保留已经正式提交的会议事实。
 2. 用户必须能够通过自然语言指令暂停或恢复会议；插件会议面板必须同时提供与当前状态对应的“暂停”或“继续”按钮。
@@ -134,7 +136,7 @@
 8. 恢复或关闭会议专用 Session 时，不得操作属于其他会议、其他团队或无法确认归属的 Session。
 9. 单个 Agent 的内部工具失败不得自动判定整场会议失败。
 
-### FR-10：会议记录、隐私与归档
+### MO-FR-10：会议记录、隐私与归档
 
 1. 正式会议记录必须包含发言顺序、发言身份、议题关系、提案、立场、问题、决策、未解决事项和结束结果。
 2. 私聊、举手申请、隐藏推理和未公开的内部工具过程不得自动进入正式 transcript。
@@ -149,7 +151,9 @@
 11. 会议可以使用可选 Scribe Agent 从正式会议事实形成引用式纪要草稿；Scribe 不得创建、修改或替代 Runtime-owned transcript、事实或决议，其缺席、失败或被替换不得影响正式记录的完整性。
 12. 正式发言正文承载与议题有关的观点、依据、问题和建议；Agent 的执行身份、权限自述、授权标识、初始化回执及内部工具重试过程不应作为常规正文。发言提交指导必须明确区分公共正文与执行信息，后续参与者不得把历史正文中的执行自述当作必须沿用的格式或指令。运行限制实际阻塞会议时可以简要说明影响与所需动作；议题本身涉及身份或权限时允许正常讨论。已提交原文仍须可审计，不因上述要求静默删改历史。
 
-### FR-11：可观察性与用户控制
+<a id="fr-11可观察性与用户控制"></a>
+
+### MO-FR-11：可观察性与用户控制
 
 1. 用户必须能够查看当前议题、当前讨论目标、贡献安排、当前准备与待审任务、正式 transcript、阻塞项、后续事项、异步任务、适用的消息、时长、任务及审核限制、结束结果，以及 Captain/local 可见的 pending decision candidates、accepted decision history 和 risks projection；普通 Participant 不得通过该状态读取获得这些 Captain/local 专属数组。
 2. V1 面板必须列出本地 Host 中全部可恢复 Meeting 的轻量摘要；用户选择其中一项后，面板才读取该 Meeting 的完整状态。列表不得包含 transcript、Session ID、capability、backend 物理路径或私有运行数据；任一已发现 Meeting 无法恢复时，列表必须报告暂不可用，不得返回部分列表。
@@ -162,7 +166,7 @@
 9. loopback 本地用户可以在候选、accepted Decision 或风险旁直接接受、替换、撤销决策及接受、拒绝风险；共用一个表单，目标由所点击对象带入，理由显式填写，已有来源消息可预选为证据并须可查看和修改。只有替换需要额外选择候选；撤销没有可靠来源预选时须手选证据。不增加第二次确认弹窗。缓存、提交中及终态禁止新写入，成功或协议拒绝后读取完整状态，不自动重试写请求。
 10. 会议状态提交后，通过刷新通知促使面板重新读取完整事实，替换固定 5 秒轮询；通知不携带或替代会议事实。连接恢复、重新聚焦和重新打开后补读完整状态；断线时保留已验证缓存并禁写，完整补读成功后才解除。
 
-### FR-12：Agent 内部能力边界
+### MO-FR-12：Agent 内部能力边界
 
 1. Convivium 只规定 Agent 之间以及 Agent 与会议之间交换的身份、上下文、公开结果和授权边界。
 2. Agent 可以在 DSH 授权范围内自行选择 Prompt、Skills、Tools、MCP 和内部工作方式。
@@ -174,7 +178,7 @@
 8. Participant 对后台任务的请求属于 Agent 与会议系统之间的公开操作；任务内部使用的 Skills、Tools、MCP 和执行过程仍由 DSH 管理。
 9. 会议私聊的身份、可见上下文、串行处理和处理状态由会议系统保证；Agent 如何理解或回复 mail 仍属于 Agent 内部过程。
 
-### FR-13：Agent 角色目录与参会推荐
+### MO-FR-13：Agent 角色目录与参会推荐
 
 1. DSH Host 可以向 Meeting Runtime 提供经过当前 Captain 授权范围过滤的版本化 Agent 角色目录；目录必须区分角色定义、可用 Agent candidate 和当前 Meeting Participant。
 2. Manager 必须能够获得与当前会议目标、议题和证据缺口有关的最小安全目录 projection，但不得获得模型凭据、完整 Prompt、私有工具配置、Session 历史或其他敏感运行配置。
@@ -187,30 +191,30 @@
 9. candidate 的 Meeting Agent Definition 不存在、其引用的 DSH Preset/Skill 无法验证，或 Session provisioning 失败时，不得产生部分可用 Participant；会议必须显示失败原因，并允许 Manager 在新状态上推荐替代 candidate。
 10. GitHub、arXiv 和 Web research 角色必须按证据来源和分析责任区分；Manager 应先参考已有 evidence 索引，不能仅因搜索工具可用而重复推荐多个 Agent 处理相同来源范围。
 
-FR-13 Phase 1 只实现对单一 Host/profile-owned Catalog producer 的 consumer boundary、当前 Manager planning attempt 绑定的安全 Catalog projection、Manager recommendation claim 和 pending recommendation status projection。Host producer 本身、Captain disposition、Participant admission、Session provisioning、FR-14 Definition resolution、research dedup、UI/HTTP、真实 smoke、stress 和 metrics 不属于 Phase 1。
+MO-FR-13 Phase 1 只实现对单一 Host/profile-owned Catalog producer 的 consumer boundary、当前 Manager planning attempt 绑定的安全 Catalog projection、Manager recommendation claim 和 pending recommendation status projection。Host producer 本身、Captain disposition、Participant admission、Session provisioning、MO-FR-14 Definition resolution、research dedup、UI/HTTP、真实 smoke、stress 和 metrics 不属于 Phase 1。
 
 Catalog 只在创建将投递给 Manager 的 planning attempt 时按需读取；Meeting creation 和不创建新 planning attempt 的普通命令不读取 Catalog。Catalog service 缺失或 snapshot 无法验证时，attempt 绑定“无 Catalog”，普通 Manager planning 继续；同一 attempt 后续携带 attendance claim 时必须 fail closed，且不得写 Meeting state、event、receipt、outbox 或增加 Meeting version。Catalog/candidate/claim 校验必须在既有 Manager business-invalid fallback 之前完成，不能转换为 `MANAGER_PLAN_INVALID` fallback。
 
 Phase 1 必须复用现有 `submit_manager_plan`、`MeetingRepositoryPort.execute`、request idempotency、receipt、Meeting version 和 projection 边界；不得增加独立 command、event family、worker、repository、Catalog cache、registry、factory、queue、第二个 Catalog source 或隐式 migration。
 
-### FR-14：共享 Preset 下的 Meeting Agent Definition
+### MO-FR-14：共享 Preset 下的 Meeting Agent Definition
 
-本节为 2026-09-08 确认的初次发布目标；角色模型与部署资源已实现，本轮验收包含用户明确豁免的 web_fetch，完整无豁免覆盖以 [readiness](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition) 为准。
+本节为 2026-09-08 确认的初次发布目标；实现覆盖与验收豁免不由本需求文档声明，下述验收标准仍作为目标要求。
 
 1. Convivium 提供版本化 Meeting Agent Definition，只保存稳定定义 ID、版本、会议角色、显示摘要、`roleDescription`、专长、研究来源范围、DSH Preset/Skill 引用及 optional DSH ToolRestriction。Definition 不包含通用 persona 正文、模型配置或 capability 安装内容。
 2. Convivium 拥有会议角色、选择、批准、动态发言资格和 Session ownership；DSH 拥有模型默认值、Agent Preset、Skills、Tools、MCP、Sandbox、Approval、组合与执行。
 3. 发行包必须附带一个共享 `convivium` Preset、九个原生 DSH Skills 和九个可组合 Definition。Host 使用 DSH 原生 Loader、Skill provider 和 profile patch 部署；Convivium Runtime 不建立 capability registry/installer，也不复制或展开 Skill 正文。
 4. `toolFilter` 使用 DSH 原生 ToolRestriction，只能收窄从 global 与祖先 scope（包括共享 Preset）继承的工具；当前 child 自己注册的工具不受此 filter 屏蔽，不能据此授予工具或扩大 DSH/用户权限；文件、网络和执行权限仍由 Host policy 管理。
 5. `roleDescription` 只表达会议职责、会议输出和会议边界；通用方法放在 DSH Skills。创建时将角色说明及原生 Skill 加载指令转换为 DSH persona。Skill 名称、描述或已加载正文均不授予 Meeting authority；仓库 AGENTS.md 也不是隐式 capability。
-6. 初始 Manager 与八类 Participant 在同一 Captain parent Preset 下，各自使用独立 meeting-owned continuable AgentSession；只有 provisioning 成功后 Participant 才可被调度。动态推荐与接纳仍遵循 FR-13，不是本项新增能力。
+6. 初始 Manager 与八类 Participant 在同一 Captain parent Preset 下，各自使用独立 meeting-owned continuable AgentSession；只有 provisioning 成功后 Participant 才可被调度。动态推荐与接纳仍遵循 MO-FR-13，不是本项新增能力。
 7. 所有选定角色在第一个 child 分配前完成 Definition、共享父 Preset 和 required Skill 预检。缺失能力时 fail closed，不允许 persona-only、假 Skill、隐藏 Schema 或自建 installer 降级。
 8. 模型默认值直接使用 DSH 配置。Host 可通过独立 `agentModelOverrides` 按 Definition ID 提供必要的 provider/model/reasoningEffort 原生覆盖；Definition 本身不保存这些值。Captain/Manager/HTTP 不可提交任意模型配置。模型覆盖不改变 Definition 内容指纹，实际有效值由 DSH descriptor 持有。
 9. Captain 创建请求只选择 Manager/Participant 的 Definition ID；未选择的身份仍允许按已有无 Definition 路径创建。未知定义、角色不匹配、不同父 Preset、Skill 不可用或非法 Host 绑定不得静默回退。
 10. 会议只持久化 Definition ID、版本和内容指纹；DSH 持久化派生 persona/toolFilter/有效模型。既有会议重放、冷恢复不重新解析当前 Definition 或 Host override，不因配置变化重配已有身份；缺失 descriptor 不以新定义补建。公开 status/archive 不泄露模型覆盖、角色私有正文或 Skill 正文。
 11. 首发包必须在独立 DSH profile 通过真实 Loader 验证：同一会议的一位 Manager 和八位 Participant 均创建成功；九个 Session 经原生 skill 工具加载各自正文；GitHub/arXiv/Web 研究角色的真实搜索与抓取可用；会议越权写入被拒绝；模型差异、隔离和冷恢复保持。
-12. 初次发布直接采用新契约，不读取或迁移未发布的旧 Definition/schema 样本。独立 per-child Preset、独占 Skill、差异化插件安装、热切换、完整 Agent 配置平台和日常 profile 改写不属于首发范围。首发模型与上述部署验收全部通过后，FR-14 才可标为已实现。
+12. 初次发布直接采用新契约，不读取或迁移未发布的旧 Definition/schema 样本。独立 per-child Preset、独占 Skill、差异化插件安装、热切换、完整 Agent 配置平台和日常 profile 改写不属于首发范围。首发模型与上述部署验收全部通过后，MO-FR-14 才可标为已实现。
 
-### FR-15：Developer Markdown Projection
+### MO-FR-15：Developer Markdown Projection
 
 1. 插件配置有效 `developerMarkdownWorkspaceId` 后，Meeting Runtime 必须从每次新提交的 `MeetingSnapshot` best-effort 生成非权威 `current.md`；未配置时该能力关闭且不得改变现有会议行为。
 2. 已提交 snapshot 包含不可变 `MeetingState.archive.package` 时，Runtime 必须另外只从该 `ImmutableArchivePackage` best-effort 生成 `archive.md`。
@@ -221,11 +225,33 @@ Phase 1 必须复用现有 `submit_manager_plan`、`MeetingRepositoryPort.execut
 7. 解析 workspace、映射、写入、替换、清理或日志失败不得回滚或阻塞 Meeting commit，不得写领域 event、receipt、outbox、MeetingState 或 Meeting version，也不得影响 pause、resume、end/archive、Session revoke、interrupt、drain 或 Runtime dispose。
 8. 该能力不得增加 durable queue、重试 timer、跨进程锁、HTTP route、Tool、Client UI、Agent API、配置 fallback 或通用 projection framework。
 
+## Collaborative Problem Solving
+
+会议沿“明确目标 → 建立候选路径 → 找出关键未知 → 搜集证据 → 分析与比较 → 修订路径 → 形成一致性方案”推进；新证据可使路径返回前序步骤。Manager 组织求解路径、拆解复杂目标、识别证据缺口和整合阶段成果；为子议题说明问题、范围、预期成果、完成条件与依赖。独立问题可并行准备，有依赖的子议题逐步推进。Manager 只在证据轮次收口后决定继续、停止当前议题或下一个议题及理由，也可将“质疑某份证据”列为下一议题；在已授权议题内安排下一步，新增 Agenda candidate 的正式处置仍由 Captain 完成。改变用户目标或重大范围须由作为本地用户的召集人确认，召集人不因此取得 Captain 专属协议权限。Manager 不得把未解决关键分歧宣布为已解决。
+
+贡献者围绕路径提出可整合的观点、证据、推导及修订建议，不因每次公共内容变化自动发言。证据审核员指出证据适用范围、支持的选择与缺口，不以反驳数量衡量成果。公共成果应体现路径、证据、分析和方案的形成，保留按人排列的原文、来源、阶段归纳及分歧，不以逐人复述代替成果组织。一致性方案须与目标一致、各部分相容、关键选择有证据支持、执行路径明确，剩余假设与风险已显式处理；不要求全体成员口头赞同，不能通过隐藏异议制造共识。
+
+## Public Argument And Boundary Review
+
+公开论证采用相同的五项结构，便于比较与整合；举手、调度通知、审核状态与权限错误不必伪装成论证正文：
+
+| 项目 | 公开论证内容 |
+| --- | --- |
+| 主张 | 关联待解决问题或候选路径，说明判断或修订建议。 |
+| 证据 | 引用可追溯材料；没有支持证据时如实说明。 |
+| 推断 | 区分观察与解释，列明推导假设。 |
+| 反证条件 | 说明什么可观察结果会改变判断。 |
+| 不确定性 | 标明未验证部分、适用限制与待补验证。 |
+
+五项明确交代，但不得为填齐格式编造事实。证据质疑也可依此格式说明质疑依据、推导缺口和什么核验会消除质疑，不强迫提出替代方案。身份、授权和 Agent 执行自述用于追溯与授权，不替代论证正文。Transcript 是会议公共内容，观点不因发言者身份而变为正确；正式发言保留核心观点与关键证据，待审稿不得先进入其他贡献者的公共上下文或成为完成、决策依据。
+
+Manager 对正式公共论证只核对议题范围和正文边界，不能因反对方案、质疑前提、指出风险、解释必要背景或不同意 Manager 而拒绝；不得借正文边界审核评价已登记证据的真实性、可信度或观点支撑度。越界时向作者指出具体段落、边界与修改方向，作者修订后重新审核确切版本；旧批准不发布新版本，不代写、暗改或提前发布。审核不可用、超时或重提无法有界收敛时，向召集人报告而不自动放行。正文边界通过、证据内容审核、观点接受和目标完成是不同事实。
+
 ## Business Rules
 
 ### BR-1：按贡献推进
 
-会议以公开成果、证据及待解决问题推进，不以 Turn 或 Round 划分参会者必须遵守的发言周期。不得要求其他人完成、跳过或失败后才允许某项独立贡献推进。正式 Transcript 的发布序号只用于引用和审计，不授予发言优先权。
+会议以公开成果、证据及待解决问题推进，不以固定发言顺序或先提交者身份授予发言优先权。轮次内的独立准备、收口与统一公开由 [ER-FR-1](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-1轮次计划公开基线与角色) 和 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 定义；正式 Transcript 的发布序号只用于引用和审计。
 
 ### BR-2：每个身份的有效任务授权
 
@@ -233,9 +259,9 @@ Phase 1 必须复用现有 `submit_manager_plan`、`MeetingRepositoryPort.execut
 
 ### BR-3：完成判断边界
 
-每次影响完成条件的合法事实更新后重新判断业务完成，包括正式发布、有效审核、授权任务结果和 Captain/local 处置，不等待整轮或全员完成。待审稿及其尚未生效的附带声明不参与完成判断。
+每次影响完成条件的合法公共事实更新后重新判断业务完成，包括已按 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 公开的证据及审核意见、正式发布、授权任务结果和 Captain/local 处置。未公开的轮内证据、待审稿及尚未生效的附带声明不参与公共完成判断；轮次收口本身不等于目标完成。
 
-预算边界检查不等待任何任务结束；先根据已生效事实判断完成，再决定是否允许继续工作。满足目标后不得因无关准备任务继续等待，也不得因有未审稿就视为完成。结束、暂停及撤销后，相关提交和审核须遵守生命周期与授权检查；终态后不能通过迟到结果追加正式事实。预算的具体字段与计数方式在后续协议中落实，不把旧 Turn 数直接解释为任务数。
+预算边界检查不等待任何任务结束；先根据已生效公共事实判断完成，再决定是否允许继续工作。正常轮次公开仍须满足已接纳举手和最终审核的收口条件；预算提前耗尽或召集人强制结束时，记录未完成项及原因，不把异常终止当作正常收口。满足目标后不得因无关且不属于已接纳本轮的准备任务继续等待，也不得因有未审稿就视为完成。结束、暂停及撤销后，相关提交和审核须遵守生命周期与授权检查；终态后不能通过迟到结果追加正式事实。预算的具体字段与计数方式在后续协议中落实，不把旧 Turn 数直接解释为任务数。
 
 ### BR-4：主要问题与次要问题
 
@@ -247,7 +273,7 @@ Agent 内部工具、命令或 MCP 失败属于 Agent 的执行过程。只有�
 
 ### BR-6：身份与授权
 
-Agent 的正式发言、立场、审核、风险接受和决策操作必须绑定 DSH 提供的真实调用 Session。仅对 FR-7、FR-8.9、FR-11.9 的五种本地决策/风险操作，允许使用单 Host loopback 边界证明独立的 local 来源，无需 live Captain Session；不得伪装成 Captain 或 Participant。客户端提供的显示名称或身份标识不能作为授权依据，Agent tool 的 Captain-only 权限不变。
+Agent 的正式发言、立场、审核、风险接受和决策操作必须绑定 DSH 提供的真实调用 Session。仅对 MO-FR-7、MO-FR-8.9、MO-FR-11.9 的五种本地决策/风险操作，允许使用单 Host loopback 边界证明独立的 local 来源，无需 live Captain Session；不得伪装成 Captain 或 Participant。客户端提供的显示名称或身份标识不能作为授权依据，Agent tool 的 Captain-only 权限不变。
 
 ### BR-7：归档边界
 
@@ -273,8 +299,8 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 
 ## Acceptance Criteria
 
-1. 创建包含至少三位 Agent 的会议后，至少两位可以同时获得独立任务并准备、提交待审稿；其中一位未完成，不阻止另一位通过审核后发布。同一身份在待审时不会再启动第二项发言任务。
-2. Participant 基于明确的公开 Transcript 版本准备，能获取后续相关正式内容；无关更新不要求重做，实质影响稿件的更新需要修订并重新审核。正式发布具有稳定顺序，无固定轮次或全员同步门槛。
+1. 创建包含至少三位 Agent 的会议后，至少两位可持有各自有效的贡献授权并独立工作；一人仍在准备不阻止另一人合法提交和接受审核，同一身份在待审时不会再启动第二项发言任务。举手资格及轮次收口另按 [ER-FR-2](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-2举手与-manager-安排) 和 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 验收。
+2. 公开会议内容具有稳定版本、来源和顺序，后续贡献者能取得其有权查看的内容；本轮固定基线、同轮隔离及轮末新基线另按 [ER-FR-1](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-1轮次计划公开基线与角色) 验收。
 3. 指定贡献任务重新分配后，旧授权的迟到提交及审核不能发布；其他 Participant 的有效任务不受影响。
 4. 长时间工作交由 MeetingTask 后，不阻塞其他身份的独立贡献；任务完成后相关 Participant 可以申请后续贡献，其结果不绕过公开审核。
 5. 新出现但不影响目标验收的问题被记录为后续事项或待讨论事项，不阻止会议完成。
@@ -284,7 +310,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 9. MeetingTask 完成但 required review 未通过时，会议不能把对应产出标记为 accepted。
 10. 经过授权和证据验证的完成声明可以更新相应产出、验收条件、议题、问题或风险状态。
 11. 所有必要产出和验收条件满足后，即使存在非阻塞后续事项或少数意见，会议仍能正常完成。
-12. 合法事实更新同时满足完成条件和预算边界时，结果为正常完成；即使另一位 Participant 仍有非阻塞准备任务，也不等待其提交或整轮结束。终态后的迟到提交、审核不能改变会议事实。
+12. 合法且已公开的事实更新同时满足完成条件和预算边界时，结果为正常完成；轮内已接纳的举手、证据及审核须先按轮次规则收口，不将未公开提交当作已完成事实。预算在轮内耗尽时显示待收口项和异常结束／人工处置原因，终态后的迟到提交、审核不能改变会议事实。
 13. 插件重启后，正式提交内容不丢失，重复投递不产生重复会议事实；request identity 相同且 validated request serialization 相同的重试必须重放原 receipt/result，identity 相同但 serialization 不同必须拒绝。
 14. 会议创建中断后，已经产生的会议专用 Session 仍能被确定性归属和安全关闭，不会影响其他会议或团队的 Session。
 15. `archived` 对外可见时，所有会议专用 Session 已停止、关闭并失去会议 capability；归档包不包含可恢复 Session、完整 Agent 运行配置或私有 Session 历史，但底层已关闭数据可以按 DSH retention policy 保留。
@@ -323,27 +349,11 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 48. Developer Markdown 没有 HTTP、Tool、Client 或 Agent 读取入口；Runtime dispose 后没有 pending render、重试 timer、未处理 rejection 或本次任务遗留的 temp file。
 49. 本地用户的五种操作产生独立 local 审计事实，满足与 Captain 相同的领域校验；Session tool 不因本地入口而扩大权限。风险完成重算满足条件时进入 converging，不自动 end/archive。
 
-## Confirmed Meeting Convergence Rules (D6-D10)
-
-本节保留 2026-09-03 D6-D10 的串行流程基线，仅用于追溯既有实现和历史验证。2026-09-14 的 FR-3、FR-4、BR-1～BR-3 及对应验收标准已替代其中的轮次选择、全计划等待、fallback Turn 和按 Turn 检查停滞要求；以下算法不作为并行协作的新验收依据。并行模式的停滞检测、调度预算及失败处理仍须形成后续契约，不从旧字段推导默认值。身份、幂等、迟到拒绝和必要完成事实不因并行化而放宽。
-
-历史规则：D6 的 rule plan 使用 `recency = never spoke ? 15 : min(15, max(0, state.turnSeq - lastCommittedSpeakerTurnSeq))`，其中 `never spoke` 和 `lastCommittedSpeakerTurnSeq` 从已提交 transcript 推导，不新增持久字段；删除 repeated-content 分数 `-30`。consecutive penalty 只在再次选择会达到 `maxConsecutiveSpeechesPerSpeaker` 时应用。required Participant 永远先排；其余候选按既有 score 降序；同分按 `MeetingState.participants[]` index。required 数量超过 `maxSpeakersPerTurn` 不截断，必须进入 `waiting`。
-
-`selectionMode` 的语义固定为：`round_robin` 只使用 round-robin；`rule_based` 只使用 rule plan；`manager` 只使用 Manager；`hybrid` 仅当最后可用席位出现同分竞争、至少两个不同 Participant 拥有 current blocking objection、或 current convergence action 为 `refocus|replan` 时调用 Manager，其余情况直接使用 rule plan。Manager mode 始终为 `Manager`；Manager 不可用时不创建 planning attempt，直接使用 rule plan。
-
-Manager Schema 无法解析时不提交，等待当前 attempt deadline 后进入 timeout fallback。Schema 有效但业务非法时，一个 commit 将 attempt 置为 `failed`、写入 `manager_plan.failed`、创建 deterministic fallback Turn 和 Speaker outbox，并返回成功 result 且 `fallbackApplied=true`。timeout 或 delivery retry exhausted 使用 `manager-fallback:<attemptId>:<reasonCode>`、`runtime:<meetingId>`，并在一个 commit 中写入 failed attempt、`manager_plan.failed`、fallback Turn、receipt 和 Speaker outbox。request hash 必须由 `serializeValidatedRequestV1({ attemptId, reasonCode, observedMeetingVersion })` 产生；相同 request replay，内容不同则 `IDEMPOTENCY_CONFLICT`；旧 attempt 拒绝提交。
-
-required Participant 不可调度时，同步与后台规划都提交 `waiting`，不返回裸 planning error、不生成部分 plan。wait reason 使用 `blocking_task|required_participant_unavailable|captain_action`；`waitingSince` required，`taskIds` 与 `participantIds` 始终数组，`deadlineAt` 与 `resumeAgendaItemId` optional。required unavailable 时 participant IDs 排序、taskIds 为 `[]`、`waitingSince` 为 Runtime now，`resumeAgendaItemId` 为当前 active agenda（若存在）。相同 Meeting version 与排序 participant IDs 只提交一次；恢复复用 Captain/local resume command，只有全部 required Participant dispatchable 才清除 wait 并重新规划，否则返回 `REQUIRED_SPEAKER_UNAVAILABLE` 且零副作用；自动替换、豁免和部分计划均禁止。
-
-D10 fingerprint 是固定 key 顺序 JSON tuple；数组按 canonical ID 排序，包含 agenda id/status/resolution、current accepted decisions id/proposalId/proposalRevision、open blocking questions、当前 Proposal revision 的 blocking object/needs_revision Positions、terminal tasks id/status/resultSummary、Proposal id/revision/status，以及 active CompletionFacts id/kind/subjectId/result/evidenceMessageIds/taskIds。不得使用文本相似度、当前时间、Map/Set 迭代顺序或非正式摘要。首个完成 Turn 只保存 fingerprint 且 `stallCount=0`；有变化时 `stallCount=0,replanCount=0`；第一次无变化为 `stallCount=1` 并创建 deterministic refocus Turn；第二次无变化时若 `replanCount < maxReplans` 则递增并 replan；若 `stallCount+1 >= maxStalls` 或 `replanCount >= maxReplans` 则终止。`managerPlanningSeq` 独立生成 planning attempt ID，`replanCount` 只表示 replan budget。blocking disagreement 仍存在时终态为 `no_consensus`/`no_consensus`，否则为 `partial`/`stalled`。复用 `meeting.replanned` 与 `meeting.ended`，active status additive 输出 `stallCount/maxStalls/replanCount/maxReplans`，原因只显示在 `currentTurn.intent/reason`。
-
 ## Related Documents
 
 - 架构边界：[`../00-governance/ARCHITECTURE.md`](../00-governance/ARCHITECTURE.md)
-- Agent 间会议协议：[`../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md)
-- Agent 角色目录与参会推荐：[`../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md`](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)
-- Meeting Agent Definition：[`../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)
-- Developer Markdown Projection：[`../20-interfaces/DEVELOPER-MARKDOWN-PROJECTION-INTERFACE.md`](../20-interfaces/DEVELOPER-MARKDOWN-PROJECTION-INTERFACE.md)
-- 当前实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
+- Meeting 协议、存储、Remote 与 Developer Markdown：[`../20-interfaces/MEETING-INTERFACE.md`](../20-interfaces/MEETING-INTERFACE.md)
+- Meeting Agent Definition、角色目录与参会推荐：[`../20-interfaces/DSH-ROLE-INTERFACE.md`](../20-interfaces/DSH-ROLE-INTERFACE.md)
+- 当前设计：[`../30-designs/MEETING-DESIGN.md`](../30-designs/MEETING-DESIGN.md)
 
 Plugin Frontend 的最小状态读取和会议控制边界由 Interface 定义；本需求文档不规定路由实现、组件结构或视觉样式。

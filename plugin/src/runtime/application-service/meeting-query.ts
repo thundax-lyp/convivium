@@ -1,5 +1,5 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { MeetingState } from "@/domain/index.js";
+import type { LegacyMeetingState } from "@/domain/index.js";
 import { projectMeetingStatus } from "@/projection/index.js";
 import {
     LocalMeetingListResponseSchema,
@@ -107,7 +107,7 @@ export function createMeetingQueryApplication(options: MeetingQueryApplicationOp
                     result: {
                         meetings: [...snapshots.values()]
                             .map((snapshot) => {
-                                const state = snapshot.state as unknown as MeetingState;
+                                const state = snapshot.state as unknown as LegacyMeetingState;
                                 return {
                                     meetingId: snapshot.meetingId,
                                     teamId: snapshot.teamId,
@@ -141,7 +141,7 @@ export function createMeetingQueryApplication(options: MeetingQueryApplicationOp
             if (snapshot === undefined)
                 return commandFailure("MEETING_NOT_FOUND", "Meeting not found.");
             try {
-                const state = JSON.parse(JSON.stringify(snapshot.state)) as MeetingState;
+                const state = JSON.parse(JSON.stringify(snapshot.state)) as LegacyMeetingState;
                 const projection = projectMeetingStatus(state, {
                     kind: "local_host",
                     sessionId: "loopback-web"

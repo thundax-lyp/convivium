@@ -1,4 +1,4 @@
-import { applyContributionCommand, type MeetingState } from "@/domain/index.js";
+import { applyContributionCommand, type LegacyMeetingState } from "@/domain/index.js";
 import {
     boundaryReviewState,
     contributionMeeting,
@@ -16,7 +16,7 @@ describe("contribution preparation", () => {
         const state = {
             ...contributionMeeting(),
             contributions: validContributionState()
-        } as MeetingState;
+        } as LegacyMeetingState;
         const authorId = state.participants[0]!.id;
         const otherId = state.participants[1]!.id;
         state.contributions!.evidence["private:1"] = {
@@ -68,7 +68,7 @@ describe("contribution preparation", () => {
         const state = {
             ...contributionMeeting(),
             contributions: validContributionState()
-        } as MeetingState;
+        } as LegacyMeetingState;
         const authorId = state.participants[0]!.id;
         state.contributions!.evidence["private:1"] = {
             ...evidenceVersion(1),
@@ -115,7 +115,7 @@ describe("contribution preparation", () => {
         const state = {
             ...contributionMeeting(),
             contributions: validContributionState()
-        } as MeetingState;
+        } as LegacyMeetingState;
         const reviewerId = state.contributions!.reviewerId;
         state.contributions!.tasks["contribution-1"]!.requiresEvidenceReview = true;
         state.contributions!.evidence["reviewer:1"] = {
@@ -144,7 +144,7 @@ describe("contribution preparation", () => {
                 }
             )
         ).toThrow();
-        const pending = evidenceReviewState() as MeetingState;
+        const pending = evidenceReviewState() as LegacyMeetingState;
         pending.contributions!.tasks["contribution-1"]!.participantId = reviewerId;
         pending.contributions!.evidence["evidence-1:1"]!.submittedBy = state.participants[0]!.id;
         expect(() =>
@@ -175,7 +175,7 @@ describe("contribution preparation", () => {
     });
 
     it("allows a participant to cite a material already public through another task", () => {
-        const state = evidenceReviewState() as MeetingState;
+        const state = evidenceReviewState() as LegacyMeetingState;
         state.contributions!.tasks["contribution-1"]!.reviewStatus = "complete";
         const authorId = state.participants[1]!.id;
         state.contributions!.tasks["contribution-2"] = {
@@ -207,7 +207,7 @@ describe("contribution preparation", () => {
         const state = {
             ...contributionMeeting(),
             contributions: validContributionState()
-        } as MeetingState;
+        } as LegacyMeetingState;
         const draft = boundaryReviewState().contributions!.tasks["contribution-1"]!.drafts["1"]!;
         const context = {
             ...managerContext(),
@@ -234,7 +234,7 @@ describe("contribution assignment and private drafts", () => {
         const state = {
             ...contributionMeeting(),
             contributions: { ...validContributionState(), tasks: {} }
-        } as MeetingState;
+        } as LegacyMeetingState;
         expect(() =>
             applyContributionCommand(
                 state,
@@ -257,7 +257,7 @@ describe("contribution assignment and private drafts", () => {
         const state = {
             ...contributionMeeting(),
             contributions: { ...validContributionState(), tasks: {} }
-        } as MeetingState;
+        } as LegacyMeetingState;
         const reviewerId = state.contributions!.reviewerId;
         const otherId = state.participants[0]!.id;
         const command = {
@@ -272,7 +272,7 @@ describe("contribution assignment and private drafts", () => {
         expect(() => applyContributionCommand(state, command, managerContext())).toThrow(
             expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
         );
-        const pending = evidenceReviewState() as MeetingState;
+        const pending = evidenceReviewState() as LegacyMeetingState;
         expect(() =>
             applyContributionCommand(
                 pending,
@@ -299,7 +299,7 @@ describe("contribution assignment and private drafts", () => {
                     }
                 }
             }
-        } as MeetingState;
+        } as LegacyMeetingState;
         expect(() =>
             applyContributionCommand(
                 researching,

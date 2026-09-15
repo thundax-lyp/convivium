@@ -4,7 +4,7 @@ import {
     meeting as domainMeeting,
     rejectedAttendanceState
 } from "../unit/domain/transitions/fixtures.js";
-import type { MeetingState } from "@/domain/model.js";
+import type { LegacyMeetingState } from "@/domain/model.js";
 import {
     projectManagerMeetingContext,
     projectMeetingStatus,
@@ -53,7 +53,7 @@ const state = {
         }
     },
     outbox: { leaseToken: "secret" }
-} as unknown as MeetingState;
+} as unknown as LegacyMeetingState;
 
 describe("meeting status projection", () => {
     it("projects only the safe Catalog fields into Manager context", () => {
@@ -112,7 +112,7 @@ describe("meeting status projection", () => {
                         }
                     }
                 }
-            } as MeetingState,
+            } as LegacyMeetingState,
             []
         );
 
@@ -185,7 +185,7 @@ describe("meeting status projection", () => {
                         createdAt: 2
                     }
                 ]
-            } as MeetingState,
+            } as LegacyMeetingState,
             { kind: "captain", sessionId: "captain-1" }
         );
         expect(projected).toMatchObject({
@@ -216,7 +216,7 @@ describe("meeting status projection", () => {
             {
                 ...state,
                 agendaCandidates: [candidate("z", 1), candidate("a", 2), candidate("b", 1)]
-            } as MeetingState,
+            } as LegacyMeetingState,
             { kind: "captain", sessionId: "captain-1" }
         );
 
@@ -238,7 +238,7 @@ describe("meeting status projection", () => {
                         createdAt: 1
                     }
                 ]
-            } as MeetingState,
+            } as LegacyMeetingState,
             { kind: "participant", sessionId: "session-1", participantId: "participant-1" }
         );
 
@@ -265,7 +265,7 @@ describe("meeting status projection", () => {
                         createdAt: 1
                     }
                 ]
-            } as MeetingState,
+            } as LegacyMeetingState,
             { kind: "participant", sessionId: "session-1", participantId: "participant-1" }
         );
 
@@ -381,7 +381,7 @@ describe("speaker status projection", () => {
                         }
                     ]
                 }
-            } as MeetingState,
+            } as LegacyMeetingState,
             "participant-1",
             "attempt-1"
         );
@@ -428,7 +428,7 @@ describe("speaker status projection", () => {
                         }
                     ]
                 }
-            } as unknown as MeetingState,
+            } as unknown as LegacyMeetingState,
             { kind: "local_host", sessionId: "loopback-web" }
         );
 
@@ -467,7 +467,7 @@ describe("speaker status projection", () => {
                         updatedAt: 1
                     }
                 ]
-            } as MeetingState,
+            } as LegacyMeetingState,
             { kind: "participant", sessionId: "session-2", participantId: "participant-2" }
         );
 
@@ -526,7 +526,7 @@ describe("speaker status projection", () => {
                         positions: []
                     }
                 ]
-            } as MeetingState,
+            } as LegacyMeetingState,
             { kind: "local_host", sessionId: "loopback-web" }
         );
 
@@ -599,7 +599,7 @@ describe("meeting blocking and terminal status projection", () => {
                         blocking: true
                     }
                 ]
-            } as unknown as MeetingState,
+            } as unknown as LegacyMeetingState,
             { kind: "captain", sessionId: "captain-1" }
         );
         expect(projected.blockingFacts).toEqual([
@@ -637,7 +637,7 @@ describe("meeting blocking and terminal status projection", () => {
                         blocking: false
                     }
                 ]
-            } as MeetingState,
+            } as LegacyMeetingState,
             { kind: "captain", sessionId: "captain-1" }
         );
 
@@ -663,7 +663,7 @@ describe("meeting blocking and terminal status projection", () => {
                         createdAt: 1
                     }
                 ]
-            } as MeetingState,
+            } as LegacyMeetingState,
             { kind: "manager", sessionId: "manager-1" }
         );
         expect(projected.blockingFacts).toContainEqual({
@@ -686,7 +686,7 @@ describe("meeting blocking and terminal status projection", () => {
                     participantIds: ["participant-1"],
                     resumeAgendaItemId: "agenda-1"
                 }
-            } as MeetingState,
+            } as LegacyMeetingState,
             { kind: "captain", sessionId: "captain-1" }
         );
 
@@ -710,7 +710,7 @@ describe("meeting blocking and terminal status projection", () => {
             pausedAt: 10,
             pausedBy: { kind: "local_host", actorId: "loopback-web" },
             pauseReason: "local control"
-        } as MeetingState;
+        } as LegacyMeetingState;
         const caller = { kind: "local_host", sessionId: "loopback-web" } as const;
         const projected = projectMeetingStatus(pausedState, caller);
 
@@ -746,7 +746,7 @@ describe("meeting blocking and terminal status projection", () => {
                         status: "pending"
                     }
                 ]
-            } as MeetingState,
+            } as LegacyMeetingState,
             { kind: "captain", sessionId: "captain-1" }
         );
 
@@ -789,7 +789,7 @@ describe("meeting blocking and terminal status projection", () => {
                         ]
                     },
                     handRaises: [{ id: "raise-secret", status: "pending" }]
-                } as unknown as MeetingState,
+                } as unknown as LegacyMeetingState,
                 {
                     kind: "captain",
                     sessionId: "session-secret"

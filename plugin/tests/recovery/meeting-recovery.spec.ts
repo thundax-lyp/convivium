@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
 import Storage from "@deepseek-ai/dsh-storage";
 import * as storageDomainPlugin from "@deepseek-ai/dsh-storage-domain";
-import { endMeeting, type MeetingState } from "@/domain/index.js";
+import { endMeeting, type LegacyMeetingState } from "@/domain/index.js";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import type { JsonObject, RepositoryCommand } from "@/repository/types.js";
 import * as storageSqlite from "@deepseek-ai/dsh-storage-sqlite";
@@ -99,7 +99,7 @@ describe("meeting recovery and Captain ownership", () => {
             updatedAt: 20,
             formatVersion: 2,
             attendanceRecommendations: []
-        } as MeetingState;
+        } as LegacyMeetingState;
         const command: RepositoryCommand<{ status: string; terminationCode: string }> = {
             requestId: "end-1",
             commandKind: "end_meeting",
@@ -107,7 +107,7 @@ describe("meeting recovery and Captain ownership", () => {
             requestHash: "end-hash",
             expectedMeetingVersion: 0,
             transition: (snapshot) => {
-                const transition = endMeeting(snapshot.state as unknown as MeetingState, {
+                const transition = endMeeting(snapshot.state as unknown as LegacyMeetingState, {
                     meetingId: "meeting-1",
                     captainBinding: "captain:captain-1",
                     outcome: "completed",

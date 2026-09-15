@@ -2,9 +2,9 @@
 
 ## Purpose And Status
 
-本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。**2026-09-08 状态：完整 verify、双 Host 冷恢复、九角色/九 Skill、三研究搜索、权限与状态检查、默认五核心全部通过；web_fetch 按用户明确要求跳过，未验证。** 具体范围见 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)，不能据本轮结果宣称抓取可用。
+本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。历史运行记录不构成当前角色契约的验收；当前仅保证编译通过，具体覆盖与未验证范围见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
-本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)，资源结构见 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。
+本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)，资源结构见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 
 本文聚焦角色资源部署和验收；用户从源码或 npm 包安装插件、配置持久 SQLite 并启动 DSH Web 的完整流程见 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md)。
 
@@ -94,7 +94,7 @@ env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm smoke:profile
 
 前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。自动探针的装配、超时、回调、权限断言与抓取开关统一见 [Smoke Operations 九角色部署场景](./HOW-TO-DSH-SMOKE.md#九角色部署场景)，本节不重复维护实现流程。
 
-历史抓取豁免及未覆盖边界见 [User-authorized Fetch Waiver](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#user-authorized-fetch-waiver)；历史授权不自动适用于新的验收。
+当前实现覆盖与未验证边界见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)；任何历史授权不自动适用于新的验收。
 
 ## Restore And Failure Handling
 
@@ -106,6 +106,6 @@ env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm smoke:profile
 
 ## Evidence And Not Covered
 
-执行后将日期、版本、artifact 边界、命令、九角色结果、权限拒绝、恢复和 Restore 写入 [Smoke Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)，并更新 Coverage。本轮通过、抓取豁免和历史失败清理证据见 [Meeting Roles Deployment](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)。
+执行后将日期、版本、artifact 边界、命令、九角色结果、权限拒绝、恢复和 Restore 写入 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)，并更新对应功能点。本轮尚无当前角色契约的运行验收记录。
 
 长期模型任务质量、独占 Skill/per-child Preset、动态 admission、日常 profile 和 Host capability 内容变更后的历史快照不在本流程内；默认完整验收仍须验证九角色部署、研究搜索与抓取。

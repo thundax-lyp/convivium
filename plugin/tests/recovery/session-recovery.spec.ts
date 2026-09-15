@@ -8,7 +8,7 @@ import { questionState, now } from "../unit/domain/transitions/fixtures.js";
 import { encodeMeetingSessionLabel } from "@/dsh/index.js";
 import { reconcileMeetingSessions } from "@/runtime/services/meeting-session-recovery.js";
 import { endMeeting } from "@/domain/transitions/termination.js";
-import type { MeetingState } from "@/domain/model.js";
+import type { LegacyMeetingState } from "@/domain/model.js";
 import type { DomainEventInput } from "@/repository/types.js";
 import type { MeetingDiagnostic } from "@/repository/diagnostics.js";
 import { resolveMeetingCaller } from "@/dsh/caller-resolver.js";
@@ -353,7 +353,7 @@ describe("meeting Session recovery after retirement", () => {
             authorization: { callerBinding: "captain:c", capabilityId: "captain:c" },
             expectedMeetingVersion: snapshot.version,
             transition(current) {
-                const ended = endMeeting(current.state as unknown as MeetingState, {
+                const ended = endMeeting(current.state as unknown as LegacyMeetingState, {
                     meetingId: f.repository.meetingId,
                     captainBinding: "captain:c",
                     outcome: "cancelled",

@@ -1,13 +1,13 @@
 import { DomainError } from "@/domain/errors.js";
-import type { MeetingState, TransitionResult } from "@/domain/model.js";
+import type { LegacyMeetingState, TransitionResult } from "@/domain/model.js";
 import type { SubmittedQuestionInput } from "./types.js";
 
 export function addSubmittedQuestions(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     agendaItemId: string,
     questions: readonly SubmittedQuestionInput[]
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (!state.participants.some(({ id }) => id === participantId)) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",

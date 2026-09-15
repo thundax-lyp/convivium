@@ -1,4 +1,4 @@
-import type { ArchivePackage, CreateContinuationSpec, MeetingState } from "@/domain/index.js";
+import type { ArchivePackage, CreateContinuationSpec, LegacyMeetingState } from "@/domain/index.js";
 import type { CreateMeetingInputV1 } from "@/protocol/index.js";
 import { commandFailure } from "@/runtime/services/command-result-service.js";
 import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
@@ -29,7 +29,7 @@ function invalidContinuationInput(message: string): ContinuationResolution {
     return { ok: false, error: commandFailure("INVALID_ARGUMENT", message) };
 }
 
-function sourceArchive(state: MeetingState): ArchivePackage | undefined {
+function sourceArchive(state: LegacyMeetingState): ArchivePackage | undefined {
     const archive = state.archive?.package;
     if (
         state.status !== "archived" ||
@@ -82,7 +82,7 @@ export async function resolveContinuationSelection(
     if (sourceSnapshot === undefined || source === undefined) {
         return archiveMaterialFailure("The continuation source archive is unavailable.");
     }
-    const sourceState = sourceSnapshot.state as unknown as MeetingState;
+    const sourceState = sourceSnapshot.state as unknown as LegacyMeetingState;
     if (source.teamId !== inputTeamId || source.captainSessionId !== caller.sessionId) {
         return archiveMaterialFailure("The caller cannot read the continuation source archive.");
     }

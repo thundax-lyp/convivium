@@ -3,7 +3,7 @@ import { assertContributionEvidenceMessages } from "@/domain/contribution.js";
 import type {
     CompletionFact,
     MeetingDecision,
-    MeetingState,
+    LegacyMeetingState,
     TransitionResult
 } from "@/domain/model.js";
 
@@ -29,9 +29,9 @@ const terminal = new Set([
 const invalid = (message: string) => new DomainError("INVALID_ENTITY_STATE", message);
 
 export function acceptDecisionCandidate(
-    state: MeetingState,
+    state: LegacyMeetingState,
     context: AcceptDecisionCandidateContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (context.meetingId !== state.id) throw invalid("accept command targets another meeting");
     if (terminal.has(state.status))
         throw new DomainError("IMMUTABLE_MEETING", "meeting is immutable");

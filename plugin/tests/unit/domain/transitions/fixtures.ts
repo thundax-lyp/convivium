@@ -1,9 +1,9 @@
 import type { MeetingProposal } from "@/domain/model.js";
-import type { ArchivePackage, MeetingState } from "@/domain/index.js";
+import type { ArchivePackage, LegacyMeetingState } from "@/domain/index.js";
 
 export const now = 1_700_000_000_000;
 
-export function meeting(status: MeetingState["status"] = "created"): MeetingState {
+export function meeting(status: LegacyMeetingState["status"] = "created"): LegacyMeetingState {
     return {
         formatVersion: 2,
         id: "meeting-1",
@@ -109,7 +109,7 @@ export function archivePackage(): ArchivePackage {
     };
 }
 
-export function rejectedAttendanceState(): MeetingState {
+export function rejectedAttendanceState(): LegacyMeetingState {
     const state = meeting("running");
     state.meetingTasks = [];
     const recommendation = {
@@ -178,7 +178,7 @@ export function managerAttemptContext() {
     };
 }
 
-export function questionState(): MeetingState {
+export function questionState(): LegacyMeetingState {
     const state = meeting("running");
     state.participants = [
         {

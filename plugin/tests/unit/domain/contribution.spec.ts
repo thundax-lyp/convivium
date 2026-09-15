@@ -5,7 +5,7 @@ import {
     transitionMeeting,
     failContributionDelivery,
     endMeeting,
-    type MeetingState
+    type LegacyMeetingState
 } from "@/domain/index.js";
 import {
     boundaryReviewState,
@@ -20,10 +20,10 @@ import {
 import { describe, expect, it } from "vitest";
 
 describe("contribution completion and termination", () => {
-    function ready(): MeetingState {
+    function ready(): LegacyMeetingState {
         const state = contributionMeeting();
         state.agenda[0]!.status = "resolved";
-        state.contributions = validContributionState() as MeetingState["contributions"];
+        state.contributions = validContributionState() as LegacyMeetingState["contributions"];
         return state;
     }
     const end = {
@@ -108,7 +108,7 @@ describe("contribution completion and termination", () => {
         expect(evaluateContributionProgress(state, contributionNow).state).toBe(state);
     });
     it("retains published drafts and evidence when ending pending review", () => {
-        const pending = boundaryReviewState() as MeetingState;
+        const pending = boundaryReviewState() as LegacyMeetingState;
         pending.contributions!.tasks["contribution-1"]!.requiresEvidenceReview = true;
         pending.contributions!.tasks["contribution-1"]!.drafts["1"]!.citations = [
             { evidenceKey: "evidence-1:1", claim: "A bounded observation" }
@@ -145,9 +145,9 @@ describe("contribution completion and termination", () => {
 });
 
 describe("contribution agenda advancement", () => {
-    function twoAgendas(): MeetingState {
+    function twoAgendas(): LegacyMeetingState {
         const state = contributionMeeting();
-        state.contributions = validContributionState() as MeetingState["contributions"];
+        state.contributions = validContributionState() as LegacyMeetingState["contributions"];
         state.agenda[0]!.status = "resolved";
         state.agenda.push({ ...state.agenda[0]!, id: "agenda-2", status: "pending" });
         return state;
@@ -215,7 +215,7 @@ describe("contribution agenda advancement", () => {
         );
     });
     it("preserves published pending review and permits the fixed reviewer to finish across agendas", () => {
-        const state = evidenceReviewState() as MeetingState;
+        const state = evidenceReviewState() as LegacyMeetingState;
         state.agenda[0]!.status = "resolved";
         state.agenda.push({ ...state.agenda[0]!, id: "agenda-2", status: "pending" });
         const advanced = evaluateContributionProgress(state, contributionNow).state;
@@ -254,10 +254,10 @@ describe("contribution agenda advancement", () => {
 });
 
 describe("contribution suspension and deadlines", () => {
-    function running(): MeetingState {
+    function running(): LegacyMeetingState {
         return {
             ...contributionMeeting(),
-            contributions: validContributionState() as MeetingState["contributions"]
+            contributions: validContributionState() as LegacyMeetingState["contributions"]
         };
     }
     it("freezes phase time, revokes the old generation and restores only remaining time", () => {

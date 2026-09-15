@@ -1,5 +1,5 @@
 import { createLocalDecisionRiskState } from "../../../fixtures/local-decision-risk.js";
-import type { MeetingState } from "@/domain/model.js";
+import type { LegacyMeetingState } from "@/domain/model.js";
 import { describe, expect, it } from "vitest";
 import { acceptDecisionCandidate } from "@/domain/index.js";
 import { now, questionState } from "./fixtures.js";
@@ -194,7 +194,7 @@ describe("local decision and risk authority", () => {
             expect(state).toEqual(before);
         }
     );
-    it.each<MeetingState["status"]>([
+    it.each<LegacyMeetingState["status"]>([
         "completed",
         "partial",
         "no_consensus",

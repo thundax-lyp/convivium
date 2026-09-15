@@ -1,7 +1,7 @@
-import type { MeetingState } from "@/domain/model.js";
+import type { LegacyMeetingState } from "@/domain/model.js";
 import { now, questionState } from "../unit/domain/transitions/fixtures.js";
 
-export function createLocalDecisionRiskState(): MeetingState {
+export function createLocalDecisionRiskState(): LegacyMeetingState {
     const state = questionState();
     state.version = 0;
     state.eventSeq = 0;

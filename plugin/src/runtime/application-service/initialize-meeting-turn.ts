@@ -3,7 +3,7 @@ import {
     planRoundRobinTurn,
     planRuleBasedTurn,
     requiredPlanningBlockers,
-    type MeetingState,
+    type LegacyMeetingState,
     type MeetingTurn
 } from "@/domain/index.js";
 import type {
@@ -13,7 +13,7 @@ import type {
 } from "@/runtime/meeting-runtime.js";
 
 export function assignTurnAttempt(
-    state: MeetingState,
+    state: LegacyMeetingState,
     turn: MeetingTurn,
     index: number,
     now: number
@@ -53,10 +53,10 @@ export async function initializeFirstMeetingTurn(
     managerFallback = false
 ): Promise<{ meetingVersion: number; status: "running" | "waiting" }> {
     const current = await repository.read();
-    const currentState = current.state as unknown as MeetingState;
+    const currentState = current.state as unknown as LegacyMeetingState;
     const firstAgenda = currentState.agenda[0];
     if (firstAgenda === undefined) throw new Error("At least one agenda item is required.");
-    const activeState: MeetingState = {
+    const activeState: LegacyMeetingState = {
         ...currentState,
         status: "running",
         activeAgendaItemId: currentState.activeAgendaItemId ?? firstAgenda.id,

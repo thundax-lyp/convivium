@@ -1,6 +1,6 @@
 import { meeting, rejectedAttendanceState } from "../domain/transitions/fixtures.js";
 import { materializeArchivePackage } from "@/runtime/services/meeting-archive-service.js";
-import type { MeetingState } from "@/domain/model.js";
+import type { LegacyMeetingState } from "@/domain/model.js";
 import { describe, expect, it } from "vitest";
 
 const state = {
@@ -40,7 +40,7 @@ const state = {
     transcript: [],
     participants: [{ id: "participant-1", displayName: "P", role: "reviewer" }],
     termination: { code: "objective_satisfied", finalMessage: "done", endedAt: 10 }
-} as unknown as MeetingState;
+} as unknown as LegacyMeetingState;
 
 describe("meeting archive materialization", () => {
     it("copies existing optional facts without fabricating fields or retaining aliases", () => {

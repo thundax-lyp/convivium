@@ -1,5 +1,10 @@
 import { DomainError } from "./errors.js";
-import type { MeetingState, MeetingTask, MeetingTaskStatus, TransitionResult } from "./model.js";
+import type {
+    LegacyMeetingState,
+    MeetingTask,
+    MeetingTaskStatus,
+    TransitionResult
+} from "./model.js";
 
 const activeStatuses: readonly MeetingTaskStatus[] = ["requested", "queued", "running"];
 const executionTerminalStatuses = new Set([
@@ -12,7 +17,7 @@ const executionTerminalStatuses = new Set([
     "archived"
 ]);
 
-function requireTaskExecutionActive(state: MeetingState): void {
+function requireTaskExecutionActive(state: LegacyMeetingState): void {
     if (executionTerminalStatuses.has(state.status)) {
         throw new DomainError(
             "INVALID_STATE_TRANSITION",
@@ -43,7 +48,7 @@ function taskEvent(
     } as const;
 }
 
-function requireTask(state: MeetingState, meetingTaskId: string): MeetingTask {
+function requireTask(state: LegacyMeetingState, meetingTaskId: string): MeetingTask {
     const task = (state.meetingTasks ?? []).find(
         (candidate) => candidate.meetingTaskId === meetingTaskId
     );
@@ -73,9 +78,9 @@ export interface CreateMeetingTaskInput {
 }
 
 export function createMeetingTask(
-    state: MeetingState,
+    state: LegacyMeetingState,
     input: CreateMeetingTaskInput
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     requireTaskExecutionActive(state);
     if ((state.meetingTasks ?? []).some((task) => task.meetingTaskId === input.meetingTaskId)) {
         throw new DomainError(
@@ -106,12 +111,12 @@ export function createMeetingTask(
 }
 
 export function queueMeetingTasks(
-    state: MeetingState,
+    state: LegacyMeetingState,
     meetingTaskIds: readonly string[],
     participantId: string,
     originatingSpeakerAttemptId: string,
     now: number
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     requireTaskExecutionActive(state);
     const uniqueIds = [...new Set(meetingTaskIds)];
     const tasks = uniqueIds.map((id) => requireTask(state, id));
@@ -178,7 +183,7 @@ export function queueMeetingTasks(
     };
 }
 
-export function startMeetingTask(state: MeetingState, meetingTaskId: string, now: number) {
+export function startMeetingTask(state: LegacyMeetingState, meetingTaskId: string, now: number) {
     requireTaskExecutionActive(state);
     const task = requireTask(state, meetingTaskId);
     if (task.status !== "queued") {
@@ -200,7 +205,7 @@ export function startMeetingTask(state: MeetingState, meetingTaskId: string, now
 }
 
 export function finishMeetingTask(
-    state: MeetingState,
+    state: LegacyMeetingState,
     meetingTaskId: string,
     input: {
         status: "completed" | "failed";
@@ -244,9 +249,9 @@ export function finishMeetingTask(
 }
 
 export function cancelNonTerminalMeetingTasks(
-    state: MeetingState,
+    state: LegacyMeetingState,
     now: number
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const cancelled = (state.meetingTasks ?? []).filter((task) =>
         activeStatuses.includes(task.status)
     );
@@ -267,10 +272,10 @@ export function cancelNonTerminalMeetingTasks(
 }
 
 export function cancelRequestedMeetingTasksForAttempts(
-    state: MeetingState,
+    state: LegacyMeetingState,
     originatingSpeakerAttemptIds: readonly string[],
     now: number
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const revokedAttempts = new Set(originatingSpeakerAttemptIds);
     const cancelled = (state.meetingTasks ?? []).filter(
         (task) =>

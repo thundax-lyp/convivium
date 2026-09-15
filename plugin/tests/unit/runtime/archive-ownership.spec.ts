@@ -5,16 +5,16 @@ import {
     materializeArchivePackage,
     requireExpectedArchiveOwnerships
 } from "@/runtime/services/meeting-archive-service.js";
-import type { MeetingState } from "@/domain/model.js";
+import type { LegacyMeetingState } from "@/domain/model.js";
 import type { RepositoryCommand } from "@/repository/types.js";
 import { describe, expect, it } from "vitest";
 
-const archiving = (): MeetingState => ({
+const archiving = (): LegacyMeetingState => ({
     ...terminalState(),
     status: "archiving",
     archive: { package: materializeArchivePackage(terminalState(), 9) }
 });
-const terminalState = (): MeetingState => ({
+const terminalState = (): LegacyMeetingState => ({
     formatVersion: 2,
     id: "meeting-1",
     teamId: "team-1",

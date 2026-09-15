@@ -15,7 +15,7 @@ import {
     assertContributionCapacity,
     transitionMeeting,
     createContributionState,
-    type MeetingState
+    type LegacyMeetingState
 } from "@/domain/index.js";
 import { encodeMeetingSessionLabel } from "@/dsh/index.js";
 import { recoverContributionWork } from "@/runtime/services/contribution-runtime-service.js";
@@ -27,7 +27,7 @@ import { contributionMeeting, contributionNow as now } from "../fixtures/contrib
 
 async function fixture(
     status: "running" | "waiting" | "paused" = "running",
-    prepare?: (state: MeetingState) => void
+    prepare?: (state: LegacyMeetingState) => void
 ) {
     const root = await mkdtemp(join(tmpdir(), "convivium-contribution-recovery-"));
     const contexts: Context[] = [];
@@ -164,7 +164,9 @@ async function fixture(
                         authorization: { callerBinding: "runtime", capabilityId: "runtime" },
                         expectedMeetingVersion: (await repository.read()).version,
                         transition(snapshot) {
-                            const next = structuredClone(snapshot.state) as unknown as MeetingState;
+                            const next = structuredClone(
+                                snapshot.state
+                            ) as unknown as LegacyMeetingState;
                             Object.assign(
                                 next.contributions![field],
                                 Object.fromEntries(entries.slice(offset, offset + 8))
@@ -246,7 +248,7 @@ async function fixture(
     }
 }
 
-function maximumContributions(state: MeetingState): void {
+function maximumContributions(state: LegacyMeetingState): void {
     const contribution = state.contributions!;
     const template = contribution.tasks["contribution-1"]!;
     const material = contribution.evidence["evidence-1:1"]!;
@@ -369,7 +371,7 @@ describe("contribution archive recovery", () => {
                 },
                 expectedMeetingVersion: (await f.repo.read()).version,
                 transition(snapshot) {
-                    const ended = endMeeting(snapshot.state as unknown as MeetingState, {
+                    const ended = endMeeting(snapshot.state as unknown as LegacyMeetingState, {
                         meetingId: "meeting-1",
                         captainBinding: "captain-1",
                         outcome: "partial",
@@ -417,7 +419,7 @@ describe("contribution archive recovery", () => {
                 now: now + 2
             };
             await expect(recoverArchive(input)).rejects.toThrow("cleanup unavailable");
-            const pending = (await f.repo.read()).state as unknown as MeetingState;
+            const pending = (await f.repo.read()).state as unknown as LegacyMeetingState;
             expect(pending.status).toBe("archiving");
             expect(pending.archive!.package.contributionRefs).toEqual({
                 taskIds: ["task-0"],
@@ -527,13 +529,15 @@ describe("contribution cold recovery", () => {
                 });
                 const recovered = await f.repo.read();
                 expect(
-                    (recovered.state as unknown as MeetingState).contributions!.tasks[
+                    (recovered.state as unknown as LegacyMeetingState).contributions!.tasks[
                         "contribution-1"
                     ]
                 ).toMatchObject({ generation: 2, deadlineAt: now + 600000 });
                 expect(
-                    (recovered.state as unknown as MeetingState).contributions!.evidence
-                ).toEqual((f.original.state as unknown as MeetingState).contributions!.evidence);
+                    (recovered.state as unknown as LegacyMeetingState).contributions!.evidence
+                ).toEqual(
+                    (f.original.state as unknown as LegacyMeetingState).contributions!.evidence
+                );
                 const pending = (await f.repo.recover()).pendingOutbox;
                 expect(pending).toBe(2);
                 await recoverContributionWork({
@@ -565,9 +569,8 @@ describe("contribution cold recovery", () => {
                 recoveryEpoch: "expired"
             });
             expect(
-                ((await expired.repo.read()).state as unknown as MeetingState).contributions!.tasks[
-                    "contribution-1"
-                ]
+                ((await expired.repo.read()).state as unknown as LegacyMeetingState).contributions!
+                    .tasks["contribution-1"]
             ).toMatchObject({ phase: "captain_action", generation: 2 });
             await expired.repo.execute({
                 requestId: "end",
@@ -579,7 +582,7 @@ describe("contribution cold recovery", () => {
                 },
                 expectedMeetingVersion: (await expired.repo.read()).version,
                 transition(snapshot) {
-                    const ended = endMeeting(snapshot.state as unknown as MeetingState, {
+                    const ended = endMeeting(snapshot.state as unknown as LegacyMeetingState, {
                         meetingId: "meeting-1",
                         captainBinding: "captain-1",
                         outcome: "partial",

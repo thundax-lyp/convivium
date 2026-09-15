@@ -1,4 +1,4 @@
-import type { DomainEvent, MeetingState } from "@/domain/index.js";
+import type { DomainEvent, LegacyMeetingState } from "@/domain/index.js";
 import { isMeetingStateV2 } from "@/domain/index.js";
 import { transitionContributionLifecycle, failContributionDelivery } from "@/domain/index.js";
 import type { OutboxItem } from "@/repository/types.js";
@@ -215,8 +215,8 @@ export async function interruptCancelledContributions(input: {
 }
 
 export function contributionOutbox(
-    before: MeetingState,
-    after: MeetingState,
+    before: LegacyMeetingState,
+    after: LegacyMeetingState,
     events: readonly DomainEvent[]
 ): readonly { deliveryId: string; kind: "dispatch"; payload: JsonObject }[] {
     if (after.contributions === undefined || !["running", "waiting"].includes(after.status))

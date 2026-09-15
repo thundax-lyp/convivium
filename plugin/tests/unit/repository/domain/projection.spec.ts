@@ -63,7 +63,7 @@ describe("domain projection", () => {
                     withState({ formatVersion: 2, manager: {}, attendanceRecommendations: null })
                 )
             )
-        ).toThrow(/MeetingState format 2 is malformed/);
+        ).toThrow(/LegacyMeetingState format 2 is malformed/);
     });
     it("creates and verifies a bounded deterministic commit", () => {
         const c = createCommitRecord({
@@ -330,7 +330,7 @@ describe("attendance rejection persistence projection", () => {
                     attendanceRecommendations: [{ ...recommendation, ...change }]
                 })
             )
-        ).toThrow(/MeetingState format 2 is malformed/);
+        ).toThrow(/LegacyMeetingState format 2 is malformed/);
     });
     it("keeps the unsupported-format exception at this layer", () => {
         expect(() => decodeProjection(bytes({ formatVersion: 3 }))).toThrow(

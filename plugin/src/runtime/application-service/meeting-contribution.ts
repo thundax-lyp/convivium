@@ -7,7 +7,7 @@ import {
     isMeetingStateV2,
     type ContributionActor,
     type DomainContributionCommand,
-    type MeetingState
+    type LegacyMeetingState
 } from "@/domain/index.js";
 import { projectContributionRead, type MeetingProjectionCaller } from "@/projection/index.js";
 import {
@@ -47,7 +47,7 @@ export interface MeetingContributionApplicationOptions {
 
 function domainCommand(
     input: ContributionCommandV1,
-    state: MeetingState,
+    state: LegacyMeetingState,
     now: number
 ): DomainContributionCommand {
     if (input.action !== "submit") return input;
@@ -78,7 +78,7 @@ function domainCommand(
 
 function commandResult(
     input: ContributionCommandV1,
-    state: MeetingState,
+    state: LegacyMeetingState,
     newId: string,
     newEvidenceId: string
 ): ContributionResultV1 {

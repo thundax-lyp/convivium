@@ -7,7 +7,7 @@ import { Context } from "@deepseek-ai/cordis";
 import Storage from "@deepseek-ai/dsh-storage";
 import * as storageDomainPlugin from "@deepseek-ai/dsh-storage-domain";
 import type { Domain, DomainSpec } from "@deepseek-ai/dsh-storage-domain";
-import type { ArchivePackage, MeetingState } from "@/domain/index.js";
+import type { ArchivePackage, LegacyMeetingState } from "@/domain/index.js";
 import { openMeetingRepository } from "@/runtime/index.js";
 import { createCreateStatusRuntime } from "@/runtime/application-service/index.js";
 import {
@@ -221,7 +221,7 @@ async function createArchivedSource(
     const archive =
         amendArchive?.(archiveFixture(created.result.meetingId)) ??
         archiveFixture(created.result.meetingId);
-    const archived = structuredClone(snapshot.state) as unknown as MeetingState;
+    const archived = structuredClone(snapshot.state) as unknown as LegacyMeetingState;
     archived.status = "archived";
     archived.currentTurn = undefined;
     archived.termination = archive.termination;

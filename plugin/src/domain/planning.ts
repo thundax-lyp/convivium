@@ -3,7 +3,7 @@ import { DomainError } from "./errors.js";
 import { participantHasActiveMeetingTask } from "./hand-raise.js";
 import type {
     MeetingParticipant,
-    MeetingState,
+    LegacyMeetingState,
     MeetingTurn,
     SpeakerSelectionReason,
     SpeakerStep,
@@ -11,7 +11,7 @@ import type {
 } from "./model.js";
 
 export function isParticipantDispatchableNow(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participant: MeetingParticipant
 ): boolean {
     return (
@@ -62,11 +62,14 @@ export interface ScoredPlanningCandidate {
     registrationIndex: number;
 }
 
-function currentAgenda(state: MeetingState) {
+function currentAgenda(state: LegacyMeetingState) {
     return state.agenda.find((item) => item.id === state.activeAgendaItemId);
 }
 
-function latestSpeakerTurnSeq(state: MeetingState, participantId: string): number | undefined {
+function latestSpeakerTurnSeq(
+    state: LegacyMeetingState,
+    participantId: string
+): number | undefined {
     const turns = state.transcript
         .filter((message) => message.speaker === participantId)
         .flatMap((message) =>
@@ -80,7 +83,7 @@ function latestSpeakerTurnSeq(state: MeetingState, participantId: string): numbe
     return turns.length === 0 ? undefined : Math.max(...turns);
 }
 
-function blockingPositionOwners(state: MeetingState): Set<string> {
+function blockingPositionOwners(state: LegacyMeetingState): Set<string> {
     return new Set(
         currentProposals(state)
             .filter((proposal) => proposal.agendaItemId === state.activeAgendaItemId)
@@ -90,7 +93,7 @@ function blockingPositionOwners(state: MeetingState): Set<string> {
 }
 
 export function rankRulePlanningCandidates(
-    state: MeetingState
+    state: LegacyMeetingState
 ): readonly ScoredPlanningCandidate[] {
     const agenda = currentAgenda(state);
     const latestMessage = [...state.transcript]
@@ -180,7 +183,7 @@ export function rankRulePlanningCandidates(
 }
 
 export function requiredPlanningBlockers(
-    state: MeetingState,
+    state: LegacyMeetingState,
     dispatchableParticipantIds?: readonly string[]
 ): string[] {
     const dispatchable = new Set(
@@ -218,7 +221,7 @@ export function requiredPlanningBlockers(
     return [...new Set([...unavailable, ...overflow])].sort();
 }
 
-export function requiredPlanningParticipantIds(state: MeetingState): string[] {
+export function requiredPlanningParticipantIds(state: LegacyMeetingState): string[] {
     const agendaRequired =
         state.agenda.find((item) => item.id === state.activeAgendaItemId)?.requiredParticipants ??
         [];
@@ -233,7 +236,7 @@ export function requiredPlanningParticipantIds(state: MeetingState): string[] {
 }
 
 export function planRuleBasedTurn(
-    state: MeetingState,
+    state: LegacyMeetingState,
     ids: RoundRobinPlanIds,
     now: number,
     action: ConvergenceAction
@@ -284,7 +287,7 @@ export function planRuleBasedTurn(
 }
 
 export function needsSemanticArbitration(
-    state: MeetingState,
+    state: LegacyMeetingState,
     ranked: readonly ScoredPlanningCandidate[],
     action: ConvergenceAction
 ): boolean {
@@ -295,7 +298,7 @@ export function needsSemanticArbitration(
     return boundaryTie || owners.size >= 2;
 }
 
-export function nextManagerPlanningIds(state: MeetingState): {
+export function nextManagerPlanningIds(state: LegacyMeetingState): {
     managerPlanningSeq: number;
     planningAttemptId: string;
     deliveryId: string;
@@ -344,7 +347,7 @@ const executionTerminalStatuses = new Set([
     "archived"
 ]);
 
-function requirePlanningAllowed(state: MeetingState): void {
+function requirePlanningAllowed(state: LegacyMeetingState): void {
     if (executionTerminalStatuses.has(state.status)) {
         throw new DomainError(
             "INVALID_STATE_TRANSITION",
@@ -361,7 +364,7 @@ function requireNonEmpty(value: string, field: string): void {
     if (!value.trim()) invalidManagerPlan(`${field} is required`);
 }
 
-function activeAgenda(state: MeetingState) {
+function activeAgenda(state: LegacyMeetingState) {
     const agenda = state.agenda.find((item) => item.id === state.activeAgendaItemId);
     if (!agenda) {
         throw new DomainError(
@@ -377,7 +380,7 @@ function activeAgenda(state: MeetingState) {
  * Runtime owns persistence and the subsequent Turn/Attempt transitions.
  */
 export function planRoundRobinTurn(
-    state: MeetingState,
+    state: LegacyMeetingState,
     ids: RoundRobinPlanIds,
     now: number
 ): MeetingTurn {
@@ -445,7 +448,7 @@ export function planRoundRobinTurn(
  * the Meeting. Runtime performs ownership and current dispatchability checks.
  */
 export function planManagerTurn(
-    state: MeetingState,
+    state: LegacyMeetingState,
     input: ManagerPlanInput,
     ids: ManagerPlanIds,
     now: number

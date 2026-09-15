@@ -6,13 +6,15 @@ import type {
     ContributionTask
 } from "@/domain/contribution.js";
 import { assertContributionEvidenceMessages } from "@/domain/contribution.js";
-import type { MeetingState, TransitionResult } from "@/domain/model.js";
+import type { LegacyMeetingState, TransitionResult } from "@/domain/model.js";
 import { applyPublicSubmission, assertPublicMinutes } from "./public-submission.js";
 import type { ContributionTransitionContext } from "./contribution.js";
 
-type ContributionMeetingState = MeetingState & { contributions: ContributionState };
+type ContributionMeetingState = LegacyMeetingState & { contributions: ContributionState };
 
-function assertContributionPresent(state: MeetingState): asserts state is ContributionMeetingState {
+function assertContributionPresent(
+    state: LegacyMeetingState
+): asserts state is ContributionMeetingState {
     if (state.contributions === undefined)
         throw new DomainError("INVALID_STATE_TRANSITION", "Invalid contribution command.");
 }
@@ -24,7 +26,7 @@ function unfinishedResearch(task: ContributionTask): boolean {
     );
 }
 
-function pendingReviewFor(state: MeetingState, participantId: string): boolean {
+function pendingReviewFor(state: LegacyMeetingState, participantId: string): boolean {
     return (
         state.contributions?.reviewerId === participantId &&
         Object.values(state.contributions.tasks).some(
@@ -35,13 +37,13 @@ function pendingReviewFor(state: MeetingState, participantId: string): boolean {
     );
 }
 
-function reviewerResearchActive(state: MeetingState): boolean {
+function reviewerResearchActive(state: LegacyMeetingState): boolean {
     return Object.values(state.contributions!.tasks).some(
         (task) => task.participantId === state.contributions!.reviewerId && unfinishedResearch(task)
     );
 }
 
-function readableEvidence(state: MeetingState, participantId: string, key: string): boolean {
+function readableEvidence(state: LegacyMeetingState, participantId: string, key: string): boolean {
     const evidence = state.contributions!.evidence[key];
     if (evidence === undefined) return false;
     if (evidence.submittedBy === participantId) return true;
@@ -61,7 +63,7 @@ function readableEvidence(state: MeetingState, participantId: string, key: strin
 }
 
 function assertReadableEvidenceClosure(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     key: string,
     reviewerId?: string
@@ -86,7 +88,7 @@ function assertReadableEvidenceClosure(
 }
 
 function assertCompletionEvidenceSupport(
-    state: MeetingState,
+    state: LegacyMeetingState,
     claims: DomainCompletionClaims
 ): void {
     for (const messageIds of [
@@ -103,7 +105,7 @@ function applyBoundaryCommand(
     state: ContributionMeetingState,
     command: Extract<DomainContributionCommand, { action: "boundary_review" }>,
     context: ContributionTransitionContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (context.actor.kind !== "manager")
         throw new DomainError(
             "INVALID_STATE_TRANSITION",
@@ -270,7 +272,7 @@ function applyEvidenceCommand(
     state: ContributionMeetingState,
     command: Extract<DomainContributionCommand, { action: "evidence_review" }>,
     context: ContributionTransitionContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const task = state.contributions!.tasks[command.contributionId];
     const draft = task?.drafts[String(command.draftRevision)];
     if (context.actor.kind !== "participant")
@@ -381,7 +383,7 @@ function applyPrepareCommand(
     state: ContributionMeetingState,
     command: Extract<DomainContributionCommand, { action: "save_evidence" | "submit" }>,
     context: ContributionTransitionContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const task = state.contributions!.tasks[command.contributionId];
     if (
         context.actor.kind !== "participant" ||
@@ -516,7 +518,7 @@ function applyControlCommand(
     state: ContributionMeetingState,
     command: Extract<DomainContributionCommand, { action: "retry" | "cancel" | "notify_manager" }>,
     context: ContributionTransitionContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (context.actor.kind !== "captain" && context.actor.kind !== "local_host")
         throw new DomainError(
             "UNAUTHORIZED_CALLER",
@@ -620,7 +622,7 @@ function applyAssignCommand(
     state: ContributionMeetingState,
     command: Extract<DomainContributionCommand, { action: "assign" }>,
     context: ContributionTransitionContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (context.actor.kind !== "manager")
         throw new DomainError(
             "INVALID_STATE_TRANSITION",
@@ -703,10 +705,10 @@ function applyAssignCommand(
 }
 
 export function applyContributionCommand(
-    state: MeetingState,
+    state: LegacyMeetingState,
     command: DomainContributionCommand,
     context: ContributionTransitionContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     assertContributionPresent(state);
     if (!["running", "waiting"].includes(state.status))
         throw new DomainError(
@@ -737,7 +739,7 @@ function controlledContribution(
     action: "retry" | "cancel",
     reason: string,
     context: ContributionTransitionContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const managerNoticeSeq = state.contributions!.managerNoticeSeq + 1;
     const events = [
         {

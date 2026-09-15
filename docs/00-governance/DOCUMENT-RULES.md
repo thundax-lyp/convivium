@@ -77,11 +77,9 @@
 
 | 文档 | 唯一维护的设计内容 |
 | --- | --- |
-| [Implementation](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md) | 工程目录、模块接线、统一 adapter、插件生命周期和验证入口 |
-| [Domain Model](../30-designs/DOMAIN-MODEL-DESIGN.md) | 领域对象字段、引用、集合、初始化和数据不变量 |
-| [Orchestration](../30-designs/MEETING-ORCHESTRATION-DESIGN.md) | 会议状态转换、调度、上下文投递、恢复和归档流程 |
-| [Persistence](../30-designs/MEETING-PERSISTENCE-SPECIAL-DESIGN.md) | commit、checkpoint、compaction 算法及失败边界 |
-| [Role Composition](../30-designs/ROLE-COMPOSITION-DESIGN.md) | 角色解析、DSH 能力预检及原生部署资源组合 |
+| [Domain](../30-designs/DOMAIN-DESIGN.md) | Meeting 聚合的字段、枚举、引用、纯派生规则与领域不变量 |
+| [Meeting](../30-designs/MEETING-DESIGN.md) | 命令编排、状态转换、授权顺序、并发、提交、效果、恢复与归档边界 |
+| [DSH Plugin](../30-designs/DSH-PLUGIN-DESIGN.md) | 插件装配、角色资源、会议身份与 Session、受控入口和本地展示 |
 
 产品行为、公开字段、错误和存储 record schema 仍由需求及接口契约约束。去重时先核对唯一内容和已确认口径，再迁移或删除；不得把过时类型声明直接复制到当前真相源。
 
@@ -188,4 +186,4 @@ readiness 证据覆盖：
 - Skill 可以引用治理、需求、接口、设计和操作文档，但不能成为产品需求或业务契约的唯一真相源。
 - `.agents/skills/` 中的 Skill 不能直接作为 Convivium 产品运行时角色或会议模板的真相源。
 
-产品内角色与运行时模板属于产品数据或版本化资源，不属于工程 Skill。已确认的角色资源归属见 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md#native-deployment-resources)，其他源码接线见 [Implementation Design](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#responsibilities-and-dependencies)；本文不维护资源清单或实现进度。新增顶层工程仍须先按 Architecture 明确其职责。
+产品内角色与运行时模板属于产品数据或版本化资源，不属于工程 Skill。其资源归属、Session 边界和插件接线见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)；本文不维护资源清单或实现进度。新增顶层工程仍须先按 Architecture 明确其职责。

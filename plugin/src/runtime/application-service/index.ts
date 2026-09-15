@@ -13,7 +13,7 @@ import {
     failSpeakerAttempt,
     isMeetingStateV2,
     nextManagerPlanningIds,
-    type MeetingState
+    type LegacyMeetingState
 } from "@/domain/index.js";
 import { RepositoryError } from "@/repository/errors.js";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
@@ -90,7 +90,7 @@ function isConcurrentTimeoutLoser(error: unknown): boolean {
     );
 }
 
-function hasExpiredManagerPlanning(state: MeetingState, now: number): boolean {
+function hasExpiredManagerPlanning(state: LegacyMeetingState, now: number): boolean {
     const planningAttempt = state.manager.currentPlanningAttempt;
     return (
         state.status === "running" &&
@@ -100,7 +100,7 @@ function hasExpiredManagerPlanning(state: MeetingState, now: number): boolean {
     );
 }
 
-function hasExpiredSpeakerAttempt(state: MeetingState, now: number): boolean {
+function hasExpiredSpeakerAttempt(state: LegacyMeetingState, now: number): boolean {
     const turn = state.currentTurn;
     const step = turn?.steps[turn.currentStepIndex];
     const attempt = step?.attempt;
@@ -251,7 +251,7 @@ export function createCreateStatusRuntime(
                 }
                 if (payload.role !== "manager" || payload.planningAttemptId === undefined) return;
                 const snapshot = await stored.repository.read();
-                const attempt = (snapshot.state as unknown as MeetingState).manager
+                const attempt = (snapshot.state as unknown as LegacyMeetingState).manager
                     .currentPlanningAttempt;
                 if (attempt?.id !== payload.planningAttemptId || attempt.status !== "running")
                     return;
@@ -710,7 +710,7 @@ function createRuntimeTimeoutScanner(dependencies: RuntimeTimeoutScannerOptions)
                     now
                 });
                 const current = await stored.repository.read();
-                const state = current.state as unknown as MeetingState;
+                const state = current.state as unknown as LegacyMeetingState;
                 const planningAttempt = state.manager.currentPlanningAttempt;
                 if (hasExpiredManagerPlanning(state, now) && planningAttempt !== undefined) {
                     if (timeoutAttemptsInFlight.has(planningAttempt.id)) continue;
@@ -779,10 +779,10 @@ function createRuntimeTimeoutScanner(dependencies: RuntimeTimeoutScannerOptions)
                     expectedMeetingVersion: current.version,
                     transition: (snapshot) => {
                         const planningIds = nextManagerPlanningIds(
-                            snapshot.state as unknown as MeetingState
+                            snapshot.state as unknown as LegacyMeetingState
                         );
                         const transition = failSpeakerAttempt(
-                            snapshot.state as unknown as MeetingState,
+                            snapshot.state as unknown as LegacyMeetingState,
                             {
                                 meetingId: state.id,
                                 participantId: attempt.participantId,

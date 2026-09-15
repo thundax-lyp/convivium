@@ -4,15 +4,15 @@ import {
     failSpeakerAttempt,
     submitSpeakerAttempt,
     submitSpeakerAndAdvanceMeeting,
-    type MeetingState
+    type LegacyMeetingState
 } from "@/domain/index.js";
 import { isMeetingMinutesDraft, isMeetingStateV2 } from "@/domain/meeting-state-validation.js";
 import { meeting, now } from "./fixtures.js";
 
 function timeoutState(
-    selectionMode: MeetingState["selectionMode"] = "round_robin",
+    selectionMode: LegacyMeetingState["selectionMode"] = "round_robin",
     requiredParticipants: readonly string[] = ["a"]
-): MeetingState {
+): LegacyMeetingState {
     const state = meeting("running");
     state.selectionMode = selectionMode;
     state.activeAgendaItemId = "agenda-1";

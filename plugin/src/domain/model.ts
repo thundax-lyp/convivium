@@ -16,7 +16,7 @@ export type ExecutionTerminalMeetingStatus =
     "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
 
 export type TurnStatus = "planned" | "running" | "completed" | "truncated" | "cancelled" | "failed";
-export type RiskLevel = "low" | "medium" | "high";
+export type LegacyRiskLevel = "low" | "medium" | "high";
 
 export type StepStatus =
     "pending" | "assigned" | "running" | "submitted" | "skipped" | "revoked" | "failed";
@@ -377,7 +377,7 @@ export interface MeetingIssue {
     violatedConstraintIds: readonly string[];
     blockingObjectionIds: readonly string[];
     blocking: boolean;
-    riskLevel?: RiskLevel;
+    riskLevel?: LegacyRiskLevel;
     impact: string;
     urgency: "now" | "before_release" | "later";
     reversibility: "reversible" | "partially_reversible" | "irreversible";
@@ -767,7 +767,7 @@ export interface ArchiveFinalizeInput {
     archivedAt: number;
 }
 
-export interface MeetingState {
+export interface LegacyMeetingState {
     formatVersion: 2;
     id: string;
     teamId: string;

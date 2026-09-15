@@ -2,7 +2,7 @@ import { DomainError } from "./errors.js";
 import type {
     DomainEvent,
     MeetingHandRaise,
-    MeetingState,
+    LegacyMeetingState,
     MeetingTaskSnapshot,
     TransitionResult
 } from "./model.js";
@@ -30,7 +30,7 @@ export interface CreateHandRaiseInput {
 }
 
 export function findPendingEquivalentHandRaise(
-    state: MeetingState,
+    state: LegacyMeetingState,
     input: CreateHandRaiseInput
 ): MeetingHandRaise | undefined {
     return state.handRaises.find(
@@ -47,9 +47,9 @@ export function findPendingEquivalentHandRaise(
 }
 
 export function createHandRaise(
-    state: MeetingState,
+    state: LegacyMeetingState,
     input: CreateHandRaiseInput
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (executionTerminalStatuses.has(state.status)) {
         throw new DomainError(
             "INVALID_STATE_TRANSITION",
@@ -111,9 +111,9 @@ export function createHandRaise(
 }
 
 export function consumeHandRaise(
-    state: MeetingState,
+    state: LegacyMeetingState,
     handRaiseId: string
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const raise = state.handRaises.find((candidate) => candidate.id === handRaiseId);
     if (raise === undefined || raise.status !== "pending") {
         throw new DomainError(
@@ -135,7 +135,7 @@ export function consumeHandRaise(
 }
 
 export function participantHasActiveMeetingTask(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string
 ): boolean {
     return (state.meetingTasks ?? []).some(
@@ -146,7 +146,7 @@ export function participantHasActiveMeetingTask(
 }
 
 export function taskSnapshot(
-    state: MeetingState,
+    state: LegacyMeetingState,
     meetingTaskId: string,
     now: number
 ): MeetingTaskSnapshot {
@@ -167,7 +167,7 @@ export function taskSnapshot(
 }
 
 export function completedTaskSnapshots(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     now: number
 ): MeetingTaskSnapshot[] {

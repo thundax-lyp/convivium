@@ -1,5 +1,5 @@
 import { DomainError } from "./errors.js";
-import type { MeetingState, SpeakerSubmissionContext } from "./model.js";
+import type { LegacyMeetingState, SpeakerSubmissionContext } from "./model.js";
 import type { DomainCompletionClaims } from "./completion.js";
 import type {
     SubmittedAgendaCandidateInput,
@@ -209,7 +209,7 @@ export function createContributionState(reviewerId: string, now: number): Contri
 }
 
 export function assertContributionEvidenceMessages(
-    state: MeetingState,
+    state: LegacyMeetingState,
     messageIds: readonly string[]
 ): void {
     if (state.contributions === undefined) return;
@@ -250,7 +250,7 @@ export function assertContributionEvidenceMessages(
     }
 }
 
-export function contributionWorkComplete(state: MeetingState): boolean {
+export function contributionWorkComplete(state: LegacyMeetingState): boolean {
     if (state.contributions === undefined) return true;
     try {
         for (const fact of state.completionFacts) {
@@ -280,7 +280,7 @@ export function contributionWorkComplete(state: MeetingState): boolean {
     }
 }
 
-export function contributionReferencesBelongToMeeting(state: MeetingState): boolean {
+export function contributionReferencesBelongToMeeting(state: LegacyMeetingState): boolean {
     const contribution = state.contributions;
     if (contribution === undefined) return true;
     if (!isContributionState(contribution)) return false;
@@ -361,7 +361,7 @@ export function contributionReferencesBelongToMeeting(state: MeetingState): bool
     return true;
 }
 
-export function assertContributionCapacity(state: MeetingState): void {
+export function assertContributionCapacity(state: LegacyMeetingState): void {
     const contribution = state.contributions;
     if (contribution === undefined) return;
     const {

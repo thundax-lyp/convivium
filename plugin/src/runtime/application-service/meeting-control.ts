@@ -11,7 +11,7 @@ import {
     evaluateContributionProgress,
     nextManagerPlanningIds,
     transitionMeeting,
-    type MeetingState
+    type LegacyMeetingState
 } from "@/domain/index.js";
 import type { DomainEvent } from "@/domain/index.js";
 import { interruptAndDrainOwnedSessions } from "@/dsh/index.js";
@@ -70,7 +70,10 @@ function controlAuthorization(source: MeetingControlSource) {
           };
 }
 
-function needsResumeCatalogBinding(state: MeetingState, target: "paused" | "running"): boolean {
+function needsResumeCatalogBinding(
+    state: LegacyMeetingState,
+    target: "paused" | "running"
+): boolean {
     return (
         state.contributions === undefined &&
         target === "running" &&
@@ -264,7 +267,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                 requestHash: serializeValidatedRequestV1(input),
                 expectedMeetingVersion: input.expectedMeetingVersion,
                 transition: (snapshot) => {
-                    const state = snapshot.state as unknown as MeetingState;
+                    const state = snapshot.state as unknown as LegacyMeetingState;
                     const transition = applyCompletionClaims(state, {
                         participantId: source.kind,
                         assertedBy:
@@ -384,7 +387,7 @@ async function transitionMeetingStatus(
     const authorization = controlAuthorization(source);
     try {
         const current = await stored.repository.read();
-        const currentState = current.state as unknown as MeetingState;
+        const currentState = current.state as unknown as LegacyMeetingState;
         const shouldCapture = needsResumeCatalogBinding(currentState, target);
         const catalogBinding =
             shouldCapture && isMeetingStateV2(currentState)
@@ -410,7 +413,7 @@ async function transitionMeetingStatus(
                     }
                     throw new Error("The live Captain parent is unavailable for resume dispatch.");
                 }
-                const currentState = snapshot.state as unknown as MeetingState;
+                const currentState = snapshot.state as unknown as LegacyMeetingState;
                 if (
                     target === "running" &&
                     currentState.waitState?.reason === "required_participant_unavailable"
@@ -463,7 +466,7 @@ async function transitionMeetingStatus(
                         ]
                     };
                 }
-                let nextState = transition.state as MeetingState;
+                let nextState = transition.state as LegacyMeetingState;
                 let extraEvents: DomainEventInput[] = [];
                 let outbox: Array<{
                     deliveryId: string;

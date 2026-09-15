@@ -4,7 +4,7 @@ import { isObjectiveSatisfied } from "@/domain/completion.js";
 import { blockingPositions, currentProposals } from "@/domain/proposal-state.js";
 import { transitionMeeting } from "./meeting.js";
 import { executionTerminalStatuses } from "./termination.js";
-import type { MeetingState, TransitionResult } from "@/domain/model.js";
+import type { LegacyMeetingState, TransitionResult } from "@/domain/model.js";
 
 export { applyContributionCommand } from "./contribution-command.js";
 
@@ -17,10 +17,10 @@ export interface ContributionTransitionContext {
 }
 
 export function transitionContributionLifecycle(
-    state: MeetingState,
+    state: LegacyMeetingState,
     action: "pause" | "resume" | "end" | "recover" | "tick",
     now: number
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (state.contributions === undefined) return { state, effect: { events: [] } };
     if (action === "recover") {
         if (!["running", "waiting"].includes(state.status))
@@ -150,7 +150,7 @@ export function transitionContributionLifecycle(
     }
     if (action === "pause") {
         const tasks = { ...state.contributions.tasks };
-        const events: TransitionResult<MeetingState>["effect"]["events"] = [];
+        const events: TransitionResult<LegacyMeetingState>["effect"]["events"] = [];
         for (const task of Object.values(tasks)) {
             if (!activeContribution(task)) continue;
             tasks[task.id] = {
@@ -187,7 +187,7 @@ export function transitionContributionLifecycle(
         };
     }
     const tasks = { ...state.contributions.tasks };
-    const events: TransitionResult<MeetingState>["effect"]["events"] = [];
+    const events: TransitionResult<LegacyMeetingState>["effect"]["events"] = [];
     for (const task of Object.values(tasks)) {
         if (
             task.phase === "cancelled" ||
@@ -232,9 +232,9 @@ function activeContribution(task: ContributionTask): boolean {
 }
 
 function notifyContributionManager(
-    state: MeetingState,
+    state: LegacyMeetingState,
     now: number
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const noticeSeq = state.contributions!.managerNoticeSeq + 1;
     return {
         state: {
@@ -261,7 +261,10 @@ function notifyContributionManager(
     };
 }
 
-function contributionWaiting(state: MeetingState, now: number): TransitionResult<MeetingState> {
+function contributionWaiting(
+    state: LegacyMeetingState,
+    now: number
+): TransitionResult<LegacyMeetingState> {
     if (state.status === "waiting" && state.waitState?.reason === "captain_action")
         return { state, effect: { events: [] } };
     if (state.status === "waiting") {
@@ -311,11 +314,11 @@ function contributionWaiting(state: MeetingState, now: number): TransitionResult
 }
 
 function resumeContributionStages(
-    state: MeetingState,
+    state: LegacyMeetingState,
     now: number
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const contributions = { ...state.contributions!, tasks: { ...state.contributions!.tasks } };
-    const events: TransitionResult<MeetingState>["effect"]["events"] = [];
+    const events: TransitionResult<LegacyMeetingState>["effect"]["events"] = [];
     for (const task of Object.values(contributions.tasks)) {
         if (!activeContribution(task)) continue;
         const next = {
@@ -349,12 +352,12 @@ function resumeContributionStages(
 }
 
 export function failContributionDelivery(
-    state: MeetingState,
+    state: LegacyMeetingState,
     input: (
         | { kind: "task"; contributionId: string; generation: number }
         | { kind: "manager"; noticeSeq: number }
     ) & { reason: string; now: number }
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (state.contributions === undefined || !["running", "waiting"].includes(state.status))
         return { state, effect: { events: [] } };
     if (input.kind === "manager")
@@ -409,9 +412,9 @@ export function failContributionDelivery(
 }
 
 export function evaluateContributionProgress(
-    state: MeetingState,
+    state: LegacyMeetingState,
     now: number
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (
         state.contributions === undefined ||
         state.status === "created" ||
@@ -445,7 +448,7 @@ export function evaluateContributionProgress(
         )
             return { state, effect: { events: [] } };
         const tasks = { ...state.contributions.tasks };
-        const events: TransitionResult<MeetingState>["effect"]["events"] = [];
+        const events: TransitionResult<LegacyMeetingState>["effect"]["events"] = [];
         for (const task of Object.values(tasks)) {
             if (
                 task.agendaItemId !== current.id ||

@@ -3,7 +3,7 @@ import type {
     AgentEvidenceScope,
     MeetingAgentCatalogSnapshot,
     ManagerCatalogBindingV1,
-    MeetingState,
+    LegacyMeetingState,
     MeetingMinutesDraft
 } from "./model.js";
 import { contributionReferencesBelongToMeeting } from "./contribution.js";
@@ -227,7 +227,7 @@ export function isMeetingMinutesDraft(value: unknown): value is MeetingMinutesDr
     );
 }
 
-export function isMeetingStateV2(value: unknown): value is MeetingState {
+export function isMeetingStateV2(value: unknown): value is LegacyMeetingState {
     if (
         !isRecord(value) ||
         value.formatVersion !== 2 ||
@@ -252,7 +252,8 @@ export function isMeetingStateV2(value: unknown): value is MeetingState {
             return false;
     }
     if (!isRecord(value.manager)) return false;
-    if (!contributionReferencesBelongToMeeting(value as unknown as MeetingState)) return false;
+    if (!contributionReferencesBelongToMeeting(value as unknown as LegacyMeetingState))
+        return false;
     const hasTurnOrigin = (message: Record<string, unknown>) =>
         isNonNegativeInteger(message.turnSeq) &&
         ["turnId", "stepId", "attemptId"].every((key) => isString(message[key]));

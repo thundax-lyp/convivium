@@ -3,7 +3,7 @@ import { transitionContributionLifecycle } from "./contribution.js";
 import type {
     ArchiveInput,
     DomainEffect,
-    MeetingState,
+    LegacyMeetingState,
     MeetingStatus,
     MeetingTurn,
     TransitionContext,
@@ -23,11 +23,11 @@ function isArchiveInput(archive: TransitionContext["archive"]): archive is Archi
 }
 
 function revokeActiveAttempts(
-    state: MeetingState,
+    state: LegacyMeetingState,
     emitTurnLifecycleEvent = false
 ): {
     currentTurn: MeetingTurn | undefined;
-    manager: MeetingState["manager"];
+    manager: LegacyMeetingState["manager"];
     events: DomainEffect["events"];
     revokedSpeakerAttemptIds: string[];
 } {
@@ -93,7 +93,11 @@ function revokeActiveAttempts(
     return { currentTurn, manager, events, revokedSpeakerAttemptIds };
 }
 
-function requireReason(context: TransitionContext, state: MeetingState, to: MeetingStatus): string {
+function requireReason(
+    context: TransitionContext,
+    state: LegacyMeetingState,
+    to: MeetingStatus
+): string {
     if (!context.reason?.trim()) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
@@ -110,7 +114,7 @@ function requireReason(context: TransitionContext, state: MeetingState, to: Meet
 }
 
 function assertMeetingTransitionContext(
-    state: MeetingState,
+    state: LegacyMeetingState,
     to: MeetingStatus,
     context: TransitionContext,
     isExecutionTerminal: boolean
@@ -244,10 +248,10 @@ function assertMeetingTransitionContext(
 }
 
 export function transitionMeeting(
-    state: MeetingState,
+    state: LegacyMeetingState,
     to: MeetingStatus,
     context: TransitionContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     assertTransition("meeting", state.id, state.status, to, meetingTransitions, state.version);
 
     const isExecutionTerminal = [
@@ -274,7 +278,7 @@ export function transitionMeeting(
                   context.now
               )
             : undefined;
-    const next: MeetingState = {
+    const next: LegacyMeetingState = {
         ...state,
         status: to,
         version: state.version + 1,

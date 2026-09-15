@@ -1,16 +1,16 @@
 import { DomainError } from "@/domain/errors.js";
 import { queueMeetingTasks } from "@/domain/meeting-task.js";
-import type { MeetingState, TransitionResult } from "@/domain/model.js";
+import type { LegacyMeetingState, TransitionResult } from "@/domain/model.js";
 import { applyPublicSubmission } from "./public-submission.js";
 import { submitSpeakerAttempt } from "./speaker-attempt.js";
 import { advanceAfterSpeakerSubmission } from "./turn-advancement.js";
 import type { SubmitSpeakerAdvanceContext } from "./types.js";
 
 export function submitSpeakerAndAdvanceMeeting(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     context: SubmitSpeakerAdvanceContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (context.message.minutesDraft !== undefined && context.completion !== undefined)
         throw new DomainError("INVALID_ENTITY_STATE", "Invalid minutes draft.");
     const speakerSubmission = submitSpeakerAttempt(state, participantId, state.version, context);
@@ -73,7 +73,7 @@ export function submitSpeakerAndAdvanceMeeting(
               context.now
           )
         : { state: completedSubmission.state, effect: { events: [] } };
-    const submitted: TransitionResult<MeetingState> = {
+    const submitted: TransitionResult<LegacyMeetingState> = {
         state: queued.state,
         effect: {
             events: [

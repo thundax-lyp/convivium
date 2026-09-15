@@ -1,11 +1,11 @@
-import type { MeetingState } from "@/domain/index.js";
+import type { LegacyMeetingState } from "@/domain/index.js";
 import type { OutboxItem } from "@/repository/types.js";
 import type { MeetingRepositoryRuntime } from "@/runtime/meeting-runtime.js";
 import { createMeetingDeliveryDispatcher } from "@/runtime/services/meeting-dispatch-service.js";
 import { meeting, now } from "../domain/transitions/fixtures.js";
 import { describe, expect, it, vi } from "vitest";
 
-function activeSpeakerState(): MeetingState {
+function activeSpeakerState(): LegacyMeetingState {
     const state = meeting("running");
     state.participants = [
         {

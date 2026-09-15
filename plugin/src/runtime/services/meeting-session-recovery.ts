@@ -9,7 +9,7 @@ import {
     startParticipantSession,
     interruptAndDrainOwnedSessions
 } from "@/dsh/index.js";
-import { transitionMeeting, type MeetingState } from "@/domain/index.js";
+import { transitionMeeting, type LegacyMeetingState } from "@/domain/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { DomainEventInput, JsonObject, SessionOwnership } from "@/repository/types.js";
 import { requireExpectedArchiveOwnerships, recoverArchive } from "./meeting-archive-service.js";
@@ -150,7 +150,7 @@ async function reconcileOnce(input: SessionRecoveryInput): Promise<void> {
         });
         return;
     }
-    const state = recovered.snapshot?.state as unknown as MeetingState;
+    const state = recovered.snapshot?.state as unknown as LegacyMeetingState;
     if (!state || state.id !== repository.meetingId || state.teamId !== repository.teamId) {
         throw new Error("RECOVERY_MEETING_IDENTITY_MISMATCH");
     }
@@ -209,7 +209,7 @@ async function reconcileOnce(input: SessionRecoveryInput): Promise<void> {
             expectedMeetingVersion: state.version,
             transition: (snapshot) => {
                 const paused = transitionMeeting(
-                    snapshot.state as unknown as MeetingState,
+                    snapshot.state as unknown as LegacyMeetingState,
                     "paused",
                     {
                         now,

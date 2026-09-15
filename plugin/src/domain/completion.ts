@@ -1,6 +1,11 @@
 import { blockingPositions, currentProposals } from "./proposal-state.js";
 import { DomainError } from "./errors.js";
-import type { CompletionFact, DomainEffect, MeetingState, TransitionResult } from "./model.js";
+import type {
+    CompletionFact,
+    DomainEffect,
+    LegacyMeetingState,
+    TransitionResult
+} from "./model.js";
 import { executionTerminalStatuses } from "./transitions/termination.js";
 
 export type TurnCompletionKind = "completed" | "partial" | "continue";
@@ -61,7 +66,7 @@ function isControlRiskDisposition(context: ApplyCompletionClaimsContext): boolea
     );
 }
 
-function invalidClaim(state: MeetingState, message: string): never {
+function invalidClaim(state: LegacyMeetingState, message: string): never {
     throw new DomainError("INVALID_ENTITY_STATE", message, {
         entityType: "completion_claim",
         entityId: state.id,
@@ -70,7 +75,7 @@ function invalidClaim(state: MeetingState, message: string): never {
 }
 
 function assertEvidence(
-    state: MeetingState,
+    state: LegacyMeetingState,
     evidenceMessageIds: readonly string[],
     taskIds: readonly string[],
     authorizedTaskIds: ReadonlySet<string>
@@ -126,7 +131,7 @@ function fact(
     };
 }
 
-export function isObjectiveSatisfied(state: MeetingState): boolean {
+export function isObjectiveSatisfied(state: LegacyMeetingState): boolean {
     return (
         state.objectiveContract.requiredOutputs.every((output) => output.status === "accepted") &&
         state.objectiveContract.acceptanceCriteria.every((criterion) => criterion.satisfied) &&
@@ -151,9 +156,9 @@ export function isObjectiveSatisfied(state: MeetingState): boolean {
 }
 
 export function applyCompletionClaims(
-    state: MeetingState,
+    state: LegacyMeetingState,
     context: ApplyCompletionClaimsContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (state.status === "archived") {
         throw new DomainError(
             "ARCHIVED_MEETING",
@@ -432,7 +437,10 @@ export function applyCompletionClaims(
     };
 }
 
-export function judgeTurnCompletion(state: MeetingState, now: number): TurnCompletionJudgment {
+export function judgeTurnCompletion(
+    state: LegacyMeetingState,
+    now: number
+): TurnCompletionJudgment {
     if (isObjectiveSatisfied(state)) return { kind: "completed", reason: "objective_satisfied" };
     if (state.turnSeq >= state.limits.maxTurns) return { kind: "partial", reason: "max_turns" };
     if (state.messageSeq >= state.limits.maxTotalMessages)

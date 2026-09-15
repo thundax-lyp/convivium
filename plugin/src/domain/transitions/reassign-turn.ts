@@ -1,7 +1,7 @@
 import { DomainError } from "@/domain/errors.js";
 import { completedTaskSnapshots, participantHasActiveMeetingTask } from "@/domain/hand-raise.js";
 import { cancelRequestedMeetingTasksForAttempts } from "@/domain/meeting-task.js";
-import type { MeetingState, SpeakerAttempt, TransitionResult } from "@/domain/model.js";
+import type { LegacyMeetingState, SpeakerAttempt, TransitionResult } from "@/domain/model.js";
 
 export interface ReassignTurnContext {
     readonly currentAttemptId: string;
@@ -11,7 +11,7 @@ export interface ReassignTurnContext {
     readonly now: number;
 }
 
-function requireCurrentAttempt(state: MeetingState, context: ReassignTurnContext) {
+function requireCurrentAttempt(state: LegacyMeetingState, context: ReassignTurnContext) {
     const turn = state.currentTurn;
     const step = turn?.steps[turn.currentStepIndex];
     const attempt = step?.attempt;
@@ -36,7 +36,7 @@ function requireCurrentAttempt(state: MeetingState, context: ReassignTurnContext
 }
 
 function replacementAttempt(
-    state: MeetingState,
+    state: LegacyMeetingState,
     previous: SpeakerAttempt,
     participantId: string,
     stepId: string,
@@ -63,9 +63,9 @@ function replacementAttempt(
 }
 
 export function reassignTurn(
-    state: MeetingState,
+    state: LegacyMeetingState,
     context: ReassignTurnContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (!context.reason.trim()) {
         throw new DomainError("INVALID_ENTITY_STATE", "turn reassignment requires a reason");
     }

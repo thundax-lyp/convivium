@@ -195,7 +195,7 @@ describe("Developer Markdown projection", () => {
         expect(markdown.endsWith("\n\n")).toBe(false);
     });
 
-    it("rejects an invalid MeetingState", () => {
+    it("rejects an invalid LegacyMeetingState", () => {
         expect(() =>
             mapDeveloperMeetingDocument(
                 {

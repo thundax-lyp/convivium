@@ -168,7 +168,7 @@ function defineCreationCases(openRepository: OpenRepository): void {
         await repository.close();
     });
 
-    it("keeps the embedded MeetingState version in sync for plain commands", async () => {
+    it("keeps the embedded LegacyMeetingState version in sync for plain commands", async () => {
         const repository = await openRepository();
         await createMeeting(repository, {
             requestId: "create",
@@ -801,7 +801,7 @@ function defineMailAndSessionCases(
     openRepository: OpenRepository,
     openCreatingRepository: OpenRepository
 ): void {
-    it("keeps private mail lifecycle atomic, idempotent, and out of MeetingState", async () => {
+    it("keeps private mail lifecycle atomic, idempotent, and out of LegacyMeetingState", async () => {
         const repository = await openRepository();
         await createMeeting(repository, {
             requestId: "create-mail",

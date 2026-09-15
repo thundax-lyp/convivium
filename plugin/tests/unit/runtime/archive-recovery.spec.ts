@@ -1,5 +1,5 @@
 import { recoverArchive, terminationIdentity } from "@/runtime/services/meeting-archive-service.js";
-import type { MeetingState } from "@/domain/model.js";
+import type { LegacyMeetingState } from "@/domain/model.js";
 import type { RepositoryCommand } from "@/repository/types.js";
 import { describe, expect, it } from "vitest";
 
@@ -20,7 +20,7 @@ describe("meeting archive recovery", () => {
                 finalMessage: "done",
                 endedAt: 3
             }
-        } as MeetingState;
+        } as LegacyMeetingState;
         let command: RepositoryCommand<{ status: "archiving" }> | undefined;
         await expect(
             recoverArchive({

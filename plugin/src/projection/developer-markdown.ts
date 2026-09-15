@@ -2,7 +2,7 @@ import {
     isMeetingStateV2,
     type ArchivePackage,
     type ImmutableArchivePackage,
-    type MeetingState
+    type LegacyMeetingState
 } from "@/domain/index.js";
 import type { MeetingSnapshot } from "@/repository/types.js";
 
@@ -14,22 +14,22 @@ export interface DeveloperMeetingDocument {
     teamId: string;
     sourceMeetingVersion: number;
     generatedAt: number;
-    status: MeetingState["status"];
+    status: LegacyMeetingState["status"];
     topic: string;
     objective: string;
     objectiveContract: {
-        requiredOutputs: MeetingState["objectiveContract"]["requiredOutputs"];
-        acceptanceCriteria: MeetingState["objectiveContract"]["acceptanceCriteria"];
-        hardConstraints: MeetingState["objectiveContract"]["hardConstraints"];
+        requiredOutputs: LegacyMeetingState["objectiveContract"]["requiredOutputs"];
+        acceptanceCriteria: LegacyMeetingState["objectiveContract"]["acceptanceCriteria"];
+        hardConstraints: LegacyMeetingState["objectiveContract"]["hardConstraints"];
         requiredReviewers: readonly string[];
         riskAcceptanceAuthority: readonly string[];
-        acceptableRiskLevel: MeetingState["objectiveContract"]["acceptableRiskLevel"];
+        acceptableRiskLevel: LegacyMeetingState["objectiveContract"]["acceptableRiskLevel"];
     };
     agenda: readonly {
         id: string;
         title: string;
         objective: string;
-        status: MeetingState["agenda"][number]["status"];
+        status: LegacyMeetingState["agenda"][number]["status"];
         resolution?: string;
     }[];
     transcript: readonly {
@@ -37,7 +37,7 @@ export interface DeveloperMeetingDocument {
         seq: number;
         speaker: string;
         agendaItemId: string;
-        kind: MeetingState["transcript"][number]["kind"];
+        kind: LegacyMeetingState["transcript"][number]["kind"];
         content: string;
         createdAt: number;
     }[];
@@ -47,11 +47,11 @@ export interface DeveloperMeetingDocument {
         description: string;
         proposedBy: string;
         revision: number;
-        status: MeetingState["proposals"][number]["status"];
+        status: LegacyMeetingState["proposals"][number]["status"];
         agendaItemId: string;
         positions: readonly {
             participantId: string;
-            position: MeetingState["proposals"][number]["positions"][number]["position"];
+            position: LegacyMeetingState["proposals"][number]["positions"][number]["position"];
             reason?: string;
             blocking: boolean;
         }[];
@@ -60,18 +60,18 @@ export interface DeveloperMeetingDocument {
         id: string;
         proposalId: string;
         proposalRevision: number;
-        status: MeetingState["decisions"][number]["status"];
+        status: LegacyMeetingState["decisions"][number]["status"];
         statement?: string;
         rationale?: string;
-        acceptanceMode: MeetingState["decisions"][number]["acceptanceMode"];
+        acceptanceMode: LegacyMeetingState["decisions"][number]["acceptanceMode"];
     }[];
     issues: readonly {
         id: string;
         title: string;
         description: string;
         blocking: boolean;
-        riskLevel?: MeetingState["issues"][number]["riskLevel"];
-        status: MeetingState["issues"][number]["status"];
+        riskLevel?: LegacyMeetingState["issues"][number]["riskLevel"];
+        status: LegacyMeetingState["issues"][number]["status"];
         rationale?: string;
     }[];
     openQuestions: readonly {
@@ -79,7 +79,7 @@ export interface DeveloperMeetingDocument {
         text: string;
         askedBy: string;
         blocking: boolean;
-        status: MeetingState["openQuestions"][number]["status"];
+        status: LegacyMeetingState["openQuestions"][number]["status"];
         answerMessageId?: string;
     }[];
     meetingTasks: readonly {
@@ -88,7 +88,7 @@ export interface DeveloperMeetingDocument {
         title: string;
         description: string;
         blocking: boolean;
-        status: MeetingState["meetingTasks"][number]["status"];
+        status: LegacyMeetingState["meetingTasks"][number]["status"];
         createdAt: number;
         resultSummary?: string;
         failureReason?: string;
@@ -98,17 +98,17 @@ export interface DeveloperMeetingDocument {
     }[];
     completionFacts: readonly {
         id: string;
-        kind: MeetingState["completionFacts"][number]["kind"];
+        kind: LegacyMeetingState["completionFacts"][number]["kind"];
         subjectId: string;
         assertedBy: string;
-        result: MeetingState["completionFacts"][number]["result"];
-        status: MeetingState["completionFacts"][number]["status"];
+        result: LegacyMeetingState["completionFacts"][number]["result"];
+        status: LegacyMeetingState["completionFacts"][number]["status"];
         reason?: string;
         createdAt: number;
     }[];
     artifactRefs: readonly { artifactId: string; title: string; version?: string }[];
     termination?: {
-        code: NonNullable<MeetingState["termination"]>["code"];
+        code: NonNullable<LegacyMeetingState["termination"]>["code"];
         reason: string;
         finalMessage: string;
         endedAt: number;

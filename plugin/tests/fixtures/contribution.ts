@@ -1,17 +1,17 @@
-import type { MeetingState } from "@/domain/model.js";
+import type { LegacyMeetingState } from "@/domain/model.js";
 
 import { questionState } from "../unit/domain/transitions/fixtures.js";
 
 export const contributionNow = 1_700_000_000_000;
 
-export function contributionMeeting(): MeetingState {
+export function contributionMeeting(): LegacyMeetingState {
     const state = questionState();
     state.status = "running";
     state.activeAgendaItemId = state.agenda[0]!.id;
     return state;
 }
 
-export function withNewPublicMessage(state: MeetingState): MeetingState {
+export function withNewPublicMessage(state: LegacyMeetingState): LegacyMeetingState {
     const seq = state.messageSeq + 1;
     return {
         ...state,

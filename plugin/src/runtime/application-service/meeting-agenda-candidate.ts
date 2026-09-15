@@ -6,7 +6,7 @@ import type {
 } from "@/protocol/index.js";
 import { disposeAgendaCandidate } from "@/domain/index.js";
 import { evaluateContributionProgress } from "@/domain/index.js";
-import type { DomainEvent, MeetingState } from "@/domain/index.js";
+import type { DomainEvent, LegacyMeetingState } from "@/domain/index.js";
 import {
     contributionOutbox,
     interruptCancelledContributions
@@ -99,7 +99,7 @@ export function createMeetingAgendaCandidateApplication({
                             ] as never,
                             outbox: [
                                 ...contributionOutbox(
-                                    snapshot.state as unknown as MeetingState,
+                                    snapshot.state as unknown as LegacyMeetingState,
                                     progress.state,
                                     committedEvents
                                 )

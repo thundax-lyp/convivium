@@ -1,7 +1,7 @@
 import { isObjectiveSatisfied } from "@/domain/completion.js";
 import { contributionWorkComplete } from "@/domain/contribution.js";
 import { DomainError } from "@/domain/errors.js";
-import type { MeetingState, MeetingStatus } from "@/domain/model.js";
+import type { LegacyMeetingState, MeetingStatus } from "@/domain/model.js";
 
 export const terminationCodesByStatus: Readonly<Record<MeetingStatus, readonly string[]>> = {
     created: [],
@@ -18,7 +18,7 @@ export const terminationCodesByStatus: Readonly<Record<MeetingStatus, readonly s
     archived: []
 };
 
-export function assertCompletionReady(state: MeetingState, to: MeetingStatus): void {
+export function assertCompletionReady(state: LegacyMeetingState, to: MeetingStatus): void {
     if (to !== "completed") return;
     if (!isObjectiveSatisfied(state) || !contributionWorkComplete(state)) {
         throw new DomainError(
@@ -30,8 +30,8 @@ export function assertCompletionReady(state: MeetingState, to: MeetingStatus): v
 }
 
 export function terminationReferencesBelongToMeeting(
-    state: MeetingState,
-    termination: MeetingState["termination"]
+    state: LegacyMeetingState,
+    termination: LegacyMeetingState["termination"]
 ): boolean {
     return Boolean(
         termination &&

@@ -2,7 +2,7 @@ import { DomainError } from "@/domain/errors.js";
 import type {
     AgendaCandidate,
     MeetingAgendaItem,
-    MeetingState,
+    LegacyMeetingState,
     TransitionResult
 } from "@/domain/model.js";
 import { executionTerminalStatuses } from "./termination.js";
@@ -39,7 +39,7 @@ function nonEmpty(values: readonly string[]): boolean {
 }
 
 function disposeEvent(
-    state: MeetingState,
+    state: LegacyMeetingState,
     input: DisposeAgendaCandidateInput,
     agendaItemId?: string
 ) {
@@ -56,11 +56,11 @@ function disposeEvent(
 }
 
 export function addSubmittedAgendaCandidates(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     sourceMessageId: string,
     candidates: readonly SubmittedAgendaCandidateInput[]
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (!state.participants.some((participant) => participant.id === participantId)) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
@@ -129,9 +129,9 @@ export function addSubmittedAgendaCandidates(
 }
 
 export function disposeAgendaCandidate(
-    state: MeetingState,
+    state: LegacyMeetingState,
     input: DisposeAgendaCandidateInput
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (input.meetingId !== state.id) invalid("dispose command targets another meeting");
     if (executionTerminalStatuses.includes(state.status)) {
         throw new DomainError(

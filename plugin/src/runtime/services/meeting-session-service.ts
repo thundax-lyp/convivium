@@ -1,5 +1,5 @@
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { MeetingState } from "@/domain/index.js";
+import type { LegacyMeetingState } from "@/domain/index.js";
 import type { MeetingRepositoryRuntime } from "@/runtime/meeting-runtime.js";
 
 export type ArchiveCleanupRuntime = Pick<
@@ -45,7 +45,7 @@ export async function readAuthorizedMeetingTask(
             candidate.capabilityStatus === "active"
     );
     if (ownership === undefined) return undefined;
-    const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+    const state = recovered.snapshot?.state as unknown as LegacyMeetingState | undefined;
     const task = state?.meetingTasks?.find(
         (candidate) => candidate.meetingTaskId === meetingTaskId
     );

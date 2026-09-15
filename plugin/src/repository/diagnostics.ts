@@ -1,4 +1,4 @@
-import type { MeetingState } from "@/domain/index.js";
+import type { LegacyMeetingState } from "@/domain/index.js";
 import type { PersistenceProjectionV1 } from "./domain/schemas.js";
 
 export interface MeetingDiagnostic {
@@ -37,8 +37,8 @@ type DurableOutboxItem = PersistenceProjectionV1["outbox"][string];
 
 function observedMetrics(
     after: PersistenceProjectionV1,
-    state: MeetingState,
-    previous: MeetingState | undefined,
+    state: LegacyMeetingState,
+    previous: LegacyMeetingState | undefined,
     now: number
 ): Record<string, number> {
     const active = ["created", "running", "waiting", "paused", "converging"].includes(state.status);
@@ -64,8 +64,8 @@ function observedMetrics(
 function eventDiagnostic(
     base: DiagnosticBase,
     event: DurableEvent,
-    state: MeetingState,
-    previous: MeetingState | undefined,
+    state: LegacyMeetingState,
+    previous: LegacyMeetingState | undefined,
     now: number
 ): MeetingDiagnostic {
     const values: Record<string, number> = {};
@@ -182,8 +182,8 @@ export function observeCommit(
     commandKind?: string
 ): void {
     if (sink === undefined || after.snapshot === null) return;
-    const state = after.snapshot.state as unknown as MeetingState;
-    const previous = before?.snapshot?.state as unknown as MeetingState | undefined;
+    const state = after.snapshot.state as unknown as LegacyMeetingState;
+    const previous = before?.snapshot?.state as unknown as LegacyMeetingState | undefined;
     const base = {
         meetingId,
         meetingVersion: after.snapshot.version,

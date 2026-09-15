@@ -66,7 +66,7 @@ describe("canonical meeting creation", () => {
         );
     });
 
-    it("maps create specs to one complete initial MeetingState", () => {
+    it("maps create specs to one complete initial LegacyMeetingState", () => {
         const state = createMeetingState(input(), ids);
 
         expect(state).toMatchObject({
