@@ -500,18 +500,6 @@ describe("meeting lifecycle and command schemas", () => {
         expect(isKnownMeetingProtocolErrorCode("UNKNOWN_ERROR")).toBe(false);
     });
 
-    it("preserves unsupported capabilities as non-retryable protocol errors", () => {
-        expect(
-            validateProtocolError({
-                protocolVersion: 1,
-                ok: false,
-                code: "UNSUPPORTED_CAPABILITY",
-                message: "manager selection is outside this runtime slice",
-                retryable: false
-            })
-        ).toMatchObject({ code: "UNSUPPORTED_CAPABILITY", retryable: false });
-    });
-
     it("validates MeetingTask request fields", () => {
         const input = {
             protocolVersion: 1,

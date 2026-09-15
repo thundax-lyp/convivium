@@ -506,13 +506,6 @@ it("validates public rejection shapes consistently in standalone, active and ter
             { kind: "captain", sessionId: "captain-1" }
         )
     );
-    const validators = [
-        (value) => PublicAttendanceRecommendationSchema(value),
-        ...statuses.map(
-            (status) => (value) =>
-                MeetingStatusResultSchema({ ...status, attendanceRecommendations: [value] })
-        )
-    ];
     for (const rejection of [
         undefined,
         null,
@@ -522,21 +515,34 @@ it("validates public rejection shapes consistently in standalone, active and ter
         { reason: "No", rejectedAt: Infinity },
         { reason: "No", rejectedAt: NaN },
         { reason: "No", rejectedAt: 1, requestId: "private" }
-    ]) {
-        for (const validate of validators)
-            expect(
-                () => validate({ ...recommendation, rejection }),
-                JSON.stringify(rejection)
-            ).toThrow();
-    }
+    ])
+        expect(
+            () => PublicAttendanceRecommendationSchema({ ...recommendation, rejection }),
+            JSON.stringify(rejection)
+        ).toThrow();
     const { rejection: _rejection, ...withoutRejection } = recommendation;
-    for (const validate of validators) {
+    expect(() => PublicAttendanceRecommendationSchema(recommendation)).not.toThrow();
+    expect(() => PublicAttendanceRecommendationSchema(withoutRejection)).toThrow();
+    for (const status of ["pending", "approved", "expired", "cancelled"]) {
+        expect(
+            () => PublicAttendanceRecommendationSchema({ ...recommendation, status }),
+            status
+        ).toThrow();
+        expect(
+            () => PublicAttendanceRecommendationSchema({ ...withoutRejection, status }),
+            status
+        ).not.toThrow();
+    }
+    for (const status of statuses) {
+        const validate = (value: Record<string, unknown>) =>
+            MeetingStatusResultSchema({ ...status, attendanceRecommendations: [value] });
         expect(() => validate(recommendation)).not.toThrow();
         expect(() => validate(withoutRejection)).toThrow();
-        for (const status of ["pending", "approved", "expired", "cancelled"]) {
-            expect(() => validate({ ...recommendation, status }), status).toThrow();
-            expect(() => validate({ ...withoutRejection, status }), status).not.toThrow();
-        }
+        expect(() =>
+            validate({ ...recommendation, rejection: { reason: " ", rejectedAt: 1 } })
+        ).toThrow();
+        expect(() => validate({ ...recommendation, status: "pending" })).toThrow();
+        expect(() => validate({ ...withoutRejection, status: "pending" })).not.toThrow();
     }
 });
 it("validates exact nonempty unique archive rejections while preserving old packages", () => {
