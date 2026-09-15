@@ -326,7 +326,7 @@ Phase 1 固定以下 attendance error messages，且均为 `retryable=false`。�
 - `docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md`
 - `docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
 - `docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`
-- `docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`
+- `docs/30-designs/MEETING-DESIGN.md`
 - `docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`
 
 

@@ -124,7 +124,7 @@ Decision acceptance uses `decision.accepted`. Decision supersede writes replacem
 
 外部调用不在 Repository commit 内执行。成功、可重试失败和终止失败都通过独立 commit 完成；相同 `deliveryId` 重投不得产生重复领域事实。
 
-Outbox 的当前实现边界固定在 [Convivium Implementation Design](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md) 的 `Minimal implementation boundary`；本接口不授权把它扩展为通用队列、scheduler 或 DSH-owned facility。
+Outbox 只服务已确认的 Meeting 领域动作；本接口不授权把它扩展为通用队列、scheduler 或 DSH-owned facility。领域边界见 [Meeting Design](../30-designs/MEETING-DESIGN.md)。
 
 ### Recovery
 
@@ -220,8 +220,8 @@ Captain/local 五种控制共享既有 command commit。local receipt 与 Captai
 ## Related Documents
 
 - `docs/00-governance/ARCHITECTURE.md`
-- `docs/30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md`
-- `docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`
+- `docs/30-designs/MEETING-DESIGN.md`
+- `docs/30-designs/DSH-PLUGIN-DESIGN.md`
 - `docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
 - `docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`
 

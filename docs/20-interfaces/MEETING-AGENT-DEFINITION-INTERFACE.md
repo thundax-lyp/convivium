@@ -151,6 +151,6 @@ ready 请求重放使用已有结果，不读取当前 Definition/map/Skill regi
 - [Architecture](../00-governance/ARCHITECTURE.md)
 - [Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
 - [Role Catalog Interface](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)
-- [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)
+- [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)
 - [Meeting Roles Operations](../50-operations/HOW-TO-MEETING-ROLES.md)
 - [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)

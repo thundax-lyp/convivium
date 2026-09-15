@@ -94,7 +94,7 @@ kind=code 时 code 必填，其他 kind 禁止 code。revision 记录 commit 或
 
 ## Canonical Ownership And Mapping
 
-canonical 精确字段见 [Domain Model — Minimal Contribution State](../30-designs/DOMAIN-MODEL-DESIGN.md#minimal-contribution-state)。wire 与 Domain 的字段映射按该节及 [Contribution Design](../30-designs/MEETING-CONTRIBUTION-DESIGN.md#domain-symbols) 执行，不保存函数、DSH 对象或 Protocol 实例。
+本接口仍是旧贡献切片的跨边界草案，不能约束新领域模型；新的字段与映射将以 [Meeting Design](../30-designs/MEETING-DESIGN.md) 和后续替换接口为准。它不保存函数、DSH 对象或 Protocol 实例。
 
 ID/版本来源固定如下：
 
@@ -222,6 +222,6 @@ Local Remote 新增 readContribution、controlContribution；control 只接受 r
 ## Related Documents
 
 - [Agent Meeting Protocol](./AGENT-MEETING-PROTOCOL-INTERFACE.md)
-- [Contribution Design](../30-designs/MEETING-CONTRIBUTION-DESIGN.md)
+- [Meeting Design](../30-designs/MEETING-DESIGN.md)
 - [Storage Interface](./MEETING-STORAGE-INTERFACE.md)
 - [Current Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)

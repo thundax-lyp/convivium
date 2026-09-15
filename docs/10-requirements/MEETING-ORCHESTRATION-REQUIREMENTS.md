@@ -356,6 +356,6 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 - Agent 角色目录与参会推荐：[`../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md`](../20-interfaces/MEETING-AGENT-ROLE-CATALOG-INTERFACE.md)
 - Meeting Agent Definition：[`../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)
 - Developer Markdown Projection：[`../20-interfaces/DEVELOPER-MARKDOWN-PROJECTION-INTERFACE.md`](../20-interfaces/DEVELOPER-MARKDOWN-PROJECTION-INTERFACE.md)
-- 当前实现设计：[`../30-designs/MEETING-ORCHESTRATION-DESIGN.md`](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
+- 当前设计：[`../30-designs/MEETING-DESIGN.md`](../30-designs/MEETING-DESIGN.md)
 
 Plugin Frontend 的最小状态读取和会议控制边界由 Interface 定义；本需求文档不规定路由实现、组件结构或视觉样式。

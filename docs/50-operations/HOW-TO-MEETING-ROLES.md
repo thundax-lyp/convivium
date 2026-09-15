@@ -4,7 +4,7 @@
 
 本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。**2026-09-08 状态：完整 verify、双 Host 冷恢复、九角色/九 Skill、三研究搜索、权限与状态检查、默认五核心全部通过；web_fetch 按用户明确要求跳过，未验证。** 具体范围见 [Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#shared-preset-role-composition)，不能据本轮结果宣称抓取可用。
 
-本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)，资源结构见 [Role Composition Design](../30-designs/ROLE-COMPOSITION-DESIGN.md)。
+本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)，资源结构见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 
 本文聚焦角色资源部署和验收；用户从源码或 npm 包安装插件、配置持久 SQLite 并启动 DSH Web 的完整流程见 [安装并运行 Convivium](./HOW-TO-INSTALL-AND-RUN.md)。
 

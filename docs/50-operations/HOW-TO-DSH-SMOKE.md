@@ -257,7 +257,7 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 
 ## SQLite 替换的关闭与冷重启验收
 
-本次替换遵循 [已接受的关闭限制](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md#accepted-storage-shutdown-limitation)。人工操作在对话完成后停止发起新操作、等待再关闭 Host；不规定“等待若干秒即可安全”的承诺。以下定义 SQLite 冒烟的验收边界；实际执行结果见 [SQLite 验证证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation)。
+人工操作在对话完成后停止发起新操作、等待再关闭 Host；不规定“等待若干秒即可安全”的承诺。以下定义 SQLite 冒烟的验收边界；实际执行结果见 [SQLite 验证证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation)。
 
 自动探针必须先等待目标 tool/command 成功及对应状态断言，再输出阶段结果。`cold-rebind` 的 `plugin/scripts/smoke-profile/probe/scenarios/recovery.js::runColdRebindScenario` 在 phase 1 中执行以下流程：成功提交消息、确认 Captain/Manager Session flush 成功、核对 checkpointStatus 的版本与消息 ID、写出恢复 checkpoint，最后输出 `phase1Complete`；wrapper 读取该结果后才停止 phase 1 Host。phase 2 必须用同一介质的新 Host 验证记录前缀、版本和 ownership，并成功继续提交。阶段结果不是“Host 全部后台写入已排空”的证明；持久化的 pending 工作仍按冷恢复契约继续处理。
 

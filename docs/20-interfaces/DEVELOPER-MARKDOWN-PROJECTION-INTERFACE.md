@@ -278,4 +278,4 @@ temp 名称固定为 `.<targetName>.<pid>.<monotonicCounter>.tmp`，与目标同
 
 - [Architecture](../00-governance/ARCHITECTURE.md)
 - [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
-- [Meeting Orchestration Design](../30-designs/MEETING-ORCHESTRATION-DESIGN.md)
+- [Meeting Design](../30-designs/MEETING-DESIGN.md)

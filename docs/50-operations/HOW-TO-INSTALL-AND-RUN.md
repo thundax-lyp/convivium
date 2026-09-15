@@ -78,6 +78,6 @@ DSH 打开 Browser UI 后，新建 Captain Session，并显式选择 `convivium`
 ## Related Documents
 
 - [Architecture](../00-governance/ARCHITECTURE.md)
-- [Implementation Design](../30-designs/CONVIVIUM-IMPLEMENTATION-DESIGN.md)
+- [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)
 - [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md)
 - [DSH 插件冒烟测试](./HOW-TO-DSH-SMOKE.md)

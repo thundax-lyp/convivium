@@ -114,7 +114,7 @@ export interface MeetingRefreshNoticeV1 {
 
 ## Related Documents
 
-- [Remote Design](../30-designs/MEETING-REMOTE-DESIGN.md)
+- [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)
 - [Remote Migration Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-remote-migration)
 
 ## Minimal Contribution Methods
