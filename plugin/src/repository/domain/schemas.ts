@@ -45,7 +45,7 @@ const meetingStateTransport: z.ZodType<JsonObject> = JsonObjectSchema.superRefin
     if (value.formatVersion === 2 && !isMeetingStateV2(value)) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "MeetingState format 2 is malformed"
+            message: "LegacyMeetingState format 2 is malformed"
         });
     }
 });

@@ -8,7 +8,7 @@ import type {
 } from "@/protocol/index.js";
 import { acceptDecisionCandidate, disposeDecision } from "@/domain/index.js";
 import { evaluateContributionProgress } from "@/domain/index.js";
-import type { DomainEvent, MeetingState } from "@/domain/index.js";
+import type { DomainEvent, LegacyMeetingState } from "@/domain/index.js";
 import {
     contributionOutbox,
     interruptCancelledContributions
@@ -150,7 +150,7 @@ export function createMeetingDecisionApplication({
                         events: [...result.effect.events, ...progress.effect.events] as never,
                         outbox: [
                             ...contributionOutbox(
-                                snapshot.state as unknown as MeetingState,
+                                snapshot.state as unknown as LegacyMeetingState,
                                 progress.state,
                                 committedEvents
                             )
@@ -260,7 +260,7 @@ export function createMeetingDecisionApplication({
                         events: [...transition.effect.events, ...progress.effect.events] as never,
                         outbox: [
                             ...contributionOutbox(
-                                snapshot.state as unknown as MeetingState,
+                                snapshot.state as unknown as LegacyMeetingState,
                                 progress.state,
                                 committedEvents
                             )

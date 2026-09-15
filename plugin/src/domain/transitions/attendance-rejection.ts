@@ -1,6 +1,10 @@
 import { DomainError } from "@/domain/errors.js";
 import { isMeetingStateV2 } from "@/domain/meeting-state-validation.js";
-import type { ArchiveAttendanceRejection, MeetingState, TransitionResult } from "@/domain/model.js";
+import type {
+    ArchiveAttendanceRejection,
+    LegacyMeetingState,
+    TransitionResult
+} from "@/domain/model.js";
 
 export interface RejectAttendanceRecommendationInput {
     readonly meetingId: string;
@@ -14,9 +18,9 @@ export interface RejectAttendanceRecommendationInput {
 const invalid = () => new DomainError("INVALID_ARGUMENT", "Attendance rejection is invalid.");
 
 export function rejectAttendanceRecommendation(
-    state: MeetingState,
+    state: LegacyMeetingState,
     input: RejectAttendanceRecommendationInput
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (state.id !== input.meetingId) throw invalid();
     if (
         [
@@ -80,7 +84,7 @@ export function rejectAttendanceRecommendation(
 }
 
 export function projectAttendanceRejections(
-    state: MeetingState
+    state: LegacyMeetingState
 ): readonly ArchiveAttendanceRejection[] {
     return [...(state.attendanceRecommendations ?? [])]
         .filter((value) => value.status === "rejected")

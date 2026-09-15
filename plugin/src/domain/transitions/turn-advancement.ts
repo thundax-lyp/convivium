@@ -11,7 +11,7 @@ import {
     type ConvergenceAction
 } from "@/domain/planning.js";
 import type {
-    MeetingState,
+    LegacyMeetingState,
     MeetingTurn,
     ManagerPlanningAttempt,
     SpeakerAttempt,
@@ -33,7 +33,7 @@ function canonicalIds(values: readonly string[]): string[] {
     return [...values].sort();
 }
 
-export function createProgressFingerprint(state: MeetingState): string {
+export function createProgressFingerprint(state: LegacyMeetingState): string {
     const agenda = state.agenda
         .map((item) => [item.id, item.status, item.resolution ?? ""] as const)
         .sort(([left], [right]) => left!.localeCompare(right!));
@@ -105,7 +105,7 @@ export function createProgressFingerprint(state: MeetingState): string {
     ]);
 }
 
-export function hasBlockingDisagreement(state: MeetingState): boolean {
+export function hasBlockingDisagreement(state: LegacyMeetingState): boolean {
     const currentProposalIds = new Set(
         state.proposals
             .filter((proposal) => proposal.agendaItemId === state.activeAgendaItemId)
@@ -134,7 +134,7 @@ export function hasBlockingDisagreement(state: MeetingState): boolean {
     );
 }
 
-function currentDissentingPositionIds(state: MeetingState): string[] {
+function currentDissentingPositionIds(state: LegacyMeetingState): string[] {
     const latestRevisionByProposal = new Map<string, number>();
     for (const proposal of state.proposals) {
         latestRevisionByProposal.set(
@@ -159,13 +159,13 @@ function currentDissentingPositionIds(state: MeetingState): string[] {
 }
 
 function planFollowingTurn(
-    state: MeetingState,
+    state: LegacyMeetingState,
     context: SpeakerAdvanceContext,
     version: number,
-    nextState: MeetingState,
-    events: TransitionResult<MeetingState>["effect"]["events"]
-): TransitionResult<MeetingState> {
-    const result = (): TransitionResult<MeetingState> => ({
+    nextState: LegacyMeetingState,
+    events: TransitionResult<LegacyMeetingState>["effect"]["events"]
+): TransitionResult<LegacyMeetingState> {
+    const result = (): TransitionResult<LegacyMeetingState> => ({
         state: { ...nextState, eventSeq: state.eventSeq + events.length },
         effect: { events }
     });
@@ -444,13 +444,13 @@ function planFollowingTurn(
 }
 
 function advanceCompletedTurn(
-    state: MeetingState,
+    state: LegacyMeetingState,
     context: SpeakerAdvanceContext,
     version: number,
-    nextState: MeetingState,
-    events: TransitionResult<MeetingState>["effect"]["events"]
-): TransitionResult<MeetingState> {
-    const result = (): TransitionResult<MeetingState> => ({
+    nextState: LegacyMeetingState,
+    events: TransitionResult<LegacyMeetingState>["effect"]["events"]
+): TransitionResult<LegacyMeetingState> {
+    const result = (): TransitionResult<LegacyMeetingState> => ({
         state: { ...nextState, eventSeq: state.eventSeq + events.length },
         effect: { events }
     });
@@ -615,18 +615,18 @@ function advanceCompletedTurn(
 }
 
 export function advanceAfterSpeakerSubmission(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     context: SpeakerAdvanceContext,
-    submitted: TransitionResult<MeetingState>
-): TransitionResult<MeetingState> {
+    submitted: TransitionResult<LegacyMeetingState>
+): TransitionResult<LegacyMeetingState> {
     const version = submitted.state.version;
     const turn = submitted.state.currentTurn;
     if (turn === undefined) return submitted;
 
     let nextState = submitted.state;
     let events = submitted.effect.events.filter((item) => item.type !== "meeting.waiting");
-    const result = (): TransitionResult<MeetingState> => ({
+    const result = (): TransitionResult<LegacyMeetingState> => ({
         state: { ...nextState, eventSeq: state.eventSeq + events.length },
         effect: { events }
     });

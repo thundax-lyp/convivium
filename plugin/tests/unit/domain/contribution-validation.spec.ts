@@ -3,7 +3,7 @@ import {
     applyPublicSubmission,
     assertContributionEvidenceMessages,
     contributionWorkComplete,
-    type MeetingState,
+    type LegacyMeetingState,
     isMeetingStateV2
 } from "@/domain/index.js";
 import {
@@ -99,7 +99,7 @@ describe("contribution evidence support", () => {
     });
 
     it("rejects a reviewer-owned patch dependency in a previously published draft", () => {
-        const state = evidenceReviewState() as MeetingState;
+        const state = evidenceReviewState() as LegacyMeetingState;
         const reviewerId = state.contributions!.reviewerId;
         state.contributions!.evidence["reviewer-patch:1"] = {
             ...evidenceVersion(1),
@@ -304,7 +304,7 @@ describe("contribution evidence support", () => {
 
 describe("contribution task control", () => {
     it("does not retry a private review task authored by the fixed reviewer", () => {
-        const state = boundaryReviewState() as MeetingState;
+        const state = boundaryReviewState() as LegacyMeetingState;
         const task = state.contributions!.tasks["contribution-1"]!;
         task.phase = "cancelled";
         task.requiresEvidenceReview = true;
@@ -468,7 +468,7 @@ describe("contribution state validation", () => {
             isMeetingStateV2({
                 ...legacy,
                 contributions: validContributionState()
-            } as unknown as MeetingState)
+            } as unknown as LegacyMeetingState)
         ).toBe(true);
     });
 
@@ -480,7 +480,7 @@ describe("contribution state validation", () => {
             isMeetingStateV2({
                 ...contributionMeeting(),
                 contributions: state
-            } as unknown as MeetingState)
+            } as unknown as LegacyMeetingState)
         ).toBe(false);
     });
 
@@ -512,7 +512,7 @@ describe("contribution state validation", () => {
             contributions: contribution
         };
 
-        expect(isMeetingStateV2(mixedOrigin as unknown as MeetingState)).toBe(false);
+        expect(isMeetingStateV2(mixedOrigin as unknown as LegacyMeetingState)).toBe(false);
     });
 
     it("accepts 128 material versions and rejects the 129th", () => {
@@ -527,7 +527,7 @@ describe("contribution state validation", () => {
             isMeetingStateV2({
                 ...contributionMeeting(),
                 contributions: contribution
-            } as unknown as MeetingState)
+            } as unknown as LegacyMeetingState)
         ).toBe(true);
 
         contribution.evidence = {
@@ -538,7 +538,7 @@ describe("contribution state validation", () => {
             isMeetingStateV2({
                 ...contributionMeeting(),
                 contributions: contribution
-            } as unknown as MeetingState)
+            } as unknown as LegacyMeetingState)
         ).toBe(false);
     });
 });

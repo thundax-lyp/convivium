@@ -1,7 +1,7 @@
 import { DomainError } from "@/domain/errors.js";
 import { cancelRequestedMeetingTasksForAttempts } from "@/domain/meeting-task.js";
 import type {
-    MeetingState,
+    LegacyMeetingState,
     SpeakerAttempt,
     SpeakerSubmissionContext,
     TransitionResult
@@ -12,7 +12,7 @@ import { advanceAfterSpeakerSubmission } from "./turn-advancement.js";
 import { assertPublicMinutes } from "./public-submission.js";
 
 function assertMinutesDraft(
-    state: MeetingState,
+    state: LegacyMeetingState,
     attempt: SpeakerAttempt,
     context: SpeakerSubmissionContext
 ): void {
@@ -20,11 +20,11 @@ function assertMinutesDraft(
 }
 
 export function submitSpeakerAttempt(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     meetingVersion: number,
     context: SpeakerSubmissionContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (executionTerminalStatuses.includes(state.status)) {
         throw new DomainError("IMMUTABLE_MEETING", `meeting ${state.id} is immutable`, {
             entityType: "meeting",
@@ -206,9 +206,9 @@ export interface FailSpeakerAttemptContext {
 
 /** Records one expired current attempt; the normal turn-advance path owns the next step. */
 export function failSpeakerAttempt(
-    state: MeetingState,
+    state: LegacyMeetingState,
     context: FailSpeakerAttemptContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const participant = state.participants.find(({ id }) => id === context.participantId);
     const turn = state.currentTurn;
     const step = turn?.steps[turn.currentStepIndex];
@@ -276,7 +276,7 @@ export function failSpeakerAttempt(
               ]
             : [])
     ];
-    const revoked: TransitionResult<MeetingState> = {
+    const revoked: TransitionResult<LegacyMeetingState> = {
         state: {
             ...cancelled.state,
             status: completed ? "waiting" : state.status,

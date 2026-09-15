@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createHandRaise } from "@/domain/hand-raise.js";
-import type { MeetingState } from "@/domain/model.js";
+import type { LegacyMeetingState } from "@/domain/model.js";
 
-function state(overrides: Partial<MeetingState> = {}): MeetingState {
+function state(overrides: Partial<LegacyMeetingState> = {}): LegacyMeetingState {
     return {
         formatVersion: 2,
         id: "meeting-1",
@@ -17,7 +17,7 @@ function state(overrides: Partial<MeetingState> = {}): MeetingState {
             }
         ],
         ...overrides
-    } as unknown as MeetingState;
+    } as unknown as LegacyMeetingState;
 }
 
 function input(overrides: Record<string, unknown> = {}) {

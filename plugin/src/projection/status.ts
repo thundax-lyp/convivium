@@ -1,4 +1,4 @@
-import type { MeetingState } from "@/domain/index.js";
+import type { LegacyMeetingState } from "@/domain/index.js";
 import { isMeetingStateV2 } from "@/domain/index.js";
 import { projectContributionSummaries } from "./contribution.js";
 import type {
@@ -18,7 +18,7 @@ import type {
     PublicRiskV1
 } from "@/protocol/index.js";
 
-const executionTerminalStatuses = new Set<MeetingState["status"]>([
+const executionTerminalStatuses = new Set<LegacyMeetingState["status"]>([
     "completed",
     "partial",
     "no_consensus",
@@ -34,7 +34,7 @@ export type MeetingProjectionCaller =
       }
     | { readonly kind: "local_host"; readonly sessionId: "loopback-web" };
 
-function agendaItem(item: MeetingState["agenda"][number]): PublicAgendaItemV1 {
+function agendaItem(item: LegacyMeetingState["agenda"][number]): PublicAgendaItemV1 {
     return {
         id: item.id,
         title: item.title,
@@ -50,7 +50,7 @@ function agendaItem(item: MeetingState["agenda"][number]): PublicAgendaItemV1 {
     };
 }
 
-function message(value: MeetingState["transcript"][number]): PublicMeetingMessageV1 {
+function message(value: LegacyMeetingState["transcript"][number]): PublicMeetingMessageV1 {
     return {
         id: value.id,
         seq: value.seq,
@@ -83,7 +83,7 @@ function message(value: MeetingState["transcript"][number]): PublicMeetingMessag
     };
 }
 
-function question(value: MeetingState["openQuestions"][number]): PublicQuestionV1 {
+function question(value: LegacyMeetingState["openQuestions"][number]): PublicQuestionV1 {
     return {
         id: value.id,
         text: value.text,
@@ -105,7 +105,7 @@ function question(value: MeetingState["openQuestions"][number]): PublicQuestionV
     };
 }
 
-function meetingTask(value: MeetingState["meetingTasks"][number]): MeetingTaskProjectionV1 {
+function meetingTask(value: LegacyMeetingState["meetingTasks"][number]): MeetingTaskProjectionV1 {
     return {
         meetingTaskId: value.meetingTaskId,
         participantId: value.participantId,
@@ -121,7 +121,7 @@ function meetingTask(value: MeetingState["meetingTasks"][number]): MeetingTaskPr
     };
 }
 
-function handRaise(value: MeetingState["handRaises"][number]): PublicHandRaiseV1 {
+function handRaise(value: LegacyMeetingState["handRaises"][number]): PublicHandRaiseV1 {
     return {
         id: value.id,
         participantId: value.participant,
@@ -136,7 +136,7 @@ function handRaise(value: MeetingState["handRaises"][number]): PublicHandRaiseV1
     };
 }
 
-function decision(value: MeetingState["decisions"][number]): PublicDecisionV1 {
+function decision(value: LegacyMeetingState["decisions"][number]): PublicDecisionV1 {
     return {
         id: value.id,
         ...(value.agendaItemId === undefined ? {} : { agendaItemId: value.agendaItemId }),
@@ -155,7 +155,7 @@ function decision(value: MeetingState["decisions"][number]): PublicDecisionV1 {
     };
 }
 
-function risk(value: MeetingState["issues"][number]): PublicRiskV1 {
+function risk(value: LegacyMeetingState["issues"][number]): PublicRiskV1 {
     return {
         id: value.id,
         title: value.title,
@@ -180,7 +180,7 @@ function risk(value: MeetingState["issues"][number]): PublicRiskV1 {
     };
 }
 
-function attendanceRecommendation(value: MeetingState["attendanceRecommendations"][number]) {
+function attendanceRecommendation(value: LegacyMeetingState["attendanceRecommendations"][number]) {
     return {
         recommendationId: value.id,
         candidateId: value.candidateId,
@@ -203,7 +203,7 @@ function attendanceRecommendation(value: MeetingState["attendanceRecommendations
     };
 }
 
-function turn(value: NonNullable<MeetingState["currentTurn"]>): PublicTurnV1 {
+function turn(value: NonNullable<LegacyMeetingState["currentTurn"]>): PublicTurnV1 {
     return {
         id: value.id,
         seq: value.seq,
@@ -223,9 +223,9 @@ function turn(value: NonNullable<MeetingState["currentTurn"]>): PublicTurnV1 {
     };
 }
 
-function termination(state: MeetingState) {
+function termination(state: LegacyMeetingState) {
     if (state.termination === undefined) {
-        throw new TypeError("terminal MeetingState must include termination");
+        throw new TypeError("terminal LegacyMeetingState must include termination");
     }
     return {
         code: state.termination.code,
@@ -236,10 +236,10 @@ function termination(state: MeetingState) {
 }
 
 function executionTermination(
-    state: MeetingState
+    state: LegacyMeetingState
 ): ExecutionTerminalMeetingStatusResultV1["termination"] {
     if (state.termination === undefined) {
-        throw new TypeError("terminal MeetingState must include termination");
+        throw new TypeError("terminal LegacyMeetingState must include termination");
     }
     return {
         ...termination(state),
@@ -251,7 +251,7 @@ function executionTermination(
 }
 
 function isExecutionTerminalStatus(
-    status: MeetingState["status"]
+    status: LegacyMeetingState["status"]
 ): status is ExecutionTerminalMeetingStatusResultV1["status"] {
     return ["completed", "partial", "no_consensus", "cancelled", "failed"].includes(status);
 }
@@ -262,7 +262,7 @@ function isExecutionTerminalStatus(
  * path here and therefore cannot reach a caller.
  */
 export function projectMeetingStatus(
-    state: MeetingState,
+    state: LegacyMeetingState,
     caller: MeetingProjectionCaller
 ): MeetingStatusResultV1 {
     const base = {
@@ -297,7 +297,7 @@ export function projectMeetingStatus(
 
     if (state.status === "archiving" || state.status === "archived") {
         if (state.archive === undefined)
-            throw new TypeError("archived MeetingState must include archive");
+            throw new TypeError("archived LegacyMeetingState must include archive");
         const archive = {
             package: {
                 ...state.archive.package,
@@ -487,7 +487,7 @@ export function projectMeetingStatus(
 }
 
 export function projectManagerMeetingContext(
-    state: MeetingState,
+    state: LegacyMeetingState,
     dispatchableParticipantIds: readonly string[]
 ): ManagerMeetingContextV1 {
     const planningAttempt = state.manager.currentPlanningAttempt;
@@ -555,11 +555,11 @@ export function projectManagerMeetingContext(
 
 /**
  * Builds the immutable context for the exact current speaker attempt. This is
- * deliberately derived from the target MeetingState only, so continuation
+ * deliberately derived from the target LegacyMeetingState only, so continuation
  * source Sessions or transcripts cannot leak into a new Meeting delivery.
  */
 export function projectSpeakerMeetingContext(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     attemptId: string
 ): SpeakerMeetingContextV1 {

@@ -1,7 +1,7 @@
-import type { MeetingState, MeetingProposal } from "./model.js";
+import type { LegacyMeetingState, MeetingProposal } from "./model.js";
 
 /** Independent proposals have independent revision sequences. */
-export function currentProposals(state: MeetingState): MeetingProposal[] {
+export function currentProposals(state: LegacyMeetingState): MeetingProposal[] {
     const latest = new Map<string, MeetingProposal>();
     for (const proposal of state.proposals) {
         const previous = latest.get(proposal.id);

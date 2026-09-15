@@ -1,5 +1,5 @@
 import { DomainError } from "@/domain/errors.js";
-import type { MeetingIssue, MeetingState, TransitionResult } from "@/domain/model.js";
+import type { MeetingIssue, LegacyMeetingState, TransitionResult } from "@/domain/model.js";
 import type { SubmittedIssueInput } from "./types.js";
 
 function unique(values: readonly string[]): boolean {
@@ -7,11 +7,11 @@ function unique(values: readonly string[]): boolean {
 }
 
 export function addSubmittedIssues(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     agendaItemId: string,
     issues: readonly SubmittedIssueInput[]
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (!state.participants.some(({ id }) => id === participantId))
         throw new DomainError("INVALID_ENTITY_STATE", "issue caller is not a meeting participant");
     if (state.activeAgendaItemId !== agendaItemId)

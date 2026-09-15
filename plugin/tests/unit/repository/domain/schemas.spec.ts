@@ -266,7 +266,7 @@ describe("Meeting persistence record schemas", () => {
             PersistedOutboxV1Schema.safeParse({ ...outbox, leaseOwner: undefined }).success
         ).toBe(false);
     });
-    it("recognizes V2 MeetingState structure without rejecting legacy or unknown formats", () => {
+    it("recognizes V2 LegacyMeetingState structure without rejecting legacy or unknown formats", () => {
         const withState = (state: Record<string, unknown>) => ({
             ...projection,
             snapshot: {

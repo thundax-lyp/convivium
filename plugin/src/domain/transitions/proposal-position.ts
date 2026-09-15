@@ -1,14 +1,14 @@
 import { DomainError } from "@/domain/errors.js";
-import type { MeetingProposal, MeetingState, TransitionResult } from "@/domain/model.js";
+import type { MeetingProposal, LegacyMeetingState, TransitionResult } from "@/domain/model.js";
 import type { SubmittedPositionInput, SubmittedProposalInput } from "./types.js";
 
 export function applySubmittedProposalPositionClaims(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     agendaItemId: string,
     proposals: readonly SubmittedProposalInput[],
     positions: readonly SubmittedPositionInput[]
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (!state.participants.some((participant) => participant.id === participantId)) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
@@ -25,7 +25,7 @@ export function applySubmittedProposalPositionClaims(
     }));
     const knownIds = new Set(nextProposals.map((proposal) => proposal.id));
     const submittedIds = new Set<string>();
-    const events: TransitionResult<MeetingState>["effect"]["events"] = [];
+    const events: TransitionResult<LegacyMeetingState>["effect"]["events"] = [];
 
     for (const proposal of proposals) {
         const title = proposal.title.trim();

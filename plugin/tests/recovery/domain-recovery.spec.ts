@@ -277,7 +277,7 @@ describe("Domain repository recovery", () => {
         await registry.close();
     });
 
-    it("recovers legacy state but rejects an unknown MeetingState format", async () => {
+    it("recovers legacy state but rejects an unknown LegacyMeetingState format", async () => {
         const legacy = readyDomain("team-1", "meeting-legacy");
         const unsupported = readyDomain("team-1", "meeting-unsupported", {
             state: { formatVersion: 3 }

@@ -85,7 +85,7 @@ defineMeetingRepositoryBehaviorContract("DomainMeetingRepository behavior contra
     }
 });
 
-it("preserves legacy reopen and distinguishes unsupported from corrupt MeetingState", async () => {
+it("preserves legacy reopen and distinguishes unsupported from corrupt LegacyMeetingState", async () => {
     const legacy = await openReadyState({ count: 0 });
     await expect(legacy.read()).resolves.toMatchObject({ state: { count: 0 } });
     await legacy.close();
@@ -118,7 +118,7 @@ it("reads only the snapshot and returns an isolated nested value", async () => {
     }
 });
 
-it("still rejects an unsupported MeetingState format on a live snapshot read", async () => {
+it("still rejects an unsupported LegacyMeetingState format on a live snapshot read", async () => {
     const repository = await DomainMeetingRepository.open({
         catalogDomain: createFakeCatalogDomain(),
         meetingDomain: createFakeMeetingDomain(),

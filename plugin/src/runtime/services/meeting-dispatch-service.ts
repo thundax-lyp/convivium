@@ -13,7 +13,7 @@ import {
     isMeetingStateV2,
     managerSpeakerSelectionReasons,
     managerTurnIntents,
-    type MeetingState
+    type LegacyMeetingState
 } from "@/domain/index.js";
 import { projectManagerMeetingContext, projectSpeakerMeetingContext } from "@/projection/index.js";
 import { projectContributionContext } from "@/projection/index.js";
@@ -47,8 +47,8 @@ function waitForMailState(delayMs: number, signal: AbortSignal): Promise<void> {
 }
 
 function requireDispatchableMeeting(
-    state: MeetingState | undefined
-): asserts state is MeetingState {
+    state: LegacyMeetingState | undefined
+): asserts state is LegacyMeetingState {
     if (
         state === undefined ||
         [
@@ -263,7 +263,7 @@ export function createMeetingDeliveryDispatcher(
     }
     async function dispatchParticipant(input: MeetingDeliveryInput): Promise<void> {
         const recovered = await input.repository.recover();
-        const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+        const state = recovered.snapshot?.state as unknown as LegacyMeetingState | undefined;
         requireDispatchableMeeting(state);
         const payload = input.item.payload as unknown as {
             participantId: string;
@@ -319,7 +319,7 @@ export function createMeetingDeliveryDispatcher(
             signal: input.signal,
             authorize: async ({ attempt }) => {
                 const latest = await input.repository.recover();
-                const current = latest.snapshot?.state as unknown as MeetingState | undefined;
+                const current = latest.snapshot?.state as unknown as LegacyMeetingState | undefined;
                 const active = current?.currentTurn?.steps.find(
                     (step) => step.attempt?.attemptId === attempt.attemptId
                 )?.attempt;
@@ -372,7 +372,7 @@ export function createMeetingDeliveryDispatcher(
                 "Manager Session ownership is no longer authorized."
             );
         }
-        const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+        const state = recovered.snapshot?.state as unknown as LegacyMeetingState | undefined;
         requireDispatchableMeeting(state);
         const dispatchableParticipantIds = state.participants
             .filter(
@@ -410,7 +410,7 @@ export function createMeetingDeliveryDispatcher(
             signal: input.signal,
             authorize: async ({ attempt }) => {
                 const latest = await input.repository.recover();
-                const current = latest.snapshot?.state as unknown as MeetingState | undefined;
+                const current = latest.snapshot?.state as unknown as LegacyMeetingState | undefined;
                 const active = current?.manager.currentPlanningAttempt;
                 if (
                     active?.id !== attempt.planningAttemptId ||
@@ -433,7 +433,7 @@ export function createMeetingDeliveryDispatcher(
             participantId: string;
             executionId: string;
         };
-        const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+        const state = recovered.snapshot?.state as unknown as LegacyMeetingState | undefined;
         requireDispatchableMeeting(state);
         const task = state.meetingTasks?.find(
             (candidate) =>
@@ -480,7 +480,7 @@ export function createMeetingDeliveryDispatcher(
             signal: input.signal,
             authorize: async (phase) => {
                 const latest = await input.repository.recover();
-                const current = latest.snapshot?.state as unknown as MeetingState | undefined;
+                const current = latest.snapshot?.state as unknown as LegacyMeetingState | undefined;
                 const currentTask = current?.meetingTasks.find(
                     (candidate) => candidate.meetingTaskId === task.meetingTaskId
                 );
@@ -728,7 +728,7 @@ async function dispatchMail(
     };
     const now = options.now?.() ?? Date.now();
     const snapshot = await input.repository.read();
-    const state = snapshot.state as unknown as MeetingState;
+    const state = snapshot.state as unknown as LegacyMeetingState;
     requireDispatchableMeeting(state);
     const timeout = state.limits.mailHandlingTimeoutMs;
     if (!Number.isFinite(timeout) || timeout === undefined || timeout <= 0) {
@@ -753,7 +753,7 @@ async function dispatchMail(
     });
     const recovered = await input.repository.recover();
     const mail = await input.repository.readPrivateMeetingMail(payload.mailId);
-    const processingState = recovered.snapshot?.state as unknown as MeetingState | undefined;
+    const processingState = recovered.snapshot?.state as unknown as LegacyMeetingState | undefined;
     const ownership = recovered.sessionOwnership.find(
         (candidate) =>
             candidate.role === "participant" &&

@@ -3,7 +3,7 @@ import {
     isMeetingStateV2,
     type ContributionTask,
     type EvidenceVersion,
-    type MeetingState
+    type LegacyMeetingState
 } from "@/domain/index.js";
 import * as projection from "@/projection/index.js";
 import { MeetingStatusResultSchema, ReadContributionResultSchema } from "@/protocol/index.js";
@@ -50,7 +50,7 @@ function material(revision: number): EvidenceVersion {
     };
 }
 
-function state(): MeetingState {
+function state(): LegacyMeetingState {
     const base = contributionMeeting();
     delete base.termination;
     const task: ContributionTask = {

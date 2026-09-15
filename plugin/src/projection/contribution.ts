@@ -4,7 +4,7 @@ import {
     type ContributionTask,
     type ContributionDraft,
     type EvidenceVersion,
-    type MeetingState
+    type LegacyMeetingState
 } from "@/domain/index.js";
 import {
     ReadContributionResultSchema,
@@ -17,7 +17,7 @@ import { projectMeetingStatus } from "./status.js";
 import type { ContributionContextV1, ContributionDelivery } from "@/protocol/index.js";
 
 export function projectContributionContext(
-    state: MeetingState,
+    state: LegacyMeetingState,
     viewer: MeetingProjectionCaller,
     delivery: ContributionDelivery,
     deliveryId: string
@@ -124,7 +124,7 @@ const privileged = (viewer: MeetingProjectionCaller) => audit(viewer) || viewer.
 const author = (task: ContributionTask, viewer: MeetingProjectionCaller) =>
     viewer.kind === "participant" && viewer.participantId === task.participantId;
 
-function publicTask(state: MeetingState, task: ContributionTask): boolean {
+function publicTask(state: LegacyMeetingState, task: ContributionTask): boolean {
     return (
         task.phase === "published" &&
         (state.status !== "archived" ||
@@ -133,7 +133,7 @@ function publicTask(state: MeetingState, task: ContributionTask): boolean {
 }
 
 function independentlyPublicEvidence(
-    state: MeetingState,
+    state: LegacyMeetingState,
     excludedTaskId: string,
     key: string
 ): boolean {
@@ -152,7 +152,11 @@ function independentlyPublicEvidence(
     return visible.has(key);
 }
 
-function readableDraftEvidence(state: MeetingState, task: ContributionTask, key: string): boolean {
+function readableDraftEvidence(
+    state: LegacyMeetingState,
+    task: ContributionTask,
+    key: string
+): boolean {
     const visited = new Set<string>();
     const visit = (candidate: string): boolean => {
         if (visited.has(candidate)) return true;
@@ -169,7 +173,7 @@ function readableDraftEvidence(state: MeetingState, task: ContributionTask, key:
 }
 
 export function projectContributionSummaries(
-    state: MeetingState,
+    state: LegacyMeetingState,
     viewer: MeetingProjectionCaller
 ): readonly ContributionSummaryV1[] {
     return Object.values(state.contributions?.tasks ?? {})
@@ -410,7 +414,7 @@ function denied(): never {
 }
 
 export function projectContributionRead(
-    state: MeetingState,
+    state: LegacyMeetingState,
     viewer: MeetingProjectionCaller,
     input: ReadContributionInputV1
 ): ReadContributionResultV1 {

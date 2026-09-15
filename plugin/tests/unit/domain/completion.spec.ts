@@ -7,12 +7,12 @@ import {
     judgeTurnCompletion,
     isObjectiveSatisfied,
     type CompletionFact,
-    type MeetingState
+    type LegacyMeetingState
 } from "@/domain/index.js";
 
 const now = 1_700_000_000_000;
 
-function state(overrides: Partial<MeetingState> = {}): MeetingState {
+function state(overrides: Partial<LegacyMeetingState> = {}): LegacyMeetingState {
     return {
         formatVersion: 2,
         id: "meeting-1",
@@ -129,7 +129,7 @@ describe("meeting objective and completion limits", () => {
     });
 });
 
-function completionState(overrides: Partial<MeetingState> = {}): MeetingState {
+function completionState(overrides: Partial<LegacyMeetingState> = {}): LegacyMeetingState {
     const base = state();
     return state({
         participants: [

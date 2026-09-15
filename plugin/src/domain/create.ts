@@ -3,7 +3,7 @@ import type {
     ContinuationMaterial,
     MeetingLimits,
     MeetingSelectionMode,
-    MeetingState
+    LegacyMeetingState
 } from "./model.js";
 
 export interface CanonicalIdAllocator {
@@ -134,7 +134,7 @@ function copyContinuation(
 export function createMeetingState(
     input: CreateMeetingSpec,
     ids: CanonicalIdAllocator
-): MeetingState {
+): LegacyMeetingState {
     const selectionMode = input.selectionMode ?? "round_robin";
     const continuation = copyContinuation(input.continuation);
     if (

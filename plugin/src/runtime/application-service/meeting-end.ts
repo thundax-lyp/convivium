@@ -1,4 +1,4 @@
-import { endMeeting as endMeetingTransition, type MeetingState } from "@/domain/index.js";
+import { endMeeting as endMeetingTransition, type LegacyMeetingState } from "@/domain/index.js";
 import type { EndMeetingInputV1, EndMeetingResultV1 } from "@/protocol/index.js";
 import { RepositoryError } from "@/repository/errors.js";
 import type { DomainEventInput, JsonObject } from "@/runtime/meeting-runtime.js";
@@ -110,7 +110,7 @@ export function createMeetingEndApplication(dependencies: MeetingEndApplicationO
                         assertLocalArchiveRecoveryAvailable(stored);
                     }
                     const transition = endMeetingTransition(
-                        snapshot.state as unknown as MeetingState,
+                        snapshot.state as unknown as LegacyMeetingState,
                         {
                             meetingId: input.meetingId,
                             captainBinding,

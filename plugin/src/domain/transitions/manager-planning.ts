@@ -10,7 +10,7 @@ import {
 import { isMeetingStateV2 } from "@/domain/meeting-state-validation.js";
 import type {
     DomainEffect,
-    MeetingState,
+    LegacyMeetingState,
     MeetingTurn,
     ManagerPlanningAttempt,
     TransitionResult
@@ -22,12 +22,15 @@ import type { StartManagerPlanningContext, SubmitManagerPlanContext } from "./ty
 export type ManagerFallbackReasonCode =
     "manager_plan_invalid" | "manager_timeout" | "manager_delivery_retry_exhausted";
 
-function requiredUnavailable(state: MeetingState, context: SubmitManagerPlanContext): string[] {
+function requiredUnavailable(
+    state: LegacyMeetingState,
+    context: SubmitManagerPlanContext
+): string[] {
     return requiredPlanningBlockers(state, context.dispatchableParticipantIds);
 }
 
 function attendanceRecommendations(
-    state: MeetingState,
+    state: LegacyMeetingState,
     input: ManagerPlanInput,
     context: SubmitManagerPlanContext
 ) {
@@ -94,14 +97,14 @@ function attendanceRecommendations(
 }
 
 function waitForRequiredParticipant(
-    state: MeetingState,
+    state: LegacyMeetingState,
     context: SubmitManagerPlanContext,
     reasonCode?: ManagerFallbackReasonCode
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const participantIds = requiredUnavailable(state, context);
     if (participantIds.length === 0) throw new Error("wait requires unavailable participant");
     const attempt = state.manager.currentPlanningAttempt!;
-    const nextState: MeetingState = {
+    const nextState: LegacyMeetingState = {
         ...state,
         version: state.version + 1,
         updatedAt: context.now,
@@ -153,10 +156,10 @@ function waitForRequiredParticipant(
 }
 
 export function failManagerPlanningAndCreateFallback(
-    state: MeetingState,
+    state: LegacyMeetingState,
     context: SubmitManagerPlanContext & { reasonCode: ManagerFallbackReasonCode },
     ids: ManagerPlanIds
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (requiredUnavailable(state, context).length > 0) {
         return waitForRequiredParticipant(state, context, context.reasonCode);
     }
@@ -187,7 +190,7 @@ export function failManagerPlanningAndCreateFallback(
         status: "running" as const,
         deliveryStatus: "pending" as const
     };
-    const nextState: MeetingState = {
+    const nextState: LegacyMeetingState = {
         ...state,
         version: state.version + 1,
         updatedAt: context.now,
@@ -256,9 +259,9 @@ export function failManagerPlanningAndCreateFallback(
 }
 
 export function startManagerPlanning(
-    state: MeetingState,
+    state: LegacyMeetingState,
     context: StartManagerPlanningContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (context.meetingId !== state.id) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
@@ -320,7 +323,7 @@ export function startManagerPlanning(
             ? {}
             : { deadlineAt: context.now + state.limits.speakerAttemptTimeoutMs })
     };
-    const nextState: MeetingState = {
+    const nextState: LegacyMeetingState = {
         ...meeting.state,
         activeAgendaItemId: meeting.state.activeAgendaItemId ?? meeting.state.agenda[0]?.id,
         agenda: meeting.state.agenda.map((item, index) =>
@@ -357,11 +360,11 @@ export function startManagerPlanning(
 }
 
 export function submitManagerPlan(
-    state: MeetingState,
+    state: LegacyMeetingState,
     input: ManagerPlanInput,
     context: SubmitManagerPlanContext,
     ids: ManagerPlanIds
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const planningAttempt = state.manager.currentPlanningAttempt;
     if (
         context.meetingId !== state.id ||
@@ -449,7 +452,7 @@ export function submitManagerPlan(
         selectedRaise === undefined
             ? { state, effect: { events: [] } }
             : consumeHandRaise(state, selectedRaise.id);
-    const nextState: MeetingState = {
+    const nextState: LegacyMeetingState = {
         ...consumed.state,
         version: state.version + 1,
         updatedAt: context.now,

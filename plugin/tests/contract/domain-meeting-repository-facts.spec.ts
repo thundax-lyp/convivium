@@ -8,7 +8,7 @@ import {
 import { meeting as domainMeeting, now } from "../unit/domain/transitions/fixtures.js";
 import { createMeetingDomainSpec } from "@/repository/domain/specs.js";
 import { createLocalDecisionRiskState } from "../fixtures/local-decision-risk.js";
-import type { MeetingState } from "@/domain/model.js";
+import type { LegacyMeetingState } from "@/domain/model.js";
 import type { JsonObject, RepositoryCommand, DomainEventInput } from "@/repository/types.js";
 import { materializeArchivePackage } from "@/runtime/services/meeting-archive-service.js";
 import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
@@ -23,7 +23,7 @@ import { loadProjection } from "@/repository/domain/projection.js";
 import { seqKey } from "@/repository/domain/keys.js";
 import { expect, it } from "vitest";
 
-function minutesRepositoryState(): MeetingState {
+function minutesRepositoryState(): LegacyMeetingState {
     const state = domainMeeting("running");
     delete state.termination;
     state.version = 0;
@@ -404,7 +404,7 @@ it("local control commits roll back and reopen", async () => {
             requestHash: JSON.stringify(input),
             expectedMeetingVersion: index,
             transition(snapshot) {
-                const state = snapshot.state as unknown as MeetingState;
+                const state = snapshot.state as unknown as LegacyMeetingState;
                 const transition =
                     index === 0
                         ? acceptDecisionCandidate(state, {
@@ -525,7 +525,7 @@ it("local control commits roll back and reopen", async () => {
         for (let index = 0; index < 5; index++)
             expect(await repository.execute(command(index))).toEqual(receipts[index]);
         expect(loadProjection({ domain: meetingDomain })).toEqual(committed);
-        const state = (await repository.read())!.state as unknown as MeetingState;
+        const state = (await repository.read())!.state as unknown as LegacyMeetingState;
         expect(state.decisions.map(({ status }) => status)).toEqual(["superseded", "revoked"]);
         expect(state.completionFacts).toHaveLength(6);
         expect(
@@ -545,7 +545,7 @@ it("local control commits roll back and reopen", async () => {
                 requestHash: target,
                 expectedMeetingVersion: snapshot.version,
                 transition(current) {
-                    const source = current.state as unknown as MeetingState;
+                    const source = current.state as unknown as LegacyMeetingState;
                     const transition = transitionMeeting(
                         source,
                         target,
@@ -576,7 +576,7 @@ it("local control commits roll back and reopen", async () => {
             });
         }
         const archived = loadProjection({ domain: meetingDomain });
-        const archive = ((await repository.read())!.state as unknown as MeetingState).archive!
+        const archive = ((await repository.read())!.state as unknown as LegacyMeetingState).archive!
             .package;
         expect(archive.completionFacts).toEqual(state.completionFacts);
         expect(archive.decisionHistory.map(({ id, status }) => ({ id, status }))).toEqual(
@@ -586,7 +586,7 @@ it("local control commits roll back and reopen", async () => {
         await repository.close();
         repository = await open();
         expect(
-            ((await repository.read())!.state as unknown as MeetingState).archive!.package
+            ((await repository.read())!.state as unknown as LegacyMeetingState).archive!.package
         ).toEqual(archive);
         expect(await repository.execute(command(0))).toEqual(receipts[0]);
         expect(loadProjection({ domain: meetingDomain })).toEqual(archived);

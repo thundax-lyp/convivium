@@ -1,14 +1,14 @@
 import { DomainError } from "@/domain/errors.js";
-import type { MeetingState, TransitionResult } from "@/domain/model.js";
+import type { LegacyMeetingState, TransitionResult } from "@/domain/model.js";
 import type { SubmittedDecisionCandidateInput } from "./types.js";
 
 export function addSubmittedDecisionCandidates(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     agendaItemId: string,
     sourceMessageId: string,
     candidates: readonly SubmittedDecisionCandidateInput[]
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (
         [
             "completed",

@@ -11,7 +11,7 @@ import {
     createFakeDomainFacility
 } from "../fixtures/domain-storage.js";
 import type { ContributionCommandV1 } from "@/protocol/index.js";
-import type { MeetingState } from "@/domain/index.js";
+import type { LegacyMeetingState } from "@/domain/index.js";
 import { ContributionResultSchema } from "@/protocol/index.js";
 import { encodeMeetingSessionLabel, resolveMeetingCaller } from "@/dsh/index.js";
 import { registerSubmitAndControlTools } from "@/tools/index.js";
@@ -28,7 +28,7 @@ import {
     recordContributionDeliveryFailure
 } from "@/runtime/services/contribution-runtime-service.js";
 
-async function fixture(prepare?: (state: MeetingState) => void) {
+async function fixture(prepare?: (state: LegacyMeetingState) => void) {
     const domain = createFakeMeetingDomain();
     const authorizationValidator = { validateCreate() {}, validateCommand() {} };
     const repository = await DomainMeetingRepository.open({
@@ -160,7 +160,7 @@ describe("contribution agenda advancement", () => {
                 authorization: { callerBinding: "runtime", capabilityId: "runtime" },
                 expectedMeetingVersion: (await f.repository.read()).version,
                 transition(snapshot) {
-                    const state = structuredClone(snapshot.state) as unknown as MeetingState;
+                    const state = structuredClone(snapshot.state) as unknown as LegacyMeetingState;
                     state.agenda[0]!.status = "resolved";
                     return {
                         state: JsonObjectSchema.parse(state),
@@ -387,7 +387,7 @@ describe("contribution scribe authorization", () => {
                     f.signal
                 )
             ).toMatchObject({ ok: true, result: { phase: "published" } });
-            const state = (await f.repository.read()).state as unknown as MeetingState;
+            const state = (await f.repository.read()).state as unknown as LegacyMeetingState;
             expect(state.transcript[1]).toMatchObject({
                 kind: "summary",
                 content: "Referenced summary",
@@ -440,7 +440,9 @@ describe("contribution application transactions", () => {
             const after = await f.repository.read();
             expect(after.version).toBe(before.version + 1);
             expect(
-                Object.values((after.state as unknown as MeetingState).contributions!.tasks)[0]
+                Object.values(
+                    (after.state as unknown as LegacyMeetingState).contributions!.tasks
+                )[0]
             ).toMatchObject({ phase: "captain_action", generation: 2 });
             const projection = loadProjection({ domain: f.domain });
             await scanContributionTimeouts({ repository: f.repository, now: now + 600000 });
@@ -464,8 +466,8 @@ describe("contribution application transactions", () => {
             });
             expect(
                 Object.values(
-                    ((await f.repository.read()).state as unknown as MeetingState).contributions!
-                        .tasks
+                    ((await f.repository.read()).state as unknown as LegacyMeetingState)
+                        .contributions!.tasks
                 )[0]
             ).toMatchObject({ phase: "captain_action", generation: 2, reason: "DELIVERY_FAILED" });
             const projection = loadProjection({ domain: f.domain });

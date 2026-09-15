@@ -1,7 +1,11 @@
 import { applyCompletionClaims } from "@/domain/completion.js";
 import { DomainError } from "@/domain/errors.js";
 import { isMeetingMinutesDraft } from "@/domain/meeting-state-validation.js";
-import type { MeetingState, SpeakerSubmissionContext, TransitionResult } from "@/domain/model.js";
+import type {
+    LegacyMeetingState,
+    SpeakerSubmissionContext,
+    TransitionResult
+} from "@/domain/model.js";
 import { addSubmittedAgendaCandidates } from "./agenda-candidate.js";
 import { addSubmittedDecisionCandidates } from "./decision-candidate.js";
 import { addSubmittedIssues } from "./issue.js";
@@ -19,7 +23,7 @@ export interface PublicSubmissionContext {
 }
 
 export function assertPublicMinutes(
-    state: MeetingState,
+    state: LegacyMeetingState,
     message: SpeakerSubmissionContext["message"],
     contextFromSeq: number,
     contextThroughSeq: number
@@ -52,10 +56,10 @@ export function assertPublicMinutes(
 }
 
 export function applyPublicSubmission(
-    state: MeetingState,
+    state: LegacyMeetingState,
     participantId: string,
     context: PublicSubmissionContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (
         context.message.minutesDraft !== undefined &&
         (context.claims.completion !== undefined ||

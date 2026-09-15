@@ -3,7 +3,7 @@ import { DomainError } from "@/domain/errors.js";
 import type {
     CompletionFact,
     DomainEffect,
-    MeetingState,
+    LegacyMeetingState,
     MeetingStatus,
     TransitionResult
 } from "@/domain/model.js";
@@ -36,9 +36,9 @@ export const executionTerminalStatuses: readonly MeetingStatus[] = [
 ];
 
 export function endMeeting(
-    state: MeetingState,
+    state: LegacyMeetingState,
     context: EndMeetingTransitionContext
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     if (context.meetingId !== state.id) {
         throw new DomainError("INVALID_ENTITY_STATE", "end command targets another meeting", {
             entityType: "meeting",
@@ -152,7 +152,7 @@ export function endMeeting(
         waiverFacts.push(waiverFact);
     }
 
-    const prepared: MeetingState = { ...state, agenda, completionFacts };
+    const prepared: LegacyMeetingState = { ...state, agenda, completionFacts };
     const dissentingPositionIds = prepared.proposals
         .filter((proposal) => proposal.status !== "superseded")
         .flatMap((proposal) =>
@@ -186,7 +186,7 @@ export function endMeeting(
         partial: "captain_accepted",
         no_consensus: "no_consensus",
         cancelled: "user_cancelled"
-    }[context.outcome] as NonNullable<MeetingState["termination"]>["code"];
+    }[context.outcome] as NonNullable<LegacyMeetingState["termination"]>["code"];
     const ended = transitionMeeting(prepared, context.outcome, {
         now: context.now,
         reason: context.reason,

@@ -6,9 +6,9 @@ import {
     queueMeetingTasks,
     startMeetingTask
 } from "@/domain/index.js";
-import type { MeetingState } from "@/domain/model.js";
+import type { LegacyMeetingState } from "@/domain/model.js";
 
-function state(): MeetingState {
+function state(): LegacyMeetingState {
     return {
         formatVersion: 2,
         id: "meeting-1",
@@ -22,7 +22,7 @@ function state(): MeetingState {
                 taskIds: ["task-1"]
             }
         ]
-    } as unknown as MeetingState;
+    } as unknown as LegacyMeetingState;
 }
 
 function input() {

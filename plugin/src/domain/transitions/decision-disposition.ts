@@ -1,5 +1,5 @@
 import { DomainError } from "@/domain/errors.js";
-import type { CompletionFact, MeetingState, TransitionResult } from "@/domain/model.js";
+import type { CompletionFact, LegacyMeetingState, TransitionResult } from "@/domain/model.js";
 import { acceptDecisionCandidate } from "./decision-acceptance.js";
 
 export type DisposeDecisionInput =
@@ -38,7 +38,7 @@ const terminal = new Set([
     "archived"
 ]);
 
-function validateCommon(state: MeetingState, input: DisposeDecisionInput) {
+function validateCommon(state: LegacyMeetingState, input: DisposeDecisionInput) {
     if (input.meetingId !== state.id) throw invalid("dispose command targets another meeting");
     if (!input.requestId.trim()) throw invalid("requestId must not be empty");
     if (terminal.has(state.status)) {
@@ -63,9 +63,9 @@ function validateCommon(state: MeetingState, input: DisposeDecisionInput) {
 }
 
 export function disposeDecision(
-    state: MeetingState,
+    state: LegacyMeetingState,
     input: DisposeDecisionInput
-): TransitionResult<MeetingState> {
+): TransitionResult<LegacyMeetingState> {
     const { decision, evidence } = validateCommon(state, input);
     const factId = `completion-${input.requestId}-decision-${input.action === "supersede" ? "supersession" : "revocation"}`;
     if (state.completionFacts.some((fact) => fact.id === factId))

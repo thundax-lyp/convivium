@@ -2,7 +2,7 @@ import { RoleCompositionError } from "@/role-composition/resolve.js";
 import { createHash } from "node:crypto";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { interruptAndDrainOwnedSessions } from "@/dsh/index.js";
-import { isMeetingStateV2, type MeetingState } from "@/domain/index.js";
+import { isMeetingStateV2, type LegacyMeetingState } from "@/domain/index.js";
 import type { CreateMeetingInputV1, CreateMeetingResultV1 } from "@/protocol/index.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { commandFailure, commandSuccess } from "@/runtime/services/command-result-service.js";
@@ -82,7 +82,7 @@ async function initializeContributionMeeting(
             if (!isMeetingStateV2(snapshot.state) || snapshot.state.contributions === undefined) {
                 throw new TypeError("Contribution meeting state is unavailable.");
             }
-            const state = snapshot.state as unknown as MeetingState;
+            const state = snapshot.state as unknown as LegacyMeetingState;
             const contributions = state.contributions!;
             const firstAgenda = state.agenda[0]!;
             const managerNoticeSeq = 1;
@@ -98,7 +98,7 @@ async function initializeContributionMeeting(
                     }
                 }
             ];
-            const next: MeetingState = {
+            const next: LegacyMeetingState = {
                 ...state,
                 status: "running",
                 activeAgendaItemId: firstAgenda.id,

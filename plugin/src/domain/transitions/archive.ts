@@ -2,12 +2,17 @@ import { isMeetingMinutesDraft } from "@/domain/meeting-state-validation.js";
 
 import { projectAttendanceRejections } from "./attendance-rejection.js";
 import { DomainError } from "@/domain/errors.js";
-import type { ArchiveInput, ArchivePackage, ArchiveRecord, MeetingState } from "@/domain/model.js";
+import type {
+    ArchiveInput,
+    ArchivePackage,
+    ArchiveRecord,
+    LegacyMeetingState
+} from "@/domain/model.js";
 import { terminationReferencesBelongToMeeting } from "./meeting-guards.js";
 
 export function sameTermination(
-    left: MeetingState["termination"],
-    right: MeetingState["termination"]
+    left: LegacyMeetingState["termination"],
+    right: LegacyMeetingState["termination"]
 ): boolean {
     const sameReferences = (leftIds: readonly string[], rightIds: readonly string[]) => {
         if (leftIds.length !== rightIds.length) return false;
@@ -41,7 +46,10 @@ export function snapshotArchive(input: ArchiveInput): ArchiveRecord {
     };
 }
 
-function assertArchiveReferencesMatch(state: MeetingState, archivePackage: ArchivePackage): void {
+function assertArchiveReferencesMatch(
+    state: LegacyMeetingState,
+    archivePackage: ArchivePackage
+): void {
     const decisionById = new Map(state.decisions.map((decision) => [decision.id, decision]));
     const agendaIds = new Set(state.agenda.map((item) => item.id));
     const issueIds = new Set(state.issues.map((issue) => issue.id));
@@ -301,7 +309,10 @@ function assertArchiveReferencesMatch(state: MeetingState, archivePackage: Archi
     }
 }
 
-export function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveInput): void {
+export function assertArchivePackageMatchesMeeting(
+    state: LegacyMeetingState,
+    input: ArchiveInput
+): void {
     const archivePackage = input.package;
     const expectedContributions = contributionArchiveReferences(state);
     const actualContributions = archivePackage.contributionRefs;
@@ -378,7 +389,7 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
 }
 
 export function contributionArchiveReferences(
-    state: MeetingState
+    state: LegacyMeetingState
 ): ArchivePackage["contributionRefs"] {
     const contributions = state.contributions;
     if (contributions === undefined) return undefined;

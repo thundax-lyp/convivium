@@ -6,7 +6,7 @@ import {
     projectAttendanceRejections,
     contributionArchiveReferences
 } from "@/domain/index.js";
-import type { ArchivePackage, MeetingState } from "@/domain/index.js";
+import type { ArchivePackage, LegacyMeetingState } from "@/domain/index.js";
 import {
     encodeMeetingSessionLabel,
     interruptAndDrainOwnedSessions,
@@ -18,7 +18,7 @@ import type { MeetingRepositoryPort as MeetingRepository } from "@/repository/me
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SessionOwnership } from "@/repository/types.js";
 
-const executionTerminalStatuses = new Set<MeetingState["status"]>([
+const executionTerminalStatuses = new Set<LegacyMeetingState["status"]>([
     "completed",
     "partial",
     "no_consensus",
@@ -45,7 +45,7 @@ function canonicalJson(value: unknown): string {
     throw new TypeError("Archive termination identity contains a non-JSON value.");
 }
 
-export function terminationIdentity(state: MeetingState): string {
+export function terminationIdentity(state: LegacyMeetingState): string {
     if (state.termination === undefined) {
         throw new TypeError("Archive materialization requires a committed termination.");
     }
@@ -64,7 +64,7 @@ function archiveAuthorization(identity: string): CommandAuthorization {
 export interface BeginArchiveFromTerminationInput {
     readonly repository: Pick<MeetingRepository, "execute">;
     /** A recovered, committed execution-terminal snapshot. */
-    readonly terminal: MeetingState;
+    readonly terminal: LegacyMeetingState;
     readonly now: number;
 }
 
@@ -136,7 +136,7 @@ function assertSameArchiveOwnerships(
  * outside this Manager-plus-Participants set may be interrupted or closed.
  */
 export function requireExpectedArchiveOwnerships(
-    state: MeetingState,
+    state: LegacyMeetingState,
     ownerships: readonly SessionOwnership[],
     parentSessionId: string
 ): readonly SessionOwnership[] {
@@ -203,8 +203,8 @@ export function requireExpectedArchiveOwnerships(
 
 function requireArchivingSnapshot(
     recovered: Awaited<ReturnType<MeetingRepository["recover"]>>
-): MeetingState {
-    const state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+): LegacyMeetingState {
+    const state = recovered.snapshot?.state as unknown as LegacyMeetingState | undefined;
     if (state?.status !== "archiving" || state.archive?.package === undefined) {
         throw new Error("Archive cleanup requires a materialized archiving snapshot.");
     }
@@ -342,7 +342,7 @@ export async function finalizeArchive(
         requestHash: canonicalJson({ identity, operation: "finalize" }),
         expectedMeetingVersion: state.version,
         transition: (snapshot) => {
-            const archiving = snapshot.state as unknown as MeetingState;
+            const archiving = snapshot.state as unknown as LegacyMeetingState;
             if (
                 archiving.status !== "archiving" ||
                 archiving.archive?.package === undefined ||
@@ -381,7 +381,7 @@ export async function recoverArchive(input: RecoverArchiveInput): Promise<Archiv
         return await recoverArchiveOnce(input);
     } catch (error) {
         const recovered = await input.repository.recover().catch(() => undefined);
-        const state = recovered?.snapshot?.state as unknown as MeetingState | undefined;
+        const state = recovered?.snapshot?.state as unknown as LegacyMeetingState | undefined;
         if (state !== undefined)
             emitDiagnostic(input.onDiagnostic, {
                 meetingId: state.id,
@@ -397,7 +397,7 @@ export async function recoverArchive(input: RecoverArchiveInput): Promise<Archiv
 }
 async function recoverArchiveOnce(input: RecoverArchiveInput): Promise<ArchiveRecoveryResult> {
     const recovered = await input.repository.recover();
-    let state = recovered.snapshot?.state as unknown as MeetingState | undefined;
+    let state = recovered.snapshot?.state as unknown as LegacyMeetingState | undefined;
     if (state === undefined || state.status === "archived") return "unchanged";
     if (
         (executionTerminalStatuses.has(state.status) || state.status === "archiving") &&
@@ -413,7 +413,8 @@ async function recoverArchiveOnce(input: RecoverArchiveInput): Promise<ArchiveRe
             expectedMeetingVersion: state.version,
             now: input.now
         });
-        state = (await input.repository.recover()).snapshot?.state as MeetingState | undefined;
+        state = (await input.repository.recover()).snapshot?.state as
+            LegacyMeetingState | undefined;
     }
     if (state === undefined) return "unchanged";
     if (executionTerminalStatuses.has(state.status)) {
@@ -423,7 +424,8 @@ async function recoverArchiveOnce(input: RecoverArchiveInput): Promise<ArchiveRe
             now: input.now
         });
         if (input.parent === undefined || input.runtime === undefined) return "begun";
-        state = (await input.repository.recover()).snapshot?.state as MeetingState | undefined;
+        state = (await input.repository.recover()).snapshot?.state as
+            LegacyMeetingState | undefined;
     }
     if (state?.status !== "archiving") return "unchanged";
     if (input.parent === undefined || input.runtime === undefined) return "pending";
@@ -458,7 +460,7 @@ export async function beginArchiveFromTermination(
         requestHash: canonicalJson({ identity, operation: "begin" }),
         expectedMeetingVersion: input.terminal.version,
         transition: (snapshot) => {
-            const state = snapshot.state as unknown as MeetingState;
+            const state = snapshot.state as unknown as LegacyMeetingState;
             if (
                 !executionTerminalStatuses.has(state.status) ||
                 terminationIdentity(state) !== identity
@@ -482,7 +484,7 @@ export async function beginArchiveFromTermination(
 }
 
 export function materializeArchivePackage(
-    state: MeetingState,
+    state: LegacyMeetingState,
     materializedAt: number
 ): ArchivePackage {
     if (state.termination === undefined) {

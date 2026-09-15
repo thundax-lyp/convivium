@@ -8,6 +8,7 @@ export {
 } from "./transitions/contribution.js";
 export * from "./errors.js";
 export * from "./model.js";
+export * from "./meeting-state-v1.js";
 export { isMeetingStateV2 } from "./meeting-state-validation.js";
 export * from "./meeting-task.js";
 export * from "./hand-raise.js";
