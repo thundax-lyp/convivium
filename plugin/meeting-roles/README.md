@@ -8,4 +8,4 @@
 
 Skill 只提供方法；实际贡献资格由 Meeting Runtime 判断，资源权限由 DSH Sandbox/Approval 管理。Manager/Scribe 仅保留 skill、会议状态及当前贡献读写工具，继承的 shell/fs/web 被收窄；其余角色仍服从 Host 权限。不会安装独立 child Preset 或创建能力安装器。
 
-自动入口为 `CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm smoke:profile`（仓库根目录）；该场景不支持 Browser 模式。模型差异与冷恢复另由 role-composition 场景验证。2026-09-08 本轮完整 verify、双 Host 冷恢复、九角色 Skill、三研究搜索、权限和状态检查、默认五核心均通过。web_fetch 按用户明确要求未验证；本轮命令额外设置 `CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1`，结果标注 skipped:user-waiver，默认入口仍要求抓取成功。此结果不证明抓取可用，完整记录见上述操作文档。
+当前自动入口和可选场景以仓库 [DSH Smoke](../../docs/50-operations/HOW-TO-DSH-SMOKE.md) 为准。`meeting-roles` 和 `role-composition` 是历史验收场景，已不在当前 `smoke:profile` selector 中；2026-09-08 的九角色 Skill、搜索、权限、双 Host 冷恢复等结果仅作为历史证据，见上述操作文档，不能当作本次自动验收通过。
