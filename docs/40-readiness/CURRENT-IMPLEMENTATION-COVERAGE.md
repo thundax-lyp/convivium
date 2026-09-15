@@ -32,7 +32,7 @@
 | Repository、幂等提交、outbox 与归档 | 有 storage/domain、请求幂等和归档相关旧路径。 | 新 MeetingState 原子 commit、outbox、commit fact、archive lifecycle、Session close receipt 与失败恢复没有实现覆盖。 | 部分已有（旧模型） |
 | Continuation | 有 continuation-selection 等旧归档续会代码。 | ContinuationInput、ContinuationProvenance、材料选择规则和新会议身份隔离尚未按当前接口实现。 | 部分已有（旧模型） |
 | Remote DTO、刷新与 Client projection | 有 remote、client、meeting-refresh-feed 和 Markdown projection 等旧路径。 | MeetingViewV1、字段过滤、版本刷新、动作回执及 Developer Markdown 的当前 DTO 契约未实现。 | 部分已有（旧模型） |
-| Role Definition、Catalog 与 Preflight | 有角色组成与 catalog 相关旧资产。 | dshPresetId、requiredSkillNames、descriptor、admission/preflight、权限边界和恢复后的角色一致性尚未按 DSH Role Interface 实现。 | 部分已有（旧模型） |
+| Role Definition、Catalog、Manager 准入决定与 Preflight | 有角色组成与 catalog 相关旧资产；Captain reject-only DTO 和 legacy recommendation transition 不在目标准入命令管线。 | 安全 Host Catalog producer/Manager read projection、`recommend_identity` 的 `admit|reject`、不可调度 provisioning intent、Definition/descriptor、Session admission/ownership、失败/终态清理、投影与冷恢复尚未按当前契约实现。 | 部分已有（旧模型）；目标准入未具备 |
 | 新契约自动化测试 | 已执行 legacy test suite：90 files、961 tests 通过。 | 每个 MeetingActionV1、关键 transition、恢复、隔离、拒绝路径和 Remote projection 都缺与当前契约一一对应的确定性测试。 | 旧回归通过；目标测试未具备 |
 | 真实 DSH 与 Browser 验收 | 仓库保留历史 smoke 操作说明和脚本。 | 当前 Round/Contribution/Review/PrivateMail/Role 契约从未在真实 DSH profile 或 Browser 中验证。 | 未验证 |
 

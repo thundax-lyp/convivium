@@ -46,7 +46,7 @@ type MeetingActionV1 =
   | PlanNextStep | CreateTask | ClaimTask | CompleteTask | CancelTask | ExpireTask | ReassignTask
   | SendPrivateMail | StartPrivateMail | CompletePrivateMail | CancelPrivateMail | ExpirePrivateMail
   | StartArchive | RecordArchiveSessionResult
-  | RecommendIdentity | DisposeIdentityRecommendation;
+  | RecommendIdentity | RecordIdentityAdmissionResult;
 ```
 
 ### Lifecycle, agenda and planning
@@ -68,11 +68,21 @@ interface RecordQuestion { kind: "record_question"; agendaId: OpaqueId; text: st
 interface ResolveQuestion { kind: "resolve_question"; questionId: OpaqueId; status: "answered" | "withdrawn" | "deferred"; rationale: string; evidenceIds: OpaqueId[] }
 interface RecordIssue { kind: "record_issue"; agendaId: OpaqueId; description: string; riskLevel: "low" | "medium" | "high"; classification: "blocking" | "follow_up" | "pending_discussion" | "accepted_risk" | "out_of_scope"; blocking: boolean; rationale: string }
 interface DisposeIssue { kind: "dispose_issue"; issueId: OpaqueId; status: "resolved" | "deferred" | "out_of_scope"; rationale: string; evidenceIds: OpaqueId[] }
-interface RecommendIdentity { kind: "recommend_identity"; definitionId: OpaqueId; definitionVersion: string; catalogId: OpaqueId; catalogVersion: string; agendaId: OpaqueId; rationale: string; expectedContribution: string; evidenceGap: string }
-interface DisposeIdentityRecommendation { kind: "dispose_identity_recommendation"; recommendationId: OpaqueId; disposition: "accepted" | "rejected"; rationale: string }
+interface RecommendIdentity {
+  kind: "recommend_identity"; candidateId: OpaqueId;
+  definitionId: OpaqueId; definitionVersion: string;
+  catalogId: OpaqueId; catalogVersion: string; agendaId: OpaqueId;
+  decision: "admit" | "reject"; rationale: string;
+  expectedContribution: string; evidenceGap: string;
+}
+interface RecordIdentityAdmissionResult {
+  kind: "record_identity_admission_result"; recommendationId: OpaqueId;
+}
 ```
 
-`create_meeting` 仅允许可信 local Convener，且 Runtime 已完成 role definition/session preflight。`dispose_identity_recommendation` 仅 Captain 可用；accepted 的 result 仅在 Definition admission 和 Session ownership 都成功后含新 identityId。
+`create_meeting` 仅允许可信 local Convener，且 Runtime 已完成 role definition/session preflight。`recommend_identity` 仅当前 `running` Meeting Manager 可用；Runtime 在同一 Host Catalog producer 重读 snapshot，要求 catalog/candidate/Definition 引用一致、candidate `available`、Agenda 属于本 Meeting 且 Manager 不能接纳自己。`reject` 原子提交 rejected 事实，不创建 Session；`admit` 原子提交不可调度的 provisioning 意图和一次 `identity_provision` effect。`record_identity_admission_result` 仅由 Runtime outbox/recovery 在验证该意图和 Session owner 结果后使用，不能由 Agent 或 loopback caller 提交。该结果只有在 Definition/preflight、Session 和 durable ownership 都成功时才能原子激活普通可选 identity；失败原子记载安全 failureCode 且无 identity。两个动作均使用原 Meeting version/idempotency/终态拒写边界；同一 candidate 的未解决意图或 active identity 不能再次准入。`end_meeting` 在自身终态提交中把尚在 provisioning 的意图标为 `failed/ADMISSION_CONFLICT`，effect dispatcher 在创建前后重验 lifecycle 并清理已创建但未激活的 Session；不得在终态激活身份。
+
+`recommend_identity` 缺 Catalog producer、Meeting/snapshot/version 不匹配、candidate 非 available 或目录外时映射 `PRECONDITION_FAILED`；自荐或同 candidate 的未解决/active 准入映射 `INVALID_STATE`，不提交 state/fact/receipt/outbox/version；caller 非 Manager 映射 `UNAUTHORIZED`，expected version 不符映射 `VERSION_CONFLICT`，终态映射 `MEETING_TERMINAL`。成功 `reject` 的 `identityDecision.status` 为 `rejected`，成功 `admit` 为 `provisioning`，两者均有唯一 recommendationId。Session/Definition/preflight 的可判定失败不回滚已提交意图：`record_identity_admission_result` 原子写 `failed` 与 [RoleError](./DSH-ROLE-INTERFACE.md#role-errors-and-authorization) code，返回已提交 `identityDecision.status=failed`；成功时写 `active`、identityId 与 ownership 引用。`identity_provision` 只有该结果 commit 完成后才能标记 delivered；结果 commit 因 Storage 不可用或 version 冲突未完成时保留可重试 effect，重试同一 admissionId，不创建第二 Session/identity。若已创建 child 的 descriptor/ownership 无法证明或持久记录损坏，返回 `RECOVERY_UNAVAILABLE` 并停止该 Meeting 写入，保留 provisioning/outbox；不得把该不确定性提交为普通 `failed` 或创建替代 child。
 
 ### Round, evidence and review
 
@@ -174,7 +184,8 @@ type MeetingCommandResultV1 = MeetingCommandAcceptedV1 | MeetingCommandRejectedV
 interface MeetingCommandAcceptedV1 {
   kind: "accepted"; meetingId: OpaqueId; committedVersion: number; receiptId: OpaqueId;
   factIds: OpaqueId[];
-  effects: Array<{ id: OpaqueId; kind: "refresh" | "session_mail" | "review_delivery" | "markdown_projection" | "archive"; status: "queued" }>;
+  effects: Array<{ id: OpaqueId; kind: "refresh" | "session_mail" | "review_delivery" | "markdown_projection" | "archive" | "identity_provision"; status: "queued" }>;
+  identityDecision?: { recommendationId: OpaqueId; decision: "admit" | "reject"; status: "provisioning" | "rejected" | "active" | "failed"; identityId?: OpaqueId; failureCode?: RoleErrorV1["code"] };
 }
 interface MeetingCommandRejectedV1 { kind: "rejected"; error: MeetingErrorV1 }
 interface MeetingErrorV1 {
@@ -186,7 +197,7 @@ interface MeetingErrorV1 {
 }
 ```
 
-错误优先级固定为：协议结构 → Meeting 可见性 → caller ownership/authorization → requestId binding → terminal/archive → expected version → 对象存在性 → action state/precondition → Domain invariant/limit → storage/recovery。拒绝结果不含 effects、隐藏事实或其他 caller 的版本。
+本接口的 `MeetingRole` 与 `RoleErrorV1["code"]` 引用 [DSH Role Interface](./DSH-ROLE-INTERFACE.md) 的同名定义；Protocol 仅公开该 code union 和角色枚举，不导入 Host adapter 类型。错误优先级固定为：协议结构 → Meeting 可见性 → caller ownership/authorization → requestId binding → terminal/archive → expected version → 对象存在性 → action state/precondition → Domain invariant/limit → storage/recovery。拒绝结果不含 effects、隐藏事实或其他 caller 的版本。
 
 ## Read, Remote And Projection
 
@@ -194,8 +205,25 @@ interface MeetingErrorV1 {
 interface ListMeetingsRequestV1 { protocolVersion: 1 }
 interface MeetingSummaryV1 { meetingId: OpaqueId; version: number; objective: string; lifecycle: "preparing" | "running" | "paused" | "converging" | "ending" | "terminal" | "archiving" | "archived"; activeAgenda?: { id: OpaqueId; title: string }; updatedAt: EpochMs; unavailableReason?: string }
 interface ReadMeetingRequestV1 { protocolVersion: 1; meetingId: OpaqueId }
+interface IdentityView { id: OpaqueId; displayName: string; roles: MeetingRole[] }
+interface IdentityRecommendationView {
+  id: OpaqueId; candidateId: OpaqueId; agendaId: OpaqueId;
+  decision: "admit" | "reject"; status: "provisioning" | "rejected" | "active" | "failed";
+  rationale: string; createdAt: EpochMs;
+  identityId?: OpaqueId; failureCode?: RoleErrorV1["code"];
+}
+interface ManagerCatalogView {
+  catalogId: OpaqueId; catalogVersion: string;
+  candidates: Array<{ candidateId: OpaqueId; definitionId: OpaqueId; definitionVersion: string;
+    displayName: string; availability: "available" | "unavailable";
+    meetingRoles: MeetingRole[]; responsibilitySummary: string;
+    capabilitySummary: Array<{ kind: "preset" | "skill" | "tool" | "mcp"; label: string }>;
+    suitability: Array<{ scope: string; rationale: string }> }>;
+}
 interface MeetingViewV1 {
   meetingId: OpaqueId; version: number; objective: ObjectiveView; lifecycle: LifecycleView;
+  identities: IdentityView[]; identityRecommendations?: IdentityRecommendationView[];
+  managerCatalog?: ManagerCatalogView;
   agenda: AgendaView[]; rounds: RoundView[]; publications: PublicationView[];
   messages: FormalMessageView[]; outcomes: OutcomeView; managerPlans: ManagerPlanView[]; tasks: TaskView[];
   privateMail: PrivateMailView[]; controls: AllowedControl[];
@@ -204,6 +232,8 @@ interface RefreshNoticeV1 { kind: "refresh"; meetingId: OpaqueId; committedVersi
 ```
 
 各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。普通 participant 永不读取他人私信、未审版本、未分配 review、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
+
+`IdentityView` 只投影已激活 identity。`IdentityRecommendationView` 只向当前 Manager、Captain 和 loopback local controller 返回；普通 Participant 缺席。`managerCatalog` 仅 Manager 可见，由同一 Host producer 在只读请求时按需生成，缺 producer、非法 snapshot 或暂不可用时缺席，普通 Meeting 读取继续；它不是可写 MeetingState，也不从旧状态缓存。Catalog view 只拷贝 producer 的安全能力标签和适用性摘要，丢弃 `model|sandbox|approval` 类能力；三类 view 均不含 Definition 正文、descriptor、Session、ownership 或 capability 正文/私有配置。
 
 Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRefresh()`，仅 loopback 可用。断线禁写；重连、focus 或 notice 后必须 read，不自动重试 command 或轮询。notice 可丢失/重复且不携带事实。
 
@@ -228,7 +258,7 @@ interface DecisionView { id: OpaqueId; candidateId: OpaqueId; proposalRevisionId
     interface CompletionFactView { id: OpaqueId; outputId: OpaqueId; criterionId?: OpaqueId; status: "active" | "superseded" | "revoked"; statement: string; rationale: string; evidenceIds: OpaqueId[]; decisionIds: OpaqueId[]; createdAt: EpochMs }
     interface RiskDispositionView { id: OpaqueId; issueId: OpaqueId; action: "accept" | "reject"; scope: string; rationale: string; evidenceIds: OpaqueId[]; createdAt: EpochMs }
     interface TerminationView { outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed"; reason: string; endedAt: EpochMs; decisionIds: OpaqueId[]; completionFactIds: OpaqueId[]; unresolvedQuestionIds: OpaqueId[]; unresolvedIssueIds: OpaqueId[]; unclosedContributionIds: OpaqueId[] }
-    interface ArchiveView { id: OpaqueId; status: "pending" | "complete" | "failed"; createdAt: EpochMs; publicSnapshotVersion: number; includedPublicationIds: OpaqueId[]; includedDecisionIds: OpaqueId[]; includedCompletionFactIds: OpaqueId[] }
+    interface ArchiveView { id: OpaqueId; status: "pending" | "complete" | "failed"; createdAt: EpochMs; publicSnapshotVersion: number; includedPublicationIds: OpaqueId[]; includedDecisionIds: OpaqueId[]; includedCompletionFactIds: OpaqueId[]; identityProvenance: Array<{ identityId: OpaqueId; displayName: string; roles: MeetingRole[]; definitionId?: OpaqueId; definitionVersion?: string; definitionHash?: string }> }
     interface ManagerPlanView { id: OpaqueId; agendaId: OpaqueId; managerId: OpaqueId; basedOnPublicationId?: OpaqueId; kind: "open_round" | "continue_agenda" | "stop_agenda" | "raise_agenda_candidate" | "wait_for_required_identity"; rationale: string; blockingReason?: string; status: "active" | "superseded" | "completed"; createdAt: EpochMs }
     interface TaskView { id: OpaqueId; assigneeId: OpaqueId; agendaId?: OpaqueId; title: string; status: "open" | "claimed" | "completed" | "cancelled" | "expired"; authorizationId: OpaqueId; authorizationStatus: "active" | "revoked" | "expired"; attempt: number; reassignedFromTaskId?: OpaqueId; deadlineAt?: EpochMs; result?: string; exitReason?: string; startedAt?: EpochMs; completedAt?: EpochMs }
     interface PrivateMailView { id: OpaqueId; senderId: OpaqueId; recipientId: OpaqueId; agendaId?: OpaqueId; body: string; relatedIds: OpaqueId[]; sendContextPublicationUpperBound: OpaqueId[]; processingContextPublicationUpperBound?: OpaqueId[]; status: "queued" | "processing" | "completed" | "timed_out" | "cancelled"; deadlineAt: EpochMs; createdAt: EpochMs; processingStartedAt?: EpochMs; completedAt?: EpochMs; failureReason?: string }
@@ -265,7 +295,7 @@ interface ReceiptRecordV1 {
 }
 interface OutboxEffectRecordV1 {
   id: OpaqueId; meetingId: OpaqueId; committedVersion: number;
-  kind: "refresh" | "session_mail" | "review_delivery" | "markdown_projection" | "archive";
+  kind: "refresh" | "session_mail" | "review_delivery" | "markdown_projection" | "archive" | "identity_provision";
   payload: OutboxPayloadV1; status: "pending" | "delivered" | "failed"; attempts: number;
   createdAt: EpochMs; deliveredAt?: EpochMs; lastFailure?: string;
 }
@@ -274,7 +304,8 @@ type OutboxPayloadV1 =
   | { kind: "session_mail"; mailId: OpaqueId; recipientId: OpaqueId; contextPublicationUpperBound: OpaqueId[] }
   | { kind: "review_delivery"; reviewId: OpaqueId; authorId: OpaqueId }
   | { kind: "markdown_projection"; meetingId: OpaqueId; committedVersion: number }
-  | { kind: "archive"; archiveId: OpaqueId; meetingId: OpaqueId };
+  | { kind: "archive"; archiveId: OpaqueId; meetingId: OpaqueId }
+  | { kind: "identity_provision"; recommendationId: OpaqueId; admissionId: OpaqueId };
 ```
 
 `MeetingStateRecordV1` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecordV1` 是带 `factId, kind, actorId, occurredAt, meetingVersion, payload` 的追加事实。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。outbox payload 只能包含最小效果输入，不含 secrets 或隐藏推理。

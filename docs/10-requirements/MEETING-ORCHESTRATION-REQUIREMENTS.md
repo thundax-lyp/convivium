@@ -182,20 +182,19 @@
 
 1. DSH Host 可以向 Meeting Runtime 提供经过当前 Captain 授权范围过滤的版本化 Agent 角色目录；目录必须区分角色定义、可用 Agent candidate 和当前 Meeting Participant。
 2. Manager 必须能够获得与当前会议目标、议题和证据缺口有关的最小安全目录 projection，但不得获得模型凭据、完整 Prompt、私有工具配置、Session 历史或其他敏感运行配置。
-3. Manager 可以推荐目录中的某个 Agent 参加当前会议，并必须说明相关议题、预期贡献及需要补充的职责或证据；推荐本身不得创建 Participant、DSH Session 或正式立场。
-4. Manager 不得推荐自己成为 Participant，不得推荐目录之外或不可用的 Agent，也不得通过推荐授予 required-review、risk acceptance、Captain、Manager 或额外 DSH 权限。
-5. 只有 Captain 的独立结构化批准才能接纳被推荐 Agent；自然语言同意、Manager plan 或 research result 均不得替代批准操作。
-6. Captain 批准后，Meeting Runtime 必须为该身份创建独立 meeting-owned continuable Session；Session provisioning 完成前，该身份不得进入发言候选集或调用 Participant 操作。
-7. 新接纳的 Agent 默认是普通可选 Participant；批准不得自动修改 objective contract、required reviewer、risk authority、议题 required Participant 或已有 Participant 的权限。
-8. recommendation、Captain disposition、Participant admission 和 provisioning 结果必须可审计、幂等、可恢复，并受 Meeting version、终态拒写和跨 Meeting 隔离约束。
-9. candidate 的 Meeting Agent Definition 不存在、其引用的 DSH Preset/Skill 无法验证，或 Session provisioning 失败时，不得产生部分可用 Participant；会议必须显示失败原因，并允许 Manager 在新状态上推荐替代 candidate。
-10. GitHub、arXiv 和 Web research 角色必须按证据来源和分析责任区分；Manager 应先参考已有 evidence 索引，不能仅因搜索工具可用而重复推荐多个 Agent 处理相同来源范围。
+3. Manager 只能对当前安全目录 snapshot 中的可用 Agent candidate 通过一次结构化会议操作明确作出 `admit` 或 `reject` 决定，并说明相关议题、预期贡献、证据缺口和理由；自然语言同意、仅有推荐、Manager plan 或 research result 均不得替代该操作。`reject` 不创建 Participant 或 DSH Session；`admit` 先形成不可调度的 provisioning 意图，不立即授予发言权或正式立场。
+4. Manager 不得接纳自己、决定目录之外或不可用的 Agent，也不得通过决定授予 required-review、risk acceptance、Captain、Manager 或额外 DSH 权限。
+5. Manager 的合法 `admit` 决定无需 Captain 二次处置；决定只允许在 `running` Meeting。Meeting Runtime 必须验证当前 Meeting 身份、version、snapshot、candidate 和 Definition，再为该身份创建独立 meeting-owned continuable Session；Session provisioning 与 durable ownership 完成前，该身份不得进入发言候选集或调用 Participant 操作。会议在 provisioning 期间暂停时不得调度新身份；若在结束前仍有 provisioning，受控结束必须先将该意图标记失败、取消其后续创建并清理已创建但未激活的 Session，不把部分身份带入终态。
+6. 新接纳的 Agent 默认是普通可选 Participant；决定不得自动修改 objective contract、required reviewer、risk authority、议题 required Participant 或已有 Participant 的权限。
+7. Manager 决定、provisioning 意图、Participant admission、失败原因及 Session ownership 必须可审计、幂等、可恢复，并受 Meeting version、终态拒写和跨 Meeting 隔离约束。相同请求不得重复创建 Session 或身份；重启只能继续固化的精确 Definition/descriptor，不以当前目录或定义替代。
+8. candidate 的 Meeting Agent Definition 不存在、其引用的 DSH Preset/Skill 无法验证，或 Session provisioning 失败时，不得产生部分可用 Participant；会议必须显示失败原因，并允许 Manager 在新状态上决定其他 candidate。合法 `reject` 与失败均不改变其他身份和权限。
+9. GitHub、arXiv 和 Web research 角色必须按证据来源和分析责任区分；Manager 应先参考已有 evidence 索引，不能仅因搜索工具可用而重复推荐多个 Agent 处理相同来源范围。
 
-MO-FR-13 Phase 1 只实现对单一 Host/profile-owned Catalog producer 的 consumer boundary、当前 Manager planning attempt 绑定的安全 Catalog projection、Manager recommendation claim 和 pending recommendation status projection。Host producer 本身、Captain disposition、Participant admission、Session provisioning、MO-FR-14 Definition resolution、research dedup、UI/HTTP、真实 smoke、stress 和 metrics 不属于 Phase 1。
+MO-FR-13 Phase 1 只覆盖旧 Manager planning attempt 的单一 Host/profile-owned Catalog consumer boundary 与安全 projection；旧 recommendation claim、pending status 和 Captain reject-only 代码不构成上述新决定与准入能力的实现证据。本次目标使用 `recommend_identity` 结构化 Meeting command 完成 Manager 决定与后续 provisioning，不将 legacy `submit_manager_plan` 作为目标实现入口。Host Catalog producer、research dedup、UI/HTTP、stress 和 metrics 不属于本次准入切片。
 
-Catalog 只在创建将投递给 Manager 的 planning attempt 时按需读取；Meeting creation 和不创建新 planning attempt 的普通命令不读取 Catalog。Catalog service 缺失或 snapshot 无法验证时，attempt 绑定“无 Catalog”，普通 Manager planning 继续；同一 attempt 后续携带 attendance claim 时必须 fail closed，且不得写 Meeting state、event、receipt、outbox 或增加 Meeting version。Catalog/candidate/claim 校验必须在既有 Manager business-invalid fallback 之前完成，不能转换为 `MANAGER_PLAN_INVALID` fallback。
+旧 Phase 1 的 Catalog 只在创建投递给 Manager 的 planning attempt 时按需读取；无 Catalog 不阻塞普通规划，其 attendance claim 必须 fail closed，且不得写 Meeting state、event、receipt、outbox 或增加 Meeting version。目标 `recommend_identity` 的安全 Catalog projection 由 Manager 通过只读入口按需取得；Runtime 在决定 command 中重新读取同一 Host Catalog producer，并要求 catalogId/version、candidateId、Definition id/version 与 Manager 提交的 snapshot 引用精确相同。Catalog 缺失、变化、损坏或 candidate 不可用时，整条 command 拒绝且无任何 Meeting 写入；普通 Meeting 命令不读取 Catalog，也不将该拒绝转换为 Manager planning fallback。
 
-Phase 1 必须复用现有 `submit_manager_plan`、`MeetingRepositoryPort.execute`、request idempotency、receipt、Meeting version 和 projection 边界；不得增加独立 command、event family、worker、repository、Catalog cache、registry、factory、queue、第二个 Catalog source 或隐式 migration。
+旧 Phase 1 的 planning attempt consumer 不增加 Catalog cache、registry、factory、第二个 Catalog source 或隐式 migration。目标 `recommend_identity` 复用 Meeting command 的 request idempotency、receipt、version、原子 commit、现有 outbox dispatcher 与 projection 边界；不新增独立审批 command、worker、repository 或 queue。
 
 ### MO-FR-14：共享 Preset 下的 Meeting Agent Definition
 
@@ -291,11 +290,11 @@ Meeting-scoped mail 是私有异步消息，不是正式会议事实。发送时
 
 ### BR-10：参会推荐与接纳边界
 
-Manager recommendation 是待 Captain 处置的结构化建议，不是 Participant、发言权、审核身份或权限事实。只有 Captain 批准且独立 Session provisioning 成功后，被推荐 Agent 才成为可调度 Participant；批准不能改变 objective contract 中已经固化的 required-review、risk authority 或必需参与关系。
+Manager 的 `recommend_identity` 结构化 `admit|reject` 是当前 candidate 的唯一准入决定。`reject` 只留下拒绝事实；`admit` 的 provisioning 意图不是 Participant、发言权、审核身份或权限事实。只有独立 Session provisioning、durable ownership 与身份事实同时完成后，该 Agent 才成为可调度普通可选 Participant；决定不能改变 objective contract 中已经固化的 required-review、risk authority 或必需参与关系。
 
 ### BR-11：Meeting Agent Definition 与能力所有权
 
-Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability，但不安装 capability，也不产生 Meeting authority。Convivium 只管理 Definition、会议身份、选择、批准和 Session ownership；DSH 管理 Preset、Skills、Tools、MCP、Sandbox、Approval、模型、组合与执行。任何 Definition 字段、Prompt 或 persona 都不能覆盖 Runtime 根据真实 Session、Meeting identity 和当前 attempt 形成的授权结果。
+Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability，但不安装 capability，也不产生 Meeting authority。Convivium 只管理 Definition、会议身份、Manager 准入决定和 Session ownership；DSH 管理 Preset、Skills、Tools、MCP、Sandbox、Approval、模型、组合与执行。任何 Definition 字段、Prompt 或 persona 都不能覆盖 Runtime 根据真实 Session、Meeting identity 和当前 attempt 形成的授权结果。
 
 ## Acceptance Criteria
 
@@ -328,14 +327,14 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 27. 归档前会校验最终成果、完成依据、正式 transcript、未解决事项、来源信息、全部 Decision history、全部 Issue 和全部 risk facts 已经物化；Session 关闭失败时会议保持不可讨论的 `archiving`，且输出物不会丢失。
 28. 从旧会议创建新会议时，只导入 Captain 显式选择且有权访问的归档素材，并保留来源引用；不会继承旧 Session、capability、完整 transcript 或运行状态。
 29. V1 面板先读取本地 Meeting 列表；选择一个摘要后只读取被选择 Meeting 的完整状态，列表本身不暴露 transcript、Session ID、capability、backend 物理路径或私有运行数据。任一已发现 Meeting 无法恢复时，列表报告暂不可用且不返回部分结果。
-30. Manager 收到的 Agent Catalog projection 不包含敏感 DSH 配置，并且只能引用当前 snapshot 中可用的 candidate 形成参会 recommendation。
-31. Manager 推荐 Agent 后，该 Agent 在 Captain 批准和 Session provisioning 成功前不会进入 speaker candidates，也不能提交会议事实。
-32. Captain 批准 recommendation 只创建普通可选 Participant，不会自动授予 required-review、risk acceptance、Captain、Manager 或超出 DSH Agent Preset 和 policy 的权限。
-33. 被批准 Agent 的 provisioning 失败时，会议中不存在部分可用 Participant；失败可恢复、可审计，且不影响其他 Meeting 或 Participant Session。
+30. Manager 收到的 Agent Catalog projection 不包含敏感 DSH 配置，并且只能引用当前 snapshot 中可用的 candidate 作出结构化参会决定。
+31. Manager 作出结构化 `admit` 后，该 Agent 在 Session provisioning 和 durable ownership 成功前不会进入 speaker candidates，也不能提交会议事实；`reject` 不创建 Session。
+32. Manager 的合法 `admit` 只接纳普通可选 Participant，不会自动授予 required-review、risk acceptance、Captain、Manager 或超出 DSH Agent Preset 和 policy 的权限。
+33. 被决定 `admit` 的 Agent provisioning 失败时，会议中不存在部分可用 Participant；失败可恢复、可审计，且不影响其他 Meeting 或 Participant Session。
 34. 已有证据满足当前 freshness 和来源范围时，Manager 不会仅因 GitHub、arXiv 或 Web 搜索能力可用而重复推荐相同研究工作；明确的独立交叉验证除外。
 35. 每个 Agent Definition 都有稳定 `agentDefinitionId` 和 `definitionVersion`，并明确引用一个 `dshPresetId` 与 required DSH Skill 名称；Definition 不复制 DSH capability 内容。
 36. `toolFilter` 只能收窄继承的 global/祖先 scope 工具，不屏蔽 child 自己注册的工具，也不是操作系统资源隔离机制；Definition、roleDescription、persona 或 Skill 名称不能授予 Tool、MCP、Sandbox、Approval 或模型权限。
-37. Manager 只看到 Agent Definition 的安全摘要；recommendation 不创建 Session，Captain approval 也必须等待独立 Session provisioning 成功后才能形成可调度 Participant。
+37. Manager 只看到 Agent Definition 的安全摘要；自然语言推荐不创建 Session，结构化 `admit` 意图也必须等待独立 Session provisioning 和 durable ownership 成功后才能形成可调度 Participant。
 38. 已选择的 Definition、共享父 Preset 或 required Skill 无法解析和验证时，在第一个 child 创建前拒绝；DSH 创建失败则沿既有 creation_failed、revoke 和 drain 路径清理，不发布 ready Meeting。不得将缺少 Skill 降级为 persona-only，也不得使用 Convivium installer workaround。
 39. 发布包内九个角色在同一共享父 Preset 的会议中形成九个独立 child，分别通过原生 skill 工具加载正文；三类研究角色的真实搜索与抓取可用。继承工具的限制同时影响可见性和真实执行，会议越权写入被拒绝。至少两个角色的模型差异与 persona/toolFilter 经 Host 冷重启保持，父 Session 不受影响；目录或样本存在不能替代这些验收。
 40. delegated meeting-owned Agent 不会等待无人处理的交互式 Approval，也不能从自身 Session 内扩大启动时固化的权限。
