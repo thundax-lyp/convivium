@@ -90,7 +90,8 @@ const missingArtifacts = requiredArtifacts.filter(
     (path) => !existsSync(resolve(packageRoot, path))
 );
 const packageName = typeof manifest?.name === "string" ? manifest.name : "";
-const installBinIsPublished = manifest?.bin?.["convivium-install"] === "scripts/install.sh";
+const installBinIsPublished =
+    JSON.stringify(manifest?.bin) === JSON.stringify({ "convivium-install": "scripts/install.sh" });
 const client = manifest?.dsh?.client;
 const bundledClientRequires = ["@deepseek-ai/schemastery", "@deepseek-ai/cosmokit", "zod"].flatMap(
     (packageName) => [`require("${packageName}")`, `require('${packageName}')`]
@@ -112,9 +113,21 @@ const result = {
             "lib/typert.remote-client.d.ts"
         ]),
     bundlePatchMatchesPackageName: Boolean(packageName && patch.includes(packageName)),
+    bundlePatchIsExact: manifest?.dsh?.bundle?.patch === "./cordis.patch.yml",
     installBinIsPublished,
     clientManifestIsComplete:
-        client?.platform === "web" && Array.isArray(client.inject) && client.inject.length > 0,
+        client?.platform === "web" &&
+        JSON.stringify(client.inject) ===
+            JSON.stringify([
+                "@deepseek-ai/dsh-client-ui-renderer",
+                "@deepseek-ai/dsh-client-ui-conversation"
+            ]),
+    storageDomainPeerMatchesHost:
+        manifest?.peerDependencies?.["@deepseek-ai/dsh-storage-domain"] === "0.1.2-rc.1",
+    physicalStorageIsHostOwned: [
+        "@deepseek-ai/dsh-storage",
+        "@deepseek-ai/dsh-storage-sqlite"
+    ].every((name) => !manifest?.dependencies?.[name] && !manifest?.peerDependencies?.[name]),
     clientBundleIsSelfContained: bundledClientRequires.every(
         (specifier) => !clientBundle.includes(specifier)
     ),
@@ -128,8 +141,11 @@ if (
     !result.exportsMatchArtifacts ||
     !result.filesAllowlistIsClosed ||
     !result.bundlePatchMatchesPackageName ||
+    !result.bundlePatchIsExact ||
     !result.installBinIsPublished ||
     !result.clientManifestIsComplete ||
+    !result.storageDomainPeerMatchesHost ||
+    !result.physicalStorageIsHostOwned ||
     !result.clientBundleIsSelfContained ||
     result.forbiddenPublishedPaths.length > 0 ||
     result.missingArtifacts.length > 0
