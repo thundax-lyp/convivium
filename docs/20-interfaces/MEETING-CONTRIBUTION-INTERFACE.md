@@ -1,12 +1,12 @@
 # Meeting Contribution Interface
 
-状态：2026-09-15 最小并行切片已实现；本文件仍为目标契约，实际运行与未覆盖范围见 [最小并行协作证据](../40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)及 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。依据 2026-09-14 已确认的 [Minimal Delivery Scope](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md#minimal-delivery-scope)，不将契约本身当作验证证据。
+状态：2026-09-15 最小并行切片的原接口已实现；同日用户确认 `save_evidence` 后选定材料立即对会议全员公开。下文标明新目标语义与尚未定义的公共材料读入口，不能将原 `readContribution` 或既有运行证据当作新语义已实现。实际运行与缺口见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 ## Boundary
 
 固定 roster；Manager 指派和审边界；Participant 提交自己的稿件和材料；固定审核员核验；Captain 接受正式成果、控制会议。所有写入经过同一个 Repository command，所有投递在 commit 后进行。材料保存在 Meeting domain，不新建文件服务器，不抓取 URL，不执行材料中的代码。
 
-边界批准发布确切正文及关联 claims。证据核验是另一项事实：材料可以先公开为 pending，负面核验不得删改正文；影响完成的声明必须引用已经具备支持结论的公共依据。作者不能审核自己提交的材料，包括引用他人稿件中属于自己的材料。
+`save_evidence` 只保存作者主动选定的材料版本，并使其正文、来源、链接及本地路径文字在同 Meeting 对全体参会者可发现、可读；未保存的个人资料不进入 Meeting。它不发布待审稿正文或 claims，也不授予任何身份打开本地路径文件的额外权限。Manager 边界批准才发布确切稿件正文及关联 claims；固定 reviewer 不因核验身份预读私稿。证据核验是另一项事实：已共享材料和已发布稿可以仍为 pending，负面核验不得删改正文；影响完成的声明必须引用已经具备支持结论的公共依据。作者不能审核自己提交的材料，包括引用他人稿件中属于自己的材料。
 
 ## Creation And Compatibility
 
@@ -76,15 +76,17 @@ interface ContributionResultV1 {
 
 结果字段规则：assign/retry/cancel 总有 contributionId/generation/phase；save_evidence 另有 evidenceKey；submit 另有 draftRevision；boundary_review 另有 draftRevision，approve 另有 messageId；evidence_review 另有 draftRevision/messageId；notify_manager 只有 managerNoticeSeq。不得把任意 optional 组合当作合法 result。
 
+公共材料还需要让全体参会者枚举已保存的 evidenceKey 并按 key 读取确切版本；现有 `ReadContributionInputV1` 以 contributionId 和可见稿件为前提，不能作为未公开任务材料的公共读入口。其 wire 字段、投递上下文与 Schema 尚未定义，产品实现前须补成独立、可验证的接口契约；不得以扩大私稿读取权限或从状态猜测 evidenceKey 代替。
+
 `ContributionBodyV1` 使用现有 TurnSubmission 正文字段的 Schema，不接受调度字段。taskIds 及 completionClaims 中所有 taskIds 必须空；非空报 UNSUPPORTED_CAPABILITY。共同论证五项继续体现在 content，并由 Manager 审核，不新增自动语义校验器。mentions、replyTo、changes、minutesDraft 与现有实体约束一致。
 
 ## Material And Capacity
 
 每个 material（含元数据）规范 JSON ≤8192 bytes；每个 submit 输入 ≤8192 bytes；每个 evidence_review 输入 ≤8192 bytes。title≤256 字符；source/sourceDate/collectedAt/locator≤1024，其余元数据≤2048；instruction/reason≤2048；每条 citation 的 claim/locator/inference≤1024。正文 content≤4096 字符且受字节上限。text 非空；未知／不适用用明确说明，不省略 required 字段。
 
-reference.uri 只接收无 username/password 的 HTTPS URL；sourceVersion 必填。unknown 明确表示未固定，不得标为充分核验。二进制及以 base64 包装二进制不在范围内；Schema 不试图识别任意文本是否为编码，工具指导禁止用编码绕过材料范围，审核员确认实际材料可核验性。
+reference.uri 只接收无 username/password 的 HTTPS URL；sourceVersion 必填。本地文件路径作为 locator/source 等定位文字保存并公开，不自动读取、上传、复制或授予其他身份访问文件内容；仅有路径文字时必须如实标明材料内容不可访问或核验缺口。unknown 明确表示未固定，不得标为充分核验。二进制及以 base64 包装二进制不在范围内；Schema 不试图识别任意文本是否为编码，工具指导禁止用编码绕过材料范围，审核员确认实际材料可核验性。
 
-kind=code 时 code 必填，其他 kind 禁止 code。revision 记录 commit 或受控快照版本，不能只填分支名；代码补丁及新文件内容保存为 text 材料，patchEvidenceKeys 指向固定版本。引用必须同 Meeting、已存在、当前 caller 可读，禁止引用自身和未来版本。static_only 必须明确未执行；executed 提供实际命令／环境／输入／输出；Runtime 不认证文字真实性。
+kind=code 时 code 必填，其他 kind 禁止 code。revision 记录 commit 或受控快照版本，不能只填分支名；代码补丁及新文件内容保存为 text 材料，patchEvidenceKeys 指向固定版本。引用必须同 Meeting、已保存并公开、当前 caller 可读，禁止引用自身和未来版本；固定 reviewer 的身份不产生私有材料引用权。static_only 必须明确未执行；executed 提供实际命令／环境／输入／输出；Runtime 不认证文字真实性。
 
 每 Meeting 最多 64 项任务、128 个稿件版本、128 个材料版本；每稿最多 8 条 citations，以 evidenceKey+claim 唯一。超限整体拒绝 INVALID_ARGUMENT，保留状态。材料和稿件以 keyed record 保存，不在数组中嵌入大对象。单条 commit 65536 bytes、checkpoint 16777216 bytes 保持不变。
 
@@ -112,7 +114,7 @@ running/waiting 均允许 Manager 安排；assign 将 waiting 变回 running。p
 | action | caller／精确前置 | 原子结果及投递 |
 | --- | --- | --- |
 | assign | Manager；作者有效 ownership 且空闲；议题等于 activeAgendaItemId；targetIds 属于当前 required output/criterion，required 时非空 | preparing、generation=1、basedOnSeq=messageSeq、deadline=now+600000；准备投递；刷新 managerDeadlineAt |
-| save_evidence | 当前任务作者；preparing/returned；匹配 generation；同一材料仅作者能更新 | 新版本加入 evidence map；不发布、不通知全员 |
+| save_evidence | 当前任务作者；preparing/returned；匹配 generation；同一材料仅作者能更新 | 新版本加入 evidence map 并立即成为本会议全员可发现、可读的共享材料；不发布待审稿或 claims，材料公开不等于核验通过 |
 | submit | 当前作者；preparing/returned；匹配 generation、expectedDraftRevision；task.basedOnSeq≤basedOnSeq≤messageSeq；引用可读 | 新不可变稿件；boundary_review；deadline=now+600000；通知 Manager |
 | boundary_review:return | Manager；boundary_review；匹配 generation/revision；checkedThroughSeq=messageSeq | 保存审核；returnCount+1，≤2 时 returned、generation+1、deadline=now+600000 并投递作者；>2 时 captain_action、generation+1、通知 Captain |
 | boundary_review:approve | Manager；同上；当前议题仍一致；全部 claims 可应用 | 同一 commit 发布原文和 claims，phase=published；requiresEvidenceReview 且 citations 非空时 reviewStatus=pending、deadline=now+600000 并投递审核员，否则 not_required；通知 Manager |
@@ -205,11 +207,11 @@ Status 增 optional `contributions:{reviewerId,tasks:ContributionSummaryV1[]}`�
 
 读取版本选择：draftRevision 省略时取 currentDraftRevision；显式值必须为现有正整数版本且在权限范围。drafts 长度为 0（尚无稿）或 1；boundaryReviews/evidenceReviews 仅返回所选版本的记录。Captain/local/作者/Manager 可按版本读取历史，不一次返回所有稿件；其他身份只能选当前公开／获指派版本。
 
-读取权限：Captain/local/Manager 可看本会议全部版本及边界记录；作者只看自己的未公开稿与记录；固定 reviewer 在 requiresEvidenceReview=true 且 phase=boundary_review 时可读 currentDraftRevision 及引用材料，不能读取旧退回稿或 boundaryReviews，也不能提前写核验结果；其他 Participant 只能看 published 的 currentDraftRevision、空 boundaryReviews、该稿的 evidenceReviews。evidenceKey 仅可读取此视图稿件引用的版本；Captain/local/Manager 或材料作者还可读取自己的任务尚未引用但已保存的版本。不存在／无权限私有项统一 UNAUTHORIZED_CALLER，避免泄漏。
+稿件读取权限：Captain/local/Manager 可看本会议全部版本及边界记录；作者只看自己的未公开稿与记录；固定 reviewer 与其他 Participant 一样，只能通过 `readContribution` 读取 published 的 currentDraftRevision、空 boundaryReviews 和该稿的 evidenceReviews，不能读取 boundary_review 或 returned 私稿，也不能提前写核验结果。原 `readContribution` 的 evidenceKey 仍只限于该视图稿件引用的版本；公共材料的全员枚举和按 key 读取另须上文所述的新入口。不存在／无权限私稿统一 UNAUTHORIZED_CALLER，避免泄漏。
 
 MeetingMessage、PublicMeetingMessageV1、ArchiveMessage 增 optional contributionId/contributionRevision。MeetingMessage 的旧 turnSeq/turnId/stepId/attemptId 改 optional；PublicMeetingMessageV1 和 ArchiveMessage 仅有的旧 turnId/stepId 改 optional，不新增其原本没有的字段。各层两套来源必须恰有一套完整；新消息不填虚构 Turn。公开序号、正文、作者、时间及其他字段沿用原有语义。这些内部来源类型不构成旧版本兼容承诺。Client 显示贡献状态，不提供 Turn 操作，不要求保留旧视图。
 
-ArchivePackage 增 optional `contributionRefs:{taskIds:readonly string[],evidenceKeys:readonly string[]}`。只引用 published 任务及其 citations/patchEvidenceKeys 的可见依赖闭包，排序去重；材料仍在封存的 snapshot，核验记录仍在任务，不能复制 contributions 到 archive。归档后 public read 限于这份白名单；Captain/local 的原审计读取权限保留；专用 Manager/Participant Session 归档后已撤销 capability，不承诺这些已关闭 Session 仍能调用读取工具，不能通过公共 archive 导出私有草稿。
+ArchivePackage 增 optional `contributionRefs:{taskIds:readonly string[],evidenceKeys:readonly string[]}`。taskIds 只含 published 任务；evidenceKeys 须覆盖全部已保存并公开的材料版本及其 patch 依赖闭包，排序去重；材料仍在封存的 snapshot，核验记录仍在任务，不能复制 contributions 到 archive。归档后公共材料按此白名单读取，公共稿件也只限于 published taskIds；Captain/local 的原审计读取权限保留，不能通过公共 archive 导出私有草稿。当前实现仍只收集已发布稿的引用闭包，见 readiness 的 Not Covered。
 
 Local Remote 新增 readContribution、controlContribution；control 只接受 retry/cancel/notify_manager，分别复用上述 input 子联合。本地用户无权替 Manager 批准或代审核员核验。输入限制仍为 16384 bytes，保留原 Typert AbortSignal、错误和刷新流；成功 commit 发现有 refresh notice。UI 只渲染普通文本与用户显式打开的 HTTPS 链接。
 

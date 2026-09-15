@@ -1,6 +1,6 @@
 # Meeting Contribution Design
 
-状态：2026-09-15 最小并行贡献切片已实现；实际 Host、Browser、模型讨论与恢复证据见 [最小并行协作证据](../40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)，未覆盖范围见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。行为、字段、权限、容量和兼容策略唯一依据为 [Contribution Interface](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md)。本版本不要求兼容旧版本；不新增旧启动分支、兼容适配器或历史测试迁移。保留的内部旧类型不代表对旧记录的执行承诺，用户数据不自动迁移或删除。
+状态：2026-09-15 最小并行贡献原切片已实现；同日新确认的选定材料保存即共享尚未完成公共读接口和实现设计，下文对应的 projection/archive manifest 仍描述原切片，不作为新规则的方案或覆盖证据。实际 Host、Browser、模型讨论与恢复证据见 [最小并行协作证据](../40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)，新缺口见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。行为、字段、权限、容量和兼容策略以 [Contribution Interface](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md) 为准。
 
 ## Responsibility And Dependency
 
@@ -178,7 +178,7 @@ function projectContributionRead(state: MeetingState, viewer: MeetingProjectionC
   input: ReadContributionInputV1): ReadContributionResultV1;
 ```
 
-MeetingProjectionCaller 复用现有 status.ts 的同名 exported type，不创造另一套角色模型。context/summary/read 字段逐项遵守接口白名单；context 安全字段与固定 Transcript 上界严格按 Interface；public read 拒绝私有 draft/material，与不存在相同错误。材料 key 的访问依赖引用闭包（含 patch），不依赖 URL 是否能被服务器打开。
+MeetingProjectionCaller 复用现有 status.ts 的同名 exported type，不创造另一套角色模型。context/summary/read 字段逐项遵守原切片接口白名单；context 安全字段与固定 Transcript 上界严格按 Interface；原 `readContribution` 以可见稿件及其引用闭包（含 patch）为前提，不能提供保存即共享材料的全员目录/按 key 读取。新目标只保留私稿不可读，已保存选定材料不再按私有 material 处理；公共读入口、发现方式及归档恢复接线须在实现前补设计，不靠放宽私稿 read 授权。
 
 ConviviumRemoteService 新 `readContribution(input:RemoteReadContributionInput, signal:AbortSignal)`、`controlContribution(input:RemoteContributionControlInput, signal:AbortSignal)`；对应 RemoteInput 类型放 remote/types.ts，输入经 validateInput 保留未知字段再拒绝。Client 的 MeetingClient 同名方法返回 ProtocolSuccess；使用现有请求取消与 envelope/result Schema。生成物只能运行 generate:typert 得到。
 
@@ -210,7 +210,7 @@ ConviviumRemoteService 新 `readContribution(input:RemoteReadContributionInput, 
 | `plugin/src/runtime/application-service/index.ts`、`plugin/src/runtime/application-service/types.ts`、`plugin/src/runtime/index.ts` | 装配签名、恢复 epoch、扫描分支、worker 失败分支和公开导出 |
 | `plugin/src/runtime/services/meeting-dispatch-service.ts` | createMeetingDeliveryDispatcher：新增角色分支、Session 队列和前后授权 |
 | `plugin/src/runtime/services/meeting-session-recovery.ts` | reconcileMeetingSessions：新状态不修复／启动旧 Speaker，沿原 ownership 恢复；返回后由 application 接恢复贡献 |
-| `plugin/src/runtime/services/meeting-archive-service.ts` | materializeArchivePackage：引用已发布任务／证据；不复制私有 map；cleanupOwnedSessions/finalizeArchive 保持原成功判据 |
+| `plugin/src/runtime/services/meeting-archive-service.ts` | 原切片 materializeArchivePackage 只引用已发布任务／证据；新共享材料归档范围未实现；cleanupOwnedSessions/finalizeArchive 保持原成功判据 |
 | `plugin/src/repository/domain/schemas.ts`、`plugin/src/repository/domain/domain-meeting-repository.ts` | state Schema 保持单写；所有新状态入 commit 前调用容量校验，非法命令转 INVALID_ARGUMENT；恢复不回填 |
 | `plugin/src/dsh/session-adapter.ts`、`plugin/src/dsh/index.ts`、`plugin/src/dsh/provisioning.ts` | 新 adapter/导出及不提前授权的初始指导 |
 | `plugin/src/protocol/types.ts`、`plugin/src/protocol/commands.ts`、`plugin/src/protocol/status.ts`、`plugin/src/protocol/index.ts` | 创建输入、来源、status/archive/result Schema 和公开导出 |
