@@ -673,6 +673,7 @@ export function applyContributionCommand(
                 ...task,
                 generation: task.generation + 1,
                 phase: returnCount > 2 ? ("captain_action" as const) : ("returned" as const),
+                basedOnSeq: state.messageSeq,
                 returnCount,
                 deadlineAt: context.now + 600_000,
                 updatedAt: context.now,
@@ -1090,10 +1091,10 @@ export function applyContributionCommand(
         if (task === undefined || task.generation !== command.generation)
             throw new DomainError("STALE_ATTEMPT", "Contribution control is stale.");
         if (command.action === "cancel") {
-            if (task.phase === "published")
+            if (task.phase === "published" || task.phase === "cancelled")
                 throw new DomainError(
                     "INVALID_STATE_TRANSITION",
-                    "Published contributions cannot be cancelled."
+                    "Published or cancelled contributions cannot be cancelled."
                 );
             const next = {
                 ...task,
@@ -1141,6 +1142,7 @@ export function applyContributionCommand(
             ...task,
             generation: task.generation + 1,
             phase: "preparing" as const,
+            basedOnSeq: state.messageSeq,
             returnCount: 0,
             deadlineAt: context.now + 600_000,
             reason: undefined,
@@ -1163,6 +1165,8 @@ export function applyContributionCommand(
             "INVALID_ARGUMENT",
             "Contribution assignment does not belong to this meeting."
         );
+    if (command.requiredForCompletion && command.targetIds.length === 0)
+        throw new DomainError("INVALID_ARGUMENT", "Required contributions need a target.");
     if (
         Object.values(state.contributions.tasks).some(
             (task) => task.participantId === command.participantId && unfinishedResearch(task)

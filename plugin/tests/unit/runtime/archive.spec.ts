@@ -1,5 +1,5 @@
 import type { MeetingDiagnostic } from "@/repository/diagnostics.js";
-import { meeting } from "../domain/transitions/fixtures.js";
+import { meeting, rejectedAttendanceState } from "../domain/transitions/fixtures.js";
 import {
     beginArchiveFromTermination,
     cleanupOwnedSessions,
@@ -389,110 +389,110 @@ describe("meeting termination archival", () => {
     });
 });
 
-describe("archive ownership cleanup", () => {
-    const archiving = (): MeetingState => ({
-        ...terminalState(),
-        status: "archiving",
-        archive: { package: materializeArchivePackage(terminalState(), 9) }
-    });
-    const terminalState = (): MeetingState => ({
-        formatVersion: 2,
-        id: "meeting-1",
-        teamId: "team-1",
-        status: "completed",
-        participants: [
-            {
-                id: "participant-a",
-                displayName: "A",
-                status: "available",
-                consecutiveSpeeches: 0,
-                consecutiveAttemptFailures: 0,
-                totalSpeeches: 0,
-                lastDeliveredSeq: 0,
-                lastAcknowledgedSeq: 0
-            }
-        ],
-        manager: { promptVersion: "test", status: "idle" },
-        agenda: [],
-        topic: "topic",
-        objective: "objective",
-        objectiveContract: {
-            requiredOutputs: [],
-            acceptanceCriteria: [],
-            hardConstraints: [],
-            requiredReviewers: [],
-            riskAcceptanceAuthority: [],
-            acceptableRiskLevel: "low"
-        },
-        issues: [],
-        agendaCandidates: [],
-        transcript: [],
-        proposals: [],
-        decisions: [],
-        openQuestions: [],
-        handRaises: [],
-        meetingTasks: [],
-        completionFacts: [],
-        attendanceRecommendations: [],
-        artifactRefs: [],
-        continuationMaterials: [],
-        turnSeq: 0,
-        messageSeq: 0,
-        eventSeq: 0,
-        managerPlanningSeq: 0,
-        stallCount: 0,
-        replanCount: 0,
-        selectionMode: "hybrid",
-        limits: {
-            maxTurns: 10,
-            maxSpeakersPerTurn: 5,
-            maxTotalMessages: 100,
-            maxConsecutiveSpeechesPerSpeaker: 3,
-            maxConsecutiveAttemptFailuresPerParticipant: 3,
-            maxDeliveryRetries: 5,
-            maxStalls: 3,
-            maxReplans: 1
-        },
-        version: 4,
+const archiving = (): MeetingState => ({
+    ...terminalState(),
+    status: "archiving",
+    archive: { package: materializeArchivePackage(terminalState(), 9) }
+});
+const terminalState = (): MeetingState => ({
+    formatVersion: 2,
+    id: "meeting-1",
+    teamId: "team-1",
+    status: "completed",
+    participants: [
+        {
+            id: "participant-a",
+            displayName: "A",
+            status: "available",
+            consecutiveSpeeches: 0,
+            consecutiveAttemptFailures: 0,
+            totalSpeeches: 0,
+            lastDeliveredSeq: 0,
+            lastAcknowledgedSeq: 0
+        }
+    ],
+    manager: { promptVersion: "test", status: "idle" },
+    agenda: [],
+    topic: "topic",
+    objective: "objective",
+    objectiveContract: {
+        requiredOutputs: [],
+        acceptanceCriteria: [],
+        hardConstraints: [],
+        requiredReviewers: [],
+        riskAcceptanceAuthority: [],
+        acceptableRiskLevel: "low"
+    },
+    issues: [],
+    agendaCandidates: [],
+    transcript: [],
+    proposals: [],
+    decisions: [],
+    openQuestions: [],
+    handRaises: [],
+    meetingTasks: [],
+    completionFacts: [],
+    attendanceRecommendations: [],
+    artifactRefs: [],
+    continuationMaterials: [],
+    turnSeq: 0,
+    messageSeq: 0,
+    eventSeq: 0,
+    managerPlanningSeq: 0,
+    stallCount: 0,
+    replanCount: 0,
+    selectionMode: "hybrid",
+    limits: {
+        maxTurns: 10,
+        maxSpeakersPerTurn: 5,
+        maxTotalMessages: 100,
+        maxConsecutiveSpeechesPerSpeaker: 3,
+        maxConsecutiveAttemptFailuresPerParticipant: 3,
+        maxDeliveryRetries: 5,
+        maxStalls: 3,
+        maxReplans: 1
+    },
+    version: 4,
+    createdAt: 1,
+    updatedAt: 2,
+    termination: {
+        code: "objective_satisfied",
+        reason: "done",
+        decisionIds: [],
+        unresolvedQuestionIds: [],
+        dissentingPositionIds: [],
+        blockingAgendaItemIds: [],
+        finalMessage: "done",
+        endedAt: 3
+    }
+});
+const ownerships = () => [
+    {
+        sessionId: "manager-session",
+        parentSessionId: "captain-session",
+        sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
+        provider: "spawn",
+        role: "manager" as const,
+        lifecycleStatus: "active" as const,
+        capabilityStatus: "active" as const,
         createdAt: 1,
-        updatedAt: 2,
-        termination: {
-            code: "objective_satisfied",
-            reason: "done",
-            decisionIds: [],
-            unresolvedQuestionIds: [],
-            dissentingPositionIds: [],
-            blockingAgendaItemIds: [],
-            finalMessage: "done",
-            endedAt: 3
-        }
-    });
-    const ownerships = () => [
-        {
-            sessionId: "manager-session",
-            parentSessionId: "captain-session",
-            sessionLabel: "convivium:meeting-manager:team-1:meeting-1",
-            provider: "spawn",
-            role: "manager" as const,
-            lifecycleStatus: "active" as const,
-            capabilityStatus: "active" as const,
-            createdAt: 1,
-            updatedAt: 1
-        },
-        {
-            sessionId: "participant-session",
-            parentSessionId: "captain-session",
-            sessionLabel: "convivium:meeting-participant:team-1:meeting-1:participant-a",
-            provider: "spawn",
-            role: "participant" as const,
-            participantId: "participant-a",
-            lifecycleStatus: "active" as const,
-            capabilityStatus: "active" as const,
-            createdAt: 1,
-            updatedAt: 1
-        }
-    ];
+        updatedAt: 1
+    },
+    {
+        sessionId: "participant-session",
+        parentSessionId: "captain-session",
+        sessionLabel: "convivium:meeting-participant:team-1:meeting-1:participant-a",
+        provider: "spawn",
+        role: "participant" as const,
+        participantId: "participant-a",
+        lifecycleStatus: "active" as const,
+        capabilityStatus: "active" as const,
+        createdAt: 1,
+        updatedAt: 1
+    }
+];
 
+describe("archive ownership cleanup", () => {
     it("requires exactly one Manager and every Participant", () => {
         expect(() =>
             requireExpectedArchiveOwnerships(archiving(), ownerships().slice(1), "captain-session")
@@ -631,6 +631,9 @@ describe("archive ownership cleanup", () => {
             ).toBe(true);
         }
     );
+});
+
+describe("archive ownership finalization", () => {
     it("keeps revoked ownership open for a retry when drain fails", async () => {
         const meetingState = archiving();
         const metadata = {
@@ -894,60 +897,8 @@ describe("meeting archive recovery", () => {
     });
 });
 
-function attendanceState() {
-    const state = meeting("running");
-    state.attendanceRecommendations = [
-        {
-            id: "recommendation-1",
-            candidateId: "candidate-1",
-            roleDefinitionId: "domain_architect",
-            roleDefinitionVersion: "1",
-            displayName: "Architect",
-            agentDefinitionId: "private-definition",
-            agendaItemId: "agenda-1",
-            rationale: "Review",
-            expectedContribution: "Review scope",
-            evidenceGapIds: [],
-            urgency: "current_agenda",
-            recommendedByManagerSessionId: "manager-session",
-            catalogId: "catalog-1",
-            catalogVersion: "1",
-            planningAttemptId: "planning-1",
-            status: "pending",
-            createdAt: 1
-        }
-    ];
-    state.meetingTasks = [];
-    const recommendation = state.attendanceRecommendations[0]!;
-    state.attendanceRecommendations = [
-        {
-            ...recommendation,
-            id: "recommendation-b",
-            status: "rejected",
-            rejection: {
-                requestId: "reject-b",
-                actorBinding: "captain:private-session",
-                reason: "Outside scope",
-                rejectedAt: 100
-            }
-        },
-        {
-            ...recommendation,
-            id: "recommendation-a",
-            status: "rejected",
-            rejection: {
-                requestId: "reject-a",
-                actorBinding: "captain:private-session",
-                reason: "Already covered",
-                rejectedAt: 101
-            }
-        },
-        { ...recommendation, id: "pending", createdAt: 2 }
-    ];
-    return state;
-}
 it("materializes only safe rejection facts in canonical order without aliasing", () => {
-    const source = { ...attendanceState(), termination: meeting("completed").termination };
+    const source = { ...rejectedAttendanceState(), termination: meeting("completed").termination };
     const archive = materializeArchivePackage(source, 200);
     expect(archive.attendanceRejections?.map((r) => r.recommendationId)).toEqual([
         "recommendation-a",

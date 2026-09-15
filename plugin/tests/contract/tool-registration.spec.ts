@@ -4,6 +4,228 @@ import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { describe, expect, it, vi } from "vitest";
 import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "@/tools/index.js";
 
+const unauthorizedCommands: Record<string, unknown> = {
+    convivium_contribution: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        requestId: "notify-1",
+        expectedMeetingVersion: 1,
+        action: "notify_manager",
+        reason: "Review pending work"
+    },
+    convivium_read_contribution: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        contributionId: "contribution-1"
+    },
+    convivium_create_meeting: {
+        protocolVersion: 1,
+        requestId: "request-1",
+        teamId: "team-1",
+        topic: "Release",
+        objective: "Decide scope",
+        objectiveContract: {
+            requiredOutputs: [],
+            acceptanceCriteria: [],
+            hardConstraints: [],
+            requiredReviewerKeys: [],
+            riskAcceptanceAuthorityKeys: [],
+            acceptableRiskLevel: "low"
+        },
+        agenda: [
+            {
+                key: "agenda-1",
+                title: "Scope",
+                objective: "Review scope",
+                inScope: [],
+                outOfScope: [],
+                completionCriteria: [],
+                requiredParticipantKeys: []
+            }
+        ],
+        evidenceReviewerKey: "reviewer",
+        participants: [{ participantKey: "reviewer", displayName: "Reviewer" }]
+    },
+    convivium_meeting_status: { protocolVersion: 1, meetingId: "meeting-1" },
+    convivium_create_meeting_task: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        attemptId: "attempt-1",
+        requestId: "task-request-1",
+        title: "Run tests",
+        description: "Run the tests",
+        blocking: false
+    },
+    convivium_meeting_task_status: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        meetingTaskId: "meeting-task-1"
+    },
+    convivium_start_meeting_task: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        meetingTaskId: "meeting-task-1",
+        requestId: "task-start-1"
+    },
+    convivium_finish_meeting_task: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        meetingTaskId: "meeting-task-1",
+        requestId: "task-finish-1",
+        executionId: "execution-1",
+        status: "completed"
+    },
+    convivium_raise_hand: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        requestId: "raise-1",
+        reason: "new_evidence",
+        summary: "Evidence is ready",
+        taskIds: [],
+        priority: "normal"
+    },
+    convivium_submit_turn: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        turnId: "turn-1",
+        stepId: "step-1",
+        attemptId: "attempt-1",
+        deliveryId: "delivery-1",
+        agendaItemId: "agenda-1",
+        kind: "statement",
+        content: "message",
+        mentions: [],
+        taskIds: [],
+        agendaRelation: "on_topic",
+        changes: {}
+    },
+    convivium_dispose_attendance_recommendation: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 1,
+        requestId: "request-1",
+        recommendationId: "recommendation-1",
+        decision: "reject",
+        reason: "Outside scope"
+    },
+    convivium_submit_manager_plan: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        planningAttemptId: "planning-1",
+        observedMeetingVersion: 1,
+        requestId: "request-1",
+        agendaItemId: "agenda-1",
+        intent: "review",
+        objective: "Review scope",
+        expectedOutputs: [],
+        prohibitedTopics: [],
+        steps: [
+            {
+                participantId: "participant-1",
+                instruction: "Review scope",
+                reason: "required_reviewer"
+            }
+        ]
+    },
+    convivium_pause_meeting: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 1,
+        requestId: "request-1",
+        reason: "pause"
+    },
+    convivium_resume_meeting: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 1,
+        requestId: "request-1"
+    },
+    convivium_reassign_turn: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 1,
+        currentAttemptId: "attempt-1",
+        action: "skip",
+        reason: "speaker unavailable",
+        requestId: "request-1"
+    },
+    convivium_dispose_risk: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 1,
+        requestId: "request-1",
+        issueId: "issue-1",
+        decision: "reject",
+        reason: "not accepted",
+        evidenceMessageIds: ["message-1"]
+    },
+    convivium_dispose_decision: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 1,
+        requestId: "dispose-decision-1",
+        decisionId: "decision-1",
+        action: "revoke",
+        reason: "Decision is no longer valid",
+        evidenceMessageIds: ["message-1"]
+    },
+    convivium_send_message: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 1,
+        requestId: "request-1",
+        recipient: {
+            kind: "meeting_participant",
+            meetingId: "meeting-1",
+            participantId: "participant-two"
+        },
+        content: "hello",
+        meetingContext: {
+            meetingId: "meeting-1",
+            contextFromSeq: 0,
+            contextThroughSeq: 0,
+            relevantMessageIds: []
+        }
+    },
+    convivium_finish_meeting_mail: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        mailId: "mail-1",
+        handlingAttemptId: "attempt-1",
+        deliveryId: "delivery-1",
+        requestId: "request-1",
+        status: "processed"
+    },
+    convivium_end_meeting: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 1,
+        outcome: "cancelled",
+        reason: "cancel",
+        acceptedDecisionIds: [],
+        deferredAgendaItemIds: [],
+        waivers: [],
+        requestId: "request-1"
+    },
+    convivium_accept_decision: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 1,
+        requestId: "request-1",
+        decisionCandidateId: "candidate-1",
+        reason: "accept",
+        evidenceMessageIds: []
+    },
+    convivium_dispose_agenda_candidate: {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        expectedMeetingVersion: 1,
+        requestId: "request-1",
+        candidateId: "candidate-1",
+        action: "park"
+    }
+};
+
 describe("meeting tool registration", () => {
     it("passes task-linked submit_turn through the registration boundary as a canonical value", async () => {
         const definitions: ToolDefinition[] = [];
@@ -53,6 +275,11 @@ describe("meeting tool registration", () => {
         expect(submit?.description).toContain(
             "content is public meeting speech, not an execution report."
         );
+        const readContribution = definitions.find(
+            (definition) => definition.name === "convivium_read_contribution"
+        );
+        expect(readContribution?.description).toContain("assigned reviewer can inspect published");
+        expect(readContribution?.description).not.toContain("boundary-review draft");
         const input = {
             protocolVersion: 1,
             meetingId: "meeting-1",
@@ -187,7 +414,9 @@ describe("meeting tool registration", () => {
             });
         }
     );
+});
 
+describe("meeting create and status tool registration", () => {
     it("registers create and status with mandatory canonical outputs", () => {
         const definitions: ToolDefinition[] = [];
         registerCreateAndStatusTools({
@@ -436,7 +665,9 @@ describe("meeting tool registration", () => {
         expect(resolvedAgent).toBe(agent);
         expect(outcome).toMatchObject({ ok: false, code: "MEETING_NOT_FOUND" });
     });
+});
 
+describe("meeting tool caller binding", () => {
     it("rejects calls without an Agent before invoking the runtime", async () => {
         const definitions: ToolDefinition[] = [];
         let runtimeCalls = 0;
@@ -606,233 +837,14 @@ describe("meeting tool registration", () => {
         registerCreateAndStatusTools(dependencies);
         registerSubmitAndControlTools(dependencies);
 
-        const commands: Record<string, unknown> = {
-            convivium_contribution: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                requestId: "notify-1",
-                expectedMeetingVersion: 1,
-                action: "notify_manager",
-                reason: "Review pending work"
-            },
-            convivium_read_contribution: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                contributionId: "contribution-1"
-            },
-            convivium_create_meeting: {
-                protocolVersion: 1,
-                requestId: "request-1",
-                teamId: "team-1",
-                topic: "Release",
-                objective: "Decide scope",
-                objectiveContract: {
-                    requiredOutputs: [],
-                    acceptanceCriteria: [],
-                    hardConstraints: [],
-                    requiredReviewerKeys: [],
-                    riskAcceptanceAuthorityKeys: [],
-                    acceptableRiskLevel: "low"
-                },
-                agenda: [
-                    {
-                        key: "agenda-1",
-                        title: "Scope",
-                        objective: "Review scope",
-                        inScope: [],
-                        outOfScope: [],
-                        completionCriteria: [],
-                        requiredParticipantKeys: []
-                    }
-                ],
-                evidenceReviewerKey: "reviewer",
-                participants: [{ participantKey: "reviewer", displayName: "Reviewer" }]
-            },
-            convivium_meeting_status: { protocolVersion: 1, meetingId: "meeting-1" },
-            convivium_create_meeting_task: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                attemptId: "attempt-1",
-                requestId: "task-request-1",
-                title: "Run tests",
-                description: "Run the tests",
-                blocking: false
-            },
-            convivium_meeting_task_status: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                meetingTaskId: "meeting-task-1"
-            },
-            convivium_start_meeting_task: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                meetingTaskId: "meeting-task-1",
-                requestId: "task-start-1"
-            },
-            convivium_finish_meeting_task: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                meetingTaskId: "meeting-task-1",
-                requestId: "task-finish-1",
-                executionId: "execution-1",
-                status: "completed"
-            },
-            convivium_raise_hand: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                requestId: "raise-1",
-                reason: "new_evidence",
-                summary: "Evidence is ready",
-                taskIds: [],
-                priority: "normal"
-            },
-            convivium_submit_turn: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                turnId: "turn-1",
-                stepId: "step-1",
-                attemptId: "attempt-1",
-                deliveryId: "delivery-1",
-                agendaItemId: "agenda-1",
-                kind: "statement",
-                content: "message",
-                mentions: [],
-                taskIds: [],
-                agendaRelation: "on_topic",
-                changes: {}
-            },
-            convivium_dispose_attendance_recommendation: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                expectedMeetingVersion: 1,
-                requestId: "request-1",
-                recommendationId: "recommendation-1",
-                decision: "reject",
-                reason: "Outside scope"
-            },
-            convivium_submit_manager_plan: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                planningAttemptId: "planning-1",
-                observedMeetingVersion: 1,
-                requestId: "request-1",
-                agendaItemId: "agenda-1",
-                intent: "review",
-                objective: "Review scope",
-                expectedOutputs: [],
-                prohibitedTopics: [],
-                steps: [
-                    {
-                        participantId: "participant-1",
-                        instruction: "Review scope",
-                        reason: "required_reviewer"
-                    }
-                ]
-            },
-            convivium_pause_meeting: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                expectedMeetingVersion: 1,
-                requestId: "request-1",
-                reason: "pause"
-            },
-            convivium_resume_meeting: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                expectedMeetingVersion: 1,
-                requestId: "request-1"
-            },
-            convivium_reassign_turn: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                expectedMeetingVersion: 1,
-                currentAttemptId: "attempt-1",
-                action: "skip",
-                reason: "speaker unavailable",
-                requestId: "request-1"
-            },
-            convivium_dispose_risk: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                expectedMeetingVersion: 1,
-                requestId: "request-1",
-                issueId: "issue-1",
-                decision: "reject",
-                reason: "not accepted",
-                evidenceMessageIds: ["message-1"]
-            },
-            convivium_dispose_decision: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                expectedMeetingVersion: 1,
-                requestId: "dispose-decision-1",
-                decisionId: "decision-1",
-                action: "revoke",
-                reason: "Decision is no longer valid",
-                evidenceMessageIds: ["message-1"]
-            },
-            convivium_send_message: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                expectedMeetingVersion: 1,
-                requestId: "request-1",
-                recipient: {
-                    kind: "meeting_participant",
-                    meetingId: "meeting-1",
-                    participantId: "participant-two"
-                },
-                content: "hello",
-                meetingContext: {
-                    meetingId: "meeting-1",
-                    contextFromSeq: 0,
-                    contextThroughSeq: 0,
-                    relevantMessageIds: []
-                }
-            },
-            convivium_finish_meeting_mail: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                mailId: "mail-1",
-                handlingAttemptId: "attempt-1",
-                deliveryId: "delivery-1",
-                requestId: "request-1",
-                status: "processed"
-            },
-            convivium_end_meeting: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                expectedMeetingVersion: 1,
-                outcome: "cancelled",
-                reason: "cancel",
-                acceptedDecisionIds: [],
-                deferredAgendaItemIds: [],
-                waivers: [],
-                requestId: "request-1"
-            },
-            convivium_accept_decision: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                expectedMeetingVersion: 1,
-                requestId: "request-1",
-                decisionCandidateId: "candidate-1",
-                reason: "accept",
-                evidenceMessageIds: []
-            },
-            convivium_dispose_agenda_candidate: {
-                protocolVersion: 1,
-                meetingId: "meeting-1",
-                expectedMeetingVersion: 1,
-                requestId: "request-1",
-                candidateId: "candidate-1",
-                action: "park"
-            }
-        };
-
         for (const definition of definitions) {
-            const outcome = await definition.execute({ input: commands[definition.name] }, {
-                agent,
-                signal: new AbortController().signal
-            } as ToolRunContext);
+            const outcome = await definition.execute(
+                { input: unauthorizedCommands[definition.name] },
+                {
+                    agent,
+                    signal: new AbortController().signal
+                } as ToolRunContext
+            );
             expect(outcome).toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
         }
 
@@ -861,7 +873,9 @@ describe("meeting tool registration", () => {
             "end:participant"
         ]);
     });
+});
 
+describe("Captain attendance tool registration", () => {
     it("validates, forwards, renders and unregisters Captain attendance rejection", async () => {
         const definitions = new Map<string, ToolDefinition>();
         const denied = vi.fn(async (): Promise<never> => {

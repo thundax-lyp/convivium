@@ -1,6 +1,9 @@
 import { materializeArchivePackage } from "@/runtime/services/meeting-archive-service.js";
-import { meeting as domainMeeting } from "../unit/domain/transitions/fixtures.js";
-import { meeting } from "../unit/domain/transitions/fixtures.js";
+import {
+    meeting,
+    meeting as domainMeeting,
+    rejectedAttendanceState
+} from "../unit/domain/transitions/fixtures.js";
 import type { MeetingState } from "@/domain/model.js";
 import {
     projectManagerMeetingContext,
@@ -306,7 +309,9 @@ describe("meeting status projection", () => {
         expect(JSON.stringify(projected)).not.toContain("planning-1");
         expect(JSON.stringify(projected)).not.toContain("leaseToken");
     });
+});
 
+describe("speaker status projection", () => {
     it("projects target-owned continuation materials into the exact speaker attempt", () => {
         const projected = projectSpeakerMeetingContext(
             {
@@ -528,7 +533,9 @@ describe("meeting status projection", () => {
         expect(projected.pendingDecisionCandidates).toEqual([]);
         expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
+});
 
+describe("meeting blocking and terminal status projection", () => {
     it("projects only blocking Issues as blocking facts", () => {
         const projected = projectMeetingStatus(
             {
@@ -955,60 +962,8 @@ describe("referenced minutes projection", () => {
     });
 });
 
-function attendanceState() {
-    const state = meeting("running");
-    state.attendanceRecommendations = [
-        {
-            id: "recommendation-1",
-            candidateId: "candidate-1",
-            roleDefinitionId: "domain_architect",
-            roleDefinitionVersion: "1",
-            displayName: "Architect",
-            agentDefinitionId: "private-definition",
-            agendaItemId: "agenda-1",
-            rationale: "Review",
-            expectedContribution: "Review scope",
-            evidenceGapIds: [],
-            urgency: "current_agenda",
-            recommendedByManagerSessionId: "manager-session",
-            catalogId: "catalog-1",
-            catalogVersion: "1",
-            planningAttemptId: "planning-1",
-            status: "pending",
-            createdAt: 1
-        }
-    ];
-    state.meetingTasks = [];
-    const recommendation = state.attendanceRecommendations[0]!;
-    state.attendanceRecommendations = [
-        {
-            ...recommendation,
-            id: "recommendation-b",
-            status: "rejected",
-            rejection: {
-                requestId: "reject-b",
-                actorBinding: "captain:private-session",
-                reason: "Outside scope",
-                rejectedAt: 100
-            }
-        },
-        {
-            ...recommendation,
-            id: "recommendation-a",
-            status: "rejected",
-            rejection: {
-                requestId: "reject-a",
-                actorBinding: "captain:private-session",
-                reason: "Already covered",
-                rejectedAt: 101
-            }
-        },
-        { ...recommendation, id: "pending", createdAt: 2 }
-    ];
-    return state;
-}
 it("projects the same safe rejections for Agents and preserves materialized archive facts", () => {
-    const source = attendanceState();
+    const source = rejectedAttendanceState();
     const callers = ["captain", "manager", "participant"] as const;
     for (const status of ["running", "cancelled"] as const) {
         const current = {

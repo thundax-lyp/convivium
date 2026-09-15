@@ -283,6 +283,9 @@ describe("meeting Session recovery", () => {
         ).toBe(true);
         await f.repository.close();
     });
+});
+
+describe("meeting Session recovery after retirement", () => {
     it("retains revoked identities after checkpoint compaction and rejects their callers", async () => {
         const f = await fixture();
         const previous = f.entries.shift()!.id;

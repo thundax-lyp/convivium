@@ -386,7 +386,7 @@ export function registerSubmitAndControlTools(
             defineTool({
                 name: "convivium_read_contribution",
                 description:
-                    "Read one permitted contribution draft revision and optional exact evidence version. Input: {protocolVersion:1,meetingId,contributionId,draftRevision?,evidenceKey?}. Omit draftRevision for current. Authors see their drafts; other participants see published work; the assigned reviewer can inspect the current boundary-review draft. Captain and Manager can audit history. No filesystem access or URL fetching; a source is not automatically verified.",
+                    "Read one permitted contribution draft revision and optional exact evidence version. Input: {protocolVersion:1,meetingId,contributionId,draftRevision?,evidenceKey?}. Omit draftRevision for current. Authors see their drafts; other participants see published work; the assigned reviewer can inspect published work assigned for evidence review. Captain and Manager can audit history. No filesystem access or URL fetching; a source is not automatically verified.",
                 parameters: toolParameters,
                 output: { schema: protocolOutputSchema, render: renderOutcome },
                 async execute(args, exec) {

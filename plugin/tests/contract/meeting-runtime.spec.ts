@@ -338,18 +338,19 @@ describe("contribution meeting creation runtime", () => {
     });
 });
 
+const selected = {
+    ...input,
+    evidenceReviewerKey: "c",
+    managerAgentDefinitionId: "fr14-manager",
+    participants: [
+        { participantKey: "a", displayName: "A", agentDefinitionId: "fr14-participant" },
+        { participantKey: "b", displayName: "B" },
+        { participantKey: "c", displayName: "C" }
+    ],
+    agenda: [{ ...input.agenda[0], requiredParticipantKeys: ["a", "b", "c"] }]
+};
+
 describe("Agent Definition creation and replay contract", () => {
-    const selected = {
-        ...input,
-        evidenceReviewerKey: "c",
-        managerAgentDefinitionId: "fr14-manager",
-        participants: [
-            { participantKey: "a", displayName: "A", agentDefinitionId: "fr14-participant" },
-            { participantKey: "b", displayName: "B" },
-            { participantKey: "c", displayName: "C" }
-        ],
-        agenda: [{ ...input.agenda[0], requiredParticipantKeys: ["a", "b", "c"] }]
-    };
     async function fixture(failure?: "child" | "abort", existingRoot?: string) {
         const root = existingRoot ?? (await mkdtemp(join(tmpdir(), "convivium-fr14-contract-")));
         roots.push(root);

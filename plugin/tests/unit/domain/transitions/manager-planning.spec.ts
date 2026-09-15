@@ -221,7 +221,9 @@ describe("manager planning transitions", () => {
             "manager_plan.started"
         ]);
     });
+});
 
+describe("manager planning continuation and fallback", () => {
     it("starts the next manager planning attempt from running without a current turn", () => {
         const state = {
             ...meeting("running"),
