@@ -1,14 +1,4 @@
-import {
-    createElement,
-    useCallback,
-    useEffect,
-    useRef,
-    useState,
-    type ChangeEvent,
-    type FormEvent,
-    type KeyboardEvent,
-    type ReactElement
-} from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import {
     type ContributionSummaryV1,
     type LocalMeetingListItemV1,
@@ -17,38 +7,19 @@ import {
     type ReadContributionResultV1
 } from "@/protocol/index.js";
 import { ProtocolFailure, type MeetingClient } from "./meeting-client.js";
-import { renderContributionDetail, renderObservabilitySections } from "./meeting-panel-sections.js";
-import { Button, Input } from "@deepseek-ai/dsh-client-ui-primitives";
-
-const END_OUTCOMES = [
-    { value: "partial", label: "Partial" },
-    { value: "no_consensus", label: "No consensus" },
-    { value: "cancelled", label: "Cancelled" }
-] as const;
-type EndOutcome = (typeof END_OUTCOMES)[number]["value"];
-
-type FactControlAction =
-    "accept-decision" | "supersede-decision" | "revoke-decision" | "accept-risk" | "reject-risk";
-interface FactControlDraft {
-    action: FactControlAction;
-    targetId: string;
-    reason: string;
-    evidenceMessageIds: readonly string[];
-    replacementCandidateId?: string;
-}
-
-type ContributionControlAction = "retry" | "cancel" | "notify_manager";
-interface ContributionControlDraft {
-    readonly action: ContributionControlAction;
-    readonly contributionId?: string;
-    reason: string;
-}
+import {
+    renderMeetingPanelLayout,
+    type ContributionControlDraft,
+    type EndOutcome,
+    type FactControlAction,
+    type FactControlDraft
+} from "./meeting-panel-layout.js";
 
 function failureMessage(_error: unknown): string {
     return "Meeting data is unavailable.";
 }
 
-export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactElement {
+function usePanelState() {
     const [meetings, setMeetings] = useState<readonly LocalMeetingListItemV1[]>([]);
     const [selectedId, setSelectedId] = useState<string>();
     const [detail, setDetail] = useState<MeetingStatusResultV1>();
@@ -66,7 +37,6 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
     const [contributionRevision, setContributionRevision] = useState<number>();
     const [contributionDraft, setContributionDraft] = useState<ContributionControlDraft>();
     const [contributionError, setContributionError] = useState<string>();
-
     const mounted = useRef(true);
     const selectedIdRef = useRef<string>();
     const writePendingRef = useRef(false);
@@ -82,6 +52,96 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
     const refreshDirty = useRef(false);
     const refreshEpoch = useRef(0);
     const streamReady = useRef(false);
+    return {
+        meetings,
+        setMeetings,
+        selectedId,
+        setSelectedId,
+        detail,
+        setDetail,
+        listCached,
+        setListCached,
+        detailCached,
+        setDetailCached,
+        listError,
+        setListError,
+        detailError,
+        setDetailError,
+        pauseReason,
+        setPauseReason,
+        endReason,
+        setEndReason,
+        endOutcome,
+        setEndOutcome,
+        writePending,
+        setWritePending,
+        draft,
+        setDraft,
+        factError,
+        setFactError,
+        contributionDetail,
+        setContributionDetail,
+        contributionRevision,
+        setContributionRevision,
+        contributionDraft,
+        setContributionDraft,
+        contributionError,
+        setContributionError,
+        mounted,
+        selectedIdRef,
+        writePendingRef,
+        listController,
+        detailController,
+        writeController,
+        contributionController,
+        listGeneration,
+        detailGeneration,
+        writeGeneration,
+        contributionGeneration,
+        refreshReading,
+        refreshDirty,
+        refreshEpoch,
+        streamReady
+    };
+}
+
+type PanelState = ReturnType<typeof usePanelState>;
+
+function usePanelRefresh(api: MeetingClient, state: PanelState) {
+    const {
+        refreshEpoch,
+        listGeneration,
+        detailGeneration,
+        listController,
+        detailController,
+        contributionController,
+        writeController,
+        writeGeneration,
+        contributionGeneration,
+        selectedIdRef,
+        writePendingRef,
+        setSelectedId,
+        setDetail,
+        setDetailCached,
+        setDetailError,
+        setPauseReason,
+        setEndReason,
+        setEndOutcome,
+        setDraft,
+        setFactError,
+        setContributionDetail,
+        setContributionRevision,
+        setContributionDraft,
+        setContributionError,
+        setWritePending,
+        mounted,
+        setMeetings,
+        setListError,
+        setListCached,
+        refreshDirty,
+        refreshReading,
+        streamReady
+    } = state;
     const invalidateReads = useCallback(() => {
         refreshEpoch.current += 1;
         listGeneration.current += 1;
@@ -238,6 +298,129 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         [invalidateReads, requestRefresh]
     );
 
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+            listController.current?.abort();
+            detailController.current?.abort();
+            contributionController.current?.abort();
+            writeController.current?.abort();
+            listGeneration.current += 1;
+            detailGeneration.current += 1;
+            writeGeneration.current += 1;
+            contributionGeneration.current += 1;
+        };
+    }, [requestRefresh]);
+    return { invalidateReads, requestRefresh, selectMeeting };
+}
+
+type PanelRefresh = ReturnType<typeof usePanelRefresh>;
+
+function useMeetingUpdates(api: MeetingClient, state: PanelState, refresh: PanelRefresh) {
+    const { streamReady, setListCached, setDetailCached } = state;
+    const { invalidateReads, requestRefresh } = refresh;
+    useEffect(() => {
+        let stopped = false;
+        let desired = 0;
+        let restarting = false;
+        let active: ReturnType<MeetingClient["openUpdates"]> | undefined;
+        let removeAbortListener = () => {};
+        const invalidate = () => {
+            if (stopped) return;
+            streamReady.current = false;
+            invalidateReads();
+            setListCached(true);
+            setDetailCached(true);
+        };
+        const consume = async (stream: ReturnType<MeetingClient["openUpdates"]>, epoch: number) => {
+            let generation: number | undefined;
+            try {
+                for await (const item of stream) {
+                    if (stopped || epoch !== desired) break;
+                    if (item.value?.kind !== "refresh" || Object.keys(item.value).length !== 1)
+                        throw new Error("Invalid meeting refresh notice.");
+                    if (generation !== item.generation) {
+                        removeAbortListener();
+                        invalidate();
+                        generation = item.generation;
+                        item.signal.addEventListener("abort", invalidate, { once: true });
+                        removeAbortListener = () =>
+                            item.signal.removeEventListener("abort", invalidate);
+                        if (item.signal.aborted) continue;
+                        streamReady.current = true;
+                    }
+                    item.accept();
+                    requestRefresh();
+                }
+            } catch {
+                if (!stopped && epoch === desired) invalidate();
+            } finally {
+                if (!stopped && epoch === desired) {
+                    invalidate();
+                    await stream.dispose();
+                }
+            }
+        };
+        const restart = () => {
+            desired += 1;
+            invalidate();
+            if (restarting) return;
+            restarting = true;
+            void (async () => {
+                try {
+                    let epoch: number;
+                    do {
+                        epoch = desired;
+                        removeAbortListener();
+                        await active?.dispose();
+                        active = undefined;
+                        if (stopped) return;
+                    } while (epoch !== desired);
+                    const stream = api.openUpdates(() => {
+                        if (!stopped && desired === epoch) invalidate();
+                    });
+                    active = stream;
+                    void consume(stream, epoch);
+                } catch {
+                    invalidate();
+                } finally {
+                    restarting = false;
+                }
+            })();
+        };
+        restart();
+        window.addEventListener("focus", restart);
+        return () => {
+            stopped = true;
+            desired += 1;
+            streamReady.current = false;
+            removeAbortListener();
+            window.removeEventListener("focus", restart);
+            void active?.dispose();
+        };
+    }, [api, invalidateReads, requestRefresh]);
+}
+
+function useMeetingControl(api: MeetingClient, state: PanelState, refresh: PanelRefresh) {
+    const {
+        selectedIdRef,
+        detail,
+        listCached,
+        detailCached,
+        writePendingRef,
+        writeController,
+        writeGeneration,
+        setDetailCached,
+        setWritePending,
+        setDetailError,
+        pauseReason,
+        endReason,
+        endOutcome,
+        mounted,
+        refreshDirty
+    } = state;
+    const { invalidateReads, requestRefresh } = refresh;
     const controlMeeting = useCallback(
         async (action: "pause" | "resume" | "end") => {
             const meetingId = selectedIdRef.current;
@@ -342,103 +525,30 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             invalidateReads
         ]
     );
+    return controlMeeting;
+}
 
-    useEffect(() => {
-        mounted.current = true;
-        return () => {
-            mounted.current = false;
-            listController.current?.abort();
-            detailController.current?.abort();
-            contributionController.current?.abort();
-            writeController.current?.abort();
-            listGeneration.current += 1;
-            detailGeneration.current += 1;
-            writeGeneration.current += 1;
-            contributionGeneration.current += 1;
-        };
-    }, [requestRefresh]);
-
-    useEffect(() => {
-        let stopped = false;
-        let desired = 0;
-        let restarting = false;
-        let active: ReturnType<MeetingClient["openUpdates"]> | undefined;
-        let removeAbortListener = () => {};
-        const invalidate = () => {
-            if (stopped) return;
-            streamReady.current = false;
-            invalidateReads();
-            setListCached(true);
-            setDetailCached(true);
-        };
-        const consume = async (stream: ReturnType<MeetingClient["openUpdates"]>, epoch: number) => {
-            let generation: number | undefined;
-            try {
-                for await (const item of stream) {
-                    if (stopped || epoch !== desired) break;
-                    if (item.value?.kind !== "refresh" || Object.keys(item.value).length !== 1)
-                        throw new Error("Invalid meeting refresh notice.");
-                    if (generation !== item.generation) {
-                        removeAbortListener();
-                        invalidate();
-                        generation = item.generation;
-                        item.signal.addEventListener("abort", invalidate, { once: true });
-                        removeAbortListener = () =>
-                            item.signal.removeEventListener("abort", invalidate);
-                        if (item.signal.aborted) continue;
-                        streamReady.current = true;
-                    }
-                    item.accept();
-                    requestRefresh();
-                }
-            } catch {
-                if (!stopped && epoch === desired) invalidate();
-            } finally {
-                if (!stopped && epoch === desired) {
-                    invalidate();
-                    await stream.dispose();
-                }
-            }
-        };
-        const restart = () => {
-            desired += 1;
-            invalidate();
-            if (restarting) return;
-            restarting = true;
-            void (async () => {
-                try {
-                    let epoch: number;
-                    do {
-                        epoch = desired;
-                        removeAbortListener();
-                        await active?.dispose();
-                        active = undefined;
-                        if (stopped) return;
-                    } while (epoch !== desired);
-                    const stream = api.openUpdates(() => {
-                        if (!stopped && desired === epoch) invalidate();
-                    });
-                    active = stream;
-                    void consume(stream, epoch);
-                } catch {
-                    invalidate();
-                } finally {
-                    restarting = false;
-                }
-            })();
-        };
-        restart();
-        window.addEventListener("focus", restart);
-        return () => {
-            stopped = true;
-            desired += 1;
-            streamReady.current = false;
-            removeAbortListener();
-            window.removeEventListener("focus", restart);
-            void active?.dispose();
-        };
-    }, [api, invalidateReads, requestRefresh]);
-
+function useContributionActions(api: MeetingClient, state: PanelState, refresh: PanelRefresh) {
+    const {
+        contributionController,
+        contributionGeneration,
+        mounted,
+        selectedIdRef,
+        setContributionError,
+        setContributionDetail,
+        setContributionRevision,
+        contributionDraft,
+        listCached,
+        detailCached,
+        writePendingRef,
+        writeController,
+        writeGeneration,
+        setWritePending,
+        refreshDirty,
+        setDetailCached,
+        setContributionDraft
+    } = state;
+    const { requestRefresh } = refresh;
     const loadContribution = useCallback(
         async (
             meetingId: string,
@@ -580,11 +690,35 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             }
         }
     }, [api, contributionDraft, detailCached, listCached, requestRefresh]);
+    return { loadContribution, submitContributionControl };
+}
 
+function useFactActions(api: MeetingClient, state: PanelState, refresh: PanelRefresh) {
+    const {
+        detail,
+        draft,
+        setDraft,
+        listCached,
+        detailCached,
+        writePendingRef,
+        selectedIdRef,
+        selectedId,
+        writeController,
+        writeGeneration,
+        mounted,
+        setDetailCached,
+        setWritePending,
+        setFactError,
+        refreshDirty,
+        setDetailError
+    } = state;
+    const { invalidateReads, requestRefresh } = refresh;
     const discussion = detail && "pendingDecisionCandidates" in detail ? detail : undefined;
+
     const factWritable =
         detail !== undefined &&
         ["created", "running", "waiting", "paused", "converging"].includes(detail.status);
+
     const targetExists =
         draft !== undefined &&
         discussion !== undefined &&
@@ -602,6 +736,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                             : item.status === "accepted_risk" ||
                               (item.status === "open" && item.disposition !== "blocking"))
                 ));
+
     const validDraft =
         draft !== undefined &&
         targetExists &&
@@ -759,625 +894,22 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             }
         }
     }
+    return { factWritable, validDraft, openFactControl, submitFactControl };
+}
 
-    function renderFactForm(): ReactElement | null {
-        if (!draft || !discussion) return null;
-        return createElement(
-            "form",
-            {
-                "aria-label": "Decision and risk control",
-                onSubmit: (event: FormEvent<HTMLFormElement>) => {
-                    event.preventDefault();
-                    void submitFactControl();
-                }
-            },
-            createElement(
-                "fieldset",
-                { disabled: listCached || detailCached || writePending },
-                createElement(
-                    "label",
-                    null,
-                    "Reason",
-                    createElement("textarea", {
-                        value: draft.reason,
-                        onChange: (event: ChangeEvent<HTMLTextAreaElement>) =>
-                            setDraft({ ...draft, reason: event.currentTarget.value })
-                    })
-                ),
-                draft.action === "supersede-decision"
-                    ? createElement(
-                          "label",
-                          null,
-                          "Replacement decision",
-                          createElement(
-                              "select",
-                              {
-                                  value: draft.replacementCandidateId,
-                                  onChange: (event: ChangeEvent<HTMLSelectElement>) => {
-                                      const replacementCandidateId = event.currentTarget.value;
-                                      const sourceId = discussion.pendingDecisionCandidates.find(
-                                          (item) => item.id === replacementCandidateId
-                                      )?.sourceMessageId;
-                                      setDraft({
-                                          ...draft,
-                                          replacementCandidateId,
-                                          evidenceMessageIds:
-                                              sourceId &&
-                                              discussion.messages.some(
-                                                  (message) => message.id === sourceId
-                                              )
-                                                  ? [sourceId]
-                                                  : []
-                                      });
-                                  }
-                              },
-                              createElement("option", { value: "" }, "Select a candidate"),
-                              discussion.pendingDecisionCandidates.map((item) =>
-                                  createElement(
-                                      "option",
-                                      { key: item.id, value: item.id },
-                                      item.statement
-                                  )
-                              )
-                          )
-                      )
-                    : null,
-                createElement(
-                    "fieldset",
-                    { "aria-label": "Evidence messages" },
-                    createElement("legend", null, "Evidence messages"),
-                    discussion.messages.map((message) =>
-                        createElement(
-                            "label",
-                            { key: message.id },
-                            createElement("input", {
-                                type: "checkbox",
-                                value: message.id,
-                                checked: draft.evidenceMessageIds.includes(message.id),
-                                onChange: (event: ChangeEvent<HTMLInputElement>) =>
-                                    setDraft({
-                                        ...draft,
-                                        evidenceMessageIds: event.currentTarget.checked
-                                            ? [...draft.evidenceMessageIds, message.id]
-                                            : draft.evidenceMessageIds.filter(
-                                                  (id) => id !== message.id
-                                              )
-                                    })
-                            }),
-                            message.content
-                        )
-                    )
-                ),
-                createElement(
-                    "p",
-                    { "aria-label": "Selected evidence" },
-                    discussion.messages
-                        .filter((message) => draft.evidenceMessageIds.includes(message.id))
-                        .map((message) => message.content)
-                        .join("; ") || "No evidence selected"
-                ),
-                createElement(
-                    Button,
-                    { type: "submit", variant: "primary", size: "sm", disabled: !validDraft },
-                    "Submit"
-                ),
-                createElement(
-                    Button,
-                    {
-                        type: "button",
-                        variant: "outline",
-                        size: "sm",
-                        onClick: () => setDraft(undefined)
-                    },
-                    "Cancel"
-                )
-            )
-        );
-    }
-
-    function renderActions(
-        id: string,
-        actions: Array<[FactControlAction, string]>,
-        disabled = false
-    ): ReactElement | null {
-        if (!factWritable) return null;
-        return createElement(
-            "div",
-            null,
-            actions.map(([action, label]) =>
-                createElement(
-                    Button,
-                    {
-                        key: action,
-                        type: "button",
-                        variant: "outline",
-                        size: "sm",
-                        disabled: disabled || listCached || detailCached || writePending,
-                        onClick: () => openFactControl(action, id)
-                    },
-                    label
-                )
-            ),
-            draft?.targetId === id && actions.some(([action]) => action === draft.action)
-                ? renderFactForm()
-                : null
-        );
-    }
-
-    function renderContributionControlForm(): ReactElement | null {
-        if (contributionDraft === undefined) return null;
-        return createElement(
-            "form",
-            {
-                "aria-label": "Contribution control",
-                onSubmit: (event: FormEvent<HTMLFormElement>) => {
-                    event.preventDefault();
-                    void submitContributionControl();
-                }
-            },
-            createElement(
-                "label",
-                null,
-                "Reason",
-                createElement(Input, {
-                    value: contributionDraft.reason,
-                    onChange: (event: ChangeEvent<HTMLInputElement>) =>
-                        setContributionDraft({
-                            ...contributionDraft,
-                            reason: event.currentTarget.value
-                        })
-                })
-            ),
-            createElement(
-                Button,
-                {
-                    type: "submit",
-                    variant: "primary",
-                    size: "sm",
-                    disabled:
-                        listCached ||
-                        detailCached ||
-                        writePending ||
-                        contributionDraft.reason.trim() === ""
-                },
-                "Submit"
-            ),
-            createElement(
-                Button,
-                {
-                    type: "button",
-                    variant: "outline",
-                    size: "sm",
-                    onClick: () => setContributionDraft(undefined)
-                },
-                "Cancel"
-            )
-        );
-    }
-
-    function renderContributionActions(contributionId: string): ReactElement | null {
-        const task = detail?.contributions?.tasks.find(
-            (candidate) => candidate.id === contributionId
-        );
-        if (task === undefined || selectedId === undefined) return null;
-        const retryable =
-            ["returned", "captain_action", "cancelled"].includes(task.phase) ||
-            (task.phase === "published" && task.reviewStatus === "captain_action");
-        const cancellable = !["published", "cancelled"].includes(task.phase);
-        const disabled = listCached || detailCached || writePending;
-        return createElement(
-            "div",
-            null,
-            createElement(
-                Button,
-                {
-                    type: "button",
-                    variant: "outline",
-                    size: "sm",
-                    disabled,
-                    onClick: () => void loadContribution(selectedId, task)
-                },
-                "View contribution"
-            ),
-            retryable
-                ? createElement(
-                      Button,
-                      {
-                          type: "button",
-                          variant: "outline",
-                          size: "sm",
-                          disabled,
-                          onClick: () =>
-                              setContributionDraft({ action: "retry", contributionId, reason: "" })
-                      },
-                      "Retry contribution"
-                  )
-                : null,
-            cancellable
-                ? createElement(
-                      Button,
-                      {
-                          type: "button",
-                          variant: "outline",
-                          size: "sm",
-                          disabled,
-                          onClick: () =>
-                              setContributionDraft({
-                                  action: "cancel",
-                                  contributionId,
-                                  reason: ""
-                              })
-                      },
-                      "Cancel contribution"
-                  )
-                : null,
-            contributionDraft?.contributionId === contributionId
-                ? renderContributionControlForm()
-                : null
-        );
-    }
-
-    function renderContributionFooter(): ReactElement | null {
-        if (detail?.contributions === undefined) return null;
-        const disabled = listCached || detailCached || writePending;
-        return createElement(
-            "div",
-            null,
-            ["running", "waiting"].includes(detail.status)
-                ? createElement(
-                      Button,
-                      {
-                          type: "button",
-                          variant: "outline",
-                          size: "sm",
-                          disabled,
-                          onClick: () =>
-                              setContributionDraft({ action: "notify_manager", reason: "" })
-                      },
-                      "Notify Manager"
-                  )
-                : null,
-            contributionDraft?.action === "notify_manager" ? renderContributionControlForm() : null,
-            contributionError === undefined
-                ? null
-                : createElement("p", { role: "alert" }, contributionError),
-            contributionDetail === undefined
-                ? null
-                : createElement(
-                      "div",
-                      null,
-                      contributionDetail.task.currentDraftRevision > 0
-                          ? createElement(
-                                "label",
-                                null,
-                                "Draft revision",
-                                createElement(
-                                    "select",
-                                    {
-                                        value: contributionRevision,
-                                        onChange: (event: ChangeEvent<HTMLSelectElement>) => {
-                                            const revision = Number(event.currentTarget.value);
-                                            if (selectedId !== undefined)
-                                                void loadContribution(
-                                                    selectedId,
-                                                    contributionDetail.task,
-                                                    revision
-                                                );
-                                        }
-                                    },
-                                    Array.from(
-                                        { length: contributionDetail.task.currentDraftRevision },
-                                        (_, index) => index + 1
-                                    ).map((revision) =>
-                                        createElement(
-                                            "option",
-                                            { key: revision, value: revision },
-                                            String(revision)
-                                        )
-                                    )
-                                )
-                            )
-                          : null,
-                      (contributionDetail.drafts[0]?.citations.length ?? 0) > 0
-                          ? createElement(
-                                "label",
-                                null,
-                                "Evidence version",
-                                createElement(
-                                    "select",
-                                    {
-                                        value:
-                                            contributionDetail.evidence?.key ??
-                                            contributionDetail.drafts[0]!.citations[0]!.evidenceKey,
-                                        onChange: (event: ChangeEvent<HTMLSelectElement>) => {
-                                            if (selectedId !== undefined)
-                                                void loadContribution(
-                                                    selectedId,
-                                                    contributionDetail.task,
-                                                    contributionRevision,
-                                                    event.currentTarget.value
-                                                );
-                                        }
-                                    },
-                                    contributionDetail.drafts[0]!.citations.map((citation) =>
-                                        createElement(
-                                            "option",
-                                            {
-                                                key: citation.evidenceKey,
-                                                value: citation.evidenceKey
-                                            },
-                                            citation.evidenceKey
-                                        )
-                                    )
-                                )
-                            )
-                          : null,
-                      renderContributionDetail(contributionDetail)
-                  )
-        );
-    }
-
-    const selectedItem = meetings.find((item) => item.meetingId === selectedId);
-    const canPause =
-        detail !== undefined && ["created", "running", "waiting"].includes(detail.status);
-    const canResume = detail?.status === "paused";
-    const canEnd =
-        detail !== undefined && ["running", "paused", "converging"].includes(detail.status);
-    const writesDisabled = listCached || detailCached || writePending;
-
-    return createElement(
-        "section",
-        { "data-testid": "convivium-meeting-panel", "aria-label": "Convivium meetings" },
-        createElement("h2", null, "Meetings"),
-        createElement(
-            Button,
-            {
-                type: "button",
-                variant: "outline",
-                size: "sm",
-                "aria-label": "Reload meetings",
-                onClick: requestRefresh
-            },
-            "Reload"
-        ),
-        createElement(
-            "div",
-            { "data-cached": listCached ? "true" : undefined },
-            listError === undefined ? null : createElement("p", { role: "status" }, listError),
-            meetings.length === 0
-                ? createElement("p", null, "No meetings found.")
-                : createElement(
-                      "ul",
-                      { "aria-label": "Meetings" },
-                      meetings.map((item) =>
-                          createElement(
-                              "li",
-                              { key: item.meetingId },
-                              createElement(
-                                  Button,
-                                  {
-                                      type: "button",
-                                      variant: "outline",
-                                      size: "sm",
-                                      ...{ "data-meeting-id": item.meetingId },
-                                      onClick: () => selectMeeting(item.meetingId)
-                                  },
-                                  `${item.topic} (${item.status})`
-                              )
-                          )
-                      )
-                  )
-        ),
-        selectedId === undefined
-            ? null
-            : createElement(
-                  "div",
-                  { "data-cached": detailCached ? "true" : undefined },
-                  createElement("h3", null, detail?.topic ?? selectedItem?.topic ?? "Meeting"),
-                  detailError === undefined
-                      ? null
-                      : createElement("p", { role: "alert" }, detailError),
-                  factError === undefined
-                      ? null
-                      : createElement(
-                            "p",
-                            { role: "alert" },
-                            `${factError.code}: ${factError.message}${factError.retryable ? " Refresh before submitting again" : ""}`
-                        ),
-                  detail === undefined
-                      ? createElement("p", null, "Loading meeting status…")
-                      : createElement(
-                            "div",
-                            null,
-                            renderObservabilitySections(detail, {
-                                renderCandidateActions: (id) =>
-                                    renderActions(id, [["accept-decision", "Accept decision"]]),
-                                renderDecisionActions: (id) =>
-                                    renderActions(id, [
-                                        ["supersede-decision", "Replace decision"],
-                                        ["revoke-decision", "Revoke decision"]
-                                    ]),
-                                renderRiskActions: (id) => {
-                                    const risk = discussion?.risks.find((item) => item.id === id);
-                                    if (!risk || !["open", "accepted_risk"].includes(risk.status))
-                                        return null;
-                                    const actions: Array<[FactControlAction, string]> = [];
-                                    if (risk.status === "open")
-                                        actions.push(["accept-risk", "Accept risk"]);
-                                    if (
-                                        risk.status === "accepted_risk" ||
-                                        risk.disposition !== "blocking"
-                                    )
-                                        actions.push(["reject-risk", "Set as blocking"]);
-                                    return renderActions(
-                                        id,
-                                        actions,
-                                        risk.riskLevel === undefined ||
-                                            risk.violatedConstraintIds.length > 0
-                                    );
-                                },
-                                renderContributionActions,
-                                renderContributionFooter
-                            }),
-                            canPause
-                                ? createElement(
-                                      "div",
-                                      {
-                                          style: {
-                                              display: "flex",
-                                              flexWrap: "wrap",
-                                              alignItems: "center",
-                                              gap: 8
-                                          }
-                                      },
-                                      createElement(Input, {
-                                          "aria-label": "Pause reason",
-                                          value: pauseReason,
-                                          onChange: (event: ChangeEvent<HTMLInputElement>) =>
-                                              setPauseReason(event.currentTarget.value)
-                                      }),
-                                      createElement(
-                                          Button,
-                                          {
-                                              type: "button",
-                                              variant: "outline",
-                                              size: "sm",
-                                              "aria-label": "Pause meeting",
-                                              disabled: writesDisabled || pauseReason.trim() === "",
-                                              onClick: () => void controlMeeting("pause")
-                                          },
-                                          "Pause"
-                                      )
-                                  )
-                                : null,
-                            canResume
-                                ? createElement(
-                                      Button,
-                                      {
-                                          type: "button",
-                                          variant: "outline",
-                                          size: "sm",
-                                          "aria-label": "Resume meeting",
-                                          disabled: writesDisabled,
-                                          onClick: () => void controlMeeting("resume")
-                                      },
-                                      "Resume"
-                                  )
-                                : null,
-                            canEnd
-                                ? createElement(
-                                      "div",
-                                      {
-                                          style: {
-                                              display: "flex",
-                                              flexWrap: "wrap",
-                                              alignItems: "center",
-                                              gap: 8
-                                          }
-                                      },
-                                      createElement(
-                                          "div",
-                                          {
-                                              role: "radiogroup",
-                                              "aria-label": "End outcome",
-                                              style: { display: "flex", flexWrap: "wrap", gap: 4 }
-                                          },
-                                          END_OUTCOMES.map((option, index) =>
-                                              createElement(
-                                                  Button,
-                                                  {
-                                                      key: option.value,
-                                                      type: "button",
-                                                      size: "sm",
-                                                      variant:
-                                                          endOutcome === option.value
-                                                              ? "primary"
-                                                              : "outline",
-                                                      role: "radio",
-                                                      ...{ "data-end-outcome": option.value },
-                                                      "aria-checked": endOutcome === option.value,
-                                                      tabIndex:
-                                                          endOutcome === option.value ? 0 : -1,
-                                                      disabled: writesDisabled,
-                                                      onClick: () => {
-                                                          if (
-                                                              writesDisabled ||
-                                                              writePendingRef.current
-                                                          )
-                                                              return;
-                                                          setEndOutcome(option.value);
-                                                      },
-                                                      onKeyDown: (
-                                                          event: KeyboardEvent<HTMLButtonElement>
-                                                      ) => {
-                                                          let nextIndex: number;
-                                                          switch (event.key) {
-                                                              case "ArrowRight":
-                                                              case "ArrowDown":
-                                                                  nextIndex =
-                                                                      (index + 1) %
-                                                                      END_OUTCOMES.length;
-                                                                  break;
-                                                              case "ArrowLeft":
-                                                              case "ArrowUp":
-                                                                  nextIndex =
-                                                                      (index +
-                                                                          END_OUTCOMES.length -
-                                                                          1) %
-                                                                      END_OUTCOMES.length;
-                                                                  break;
-                                                              case "Home":
-                                                                  nextIndex = 0;
-                                                                  break;
-                                                              case "End":
-                                                                  nextIndex =
-                                                                      END_OUTCOMES.length - 1;
-                                                                  break;
-                                                              default:
-                                                                  return;
-                                                          }
-                                                          event.preventDefault();
-                                                          if (
-                                                              writesDisabled ||
-                                                              writePendingRef.current
-                                                          )
-                                                              return;
-                                                          const nextOption =
-                                                              END_OUTCOMES[nextIndex];
-                                                          if (nextOption === undefined) return;
-                                                          setEndOutcome(nextOption.value);
-                                                          event.currentTarget.parentElement
-                                                              ?.querySelector<HTMLButtonElement>(
-                                                                  `[data-end-outcome="${nextOption.value}"]`
-                                                              )
-                                                              ?.focus();
-                                                      }
-                                                  },
-                                                  option.label
-                                              )
-                                          )
-                                      ),
-                                      createElement(Input, {
-                                          "aria-label": "End reason",
-                                          value: endReason,
-                                          onChange: (event: ChangeEvent<HTMLInputElement>) =>
-                                              setEndReason(event.currentTarget.value)
-                                      }),
-                                      createElement(
-                                          Button,
-                                          {
-                                              type: "button",
-                                              variant: "outline",
-                                              size: "sm",
-                                              "aria-label": "End meeting",
-                                              disabled: writesDisabled || endReason.trim() === "",
-                                              onClick: () => void controlMeeting("end")
-                                          },
-                                          "End meeting"
-                                      )
-                                  )
-                                : null
-                        )
-              )
-    );
+export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactElement {
+    const state = usePanelState();
+    const refresh = usePanelRefresh(api, state);
+    useMeetingUpdates(api, state, refresh);
+    const controlMeeting = useMeetingControl(api, state, refresh);
+    const contribution = useContributionActions(api, state, refresh);
+    const facts = useFactActions(api, state, refresh);
+    return renderMeetingPanelLayout({
+        ...state,
+        ...refresh,
+        ...contribution,
+        ...facts,
+        controlMeeting,
+        writeActive: () => state.writePendingRef.current
+    });
 }
