@@ -223,7 +223,9 @@ domain     ──> no infrastructure module
 | `src/remote/index.ts`                                            | 仅在 loopback Host 装配 `ConviviumRemoteService`；提供九个 Remote 方法与 refresh stream |
 | `src/projection/status.ts`                                     | caller-specific Meeting status projection                                                            |
 | `src/client/*`                                                 | 状态读取、暂停/继续控制和会议 UI                                                                     |
-| `src/client/meeting-panel-sections.tsx`                        | 会议观测区块的纯展示函数；轮询、请求取消和写操作状态仍由 meeting-panel 拥有                            |
+| `src/client/meeting-panel.tsx`                                 | 选择、刷新订阅、请求取消、写互斥、generation 与控制草稿；按这些既有职责使用局部 hooks，仍是唯一面板控制入口 |
+| `src/client/meeting-panel-layout.tsx`                          | 接收面板状态与回调，只渲染会议列表、控制表单和布局，不发起 Remote 请求或持有 generation                |
+| `src/client/meeting-panel-sections.tsx`                        | 会议观测区块的纯展示函数；请求取消和写操作状态仍由 meeting-panel 拥有                                  |
 
 上述文件可以在实现增长后拆分，但不得跨越职责边界或创建第二个 Meeting 写入口。
 
@@ -352,7 +354,7 @@ HTTP 用户控制入口与 Captain tool 可以映射到同一 domain command，�
 
 三个 local 方法 `acceptLocalDecision`、`disposeLocalDecision`、`disposeLocalRisk` 位于现有 decision/control application，通过 `MeetingControlSource` 复用各自领域提交路径，复用现有三个 Captain DTO/结果和一个 HTTP prefix。local 恢复按选中 Meeting 隔离；不新增 dispatcher、权限框架或领域实现副本。领域 transition 接收已验证的 authority，产生协议规定的独立 local 审计事实；archive 对 local fact 核对源记录，不改变 Participant/Session 生命周期。
 
-Client 在现有 `meeting-panel.tsx` 管理一个行内草稿，`meeting-panel-sections.tsx` 仅渲染行内入口和当前表单。点击行自动确定目标，reason 为空；candidate/risk 预选当前 messages 中的 sourceMessageId，supersede 在选择 replacement 后预选其来源，revoke 初始证据为空。展示证据摘要并允许修改，不增加全局对象选择、弹窗或向导。Risk 不显示同状态重复动作；全部命令共用已有写互斥、abort/generation 和完整 GET 刷新，不自动 POST 重试或乐观改写事实。具体权限、输入、审计和 HTTP 失败语义以 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) Local decision and risk control 为准。
+Client 在 `meeting-panel.tsx` 管理一个行内草稿；`meeting-panel-sections.tsx` 渲染行内入口，`meeting-panel-layout.tsx` 渲染当前表单。点击行自动确定目标，reason 为空；candidate/risk 预选当前 messages 中的 sourceMessageId，supersede 在选择 replacement 后预选其来源，revoke 初始证据为空。展示证据摘要并允许修改，不增加全局对象选择、弹窗或向导。Risk 不显示同状态重复动作；全部命令共用已有写互斥、abort/generation 和完整 GET 刷新，不自动 POST 重试或乐观改写事实。具体权限、输入、审计和 HTTP 失败语义以 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md) Local decision and risk control 为准。
 
 ### Turn runner
 
