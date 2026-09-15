@@ -440,7 +440,12 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
     }, [api, invalidateReads, requestRefresh]);
 
     const loadContribution = useCallback(
-        async (meetingId: string, task: ContributionSummaryV1, draftRevision?: number) => {
+        async (
+            meetingId: string,
+            task: ContributionSummaryV1,
+            draftRevision?: number,
+            selectedEvidenceKey?: string
+        ) => {
             contributionController.current?.abort();
             const controller = new AbortController();
             contributionController.current = controller;
@@ -463,7 +468,8 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                     controller.signal
                 );
                 if (!isCurrent()) return;
-                const evidenceKey = selected.result.drafts[0]?.citations[0]?.evidenceKey;
+                const evidenceKey =
+                    selectedEvidenceKey ?? selected.result.drafts[0]?.citations[0]?.evidenceKey;
                 const result =
                     evidenceKey === undefined
                         ? selected.result
@@ -1067,6 +1073,40 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                                             "option",
                                             { key: revision, value: revision },
                                             String(revision)
+                                        )
+                                    )
+                                )
+                            )
+                          : null,
+                      (contributionDetail.drafts[0]?.citations.length ?? 0) > 0
+                          ? createElement(
+                                "label",
+                                null,
+                                "Evidence version",
+                                createElement(
+                                    "select",
+                                    {
+                                        value:
+                                            contributionDetail.evidence?.key ??
+                                            contributionDetail.drafts[0]!.citations[0]!.evidenceKey,
+                                        onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+                                            if (selectedId !== undefined)
+                                                void loadContribution(
+                                                    selectedId,
+                                                    contributionDetail.task,
+                                                    contributionRevision,
+                                                    event.currentTarget.value
+                                                );
+                                        }
+                                    },
+                                    contributionDetail.drafts[0]!.citations.map((citation) =>
+                                        createElement(
+                                            "option",
+                                            {
+                                                key: citation.evidenceKey,
+                                                value: citation.evidenceKey
+                                            },
+                                            citation.evidenceKey
                                         )
                                     )
                                 )

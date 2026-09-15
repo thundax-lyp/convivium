@@ -94,6 +94,64 @@ describe("contribution meeting panel", () => {
         expect(screen.queryByRole("button", { name: "Skip current speaker" })).toBeNull();
     });
 
+    it("lets the user inspect every cited material version", async () => {
+        const state = contributionStatus();
+        const read = contributionReadResult();
+        read.drafts[0]!.citations.push({
+            evidenceKey: "evidence-2:3",
+            claim: "Second source",
+            locator: "section 2",
+            inference: "inspection"
+        });
+        const rpcMock = vi.fn<Rpc>(async (method, options) => {
+            if (method === "list") return remoteResult(listResponse());
+            if (method === "getStatus") return remoteResult(success(state));
+            if (method === "readContribution") {
+                const input = options.input as { evidenceKey?: string };
+                return remoteResult(
+                    success(
+                        input.evidenceKey === "evidence-2:3"
+                            ? {
+                                  ...read,
+                                  evidence: {
+                                      ...read.evidence,
+                                      evidenceId: "evidence-2",
+                                      key: "evidence-2:3",
+                                      revision: 3,
+                                      material: {
+                                          kind: "text" as const,
+                                          text: "second exact version"
+                                      }
+                                  }
+                              }
+                            : read
+                    )
+                );
+            }
+            throw new Error(`Unexpected method ${method}`);
+        });
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        fireEvent.click(screen.getByRole("button", { name: "View contribution" }));
+        await screen.findByLabelText("Contribution detail");
+        fireEvent.change(screen.getByLabelText("Evidence version"), {
+            target: { value: "evidence-2:3" }
+        });
+        await waitFor(() =>
+            expect(screen.getByLabelText("Contribution detail").textContent).toContain(
+                "second exact version"
+            )
+        );
+        expect(
+            rpcMock.mock.calls.filter(
+                ([method, options]) =>
+                    method === "readContribution" &&
+                    (options.input as { evidenceKey?: string }).evidenceKey === "evidence-2:3"
+            )
+        ).toHaveLength(1);
+    });
+
     it("refreshes status before a local contribution retry and requires a reason", async () => {
         const state = contributionStatus("returned");
         const rpcMock = vi.fn<Rpc>(async (method) => {
