@@ -288,6 +288,10 @@ describe("Remote Gateway boundary", () => {
         };
         await gateway.invoke("reassign", { input: reassign });
         expect(fixture.calls.get("reassign")).toHaveBeenCalledWith(reassign);
+        const { replacementParticipantId: _participantId, ...withoutParticipant } = reassign;
+        await expect(
+            gateway.invoke("reassign", { input: withoutParticipant })
+        ).rejects.toMatchObject({ code: "convivium/invalid-request" });
         const supersede = {
             ...input,
             decisionId: "decision-1",
@@ -298,6 +302,10 @@ describe("Remote Gateway boundary", () => {
         };
         await gateway.invoke("disposeDecision", { input: supersede });
         expect(fixture.calls.get("disposeDecision")).toHaveBeenCalledWith(supersede);
+        const { replacementCandidateId: _candidateId, ...withoutCandidate } = supersede;
+        await expect(
+            gateway.invoke("disposeDecision", { input: withoutCandidate })
+        ).rejects.toMatchObject({ code: "convivium/invalid-request" });
         await expect(
             gateway.invoke("reassign", { input: { ...reassign, action: "skip" } })
         ).rejects.toMatchObject({ code: "convivium/invalid-request" });
@@ -378,7 +386,9 @@ describe("Remote Gateway boundary", () => {
         expect(fixture.calls.get("pause")?.mock.calls).toHaveLength(0);
     });
 
-    it.each(cases)("rejects malformed %s inputs before Runtime", async (method, valid) => {
+    it.each(
+        cases.filter(([method], index) => cases.findIndex(([name]) => name === method) === index)
+    )("rejects malformed %s inputs before Runtime", async (method, valid) => {
         const fixture = runtimeFixture();
         gateway = await createRemoteGateway(fixture.runtime);
         const malformed: unknown[] = [

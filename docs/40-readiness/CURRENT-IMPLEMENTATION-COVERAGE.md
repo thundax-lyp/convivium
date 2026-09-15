@@ -47,7 +47,7 @@
 
 ### User Installation Entrypoints
 
-`scripts/install-from-source.sh` 负责 frozen install、构建和打包；npm `convivium-install` 与内部 artifact 路径复用发布物中的 `scripts/install.sh`。`installation-entrypoints.spec.ts` 通过实际 tar 解包和 npm-bin symlink 验证无版本输入安装、manifest release 选择、默认及显式 DSH workspace、同 tarball 资源、持久配置及启动绑定；仅替换 DSH `pnpm` 调用，不证明 registry 下载或真实 profile 安装成功。`package-contract.spec.ts` 与 `verify:package` 验证安装入口及启动脚本进入关闭的发布 allowlist。
+`scripts/install-from-source.sh` 负责 frozen install、构建和打包；npm `convivium-install` 与内部 artifact 路径复用发布物中的 `scripts/install.sh`。`installation-entrypoints.spec.ts` 通过实际 tar 解包和 npm-bin symlink 验证无版本输入安装、manifest release 选择、默认及显式 DSH workspace、同 tarball 资源、持久配置及启动绑定；仅替换 DSH `pnpm` 调用，不证明 registry 下载或真实 profile 安装成功。`verify:package` 验证安装入口及启动脚本进入关闭的发布 allowlist，并检查 bundle patch、Client inject、Storage Domain peer 版本与物理存储依赖边界。
 
 无版本安装用例执行真实 `npm pack` 与安装脚本；单独运行约 3 秒，并行全套多次超过默认 5000 ms。仅该用例设置 15000 ms 测试窗口，原打包、发布物和安装断言保持不变；此调整不证明实际 registry 下载或性能上界。
 

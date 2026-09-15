@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, extname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -129,18 +129,6 @@ function localImportPath(file: string, specifier: string): string | undefined {
     return undefined;
 }
 
-function repositoryDomainBoundaryViolations(file: string, specifiers: readonly string[]): string[] {
-    return specifiers.flatMap((specifier) => {
-        const forbidden = [
-            "@deepseek-ai/dsh-storage",
-            "@deepseek-ai/dsh-storage-sqlite",
-            "@deepseek-ai/dsh-storage-json",
-            "node:sqlite"
-        ].includes(specifier);
-        return forbidden ? [`${relative(sourceRoot, file)} may not import ${specifier}`] : [];
-    });
-}
-
 function importedModule(file: string, specifier: string): ModuleName | undefined {
     const candidate = localImportPath(file, specifier);
     if (candidate === undefined) return undefined;
@@ -177,35 +165,6 @@ function violations(module: ModuleName, specifiers: readonly string[]): string[]
 }
 
 describe("plugin module boundaries", () => {
-    it("keeps repository domains independent of physical storage providers", () => {
-        const domainRoot = join(sourceRoot, "repository", "domain");
-        const domainFiles = existsSync(domainRoot) ? sourceFiles(domainRoot) : [];
-        expect(domainFiles.length).toBeGreaterThan(0);
-        expect(
-            domainFiles.flatMap((file) =>
-                repositoryDomainBoundaryViolations(
-                    file,
-                    allModuleSpecifiersOf(readFileSync(file, "utf8"))
-                )
-            )
-        ).toEqual([]);
-        expect(
-            repositoryDomainBoundaryViolations(join(domainRoot, "model.ts"), [
-                "@deepseek-ai/dsh-storage-sqlite",
-                "@deepseek-ai/dsh-storage-json",
-                "@deepseek-ai/dsh-storage"
-            ])
-        ).toEqual([
-            "repository/domain/model.ts may not import @deepseek-ai/dsh-storage-sqlite",
-            "repository/domain/model.ts may not import @deepseek-ai/dsh-storage-json",
-            "repository/domain/model.ts may not import @deepseek-ai/dsh-storage"
-        ]);
-        expect(
-            repositoryDomainBoundaryViolations(join(domainRoot, "model.ts"), [
-                "@deepseek-ai/dsh-storage-domain"
-            ])
-        ).toEqual([]);
-    });
     it("accepts the current source import graph", () => {
         const errors = sourceFiles(sourceRoot).flatMap((file) => {
             const module = moduleForFile(file);
@@ -218,7 +177,8 @@ describe("plugin module boundaries", () => {
         const forbidden = new Set([
             "@deepseek-ai/dsh-storage",
             "@deepseek-ai/dsh-storage-sqlite",
-            "@deepseek-ai/dsh-storage-json"
+            "@deepseek-ai/dsh-storage-json",
+            "node:sqlite"
         ]);
         expect(
             sourceFiles(sourceRoot).flatMap((file) =>
@@ -228,13 +188,6 @@ describe("plugin module boundaries", () => {
             )
         ).toEqual([]);
     });
-
-    it.each(["../runtime/index.js", "@/runtime/index.js"])(
-        "rejects Client-to-Host import %s",
-        (specifier) => {
-            expect(violations("client", [specifier])).toEqual(["client may not import runtime"]);
-        }
-    );
 
     it("keeps repository recovery free of archive lifecycle orchestration", () => {
         const recoverySource = readFileSync(

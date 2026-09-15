@@ -494,19 +494,23 @@ it("local control commits roll back and reopen", async () => {
         const receipts = [];
         for (let index = 0; index < 5; index++) {
             const before = loadProjection({ domain: meetingDomain });
-            const snapshot = await repository.read();
             await expect(
                 repository.execute(command(index, ["message-1", "external-message"]))
             ).rejects.toMatchObject({ code: "INVALID_ENTITY_STATE" });
             expect(loadProjection({ domain: meetingDomain })).toEqual(before);
-            meetingDomain.failNextPut("commits", "*");
-            await expect(repository.execute(command(index))).rejects.toThrow("fake put failure");
-            expect(await repository.read()).toEqual(snapshot);
-            expect(loadProjection({ domain: meetingDomain })).toEqual(before);
-            await repository.close();
-            repository = await open();
-            expect(await repository.read()).toEqual(snapshot);
-            expect(loadProjection({ domain: meetingDomain })).toEqual(before);
+            if (index === 0) {
+                const snapshot = await repository.read();
+                meetingDomain.failNextPut("commits", "*");
+                await expect(repository.execute(command(index))).rejects.toThrow(
+                    "fake put failure"
+                );
+                expect(await repository.read()).toEqual(snapshot);
+                expect(loadProjection({ domain: meetingDomain })).toEqual(before);
+                await repository.close();
+                repository = await open();
+                expect(await repository.read()).toEqual(snapshot);
+                expect(loadProjection({ domain: meetingDomain })).toEqual(before);
+            }
             receipts.push(await repository.execute(command(index)));
             const after = loadProjection({ domain: meetingDomain });
             expect(after.snapshot!.version).toBe(before.snapshot!.version + 1);

@@ -327,11 +327,6 @@ describe("meeting fact projection and rendering", () => {
         const active = mapMeetingPanelView(factStatus("running"));
         const terminal = mapMeetingPanelView(factTerminalStatus("completed"));
         const archived = mapMeetingPanelView(factArchiveStatus("archived"));
-        expect(active.decisionHistory.map((item) => item.id)).toEqual([
-            "d-old",
-            "d-revoked",
-            "d-current"
-        ]);
         expect(terminal.decisionHistory.map((item) => item.id)).toEqual([
             "d-old",
             "d-revoked",

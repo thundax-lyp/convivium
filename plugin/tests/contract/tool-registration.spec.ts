@@ -590,6 +590,13 @@ describe("meeting create and status tool registration", () => {
             "convivium_end_meeting"
         ]);
         expect(definitions.every((definition) => definition.output !== undefined)).toBe(true);
+        const createMeeting = definitions.find(
+            (definition) => definition.name === "convivium_create_meeting"
+        );
+        expect(
+            (createMeeting?.parameters.properties as Record<string, { description?: string }>).input
+                .description
+        ).toContain("evidenceReviewerKey");
     });
 
     it("binds status authorization to exec.agent and never caller-controlled input", async () => {
