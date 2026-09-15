@@ -1,6 +1,6 @@
 # Meeting Contribution Interface
 
-状态：最小并行切片的目标契约，尚未实现。依据 2026-09-14 已确认的 [Minimal Delivery Scope](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md#minimal-delivery-scope)。不将目标契约当作当前覆盖证据。
+状态：2026-09-15 最小并行切片已实现；本文件仍为目标契约，实际运行与未覆盖范围见 [最小并行协作证据](../40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)及 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。依据 2026-09-14 已确认的 [Minimal Delivery Scope](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md#minimal-delivery-scope)，不将契约本身当作验证证据。
 
 ## Boundary
 

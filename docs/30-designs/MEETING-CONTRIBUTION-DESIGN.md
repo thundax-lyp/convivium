@@ -1,6 +1,6 @@
 # Meeting Contribution Design
 
-状态：最小并行贡献的目标设计，尚未实现。行为、字段、权限、容量和兼容策略唯一依据为 [Contribution Interface](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md)。本文固定代码所有权、接线与验证。本版本不要求兼容旧版本；不新增旧启动分支、兼容适配器或历史测试迁移。保留的内部旧类型不代表对旧记录的执行承诺，用户数据不自动迁移或删除。
+状态：2026-09-15 最小并行贡献切片已实现；实际 Host、Browser、模型讨论与恢复证据见 [最小并行协作证据](../40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)，未覆盖范围见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。行为、字段、权限、容量和兼容策略唯一依据为 [Contribution Interface](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md)。本版本不要求兼容旧版本；不新增旧启动分支、兼容适配器或历史测试迁移。保留的内部旧类型不代表对旧记录的执行承诺，用户数据不自动迁移或删除。
 
 ## Responsibility And Dependency
 
@@ -223,7 +223,7 @@ ConviviumRemoteService 新 `readContribution(input:RemoteReadContributionInput, 
 
 ## Verification Ownership
 
-纯 Domain 反例、Repository 原子性、真实 caller／DSH 投递、冷恢复、Client 可见性分别验收；具体命令和逐项断言由临时 RUNBOOK 编排。长期 readiness 记录最小切片与全部目标需求的差距。完整验证为 plugin verify、代表性真实 DSH scenario、Browser 与固定业务讨论的机械结构/系统回执；语义质量及真实用户价值另记 Not Covered，不能由 deterministic probe 或结构检查替代。
+纯 Domain 反例、Repository 原子性、真实 caller／DSH 投递、冷恢复、Client 可见性分别验收；实际命令与逐项结果由[长期验证证据](../40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)保存。长期 readiness 记录最小切片与全部目标需求的差距。完整验证为 plugin verify、代表性真实 DSH scenario、Browser 与固定业务讨论的机械结构/系统回执；语义质量及真实用户价值另记 Not Covered，不能由 deterministic probe 或结构检查替代。
 
 
 ## Agenda Advancement

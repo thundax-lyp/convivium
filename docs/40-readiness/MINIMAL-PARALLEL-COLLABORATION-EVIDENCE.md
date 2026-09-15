@@ -2,7 +2,7 @@
 
 ## Scope
 
-2026-09-15 在分支 `codex/project-goal-tests-and-direction` 验证首次发布的最小并行贡献流程。源码边界为基线 `6a9501c` 加本文件所在 T10 提交；环境为 macOS、Node.js `>=22.19.0`、pnpm、真实 `@deepseek-ai/dsh@0.1.2-rc.1` Web Host、临时 SQLite profile 与 `spawn` provider。
+2026-09-15 在分支 `codex/project-goal-tests-and-direction` 验证首次发布的最小并行贡献流程。T10 源码边界为基线 `6a9501c` 加本文件所在 T10 提交；T11 模型场景边界为提交 `0be1d0d`；环境为 macOS、Node.js `>=22.19.0`、pnpm、真实 `@deepseek-ai/dsh@0.1.2-rc.1` Web Host、临时 SQLite profile 与 `spawn` provider。
 
 ## Validated Contract
 
@@ -43,7 +43,7 @@ Browser 运行在同类隔离 Host 上停于 `status=running`、`meetingVersion=
 
 ## Closure
 
-T10 的 V15 真实 Loader、DSH Session、权限、版本、Client 显示、归档与 Restore 已取得对应证据。语义质量及真实模型讨论仍为 Not Covered，由固定模型场景单独收口。
+T10 的 V15 真实 Loader、DSH Session、权限、版本、Client 显示、归档与 Restore 已取得对应证据。V16 的真实模型请求及正式稿件由下节收口；语义质量与真实用户价值仍为 Not Covered。
 
 ## T11 Real Model Discussion (V16)
 
@@ -56,3 +56,9 @@ T10 的 V15 真实 Loader、DSH Session、权限、版本、Client 显示、归�
 失败历史：初期 requiredSkillNames 空数组与正式角色接口冲突，已通过红绿测试允许空 Skill 并同步接口/设计；首次 Loader 缺少 `convivium` preset，已装配角色资产。早期探针按根 scope 监听子 Agent 工具，误判两位作者未提交；改从持久 Session `tool/call` 与 `tool/result` 配对。一次会议在无有效草稿时反复探索协议、使用 shell sleep/旧 Turn 路径，人工在运行外终止（该失败轮不计入 PASS，临时目录移入废纸篓可恢复）；后续将精确扁平字段、证据引用、正确审批/审核顺序与等待态写入固定角色指令。其他失败轮因缺少必填字段、过早 partial 或 JSON 非精确而 STOP，wrapper 均恢复隔离资源；最终 PASS 运行未进行会中代填或干预。
 
 语义质量、模型估算可信度、真实商家用户价值仍为 Not Covered；两份推荐的分歧需人类评价，不作为产品实现依据。
+
+## T12 交付收口与门禁
+
+2026-09-15，源码边界为 T11 `0be1d0d` 加独立门禁阻塞修复 `db8714f`，在同一分支执行。第一次 `pnpm --dir plugin verify` 在容量级归档恢复测试的默认 5000 ms 超时失败（81/82 files、957/958 tests PASS）；单独 `pnpm --dir plugin exec vitest run tests/recovery/contribution-recovery.spec.ts` 再次在约 5.2 s 超时，诊断命令添加 `--testTimeout 20000` 后 7/7 PASS。`db8714f` 只给此容量用例 15000 ms 执行窗口，不改变输入、归档／恢复断言或字节上界；修复后的原定向命令 7/7 PASS，再运行固定 `pnpm --dir plugin verify` 退出码 0：format PASS、lint 0 errors／43 warnings、typecheck PASS、82 files／958 tests PASS、build PASS、environment／contract／9 roles／package PASS。诊断超时参数的结果不替代固定门禁。
+
+固定文档门禁为 `node .github/scripts/check-doc-links.mjs`（删除前 636 个、删除后 617 个本地文件链接，均 0 errors，锚点未检查）、`git diff --check`（退出码 0）、临时文档指定的 `rg -n` 外部引用扫描（删除前仅临时文档自身匹配；删除后无匹配，退出码 1）。固定脚本完整字节备份后删除临时文档，并再次运行链接／diff 门禁；成功后清理临时备份，失败则保留备份并恢复原文。不得把文档改动误称为新的 Host/Browser 验收。V1～V14 的 Domain／Repository／Runtime／Client 反例由前序各步代码、测试和验证提交承接，V15 与 V16 的真实运行及消息原文关联在本文上方；完整原文只存在本次执行回执，临时 profile 已清理，离线逐字复核需要重跑。Browser 有人工 UI 操作及 Ctrl-C；真实模型最终通过轮 `interventions=0`，先前失焦轮由人在运行外停止且不计入通过。全部正式目标仍受 [Not Covered](./CURRENT-IMPLEMENTATION-COVERAGE.md#not-covered) 边界约束。
