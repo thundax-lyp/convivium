@@ -121,7 +121,7 @@ CONVIVIUM_SMOKE_SCENARIO=parallel-contribution pnpm --dir plugin smoke:profile -
 CONVIVIUM_SMOKE_SCENARIO=parallel-contribution CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm --dir plugin smoke:profile --json
 ```
 
-不设置 selector 时运行同一核心场景。`--all` 在固定真实模型场景加入前也只运行该场景。下方替换前 catalog 中的 `baseline`、`cold-rebind`、`cross-meeting`、`convergence-*`、`timeout`、`reassign`、`task-handraise`、`completion-end`、`mail-race`、`archive-continuation`、`scribe-minutes`、`decision-risk-closure`、`risk-reopen`、`convergence`、`role-composition` 和 `meeting-roles` 均会在 Host 启动前被明确拒绝；旧 probe 源文件仅保留为历史记录，不能作为当前验证入口或通过证据。
+不设置 selector 时运行同一核心场景；`--all` 顺序运行确定性贡献与真实模型贡献。下方替换前 catalog 中的 `baseline`、`cold-rebind`、`cross-meeting`、`convergence-*`、`timeout`、`reassign`、`task-handraise`、`completion-end`、`mail-race`、`archive-continuation`、`scribe-minutes`、`decision-risk-closure`、`risk-reopen`、`convergence`、`role-composition` 和 `meeting-roles` 均会在 Host 启动前被明确拒绝；对应旧 probe 源文件已删除，历史验证结果留在 readiness 和 Git 历史，不能作为当前入口或通过证据。
 
 Browser ready 后打开 stdout 给出的完整认证 URL，选择 `convivium-smoke-captain`、`Meetings` 和本次 `Parallel evidence`。核对 B 的 revision 1 材料 `amber-47`、`supports` 核验、两条正式 Transcript，Reload 后再次核对；用原 End 表单选择 `partial` 并填写 `browser contribution check`。状态变为 `archived` 后再次读取材料，随后在原 PTY 发送 Ctrl-C。成功必须同时看到 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`，并用 stdout 给出的精确 `CONVIVIUM_SMOKE_TEMP_ROOT` 执行 `test ! -e '<完整路径>'` 得到退出码 0。认证信息不得进入证据。
 
@@ -129,7 +129,7 @@ Browser ready 后打开 stdout 给出的完整认证 URL，选择 `convivium-smo
 
 ### 替换前入口（历史）
 
-从仓库根目录执行：
+以下命令只记录替换前的执行方式，当前版本不得执行；从仓库根目录曾执行：
 
 ```sh
 pnpm smoke:profile                                      # 默认 5 个核心场景

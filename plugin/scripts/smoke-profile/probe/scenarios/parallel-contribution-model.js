@@ -248,7 +248,6 @@ export async function runParallelContributionModelScenario(runtime) {
             );
             if (creation !== undefined) {
                 meetingId = creation.result.result.meetingId;
-                runtime.setMeetingId(meetingId);
             }
             archived = captainRecords
                 .filter(

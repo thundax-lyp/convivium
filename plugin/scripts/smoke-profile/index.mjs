@@ -4,7 +4,7 @@ import { constants, createWriteStream } from "node:fs";
 import { access, cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
 import {
@@ -14,8 +14,6 @@ import {
     redactBrowserCredentials
 } from "./browser-client-preflight.mjs";
 import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
-import { validateColdCheckpoint } from "./probe/support.js";
-import { roleSmokeDefinitions, roleSmokeModelOverrides } from "./probe/role-definitions.js";
 import {
     parallelDiscussionDefinitions,
     parallelDiscussionModelOverrides
@@ -48,11 +46,8 @@ export function selectScenarios(args, scenario, browserMode) {
         throw new Error("--all cannot be combined with a scenario or Browser mode.");
     if (scenario && !SMOKE_SCENARIOS.includes(scenario))
         throw new Error("Unsupported CONVIVIUM_SMOKE_SCENARIO: " + scenario);
-    if (
-        browserMode &&
-        ["role-composition", "meeting-roles", "parallel-contribution-model"].includes(scenario)
-    )
-        throw new Error("Role composition smoke does not support Browser mode.");
+    if (browserMode && scenario === "parallel-contribution-model")
+        throw new Error("Model discussion smoke does not support Browser mode.");
     return scenario
         ? [scenario]
         : browserMode
@@ -67,24 +62,6 @@ const tempPrefix = join(tmpdir(), "convivium-dsh-smoke-");
 let tempRoot;
 let bootProcess;
 let activePort;
-
-export async function loadMeetingStatusSchema(outDir) {
-    const { build } = await import("tsdown");
-    await build({
-        config: false,
-        logLevel: "silent",
-        entry: { status: fileURLToPath(new URL("../../src/protocol/status.ts", import.meta.url)) },
-        outDir,
-        format: "esm",
-        platform: "node",
-        target: "node22.19",
-        dts: false,
-        clean: false,
-        deps: { alwaysBundle: [/./] },
-        outExtensions: () => ({ js: ".mjs" })
-    });
-    return (await import(pathToFileURL(join(outDir, "status.mjs")).href)).MeetingStatusResultSchema;
-}
 
 function validateTimeout(value, name) {
     if (!Number.isInteger(value) || value <= 0) {
@@ -212,7 +189,7 @@ async function packArtifact(artifactDir) {
     return artifact;
 }
 
-export async function writeSmokePatch(path, scenario, phase = "1") {
+export async function writeSmokePatch(path, scenario) {
     const patch = [
         "- insert:",
         "    - id: convivium-smoke-storage-sqlite",
@@ -230,26 +207,15 @@ export async function writeSmokePatch(path, scenario, phase = "1") {
         "- id: convivium",
         "  config:",
         `    provider: ${PROVIDER}`,
-        ...(scenario === "role-composition"
-            ? [
-                  `    agentDefinitions: ${JSON.stringify(roleSmokeDefinitions(phase))}`,
-                  `    agentModelOverrides: ${JSON.stringify(roleSmokeModelOverrides(phase))}`
-              ]
-            : []),
-        ...(scenario === "meeting-roles"
-            ? [
-                  "    agentDefinitions: !!js \"JSON.parse(process.getBuiltinModule('node:fs').readFileSync(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'definitions.json'), 'utf8')).definitions\""
-              ]
-            : []),
         ...(scenario === "parallel-contribution-model"
             ? [
                   `    agentDefinitions: ${JSON.stringify(parallelDiscussionDefinitions)}`,
                   `    agentModelOverrides: ${JSON.stringify(parallelDiscussionModelOverrides)}`
               ]
             : []),
-        `    maxParticipants: ${scenario === "meeting-roles" ? 8 : 3}`,
-        `    speakerTimeoutMs: ${scenario === "meeting-roles" ? 300000 : scenario === "timeout" ? 250 : BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
-        `    outboxPollMs: ${scenario === "timeout" ? 25 : 1000}`,
+        "    maxParticipants: 3",
+        `    speakerTimeoutMs: ${BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
+        "    outboxPollMs: 1000",
         ""
     ].join("\n");
     await writeFile(path, patch, "utf8");
@@ -490,27 +456,23 @@ export function waitForBrowserStop() {
     });
 }
 
-async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekApiKey) {
+async function runScenario(scenario, artifact, deepSeekApiKey) {
     tempRoot = await mkdtemp(tempPrefix);
     const dshHome = join(tempRoot, "dsh-home");
     const workspaceDir = join(tempRoot, "workspace");
     const logsDir = join(tempRoot, "logs");
     const probeDir = join(tempRoot, "probe");
-    const controlDir = join(tempRoot, "control");
     const patchPath = join(tempRoot, "convivium-smoke.patch.yml");
     const resultPath = join(tempRoot, "smoke-result.json");
     const modelEvidencePath = join(tempRoot, "model-discussion-evidence.json");
-    const coldCheckpointPath = join(controlDir, "cold-rebind-checkpoint.json");
     await mkdir(dshHome, { recursive: true });
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(logsDir, { recursive: true });
-    if (["cold-rebind", "role-composition"].includes(scenario))
-        await mkdir(controlDir, { recursive: true });
     await writeSmokePatch(patchPath, scenario);
     await writeProbePackage(probeDir);
 
     let roleAssetRoot;
-    if (["meeting-roles", "parallel-contribution-model"].includes(scenario)) {
+    if (scenario === "parallel-contribution-model") {
         const unpackRoot = join(tempRoot, "role-package");
         await mkdir(unpackRoot, { recursive: true });
         await runCommand("tar", ["-xzf", artifact, "-C", unpackRoot], {
@@ -528,10 +490,7 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
         ...(scenario === "parallel-contribution-model"
             ? { CONVIVIUM_SMOKE_MODEL_EVIDENCE: modelEvidencePath }
             : {}),
-        CONVIVIUM_SMOKE_SCENARIO: scenario,
-        ...(["cold-rebind", "role-composition"].includes(scenario)
-            ? { CONVIVIUM_SMOKE_COLD_CHECKPOINT: coldCheckpointPath }
-            : {})
+        CONVIVIUM_SMOKE_SCENARIO: scenario
     });
     const port = await allocatePort();
     activePort = port;
@@ -539,33 +498,11 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
     await installProbe(env, probeDir);
     const dumpPath = await dumpConfig(env, patchPath, logsDir, roleAssetRoot);
     const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);
-    let bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
+    const bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
     let probeResult = await waitForJson(
         resultPath,
-        scenario === "meeting-roles"
-            ? 2400000
-            : scenario === "parallel-contribution-model"
-              ? 2100000
-              : BOOT_TIMEOUT_MS
+        scenario === "parallel-contribution-model" ? 2100000 : BOOT_TIMEOUT_MS
     );
-    if (
-        ["cold-rebind", "role-composition"].includes(scenario) &&
-        probeResult.phase1Complete === true
-    ) {
-        const checkpoint = validateColdCheckpoint(
-            JSON.parse(await readFile(coldCheckpointPath, "utf8"))
-        );
-        if (checkpoint.scenario !== scenario) throw new Error("Cold checkpoint scenario mismatch.");
-        await stopHost();
-        await writeFile(resultPath, "", "utf8");
-        await rm(resultPath + ".tmp", { force: true });
-        if (scenario === "role-composition") await writeSmokePatch(patchPath, scenario, "2");
-        hostEnv.CONVIVIUM_SMOKE_COLD_PHASE = "2";
-        hostEnv.CONVIVIUM_SMOKE_COLD_CHECKPOINT = coldCheckpointPath;
-        bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
-        await waitForTcp(port, BOOT_TIMEOUT_MS);
-        probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
-    }
     if (!probeResult.ok) {
         const stdoutTail = (await readFile(bootLogs.stdoutPath, "utf8")).slice(-8000);
         const stderrTail = (await readFile(bootLogs.stderrPath, "utf8")).slice(-8000);
@@ -575,26 +512,7 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
                 `stderr tail:\n${stderrTail}`
         );
     }
-    probeResult = validateScenarioResult(
-        probeResult,
-        scenario,
-        validateMeetingStatus,
-        process.env.CONVIVIUM_SMOKE_SKIP_WEB_FETCH === "1"
-    );
-    if (scenario === "meeting-roles" && process.env.CONVIVIUM_SMOKE_SKIP_WEB_FETCH === "1")
-        console.log(
-            "Not Covered: web_fetch skipped by explicit user waiver; search and role checks remain required."
-        );
-    if (scenario === "role-composition")
-        console.log(
-            JSON.stringify({
-                scenario,
-                phase1HostPid: probeResult.observed.phase1HostPid,
-                phase2HostPid: probeResult.observed.phase2HostPid,
-                assertions: probeResult.assertions,
-                roleComposition: probeResult.observed.roleComposition
-            })
-        );
+    probeResult = validateScenarioResult(probeResult, scenario);
 
     await stat(dumpPath);
     let browserLaunchUrl;
@@ -665,16 +583,11 @@ async function main() {
     const started = Date.now();
     try {
         const artifact = await packArtifact(buildRoot);
-        const schema = scenarios.some(
-            (scenario) => scenario.startsWith("convergence-") || scenario === "scribe-minutes"
-        )
-            ? await loadMeetingStatusSchema(join(buildRoot, "validation"))
-            : undefined;
         for (const scenario of scenarios) {
             const start = Date.now();
             let result;
             try {
-                result = await runScenario(scenario, artifact, schema, deepSeekApiKey);
+                result = await runScenario(scenario, artifact, deepSeekApiKey);
             } catch (error) {
                 throw new Error(`Smoke ${scenario} failed: ${error.message}`, { cause: error });
             } finally {

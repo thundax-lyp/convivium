@@ -98,7 +98,6 @@ export async function runParallelContributionScenario(runtime) {
     }
     const created = await call(captain, "convivium_create_meeting", input);
     const meetingId = created.result.meetingId;
-    runtime.setMeetingId(meetingId);
     const status = () =>
         call(captain, "convivium_meeting_status", { protocolVersion: 1, meetingId });
     const sessionId = (key) => `${meetingId}-participant-participant-${key}`;

@@ -9,6 +9,7 @@
 - 更新日期：2026-09-15。最小并行贡献切片的当前运行路径与证据见 [最小并行协作证据](./MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)；下方旧 Turn/ManagerPlan/MeetingTask 等专项证据只代表当时基线，不证明当前路径。
 - 本文维护当前需求覆盖、自动化证据索引和剩余缺口。新切片的真实 Host、Browser、模型讨论与 Restore 由上述证据保存；旧基线的运行结果由 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md) 保存。
 - 各次验证的源码基线和适用范围见 [Executed Validation](#executed-validation)，历史结果不代表当前全部能力。
+- 本次 smoke 脚本精简工作区的确定性 Host 复验通过；真实模型场景先有三轮 FAIL，随后一次有界复验通过六项固定断言与归档／恢复检查。[具体复验边界](./MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md#当前-smoke-脚本精简复验2026-09-15)不可由 T11 历史结果替代；模型输出的重复稳定性、语义质量及真实商家用户价值仍为 Not Covered。
 - `已实现` 表示正式运行路径及相称证据存在，不表示所有运行组合已验证；`部分实现` 表示仍有必需路径缺失。设计不是实现完成证明。
 
 ## Validated Contract
