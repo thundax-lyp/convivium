@@ -295,7 +295,9 @@ describe("contribution evidence projection", () => {
         );
         expect(isMeetingStateV2(oversized)).toBe(false);
     });
+});
 
+describe("contribution evidence archive and persistence", () => {
     it("restricts public archive reads to listed published tasks and their material dependencies", () => {
         const meeting = state();
         const task = meeting.contributions!.tasks["task-a"]!;
