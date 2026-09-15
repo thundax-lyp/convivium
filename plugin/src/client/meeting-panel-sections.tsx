@@ -1,6 +1,6 @@
 import { createElement, type ReactElement } from "react";
 import type { MeetingStatusResultV1, ReadContributionResultV1 } from "@/protocol/index.js";
-import { mapMeetingPanelView } from "./meeting-panel-view.js";
+import { mapMeetingPanelView, type MeetingPanelView } from "./meeting-panel-view.js";
 
 export interface MeetingFactControls {
     renderCandidateActions(candidateId: string): ReactElement | null;
@@ -64,21 +64,21 @@ export function renderContributionDetail(detail: ReadContributionResultV1): Reac
         )
     );
 }
-export function renderObservabilitySections(
-    detail: MeetingStatusResultV1,
-    controls?: MeetingFactControls
-): ReactElement {
-    const view = mapMeetingPanelView(detail);
-    const row = (label: string, value: string) =>
-        createElement(
-            "div",
-            { key: label },
-            createElement("dt", null, label),
-            createElement("dd", null, value)
-        );
+function row(label: string, value: string): ReactElement {
     return createElement(
         "div",
-        null,
+        { key: label },
+        createElement("dt", null, label),
+        createElement("dd", null, value)
+    );
+}
+
+function renderMeetingOverview(
+    detail: MeetingStatusResultV1,
+    view: MeetingPanelView,
+    controls?: MeetingFactControls
+) {
+    return [
         createElement(
             "section",
             { "aria-label": "Meeting summary" },
@@ -198,7 +198,12 @@ export function renderObservabilitySections(
                           `${view.convergence.replanCount} / ${view.convergence.maxReplans}`
                       )
                   )
-              ),
+              )
+    ];
+}
+
+function renderDiscussionSections(view: MeetingPanelView) {
+    return [
         createElement(
             "section",
             { "aria-label": "Proposals and positions" },
@@ -378,7 +383,12 @@ export function renderObservabilitySections(
                           )
                       )
                   )
-        ),
+        )
+    ];
+}
+
+function renderDecisionSections(view: MeetingPanelView, controls?: MeetingFactControls) {
+    return [
         createElement(
             "section",
             { "aria-label": "Accepted decisions" },
@@ -522,5 +532,19 @@ export function renderObservabilitySections(
                       row("Decision IDs", view.termination.decisionIds.join(", ") || "None")
                   )
               )
+    ];
+}
+
+export function renderObservabilitySections(
+    detail: MeetingStatusResultV1,
+    controls?: MeetingFactControls
+): ReactElement {
+    const view = mapMeetingPanelView(detail);
+    return createElement(
+        "div",
+        null,
+        ...renderMeetingOverview(detail, view, controls),
+        ...renderDiscussionSections(view),
+        ...renderDecisionSections(view, controls)
     );
 }

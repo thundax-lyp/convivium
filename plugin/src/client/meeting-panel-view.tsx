@@ -51,21 +51,12 @@ function isActive(detail: MeetingStatusResultV1): detail is ActiveMeetingStatusR
     return ["created", "running", "waiting", "paused", "converging"].includes(detail.status);
 }
 
-export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanelView {
-    const archivePackage =
-        detail.status === "archiving" || detail.status === "archived"
-            ? detail.archive.package
-            : undefined;
-    const messages = [
-        ...("messages" in detail ? detail.messages : (archivePackage?.formalTranscript ?? []))
-    ].sort((a, b) => a.seq - b.seq);
-    const discussion = "messages" in detail ? detail : undefined;
-    const active = isActive(detail) ? detail : undefined;
-    const agenda = discussion?.activeAgendaItem;
+type ArchivePackage = Extract<MeetingStatusResultV1, { status: "archived" }>["archive"]["package"];
+
+function mapMeetingActivity(active: ActiveMeetingStatusResultV1 | undefined) {
     const steps = active?.currentTurn?.steps ?? [];
     const waitState = active !== undefined && "waitState" in active ? active.waitState : undefined;
     return {
-        proposals: discussion?.proposals ?? archivePackage?.proposals ?? [],
         pendingHandRaises: active?.pendingHandRaises ?? [],
         convergence:
             active === undefined
@@ -78,8 +69,6 @@ export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanel
                   },
         selectionReason:
             steps.find((step) => step.participantId === active?.currentSpeakerId)?.reason ?? "None",
-        agendaTitle: agenda?.title ?? "None",
-        agendaObjective: agenda?.objective ?? "None",
         plannedSpeakerOrder: steps.map((step) => step.participantId).join(" → ") || "None",
         currentSpeaker: active?.currentSpeakerId ?? "None",
         waitingReason: waitState?.reason ?? "None",
@@ -87,15 +76,6 @@ export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanel
         turnIntent: active?.currentTurn?.intent ?? "None",
         turnReason: active?.currentTurn?.reason ?? "None",
         turnObjective: active?.currentTurn?.objective ?? "None",
-        messages,
-        blockingFacts: discussion?.blockingFacts ?? [],
-        meetingTasks: detail.meetingTasks,
-        acceptedDecisions: discussion?.acceptedDecisions ?? archivePackage?.acceptedDecisions ?? [],
-        decisionHistory: discussion?.decisionHistory ?? archivePackage?.decisionHistory ?? [],
-        parkingLot: discussion?.parkingLot ?? archivePackage?.parkingLot ?? [],
-        pendingDecisionCandidates: discussion?.pendingDecisionCandidates ?? [],
-        risks: discussion?.risks ?? archivePackage?.issues ?? [],
-        limits: detail.limits,
         pauseReason: active?.pauseControl.reason ?? "None",
         pausedBy:
             active?.pauseControl.pausedBy === undefined
@@ -104,7 +84,42 @@ export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanel
         pausedAt:
             active?.pauseControl.pausedAt === undefined
                 ? "None"
-                : String(active.pauseControl.pausedAt),
+                : String(active.pauseControl.pausedAt)
+    };
+}
+
+function mapMeetingFacts(
+    detail: MeetingStatusResultV1,
+    archivePackage: ArchivePackage | undefined
+) {
+    const discussion = "messages" in detail ? detail : undefined;
+    const messages = [...(discussion?.messages ?? archivePackage?.formalTranscript ?? [])].sort(
+        (a, b) => a.seq - b.seq
+    );
+    return {
+        proposals: discussion?.proposals ?? archivePackage?.proposals ?? [],
+        agendaTitle: discussion?.activeAgendaItem?.title ?? "None",
+        agendaObjective: discussion?.activeAgendaItem?.objective ?? "None",
+        messages,
+        blockingFacts: discussion?.blockingFacts ?? [],
+        acceptedDecisions: discussion?.acceptedDecisions ?? archivePackage?.acceptedDecisions ?? [],
+        decisionHistory: discussion?.decisionHistory ?? archivePackage?.decisionHistory ?? [],
+        parkingLot: discussion?.parkingLot ?? archivePackage?.parkingLot ?? [],
+        pendingDecisionCandidates: discussion?.pendingDecisionCandidates ?? [],
+        risks: discussion?.risks ?? archivePackage?.issues ?? []
+    };
+}
+
+export function mapMeetingPanelView(detail: MeetingStatusResultV1): MeetingPanelView {
+    const archivePackage =
+        detail.status === "archiving" || detail.status === "archived"
+            ? detail.archive.package
+            : undefined;
+    return {
+        ...mapMeetingFacts(detail, archivePackage),
+        ...mapMeetingActivity(isActive(detail) ? detail : undefined),
+        meetingTasks: detail.meetingTasks,
+        limits: detail.limits,
         termination: "termination" in detail ? detail.termination : undefined
     };
 }
