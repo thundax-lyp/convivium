@@ -210,7 +210,9 @@ describe("meeting lifecycle and archive transitions", () => {
             "meeting_task.cancelled"
         ]);
     });
+});
 
+describe("meeting terminal and archive transitions", () => {
     it("cancels planned turns and clears active work on terminal transitions", () => {
         const state = meeting("running");
         state.currentTurn = {

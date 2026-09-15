@@ -192,7 +192,9 @@ describe("speaker submission and turn advancement", () => {
             })
         ]);
     });
+});
 
+describe("speaker submission turn advancement", () => {
     it("starts the next deterministic round-robin turn without Manager planning", () => {
         const state = meeting("running");
         state.selectionMode = "round_robin";
@@ -387,7 +389,9 @@ describe("speaker submission and turn advancement", () => {
             payload: expect.objectContaining({ from: "running", to: "converging" })
         });
     });
+});
 
+describe("speaker submission blocking tasks", () => {
     it("waits after a blocking task is queued and does not assign the next speaker", () => {
         const state = meeting("running");
         state.participants = [
