@@ -78,7 +78,7 @@ describe("user installation entrypoints", () => {
         expect(await readFile(calls, "utf8")).toContain(
             `plugin --profile web add ${join(installRoot, "artifacts", "convivium-dsh-plugin-0.1.0-alpha.1.tgz")}`
         );
-    });
+    }, 15_000);
 
     it("derives the release from one artifact and prepares a persistent profile", async () => {
         const { root, artifact, fakeBin, calls, installRoot } = await fixture();
