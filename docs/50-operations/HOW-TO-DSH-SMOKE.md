@@ -22,7 +22,7 @@ DEEPSEEK_API_KEY=
 
 ## 最小并行贡献的真实运行与恢复
 
-2026-09-15 的实际结果、源码边界、消息原文引用与人工介入见[最小并行协作验证证据](../40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)。从仓库根执行：
+当前实现与验证边界见[Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。从仓库根执行：
 
 ```sh
 CONVIVIUM_SMOKE_SCENARIO=parallel-contribution pnpm --dir plugin smoke:profile --json
@@ -125,7 +125,7 @@ CONVIVIUM_SMOKE_SCENARIO=parallel-contribution CONVIVIUM_SMOKE_BROWSER_MODE=1 pn
 
 Browser ready 后打开 stdout 给出的完整认证 URL，选择 `convivium-smoke-captain`、`Meetings` 和本次 `Parallel evidence`。核对 B 的 revision 1 材料 `amber-47`、`supports` 核验、两条正式 Transcript，Reload 后再次核对；用原 End 表单选择 `partial` 并填写 `browser contribution check`。状态变为 `archived` 后再次读取材料，随后在原 PTY 发送 Ctrl-C。成功必须同时看到 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`，并用 stdout 给出的精确 `CONVIVIUM_SMOKE_TEMP_ROOT` 执行 `test ! -e '<完整路径>'` 得到退出码 0。认证信息不得进入证据。
 
-本轮实际证据见 [最小并行协作验证证据](../40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)。
+当前实现与验证边界见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 ### 替换前入口（历史）
 
@@ -160,7 +160,7 @@ pnpm --silent smoke:profile --json                      # 完整逐场景 JSON�
 | 完整 | `role-composition` | 独立 Host 模型覆盖、persona/filter 隔离与双 Host 冷恢复；无 Browser 模式 |
 | 完整 | `meeting-roles` | 同 tarball 部署九角色、九次原生 Skill 加载、三研究 Provider 和权限拒绝；调用真实模型，无 Browser 模式 |
 
-no_consensus、进展重置和另一种预算的规则差异由 `turn-advancement.spec.ts` 覆盖，不再提供 `convergence-no-consensus`、`convergence-reset`、`convergence-message-budget-completion` selector。已移除场景的[历史运行摘要](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#retired-convergence-scenario-evidence)仅用于追溯，不代表当前入口。
+no_consensus、进展重置和另一种预算的规则差异由 `turn-advancement.spec.ts` 覆盖，不再提供 `convergence-no-consensus`、`convergence-reset`、`convergence-message-budget-completion` selector。历史 selector 的运行记录不构成当前接口与设计的验收；当前覆盖边界见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 ### 九角色部署场景
 
@@ -171,11 +171,11 @@ env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm smoke:profile
 资源取自本次安装的同一 tarball，wrapper 解包至临时根的 role-package/package/meeting-roles；部署 patch 在临时控制 patch 前加载，两者通过非敏感 Host 变量 CONVIVIUM_MEETING_ROLES_ROOT 指向该目录；控制 patch 重述同源 agentDefinitions 读取表达式，避免 config 整体替换丢失定义。真实 Captain 显式挂载 convivium，并以原生 agentOptions 选择 deepseek-official/deepseek-v4-flash，子会话继承模型；创建一位 Manager 和八位 Participant。探针暂停会议，使用原生 ancestor interrupt 等待当前执行结束，然后逐个观察各自 Session 的 skill tool/call、成功 tool/result 四步正文与 ROLE_READY；每身份上限 180000ms，结果等待上限 2400000ms。
 部署探针在目标 child 成功 Skill 调用的原生 tools/post-execute 回调内完成研究工具、权限拒绝与 status 检查，返回原 decision，并在 finally 注销回调。continuable child 空闲后可被 DSH 释放，不能缓存旧 Agent 在 idle 后调用工具。检查仍要求真实 Provider 结果，Fake-IP DNS 的非公网地址拒绝不能计为抓取通过；应由运行环境为目标公网域名提供真实公网解析，不放宽 DSH 检查。
 
-仅在本次验收已有明确跳过抓取的授权时，使用 `env CONVIVIUM_SMOKE_SCENARIO=meeting-roles CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1 pnpm smoke:profile`。默认命令仍检查抓取；开关使结果记录 `fetch: "skipped:user-waiver"` 和 `research-search-operational`，stdout 输出 Not Covered，不能作为抓取可用证据。三类搜索、九角色 Skill、权限和会议状态检查仍必须通过。历史授权与运行结果统一见 [User-authorized Fetch Waiver](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#user-authorized-fetch-waiver)，不构成新一轮运行的自动豁免。
+仅在本次验收已有明确跳过抓取的授权时，使用 `env CONVIVIUM_SMOKE_SCENARIO=meeting-roles CONVIVIUM_SMOKE_SKIP_WEB_FETCH=1 pnpm smoke:profile`。默认命令仍检查抓取；开关使结果记录 `fetch: "skipped:user-waiver"` 和 `research-search-operational`，stdout 输出 Not Covered，不能作为抓取可用证据。三类搜索、九角色 Skill、权限和会议状态检查仍必须通过。当前实现覆盖与未验证边界见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)，不构成新一轮运行的自动豁免。
 
 三研究角色的原生 web_search 必须返回对应域来源，web_fetch 必须返回 2xx 与非空正文。Manager/Scribe 的越权会议工具及 web_search 共四次调用必须 UNKNOWN_TOOL，九身份 status 可读且暂停后的 Meeting version/messages 不变。失败或超时沿原 finally 停止 Host、释放端口并删除本次资源；不能通过更换 fixture 或放大超时继续判为成功。
 
-完整人工部署与模型覆盖步骤见 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md)。2026-09-08 本场景在用户明确豁免 web_fetch 后通过：九 Skill、三研究搜索、权限及状态检查全部 PASS，抓取 Not Covered；完整 verify、角色冷恢复和默认五核心亦通过，见 [本轮证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#meeting-roles-deployment)。
+完整人工部署与模型覆盖步骤见 [Meeting Roles Deployment](./HOW-TO-MEETING-ROLES.md)。历史场景结果不作为当前 Round 契约的验证；本轮仅保证编译通过，功能覆盖与未验证范围见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 ### 引用式纪要场景
 
@@ -253,11 +253,11 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 
 标准 `smoke:profile` 为每场景创建全新隔离 profile。`scripts/smoke-profile/index.mjs::writeProbePackage` 生成 test-only manifest，安装 `@deepseek-ai/dsh-storage-sqlite@0.1.2-rc.1`；Convivium 产品包不携带 provider。`writeSmokePatch` 配置唯一 SQLite row、临时根下的 `convivium-storage.sqlite` 与 `journalMode: wal`，将 Storage Domain 默认 backend 设为 `sqlite`，workspace、session_projcache、message_feedback 三个精确 domain 名留在 `json`。既有 storage-json row 保持不变，禁止前缀通配路由。
 
-`cold-rebind` 两个 Host 使用同一 SQLite 文件；脚本不得在两 phase 之间删除或重建数据库。首次发布不迁移开发期 JSONL/SQLite 数据、不做兼容读取或 fallback，也不修改已有 Host/profile 或删除开发者文件。数据库、profile、workspace 和端口仅由本次 wrapper 创建和 Restore；成功判据包含实际 Loader、业务恢复断言和 Restore，具体运行结果见 [SQLite 验证证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation)。
+`cold-rebind` 两个 Host 使用同一 SQLite 文件；脚本不得在两 phase 之间删除或重建数据库。首次发布不迁移开发期 JSONL/SQLite 数据、不做兼容读取或 fallback，也不修改已有 Host/profile 或删除开发者文件。数据库、profile、workspace 和端口仅由本次 wrapper 创建和 Restore；成功判据包含实际 Loader、业务恢复断言和 Restore。当前阶段未执行该运行验证，见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 ## SQLite 替换的关闭与冷重启验收
 
-人工操作在对话完成后停止发起新操作、等待再关闭 Host；不规定“等待若干秒即可安全”的承诺。以下定义 SQLite 冒烟的验收边界；实际执行结果见 [SQLite 验证证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation)。
+人工操作在对话完成后停止发起新操作、等待再关闭 Host；不规定“等待若干秒即可安全”的承诺。以下定义 SQLite 冒烟的验收边界；当前阶段未执行该验收，见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 自动探针必须先等待目标 tool/command 成功及对应状态断言，再输出阶段结果。`cold-rebind` 的 `plugin/scripts/smoke-profile/probe/scenarios/recovery.js::runColdRebindScenario` 在 phase 1 中执行以下流程：成功提交消息、确认 Captain/Manager Session flush 成功、核对 checkpointStatus 的版本与消息 ID、写出恢复 checkpoint，最后输出 `phase1Complete`；wrapper 读取该结果后才停止 phase 1 Host。phase 2 必须用同一介质的新 Host 验证记录前缀、版本和 ownership，并成功继续提交。阶段结果不是“Host 全部后台写入已排空”的证明；持久化的 pending 工作仍按冷恢复契约继续处理。
 
@@ -272,8 +272,7 @@ test ! -e '<CONVIVIUM_SMOKE_TEMP_ROOT 的完整值>'
 
 - 自动化脚本：`plugin/scripts/smoke-profile/index.mjs`
 - 插件完整运行验证：`pnpm verify:runtime`
-- 运行验证证据：[Smoke Validation Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#historical-runtime-browser)
-- 当前 smoke 分层验证：[Smoke Validation Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md)
+- 当前实现覆盖与验证边界：[Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)
 
 ## FR-14 共享 Preset 角色隔离与冷恢复
 
@@ -305,7 +304,7 @@ Restore：wrapper 的 finally 必须停止本次 Host、确认端口释放并删
 
 ### 适用范围与状态
 
-本节验证 Decision/risk 五种本地按钮及归档审计。使用 `decision-risk-closure` Browser 夹具；`runDecisionRiskClosureScenario` 在实际 Host 中验证暂停和 ready 边界，ready 不代表页面验收通过。沿用独立临时 profile、Browser URL、PTY 停止及 cleanup。既有实际验收见 [Browser 历史证据](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)，每次复验均应记录自己的源码基线与结果。
+本节验证 Decision/risk 五种本地按钮及归档审计。使用 `decision-risk-closure` Browser 夹具；`runDecisionRiskClosureScenario` 在实际 Host 中验证暂停和 ready 边界，ready 不代表页面验收通过。沿用独立临时 profile、Browser URL、PTY 停止及 cleanup。当前阶段未执行 Browser 验收；范围见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 ### Browser 夹具契约
 
@@ -373,7 +372,7 @@ env CONVIVIUM_SMOKE_SCENARIO=decision-risk-closure CONVIVIUM_SMOKE_BROWSER_MODE=
 
 无论断言成功或失败，向本次 wrapper PTY 发送一次 Ctrl-C，等待其正常退出且退出码为 0、stdout 出现 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok`；wrapper 的 finally 必须完成 Host 停止、临时根删除和端口释放。用文件存在性工具核对 stdout 记录的唯一精确临时根不存在；不使用 glob、不删除其他目录、不直接 kill 工具进程来代替 Restore。
 
-将被测 commit、环境、启动命令、ready IDs、七步结果、审计 GET 与 Restore 结果写入 [Smoke Validation Evidence](../40-readiness/SMOKE-VALIDATION-EVIDENCE.md#captain-local-decision-risk-browser)，同步 [Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#captain-local-decision-risk-control)。只有所有断言和 Restore 通过才记录本次验收通过；其余保留具体失败或 Not Covered。本验证不包含真实 LLM 请求或 Host 冷重启，自动化持久恢复的边界见验证索引。
+将被测 commit、环境、启动命令、ready IDs、七步结果、审计 GET 与 Restore 结果写入 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)，并在对应功能点更新状态。只有所有断言和 Restore 通过才记录本次验收通过；其余保留具体失败或 Not Covered。本验证不包含真实 LLM 请求或 Host 冷重启，自动化持久恢复的边界见验证索引。
 
 
 ### Browser 自动化会话与截图

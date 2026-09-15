@@ -4,7 +4,7 @@
 
 2026-09-14，用户确认以下议题作为 Convivium 后续讨论效果检查的固定输入。本文件中的议题已确认，产品方案与结论尚未形成；不作为电商平台或 Convivium 产品功能的实现需求。本次只记录议题，未启动新会议。
 
-背景见[上一轮目标讨论的历史失败基线](../40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md#prior-goal-discussion-trial)。后续运行单独记录实际 Prompt、角色配置、正式发言和结果，避免覆盖历史。
+当前实现与验证边界见[Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。后续运行单独记录实际 Prompt、角色配置、正式发言和结果，避免覆盖历史。
 
 ## Confirmed Topic
 
