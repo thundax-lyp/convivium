@@ -37,8 +37,8 @@
 - Meeting 在任何会议副作用前获得稳定 `meetingId`；以 `teamId + meetingId` 统一持有 Meeting domain、Session ownership、归档与开发者 Markdown 的生命周期。
 - Storage Domain 是唯一会议事实源，禁止双写与 fallback。Convivium 只消费 Storage Domain：轻量 catalog 负责发现，每个 Meeting 使用独立 domain；不定位、扫描或依赖 backend 物理布局。
 - Host/profile 拥有官方 SQLite provider、数据库位置与 Domain 路由。Convivium 不携带物理存储实现、不覆盖 Host 默认介质，也不提供调用方可指定的存储路径。
-- 一次 command 的领域状态、事件、receipt 和 outbox 必须原子提交；外部副作用在提交后执行。事实源与恢复边界由 [Meeting Design](../30-designs/MEETING-DESIGN.md) 定义，record schema 与失败语义由 [Storage Interface](../20-interfaces/MEETING-STORAGE-INTERFACE.md) 定义。
-- 首次发布使用 SQLite，禁止数据和 schema migration，不实现开发期介质迁移或已有版本升级，不自动清理开发者数据。已明确的 legacy 窄读取只保留旧值，不补默认值、不转换版本、不回写；具体读取与拒绝边界由 Storage Interface 定义。
+- 一次 command 的领域状态、事件、receipt 和 outbox 必须原子提交；外部副作用在提交后执行。事实源、存储与恢复边界由 [Meeting Design](../30-designs/MEETING-DESIGN.md) 和 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 定义。
+- 首次发布使用 SQLite，禁止数据和 schema migration，不实现开发期介质迁移或已有版本升级，不自动清理开发者数据。已明确的 legacy 窄读取只保留旧值，不补默认值、不转换版本、不回写；具体读取与拒绝边界由 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 定义。
 - MeetingTask 属于 MeetingState；领域只消费 Agent 明确提交的边界结果和授权投影，不能从内部 Tool Schema、调用顺序、隐藏推理或 DSH Session log 推导当前事实。
 - DSH 原生 tool/session events 由 DSH 定义和持久化；Convivium 不复制或扩展其语义，也不向 DSH Session 写入插件自定义持久化事件。会议领域事件保存在会议 commit 内。
 - Frontend 与开发者 Markdown 只能单向读取已提交投影。Markdown 不是产品接口，不参与恢复、授权、状态计算、Session 清理或归档完成；人工编辑、缺失或滞后不回写会议事实。边界见 [Meeting Design](../30-designs/MEETING-DESIGN.md) 和 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
@@ -48,7 +48,7 @@
 - 必须保持 Domain、DSH adapter、Repository 和 UI projection 的模块边界；Domain 不依赖 Protocol、DSH、Repository、UI 或文件系统，Frontend 只依赖公开 Protocol 和生成的 Remote contract，不引用后端实现。
 - Runtime、tools、Web transport 和 recovery 共用受控领域写入口；Repository 不执行调度或 DSH 调用，projection 不能反向驱动状态转换。边界见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 - 新增 Web 路由、工具、事件、外部访问或文件权限前，必须先形成接口契约和失败语义。
-- Host/Client、业务与验证同属 `plugin/`，独立安装、构建和验证；仓库 `docs/` 不参与插件打包。同包角色资源是静态部署资源，不是第二工程或 Runtime installer；发行结构和验证入口见 Implementation Design。
+- Host/Client、业务与验证同属 `plugin/`，独立安装、构建和验证；仓库 `docs/` 不参与插件打包。同包角色资源是静态部署资源，不是第二工程或 Runtime installer；发行结构和验证入口见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 
 ## Import Paths
 

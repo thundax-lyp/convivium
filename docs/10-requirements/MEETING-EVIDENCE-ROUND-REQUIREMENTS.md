@@ -200,4 +200,4 @@ sequenceDiagram
 ## Related Documents
 
 - [Meeting Orchestration Requirements](./MEETING-ORCHESTRATION-REQUIREMENTS.md)
-- [Meeting Contribution Interface](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md)
+- [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)

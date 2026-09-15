@@ -188,7 +188,7 @@ CONVIVIUM_SMOKE_SCENARIO=scribe-minutes pnpm smoke:profile
 CONVIVIUM_SMOKE_SCENARIO=scribe-minutes CONVIVIUM_SMOKE_BROWSER_MODE=1 pnpm smoke:profile
 ```
 
-普通模式检查六项 oracle：Speaker 上下文含来源消息、非法引用不改变状态、同一 Session 恢复后原请求重放 receipt 不变、HTTP 公开消息相等、归档公开消息相等、Manager/a/b 三个 Session 已清理。归档比较固定公开字段，保留其余内部归档字段。字段及非权威边界见 [Protocol](../20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md#referenced-minutes-draft)。
+普通模式检查六项 oracle：Speaker 上下文含来源消息、非法引用不改变状态、同一 Session 恢复后原请求重放 receipt 不变、HTTP 公开消息相等、归档公开消息相等、Manager/a/b 三个 Session 已清理。归档比较固定公开字段，保留其余内部归档字段。字段及非权威边界见 [Meeting Design](../30-designs/MEETING-DESIGN.md)。
 
 Browser 模式完成前四项后输出 `browserReady: true` 和带一次性 token 的实际启动 URL/临时根。打开该完整 `/?token=...` URL，由 DSH 交换 HttpOnly、SameSite=Strict cookie 后转到干净的 `/`；Node preflight 使用独立 cookie 完成同样交换。token/cookie 不复制到证据、截图或 readiness。随后在 smoke workspace 中选择 `convivium-smoke-captain` Session，再进入 `Meetings` view。核对 `Minutes draft (non-authoritative)`、Coverage、Referenced message IDs 和正文，刷新后保持一致；使用既有 End 控制选择 partial、输入 `scribe minutes smoke`，等待 archived 后刷新并再次核对。随后在原 PTY 发送 Ctrl-C，等待 `CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok` 并确认该精确临时根消失。此场景不证明模型生成纪要的质量。
 

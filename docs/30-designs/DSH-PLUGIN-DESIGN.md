@@ -12,8 +12,23 @@ V1 运行在一个本地 DSH Host，服务该 Host 的单一 loopback 用户边�
 
 - [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
 - [Meeting Design](./MEETING-DESIGN.md)
-- [Meeting Agent Definition Interface](../20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md)
-- [Meeting Remote Interface](../20-interfaces/MEETING-REMOTE-INTERFACE.md)
+- [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)
+- [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)
+
+## Implementation Modules And Ports
+
+| 模块 | 输入 | 输出 | 不变量 |
+| --- | --- | --- | --- |
+| plugin/bootstrap | Host lifecycle/capability registry | 一个已注册 Runtime、tool、Remote factory | capability preflight 失败时不注册可写入口 |
+| dsh/role-catalog | Host Config | versioned safe Catalog snapshot | 不返回完整配置或可执行资源 |
+| dsh/definition-resolver | exact Definition id/version | immutable Definition | 不以显示名、当前默认版本或文件路径回退 |
+| dsh/preflight | Definition、MeetingId、受限资源引用 | PreparedDescriptor 或 typed RoleError | 不创建 Session、不写 Meeting |
+| dsh/session-owner | PreparedDescriptor、admissionId、identity fact | durable ownership/Session control result | ownership 一对一绑定 Meeting、identity、descriptor、Definition |
+| runtime/meeting-service | caller binding、MeetingCommand | committed command result | 只调用 Meeting Design 的 command pipeline |
+| remote/loopback | typed request、local binding | typed result/refresh notice | 不持有业务状态或绕过 Runtime |
+| client/projection | committed caller-filtered view | UI state | 不推导 authority 或领域状态 |
+
+Host adapter 必须把 DSH 的具体 API 收敛在 role-catalog、preflight 和 session-owner 后面；Meeting Domain、application、Remote DTO 和 Client 都不能引用 DSH 实现类型。每个 port 的返回值只可为 Interface 所定义的成功值或稳定 error，不能以异常文本作为控制分支。
 
 ## Responsibilities And Dependencies
 
@@ -37,7 +52,9 @@ Captain 对推荐作出接纳或拒绝的结构化处置；只有接纳后，Run
 
 所有领域写入通过一个 Runtime 入口，验证 caller、Meeting、身份、当前版本和领域前提后才提交；读模型和归档只读取已提交 Meeting。工具、面板和恢复调用相同业务规则，不分别实现暂停、恢复、结束、决策或风险语义。
 
-插件停止时不接纳新会议动作，等待已提交操作完成并释放插件拥有的资源；不能因关闭而删除已提交 Meeting 事实或操作无法确认归属的 Session。
+插件状态机为 new → validating → ready → stopping → stopped，或 validating → rejected。new 仅构造依赖；validating 验证最低 DSH 版本、必需 lifecycle capability、Storage/continuable provider 与 loopback 配置；ready 才注册可写工具与 Remote control；rejected 只暴露加载诊断，不能出现半可用 Meeting 入口。stopping 立即拒绝新 command，等待已开始的 atomic commit 结束，保留未完成 outbox，然后释放插件已证明归属的 resident activation；stopped 不删除已提交 Meeting 事实，不操作无法确认归属的 Session。
+
+Session control 的状态为 active、interrupted、stopped、unrecoverable，其转换只能由 session-owner 执行：interrupt/resume/stop 前重新读取 durable ownership；unrecoverable 只允许报告与归档，不允许以新的 descriptor/session 替代。Agent 输入投递成功、Agent 执行结束、Session lifecycle 完成与 Meeting command commit 分别记录为 adapter 诊断或已提交 Meeting effect，不能相互推断成功。
 
 ## Local Client And Remote Boundary
 
