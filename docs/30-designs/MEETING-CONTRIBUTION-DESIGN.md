@@ -217,7 +217,7 @@ ConviviumRemoteService 新 `readContribution(input:RemoteReadContributionInput, 
 | `plugin/src/projection/status.ts`、`plugin/src/projection/index.ts`、`plugin/src/projection/developer-markdown.ts` | 新摘要／显式可见性、message 来源；Markdown 仅公开内容，不复制私有草稿 |
 | `plugin/src/tools/register-tools.ts` | registerCreateAndStatusTools/registerSubmitAndControlTools：注册两个新工具与 Schema；复用 caller resolver |
 | `plugin/src/remote/index.ts`、`plugin/src/remote/types.ts` | 两个本地方法与 RemoteInput 类型 |
-| `plugin/src/client/meeting-client.ts`、`plugin/src/client/meeting-panel.tsx`、`plugin/src/client/meeting-panel-view.tsx`、`plugin/src/client/meeting-panel-sections.tsx` | typed client、任务区、受控材料详情、三个 local action；不改样式系统 |
+| `plugin/src/client/meeting-client.ts`、`plugin/src/client/meeting-panel.tsx`、`plugin/src/client/meeting-panel-layout.tsx`、`plugin/src/client/meeting-panel-view.tsx`、`plugin/src/client/meeting-panel-sections.tsx` | typed client、任务区、受控材料详情、三个 local action；panel 持有读取、取消和写互斥，layout 只渲染；不改样式系统 |
 
 消息消费的机械更新只允许上述 public mapper/schema 和 `plugin/src/domain/planning.ts`、`plugin/src/domain/completion.ts`、`plugin/src/domain/transitions/kernel.ts`、`plugin/src/domain/transitions/speaker-attempt.ts`：读取 legacy turn 字段前验证旧来源；新贡献消息不参与按 Turn 计数。不得给 undefined 添 0、空字符串或 currentTurn 值。发现另一个消费者需要业务改动时 STOP，不能把可选字段断言为非空来通过编译。
 

@@ -75,7 +75,7 @@ MeetingClient 另有 `openUpdates(onUnavailable: () => void): RemoteStream<Meeti
 
 ## Client Refresh State
 
-`meeting-panel.tsx` 继续拥有选择、草稿、取消、写互斥及 generation；`meeting-panel-sections.tsx` 不参与通信。将九处 HTTP 请求改为 api 调用，移除 meetingsPath/meetingPath/fetch 和 5 秒 interval。所有 UI 业务控制与报错展示保持。
+`meeting-panel.tsx` 继续拥有选择、草稿、取消、写互斥及 generation，其局部 hooks 按刷新、订阅、控制职责组织；`meeting-panel-layout.tsx` 和 `meeting-panel-sections.tsx` 只渲染，不参与通信。将九处 HTTP 请求改为 api 调用，移除 meetingsPath/meetingPath/fetch 和 5 秒 interval。所有 UI 业务控制与报错展示保持。
 
 订阅 effect 挂载时创建 stream 并消费。每条 notice 验证 exact `{kind:"refresh"}` 后 accept，使用 item.signal 监听当前物理 generation 失效；失效立即标 stale 并禁写。每个物理 generation 首帧在 accept 前必须递增 refreshEpoch、abort list/detail 并递增读 generation、标缓存，再 accept 和启动完整读取。首帧前的任何读取不得落入 UI 或解除禁写；同一 generation 后续通知只驱动 dirty。新的 generation 不继承旧的事实 freshness。stream 异常也标 stale，主动卸载取消不展示错误。每次 focus 先使旧订阅失效并 await dispose，再建立新订阅；同一时刻只保留一个逻辑流，连续 focus 合并到最新一次。组件卸载取消请求与 stream，丢弃晚到结果。
 
