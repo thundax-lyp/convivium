@@ -9,7 +9,7 @@ import {
     failSpeakerAttempt,
     reassignTurn
 } from "@/domain/index.js";
-import { archivePackage, meeting, now } from "./fixtures.js";
+import { archivePackage, meeting, now, rejectedAttendanceState } from "./fixtures.js";
 
 describe("archive transitions", () => {
     it("does not add contribution references to historical archives and rejects injected references", () => {
@@ -590,61 +590,9 @@ describe("archives only committed local decision and risk facts", () => {
     );
 });
 
-function attendanceState() {
-    const state = meeting("running");
-    state.attendanceRecommendations = [
-        {
-            id: "recommendation-1",
-            candidateId: "candidate-1",
-            roleDefinitionId: "domain_architect",
-            roleDefinitionVersion: "1",
-            displayName: "Architect",
-            agentDefinitionId: "private-definition",
-            agendaItemId: "agenda-1",
-            rationale: "Review",
-            expectedContribution: "Review scope",
-            evidenceGapIds: [],
-            urgency: "current_agenda",
-            recommendedByManagerSessionId: "manager-session",
-            catalogId: "catalog-1",
-            catalogVersion: "1",
-            planningAttemptId: "planning-1",
-            status: "pending",
-            createdAt: 1
-        }
-    ];
-    state.meetingTasks = [];
-    const recommendation = state.attendanceRecommendations[0]!;
-    state.attendanceRecommendations = [
-        {
-            ...recommendation,
-            id: "recommendation-b",
-            status: "rejected",
-            rejection: {
-                requestId: "reject-b",
-                actorBinding: "captain:private-session",
-                reason: "Outside scope",
-                rejectedAt: 100
-            }
-        },
-        {
-            ...recommendation,
-            id: "recommendation-a",
-            status: "rejected",
-            rejection: {
-                requestId: "reject-a",
-                actorBinding: "captain:private-session",
-                reason: "Already covered",
-                rejectedAt: 101
-            }
-        },
-        { ...recommendation, id: "pending", createdAt: 2 }
-    ];
-    return state;
-}
 it("matches every rejection field, count and order and freezes the archive", () => {
     const state = {
-        ...attendanceState(),
+        ...rejectedAttendanceState(),
         status: "completed" as const,
         termination: meeting("completed").termination
     };

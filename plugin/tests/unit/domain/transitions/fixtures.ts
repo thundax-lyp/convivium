@@ -109,6 +109,56 @@ export function archivePackage(): ArchivePackage {
     };
 }
 
+export function rejectedAttendanceState(): MeetingState {
+    const state = meeting("running");
+    state.meetingTasks = [];
+    const recommendation = {
+        id: "recommendation-1",
+        candidateId: "candidate-1",
+        roleDefinitionId: "domain_architect",
+        roleDefinitionVersion: "1",
+        displayName: "Architect",
+        agentDefinitionId: "private-definition",
+        agendaItemId: "agenda-1",
+        rationale: "Review",
+        expectedContribution: "Review scope",
+        evidenceGapIds: [],
+        urgency: "current_agenda" as const,
+        recommendedByManagerSessionId: "manager-session",
+        catalogId: "catalog-1",
+        catalogVersion: "1",
+        planningAttemptId: "planning-1",
+        status: "pending" as const,
+        createdAt: 1
+    };
+    state.attendanceRecommendations = [
+        {
+            ...recommendation,
+            id: "recommendation-b",
+            status: "rejected",
+            rejection: {
+                requestId: "reject-b",
+                actorBinding: "captain:private-session",
+                reason: "Outside scope",
+                rejectedAt: 100
+            }
+        },
+        {
+            ...recommendation,
+            id: "recommendation-a",
+            status: "rejected",
+            rejection: {
+                requestId: "reject-a",
+                actorBinding: "captain:private-session",
+                reason: "Already covered",
+                rejectedAt: 101
+            }
+        },
+        { ...recommendation, id: "pending", createdAt: 2 }
+    ];
+    return state;
+}
+
 export function attemptContext() {
     return {
         attemptId: "attempt-1",

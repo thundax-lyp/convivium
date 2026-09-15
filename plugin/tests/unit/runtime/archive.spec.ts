@@ -1,5 +1,5 @@
 import type { MeetingDiagnostic } from "@/repository/diagnostics.js";
-import { meeting } from "../domain/transitions/fixtures.js";
+import { meeting, rejectedAttendanceState } from "../domain/transitions/fixtures.js";
 import {
     beginArchiveFromTermination,
     cleanupOwnedSessions,
@@ -894,60 +894,8 @@ describe("meeting archive recovery", () => {
     });
 });
 
-function attendanceState() {
-    const state = meeting("running");
-    state.attendanceRecommendations = [
-        {
-            id: "recommendation-1",
-            candidateId: "candidate-1",
-            roleDefinitionId: "domain_architect",
-            roleDefinitionVersion: "1",
-            displayName: "Architect",
-            agentDefinitionId: "private-definition",
-            agendaItemId: "agenda-1",
-            rationale: "Review",
-            expectedContribution: "Review scope",
-            evidenceGapIds: [],
-            urgency: "current_agenda",
-            recommendedByManagerSessionId: "manager-session",
-            catalogId: "catalog-1",
-            catalogVersion: "1",
-            planningAttemptId: "planning-1",
-            status: "pending",
-            createdAt: 1
-        }
-    ];
-    state.meetingTasks = [];
-    const recommendation = state.attendanceRecommendations[0]!;
-    state.attendanceRecommendations = [
-        {
-            ...recommendation,
-            id: "recommendation-b",
-            status: "rejected",
-            rejection: {
-                requestId: "reject-b",
-                actorBinding: "captain:private-session",
-                reason: "Outside scope",
-                rejectedAt: 100
-            }
-        },
-        {
-            ...recommendation,
-            id: "recommendation-a",
-            status: "rejected",
-            rejection: {
-                requestId: "reject-a",
-                actorBinding: "captain:private-session",
-                reason: "Already covered",
-                rejectedAt: 101
-            }
-        },
-        { ...recommendation, id: "pending", createdAt: 2 }
-    ];
-    return state;
-}
 it("materializes only safe rejection facts in canonical order without aliasing", () => {
-    const source = { ...attendanceState(), termination: meeting("completed").termination };
+    const source = { ...rejectedAttendanceState(), termination: meeting("completed").termination };
     const archive = materializeArchivePackage(source, 200);
     expect(archive.attendanceRejections?.map((r) => r.recommendationId)).toEqual([
         "recommendation-a",
