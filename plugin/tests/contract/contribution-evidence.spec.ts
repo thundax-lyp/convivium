@@ -132,6 +132,62 @@ function state(): MeetingState {
 }
 
 describe("contribution evidence projection", () => {
+    it("sends Manager only boundary-review summaries", () => {
+        const meeting = state();
+        const boundary = meeting.contributions!.tasks["task-a"]!;
+        meeting.contributions!.tasks["task-preparing"] = {
+            ...boundary,
+            id: "task-preparing",
+            phase: "preparing"
+        };
+        meeting.contributions!.tasks["task-returned"] = {
+            ...boundary,
+            id: "task-returned",
+            phase: "returned"
+        };
+        const work = projection.projectContributionContext(
+            meeting,
+            { kind: "manager", sessionId: "manager-1" },
+            { role: "contribution_manager", noticeSeq: 1, contextThroughSeq: meeting.messageSeq },
+            "delivery-1"
+        ).work;
+        expect(work).toEqual({
+            kind: "manager",
+            pending: [expect.objectContaining({ id: "task-a" })]
+        });
+    });
+
+    it("does not disclose a foreign private material through a forged draft citation", () => {
+        const meeting = state();
+        meeting.contributions!.evidence["private:1"] = {
+            ...material(1),
+            evidenceId: "private",
+            key: "private:1",
+            submittedBy: "participant-2"
+        };
+        meeting.contributions!.tasks["task-a"]!.drafts["2"]!.citations = [
+            {
+                evidenceKey: "private:1",
+                claim: "borrowed",
+                locator: "private",
+                inference: "private"
+            }
+        ];
+        expect(isMeetingStateV2(meeting)).toBe(true);
+        expect(() =>
+            projection.projectContributionRead(meeting, participant("participant-1"), {
+                ...input(),
+                evidenceKey: "private:1"
+            })
+        ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
+    });
+
+    it("rejects evidence versions that change owner", () => {
+        const meeting = state();
+        meeting.contributions!.evidence["source:2"]!.submittedBy = "participant-2";
+        expect(isMeetingStateV2(meeting)).toBe(false);
+    });
+
     it("publishes only whitelisted summaries, without private text in status or Markdown", () => {
         const meeting = state();
         expect(isMeetingStateV2(meeting)).toBe(true);
@@ -175,7 +231,7 @@ describe("contribution evidence projection", () => {
         ).toHaveLength(1);
     });
 
-    it("permits author history but only the current boundary-review draft for the fixed reviewer", () => {
+    it("keeps boundary-review drafts private from the fixed reviewer and permits published pending evidence", () => {
         const meeting = state();
         const old = projection.projectContributionRead(meeting, participant("participant-1"), {
             ...input(),
@@ -186,12 +242,12 @@ describe("contribution evidence projection", () => {
         expect(old.drafts.map((draft) => draft.message.content)).toEqual(["private draft 1"]);
         expect(old.evidence?.material).toEqual({ kind: "text", text: "original amber-47" });
         expect(old.boundaryReviews).toHaveLength(1);
-        const current = projection.projectContributionRead(meeting, participant("participant-2"), {
-            ...input(),
-            evidenceKey: "source:2"
-        });
-        expect(current.drafts.map((draft) => draft.revision)).toEqual([2]);
-        expect(current.boundaryReviews).toEqual([]);
+        expect(() =>
+            projection.projectContributionRead(meeting, participant("participant-2"), {
+                ...input(),
+                evidenceKey: "source:2"
+            })
+        ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
         for (const request of [
             { ...input(), draftRevision: 1 },
             { ...input(), evidenceKey: "source:1" },
@@ -207,6 +263,23 @@ describe("contribution evidence projection", () => {
         expect(() =>
             projection.projectContributionRead(meeting, captain, { ...input(), meetingId: "other" })
         ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
+        const task = meeting.contributions!.tasks["task-a"]!;
+        task.phase = "published";
+        task.messageId = "message-2";
+        const published = projection.projectContributionRead(
+            meeting,
+            participant("participant-2"),
+            {
+                ...input(),
+                evidenceKey: "source:2"
+            }
+        );
+        expect(published.drafts.map((draft) => draft.revision)).toEqual([2]);
+        expect(published.evidence?.material).toEqual({
+            kind: "text",
+            text: "replacement amber-48"
+        });
+        expect(published.boundaryReviews).toEqual([]);
     });
 
     it("rejects damaged evidence references and fixed capacity overflow as invalid state", () => {

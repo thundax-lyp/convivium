@@ -535,6 +535,284 @@ function evidenceReviewState() {
 
 describe("contribution state structure", () => {
     describe("contribution preparation", () => {
+        it("rejects another author's material update and an unreadable private citation", () => {
+            const state = {
+                ...contributionMeeting(),
+                contributions: validContributionState()
+            } as MeetingState;
+            const authorId = state.participants[0]!.id;
+            const otherId = state.participants[1]!.id;
+            state.contributions!.evidence["private:1"] = {
+                ...evidenceVersion(1),
+                evidenceId: "private",
+                key: "private:1",
+                submittedBy: otherId
+            } as never;
+            const context = {
+                ...managerContext(),
+                actor: { kind: "participant" as const, participantId: authorId }
+            };
+            expect(() =>
+                applyContributionCommand(
+                    state,
+                    {
+                        action: "save_evidence",
+                        contributionId: "contribution-1",
+                        generation: 1,
+                        evidenceId: "private",
+                        expectedEvidenceRevision: 1,
+                        material: { ...evidenceVersion(1) } as never
+                    },
+                    context
+                )
+            ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
+            const draft =
+                boundaryReviewState().contributions!.tasks["contribution-1"]!.drafts["1"]!;
+            expect(() =>
+                applyContributionCommand(
+                    state,
+                    {
+                        action: "submit",
+                        contributionId: "contribution-1",
+                        generation: 1,
+                        expectedDraftRevision: 0,
+                        draft: {
+                            ...draft,
+                            citations: [{ evidenceKey: "private:1", claim: "private" }]
+                        }
+                    },
+                    context
+                )
+            ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
+            expect(state.contributions!.tasks["contribution-1"]!.currentDraftRevision).toBe(0);
+            expect(state.contributions!.evidence["private:2"]).toBeUndefined();
+        });
+
+        it("rejects a private patch dependency even when the new material belongs to the author", () => {
+            const state = {
+                ...contributionMeeting(),
+                contributions: validContributionState()
+            } as MeetingState;
+            const authorId = state.participants[0]!.id;
+            state.contributions!.evidence["private:1"] = {
+                ...evidenceVersion(1),
+                evidenceId: "private",
+                key: "private:1",
+                submittedBy: state.participants[1]!.id
+            } as never;
+            const material = {
+                ...evidenceVersion(1),
+                kind: "code" as const,
+                code: {
+                    repository: "repo",
+                    revision: "commit",
+                    pathsAndSymbols: "src/a.ts",
+                    patchEvidenceKeys: ["private:1"],
+                    validation: "static_only" as const,
+                    reproduction: "inspection",
+                    expected: "a",
+                    observed: "a",
+                    notCovered: "execution"
+                }
+            };
+            expect(() =>
+                applyContributionCommand(
+                    state,
+                    {
+                        action: "save_evidence",
+                        contributionId: "contribution-1",
+                        generation: 1,
+                        expectedEvidenceRevision: 0,
+                        material
+                    },
+                    {
+                        ...managerContext(),
+                        actor: { kind: "participant", participantId: authorId },
+                        newEvidenceId: "own-code"
+                    }
+                )
+            ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
+            expect(state.contributions!.evidence["own-code:1"]).toBeUndefined();
+        });
+
+        it("rejects a reviewer cited as material author and a reviewer approving their own draft", () => {
+            const state = {
+                ...contributionMeeting(),
+                contributions: validContributionState()
+            } as MeetingState;
+            const reviewerId = state.contributions!.reviewerId;
+            state.contributions!.tasks["contribution-1"]!.requiresEvidenceReview = true;
+            state.contributions!.evidence["reviewer:1"] = {
+                ...evidenceVersion(1),
+                evidenceId: "reviewer",
+                key: "reviewer:1",
+                submittedBy: reviewerId
+            } as never;
+            const draft =
+                boundaryReviewState().contributions!.tasks["contribution-1"]!.drafts["1"]!;
+            expect(() =>
+                applyContributionCommand(
+                    state,
+                    {
+                        action: "submit",
+                        contributionId: "contribution-1",
+                        generation: 1,
+                        expectedDraftRevision: 0,
+                        draft: {
+                            ...draft,
+                            citations: [{ evidenceKey: "reviewer:1", claim: "self" }]
+                        }
+                    },
+                    {
+                        ...managerContext(),
+                        actor: { kind: "participant", participantId: state.participants[0]!.id }
+                    }
+                )
+            ).toThrow();
+            const pending = evidenceReviewState() as MeetingState;
+            pending.contributions!.tasks["contribution-1"]!.participantId = reviewerId;
+            pending.contributions!.evidence["evidence-1:1"]!.submittedBy =
+                state.participants[0]!.id;
+            expect(() =>
+                applyContributionCommand(
+                    pending,
+                    {
+                        action: "evidence_review",
+                        contributionId: "contribution-1",
+                        generation: 1,
+                        draftRevision: 1,
+                        reviews: [
+                            {
+                                evidenceKey: "evidence-1:1",
+                                claim: "fixture",
+                                verdict: "supports",
+                                method: "read",
+                                result: "yes",
+                                limitations: "none"
+                            }
+                        ]
+                    },
+                    {
+                        ...managerContext(),
+                        actor: { kind: "participant", participantId: reviewerId }
+                    }
+                )
+            ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
+        });
+
+        it("allows a participant to cite a material already public through another task", () => {
+            const state = evidenceReviewState() as MeetingState;
+            state.contributions!.tasks["contribution-1"]!.reviewStatus = "complete";
+            const authorId = state.participants[1]!.id;
+            state.contributions!.tasks["contribution-2"] = {
+                ...validContributionState().tasks["contribution-1"],
+                id: "contribution-2",
+                participantId: authorId,
+                basedOnSeq: state.messageSeq
+            } as never;
+            const draft =
+                boundaryReviewState().contributions!.tasks["contribution-1"]!.drafts["1"]!;
+            const result = applyContributionCommand(
+                state,
+                {
+                    action: "submit",
+                    contributionId: "contribution-2",
+                    generation: 1,
+                    expectedDraftRevision: 0,
+                    draft: {
+                        ...draft,
+                        basedOnSeq: state.messageSeq,
+                        citations: [{ evidenceKey: "evidence-1:1", claim: "fixture" }]
+                    }
+                },
+                { ...managerContext(), actor: { kind: "participant", participantId: authorId } }
+            );
+            expect(result.state.contributions!.tasks["contribution-2"]!.phase).toBe(
+                "boundary_review"
+            );
+        });
+
+        it("rejects a draft outside its task and current Transcript bounds", () => {
+            const state = {
+                ...contributionMeeting(),
+                contributions: validContributionState()
+            } as MeetingState;
+            const draft =
+                boundaryReviewState().contributions!.tasks["contribution-1"]!.drafts["1"]!;
+            const context = {
+                ...managerContext(),
+                actor: { kind: "participant" as const, participantId: state.participants[0]!.id }
+            };
+            expect(() =>
+                applyContributionCommand(
+                    state,
+                    {
+                        action: "submit",
+                        contributionId: "contribution-1",
+                        generation: 1,
+                        expectedDraftRevision: 0,
+                        draft: { ...draft, basedOnSeq: state.messageSeq + 1 }
+                    },
+                    context
+                )
+            ).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+        });
+
+        it("rejects self-review and research/review overlap at assignment", () => {
+            const state = {
+                ...contributionMeeting(),
+                contributions: { ...validContributionState(), tasks: {} }
+            } as MeetingState;
+            const reviewerId = state.contributions!.reviewerId;
+            const otherId = state.participants[0]!.id;
+            const command = {
+                action: "assign" as const,
+                participantId: reviewerId,
+                agendaItemId: state.agenda[0]!.id,
+                instruction: "Research",
+                targetIds: [],
+                requiredForCompletion: false,
+                requiresEvidenceReview: true
+            };
+            expect(() => applyContributionCommand(state, command, managerContext())).toThrow(
+                expect.objectContaining({ code: "INVALID_STATE_TRANSITION" })
+            );
+            const pending = evidenceReviewState() as MeetingState;
+            expect(() =>
+                applyContributionCommand(
+                    pending,
+                    { ...command, requiresEvidenceReview: false },
+                    { ...managerContext(), newContributionId: "contribution-2" }
+                )
+            ).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+            pending.contributions!.tasks["contribution-1"]!.reviewStatus = "captain_action";
+            expect(() =>
+                applyContributionCommand(
+                    pending,
+                    { ...command, requiresEvidenceReview: false },
+                    { ...managerContext(), newContributionId: "contribution-2" }
+                )
+            ).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+            const researching = {
+                ...state,
+                contributions: {
+                    ...state.contributions!,
+                    tasks: {
+                        "contribution-1": {
+                            ...validContributionState().tasks["contribution-1"],
+                            participantId: reviewerId
+                        }
+                    }
+                }
+            } as MeetingState;
+            expect(() =>
+                applyContributionCommand(
+                    researching,
+                    { ...command, participantId: otherId },
+                    { ...managerContext(), newContributionId: "contribution-2" }
+                )
+            ).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+        });
         it("allows two participants to prepare distinct contributions", () => {
             const state = {
                 ...contributionMeeting(),
@@ -946,6 +1224,55 @@ describe("contribution state structure", () => {
             expect(state).toEqual(before);
         });
 
+        it("rejects a reviewer-owned patch dependency in a previously published draft", () => {
+            const state = evidenceReviewState() as MeetingState;
+            const reviewerId = state.contributions!.reviewerId;
+            state.contributions!.evidence["reviewer-patch:1"] = {
+                ...evidenceVersion(1),
+                evidenceId: "reviewer-patch",
+                key: "reviewer-patch:1",
+                submittedBy: reviewerId
+            } as never;
+            state.contributions!.evidence["evidence-1:1"]!.kind = "code";
+            state.contributions!.evidence["evidence-1:1"]!.code = {
+                repository: "repo",
+                revision: "commit",
+                pathsAndSymbols: "src/a.ts",
+                patchEvidenceKeys: ["reviewer-patch:1"],
+                validation: "static_only",
+                reproduction: "inspection",
+                expected: "yes",
+                observed: "yes",
+                notCovered: "execution"
+            };
+            expect(isMeetingStateV2(state)).toBe(true);
+            expect(() =>
+                applyContributionCommand(
+                    state,
+                    {
+                        action: "evidence_review",
+                        contributionId: "contribution-1",
+                        generation: 1,
+                        draftRevision: 1,
+                        reviews: [
+                            {
+                                evidenceKey: "evidence-1:1",
+                                claim: "fixture",
+                                verdict: "supports",
+                                method: "read",
+                                result: "yes",
+                                limitations: "none"
+                            }
+                        ]
+                    },
+                    {
+                        ...managerContext(),
+                        actor: { kind: "participant", participantId: reviewerId }
+                    }
+                )
+            ).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+        });
+
         it("requires supports for every cited claim before a completion message can be used", () => {
             const state = evidenceReviewState();
             const task = state.contributions!.tasks["contribution-1"]!;
@@ -1102,6 +1429,25 @@ describe("contribution state structure", () => {
     });
 
     describe("contribution task control", () => {
+        it("does not retry a private review task authored by the fixed reviewer", () => {
+            const state = boundaryReviewState() as MeetingState;
+            const task = state.contributions!.tasks["contribution-1"]!;
+            task.phase = "cancelled";
+            task.requiresEvidenceReview = true;
+            task.participantId = state.contributions!.reviewerId;
+            expect(() =>
+                applyContributionCommand(
+                    state,
+                    {
+                        action: "retry",
+                        contributionId: task.id,
+                        generation: 1,
+                        reason: "Resume"
+                    },
+                    captainContext()
+                )
+            ).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+        });
         it("retries a cancelled private contribution with a new generation", () => {
             const state = boundaryReviewState();
             const task = state.contributions!.tasks["contribution-1"]!;

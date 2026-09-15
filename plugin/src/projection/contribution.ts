@@ -36,11 +36,7 @@ export function projectContributionContext(
         work = {
             kind: "manager",
             pending: projectContributionSummaries(state, viewer).filter(
-                (task) =>
-                    task.phase !== "cancelled" &&
-                    (task.phase !== "published" ||
-                        task.reviewStatus === "pending" ||
-                        task.reviewStatus === "captain_action")
+                (task) => task.phase === "boundary_review"
             )
         };
     } else if (delivery.purpose === "prepare") {
@@ -134,6 +130,42 @@ function publicTask(state: MeetingState, task: ContributionTask): boolean {
         (state.status !== "archived" ||
             state.archive?.package.contributionRefs?.taskIds.includes(task.id) === true)
     );
+}
+
+function independentlyPublicEvidence(
+    state: MeetingState,
+    excludedTaskId: string,
+    key: string
+): boolean {
+    const visible = new Set<string>();
+    const visit = (candidate: string): void => {
+        if (visible.has(candidate)) return;
+        visible.add(candidate);
+        state.contributions!.evidence[candidate]?.code?.patchEvidenceKeys.forEach(visit);
+    };
+    for (const task of Object.values(state.contributions!.tasks)) {
+        if (task.id === excludedTaskId || !publicTask(state, task)) continue;
+        task.drafts[String(task.currentDraftRevision)]?.citations.forEach((citation) =>
+            visit(citation.evidenceKey)
+        );
+    }
+    return visible.has(key);
+}
+
+function readableDraftEvidence(state: MeetingState, task: ContributionTask, key: string): boolean {
+    const visited = new Set<string>();
+    const visit = (candidate: string): boolean => {
+        if (visited.has(candidate)) return true;
+        visited.add(candidate);
+        const material = state.contributions!.evidence[candidate];
+        return (
+            material !== undefined &&
+            (material.submittedBy === task.participantId ||
+                independentlyPublicEvidence(state, task.id, candidate)) &&
+            (material.code?.patchEvidenceKeys.every(visit) ?? true)
+        );
+    };
+    return visit(key);
 }
 
 export function projectContributionSummaries(
@@ -387,13 +419,7 @@ export function projectContributionRead(
     const historical =
         audit(viewer) ||
         (state.status !== "archived" && (privileged(viewer) || author(task, viewer)));
-    const reviewer =
-        state.status !== "archived" &&
-        viewer.kind === "participant" &&
-        viewer.participantId === state.contributions?.reviewerId &&
-        task.requiresEvidenceReview &&
-        task.phase === "boundary_review";
-    if (!historical && !reviewer && !publicTask(state, task)) denied();
+    if (!historical && !publicTask(state, task)) denied();
     const revision = input.draftRevision ?? task.currentDraftRevision;
     const selected = task.drafts[String(revision)];
     if (
@@ -403,6 +429,13 @@ export function projectContributionRead(
         denied();
     if (!isMeetingStateV2(state))
         throw new DomainError("INVALID_ARGUMENT", "Contribution snapshot is malformed.");
+    if (
+        !privileged(viewer) &&
+        selected?.citations.some(
+            (citation) => !readableDraftEvidence(state, task, citation.evidenceKey)
+        )
+    )
+        denied();
     let selectedEvidence: EvidenceVersion | undefined;
     if (input.evidenceKey !== undefined) {
         const reachable = new Set<string>();

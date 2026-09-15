@@ -928,13 +928,15 @@ export function isContributionState(value: unknown): value is ContributionState 
         !isNonNegativeInteger(value.managerPausedRemainingMs)
     )
         return false;
-    const evidenceById = new Map<string, number[]>();
+    const evidenceById = new Map<string, { owner: string; revisions: number[] }>();
     for (const [key, evidence] of Object.entries(value.evidence)) {
         if (!isEvidenceVersion(evidence, key)) return false;
-        evidenceById.set(evidence.evidenceId, [
-            ...(evidenceById.get(evidence.evidenceId) ?? []),
-            evidence.revision
-        ]);
+        const previous = evidenceById.get(evidence.evidenceId);
+        if (previous !== undefined && previous.owner !== evidence.submittedBy) return false;
+        evidenceById.set(evidence.evidenceId, {
+            owner: evidence.submittedBy,
+            revisions: [...(previous?.revisions ?? []), evidence.revision]
+        });
     }
     const tasks: ContributionTask[] = [];
     for (const [key, task] of Object.entries(value.tasks)) {
@@ -942,7 +944,7 @@ export function isContributionState(value: unknown): value is ContributionState 
         tasks.push(task);
     }
     if (
-        [...evidenceById.values()].some((revisions) =>
+        [...evidenceById.values()].some(({ revisions }) =>
             revisions
                 .sort((left, right) => left - right)
                 .some((revision, index) => revision !== index + 1)

@@ -237,6 +237,74 @@ function activeContribution(task: ContributionTask): boolean {
     );
 }
 
+function unfinishedResearch(task: ContributionTask): boolean {
+    return (
+        task.phase !== "cancelled" &&
+        (task.phase !== "published" || ["pending", "captain_action"].includes(task.reviewStatus))
+    );
+}
+
+function pendingReviewFor(state: MeetingState, participantId: string): boolean {
+    return (
+        state.contributions?.reviewerId === participantId &&
+        Object.values(state.contributions.tasks).some(
+            (task) =>
+                task.phase === "published" &&
+                ["pending", "captain_action"].includes(task.reviewStatus)
+        )
+    );
+}
+
+function reviewerResearchActive(state: MeetingState): boolean {
+    return Object.values(state.contributions!.tasks).some(
+        (task) => task.participantId === state.contributions!.reviewerId && unfinishedResearch(task)
+    );
+}
+
+function readableEvidence(state: MeetingState, participantId: string, key: string): boolean {
+    const evidence = state.contributions!.evidence[key];
+    if (evidence === undefined) return false;
+    if (evidence.submittedBy === participantId) return true;
+    const visible = new Set<string>();
+    const visit = (candidate: string): void => {
+        if (visible.has(candidate)) return;
+        visible.add(candidate);
+        state.contributions!.evidence[candidate]?.code?.patchEvidenceKeys.forEach(visit);
+    };
+    for (const task of Object.values(state.contributions!.tasks)) {
+        if (task.phase !== "published") continue;
+        task.drafts[String(task.currentDraftRevision)]?.citations.forEach((citation) =>
+            visit(citation.evidenceKey)
+        );
+    }
+    return visible.has(key);
+}
+
+function assertReadableEvidenceClosure(
+    state: MeetingState,
+    participantId: string,
+    key: string,
+    reviewerId?: string
+): void {
+    const visited = new Set<string>();
+    const visit = (candidate: string): void => {
+        if (visited.has(candidate)) return;
+        visited.add(candidate);
+        if (!readableEvidence(state, participantId, candidate))
+            throw new DomainError(
+                "UNAUTHORIZED_CALLER",
+                "Contribution evidence is not available to this caller."
+            );
+        if (state.contributions!.evidence[candidate]!.submittedBy === reviewerId)
+            throw new DomainError(
+                "INVALID_STATE_TRANSITION",
+                "Reviewer cannot audit their own evidence."
+            );
+        state.contributions!.evidence[candidate]!.code?.patchEvidenceKeys.forEach(visit);
+    };
+    visit(key);
+}
+
 function notifyContributionManager(
     state: MeetingState,
     now: number
@@ -757,6 +825,11 @@ export function applyContributionCommand(
             task.deadlineAt <= context.now
         )
             throw new DomainError("STALE_ATTEMPT", "Contribution evidence review is stale.");
+        if (task.participantId === reviewerId)
+            throw new DomainError(
+                "UNAUTHORIZED_CALLER",
+                "Only the independent reviewer can review evidence."
+            );
         const citations = new Set(
             draft.citations.map((citation) => `${citation.evidenceKey}\0${citation.claim}`)
         );
@@ -782,6 +855,8 @@ export function applyContributionCommand(
                 "UNAUTHORIZED_CALLER",
                 "Only the independent reviewer can review evidence."
             );
+        for (const citation of draft.citations)
+            assertReadableEvidenceClosure(state, reviewerId, citation.evidenceKey, reviewerId);
         const evidenceReviews = command.reviews.map((review) => ({
             ...review,
             draftRevision: command.draftRevision,
@@ -851,6 +926,14 @@ export function applyContributionCommand(
             const previous = Object.values(state.contributions.evidence).filter(
                 (item) => item.evidenceId === evidenceId
             );
+            if (previous.some((item) => item.submittedBy !== task.participantId))
+                throw new DomainError(
+                    "UNAUTHORIZED_CALLER",
+                    "Only the material author can update evidence."
+                );
+            command.material.code?.patchEvidenceKeys.forEach((key) =>
+                assertReadableEvidenceClosure(state, task.participantId, key)
+            );
             const revision = previous.length + 1;
             if (command.expectedEvidenceRevision !== revision - 1)
                 throw new DomainError("STALE_ATTEMPT", "Evidence revision is stale.");
@@ -893,6 +976,22 @@ export function applyContributionCommand(
             command.draft.revision !== command.expectedDraftRevision + 1
         )
             throw new DomainError("STALE_ATTEMPT", "Draft revision is stale.");
+        if (
+            command.draft.basedOnSeq < task.basedOnSeq ||
+            command.draft.basedOnSeq > state.messageSeq
+        )
+            throw new DomainError(
+                "INVALID_STATE_TRANSITION",
+                "Draft Transcript basis is out of bounds."
+            );
+        for (const citation of command.draft.citations) {
+            assertReadableEvidenceClosure(
+                state,
+                task.participantId,
+                citation.evidenceKey,
+                task.requiresEvidenceReview ? state.contributions.reviewerId : undefined
+            );
+        }
         if (command.draft.claims.completion !== undefined)
             assertCompletionEvidenceSupport(state, command.draft.claims.completion);
         const draft = { ...command.draft, citations: [...command.draft.citations] };
@@ -1011,6 +1110,8 @@ export function applyContributionCommand(
                     "INVALID_STATE_TRANSITION",
                     "Contribution cannot be retried."
                 );
+            if (reviewerResearchActive(state))
+                throw new DomainError("INVALID_STATE_TRANSITION", "Reviewer has active research.");
             const next = {
                 ...task,
                 generation: task.generation + 1,
@@ -1024,11 +1125,15 @@ export function applyContributionCommand(
         if (
             !["returned", "captain_action", "cancelled"].includes(task.phase) ||
             task.agendaItemId !== state.activeAgendaItemId ||
+            pendingReviewFor(state, task.participantId) ||
+            (task.requiresEvidenceReview &&
+                (task.participantId === state.contributions.reviewerId ||
+                    reviewerResearchActive(state))) ||
             Object.values(state.contributions.tasks).some(
                 (candidate) =>
                     candidate.id !== task.id &&
                     candidate.participantId === task.participantId &&
-                    !["published", "cancelled"].includes(candidate.phase)
+                    unfinishedResearch(candidate)
             )
         )
             throw new DomainError("INVALID_STATE_TRANSITION", "Contribution cannot be retried.");
@@ -1060,14 +1165,22 @@ export function applyContributionCommand(
         );
     if (
         Object.values(state.contributions.tasks).some(
-            (task) =>
-                task.participantId === command.participantId &&
-                !["published", "cancelled"].includes(task.phase)
+            (task) => task.participantId === command.participantId && unfinishedResearch(task)
         )
     )
         throw new DomainError(
             "INVALID_STATE_TRANSITION",
             "Participant already has an active contribution."
+        );
+    if (
+        pendingReviewFor(state, command.participantId) ||
+        (command.requiresEvidenceReview &&
+            (command.participantId === state.contributions.reviewerId ||
+                reviewerResearchActive(state)))
+    )
+        throw new DomainError(
+            "INVALID_STATE_TRANSITION",
+            "Reviewer research and evidence review must be independent."
         );
     const task: ContributionTask = {
         id: context.newContributionId,
@@ -1095,6 +1208,7 @@ export function applyContributionCommand(
             ...state,
             contributions: {
                 ...state.contributions,
+                managerDeadlineAt: context.now + 600_000,
                 tasks: { ...state.contributions.tasks, [task.id]: task }
             },
             eventSeq: state.eventSeq + 1
