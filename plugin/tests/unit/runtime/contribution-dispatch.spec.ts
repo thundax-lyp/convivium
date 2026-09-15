@@ -1,11 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import { createContributionState, type ContributionTask } from "@/domain/index.js";
+import {
+    applyContributionCommand,
+    createContributionState,
+    type ContributionTask
+} from "@/domain/index.js";
 import type { OutboxItem, SessionOwnership } from "@/repository/types.js";
 import type { MeetingRepositoryRuntime } from "@/runtime/meeting-runtime.js";
 import { createMeetingDeliveryDispatcher } from "@/runtime/services/meeting-dispatch-service.js";
 import { createOutboxWorker } from "@/runtime/outbox-worker.js";
-import { contributionMeeting, contributionNow as now } from "../../fixtures/contribution.js";
+import { contributionOutbox } from "@/runtime/services/contribution-runtime-service.js";
+import {
+    boundaryReviewState,
+    captainContext,
+    contributionMeeting,
+    contributionNow as now,
+    managerContext,
+    withNewPublicMessage
+} from "../../fixtures/contribution.js";
 
 function gate() {
     let release!: () => void;
@@ -96,6 +108,49 @@ function fixture() {
 }
 
 describe("contribution dispatch authorization and queues", () => {
+    it("delivers the latest public Transcript bound after return and private retry", () => {
+        const before = withNewPublicMessage(boundaryReviewState());
+        const returned = applyContributionCommand(
+            before,
+            {
+                action: "boundary_review",
+                contributionId: "contribution-1",
+                generation: 1,
+                draftRevision: 1,
+                decision: "return",
+                reason: "New public context.",
+                checkedThroughSeq: 1
+            },
+            managerContext()
+        );
+        expect(contributionOutbox(before, returned.state, returned.effect.events)).toMatchObject([
+            { payload: { purpose: "prepare", contextThroughSeq: 1 } }
+        ]);
+        const cancelled = {
+            ...before,
+            contributions: {
+                ...before.contributions!,
+                tasks: {
+                    ...before.contributions!.tasks,
+                    "contribution-1": {
+                        ...before.contributions!.tasks["contribution-1"]!,
+                        phase: "cancelled" as const
+                    }
+                }
+            }
+        };
+        const retried = applyContributionCommand(
+            cancelled,
+            { action: "retry", contributionId: "contribution-1", generation: 1, reason: "Retry." },
+            captainContext()
+        );
+        expect(contributionOutbox(cancelled, retried.state, retried.effect.events)).toContainEqual(
+            expect.objectContaining({
+                payload: expect.objectContaining({ purpose: "prepare", contextThroughSeq: 1 })
+            })
+        );
+    });
+
     it("labels Participant and Manager context messages for deterministic consumers", async () => {
         const f = fixture();
         const sendMessage = vi.fn(async () => "accepted");

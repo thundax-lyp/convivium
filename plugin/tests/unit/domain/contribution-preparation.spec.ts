@@ -6,7 +6,8 @@ import {
     evidenceReviewState,
     evidenceVersion,
     managerContext,
-    validContributionState
+    validContributionState,
+    withNewPublicMessage
 } from "../../fixtures/contribution.js";
 import { describe, expect, it } from "vitest";
 
@@ -432,6 +433,27 @@ describe("contribution assignment and private drafts", () => {
 });
 
 describe("contribution publication", () => {
+    it("refreshes the returned draft baseline to the latest public message", () => {
+        const state = withNewPublicMessage(boundaryReviewState());
+        const result = applyContributionCommand(
+            state,
+            {
+                action: "boundary_review",
+                contributionId: "contribution-1",
+                generation: 1,
+                draftRevision: 1,
+                decision: "return",
+                reason: "Incorporate the new public message.",
+                checkedThroughSeq: 1
+            },
+            managerContext()
+        );
+        expect(result.state.contributions!.tasks["contribution-1"]).toMatchObject({
+            phase: "returned",
+            basedOnSeq: 1
+        });
+    });
+
     it("returns twice then requires Captain action without publishing the draft", () => {
         let state = boundaryReviewState();
         for (const expectedPhase of ["returned", "returned", "captain_action"] as const) {

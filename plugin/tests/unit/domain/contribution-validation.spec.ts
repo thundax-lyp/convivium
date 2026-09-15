@@ -14,7 +14,8 @@ import {
     evidenceReviewState,
     evidenceVersion,
     managerContext,
-    validContributionState
+    validContributionState,
+    withNewPublicMessage
 } from "../../fixtures/contribution.js";
 import { describe, expect, it } from "vitest";
 
@@ -322,7 +323,7 @@ describe("contribution task control", () => {
         ).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
     });
     it("retries a cancelled private contribution with a new generation", () => {
-        const state = boundaryReviewState();
+        const state = withNewPublicMessage(boundaryReviewState());
         const task = state.contributions!.tasks["contribution-1"]!;
         const cancelled = {
             ...state,
@@ -340,7 +341,12 @@ describe("contribution task control", () => {
             captainContext()
         );
         const next = result.state.contributions!.tasks[task.id]!;
-        expect(next).toMatchObject({ phase: "preparing", generation: 2, returnCount: 0 });
+        expect(next).toMatchObject({
+            phase: "preparing",
+            generation: 2,
+            returnCount: 0,
+            basedOnSeq: 1
+        });
         expect(next.drafts).toEqual(task.drafts);
         expect(result.effect.events.map(({ type }) => type)).toEqual([
             "contribution.controlled",

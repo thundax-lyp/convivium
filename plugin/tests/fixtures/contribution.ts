@@ -11,6 +11,29 @@ export function contributionMeeting(): MeetingState {
     return state;
 }
 
+export function withNewPublicMessage(state: MeetingState): MeetingState {
+    const seq = state.messageSeq + 1;
+    return {
+        ...state,
+        messageSeq: seq,
+        transcript: [
+            ...state.transcript,
+            {
+                id: `message-public-${seq}`,
+                seq,
+                speaker: state.participants[1]!.id,
+                agendaItemId: state.activeAgendaItemId!,
+                agendaRelation: "on_topic",
+                content: "New public context.",
+                kind: "statement",
+                mentions: [],
+                taskIds: [],
+                createdAt: contributionNow
+            }
+        ]
+    };
+}
+
 export function validContributionState() {
     const state = contributionMeeting();
     const authorId = state.participants[0]!.id;
