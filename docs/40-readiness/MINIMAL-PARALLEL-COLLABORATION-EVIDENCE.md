@@ -44,3 +44,15 @@ Browser 运行在同类隔离 Host 上停于 `status=running`、`meetingVersion=
 ## Closure
 
 T10 的 V15 真实 Loader、DSH Session、权限、版本、Client 显示、归档与 Restore 已取得对应证据。语义质量及真实模型讨论仍为 Not Covered，由固定模型场景单独收口。
+
+## T11 Real Model Discussion (V16)
+
+2026-09-15 在同一分支执行 `CONVIVIUM_SMOKE_SCENARIO=parallel-contribution-model pnpm --dir plugin smoke:profile --json`，真实 `@deepseek-ai/dsh@0.1.2-rc.1` Web Host，`deepseek-official/deepseek-v4-flash` 四个角色。最后一次原文关联运行退出码 0、`durationMs=86900`、`restore=PASS`；隔离 profile 已清理。会议 `meeting-7ed854468fb502519eaff357a546a380`、Captain Session `convivium-smoke-captain`；两条正式消息分别为 `message-contribution-a5f5f61663ef2419c4b6a8aa09c45e6b-1`（Feasibility proposal）和 `message-contribution-ea68e02851cadc5aa9a4b410b2c8a054-1`（Product summary）。状态 `archived`、`archiveVerified=true`、`interventions=0`。六项 assertions 为 `model-origin-submissions`、`boundary-before-publication`、`material-version-readable`、`review-not-self`、`structured-comparison`、`archive-verified`。前一次同一探针也在 81826 ms 内 PASS，原文旁路加入后独立重跑再次 PASS。
+
+模型来源回执分别证明：两位作者在不同 DSH Session 中保存各自内部材料并提交；Manager 读取精确 draft 后批准；Reviewer 读取已发布的精确 draft 和 evidenceKey 并逐条 literal review；Captain partial 结束、归档后回读 summary 精确版本及其证据。两份内部材料仅支持“这是模型撰写、外部主张仍为假设”的文本事实，不支持商家需求、接口政策或价格。Product 的正式 JSON 满足固定七键、三个候选场景和七键推荐结构；其 evidenceKey 为 `product-internal-material:1`。这是结构 PASS，不是产品方向结论。
+
+原文关联证据：上述两个 messageId 的正式 `content` 在最后一次 wrapper 输出的 `modelDiscussion` 数组中按 messageId 匹配；该运行的输出为本任务执行回执，隔离原始 Session 不保留。Feasibility 原文主张“首版最可行=评价与退换货处理”，列出六个场景的模型假设评分、3–6 周上线与 30–50 家商家对照等未验证估算；Product 原文推荐“商品上架与详情页素材制作”，比较上架、订单库存同步、售前售后客服，给出单类目草稿、单件耗时与改写率指标。两者推荐不同，原文都承认没有独立外部商家事实，不能用 internal evidence 的 literal `supports` 代表需求已验证。由于两条完整 content 未写入长期文件，本节只保留可追溯 messageId、原文关键主张和执行输出引用；若需要离线逐字复核，须重新运行固定场景取得新的关联原文，不能从本次已清理的临时 profile 回读。
+
+失败历史：初期 requiredSkillNames 空数组与正式角色接口冲突，已通过红绿测试允许空 Skill 并同步接口/设计；首次 Loader 缺少 `convivium` preset，已装配角色资产。早期探针按根 scope 监听子 Agent 工具，误判两位作者未提交；改从持久 Session `tool/call` 与 `tool/result` 配对。一次会议在无有效草稿时反复探索协议、使用 shell sleep/旧 Turn 路径，人工在运行外终止（该失败轮不计入 PASS，临时目录移入废纸篓可恢复）；后续将精确扁平字段、证据引用、正确审批/审核顺序与等待态写入固定角色指令。其他失败轮因缺少必填字段、过早 partial 或 JSON 非精确而 STOP，wrapper 均恢复隔离资源；最终 PASS 运行未进行会中代填或干预。
+
+语义质量、模型估算可信度、真实商家用户价值仍为 Not Covered；两份推荐的分歧需人类评价，不作为产品实现依据。

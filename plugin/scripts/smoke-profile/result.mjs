@@ -10,6 +10,10 @@ export function validateScenarioResult(
         validateParallelContributionResult(value, validateMeetingStatus);
         return value;
     }
+    if (expectedScenario === "parallel-contribution-model") {
+        validateParallelContributionModelResult(value);
+        return value;
+    }
     if (["convergence-stalled", "convergence-turn-budget-completion"].includes(expectedScenario)) {
         validateConvergenceRuntimeResult(value, expectedScenario, validateMeetingStatus);
         return value;
@@ -193,6 +197,54 @@ export function validateScenarioResult(
         }
     }
     return value;
+}
+
+function validateParallelContributionModelResult(value) {
+    const exact = (object, keys) =>
+        object &&
+        typeof object === "object" &&
+        !Array.isArray(object) &&
+        Object.keys(object).length === keys.length &&
+        keys.every((key) => Object.hasOwn(object, key));
+    const assertions = [
+        "model-origin-submissions",
+        "boundary-before-publication",
+        "material-version-readable",
+        "review-not-self",
+        "structured-comparison",
+        "archive-verified"
+    ];
+    try {
+        if (
+            !exact(value, [
+                "ok",
+                "scenario",
+                "meetingId",
+                "captainSessionId",
+                "assertions",
+                "observed"
+            ]) ||
+            value.ok !== true ||
+            value.scenario !== "parallel-contribution-model" ||
+            typeof value.meetingId !== "string" ||
+            !value.meetingId.trim() ||
+            value.captainSessionId !== "convivium-smoke-captain" ||
+            !isDeepStrictEqual(value.assertions, assertions) ||
+            !exact(value.observed, ["status", "messageIds", "archiveVerified", "interventions"]) ||
+            value.observed.status !== "archived" ||
+            !Array.isArray(value.observed.messageIds) ||
+            value.observed.messageIds.length === 0 ||
+            new Set(value.observed.messageIds).size !== value.observed.messageIds.length ||
+            value.observed.messageIds.some(
+                (messageId) => typeof messageId !== "string" || !messageId.trim()
+            ) ||
+            value.observed.archiveVerified !== true ||
+            value.observed.interventions !== 0
+        )
+            throw new Error("invalid");
+    } catch {
+        throw new Error("Parallel contribution model result is invalid.");
+    }
 }
 
 function validateParallelContributionResult(value, _validateMeetingStatus) {

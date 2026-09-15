@@ -12,18 +12,6 @@
 
 ## 待审阅任务项
 
-### 基础
-
-### 协作闭环
-
-### 交付验证
-
-- [ ] `真实模型讨论`：固定业务讨论验收（T11）
-    - 依据文档：[最小并行协作 RUNBOOK](docs/30-designs/RUNBOOK-MINIMAL-PARALLEL-COLLABORATION.md)，T11。
-    - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。
-    - 处理动作：运行固定议题的真实模型讨论，分别保存结构、调用回执和归档证据。
-    - 验收点：规定 JSON 结构及系统回执通过；无人工代填；真实归档成立；语义质量仍标 Not Covered。
-
 - [ ] `交付收口`：迁移证据并删除临时执行文档（T12）
     - 依据文档：[RUNBOOK Rules](docs/00-governance/RUNBOOK-RULES.md#completion-and-deletion)、[TODO Rules](docs/00-governance/TODO-RULES.md#closure-rules)、[Document Rules](docs/00-governance/DOCUMENT-RULES.md#document-lifecycle)。
     - 确认依据：2026-09-14 本对话确认方案并要求登记；待产品执行许可。

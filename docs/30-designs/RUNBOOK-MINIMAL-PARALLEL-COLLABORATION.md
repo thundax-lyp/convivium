@@ -180,7 +180,7 @@ STOP：上述命令或断言失败，或必须修改未列文件才能继续；�
 ### T11：固定真实模型讨论
 
 前置状态：T10 PASS。
-允许修改：新增 `plugin/scripts/smoke-profile/probe/scenarios/parallel-contribution-model.js`；T10 的三个 registry/validator 文件；`docs/40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md`。
+允许修改：新增 `plugin/scripts/smoke-profile/probe/scenarios/parallel-contribution-model.js`；T10 的三个 registry/validator 文件；`plugin/src/role-composition/model.ts`、`plugin/src/role-composition/resolve.ts`、`plugin/src/role-composition/dsh-capabilities.ts`及对应两份 role-composition unit test；`docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`、`docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`、`docs/40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md`。
 禁止修改：讨论题、评价标准、自动补写模型结果；不实际开发电商产品。
 
 执行：严格按下文 Model Discussion Contract 注册并运行 parallel-contribution-model。脚本只建立固定会议／模型／角色和只读采样；assign、submit、approve、review、完成声明及 Captain 接受由真实模型产生。保留失败、人工介入与正式产出，不用 deterministic probe 的结果替代。

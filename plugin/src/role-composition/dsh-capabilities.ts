@@ -15,22 +15,25 @@ export async function validateSharedRoleCapabilities(
     try {
         signal.throwIfAborted();
         const presets = parent.ctx.get("agentPresets");
-        const skills = parent.ctx.get("skills");
-        if (!presets || !skills) throw new RoleCompositionError();
+        if (!presets) throw new RoleCompositionError();
         const preset = presets.composedPreset(parent.ctx);
         if (!preset || definitions.some((d) => d.dshPresetId !== preset))
             throw new RoleCompositionError();
         const names = new Set(definitions.flatMap((d) => [...d.requiredSkillNames]));
-        for (const name of names) {
-            signal.throwIfAborted();
-            const skill = await skills.get(name, {
-                scope: parent,
-                cwd: parent.session.header.cwd,
-                signal
-            });
-            signal.throwIfAborted();
-            if (!skill || !skill.invocation.modelInvocable || !skill.content.trim())
-                throw new RoleCompositionError();
+        if (names.size > 0) {
+            const skills = parent.ctx.get("skills");
+            if (!skills) throw new RoleCompositionError();
+            for (const name of names) {
+                signal.throwIfAborted();
+                const skill = await skills.get(name, {
+                    scope: parent,
+                    cwd: parent.session.header.cwd,
+                    signal
+                });
+                signal.throwIfAborted();
+                if (!skill || !skill.invocation.modelInvocable || !skill.content.trim())
+                    throw new RoleCompositionError();
+            }
         }
         signal.throwIfAborted();
         if (presets.composedPreset(parent.ctx) !== preset) throw new RoleCompositionError();

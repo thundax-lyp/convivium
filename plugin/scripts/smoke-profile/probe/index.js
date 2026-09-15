@@ -16,6 +16,7 @@ import {
 } from "./scenarios/convergence.js";
 import { runBaselineScenario } from "./scenarios/baseline.js";
 import { runParallelContributionScenario } from "./scenarios/parallel-contribution.js";
+import { runParallelContributionModelScenario } from "./scenarios/parallel-contribution-model.js";
 
 export const name = "convivium-smoke-profile-probe";
 export const inject = [
@@ -264,7 +265,7 @@ function registerSmokeAgent(ctx, session) {
 }
 
 async function driveParticipant(ctx, agent) {
-    if (scenario === "parallel-contribution") return;
+    if (["parallel-contribution", "parallel-contribution-model"].includes(scenario)) return;
     if (scenario === "meeting-roles") return;
     if (scenario === "convergence-stalled" || scenario === "convergence-turn-budget-completion")
         return;
@@ -348,7 +349,7 @@ function scheduleParticipant(ctx, agent) {
 
 async function run(ctx) {
     if (!outputPath) return;
-    if (scenario !== "parallel-contribution") {
+    if (!["parallel-contribution", "parallel-contribution-model"].includes(scenario)) {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -362,23 +363,34 @@ async function run(ctx) {
         if (["role-composition", "meeting-roles"].includes(scenario) && browserMode)
             throw new Error("Role smoke rejects Browser mode");
         if (!(["cold-rebind", "role-composition"].includes(scenario) && coldPhase === "2")) {
-            captain = ["role-composition", "meeting-roles"].includes(scenario)
+            captain = ["role-composition", "meeting-roles", "parallel-contribution-model"].includes(
+                scenario
+            )
                 ? await ctx.agents.create({
                       sessionId: "convivium-smoke-captain",
-                      agentOptions:
-                          scenario === "meeting-roles"
-                              ? { provider: "deepseek-official", model: "deepseek-v4-flash" }
-                              : undefined,
+                      agentOptions: ["meeting-roles", "parallel-contribution-model"].includes(
+                          scenario
+                      )
+                          ? { provider: "deepseek-official", model: "deepseek-v4-flash" }
+                          : undefined,
                       meta: {
                           cwd: process.cwd(),
-                          agentPreset: scenario === "meeting-roles" ? "convivium" : "minimal"
+                          agentPreset: ["meeting-roles", "parallel-contribution-model"].includes(
+                              scenario
+                          )
+                              ? "convivium"
+                              : "minimal"
                       },
                       setup: async (agentCtx) => {
                           await ctx
                               .get("agentPresets")
                               .mount(
                                   agentCtx,
-                                  scenario === "meeting-roles" ? "convivium" : "minimal"
+                                  ["meeting-roles", "parallel-contribution-model"].includes(
+                                      scenario
+                                  )
+                                      ? "convivium"
+                                      : "minimal"
                               );
                       }
                   })
@@ -471,6 +483,8 @@ async function runSelectedScenario(runtime) {
     switch (runtime.scenario) {
         case "parallel-contribution":
             return runParallelContributionScenario(runtime);
+        case "parallel-contribution-model":
+            return runParallelContributionModelScenario(runtime);
         case "baseline":
         case "timeout":
             return runBaselineScenario(runtime);

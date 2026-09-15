@@ -24,7 +24,7 @@ const definition = z.strictObject({
     summary: text,
     roleDescription: text.refine((value) => !value.includes("{{")),
     dshPresetId: text,
-    requiredSkillNames: names.refine((value) => value.length > 0),
+    requiredSkillNames: names,
     toolFilter: filter.optional(),
     expertiseTags: names.refine((value) => value.length > 0),
     evidenceScopes: z

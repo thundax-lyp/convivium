@@ -102,6 +102,18 @@ describe("role composition configuration and resolution", () => {
             expect.objectContaining({ message: "Invalid meeting agent definitions." })
         );
     });
+    it("accepts a role without required Skills and does not add a loading instruction", async () => {
+        const withoutSkills = { ...participant, requiredSkillNames: [] };
+        const [parsed] = parseAgentDefinitions([withoutSkills]);
+        const resolved = await resolveMeetingRoles(
+            {
+                definitions: [parsed],
+                participants: [{ participantKey: "a", agentDefinitionId: "participant" }]
+            },
+            async () => {}
+        );
+        expect(resolved.participants.a.persona).toBe(withoutSkills.roleDescription);
+    });
     it("rejects invalid direct-call overrides before capability checks even without selections", async () => {
         for (const agentModelOverrides of [
             { unknown: { model: "private" } },
@@ -163,7 +175,6 @@ describe("role composition configuration and resolution", () => {
             [{ ...manager, extra: true }],
             [{ ...manager, roleDescription: "{{secret}}" }],
             [{ ...manager, summary: " " }],
-            [{ ...manager, requiredSkillNames: [] }],
             [{ ...manager, requiredSkillNames: ["x", "x"] }],
             [{ ...manager, expertiseTags: [] }],
             [{ ...manager, evidenceScopes: ["web", "web"] }],

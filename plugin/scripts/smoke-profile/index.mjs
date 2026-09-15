@@ -16,6 +16,10 @@ import {
 import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 import { validateColdCheckpoint } from "./probe/support.js";
 import { roleSmokeDefinitions, roleSmokeModelOverrides } from "./probe/role-definitions.js";
+import {
+    parallelDiscussionDefinitions,
+    parallelDiscussionModelOverrides
+} from "./probe/scenarios/parallel-contribution-model.js";
 import { validateScenarioResult } from "./result.mjs";
 
 export { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
@@ -34,7 +38,7 @@ const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "1
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 const BROWSER_SPEAKER_TIMEOUT_MS = 5 * 60 * 1000;
-export const SMOKE_SCENARIOS = ["parallel-contribution"];
+export const SMOKE_SCENARIOS = ["parallel-contribution", "parallel-contribution-model"];
 export const CORE_SCENARIOS = ["parallel-contribution"];
 
 export function selectScenarios(args, scenario, browserMode) {
@@ -44,7 +48,10 @@ export function selectScenarios(args, scenario, browserMode) {
         throw new Error("--all cannot be combined with a scenario or Browser mode.");
     if (scenario && !SMOKE_SCENARIOS.includes(scenario))
         throw new Error("Unsupported CONVIVIUM_SMOKE_SCENARIO: " + scenario);
-    if (browserMode && ["role-composition", "meeting-roles"].includes(scenario))
+    if (
+        browserMode &&
+        ["role-composition", "meeting-roles", "parallel-contribution-model"].includes(scenario)
+    )
         throw new Error("Role composition smoke does not support Browser mode.");
     return scenario
         ? [scenario]
@@ -232,6 +239,12 @@ export async function writeSmokePatch(path, scenario, phase = "1") {
         ...(scenario === "meeting-roles"
             ? [
                   "    agentDefinitions: !!js \"JSON.parse(process.getBuiltinModule('node:fs').readFileSync(process.getBuiltinModule('node:path').join(process.env.CONVIVIUM_MEETING_ROLES_ROOT, 'definitions.json'), 'utf8')).definitions\""
+              ]
+            : []),
+        ...(scenario === "parallel-contribution-model"
+            ? [
+                  `    agentDefinitions: ${JSON.stringify(parallelDiscussionDefinitions)}`,
+                  `    agentModelOverrides: ${JSON.stringify(parallelDiscussionModelOverrides)}`
               ]
             : []),
         `    maxParticipants: ${scenario === "meeting-roles" ? 8 : 3}`,
@@ -486,6 +499,7 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
     const controlDir = join(tempRoot, "control");
     const patchPath = join(tempRoot, "convivium-smoke.patch.yml");
     const resultPath = join(tempRoot, "smoke-result.json");
+    const modelEvidencePath = join(tempRoot, "model-discussion-evidence.json");
     const coldCheckpointPath = join(controlDir, "cold-rebind-checkpoint.json");
     await mkdir(dshHome, { recursive: true });
     await mkdir(workspaceDir, { recursive: true });
@@ -496,7 +510,7 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
     await writeProbePackage(probeDir);
 
     let roleAssetRoot;
-    if (scenario === "meeting-roles") {
+    if (["meeting-roles", "parallel-contribution-model"].includes(scenario)) {
         const unpackRoot = join(tempRoot, "role-package");
         await mkdir(unpackRoot, { recursive: true });
         await runCommand("tar", ["-xzf", artifact, "-C", unpackRoot], {
@@ -511,6 +525,9 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
         DSH_TELEMETRY_DISABLED: "1",
         DSH_PERMISSION_MODE: "workspace-write",
         CONVIVIUM_SMOKE_RESULT: resultPath,
+        ...(scenario === "parallel-contribution-model"
+            ? { CONVIVIUM_SMOKE_MODEL_EVIDENCE: modelEvidencePath }
+            : {}),
         CONVIVIUM_SMOKE_SCENARIO: scenario,
         ...(["cold-rebind", "role-composition"].includes(scenario)
             ? { CONVIVIUM_SMOKE_COLD_CHECKPOINT: coldCheckpointPath }
@@ -525,7 +542,11 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
     let bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
     let probeResult = await waitForJson(
         resultPath,
-        scenario === "meeting-roles" ? 2400000 : BOOT_TIMEOUT_MS
+        scenario === "meeting-roles"
+            ? 2400000
+            : scenario === "parallel-contribution-model"
+              ? 2100000
+              : BOOT_TIMEOUT_MS
     );
     if (
         ["cold-rebind", "role-composition"].includes(scenario) &&
@@ -599,6 +620,21 @@ async function runScenario(scenario, artifact, validateMeetingStatus, deepSeekAp
         dumpConfig: dumpPath,
         bootLogs
     };
+    if (scenario === "parallel-contribution-model") {
+        const evidence = JSON.parse(await readFile(modelEvidencePath, "utf8"));
+        if (
+            !Array.isArray(evidence) ||
+            evidence.length !== probeResult.observed.messageIds.length ||
+            evidence.some(
+                (message, index) =>
+                    message.id !== probeResult.observed.messageIds[index] ||
+                    !["summary", "proposal"].includes(message.kind) ||
+                    typeof message.content !== "string"
+            )
+        )
+            throw new Error("Model discussion original evidence does not match the probe result.");
+        result.modelDiscussion = evidence;
+    }
     if (BROWSER_MODE) {
         console.log(JSON.stringify(result));
         console.log(`CONVIVIUM_SMOKE_BROWSER_URL=${browserLaunchUrl}`);
