@@ -1,7 +1,7 @@
 import type {
+    AgentRoleDefinitionIdV1,
     MeetingTaskProjectionV1,
     PublicAgendaItemV1,
-    PublicArchiveAttendanceRejectionV1,
     PublicBlockingFactV1,
     PublicContinuationMaterialV1,
     PublicDecisionCandidateV1,
@@ -164,6 +164,16 @@ export interface PublicArchiveAgendaCandidateV1 {
     title: string;
     reason: string;
     status: "pending" | "promoted" | "parked" | "rejected";
+}
+
+export interface PublicArchiveAttendanceRejectionV1 {
+    recommendationId: string;
+    candidateId: string;
+    roleDefinitionId: AgentRoleDefinitionIdV1;
+    displayName: string;
+    agendaItemId: string;
+    reason: string;
+    rejectedAt: number;
 }
 
 export interface PublicArchivePackageV1 {

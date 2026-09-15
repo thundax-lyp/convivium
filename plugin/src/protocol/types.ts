@@ -685,16 +685,6 @@ export interface CaptainAttendanceDispositionResultV1 {
     recommendationId: string;
     disposition: "rejected";
 }
-export interface PublicArchiveAttendanceRejectionV1 {
-    recommendationId: string;
-    candidateId: string;
-    roleDefinitionId: AgentRoleDefinitionIdV1;
-    displayName: string;
-    agendaItemId: string;
-    reason: string;
-    rejectedAt: number;
-}
-
 export interface AttendanceRecommendationClaimV1 {
     candidateId: string;
     agendaItemId: string;
