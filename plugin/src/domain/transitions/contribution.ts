@@ -1165,6 +1165,8 @@ export function applyContributionCommand(
             "INVALID_ARGUMENT",
             "Contribution assignment does not belong to this meeting."
         );
+    if (command.requiredForCompletion && command.targetIds.length === 0)
+        throw new DomainError("INVALID_ARGUMENT", "Required contributions need a target.");
     if (
         Object.values(state.contributions.tasks).some(
             (task) => task.participantId === command.participantId && unfinishedResearch(task)

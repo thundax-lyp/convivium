@@ -230,6 +230,29 @@ describe("contribution preparation", () => {
 });
 
 describe("contribution assignment and private drafts", () => {
+    it("rejects a required contribution without an output or criterion target", () => {
+        const state = {
+            ...contributionMeeting(),
+            contributions: { ...validContributionState(), tasks: {} }
+        } as MeetingState;
+        expect(() =>
+            applyContributionCommand(
+                state,
+                {
+                    action: "assign",
+                    participantId: state.participants[0]!.id,
+                    agendaItemId: state.activeAgendaItemId!,
+                    instruction: "Complete required work.",
+                    targetIds: [],
+                    requiredForCompletion: true,
+                    requiresEvidenceReview: false
+                },
+                managerContext()
+            )
+        ).toThrow(expect.objectContaining({ code: "INVALID_ARGUMENT" }));
+        expect(state.contributions!.tasks).toEqual({});
+    });
+
     it("rejects self-review and research/review overlap at assignment", () => {
         const state = {
             ...contributionMeeting(),
