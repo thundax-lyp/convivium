@@ -127,7 +127,11 @@ const result = {
     physicalStorageIsHostOwned: [
         "@deepseek-ai/dsh-storage",
         "@deepseek-ai/dsh-storage-sqlite"
-    ].every((name) => !manifest?.dependencies?.[name] && !manifest?.peerDependencies?.[name]),
+    ].every(
+        (name) =>
+            !Object.hasOwn(manifest?.dependencies ?? {}, name) &&
+            !Object.hasOwn(manifest?.peerDependencies ?? {}, name)
+    ),
     bundlePatchDoesNotConfigureStorage: !/storage-domain|storage-sqlite/.test(patch),
     clientBundleIsSelfContained: bundledClientRequires.every(
         (specifier) => !clientBundle.includes(specifier)
