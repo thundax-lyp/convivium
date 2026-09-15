@@ -15,14 +15,14 @@ Domain 保存纯数据和状态转换，不依赖 Protocol、DSH、Repository。
 同文件定义 `ContributionActor = {kind:"manager"|"captain"|"local_host"|"runtime"} | {kind:"participant";participantId:string}`。`DomainContributionCommand` 复制 wire action 子联合的业务字段，去除 protocolVersion/meetingId/requestId/expectedMeetingVersion；submit 的 body/citations/basedOnSeq 换为一个 `draft:ContributionDraft`，保留 contributionId/generation/expectedDraftRevision；其余 action 字段类型完全同接口，不导入 Protocol 类型。Runtime 必须逐 action 构造，不用类型断言把 wire 冒充 Domain command。
 
 ```ts
-// domain/contribution.ts
+// domain/contribution.ts（公开入口；校验实现位于 domain/contribution-validation.ts）
 function createContributionState(reviewerId: string, now: number): ContributionState;
 function isContributionState(value: unknown): value is ContributionState;
 function contributionWorkComplete(state: MeetingState): boolean;
 function assertContributionEvidenceMessages(state: MeetingState, messageIds: readonly string[]): void;
 function assertContributionCapacity(state: MeetingState): void;
 
-// domain/transitions/contribution.ts
+// domain/transitions/contribution.ts（公开入口；命令实现位于 contribution-command.ts）
 interface ContributionTransitionContext {
   now: number;
   actor: ContributionActor;
@@ -193,6 +193,8 @@ ConviviumRemoteService 新 `readContribution(input:RemoteReadContributionInput, 
 | 路径（均相对仓库根） | 符号与固定改动 |
 | --- | --- |
 | `plugin/src/domain/model.ts` | MeetingState、MeetingMessage、ArchiveMessage、ArchivePackage、DomainEventTypes：增加贡献字段／来源／事件，不改变 legacy 实体 |
+| `plugin/src/domain/contribution-validation.ts` | isContributionState 及其字段、版本和引用校验；`contribution.ts` 保留公开导出 |
+| `plugin/src/domain/transitions/contribution-command.ts` | applyContributionCommand 按 action 执行已有校验和原子转换；`transitions/contribution.ts` 保留公开导出 |
 | `plugin/src/domain/meeting-state-validation.ts` | isMeetingStateV2：present contributions 全量校验；无字段沿原路径；新旧消息各自来源校验 |
 | `plugin/src/domain/transitions/speaker-submission.ts` | submitSpeakerAndAdvanceMeeting：提取并复用 applyPublicSubmission，旧 Task/Turn 行为保留 |
 | `plugin/src/domain/transitions/meeting-guards.ts` | assertCompletionReady：增加 contributionWorkComplete |

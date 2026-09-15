@@ -41,79 +41,7 @@ export function snapshotArchive(input: ArchiveInput): ArchiveRecord {
     };
 }
 
-export function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveInput): void {
-    const archivePackage = input.package;
-    const expectedContributions = contributionArchiveReferences(state);
-    const actualContributions = archivePackage.contributionRefs;
-    if (
-        expectedContributions === undefined
-            ? actualContributions !== undefined
-            : actualContributions === undefined ||
-              Object.keys(actualContributions).length !== 2 ||
-              JSON.stringify(actualContributions.taskIds) !==
-                  JSON.stringify(expectedContributions.taskIds) ||
-              JSON.stringify(actualContributions.evidenceKeys) !==
-                  JSON.stringify(expectedContributions.evidenceKeys)
-    ) {
-        throw new DomainError(
-            "INVALID_ENTITY_STATE",
-            "Archive contribution references do not match published facts"
-        );
-    }
-    if (
-        archivePackage.meetingId !== state.id ||
-        archivePackage.teamId !== state.teamId ||
-        !sameTermination(state.termination, archivePackage.termination)
-    ) {
-        throw new DomainError(
-            "INVALID_ENTITY_STATE",
-            `archive facts do not belong to meeting ${state.id}`,
-            {
-                entityType: "meeting",
-                entityId: state.id,
-                to: "archiving",
-                meetingVersion: state.version
-            }
-        );
-    }
-    if (!terminationReferencesBelongToMeeting(state, archivePackage.termination)) {
-        throw new DomainError(
-            "INVALID_ENTITY_STATE",
-            `archive references facts outside meeting ${state.id}`,
-            {
-                entityType: "meeting",
-                entityId: state.id,
-                to: "archiving",
-                meetingVersion: state.version
-            }
-        );
-    }
-    const expectedRejections = projectAttendanceRejections(state);
-    const actualRejections = archivePackage.attendanceRejections;
-    if (
-        actualRejections === undefined
-            ? expectedRejections.length !== 0
-            : actualRejections.length === 0 ||
-              actualRejections.length !== expectedRejections.length ||
-              actualRejections.some((actual, index) => {
-                  const expected = expectedRejections[index]!;
-                  return (
-                      Object.keys(actual).length !== 7 ||
-                      actual.recommendationId !== expected.recommendationId ||
-                      actual.candidateId !== expected.candidateId ||
-                      actual.roleDefinitionId !== expected.roleDefinitionId ||
-                      actual.displayName !== expected.displayName ||
-                      actual.agendaItemId !== expected.agendaItemId ||
-                      actual.reason !== expected.reason ||
-                      actual.rejectedAt !== expected.rejectedAt
-                  );
-              })
-    ) {
-        throw new DomainError(
-            "INVALID_ENTITY_STATE",
-            "Archive attendance rejections do not match meeting facts"
-        );
-    }
+function assertArchiveReferencesMatch(state: MeetingState, archivePackage: ArchivePackage): void {
     const decisionById = new Map(state.decisions.map((decision) => [decision.id, decision]));
     const agendaIds = new Set(state.agenda.map((item) => item.id));
     const issueIds = new Set(state.issues.map((issue) => issue.id));
@@ -371,6 +299,82 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
             }
         );
     }
+}
+
+export function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveInput): void {
+    const archivePackage = input.package;
+    const expectedContributions = contributionArchiveReferences(state);
+    const actualContributions = archivePackage.contributionRefs;
+    if (
+        expectedContributions === undefined
+            ? actualContributions !== undefined
+            : actualContributions === undefined ||
+              Object.keys(actualContributions).length !== 2 ||
+              JSON.stringify(actualContributions.taskIds) !==
+                  JSON.stringify(expectedContributions.taskIds) ||
+              JSON.stringify(actualContributions.evidenceKeys) !==
+                  JSON.stringify(expectedContributions.evidenceKeys)
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            "Archive contribution references do not match published facts"
+        );
+    }
+    if (
+        archivePackage.meetingId !== state.id ||
+        archivePackage.teamId !== state.teamId ||
+        !sameTermination(state.termination, archivePackage.termination)
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `archive facts do not belong to meeting ${state.id}`,
+            {
+                entityType: "meeting",
+                entityId: state.id,
+                to: "archiving",
+                meetingVersion: state.version
+            }
+        );
+    }
+    if (!terminationReferencesBelongToMeeting(state, archivePackage.termination)) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            `archive references facts outside meeting ${state.id}`,
+            {
+                entityType: "meeting",
+                entityId: state.id,
+                to: "archiving",
+                meetingVersion: state.version
+            }
+        );
+    }
+    const expectedRejections = projectAttendanceRejections(state);
+    const actualRejections = archivePackage.attendanceRejections;
+    if (
+        actualRejections === undefined
+            ? expectedRejections.length !== 0
+            : actualRejections.length === 0 ||
+              actualRejections.length !== expectedRejections.length ||
+              actualRejections.some((actual, index) => {
+                  const expected = expectedRejections[index]!;
+                  return (
+                      Object.keys(actual).length !== 7 ||
+                      actual.recommendationId !== expected.recommendationId ||
+                      actual.candidateId !== expected.candidateId ||
+                      actual.roleDefinitionId !== expected.roleDefinitionId ||
+                      actual.displayName !== expected.displayName ||
+                      actual.agendaItemId !== expected.agendaItemId ||
+                      actual.reason !== expected.reason ||
+                      actual.rejectedAt !== expected.rejectedAt
+                  );
+              })
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            "Archive attendance rejections do not match meeting facts"
+        );
+    }
+    assertArchiveReferencesMatch(state, archivePackage);
 }
 
 export function contributionArchiveReferences(
