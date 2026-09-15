@@ -109,21 +109,12 @@ function requireReason(context: TransitionContext, state: MeetingState, to: Meet
     return context.reason;
 }
 
-export function transitionMeeting(
+function assertMeetingTransitionContext(
     state: MeetingState,
     to: MeetingStatus,
-    context: TransitionContext
-): TransitionResult<MeetingState> {
-    assertTransition("meeting", state.id, state.status, to, meetingTransitions, state.version);
-
-    const isExecutionTerminal = [
-        "completed",
-        "partial",
-        "no_consensus",
-        "cancelled",
-        "failed"
-    ].includes(to);
-
+    context: TransitionContext,
+    isExecutionTerminal: boolean
+): void {
     if (context.termination && !isExecutionTerminal) {
         throw new DomainError(
             "INVALID_ENTITY_STATE",
@@ -190,7 +181,6 @@ export function transitionMeeting(
             );
         }
     }
-    const pause = context.pause;
 
     if (
         to === "archiving" &&
@@ -251,6 +241,26 @@ export function transitionMeeting(
             { entityType: "meeting", entityId: state.id, to, meetingVersion: state.version }
         );
     }
+}
+
+export function transitionMeeting(
+    state: MeetingState,
+    to: MeetingStatus,
+    context: TransitionContext
+): TransitionResult<MeetingState> {
+    assertTransition("meeting", state.id, state.status, to, meetingTransitions, state.version);
+
+    const isExecutionTerminal = [
+        "completed",
+        "partial",
+        "no_consensus",
+        "cancelled",
+        "failed"
+    ].includes(to);
+
+    assertMeetingTransitionContext(state, to, context, isExecutionTerminal);
+    const pause = context.pause;
+
     const resumingFromPause = state.status === "paused" && (to === "running" || to === "waiting");
     const lifecycleCleanup =
         to === "paused" || to === "archiving" || isExecutionTerminal
