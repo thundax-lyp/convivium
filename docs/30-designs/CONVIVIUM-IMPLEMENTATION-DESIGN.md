@@ -200,7 +200,9 @@ domain     ──> no infrastructure module
 | `src/domain/planning.ts`                                       | candidate filtering、selection mode、turn plan 校验                                                  |
 | `src/domain/completion.ts`                                     | 完成事实、停滞和终止派生计算                                                                         |
 | `src/domain/errors.ts`                                         | 内部领域错误分类；由 transport 映射为协议错误                                                        |
-| `src/repository/domain/domain-meeting-repository.ts`           | 聚合读写、receipt、event 和 outbox 的单 commit 提交                                                  |
+| `src/repository/domain/domain-meeting-repository.ts`           | `DomainMeetingRepository` 公开入口；command、outbox、recover 和 close 使用同一 commit 边界             |
+| `src/repository/domain/domain-meeting-repository-core.ts`      | 同一 Repository 的打开、bootstrap、Session ownership 与单 commit 持久化基础                          |
+| `src/repository/domain/domain-meeting-repository-mail.ts`      | 同一 Repository 的 private mail 方法；复用基础类的授权、顺序 mutation 与 commit                       |
 | `src/repository/domain/private-mail-validation.ts`             | 私聊发送、开始和完成处理的无状态校验；授权、receipt 重放、版本检查和原子写入仍由 Repository 负责       |
 | `src/repository/domain/domain-repository-registry.ts`          | catalog discovery、每 Meeting domain 打开、缓存和关闭                                                |
 | `src/repository/domain/schemas.ts`                             | catalog、creation、projection、commit、checkpoint 和 patch 的严格 record schema                      |
@@ -233,7 +235,7 @@ domain     ──> no infrastructure module
 
 Runtime 只在 source state 通过 `isMeetingStateV2` 且 existing pure transition preview 证明 command 将创建 Manager planning attempt 后读取 Catalog 一次；legacy source 不读取。preview 与最终 transition 复用同一 `now` 和 deterministic IDs；最终 transition 在 existing `MeetingRepositoryPort.execute` 中原子写 attempt binding。initial planning、task start/finish、Captain/local resume、speaker submission 和 speaker timeout 的现有 attempt producer 都使用该单一 capture helper；Domain transition 只接收 required binding，不导入 port。
 
-Protocol owner 固定为：`plugin/src/protocol/types.ts` 定义 DTO；`plugin/src/protocol/schema.ts` 定义可复用 Catalog/recommendation value schemas；`plugin/src/protocol/commands.ts::ManagerPlanSubmissionSchema` 只拥有 command extension；`plugin/src/protocol/status.ts::MeetingStatusResultSchema` 只拥有 active/execution-terminal status extension。不得把 command 或 status object schema 移入 `schema.ts`，也不得增加 adapter、registry 或 compatibility mapper。
+Protocol owner 固定为：`plugin/src/protocol/types.ts` 汇集并公开 DTO 类型，`meeting-status-types.ts` 定义 status/archive DTO，`contribution-types.ts` 定义 contribution DTO；`plugin/src/protocol/schema.ts` 定义可复用 Catalog/recommendation value schemas；`plugin/src/protocol/commands.ts::ManagerPlanSubmissionSchema` 只拥有 command extension；`plugin/src/protocol/status.ts::MeetingStatusResultSchema` 只拥有 active/execution-terminal status extension。不得把 command 或 status object schema 移入 `schema.ts`，也不得增加 adapter、registry 或 compatibility mapper。
 
 `plugin/src/domain/model.ts::MeetingState` 是 snapshot binding 与 pending recommendation 的唯一事实 owner。为遵守 Domain 不依赖 Protocol 的规则，该文件定义持久事实所需的内部同构 Catalog/claim fields，不导入 `protocol/`；`plugin/src/runtime/services/agent-catalog.ts::captureManagerCatalogBinding` 是 validated transport snapshot 到内部 snapshot 的唯一逐字段转换，不建立通用 mapper。`plugin/src/projection/status.ts::projectManagerMeetingContext` 只从当前 attempt binding 生成安全 Manager projection；`projectMeetingStatus` 只输出脱敏 pending recommendation。`plugin/src/runtime/application-service/meeting-turn.ts::submitManagerPlan` 与 `plugin/src/domain/transitions/manager-planning.ts::submitManagerPlanTransition` 复用现有 command/commit/fallback 边界，不增加 command、event、outbox worker 或 repository API。
 
