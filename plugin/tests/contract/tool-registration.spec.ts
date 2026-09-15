@@ -275,6 +275,11 @@ describe("meeting tool registration", () => {
         expect(submit?.description).toContain(
             "content is public meeting speech, not an execution report."
         );
+        const readContribution = definitions.find(
+            (definition) => definition.name === "convivium_read_contribution"
+        );
+        expect(readContribution?.description).toContain("assigned reviewer can inspect published");
+        expect(readContribution?.description).not.toContain("boundary-review draft");
         const input = {
             protocolVersion: 1,
             meetingId: "meeting-1",
