@@ -309,7 +309,9 @@ describe("meeting status projection", () => {
         expect(JSON.stringify(projected)).not.toContain("planning-1");
         expect(JSON.stringify(projected)).not.toContain("leaseToken");
     });
+});
 
+describe("speaker status projection", () => {
     it("projects target-owned continuation materials into the exact speaker attempt", () => {
         const projected = projectSpeakerMeetingContext(
             {
@@ -531,7 +533,9 @@ describe("meeting status projection", () => {
         expect(projected.pendingDecisionCandidates).toEqual([]);
         expect(() => MeetingStatusResultSchema(projected as never)).not.toThrow();
     });
+});
 
+describe("meeting blocking and terminal status projection", () => {
     it("projects only blocking Issues as blocking facts", () => {
         const projected = projectMeetingStatus(
             {

@@ -441,7 +441,9 @@ describe("meeting completion claims", () => {
             "changes_required"
         );
     });
+});
 
+describe("meeting risk acceptance claims", () => {
     it("rejects risk acceptance that violates a hard constraint", () => {
         const source = completionState();
         source.issues[0] = { ...source.issues[0]!, violatedConstraintIds: ["constraint-1"] };
