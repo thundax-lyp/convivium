@@ -128,6 +128,7 @@ const result = {
         "@deepseek-ai/dsh-storage",
         "@deepseek-ai/dsh-storage-sqlite"
     ].every((name) => !manifest?.dependencies?.[name] && !manifest?.peerDependencies?.[name]),
+    bundlePatchDoesNotConfigureStorage: !/storage-domain|storage-sqlite/.test(patch),
     clientBundleIsSelfContained: bundledClientRequires.every(
         (specifier) => !clientBundle.includes(specifier)
     ),
@@ -146,6 +147,7 @@ if (
     !result.clientManifestIsComplete ||
     !result.storageDomainPeerMatchesHost ||
     !result.physicalStorageIsHostOwned ||
+    !result.bundlePatchDoesNotConfigureStorage ||
     !result.clientBundleIsSelfContained ||
     result.forbiddenPublishedPaths.length > 0 ||
     result.missingArtifacts.length > 0
