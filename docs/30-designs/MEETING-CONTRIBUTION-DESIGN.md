@@ -106,7 +106,7 @@ function recoverContributionWork(input: {
 }): Promise<void>;
 ```
 
-preparePublicSubmission 提取原 meeting-turn.ts 的 message 和六类 changes 的转换代码；旧 Turn 使用原 deliveryId seed，新贡献使用 contributionId-revision seed；保留原每类实体前缀和数组索引，不重新排序。缺失 changes 数组→[]，completion 缺失→省略；不要把 authorizedTaskEvidence resolver 或 Catalog 查询移入该函数。旧路径仍自己解析授权 MeetingTask。
+preparePublicSubmission 提取原 meeting-turn.ts 的 message 和六类 changes 的转换代码；旧 Turn 使用原 deliveryId seed，新贡献使用 contributionId-revision seed；保留原每类实体前缀和数组索引，不重新排序。缺失 changes 数组→[]，completion 缺失→省略；不把已退役的 MeetingTask evidence resolver 或 Catalog 查询移入该函数。新贡献路径不消费 MeetingTask evidence；旧写入口按 Release Boundary 拒绝，不保留无人使用的 resolver 注入。
 
 MeetingToolRuntime 新签名：
 

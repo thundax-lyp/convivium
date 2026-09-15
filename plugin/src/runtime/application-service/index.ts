@@ -46,7 +46,6 @@ import { createMeetingDecisionApplication } from "./meeting-decision.js";
 import { createMeetingAgendaCandidateApplication } from "./meeting-agenda-candidate.js";
 import type { StoredMeeting } from "./types.js";
 import { captureManagerCatalogBinding } from "@/runtime/services/agent-catalog.js";
-import { meetingTaskEvidenceResolver } from "@/runtime/task-evidence.js";
 import { createMeetingRefreshFeed } from "@/runtime/services/meeting-refresh-feed.js";
 
 import type {
@@ -131,7 +130,6 @@ export function createCreateStatusRuntime(
         now: options.now
     });
     const runtimeController = new AbortController();
-    const taskEvidenceResolver = options.taskEvidenceResolver ?? meetingTaskEvidenceResolver;
     const signal =
         options.signal === undefined
             ? runtimeController.signal
@@ -464,16 +462,12 @@ export function createCreateStatusRuntime(
         signal
     });
     const taskApplication = createMeetingTaskApplication({
-        options: runtimeOptions,
         meetings,
         recovery
     });
     const turnApplication = createMeetingTurnApplication({
-        options: runtimeOptions,
         meetings,
-        recovery,
-        deliveryWorkers,
-        taskEvidenceResolver
+        recovery
     });
     fallbackManagerPlanning.current = turnApplication.fallbackManagerPlanning;
     const controlApplication = createMeetingControlApplication({
@@ -493,11 +487,8 @@ export function createCreateStatusRuntime(
         recoverArchiveForLocal
     });
     const mailApplication = createMeetingMailApplication({
-        options: runtimeOptions,
         meetings,
-        recovery,
-        deliveryWorkers,
-        ensureWorker
+        recovery
     });
     const attendanceApplication = createMeetingAttendanceApplication({
         options: runtimeOptions,

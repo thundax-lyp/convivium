@@ -39,8 +39,6 @@ export type {
     MeetingToolCaller,
     MeetingToolRuntime
 } from "./application-service/index.js";
-export { meetingTaskEvidenceResolver, rejectUnsupportedTaskEvidence } from "./task-evidence.js";
-export type { AuthorizedTaskEvidence, AuthorizedTaskEvidenceResolver } from "./task-evidence.js";
 export type { CaptainRebindDependencies } from "./services/meeting-recovery-service.js";
 export { AGENT_CATALOG_SERVICE_KEY } from "./services/agent-catalog.js";
 export {

@@ -6,11 +6,10 @@ import type {
 } from "@/protocol/index.js";
 import { commandFailure as failure } from "@/runtime/services/command-result-service.js";
 import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
-import type { CreateStatusRuntimeOptions, MeetingToolCaller, MeetingToolRuntime } from "./index.js";
+import type { MeetingToolCaller, MeetingToolRuntime } from "./index.js";
 import type { StoredMeeting } from "./types.js";
 
 export interface MeetingTaskApplicationOptions {
-    readonly options: CreateStatusRuntimeOptions;
     readonly meetings: Map<string, StoredMeeting>;
     readonly recovery: MeetingRehydrationService;
 }

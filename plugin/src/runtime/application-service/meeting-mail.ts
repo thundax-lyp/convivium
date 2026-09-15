@@ -7,16 +7,12 @@ import type {
 } from "@/protocol/index.js";
 import { commandFailure } from "@/runtime/services/command-result-service.js";
 import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
-import type { MeetingDeliveryWorkerService } from "@/runtime/services/types.js";
-import type { CreateStatusRuntimeOptions, MeetingToolCaller } from "./index.js";
+import type { MeetingToolCaller } from "./index.js";
 import type { StoredMeeting } from "./types.js";
 
 export function createMeetingMailApplication(dependencies: {
-    readonly options: CreateStatusRuntimeOptions;
     readonly meetings: Map<string, StoredMeeting>;
     readonly recovery: MeetingRehydrationService;
-    readonly deliveryWorkers: MeetingDeliveryWorkerService;
-    readonly ensureWorker: (stored: StoredMeeting) => void;
 }) {
     async function rejectRetiredMail(
         input: SendMeetingMessageInputV1 | FinishMeetingMailInputV1,

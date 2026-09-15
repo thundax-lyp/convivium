@@ -1,7 +1,6 @@
 import { getEventListeners } from "node:events";
 import { describe, expect, it } from "vitest";
 import { createMeetingRuntime } from "@/runtime/meeting-runtime.js";
-import { rejectUnsupportedTaskEvidence } from "@/runtime/task-evidence.js";
 import type { CreateMeetingInputV1 } from "@/protocol/index.js";
 import {
     defaultTimeoutScanSleep,
@@ -143,23 +142,6 @@ describe("meeting creation and Session provisioning", () => {
             meetingId: "meeting-1"
         });
         expect(deps.calls.slice(-3)).toEqual(["complete", "repair", "complete"]);
-    });
-});
-
-describe("unsupported task evidence rejection", () => {
-    const resolverInput = {
-        state: { id: "meeting-1", version: 1 } as never,
-        meetingId: "meeting-1",
-        participantId: "participant-1"
-    };
-
-    it("accepts no task evidence and rejects non-empty task IDs", () => {
-        expect(rejectUnsupportedTaskEvidence.resolve({ ...resolverInput, taskIds: [] })).toEqual(
-            []
-        );
-        expect(() =>
-            rejectUnsupportedTaskEvidence.resolve({ ...resolverInput, taskIds: ["task-1"] })
-        ).toThrowError(expect.objectContaining({ code: "UNSUPPORTED_CAPABILITY" }));
     });
 });
 

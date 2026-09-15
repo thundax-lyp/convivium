@@ -5,7 +5,6 @@ import type { DomainFacility } from "@deepseek-ai/dsh-storage-domain";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { DomainFacilityPort } from "@/repository/domain/domain-repository-registry.js";
 import type { RepositoryAuthorizationValidator } from "@/runtime/meeting-runtime.js";
-import type { AuthorizedTaskEvidenceResolver } from "@/runtime/task-evidence.js";
 import type { AgentCatalogPort } from "@/runtime/services/agent-catalog.js";
 import type { DeveloperMarkdownWarning } from "@/runtime/services/developer-markdown-service.js";
 import type { MeetingOwnershipLookup } from "@/dsh/index.js";
@@ -209,7 +208,6 @@ export interface CreateStatusRuntimeOptions {
     readonly speakerAttemptTimeoutMs?: number;
     readonly signal?: AbortSignal;
     readonly now?: () => number;
-    readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
     readonly timeoutScanSleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
     readonly agentCatalog?: AgentCatalogPort;
     readonly developerMarkdown?: {

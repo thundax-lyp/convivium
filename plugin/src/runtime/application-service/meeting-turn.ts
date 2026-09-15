@@ -6,9 +6,7 @@ import type {
 import { commandFailure as failure } from "@/runtime/services/command-result-service.js";
 import type { MeetingRepositoryRuntime } from "@/runtime/meeting-runtime.js";
 import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
-import type { MeetingDeliveryWorkerService } from "@/runtime/services/types.js";
-import type { AuthorizedTaskEvidenceResolver } from "@/runtime/task-evidence.js";
-import type { CreateStatusRuntimeOptions, MeetingToolRuntime } from "./index.js";
+import type { MeetingToolRuntime } from "./index.js";
 import type { StoredMeeting } from "./types.js";
 
 export { assignTurnAttempt } from "./initialize-meeting-turn.js";
@@ -26,11 +24,8 @@ export interface ManagerFallbackInput {
 }
 
 export interface MeetingTurnApplicationOptions {
-    readonly options: CreateStatusRuntimeOptions;
     readonly meetings: Map<string, StoredMeeting>;
     readonly recovery: MeetingRehydrationService;
-    readonly deliveryWorkers: MeetingDeliveryWorkerService;
-    readonly taskEvidenceResolver: AuthorizedTaskEvidenceResolver;
 }
 
 export function createMeetingTurnApplication(dependencies: MeetingTurnApplicationOptions) {
