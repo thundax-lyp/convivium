@@ -89,8 +89,9 @@ describe("application checkpoint", () => {
         await domain.table("checkpoint_pages").delete(pageKey(pointer.generation, 0));
         expect(() => loadProjection({ domain })).toThrow();
     });
-    it("rejects page, root, pointer and projection digest mismatch", async () => {
-        for (const kind of ["page", "root", "pointer", "projection"] as const) {
+    it.each(["page", "root", "pointer", "projection"] as const)(
+        "rejects %s digest mismatch",
+        async (kind) => {
             const domain = createFakeMeetingDomain();
             const pointer = await writeCheckpoint({
                 domain,
@@ -122,7 +123,7 @@ describe("application checkpoint", () => {
             }
             expect(() => loadProjection({ domain })).toThrow();
         }
-    });
+    );
     it("refuses a stale generation without publishing or deleting", async () => {
         const domain = createFakeMeetingDomain();
         const high = await writeCheckpoint({
@@ -143,7 +144,11 @@ describe("application checkpoint", () => {
         expect(domain.table("checkpoint_pointer").get("current")).toEqual(high);
         expect(domain.deleteCalls.length).toBe(calls);
     });
-    it("keeps the old pointer when a checkpoint page put fails", async () => {
+    it.each([
+        ["checkpoint page", "checkpoint_pages", (gen: string) => pageKey(gen, 0)],
+        ["checkpoint root", "checkpoint_roots", (gen: string) => gen],
+        ["pointer", "checkpoint_pointer", () => "current"]
+    ] as const)("keeps the old pointer when %s put fails", async (_name, table, keyFor) => {
         const domain = createFakeMeetingDomain();
         const old = await writeCheckpoint({
             domain,
@@ -152,37 +157,7 @@ describe("application checkpoint", () => {
             createdAt: 1
         });
         const next = makeProjection("next");
-        domain.failNextPut("checkpoint_pages", pageKey(generation(2, projectionDigest(next)), 0));
-        await expect(
-            writeCheckpoint({ domain, projection: next, baseSeq: 2, createdAt: 2 })
-        ).rejects.toThrow();
-        expect(domain.table("checkpoint_pointer").get("current")).toEqual(old);
-    });
-    it("keeps the old pointer when checkpoint root put fails", async () => {
-        const domain = createFakeMeetingDomain();
-        const old = await writeCheckpoint({
-            domain,
-            projection: makeProjection(),
-            baseSeq: 1,
-            createdAt: 1
-        });
-        const next = makeProjection("next");
-        domain.failNextPut("checkpoint_roots", generation(2, projectionDigest(next)));
-        await expect(
-            writeCheckpoint({ domain, projection: next, baseSeq: 2, createdAt: 2 })
-        ).rejects.toThrow();
-        expect(domain.table("checkpoint_pointer").get("current")).toEqual(old);
-    });
-    it("keeps the old pointer when pointer put fails", async () => {
-        const domain = createFakeMeetingDomain();
-        const old = await writeCheckpoint({
-            domain,
-            projection: makeProjection(),
-            baseSeq: 1,
-            createdAt: 1
-        });
-        const next = makeProjection("next");
-        domain.failNextPut("checkpoint_pointer", "current");
+        domain.failNextPut(table, keyFor(generation(2, projectionDigest(next))));
         await expect(
             writeCheckpoint({ domain, projection: next, baseSeq: 2, createdAt: 2 })
         ).rejects.toThrow();

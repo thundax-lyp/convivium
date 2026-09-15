@@ -5,12 +5,7 @@ import {
     applyCompletionClaims,
     transitionMeeting
 } from "@/domain/index.js";
-import {
-    meeting as domainMeeting,
-    now,
-    now as localNow,
-    meeting as lifecycleMeeting
-} from "../unit/domain/transitions/fixtures.js";
+import { meeting as domainMeeting, now } from "../unit/domain/transitions/fixtures.js";
 import { createMeetingDomainSpec } from "@/repository/domain/specs.js";
 import { createLocalDecisionRiskState } from "../fixtures/local-decision-risk.js";
 import type { MeetingState } from "@/domain/model.js";
@@ -371,7 +366,7 @@ it("local control commits roll back and reopen", async () => {
             teamId: "team-1",
             meetingId: "meeting-1",
             authorizationValidator: allow,
-            now: () => localNow
+            now: () => now
         });
     let repository = await open();
     const create = {
@@ -381,7 +376,7 @@ it("local control commits roll back and reopen", async () => {
         initialState: JSON.parse(
             JSON.stringify({ ...createLocalDecisionRiskState(), meetingTasks: [] })
         ) as JsonObject,
-        createdAt: localNow
+        createdAt: now
     };
     const context = {
         meetingId: "meeting-1",
@@ -389,7 +384,7 @@ it("local control commits roll back and reopen", async () => {
         authority: "local_host" as const,
         reason: "Reviewed evidence",
         evidenceMessageIds: ["message-1"],
-        now: localNow
+        now
     };
     const authorization = {
         callerBinding: context.actorBinding,
@@ -433,7 +428,7 @@ it("local control commits roll back and reopen", async () => {
                                   participantId: "local_host",
                                   assertedBy: context.actorBinding,
                                   riskAuthority: "local_host",
-                                  now: localNow,
+                                  now,
                                   authorizedTaskIds: [],
                                   factId: (_kind, n) => `completion-${requestId}-risk-${n}`,
                                   claims: {
@@ -493,7 +488,7 @@ it("local control commits roll back and reopen", async () => {
                 lifecycleStatus: "active",
                 capabilityStatus: "active"
             },
-            localNow
+            now
         );
         await repository.completeCreate(create);
         const receipts = [];
@@ -552,20 +547,20 @@ it("local control commits roll back and reopen", async () => {
                         target,
                         target === "partial"
                             ? {
-                                  now: localNow,
+                                  now,
                                   termination: {
-                                      ...lifecycleMeeting("partial").termination!,
+                                      ...domainMeeting("partial").termination!,
                                       code: "captain_accepted"
                                   }
                               }
                             : target === "archiving"
                               ? {
-                                    now: localNow,
+                                    now,
                                     archive: {
-                                        package: materializeArchivePackage(source, localNow)
+                                        package: materializeArchivePackage(source, now)
                                     }
                                 }
-                              : { now: localNow, archive: { archivedAt: localNow } }
+                              : { now, archive: { archivedAt: now } }
                     );
                     return {
                         state: transition.state as unknown as JsonObject,
