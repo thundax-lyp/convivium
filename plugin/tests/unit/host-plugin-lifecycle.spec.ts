@@ -168,10 +168,10 @@ describe("Convivium local Meeting route lifecycle", () => {
             "ConviviumRemoteService"
         ]);
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.effects).toHaveLength(21);
+        expect(fixture.effects).toHaveLength(23);
         await fixture.dispose();
         expect(fixture.routeDispose).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(20);
+        expect(fixture.toolDisposers).toHaveLength(22);
         expect(fixture.get).toHaveBeenCalledTimes(1);
         expect(fixture.get).toHaveBeenCalledWith("convivium.agentCatalog");
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
@@ -180,7 +180,7 @@ describe("Convivium local Meeting route lifecycle", () => {
     it("registers meeting tools without a WebServer", async () => {
         const fixture = await host(undefined);
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(20);
+        expect(fixture.toolDisposers).toHaveLength(22);
         await fixture.dispose();
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
@@ -214,9 +214,9 @@ describe("Convivium local Meeting route lifecycle", () => {
     it("does not register Meeting routes on all interfaces", async () => {
         const fixture = await host("0.0.0.0");
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.effects).toHaveLength(21);
+        expect(fixture.effects).toHaveLength(23);
         await fixture.dispose();
-        expect(fixture.toolDisposers).toHaveLength(20);
+        expect(fixture.toolDisposers).toHaveLength(22);
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
@@ -288,7 +288,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await vi.waitFor(() =>
                     expect(
                         root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                    ).toBe(20)
+                    ).toBe(22)
                 );
                 const register = vi.fn(() => vi.fn());
                 const web = await root.plugin({
@@ -301,7 +301,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await web.dispose();
                 expect(
                     root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                ).toBe(20);
+                ).toBe(22);
                 await root.plugin({
                     name: "test-web-server-again",
                     apply(ctx) {

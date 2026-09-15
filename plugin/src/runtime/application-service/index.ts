@@ -1,6 +1,13 @@
 import { emitDiagnostic } from "@/repository/diagnostics.js";
+import { randomUUID } from "node:crypto";
 import { reconcileMeetingSessions } from "@/runtime/services/meeting-session-recovery.js";
 import { createMeetingAttendanceApplication } from "./meeting-attendance.js";
+import { createMeetingContributionApplication } from "./meeting-contribution.js";
+import {
+    scanContributionTimeouts,
+    recoverContributionWork,
+    recordContributionDeliveryFailure
+} from "@/runtime/services/contribution-runtime-service.js";
 import {
     DomainError,
     failSpeakerAttempt,
@@ -39,7 +46,6 @@ import { createMeetingDecisionApplication } from "./meeting-decision.js";
 import { createMeetingAgendaCandidateApplication } from "./meeting-agenda-candidate.js";
 import type { StoredMeeting } from "./types.js";
 import { captureManagerCatalogBinding } from "@/runtime/services/agent-catalog.js";
-import { meetingTaskEvidenceResolver } from "@/runtime/task-evidence.js";
 import { createMeetingRefreshFeed } from "@/runtime/services/meeting-refresh-feed.js";
 
 import type {
@@ -113,6 +119,8 @@ export function createCreateStatusRuntime(
         repositoryRegistry
     };
     const meetings = new Map<string, StoredMeeting>();
+    const contributionRecoveryEpoch = randomUUID();
+    const recoveredContributionMeetings = new Set<string>();
     const deliveryWorkers = createMeetingDeliveryWorkerService({
         pollMs: options.outboxPollMs ?? 1_000,
         now: options.now
@@ -122,7 +130,6 @@ export function createCreateStatusRuntime(
         now: options.now
     });
     const runtimeController = new AbortController();
-    const taskEvidenceResolver = options.taskEvidenceResolver ?? meetingTaskEvidenceResolver;
     const signal =
         options.signal === undefined
             ? runtimeController.signal
@@ -196,6 +203,12 @@ export function createCreateStatusRuntime(
                       const parent =
                           parentId === undefined ? undefined : options.getCaptainParent!(parentId);
                       const lifecycle = resolveArchiveCleanupRuntime(options.continuable);
+                      if (
+                          parent === undefined &&
+                          isMeetingStateV2(recovered.snapshot?.state) &&
+                          recovered.snapshot.state.contributions !== undefined
+                      )
+                          return;
                       if (parent === undefined || lifecycle === undefined) {
                           const errorCode =
                               parent === undefined
@@ -240,6 +253,25 @@ export function createCreateStatusRuntime(
         async rehydrate(mode) {
             const knownMeetingIds = new Set(meetings.keys());
             const snapshots = await repositoryRecovery.rehydrate(mode);
+            for (const [meetingId, stored] of meetings) {
+                if (
+                    stored.parent === undefined ||
+                    recoveredContributionMeetings.has(meetingId) ||
+                    creatingMeetings.has(meetingId)
+                )
+                    continue;
+                const snapshot = await stored.repository.read();
+                if (!isMeetingStateV2(snapshot.state) || snapshot.state.contributions === undefined)
+                    continue;
+                await recoverContributionWork({
+                    repository: stored.repository,
+                    now: options.now?.() ?? Date.now(),
+                    recoveryEpoch: contributionRecoveryEpoch
+                });
+                recoveredContributionMeetings.add(meetingId);
+                snapshots?.set(meetingId, await stored.repository.read());
+                ensureWorker(stored);
+            }
             if (mode !== undefined && mode.kind !== "agent_best_effort") return snapshots;
             for (const [meetingId, stored] of meetings) {
                 if (knownMeetingIds.has(meetingId)) continue;
@@ -295,6 +327,17 @@ export function createCreateStatusRuntime(
                 });
             stored.parent = caller.agent;
         }
+        if (!recoveredContributionMeetings.has(stored.repository.meetingId)) {
+            const snapshot = await stored.repository.read();
+            if (isMeetingStateV2(snapshot.state) && snapshot.state.contributions !== undefined) {
+                await recoverContributionWork({
+                    repository: stored.repository,
+                    now: options.now?.() ?? Date.now(),
+                    recoveryEpoch: contributionRecoveryEpoch
+                });
+                recoveredContributionMeetings.add(stored.repository.meetingId);
+            }
+        }
         ensureWorker(stored);
         await recoverArchive({
             onDiagnostic: options.onDiagnostic,
@@ -315,6 +358,19 @@ export function createCreateStatusRuntime(
                 "Local meeting archive recovery is unavailable."
             );
         }
+    }
+
+    async function recoverContributionArchive(stored: StoredMeeting, now: number): Promise<void> {
+        const snapshot = await stored.repository.read();
+        if (!isMeetingStateV2(snapshot.state) || snapshot.state.contributions === undefined) return;
+        await recoverArchive({
+            onDiagnostic: options.onDiagnostic,
+            repository: stored.repository,
+            parent: stored.parent,
+            runtime: resolveArchiveCleanupRuntime(options.continuable),
+            signal,
+            now
+        });
     }
 
     async function recoverArchiveForLocal(stored: StoredMeeting): Promise<void> {
@@ -357,6 +413,8 @@ export function createCreateStatusRuntime(
             },
             scan: async (now) => {
                 if (stored.parent === undefined) return;
+                await scanContributionTimeouts({ repository: stored.repository, now });
+                await recoverContributionArchive(stored, now);
                 await scanMeetingMailTimeouts({
                     repository: stored.repository,
                     parent: stored.parent,
@@ -366,6 +424,15 @@ export function createCreateStatusRuntime(
             },
             onTerminalFailure: async (item, _errorCode, failedAt) => {
                 const payload = item.payload as { role?: string; planningAttemptId?: string };
+                if (payload.role === "contribution" || payload.role === "contribution_manager") {
+                    await recordContributionDeliveryFailure({
+                        repository: stored.repository,
+                        item,
+                        errorCode: _errorCode,
+                        now: failedAt
+                    });
+                    return;
+                }
                 if (payload.role !== "manager" || payload.planningAttemptId === undefined) return;
                 const snapshot = await stored.repository.read();
                 const attempt = (snapshot.state as unknown as MeetingState).manager
@@ -391,19 +458,16 @@ export function createCreateStatusRuntime(
         recovery,
         deliveryWorkers,
         ensureWorker,
+        markContributionRecovered: (meetingId) => recoveredContributionMeetings.add(meetingId),
         signal
     });
     const taskApplication = createMeetingTaskApplication({
-        options: runtimeOptions,
         meetings,
         recovery
     });
     const turnApplication = createMeetingTurnApplication({
-        options: runtimeOptions,
         meetings,
-        recovery,
-        deliveryWorkers,
-        taskEvidenceResolver
+        recovery
     });
     fallbackManagerPlanning.current = turnApplication.fallbackManagerPlanning;
     const controlApplication = createMeetingControlApplication({
@@ -423,16 +487,19 @@ export function createCreateStatusRuntime(
         recoverArchiveForLocal
     });
     const mailApplication = createMeetingMailApplication({
-        options: runtimeOptions,
         meetings,
-        recovery,
-        deliveryWorkers,
-        ensureWorker
+        recovery
     });
     const attendanceApplication = createMeetingAttendanceApplication({
         options: runtimeOptions,
         meetings,
         recovery
+    });
+    const contributionApplication = createMeetingContributionApplication({
+        options,
+        meetings,
+        recovery,
+        deliveryWorkers
     });
     const decisionApplication = createMeetingDecisionApplication({
         options: runtimeOptions,
@@ -456,6 +523,16 @@ export function createCreateStatusRuntime(
             try {
                 const parent = stored.parent;
                 if (parent === undefined) continue;
+                const contributionSnapshot = await stored.repository.read();
+                if (
+                    isMeetingStateV2(contributionSnapshot.state) &&
+                    contributionSnapshot.state.contributions !== undefined
+                ) {
+                    await scanContributionTimeouts({ repository: stored.repository, now });
+                    await recoverContributionArchive(stored, now);
+                    deliveryWorkers.wake(stored.repository.meetingId);
+                    continue;
+                }
                 await scanMeetingMailTimeouts({
                     repository: stored.repository,
                     parent,
@@ -669,6 +746,7 @@ export function createCreateStatusRuntime(
 
     return {
         watchLocalMeetingUpdates: (watchSignal) => refreshFeed.watch(watchSignal),
+        ...contributionApplication,
         createMeeting,
         sendMeetingMessage: mailApplication.sendMeetingMessage,
         finishMeetingMail: mailApplication.finishMeetingMail,

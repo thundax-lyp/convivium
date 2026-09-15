@@ -5,6 +5,7 @@ export {
     transitionTurn
 } from "./kernel.js";
 export { transitionMeeting } from "./meeting.js";
+export { contributionArchiveReferences } from "./archive.js";
 export { endMeeting, type EndMeetingTransitionContext } from "./termination.js";
 export {
     startManagerPlanning,
@@ -29,6 +30,12 @@ export {
 export { disposeDecision, type DisposeDecisionInput } from "./decision-disposition.js";
 export { applySubmittedProposalPositionClaims } from "./proposal-position.js";
 export { submitSpeakerAndAdvanceMeeting } from "./speaker-submission.js";
+export {
+    applyPublicSubmission,
+    assertPublicMinutes,
+    type PublicSubmissionContext
+} from "./public-submission.js";
+export { applyContributionCommand, type ContributionTransitionContext } from "./contribution.js";
 export type {
     StartManagerPlanningContext,
     SubmitManagerPlanContext,

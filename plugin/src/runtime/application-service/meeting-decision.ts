@@ -7,6 +7,12 @@ import type {
     ProtocolSuccessV1
 } from "@/protocol/index.js";
 import { acceptDecisionCandidate, disposeDecision } from "@/domain/index.js";
+import { evaluateContributionProgress } from "@/domain/index.js";
+import type { DomainEvent, MeetingState } from "@/domain/index.js";
+import {
+    contributionOutbox,
+    interruptCancelledContributions
+} from "@/runtime/services/contribution-runtime-service.js";
 import { serializeValidatedRequestV1 } from "@/protocol/index.js";
 import type { MeetingToolCaller, MeetingToolRuntime, CreateStatusRuntimeOptions } from "./index.js";
 import type { MeetingRehydrationService } from "@/runtime/services/meeting-recovery-service.js";
@@ -99,6 +105,7 @@ export function createMeetingDecisionApplication({
                 : failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can accept a decision.");
         try {
             const now = options.now?.() ?? Date.now();
+            let committedEvents: readonly DomainEvent[] = [];
             const committed = await stored.repository.execute({
                 requestId: input.requestId,
                 commandKind: "accept_decision",
@@ -128,8 +135,10 @@ export function createMeetingDecisionApplication({
                         now
                     });
                     const decision = result.state.decisions.at(-1)!;
+                    const progress = evaluateContributionProgress(result.state, now);
+                    committedEvents = [...result.effect.events, ...progress.effect.events];
                     return {
-                        state: result.state as unknown as JsonObject,
+                        state: progress.state as unknown as JsonObject,
                         result: {
                             requestId: input.requestId,
                             decisionCandidateId: input.decisionCandidateId,
@@ -138,10 +147,22 @@ export function createMeetingDecisionApplication({
                             proposalRevision: decision.proposalRevision,
                             completionFactId: `completion-${input.decisionCandidateId}-acceptance`
                         },
-                        events: result.effect.events as never,
-                        outbox: []
+                        events: [...result.effect.events, ...progress.effect.events] as never,
+                        outbox: [
+                            ...contributionOutbox(
+                                snapshot.state as unknown as MeetingState,
+                                progress.state,
+                                committedEvents
+                            )
+                        ]
                     };
                 }
+            });
+            await interruptCancelledContributions({
+                repository: stored.repository,
+                parent: stored.parent,
+                runtime: options.continuable,
+                events: committedEvents
             });
             return success(
                 input.meetingId,
@@ -173,6 +194,7 @@ export function createMeetingDecisionApplication({
                   );
         try {
             const now = options.now?.() ?? Date.now();
+            let committedEvents: readonly DomainEvent[] = [];
             const committed = await stored.repository.execute({
                 requestId: input.requestId,
                 commandKind: "dispose_decision",
@@ -220,8 +242,10 @@ export function createMeetingDecisionApplication({
                                   evidenceMessageIds: input.evidenceMessageIds,
                                   now
                               });
+                    const progress = evaluateContributionProgress(transition.state, now);
+                    committedEvents = [...transition.effect.events, ...progress.effect.events];
                     return {
-                        state: transition.state as unknown as JsonObject,
+                        state: progress.state as unknown as JsonObject,
                         result: {
                             requestId: input.requestId,
                             decisionId: input.decisionId,
@@ -233,15 +257,27 @@ export function createMeetingDecisionApplication({
                                   }
                                 : {})
                         },
-                        events: transition.effect.events as never,
-                        outbox: []
+                        events: [...transition.effect.events, ...progress.effect.events] as never,
+                        outbox: [
+                            ...contributionOutbox(
+                                snapshot.state as unknown as MeetingState,
+                                progress.state,
+                                committedEvents
+                            )
+                        ]
                     } satisfies {
                         state: JsonObject;
                         result: CaptainDecisionDispositionResultV1;
                         events: never;
-                        outbox: never[];
+                        outbox: ReturnType<typeof contributionOutbox>;
                     };
                 }
+            });
+            await interruptCancelledContributions({
+                repository: stored.repository,
+                parent: stored.parent,
+                runtime: options.continuable,
+                events: committedEvents
             });
             return success(
                 input.meetingId,

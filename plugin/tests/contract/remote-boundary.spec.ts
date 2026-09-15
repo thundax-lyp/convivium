@@ -121,6 +121,37 @@ function runtimeFixture() {
                 meetingStatus: "running"
             }
         }),
+        readLocalContribution: method("readContribution", {
+            ...base,
+            ok: true as const,
+            result: {
+                task: {
+                    id: "contribution-1",
+                    participantId: "participant-1",
+                    agendaItemId: "agenda-1",
+                    phase: "preparing",
+                    generation: 1,
+                    currentDraftRevision: 0,
+                    requiredForCompletion: true,
+                    requiresEvidenceReview: false,
+                    reviewStatus: "not_required",
+                    deadlineAt: 100
+                },
+                drafts: [],
+                boundaryReviews: [],
+                evidenceReviews: []
+            }
+        }),
+        controlLocalContribution: method("controlContribution", {
+            ...base,
+            ok: true as const,
+            meetingVersion: 3,
+            result: {
+                contributionId: "contribution-1",
+                generation: 2,
+                phase: "preparing"
+            }
+        }),
         watchLocalMeetingUpdates: (signal: AbortSignal) => {
             streamSignal = signal;
             return {
@@ -275,6 +306,67 @@ describe("Remote Gateway boundary", () => {
         ).rejects.toMatchObject({ code: "convivium/invalid-request" });
         expect(fixture.calls.get("reassign")).toHaveBeenCalledOnce();
         expect(fixture.calls.get("disposeDecision")).toHaveBeenCalledOnce();
+    });
+
+    it("forwards contribution reads and only the three local control actions with cancellation", async () => {
+        const fixture = runtimeFixture();
+        gateway = await createRemoteGateway(fixture.runtime);
+        const read = {
+            protocolVersion: 1,
+            meetingId,
+            contributionId: "contribution-1"
+        };
+        const controller = new AbortController();
+        await expect(
+            gateway.invoke("readContribution", { input: read }, controller.signal)
+        ).resolves.toEqual(fixture.results.get("readContribution"));
+        expect(fixture.calls.get("readContribution")).toHaveBeenCalledExactlyOnceWith(
+            read,
+            controller.signal
+        );
+
+        for (const control of [
+            {
+                ...input,
+                action: "retry",
+                contributionId: "contribution-1",
+                generation: 1,
+                reason: "retry"
+            },
+            {
+                ...input,
+                action: "cancel",
+                contributionId: "contribution-1",
+                generation: 1,
+                reason: "cancel"
+            },
+            { ...input, action: "notify_manager", reason: "notify" }
+        ]) {
+            await expect(
+                gateway.invoke("controlContribution", { input: control }, controller.signal)
+            ).resolves.toEqual(fixture.results.get("controlContribution"));
+        }
+        expect(fixture.calls.get("controlContribution")).toHaveBeenCalledTimes(3);
+        expect(fixture.calls.get("controlContribution")).toHaveBeenLastCalledWith(
+            { ...input, action: "notify_manager", reason: "notify" },
+            controller.signal
+        );
+
+        await expect(
+            gateway.invoke("controlContribution", {
+                input: {
+                    ...input,
+                    action: "boundary_review",
+                    contributionId: "contribution-1",
+                    generation: 1,
+                    draftRevision: 1,
+                    decision: "approve",
+                    reason: "impersonate",
+                    checkedThroughSeq: 0
+                }
+            })
+        ).rejects.toMatchObject({ code: "gateway/input-invalid" });
+        expect(fixture.calls.get("controlContribution")).toHaveBeenCalledTimes(3);
     });
 
     it("rejects extra fields before Runtime invocation", async () => {

@@ -24,6 +24,8 @@ export {
     followupMeetingTaskSession,
     followupMeetingMailSession,
     followupManagerSession,
+    followupContributionSession,
+    type FollowupContributionSessionInput,
     interruptAndDrainOwnedSessions,
     inspectOwnedSessions,
     proveArchiveOwnedChildren,

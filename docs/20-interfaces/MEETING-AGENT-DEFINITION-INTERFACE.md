@@ -66,11 +66,11 @@ interface MeetingAgentDefinitionsDocumentV1 {
 
 ### Definition fields
 
-所有字段除 toolFilter 外 required，不接受 null 或未知字段。ID、version、displayName、summary、roleDescription、dshPresetId 是非空字符串；roleDescription 拒绝 `{{` 模板语法。requiredSkillNames 与 expertiseTags 至少一项、元素非空且无重复；evidenceScopes 可空但不得重复。数组最多 64 项，ID 唯一，每项完整 JSON UTF-8 不超过 16 KiB；返回深拷贝和冻结结果。
+所有字段除 toolFilter 外 required，不接受 null 或未知字段。ID、version、displayName、summary、roleDescription、dshPresetId 是非空字符串；roleDescription 拒绝 `{{` 模板语法。requiredSkillNames 可空，expertiseTags 至少一项；两者的元素均非空且无重复。evidenceScopes 可空但不得重复。数组最多 64 项，ID 唯一，每项完整 JSON UTF-8 不超过 16 KiB；返回深拷贝和冻结结果。
 
 summary 是 Manager 可见的一句话参会价值，不包含私有正文、凭据或配置。roleDescription 只描述会议职责、预期贡献、会议输出和行为边界，不承载通用检索/编码/验证方法。expertiseTags 是推荐元数据；evidenceScopes 是研究来源范围，不是访问权限、真实引用或参会 provenance。
 
-dshPresetId 是共享父 Preset 的相等断言，不是选择另一个 Preset 的指令。requiredSkillNames 是 DSH 原生 Skill 名称，不是版本 wrapper、正文注入或独占 Skill 白名单。
+dshPresetId 是共享父 Preset 的相等断言，不是选择另一个 Preset 的指令。requiredSkillNames 是 DSH 原生 Skill 名称，不是版本 wrapper、正文注入或独占 Skill 白名单；空数组表示该角色只使用 Preset、persona 和工具上限，不声称额外 Skill 能力。
 
 toolFilter 只接受 optional allow/deny 字符串数组，至少一个键；元素非空且不重复，数组可空。省略表示不增加 Definition 级限制；allow: [] 表示隐藏全部继承工具。global 与祖先 scope（含 Preset）的工具均参与过滤，当前 child 自己注册的工具保留。它不授予工具，也不替代文件、网络或操作系统隔离；最终资源权限由 DSH policy 决定。
 
@@ -82,13 +82,15 @@ map 的 key 必须存在于同一配置的 agentDefinitions 中，最多 64 项�
 
 ### Creation conversion
 
-resolver 输出仍为 DSH 接口使用的 persona/toolFilter/agentOptions，不把 DSH 的 persona 字段改名。persona 的固定构造为：
+resolver 输出仍为 DSH 接口使用的 persona/toolFilter/agentOptions，不把 DSH 的 persona 字段改名。requiredSkillNames 非空时，persona 的固定构造为：
 
 ```ts
 roleDescription + "\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载："
     + requiredSkillNames.join("、")
     + "。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。"
 ```
+
+requiredSkillNames 为空时 persona 就是 roleDescription，不注入空的 Skill 加载指令，能力预检也不要求 Skill service。两条路径仍必须验证相同的 dshPresetId。
 
 模型通过原生 `skill` 工具加载正文；Convivium 不在 resolver 注入 Skill body、不自动调用工具、不监听加载顺序形成会议状态。发布验收必须观察原生 Session 的成功 tool/result，不能用 get 成功代替模型加载证据。
 

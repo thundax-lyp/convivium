@@ -32,6 +32,8 @@ describe("generated Remote contract", () => {
                 "acceptDecision",
                 "disposeDecision",
                 "disposeRisk",
+                "readContribution",
+                "controlContribution",
                 "watchUpdates"
             ]) {
                 expect(firstClient).toContain(method);

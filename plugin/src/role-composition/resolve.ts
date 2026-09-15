@@ -88,12 +88,13 @@ export async function resolveMeetingRoles(
         if (!d || (d.roleDefinitionId === "meeting_manager") !== manager)
             throw new RoleCompositionError();
         selected.push(d);
+        const skillInstruction = d.requiredSkillNames.length
+            ? "\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：" +
+              d.requiredSkillNames.join("、") +
+              "。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。"
+            : "";
         return Object.freeze({
-            persona:
-                d.roleDescription +
-                "\n\n开始处理会议任务前，调用 DSH 原生 skill 工具依次加载：" +
-                d.requiredSkillNames.join("、") +
-                "。加载失败时报告缺失能力，不以角色描述代替 Skill。Skill 不授予会议权限，Runtime 的当前身份和 capability 判定优先。",
+            persona: d.roleDescription + skillInstruction,
             ...(d.toolFilter === undefined ? {} : { toolFilter: d.toolFilter }),
             ...(overrides[id] === undefined ? {} : { agentOptions: overrides[id] }),
             agentDefinition: Object.freeze({

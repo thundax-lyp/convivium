@@ -81,13 +81,13 @@ MeetingClient 另有 `openUpdates(onUnavailable: () => void): RemoteStream<Meeti
 
 刷新调度器仍在 panel 内：一个 reading 标志、一个 dirty 标志与现有 writePendingRef。通知、focus、选择变化、写后均调用同一个 requestRefresh：置 dirty；读或写进行中暂不启动；空闲时清 dirty 并执行 list + 当前选中 detail 完整读取。读结束若 dirty 再读；写 finally 同样驱动 dirty。所选 ID 及请求 generation 仍作为提交 UI 的 fence。只有当前 generation 的 list 和当前选择 detail 同时校验成功、订阅未失效时才解除 stale；没有选择时只需 list。失败保留最后已验证数据。数据本身仍是完整替换，不合并部分通知内容。
 
-## Smoke Transport
+## Smoke Transport（历史基线）
 
-既有 profile baseline 与 scribe-minutes 的 HTTP probe 改为真实 DSH Connection RPC，不能改为直接调用 Runtime/Gateway 来宣称 carrier PASS。`probe/support.js` 新 `createRemoteProbe(connection, origin)` 建立一个测试会话：fetch `connection.authenticatedUrl(origin + "/")`、redirect=manual，要求 303，从 Set-Cookie 仅取 cookie name/value，后续请求复用；不得输出 token/cookie。probe 的 inject 新增 connection。
+本节记录当时 profile baseline 与 scribe-minutes 的真实 DSH Connection RPC 验证方案；这两个旧 probe 已随贡献切片替换而退役，其源码不属于当前 smoke 入口。当前真实运行以[最小并行协作证据](../40-readiness/MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)和[冒烟操作入口](../50-operations/HOW-TO-DSH-SMOKE.md#最小并行贡献的真实运行与恢复)为准。历史方案不能改为直接调用 Runtime/Gateway 来宣称当时的 carrier PASS。原 `probe/support.js` 的 `createRemoteProbe(connection, origin)` 曾建立测试会话：fetch `connection.authenticatedUrl(origin + "/")`、redirect=manual，要求 303，从 Set-Cookie 仅取 cookie name/value，后续请求复用；不得输出 token/cookie。probe 的 inject 当时新增 connection。
 
 返回 `callRemote(method, input)`：POST `${origin}/api/conviviumMeetings/${method}`，content-type JSON，带会话 cookie 和匹配 origin；body 为 `{type:"client-request",rpcId,method:"conviviumMeetings/"+method,payload:{args: input === undefined ? {} : {input}}}`。rpcId 使用 probe 局部递增序号，不用业务 requestId。校验 HTTP 200、`type:"server-response"`、相同 rpcId、外层 result.ok 后返回 result.value，再保留原业务断言。没有 legacy fallback。它验证真实 unary carrier；真实 stream 另由 baseline 的 WebSocket gate 验证，不得从 unary probe 推断。
 
-baseline marker 改为 `baseline-remote-pause-resume`，scribe marker 改为 `minutes-remote-equal`，同时更新结果校验和对应脚本测试。其它场景的领域逻辑不改。固定真实 smoke 仅跑 baseline 与 scribe-minutes，完整领域回归由已有 verify 提供；本次不增加模型请求。
+历史 baseline marker 为 `baseline-remote-pause-resume`，scribe marker 为 `minutes-remote-equal`，对应结果只适用于当时源码边界。当前 fixed smoke 只接受 `parallel-contribution` 与 `parallel-contribution-model`；后者实际调用真实模型，不能从本历史方案推断它的验证结论。
 
 baseline 另外使用测试专用 `ws=8.18.3`（plugin dev 和临时 probe dependency，非产品 peer）与同一次认证 cookie 建立 `/api/remote.mux` 订阅。pause 后验证 refresh 和完整状态，关闭实际 socket 后 resume，重开订阅并消费首帧，再补读完整 list/detail 验证 running/version，finally 关闭所有 socket；marker 为 `baseline-remote-stream-reconnect`。该 gate 验证实际 carrier 与提交链；正式 RemoteStream 和 UI 禁写/恢复另由类型检查与组件测试验证，不冒充真实浏览器自动重连端到端。
 

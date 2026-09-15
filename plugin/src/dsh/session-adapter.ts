@@ -323,6 +323,34 @@ export async function followupMeetingTaskSession(
     return sendAuthorizedMeetingMessage(input, (phase) => input.authorize(phase));
 }
 
+export interface FollowupContributionSessionInput {
+    readonly runtime: Pick<SubagentRuntime, "sendMessage">;
+    readonly parent: Agent;
+    readonly ownership: MeetingOwnershipRecord;
+    readonly expectedRole: "manager" | "participant";
+    readonly participantId?: string;
+    readonly prompt: ContinuableStartSpec["request"]["prompt"];
+    readonly signal: AbortSignal;
+    readonly authorize: (phase: "before" | "after") => Promise<void>;
+}
+
+export function followupContributionSession(
+    input: FollowupContributionSessionInput
+): Promise<ContinuableStart["messageId"]> {
+    if (
+        String(input.parent.id) !== input.ownership.parentSessionId ||
+        input.ownership.role !== input.expectedRole ||
+        input.ownership.lifecycleStatus !== "active" ||
+        input.ownership.capabilityStatus !== "active" ||
+        (input.expectedRole === "manager"
+            ? input.participantId !== undefined || input.ownership.participantId !== undefined
+            : input.participantId === undefined ||
+              input.participantId !== input.ownership.participantId)
+    )
+        throw new Error("Contribution followup requires the exact active owned Session.");
+    return sendAuthorizedMeetingMessage(input, input.authorize);
+}
+
 export async function followupManagerSession(
     input: FollowupManagerSessionInput
 ): Promise<ContinuableStart["messageId"]> {

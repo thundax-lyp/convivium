@@ -1,67 +1,3 @@
-import { openMeetingStream } from "./remote-stream.js";
-
-export function validateColdCheckpoint(value) {
-    if (value === null || typeof value !== "object") {
-        throw new Error("Cold checkpoint must be an object.");
-    }
-    const stringFields = [
-        "captainSessionId",
-        "meetingId",
-        "managerSessionId",
-        "participantSessionId",
-        "managerPlanningAttemptId"
-    ];
-    if (
-        value.schemaVersion !== 1 ||
-        !["cold-rebind", "role-composition"].includes(value.scenario) ||
-        value.phase !== 1
-    ) {
-        throw new Error("Cold checkpoint constants are invalid.");
-    }
-    if (value.scenario === "role-composition" && value.roleCompositionChecked !== true)
-        throw new Error("Role checkpoint was not verified.");
-    if (!Number.isInteger(value.hostPid) || value.hostPid <= 0) {
-        throw new Error("Cold checkpoint hostPid is invalid.");
-    }
-    if (!Number.isInteger(value.meetingVersion) || value.meetingVersion < 0) {
-        throw new Error("Cold checkpoint meetingVersion is invalid.");
-    }
-    if (
-        !Number.isInteger(value.managerPlanningMeetingVersion) ||
-        value.managerPlanningMeetingVersion !== value.meetingVersion
-    ) {
-        throw new Error("Cold checkpoint planning version is invalid.");
-    }
-    for (const field of stringFields) {
-        if (typeof value[field] !== "string" || value[field] === "") {
-            throw new Error(`Cold checkpoint ${field} is invalid.`);
-        }
-    }
-    if (value.captainSessionId !== "convivium-smoke-captain") {
-        throw new Error("Cold checkpoint Captain Session is invalid.");
-    }
-    if (
-        !Array.isArray(value.sessionIds) ||
-        value.sessionIds.length !== 2 ||
-        value.sessionIds[0] !== value.managerSessionId ||
-        value.sessionIds[1] !== value.participantSessionId
-    ) {
-        throw new Error("Cold checkpoint child Session IDs are invalid.");
-    }
-    if (
-        !Array.isArray(value.transcriptMessageIds) ||
-        value.transcriptMessageIds.length === 0 ||
-        value.transcriptMessageIds.some((id) => typeof id !== "string" || id === "")
-    ) {
-        throw new Error("Cold checkpoint transcript IDs are invalid.");
-    }
-    return Object.freeze({
-        ...value,
-        sessionIds: Object.freeze([...value.sessionIds]),
-        transcriptMessageIds: Object.freeze([...value.transcriptMessageIds])
-    });
-}
-
 export function createProbeSupport(outputPath) {
     function assert(condition, message) {
         if (!condition) throw new Error(message);
@@ -131,12 +67,6 @@ export function createProbeSupport(outputPath) {
         ];
     }
 
-    function messageText(message) {
-        return Array.isArray(message.content)
-            ? message.content.find((part) => part.type === "text")?.text
-            : message.content;
-    }
-
     function messageTexts(message) {
         if (!Array.isArray(message.content)) {
             return typeof message.content === "string" ? [message.content] : [];
@@ -152,44 +82,6 @@ export function createProbeSupport(outputPath) {
         createInput,
         writeResult,
         observedMessages,
-        messageText,
         messageTexts
-    };
-}
-
-export async function createRemoteProbe(connection, origin) {
-    const auth = await fetch(connection.authenticatedUrl(origin + "/"), { redirect: "manual" });
-    if (auth.status !== 303) throw new Error("Remote probe authentication failed.");
-    const cookie = auth.headers
-        .getSetCookie()
-        .map((value) => value.split(";", 1)[0])
-        .join("; ");
-    if (!cookie) throw new Error("Remote probe session cookie missing.");
-    let sequence = 0;
-    return {
-        openUpdates: () => openMeetingStream(origin, cookie),
-        async callRemote(method, input) {
-            const rpcId = "convivium-smoke-remote-" + ++sequence;
-            const response = await fetch(origin + "/api/conviviumMeetings/" + method, {
-                method: "POST",
-                headers: { "content-type": "application/json", cookie, origin },
-                body: JSON.stringify({
-                    type: "client-request",
-                    rpcId,
-                    method: "conviviumMeetings/" + method,
-                    payload: { args: input === undefined ? {} : { input } }
-                })
-            });
-            if (response.status !== 200)
-                throw new Error("Remote probe transport failed: " + response.status);
-            const message = await response.json();
-            if (
-                message.type !== "server-response" ||
-                message.rpcId !== rpcId ||
-                message.result?.ok !== true
-            )
-                throw new Error("Remote probe response contract failed.");
-            return message.result.value;
-        }
     };
 }

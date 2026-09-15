@@ -6,6 +6,7 @@ import type {
     MeetingState,
     MeetingMinutesDraft
 } from "./model.js";
+import { contributionReferencesBelongToMeeting } from "./contribution.js";
 
 const roleDefinitionIds: readonly AgentRoleDefinitionId[] = [
     "domain_architect",
@@ -33,6 +34,14 @@ function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): 
 
 function isStringArray(value: unknown): value is readonly string[] {
     return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isString(value: unknown): value is string {
+    return typeof value === "string" && value.trim() !== "";
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+    return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
 function isRoleDefinition(value: unknown): boolean {
@@ -243,6 +252,43 @@ export function isMeetingStateV2(value: unknown): value is MeetingState {
             return false;
     }
     if (!isRecord(value.manager)) return false;
+    if (!contributionReferencesBelongToMeeting(value as unknown as MeetingState)) return false;
+    const hasTurnOrigin = (message: Record<string, unknown>) =>
+        isNonNegativeInteger(message.turnSeq) &&
+        ["turnId", "stepId", "attemptId"].every((key) => isString(message[key]));
+    const hasContributionOrigin = (message: Record<string, unknown>) =>
+        isString(message.contributionId) &&
+        isNonNegativeInteger(message.contributionRevision) &&
+        message.contributionRevision >= 1;
+    for (const messages of [
+        value.transcript,
+        ...(archive === undefined ? [] : [archive.formalTranscript])
+    ]) {
+        if (
+            !Array.isArray(messages) ||
+            messages.some((message) => {
+                if (!isRecord(message)) return true;
+                const contribution = hasContributionOrigin(message);
+                const turn =
+                    archive === undefined || messages !== archive.formalTranscript
+                        ? hasTurnOrigin(message)
+                        : isString(message.turnId) && isString(message.stepId);
+                const turnKeys =
+                    messages === archive?.formalTranscript
+                        ? ["turnId", "stepId"]
+                        : ["turnSeq", "turnId", "stepId", "attemptId"];
+                return (
+                    turn === contribution ||
+                    (contribution && turnKeys.some((key) => message[key] !== undefined)) ||
+                    (turn &&
+                        ["contributionId", "contributionRevision"].some(
+                            (key) => message[key] !== undefined
+                        ))
+                );
+            })
+        )
+            return false;
+    }
     const attempt = value.manager.currentPlanningAttempt;
     return attempt === undefined || (isRecord(attempt) && isCatalogBinding(attempt.catalogBinding));
 }

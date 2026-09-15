@@ -7,6 +7,7 @@ export function createOfflineMeetingInput(): CreateMeetingInputV1 {
         teamId: "offline-team",
         topic: "Offline protocol preparation",
         objective: "A presents amber-47; B cites A from the delivered public context.",
+        evidenceReviewerKey: "b",
         selectionMode: "manager",
         objectiveContract: {
             requiredOutputs: [],
@@ -24,6 +25,7 @@ export function createOfflineMeetingInput(): CreateMeetingInputV1 {
                 inScope: ["public reference"],
                 outOfScope: ["network"],
                 completionCriteria: ["reference"],
+                relatedTaskIds: [],
                 requiredParticipantKeys: ["a", "b"]
             }
         ],
@@ -32,10 +34,7 @@ export function createOfflineMeetingInput(): CreateMeetingInputV1 {
             { participantKey: "b", displayName: "B" }
         ],
         limits: {
-            maxTurns: 2,
-            maxSpeakersPerTurn: 2,
-            maxTotalMessages: 4,
-            speakerAttemptTimeoutMs: 60000
+            maxTotalMessages: 4
         }
     };
 }

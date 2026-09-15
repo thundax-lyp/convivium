@@ -1,5 +1,11 @@
 export * from "./create.js";
 export * from "./completion.js";
+export * from "./contribution.js";
+export {
+    evaluateContributionProgress,
+    failContributionDelivery,
+    transitionContributionLifecycle
+} from "./transitions/contribution.js";
 export * from "./errors.js";
 export * from "./model.js";
 export { isMeetingStateV2 } from "./meeting-state-validation.js";

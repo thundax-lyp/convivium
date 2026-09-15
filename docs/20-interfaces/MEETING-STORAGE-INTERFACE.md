@@ -224,3 +224,7 @@ Captain/local 五种控制共享既有 command commit。local receipt 与 Captai
 - `docs/30-designs/MEETING-ORCHESTRATION-DESIGN.md`
 - `docs/20-interfaces/AGENT-MEETING-PROTOCOL-INTERFACE.md`
 - `docs/20-interfaces/MEETING-AGENT-DEFINITION-INTERFACE.md`
+
+## Minimal Contribution Persistence
+
+目标格式仍为 2，新增 optional contributions；present 时全量校验，absent 保持 legacy 原样。材料／稿件版本使用 keyed record；单条／累计容量、原子写入、归档引用与恢复失败规则见 [Contribution Interface](./MEETING-CONTRIBUTION-INTERFACE.md#material-and-capacity)。不增加物理表、provider、迁移、上限或第二事实源。尚未实现。

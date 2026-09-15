@@ -50,6 +50,9 @@ describe("meeting tool registration", () => {
         const submit = definitions.find(
             (definition) => definition.name === "convivium_submit_turn"
         );
+        expect(submit?.description).toContain(
+            "content is public meeting speech, not an execution report."
+        );
         const input = {
             protocolVersion: 1,
             meetingId: "meeting-1",
@@ -342,6 +345,8 @@ describe("meeting tool registration", () => {
             "convivium_create_meeting",
             "convivium_meeting_status",
             "convivium_create_meeting_task",
+            "convivium_contribution",
+            "convivium_read_contribution",
             "convivium_send_message",
             "convivium_finish_meeting_mail",
             "convivium_meeting_task_status",
@@ -512,6 +517,14 @@ describe("meeting tool registration", () => {
                     calls.push(`create:${caller.kind}`),
                     denied()
                 ),
+                applyContribution: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`contribution:${caller.kind}`),
+                    denied()
+                ),
+                readContribution: async (_input: unknown, caller: { kind: string }) => (
+                    calls.push(`read-contribution:${caller.kind}`),
+                    denied()
+                ),
                 getStatus: async (_input: unknown, caller: { kind: string }) => (
                     calls.push(`status:${caller.kind}`),
                     denied()
@@ -594,6 +607,19 @@ describe("meeting tool registration", () => {
         registerSubmitAndControlTools(dependencies);
 
         const commands: Record<string, unknown> = {
+            convivium_contribution: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                requestId: "notify-1",
+                expectedMeetingVersion: 1,
+                action: "notify_manager",
+                reason: "Review pending work"
+            },
+            convivium_read_contribution: {
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                contributionId: "contribution-1"
+            },
             convivium_create_meeting: {
                 protocolVersion: 1,
                 requestId: "request-1",
@@ -619,7 +645,8 @@ describe("meeting tool registration", () => {
                         requiredParticipantKeys: []
                     }
                 ],
-                participants: []
+                evidenceReviewerKey: "reviewer",
+                participants: [{ participantKey: "reviewer", displayName: "Reviewer" }]
             },
             convivium_meeting_status: { protocolVersion: 1, meetingId: "meeting-1" },
             convivium_create_meeting_task: {
@@ -818,6 +845,8 @@ describe("meeting tool registration", () => {
             "create:participant",
             "status:participant",
             "task-create:participant",
+            "contribution:participant",
+            "read-contribution:participant",
             "send-message:participant",
             "finish-mail:participant",
             "task-status:participant",

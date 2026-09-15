@@ -54,6 +54,18 @@ describe("shared role capabilities", () => {
         await validateSharedRoleCapabilities(f.parent, [], f.signal);
         expect(f.parent.ctx.get).not.toHaveBeenCalled();
     });
+    it("checks only the shared Preset when selected roles require no Skills", async () => {
+        const f = fixture();
+        const withoutSkills = parseAgentDefinitions([
+            { ...definitions[0], requiredSkillNames: [] }
+        ]);
+        f.parent.ctx.get.mockImplementation((key) =>
+            key === "agentPresets" ? f.presets : undefined
+        );
+        await validateSharedRoleCapabilities(f.parent, withoutSkills, f.signal);
+        expect(f.presets.composedPreset).toHaveBeenCalledTimes(2);
+        expect(f.skills.get).not.toHaveBeenCalled();
+    });
     it("rejects absent services and mismatched or absent presets", async () => {
         for (const key of ["agentPresets", "skills"]) {
             const f = fixture();

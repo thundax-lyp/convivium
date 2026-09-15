@@ -10,12 +10,14 @@ import {
     type ReactElement
 } from "react";
 import {
+    type ContributionSummaryV1,
     type LocalMeetingListItemV1,
     type MeetingStatusResultV1,
-    type ProtocolErrorV1
+    type ProtocolErrorV1,
+    type ReadContributionResultV1
 } from "@/protocol/index.js";
 import { ProtocolFailure, type MeetingClient } from "./meeting-client.js";
-import { renderObservabilitySections } from "./meeting-panel-sections.js";
+import { renderContributionDetail, renderObservabilitySections } from "./meeting-panel-sections.js";
 import { Button, Input } from "@deepseek-ai/dsh-client-ui-primitives";
 
 const END_OUTCOMES = [
@@ -35,6 +37,13 @@ interface FactControlDraft {
     replacementCandidateId?: string;
 }
 
+type ContributionControlAction = "retry" | "cancel" | "notify_manager";
+interface ContributionControlDraft {
+    readonly action: ContributionControlAction;
+    readonly contributionId?: string;
+    reason: string;
+}
+
 function failureMessage(_error: unknown): string {
     return "Meeting data is unavailable.";
 }
@@ -48,12 +57,15 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
     const [listError, setListError] = useState<string>();
     const [detailError, setDetailError] = useState<string>();
     const [pauseReason, setPauseReason] = useState("");
-    const [skipReason, setSkipReason] = useState("");
     const [endReason, setEndReason] = useState("");
     const [endOutcome, setEndOutcome] = useState<EndOutcome>("partial");
     const [writePending, setWritePending] = useState(false);
     const [draft, setDraft] = useState<FactControlDraft>();
     const [factError, setFactError] = useState<ProtocolErrorV1>();
+    const [contributionDetail, setContributionDetail] = useState<ReadContributionResultV1>();
+    const [contributionRevision, setContributionRevision] = useState<number>();
+    const [contributionDraft, setContributionDraft] = useState<ContributionControlDraft>();
+    const [contributionError, setContributionError] = useState<string>();
 
     const mounted = useRef(true);
     const selectedIdRef = useRef<string>();
@@ -61,9 +73,11 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
     const listController = useRef<AbortController>();
     const detailController = useRef<AbortController>();
     const writeController = useRef<AbortController>();
+    const contributionController = useRef<AbortController>();
     const listGeneration = useRef(0);
     const detailGeneration = useRef(0);
     const writeGeneration = useRef(0);
+    const contributionGeneration = useRef(0);
     const refreshReading = useRef(false);
     const refreshDirty = useRef(false);
     const refreshEpoch = useRef(0);
@@ -74,6 +88,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         detailGeneration.current += 1;
         listController.current?.abort();
         detailController.current?.abort();
+        contributionController.current?.abort();
     }, []);
 
     const clearSelection = useCallback(() => {
@@ -81,6 +96,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         writeController.current?.abort();
         detailGeneration.current += 1;
         writeGeneration.current += 1;
+        contributionGeneration.current += 1;
         selectedIdRef.current = undefined;
         writePendingRef.current = false;
         setSelectedId(undefined);
@@ -88,11 +104,14 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         setDetailCached(false);
         setDetailError(undefined);
         setPauseReason("");
-        setSkipReason("");
         setEndReason("");
         setEndOutcome("partial");
         setDraft(undefined);
         setFactError(undefined);
+        setContributionDetail(undefined);
+        setContributionRevision(undefined);
+        setContributionDraft(undefined);
+        setContributionError(undefined);
         setWritePending(false);
     }, []);
 
@@ -126,6 +145,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
     const loadDetail = useCallback(
         async (meetingId: string): Promise<boolean> => {
             detailController.current?.abort();
+            contributionController.current?.abort();
             const controller = new AbortController();
             detailController.current = controller;
             const generation = ++detailGeneration.current;
@@ -196,6 +216,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             writeController.current?.abort();
             detailGeneration.current += 1;
             writeGeneration.current += 1;
+            contributionGeneration.current += 1;
             selectedIdRef.current = meetingId;
             writePendingRef.current = false;
             setSelectedId(meetingId);
@@ -203,11 +224,14 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             setDetailCached(true);
             setDetailError(undefined);
             setPauseReason("");
-            setSkipReason("");
             setEndReason("");
             setEndOutcome("partial");
             setDraft(undefined);
             setFactError(undefined);
+            setContributionDetail(undefined);
+            setContributionRevision(undefined);
+            setContributionDraft(undefined);
+            setContributionError(undefined);
             setWritePending(false);
             requestRefresh();
         },
@@ -215,7 +239,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
     );
 
     const controlMeeting = useCallback(
-        async (action: "pause" | "resume" | "reassign" | "end") => {
+        async (action: "pause" | "resume" | "end") => {
             const meetingId = selectedIdRef.current;
             if (
                 meetingId === undefined ||
@@ -254,19 +278,6 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                                 protocolVersion: 1,
                                 meetingId,
                                 expectedMeetingVersion: detail.meetingVersion,
-                                requestId: crypto.randomUUID()
-                            },
-                            controller.signal
-                        );
-                    } else if (action === "reassign") {
-                        await api.reassign(
-                            {
-                                protocolVersion: 1,
-                                meetingId,
-                                expectedMeetingVersion: detail.meetingVersion,
-                                currentAttemptId: detail.currentAttemptId!,
-                                action: "skip",
-                                reason: skipReason,
                                 requestId: crypto.randomUUID()
                             },
                             controller.signal
@@ -328,8 +339,7 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             endReason,
             pauseReason,
             requestRefresh,
-            invalidateReads,
-            skipReason
+            invalidateReads
         ]
     );
 
@@ -339,10 +349,12 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             mounted.current = false;
             listController.current?.abort();
             detailController.current?.abort();
+            contributionController.current?.abort();
             writeController.current?.abort();
             listGeneration.current += 1;
             detailGeneration.current += 1;
             writeGeneration.current += 1;
+            contributionGeneration.current += 1;
         };
     }, [requestRefresh]);
 
@@ -426,6 +438,148 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
             void active?.dispose();
         };
     }, [api, invalidateReads, requestRefresh]);
+
+    const loadContribution = useCallback(
+        async (
+            meetingId: string,
+            task: ContributionSummaryV1,
+            draftRevision?: number,
+            selectedEvidenceKey?: string
+        ) => {
+            contributionController.current?.abort();
+            const controller = new AbortController();
+            contributionController.current = controller;
+            const generation = ++contributionGeneration.current;
+            const selectedRevision = draftRevision ?? task.currentDraftRevision;
+            const isCurrent = () =>
+                mounted.current &&
+                !controller.signal.aborted &&
+                generation === contributionGeneration.current &&
+                selectedIdRef.current === meetingId;
+            setContributionError(undefined);
+            try {
+                const selected = await api.readContribution(
+                    {
+                        protocolVersion: 1,
+                        meetingId,
+                        contributionId: task.id,
+                        ...(selectedRevision > 0 ? { draftRevision: selectedRevision } : {})
+                    },
+                    controller.signal
+                );
+                if (!isCurrent()) return;
+                const evidenceKey =
+                    selectedEvidenceKey ?? selected.result.drafts[0]?.citations[0]?.evidenceKey;
+                const result =
+                    evidenceKey === undefined
+                        ? selected.result
+                        : (
+                              await api.readContribution(
+                                  {
+                                      protocolVersion: 1,
+                                      meetingId,
+                                      contributionId: task.id,
+                                      draftRevision: selectedRevision,
+                                      evidenceKey
+                                  },
+                                  controller.signal
+                              )
+                          ).result;
+                if (!isCurrent()) return;
+                setContributionDetail(result);
+                setContributionRevision(selectedRevision);
+            } catch (error) {
+                if (!isCurrent()) return;
+                setContributionDetail(undefined);
+                setContributionError(
+                    error instanceof ProtocolFailure ? error.message : failureMessage(error)
+                );
+            }
+        },
+        [api]
+    );
+
+    const submitContributionControl = useCallback(async () => {
+        const meetingId = selectedIdRef.current;
+        if (
+            meetingId === undefined ||
+            contributionDraft === undefined ||
+            contributionDraft.reason.trim() === "" ||
+            listCached ||
+            detailCached ||
+            writePendingRef.current
+        )
+            return;
+        const controller = new AbortController();
+        writeController.current = controller;
+        const generation = ++writeGeneration.current;
+        const isCurrent = () =>
+            mounted.current &&
+            !controller.signal.aborted &&
+            generation === writeGeneration.current &&
+            selectedIdRef.current === meetingId;
+        writePendingRef.current = true;
+        setWritePending(true);
+        setContributionError(undefined);
+        try {
+            const latest = await api.getStatus(
+                { protocolVersion: 1, meetingId },
+                controller.signal
+            );
+            if (!isCurrent()) return;
+            const task = latest.result.contributions?.tasks.find(
+                (candidate) => candidate.id === contributionDraft.contributionId
+            );
+            const command =
+                contributionDraft.action === "notify_manager"
+                    ? {
+                          protocolVersion: 1 as const,
+                          meetingId,
+                          requestId: crypto.randomUUID(),
+                          expectedMeetingVersion: latest.meetingVersion,
+                          action: "notify_manager" as const,
+                          reason: contributionDraft.reason
+                      }
+                    : task === undefined
+                      ? undefined
+                      : {
+                            protocolVersion: 1 as const,
+                            meetingId,
+                            requestId: crypto.randomUUID(),
+                            expectedMeetingVersion: latest.meetingVersion,
+                            action: contributionDraft.action,
+                            contributionId: task.id,
+                            generation: task.generation,
+                            reason: contributionDraft.reason
+                        };
+            if (command === undefined) {
+                setContributionDraft(undefined);
+                setContributionError("Contribution is no longer available.");
+                return;
+            }
+            await api.controlContribution(command, controller.signal);
+            if (!isCurrent()) return;
+            setContributionDraft(undefined);
+            setContributionDetail(undefined);
+            refreshDirty.current = true;
+        } catch (error) {
+            if (!isCurrent()) return;
+            setContributionDraft(undefined);
+            if (error instanceof ProtocolFailure) {
+                setContributionError(error.message);
+                refreshDirty.current = true;
+            } else {
+                setDetailCached(true);
+                setContributionError(failureMessage(error));
+            }
+        } finally {
+            if (isCurrent()) {
+                writePendingRef.current = false;
+                setWritePending(false);
+                if (refreshDirty.current) requestRefresh();
+            }
+        }
+    }, [api, contributionDraft, detailCached, listCached, requestRefresh]);
 
     const discussion = detail && "pendingDecisionCandidates" in detail ? detail : undefined;
     const factWritable =
@@ -750,15 +904,223 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
         );
     }
 
+    function renderContributionControlForm(): ReactElement | null {
+        if (contributionDraft === undefined) return null;
+        return createElement(
+            "form",
+            {
+                "aria-label": "Contribution control",
+                onSubmit: (event: FormEvent<HTMLFormElement>) => {
+                    event.preventDefault();
+                    void submitContributionControl();
+                }
+            },
+            createElement(
+                "label",
+                null,
+                "Reason",
+                createElement(Input, {
+                    value: contributionDraft.reason,
+                    onChange: (event: ChangeEvent<HTMLInputElement>) =>
+                        setContributionDraft({
+                            ...contributionDraft,
+                            reason: event.currentTarget.value
+                        })
+                })
+            ),
+            createElement(
+                Button,
+                {
+                    type: "submit",
+                    variant: "primary",
+                    size: "sm",
+                    disabled:
+                        listCached ||
+                        detailCached ||
+                        writePending ||
+                        contributionDraft.reason.trim() === ""
+                },
+                "Submit"
+            ),
+            createElement(
+                Button,
+                {
+                    type: "button",
+                    variant: "outline",
+                    size: "sm",
+                    onClick: () => setContributionDraft(undefined)
+                },
+                "Cancel"
+            )
+        );
+    }
+
+    function renderContributionActions(contributionId: string): ReactElement | null {
+        const task = detail?.contributions?.tasks.find(
+            (candidate) => candidate.id === contributionId
+        );
+        if (task === undefined || selectedId === undefined) return null;
+        const retryable =
+            ["returned", "captain_action", "cancelled"].includes(task.phase) ||
+            (task.phase === "published" && task.reviewStatus === "captain_action");
+        const cancellable = !["published", "cancelled"].includes(task.phase);
+        const disabled = listCached || detailCached || writePending;
+        return createElement(
+            "div",
+            null,
+            createElement(
+                Button,
+                {
+                    type: "button",
+                    variant: "outline",
+                    size: "sm",
+                    disabled,
+                    onClick: () => void loadContribution(selectedId, task)
+                },
+                "View contribution"
+            ),
+            retryable
+                ? createElement(
+                      Button,
+                      {
+                          type: "button",
+                          variant: "outline",
+                          size: "sm",
+                          disabled,
+                          onClick: () =>
+                              setContributionDraft({ action: "retry", contributionId, reason: "" })
+                      },
+                      "Retry contribution"
+                  )
+                : null,
+            cancellable
+                ? createElement(
+                      Button,
+                      {
+                          type: "button",
+                          variant: "outline",
+                          size: "sm",
+                          disabled,
+                          onClick: () =>
+                              setContributionDraft({
+                                  action: "cancel",
+                                  contributionId,
+                                  reason: ""
+                              })
+                      },
+                      "Cancel contribution"
+                  )
+                : null,
+            contributionDraft?.contributionId === contributionId
+                ? renderContributionControlForm()
+                : null
+        );
+    }
+
+    function renderContributionFooter(): ReactElement | null {
+        if (detail?.contributions === undefined) return null;
+        const disabled = listCached || detailCached || writePending;
+        return createElement(
+            "div",
+            null,
+            ["running", "waiting"].includes(detail.status)
+                ? createElement(
+                      Button,
+                      {
+                          type: "button",
+                          variant: "outline",
+                          size: "sm",
+                          disabled,
+                          onClick: () =>
+                              setContributionDraft({ action: "notify_manager", reason: "" })
+                      },
+                      "Notify Manager"
+                  )
+                : null,
+            contributionDraft?.action === "notify_manager" ? renderContributionControlForm() : null,
+            contributionError === undefined
+                ? null
+                : createElement("p", { role: "alert" }, contributionError),
+            contributionDetail === undefined
+                ? null
+                : createElement(
+                      "div",
+                      null,
+                      contributionDetail.task.currentDraftRevision > 0
+                          ? createElement(
+                                "label",
+                                null,
+                                "Draft revision",
+                                createElement(
+                                    "select",
+                                    {
+                                        value: contributionRevision,
+                                        onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+                                            const revision = Number(event.currentTarget.value);
+                                            if (selectedId !== undefined)
+                                                void loadContribution(
+                                                    selectedId,
+                                                    contributionDetail.task,
+                                                    revision
+                                                );
+                                        }
+                                    },
+                                    Array.from(
+                                        { length: contributionDetail.task.currentDraftRevision },
+                                        (_, index) => index + 1
+                                    ).map((revision) =>
+                                        createElement(
+                                            "option",
+                                            { key: revision, value: revision },
+                                            String(revision)
+                                        )
+                                    )
+                                )
+                            )
+                          : null,
+                      (contributionDetail.drafts[0]?.citations.length ?? 0) > 0
+                          ? createElement(
+                                "label",
+                                null,
+                                "Evidence version",
+                                createElement(
+                                    "select",
+                                    {
+                                        value:
+                                            contributionDetail.evidence?.key ??
+                                            contributionDetail.drafts[0]!.citations[0]!.evidenceKey,
+                                        onChange: (event: ChangeEvent<HTMLSelectElement>) => {
+                                            if (selectedId !== undefined)
+                                                void loadContribution(
+                                                    selectedId,
+                                                    contributionDetail.task,
+                                                    contributionRevision,
+                                                    event.currentTarget.value
+                                                );
+                                        }
+                                    },
+                                    contributionDetail.drafts[0]!.citations.map((citation) =>
+                                        createElement(
+                                            "option",
+                                            {
+                                                key: citation.evidenceKey,
+                                                value: citation.evidenceKey
+                                            },
+                                            citation.evidenceKey
+                                        )
+                                    )
+                                )
+                            )
+                          : null,
+                      renderContributionDetail(contributionDetail)
+                  )
+        );
+    }
+
     const selectedItem = meetings.find((item) => item.meetingId === selectedId);
     const canPause =
         detail !== undefined && ["created", "running", "waiting"].includes(detail.status);
     const canResume = detail?.status === "paused";
-    const canSkip =
-        detail?.status === "running" &&
-        detail.currentTurn !== undefined &&
-        detail.currentSpeakerId !== undefined &&
-        detail.currentAttemptId !== undefined;
     const canEnd =
         detail !== undefined && ["running", "paused", "converging"].includes(detail.status);
     const writesDisabled = listCached || detailCached || writePending;
@@ -853,7 +1215,9 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                                         risk.riskLevel === undefined ||
                                             risk.violatedConstraintIds.length > 0
                                     );
-                                }
+                                },
+                                renderContributionActions,
+                                renderContributionFooter
                             }),
                             canPause
                                 ? createElement(
@@ -898,37 +1262,6 @@ export function ConviviumMeetingPanel({ api }: { api: MeetingClient }): ReactEle
                                           onClick: () => void controlMeeting("resume")
                                       },
                                       "Resume"
-                                  )
-                                : null,
-                            canSkip
-                                ? createElement(
-                                      "div",
-                                      {
-                                          style: {
-                                              display: "flex",
-                                              flexWrap: "wrap",
-                                              alignItems: "center",
-                                              gap: 8
-                                          }
-                                      },
-                                      createElement(Input, {
-                                          "aria-label": "Skip reason",
-                                          value: skipReason,
-                                          onChange: (event: ChangeEvent<HTMLInputElement>) =>
-                                              setSkipReason(event.currentTarget.value)
-                                      }),
-                                      createElement(
-                                          Button,
-                                          {
-                                              type: "button",
-                                              variant: "outline",
-                                              size: "sm",
-                                              "aria-label": "Skip current speaker",
-                                              disabled: writesDisabled || skipReason.trim() === "",
-                                              onClick: () => void controlMeeting("reassign")
-                                          },
-                                          "Skip current speaker"
-                                      )
                                   )
                                 : null,
                             canEnd

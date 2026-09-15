@@ -8,6 +8,8 @@ import {
     CaptainDecisionDispositionResultSchema,
     CaptainRiskDispositionInputSchema,
     CaptainRiskDispositionResultSchema,
+    ContributionCommandSchema,
+    ContributionResultSchema,
     EndMeetingInputSchema,
     EndMeetingResultSchema,
     LocalMeetingListResponseSchema,
@@ -15,6 +17,8 @@ import {
     MeetingStatusInputSchema,
     MeetingStatusResultSchema,
     PauseMeetingInputSchema,
+    ReadContributionInputSchema,
+    ReadContributionResultSchema,
     ReassignTurnResultSchema,
     ResumeMeetingInputSchema,
     validateReassignTurnInput,
@@ -23,6 +27,8 @@ import {
     type CaptainDecisionAcceptanceResultV1,
     type CaptainDecisionDispositionResultV1,
     type CaptainRiskDispositionResultV1,
+    type ContributionCommandV1,
+    type ContributionResultV1,
     type EndMeetingResultV1,
     type LocalMeetingListResponseV1,
     type MeetingControlResultV1,
@@ -30,7 +36,9 @@ import {
     type ReassignTurnResultV1,
     type ProtocolErrorV1,
     type ProtocolSuccessV1,
-    type MeetingRefreshNoticeV1
+    type MeetingRefreshNoticeV1,
+    type ReadContributionInputV1,
+    type ReadContributionResultV1
 } from "@/protocol/index.js";
 import {
     LocalMeetingRecoveryUnavailableError,
@@ -41,10 +49,12 @@ import type {
     RemoteDisposeDecisionInput,
     RemoteDisposeRiskInput,
     RemoteEndInput,
+    RemoteContributionControlInput,
     RemotePauseInput,
     RemoteReassignInput,
     RemoteResumeInput,
-    RemoteStatusInput
+    RemoteStatusInput,
+    RemoteReadContributionInput
 } from "./types.js";
 
 const maxInputBytes = 16_384;
@@ -117,6 +127,19 @@ function validateResult<T>(schema: Schema, value: unknown): ProtocolSuccessV1<T>
     }
     if ((value as { ok?: unknown }).ok === false) return validateProtocolError(value);
     return validateProtocolSuccessEnvelope(schema, value);
+}
+
+type LocalContributionControlInput = Extract<
+    ContributionCommandV1,
+    { action: "retry" | "cancel" | "notify_manager" }
+>;
+
+function validateLocalContributionControl(input: unknown): LocalContributionControlInput {
+    const parsed = ContributionCommandSchema(input);
+    if (!["retry", "cancel", "notify_manager"].includes(parsed.action)) {
+        throw new TypeError("Local contribution control action is not permitted.");
+    }
+    return parsed as LocalContributionControlInput;
 }
 
 export class ConviviumRemoteService extends TypertRemoteService {
@@ -312,6 +335,60 @@ export class ConviviumRemoteService extends TypertRemoteService {
             CaptainRiskDispositionInputSchema,
             CaptainRiskDispositionResultSchema,
             (value) => this.runtime.disposeLocalRisk(value)
+        );
+    }
+
+    @Remote("readContribution")
+    readContribution(
+        input: RemoteReadContributionInput,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ReadContributionResultV1> | ProtocolErrorV1> {
+        return this.unary(
+            input,
+            signal,
+            [
+                "protocolVersion",
+                "meetingId",
+                "contributionId",
+                ...(input?.evidenceKey === undefined ? [] : ["evidenceKey"]),
+                ...(input?.draftRevision === undefined ? [] : ["draftRevision"])
+            ],
+            ReadContributionInputSchema,
+            ReadContributionResultSchema,
+            (value: ReadContributionInputV1) => this.runtime.readLocalContribution(value, signal)
+        );
+    }
+
+    @Remote("controlContribution")
+    controlContribution(
+        input: RemoteContributionControlInput,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ContributionResultV1> | ProtocolErrorV1> {
+        return this.unary(
+            input,
+            signal,
+            input?.action === "notify_manager"
+                ? [
+                      "protocolVersion",
+                      "meetingId",
+                      "requestId",
+                      "expectedMeetingVersion",
+                      "action",
+                      "reason"
+                  ]
+                : [
+                      "protocolVersion",
+                      "meetingId",
+                      "requestId",
+                      "expectedMeetingVersion",
+                      "action",
+                      "contributionId",
+                      "generation",
+                      "reason"
+                  ],
+            validateLocalContributionControl,
+            ContributionResultSchema,
+            (value) => this.runtime.controlLocalContribution(value, signal)
         );
     }
 

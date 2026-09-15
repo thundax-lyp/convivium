@@ -5,11 +5,14 @@ import type { DomainFacility } from "@deepseek-ai/dsh-storage-domain";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { DomainFacilityPort } from "@/repository/domain/domain-repository-registry.js";
 import type { RepositoryAuthorizationValidator } from "@/runtime/meeting-runtime.js";
-import type { AuthorizedTaskEvidenceResolver } from "@/runtime/task-evidence.js";
 import type { AgentCatalogPort } from "@/runtime/services/agent-catalog.js";
 import type { DeveloperMarkdownWarning } from "@/runtime/services/developer-markdown-service.js";
 import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type {
+    ContributionCommandV1,
+    ContributionResultV1,
+    ReadContributionInputV1,
+    ReadContributionResultV1,
     CaptainAttendanceDispositionInputV1,
     CaptainAttendanceDispositionResultV1,
     CreateMeetingInputV1,
@@ -75,6 +78,16 @@ export interface MeetingToolCaller {
 }
 
 export interface MeetingToolRuntime {
+    applyContribution(
+        input: ContributionCommandV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ContributionResultV1> | ProtocolErrorV1>;
+    readContribution(
+        input: ReadContributionInputV1,
+        caller: MeetingToolCaller,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ReadContributionResultV1> | ProtocolErrorV1>;
     disposeAttendanceRecommendation(
         input: CaptainAttendanceDispositionInputV1,
         caller: MeetingToolCaller,
@@ -195,7 +208,6 @@ export interface CreateStatusRuntimeOptions {
     readonly speakerAttemptTimeoutMs?: number;
     readonly signal?: AbortSignal;
     readonly now?: () => number;
-    readonly taskEvidenceResolver?: AuthorizedTaskEvidenceResolver;
     readonly timeoutScanSleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
     readonly agentCatalog?: AgentCatalogPort;
     readonly developerMarkdown?: {
@@ -205,6 +217,14 @@ export interface CreateStatusRuntimeOptions {
 }
 
 export interface LocalMeetingWebRuntime {
+    controlLocalContribution(
+        input: Extract<ContributionCommandV1, { action: "retry" | "cancel" | "notify_manager" }>,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ContributionResultV1> | ProtocolErrorV1>;
+    readLocalContribution(
+        input: ReadContributionInputV1,
+        signal: AbortSignal
+    ): Promise<ProtocolSuccessV1<ReadContributionResultV1> | ProtocolErrorV1>;
     watchLocalMeetingUpdates(signal: AbortSignal): AsyncIterable<MeetingRefreshNoticeV1>;
     acceptLocalDecision(
         input: CaptainDecisionAcceptanceInputV1

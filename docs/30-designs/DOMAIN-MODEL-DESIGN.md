@@ -368,3 +368,57 @@ Domain 只接受 Runtime 已验证的授权输入，不以字段值或 Session l
 ## Acceptance
 
 实现者无需从需求、接口和其他设计章节拼接 Domain model，即可依据本文确定核心字段、ID 引用、集合结构、初始化边界和数据不变量。
+
+## Minimal Contribution State
+
+状态：目标设计，尚未实现；仅适用于新建的最小并行会议。跨边界约束见 [Contribution Interface](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md)，接线见 [Contribution Design](./MEETING-CONTRIBUTION-DESIGN.md)。本文其余 Turn 对象继续描述 legacy，不约束新贡献调度。
+
+以下类型由 Domain 拥有，定义在 `plugin/src/domain/contribution.ts`；Protocol 以公开入口的 type-only 别名复用 EvidenceMaterial、EvidenceCitation、EvidenceVerdict、ContributionPhase，不建立另一份事实结构。wire `*V1` 名称只用于 Protocol。
+
+```ts
+interface EvidenceVersion extends EvidenceMaterial {
+  evidenceId: string; revision: number; key: string; submittedBy: string; submittedAt: number;
+}
+interface ContributionClaims {
+  questions: readonly SubmittedQuestionInput[];
+  issues: readonly SubmittedIssueInput[];
+  proposals: readonly SubmittedProposalInput[];
+  positions: readonly SubmittedPositionInput[];
+  agendaCandidates: readonly SubmittedAgendaCandidateInput[];
+  decisionCandidates: readonly SubmittedDecisionCandidateInput[];
+  completion?: DomainCompletionClaims;
+}
+interface ContributionDraft {
+  revision: number; basedOnSeq: number; submittedAt: number;
+  message: SpeakerSubmissionContext["message"];
+  claims: ContributionClaims; citations: readonly EvidenceCitation[];
+}
+interface BoundaryReview {
+  draftRevision: number; decision: "approve" | "return"; reason: string;
+  checkedThroughSeq: number; actor: string; reviewedAt: number;
+}
+interface EvidenceReview {
+  draftRevision: number; evidenceKey: string; claim: string; verdict: EvidenceVerdict;
+  method: string; result: string; limitations: string; actor: string; reviewedAt: number;
+}
+interface ContributionTask {
+  id: string; participantId: string; agendaItemId: string; instruction: string;
+  targetIds: readonly string[]; requiredForCompletion: boolean; requiresEvidenceReview: boolean;
+  generation: number; phase: ContributionPhase; basedOnSeq: number;
+  deadlineAt: number; pausedRemainingMs?: number;
+  createdAt: number; updatedAt: number; currentDraftRevision: number; returnCount: number;
+  drafts: Readonly<Record<string, ContributionDraft>>;
+  boundaryReviews: readonly BoundaryReview[];
+  evidenceReviews: readonly EvidenceReview[];
+  reviewStatus: "not_required" | "pending" | "complete" | "captain_action";
+  messageId?: string; reason?: string;
+}
+interface ContributionState {
+  schemaVersion: 1; reviewerId: string; managerNoticeSeq: number;
+  managerDeadlineAt: number; managerPausedRemainingMs?: number;
+  tasks: Readonly<Record<string, ContributionTask>>;
+  evidence: Readonly<Record<string, EvidenceVersion>>;
+}
+```
+
+新增 `MeetingState.contributions?:ContributionState`。现有 `Submitted*Input`、`SpeakerSubmissionContext` 与 `DomainCompletionClaims` 保持现有字段语义；claims 中无函数、DSH 对象和 Protocol 类型。normalizer 把 wire changes 转成上面的固定数组，缺失数组映射为空，completion 缺失仍省略。

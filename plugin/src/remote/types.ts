@@ -2,9 +2,11 @@ import type {
     CaptainDecisionAcceptanceInputV1,
     CaptainDecisionDispositionInputV1,
     CaptainRiskDispositionInputV1,
+    ContributionCommandV1,
     EndMeetingInputV1,
     MeetingStatusInputV1,
     PauseMeetingInputV1,
+    ReadContributionInputV1,
     ReassignTurnInputV1,
     ResumeMeetingInputV1
 } from "@/protocol/index.js";
@@ -27,6 +29,10 @@ export type RemoteEndInput = RemoteInput<EndMeetingInputV1>;
 export type RemoteAcceptDecisionInput = RemoteInput<CaptainDecisionAcceptanceInputV1>;
 export type RemoteDisposeDecisionInput = RemoteInput<CaptainDecisionDispositionInputV1>;
 export type RemoteDisposeRiskInput = RemoteInput<CaptainRiskDispositionInputV1>;
+export type RemoteReadContributionInput = RemoteInput<ReadContributionInputV1>;
+export type RemoteContributionControlInput = RemoteInput<
+    Extract<ContributionCommandV1, { action: "retry" | "cancel" | "notify_manager" }>
+>;
 
 declare module "@deepseek-ai/dsh-typert-protocol" {
     interface RemoteErrorDetailsMap {

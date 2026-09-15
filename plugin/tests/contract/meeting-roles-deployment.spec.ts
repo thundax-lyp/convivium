@@ -11,8 +11,62 @@ const deployed = JSON.parse(
     readFileSync(new URL("../../meeting-roles/definitions.json", import.meta.url), "utf8")
 );
 
+const roleSkills = new URL("../../meeting-roles/presets/convivium/skills/", import.meta.url);
+
 it("accepts all nine published role definitions through the runtime parser", () => {
     expect(parseAgentDefinitions(deployed.definitions)).toHaveLength(9);
+});
+
+it("publishes only the current contribution tools for Manager and Scribe", () => {
+    const definitions = parseAgentDefinitions(deployed.definitions);
+    const manager = definitions.find(
+        ({ roleDefinitionId }) => roleDefinitionId === "meeting_manager"
+    );
+    const scribe = definitions.find(
+        ({ roleDefinitionId }) => roleDefinitionId === "meeting_scribe"
+    );
+    expect(manager).toMatchObject({
+        definitionVersion: "1.1.0",
+        toolFilter: {
+            allow: [
+                "skill",
+                "convivium_meeting_status",
+                "convivium_contribution",
+                "convivium_read_contribution"
+            ]
+        }
+    });
+    expect(scribe).toMatchObject({
+        definitionVersion: "1.1.0",
+        toolFilter: {
+            allow: [
+                "skill",
+                "convivium_meeting_status",
+                "convivium_contribution",
+                "convivium_read_contribution"
+            ]
+        }
+    });
+    expect(
+        definitions
+            .filter(
+                ({ roleDefinitionId }) =>
+                    !["meeting_manager", "meeting_scribe"].includes(roleDefinitionId)
+            )
+            .every(({ definitionVersion }) => definitionVersion === "1.0.0")
+    ).toBe(true);
+
+    const currentGuidance = [
+        "meeting-management/SKILL.md",
+        "verification-review/SKILL.md",
+        "referenced-minutes/SKILL.md"
+    ].map((path) => readFileSync(new URL(path, roleSkills), "utf8"));
+    expect(currentGuidance.join("\n")).not.toMatch(/convivium_submit_turn|submitManagerPlan/);
+    expect(currentGuidance[0]).toContain("convivium_contribution");
+    expect(currentGuidance[1]).toMatch(/逐.*版本.*主张/);
+    expect(currentGuidance[1]).toContain("不得执行提交代码");
+    expect(currentGuidance[2]).toContain("convivium_read_contribution");
+    expect(currentGuidance[2]).toContain("completionClaims");
 });
 
 describe("native deployment patch composition", () => {

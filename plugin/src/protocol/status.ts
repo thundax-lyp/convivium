@@ -1,4 +1,5 @@
 import Schema from "@deepseek-ai/schemastery";
+import { ContributionSummarySchema } from "./contribution.js";
 import type {
     PublicMeetingMessageV1,
     PublicArchivePackageV1,
@@ -294,8 +295,10 @@ const message: Schema<unknown, PublicMeetingMessageV1> = Schema.transform(
     Schema.object({
         id: requiredString(),
         seq: requiredNumber(),
-        turnId: requiredString(),
-        stepId: requiredString(),
+        turnId: optionalObject(requiredString()),
+        stepId: optionalObject(requiredString()),
+        contributionId: optionalObject(requiredString()),
+        contributionRevision: optionalObject(requiredNumber()),
         speaker: requiredString(),
         agendaItemId: requiredString(),
         kind: enumOf([
@@ -318,6 +321,14 @@ const message: Schema<unknown, PublicMeetingMessageV1> = Schema.transform(
     }),
     (value) => {
         if (value.minutesDraft === null) throw new TypeError("Invalid minutes draft");
+        const turn = value.turnId !== undefined && value.stepId !== undefined;
+        const contribution =
+            value.contributionId !== undefined && value.contributionRevision !== undefined;
+        if (
+            turn === contribution ||
+            (typeof value.contributionRevision === "number" && value.contributionRevision < 1)
+        )
+            throw new TypeError("Meeting message requires exactly one origin.");
         return value;
     }
 ) as Schema<unknown, PublicMeetingMessageV1>;
@@ -379,7 +390,19 @@ const archiveAgendaCandidate = Schema.object({
     status: enumOf(["pending", "promoted", "parked", "rejected"] as const)
 });
 
+const contributions = Schema.transform(
+    Schema.object({
+        reviewerId: requiredString(),
+        tasks: requiredArray(ContributionSummarySchema)
+    }),
+    (value) => {
+        assertExactKeys(value, ["reviewerId", "tasks"], "contribution summaries");
+        return value;
+    }
+);
+
 const active = Schema.object({
+    contributions: optionalObject(contributions),
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
     topic: requiredString(),
@@ -425,6 +448,7 @@ const active = Schema.object({
 });
 
 const terminal = Schema.object({
+    contributions: optionalObject(contributions),
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
     topic: requiredString(),
@@ -625,6 +649,7 @@ export const MeetingArchivePackageSchema = Schema.transform(
 );
 
 const archiving = Schema.object({
+    contributions: optionalObject(contributions),
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
     topic: requiredString(),
@@ -646,6 +671,7 @@ const archiving = Schema.object({
 });
 
 const archived = Schema.object({
+    contributions: optionalObject(contributions),
     meetingId: requiredString(),
     meetingVersion: requiredNumber(),
     topic: requiredString(),

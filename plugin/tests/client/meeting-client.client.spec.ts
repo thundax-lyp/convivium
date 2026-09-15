@@ -35,6 +35,71 @@ function status(): MeetingStatusResultV1 {
 }
 
 describe("MeetingClient", () => {
+    it("parses contribution read and control success envelopes", async () => {
+        const task = {
+            id: "contribution-1",
+            participantId: "participant-1",
+            agendaItemId: "agenda-1",
+            phase: "preparing" as const,
+            generation: 1,
+            currentDraftRevision: 0,
+            requiredForCompletion: true,
+            requiresEvidenceReview: false,
+            reviewStatus: "not_required" as const,
+            deadlineAt: 100
+        };
+        const readContribution = vi.fn(async () => ({
+            ok: true as const,
+            value: {
+                protocolVersion: 1 as const,
+                ok: true as const,
+                meetingId: "meeting-1",
+                meetingVersion: 2,
+                result: {
+                    task,
+                    drafts: [],
+                    boundaryReviews: [],
+                    evidenceReviews: []
+                }
+            }
+        }));
+        const controlContribution = vi.fn(async () => ({
+            ok: true as const,
+            value: {
+                protocolVersion: 1 as const,
+                ok: true as const,
+                meetingId: "meeting-1",
+                meetingVersion: 3,
+                result: { contributionId: "contribution-1", generation: 2, phase: "preparing" }
+            }
+        }));
+        const remote = {
+            conviviumMeetings: { readContribution, controlContribution },
+            $stream: vi.fn(),
+            $host: { home: undefined, isLoopback: true }
+        } as unknown as ClientRemote;
+        const client = createMeetingClient(remote);
+        await expect(
+            client.readContribution({
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                contributionId: "contribution-1"
+            })
+        ).resolves.toMatchObject({ result: { task } });
+        await expect(
+            client.controlContribution({
+                protocolVersion: 1,
+                meetingId: "meeting-1",
+                expectedMeetingVersion: 2,
+                requestId: "retry-1",
+                action: "retry",
+                contributionId: "contribution-1",
+                generation: 1,
+                reason: "retry"
+            })
+        ).resolves.toMatchObject({ meetingVersion: 3 });
+    });
+
     it("mounts the published Client namespace and removes it on unmount", async () => {
         const call = vi.fn(async () => ({
             ok: true as const,

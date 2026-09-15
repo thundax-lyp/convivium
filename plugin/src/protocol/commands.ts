@@ -82,6 +82,7 @@ const publicLimits = Schema.object({
 
 const createMeetingInputSchema = Schema.object({
     managerAgentDefinitionId: Schema.string().pattern(/\S/),
+    evidenceReviewerKey: Schema.string().pattern(/\S/),
     protocolVersion: ProtocolVersionSchema,
     requestId: string(),
     teamId: string(),
@@ -99,6 +100,9 @@ export const CreateMeetingInputSchema: Schema<unknown, CreateMeetingInputV1> = S
     createMeetingInputSchema,
     (value) => {
         if (!Array.isArray(value.participants)) throw new TypeError("Participants are required");
+        if (typeof value.evidenceReviewerKey !== "string" || !value.evidenceReviewerKey.trim()) {
+            throw new TypeError("An evidence reviewer is required");
+        }
         for (const id of [
             value.managerAgentDefinitionId,
             ...value.participants.map((participant) => participant.agentDefinitionId)

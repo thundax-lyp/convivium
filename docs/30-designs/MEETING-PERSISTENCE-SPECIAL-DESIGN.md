@@ -160,3 +160,7 @@ pointer 发布前崩溃时，旧 checkpoint 与全部 commits 仍是真相；新
 6. Meeting 接近正常写入上限时仍有足够空间完成 checkpoint；崩溃产生的 orphan 有界且可在不破坏当前真相的前提下回收。
 7. checkpoint 缺页、digest 损坏、record 超限、版本不兼容和恢复时非法数据都有 fail-loud 验证。
 8. 同一组算法契约测试可以用于任一候选适配器；切换实现前能够证明运行路径只有一个 Meeting 持久化真相。
+
+## Minimal Contribution Layout
+
+目标贡献材料与稿件按 keyed record 保存，沿现有 commit/checkpoint；新增状态及归档引用布局见 [Contribution Interface](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md)。不复制大对象到数组／outbox／event／归档，不改任何物理存储与大小上限。容量与版本一致性由 Repository 写前校验和恢复校验共同保证。尚未实现。

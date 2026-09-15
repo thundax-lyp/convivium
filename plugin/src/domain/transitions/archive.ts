@@ -2,7 +2,7 @@ import { isMeetingMinutesDraft } from "@/domain/meeting-state-validation.js";
 
 import { projectAttendanceRejections } from "./attendance-rejection.js";
 import { DomainError } from "@/domain/errors.js";
-import type { ArchiveInput, ArchiveRecord, MeetingState } from "@/domain/model.js";
+import type { ArchiveInput, ArchivePackage, ArchiveRecord, MeetingState } from "@/domain/model.js";
 import { terminationReferencesBelongToMeeting } from "./meeting-guards.js";
 
 export function sameTermination(
@@ -43,6 +43,23 @@ export function snapshotArchive(input: ArchiveInput): ArchiveRecord {
 
 export function assertArchivePackageMatchesMeeting(state: MeetingState, input: ArchiveInput): void {
     const archivePackage = input.package;
+    const expectedContributions = contributionArchiveReferences(state);
+    const actualContributions = archivePackage.contributionRefs;
+    if (
+        expectedContributions === undefined
+            ? actualContributions !== undefined
+            : actualContributions === undefined ||
+              Object.keys(actualContributions).length !== 2 ||
+              JSON.stringify(actualContributions.taskIds) !==
+                  JSON.stringify(expectedContributions.taskIds) ||
+              JSON.stringify(actualContributions.evidenceKeys) !==
+                  JSON.stringify(expectedContributions.evidenceKeys)
+    ) {
+        throw new DomainError(
+            "INVALID_ENTITY_STATE",
+            "Archive contribution references do not match published facts"
+        );
+    }
     if (
         archivePackage.meetingId !== state.id ||
         archivePackage.teamId !== state.teamId ||
@@ -315,6 +332,8 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
                 source.seq !== message.seq ||
                 source.turnId !== message.turnId ||
                 source.stepId !== message.stepId ||
+                source.contributionId !== message.contributionId ||
+                source.contributionRevision !== message.contributionRevision ||
                 source.speaker !== message.speaker ||
                 source.agendaItemId !== message.agendaItemId ||
                 source.content !== message.content ||
@@ -352,4 +371,32 @@ export function assertArchivePackageMatchesMeeting(state: MeetingState, input: A
             }
         );
     }
+}
+
+export function contributionArchiveReferences(
+    state: MeetingState
+): ArchivePackage["contributionRefs"] {
+    const contributions = state.contributions;
+    if (contributions === undefined) return undefined;
+    const taskIds = Object.values(contributions.tasks)
+        .filter((task) => task.phase === "published")
+        .map((task) => task.id)
+        .sort();
+    const evidenceKeys = new Set<string>();
+    function visit(key: string): void {
+        if (evidenceKeys.has(key)) return;
+        const material = contributions!.evidence[key];
+        if (material === undefined)
+            throw new DomainError("INVALID_ENTITY_STATE", "Published evidence is missing");
+        evidenceKeys.add(key);
+        material.code?.patchEvidenceKeys.forEach(visit);
+    }
+    for (const id of taskIds) {
+        const task = contributions.tasks[id]!;
+        const draft = task.drafts[String(task.currentDraftRevision)];
+        if (draft === undefined)
+            throw new DomainError("INVALID_ENTITY_STATE", "Published draft is missing");
+        draft.citations.forEach((citation) => visit(citation.evidenceKey));
+    }
+    return { taskIds, evidenceKeys: [...evidenceKeys].sort() };
 }

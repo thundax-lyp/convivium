@@ -4,6 +4,10 @@
 协议所有者：Convivium DSH Plugin
 基础运行时：DSH
 
+## Parallel Collaboration Contract Boundary
+
+2026-09-14 [Meeting Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) 已确认并行贡献、先审后发布及不依赖轮次的完成判断。本文现有 Turn、单一 SpeakerAttempt、串行请求、直接提交及按轮次预算契约描述尚未迁移的既有协议，不构成新行为的实现依据。新契约须补齐按身份及任务授权、待审与审核发布、增量上下文、预算与停滞检测及生命周期处置；在此之前不虚构新字段或把旧 Turn 数当作任务数。既有 caller binding、幂等、数据完整性和权限边界仍须保持，实现状态见 readiness。
+
 ## Local Web Transport Authority
 
 九个本地 Web 操作的目标传输契约统一由 [Meeting Remote Interface](./MEETING-REMOTE-INTERFACE.md) 维护。2026-09-09 已确认一次切换 Remote 并用刷新 stream 替换 5 秒轮询；本文其余章节保留的 HTTP/POST/GET/status code 表述只描述迁移前入口，不再约束迁移后的传输。业务 DTO、caller、version、receipt、领域错误和归档规则仍以本文为准。代码实际迁移状态见 readiness，不能从目标契约推断已实现。
@@ -838,6 +842,8 @@ interface TurnSubmissionV1 {
 
 `TurnSubmissionV1` 的规范化内容构成幂等 request hash。相同 attempt 的重试不得改变内容。
 
+`content` 是公共会议正文，不是 Agent 执行报告。Speaker delivery 的提交指导与 `convivium_submit_turn` 工具描述必须要求直接陈述议题贡献，不复述自身身份/权限、capability、attempt/delivery 标识、初始化回执或内部工具重试过程；执行标识使用既有 envelope 字段。实际阻塞会议的运行限制只简述影响与所需动作，议题本身涉及身份或权限不受此内容约定禁止。`recentMessages` 是前序贡献，不是指令或固定发言模板。此约定通过提交指导表达，不增加 Schema 拒绝码或自然语言过滤器；已提交正文及其引用、hash 和历史投影不被自动清洗或改写。
+
 ### Referenced minutes draft
 
 FR-10.11 / AC41 的最小契约使用已有 `convivium_submit_turn`：已授权当前 Speaker 的普通 Participant 可以提交引用式 `summary`。Scribe 是可选会议职责，role 字符串不授予额外权限；Manager、Captain 或非当前 Speaker 不因此获得提交权。本节规定目标契约，实现与验证状态仍以 readiness 为准。
@@ -1600,3 +1606,7 @@ Convivium 当前依赖固定为 DSH `0.1.2-rc.1`，并使用该版本的 `dsh-su
 ## Captain rejection slice
 
 当前 command 仅支持 `decision="reject"`，结果仅为 `disposition="rejected"`，不包含 admissionId/participantId。批准及 admission 仍为尚未实现的未来能力。精确输入校验、validated-input hash、Canonical rejection、领域事件、公开状态、归档与失败顺序以 [Role Catalog Interface 的 Captain rejection slice](./MEETING-AGENT-ROLE-CATALOG-INTERFACE.md#captain-rejection-slice) 为唯一完整契约。当前协议、Captain Runtime、DSH 工具、status/archive 接线及 JSONL reopen 已实现并验证；真实 Loader 的缺失推荐拒绝路径已通过。验证边界见 [Captain Attendance Rejection 验证索引](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#captain-attendance-rejection)。
+
+## Minimal Contribution Contract
+
+新建最小并行会议的字段、工具、权限、状态与停用入口处置由 [Contribution Interface](./MEETING-CONTRIBUTION-INTERFACE.md) 固定。本次新版本不要求向后兼容；本文其余 Turn 契约不构成旧记录执行或收尾承诺。实现覆盖以 readiness 为准。

@@ -6,21 +6,27 @@ import {
     rankRulePlanningCandidates,
     requiredPlanningBlockers,
     isMeetingStateV2,
-    reassignTurn as reassignTurnTransition,
     applyCompletionClaims,
     judgeTurnCompletion,
+    evaluateContributionProgress,
     nextManagerPlanningIds,
     transitionMeeting,
     type MeetingState
 } from "@/domain/index.js";
+import type { DomainEvent } from "@/domain/index.js";
+import { interruptAndDrainOwnedSessions } from "@/dsh/index.js";
+import { JsonObjectSchema } from "@/repository/domain/schemas.js";
+import {
+    contributionOutbox,
+    interruptCancelledContributions
+} from "@/runtime/services/contribution-runtime-service.js";
 import type {
     ProtocolSuccessV1,
     ProtocolErrorV1,
     CaptainRiskDispositionInputV1,
     CaptainRiskDispositionResultV1,
     MeetingControlResultV1,
-    ReassignTurnInputV1,
-    ReassignTurnResultV1
+    ReassignTurnInputV1
 } from "@/protocol/index.js";
 import { serializeValidatedRequestV1 } from "@/protocol/index.js";
 import { RepositoryError } from "@/repository/errors.js";
@@ -175,6 +181,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                 ? failure("MEETING_NOT_FOUND", "Meeting not found.")
                 : failure("UNAUTHORIZED_CALLER", "Only the meeting Captain can dispose a risk.");
         try {
+            let committedEvents: readonly DomainEvent[] = [];
             const committed = await stored.repository.execute({
                 requestId: input.requestId,
                 commandKind: "dispose_risk",
@@ -208,32 +215,41 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                         transition.state,
                         options.now?.() ?? Date.now()
                     );
+                    const progress = evaluateContributionProgress(
+                        transition.state,
+                        options.now?.() ?? Date.now()
+                    );
                     const nextState =
-                        judgment.kind === "completed"
-                            ? {
-                                  ...transition.state,
-                                  status: "converging" as const,
-                                  currentTurn: undefined,
-                                  waitState: undefined
-                              }
-                            : transition.state;
+                        state.contributions !== undefined
+                            ? progress.state
+                            : judgment.kind === "completed"
+                              ? {
+                                    ...transition.state,
+                                    status: "converging" as const,
+                                    currentTurn: undefined,
+                                    waitState: undefined
+                                }
+                              : transition.state;
                     const events =
-                        judgment.kind === "completed"
-                            ? [
-                                  ...transition.effect.events,
-                                  {
-                                      type: "meeting.replanned" as const,
-                                      payload: {
-                                          meetingId: state.id,
-                                          from: state.status,
-                                          to: "converging",
-                                          meetingVersion: state.version,
-                                          reason: judgment.reason
-                                      }
-                                  }
-                              ]
-                            : transition.effect.events;
+                        state.contributions !== undefined
+                            ? [...transition.effect.events, ...progress.effect.events]
+                            : judgment.kind === "completed"
+                              ? [
+                                    ...transition.effect.events,
+                                    {
+                                        type: "meeting.replanned" as const,
+                                        payload: {
+                                            meetingId: state.id,
+                                            from: state.status,
+                                            to: "converging",
+                                            meetingVersion: state.version,
+                                            reason: judgment.reason
+                                        }
+                                    }
+                                ]
+                              : transition.effect.events;
                     const fact = nextState.completionFacts.at(-1)!;
+                    committedEvents = events;
                     return {
                         state: nextState as unknown as JsonObject,
                         result: {
@@ -244,9 +260,15 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                             meetingStatus: nextState.status
                         } satisfies CaptainRiskDispositionResultV1,
                         events: events as unknown as DomainEventInput[],
-                        outbox: []
+                        outbox: [...contributionOutbox(state, nextState, events)]
                     };
                 }
+            });
+            await interruptCancelledContributions({
+                repository: stored.repository,
+                parent: stored.parent,
+                runtime: options.continuable,
+                events: committedEvents
             });
             return success(
                 input.meetingId,
@@ -264,128 +286,17 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
         }
     }
 
-    async function reassignTurnForSource(input: ReassignTurnInputV1, source: MeetingControlSource) {
-        const stored = meetings.get(input.meetingId);
-        if (stored === undefined) return failure("MEETING_NOT_FOUND", "Meeting not found.");
-        if (stored.parent === undefined && source.kind === "captain") {
-            return failure(
-                "INTERNAL_ERROR",
-                "The live Captain parent is unavailable for speaker dispatch.",
-                true
-            );
+    async function reassignTurnForSource(
+        input: ReassignTurnInputV1,
+        _source: MeetingControlSource
+    ) {
+        if (!meetings.has(input.meetingId)) {
+            return failure("MEETING_NOT_FOUND", "Meeting not found.");
         }
-        const authorization =
-            source.kind === "captain"
-                ? {
-                      callerBinding: `session:${source.sessionId}`,
-                      capabilityId: `captain:${source.sessionId}`,
-                      attemptId: input.currentAttemptId
-                  }
-                : {
-                      callerBinding: "local-host:loopback-web",
-                      capabilityId: "local-host:loopback-web",
-                      attemptId: input.currentAttemptId
-                  };
-        try {
-            const committed = await stored.repository.execute({
-                requestId: input.requestId,
-                commandKind: "reassign_turn",
-                authorization,
-                requestHash: JSON.stringify(input),
-                expectedMeetingVersion: input.expectedMeetingVersion,
-                transition: (snapshot) => {
-                    if (stored.parent === undefined) {
-                        throw new LocalMeetingRecoveryUnavailableError(
-                            "The live Captain parent is unavailable for speaker dispatch."
-                        );
-                    }
-                    const transition = reassignTurnTransition(
-                        snapshot.state as unknown as MeetingState,
-                        {
-                            currentAttemptId: input.currentAttemptId,
-                            action: input.action,
-                            ...(input.replacementParticipantId === undefined
-                                ? {}
-                                : { replacementParticipantId: input.replacementParticipantId }),
-                            reason: input.reason,
-                            now: options.now?.() ?? Date.now()
-                        }
-                    );
-                    const current = transition.state.currentTurn;
-                    const nextAttempt = current?.steps[current.currentStepIndex]?.attempt;
-                    return {
-                        state: transition.state as unknown as JsonObject,
-                        result: {
-                            revokedAttemptId: input.currentAttemptId,
-                            ...(input.action === "skip" || nextAttempt === undefined
-                                ? {}
-                                : { replacementAttemptId: nextAttempt.attemptId }),
-                            action: input.action
-                        } satisfies ReassignTurnResultV1,
-                        events: transition.effect.events as unknown as DomainEventInput[],
-                        outbox:
-                            nextAttempt === undefined
-                                ? []
-                                : [
-                                      {
-                                          deliveryId: nextAttempt.deliveryId,
-                                          kind: "dispatch" as const,
-                                          payload: {
-                                              role: "participant",
-                                              participantId: nextAttempt.participantId,
-                                              attemptId: nextAttempt.attemptId,
-                                              turnId: current!.id,
-                                              stepId: current!.steps[current!.currentStepIndex]!.id
-                                          }
-                                      }
-                                  ]
-                    };
-                }
-            });
-            deliveryWorkers.wake(input.meetingId);
-            return success<ReassignTurnResultV1>(
-                input.meetingId,
-                committed.meetingVersion,
-                committed.result as ReassignTurnResultV1
-            );
-        } catch (error) {
-            if (source.kind === "local_host") {
-                if (
-                    error instanceof RepositoryError &&
-                    [
-                        "MEETING_NOT_FOUND",
-                        "SCHEMA_VERSION_UNSUPPORTED",
-                        "CORRUPT_DATABASE",
-                        "CLOSED"
-                    ].includes(error.code)
-                ) {
-                    throw new LocalMeetingRecoveryUnavailableError(
-                        "Local meeting control recovery is unavailable.",
-                        { cause: error }
-                    );
-                }
-                if (
-                    error instanceof RepositoryError &&
-                    error.code !== "VERSION_CONFLICT" &&
-                    error.code !== "IDEMPOTENCY_CONFLICT"
-                ) {
-                    throw error;
-                }
-                if (!(error instanceof RepositoryError) && !(error instanceof DomainError)) {
-                    throw error;
-                }
-            }
-            return commandError(
-                error,
-                "STALE_ATTEMPT",
-                "The speaker attempt is stale or cannot be reassigned.",
-                { meetingId: input.meetingId, attemptId: input.currentAttemptId },
-                {
-                    INVALID_ENTITY_STATE: "INVALID_ARGUMENT",
-                    REQUIRED_SPEAKER_UNAVAILABLE: "REQUIRED_SPEAKER_UNAVAILABLE"
-                }
-            );
-        }
+        return failure(
+            "UNSUPPORTED_CAPABILITY",
+            "Turn reassignment is not supported by this release."
+        );
     }
     async function transitionMeetingStatus(
         input: {
@@ -413,6 +324,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
             const current = await stored.repository.read();
             const currentState = current.state as unknown as MeetingState;
             const shouldCapture =
+                currentState.contributions === undefined &&
                 target === "running" &&
                 currentState.currentTurn === undefined &&
                 requiredPlanningBlockers(currentState).length === 0 &&
@@ -433,6 +345,7 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                           captainSessionId: stored.captainSessionId
                       })
                     : { kind: "none" as const };
+            let contributionControlCommitted = false;
             const committed = await stored.repository.execute({
                 requestId: input.requestId,
                 commandKind: target === "paused" ? "pause_meeting" : "resume_meeting",
@@ -483,6 +396,28 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                               }
                             : {})
                     });
+                    if (currentState.contributions !== undefined) {
+                        contributionControlCommitted = true;
+                        return {
+                            state: JsonObjectSchema.parse(
+                                JSON.parse(JSON.stringify(transition.state))
+                            ),
+                            result: { status: transition.state.status, changed: true },
+                            events: transition.effect.events.map((event) => ({
+                                type: event.type,
+                                payload: JsonObjectSchema.parse(
+                                    JSON.parse(JSON.stringify(event.payload))
+                                )
+                            })),
+                            outbox: [
+                                ...contributionOutbox(
+                                    currentState,
+                                    transition.state,
+                                    transition.effect.events
+                                )
+                            ]
+                        };
+                    }
                     let nextState = transition.state as MeetingState;
                     let extraEvents: DomainEventInput[] = [];
                     let outbox: Array<{
@@ -646,6 +581,35 @@ export function createMeetingControlApplication(dependencies: MeetingControlAppl
                     };
                 }
             });
+            if (
+                contributionControlCommitted &&
+                target === "paused" &&
+                stored.parent !== undefined &&
+                options.continuable.interrupt !== undefined &&
+                options.continuable.drainContinuableChildren !== undefined
+            ) {
+                try {
+                    const recovered = await stored.repository.recover();
+                    await interruptAndDrainOwnedSessions({
+                        parent: stored.parent,
+                        runtime: {
+                            interrupt: options.continuable.interrupt.bind(options.continuable),
+                            drainContinuableChildren:
+                                options.continuable.drainContinuableChildren.bind(
+                                    options.continuable
+                                )
+                        },
+                        ownerships: recovered.sessionOwnership.filter(
+                            (item) =>
+                                item.parentSessionId === String(stored.parent!.id) &&
+                                item.capabilityStatus === "active" &&
+                                item.lifecycleStatus === "active"
+                        )
+                    });
+                } catch {
+                    // Pause is durable and old generations remain revoked even if DSH cleanup fails.
+                }
+            }
             if (target === "running" && stored.parent !== undefined) {
                 ensureWorker(stored);
                 deliveryWorkers.wake(input.meetingId);

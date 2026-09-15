@@ -2,13 +2,7 @@ import { RoleCompositionError } from "@/role-composition/resolve.js";
 import { createHash } from "node:crypto";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { interruptAndDrainOwnedSessions } from "@/dsh/index.js";
-import {
-    needsSemanticArbitration,
-    nextManagerPlanningIds,
-    rankRulePlanningCandidates,
-    startManagerPlanning,
-    type MeetingState
-} from "@/domain/index.js";
+import { isMeetingStateV2, type MeetingState } from "@/domain/index.js";
 import type { CreateMeetingInputV1, CreateMeetingResultV1 } from "@/protocol/index.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { commandFailure, commandSuccess } from "@/runtime/services/command-result-service.js";
@@ -16,17 +10,17 @@ import type { MeetingRehydrationService } from "@/runtime/services/meeting-recov
 import type { MeetingDeliveryWorkerService } from "@/runtime/services/types.js";
 import {
     createMeetingRuntime,
+    assertContributionCreationInput,
     openMeetingRepository,
     prepareMeetingCreation,
     type DomainEventInput,
     type JsonObject,
     type MeetingCreationRuntimeDependencies
 } from "@/runtime/meeting-runtime.js";
-import { initializeFirstMeetingTurn } from "./meeting-turn.js";
 import type { CreateStatusRuntimeOptions, MeetingToolCaller } from "./index.js";
 import type { StoredMeeting } from "./types.js";
-import { captureManagerCatalogBinding } from "@/runtime/services/agent-catalog.js";
 import { resolveContinuationSelection } from "./continuation-selection.js";
+import { contributionOutbox } from "@/runtime/services/contribution-runtime-service.js";
 
 function stableMeetingId(input: CreateMeetingInputV1): string {
     return `meeting-${createHash("sha256")
@@ -66,6 +60,69 @@ export interface CreateMeetingApplicationOptions {
     readonly ensureWorker: (stored: StoredMeeting) => void;
     readonly signal: AbortSignal;
     readonly holdCreation?: (meetingId: string) => () => void;
+    readonly markContributionRecovered: (meetingId: string) => void;
+}
+
+async function initializeContributionMeeting(
+    repository: MeetingCreationRuntimeDependencies["repository"] & {
+        read(): Promise<{ state: JsonObject }>;
+        execute<T>(input: unknown): Promise<{ meetingVersion: number; result: T }>;
+    },
+    input: CreateMeetingInputV1,
+    authorization: MeetingCreationRuntimeDependencies["authorization"],
+    now: number
+): Promise<{ meetingVersion: number; status: "running" }> {
+    const committed = await repository.execute<{ status: "running" }>({
+        requestId: `${input.requestId}:start-contributions`,
+        commandKind: "start_contribution_meeting",
+        authorization,
+        requestHash: `${requestHash(input)}:start-contributions`,
+        expectedMeetingVersion: 0,
+        transition: (snapshot: { state: JsonObject }) => {
+            if (!isMeetingStateV2(snapshot.state) || snapshot.state.contributions === undefined) {
+                throw new TypeError("Contribution meeting state is unavailable.");
+            }
+            const state = snapshot.state as unknown as MeetingState;
+            const contributions = state.contributions!;
+            const firstAgenda = state.agenda[0]!;
+            const managerNoticeSeq = 1;
+            const events = [
+                { type: "meeting.started" as const, payload: { meetingId: state.id } },
+                {
+                    type: "contribution.manager_notified" as const,
+                    payload: {
+                        noticeSeq: managerNoticeSeq,
+                        contextThroughSeq: state.messageSeq,
+                        actor: "runtime",
+                        at: now
+                    }
+                }
+            ];
+            const next: MeetingState = {
+                ...state,
+                status: "running",
+                activeAgendaItemId: firstAgenda.id,
+                agenda: state.agenda.map((agenda, index) =>
+                    index === 0 ? { ...agenda, status: "discussing" } : agenda
+                ),
+                manager: { ...state.manager, status: "idle" },
+                contributions: {
+                    ...contributions,
+                    managerNoticeSeq,
+                    managerDeadlineAt: now + 600_000
+                },
+                updatedAt: now,
+                eventSeq: state.eventSeq + events.length
+            };
+            return {
+                state: JSON.parse(JSON.stringify(next)) as JsonObject,
+                result: { status: "running" as const },
+                events: events as unknown as DomainEventInput[],
+                outbox: contributionOutbox(state, next, events)
+            };
+        }
+    });
+    return { meetingVersion: committed.meetingVersion, status: "running" };
 }
 
 export function createMeetingApplication(options: CreateMeetingApplicationOptions) {
@@ -78,6 +135,16 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
             return commandFailure(
                 "UNAUTHORIZED_CALLER",
                 "Only a live Captain Agent can create a meeting."
+            );
+        }
+        try {
+            assertContributionCreationInput(input);
+        } catch (error) {
+            return commandFailure(
+                "INVALID_ARGUMENT",
+                error instanceof Error
+                    ? error.message
+                    : "The contribution meeting input is invalid."
             );
         }
         if (
@@ -236,97 +303,11 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                     resumeReadyCreate = true;
                 }
                 if (!resumeReadyCreate) await createMeetingRuntime(input, dependencies);
-                const initial = await repository.read();
-                const initialState = initial.state as unknown as MeetingState;
-                const firstAgenda = initialState.agenda[0];
-                const activeInitialState: MeetingState = {
-                    ...initialState,
-                    activeAgendaItemId: initialState.activeAgendaItemId ?? firstAgenda?.id,
-                    agenda: initialState.agenda.map((agenda, index) =>
-                        index === 0 ? { ...agenda, status: "discussing" as const } : agenda
-                    )
-                };
-                const managerRequested =
-                    input.selectionMode === "manager" ||
-                    (input.selectionMode === "hybrid" &&
-                        needsSemanticArbitration(
-                            activeInitialState,
-                            rankRulePlanningCandidates(activeInitialState),
-                            "normal"
-                        ));
-                const managerAvailable =
-                    activeInitialState.manager.status !== "failed" &&
-                    activeInitialState.manager.status !== "closed";
-                if (managerRequested && managerAvailable) {
-                    const catalogBinding = await captureManagerCatalogBinding(
-                        options.runtime.agentCatalog,
-                        {
-                            teamId: input.teamId,
-                            meetingId,
-                            captainSessionId: caller.sessionId
-                        }
-                    );
-                    const started = await repository.execute({
-                        requestId: `${input.requestId}:start-manager-planning`,
-                        commandKind: "start_manager_planning",
-                        authorization: dependencies.authorization,
-                        requestHash: `${requestHash(input)}:start-manager-planning`,
-                        expectedMeetingVersion: 0,
-                        transition: (snapshot) => {
-                            const planningIds = nextManagerPlanningIds(
-                                snapshot.state as unknown as MeetingState
-                            );
-                            const transition = startManagerPlanning(
-                                snapshot.state as unknown as MeetingState,
-                                {
-                                    meetingId,
-                                    planningAttemptId: planningIds.planningAttemptId,
-                                    deliveryId: planningIds.deliveryId,
-                                    reason:
-                                        input.selectionMode === "hybrid"
-                                            ? "semantic_arbitration"
-                                            : "initial_plan",
-                                    now: options.runtime.now?.() ?? Date.now(),
-                                    catalogBinding
-                                }
-                            );
-                            return {
-                                state: transition.state as unknown as JsonObject,
-                                result: { status: "planning" },
-                                events: transition.effect.events as unknown as DomainEventInput[],
-                                outbox: [
-                                    {
-                                        deliveryId: planningIds.deliveryId,
-                                        kind: "dispatch",
-                                        payload: {
-                                            role: "manager",
-                                            planningAttemptId: planningIds.planningAttemptId
-                                        }
-                                    }
-                                ]
-                            };
-                        }
-                    });
-                    const result = runningCreateResult(input, meetingId, started.meetingVersion);
-                    await repository.updateCreateResult({
-                        expectedMeetingVersion: started.meetingVersion,
-                        result,
-                        now: options.runtime.now?.()
-                    });
-                    options.meetings.set(meetingId, {
-                        teamId: input.teamId,
-                        captainSessionId: caller.sessionId,
-                        repository,
-                        parent: caller.agent
-                    });
-                    options.ensureWorker(options.meetings.get(meetingId)!);
-                    options.deliveryWorkers.wake(meetingId);
-                    return commandSuccess(meetingId, started.meetingVersion, result);
-                }
-                const initialized = await initializeFirstMeetingTurn(
+                const initialized = await initializeContributionMeeting(
                     repository,
-                    options.runtime.now?.() ?? Date.now(),
-                    managerRequested
+                    input,
+                    dependencies.authorization,
+                    options.runtime.now?.() ?? Date.now()
                 );
                 const result = runningCreateResult(
                     input,
@@ -345,6 +326,7 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
                     repository,
                     parent: caller.agent
                 });
+                options.markContributionRecovered(meetingId);
                 options.ensureWorker(options.meetings.get(meetingId)!);
                 options.deliveryWorkers.wake(meetingId);
                 return commandSuccess(meetingId, initialized.meetingVersion, result);

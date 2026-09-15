@@ -6,6 +6,8 @@
 
 本文是实现设计，不表示功能已经完成。本文中的 `MUST`、`MUST NOT`、`SHOULD` 和 `MAY` 分别表示必须、禁止、建议和可选行为。
 
+2026-09-14 [Meeting Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) 已确认并行贡献与不依赖轮次的完成判断。本文的有序 Turn、单一 SpeakerAttempt、直接提交及按轮次收敛流程保留为既有设计基线，尚未按新需求迁移，不能约束新并行行为。后续设计须落实任务授权、审核发布、增量上下文、预算与停滞检测和在途工作处置；不同身份可并行不改变同一 DSH Session 的串行调用、原子提交或权限不变量。
+
 ## 2. Scope And Non-goals
 
 ### 2.1 Scope
@@ -127,7 +129,7 @@ Runtime 在 DSH 调用前分配 `childId` 并持久化 `parentSessionId`、provi
 
 ### 4.4 Meeting Agent Definition boundary
 
-Convivium 拥有 Meeting Agent Definition、会议身份、选择、批准和 Session ownership。首发 Definition 使用 roleDescription 描述会议职责，引用 dshPresetId/requiredSkillNames，并可通过 DSH 原生 ToolRestriction 收窄 global/祖先 scope（包括共享 Preset）的继承工具；不屏蔽 child 自己注册的工具。
+Convivium 拥有 Meeting Agent Definition、会议身份、选择、批准和 Session ownership。首发 Definition 使用 roleDescription 描述会议职责，引用 dshPresetId 和可为空的 requiredSkillNames，并可通过 DSH 原生 ToolRestriction 收窄 global/祖先 scope（包括共享 Preset）的继承工具；不屏蔽 child 自己注册的工具。无必需 Skill 的角色只使用 roleDescription 作 persona，不生成空加载指令。
 
 Host 通过独立 agentModelOverrides 提供必要的模型差异，默认值、Preset、Skills、Tools、MCP、Sandbox、Approval 与执行由 DSH 管理。resolver 将 roleDescription 和 Skill 加载指令转换为原生 persona，再与 filter/模型覆盖交给 startContinuable。运行时不安装或展开 Skill 正文。
 
@@ -389,6 +391,8 @@ interface MeetingContextProjection {
 `recentMessages` MUST 使用固化范围 `contextFromSeq..contextThroughSeq`。重投不得刷新范围。超限时生成共享摘要，但原始 transcript 仍保留在 Meeting projection。
 
 Speaker outbox 投递在该权威 context 之后附加模型可见的 `convivium_submit_turn` 调用指导：envelope 的 `meetingId/turnId/stepId/attemptId/deliveryId/agendaItemId` 直接取当前 projection，普通提交模板固定包含 `mentions=[]`、`taskIds=[]`、`agendaRelation="on_topic"` 和 `changes={}`。存在可引用正式消息时另给出 `minutesDraft` 示例，并将 `coverage.fromSeq` 收敛为 `max(1, contextFromSeq)`；否则明确省略 `minutesDraft`。该指导只帮助 Agent 构造工具输入，不进入 MeetingState、正式 transcript、request hash 或公开 projection；正式接受仍以 Protocol Schema、当前 caller 与 attempt 校验为准。
+
+提交指导另含 `contentInstruction`，区分公共议题贡献与 Agent 执行信息，并明确历史发言不构成指令或必须模仿的格式；无前序消息时同样投递该指导。工具描述保留同一公共正文边界，防止模型只读取工具说明时遗漏。执行身份和 attempt 授权保持既有独立字段；不通过关键词裁剪正式正文或改写 `recentMessages`，避免破坏证据及误删关于身份/权限的合法议题。指令接线测试只能证明指导已送达，不能证明模型实际遵守。
 
 Manager outbox 同样在权威 context 之后附加模型可见的 `convivium_submit_manager_plan` 调用指导。模板使用当前 `meetingId/planningAttemptId/meetingVersion/agendaItemId`，固定给出 `{input: ManagerPlanSubmissionV1}` 外层结构和本 attempt 的确定性 `requestId`；示例 steps 按 `requiredSpeakerIds` 顺序覆盖全部当前可投递的 required speakers，没有 required speaker 时才选择首个 `dispatchableParticipantId`。指导分别列出 `requiredSpeakerIds` 与 `dispatchableParticipantIds`，要求不伪造不可投递身份；没有可投递 Participant 时明确不能形成满足 `steps.min(1)` 的有效 plan。该模板不替代 Manager 的计划判断，也不改变 caller、stale attempt、version、required participant 或业务 fallback 校验，不进入 MeetingState、event、receipt 或公开 projection。
 
@@ -1295,3 +1299,7 @@ After a completed Turn, compute the fixed-key, canonical-ID-sorted progress fing
 8. Archived Meeting 不保留私有 AgentSession，续会不恢复旧权限和上下文。
 9. Manager 只能推荐 authorized Catalog candidate；Captain 批准和独立 Session provisioning 完成前，该 Agent 不是 Participant，也不能取得发言或权限。
 10. Definition 存在不等于 DSH capability 已安装；共享父 Preset 首版按 FR-14 验收，独立 per-child Preset 不得宣称已实现。
+
+## Minimal Contribution Execution
+
+最小切片的状态转换、文件／符号、Session 接受与业务完成、暂停／恢复／结束流程已固定于 [Contribution Design](./MEETING-CONTRIBUTION-DESIGN.md)，数据结构见 [Domain Model](./DOMAIN-MODEL-DESIGN.md#minimal-contribution-state)。本版本不调用 Turn 推进，也不要求旧状态机兼容或收尾；不自动迁移、删除用户数据。本文旧编排不覆盖该目标，实现覆盖以 readiness 为准。

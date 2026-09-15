@@ -6,9 +6,11 @@
 
 ## Scope
 
-- 更新日期：2026-09-10。最新更新为 Speaker `submit_turn` 调用指导与 Client `zod` 自包含修复；未新增真实 Host/Browser 验收。
-- 本文维护当前需求覆盖、自动化证据索引和剩余缺口。真实 Host、Browser、失败轮及 Restore 结果统一由 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md) 保存。
+- 更新日期：2026-09-15。最小并行贡献切片的当前运行路径与证据见 [最小并行协作证据](./MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)；下方旧 Turn/ManagerPlan/MeetingTask 等专项证据只代表当时基线，不证明当前路径。
+- 本文维护当前需求覆盖、自动化证据索引和剩余缺口。新切片的真实 Host、Browser、模型讨论与 Restore 由上述证据保存；旧基线的运行结果由 [Smoke Validation Evidence](./SMOKE-VALIDATION-EVIDENCE.md) 保存。
 - 各次验证的源码基线和适用范围见 [Executed Validation](#executed-validation)，历史结果不代表当前全部能力。
+- 本次 smoke 脚本精简工作区的确定性 Host 复验通过；真实模型场景先有三轮 FAIL，随后一次有界复验通过六项固定断言与归档／恢复检查。[具体复验边界](./MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md#当前-smoke-脚本精简复验2026-09-15)不可由 T11 历史结果替代；模型输出的重复稳定性、语义质量及真实商家用户价值仍为 Not Covered。
+- 同日新确认的[选定材料立即共享规则](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md#evidence-submission-and-shared-access)尚未进入可运行的公共材料目录/读入口；当前 `save_evidence` 只写 Meeting evidence map，`readContribution` 仍以可见稿件和 contributionId 为前提，归档公开白名单也只含已发布稿的材料依赖。路径文字可以放进现有定位字段，但没有全员发现/读取该保存版本的能力；之前的 verify、Host 和 Browser 证据均不证明新规则。
 - `已实现` 表示正式运行路径及相称证据存在，不表示所有运行组合已验证；`部分实现` 表示仍有必需路径缺失。设计不是实现完成证明。
 
 ## Validated Contract
@@ -21,12 +23,12 @@
 | --- | --- | --- |
 | FR-1 DSH 插件形态 | 已实现（锁定 DSH 0.1.2-rc.1） | [工程验证基线](#executed-validation)、[SQLite Host 组合](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation) |
 | FR-2 会议与身份隔离 | 已实现 | [角色组合](#shared-preset-role-composition)、[身份隔离运行证据](./SMOKE-VALIDATION-EVIDENCE.md#current-baseline-validation) |
-| FR-3 有序连续发言 | 已实现 | [顺序、timeout 与 reassign 运行证据](./SMOKE-VALIDATION-EVIDENCE.md#current-baseline-validation) |
-| FR-4 发言计划与选择 | 已实现（当前选择规则） | [业务能力验证](#业务能力验证) |
-| FR-5 异步任务与举手 | 已实现 | [task-handraise 运行证据](./SMOKE-VALIDATION-EVIDENCE.md#current-baseline-validation)、工程基线中的 contract tests |
+| FR-3 并行贡献与有序公开 | 并行私稿与边界后公开已实现；选定材料在保存时全员共享尚未实现 | [贡献 Host、Browser 与模型证据](./MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)、[剩余范围](#not-covered) |
+| FR-4 贡献选择与推进 | 最小切片已实现；复杂调度未覆盖 | [贡献验证](./MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)、[剩余范围](#not-covered) |
+| FR-5 异步任务与举手 | 旧路径在新会议不支持；任务内研究属于最小贡献切片 | [贡献接口](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md#creation-and-compatibility)、[旧基线](./SMOKE-VALIDATION-EVIDENCE.md#current-baseline-validation) |
 | FR-6 议题范围与发散控制 | 已实现（当前领域契约） | [业务能力验证](#业务能力验证)、[收敛运行证据](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation) |
 | FR-7 提案、立场与决策 | 已实现（当前结构化契约） | [Captain/local 决策与风险](#captain-local-decision-risk-control) |
-| FR-8 完成事实与会议结束 | 已实现（当前完成契约） | [业务能力验证](#业务能力验证)、[Turn budget 运行证据](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation) |
+| FR-8 完成事实与会议结束 | 新贡献完成路径与 Captain 结束已实现；真实时间预算未验证 | [贡献运行证据](./MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)、[旧 Turn 基线](./SMOKE-VALIDATION-EVIDENCE.md#sqlite-provider-validation) |
 | FR-9 暂停、恢复与故障隔离 | 实现已补齐，故障验收未完 | [恢复回归](#业务能力验证)、[归档读取](#archived-read-recovery-follow-up) |
 | FR-10 记录、隐私与归档 | 已实现（message-reference 纪要首版） | [引用式纪要](#referenced-minutes) |
 | FR-11 可观察性与用户控制 | 展示/基础诊断已实现，验收未完 | [Client 事实](#client-fact-visibility)、[诊断回归](#业务能力验证) |
@@ -157,6 +159,7 @@ message-reference draft 正式语义见 [Referenced minutes draft](../20-interfa
 
 | 日期 / 源码边界 | 工程检查与实际结果 | 适用边界 |
 | --- | --- | --- |
+| 2026-09-15 / 选定材料共享文档工作区 | `node .github/scripts/check-doc-links.mjs`：618 个本地文件链接、0 errors；`git diff --check` exit 0。未因纯文档确认重跑产品验证 | 只证明本次需求、接口、设计状态和 readiness 文档的本地链接/diff 结构；`save_evidence` 后全员材料读取、路径文件访问、归档与真实 Host/Browser 均 Not Covered |
 | 2026-09-10 / 真实安装与 Manager 契约复验工作区 | 首轮真实 DSH 暴露语义非法 `completionCriteria` 被外层折叠成 `INTERNAL_ERROR`；修正后全新安装成功创建并归档 Meeting，三位 Participant 形成 4 条正式消息，终态 version 10，默认 `speakerAttemptTimeoutMs=600000`。该轮又暴露 Manager 自然语言 `intent/reason` 触发 fallback；领域白名单接入 delivery/tool 后第三个全新安装中 Manager plan 实际 `fallbackApplied=false`，turn reason=`review`、step reason=`required_reviewer`，终态 archived/version 5。最终 `pnpm --dir plugin verify` PASS：75 files / 921 tests；lint exit 0（46 个既有 warnings）；新增 EndMeeting tool description 后定向 contract、format、lint、Host typecheck PASS | 源码安装、workspace-write、Client Loader、create/status/Manager/Participant/end/archive、10 分钟默认值及报告落盘的真实 Host/Browser 证据。Not Covered：npm registry 安装、失败恢复/Host 冷重启、性能与长期运行；EndMeeting 新描述尚未重新安装做模型首次调用复验 |
 | 2026-09-10 / Manager submit guidance 工作区 | 回归先在旧 Manager 单段 context、泛化 tool description 和错误 provisioning 字段上观察到目标失败；修正兼容性回归后，`pnpm --dir plugin typecheck`、`test`（75 files / 920 tests）、`build`、`verify:contract`、`verify:agent-definitions`（9 roles）、`verify:package`、format PASS；lint exit 0（44 个既有 warnings） | 当前 planning attempt 的完整 `{input: object}` 模板、dispatchable/required 身份边界、Manager/Participant provisioning 字段，以及建会时默认省略 `speakerAttemptTimeoutMs` 的模型提示。Not Covered：修复后真实模型首次提交、Host/Browser 复验及自主失败恢复 |
 | 2026-09-10 / Speaker submit guidance 工作区 | `pnpm --dir plugin test`：74 files / 919 tests PASS；`pnpm --dir plugin build`、`verify:contract`、`verify:agent-definitions`（9 roles）、`verify:package`、format PASS；lint exit 0（44 个既有 warnings）。回归先在泛化 tool description 和单段 Speaker context 上分别观察到目标失败，再在上下文模板及兼容错误 envelope 下通过 | 当前 attempt 身份模板、`contextFromSeq=0` 时 coverage 下界、无引用时省略草稿，以及原 `INVALID_ARGUMENT` handler 边界。Not Covered：真实模型首次调用、重新安装后的 DSH Host/Browser 复验 |
@@ -193,10 +196,23 @@ SQLite 构建仅有 Node SQLite experimental 与既有 Client bundle dependency 
 
 ## Not Covered
 
+- 2026-09-15 已按[最小交付范围](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md#minimal-delivery-scope)实现[贡献接口](../20-interfaces/MEETING-CONTRIBUTION-INTERFACE.md)与[贡献设计](../30-designs/MEETING-CONTRIBUTION-DESIGN.md)的首个切片，运行证据见[专项记录](./MINIMAL-PARALLEL-COLLABORATION-EVIDENCE.md)。主动申请、自动增量判断、自动抓取与执行验证、自动关联重审、动态入会及复杂调度不属于首个切片，完整目标需求仍未覆盖。
+
+- [并行协作需求](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md) FR-3、FR-4、BR-1～BR-3 的固定 roster、不同身份并行私稿、任务独立授权、审后公开与顺序推进已在最小切片验证；自动依赖调度、真实超时／预算与长期停滞处理仍未验证。既有 SpeakerAttempt、D6-D10 与按轮次验证仅证明旧基线；新会议的旧 Turn／ManagerPlan／Mailbox／MeetingTask 写入口返回 `UNSUPPORTED_CAPABILITY`，旧记录不迁移、不删除、也不进入新执行路径。
+
+- [证据提交与公共访问要求](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md#evidence-submission-and-shared-access)的内联材料保存、作者/Manager 授权读取、稿件待审与公开隔离、版本绑定及逐引用核验已在原固定切片验证。新确认的 `save_evidence` 后全员发现/按 key 读取选定材料版本未实现：`readContribution` 不能访问未公开任务的未引用材料，当前 status/context 不提供共享材料目录，归档只收已发布稿引用闭包；固定 reviewer 不预读私稿的目标也尚未有完整提交/组合证据。公共材料读 wire/Schema 仍须先定接口。自动外部抓取、可执行代码固定基线和复现材料仍未覆盖。模型内部材料的 literal `supports` 只证明文本匹配，不证明外部商家事实。
+
+- [协作求解主线](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md#collaborative-problem-solving)的按问题缺口指派及两份不同角色贡献已经在真实模型场景产生；求解路径、关键未知、取证分析、路径修订与一致性方案之间的完整追溯以及方案质量仍未验证，不能由稿件或审核计数证明。
+
+- 独立审核员、待核验状态、逐引用结论与禁止自审已在最小切片验证；关键／被质疑证据的自动安排与关联重审尚未覆盖，见[发言及证据审核需求](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md)。
+
+- [发言边界审核](../10-requirements/MEETING-SPEECH-REVIEW-REQUIREMENTS.md)的先审后发布、退回重提、精确 revision 与 Captain 接管路径已在当前切片实现并验证对应反例；真实超时处置及复杂边界的长期模型遵守仍未覆盖。旧直接提交与投递测试不证明新准入控制。
+
 以下集中列出当前缺口；专项章节中的 fake/DOM/历史限定只解释证据的证明范围。
 
 | 范围 | 尚未实现或未验证 |
 | --- | --- |
+| 选定材料保存即共享 | 全员材料目录、按 evidenceKey 读取未引用版本、保存后公开的 status/context/UI 消费、归档保留全部已共享版本及对应权限/恢复回归未实现；本地路径只可作为文字公开，不能代替文件内容访问或核验成功 |
 | FR-1 / 发布 | npm 与源码安装入口已实现但未用真实 registry 和 DSH profile 验收；最终发布策略、其他 DSH 版本及独立 ACP/SDK/TUI/headless profile 未验证；无 WebServer 回归不等于这些部署已验收 |
 | FR-4 / FR-8 | 真实模型规划质量、时间预算的真实完成边界、blocking Position 的真实 DSH 反例未验证 |
 | FR-7 | 历史五动作 Browser 证据未在最新源码组合重跑，专项真实 Host 冷重启未验证 |
@@ -213,4 +229,4 @@ V1 非目标：远程、多用户、跨 Host、独立 per-child Preset、独占 
 
 ## Closure
 
-已有实现及证据支持上表中的当前状态；FR-13 仍部分实现，恢复故障、完整页面/观测验收及抓取等边界未关闭，不能称为全部需求或生产发布就绪。最新测试精简与回归补强未新增真实运行验收；提交和发布状态以 Git/PR 为准。
+最小并行切片已有真实 Host、Browser、模型请求和冷恢复证据；新确认的选定材料保存即共享尚未实现或验收，不能沿用原“稿件批准后材料才公开”的证据宣称覆盖。FR-13 仍部分实现，完整需求、恢复故障、页面/观测验收、自动抓取、讨论语义质量及用户价值等边界未关闭，不能称为全部需求或生产发布就绪。旧专项证据只适用于对应历史源码边界；提交和发布状态以 Git/PR 为准。

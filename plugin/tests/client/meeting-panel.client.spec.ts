@@ -45,6 +45,194 @@ function useRemoteFixture() {
         await clientFixture.dispose();
     });
 }
+
+describe("contribution meeting panel", () => {
+    useRemoteFixture();
+
+    beforeEach(() => {
+        vi.stubGlobal("crypto", { randomUUID: vi.fn(() => "contribution-request") });
+    });
+
+    it("renders contribution summaries and exact-version material details", async () => {
+        const state = contributionStatus();
+        const read = contributionReadResult();
+        const rpcMock = vi.fn<Rpc>(async (method) => {
+            if (method === "list") return remoteResult(listResponse());
+            if (method === "getStatus") return remoteResult(success(state));
+            if (method === "readContribution") return remoteResult(success(read));
+            throw new Error(`Unexpected method ${method}`);
+        });
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+
+        const section = screen.getByLabelText("Contributions");
+        expect(section.textContent).toContain("participant-one");
+        expect(section.textContent).toContain("published");
+        expect(section.textContent).toContain("complete");
+        fireEvent.click(within(section).getByRole("button", { name: "View contribution" }));
+        const material = await screen.findByLabelText("Contribution detail");
+        for (const value of [
+            "Material",
+            "diff content",
+            "Source",
+            "https://example.test/repository",
+            "Claim",
+            "Guard exists",
+            "Verification",
+            "supports: Guard found",
+            "Method",
+            "Inspection",
+            "Limitations",
+            "No runtime execution."
+        ])
+            expect(material.textContent).toContain(value);
+        expect((screen.getByLabelText("Draft revision") as HTMLSelectElement).value).toBe("1");
+        expect(rpcMock.mock.calls.filter(([method]) => method === "readContribution")).toHaveLength(
+            2
+        );
+        expect(screen.queryByRole("button", { name: "Skip current speaker" })).toBeNull();
+    });
+
+    it("lets the user inspect every cited material version", async () => {
+        const state = contributionStatus();
+        const read = contributionReadResult();
+        read.drafts[0]!.citations.push({
+            evidenceKey: "evidence-2:3",
+            claim: "Second source",
+            locator: "section 2",
+            inference: "inspection"
+        });
+        const rpcMock = vi.fn<Rpc>(async (method, options) => {
+            if (method === "list") return remoteResult(listResponse());
+            if (method === "getStatus") return remoteResult(success(state));
+            if (method === "readContribution") {
+                const input = options.input as { evidenceKey?: string };
+                return remoteResult(
+                    success(
+                        input.evidenceKey === "evidence-2:3"
+                            ? {
+                                  ...read,
+                                  evidence: {
+                                      ...read.evidence,
+                                      evidenceId: "evidence-2",
+                                      key: "evidence-2:3",
+                                      revision: 3,
+                                      material: {
+                                          kind: "text" as const,
+                                          text: "second exact version"
+                                      }
+                                  }
+                              }
+                            : read
+                    )
+                );
+            }
+            throw new Error(`Unexpected method ${method}`);
+        });
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        fireEvent.click(screen.getByRole("button", { name: "View contribution" }));
+        await screen.findByLabelText("Contribution detail");
+        fireEvent.change(screen.getByLabelText("Evidence version"), {
+            target: { value: "evidence-2:3" }
+        });
+        await waitFor(() =>
+            expect(screen.getByLabelText("Contribution detail").textContent).toContain(
+                "second exact version"
+            )
+        );
+        expect(
+            rpcMock.mock.calls.filter(
+                ([method, options]) =>
+                    method === "readContribution" &&
+                    (options.input as { evidenceKey?: string }).evidenceKey === "evidence-2:3"
+            )
+        ).toHaveLength(1);
+    });
+
+    it("refreshes status before a local contribution retry and requires a reason", async () => {
+        const state = contributionStatus("returned");
+        const rpcMock = vi.fn<Rpc>(async (method) => {
+            if (method === "list") return remoteResult(listResponse());
+            if (method === "getStatus") return remoteResult(success(state));
+            if (method === "controlContribution")
+                return remoteResult(
+                    success(
+                        {
+                            contributionId: "contribution-1",
+                            generation: 2,
+                            phase: "preparing"
+                        },
+                        3
+                    )
+                );
+            throw new Error(`Unexpected method ${method}`);
+        });
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        fireEvent.click(screen.getByRole("button", { name: "Retry contribution" }));
+        const form = screen.getByRole("form", { name: "Contribution control" });
+        expect(
+            (within(form).getByRole("button", { name: "Submit" }) as HTMLButtonElement).disabled
+        ).toBe(true);
+        fireEvent.change(within(form).getByLabelText("Reason"), { target: { value: "retry" } });
+        fireEvent.click(within(form).getByRole("button", { name: "Submit" }));
+        await waitFor(() =>
+            expect(rpcMock.mock.calls.some(([method]) => method === "controlContribution")).toBe(
+                true
+            )
+        );
+        const methods = rpcMock.mock.calls.map(([method]) => method);
+        const controlIndex = methods.indexOf("controlContribution");
+        expect(methods[controlIndex - 1]).toBe("getStatus");
+        const control = rpcMock.mock.calls.find(([method]) => method === "controlContribution")?.[1]
+            .input;
+        expect(control).toMatchObject({
+            expectedMeetingVersion: 2,
+            action: "retry",
+            contributionId: "contribution-1",
+            generation: 1,
+            reason: "retry"
+        });
+    });
+
+    it("aborts and ignores contribution detail from the previously selected meeting", async () => {
+        const pending = deferred<RemoteResult<unknown>>();
+        const other = { ...listItem, meetingId: "meeting/2", topic: "Second meeting" };
+        const rpcMock = vi.fn<Rpc>(async (method, options) => {
+            if (method === "list") return remoteResult(listResponse([listItem, other]));
+            if (method === "readContribution") return pending.promise;
+            const requested = options.input as { meetingId?: string };
+            const result =
+                requested.meetingId === meetingId
+                    ? contributionStatus()
+                    : { ...statusResult(), meetingId: other.meetingId, topic: other.topic };
+            const envelope = success(result);
+            return remoteResult(
+                requested.meetingId === meetingId
+                    ? envelope
+                    : { ...envelope, meetingId: other.meetingId }
+            );
+        });
+        setRpc(rpcMock);
+        render(createElement(ConviviumMeetingPanel, { api }));
+        await selectMeeting();
+        fireEvent.click(screen.getByRole("button", { name: "View contribution" }));
+        const firstRead = rpcMock.mock.calls.find(([method]) => method === "readContribution")?.[1]
+            .signal;
+        if (firstRead === undefined) throw new Error("Contribution read was not called");
+        fireEvent.click(screen.getByRole("button", { name: /Second meeting/ }));
+        expect(firstRead.aborted).toBe(true);
+        await act(async () => pending.resolve(remoteResult(success(contributionReadResult()))));
+        await waitFor(() =>
+            expect(screen.getByLabelText("Meeting summary").textContent).toContain("Second meeting")
+        );
+        expect(screen.queryByLabelText("Contribution detail")).toBeNull();
+    });
+});
 afterEach(cleanup);
 
 function setRpc(mock: Rpc) {
@@ -142,6 +330,111 @@ function statusResult(
                 : status === "converging"
                   ? { action: "none" as const }
                   : { action: "pause" as const }
+    };
+}
+
+function contributionStatus(phase: "published" | "returned" = "published") {
+    return {
+        ...statusResult(),
+        contributions: {
+            reviewerId: "participant-reviewer",
+            tasks: [
+                {
+                    id: "contribution-1",
+                    participantId: "participant-one",
+                    agendaItemId: "agenda-1",
+                    phase,
+                    generation: 1,
+                    currentDraftRevision: 1,
+                    requiredForCompletion: true,
+                    requiresEvidenceReview: true,
+                    reviewStatus:
+                        phase === "published" ? ("complete" as const) : ("pending" as const),
+                    deadlineAt: 100
+                }
+            ]
+        }
+    } as MeetingStatusResultV1;
+}
+
+function contributionReadResult() {
+    return {
+        task: contributionStatus().contributions!.tasks[0]!,
+        drafts: [
+            {
+                revision: 1,
+                basedOnSeq: 0,
+                submittedAt: 1,
+                message: {
+                    id: "message-1",
+                    kind: "statement" as const,
+                    content: "Public finding",
+                    mentions: [],
+                    taskIds: [],
+                    agendaRelation: "on_topic" as const,
+                    createdAt: 1
+                },
+                claims: {
+                    questions: [],
+                    issues: [],
+                    proposals: [],
+                    positions: [],
+                    agendaCandidates: [],
+                    decisionCandidates: []
+                },
+                citations: [
+                    {
+                        evidenceKey: "evidence-1:1",
+                        claim: "Guard exists",
+                        locator: "src/index.ts",
+                        inference: "Inspection"
+                    }
+                ]
+            }
+        ],
+        boundaryReviews: [],
+        evidenceReviews: [
+            {
+                draftRevision: 1,
+                evidenceKey: "evidence-1:1",
+                claim: "Guard exists",
+                verdict: "supports" as const,
+                method: "Inspection",
+                result: "Guard found",
+                limitations: "Static only",
+                actor: "reviewer",
+                reviewedAt: 3
+            }
+        ],
+        evidence: {
+            title: "Repository snapshot",
+            kind: "code" as const,
+            source: "https://example.test/repository",
+            sourceDate: "2026-09-14",
+            collectedAt: "2026-09-14T00:00:00Z",
+            locator: "src/index.ts#main",
+            observation: "Guard present",
+            methodAndConditions: "Reviewed commit abc123.",
+            limitations: "No runtime execution.",
+            dependencies: "Checkout abc123.",
+            material: { kind: "text" as const, text: "diff content" },
+            code: {
+                repository: "https://example.test/repository",
+                revision: "abc123",
+                pathsAndSymbols: "src/index.ts#main",
+                patchEvidenceKeys: [],
+                validation: "static_only" as const,
+                reproduction: "git show abc123",
+                expected: "Guard present",
+                observed: "Guard present",
+                notCovered: "Runtime execution"
+            },
+            evidenceId: "evidence-1",
+            revision: 1,
+            key: "evidence-1:1",
+            submittedBy: "participant-one",
+            submittedAt: 1
+        }
     };
 }
 
@@ -1465,42 +1758,6 @@ describe("meeting panel and client plugin lifecycle", () => {
             requestId: "request-1",
             reason: "Inspect output"
         });
-    });
-
-    it("shows Skip only for a visible current attempt and posts the fixed skip payload", async () => {
-        const rpcMock = vi
-            .fn<Rpc>()
-            .mockResolvedValueOnce(remoteResult(listResponse()))
-            .mockResolvedValueOnce(remoteResult(listResponse()))
-            .mockResolvedValueOnce(remoteResult(success(statusResult("running", 2, true))))
-            .mockResolvedValueOnce(
-                remoteResult(success({ revokedAttemptId: "attempt-1", action: "skip" }, 3))
-            )
-            .mockResolvedValueOnce(remoteResult(listResponse()))
-            .mockResolvedValueOnce(remoteResult(success(statusResult("running", 3))));
-        setRpc(rpcMock);
-        render(createElement(ConviviumMeetingPanel, { api }));
-        await selectMeeting();
-
-        expect(screen.getByLabelText("Skip current speaker")).toBeTruthy();
-        fireEvent.change(screen.getByLabelText("Skip reason"), {
-            target: { value: "Move on" }
-        });
-        fireEvent.click(screen.getByLabelText("Skip current speaker"));
-        await waitFor(() => expect(rpcMock).toHaveBeenCalledTimes(6));
-        expect(rpcMock.mock.calls[3]?.[0]).toBe("reassign");
-        expect(rpcMock.mock.calls[3]?.[1]?.input).toEqual({
-            protocolVersion: 1,
-            meetingId,
-            expectedMeetingVersion: 2,
-            currentAttemptId: "attempt-1",
-            action: "skip",
-            reason: "Move on",
-            requestId: "request-1"
-        });
-        expect(JSON.stringify(rpcMock.mock.calls[3]?.[1]?.input)).not.toContain(
-            "replacementParticipantId"
-        );
     });
 
     it("limits End outcomes and posts the fixed empty completion fields", async () => {

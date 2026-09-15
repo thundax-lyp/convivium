@@ -1,4 +1,3 @@
-import { isMeetingMinutesDraft } from "@/domain/meeting-state-validation.js";
 import { DomainError } from "@/domain/errors.js";
 import { cancelRequestedMeetingTasksForAttempts } from "@/domain/meeting-task.js";
 import type {
@@ -10,41 +9,14 @@ import type {
 import { transitionAttempt, transitionStep } from "./kernel.js";
 import { executionTerminalStatuses } from "./termination.js";
 import { advanceAfterSpeakerSubmission } from "./turn-advancement.js";
+import { assertPublicMinutes } from "./public-submission.js";
 
 function assertMinutesDraft(
     state: MeetingState,
     attempt: SpeakerAttempt,
     context: SpeakerSubmissionContext
 ): void {
-    const message = context.message;
-    const draft = message.minutesDraft;
-    if (draft === undefined) return;
-    if (
-        !isMeetingMinutesDraft(draft) ||
-        message.kind !== "summary" ||
-        typeof message.content !== "string" ||
-        !/\S/.test(message.content) ||
-        message.content.length > 8000 ||
-        message.agendaRelation !== "on_topic" ||
-        message.taskIds.length !== 0 ||
-        Object.prototype.hasOwnProperty.call(message, "replyTo")
-    )
-        throw new DomainError("INVALID_ENTITY_STATE", "Invalid minutes draft.");
-    const { fromSeq, throughSeq } = draft.coverage;
-    const messages = state.transcript
-        .filter((message) => message.seq >= fromSeq && message.seq <= throughSeq)
-        .sort((a, b) => a.seq - b.seq);
-    if (
-        fromSeq < Math.max(1, attempt.contextFromSeq) ||
-        throughSeq > attempt.contextThroughSeq ||
-        messages.length !== throughSeq - fromSeq + 1 ||
-        messages.some((message, index) => message.seq !== fromSeq + index) ||
-        draft.referencedMessageIds.some(
-            (id) =>
-                id === message.id || messages.filter((message) => message.id === id).length !== 1
-        )
-    )
-        throw new DomainError("INVALID_ENTITY_STATE", "Invalid minutes draft.");
+    assertPublicMinutes(state, context.message, attempt.contextFromSeq, attempt.contextThroughSeq);
 }
 
 export function submitSpeakerAttempt(
