@@ -1091,10 +1091,10 @@ export function applyContributionCommand(
         if (task === undefined || task.generation !== command.generation)
             throw new DomainError("STALE_ATTEMPT", "Contribution control is stale.");
         if (command.action === "cancel") {
-            if (task.phase === "published")
+            if (task.phase === "published" || task.phase === "cancelled")
                 throw new DomainError(
                     "INVALID_STATE_TRANSITION",
-                    "Published contributions cannot be cancelled."
+                    "Published or cancelled contributions cannot be cancelled."
                 );
             const next = {
                 ...task,

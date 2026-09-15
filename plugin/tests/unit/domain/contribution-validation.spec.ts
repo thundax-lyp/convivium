@@ -399,6 +399,18 @@ describe("contribution task control", () => {
             reason: "Stop."
         });
         expect(cancelled.state.contributions!.tasks[task.id]!.drafts).toEqual(task.drafts);
+        expect(() =>
+            applyContributionCommand(
+                cancelled.state,
+                { action: "cancel", contributionId: task.id, generation: 2, reason: "Overwrite." },
+                captainContext()
+            )
+        ).toThrow(expect.objectContaining({ code: "INVALID_STATE_TRANSITION" }));
+        expect(cancelled.state.contributions!.tasks[task.id]).toMatchObject({
+            phase: "cancelled",
+            generation: 2,
+            reason: "Stop."
+        });
         const notified = applyContributionCommand(
             { ...state, status: "waiting" },
             { action: "notify_manager", reason: "Need attention." },
