@@ -62,5 +62,12 @@ export { publishRoundV1 } from "./round-publication-v1.js";
 export { createMeetingV1 } from "./meeting-create-v1.js";
 export { endMeetingV1 } from "./meeting-end-v1.js";
 export { startMeetingArchiveV1 } from "./meeting-archive-v1.js";
+export {
+    recommendIdentityV1,
+    recordIdentityAdmissionResultV1,
+    type IdentityAdmissionResultContextV1,
+    type IdentityRecommendationDraftV1,
+    type IdentityTransitionResultV1
+} from "./meeting-identity-v1.js";
 
 export * from "./attendance-rejection.js";

@@ -45,6 +45,7 @@ function base(): MeetingState {
                 required: false
             }
         ],
+        identityRecommendations: [],
         agenda: [
             {
                 id: "agenda-1",

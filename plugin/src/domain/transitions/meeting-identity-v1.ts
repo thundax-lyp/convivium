@@ -1,0 +1,234 @@
+import type {
+    EpochMs,
+    IdentityRecommendationV1,
+    MeetingState,
+    OpaqueId
+} from "@/domain/meeting-state-v1.js";
+import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
+
+export type IdentityRecommendationDraftV1 = {
+    candidateId: string;
+    definitionId: string;
+    definitionVersion: string;
+    catalogId: string;
+    catalogVersion: string;
+    agendaId: string;
+    decision: "admit" | "reject";
+    rationale: string;
+    expectedContribution: string;
+    evidenceGap: string;
+};
+export type IdentityAdmissionResultContextV1 =
+    | {
+          kind: "admitted";
+          admissionId: string;
+          meetingId: string;
+          identityId: string;
+          childSessionId: string;
+          ownershipId: string;
+          descriptorId: string;
+          displayName: string;
+          definitionId: string;
+          definitionVersion: string;
+          definitionHash: string;
+      }
+    | { kind: "rejected"; failureCode: string };
+export type IdentityTransitionResultV1 =
+    | {
+          kind: "accepted";
+          state: MeetingState;
+          fact: { kind: string; actorId: string; occurredAt: number; relatedIds: string[] };
+          facts: readonly [
+              { kind: string; actorId: string; occurredAt: number; relatedIds: string[] }
+          ];
+          effect?: { kind: "identity_provision"; recommendationId: string; admissionId: string };
+      }
+    | {
+          kind: "rejected";
+          errorCode: "INVALID_ARGUMENT" | "NOT_FOUND" | "INVALID_STATE" | "PRECONDITION_FAILED";
+          state: MeetingState;
+          facts: readonly [];
+      };
+
+type IdentityRejectionCode =
+    "INVALID_ARGUMENT" | "NOT_FOUND" | "INVALID_STATE" | "PRECONDITION_FAILED";
+const reject = (
+    state: MeetingState,
+    errorCode: IdentityRejectionCode
+): IdentityTransitionResultV1 => ({ kind: "rejected", state, errorCode, facts: [] });
+const valid = (value: unknown): value is string =>
+    typeof value === "string" && value.trim().length > 0;
+
+export function recommendIdentityV1(
+    state: MeetingState,
+    action: IdentityRecommendationDraftV1,
+    managerId: string,
+    ids: { recommendationId: string; identityId?: string; childSessionId?: string },
+    now: EpochMs
+): IdentityTransitionResultV1 {
+    if (
+        validateMeetingStateV1(state).kind !== "valid" ||
+        !valid(managerId) ||
+        !Number.isSafeInteger(now) ||
+        !valid(ids.recommendationId)
+    )
+        return reject(state, "INVALID_ARGUMENT");
+    if (
+        !action ||
+        !valid(action.candidateId) ||
+        !valid(action.definitionId) ||
+        !valid(action.definitionVersion) ||
+        !valid(action.catalogId) ||
+        !valid(action.catalogVersion) ||
+        !valid(action.agendaId) ||
+        !valid(action.rationale) ||
+        !valid(action.expectedContribution) ||
+        !valid(action.evidenceGap)
+    )
+        return reject(state, "INVALID_ARGUMENT");
+    if (state.lifecycle.status !== "running") return reject(state, "INVALID_STATE");
+    if (
+        !state.identities.some(
+            (identity) => identity.id === managerId && identity.roles.includes("manager")
+        )
+    )
+        return reject(state, "PRECONDITION_FAILED");
+    if (!state.agenda.some((agenda) => agenda.id === action.agendaId))
+        return reject(state, "NOT_FOUND");
+    const duplicate = state.identityRecommendations.some(
+        (item) =>
+            item.candidateId === action.candidateId &&
+            (item.status === "provisioning" || item.status === "active")
+    );
+    if (duplicate) return reject(state, "INVALID_STATE");
+    const recommendation: IdentityRecommendationV1 =
+        action.decision === "reject"
+            ? {
+                  ...action,
+                  decision: "reject",
+                  id: ids.recommendationId,
+                  managerId,
+                  createdAt: now,
+                  status: "rejected",
+                  resolvedAt: now
+              }
+            : {
+                  ...action,
+                  decision: "admit",
+                  id: ids.recommendationId,
+                  managerId,
+                  createdAt: now,
+                  status: "provisioning",
+                  identityId: ids.identityId ?? "",
+                  childSessionId: ids.childSessionId ?? "",
+                  definitionHash: "0".repeat(64)
+              };
+    if (action.decision === "admit" && (!valid(ids.identityId) || !valid(ids.childSessionId)))
+        return reject(state, "INVALID_ARGUMENT");
+    const nextState = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: now,
+        identityRecommendations: [...state.identityRecommendations, recommendation]
+    };
+    const fact = {
+        kind: "recommend_identity",
+        actorId: managerId,
+        occurredAt: now,
+        relatedIds: [recommendation.id, action.candidateId, action.agendaId]
+    };
+    return {
+        kind: "accepted",
+        state: nextState,
+        fact,
+        facts: [fact],
+        ...(action.decision === "admit"
+            ? {
+                  effect: {
+                      kind: "identity_provision" as const,
+                      recommendationId: recommendation.id,
+                      admissionId: recommendation.id
+                  }
+              }
+            : {})
+    };
+}
+
+export function recordIdentityAdmissionResultV1(
+    state: MeetingState,
+    recommendationId: string,
+    result: IdentityAdmissionResultContextV1,
+    now: number
+): IdentityTransitionResultV1 {
+    if (
+        validateMeetingStateV1(state).kind !== "valid" ||
+        !valid(recommendationId) ||
+        !Number.isSafeInteger(now)
+    )
+        return reject(state, "INVALID_ARGUMENT");
+    const intent = state.identityRecommendations.find((item) => item.id === recommendationId);
+    if (!intent || intent.decision !== "admit" || intent.status !== "provisioning")
+        return reject(state, "NOT_FOUND");
+    if (
+        result.kind === "admitted" &&
+        (result.admissionId !== intent.id ||
+            result.meetingId !== state.id ||
+            result.identityId !== intent.identityId ||
+            result.childSessionId !== intent.childSessionId ||
+            result.definitionId !== intent.definitionId ||
+            result.definitionVersion !== intent.definitionVersion ||
+            !valid(result.ownershipId) ||
+            !valid(result.descriptorId) ||
+            !valid(result.displayName) ||
+            !valid(result.definitionHash))
+    )
+        return reject(state, "PRECONDITION_FAILED");
+    const updated =
+        result.kind === "admitted"
+            ? {
+                  ...intent,
+                  status: "active" as const,
+                  resolvedAt: now,
+                  definitionHash: result.definitionHash
+              }
+            : {
+                  ...intent,
+                  status: "failed" as const,
+                  resolvedAt: now,
+                  failureCode: result.failureCode
+              };
+    const nextState = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: now,
+        identityRecommendations: state.identityRecommendations.map((item) =>
+            item.id === intent.id ? updated : item
+        ),
+        identities:
+            result.kind === "admitted"
+                ? [
+                      ...state.identities,
+                      {
+                          id: result.identityId,
+                          displayName: result.displayName,
+                          roles: ["contributor" as const],
+                          agendaResponsibilityIds: [],
+                          reviewResponsibilityIds: [],
+                          riskAuthority: false,
+                          required: false,
+                          definitionId: result.definitionId,
+                          definitionVersion: result.definitionVersion,
+                          definitionHash: result.definitionHash,
+                          sessionOwnershipId: result.ownershipId
+                      }
+                  ]
+                : state.identities
+    };
+    const fact = {
+        kind: "record_identity_admission_result",
+        actorId: "runtime:identity-provision",
+        occurredAt: now,
+        relatedIds: [recommendationId]
+    };
+    return { kind: "accepted", state: nextState, fact, facts: [fact] };
+}

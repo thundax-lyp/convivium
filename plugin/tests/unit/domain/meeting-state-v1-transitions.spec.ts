@@ -27,6 +27,7 @@ function state(status: MeetingState["lifecycle"]["status"] = "running"): Meeting
                 required: false
             }
         ],
+        identityRecommendations: [],
         agenda: [
             {
                 id: "agenda-1",
