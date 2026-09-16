@@ -49,7 +49,45 @@ export interface MeetingIdentityV1 {
     required: boolean;
     definitionId?: OpaqueId;
     definitionVersion?: string;
+    definitionHash?: string;
+    sessionOwnershipId?: string;
 }
+
+export interface IdentityRecommendationCoreV1 {
+    id: string;
+    candidateId: string;
+    definitionId: string;
+    definitionVersion: string;
+    catalogId: string;
+    catalogVersion: string;
+    agendaId: string;
+    managerId: string;
+    rationale: string;
+    expectedContribution: string;
+    evidenceGap: string;
+    createdAt: number;
+}
+export type IdentityRecommendationV1 = IdentityRecommendationCoreV1 &
+    (
+        | {
+              decision: "reject";
+              status: "rejected";
+              resolvedAt: number;
+              identityId?: never;
+              childSessionId?: never;
+              definitionHash?: never;
+              failureCode?: never;
+          }
+        | {
+              decision: "admit";
+              status: "provisioning" | "active" | "failed";
+              identityId: string;
+              childSessionId: string;
+              definitionHash: string;
+              resolvedAt?: number;
+              failureCode?: string;
+          }
+    );
 
 export interface AgendaItemV1 {
     id: OpaqueId;
@@ -441,6 +479,14 @@ export interface ArchivePackageV1 {
     includedDecisionIds: readonly OpaqueId[];
     includedCompletionFactIds: readonly OpaqueId[];
     status: "pending" | "complete" | "failed";
+    identityProvenance: readonly {
+        identityId: string;
+        displayName: string;
+        roles: readonly MeetingRole[];
+        definitionId: string;
+        definitionVersion: string;
+        definitionHash: string;
+    }[];
 }
 
 export interface ContinuationProvenanceV1 {
@@ -467,6 +513,7 @@ export interface MeetingState {
     objective: ObjectiveContractV1;
     lifecycle: MeetingLifecycleV1;
     identities: readonly MeetingIdentityV1[];
+    identityRecommendations: readonly IdentityRecommendationV1[];
     agenda: readonly AgendaItemV1[];
     agendaCandidates: readonly AgendaCandidateV1[];
     rounds: readonly RoundV1[];

@@ -4,6 +4,67 @@ import type {} from "@deepseek-ai/dsh-agent-presets";
 import type {} from "@deepseek-ai/dsh-skill";
 import type { MeetingAgentDefinitionV1 } from "./model.js";
 import { RoleCompositionError } from "./resolve.js";
+import type { AgentDefinitionBindingV1 } from "./model.js";
+import type { IdentityRecommendationV1 } from "@/domain/index.js";
+
+export type PreflightIdentityResultV1 =
+    | {
+          kind: "ready";
+          descriptor: {
+              descriptorId: string;
+              meetingId: string;
+              parentSessionId: string;
+              definition: { id: string; version: string };
+              definitionHash: string;
+              expiresAt: number;
+          };
+      }
+    | {
+          kind: "rejected";
+          error: { code: "CAPABILITY_MISSING" | "PREFLIGHT_EXPIRED"; message: string };
+          missing: readonly [];
+      };
+
+export async function preflightDynamicMeetingIdentityV1(
+    parent: Agent,
+    intent: IdentityRecommendationV1,
+    definition: MeetingAgentDefinitionV1,
+    binding: AgentDefinitionBindingV1,
+    signal: AbortSignal
+): Promise<PreflightIdentityResultV1> {
+    try {
+        await validateSharedRoleCapabilities(parent, [definition], signal);
+    } catch {
+        return {
+            kind: "rejected",
+            error: {
+                code: "CAPABILITY_MISSING",
+                message: "Required role capability is unavailable"
+            },
+            missing: []
+        };
+    }
+    if (binding.definitionHash !== intent.definitionHash)
+        return {
+            kind: "rejected",
+            error: {
+                code: "CAPABILITY_MISSING",
+                message: "Definition binding does not match intent"
+            },
+            missing: []
+        };
+    return {
+        kind: "ready",
+        descriptor: {
+            descriptorId: `descriptor:${intent.id}`,
+            meetingId: "",
+            parentSessionId: "",
+            definition: { id: definition.agentDefinitionId, version: definition.definitionVersion },
+            definitionHash: binding.definitionHash,
+            expiresAt: Date.now() + 300_000
+        }
+    };
+}
 
 /** Read capabilities in the exact Captain scope without installing or changing anything. */
 export async function validateSharedRoleCapabilities(

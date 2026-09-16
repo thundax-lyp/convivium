@@ -1,5 +1,5 @@
 import type { MeetingState, OpaqueId } from "@/domain/index.js";
-import type { MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
 type Input = {
     contributionId: OpaqueId;
     actorId: OpaqueId;
@@ -8,19 +8,6 @@ type Input = {
     reason: string;
     now: number;
 };
-function reject(
-    state: MeetingState,
-    code: Extract<MeetingTransitionResultV1, { kind: "rejected" }>["error"]["code"],
-    message: string
-): MeetingTransitionResultV1 {
-    return {
-        kind: "rejected",
-        state,
-        relatedIds: [],
-        effectRequests: [],
-        error: { code, message }
-    };
-}
 export function closeContributionV1(state: MeetingState, input: Input): MeetingTransitionResultV1 {
     if (
         !input.contributionId.trim() ||

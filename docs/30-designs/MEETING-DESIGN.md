@@ -34,7 +34,7 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 4. 先检查 caller 是否可读取/控制目标 Meeting，再查找该 caller 的历史 receipt：同键不同 payload 返回 `IDEMPOTENCY_CONFLICT`，同键同 payload 直接返回原结果；无历史 receipt 时依次检查 terminal/archive、expected version、目标对象存在性、action state/precondition 与 Domain invariant/limit。
 5. 由 application 构造无环境依赖的 Domain command，调用纯转换。转换成功时生成新 snapshot、已提交事实和提交后 effect plan；拒绝时不产生任何事实。
 6. 以 `meetingId + expectedVersion` 比较并交换，原子写入 snapshot、事件/审计事实、idempotency receipt 和 effect outbox。冲突返回当前版本，不执行效果。
-7. commit 后按 outbox 投递 Session mail、agent notice、review delivery、refresh、Markdown projection 或归档动作。投递至少一次，但 receipt 和领域事实绝不因重复投递而重复创建。
+7. commit 后按 outbox 投递 Session mail、agent notice、review delivery、refresh、Markdown projection、身份 provisioning 或归档动作。投递至少一次，但 receipt 和领域事实绝不因重复投递而重复创建。
 8. 返回该 caller 可见的 committed result；任何 refresh 只提示重新读取，不把未提交状态作为结果发送。
 
 读路径只加载已提交 snapshot，再调用 projection。它不修复数据、不触发隐式转换，也不因读取推进 deadline。
@@ -91,7 +91,7 @@ Decision candidate 和 Captain/local 私有投影由 projection 根据 actor 过
 
 ### Planning, tasks and mail
 
-Manager 可提出 `recommend_identity`、`recommend_work` 或 `recommend_review`，但 recommendation 只是一项规划事实：它不得创建 MeetingIdentity、Session、Contribution、Decision 或自动重试。Captain 的接纳进入 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 的 definition admission 管线；全部预检和 Session ownership 成功后才原子创建 identity 关联事实。必需 identity unavailable 时，application 创建或更新 blocking Issue，停止其依赖工作并报告；不能替换身份或用另一 agent 自动补位。
+`recommend_identity` 由当前 Manager 单独提交结构化 `admit|reject`。application 重读同一 Host 的安全 Catalog，验证 snapshot/candidate/Definition/Agenda、Meeting version 和真实 caller；`reject` 只原子提交拒绝事实，`admit` 原子提交不可调度的 provisioning 意图及 `identity_provision` outbox，不立即创建 MeetingIdentity、Contribution 或 Decision。effect dispatcher 依据该 intent 的精确 Definition identity 和稳定 admissionId 执行 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 的 resolution/preflight/admission；Runtime 确认独立 Session ownership 后，`record_identity_admission_result` 原子激活普通可选身份，或原子记录失败码而保持无身份。效果重试和冷恢复只使用同一意图及 admissionId；缺必需 identity 时仍通过 blocking Issue 报告，不自动让另一个 agent 补位。`recommend_work`、`recommend_review` 仍仅为规划事实。
 
 `create_task`、`claim_task`、`complete_task`、`cancel_task` 只改变 `MeetingTask`。任务必须绑定 Meeting、发起/执行身份、上下文范围和 deadline；任务完成绝不直接完成 Agenda、Round 或 Meeting。`send_private_mail` 在 commit 中固定双方可见的公开上下文上界，投递前由 effect dispatcher 加上该上界之后新增的公开内容；私信、Agent tool 过程和隐藏推理不回写 FormalMessage。
 

@@ -45,6 +45,7 @@ function base(): MeetingState {
                 required: false
             }
         ],
+        identityRecommendations: [],
         agenda: [
             {
                 id: "agenda-1",
@@ -1236,6 +1237,7 @@ it("validates terminal archive linkage and snapshot bounds", () => {
         includedPublicationIds: [],
         includedDecisionIds: [],
         includedCompletionFactIds: [],
+        identityProvenance: [],
         status: "complete"
     };
     const terminal = {
@@ -1328,6 +1330,7 @@ it.each(terminalReferenceCases)("rejects %s references", (_name, key, values, pa
         includedPublicationIds: [],
         includedDecisionIds: [],
         includedCompletionFactIds: [],
+        identityProvenance: [],
         status: "complete"
     };
     const state = {
@@ -1498,6 +1501,7 @@ it("rejects archive before terminal lifecycle", () => {
         includedPublicationIds: [],
         includedDecisionIds: [],
         includedCompletionFactIds: [],
+        identityProvenance: [],
         status: "complete"
     };
     invalidAt({ ...base(), termination, archive }, "$.archive");

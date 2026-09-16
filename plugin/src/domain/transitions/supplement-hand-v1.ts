@@ -1,5 +1,5 @@
 import type { MeetingState, OpaqueId, SupplementHandV1 } from "@/domain/index.js";
-import type { MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
 
 type RaiseInput = { contributionId: OpaqueId; authorId: OpaqueId; purpose: string; now: number };
 type DisposeInput = {
@@ -16,19 +16,6 @@ const terminal = new Set([
     "supplement_rejected",
     "closed"
 ]);
-function reject(
-    state: MeetingState,
-    code: Extract<MeetingTransitionResultV1, { kind: "rejected" }>["error"]["code"],
-    message: string
-): MeetingTransitionResultV1 {
-    return {
-        kind: "rejected",
-        state,
-        relatedIds: [],
-        effectRequests: [],
-        error: { code, message }
-    };
-}
 function managerFor(state: MeetingState, agendaId: OpaqueId) {
     return state.identities.find(
         (identity) =>
@@ -102,8 +89,8 @@ export function raiseSupplementHandV1(
     }
     if (deadlines.some((deadline) => input.now >= deadline))
         return reject(state, "PRECONDITION_FAILED", "supplement deadline has passed");
-    if (!managerFor(state, round.agendaId))
-        return reject(state, "PRECONDITION_FAILED", "no eligible manager");
+    const manager = managerFor(state, round.agendaId);
+    if (!manager) return reject(state, "PRECONDITION_FAILED", "no eligible manager");
     const hand: SupplementHandV1 = {
         purpose: input.purpose,
         raisedAt: input.now,
@@ -119,7 +106,6 @@ export function raiseSupplementHandV1(
                 : candidate
         )
     };
-    const manager = managerFor(state, round.agendaId)!;
     return {
         kind: "accepted",
         state: next,

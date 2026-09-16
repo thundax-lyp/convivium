@@ -4,7 +4,7 @@ import type {
     OpaqueId,
     TextWithReasonV1
 } from "@/domain/index.js";
-import type { MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
 
 export interface EvidenceInputV1 {
     observation: string;
@@ -55,19 +55,6 @@ type SubmitInput = {
     registrationId: OpaqueId;
     now: number;
 };
-function reject(
-    state: MeetingState,
-    code: Extract<MeetingTransitionResultV1, { kind: "rejected" }>["error"]["code"],
-    message: string
-): MeetingTransitionResultV1 {
-    return {
-        kind: "rejected",
-        state,
-        relatedIds: [],
-        effectRequests: [],
-        error: { code, message }
-    };
-}
 function validHash(hash: string) {
     return /^[0-9a-f]{64}$/.test(hash);
 }

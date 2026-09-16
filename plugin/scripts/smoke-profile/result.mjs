@@ -15,10 +15,42 @@ export function validateScenarioResult(value, expectedScenario) {
         validateParallelContributionResult(value);
     } else if (expectedScenario === "parallel-contribution-model") {
         validateParallelContributionModelResult(value);
+    } else if (expectedScenario === "identity-admission") {
+        validateIdentityAdmissionResult(value);
     } else {
         throw new Error("Unsupported smoke result scenario: " + expectedScenario);
     }
     return value;
+}
+
+function validateIdentityAdmissionResult(value) {
+    if (
+        !exact(value, [
+            "ok",
+            "scenario",
+            "catalog",
+            "admittedChildId",
+            "rejectedCandidateId",
+            "nativeSkillLoaded",
+            "sessionIndependent"
+        ]) ||
+        value.ok !== true ||
+        value.scenario !== "identity-admission" ||
+        !exact(value.catalog, [
+            "protocolVersion",
+            "meetingId",
+            "catalogId",
+            "catalogVersion",
+            "generatedAt",
+            "candidates"
+        ]) ||
+        value.catalog.candidates.length !== 2 ||
+        value.admittedChildId !== "smoke-identity-admit" ||
+        value.rejectedCandidateId !== "candidate-reject" ||
+        value.nativeSkillLoaded !== true ||
+        value.sessionIndependent !== true
+    )
+        throw new Error("Identity admission smoke result is invalid.");
 }
 
 function validateParallelContributionModelResult(value) {

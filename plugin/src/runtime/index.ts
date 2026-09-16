@@ -41,6 +41,8 @@ export type {
 } from "./application-service/index.js";
 export type { CaptainRebindDependencies } from "./services/meeting-recovery-service.js";
 export { AGENT_CATALOG_SERVICE_KEY } from "./services/agent-catalog.js";
+export { createMeetingCommandApplicationV1 } from "./application-service/meeting-command-v1.js";
+export { recoverMeetingCommandsV1 } from "./services/meeting-command-recovery-v1.js";
 export {
     managerPlanAllowedIntents,
     managerPlanAllowedStepReasons
