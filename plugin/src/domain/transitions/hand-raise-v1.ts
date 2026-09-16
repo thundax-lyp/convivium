@@ -1,5 +1,5 @@
 import type { ContributionV1, MeetingState, OpaqueId } from "@/domain/index.js";
-import type { MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
 
 type RaiseInput = { roundId: OpaqueId; contributorId: OpaqueId; purpose: string; now: number };
 type DisposeInput = {
@@ -19,19 +19,6 @@ const terminal = new Set([
     "closed"
 ]);
 
-function reject(
-    state: MeetingState,
-    code: Extract<MeetingTransitionResultV1, { kind: "rejected" }>["error"]["code"],
-    message: string
-): MeetingTransitionResultV1 {
-    return {
-        kind: "rejected",
-        state,
-        relatedIds: [],
-        effectRequests: [],
-        error: { code, message }
-    };
-}
 function managerFor(state: MeetingState, agendaId: OpaqueId) {
     return state.identities.find(
         (identity) =>
