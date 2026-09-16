@@ -31,7 +31,7 @@ interface CallerBinding {
 
 ## Command Action Union
 
-除非另有说明，全部 action 只能在非 `terminal|archiving|archived` Meeting 执行。所有 `reason`、`rationale`、`text`、`title`、`body`、`instructions` 均为去首尾空白后的非空字符串；引用数组不得为空且不得重复。
+除非另有说明，全部 action 只能在非 `terminal|archiving|archived` Meeting 执行。所有 `reason`、`rationale`、`text`、`title`、`question`、`description`、`body`、`instructions` 均为去首尾空白后的非空字符串；引用数组不得重复。引用数组默认不得为空；`RecordQuestion` 和 `RecordIssue` 的 affected/required reviewer 数组允许单组为空，但 blocking 必须满足下述明确的非空关联或 high 风险条件。
 
 ```ts
 type MeetingActionV1 =
@@ -67,7 +67,7 @@ interface RaiseAgendaCandidate { kind: "raise_agenda_candidate"; title: string; 
 interface DisposeAgendaCandidate { kind: "dispose_agenda_candidate"; candidateId: OpaqueId; disposition: "promoted" | "parked" | "rejected"; reason: string; promotedAgenda?: AgendaInput }
 interface RecordQuestion { kind: "record_question"; agendaId: OpaqueId; text: string; affectedOutputIds: OpaqueId[]; affectedCriterionIds: OpaqueId[]; affectedConstraintIds: OpaqueId[]; blocking: boolean }
 interface ResolveQuestion { kind: "resolve_question"; questionId: OpaqueId; status: "answered" | "withdrawn" | "deferred"; rationale: string; evidenceIds: OpaqueId[] }
-interface RecordIssue { kind: "record_issue"; agendaId: OpaqueId; description: string; riskLevel: "low" | "medium" | "high"; classification: "blocking" | "follow_up" | "pending_discussion" | "accepted_risk" | "out_of_scope"; blocking: boolean; rationale: string }
+interface RecordIssue { kind: "record_issue"; agendaId: OpaqueId; description: string; riskLevel: "low" | "medium" | "high"; classification: "blocking" | "follow_up" | "pending_discussion" | "out_of_scope"; affectedOutputIds: OpaqueId[]; affectedCriterionIds: OpaqueId[]; affectedConstraintIds: OpaqueId[]; requiredReviewerIds: OpaqueId[]; blocking: boolean; rationale: string }
 interface DisposeIssue { kind: "dispose_issue"; issueId: OpaqueId; status: "resolved" | "deferred" | "out_of_scope"; rationale: string; evidenceIds: OpaqueId[] }
 interface RecommendIdentity { kind: "recommend_identity"; definitionId: OpaqueId; definitionVersion: string; catalogId: OpaqueId; catalogVersion: string; agendaId: OpaqueId; rationale: string; expectedContribution: string; evidenceGap: string }
 interface DisposeIdentityRecommendation { kind: "dispose_identity_recommendation"; recommendationId: OpaqueId; disposition: "accepted" | "rejected"; rationale: string }
@@ -160,6 +160,12 @@ interface RecordArchiveSessionResult { kind: "record_archive_session_result"; se
 
 local controller performs create, pause, resume and end; it is not an Agent identity. Captain is required for agenda disposition/activation, Decision, RiskDisposition and CompletionFact; local controller may only decide, supersede/revoke Decision, or accept/reject Risk using the same field validation and separate local audit facts. Manager opens/publishes normal Rounds, handles all hand-raise dispositions, registers evidence and recommends. A contributor may submit own evidence/proposal/position/candidate/task result; reviewer only submits assigned reviews. Runtime rejects role-confused actions.
 
+Any authorized Meeting identity may use `record_question` and `record_issue`. Only an identity with the `captain` role may use `resolve_question` and `dispose_issue`; local controller may use none of these four actions. A caller that does not meet this role boundary is rejected as `UNAUTHORIZED` under the fixed error precedence; a permitted caller whose target is absent or whose state precondition fails is rejected by the subsequent `NOT_FOUND`, `INVALID_STATE`, or `PRECONDITION_FAILED` check.
+
+`RecordIssue` 的四组 affected/required reviewer ID 数组必须显式存在，可为空但不可含重复 ID；它们分别引用本 Meeting 的 `ObjectiveContract.requiredOutputs`、`acceptanceCriteria`、`hardConstraints` 和目标 Agenda 的 `requiredReviewerIds`。调用者不得提交 `accepted_risk`，也不得用 `blocking=false` 表示风险已接受；`accepted_risk` 只由合法 `dispose_risk` accept 写入持久 Issue。`blocking=true` 仅在至少一个受影响的必要产出、验收条件或硬约束尚未满足，或至少一个该 Agenda 的必需审核者被明确关联，或该 Issue 为尚未接受的 `high` 风险时有效；无此资格而请求 blocking 必须拒绝，不能从自由文本推断影响或填补默认 `riskLevel`。在 `record_issue` 创建 open Issue 时，未接受的 `high` 风险必须 `blocking=true`；`classification="blocking"` 与 `blocking=true` 必须成对，其他分类必须 `blocking=false`。不匹配的 caller 字段拒绝而非自动改写；终结处置可以把 blocking 清零并保留原 classification 作为历史分类，deferred 不改变旧分类或 blocking。
+
+`resolve_question` 仅从 `open|deferred` 进入 `answered|withdrawn|deferred`：`answered|withdrawn` 置 `blocking=false`，`deferred` 保留旧 blocking。`dispose_issue` 仅从 `open|deferred` 进入 `resolved|deferred|out_of_scope`：`resolved|out_of_scope` 置 `blocking=false`，`deferred` 保留旧 blocking。终结处置后的重复处置拒绝；暂缓不等于解决或接受风险，未接受 high Issue 不能借 `deferred` 清除阻塞。处置 actor、时间、理由、证据、目标旧/新 status 与 blocking 只写入一次不可变 committed fact payload；当前 Question/Issue 只保存 status/blocking，不复制处置历史。receipt 仅用于幂等，不是唯一审计来源。
+
 A DecisionCandidate is accepted only when it names the current ProposalRevision and its evidence/positions are visible, valid and meeting-local. Decide accepts exactly one such candidate. Supersede requires replacementCandidateId and atomically accepts it, creates its Decision and marks the old accepted Decision superseded; revoke must not contain replacementCandidateId. Candidate reject/revoke does not exist. Risk accept/reject checks the exact Issue, its riskLevel against acceptableRiskLevel, hard constraints, Issue status, lifecycle, non-empty rationale and meeting-local evidence; accept updates only that Issue to accepted_risk and non-blocking, reject keeps it open and blocking.
 
 RaiseSupplementHand is author-only within the same nonterminal Contribution and requires a nonempty description of the intended correction or additional evidence. It may occur before review delivery; after the first successful delivery of the current Review it must occur strictly before sentAt + responseDeadlineMs. It must also occur before any persisted Round or applicable MeetingTask deadline. When substantiveSupplementCount is below two and the current registered version is under review, Manager may only defer acceptance and the package cannot change; a third application follows the count-exhausted rejection rule regardless of review stage. DisposeSupplementHand is Manager-only; accepted is permitted only when the current version is not under review, there is no other pending/accepted supplement hand, and substantiveSupplementCount is below two. An accepted hand permits a new private draft format review; the author uses the same SubmitEvidence action after format approval, which atomically consumes the hand and approval and increments the count only when replacing a registered current version. Rejected/deferred draft reviews or supplement requests create no new EvidenceVersion and do not mean withdrawal. SubmitCompletionDeclaration is participant-only: it creates an immutable declaration but never changes output, criterion, Agenda, lifecycle or completion status. RecordCompletionFact may consume a declaration only after authorization, public-evidence, required-review and risk checks pass.
@@ -186,6 +192,10 @@ interface ContinuationInput { sourceArchiveId: OpaqueId; selectedMaterialIds: Op
 ```
 
 IDs supplied during creation must be locally unique and all references validate before Runtime allocates Meeting ID. Runtime fixes `responseDeadlineMs` to 60000; clients cannot configure it.
+
+`InitialIdentityInput.agendaResponsibilityIds` 与 `reviewResponsibilityIds` 的元素均是本 Meeting 的 `AgendaItem.id`，未知 Agenda ID 拒绝；review responsibility 仅对同时具有 `evidence_reviewer` role 的 identity 合法。已物化 `MeetingIdentity.id` 与 `AgendaItem.requiredReviewerIds`（元素为 identityId）须和 identity 的 reviewResponsibilityIds 双向一致，不能从 displayName、Definition 或自然语言补出责任。初始 caller 输入的 reviewer identityId 解析/映射尚未由本 Interface 固定，不由纯 Domain validator 切片实现或猜测；create/admission 切片须在分配 identityId、建立 Agenda refs 前补正式契约。
+
+`dispose_agenda_candidate` 的 promoted 分支不得清空或改写 caller 提交的 `promotedAgenda.requiredReviewerIds`；同一目标转换须将 pending candidate 标 promoted、append 完整 pending Agenda，并向每个所列、已存在且有 `evidence_reviewer` role 的 MeetingIdentity.reviewResponsibilityIds append 新 Agenda.id。任一 reviewer/role/引用失败须整条拒绝，不提交半个 Agenda、candidate 状态或 identity 责任；不授予新 role 或改变当前 active Agenda。park/reject 不改变身份责任。
 
 ## Results, Errors And Precedence
 
@@ -249,11 +259,11 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
 interface DecisionCandidateView { id: OpaqueId; proposalRevisionId: OpaqueId; outcome: "adopt" | "reject" | "defer"; rationale: string; evidenceIds: OpaqueId[]; positionIds: OpaqueId[]; createdAt: EpochMs }
 interface DecisionView { id: OpaqueId; candidateId: OpaqueId; proposalRevisionId: OpaqueId; status: "accepted" | "superseded" | "revoked"; outcome: "adopt" | "reject" | "defer"; rationale: string; evidenceIds: OpaqueId[]; positionIds: OpaqueId[]; createdAt: EpochMs }
     interface QuestionView { id: OpaqueId; agendaId: OpaqueId; text: string; blocking: boolean; status: "open" | "answered" | "withdrawn" | "deferred"; affectedOutputIds: OpaqueId[]; affectedCriterionIds: OpaqueId[]; affectedConstraintIds: OpaqueId[] }
-    interface IssueView { id: OpaqueId; agendaId: OpaqueId; description: string; riskLevel: "low" | "medium" | "high"; classification: "blocking" | "follow_up" | "pending_discussion" | "accepted_risk" | "out_of_scope"; blocking: boolean; status: "open" | "resolved" | "deferred" | "out_of_scope"; rationale: string }
+    interface IssueView { id: OpaqueId; agendaId: OpaqueId; description: string; riskLevel: "low" | "medium" | "high"; classification: "blocking" | "follow_up" | "pending_discussion" | "accepted_risk" | "out_of_scope"; affectedOutputIds: OpaqueId[]; affectedCriterionIds: OpaqueId[]; affectedConstraintIds: OpaqueId[]; requiredReviewerIds: OpaqueId[]; blocking: boolean; status: "open" | "resolved" | "deferred" | "out_of_scope"; rationale: string }
     interface OutcomeView { decisions: DecisionView[]; completionFacts: CompletionFactView[]; riskDispositions: RiskDispositionView[]; pendingDecisionCandidates?: DecisionCandidateView[]; termination?: TerminationView }
     interface CompletionFactView { id: OpaqueId; outputId: OpaqueId; criterionId?: OpaqueId; status: "active" | "superseded" | "revoked"; statement: string; rationale: string; evidenceIds: OpaqueId[]; decisionIds: OpaqueId[]; createdAt: EpochMs }
     interface RiskDispositionView { id: OpaqueId; issueId: OpaqueId; action: "accept" | "reject"; scope: string; rationale: string; evidenceIds: OpaqueId[]; createdAt: EpochMs }
-    interface TerminationView { outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed"; reason: string; endedAt: EpochMs; decisionIds: OpaqueId[]; completionFactIds: OpaqueId[]; unresolvedQuestionIds: OpaqueId[]; unresolvedIssueIds: OpaqueId[]; unclosedContributionIds: OpaqueId[] }
+    interface TerminationView { id: OpaqueId; outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed"; reason: string; endedAt: EpochMs; decisionIds: OpaqueId[]; completionFactIds: OpaqueId[]; unresolvedQuestionIds: OpaqueId[]; unresolvedIssueIds: OpaqueId[]; unclosedContributionIds: OpaqueId[] }
     interface ArchiveView { id: OpaqueId; status: "pending" | "complete" | "failed"; createdAt: EpochMs; publicSnapshotVersion: number; includedPublicationIds: OpaqueId[]; includedDecisionIds: OpaqueId[]; includedCompletionFactIds: OpaqueId[] }
     interface ManagerPlanView { id: OpaqueId; agendaId: OpaqueId; managerId: OpaqueId; basedOnPublicationId?: OpaqueId; kind: "open_round" | "continue_agenda" | "stop_agenda" | "raise_agenda_candidate" | "wait_for_required_identity"; rationale: string; blockingReason?: string; status: "active" | "superseded" | "completed"; createdAt: EpochMs }
     interface TaskView { id: OpaqueId; assigneeId: OpaqueId; agendaId?: OpaqueId; title: string; status: "open" | "claimed" | "completed" | "cancelled" | "expired"; authorizationId: OpaqueId; authorizationStatus: "active" | "revoked" | "expired"; attempt: number; reassignedFromTaskId?: OpaqueId; deadlineAt?: EpochMs; result?: string; exitReason?: string; startedAt?: EpochMs; completedAt?: EpochMs }
@@ -284,8 +294,13 @@ type MeetingStateRecordV1 = MeetingState; // exact lossless JSON codec of meetin
 interface CommittedFactRecordV1 {
   factId: OpaqueId; kind: MeetingActionV1["kind"]; actorId: OpaqueId;
   occurredAt: EpochMs; meetingVersion: number; relatedIds: OpaqueId[];
+  payload: CommittedFactPayloadV1;
   resultingState: MeetingStateRecordV1;
 }
+type CommittedFactPayloadV1 =
+  | { kind: "references"; relatedIds: OpaqueId[] }
+  | { kind: "question_disposition"; questionId: OpaqueId; oldStatus: "open" | "deferred"; newStatus: "answered" | "withdrawn" | "deferred"; oldBlocking: boolean; newBlocking: boolean; rationale: string; evidenceIds: OpaqueId[] }
+  | { kind: "issue_disposition"; issueId: OpaqueId; oldStatus: "open" | "deferred"; newStatus: "resolved" | "deferred" | "out_of_scope"; oldBlocking: boolean; newBlocking: boolean; rationale: string; evidenceIds: OpaqueId[] };
 interface ReceiptRecordV1 {
   receiptId: OpaqueId; meetingId: OpaqueId; principalId: OpaqueId; requestId: OpaqueId;
   actionKind: MeetingActionV1["kind"]; normalizedPayloadHash: string;
@@ -306,7 +321,7 @@ type OutboxPayloadV1 =
   | { kind: "archive"; archiveId: OpaqueId; meetingId: OpaqueId };
 ```
 
-`MeetingStateRecordV1` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecordV1` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, resultingState` 的追加事实。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。outbox payload 只能包含最小效果输入，不含私有草稿正文、secrets 或隐藏推理。`agent_notice` 只提示已提交公开消息或私有格式/举手处置；dispatcher 投递前重新验证 recipient 的会议 Session ownership 与 active 状态，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。
+`MeetingStateRecordV1` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecordV1` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私有草稿正文、私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。outbox payload 只能包含最小效果输入，不含私有草稿正文、secrets 或隐藏推理。`agent_notice` 只提示已提交公开消息或私有格式/举手处置；dispatcher 投递前重新验证 recipient 的会议 Session ownership 与 active 状态，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。当前 `ArchivePackageV1` 未表示 Question/Issue 处置事实的引用或内容；其归档映射须由后续 archive 切片在进入 archived 前补齐，不能把 Repository 事实保存当作已归档。
 
 ## Compatibility And Acceptance
 

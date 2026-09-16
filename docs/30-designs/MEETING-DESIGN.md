@@ -46,10 +46,11 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 | 转换 | 允许 actor | 前提 | 成功事实/效果 | 拒绝或无操作 |
 | --- | --- | --- | --- | --- |
 | `create_meeting` | Convener | objective、初始身份、限制完整；DSH 预检已完成 | version 1、initial pending agenda、ownership/session creation effect | 任一必填目标、身份或能力缺失即拒绝；不产生半个 Meeting |
-| `activate_agenda` | Captain | Meeting 可运行；目标 Agenda pending；无其他 active | 原 Agenda 按明示 disposition 收口，新 Agenda active | 非 Captain、终态、缺失/非 pending Agenda 拒绝 |
+| `activate_agenda` | Captain | Meeting running；目标 Agenda pending；恰有一个旧 active Agenda 且其上没有 open Round | 原 Agenda 按明示 disposition 收口，新 Agenda active，open Round 不会留在已收口 Agenda 上 | 非 Captain、非 running、旧议题仍有 open Round、缺失/非 pending Agenda 拒绝 |
 | `raise_agenda_candidate` | 任意已授权 identity | Meeting 非终态；title/reason 完整 | pending candidate | 相同 request replay receipt；不能隐式加入 Agenda |
-| `dispose_agenda_candidate` | Captain | candidate pending | 仅一次 promoted/parked/rejected 事实；promoted 新建 pending Agenda，不切换 active | 再处置、非 Captain 或候选不存在拒绝 |
-| `record_question` / `resolve_question` / `record_issue` / `dispose_issue` | 记录者；处置者依 Interface 角色 | 关联 Agenda 和目标引用存在；blocking 关联未满足目标 | 不可变记录或合法 status 更新；blocking 影响 completion/结束判断 | 用自由文本伪造引用、默认风险等级或跳过理由拒绝 |
+| `dispose_agenda_candidate` | Captain | candidate pending；promoted Agenda 的每个必需 reviewer identity 存在、具有 evidence_reviewer role、责任引用可原子更新 | 仅一次 promoted/parked/rejected 事实；promoted 同次将 candidate 标 promoted、append 完整 pending Agenda，并向每个必需 reviewer identity.reviewResponsibilityIds append 新 Agenda.id，三项不可部分提交；不授新 role、不切换 active | 再处置、非 Captain、候选/审核者不存在、reviewer 无 role、重复责任或任一引用非法时整条拒绝，state/facts/version 均不变 |
+| `record_question` / `record_issue` | 任一已授权 Meeting identity | 关联 Agenda 和受影响的必要产出、验收条件、硬约束引用存在；Issue 的必需审核者 ID 必须属于该 Agenda；blocking 仅在这些受影响目标尚未满足、明确关联必需审核者或 high 风险尚未接受时成立 | 不可变记录；未接受 high 风险必须 blocking；Issue 的 `accepted_risk` 只能经 `dispose_risk` accept 形成 | local controller、未知 identity、自由文本伪造引用、无资格却请求 blocking、直接创建 `accepted_risk` 或默认风险等级拒绝 |
+| `resolve_question` / `dispose_issue` | Captain identity | 目标 Question/Issue 存在且 status 为 `open|deferred`；rationale/evidence 引用有效 | Question answered/withdrawn、Issue resolved/out_of_scope 清除 blocking；deferred 保留旧 blocking；旧/新 status/blocking、理由和证据进入单一不可变 committed fact payload | local controller、非 Captain、已终结的再次处置、缺理由/证据或通过 deferred 消除未接受 high 风险的尝试拒绝 |
 
 ### Evidence round
 
@@ -81,7 +82,7 @@ Round 的 `aborted` 只由 Captain 在不能继续时设置，必须给出原因
 | `dispose_risk` | Captain 或 local controller | riskLevel、acceptableRiskLevel、hard constraints、Issue status、evidence、理由齐全 | 不可变 accept/reject disposition；只改变目标 Issue；完成条件满足时进入 converging 并停止新增贡献安排 | 无 authority 或接受未说明风险拒绝 |
 | `submit_completion_declaration` | Participant | 自身 identity、output/criterion、可见 evidence 与 task 引用一致 | 不可变 declaration，不改变完成状态 | 不能以 declaration 覆盖 objective、Agenda 或 lifecycle |
 | `record_completion_fact` / `supersede_completion_fact` / `revoke_completion_fact` | Captain | 对 output/criterion 的可验证 evidence 与 Decision 基础完整 | active 或显式替代/撤销事实 | Manager 或以 Task/评分代替依据拒绝 |
-| `end_meeting` | local controller | 所有 active Agenda 已收口，或强制结束明确列出未收口项；结束 outcome 与 unresolved items/decisions/facts 一致 | immutable Termination、terminal lifecycle、archive materialization effect | objective 未满足只能以 partial/no_consensus 等明确 outcome 结束，不能伪造 completed |
+| `end_meeting` | local controller | 所有 active Agenda 已收口，或强制结束明确列出未收口项；结束 outcome 与 unresolved items/decisions/facts 一致 | 由受控 Runtime/Domain 命令上下文分配非空唯一 Termination.id，形成 immutable Termination、terminal lifecycle、archive materialization effect；后续 ArchivePackage.terminationId 必须匹配 | objective 未满足只能以 partial/no_consensus 等明确 outcome 结束，不能伪造 completed；caller 不得提交 Termination.id |
 
 Decision candidate 和 Captain/local 私有投影由 projection 根据 actor 过滤；它不是另一个可写状态。
 

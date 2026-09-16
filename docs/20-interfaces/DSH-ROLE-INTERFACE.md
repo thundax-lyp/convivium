@@ -113,6 +113,8 @@ Runtime 在创建第一条 Session 或写入 MeetingIdentity 前调用 preflight
 
 Admission 是跨 Definition validation、descriptor validity、Session creation、durable ownership 与 Meeting identity fact 的 all-or-nothing 操作：不能返回 admitted，除非五者都成功；失败前新建 Session 必须释放或标记不可访问。admissionId 在同一 Meeting/Definition identity 内幂等，等 payload replay 返回同 identity/ownership。恢复仅在存储的 meetingId、identityId、descriptorId、Definition provenance 都匹配时继续；descriptor 缺失或不匹配返回 RECOVERY_UNAVAILABLE，绝不使用当前 Definition 替代。
 
+`AdmitIdentityRequestV1.identity.agendaResponsibilityIds` 与 `reviewResponsibilityIds` 均指本 Meeting 已存在的 `AgendaItem.id`，未知 ID 拒绝，不能凭 displayName 或 Definition 推断。reviewResponsibilityIds 非空时 requested roles 必须包含 `evidence_reviewer`；接纳后的 MeetingIdentity.reviewResponsibilityIds 与 AgendaItem.requiredReviewerIds（identityId 数组）必须双向一致，不能在没有原子关联更新的情况下返回 admitted。Agenda/reviewer 的具体创建或更新入口由相邻 Meeting admission 切片固定，不由 DSH Definition 自行补全。
+
 ## Role Errors And Authorization
 
     interface RoleErrorV1 {
