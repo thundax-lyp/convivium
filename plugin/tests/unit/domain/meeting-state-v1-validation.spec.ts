@@ -1075,12 +1075,28 @@ const evidenceRuleCases = [
         "$.registrations[0].missingFields"
     ],
     [
-        "failed delivery has no sentAt",
+        "failed delivery rejects sentAt",
         (f: ReturnType<typeof evidenceState>) => ({
             ...f.state,
             reviewDeliveries: [{ ...f.delivery, status: "failed" }]
         }),
+        "$.reviewDeliveries[0].failedAt"
+    ],
+    [
+        "sent delivery requires sentAt",
+        (f: ReturnType<typeof evidenceState>) => {
+            const { sentAt: _, ...delivery } = f.delivery;
+            return { ...f.state, reviewDeliveries: [delivery] };
+        },
         "$.reviewDeliveries[0].sentAt"
+    ],
+    [
+        "failed delivery requires failedAt",
+        (f: ReturnType<typeof evidenceState>) => {
+            const { sentAt: _, ...delivery } = f.delivery;
+            return { ...f.state, reviewDeliveries: [{ ...delivery, status: "failed" }] };
+        },
+        "$.reviewDeliveries[0].failedAt"
     ],
     [
         "unknown material requires reason",
@@ -1124,4 +1140,370 @@ const evidenceRuleCases = [
 
 it.each(evidenceRuleCases)("rejects %s", (_name, mutate, path) => {
     invalidAt(mutate(evidenceState()), path);
+});
+
+it.each([
+    ["risk disposition", "riskDispositions"],
+    ["completion declaration", "completionDeclarations"],
+    ["completion fact", "completionFacts"],
+    ["task", "tasks"],
+    ["private mail", "privateMails"]
+] as const)("validates %s structure", (_name, collection) => {
+    invalidAt({ ...base(), [collection]: [{}] }, `$.${collection}[0].id`);
+});
+
+it("validates terminal archive linkage and snapshot bounds", () => {
+    const termination = {
+        id: "termination-1",
+        outcome: "completed",
+        reason: "x",
+        endedAt: 0,
+        decisionIds: [],
+        completionFactIds: [],
+        unresolvedQuestionIds: [],
+        unresolvedIssueIds: [],
+        unclosedContributionIds: []
+    };
+    const archive = {
+        id: "archive-1",
+        createdAt: 0,
+        createdBy: "local-1",
+        terminationId: "termination-1",
+        publicSnapshotVersion: 1,
+        includedPublicationIds: [],
+        includedDecisionIds: [],
+        includedCompletionFactIds: [],
+        status: "complete"
+    };
+    const terminal = {
+        ...base(),
+        lifecycle: { ...base().lifecycle, status: "archived" },
+        termination,
+        archive
+    };
+    expect(validateMeetingStateV1(terminal)).toMatchObject({ kind: "valid" });
+    invalidAt(
+        { ...terminal, archive: { ...archive, terminationId: "other" } },
+        "$.archive.terminationId"
+    );
+    invalidAt(
+        { ...terminal, archive: { ...archive, publicSnapshotVersion: 2 } },
+        "$.archive.publicSnapshotVersion"
+    );
+    invalidAt({ ...terminal, archive: { ...archive, status: "pending" } }, "$.archive.status");
+});
+
+const terminalReferenceCases = [
+    [
+        "termination decision",
+        "decisionIds",
+        ["output-1", "missing-target"],
+        "$.termination.decisionIds[0]"
+    ],
+    [
+        "termination completion",
+        "completionFactIds",
+        ["output-1", "missing-target"],
+        "$.termination.completionFactIds[0]"
+    ],
+    [
+        "termination question",
+        "unresolvedQuestionIds",
+        ["output-1", "missing-target"],
+        "$.termination.unresolvedQuestionIds[0]"
+    ],
+    [
+        "termination issue",
+        "unresolvedIssueIds",
+        ["output-1", "missing-target"],
+        "$.termination.unresolvedIssueIds[0]"
+    ],
+    [
+        "termination contribution",
+        "unclosedContributionIds",
+        ["output-1", "missing-target"],
+        "$.termination.unclosedContributionIds[0]"
+    ],
+    [
+        "archive publication",
+        "includedPublicationIds",
+        ["output-1", "missing-target"],
+        "$.archive.includedPublicationIds[0]"
+    ],
+    [
+        "archive decision",
+        "includedDecisionIds",
+        ["output-1", "missing-target"],
+        "$.archive.includedDecisionIds[0]"
+    ],
+    [
+        "archive completion",
+        "includedCompletionFactIds",
+        ["output-1", "missing-target"],
+        "$.archive.includedCompletionFactIds[0]"
+    ]
+] as const;
+
+it.each(terminalReferenceCases)("rejects %s references", (_name, key, values, path) => {
+    const termination = {
+        id: "termination-1",
+        outcome: "completed",
+        reason: "x",
+        endedAt: 0,
+        decisionIds: [],
+        completionFactIds: [],
+        unresolvedQuestionIds: [],
+        unresolvedIssueIds: [],
+        unclosedContributionIds: []
+    };
+    const archive = {
+        id: "archive-1",
+        createdAt: 0,
+        createdBy: "local-1",
+        terminationId: "termination-1",
+        publicSnapshotVersion: 1,
+        includedPublicationIds: [],
+        includedDecisionIds: [],
+        includedCompletionFactIds: [],
+        status: "complete"
+    };
+    const state = {
+        ...base(),
+        lifecycle: { ...base().lifecycle, status: "archived" },
+        termination,
+        archive
+    } as Record<string, unknown>;
+    const target = key.startsWith("included") ? archive : termination;
+    for (const value of values) {
+        const broken = { ...target, [key]: [value] };
+        invalidAt(
+            { ...state, [key.startsWith("included") ? "archive" : "termination"]: broken },
+            path
+        );
+    }
+});
+
+function remainingEntityState() {
+    const f = evidenceState();
+    const issue = {
+        id: "issue-1",
+        agendaId: "agenda-1",
+        description: "x",
+        riskLevel: "low",
+        classification: "follow_up",
+        affectedOutputIds: [],
+        affectedCriterionIds: [],
+        affectedConstraintIds: [],
+        requiredReviewerIds: [],
+        blocking: false,
+        status: "open",
+        rationale: "x"
+    };
+    const risk = {
+        id: "risk-1",
+        issueId: "issue-1",
+        actorId: "captain-1",
+        action: "accept",
+        scope: "x",
+        rationale: "x",
+        evidenceIds: ["version-1"],
+        createdAt: 0
+    };
+    const declaration = {
+        id: "declaration-1",
+        actorId: "captain-1",
+        outputId: "output-1",
+        statement: "x",
+        evidenceIds: ["version-1"],
+        createdAt: 0
+    };
+    const fact = {
+        id: "fact-1",
+        outputId: "output-1",
+        actorId: "captain-1",
+        status: "active",
+        statement: "x",
+        rationale: "x",
+        evidenceIds: ["version-1"],
+        decisionIds: [],
+        createdAt: 0
+    };
+    const task = {
+        id: "task-1",
+        createdBy: "captain-1",
+        assigneeId: "manager-1",
+        title: "x",
+        instructions: "x",
+        contextPublicationUpperBound: ["publication-1"],
+        status: "open",
+        createdAt: 0,
+        updatedAt: 0,
+        authorizationId: "auth-1",
+        authorizationStatus: "active",
+        attempt: 0
+    };
+    const mail = {
+        id: "mail-1",
+        senderId: "manager-1",
+        recipientId: "captain-1",
+        body: "x",
+        relatedIds: [],
+        sendContextPublicationUpperBound: ["publication-1"],
+        status: "queued",
+        deadlineAt: 0,
+        createdAt: 0
+    };
+    return {
+        ...f.state,
+        issues: [issue],
+        riskDispositions: [risk],
+        completionDeclarations: [declaration],
+        completionFacts: [fact],
+        tasks: [task],
+        privateMails: [mail]
+    };
+}
+
+const remainingFkCases = [
+    [
+        "risk issue",
+        "riskDispositions",
+        "riskDispositions",
+        "issueId",
+        ["output-1", "missing-issue"]
+    ],
+    [
+        "declaration actor",
+        "completionDeclarations",
+        "completionDeclarations",
+        "actorId",
+        ["output-1", "missing-actor"]
+    ],
+    [
+        "fact output",
+        "completionFacts",
+        "completionFacts",
+        "outputId",
+        ["publication-1", "missing-output"]
+    ],
+    ["task creator", "tasks", "tasks", "createdBy", ["output-1", "missing-actor"]],
+    ["mail sender", "privateMails", "privateMails", "senderId", ["output-1", "missing-actor"]]
+] as const;
+
+it("accepts the complete remaining entity extension", () => {
+    expect(validateMeetingStateV1(remainingEntityState())).toMatchObject({ kind: "valid" });
+});
+
+it.each(remainingFkCases)(
+    "rejects %s typed references",
+    (_name, collection, itemKey, field, values) => {
+        const state = remainingEntityState() as Record<string, unknown>;
+        const item = (state[itemKey] as Record<string, unknown>[])[0];
+        for (const value of values) {
+            const path = `$.${collection}[0].${field}${Array.isArray(value) ? "[0]" : ""}`;
+            invalidAt({ ...state, [collection]: [{ ...item, [field]: value }] }, path);
+        }
+    }
+);
+
+it.each([
+    ["terminal", "$.termination"],
+    ["archiving", "$.termination"],
+    ["archived", "$.termination"]
+] as const)("requires %s termination", (status, path) => {
+    invalidAt({ ...base(), lifecycle: { ...base().lifecycle, status } }, path);
+});
+
+it("rejects archive before terminal lifecycle", () => {
+    const termination = {
+        id: "termination-1",
+        outcome: "completed",
+        reason: "x",
+        endedAt: 0,
+        decisionIds: [],
+        completionFactIds: [],
+        unresolvedQuestionIds: [],
+        unresolvedIssueIds: [],
+        unclosedContributionIds: []
+    };
+    const archive = {
+        id: "archive-1",
+        createdAt: 0,
+        createdBy: "local-1",
+        terminationId: "termination-1",
+        publicSnapshotVersion: 1,
+        includedPublicationIds: [],
+        includedDecisionIds: [],
+        includedCompletionFactIds: [],
+        status: "complete"
+    };
+    invalidAt({ ...base(), termination, archive }, "$.archive");
+});
+
+it("enforces the remaining cross object invariants", () => {
+    const f = evidenceState();
+    invalidAt(
+        {
+            ...f.state,
+            lifecycle: { ...f.state.lifecycle, status: "terminal" },
+            agenda: [{ ...f.state.agenda[0], status: "completed" }],
+            rounds: [f.round],
+            termination: {
+                id: "termination-1",
+                outcome: "completed",
+                reason: "x",
+                endedAt: 0,
+                decisionIds: [],
+                completionFactIds: [],
+                unresolvedQuestionIds: [],
+                unresolvedIssueIds: [],
+                unclosedContributionIds: []
+            }
+        },
+        "$.rounds[0].agendaId"
+    );
+    invalidAt(
+        {
+            ...f.state,
+            contributions: [
+                {
+                    ...f.contribution,
+                    pendingSupplementHand: {
+                        raisedAt: 0,
+                        purpose: "x",
+                        reviewId: "missing-review"
+                    },
+                    status: "awaiting_response"
+                }
+            ]
+        },
+        "$.contributions[0].pendingSupplementHand.reviewId"
+    );
+    invalidAt(
+        {
+            ...f.state,
+            contributions: [f.contribution, { ...f.contribution, id: "contribution-2" }]
+        },
+        "$.contributions[1].roundId"
+    );
+    invalidAt(
+        {
+            ...f.state,
+            agenda: [
+                ...f.state.agenda,
+                {
+                    id: "agenda-2",
+                    title: "x",
+                    question: "x",
+                    status: "pending",
+                    requiredOutputIds: [],
+                    requiredReviewerIds: []
+                }
+            ],
+            managerPlans: [
+                { ...f.plan, basedOnPublicationId: "publication-1", agendaId: "agenda-2" }
+            ]
+        },
+        "$.managerPlans[0].basedOnPublicationId"
+    );
 });

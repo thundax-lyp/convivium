@@ -41,6 +41,13 @@ const uniqueRoleArraySchema = z.array(roleSchema).superRefine((values, ctx) => {
 });
 const isAbsentOrDefined = (value: Record<string, unknown>, key: string) =>
     !own(value, key) || value[key] !== undefined;
+function withDefinedOptionals<T extends z.ZodTypeAny>(schema: T, keys: readonly string[]) {
+    return schema.superRefine((value, ctx) => {
+        for (const key of keys)
+            if (!isAbsentOrDefined(value as Record<string, unknown>, key))
+                ctx.addIssue({ code: "custom", path: [key], message: "undefined" });
+    });
+}
 const targetStatusSchema = z.enum(["pending", "satisfied", "unsatisfied", "violated"]);
 const agendaStatusSchema = z.enum([
     "pending",
@@ -322,6 +329,10 @@ const reviewDeliverySchema = z
         sentAt: epochSchema.optional(),
         failedAt: epochSchema.optional()
     })
+    .refine((value) => value.status !== "sent" || own(value, "sentAt"), { path: ["sentAt"] })
+    .refine((value) => value.status !== "failed" || own(value, "failedAt"), {
+        path: ["failedAt"]
+    })
     .refine((value) => !(value.status === "sent" ? own(value, "failedAt") : own(value, "sentAt")), {
         path: ["sentAt"]
     });
@@ -367,6 +378,130 @@ const proposalRevisionSchema = z
     .refine((value) => value.ordinal === 1 || own(value, "supersedesRevisionId"), {
         path: ["supersedesRevisionId"]
     });
+const riskDispositionSchema = z.object({
+    id: opaqueIdSchema,
+    issueId: opaqueIdSchema,
+    actorId: opaqueIdSchema,
+    action: z.enum(["accept", "reject"]),
+    scope: textSchema,
+    rationale: textSchema,
+    evidenceIds: uniqueIdArraySchema,
+    createdAt: epochSchema
+});
+const completionDeclarationSchema = withDefinedOptionals(
+    z.object({
+        id: opaqueIdSchema,
+        actorId: opaqueIdSchema,
+        outputId: opaqueIdSchema,
+        criterionId: opaqueIdSchema.optional(),
+        statement: textSchema,
+        evidenceIds: uniqueIdArraySchema,
+        taskId: opaqueIdSchema.optional(),
+        createdAt: epochSchema
+    }),
+    ["criterionId", "taskId"]
+);
+const completionFactSchema = withDefinedOptionals(
+    z.object({
+        id: opaqueIdSchema,
+        outputId: opaqueIdSchema,
+        criterionId: opaqueIdSchema.optional(),
+        actorId: opaqueIdSchema,
+        status: z.enum(["active", "superseded", "revoked"]),
+        statement: textSchema,
+        rationale: textSchema,
+        evidenceIds: uniqueIdArraySchema,
+        decisionIds: uniqueIdArraySchema,
+        supersedesFactId: opaqueIdSchema.optional(),
+        createdAt: epochSchema
+    }),
+    ["criterionId", "supersedesFactId"]
+);
+const taskSchema = withDefinedOptionals(
+    z.object({
+        id: opaqueIdSchema,
+        createdBy: opaqueIdSchema,
+        assigneeId: opaqueIdSchema,
+        agendaId: opaqueIdSchema.optional(),
+        title: textSchema,
+        instructions: textSchema,
+        contextPublicationUpperBound: uniqueIdArraySchema,
+        status: z.enum(["open", "claimed", "completed", "cancelled", "expired"]),
+        deadlineAt: epochSchema.optional(),
+        result: textSchema.optional(),
+        exitReason: textSchema.optional(),
+        createdAt: epochSchema,
+        updatedAt: epochSchema,
+        authorizationId: opaqueIdSchema,
+        authorizationStatus: z.enum(["active", "revoked", "expired"]),
+        attempt: integerSchema,
+        reassignedFromTaskId: opaqueIdSchema.optional(),
+        startedAt: epochSchema.optional(),
+        completedAt: epochSchema.optional()
+    }),
+    [
+        "agendaId",
+        "deadlineAt",
+        "result",
+        "exitReason",
+        "reassignedFromTaskId",
+        "startedAt",
+        "completedAt"
+    ]
+);
+const privateMailSchema = withDefinedOptionals(
+    z.object({
+        id: opaqueIdSchema,
+        senderId: opaqueIdSchema,
+        recipientId: opaqueIdSchema,
+        agendaId: opaqueIdSchema.optional(),
+        body: textSchema,
+        relatedIds: uniqueIdArraySchema,
+        sendContextPublicationUpperBound: uniqueIdArraySchema,
+        processingContextPublicationUpperBound: uniqueIdArraySchema.optional(),
+        status: z.enum(["queued", "processing", "completed", "timed_out", "cancelled"]),
+        deadlineAt: epochSchema,
+        createdAt: epochSchema,
+        processingStartedAt: epochSchema.optional(),
+        completedAt: epochSchema.optional(),
+        failureReason: textSchema.optional()
+    }),
+    [
+        "agendaId",
+        "processingContextPublicationUpperBound",
+        "processingStartedAt",
+        "completedAt",
+        "failureReason"
+    ]
+);
+const terminationSchema = z.object({
+    id: opaqueIdSchema,
+    outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),
+    reason: textSchema,
+    endedAt: epochSchema,
+    decisionIds: uniqueIdArraySchema,
+    completionFactIds: uniqueIdArraySchema,
+    unresolvedQuestionIds: uniqueIdArraySchema,
+    unresolvedIssueIds: uniqueIdArraySchema,
+    unclosedContributionIds: uniqueIdArraySchema
+});
+const archiveSchema = z.object({
+    id: opaqueIdSchema,
+    createdAt: epochSchema,
+    createdBy: opaqueIdSchema,
+    terminationId: opaqueIdSchema,
+    publicSnapshotVersion: positiveIntegerSchema,
+    includedPublicationIds: uniqueIdArraySchema,
+    includedDecisionIds: uniqueIdArraySchema,
+    includedCompletionFactIds: uniqueIdArraySchema,
+    status: z.enum(["pending", "complete", "failed"])
+});
+const continuationSchema = z.object({
+    sourceArchiveId: opaqueIdSchema,
+    selectedMaterialIds: uniqueIdArraySchema,
+    importedAt: epochSchema,
+    importedBy: opaqueIdSchema
+});
 const positionSchema = z.object({
     id: opaqueIdSchema,
     proposalRevisionId: opaqueIdSchema,
@@ -398,41 +533,44 @@ const limitsSchema = z.object({
     reviewDeadlineMs: integerSchema,
     responseDeadlineMs: z.literal(60000)
 });
-const meetingStateSchema = z.object({
-    id: opaqueIdSchema,
-    version: positiveIntegerSchema,
-    createdAt: epochSchema,
-    updatedAt: epochSchema,
-    objective: objectiveSchema,
-    lifecycle: lifecycleSchema,
-    identities: uniqueEntityArray(identitySchema),
-    agenda: uniqueEntityArray(agendaSchema),
-    agendaCandidates: uniqueEntityArray(candidateSchema),
-    rounds: uniqueEntityArray(roundSchema),
-    contributions: uniqueEntityArray(contributionSchema),
-    evidencePackages: uniqueEntityArray(evidencePackageSchema),
-    registrations: uniqueEntityArray(registrationSchema),
-    reviews: uniqueEntityArray(evidenceReviewSchema),
-    reviewDeliveries: uniqueEntityArray(reviewDeliverySchema),
-    publications: uniqueEntityArray(publicationSchema),
-    messages: uniqueEntityArray(formalMessageSchema),
-    proposals: uniqueEntityArray(proposalRevisionSchema),
-    positions: uniqueEntityArray(positionSchema),
-    decisionCandidates: uniqueEntityArray(decisionCandidateSchema),
-    decisions: uniqueEntityArray(decisionSchema),
-    questions: uniqueEntityArray(questionSchema),
-    issues: uniqueEntityArray(issueSchema),
-    riskDispositions: z.array(z.unknown()),
-    tasks: z.array(z.unknown()),
-    completionDeclarations: z.array(z.unknown()),
-    completionFacts: z.array(z.unknown()),
-    privateMails: z.array(z.unknown()),
-    managerPlans: uniqueEntityArray(managerPlanSchema),
-    limits: limitsSchema,
-    termination: z.unknown().optional(),
-    archive: z.unknown().optional(),
-    continuation: z.unknown().optional()
-});
+const meetingStateSchema = withDefinedOptionals(
+    z.object({
+        id: opaqueIdSchema,
+        version: positiveIntegerSchema,
+        createdAt: epochSchema,
+        updatedAt: epochSchema,
+        objective: objectiveSchema,
+        lifecycle: lifecycleSchema,
+        identities: uniqueEntityArray(identitySchema),
+        agenda: uniqueEntityArray(agendaSchema),
+        agendaCandidates: uniqueEntityArray(candidateSchema),
+        rounds: uniqueEntityArray(roundSchema),
+        contributions: uniqueEntityArray(contributionSchema),
+        evidencePackages: uniqueEntityArray(evidencePackageSchema),
+        registrations: uniqueEntityArray(registrationSchema),
+        reviews: uniqueEntityArray(evidenceReviewSchema),
+        reviewDeliveries: uniqueEntityArray(reviewDeliverySchema),
+        publications: uniqueEntityArray(publicationSchema),
+        messages: uniqueEntityArray(formalMessageSchema),
+        proposals: uniqueEntityArray(proposalRevisionSchema),
+        positions: uniqueEntityArray(positionSchema),
+        decisionCandidates: uniqueEntityArray(decisionCandidateSchema),
+        decisions: uniqueEntityArray(decisionSchema),
+        questions: uniqueEntityArray(questionSchema),
+        issues: uniqueEntityArray(issueSchema),
+        riskDispositions: uniqueEntityArray(riskDispositionSchema),
+        tasks: uniqueEntityArray(taskSchema),
+        completionDeclarations: uniqueEntityArray(completionDeclarationSchema),
+        completionFacts: uniqueEntityArray(completionFactSchema),
+        privateMails: uniqueEntityArray(privateMailSchema),
+        managerPlans: uniqueEntityArray(managerPlanSchema),
+        limits: limitsSchema,
+        termination: terminationSchema.optional(),
+        archive: archiveSchema.optional(),
+        continuation: continuationSchema.optional()
+    }),
+    ["termination", "archive", "continuation"]
+);
 const outcomes = ["completed", "partial", "no_consensus", "cancelled", "failed"] as const;
 
 function record(value: unknown): value is RecordValue {
@@ -464,6 +602,11 @@ function oneOf<T extends string>(value: unknown, values: readonly T[]): value is
 }
 function ref(value: unknown, values: ReadonlySet<string>): boolean {
     return id(value) && values.has(value);
+}
+function checkRefs(value: unknown, values: ReadonlySet<string>, path: string): string | undefined {
+    const refs = value as readonly unknown[];
+    for (let i = 0; i < refs.length; i++) if (!ref(refs[i], values)) return `${path}[${i}]`;
+    return undefined;
 }
 function required(value: RecordValue, key: string, path: string): string | undefined {
     return own(value, key) && value[key] !== null && value[key] !== undefined ? undefined : path;
@@ -588,14 +731,24 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const r = item as RecordValue;
         roundIds.add(r.id as string);
         if (!ref(r.agendaId, agendaIds)) return fail(`${path}.agendaId`);
+        if (r.status === "open") {
+            const agenda = parsedState.agenda.find(
+                (item) => record(item) && item.id === r.agendaId
+            ) as RecordValue | undefined;
+            if (!agenda || agenda.status !== "active") return fail(`${path}.agendaId`);
+        }
     }
     const contributions = parsedState.contributions as readonly unknown[];
     const contributionIds = new Set<string>();
+    const contributorRounds = new Set<string>();
     for (let i = 0; i < contributions.length; i++) {
         const item = contributions[i];
         const path = `$.contributions[${i}]`;
         const r = item as RecordValue;
         contributionIds.add(r.id as string);
+        const contributorRound = `${r.contributorId}\0${r.roundId}`;
+        if (contributorRounds.has(contributorRound)) return fail(`${path}.roundId`);
+        contributorRounds.add(contributorRound);
         if (!ref(r.roundId, roundIds)) return fail(`${path}.roundId`);
         if (!ref(r.contributorId, identityIds)) return fail(`${path}.contributorId`);
         if (ownUndefined(r, "packageId", `${path}.packageId`)) return fail(`${path}.packageId`);
@@ -700,6 +853,12 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         ) as RecordValue | undefined;
         if (!reviewer || !(reviewer.roles as readonly unknown[]).includes("evidence_reviewer"))
             return fail(`${path}.reviewerId`);
+    }
+    for (let i = 0; i < contributions.length; i++) {
+        const hand = (contributions[i] as RecordValue).pendingSupplementHand as
+            RecordValue | undefined;
+        if (hand && !reviewIds.has(hand.reviewId as string))
+            return fail(`$.contributions[${i}].pendingSupplementHand.reviewId`);
     }
     const deliveries = value.reviewDeliveries as readonly unknown[];
     const deliveryIds = new Set<string>();
@@ -1113,37 +1272,159 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             !ref(item.basedOnPublicationId, publicationIds)
         )
             return fail(`${path}.basedOnPublicationId`);
+        if (item.basedOnPublicationId !== undefined) {
+            const publication = publications.find(
+                (candidate) => (candidate as RecordValue).id === item.basedOnPublicationId
+            ) as RecordValue | undefined;
+            const round =
+                publication &&
+                (rounds.find(
+                    (candidate) => (candidate as RecordValue).id === publication.roundId
+                ) as RecordValue | undefined);
+            if (!round || round.agendaId !== item.agendaId)
+                return fail(`${path}.basedOnPublicationId`);
+        }
     }
-    if (own(value, "termination")) {
-        const item = value.termination;
-        const path = "$.termination";
-        if (!record(item)) return fail(path);
-        for (const key of [
-            "id",
-            "outcome",
-            "reason",
-            "endedAt",
-            "decisionIds",
-            "completionFactIds",
-            "unresolvedQuestionIds",
-            "unresolvedIssueIds",
-            "unclosedContributionIds"
+    const completionFactIds = new Set(
+        (parsedState.completionFacts as readonly RecordValue[]).map((item) => item.id as string)
+    );
+    const taskIds = new Set(
+        (parsedState.tasks as readonly RecordValue[]).map((item) => item.id as string)
+    );
+    const riskDispositions = parsedState.riskDispositions as readonly RecordValue[];
+    const issueIdsForRefs = new Set(
+        (parsedState.issues as readonly RecordValue[]).map((item) => item.id as string)
+    );
+    for (let i = 0; i < riskDispositions.length; i++) {
+        const item = riskDispositions[i];
+        const path = `$.riskDispositions[${i}]`;
+        if (!ref(item.issueId, issueIdsForRefs)) return fail(`${path}.issueId`);
+        const p = checkRefs(item.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
+        if (p) return fail(p);
+    }
+    const declarations = parsedState.completionDeclarations as readonly RecordValue[];
+    for (let i = 0; i < declarations.length; i++) {
+        const item = declarations[i];
+        const path = `$.completionDeclarations[${i}]`;
+        if (!ref(item.actorId, identityIds)) return fail(`${path}.actorId`);
+        if (!ref(item.outputId, outputIds)) return fail(`${path}.outputId`);
+        if (item.criterionId !== undefined && !ref(item.criterionId, criterionIds))
+            return fail(`${path}.criterionId`);
+        const p = checkRefs(item.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
+        if (p) return fail(p);
+        if (item.taskId !== undefined && !ref(item.taskId, taskIds)) return fail(`${path}.taskId`);
+    }
+    const facts = parsedState.completionFacts as readonly RecordValue[];
+    for (let i = 0; i < facts.length; i++) {
+        const item = facts[i];
+        const path = `$.completionFacts[${i}]`;
+        if (!ref(item.outputId, outputIds)) return fail(`${path}.outputId`);
+        if (item.criterionId !== undefined && !ref(item.criterionId, criterionIds))
+            return fail(`${path}.criterionId`);
+        if (!ref(item.actorId, identityIds)) return fail(`${path}.actorId`);
+        const actor = parsedState.identities.find((x) => (x as RecordValue).id === item.actorId) as
+            RecordValue | undefined;
+        if (!actor || !(actor.roles as readonly unknown[]).includes("captain"))
+            return fail(`${path}.actorId`);
+        for (const [key, values] of [
+            ["evidenceIds", publishedVersionIds],
+            ["decisionIds", decisionIds]
         ] as const) {
-            const p = required(item, key, `${path}.${key}`);
+            const p = checkRefs(item[key], values, `${path}.${key}`);
             if (p) return fail(p);
         }
-        if (!id(item.id)) return fail(`${path}.id`);
-        if (!oneOf(item.outcome, outcomes)) return fail(`${path}.outcome`);
-        if (!text(item.reason)) return fail(`${path}.reason`);
-        if (!epoch(item.endedAt)) return fail(`${path}.endedAt`);
+        if (
+            item.supersedesFactId !== undefined &&
+            !completionFactIds.has(item.supersedesFactId as string)
+        )
+            return fail(`${path}.supersedesFactId`);
+    }
+    const tasks = parsedState.tasks as readonly RecordValue[];
+    for (let i = 0; i < tasks.length; i++) {
+        const item = tasks[i];
+        const path = `$.tasks[${i}]`;
+        for (const [key, values] of [
+            ["createdBy", identityIds],
+            ["assigneeId", identityIds]
+        ] as const)
+            if (!ref(item[key], values)) return fail(`${path}.${key}`);
+        if (item.agendaId !== undefined && !ref(item.agendaId, agendaIds))
+            return fail(`${path}.agendaId`);
+        const p = checkRefs(
+            item.contextPublicationUpperBound,
+            publicationIds,
+            `${path}.contextPublicationUpperBound`
+        );
+        if (p) return fail(p);
+        if (
+            item.reassignedFromTaskId !== undefined &&
+            !taskIds.has(item.reassignedFromTaskId as string)
+        )
+            return fail(`${path}.reassignedFromTaskId`);
+    }
+    const mails = parsedState.privateMails as readonly RecordValue[];
+    for (let i = 0; i < mails.length; i++) {
+        const item = mails[i];
+        const path = `$.privateMails[${i}]`;
+        if (!ref(item.senderId, identityIds) || !ref(item.recipientId, identityIds))
+            return fail(`${path}.${!ref(item.senderId, identityIds) ? "senderId" : "recipientId"}`);
+        if (item.agendaId !== undefined && !ref(item.agendaId, agendaIds))
+            return fail(`${path}.agendaId`);
         for (const key of [
-            "decisionIds",
-            "completionFactIds",
-            "unresolvedQuestionIds",
-            "unresolvedIssueIds",
-            "unclosedContributionIds"
+            "sendContextPublicationUpperBound",
+            "processingContextPublicationUpperBound"
         ] as const) {
+            if (item[key] !== undefined) {
+                const p = checkRefs(item[key], publicationIds, `${path}.${key}`);
+                if (p) return fail(p);
+            }
         }
     }
+    if (own(value, "termination")) {
+        const termination = value.termination as RecordValue;
+        const refs = [
+            ["decisionIds", decisionIds],
+            ["completionFactIds", completionFactIds],
+            ["unresolvedQuestionIds", questionIds],
+            ["unresolvedIssueIds", issueIds]
+        ] as const;
+        for (const [key, ids] of refs) {
+            const p = checkRefs(termination[key], ids, `$.termination.${key}`);
+            if (p) return fail(p);
+        }
+        const p = checkRefs(
+            termination.unclosedContributionIds,
+            contributionIds,
+            "$.termination.unclosedContributionIds"
+        );
+        if (p) return fail(p);
+    }
+    if (own(value, "archive")) {
+        const archive = value.archive as RecordValue;
+        for (const [key, ids] of [
+            ["includedPublicationIds", publicationIds],
+            ["includedDecisionIds", decisionIds],
+            ["includedCompletionFactIds", completionFactIds]
+        ] as const) {
+            const p = checkRefs(archive[key], ids, `$.archive.${key}`);
+            if (p) return fail(p);
+        }
+    }
+    const terminal = ["terminal", "archiving", "archived"].includes(lifecycle.status as string);
+    if (terminal && !own(value, "termination")) return fail("$.termination");
+    if (["archiving", "archived"].includes(lifecycle.status as string) && !own(value, "archive"))
+        return fail("$.archive");
+    if (own(value, "archive")) {
+        const archive = value.archive as RecordValue;
+        const termination = value.termination as RecordValue | undefined;
+        if (!termination || archive.terminationId !== termination.id)
+            return fail("$.archive.terminationId");
+        if ((archive.publicSnapshotVersion as number) > (value.version as number))
+            return fail("$.archive.publicSnapshotVersion");
+        if (!["archiving", "archived"].includes(lifecycle.status as string))
+            return fail("$.archive");
+    }
+    if (lifecycle.status === "archived" && (value.archive as RecordValue).status !== "complete")
+        return fail("$.archive.status");
     return { kind: "valid", state: value as unknown as MeetingState };
 }
