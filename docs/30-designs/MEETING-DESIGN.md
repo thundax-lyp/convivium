@@ -78,13 +78,13 @@ Round 的 `aborted` 只由 Captain 在不能继续时设置，必须给出原因
 
 | 转换 | 允许 actor | 前提 | 成功事实/效果 | 拒绝 |
 | --- | --- | --- | --- | --- |
-| `record_proposal_revision` | Contributor 或 Captain | 可运行 Meeting；引用可见、已发布 evidence | 新不可变 revision；不继承任何 position/decision | 引用未公开材料或修改旧 revision 拒绝 |
-| `record_position` | Contributor 或 Captain | 对 proposal revision 的明确立场和理由 | 新不可变 Position | Manager、无引用或重复 ID 拒绝 |
-| `record_decision_candidate` | Contributor 或 Captain | 当前 ProposalRevision、可见 evidence/positions 与理由完整 | 新不可变 Candidate，无 status | Candidate 不形成 Decision，普通 Participant 不可读 pending projection |
-| `decide` / `supersede_decision` / `revoke_decision` | Captain 或 local controller | 当前 Candidate、required evidence/positions、理由与目标引用完整 | 接受 Candidate 形成新 Decision；supersede 原子替代，revoke 仅撤销旧 Decision | 仅自然语言总结、缺 rationale/evidence 或非授权 actor 拒绝 |
-| `dispose_risk` | Captain 或 local controller | riskLevel、acceptableRiskLevel、hard constraints、Issue status、evidence、理由齐全 | 不可变 accept/reject disposition；只改变目标 Issue；完成条件满足时进入 converging 并停止新增贡献安排 | 无 authority 或接受未说明风险拒绝 |
-| `submit_completion_declaration` | Contributor | 自身 identity 存在且 roles 含 `contributor`；output/criterion、可见 evidence 与 task 引用一致 | 不可变 declaration，不改变完成状态 | manager-only、evidence-reviewer-only、local controller 和仅 Captain 拒绝；不能以 declaration 覆盖 objective、Agenda 或 lifecycle |
-| `record_completion_fact` / `supersede_completion_fact` / `revoke_completion_fact` | Captain | 对 output/criterion 的可验证 evidence 与 Decision 基础完整 | active 或显式替代/撤销事实 | Manager 或以 Task/评分代替依据拒绝 |
+| `record_proposal_revision` | Contributor 或 Captain | Meeting running；引用可见、已发布 evidence | 新不可变 revision；不继承任何 position/decision | 非 running、引用未公开材料或修改旧 revision 拒绝 |
+| `record_position` | Contributor 或 Captain | Meeting running；对 current proposal revision 的明确立场和理由 | 新不可变 Position | 非 running、Manager、无引用或重复 ID 拒绝 |
+| `record_decision_candidate` | Contributor 或 Captain | Meeting running；当前 ProposalRevision、可见 evidence/positions 与理由完整 | 新不可变 Candidate，无 status | 非 running；Candidate 不形成 Decision，普通 Participant 不可读 pending projection |
+| `decide` / `supersede_decision` / `revoke_decision` | Captain 或 local controller | Meeting running；当前 Candidate、required evidence/positions、理由与目标引用完整 | 接受 Candidate 形成新 Decision；supersede 原子替代，revoke 仅撤销旧 Decision | 非 running、仅自然语言总结、缺 rationale/evidence 或非授权 actor 拒绝 |
+| `dispose_risk` | Captain 或 local controller | Meeting running；目标 Issue status=open；riskLevel、acceptableRiskLevel、hard constraints、evidence、理由齐全 | 不可变 accept/reject disposition；只改变目标 Issue；完成条件满足时进入 converging 并停止新增贡献安排 | 非 running、非 open Issue、无 authority 或接受未说明风险拒绝 |
+| `submit_completion_declaration` | Contributor | Meeting running；自身 identity 存在且 roles 含 `contributor`；output/criterion、可见 evidence 与 task 引用一致 | 不可变 declaration，不改变任何目标、Issue 或完成状态，也不与 CompletionFact 建立消费关系 | 非 running、manager-only、evidence-reviewer-only、local controller 和仅 Captain 拒绝；不能以 declaration 覆盖 objective、Agenda 或 lifecycle |
+| `record_completion_fact` / `supersede_completion_fact` / `revoke_completion_fact` | Captain | Meeting running；对 output/criterion 的可验证 evidence 与 Decision 基础完整 | active 或显式替代/撤销事实 | 非 running、Manager 或以 Task/声明/评分代替依据拒绝 |
 | `end_meeting` | local controller | 所有 active Agenda 已收口，或强制结束明确列出未收口项；结束 outcome 与 unresolved items/decisions/facts 一致 | 由受控 Runtime/Domain 命令上下文分配非空唯一 Termination.id，形成 immutable Termination、terminal lifecycle、archive materialization effect；后续 ArchivePackage.terminationId 必须匹配 | objective 未满足只能以 partial/no_consensus 等明确 outcome 结束，不能伪造 completed；caller 不得提交 Termination.id |
 
 Decision candidate 和 Captain/local 私有投影由 projection 根据 actor 过滤；它不是另一个可写状态。

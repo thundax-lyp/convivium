@@ -3,8 +3,9 @@
 状态：Author/Audit，审计结论 `Executable`。执行分支必须包含已合入身份准入线的共同基线
 `c2fd076afcd1303cba1a01e832516b1dde12b428` ；本文件的作者分支为
 `codex/decision-risk-completion-runbook`。建立日期：2026-09-16。作者已在同一工作
-边界内固定 CompletionDeclaration actor、paused 完成重算和 pending Candidate
-lifecycle 的正式定义；执行者只消费这些冻结文档，不再修改它们。本文件不授权
+边界内固定 CompletionDeclaration actor/Fact 关系、outcome action lifecycle、Risk
+Issue status、paused 完成重算和 pending Candidate lifecycle 的正式定义；执行者只
+消费这些冻结文档，不再修改它们。本文件不授权
 commit、push、创建 PR、合并或执行外部写操作。
 
 ## 执行者契约
@@ -390,10 +391,10 @@ STOP：共同基线不是祖先、允许修改文件有未知改动、新文件�
 
 执行：
 
-1. 新建 `outcome-v1.ts`，加入公共 rejected/accepted、ID/text/time/array、actor、published evidence、current revision 私有 helper；先让 `recordProposalRevisionV1` 对有效输入固定返回 `PRECONDITION_FAILED`。
+1. 新建 `outcome-v1.ts`，加入公共 rejected/accepted、ID/text/time/array、actor、published evidence、current revision 私有 helper；同时按已固定签名加入 `recalculateMeetingCompletionV1` identity stub，精确返回传入的 `state`。先让 `recordProposalRevisionV1` 对有效输入固定返回 `PRECONDITION_FAILED`。
 2. 新建测试，证明首版、连续第二/第三版、不继承旧数组、非 contributor/captain、未公开 evidence、错误 predecessor、重复 entity ID、paused/terminal 和 state-reference rejection。
 3. 运行 focused test，必须因有效首版/连续版仍被 stub 拒绝而 RED。
-4. 实现唯一规则并运行 GREEN；不得实现 T2 以后行为。
+4. 实现唯一 Proposal 规则并运行 GREEN；成功 next state 必须调用 identity stub 后再交给 validator。此步不实现目标重算，fixture 的 required output/criterion 均保持 pending、hard constraint 至少一项未满足，确保 identity stub 不会误入 converging；不得实现 T2 以后行为。
 
 验证：
 
@@ -418,7 +419,7 @@ STOP：正确行为需要 caller 提交 ordinal、修改 model 字段、读取 l
 执行：
 
 1. 为 `recordPositionV1`、`recordDecisionCandidateV1`、`pendingDecisionCandidatesV1` 加固定错误/空数组 stub。
-2. 写 tests：current revision 成功；旧 revision、跨 revision position、角色混淆、未公开证据、重复/空引用拒绝；pending 在 running/paused 可见，在 preparing/converging/ending/terminal/archiving/archived 为空；accepted candidate 与旧 revision candidate 消失；源数组顺序稳定；调用前后 state 深度与引用不变。
+2. 写 tests：current revision 成功；旧 revision、跨 revision position、角色混淆、未公开证据、重复/空引用拒绝；Position/Candidate 在 paused/preparing/converging/ending 返回 `INVALID_STATE`，在 terminal/archiving/archived 返回 `MEETING_TERMINAL`；pending 在 running/paused 可见，在 preparing/converging/ending/terminal/archiving/archived 为空；accepted candidate 与旧 revision candidate 消失；源数组顺序稳定；调用前后 state 深度与引用不变。
 3. 观察有效 Position/Candidate 与 pending 断言 RED，再实现 GREEN。
 
 验证：
@@ -444,9 +445,9 @@ STOP：实现需要持久 pending 数组、caller visibility 参数或 candidate
 执行：
 
 1. 加 `decideV1`/`changeDecisionV1` stub。
-2. 写 tests 覆盖 Captain/local accept、Candidate 字段逐项复制、pending 消失、converging 时 pending 为空、普通 identity/Manager 拒绝、同一 Candidate 重复 accept、同一 revision 第二个 `decide`、旧 revision candidate、revoke、同 proposal current replacement 的原子 supersede、replacement revision 已有 accepted Decision、跨 proposal/已用 replacement/非法 discriminated input/未公开 change evidence。
+2. 写 tests 覆盖 Captain/local accept、Candidate 字段逐项复制、pending 消失、converging 时 pending 为空、Decision action 在 paused/preparing/converging/ending 返回 `INVALID_STATE` 且在 terminal/archiving/archived 返回 `MEETING_TERMINAL`、普通 identity/Manager 拒绝、同一 Candidate 重复 accept、同一 revision 第二个 `decide`、旧 revision candidate、revoke、同 proposal current replacement 的原子 supersede、replacement revision 已有 accepted Decision、跨 proposal/已用 replacement/非法 discriminated input/未公开 change evidence。
 3. 观察有效 accept/supersede/revoke RED；实现并 GREEN。
-4. 每个成功后调用同一文件的 completion target/lifecycle 重算 helper；此时没有有效 facts，应保持 target pending、lifecycle running。
+4. 每个成功后调用 T1 已存在的 identity completion stub；本步 fixture 没有有效 facts、target 初始为 pending 且 hard constraint 未全部满足，因此应保持 target pending、lifecycle running。不得在本步实现 T5 的有效 fact、target 或 lifecycle 重算。
 
 验证：
 
@@ -471,8 +472,8 @@ STOP：需要给 Decision 增加 accepter/revocation reason 字段或修改 Inte
 执行：
 
 1. 加 `disposeRiskV1` stub。
-2. 写 tests 覆盖 Captain/local、published evidence、只改指定 Issue、append history、accept 等级/constraint 边界、reject 恢复 blocking、accept→reject→accept 的最后处置、非授权 actor、非 open Issue、空 scope/rationale、重复 ID。
-3. 观察有效 accept/reject RED，再实现 GREEN；成功后调用统一完成重算。
+2. 写 tests 覆盖 Captain/local、published evidence、只改指定 Issue、append history、accept 等级/constraint 边界、reject 恢复 blocking、accept→reject→accept 的最后处置、非授权 actor、resolved/deferred/out_of_scope Issue、paused/preparing/converging/ending、terminal/archiving/archived、空 scope/rationale、重复 ID。
+3. 观察有效 accept/reject RED，再实现 GREEN；成功后调用 T1 identity completion stub。fixture 必须保留至少一个未满足 hard constraint，使本步不要求进入 converging；不得提前实现 T5 重算。
 
 验证：
 
@@ -496,12 +497,12 @@ STOP：需要修改 `IssueV1` 枚举、删除旧 disposition、允许 accept 绕
 
 执行：
 
-1. 加 declaration/fact/change/isObjectiveSatisfied stub。
+1. 加 declaration/fact/change/isObjectiveSatisfied stub；保留 T1 的 identity `recalculateMeetingCompletionV1` stub，不能在写完本步 RED tests 前替换它。
 2. 构造最小真实公开 evidence fixture：EvidencePackage/Version、指定 reviewer、Review、sent ReviewDelivery 与包含 version/review 的 Publication；不得用 mock 绕过 required-review helper。
-3. 写 declaration tests，证明 contributor declaration append 但 objective/lifecycle/facts 不变，Captain+contributor 可提交，manager-only、evidence-reviewer-only、仅 Captain 和 local controller 被拒绝，task 引用条件正确。
-4. 写 fact tests，证明 Captain create、required review/accepted adopt current Decision、replace/revoke 历史、旧 Decision 或新 Proposal revision 使依据失效后的 target 重算、blocking Issue/hard constraint、全部条件满足时仅进入 converging。
+3. 写 declaration tests，证明 contributor declaration append 但 objective/lifecycle/facts 不变，且不会匹配、消费或删除任何 CompletionDeclaration；Captain+contributor 可提交，manager-only、evidence-reviewer-only、仅 Captain 和 local controller 被拒绝，task 引用条件正确；paused/preparing/converging/ending 返回 `INVALID_STATE`，terminal/archiving/archived 返回 `MEETING_TERMINAL`。
+4. 写 fact tests，证明 Captain create、required review/accepted adopt current Decision、replace/revoke 历史、旧 Decision 或新 Proposal revision 使依据失效后的 target 重算、blocking Issue/hard constraint、全部条件满足时仅进入 converging；Record/ChangeCompletionFact 在 paused/preparing/converging/ending 返回 `INVALID_STATE`，在 terminal/archiving/archived 返回 `MEETING_TERMINAL`。
 5. 在既有 transition suite 先写非 running 反例：paused、preparing、converging、ending 的 `dispose_issue` 返回 `INVALID_STATE`，terminal、archiving、archived 返回 `MEETING_TERMINAL`，均保持原 state/facts。再写目标 RED：完成 facts/targets/constraints 均已满足且只剩一个 blocking Issue 时，running 中合法 `dispose_issue` resolved/out_of_scope 应使 next lifecycle 进入 converging；断言原 Issue disposition fact payload、version 和其它 state 仍保持既有语义。
-6. 观察合法 declaration/fact/convergence 与 `dispose_issue` 重算 RED，再实现统一有效 fact、target recompute 和 objective judge；只在既有 `dispose_issue` 成功 next state 上调用模块内重算函数，运行 GREEN。
+6. 先观察合法 declaration/fact tests 因各自 stub 被拒绝而 RED，并观察 Proposal revision 失效、Decision/Risk/Fact convergence 与 `dispose_issue` 重算 tests 因 identity completion stub 而 RED。然后只在本步将该 stub 替换为统一有效 fact、target recompute 和 objective judge 实现；`recordProposalRevisionV1`、Decision/Risk/Fact 成功路径继续调用同一函数，只在既有 `dispose_issue` 成功 next state 上新增对它的调用，运行 GREEN。
 
 验证：
 
@@ -525,7 +526,7 @@ STOP：需要从评分/自然语言/Task completion 自动造 Fact，需要改 h
 
 执行：
 
-1. 先写 validator cases 并观察 RED：Decision 一个 Candidate 多次使用、同一 proposal revision 多个 accepted Decision、replacement 跨 proposal/未把旧 Decision 标 superseded/非法 replacement ordering；open/deferred Issue 的 classification/blocking 不匹配最后 RiskDisposition，同时保留“后续 dispose_issue 可使 resolved/out_of_scope Issue 清除 blocking”的合法 case；Completion replacement 未把被指向的旧 fact 标 superseded、同一旧 fact 被多次直接替代、`supersedesFactId` 指向 revoked fact、active fact 对应 target 非 satisfied、satisfied target 无有效 active fact。已经合法替代旧 fact 的 replacement 自身后来变为 revoked/superseded 时，其原有 `supersedesFactId` 仍须保留并保持 valid。
+1. 先写 validator cases 并观察 RED：Decision 一个 Candidate 多次使用、同一 proposal revision 多个 accepted Decision、replacement 跨 proposal/未把旧 Decision 标 superseded/非法 replacement ordering；open/deferred Issue 的 classification/blocking 不匹配最后 RiskDisposition，同时保留“后续 dispose_issue 可使 resolved/out_of_scope Issue 清除 blocking”的合法 case；Completion replacement 未把被指向的旧 fact 标 superseded、同一旧 fact 被多次直接替代、`supersedesFactId` 指向 revoked fact、有效 active fact 对应 target 非 satisfied、satisfied target 无有效 active fact。另加合法 case：Proposal revision 更新或 Decision 撤销/替代后，旧 CompletionFact 仍为 active 历史，但因 Decision basis 不再 current/accepted 而无效，对应 target 为 pending，snapshot 必须 valid。已经合法替代旧 fact 的 replacement 自身后来变为 revoked/superseded 时，其原有 `supersedesFactId` 仍须保留并保持 valid。
 2. Declaration 的 `taskId` 继续只作 typed FK 校验，不把创建时的 Task status、authorizationStatus 或 assignee 前提升级为永久 snapshot invariant；这是因为 Declaration 不可变，而 Task 后续可被撤权或重分配。增加一个合法历史 case：Declaration 创建后关联 Task 已变为 revoked/cancelled，snapshot 仍 valid。
 3. 对现有 complete-entity fixture 作唯一必要机械更新：其 active Fact `decisionIds` 改为合法非空 accepted/adopt Decision，并把对应 output status 设 satisfied；不删除原 FK 覆盖。
 4. 实现线性扫描校验：replacement 必须只指前序对象，避免递归/通用 graph abstraction；RiskDisposition.actorId 只作非空 ID 校验，因为 local controller 合法且不属于 identities，snapshot 不能伪造外部 caller proof；Risk 最新处置始终约束 classification，只在 Issue.status 为 open/deferred 时约束 blocking，resolved/out_of_scope 仍必须 blocking=false；validator 不得导入 `outcome-v1.ts`，避免 outcome transition→validator→outcome 的循环依赖；不改变既有 error result shape/path 策略。
