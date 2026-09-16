@@ -98,7 +98,7 @@ function invalidAt(value: unknown, path: string) {
 
 describe("MeetingState structure", () => {
     it("accepts the base fixture by the same state reference", () => {
-        const state = base();
+        const state = evidenceState().state;
         const result = validateMeetingStateV1(state);
         expect(result).toEqual({ kind: "valid", state });
         expect(result.kind === "valid" && result.state).toBe(state);
@@ -1010,7 +1010,7 @@ describe("Evidence and decision chain", () => {
 
 describe("outcome history invariants", () => {
     it("rejects a completion replacement whose predecessor is not superseded", () => {
-        const state = base();
+        const state = evidenceState().state;
         state.completionFacts = [
             {
                 id: "fact-1",
@@ -1019,8 +1019,8 @@ describe("outcome history invariants", () => {
                 status: "active",
                 statement: "x",
                 rationale: "x",
-                evidenceIds: [],
-                decisionIds: [],
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
                 createdAt: 0
             },
             {
@@ -1030,8 +1030,8 @@ describe("outcome history invariants", () => {
                 status: "active",
                 statement: "x",
                 rationale: "x",
-                evidenceIds: [],
-                decisionIds: [],
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
                 supersedesFactId: "fact-1",
                 createdAt: 1
             }
@@ -1044,7 +1044,7 @@ describe("outcome history invariants", () => {
     });
 
     it("accepts an active historical fact after its decision basis becomes stale", () => {
-        const state = base();
+        const state = evidenceState().state;
         state.completionFacts = [
             {
                 id: "fact-1",
@@ -1053,12 +1053,128 @@ describe("outcome history invariants", () => {
                 status: "active",
                 statement: "x",
                 rationale: "x",
-                evidenceIds: [],
-                decisionIds: [],
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
                 createdAt: 0
             }
         ];
+        state.proposals = [
+            ...state.proposals,
+            {
+                id: "proposal-2",
+                proposalId: "proposal-group-1",
+                ordinal: 2,
+                actorId: "manager-1",
+                agendaId: "agenda-1",
+                summary: "new",
+                body: "new",
+                evidenceIds: ["version-1"],
+                supersedesRevisionId: "proposal-1",
+                createdAt: 1
+            }
+        ];
+        expect(state.completionFacts[0].status).toBe("active");
+        expect(state.decisions[0].status).toBe("accepted");
+        expect(state.decisions[0].proposalRevisionId).toBe("proposal-1");
+        expect(state.objective.requiredOutputs[0].status).toBe("pending");
         expect(validateMeetingStateV1(state).kind).toBe("valid");
+    });
+
+    it("rejects an effective active fact while its output remains pending", () => {
+        const state = evidenceState().state;
+        state.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                createdAt: 0
+            }
+        ];
+        invalidAt(state, "$.objective.requiredOutputs[0].status");
+    });
+
+    it("rejects an effective active fact while its criterion remains pending", () => {
+        const state = evidenceState().state;
+        state.objective.requiredOutputs[0].status = "satisfied";
+        state.objective.acceptanceCriteria = [
+            { id: "criterion-1", text: "criterion", status: "pending" }
+        ];
+        state.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                criterionId: "criterion-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                createdAt: 0
+            }
+        ];
+        invalidAt(state, "$.objective.acceptanceCriteria[0].status");
+    });
+
+    it.each([
+        [
+            "output",
+            {
+                ...evidenceState().state,
+                objective: {
+                    ...evidenceState().state.objective,
+                    requiredOutputs: [
+                        {
+                            ...evidenceState().state.objective.requiredOutputs[0],
+                            status: "satisfied"
+                        }
+                    ]
+                }
+            },
+            "$.objective.requiredOutputs[0].status"
+        ],
+        [
+            "criterion",
+            {
+                ...evidenceState().state,
+                objective: {
+                    ...evidenceState().state.objective,
+                    acceptanceCriteria: [
+                        { id: "criterion-1", text: "criterion", status: "satisfied" }
+                    ]
+                }
+            },
+            "$.objective.acceptanceCriteria[0].status"
+        ]
+    ] as const)("rejects satisfied %s without an effective fact", (_name, state, path) => {
+        invalidAt(state, path);
+    });
+
+    it.each([
+        ["evidenceIds", { evidenceIds: [] }, "$.completionFacts[0].evidenceIds"],
+        ["decisionIds", { decisionIds: [] }, "$.completionFacts[0].decisionIds"]
+    ] as const)("requires non-empty completion fact %s", (_name, override, path) => {
+        const state = evidenceState().state;
+        state.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                createdAt: 0,
+                ...override
+            }
+        ];
+        invalidAt(state, path);
     });
 });
 
@@ -1445,7 +1561,7 @@ function remainingEntityState() {
         statement: "x",
         rationale: "x",
         evidenceIds: ["version-1"],
-        decisionIds: [],
+        decisionIds: ["decision-1"],
         createdAt: 0
     };
     const task = {
@@ -1475,6 +1591,10 @@ function remainingEntityState() {
     };
     return {
         ...f.state,
+        objective: {
+            ...f.state.objective,
+            requiredOutputs: [{ ...f.state.objective.requiredOutputs[0], status: "satisfied" }]
+        },
         issues: [issue],
         riskDispositions: [risk],
         completionDeclarations: [declaration],

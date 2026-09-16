@@ -150,15 +150,15 @@ const requiredReviewOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
                     i.reviewResponsibilityIds.includes(agenda.id)
             );
         if (!reviewer) return false;
-        const review = s.reviews.find((r) => r.versionId === id && r.reviewerId === reviewer.id);
+        const reviews = s.reviews.filter((r) => r.versionId === id && r.reviewerId === reviewer.id);
         if (
-            !review ||
+            reviews.length !== 1 ||
             !s.publications.some(
-                (p) => p.finalVersionIds.includes(id) && p.finalReviewIds.includes(review.id)
+                (p) => p.finalVersionIds.includes(id) && p.finalReviewIds.includes(reviews[0].id)
             )
         )
             return false;
-        return s.reviewDeliveries.some((d) => d.reviewId === review.id && d.status === "sent");
+        return s.reviewDeliveries.some((d) => d.reviewId === reviews[0].id && d.status === "sent");
     });
 const factEvidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
     evidenceOk(s, ids) && requiredReviewOk(s, ids);
@@ -184,7 +184,7 @@ export function recalculateMeetingCompletionV1(
     const validFact = (f: CompletionFactV1) =>
         f.status === "active" &&
         f.decisionIds.every(validDecision) &&
-        f.evidenceIds.every((id) => published(state).has(id));
+        factEvidenceOk(state, f.evidenceIds);
     const facts = state.completionFacts.filter(validFact);
     const outputs = state.objective.requiredOutputs.map(
         (t) =>
@@ -276,10 +276,12 @@ export function recordProposalRevisionV1(
         updatedAt: input.now,
         proposals: [...state.proposals, revision]
     };
-    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
+    if (validateMeetingStateV1(recalculated).kind !== "valid")
+        return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
-        state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+        state: recalculated,
         relatedIds: [
             revision.id,
             revision.proposalId,
@@ -441,10 +443,12 @@ export function decideV1(state: MeetingState, _input: DecideInputV1): MeetingTra
         updatedAt: input.now,
         decisions: [...state.decisions, decision]
     };
-    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
+    if (validateMeetingStateV1(recalculated).kind !== "valid")
+        return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
-        state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+        state: recalculated,
         relatedIds: [decision.id, decision.candidateId],
         effectRequests: []
     };
@@ -462,17 +466,19 @@ export function changeDecisionV1(
     if (!old) return bad(state, "NOT_FOUND", "decision not found", input.decisionId);
     if (old.status !== "accepted")
         return bad(state, "PRECONDITION_FAILED", "decision is not accepted", old.id);
-    if (!factEvidenceOk(state, input.evidenceIds))
+    if (!evidenceOk(state, input.evidenceIds))
         return bad(state, "PRECONDITION_FAILED", "evidence is not published");
     const decisions = state.decisions.map((d) =>
         d.id === old.id ? { ...d, status: input.status } : d
     );
     if (input.status === "revoked") {
         const next = { ...state, version: state.version + 1, updatedAt: input.now, decisions };
-        if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+        const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
+        if (validateMeetingStateV1(recalculated).kind !== "valid")
+            return bad(state, "PRECONDITION_FAILED");
         return {
             kind: "accepted",
-            state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+            state: recalculated,
             relatedIds: [old.id, ...input.evidenceIds],
             effectRequests: []
         };
@@ -514,10 +520,12 @@ export function changeDecisionV1(
         updatedAt: input.now,
         decisions: [...decisions, replacement]
     };
-    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
+    if (validateMeetingStateV1(recalculated).kind !== "valid")
+        return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
-        state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+        state: recalculated,
         relatedIds: [old.id, replacement.id, replacement.candidateId, ...input.evidenceIds],
         effectRequests: []
     };
@@ -587,10 +595,12 @@ export function disposeRiskV1(
         issues,
         riskDispositions: [...state.riskDispositions, disposition]
     };
-    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
+    if (validateMeetingStateV1(recalculated).kind !== "valid")
+        return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
-        state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+        state: recalculated,
         relatedIds: [disposition.id, disposition.issueId, ...disposition.evidenceIds],
         effectRequests: []
     };
@@ -687,6 +697,8 @@ export function recordCompletionFactV1(
         !state.objective.acceptanceCriteria.some((t) => t.id === input.criterionId)
     )
         return bad(state, "NOT_FOUND", "criterion not found", input.criterionId);
+    if (!requiredReviewOk(state, input.evidenceIds))
+        return bad(state, "PRECONDITION_FAILED", "required evidence review is incomplete");
     if (
         input.decisionIds.some((id) => {
             const d = state.decisions.find((x) => x.id === id);
@@ -721,10 +733,12 @@ export function recordCompletionFactV1(
         updatedAt: input.now,
         completionFacts: [...state.completionFacts, f]
     };
-    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
+    if (validateMeetingStateV1(recalculated).kind !== "valid")
+        return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
-        state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+        state: recalculated,
         relatedIds: [
             f.id,
             f.outputId,
@@ -757,10 +771,12 @@ export function changeCompletionFactV1(
             updatedAt: input.now,
             completionFacts: facts
         };
-        if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+        const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
+        if (validateMeetingStateV1(recalculated).kind !== "valid")
+            return bad(state, "PRECONDITION_FAILED");
         return {
             kind: "accepted",
-            state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+            state: recalculated,
             relatedIds: [old.id],
             effectRequests: []
         };
@@ -773,10 +789,29 @@ export function changeCompletionFactV1(
         !validId(r.statement) ||
         !validId(r.rationale) ||
         !validArray(r.decisionIds) ||
-        !factEvidenceOk(state, r.evidenceIds) ||
+        !evidenceOk(state, r.evidenceIds) ||
         uniqueEntity(state, r.factId, "completionFacts")
-    )
+    ) {
         return bad(state, "INVALID_ARGUMENT");
+    }
+    if (!requiredReviewOk(state, r.evidenceIds))
+        return bad(state, "PRECONDITION_FAILED", "required evidence review is incomplete");
+    if (
+        r.decisionIds.some((id) => {
+            const decision = state.decisions.find((candidate) => candidate.id === id);
+            return (
+                !decision ||
+                decision.status !== "accepted" ||
+                decision.outcome !== "adopt" ||
+                !state.proposals.some(
+                    (proposal) =>
+                        proposal.id === decision.proposalRevisionId &&
+                        currentRevision(state, proposal.proposalId)?.id === proposal.id
+                )
+            );
+        })
+    )
+        return bad(state, "PRECONDITION_FAILED", "decision basis is invalid");
     const replacement: CompletionFactV1 = {
         id: r.factId,
         outputId: r.outputId,
@@ -796,10 +831,12 @@ export function changeCompletionFactV1(
         updatedAt: input.now,
         completionFacts: [...facts, replacement]
     };
-    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
+    if (validateMeetingStateV1(recalculated).kind !== "valid")
+        return bad(state, "PRECONDITION_FAILED");
     return {
         kind: "accepted",
-        state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+        state: recalculated,
         relatedIds: [
             old.id,
             replacement.id,

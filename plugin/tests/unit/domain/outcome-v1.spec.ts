@@ -226,6 +226,76 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
     return state;
 }
 
+function completionReadyState(): MeetingState {
+    const state = validState();
+    state.proposals = [
+        {
+            id: "rev",
+            proposalId: "prop",
+            ordinal: 1,
+            actorId: "contributor",
+            agendaId: "a",
+            summary: "proposal",
+            body: "body",
+            evidenceIds: ["v"],
+            createdAt: 0
+        }
+    ];
+    state.positions = [
+        {
+            id: "pos",
+            proposalRevisionId: "rev",
+            actorId: "contributor",
+            stance: "support",
+            rationale: "support",
+            evidenceIds: ["v"],
+            createdAt: 0
+        }
+    ];
+    state.decisionCandidates = [
+        {
+            id: "cand",
+            proposalRevisionId: "rev",
+            actorId: "contributor",
+            outcome: "adopt",
+            rationale: "adopt",
+            evidenceIds: ["v"],
+            positionIds: ["pos"],
+            createdAt: 0
+        }
+    ];
+    state.decisions = [
+        {
+            id: "dec",
+            candidateId: "cand",
+            proposalRevisionId: "rev",
+            actorId: "contributor",
+            outcome: "adopt",
+            rationale: "adopt",
+            evidenceIds: ["v"],
+            positionIds: ["pos"],
+            createdAt: 0,
+            status: "accepted"
+        }
+    ];
+    return state;
+}
+
+function completionInput(
+    actor: { kind: "identity"; id: string } = { kind: "identity", id: "captain" }
+) {
+    return {
+        factId: "fact",
+        outputId: "o",
+        statement: "complete",
+        rationale: "basis",
+        evidenceIds: ["v"],
+        decisionIds: ["dec"],
+        actor,
+        now: 1
+    } as const;
+}
+
 describe("outcome proposal revisions", () => {
     it("records first and consecutive proposal revisions without copying history", () => {
         let state = validState();
@@ -954,6 +1024,10 @@ describe("outcome proposal revisions", () => {
                 createdAt: 0
             }
         ];
+        state.objective.requiredOutputs[0] = {
+            ...state.objective.requiredOutputs[0],
+            status: "satisfied"
+        };
         const result = changeCompletionFactV1(state, {
             factId: "old-fact",
             status: "superseded",
@@ -1185,6 +1259,10 @@ describe("outcome proposal revisions", () => {
                 createdAt: 0
             }
         ];
+        state.objective.requiredOutputs[0] = {
+            ...state.objective.requiredOutputs[0],
+            status: "satisfied"
+        };
         const result = changeCompletionFactV1(state, {
             factId: "fact",
             status: "revoked",
@@ -1256,6 +1334,10 @@ describe("outcome proposal revisions", () => {
                 createdAt: 0
             }
         ];
+        state.objective.requiredOutputs[0] = {
+            ...state.objective.requiredOutputs[0],
+            status: "satisfied"
+        };
         const result = recordProposalRevisionV1(state, {
             revisionId: "rev-2",
             proposalId: "prop",
@@ -1287,5 +1369,207 @@ describe("outcome proposal revisions", () => {
         const result = recalculateMeetingCompletionV1(state, "i", 2);
         expect(result).not.toBe(state);
         expect(state.lifecycle.status).toBe("paused");
+    });
+});
+
+describe("completion fact preconditions", () => {
+    const reviewBreaks = [
+        [
+            "missing required reviewer",
+            (s: MeetingState) => {
+                s.agenda[0].requiredReviewerIds = [];
+            }
+        ],
+        [
+            "missing evidence review",
+            (s: MeetingState) => {
+                s.reviews = [];
+                s.reviewDeliveries = [];
+                s.publications[0].finalReviewIds = [];
+            }
+        ],
+        [
+            "publication omits review",
+            (s: MeetingState) => {
+                s.publications[0].finalReviewIds = [];
+            }
+        ],
+        [
+            "review delivery is not sent",
+            (s: MeetingState) => {
+                const { sentAt: _sentAt, ...delivery } = s.reviewDeliveries[0];
+                s.reviewDeliveries[0] = {
+                    ...delivery,
+                    status: "failed",
+                    failedAt: 1,
+                    failureReason: "timeout"
+                };
+            }
+        ],
+        [
+            "duplicate selected review",
+            (s: MeetingState) => {
+                s.reviews = [s.reviews[0], { ...s.reviews[0], id: "review-2" }];
+            }
+        ]
+    ] as const;
+
+    it.each(reviewBreaks)("rejects when %s", (_name, mutate) => {
+        const state = completionReadyState();
+        mutate(state);
+        const result = recordCompletionFactV1(state, completionInput());
+        expect(result).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
+        expect(result.state).toBe(state);
+        expect(result.effectRequests).toEqual([]);
+        expect(state.completionFacts).toEqual([]);
+    });
+
+    it.each([
+        [
+            "revoked",
+            (s: MeetingState) => {
+                s.decisions[0].status = "revoked";
+            }
+        ],
+        [
+            "non-adopt",
+            (s: MeetingState) => {
+                s.decisions[0].outcome = "reject";
+            }
+        ],
+        [
+            "stale revision",
+            (s: MeetingState) => {
+                s.proposals.push({
+                    ...s.proposals[0],
+                    id: "rev-2",
+                    ordinal: 2,
+                    supersedesRevisionId: "rev"
+                });
+            }
+        ]
+    ] as const)("rejects %s decision basis", (_name, mutate) => {
+        const state = completionReadyState();
+        mutate(state);
+        const result = recordCompletionFactV1(state, completionInput());
+        expect(result).toMatchObject({ kind: "rejected", error: { code: "PRECONDITION_FAILED" } });
+        expect(result.state).toBe(state);
+        expect(result.effectRequests).toEqual([]);
+        expect(state.completionFacts).toEqual([]);
+    });
+
+    it("checks authorization before review preconditions", () => {
+        const state = completionReadyState();
+        state.publications[0].finalReviewIds = ["review"];
+        const result = recordCompletionFactV1(
+            state,
+            completionInput({ kind: "identity", id: "manager" })
+        );
+        expect(result).toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
+        expect(result.state).toBe(state);
+    });
+
+    it("rejects a local controller and manager even with a valid review chain", () => {
+        for (const actor of [
+            { kind: "identity", id: "manager" } as const,
+            { kind: "local_controller", id: "local" } as const
+        ]) {
+            const result = recordCompletionFactV1(
+                completionReadyState(),
+                completionInput(actor as never)
+            );
+            expect(result).toMatchObject({ kind: "rejected", error: { code: "UNAUTHORIZED" } });
+        }
+    });
+
+    it("applies the same review and basis gates to replacement facts", () => {
+        const state = completionReadyState();
+        state.completionFacts = [
+            {
+                id: "old",
+                outputId: "o",
+                actorId: "captain",
+                status: "active",
+                statement: "old",
+                rationale: "old",
+                evidenceIds: ["v"],
+                decisionIds: ["dec"],
+                createdAt: 0
+            }
+        ];
+        state.objective.requiredOutputs[0] = {
+            ...state.objective.requiredOutputs[0],
+            status: "satisfied"
+        };
+        state.evidencePackages[0].currentVersionId = "v2";
+        state.evidencePackages[0].versions.push({
+            ...state.evidencePackages[0].versions[0],
+            id: "v2",
+            ordinal: 2
+        });
+        state.publications[0].finalVersionIds = ["v", "v2"];
+        state.publications[0].finalReviewIds = ["review"];
+        const reviewResult = changeCompletionFactV1(state, {
+            factId: "old",
+            status: "superseded",
+            rationale: "replace",
+            replacement: {
+                factId: "new",
+                outputId: "o",
+                statement: "new",
+                rationale: "new",
+                evidenceIds: ["v2"],
+                decisionIds: ["dec"]
+            },
+            actor: { kind: "identity", id: "captain" },
+            now: 1
+        });
+        expect(reviewResult).toMatchObject({
+            kind: "rejected",
+            error: { code: "PRECONDITION_FAILED" }
+        });
+        const basisState = completionReadyState();
+        basisState.completionFacts = [
+            {
+                id: "old",
+                outputId: "o",
+                actorId: "captain",
+                status: "active",
+                statement: "old",
+                rationale: "old",
+                evidenceIds: ["v"],
+                decisionIds: ["dec"],
+                createdAt: 0
+            }
+        ];
+        basisState.objective.requiredOutputs[0] = {
+            ...basisState.objective.requiredOutputs[0],
+            status: "pending"
+        };
+        basisState.proposals.push({
+            ...basisState.proposals[0],
+            id: "rev-2",
+            ordinal: 2,
+            supersedesRevisionId: "rev"
+        });
+        const basisResult = changeCompletionFactV1(basisState, {
+            factId: "old",
+            status: "superseded",
+            rationale: "replace",
+            replacement: {
+                factId: "new",
+                outputId: "o",
+                statement: "new",
+                rationale: "new",
+                evidenceIds: ["v"],
+                decisionIds: ["dec"]
+            },
+            actor: { kind: "identity", id: "captain" },
+            now: 1
+        });
+        expect(basisResult).toMatchObject({
+            kind: "rejected",
+            error: { code: "PRECONDITION_FAILED" }
+        });
     });
 });
