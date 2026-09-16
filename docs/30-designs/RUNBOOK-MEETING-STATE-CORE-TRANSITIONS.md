@@ -209,39 +209,9 @@ pnpm --dir plugin verify
 
 ## 9. 机械执行步骤
 
-### T8：Domain entry、完整验证与 readiness
-
-前置状态：T1–T7 PASS。
-
-允许修改：`plugin/src/domain/index.ts`、`docs/40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md`。
-
-禁止修改：其它文件、legacy exports、package config。
-
-执行：在 `plugin/src/domain/index.ts` 只具名导出 `validateMeetingStateV1`、`MeetingStateValidationResultV1`、`transitionMeetingStateV1` 及第 7 节六个公开 target 类型，不删除 legacy export。先运行下列四条工程命令，均 PASS 后记录 `git rev-parse HEAD` 与 `git status --short`，再只更新 readiness 的“目标领域模型与命名”“Meeting 生命周期与本地控制”“Agenda、ManagerPlan 与轮次安排”“新契约自动化测试”四行及 Executed Validation/Explicitly Not Covered，写入真实日期、HEAD、命令结果与 dirty 状态；仅称目标 validator 与十个纯 Domain action 已覆盖，Runtime/Repository/Archive/DSH/Remote/Browser、create/start/end、Round、legacy replacement 保留 Not Covered，不添加指向临时 RUNBOOK 的长期引用。最后执行文档与范围命令；不得在 T8 删除 RUNBOOK。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts
-pnpm --dir plugin typecheck
-pnpm --dir plugin lint
-pnpm --dir plugin verify
-git rev-parse HEAD
-git status --short
-node .github/scripts/check-doc-links.mjs
-git diff --check
-git diff --name-only
-```
-
-PASS：每条命令退出码 0；readiness 只在工程门禁 PASS 后更新，更新后链接/diff 门禁仍 PASS；status/diff 的代码文件仅第 7 节两个目标 production、两个目标 test、meeting-state-v1.ts 与 domain/index.ts，其它可见修改仅执行前 baseline 中允许的 docs 与本步 readiness；readiness 不把未接线功能写为对齐。
-
-STOP：任一命令失败、必须编辑未列文件或 readiness 夸大覆盖；报告最后 PASS/首个失败，不缩减验证、不提交。
-
-失败恢复：无数据库/外部副作用；保留最后 PASS 和用户原改动，禁止 reset、checkout 或删除文件。
-
 ### T9：已授权的 RUNBOOK 收口与删除
 
-前置状态：T1–T8 全部 PASS；本切片的长期确认结论已在 requirements/interfaces/designs，真实验证与 Not Covered 已在 readiness；用户另行明确授权删除本 RUNBOOK。当前 Author/Audit 阶段不满足该前置，不运行 T9。
+前置状态：T1–T8 全部 PASS；本切片的长期确认结论已在 requirements/interfaces/designs，真实验证与 Not Covered 已在 readiness；用户另行明确授权删除本 RUNBOOK。
 
 允许修改：只删除 `docs/30-designs/RUNBOOK-MEETING-STATE-CORE-TRANSITIONS.md`；不得改其它文件。
 
@@ -285,18 +255,18 @@ git status --short
 | RUNBOOK 内部链接与 Markdown 本地链接 | `node .github/scripts/check-doc-links.mjs` | 作者交付时必须为退出码 0；只证明链接目标存在，不证明产品行为 | STOP；报告输出，不修改无关文档。 |
 | 文档改动的空白/冲突标记 | `git diff --check` | 作者交付时必须为退出码 0 | STOP；只修复本 RUNBOOK 的空白错误后重跑。 |
 | target validator 与 transitions | `pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts` | T1–T7 必须 PASS；已完成步骤正文按执行约定删除 | 失败时不得降级断言。 |
-| target TypeScript/API boundary | `pnpm --dir plugin typecheck && pnpm --dir plugin lint` | T8 必须 PASS；当前尚未执行 | 不得改 eslint 或 export 边界绕过。 |
-| 此切片的完整工程验证 | `pnpm --dir plugin verify` | T8 必须 PASS；不证明 DSH runtime | 任一失败 STOP，报告首次失败及实际输出。 |
+| target TypeScript/API boundary | `pnpm --dir plugin typecheck && pnpm --dir plugin lint` | T8 PASS | 不得改 eslint 或 export 边界绕过。 |
+| 此切片的完整工程验证 | `pnpm --dir plugin verify` | T8 PASS；不证明 DSH runtime | 任一失败 STOP，报告首次失败及实际输出。 |
 | DSH profile、Browser、Repository/recovery、Remote、outbox、legacy compatibility | 不运行 | `Not Applicable` 于本 RUNBOOK scope：本切片不得接线这些边界 | 不得将未运行写为通过。 |
 
 ## 11. 完成定义、readiness 与删除
 
-当前状态未完成：已完成步骤正文按执行约定删除，剩余步骤仍须依序执行；不得提前删除整个 RUNBOOK，也不得称目标领域核心“已对齐”。
+T1–T8 已完成规定验证并按执行约定删除步骤正文；只剩 T9 的临时 RUNBOOK 删除与残留引用检查。
 
 仅当 T1–T8 已完成规定 focused tests、`typecheck`、`lint`、`verify`、文档链接检查和 `git diff --check` 后，才可把实际命令、日期、commit 边界、结果和 Not Covered 写入 readiness。长期确认的行为已先迁移到 requirements/interfaces/designs；T9 才处理临时 RUNBOOK 删除与残留引用。无精确删除授权、无本 RUNBOOK 的可恢复提交历史或任一 T 步不满足则保留本文件；删除不等于 commit，当前任务也不授权 commit/push/PR。
 
 ## 12. Author Audit
 
-逐项按 [RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md#authoring-and-audit) 审计：已完成步骤正文依执行约定删除；Scope 2 已完成，剩余 Scope 3/4→T8、最终文件删除→T9。第 8 节执行前检查固定为当前 `docs/runbook-meeting-state-transitions` checkout `/Volumes/storage/workspace/convivium`，不得在另一 worktree 的 `main` 执行。T9 删除后检查失败必须精确恢复 RUNBOOK 再 STOP。每步允许文件、命令、可观察 PASS/STOP、失败恢复与 Non-goals 已重新核对；CreateMeeting identityId 映射、active risk fact 跨边界证明、Repository/archive retention 仍属后续切片，不由本纯 Domain 切片猜测。
+逐项按 [RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md#authoring-and-audit) 审计：T1–T8 已完成并删除步骤正文；Scope 2–4 已完成，剩余最终文件删除→T9。第 8 节执行前检查固定为当前 `docs/runbook-meeting-state-transitions` checkout `/Volumes/storage/workspace/convivium`，不得在另一 worktree 的 `main` 执行。T9 删除后检查失败必须精确恢复 RUNBOOK 再 STOP。每步允许文件、命令、可观察 PASS/STOP、失败恢复与 Non-goals 已重新核对；CreateMeeting identityId 映射、active risk fact 跨边界证明、Repository/archive retention 仍属后续切片，不由本纯 Domain 切片猜测。
 
-审计结论：**Executable**，仅说明低级执行者可在第 8 节授权、checkout 与 baseline 门禁满足后按 T1–T8 实施或 STOP；T9 仍须独立删除授权及当时的 Git 历史/无增量门禁。2026-09-16 在 `docs/runbook-meeting-state-transitions` checkout 实际执行 `pnpm --dir plugin verify`：退出码 0，90 test files/961 tests PASS，且 build/environment/contract/agent-definitions/package 检查均通过（仅证明 legacy 基线，不证明目标行为）；`node .github/scripts/check-doc-links.mjs` 为 462 checked/0 errors（不查 anchors），`git diff --check` 退出码 0。目标 focused tests、目标 TypeScript、target lint/build/verify、真实 DSH 与 Browser 均未执行，不描述为通过。Execute 与 push/PR 仍须分别获授权。
+审计结论：T1–T8 已执行完成。2026-09-16 在 `docs/runbook-meeting-state-transitions` checkout 实际执行 focused tests（2 files/150 tests）、`typecheck`、`lint` 与 `pnpm --dir plugin verify`（92 files/1111 tests），均退出码 0；build/environment/contract/agent-definitions/package 检查通过，`node .github/scripts/check-doc-links.mjs` 为 459 checked/0 errors（不查 anchors），`git diff --check` 退出码 0。真实 DSH、Browser、Runtime 与 Repository 未执行，不描述为通过；剩余 T9 删除门禁须从已提交、无本文件增量的状态执行。

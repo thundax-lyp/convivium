@@ -18,13 +18,13 @@
 | 功能点 | 当前已具备的源码事实 | 当前契约还缺什么 | 状态 |
 | --- | --- | --- | --- |
 | 插件编译与装载基础 | plugin package 提供 host/client TypeScript 工程与 typecheck script。 | 编译不验证 DSH 装载、配置解析或运行时行为。 | 编译通过；运行时未验证 |
-| 目标领域模型与命名 | domain/meeting-state-v1.ts 以标准名 MeetingState 声明目标聚合、全部持久实体与值域；旧模型改为 LegacyMeetingState/LegacyRiskLevel，避免与目标契约同名。 | 目标 MeetingState 的结构校验、引用校验、纯 transitions 和拒绝结果尚未实现；旧 runtime 仍只调用 legacy model。 | 部分具备（类型固定） |
-| Meeting 生命周期与本地控制 | domain/model.ts 有 legacy MeetingStatus；runtime 的 meeting-control.ts 有暂停、恢复、结束等旧控制路径。 | 以 MeetingState、MeetingActionV1 与当前 transition 表定义的状态、拒绝码、版本前置条件重建；逐项测试。 | 部分已有（旧模型） |
+| 目标领域模型与命名 | domain/meeting-state-v1.ts 以标准名 MeetingState 声明目标聚合、全部持久实体与值域；目标 validator、纯 transitions 和拒绝结果已实现并从 domain entry 具名导出；旧模型仍为 LegacyMeetingState/LegacyRiskLevel。 | 旧 runtime 仍只调用 legacy model。 | 目标 Domain 已对齐；runtime 未迁移 |
+| Meeting 生命周期与本地控制 | 目标 transition 已覆盖 pause/resume 及 terminal 拒绝边界，并有确定性测试。 | 结束、Repository commit、runtime meeting-control 与真实运行行为未接入目标聚合。 | 目标纯 Domain 部分已对齐 |
 | Meeting 隔离、Session ownership 与冷恢复 | 有 session-ownership、meeting-recovery-service 等旧实现路径。 | 当前 Meeting 归属、重绑、关闭回执与恢复不变量尚未映射到新聚合和 Repository commit。 | 部分已有（旧模型） |
 | Round、同轮隔离、Contribution 与 Publication | 旧模型使用 Turn、SpeakerAttempt、TurnSubmission；存在 turn-advancement 与 speaker-attempt transitions。 | Round、Contribution、同轮公开基线、轮末 Publication 以及禁止中途互见均未实现。 | 未具备（目标实现） |
 | EvidencePackage 与 Review | 旧 protocol 有 save_evidence。 | EvidencePackage、审核状态、reviewer 动作、引用约束和审核后可见性没有当前实现。 | 未具备（目标实现） |
 | 补充举手与 Manager 接受 | 旧流程可推进 turn。 | Review 后 participant 重新举手、Manager 显式接受、生成补充工作项的完整流程不存在。 | 未具备（目标实现） |
-| Agenda、ManagerPlan 与轮次安排 | 有 manager-planning 和议程候选相关旧代码。 | ManagerPlan 的输入、输出、校验、fallback 及其与 Round 的确定性衔接尚未按新定义实现。 | 部分已有（旧模型） |
+| Agenda、ManagerPlan 与轮次安排 | 目标 transition 已覆盖 Agenda 激活、AgendaCandidate 处置、Question/Issue 关联及 ManagerPlan 生成，含 typed refs、权限、Round open 前置条件与确定性测试。 | Round、ManagerPlan fallback、Repository 持久化和 runtime 衔接未实现。 | 目标纯 Domain 部分已对齐 |
 | Proposal、DecisionCandidate、Risk 与本地裁决 | 有 meeting-decision 和风险/候选相关旧路径。 | 当前 candidate、accept/replace/revoke、risk disposition、authority、evidence 与审计事实的结构和语义未对齐。 | 部分已有（旧模型） |
 | 完成声明与收敛 | 有 completion 和收敛相关旧逻辑。 | CompletionDeclaration、CompletionFact、收敛与业务完成的区分、终止依据及其不可变审计尚未实现。 | 部分已有（旧模型） |
 | MeetingTask、授权与 reassign | 有 meeting-task、reassign-turn 及相关 application service。 | 新 MeetingTask 的授权主体、领取/完成/失效、reassign 的精确前置条件与拒绝结果未实现。 | 部分已有（旧模型） |
@@ -33,7 +33,7 @@
 | Continuation | 有 continuation-selection 等旧归档续会代码。 | ContinuationInput、ContinuationProvenance、材料选择规则和新会议身份隔离尚未按当前接口实现。 | 部分已有（旧模型） |
 | Remote DTO、刷新与 Client projection | 有 remote、client、meeting-refresh-feed 和 Markdown projection 等旧路径。 | MeetingViewV1、字段过滤、版本刷新、动作回执及 Developer Markdown 的当前 DTO 契约未实现。 | 部分已有（旧模型） |
 | Role Definition、Catalog 与 Preflight | 有角色组成与 catalog 相关旧资产。 | dshPresetId、requiredSkillNames、descriptor、admission/preflight、权限边界和恢复后的角色一致性尚未按 DSH Role Interface 实现。 | 部分已有（旧模型） |
-| 新契约自动化测试 | 已执行 legacy test suite：90 files、961 tests 通过。 | 每个 MeetingActionV1、关键 transition、恢复、隔离、拒绝路径和 Remote projection 都缺与当前契约一一对应的确定性测试。 | 旧回归通过；目标测试未具备 |
+| 新契约自动化测试 | target validator 与十个纯 Domain action 的 focused tests 150 tests 通过；完整工程 test 92 files、1111 tests 通过。 | 集成、恢复、隔离、Remote projection、Runtime 与真实 DSH/Browser 行为仍未覆盖。 | 目标纯 Domain 已对齐 |
 | 真实 DSH 与 Browser 验收 | 仓库保留历史 smoke 操作说明和脚本。 | 当前 Round/Contribution/Review/PrivateMail/Role 契约从未在真实 DSH profile 或 Browser 中验证。 | 未验证 |
 
 ## Implementation Gap
@@ -52,10 +52,14 @@
 | 2026-09-15 | plugin 全量工程验证 | pnpm --dir plugin verify | PASS：format、lint、host/client/remote-test typecheck、90 files/961 tests、build、environment、contract、agent definitions 与 package checks 通过。 |
 | 2026-09-15 | 文档工作区 | git diff --check | PASS。 |
 | 2026-09-15 | 本地 Markdown 文件目标 | node .github/scripts/check-doc-links.mjs | PASS：427 checked，0 errors。 |
+| 2026-09-16 | target validator 与 transitions | pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts | PASS：2 files、150 tests。 |
+| 2026-09-16 | target TypeScript/API boundary | pnpm --dir plugin typecheck && pnpm --dir plugin lint | PASS：host/client typecheck 与 lint 通过；lint 仅有既有复杂度 warnings。 |
+| 2026-09-16 | 此切片的完整工程验证 | pnpm --dir plugin verify | PASS：format、lint、host/client/remote-test typecheck、92 files/1111 tests、build、environment、contract、agent definitions 与 package checks 通过。 |
+| 2026-09-16 | T8 checkout 状态 | git rev-parse HEAD；git status --short | HEAD：5cdb842a1a98dc50797d3ebbeab4888355035b19；dirty：plugin/src/domain/index.ts。 |
 
 ## Explicitly Not Covered
 
-- 新 MeetingState 的结构/引用校验、纯 transitions、单元测试、集成测试、恢复测试、smoke、真实 DSH profile、Browser 与真实模型行为均未执行。
+- 新 MeetingState 的集成测试、恢复测试、smoke、真实 DSH profile、Browser 与真实模型行为未执行；已执行的纯 Domain validator/transitions 测试不代表这些边界已覆盖。
 - 旧 smoke 或 operations 文档中的历史通过记录，仅说明旧基线曾运行；不能证明本文件列出的目标实现。
 - 性能、并发压力、迁移、旧数据兼容、远端文件系统和发布均不在当前阶段承诺中。
 
