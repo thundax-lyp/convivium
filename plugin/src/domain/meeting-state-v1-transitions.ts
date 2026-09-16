@@ -7,6 +7,7 @@ import type {
 } from "./meeting-state-v1.js";
 import { validateMeetingStateV1 } from "./meeting-state-v1-validation.js";
 import { z } from "zod";
+import { recalculateMeetingCompletionV1 } from "@/domain/transitions/outcome-v1.js";
 
 export type TargetDomainActorV1 =
     { kind: "local_controller"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };
@@ -676,7 +677,7 @@ export function transitionMeetingStateV1(
             reason: action.reason
         };
 
-    const nextState: MeetingState = {
+    let nextState: MeetingState = {
         ...state,
         version: state.version + 1,
         updatedAt: now,
@@ -688,6 +689,8 @@ export function transitionMeetingStateV1(
         managerPlans: nextPlans,
         lifecycle: nextLifecycle
     };
+    if (action.kind === "dispose_issue")
+        nextState = recalculateMeetingCompletionV1(nextState, actor.id, now);
     if (validateMeetingStateV1(nextState).kind !== "valid")
         return invalid(state, "PRECONDITION_FAILED");
     return {
