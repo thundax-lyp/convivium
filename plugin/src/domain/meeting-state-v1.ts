@@ -88,6 +88,10 @@ export interface IssueV1 {
     riskLevel: RiskLevel;
     classification:
         "blocking" | "follow_up" | "pending_discussion" | "accepted_risk" | "out_of_scope";
+    affectedOutputIds: readonly OpaqueId[];
+    affectedCriterionIds: readonly OpaqueId[];
+    affectedConstraintIds: readonly OpaqueId[];
+    requiredReviewerIds: readonly OpaqueId[];
     blocking: boolean;
     status: "open" | "resolved" | "deferred" | "out_of_scope";
     rationale: string;
@@ -386,6 +390,7 @@ export interface PrivateMailV1 {
 }
 
 export interface TerminationV1 {
+    id: OpaqueId;
     outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed";
     reason: string;
     endedAt: EpochMs;
