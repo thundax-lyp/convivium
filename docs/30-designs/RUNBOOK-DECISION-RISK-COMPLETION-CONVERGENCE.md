@@ -1,7 +1,7 @@
 # RUNBOOK：Decision、Risk、Completion 与 Convergence 纯 Domain 闭环
 
-状态：Author/Audit，审计结论 `Executable`。执行分支必须从共同基线
-`289df64bc734b345ea1d8d639b6f9663af3d50c6` 建立；本文件的作者分支为
+状态：Author/Audit，审计结论 `Executable`。执行分支必须包含已合入身份准入线的共同基线
+`c2fd076afcd1303cba1a01e832516b1dde12b428` ；本文件的作者分支为
 `codex/decision-risk-completion-runbook`。建立日期：2026-09-16。作者已在同一工作
 边界内固定 CompletionDeclaration actor、paused 完成重算和 pending Candidate
 lifecycle 的正式定义；执行者只消费这些冻结文档，不再修改它们。本文件不授权
@@ -13,7 +13,7 @@ commit、push、创建 PR、合并或执行外部写操作。
 
 PASS 必须同时满足：指定命令退出码为 0、该步列出的可观察断言成立、拒绝路径保持原 `state` 引用且 `relatedIds/effectRequests` 均为空。STOP 时立即停止，不执行后续步骤；报告最后 PASS 步骤、触发条件、相关文件和 symbol、最小复现命令、实际输出，以及继续所需的人工决定。不得通过放宽 Schema、删除断言、类型强转、复制 legacy `Decision`/`Turn` 逻辑、修改正式文档或进入 Non-goals 继续。
 
-已有用户改动不得回滚。T0 只允许作者已登记的本 RUNBOOK 与四份冻结正式文档为未提交改动；若本 RUNBOOK 允许修改的其它现有文件包含不属于当前执行分支的未提交改动，执行者必须 STOP；新文件尚不存在不构成 STOP。若已合入 Manager 身份准入线，只允许在 `plugin/src/domain/transitions/index.ts`、`plugin/src/domain/meeting-state-v1-validation.ts`、其测试及 `CURRENT-IMPLEMENTATION-COVERAGE.md` 中保留双方独立追加内容并机械合并；任何一方需要调用、导入或解释另一方新增类型时 STOP。
+已有用户改动不得回滚。T0 要求工作区干净；若本 RUNBOOK 允许修改的任一现有文件包含未提交改动，执行者必须 STOP；新文件尚不存在不构成 STOP。当前共同基线已合入 Manager 身份准入线；只允许在 `plugin/src/domain/transitions/index.ts`、`plugin/src/domain/meeting-state-v1-validation.ts`、其测试及 `CURRENT-IMPLEMENTATION-COVERAGE.md` 中保留双方独立追加内容并机械合并；任何 outcome symbol 需要调用、导入或解释 `IdentityRecommendationV1`、身份准入 transition 或其 Runtime 结果时 STOP。
 
 ## 目标、起点与终点
 
@@ -349,7 +349,7 @@ CompletionFact 只允许 Captain identity，不允许 local controller、Manager
 
 ### T0：共同基线与工作区门禁
 
-前置状态：从仓库根执行；当前分支基于指定共同基线；只存在本 RUNBOOK 与下列四份作者冻结正式文档改动：`MEETING-ORCHESTRATION-REQUIREMENTS.md`、`MEETING-INTERFACE.md`、`DOMAIN-DESIGN.md`、`MEETING-DESIGN.md`。
+前置状态：从仓库根执行；当前分支包含指定共同基线；本 RUNBOOK 与四份作者冻结正式文档已提交；工作区干净。
 
 允许修改：无。
 
@@ -357,16 +357,16 @@ CompletionFact 只允许 Captain identity，不允许 local controller、Manager
 
 执行：
 
-1. 运行下列命令；确认 `git status --short` 只显示本 RUNBOOK 和前置状态列出的四份正式文档，其它允许修改的现有文件无未提交改动。
+1. 运行下列命令；确认 `git status --short` 无输出。
 2. 确认新文件 `outcome-v1.ts` 与 `outcome-v1.spec.ts` 不存在。
 3. 确认正式 action/entity/derived rule 与本 RUNBOOK 的链接仍存在。
 
 验证：
 
 ```bash
-git merge-base --is-ancestor 289df64bc734b345ea1d8d639b6f9663af3d50c6 HEAD
+git merge-base --is-ancestor c2fd076afcd1303cba1a01e832516b1dde12b428 HEAD
 git status --short
-test "$(git status --short)" = $' M docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md\n M docs/20-interfaces/MEETING-INTERFACE.md\n M docs/30-designs/DOMAIN-DESIGN.md\n M docs/30-designs/MEETING-DESIGN.md\n?? docs/30-designs/RUNBOOK-DECISION-RISK-COMPLETION-CONVERGENCE.md'
+test -z "$(git status --short)"
 test ! -e plugin/src/domain/transitions/outcome-v1.ts
 test ! -e plugin/tests/unit/domain/outcome-v1.spec.ts
 rg -n 'interface (RecordProposalRevision|RecordPosition|RecordDecisionCandidate|Decide|ChangeDecision|DisposeRisk|SubmitCompletionDeclaration|RecordCompletionFact|ChangeCompletionFact)' docs/20-interfaces/MEETING-INTERFACE.md
@@ -374,7 +374,7 @@ rg -n 'isObjectiveSatisfied|pendingDecisionCandidates' docs/30-designs/DOMAIN-DE
 pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts
 ```
 
-PASS：所有命令退出 0；git status 只允许显示本 RUNBOOK 与已登记的四份冻结正式文档；2 个既有 suite 全绿。
+PASS：所有命令退出 0；git status 无输出；2 个既有 suite 全绿。
 
 STOP：共同基线不是祖先、允许修改文件有未知改动、新文件已存在、symbol/依据缺失或 baseline test 失败。报告命令输出；不得通过覆盖现有文件继续。
 
