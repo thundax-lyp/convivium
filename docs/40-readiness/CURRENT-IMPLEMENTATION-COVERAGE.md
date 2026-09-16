@@ -4,7 +4,7 @@
 
 本文件按已确认的功能点记录当前 checkout 的真实实现状态。状态中的“已有”只表示源码中存在对应的旧能力；除非同时标为“已对齐”，否则不能作为当前 Interface 与 Design 的实现完成证据。
 
-本轮基线是设计契约提交 44e27f4。目标领域模型已落入 source：新聚合使用标准名 `MeetingState`，旧模型显式改名为 `LegacyMeetingState`、`LegacyRiskLevel`。本轮已执行完整 verify（含编译、测试与 build）；没有执行 smoke、真实 DSH profile 或 Browser 验收。现有测试证明旧实现未因改名回归，不证明目标模型已有 transition 行为。
+本轮以设计契约提交 44e27f4 为依据，目标领域核心实现收口于 0559416。新聚合使用标准名 `MeetingState`，旧模型显式命名为 `LegacyMeetingState`、`LegacyRiskLevel`；目标 validator 与十个纯 Domain action 已实现、从 domain entry 具名导出并通过 focused tests 和完整 verify。Runtime、Repository、smoke、真实 DSH profile 与 Browser 尚未接入或验收。
 
 | 状态 | 含义 |
 | --- | --- |
@@ -38,7 +38,7 @@
 
 ## Implementation Gap
 
-当前最小实现缺口不是补旧测试，而是先建立可替代 legacy Turn/SpeakerAttempt 的新领域核心：MeetingState、Round、Contribution、EvidencePackage、Review、Publication、MeetingTask 与受控 transitions。随后把 Repository 原子提交、幂等、outbox、Session ownership 和归档接到该核心；最后接入 DSH adapter、Remote DTO、Client projection、角色 preflight 与真实运行验证。
+目标 `MeetingState` 的结构/引用 validator，以及 pause/resume、Agenda、AgendaCandidate、Question、Issue 和 ManagerPlan 的十个纯 Domain action 已建立。当前最小实现缺口是继续实现 Round、Contribution、EvidencePackage、Review、Publication、MeetingTask 及其受控 transitions，再把 Repository 原子提交、幂等、outbox、Session ownership 和归档接到该核心；最后接入 DSH adapter、Remote DTO、Client projection、角色 preflight 与真实运行验证。
 
 旧实现不要求兼容：当前设计没有承诺对 Turn、SpeakerAttempt、旧协议字段或旧归档格式作迁移读取。因此在新切片中保留旧模型会形成双重事实源，应在对应替换完成时删除旧路径，而不是增加适配层。
 
@@ -55,7 +55,7 @@
 | 2026-09-16 | target validator 与 transitions | pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts | PASS：2 files、150 tests。 |
 | 2026-09-16 | target TypeScript/API boundary | pnpm --dir plugin typecheck && pnpm --dir plugin lint | PASS：host/client typecheck 与 lint 通过；lint 仅有既有复杂度 warnings。 |
 | 2026-09-16 | 此切片的完整工程验证 | pnpm --dir plugin verify | PASS：format、lint、host/client/remote-test typecheck、92 files/1111 tests、build、environment、contract、agent definitions 与 package checks 通过。 |
-| 2026-09-16 | T8 checkout 状态 | git rev-parse HEAD；git status --short | HEAD：5cdb842a1a98dc50797d3ebbeab4888355035b19；dirty：plugin/src/domain/index.ts。 |
+| 2026-09-16 | 目标领域核心分支收口 | git rev-parse HEAD；git status --short；RUNBOOK 删除后链接检查 | HEAD：05594165636f6ff0f47aa15f669d9f66a3b057b9；工作区干净；临时 RUNBOOK 已删除；Markdown 本地文件链接 427 checked、0 errors。 |
 
 ## Explicitly Not Covered
 
@@ -65,6 +65,6 @@
 
 ## Closure Rule
 
-在本阶段，可声明的是“现有工程 verify 通过”与“目标领域类型已固定”；两者都不证明目标领域行为。某功能点只有在实现与对应 Interface/Design 对齐、相关确定性测试通过，并在需要时完成真实 DSH 验收后，才能从上表移入“已对齐”。
+本阶段可以声明：目标 `MeetingState` validator 与十个纯 Domain action 已按当前 Interface/Design 对齐，并通过确定性测试和完整工程 verify。该结论只覆盖纯 Domain 边界，不证明 Runtime、Repository、恢复、Remote projection、真实 DSH 或 Browser 行为；这些功能只有在各自实现、测试及必要的真实环境验收完成后，才能移入“已对齐”。
 
 相关依据：[Domain Design](../30-designs/DOMAIN-DESIGN.md)、[Meeting Design](../30-designs/MEETING-DESIGN.md)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)、[DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。
