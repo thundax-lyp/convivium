@@ -49,5 +49,6 @@ export type {
 export * from "./result-v1.js";
 export { requestEvidenceOpportunityV1, disposeEvidenceOpportunityV1 } from "./opportunity-v1.js";
 export { openRoundV1, isRoundClosableV1 } from "./round-v1.js";
+export { raiseHandV1, disposeHandRaiseV1 } from "./hand-raise-v1.js";
 
 export * from "./attendance-rejection.js";
