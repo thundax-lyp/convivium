@@ -457,6 +457,53 @@ describe("T1b", () => {
             { ...base(), issues: [{ ...common, affectedOutputIds: ["output-1", "output-1"] }] },
             "$.issues[0].affectedOutputIds[1]"
         );
+        const resolvedBlocking = {
+            ...base(),
+            issues: [{ ...common, classification: "blocking", blocking: false, status: "resolved" }]
+        };
+        expect(validateMeetingStateV1(resolvedBlocking)).toMatchObject({ kind: "valid" });
+        const deferredBlocking = {
+            ...base(),
+            issues: [{ ...common, classification: "blocking", blocking: false, status: "deferred" }]
+        };
+        expect(validateMeetingStateV1(deferredBlocking)).toMatchObject({ kind: "valid" });
+        const collisionObjective = {
+            ...base().objective,
+            requiredOutputs: [
+                { ...base().objective.requiredOutputs[0], id: "output-1", status: "satisfied" }
+            ],
+            acceptanceCriteria: [
+                { ...base().objective.acceptanceCriteria[0], id: "output-1", status: "pending" }
+            ]
+        };
+        invalidAt(
+            {
+                ...base(),
+                objective: collisionObjective,
+                questions: [
+                    {
+                        id: "question-1",
+                        actorId: "manager-1",
+                        agendaId: "agenda-1",
+                        text: "x",
+                        affectedOutputIds: ["output-1"],
+                        affectedCriterionIds: [],
+                        affectedConstraintIds: [],
+                        blocking: true,
+                        status: "open"
+                    }
+                ]
+            },
+            "$.questions[0].blocking"
+        );
+        invalidAt(
+            {
+                ...base(),
+                objective: collisionObjective,
+                issues: [{ ...common, affectedOutputIds: ["output-1"], blocking: true }]
+            },
+            "$.issues[0].blocking"
+        );
         invalidAt(
             {
                 ...base(),

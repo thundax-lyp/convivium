@@ -219,6 +219,21 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     const constraintIds = new Set(
         (objective.hardConstraints as readonly RecordValue[]).map((item) => item.id as string)
     );
+    const unsatisfiedOutputIds = new Set(
+        (objective.requiredOutputs as readonly RecordValue[])
+            .filter((target) => target.status !== "satisfied")
+            .map((target) => target.id as string)
+    );
+    const unsatisfiedCriterionIds = new Set(
+        (objective.acceptanceCriteria as readonly RecordValue[])
+            .filter((target) => target.status !== "satisfied")
+            .map((target) => target.id as string)
+    );
+    const unsatisfiedConstraintIds = new Set(
+        (objective.hardConstraints as readonly RecordValue[])
+            .filter((target) => target.status !== "satisfied")
+            .map((target) => target.id as string)
+    );
     for (let i = 0; i < value.agenda.length; i++) {
         const item = value.agenda[i];
         const path = `$.agenda[${i}]`;
@@ -385,22 +400,32 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (typeof item.blocking !== "boolean") return fail(`${path}.blocking`);
         if (!oneOf(item.status, ["open", "answered", "withdrawn", "deferred"] as const))
             return fail(`${path}.status`);
-        const questionTargets = new Set([
-            ...(item.affectedOutputIds as readonly string[]),
-            ...(item.affectedCriterionIds as readonly string[]),
-            ...(item.affectedConstraintIds as readonly string[])
-        ]);
-        const unsatisfiedTargets = new Set<string>(
-            [
-                ...(objective.requiredOutputs as readonly RecordValue[]),
-                ...(objective.acceptanceCriteria as readonly RecordValue[]),
-                ...(objective.hardConstraints as readonly RecordValue[])
-            ]
+        const unsatisfiedOutputIds = new Set(
+            (objective.requiredOutputs as readonly RecordValue[])
                 .filter((target) => target.status !== "satisfied")
                 .map((target) => target.id as string)
         );
-        if (item.blocking && !questionTargetsHasUnsatisfied(questionTargets, unsatisfiedTargets))
-            return fail(`${path}.blocking`);
+        const unsatisfiedCriterionIds = new Set(
+            (objective.acceptanceCriteria as readonly RecordValue[])
+                .filter((target) => target.status !== "satisfied")
+                .map((target) => target.id as string)
+        );
+        const unsatisfiedConstraintIds = new Set(
+            (objective.hardConstraints as readonly RecordValue[])
+                .filter((target) => target.status !== "satisfied")
+                .map((target) => target.id as string)
+        );
+        const blockingQualified =
+            (item.affectedOutputIds as readonly string[]).some((targetId) =>
+                unsatisfiedOutputIds.has(targetId)
+            ) ||
+            (item.affectedCriterionIds as readonly string[]).some((targetId) =>
+                unsatisfiedCriterionIds.has(targetId)
+            ) ||
+            (item.affectedConstraintIds as readonly string[]).some((targetId) =>
+                unsatisfiedConstraintIds.has(targetId)
+            );
+        if (item.blocking && !blockingQualified) return fail(`${path}.blocking`);
         if (["answered", "withdrawn"].includes(item.status) && item.blocking)
             return fail(`${path}.blocking`);
     }
@@ -489,7 +514,10 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             )
         )
             return fail(`${path}.classification`);
-        if (item.classification === "blocking" ? item.blocking !== true : item.blocking !== false)
+        if (
+            item.status === "open" &&
+            (item.classification === "blocking" ? item.blocking !== true : item.blocking !== false)
+        )
             return fail(`${path}.blocking`);
         if (
             item.riskLevel === "high" &&
@@ -501,12 +529,6 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (["resolved", "out_of_scope"].includes(item.status) && item.blocking)
             return fail(`${path}.blocking`);
         if (item.blocking && item.riskLevel !== "high") {
-            const issueTargets = new Set([
-                ...(item.affectedOutputIds as readonly string[]),
-                ...(item.affectedCriterionIds as readonly string[]),
-                ...(item.affectedConstraintIds as readonly string[]),
-                ...(item.requiredReviewerIds as readonly string[])
-            ]);
             const agendaReviewers = new Set(
                 (
                     value.agenda.find(
@@ -514,20 +536,23 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
                     ) as RecordValue
                 ).requiredReviewerIds as readonly string[]
             );
+            const reviewerQualified = (item.requiredReviewerIds as readonly string[]).some(
+                (reviewerId) => agendaReviewers.has(reviewerId)
+            );
+            const outputQualified = (item.affectedOutputIds as readonly string[]).some((targetId) =>
+                unsatisfiedOutputIds.has(targetId)
+            );
+            const criterionQualified = (item.affectedCriterionIds as readonly string[]).some(
+                (targetId) => unsatisfiedCriterionIds.has(targetId)
+            );
+            const constraintQualified = (item.affectedConstraintIds as readonly string[]).some(
+                (targetId) => unsatisfiedConstraintIds.has(targetId)
+            );
             if (
-                !questionTargetsHasUnsatisfied(
-                    issueTargets,
-                    new Set<string>([
-                        ...[
-                            ...(objective.requiredOutputs as readonly RecordValue[]),
-                            ...(objective.acceptanceCriteria as readonly RecordValue[]),
-                            ...(objective.hardConstraints as readonly RecordValue[])
-                        ]
-                            .filter((target) => target.status !== "satisfied")
-                            .map((target) => target.id as string),
-                        ...agendaReviewers
-                    ])
-                )
+                !reviewerQualified &&
+                !outputQualified &&
+                !criterionQualified &&
+                !constraintQualified
             )
                 return fail(`${path}.blocking`);
         }
