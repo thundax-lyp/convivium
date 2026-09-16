@@ -58,7 +58,7 @@
 | 2026-09-16 | 主动参与纯 Domain 切片 | focused 8 suites（21 tests）、pnpm --dir plugin verify | PASS：focused 8 files/21 tests；完整 verify 100 files/1133 tests，lint 0 errors（9 个既有 warnings），host/client/remote-test typecheck、build、environment、contract、agent definitions 与 package checks 通过。 |
 | 2026-09-16 | Manager 身份准入 T0—T8 全量验证 | `pnpm --dir plugin verify` | PASS：format、lint（0 errors，9 个既有 warnings）、host/client/remote-test typecheck、109 files/1149 tests、build、environment、contract、agent definitions 与 package checks 全部通过。 |
 | 2026-09-16 | 真实 Host profile smoke | `pnpm --dir plugin smoke:profile` | PASS：`parallel-contribution` restore=PASS；`identity-admission` restore=PASS；2 scenarios。身份场景使用真实 Host Loader/native Skill/continuable Session，覆盖 admit 与 reject。 |
-| 2026-09-16 | 文档与工作区收口 | `node .github/scripts/check-doc-links.mjs && git diff --check` | PASS：Markdown local file links 442 checked、0 errors；diff check 通过。 |
+| 2026-09-16 | 文档与工作区收口 | `node .github/scripts/check-doc-links.mjs && git diff --check` | PASS：RUNBOOK 删除后 Markdown local file links 434 checked、0 errors；diff check 通过。 |
 
 ## Explicitly Not Covered
 
