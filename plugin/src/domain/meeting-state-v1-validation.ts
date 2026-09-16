@@ -1,4 +1,4 @@
-import type { MeetingState, OpaqueId } from "./meeting-state-v1.js";
+import type { MeetingState } from "./meeting-state-v1.js";
 import { z } from "zod";
 
 export type MeetingStateValidationResultV1 =
@@ -571,8 +571,6 @@ const meetingStateSchema = withDefinedOptionals(
     }),
     ["termination", "archive", "continuation"]
 );
-const outcomes = ["completed", "partial", "no_consensus", "cancelled", "failed"] as const;
-
 function record(value: unknown): value is RecordValue {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -582,34 +580,15 @@ function own(value: RecordValue, key: string): boolean {
 function fail(path: string): MeetingStateValidationResultV1 {
     return { kind: "invalid", code: "INVALID_ARGUMENT", path };
 }
-function id(value: unknown): value is OpaqueId {
-    return opaqueIdSchema.safeParse(value).success;
-}
-function text(value: unknown): value is string {
-    return textSchema.safeParse(value).success;
-}
-function epoch(value: unknown): value is number {
-    return epochSchema.safeParse(value).success;
-}
-function integer(value: unknown): value is number {
-    return integerSchema.safeParse(value).success;
-}
-function positiveInteger(value: unknown): value is number {
-    return positiveIntegerSchema.safeParse(value).success;
-}
-function oneOf<T extends string>(value: unknown, values: readonly T[]): value is T {
-    return typeof value === "string" && values.includes(value as T);
-}
 function ref(value: unknown, values: ReadonlySet<string>): boolean {
-    return id(value) && values.has(value);
+    return typeof value === "string" && value.trim().length > 0 && values.has(value);
 }
-function checkRefs(value: unknown, values: ReadonlySet<string>, path: string): string | undefined {
-    const refs = value as readonly unknown[];
-    for (let i = 0; i < refs.length; i++) if (!ref(refs[i], values)) return `${path}[${i}]`;
+function checkRefs(values: readonly string[], ids: ReadonlySet<string>, path: string) {
+    for (let i = 0; i < values.length; i++) if (!ids.has(values[i])) return `${path}[${i}]`;
     return undefined;
 }
-function required(value: RecordValue, key: string, path: string): string | undefined {
-    return own(value, key) && value[key] !== null && value[key] !== undefined ? undefined : path;
+function indexById<T extends { id: string }>(items: readonly T[]) {
+    return new Map(items.map((item) => [item.id, item] as const));
 }
 function ownUndefined(value: RecordValue, key: string, path: string): string | undefined {
     return own(value, key) && value[key] === undefined ? path : undefined;
@@ -634,56 +613,35 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         (value.continuation === undefined || !record(value.continuation))
     )
         return fail("$.continuation");
-    const objective = value.objective as RecordValue;
-    const lifecycle = value.lifecycle as RecordValue;
+    const { objective, lifecycle } = parsedState;
     if (ownUndefined(lifecycle, "reason", "$.lifecycle.reason")) return fail("$.lifecycle.reason");
-    const identityIds = new Set<string>();
-    for (let i = 0; i < parsedState.identities.length; i++) {
-        const item = parsedState.identities[i];
-        const path = `$.identities[${i}]`;
-        identityIds.add(item.id);
-    }
-    const agendaIds = new Set<string>();
-    const outputIds = new Set(
-        (objective.requiredOutputs as readonly RecordValue[]).map((item) => item.id as string)
-    );
-    const criterionIds = new Set(
-        (objective.acceptanceCriteria as readonly RecordValue[]).map((item) => item.id as string)
-    );
-    const constraintIds = new Set(
-        (objective.hardConstraints as readonly RecordValue[]).map((item) => item.id as string)
-    );
-    const unsatisfiedOutputIds = new Set(
-        (objective.requiredOutputs as readonly RecordValue[])
-            .filter((target) => target.status !== "satisfied")
-            .map((target) => target.id as string)
-    );
-    const unsatisfiedCriterionIds = new Set(
-        (objective.acceptanceCriteria as readonly RecordValue[])
-            .filter((target) => target.status !== "satisfied")
-            .map((target) => target.id as string)
-    );
-    const unsatisfiedConstraintIds = new Set(
-        (objective.hardConstraints as readonly RecordValue[])
-            .filter((target) => target.status !== "satisfied")
-            .map((target) => target.id as string)
-    );
+    const identityById = indexById(parsedState.identities);
+    const identityIds = new Set(identityById.keys());
+    const agendaById = indexById(parsedState.agenda);
+    const agendaIds = new Set(agendaById.keys());
+    const ids = (targets: readonly { id: string }[]) => new Set(targets.map(({ id }) => id));
+    const outputIds = ids(objective.requiredOutputs);
+    const criterionIds = ids(objective.acceptanceCriteria);
+    const constraintIds = ids(objective.hardConstraints);
+    const unsatisfied = (targets: readonly { id: string; status: string }[]) =>
+        new Set(targets.filter(({ status }) => status !== "satisfied").map(({ id }) => id));
+    const unsatisfiedOutputIds = unsatisfied(objective.requiredOutputs);
+    const unsatisfiedCriterionIds = unsatisfied(objective.acceptanceCriteria);
+    const unsatisfiedConstraintIds = unsatisfied(objective.hardConstraints);
     for (let i = 0; i < parsedState.agenda.length; i++) {
         const item = parsedState.agenda[i];
         const path = `$.agenda[${i}]`;
-        agendaIds.add(item.id);
-        const requiredOutputIds = item.requiredOutputIds as readonly unknown[];
-        const requiredReviewerIds = item.requiredReviewerIds as readonly unknown[];
-        for (let j = 0; j < requiredOutputIds.length; j++)
-            if (!ref(requiredOutputIds[j], outputIds))
-                return fail(`${path}.requiredOutputIds[${j}]`);
-        for (let j = 0; j < requiredReviewerIds.length; j++)
-            if (!ref(requiredReviewerIds[j], identityIds))
-                return fail(`${path}.requiredReviewerIds[${j}]`);
+        for (const [key, ids] of [
+            ["requiredOutputIds", outputIds],
+            ["requiredReviewerIds", identityIds]
+        ] as const) {
+            const p = checkRefs(item[key], ids, `${path}.${key}`);
+            if (p) return fail(p);
+        }
         if (ownUndefined(item, "ownerId", `${path}.ownerId`)) return fail(`${path}.ownerId`);
     }
     const activeAgendaIndexes = parsedState.agenda.flatMap((item, index) =>
-        record(item) && item.status === "active" ? [index] : []
+        item.status === "active" ? [index] : []
     );
     if (activeAgendaIndexes.length > 1) return fail(`$.agenda[${activeAgendaIndexes[1]}].status`);
     if (
@@ -694,58 +652,50 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     )
         return fail("$.agenda");
     for (let i = 0; i < parsedState.identities.length; i++) {
-        const item = parsedState.identities[i] as RecordValue;
+        const item = parsedState.identities[i];
         for (const key of ["agendaResponsibilityIds", "reviewResponsibilityIds"] as const) {
-            const values = item[key] as readonly unknown[];
-            for (let j = 0; j < values.length; j++)
-                if (!ref(values[j], agendaIds)) return fail(`$.identities[${i}].${key}[${j}]`);
+            const p = checkRefs(item[key], agendaIds, `$.identities[${i}].${key}`);
+            if (p) return fail(p);
         }
-        if (
-            (item.reviewResponsibilityIds as readonly unknown[]).length > 0 &&
-            !(item.roles as readonly unknown[]).includes("evidence_reviewer")
-        )
+        if (item.reviewResponsibilityIds.length > 0 && !item.roles.includes("evidence_reviewer"))
             return fail(`$.identities[${i}].reviewResponsibilityIds[0]`);
     }
     for (let i = 0; i < parsedState.agenda.length; i++) {
-        const item = parsedState.agenda[i] as RecordValue;
-        const reviewers = item.requiredReviewerIds as readonly string[];
+        const item = parsedState.agenda[i];
+        const reviewers = item.requiredReviewerIds;
         for (let j = 0; j < reviewers.length; j++) {
-            const identity = parsedState.identities.find(
-                (candidate) => record(candidate) && candidate.id === reviewers[j]
-            ) as RecordValue | undefined;
+            const identity = identityById.get(reviewers[j]);
             if (
                 !identity ||
-                !(identity.roles as readonly unknown[]).includes("evidence_reviewer") ||
-                !(identity.reviewResponsibilityIds as readonly unknown[]).includes(
-                    item.id as string
-                )
+                !identity.roles.includes("evidence_reviewer") ||
+                !identity.reviewResponsibilityIds.includes(item.id)
             )
                 return fail(`$.agenda[${i}].requiredReviewerIds[${j}]`);
         }
     }
-    const rounds = parsedState.rounds as readonly unknown[];
+    const rounds = parsedState.rounds;
+    const roundById = indexById(rounds);
     const roundIds = new Set<string>();
     for (let i = 0; i < rounds.length; i++) {
         const item = rounds[i];
         const path = `$.rounds[${i}]`;
-        const r = item as RecordValue;
-        roundIds.add(r.id as string);
+        const r = item;
+        roundIds.add(r.id);
         if (!ref(r.agendaId, agendaIds)) return fail(`${path}.agendaId`);
         if (r.status === "open") {
-            const agenda = parsedState.agenda.find(
-                (item) => record(item) && item.id === r.agendaId
-            ) as RecordValue | undefined;
+            const agenda = agendaById.get(r.agendaId as string);
             if (!agenda || agenda.status !== "active") return fail(`${path}.agendaId`);
         }
     }
-    const contributions = parsedState.contributions as readonly unknown[];
+    const contributions = parsedState.contributions;
+    const contributionById = indexById(contributions);
     const contributionIds = new Set<string>();
     const contributorRounds = new Set<string>();
     for (let i = 0; i < contributions.length; i++) {
         const item = contributions[i];
         const path = `$.contributions[${i}]`;
-        const r = item as RecordValue;
-        contributionIds.add(r.id as string);
+        const r = item;
+        contributionIds.add(r.id);
         const contributorRound = `${r.contributorId}\0${r.roundId}`;
         if (contributorRounds.has(contributorRound)) return fail(`${path}.roundId`);
         contributorRounds.add(contributorRound);
@@ -753,47 +703,44 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (!ref(r.contributorId, identityIds)) return fail(`${path}.contributorId`);
         if (ownUndefined(r, "packageId", `${path}.packageId`)) return fail(`${path}.packageId`);
     }
-    const packages = value.evidencePackages as readonly unknown[];
+    const packages = parsedState.evidencePackages;
+    const versionOwnerById = new Map<string, (typeof packages)[number]>();
     const packageIds = new Set<string>();
     const versionIds = new Set<string>();
     for (let i = 0; i < packages.length; i++) {
         const item = packages[i];
         const path = `$.evidencePackages[${i}]`;
-        const r = item as RecordValue;
+        const r = item;
         if (!ref(r.roundId, roundIds)) return fail(`${path}.roundId`);
         if (!ref(r.contributionId, contributionIds)) return fail(`${path}.contributionId`);
         if (!ref(r.authorId, identityIds)) return fail(`${path}.authorId`);
         if (!ref(r.agendaId, agendaIds)) return fail(`${path}.agendaId`);
-        const contribution = contributions.find(
-            (item) => record(item) && item.id === r.contributionId
-        ) as RecordValue | undefined;
-        const round = rounds.find((item) => record(item) && item.id === r.roundId) as
-            RecordValue | undefined;
+        const contribution = contributionById.get(r.contributionId as string);
+        const round = roundById.get(r.roundId as string);
         if (!contribution || contribution.roundId !== r.roundId) return fail(`${path}.roundId`);
         if (!round || round.agendaId !== r.agendaId) return fail(`${path}.agendaId`);
         if (!contribution || contribution.contributorId !== r.authorId)
             return fail(`${path}.authorId`);
         packageIds.add(r.id as string);
         const packageVersionIds = new Set<string>();
-        for (let j = 0; j < (r.versions as readonly unknown[]).length; j++) {
-            const v = (r.versions as readonly unknown[])[j];
+        for (let j = 0; j < r.versions.length; j++) {
+            const v = r.versions[j];
             const vp = `${path}.versions[${j}]`;
-            const vr = v as RecordValue;
-            const claimIds = new Set<string>();
+            const vr = v;
             const materialIds = new Set<string>();
-            for (let k = 0; k < (vr.materials as readonly RecordValue[]).length; k++) {
-                const material = (vr.materials as readonly RecordValue[])[k];
-                materialIds.add(material.id as string);
+            for (const material of vr.materials) {
+                materialIds.add(material.id);
             }
-            for (let k = 0; k < (vr.claims as readonly RecordValue[]).length; k++) {
-                const claim = (vr.claims as readonly RecordValue[])[k];
-                claimIds.add(claim.id as string);
-                for (let m = 0; m < (claim.materialIds as readonly unknown[]).length; m++)
-                    if (!materialIds.has((claim.materialIds as readonly unknown[])[m] as string))
+            for (let k = 0; k < vr.claims.length; k++) {
+                const claim = vr.claims[k];
+                for (let m = 0; m < claim.materialIds.length; m++)
+                    if (!materialIds.has(claim.materialIds[m]))
                         return fail(`${vp}.claims[${k}].materialIds[${m}]`);
             }
-            versionIds.add(vr.id as string);
-            packageVersionIds.add(vr.id as string);
+            if (versionIds.has(vr.id)) return fail(`${vp}.id`);
+            versionIds.add(vr.id);
+            packageVersionIds.add(vr.id);
+            versionOwnerById.set(vr.id, item);
         }
         if (!packageVersionIds.has(r.currentVersionId as string))
             return fail(`${path}.currentVersionId`);
@@ -802,9 +749,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const packageValue = packages[i] as RecordValue;
         if (!ref(packageValue.currentVersionId, versionIds))
             return fail(`$.evidencePackages[${i}].currentVersionId`);
-        const contribution = contributions.find(
-            (item) => record(item) && item.id === packageValue.contributionId
-        ) as RecordValue | undefined;
+        const contribution = contributionById.get(packageValue.contributionId as string);
         if (!contribution || contribution.packageId !== packageValue.id)
             return fail(`$.evidencePackages[${i}].contributionId`);
     }
@@ -812,46 +757,37 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const round = rounds[i] as RecordValue;
         for (let j = 0; j < (round.contributionIds as readonly unknown[]).length; j++) {
             const contributionId = (round.contributionIds as readonly unknown[])[j];
-            const contribution = contributions.find(
-                (item) => record(item) && item.id === contributionId
-            ) as RecordValue | undefined;
+            const contribution = contributionById.get(contributionId as string);
             if (!contribution || contribution.roundId !== round.id)
                 return fail(`$.rounds[${i}].contributionIds[${j}]`);
         }
     }
     for (let i = 0; i < contributions.length; i++) {
         const contribution = contributions[i] as RecordValue;
-        const round = rounds.find((item) => record(item) && item.id === contribution.roundId) as
-            RecordValue | undefined;
+        const round = roundById.get(contribution.roundId as string);
         if (!round || !(round.contributionIds as readonly unknown[]).includes(contribution.id))
             return fail(`$.contributions[${i}].roundId`);
     }
-    const registrations = parsedState.registrations as readonly unknown[];
-    const registrationIds = new Set<string>();
+    const registrations = parsedState.registrations;
     for (let i = 0; i < registrations.length; i++) {
-        const r = registrations[i] as RecordValue;
+        const r = registrations[i];
         const path = `$.registrations[${i}]`;
-        registrationIds.add(r.id as string);
         if (!ref(r.versionId, versionIds)) return fail(`${path}.versionId`);
         if (!ref(r.managerId, identityIds)) return fail(`${path}.managerId`);
-        const manager = parsedState.identities.find(
-            (identity) => record(identity) && identity.id === r.managerId
-        ) as RecordValue | undefined;
-        if (!manager || !(manager.roles as readonly unknown[]).includes("manager"))
-            return fail(`${path}.managerId`);
+        const manager = identityById.get(r.managerId as string);
+        if (!manager || !manager.roles.includes("manager")) return fail(`${path}.managerId`);
     }
-    const reviews = parsedState.reviews as readonly unknown[];
+    const reviews = parsedState.reviews;
+    const reviewById = indexById(reviews);
     const reviewIds = new Set<string>();
     for (let i = 0; i < reviews.length; i++) {
-        const r = reviews[i] as RecordValue;
+        const r = reviews[i];
         const path = `$.reviews[${i}]`;
         reviewIds.add(r.id as string);
         if (!ref(r.versionId, versionIds)) return fail(`${path}.versionId`);
         if (!ref(r.reviewerId, identityIds)) return fail(`${path}.reviewerId`);
-        const reviewer = parsedState.identities.find(
-            (identity) => record(identity) && identity.id === r.reviewerId
-        ) as RecordValue | undefined;
-        if (!reviewer || !(reviewer.roles as readonly unknown[]).includes("evidence_reviewer"))
+        const reviewer = identityById.get(r.reviewerId as string);
+        if (!reviewer || !reviewer.roles.includes("evidence_reviewer"))
             return fail(`${path}.reviewerId`);
     }
     for (let i = 0; i < contributions.length; i++) {
@@ -860,53 +796,36 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (hand && !reviewIds.has(hand.reviewId as string))
             return fail(`$.contributions[${i}].pendingSupplementHand.reviewId`);
     }
-    const deliveries = value.reviewDeliveries as readonly unknown[];
-    const deliveryIds = new Set<string>();
+    const deliveries = parsedState.reviewDeliveries;
     for (let i = 0; i < deliveries.length; i++) {
-        const r = deliveries[i] as RecordValue;
+        const r = deliveries[i];
         const path = `$.reviewDeliveries[${i}]`;
-        deliveryIds.add(r.id as string);
         if (!ref(r.reviewId, reviewIds)) return fail(`${path}.reviewId`);
         if (!ref(r.authorId, identityIds)) return fail(`${path}.authorId`);
-        const review = reviews.find((item) => record(item) && item.id === r.reviewId) as
-            RecordValue | undefined;
-        const reviewedVersion = versionIds.has(review?.versionId as string)
-            ? packages
-                  .flatMap((item) => (record(item) ? (item.versions as readonly unknown[]) : []))
-                  .find((item) => record(item) && item.id === review?.versionId)
-            : undefined;
-        if (review && reviewedVersion) {
-            const ownerPackage = packages.find(
-                (item) =>
-                    record(item) &&
-                    (item.versions as readonly unknown[]).some(
-                        (version) => record(version) && version.id === review.versionId
-                    )
-            ) as RecordValue | undefined;
-            if (ownerPackage && ownerPackage.authorId !== r.authorId)
-                return fail(`${path}.authorId`);
-        }
+        const review = reviewById.get(r.reviewId);
+        const ownerPackage = review && versionOwnerById.get(review.versionId);
+        if (ownerPackage && ownerPackage.authorId !== r.authorId) return fail(`${path}.authorId`);
     }
-    const publications = parsedState.publications as readonly unknown[];
+    const publications = parsedState.publications;
+    const publicationById = indexById(publications);
     const publicationIds = new Set<string>();
     for (let i = 0; i < publications.length; i++) {
-        const r = publications[i] as RecordValue;
+        const r = publications[i];
         const path = `$.publications[${i}]`;
         publicationIds.add(r.id as string);
         if (!ref(r.roundId, roundIds)) return fail(`${path}.roundId`);
-        for (let j = 0; j < (r.finalVersionIds as readonly unknown[]).length; j++)
-            if (!ref((r.finalVersionIds as readonly unknown[])[j], versionIds))
-                return fail(`${path}.finalVersionIds[${j}]`);
-        for (let j = 0; j < (r.finalReviewIds as readonly unknown[]).length; j++)
-            if (!ref((r.finalReviewIds as readonly unknown[])[j], reviewIds))
-                return fail(`${path}.finalReviewIds[${j}]`);
+        for (const [key, ids] of [
+            ["finalVersionIds", versionIds],
+            ["finalReviewIds", reviewIds]
+        ] as const) {
+            const p = checkRefs(r[key], ids, `${path}.${key}`);
+            if (p) return fail(p);
+        }
     }
     for (let i = 0; i < rounds.length; i++) {
         const r = rounds[i] as RecordValue;
         if (r.status === "published") {
-            const publication = publications.find(
-                (item) => record(item) && item.id === r.publicationId
-            ) as RecordValue | undefined;
+            const publication = publicationById.get(r.publicationId as string);
             if (!publication || publication.roundId !== r.id)
                 return fail(`$.rounds[${i}].publicationId`);
         }
@@ -914,108 +833,83 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     const publishedVersionIds = new Set<string>();
     for (let i = 0; i < publications.length; i++) {
         const publication = publications[i] as RecordValue;
-        const round = rounds.find((item) => record(item) && item.id === publication.roundId) as
-            RecordValue | undefined;
+        const round = roundById.get(publication.roundId as string);
         for (let j = 0; j < (publication.finalVersionIds as readonly unknown[]).length; j++) {
             const versionId = (publication.finalVersionIds as readonly unknown[])[j];
-            const owner = packages.find(
-                (item) =>
-                    record(item) &&
-                    (item.versions as readonly unknown[]).some(
-                        (version) => record(version) && version.id === versionId
-                    )
-            ) as RecordValue | undefined;
+            const owner = versionOwnerById.get(versionId as string);
             if (!owner || owner.roundId !== publication.roundId || round === undefined)
                 return fail(`$.publications[${i}].finalVersionIds[${j}]`);
             publishedVersionIds.add(versionId as string);
         }
         for (let j = 0; j < (publication.finalReviewIds as readonly unknown[]).length; j++) {
             const reviewId = (publication.finalReviewIds as readonly unknown[])[j];
-            const review = reviews.find((item) => record(item) && item.id === reviewId) as
-                RecordValue | undefined;
-            const owner =
-                review &&
-                (packages.find(
-                    (item) =>
-                        record(item) &&
-                        (item.versions as readonly unknown[]).some(
-                            (version) => record(version) && version.id === review.versionId
-                        )
-                ) as RecordValue | undefined);
+            const review = reviewById.get(reviewId as string);
+            const owner = review && versionOwnerById.get(review.versionId);
             if (!review || !owner || owner.roundId !== publication.roundId)
                 return fail(`$.publications[${i}].finalReviewIds[${j}]`);
         }
     }
-    const messages = parsedState.messages as readonly unknown[];
+    const messages = parsedState.messages;
     const messageIds = new Set<string>();
     for (let i = 0; i < messages.length; i++) {
-        const r = messages[i] as RecordValue;
+        const r = messages[i];
         const path = `$.messages[${i}]`;
         messageIds.add(r.id as string);
         if (!ref(r.actorId, identityIds)) return fail(`${path}.actorId`);
         if (!ref(r.agendaId, agendaIds)) return fail(`${path}.agendaId`);
         if (!ref(r.publicationId, publicationIds)) return fail(`${path}.publicationId`);
     }
-    const proposals = parsedState.proposals as readonly unknown[];
+    const proposals = parsedState.proposals;
     const proposalIds = new Set<string>();
-    const revisionIds = new Set<string>();
     for (let i = 0; i < proposals.length; i++) {
-        const r = proposals[i] as RecordValue;
+        const r = proposals[i];
         const path = `$.proposals[${i}]`;
         proposalIds.add(r.id as string);
         if (!ref(r.actorId, identityIds)) return fail(`${path}.actorId`);
         if (!ref(r.agendaId, agendaIds)) return fail(`${path}.agendaId`);
-        for (let j = 0; j < (r.evidenceIds as readonly unknown[]).length; j++)
-            if (!ref((r.evidenceIds as readonly unknown[])[j], publishedVersionIds))
-                return fail(`${path}.evidenceIds[${j}]`);
-        if (!revisionIds.has(r.id as string)) revisionIds.add(r.id as string);
+        const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
+        if (evidencePath) return fail(evidencePath);
     }
-    const positions = parsedState.positions as readonly unknown[];
+    const positions = parsedState.positions;
+    const positionById = indexById(positions);
     const positionIds = new Set<string>();
     for (let i = 0; i < positions.length; i++) {
-        const r = positions[i] as RecordValue;
+        const r = positions[i];
         const path = `$.positions[${i}]`;
         positionIds.add(r.id as string);
         if (!ref(r.proposalRevisionId, proposalIds)) return fail(`${path}.proposalRevisionId`);
         if (!ref(r.actorId, identityIds)) return fail(`${path}.actorId`);
-        for (let j = 0; j < (r.evidenceIds as readonly unknown[]).length; j++)
-            if (!ref((r.evidenceIds as readonly unknown[])[j], publishedVersionIds))
-                return fail(`${path}.evidenceIds[${j}]`);
+        const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
+        if (evidencePath) return fail(evidencePath);
     }
-    const decisionCandidates = parsedState.decisionCandidates as readonly unknown[];
+    const decisionCandidates = parsedState.decisionCandidates;
     const decisionCandidateIds = new Set<string>();
     for (let i = 0; i < decisionCandidates.length; i++) {
-        const r = decisionCandidates[i] as RecordValue;
+        const r = decisionCandidates[i];
         const path = `$.decisionCandidates[${i}]`;
         decisionCandidateIds.add(r.id as string);
         if (!ref(r.proposalRevisionId, proposalIds)) return fail(`${path}.proposalRevisionId`);
         if (!ref(r.actorId, identityIds)) return fail(`${path}.actorId`);
-        for (let j = 0; j < (r.evidenceIds as readonly unknown[]).length; j++)
-            if (!ref((r.evidenceIds as readonly unknown[])[j], publishedVersionIds))
-                return fail(`${path}.evidenceIds[${j}]`);
-        for (let j = 0; j < (r.positionIds as readonly unknown[]).length; j++)
-            if (!ref((r.positionIds as readonly unknown[])[j], positionIds))
+        const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
+        if (evidencePath) return fail(evidencePath);
+        for (let j = 0; j < r.positionIds.length; j++) {
+            const position = positionById.get(r.positionIds[j]);
+            if (!position || position.proposalRevisionId !== r.proposalRevisionId)
                 return fail(`${path}.positionIds[${j}]`);
-            else {
-                const position = positions.find(
-                    (item) => record(item) && item.id === (r.positionIds as readonly unknown[])[j]
-                ) as RecordValue | undefined;
-                if (!position || position.proposalRevisionId !== r.proposalRevisionId)
-                    return fail(`${path}.positionIds[${j}]`);
-            }
+        }
     }
-    const decisions = parsedState.decisions as readonly unknown[];
+    const decisions = parsedState.decisions;
+    const decisionCandidateById = indexById(decisionCandidates);
     const decisionIds = new Set<string>();
     for (let i = 0; i < decisions.length; i++) {
-        const r = decisions[i] as RecordValue;
+        const r = decisions[i];
         const path = `$.decisions[${i}]`;
         decisionIds.add(r.id as string);
         if (!ref(r.candidateId, decisionCandidateIds)) return fail(`${path}.candidateId`);
         if (!ref(r.proposalRevisionId, proposalIds)) return fail(`${path}.proposalRevisionId`);
         if (!ref(r.actorId, identityIds)) return fail(`${path}.actorId`);
-        for (let j = 0; j < (r.evidenceIds as readonly unknown[]).length; j++)
-            if (!ref((r.evidenceIds as readonly unknown[])[j], publishedVersionIds))
-                return fail(`${path}.evidenceIds[${j}]`);
+        const evidencePath = checkRefs(r.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
+        if (evidencePath) return fail(evidencePath);
         if (ownUndefined(r, "replacesDecisionId", `${path}.replacesDecisionId`))
             return fail(`${path}.replacesDecisionId`);
         if (r.replacesDecisionId !== undefined && !decisionIds.has(r.replacesDecisionId as string))
@@ -1053,18 +947,8 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     for (let i = 0; i < reviews.length; i++) {
         const r = reviews[i] as RecordValue;
         const path = `$.reviews[${i}]`;
-        const ownerPackage = packages.find(
-            (publication) =>
-                record(publication) &&
-                (publication.versions as readonly unknown[]).some(
-                    (version) => record(version) && version.id === r.versionId
-                )
-        ) as RecordValue | undefined;
-        const round =
-            ownerPackage &&
-            (rounds.find(
-                (candidate) => record(candidate) && candidate.id === ownerPackage.roundId
-            ) as RecordValue | undefined);
+        const ownerPackage = versionOwnerById.get(r.versionId as string);
+        const round = ownerPackage && roundById.get(ownerPackage.roundId);
         if (round) {
             const baseline = r.baselinePublicationIds as readonly unknown[];
             if (JSON.stringify(baseline) !== JSON.stringify(round.publicBaselinePublicationIds))
@@ -1087,10 +971,8 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             return fail(`${path}.supersedesRevisionId`);
     }
     for (let i = 0; i < decisions.length; i++) {
-        const r = decisions[i] as RecordValue;
-        const candidate = decisionCandidates.find(
-            (item) => record(item) && item.id === r.candidateId
-        ) as RecordValue | undefined;
+        const r = decisions[i];
+        const candidate = decisionCandidateById.get(r.candidateId);
         if (candidate && r.proposalRevisionId !== candidate.proposalRevisionId)
             return fail(`$.decisions[${i}].proposalRevisionId`);
         if (candidate && r.actorId !== candidate.actorId) return fail(`$.decisions[${i}].actorId`);
@@ -1099,25 +981,21 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (candidate && JSON.stringify(r.positionIds) !== JSON.stringify(candidate.positionIds))
             return fail(`$.decisions[${i}].positionIds`);
     }
-    const candidates = parsedState.agendaCandidates as readonly unknown[];
-    const candidateIds = new Set<string>();
+    const candidates = parsedState.agendaCandidates;
     for (let i = 0; i < candidates.length; i++) {
-        const item = candidates[i] as RecordValue;
+        const item = candidates[i];
         const path = `$.agendaCandidates[${i}]`;
-        if (candidateIds.has(item.id as string)) return fail(`${path}.id`);
-        candidateIds.add(item.id as string);
         if (ownUndefined(item, "sourceMessageId", `${path}.sourceMessageId`))
             return fail(`${path}.sourceMessageId`);
         if (item.sourceMessageId !== undefined && !ref(item.sourceMessageId, messageIds))
             return fail(`${path}.sourceMessageId`);
     }
-    const questions = parsedState.questions as readonly unknown[];
+    const questions = parsedState.questions;
     const questionIds = new Set<string>();
     for (let i = 0; i < questions.length; i++) {
-        const item = questions[i] as RecordValue;
+        const item = questions[i];
         const path = `$.questions[${i}]`;
-        if (questionIds.has(item.id as string)) return fail(`${path}.id`);
-        questionIds.add(item.id as string);
+        questionIds.add(item.id);
         if (!ref(item.actorId, identityIds)) return fail(`${path}.actorId`);
         if (!ref(item.agendaId, agendaIds)) return fail(`${path}.agendaId`);
         for (const [key, targets] of [
@@ -1125,61 +1003,33 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             ["affectedCriterionIds", criterionIds],
             ["affectedConstraintIds", constraintIds]
         ] as const) {
-            const values = item[key] as readonly unknown[];
-            for (let j = 0; j < values.length; j++)
-                if (!ref(values[j], targets)) return fail(`${path}.${key}[${j}]`);
+            const p = checkRefs(item[key], targets, `${path}.${key}`);
+            if (p) return fail(p);
         }
-        const unsatisfiedOutputIds = new Set(
-            (objective.requiredOutputs as readonly RecordValue[])
-                .filter((target) => target.status !== "satisfied")
-                .map((target) => target.id as string)
-        );
-        const unsatisfiedCriterionIds = new Set(
-            (objective.acceptanceCriteria as readonly RecordValue[])
-                .filter((target) => target.status !== "satisfied")
-                .map((target) => target.id as string)
-        );
-        const unsatisfiedConstraintIds = new Set(
-            (objective.hardConstraints as readonly RecordValue[])
-                .filter((target) => target.status !== "satisfied")
-                .map((target) => target.id as string)
-        );
         const blockingQualified =
-            (item.affectedOutputIds as readonly string[]).some((targetId) =>
-                unsatisfiedOutputIds.has(targetId)
-            ) ||
-            (item.affectedCriterionIds as readonly string[]).some((targetId) =>
-                unsatisfiedCriterionIds.has(targetId)
-            ) ||
-            (item.affectedConstraintIds as readonly string[]).some((targetId) =>
-                unsatisfiedConstraintIds.has(targetId)
-            );
+            item.affectedOutputIds.some((targetId) => unsatisfiedOutputIds.has(targetId)) ||
+            item.affectedCriterionIds.some((targetId) => unsatisfiedCriterionIds.has(targetId)) ||
+            item.affectedConstraintIds.some((targetId) => unsatisfiedConstraintIds.has(targetId));
         if (item.blocking && !blockingQualified) return fail(`${path}.blocking`);
         if (["answered", "withdrawn"].includes(item.status as string) && item.blocking)
             return fail(`${path}.blocking`);
     }
     if (parsedState.limits.responseDeadlineMs !== 60000) return fail("$.limits.responseDeadlineMs");
-    const issues = parsedState.issues as readonly unknown[];
+    const riskDispositions = parsedState.riskDispositions;
+    const issues = parsedState.issues;
     const issueIds = new Set<string>();
     for (let i = 0; i < issues.length; i++) {
-        const item = issues[i] as RecordValue;
+        const item = issues[i];
         const path = `$.issues[${i}]`;
-        if (issueIds.has(item.id as string)) return fail(`${path}.id`);
-        issueIds.add(item.id as string);
+        issueIds.add(item.id);
         if (!agendaIds.has(item.agendaId as string)) return fail(`${path}.agendaId`);
+        const agenda = agendaById.get(item.agendaId)!;
         for (const key of [
             "affectedOutputIds",
             "affectedCriterionIds",
             "affectedConstraintIds",
             "requiredReviewerIds"
         ] as const) {
-            const values = item[key] as readonly unknown[];
-            const reviewerIds =
-                ((
-                    parsedState.agenda.find(
-                        (agenda) => record(agenda) && agenda.id === item.agendaId
-                    ) as RecordValue | undefined
-                )?.requiredReviewerIds as readonly string[] | undefined) ?? [];
             const targets =
                 key === "affectedOutputIds"
                     ? outputIds
@@ -1187,17 +1037,14 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
                       ? criterionIds
                       : key === "affectedConstraintIds"
                         ? constraintIds
-                        : new Set(reviewerIds);
-            for (let j = 0; j < values.length; j++)
-                if (!ref(values[j], targets)) return fail(`${path}.${key}[${j}]`);
+                        : new Set(agenda.requiredReviewerIds);
+            const p = checkRefs(item[key], targets, `${path}.${key}`);
+            if (p) return fail(p);
         }
         if (
             item.classification === "accepted_risk" &&
-            !(value.riskDispositions as readonly unknown[]).some(
-                (disposition) =>
-                    record(disposition) &&
-                    disposition.issueId === item.id &&
-                    disposition.action === "accept"
+            !riskDispositions.some(
+                (disposition) => disposition.issueId === item.id && disposition.action === "accept"
             )
         )
             return fail(`${path}.classification`);
@@ -1216,24 +1063,17 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (["resolved", "out_of_scope"].includes(item.status as string) && item.blocking)
             return fail(`${path}.blocking`);
         if (item.blocking && item.riskLevel !== "high") {
-            const agendaReviewers = new Set(
-                (
-                    parsedState.agenda.find(
-                        (agenda) => record(agenda) && agenda.id === item.agendaId
-                    ) as RecordValue
-                ).requiredReviewerIds as readonly string[]
+            const reviewerQualified = item.requiredReviewerIds.some((id) =>
+                agenda.requiredReviewerIds.includes(id)
             );
-            const reviewerQualified = (item.requiredReviewerIds as readonly string[]).some(
-                (reviewerId) => agendaReviewers.has(reviewerId)
+            const outputQualified = item.affectedOutputIds.some((id) =>
+                unsatisfiedOutputIds.has(id)
             );
-            const outputQualified = (item.affectedOutputIds as readonly string[]).some((targetId) =>
-                unsatisfiedOutputIds.has(targetId)
+            const criterionQualified = item.affectedCriterionIds.some((id) =>
+                unsatisfiedCriterionIds.has(id)
             );
-            const criterionQualified = (item.affectedCriterionIds as readonly string[]).some(
-                (targetId) => unsatisfiedCriterionIds.has(targetId)
-            );
-            const constraintQualified = (item.affectedConstraintIds as readonly string[]).some(
-                (targetId) => unsatisfiedConstraintIds.has(targetId)
+            const constraintQualified = item.affectedConstraintIds.some((id) =>
+                unsatisfiedConstraintIds.has(id)
             );
             if (
                 !reviewerQualified &&
@@ -1244,21 +1084,15 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
                 return fail(`${path}.blocking`);
         }
     }
-    const plans = value.managerPlans as readonly unknown[];
-    const planIds = new Set<string>();
+    const plans = parsedState.managerPlans;
     const activePlanAgendas = new Set<string>();
     for (let i = 0; i < plans.length; i++) {
-        const item = plans[i] as RecordValue;
+        const item = plans[i];
         const path = `$.managerPlans[${i}]`;
-        if (planIds.has(item.id as string)) return fail(`${path}.id`);
-        planIds.add(item.id as string);
         if (!ref(item.agendaId, agendaIds)) return fail(`${path}.agendaId`);
         if (!ref(item.managerId, identityIds)) return fail(`${path}.managerId`);
-        const manager = parsedState.identities.find(
-            (identity) => record(identity) && identity.id === item.managerId
-        ) as RecordValue | undefined;
-        if (!manager || !(manager.roles as readonly unknown[]).includes("manager"))
-            return fail(`${path}.managerId`);
+        const manager = identityById.get(item.managerId);
+        if (!manager || !manager.roles.includes("manager")) return fail(`${path}.managerId`);
         if (item.status === "active") {
             if (activePlanAgendas.has(item.agendaId as string)) return fail(`${path}.agendaId`);
             activePlanAgendas.add(item.agendaId as string);
@@ -1273,28 +1107,15 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         )
             return fail(`${path}.basedOnPublicationId`);
         if (item.basedOnPublicationId !== undefined) {
-            const publication = publications.find(
-                (candidate) => (candidate as RecordValue).id === item.basedOnPublicationId
-            ) as RecordValue | undefined;
-            const round =
-                publication &&
-                (rounds.find(
-                    (candidate) => (candidate as RecordValue).id === publication.roundId
-                ) as RecordValue | undefined);
+            const publication = publications.find(({ id }) => id === item.basedOnPublicationId);
+            const round = publication && roundById.get(publication.roundId);
             if (!round || round.agendaId !== item.agendaId)
                 return fail(`${path}.basedOnPublicationId`);
         }
     }
-    const completionFactIds = new Set(
-        (parsedState.completionFacts as readonly RecordValue[]).map((item) => item.id as string)
-    );
-    const taskIds = new Set(
-        (parsedState.tasks as readonly RecordValue[]).map((item) => item.id as string)
-    );
-    const riskDispositions = parsedState.riskDispositions as readonly RecordValue[];
-    const issueIdsForRefs = new Set(
-        (parsedState.issues as readonly RecordValue[]).map((item) => item.id as string)
-    );
+    const completionFactIds = ids(parsedState.completionFacts);
+    const taskIds = ids(parsedState.tasks);
+    const issueIdsForRefs = ids(parsedState.issues);
     for (let i = 0; i < riskDispositions.length; i++) {
         const item = riskDispositions[i];
         const path = `$.riskDispositions[${i}]`;
@@ -1302,7 +1123,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const p = checkRefs(item.evidenceIds, publishedVersionIds, `${path}.evidenceIds`);
         if (p) return fail(p);
     }
-    const declarations = parsedState.completionDeclarations as readonly RecordValue[];
+    const declarations = parsedState.completionDeclarations;
     for (let i = 0; i < declarations.length; i++) {
         const item = declarations[i];
         const path = `$.completionDeclarations[${i}]`;
@@ -1314,7 +1135,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (p) return fail(p);
         if (item.taskId !== undefined && !ref(item.taskId, taskIds)) return fail(`${path}.taskId`);
     }
-    const facts = parsedState.completionFacts as readonly RecordValue[];
+    const facts = parsedState.completionFacts;
     for (let i = 0; i < facts.length; i++) {
         const item = facts[i];
         const path = `$.completionFacts[${i}]`;
@@ -1322,10 +1143,8 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (item.criterionId !== undefined && !ref(item.criterionId, criterionIds))
             return fail(`${path}.criterionId`);
         if (!ref(item.actorId, identityIds)) return fail(`${path}.actorId`);
-        const actor = parsedState.identities.find((x) => (x as RecordValue).id === item.actorId) as
-            RecordValue | undefined;
-        if (!actor || !(actor.roles as readonly unknown[]).includes("captain"))
-            return fail(`${path}.actorId`);
+        const actor = identityById.get(item.actorId);
+        if (!actor || !actor.roles.includes("captain")) return fail(`${path}.actorId`);
         for (const [key, values] of [
             ["evidenceIds", publishedVersionIds],
             ["decisionIds", decisionIds]
@@ -1339,7 +1158,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         )
             return fail(`${path}.supersedesFactId`);
     }
-    const tasks = parsedState.tasks as readonly RecordValue[];
+    const tasks = parsedState.tasks;
     for (let i = 0; i < tasks.length; i++) {
         const item = tasks[i];
         const path = `$.tasks[${i}]`;
@@ -1362,7 +1181,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         )
             return fail(`${path}.reassignedFromTaskId`);
     }
-    const mails = parsedState.privateMails as readonly RecordValue[];
+    const mails = parsedState.privateMails;
     for (let i = 0; i < mails.length; i++) {
         const item = mails[i];
         const path = `$.privateMails[${i}]`;
@@ -1381,32 +1200,34 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         }
     }
     if (own(value, "termination")) {
-        const termination = value.termination as RecordValue;
-        const refs = [
-            ["decisionIds", decisionIds],
-            ["completionFactIds", completionFactIds],
-            ["unresolvedQuestionIds", questionIds],
-            ["unresolvedIssueIds", issueIds]
-        ] as const;
-        for (const [key, ids] of refs) {
-            const p = checkRefs(termination[key], ids, `$.termination.${key}`);
+        const termination = parsedState.termination!;
+        for (const [values, refs, path] of [
+            [termination.decisionIds, decisionIds, "$.termination.decisionIds"],
+            [termination.completionFactIds, completionFactIds, "$.termination.completionFactIds"],
+            [termination.unresolvedQuestionIds, questionIds, "$.termination.unresolvedQuestionIds"],
+            [termination.unresolvedIssueIds, issueIds, "$.termination.unresolvedIssueIds"],
+            [
+                termination.unclosedContributionIds,
+                contributionIds,
+                "$.termination.unclosedContributionIds"
+            ]
+        ] as const) {
+            const p = checkRefs(values, refs, path);
             if (p) return fail(p);
         }
-        const p = checkRefs(
-            termination.unclosedContributionIds,
-            contributionIds,
-            "$.termination.unclosedContributionIds"
-        );
-        if (p) return fail(p);
     }
     if (own(value, "archive")) {
-        const archive = value.archive as RecordValue;
-        for (const [key, ids] of [
-            ["includedPublicationIds", publicationIds],
-            ["includedDecisionIds", decisionIds],
-            ["includedCompletionFactIds", completionFactIds]
+        const archive = parsedState.archive!;
+        for (const [values, refs, path] of [
+            [archive.includedPublicationIds, publicationIds, "$.archive.includedPublicationIds"],
+            [archive.includedDecisionIds, decisionIds, "$.archive.includedDecisionIds"],
+            [
+                archive.includedCompletionFactIds,
+                completionFactIds,
+                "$.archive.includedCompletionFactIds"
+            ]
         ] as const) {
-            const p = checkRefs(archive[key], ids, `$.archive.${key}`);
+            const p = checkRefs(values, refs, path);
             if (p) return fail(p);
         }
     }
