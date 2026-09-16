@@ -196,6 +196,33 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
             responseDeadlineMs: 60000
         }
     } as unknown as MeetingState;
+    if (status === "terminal" || status === "archiving" || status === "archived") {
+        state.termination = {
+            id: "termination",
+            outcome: "completed",
+            reason: "done",
+            endedAt: 0,
+            decisionIds: [],
+            completionFactIds: [],
+            unresolvedQuestionIds: [],
+            unresolvedIssueIds: [],
+            unclosedContributionIds: []
+        };
+    }
+    if (status === "archiving" || status === "archived") {
+        state.archive = {
+            id: "archive",
+            createdAt: 0,
+            createdBy: "captain",
+            terminationId: "termination",
+            publicSnapshotVersion: 1,
+            includedPublicationIds: [],
+            includedDecisionIds: [],
+            includedCompletionFactIds: [],
+            status: status === "archived" ? "complete" : "pending",
+            identityProvenance: []
+        };
+    }
     return state;
 }
 
@@ -332,8 +359,6 @@ describe("outcome proposal revisions", () => {
             actor: { kind: "identity", id: "captain" },
             now: 2
         });
-        if (revoked.kind === "rejected") throw new Error(JSON.stringify(revoked.error));
-        if (revoked.kind === "rejected") throw new Error(JSON.stringify(revoked.error));
         if (revoked.kind === "rejected") throw new Error(JSON.stringify(revoked.error));
         expect(revoked.kind).toBe("accepted");
         if (revoked.kind !== "accepted") return;
@@ -500,7 +525,7 @@ describe("outcome proposal revisions", () => {
     it.each(["paused", "preparing", "converging", "ending"] as const)(
         "rejects proposal writes in %s",
         (status) => {
-            const state = { ...({} as MeetingState), lifecycle: { status } } as MeetingState;
+            const state = validState(status);
             const result = recordProposalRevisionV1(state, {
                 revisionId: "r1",
                 proposalId: "p1",
@@ -511,17 +536,131 @@ describe("outcome proposal revisions", () => {
                 actor: { kind: "identity", id: "i1" },
                 now: 1
             });
-            expect(result.kind).toBe("rejected");
+            expect(result).toMatchObject({
+                kind: "rejected",
+                state,
+                relatedIds: [],
+                effectRequests: [],
+                error: { code: "INVALID_STATE" }
+            });
             expect(result.state).toBe(state);
         }
     );
 
-    it("keeps pending candidates a pure empty derivation for a malformed snapshot", () => {
-        const state = {
-            lifecycle: { status: "terminal" },
-            proposals: [],
-            decisions: []
-        } as unknown as MeetingState;
+    it.each(["terminal", "archiving", "archived"] as const)(
+        "rejects proposal writes in terminal lifecycle %s",
+        (status) => {
+            const state = validState(status);
+            const result = recordProposalRevisionV1(state, {
+                revisionId: "r1",
+                proposalId: "p1",
+                agendaId: "a",
+                summary: "s",
+                body: "b",
+                evidenceIds: ["v"],
+                actor: { kind: "identity", id: "contributor" },
+                now: 1
+            });
+            expect(result).toMatchObject({
+                kind: "rejected",
+                state,
+                relatedIds: [],
+                effectRequests: [],
+                error: { code: "MEETING_TERMINAL" }
+            });
+        }
+    );
+
+    it.each(["paused", "preparing", "converging", "ending"] as const)(
+        "all outcome families reject non-running %s with exact precedence",
+        (status) => {
+            const state = validState(status);
+            const actor = { kind: "identity", id: "captain" } as const;
+            const calls = [
+                () =>
+                    recordPositionV1(state, {
+                        positionId: "p",
+                        proposalRevisionId: "r",
+                        stance: "support",
+                        rationale: "x",
+                        evidenceIds: ["v"],
+                        actor,
+                        now: 1
+                    }),
+                () =>
+                    recordDecisionCandidateV1(state, {
+                        candidateId: "c",
+                        proposalRevisionId: "r",
+                        outcome: "adopt",
+                        rationale: "x",
+                        evidenceIds: ["v"],
+                        positionIds: ["p"],
+                        actor,
+                        now: 1
+                    }),
+                () => decideV1(state, { decisionId: "d", candidateId: "c", actor, now: 1 }),
+                () =>
+                    changeDecisionV1(state, {
+                        decisionId: "d",
+                        status: "revoked",
+                        rationale: "x",
+                        evidenceIds: ["v"],
+                        actor,
+                        now: 1
+                    }),
+                () =>
+                    disposeRiskV1(state, {
+                        dispositionId: "r",
+                        issueId: "i",
+                        action: "reject",
+                        scope: "x",
+                        rationale: "x",
+                        evidenceIds: ["v"],
+                        actor,
+                        now: 1
+                    }),
+                () =>
+                    submitCompletionDeclarationV1(state, {
+                        declarationId: "d",
+                        outputId: "o",
+                        statement: "x",
+                        evidenceIds: ["v"],
+                        actor,
+                        now: 1
+                    }),
+                () =>
+                    recordCompletionFactV1(state, {
+                        factId: "f",
+                        outputId: "o",
+                        statement: "x",
+                        rationale: "x",
+                        evidenceIds: ["v"],
+                        decisionIds: ["d"],
+                        actor,
+                        now: 1
+                    }),
+                () =>
+                    changeCompletionFactV1(state, {
+                        factId: "f",
+                        status: "revoked",
+                        rationale: "x",
+                        actor,
+                        now: 1
+                    })
+            ];
+            for (const call of calls)
+                expect(call()).toMatchObject({
+                    kind: "rejected",
+                    state,
+                    relatedIds: [],
+                    effectRequests: [],
+                    error: { code: "INVALID_STATE" }
+                });
+        }
+    );
+
+    it("derives no pending candidates in terminal lifecycle", () => {
+        const state = validState("terminal");
         expect(pendingDecisionCandidatesV1(state)).toEqual([]);
     });
 
