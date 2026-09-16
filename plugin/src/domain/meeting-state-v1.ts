@@ -113,8 +113,32 @@ export interface HandRaiseV1 {
     purpose: string;
 }
 
-export interface PendingSupplementHandV1 extends HandRaiseV1 {
-    reviewId: OpaqueId;
+export interface SupplementHandV1 extends HandRaiseV1 {
+    status: "pending" | "accepted";
+    acceptedAt?: EpochMs;
+}
+
+export interface EvidenceOpportunityRequestV1 {
+    id: OpaqueId;
+    agendaId: OpaqueId;
+    contributorId: OpaqueId;
+    purpose: string;
+    requestedAt: EpochMs;
+}
+
+export interface PendingHandRaiseV1 {
+    roundId: OpaqueId;
+    contributorId: OpaqueId;
+    purpose: string;
+    raisedAt: EpochMs;
+}
+
+export interface FormatApprovalV1 {
+    id: OpaqueId;
+    contributionId: OpaqueId;
+    managerId: OpaqueId;
+    evidenceHash: string;
+    approvedAt: EpochMs;
 }
 
 export interface ContributionV1 {
@@ -136,7 +160,7 @@ export interface ContributionV1 {
         | "closed";
     packageId?: OpaqueId;
     substantiveSupplementCount: number;
-    pendingSupplementHand?: PendingSupplementHandV1;
+    supplementHand?: SupplementHandV1;
     exitReason?: string;
     response?: string;
 }
@@ -163,7 +187,10 @@ export interface EvidenceMaterialV1 {
         | "tool_output"
         | "unknown"
         | "not_applicable";
+    originator: string;
     originalSource: string;
+    sourcePublishedAt: string;
+    acquiredAt: string;
     version: string;
     locator: string;
     location: string;
@@ -201,7 +228,7 @@ export interface RegistrationV1 {
     id: OpaqueId;
     versionId: OpaqueId;
     managerId: OpaqueId;
-    status: "complete" | "needs_correction" | "deferred";
+    status: "complete";
     missingFields: readonly string[];
     createdAt: EpochMs;
 }
@@ -209,6 +236,8 @@ export interface RegistrationV1 {
 export interface ReviewDimensionV1 {
     score: 0 | 1 | 2 | 3 | "unable_to_assess";
     reason: string;
+    scope: string;
+    baselineEvidenceIds: readonly OpaqueId[];
 }
 
 export interface EvidenceReviewV1 {
@@ -233,6 +262,7 @@ export interface ReviewDeliveryV1 {
     status: "sent" | "failed";
     sentAt?: EpochMs;
     failedAt?: EpochMs;
+    failureReason?: string;
 }
 
 export interface PublicationV1 {
@@ -440,7 +470,10 @@ export interface MeetingState {
     agenda: readonly AgendaItemV1[];
     agendaCandidates: readonly AgendaCandidateV1[];
     rounds: readonly RoundV1[];
+    opportunityRequests: readonly EvidenceOpportunityRequestV1[];
+    pendingHandRaises: readonly PendingHandRaiseV1[];
     contributions: readonly ContributionV1[];
+    formatApprovals: readonly FormatApprovalV1[];
     completionDeclarations: readonly CompletionDeclarationV1[];
     evidencePackages: readonly EvidencePackageV1[];
     registrations: readonly RegistrationV1[];

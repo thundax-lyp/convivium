@@ -172,10 +172,36 @@ const managerPlanSchema = z.object({
 });
 const handRaiseSchema = z.object({ raisedAt: epochSchema, purpose: textSchema });
 const textWithReasonSchema = z.object({ value: textSchema, reason: textSchema.optional() });
-const pendingSupplementHandSchema = z.object({
-    raisedAt: epochSchema,
+const supplementHandSchema = z
+    .object({
+        raisedAt: epochSchema,
+        purpose: textSchema,
+        status: z.enum(["pending", "accepted"]),
+        acceptedAt: epochSchema.optional()
+    })
+    .refine((value) => isAbsentOrDefined(value, "acceptedAt"), { path: ["acceptedAt"] })
+    .refine((value) => (value.status === "accepted") === own(value, "acceptedAt"), {
+        path: ["acceptedAt"]
+    });
+const opportunityRequestSchema = z.object({
+    id: opaqueIdSchema,
+    agendaId: opaqueIdSchema,
+    contributorId: opaqueIdSchema,
     purpose: textSchema,
-    reviewId: opaqueIdSchema
+    requestedAt: epochSchema
+});
+const pendingHandRaiseSchema = z.object({
+    roundId: opaqueIdSchema,
+    contributorId: opaqueIdSchema,
+    purpose: textSchema,
+    raisedAt: epochSchema
+});
+const formatApprovalSchema = z.object({
+    id: opaqueIdSchema,
+    contributionId: opaqueIdSchema,
+    managerId: opaqueIdSchema,
+    evidenceHash: z.string().regex(/^[0-9a-f]{64}$/),
+    approvedAt: epochSchema
 });
 const roundSchema = z
     .object({
@@ -213,17 +239,19 @@ const contributionSchema = z
         ]),
         packageId: opaqueIdSchema.optional(),
         substantiveSupplementCount: integerSchema.max(2),
-        pendingSupplementHand: pendingSupplementHandSchema.optional(),
+        supplementHand: supplementHandSchema.optional(),
         exitReason: textSchema.optional(),
         response: textSchema.optional()
     })
-    .refine((value) => isAbsentOrDefined(value, "pendingSupplementHand"), {
-        path: ["pendingSupplementHand"]
+    .refine((value) => isAbsentOrDefined(value, "supplementHand"), {
+        path: ["supplementHand"]
     })
     .refine(
         (value) =>
-            value.pendingSupplementHand === undefined || value.status === "awaiting_response",
-        { path: ["pendingSupplementHand"] }
+            value.supplementHand === undefined ||
+            value.status === "awaiting_response" ||
+            value.supplementHand.status === "accepted",
+        { path: ["supplementHand"] }
     );
 const claimSchema = z.object({
     id: opaqueIdSchema,
@@ -243,7 +271,10 @@ const materialSchema = z
             "unknown",
             "not_applicable"
         ]),
+        originator: textSchema,
         originalSource: textSchema,
+        sourcePublishedAt: textSchema,
+        acquiredAt: textSchema,
         version: textSchema,
         locator: textSchema,
         location: textSchema,
@@ -286,14 +317,11 @@ const registrationSchema = z
         id: opaqueIdSchema,
         versionId: opaqueIdSchema,
         managerId: opaqueIdSchema,
-        status: z.enum(["complete", "needs_correction", "deferred"]),
+        status: z.literal("complete"),
         missingFields: z.array(textSchema),
         createdAt: epochSchema
     })
     .refine((value) => value.status !== "complete" || value.missingFields.length === 0, {
-        path: ["missingFields"]
-    })
-    .refine((value) => value.status !== "needs_correction" || value.missingFields.length > 0, {
         path: ["missingFields"]
     });
 const reviewDimensionSchema = z.object({
@@ -304,7 +332,9 @@ const reviewDimensionSchema = z.object({
         z.literal(3),
         z.literal("unable_to_assess")
     ]),
-    reason: textSchema
+    reason: textSchema,
+    scope: textSchema,
+    baselineEvidenceIds: uniqueIdArraySchema
 });
 const evidenceReviewSchema = z.object({
     id: opaqueIdSchema,
@@ -327,15 +357,25 @@ const reviewDeliverySchema = z
         authorId: opaqueIdSchema,
         status: z.enum(["sent", "failed"]),
         sentAt: epochSchema.optional(),
-        failedAt: epochSchema.optional()
+        failedAt: epochSchema.optional(),
+        failureReason: textSchema.optional()
     })
     .refine((value) => value.status !== "sent" || own(value, "sentAt"), { path: ["sentAt"] })
     .refine((value) => value.status !== "failed" || own(value, "failedAt"), {
         path: ["failedAt"]
     })
-    .refine((value) => !(value.status === "sent" ? own(value, "failedAt") : own(value, "sentAt")), {
-        path: ["sentAt"]
-    });
+    .refine((value) => value.status !== "failed" || own(value, "failureReason"), {
+        path: ["failureReason"]
+    })
+    .refine(
+        (value) =>
+            !(value.status === "sent"
+                ? own(value, "failedAt") || own(value, "failureReason")
+                : own(value, "sentAt")),
+        {
+            path: ["sentAt"]
+        }
+    );
 const publicationSchema = z.object({
     id: opaqueIdSchema,
     roundId: opaqueIdSchema,
@@ -545,7 +585,10 @@ const meetingStateSchema = withDefinedOptionals(
         agenda: uniqueEntityArray(agendaSchema),
         agendaCandidates: uniqueEntityArray(candidateSchema),
         rounds: uniqueEntityArray(roundSchema),
+        opportunityRequests: uniqueEntityArray(opportunityRequestSchema),
+        pendingHandRaises: z.array(pendingHandRaiseSchema),
         contributions: uniqueEntityArray(contributionSchema),
+        formatApprovals: uniqueEntityArray(formatApprovalSchema),
         evidencePackages: uniqueEntityArray(evidencePackageSchema),
         registrations: uniqueEntityArray(registrationSchema),
         reviews: uniqueEntityArray(evidenceReviewSchema),
@@ -687,6 +730,24 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             if (!agenda || agenda.status !== "active") return fail(`${path}.agendaId`);
         }
     }
+    const opportunityRequestIds = new Set<string>();
+    for (let i = 0; i < parsedState.opportunityRequests.length; i++) {
+        const request = parsedState.opportunityRequests[i];
+        const path = `$.opportunityRequests[${i}]`;
+        opportunityRequestIds.add(request.id);
+        if (!ref(request.agendaId, agendaIds)) return fail(`${path}.agendaId`);
+        if (!ref(request.contributorId, identityIds)) return fail(`${path}.contributorId`);
+    }
+    const pendingHandKeys = new Set<string>();
+    for (let i = 0; i < parsedState.pendingHandRaises.length; i++) {
+        const hand = parsedState.pendingHandRaises[i];
+        const path = `$.pendingHandRaises[${i}]`;
+        const key = `${hand.roundId}\0${hand.contributorId}`;
+        if (pendingHandKeys.has(key)) return fail(`${path}.contributorId`);
+        pendingHandKeys.add(key);
+        if (!ref(hand.roundId, roundIds)) return fail(`${path}.roundId`);
+        if (!ref(hand.contributorId, identityIds)) return fail(`${path}.contributorId`);
+    }
     const contributions = parsedState.contributions;
     const contributionById = indexById(contributions);
     const contributionIds = new Set<string>();
@@ -702,6 +763,14 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (!ref(r.roundId, roundIds)) return fail(`${path}.roundId`);
         if (!ref(r.contributorId, identityIds)) return fail(`${path}.contributorId`);
         if (ownUndefined(r, "packageId", `${path}.packageId`)) return fail(`${path}.packageId`);
+    }
+    for (let i = 0; i < parsedState.formatApprovals.length; i++) {
+        const approval = parsedState.formatApprovals[i];
+        const path = `$.formatApprovals[${i}]`;
+        if (!ref(approval.contributionId, contributionIds)) return fail(`${path}.contributionId`);
+        if (!ref(approval.managerId, identityIds)) return fail(`${path}.managerId`);
+        const manager = identityById.get(approval.managerId);
+        if (!manager || !manager.roles.includes("manager")) return fail(`${path}.managerId`);
     }
     const packages = parsedState.evidencePackages;
     const versionOwnerById = new Map<string, (typeof packages)[number]>();
@@ -791,10 +860,9 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             return fail(`${path}.reviewerId`);
     }
     for (let i = 0; i < contributions.length; i++) {
-        const hand = (contributions[i] as RecordValue).pendingSupplementHand as
-            RecordValue | undefined;
-        if (hand && !reviewIds.has(hand.reviewId as string))
-            return fail(`$.contributions[${i}].pendingSupplementHand.reviewId`);
+        const hand = (contributions[i] as RecordValue).supplementHand as RecordValue | undefined;
+        if (hand && hand.status !== "pending" && hand.status !== "accepted")
+            return fail(`$.contributions[${i}].supplementHand.status`);
     }
     const deliveries = parsedState.reviewDeliveries;
     for (let i = 0; i < deliveries.length; i++) {

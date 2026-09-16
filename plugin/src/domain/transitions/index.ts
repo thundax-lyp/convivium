@@ -46,5 +46,6 @@ export type {
     SubmittedQuestionInput,
     SubmitSpeakerAdvanceContext
 } from "./types.js";
+export * from "./result-v1.js";
 
 export * from "./attendance-rejection.js";
