@@ -57,7 +57,10 @@ function base(): MeetingState {
         ],
         agendaCandidates: [],
         rounds: [],
+        opportunityRequests: [],
+        pendingHandRaises: [],
         contributions: [],
+        formatApprovals: [],
         completionDeclarations: [],
         evidencePackages: [],
         registrations: [],
@@ -109,6 +112,67 @@ describe("MeetingState structure", () => {
         invalidAt({ ...base(), version: 0 }, "$.version");
         invalidAt({ ...base(), continuation: undefined }, "$.continuation");
         invalidAt({ ...base(), continuation: null }, "$.continuation");
+    });
+
+    it("requires target participation arrays and the narrowed review contracts", () => {
+        for (const field of ["opportunityRequests", "pendingHandRaises", "formatApprovals"]) {
+            const missing = base() as unknown as Record<string, unknown>;
+            delete missing[field];
+            invalidAt(missing, `$.${field}`);
+        }
+        invalidAt(
+            {
+                ...base(),
+                registrations: [
+                    {
+                        id: "registration-1",
+                        versionId: "version-1",
+                        managerId: "manager-1",
+                        status: "needs_correction",
+                        missingFields: ["observation"],
+                        createdAt: 0
+                    }
+                ]
+            },
+            "$.registrations[0].status"
+        );
+        invalidAt(
+            {
+                ...base(),
+                reviews: [
+                    {
+                        id: "review-1",
+                        versionId: "version-1",
+                        reviewerId: "reviewer-1",
+                        baselinePublicationIds: [],
+                        scope: "scope",
+                        dimensions: {
+                            source: { score: 1, reason: "ok" },
+                            credibility: { score: 1, reason: "ok" },
+                            completeness: { score: 1, reason: "ok" },
+                            support: { score: 1, reason: "ok" }
+                        },
+                        createdAt: 0
+                    }
+                ]
+            },
+            "$.reviews[0].dimensions.source.scope"
+        );
+        invalidAt(
+            {
+                ...base(),
+                reviewDeliveries: [
+                    {
+                        id: "delivery-1",
+                        reviewId: "review-1",
+                        authorId: "contributor-1",
+                        status: "failed",
+                        failedAt: 0
+                    }
+                ]
+            },
+            "$.reviewDeliveries[0].failureReason"
+        );
     });
 
     it("checks scalar and array boundaries", () => {
@@ -593,10 +657,10 @@ function evidenceState() {
         baselinePublicationIds: [],
         scope: "x",
         dimensions: {
-            source: { score: 3, reason: "x" },
-            credibility: { score: 3, reason: "x" },
-            completeness: { score: 3, reason: "x" },
-            support: { score: 3, reason: "x" }
+            source: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] },
+            credibility: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] },
+            completeness: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] },
+            support: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] }
         },
         createdAt: 0
     };
@@ -897,7 +961,10 @@ describe("Evidence and decision chain", () => {
         const material = {
             id: "material-1",
             kind: "document",
+            originator: "x",
             originalSource: "x",
+            sourcePublishedAt: "x",
+            acquiredAt: "x",
             version: "x",
             locator: "x",
             location: "x",
@@ -1065,7 +1132,7 @@ const evidenceRuleCases = [
             ...f.state,
             registrations: [{ ...f.registration, status: "needs_correction", missingFields: [] }]
         }),
-        "$.registrations[0].missingFields"
+        "$.registrations[0].status"
     ],
     [
         "failed delivery rejects sentAt",
@@ -1105,7 +1172,10 @@ const evidenceRuleCases = [
                                 {
                                     id: "material-1",
                                     kind: "unknown",
+                                    originator: "x",
                                     originalSource: "x",
+                                    sourcePublishedAt: "x",
+                                    acquiredAt: "x",
                                     version: "x",
                                     locator: "x",
                                     location: "x",
@@ -1461,16 +1531,12 @@ it("enforces the remaining cross object invariants", () => {
             contributions: [
                 {
                     ...f.contribution,
-                    pendingSupplementHand: {
-                        raisedAt: 0,
-                        purpose: "x",
-                        reviewId: "missing-review"
-                    },
+                    supplementHand: { raisedAt: 0, purpose: "x", status: "accepted" },
                     status: "awaiting_response"
                 }
             ]
         },
-        "$.contributions[0].pendingSupplementHand.reviewId"
+        "$.contributions[0].supplementHand.acceptedAt"
     );
     invalidAt(
         {
