@@ -209,29 +209,6 @@ pnpm --dir plugin verify
 
 ## 9. 机械执行步骤
 
-### T4：记录并处置 AgendaCandidate
-
-前置状态：T1–T3 PASS。
-
-允许修改：`plugin/src/domain/meeting-state-v1-transitions.ts`、`plugin/tests/unit/domain/meeting-state-v1-transitions.spec.ts`。
-
-禁止修改：T1 文件、legacy/外部模块；只可扩充 candidate cases，不改变 T2/T3 行为。
-
-执行：`raise_agenda_candidate` 允许任一现存、已绑定的 Meeting identity，用 `generatedId` append 一项 pending candidate；sourceMessageId? 必须指已有 FormalMessage。`dispose_agenda_candidate` 仅 Captain identity 可用，只对 pending candidate 处置一次：promoted 必有完整 `promotedAgenda`，其 caller-supplied `id` 在 Agenda 中未用，校验全部 AgendaInput 字段与 refs，先校验每个 requiredReviewerId 对应 identity 存在、具有 evidence_reviewer role、其旧 reviewResponsibilityIds 不含新 Agenda.id 且数组无重复；同次标 candidate promoted、append 一个完整 pending Agenda，并按 caller reviewer ID 顺序向每个 identity.reviewResponsibilityIds append 新 Agenda.id，三组状态原子更新，既不清空/改写 requiredReviewerIds 也不授新 role；parked/rejected 不带 promotedAgenda，只改 candidate。三种处置都不改 active Agenda 或产生 outbox；accepted root version/updatedAt 更新一次，raise fact refs `[meetingId,generatedId]`，dispose fact refs 为 park/reject `[meetingId,candidateId]`、promote `[meetingId,candidateId,promotedAgenda.id,...promotedAgenda.requiredReviewerIds]`，payload 为 references。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-transitions.spec.ts
-pnpm --dir plugin exec prettier src/domain/meeting-state-v1-transitions.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts --check
-```
-
-PASS：两命令均退出码 0；raise append 恰一项，promote candidate+Agenda+每个 reviewer identity.reviewResponsibilityIds 原子变化，caller requiredReviewerIds 原样保留、reviewer role 不变，park/reject 无新 Agenda，active 不变，每次单一 fact/version+1；非 Captain dispose=`UNAUTHORIZED`、missing candidate/sourceMessage/reviewer identity=`NOT_FOUND`、重复处置=`INVALID_STATE`、重复 requiredReviewerId=`INVALID_ARGUMENT`；已用 Agenda ID/reviewer 无 evidence_reviewer role/已有非法责任/缺 promotedAgenda/非法附带 promotedAgenda=`PRECONDITION_FAILED`；拒绝均保持原 state 引用与空 facts；T2/T3 tests 仍 PASS。
-
-STOP：需要 Runtime outbox、implicit Agenda activation 或第二次 candidate disposition；停止，不使用 legacy。
-
-失败恢复：无外部副作用；保留已 PASS 与本步改动，不用 checkout/reset/删文件。
-
 ### T5：Question 记录与处置
 
 前置状态：T1–T4 PASS。
@@ -376,7 +353,7 @@ git status --short
 | --- | --- | --- | --- |
 | RUNBOOK 内部链接与 Markdown 本地链接 | `node .github/scripts/check-doc-links.mjs` | 作者交付时必须为退出码 0；只证明链接目标存在，不证明产品行为 | STOP；报告输出，不修改无关文档。 |
 | 文档改动的空白/冲突标记 | `git diff --check` | 作者交付时必须为退出码 0 | STOP；只修复本 RUNBOOK 的空白错误后重跑。 |
-| target validator 与 transitions | `pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts` | 剩余 T4–T7 必须 PASS；已完成步骤正文按执行约定删除 | 失败时不得降级断言。 |
+| target validator 与 transitions | `pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts` | 剩余 T5–T7 必须 PASS；已完成步骤正文按执行约定删除 | 失败时不得降级断言。 |
 | target TypeScript/API boundary | `pnpm --dir plugin typecheck && pnpm --dir plugin lint` | T8 必须 PASS；当前尚未执行 | 不得改 eslint 或 export 边界绕过。 |
 | 此切片的完整工程验证 | `pnpm --dir plugin verify` | T8 必须 PASS；不证明 DSH runtime | 任一失败 STOP，报告首次失败及实际输出。 |
 | DSH profile、Browser、Repository/recovery、Remote、outbox、legacy compatibility | 不运行 | `Not Applicable` 于本 RUNBOOK scope：本切片不得接线这些边界 | 不得将未运行写为通过。 |
@@ -389,6 +366,6 @@ git status --short
 
 ## 12. Author Audit
 
-逐项按 [RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md#authoring-and-audit) 审计：已完成步骤正文依执行约定删除；剩余 Scope 2→T4–T7、Scope 3/4→T8、最终文件删除→T9。第 8 节执行前检查固定为当前 `docs/runbook-meeting-state-transitions` checkout `/Volumes/storage/workspace/convivium`，不得在另一 worktree 的 `main` 执行。T9 删除后检查失败必须精确恢复 RUNBOOK 再 STOP。每步允许文件、命令、可观察 PASS/STOP、失败恢复与 Non-goals 已重新核对；CreateMeeting identityId 映射、active risk fact 跨边界证明、Repository/archive retention 仍属后续切片，不由本纯 Domain 切片猜测。
+逐项按 [RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md#authoring-and-audit) 审计：已完成步骤正文依执行约定删除；剩余 Scope 2→T5–T7、Scope 3/4→T8、最终文件删除→T9。第 8 节执行前检查固定为当前 `docs/runbook-meeting-state-transitions` checkout `/Volumes/storage/workspace/convivium`，不得在另一 worktree 的 `main` 执行。T9 删除后检查失败必须精确恢复 RUNBOOK 再 STOP。每步允许文件、命令、可观察 PASS/STOP、失败恢复与 Non-goals 已重新核对；CreateMeeting identityId 映射、active risk fact 跨边界证明、Repository/archive retention 仍属后续切片，不由本纯 Domain 切片猜测。
 
 审计结论：**Executable**，仅说明低级执行者可在第 8 节授权、checkout 与 baseline 门禁满足后按 T1–T8 实施或 STOP；T9 仍须独立删除授权及当时的 Git 历史/无增量门禁。2026-09-16 在 `docs/runbook-meeting-state-transitions` checkout 实际执行 `pnpm --dir plugin verify`：退出码 0，90 test files/961 tests PASS，且 build/environment/contract/agent-definitions/package 检查均通过（仅证明 legacy 基线，不证明目标行为）；`node .github/scripts/check-doc-links.mjs` 为 462 checked/0 errors（不查 anchors），`git diff --check` 退出码 0。目标 focused tests、目标 TypeScript、target lint/build/verify、真实 DSH 与 Browser 均未执行，不描述为通过。Execute 与 push/PR 仍须分别获授权。
