@@ -213,121 +213,6 @@ T1 分为 T1a–T1d。前三个 PASS 只确认各自的 focused 行为，不表�
 
 测试 fixture 的构造规则固定如下，不能让执行者临场选择另一数据图：`base()` 是非导出的新建对象，每次调用返回一份独立的完整 MeetingState；其 `id="meeting-1"`、`version=1`、所有时间=0、`lifecycle={status:"running",changedAt:0,changedBy:"local-1"}`、Objective 三组各有一项 `{id:"output-1"|"criterion-1"|"constraint-1",text:"x",status:"pending"}`、`acceptableRiskLevel="medium"`；Captain/Manager/reviewer identity ID 分别为 `captain-1`/`manager-1`/`reviewer-1`，各有对应单一 role，`agendaResponsibilityIds=[]`，仅 reviewer 的 `reviewResponsibilityIds=["agenda-1"]`，其余 identity 的 `required=false`、`riskAuthority=false`，`displayName="x"`；唯一 Agenda 为 `{id:"agenda-1",title:"x",question:"x",status:"active",requiredOutputIds:["output-1"],requiredReviewerIds:["reviewer-1"]}`；其他根数组均 `[]`、limits 四个可变数值均 0、`responseDeadlineMs=60000`，三个 root optional 缺席。合法扩展总是从新 `base()` 开始，按 `identities/agenda/agendaCandidates → rounds/contributions/evidencePackages/registrations/reviews/reviewDeliveries/publications/messages → proposals/positions/decisionCandidates/decisions → questions/issues/riskDispositions/completionDeclarations/completionFacts/tasks/managerPlans/privateMails → termination/archive/continuation` 的依赖次序构造，数组实体 append、三个 root optional 直接赋值；每种实体只用一项（需要前序历史的 ProposalRevision、Publication、Message 另 append 第二项），ID 固定为 `candidate-1`、`round-1`、`contribution-1`、`package-1`、`registration-1`、`review-1`、`delivery-1`、`publication-1`、`message-1`、`proposalRevision-1`、`position-1`、`decisionCandidate-1`、`decision-1`、`question-1`、`issue-1`、`riskDisposition-1`、`completionDeclaration-1`、`completionFact-1`、`task-1`、`plan-1`、`mail-1`、`termination-1`、`archive-1`（依前述根数组顺序分别对应 AgendaCandidate 至 ArchivePackage），嵌套 version/claim/material ID 为 `version-1`/`claim-1`/`material-1`。每个 plain string 值为 `"x"`，非条件性的 boolean 为 `false`、时间为 0、计数/seq/ordinal 为 1（`substantiveSupplementCount=0`），枚举取 `meeting-state-v1.ts` 中该字段 union 的首项，数组先用 `[]`；再只按第 7 节 FK 表填入唯一目标 ID、按第 7 节 conditional 表修正状态与字段组合；Issue 合法扩展固定为 `riskLevel="low"`、`classification="follow_up"`、`blocking=false`，ReviewDelivery 合法扩展固定 `status="sent"` 且 `sentAt=0`，terminal 合法扩展先把唯一 Agenda 置 `completed`、创建 Termination，archive 合法扩展再把 lifecycle 置 `archiving` 并创建 ArchivePackage，archived 合法扩展只把 lifecycle 置 `archived`、ArchivePackage.status 置 `complete`。不能先添引用对象后留下空的 required FK；需要第二项时 ID 后缀改为 `-2`，seq/ordinal 改为 2，并指向立即前序项。每个非法测试只从一份已经由 validator 返回 `valid` 的 `base()` 或合法扩展复制后改变一个字段；先断言未变异的输入 `valid`，再断言变异后的准确 `path` 与重复调用一致，避免坏 fixture 掩盖目标反例。
 
-### T1a：目标类型增量与根结构
-
-前置状态：第 8 节执行前检查通过；目标 validator/test 文件尚不存在。
-
-允许修改：`plugin/src/domain/meeting-state-v1.ts`（仅 `IssueV1` 四组 readonly OpaqueId 数组和 `TerminationV1.id: OpaqueId`）、`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`。
-
-禁止修改：目标类型的其它符号、legacy、Runtime/Repository/Protocol/DSH/Projection/Client、domain entry。
-
-执行：按第 7 节新增五个 required 字段；创建唯一 validator/result 签名和 `base()`，只完成 `MeetingState` 根字段、Objective、lifecycle、identities、agenda、limits、Issue/Termination 的字段形状和值域、各 root 数组存在性、required/optional/null、ID/时间/数值范围。T1a 不宣称已验证其它非空数组或 cross-object FK；该步骤的 `valid` 只代表已检查部分，完整 validator 必须等 T1d 门禁。`describe("T1a")` 固定验证 `base()` 的同引用 valid、根每个 required 字段的逐项移除/null、ID/时间/version/limits 的边界及 root 数组缺席；五个新增字段使用一份含合法低风险 follow-up Issue 的 `base()` 扩展和另一份唯一 Agenda 已完成、lifecycle=terminal 且含 Termination 的 `base()` 扩展，先分别断言 valid，再逐项移除/null 并断言首个准确 path。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts -t T1a
-pnpm --dir plugin exec prettier src/domain/meeting-state-v1.ts src/domain/meeting-state-v1-validation.ts tests/unit/domain/meeting-state-v1-validation.spec.ts --check
-```
-
-PASS：两命令退出码 0；`T1a` 的 valid fixture 同引用、每个规定坏例返回 `{kind:"invalid",code:"INVALID_ARGUMENT",path}` 且 path 重复稳定；其它实体与 FK 仍标为未验证。
-
-STOP：正式 Design 与五个新增 type field 冲突、必须改其它既有类型或使用 legacy/default；报告来源、字段和命令实际输出。
-
-失败恢复：无数据库/外部副作用；保留本步改动与 baseline，不用 checkout/reset/删文件。
-
-### T1b：会议身份、议题与目标引用
-
-前置状态：T1a PASS。
-
-允许修改：`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`。
-
-禁止修改：T1a 的既有目标类型、legacy/外部模块、Round 与后续实体行为。
-
-执行：只补第 7 节 FK 表的 `identities`、`agenda`、`questions`、`issues`、`managerPlans` 行的本步已存在目标引用，以及 `agendaCandidates` 的 ID/字段形状；`agendaCandidates.sourceMessageId?` 和 `managerPlans.basedOnPublicationId?` 的合法引用与坏 typed-ref 留到 T1c，不要求 T1b 构造尚未验证的 Message/Publication；补同类 ID 唯一、role、双向 reviewer 责任、active Agenda/active Plan、blocking/accepted_risk 组合。`describe("T1b")` 依 fixture 规则先构造每种合法非空扩展，再对本步已存在目标引用逐行制造 missing target 和错误实体种类同字符串反例；对新增四组 Issue 引用分别做缺席/null/错目标与重复，另测 high non-blocking、无资格 blocking、无 accept 历史的 accepted_risk、review role/双向责任、两 active Agenda/Plan。每个反例只改一字段。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts -t 'T1a|T1b'
-pnpm --dir plugin exec prettier src/domain/meeting-state-v1-validation.ts tests/unit/domain/meeting-state-v1-validation.spec.ts --check
-```
-
-PASS：两命令退出码 0；本步已存在目标引用各有 valid 与坏 typed-ref；Candidate.sourceMessageId/Plan.basedOnPublicationId 明确为 T1c 未验证项，四组 Issue field、reviewer 双向责任及 blocking 反例均拒绝，T1a 仍 PASS；其它实体仍未验证。
-
-STOP：必须放宽 reviewer 双向引用或据自由文本决定 blocking；报告 path/source/输出，不改其它文件。
-
-失败恢复：无数据库/外部副作用；保留最后 PASS 与本步改动，不用 checkout/reset/删文件。
-
-### T1c：轮次、证据、公开与决策链
-
-前置状态：T1a–T1b PASS。
-
-允许修改：`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`。
-
-禁止修改：目标类型、legacy/外部模块、T1b 已验证的 identity/Agenda/Issue 语义。
-
-执行：补第 7 节 FK 表从 `rounds` 到 `decisions` 的十一行，并在 Message/Publication 合法扩展完成后补 `agendaCandidates.sourceMessageId?`、`managerPlans.basedOnPublicationId?` 的合法引用及 missing target/错误种类同字符串反例，覆盖 Contribution、EvidenceVersion 嵌套结构、registration/review/delivery、Publication/FormalMessage、Proposal/Position/Candidate/Decision 的 required/optional/enum、同类唯一、seq/ordinal、round/package/version/baseline 与 published-evidence 关联。T1c 将 T1a–T1c 已覆盖实体的结构 schema 组合为单个 Zod state schema（T1d 实体数组暂用 `z.array(z.unknown())` 占位），在 validator 入口只调用一次 `safeParse()`；移除已由该 schema 覆盖的重复字段类型、enum、数组与子对象结构扫描，领域扫描只保留 FK、同类/组内唯一、互逆、条件组合，以及 Zod `optional()` 无法区分的对象自身 `undefined`。测试按 Test Rules 使用稳定业务名称，不保留临时 T1a/T1b/T1c `describe`；先验证最小连通合法扩展和完整合法状态，再对十一行首个 typed ref 逐行做 missing target 和错误种类同字符串反例，另覆盖 published Round、Registration、ReviewDelivery、EvidenceMaterial、ProposalRevision 条件组合及 seq/ordinal。结构测试仅保留能识别 schema 接线缺陷的代表例：根字段、嵌套字段、数组元素、可选字段自身 `undefined`/`null`、enum/数值边界；不逐项复制 Zod schema 的 required 字段缺席/null 矩阵。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts
-pnpm --dir plugin exec prettier src/domain/meeting-state-v1-validation.ts tests/unit/domain/meeting-state-v1-validation.spec.ts --check
-```
-
-PASS：两命令退出码 0；入口单次 Zod 结构校验及代表性结构反例成立，十一行及 Candidate.sourceMessageId/Plan.basedOnPublicationId 各有 valid/坏 typed-ref，指定 conditional/seq/ordinal 及同类/组内唯一反例拒绝，T1a/T1b 的领域语义仍 PASS；后续实体仍未验证。
-
-STOP：必须读 DSH Session log、未公开 evidence 或借 legacy 校验；报告 path/source/输出，不扩张范围。
-
-失败恢复：无数据库/外部副作用；保留最后 PASS 与本步改动，不用 checkout/reset/删文件。
-
-### T1d：剩余实体、终态与全聚合门禁
-
-前置状态：T1a–T1c PASS。
-
-允许修改：`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`。
-
-禁止修改：目标类型、legacy/外部模块及 T1a–T1c 已验证的语义。
-
-执行：补第 7 节 FK 表从 `riskDispositions` 到 `continuation` 的九行，并检查 `completionDeclarations`、`completionFacts`、`tasks`、`privateMails`、`termination`、`archive`、`continuation` 的 required/optional/enum/唯一、Archive.terminationId、terminal/archiving/archived 组合。按稳定业务对象组织测试，构造每种最小连通合法扩展，对这九行第一个 typed ref 逐行做 missing target/错误种类同字符串反例（第 7 节明确为聚合外 ID 的字段只做非空/类型反例，不制造假的当前聚合 FK）；结构测试沿用 T1c 的代表类别，不逐项镜像 Zod required 字段。另覆盖 archive termination mismatch、Archive.publicSnapshotVersion 边界、terminal/archiving/archived 非法组合。最后全文件运行，核对第 7 节每行的 typed FK/唯一/领域条件，以及已固定 conditional 组合各有能识别漏检的坏例；缺项只补该行为反例并重跑本步门禁。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts
-pnpm --dir plugin exec prettier src/domain/meeting-state-v1.ts src/domain/meeting-state-v1-validation.ts tests/unit/domain/meeting-state-v1-validation.spec.ts --check
-```
-
-PASS：两命令退出码 0；第 7 节每行有合法引用与适用的坏 typed-ref/唯一/领域条件反例，Zod 结构 schema 覆盖当前目标 TS required 字段且代表类别测试通过，指定 conditional 有坏例，valid 输入同引用，无效输入首个准确 path 重复稳定；只有此时记录「T1 PASS」。
-
-STOP：任一第 7 节 typed FK/唯一/领域条件或指定 conditional 无可构造合法反例、命令失败，或必须伪造 Runtime/Archive/DSH 事实；报告缺项、path/source 和实际输出，不跳过或降级门禁。
-
-失败恢复：无数据库/外部副作用；保留最后 PASS 与本步改动，不用 checkout/reset/删文件。
-
-### T2：暂停与恢复
-
-前置状态：T1 PASS。
-
-允许修改：`plugin/src/domain/meeting-state-v1-transitions.ts`、`plugin/tests/unit/domain/meeting-state-v1-transitions.spec.ts`。
-
-禁止修改：T1 文件、legacy transition、`plugin/src/domain/index.ts` 与所有外部模块。
-
-执行：在固定 transition 文件中定义第 7 节六个类型与唯一 `transitionMeetingStateV1`；本步只实现 `pause_meeting` / `resume_meeting`。仅 local controller 可执行；pause 只从 running 到 paused，resume 只从 paused 到 running；accepted 的 `lifecycle.changedAt=now`、`changedBy=actor.id`、`reason=action.reason`，root `version+1`、`updatedAt=now`，fact relatedIds 为 `[meetingId]`，payload 为 references。对尚未实施的 action discriminant 在本步返回 `INVALID_ARGUMENT`，但 T3–T7 必须顺序补齐且最终十个 action 不得再落入该 rejection。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-transitions.spec.ts
-pnpm --dir plugin exec prettier src/domain/meeting-state-v1-transitions.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts --check
-```
-
-PASS：两命令均退出码 0；local 的 running pause/paused resume 恰改变 lifecycle 与 root version/updatedAt，产生一个 actor/time/refs 精确的 fact；identity actor=`UNAUTHORIZED`、wrong lifecycle=`INVALID_STATE`、terminal=`MEETING_TERMINAL`、无效 reason/now/factId=`INVALID_ARGUMENT`，每次 rejection 保持原 state 引用、空 facts、原版本。
-
-STOP：需要 create/start/end、Runtime 或 outbox；报告具体依赖，不扩张范围。
-
-失败恢复：无数据库/外部副作用；保留本步未验证改动与 T1 PASS，不用 checkout/reset/删文件。
-
 ### T3：激活已有 Agenda
 
 前置状态：T1–T2 PASS。
@@ -518,19 +403,19 @@ git status --short
 | --- | --- | --- | --- |
 | RUNBOOK 内部链接与 Markdown 本地链接 | `node .github/scripts/check-doc-links.mjs` | 作者交付时必须为退出码 0；只证明链接目标存在，不证明产品行为 | STOP；报告输出，不修改无关文档。 |
 | 文档改动的空白/冲突标记 | `git diff --check` | 作者交付时必须为退出码 0 | STOP；只修复本 RUNBOOK 的空白错误后重跑。 |
-| target validator 与 transitions | `pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts` | T1–T7 必须 PASS；当前尚未执行 | 失败时不得降级断言。 |
+| target validator 与 transitions | `pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts` | 剩余 T3–T7 必须 PASS；已完成步骤正文按执行约定删除 | 失败时不得降级断言。 |
 | target TypeScript/API boundary | `pnpm --dir plugin typecheck && pnpm --dir plugin lint` | T8 必须 PASS；当前尚未执行 | 不得改 eslint 或 export 边界绕过。 |
 | 此切片的完整工程验证 | `pnpm --dir plugin verify` | T8 必须 PASS；不证明 DSH runtime | 任一失败 STOP，报告首次失败及实际输出。 |
 | DSH profile、Browser、Repository/recovery、Remote、outbox、legacy compatibility | 不运行 | `Not Applicable` 于本 RUNBOOK scope：本切片不得接线这些边界 | 不得将未运行写为通过。 |
 
 ## 11. 完成定义、readiness 与删除
 
-当前状态未完成：执行前检查的正式依据已备齐，但尚无 target code 或 test。不得删除本 RUNBOOK，也不得称目标领域核心“已对齐”。
+当前状态未完成：已完成步骤正文按执行约定删除，剩余步骤仍须依序执行；不得提前删除整个 RUNBOOK，也不得称目标领域核心“已对齐”。
 
 仅当 T1–T8 已完成规定 focused tests、`typecheck`、`lint`、`verify`、文档链接检查和 `git diff --check` 后，才可把实际命令、日期、commit 边界、结果和 Not Covered 写入 readiness。长期确认的行为已先迁移到 requirements/interfaces/designs；T9 才处理临时 RUNBOOK 删除与残留引用。无精确删除授权、无本 RUNBOOK 的可恢复提交历史或任一 T 步不满足则保留本文件；删除不等于 commit，当前任务也不授权 commit/push/PR。
 
 ## 12. Author Audit
 
-逐项按 [RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md#authoring-and-audit) 审计：Scope 1→T1a–T1d、Scope 2→T2–T7、Scope 3/4→T8、删除→T9。T1a–T1c 仅是局部 focused PASS，T1d 全文件门禁 PASS 才可记为 T1 PASS；T1b 的 Message/Publication 可选引用依赖 T1c，已显式后移。第 8 节执行前检查固定为当前 `docs/runbook-meeting-state-transitions` checkout `/Volumes/storage/workspace/convivium`，不得在另一 worktree 的 `main` 执行。T9 删除后检查失败必须精确恢复 RUNBOOK 再 STOP。每步允许文件、命令、可观察 PASS/STOP、失败恢复与 Non-goals 已重新核对；CreateMeeting identityId 映射、active risk fact 跨边界证明、Repository/archive retention 仍属后续切片，不由本纯 Domain 切片猜测。
+逐项按 [RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md#authoring-and-audit) 审计：已完成步骤正文依执行约定删除；剩余 Scope 2→T3–T7、Scope 3/4→T8、最终文件删除→T9。第 8 节执行前检查固定为当前 `docs/runbook-meeting-state-transitions` checkout `/Volumes/storage/workspace/convivium`，不得在另一 worktree 的 `main` 执行。T9 删除后检查失败必须精确恢复 RUNBOOK 再 STOP。每步允许文件、命令、可观察 PASS/STOP、失败恢复与 Non-goals 已重新核对；CreateMeeting identityId 映射、active risk fact 跨边界证明、Repository/archive retention 仍属后续切片，不由本纯 Domain 切片猜测。
 
 审计结论：**Executable**，仅说明低级执行者可在第 8 节授权、checkout 与 baseline 门禁满足后按 T1–T8 实施或 STOP；T9 仍须独立删除授权及当时的 Git 历史/无增量门禁。2026-09-16 在 `docs/runbook-meeting-state-transitions` checkout 实际执行 `pnpm --dir plugin verify`：退出码 0，90 test files/961 tests PASS，且 build/environment/contract/agent-definitions/package 检查均通过（仅证明 legacy 基线，不证明目标行为）；`node .github/scripts/check-doc-links.mjs` 为 462 checked/0 errors（不查 anchors），`git diff --check` 退出码 0。目标 focused tests、目标 TypeScript、target lint/build/verify、真实 DSH 与 Browser 均未执行，不描述为通过。Execute 与 push/PR 仍须分别获授权。
