@@ -314,6 +314,37 @@ describe("T1b", () => {
     });
 
     it("rejects duplicate IDs, invalid reviewer responsibility, and multiple active items", () => {
+        invalidAt({ ...base(), agenda: [] }, "$.agenda");
+        invalidAt(
+            {
+                ...base(),
+                objective: {
+                    ...base().objective,
+                    requiredOutputs: [
+                        { ...base().objective.requiredOutputs[0], id: "output-1" },
+                        { ...base().objective.requiredOutputs[0], id: "output-1" }
+                    ]
+                }
+            },
+            "$.objective.requiredOutputs[1].id"
+        );
+        invalidAt(
+            {
+                ...base(),
+                agenda: [{ ...base().agenda[0], requiredOutputIds: ["output-1", "output-1"] }]
+            },
+            "$.agenda[0].requiredOutputIds[1]"
+        );
+        invalidAt(
+            {
+                ...base(),
+                identities: [
+                    { ...base().identities[0], roles: ["captain", "captain"] },
+                    ...base().identities.slice(1)
+                ]
+            },
+            "$.identities[0].roles[1]"
+        );
         const duplicateAgenda = {
             ...base(),
             agenda: [...base().agenda, { ...base().agenda[0], id: "agenda-1", status: "pending" }]
@@ -331,6 +362,28 @@ describe("T1b", () => {
             )
         };
         invalidAt(noRole, "$.identities[2].reviewResponsibilityIds[0]");
+        invalidAt(
+            {
+                ...base(),
+                identities: base().identities.map((identity) =>
+                    identity.id === "manager-1"
+                        ? { ...identity, definitionId: "definition-1" }
+                        : identity
+                )
+            },
+            "$.identities[1].definitionVersion"
+        );
+        invalidAt(
+            {
+                ...base(),
+                identities: base().identities.map((identity) =>
+                    identity.id === "manager-1"
+                        ? { ...identity, definitionId: "definition-1", definitionVersion: "" }
+                        : identity
+                )
+            },
+            "$.identities[1].definitionVersion"
+        );
         const oneWay = {
             ...base(),
             identities: base().identities.map((identity) =>
@@ -403,6 +456,66 @@ describe("T1b", () => {
         invalidAt(
             { ...base(), issues: [{ ...common, affectedOutputIds: ["output-1", "output-1"] }] },
             "$.issues[0].affectedOutputIds[1]"
+        );
+        invalidAt(
+            {
+                ...base(),
+                questions: [
+                    {
+                        id: "question-1",
+                        actorId: "manager-1",
+                        agendaId: "agenda-1",
+                        text: "x",
+                        affectedOutputIds: [],
+                        affectedCriterionIds: [],
+                        affectedConstraintIds: [],
+                        blocking: true,
+                        status: "open"
+                    }
+                ]
+            },
+            "$.questions[0].blocking"
+        );
+        invalidAt(
+            {
+                ...base(),
+                questions: [
+                    {
+                        id: "question-1",
+                        actorId: "manager-1",
+                        agendaId: "agenda-1",
+                        text: "x",
+                        affectedOutputIds: ["output-1"],
+                        affectedCriterionIds: [],
+                        affectedConstraintIds: [],
+                        blocking: true,
+                        status: "answered"
+                    }
+                ]
+            },
+            "$.questions[0].blocking"
+        );
+        invalidAt({ ...base(), issues: [{ ...common, blocking: true }] }, "$.issues[0].blocking");
+        invalidAt(
+            {
+                ...base(),
+                issues: [
+                    {
+                        ...common,
+                        affectedOutputIds: ["output-1"],
+                        status: "resolved",
+                        blocking: true
+                    }
+                ]
+            },
+            "$.issues[0].blocking"
+        );
+        invalidAt(
+            {
+                ...base(),
+                issues: [{ ...common, riskLevel: "high", status: "deferred", blocking: false }]
+            },
+            "$.issues[0].blocking"
         );
     });
 });

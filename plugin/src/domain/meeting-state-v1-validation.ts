@@ -76,6 +76,13 @@ function duplicate(value: readonly unknown[], path: string): string | undefined 
 function ref(value: unknown, values: ReadonlySet<string>): boolean {
     return id(value) && values.has(value);
 }
+function questionTargetsHasUnsatisfied(
+    targets: ReadonlySet<string>,
+    unsatisfied: ReadonlySet<string>
+): boolean {
+    for (const target of targets) if (unsatisfied.has(target)) return true;
+    return false;
+}
 function required(value: RecordValue, key: string, path: string): string | undefined {
     return own(value, key) && value[key] !== null && value[key] !== undefined ? undefined : path;
 }
@@ -132,6 +139,12 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             const p = checkObjective(objective[key][i], `$.objective.${key}[${i}]`);
             if (p) return fail(p);
         }
+        const objectiveIds = new Set<string>();
+        for (let i = 0; i < objective[key].length; i++) {
+            const target = objective[key][i] as RecordValue;
+            if (objectiveIds.has(target.id as string)) return fail(`$.objective.${key}[${i}].id`);
+            objectiveIds.add(target.id as string);
+        }
     }
     const lifecycle = value.lifecycle;
     if (!record(lifecycle)) return fail("$.lifecycle");
@@ -167,6 +180,8 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         identityIds.add(item.id);
         if (!text(item.displayName)) return fail(`${path}.displayName`);
         if (!array(item.roles)) return fail(`${path}.roles`);
+        const roleDuplicate = duplicate(item.roles, `${path}.roles`);
+        if (roleDuplicate) return fail(roleDuplicate);
         for (let j = 0; j < item.roles.length; j++)
             if (!oneOf(item.roles[j], roles)) return fail(`${path}.roles[${j}]`);
         const ap = ids(item.agendaResponsibilityIds, `${path}.agendaResponsibilityIds`);
@@ -185,6 +200,12 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
                 (v) => typeof v === "string"
             )
         )
+            return fail(`${path}.definitionVersion`);
+        const hasDefinitionId = own(item, "definitionId");
+        const hasDefinitionVersion = own(item, "definitionVersion");
+        if (hasDefinitionId !== hasDefinitionVersion)
+            return fail(`${path}.${hasDefinitionId ? "definitionVersion" : "definitionId"}`);
+        if (hasDefinitionVersion && !text(item.definitionVersion))
             return fail(`${path}.definitionVersion`);
     }
     if (!array(value.agenda)) return fail("$.agenda");
@@ -233,12 +254,19 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
                 return fail(`${path}.requiredReviewerIds[${j}]`);
         const reviewerDup = duplicate(requiredReviewerIds, `${path}.requiredReviewerIds`);
         if (reviewerDup) return fail(reviewerDup);
+        const outputDup = duplicate(requiredOutputIds, `${path}.requiredOutputIds`);
+        if (outputDup) return fail(outputDup);
         if (optional(item, "ownerId", `${path}.ownerId`, id)) return fail(`${path}.ownerId`);
     }
     const activeAgendaIndexes = value.agenda.flatMap((item, index) =>
         record(item) && item.status === "active" ? [index] : []
     );
     if (activeAgendaIndexes.length > 1) return fail(`$.agenda[${activeAgendaIndexes[1]}].status`);
+    if (
+        !(["terminal", "archiving", "archived"] as readonly string[]).includes(lifecycle.status) &&
+        activeAgendaIndexes.length !== 1
+    )
+        return fail("$.agenda");
     for (let i = 0; i < value.identities.length; i++) {
         const item = value.identities[i] as RecordValue;
         for (const key of ["agendaResponsibilityIds", "reviewResponsibilityIds"] as const) {
@@ -263,6 +291,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             ) as RecordValue | undefined;
             if (
                 !identity ||
+                !(identity.roles as readonly unknown[]).includes("evidence_reviewer") ||
                 !(identity.reviewResponsibilityIds as readonly unknown[]).includes(
                     item.id as string
                 )
@@ -356,6 +385,24 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (typeof item.blocking !== "boolean") return fail(`${path}.blocking`);
         if (!oneOf(item.status, ["open", "answered", "withdrawn", "deferred"] as const))
             return fail(`${path}.status`);
+        const questionTargets = new Set([
+            ...(item.affectedOutputIds as readonly string[]),
+            ...(item.affectedCriterionIds as readonly string[]),
+            ...(item.affectedConstraintIds as readonly string[])
+        ]);
+        const unsatisfiedTargets = new Set<string>(
+            [
+                ...(objective.requiredOutputs as readonly RecordValue[]),
+                ...(objective.acceptanceCriteria as readonly RecordValue[]),
+                ...(objective.hardConstraints as readonly RecordValue[])
+            ]
+                .filter((target) => target.status !== "satisfied")
+                .map((target) => target.id as string)
+        );
+        if (item.blocking && !questionTargetsHasUnsatisfied(questionTargets, unsatisfiedTargets))
+            return fail(`${path}.blocking`);
+        if (["answered", "withdrawn"].includes(item.status) && item.blocking)
+            return fail(`${path}.blocking`);
     }
     if (!record(value.limits)) return fail("$.limits");
     for (const key of [
@@ -446,11 +493,44 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             return fail(`${path}.blocking`);
         if (
             item.riskLevel === "high" &&
-            item.status === "open" &&
+            (item.status === "open" || item.status === "deferred") &&
             item.classification !== "accepted_risk" &&
             item.blocking !== true
         )
             return fail(`${path}.blocking`);
+        if (["resolved", "out_of_scope"].includes(item.status) && item.blocking)
+            return fail(`${path}.blocking`);
+        if (item.blocking && item.riskLevel !== "high") {
+            const issueTargets = new Set([
+                ...(item.affectedOutputIds as readonly string[]),
+                ...(item.affectedCriterionIds as readonly string[]),
+                ...(item.affectedConstraintIds as readonly string[]),
+                ...(item.requiredReviewerIds as readonly string[])
+            ]);
+            const agendaReviewers = new Set(
+                (
+                    value.agenda.find(
+                        (agenda) => record(agenda) && agenda.id === item.agendaId
+                    ) as RecordValue
+                ).requiredReviewerIds as readonly string[]
+            );
+            if (
+                !questionTargetsHasUnsatisfied(
+                    issueTargets,
+                    new Set<string>([
+                        ...[
+                            ...(objective.requiredOutputs as readonly RecordValue[]),
+                            ...(objective.acceptanceCriteria as readonly RecordValue[]),
+                            ...(objective.hardConstraints as readonly RecordValue[])
+                        ]
+                            .filter((target) => target.status !== "satisfied")
+                            .map((target) => target.id as string),
+                        ...agendaReviewers
+                    ])
+                )
+            )
+                return fail(`${path}.blocking`);
+        }
     }
     const plans = value.managerPlans as readonly unknown[];
     const planIds = new Set<string>();
