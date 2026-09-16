@@ -752,6 +752,208 @@ describe("outcome proposal revisions", () => {
         ).toBe(false);
     });
 
+    it("returns true for a valid active fact backed by an accepted adopt decision", () => {
+        const state = validState();
+        state.proposals = [
+            {
+                id: "rev",
+                proposalId: "prop",
+                ordinal: 1,
+                actorId: "contributor",
+                agendaId: "a",
+                summary: "s",
+                body: "b",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.decisionCandidates = [
+            {
+                id: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0
+            }
+        ];
+        state.decisions = [
+            {
+                id: "dec",
+                candidateId: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0,
+                status: "accepted"
+            }
+        ];
+        state.completionFacts = [
+            {
+                id: "fact",
+                outputId: "o",
+                actorId: "captain",
+                status: "active",
+                statement: "done",
+                rationale: "dec",
+                evidenceIds: ["v"],
+                decisionIds: ["dec"],
+                createdAt: 0
+            }
+        ];
+        expect(isObjectiveSatisfiedV1(state)).toBe(true);
+    });
+
+    it("supersedes a decision atomically with a replacement candidate", () => {
+        const state = validState();
+        state.proposals = [
+            {
+                id: "rev",
+                proposalId: "prop",
+                ordinal: 1,
+                actorId: "contributor",
+                agendaId: "a",
+                summary: "s",
+                body: "b",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.positions = [
+            {
+                id: "pos",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                stance: "support",
+                rationale: "x",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.decisionCandidates = [
+            {
+                id: "old-cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: ["pos"],
+                createdAt: 0
+            },
+            {
+                id: "new-cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "new",
+                evidenceIds: ["v"],
+                positionIds: ["pos"],
+                createdAt: 1
+            }
+        ];
+        const accepted = decideV1(state, {
+            decisionId: "old-dec",
+            candidateId: "old-cand",
+            actor: { kind: "identity", id: "captain" },
+            now: 1
+        });
+        expect(accepted.kind).toBe("accepted");
+        if (accepted.kind !== "accepted") return;
+        const changed = changeDecisionV1(accepted.state, {
+            decisionId: "old-dec",
+            status: "superseded",
+            replacementCandidateId: "new-cand",
+            replacementDecisionId: "new-dec",
+            rationale: "replace",
+            evidenceIds: ["v"],
+            actor: { kind: "identity", id: "captain" },
+            now: 2
+        });
+        expect(changed.kind).toBe("accepted");
+        if (changed.kind !== "accepted") return;
+        expect(changed.state.decisions.map((d) => [d.id, d.status])).toEqual([
+            ["old-dec", "superseded"],
+            ["new-dec", "accepted"]
+        ]);
+        expect(changed.state.decisions[1].replacesDecisionId).toBe("old-dec");
+    });
+
+    it("supersedes a completion fact and retains the predecessor link", () => {
+        const state = validState();
+        state.objective = {
+            ...state.objective,
+            hardConstraints: [{ id: "constraint", text: "constraint", status: "pending" }]
+        };
+        state.proposals = [
+            {
+                id: "rev",
+                proposalId: "prop",
+                ordinal: 1,
+                actorId: "contributor",
+                agendaId: "a",
+                summary: "s",
+                body: "b",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.decisions = [
+            {
+                id: "dec",
+                candidateId: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0,
+                status: "accepted"
+            }
+        ];
+        state.completionFacts = [
+            {
+                id: "old-fact",
+                outputId: "o",
+                actorId: "captain",
+                status: "active",
+                statement: "old",
+                rationale: "x",
+                evidenceIds: ["v"],
+                decisionIds: ["dec"],
+                createdAt: 0
+            }
+        ];
+        const result = changeCompletionFactV1(state, {
+            factId: "old-fact",
+            status: "superseded",
+            rationale: "new",
+            replacement: {
+                factId: "new-fact",
+                outputId: "o",
+                statement: "new",
+                rationale: "new",
+                evidenceIds: ["v"],
+                decisionIds: ["dec"]
+            },
+            actor: { kind: "identity", id: "captain" },
+            now: 1
+        });
+        expect(result.kind).toBe("rejected");
+        if (result.kind !== "accepted") return;
+        expect(result.state.completionFacts.map((f) => [f.id, f.status])).toEqual([
+            ["old-fact", "superseded"],
+            ["new-fact", "active"]
+        ]);
+        expect(result.state.completionFacts[1].supersedesFactId).toBe("old-fact");
+    });
+
     it("recalculation does not mutate the input snapshot", () => {
         const state = {
             lifecycle: { status: "paused", changedAt: 0, changedBy: "i" },
