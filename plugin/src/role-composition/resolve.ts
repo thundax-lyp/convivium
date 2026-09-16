@@ -33,6 +33,34 @@ export class RoleCompositionError extends Error {
     }
 }
 
+export type DynamicDefinitionResolutionV1 =
+    | { kind: "resolved"; definition: MeetingAgentDefinitionV1; binding: AgentDefinitionBindingV1 }
+    | {
+          kind: "rejected";
+          code: "DEFINITION_NOT_FOUND" | "DEFINITION_VERSION_MISMATCH" | "ROLE_NOT_ALLOWED";
+      };
+
+export function resolveDynamicMeetingDefinitionV1(
+    definitions: readonly MeetingAgentDefinitionV1[],
+    definitionRef: { id: string; version: string },
+    expectedHash: string
+): DynamicDefinitionResolutionV1 {
+    const definition = definitions.find((item) => item.agentDefinitionId === definitionRef.id);
+    if (!definition) return { kind: "rejected", code: "DEFINITION_NOT_FOUND" };
+    if (definition.definitionVersion !== definitionRef.version)
+        return { kind: "rejected", code: "DEFINITION_VERSION_MISMATCH" };
+    if (definition.roleDefinitionId === "meeting_manager")
+        return { kind: "rejected", code: "ROLE_NOT_ALLOWED" };
+    const binding = {
+        agentDefinitionId: definition.agentDefinitionId,
+        definitionVersion: definition.definitionVersion,
+        definitionHash: definitionHash(definition)
+    };
+    if (binding.definitionHash !== expectedHash)
+        return { kind: "rejected", code: "DEFINITION_VERSION_MISMATCH" };
+    return { kind: "resolved", definition, binding };
+}
+
 function definitionHash(d: MeetingAgentDefinitionV1): string {
     return createHash("sha256")
         .update(
