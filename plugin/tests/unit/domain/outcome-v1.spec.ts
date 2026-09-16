@@ -779,6 +779,18 @@ describe("outcome proposal revisions", () => {
                 createdAt: 0
             }
         ];
+        state.decisionCandidates = [
+            {
+                id: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0
+            }
+        ];
         state.decisions = [
             {
                 id: "dec",
@@ -903,6 +915,18 @@ describe("outcome proposal revisions", () => {
                 createdAt: 0
             }
         ];
+        state.decisionCandidates = [
+            {
+                id: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0
+            }
+        ];
         state.decisions = [
             {
                 id: "dec",
@@ -945,13 +969,16 @@ describe("outcome proposal revisions", () => {
             actor: { kind: "identity", id: "captain" },
             now: 1
         });
-        expect(result.kind).toBe("rejected");
+        if (result.kind === "rejected") throw new Error(JSON.stringify(result.error));
+        expect(result.kind).toBe("accepted");
         if (result.kind !== "accepted") return;
         expect(result.state.completionFacts.map((f) => [f.id, f.status])).toEqual([
             ["old-fact", "superseded"],
             ["new-fact", "active"]
         ]);
         expect(result.state.completionFacts[1].supersedesFactId).toBe("old-fact");
+        expect(result.state.objective.requiredOutputs[0].status).toBe("satisfied");
+        expect(state.completionFacts[0].status).toBe("active");
     });
 
     it("recalculation does not mutate the input snapshot", () => {
