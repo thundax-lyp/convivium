@@ -547,7 +547,7 @@ const privateMailSchema = withDefinedOptionals(
         recipientId: opaqueIdSchema,
         agendaId: opaqueIdSchema.optional(),
         body: textSchema,
-        relatedIds: uniqueIdArraySchema,
+        relatedIds: uniqueIdArraySchema.min(1),
         sendContextPublicationUpperBound: uniqueIdArraySchema,
         processingContextPublicationUpperBound: uniqueIdArraySchema.optional(),
         status: z.enum(["queued", "processing", "completed", "timed_out", "cancelled"]),
@@ -1427,6 +1427,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const path = `$.privateMails[${i}]`;
         if (!ref(item.senderId, identityIds) || !ref(item.recipientId, identityIds))
             return fail(`${path}.${!ref(item.senderId, identityIds) ? "senderId" : "recipientId"}`);
+        if (item.senderId === item.recipientId) return fail(`${path}.recipientId`);
         if (item.agendaId !== undefined && !ref(item.agendaId, agendaIds))
             return fail(`${path}.agendaId`);
         for (const key of [
@@ -1438,6 +1439,120 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
                 if (p) return fail(p);
             }
         }
+        const publicRefs = new Set([
+            ...publications.map((p) => p.id),
+            ...parsedState.messages.map((m) => m.id)
+        ]);
+        const related = checkRefs(item.relatedIds, publicRefs, `${path}.relatedIds`);
+        if (related) return fail(related);
+        const send = item.sendContextPublicationUpperBound;
+        for (let j = 0; j < send.length; j++)
+            if (send[j] !== publications[j]?.id)
+                return fail(`${path}.sendContextPublicationUpperBound[${j}]`);
+        if (
+            item.deadlineAt !== item.createdAt + parsedState.limits.taskDeadlineMs ||
+            !Number.isSafeInteger(item.createdAt + parsedState.limits.taskDeadlineMs)
+        )
+            return fail(`${path}.deadlineAt`);
+        if (
+            item.status === "queued" &&
+            (item.processingContextPublicationUpperBound !== undefined ||
+                item.processingStartedAt !== undefined ||
+                item.completedAt !== undefined ||
+                item.failureReason !== undefined)
+        )
+            return fail(
+                `${path}.${item.processingContextPublicationUpperBound !== undefined ? "processingContextPublicationUpperBound" : item.processingStartedAt !== undefined ? "processingStartedAt" : item.completedAt !== undefined ? "completedAt" : "failureReason"}`
+            );
+        if (
+            item.status === "processing" &&
+            (item.processingContextPublicationUpperBound === undefined ||
+                item.processingStartedAt === undefined)
+        )
+            return fail(
+                `${path}.${item.processingContextPublicationUpperBound === undefined ? "processingContextPublicationUpperBound" : "processingStartedAt"}`
+            );
+        if (
+            item.status === "processing" &&
+            (item.completedAt !== undefined || item.failureReason !== undefined)
+        )
+            return fail(
+                `${path}.${item.completedAt !== undefined ? "completedAt" : "failureReason"}`
+            );
+        if (
+            item.status === "completed" &&
+            (item.processingContextPublicationUpperBound === undefined ||
+                item.processingStartedAt === undefined ||
+                item.completedAt === undefined)
+        )
+            return fail(
+                `${path}.${item.processingContextPublicationUpperBound === undefined ? "processingContextPublicationUpperBound" : item.processingStartedAt === undefined ? "processingStartedAt" : "completedAt"}`
+            );
+        if (item.status === "completed" && item.failureReason !== undefined)
+            return fail(`${path}.failureReason`);
+        if (
+            (item.status === "timed_out" || item.status === "cancelled") &&
+            (item.completedAt === undefined || item.failureReason === undefined)
+        )
+            return fail(
+                `${path}.${item.completedAt === undefined ? "completedAt" : "failureReason"}`
+            );
+        if (
+            (item.status === "timed_out" || item.status === "cancelled") &&
+            (item.processingContextPublicationUpperBound !== undefined) !==
+                (item.processingStartedAt !== undefined)
+        )
+            return fail(
+                `${path}.${item.processingContextPublicationUpperBound === undefined ? "processingContextPublicationUpperBound" : "processingStartedAt"}`
+            );
+        if (
+            item.processingStartedAt !== undefined &&
+            (item.processingStartedAt < item.createdAt ||
+                item.processingStartedAt >= item.deadlineAt)
+        )
+            return fail(`${path}.processingStartedAt`);
+        if (
+            item.completedAt !== undefined &&
+            (item.completedAt < item.createdAt ||
+                (item.processingStartedAt !== undefined &&
+                    item.completedAt < item.processingStartedAt) ||
+                (item.status === "completed" && item.completedAt >= item.deadlineAt) ||
+                (item.status === "timed_out" && item.completedAt < item.deadlineAt))
+        )
+            return fail(`${path}.completedAt`);
+        if (item.processingContextPublicationUpperBound !== undefined) {
+            for (let j = 0; j < item.sendContextPublicationUpperBound.length; j++)
+                if (
+                    item.processingContextPublicationUpperBound[j] !==
+                    item.sendContextPublicationUpperBound[j]
+                )
+                    return fail(`${path}.processingContextPublicationUpperBound[${j}]`);
+            for (let j = 0; j < item.processingContextPublicationUpperBound.length; j++)
+                if (item.processingContextPublicationUpperBound[j] !== publications[j]?.id)
+                    return fail(`${path}.processingContextPublicationUpperBound[${j}]`);
+        }
+        if (
+            mails.some(
+                (other, j) =>
+                    item.status === "processing" &&
+                    j < i &&
+                    other.recipientId === item.recipientId &&
+                    other.status === "processing"
+            ) ||
+            (item.status === "processing" &&
+                parsedState.contributions.some(
+                    (c) =>
+                        c.contributorId === item.recipientId &&
+                        ![
+                            "withdrawn",
+                            "submission_missing",
+                            "timed_out",
+                            "supplement_rejected",
+                            "closed"
+                        ].includes(c.status)
+                ))
+        )
+            return fail(`${path}.recipientId`);
     }
     if (own(value, "termination")) {
         const termination = parsedState.termination!;

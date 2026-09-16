@@ -148,6 +148,12 @@ export function disposeHandRaiseV1(
             return reject(state, "INVALID_ARGUMENT", "accepted hand requires contribution id");
         if (state.contributions.some((candidate) => candidate.id === input.contributionId))
             return reject(state, "INVALID_ARGUMENT", "contribution id already exists");
+        if (
+            state.privateMails.some(
+                (mail) => mail.recipientId === input.contributorId && mail.status === "processing"
+            )
+        )
+            return reject(state, "PRECONDITION_FAILED", "contributor is processing private mail");
         const contribution: ContributionV1 = {
             id: input.contributionId,
             roundId: round.id,
