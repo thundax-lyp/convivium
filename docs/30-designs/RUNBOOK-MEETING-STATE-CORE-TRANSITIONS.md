@@ -267,16 +267,16 @@ STOP：必须放宽 reviewer 双向引用或据自由文本决定 blocking；报
 
 禁止修改：目标类型、legacy/外部模块、T1b 已验证的 identity/Agenda/Issue 语义。
 
-执行：补第 7 节 FK 表从 `rounds` 到 `decisions` 的十一行，并在 Message/Publication 合法扩展完成后补 `agendaCandidates.sourceMessageId?`、`managerPlans.basedOnPublicationId?` 的合法引用及 missing target/错误种类同字符串反例，覆盖 Contribution、EvidenceVersion 嵌套结构、registration/review/delivery、Publication/FormalMessage、Proposal/Position/Candidate/Decision 的 required/optional/enum、同类唯一、seq/ordinal、round/package/version/baseline 与 published-evidence 关联。`describe("T1c")` 按 fixture 次序先验证每种非空合法扩展，再对这十一行第一个 typed ref 逐行做 missing target 和错误种类同字符串反例；逐项移除/null 每种扩展的 required 属性；对 published Round、Registration、ReviewDelivery、EvidenceMaterial、ProposalRevision 的第 7 节 conditional 组合及 seq/ordinal 另做坏例。
+执行：补第 7 节 FK 表从 `rounds` 到 `decisions` 的十一行，并在 Message/Publication 合法扩展完成后补 `agendaCandidates.sourceMessageId?`、`managerPlans.basedOnPublicationId?` 的合法引用及 missing target/错误种类同字符串反例，覆盖 Contribution、EvidenceVersion 嵌套结构、registration/review/delivery、Publication/FormalMessage、Proposal/Position/Candidate/Decision 的 required/optional/enum、同类唯一、seq/ordinal、round/package/version/baseline 与 published-evidence 关联。T1c 将 T1a–T1c 已覆盖实体的结构 schema 组合为单个 Zod state schema（T1d 实体数组暂用 `z.array(z.unknown())` 占位），在 validator 入口只调用一次 `safeParse()`；移除已由该 schema 覆盖的重复字段类型、enum、数组与子对象结构扫描，领域扫描只保留 FK、同类/组内唯一、互逆、条件组合，以及 Zod `optional()` 无法区分的对象自身 `undefined`。测试按 Test Rules 使用稳定业务名称，不保留临时 T1a/T1b/T1c `describe`；先验证最小连通合法扩展和完整合法状态，再对十一行首个 typed ref 逐行做 missing target 和错误种类同字符串反例，另覆盖 published Round、Registration、ReviewDelivery、EvidenceMaterial、ProposalRevision 条件组合及 seq/ordinal。结构测试仅保留能识别 schema 接线缺陷的代表例：根字段、嵌套字段、数组元素、可选字段自身 `undefined`/`null`、enum/数值边界；不逐项复制 Zod schema 的 required 字段缺席/null 矩阵。
 
 验证：
 
 ```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts -t 'T1a|T1b|T1c'
+pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts
 pnpm --dir plugin exec prettier src/domain/meeting-state-v1-validation.ts tests/unit/domain/meeting-state-v1-validation.spec.ts --check
 ```
 
-PASS：两命令退出码 0；十一行及 Candidate.sourceMessageId/Plan.basedOnPublicationId 各有 valid/坏 typed-ref，每个本步实体 required 字段与指定 conditional/seq/ordinal 坏例拒绝，T1a/T1b 仍 PASS；后续实体仍未验证。
+PASS：两命令退出码 0；入口单次 Zod 结构校验及代表性结构反例成立，十一行及 Candidate.sourceMessageId/Plan.basedOnPublicationId 各有 valid/坏 typed-ref，指定 conditional/seq/ordinal 及同类/组内唯一反例拒绝，T1a/T1b 的领域语义仍 PASS；后续实体仍未验证。
 
 STOP：必须读 DSH Session log、未公开 evidence 或借 legacy 校验；报告 path/source/输出，不扩张范围。
 
@@ -290,7 +290,7 @@ STOP：必须读 DSH Session log、未公开 evidence 或借 legacy 校验；报
 
 禁止修改：目标类型、legacy/外部模块及 T1a–T1c 已验证的语义。
 
-执行：补第 7 节 FK 表从 `riskDispositions` 到 `continuation` 的九行，并检查 `completionDeclarations`、`completionFacts`、`tasks`、`privateMails`、`termination`、`archive`、`continuation` 的 required/optional/enum/唯一、Archive.terminationId、terminal/archiving/archived 组合。`describe("T1d")` 按 fixture 次序构造每种合法扩展，对这九行第一个 typed ref 逐行做 missing target/错误种类同字符串反例（第 7 节明确为聚合外 ID 的字段只做非空/类型反例，不制造假的当前聚合 FK），逐项移除/null 本步每种实体的 required 字段，另覆盖 archive termination mismatch、Archive.publicSnapshotVersion 边界、terminal/archiving/archived 非法组合。最后全文件运行，核对第 7 节 FK 表每行、所有当前目标 TS interface required 字段及所有已固定 conditional 组合在 T1a–T1d 中都有明确坏例；若缺一个，只能补对应 `describe` 并重跑本步门禁。
+执行：补第 7 节 FK 表从 `riskDispositions` 到 `continuation` 的九行，并检查 `completionDeclarations`、`completionFacts`、`tasks`、`privateMails`、`termination`、`archive`、`continuation` 的 required/optional/enum/唯一、Archive.terminationId、terminal/archiving/archived 组合。按稳定业务对象组织测试，构造每种最小连通合法扩展，对这九行第一个 typed ref 逐行做 missing target/错误种类同字符串反例（第 7 节明确为聚合外 ID 的字段只做非空/类型反例，不制造假的当前聚合 FK）；结构测试沿用 T1c 的代表类别，不逐项镜像 Zod required 字段。另覆盖 archive termination mismatch、Archive.publicSnapshotVersion 边界、terminal/archiving/archived 非法组合。最后全文件运行，核对第 7 节每行的 typed FK/唯一/领域条件，以及已固定 conditional 组合各有能识别漏检的坏例；缺项只补该行为反例并重跑本步门禁。
 
 验证：
 
@@ -299,9 +299,9 @@ pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.
 pnpm --dir plugin exec prettier src/domain/meeting-state-v1.ts src/domain/meeting-state-v1-validation.ts tests/unit/domain/meeting-state-v1-validation.spec.ts --check
 ```
 
-PASS：两命令退出码 0；第 7 节每行有合法引用与适用的坏 typed-ref，每个 required/conditional 有坏例，valid 输入同引用，无效输入首个准确 path 重复稳定；只有此时记录「T1 PASS」。
+PASS：两命令退出码 0；第 7 节每行有合法引用与适用的坏 typed-ref/唯一/领域条件反例，Zod 结构 schema 覆盖当前目标 TS required 字段且代表类别测试通过，指定 conditional 有坏例，valid 输入同引用，无效输入首个准确 path 重复稳定；只有此时记录「T1 PASS」。
 
-STOP：任一第 7 节行/required/conditional 无可构造合法反例、命令失败，或必须伪造 Runtime/Archive/DSH 事实；报告缺项、path/source 和实际输出，不跳过或降级门禁。
+STOP：任一第 7 节 typed FK/唯一/领域条件或指定 conditional 无可构造合法反例、命令失败，或必须伪造 Runtime/Archive/DSH 事实；报告缺项、path/source 和实际输出，不跳过或降级门禁。
 
 失败恢复：无数据库/外部副作用；保留最后 PASS 与本步改动，不用 checkout/reset/删文件。
 
