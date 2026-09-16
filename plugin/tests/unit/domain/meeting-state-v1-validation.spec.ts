@@ -240,3 +240,169 @@ describe("T1a", () => {
         invalidAt({ ...terminal, termination: { ...termination, id: null } }, "$.termination.id");
     });
 });
+
+describe("T1b", () => {
+    it("validates candidate, question, issue, and manager plan references", () => {
+        const issue = {
+            id: "issue-1",
+            agendaId: "agenda-1",
+            description: "x",
+            riskLevel: "low",
+            classification: "follow_up",
+            affectedOutputIds: ["output-1"],
+            affectedCriterionIds: [],
+            affectedConstraintIds: [],
+            requiredReviewerIds: ["reviewer-1"],
+            blocking: false,
+            status: "open",
+            rationale: "x"
+        } as const;
+        const question = {
+            id: "question-1",
+            actorId: "manager-1",
+            agendaId: "agenda-1",
+            text: "x",
+            affectedOutputIds: ["output-1"],
+            affectedCriterionIds: [],
+            affectedConstraintIds: [],
+            blocking: true,
+            status: "open"
+        } as const;
+        const candidate = {
+            id: "candidate-1",
+            title: "x",
+            reason: "x",
+            status: "pending"
+        } as const;
+        const plan = {
+            id: "plan-1",
+            agendaId: "agenda-1",
+            managerId: "manager-1",
+            kind: "open_round",
+            rationale: "x",
+            createdAt: 0,
+            status: "active"
+        } as const;
+        const state = {
+            ...base(),
+            issues: [issue],
+            questions: [question],
+            agendaCandidates: [candidate],
+            managerPlans: [plan]
+        };
+        expect(validateMeetingStateV1(state)).toMatchObject({ kind: "valid" });
+        invalidAt(
+            { ...state, questions: [{ ...question, agendaId: "output-1" }] },
+            "$.questions[0].agendaId"
+        );
+        invalidAt(
+            { ...state, questions: [{ ...question, actorId: "agenda-1" }] },
+            "$.questions[0].actorId"
+        );
+        invalidAt(
+            { ...state, issues: [{ ...issue, affectedOutputIds: ["criterion-1"] }] },
+            "$.issues[0].affectedOutputIds[0]"
+        );
+        invalidAt(
+            { ...state, issues: [{ ...issue, requiredReviewerIds: ["output-1"] }] },
+            "$.issues[0].requiredReviewerIds[0]"
+        );
+        invalidAt(
+            { ...state, managerPlans: [{ ...plan, managerId: "captain-1" }] },
+            "$.managerPlans[0].managerId"
+        );
+    });
+
+    it("rejects duplicate IDs, invalid reviewer responsibility, and multiple active items", () => {
+        const duplicateAgenda = {
+            ...base(),
+            agenda: [...base().agenda, { ...base().agenda[0], id: "agenda-1", status: "pending" }]
+        };
+        invalidAt(duplicateAgenda, "$.agenda[1].id");
+        const duplicateIdentity = {
+            ...base(),
+            identities: [...base().identities, { ...base().identities[0], id: "captain-1" }]
+        };
+        invalidAt(duplicateIdentity, "$.identities[3].id");
+        const noRole = {
+            ...base(),
+            identities: base().identities.map((identity) =>
+                identity.id === "reviewer-1" ? { ...identity, roles: [] } : identity
+            )
+        };
+        invalidAt(noRole, "$.identities[2].reviewResponsibilityIds[0]");
+        const oneWay = {
+            ...base(),
+            identities: base().identities.map((identity) =>
+                identity.id === "reviewer-1"
+                    ? { ...identity, reviewResponsibilityIds: [] }
+                    : identity
+            )
+        };
+        invalidAt(oneWay, "$.agenda[0].requiredReviewerIds[0]");
+        invalidAt(
+            {
+                ...base(),
+                agenda: [
+                    ...base().agenda,
+                    {
+                        id: "agenda-2",
+                        title: "x",
+                        question: "x",
+                        status: "active",
+                        requiredOutputIds: [],
+                        requiredReviewerIds: []
+                    }
+                ]
+            },
+            "$.agenda[1].status"
+        );
+        const plan = {
+            id: "plan-1",
+            agendaId: "agenda-1",
+            managerId: "manager-1",
+            kind: "open_round",
+            rationale: "x",
+            createdAt: 0,
+            status: "active"
+        } as const;
+        invalidAt(
+            { ...base(), managerPlans: [plan, { ...plan, id: "plan-2" }] },
+            "$.managerPlans[1].agendaId"
+        );
+    });
+
+    it("enforces issue blocking and accepted risk combinations", () => {
+        const common = {
+            id: "issue-1",
+            agendaId: "agenda-1",
+            description: "x",
+            riskLevel: "low",
+            classification: "follow_up",
+            affectedOutputIds: [],
+            affectedCriterionIds: [],
+            affectedConstraintIds: [],
+            requiredReviewerIds: [],
+            blocking: false,
+            status: "open",
+            rationale: "x"
+        } as const;
+        invalidAt({ ...base(), issues: [{ ...common, blocking: true }] }, "$.issues[0].blocking");
+        invalidAt(
+            { ...base(), issues: [{ ...common, riskLevel: "high", blocking: false }] },
+            "$.issues[0].blocking"
+        );
+        invalidAt(
+            { ...base(), issues: [{ ...common, classification: "accepted_risk" }] },
+            "$.issues[0].classification"
+        );
+        invalidAt(
+            { ...base(), issues: [{ ...common, classification: "blocking", blocking: false }] },
+            "$.issues[0].blocking"
+        );
+        invalidAt(
+            { ...base(), issues: [{ ...common, affectedOutputIds: ["output-1", "output-1"] }] },
+            "$.issues[0].affectedOutputIds[1]"
+        );
+    });
+});
