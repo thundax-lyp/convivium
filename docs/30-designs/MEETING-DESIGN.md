@@ -95,6 +95,18 @@ Decision candidate 和 Captain/local 私有投影由 projection 根据 actor 过
 
 `create_task`、`claim_task`、`complete_task`、`cancel_task` 只改变 `MeetingTask`。任务必须绑定 Meeting、发起/执行身份、上下文范围和 deadline；任务完成绝不直接完成 Agenda、Round 或 Meeting。`send_private_mail` 在 commit 中固定双方可见的公开上下文上界，投递前由 effect dispatcher 加上该上界之后新增的公开内容；私信、Agent tool 过程和隐藏推理不回写 FormalMessage。
 
+PrivateMail 的五个 Domain transition 固定如下；application 只注入已认证 actor、ID 与 `Clock.now()`，不得重算 Domain 字段：
+
+| 转换 | 允许 actor 与 lifecycle | 前提 | 成功结果 |
+| --- | --- | --- | --- |
+| `send_private_mail` | `running` 中任一 Meeting identity | recipient 是不同 identity；agenda 可选且存在；`relatedIds` 只含已公开 Publication/Message | append `queued` mail；发送范围为全部当前 Publication；deadline 为 `now+taskDeadlineMs`；产生唯一最小 `session_mail` effect request |
+| `start_private_mail` | `running` 中可信 dispatcher | queued、`createdAt <= now < deadlineAt`；recipient 无非终态 Contribution，且不是另一 processing mail 的 recipient | 固定全部当前 Publication 为处理范围，写 processing/start time |
+| `complete_private_mail` | `running|paused|converging|ending` 中目标 recipient | processing 且 `processingStartedAt <= now < deadlineAt` | 写 completed/completedAt；释放 serial gate |
+| `cancel_private_mail` | `running|paused|converging|ending` 中目标 sender | queued 或 processing；now 不早于已有 mail 时间；非空原因 | 写 cancelled/completedAt/failureReason；释放 serial gate |
+| `expire_private_mail` | `running|paused|converging|ending` 中 deadline handler | queued 或 processing；deadline 已到；非空原因 | 写 timed_out/completedAt/failureReason；释放 serial gate |
+
+Manager 把 pending hand 接纳为 Contribution 前必须检查该 contributor 不是 processing mail 的 recipient；失败保持 hand、Round、Contribution 与 effects 全部不变。`send_private_mail` 产生一个只含 `mailId`、`recipientId` 和发送上下文上界的 `session_mail` effect request，另四个 mail transition 不产生 effect。未来 Runtime delivery、receipt、outbox 与 Session 调度必须消费同一提交结果，不能把 delivery 状态写回私信正文或正式 transcript。
+
 plan_next_step 只由 Manager 在没有 open Round 时提交，替代同 Agenda 的 active plan；其五种 planKind 仅描述下一步，不直接改变领域控制状态。reassign_task 只由 local controller 执行，原子 revoke 旧 authorization 并创建 replacement task；旧授权的迟到结果在进入 projection 前拒绝。start_private_mail、complete_private_mail、cancel_private_mail 和 mail deadline 只改变 PrivateMail，且 serial gate 保证一个 identity 不同时处理 mail 与正式 Contribution。start_archive 只由 local controller 从 terminal 触发，先提交完整 ArchivePackage 并切换 archiving；受控 Session owner 针对每个 ownership 写入 close success/failure，全部 success 后才切换 archived。
 
 ## Time, Concurrency And Recovery

@@ -151,6 +151,10 @@
 10. 基于旧会议继续讨论时必须创建新会议和新的会议身份 Session，并从归档中显式选择可复用素材；不得自动继承完整 transcript、旧运行状态、旧配置或旧权限。
 11. 会议可以使用可选 Scribe Agent 从正式会议事实形成引用式纪要草稿；Scribe 不得创建、修改或替代 Runtime-owned transcript、事实或决议，其缺席、失败或被替换不得影响正式记录的完整性。
 12. 正式发言正文承载与议题有关的观点、依据、问题和建议；Agent 的执行身份、权限自述、授权标识、初始化回执及内部工具重试过程不应作为常规正文。发言提交指导必须明确区分公共正文与执行信息，后续参与者不得把历史正文中的执行自述当作必须沿用的格式或指令。运行限制实际阻塞会议时可以简要说明影响与所需动作；议题本身涉及身份或权限时允许正常讨论。已提交原文仍须可审计，不因上述要求静默删改历史。
+13. 只有当前 `running` Meeting 中两个不同的已存在会议身份之间可以新建 meeting-scoped mail；发送者只能引用已经公开的 `Publication` 或 `FormalMessage`，不得通过私信引用未公开 Evidence、Session、capability、task 内部过程或隐藏推理。
+14. 新 mail 在发送提交时固定全部当前 `Publication` 作为发送上下文，并以 `createdAt + limits.taskDeadlineMs` 固定唯一 deadline。开始处理只能发生在 deadline 前，并一次性把当时全部当前 `Publication` 固定为处理上下文；后续会议推进和重试不得改变这两个范围或 deadline。
+15. 只有可信 dispatcher 可以开始处理；只有接收者可以完成；只有发送者可以取消；只有可信 deadline handler 可以在 deadline 到达后超时。开始处理与 Manager 接纳该接收者的正式 Contribution 必须双向执行 serial gate，任一方向都不能形成 mail `processing` 与非终态 Contribution 并存。
+16. `complete`、`cancel` 和 `expire` 只终结目标 mail，不创建 FormalMessage、Decision、CompletionFact 或 MeetingTask。`cancel` 和 `expire` 必须保留非空原因并释放 serial gate；长时间工作由接收者另行进入 MeetingTask，不延长或替换原 mail deadline。
 
 <a id="fr-11可观察性与用户控制"></a>
 
@@ -287,7 +291,7 @@ Convivium 的权限规则只约束会议身份、会议上下文和 Convivium �
 
 ### BR-9：会议私聊边界
 
-Meeting-scoped mail 是私有异步消息，不是正式会议事实。发送时快照和处理时 transcript 增量都只能包含接收者有权查看的公开会议内容；同一次 mail 处理的上下文范围一旦固化，重试不得随会议推进而漂移。
+Meeting-scoped mail 是私有异步消息，不是正式会议事实。发送时快照和处理时 transcript 增量都只能包含接收者有权查看的公开会议内容；同一次 mail 处理的上下文范围一旦固化，重试不得随会议推进而漂移。V1 的公开上下文以 `MeetingState.publications` 的稳定顺序固定，`relatedIds` 只允许本 Meeting 已公开的 `Publication.id` 或 `FormalMessage.id`。mail 使用 `limits.taskDeadlineMs` 形成单一 deadline，不增加第二个 mail timeout 配置。
 
 ### BR-10：参会推荐与接纳边界
 
