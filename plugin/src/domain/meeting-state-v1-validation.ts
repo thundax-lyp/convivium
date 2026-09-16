@@ -1062,6 +1062,8 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             const previous = decisions.findIndex((x) => x.id === d.replacesDecisionId);
             if (previous < 0 || previous >= i || decisions[previous].status !== "superseded")
                 return fail(`$.decisions[${i}].replacesDecisionId`);
+            if (decisions[previous].proposalRevisionId !== d.proposalRevisionId)
+                return fail(`$.decisions[${i}].replacesDecisionId`);
         }
     }
     for (let i = 0; i < rounds.length; i++) {
@@ -1231,6 +1233,17 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             )
                 return fail(`${path}.blocking`);
         }
+        const lastDisposition = [...riskDispositions]
+            .reverse()
+            .find((disposition) => disposition.issueId === item.id);
+        if (lastDisposition && (item.status === "open" || item.status === "deferred")) {
+            const expectedAccepted = lastDisposition.action === "accept";
+            if (
+                expectedAccepted !== (item.classification === "accepted_risk") ||
+                expectedAccepted === item.blocking
+            )
+                return fail(`${path}.classification`);
+        }
     }
     const plans = parsedState.managerPlans;
     const activePlanAgendas = new Set<string>();
@@ -1284,6 +1297,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (item.taskId !== undefined && !ref(item.taskId, taskIds)) return fail(`${path}.taskId`);
     }
     const facts = parsedState.completionFacts;
+    const supersededFactIds = new Set<string>();
     for (let i = 0; i < facts.length; i++) {
         const item = facts[i];
         const path = `$.completionFacts[${i}]`;
@@ -1309,6 +1323,9 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             const previous = facts.findIndex((x) => x.id === item.supersedesFactId);
             if (previous < 0 || previous >= i || facts[previous].status !== "superseded")
                 return fail(`${path}.supersedesFactId`);
+            if (supersededFactIds.has(item.supersedesFactId as string))
+                return fail(`${path}.supersedesFactId`);
+            supersededFactIds.add(item.supersedesFactId as string);
         }
     }
     const currentRevisionIds = new Set<string>();
