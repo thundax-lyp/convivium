@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sendPrivateMailV1 } from "@/domain/transitions/private-mail-v1.js";
+import { sendPrivateMailV1, startPrivateMailV1 } from "@/domain/transitions/private-mail-v1.js";
 import type { MeetingState } from "@/domain/meeting-state-v1.js";
 
 function state(): MeetingState {
@@ -123,6 +123,31 @@ describe("private mail transitions", () => {
                 }
             ]);
             expect(result.state.version).toBe(2);
+        }
+    });
+    it("starts queued mail and fixes processing context", () => {
+        const sent = sendPrivateMailV1(state(), {
+            mailId: "mail-1",
+            senderId: "sender",
+            recipientId: "recipient",
+            body: "hello",
+            relatedIds: ["pub-1"],
+            now: 10
+        });
+        expect(sent.kind).toBe("accepted");
+        if (sent.kind === "accepted") {
+            const result = startPrivateMailV1(sent.state, {
+                mailId: "mail-1",
+                actorKind: "effect_dispatcher",
+                now: 20
+            });
+            expect(result.kind).toBe("accepted");
+            if (result.kind === "accepted")
+                expect(result.state.privateMails[0]).toMatchObject({
+                    status: "processing",
+                    processingContextPublicationUpperBound: ["pub-1"],
+                    processingStartedAt: 20
+                });
         }
     });
 });
