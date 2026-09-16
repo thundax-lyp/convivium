@@ -97,6 +97,45 @@ const resolveQuestion = (overrides: Record<string, unknown> = {}) => ({
     ...overrides
 });
 
+describe("dispose_issue completion boundary", () => {
+    it.each(["paused", "preparing", "converging", "ending"] as const)("rejects in %s", (status) => {
+        const current = state(status);
+        const result = transitionMeetingStateV1(
+            current,
+            {
+                kind: "dispose_issue",
+                issueId: "issue-1",
+                status: "resolved",
+                rationale: "done",
+                evidenceIds: []
+            },
+            local,
+            4,
+            "fact-1"
+        );
+        expect(result.kind).toBe("rejected");
+        expect(result.state).toBe(current);
+    });
+    it.each(["terminal", "archiving", "archived"] as const)("rejects terminal %s", (status) => {
+        const current = terminalState(status);
+        const result = transitionMeetingStateV1(
+            current,
+            {
+                kind: "dispose_issue",
+                issueId: "issue-1",
+                status: "resolved",
+                rationale: "done",
+                evidenceIds: []
+            },
+            local,
+            4,
+            "fact-1"
+        );
+        expect(result.kind).toBe("rejected");
+        expect(result.state).toBe(current);
+    });
+});
+
 function terminalState(status: "terminal" | "archiving" | "archived"): MeetingState {
     const current = state(status);
     current.termination = {

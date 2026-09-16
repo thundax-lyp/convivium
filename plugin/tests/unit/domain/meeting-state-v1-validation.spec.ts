@@ -1008,6 +1008,60 @@ describe("Evidence and decision chain", () => {
     });
 });
 
+describe("outcome history invariants", () => {
+    it("rejects a completion replacement whose predecessor is not superseded", () => {
+        const state = base();
+        state.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: [],
+                decisionIds: [],
+                createdAt: 0
+            },
+            {
+                id: "fact-2",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: [],
+                decisionIds: [],
+                supersedesFactId: "fact-1",
+                createdAt: 1
+            }
+        ];
+        expect(validateMeetingStateV1(state)).toEqual({
+            kind: "invalid",
+            code: "INVALID_ARGUMENT",
+            path: "$.completionFacts[1].supersedesFactId"
+        });
+    });
+
+    it("accepts an active historical fact after its decision basis becomes stale", () => {
+        const state = base();
+        state.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: [],
+                decisionIds: [],
+                createdAt: 0
+            }
+        ];
+        expect(validateMeetingStateV1(state).kind).toBe("valid");
+    });
+});
+
 const typedReferenceCases = [
     ["round agenda", "rounds", "round", "agendaId", ["output-1", "missing-agenda"]],
     [
