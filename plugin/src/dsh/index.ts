@@ -47,3 +47,4 @@ export {
     type StartManagerSessionInput,
     type StartParticipantSessionInput
 } from "./session-adapter.js";
+export * from "./meeting-role-catalog-v1.js";
