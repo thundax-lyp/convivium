@@ -120,15 +120,16 @@ const base = (
 ): MeetingTransitionResultV1 | undefined => {
     if (validateMeetingStateV1(s).kind !== "valid") return bad(s, "INVALID_ARGUMENT");
     if (!validId(actor.id) || !validTime(now)) return bad(s, "INVALID_ARGUMENT");
-    if (
-        s.lifecycle.status === "terminal" ||
-        s.lifecycle.status === "archiving" ||
-        s.lifecycle.status === "archived"
-    )
-        return bad(s, "MEETING_TERMINAL");
-    if (s.lifecycle.status !== "running") return bad(s, "INVALID_STATE");
     return undefined;
 };
+const lifecycle = (s: MeetingState) =>
+    s.lifecycle.status === "terminal" ||
+    s.lifecycle.status === "archiving" ||
+    s.lifecycle.status === "archived"
+        ? "MEETING_TERMINAL"
+        : s.lifecycle.status !== "running"
+          ? "INVALID_STATE"
+          : undefined;
 const identity = (s: MeetingState, actor: OutcomeActorV1) =>
     actor.kind === "identity" ? s.identities.find((i) => i.id === actor.id) : undefined;
 const published = (s: MeetingState) => new Set(s.publications.flatMap((p) => p.finalVersionIds));
@@ -167,6 +168,8 @@ const currentRevision = (s: MeetingState, proposalId: string) =>
 const actorRole = (s: MeetingState, actor: OutcomeActorV1, role: "contributor" | "captain") =>
     actor.kind === "identity" &&
     s.identities.some((i) => i.id === actor.id && i.roles.includes(role));
+const captainActor = (s: MeetingState, actor: OutcomeActorV1) =>
+    actor.kind === "local_controller" || actorRole(s, actor, "captain");
 const uniqueEntity = (s: MeetingState, id: string, key: keyof MeetingState) =>
     (s[key] as readonly { id: string }[]).some((x) => x.id === id);
 
@@ -243,12 +246,28 @@ export function recordProposalRevisionV1(
         !validId(input.agendaId) ||
         !validId(input.summary) ||
         !validId(input.body) ||
-        !evidenceOk(state, input.evidenceIds)
+        !validArray(input.evidenceIds)
     )
         return bad(state, "INVALID_ARGUMENT");
     const a = identity(state, input.actor);
     if (!a || (!a.roles.includes("contributor") && !a.roles.includes("captain")))
         return bad(state, "UNAUTHORIZED");
+    const lifecycleCode = lifecycle(state);
+    if (lifecycleCode) return bad(state, lifecycleCode);
+    if (
+        !input.evidenceIds.every((id) =>
+            state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
+        )
+    )
+        return bad(
+            state,
+            "NOT_FOUND",
+            "evidence not found",
+            input.evidenceIds.find(
+                (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
+            )
+        );
+    if (!evidenceOk(state, input.evidenceIds)) return bad(state, "PRECONDITION_FAILED");
     if (!state.agenda.some((x) => x.id === input.agendaId))
         return bad(state, "NOT_FOUND", "agenda not found", input.agendaId);
     if (state.proposals.some((x) => x.id === input.revisionId))
@@ -304,11 +323,18 @@ export function recordPositionV1(
         !validId(input.proposalRevisionId) ||
         !validId(input.rationale) ||
         !["support", "oppose", "abstain", "conditional"].includes(input.stance) ||
-        !evidenceOk(state, input.evidenceIds)
+        !validArray(input.evidenceIds)
     )
         return bad(state, "INVALID_ARGUMENT");
     if (!actorRole(state, input.actor, "contributor") && !actorRole(state, input.actor, "captain"))
         return bad(state, "UNAUTHORIZED");
+    const lifecycleCode = lifecycle(state);
+    if (lifecycleCode) return bad(state, lifecycleCode);
+    const missingEvidence = input.evidenceIds.find(
+        (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
+    );
+    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    if (!evidenceOk(state, input.evidenceIds)) return bad(state, "PRECONDITION_FAILED");
     const revision = state.proposals.find((p) => p.id === input.proposalRevisionId);
     if (!revision)
         return bad(state, "NOT_FOUND", "proposal revision not found", input.proposalRevisionId);
@@ -350,11 +376,18 @@ export function recordDecisionCandidateV1(
         !validId(input.rationale) ||
         !["adopt", "reject", "defer"].includes(input.outcome) ||
         !validArray(input.positionIds) ||
-        !evidenceOk(state, input.evidenceIds)
+        !validArray(input.evidenceIds)
     )
         return bad(state, "INVALID_ARGUMENT");
     if (!actorRole(state, input.actor, "contributor") && !actorRole(state, input.actor, "captain"))
         return bad(state, "UNAUTHORIZED");
+    const lifecycleCode = lifecycle(state);
+    if (lifecycleCode) return bad(state, lifecycleCode);
+    const missingEvidence = input.evidenceIds.find(
+        (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
+    );
+    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    if (!evidenceOk(state, input.evidenceIds)) return bad(state, "PRECONDITION_FAILED");
     const revision = state.proposals.find((p) => p.id === input.proposalRevisionId);
     if (!revision)
         return bad(state, "NOT_FOUND", "proposal revision not found", input.proposalRevisionId);
@@ -414,7 +447,9 @@ export function decideV1(state: MeetingState, _input: DecideInputV1): MeetingTra
     if (e) return e;
     if (!validId(input.decisionId) || !validId(input.candidateId))
         return bad(state, "INVALID_ARGUMENT");
-    if (!actorRole(state, input.actor, "captain")) return bad(state, "UNAUTHORIZED");
+    if (!captainActor(state, input.actor)) return bad(state, "UNAUTHORIZED");
+    const lifecycleCode = lifecycle(state);
+    if (lifecycleCode) return bad(state, lifecycleCode);
     if (uniqueEntity(state, input.decisionId, "decisions")) return bad(state, "INVALID_ARGUMENT");
     const candidate = state.decisionCandidates.find((c) => c.id === input.candidateId);
     if (!candidate) return bad(state, "NOT_FOUND", "candidate not found", input.candidateId);
@@ -461,11 +496,27 @@ export function changeDecisionV1(
     if (e) return e;
     if (!validId(input.decisionId) || !validId(input.rationale) || !validArray(input.evidenceIds))
         return bad(state, "INVALID_ARGUMENT");
-    if (!actorRole(state, input.actor, "captain")) return bad(state, "UNAUTHORIZED");
+    if (!(input.status === "revoked" || input.status === "superseded"))
+        return bad(state, "INVALID_ARGUMENT");
+    if (
+        (input.status === "revoked" &&
+            (input.replacementCandidateId !== undefined ||
+                input.replacementDecisionId !== undefined)) ||
+        (input.status === "superseded" &&
+            (!validId(input.replacementCandidateId) || !validId(input.replacementDecisionId)))
+    )
+        return bad(state, "INVALID_ARGUMENT");
+    if (!captainActor(state, input.actor)) return bad(state, "UNAUTHORIZED");
+    const lifecycleCode = lifecycle(state);
+    if (lifecycleCode) return bad(state, lifecycleCode);
     const old = state.decisions.find((d) => d.id === input.decisionId);
     if (!old) return bad(state, "NOT_FOUND", "decision not found", input.decisionId);
     if (old.status !== "accepted")
         return bad(state, "PRECONDITION_FAILED", "decision is not accepted", old.id);
+    const missingEvidence = input.evidenceIds.find(
+        (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
+    );
+    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
     if (!evidenceOk(state, input.evidenceIds))
         return bad(state, "PRECONDITION_FAILED", "evidence is not published");
     const decisions = state.decisions.map((d) =>
@@ -504,7 +555,13 @@ export function changeDecisionV1(
         !newRevision ||
         oldRevision.proposalId !== newRevision.proposalId ||
         currentRevision(state, newRevision.proposalId)?.id !== newRevision.id ||
-        state.decisions.some((d) => d.candidateId === candidate.id)
+        state.decisions.some((d) => d.candidateId === candidate.id) ||
+        state.decisions.some(
+            (d) =>
+                d.id !== old.id &&
+                d.proposalRevisionId === newRevision.id &&
+                d.status === "accepted"
+        )
     )
         return bad(state, "PRECONDITION_FAILED", "replacement candidate is invalid", candidate.id);
     const replacement: DecisionV1 = {
@@ -541,7 +598,9 @@ export function disposeRiskV1(
         !validId(input.issueId) ||
         !validId(input.scope) ||
         !validId(input.rationale) ||
-        !evidenceOk(state, input.evidenceIds) ||
+        !validArray(input.evidenceIds) ||
+        input.evidenceIds.length === 0 ||
+        new Set(input.evidenceIds).size !== input.evidenceIds.length ||
         !(["accept", "reject"] as string[]).includes(input.action)
     )
         return bad(state, "INVALID_ARGUMENT");
@@ -553,8 +612,16 @@ export function disposeRiskV1(
             : input.actor.kind !== "local_controller"
     )
         return bad(state, "UNAUTHORIZED");
+    const lifecycleCode = lifecycle(state);
+    if (lifecycleCode) return bad(state, lifecycleCode);
     const issue = state.issues.find((i) => i.id === input.issueId);
     if (!issue) return bad(state, "NOT_FOUND", "issue not found", input.issueId);
+    const missingEvidence = input.evidenceIds.find(
+        (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
+    );
+    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    if (!evidenceOk(state, input.evidenceIds))
+        return bad(state, "PRECONDITION_FAILED", "evidence is not published");
     if (issue.status !== "open")
         return bad(state, "PRECONDITION_FAILED", "issue is not open", issue.id);
     if (input.action === "accept") {
@@ -615,13 +682,15 @@ export function submitCompletionDeclarationV1(
         !validId(input.declarationId) ||
         !validId(input.outputId) ||
         !validId(input.statement) ||
-        !evidenceOk(state, input.evidenceIds) ||
+        !validArray(input.evidenceIds) ||
         (input.criterionId !== undefined && !validId(input.criterionId)) ||
         (input.taskId !== undefined && !validId(input.taskId))
     )
         return bad(state, "INVALID_ARGUMENT");
     const a = identity(state, input.actor);
     if (!a || !a.roles.includes("contributor")) return bad(state, "UNAUTHORIZED");
+    const lifecycleCode = lifecycle(state);
+    if (lifecycleCode) return bad(state, lifecycleCode);
     if (uniqueEntity(state, input.declarationId, "completionDeclarations"))
         return bad(state, "INVALID_ARGUMENT");
     if (!state.objective.requiredOutputs.some((t) => t.id === input.outputId))
@@ -631,6 +700,12 @@ export function submitCompletionDeclarationV1(
         !state.objective.acceptanceCriteria.some((t) => t.id === input.criterionId)
     )
         return bad(state, "NOT_FOUND", "criterion not found", input.criterionId);
+    const missingEvidence = input.evidenceIds.find(
+        (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
+    );
+    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    if (!evidenceOk(state, input.evidenceIds))
+        return bad(state, "PRECONDITION_FAILED", "evidence is not published");
     if (input.taskId !== undefined) {
         const task = state.tasks.find((t) => t.id === input.taskId);
         if (!task) return bad(state, "NOT_FOUND", "task not found", input.taskId);
@@ -684,11 +759,13 @@ export function recordCompletionFactV1(
         !validId(input.statement) ||
         !validId(input.rationale) ||
         !validArray(input.decisionIds) ||
-        !evidenceOk(state, input.evidenceIds) ||
+        !validArray(input.evidenceIds) ||
         (input.criterionId !== undefined && !validId(input.criterionId))
     )
         return bad(state, "INVALID_ARGUMENT");
     if (!actorRole(state, input.actor, "captain")) return bad(state, "UNAUTHORIZED");
+    const lifecycleCode = lifecycle(state);
+    if (lifecycleCode) return bad(state, lifecycleCode);
     if (uniqueEntity(state, input.factId, "completionFacts")) return bad(state, "INVALID_ARGUMENT");
     if (!state.objective.requiredOutputs.some((t) => t.id === input.outputId))
         return bad(state, "NOT_FOUND", "output not found", input.outputId);
@@ -697,8 +774,18 @@ export function recordCompletionFactV1(
         !state.objective.acceptanceCriteria.some((t) => t.id === input.criterionId)
     )
         return bad(state, "NOT_FOUND", "criterion not found", input.criterionId);
+    const missingEvidence = input.evidenceIds.find(
+        (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
+    );
+    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    if (!evidenceOk(state, input.evidenceIds))
+        return bad(state, "PRECONDITION_FAILED", "evidence is not published");
     if (!requiredReviewOk(state, input.evidenceIds))
         return bad(state, "PRECONDITION_FAILED", "required evidence review is incomplete");
+    const missingDecision = input.decisionIds.find(
+        (id) => !state.decisions.some((decision) => decision.id === id)
+    );
+    if (missingDecision) return bad(state, "NOT_FOUND", "decision not found", missingDecision);
     if (
         input.decisionIds.some((id) => {
             const d = state.decisions.find((x) => x.id === id);
@@ -756,7 +843,15 @@ export function changeCompletionFactV1(
     const e = base(state, input.actor, input.now);
     if (e) return e;
     if (!validId(input.factId) || !validId(input.rationale)) return bad(state, "INVALID_ARGUMENT");
+    if (input.status !== "revoked" && input.status !== "superseded")
+        return bad(state, "INVALID_ARGUMENT");
+    if (input.status === "revoked" && input.replacement !== undefined)
+        return bad(state, "INVALID_ARGUMENT");
+    if (input.status === "superseded" && input.replacement === undefined)
+        return bad(state, "INVALID_ARGUMENT");
     if (!actorRole(state, input.actor, "captain")) return bad(state, "UNAUTHORIZED");
+    const lifecycleCode = lifecycle(state);
+    if (lifecycleCode) return bad(state, lifecycleCode);
     const old = state.completionFacts.find((f) => f.id === input.factId);
     if (!old) return bad(state, "NOT_FOUND", "completion fact not found", input.factId);
     if (old.status !== "active")
@@ -789,11 +884,29 @@ export function changeCompletionFactV1(
         !validId(r.statement) ||
         !validId(r.rationale) ||
         !validArray(r.decisionIds) ||
-        !evidenceOk(state, r.evidenceIds) ||
+        !validArray(r.evidenceIds) ||
+        (r.criterionId !== undefined && !validId(r.criterionId)) ||
         uniqueEntity(state, r.factId, "completionFacts")
     ) {
         return bad(state, "INVALID_ARGUMENT");
     }
+    if (!state.objective.requiredOutputs.some((output) => output.id === r.outputId))
+        return bad(state, "NOT_FOUND", "output not found", r.outputId);
+    if (
+        r.criterionId !== undefined &&
+        !state.objective.acceptanceCriteria.some((criterion) => criterion.id === r.criterionId)
+    )
+        return bad(state, "NOT_FOUND", "criterion not found", r.criterionId);
+    const missingEvidence = r.evidenceIds.find(
+        (id) => !state.evidencePackages.some((p) => p.versions.some((v) => v.id === id))
+    );
+    if (missingEvidence) return bad(state, "NOT_FOUND", "evidence not found", missingEvidence);
+    const missingDecision = r.decisionIds.find(
+        (id) => !state.decisions.some((decision) => decision.id === id)
+    );
+    if (missingDecision) return bad(state, "NOT_FOUND", "decision not found", missingDecision);
+    if (!evidenceOk(state, r.evidenceIds))
+        return bad(state, "PRECONDITION_FAILED", "evidence is not published");
     if (!requiredReviewOk(state, r.evidenceIds))
         return bad(state, "PRECONDITION_FAILED", "required evidence review is incomplete");
     if (
