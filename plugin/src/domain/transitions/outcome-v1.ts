@@ -8,6 +8,7 @@ import type {
     DecisionCandidateV1
 } from "../meeting-state-v1.js";
 import type { DecisionV1 } from "../meeting-state-v1.js";
+import type { IssueV1 } from "../meeting-state-v1.js";
 import { validateMeetingStateV1 } from "../meeting-state-v1-validation.js";
 import type { MeetingTransitionResultV1 } from "./result-v1.js";
 import { rejectedTransitionV1 } from "./result-v1.js";
@@ -436,9 +437,76 @@ export function changeDecisionV1(
 }
 export function disposeRiskV1(
     state: MeetingState,
-    _input: DisposeRiskInputV1
+    input: DisposeRiskInputV1
 ): MeetingTransitionResultV1 {
-    return bad(state, "PRECONDITION_FAILED");
+    const e = base(state, input.actor, input.now);
+    if (e) return e;
+    if (
+        !validId(input.dispositionId) ||
+        !validId(input.issueId) ||
+        !validId(input.scope) ||
+        !validId(input.rationale) ||
+        !evidenceOk(state, input.evidenceIds) ||
+        !(["accept", "reject"] as string[]).includes(input.action)
+    )
+        return bad(state, "INVALID_ARGUMENT");
+    if (uniqueEntity(state, input.dispositionId, "riskDispositions"))
+        return bad(state, "INVALID_ARGUMENT");
+    if (
+        input.actor.kind === "identity"
+            ? !state.identities.some((i) => i.id === input.actor.id && i.roles.includes("captain"))
+            : input.actor.kind !== "local_controller"
+    )
+        return bad(state, "UNAUTHORIZED");
+    const issue = state.issues.find((i) => i.id === input.issueId);
+    if (!issue) return bad(state, "NOT_FOUND", "issue not found", input.issueId);
+    if (issue.status !== "open")
+        return bad(state, "PRECONDITION_FAILED", "issue is not open", issue.id);
+    if (input.action === "accept") {
+        const levels = ["low", "medium", "high"];
+        if (levels.indexOf(issue.riskLevel) > levels.indexOf(state.objective.acceptableRiskLevel))
+            return bad(state, "PRECONDITION_FAILED", "risk exceeds acceptable level", issue.id);
+        if (
+            issue.affectedConstraintIds.some(
+                (id) =>
+                    state.objective.hardConstraints.find((c) => c.id === id)?.status !== "satisfied"
+            )
+        )
+            return bad(state, "PRECONDITION_FAILED", "hard constraint is not satisfied", issue.id);
+    }
+    const disposition = {
+        id: input.dispositionId,
+        issueId: input.issueId,
+        actorId: input.actor.id,
+        action: input.action,
+        scope: input.scope.trim(),
+        rationale: input.rationale.trim(),
+        evidenceIds: [...input.evidenceIds],
+        createdAt: input.now
+    };
+    const issues: readonly IssueV1[] = state.issues.map((i) =>
+        i.id === issue.id
+            ? {
+                  ...i,
+                  classification: input.action === "accept" ? "accepted_risk" : "blocking",
+                  blocking: input.action !== "accept"
+              }
+            : i
+    );
+    const next = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        issues,
+        riskDispositions: [...state.riskDispositions, disposition]
+    };
+    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    return {
+        kind: "accepted",
+        state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+        relatedIds: [disposition.id, disposition.issueId, ...disposition.evidenceIds],
+        effectRequests: []
+    };
 }
 export function submitCompletionDeclarationV1(
     state: MeetingState,
