@@ -3,7 +3,7 @@ import type {
     MeetingState,
     OpaqueId,
     ReviewDimensionV1
-} from "../meeting-state-v1.js";
+} from "@/domain/index.js";
 type ReviewInput = {
     versionId: OpaqueId;
     reviewerId: OpaqueId;

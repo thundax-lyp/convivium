@@ -1,9 +1,4 @@
-import type {
-    FormalMessageV1,
-    MeetingState,
-    OpaqueId,
-    PublicationV1
-} from "../meeting-state-v1.js";
+import type { FormalMessageV1, MeetingState, OpaqueId, PublicationV1 } from "@/domain/index.js";
 import { isRoundClosableV1 } from "./round-v1.js";
 import type { MeetingTransitionResultV1 } from "./result-v1.js";
 type Input = {

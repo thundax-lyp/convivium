@@ -3,7 +3,7 @@ import type {
     MeetingState,
     OpaqueId,
     TextWithReasonV1
-} from "../meeting-state-v1.js";
+} from "@/domain/index.js";
 import type { MeetingTransitionResultV1 } from "./result-v1.js";
 
 export interface EvidenceInputV1 {
@@ -67,15 +67,6 @@ function reject(
         effectRequests: [],
         error: { code, message }
     };
-}
-function manager(state: MeetingState, agendaId: OpaqueId) {
-    return state.identities.find(
-        (identity) =>
-            identity.id &&
-            identity.roles.includes("manager") &&
-            (identity.agendaResponsibilityIds.length === 0 ||
-                identity.agendaResponsibilityIds.includes(agendaId))
-    );
 }
 function validHash(hash: string) {
     return /^[0-9a-f]{64}$/.test(hash);

@@ -1,4 +1,4 @@
-import type { MeetingState, OpaqueId, SupplementHandV1 } from "../meeting-state-v1.js";
+import type { MeetingState, OpaqueId, SupplementHandV1 } from "@/domain/index.js";
 import type { MeetingTransitionResultV1 } from "./result-v1.js";
 
 type RaiseInput = { contributionId: OpaqueId; authorId: OpaqueId; purpose: string; now: number };
@@ -165,10 +165,6 @@ export function disposeSupplementHandV1(
         !manager.agendaResponsibilityIds.includes(round.agendaId)
     )
         return reject(state, "UNAUTHORIZED", "manager is not assigned to agenda");
-    const packageValue =
-        contribution.packageId === undefined
-            ? undefined
-            : state.evidencePackages.find((candidate) => candidate.id === contribution.packageId);
     const count = contribution.substantiveSupplementCount;
     if (count >= 2 && input.disposition === "accepted")
         return reject(state, "LIMIT_EXCEEDED", "supplement limit reached");

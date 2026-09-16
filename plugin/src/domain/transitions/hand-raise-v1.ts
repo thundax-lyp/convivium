@@ -1,4 +1,4 @@
-import type { ContributionV1, MeetingState, OpaqueId } from "../meeting-state-v1.js";
+import type { ContributionV1, MeetingState, OpaqueId } from "@/domain/index.js";
 import type { MeetingTransitionResultV1 } from "./result-v1.js";
 
 type RaiseInput = { roundId: OpaqueId; contributorId: OpaqueId; purpose: string; now: number };
