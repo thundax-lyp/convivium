@@ -479,6 +479,14 @@ export interface ArchivePackageV1 {
     includedDecisionIds: readonly OpaqueId[];
     includedCompletionFactIds: readonly OpaqueId[];
     status: "pending" | "complete" | "failed";
+    identityProvenance: readonly {
+        identityId: string;
+        displayName: string;
+        roles: readonly MeetingRole[];
+        definitionId: string;
+        definitionVersion: string;
+        definitionHash: string;
+    }[];
 }
 
 export interface ContinuationProvenanceV1 {

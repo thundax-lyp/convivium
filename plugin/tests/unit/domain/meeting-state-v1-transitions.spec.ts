@@ -120,6 +120,7 @@ function terminalState(status: "terminal" | "archiving" | "archived"): MeetingSt
             includedPublicationIds: [],
             includedDecisionIds: [],
             includedCompletionFactIds: [],
+            identityProvenance: [],
             status: status === "archived" ? "complete" : "pending"
         };
     return current;

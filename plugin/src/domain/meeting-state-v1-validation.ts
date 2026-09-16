@@ -585,7 +585,18 @@ const archiveSchema = z.object({
     includedPublicationIds: uniqueIdArraySchema,
     includedDecisionIds: uniqueIdArraySchema,
     includedCompletionFactIds: uniqueIdArraySchema,
-    status: z.enum(["pending", "complete", "failed"])
+    status: z.enum(["pending", "complete", "failed"]),
+    identityProvenance: z.array(
+        z.object({
+            id: opaqueIdSchema.optional(),
+            identityId: opaqueIdSchema,
+            displayName: textSchema,
+            roles: uniqueRoleArraySchema,
+            definitionId: opaqueIdSchema,
+            definitionVersion: textSchema,
+            definitionHash: z.string().regex(/^[a-f0-9]{64}$/)
+        })
+    )
 });
 const continuationSchema = z.object({
     sourceArchiveId: opaqueIdSchema,
