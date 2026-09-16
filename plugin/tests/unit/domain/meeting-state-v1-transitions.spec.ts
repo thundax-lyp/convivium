@@ -268,6 +268,13 @@ const disposeIssue = (overrides: Record<string, unknown> = {}) => ({
     evidenceIds: ["version-1"],
     ...overrides
 });
+const planNextStep = (overrides: Record<string, unknown> = {}) => ({
+    kind: "plan_next_step" as const,
+    agendaId: "agenda-1",
+    planKind: "continue_agenda" as const,
+    rationale: "next",
+    ...overrides
+});
 function issueState(
     blocking = true,
     status: "open" | "deferred" | "resolved" | "out_of_scope" = "open"
@@ -1300,6 +1307,188 @@ describe("meeting lifecycle transitions", () => {
             kind: "rejected",
             state: current,
             code: "PRECONDITION_FAILED",
+            facts: []
+        });
+    });
+
+    it("records a manager plan and supersedes the prior active plan atomically", () => {
+        const current = publishedQuestionState(false);
+        current.agenda = [
+            ...current.agenda,
+            {
+                id: "agenda-2",
+                title: "other",
+                question: "other",
+                status: "pending",
+                requiredOutputIds: ["output-1"],
+                requiredReviewerIds: []
+            }
+        ];
+        current.managerPlans = [
+            {
+                id: "plan-old",
+                agendaId: "agenda-1",
+                managerId: "manager-1",
+                kind: "continue_agenda",
+                rationale: "old",
+                createdAt: 1,
+                status: "active"
+            },
+            {
+                id: "plan-other",
+                agendaId: "agenda-2",
+                managerId: "manager-1",
+                kind: "stop_agenda",
+                rationale: "other",
+                createdAt: 1,
+                status: "active"
+            }
+        ];
+        const result = transitionMeetingStateV1(
+            current,
+            planNextStep({ planKind: "open_round" }),
+            manager,
+            10,
+            "fact-10",
+            "plan-new"
+        );
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.version).toBe(4);
+        expect(result.state.updatedAt).toBe(10);
+        expect(result.state.managerPlans).toEqual([
+            { ...current.managerPlans[0], status: "superseded" },
+            current.managerPlans[1],
+            {
+                id: "plan-new",
+                agendaId: "agenda-1",
+                managerId: "manager-1",
+                kind: "open_round",
+                rationale: "next",
+                createdAt: 10,
+                status: "active"
+            }
+        ]);
+        expect(result.state.agenda).toBe(current.agenda);
+        expect(result.state.identities).toBe(current.identities);
+        expect(result.state.rounds).toBe(current.rounds);
+        expect(result.facts).toEqual([
+            {
+                id: "fact-10",
+                kind: "plan_next_step",
+                actorId: "manager-1",
+                occurredAt: 10,
+                relatedIds: ["meeting-1", "plan-new", "agenda-1", "plan-old"],
+                payload: {
+                    kind: "references",
+                    relatedIds: ["meeting-1", "plan-new", "agenda-1", "plan-old"]
+                }
+            }
+        ]);
+    });
+
+    it.each([
+        ["local", local, planNextStep(), "UNAUTHORIZED"],
+        ["captain", captain, planNextStep(), "UNAUTHORIZED"],
+        ["missing agenda", manager, planNextStep({ agendaId: "missing" }), "NOT_FOUND"]
+    ] as const)("rejects invalid plan actor or target: %s", (_name, actor, action, code) => {
+        const current = publishedQuestionState(false);
+        const result = transitionMeetingStateV1(current, action, actor, 10, "fact-10", "plan-new");
+        expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
+    });
+
+    it("rejects planning while any round is open", () => {
+        const current = state();
+        current.identities = [
+            ...current.identities,
+            {
+                id: "manager-1",
+                displayName: "Manager",
+                roles: ["manager"],
+                agendaResponsibilityIds: [],
+                reviewResponsibilityIds: [],
+                riskAuthority: false,
+                required: false
+            }
+        ];
+        current.rounds = [
+            {
+                id: "round-open",
+                agendaId: "agenda-1",
+                publicBaselinePublicationIds: [],
+                openedAt: 0,
+                status: "open",
+                contributionIds: []
+            }
+        ];
+        const result = transitionMeetingStateV1(
+            current,
+            planNextStep(),
+            manager,
+            10,
+            "fact-10",
+            "plan-new"
+        );
+        expect(result).toEqual({
+            kind: "rejected",
+            state: current,
+            code: "PRECONDITION_FAILED",
+            facts: []
+        });
+    });
+
+    it("appends a plan when the agenda has no active plan", () => {
+        const current = publishedQuestionState(false);
+        const result = transitionMeetingStateV1(
+            current,
+            planNextStep(),
+            manager,
+            10,
+            "fact-10",
+            "plan-new"
+        );
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.managerPlans).toEqual([
+            {
+                id: "plan-new",
+                agendaId: "agenda-1",
+                managerId: "manager-1",
+                kind: "continue_agenda",
+                rationale: "next",
+                createdAt: 10,
+                status: "active"
+            }
+        ]);
+        expect(result.facts[0].relatedIds).toEqual(["meeting-1", "plan-new", "agenda-1"]);
+    });
+
+    it("rejects planning after the meeting is terminal", () => {
+        const current = terminalState("terminal");
+        current.identities = [
+            ...current.identities,
+            {
+                id: "manager-1",
+                displayName: "Manager",
+                roles: ["manager"],
+                agendaResponsibilityIds: [],
+                reviewResponsibilityIds: [],
+                riskAuthority: false,
+                required: false
+            }
+        ];
+        const result = transitionMeetingStateV1(
+            current,
+            planNextStep(),
+            manager,
+            10,
+            "fact-10",
+            "plan-new"
+        );
+        expect(result).toEqual({
+            kind: "rejected",
+            state: current,
+            code: "MEETING_TERMINAL",
             facts: []
         });
     });

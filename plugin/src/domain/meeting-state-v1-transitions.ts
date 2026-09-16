@@ -245,6 +245,27 @@ const disposeIssueSchema = z.object({
     rationale: z.string().refine((value) => value.trim().length > 0),
     evidenceIds: uniqueActionIds.min(1)
 });
+const planNextStepSchema = z
+    .object({
+        kind: z.literal("plan_next_step"),
+        agendaId: z.string().refine((value) => value.trim().length > 0),
+        planKind: z.enum([
+            "open_round",
+            "continue_agenda",
+            "stop_agenda",
+            "raise_agenda_candidate",
+            "wait_for_required_identity"
+        ]),
+        rationale: z.string().refine((value) => value.trim().length > 0),
+        blockingReason: z
+            .string()
+            .refine((value) => value.trim().length > 0)
+            .optional()
+    })
+    .superRefine((value, ctx) => {
+        if (!optionalDefined(value, "blockingReason"))
+            ctx.addIssue({ code: "custom", path: ["blockingReason"] });
+    });
 
 export function transitionMeetingStateV1(
     state: MeetingState,
@@ -338,6 +359,16 @@ export function transitionMeetingStateV1(
             )
         )
             return invalid(state, "UNAUTHORIZED");
+    } else if (action.kind === "plan_next_step") {
+        if (!planNextStepSchema.safeParse(action).success || !validId(generatedId))
+            return invalid(state, "INVALID_ARGUMENT");
+        if (
+            actor.kind !== "identity" ||
+            !state.identities.some(
+                (identity) => identity.id === actor.id && identity.roles.includes("manager")
+            )
+        )
+            return invalid(state, "UNAUTHORIZED");
     } else return invalid(state, "INVALID_ARGUMENT");
     if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
         return invalid(state, "MEETING_TERMINAL");
@@ -349,6 +380,7 @@ export function transitionMeetingStateV1(
     let nextIdentities = state.identities;
     let nextQuestions = state.questions;
     let nextIssues = state.issues;
+    let nextPlans = state.managerPlans;
     let nextLifecycle = state.lifecycle;
     let factPayload: TargetDomainFactPayloadV1 | undefined;
     if (action.kind === "pause_meeting" || action.kind === "resume_meeting") {
@@ -605,6 +637,34 @@ export function transitionMeetingStateV1(
             rationale: action.rationale,
             evidenceIds: action.evidenceIds
         };
+    } else if (action.kind === "plan_next_step") {
+        if (!state.agenda.some((agenda) => agenda.id === action.agendaId))
+            return invalid(state, "NOT_FOUND");
+        if (state.rounds.some((round) => round.status === "open"))
+            return invalid(state, "PRECONDITION_FAILED");
+        const oldPlan = state.managerPlans.find(
+            (plan) => plan.agendaId === action.agendaId && plan.status === "active"
+        );
+        nextPlans = [
+            ...state.managerPlans.map((plan) =>
+                plan.agendaId === action.agendaId && plan.status === "active"
+                    ? { ...plan, status: "superseded" as const }
+                    : plan
+            ),
+            {
+                id: candidateId,
+                agendaId: action.agendaId,
+                managerId: actor.id,
+                kind: action.planKind,
+                rationale: action.rationale,
+                ...(action.blockingReason === undefined
+                    ? {}
+                    : { blockingReason: action.blockingReason }),
+                createdAt: now,
+                status: "active" as const
+            }
+        ];
+        relatedIds = [state.id, candidateId, action.agendaId, ...(oldPlan ? [oldPlan.id] : [])];
     }
 
     if (action.kind === "pause_meeting" || action.kind === "resume_meeting")
@@ -625,6 +685,7 @@ export function transitionMeetingStateV1(
         identities: nextIdentities,
         questions: nextQuestions,
         issues: nextIssues,
+        managerPlans: nextPlans,
         lifecycle: nextLifecycle
     };
     if (validateMeetingStateV1(nextState).kind !== "valid")
