@@ -1,5 +1,10 @@
-import type { EpochMs, MeetingState, OpaqueId, PrivateMailV1 } from "@/domain/index.js";
-import { validateMeetingStateV1 } from "../meeting-state-v1-validation.js";
+import {
+    validateMeetingStateV1,
+    type EpochMs,
+    type MeetingState,
+    type OpaqueId,
+    type PrivateMailV1
+} from "@/domain/index.js";
 import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
 
 export interface SendPrivateMailInputV1 {
