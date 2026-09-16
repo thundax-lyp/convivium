@@ -11,6 +11,7 @@ V1 运行在一个本地 DSH Host，服务该 Host 的单一 loopback 用户边�
 ## Related Requirements And Interfaces
 
 - [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
+- [Meeting Evidence Round Requirements](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md)
 - [Meeting Design](./MEETING-DESIGN.md)
 - [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)
 - [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)
@@ -36,9 +37,15 @@ DSH Host/profile 拥有插件加载、模型、Preset、Skills、MCP、Sandbox�
 
 每个 MeetingIdentity 使用独立、可持续的会议专用 Session；不同 Meeting、身份或授权范围不得共享。任何创建、继续、interrupt、恢复、停止或撤权都必须先验证持久 ownership，不能凭显示名、前缀或 UI 输入猜测。
 
+Meeting 进入 running 时，以及每条新 FormalMessage 随 Round Publication 提交后，Runtime 只向与当前 active Agenda 相关、具有 contributor 角色、无未结束 Contribution/MeetingTask 且已证明自己的会议 Session active 的身份排入一次 `agent_notice` 申请机会。相关身份是 `agendaResponsibilityIds` 包含 active Agenda ID 或该数组为空的 contributor；身份可以不申请或不发言。通知只携带 Meeting/Agenda/已公开 message ID，Agent 再由受控读入口取得 caller-visible Transcript。投递前 dispatcher 重新验证 Session ownership、active 和闲置资格；重复投递复用 effect ID，不能从 DSH 消息接收推断业务举手或材料已登记。初次举手或无轮次机会申请经已提交 command 通知 Manager，Manager 处置理由只通知作者本人。
+
+贡献者送给 Manager 的格式待审草稿由贡献者在自己的 DSH Session/私有工作范围持有，不经 MeetingState、FormalMessage、公开 projection 或 Meeting outbox 存储草稿正文。Manager 的 `review_evidence_draft` 只提交规范 hash、格式缺失字段及理由；作者后续 `submit_evidence` 提交同 hash 的正文时才经 Runtime 建立会议证据。DSH 私有草稿实际传递、送达和可访问性属于 adapter 真实运行验收，不能由 hash 审核命令的成功或纯领域测试推断。
+
 Convivium 只限制自身会议操作的调用权限和模型可见的会议上下文；Agent 在 DSH 已授权范围内自行选择 Prompt、Skills、Tools、MCP 与内部工作方式。插件不得依赖具体 Skill、内部 Tool Schema、调用顺序或隐藏推理才能正确运行；Manager 身份不得以 Contributor 身份提交正式发言或 Position。
 
 角色 Definition 只声明 DSH 已公开且经过预检的能力。预检在创建第一个会议专用 Session 前完成；缺少必需能力时拒绝创建，不通过临时修改 Prompt、权限或资源来降级。已创建身份的运行配置由 DSH 拥有，角色资源变更只影响新的 MeetingIdentity。
+
+Manager 的格式批准、驳回、暂缓均以最小 `format_disposition` 通知作者本人；通知携带被审核的规范 hash，批准只表示该 hash 已获格式认可，作者仍须另行提交相同正文才进入会议。通知绝不附草稿、资料正文或他人轮内材料。Review delivery 的 sent/failed 尝试进入 caller-filtered read model，使 Manager、作者与指定 reviewer 能区分未送达和已送达；其他身份不能借投递状态获知未公开 Review。
 
 ### Catalog and Definition conversion
 

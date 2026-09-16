@@ -14,3 +14,16 @@ export * from "./meeting-task.js";
 export * from "./hand-raise.js";
 export * from "./planning.js";
 export * from "./transitions/index.js";
+export {
+    validateMeetingStateV1,
+    type MeetingStateValidationResultV1
+} from "./meeting-state-v1-validation.js";
+export {
+    transitionMeetingStateV1,
+    type TargetDomainActorV1,
+    type TargetAgendaInputV1,
+    type TargetMeetingActionV1,
+    type TargetDomainFactPayloadV1,
+    type TargetDomainFactV1,
+    type TargetTransitionResultV1
+} from "./meeting-state-v1-transitions.js";
