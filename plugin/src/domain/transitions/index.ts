@@ -47,5 +47,6 @@ export type {
     SubmitSpeakerAdvanceContext
 } from "./types.js";
 export * from "./result-v1.js";
+export { requestEvidenceOpportunityV1, disposeEvidenceOpportunityV1 } from "./opportunity-v1.js";
 
 export * from "./attendance-rejection.js";
