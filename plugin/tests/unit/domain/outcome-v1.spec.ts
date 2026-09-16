@@ -237,7 +237,7 @@ describe("outcome proposal revisions", () => {
     });
 
     it("records current position and candidate and derives pending in write order", () => {
-        const state = validState();
+        let state = validState();
         const proposal = recordProposalRevisionV1(state, {
             revisionId: "rev",
             proposalId: "prop",
