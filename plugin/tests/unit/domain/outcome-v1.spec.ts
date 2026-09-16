@@ -981,6 +981,299 @@ describe("outcome proposal revisions", () => {
         expect(state.completionFacts[0].status).toBe("active");
     });
 
+    it("records a fully reviewed completion fact and converges without termination", () => {
+        const state = validState();
+        state.objective = {
+            ...state.objective,
+            acceptanceCriteria: [{ id: "criterion", text: "criterion", status: "pending" }]
+        };
+        state.proposals = [
+            {
+                id: "rev",
+                proposalId: "prop",
+                ordinal: 1,
+                actorId: "contributor",
+                agendaId: "a",
+                summary: "s",
+                body: "b",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.decisionCandidates = [
+            {
+                id: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0
+            }
+        ];
+        state.decisions = [
+            {
+                id: "dec",
+                candidateId: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0,
+                status: "accepted"
+            }
+        ];
+        const before = structuredClone(state);
+        const result = recordCompletionFactV1(state, {
+            factId: "fact",
+            outputId: "o",
+            criterionId: "criterion",
+            statement: "complete",
+            rationale: "accepted decision",
+            evidenceIds: ["v"],
+            decisionIds: ["dec"],
+            actor: { kind: "identity", id: "captain" },
+            now: 7
+        });
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.objective.requiredOutputs[0].status).toBe("satisfied");
+        expect(result.state.objective.acceptanceCriteria[0].status).toBe("satisfied");
+        expect(result.state.lifecycle).toMatchObject({
+            status: "converging",
+            changedAt: 7,
+            changedBy: "captain",
+            reason: "objective_satisfied"
+        });
+        expect(result.state.termination).toBeUndefined();
+        expect(result.state.archive).toBeUndefined();
+        expect(result.effectRequests).toEqual([]);
+        expect(state).toEqual(before);
+    });
+
+    it("records a fact but remains running while a blocking issue exists", () => {
+        const state = validState();
+        state.issues = [
+            {
+                id: "issue",
+                agendaId: "a",
+                description: "block",
+                riskLevel: "high",
+                classification: "blocking",
+                affectedOutputIds: ["o"],
+                affectedCriterionIds: [],
+                affectedConstraintIds: [],
+                requiredReviewerIds: ["reviewer"],
+                blocking: true,
+                status: "open",
+                rationale: "x"
+            }
+        ];
+        state.proposals = [
+            {
+                id: "rev",
+                proposalId: "prop",
+                ordinal: 1,
+                actorId: "contributor",
+                agendaId: "a",
+                summary: "s",
+                body: "b",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.decisionCandidates = [
+            {
+                id: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0
+            }
+        ];
+        state.decisions = [
+            {
+                id: "dec",
+                candidateId: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0,
+                status: "accepted"
+            }
+        ];
+        const result = recordCompletionFactV1(state, {
+            factId: "fact",
+            outputId: "o",
+            statement: "complete",
+            rationale: "accepted decision",
+            evidenceIds: ["v"],
+            decisionIds: ["dec"],
+            actor: { kind: "identity", id: "captain" },
+            now: 7
+        });
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.lifecycle.status).toBe("running");
+        expect(result.state.completionFacts).toHaveLength(1);
+    });
+
+    it("revoking the last valid fact returns its target to pending while running", () => {
+        const state = validState();
+        state.objective = {
+            ...state.objective,
+            hardConstraints: [{ id: "constraint", text: "constraint", status: "pending" }]
+        };
+        state.proposals = [
+            {
+                id: "rev",
+                proposalId: "prop",
+                ordinal: 1,
+                actorId: "contributor",
+                agendaId: "a",
+                summary: "s",
+                body: "b",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.decisionCandidates = [
+            {
+                id: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0
+            }
+        ];
+        state.decisions = [
+            {
+                id: "dec",
+                candidateId: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0,
+                status: "accepted"
+            }
+        ];
+        state.completionFacts = [
+            {
+                id: "fact",
+                outputId: "o",
+                actorId: "captain",
+                status: "active",
+                statement: "complete",
+                rationale: "x",
+                evidenceIds: ["v"],
+                decisionIds: ["dec"],
+                createdAt: 0
+            }
+        ];
+        const result = changeCompletionFactV1(state, {
+            factId: "fact",
+            status: "revoked",
+            rationale: "withdraw",
+            actor: { kind: "identity", id: "captain" },
+            now: 1
+        });
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.objective.requiredOutputs[0].status).toBe("pending");
+        expect(result.state.lifecycle.status).toBe("running");
+    });
+
+    it("makes an active fact basis stale when a new proposal revision is recorded", () => {
+        const state = validState();
+        state.objective = {
+            ...state.objective,
+            hardConstraints: [{ id: "constraint", text: "constraint", status: "pending" }]
+        };
+        state.proposals = [
+            {
+                id: "rev-1",
+                proposalId: "prop",
+                ordinal: 1,
+                actorId: "contributor",
+                agendaId: "a",
+                summary: "s",
+                body: "b",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.decisionCandidates = [
+            {
+                id: "cand",
+                proposalRevisionId: "rev-1",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0
+            }
+        ];
+        state.decisions = [
+            {
+                id: "dec",
+                candidateId: "cand",
+                proposalRevisionId: "rev-1",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: [],
+                createdAt: 0,
+                status: "accepted"
+            }
+        ];
+        state.completionFacts = [
+            {
+                id: "fact",
+                outputId: "o",
+                actorId: "captain",
+                status: "active",
+                statement: "complete",
+                rationale: "x",
+                evidenceIds: ["v"],
+                decisionIds: ["dec"],
+                createdAt: 0
+            }
+        ];
+        const result = recordProposalRevisionV1(state, {
+            revisionId: "rev-2",
+            proposalId: "prop",
+            agendaId: "a",
+            summary: "new",
+            body: "new",
+            evidenceIds: ["v"],
+            supersedesRevisionId: "rev-1",
+            actor: { kind: "identity", id: "contributor" },
+            now: 1
+        });
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.completionFacts[0].status).toBe("active");
+        expect(result.state.objective.requiredOutputs[0].status).toBe("pending");
+        expect(result.state.lifecycle.status).toBe("running");
+    });
+
     it("recalculation does not mutate the input snapshot", () => {
         const state = {
             lifecycle: { status: "paused", changedAt: 0, changedBy: "i" },

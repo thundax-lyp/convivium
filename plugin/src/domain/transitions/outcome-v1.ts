@@ -134,6 +134,34 @@ const identity = (s: MeetingState, actor: OutcomeActorV1) =>
 const published = (s: MeetingState) => new Set(s.publications.flatMap((p) => p.finalVersionIds));
 const evidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
     validArray(ids) && ids.every((id) => published(s).has(id));
+const requiredReviewOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
+    ids.every((id) => {
+        const owner = s.evidencePackages.find((p) => p.versions.some((v) => v.id === id));
+        if (!owner) return false;
+        const agenda = s.agenda.find((a) => a.id === owner.agendaId);
+        if (!agenda) return false;
+        const reviewer = agenda.requiredReviewerIds
+            .map((rid) => s.identities.find((i) => i.id === rid))
+            .find(
+                (i) =>
+                    i &&
+                    i.id !== owner.authorId &&
+                    i.roles.includes("evidence_reviewer") &&
+                    i.reviewResponsibilityIds.includes(agenda.id)
+            );
+        if (!reviewer) return false;
+        const review = s.reviews.find((r) => r.versionId === id && r.reviewerId === reviewer.id);
+        if (
+            !review ||
+            !s.publications.some(
+                (p) => p.finalVersionIds.includes(id) && p.finalReviewIds.includes(review.id)
+            )
+        )
+            return false;
+        return s.reviewDeliveries.some((d) => d.reviewId === review.id && d.status === "sent");
+    });
+const factEvidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
+    evidenceOk(s, ids) && requiredReviewOk(s, ids);
 const currentRevision = (s: MeetingState, proposalId: string) =>
     s.proposals.filter((p) => p.proposalId === proposalId).sort((a, b) => b.ordinal - a.ordinal)[0];
 const actorRole = (s: MeetingState, actor: OutcomeActorV1, role: "contributor" | "captain") =>
@@ -434,7 +462,7 @@ export function changeDecisionV1(
     if (!old) return bad(state, "NOT_FOUND", "decision not found", input.decisionId);
     if (old.status !== "accepted")
         return bad(state, "PRECONDITION_FAILED", "decision is not accepted", old.id);
-    if (!evidenceOk(state, input.evidenceIds))
+    if (!factEvidenceOk(state, input.evidenceIds))
         return bad(state, "PRECONDITION_FAILED", "evidence is not published");
     const decisions = state.decisions.map((d) =>
         d.id === old.id ? { ...d, status: input.status } : d
@@ -745,7 +773,7 @@ export function changeCompletionFactV1(
         !validId(r.statement) ||
         !validId(r.rationale) ||
         !validArray(r.decisionIds) ||
-        !evidenceOk(state, r.evidenceIds) ||
+        !factEvidenceOk(state, r.evidenceIds) ||
         uniqueEntity(state, r.factId, "completionFacts")
     )
         return bad(state, "INVALID_ARGUMENT");
