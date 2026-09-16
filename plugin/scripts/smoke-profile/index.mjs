@@ -36,7 +36,11 @@ const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "1
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 const BROWSER_SPEAKER_TIMEOUT_MS = 5 * 60 * 1000;
-export const SMOKE_SCENARIOS = ["parallel-contribution", "parallel-contribution-model", "identity-admission"];
+export const SMOKE_SCENARIOS = [
+    "parallel-contribution",
+    "parallel-contribution-model",
+    "identity-admission"
+];
 export const CORE_SCENARIOS = ["parallel-contribution", "identity-admission"];
 
 export function selectScenarios(args, scenario, browserMode) {
@@ -210,7 +214,11 @@ export async function writeSmokePatch(path, scenario) {
         ...(scenario === "parallel-contribution-model" || scenario === "identity-admission"
             ? [
                   `    agentDefinitions: ${JSON.stringify(parallelDiscussionDefinitions)}`,
-                  ...(scenario === "parallel-contribution-model" ? [`    agentModelOverrides: ${JSON.stringify(parallelDiscussionModelOverrides)}`] : [])
+                  ...(scenario === "parallel-contribution-model"
+                      ? [
+                            `    agentModelOverrides: ${JSON.stringify(parallelDiscussionModelOverrides)}`
+                        ]
+                      : [])
               ]
             : []),
         "    maxParticipants: 3",

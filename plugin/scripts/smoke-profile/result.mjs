@@ -24,7 +24,32 @@ export function validateScenarioResult(value, expectedScenario) {
 }
 
 function validateIdentityAdmissionResult(value) {
-    if (!exact(value, ["ok", "scenario", "catalog", "admittedChildId", "rejectedCandidateId", "nativeSkillLoaded", "sessionIndependent"]) || value.ok !== true || value.scenario !== "identity-admission" || !exact(value.catalog, ["protocolVersion", "meetingId", "catalogId", "catalogVersion", "generatedAt", "candidates"]) || value.catalog.candidates.length !== 2 || value.admittedChildId !== "smoke-identity-admit" || value.rejectedCandidateId !== "candidate-reject" || value.nativeSkillLoaded !== true || value.sessionIndependent !== true)
+    if (
+        !exact(value, [
+            "ok",
+            "scenario",
+            "catalog",
+            "admittedChildId",
+            "rejectedCandidateId",
+            "nativeSkillLoaded",
+            "sessionIndependent"
+        ]) ||
+        value.ok !== true ||
+        value.scenario !== "identity-admission" ||
+        !exact(value.catalog, [
+            "protocolVersion",
+            "meetingId",
+            "catalogId",
+            "catalogVersion",
+            "generatedAt",
+            "candidates"
+        ]) ||
+        value.catalog.candidates.length !== 2 ||
+        value.admittedChildId !== "smoke-identity-admit" ||
+        value.rejectedCandidateId !== "candidate-reject" ||
+        value.nativeSkillLoaded !== true ||
+        value.sessionIndependent !== true
+    )
         throw new Error("Identity admission smoke result is invalid.");
 }
 
