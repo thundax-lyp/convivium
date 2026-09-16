@@ -103,7 +103,12 @@ const identitySchema = z
         riskAuthority: z.boolean(),
         required: z.boolean(),
         definitionId: opaqueIdSchema.optional(),
-        definitionVersion: textSchema.optional()
+        definitionVersion: textSchema.optional(),
+        definitionHash: z
+            .string()
+            .regex(/^[a-f0-9]{64}$/)
+            .optional(),
+        sessionOwnershipId: opaqueIdSchema.optional()
     })
     .refine((value) => own(value, "definitionId") === own(value, "definitionVersion"), {
         path: ["definitionVersion"]
@@ -112,6 +117,52 @@ const identitySchema = z
     .refine((value) => isAbsentOrDefined(value, "definitionVersion"), {
         path: ["definitionVersion"]
     });
+const identityRecommendationSchema = withDefinedOptionals(
+    z.object({
+        id: opaqueIdSchema,
+        candidateId: opaqueIdSchema,
+        definitionId: opaqueIdSchema,
+        definitionVersion: textSchema,
+        catalogId: opaqueIdSchema,
+        catalogVersion: textSchema,
+        agendaId: opaqueIdSchema,
+        managerId: opaqueIdSchema,
+        decision: z.enum(["admit", "reject"]),
+        status: z.enum(["provisioning", "rejected", "active", "failed"]),
+        rationale: textSchema,
+        expectedContribution: textSchema,
+        evidenceGap: textSchema,
+        createdAt: epochSchema,
+        identityId: opaqueIdSchema.optional(),
+        childSessionId: opaqueIdSchema.optional(),
+        definitionHash: z
+            .string()
+            .regex(/^[a-f0-9]{64}$/)
+            .optional(),
+        resolvedAt: epochSchema.optional(),
+        failureCode: textSchema.optional()
+    }),
+    ["identityId", "childSessionId", "definitionHash", "resolvedAt", "failureCode"]
+).superRefine((value, ctx) => {
+    if (value.decision === "reject") {
+        if (
+            value.status !== "rejected" ||
+            value.identityId !== undefined ||
+            value.childSessionId !== undefined ||
+            value.definitionHash !== undefined ||
+            value.failureCode !== undefined ||
+            value.resolvedAt === undefined
+        )
+            ctx.addIssue({ code: "custom", path: ["status"] });
+    } else if (
+        value.identityId === undefined ||
+        value.childSessionId === undefined ||
+        value.definitionHash === undefined ||
+        value.status === "rejected"
+    ) {
+        ctx.addIssue({ code: "custom", path: ["status"] });
+    }
+});
 const agendaSchema = z.object({
     id: opaqueIdSchema,
     title: textSchema,
@@ -534,7 +585,18 @@ const archiveSchema = z.object({
     includedPublicationIds: uniqueIdArraySchema,
     includedDecisionIds: uniqueIdArraySchema,
     includedCompletionFactIds: uniqueIdArraySchema,
-    status: z.enum(["pending", "complete", "failed"])
+    status: z.enum(["pending", "complete", "failed"]),
+    identityProvenance: z.array(
+        z.object({
+            id: opaqueIdSchema.optional(),
+            identityId: opaqueIdSchema,
+            displayName: textSchema,
+            roles: uniqueRoleArraySchema,
+            definitionId: opaqueIdSchema,
+            definitionVersion: textSchema,
+            definitionHash: z.string().regex(/^[a-f0-9]{64}$/)
+        })
+    )
 });
 const continuationSchema = z.object({
     sourceArchiveId: opaqueIdSchema,
@@ -582,6 +644,7 @@ const meetingStateSchema = withDefinedOptionals(
         objective: objectiveSchema,
         lifecycle: lifecycleSchema,
         identities: uniqueEntityArray(identitySchema),
+        identityRecommendations: uniqueEntityArray(identityRecommendationSchema),
         agenda: uniqueEntityArray(agendaSchema),
         agendaCandidates: uniqueEntityArray(candidateSchema),
         rounds: uniqueEntityArray(roundSchema),

@@ -1,5 +1,5 @@
 import type { EvidenceOpportunityRequestV1, MeetingState, OpaqueId } from "@/domain/index.js";
-import type { MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1 as rejected, type MeetingTransitionResultV1 } from "./result-v1.js";
 
 type RequestInput = {
     requestId: OpaqueId;
@@ -23,21 +23,6 @@ const terminalContributionStatuses = new Set([
     "supplement_rejected",
     "closed"
 ]);
-
-function rejected(
-    state: MeetingState,
-    code: Exclude<Extract<MeetingTransitionResultV1, { kind: "rejected" }>["error"]["code"], never>,
-    message: string,
-    targetId?: OpaqueId
-): MeetingTransitionResultV1 {
-    return {
-        kind: "rejected",
-        state,
-        relatedIds: [],
-        effectRequests: [],
-        error: { code, message, ...(targetId === undefined ? {} : { targetId }) }
-    };
-}
 
 function accepted(
     state: MeetingState,
@@ -93,8 +78,8 @@ export function requestEvidenceOpportunityV1(
         !contributor.agendaResponsibilityIds.includes(input.agendaId)
     )
         return rejected(state, "UNAUTHORIZED", "contributor is not assigned to agenda");
-    if (!findManager(state, input.agendaId))
-        return rejected(state, "PRECONDITION_FAILED", "no eligible manager");
+    const manager = findManager(state, input.agendaId);
+    if (!manager) return rejected(state, "PRECONDITION_FAILED", "no eligible manager");
     if (state.rounds.some((round) => round.agendaId === input.agendaId && round.status === "open"))
         return rejected(state, "PRECONDITION_FAILED", "an open round already exists");
     if (
@@ -130,7 +115,6 @@ export function requestEvidenceOpportunityV1(
         purpose: input.purpose,
         requestedAt: input.now
     };
-    const manager = findManager(state, input.agendaId)!;
     return accepted(
         {
             ...state,

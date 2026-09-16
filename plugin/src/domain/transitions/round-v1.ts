@@ -1,5 +1,5 @@
 import type { MeetingState, OpaqueId, RoundV1 } from "@/domain/index.js";
-import type { MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1 as rejected, type MeetingTransitionResultV1 } from "./result-v1.js";
 
 type OpenRoundInput = {
     roundId: OpaqueId;
@@ -16,21 +16,6 @@ const terminalContributionStatuses = new Set([
     "supplement_rejected",
     "closed"
 ]);
-
-function rejected(
-    state: MeetingState,
-    code: Extract<MeetingTransitionResultV1, { kind: "rejected" }>["error"]["code"],
-    message: string,
-    targetId?: OpaqueId
-): MeetingTransitionResultV1 {
-    return {
-        kind: "rejected",
-        state,
-        relatedIds: [],
-        effectRequests: [],
-        error: { code, message, ...(targetId === undefined ? {} : { targetId }) }
-    };
-}
 
 export function openRoundV1(state: MeetingState, input: OpenRoundInput): MeetingTransitionResultV1 {
     if (

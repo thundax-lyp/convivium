@@ -49,9 +49,9 @@ Manager 的格式批准、驳回、暂缓均以最小 `format_disposition` 通�
 
 ### Catalog and Definition conversion
 
-Meeting Agent Catalog 是 Host 提供的只读安全投影；Convivium 只在需要 Manager 语义推荐时读取它，不把完整 Agent 配置、capability 或运行资源复制进 Meeting。Manager 可以基于已验证的 catalog snapshot 推荐 candidate，但推荐不改变参与者、权限、Round 或 Session。
+Meeting Agent Catalog 是 Host 提供的只读安全投影；Convivium 只在 Manager 读取安全 projection 或执行 `recommend_identity` 时从同一 Host producer 获取它，不把完整 Agent 配置、capability 或运行资源复制进 Meeting。Manager 的自然语言推荐不改变参与者、权限、Round 或 Session；结构化 `reject` 只提交拒绝事实，结构化 `admit` 只先提交不可调度的 provisioning 意图。
 
-Captain 对推荐作出接纳或拒绝的结构化处置；只有接纳后，Runtime 才能将 Meeting Agent Definition 的角色、权限边界和 provenance 转换为新的 MeetingIdentity，并在全部预检通过后创建独立 Session。任何一步失败不得暴露部分可用身份；历史 MeetingIdentity 的 descriptor 缺失时必须明确拒绝恢复，不能套用当前 Definition 重建。
+Runtime 从既有 outbox 投递 `identity_provision`，仅解析意图中记录的精确 Definition identity、执行 preflight 并以 recommendationId 作为 admissionId 幂等地创建 Session/ownership；在 ownership 可证实后，使用受控系统 action 原子激活普通可选 MeetingIdentity。缺 Definition/required capability、descriptor 过期或 provisioning 失败时，同一系统 action 将意图置为 `failed` 并显示安全错误码，不暴露部分可用身份。进程重启只重放未完成的同一 outbox/admissionId；历史 MeetingIdentity 的 descriptor 缺失时明确拒绝恢复，不能套用当前 Definition 重建。
 
 ## Plugin Lifecycle And Entry Points
 
@@ -61,7 +61,7 @@ Captain 对推荐作出接纳或拒绝的结构化处置；只有接纳后，Run
 
 插件状态机为 new → validating → ready → stopping → stopped，或 validating → rejected。new 仅构造依赖；validating 验证最低 DSH 版本、必需 lifecycle capability、Storage/continuable provider 与 loopback 配置；ready 才注册可写工具与 Remote control；rejected 只暴露加载诊断，不能出现半可用 Meeting 入口。stopping 立即拒绝新 command，等待已开始的 atomic commit 结束，保留未完成 outbox，然后释放插件已证明归属的 resident activation；stopped 不删除已提交 Meeting 事实，不操作无法确认归属的 Session。
 
-Session control 的状态为 active、interrupted、stopped、unrecoverable，其转换只能由 session-owner 执行：interrupt/resume/stop 前重新读取 durable ownership；unrecoverable 只允许报告与归档，不允许以新的 descriptor/session 替代。Agent 输入投递成功、Agent 执行结束、Session lifecycle 完成与 Meeting command commit 分别记录为 adapter 诊断或已提交 Meeting effect，不能相互推断成功。
+Identity admission 的 durable ownership 先处于 provisioning 且不授予 Meeting authority；child ready 后才由 session-owner 置 active。Session control 的后续状态为 active、interrupted、stopped、unrecoverable，其转换只能由 session-owner 执行：interrupt/resume/stop 前重新读取 durable ownership；unrecoverable 只允许报告与归档，不允许以新的 descriptor/session 替代。Agent 输入投递成功、Agent 执行结束、Session lifecycle 完成与 Meeting command commit 分别记录为 adapter 诊断或已提交 Meeting effect，不能相互推断成功。
 
 ## Local Client And Remote Boundary
 

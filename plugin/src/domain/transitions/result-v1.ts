@@ -107,3 +107,18 @@ export type MeetingTransitionResultV1 =
               targetId?: OpaqueId;
           };
       };
+
+export function rejectedTransitionV1(
+    state: MeetingState,
+    code: MeetingDomainErrorCodeV1,
+    message: string,
+    targetId?: OpaqueId
+): MeetingTransitionResultV1 {
+    return {
+        kind: "rejected",
+        state,
+        relatedIds: [],
+        effectRequests: [],
+        error: { code, message, ...(targetId === undefined ? {} : { targetId }) }
+    };
+}

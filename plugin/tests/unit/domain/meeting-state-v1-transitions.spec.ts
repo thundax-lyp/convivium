@@ -27,6 +27,7 @@ function state(status: MeetingState["lifecycle"]["status"] = "running"): Meeting
                 required: false
             }
         ],
+        identityRecommendations: [],
         agenda: [
             {
                 id: "agenda-1",
@@ -119,6 +120,7 @@ function terminalState(status: "terminal" | "archiving" | "archived"): MeetingSt
             includedPublicationIds: [],
             includedDecisionIds: [],
             includedCompletionFactIds: [],
+            identityProvenance: [],
             status: status === "archived" ? "complete" : "pending"
         };
     return current;

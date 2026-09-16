@@ -1,6 +1,7 @@
 import { createProbeSupport } from "./support.js";
 import { runParallelContributionScenario } from "./scenarios/parallel-contribution.js";
 import { runParallelContributionModelScenario } from "./scenarios/parallel-contribution-model.js";
+import { runIdentityAdmissionScenario } from "./scenarios/identity-admission.js";
 
 export const name = "convivium-smoke-profile-probe";
 export const inject = [
@@ -175,7 +176,11 @@ function createSmokeAgent(ctx, sessionId) {
 
 async function run(ctx) {
     if (!outputPath) return;
-    if (!["parallel-contribution", "parallel-contribution-model"].includes(scenario)) {
+    if (
+        !["parallel-contribution", "parallel-contribution-model", "identity-admission"].includes(
+            scenario
+        )
+    ) {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -184,10 +189,19 @@ async function run(ctx) {
             ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
             : undefined;
         captain =
-            scenario === "parallel-contribution-model"
+            scenario === "parallel-contribution-model" || scenario === "identity-admission"
                 ? await ctx.agents.create({
-                      sessionId: "convivium-smoke-captain",
-                      agentOptions: { provider: "deepseek-official", model: "deepseek-v4-flash" },
+                      sessionId:
+                          scenario === "identity-admission"
+                              ? "convivium-identity-manager"
+                              : "convivium-smoke-captain",
+                      agentOptions: {
+                          provider:
+                              scenario === "identity-admission" ? "spawn" : "deepseek-official",
+                          ...(scenario === "identity-admission"
+                              ? {}
+                              : { model: "deepseek-v4-flash" })
+                      },
                       meta: { cwd: process.cwd(), agentPreset: "convivium" },
                       setup: async (agentCtx) => {
                           await ctx.get("agentPresets").mount(agentCtx, "convivium");
@@ -218,8 +232,10 @@ async function run(ctx) {
         };
         if (scenario === "parallel-contribution") {
             await runParallelContributionScenario(runtime);
-        } else {
+        } else if (scenario === "parallel-contribution-model") {
             await runParallelContributionModelScenario(runtime);
+        } else {
+            await runIdentityAdmissionScenario(runtime);
         }
     } catch (error) {
         await writeResult({

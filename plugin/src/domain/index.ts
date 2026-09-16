@@ -27,3 +27,10 @@ export {
     type TargetDomainFactV1,
     type TargetTransitionResultV1
 } from "./meeting-state-v1-transitions.js";
+export {
+    recommendIdentityV1,
+    recordIdentityAdmissionResultV1,
+    type IdentityAdmissionResultContextV1,
+    type IdentityRecommendationDraftV1,
+    type IdentityTransitionResultV1
+} from "./transitions/meeting-identity-v1.js";

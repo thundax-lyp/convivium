@@ -1,6 +1,6 @@
 import type { FormalMessageV1, MeetingState, OpaqueId, PublicationV1 } from "@/domain/index.js";
 import { isRoundClosableV1 } from "./round-v1.js";
-import type { MeetingTransitionResultV1 } from "./result-v1.js";
+import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
 type Input = {
     roundId: OpaqueId;
     managerId: OpaqueId;
@@ -8,19 +8,6 @@ type Input = {
     messageIds: readonly OpaqueId[];
     now: number;
 };
-function reject(
-    state: MeetingState,
-    code: Extract<MeetingTransitionResultV1, { kind: "rejected" }>["error"]["code"],
-    message: string
-): MeetingTransitionResultV1 {
-    return {
-        kind: "rejected",
-        state,
-        relatedIds: [],
-        effectRequests: [],
-        error: { code, message }
-    };
-}
 function body(version: {
     observation: string;
     interpretation: string;

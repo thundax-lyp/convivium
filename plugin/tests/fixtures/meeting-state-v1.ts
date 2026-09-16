@@ -43,6 +43,7 @@ export function makeRunningMeetingStateV1(): MeetingState {
                 required: true
             }
         ],
+        identityRecommendations: [],
         agenda: [
             {
                 id: "agenda-v1",

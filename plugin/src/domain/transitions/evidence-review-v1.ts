@@ -25,20 +25,7 @@ type DeliveryInput = {
     failureReason?: string;
     now: number;
 };
-import type { MeetingTransitionResultV1 } from "./result-v1.js";
-function reject(
-    state: MeetingState,
-    code: Extract<MeetingTransitionResultV1, { kind: "rejected" }>["error"]["code"],
-    message: string
-): MeetingTransitionResultV1 {
-    return {
-        kind: "rejected",
-        state,
-        relatedIds: [],
-        effectRequests: [],
-        error: { code, message }
-    };
-}
+import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
 function valid(now: number) {
     return Number.isSafeInteger(now) && now >= 0;
 }

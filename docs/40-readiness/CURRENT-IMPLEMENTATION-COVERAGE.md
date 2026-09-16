@@ -4,7 +4,7 @@
 
 本文件按已确认的功能点记录当前 checkout 的真实实现状态。状态中的“已有”只表示源码中存在对应的旧能力；除非同时标为“已对齐”，否则不能作为当前 Interface 与 Design 的实现完成证据。
 
-本轮以当前 requirements/interfaces/designs 为依据，目标领域核心实现收口于 `7ac8cb2`，并在 `7cb2dcd` 修复公开入口 lint 阻断。新聚合使用标准名 `MeetingState`，旧模型显式命名为 `LegacyMeetingState`、`LegacyRiskLevel`；目标 validator 与 T0—T7 纯 Domain transitions 已实现、从 domain entry 具名导出并通过 focused tests 和完整 verify。Runtime、Repository、smoke、真实 DSH profile 与 Browser 尚未接入或验收。
+本轮以当前 requirements/interfaces/designs 为依据，目标领域核心与 Manager 身份准入切片已完成 T0—T8 实现。新聚合使用标准名 `MeetingState`，旧模型显式命名为 `LegacyMeetingState`、`LegacyRiskLevel`；身份准入复用既有 Repository/rehydration 与 DSH public APIs，包含安全 Catalog、Runtime admission、durable ownership、终态清理、投影、归档 provenance、冷恢复与真实 Host smoke。
 
 | 状态 | 含义 |
 | --- | --- |
@@ -32,8 +32,8 @@
 | Repository、幂等提交、outbox 与归档 | 有 storage/domain、请求幂等和归档相关旧路径。 | 新 MeetingState 原子 commit、outbox、commit fact、archive lifecycle、Session close receipt 与失败恢复没有实现覆盖。 | 部分已有（旧模型） |
 | Continuation | 有 continuation-selection 等旧归档续会代码。 | ContinuationInput、ContinuationProvenance、材料选择规则和新会议身份隔离尚未按当前接口实现。 | 部分已有（旧模型） |
 | Remote DTO、刷新与 Client projection | 有 remote、client、meeting-refresh-feed 和 Markdown projection 等旧路径。 | MeetingViewV1、字段过滤、版本刷新、动作回执及 Developer Markdown 的当前 DTO 契约未实现。 | 部分已有（旧模型） |
-| Role Definition、Catalog 与 Preflight | 有角色组成与 catalog 相关旧资产。 | dshPresetId、requiredSkillNames、descriptor、admission/preflight、权限边界和恢复后的角色一致性尚未按 DSH Role Interface 实现。 | 部分已有（旧模型） |
-| 新契约自动化测试 | target validator 与 T0—T7 纯 Domain action 的 focused tests 通过；本次完整工程 test 100 files、1133 tests 通过。 | 集成、恢复、隔离、Remote projection、Runtime 与真实 DSH/Browser 行为仍未覆盖。 | 目标纯 Domain 已对齐 |
+| Role Definition、Catalog、Manager 准入决定与 Preflight | 目标准入管线已接入安全 Host Catalog、Manager read projection、`recommend_identity` 的 `admit|reject`、provisioning/active/failed 生命周期、Definition/descriptor、Session admission/ownership、终态清理、身份/建议投影、Archive provenance 与 recovery；真实 smoke 经 Host Loader/native Skill/continuable Session 验证。 | 更广泛的其他 Role/Browser 场景、压力与发布验证仍未覆盖。 | Manager 身份准入已对齐；外围未覆盖 |
+| 新契约自动化测试 | target validator、T0—T8 transitions/runtime/recovery/view contract 与真实 Host identity-admission smoke 均通过。 | 其他未实施切片的集成、Remote projection 与 Browser 行为仍未覆盖。 | 身份准入切片已对齐 |
 | 真实 DSH 与 Browser 验收 | 仓库保留历史 smoke 操作说明和脚本。 | 当前 Round/Contribution/Review/PrivateMail/Role 契约从未在真实 DSH profile 或 Browser 中验证。 | 未验证 |
 
 ## Implementation Gap
@@ -56,16 +56,18 @@
 | 2026-09-16 | target TypeScript/API boundary | pnpm --dir plugin typecheck && pnpm --dir plugin lint | PASS：host/client typecheck 与 lint 通过；lint 仅有既有复杂度 warnings。 |
 | 2026-09-16 | 此切片的完整工程验证 | pnpm --dir plugin verify | PASS：format、lint、host/client/remote-test typecheck、92 files/1111 tests、build、environment、contract、agent definitions 与 package checks 通过。 |
 | 2026-09-16 | 主动参与纯 Domain 切片 | focused 8 suites（21 tests）、pnpm --dir plugin verify | PASS：focused 8 files/21 tests；完整 verify 100 files/1133 tests，lint 0 errors（9 个既有 warnings），host/client/remote-test typecheck、build、environment、contract、agent definitions 与 package checks 通过。 |
-| 2026-09-16 | 目标领域核心分支收口 | git rev-parse HEAD；git status --short | T8 readiness 更新前的代码边界为 `7ac8cb2`，lint 修复为 `7cb2dcd`；RUNBOOK 尚待 Close 删除。 |
+| 2026-09-16 | Manager 身份准入 T0—T8 全量验证 | `pnpm --dir plugin verify` | PASS：format、lint（0 errors，9 个既有 warnings）、host/client/remote-test typecheck、109 files/1149 tests、build、environment、contract、agent definitions 与 package checks 全部通过。 |
+| 2026-09-16 | 真实 Host profile smoke | `pnpm --dir plugin smoke:profile` | PASS：`parallel-contribution` restore=PASS；`identity-admission` restore=PASS；2 scenarios。身份场景使用真实 Host Loader/native Skill/continuable Session，覆盖 admit 与 reject。 |
+| 2026-09-16 | 文档与工作区收口 | `node .github/scripts/check-doc-links.mjs && git diff --check` | PASS：RUNBOOK 删除后 Markdown local file links 434 checked、0 errors；diff check 通过。 |
 
 ## Explicitly Not Covered
 
-- 新 MeetingState 的集成测试、恢复测试、smoke、真实 DSH profile、Browser 与真实模型行为未执行；已执行的纯 Domain validator/transitions 测试不代表这些边界已覆盖。
+- 除身份准入切片外，其他新 MeetingState 集成测试、真实 DSH profile、Browser 与真实模型行为未执行；身份准入 smoke 仅证明 RUNBOOK 固定的两条 Host 场景，不代表全产品运行覆盖。
 - 旧 smoke 或 operations 文档中的历史通过记录，仅说明旧基线曾运行；不能证明本文件列出的目标实现。
 - 性能、并发压力、迁移、旧数据兼容、远端文件系统和发布均不在当前阶段承诺中。
 
 ## Closure Rule
 
-本阶段可以声明：目标 `MeetingState` validator 与主动参与 T0—T7 纯 Domain transitions 已按当前 Interface/Design 对齐，并通过确定性 focused tests 和完整工程 verify。该结论只覆盖纯 Domain 边界，不证明 Runtime、Repository、恢复、Remote projection、真实 DSH 或 Browser 行为；这些功能只有在各自实现、测试及必要的真实环境验收完成后，才能移入“已对齐”。
+本阶段可以声明：Manager 身份准入 T0—T8 已按当前 Interface/Design 接入共享 Runtime/Repository/rehydration 与 DSH public APIs，并通过确定性 contract/integration/recovery/view tests、完整工程 verify、真实 Host smoke、链接检查和 diff 检查。该结论只覆盖身份准入切片及其固定 smoke 场景，不扩展到其他 Role、Browser、性能、迁移或发布边界。
 
 相关依据：[Domain Design](../30-designs/DOMAIN-DESIGN.md)、[Meeting Design](../30-designs/MEETING-DESIGN.md)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)、[DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)。

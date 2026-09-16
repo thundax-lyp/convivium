@@ -47,3 +47,11 @@ export {
     type StartManagerSessionInput,
     type StartParticipantSessionInput
 } from "./session-adapter.js";
+export * from "./meeting-role-catalog-v1.js";
+export {
+    admitMeetingIdentityV1,
+    type AdmitIdentityResultV1,
+    type IdentityAdmissionPortV1,
+    type PreparedDescriptorV1,
+    type SessionOwnershipV1
+} from "./meeting-identity-admission-v1.js";
