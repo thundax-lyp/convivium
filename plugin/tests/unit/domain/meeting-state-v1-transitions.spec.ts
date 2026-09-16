@@ -97,6 +97,55 @@ const resolveQuestion = (overrides: Record<string, unknown> = {}) => ({
     ...overrides
 });
 
+describe("dispose_issue completion boundary", () => {
+    it.each(["paused", "preparing", "converging", "ending"] as const)("rejects in %s", (status) => {
+        const current = state(status);
+        const result = transitionMeetingStateV1(
+            current,
+            {
+                kind: "dispose_issue",
+                issueId: "issue-1",
+                status: "resolved",
+                rationale: "done",
+                evidenceIds: ["version-1"]
+            },
+            captain,
+            4,
+            "fact-1"
+        );
+        expect(result).toMatchObject({
+            kind: "rejected",
+            state: current,
+            code: "INVALID_STATE",
+            facts: []
+        });
+        expect(result.state).toBe(current);
+    });
+    it.each(["terminal", "archiving", "archived"] as const)("rejects terminal %s", (status) => {
+        const current = terminalState(status);
+        const result = transitionMeetingStateV1(
+            current,
+            {
+                kind: "dispose_issue",
+                issueId: "issue-1",
+                status: "resolved",
+                rationale: "done",
+                evidenceIds: ["version-1"]
+            },
+            captain,
+            4,
+            "fact-1"
+        );
+        expect(result).toMatchObject({
+            kind: "rejected",
+            state: current,
+            code: "MEETING_TERMINAL",
+            facts: []
+        });
+        expect(result.state).toBe(current);
+    });
+});
+
 function terminalState(status: "terminal" | "archiving" | "archived"): MeetingState {
     const current = state(status);
     current.termination = {
@@ -1314,6 +1363,114 @@ describe("meeting lifecycle transitions", () => {
             code: "PRECONDITION_FAILED",
             facts: []
         });
+    });
+
+    it("clears the final blocking issue and enters converging in the same transition", () => {
+        const current = issueState(true, "open");
+        current.objective.requiredOutputs[0].status = "satisfied";
+        current.objective.acceptanceCriteria = [];
+        current.objective.hardConstraints[0].status = "satisfied";
+        current.agenda[0].requiredReviewerIds = ["reviewer-1"];
+        current.identities = current.identities.map((i) =>
+            i.id === "reviewer-1" ? { ...i, reviewResponsibilityIds: ["agenda-1"] } : i
+        );
+        current.reviews = [
+            {
+                id: "review-1",
+                versionId: "version-1",
+                reviewerId: "reviewer-1",
+                baselinePublicationIds: [],
+                scope: "x",
+                dimensions: {
+                    source: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] },
+                    credibility: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] },
+                    completeness: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] },
+                    support: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] }
+                },
+                createdAt: 0
+            }
+        ];
+        current.reviewDeliveries = [
+            {
+                id: "delivery-1",
+                reviewId: "review-1",
+                authorId: "contributor-1",
+                status: "sent",
+                sentAt: 0
+            }
+        ];
+        current.publications[0].finalReviewIds = ["review-1"];
+        current.proposals = [
+            {
+                id: "proposal-1",
+                proposalId: "proposal-group-1",
+                ordinal: 1,
+                actorId: "identity-1",
+                agendaId: "agenda-1",
+                summary: "x",
+                body: "x",
+                evidenceIds: ["version-1"],
+                createdAt: 0
+            }
+        ];
+        current.decisionCandidates = [
+            {
+                id: "candidate-1",
+                proposalRevisionId: "proposal-1",
+                actorId: "identity-1",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                positionIds: [],
+                createdAt: 0
+            }
+        ];
+        current.decisions = [
+            {
+                ...current.decisionCandidates[0],
+                id: "decision-1",
+                candidateId: "candidate-1",
+                status: "accepted"
+            }
+        ];
+        current.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                actorId: "identity-1",
+                status: "active",
+                statement: "done",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                createdAt: 0
+            }
+        ];
+        const result = transitionMeetingStateV1(
+            current,
+            disposeIssue({ status: "resolved" }),
+            captain,
+            10,
+            "fact-9"
+        );
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.lifecycle).toMatchObject({
+            status: "converging",
+            changedAt: 10,
+            changedBy: "identity-1",
+            reason: "objective_satisfied"
+        });
+        expect(result.state.termination).toBeUndefined();
+        expect(result.state.archive).toBeUndefined();
+        expect(result.state.issues[0].status).toBe("resolved");
+        expect(result.state.version).toBe(current.version + 1);
+        expect(result.facts[0].payload).toMatchObject({
+            kind: "issue_disposition",
+            issueId: "issue-1",
+            newStatus: "resolved"
+        });
+        expect(current.issues[0].status).toBe("open");
     });
 
     it("records a manager plan and supersedes the prior active plan atomically", () => {

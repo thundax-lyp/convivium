@@ -52,7 +52,7 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 | `raise_agenda_candidate` | 任意已授权 identity | Meeting 非终态；title/reason 完整 | pending candidate | 相同 request replay receipt；不能隐式加入 Agenda |
 | `dispose_agenda_candidate` | Captain | candidate pending；promoted Agenda 的每个必需 reviewer identity 存在、具有 evidence_reviewer role、责任引用可原子更新 | 仅一次 promoted/parked/rejected 事实；promoted 同次将 candidate 标 promoted、append 完整 pending Agenda，并向每个必需 reviewer identity.reviewResponsibilityIds append 新 Agenda.id，三项不可部分提交；不授新 role、不切换 active | 再处置、非 Captain、候选/审核者不存在、reviewer 无 role、重复责任或任一引用非法时整条拒绝，state/facts/version 均不变 |
 | `record_question` / `record_issue` | 任一已授权 Meeting identity | 关联 Agenda 和受影响的必要产出、验收条件、硬约束引用存在；Issue 的必需审核者 ID 必须属于该 Agenda；blocking 仅在这些受影响目标尚未满足、明确关联必需审核者或 high 风险尚未接受时成立 | 不可变记录；未接受 high 风险必须 blocking；Issue 的 `accepted_risk` 只能经 `dispose_risk` accept 形成 | local controller、未知 identity、自由文本伪造引用、无资格却请求 blocking、直接创建 `accepted_risk` 或默认风险等级拒绝 |
-| `resolve_question` / `dispose_issue` | Captain identity | 目标 Question/Issue 存在且 status 为 `open|deferred`；rationale/evidence 引用有效 | Question answered/withdrawn、Issue resolved/out_of_scope 清除 blocking；deferred 保留旧 blocking；旧/新 status/blocking、理由和证据进入单一不可变 committed fact payload | local controller、非 Captain、已终结的再次处置、缺理由/证据或通过 deferred 消除未接受 high 风险的尝试拒绝 |
+| `resolve_question` / `dispose_issue` | Captain identity | 目标 Question/Issue 存在且 status 为 `open|deferred`；rationale/evidence 引用有效；`dispose_issue` 另要求 Meeting running | Question answered/withdrawn、Issue resolved/out_of_scope 清除 blocking；deferred 保留旧 blocking；旧/新 status/blocking、理由和证据进入单一不可变 committed fact payload；清除最后 blocking Issue 时同步重算并可进入 converging | local controller、非 Captain、`dispose_issue` 时非 running、已终结的再次处置、缺理由/证据或通过 deferred 消除未接受 high 风险的尝试拒绝 |
 
 ### Evidence round
 
@@ -78,13 +78,13 @@ Round 的 `aborted` 只由 Captain 在不能继续时设置，必须给出原因
 
 | 转换 | 允许 actor | 前提 | 成功事实/效果 | 拒绝 |
 | --- | --- | --- | --- | --- |
-| `record_proposal_revision` | Contributor 或 Captain | 可运行 Meeting；引用可见、已发布 evidence | 新不可变 revision；不继承任何 position/decision | 引用未公开材料或修改旧 revision 拒绝 |
-| `record_position` | Contributor 或 Captain | 对 proposal revision 的明确立场和理由 | 新不可变 Position | Manager、无引用或重复 ID 拒绝 |
-| `record_decision_candidate` | Contributor 或 Captain | 当前 ProposalRevision、可见 evidence/positions 与理由完整 | 新不可变 Candidate，无 status | Candidate 不形成 Decision，普通 Participant 不可读 pending projection |
-| `decide` / `supersede_decision` / `revoke_decision` | Captain 或 local controller | 当前 Candidate、required evidence/positions、理由与目标引用完整 | 接受 Candidate 形成新 Decision；supersede 原子替代，revoke 仅撤销旧 Decision | 仅自然语言总结、缺 rationale/evidence 或非授权 actor 拒绝 |
-| `dispose_risk` | Captain 或 local controller | riskLevel、acceptableRiskLevel、hard constraints、Issue status、evidence、理由齐全 | 不可变 accept/reject disposition；只改变目标 Issue；完成条件满足时进入 converging 并停止新增贡献安排 | 无 authority 或接受未说明风险拒绝 |
-| `submit_completion_declaration` | Participant | 自身 identity、output/criterion、可见 evidence 与 task 引用一致 | 不可变 declaration，不改变完成状态 | 不能以 declaration 覆盖 objective、Agenda 或 lifecycle |
-| `record_completion_fact` / `supersede_completion_fact` / `revoke_completion_fact` | Captain | 对 output/criterion 的可验证 evidence 与 Decision 基础完整 | active 或显式替代/撤销事实 | Manager 或以 Task/评分代替依据拒绝 |
+| `record_proposal_revision` | Contributor 或 Captain | Meeting running；引用可见、已发布 evidence | 新不可变 revision；不继承任何 position/decision | 非 running、引用未公开材料或修改旧 revision 拒绝 |
+| `record_position` | Contributor 或 Captain | Meeting running；对 current proposal revision 的明确立场和理由 | 新不可变 Position | 非 running、Manager、无引用或重复 ID 拒绝 |
+| `record_decision_candidate` | Contributor 或 Captain | Meeting running；当前 ProposalRevision、可见 evidence/positions 与理由完整 | 新不可变 Candidate，无 status | 非 running；Candidate 不形成 Decision，普通 Participant 不可读 pending projection |
+| `decide` / `supersede_decision` / `revoke_decision` | Captain 或 local controller | Meeting running；当前 Candidate、required evidence/positions、理由与目标引用完整 | 接受 Candidate 形成新 Decision；supersede 原子替代，revoke 仅撤销旧 Decision | 非 running、仅自然语言总结、缺 rationale/evidence 或非授权 actor 拒绝 |
+| `dispose_risk` | Captain 或 local controller | Meeting running；目标 Issue status=open；riskLevel、acceptableRiskLevel、hard constraints、evidence、理由齐全 | 不可变 accept/reject disposition；只改变目标 Issue；完成条件满足时进入 converging 并停止新增贡献安排 | 非 running、非 open Issue、无 authority 或接受未说明风险拒绝 |
+| `submit_completion_declaration` | Contributor | Meeting running；自身 identity 存在且 roles 含 `contributor`；output/criterion、可见 evidence 与 task 引用一致 | 不可变 declaration，不改变任何目标、Issue 或完成状态，也不与 CompletionFact 建立消费关系 | 非 running、manager-only、evidence-reviewer-only、local controller 和仅 Captain 拒绝；不能以 declaration 覆盖 objective、Agenda 或 lifecycle |
+| `record_completion_fact` / `supersede_completion_fact` / `revoke_completion_fact` | Captain | Meeting running；对 output/criterion 的可验证 evidence 与 Decision 基础完整 | active 或显式替代/撤销事实 | 非 running、Manager 或以 Task/声明/评分代替依据拒绝 |
 | `end_meeting` | local controller | 所有 active Agenda 已收口，或强制结束明确列出未收口项；结束 outcome 与 unresolved items/decisions/facts 一致 | 由受控 Runtime/Domain 命令上下文分配非空唯一 Termination.id，形成 immutable Termination、terminal lifecycle、archive materialization effect；后续 ArchivePackage.terminationId 必须匹配 | objective 未满足只能以 partial/no_consensus 等明确 outcome 结束，不能伪造 completed；caller 不得提交 Termination.id |
 
 Decision candidate 和 Captain/local 私有投影由 projection 根据 actor 过滤；它不是另一个可写状态。

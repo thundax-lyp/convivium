@@ -7,6 +7,7 @@ import type {
 } from "./meeting-state-v1.js";
 import { validateMeetingStateV1 } from "./meeting-state-v1-validation.js";
 import { z } from "zod";
+import { recalculateMeetingCompletionV1 } from "@/domain/transitions/outcome-v1.js";
 
 export type TargetDomainActorV1 =
     { kind: "local_controller"; id: OpaqueId } | { kind: "identity"; id: OpaqueId };
@@ -609,6 +610,9 @@ export function transitionMeetingStateV1(
         ];
         relatedIds = [state.id, candidateId];
     } else if (action.kind === "dispose_issue") {
+        if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
+            return invalid(state, "MEETING_TERMINAL");
+        if (state.lifecycle.status !== "running") return invalid(state, "INVALID_STATE");
         const issue = state.issues.find((item) => item.id === action.issueId);
         if (!issue) return invalid(state, "NOT_FOUND");
         if (issue.status !== "open" && issue.status !== "deferred")
@@ -676,7 +680,7 @@ export function transitionMeetingStateV1(
             reason: action.reason
         };
 
-    const nextState: MeetingState = {
+    let nextState: MeetingState = {
         ...state,
         version: state.version + 1,
         updatedAt: now,
@@ -688,6 +692,8 @@ export function transitionMeetingStateV1(
         managerPlans: nextPlans,
         lifecycle: nextLifecycle
     };
+    if (action.kind === "dispose_issue")
+        nextState = recalculateMeetingCompletionV1(nextState, actor.id, now);
     if (validateMeetingStateV1(nextState).kind !== "valid")
         return invalid(state, "PRECONDITION_FAILED");
     return {

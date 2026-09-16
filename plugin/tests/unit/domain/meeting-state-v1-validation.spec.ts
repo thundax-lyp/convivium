@@ -98,7 +98,7 @@ function invalidAt(value: unknown, path: string) {
 
 describe("MeetingState structure", () => {
     it("accepts the base fixture by the same state reference", () => {
-        const state = base();
+        const state = evidenceState().state;
         const result = validateMeetingStateV1(state);
         expect(result).toEqual({ kind: "valid", state });
         expect(result.kind === "valid" && result.state).toBe(state);
@@ -1008,6 +1008,468 @@ describe("Evidence and decision chain", () => {
     });
 });
 
+describe("outcome history invariants", () => {
+    it("rejects duplicate decision use and accepted decisions per revision", () => {
+        const state = evidenceState().state;
+        state.decisions = [state.decisions[0], { ...state.decisions[0], id: "decision-2" }];
+        invalidAt(state, "$.decisions[1].candidateId");
+        const secondCandidate = { ...state.decisionCandidates[0], id: "candidate-2" };
+        state.decisionCandidates = [state.decisionCandidates[0], secondCandidate];
+        state.decisions = [
+            state.decisions[0],
+            { ...state.decisions[0], id: "decision-2", candidateId: "candidate-2" }
+        ];
+        invalidAt(state, "$.decisions[1].proposalRevisionId");
+    });
+    it.each([
+        ["accept classification", "accept", "blocking", false, "$.issues[0].blocking"],
+        ["accept blocking", "accept", "accepted_risk", true, "$.issues[0].blocking"],
+        ["reject classification", "reject", "accepted_risk", false, "$.issues[0].classification"],
+        ["reject blocking", "reject", "blocking", false, "$.issues[0].blocking"]
+    ] as const)(
+        "enforces open issue latest risk disposition: %s",
+        (_name, action, classification, blocking, path) => {
+            const state = evidenceState().state;
+            state.issues = [
+                {
+                    id: "issue-1",
+                    agendaId: "agenda-1",
+                    description: "risk",
+                    riskLevel: "high",
+                    classification,
+                    affectedOutputIds: ["output-1"],
+                    affectedCriterionIds: [],
+                    affectedConstraintIds: [],
+                    requiredReviewerIds: ["reviewer-1"],
+                    blocking,
+                    status: "open",
+                    rationale: "x"
+                }
+            ];
+            state.riskDispositions = [
+                {
+                    id: "risk-1",
+                    issueId: "issue-1",
+                    actorId: "captain-1",
+                    action,
+                    scope: "x",
+                    rationale: "x",
+                    evidenceIds: ["version-1"],
+                    createdAt: 0
+                }
+            ];
+            invalidAt(state, path);
+        }
+    );
+    it("accepts deferred and resolved/out-of-scope risk history when blocking is cleared", () => {
+        const state = evidenceState().state;
+        state.issues = [
+            {
+                id: "issue-1",
+                agendaId: "agenda-1",
+                description: "risk",
+                riskLevel: "high",
+                classification: "accepted_risk",
+                affectedOutputIds: ["output-1"],
+                affectedCriterionIds: [],
+                affectedConstraintIds: [],
+                requiredReviewerIds: ["reviewer-1"],
+                blocking: false,
+                status: "deferred",
+                rationale: "x"
+            }
+        ];
+        state.riskDispositions = [
+            {
+                id: "risk-1",
+                issueId: "issue-1",
+                actorId: "captain-1",
+                action: "accept",
+                scope: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                createdAt: 0
+            }
+        ];
+        expect(validateMeetingStateV1(state)).toMatchObject({ kind: "valid" });
+        state.issues[0].status = "resolved";
+        expect(validateMeetingStateV1(state)).toMatchObject({ kind: "valid" });
+        state.issues[0].status = "out_of_scope";
+        state.issues[0].classification = "out_of_scope";
+        expect(validateMeetingStateV1(state)).toMatchObject({ kind: "valid" });
+    });
+    it("requires decision replacements to reference an earlier superseded decision", () => {
+        const state = evidenceState().state;
+        state.decisions[0] = { ...state.decisions[0], status: "superseded" };
+        state.decisions.push({
+            ...state.decisions[0],
+            id: "decision-2",
+            candidateId: "decisionCandidate-1",
+            status: "accepted",
+            replacesDecisionId: "decision-1"
+        });
+        expect(validateMeetingStateV1(state)).toMatchObject({
+            kind: "invalid",
+            path: "$.decisions[1].candidateId"
+        });
+        const valid = evidenceState().state;
+        valid.decisions[0] = { ...valid.decisions[0], status: "superseded" };
+        valid.decisionCandidates.push({ ...valid.decisionCandidates[0], id: "candidate-2" });
+        valid.decisions.push({
+            ...valid.decisions[0],
+            id: "decision-2",
+            candidateId: "candidate-2",
+            status: "accepted",
+            replacesDecisionId: "decision-1"
+        });
+        expect(validateMeetingStateV1(valid)).toMatchObject({ kind: "valid" });
+        const cross = structuredClone(valid);
+        cross.decisions[1].replacesDecisionId = "candidate-1";
+        invalidAt(cross, "$.decisions[1].replacesDecisionId");
+    });
+    it("rejects a decision replacement across proposal revisions", () => {
+        const f = evidenceState();
+        const state = f.state;
+        state.decisions[0] = { ...state.decisions[0], status: "superseded" };
+        state.proposals.push({
+            ...state.proposals[0],
+            id: "proposal-2",
+            ordinal: 2,
+            supersedesRevisionId: "proposal-1"
+        });
+        state.positions.push({
+            ...state.positions[0],
+            id: "position-2",
+            proposalRevisionId: "proposal-2"
+        });
+        state.decisionCandidates.push({
+            ...state.decisionCandidates[0],
+            id: "candidate-2",
+            proposalRevisionId: "proposal-2",
+            positionIds: ["position-2"]
+        });
+        state.decisions.push({
+            ...state.decisions[0],
+            id: "decision-2",
+            candidateId: "candidate-2",
+            proposalRevisionId: "proposal-2",
+            status: "accepted",
+            replacesDecisionId: "decision-1"
+        });
+        invalidAt(state, "$.decisions[1].replacesDecisionId");
+    });
+    it("rejects two completion replacements of one predecessor", () => {
+        const state = evidenceState().state;
+        state.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "superseded",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                createdAt: 0
+            },
+            {
+                id: "fact-2",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "superseded",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                supersedesFactId: "fact-1",
+                createdAt: 1
+            },
+            {
+                id: "fact-3",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                supersedesFactId: "fact-1",
+                createdAt: 2
+            }
+        ];
+        invalidAt(state, "$.completionFacts[2].supersedesFactId");
+    });
+    it.each(["revoked", "future"] as const)(
+        "rejects invalid completion replacement ordering: %s",
+        (mode) => {
+            const state = evidenceState().state;
+            const oldStatus = mode === "revoked" ? "revoked" : "superseded";
+            state.completionFacts = [
+                {
+                    id: "fact-1",
+                    outputId: "output-1",
+                    actorId: "captain-1",
+                    status: oldStatus,
+                    statement: "x",
+                    rationale: "x",
+                    evidenceIds: ["version-1"],
+                    decisionIds: ["decision-1"],
+                    createdAt: 0
+                },
+                {
+                    id: "fact-2",
+                    outputId: "output-1",
+                    actorId: "captain-1",
+                    status: "active",
+                    statement: "x",
+                    rationale: "x",
+                    evidenceIds: ["version-1"],
+                    decisionIds: ["decision-1"],
+                    supersedesFactId: "fact-1",
+                    createdAt: 1
+                }
+            ];
+            if (mode === "future") state.completionFacts.reverse();
+            invalidAt(state, `$.completionFacts[${mode === "future" ? 0 : 1}].supersedesFactId`);
+        }
+    );
+    it.each(["revoked", "superseded"] as const)(
+        "accepts a later replacement status %s",
+        (status) => {
+            const state = evidenceState().state;
+            state.completionFacts = [
+                {
+                    id: "fact-1",
+                    outputId: "output-1",
+                    actorId: "captain-1",
+                    status: "superseded",
+                    statement: "x",
+                    rationale: "x",
+                    evidenceIds: ["version-1"],
+                    decisionIds: ["decision-1"],
+                    createdAt: 0
+                },
+                {
+                    id: "fact-2",
+                    outputId: "output-1",
+                    actorId: "captain-1",
+                    status,
+                    statement: "x",
+                    rationale: "x",
+                    evidenceIds: ["version-1"],
+                    decisionIds: ["decision-1"],
+                    supersedesFactId: "fact-1",
+                    createdAt: 1
+                }
+            ];
+            expect(validateMeetingStateV1(state)).toMatchObject({ kind: "valid" });
+            expect(state.completionFacts[1].supersedesFactId).toBe("fact-1");
+        }
+    );
+    it("rejects a completion replacement whose predecessor is not superseded", () => {
+        const state = evidenceState().state;
+        state.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                createdAt: 0
+            },
+            {
+                id: "fact-2",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                supersedesFactId: "fact-1",
+                createdAt: 1
+            }
+        ];
+        expect(validateMeetingStateV1(state)).toEqual({
+            kind: "invalid",
+            code: "INVALID_ARGUMENT",
+            path: "$.completionFacts[1].supersedesFactId"
+        });
+    });
+    it("accepts immutable declaration history when its task is later revoked", () => {
+        const state = evidenceState().state;
+        state.tasks = [
+            {
+                id: "task-1",
+                createdBy: "manager-1",
+                assigneeId: "manager-1",
+                agendaId: "agenda-1",
+                title: "task",
+                instructions: "task",
+                contextPublicationUpperBound: ["publication-1"],
+                status: "cancelled",
+                result: "done",
+                createdAt: 0,
+                updatedAt: 1,
+                authorizationId: "auth-1",
+                authorizationStatus: "revoked",
+                attempt: 1
+            }
+        ];
+        state.completionDeclarations = [
+            {
+                id: "declaration-1",
+                actorId: "captain-1",
+                outputId: "output-1",
+                statement: "done",
+                evidenceIds: ["version-1"],
+                taskId: "task-1",
+                createdAt: 0
+            }
+        ];
+        expect(validateMeetingStateV1(state)).toMatchObject({ kind: "valid" });
+        state.tasks[0].assigneeId = "captain-1";
+        expect(validateMeetingStateV1(state)).toMatchObject({ kind: "valid" });
+    });
+
+    it("accepts an active historical fact after its decision basis becomes stale", () => {
+        const state = evidenceState().state;
+        state.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                createdAt: 0
+            }
+        ];
+        state.proposals = [
+            ...state.proposals,
+            {
+                id: "proposal-2",
+                proposalId: "proposal-group-1",
+                ordinal: 2,
+                actorId: "manager-1",
+                agendaId: "agenda-1",
+                summary: "new",
+                body: "new",
+                evidenceIds: ["version-1"],
+                supersedesRevisionId: "proposal-1",
+                createdAt: 1
+            }
+        ];
+        expect(state.completionFacts[0].status).toBe("active");
+        expect(state.decisions[0].status).toBe("accepted");
+        expect(state.decisions[0].proposalRevisionId).toBe("proposal-1");
+        expect(state.objective.requiredOutputs[0].status).toBe("pending");
+        expect(validateMeetingStateV1(state).kind).toBe("valid");
+    });
+
+    it("rejects an effective active fact while its output remains pending", () => {
+        const state = evidenceState().state;
+        state.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                createdAt: 0
+            }
+        ];
+        invalidAt(state, "$.objective.requiredOutputs[0].status");
+    });
+
+    it("rejects an effective active fact while its criterion remains pending", () => {
+        const state = evidenceState().state;
+        state.objective.requiredOutputs[0].status = "satisfied";
+        state.objective.acceptanceCriteria = [
+            { id: "criterion-1", text: "criterion", status: "pending" }
+        ];
+        state.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                criterionId: "criterion-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                createdAt: 0
+            }
+        ];
+        invalidAt(state, "$.objective.acceptanceCriteria[0].status");
+    });
+
+    it.each([
+        [
+            "output",
+            {
+                ...evidenceState().state,
+                objective: {
+                    ...evidenceState().state.objective,
+                    requiredOutputs: [
+                        {
+                            ...evidenceState().state.objective.requiredOutputs[0],
+                            status: "satisfied"
+                        }
+                    ]
+                }
+            },
+            "$.objective.requiredOutputs[0].status"
+        ],
+        [
+            "criterion",
+            {
+                ...evidenceState().state,
+                objective: {
+                    ...evidenceState().state.objective,
+                    acceptanceCriteria: [
+                        { id: "criterion-1", text: "criterion", status: "satisfied" }
+                    ]
+                }
+            },
+            "$.objective.acceptanceCriteria[0].status"
+        ]
+    ] as const)("rejects satisfied %s without an effective fact", (_name, state, path) => {
+        invalidAt(state, path);
+    });
+
+    it.each([
+        ["evidenceIds", { evidenceIds: [] }, "$.completionFacts[0].evidenceIds"],
+        ["decisionIds", { decisionIds: [] }, "$.completionFacts[0].decisionIds"]
+    ] as const)("requires non-empty completion fact %s", (_name, override, path) => {
+        const state = evidenceState().state;
+        state.completionFacts = [
+            {
+                id: "fact-1",
+                outputId: "output-1",
+                actorId: "captain-1",
+                status: "active",
+                statement: "x",
+                rationale: "x",
+                evidenceIds: ["version-1"],
+                decisionIds: ["decision-1"],
+                createdAt: 0,
+                ...override
+            }
+        ];
+        invalidAt(state, path);
+    });
+});
+
 const typedReferenceCases = [
     ["round agenda", "rounds", "round", "agendaId", ["output-1", "missing-agenda"]],
     [
@@ -1356,7 +1818,7 @@ function remainingEntityState() {
         agendaId: "agenda-1",
         description: "x",
         riskLevel: "low",
-        classification: "follow_up",
+        classification: "accepted_risk",
         affectedOutputIds: [],
         affectedCriterionIds: [],
         affectedConstraintIds: [],
@@ -1391,7 +1853,7 @@ function remainingEntityState() {
         statement: "x",
         rationale: "x",
         evidenceIds: ["version-1"],
-        decisionIds: [],
+        decisionIds: ["decision-1"],
         createdAt: 0
     };
     const task = {
@@ -1421,6 +1883,10 @@ function remainingEntityState() {
     };
     return {
         ...f.state,
+        objective: {
+            ...f.state.objective,
+            requiredOutputs: [{ ...f.state.objective.requiredOutputs[0], status: "satisfied" }]
+        },
         issues: [issue],
         riskDispositions: [risk],
         completionDeclarations: [declaration],
@@ -1844,6 +2310,9 @@ it.each(remainingFkCases)(
         const item = (state[itemKey] as Record<string, unknown>[])[0];
         for (const value of values) {
             const path = `$.${collection}[0].${field}${Array.isArray(value) ? "[0]" : ""}`;
+            if (collection === "riskDispositions") {
+                state.issues = [{ ...state.issues[0], classification: "follow_up" }];
+            }
             invalidAt({ ...state, [collection]: [{ ...item, [field]: value }] }, path);
         }
     }

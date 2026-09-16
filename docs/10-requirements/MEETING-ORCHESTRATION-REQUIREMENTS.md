@@ -108,22 +108,25 @@
 3. 正式决策必须依据当前提案版本上的有效立场和 Captain 或单 Host loopback 本地用户的明确结构化接受形成；V1 不使用自动接受，自然语言意见不能替代该操作。
 4. 新提案版本必须独立保存，`positions` 从空集合开始，不得自动继承旧版本的立场、候选决策、正式决策或接受结果。
 5. 少数非阻塞意见必须保留在会议结果中，不得为了显示一致而删除。
-6. 只有 Captain 和 loopback local user 可以查看当前 Meeting 的 `pendingDecisionCandidates`；该 projection 只包含指向当前 Proposal revision、尚未形成 Decision 且 Meeting 仍可执行的候选，普通 Participant 不可见。候选被接受、Proposal revision 更新或 Meeting execution 进入终态后，必须从该 projection 消失；V1 不提供 candidate reject/revoke 操作。
-7. 决策被替代或撤销时，必须通过 Captain 或 loopback 本地用户的结构化 `supersede` 或 `revoke` 操作；历史决策及其依据必须仍可审计。`supersede` 必须在同一原子提交中接受 replacement candidate、生成 replacement Decision、将旧 accepted Decision 标记为 superseded 并记录替代关系；`revoke` 只能将旧 accepted Decision 标记为 revoked。
+6. 只有 Captain 和 loopback local user 可以查看当前 Meeting 的 `pendingDecisionCandidates`；该 projection 只包含指向当前 Proposal revision、尚未形成 Decision 且 Meeting 处于 `running|paused` 的候选，普通 Participant 不可见。候选被接受、Proposal revision 更新，或 Meeting 进入 `preparing|converging|ending|terminal|archiving|archived` 后，必须从该 projection 消失；V1 不提供 candidate reject/revoke 操作。`paused` 中的候选只表示恢复后仍可执行，不授权在暂停期间接受。
+7. 每个 Candidate 最多形成一个 Decision，同一 Proposal revision 最多有一个 `accepted` Decision。决策被替代或撤销时，必须通过 Captain 或 loopback 本地用户的结构化 `supersede` 或 `revoke` 操作；历史决策及其依据必须仍可审计。`supersede` 的 replacement candidate 必须属于同一 proposal 的 current revision 且尚未形成 Decision，并在同一原子提交中生成 replacement Decision、将旧 accepted Decision 标记为 superseded 并记录替代关系；`revoke` 只能将旧 accepted Decision 标记为 revoked。
 8. Captain/local Decision disposal 必须包含 protocol version、Meeting/version expectation、request identity、目标 Decision、action、非空理由和至少一条本 Meeting 证据；`supersede` 必须提供 replacement candidate，`revoke` 不得提供。execution-terminal、archiving 和 archived 状态不得写入 Decision。
 9. Captain 在自然语言中表示接受或拒绝风险只构成意见；只有通过明确的结构化风险处置操作并经系统验证后，才能改变正式风险状态。
+10. `record_proposal_revision`、`record_position`、`record_decision_candidate`、`decide` 和 Decision 的 `supersede|revoke` 只在 `running` Meeting 接受；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。`converging` 是本组操作的单向收敛边界，V1 不在其中撤销或替代 Decision，也不隐式重新打开 Meeting。
 
 ### MO-FR-8：完成事实与会议结束
 
 1. 会议完成事实可以来自 Agent 的正式提交、经授权的 MeetingTask result projection、required review，以及 Captain 的明确接受、豁免、风险处置或结束操作；loopback 本地用户也可通过受控入口形成决策接受、替代、撤销和风险处置事实。
 2. `MeetingTask completed` 不得默认等同于 required output accepted、议题解决或会议完成。
-3. 参与者可以提交完成声明及其证据，但不能直接覆盖会议目标、验收条件或完成状态。
+3. 参与者可以提交完成声明及其证据，但声明只形成不可变 `CompletionDeclaration`，不能直接覆盖会议目标、验收条件、议题、问题、风险或完成状态，也不被自动转换、消费或删除。此处 Participant 精确指已存在于 `MeetingState.identities` 且具有 `contributor` role 的 identity；Captain 只有在同时具有 `contributor` role 时才能提交，仅 `manager`、仅 `evidence_reviewer` 和 local controller 均不能提交。
 4. 系统必须验证声明者身份、授权范围、证据归属、审核要求和风险接受权限。
 5. 会议完成状态必须由经过验证的完成事实和确定性业务规则得出，不得仅根据自然语言总结宣布完成。
 6. 达到业务完成条件时，即使仍有非阻塞后续事项、待讨论事项、已接受风险或少数意见，会议也可以正常完成。
 7. 会议不能完成时，必须区分部分完成、无共识、取消和内部失败，并说明原因及未解决事项。
 8. 最大正式消息数、最大会议时长、任务与审核时限限制继续工作；不得以固定轮次数或每轮发言人数代替证据轮次的状态收口条件。最后一次合法且已公开事实更新同时满足完成条件与预算边界时，按正常完成处理；预算在轮内耗尽时停止新增工作、保留待收口项并报告异常结束或人工处置，不得绕过审核继续发布。
-9. Captain 或 loopback 本地用户的结构化风险处置必须明确一个 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、hard constraints、Issue status 和 Meeting lifecycle 限制；`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `classification=blocking`、`blocking=true`。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。处置后执行确定性完成重算；满足完成条件时进入 `converging` 并停止新贡献安排、清除不再适用的等待状态，本操作不自动结束或归档会议。
+9. Captain 或 loopback 本地用户的结构化风险处置必须明确一个 `status=open` 的 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、该 Issue 的 `affectedConstraintIds` 所引用 hard constraints 和 Meeting lifecycle 限制；`resolved|deferred|out_of_scope` Issue 不可执行风险处置，`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 要求这些 hard constraints 当前均为 `satisfied`，并使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `classification=blocking`、`blocking=true`，不受风险等级上限限制。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。处置后执行确定性完成重算；满足完成条件时进入 `converging` 并停止新贡献安排、清除不再适用的等待状态，本操作不自动结束或归档会议。
+10. 会改变完成判定的 `dispose_issue` 只能在 `running` 执行；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。因此不存在 paused 期间清除最后阻塞、resume 后却遗留在 running 的状态；满足条件的该处置在同一次 running transition 中进入 `converging`。
+11. `dispose_risk`、`submit_completion_declaration`、`record_completion_fact` 和 CompletionFact 的 `supersede|revoke` 只在 `running` Meeting 接受；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。达到完成条件并进入 `converging` 后，V1 不撤销或替代 CompletionFact，也不隐式回到 `running`。
 
 ### MO-FR-9：暂停、恢复与故障隔离
 
@@ -312,7 +315,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 7. Participant 不能为其他身份提交立场，也不能直接指定正式决策的接受者或状态；候选不是正式 Decision，且普通 Participant 不获得 pending candidate projection。
 8. 新 proposal revision 的 `positions` 为空，不继承旧 revision 的立场、candidate、Decision 或 acceptance；接受事件统一为 `decision.accepted`，不存在 `decision.added` 兼容事件。
 9. MeetingTask 完成但 required review 未通过时，会议不能把对应产出标记为 accepted。
-10. 经过授权和证据验证的完成声明可以更新相应产出、验收条件、议题、问题或风险状态。
+10. 经过授权和证据验证的完成声明只追加不可变 `CompletionDeclaration`，不更新产出、验收条件、议题、问题、风险或 lifecycle；只有 Captain 另行创建、替代或撤销的合法 `CompletionFact` 参与目标状态与完成判定。
 11. 所有必要产出和验收条件满足后，即使存在非阻塞后续事项或少数意见，会议仍能正常完成。
 12. 合法且已公开的事实更新同时满足完成条件和预算边界时，结果为正常完成；轮内已接纳的举手、证据及审核须先按轮次规则收口，不将未公开提交当作已完成事实。预算在轮内耗尽时显示待收口项和异常结束／人工处置原因，终态后的迟到提交、审核不能改变会议事实。
 13. 插件重启后，正式提交内容不丢失，重复投递不产生重复会议事实；request identity 相同且 validated request serialization 相同的重试必须重放原 receipt/result，identity 相同但 serialization 不同必须拒绝。

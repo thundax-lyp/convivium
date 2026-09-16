@@ -501,8 +501,8 @@ const completionFactSchema = withDefinedOptionals(
         status: z.enum(["active", "superseded", "revoked"]),
         statement: textSchema,
         rationale: textSchema,
-        evidenceIds: uniqueIdArraySchema,
-        decisionIds: uniqueIdArraySchema,
+        evidenceIds: uniqueIdArraySchema.min(1),
+        decisionIds: uniqueIdArraySchema.min(1),
         supersedesFactId: opaqueIdSchema.optional(),
         createdAt: epochSchema
     }),
@@ -1047,6 +1047,25 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             return fail(`${path}.replacesDecisionId`);
         if (r.replacesDecisionId === r.id) return fail(`${path}.replacesDecisionId`);
     }
+    const acceptedByRevision = new Set<string>();
+    const decidedCandidates = new Set<string>();
+    for (let i = 0; i < decisions.length; i++) {
+        const d = decisions[i];
+        if (decidedCandidates.has(d.candidateId)) return fail(`$.decisions[${i}].candidateId`);
+        decidedCandidates.add(d.candidateId);
+        if (d.status === "accepted") {
+            if (acceptedByRevision.has(d.proposalRevisionId))
+                return fail(`$.decisions[${i}].proposalRevisionId`);
+            acceptedByRevision.add(d.proposalRevisionId);
+        }
+        if (d.replacesDecisionId !== undefined) {
+            const previous = decisions.findIndex((x) => x.id === d.replacesDecisionId);
+            if (previous < 0 || previous >= i || decisions[previous].status !== "superseded")
+                return fail(`$.decisions[${i}].replacesDecisionId`);
+            if (decisions[previous].proposalRevisionId !== d.proposalRevisionId)
+                return fail(`$.decisions[${i}].replacesDecisionId`);
+        }
+    }
     for (let i = 0; i < rounds.length; i++) {
         const r = rounds[i] as RecordValue;
         const path = `$.rounds[${i}]`;
@@ -1214,6 +1233,17 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             )
                 return fail(`${path}.blocking`);
         }
+        const lastDisposition = [...riskDispositions]
+            .reverse()
+            .find((disposition) => disposition.issueId === item.id);
+        if (lastDisposition && (item.status === "open" || item.status === "deferred")) {
+            const expectedAccepted = lastDisposition.action === "accept";
+            if (
+                expectedAccepted !== (item.classification === "accepted_risk") ||
+                expectedAccepted === item.blocking
+            )
+                return fail(`${path}.classification`);
+        }
     }
     const plans = parsedState.managerPlans;
     const activePlanAgendas = new Set<string>();
@@ -1267,6 +1297,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (item.taskId !== undefined && !ref(item.taskId, taskIds)) return fail(`${path}.taskId`);
     }
     const facts = parsedState.completionFacts;
+    const supersededFactIds = new Set<string>();
     for (let i = 0; i < facts.length; i++) {
         const item = facts[i];
         const path = `$.completionFacts[${i}]`;
@@ -1288,6 +1319,84 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             !completionFactIds.has(item.supersedesFactId as string)
         )
             return fail(`${path}.supersedesFactId`);
+        if (item.supersedesFactId !== undefined) {
+            const previous = facts.findIndex((x) => x.id === item.supersedesFactId);
+            if (previous < 0 || previous >= i || facts[previous].status !== "superseded")
+                return fail(`${path}.supersedesFactId`);
+            if (supersededFactIds.has(item.supersedesFactId as string))
+                return fail(`${path}.supersedesFactId`);
+            supersededFactIds.add(item.supersedesFactId as string);
+        }
+    }
+    const currentRevisionIds = new Set<string>();
+    for (const proposal of proposals) {
+        const current = proposalGroups.get(proposal.proposalId);
+        if (current?.id === proposal.id) currentRevisionIds.add(proposal.id as string);
+    }
+    const effectiveFact = (fact: (typeof facts)[number]) => {
+        if (fact.status !== "active") return false;
+        if (
+            !fact.decisionIds.every((id) => {
+                const decision = decisions.find((candidate) => candidate.id === id);
+                return (
+                    !!decision &&
+                    decision.status === "accepted" &&
+                    decision.outcome === "adopt" &&
+                    currentRevisionIds.has(decision.proposalRevisionId as string)
+                );
+            })
+        )
+            return false;
+        return fact.evidenceIds.every((versionId) => {
+            const owner = [...versionOwnerById.entries()].find(([, packageValue]) =>
+                packageValue.versions.some((v) => v.id === versionId)
+            );
+            if (!owner) return false;
+            const agenda = agendaById.get(owner[1].agendaId as string);
+            if (!agenda) return false;
+            const reviewer = agenda.requiredReviewerIds
+                .map((id) => identityById.get(id as string))
+                .find(
+                    (candidate) =>
+                        candidate &&
+                        candidate.id !== owner[1].authorId &&
+                        candidate.roles.includes("evidence_reviewer") &&
+                        candidate.reviewResponsibilityIds.includes(agenda.id)
+                );
+            const matchingReviews = reviewer
+                ? reviews.filter(
+                      (candidate) =>
+                          candidate.versionId === versionId && candidate.reviewerId === reviewer.id
+                  )
+                : [];
+            return (
+                matchingReviews.length === 1 &&
+                publications.some(
+                    (publication) =>
+                        publication.finalVersionIds.includes(versionId) &&
+                        publication.finalReviewIds.includes(matchingReviews[0].id)
+                ) &&
+                deliveries.some(
+                    (delivery) =>
+                        delivery.reviewId === matchingReviews[0].id && delivery.status === "sent"
+                )
+            );
+        });
+    };
+    const effectiveFacts = facts.filter(effectiveFact);
+    for (const [key, targets] of [
+        ["requiredOutputs", parsedState.objective.requiredOutputs],
+        ["acceptanceCriteria", parsedState.objective.acceptanceCriteria]
+    ] as const) {
+        for (let i = 0; i < targets.length; i++) {
+            const satisfied = effectiveFacts.some((fact) =>
+                key === "requiredOutputs"
+                    ? fact.outputId === targets[i].id
+                    : fact.criterionId === targets[i].id
+            );
+            if ((targets[i].status === "satisfied") !== satisfied)
+                return fail(`$.objective.${key}[${i}].status`);
+        }
     }
     const tasks = parsedState.tasks;
     for (let i = 0; i < tasks.length; i++) {
