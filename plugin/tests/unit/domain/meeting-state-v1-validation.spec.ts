@@ -689,7 +689,7 @@ function evidenceState() {
         kind: "x",
         body: "x",
         publicationId: "publication-1",
-        relatedIds: [],
+        relatedIds: ["publication-1"],
         createdAt: 0
     };
     const proposal = {
@@ -1413,7 +1413,7 @@ function remainingEntityState() {
         senderId: "manager-1",
         recipientId: "captain-1",
         body: "x",
-        relatedIds: [],
+        relatedIds: ["publication-1"],
         sendContextPublicationUpperBound: ["publication-1"],
         status: "queued",
         deadlineAt: 0,
@@ -1459,6 +1459,383 @@ const remainingFkCases = [
 it("accepts the complete remaining entity extension", () => {
     expect(validateMeetingStateV1(remainingEntityState())).toMatchObject({ kind: "valid" });
 });
+
+it.each([
+    [
+        "cancelled missing processing start",
+        {
+            status: "cancelled",
+            processingContextPublicationUpperBound: ["publication-1"],
+            completedAt: 0,
+            failureReason: "x"
+        },
+        "$.privateMails[0].processingStartedAt"
+    ],
+    [
+        "timed out missing processing context",
+        { status: "timed_out", processingStartedAt: 0, completedAt: 0, failureReason: "x" },
+        "$.privateMails[0].processingContextPublicationUpperBound"
+    ]
+] as const)("rejects %s with the paired processing path", (_name, changes, path) => {
+    const source = remainingEntityState() as Record<string, unknown>;
+    const mail = (source.privateMails as Record<string, unknown>[])[0];
+    invalidAt(
+        {
+            ...source,
+            limits: { ...(source.limits as object), taskDeadlineMs: 100 },
+            privateMails: [{ ...mail, deadlineAt: 100, ...changes }]
+        },
+        path
+    );
+});
+
+it("accepts queued mail before a processing mail for the same recipient", () => {
+    const source = remainingEntityState() as Record<string, unknown>;
+    const mail = (source.privateMails as Record<string, unknown>[])[0];
+    const processing = {
+        ...mail,
+        id: "mail-2",
+        status: "processing",
+        deadlineAt: 100,
+        processingContextPublicationUpperBound: ["publication-1"],
+        processingStartedAt: 1
+    };
+    const result = validateMeetingStateV1({
+        ...source,
+        limits: { ...(source.limits as object), taskDeadlineMs: 100 },
+        privateMails: [{ ...mail, deadlineAt: 100 }, processing]
+    });
+    expect(result.kind).toBe("valid");
+});
+
+function mailInvariantState(changes: Record<string, unknown> = {}) {
+    const source = remainingEntityState() as Record<string, unknown>;
+    const mail = (source.privateMails as Record<string, unknown>[])[0];
+    return {
+        ...source,
+        limits: { ...(source.limits as object), taskDeadlineMs: 100 },
+        privateMails: [{ ...mail, deadlineAt: 100, ...changes }]
+    };
+}
+
+it.each([
+    ["self", { senderId: "captain-1" }, "$.privateMails[0].recipientId"],
+    ["empty related", { relatedIds: [] }, "$.privateMails[0].relatedIds"],
+    ["unknown related", { relatedIds: ["missing"] }, "$.privateMails[0].relatedIds[0]"],
+    ["private related", { relatedIds: ["agenda-1"] }, "$.privateMails[0].relatedIds[0]"],
+    [
+        "send wrong element",
+        { sendContextPublicationUpperBound: ["message-1"] },
+        "$.privateMails[0].sendContextPublicationUpperBound[0]"
+    ],
+    [
+        "send too long",
+        { sendContextPublicationUpperBound: ["publication-1", "message-1"] },
+        "$.privateMails[0].sendContextPublicationUpperBound[1]"
+    ],
+    [
+        "processing not send prefix",
+        {
+            status: "processing",
+            processingContextPublicationUpperBound: ["message-1"],
+            processingStartedAt: 1
+        },
+        "$.privateMails[0].processingContextPublicationUpperBound[0]"
+    ],
+    [
+        "processing not current prefix",
+        {
+            status: "processing",
+            processingContextPublicationUpperBound: ["publication-1", "message-1"],
+            processingStartedAt: 1
+        },
+        "$.privateMails[0].processingContextPublicationUpperBound[1]"
+    ],
+    [
+        "processing too short",
+        {
+            status: "processing",
+            processingContextPublicationUpperBound: [],
+            processingStartedAt: 1
+        },
+        "$.privateMails[0].processingContextPublicationUpperBound[0]"
+    ],
+    ["deadline equation", { deadlineAt: 99 }, "$.privateMails[0].deadlineAt"],
+    [
+        "deadline overflow",
+        { createdAt: Number.MAX_SAFE_INTEGER, deadlineAt: Number.MAX_SAFE_INTEGER },
+        "$.privateMails[0].deadlineAt"
+    ],
+    [
+        "processing before created",
+        {
+            status: "processing",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 0,
+            createdAt: 10,
+            deadlineAt: 110
+        },
+        "$.privateMails[0].processingStartedAt"
+    ],
+    [
+        "processing at deadline",
+        {
+            status: "processing",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 100
+        },
+        "$.privateMails[0].processingStartedAt"
+    ],
+    [
+        "completed before created",
+        { status: "cancelled", completedAt: 0, failureReason: "x", createdAt: 10, deadlineAt: 110 },
+        "$.privateMails[0].completedAt"
+    ],
+    [
+        "completed before processing",
+        {
+            status: "cancelled",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 20,
+            completedAt: 10,
+            failureReason: "x"
+        },
+        "$.privateMails[0].completedAt"
+    ],
+    [
+        "completed at deadline",
+        {
+            status: "completed",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 1,
+            completedAt: 100
+        },
+        "$.privateMails[0].completedAt"
+    ],
+    [
+        "timed out before deadline",
+        { status: "timed_out", completedAt: 99, failureReason: "x" },
+        "$.privateMails[0].completedAt"
+    ]
+] as const)("rejects mail invariant %s at fixed path", (_name, changes, path) => {
+    invalidAt(mailInvariantState(changes), path);
+});
+
+it("keeps old send/start prefixes valid after appending a Publication", () => {
+    const source = mailInvariantState({
+        status: "processing",
+        processingContextPublicationUpperBound: ["publication-1"],
+        processingStartedAt: 1
+    });
+    const publications = source.publications as Record<string, unknown>[];
+    const result = validateMeetingStateV1({
+        ...source,
+        publications: [...publications, { ...publications[0], id: "publication-2", seq: 2 }]
+    });
+    expect(result.kind).toBe("valid");
+});
+
+const statusFieldCases = [
+    [
+        "queued processing context",
+        { processingContextPublicationUpperBound: ["publication-1"] },
+        "$.privateMails[0].processingContextPublicationUpperBound"
+    ],
+    [
+        "queued processing start",
+        { processingStartedAt: 1 },
+        "$.privateMails[0].processingStartedAt"
+    ],
+    ["queued completion", { completedAt: 1 }, "$.privateMails[0].completedAt"],
+    ["queued failure", { failureReason: "x" }, "$.privateMails[0].failureReason"],
+    [
+        "processing missing context",
+        { status: "processing", processingStartedAt: 1 },
+        "$.privateMails[0].processingContextPublicationUpperBound"
+    ],
+    [
+        "processing missing start",
+        { status: "processing", processingContextPublicationUpperBound: ["publication-1"] },
+        "$.privateMails[0].processingStartedAt"
+    ],
+    [
+        "processing completion",
+        {
+            status: "processing",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 1,
+            completedAt: 2
+        },
+        "$.privateMails[0].completedAt"
+    ],
+    [
+        "processing failure",
+        {
+            status: "processing",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 1,
+            failureReason: "x"
+        },
+        "$.privateMails[0].failureReason"
+    ],
+    [
+        "completed missing context",
+        { status: "completed", processingStartedAt: 1, completedAt: 2 },
+        "$.privateMails[0].processingContextPublicationUpperBound"
+    ],
+    [
+        "completed missing start",
+        {
+            status: "completed",
+            processingContextPublicationUpperBound: ["publication-1"],
+            completedAt: 2
+        },
+        "$.privateMails[0].processingStartedAt"
+    ],
+    [
+        "completed missing completion",
+        {
+            status: "completed",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 1
+        },
+        "$.privateMails[0].completedAt"
+    ],
+    [
+        "completed failure",
+        {
+            status: "completed",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 1,
+            completedAt: 2,
+            failureReason: "x"
+        },
+        "$.privateMails[0].failureReason"
+    ],
+    [
+        "timed out missing completion",
+        { status: "timed_out", failureReason: "x" },
+        "$.privateMails[0].completedAt"
+    ],
+    [
+        "timed out missing failure",
+        { status: "timed_out", completedAt: 100 },
+        "$.privateMails[0].failureReason"
+    ],
+    [
+        "cancelled missing completion",
+        { status: "cancelled", failureReason: "x" },
+        "$.privateMails[0].completedAt"
+    ],
+    [
+        "cancelled missing failure",
+        { status: "cancelled", completedAt: 0 },
+        "$.privateMails[0].failureReason"
+    ]
+] as const;
+
+it.each(statusFieldCases)("rejects status field case %s", (_name, changes, path) => {
+    invalidAt(mailInvariantState(changes), path);
+});
+
+it.each([
+    ["queued", {}],
+    [
+        "completed",
+        {
+            status: "completed",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 1,
+            completedAt: 2
+        }
+    ],
+    ["cancelled queued", { status: "cancelled", completedAt: 0, failureReason: "cancelled" }],
+    [
+        "cancelled processing",
+        {
+            status: "cancelled",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 1,
+            completedAt: 2,
+            failureReason: "cancelled"
+        }
+    ],
+    ["timed out queued", { status: "timed_out", completedAt: 100, failureReason: "timeout" }],
+    [
+        "timed out processing",
+        {
+            status: "timed_out",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 1,
+            completedAt: 100,
+            failureReason: "timeout"
+        }
+    ]
+] as const)("accepts valid %s mail history", (_name, changes) => {
+    const normalized =
+        _name === "processing"
+            ? { ...changes, senderId: "captain-1", recipientId: "manager-1" }
+            : changes;
+    expect(validateMeetingStateV1(mailInvariantState(normalized))).toMatchObject({ kind: "valid" });
+});
+
+it("accepts a valid processing mail snapshot", () => {
+    expect(
+        validateMeetingStateV1(
+            mailInvariantState({
+                status: "processing",
+                processingContextPublicationUpperBound: ["publication-1"],
+                processingStartedAt: 1
+            })
+        )
+    ).toMatchObject({ kind: "valid" });
+});
+it("rejects the second processing mail for one recipient at its recipient path", () => {
+    const source = mailInvariantState({
+        status: "processing",
+        processingContextPublicationUpperBound: ["publication-1"],
+        processingStartedAt: 1
+    });
+    const first = (source.privateMails as Record<string, unknown>[])[0];
+    invalidAt(
+        { ...source, privateMails: [first, { ...first, id: "mail-2" }] },
+        "$.privateMails[1].recipientId"
+    );
+});
+it.each([
+    "preparing",
+    "format_correction",
+    "registered",
+    "under_review",
+    "awaiting_response"
+] as const)("rejects processing mail with %s Contribution at recipient path", (status) => {
+    const source = mailInvariantState({
+        status: "processing",
+        processingContextPublicationUpperBound: ["publication-1"],
+        processingStartedAt: 1,
+        recipientId: "manager-1"
+    });
+    const contributions = source.contributions as Record<string, unknown>[];
+    invalidAt(
+        { ...source, contributions: [{ ...contributions[0], status }] },
+        "$.privateMails[0].recipientId"
+    );
+});
+it.each(["withdrawn", "submission_missing", "timed_out", "supplement_rejected", "closed"] as const)(
+    "accepts processing mail with terminal %s Contribution",
+    (status) => {
+        const source = mailInvariantState({
+            status: "processing",
+            processingContextPublicationUpperBound: ["publication-1"],
+            processingStartedAt: 1,
+            recipientId: "captain-1"
+        });
+        const contributions = source.contributions as Record<string, unknown>[];
+        expect(
+            validateMeetingStateV1({ ...source, contributions: [{ ...contributions[0], status }] })
+        ).toMatchObject({ kind: "valid" });
+    }
+);
 
 it.each(remainingFkCases)(
     "rejects %s typed references",

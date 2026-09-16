@@ -50,6 +50,18 @@ export * from "./result-v1.js";
 export { requestEvidenceOpportunityV1, disposeEvidenceOpportunityV1 } from "./opportunity-v1.js";
 export { openRoundV1, isRoundClosableV1 } from "./round-v1.js";
 export { raiseHandV1, disposeHandRaiseV1 } from "./hand-raise-v1.js";
+export {
+    sendPrivateMailV1,
+    startPrivateMailV1,
+    completePrivateMailV1,
+    cancelPrivateMailV1,
+    expirePrivateMailV1,
+    type SendPrivateMailInputV1,
+    type StartPrivateMailInputV1,
+    type CompletePrivateMailInputV1,
+    type CancelPrivateMailInputV1,
+    type ExpirePrivateMailInputV1
+} from "./private-mail-v1.js";
 export { raiseSupplementHandV1, disposeSupplementHandV1 } from "./supplement-hand-v1.js";
 export {
     reviewEvidenceDraftV1,
