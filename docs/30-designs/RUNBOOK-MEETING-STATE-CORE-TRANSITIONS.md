@@ -1,12 +1,12 @@
 # RUNBOOK: MeetingState Core Structure And Transitions
 
-状态：Executable（仅纯 Domain T0–T8；T9 有独立删除授权与历史门禁）
+状态：Executable（纯 Domain T1–T8；T9 有独立删除授权与历史门禁）
 执行分支：`docs/runbook-meeting-state-transitions`
 建立日期：2026-09-16
 
 ## 1. 执行者契约
 
-本 RUNBOOK 的目标执行者不负责产品、授权、生命周期或接口决定。Author/Audit 阶段只可修改本 RUNBOOK 与本任务明确授权的正式真相源；进入 Execute 前必须有独立的实现授权。进入 Execute 后，执行者只能按 T0–T9 的允许文件、symbol、顺序和命令行动；T9 另须其精确删除授权，当前 Author/Audit 不运行。任何 STOP 都必须立即停止，不得改用未列文件或隐含方案。
+本 RUNBOOK 的目标执行者不负责产品、授权、生命周期或接口决定。Author/Audit 阶段只可修改本 RUNBOOK 与本任务明确授权的正式真相源；进入 Execute 前必须有独立的实现授权。进入 Execute 前须通过第 8 节执行前检查；进入 Execute 后，执行者只能按 T1–T9 的允许文件、symbol、顺序和命令行动；T9 另须其精确删除授权，当前 Author/Audit 不运行。任何 STOP 都必须立即停止，不得改用未列文件或隐含方案。
 
 禁止以 legacy `Turn`、`SpeakerAttempt`、`LegacyMeetingState`、旧 protocol 或旧 transition 作为目标模型的兼容层、默认值、fallback 或行为依据。禁止新增 DSH、Repository、Runtime、Remote、UI、outbox、Session、存储迁移和 effect 逻辑。禁止 commit、push、创建 PR 或合并。
 
@@ -18,7 +18,7 @@ PASS 仅指某一步规定的命令以退出码 0 结束且全部可观察断言
 
 终点应是一个不依赖 Runtime、Repository、DSH、Remote、时钟或文件系统的目标领域切片：它能逐项校验 `MeetingState` 的结构、值域和跨对象引用，并以当前 snapshot、已认证 actor、Runtime 提供的时间和 ID、一个已版本化的 action 为输入，纯粹地完成以下动作或返回稳定 rejection：`pause_meeting`、`resume_meeting`、`activate_agenda`、`raise_agenda_candidate`、`dispose_agenda_candidate`、Question、Issue 与 `plan_next_step`。成功只返回新 `MeetingState` 和最小领域事实；拒绝返回原 state 引用。此切片的完整业务链为：可信 Runtime 以后续工作提供 actor/time/ID 与 `MeetingActionV1` → Domain 结构/引用校验 → 一个纯转换 → Repository 才能在后续切片原子 commit。
 
-用户已确认、且正式真相源已同步 Question/Issue 权限矩阵、`RecordIssue` 与 `dispose_risk` 的边界、Issue 的阻塞引用结构、处置矩阵、事实审计载荷、Termination ID、reviewer 责任及 candidate promotion 原子语义。目标 API、字段/FK 映射、T0–T9 的逐步 PASS/STOP 已完成 Author/Audit dry-run。本状态只表示机械执行无需新增判断；进入 Execute 仍须独立实现授权，当前没有目标代码或目标测试。
+用户已确认、且正式真相源已同步 Question/Issue 权限矩阵、`RecordIssue` 与 `dispose_risk` 的边界、Issue 的阻塞引用结构、处置矩阵、事实审计载荷、Termination ID、reviewer 责任及 candidate promotion 原子语义。目标 API、字段/FK 映射、执行前检查及 T1–T9 的逐步 PASS/STOP 已完成 Author/Audit dry-run。本状态只表示机械执行无需新增判断；进入 Execute 仍须独立实现授权，当前没有目标代码或目标测试。
 
 ## 3. 当前断点与证据
 
@@ -37,7 +37,7 @@ PASS 仅指某一步规定的命令以退出码 0 结束且全部可观察断言
 
 ### Scope
 
-获本切片独立实现授权并完成 T0 baseline PASS 后，本 RUNBOOK 的 T1–T8 只授权：
+获本切片独立实现授权并通过第 8 节执行前检查后，本 RUNBOOK 的 T1–T8 只授权：
 
 1. 为已存在的 `MeetingState` 增加目标结构、枚举、唯一 ID、时间、数组顺序、正式来源已经固定的 optional/conditional 组合和 typed cross-object 引用校验；不伪造外部 ID/历史前提的当前证明。
 2. 实现并测试 `pause_meeting`、`resume_meeting`、Agenda、AgendaCandidate、Question、Issue、`plan_next_step` 的纯转换与 rejection 不变性。
@@ -59,7 +59,7 @@ PASS 仅指某一步规定的命令以退出码 0 结束且全部可观察断言
 | lifecycle | [Domain Design — Identity And Authority Facts](./DOMAIN-DESIGN.md#identity-and-authority-facts)、[Meeting Interface — Lifecycle, agenda and planning](../20-interfaces/MEETING-INTERFACE.md#lifecycle-agenda-and-planning) | `pause_meeting`、`resume_meeting` 与 `MeetingLifecycleV1` | 新建 `plugin/src/domain/meeting-state-v1-transitions.ts`，`transitionMeetingStateV1` | 新建 `plugin/tests/unit/domain/meeting-state-v1-transitions.spec.ts` |
 | Agenda | [Domain Design — Objective, Agenda, Question And Issue](./DOMAIN-DESIGN.md#objective-agenda-question-and-issue)、[Meeting Design — Meeting lifecycle and agenda](./MEETING-DESIGN.md#meeting-lifecycle-and-agenda) | `activate_agenda` | 同上 | 同上 |
 | AgendaCandidate | [MO-FR-6](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#mo-fr-6议题范围与发散控制)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md#lifecycle-agenda-and-planning) | `raise_agenda_candidate`、`dispose_agenda_candidate` | 同上 | 同上 |
-| Question / Issue | [Domain Design — Objective, Agenda, Question And Issue](./DOMAIN-DESIGN.md#objective-agenda-question-and-issue)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md#lifecycle-agenda-and-planning) | `record_question`、`resolve_question`、`record_issue`、`dispose_issue` | 同上；仅在 T0 授权矩阵被确认后 | 同上；仅在 T0 后 |
+| Question / Issue | [Domain Design — Objective, Agenda, Question And Issue](./DOMAIN-DESIGN.md#objective-agenda-question-and-issue)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md#lifecycle-agenda-and-planning) | `record_question`、`resolve_question`、`record_issue`、`dispose_issue` | 同上；仅在执行前检查的授权矩阵确认后 | 同上；仅在执行前检查通过后 |
 | ManagerPlan | [Domain Design — Publication, Outcome And Termination](./DOMAIN-DESIGN.md#publication-outcome-and-termination)、[Meeting Design — Planning, tasks and mail](./MEETING-DESIGN.md#planning-tasks-and-mail) | `plan_next_step` 创建 active plan 或 supersede 同 Agenda active plan；不产生 `completed` | 同上 | 同上 |
 
 目标 API 只能在 `plugin/src/domain/index.ts` 从 `@/domain/index.js` 对其他生产模块公开。`meeting-state-v1-transitions.ts` 只可导入同一 `domain/` 模块的 `./meeting-state-v1.js` 和 `./meeting-state-v1-validation.js`；禁止从或向 `runtime`、`repository`、`protocol`、`dsh`、`projection`、`tools` 和 `client` 导入。
@@ -138,7 +138,7 @@ action 引用数组按 [Command Action Union](../20-interfaces/MEETING-INTERFACE
 
 执行顺序固定为：校验当前 state 与 action/actor/time/ID 的结构 → 从当前 state 查 identity 并按 action 判定 local/role → 拒绝 `terminal|archiving|archived`（本切片的十个 action 均无终态例外）→ 检查目标对象存在性 → 检查 lifecycle/status/round 与关联资格 → 应用纯转换 → 对 nextState 再运行目标 validator → 返回 accepted。结构/enum/null/缺字段/重复 action 引用数组项/非安全时间或 ID 为 `INVALID_ARGUMENT`；actor 与身份/角色不符为 `UNAUTHORIZED`；终态为 `MEETING_TERMINAL`；目标 ID 合法但对象不存在为 `NOT_FOUND`；已有对象但 lifecycle/status 不允许为 `INVALID_STATE`；关联资格、已存在对象的生成 ID 冲突、证据未公开、open Round 或其它 Domain invariant 失败为 `PRECONDITION_FAILED`。同一输入只返回首个符合该顺序的错误，任何 rejection 均不修改 state。meeting visibility、receipt/idempotency、expected version 和 storage 错误在未来 Runtime/Repository 处理，不在 Domain 假造。
 
-`plugin/src/domain/meeting-state-v1-validation.ts` 必须导出唯一 `validateMeetingStateV1(value: unknown): MeetingStateValidationResultV1`；同时导出 `MeetingStateValidationResultV1`，结果类型固定为 `{ kind: "valid"; state: MeetingState } | { kind: "invalid"; code: "INVALID_ARGUMENT"; path: string }`。`path` 使用从 `$` 开始的 dot/index 路径，深度优先按 [meeting-state-v1.ts](../../plugin/src/domain/meeting-state-v1.ts) 声明字段顺序返回首个错误，例如 `$.issues[0].affectedOutputIds[1]`；同一输入的 path 必须稳定。无默认值、无类型转换、无抛错；未知额外字段不作为 invalid。每个 interface 中无 `?` 的字段须为对象自身属性且非 null，带 `?` 的字段仅可缺席或有正确类型，不接受 null；所有 `readonly` 数组须实际为数组。`OpaqueId` 是 string 且 trim 后长度大于 0，校验时不改写原 ID；`EpochMs` 是非负安全整数；其余数值范围由下述固定数值判据给出，枚举逐字匹配 TS union；普通 string/boolean 字段逐项检验类型，`reason`、`rationale`、`title`、`text`、`question`、`description` 等当前 action 必填正文须 trim 后非空。字段结构由当前目标 TS interface 逐字段决定；T1 增加的六个 required 字段以本 RUNBOOK 第 7 节为唯一机械增量。
+`plugin/src/domain/meeting-state-v1-validation.ts` 必须导出唯一 `validateMeetingStateV1(value: unknown): MeetingStateValidationResultV1`；同时导出 `MeetingStateValidationResultV1`，结果类型固定为 `{ kind: "valid"; state: MeetingState } | { kind: "invalid"; code: "INVALID_ARGUMENT"; path: string }`。`path` 使用从 `$` 开始的 dot/index 路径，深度优先按 [meeting-state-v1.ts](../../plugin/src/domain/meeting-state-v1.ts) 声明字段顺序返回首个错误，例如 `$.issues[0].affectedOutputIds[1]`；同一输入的 path 必须稳定。缺失/null/错误值报该字段路径，数组元素坏值或坏 typed FK 报元素路径，跨对象互逆关系失败报按根字段声明顺序扫描到的第一个引用字段及其元素路径；结构扫描先于第 7 节 FK 表扫描，FK 表内按表的行顺序和数组输入顺序扫描。无默认值、无类型转换、无抛错；未知额外字段不作为 invalid。每个 interface 中无 `?` 的字段须为对象自身属性且非 null，带 `?` 的字段仅可缺席或有正确类型，不接受 null；所有 `readonly` 数组须实际为数组。`OpaqueId` 是 string 且 trim 后长度大于 0，校验时不改写原 ID；`EpochMs` 是非负安全整数；其余数值范围由下述固定数值判据给出，枚举逐字匹配 TS union；普通 string/boolean 字段逐项检验类型，`reason`、`rationale`、`title`、`text`、`question`、`description` 等当前 action 必填正文须 trim 后非空。字段结构由当前目标 TS interface 逐字段决定；T1 增加的五个 required 字段以本 RUNBOOK 第 7 节为唯一机械增量。
 
 外键校验固定为下表；`[]` 表示数组内每个 ID 都检查，optional 引用只在字段存在时检查，`own` 表示同一父对象中查找；typed FK 不允许因另一个实体种类碰巧有同字符串 ID 而通过：
 
@@ -177,42 +177,120 @@ optional/conditional 只校验正式来源已经规定的组合：`MeetingIdenti
 
 每个有 `id` 的 Meeting-owned 实体数组按同实体种类唯一；version/material 等嵌套 ID 按本表指明的作用域唯一。数组保留输入顺序，validator 不排序、不修复。lifecycle 的 `terminal` 必有 termination，`archiving` 必有 termination 和 archive，`archived` 必有 termination 和 status=complete 的 archive；`archive` 在更早 lifecycle 不得出现。Round baseline 的历史生成时相等、旧 version 不变、Session close receipt 与调用者可见性不能由静态 snapshot 证明，不在本 validator 伪造证据。
 
-## 8. 机械执行步骤
+## 8. 执行前检查
 
-### T0：确认后的正式依据核对
+此检查是进入 T1a 前的一次性门禁，不编号为执行步骤，不修改产品、测试或正式文档。检查通过才可从 T1a 开始；STOP 时尚无已完成的实施步骤。
 
-前置状态：已获本切片独立实现授权；本 RUNBOOK 已重新审计并标为 `Executable`；分支为 `docs/runbook-meeting-state-transitions`；执行者以 `git status --short` 记录 baseline，保留执行前已有的文档改动，不把本 RUNBOOK 的 Author/Audit 改动当作产品代码。
+### 正式依据、checkout 与 baseline
+
+检查前提：已获本切片独立实现授权；本 RUNBOOK 已重新审计并标为 `Executable`；分支为 `docs/runbook-meeting-state-transitions`；执行者以 `git status --short` 记录 baseline，保留执行前已有的文档改动，不把本 RUNBOOK 的 Author/Audit 改动当作产品代码。
 
 允许修改：无。
 
 禁止修改：`plugin/` 下所有文件、全部正式真相源、全部测试、package/lockfile、readiness 与本 RUNBOOK 以外的文件。
 
-执行：读取 requirements、Meeting Interface、DSH Role Interface、Domain Design 与 Meeting Design 中已同步的权限、reviewer 责任和 Issue 数据规则，确认任意 identity 仅 record、Captain only resolve/dispose、local controller 四动作均禁止；确认 `record_issue` 排除 `accepted_risk`、四组引用已正式登记且 blocking 判据一致；确认两组 identity responsibility ID 均指 Agenda.id、requiredReviewerIds 指 identity.id 且双向一致。若本 RUNBOOK 的首页状态不再为 `Executable`，不得执行 T1。
+核对内容：读取 requirements、Meeting Interface、DSH Role Interface、Domain Design 与 Meeting Design 中已同步的权限、reviewer 责任和 Issue 数据规则，确认任意 identity 仅 record、Captain only resolve/dispose、local controller 四动作均禁止；确认 `record_issue` 排除 `accepted_risk`、四组引用已正式登记且 blocking 判据一致；确认两组 identity responsibility ID 均指 Agenda.id、requiredReviewerIds 指 identity.id 且双向一致。若本 RUNBOOK 的首页状态不再为 `Executable`，不得进入 T1a。
 
-验证（从仓库根 `/Volumes/storage/workspace/convivium-one` 执行；按顺序记录全部实际输出）：
+检查命令（从本 RUNBOOK 所在 checkout 的仓库根 `/Volumes/storage/workspace/convivium` 执行；不得切换到同名项目的另一 worktree；按顺序记录全部实际输出）：
 
 ```bash
 git branch --show-current
+git rev-parse --show-toplevel
 git status --short
 rg -n "record_question|resolve_question|record_issue|dispose_issue|accepted_risk|affectedOutputIds|requiredReviewerIds|reviewResponsibilityIds|Termination.id|error precedence" docs/10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md docs/20-interfaces/MEETING-INTERFACE.md docs/20-interfaces/DSH-ROLE-INTERFACE.md docs/30-designs/DOMAIN-DESIGN.md docs/30-designs/MEETING-DESIGN.md
 pnpm --dir plugin verify
 ```
 
-PASS：branch 命令仅输出 `docs/runbook-meeting-state-transitions`；`git status --short` 中执行前允许的 dirty 范围仅为本 RUNBOOK 和已授权的 requirements/interface/design 文档，不能已有 `plugin/` 改动；`rg` 能在五个指定文件定位权限、Issue 创建/风险接受/阻塞字段、reviewer 责任、Termination.id 和 Interface 错误顺序，且与第 3、6、7 节一致；baseline `pnpm --dir plugin verify` 退出码 0；本 RUNBOOK 已重新审计并标为 `Executable`。
+检查通过：branch 命令仅输出 `docs/runbook-meeting-state-transitions`，top-level 命令仅输出 `/Volumes/storage/workspace/convivium`；`git status --short` 中执行前允许的 dirty 范围仅为本 RUNBOOK 和已授权的 requirements/interface/design 文档，不能已有 `plugin/` 改动；`rg` 能在五个指定文件定位权限、Issue 创建/风险接受/阻塞字段、reviewer 责任、Termination.id 和 Interface 错误顺序，且与第 3、6、7 节一致；baseline `pnpm --dir plugin verify` 退出码 0；本 RUNBOOK 已重新审计并标为 `Executable`。
 
-STOP：本 RUNBOOK 不再为 `Executable`、branch/baseline/dirty 范围不符、任一正式来源缺失/冲突或 baseline verify 失败；报告路径和命令输出，不能从 legacy 或 caller 字段取默认值，不清理用户已有文件。
+检查停止：本 RUNBOOK 不再为 `Executable`、branch/baseline/dirty 范围不符、任一正式来源缺失/冲突或 baseline verify 失败；报告路径和命令输出，不能从 legacy 或 caller 字段取默认值，不清理用户已有文件。
 
-失败恢复：无状态、文件、数据库或外部副作用可回滚；因为本步禁止写入。
+失败恢复：无状态、文件、数据库或外部副作用可回滚；此检查禁止写入。
 
-### T1：目标 aggregate validator
+## 9. 机械执行步骤
 
-前置状态：T0 PASS。
+T1 分为 T1a–T1d。前三个 PASS 只确认各自的 focused 行为，不表示整个 validator 已完成；后续步骤所说的「T1 PASS」专指 T1d 的完整验证也 PASS。测试只能在同一个 `meeting-state-v1-validation.spec.ts` 中增加 `describe("T1a")` 至 `describe("T1d")`；不得为分段新增 production API、文件或入口。
 
-允许修改：`plugin/src/domain/meeting-state-v1.ts`（仅给 `IssueV1` 增加四组正式引用字段，给 `TerminationV1` 增 required `id: OpaqueId`）、`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`。
+测试 fixture 的构造规则固定如下，不能让执行者临场选择另一数据图：`base()` 是非导出的新建对象，每次调用返回一份独立的完整 MeetingState；其 `id="meeting-1"`、`version=1`、所有时间=0、`lifecycle={status:"running",changedAt:0,changedBy:"local-1"}`、Objective 三组各有一项 `{id:"output-1"|"criterion-1"|"constraint-1",text:"x",status:"pending"}`、`acceptableRiskLevel="medium"`；Captain/Manager/reviewer identity ID 分别为 `captain-1`/`manager-1`/`reviewer-1`，各有对应单一 role，`agendaResponsibilityIds=[]`，仅 reviewer 的 `reviewResponsibilityIds=["agenda-1"]`，其余 identity 的 `required=false`、`riskAuthority=false`，`displayName="x"`；唯一 Agenda 为 `{id:"agenda-1",title:"x",question:"x",status:"active",requiredOutputIds:["output-1"],requiredReviewerIds:["reviewer-1"]}`；其他根数组均 `[]`、limits 四个可变数值均 0、`responseDeadlineMs=60000`，三个 root optional 缺席。合法扩展总是从新 `base()` 开始，按 `identities/agenda/agendaCandidates → rounds/contributions/evidencePackages/registrations/reviews/reviewDeliveries/publications/messages → proposals/positions/decisionCandidates/decisions → questions/issues/riskDispositions/completionDeclarations/completionFacts/tasks/managerPlans/privateMails → termination/archive/continuation` 的依赖次序构造，数组实体 append、三个 root optional 直接赋值；每种实体只用一项（需要前序历史的 ProposalRevision、Publication、Message 另 append 第二项），ID 固定为 `candidate-1`、`round-1`、`contribution-1`、`package-1`、`registration-1`、`review-1`、`delivery-1`、`publication-1`、`message-1`、`proposalRevision-1`、`position-1`、`decisionCandidate-1`、`decision-1`、`question-1`、`issue-1`、`riskDisposition-1`、`completionDeclaration-1`、`completionFact-1`、`task-1`、`plan-1`、`mail-1`、`termination-1`、`archive-1`（依前述根数组顺序分别对应 AgendaCandidate 至 ArchivePackage），嵌套 version/claim/material ID 为 `version-1`/`claim-1`/`material-1`。每个 plain string 值为 `"x"`，非条件性的 boolean 为 `false`、时间为 0、计数/seq/ordinal 为 1（`substantiveSupplementCount=0`），枚举取 `meeting-state-v1.ts` 中该字段 union 的首项，数组先用 `[]`；再只按第 7 节 FK 表填入唯一目标 ID、按第 7 节 conditional 表修正状态与字段组合；Issue 合法扩展固定为 `riskLevel="low"`、`classification="follow_up"`、`blocking=false`，ReviewDelivery 合法扩展固定 `status="sent"` 且 `sentAt=0`，terminal 合法扩展先把唯一 Agenda 置 `completed`、创建 Termination，archive 合法扩展再把 lifecycle 置 `archiving` 并创建 ArchivePackage，archived 合法扩展只把 lifecycle 置 `archived`、ArchivePackage.status 置 `complete`。不能先添引用对象后留下空的 required FK；需要第二项时 ID 后缀改为 `-2`，seq/ordinal 改为 2，并指向立即前序项。每个非法测试只从一份已经由 validator 返回 `valid` 的 `base()` 或合法扩展复制后改变一个字段；先断言未变异的输入 `valid`，再断言变异后的准确 `path` 与重复调用一致，避免坏 fixture 掩盖目标反例。
 
-禁止修改：`meeting-state-v1.ts` 中非 `IssueV1`/`TerminationV1` 的类型、所有其他既有 domain、legacy、Runtime/Repository/Protocol/DSH/Projection/Client 文件。
+### T1a：目标类型增量与根结构
 
-执行：先给 `IssueV1` 增四组 readonly OpaqueId 数组、给 `TerminationV1` 增 required `id: OpaqueId`，与正式 Interface/Domain Design 精确对应；再实现第 7 节 validator。测试文件内固定一个非导出的最小完整 valid fixture：Meeting.id=`meeting-1`、version=1、createdAt=updatedAt=0、lifecycle=`running`、一个 pending required output/criterion/constraint、Captain/Manager/reviewer 三个 identity、一个 active Agenda（requiredReviewerIds 含 reviewer identity.id，且该 identity.reviewResponsibilityIds 含本 Agenda.id），其他根数组为空、limits 字段均有效、termination/archive/continuation 缺席。基于此 fixture 建立各实体的合法非空扩展，逐个变异第 7 节 FK 表每一行的第一个 typed ref（不存在目标 ID 或同字符串但错误实体种类）、根聚合及每种嵌套 interface 的每一个 required 字段（逐项移除或置 null）、每个 optional pair/conditional 组合、每种 ID/时间/enum/seq/active-Agenda/active-Plan 错例；独立覆盖 Issue 四组缺席/错引用、high 非阻塞、无资格阻塞、accepted_risk 无 accept history、review role 缺失/两向责任不一致、Archive.terminationId 与 Termination.id 不匹配。每个无效变异必须返回首个准确 `$` path；有效 fixture 与各合法扩展必须返回原输入 state 引用作为 typed `valid.state`，而非 clone。
+前置状态：第 8 节执行前检查通过；目标 validator/test 文件尚不存在。
+
+允许修改：`plugin/src/domain/meeting-state-v1.ts`（仅 `IssueV1` 四组 readonly OpaqueId 数组和 `TerminationV1.id: OpaqueId`）、`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`。
+
+禁止修改：目标类型的其它符号、legacy、Runtime/Repository/Protocol/DSH/Projection/Client、domain entry。
+
+执行：按第 7 节新增五个 required 字段；创建唯一 validator/result 签名和 `base()`，只完成 `MeetingState` 根字段、Objective、lifecycle、identities、agenda、limits、Issue/Termination 的字段形状和值域、各 root 数组存在性、required/optional/null、ID/时间/数值范围。T1a 不宣称已验证其它非空数组或 cross-object FK；该步骤的 `valid` 只代表已检查部分，完整 validator 必须等 T1d 门禁。`describe("T1a")` 固定验证 `base()` 的同引用 valid、根每个 required 字段的逐项移除/null、ID/时间/version/limits 的边界及 root 数组缺席；五个新增字段使用一份含合法低风险 follow-up Issue 的 `base()` 扩展和另一份唯一 Agenda 已完成、lifecycle=terminal 且含 Termination 的 `base()` 扩展，先分别断言 valid，再逐项移除/null 并断言首个准确 path。
+
+验证：
+
+```bash
+pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts -t T1a
+pnpm --dir plugin exec prettier src/domain/meeting-state-v1.ts src/domain/meeting-state-v1-validation.ts tests/unit/domain/meeting-state-v1-validation.spec.ts --check
+```
+
+PASS：两命令退出码 0；`T1a` 的 valid fixture 同引用、每个规定坏例返回 `{kind:"invalid",code:"INVALID_ARGUMENT",path}` 且 path 重复稳定；其它实体与 FK 仍标为未验证。
+
+STOP：正式 Design 与五个新增 type field 冲突、必须改其它既有类型或使用 legacy/default；报告来源、字段和命令实际输出。
+
+失败恢复：无数据库/外部副作用；保留本步改动与 baseline，不用 checkout/reset/删文件。
+
+### T1b：会议身份、议题与目标引用
+
+前置状态：T1a PASS。
+
+允许修改：`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`。
+
+禁止修改：T1a 的既有目标类型、legacy/外部模块、Round 与后续实体行为。
+
+执行：只补第 7 节 FK 表的 `identities`、`agenda`、`questions`、`issues`、`managerPlans` 行的本步已存在目标引用，以及 `agendaCandidates` 的 ID/字段形状；`agendaCandidates.sourceMessageId?` 和 `managerPlans.basedOnPublicationId?` 的合法引用与坏 typed-ref 留到 T1c，不要求 T1b 构造尚未验证的 Message/Publication；补同类 ID 唯一、role、双向 reviewer 责任、active Agenda/active Plan、blocking/accepted_risk 组合。`describe("T1b")` 依 fixture 规则先构造每种合法非空扩展，再对本步已存在目标引用逐行制造 missing target 和错误实体种类同字符串反例；对新增四组 Issue 引用分别做缺席/null/错目标与重复，另测 high non-blocking、无资格 blocking、无 accept 历史的 accepted_risk、review role/双向责任、两 active Agenda/Plan。每个反例只改一字段。
+
+验证：
+
+```bash
+pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts -t 'T1a|T1b'
+pnpm --dir plugin exec prettier src/domain/meeting-state-v1-validation.ts tests/unit/domain/meeting-state-v1-validation.spec.ts --check
+```
+
+PASS：两命令退出码 0；本步已存在目标引用各有 valid 与坏 typed-ref；Candidate.sourceMessageId/Plan.basedOnPublicationId 明确为 T1c 未验证项，四组 Issue field、reviewer 双向责任及 blocking 反例均拒绝，T1a 仍 PASS；其它实体仍未验证。
+
+STOP：必须放宽 reviewer 双向引用或据自由文本决定 blocking；报告 path/source/输出，不改其它文件。
+
+失败恢复：无数据库/外部副作用；保留最后 PASS 与本步改动，不用 checkout/reset/删文件。
+
+### T1c：轮次、证据、公开与决策链
+
+前置状态：T1a–T1b PASS。
+
+允许修改：`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`。
+
+禁止修改：目标类型、legacy/外部模块、T1b 已验证的 identity/Agenda/Issue 语义。
+
+执行：补第 7 节 FK 表从 `rounds` 到 `decisions` 的十一行，并在 Message/Publication 合法扩展完成后补 `agendaCandidates.sourceMessageId?`、`managerPlans.basedOnPublicationId?` 的合法引用及 missing target/错误种类同字符串反例，覆盖 Contribution、EvidenceVersion 嵌套结构、registration/review/delivery、Publication/FormalMessage、Proposal/Position/Candidate/Decision 的 required/optional/enum、同类唯一、seq/ordinal、round/package/version/baseline 与 published-evidence 关联。`describe("T1c")` 按 fixture 次序先验证每种非空合法扩展，再对这十一行第一个 typed ref 逐行做 missing target 和错误种类同字符串反例；逐项移除/null 每种扩展的 required 属性；对 published Round、Registration、ReviewDelivery、EvidenceMaterial、ProposalRevision 的第 7 节 conditional 组合及 seq/ordinal 另做坏例。
+
+验证：
+
+```bash
+pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts -t 'T1a|T1b|T1c'
+pnpm --dir plugin exec prettier src/domain/meeting-state-v1-validation.ts tests/unit/domain/meeting-state-v1-validation.spec.ts --check
+```
+
+PASS：两命令退出码 0；十一行及 Candidate.sourceMessageId/Plan.basedOnPublicationId 各有 valid/坏 typed-ref，每个本步实体 required 字段与指定 conditional/seq/ordinal 坏例拒绝，T1a/T1b 仍 PASS；后续实体仍未验证。
+
+STOP：必须读 DSH Session log、未公开 evidence 或借 legacy 校验；报告 path/source/输出，不扩张范围。
+
+失败恢复：无数据库/外部副作用；保留最后 PASS 与本步改动，不用 checkout/reset/删文件。
+
+### T1d：剩余实体、终态与全聚合门禁
+
+前置状态：T1a–T1c PASS。
+
+允许修改：`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`。
+
+禁止修改：目标类型、legacy/外部模块及 T1a–T1c 已验证的语义。
+
+执行：补第 7 节 FK 表从 `riskDispositions` 到 `continuation` 的九行，并检查 `completionDeclarations`、`completionFacts`、`tasks`、`privateMails`、`termination`、`archive`、`continuation` 的 required/optional/enum/唯一、Archive.terminationId、terminal/archiving/archived 组合。`describe("T1d")` 按 fixture 次序构造每种合法扩展，对这九行第一个 typed ref 逐行做 missing target/错误种类同字符串反例（第 7 节明确为聚合外 ID 的字段只做非空/类型反例，不制造假的当前聚合 FK），逐项移除/null 本步每种实体的 required 字段，另覆盖 archive termination mismatch、Archive.publicSnapshotVersion 边界、terminal/archiving/archived 非法组合。最后全文件运行，核对第 7 节 FK 表每行、所有当前目标 TS interface required 字段及所有已固定 conditional 组合在 T1a–T1d 中都有明确坏例；若缺一个，只能补对应 `describe` 并重跑本步门禁。
 
 验证：
 
@@ -221,11 +299,11 @@ pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.
 pnpm --dir plugin exec prettier src/domain/meeting-state-v1.ts src/domain/meeting-state-v1-validation.ts tests/unit/domain/meeting-state-v1-validation.spec.ts --check
 ```
 
-PASS：两条命令均退出码 0；test 中第 7 节全部 FK 行至少各有一个合法引用和一个坏 typed-ref 反例，每个 required 属性、每个已固定 optional/conditional 组合至少有一个明确坏例；有效输入返回同一引用的 typed state，无效输入返回 `{kind:"invalid",code:"INVALID_ARGUMENT",path}`，重复校验同一输入的 path 相同；requiredReviewerId/reviewResponsibilityId 任一方向缺失或 reviewer role 不符、Archive.terminationId 不等于 Termination.id 与任何 missing required field 均不能通过。
+PASS：两命令退出码 0；第 7 节每行有合法引用与适用的坏 typed-ref，每个 required/conditional 有坏例，valid 输入同引用，无效输入首个准确 path 重复稳定；只有此时记录「T1 PASS」。
 
-STOP：正式 Design 与 type field 冲突，或需要 default/legacy validator；报告 path/source，不能放宽检查。
+STOP：任一第 7 节行/required/conditional 无可构造合法反例、命令失败，或必须伪造 Runtime/Archive/DSH 事实；报告缺项、path/source 和实际输出，不跳过或降级门禁。
 
-失败恢复：无数据库/外部副作用；保留本步允许文件中执行者自己的未验证改动及 baseline 原样，记录失败，不用 checkout/reset 或删除可能含用户修改的文件。
+失败恢复：无数据库/外部副作用；保留最后 PASS 与本步改动，不用 checkout/reset/删文件。
 
 ### T2：暂停与恢复
 
@@ -389,7 +467,7 @@ git diff --check
 git diff --name-only
 ```
 
-PASS：每条命令退出码 0；readiness 只在工程门禁 PASS 后更新，更新后链接/diff 门禁仍 PASS；status/diff 的代码文件仅第 7 节两个目标 production、两个目标 test、meeting-state-v1.ts 与 domain/index.ts，其它可见修改仅 T0 baseline docs 与本步 readiness；readiness 不把未接线功能写为对齐。
+PASS：每条命令退出码 0；readiness 只在工程门禁 PASS 后更新，更新后链接/diff 门禁仍 PASS；status/diff 的代码文件仅第 7 节两个目标 production、两个目标 test、meeting-state-v1.ts 与 domain/index.ts，其它可见修改仅执行前 baseline 中允许的 docs 与本步 readiness；readiness 不把未接线功能写为对齐。
 
 STOP：任一命令失败、必须编辑未列文件或 readiness 夸大覆盖；报告最后 PASS/首个失败，不缩减验证、不提交。
 
@@ -397,7 +475,7 @@ STOP：任一命令失败、必须编辑未列文件或 readiness 夸大覆盖�
 
 ### T9：已授权的 RUNBOOK 收口与删除
 
-前置状态：T0–T8 全部 PASS；本切片的长期确认结论已在 requirements/interfaces/designs，真实验证与 Not Covered 已在 readiness；用户另行明确授权删除本 RUNBOOK。当前 Author/Audit 阶段不满足该前置，不运行 T9。
+前置状态：T1–T8 全部 PASS；本切片的长期确认结论已在 requirements/interfaces/designs，真实验证与 Not Covered 已在 readiness；用户另行明确授权删除本 RUNBOOK。当前 Author/Audit 阶段不满足该前置，不运行 T9。
 
 允许修改：只删除 `docs/30-designs/RUNBOOK-MEETING-STATE-CORE-TRANSITIONS.md`；不得改其它文件。
 
@@ -422,11 +500,19 @@ git status --short
 
 PASS：六条前置命令的退出码均为 0，`git log` 输出非空 commit ID、`rg` 只列本 RUNBOOK 路径；删除后 `! rg`、链接检查、diff check 均退出码 0；前后 `git status --short` 相比只多出本 RUNBOOK 的删除，不包含本步新增的其它改动。报告已删除的唯一文件与可由 Git 历史恢复的 commit ID；不要将未执行 commit 描述为已提交。
 
-STOP：无单独删除授权、RUNBOOK 尚未进入历史或仍有未提交增量、已有其它引用、任一后置验证失败；报告最后 PASS/命令输出，保留文件或已发生的精确删除状态，不使用 checkout/reset/递归删除清理。
+STOP：无单独删除授权、RUNBOOK 尚未进入历史或仍有未提交增量、已有其它引用、任一后置验证失败；报告最后 PASS/命令输出。删除前失败保持文件原样；删除后任一检查失败，必须按下述失败恢复精确恢复本 RUNBOOK 后 STOP，不使用递归删除或清理用户其它改动。
 
-失败恢复：本步无数据库/外部副作用；若尚未删除则保持文件原样，若已删除而验证失败则 STOP 并报告，不自动回滚用户改动；Git 历史仅在前置成功时保证可恢复。
+失败恢复：本步无数据库/外部副作用。若尚未删除，保持文件原样。若已删除且后置检查失败，执行以下仅恢复本 RUNBOOK 的固定命令；T9 前置两个 `git diff --quiet` 已证明 HEAD 中的本文件与删除前内容相同。
 
-## 9. 验证矩阵
+```bash
+git show HEAD:docs/30-designs/RUNBOOK-MEETING-STATE-CORE-TRANSITIONS.md > docs/30-designs/RUNBOOK-MEETING-STATE-CORE-TRANSITIONS.md
+git diff --quiet -- docs/30-designs/RUNBOOK-MEETING-STATE-CORE-TRANSITIONS.md
+git status --short
+```
+
+三命令必须退出码 0、RUNBOOK 与 HEAD 无 diff、status 中其它路径与删除前记录相同，然后 STOP。若恢复或复核失败，STOP 并报告当前文件状态和实际输出，不触碰用户其它改动；不得把删除标为 PASS。
+
+## 10. 验证矩阵
 
 | 验证范围 | 固定命令 | 当前状态/预期 | 失败处理 |
 | --- | --- | --- | --- |
@@ -437,14 +523,14 @@ STOP：无单独删除授权、RUNBOOK 尚未进入历史或仍有未提交增�
 | 此切片的完整工程验证 | `pnpm --dir plugin verify` | T8 必须 PASS；不证明 DSH runtime | 任一失败 STOP，报告首次失败及实际输出。 |
 | DSH profile、Browser、Repository/recovery、Remote、outbox、legacy compatibility | 不运行 | `Not Applicable` 于本 RUNBOOK scope：本切片不得接线这些边界 | 不得将未运行写为通过。 |
 
-## 10. 完成定义、readiness 与删除
+## 11. 完成定义、readiness 与删除
 
-当前状态未完成：T0 已有正式依据，但尚无 target code 或 test。不得删除本 RUNBOOK，也不得称目标领域核心“已对齐”。
+当前状态未完成：执行前检查的正式依据已备齐，但尚无 target code 或 test。不得删除本 RUNBOOK，也不得称目标领域核心“已对齐”。
 
 仅当 T1–T8 已完成规定 focused tests、`typecheck`、`lint`、`verify`、文档链接检查和 `git diff --check` 后，才可把实际命令、日期、commit 边界、结果和 Not Covered 写入 readiness。长期确认的行为已先迁移到 requirements/interfaces/designs；T9 才处理临时 RUNBOOK 删除与残留引用。无精确删除授权、无本 RUNBOOK 的可恢复提交历史或任一 T 步不满足则保留本文件；删除不等于 commit，当前任务也不授权 commit/push/PR。
 
-## 11. Author Audit
+## 12. Author Audit
 
-逐项按 [RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md#authoring-and-audit) 审计：Scope 1→T1、Scope 2→T2–T7、Scope 3/4→T8、删除→T9；每步唯一允许文件/符号、可观察成功/拒绝、原子性、固定命令、PASS/STOP、失败恢复均已列出，Non-goals 没有被执行步骤引入。目标类型中的 Issue/Termination 增量、actor/time/ID 来源、promotion reviewer 原子更新、已公开 EvidenceVersion 引用、Question/Issue 审计 payload、typed FK 与外部引用例外、错误顺序均已在正式 Interface/Design 和本 RUNBOOK 固定。CreateMeeting identityId 映射、active risk fact 跨边界证明、Repository/archive retention 属已标出的后续切片，不由本纯 Domain 切片猜测。
+逐项按 [RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md#authoring-and-audit) 审计：Scope 1→T1a–T1d、Scope 2→T2–T7、Scope 3/4→T8、删除→T9。T1a–T1c 仅是局部 focused PASS，T1d 全文件门禁 PASS 才可记为 T1 PASS；T1b 的 Message/Publication 可选引用依赖 T1c，已显式后移。第 8 节执行前检查固定为当前 `docs/runbook-meeting-state-transitions` checkout `/Volumes/storage/workspace/convivium`，不得在另一 worktree 的 `main` 执行。T9 删除后检查失败必须精确恢复 RUNBOOK 再 STOP。每步允许文件、命令、可观察 PASS/STOP、失败恢复与 Non-goals 已重新核对；CreateMeeting identityId 映射、active risk fact 跨边界证明、Repository/archive retention 仍属后续切片，不由本纯 Domain 切片猜测。
 
-审计结论：**Executable**，仅说明低级执行者可按 T0–T8 实施或 STOP；T9 如无独立删除授权与可恢复 Git 历史须 STOP，当前 Author/Audit 不运行。作者已在本 checkout 运行 `pnpm --dir plugin verify`：退出码 0，90 test files/961 tests PASS（只证明 legacy 基线，不证明目标行为）；`node .github/scripts/check-doc-links.mjs` 为 461 checked/0 errors（不查 anchors）；tracked 文档 `git diff --check` 退出码 0，未跟踪本 RUNBOOK 的 `git diff --no-index --check` 无 whitespace 输出（因与 `/dev/null` 不同退出码 1，不把它记作退出码 0 PASS）。目标 focused tests、目标 TypeScript、target lint/build/verify、真实 DSH 与 Browser 均未执行，不描述为通过。Execute 与 commit/push/PR 仍须分别获授权。
+审计结论：**Executable**，仅说明低级执行者可在第 8 节授权、checkout 与 baseline 门禁满足后按 T1–T8 实施或 STOP；T9 仍须独立删除授权及当时的 Git 历史/无增量门禁。2026-09-16 在 `docs/runbook-meeting-state-transitions` checkout 实际执行 `pnpm --dir plugin verify`：退出码 0，90 test files/961 tests PASS，且 build/environment/contract/agent-definitions/package 检查均通过（仅证明 legacy 基线，不证明目标行为）；`node .github/scripts/check-doc-links.mjs` 为 462 checked/0 errors（不查 anchors），`git diff --check` 退出码 0。目标 focused tests、目标 TypeScript、target lint/build/verify、真实 DSH 与 Browser 均未执行，不描述为通过。Execute 与 push/PR 仍须分别获授权。
