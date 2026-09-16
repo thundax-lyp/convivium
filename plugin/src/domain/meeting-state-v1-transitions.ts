@@ -225,6 +225,26 @@ const resolveQuestionSchema = z.object({
     rationale: z.string().refine((value) => value.trim().length > 0),
     evidenceIds: uniqueActionIds.min(1)
 });
+const recordIssueSchema = z.object({
+    kind: z.literal("record_issue"),
+    agendaId: z.string().refine((value) => value.trim().length > 0),
+    description: z.string().refine((value) => value.trim().length > 0),
+    riskLevel: z.enum(["low", "medium", "high"]),
+    classification: z.enum(["blocking", "follow_up", "pending_discussion", "out_of_scope"]),
+    affectedOutputIds: uniqueActionIds,
+    affectedCriterionIds: uniqueActionIds,
+    affectedConstraintIds: uniqueActionIds,
+    requiredReviewerIds: uniqueActionIds,
+    blocking: z.boolean(),
+    rationale: z.string().refine((value) => value.trim().length > 0)
+});
+const disposeIssueSchema = z.object({
+    kind: z.literal("dispose_issue"),
+    issueId: z.string().refine((value) => value.trim().length > 0),
+    status: z.enum(["resolved", "deferred", "out_of_scope"]),
+    rationale: z.string().refine((value) => value.trim().length > 0),
+    evidenceIds: uniqueActionIds.min(1)
+});
 
 export function transitionMeetingStateV1(
     state: MeetingState,
@@ -300,6 +320,24 @@ export function transitionMeetingStateV1(
             )
         )
             return invalid(state, "UNAUTHORIZED");
+    } else if (action.kind === "record_issue") {
+        if (!recordIssueSchema.safeParse(action).success || !validId(generatedId))
+            return invalid(state, "INVALID_ARGUMENT");
+        if (
+            actor.kind !== "identity" ||
+            !state.identities.some((identity) => identity.id === actor.id)
+        )
+            return invalid(state, "UNAUTHORIZED");
+    } else if (action.kind === "dispose_issue") {
+        if (!disposeIssueSchema.safeParse(action).success)
+            return invalid(state, "INVALID_ARGUMENT");
+        if (
+            actor.kind !== "identity" ||
+            !state.identities.some(
+                (identity) => identity.id === actor.id && identity.roles.includes("captain")
+            )
+        )
+            return invalid(state, "UNAUTHORIZED");
     } else return invalid(state, "INVALID_ARGUMENT");
     if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
         return invalid(state, "MEETING_TERMINAL");
@@ -310,6 +348,7 @@ export function transitionMeetingStateV1(
     let nextCandidates = state.agendaCandidates;
     let nextIdentities = state.identities;
     let nextQuestions = state.questions;
+    let nextIssues = state.issues;
     let nextLifecycle = state.lifecycle;
     let factPayload: TargetDomainFactPayloadV1 | undefined;
     if (action.kind === "pause_meeting" || action.kind === "resume_meeting") {
@@ -483,6 +522,89 @@ export function transitionMeetingStateV1(
             rationale: action.rationale,
             evidenceIds: action.evidenceIds
         };
+    } else if (action.kind === "record_issue") {
+        const agenda = state.agenda.find((item) => item.id === action.agendaId);
+        if (!agenda) return invalid(state, "NOT_FOUND");
+        if (state.issues.some((issue) => issue.id === candidateId))
+            return invalid(state, "PRECONDITION_FAILED");
+        const outputIds = new Set(state.objective.requiredOutputs.map((item) => item.id));
+        const criterionIds = new Set(state.objective.acceptanceCriteria.map((item) => item.id));
+        const constraintIds = new Set(state.objective.hardConstraints.map((item) => item.id));
+        if (
+            action.affectedOutputIds.some((id) => !outputIds.has(id)) ||
+            action.affectedCriterionIds.some((id) => !criterionIds.has(id)) ||
+            action.affectedConstraintIds.some((id) => !constraintIds.has(id)) ||
+            action.requiredReviewerIds.some((id) => !agenda.requiredReviewerIds.includes(id))
+        )
+            return invalid(state, "NOT_FOUND");
+        const affected = [
+            ...action.affectedOutputIds,
+            ...action.affectedCriterionIds,
+            ...action.affectedConstraintIds
+        ];
+        const qualifies =
+            action.riskLevel === "high" ||
+            affected.some((id) =>
+                [
+                    ...state.objective.requiredOutputs,
+                    ...state.objective.acceptanceCriteria,
+                    ...state.objective.hardConstraints
+                ].some((target) => target.id === id && target.status !== "satisfied")
+            ) ||
+            action.requiredReviewerIds.length > 0;
+        if (
+            (action.classification === "blocking") !== action.blocking ||
+            (action.riskLevel === "high" && !action.blocking) ||
+            (action.blocking && !qualifies)
+        )
+            return invalid(state, "PRECONDITION_FAILED");
+        nextIssues = [
+            ...state.issues,
+            {
+                id: candidateId,
+                agendaId: action.agendaId,
+                description: action.description,
+                riskLevel: action.riskLevel,
+                classification: action.classification,
+                affectedOutputIds: action.affectedOutputIds,
+                affectedCriterionIds: action.affectedCriterionIds,
+                affectedConstraintIds: action.affectedConstraintIds,
+                requiredReviewerIds: action.requiredReviewerIds,
+                blocking: action.blocking,
+                status: "open" as const,
+                rationale: action.rationale
+            }
+        ];
+        relatedIds = [state.id, candidateId];
+    } else if (action.kind === "dispose_issue") {
+        const issue = state.issues.find((item) => item.id === action.issueId);
+        if (!issue) return invalid(state, "NOT_FOUND");
+        if (issue.status !== "open" && issue.status !== "deferred")
+            return invalid(state, "INVALID_STATE");
+        const versions = new Set(
+            state.evidencePackages.flatMap((pack) => pack.versions.map((version) => version.id))
+        );
+        const published = new Set(
+            state.publications.flatMap((publication) => publication.finalVersionIds)
+        );
+        if (action.evidenceIds.some((id) => !versions.has(id))) return invalid(state, "NOT_FOUND");
+        if (action.evidenceIds.some((id) => !published.has(id)))
+            return invalid(state, "PRECONDITION_FAILED");
+        const newBlocking = action.status === "deferred" ? issue.blocking : false;
+        nextIssues = state.issues.map((item) =>
+            item.id === issue.id ? { ...item, status: action.status, blocking: newBlocking } : item
+        );
+        relatedIds = [state.id, action.issueId, ...action.evidenceIds];
+        factPayload = {
+            kind: "issue_disposition",
+            issueId: issue.id,
+            oldStatus: issue.status as "open" | "deferred",
+            newStatus: action.status,
+            oldBlocking: issue.blocking,
+            newBlocking,
+            rationale: action.rationale,
+            evidenceIds: action.evidenceIds
+        };
     }
 
     if (action.kind === "pause_meeting" || action.kind === "resume_meeting")
@@ -502,6 +624,7 @@ export function transitionMeetingStateV1(
         agendaCandidates: nextCandidates,
         identities: nextIdentities,
         questions: nextQuestions,
+        issues: nextIssues,
         lifecycle: nextLifecycle
     };
     if (validateMeetingStateV1(nextState).kind !== "valid")

@@ -246,7 +246,136 @@ function publishedQuestionState(blocking: boolean): MeetingState {
     return current;
 }
 
+const recordIssue = (overrides: Record<string, unknown> = {}) => ({
+    kind: "record_issue" as const,
+    agendaId: "agenda-1",
+    description: "risk",
+    riskLevel: "high" as const,
+    classification: "blocking" as const,
+    affectedOutputIds: ["output-1"],
+    affectedCriterionIds: [],
+    affectedConstraintIds: [],
+    requiredReviewerIds: [],
+    blocking: true,
+    rationale: "because",
+    ...overrides
+});
+const disposeIssue = (overrides: Record<string, unknown> = {}) => ({
+    kind: "dispose_issue" as const,
+    issueId: "issue-1",
+    status: "resolved" as const,
+    rationale: "handled",
+    evidenceIds: ["version-1"],
+    ...overrides
+});
+function issueState(
+    blocking = true,
+    status: "open" | "deferred" | "resolved" | "out_of_scope" = "open"
+) {
+    const current = publishedQuestionState(false);
+    current.issues = [
+        {
+            id: "issue-1",
+            agendaId: "agenda-1",
+            description: "risk",
+            riskLevel: "high",
+            classification: "blocking",
+            affectedOutputIds: ["output-1"],
+            affectedCriterionIds: [],
+            affectedConstraintIds: [],
+            requiredReviewerIds: [],
+            blocking,
+            status,
+            rationale: "because"
+        }
+    ];
+    return current;
+}
+
 describe("meeting lifecycle transitions", () => {
+    it("records a nonblocking follow-up with all typed references", () => {
+        const current = publishedQuestionState(false);
+        const result = transitionMeetingStateV1(
+            current,
+            recordIssue({
+                riskLevel: "medium",
+                classification: "follow_up",
+                blocking: false,
+                affectedCriterionIds: ["criterion-1"],
+                affectedConstraintIds: ["constraint-1"],
+                requiredReviewerIds: []
+            }),
+            manager,
+            10,
+            "fact-7",
+            "issue-follow-up"
+        );
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.issues[0]).toMatchObject({
+            id: "issue-follow-up",
+            classification: "follow_up",
+            blocking: false,
+            affectedOutputIds: ["output-1"],
+            affectedCriterionIds: ["criterion-1"],
+            affectedConstraintIds: ["constraint-1"],
+            requiredReviewerIds: []
+        });
+    });
+
+    it("accepts a high risk issue without affected targets", () => {
+        const current = publishedQuestionState(false);
+        const result = transitionMeetingStateV1(
+            current,
+            recordIssue({ affectedOutputIds: [], riskLevel: "high", classification: "blocking" }),
+            captain,
+            10,
+            "fact-7",
+            "issue-high"
+        );
+        expect(result.kind).toBe("accepted");
+    });
+
+    it("accepts medium blocking when an agenda reviewer qualifies it", () => {
+        const current = publishedQuestionState(false);
+        current.agenda[0].requiredReviewerIds = ["reviewer-1"];
+        current.identities.find((item) => item.id === "reviewer-1")!.reviewResponsibilityIds = [
+            "agenda-1"
+        ];
+        const result = transitionMeetingStateV1(
+            current,
+            recordIssue({
+                riskLevel: "medium",
+                classification: "blocking",
+                requiredReviewerIds: ["reviewer-1"],
+                affectedOutputIds: []
+            }),
+            manager,
+            10,
+            "fact-7",
+            "issue-reviewer"
+        );
+        expect(result.kind).toBe("accepted");
+    });
+
+    it.each([
+        ["output", { affectedOutputIds: ["missing"] }],
+        ["criterion", { affectedCriterionIds: ["missing"] }],
+        ["constraint", { affectedConstraintIds: ["missing"] }],
+        ["reviewer", { requiredReviewerIds: ["missing"] }]
+    ] as const)("rejects a missing issue %s reference", (_name, overrides) => {
+        const current = publishedQuestionState(false);
+        const result = transitionMeetingStateV1(
+            current,
+            recordIssue(overrides),
+            captain,
+            10,
+            "fact-8",
+            "issue-missing-ref"
+        );
+        expect(result).toEqual({ kind: "rejected", state: current, code: "NOT_FOUND", facts: [] });
+    });
+
     it.each([
         ["pause running", "pause_meeting", "running", "paused"],
         ["resume paused", "resume_meeting", "paused", "running"]
@@ -1017,6 +1146,161 @@ describe("meeting lifecycle transitions", () => {
                 rationale: "resolved",
                 evidenceIds: ["version-1"]
             }
+        });
+    });
+
+    it.each([captain, manager, reviewer])("records an issue for an existing identity", (actor) => {
+        const current = publishedQuestionState(false);
+        const result = transitionMeetingStateV1(
+            current,
+            recordIssue(),
+            actor,
+            10,
+            "fact-7",
+            `issue-${actor.id}`
+        );
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.issues[0]).toEqual({
+            id: `issue-${actor.id}`,
+            agendaId: "agenda-1",
+            description: "risk",
+            riskLevel: "high",
+            classification: "blocking",
+            affectedOutputIds: ["output-1"],
+            affectedCriterionIds: [],
+            affectedConstraintIds: [],
+            requiredReviewerIds: [],
+            blocking: true,
+            status: "open",
+            rationale: "because"
+        });
+        expect(result.facts).toEqual([
+            {
+                id: "fact-7",
+                kind: "record_issue",
+                actorId: actor.id,
+                occurredAt: 10,
+                relatedIds: ["meeting-1", `issue-${actor.id}`],
+                payload: { kind: "references", relatedIds: ["meeting-1", `issue-${actor.id}`] }
+            }
+        ]);
+    });
+
+    it.each([
+        ["local record", local, recordIssue(), "UNAUTHORIZED"],
+        ["local dispose", local, disposeIssue(), "UNAUTHORIZED"],
+        ["manager dispose", manager, disposeIssue(), "UNAUTHORIZED"],
+        [
+            "accepted risk",
+            captain,
+            recordIssue({ riskLevel: "low", classification: "accepted_risk" }),
+            "INVALID_ARGUMENT"
+        ],
+        ["missing risk", captain, recordIssue({ riskLevel: undefined }), "INVALID_ARGUMENT"],
+        [
+            "high nonblocking",
+            captain,
+            recordIssue({ blocking: false, classification: "follow_up" }),
+            "PRECONDITION_FAILED"
+        ],
+        [
+            "unqualified blocking",
+            captain,
+            recordIssue({
+                riskLevel: "medium",
+                blocking: true,
+                classification: "blocking",
+                affectedOutputIds: []
+            }),
+            "PRECONDITION_FAILED"
+        ],
+        [
+            "classification mismatch",
+            captain,
+            recordIssue({ blocking: false }),
+            "PRECONDITION_FAILED"
+        ],
+        ["missing target", captain, recordIssue({ affectedOutputIds: ["missing"] }), "NOT_FOUND"],
+        [
+            "duplicate ids",
+            captain,
+            recordIssue({ affectedOutputIds: ["output-1", "output-1"] }),
+            "INVALID_ARGUMENT"
+        ],
+        ["missing issue", captain, disposeIssue({ issueId: "missing" }), "NOT_FOUND"],
+        ["missing evidence", captain, disposeIssue({ evidenceIds: ["missing"] }), "NOT_FOUND"]
+    ] as const)("rejects issue operation: %s", (_name, actor, action, code) => {
+        const current =
+            action.kind === "dispose_issue" ? issueState() : publishedQuestionState(false);
+        const result = transitionMeetingStateV1(current, action, actor, 10, "fact-8", "issue-2");
+        expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
+    });
+
+    it.each([
+        ["resolved", true, false],
+        ["out_of_scope", true, false],
+        ["deferred", true, true]
+    ] as const)("disposes an issue as %s", (status, oldBlocking, newBlocking) => {
+        const current = issueState(oldBlocking);
+        const result = transitionMeetingStateV1(
+            current,
+            disposeIssue({ status }),
+            captain,
+            10,
+            "fact-9"
+        );
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.issues[0]).toMatchObject({
+            status,
+            blocking: newBlocking,
+            classification: "blocking"
+        });
+        expect(result.facts).toEqual([
+            {
+                id: "fact-9",
+                kind: "dispose_issue",
+                actorId: "identity-1",
+                occurredAt: 10,
+                relatedIds: ["meeting-1", "issue-1", "version-1"],
+                payload: {
+                    kind: "issue_disposition",
+                    issueId: "issue-1",
+                    oldStatus: "open",
+                    newStatus: status,
+                    oldBlocking,
+                    newBlocking,
+                    rationale: "handled",
+                    evidenceIds: ["version-1"]
+                }
+            }
+        ]);
+    });
+
+    it.each(["resolved", "out_of_scope"] as const)(
+        "rejects disposing an already %s issue",
+        (status) => {
+            const current = issueState(false, status);
+            const result = transitionMeetingStateV1(current, disposeIssue(), captain, 10, "fact-9");
+            expect(result).toEqual({
+                kind: "rejected",
+                state: current,
+                code: "INVALID_STATE",
+                facts: []
+            });
+        }
+    );
+
+    it("rejects unpublished evidence and preserves the issue state", () => {
+        const current = issueState();
+        current.publications[0].finalVersionIds = [];
+        const result = transitionMeetingStateV1(current, disposeIssue(), captain, 10, "fact-9");
+        expect(result).toEqual({
+            kind: "rejected",
+            state: current,
+            code: "PRECONDITION_FAILED",
+            facts: []
         });
     });
 });

@@ -209,29 +209,6 @@ pnpm --dir plugin verify
 
 ## 9. 机械执行步骤
 
-### T6：Issue 记录与处置
-
-前置状态：T1–T5 PASS。
-
-允许修改：`plugin/src/domain/meeting-state-v1-transitions.ts`、`plugin/tests/unit/domain/meeting-state-v1-transitions.spec.ts`。
-
-禁止修改：T1 文件、legacy/外部模块；只可扩充 Issue cases，不改变 T2–T5 行为。
-
-执行：`record_issue` 允许任一现存、已绑定的 Meeting identity，用 `generatedId` append open Issue；四组显式 ID 数组分别按第 7 节 typed FK 与唯一性验证，riskLevel 不得缺失/默认，分类只用 `blocking|follow_up|pending_discussion|out_of_scope`。high 未接受必须 classification=blocking 与 blocking=true；其它 blocking 须有受影响的未 satisfied target 或所属 Agenda 的 requiredReviewer ID；创建时 classification/blocking 成对，不匹配与无资格 blocking 拒绝而非改写。`dispose_issue` 仅 Captain identity 可用，目标仅 open/deferred；resolved/out_of_scope 将 blocking=false 且保留旧 classification，deferred 保留两者；理由非空、证据 ID 须非空/唯一/已公开 EvidenceVersion.id。record refs `[meetingId,generatedId]`，处置 refs `[meetingId,issueId,...evidenceIds]` 且以 issue_disposition payload 一次记录旧/新 status/blocking、理由、证据。
-
-验证：
-
-```bash
-pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-transitions.spec.ts
-pnpm --dir plugin exec prettier src/domain/meeting-state-v1-transitions.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts --check
-```
-
-PASS：两命令均退出码 0；任一现存 identity 可 record，只有 Captain 可 dispose，local 两动作=`UNAUTHORIZED`；合法 high Issue 阻塞、合法非阻塞 follow-up、四组 typed FK、resolved/out_of_scope 清阻塞、deferred 保留，fact audit payload 精确；直接 `accepted_risk`、缺 riskLevel=`INVALID_ARGUMENT`，high non-blocking/无资格 blocking/不匹配 classification=`PRECONDITION_FAILED`，未公开 evidence=`PRECONDITION_FAILED`，已终结再次处置=`INVALID_STATE`；所有 rejection 原 state/facts/version 不变，T2–T5 suite 不退化。普通 identity 不能借 record/dispose 创建 accepted_risk；仅后续 `dispose_risk` accept 可做到。
-
-STOP：需要自然语言判定风险接受、默认风险等级、local Issue disposal 或在此切片实现 dispose_risk；报告来源，不新增兼容层。
-
-失败恢复：无外部副作用；保留已 PASS 与本步改动，不用 checkout/reset/删文件。
-
 ### T7：ManagerPlan 创建与替代
 
 前置状态：T1–T6 PASS。
@@ -330,7 +307,7 @@ git status --short
 | --- | --- | --- | --- |
 | RUNBOOK 内部链接与 Markdown 本地链接 | `node .github/scripts/check-doc-links.mjs` | 作者交付时必须为退出码 0；只证明链接目标存在，不证明产品行为 | STOP；报告输出，不修改无关文档。 |
 | 文档改动的空白/冲突标记 | `git diff --check` | 作者交付时必须为退出码 0 | STOP；只修复本 RUNBOOK 的空白错误后重跑。 |
-| target validator 与 transitions | `pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts` | 剩余 T6–T7 必须 PASS；已完成步骤正文按执行约定删除 | 失败时不得降级断言。 |
+| target validator 与 transitions | `pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts` | 剩余 T7 必须 PASS；已完成步骤正文按执行约定删除 | 失败时不得降级断言。 |
 | target TypeScript/API boundary | `pnpm --dir plugin typecheck && pnpm --dir plugin lint` | T8 必须 PASS；当前尚未执行 | 不得改 eslint 或 export 边界绕过。 |
 | 此切片的完整工程验证 | `pnpm --dir plugin verify` | T8 必须 PASS；不证明 DSH runtime | 任一失败 STOP，报告首次失败及实际输出。 |
 | DSH profile、Browser、Repository/recovery、Remote、outbox、legacy compatibility | 不运行 | `Not Applicable` 于本 RUNBOOK scope：本切片不得接线这些边界 | 不得将未运行写为通过。 |
@@ -343,6 +320,6 @@ git status --short
 
 ## 12. Author Audit
 
-逐项按 [RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md#authoring-and-audit) 审计：已完成步骤正文依执行约定删除；剩余 Scope 2→T6–T7、Scope 3/4→T8、最终文件删除→T9。第 8 节执行前检查固定为当前 `docs/runbook-meeting-state-transitions` checkout `/Volumes/storage/workspace/convivium`，不得在另一 worktree 的 `main` 执行。T9 删除后检查失败必须精确恢复 RUNBOOK 再 STOP。每步允许文件、命令、可观察 PASS/STOP、失败恢复与 Non-goals 已重新核对；CreateMeeting identityId 映射、active risk fact 跨边界证明、Repository/archive retention 仍属后续切片，不由本纯 Domain 切片猜测。
+逐项按 [RUNBOOK Rules](../00-governance/RUNBOOK-RULES.md#authoring-and-audit) 审计：已完成步骤正文依执行约定删除；剩余 Scope 2→T7、Scope 3/4→T8、最终文件删除→T9。第 8 节执行前检查固定为当前 `docs/runbook-meeting-state-transitions` checkout `/Volumes/storage/workspace/convivium`，不得在另一 worktree 的 `main` 执行。T9 删除后检查失败必须精确恢复 RUNBOOK 再 STOP。每步允许文件、命令、可观察 PASS/STOP、失败恢复与 Non-goals 已重新核对；CreateMeeting identityId 映射、active risk fact 跨边界证明、Repository/archive retention 仍属后续切片，不由本纯 Domain 切片猜测。
 
 审计结论：**Executable**，仅说明低级执行者可在第 8 节授权、checkout 与 baseline 门禁满足后按 T1–T8 实施或 STOP；T9 仍须独立删除授权及当时的 Git 历史/无增量门禁。2026-09-16 在 `docs/runbook-meeting-state-transitions` checkout 实际执行 `pnpm --dir plugin verify`：退出码 0，90 test files/961 tests PASS，且 build/environment/contract/agent-definitions/package 检查均通过（仅证明 legacy 基线，不证明目标行为）；`node .github/scripts/check-doc-links.mjs` 为 462 checked/0 errors（不查 anchors），`git diff --check` 退出码 0。目标 focused tests、目标 TypeScript、target lint/build/verify、真实 DSH 与 Browser 均未执行，不描述为通过。Execute 与 push/PR 仍须分别获授权。
