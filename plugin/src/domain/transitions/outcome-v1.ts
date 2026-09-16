@@ -7,6 +7,7 @@ import type {
     ProposalRevisionV1,
     DecisionCandidateV1
 } from "../meeting-state-v1.js";
+import type { DecisionV1 } from "../meeting-state-v1.js";
 import { validateMeetingStateV1 } from "../meeting-state-v1-validation.js";
 import type { MeetingTransitionResultV1 } from "./result-v1.js";
 import { rejectedTransitionV1 } from "./result-v1.js";
@@ -324,13 +325,114 @@ export function pendingDecisionCandidatesV1(state: MeetingState): readonly Decis
     );
 }
 export function decideV1(state: MeetingState, _input: DecideInputV1): MeetingTransitionResultV1 {
-    return bad(state, "PRECONDITION_FAILED");
+    const input = _input;
+    const e = base(state, input.actor, input.now);
+    if (e) return e;
+    if (!validId(input.decisionId) || !validId(input.candidateId))
+        return bad(state, "INVALID_ARGUMENT");
+    if (!actorRole(state, input.actor, "captain")) return bad(state, "UNAUTHORIZED");
+    if (uniqueEntity(state, input.decisionId, "decisions")) return bad(state, "INVALID_ARGUMENT");
+    const candidate = state.decisionCandidates.find((c) => c.id === input.candidateId);
+    if (!candidate) return bad(state, "NOT_FOUND", "candidate not found", input.candidateId);
+    const revision = state.proposals.find((p) => p.id === candidate.proposalRevisionId);
+    if (!revision || currentRevision(state, revision.proposalId)?.id !== revision.id)
+        return bad(
+            state,
+            "PRECONDITION_FAILED",
+            "candidate revision is not current",
+            candidate.proposalRevisionId
+        );
+    if (
+        state.decisions.some((d) => d.candidateId === candidate.id) ||
+        state.decisions.some((d) => d.proposalRevisionId === revision.id && d.status === "accepted")
+    )
+        return bad(state, "PRECONDITION_FAILED", "candidate already decided", candidate.id);
+    const decision: DecisionV1 = { ...candidate, candidateId: candidate.id, status: "accepted" };
+    const next = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        decisions: [...state.decisions, decision]
+    };
+    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    return {
+        kind: "accepted",
+        state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+        relatedIds: [decision.id, decision.candidateId],
+        effectRequests: []
+    };
 }
 export function changeDecisionV1(
     state: MeetingState,
-    _input: ChangeDecisionInputV1
+    input: ChangeDecisionInputV1
 ): MeetingTransitionResultV1 {
-    return bad(state, "PRECONDITION_FAILED");
+    const e = base(state, input.actor, input.now);
+    if (e) return e;
+    if (!validId(input.decisionId) || !validId(input.rationale) || !validArray(input.evidenceIds))
+        return bad(state, "INVALID_ARGUMENT");
+    if (!actorRole(state, input.actor, "captain")) return bad(state, "UNAUTHORIZED");
+    const old = state.decisions.find((d) => d.id === input.decisionId);
+    if (!old) return bad(state, "NOT_FOUND", "decision not found", input.decisionId);
+    if (old.status !== "accepted")
+        return bad(state, "PRECONDITION_FAILED", "decision is not accepted", old.id);
+    if (!evidenceOk(state, input.evidenceIds))
+        return bad(state, "PRECONDITION_FAILED", "evidence is not published");
+    const decisions = state.decisions.map((d) =>
+        d.id === old.id ? { ...d, status: input.status } : d
+    );
+    if (input.status === "revoked") {
+        const next = { ...state, version: state.version + 1, updatedAt: input.now, decisions };
+        if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+        return {
+            kind: "accepted",
+            state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+            relatedIds: [old.id, ...input.evidenceIds],
+            effectRequests: []
+        };
+    }
+    if (
+        !validId(input.replacementCandidateId) ||
+        !validId(input.replacementDecisionId) ||
+        uniqueEntity(state, input.replacementDecisionId, "decisions")
+    )
+        return bad(state, "INVALID_ARGUMENT");
+    const candidate = state.decisionCandidates.find((c) => c.id === input.replacementCandidateId);
+    if (!candidate)
+        return bad(
+            state,
+            "NOT_FOUND",
+            "replacement candidate not found",
+            input.replacementCandidateId
+        );
+    const oldRevision = state.proposals.find((p) => p.id === old.proposalRevisionId);
+    const newRevision = state.proposals.find((p) => p.id === candidate.proposalRevisionId);
+    if (
+        !oldRevision ||
+        !newRevision ||
+        oldRevision.proposalId !== newRevision.proposalId ||
+        currentRevision(state, newRevision.proposalId)?.id !== newRevision.id ||
+        state.decisions.some((d) => d.candidateId === candidate.id)
+    )
+        return bad(state, "PRECONDITION_FAILED", "replacement candidate is invalid", candidate.id);
+    const replacement: DecisionV1 = {
+        ...candidate,
+        candidateId: candidate.id,
+        status: "accepted",
+        replacesDecisionId: old.id
+    };
+    const next = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        decisions: [...decisions, replacement]
+    };
+    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    return {
+        kind: "accepted",
+        state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+        relatedIds: [old.id, replacement.id, replacement.candidateId, ...input.evidenceIds],
+        effectRequests: []
+    };
 }
 export function disposeRiskV1(
     state: MeetingState,
