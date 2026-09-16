@@ -107,13 +107,18 @@ describe("dispose_issue completion boundary", () => {
                 issueId: "issue-1",
                 status: "resolved",
                 rationale: "done",
-                evidenceIds: []
+                evidenceIds: ["version-1"]
             },
-            local,
+            captain,
             4,
             "fact-1"
         );
-        expect(result.kind).toBe("rejected");
+        expect(result).toMatchObject({
+            kind: "rejected",
+            state: current,
+            code: "INVALID_STATE",
+            facts: []
+        });
         expect(result.state).toBe(current);
     });
     it.each(["terminal", "archiving", "archived"] as const)("rejects terminal %s", (status) => {
@@ -125,13 +130,18 @@ describe("dispose_issue completion boundary", () => {
                 issueId: "issue-1",
                 status: "resolved",
                 rationale: "done",
-                evidenceIds: []
+                evidenceIds: ["version-1"]
             },
-            local,
+            captain,
             4,
             "fact-1"
         );
-        expect(result.kind).toBe("rejected");
+        expect(result).toMatchObject({
+            kind: "rejected",
+            state: current,
+            code: "MEETING_TERMINAL",
+            facts: []
+        });
         expect(result.state).toBe(current);
     });
 });

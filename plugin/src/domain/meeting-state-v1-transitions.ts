@@ -610,6 +610,9 @@ export function transitionMeetingStateV1(
         ];
         relatedIds = [state.id, candidateId];
     } else if (action.kind === "dispose_issue") {
+        if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
+            return invalid(state, "MEETING_TERMINAL");
+        if (state.lifecycle.status !== "running") return invalid(state, "INVALID_STATE");
         const issue = state.issues.find((item) => item.id === action.issueId);
         if (!issue) return invalid(state, "NOT_FOUND");
         if (issue.status !== "open" && issue.status !== "deferred")
