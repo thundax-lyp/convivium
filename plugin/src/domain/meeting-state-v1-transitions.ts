@@ -203,6 +203,28 @@ const disposeActionSchema = z
         if (!optionalDefined(value, "promotedAgenda"))
             ctx.addIssue({ code: "custom", path: ["promotedAgenda"] });
     });
+const uniqueActionIds = z
+    .array(z.string().refine((value) => value.trim().length > 0))
+    .superRefine((values, ctx) => {
+        if (new Set(values).size !== values.length)
+            ctx.addIssue({ code: "custom", message: "duplicate id" });
+    });
+const recordQuestionSchema = z.object({
+    kind: z.literal("record_question"),
+    agendaId: z.string().refine((value) => value.trim().length > 0),
+    text: z.string().refine((value) => value.trim().length > 0),
+    affectedOutputIds: uniqueActionIds,
+    affectedCriterionIds: uniqueActionIds,
+    affectedConstraintIds: uniqueActionIds,
+    blocking: z.boolean()
+});
+const resolveQuestionSchema = z.object({
+    kind: z.literal("resolve_question"),
+    questionId: z.string().refine((value) => value.trim().length > 0),
+    status: z.enum(["answered", "withdrawn", "deferred"]),
+    rationale: z.string().refine((value) => value.trim().length > 0),
+    evidenceIds: uniqueActionIds.min(1)
+});
 
 export function transitionMeetingStateV1(
     state: MeetingState,
@@ -260,6 +282,24 @@ export function transitionMeetingStateV1(
             )
         )
             return invalid(state, "UNAUTHORIZED");
+    } else if (action.kind === "record_question") {
+        if (!recordQuestionSchema.safeParse(action).success || !validId(generatedId))
+            return invalid(state, "INVALID_ARGUMENT");
+        if (
+            actor.kind !== "identity" ||
+            !state.identities.some((identity) => identity.id === actor.id)
+        )
+            return invalid(state, "UNAUTHORIZED");
+    } else if (action.kind === "resolve_question") {
+        if (!resolveQuestionSchema.safeParse(action).success)
+            return invalid(state, "INVALID_ARGUMENT");
+        if (
+            actor.kind !== "identity" ||
+            !state.identities.some(
+                (identity) => identity.id === actor.id && identity.roles.includes("captain")
+            )
+        )
+            return invalid(state, "UNAUTHORIZED");
     } else return invalid(state, "INVALID_ARGUMENT");
     if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
         return invalid(state, "MEETING_TERMINAL");
@@ -269,7 +309,9 @@ export function transitionMeetingStateV1(
     let nextAgenda = state.agenda;
     let nextCandidates = state.agendaCandidates;
     let nextIdentities = state.identities;
+    let nextQuestions = state.questions;
     let nextLifecycle = state.lifecycle;
+    let factPayload: TargetDomainFactPayloadV1 | undefined;
     if (action.kind === "pause_meeting" || action.kind === "resume_meeting") {
         const expected = action.kind === "pause_meeting" ? "running" : "paused";
         nextStatus = action.kind === "pause_meeting" ? "paused" : "running";
@@ -365,6 +407,82 @@ export function transitionMeetingStateV1(
         nextCandidates = state.agendaCandidates.map((item) =>
             item.id === action.candidateId ? { ...item, status: action.disposition } : item
         );
+    } else if (action.kind === "record_question") {
+        if (!state.agenda.some((agenda) => agenda.id === action.agendaId))
+            return invalid(state, "NOT_FOUND");
+        if (state.questions.some((question) => question.id === candidateId))
+            return invalid(state, "PRECONDITION_FAILED");
+        const outputIds = new Set(state.objective.requiredOutputs.map((item) => item.id));
+        const criterionIds = new Set(state.objective.acceptanceCriteria.map((item) => item.id));
+        const constraintIds = new Set(state.objective.hardConstraints.map((item) => item.id));
+        if (
+            action.affectedOutputIds.some((id) => !outputIds.has(id)) ||
+            action.affectedCriterionIds.some((id) => !criterionIds.has(id)) ||
+            action.affectedConstraintIds.some((id) => !constraintIds.has(id))
+        )
+            return invalid(state, "NOT_FOUND");
+        const affected = [
+            ...action.affectedOutputIds,
+            ...action.affectedCriterionIds,
+            ...action.affectedConstraintIds
+        ];
+        if (
+            action.blocking &&
+            !affected.some((id) =>
+                [
+                    ...state.objective.requiredOutputs,
+                    ...state.objective.acceptanceCriteria,
+                    ...state.objective.hardConstraints
+                ].some((target) => target.id === id && target.status !== "satisfied")
+            )
+        )
+            return invalid(state, "PRECONDITION_FAILED");
+        nextQuestions = [
+            ...state.questions,
+            {
+                id: candidateId,
+                actorId: actor.id,
+                agendaId: action.agendaId,
+                text: action.text,
+                affectedOutputIds: action.affectedOutputIds,
+                affectedCriterionIds: action.affectedCriterionIds,
+                affectedConstraintIds: action.affectedConstraintIds,
+                blocking: action.blocking,
+                status: "open"
+            }
+        ];
+        relatedIds = [state.id, candidateId];
+    } else if (action.kind === "resolve_question") {
+        const question = state.questions.find((item) => item.id === action.questionId);
+        if (!question) return invalid(state, "NOT_FOUND");
+        if (question.status !== "open" && question.status !== "deferred")
+            return invalid(state, "INVALID_STATE");
+        const versions = new Set(
+            state.evidencePackages.flatMap((pack) => pack.versions.map((version) => version.id))
+        );
+        const published = new Set(
+            state.publications.flatMap((publication) => publication.finalVersionIds)
+        );
+        if (action.evidenceIds.some((id) => !versions.has(id))) return invalid(state, "NOT_FOUND");
+        if (action.evidenceIds.some((id) => !published.has(id)))
+            return invalid(state, "PRECONDITION_FAILED");
+        const newBlocking = action.status === "deferred" ? question.blocking : false;
+        nextQuestions = state.questions.map((item) =>
+            item.id === question.id
+                ? { ...item, status: action.status, blocking: newBlocking }
+                : item
+        );
+        relatedIds = [state.id, action.questionId, ...action.evidenceIds];
+        factPayload = {
+            kind: "question_disposition" as const,
+            questionId: question.id,
+            oldStatus: question.status as "open" | "deferred",
+            newStatus: action.status,
+            oldBlocking: question.blocking,
+            newBlocking,
+            rationale: action.rationale,
+            evidenceIds: action.evidenceIds
+        };
     }
 
     if (action.kind === "pause_meeting" || action.kind === "resume_meeting")
@@ -383,6 +501,7 @@ export function transitionMeetingStateV1(
         agenda: nextAgenda,
         agendaCandidates: nextCandidates,
         identities: nextIdentities,
+        questions: nextQuestions,
         lifecycle: nextLifecycle
     };
     if (validateMeetingStateV1(nextState).kind !== "valid")
@@ -397,7 +516,7 @@ export function transitionMeetingStateV1(
                 actorId: actor.id,
                 occurredAt: now,
                 relatedIds,
-                payload: { kind: "references", relatedIds }
+                payload: factPayload ?? { kind: "references", relatedIds }
             }
         ]
     };

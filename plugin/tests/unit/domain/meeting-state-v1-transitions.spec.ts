@@ -73,6 +73,25 @@ const identity = { kind: "identity", id: "identity-1" } as const;
 const captain = identity;
 const nonCaptain = { kind: "identity", id: "identity-2" } as const;
 const reviewer = { kind: "identity", id: "reviewer-1" } as const;
+const manager = { kind: "identity", id: "manager-1" } as const;
+const recordQuestion = (overrides: Record<string, unknown> = {}) => ({
+    kind: "record_question" as const,
+    agendaId: "agenda-1",
+    text: "q",
+    affectedOutputIds: [],
+    affectedCriterionIds: [],
+    affectedConstraintIds: [],
+    blocking: false,
+    ...overrides
+});
+const resolveQuestion = (overrides: Record<string, unknown> = {}) => ({
+    kind: "resolve_question" as const,
+    questionId: "question-1",
+    status: "answered" as const,
+    rationale: "done",
+    evidenceIds: ["version-1"],
+    ...overrides
+});
 
 function terminalState(status: "terminal" | "archiving" | "archived"): MeetingState {
     const current = state(status);
@@ -117,6 +136,113 @@ function candidateState(): MeetingState {
         }
     ];
     current.agendaCandidates = [{ id: "candidate-1", title: "x", reason: "x", status: "pending" }];
+    return current;
+}
+
+function publishedQuestionState(blocking: boolean): MeetingState {
+    const current = state();
+    current.identities = [
+        ...current.identities,
+        {
+            id: "manager-1",
+            displayName: "Manager",
+            roles: ["manager"],
+            agendaResponsibilityIds: [],
+            reviewResponsibilityIds: [],
+            riskAuthority: false,
+            required: false
+        },
+        {
+            id: "reviewer-1",
+            displayName: "Reviewer",
+            roles: ["evidence_reviewer"],
+            agendaResponsibilityIds: [],
+            reviewResponsibilityIds: [],
+            riskAuthority: false,
+            required: false
+        },
+        {
+            id: "contributor-1",
+            displayName: "Contributor",
+            roles: ["contributor"],
+            agendaResponsibilityIds: [],
+            reviewResponsibilityIds: [],
+            riskAuthority: false,
+            required: false
+        }
+    ];
+    current.rounds = [
+        {
+            id: "round-1",
+            agendaId: "agenda-1",
+            publicBaselinePublicationIds: [],
+            openedAt: 0,
+            status: "published",
+            contributionIds: ["contribution-1"],
+            publicationId: "publication-1"
+        }
+    ];
+    current.contributions = [
+        {
+            id: "contribution-1",
+            roundId: "round-1",
+            contributorId: "contributor-1",
+            handRaise: { raisedAt: 0, purpose: "x" },
+            acceptedAt: 0,
+            status: "registered",
+            packageId: "package-1",
+            substantiveSupplementCount: 0
+        }
+    ];
+    current.evidencePackages = [
+        {
+            id: "package-1",
+            roundId: "round-1",
+            contributionId: "contribution-1",
+            authorId: "contributor-1",
+            agendaId: "agenda-1",
+            currentVersionId: "version-1",
+            versions: [
+                {
+                    id: "version-1",
+                    ordinal: 1,
+                    observation: "x",
+                    interpretation: "x",
+                    method: "x",
+                    falsifiers: [],
+                    uncertainties: [],
+                    limitations: [],
+                    claims: [],
+                    materials: [],
+                    submittedAt: 0
+                }
+            ]
+        }
+    ];
+    current.publications = [
+        {
+            id: "publication-1",
+            roundId: "round-1",
+            seq: 1,
+            finalVersionIds: ["version-1"],
+            finalReviewIds: [],
+            publishedAt: 0,
+            exitReasons: []
+        }
+    ];
+    current.questions = [
+        {
+            id: "question-1",
+            actorId: "identity-1",
+            agendaId: "agenda-1",
+            text: "x",
+            affectedOutputIds: blocking ? ["output-1"] : [],
+            affectedCriterionIds: [],
+            affectedConstraintIds: [],
+            blocking,
+            status: "open"
+        }
+    ];
     return current;
 }
 
@@ -727,5 +853,170 @@ describe("meeting lifecycle transitions", () => {
             "fact-3"
         );
         expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
+    });
+
+    it.each([captain, manager, reviewer])(
+        "records a question for each allowed identity",
+        (actor) => {
+            const current = publishedQuestionState(false);
+            const result = transitionMeetingStateV1(
+                current,
+                {
+                    kind: "record_question",
+                    agendaId: "agenda-1",
+                    text: "clarify",
+                    affectedOutputIds: ["output-1"],
+                    affectedCriterionIds: [],
+                    affectedConstraintIds: [],
+                    blocking: true
+                },
+                actor,
+                10,
+                "fact-5",
+                `question-${actor.id}`
+            );
+            expect(result.kind).toBe("accepted");
+            if (result.kind !== "accepted") return;
+            const questionId = `question-${actor.id}`;
+            expect(result.state.questions[1]).toEqual({
+                id: questionId,
+                actorId: actor.id,
+                agendaId: "agenda-1",
+                text: "clarify",
+                affectedOutputIds: ["output-1"],
+                affectedCriterionIds: [],
+                affectedConstraintIds: [],
+                blocking: true,
+                status: "open"
+            });
+            expect(result.facts).toEqual([
+                {
+                    id: "fact-5",
+                    kind: "record_question",
+                    actorId: actor.id,
+                    occurredAt: 10,
+                    relatedIds: ["meeting-1", questionId],
+                    payload: { kind: "references", relatedIds: ["meeting-1", questionId] }
+                }
+            ]);
+        }
+    );
+
+    it.each([
+        ["local record", local, recordQuestion(), "UNAUTHORIZED"],
+        ["missing agenda", captain, recordQuestion({ agendaId: "missing" }), "NOT_FOUND"],
+        ["local resolve", local, resolveQuestion(), "UNAUTHORIZED"],
+        ["manager resolve", manager, resolveQuestion(), "UNAUTHORIZED"],
+        ["reviewer resolve", reviewer, resolveQuestion(), "UNAUTHORIZED"],
+        ["missing question", captain, resolveQuestion({ questionId: "missing" }), "NOT_FOUND"],
+        [
+            "missing evidence",
+            captain,
+            resolveQuestion({ evidenceIds: ["missing-version"] }),
+            "NOT_FOUND"
+        ],
+        [
+            "blocking without target",
+            captain,
+            recordQuestion({ blocking: true }),
+            "PRECONDITION_FAILED"
+        ],
+        [
+            "missing objective target",
+            captain,
+            recordQuestion({ affectedOutputIds: ["missing-output"] }),
+            "NOT_FOUND"
+        ],
+        [
+            "duplicate affected ids",
+            captain,
+            recordQuestion({ affectedOutputIds: ["output-1", "output-1"] }),
+            "INVALID_ARGUMENT"
+        ]
+    ] as const)("rejects question operation: %s", (_name, actor, action, code) => {
+        const current = publishedQuestionState(false);
+        const result = transitionMeetingStateV1(current, action, actor, 10, "fact-6", "question-2");
+        expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
+    });
+
+    it("rejects evidence that has not been published", () => {
+        const current = publishedQuestionState(false);
+        current.publications[0].finalVersionIds = [];
+        const result = transitionMeetingStateV1(current, resolveQuestion(), captain, 10, "fact-6");
+        expect(result).toEqual({
+            kind: "rejected",
+            state: current,
+            code: "PRECONDITION_FAILED",
+            facts: []
+        });
+    });
+
+    it.each(["answered", "withdrawn"] as const)("rejects a repeated %s resolution", (status) => {
+        const current = publishedQuestionState(false);
+        current.questions[0].status = status;
+        const result = transitionMeetingStateV1(
+            current,
+            {
+                kind: "resolve_question",
+                questionId: "question-1",
+                status: "answered",
+                rationale: "done",
+                evidenceIds: ["version-1"]
+            },
+            captain,
+            10,
+            "fact-6"
+        );
+        expect(result).toEqual({
+            kind: "rejected",
+            state: current,
+            code: "INVALID_STATE",
+            facts: []
+        });
+    });
+
+    it.each([
+        ["answered", true, false],
+        ["withdrawn", true, false],
+        ["deferred false", false, false],
+        ["deferred true", true, true]
+    ] as const)("resolves a question as %s", (_name, oldBlocking, newBlocking) => {
+        const current = publishedQuestionState(oldBlocking);
+        const status = _name.startsWith("deferred")
+            ? "deferred"
+            : (_name as "answered" | "withdrawn");
+        const result = transitionMeetingStateV1(
+            current,
+            {
+                kind: "resolve_question",
+                questionId: "question-1",
+                status,
+                rationale: "resolved",
+                evidenceIds: ["version-1"]
+            },
+            captain,
+            10,
+            "fact-5"
+        );
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.questions[0].blocking).toBe(newBlocking);
+        expect(result.facts[0]).toEqual({
+            id: "fact-5",
+            kind: "resolve_question",
+            actorId: "identity-1",
+            occurredAt: 10,
+            relatedIds: ["meeting-1", "question-1", "version-1"],
+            payload: {
+                kind: "question_disposition",
+                questionId: "question-1",
+                oldStatus: "open",
+                newStatus: status,
+                oldBlocking,
+                newBlocking,
+                rationale: "resolved",
+                evidenceIds: ["version-1"]
+            }
+        });
     });
 });
