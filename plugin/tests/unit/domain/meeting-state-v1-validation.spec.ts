@@ -689,7 +689,7 @@ function evidenceState() {
         kind: "x",
         body: "x",
         publicationId: "publication-1",
-        relatedIds: [],
+        relatedIds: ["publication-1"],
         createdAt: 0
     };
     const proposal = {
@@ -1413,7 +1413,7 @@ function remainingEntityState() {
         senderId: "manager-1",
         recipientId: "captain-1",
         body: "x",
-        relatedIds: [],
+        relatedIds: ["publication-1"],
         sendContextPublicationUpperBound: ["publication-1"],
         status: "queued",
         deadlineAt: 0,
