@@ -65,21 +65,31 @@ export function sendPrivateMailV1(
 ): MeetingTransitionResultV1 {
     const bad = stateCheck(s);
     if (bad) return bad;
+    const text = (value: unknown): value is string =>
+        typeof value === "string" && value.trim().length > 0;
+    const ids = (value: unknown): value is readonly string[] =>
+        Array.isArray(value) && value.every(text);
     if (
-        [i.mailId, i.senderId, i.recipientId, i.body].some((x) => x.trim() === "") ||
+        !i ||
+        !text(i.mailId) ||
+        !text(i.senderId) ||
+        !text(i.recipientId) ||
+        !text(i.body) ||
+        (i.agendaId !== undefined && !text(i.agendaId)) ||
         !valid(i.now) ||
+        !ids(i.relatedIds) ||
         i.relatedIds.length === 0 ||
         new Set(i.relatedIds).size !== i.relatedIds.length
     )
         return reject(s, "INVALID_ARGUMENT", "invalid private mail input");
+    if (!s.identities.some((x) => x.id === i.senderId))
+        return reject(s, "UNAUTHORIZED", "sender not found", i.senderId);
     if (["terminal", "archiving", "archived"].includes(s.lifecycle.status))
         return reject(s, "MEETING_TERMINAL", "meeting is terminal");
     if (s.lifecycle.status !== "running")
         return reject(s, "INVALID_STATE", "meeting is not running");
     if (i.senderId === i.recipientId)
         return reject(s, "PRECONDITION_FAILED", "sender and recipient must differ");
-    if (!s.identities.some((x) => x.id === i.senderId))
-        return reject(s, "UNAUTHORIZED", "sender not found", i.senderId);
     if (!s.identities.some((x) => x.id === i.recipientId))
         return reject(s, "NOT_FOUND", "recipient not found", i.recipientId);
     if (i.agendaId !== undefined && !s.agenda.some((x) => x.id === i.agendaId))
@@ -87,10 +97,12 @@ export function sendPrivateMailV1(
     if (s.privateMails.some((x) => x.id === i.mailId))
         return reject(s, "INVALID_ARGUMENT", "mail id already exists", i.mailId);
     const pubs = new Set([...s.publications.map((x) => x.id), ...s.messages.map((x) => x.id)]);
-    if (i.relatedIds.some((x) => !pubs.has(x)))
-        return reject(s, "NOT_FOUND", "related reference not public");
+    const missingRelated = i.relatedIds.find((x) => !pubs.has(x));
+    if (missingRelated !== undefined)
+        return reject(s, "NOT_FOUND", "related reference not public", missingRelated);
     const deadline = i.now + s.limits.taskDeadlineMs;
-    if (!Number.isSafeInteger(deadline)) return reject(s, "INVALID_ARGUMENT", "deadline overflow");
+    if (!Number.isSafeInteger(deadline))
+        return reject(s, "PRECONDITION_FAILED", "deadline overflow");
     const m: PrivateMailV1 = {
         id: i.mailId,
         senderId: i.senderId,
@@ -131,23 +143,25 @@ export function startPrivateMailV1(
 ): MeetingTransitionResultV1 {
     const bad = stateCheck(s);
     if (bad) return bad;
-    if (!i.mailId.trim() || i.actorKind !== "effect_dispatcher" || !valid(i.now))
+    if (!i || typeof i.mailId !== "string" || !i.mailId.trim() || !valid(i.now))
         return reject(s, "INVALID_ARGUMENT", "invalid start input");
+    if (i.actorKind !== "effect_dispatcher")
+        return reject(s, "UNAUTHORIZED", "invalid actor", i.mailId);
     if (["terminal", "archiving", "archived"].includes(s.lifecycle.status))
-        return reject(s, "MEETING_TERMINAL", "meeting is terminal");
+        return reject(s, "MEETING_TERMINAL", "meeting is terminal", i.mailId);
     if (s.lifecycle.status !== "running")
-        return reject(s, "INVALID_STATE", "meeting is not running");
+        return reject(s, "INVALID_STATE", "meeting is not running", i.mailId);
     const n = s.privateMails.findIndex((x) => x.id === i.mailId);
     if (n < 0) return reject(s, "NOT_FOUND", "mail not found", i.mailId);
     const m = s.privateMails[n];
-    if (m.status !== "queued") return reject(s, "INVALID_STATE", "mail is not queued");
+    if (m.status !== "queued") return reject(s, "INVALID_STATE", "mail is not queued", i.mailId);
     if (i.now < m.createdAt || i.now >= m.deadlineAt)
-        return reject(s, "PRECONDITION_FAILED", "mail deadline invalid");
+        return reject(s, "PRECONDITION_FAILED", "mail deadline invalid", i.mailId);
     if (busy(s, m.recipientId, m.id))
-        return reject(s, "PRECONDITION_FAILED", "recipient serial busy");
+        return reject(s, "PRECONDITION_FAILED", "recipient serial busy", i.mailId);
     const c = s.publications.map((x) => x.id);
     if (m.sendContextPublicationUpperBound.some((x, j) => c[j] !== x))
-        return reject(s, "PRECONDITION_FAILED", "send context is not a prefix");
+        return reject(s, "PRECONDITION_FAILED", "send context is not a prefix", i.mailId);
     const changed = {
         ...m,
         status: "processing" as const,
@@ -173,38 +187,47 @@ function finish(
 ): MeetingTransitionResultV1 {
     const bad = stateCheck(s);
     if (bad) return bad;
-    if (!i.mailId.trim() || !reason.trim() || !valid(i.now))
+    if (
+        !i ||
+        typeof i.mailId !== "string" ||
+        !i.mailId.trim() ||
+        typeof reason !== "string" ||
+        !reason.trim() ||
+        !valid(i.now)
+    )
         return reject(s, "INVALID_ARGUMENT", "invalid terminal input");
+    if (status === "completed" && !s.identities.some((x) => x.id === actor))
+        return reject(s, "UNAUTHORIZED", "recipient not found", actor);
+    if (status === "cancelled" && !s.identities.some((x) => x.id === actor))
+        return reject(s, "UNAUTHORIZED", "sender not found", actor);
     if (["terminal", "archiving", "archived"].includes(s.lifecycle.status))
-        return reject(s, "MEETING_TERMINAL", "meeting is terminal");
+        return reject(s, "MEETING_TERMINAL", "meeting is terminal", i.mailId);
     if (s.lifecycle.status === "preparing")
         return reject(s, "INVALID_STATE", "meeting is preparing");
     const n = s.privateMails.findIndex((x) => x.id === i.mailId);
     if (n < 0) return reject(s, "NOT_FOUND", "mail not found", i.mailId);
     const m = s.privateMails[n];
     if (status === "completed") {
-        if (!s.identities.some((x) => x.id === actor))
-            return reject(s, "UNAUTHORIZED", "recipient not found", actor);
-        if (actor !== m.recipientId) return reject(s, "UNAUTHORIZED", "not recipient");
+        if (actor !== m.recipientId) return reject(s, "UNAUTHORIZED", "not recipient", m.id);
+        if (m.status !== "processing")
+            return reject(s, "INVALID_STATE", "mail is not processing", m.id);
         if (
-            m.status !== "processing" ||
             m.processingStartedAt === undefined ||
             i.now < m.processingStartedAt ||
             i.now >= m.deadlineAt
         )
-            return reject(s, "PRECONDITION_FAILED", "mail cannot complete");
+            return reject(s, "PRECONDITION_FAILED", "mail cannot complete", m.id);
     } else if (status === "cancelled") {
-        if (!s.identities.some((x) => x.id === actor))
-            return reject(s, "UNAUTHORIZED", "sender not found", actor);
-        if (actor !== m.senderId) return reject(s, "UNAUTHORIZED", "not sender");
+        if (actor !== m.senderId) return reject(s, "UNAUTHORIZED", "not sender", m.id);
         if (m.status !== "queued" && m.status !== "processing")
-            return reject(s, "INVALID_STATE", "mail is terminal");
+            return reject(s, "INVALID_STATE", "mail is terminal", m.id);
         if (i.now < (m.processingStartedAt ?? m.createdAt))
-            return reject(s, "PRECONDITION_FAILED", "time invalid");
+            return reject(s, "PRECONDITION_FAILED", "time invalid", m.id);
     } else {
         if (m.status !== "queued" && m.status !== "processing")
-            return reject(s, "INVALID_STATE", "mail is terminal");
-        if (i.now < m.deadlineAt) return reject(s, "PRECONDITION_FAILED", "deadline not reached");
+            return reject(s, "INVALID_STATE", "mail is terminal", m.id);
+        if (i.now < m.deadlineAt)
+            return reject(s, "PRECONDITION_FAILED", "deadline not reached", m.id);
     }
     const changed = Object.fromEntries(
         Object.entries({
@@ -225,12 +248,17 @@ function finish(
     return { kind: "accepted", state: next, relatedIds: [m.id], effectRequests: [] };
 }
 export function completePrivateMailV1(s: MeetingState, i: CompletePrivateMailInputV1) {
-    return finish(s, i, "completed", "completed", i.recipientId);
+    return finish(s, i, "completed", "completed", i?.recipientId);
 }
 export function cancelPrivateMailV1(s: MeetingState, i: CancelPrivateMailInputV1) {
-    return finish(s, i, "cancelled", i.reason, i.senderId);
+    return finish(s, i, "cancelled", i?.reason ?? "", i?.senderId);
 }
 export function expirePrivateMailV1(s: MeetingState, i: ExpirePrivateMailInputV1) {
-    if (i.actorKind !== "deadline_handler") return reject(s, "UNAUTHORIZED", "invalid actor");
+    const bad = stateCheck(s);
+    if (bad) return bad;
+    if (!i || typeof i.mailId !== "string" || !i.mailId.trim() || !i.reason.trim() || !valid(i.now))
+        return reject(s, "INVALID_ARGUMENT", "invalid terminal input");
+    if (i.actorKind !== "deadline_handler")
+        return reject(s, "UNAUTHORIZED", "invalid actor", i.mailId);
     return finish(s, i, "timed_out", i.reason);
 }
