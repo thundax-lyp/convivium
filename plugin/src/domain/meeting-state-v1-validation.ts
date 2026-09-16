@@ -1047,6 +1047,23 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             return fail(`${path}.replacesDecisionId`);
         if (r.replacesDecisionId === r.id) return fail(`${path}.replacesDecisionId`);
     }
+    const acceptedByRevision = new Set<string>();
+    const decidedCandidates = new Set<string>();
+    for (let i = 0; i < decisions.length; i++) {
+        const d = decisions[i];
+        if (decidedCandidates.has(d.candidateId)) return fail(`$.decisions[${i}].candidateId`);
+        decidedCandidates.add(d.candidateId);
+        if (d.status === "accepted") {
+            if (acceptedByRevision.has(d.proposalRevisionId))
+                return fail(`$.decisions[${i}].proposalRevisionId`);
+            acceptedByRevision.add(d.proposalRevisionId);
+        }
+        if (d.replacesDecisionId !== undefined) {
+            const previous = decisions.findIndex((x) => x.id === d.replacesDecisionId);
+            if (previous < 0 || previous >= i || decisions[previous].status !== "superseded")
+                return fail(`$.decisions[${i}].replacesDecisionId`);
+        }
+    }
     for (let i = 0; i < rounds.length; i++) {
         const r = rounds[i] as RecordValue;
         const path = `$.rounds[${i}]`;
@@ -1288,6 +1305,11 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             !completionFactIds.has(item.supersedesFactId as string)
         )
             return fail(`${path}.supersedesFactId`);
+        if (item.supersedesFactId !== undefined) {
+            const previous = facts.findIndex((x) => x.id === item.supersedesFactId);
+            if (previous < 0 || previous >= i || facts[previous].status !== "superseded")
+                return fail(`${path}.supersedesFactId`);
+        }
     }
     const tasks = parsedState.tasks;
     for (let i = 0; i < tasks.length; i++) {
