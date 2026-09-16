@@ -401,7 +401,12 @@ export function decideV1(state: MeetingState, _input: DecideInputV1): MeetingTra
         state.decisions.some((d) => d.proposalRevisionId === revision.id && d.status === "accepted")
     )
         return bad(state, "PRECONDITION_FAILED", "candidate already decided", candidate.id);
-    const decision: DecisionV1 = { ...candidate, candidateId: candidate.id, status: "accepted" };
+    const decision: DecisionV1 = {
+        ...candidate,
+        id: input.decisionId,
+        candidateId: candidate.id,
+        status: "accepted"
+    };
     const next = {
         ...state,
         version: state.version + 1,
@@ -470,6 +475,7 @@ export function changeDecisionV1(
         return bad(state, "PRECONDITION_FAILED", "replacement candidate is invalid", candidate.id);
     const replacement: DecisionV1 = {
         ...candidate,
+        id: input.replacementDecisionId,
         candidateId: candidate.id,
         status: "accepted",
         replacesDecisionId: old.id

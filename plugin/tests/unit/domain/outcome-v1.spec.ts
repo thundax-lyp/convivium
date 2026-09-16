@@ -15,7 +15,325 @@ import {
 } from "@/domain/transitions/outcome-v1.js";
 import type { MeetingState } from "@/domain/meeting-state-v1.js";
 
+function validState(status: MeetingState["lifecycle"]["status"] = "running"): MeetingState {
+    const state = {
+        id: "m",
+        version: 1,
+        createdAt: 0,
+        updatedAt: 0,
+        objective: {
+            statement: "objective",
+            requiredOutputs: [{ id: "o", text: "output", status: "pending" }],
+            acceptanceCriteria: [],
+            hardConstraints: [],
+            acceptableRiskLevel: "high"
+        },
+        lifecycle: { status, changedAt: 0, changedBy: "local" },
+        identities: [
+            {
+                id: "captain",
+                displayName: "Captain",
+                roles: ["captain", "contributor"],
+                agendaResponsibilityIds: ["a"],
+                reviewResponsibilityIds: [],
+                riskAuthority: true,
+                required: true
+            },
+            {
+                id: "contributor",
+                displayName: "Contributor",
+                roles: ["contributor"],
+                agendaResponsibilityIds: ["a"],
+                reviewResponsibilityIds: [],
+                riskAuthority: false,
+                required: false
+            },
+            {
+                id: "reviewer",
+                displayName: "Reviewer",
+                roles: ["evidence_reviewer"],
+                agendaResponsibilityIds: [],
+                reviewResponsibilityIds: ["a"],
+                riskAuthority: false,
+                required: false
+            },
+            {
+                id: "manager",
+                displayName: "Manager",
+                roles: ["manager"],
+                agendaResponsibilityIds: [],
+                reviewResponsibilityIds: [],
+                riskAuthority: false,
+                required: false
+            }
+        ],
+        identityRecommendations: [],
+        agenda: [
+            {
+                id: "a",
+                title: "Agenda",
+                question: "q",
+                status: "active",
+                requiredOutputIds: ["o"],
+                requiredReviewerIds: ["reviewer"]
+            }
+        ],
+        agendaCandidates: [],
+        rounds: [
+            {
+                id: "r",
+                agendaId: "a",
+                publicBaselinePublicationIds: [],
+                openedAt: 0,
+                status: "open",
+                contributionIds: ["c"]
+            }
+        ],
+        opportunityRequests: [],
+        pendingHandRaises: [],
+        contributions: [
+            {
+                id: "c",
+                roundId: "r",
+                contributorId: "contributor",
+                handRaise: { raisedAt: 0, purpose: "x" },
+                acceptedAt: 0,
+                status: "registered",
+                substantiveSupplementCount: 0,
+                packageId: "p"
+            }
+        ],
+        formatApprovals: [],
+        completionDeclarations: [],
+        evidencePackages: [
+            {
+                id: "p",
+                roundId: "r",
+                contributionId: "c",
+                authorId: "contributor",
+                agendaId: "a",
+                currentVersionId: "v",
+                versions: [
+                    {
+                        id: "v",
+                        ordinal: 1,
+                        observation: "x",
+                        interpretation: "x",
+                        method: "x",
+                        falsifiers: [],
+                        uncertainties: [],
+                        limitations: [],
+                        claims: [],
+                        materials: [],
+                        submittedAt: 0
+                    }
+                ]
+            }
+        ],
+        registrations: [
+            {
+                id: "reg",
+                versionId: "v",
+                managerId: "manager",
+                status: "complete",
+                missingFields: [],
+                createdAt: 0
+            }
+        ],
+        reviews: [
+            {
+                id: "review",
+                versionId: "v",
+                reviewerId: "reviewer",
+                baselinePublicationIds: [],
+                scope: "x",
+                dimensions: {
+                    source: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] },
+                    credibility: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] },
+                    completeness: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] },
+                    support: { score: 3, reason: "x", scope: "x", baselineEvidenceIds: [] }
+                },
+                createdAt: 0
+            }
+        ],
+        reviewDeliveries: [
+            {
+                id: "delivery",
+                reviewId: "review",
+                authorId: "contributor",
+                status: "sent",
+                sentAt: 0
+            }
+        ],
+        publications: [
+            {
+                id: "pub",
+                roundId: "r",
+                seq: 1,
+                finalVersionIds: ["v"],
+                finalReviewIds: ["review"],
+                publishedAt: 0,
+                exitReasons: []
+            }
+        ],
+        messages: [],
+        proposals: [],
+        positions: [],
+        decisionCandidates: [],
+        decisions: [],
+        questions: [],
+        issues: [],
+        riskDispositions: [],
+        tasks: [],
+        managerPlans: [],
+        privateMails: [],
+        completionFacts: [],
+        limits: {
+            maxFormalMessages: 1,
+            maxDurationMs: 1,
+            taskDeadlineMs: 1,
+            reviewDeadlineMs: 1,
+            responseDeadlineMs: 60000
+        }
+    } as unknown as MeetingState;
+    return state;
+}
+
 describe("outcome proposal revisions", () => {
+    it("records first and consecutive proposal revisions without copying history", () => {
+        let state = validState();
+        const first = recordProposalRevisionV1(state, {
+            revisionId: "rev-1",
+            proposalId: "prop",
+            agendaId: "a",
+            summary: "first",
+            body: "body",
+            evidenceIds: ["v"],
+            actor: { kind: "identity", id: "contributor" },
+            now: 1
+        });
+        expect(first.kind).toBe("accepted");
+        if (first.kind !== "accepted") return;
+        state = first.state;
+        const second = recordProposalRevisionV1(state, {
+            revisionId: "rev-2",
+            proposalId: "prop",
+            agendaId: "a",
+            summary: "second",
+            body: "body",
+            evidenceIds: ["v"],
+            supersedesRevisionId: "rev-1",
+            actor: { kind: "identity", id: "contributor" },
+            now: 2
+        });
+        expect(second.kind).toBe("accepted");
+        if (second.kind !== "accepted") return;
+        expect(second.state.proposals.map((p) => p.ordinal)).toEqual([1, 2]);
+        expect(second.state.proposals[0].summary).toBe("first");
+    });
+
+    it("records current position and candidate and derives pending in write order", () => {
+        let state = validState();
+        const proposal = recordProposalRevisionV1(state, {
+            revisionId: "rev",
+            proposalId: "prop",
+            agendaId: "a",
+            summary: "s",
+            body: "b",
+            evidenceIds: ["v"],
+            actor: { kind: "identity", id: "contributor" },
+            now: 1
+        });
+        expect(proposal.kind).toBe("accepted");
+        if (proposal.kind !== "accepted") return;
+        state = proposal.state;
+        const position = recordPositionV1(state, {
+            positionId: "pos",
+            proposalRevisionId: "rev",
+            stance: "support",
+            rationale: "because",
+            evidenceIds: ["v"],
+            actor: { kind: "identity", id: "contributor" },
+            now: 2
+        });
+        expect(position.kind).toBe("accepted");
+        if (position.kind !== "accepted") return;
+        state = position.state;
+        const candidate = recordDecisionCandidateV1(state, {
+            candidateId: "cand",
+            proposalRevisionId: "rev",
+            outcome: "adopt",
+            rationale: "adopt",
+            evidenceIds: ["v"],
+            positionIds: ["pos"],
+            actor: { kind: "identity", id: "contributor" },
+            now: 3
+        });
+        expect(candidate.kind).toBe("accepted");
+        if (candidate.kind !== "accepted") return;
+        expect(pendingDecisionCandidatesV1(candidate.state).map((c) => c.id)).toEqual(["cand"]);
+    });
+
+    it("accepts and revokes a decision while preserving history", () => {
+        let state = validState();
+        state.proposals = [
+            {
+                id: "rev",
+                proposalId: "prop",
+                ordinal: 1,
+                actorId: "contributor",
+                agendaId: "a",
+                summary: "s",
+                body: "b",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.positions = [
+            {
+                id: "pos",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                stance: "support",
+                rationale: "x",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.decisionCandidates = [
+            {
+                id: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: ["pos"],
+                createdAt: 0
+            }
+        ];
+        const accepted = decideV1(state, {
+            decisionId: "dec",
+            candidateId: "cand",
+            actor: { kind: "identity", id: "captain" },
+            now: 1
+        });
+        expect(accepted.kind).toBe("accepted");
+        if (accepted.kind !== "accepted") throw new Error(JSON.stringify(accepted.error));
+        const revoked = changeDecisionV1(accepted.state, {
+            decisionId: "dec",
+            status: "revoked",
+            rationale: "reconsider",
+            evidenceIds: ["v"],
+            actor: { kind: "identity", id: "captain" },
+            now: 2
+        });
+        if (revoked.kind === "rejected") throw new Error(JSON.stringify(revoked.error));
+        expect(revoked.kind).toBe("accepted");
+        if (revoked.kind !== "accepted") return;
+        expect(revoked.state.decisions).toHaveLength(1);
+        expect(revoked.state.decisions[0].status).toBe("revoked");
+    });
     it("rejects an invalid snapshot without changing its reference", () => {
         const state = { lifecycle: { status: "terminal" } } as MeetingState;
         const result = recordProposalRevisionV1(state, {
