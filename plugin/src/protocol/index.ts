@@ -73,6 +73,7 @@ export {
 } from "./schema.js";
 export * from "./types.js";
 export * from "./meeting-command-v1.js";
+export * from "./meeting-identity-v1.js";
 export { serializeValidatedRequestV1 } from "./request-idempotency.js";
 export type {
     ContributionDelivery,
