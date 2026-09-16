@@ -237,7 +237,7 @@ describe("outcome proposal revisions", () => {
     });
 
     it("records current position and candidate and derives pending in write order", () => {
-        let state = validState();
+        const state = validState();
         const proposal = recordProposalRevisionV1(state, {
             revisionId: "rev",
             proposalId: "prop",
@@ -279,7 +279,7 @@ describe("outcome proposal revisions", () => {
     });
 
     it("accepts and revokes a decision while preserving history", () => {
-        let state = validState();
+        const state = validState();
         state.proposals = [
             {
                 id: "rev",
@@ -342,7 +342,7 @@ describe("outcome proposal revisions", () => {
     });
 
     it("appends risk dispositions and makes the last disposition authoritative", () => {
-        let state = validState();
+        const state = validState();
         state.issues = [
             {
                 id: "issue",
@@ -406,7 +406,7 @@ describe("outcome proposal revisions", () => {
     });
 
     it("creates and revokes a completion fact with immutable history", () => {
-        let state = validState();
+        const state = validState();
         state.objective = {
             ...state.objective,
             hardConstraints: [{ id: "constraint", text: "constraint", status: "pending" }]
