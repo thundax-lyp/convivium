@@ -1,6 +1,6 @@
 import type { MeetingSnapshot } from "@/repository/types.js";
-import type { MeetingState } from "@/domain/meeting-state-v1.js";
-import type { MeetingAgentCatalogV1 } from "@/dsh/meeting-role-catalog-v1.js";
+import type { MeetingState } from "@/domain/index.js";
+import type { MeetingAgentCatalogV1 } from "@/dsh/index.js";
 
 export interface MeetingViewV1 {
     meetingId: string;

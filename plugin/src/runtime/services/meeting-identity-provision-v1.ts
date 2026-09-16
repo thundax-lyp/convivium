@@ -1,10 +1,7 @@
 import type { OutboxItem } from "@/repository/types.js";
 import type { MeetingIdentityApplicationDepsV1 } from "@/runtime/application-service/meeting-identity-v1.js";
 import { resolveDynamicMeetingDefinitionV1 } from "@/role-composition/resolve.js";
-import {
-    admitMeetingIdentityV1,
-    type IdentityAdmissionPortV1
-} from "@/dsh/meeting-identity-admission-v1.js";
+import { admitMeetingIdentityV1, type IdentityAdmissionPortV1 } from "@/dsh/index.js";
 export interface IdentityProvisionDependencies extends MeetingIdentityApplicationDepsV1 {
     owner: IdentityAdmissionPortV1;
     parent: unknown;

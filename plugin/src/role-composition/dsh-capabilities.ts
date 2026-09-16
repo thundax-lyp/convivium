@@ -5,7 +5,7 @@ import type {} from "@deepseek-ai/dsh-skill";
 import type { MeetingAgentDefinitionV1 } from "./model.js";
 import { RoleCompositionError } from "./resolve.js";
 import type { AgentDefinitionBindingV1 } from "./model.js";
-import type { IdentityRecommendationV1 } from "@/domain/meeting-state-v1.js";
+import type { IdentityRecommendationV1 } from "@/domain/index.js";
 
 export type PreflightIdentityResultV1 =
     | {

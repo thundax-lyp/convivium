@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
-import type { MeetingState } from "@/domain/meeting-state-v1.js";
+import type { MeetingState } from "@/domain/index.js";
 import {
     RecommendIdentityActionV1Schema,
     RecordIdentityAdmissionResultActionV1Schema
@@ -25,20 +24,62 @@ export const MeetingCommandV1Schema = z
     .passthrough();
 export type MeetingCommandV1 = z.infer<typeof MeetingCommandV1Schema>;
 
+const targetMeetingStateFields = [
+    "id",
+    "version",
+    "createdAt",
+    "updatedAt",
+    "objective",
+    "lifecycle",
+    "identities",
+    "identityRecommendations",
+    "agenda",
+    "agendaCandidates",
+    "rounds",
+    "opportunityRequests",
+    "pendingHandRaises",
+    "contributions",
+    "formatApprovals",
+    "completionDeclarations",
+    "evidencePackages",
+    "registrations",
+    "reviews",
+    "reviewDeliveries",
+    "publications",
+    "messages",
+    "proposals",
+    "positions",
+    "decisionCandidates",
+    "decisions",
+    "questions",
+    "issues",
+    "riskDispositions",
+    "tasks",
+    "managerPlans",
+    "privateMails",
+    "completionFacts",
+    "limits"
+] as const;
+
+function isTargetMeetingState(value: unknown): value is MeetingState {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+    return targetMeetingStateFields.every((field) =>
+        Object.prototype.hasOwnProperty.call(value, field)
+    );
+}
+
 export function encodeMeetingStateV1(state: unknown): Uint8Array {
-    const validation = validateMeetingStateV1(state);
-    if (validation.kind !== "valid") throw new Error("INCOMPATIBLE_VERSION");
-    return new TextEncoder().encode(JSON.stringify(validation.state));
+    if (!isTargetMeetingState(state)) throw new Error("INCOMPATIBLE_VERSION");
+    return new TextEncoder().encode(JSON.stringify(state));
 }
 
 export function decodeMeetingStateV1(bytes: Uint8Array): MeetingState {
     try {
         const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
-        const validation = validateMeetingStateV1(value);
-        if (validation.kind !== "valid") throw new Error("INCOMPATIBLE_VERSION");
-        return validation.state;
+        if (!isTargetMeetingState(value)) throw new Error("INCOMPATIBLE_VERSION");
+        return value;
     } catch (error) {
         if (error instanceof Error && error.message === "INCOMPATIBLE_VERSION") throw error;
-        throw new Error("INCOMPATIBLE_VERSION");
+        throw new Error("INCOMPATIBLE_VERSION", { cause: error });
     }
 }

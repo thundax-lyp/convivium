@@ -1,6 +1,6 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
-import type { IdentityRecommendationV1 } from "@/domain/meeting-state-v1.js";
+import type { IdentityRecommendationV1 } from "@/domain/index.js";
 export interface PreparedDescriptorV1 {
     descriptorId: string;
     meetingId: string;

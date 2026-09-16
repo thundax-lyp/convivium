@@ -1,9 +1,4 @@
-import type {
-    EpochMs,
-    IdentityRecommendationV1,
-    MeetingState,
-    OpaqueId
-} from "@/domain/meeting-state-v1.js";
+import type { EpochMs, IdentityRecommendationV1, MeetingState } from "@/domain/meeting-state-v1.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
 
 export type IdentityRecommendationDraftV1 = {

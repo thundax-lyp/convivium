@@ -1,9 +1,9 @@
-import type { MeetingState } from "@/domain/meeting-state-v1.js";
+import type { MeetingState } from "@/domain/index.js";
 import { recommendIdentityV1, type IdentityRecommendationDraftV1 } from "@/domain/index.js";
-import { readMeetingRoleCatalogV1, type RoleCatalogPortV1 } from "@/dsh/meeting-role-catalog-v1.js";
+import { readMeetingRoleCatalogV1, type RoleCatalogPortV1 } from "@/dsh/index.js";
 import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
 import type { MeetingCommandRepositoryPortV1 } from "@/repository/meeting-command-repository-v1.js";
-import type { MeetingCommandV1 } from "@/protocol/meeting-command-v1.js";
+import type { MeetingCommandV1 } from "@/protocol/index.js";
 import type { JsonObject, RepositoryCommand } from "@/repository/types.js";
 export interface CallerBindingV1 {
     channel: "dsh_tool" | "loopback_remote" | "runtime_recovery" | "deadline_handler";
