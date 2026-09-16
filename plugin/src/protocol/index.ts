@@ -72,6 +72,7 @@ export {
     validateProtocolSuccessEnvelope
 } from "./schema.js";
 export * from "./types.js";
+export * from "./meeting-command-v1.js";
 export { serializeValidatedRequestV1 } from "./request-idempotency.js";
 export type {
     ContributionDelivery,

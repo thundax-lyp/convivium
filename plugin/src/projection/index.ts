@@ -15,3 +15,4 @@ export {
     projectContributionSummaries,
     projectContributionContext
 } from "./contribution.js";
+export { projectMeetingViewV1, type MeetingViewV1 } from "./meeting-view-v1.js";
