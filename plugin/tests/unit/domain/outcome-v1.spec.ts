@@ -202,6 +202,10 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
 describe("outcome proposal revisions", () => {
     it("records first and consecutive proposal revisions without copying history", () => {
         let state = validState();
+        state.objective = {
+            ...state.objective,
+            hardConstraints: [{ id: "constraint", text: "constraint", status: "pending" }]
+        };
         const first = recordProposalRevisionV1(state, {
             revisionId: "rev-1",
             proposalId: "prop",
@@ -329,10 +333,153 @@ describe("outcome proposal revisions", () => {
             now: 2
         });
         if (revoked.kind === "rejected") throw new Error(JSON.stringify(revoked.error));
+        if (revoked.kind === "rejected") throw new Error(JSON.stringify(revoked.error));
+        if (revoked.kind === "rejected") throw new Error(JSON.stringify(revoked.error));
         expect(revoked.kind).toBe("accepted");
         if (revoked.kind !== "accepted") return;
         expect(revoked.state.decisions).toHaveLength(1);
         expect(revoked.state.decisions[0].status).toBe("revoked");
+    });
+
+    it("appends risk dispositions and makes the last disposition authoritative", () => {
+        let state = validState();
+        state.issues = [
+            {
+                id: "issue",
+                agendaId: "a",
+                description: "risk",
+                riskLevel: "high",
+                classification: "blocking",
+                affectedOutputIds: ["o"],
+                affectedCriterionIds: [],
+                affectedConstraintIds: [],
+                requiredReviewerIds: ["reviewer"],
+                blocking: true,
+                status: "open",
+                rationale: "x"
+            }
+        ];
+        const rejected = disposeRiskV1(state, {
+            dispositionId: "risk-1",
+            issueId: "issue",
+            action: "reject",
+            scope: "all",
+            rationale: "not accepted",
+            evidenceIds: ["v"],
+            actor: { kind: "identity", id: "captain" },
+            now: 1
+        });
+        expect(rejected.kind).toBe("accepted");
+        if (rejected.kind !== "accepted") return;
+        const accepted = disposeRiskV1(rejected.state, {
+            dispositionId: "risk-2",
+            issueId: "issue",
+            action: "accept",
+            scope: "all",
+            rationale: "accepted",
+            evidenceIds: ["v"],
+            actor: { kind: "identity", id: "captain" },
+            now: 2
+        });
+        expect(accepted.kind).toBe("accepted");
+        if (accepted.kind !== "accepted") return;
+        expect(accepted.state.riskDispositions.map((d) => d.action)).toEqual(["reject", "accept"]);
+        expect(accepted.state.issues[0].blocking).toBe(false);
+        expect(accepted.state.issues[0].classification).toBe("accepted_risk");
+    });
+
+    it("declaration appends without consuming facts or changing lifecycle", () => {
+        const state = validState();
+        const result = submitCompletionDeclarationV1(state, {
+            declarationId: "decl",
+            outputId: "o",
+            statement: "done",
+            evidenceIds: ["v"],
+            actor: { kind: "identity", id: "contributor" },
+            now: 1
+        });
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.completionDeclarations).toHaveLength(1);
+        expect(result.state.completionFacts).toHaveLength(0);
+        expect(result.state.lifecycle.status).toBe("running");
+    });
+
+    it("creates and revokes a completion fact with immutable history", () => {
+        let state = validState();
+        state.objective = {
+            ...state.objective,
+            hardConstraints: [{ id: "constraint", text: "constraint", status: "pending" }]
+        };
+        state.proposals = [
+            {
+                id: "rev",
+                proposalId: "prop",
+                ordinal: 1,
+                actorId: "contributor",
+                agendaId: "a",
+                summary: "s",
+                body: "b",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.positions = [
+            {
+                id: "pos",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                stance: "support",
+                rationale: "x",
+                evidenceIds: ["v"],
+                createdAt: 0
+            }
+        ];
+        state.decisionCandidates = [
+            {
+                id: "cand",
+                proposalRevisionId: "rev",
+                actorId: "contributor",
+                outcome: "adopt",
+                rationale: "x",
+                evidenceIds: ["v"],
+                positionIds: ["pos"],
+                createdAt: 0
+            }
+        ];
+        const decision = decideV1(state, {
+            decisionId: "dec",
+            candidateId: "cand",
+            actor: { kind: "identity", id: "captain" },
+            now: 1
+        });
+        expect(decision.kind).toBe("accepted");
+        if (decision.kind !== "accepted") return;
+        const fact = recordCompletionFactV1(decision.state, {
+            factId: "fact",
+            outputId: "o",
+            statement: "output complete",
+            rationale: "decision",
+            evidenceIds: ["v"],
+            decisionIds: ["dec"],
+            actor: { kind: "identity", id: "captain" },
+            now: 2
+        });
+        expect(fact.kind).toBe("accepted");
+        if (fact.kind !== "accepted") return;
+        expect(fact.state.completionFacts[0].status).toBe("active");
+        const revoked = changeCompletionFactV1(fact.state, {
+            factId: "fact",
+            status: "revoked",
+            rationale: "changed",
+            actor: { kind: "identity", id: "captain" },
+            now: 3
+        });
+        if (revoked.kind === "rejected") throw new Error(JSON.stringify(revoked.error));
+        expect(revoked.kind).toBe("accepted");
+        if (revoked.kind !== "accepted") return;
+        expect(revoked.state.completionFacts).toHaveLength(1);
+        expect(revoked.state.completionFacts[0].status).toBe("revoked");
     });
     it("rejects an invalid snapshot without changing its reference", () => {
         const state = { lifecycle: { status: "terminal" } } as MeetingState;
