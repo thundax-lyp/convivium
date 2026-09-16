@@ -95,7 +95,7 @@ interface AbortRound { kind: "abort_round"; roundId: OpaqueId; reason: string }
 type EvidenceFieldName = "observation" | "interpretation" | "method" | "falsifiers" | "uncertainties" | "limitations" | "claims" | "materials";
 ```
 
-`ReviewEvidenceDraft` 只由 Manager 对作者私下保留并送交的草稿执行格式处置，`evidenceHash` 是该 `EvidenceInput` 规范 JSON 的 SHA-256 小写十六进制；请求不包含草稿正文。规范 JSON 的唯一算法：先按本文 `EvidenceInput`/`TextWithReason`/`EvidenceClaimInput`/`MaterialInput` 声明顺序重建已通过 Wire validation 的字段，忽略未知字段、保留数组顺序和文本原值，optional reason 不存在时省略键；再用 JavaScript `JSON.stringify` 生成 UTF-8 字节并计算 SHA-256。accepted 的 `missingFields` 必须为空，在聚合内建立仅含 contributionId、hash、Manager、时间的待消费格式批准；rejected 的 `missingFields` 必须非空，deferred 必有 rationale，两者不写 EvidencePackage、EvidenceVersion、Registration、Review 或草稿正文，只经最小通知向作者反馈。作者的 `SubmitEvidence` 必须提交与未消费批准 hash 完全一致的材料，Runtime 原子消费批准并创建当前 EvidenceVersion 与 complete Registration。首份是 ordinal 1、补充是同包 ordinal + 1；首份及格式驳回后的重新送交不计补充，已有已登记版本的更新必须消费获接纳的补充举手且计数 + 1。Review delivery 仅可信 effect dispatcher 可提交：sent 不带 failureReason，failed 必带。deadline handler 只能使用 `CloseContribution` 且 Runtime 必须验证 deadline 已到。
+`ReviewEvidenceDraft` 只由 Manager 对作者私下保留并送交的草稿执行格式处置，`evidenceHash` 是该 `EvidenceInput` 规范 JSON 的 SHA-256 小写十六进制；请求不包含草稿正文。规范 JSON 的唯一算法：先按本文 `EvidenceInput`/`TextWithReason`/`EvidenceClaimInput`/`MaterialInput` 声明顺序重建已通过 Wire validation 的字段，忽略未知字段、保留数组顺序和文本原值，optional reason 不存在时省略键；再用 JavaScript `JSON.stringify` 生成 UTF-8 字节并计算 SHA-256。accepted 的 `missingFields` 必须为空，在聚合内建立仅含 contributionId、hash、Manager、时间的待消费格式批准；rejected 的 `missingFields` 必须非空，deferred 必有 rationale，两者不写 EvidencePackage、EvidenceVersion、Registration、Review 或草稿正文，只经最小通知向作者反馈。作者的 `SubmitEvidence` 必须提交与未消费批准 hash 完全一致的材料，Runtime 原子消费批准并创建当前 EvidenceVersion 与 complete Registration。首份是 ordinal 1、补充是同包 ordinal + 1；首份及格式驳回后的重新送交不计补充，已有已登记版本的更新必须消费获接纳的补充举手且计数 + 1。Review delivery 仅可信 effect dispatcher 可提交：sent 不得带 failureReason，failed 必须携带 trim 后非空 failureReason。deadline handler 只能使用 `CloseContribution` 且 Runtime 必须验证 deadline 已到。
 
 `RequestEvidenceOpportunity` 是运行中且没有 open Round 时的初次申请，必须指向 active Agenda；Runtime 在确认 caller 自己的 Session active、无未结束 Contribution/MeetingTask 后把它登记为 pending request，不自动开轮。`DisposeEvidenceOpportunity` 由 Manager 移除 rejected/deferred request 并反馈理由。Manager `OpenRound` 原子把该 Agenda 的 pending requests 转为本轮 pending hand raises，逐个仍须 `DisposeHandRaise` 才取得 Contribution。open Round 期间作者直接使用 `RaiseHand`；任一身份已有未结束任务时两种初次申请均返回 `PRECONDITION_FAILED`。
 
@@ -158,7 +158,7 @@ interface StartArchive { kind: "start_archive" }
 interface RecordArchiveSessionResult { kind: "record_archive_session_result"; sessionOwnershipId: OpaqueId; status: "closed" | "failed"; failureReason?: string }
 ```
 
-local controller performs create, pause, resume and end; it is not an Agent identity. Captain is required for agenda disposition/activation, Decision, RiskDisposition and CompletionFact; local controller may only decide, supersede/revoke Decision, or accept/reject Risk using the same field validation and separate local audit facts. Manager opens/publishes normal Rounds, handles all hand-raise dispositions, registers evidence and recommends. A contributor may submit own evidence/proposal/position/candidate/task result; reviewer only submits assigned reviews. Runtime rejects role-confused actions.
+local controller performs create, pause, resume and end; it is not an Agent identity. Captain is required for agenda disposition/activation, Decision, RiskDisposition and CompletionFact; local controller may only decide, supersede/revoke Decision, or accept/reject Risk using the same field validation and separate local audit facts. Manager opens/publishes normal Rounds, handles opportunity/hand dispositions, reviews private draft format and recommends; it does not submit or register evidence for the author. A contributor may submit own approved evidence/proposal/position/candidate/task result; reviewer only submits assigned reviews. Runtime rejects role-confused actions.
 
 Any authorized Meeting identity may use `record_question` and `record_issue`. Only an identity with the `captain` role may use `resolve_question` and `dispose_issue`; local controller may use none of these four actions. A caller that does not meet this role boundary is rejected as `UNAUTHORIZED` under the fixed error precedence; a permitted caller whose target is absent or whose state precondition fails is rejected by the subsequent `NOT_FOUND`, `INVALID_STATE`, or `PRECONDITION_FAILED` check.
 
@@ -227,14 +227,14 @@ interface ReadMeetingRequestV1 { protocolVersion: 1; meetingId: OpaqueId }
 interface MeetingViewV1 {
   meetingId: OpaqueId; version: number; objective: ObjectiveView; lifecycle: LifecycleView;
   agenda: AgendaView[]; opportunityRequests: EvidenceOpportunityRequestView[]; rounds: RoundView[]; publications: PublicationView[];
-  evidencePackages: EvidencePackageView[]; evidenceReviews: EvidenceReviewView[];
+  evidencePackages: EvidencePackageView[]; evidenceReviews: EvidenceReviewView[]; reviewDeliveries: ReviewDeliveryView[];
   messages: FormalMessageView[]; outcomes: OutcomeView; managerPlans: ManagerPlanView[]; tasks: TaskView[];
   privateMail: PrivateMailView[]; controls: AllowedControl[];
 }
 interface RefreshNoticeV1 { kind: "refresh"; meetingId: OpaqueId; committedVersion: number }
 ```
 
-各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取全部 pending opportunity requests 与本轮 pending hand raises；普通 contributor 只读取自己的 pending request，不能读取他人的申请内容。普通 participant 永不读取他人私信、未审版本、未分配 review、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
+各 `*View` 为 Domain 同名实体的 caller-filtered DTO，保留稳定 ID 以支持下一命令；它们不得增加可写业务字段。Manager 读取全部 pending opportunity requests 与本轮 pending hand raises；普通 contributor 只读取自己的 pending request，不能读取他人的申请内容。Manager 可读取本轮 ReviewDelivery；作者只读取自己 EvidenceVersion 的 delivery，指定 reviewer 只读取自己提交 Review 的 delivery。其他普通 participant 不读取未公开版本的 delivery。普通 participant 永不读取他人私信、未审版本、未分配 review、Session/ownership/capability、decision candidate 或 Captain-only risk disposition。controls 仅是提示，Runtime 仍是唯一授权者。
 
 Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRefresh()`，仅 loopback 可用。断线禁写；重连、focus 或 notice 后必须 read，不自动重试 command 或轮询。notice 可丢失/重复且不携带事实。
 
@@ -255,6 +255,7 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface EvidencePackageView { id: OpaqueId; roundId: OpaqueId; contributionId: OpaqueId; authorId: OpaqueId; agendaId: OpaqueId; currentVersion: EvidenceVersionView }
     interface EvidenceVersionView { id: OpaqueId; ordinal: number; observation: string; interpretation: string; method: string; falsifiers: TextWithReason[]; uncertainties: TextWithReason[]; limitations: TextWithReason[]; claims: EvidenceClaimInput[]; materials: MaterialInput[]; submittedAt: EpochMs }
     interface EvidenceReviewView { id: OpaqueId; versionId: OpaqueId; reviewerId: OpaqueId; baselinePublicationIds: OpaqueId[]; scope: string; dimensions: ReviewDimensionsInput; createdAt: EpochMs }
+    interface ReviewDeliveryView { id: OpaqueId; reviewId: OpaqueId; authorId: OpaqueId; status: "sent" | "failed"; sentAt?: EpochMs; failedAt?: EpochMs; failureReason?: string }
     interface FormalMessageView { id: OpaqueId; seq: number; actorId: OpaqueId; agendaId: OpaqueId; kind: string; body: string; publicationId: OpaqueId; relatedIds: OpaqueId[]; createdAt: EpochMs }
 interface DecisionCandidateView { id: OpaqueId; proposalRevisionId: OpaqueId; outcome: "adopt" | "reject" | "defer"; rationale: string; evidenceIds: OpaqueId[]; positionIds: OpaqueId[]; createdAt: EpochMs }
 interface DecisionView { id: OpaqueId; candidateId: OpaqueId; proposalRevisionId: OpaqueId; status: "accepted" | "superseded" | "revoked"; outcome: "adopt" | "reject" | "defer"; rationale: string; evidenceIds: OpaqueId[]; positionIds: OpaqueId[]; createdAt: EpochMs }
@@ -271,6 +272,8 @@ interface DecisionView { id: OpaqueId; candidateId: OpaqueId; proposalRevisionId
     type AllowedControl = MeetingActionV1["kind"];
 
 evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Publication.finalVersionIds/finalReviewIds 中公开的当前版，以及自己同轮已登记的当前版和针对它已送达的审核；Manager 能处理本轮各包，指定 reviewer 只额外读取被分配的当前版、对应审核和固定 Round baseline。其他 contributor 的本轮未公开版与审核从数组中完全省略，不能仅隐藏正文而泄露存在性、资料 ID 或评分。旧版本留在聚合审计历史，不是公共当前版投影。
+
+`ReviewDeliveryView` 保留每次投递尝试：sent 必有 `sentAt` 且无 `failedAt/failureReason`，failed 必有 `failedAt` 与非空 `failureReason` 且无 `sentAt`。它只证明 dispatcher 的该次投递结果，不证明作者已响应或 Review 已公开。
 
 ```ts
 interface MarkdownProjectionInputV1 {
@@ -315,13 +318,26 @@ interface OutboxEffectRecordV1 {
 type OutboxPayloadV1 =
   | { kind: "refresh"; meetingId: OpaqueId; committedVersion: number }
   | { kind: "session_mail"; mailId: OpaqueId; recipientId: OpaqueId; contextPublicationUpperBound: OpaqueId[] }
-  | { kind: "agent_notice"; noticeKind: "meeting_started" | "transcript_update" | "opportunity_request" | "opportunity_disposition" | "hand_request" | "hand_disposition" | "format_disposition" | "review_request"; meetingId: OpaqueId; recipientId: OpaqueId; agendaId: OpaqueId; publicMessageId?: OpaqueId; relatedId?: OpaqueId; disposition?: "accepted" | "rejected" | "deferred"; reason?: string; missingFields?: EvidenceFieldName[] }
+  | AgentNoticePayloadV1
   | { kind: "review_delivery"; reviewId: OpaqueId; authorId: OpaqueId }
   | { kind: "markdown_projection"; meetingId: OpaqueId; committedVersion: number }
   | { kind: "archive"; archiveId: OpaqueId; meetingId: OpaqueId };
+interface AgentNoticeBaseV1 { kind: "agent_notice"; meetingId: OpaqueId; recipientId: OpaqueId; agendaId: OpaqueId }
+type AgentNoticePayloadV1 =
+  | (AgentNoticeBaseV1 & { noticeKind: "meeting_started" })
+  | (AgentNoticeBaseV1 & { noticeKind: "transcript_update"; publicMessageId: OpaqueId })
+  | (AgentNoticeBaseV1 & { noticeKind: "opportunity_request"; requestId: OpaqueId })
+  | (AgentNoticeBaseV1 & { noticeKind: "opportunity_disposition"; requestId: OpaqueId; disposition: "rejected" | "deferred"; reason: string })
+  | (AgentNoticeBaseV1 & { noticeKind: "hand_request"; requestKind: "initial"; roundId: OpaqueId; contributorId: OpaqueId })
+  | (AgentNoticeBaseV1 & { noticeKind: "hand_request"; requestKind: "supplement"; contributionId: OpaqueId })
+  | (AgentNoticeBaseV1 & { noticeKind: "hand_disposition"; requestKind: "initial"; roundId: OpaqueId; contributorId: OpaqueId; disposition: "accepted"; reason: string; contributionId: OpaqueId })
+  | (AgentNoticeBaseV1 & { noticeKind: "hand_disposition"; requestKind: "initial"; roundId: OpaqueId; contributorId: OpaqueId; disposition: "rejected" | "deferred"; reason: string })
+  | (AgentNoticeBaseV1 & { noticeKind: "hand_disposition"; requestKind: "supplement"; contributionId: OpaqueId; disposition: "accepted" | "rejected" | "deferred"; reason: string })
+  | (AgentNoticeBaseV1 & { noticeKind: "format_disposition"; contributionId: OpaqueId; evidenceHash: string; disposition: "accepted" | "rejected" | "deferred"; reason: string; missingFields: EvidenceFieldName[] })
+  | (AgentNoticeBaseV1 & { noticeKind: "review_request"; versionId: OpaqueId });
 ```
 
-`MeetingStateRecordV1` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecordV1` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私有草稿正文、私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。outbox payload 只能包含最小效果输入，不含私有草稿正文、secrets 或隐藏推理。`agent_notice` 只提示已提交公开消息或私有格式/举手处置；dispatcher 投递前重新验证 recipient 的会议 Session ownership 与 active 状态，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。当前 `ArchivePackageV1` 未表示 Question/Issue 处置事实的引用或内容；其归档映射须由后续 archive 切片在进入 archived 前补齐，不能把 Repository 事实保存当作已归档。
+`MeetingStateRecordV1` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecordV1` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私有草稿正文、私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。outbox payload 只能包含最小效果输入，不含私有草稿正文、secrets 或隐藏推理。每个 `agent_notice` discriminant 只允许上列必需字段：格式处置必须携带被审核的 `evidenceHash`，accepted 的 `missingFields=[]`，rejected 的 `missingFields` 非空；initial hand accepted 必须给出新 `contributionId`，supplement hand 始终用既有 `contributionId` 定位。dispatcher 投递前重新验证 recipient 的会议 Session ownership、active 状态及该 notice 的当前可见性，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。当前 `ArchivePackageV1` 未表示 Question/Issue 处置事实的引用或内容；其归档映射须由后续 archive 切片在进入 archived 前补齐，不能把 Repository 事实保存当作已归档。
 
 ## Compatibility And Acceptance
 
@@ -334,6 +350,8 @@ V1 不适配 legacy Turn、Attempt、贡献 DTO、tool 名、URL 或持久格式
 
 ## Related Documents
 
+- [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
+- [Meeting Evidence Round Requirements](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md)
 - [Domain Design](../30-designs/DOMAIN-DESIGN.md)
 - [Meeting Design](../30-designs/MEETING-DESIGN.md)
 - [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)

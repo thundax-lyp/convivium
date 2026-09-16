@@ -2,16 +2,16 @@
 
 ## 状态、起点与执行边界
 
-- 建立日期：2026-09-16；Author 工作分支：codex/b-participation-runbook，起点 main@6175a3d。
+- 建立日期：2026-09-16；Author 工作分支：codex/b-participation-runbook，初始起点 main@6175a3d；2026-09-16 已合并 origin/main@e5b0bb5，当前执行基线 merge commit 为 f5e0658。
 - 审计结论：Executable，限于本文件定义的目标 MeetingState 纯领域切片。RUNBOOK 编写本身不执行代码步骤，也不授权暂存、提交、推送、PR 或合并。
-- 执行工作目录：/Volumes/storage/workspace/convivium-two；只能按 T0—T8 顺序执行。正式依据发生变化、指定符号/路径不符或任一步验证失败时立即 STOP，不自行寻找替代实现。
+- 执行工作目录：/Volumes/storage/workspace/convivium；当前分支必须为 codex/b-participation-runbook，只能按 T0—T8 顺序执行。正式依据发生变化、指定符号/路径不符或任一步验证失败时立即 STOP，不自行寻找替代实现。
 - STOP 报告必须包含最后 PASS 步骤、触发条件、文件/符号、复现命令、实际输出和需要 Author 或用户决定的事项。拒绝时不修改源 state；执行中不得回滚用户已有修改。
 
 ## 目标、当前断点与 Scope
 
 目标链路：running Meeting 无 open Round 时 Participant 排队申请 → Manager 开轮固定累计公开 baseline → 待处置举手逐条接纳/拒绝/暂缓 → 接纳者在原 Contribution 内私下保存草稿 → Manager 独立格式审核；驳回仅反馈缺失要素，旧稿由贡献者保存，Meeting 不建立旧 EvidencePackage/Version/Registration/Review → 获批 hash 与作者提交正文一致才登记唯一证据包 → reviewer 对当前版按固定 baseline 四维审核并向作者送达 → 作者在同一任务内文字说明补证、Manager 接纳、同样格式审核/同样提交动作产生新版本 → 退出与最终审核收口 → 单次 Round Publication。A、B 同轮材料直到 Publication 前互不可见。
 
-起点证据：[Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#functional-coverage) 说明目标 MeetingState 类型存在、目标 Round/Contribution/Evidence 转换不存在；plugin/src/domain/meeting-state-v1.ts 含现有目标实体，但没有 opportunityRequests、formatApprovals、pendingHandRaises 的完整目标结构，Registration 仍允许旧的 needs_correction/deferred，Contribution 仍强制 reviewId 的 pendingSupplementHand。plugin/src/domain/transitions/turn-advancement.ts、speaker-attempt.ts 和 plugin/src/runtime/application-service/meeting-turn.ts 只服务 LegacyMeetingState，不是本切片入口。plugin/src/domain/index.ts 已公开 meeting-state-v1.ts 与 transitions/index.ts。
+起点证据：[Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md#functional-coverage) 说明目标 MeetingState 的 core validator 与 Agenda/Question/Issue 等转换已存在，但目标 Round/Contribution/Evidence 转换不存在；plugin/src/domain/meeting-state-v1.ts 含现有目标实体，但没有 opportunityRequests、formatApprovals、pendingHandRaises 的完整目标结构，Registration 仍允许旧的 needs_correction/deferred，Contribution 仍强制 reviewId 的 pendingSupplementHand。plugin/src/domain/meeting-state-v1-validation.ts 与两个现有 MeetingState V1 test suite 已覆盖当前闭合 schema，T0 必须同步目标新增字段而不能绕过它们。plugin/src/domain/transitions/turn-advancement.ts、speaker-attempt.ts 和 plugin/src/runtime/application-service/meeting-turn.ts 只服务 LegacyMeetingState，不是本切片入口。plugin/src/domain/index.ts 已公开 meeting-state-v1.ts、meeting-state-v1-validation.ts、meeting-state-v1-transitions.ts 与 transitions/index.ts。
 
 本切片允许修改目标类型、纯领域转换、相应 focused domain tests、一个完整目标聚合 fixture、转换公开入口及执行后 readiness。每个行为必须追溯到 [ER-FR-1—8](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#functional-requirements)、[Acceptance Criteria](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#acceptance-criteria)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md#round-evidence-and-review)、[Domain Design](./DOMAIN-DESIGN.md#round-contribution-and-evidence)、[Meeting Design](./MEETING-DESIGN.md#evidence-round)。
 
@@ -54,7 +54,7 @@ interface SupplementHandV1 {
 // RegistrationV1.status becomes "complete"; missingFields becomes readonly [].
 ```
 
-其余 RoundV1、EvidencePackageV1、EvidenceVersionV1、EvidenceReviewV1、ReviewDeliveryV1、PublicationV1、FormalMessageV1 的 required/optional 字段和值域必须保持当前 plugin/src/domain/meeting-state-v1.ts 与 [Domain Design](./DOMAIN-DESIGN.md#round-contribution-and-evidence) 完全一致。EvidenceVersion 的 id/ordinal/observation/interpretation/method/falsifiers/uncertainties/limitations/claims/materials/submittedAt 全必填；TextWithReason.reason 和 Material.reason 仅为 optional。EvidencePackage 的稳定 id/roundId/contributionId/authorId/agendaId/currentVersionId/versions[] 全必填。review 四维 source/credibility/completeness/support 每项 score 只能 0/1/2/3/unable_to_assess 且有非空 reason；review baseline 等于 Round.publicBaselinePublicationIds。Registration 只在批准正文进入 Meeting 时为 complete/空 missingFields。ReviewDelivery 可有多次 failed、最多一次 sent；只 sentAt 开启 60000 ms 期限。Publication 每 Round 至多一个，finalVersionIds/finalReviewIds 只引用该 Round 最终当前版。
+其余 RoundV1、EvidencePackageV1、EvidenceVersionV1、EvidenceReviewV1、ReviewDeliveryV1、PublicationV1、FormalMessageV1 的 required/optional 字段和值域必须保持当前 plugin/src/domain/meeting-state-v1.ts 与 [Domain Design](./DOMAIN-DESIGN.md#round-contribution-and-evidence) 完全一致。EvidenceVersion 的 id/ordinal/observation/interpretation/method/falsifiers/uncertainties/limitations/claims/materials/submittedAt 全必填；TextWithReason.reason 和 Material.reason 仅为 optional。EvidencePackage 的稳定 id/roundId/contributionId/authorId/agendaId/currentVersionId/versions[] 全必填。review 四维 source/credibility/completeness/support 每项 score 只能 0/1/2/3/unable_to_assess 且有非空 reason；review baseline 等于 Round.publicBaselinePublicationIds。Registration 只在批准正文进入 Meeting 时为 complete/空 missingFields。ReviewDelivery 可有多次 failed、最多一次 sent；failed 必含 failedAt/failureReason 且不含 sentAt，sent 必含 sentAt 且不含 failedAt/failureReason，只有 sentAt 开启 60000 ms 期限。Publication 每 Round 至多一个，finalVersionIds/finalReviewIds 只引用该 Round 最终当前版。
 
 Wire caller 只提交 MeetingActionV1 的 action 字段；actorId、Session ownership、now、ID、baseline、expectedMeetingVersion、requestId binding 均由 Runtime/adapter 验证或注入。领域函数输入中的 actorId、now、ID 和 evidenceHash 是已验证值，不从 Agent 自述读取。evidenceHash 的生产者是 Protocol/Runtime：按 [Meeting Interface 的规范算法](../20-interfaces/MEETING-INTERFACE.md#round-evidence-and-review) 重建 EvidenceInput、JSON.stringify、UTF-8 SHA-256；Domain 只比较已批准 hash 与 Runtime 提供的已核对 hash，绝不保存私有草稿。Domain 拒绝坏 ID/字段/引用时返回同一个源 state 引用。
 
@@ -71,25 +71,84 @@ type MeetingDomainErrorCodeV1 =
   | "REVIEWER_CONFLICT"
   | "ROUND_NOT_CLOSABLE"
   | "LIMIT_EXCEEDED";
+interface AgentNoticeEffectBaseV1 {
+  kind: "agent_notice";
+  recipientId: OpaqueId;
+  agendaId: OpaqueId;
+}
+type EvidenceFieldNameV1 =
+  | "observation"
+  | "interpretation"
+  | "method"
+  | "falsifiers"
+  | "uncertainties"
+  | "limitations"
+  | "claims"
+  | "materials";
+type AgentNoticeEffectRequestV1 =
+  | (AgentNoticeEffectBaseV1 & {
+      noticeKind: "opportunity_request";
+      requestId: OpaqueId;
+    })
+  | (AgentNoticeEffectBaseV1 & {
+      noticeKind: "opportunity_disposition";
+      requestId: OpaqueId;
+      disposition: "rejected" | "deferred";
+      reason: string;
+    })
+  | (AgentNoticeEffectBaseV1 & {
+      noticeKind: "hand_request";
+      requestKind: "initial";
+      roundId: OpaqueId;
+      contributorId: OpaqueId;
+    })
+  | (AgentNoticeEffectBaseV1 & {
+      noticeKind: "hand_request";
+      requestKind: "supplement";
+      contributionId: OpaqueId;
+    })
+  | (AgentNoticeEffectBaseV1 & {
+      noticeKind: "hand_disposition";
+      requestKind: "initial";
+      roundId: OpaqueId;
+      contributorId: OpaqueId;
+      disposition: "accepted";
+      reason: string;
+      contributionId: OpaqueId;
+    })
+  | (AgentNoticeEffectBaseV1 & {
+      noticeKind: "hand_disposition";
+      requestKind: "initial";
+      roundId: OpaqueId;
+      contributorId: OpaqueId;
+      disposition: "rejected" | "deferred";
+      reason: string;
+    })
+  | (AgentNoticeEffectBaseV1 & {
+      noticeKind: "hand_disposition";
+      requestKind: "supplement";
+      contributionId: OpaqueId;
+      disposition: "accepted" | "rejected" | "deferred";
+      reason: string;
+    })
+  | (AgentNoticeEffectBaseV1 & {
+      noticeKind: "format_disposition";
+      contributionId: OpaqueId;
+      evidenceHash: string;
+      disposition: "accepted" | "rejected" | "deferred";
+      reason: string;
+      missingFields: readonly EvidenceFieldNameV1[];
+    })
+  | (AgentNoticeEffectBaseV1 & {
+      noticeKind: "review_request";
+      versionId: OpaqueId;
+    })
+  | (AgentNoticeEffectBaseV1 & {
+      noticeKind: "transcript_update";
+      publicMessageId: OpaqueId;
+    });
 type MeetingDomainEffectRequestV1 =
-  | {
-      kind: "agent_notice";
-      noticeKind:
-        | "opportunity_request"
-        | "opportunity_disposition"
-        | "hand_request"
-        | "hand_disposition"
-        | "format_disposition"
-        | "review_request"
-        | "transcript_update";
-      recipientId: OpaqueId;
-      agendaId: OpaqueId;
-      relatedId?: OpaqueId;
-      publicMessageId?: OpaqueId;
-      disposition?: "accepted" | "rejected" | "deferred";
-      reason?: string;
-      missingFields?: readonly string[];
-    }
+  | AgentNoticeEffectRequestV1
   | { kind: "review_delivery"; reviewId: OpaqueId; authorId: OpaqueId };
 type MeetingTransitionResultV1 =
   | {
@@ -112,13 +171,13 @@ type MeetingTransitionResultV1 =
     };
 ```
 
-每个 accepted transition 建立新 MeetingState，version 加 1、updatedAt=注入 now；相关 ID 只含此次受影响的目标事实。application 将 action kind、actor、now、relatedIds 与 resultingState 映射为 [CommittedFactRecordV1](../20-interfaces/MEETING-INTERFACE.md#persistence-and-effects)，把 effectRequests 加稳定 effect ID/committedVersion 映射为 OutboxEffectRecordV1；每次成功 commit 另外排 refresh，Publication 另排 markdown_projection。Repository 在未来 Runtime 切片中一次原子保存 nextState/facts/receipt/outbox；receipt 键为 (meetingId,principalId,requestId)，同键不同规范 payload 为 IDEMPOTENCY_CONFLICT，expected version 冲突为 VERSION_CONFLICT。上述 mapper/transaction/重启恢复均 Not Covered 于本纯领域切片，不得用旧 Runtime 结果充当证明。没有旧 V1 运行客户端，按 [Compatibility](../20-interfaces/MEETING-INTERFACE.md#compatibility-and-acceptance) 不建 legacy 兼容读写。
+每个 accepted transition 建立新 MeetingState，version 加 1、updatedAt=注入 now；相关 ID 只含此次受影响的目标事实。application 将 action kind、actor、now、relatedIds 与 resultingState 映射为 [CommittedFactRecordV1](../20-interfaces/MEETING-INTERFACE.md#persistence-and-effects)，把 agent notice effectRequest 加 `meetingId=state.id`，并把全部 effectRequests 加稳定 effect ID/committedVersion 后映射为 OutboxEffectRecordV1；每次成功 commit 另外排 refresh，Publication 另排 markdown_projection。Repository 在未来 Runtime 切片中一次原子保存 nextState/facts/receipt/outbox；receipt 键为 (meetingId,principalId,requestId)，同键不同规范 payload 为 IDEMPOTENCY_CONFLICT，expected version 冲突为 VERSION_CONFLICT。上述 mapper/transaction/重启恢复均 Not Covered 于本纯领域切片，不得用旧 Runtime 结果充当证明。没有旧 V1 运行客户端，按 [Compatibility](../20-interfaces/MEETING-INTERFACE.md#compatibility-and-acceptance) 不建 legacy 兼容读写。
 
-rejected 必须返回原 state 引用及空 relatedIds/effectRequests，application 不提交。各步骤 effectRequests 的字段固定为：T1 申请发 opportunity_request(recipientId=managerId,agendaId,relatedId=requestId)，处置发 opportunity_disposition(recipientId=contributorId,agendaId,relatedId=requestId,disposition,reason)；T3 申请发 hand_request(recipientId=managerId,agendaId,relatedId=roundId)，处置发 hand_disposition(recipientId=contributorId,agendaId,relatedId=roundId,disposition,reason)；T4 申请/处置分别发 hand_request 给 Manager、hand_disposition 给作者，relatedId=contributionId，处置含 disposition/reason；T5 格式 accepted/rejected/deferred 均发 format_disposition(recipientId=authorId,agendaId,relatedId=contributionId,disposition,reason=rationale,missingFields；accepted 的 missingFields=[]、reason 可为空)，正文登记发 review_request(recipientId=唯一指定 reviewer,agendaId,relatedId=versionId)；T6 审核完成发 review_delivery(reviewId,authorId)；T7 每条 FormalMessage 发 transcript_update(recipientId=合格闲置 contributor,agendaId,publicMessageId=messageId)。这些请求只有 ID/理由/缺失字段，不携带私有材料。空效果数组仅用于无通知消费者的转换。
+rejected 必须返回原 state 引用及空 relatedIds/effectRequests，application 不提交。各步骤 effectRequests 的字段固定为：T1 申请发 opportunity_request(recipientId=managerId,agendaId,requestId)，处置发 opportunity_disposition(recipientId=contributorId,agendaId,requestId,disposition,reason)；T3 申请发 initial hand_request(recipientId=managerId,agendaId,requestKind=initial,roundId,contributorId)，处置发 initial hand_disposition(recipientId=contributorId,agendaId,requestKind=initial,roundId,contributorId,disposition,reason)，accepted 另含新 contributionId；T4 申请/处置分别发 supplement hand_request 给 Manager、supplement hand_disposition 给作者，均含 requestKind=supplement 与既有 contributionId，处置另含 disposition/reason；T5 格式 accepted/rejected/deferred 均发 format_disposition(recipientId=authorId,agendaId,contributionId,evidenceHash,disposition,reason=rationale,missingFields；accepted 的 missingFields=[]，三种 disposition 的 reason 均非空)，正文登记发 review_request(recipientId=唯一指定 reviewer,agendaId,versionId)；T6 审核完成发 review_delivery(reviewId,authorId)；T7 每条 FormalMessage 发 transcript_update(recipientId=合格闲置 contributor,agendaId,publicMessageId=messageId)。这些请求只有定位 ID/hash/理由/缺失字段，不携带私有材料。空效果数组仅用于无通知消费者的转换。
 
 Domain 错误映射固定为：非空/形状/hash/内部材料引用校验失败 → INVALID_ARGUMENT；actor 身份/角色不符 → UNAUTHORIZED；terminal/archived Meeting → MEETING_TERMINAL；目标 ID 在本 Meeting 不存在 → NOT_FOUND；Meeting/Round/Contribution 当前阶段与命令不匹配 → INVALID_STATE；重复 pending/任务占用/期限已到/无合格通知对象或 reviewer → PRECONDITION_FAILED；自审或非唯一指定 reviewer → REVIEWER_CONFLICT；isRoundClosableV1=false 的正常 publish → ROUND_NOT_CLOSABLE；计数已为 2 却请求 accepted、或 FormalMessage 数量超限 → LIMIT_EXCEEDED。相同输入同时违反多项时，先按 [Interface Error Precedence](../20-interfaces/MEETING-INTERFACE.md#results-errors-and-precedence) 的协议/ownership/终态/存在性/状态顺序判断，再按上述具体码返回；message 只说明本 caller 可见的失败目标，不含他人私有材料。Runtime 特有的 version/idempotency/storage 错误不由本纯领域结果伪造。
 
-T1/T3/T4 的 Manager rejected/deferred disposition.reason、T6 的每个 exit.reason 均须经 trim 后非空；accepted hand 的 reason 可为空。终态 Contribution.exitReason 一律保存该非空原因，T7 的 Publication.exitReasons 按 Round.contributionIds 原顺序逐个取对应 Contribution.exitReason，不丢弃没有证据包的退出。
+T1/T3/T4 的每个 Manager disposition.reason、T5 的每个 rationale 与 T6 的每个 exit.reason 均须经 trim 后非空。终态 Contribution.exitReason 一律保存该非空原因，T7 的 Publication.exitReasons 按 Round.contributionIds 原顺序逐个取对应 Contribution.exitReason，不丢弃没有证据包的退出。
 
 ## 不变量与机械判断
 
@@ -135,22 +194,23 @@ T1/T3/T4 的 Manager rejected/deferred disposition.reason、T6 的每个 exit.re
 
 固定选择规则：针对 active Agenda 的通知 Manager 从 identities 原顺序选择首个有 manager 角色且 agendaResponsibilityIds 包含该 Agenda 或为空的 identity；若没有则申请返回 PRECONDITION_FAILED，绝不生成不可投递 pending。每个 evidence current version 的唯一指定 reviewer 从 Agenda.requiredReviewerIds 原顺序选择首个非作者、具 evidence_reviewer 角色且 reviewResponsibilityIds 包含该 Agenda 的 identity；若没有，SubmitEvidence 原子拒绝并保留未消费批准，SubmitReview 只允许此指定身份、每版至多一个最终 Review。ID 参数均由可信 caller/adapter 注入，须为非空且在聚合内全局未使用；已存在的 referenced ID 必须确切指向本次对象。
 
-T0 还必须在 EvidenceMaterialV1 添加三个 required 字段 `originator: string`、`sourcePublishedAt: string`、`acquiredAt: string`，顺序为 kind → originator → originalSource → sourcePublishedAt → acquiredAt → version；与 Meeting Interface 的 MaterialInput 同名字段一对一映射。不可把这些时刻拼进原始出处或定位文本。未知/不适用时保留原始作者的文字及非空 reason。`ReviewDimensionV1` 的新增字段也属于本步目标类型差异。
+T0 还必须在 EvidenceMaterialV1 添加三个 required 字段 `originator: string`、`sourcePublishedAt: string`、`acquiredAt: string`，顺序为 kind → originator → originalSource → sourcePublishedAt → acquiredAt → version；与 Meeting Interface 的 MaterialInput 同名字段一对一映射。不可把这些时刻拼进原始出处或定位文本。未知/不适用时保留原始作者的文字及非空 reason。`ReviewDimensionV1` 的新增字段，以及 `ReviewDeliveryV1.failureReason?: string` 与 sent/failed 互斥约束，也属于本步目标类型差异。
 
 ### T0：目标模型、结果类型与固定 fixture
 
 前置状态：当前分支仍为 codex/b-participation-runbook，正式 requirements/interface/design 与本文件一致；plugin/src/domain/meeting-state-v1.ts、plugin/src/domain/transitions/index.ts 和 plugin/src/domain/index.ts 存在。
-允许修改：plugin/src/domain/meeting-state-v1.ts；新增 plugin/src/domain/transitions/result-v1.ts、plugin/tests/fixtures/meeting-state-v1.ts；plugin/src/domain/transitions/index.ts 仅增加 result-v1.ts 的公开 export。禁止修改：LegacyMeetingState、Runtime、Protocol、Storage。
+允许修改：plugin/src/domain/meeting-state-v1.ts、plugin/src/domain/meeting-state-v1-validation.ts、plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts、plugin/tests/unit/domain/meeting-state-v1-transitions.spec.ts；新增 plugin/src/domain/transitions/result-v1.ts、plugin/tests/fixtures/meeting-state-v1.ts；plugin/src/domain/transitions/index.ts 仅增加 result-v1.ts 的公开 export。禁止修改：meeting-state-v1-transitions.ts 的现有 action/transition 语义、LegacyMeetingState、Runtime、Protocol、Storage。
 
-执行：按本节精确结构新增三个聚合数组/三个实体、替换 supplementHand、收窄 Registration；`ReviewDimensionV1` 另增加 required `scope: string` 与 `baselineEvidenceIds: readonly OpaqueId[]`，四维字段结构与正式 Interface 一致；其余目标字段不动。result-v1.ts 只声明本节结果/效果/错误类型。fixture 唯一函数 makeRunningMeetingStateV1(): MeetingState，采用下列固定值；没有测试 fixture 自身的用例。`createdAt/updatedAt/lifecycle.changedAt` 都为 0；`id` 为 meeting-v1，`version` 为 1，`lifecycle` 为 running/changedBy=manager-v1。`objective` 的 statement 为“核对议题 A”，requiredOutputs=[{id:output-v1,text:“形成公开证据”,status:pending}]、acceptanceCriteria=[{id:criterion-v1,text:“审核最终证据”,status:pending}]、hardConstraints=[]、acceptableRiskLevel=low。`identities` 恰为 manager-v1（roles=[manager]、agendaResponsibilityIds=[agenda-v1]、reviewResponsibilityIds=[]）、contributor-v1（roles=[contributor]、agendaResponsibilityIds=[agenda-v1]、reviewResponsibilityIds=[]）、reviewer-v1（roles=[evidence_reviewer]、agendaResponsibilityIds=[agenda-v1]、reviewResponsibilityIds=[agenda-v1]）；每条 displayName 等于 id、riskAuthority=false、required=true，optional definitionId/definitionVersion 缺省。`agenda` 恰为 {id:agenda-v1,title:“议题 A”,question:“证据是什么”,status:active,requiredOutputIds:[output-v1],requiredReviewerIds:[reviewer-v1]}，ownerId 缺省。`limits` 为 {maxFormalMessages:100,maxDurationMs:3600000,taskDeadlineMs:600000,reviewDeadlineMs:600000,responseDeadlineMs:60000}。`continuation/termination/archive` 缺省；MeetingState 其余所有 required 数组均为 []，包含新增的 opportunityRequests/pendingHandRaises/formatApprovals，optional 字段不填。
+执行：按本节精确结构新增三个聚合数组/三个实体、替换 supplementHand、收窄 Registration，并给 `ReviewDeliveryV1` 增加 optional `failureReason`；`ReviewDimensionV1` 另增加 required `scope: string` 与 `baselineEvidenceIds: readonly OpaqueId[]`，四维字段结构与正式 Interface 一致。同步 meeting-state-v1-validation.ts：三个新数组均 required 且按 Domain Design 校验唯一性/引用；Registration 只接收 complete/空 missingFields；ReviewDimension 接收两个新 required 字段；ReviewDelivery 的 sent/failed 字段按本节互斥。现有两个 MeetingState V1 suite 的 base fixture 只机械补三个空数组、新 ReviewDimension 字段和 failed delivery reason，并新增 validator 对三个新数组、Registration、ReviewDimension、ReviewDelivery 互斥的直接行为断言；不得改变现有 Agenda/Question/Issue transition 预期。result-v1.ts 只声明本节结果/效果/错误类型。fixture 唯一函数 makeRunningMeetingStateV1(): MeetingState，采用下列固定值；没有测试 fixture 自身的用例。`createdAt/updatedAt/lifecycle.changedAt` 都为 0；`id` 为 meeting-v1，`version` 为 1，`lifecycle` 为 running/changedBy=manager-v1。`objective` 的 statement 为“核对议题 A”，requiredOutputs=[{id:output-v1,text:“形成公开证据”,status:pending}]、acceptanceCriteria=[{id:criterion-v1,text:“审核最终证据”,status:pending}]、hardConstraints=[]、acceptableRiskLevel=low。`identities` 恰为 manager-v1（roles=[manager]、agendaResponsibilityIds=[agenda-v1]、reviewResponsibilityIds=[]）、contributor-v1（roles=[contributor]、agendaResponsibilityIds=[agenda-v1]、reviewResponsibilityIds=[]）、reviewer-v1（roles=[evidence_reviewer]、agendaResponsibilityIds=[agenda-v1]、reviewResponsibilityIds=[agenda-v1]）；每条 displayName 等于 id、riskAuthority=false、required=true，optional definitionId/definitionVersion 缺省。`agenda` 恰为 {id:agenda-v1,title:“议题 A”,question:“证据是什么”,status:active,requiredOutputIds:[output-v1],requiredReviewerIds:[reviewer-v1]}，ownerId 缺省。`limits` 为 {maxFormalMessages:100,maxDurationMs:3600000,taskDeadlineMs:600000,reviewDeadlineMs:600000,responseDeadlineMs:60000}。`continuation/termination/archive` 缺省；MeetingState 其余所有 required arrays 均为 []，包含新增的 opportunityRequests/pendingHandRaises/formatApprovals，optional 字段不填。
 
 验证：
 
 ```bash
 pnpm --dir plugin typecheck:host
+pnpm --dir plugin exec vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/meeting-state-v1-transitions.spec.ts
 ```
 
-PASS：退出码 0；目标类型可构造完整聚合，legacy 文件无改动。STOP：编译失败、指定原符号缺失或需修改相邻模块；报告首个 TypeScript error。恢复：无外部副作用，保留本步差异审阅。
+PASS：两个命令退出码 0；目标类型可构造完整聚合，新 schema 拒绝缺失/非法目标字段，现有 Agenda/Question/Issue transition 仍通过，legacy 文件无改动。STOP：任一失败、指定原符号缺失或需改变现有 transition 业务预期；报告首个失败。恢复：无外部副作用，保留本步差异审阅。
 
 ### T1：无 open Round 的机会申请
 
@@ -186,7 +246,7 @@ PASS：两个命令 0，baseline 和原子转移断言成立。STOP：失败或�
 
 前置状态：T2 PASS。允许修改：新增 plugin/src/domain/transitions/hand-raise-v1.ts、plugin/tests/unit/domain/hand-raise-v1.spec.ts；plugin/src/domain/transitions/index.ts 只公开 raiseHandV1/disposeHandRaiseV1。禁止修改：legacy speaker-attempt.ts、Runtime。
 
-执行：唯一签名 raiseHandV1(state, {roundId, contributorId, purpose, now}) 和 disposeHandRaiseV1(state, {roundId, contributorId, managerId, disposition, reason, contributionId, now})，均返回 MeetingTransitionResultV1。直接举手与 T2 转来的举手使用同一 (roundId,contributorId) pending 记录；重复 pending、同轮/其他非终态 Contribution、未结束 MeetingTask 拒绝。Manager accepted 原子移除 pending、建立一个 preparing Contribution(handRaise 原目的/时间、acceptedAt=now、count=0)、ID 入 Round；rejected/deferred 只移除 pending，向申请者发 hand_disposition(reason)，不在 MeetingState 留举手/Contribution。测试 A 拒绝而 B 仍可接受、转来申请同样处置、重复/非 Manager/第二任务拒绝。
+执行：唯一签名 raiseHandV1(state, {roundId, contributorId, purpose, now}) 和 disposeHandRaiseV1(state, input)，均返回 MeetingTransitionResultV1；`input` 唯一联合为 `{roundId, contributorId, managerId, disposition:"accepted", reason, contributionId, now}` 或 `{roundId, contributorId, managerId, disposition:"rejected"|"deferred", reason, now}`，两支 reason 均非空，只有 accepted 支允许且要求由可信 application 注入未使用的 contributionId。直接举手与 T2 转来的举手使用同一 (roundId,contributorId) pending 记录；重复 pending、同轮/其他非终态 Contribution、未结束 MeetingTask 拒绝。Manager accepted 原子移除 pending、建立一个 preparing Contribution(handRaise 原目的/时间、acceptedAt=now、count=0)、ID 入 Round；rejected/deferred 只移除 pending，向申请者发 hand_disposition(reason)，不在 MeetingState 留举手/Contribution。测试 A 拒绝而 B 仍可接受、转来申请同样处置、重复/非 Manager/第二任务、accepted 缺 contributionId 或非 accepted 多带 contributionId 均拒绝。
 
 验证：
 
@@ -218,7 +278,7 @@ PASS：两个命令 0；同任务只一 hand、计数不在申请时增加。STO
 
 前置状态：T4 PASS。允许修改：新增 plugin/src/domain/transitions/format-evidence-v1.ts、plugin/tests/unit/domain/format-evidence-v1.spec.ts；plugin/src/domain/transitions/index.ts 只公开 reviewEvidenceDraftV1/submitEvidenceV1。禁止修改：legacy save_evidence、DSH 私有草稿 transport、Protocol hash mapper。
 
-执行：唯一签名 reviewEvidenceDraftV1(state, {contributionId, managerId, evidenceHash, disposition, missingFields, rationale, approvalId, now}) 和 submitEvidenceV1(state, {contributionId, authorId, evidence, verifiedEvidenceHash, packageId?, versionId, registrationId, now})，均返回 MeetingTransitionResultV1。前者核对 64 字符小写 hash、首份 preparing 或原 Contribution 已获接纳 supplementHand、current version 未 under_review；accepted 要求 missingFields=[]，只存/替换一个 FormatApprovalV1 hash；rejected 要求非空 missingFields、deferred 要求非空 rationale，两者删除未消费 approval/accepted hand，置 format_correction，只向作者发 format_disposition 缺失要素/理由，绝不存草稿正文或 EvidenceVersion/Registration。作者因驳回再申请时须重走 T4。
+执行：唯一签名 reviewEvidenceDraftV1(state, {contributionId, managerId, evidenceHash, disposition, missingFields, rationale, approvalId, now}) 和 submitEvidenceV1(state, {contributionId, authorId, evidence, verifiedEvidenceHash, packageId?, versionId, registrationId, now})，均返回 MeetingTransitionResultV1。前者核对 64 字符小写 hash、trim 后非空 rationale、首份 preparing 或原 Contribution 已获接纳 supplementHand、current version 未 under_review；accepted 要求 missingFields=[]，只存/替换一个 FormatApprovalV1 hash；rejected 要求非空 missingFields，rejected/deferred 删除未消费 approval/accepted hand、置 format_correction，只向作者发 format_disposition 缺失要素/理由，绝不存草稿正文或 EvidenceVersion/Registration。作者因驳回再申请时须重走 T4。
 
 submitEvidenceV1 仅在 verifiedEvidenceHash 与未消费批准完全相同、作者身份正确、结构/claim/material 引用合法时原子消费批准；falsifiers/uncertainties/limitations/claims/materials 每项数组非空，TextWithReason.value 非空且“无”或“未知”须有非空 reason，unknown/not_applicable material 须有非空 reason，每个 claim 至少引用一个本次材料 ID。无 package 时创建唯一包/ordinal1/complete Registration、count=0；有 package 时还消费获接纳 hand，旧 version 不改、ordinal+1/currentVersionId 更新、complete Registration、count+1（不得超过 2）。两种提交都只对新 current version 向指定非作者 reviewer 发 review_request 请求；Manager 的格式处置无四维评分。测试拒绝私有旧稿不进入任何 Meeting evidence 数组、作者自行留稿不被 Domain 保存、格式重试仍 ordinal1/count0、批准 hash 不匹配原子拒绝、实质更新一次一版、第三次拒绝、缺数组/缺明示理由/未知材料 reason/claim 引用非法原子拒绝。
 
@@ -233,7 +293,7 @@ PASS：两个命令 0；驳回无 EvidencePackage/Version/Registration/Review，
 
 T5 的提交前 validation 还须逐字段检查 MaterialInput.originator/originalSource/sourcePublishedAt/acquiredAt/version/locator/location/verificationConditions/limitations 非空；originator/sourcePublishedAt/acquiredAt 若为“未知”或“不适用”必须有非空 reason。失败均为 INVALID_ARGUMENT，原 state 和未消费 FormatApproval 保持不变。
 
-T5 格式 rejected/deferred 的 rationale 还须非空；rejected 的 missingFields 须含至少一个顶层 EvidenceFieldName，rationale 写明其内部具体缺项。格式处置只发作者反馈，不创建旧材料审核/登记事实。
+T5 rejected 的 missingFields 须含至少一个顶层 EvidenceFieldName，rationale 写明其内部具体缺项；accepted/deferred 的 rationale 也保持非空但不虚构缺项。格式处置只发作者反馈，不创建旧材料审核/登记事实。
 
 获批准草稿后的 submitEvidenceV1 也要重新检查 T4 的最早准备/持久期限；`now` 必须严格早于界限，过期返回 PRECONDITION_FAILED 且不消费 FormatApproval/accepted hand。新版本登记成功时 Contribution.response 清空，后续 current Review sent 才开启新响应窗口。
 
@@ -245,7 +305,7 @@ T5 创建的 Registration.managerId 严格取被消费 FormatApproval.managerId�
 
 前置状态：T5 PASS。允许修改：新增 plugin/src/domain/transitions/evidence-review-v1.ts、plugin/src/domain/transitions/contribution-exit-v1.ts、plugin/tests/unit/domain/evidence-review-v1.spec.ts、plugin/tests/unit/domain/contribution-exit-v1.spec.ts；plugin/src/domain/transitions/index.ts 只公开 submitReviewV1/recordReviewDeliveryV1/closeContributionV1。禁止修改：格式审批、决策/完成事实、effect dispatcher。
 
-执行：唯一签名 submitReviewV1(state, {versionId, reviewerId, reviewId, dimensions, scope, now})、recordReviewDeliveryV1(state, {reviewId, dispatcherId, deliveryId, status, failureReason?, now})、closeContributionV1(state, {contributionId, actorId, actorKind, exit, reason, now})，均返回 MeetingTransitionResultV1；actorKind 仅为 author 或 deadline_handler，前者 actorId 必为该 Contribution.contributorId 且只可 exit=withdrawn，后者须由 application 核对可信 channel 且只可 exit=timed_out|submission_missing。submitReviewV1 只允许 active Agenda requiredReviewerIds/identity reviewResponsibility 匹配、非作者、current complete version；固定 baseline 自动复制 Round，不接 caller baseline；同 reviewer/version 只一 Review，四维各自 score/scope/reason/baselineEvidenceIds 必填且 scope/reason 非空，baselineEvidenceIds 逐一属于 baseline Publication.finalVersionIds（无引用为 []）；成功发 review_delivery 请求。failed delivery 仅追加 failedAt，重试可再 failed 或 sent；首次 sent 唯一 sentAt，第二次 sent 拒绝。送达后作者明确继续已由 T4 的 raiseSupplementHandV1 记录，不增加第二动作；withdrawn 用 closeContributionV1 作者动作。timed_out 严格按本步期限段的无响应/继续未完成两种条件由 deadline_handler 提交；无证据而准备/持久期限到期为 submission_missing，未审版本不得以 close 绕过最终审核。退出时移除未消费批准/hand，保留已经登记的当前版和审核。测试自审/旧版/错误 reviewer、逐维 scope/reason/上一轮 ID、四维 negative/unable、failed 后 sent 起时、过期/他人补证申请、作者放弃与静默超时不同、无证据退出无空包。
+执行：唯一签名 submitReviewV1(state, {versionId, reviewerId, reviewId, dimensions, scope, now})、recordReviewDeliveryV1(state, {reviewId, dispatcherId, deliveryId, status, failureReason?, now})、closeContributionV1(state, {contributionId, actorId, actorKind, exit, reason, now})，均返回 MeetingTransitionResultV1；actorKind 仅为 author 或 deadline_handler，前者 actorId 必为该 Contribution.contributorId 且只可 exit=withdrawn，后者须由 application 核对可信 channel 且只可 exit=timed_out|submission_missing。submitReviewV1 只允许 active Agenda requiredReviewerIds/identity reviewResponsibility 匹配、非作者、current complete version；固定 baseline 自动复制 Round，不接 caller baseline；同 reviewer/version 只一 Review，四维各自 score/scope/reason/baselineEvidenceIds 必填且 scope/reason 非空，baselineEvidenceIds 逐一属于 baseline Publication.finalVersionIds（无引用为 []）；成功发 review_delivery 请求。failed delivery 必须携 trim 后非空 failureReason，并追加 failedAt/failureReason；sent 不得携 failureReason，只追加首次唯一 sentAt；重试可再 failed 或 sent，第二次 sent 拒绝。送达后作者明确继续已由 T4 的 raiseSupplementHandV1 记录，不增加第二动作；withdrawn 用 closeContributionV1 作者动作。timed_out 严格按本步期限段的无响应/继续未完成两种条件由 deadline_handler 提交；无证据而准备/持久期限到期为 submission_missing，未审版本不得以 close 绕过最终审核。退出时移除未消费批准/hand，保留已经登记的当前版和审核。测试自审/旧版/错误 reviewer、逐维 scope/reason/上一轮 ID、四维 negative/unable、failed 缺 reason、sent 错带 reason、failed 后 sent 起时、过期/他人补证申请、作者放弃与静默超时不同、无证据退出无空包。
 
 验证：
 
@@ -310,7 +370,7 @@ PASS：前五命令退出码 0、focused 行为断言成立；最后 rg 只命�
 
 ## 验证矩阵、失败恢复与完成定义
 
-效果请求的 focused tests 还须断言 T1/T3/T4 申请与处置、T5 格式批准/驳回/暂缓及登记后的 review_request、T6 review_delivery、T7 每条公开消息的 transcript_update 的 kind、recipientId、agendaId、relatedId/disposition 和顺序，且 payload 不含草稿正文。真实投递仍为 Not Covered。
+效果请求的 focused tests 还须按本节 discriminated union 断言 T1/T3/T4 申请与处置、T5 格式批准/驳回/暂缓及登记后的 review_request、T6 review_delivery、T7 每条公开消息的 transcript_update 的 kind、recipientId、agendaId、各自必需定位字段/disposition 和顺序，且 payload 不含草稿正文或无关 optional 字段。真实投递仍为 Not Covered。
 
 - 正常及 A/B 并行：T1—T3 验证独立申请/接纳，T5—T7 验证同轮固定累计 baseline、仅最终版审核/公开、顺序交换不改变审核输入。
 - 非法/权限：T1—T6 验证错 Agenda/actor/Reviewer、自审、已有未结束任务、重复/第三次申请、缺字段/hash/资料引用；每次 rejected 源 state 引用不变。

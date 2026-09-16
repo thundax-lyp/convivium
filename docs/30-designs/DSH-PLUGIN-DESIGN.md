@@ -11,6 +11,7 @@ V1 运行在一个本地 DSH Host，服务该 Host 的单一 loopback 用户边�
 ## Related Requirements And Interfaces
 
 - [Meeting Orchestration Requirements](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md)
+- [Meeting Evidence Round Requirements](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md)
 - [Meeting Design](./MEETING-DESIGN.md)
 - [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)
 - [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md)
@@ -44,7 +45,7 @@ Convivium 只限制自身会议操作的调用权限和模型可见的会议上�
 
 角色 Definition 只声明 DSH 已公开且经过预检的能力。预检在创建第一个会议专用 Session 前完成；缺少必需能力时拒绝创建，不通过临时修改 Prompt、权限或资源来降级。已创建身份的运行配置由 DSH 拥有，角色资源变更只影响新的 MeetingIdentity。
 
-Manager 的格式批准、驳回、暂缓均以最小 `format_disposition` 通知作者本人；批准通知只表示 hash 已获格式认可，作者仍须另行提交相同正文才进入会议。通知绝不附草稿、资料正文或他人轮内材料。
+Manager 的格式批准、驳回、暂缓均以最小 `format_disposition` 通知作者本人；通知携带被审核的规范 hash，批准只表示该 hash 已获格式认可，作者仍须另行提交相同正文才进入会议。通知绝不附草稿、资料正文或他人轮内材料。Review delivery 的 sent/failed 尝试进入 caller-filtered read model，使 Manager、作者与指定 reviewer 能区分未送达和已送达；其他身份不能借投递状态获知未公开 Review。
 
 ### Catalog and Definition conversion
 

@@ -8,6 +8,8 @@
 
 覆盖 Meeting 的命令路由、状态转换顺序、并发控制、效果投递、恢复和可观察性。它不定义 DSH Session 实现、存储引擎、Remote 传输、页面布局、Agent Prompt、模型选择或业务对象字段；分别由 [DSH Plugin Design](./DSH-PLUGIN-DESIGN.md)、[Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 与 Domain Design 规定。
 
+证据轮次行为与验收以 [Meeting Evidence Round Requirements](../10-requirements/MEETING-EVIDENCE-ROUND-REQUIREMENTS.md) 为准；本文只定义满足该需求的命令编排。
+
 ## Framework Modules And Dependency Direction
 
 实现必须沿下列依赖方向组织；名称是模块职责，不要求预先引入额外框架。
@@ -29,10 +31,10 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 1. 解码 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 的版本化 envelope，执行结构和值域校验。
 2. 从可信调用通道取得 caller binding、当前时间和 requestId；忽略输入中的 actor、Session ownership、baseline、权限或派生完成状态。
 3. 加载 Meeting 与该 caller 的持久 identity ownership；未知、损坏、撤权或无法证明归属时 fail closed。
-4. 先检查 caller 是否可读取/控制目标 Meeting，再处理该 caller 的历史 receipt；随后检查 requestId 绑定、expected version、生命周期与 action 前提。
+4. 先检查 caller 是否可读取/控制目标 Meeting，再查找该 caller 的历史 receipt：同键不同 payload 返回 `IDEMPOTENCY_CONFLICT`，同键同 payload 直接返回原结果；无历史 receipt 时依次检查 terminal/archive、expected version、目标对象存在性、action state/precondition 与 Domain invariant/limit。
 5. 由 application 构造无环境依赖的 Domain command，调用纯转换。转换成功时生成新 snapshot、已提交事实和提交后 effect plan；拒绝时不产生任何事实。
 6. 以 `meetingId + expectedVersion` 比较并交换，原子写入 snapshot、事件/审计事实、idempotency receipt 和 effect outbox。冲突返回当前版本，不执行效果。
-7. commit 后按 outbox 投递 Session mail、review delivery、refresh、Markdown projection 或归档动作。投递至少一次，但 receipt 和领域事实绝不因重复投递而重复创建。
+7. commit 后按 outbox 投递 Session mail、agent notice、review delivery、refresh、Markdown projection 或归档动作。投递至少一次，但 receipt 和领域事实绝不因重复投递而重复创建。
 8. 返回该 caller 可见的 committed result；任何 refresh 只提示重新读取，不把未提交状态作为结果发送。
 
 读路径只加载已提交 snapshot，再调用 projection。它不修复数据、不触发隐式转换，也不因读取推进 deadline。
@@ -58,14 +60,15 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 
 | 转换 | 允许 actor | 前提 | 成功事实/效果 | 拒绝或无操作 |
 | --- | --- | --- | --- | --- |
-| `request_evidence_opportunity` / `dispose_evidence_opportunity` | Contributor / Manager | running Meeting、无 open Round、active Agenda；申请者有 active owned Session，未持有未结束贡献或任务；处置只针对 pending ID | 申请排队；拒绝/暂缓移除并向本人说明，不创建 Round/Contribution | 重复、错误身份或已存在未结束任务拒绝；不自动开轮 |
+| `request_evidence_opportunity` | Contributor | running Meeting、无 open Round、目标为 active Agenda；申请者有 active owned Session，未持有未结束贡献或任务 | 申请排队并通知 Manager，不创建 Round/Contribution | 重复、错误身份、非 active Agenda 或已有未结束任务拒绝；不自动开轮 |
+| `dispose_evidence_opportunity` | Manager | requestId 指向仍 pending 的申请 | rejected/deferred 均移除申请并把理由通知本人，不创建 Round/Contribution | 不以申请者 Session 后续失活或出现其它任务阻止处置；未知/已处置 request 拒绝 |
 | `raise_hand` | Contributor | open Round；该身份可参与且本轮未已有 Contribution 或 pending 举手 | 原子创建一个可恢复的 pending hand raise，不创建 Contribution | 重复举手或已有未结束任务拒绝；不预先给发言权 |
 | `dispose_hand_raise` | Manager | 对应 `(roundId, contributorId)` pending hand raise 未处置 | 原子移除 pending；accepted 创建一个 `preparing` Contribution；rejected/deferred 只通知申请者理由且不保留 Meeting 举手/Contribution | accept 不替换 contributor；同 contributor/round 不能第二个 Contribution |
 | `review_evidence_draft` | Manager | 目标为同一非终态 Contribution 的作者私有草稿；首份已接纳举手，后续有获接纳 supplement hand；只检格式/可访问性 | accepted 只存一个待消费 FormatApproval hash；rejected/deferred 反馈缺失要素并进入格式补正，不存草稿内容、EvidenceVersion 或 Registration | Manager 写观点评分/真实性判断拒绝；原草稿仍由贡献者自行保存 |
 | `submit_evidence` | Contribution 作者 | own Contribution；payload hash 与未消费 FormatApproval 相同；首次或有获接纳 supplement hand；当前已登记版本不在审核中 | 原子消费批准/hand，初版创建唯一 EvidencePackage + Version ordinal 1 + complete Registration，后续同包新 Version + complete Registration 并计实质补充一次 | 不匹配、未经批准、旧版本被覆盖、第三次实质补充均拒绝；格式驳回不计次数 |
 | `submit_review` | 唯一指定 reviewer | 当前已 complete version；reviewer 非作者；baseline 从 Round 自动复制，每维只引用该 baseline 中公开最终版本 | 一个四维独立 Review 和 delivery effect | 自审、旧版本、错误上一轮引用、重复 version 审核拒绝 |
-| `record_review_delivery` | effect dispatcher（可信系统 actor） | 对应 Review 已提交且未 delivered | sent 时写 sentAt 并开始 60 秒 response deadline；failed 只记录失败 | delivery failure 不使作者放弃，不创建 publication |
-| `raise_supplement_hand` / `dispose_supplement_hand` | 作者 / Manager | 原 Contribution 未终态；非空补证 purpose；无第二个 hand；已送达审核的申请须早于 sentAt+60000，并早于准备/持久 Round/适用 Task 期限 | 初次及再次申请走同一 Manager 处置；每次成功举手均记录 response=purpose；只有计数低于二、当前版不在审核中才可接纳并进入私有草稿格式审核 | 计数低于二且正在审核时只能暂缓；第三次申请仍送 Manager 但不得接纳，拒绝/暂缓均以 supplement_rejected 收口并说明次数已尽；普通暂缓不退出；格式草稿驳回后重新申请不计次数 |
+| `record_review_delivery` | effect dispatcher（可信系统 actor） | 对应 Review 已提交且未 delivered | sent 时写 sentAt 并开始 60 秒 response deadline；failed 写 failedAt 与非空 failureReason | delivery failure 不使作者放弃，不创建 publication |
+| `raise_supplement_hand` / `dispose_supplement_hand` | 作者 / Manager | 原 Contribution 未终态；非空补证 purpose；无第二个 hand；已送达审核的申请须早于 sentAt+60000，并早于准备/持久 Round/适用 Task 期限 | 初次及再次申请走同一 Manager 处置；每次成功举手均记录 response=purpose；只有计数低于二、当前版不在审核中才可接纳并进入私有草稿格式审核 | 计数低于二且正在审核时只能暂缓；其它普通 rejected 以 supplement_rejected 收口，普通 deferred 只移除 hand、不退出；第三次申请仍送 Manager 但不得接纳，rejected/deferred 均以 supplement_rejected 收口并说明次数已尽；格式草稿驳回后重新申请不计次数 |
 | `close_contribution` | 作者；或可信 deadline handler | 目标仍非终态；作者只可 withdrawn，handler 只可在可信期限到达后 submission_missing/timed_out | 设置确定 exit reason/status；格式驳回不自动退出 | 未送达审核不能据沉默 timed_out；未审版本不能正常公开 |
 | `publish_round` | Manager | `isRoundClosable` 为真；每个接纳 Contribution 已有合法终态；每个登记 current version 有最终 Review 及 sent delivery | 单一 Publication、FormalMessage 批次、Round published、refresh/Markdown effect | 任一未满足即 `ROUND_NOT_CLOSABLE`；没有局部发布 |
 
@@ -104,7 +107,7 @@ application 只从 `Clock.now()` 取得时间，向 Domain command 传入具体 
 
 ## Failure, Security And Observability
 
-失败优先级固定为：协议/结构错误、caller/Meeting 可见性、caller ownership/authorization、idempotency binding、Meeting terminal/archived、expected version、action precondition、Domain invariant、Repository conflict/availability。所有失败均返回稳定 error code 和最少安全上下文；不得泄露私有 mail、未公开 evidence、Session ID、capability、凭据或隐藏推理。
+失败优先级固定为：协议/结构错误、Meeting 可见性、caller ownership/authorization、idempotency binding、Meeting terminal/archived、expected version、目标对象存在性、action state/precondition、Domain invariant/limit、Repository conflict/availability。所有失败均返回稳定 error code 和最少安全上下文；不得泄露私有 mail、未公开 evidence、Session ID、capability、凭据或隐藏推理。
 
 每次成功 commit 至少产生可关联的 Meeting version、request receipt、actor、action kind、事实 ID、时间和 effect ID；日志诊断与投递结果不是领域事实。对外可观察的 refresh 只由成功 commit 或已投递效果触发；失败、重试和读取不得伪造新的状态变更。
 
