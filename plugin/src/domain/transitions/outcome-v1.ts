@@ -1,5 +1,4 @@
 import type {
-    CompletionFactV1,
     EpochMs,
     MeetingState,
     OpaqueId,
@@ -9,6 +8,7 @@ import type {
 } from "../meeting-state-v1.js";
 import type { DecisionV1 } from "../meeting-state-v1.js";
 import type { IssueV1 } from "../meeting-state-v1.js";
+import type { CompletionDeclarationV1, CompletionFactV1 } from "../meeting-state-v1.js";
 import { validateMeetingStateV1 } from "../meeting-state-v1-validation.js";
 import type { MeetingTransitionResultV1 } from "./result-v1.js";
 import { rejectedTransitionV1 } from "./result-v1.js";
@@ -144,10 +144,63 @@ const uniqueEntity = (s: MeetingState, id: string, key: keyof MeetingState) =>
 
 export function recalculateMeetingCompletionV1(
     state: MeetingState,
-    _actorId: OpaqueId,
-    _now: EpochMs
+    actorId: OpaqueId,
+    now: EpochMs
 ): MeetingState {
-    return state;
+    const current = new Set(state.proposals.map((p) => currentRevision(state, p.proposalId)?.id));
+    const validDecision = (id: string) => {
+        const d = state.decisions.find((x) => x.id === id);
+        if (!d || d.status !== "accepted" || d.outcome !== "adopt") return false;
+        return current.has(d.proposalRevisionId);
+    };
+    const validFact = (f: CompletionFactV1) =>
+        f.status === "active" &&
+        f.decisionIds.every(validDecision) &&
+        f.evidenceIds.every((id) => published(state).has(id));
+    const facts = state.completionFacts.filter(validFact);
+    const outputs = state.objective.requiredOutputs.map(
+        (t) =>
+            ({
+                ...t,
+                status: facts.some((f) => f.outputId === t.id)
+                    ? "satisfied"
+                    : t.status === "satisfied"
+                      ? "pending"
+                      : t.status
+            }) as typeof t
+    );
+    const criteria = state.objective.acceptanceCriteria.map(
+        (t) =>
+            ({
+                ...t,
+                status: facts.some((f) => f.criterionId === t.id)
+                    ? "satisfied"
+                    : t.status === "satisfied"
+                      ? "pending"
+                      : t.status
+            }) as typeof t
+    );
+    const objective = {
+        ...state.objective,
+        requiredOutputs: outputs,
+        acceptanceCriteria: criteria
+    };
+    const satisfied =
+        outputs.every((t) => t.status === "satisfied") &&
+        criteria.every((t) => t.status === "satisfied") &&
+        state.objective.hardConstraints.every((t) => t.status === "satisfied") &&
+        !state.issues.some((i) => i.blocking);
+    const lifecycle =
+        satisfied && state.lifecycle.status === "running"
+            ? {
+                  ...state.lifecycle,
+                  status: "converging" as const,
+                  changedAt: now,
+                  changedBy: actorId,
+                  reason: "objective_satisfied"
+              }
+            : state.lifecycle;
+    return { ...state, objective, lifecycle };
 }
 
 export function recordProposalRevisionV1(
@@ -510,22 +563,230 @@ export function disposeRiskV1(
 }
 export function submitCompletionDeclarationV1(
     state: MeetingState,
-    _input: SubmitCompletionDeclarationInputV1
+    input: SubmitCompletionDeclarationInputV1
 ): MeetingTransitionResultV1 {
-    return bad(state, "PRECONDITION_FAILED");
+    const e = base(state, input.actor, input.now);
+    if (e) return e;
+    if (
+        !validId(input.declarationId) ||
+        !validId(input.outputId) ||
+        !validId(input.statement) ||
+        !evidenceOk(state, input.evidenceIds) ||
+        (input.criterionId !== undefined && !validId(input.criterionId)) ||
+        (input.taskId !== undefined && !validId(input.taskId))
+    )
+        return bad(state, "INVALID_ARGUMENT");
+    const a = identity(state, input.actor);
+    if (!a || !a.roles.includes("contributor")) return bad(state, "UNAUTHORIZED");
+    if (uniqueEntity(state, input.declarationId, "completionDeclarations"))
+        return bad(state, "INVALID_ARGUMENT");
+    if (!state.objective.requiredOutputs.some((t) => t.id === input.outputId))
+        return bad(state, "NOT_FOUND", "output not found", input.outputId);
+    if (
+        input.criterionId !== undefined &&
+        !state.objective.acceptanceCriteria.some((t) => t.id === input.criterionId)
+    )
+        return bad(state, "NOT_FOUND", "criterion not found", input.criterionId);
+    if (input.taskId !== undefined) {
+        const task = state.tasks.find((t) => t.id === input.taskId);
+        if (!task) return bad(state, "NOT_FOUND", "task not found", input.taskId);
+        if (
+            task.assigneeId !== input.actor.id ||
+            task.status !== "completed" ||
+            task.authorizationStatus !== "active" ||
+            !task.result?.trim()
+        )
+            return bad(state, "PRECONDITION_FAILED", "task is not completed", input.taskId);
+    }
+    const d: CompletionDeclarationV1 = {
+        id: input.declarationId,
+        actorId: input.actor.id,
+        outputId: input.outputId,
+        ...(input.criterionId !== undefined ? { criterionId: input.criterionId } : {}),
+        statement: input.statement.trim(),
+        evidenceIds: [...input.evidenceIds],
+        ...(input.taskId !== undefined ? { taskId: input.taskId } : {}),
+        createdAt: input.now
+    };
+    const next = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        completionDeclarations: [...state.completionDeclarations, d]
+    };
+    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    return {
+        kind: "accepted",
+        state: next,
+        relatedIds: [
+            d.id,
+            d.outputId,
+            ...(d.criterionId ? [d.criterionId] : []),
+            ...(d.taskId ? [d.taskId] : []),
+            ...d.evidenceIds
+        ],
+        effectRequests: []
+    };
 }
 export function recordCompletionFactV1(
     state: MeetingState,
-    _input: RecordCompletionFactInputV1
+    input: RecordCompletionFactInputV1
 ): MeetingTransitionResultV1 {
-    return bad(state, "PRECONDITION_FAILED");
+    const e = base(state, input.actor, input.now);
+    if (e) return e;
+    if (
+        !validId(input.factId) ||
+        !validId(input.outputId) ||
+        !validId(input.statement) ||
+        !validId(input.rationale) ||
+        !validArray(input.decisionIds) ||
+        !evidenceOk(state, input.evidenceIds) ||
+        (input.criterionId !== undefined && !validId(input.criterionId))
+    )
+        return bad(state, "INVALID_ARGUMENT");
+    if (!actorRole(state, input.actor, "captain")) return bad(state, "UNAUTHORIZED");
+    if (uniqueEntity(state, input.factId, "completionFacts")) return bad(state, "INVALID_ARGUMENT");
+    if (!state.objective.requiredOutputs.some((t) => t.id === input.outputId))
+        return bad(state, "NOT_FOUND", "output not found", input.outputId);
+    if (
+        input.criterionId !== undefined &&
+        !state.objective.acceptanceCriteria.some((t) => t.id === input.criterionId)
+    )
+        return bad(state, "NOT_FOUND", "criterion not found", input.criterionId);
+    if (
+        input.decisionIds.some((id) => {
+            const d = state.decisions.find((x) => x.id === id);
+            return (
+                !d ||
+                d.status !== "accepted" ||
+                d.outcome !== "adopt" ||
+                !state.proposals.some(
+                    (p) =>
+                        p.id === d.proposalRevisionId &&
+                        currentRevision(state, p.proposalId)?.id === p.id
+                )
+            );
+        })
+    )
+        return bad(state, "PRECONDITION_FAILED", "decision basis is invalid");
+    const f: CompletionFactV1 = {
+        id: input.factId,
+        outputId: input.outputId,
+        ...(input.criterionId !== undefined ? { criterionId: input.criterionId } : {}),
+        actorId: input.actor.id,
+        status: "active",
+        statement: input.statement.trim(),
+        rationale: input.rationale.trim(),
+        evidenceIds: [...input.evidenceIds],
+        decisionIds: [...input.decisionIds],
+        createdAt: input.now
+    };
+    const next = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        completionFacts: [...state.completionFacts, f]
+    };
+    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    return {
+        kind: "accepted",
+        state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+        relatedIds: [
+            f.id,
+            f.outputId,
+            ...(f.criterionId ? [f.criterionId] : []),
+            ...f.decisionIds,
+            ...f.evidenceIds
+        ],
+        effectRequests: []
+    };
 }
 export function changeCompletionFactV1(
     state: MeetingState,
-    _input: ChangeCompletionFactInputV1
+    input: ChangeCompletionFactInputV1
 ): MeetingTransitionResultV1 {
-    return bad(state, "PRECONDITION_FAILED");
+    const e = base(state, input.actor, input.now);
+    if (e) return e;
+    if (!validId(input.factId) || !validId(input.rationale)) return bad(state, "INVALID_ARGUMENT");
+    if (!actorRole(state, input.actor, "captain")) return bad(state, "UNAUTHORIZED");
+    const old = state.completionFacts.find((f) => f.id === input.factId);
+    if (!old) return bad(state, "NOT_FOUND", "completion fact not found", input.factId);
+    if (old.status !== "active")
+        return bad(state, "PRECONDITION_FAILED", "completion fact is not active", old.id);
+    const facts = state.completionFacts.map((f) =>
+        f.id === old.id ? { ...f, status: input.status } : f
+    );
+    if (input.status === "revoked") {
+        const next = {
+            ...state,
+            version: state.version + 1,
+            updatedAt: input.now,
+            completionFacts: facts
+        };
+        if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+        return {
+            kind: "accepted",
+            state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+            relatedIds: [old.id],
+            effectRequests: []
+        };
+    }
+    const r = input.replacement;
+    if (
+        !r ||
+        !validId(r.factId) ||
+        !validId(r.outputId) ||
+        !validId(r.statement) ||
+        !validId(r.rationale) ||
+        !validArray(r.decisionIds) ||
+        !evidenceOk(state, r.evidenceIds) ||
+        uniqueEntity(state, r.factId, "completionFacts")
+    )
+        return bad(state, "INVALID_ARGUMENT");
+    const replacement: CompletionFactV1 = {
+        id: r.factId,
+        outputId: r.outputId,
+        ...(r.criterionId !== undefined ? { criterionId: r.criterionId } : {}),
+        statement: r.statement,
+        rationale: r.rationale,
+        evidenceIds: [...r.evidenceIds],
+        decisionIds: [...r.decisionIds],
+        status: "active",
+        actorId: input.actor.id,
+        supersedesFactId: old.id,
+        createdAt: input.now
+    };
+    const next = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        completionFacts: [...facts, replacement]
+    };
+    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    return {
+        kind: "accepted",
+        state: recalculateMeetingCompletionV1(next, input.actor.id, input.now),
+        relatedIds: [
+            old.id,
+            replacement.id,
+            replacement.outputId,
+            ...(replacement.criterionId ? [replacement.criterionId] : []),
+            ...replacement.decisionIds,
+            ...replacement.evidenceIds
+        ],
+        effectRequests: []
+    };
 }
-export function isObjectiveSatisfiedV1(_state: MeetingState): boolean {
-    return false;
+export function isObjectiveSatisfiedV1(state: MeetingState): boolean {
+    const recalculated = recalculateMeetingCompletionV1(
+        { ...state, lifecycle: { ...state.lifecycle, status: "paused" } },
+        state.lifecycle.changedBy,
+        state.lifecycle.changedAt
+    );
+    return (
+        recalculated.objective.requiredOutputs.every((t) => t.status === "satisfied") &&
+        recalculated.objective.acceptanceCriteria.every((t) => t.status === "satisfied") &&
+        recalculated.objective.hardConstraints.every((t) => t.status === "satisfied") &&
+        !state.issues.some((i) => i.blocking)
+    );
 }
