@@ -58,5 +58,6 @@ export {
 } from "./format-evidence-v1.js";
 export { submitReviewV1, recordReviewDeliveryV1 } from "./evidence-review-v1.js";
 export { closeContributionV1 } from "./contribution-exit-v1.js";
+export { publishRoundV1 } from "./round-publication-v1.js";
 
 export * from "./attendance-rejection.js";
