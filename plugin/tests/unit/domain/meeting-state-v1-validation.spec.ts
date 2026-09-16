@@ -759,13 +759,6 @@ describe("Evidence and decision chain", () => {
                 evidencePackages: [pkg]
             })
         ).toMatchObject({ kind: "valid" });
-        const missing = Symbol("missing");
-        const without = (item: Record<string, unknown>, key: string, value: unknown = missing) => {
-            const copy = { ...item };
-            if (value === missing) delete copy[key];
-            else copy[key] = value;
-            return copy;
-        };
         invalidAt(
             { ...state, rounds: [{ ...round, id: "", agendaId: "missing-agenda" }] },
             "$.rounds[0].id"
