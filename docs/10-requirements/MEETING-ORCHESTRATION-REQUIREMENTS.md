@@ -99,6 +99,7 @@
 9. `promote` 必须在一个原子提交中把仍为 `pending` 的 candidate 标为 `promoted` 并创建一个完整的 pending AgendaItem，但不得改变当前 active agenda；`park` 和 `reject` 只改变 candidate 状态。
 10. 同一 candidate 只能处置一次。处置失败不得写入 Meeting state、event、receipt、outbox 或增加 Meeting version；成功处置不产生 outbox。
 11. 当前状态必须以稳定顺序公开 `parkingLot` 的 `id`、`title`、`reason` 和 `status`；归档保留相同事实。未处置的 candidate 不阻塞会议结束，并以 `pending` 原样进入归档。
+12. 任一已授权的 Meeting identity 可以结构化记录 Question 或 Issue；只有 Captain identity 可以结构化 resolve Question 或 dispose Issue。local controller 不得执行这四个动作。身份或角色不符必须拒绝，不能以自然语言、Manager 计划、local control 或风险处置替代该授权边界。
 
 ### MO-FR-7：提案、立场与决策
 
@@ -122,7 +123,7 @@
 6. 达到业务完成条件时，即使仍有非阻塞后续事项、待讨论事项、已接受风险或少数意见，会议也可以正常完成。
 7. 会议不能完成时，必须区分部分完成、无共识、取消和内部失败，并说明原因及未解决事项。
 8. 最大正式消息数、最大会议时长、任务与审核时限限制继续工作；不得以固定轮次数或每轮发言人数代替证据轮次的状态收口条件。最后一次合法且已公开事实更新同时满足完成条件与预算边界时，按正常完成处理；预算在轮内耗尽时停止新增工作、保留待收口项并报告异常结束或人工处置，不得绕过审核继续发布。
-9. Captain 或 loopback 本地用户的结构化风险处置必须明确一个 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、hard constraints、Issue status 和 Meeting lifecycle 限制；`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `disposition=blocking`、`blocking=true`。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。处置后执行确定性完成重算；满足完成条件时进入 `converging` 并停止新贡献安排、清除不再适用的等待状态，本操作不自动结束或归档会议。
+9. Captain 或 loopback 本地用户的结构化风险处置必须明确一个 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、hard constraints、Issue status 和 Meeting lifecycle 限制；`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `classification=blocking`、`blocking=true`。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。处置后执行确定性完成重算；满足完成条件时进入 `converging` 并停止新贡献安排、清除不再适用的等待状态，本操作不自动结束或归档会议。
 
 ### MO-FR-9：暂停、恢复与故障隔离
 

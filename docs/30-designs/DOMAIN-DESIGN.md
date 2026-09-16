@@ -17,7 +17,7 @@ Domain 只定义纯 Meeting 事实、转换前提与不变量。它不依赖 DSH
 
 ## Responsibility, Failure And Observability
 
-Domain 接受完整的当前 MeetingState 与已认证 actor、时间和命令，返回接受后的新 state 与领域事实，或稳定的拒绝原因；它不持久化、重试、发通知、读取时钟或裁剪 caller view。任何结构、引用、枚举、权限前提、生命周期或不变量失败都返回 rejection，且保持输入 state 值等价。Domain 可输出的事实只含本文件实体 ID、转换类型与受影响引用；不能输出 Session、凭据、私信正文、Agent 内部过程或隐藏推理。
+Domain 接受完整的当前 MeetingState 与已认证 actor、时间和命令，返回接受后的新 state 与领域事实，或稳定的拒绝原因；它不持久化、重试、发通知、读取时钟或裁剪 caller view。任何结构、引用、枚举、权限前提、生命周期或不变量失败都返回 rejection，且保持输入 state 值等价。Domain 通常只输出实体 ID、转换类型与受影响引用；Question/Issue 的结构化处置还须一次性输出目标旧/新 status 与 blocking、非空理由及本 Meeting 证据 ID，供 Runtime 连同 actor/time 组成不可变 committed fact。不得输出 Session、凭据、私信正文、Agent 内部过程或隐藏推理。
 
 ## MeetingState
 
@@ -49,17 +49,17 @@ Domain 接受完整的当前 MeetingState 与已认证 actor、时间和命令�
 | `limits` | `MeetingLimits` |
 | `termination?` / `archive?` | 仅终态或归档阶段存在 |
 
-所有数组始终存在。所有跨对象引用必须指向本 Meeting 已存在对象；非法引用使整个命令拒绝。Domain 不为缺失字段补默认值。
+所有数组始终存在。MeetingState 内带明确目标实体种类的跨对象引用必须指向本 Meeting 中该种类已存在对象，不能因另一种类的同字符串 ID 通过；非法 typed FK 使整个命令拒绝。指向当前聚合之外、但仍由受控边界持有的旧 Archive/素材、DSH Definition、授权记录、local controller 或 committed fact 的 ID，以及不带 target kind 的 message/mail `relatedIds[]`，在纯 snapshot validator 中只检验非空 ID/数组结构；其存在性、可见性和归属由创建/接线/恢复切片验证，不能称当前 Domain validator 已证明。Domain 不为缺失字段补默认值。
 
 `ContinuationProvenance` 必含 `sourceArchiveId`、`selectedMaterialIds`、`importedAt`、`importedBy`。每个导入对象保留 sourceArchiveId/sourceMaterialId，只复制被明确选择且调用者有权读取的归档素材；不得复制旧 Meeting ID、identity、Session、capability、完整 transcript、task、mail 或运行状态。
 
 ## Identity And Authority Facts
 
-召集人是可信 loopback local controller，不是 Agent identity、DSH Session 或角色 Definition。`MeetingIdentity` 字段为 `id`、`displayName`、`roles`、`agendaResponsibilityIds`、`reviewResponsibilityIds`、`riskAuthority`、`required`、`definitionId?`、`definitionVersion?`。`roles` 仅允许 `captain|manager|contributor|evidence_reviewer`；同一身份可有多个角色，但正式命令仍逐 action 验证角色。
+召集人是可信 loopback local controller，不是 Agent identity、DSH Session 或角色 Definition。`MeetingIdentity` 字段为 `id`、`displayName`、`roles`、`agendaResponsibilityIds`、`reviewResponsibilityIds`、`riskAuthority`、`required`、`definitionId?`、`definitionVersion?`。两组 responsibility ID 都指本 Meeting 的 `AgendaItem.id`：前者表示该身份承担的 Agenda，后者表示该身份在这些 Agenda 上承担审核职责；未知 Agenda ID 拒绝，不从 displayName 或 Definition 推断。`roles` 仅允许 `captain|manager|contributor|evidence_reviewer`；同一身份可有多个角色，但正式命令仍逐 action 验证角色。`reviewResponsibilityIds` 非空的身份必须具有 `evidence_reviewer` role；每个 Agenda 的 `requiredReviewerIds`（元素为 `MeetingIdentity.id`）与对应身份的 `reviewResponsibilityIds` 必须双向一致：Agenda 列出的必需审核者须声明负责该 Agenda，声明负责审核该 Agenda 的身份也须在 Agenda 必需审核者列表中。
 
-local controller 不是 `captain` 的别名；`manager` 不能创建 Position、Decision、RiskDisposition 或 CompletionFact；`evidence_reviewer` 不得审核其作者 identity 的 EvidenceVersion。所有正式事实记录 `actorId`。
+local controller 不是 `captain` 的别名；`manager` 不能创建 Position、Decision、RiskDisposition 或 CompletionFact；`evidence_reviewer` 不得审核其作者 identity 的 EvidenceVersion。任一已授权 Meeting identity 可以记录 Question 或 Issue；只有具有 `captain` role 的 identity 可以 resolve Question 或 dispose Issue，local controller 不能执行这四个动作。所有正式事实记录 `actorId`。
 
-`MeetingLifecycle` 必含 `status`、`changedAt`、`changedBy`、`reason?`。status 仅为 `preparing|running|paused|converging|ending|terminal|archiving|archived`；合法边为 `preparing→running`、`running→paused|converging|ending`、`paused→running|ending`、`converging→ending`、`ending→terminal`、`terminal→archiving`、`archiving→archived`。不存在隐式失败边：Agent、Session 或投递失败必须先成为 Issue、Contribution exit 或显式 termination 的理由。`terminal` 必有 termination；`archiving` 必有已物化 archive，Session 关闭失败时保持 archiving；`archived` 必有完整 archive 且所有 Meeting-owned Session 已停止、关闭并撤销会议 capability。
+`MeetingLifecycle` 必含 `status`、`changedAt`、`changedBy`、`reason?`。status 仅为 `preparing|running|paused|converging|ending|terminal|archiving|archived`；合法边为 `preparing→running`、`running→paused|converging|ending`、`paused→running|ending`、`converging→ending`、`ending→terminal`、`terminal→archiving`、`archiving→archived`。不存在隐式失败边：Agent、Session 或投递失败必须先成为 Issue、Contribution exit 或显式 termination 的理由。`terminal` 必有 termination；`archiving` 必有已物化 archive，Session 关闭失败时保持 archiving；`archived` 必有完整 archive 且所有 Meeting-owned Session 已停止、关闭并撤销会议 capability。 纯 MeetingState snapshot validator 可核对 termination/archive 的静态字段与引用，但 Session close/capability revoke 的证明保存在受控 Runtime/Repository 边界，不在聚合字段中；因此不能将静态 archived 校验称为该外部前提已满足。
 
 ## Objective, Agenda, Question And Issue
 
@@ -71,7 +71,11 @@ local controller 不是 `captain` 的别名；`manager` 不能创建 Position、
 
 `Question` 必含 `id`、`actorId`、`agendaId`、`text`、`affectedOutputIds`、`affectedCriterionIds`、`affectedConstraintIds`、`blocking`、`status`；状态为 `open|answered|withdrawn|deferred`。blocking Question 至少关联一个仍未满足的目标引用。
 
-`Issue` 必含 `id`、`agendaId`、`description`、`riskLevel`、`classification`、`blocking`、`status`、`rationale`。classification 为 `blocking|follow_up|pending_discussion|accepted_risk|out_of_scope`；status 为 `open|resolved|deferred|out_of_scope`；riskLevel 为 `low|medium|high`。缺失 riskLevel 不能按默认值处置。
+`resolve_question` 仅从 `open|deferred` 进入 `answered|withdrawn|deferred`；answered/withdrawn 清除 blocking，deferred 保留旧 blocking。终结处置不能再次处置；理由、证据与旧/新 status/blocking 只保存在不可变 committed fact payload，不在当前 Question 复制历史。
+
+`Issue` 必含 `id`、`agendaId`、`description`、`riskLevel`、`classification`、`affectedOutputIds`、`affectedCriterionIds`、`affectedConstraintIds`、`requiredReviewerIds`、`blocking`、`status`、`rationale`。四组显式数组按写入顺序保存且各自不得重复，分别引用本 Meeting 的必要产出、验收条件、硬约束及所属 Agenda 的必需审核者；不通过自由文本制造引用。持久 classification 为 `blocking|follow_up|pending_discussion|accepted_risk|out_of_scope`，但 `record_issue` 只能创建 `blocking|follow_up|pending_discussion|out_of_scope`；`accepted_risk` 只能由合法 `dispose_risk` accept 转换形成。status 为 `open|resolved|deferred|out_of_scope`；riskLevel 为 `low|medium|high`，缺失不得推断默认值。创建时未接受的 high 风险必须 `blocking=true`；其他 open Issue 只有明确关联尚未满足的必要产出、验收条件、硬约束或所属 Agenda 的必需审核者时才可 blocking。创建时 `classification="blocking"` 必须与 `blocking=true` 成对；其它分类必须 `blocking=false`，不匹配的 caller 字段和无资格的 blocking 请求均拒绝而非改写。终结处置可以清除 blocking 但保留原 classification 作为历史分类；deferred 保留原值。
+
+`dispose_issue` 仅从 `open|deferred` 进入 `resolved|deferred|out_of_scope`；resolved/out_of_scope 清除 blocking，deferred 保留旧 blocking。未接受 high 风险不能借 deferred 变成 non-blocking；终结处置不能再次处置。理由、证据与旧/新 status/blocking 只保存在不可变 committed fact payload，不在当前 Issue 复制历史。
 
 ## Round, Contribution And Evidence
 
@@ -95,7 +99,7 @@ local controller 不是 `captain` 的别名；`manager` 不能创建 Position、
 
 `MeetingTask` 必含 `id`、`createdBy`、`assigneeId`、`agendaId?`、`title`、`instructions`、`contextPublicationUpperBound`、`status`、`deadlineAt?`、`result?`、`exitReason?`、`createdAt`、`updatedAt`。status 为 `open|claimed|completed|cancelled|expired`；只有 assignee 可以 claim/complete，且 result 是任务结果而非 FormalMessage、Decision 或 CompletionFact。`ArchivePackage` 必含 `id`、`createdAt`、`createdBy`、`terminationId`、`publicSnapshotVersion`、`includedPublicationIds`、`includedDecisionIds`、`includedCompletionFactIds`、`status`；status 为 `pending|complete|failed`。归档包不含 Session、私信、未发布 Evidence、隐藏推理或运行诊断。
 
-`MeetingLimits` 必含 `maxFormalMessages`、`maxDurationMs`、`taskDeadlineMs`、`reviewDeadlineMs`、`responseDeadlineMs=60000`。`Termination` 必含 `outcome`、`reason`、`endedAt`、`decisionIds`、`completionFactIds`、`unresolvedQuestionIds`、`unresolvedIssueIds`、`unclosedContributionIds`。outcome 为 `completed|partial|no_consensus|cancelled|failed`。
+`MeetingLimits` 必含 `maxFormalMessages`、`maxDurationMs`、`taskDeadlineMs`、`reviewDeadlineMs`、`responseDeadlineMs=60000`。`Termination` 必含由后续 `end_meeting` 的受控 Runtime/Domain 命令上下文生成、调用者不得提交的 `id`，以及 `outcome`、`reason`、`endedAt`、`decisionIds`、`completionFactIds`、`unresolvedQuestionIds`、`unresolvedIssueIds`、`unclosedContributionIds`。outcome 为 `completed|partial|no_consensus|cancelled|failed`；`ArchivePackage.terminationId` 必须等于当前 `Termination.id`。
 
 Task extension: MeetingTask also requires authorizationId, authorizationStatus, attempt, reassignedFromTaskId optional, startedAt optional, completedAt optional. authorizationStatus is active, revoked, or expired. Reassign atomically revokes the old authorization and creates a new task/authorization; a revoked task can never claim, complete, or project a result. Task creation requires the caller's active contribution/task authorization and matching agenda/context. An assignee cannot hold a claimed mail and a nonterminal formal Contribution simultaneously.
 
