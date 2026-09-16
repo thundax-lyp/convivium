@@ -51,6 +51,9 @@ function epoch(value: unknown): value is number {
 function integer(value: unknown): value is number {
     return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
+function positiveInteger(value: unknown): value is number {
+    return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
+}
 function oneOf<T extends string>(value: unknown, values: readonly T[]): value is T {
     return typeof value === "string" && values.includes(value as T);
 }
@@ -88,44 +91,12 @@ function checkObjective(value: unknown, path: string): string | undefined {
 
 export function validateMeetingStateV1(value: unknown): MeetingStateValidationResultV1 {
     if (!record(value)) return fail("$");
-    const rootRequired = [
-        "id",
-        "version",
-        "createdAt",
-        "updatedAt",
-        "objective",
-        "lifecycle",
-        "identities",
-        "agenda",
-        "agendaCandidates",
-        "rounds",
-        "contributions",
-        "completionDeclarations",
-        "evidencePackages",
-        "registrations",
-        "reviews",
-        "reviewDeliveries",
-        "publications",
-        "messages",
-        "proposals",
-        "positions",
-        "decisionCandidates",
-        "decisions",
-        "questions",
-        "issues",
-        "riskDispositions",
-        "tasks",
-        "managerPlans",
-        "privateMails",
-        "completionFacts",
-        "limits"
-    ] as const;
-    for (const key of rootRequired) {
+    for (const key of ["id", "version", "createdAt", "updatedAt"] as const) {
         const p = required(value, key, `$.${key}`);
         if (p) return fail(p);
     }
     if (!id(value.id)) return fail("$.id");
-    if (!integer(value.version)) return fail("$.version");
+    if (!positiveInteger(value.version)) return fail("$.version");
     if (!epoch(value.createdAt)) return fail("$.createdAt");
     if (!epoch(value.updatedAt)) return fail("$.updatedAt");
     if (optional(value, "continuation", "$.continuation", record)) return fail("$.continuation");

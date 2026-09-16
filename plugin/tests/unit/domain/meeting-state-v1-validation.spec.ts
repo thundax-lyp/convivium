@@ -143,7 +143,9 @@ describe("T1a", () => {
 
     it("checks scalar and array boundaries", () => {
         invalidAt({ ...base(), id: "  " }, "$.id");
+        invalidAt({ ...base(), version: 0 }, "$.version");
         invalidAt({ ...base(), version: -1 }, "$.version");
+        invalidAt({ ...base(), version: Number.MAX_SAFE_INTEGER + 1 }, "$.version");
         invalidAt({ ...base(), createdAt: -1 }, "$.createdAt");
         invalidAt({ ...base(), updatedAt: 1.5 }, "$.updatedAt");
         invalidAt(
@@ -165,6 +167,22 @@ describe("T1a", () => {
         invalidAt(
             { ...base(), limits: { ...base().limits, responseDeadlineMs: 0 } },
             "$.limits.responseDeadlineMs"
+        );
+        for (const field of [
+            "maxFormalMessages",
+            "maxDurationMs",
+            "taskDeadlineMs",
+            "reviewDeadlineMs"
+        ]) {
+            invalidAt(
+                { ...base(), limits: { ...base().limits, [field]: -1 } },
+                `$.limits.${field}`
+            );
+        }
+        invalidAt({ ...base(), continuation: null }, "$.continuation");
+        invalidAt(
+            { ...base(), objective: { ...base().objective, statement: "" }, rounds: null },
+            "$.objective.statement"
         );
         invalidAt({ ...base(), rounds: null }, "$.rounds");
     });
@@ -192,6 +210,9 @@ describe("T1a", () => {
             "affectedConstraintIds",
             "requiredReviewerIds"
         ]) {
+            const missing = { ...issue } as Record<string, unknown>;
+            delete missing[field];
+            invalidAt({ ...issueState, issues: [missing] }, `$.issues[0].${field}`);
             const broken = { ...issueState, issues: [{ ...issue, [field]: null }] };
             invalidAt(broken, `$.issues[0].${field}`);
         }
@@ -213,6 +234,9 @@ describe("T1a", () => {
             termination
         };
         expect(validateMeetingStateV1(terminal)).toMatchObject({ kind: "valid" });
+        const missingTerminationId = { ...termination } as Record<string, unknown>;
+        delete missingTerminationId.id;
+        invalidAt({ ...terminal, termination: missingTerminationId }, "$.termination.id");
         invalidAt({ ...terminal, termination: { ...termination, id: null } }, "$.termination.id");
     });
 });
