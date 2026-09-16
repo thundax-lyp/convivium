@@ -5,6 +5,16 @@ export function endMeetingV1(state: MeetingState, now: number, actorId: string):
         return state;
     return {
         ...structuredClone(state),
-        lifecycle: { status: "terminal", changedAt: now, changedBy: actorId }
+        lifecycle: { status: "terminal", changedAt: now, changedBy: actorId },
+        identityRecommendations: state.identityRecommendations.map((item) =>
+            item.status === "provisioning"
+                ? {
+                      ...item,
+                      status: "failed" as const,
+                      resolvedAt: now,
+                      failureCode: "ADMISSION_CONFLICT"
+                  }
+                : item
+        )
     };
 }
