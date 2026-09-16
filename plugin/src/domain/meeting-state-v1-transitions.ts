@@ -172,33 +172,76 @@ export function transitionMeetingStateV1(
     )
         return invalid(state, "INVALID_ARGUMENT");
 
-    if (action.kind !== "pause_meeting" && action.kind !== "resume_meeting")
-        return invalid(state, "INVALID_ARGUMENT");
-    if (typeof action.reason !== "string" || action.reason.trim().length === 0)
-        return invalid(state, "INVALID_ARGUMENT");
-    if (actor.kind !== "local_controller") return invalid(state, "UNAUTHORIZED");
+    if (action.kind === "pause_meeting" || action.kind === "resume_meeting") {
+        if (typeof action.reason !== "string" || action.reason.trim().length === 0)
+            return invalid(state, "INVALID_ARGUMENT");
+        if (actor.kind !== "local_controller") return invalid(state, "UNAUTHORIZED");
+    } else if (action.kind === "activate_agenda") {
+        if (
+            !validId(action.agendaId) ||
+            typeof action.reason !== "string" ||
+            action.reason.trim().length === 0 ||
+            !["completed", "deferred", "closed"].includes(action.previousDisposition)
+        )
+            return invalid(state, "INVALID_ARGUMENT");
+        if (actor.kind !== "identity") return invalid(state, "UNAUTHORIZED");
+        const captain = state.identities.find(
+            (identity) => identity.id === actor.id && identity.roles.includes("captain")
+        );
+        if (!captain) return invalid(state, "UNAUTHORIZED");
+    } else return invalid(state, "INVALID_ARGUMENT");
     if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
         return invalid(state, "MEETING_TERMINAL");
 
-    const expected = action.kind === "pause_meeting" ? "running" : "paused";
-    const nextStatus = action.kind === "pause_meeting" ? "paused" : "running";
-    if (state.lifecycle.status !== expected) return invalid(state, "INVALID_STATE");
+    let nextStatus: MeetingState["lifecycle"]["status"];
+    let relatedIds: readonly OpaqueId[];
+    let nextAgenda = state.agenda;
+    let nextLifecycle = state.lifecycle;
+    if (action.kind === "pause_meeting" || action.kind === "resume_meeting") {
+        const expected = action.kind === "pause_meeting" ? "running" : "paused";
+        nextStatus = action.kind === "pause_meeting" ? "paused" : "running";
+        if (state.lifecycle.status !== expected) return invalid(state, "INVALID_STATE");
+        relatedIds = [state.id];
+    } else {
+        if (state.lifecycle.status !== "running") return invalid(state, "INVALID_STATE");
+        const agendaAction = action as Extract<TargetMeetingActionV1, { kind: "activate_agenda" }>;
+        const target = state.agenda.find((agenda) => agenda.id === agendaAction.agendaId);
+        if (!target) return invalid(state, "NOT_FOUND");
+        const oldIndex = state.agenda.findIndex((agenda) => agenda.status === "active");
+        const old = oldIndex < 0 ? undefined : state.agenda[oldIndex];
+        if (!old || target.status !== "pending") return invalid(state, "INVALID_STATE");
+        if (target.id === old.id) return invalid(state, "PRECONDITION_FAILED");
+        if (state.rounds.some((round) => round.agendaId === old.id && round.status === "open"))
+            return invalid(state, "PRECONDITION_FAILED");
+        nextStatus = "running";
+        relatedIds = [state.id, old.id, target.id];
+        nextAgenda = state.agenda.map((agenda) =>
+            agenda.id === old.id
+                ? { ...agenda, status: agendaAction.previousDisposition }
+                : agenda.id === target.id
+                  ? { ...agenda, status: "active" }
+                  : agenda
+        );
+    }
 
-    const nextState: MeetingState = {
-        ...state,
-        version: state.version + 1,
-        updatedAt: now,
-        lifecycle: {
+    if (action.kind === "pause_meeting" || action.kind === "resume_meeting")
+        nextLifecycle = {
             ...state.lifecycle,
             status: nextStatus,
             changedAt: now,
             changedBy: actor.id,
             reason: action.reason
-        }
+        };
+
+    const nextState: MeetingState = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: now,
+        agenda: nextAgenda,
+        lifecycle: nextLifecycle
     };
     if (validateMeetingStateV1(nextState).kind !== "valid")
         return invalid(state, "PRECONDITION_FAILED");
-    const relatedIds = [state.id] as const;
     return {
         kind: "accepted",
         state: nextState,
