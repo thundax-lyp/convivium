@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { sendPrivateMailV1, startPrivateMailV1 } from "@/domain/transitions/private-mail-v1.js";
+import {
+    cancelPrivateMailV1,
+    completePrivateMailV1,
+    expirePrivateMailV1,
+    sendPrivateMailV1,
+    startPrivateMailV1
+} from "@/domain/transitions/private-mail-v1.js";
 import type { MeetingState } from "@/domain/meeting-state-v1.js";
 
 function state(): MeetingState {
@@ -148,6 +154,39 @@ describe("private mail transitions", () => {
                     processingContextPublicationUpperBound: ["pub-1"],
                     processingStartedAt: 20
                 });
+        }
+    });
+    it("completes, cancels, and expires with lifecycle fields", () => {
+        const sent = sendPrivateMailV1(state(), {
+            mailId: "mail-1",
+            senderId: "sender",
+            recipientId: "recipient",
+            body: "hello",
+            relatedIds: ["pub-1"],
+            now: 10
+        });
+        expect(sent.kind).toBe("accepted");
+        if (sent.kind === "accepted") {
+            const completed = completePrivateMailV1(sent.state, {
+                mailId: "mail-1",
+                recipientId: "recipient",
+                now: 20
+            });
+            expect(completed.kind).toBe("rejected");
+            const cancelled = cancelPrivateMailV1(sent.state, {
+                mailId: "mail-1",
+                senderId: "sender",
+                reason: "stop",
+                now: 20
+            });
+            expect(cancelled.kind).toBe("accepted");
+            const expired = expirePrivateMailV1(sent.state, {
+                mailId: "mail-1",
+                actorKind: "deadline_handler",
+                reason: "late",
+                now: 110
+            });
+            expect(expired.kind).toBe("accepted");
         }
     });
 });
