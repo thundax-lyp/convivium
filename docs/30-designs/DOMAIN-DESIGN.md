@@ -126,7 +126,7 @@ Publication.exitReasons 与所属 Round.contributionIds 等长且同顺序；每
 
 ## Derived Rules
 
-`isRoundClosable`、`isObjectiveSatisfied`、`pendingDecisionCandidates`、`parkingLot` 和 caller-visible projections 必须是纯派生函数，不持久化第二份状态。pendingDecisionCandidates 只含当前 ProposalRevision 的 Candidate、Meeting 可执行且尚未被接受为 Decision 的项；仅 Captain/local 可见。业务完成只由已公开的 active CompletionFact、required review、Decision、ObjectiveContract、hard constraints 和 blocking Issue 推导；Task 完成、评分、轮次或自然语言总结不直接完成 Meeting。
+`isRoundClosable`、`isObjectiveSatisfied`、`pendingDecisionCandidates`、`parkingLot` 和 caller-visible projections 必须是纯派生函数，不持久化第二份状态。pendingDecisionCandidates 只含当前 ProposalRevision 中没有任何 Decision 引用的 Candidate，且只在 lifecycle=`running|paused` 时非空；`paused` 表示恢复后可继续，`preparing|converging|ending|terminal|archiving|archived` 均返回空集合。该集合仅 Captain/local 可见。业务完成只由已公开的 active CompletionFact、required review、Decision、ObjectiveContract、hard constraints 和 blocking Issue 推导；Task 完成、评分、轮次或自然语言总结不直接完成 Meeting。CompletionDeclaration 的 Participant 精确为 `MeetingIdentity.roles` 包含 `contributor` 的已存在 identity；该声明不授予 manager-only、evidence-reviewer-only、local controller 或仅 Captain 身份。会清除 blocking Issue 并触发完成重算的 `dispose_issue` 只在 running 合法，从而保持唯一的 `running→converging` 边。
 
 ## Acceptance
 
