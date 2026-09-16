@@ -5,11 +5,11 @@ import type {
     PositionV1,
     ProposalRevisionV1,
     DecisionCandidateV1
-} from "../meeting-state-v1.js";
-import type { DecisionV1 } from "../meeting-state-v1.js";
-import type { IssueV1 } from "../meeting-state-v1.js";
-import type { CompletionDeclarationV1, CompletionFactV1 } from "../meeting-state-v1.js";
-import { validateMeetingStateV1 } from "../meeting-state-v1-validation.js";
+} from "@/domain/meeting-state-v1.js";
+import type { DecisionV1 } from "@/domain/meeting-state-v1.js";
+import type { IssueV1 } from "@/domain/meeting-state-v1.js";
+import type { CompletionDeclarationV1, CompletionFactV1 } from "@/domain/meeting-state-v1.js";
+import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
 import type { MeetingTransitionResultV1 } from "./result-v1.js";
 import { rejectedTransitionV1 } from "./result-v1.js";
 

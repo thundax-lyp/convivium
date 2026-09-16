@@ -71,3 +71,28 @@ export {
 } from "./meeting-identity-v1.js";
 
 export * from "./attendance-rejection.js";
+export {
+    recordProposalRevisionV1,
+    recordPositionV1,
+    recordDecisionCandidateV1,
+    pendingDecisionCandidatesV1,
+    decideV1,
+    changeDecisionV1,
+    disposeRiskV1,
+    submitCompletionDeclarationV1,
+    recordCompletionFactV1,
+    changeCompletionFactV1,
+    isObjectiveSatisfiedV1
+} from "./outcome-v1.js";
+export type {
+    OutcomeActorV1,
+    RecordProposalRevisionInputV1,
+    RecordPositionInputV1,
+    RecordDecisionCandidateInputV1,
+    DecideInputV1,
+    ChangeDecisionInputV1,
+    DisposeRiskInputV1,
+    SubmitCompletionDeclarationInputV1,
+    RecordCompletionFactInputV1,
+    ChangeCompletionFactInputV1
+} from "./outcome-v1.js";
