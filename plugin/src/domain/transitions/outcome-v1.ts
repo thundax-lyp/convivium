@@ -134,6 +134,11 @@ const evidenceOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
     validArray(ids) && ids.every((id) => published(s).has(id));
 const currentRevision = (s: MeetingState, proposalId: string) =>
     s.proposals.filter((p) => p.proposalId === proposalId).sort((a, b) => b.ordinal - a.ordinal)[0];
+const actorRole = (s: MeetingState, actor: OutcomeActorV1, role: "contributor" | "captain") =>
+    actor.kind === "identity" &&
+    s.identities.some((i) => i.id === actor.id && i.roles.includes(role));
+const uniqueEntity = (s: MeetingState, id: string, key: keyof MeetingState) =>
+    (s[key] as readonly { id: string }[]).some((x) => x.id === id);
 
 export function recalculateMeetingCompletionV1(
     state: MeetingState,
@@ -205,18 +210,118 @@ export function recordProposalRevisionV1(
 
 export function recordPositionV1(
     state: MeetingState,
-    _input: RecordPositionInputV1
+    input: RecordPositionInputV1
 ): MeetingTransitionResultV1 {
-    return bad(state, "PRECONDITION_FAILED");
+    const e = base(state, input.actor, input.now);
+    if (e) return e;
+    if (
+        !validId(input.positionId) ||
+        !validId(input.proposalRevisionId) ||
+        !validId(input.rationale) ||
+        !["support", "oppose", "abstain", "conditional"].includes(input.stance) ||
+        !evidenceOk(state, input.evidenceIds)
+    )
+        return bad(state, "INVALID_ARGUMENT");
+    if (!actorRole(state, input.actor, "contributor") && !actorRole(state, input.actor, "captain"))
+        return bad(state, "UNAUTHORIZED");
+    const revision = state.proposals.find((p) => p.id === input.proposalRevisionId);
+    if (!revision)
+        return bad(state, "NOT_FOUND", "proposal revision not found", input.proposalRevisionId);
+    if (currentRevision(state, revision.proposalId)?.id !== revision.id)
+        return bad(state, "PRECONDITION_FAILED", "proposal revision is not current", revision.id);
+    if (uniqueEntity(state, input.positionId, "positions")) return bad(state, "INVALID_ARGUMENT");
+    const position: PositionV1 = {
+        id: input.positionId,
+        proposalRevisionId: input.proposalRevisionId,
+        actorId: input.actor.id,
+        stance: input.stance,
+        rationale: input.rationale.trim(),
+        evidenceIds: [...input.evidenceIds],
+        createdAt: input.now
+    };
+    const next = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        positions: [...state.positions, position]
+    };
+    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    return {
+        kind: "accepted",
+        state: next,
+        relatedIds: [position.id, position.proposalRevisionId, ...position.evidenceIds],
+        effectRequests: []
+    };
 }
 export function recordDecisionCandidateV1(
     state: MeetingState,
-    _input: RecordDecisionCandidateInputV1
+    input: RecordDecisionCandidateInputV1
 ): MeetingTransitionResultV1 {
-    return bad(state, "PRECONDITION_FAILED");
+    const e = base(state, input.actor, input.now);
+    if (e) return e;
+    if (
+        !validId(input.candidateId) ||
+        !validId(input.proposalRevisionId) ||
+        !validId(input.rationale) ||
+        !["adopt", "reject", "defer"].includes(input.outcome) ||
+        !validArray(input.positionIds) ||
+        !evidenceOk(state, input.evidenceIds)
+    )
+        return bad(state, "INVALID_ARGUMENT");
+    if (!actorRole(state, input.actor, "contributor") && !actorRole(state, input.actor, "captain"))
+        return bad(state, "UNAUTHORIZED");
+    const revision = state.proposals.find((p) => p.id === input.proposalRevisionId);
+    if (!revision)
+        return bad(state, "NOT_FOUND", "proposal revision not found", input.proposalRevisionId);
+    if (currentRevision(state, revision.proposalId)?.id !== revision.id)
+        return bad(state, "PRECONDITION_FAILED", "proposal revision is not current", revision.id);
+    if (uniqueEntity(state, input.candidateId, "decisionCandidates"))
+        return bad(state, "INVALID_ARGUMENT");
+    const positions = input.positionIds.map((id) => state.positions.find((p) => p.id === id));
+    if (positions.some((p) => !p)) return bad(state, "NOT_FOUND", "position not found");
+    if (positions.some((p) => p!.proposalRevisionId !== revision.id))
+        return bad(
+            state,
+            "PRECONDITION_FAILED",
+            "position belongs to another revision",
+            revision.id
+        );
+    const candidate: DecisionCandidateV1 = {
+        id: input.candidateId,
+        proposalRevisionId: input.proposalRevisionId,
+        actorId: input.actor.id,
+        outcome: input.outcome,
+        rationale: input.rationale.trim(),
+        evidenceIds: [...input.evidenceIds],
+        positionIds: [...input.positionIds],
+        createdAt: input.now
+    };
+    const next = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        decisionCandidates: [...state.decisionCandidates, candidate]
+    };
+    if (validateMeetingStateV1(next).kind !== "valid") return bad(state, "PRECONDITION_FAILED");
+    return {
+        kind: "accepted",
+        state: next,
+        relatedIds: [
+            candidate.id,
+            candidate.proposalRevisionId,
+            ...candidate.positionIds,
+            ...candidate.evidenceIds
+        ],
+        effectRequests: []
+    };
 }
-export function pendingDecisionCandidatesV1(_state: MeetingState): readonly DecisionCandidateV1[] {
-    return [];
+export function pendingDecisionCandidatesV1(state: MeetingState): readonly DecisionCandidateV1[] {
+    if (state.lifecycle.status !== "running" && state.lifecycle.status !== "paused") return [];
+    const current = new Set(state.proposals.map((p) => currentRevision(state, p.proposalId)?.id));
+    const used = new Set(state.decisions.map((d) => d.candidateId));
+    return state.decisionCandidates.filter(
+        (c) => current.has(c.proposalRevisionId) && !used.has(c.id)
+    );
 }
 export function decideV1(state: MeetingState, _input: DecideInputV1): MeetingTransitionResultV1 {
     return bad(state, "PRECONDITION_FAILED");
