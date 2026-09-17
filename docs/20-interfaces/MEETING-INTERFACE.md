@@ -270,7 +270,8 @@ interface MeetingViewV1 {
   managerCatalog?: ManagerCatalogView;
   agenda: AgendaView[]; opportunityRequests: EvidenceOpportunityRequestView[]; rounds: RoundView[]; publications: PublicationView[];
   evidencePackages: EvidencePackageView[]; evidenceReviews: EvidenceReviewView[]; reviewDeliveries: ReviewDeliveryView[];
-  messages: FormalMessageView[]; outcomes: OutcomeView; managerPlans: ManagerPlanView[]; tasks: TaskView[];
+  messages: FormalMessageView[]; questions: QuestionView[]; issues: IssueView[];
+  outcomes: OutcomeView; archive?: ArchiveView; managerPlans: ManagerPlanView[]; tasks: TaskView[];
   privateMail: PrivateMailView[]; controls: AllowedControl[];
 }
 interface RefreshNoticeV1 { kind: "refresh"; meetingId: OpaqueId; committedVersion: number }

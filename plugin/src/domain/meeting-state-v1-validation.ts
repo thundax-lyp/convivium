@@ -48,7 +48,8 @@ function withDefinedOptionals<T extends z.ZodTypeAny>(schema: T, keys: readonly 
                 ctx.addIssue({ code: "custom", path: [key], message: "undefined" });
     });
 }
-const targetStatusSchema = z.enum(["pending", "satisfied", "unsatisfied", "violated"]);
+const targetStatusSchema = z.enum(["pending", "satisfied", "unsatisfied"]);
+const constraintStatusSchema = z.enum(["pending", "satisfied", "violated"]);
 const agendaStatusSchema = z.enum([
     "pending",
     "active",
@@ -71,11 +72,16 @@ const objectiveTargetSchema = z.object({
     text: textSchema,
     status: targetStatusSchema
 });
+const hardConstraintSchema = z.object({
+    id: opaqueIdSchema,
+    text: textSchema,
+    status: constraintStatusSchema
+});
 const objectiveSchema = z.object({
     statement: textSchema,
     requiredOutputs: uniqueEntityArray(objectiveTargetSchema),
     acceptanceCriteria: uniqueEntityArray(objectiveTargetSchema),
-    hardConstraints: uniqueEntityArray(objectiveTargetSchema),
+    hardConstraints: uniqueEntityArray(hardConstraintSchema),
     acceptableRiskLevel: riskLevelSchema
 });
 const lifecycleSchema = z.object({

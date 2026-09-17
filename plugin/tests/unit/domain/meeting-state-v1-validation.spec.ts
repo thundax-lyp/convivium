@@ -115,6 +115,22 @@ describe("MeetingState structure", () => {
         invalidAt({ ...base(), continuation: null }, "$.continuation");
     });
 
+    it.each([
+        ["required output", "requiredOutputs", "violated"],
+        ["acceptance criterion", "acceptanceCriteria", "violated"],
+        ["hard constraint", "hardConstraints", "unsatisfied"]
+    ] as const)("rejects invalid %s status", (_name, field, status) => {
+        const state = base();
+        const invalid = {
+            ...state,
+            objective: {
+                ...state.objective,
+                [field]: [{ ...state.objective[field][0], status }]
+            }
+        };
+        invalidAt(invalid, `$.objective.${field}[0].status`);
+    });
+
     it("requires target participation arrays and the narrowed review contracts", () => {
         for (const field of ["opportunityRequests", "pendingHandRaises", "formatApprovals"]) {
             const missing = base() as unknown as Record<string, unknown>;
