@@ -184,26 +184,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T6：实现 candidate 跨 Agenda 复用
-
-前置状态：T5 PASS。
-
-允许修改：`plugin/src/domain/transitions/meeting-identity-v1.ts`、`plugin/tests/unit/domain/meeting-identity-v1.spec.ts`。
-
-禁止修改：Catalog/application/Session adapter。
-
-执行：严格实现“Candidate 复用”规则和时间/ID来源；新 identity 在 T7d 删除 compatibility 字段前只能写固定空数组 `reviewResponsibilityIds: []`，任何逻辑不得读取它或据此授予 reviewer authority。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/domain/meeting-identity-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：pair duplicate、global provisioning conflict、active reuse、provenance mismatch 全部通过；reuse 无 effect/新 identity；recommendation 不授 reviewer authority。
-
-STOP：必须新建 Session 或扩大权限。
-
 ### T7a：迁移 Round 与 Outcome 的 reviewer 语义
 
 前置状态：T6 PASS。

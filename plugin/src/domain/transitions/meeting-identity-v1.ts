@@ -90,12 +90,21 @@ export function recommendIdentityV1(
         return reject(state, "PRECONDITION_FAILED");
     if (!state.agenda.some((agenda) => agenda.id === action.agendaId))
         return reject(state, "NOT_FOUND");
-    const duplicate = state.identityRecommendations.some(
-        (item) =>
-            item.candidateId === action.candidateId &&
-            (item.status === "provisioning" || item.status === "active")
+    const candidateRecommendations = state.identityRecommendations.filter(
+        (item) => item.candidateId === action.candidateId
     );
-    if (duplicate) return reject(state, "INVALID_STATE");
+    if (candidateRecommendations.some((item) => item.status === "provisioning"))
+        return reject(state, "INVALID_STATE");
+    const active = candidateRecommendations.find((item) => item.status === "active");
+    if (active?.agendaId === action.agendaId) return reject(state, "INVALID_STATE");
+    if (
+        active !== undefined &&
+        (action.decision !== "admit" ||
+            active.definitionId !== action.definitionId ||
+            active.definitionVersion !== action.definitionVersion ||
+            active.definitionHash === undefined)
+    )
+        return reject(state, "PRECONDITION_FAILED");
     const recommendation: IdentityRecommendationV1 =
         action.decision === "reject"
             ? {
@@ -107,19 +116,32 @@ export function recommendIdentityV1(
                   status: "rejected",
                   resolvedAt: now
               }
-            : {
-                  ...action,
-                  decision: "admit",
-                  id: ids.recommendationId,
-                  managerId,
-                  createdAt: now,
-                  status: "provisioning",
-                  identityId: ids.identityId ?? "",
-                  childSessionId: ids.childSessionId ?? "",
-                  definitionHash: "0".repeat(64)
-              };
+            : active === undefined
+              ? {
+                    ...action,
+                    decision: "admit",
+                    id: ids.recommendationId,
+                    managerId,
+                    createdAt: now,
+                    status: "provisioning",
+                    identityId: ids.identityId ?? "",
+                    childSessionId: ids.childSessionId ?? "",
+                    definitionHash: "0".repeat(64)
+                }
+              : {
+                    ...action,
+                    decision: "admit",
+                    id: ids.recommendationId,
+                    managerId,
+                    createdAt: now,
+                    status: "active",
+                    identityId: active.identityId,
+                    childSessionId: active.childSessionId,
+                    definitionHash: active.definitionHash,
+                    resolvedAt: now
+                };
     if (action.decision === "admit" && (!valid(ids.identityId) || !valid(ids.childSessionId)))
-        return reject(state, "INVALID_ARGUMENT");
+        if (active === undefined) return reject(state, "INVALID_ARGUMENT");
     const nextState = {
         ...state,
         version: state.version + 1,
@@ -137,7 +159,7 @@ export function recommendIdentityV1(
         state: nextState,
         fact,
         facts: [fact],
-        ...(action.decision === "admit"
+        ...(action.decision === "admit" && active === undefined
             ? {
                   effect: {
                       kind: "identity_provision" as const,
