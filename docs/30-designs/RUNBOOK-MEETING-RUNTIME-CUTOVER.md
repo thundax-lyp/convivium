@@ -185,26 +185,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T10g：删除 repository 持久 team bridge
-
-前置状态：T10f PASS。
-
-允许修改：`plugin/src/repository/domain/schemas.ts`、`plugin/src/repository/domain/domain-repository-registry.ts`、`plugin/src/repository/domain/domain-meeting-repository-core.ts`、`plugin/tests/unit/repository/domain/schemas.spec.ts`、`plugin/tests/contract/domain-repository-registry.spec.ts`、`plugin/tests/contract/domain-meeting-repository.spec.ts`。
-
-禁止修改：runtime/application/DSH/protocol/fixture。
-
-执行：从 `CatalogMeetingRecordV1Schema`、`CreationRecordV1Schema` 与 persisted snapshot Schema 删除 teamId；core 删除 bridge property/options、所有 record/snapshot 写入、legacy label team comparison 和 catalog update 中的 team 字段；registry 删除 T10d 的 optional input/fallback，`openMeeting` input 精确为 `{meetingId,create?}`，catalog/creation/reconcile/cached validation 全部只比较 meetingId。更新三个 contract/unit suite：canonical record、snapshot 与 repository input 均无 teamId；带 teamId 的 strict persistent record拒绝并由既有 repository error 边界 fail closed；同 meetingId 仍只有一个 repository。不得扫描旧 team-key、从 snapshot 推导 namespace、迁移或回写旧 record。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/repository/domain/schemas.spec.ts tests/contract/domain-repository-registry.spec.ts tests/contract/domain-meeting-repository.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：`rg -n 'teamId' plugin/src/repository` 无输出；repository contract、registry 与 host typecheck 退出 0。
-
-STOP：仍有 production caller、record 或 Schema 需要 teamId；不得延长过渡接收。
-
 ### T11：实现 generic codec 与 atomic facts commit
 
 前置状态：T10g PASS。

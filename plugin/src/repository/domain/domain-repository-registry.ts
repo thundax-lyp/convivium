@@ -31,7 +31,6 @@ export interface DomainRepositoryRegistryOptions {
 }
 
 export interface OpenDomainMeetingInput {
-    readonly teamId?: string;
     readonly meetingId: string;
     readonly create?: CreateMeetingInput;
 }
@@ -92,7 +91,7 @@ export class DomainRepositoryRegistry {
         );
     }
 
-    listMeetings(_teamId?: string): CatalogMeetingRecordV1[] {
+    listMeetings(): CatalogMeetingRecordV1[] {
         this.ensureOpen();
         const records: CatalogMeetingRecordV1[] = [];
         for (const [key, record] of this.catalog.table("meetings").entries()) {
@@ -150,22 +149,12 @@ export class DomainRepositoryRegistry {
                 );
         }
         const domainName = catalog?.domainName ?? meetingDomainName(input.meetingId);
-        const initialTeamId = input.create?.initialState.teamId;
-        const teamId = catalog?.teamId ?? input.teamId ?? initialTeamId;
-        if (typeof teamId !== "string" || teamId.trim().length === 0)
-            throw new RepositoryError(
-                "INVALID_INPUT",
-                false,
-                input.meetingId,
-                "Legacy repository payload requires teamId during source cutover"
-            );
         const domain = await this.storageDomain.open(createMeetingDomainSpec(domainName));
         try {
             if (catalog) await this.reconcile(domain, key, catalog);
             const repository = await DomainMeetingRepository.open({
                 catalogDomain: this.catalog,
                 meetingDomain: domain,
-                teamId: teamId.trim(),
                 meetingId: input.meetingId,
                 authorizationValidator: this.authorizationValidator,
                 now: this.now,

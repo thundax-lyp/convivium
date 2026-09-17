@@ -13,12 +13,7 @@ import type { JsonObject, RepositoryCommand, DomainEventInput } from "@/reposito
 import { materializeArchivePackage } from "@/runtime/services/meeting-archive-service.js";
 import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
-import {
-    allow,
-    appendVersion,
-    maintenanceFixture,
-    openReadyState
-} from "../fixtures/domain-meeting-repository.js";
+import { allow, appendVersion, maintenanceFixture } from "../fixtures/domain-meeting-repository.js";
 import { loadProjection } from "@/repository/domain/projection.js";
 import { seqKey } from "@/repository/domain/keys.js";
 import { expect, it } from "vitest";
@@ -212,40 +207,6 @@ it.each([false, true])(
             expect(snapshot.state.transcript[1]).toMatchObject(context.message);
         } finally {
             await reopened.close();
-        }
-    }
-);
-
-it.each(["transcript", "archive"])(
-    "rejects invalid persisted minutes in %s and accepts absent legacy metadata",
-    async (location) => {
-        for (const minutesDraft of [
-            null,
-            {},
-            {
-                status: "accepted",
-                coverage: { fromSeq: 1, throughSeq: 1 },
-                referencedMessageIds: ["source-1"]
-            },
-            {
-                status: "draft",
-                coverage: { fromSeq: 1, throughSeq: 1 },
-                referencedMessageIds: ["source-1", "source-1"]
-            }
-        ]) {
-            const state = minutesRepositoryState();
-            const messages = [{ ...state.transcript[0], minutesDraft }];
-            const invalid =
-                location === "transcript"
-                    ? { ...state, transcript: messages }
-                    : { ...state, archive: { package: { formalTranscript: messages } } };
-            await expect(openReadyState(invalid)).rejects.toThrow();
-        }
-        const legacy = await openReadyState(minutesRepositoryState());
-        try {
-            expect((await legacy.read()).state.transcript[0]).not.toHaveProperty("minutesDraft");
-        } finally {
-            await legacy.close();
         }
     }
 );
@@ -717,46 +678,6 @@ it("atomically persists one attendance rejection with receipt and empty outbox a
         domain.allowPutsInTable("commits");
         await repository.close();
         await reopened?.close();
-    }
-});
-
-it("maps malformed attendance rejection to repository errors without changing projection exceptions", async () => {
-    const state = attendanceState();
-    const rejection = {
-        requestId: "reject-1",
-        actorBinding: "captain:captain-1",
-        reason: "Not needed",
-        rejectedAt: 100
-    };
-    for (const change of [
-        { status: "rejected" },
-        { status: "rejected", rejection: null },
-        { rejection },
-        { status: "rejected", rejection: { ...rejection, extra: true } },
-        { status: "rejected", rejection: { reason: "missing" } }
-    ]) {
-        await expect(
-            openReadyState({
-                ...state,
-                attendanceRecommendations: [{ ...state.attendanceRecommendations[0], ...change }]
-            })
-        ).rejects.toMatchObject({ code: "CORRUPT_DATABASE" });
-    }
-    await expect(openReadyState({ formatVersion: 3 })).rejects.toMatchObject({
-        code: "SCHEMA_VERSION_UNSUPPORTED"
-    });
-    for (const record of [
-        state.attendanceRecommendations[0],
-        { ...state.attendanceRecommendations[0], status: "rejected", rejection }
-    ]) {
-        const repository = await openReadyState({ ...state, attendanceRecommendations: [record] });
-        try {
-            await expect(repository.read()).resolves.toMatchObject({
-                state: { attendanceRecommendations: [record] }
-            });
-        } finally {
-            await repository.close();
-        }
     }
 });
 

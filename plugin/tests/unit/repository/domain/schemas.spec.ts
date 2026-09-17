@@ -35,7 +35,6 @@ describe("Meeting persistence record schemas", () => {
     };
     const catalog = {
         formatVersion: 1,
-        teamId: "t",
         meetingId: "m",
         domainName: "d",
         status: "ready",
@@ -47,7 +46,6 @@ describe("Meeting persistence record schemas", () => {
     };
     const creation = {
         formatVersion: 1,
-        teamId: "t",
         meetingId: "m",
         status: "creating",
         requestId: "r",
@@ -202,6 +200,25 @@ describe("Meeting persistence record schemas", () => {
             expect(schema.safeParse({ ...value, extra: true }).success).toBe(false);
         }
     });
+    it("rejects the removed team namespace in persistent records", () => {
+        expect(CatalogMeetingRecordV1Schema.safeParse({ ...catalog, teamId: "t" }).success).toBe(
+            false
+        );
+        expect(CreationRecordV1Schema.safeParse({ ...creation, teamId: "t" }).success).toBe(false);
+        expect(
+            PersistenceProjectionV1Schema.safeParse({
+                ...projection,
+                snapshot: {
+                    teamId: "t",
+                    meetingId: "m",
+                    version: 1,
+                    state: {},
+                    createdAt: 1,
+                    updatedAt: 1
+                }
+            }).success
+        ).toBe(false);
+    });
     it("accepts all three strict patch operation schemas", () => {
         for (const value of [
             { op: "remove", path: ["a"] },
@@ -270,7 +287,6 @@ describe("Meeting persistence record schemas", () => {
         const withState = (state: Record<string, unknown>) => ({
             ...projection,
             snapshot: {
-                teamId: "t",
                 meetingId: "m",
                 version: 1,
                 state,

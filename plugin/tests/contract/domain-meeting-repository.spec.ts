@@ -1,11 +1,6 @@
 import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
-import {
-    allow,
-    appendVersion,
-    maintenanceFixture,
-    openReadyState
-} from "../fixtures/domain-meeting-repository.js";
+import { allow, appendVersion, maintenanceFixture } from "../fixtures/domain-meeting-repository.js";
 import { defineMeetingRepositoryBehaviorContract } from "./meeting-repository-behavior.js";
 import {
     createCommitRecord,
@@ -14,7 +9,6 @@ import {
 } from "@/repository/domain/projection.js";
 import { catalogKey, receiptKey, seqKey } from "@/repository/domain/keys.js";
 import { CommitRecordV1Schema } from "@/repository/domain/schemas.js";
-import * as canonicalJson from "@/repository/domain/canonical-json.js";
 import { expect, it, vi } from "vitest";
 
 defineMeetingRepositoryBehaviorContract("DomainMeetingRepository behavior contract", {
@@ -22,7 +16,6 @@ defineMeetingRepositoryBehaviorContract("DomainMeetingRepository behavior contra
         DomainMeetingRepository.open({
             catalogDomain: createFakeCatalogDomain(),
             meetingDomain: createFakeMeetingDomain(),
-            teamId: "team-1",
             meetingId: "meeting-1",
             authorizationValidator,
             now: () => 1
@@ -51,7 +44,6 @@ defineMeetingRepositoryBehaviorContract("DomainMeetingRepository behavior contra
         const badCommit = { ...commit, digest: "0".repeat(64) };
         const readyCreation = {
             formatVersion: 1 as const,
-            teamId: "team-1",
             meetingId: "meeting-1",
             status: "ready" as const,
             requestId: "create",
@@ -75,7 +67,6 @@ defineMeetingRepositoryBehaviorContract("DomainMeetingRepository behavior contra
         const repository = await DomainMeetingRepository.open({
             catalogDomain: catalog,
             meetingDomain: domain,
-            teamId: "team-1",
             meetingId: "meeting-1",
             authorizationValidator: allow,
             now: () => 1
@@ -85,44 +76,10 @@ defineMeetingRepositoryBehaviorContract("DomainMeetingRepository behavior contra
     }
 });
 
-it("preserves legacy reopen and distinguishes unsupported from corrupt LegacyMeetingState", async () => {
-    const legacy = await openReadyState({ count: 0 });
-    await expect(legacy.read()).resolves.toMatchObject({ state: { count: 0 } });
-    await legacy.close();
-    await expect(openReadyState({ formatVersion: 3 })).rejects.toMatchObject({
-        code: "SCHEMA_VERSION_UNSUPPORTED"
-    });
-    await expect(
-        openReadyState({ formatVersion: 2, manager: {}, attendanceRecommendations: null })
-    ).rejects.toMatchObject({ code: "CORRUPT_DATABASE" });
-});
-
-it("reads only the snapshot and returns an isolated nested value", async () => {
-    const repository = await openReadyState({ nested: { values: [1, 2] } });
-    const encode = vi.spyOn(canonicalJson, "encodeCanonicalJson");
-    try {
-        const snapshot = await repository.read();
-        expect(encode).toHaveBeenCalled();
-        for (const [value] of encode.mock.calls) {
-            expect(value).toEqual(snapshot);
-        }
-        (snapshot.state.nested as { values: number[] }).values.push(3);
-        snapshot.version = 99;
-        await expect(repository.read()).resolves.toMatchObject({
-            version: 0,
-            state: { nested: { values: [1, 2] } }
-        });
-    } finally {
-        encode.mockRestore();
-        await repository.close();
-    }
-});
-
 it("still rejects an unsupported LegacyMeetingState format on a live snapshot read", async () => {
     const repository = await DomainMeetingRepository.open({
         catalogDomain: createFakeCatalogDomain(),
         meetingDomain: createFakeMeetingDomain(),
-        teamId: "team-1",
         meetingId: "meeting-1",
         authorizationValidator: allow,
         now: () => 1
@@ -152,7 +109,6 @@ it("writes the complete seq-one projection in one create commit", async () => {
     const repository = await DomainMeetingRepository.open({
         catalogDomain: catalog,
         meetingDomain: meeting,
-        teamId: "team-1",
         meetingId: "meeting-1",
         authorizationValidator: allow,
         now: () => 1,
@@ -238,9 +194,9 @@ it("writes the complete seq-one projection in one create commit", async () => {
         updatedAt: 11
     });
     expect(meeting.table("creation").get("current")?.status).toBe("ready");
-    expect(catalog.table("meetings").get(catalogKey("team-1", "meeting-1"))?.status).toBe("ready");
+    expect(catalog.table("meetings").get(catalogKey("meeting-1"))?.status).toBe("ready");
     expect(snapshots).toHaveLength(1);
-    expect(snapshots[0]).toMatchObject({ teamId: "team-1", meetingId: "meeting-1", version: 0 });
+    expect(snapshots[0]).toMatchObject({ meetingId: "meeting-1", version: 0 });
     await repository.updateCreateResult({
         expectedMeetingVersion: 0,
         result: {
@@ -261,7 +217,6 @@ it("rejects duplicate outbox delivery identities across caller-bound mail reques
     const repository = await DomainMeetingRepository.open({
         catalogDomain: catalog,
         meetingDomain: meeting,
-        teamId: "team-1",
         meetingId: "meeting-1",
         authorizationValidator: allow,
         now: () => 1
@@ -350,7 +305,6 @@ it.each(["creation", "catalog"] as const)(
         const repository = await DomainMeetingRepository.open({
             catalogDomain: catalog,
             meetingDomain: meeting,
-            teamId: "team-1",
             meetingId: "meeting-1",
             authorizationValidator: allow,
             now: () => 1
@@ -364,7 +318,7 @@ it.each(["creation", "catalog"] as const)(
         };
         await repository.create(input);
         if (failurePoint === "creation") meeting.failNextPut("creation", "current");
-        else catalog.failNextPut("meetings", catalogKey("team-1", "meeting-1"));
+        else catalog.failNextPut("meetings", catalogKey("meeting-1"));
 
         await expect(repository.completeCreate(input)).rejects.toThrow("fake put failure");
         await expect(
@@ -379,9 +333,7 @@ it.each(["creation", "catalog"] as const)(
             meetingId: "meeting-1"
         });
         expect(meeting.table("creation").get("current")?.status).toBe("ready");
-        expect(catalog.table("meetings").get(catalogKey("team-1", "meeting-1"))?.status).toBe(
-            "ready"
-        );
+        expect(catalog.table("meetings").get(catalogKey("meeting-1"))?.status).toBe("ready");
         await repository.close();
     }
 );
@@ -392,7 +344,6 @@ it("updates the create result with one projection-only commit", async () => {
     const repository = await DomainMeetingRepository.open({
         catalogDomain: catalog,
         meetingDomain: meeting,
-        teamId: "team-1",
         meetingId: "meeting-1",
         authorizationValidator: allow,
         now: () => 1
@@ -450,7 +401,6 @@ it("updates the create receipt written by a separately authorized completer", as
     const repository = await DomainMeetingRepository.open({
         catalogDomain: catalog,
         meetingDomain: meeting,
-        teamId: "team-1",
         meetingId: "meeting-1",
         authorizationValidator: allow,
         now: () => 1
@@ -494,7 +444,6 @@ it("requires the authorization validator before replay and writes each accepted 
     const repository = await DomainMeetingRepository.open({
         catalogDomain: createFakeCatalogDomain(),
         meetingDomain: meeting,
-        teamId: "team-1",
         meetingId: "meeting-1",
         authorizationValidator: { validateCreate: () => undefined, validateCommand },
         now: () => 20
@@ -571,7 +520,6 @@ it("validates command event and outbox records before commit", async () => {
     const repository = await DomainMeetingRepository.open({
         catalogDomain: createFakeCatalogDomain(),
         meetingDomain: meeting,
-        teamId: "team-1",
         meetingId: "meeting-1",
         authorizationValidator: allow,
         now: () => 20
@@ -634,7 +582,6 @@ it("persists the current outbox lease before renewal and completion", async () =
     const repository = await DomainMeetingRepository.open({
         catalogDomain: createFakeCatalogDomain(),
         meetingDomain: meeting,
-        teamId: "team-1",
         meetingId: "meeting-1",
         authorizationValidator: allow,
         now: () => 1
@@ -706,7 +653,6 @@ it("recovers expired outbox leases on the mutation chain with zero-or-one commit
     const repository = await DomainMeetingRepository.open({
         catalogDomain: createFakeCatalogDomain(),
         meetingDomain: meeting,
-        teamId: "team-1",
         meetingId: "meeting-1",
         authorizationValidator: allow,
         now: () => 1
@@ -769,7 +715,6 @@ it("rolls back state, events and outbox when a commit put fails", async () => {
     const repository = await DomainMeetingRepository.open({
         catalogDomain: catalog,
         meetingDomain: meeting,
-        teamId: "team-1",
         meetingId: "meeting-1",
         authorizationValidator: allow,
         now: () => 1

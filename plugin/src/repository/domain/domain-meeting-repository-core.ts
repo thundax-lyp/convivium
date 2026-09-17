@@ -46,11 +46,11 @@ import { writeCheckpoint } from "./checkpoint.js";
 
 function parseSessionLabel(
     label: string
-): { teamId: string; meetingId: string; participantId?: string } | undefined {
+): { meetingId: string; participantId?: string } | undefined {
     const parts = label.split(":");
     if (parts[0] !== "convivium") return undefined;
     if (parts[1] === "meeting-manager" && parts.length === 4 && parts[2] && parts[3])
-        return { teamId: parts[2], meetingId: parts[3] };
+        return { meetingId: parts[3] };
     if (
         parts[1] === "meeting-participant" &&
         parts.length === 5 &&
@@ -58,7 +58,7 @@ function parseSessionLabel(
         parts[3] &&
         parts[4]
     )
-        return { teamId: parts[2], meetingId: parts[3], participantId: parts[4] };
+        return { meetingId: parts[3], participantId: parts[4] };
     return undefined;
 }
 function isLifecycleTransitionAllowed(
@@ -102,7 +102,6 @@ function hasInvalidOwnershipTransition(
 export interface DomainMeetingRepositoryOpenOptions {
     readonly catalogDomain: CatalogDomain;
     readonly meetingDomain: MeetingDomain;
-    readonly teamId: string;
     readonly meetingId: string;
     readonly authorizationValidator: RepositoryAuthorizationValidator;
     readonly now?: () => number;
@@ -111,7 +110,6 @@ export interface DomainMeetingRepositoryOpenOptions {
 }
 
 export abstract class DomainMeetingRepositoryCore {
-    readonly teamId: string;
     readonly meetingId: string;
     protected readonly catalogDomain: CatalogDomain;
     protected readonly meetingDomain: MeetingDomain;
@@ -132,7 +130,6 @@ export abstract class DomainMeetingRepositoryCore {
     protected constructor(options: DomainMeetingRepositoryOpenOptions) {
         this.catalogDomain = options.catalogDomain;
         this.meetingDomain = options.meetingDomain;
-        this.teamId = options.teamId;
         this.meetingId = options.meetingId;
         this.authorizationValidator = options.authorizationValidator;
         this.now = options.now ?? Date.now;
@@ -402,7 +399,6 @@ export abstract class DomainMeetingRepositoryCore {
             });
             const creation = CreationRecordV1Schema.parse({
                 formatVersion: 1,
-                teamId: this.teamId,
                 meetingId: this.meetingId,
                 status: "creating",
                 requestId: input.requestId,
@@ -418,7 +414,6 @@ export abstract class DomainMeetingRepositoryCore {
             });
             const catalog = CatalogMeetingRecordV1Schema.parse({
                 formatVersion: 1,
-                teamId: this.teamId,
                 meetingId: this.meetingId,
                 domainName: this.meetingDomain.name,
                 status: "creating",
@@ -493,13 +488,12 @@ export abstract class DomainMeetingRepositoryCore {
             const now = input.createdAt ?? this.now();
             const next = createProjection({
                 snapshot: {
-                    teamId: this.teamId,
                     meetingId: this.meetingId,
                     version: 0,
                     state: creation.initialState,
                     createdAt: now,
                     updatedAt: now
-                } as MeetingSnapshot & { teamId: string },
+                },
                 bootstrap: {
                     status: "ready",
                     createRequestId: creation.requestId,
@@ -740,7 +734,6 @@ export abstract class DomainMeetingRepositoryCore {
                 !input.parentSessionId ||
                 !input.provider ||
                 !parsed ||
-                parsed.teamId !== this.teamId ||
                 parsed.meetingId !== this.meetingId
             )
                 throw new RepositoryError(

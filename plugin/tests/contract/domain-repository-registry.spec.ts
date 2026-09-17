@@ -14,10 +14,9 @@ import {
 
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
 
-function catalogRecord(meetingId: string, teamId = "team-1") {
+function catalogRecord(meetingId: string) {
     return {
         formatVersion: 1 as const,
-        teamId,
         meetingId,
         domainName: meetingDomainName(meetingId),
         status: "creating" as const,
@@ -29,10 +28,9 @@ function catalogRecord(meetingId: string, teamId = "team-1") {
     };
 }
 
-function creationRecord(meetingId: string, teamId = "team-1") {
+function creationRecord(meetingId: string) {
     return {
         formatVersion: 1 as const,
-        teamId,
         meetingId,
         status: "creating" as const,
         requestId: `create-${meetingId}`,
@@ -105,9 +103,7 @@ function fixture(records: ReturnType<typeof catalogRecord>[] = []) {
             createFakeMeetingDomain({
                 name: record.domainName,
                 initial: {
-                    creation: new Map([
-                        ["current", creationRecord(record.meetingId, record.teamId)]
-                    ])
+                    creation: new Map([["current", creationRecord(record.meetingId)]])
                 }
             })
         );
@@ -133,7 +129,6 @@ describe("DomainRepositoryRegistry contract", () => {
 
         const listed = registry.listMeetings();
         expect(listed.map(({ meetingId }) => meetingId)).toEqual(["meeting-1", "meeting-2"]);
-        expect(registry.listMeetings("ignored-team")).toEqual(listed);
         expect(facility.calls.filter((name) => name === "convivium_catalog")).toHaveLength(1);
         await registry.close();
     });
@@ -151,8 +146,8 @@ describe("DomainRepositoryRegistry contract", () => {
             authorizationValidator: allow
         });
 
-        const first = registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" });
-        const second = registry.openMeeting({ teamId: "team-2", meetingId: "meeting-1" });
+        const first = registry.openMeeting({ meetingId: "meeting-1" });
+        const second = registry.openMeeting({ meetingId: "meeting-1" });
         release();
         expect(await first).toBe(await second);
         expect(facility.calls.filter((name) => name === record.domainName)).toHaveLength(1);
@@ -162,7 +157,7 @@ describe("DomainRepositoryRegistry contract", () => {
     it("publishes a durable creation failure left behind a creating catalog", async () => {
         const record = catalogRecord("meeting-1");
         const failedCreation = {
-            ...creationRecord("meeting-1", record.teamId),
+            ...creationRecord("meeting-1"),
             status: "creation_failed" as const,
             updatedAt: 2,
             failureCode: "SESSION_FAILED"
@@ -182,9 +177,7 @@ describe("DomainRepositoryRegistry contract", () => {
             authorizationValidator: allow
         });
 
-        await expect(
-            registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" })
-        ).resolves.toBeTruthy();
+        await expect(registry.openMeeting({ meetingId: "meeting-1" })).resolves.toBeTruthy();
         expect(catalog.table("meetings").get(catalogKey("meeting-1"))).toMatchObject({
             status: "creation_failed",
             updatedAt: 2,
@@ -202,12 +195,12 @@ describe("DomainRepositoryRegistry contract", () => {
             authorizationValidator: allow
         });
 
-        await expect(
-            registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" })
-        ).rejects.toThrow("scripted open failure");
-        await expect(
-            registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" })
-        ).resolves.toMatchObject({ teamId: "team-1", meetingId: "meeting-1" });
+        await expect(registry.openMeeting({ meetingId: "meeting-1" })).rejects.toThrow(
+            "scripted open failure"
+        );
+        await expect(registry.openMeeting({ meetingId: "meeting-1" })).resolves.toMatchObject({
+            meetingId: "meeting-1"
+        });
         expect(facility.calls.filter((name) => name === record.domainName)).toHaveLength(2);
         await registry.close();
     });
@@ -221,7 +214,6 @@ describe("DomainRepositoryRegistry contract", () => {
             onProjectionCommitted: (snapshot) => snapshots.push(snapshot)
         });
         const repository = await registry.openMeeting({
-            teamId: "team-1",
             meetingId: "meeting-1",
             create: {
                 requestId: "create-meeting-1",
@@ -239,7 +231,7 @@ describe("DomainRepositoryRegistry contract", () => {
             createdAt: 1
         });
         expect(snapshots).toHaveLength(1);
-        expect(snapshots[0]).toMatchObject({ teamId: "team-1", meetingId: "meeting-1" });
+        expect(snapshots[0]).toMatchObject({ meetingId: "meeting-1" });
         await registry.close();
     });
 
@@ -250,14 +242,14 @@ describe("DomainRepositoryRegistry contract", () => {
             storageDomain: facility,
             authorizationValidator: allow
         });
-        await registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" });
+        await registry.openMeeting({ meetingId: "meeting-1" });
         await catalog.table("meetings").put(catalogKey("meeting-1"), {
             ...record,
             domainName: "convivium_m_wrong"
         });
 
         await expect(
-            registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" })
+            registry.openMeeting({ meetingId: "meeting-1" })
         ).rejects.toMatchObject<RepositoryError>({ code: "CORRUPT_DATABASE" });
         await registry.close();
     });
@@ -269,8 +261,8 @@ describe("DomainRepositoryRegistry contract", () => {
             storageDomain: facility,
             authorizationValidator: allow
         });
-        await registry.openMeeting({ teamId: "team-1", meetingId: "meeting-b" });
-        await registry.openMeeting({ teamId: "team-1", meetingId: "meeting-a" });
+        await registry.openMeeting({ meetingId: "meeting-b" });
+        await registry.openMeeting({ meetingId: "meeting-a" });
 
         await Promise.all([registry.close(), registry.close()]);
 

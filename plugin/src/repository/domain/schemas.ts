@@ -162,7 +162,6 @@ const outboxSeed = z
     .strict();
 const meetingSnapshot = z
     .object({
-        teamId: z.string(),
         meetingId: z.string(),
         version: z.number().int(),
         state: meetingStateTransport,
@@ -212,7 +211,6 @@ const privateMail = z
 export const CatalogMeetingRecordV1Schema = z
     .object({
         formatVersion: z.literal(1),
-        teamId: z.string(),
         meetingId: z.string(),
         domainName: z.string(),
         status: z.enum(["creating", "ready", "creation_failed"]),
@@ -226,7 +224,6 @@ export const CatalogMeetingRecordV1Schema = z
 export const CreationRecordV1Schema = z
     .object({
         formatVersion: z.literal(1),
-        teamId: z.string(),
         meetingId: z.string(),
         status: z.enum(["creating", "ready", "creation_failed"]),
         requestId: z.string(),
