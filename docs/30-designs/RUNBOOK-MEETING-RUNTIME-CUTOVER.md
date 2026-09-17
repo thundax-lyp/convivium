@@ -184,26 +184,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T4a：建立 direct Evidence registration
-
-前置状态：T3b PASS。
-
-允许修改：`plugin/src/domain/meeting-state-v1.ts`、`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/src/domain/transitions/format-evidence-v1.ts`、`plugin/tests/fixtures/meeting-state-v1.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`、`plugin/tests/unit/domain/format-evidence-v1.spec.ts`。
-
-禁止修改：transition barrel、result effect union、review/publish、runtime、其他 fixture。
-
-执行：先把 `RegistrationV1` 及 schema 精确收敛为 `{id,versionId,status:"complete",createdAt}`，不保留 default/strip/manager/missingFields compatibility。保留 `format-evidence-v1.ts` 路径和暂时仍存在的 `reviewEvidenceDraftV1`，新增 direct `submitEvidenceV1(state,input)` 主路径：input 只含 `packageId`、`versionId`、`contributionId`、`authorId`、`evidence`、`now`；作者必须等于 Contribution contributor，初版只接受 preparing Contribution，完整校验后在一次 accepted result 中创建 EvidencePackage ordinal=1、canonical Registration、把 Contribution 置 under_review，并产生唯一 `review_request` effect 指向 `state.evidenceReviewerId`。非法输入返回原 state 和空 effects；不得读取或生成 Manager/hash/approval。旧 draft function 仅为保证本步骤提交仍可编译，下一步必须删除且不得被 direct path 调用。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/format-evidence-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：Registration canonical shape、完整 Evidence 原子登记、非法结构零写、错误 author 零写均通过；direct path 不读取 Manager/hash/approval；state/type、validator、transition 和对应测试均有行为 diff。
-
-STOP：direct registration 必须依赖 Manager/hash/approval，或必须修改本步以外 production 文件。
-
 ### T4b：删除草稿审批路径
 
 前置状态：T4a PASS，direct `submitEvidenceV1` 已是唯一目标登记路径。

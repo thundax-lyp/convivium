@@ -82,35 +82,26 @@ describe("format and evidence transitions", () => {
         expect(result.state.formatApprovals).toEqual([]);
         expect(result.state.contributions[0].status).toBe("format_correction");
     });
-    it("stores only an accepted hash and submits one complete version", () => {
+    it("directly registers one complete version for the contributor", () => {
         const state = stateWithContribution();
-        const hash = "b".repeat(64);
-        const approved = reviewEvidenceDraftV1(state, {
-            contributionId: "contribution-v1",
-            managerId: "manager-v1",
-            evidenceHash: hash,
-            disposition: "accepted",
-            missingFields: [],
-            rationale: "格式齐全",
-            approvalId: "approval-v1",
-            now: 4
-        });
-        if (approved.kind !== "accepted") throw new Error("approval");
-        const result = submitEvidenceV1(approved.state, {
+        const result = submitEvidenceV1(state, {
             contributionId: "contribution-v1",
             authorId: "contributor-v1",
             evidence,
-            verifiedEvidenceHash: hash,
             packageId: "package-v1",
             versionId: "version-v1",
-            registrationId: "registration-v1",
-            now: 5
+            now: 4
         });
         expect(result.kind).toBe("accepted");
         if (result.kind !== "accepted") return;
         expect(result.state.evidencePackages[0].versions).toHaveLength(1);
         expect(result.state.registrations[0].status).toBe("complete");
-        expect(result.state.formatApprovals).toEqual([]);
+        expect(result.state.registrations[0]).toEqual({
+            id: "registration-version-v1",
+            versionId: "version-v1",
+            status: "complete",
+            createdAt: 4
+        });
         expect(result.effectRequests).toEqual([
             {
                 kind: "agent_notice",
@@ -121,31 +112,18 @@ describe("format and evidence transitions", () => {
             }
         ]);
     });
-    it("rejects a hash mismatch atomically", () => {
+    it("rejects an incorrect author atomically", () => {
         const state = stateWithContribution();
-        const approved = reviewEvidenceDraftV1(state, {
+        const result = submitEvidenceV1(state, {
             contributionId: "contribution-v1",
-            managerId: "manager-v1",
-            evidenceHash: "c".repeat(64),
-            disposition: "accepted",
-            missingFields: [],
-            rationale: "完整",
-            approvalId: "approval-v1",
-            now: 4
-        });
-        if (approved.kind !== "accepted") throw new Error("approval");
-        const result = submitEvidenceV1(approved.state, {
-            contributionId: "contribution-v1",
-            authorId: "contributor-v1",
+            authorId: "manager-v1",
             evidence,
-            verifiedEvidenceHash: "d".repeat(64),
             packageId: "package-v1",
             versionId: "version-v1",
-            registrationId: "registration-v1",
-            now: 5
+            now: 4
         });
         expect(result.kind).toBe("rejected");
-        expect(result.kind === "rejected" && result.state).toBe(approved.state);
-        expect(result.kind === "rejected" && result.error.code).toBe("INVALID_ARGUMENT");
+        expect(result.kind === "rejected" && result.state).toBe(state);
+        expect(result.kind === "rejected" && result.error.code).toBe("UNAUTHORIZED");
     });
 });

@@ -377,18 +377,12 @@ const evidencePackageSchema = z.object({
     currentVersionId: opaqueIdSchema,
     versions: z.array(evidenceVersionSchema)
 });
-const registrationSchema = z
-    .object({
-        id: opaqueIdSchema,
-        versionId: opaqueIdSchema,
-        managerId: opaqueIdSchema,
-        status: z.literal("complete"),
-        missingFields: z.array(textSchema),
-        createdAt: epochSchema
-    })
-    .refine((value) => value.status !== "complete" || value.missingFields.length === 0, {
-        path: ["missingFields"]
-    });
+const registrationSchema = z.object({
+    id: opaqueIdSchema,
+    versionId: opaqueIdSchema,
+    status: z.literal("complete"),
+    createdAt: epochSchema
+});
 const reviewDimensionSchema = z.object({
     score: z.union([
         z.literal(0),
@@ -1014,9 +1008,6 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const r = registrations[i];
         const path = `$.registrations[${i}]`;
         if (!ref(r.versionId, versionIds)) return fail(`${path}.versionId`);
-        if (!ref(r.managerId, identityIds)) return fail(`${path}.managerId`);
-        const manager = identityById.get(r.managerId as string);
-        if (!manager || !manager.roles.includes("manager")) return fail(`${path}.managerId`);
     }
     const reviews = parsedState.reviews;
     const reviewById = indexById(reviews);

@@ -279,9 +279,7 @@ export interface EvidencePackageV1 {
 export interface RegistrationV1 {
     id: OpaqueId;
     versionId: OpaqueId;
-    managerId: OpaqueId;
     status: "complete";
-    missingFields: readonly string[];
     createdAt: EpochMs;
 }
 
