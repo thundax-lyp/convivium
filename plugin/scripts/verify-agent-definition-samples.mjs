@@ -12,8 +12,7 @@ const roles = [
     ["verification_reviewer", "verification-review"],
     ["github_research_analyst", "github-source-research"],
     ["arxiv_research_analyst", "arxiv-paper-analysis"],
-    ["web_research_analyst", "web-source-research"],
-    ["meeting_scribe", "referenced-minutes"]
+    ["web_research_analyst", "web-source-research"]
 ];
 const preset = "presets/convivium";
 const files = [
@@ -92,7 +91,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                 !same(Object.keys(doc).sort(), ["definitions", "schemaVersion"]) ||
                 doc.schemaVersion !== 1 ||
                 !Array.isArray(doc.definitions) ||
-                doc.definitions.length !== 9
+                doc.definitions.length !== 8
             )
                 add("DEFINITION_INVALID", "definitions.json");
             else
@@ -106,21 +105,14 @@ export async function verifyMeetingAgentDefinitions(root) {
                                   "convivium_contribution",
                                   "convivium_read_contribution"
                               ]
-                            : i === 8
-                              ? [
-                                    "skill",
-                                    "convivium_meeting_status",
-                                    "convivium_contribution",
-                                    "convivium_read_contribution"
-                                ]
-                              : undefined;
+                            : undefined;
                     const expectedFields = [...fields, ...(allow ? ["toolFilter"] : [])].sort();
                     if (
                         !d ||
                         !same(Object.keys(d).sort(), expectedFields) ||
                         d.agentDefinitionId !== `convivium.${role}` ||
                         d.roleDefinitionId !== role ||
-                        d.definitionVersion !== (i === 0 || i === 8 ? "1.1.0" : "1.0.0") ||
+                        d.definitionVersion !== (i === 0 ? "1.1.0" : "1.0.0") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||
                         ![d.displayName, d.summary, d.roleDescription].every(nonempty) ||
@@ -178,5 +170,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (errors.length) {
         for (const error of errors) console.error(`FAIL ${error.code} ${error.location}`);
         process.exitCode = 1;
-    } else console.log("PASS 9 Meeting Agent Definition deployment roles");
+    } else console.log("PASS 8 Meeting Agent Definition deployment roles");
 }

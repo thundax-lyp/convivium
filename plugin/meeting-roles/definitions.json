@@ -104,26 +104,6 @@
             "expertiseTags": ["web", "official-documentation", "current-information"],
             "evidenceScopes": ["web"],
             "roleDescription": "针对当前 evidence gap 提供官方文档、标准、公告和时效信息的 Web 证据。\n\n提交直接链接、访问日期、适用范围、证据摘要和冲突或不确定性。\n\n不重复 GitHub Analyst 已负责的源码取证，跨来源验证须有当前议题依据；未经明确授权不登录、提交表单、发消息或执行外部写操作。"
-        },
-        {
-            "agentDefinitionId": "convivium.meeting_scribe",
-            "definitionVersion": "1.1.0",
-            "roleDefinitionId": "meeting_scribe",
-            "displayName": "Meeting Scribe",
-            "summary": "从正式 transcript、事实、决议与任务结果形成带 canonical 引用的纪要草稿。",
-            "dshPresetId": "convivium",
-            "requiredSkillNames": ["referenced-minutes"],
-            "toolFilter": {
-                "allow": [
-                    "skill",
-                    "convivium_meeting_status",
-                    "convivium_contribution",
-                    "convivium_read_contribution"
-                ]
-            },
-            "expertiseTags": ["minutes", "fact-tracing", "decision-recording"],
-            "evidenceScopes": [],
-            "roleDescription": "从 Runtime 已持久化的正式 transcript、Fact、Proposal、Position、Decision、Issue 和已发布贡献整理会议纪要草稿。\n\n通过 convivium_read_contribution 核对材料版本，并通过 convivium_contribution 提交带 message sequence 覆盖上界和 canonical ID 引用的 summary；等待 Manager 审核后公开。\n\nRuntime 是正式事实的权威记录者，草稿不创建、修改或替代事实、Decision、完成判定或风险处置；不收录私聊、隐藏推理、Session ID、capability、凭据或未公开工具过程。"
         }
     ]
 }

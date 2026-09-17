@@ -185,26 +185,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T14a：收敛八角色发布资源
-
-前置状态：T13b PASS。
-
-允许修改：`plugin/meeting-roles/definitions.json`、`plugin/meeting-roles/README.md`、`plugin/meeting-roles/cordis.patch.yml`、`plugin/scripts/verify-agent-definition-samples.mjs`、`plugin/tests/contract/meeting-roles-deployment.spec.ts`。
-
-禁止修改：runtime/plugin lifecycle、identity recommendation、Remote/UI。
-
-执行：删除 Scribe 定义和样本；固定 Manager、Evidence Reviewer 与六个 contributor roles；验证 Definition/Preset/Skill 样本。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/contract/meeting-roles-deployment.spec.ts
-pnpm --dir=plugin verify:agent-definitions
-```
-
-PASS：资源精确为八个 roles、专职 Manager/reviewer、无 Scribe；验证命令退出 0。
-
-STOP：需要替代角色、增加第九角色或修改 DSH 能力语义。
-
 ### T14b：建立 target label 与 provisioning codec
 
 前置状态：T14a PASS。
