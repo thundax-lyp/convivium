@@ -2,9 +2,9 @@ import type { MeetingState } from "@/domain/index.js";
 import { recommendIdentityV1, type IdentityRecommendationDraftV1 } from "@/domain/index.js";
 import { readMeetingRoleCatalogV1, type RoleCatalogPortV1 } from "@/dsh/index.js";
 import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
-import type { MeetingCommandRepositoryPortV1 } from "@/repository/meeting-command-repository-v1.js";
+import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { MeetingCommandV1 } from "@/protocol/index.js";
-import type { JsonObject, RepositoryCommand } from "@/repository/types.js";
+import type { RepositoryCommand } from "@/repository/types.js";
 export interface CallerBindingV1 {
     channel: "dsh_tool" | "loopback_remote" | "runtime_recovery" | "deadline_handler";
     principalId: string;
@@ -18,7 +18,7 @@ export interface VerifiedIdentitySessionScopeV1 {
     captainParentAgent: unknown;
 }
 export interface MeetingIdentityApplicationDepsV1 {
-    repository: MeetingCommandRepositoryPortV1;
+    repository: MeetingRepositoryPort<MeetingState>;
     catalog?: RoleCatalogPortV1;
     definitions: readonly MeetingAgentDefinitionV1[];
     ids: {
@@ -114,7 +114,7 @@ export function createMeetingIdentityApplicationV1(deps: MeetingIdentityApplicat
                 expectedContribution: action.expectedContribution,
                 evidenceGap: action.evidenceGap
             };
-            const repositoryCommand: RepositoryCommand<MeetingCommandResultV1> = {
+            const repositoryCommand: RepositoryCommand<MeetingCommandResultV1, MeetingState> = {
                 requestId: command.requestId,
                 commandKind: action.kind,
                 authorization: {
@@ -125,7 +125,7 @@ export function createMeetingIdentityApplicationV1(deps: MeetingIdentityApplicat
                 expectedMeetingVersion: command.expectedMeetingVersion,
                 transition: (snapshot) => {
                     const result = recommendIdentityV1(
-                        snapshot.state as unknown as MeetingState,
+                        snapshot.state,
                         draft,
                         scope.managerId,
                         {
@@ -150,7 +150,7 @@ export function createMeetingIdentityApplicationV1(deps: MeetingIdentityApplicat
                             outbox: []
                         };
                     return {
-                        state: result.state as unknown as JsonObject,
+                        state: result.state,
                         result: {
                             kind: "accepted",
                             meetingId: command.meetingId,

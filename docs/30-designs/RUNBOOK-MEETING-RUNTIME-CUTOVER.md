@@ -70,7 +70,7 @@ local ReadArchive
 | 同一 candidate 跨 Agenda 复用一个 active identity/Session | 纯 Domain active reuse 已完成，identity effect handler 与 recovery 尚未统一到 target command path | T15a-T15b |
 | Scribe 已删除，发布包为 8 个角色 | `plugin/meeting-roles/` 和验证脚本仍含 `meeting_scribe` | T14a |
 | target protocol 只覆盖 identity/read/end/archive | 完整 round/evidence/review action 尚未进入 `MeetingCommandV1Schema` | T8-T9 |
-| target repository/application/projection 必须可真实运行 | `adaptMeetingRepositoryV1`、`createMeetingCommandApplicationV1` 和 `projectMeetingViewV1` 仍是薄 shim | T10-T21 |
+| target repository/application/projection 必须可真实运行 | repository core、command application 和 projection 尚未接通 target atomic commit | T11-T21 |
 
 代码事实以 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为当前覆盖依据；不得把存在的旧源码或历史测试算作目标实现证据。
 
@@ -178,37 +178,40 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T10b：将 repository snapshot/port 类型化
+### T10c：删除 target repository adapter
 
-前置状态：T10a PASS。
+前置状态：T10b PASS，production 已无 `MeetingCommandRepositoryPortV1` 或 `adaptMeetingRepositoryV1` 调用方。
 
-允许修改：`plugin/src/repository/types.ts`、`plugin/src/repository/meeting-repository-port.ts`、`plugin/src/repository/meeting-command-repository-v1.ts`、`plugin/src/repository/domain/schemas.ts`、`plugin/tests/contract/meeting-repository-behavior.ts`。
+允许修改：删除 `plugin/src/repository/meeting-command-repository-v1.ts`；修改 `plugin/tests/contract/meeting-identity-command-v1.spec.ts`。
 
-禁止修改：repository core/projection/recovery、runtime、DSH ownership seam。
+禁止修改：其它 repository、runtime、Domain 或测试文件。
 
-执行：把现有类型参数化为 `MeetingSnapshot<TState=JsonObject>`、`RepositoryCommand<TResult,TState=JsonObject>` 和唯一 `MeetingRepositoryPort<TState=JsonObject>`；这只是同一 port 的 compile-time state 参数，不增加 adapter、runtime 分支或第二接口。target runtime 精确使用 `MeetingRepositoryPort<MeetingState>`，尚未删除的 legacy 文件继续使用默认 `JsonObject`，不得在 target path 做 `MeetingState|LegacyMeetingState` union 或 compatibility read。删除 `adaptMeetingRepositoryV1` 与 `MeetingCommandRepositoryPortV1`。在 `types.ts` 定义与 Meeting Interface 同构的 `CommittedFactRecordV1`，并在唯一 port 增加 `readCommittedFacts(): Promise<readonly CommittedFactRecordV1[]>`，供 start archive 读取已提交 disposition facts，禁止从 state 或日志重建。
-
-在 `RepositoryCommand<T>` 增加唯一 optional 内部字段 `archiveSessionResult?: {sessionOwnershipId:string; status:"closed"|"failed"; failureCode?:string}`：仅 `commandKind="record_archive_session_result"` 可携带；`closed` 禁止 failureCode，`failed` 必须带 trim 后非空 failureCode。该字段不进入公开 action hash，公开 action 的 `failureReason` 经 dispatcher 规范化为此字段；repository 必须把 ownership 更新与 next state/fact/receipt/outbox 放在同一 transaction。不增加第二 repository method 或第二 ownership record。
+执行：把 identity command contract test 的 repository double 精确类型化为 `MeetingRepositoryPort<MeetingState>`，不增加 cast helper或兼容 alias；删除无 production caller 的 `meeting-command-repository-v1.ts`，不得保留转发文件。使用 `rg` 确认源码、测试和 RUNBOOK 不再引用 `MeetingCommandRepositoryPortV1`、`adaptMeetingRepositoryV1` 或删除路径。
 
 验证：
 ```bash
-pnpm --dir=plugin vitest run tests/contract/meeting-repository-behavior.ts
+pnpm --dir=plugin vitest run tests/contract/meeting-identity-command-v1.spec.ts
 pnpm --dir=plugin typecheck:host
+test -z "$(rg -l 'MeetingCommandRepositoryPortV1|adaptMeetingRepositoryV1|meeting-command-repository-v1' plugin/src plugin/tests docs/30-designs/RUNBOOK-MEETING-RUNTIME-CUTOVER.md)"
 ```
 
-PASS：`MeetingRepositoryPort<MeetingState>` 只接受 target snapshot，legacy 默认参数不进入 target activity graph；唯一 port 可读取 committed facts；archiveSessionResult 字段精确；无第二 repository adapter/interface。
+PASS：identity command contract 通过，Host typecheck 通过，旧 interface、adapter 和路径零引用且文件已删除。
 
-STOP：必须退回 JsonObject、dual type 或 migration union。
+STOP：仍有 production caller，或删除要求兼容 alias、转发文件或修改其它文件。
 
 ### T11：实现 repository atomic command commit
 
-前置状态：T10b PASS。
+前置状态：T10c PASS。
 
-允许修改：`plugin/src/repository/domain/projection.ts`、`plugin/src/repository/domain/domain-meeting-repository-core.ts`、`plugin/src/repository/domain/domain-meeting-repository.ts`、`plugin/tests/fixtures/domain-meeting-repository.ts`、`plugin/tests/contract/domain-meeting-repository.spec.ts`、`plugin/tests/contract/domain-meeting-repository-facts.spec.ts`。
+允许修改：`plugin/src/repository/types.ts`、`plugin/src/repository/meeting-repository-port.ts`、`plugin/src/repository/domain/schemas.ts`、`plugin/src/repository/domain/projection.ts`、`plugin/src/repository/domain/domain-meeting-repository.ts`、`plugin/tests/contract/domain-meeting-repository-facts.spec.ts`。
 
-禁止修改：registry/recovery、runtime。
+禁止修改：repository core/registry/recovery、runtime、legacy application tests。
 
-执行：让同一 `DomainMeetingRepository<TState>` 实现 T10b 的唯一 generic port；target 构造只注入 T8 `encodeMeetingStateV1/decodeMeetingStateV1` 并得到 `DomainMeetingRepository<MeetingState>`，legacy tests 的默认构造继续使用既有 JsonObject codec，不得在一次 repository instance 中切换 codec。transaction 内验证 next version 并写 state/fact/receipt/outbox；`readCommittedFacts` 只按 event sequence 返回本 Meeting 已提交 target facts，不能返回 receipt/outbox/legacy event；拒绝不入 repository；实现 replay/conflict/rollback。若 `RepositoryCommand.archiveSessionResult` 存在，先在同一 transaction 内验证 ownership 的 `id`、`meetingId`、`identityId` 和未关闭状态，再与 command state/fact/receipt 一起写入：任一 target identity 字段缺失返回 `RECOVERY_UNAVAILABLE` 且零写；`failed` 保持原 lifecycle/capability 并写 failure code，`closed` 写 `lifecycleStatus="closed"`、`capabilityStatus="revoked"` 并清除 failure code；任何 ownership 或 command 写失败都整笔回滚。
+执行：让同一 `DomainMeetingRepository<TState>` 实现 T10b 的唯一 generic port；target 构造只注入 T8 `encodeMeetingStateV1/decodeMeetingStateV1` 并得到 `DomainMeetingRepository<MeetingState>`，legacy tests 的默认构造继续使用既有 JsonObject codec，不得在一次 repository instance 中切换 codec。codec 只在 repository 的 `read/recover/execute` 边界编解码 state；持久 projection 仍保存 canonical JsonObject，不把 `MeetingState|LegacyMeetingState` union 放入 port 或 persistence Schema。
+
+在 `types.ts` 定义与 Meeting Interface 同构的 `CommittedFactRecordV1`，在唯一 `MeetingRepositoryPort` 增加 `readCommittedFacts(): Promise<readonly CommittedFactRecordV1[]>`；在 `RepositoryCommand<TResult,TState>` 增加 optional `facts:readonly CommittedFactRecordV1[]` 和唯一 optional 内部字段 `archiveSessionResult?: {sessionOwnershipId:string; status:"closed"|"failed"; failureCode?:string}`。legacy command 不提供这两个字段；target dispatcher 必须提供 facts。`archiveSessionResult` 仅 `commandKind="record_archive_session_result"` 可携带，`closed` 禁止 failureCode，`failed` 必须带 trim 后非空 failureCode；该字段不进入公开 action hash。
+
+`PersistenceProjectionV1` 增加独立 `facts` map，由 `createProjection` 初始化为空；不得把 target fact 写进 legacy `events` map。transaction 内验证 next version 并原子写 state/facts/receipt/outbox；`readCommittedFacts` 只按 meetingVersion、再按 factId 返回本 Meeting 已提交 target facts，不能返回 receipt/outbox/legacy event；拒绝不入 repository；实现 replay/conflict/rollback。若 `RepositoryCommand.archiveSessionResult` 存在，先在同一 transaction 内验证 ownership 的 `id`、`meetingId`、`identityId` 和未关闭状态，再与 command state/facts/receipt/outbox 一起写入：任一 target identity 字段缺失返回 `RECOVERY_UNAVAILABLE` 且零写；`failed` 保持原 lifecycle/capability 并写 failure code，`closed` 写 `lifecycleStatus="closed"`、`capabilityStatus="revoked"` 并清除 failure code；任何 ownership 或 command 写失败都整笔回滚。
 
 验证：
 ```bash

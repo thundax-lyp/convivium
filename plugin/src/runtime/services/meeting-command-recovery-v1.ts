@@ -1,8 +1,9 @@
-import type { MeetingCommandRepositoryPortV1 } from "@/repository/meeting-command-repository-v1.js";
+import type { MeetingState } from "@/domain/index.js";
+import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { RecoveryResult } from "@/repository/types.js";
 
 export async function recoverMeetingCommandsV1(
-    repository: MeetingCommandRepositoryPortV1
-): Promise<RecoveryResult> {
+    repository: MeetingRepositoryPort<MeetingState>
+): Promise<RecoveryResult<MeetingState>> {
     return repository.recover();
 }

@@ -9,11 +9,11 @@ export type MeetingEventType = DomainEventType;
 export const OUTBOX_KINDS = ["dispatch"] as const;
 export type OutboxKind = (typeof OUTBOX_KINDS)[number];
 
-export interface MeetingSnapshot {
+export interface MeetingSnapshot<TState = JsonObject> {
     teamId: string;
     meetingId: string;
     version: number;
-    state: JsonObject;
+    state: TState;
     createdAt: number;
     updatedAt: number;
 }
@@ -34,21 +34,21 @@ export interface OutboxInput {
     availableAt?: number;
 }
 
-export interface TransitionResult<T> {
-    state: JsonObject;
+export interface TransitionResult<T, TState = JsonObject> {
+    state: TState;
     result: T;
     events: DomainEventInput[];
     outbox: OutboxInput[];
 }
 
-export interface RepositoryCommand<T> {
+export interface RepositoryCommand<T, TState = JsonObject> {
     requestId: string;
     commandKind: string;
     authorization: CommandAuthorization;
     requestHash: string;
     expectedMeetingVersion: number;
     allowNoop?: boolean;
-    transition: (snapshot: MeetingSnapshot) => TransitionResult<T>;
+    transition: (snapshot: MeetingSnapshot<TState>) => TransitionResult<T, TState>;
 }
 
 export interface CommandAuthorization {
@@ -155,8 +155,8 @@ export interface RecoverInput {
     now?: number;
 }
 
-export interface RecoveryResult {
-    snapshot?: MeetingSnapshot;
+export interface RecoveryResult<TState = JsonObject> {
+    snapshot?: MeetingSnapshot<TState>;
     bootstrap: MeetingBootstrap;
     sessionOwnership: SessionOwnership[];
     reclaimedOutbox: number;

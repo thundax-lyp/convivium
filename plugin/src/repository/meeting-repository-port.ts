@@ -11,6 +11,7 @@ import type {
     StartPrivateMeetingMailInput,
     FinishPrivateMeetingMailInput,
     CancelPrivateMeetingMailInput,
+    JsonObject,
     OutboxCompletionResult,
     OutboxItem,
     RecoverInput,
@@ -23,7 +24,7 @@ import type {
     UpdateCreateResultInput
 } from "./types.js";
 
-export interface MeetingRepositoryPort {
+export interface MeetingRepositoryPort<TState = JsonObject> {
     readonly teamId: string;
     readonly meetingId: string;
     create(input: CreateMeetingInput): Promise<MeetingBootstrap>;
@@ -36,7 +37,7 @@ export interface MeetingRepositoryPort {
         replacementSessionId: string,
         now?: number
     ): Promise<SessionOwnership>;
-    read(): Promise<MeetingSnapshot>;
+    read(): Promise<MeetingSnapshot<TState>>;
     readPrivateMeetingMail(mailId: string): Promise<PrivateMeetingMail | undefined>;
     listOverduePrivateMeetingMail(now: number): Promise<PrivateMeetingMail[]>;
     hasUnfinishedPrivateMeetingMail(): Promise<boolean>;
@@ -46,7 +47,7 @@ export interface MeetingRepositoryPort {
     startPrivateMeetingMail(input: StartPrivateMeetingMailInput): Promise<PrivateMeetingMail>;
     finishPrivateMeetingMail(input: FinishPrivateMeetingMailInput): Promise<PrivateMeetingMail>;
     cancelUnfinishedPrivateMeetingMail(input: CancelPrivateMeetingMailInput): Promise<number>;
-    execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>;
+    execute<T>(command: RepositoryCommand<T, TState>): Promise<CommittedResult<T>>;
     claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>;
     completeOutbox(input: CompleteOutboxInput): Promise<OutboxCompletionResult>;
     requeueAcceptedOutbox(input: {
@@ -55,6 +56,6 @@ export interface MeetingRepositoryPort {
         now?: number;
     }): Promise<number>;
     renewOutboxLease(input: RenewOutboxLeaseInput): Promise<number>;
-    recover(input?: RecoverInput): Promise<RecoveryResult>;
+    recover(input?: RecoverInput): Promise<RecoveryResult<TState>>;
     close(): Promise<void>;
 }
