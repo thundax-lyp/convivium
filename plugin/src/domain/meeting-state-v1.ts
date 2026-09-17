@@ -50,8 +50,6 @@ export interface MeetingIdentityV1 {
     displayName: string;
     roles: readonly MeetingRole[];
     agendaResponsibilityIds: readonly OpaqueId[];
-    /** @deprecated legacy compatibility; rejected by canonical validator */
-    reviewResponsibilityIds: readonly OpaqueId[];
     riskAuthority: boolean;
     required: boolean;
     definitionId?: OpaqueId;
@@ -102,8 +100,6 @@ export interface AgendaItemV1 {
     question: string;
     status: "pending" | "active" | "blocked" | "completed" | "deferred" | "closed";
     requiredOutputIds: readonly OpaqueId[];
-    /** @deprecated legacy compatibility; rejected by canonical validator */
-    requiredReviewerIds: readonly OpaqueId[];
     ownerId?: OpaqueId;
 }
 
@@ -138,9 +134,7 @@ export interface IssueV1 {
     affectedOutputIds: readonly OpaqueId[];
     affectedCriterionIds: readonly OpaqueId[];
     affectedConstraintIds: readonly OpaqueId[];
-    requiresEvidenceReview?: boolean;
-    /** @deprecated legacy compatibility; rejected by canonical validator */
-    requiredReviewerIds: readonly OpaqueId[];
+    requiresEvidenceReview: boolean;
     blocking: boolean;
     status: "open" | "resolved" | "deferred" | "out_of_scope";
     rationale: string;
@@ -193,7 +187,6 @@ export interface ContributionV1 {
     status:
         | "preparing"
         | "aborted"
-        | "format_correction"
         | "registered"
         | "under_review"
         | "awaiting_response"
@@ -207,14 +200,6 @@ export interface ContributionV1 {
     supplementHand?: SupplementHandV1;
     exitReason?: string;
     response?: string;
-}
-
-export interface FormatApprovalV1 {
-    id: OpaqueId;
-    contributionId: OpaqueId;
-    managerId: OpaqueId;
-    evidenceHash: string;
-    approvedAt: EpochMs;
 }
 
 export interface TextWithReasonV1 {
@@ -616,8 +601,6 @@ export interface MeetingState {
     pendingHandRaises: readonly PendingHandRaiseV1[];
     contributions: readonly ContributionV1[];
     evidenceReviewerId: OpaqueId;
-    /** @deprecated legacy compatibility; rejected by canonical validator */
-    formatApprovals: readonly FormatApprovalV1[];
     completionDeclarations: readonly CompletionDeclarationV1[];
     evidencePackages: readonly EvidencePackageV1[];
     registrations: readonly RegistrationV1[];

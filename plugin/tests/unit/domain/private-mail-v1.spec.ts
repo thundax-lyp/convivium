@@ -26,9 +26,8 @@ function state(): MeetingState {
         identities: ["sender", "recipient"].map((id) => ({
             id,
             displayName: id,
-            roles: ["contributor"],
-            agendaResponsibilityIds: [],
-            reviewResponsibilityIds: [],
+            roles: id === "sender" ? ["evidence_reviewer"] : ["contributor"],
+            agendaResponsibilityIds: ["agenda-1"],
             riskAuthority: false,
             required: false
         })),
@@ -39,8 +38,7 @@ function state(): MeetingState {
                 title: "a",
                 question: "q",
                 status: "active",
-                requiredOutputIds: [],
-                requiredReviewerIds: []
+                requiredOutputIds: []
             }
         ],
         agendaCandidates: [],
@@ -58,7 +56,7 @@ function state(): MeetingState {
         opportunityRequests: [],
         pendingHandRaises: [],
         contributions: [],
-        formatApprovals: [],
+        evidenceReviewerId: "sender",
         evidencePackages: [],
         registrations: [],
         reviews: [],
@@ -301,7 +299,12 @@ describe("private mail transitions", () => {
             ...sent.state,
             identities: [
                 ...sent.state.identities,
-                { ...sent.state.identities[0], id: "other", displayName: "other" }
+                {
+                    ...sent.state.identities[0],
+                    id: "other",
+                    displayName: "other",
+                    roles: ["contributor"]
+                }
             ],
             privateMails: [sent.state.privateMails[0], { ...other, recipientId: "other" }]
         } as MeetingState;
@@ -694,22 +697,32 @@ describe("private mail transitions", () => {
         };
         const archive = {
             id: "archive-1",
+            status: "complete" as const,
             createdAt: 0,
-            createdBy: "sender",
-            terminationId: termination.id,
             publicSnapshotVersion: 1,
-            includedPublicationIds: ["pub-1"],
-            includedDecisionIds: [],
-            includedCompletionFactIds: [],
-            status: status === "archived" ? ("complete" as const) : ("pending" as const),
-            identityProvenance: base.identities.map((x) => ({
-                identityId: x.id,
-                displayName: x.displayName,
-                roles: x.roles,
-                definitionId: "definition-1",
-                definitionVersion: "1",
-                definitionHash: "0".repeat(64)
-            }))
+            terminationId: termination.id,
+            objective: base.objective,
+            agenda: base.agenda,
+            agendaCandidates: [],
+            publications: [],
+            messages: [],
+            evidenceBundles: [],
+            proposalRevisions: [],
+            positions: [],
+            decisionCandidates: [],
+            decisions: [],
+            completionFacts: [],
+            questions: [],
+            issues: [],
+            riskDispositions: [],
+            questionIssueDispositionFacts: [],
+            termination,
+            unresolvedQuestionIds: [],
+            unresolvedIssueIds: [],
+            unresolvedItemIds: [],
+            unclosedContributions: [],
+            identityProvenance: [],
+            exportMaterials: []
         };
         const candidate = {
             ...base,

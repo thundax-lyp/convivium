@@ -105,7 +105,6 @@ const identitySchema = z
         displayName: textSchema,
         roles: uniqueRoleArraySchema,
         agendaResponsibilityIds: uniqueIdArraySchema,
-        reviewResponsibilityIds: uniqueIdArraySchema.default([]),
         riskAuthority: z.boolean(),
         required: z.boolean(),
         definitionId: opaqueIdSchema.optional(),
@@ -175,7 +174,6 @@ const agendaSchema = z.object({
     question: textSchema,
     status: agendaStatusSchema,
     requiredOutputIds: uniqueIdArraySchema,
-    requiredReviewerIds: uniqueIdArraySchema.default([]),
     ownerId: opaqueIdSchema.optional()
 });
 const candidateSchema = z.object({
@@ -207,7 +205,6 @@ const issueSchema = z.object({
     affectedCriterionIds: uniqueIdArraySchema,
     affectedConstraintIds: uniqueIdArraySchema,
     requiresEvidenceReview: z.boolean(),
-    requiredReviewerIds: uniqueIdArraySchema.default([]),
     blocking: z.boolean(),
     status: issueStatusSchema,
     rationale: textSchema
@@ -254,13 +251,6 @@ const pendingHandRaiseSchema = z.object({
     contributorId: opaqueIdSchema,
     purpose: textSchema,
     raisedAt: epochSchema
-});
-const formatApprovalSchema = z.object({
-    id: opaqueIdSchema,
-    contributionId: opaqueIdSchema,
-    managerId: opaqueIdSchema,
-    evidenceHash: z.string().regex(/^[0-9a-f]{64}$/),
-    approvedAt: epochSchema
 });
 const roundSchema = z
     .object({
@@ -760,7 +750,6 @@ const meetingStateSchema = withDefinedOptionals(
         opportunityRequests: uniqueEntityArray(opportunityRequestSchema),
         pendingHandRaises: z.array(pendingHandRaiseSchema),
         contributions: uniqueEntityArray(contributionSchema),
-        formatApprovals: uniqueEntityArray(formatApprovalSchema),
         evidencePackages: uniqueEntityArray(evidencePackageSchema),
         registrations: uniqueEntityArray(registrationSchema),
         reviews: uniqueEntityArray(evidenceReviewSchema),
@@ -808,8 +797,28 @@ function indexById<T extends { id: string }>(items: readonly T[]) {
 function ownUndefined(value: RecordValue, key: string, path: string): string | undefined {
     return own(value, key) && value[key] === undefined ? path : undefined;
 }
+function legacyCompatibilityFieldPath(value: unknown, path = "$"): string | undefined {
+    if (Array.isArray(value)) {
+        for (let i = 0; i < value.length; i++) {
+            const result = legacyCompatibilityFieldPath(value[i], path + "[" + i + "]");
+            if (result) return result;
+        }
+        return undefined;
+    }
+    if (!record(value)) return undefined;
+    for (const key of ["reviewResponsibilityIds", "requiredReviewerIds", "formatApprovals"]) {
+        if (own(value, key)) return path + "." + key;
+    }
+    for (const [key, child] of Object.entries(value)) {
+        const result = legacyCompatibilityFieldPath(child, path + "." + key);
+        if (result) return result;
+    }
+    return undefined;
+}
 export function validateMeetingStateV1(value: unknown): MeetingStateValidationResultV1 {
     if (!record(value)) return fail("$");
+    const legacyPath = legacyCompatibilityFieldPath(value);
+    if (legacyPath) return fail(legacyPath);
     if (Array.isArray(value.rounds)) {
         for (let i = 0; i < value.rounds.length; i++) {
             const round = value.rounds[i];
@@ -1276,21 +1285,17 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         issueIds.add(item.id);
         if (!ref(item.actorId, identityIds)) return fail(`${path}.actorId`);
         if (!agendaIds.has(item.agendaId as string)) return fail(`${path}.agendaId`);
-        const agenda = agendaById.get(item.agendaId)!;
         for (const key of [
             "affectedOutputIds",
             "affectedCriterionIds",
-            "affectedConstraintIds",
-            "requiredReviewerIds"
+            "affectedConstraintIds"
         ] as const) {
             const targets =
                 key === "affectedOutputIds"
                     ? outputIds
                     : key === "affectedCriterionIds"
                       ? criterionIds
-                      : key === "affectedConstraintIds"
-                        ? constraintIds
-                        : new Set(agenda.requiredReviewerIds);
+                      : constraintIds;
             const p = checkRefs(item[key], targets, `${path}.${key}`);
             if (p) return fail(p);
         }
@@ -1316,9 +1321,6 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (["resolved", "out_of_scope"].includes(item.status as string) && item.blocking)
             return fail(`${path}.blocking`);
         if (item.blocking && item.riskLevel !== "high") {
-            const reviewerQualified = item.requiredReviewerIds.some((id) =>
-                agenda.requiredReviewerIds.includes(id)
-            );
             const outputQualified = item.affectedOutputIds.some((id) =>
                 unsatisfiedOutputIds.has(id)
             );
@@ -1328,12 +1330,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             const constraintQualified = item.affectedConstraintIds.some((id) =>
                 unsatisfiedConstraintIds.has(id)
             );
-            if (
-                !reviewerQualified &&
-                !outputQualified &&
-                !criterionQualified &&
-                !constraintQualified
-            )
+            if (!outputQualified && !criterionQualified && !constraintQualified)
                 return fail(`${path}.blocking`);
         }
         const lastDisposition = [...riskDispositions]
@@ -1455,23 +1452,12 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
                 packageValue.versions.some((v) => v.id === versionId)
             );
             if (!owner) return false;
-            const agenda = agendaById.get(owner[1].agendaId as string);
-            if (!agenda) return false;
-            const reviewer = agenda.requiredReviewerIds
-                .map((id) => identityById.get(id as string))
-                .find(
-                    (candidate) =>
-                        candidate &&
-                        candidate.id !== owner[1].authorId &&
-                        candidate.roles.includes("evidence_reviewer") &&
-                        candidate.reviewResponsibilityIds.includes(agenda.id)
-                );
-            const matchingReviews = reviewer
-                ? reviews.filter(
-                      (candidate) =>
-                          candidate.versionId === versionId && candidate.reviewerId === reviewer.id
-                  )
-                : [];
+            const reviewer = identityById.get(parsedState.evidenceReviewerId as string);
+            if (!reviewer || reviewer.id === owner[1].authorId) return false;
+            const matchingReviews = reviews.filter(
+                (candidate) =>
+                    candidate.versionId === versionId && candidate.reviewerId === reviewer.id
+            );
             return (
                 matchingReviews.length === 1 &&
                 publications.some(

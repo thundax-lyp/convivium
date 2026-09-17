@@ -39,7 +39,7 @@ const targetMeetingStateFields = [
     "opportunityRequests",
     "pendingHandRaises",
     "contributions",
-    "formatApprovals",
+    "evidenceReviewerId",
     "completionDeclarations",
     "evidencePackages",
     "registrations",

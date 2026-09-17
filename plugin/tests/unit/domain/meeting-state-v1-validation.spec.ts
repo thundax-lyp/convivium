@@ -14,10 +14,11 @@ describe("canonical MeetingState validation", () => {
             path: "$.evidenceReviewerId"
         });
     });
-    it("accepts the compatibility projection field", () => {
+    it("rejects the removed compatibility projection field", () => {
         const state = makeRunningMeetingStateV1();
         expect(validateMeetingStateV1({ ...state, formatApprovals: [] })).toMatchObject({
-            kind: "valid"
+            kind: "invalid",
+            path: "$.formatApprovals"
         });
     });
     it("enforces round abort pair", () => {

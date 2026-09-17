@@ -230,7 +230,6 @@ export function recordIdentityAdmissionResultV1(
                           displayName: result.displayName,
                           roles: ["contributor" as const],
                           agendaResponsibilityIds: [],
-                          reviewResponsibilityIds: [],
                           riskAuthority: false,
                           required: false,
                           definitionId: result.definitionId,

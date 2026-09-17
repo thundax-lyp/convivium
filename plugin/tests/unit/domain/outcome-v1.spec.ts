@@ -35,7 +35,6 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 displayName: "Captain",
                 roles: ["captain", "contributor"],
                 agendaResponsibilityIds: ["a"],
-                reviewResponsibilityIds: [],
                 riskAuthority: true,
                 required: true
             },
@@ -44,7 +43,6 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 displayName: "Contributor",
                 roles: ["contributor"],
                 agendaResponsibilityIds: ["a"],
-                reviewResponsibilityIds: [],
                 riskAuthority: false,
                 required: false
             },
@@ -53,7 +51,6 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 displayName: "Reviewer",
                 roles: ["evidence_reviewer"],
                 agendaResponsibilityIds: [],
-                reviewResponsibilityIds: ["a"],
                 riskAuthority: false,
                 required: false
             },
@@ -62,7 +59,6 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 displayName: "Manager",
                 roles: ["manager"],
                 agendaResponsibilityIds: [],
-                reviewResponsibilityIds: [],
                 riskAuthority: false,
                 required: false
             }
@@ -74,8 +70,7 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 title: "Agenda",
                 question: "q",
                 status: "active",
-                requiredOutputIds: ["o"],
-                requiredReviewerIds: ["reviewer"]
+                requiredOutputIds: ["o"]
             }
         ],
         agendaCandidates: [],
@@ -104,7 +99,6 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
             }
         ],
         evidenceReviewerId: "reviewer",
-        formatApprovals: [],
         completionDeclarations: [],
         evidencePackages: [
             {

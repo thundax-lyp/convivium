@@ -14,16 +14,14 @@ describe("identity domain transitions", () => {
                     title: "议题 B",
                     question: "另一议题",
                     status: "pending" as const,
-                    requiredOutputIds: ["output-v1"],
-                    requiredReviewerIds: ["reviewer-v1"]
+                    requiredOutputIds: ["output-v1"]
                 },
                 {
                     id: "agenda-v3",
                     title: "议题 C",
                     question: "第三议题",
                     status: "pending" as const,
-                    requiredOutputIds: ["output-v1"],
-                    requiredReviewerIds: ["reviewer-v1"]
+                    requiredOutputIds: ["output-v1"]
                 }
             ]
         };

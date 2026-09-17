@@ -22,7 +22,6 @@ function state(status: MeetingState["lifecycle"]["status"] = "running"): Meeting
                 displayName: "Captain",
                 roles: ["captain"],
                 agendaResponsibilityIds: [],
-                reviewResponsibilityIds: [],
                 riskAuthority: false,
                 required: false
             },
@@ -31,7 +30,6 @@ function state(status: MeetingState["lifecycle"]["status"] = "running"): Meeting
                 displayName: "Reviewer",
                 roles: ["evidence_reviewer"],
                 agendaResponsibilityIds: [],
-                reviewResponsibilityIds: [],
                 riskAuthority: false,
                 required: false
             }
@@ -43,8 +41,7 @@ function state(status: MeetingState["lifecycle"]["status"] = "running"): Meeting
                 title: "agenda",
                 question: "question",
                 status: "active",
-                requiredOutputIds: ["output-1"],
-                requiredReviewerIds: []
+                requiredOutputIds: ["output-1"]
             }
         ],
         agendaCandidates: [],
@@ -53,7 +50,6 @@ function state(status: MeetingState["lifecycle"]["status"] = "running"): Meeting
         pendingHandRaises: [],
         contributions: [],
         evidenceReviewerId: "reviewer-1",
-        formatApprovals: [],
         completionDeclarations: [],
         evidencePackages: [],
         registrations: [],
@@ -218,7 +214,6 @@ function publishedQuestionState(blocking: boolean): MeetingState {
             displayName: "Manager",
             roles: ["manager"],
             agendaResponsibilityIds: [],
-            reviewResponsibilityIds: [],
             riskAuthority: false,
             required: false
         },
@@ -227,7 +222,6 @@ function publishedQuestionState(blocking: boolean): MeetingState {
             displayName: "Contributor",
             roles: ["contributor"],
             agendaResponsibilityIds: [],
-            reviewResponsibilityIds: [],
             riskAuthority: false,
             required: false
         }
@@ -371,8 +365,7 @@ describe("meeting lifecycle transitions", () => {
                 classification: "follow_up",
                 blocking: false,
                 affectedCriterionIds: ["criterion-1"],
-                affectedConstraintIds: ["constraint-1"],
-                requiredReviewerIds: []
+                affectedConstraintIds: ["constraint-1"]
             }),
             manager,
             10,
@@ -534,8 +527,7 @@ describe("meeting lifecycle transitions", () => {
                     title: "next",
                     question: "next question",
                     status: "pending" as const,
-                    requiredOutputIds: ["output-1"],
-                    requiredReviewerIds: []
+                    requiredOutputIds: ["output-1"]
                 }
             ]
         };
@@ -613,8 +605,7 @@ describe("meeting lifecycle transitions", () => {
                     title: "next",
                     question: "next question",
                     status: "pending" as const,
-                    requiredOutputIds: ["output-1"],
-                    requiredReviewerIds: []
+                    requiredOutputIds: ["output-1"]
                 }
             ]
         };
@@ -668,8 +659,7 @@ describe("meeting lifecycle transitions", () => {
                     title: "next",
                     question: "next question",
                     status: targetStatus,
-                    requiredOutputIds: ["output-1"],
-                    requiredReviewerIds: []
+                    requiredOutputIds: ["output-1"]
                 }
             ] as const,
             rounds:
@@ -920,8 +910,7 @@ describe("meeting lifecycle transitions", () => {
                 id: "agenda-2",
                 title: "next",
                 question: "next question",
-                requiredOutputIds: ["output-1"],
-                requiredReviewerIds: ["identity-1"]
+                requiredOutputIds: ["output-1"]
             },
             "PRECONDITION_FAILED"
         ]
@@ -1008,7 +997,6 @@ describe("meeting lifecycle transitions", () => {
             title: "next",
             question: "next question",
             requiredOutputIds: ["output-1"],
-            requiredReviewerIds: [],
             status: "pending"
         });
         expect(result.state.agendaCandidates[0].status).toBe("promoted");
@@ -1238,7 +1226,6 @@ describe("meeting lifecycle transitions", () => {
             affectedOutputIds: ["output-1"],
             affectedCriterionIds: [],
             affectedConstraintIds: [],
-            requiredReviewerIds: [],
             requiresEvidenceReview: false,
             blocking: true,
             status: "open",
@@ -1378,10 +1365,6 @@ describe("meeting lifecycle transitions", () => {
         current.objective.requiredOutputs[0].status = "satisfied";
         current.objective.acceptanceCriteria = [];
         current.objective.hardConstraints[0].status = "satisfied";
-        current.agenda[0].requiredReviewerIds = ["reviewer-1"];
-        current.identities = current.identities.map((i) =>
-            i.id === "reviewer-1" ? { ...i, reviewResponsibilityIds: ["agenda-1"] } : i
-        );
         current.reviews = [
             {
                 id: "review-1",
@@ -1490,8 +1473,7 @@ describe("meeting lifecycle transitions", () => {
                 title: "other",
                 question: "other",
                 status: "pending",
-                requiredOutputIds: ["output-1"],
-                requiredReviewerIds: []
+                requiredOutputIds: ["output-1"]
             }
         ];
         current.managerPlans = [
@@ -1576,7 +1558,6 @@ describe("meeting lifecycle transitions", () => {
                 displayName: "Manager",
                 roles: ["manager"],
                 agendaResponsibilityIds: [],
-                reviewResponsibilityIds: [],
                 riskAuthority: false,
                 required: false
             }
@@ -1642,7 +1623,6 @@ describe("meeting lifecycle transitions", () => {
                 displayName: "Manager",
                 roles: ["manager"],
                 agendaResponsibilityIds: [],
-                reviewResponsibilityIds: [],
                 riskAuthority: false,
                 required: false
             }

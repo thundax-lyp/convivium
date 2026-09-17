@@ -355,7 +355,7 @@ export function transitionMeetingStateV1(
     let relatedIds: readonly OpaqueId[] = [];
     let nextAgenda = state.agenda;
     let nextCandidates = state.agendaCandidates;
-    let nextIdentities = state.identities;
+    const nextIdentities = state.identities;
     let nextQuestions = state.questions;
     let nextIssues = state.issues;
     let nextPlans = state.managerPlans;
@@ -426,10 +426,7 @@ export function transitionMeetingStateV1(
                 !state.identities.some((identity) => identity.id === promoted.ownerId)
             )
                 return invalid(state, "NOT_FOUND");
-            nextAgenda = [
-                ...state.agenda,
-                { ...promoted, status: "pending" as const, requiredReviewerIds: [] }
-            ];
+            nextAgenda = [...state.agenda, { ...promoted, status: "pending" as const }];
             relatedIds = [state.id, action.candidateId, promoted.id];
         } else relatedIds = [state.id, action.candidateId];
         nextCandidates = state.agendaCandidates.map((item) =>
@@ -559,7 +556,6 @@ export function transitionMeetingStateV1(
                 affectedCriterionIds: action.affectedCriterionIds,
                 affectedConstraintIds: action.affectedConstraintIds,
                 requiresEvidenceReview: action.requiresEvidenceReview,
-                requiredReviewerIds: [],
                 blocking: action.blocking,
                 status: "open" as const,
                 rationale: action.rationale

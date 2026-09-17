@@ -184,27 +184,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T7d：删除 canonical state compatibility 字段
-
-前置状态：T7c PASS；所有 production consumer 已在 T4-T7c 迁移。
-
-允许修改：`plugin/src/domain/meeting-state-v1.ts`、`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/tests/fixtures/meeting-state-v1.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`、`plugin/tests/unit/domain/private-mail-v1.spec.ts`。
-
-禁止修改：transition、protocol、runtime、其他 fixture。
-
-执行：删除 `MeetingIdentityV1.reviewResponsibilityIds`、`AgendaItemV1.requiredReviewerIds`、`IssueV1.requiredReviewerIds`、`FormatApprovalV1`、`MeetingState.formatApprovals` 和 Contribution status `format_correction`；`Issue.requiresEvidenceReview` 改为 required boolean。validator 不提供 default、compatibility strip 或旧字段回填；canonical fixture 和直接构造测试同步。Registration 已由 T4a 收敛，本步只验证它未回退。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts tests/unit/domain/private-mail-v1.spec.ts
-pnpm --dir=plugin verify
-test -z "$(rg -n 'reviewResponsibilityIds|requiredReviewerIds|FormatApprovalV1|formatApprovals|format_correction|missingFields' plugin/src/domain plugin/tests/fixtures/meeting-state-v1.ts plugin/tests/unit/domain || true)"
-```
-
-PASS：canonical type、validator、fixture 和全部 Domain unit tests 不含 compatibility 字段；validator 拒绝旧 shape，不静默迁移；全量 `verify` 首次恢复为绿，失败文件数从固定的 3 个降为 0。
-
-STOP：仍有 production consumer、必须增加 compatibility path，或删除字段要求修改本步未列测试。
-
 ### T8：扩展 write/read protocol
 
 前置状态：T7d PASS。
