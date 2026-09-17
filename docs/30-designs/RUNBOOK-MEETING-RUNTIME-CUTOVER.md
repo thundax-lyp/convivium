@@ -184,38 +184,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T3b：补齐结束与归档生命周期转换
-
-前置状态：T3a PASS；`0ec2271` 只证明 clone 与 running→terminal，未证明正式结束/归档语义。
-
-允许修改：`plugin/src/domain/transitions/meeting-create-v1.ts`、`plugin/src/domain/transitions/meeting-end-v1.ts`、`plugin/src/domain/transitions/meeting-archive-v1.ts`、`plugin/src/domain/transitions/result-v1.ts`、`plugin/tests/unit/domain/meeting-lifecycle-v1.spec.ts`。
-
-禁止修改：canonical state/type、repository、runtime、protocol、fixture。
-
-执行：只实现并导出以下 symbol；函数均先调用 `validateMeetingStateV1`，拒绝必须返回原 state、空 `relatedIds/effectRequests`：
-
-```ts
-interface EndMeetingInputV1 { terminationId: OpaqueId; outcome: TerminationV1["outcome"]; reason: string; decisionIds: readonly OpaqueId[]; completionFactIds: readonly OpaqueId[]; unresolvedQuestionIds: readonly OpaqueId[]; unresolvedIssueIds: readonly OpaqueId[]; actorId: OpaqueId; now: EpochMs }
-interface StartMeetingArchiveInputV1 { archiveId: OpaqueId; actorId: OpaqueId; now: EpochMs; questionIssueDispositionFacts: readonly ArchiveQuestionIssueDispositionFactV1[] }
-interface CompleteMeetingArchiveInputV1 { actorId: OpaqueId; now: EpochMs; allSessionOwnershipClosed: boolean }
-function createMeetingV1(state: MeetingState): MeetingTransitionResultV1;
-function endMeetingV1(state: MeetingState, input: EndMeetingInputV1): MeetingTransitionResultV1;
-function startMeetingArchiveV1(state: MeetingState, input: StartMeetingArchiveInputV1): MeetingTransitionResultV1;
-function completeMeetingArchiveV1(state: MeetingState, input: CompleteMeetingArchiveInputV1): MeetingTransitionResultV1;
-```
-
-`createMeetingV1` 只接受 version=1、lifecycle=`running`、无 termination/archive 的 canonical state，并返回 deep clone。`endMeetingV1` 只接受 `running|paused|converging` 且没有 open Round；trim 后的 ID/reason/actor 必须非空，now 为非负安全整数，四个 caller 数组各自不得重复。按 state 数组顺序派生 accepted Decision、active CompletionFact、`open|deferred` Question、`open|deferred` Issue；caller 的四个数组必须分别与派生数组逐项相等，否则返回 `PRECONDITION_FAILED`。非终态 Contribution ID 始终由 Domain 派生，caller 不提交。`completed` 还要求 `isObjectiveSatisfiedV1(state)` 且四个 unresolved/unfinished 集合为空。成功时同时把 provisioning recommendation 置 `failed/ADMISSION_CONFLICT`，写 immutable Termination，进入 terminal，并产生唯一 `{kind:"materialize_archive",terminationId}` effect。`startMeetingArchiveV1` 只接受 terminal + termination，按上方固定映射创建 `status="complete"` ArchivePackage，`publicSnapshotVersion=state.version`，进入 archiving。`completeMeetingArchiveV1` 只接受 archiving、已有 complete archive 且 `allSessionOwnershipClosed===true`；false 返回 `PRECONDITION_FAILED`，true 只进入 archived。不得在纯 Domain 中读取或伪造 Session ownership。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/domain/meeting-lifecycle-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：测试覆盖 create→terminal→archiving→archived、partial unresolved IDs、completed 前提、按值 archive、ownership gate、terminal/archive 后普通转换拒绝；上述 production transition 均有与测试对应的行为 diff。
-
-STOP：归档需要读取外部 Session 内容、绕过 ownership proof，或必须修改本步允许范围外的 state shape。
-
 ### T4a：建立 direct Evidence registration
 
 前置状态：T3b PASS。
