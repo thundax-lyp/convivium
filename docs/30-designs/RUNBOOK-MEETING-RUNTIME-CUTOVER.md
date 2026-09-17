@@ -185,26 +185,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T13b：补齐 Meeting 启动通知
-
-前置状态：T13 PASS。
-
-允许修改：`plugin/src/domain/transitions/result-v1.ts`、`plugin/src/domain/transitions/meeting-create-v1.ts`、`plugin/tests/unit/domain/meeting-lifecycle-v1.spec.ts`。
-
-禁止修改：application、repository、DSH adapter、旧 fixture。
-
-执行：先在 `AgentNoticeEffectRequestV1` 增加正式接口已有的 `{kind:"agent_notice";noticeKind:"meeting_started";recipientId;agendaId}` variant。`createMeetingV1` 对通过既有创建校验的 running aggregate，按 `state.identities` 原顺序为满足以下全部条件的 identity 各产生一次 `meeting_started` effect：roles 包含 `contributor`，且 `agendaResponsibilityIds` 包含当前唯一 active Agenda ID 或为空；不得向 Manager-only、reviewer-only 或与 active Agenda 无关的 identity 发送。effect 只携带 recipientId/agendaId，不携带 Session、ownership、完整 state 或生成字段；创建 state、relatedIds 和版本语义不变。若 active Agenda 不唯一，沿用既有 aggregate validation 的拒绝，不在本步增加 fallback。测试先证明合格、空责任范围、不相关和非 Contributor 四类，再实现 production。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/domain/meeting-lifecycle-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：创建只为所有合格 Contributor 各产生一个稳定顺序的 `meeting_started` effect，其他身份为零；拒绝路径仍无 effect。
-
-STOP：需要读取 Session/ownership、修改 create wire shape 或为通知单独 commit aggregate。
-
 ### T14a：收敛八角色发布资源
 
 前置状态：T13b PASS。

@@ -17,10 +17,30 @@ export function createMeetingV1(state: MeetingState): MeetingTransitionResultV1 
             "INVALID_STATE",
             "meeting is not a new running aggregate"
         );
+    const activeAgenda = state.agenda.filter((agenda) => agenda.status === "active");
+    if (activeAgenda.length !== 1)
+        return rejectedTransitionV1(
+            state,
+            "INVALID_STATE",
+            "meeting creation requires one active agenda"
+        );
+    const agendaId = activeAgenda[0]!.id;
     return {
         kind: "accepted",
         state: structuredClone(state),
         relatedIds: [state.id],
-        effectRequests: []
+        effectRequests: state.identities
+            .filter(
+                (identity) =>
+                    identity.roles.includes("contributor") &&
+                    (identity.agendaResponsibilityIds.length === 0 ||
+                        identity.agendaResponsibilityIds.includes(agendaId))
+            )
+            .map((identity) => ({
+                kind: "agent_notice" as const,
+                noticeKind: "meeting_started" as const,
+                recipientId: identity.id,
+                agendaId
+            }))
     };
 }
