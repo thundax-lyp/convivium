@@ -4,10 +4,9 @@ import type {
     OpaqueId,
     ReviewDimensionV1
 } from "@/domain/index.js";
-type ReviewInput = {
-    versionId: OpaqueId;
-    reviewerId: OpaqueId;
+export interface SubmitReviewBatchItemV1 {
     reviewId: OpaqueId;
+    versionId: OpaqueId;
     dimensions: Readonly<{
         source: ReviewDimensionV1;
         credibility: ReviewDimensionV1;
@@ -15,8 +14,13 @@ type ReviewInput = {
         support: ReviewDimensionV1;
     }>;
     scope: string;
+}
+export interface SubmitReviewBatchInputV1 {
+    reviewerId: OpaqueId;
+    reviews: readonly SubmitReviewBatchItemV1[];
     now: number;
-};
+}
+type ReviewDimensionsInputV1 = SubmitReviewBatchItemV1["dimensions"];
 type DeliveryInput = {
     reviewId: OpaqueId;
     dispatcherId: OpaqueId;
@@ -29,83 +33,114 @@ import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "
 function valid(now: number) {
     return Number.isSafeInteger(now) && now >= 0;
 }
-export function submitReviewV1(state: MeetingState, input: ReviewInput): MeetingTransitionResultV1 {
-    if (
-        input.versionId.trim() === "" ||
-        input.reviewerId.trim() === "" ||
-        input.reviewId.trim() === "" ||
-        input.scope.trim() === "" ||
-        !valid(input.now)
-    )
-        return reject(state, "INVALID_ARGUMENT", "invalid review input");
-    const pkg = state.evidencePackages.find((candidate) =>
-        candidate.versions.some((version) => version.id === input.versionId)
-    );
-    if (!pkg) return reject(state, "NOT_FOUND", "version not found");
-    if (pkg.currentVersionId !== input.versionId)
-        return reject(state, "INVALID_STATE", "version is not current");
-    if (
-        !state.registrations.some(
-            (candidate) =>
-                candidate.versionId === input.versionId && candidate.status === "complete"
-        )
-    )
-        return reject(state, "INVALID_STATE", "version is not complete");
-    if (state.reviews.some((review) => review.versionId === input.versionId))
-        return reject(state, "REVIEWER_CONFLICT", "version already has a review");
-    const round = state.rounds.find((candidate) => candidate.id === pkg.roundId);
-    const agenda =
-        round === undefined
-            ? undefined
-            : state.agenda.find((candidate) => candidate.id === round.agendaId);
-    if (!round || !agenda) return reject(state, "INVALID_STATE", "package round is missing");
-    const reviewer = state.identities.find((candidate) => candidate.id === input.reviewerId);
-    const designated = agenda.requiredReviewerIds
-        .map((id) => state.identities.find((candidate) => candidate.id === id))
-        .find(
-            (candidate) =>
-                candidate !== undefined &&
-                candidate.id !== pkg.authorId &&
-                candidate.roles.includes("evidence_reviewer") &&
-                candidate.reviewResponsibilityIds.includes(agenda.id)
-        );
-    if (!reviewer || designated === undefined || reviewer.id !== designated.id)
-        return reject(state, "REVIEWER_CONFLICT", "reviewer is not designated");
-    for (const dimension of Object.values(input.dimensions))
-        if (
-            !dimension.scope.trim() ||
-            !dimension.reason.trim() ||
-            dimension.baselineEvidenceIds.some(
-                (id) =>
-                    !round.publicBaselinePublicationIds.some((publicationId) =>
+function validDimensions(
+    state: MeetingState,
+    roundId: OpaqueId,
+    dimensions: ReviewDimensionsInputV1
+) {
+    const round = state.rounds.find((candidate) => candidate.id === roundId);
+    return (
+        round !== undefined &&
+        Object.values(dimensions).every(
+            (dimension) =>
+                dimension.scope.trim() !== "" &&
+                dimension.reason.trim() !== "" &&
+                dimension.baselineEvidenceIds.every((id) =>
+                    round.publicBaselinePublicationIds.some((publicationId) =>
                         state.publications
                             .find((publication) => publication.id === publicationId)
                             ?.finalVersionIds.includes(id)
                     )
-            )
+                )
         )
-            return reject(state, "INVALID_ARGUMENT", "invalid review dimension");
-    const review: EvidenceReviewV1 = {
-        id: input.reviewId,
-        versionId: input.versionId,
-        reviewerId: input.reviewerId,
-        baselinePublicationIds: round.publicBaselinePublicationIds,
-        scope: input.scope,
-        dimensions: input.dimensions,
-        createdAt: input.now
-    };
+    );
+}
+
+export function submitReviewBatchV1(
+    state: MeetingState,
+    input: SubmitReviewBatchInputV1
+): MeetingTransitionResultV1 {
+    if (!input.reviewerId.trim() || !valid(input.now) || input.reviews.length === 0)
+        return reject(state, "INVALID_ARGUMENT", "invalid review batch input");
+    const reviewer = state.identities.find((candidate) => candidate.id === input.reviewerId);
+    if (
+        input.reviewerId !== state.evidenceReviewerId ||
+        reviewer === undefined ||
+        reviewer.roles.length !== 1 ||
+        reviewer.roles[0] !== "evidence_reviewer"
+    )
+        return reject(state, "REVIEWER_CONFLICT", "reviewer is not the designated reviewer");
+    const reviewIds = new Set<string>();
+    const versionIds = new Set<string>();
+    const pending: EvidenceReviewV1[] = [];
+    for (const item of input.reviews) {
+        if (
+            !item.reviewId.trim() ||
+            !item.versionId.trim() ||
+            reviewIds.has(item.reviewId) ||
+            versionIds.has(item.versionId) ||
+            state.reviews.some((review) => review.versionId === item.versionId)
+        )
+            return reject(state, "REVIEWER_CONFLICT", "review or version is duplicated");
+        reviewIds.add(item.reviewId);
+        versionIds.add(item.versionId);
+        const pkg = state.evidencePackages.find((candidate) =>
+            candidate.versions.some((version) => version.id === item.versionId)
+        );
+        const version = pkg?.versions.find((candidate) => candidate.id === item.versionId);
+        const round =
+            pkg === undefined
+                ? undefined
+                : state.rounds.find((candidate) => candidate.id === pkg.roundId);
+        if (
+            pkg === undefined ||
+            version === undefined ||
+            pkg.currentVersionId !== item.versionId ||
+            round === undefined ||
+            !state.registrations.some(
+                (registration) =>
+                    registration.versionId === item.versionId && registration.status === "complete"
+            ) ||
+            !validDimensions(state, round.id, item.dimensions)
+        )
+            return reject(state, "INVALID_ARGUMENT", "review batch item is invalid");
+        pending.push({
+            id: item.reviewId,
+            versionId: item.versionId,
+            reviewerId: input.reviewerId,
+            baselinePublicationIds: round.publicBaselinePublicationIds,
+            scope: item.scope,
+            dimensions: item.dimensions,
+            createdAt: input.now
+        });
+    }
+    const authors = pending.map(
+        (review) =>
+            state.evidencePackages.find((pkg) =>
+                pkg.versions.some((version) => version.id === review.versionId)
+            )!.authorId
+    );
     return {
         kind: "accepted",
         state: {
             ...state,
             version: state.version + 1,
             updatedAt: input.now,
-            reviews: [...state.reviews, review]
+            reviews: [...state.reviews, ...pending]
         },
-        relatedIds: [input.reviewId, input.versionId],
-        effectRequests: [{ kind: "review_delivery", reviewId: review.id, authorId: pkg.authorId }]
+        relatedIds: pending.flatMap((review) => [review.id, review.versionId]),
+        effectRequests: pending.map((review, index) => ({
+            kind: "review_delivery" as const,
+            reviewId: review.id,
+            authorId: authors[index]
+        }))
     };
 }
+
+/*
+ * The former single-item entry point is intentionally removed. Delivery
+ * recording remains separate because it is an external lifecycle result.
+ */
 export function recordReviewDeliveryV1(
     state: MeetingState,
     input: DeliveryInput

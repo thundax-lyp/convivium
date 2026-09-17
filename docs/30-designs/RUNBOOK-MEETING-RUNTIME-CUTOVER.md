@@ -184,34 +184,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T5：实现原子 Review batch
-
-前置状态：T4b PASS。
-
-允许修改：`plugin/src/domain/transitions/evidence-review-v1.ts`、`plugin/src/domain/transitions/round-publication-v1.ts`、`plugin/src/domain/transitions/index.ts`、`plugin/tests/unit/domain/evidence-review-v1.spec.ts`、`plugin/tests/unit/domain/round-publication-v1.spec.ts`。
-
-禁止修改：worker runtime、protocol、repository。
-
-执行：删除 `submitReviewV1` 并新增唯一目标签名：
-
-```ts
-interface SubmitReviewBatchItemV1 { reviewId:OpaqueId; versionId:OpaqueId; dimensions:ReviewDimensionsInputV1; scope:string }
-interface SubmitReviewBatchInputV1 { reviewerId:OpaqueId; reviews:readonly SubmitReviewBatchItemV1[]; now:EpochMs }
-function submitReviewBatchV1(state:MeetingState, input:SubmitReviewBatchInputV1):MeetingTransitionResultV1;
-```
-
-`reviews` 非空，reviewId/versionId 分别唯一；reviewerId 必须等于 `state.evidenceReviewerId` 且该 identity roles 精确为 `["evidence_reviewer"]`。先对所有 item 完整验证 current version、complete Registration、无既有最终 Review、scope/dimensions 和所属 Round baseline，再以输入顺序一次追加 Review；每个 Review 的 `baselinePublicationIds` 复制所属 Round baseline，`createdAt` 全部为同一个 input.now。任一 item 非法返回原 state 和空 effects；合法 batch 只把 state.version 增加一次，并按 reviews 顺序产生一个 `review_delivery` effect。publish 只接受全部 current version 已有最终 Review 且至少一个 sent delivery。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/domain/evidence-review-v1.spec.ts tests/unit/domain/round-publication-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：合法多项 batch 一次成功；duplicate/部分非法全部零写；非唯一 reviewer 被拒绝；单项 production export 消失。
-
-STOP：需要持久 ReviewBatch 或第二 reviewer。
-
 ### T6：实现 candidate 跨 Agenda 复用
 
 前置状态：T5 PASS。

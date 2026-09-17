@@ -68,7 +68,12 @@ export {
     type EvidenceInputV1,
     type SubmitEvidenceInputV1
 } from "./format-evidence-v1.js";
-export { submitReviewV1, recordReviewDeliveryV1 } from "./evidence-review-v1.js";
+export {
+    submitReviewBatchV1,
+    recordReviewDeliveryV1,
+    type SubmitReviewBatchInputV1,
+    type SubmitReviewBatchItemV1
+} from "./evidence-review-v1.js";
 export { closeContributionV1 } from "./contribution-exit-v1.js";
 export { publishRoundV1 } from "./round-publication-v1.js";
 export { createMeetingV1 } from "./meeting-create-v1.js";

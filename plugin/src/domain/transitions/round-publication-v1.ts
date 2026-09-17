@@ -65,6 +65,20 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
         .map((id) => state.contributions.find((candidate) => candidate.id === id))
         .filter((candidate) => candidate?.packageId !== undefined)
         .map((candidate) => state.evidencePackages.find((pkg) => pkg.id === candidate!.packageId)!);
+    if (
+        packages.some((pkg) => {
+            const review = state.reviews.find(
+                (candidate) => candidate.versionId === pkg.currentVersionId
+            );
+            return (
+                review === undefined ||
+                !state.reviewDeliveries.some(
+                    (delivery) => delivery.reviewId === review.id && delivery.status === "sent"
+                )
+            );
+        })
+    )
+        return reject(state, "ROUND_NOT_CLOSABLE", "current evidence review is not delivered");
     const finalVersionIds = packages.map((pkg) => pkg.currentVersionId);
     const finalReviewIds = packages.map(
         (pkg) => state.reviews.find((review) => review.versionId === pkg.currentVersionId)!.id
