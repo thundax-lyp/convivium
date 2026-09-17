@@ -208,6 +208,19 @@ const privateMail = z
     })
     .strict() satisfies z.ZodType<PrivateMeetingMail>;
 
+export const CommittedFactRecordV1Schema = z
+    .object({
+        factId: z.string().min(1),
+        kind: z.string().min(1),
+        actorId: z.string().min(1),
+        occurredAt: z.number().int(),
+        meetingVersion: z.number().int().positive(),
+        relatedIds: z.array(z.string().min(1)).readonly(),
+        payload: JsonObjectSchema,
+        resultingState: JsonObjectSchema
+    })
+    .strict();
+
 export const CatalogMeetingRecordV1Schema = z
     .object({
         formatVersion: z.literal(1),
@@ -289,6 +302,7 @@ export const PersistenceProjectionV1Schema = z
         snapshot: meetingSnapshot.nullable(),
         bootstrap: meetingBootstrap,
         receipts: safeRecord(PersistedReceiptV1Schema),
+        facts: safeRecord(CommittedFactRecordV1Schema),
         events: safeRecord(PersistedEventV1Schema),
         outbox: safeRecord(PersistedOutboxV1Schema),
         sessionOwnership: sessionOwnershipMap,

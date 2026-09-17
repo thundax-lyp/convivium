@@ -185,33 +185,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T11：实现 generic codec 与 atomic facts commit
-
-前置状态：T10g PASS。
-
-允许修改：`plugin/src/repository/types.ts`、`plugin/src/repository/meeting-repository-port.ts`、`plugin/src/repository/domain/domain-meeting-repository-core.ts`、`plugin/src/repository/domain/domain-meeting-repository-mail.ts`、`plugin/src/repository/domain/domain-meeting-repository.ts`、`plugin/src/repository/domain/schemas.ts`、`plugin/src/repository/domain/projection.ts`、`plugin/tests/contract/domain-meeting-repository.spec.ts`。
-
-禁止修改：repository registry/recovery、runtime、application、legacy application tests。
-
-执行：把 `MeetingSnapshot<TState>`、`CreateMeetingInput<TState>`（其中 `initialState:TState`）、`RepositoryCommand<TResult,TState>`、`RecoveryResult<TState>`、`RepositoryAuthorizationValidator<TState>`、`MeetingRepositoryPort<TState>` 的 `create/completeCreate/read/execute/recover`、`DomainMeetingRepositoryCore<TState>`、`DomainMeetingRepositoryMail<TState>` 与 `DomainMeetingRepository<TState>` 连成同一 generic data path；mail 只透传同一个 core generic，不复制私信实现。在 `plugin/src/repository/types.ts` 唯一定义并导出 `MeetingStateCodec<TState>={encode(state:TState):Uint8Array;decode(bytes:Uint8Array):TState}`；`DomainMeetingRepositoryOpenOptions<TState=JsonObject>` 增加 optional `codec?:MeetingStateCodec<TState>`。本步 contract tests 直接注入已实现的 `encodeMeetingStateV1/decodeMeetingStateV1`，T12 再把同一实例级 codec 从 registry 传入 repository，T14c 的 target lifecycle 显式选择该 codec。create initialState、command next state 写边界都先调用 `codec.encode(state)`，再用 `decodeCanonicalJson` + `JsonObjectSchema` 得到持久 canonical JsonObject；read/recover/transition-input 边界对持久 state 调用 `encodeCanonicalJson` 后交给 `codec.decode`。省略 codec 只允许 generic default `TState=JsonObject`，并使用 `encodeCanonicalJson`/`decodeCanonicalJson` 维持尚未删除但不可达的 legacy caller 编译；target tests、target registry 和 target lifecycle 均禁止省略。codec 失败在 repository 内统一返回既有 `SCHEMA_VERSION_UNSUPPORTED` 且零写，T13 再映射为公开 `INCOMPATIBLE_VERSION`。持久 projection 仍只保存 canonical JsonObject，不在 port、core 或 Schema 建立 `MeetingState|LegacyMeetingState` union，也不得在一次 repository/registry instance 中切换 codec。T10g 已保证该链只按 meetingId 定位。
-
-测试先在 `domain-meeting-repository.spec.ts` 固定：target codec 的 create/read、execute transition input/output、recover reopen 均得到 `MeetingState`；非法 decode 在 repository contract 返回 `SCHEMA_VERSION_UNSUPPORTED` 且零写；JsonObject default 的既有 repository contract 保持通过；最小 facts commit/read/replay 与 command state/receipt/outbox 同成同败。T12 再用独立 facts suite 覆盖顺序、conflict/rollback 与 ownership closure。
-
-同时在 `types.ts` 定义与 Meeting Interface 同构的 `CommittedFactRecordV1`，在唯一 `MeetingRepositoryPort` 增加 `readCommittedFacts(): Promise<readonly CommittedFactRecordV1[]>`；在 `RepositoryCommand<TResult,TState>` 增加 optional `facts:readonly CommittedFactRecordV1[]` 和唯一 optional 内部字段 `archiveSessionResult?: {sessionOwnershipId:string; status:"closed"|"failed"; failureCode?:string}`。legacy command 不提供这两个字段；target dispatcher 对每个 accepted non-replay command 必须提供非空 facts，target transition 的 legacy `events` 固定为空且不得把 target fact 复制进去。repository 在 facts 非空时即使 events 为空也必须按普通版本提交 next state/facts/receipt/outbox，不走 `allowNoop` 分支；`allowNoop` 只保留给不可达 legacy caller。外层 outbox kind 继续唯一使用既有 `dispatch`，T15-T17 只按 `payload.kind="identity_provision"|"agent_notice"|"review_delivery"|"archive"` 路由；审核请求是 `payload.kind="agent_notice",noticeKind="review_request"`，不扩张第二队列或 outer kind。`archiveSessionResult` 仅 `commandKind="record_archive_session_result"` 可携带，`closed` 禁止 failureCode，`failed` 必须带 trim 后非空 failureCode；该字段不进入公开 action hash。
-
-`PersistenceProjectionV1` 增加独立 `facts` map，由 `createProjection` 初始化为空；不得把 target fact 写进 legacy `events` map。`DomainMeetingRepository.execute` 在 core 提供的单一 `commit` callback 内验证 next version 并原子写 state/facts/receipt/outbox；`readCommittedFacts` 由 `DomainMeetingRepository` 从当前 projection clone，只按 meetingVersion、再按 factId 返回本 Meeting 已提交 target facts，不能返回 receipt/outbox/legacy event。拒绝不入 repository；实现 replay/conflict/rollback。若 `RepositoryCommand.archiveSessionResult` 存在，在同一 callback 内验证 ownership 的 `id`、`meetingId`、`identityId` 和未关闭状态，再与 command state/facts/receipt/outbox 一起写入：任一 target identity 字段缺失返回 `RECOVERY_UNAVAILABLE` 且零写；`failed` 保持原 lifecycle/capability 并写 failure code，`closed` 写 `lifecycleStatus="closed"`、`capabilityStatus="revoked"` 并清除 failure code；任何 ownership 或 command 写失败都整笔回滚。
-
-验证：
-```bash
-test -f plugin/tests/contract/domain-meeting-repository-facts.spec.ts
-pnpm --dir=plugin vitest run tests/contract/domain-meeting-repository.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：同一 repository/core 的 generic codec 与 facts/ownership closure 原子通道通过；`readCommittedFacts` 顺序稳定；无 union、第二 repository 或半提交。
-
-STOP：core `commit` callback 无法覆盖任一写入、需要 noop receipt、双写、新 storage abstraction 或动态 codec。
-
 ### T12：实现 repository recovery 与 ownership closure
 
 前置状态：T11 PASS。

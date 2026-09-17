@@ -7,6 +7,7 @@ export type RepositoryErrorCode =
     | "INVALID_INPUT"
     | "UNSUPPORTED_CAPABILITY"
     | "SCHEMA_VERSION_UNSUPPORTED"
+    | "RECOVERY_UNAVAILABLE"
     | "CORRUPT_DATABASE"
     | "LEASE_LOST"
     | "OUTBOX_NOT_FOUND"

@@ -5,6 +5,7 @@ import {
     AgentDefinitionBindingSchema,
     CatalogMeetingRecordV1Schema,
     CreationRecordV1Schema,
+    JsonObjectSchema,
     type PersistenceProjectionV1,
     PersistedEventV1Schema,
     PersistedOutboxV1Schema,
@@ -15,6 +16,8 @@ import type {
     CommittedResult,
     CreateMeetingInput,
     CreateMeetingResult,
+    JsonObject,
+    MeetingStateCodec,
     MeetingBootstrap,
     MeetingSnapshot,
     RepositoryAuthorizationValidator,
@@ -43,6 +46,13 @@ import {
     APPLICATION_TAIL_HARD_COMMITS
 } from "./projection.js";
 import { writeCheckpoint } from "./checkpoint.js";
+
+function canonicalStateObject(value: unknown): JsonObject {
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+        throw new TypeError("Meeting state must be an object");
+    const normalized = JSON.parse(JSON.stringify(value)) as unknown;
+    return JsonObjectSchema.parse(normalized);
+}
 
 function parseSessionLabel(
     label: string
@@ -99,23 +109,26 @@ function hasInvalidOwnershipTransition(
     );
 }
 
-export interface DomainMeetingRepositoryOpenOptions {
+export interface DomainMeetingRepositoryOpenOptions<TState = JsonObject> {
     readonly catalogDomain: CatalogDomain;
     readonly meetingDomain: MeetingDomain;
     readonly meetingId: string;
-    readonly authorizationValidator: RepositoryAuthorizationValidator;
+    readonly authorizationValidator: RepositoryAuthorizationValidator<TState>;
+    readonly codec?: MeetingStateCodec<TState>;
     readonly now?: () => number;
     readonly onDiagnostic?: DiagnosticSink;
-    readonly onProjectionCommitted?: (snapshot: MeetingSnapshot) => void;
+    readonly onProjectionCommitted?: (snapshot: MeetingSnapshot<TState>) => void;
 }
 
-export abstract class DomainMeetingRepositoryCore {
+export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
     readonly meetingId: string;
     protected readonly catalogDomain: CatalogDomain;
     protected readonly meetingDomain: MeetingDomain;
-    protected readonly authorizationValidator: RepositoryAuthorizationValidator;
+    protected readonly authorizationValidator: RepositoryAuthorizationValidator<TState>;
+    protected readonly codec: MeetingStateCodec<TState>;
     protected readonly now: () => number;
-    protected readonly onProjectionCommitted: ((snapshot: MeetingSnapshot) => void) | undefined;
+    protected readonly onProjectionCommitted:
+        ((snapshot: MeetingSnapshot<TState>) => void) | undefined;
     protected readonly onDiagnostic: DiagnosticSink | undefined;
     protected closed = false;
     protected domainClosed = false;
@@ -127,11 +140,17 @@ export abstract class DomainMeetingRepositoryCore {
     protected maintenanceError: unknown;
     protected closePromise: Promise<void> | undefined;
 
-    protected constructor(options: DomainMeetingRepositoryOpenOptions) {
+    protected constructor(options: DomainMeetingRepositoryOpenOptions<TState>) {
         this.catalogDomain = options.catalogDomain;
         this.meetingDomain = options.meetingDomain;
         this.meetingId = options.meetingId;
         this.authorizationValidator = options.authorizationValidator;
+        this.codec =
+            options.codec ??
+            ({
+                encode: (state: TState) => encodeCanonicalJson(canonicalStateObject(state)),
+                decode: (bytes: Uint8Array) => decodeCanonicalJson(bytes) as TState
+            } satisfies MeetingStateCodec<TState>);
         this.now = options.now ?? Date.now;
         this.onProjectionCommitted = options.onProjectionCommitted;
         this.onDiagnostic = options.onDiagnostic;
@@ -143,6 +162,7 @@ export abstract class DomainMeetingRepositoryCore {
         if (creation?.status === "ready") {
             try {
                 this.projection = loadProjection({ domain: options.meetingDomain });
+                if (this.projection.snapshot) this.decodeState(this.projection.snapshot.state);
                 const pointer = options.meetingDomain.table("checkpoint_pointer").get("current");
                 const tail = [...options.meetingDomain.table("commits").entries()]
                     .filter(([, record]) => record.seq > (pointer?.baseSeq ?? 0))
@@ -182,6 +202,36 @@ export abstract class DomainMeetingRepositoryCore {
     protected ensureOpen(): void {
         if (this.closed)
             throw new RepositoryError("CLOSED", false, this.meetingId, "Repository is closed");
+    }
+
+    protected encodeState(state: TState): JsonObject {
+        try {
+            return JsonObjectSchema.parse(decodeCanonicalJson(this.codec.encode(state)));
+        } catch {
+            throw new RepositoryError(
+                "SCHEMA_VERSION_UNSUPPORTED",
+                false,
+                this.meetingId,
+                "Meeting state format is unsupported"
+            );
+        }
+    }
+
+    protected decodeState(state: JsonObject): TState {
+        try {
+            return this.codec.decode(encodeCanonicalJson(state));
+        } catch {
+            throw new RepositoryError(
+                "SCHEMA_VERSION_UNSUPPORTED",
+                false,
+                this.meetingId,
+                "Meeting state format is unsupported"
+            );
+        }
+    }
+
+    protected decodeSnapshot(snapshot: MeetingSnapshot<JsonObject>): MeetingSnapshot<TState> {
+        return { ...snapshot, state: this.decodeState(snapshot.state) };
     }
 
     protected enqueueMutation<T>(operation: () => Promise<T>, commandKind?: string): Promise<T> {
@@ -335,7 +385,10 @@ export abstract class DomainMeetingRepositoryCore {
             _input.now,
             _input.operation.startsWith("command:") ? _input.operation.slice(8) : undefined
         );
-        this.onProjectionCommitted?.(structuredClone(this.projection.snapshot!));
+        if (this.onProjectionCommitted && this.projection.snapshot)
+            this.onProjectionCommitted(
+                this.decodeSnapshot(structuredClone(this.projection.snapshot))
+            );
         const nextTailCount = tail.length + 1;
         if (
             nextTailCount >= APPLICATION_CHECKPOINT_TRIGGER_COMMITS ||
@@ -345,7 +398,7 @@ export abstract class DomainMeetingRepositoryCore {
         return changed.result;
     }
 
-    async create(input: CreateMeetingInput): Promise<MeetingBootstrap> {
+    async create(input: CreateMeetingInput<TState>): Promise<MeetingBootstrap> {
         this.ensureOpen();
         return this.enqueueMutation(async () => {
             this.authorizationValidator.validateCreate({
@@ -378,6 +431,7 @@ export abstract class DomainMeetingRepositoryCore {
                 };
             }
             const now = input.createdAt ?? this.now();
+            const initialState = this.encodeState(input.initialState);
             const initialOutbox = (input.outbox ?? []).map((item) => {
                 if (item.kind !== "dispatch")
                     throw new RepositoryError(
@@ -404,7 +458,7 @@ export abstract class DomainMeetingRepositoryCore {
                 requestId: input.requestId,
                 requestHash: input.requestHash,
                 authorization: input.authorization,
-                initialState: input.initialState,
+                initialState,
                 createResult: null,
                 initialOutbox,
                 sessionOwnership: Object.create(null),
@@ -436,7 +490,9 @@ export abstract class DomainMeetingRepositoryCore {
             };
         });
     }
-    async completeCreate(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>> {
+    async completeCreate(
+        input: CreateMeetingInput<TState>
+    ): Promise<CommittedResult<CreateMeetingResult>> {
         return this.enqueueMutation(async () => {
             this.authorizationValidator.validateCreate({
                 meetingId: this.meetingId,
@@ -567,7 +623,10 @@ export abstract class DomainMeetingRepositoryCore {
                     updatedAt: now
                 }));
             observeCommit(this.onDiagnostic, this.meetingId, undefined, this.projection, now);
-            this.onProjectionCommitted?.(structuredClone(this.projection.snapshot!));
+            if (this.onProjectionCommitted && this.projection.snapshot)
+                this.onProjectionCommitted(
+                    this.decodeSnapshot(structuredClone(this.projection.snapshot))
+                );
             return {
                 requestId: input.requestId,
                 meetingId: this.meetingId,
@@ -873,7 +932,7 @@ export abstract class DomainMeetingRepositoryCore {
             })
         );
     }
-    async read(): Promise<MeetingSnapshot> {
+    async read(): Promise<MeetingSnapshot<TState>> {
         this.ensureOpen();
         const snapshot = this.projection?.snapshot;
         if (!snapshot)
@@ -892,6 +951,6 @@ export abstract class DomainMeetingRepositoryCore {
             result.state.formatVersion !== 2
         )
             throw new UnsupportedMeetingStateFormatError(result.state.formatVersion);
-        return result;
+        return this.decodeSnapshot(result);
     }
 }

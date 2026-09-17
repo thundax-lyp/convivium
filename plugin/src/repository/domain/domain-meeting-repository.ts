@@ -4,6 +4,7 @@ export type { DomainMeetingRepositoryOpenOptions } from "./domain-meeting-reposi
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type {
     ClaimOutboxInput,
+    CommittedFactRecordV1,
     CommittedResult,
     CompleteOutboxInput,
     JsonObject,
@@ -15,6 +16,7 @@ import type {
     RenewOutboxLeaseInput
 } from "@/repository/types.js";
 import {
+    CommittedFactRecordV1Schema,
     JsonObjectSchema,
     PersistedEventV1Schema,
     PersistedOutboxV1Schema,
@@ -49,18 +51,18 @@ function jsonValue(value: unknown): JsonValue {
     throw new TypeError("Repository value is not JSON-compatible");
 }
 
-export class DomainMeetingRepository
-    extends DomainMeetingRepositoryMail
-    implements MeetingRepositoryPort
+export class DomainMeetingRepository<TState = JsonObject>
+    extends DomainMeetingRepositoryMail<TState>
+    implements MeetingRepositoryPort<TState>
 {
-    static async open(
-        options: DomainMeetingRepositoryOpenOptions
-    ): Promise<DomainMeetingRepository> {
-        const repository = new DomainMeetingRepository(options);
+    static async open<TState = JsonObject>(
+        options: DomainMeetingRepositoryOpenOptions<TState>
+    ): Promise<DomainMeetingRepository<TState>> {
+        const repository = new DomainMeetingRepository<TState>(options);
         await repository.initialize();
         return repository;
     }
-    async execute<T>(_command: RepositoryCommand<T>): Promise<CommittedResult<T>> {
+    async execute<T>(_command: RepositoryCommand<T, TState>): Promise<CommittedResult<T>> {
         const command = _command;
         this.ensureOpen();
         return this.enqueueMutation(async () => {
@@ -71,7 +73,8 @@ export class DomainMeetingRepository
                     this.meetingId,
                     "Meeting is not ready"
                 );
-            const snapshot = structuredClone(this.projection.snapshot);
+            const persistedSnapshot = structuredClone(this.projection.snapshot);
+            const snapshot = this.decodeSnapshot(persistedSnapshot);
             this.authorizationValidator.validateCommand({ snapshot, command });
             const key = receiptKey(
                 command.requestId,
@@ -107,7 +110,7 @@ export class DomainMeetingRepository
             let transitionState: JsonObject;
             let transitionResult: JsonValue;
             try {
-                transitionState = JsonObjectSchema.parse(jsonValue(transition.state));
+                transitionState = this.encodeState(transition.state);
                 transitionResult = jsonValue(transition.result);
             } catch {
                 throw new RepositoryError(
@@ -117,7 +120,8 @@ export class DomainMeetingRepository
                     "Command state or result is invalid"
                 );
             }
-            if (transition.events.length === 0) {
+            const facts = command.facts ?? [];
+            if (transition.events.length === 0 && facts.length === 0) {
                 if (!command.allowNoop)
                     throw new RepositoryError(
                         "INVALID_STATE",
@@ -208,6 +212,73 @@ export class DomainMeetingRepository
                     );
                 next.events[seqKey(eventSeq)] = persisted.data;
             }
+            for (const fact of facts) {
+                if (fact.meetingVersion !== nextVersion || next.facts[fact.factId] !== undefined)
+                    throw new RepositoryError(
+                        "INVALID_INPUT",
+                        false,
+                        this.meetingId,
+                        "Command fact identity or version is invalid"
+                    );
+                const persisted = CommittedFactRecordV1Schema.safeParse({
+                    ...fact,
+                    relatedIds: [...fact.relatedIds],
+                    payload: jsonValue(fact.payload),
+                    resultingState: this.encodeState(fact.resultingState)
+                });
+                if (!persisted.success)
+                    throw new RepositoryError(
+                        "INVALID_INPUT",
+                        false,
+                        this.meetingId,
+                        "Command fact is invalid"
+                    );
+                next.facts[fact.factId] = persisted.data;
+            }
+            const closure = command.archiveSessionResult;
+            if (closure !== undefined) {
+                const failureCode = closure.failureCode?.trim();
+                if (
+                    command.commandKind !== "record_archive_session_result" ||
+                    (closure.status === "closed" && closure.failureCode !== undefined) ||
+                    (closure.status === "failed" && !failureCode)
+                )
+                    throw new RepositoryError(
+                        "INVALID_INPUT",
+                        false,
+                        this.meetingId,
+                        "Archive Session result is invalid"
+                    );
+                const ownership = next.sessionOwnership[closure.sessionOwnershipId];
+                if (
+                    !ownership?.id ||
+                    ownership.id !== closure.sessionOwnershipId ||
+                    ownership.meetingId !== this.meetingId ||
+                    !ownership.identityId ||
+                    ownership.lifecycleStatus === "closed"
+                )
+                    throw new RepositoryError(
+                        "RECOVERY_UNAVAILABLE",
+                        false,
+                        this.meetingId,
+                        "Archive Session ownership is unavailable"
+                    );
+                if (closure.status === "closed") {
+                    const { lastClosureFailureCode: _discarded, ...identity } = ownership;
+                    next.sessionOwnership[closure.sessionOwnershipId] = {
+                        ...identity,
+                        lifecycleStatus: "closed",
+                        capabilityStatus: "revoked",
+                        updatedAt: now
+                    };
+                } else {
+                    next.sessionOwnership[closure.sessionOwnershipId] = {
+                        ...ownership,
+                        lastClosureFailureCode: failureCode,
+                        updatedAt: now
+                    };
+                }
+            }
             const deliveryIds = new Set(Object.values(next.outbox).map((item) => item.deliveryId));
             for (const item of transition.outbox) {
                 if (item.kind !== "dispatch")
@@ -288,6 +359,19 @@ export class DomainMeetingRepository
                 })
             });
         }, command.commandKind);
+    }
+    async readCommittedFacts(): Promise<readonly CommittedFactRecordV1<TState>[]> {
+        this.ensureOpen();
+        return Object.values(this.projection?.facts ?? {})
+            .sort(
+                (left, right) =>
+                    left.meetingVersion - right.meetingVersion ||
+                    left.factId.localeCompare(right.factId)
+            )
+            .map((fact) => ({
+                ...structuredClone(fact),
+                resultingState: this.decodeState(fact.resultingState)
+            }));
     }
     async claimOutbox(_input: ClaimOutboxInput): Promise<OutboxItem[]> {
         const input = _input;
@@ -502,7 +586,7 @@ export class DomainMeetingRepository
             });
         });
     }
-    async recover(_input: RecoverInput = {}): Promise<RecoveryResult> {
+    async recover(_input: RecoverInput = {}): Promise<RecoveryResult<TState>> {
         this.ensureOpen();
         return this.enqueueMutation(async () => {
             const creation = this.meetingDomain.table("creation").get("current");
@@ -558,7 +642,7 @@ export class DomainMeetingRepository
             const ownership = ready ? this.projection!.sessionOwnership : creation.sessionOwnership;
             return {
                 ...(ready && this.projection!.snapshot
-                    ? { snapshot: structuredClone(this.projection!.snapshot) }
+                    ? { snapshot: this.decodeSnapshot(structuredClone(this.projection!.snapshot)) }
                     : {}),
                 bootstrap,
                 sessionOwnership: Object.values(ownership).map((item) => structuredClone(item)),

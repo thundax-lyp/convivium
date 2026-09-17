@@ -109,6 +109,7 @@ describe("Meeting persistence record schemas", () => {
             updatedAt: 1
         },
         receipts: {},
+        facts: {},
         events: {},
         outbox: {},
         sessionOwnership: {},

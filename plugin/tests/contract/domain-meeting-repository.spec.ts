@@ -10,6 +10,8 @@ import {
 import { catalogKey, receiptKey, seqKey } from "@/repository/domain/keys.js";
 import { CommitRecordV1Schema } from "@/repository/domain/schemas.js";
 import { expect, it, vi } from "vitest";
+import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
+import { decodeMeetingStateV1, encodeMeetingStateV1 } from "@/protocol/meeting-command-v1.js";
 
 defineMeetingRepositoryBehaviorContract("DomainMeetingRepository behavior contract", {
     open: async (authorizationValidator = allow) =>
@@ -74,6 +76,165 @@ defineMeetingRepositoryBehaviorContract("DomainMeetingRepository behavior contra
         await repository.read();
         throw new Error("corrupt state was accepted");
     }
+});
+
+it("uses one target codec for create, transition, facts, read and recover", async () => {
+    const meeting = createFakeMeetingDomain();
+    const state = makeRunningMeetingStateV1();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: createFakeCatalogDomain(),
+        meetingDomain: meeting,
+        meetingId: state.id,
+        authorizationValidator: allow,
+        codec: { encode: encodeMeetingStateV1, decode: decodeMeetingStateV1 },
+        now: () => 2
+    });
+    const create = {
+        requestId: "create-target",
+        requestHash: "create-target-hash",
+        authorization: { callerBinding: "local", capabilityId: "local" },
+        initialState: state,
+        createdAt: 1
+    };
+    await repository.create(create);
+    await repository.completeCreate(create);
+    const resultingState = { ...state, version: 1, updatedAt: 2 };
+    const command = {
+        requestId: "command-target",
+        commandKind: "open_round",
+        requestHash: "command-target-hash",
+        authorization: { callerBinding: "manager", capabilityId: "manager" },
+        expectedMeetingVersion: 0,
+        facts: [
+            {
+                factId: "fact-target",
+                kind: "open_round",
+                actorId: "manager-v1",
+                occurredAt: 2,
+                meetingVersion: 1,
+                relatedIds: ["agenda-v1"],
+                payload: { kind: "references", relatedIds: ["agenda-v1"] },
+                resultingState
+            }
+        ],
+        transition: () => ({
+            state: resultingState,
+            result: { accepted: true },
+            events: [],
+            outbox: []
+        })
+    } as const;
+    const committed = await repository.execute(command);
+    expect(committed.meetingVersion).toBe(1);
+    expect((await repository.read()).state).toEqual(resultingState);
+    expect(await repository.readCommittedFacts()).toEqual(command.facts);
+    await expect(repository.execute(command)).resolves.toEqual(committed);
+    await expect(repository.recover()).resolves.toMatchObject({
+        snapshot: { state: resultingState }
+    });
+    await repository.close();
+});
+
+it("fails a target codec boundary without committing", async () => {
+    const meeting = createFakeMeetingDomain();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: createFakeCatalogDomain(),
+        meetingDomain: meeting,
+        meetingId: "meeting-v1",
+        authorizationValidator: allow,
+        codec: {
+            encode: () => {
+                throw new Error("bad state");
+            },
+            decode: decodeMeetingStateV1
+        }
+    });
+    await expect(
+        repository.create({
+            requestId: "create-invalid",
+            requestHash: "create-invalid-hash",
+            authorization: { callerBinding: "local", capabilityId: "local" },
+            initialState: makeRunningMeetingStateV1()
+        })
+    ).rejects.toMatchObject({ code: "SCHEMA_VERSION_UNSUPPORTED" });
+    expect(meeting.table("creation").get("current")).toBeUndefined();
+    expect([...meeting.table("commits").entries()]).toHaveLength(0);
+    await repository.close();
+});
+
+it("commits facts and archive Session closure atomically", async () => {
+    const meeting = createFakeMeetingDomain();
+    const repository = await DomainMeetingRepository.open({
+        catalogDomain: createFakeCatalogDomain(),
+        meetingDomain: meeting,
+        meetingId: "meeting-1",
+        authorizationValidator: allow,
+        now: () => 2
+    });
+    const create = {
+        requestId: "create-archive",
+        requestHash: "create-archive-hash",
+        authorization: { callerBinding: "local", capabilityId: "local" },
+        initialState: { status: "archiving" },
+        createdAt: 1
+    };
+    await repository.create(create);
+    await repository.completeCreate(create);
+    await repository.recordSessionOwnership({
+        id: "session-1",
+        meetingId: "meeting-1",
+        identityId: "identity-1",
+        sessionId: "session-1",
+        parentSessionId: "captain-1",
+        sessionLabel: "convivium:meeting-manager:legacy:meeting-1",
+        provider: "spawn",
+        role: "manager",
+        lifecycleStatus: "active",
+        capabilityStatus: "active",
+        initialMessageId: "message-1"
+    });
+    const resultingState = { status: "archived", version: 1 };
+    const command = {
+        requestId: "close-session",
+        commandKind: "record_archive_session_result",
+        requestHash: "close-session-hash",
+        authorization: { callerBinding: "runtime", capabilityId: "runtime" },
+        expectedMeetingVersion: 0,
+        facts: [
+            {
+                factId: "fact-close",
+                kind: "record_archive_session_result",
+                actorId: "runtime",
+                occurredAt: 2,
+                meetingVersion: 1,
+                relatedIds: ["identity-1"],
+                payload: { kind: "references", relatedIds: ["identity-1"] },
+                resultingState
+            }
+        ],
+        archiveSessionResult: { sessionOwnershipId: "session-1", status: "closed" },
+        transition: () => ({
+            state: resultingState,
+            result: { accepted: true },
+            events: [],
+            outbox: []
+        })
+    } as const;
+    meeting.failPutsInTable("commits");
+    await expect(repository.execute(command)).rejects.toThrow();
+    meeting.allowPutsInTable("commits");
+    expect(await repository.readCommittedFacts()).toEqual([]);
+    expect((await repository.recover()).sessionOwnership[0]).toMatchObject({
+        lifecycleStatus: "active",
+        capabilityStatus: "active"
+    });
+    await repository.execute(command);
+    expect((await repository.recover()).sessionOwnership[0]).toMatchObject({
+        lifecycleStatus: "closed",
+        capabilityStatus: "revoked"
+    });
+    expect(await repository.readCommittedFacts()).toHaveLength(1);
+    await repository.close();
 });
 
 it("still rejects an unsupported LegacyMeetingState format on a live snapshot read", async () => {

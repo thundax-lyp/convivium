@@ -6,6 +6,22 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue
 export type JsonObject = { [key: string]: JsonValue };
 export type MeetingEventType = DomainEventType;
 
+export interface MeetingStateCodec<TState> {
+    encode(state: TState): Uint8Array;
+    decode(bytes: Uint8Array): TState;
+}
+
+export interface CommittedFactRecordV1<TState = JsonObject> {
+    factId: string;
+    kind: string;
+    actorId: string;
+    occurredAt: number;
+    meetingVersion: number;
+    relatedIds: readonly string[];
+    payload: JsonObject;
+    resultingState: TState;
+}
+
 export const OUTBOX_KINDS = ["dispatch"] as const;
 export type OutboxKind = (typeof OUTBOX_KINDS)[number];
 
@@ -47,6 +63,12 @@ export interface RepositoryCommand<T, TState = JsonObject> {
     requestHash: string;
     expectedMeetingVersion: number;
     allowNoop?: boolean;
+    facts?: readonly CommittedFactRecordV1<TState>[];
+    archiveSessionResult?: {
+        sessionOwnershipId: string;
+        status: "closed" | "failed";
+        failureCode?: string;
+    };
     transition: (snapshot: MeetingSnapshot<TState>) => TransitionResult<T, TState>;
 }
 
@@ -56,19 +78,19 @@ export interface CommandAuthorization {
     attemptId?: string;
 }
 
-export interface RepositoryAuthorizationValidator {
+export interface RepositoryAuthorizationValidator<TState = JsonObject> {
     validateCreate(input: { meetingId: string; authorization: CommandAuthorization }): void;
     validateCommand(input: {
-        snapshot: MeetingSnapshot;
-        command: Pick<RepositoryCommand<unknown>, "commandKind" | "authorization">;
+        snapshot: MeetingSnapshot<TState>;
+        command: Pick<RepositoryCommand<unknown, TState>, "commandKind" | "authorization">;
     }): void;
 }
 
-export interface CreateMeetingInput {
+export interface CreateMeetingInput<TState = JsonObject> {
     requestId: string;
     authorization: CommandAuthorization;
     requestHash: string;
-    initialState: JsonObject;
+    initialState: TState;
     createResult?: CreateMeetingResult;
     outbox?: OutboxInput[];
     createdAt?: number;
