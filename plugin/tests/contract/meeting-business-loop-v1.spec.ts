@@ -60,7 +60,7 @@ const evidence = {
 const dimension = { score: 3 as const, scope: "scope", reason: "reason", baselineEvidenceIds: [] };
 
 describe("target Meeting business-loop protocol", () => {
-    it("parses all twelve target write actions and strips runtime fields", () => {
+    it("parses all thirteen target write actions and strips runtime fields", () => {
         const actions = [
             {
                 kind: "create_meeting",
@@ -110,6 +110,11 @@ describe("target Meeting business-loop protocol", () => {
                     }
                 ]
             },
+            {
+                kind: "record_review_delivery",
+                reviewId: "review-1",
+                status: "sent"
+            },
             { kind: "publish_round", roundId: "round-1" },
             {
                 kind: "end_meeting",
@@ -127,7 +132,7 @@ describe("target Meeting business-loop protocol", () => {
                 status: "closed"
             }
         ];
-        expect(actions).toHaveLength(12);
+        expect(actions).toHaveLength(13);
         for (const value of actions) {
             const parsed = MeetingActionV1Schema.parse({ ...value, forgedRuntimeField: "strip" });
             expect(PublicMeetingActionV1Schema.parse(value)).toEqual(parsed);

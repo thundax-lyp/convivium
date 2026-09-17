@@ -185,60 +185,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T13：建立唯一 application command dispatcher
-
-前置状态：T12 PASS。
-
-允许修改：`plugin/src/protocol/meeting-command-v1.ts`、`plugin/src/runtime/application-service/meeting-command-v1.ts`、`plugin/src/runtime/application-service/meeting-identity-v1.ts`、`plugin/src/runtime/application-service/types.ts`、`plugin/tests/contract/meeting-command-v1-core.spec.ts`、`plugin/tests/contract/meeting-runtime.spec.ts`、`plugin/tests/contract/meeting-identity-command-v1.spec.ts`。
-
-禁止修改：其它 protocol、identity provisioning、roles、Remote/tools、旧 application 文件。
-
-执行：在 `plugin/src/runtime/application-service/meeting-command-v1.ts` 用下列唯一入口替换当前只透传 repository 的 shim，并定义下列接口、resolver type 和 principal constants；不保留 action-specific application facade：
-
-```ts
-interface MeetingCommandApplicationV1 {
-    execute(command: MeetingCommandV1, context: MeetingCommandExecutionContextV1, signal: AbortSignal): Promise<MeetingCommandResultV1>;
-}
-interface MeetingCommandExecutionContextV1 {
-    caller: CallerBindingV1;
-    archiveEffect?: { effectId:OpaqueId; archiveId:OpaqueId };
-}
-type CreateMeetingCommandV1 = Omit<MeetingCommandV1,"action"> & {
-    action: Extract<MeetingActionV1,{kind:"create_meeting"}>;
-};
-interface MeetingCreationCoordinatorV1 {
-    create(command:CreateMeetingCommandV1, context:MeetingCommandExecutionContextV1, meetingId:OpaqueId, now:EpochMs, signal:AbortSignal):Promise<MeetingCommandResultV1>;
-}
-interface ResolvedCallerScopeV1 {
-    caller:CallerBindingV1;
-    meetingId:OpaqueId;
-    identityId?:OpaqueId;
-    role:"local"|"manager"|"evidence_reviewer"|"participant"|"runtime";
-    ownership?:SessionOwnership;
-}
-type ResolveCallerScopeV1 = (input:{meetingId:OpaqueId;caller:CallerBindingV1}) => Promise<ResolvedCallerScopeV1|undefined>;
-const LOCAL_CONTROLLER_PRINCIPAL_ID = "local-controller";
-const RUNTIME_RECOVERY_PRINCIPAL_ID = "runtime-recovery";
-const DEADLINE_HANDLER_PRINCIPAL_ID = "deadline-handler";
-function createMeetingCommandApplicationV1(dependencies: MeetingCommandApplicationDependenciesV1): MeetingCommandApplicationV1;
-```
-
-`MeetingCommandApplicationDependenciesV1` required `creation:MeetingCreationCoordinatorV1`、T12 `registry:DomainRepositoryRegistry<MeetingState>`、`ids`、`clock`、`resolveCallerScope:ResolveCallerScopeV1`；不再注入单 Meeting repository，所有 `MeetingRepositoryPort<MeetingState>` 都只由该 registry 按 meetingId 返回；`catalog/definitions` 仅供 identity action，不能形成第二 dispatcher。`dsh_tool` 分支必须由 T14b2 的 active ownership 解析，`principalId=identityId`、`sessionBindingId=ownership.id` 且 required identityId/ownership；`loopback_remote` 只允许 role=`local`、`principalId=LOCAL_CONTROLLER_PRINCIPAL_ID` 且无 sessionBindingId；`runtime_recovery|deadline_handler` 只允许 role=`runtime`、分别使用对应固定 internal principal 且无 sessionBindingId；所有分支的 result meetingId 必须等于 input meetingId，均不读 `participantId` 或 `teamId`。resolver 返回 undefined 或字段不匹配一律 `UNAUTHORIZED` 且不开 repository。T13 tests 注入 fake creation coordinator、fake registry 和 fake resolver，真实 creation 由 T14c 提供，真实 DSH resolver 由 T14b2 提供，local/runtime adapter 在 T20 最终装配。`execute` 先以已实现的 target Schema 得到 stripped command，再 resolve caller 并只调用一次 `clock.now()`：若为 create，command meetingId 仍为 `"new"`，精确以 `meetingIdFor(command.requestId)` 得到真实 ID，把 normalized command/context/meetingId/now/signal 委托给 `creation.create` 一次，T13 自身不另开 repository、不创建 Session、不进行第二次 commit；其它 command 调用 `registry.openMeeting({meetingId})`，按固定错误顺序处理 idempotency 和 lifecycle，只在纯 transition accepted 后构造一个 `RepositoryCommand<MeetingCommandResultV1,MeetingState>`。repository `SCHEMA_VERSION_UNSUPPORTED` 精确映射公开 `INCOMPATIBLE_VERSION`，其它 repository/storage failure 按固定错误表映射。任何 dependency 不得接收或传递 `teamId`。`start_archive` 必须同时具有 `caller.channel="runtime_recovery"`、`caller.principalId=RUNTIME_RECOVERY_PRINCIPAL_ID` 和 `archiveEffect`，其它组合返回 `UNAUTHORIZED`；tool/Remote 不得构造它。除 Meeting ID 外的 object/fact/receipt/outbox ID 只调用注入的 `ids.nextId(kind)`。
-
-`meeting-command-v1.ts` 同步补齐正式接口已定义但当前 Schema 缺失的 `RecordReviewDeliveryActionV1Schema={kind:"record_review_delivery";reviewId:OpaqueId;status:"sent"|"failed";failureReason?:string}`：sent 禁止 failureReason，failed required trim 后非空；它立即进入已从 protocol public entrypoint 导出的 `MeetingCommandV1Schema` union，action-specific Schema 的公开导出仍由 T19b 与其它 tool actions 一并处理，不新增 facade。该 action 只允许 `runtime_recovery` 固定 principal，T13 生成 deliveryId/dispatcher actor/now 并调用已实现的 `recordReviewDeliveryV1`；Agent、worker、tool 和 Remote 提交一律 `UNAUTHORIZED`。
-
-处理 `end_meeting` 时由 application 额外生成唯一 archiveId 和 archive outbox record `{kind:"dispatch",payload:{kind:"archive",archiveId,meetingId}}`；Domain 仍只产生 `materialize_archive` intent。其它 Domain effect request 同样映射为 outer `dispatch` 与最小 discriminated payload。处理 `start_archive` 时使用 `context.archiveEffect.archiveId`，先调用 `readCommittedFacts()`，只映射 `resolve_question/question_disposition` 与 `dispose_issue/issue_disposition` 为 `startMeetingArchiveV1` 输入并按 `occurredAt/factId` 排序；其它 action 不读取 facts，requestId 由 T17 固定。处理 `record_archive_session_result` 时先读取指定 ownership，验证其 `meetingId`、runtime_recovery channel 和未关闭状态，把规范化 closure 写入 `RepositoryCommand.archiveSessionResult`；计算本次 closed 后没有其它未关闭 ownership时，才在同一 command transition 调用 `completeMeetingArchiveV1(...allSessionOwnershipClosed:true)`。把现有 `createMeetingIdentityApplicationV1` 的 recommend/admission 分支并入该 dispatcher，并删除其独立 dispatcher export；不得留下两条 command path。`application-service/types.ts` 暂时保留尚未删除的 legacy 文件所需类型，并逐项标为 legacy-only；最终清理由 T26 完成。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/contract/meeting-command-v1-core.spec.ts tests/contract/meeting-runtime.spec.ts tests/contract/meeting-identity-command-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：业务链 actions、identity actions、authority、version/idempotency 和零写拒绝通过；create 恰好委托一次 coordinator；生产代码只存在一个外部 command dispatcher。
-
-STOP：需要第二 dispatcher 或调用旧 application service。
-
 ### T13b：补齐 Meeting 启动通知
 
 前置状态：T13 PASS。

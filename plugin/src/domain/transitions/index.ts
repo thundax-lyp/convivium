@@ -78,7 +78,7 @@ export { closeContributionV1 } from "./contribution-exit-v1.js";
 export { publishRoundV1 } from "./round-publication-v1.js";
 export { createMeetingV1 } from "./meeting-create-v1.js";
 export { endMeetingV1 } from "./meeting-end-v1.js";
-export { startMeetingArchiveV1 } from "./meeting-archive-v1.js";
+export { startMeetingArchiveV1, completeMeetingArchiveV1 } from "./meeting-archive-v1.js";
 export {
     recommendIdentityV1,
     recordIdentityAdmissionResultV1,

@@ -135,6 +135,19 @@ const actions = [
             if (new Set(ids).size !== ids.length)
                 ctx.addIssue({ code: "custom", path: ["reviews"] });
         }),
+    z
+        .object({
+            kind: z.literal("record_review_delivery"),
+            reviewId: id,
+            status: z.enum(["sent", "failed"]),
+            failureReason: text.optional()
+        })
+        .superRefine((value, ctx) => {
+            if (value.status === "sent" && value.failureReason !== undefined)
+                ctx.addIssue({ code: "custom", path: ["failureReason"] });
+            if (value.status === "failed" && value.failureReason === undefined)
+                ctx.addIssue({ code: "custom", path: ["failureReason"] });
+        }),
     z.object({ kind: z.literal("publish_round"), roundId: id }),
     z.object({
         kind: z.literal("end_meeting"),
