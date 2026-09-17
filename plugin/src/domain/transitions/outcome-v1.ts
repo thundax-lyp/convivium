@@ -139,18 +139,14 @@ const requiredReviewOk = (s: MeetingState, ids: readonly OpaqueId[]) =>
     ids.every((id) => {
         const owner = s.evidencePackages.find((p) => p.versions.some((v) => v.id === id));
         if (!owner) return false;
-        const agenda = s.agenda.find((a) => a.id === owner.agendaId);
-        if (!agenda) return false;
-        const reviewer = agenda.requiredReviewerIds
-            .map((rid) => s.identities.find((i) => i.id === rid))
-            .find(
-                (i) =>
-                    i &&
-                    i.id !== owner.authorId &&
-                    i.roles.includes("evidence_reviewer") &&
-                    i.reviewResponsibilityIds.includes(agenda.id)
-            );
-        if (!reviewer) return false;
+        const reviewer = s.identities.find((identity) => identity.id === s.evidenceReviewerId);
+        if (
+            reviewer === undefined ||
+            reviewer.id === owner.authorId ||
+            reviewer.roles.length !== 1 ||
+            reviewer.roles[0] !== "evidence_reviewer"
+        )
+            return false;
         const reviews = s.reviews.filter((r) => r.versionId === id && r.reviewerId === reviewer.id);
         if (
             reviews.length !== 1 ||
@@ -296,8 +292,9 @@ export function recordProposalRevisionV1(
         proposals: [...state.proposals, revision]
     };
     const recalculated = recalculateMeetingCompletionV1(next, input.actor.id, input.now);
-    if (validateMeetingStateV1(recalculated).kind !== "valid")
+    if (validateMeetingStateV1(recalculated).kind !== "valid") {
         return bad(state, "PRECONDITION_FAILED");
+    }
     return {
         kind: "accepted",
         state: recalculated,

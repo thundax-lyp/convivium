@@ -184,26 +184,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T7a：迁移 Round 与 Outcome 的 reviewer 语义
-
-前置状态：T6 PASS。
-
-允许修改：`plugin/src/domain/transitions/round-v1.ts`、`plugin/src/domain/transitions/outcome-v1.ts`、`plugin/tests/unit/domain/round-v1.spec.ts`、`plugin/tests/unit/domain/outcome-v1.spec.ts`。
-
-禁止修改：canonical state/type、generic dispatcher、protocol、runtime、fixture。
-
-执行：Round/Outcome 只使用 `state.evidenceReviewerId` 和 `Issue.requiresEvidenceReview`；删除对 Agenda/identity reviewer 数组的读取；测试 Registration 使用 canonical 四字段结构。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/domain/round-v1.spec.ts tests/unit/domain/outcome-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：Round/Outcome 不读取 compatibility reviewer 数组；requiresEvidenceReview 正反例和 Registration canonical shape 通过。
-
-STOP：仍需由 Agenda/identity 数组选择 reviewer。
-
 ### T7b：移除 Contribution exit 的 FormatApproval 依赖
 
 前置状态：T7a PASS。

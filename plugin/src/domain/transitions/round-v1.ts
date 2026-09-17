@@ -179,9 +179,9 @@ export function isRoundClosableV1(state: MeetingState, roundId: OpaqueId): boole
         );
         if (!registration) return false;
         const reviews = state.reviews.filter((review) => review.versionId === pkg.currentVersionId);
-        const reviewerIds =
-            state.agenda.find((agenda) => agenda.id === round.agendaId)?.requiredReviewerIds ?? [];
-        const finalReview = reviews.find((review) => reviewerIds.includes(review.reviewerId));
+        const finalReview = reviews.find(
+            (review) => review.reviewerId === state.evidenceReviewerId
+        );
         if (!finalReview || reviews.filter((review) => review.id === finalReview.id).length !== 1)
             return false;
         if (
