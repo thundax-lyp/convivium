@@ -13,7 +13,7 @@
 
 执行者必须从本文仍存在的第一个步骤开始按顺序执行；已从本文删除的步骤视为已有提交证据，不得重复执行。每个步骤只有在该步骤 PASS 后才能进入下一步。允许修改的业务文件只限各步骤明确列出的路径；每一步都额外隐含允许修改本 RUNBOOK，但唯一允许的改动是该步 PASS 后删除当前完整 step section，且该文件不计入“每步不超过 6 个文件”。步骤中的“禁止修改其他全部文件”不禁止这项强制 step 删除。不得保留双写、target compatibility read、旧 snapshot migration、legacy facade、转发文件、第二套 repository、第二套 command dispatcher 或未被当前范围要求的通用抽象；为使明确保留的 legacy 文件在删除前编译而保留的旧字段/exports，必须被逐项标为 legacy-only、不得进入 target activity graph，并迁移到 readiness 未覆盖项。
 
-T3a-T21c 中除 T14a 资源步骤外的实现步骤必须对该步列出的 production symbol 形成真实代码 diff；T14a 必须形成发布资源与验证脚本 diff；T22 是 smoke/entrypoint 验证步骤，T23-T29 是删除步骤，T30 是 readiness/关闭步骤，三者不要求 production diff。所有行为实现步骤都先写或修改该步列出的测试，使新增行为出现可解释的失败，再修改 production code 使 focused validation 通过；已有测试为绿、只增加测试、只删除 RUNBOOK 步骤或只改文档都不能证明实现步骤完成。若 Author/Audit 时发现某步行为已经完整存在，应由 Author 删除该步并记录既有证据，不得留给 executor 产生 RUNBOOK-only commit。删除步骤不改写旧 fixture；本轮删除文件总数固定为 29 个，只包含 20 个 legacy application orchestration/read-side production 文件及其 9 个直接测试，低于用户允许的 30 文件上限。用户已有且不属于本 RUNBOOK 的改动不得覆盖或回滚。
+T8-T21c 中除 T14a 资源步骤外的实现步骤必须对该步列出的 production symbol 形成真实代码 diff；T14a 必须形成发布资源与验证脚本 diff；T22 是 smoke/entrypoint 验证步骤，T23-T29 是删除步骤，T30 是 readiness/关闭步骤，三者不要求 production diff。所有行为实现步骤都先写或修改该步列出的测试，使新增行为出现可解释的失败，再修改 production code 使 focused validation 通过；已有测试为绿、只增加测试、只删除 RUNBOOK 步骤或只改文档都不能证明实现步骤完成。若 Author/Audit 时发现某步行为已经完整存在，应由 Author 删除该步并记录既有证据，不得留给 executor 产生 RUNBOOK-only commit。删除步骤不改写旧 fixture；本轮删除文件总数固定为 29 个，只包含 20 个 legacy application orchestration/read-side production 文件及其 9 个直接测试，低于用户允许的 30 文件上限。用户已有且不属于本 RUNBOOK 的改动不得覆盖或回滚。
 
 每步的提交节奏固定为：完成 production/test 改动并通过该步验证 → 删除本文中该完整步骤 → 将代码、测试和该步骤删除放进同一个提交。禁止单独提交 RUNBOOK 步骤删除，禁止用空改动或既有绿色测试代替实现。除非用户另行明确要求，不得 push、force-push、rebase、amend 或改写已 push 的提交。删除步骤的计数在提交前只检查当前 working-tree 删除；全程累计删除只在 T30 对固定起始提交 `f170deb` 检查。
 
@@ -21,22 +21,17 @@ T3a-T21c 中除 T14a 资源步骤外的实现步骤必须对该步列出的 prod
 
 以下任一事实与执行时 checkout 不一致时必须 STOP：本文指定的既有路径或 symbol 不存在；正式文档改变了本文固定的字段、错误码、actor、lifecycle 或归档语义；下述可执行 baseline 失败；实现必须引入新依赖、数据库 migration、外部权限或 Non-goal；DSH 精确版本不再是 `0.1.2-rc.1`。
 
-首次执行且尚未删除 T3a 时，只运行一次以下 baseline；不得在后续步骤重复运行来替代 focused validation：
+首次执行且尚未删除 T8 时，只运行一次以下 baseline；不得在后续步骤重复运行来替代 focused validation：
 
 ```bash
 test "$(git branch --show-current)" = "codex/runbook-meeting-runtime-cutover"
 test -z "$(git status --porcelain)"
 test "$(node -p "require('./plugin/node_modules/@deepseek-ai/dsh-subagent/package.json').version")" = "0.1.2-rc.1"
-pnpm --dir=plugin format:check
-pnpm --dir=plugin lint
-pnpm --dir=plugin typecheck
-pnpm --dir=plugin vitest run tests/unit/domain/meeting-lifecycle-v1.spec.ts tests/unit/domain/hand-raise-v1.spec.ts tests/unit/domain/round-v1.spec.ts tests/unit/domain/round-publication-v1.spec.ts
+pnpm --dir=plugin verify
 pnpm --dir=plugin smoke:profile
 ```
 
-Baseline PASS：八条命令全部退出 0；默认 smoke 的既有 `parallel-contribution` 与 `identity-admission` scenario 成功。Baseline STOP：任一命令失败时报告命令和输出，不修改文件、不删除 T3a、不自行修复或放宽门禁。
-
-当前 checkout 的全量 `pnpm --dir=plugin verify` 不是起始 baseline：前置提交已经收紧 canonical reviewer/approval shape，而 `meeting-state-v1-transitions.spec.ts`、`outcome-v1.spec.ts`、`private-mail-v1.spec.ts` 仍构造 compatibility shape，当前固定结果为这 3 个 suite 失败；T7a、T7c、T7d 分别迁移它们。执行者不得在 T3a 前尝试修复这 3 个 suite，也不得自行增加兼容层或改写步骤顺序。T7d 必须首次恢复全量 `verify` 为绿；此后 T8-T30 的 focused validation 以该绿色全量门禁为回归基线。
+Baseline PASS：五条命令全部退出 0；完整插件门禁通过，默认 smoke 的既有 `parallel-contribution` 与 `identity-admission` scenario 成功。Baseline STOP：任一命令失败时报告命令和输出，不修改文件、不删除 T8、不自行修复或放宽门禁。
 
 ## 目标业务链
 
@@ -69,11 +64,10 @@ local ReadArchive
 | 正式声明 | 当前代码事实 | 本 RUNBOOK 的处理 |
 | --- | --- | --- |
 | `MeetingState` 是新业务链唯一聚合 | `plugin/src/runtime/meeting-runtime.ts`、repository projection 和外围入口仍使用 `LegacyMeetingState` | T8-T21 将活动调用链直接切换；T23-T29 删除旧 application orchestration/read-side |
-| 创建使用 `identityKey`，每场会议唯一 Manager 和 reviewer | 已有字段 `evidenceReviewerId`，但 compatibility 字段及其消费者尚未删除；旧创建仍按 participantKey/旧 role 建模 | T4-T7d、T14b-T14c |
-| Manager 不接触草稿或正文审批 | `FormatApprovalV1`、`formatApprovals`、`reviewEvidenceDraftV1` 和 hash 门禁仍存在 | T4、T7b、T7d 删除 |
-| reviewer 单一、按 EvidenceVersion 独立审核、批量提交 | `submitReviewV1` 仍是单项提交，Agenda/identity compatibility reviewer 数组仍被消费 | T5-T7d、T16 |
-| 归档是按值白名单，Session 全部关闭后才 archived | Archive type/validator 仍是旧摘要结构，T2 只增加 clone/terminal 测试，尚未证明 outcome、materialization、ownership gate 和 archived | T3a、T3b、T17 |
-| 同一 candidate 跨 Agenda 复用一个 active identity/Session | `recommendIdentityV1` 对 active candidate 整体拒绝 | T6、T15 |
+| 创建使用 `identityKey`，每场会议唯一 Manager 和 reviewer | canonical identity 已完成，外围创建仍按 participantKey/旧 role 建模，尚未创建八个 target child Session | T14b-T14c |
+| reviewer 单一、按 EvidenceVersion 独立审核、批量提交 | 纯 Domain batch 已完成，DSH reviewer coordinator 与独立 worker 尚未接入 | T16 |
+| 归档是按值白名单，Session 全部关闭后才 archived | canonical ArchivePackage 与 Domain lifecycle 已完成，runtime cleanup/outbox/recovery 尚未接入 | T17 |
+| 同一 candidate 跨 Agenda 复用一个 active identity/Session | 纯 Domain active reuse 已完成，identity effect handler 与 recovery 尚未统一到 target command path | T15a-T15b |
 | Scribe 已删除，发布包为 8 个角色 | `plugin/meeting-roles/` 和验证脚本仍含 `meeting_scribe` | T14a |
 | target protocol 只覆盖 identity/read/end/archive | 完整 round/evidence/review action 尚未进入 `MeetingCommandV1Schema` | T8-T9 |
 | target repository/application/projection 必须可真实运行 | `adaptMeetingRepositoryV1`、`createMeetingCommandApplicationV1` 和 `projectMeetingViewV1` 仍是薄 shim | T10-T21 |
@@ -183,29 +177,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 ## 机械执行步骤
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
-
-### T8：扩展 write/read protocol
-
-前置状态：T7d PASS。
-
-允许修改：`plugin/src/protocol/meeting-command-v1.ts`、`plugin/src/protocol/meeting-identity-v1.ts`、`plugin/src/protocol/request-idempotency.ts`、`plugin/tests/contract/meeting-command-v1-core.spec.ts`、`plugin/tests/contract/meeting-identity-protocol-v1.spec.ts`、`plugin/tests/contract/meeting-business-loop-v1.spec.ts`（新增）。
-
-禁止修改：`plugin/src/protocol/index.ts` 和其他 legacy protocol、repository、runtime。
-
-执行：在 `meeting-command-v1.ts` 定义并导出唯一 `MeetingActionV1Schema`、`MeetingCommandV1Schema`、`ListMeetingsRequestV1Schema`、`ReadMeetingRequestV1Schema`、`MeetingCommandResultV1Schema` 与对应 inferred types。各 action 字段逐字采用 Meeting Interface：create 使用完整 `CreateMeeting`；open `{kind,agendaId,deadlineAt?}`；raise `{kind,roundId,purpose}`；dispose `{kind,roundId,contributorId,disposition,reason}`；submit evidence `{kind,contributionId,evidence}`；review batch `{kind,reviews:[{versionId,dimensions,scope}]}`；publish `{kind,roundId}`；end 使用 `{kind,outcome,reason,decisionIds,completionFactIds,unresolvedQuestionIds,unresolvedIssueIds}`；start archive 只有 kind；archive result 使用 `{kind,sessionOwnershipId,status,failureReason?}`。`record_archive_session_result` 的 closed 禁止 failureReason，failed 必须为 trim 后非空；reviews 非空且 versionId 在 Schema refinement 中唯一。保留 `meeting-identity-v1.ts` 已有两个 identity action Schema 并组合，不复制字段。
-
-所有 object 使用 Zod strip mode，不用 `.passthrough()`；`serializeValidatedRequestV1` 只接收已 parse 的 command 并递归按 object key 排序、保持 array 顺序，返回 canonical JSON 字符串供 hash。`encodeMeetingStateV1` 先调用 `validateMeetingStateV1` 再 JSON encode；`decodeMeetingStateV1` parse 后调用同一 validator，任何 legacy/缺字段/多余 compatibility shape 统一抛 `INCOMPATIBLE_VERSION`，不得只用字段存在性判断。
-
-验证：
-```bash
-test -f plugin/tests/contract/meeting-business-loop-v1.spec.ts
-pnpm --dir=plugin vitest run tests/contract/meeting-command-v1-core.spec.ts tests/contract/meeting-identity-protocol-v1.spec.ts tests/contract/meeting-business-loop-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：上述 12 个 write action、两个 read Schema、result/error union 的正反例通过；unknown Runtime 字段被 strip 且不改变 hash；旧 state 与无效 canonical state 均返回 `INCOMPATIBLE_VERSION`。
-
-STOP：必须修改 legacy Schema 或 unknown key 进入 Domain。
 
 ### T9：登记 target protocol 公开入口
 
@@ -334,7 +305,7 @@ function createMeetingCommandApplicationV1(dependencies: MeetingCommandApplicati
 
 `MeetingCommandApplicationDependenciesV1` required 为 `repository:MeetingRepositoryPort<MeetingState>`、`ids`、`clock`、`resolveCallerScope`；`catalog/definitions` 仅供 identity action，不能形成第二 dispatcher。`resolveCallerScope` 必须消费 T10a target caller fields，不读 participantId。`execute` 先以 T8 Schema 得到 stripped command，再 resolve caller，按固定错误顺序处理 idempotency 和 lifecycle，只在纯 transition accepted 后构造一个 `RepositoryCommand<MeetingCommandResultV1,MeetingState>`。`start_archive` 必须同时具有 `caller.channel="runtime_recovery"` 和 `archiveEffect`，其它组合返回 `UNAUTHORIZED`；tool/Remote 不得构造它。每个 command 只调用一次 `clock.now()`；所有 object/fact/receipt/outbox ID 只调用注入的 `ids.nextId(kind)`。
 
-处理 `end_meeting` 时由 application 额外生成唯一 archiveId 和 archive outbox record `{kind:"archive",payload:{kind:"archive",archiveId,meetingId}}`；Domain 仍只产生 `materialize_archive` intent。处理 `start_archive` 时使用 `context.archiveEffect.archiveId`，先调用 `readCommittedFacts()`，只映射 `resolve_question/question_disposition` 与 `dispose_issue/issue_disposition` 为 T3b 输入并按 `occurredAt/factId` 排序；其它 action 不读取 facts，requestId 由 T17 固定。处理 `record_archive_session_result` 时先读取指定 ownership，验证其 `meetingId`、runtime_recovery channel 和未关闭状态，把规范化 closure 写入 `RepositoryCommand.archiveSessionResult`；计算本次 closed 后没有其它未关闭 ownership时，才在同一 command transition 调用 `completeMeetingArchiveV1(...allSessionOwnershipClosed:true)`。`application-service/types.ts` 只保留上述 dependency/context/result 类型，移除 Developer Markdown 与旧 application option 引用。
+处理 `end_meeting` 时由 application 额外生成唯一 archiveId 和 archive outbox record `{kind:"archive",payload:{kind:"archive",archiveId,meetingId}}`；Domain 仍只产生 `materialize_archive` intent。处理 `start_archive` 时使用 `context.archiveEffect.archiveId`，先调用 `readCommittedFacts()`，只映射 `resolve_question/question_disposition` 与 `dispose_issue/issue_disposition` 为 `startMeetingArchiveV1` 输入并按 `occurredAt/factId` 排序；其它 action 不读取 facts，requestId 由 T17 固定。处理 `record_archive_session_result` 时先读取指定 ownership，验证其 `meetingId`、runtime_recovery channel 和未关闭状态，把规范化 closure 写入 `RepositoryCommand.archiveSessionResult`；计算本次 closed 后没有其它未关闭 ownership时，才在同一 command transition 调用 `completeMeetingArchiveV1(...allSessionOwnershipClosed:true)`。`application-service/types.ts` 只保留上述 dependency/context/result 类型，移除 Developer Markdown 与旧 application option 引用。
 
 验证：
 ```bash
@@ -917,7 +888,7 @@ Not Applicable：数据库 schema migration 和旧 snapshot compatibility 明确
 
 ## 失败恢复
 
-- T3a-T9 仅修改纯代码/测试，无外部副作用；失败时保留 diff 并 STOP。
+- T8-T9 仅修改纯代码/测试，无外部副作用；失败时保留 diff 并 STOP。
 - T10-T12 repository 测试必须使用临时 Storage domain；失败不得手工改持久数据。
 - T14b、T15a、T15b、T16、T17 与 T22 创建的 Session 必须由测试/smoke 的 `finally` 和原生 teardown 关闭；若 teardown 无法证明完成，保留临时 profile 路径和 Session ID 作为 STOP 证据，不删除不明归属 Session。
 - archive cleanup 失败是业务可恢复状态：保留 `archiving`、ArchivePackage、outbox 和 ownership，不回滚 terminal/archive materialization，不创建替代 Session。
@@ -938,11 +909,11 @@ Not Applicable：数据库 schema migration 和旧 snapshot compatibility 明确
 ## Author Audit
 
 - 结论：`Executable`；Luna + medium 无需选择产品行为、数据结构、repository transaction、DSH worker/session 方案、公开入口或关闭提交形状。
-- 已固定 ArchivePackage：字段与 nested type 逐项对应 Meeting Interface ArchiveView；`publicSnapshotVersion`、createdAt、status、facts 顺序、unresolved 顺序、exportMaterials、Session close failure 与重试语义均在“聚合改动”和 T3a/T3b 给出唯一值。
-- 已修复机械冲突：T3a 先收敛 canonical ArchivePackage，T3b 再消费它完成 lifecycle transition；全部 pnpm 命令使用当前环境支持的 `--dir=plugin`；T4 纳入 transition barrel；reviewer/FormatApproval consumer 与 canonical type 删除拆为 T7a-T7d；新增文件先以 `test -f` 证明存在；T23-T29 只计当前步骤删除，T30 再从固定起始提交核对累计 29 个文件。
+- 已固定 ArchivePackage：字段与 nested type 逐项对应 Meeting Interface ArchiveView；`publicSnapshotVersion`、createdAt、status、facts 顺序、unresolved 顺序、exportMaterials、Session close failure 与重试语义均在“聚合改动”和 T17 给出唯一值。
+- 已固定剩余步骤的机械边界：全部 pnpm 命令使用当前环境支持的 `--dir=plugin`；新增文件先以 `test -f` 证明存在；T23-T29 只计当前步骤删除，T30 再从固定起始提交核对累计 29 个文件。
 - 已固定 runtime 接线：T10a/T10b/T11 分离 ownership seam、generic 单 port 与原子 closure；T13 是唯一 command dispatcher；T14b/T14c 分离 target Session adapter 与 plugin lifecycle；T15 只处理 identity effect；T16 使用 DSH one-shot workers 并发且逐 run dispose；T17 只关闭可证明 ownership；T18-T21 的 projection/tool/Remote/Client symbol、允许 action 和逐字段来源均唯一。
 - 已消除边界冲突：Captain parent 不作为 meeting-owned child；Remote 只保留 `list/read/control/subscribeRefresh` 且不转发 agent action；Archive 经 read view 返回；公开错误码与 Meeting Interface 一致；T22/T30 不再被错误要求 production diff。
 - 已固定执行提交规则：每个步骤必须产生其要求的 production/test 行为 diff，代码、测试与该步骤删除同一提交；禁止 RUNBOOK-only commit，禁止把既有绿色测试当作完成证据，禁止未经另行授权 push 或改写历史。
 - 已固定产品选择：最小 partial 闭环、无兼容/迁移/双写、reviewer coordinator + 独立 workers + batch、候选人跨 Agenda active 复用、不可压缩 message budget、按值 archive、删除 Scribe；代码删除只限 20 个 application-side production 文件和 9 个直接测试，总数 29，不拆散 retained projection pair。
-- 已固定未决风险处理：可执行 baseline 或真实 DSH capability 不满足即 STOP，不允许 executor 选择替代架构；当前全量 `verify` 的 3 个 compatibility suite 失败已显式归属 T7a/T7c/T7d，T7d 必须把全量门禁恢复为绿，避免 Luna 在第一步必然 STOP 或自行猜测放宽条件。
-- Author 交付前验证：可执行 baseline 中除 clean-working-tree（Author 正在修改本文）外的命令、`node .github/scripts/check-doc-links.mjs`、`git diff --check`；当前 `pnpm --dir=plugin verify` 实测为固定的 3 个 compatibility suite、266 个 case 失败，证明它不能作为 T3a 起始门禁；默认真实 smoke 实测 `parallel-contribution`、`identity-admission` 均 PASS。未执行的 T3a-T30 不得据此视为通过。
+- 已固定未决风险处理：可执行 baseline 或真实 DSH capability 不满足即 STOP，不允许 executor 选择替代架构；T8 从完整绿色门禁开始，后续步骤不得用 focused validation 掩盖全量回归。
+- Author 交付前验证：当前工作区 `pnpm verify` 实测 112 个 test files、1349 个 tests 全部 PASS；默认 `smoke:profile` 的 `parallel-contribution` 与 `identity-admission` 均 PASS 且 restore=PASS；`node .github/scripts/check-doc-links.mjs` 与 `git diff --check` 作为本文修改门禁。未执行的 T8-T30 不得据此视为通过。
