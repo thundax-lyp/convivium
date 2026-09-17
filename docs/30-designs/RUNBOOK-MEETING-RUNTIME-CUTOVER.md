@@ -184,27 +184,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T4b：删除草稿审批路径
-
-前置状态：T4a PASS，direct `submitEvidenceV1` 已是唯一目标登记路径。
-
-允许修改：`plugin/src/domain/transitions/format-evidence-v1.ts`、`plugin/src/domain/transitions/result-v1.ts`、`plugin/src/domain/transitions/index.ts`、`plugin/tests/unit/domain/format-evidence-v1.spec.ts`、`plugin/tests/unit/domain/evidence-review-v1.spec.ts`。
-
-禁止修改：canonical state/type、review transition、publish、runtime、fixture。
-
-执行：删除 `reviewEvidenceDraftV1`、draft/hash/Manager approval input、`format_disposition` effect 和公开导出；删除两个测试文件对旧函数的 import/setup/assertion，`evidence-review-v1.spec.ts` 改用 T4a 的 direct submit 构造待审版本。T7b/T7d 删除其余 `FormatApproval` state consumer/type；本步不得宣称全仓已无该 type。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/domain/format-evidence-v1.spec.ts tests/unit/domain/evidence-review-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-test -z "$(rg -n 'reviewEvidenceDraftV1|format_disposition' plugin/src/domain/transitions/format-evidence-v1.ts plugin/src/domain/transitions/result-v1.ts plugin/src/domain/transitions/index.ts plugin/tests/unit/domain/format-evidence-v1.spec.ts plugin/tests/unit/domain/evidence-review-v1.spec.ts || true)"
-```
-
-PASS：活动 production/test 路径无草稿审批 symbol，direct registration 与现有 review preparation 测试通过。
-
-STOP：删除旧路径要求恢复 Manager 审批或修改允许范围外文件。
-
 ### T5：实现原子 Review batch
 
 前置状态：T4b PASS。

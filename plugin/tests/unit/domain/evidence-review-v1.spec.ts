@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
 import { openRoundV1 } from "@/domain/transitions/round-v1.js";
 import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise-v1.js";
-import {
-    reviewEvidenceDraftV1,
-    submitEvidenceV1
-} from "@/domain/transitions/format-evidence-v1.js";
+import { submitEvidenceV1 } from "@/domain/transitions/format-evidence-v1.js";
 import { recordReviewDeliveryV1, submitReviewV1 } from "@/domain/transitions/evidence-review-v1.js";
 
 function evidenceState() {
@@ -37,25 +34,11 @@ function evidenceState() {
     });
     if (accept.kind !== "accepted") throw new Error("accept");
     state = accept.state;
-    const format = reviewEvidenceDraftV1(state, {
-        contributionId: "contribution-v1",
-        managerId: "manager-v1",
-        evidenceHash: "a".repeat(64),
-        disposition: "accepted",
-        missingFields: [],
-        rationale: "完整",
-        approvalId: "approval-v1",
-        now: 4
-    });
-    if (format.kind !== "accepted") throw new Error("format");
-    state = format.state;
     const submit = submitEvidenceV1(state, {
         contributionId: "contribution-v1",
         authorId: "contributor-v1",
-        verifiedEvidenceHash: "a".repeat(64),
         packageId: "package-v1",
         versionId: "version-v1",
-        registrationId: "registration-v1",
         now: 5,
         evidence: {
             observation: "观察",

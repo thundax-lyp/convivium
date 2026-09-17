@@ -64,9 +64,9 @@ export {
 } from "./private-mail-v1.js";
 export { raiseSupplementHandV1, disposeSupplementHandV1 } from "./supplement-hand-v1.js";
 export {
-    reviewEvidenceDraftV1,
     submitEvidenceV1,
-    type EvidenceInputV1
+    type EvidenceInputV1,
+    type SubmitEvidenceInputV1
 } from "./format-evidence-v1.js";
 export { submitReviewV1, recordReviewDeliveryV1 } from "./evidence-review-v1.js";
 export { closeContributionV1 } from "./contribution-exit-v1.js";

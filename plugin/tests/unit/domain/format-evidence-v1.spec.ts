@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
 import { openRoundV1 } from "@/domain/transitions/round-v1.js";
 import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise-v1.js";
-import {
-    reviewEvidenceDraftV1,
-    submitEvidenceV1
-} from "@/domain/transitions/format-evidence-v1.js";
+import { submitEvidenceV1 } from "@/domain/transitions/format-evidence-v1.js";
 
 function stateWithContribution() {
     const opened = openRoundV1(makeRunningMeetingStateV1(), {
@@ -63,25 +60,6 @@ const evidence = {
 };
 
 describe("format and evidence transitions", () => {
-    it("rejects a draft without creating evidence facts", () => {
-        const state = stateWithContribution();
-        const result = reviewEvidenceDraftV1(state, {
-            contributionId: "contribution-v1",
-            managerId: "manager-v1",
-            evidenceHash: "a".repeat(64),
-            disposition: "rejected",
-            missingFields: ["materials"],
-            rationale: "materials 中缺少定位",
-            approvalId: "approval-v1",
-            now: 4
-        });
-        expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
-        expect(result.state.evidencePackages).toEqual([]);
-        expect(result.state.registrations).toEqual([]);
-        expect(result.state.formatApprovals).toEqual([]);
-        expect(result.state.contributions[0].status).toBe("format_correction");
-    });
     it("directly registers one complete version for the contributor", () => {
         const state = stateWithContribution();
         const result = submitEvidenceV1(state, {

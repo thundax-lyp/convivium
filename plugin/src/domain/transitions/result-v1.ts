@@ -17,16 +17,6 @@ export interface AgentNoticeEffectBaseV1 {
     agendaId: OpaqueId;
 }
 
-export type EvidenceFieldNameV1 =
-    | "observation"
-    | "interpretation"
-    | "method"
-    | "falsifiers"
-    | "uncertainties"
-    | "limitations"
-    | "claims"
-    | "materials";
-
 export type AgentNoticeEffectRequestV1 =
     | (AgentNoticeEffectBaseV1 & { noticeKind: "opportunity_request"; requestId: OpaqueId })
     | (AgentNoticeEffectBaseV1 & {
@@ -69,14 +59,6 @@ export type AgentNoticeEffectRequestV1 =
           contributionId: OpaqueId;
           disposition: "accepted" | "rejected" | "deferred";
           reason: string;
-      })
-    | (AgentNoticeEffectBaseV1 & {
-          noticeKind: "format_disposition";
-          contributionId: OpaqueId;
-          evidenceHash: string;
-          disposition: "accepted" | "rejected" | "deferred";
-          reason: string;
-          missingFields: readonly EvidenceFieldNameV1[];
       })
     | (AgentNoticeEffectBaseV1 & { noticeKind: "review_request"; versionId: OpaqueId })
     | (AgentNoticeEffectBaseV1 & {
