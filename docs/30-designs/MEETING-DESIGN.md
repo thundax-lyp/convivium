@@ -33,7 +33,7 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 3. 加载 Meeting 与该 caller 的持久 identity ownership；未知、损坏、撤权或无法证明归属时 fail closed。
 4. 先检查 caller 是否可读取/控制目标 Meeting，再查找该 caller 的历史 receipt：同键不同 payload 返回 `IDEMPOTENCY_CONFLICT`，同键同 payload 直接返回原结果；无历史 receipt 时依次检查 terminal/archive、expected version、目标对象存在性、action state/precondition 与 Domain invariant/limit。
 5. 由 application 构造无环境依赖的 Domain command，调用纯转换。转换成功时生成新 snapshot、已提交事实和提交后 effect plan；拒绝时不产生任何事实。
-6. 以 `meetingId + expectedVersion` 比较并交换，原子写入 snapshot、事件/审计事实、idempotency receipt 和 effect outbox。冲突返回当前版本，不执行效果。
+6. 以当前 Host/profile Storage Domain 内全局唯一的 `meetingId + expectedVersion` 比较并交换，原子写入 snapshot、事件/审计事实、idempotency receipt 和 effect outbox。catalog、repository 与 recovery 只按 `meetingId` 定位，不建立 `teamId` namespace；冲突返回当前版本，不执行效果。
 7. commit 后按 outbox 投递 Session mail、agent notice、review delivery、refresh、Markdown projection、身份 provisioning 或归档动作。投递至少一次，但 receipt 和领域事实绝不因重复投递而重复创建。
 8. 返回该 caller 可见的 committed result；任何 refresh 只提示重新读取，不把未提交状态作为结果发送。
 

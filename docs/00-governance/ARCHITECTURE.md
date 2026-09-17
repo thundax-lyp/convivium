@@ -34,7 +34,7 @@
 
 ## State And Storage Ownership
 
-- Meeting 在任何会议副作用前获得稳定 `meetingId`；以 `teamId + meetingId` 统一持有 Meeting domain、Session ownership、归档与开发者 Markdown 的生命周期。
+- Meeting 在任何会议副作用前获得在当前 Convivium Host/profile Storage Domain 中全局唯一且稳定的 `meetingId`；以该 `meetingId` 统一持有 Meeting domain、catalog、Session ownership、归档与开发者 Markdown 的生命周期。V1 不建立 Team 或 Team authority，目标协议、repository、Session label 与 recovery 不接受或派生 `teamId`；未来引入多 Team 必须先形成独立的身份、授权、隔离和迁移契约。
 - Storage Domain 是唯一会议事实源，禁止双写与 fallback。Convivium 只消费 Storage Domain：轻量 catalog 负责发现，每个 Meeting 使用独立 domain；不定位、扫描或依赖 backend 物理布局。
 - Host/profile 拥有官方 SQLite provider、数据库位置与 Domain 路由。Convivium 不携带物理存储实现、不覆盖 Host 默认介质，也不提供调用方可指定的存储路径。
 - 一次 command 的领域状态、事件、receipt 和 outbox 必须原子提交；外部副作用在提交后执行。事实源、存储与恢复边界由 [Meeting Design](../30-designs/MEETING-DESIGN.md) 和 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 定义。
