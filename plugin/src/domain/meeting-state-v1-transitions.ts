@@ -3,8 +3,10 @@ import type {
     ManagerPlanV1,
     MeetingState,
     OpaqueId,
-    RiskLevel
+    RiskLevel,
+    TargetDomainFactPayloadV1
 } from "./meeting-state-v1.js";
+export type { TargetDomainFactPayloadV1 } from "./meeting-state-v1.js";
 import { validateMeetingStateV1 } from "./meeting-state-v1-validation.js";
 import { z } from "zod";
 import { recalculateMeetingCompletionV1 } from "@/domain/transitions/outcome-v1.js";
@@ -84,29 +86,6 @@ export type TargetMeetingActionV1 =
           planKind: ManagerPlanV1["kind"];
           rationale: string;
           blockingReason?: string;
-      };
-
-export type TargetDomainFactPayloadV1 =
-    | { kind: "references"; relatedIds: readonly OpaqueId[] }
-    | {
-          kind: "question_disposition";
-          questionId: OpaqueId;
-          oldStatus: "open" | "deferred";
-          newStatus: "answered" | "withdrawn" | "deferred";
-          oldBlocking: boolean;
-          newBlocking: boolean;
-          rationale: string;
-          evidenceIds: readonly OpaqueId[];
-      }
-    | {
-          kind: "issue_disposition";
-          issueId: OpaqueId;
-          oldStatus: "open" | "deferred";
-          newStatus: "resolved" | "deferred" | "out_of_scope";
-          oldBlocking: boolean;
-          newBlocking: boolean;
-          rationale: string;
-          evidenceIds: readonly OpaqueId[];
       };
 
 export type TargetDomainFactV1 = {

@@ -483,18 +483,92 @@ export interface TerminationV1 {
     unclosedContributionIds: readonly OpaqueId[];
 }
 
+export type TargetDomainFactPayloadV1 =
+    | { kind: "references"; relatedIds: readonly OpaqueId[] }
+    | {
+          kind: "question_disposition";
+          questionId: OpaqueId;
+          oldStatus: "open" | "deferred";
+          newStatus: "answered" | "withdrawn" | "deferred";
+          oldBlocking: boolean;
+          newBlocking: boolean;
+          rationale: string;
+          evidenceIds: readonly OpaqueId[];
+      }
+    | {
+          kind: "issue_disposition";
+          issueId: OpaqueId;
+          oldStatus: "open" | "deferred";
+          newStatus: "resolved" | "deferred" | "out_of_scope";
+          oldBlocking: boolean;
+          newBlocking: boolean;
+          rationale: string;
+          evidenceIds: readonly OpaqueId[];
+      };
+
+export interface ArchiveEvidenceBundleV1 {
+    packageId: OpaqueId;
+    authorIdentityId: OpaqueId;
+    agendaId: OpaqueId;
+    version: EvidenceVersionV1;
+    review: EvidenceReviewV1;
+}
+
+export interface ArchiveUnclosedContributionV1 {
+    contributionId: OpaqueId;
+    contributorIdentityId: OpaqueId;
+    agendaId: OpaqueId;
+    status: ContributionV1["status"];
+    exitReason?: string;
+}
+
+export interface ArchiveIdentityProvenanceV1 {
+    identityId: OpaqueId;
+    displayName: string;
+    roles: readonly MeetingRole[];
+    definitionId?: OpaqueId;
+    definitionVersion?: string;
+    definitionHash?: string;
+}
+
+export interface ArchiveMaterialV1 {
+    id: OpaqueId;
+    kind: "published_evidence" | "formal_message" | "accepted_decision" | "active_completion_fact";
+    title: string;
+    sourceObjectIds: readonly OpaqueId[];
+}
+
+export type ArchiveQuestionIssueDispositionFactV1 =
+    | {
+          factId: OpaqueId;
+          kind: "resolve_question";
+          actorId: OpaqueId;
+          occurredAt: EpochMs;
+          relatedIds: readonly OpaqueId[];
+          payload: Extract<TargetDomainFactPayloadV1, { kind: "question_disposition" }>;
+      }
+    | {
+          factId: OpaqueId;
+          kind: "dispose_issue";
+          actorId: OpaqueId;
+          occurredAt: EpochMs;
+          relatedIds: readonly OpaqueId[];
+          payload: Extract<TargetDomainFactPayloadV1, { kind: "issue_disposition" }>;
+      };
+
 export interface ArchivePackageV1 {
-    archiveId: OpaqueId;
-    meetingId: OpaqueId;
+    id: OpaqueId;
+    status: "pending" | "complete" | "failed";
     createdAt: EpochMs;
+    publicSnapshotVersion: number;
     terminationId: OpaqueId;
     objective: ObjectiveContractV1;
     agenda: readonly AgendaItemV1[];
     agendaCandidates: readonly AgendaCandidateV1[];
     publications: readonly PublicationV1[];
     messages: readonly FormalMessageV1[];
-    evidenceVersions: readonly EvidenceVersionV1[];
-    proposals: readonly ProposalRevisionV1[];
+    evidenceBundles: readonly ArchiveEvidenceBundleV1[];
+    proposalRevisions: readonly ProposalRevisionV1[];
     positions: readonly PositionV1[];
     decisionCandidates: readonly DecisionCandidateV1[];
     decisions: readonly DecisionV1[];
@@ -502,20 +576,14 @@ export interface ArchivePackageV1 {
     questions: readonly QuestionV1[];
     issues: readonly IssueV1[];
     riskDispositions: readonly RiskDispositionV1[];
-    questionDispositions: readonly Record<string, unknown>[];
-    issueDispositions: readonly Record<string, unknown>[];
+    questionIssueDispositionFacts: readonly ArchiveQuestionIssueDispositionFactV1[];
     termination: TerminationV1;
     unresolvedQuestionIds: readonly OpaqueId[];
     unresolvedIssueIds: readonly OpaqueId[];
-    sourceReferences: readonly OpaqueId[];
-    identityProvenance: readonly {
-        identityId: string;
-        displayName: string;
-        roles: readonly MeetingRole[];
-        definitionId: string;
-        definitionVersion: string;
-        definitionHash: string;
-    }[];
+    unresolvedItemIds: readonly OpaqueId[];
+    unclosedContributions: readonly ArchiveUnclosedContributionV1[];
+    identityProvenance: readonly ArchiveIdentityProvenanceV1[];
+    exportMaterials: readonly ArchiveMaterialV1[];
 }
 
 export interface ContinuationProvenanceV1 {

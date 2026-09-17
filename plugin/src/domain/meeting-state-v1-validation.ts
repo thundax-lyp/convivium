@@ -590,28 +590,128 @@ const terminationSchema = z.object({
     unresolvedIssueIds: uniqueIdArraySchema,
     unclosedContributionIds: uniqueIdArraySchema
 });
-const archiveSchema = z.object({
-    id: opaqueIdSchema,
-    createdAt: epochSchema,
-    createdBy: opaqueIdSchema,
-    terminationId: opaqueIdSchema,
-    publicSnapshotVersion: positiveIntegerSchema,
-    includedPublicationIds: uniqueIdArraySchema,
-    includedDecisionIds: uniqueIdArraySchema,
-    includedCompletionFactIds: uniqueIdArraySchema,
-    status: z.enum(["pending", "complete", "failed"]),
-    identityProvenance: z.array(
-        z.object({
-            id: opaqueIdSchema.optional(),
+const archiveQuestionDispositionPayloadSchema = z.object({
+    kind: z.literal("question_disposition"),
+    questionId: opaqueIdSchema,
+    oldStatus: z.enum(["open", "deferred"]),
+    newStatus: z.enum(["answered", "withdrawn", "deferred"]),
+    oldBlocking: z.boolean(),
+    newBlocking: z.boolean(),
+    rationale: textSchema,
+    evidenceIds: uniqueIdArraySchema
+});
+const archiveIssueDispositionPayloadSchema = z.object({
+    kind: z.literal("issue_disposition"),
+    issueId: opaqueIdSchema,
+    oldStatus: z.enum(["open", "deferred"]),
+    newStatus: z.enum(["resolved", "deferred", "out_of_scope"]),
+    oldBlocking: z.boolean(),
+    newBlocking: z.boolean(),
+    rationale: textSchema,
+    evidenceIds: uniqueIdArraySchema
+});
+const archiveDispositionFactSchema = z.union([
+    z.object({
+        factId: opaqueIdSchema,
+        kind: z.literal("resolve_question"),
+        actorId: opaqueIdSchema,
+        occurredAt: epochSchema,
+        relatedIds: uniqueIdArraySchema,
+        payload: archiveQuestionDispositionPayloadSchema
+    }),
+    z.object({
+        factId: opaqueIdSchema,
+        kind: z.literal("dispose_issue"),
+        actorId: opaqueIdSchema,
+        occurredAt: epochSchema,
+        relatedIds: uniqueIdArraySchema,
+        payload: archiveIssueDispositionPayloadSchema
+    })
+]);
+const archiveEvidenceBundleSchema = z.object({
+    packageId: opaqueIdSchema,
+    authorIdentityId: opaqueIdSchema,
+    agendaId: opaqueIdSchema,
+    version: evidenceVersionSchema,
+    review: evidenceReviewSchema
+});
+const archiveUnclosedContributionSchema = withDefinedOptionals(
+    z.object({
+        contributionId: opaqueIdSchema,
+        contributorIdentityId: opaqueIdSchema,
+        agendaId: opaqueIdSchema,
+        status: contributionSchema.shape.status,
+        exitReason: textSchema.optional()
+    }),
+    ["exitReason"]
+);
+const archiveIdentityProvenanceSchema = withDefinedOptionals(
+    z
+        .object({
             identityId: opaqueIdSchema,
             displayName: textSchema,
             roles: uniqueRoleArraySchema,
-            definitionId: opaqueIdSchema,
-            definitionVersion: textSchema,
-            definitionHash: z.string().regex(/^[a-f0-9]{64}$/)
+            definitionId: opaqueIdSchema.optional(),
+            definitionVersion: textSchema.optional(),
+            definitionHash: z
+                .string()
+                .regex(/^[a-f0-9]{64}$/)
+                .optional()
         })
-    )
+        .refine(
+            (value) =>
+                (value.definitionId !== undefined &&
+                    value.definitionVersion !== undefined &&
+                    value.definitionHash !== undefined) ||
+                (value.definitionId === undefined &&
+                    value.definitionVersion === undefined &&
+                    value.definitionHash === undefined),
+            { path: ["definitionId"] }
+        ),
+    ["definitionId", "definitionVersion", "definitionHash"]
+);
+const archiveMaterialSchema = z.object({
+    id: opaqueIdSchema,
+    kind: z.enum([
+        "published_evidence",
+        "formal_message",
+        "accepted_decision",
+        "active_completion_fact"
+    ]),
+    title: textSchema,
+    sourceObjectIds: uniqueIdArraySchema
 });
+const archiveSchema = z.lazy(() =>
+    z.object({
+        id: opaqueIdSchema,
+        status: z.enum(["pending", "complete", "failed"]),
+        createdAt: epochSchema,
+        publicSnapshotVersion: positiveIntegerSchema,
+        terminationId: opaqueIdSchema,
+        objective: objectiveSchema,
+        agenda: z.array(agendaSchema),
+        agendaCandidates: z.array(candidateSchema),
+        publications: z.array(publicationSchema),
+        messages: z.array(formalMessageSchema),
+        evidenceBundles: z.array(archiveEvidenceBundleSchema),
+        proposalRevisions: z.array(proposalRevisionSchema),
+        positions: z.array(positionSchema),
+        decisionCandidates: z.array(decisionCandidateSchema),
+        decisions: z.array(decisionSchema),
+        completionFacts: z.array(completionFactSchema),
+        questions: z.array(questionSchema),
+        issues: z.array(issueSchema),
+        riskDispositions: z.array(riskDispositionSchema),
+        questionIssueDispositionFacts: z.array(archiveDispositionFactSchema),
+        termination: terminationSchema,
+        unresolvedQuestionIds: uniqueIdArraySchema,
+        unresolvedIssueIds: uniqueIdArraySchema,
+        unresolvedItemIds: uniqueIdArraySchema,
+        unclosedContributions: z.array(archiveUnclosedContributionSchema),
+        identityProvenance: z.array(archiveIdentityProvenanceSchema),
+        exportMaterials: uniqueEntityArray(archiveMaterialSchema)
+    })
+);
 const continuationSchema = z.object({
     sourceArchiveId: opaqueIdSchema,
     selectedMaterialIds: uniqueIdArraySchema,
@@ -1585,17 +1685,63 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     }
     if (own(value, "archive")) {
         const archive = parsedState.archive!;
+        if (archive.termination.id !== archive.terminationId)
+            return fail("$.archive.terminationId");
+        if (JSON.stringify(archive.termination) !== JSON.stringify(parsedState.termination))
+            return fail("$.archive.termination");
         for (const [values, refs, path] of [
-            [archive.includedPublicationIds, publicationIds, "$.archive.includedPublicationIds"],
-            [archive.includedDecisionIds, decisionIds, "$.archive.includedDecisionIds"],
+            [archive.publications.map((item) => item.id), publicationIds, "$.archive.publications"],
+            [archive.decisions.map((item) => item.id), decisionIds, "$.archive.decisions"],
             [
-                archive.includedCompletionFactIds,
+                archive.completionFacts.map((item) => item.id),
                 completionFactIds,
-                "$.archive.includedCompletionFactIds"
-            ]
+                "$.archive.completionFacts"
+            ],
+            [archive.questions.map((item) => item.id), questionIds, "$.archive.questions"],
+            [archive.issues.map((item) => item.id), issueIds, "$.archive.issues"]
         ] as const) {
             const p = checkRefs(values, refs, path);
             if (p) return fail(p);
+        }
+        if (
+            JSON.stringify(archive.unresolvedItemIds) !==
+            JSON.stringify([
+                ...archive.termination.unresolvedQuestionIds,
+                ...archive.termination.unresolvedIssueIds
+            ])
+        )
+            return fail("$.archive.unresolvedItemIds");
+        if (
+            archive.unclosedContributions.length !==
+            archive.termination.unclosedContributionIds.length
+        )
+            return fail("$.archive.unclosedContributions");
+        for (let i = 0; i < archive.unclosedContributions.length; i++) {
+            const contribution = archive.unclosedContributions[i];
+            if (contribution.contributionId !== archive.termination.unclosedContributionIds[i])
+                return fail(`$.archive.unclosedContributions[${i}].contributionId`);
+            const source = contributionById.get(contribution.contributionId);
+            if (
+                source === undefined ||
+                source.contributorId !== contribution.contributorIdentityId ||
+                source.roundId !==
+                    rounds.find((round) => round.contributionIds.includes(source.id))?.id ||
+                roundById.get(source.roundId)?.agendaId !== contribution.agendaId
+            )
+                return fail(`$.archive.unclosedContributions[${i}]`);
+        }
+        for (let i = 0; i < archive.evidenceBundles.length; i++) {
+            const bundle = archive.evidenceBundles[i];
+            const owner = versionOwnerById.get(bundle.version.id);
+            if (
+                owner === undefined ||
+                owner.id !== bundle.packageId ||
+                owner.authorId !== bundle.authorIdentityId ||
+                owner.agendaId !== bundle.agendaId ||
+                bundle.review.versionId !== bundle.version.id ||
+                !reviewIds.has(bundle.review.id)
+            )
+                return fail(`$.archive.evidenceBundles[${i}]`);
         }
     }
     const terminal = ["terminal", "archiving", "archived"].includes(lifecycle.status as string);
@@ -1613,7 +1759,10 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             return fail("$.archive");
     }
     if (!terminal && own(value, "termination")) return fail("$.termination");
-    if (lifecycle.status === "archived" && (value.archive as RecordValue).status !== "complete")
+    if (
+        ["archiving", "archived"].includes(lifecycle.status as string) &&
+        (value.archive as RecordValue).status !== "complete"
+    )
         return fail("$.archive.status");
     return { kind: "valid", state: value as unknown as MeetingState };
 }

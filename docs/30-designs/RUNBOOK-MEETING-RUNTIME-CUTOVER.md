@@ -184,62 +184,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T3a：收敛 canonical ArchivePackage
-
-前置状态：T3 PASS；上方“聚合改动”已经固定 ArchivePackage 的字段、来源、顺序和失败恢复。当前 `ArchivePackageV1`、validator 与 [Domain Design](./DOMAIN-DESIGN.md#publication-outcome-and-termination) / [Meeting Interface ArchiveView](../20-interfaces/MEETING-INTERFACE.md#read-remote-and-projection) 不一致。
-
-允许修改：`plugin/src/domain/meeting-state-v1.ts`、`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/src/domain/meeting-state-v1-transitions.ts`、`plugin/tests/fixtures/meeting-state-v1.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`。
-
-禁止修改：除 `meeting-state-v1-transitions.ts` 的 type relocation/re-export 外的 transition 行为、repository、runtime、protocol、其他 fixture。
-
-执行：在 `meeting-state-v1.ts` 新增并由 `ArchivePackageV1` 直接使用下列唯一类型，不建立第二套 archive DTO：
-
-```ts
-interface ArchiveEvidenceBundleV1 {
-    packageId: OpaqueId;
-    authorIdentityId: OpaqueId;
-    agendaId: OpaqueId;
-    version: EvidenceVersionV1;
-    review: EvidenceReviewV1;
-}
-interface ArchiveUnclosedContributionV1 {
-    contributionId: OpaqueId;
-    contributorIdentityId: OpaqueId;
-    agendaId: OpaqueId;
-    status: ContributionV1["status"];
-    exitReason?: string;
-}
-interface ArchiveIdentityProvenanceV1 {
-    identityId: OpaqueId;
-    displayName: string;
-    roles: readonly MeetingRole[];
-    definitionId?: OpaqueId;
-    definitionVersion?: string;
-    definitionHash?: string;
-}
-interface ArchiveMaterialV1 {
-    id: OpaqueId;
-    kind: "published_evidence" | "formal_message" | "accepted_decision" | "active_completion_fact";
-    title: string;
-    sourceObjectIds: readonly OpaqueId[];
-}
-type ArchiveQuestionIssueDispositionFactV1 =
-    | { factId: OpaqueId; kind: "resolve_question"; actorId: OpaqueId; occurredAt: EpochMs; relatedIds: readonly OpaqueId[]; payload: Extract<TargetDomainFactPayloadV1, { kind: "question_disposition" }> }
-    | { factId: OpaqueId; kind: "dispose_issue"; actorId: OpaqueId; occurredAt: EpochMs; relatedIds: readonly OpaqueId[]; payload: Extract<TargetDomainFactPayloadV1, { kind: "issue_disposition" }> };
-```
-
-把 `TargetDomainFactPayloadV1` 从 `meeting-state-v1-transitions.ts` 移到 `meeting-state-v1.ts` 并从原位置 re-export，避免 canonical state 反向依赖 transition；本步骤因此额外允许修改 `plugin/src/domain/meeting-state-v1-transitions.ts`。`ArchivePackageV1` required 字段精确为 `id`、`status: "pending"|"complete"|"failed"`、`createdAt`、`publicSnapshotVersion`、`terminationId`、`objective`、`agenda`、`agendaCandidates`、`publications`、`messages`、`evidenceBundles`、`proposalRevisions`、`positions`、`decisionCandidates`、`decisions`、`completionFacts`、`questions`、`issues`、`riskDispositions`、`questionIssueDispositionFacts`、`termination`、`unresolvedItemIds`、`unclosedContributions`、`identityProvenance`、`exportMaterials`。Definition provenance 三字段必须同时存在或同时不存在；不得有 `sessionOwnershipId`。`unclosedContributions` 与 `termination.unclosedContributionIds` 必须逐项同序对应；`terminationId===termination.id`；archiving/archived 都要求 `archive.status="complete"`。删除旧的 `archiveId|meetingId|sourceReferences|questionDispositions|issueDispositions|included*` archive 结构和 validator 兼容读取；fixture 与测试只构造 canonical shape。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：完整按值 archive、可选 Definition provenance、termination/unclosed 对应、pending/complete lifecycle 与旧 archive shape 拒绝均由测试证明；上述 canonical state/validator/fixture 有真实 diff。
-
-STOP：必须保留旧 archive schema、为 archive 增加 Session/ownership 字段，或需要修改本步之外文件。
-
 ### T3b：补齐结束与归档生命周期转换
 
 前置状态：T3a PASS；`0ec2271` 只证明 clone 与 running→terminal，未证明正式结束/归档语义。
