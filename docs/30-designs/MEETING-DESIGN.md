@@ -108,7 +108,7 @@ PrivateMail 的五个 Domain transition 固定如下；application 只注入已�
 
 Manager 把 pending hand 接纳为 Contribution 前必须检查该 contributor 不是 processing mail 的 recipient；失败保持 hand、Round、Contribution 与 effects 全部不变。`send_private_mail` 产生一个只含 `mailId`、`recipientId` 和发送上下文上界的 `session_mail` effect request，另四个 mail transition 不产生 effect。未来 Runtime delivery、receipt、outbox 与 Session 调度必须消费同一提交结果，不能把 delivery 状态写回私信正文或正式 transcript。
 
-Manager 接纳 hand 前还以 `messages.length + 非终态 Contribution 数 + 1` 派生 FormalMessage 预留；不新增 reservation entity。名额不足拒绝接纳。publish_round 必须一次提交完整批次且发布后不超过 maxFormalMessages，不合并不同作者记录、不以摘要替代原文、不部分发布；UI/Markdown 分组不影响领域计数。发布后先以新公开事实重算完成条件：恰好达到上限且已满足时进入 converging；恰好达到上限但未满足时原子进入 paused 并记录 message budget exhausted，不能留在可继续开轮的 running 状态。
+Manager 接纳 hand 前还以 `messages.length + 全部 open Round 已接纳 Contribution 数 + 1` 派生 FormalMessage 预留；不新增 reservation entity。Contribution 的预留持续到所属 Round published 或 aborted，不因 Contribution 提前终态而释放。名额不足拒绝接纳。publish_round 必须一次提交完整批次且发布后不超过 maxFormalMessages，不合并不同作者记录、不以摘要替代原文、不部分发布；UI/Markdown 分组不影响领域计数。发布后先以新公开事实重算完成条件：恰好达到上限且已满足时进入 converging；恰好达到上限但未满足时原子进入 paused 并记录 message budget exhausted，不能留在可继续开轮的 running 状态。
 
 plan_next_step 只由 Manager 在没有 open Round 时提交，替代同 Agenda 的 active plan；其五种 planKind 仅描述下一步，不直接改变领域控制状态。reassign_task 只由 local controller 执行，原子 revoke 旧 authorization 并创建 replacement task；旧授权的迟到结果在进入 projection 前拒绝。start_private_mail、complete_private_mail、cancel_private_mail 和 mail deadline 只改变 PrivateMail，且 serial gate 保证一个 identity 不同时处理 mail 与正式 Contribution。start_archive 只由 local controller 从 terminal 触发，先按 Meeting Interface 白名单按值物化完整 ArchivePackage 并切换 archiving；不能只保存对象 ID，也不复制非白名单状态。受控 Session owner 针对每个 ownership 写入 close success/failure，全部 success 后才切换 archived。
 

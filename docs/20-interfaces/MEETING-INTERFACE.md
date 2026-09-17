@@ -111,7 +111,7 @@ interface AbortRound { kind: "abort_round"; roundId: OpaqueId; reason: string }
 
 `RaiseHand` 成功时只在 MeetingState 增加 `(roundId, caller contributorId)` 的 pending request，收到重复 pending 或本轮已有 Contribution 返回 `PRECONDITION_FAILED`；`DisposeHandRaise` 只处理这条 pending request。accepted 原子移除 pending 并创建 Contribution；rejected/deferred 原子移除 pending、返回申请者理由，不创建 Contribution，也不在 MeetingView 留存该次举手。追加 command fact 可保留审计，不构成当前 Meeting 举手记录。
 
-`DisposeHandRaise` accepted 前须验证 `state.messages.length + 当前非终态 Contribution 数 + 1 <= limits.maxFormalMessages`，并为新 Contribution 保留一个 FormalMessage 名额；拒绝或暂缓不预留。`PublishRound` 只统计 FormalMessage，整批发布后的总数不得超过上限，Publication、PrivateMail、举手和系统通知不计数。名额损坏、竞态或旧状态导致整批放不下时返回 `PRECONDITION_FAILED`，不得合并作者记录、摘要替代原文或部分发布；UI/Markdown 折叠不改变领域计数。发布提交必须在加入整批公开事实后重算完成条件：若恰好达到上限且条件满足，同一提交进入 converging；若恰好达到上限但条件不满足，同一提交进入 paused 并以 message budget exhausted 为原因，之后只能保持暂停或由 local controller 结束，不能恢复后继续接纳或开轮。
+`DisposeHandRaise` accepted 前须验证 `state.messages.length + 全部 open Round 已接纳 Contribution 数 + 1 <= limits.maxFormalMessages`，并为新 Contribution 保留一个 FormalMessage 名额；拒绝或暂缓不预留。预留从 Contribution 创建起持续到所属 Round `published|aborted`，不因 Contribution 进入 `withdrawn|submission_missing|timed_out|supplement_rejected|closed` 等终态提前释放；Round published 时相应 FormalMessage 已计入 `state.messages`，Round aborted 才无消息地释放预留。`PublishRound` 只统计 FormalMessage，整批发布后的总数不得超过上限，Publication、PrivateMail、举手和系统通知不计数。名额损坏、竞态或旧状态导致整批放不下时返回 `PRECONDITION_FAILED`，不得合并作者记录、摘要替代原文或部分发布；UI/Markdown 折叠不改变领域计数。发布提交必须在加入整批公开事实后重算完成条件：若恰好达到上限且条件满足，同一提交进入 converging；若恰好达到上限但条件不满足，同一提交进入 paused 并以 message budget exhausted 为原因，之后只能保持暂停或由 local controller 结束，不能恢复后继续接纳或开轮。
 
 ```ts
 interface EvidenceInput {
@@ -314,7 +314,7 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
     interface RiskDispositionView { id: OpaqueId; actorId: OpaqueId; issueId: OpaqueId; action: "accept" | "reject"; scope: string; rationale: string; evidenceIds: OpaqueId[]; createdAt: EpochMs }
     interface TerminationView { id: OpaqueId; outcome: "completed" | "partial" | "no_consensus" | "cancelled" | "failed"; reason: string; endedAt: EpochMs; decisionIds: OpaqueId[]; completionFactIds: OpaqueId[]; unresolvedQuestionIds: OpaqueId[]; unresolvedIssueIds: OpaqueId[]; unclosedContributionIds: OpaqueId[] }
     interface ArchiveView {
-      id: OpaqueId; status: "pending" | "complete" | "failed"; createdAt: EpochMs; publicSnapshotVersion: number;
+      id: OpaqueId; status: "pending" | "complete" | "failed"; createdAt: EpochMs; publicSnapshotVersion: number; terminationId: OpaqueId;
       objective: ObjectiveView; agenda: AgendaView[]; agendaCandidates: AgendaCandidateView[];
       publications: PublicationView[]; messages: FormalMessageView[];
       evidenceBundles: Array<{ packageId: OpaqueId; authorIdentityId: OpaqueId; agendaId: OpaqueId; version: EvidenceVersionView; review: EvidenceReviewView }>;
@@ -322,17 +322,25 @@ Remote 只暴露 `list()`、`read(request)`、`control(command)`、`subscribeRef
       decisionCandidates: DecisionCandidateView[]; decisions: DecisionView[]; completionFacts: CompletionFactView[];
       questions: QuestionView[]; issues: IssueView[]; riskDispositions: RiskDispositionView[];
       questionIssueDispositionFacts: CommittedFactView[]; termination: TerminationView; unresolvedItemIds: OpaqueId[];
+      unclosedContributions: UnclosedContributionView[];
       identityProvenance: Array<{ identityId: OpaqueId; displayName: string; roles: MeetingRole[]; definitionId?: OpaqueId; definitionVersion?: string; definitionHash?: string }>;
       exportMaterials: ArchiveMaterialView[];
     }
-    interface CommittedFactView { factId: OpaqueId; kind: "resolve_question" | "dispose_issue"; actorId: OpaqueId; occurredAt: EpochMs; relatedIds: OpaqueId[]; payload: CommittedFactPayloadV1 }
+    interface CommittedFactViewBase { factId: OpaqueId; actorId: OpaqueId; occurredAt: EpochMs; relatedIds: OpaqueId[] }
+    type CommittedFactView =
+      | (CommittedFactViewBase & { kind: "resolve_question"; payload: Extract<CommittedFactPayloadV1, { kind: "question_disposition" }> })
+      | (CommittedFactViewBase & { kind: "dispose_issue"; payload: Extract<CommittedFactPayloadV1, { kind: "issue_disposition" }> });
+    interface UnclosedContributionView { contributionId: OpaqueId; contributorIdentityId: OpaqueId; agendaId: OpaqueId; status: ContributionView["status"]; exitReason?: string }
     interface ArchiveMaterialView { id: OpaqueId; kind: "published_evidence" | "formal_message" | "accepted_decision" | "active_completion_fact"; title: string; sourceObjectIds: OpaqueId[] }
     interface ContinuationProvenanceView { sourceArchiveId: OpaqueId; selectedMaterialIds: OpaqueId[]; materials: ContinuationMaterialView[] }
+    interface ContinuationFormalMessageContentView { kind: string; body: string; createdAt: EpochMs }
+    interface ContinuationAcceptedDecisionContentView { outcome: "adopt" | "reject" | "defer"; rationale: string; createdAt: EpochMs }
+    interface ContinuationCompletionFactContentView { statement: string; rationale: string; createdAt: EpochMs }
     type ContinuationMaterialView =
       | { kind: "published_evidence"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; evidence: { version: EvidenceVersionView; review: Omit<EvidenceReviewView, "reviewerId"> } }
-      | { kind: "formal_message"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; message: Omit<FormalMessageView, "id" | "actorId" | "publicationId"> }
-      | { kind: "accepted_decision"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; decision: Omit<DecisionView, "id" | "actorId" | "status" | "replacesDecisionId"> }
-      | { kind: "active_completion_fact"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; completionFact: Omit<CompletionFactView, "id" | "actorId" | "status"> };
+      | { kind: "formal_message"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; message: ContinuationFormalMessageContentView }
+      | { kind: "accepted_decision"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; decision: ContinuationAcceptedDecisionContentView }
+      | { kind: "active_completion_fact"; sourceArchiveId: OpaqueId; sourceMaterialId: OpaqueId; title: string; completionFact: ContinuationCompletionFactContentView };
     interface ManagerPlanView { id: OpaqueId; agendaId: OpaqueId; managerId: OpaqueId; basedOnPublicationId?: OpaqueId; kind: "open_round" | "continue_agenda" | "stop_agenda" | "raise_agenda_candidate" | "wait_for_required_identity"; rationale: string; blockingReason?: string; status: "active" | "superseded" | "completed"; createdAt: EpochMs }
     interface TaskView { id: OpaqueId; assigneeId: OpaqueId; agendaId?: OpaqueId; title: string; status: "open" | "claimed" | "completed" | "cancelled" | "expired"; authorizationId: OpaqueId; authorizationStatus: "active" | "revoked" | "expired"; attempt: number; reassignedFromTaskId?: OpaqueId; deadlineAt?: EpochMs; result?: string; exitReason?: string; startedAt?: EpochMs; completedAt?: EpochMs }
     interface PrivateMailView { id: OpaqueId; senderId: OpaqueId; recipientId: OpaqueId; agendaId?: OpaqueId; body: string; relatedIds: OpaqueId[]; sendContextPublicationUpperBound: OpaqueId[]; processingContextPublicationUpperBound?: OpaqueId[]; status: "queued" | "processing" | "completed" | "timed_out" | "cancelled"; deadlineAt: EpochMs; createdAt: EpochMs; processingStartedAt?: EpochMs; completedAt?: EpochMs; failureReason?: string }
@@ -342,7 +350,7 @@ evidencePackages/evidenceReviews 的普通 contributor 投影只含已在 Public
 
 `ReviewDeliveryView` 保留每次投递尝试：sent 必有 `sentAt` 且无 `failedAt/failureReason`，failed 必有 `failedAt` 与非空 `failureReason` 且无 `sentAt`。它只证明 dispatcher 的该次投递结果，不证明作者已响应或 Review 已公开。
 
-ArchiveView 仅从完整 ArchivePackageV1 读取。普通 Participant 的 archive-facing history 不含未被任何 Decision 使用的 DecisionCandidate；loopback local controller 可读取全部 candidate 审计历史。ArchiveMaterialView 只是可选目录；新 Meeting 的 ContinuationMaterialView 是按值复制的只读内容，保留 sourceArchiveId/sourceMaterialId，但剥离旧 identity、Session、authority 和领域状态。published_evidence 的副本不可拆分地包含 EvidenceVersion、Materials、来源定位和去除旧 reviewer identity 的最终 Review。
+ArchiveView 仅从完整 ArchivePackageV1 读取，`terminationId` 必须等于 `termination.id`；`unclosedContributions` 按 `termination.unclosedContributionIds` 的顺序逐项物化贡献者、Agenda、终止时状态和退出原因，且两组 ID 必须精确相等，使归档不依赖原 MeetingState 解释未收口项。普通 Participant 的 archive-facing history 不含未被任何 Decision 使用的 DecisionCandidate；loopback local controller 可读取全部 candidate 审计历史。ArchiveMaterialView 只是可选目录；新 Meeting 的 ContinuationMaterialView 是按值复制的只读内容，保留 sourceArchiveId/sourceMaterialId，但剥离旧 identity、Session、authority 和领域状态。formal_message、accepted_decision 和 active_completion_fact 只复制上方显式 content DTO，不保留旧 `agendaId|relatedIds|proposalRevisionId|evidenceIds|positionIds|outputId|criterionId|decisionIds` 等领域引用；published_evidence 的副本不可拆分地包含 EvidenceVersion、Materials、来源定位和去除旧 reviewer identity 的最终 Review。
 
 ```ts
 interface MarkdownProjectionInputV1 {
