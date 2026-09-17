@@ -178,26 +178,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T9：登记 target protocol 公开入口
-
-前置状态：T8 PASS。
-
-允许修改：`plugin/src/protocol/index.ts`、`plugin/tests/contract/meeting-business-loop-v1.spec.ts`。
-
-禁止修改：protocol implementation、legacy protocol 文件。
-
-执行：从 `protocol/index.ts` 明确导出 T8 的六个 Schema、对应 types、`serializeValidatedRequestV1`、`encodeMeetingStateV1`、`decodeMeetingStateV1`，以及 identity action Schema；保留 legacy exports，但不得以任一 target 名称重导出 legacy type，也不得使用 `export *` 制造同名解析选择。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/contract/meeting-business-loop-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：target imports 只解析到 V1 文件；legacy exports 仍可编译但目标链不引用。
-
-STOP：出现循环依赖或需要删除 legacy protocol。
-
 ### T10a：扩展 target Session ownership seam
 
 前置状态：T9 PASS。

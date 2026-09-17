@@ -72,8 +72,31 @@ export {
     validateProtocolSuccessEnvelope
 } from "./schema.js";
 export * from "./types.js";
-export * from "./meeting-command-v1.js";
-export * from "./meeting-identity-v1.js";
+export {
+    MeetingActionV1Schema,
+    MeetingCommandV1Schema,
+    ListMeetingsRequestV1Schema,
+    ReadMeetingRequestV1Schema,
+    MeetingCommandResultV1Schema,
+    encodeMeetingStateV1,
+    decodeMeetingStateV1,
+    type MeetingActionV1,
+    type MeetingCommandV1,
+    type ListMeetingsRequestV1,
+    type ReadMeetingRequestV1,
+    type MeetingCommandResultV1
+} from "./meeting-command-v1.js";
+export {
+    MeetingRoleV1Schema,
+    RoleErrorCodeV1Schema,
+    RecommendIdentityActionV1Schema,
+    RecordIdentityAdmissionResultActionV1Schema,
+    ManagerCatalogViewV1Schema,
+    IdentityRecommendationViewV1Schema,
+    IdentityViewV1Schema,
+    type MeetingRoleV1,
+    type RoleErrorCodeV1
+} from "./meeting-identity-v1.js";
 export { serializeValidatedRequestV1 } from "./request-idempotency.js";
 export type {
     ContributionDelivery,

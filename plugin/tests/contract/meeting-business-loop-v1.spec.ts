@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
 import {
     MeetingActionV1Schema,
-    MeetingCommandResultV1Schema,
     ListMeetingsRequestV1Schema,
     ReadMeetingRequestV1Schema,
     decodeMeetingStateV1,
     encodeMeetingStateV1
 } from "@/protocol/meeting-command-v1.js";
-import { serializeValidatedRequestV1 } from "@/protocol/request-idempotency.js";
+import {
+    MeetingActionV1Schema as PublicMeetingActionV1Schema,
+    MeetingCommandResultV1Schema as PublicMeetingCommandResultV1Schema,
+    serializeValidatedRequestV1
+} from "@/protocol/index.js";
 
 const identity = {
     candidateId: "candidate-1",
@@ -127,6 +130,7 @@ describe("target Meeting business-loop protocol", () => {
         expect(actions).toHaveLength(12);
         for (const value of actions) {
             const parsed = MeetingActionV1Schema.parse({ ...value, forgedRuntimeField: "strip" });
+            expect(PublicMeetingActionV1Schema.parse(value)).toEqual(parsed);
             expect(parsed).not.toHaveProperty("forgedRuntimeField");
         }
     });
@@ -174,7 +178,7 @@ describe("target Meeting business-loop protocol", () => {
             }).success
         ).toBe(false);
         expect(
-            MeetingCommandResultV1Schema.safeParse({
+            PublicMeetingCommandResultV1Schema.safeParse({
                 kind: "rejected",
                 error: { code: "INVALID_ARGUMENT", message: "invalid" }
             }).success
