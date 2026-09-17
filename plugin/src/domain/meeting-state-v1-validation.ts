@@ -1611,6 +1611,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (!["archiving", "archived"].includes(lifecycle.status as string))
             return fail("$.archive");
     }
+    if (!terminal && own(value, "termination")) return fail("$.termination");
     if (lifecycle.status === "archived" && (value.archive as RecordValue).status !== "complete")
         return fail("$.archive.status");
     return { kind: "valid", state: value as unknown as MeetingState };

@@ -2414,6 +2414,26 @@ it.each([
     invalidAt({ ...base(), lifecycle: { ...base().lifecycle, status } }, path);
 });
 
+it("rejects termination before terminal lifecycle", () => {
+    invalidAt(
+        {
+            ...base(),
+            termination: {
+                id: "termination-1",
+                outcome: "cancelled",
+                reason: "x",
+                endedAt: 0,
+                decisionIds: [],
+                completionFactIds: [],
+                unresolvedQuestionIds: [],
+                unresolvedIssueIds: [],
+                unclosedContributionIds: []
+            }
+        },
+        "$.termination"
+    );
+});
+
 it("rejects archive before terminal lifecycle", () => {
     const termination = {
         id: "termination-1",
