@@ -164,26 +164,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T1：收敛 canonical MeetingState
-
-前置状态：T0 PASS。
-
-允许修改：`plugin/src/domain/meeting-state-v1.ts`、`plugin/src/domain/meeting-state-v1-validation.ts`、`plugin/tests/fixtures/meeting-state-v1.ts`、`plugin/tests/unit/domain/meeting-state-v1-validation.spec.ts`。
-
-禁止修改：transition、protocol、repository、runtime、旧 fixture。
-
-执行：按“聚合改动”修正字段；validator 检查唯一 reviewer、typed refs、abort 组合和 archive 白名单；目标 fixture 不含旧字段。
-
-验证：
-```bash
-pnpm --dir plugin vitest run tests/unit/domain/meeting-state-v1-validation.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：合法 fixture 通过；缺/错 reviewer、旧字段、非法 abort、archive 悬空引用拒绝。
-
-STOP：需要 optional 化 required 字段或接受旧结构。
-
 ### T2：完成创建、结束与归档纯转换
 
 前置状态：T1 PASS。

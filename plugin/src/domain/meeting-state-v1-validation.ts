@@ -105,7 +105,7 @@ const identitySchema = z
         displayName: textSchema,
         roles: uniqueRoleArraySchema,
         agendaResponsibilityIds: uniqueIdArraySchema,
-        reviewResponsibilityIds: uniqueIdArraySchema,
+        reviewResponsibilityIds: uniqueIdArraySchema.default([]),
         riskAuthority: z.boolean(),
         required: z.boolean(),
         definitionId: opaqueIdSchema.optional(),
@@ -175,7 +175,7 @@ const agendaSchema = z.object({
     question: textSchema,
     status: agendaStatusSchema,
     requiredOutputIds: uniqueIdArraySchema,
-    requiredReviewerIds: uniqueIdArraySchema,
+    requiredReviewerIds: uniqueIdArraySchema.default([]),
     ownerId: opaqueIdSchema.optional()
 });
 const candidateSchema = z.object({
@@ -206,7 +206,8 @@ const issueSchema = z.object({
     affectedOutputIds: uniqueIdArraySchema,
     affectedCriterionIds: uniqueIdArraySchema,
     affectedConstraintIds: uniqueIdArraySchema,
-    requiredReviewerIds: uniqueIdArraySchema,
+    requiresEvidenceReview: z.boolean(),
+    requiredReviewerIds: uniqueIdArraySchema.default([]),
     blocking: z.boolean(),
     status: issueStatusSchema,
     rationale: textSchema
@@ -270,12 +271,19 @@ const roundSchema = z
         status: z.enum(["open", "published", "aborted"]),
         contributionIds: uniqueIdArraySchema,
         deadlineAt: epochSchema.optional(),
-        publicationId: opaqueIdSchema.optional()
+        publicationId: opaqueIdSchema.optional(),
+        abortReason: textSchema.optional(),
+        abortedAt: epochSchema.optional()
     })
     .refine((value) => isAbsentOrDefined(value, "publicationId"), { path: ["publicationId"] })
     .refine((value) => (value.status === "published") === own(value, "publicationId"), {
         path: ["publicationId"]
-    });
+    })
+    .refine(
+        (value) =>
+            (value.status === "aborted") === (own(value, "abortReason") && own(value, "abortedAt")),
+        { path: ["abortReason"] }
+    );
 const contributionSchema = z
     .object({
         id: opaqueIdSchema,
@@ -285,7 +293,6 @@ const contributionSchema = z
         acceptedAt: epochSchema,
         status: z.enum([
             "preparing",
-            "format_correction",
             "registered",
             "under_review",
             "awaiting_response",
@@ -650,6 +657,7 @@ const meetingStateSchema = withDefinedOptionals(
         updatedAt: epochSchema,
         objective: objectiveSchema,
         lifecycle: lifecycleSchema,
+        evidenceReviewerId: opaqueIdSchema,
         identities: uniqueEntityArray(identitySchema),
         identityRecommendations: uniqueEntityArray(identityRecommendationSchema),
         agenda: uniqueEntityArray(agendaSchema),
@@ -708,6 +716,20 @@ function ownUndefined(value: RecordValue, key: string, path: string): string | u
 }
 export function validateMeetingStateV1(value: unknown): MeetingStateValidationResultV1 {
     if (!record(value)) return fail("$");
+    if (Array.isArray(value.rounds)) {
+        for (let i = 0; i < value.rounds.length; i++) {
+            const round = value.rounds[i];
+            if (
+                record(round) &&
+                round.status === "aborted" &&
+                (!own(round, "abortReason") ||
+                    !own(round, "abortedAt") ||
+                    round.abortReason === undefined ||
+                    round.abortedAt === undefined)
+            )
+                return fail(`$.rounds[${i}].abortReason`);
+        }
+    }
     const parsed = meetingStateSchema.safeParse(value);
     if (!parsed.success) {
         const issue = parsed.error.issues[0];
@@ -730,6 +752,11 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     if (ownUndefined(lifecycle, "reason", "$.lifecycle.reason")) return fail("$.lifecycle.reason");
     const identityById = indexById(parsedState.identities);
     const identityIds = new Set(identityById.keys());
+    const reviewerIds = parsedState.identities.filter((identity) =>
+        identity.roles.includes("evidence_reviewer")
+    );
+    if (reviewerIds.length !== 1) return fail("$.identities");
+    if (parsedState.evidenceReviewerId !== reviewerIds[0].id) return fail("$.evidenceReviewerId");
     const agendaById = indexById(parsedState.agenda);
     const agendaIds = new Set(agendaById.keys());
     const ids = (targets: readonly { id: string }[]) => new Set(targets.map(({ id }) => id));
@@ -744,10 +771,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     for (let i = 0; i < parsedState.agenda.length; i++) {
         const item = parsedState.agenda[i];
         const path = `$.agenda[${i}]`;
-        for (const [key, ids] of [
-            ["requiredOutputIds", outputIds],
-            ["requiredReviewerIds", identityIds]
-        ] as const) {
+        for (const [key, ids] of [["requiredOutputIds", outputIds]] as const) {
             const p = checkRefs(item[key], ids, `${path}.${key}`);
             if (p) return fail(p);
         }
@@ -766,24 +790,9 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         return fail("$.agenda");
     for (let i = 0; i < parsedState.identities.length; i++) {
         const item = parsedState.identities[i];
-        for (const key of ["agendaResponsibilityIds", "reviewResponsibilityIds"] as const) {
+        for (const key of ["agendaResponsibilityIds"] as const) {
             const p = checkRefs(item[key], agendaIds, `$.identities[${i}].${key}`);
             if (p) return fail(p);
-        }
-        if (item.reviewResponsibilityIds.length > 0 && !item.roles.includes("evidence_reviewer"))
-            return fail(`$.identities[${i}].reviewResponsibilityIds[0]`);
-    }
-    for (let i = 0; i < parsedState.agenda.length; i++) {
-        const item = parsedState.agenda[i];
-        const reviewers = item.requiredReviewerIds;
-        for (let j = 0; j < reviewers.length; j++) {
-            const identity = identityById.get(reviewers[j]);
-            if (
-                !identity ||
-                !identity.roles.includes("evidence_reviewer") ||
-                !identity.reviewResponsibilityIds.includes(item.id)
-            )
-                return fail(`$.agenda[${i}].requiredReviewerIds[${j}]`);
         }
     }
     const rounds = parsedState.rounds;
@@ -833,14 +842,6 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (!ref(r.roundId, roundIds)) return fail(`${path}.roundId`);
         if (!ref(r.contributorId, identityIds)) return fail(`${path}.contributorId`);
         if (ownUndefined(r, "packageId", `${path}.packageId`)) return fail(`${path}.packageId`);
-    }
-    for (let i = 0; i < parsedState.formatApprovals.length; i++) {
-        const approval = parsedState.formatApprovals[i];
-        const path = `$.formatApprovals[${i}]`;
-        if (!ref(approval.contributionId, contributionIds)) return fail(`${path}.contributionId`);
-        if (!ref(approval.managerId, identityIds)) return fail(`${path}.managerId`);
-        const manager = identityById.get(approval.managerId);
-        if (!manager || !manager.roles.includes("manager")) return fail(`${path}.managerId`);
     }
     const packages = parsedState.evidencePackages;
     const versionOwnerById = new Map<string, (typeof packages)[number]>();
