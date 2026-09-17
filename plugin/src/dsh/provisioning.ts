@@ -9,6 +9,50 @@ export interface SessionProvisioningEnvelope {
     readonly instruction: string;
 }
 
+export interface MeetingIdentityProvisioningEnvelopeV1 {
+    readonly kind: "convivium.meeting-identity.provisioning";
+    readonly version: 1;
+    readonly role: "manager" | "evidence_reviewer" | "participant";
+    readonly meetingId: string;
+    readonly identityId: string;
+    readonly capability: "none";
+    readonly instruction: string;
+}
+
+const identitySegment = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const meetingIdentityInstruction =
+    "This message establishes your Meeting identity only and grants no work capability. Wait for a formal Meeting notice before acting.";
+
+export function createMeetingIdentityProvisioningEnvelopeV1(input: {
+    readonly role: MeetingIdentityProvisioningEnvelopeV1["role"];
+    readonly meetingId: string;
+    readonly identityId: string;
+}): MeetingIdentityProvisioningEnvelopeV1 {
+    if (
+        !["manager", "evidence_reviewer", "participant"].includes(input.role) ||
+        !identitySegment.test(input.meetingId) ||
+        !identitySegment.test(input.identityId)
+    )
+        throw new TypeError(
+            "A Meeting identity provisioning envelope requires unambiguous Meeting and identity IDs."
+        );
+    return {
+        kind: "convivium.meeting-identity.provisioning",
+        version: 1,
+        role: input.role,
+        meetingId: input.meetingId,
+        identityId: input.identityId,
+        capability: "none",
+        instruction: meetingIdentityInstruction
+    };
+}
+
+export function serializeMeetingIdentityProvisioningEnvelopeV1(
+    envelope: MeetingIdentityProvisioningEnvelopeV1
+): string {
+    return JSON.stringify(envelope);
+}
+
 const managerInstruction =
     "This message establishes your meeting identity only and grants no work capability. Wait for a formal contribution planning notice with deliveryId before assigning or reviewing work.";
 

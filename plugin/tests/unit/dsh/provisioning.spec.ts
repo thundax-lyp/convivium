@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    createMeetingIdentityProvisioningEnvelopeV1,
     createSessionProvisioningEnvelope,
+    serializeMeetingIdentityProvisioningEnvelopeV1,
     serializeSessionProvisioningEnvelope
 } from "@/dsh/provisioning.js";
 
@@ -58,6 +60,46 @@ describe("session provisioning envelope", () => {
                 teamId: "team-1",
                 meetingId: "meeting-1",
                 role: "participant"
+            })
+        ).toThrow(TypeError);
+    });
+});
+
+describe("target meeting identity provisioning envelope", () => {
+    it.each(["manager", "evidence_reviewer", "participant"] as const)(
+        "round-trips the %s identity without legacy namespace fields",
+        (role) => {
+            const envelope = createMeetingIdentityProvisioningEnvelopeV1({
+                role,
+                meetingId: "meeting-1",
+                identityId: `${role}-1`
+            });
+            const serialized = serializeMeetingIdentityProvisioningEnvelopeV1(envelope);
+            expect(JSON.parse(serialized)).toEqual(envelope);
+            expect(envelope).toMatchObject({
+                role,
+                meetingId: "meeting-1",
+                identityId: `${role}-1`,
+                capability: "none"
+            });
+            expect(envelope).not.toHaveProperty("teamId");
+            expect(envelope).not.toHaveProperty("participantId");
+        }
+    );
+
+    it("rejects ambiguous Meeting and identity segments", () => {
+        expect(() =>
+            createMeetingIdentityProvisioningEnvelopeV1({
+                role: "participant",
+                meetingId: "meeting:1",
+                identityId: "identity-1"
+            })
+        ).toThrow(TypeError);
+        expect(() =>
+            createMeetingIdentityProvisioningEnvelopeV1({
+                role: "participant",
+                meetingId: "meeting-1",
+                identityId: "identity/1"
             })
         ).toThrow(TypeError);
     });

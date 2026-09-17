@@ -185,26 +185,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T14b：建立 target label 与 provisioning codec
-
-前置状态：T14a PASS。
-
-允许修改：`plugin/src/dsh/labels.ts`、`plugin/src/dsh/provisioning.ts`、`plugin/tests/unit/dsh/labels.spec.ts`、`plugin/tests/unit/dsh/provisioning.spec.ts`。
-
-禁止修改：caller/session adapter、runtime/plugin lifecycle、identity recommendation、review workers、Remote/UI、role resources。
-
-执行：新增 target `MeetingIdentitySessionLabelV1`，required `{role:"manager"|"evidence_reviewer"|"participant";meetingId;identityId}`，编码固定为 `convivium:meeting-identity:<role>:<meetingId>:<identityId>`，decoder 对段数、枚举和 identity segment fail closed，不使用 teamId 或 participantId。`provisioning.ts` 新增同结构的 `createMeetingIdentityProvisioningEnvelopeV1/serializeMeetingIdentityProvisioningEnvelopeV1`。为使尚未迁移的 legacy adapter/tests 编译，旧 label/envelope 函数暂时保留但 target codec 不得调用；T14b2 后活动入口只导出/调用 target codec。测试固定三种 role、非法段数/枚举/identity、跨 Meeting/identity mismatch 与 envelope round-trip。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/dsh/labels.spec.ts tests/unit/dsh/provisioning.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：target label/provisioning envelope 只有 role/meetingId/identityId，三种 role round-trip 且伪造 teamId/participantId 不进入 target 值。
-
-STOP：需要 team namespace、participantId 或修改 DSH provisioning wire 语义。
-
 ### T14b2：建立 target caller 与 child Session adapter
 
 前置状态：T14b PASS。
