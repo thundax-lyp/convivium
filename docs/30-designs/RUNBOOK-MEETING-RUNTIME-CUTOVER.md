@@ -164,28 +164,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T0：固定 baseline
-
-前置状态：分支为 `codex/runbook-meeting-runtime-cutover`，工作树只含本 RUNBOOK 和本次正式文档同步。
-
-允许修改：无。
-
-禁止修改：全部文件。
-
-执行：核对 branch、diff、DSH peer versions，并运行完整 baseline。
-
-验证：
-```bash
-git branch --show-current
-git diff --check
-rg -n '"0\.1\.2-rc\.1"' plugin/package.json
-pnpm --dir plugin verify
-```
-
-PASS：branch 精确匹配；全部命令退出 0；DSH peers 精确为 `0.1.2-rc.1`。
-
-STOP：任一命令失败；不得修改 baseline。
-
 ### T1：收敛 canonical MeetingState
 
 前置状态：T0 PASS。
