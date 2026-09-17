@@ -1,6 +1,6 @@
 # Convivium Meeting Roles
 
-同一发行包附带九个 Definition、共享 `convivium` Preset、九个原生 DSH Skills 和显式部署 patch。资源存在不等于已经通过真实部署验收。
+现有发行包仍附带包含 Scribe 的九个 Definition、共享 `convivium` Preset、九个原生 DSH Skills 和显式部署 patch。当前正式目标已经删除 `meeting_scribe`，应收敛为八个 Definition/Skills；在资源完成迁移前，本目录只描述旧实现，不能作为当前角色契约已经实现的证据。
 
 从同一 tarball 安装插件并解包角色资源，将 `CONVIVIUM_MEETING_ROLES_ROOT` 设为解包后 meeting-roles 的绝对目录，在独立 DSH web profile 使用解包后的 `meeting-roles/cordis.patch.yml`，新建 Captain 时显式选择 `convivium` Preset；用户安装和启动见仓库 [安装并运行 Convivium](../../docs/50-operations/HOW-TO-INSTALL-AND-RUN.md)，角色专项验收见 [Meeting Roles Deployment](../../docs/50-operations/HOW-TO-MEETING-ROLES.md)。包外阅读时请在源码仓库打开这些文档。
 

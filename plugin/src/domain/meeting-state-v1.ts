@@ -28,14 +28,20 @@ export interface MeetingLifecycleV1 {
 export interface ObjectiveTargetV1 {
     id: OpaqueId;
     text: string;
-    status: "pending" | "satisfied" | "unsatisfied" | "violated";
+    status: "pending" | "satisfied" | "unsatisfied";
+}
+
+export interface HardConstraintV1 {
+    id: OpaqueId;
+    text: string;
+    status: "pending" | "satisfied" | "violated";
 }
 
 export interface ObjectiveContractV1 {
     statement: string;
     requiredOutputs: readonly ObjectiveTargetV1[];
     acceptanceCriteria: readonly ObjectiveTargetV1[];
-    hardConstraints: readonly ObjectiveTargetV1[];
+    hardConstraints: readonly HardConstraintV1[];
     acceptableRiskLevel: RiskLevel;
 }
 
@@ -121,6 +127,7 @@ export interface QuestionV1 {
 
 export interface IssueV1 {
     id: OpaqueId;
+    actorId: OpaqueId;
     agendaId: OpaqueId;
     description: string;
     riskLevel: RiskLevel;

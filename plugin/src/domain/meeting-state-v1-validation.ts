@@ -48,7 +48,8 @@ function withDefinedOptionals<T extends z.ZodTypeAny>(schema: T, keys: readonly 
                 ctx.addIssue({ code: "custom", path: [key], message: "undefined" });
     });
 }
-const targetStatusSchema = z.enum(["pending", "satisfied", "unsatisfied", "violated"]);
+const targetStatusSchema = z.enum(["pending", "satisfied", "unsatisfied"]);
+const constraintStatusSchema = z.enum(["pending", "satisfied", "violated"]);
 const agendaStatusSchema = z.enum([
     "pending",
     "active",
@@ -71,11 +72,16 @@ const objectiveTargetSchema = z.object({
     text: textSchema,
     status: targetStatusSchema
 });
+const hardConstraintSchema = z.object({
+    id: opaqueIdSchema,
+    text: textSchema,
+    status: constraintStatusSchema
+});
 const objectiveSchema = z.object({
     statement: textSchema,
     requiredOutputs: uniqueEntityArray(objectiveTargetSchema),
     acceptanceCriteria: uniqueEntityArray(objectiveTargetSchema),
-    hardConstraints: uniqueEntityArray(objectiveTargetSchema),
+    hardConstraints: uniqueEntityArray(hardConstraintSchema),
     acceptableRiskLevel: riskLevelSchema
 });
 const lifecycleSchema = z.object({
@@ -192,6 +198,7 @@ const questionSchema = z.object({
 });
 const issueSchema = z.object({
     id: opaqueIdSchema,
+    actorId: opaqueIdSchema,
     agendaId: opaqueIdSchema,
     description: textSchema,
     riskLevel: riskLevelSchema,
@@ -307,7 +314,7 @@ const contributionSchema = z
 const claimSchema = z.object({
     id: opaqueIdSchema,
     statement: textSchema,
-    materialIds: uniqueIdArraySchema,
+    materialIds: uniqueIdArraySchema.min(1),
     qualification: textSchema
 });
 const materialSchema = z
@@ -859,6 +866,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             const v = r.versions[j];
             const vp = `${path}.versions[${j}]`;
             const vr = v;
+            if (vr.ordinal !== j + 1) return fail(`${vp}.ordinal`);
             const materialIds = new Set<string>();
             for (const material of vr.materials) {
                 materialIds.add(material.id);
@@ -921,6 +929,8 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const reviewer = identityById.get(r.reviewerId as string);
         if (!reviewer || !reviewer.roles.includes("evidence_reviewer"))
             return fail(`${path}.reviewerId`);
+        const owner = versionOwnerById.get(r.versionId);
+        if (owner?.authorId === r.reviewerId) return fail(`${path}.reviewerId`);
     }
     for (let i = 0; i < contributions.length; i++) {
         const hand = (contributions[i] as RecordValue).supplementHand as RecordValue | undefined;
@@ -1172,6 +1182,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const item = issues[i];
         const path = `$.issues[${i}]`;
         issueIds.add(item.id);
+        if (!ref(item.actorId, identityIds)) return fail(`${path}.actorId`);
         if (!agendaIds.has(item.agendaId as string)) return fail(`${path}.agendaId`);
         const agenda = agendaById.get(item.agendaId)!;
         for (const key of [
@@ -1600,6 +1611,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (!["archiving", "archived"].includes(lifecycle.status as string))
             return fail("$.archive");
     }
+    if (!terminal && own(value, "termination")) return fail("$.termination");
     if (lifecycle.status === "archived" && (value.archive as RecordValue).status !== "complete")
         return fail("$.archive.status");
     return { kind: "valid", state: value as unknown as MeetingState };

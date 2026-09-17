@@ -444,6 +444,7 @@ describe("outcome proposal revisions", () => {
             state.issues = [
                 {
                     id: "issue",
+                    actorId: "contributor",
                     agendaId: "a",
                     description: "risk",
                     riskLevel: "medium",
@@ -458,6 +459,7 @@ describe("outcome proposal revisions", () => {
                 },
                 {
                     id: "other",
+                    actorId: "contributor",
                     agendaId: "a",
                     description: "other",
                     riskLevel: "low",
@@ -1176,6 +1178,7 @@ describe("outcome proposal revisions", () => {
         state.issues = [
             {
                 id: "issue",
+                actorId: "contributor",
                 agendaId: "a",
                 description: "block",
                 riskLevel: "high",
@@ -3014,6 +3017,7 @@ describe("Recompute/Convergence", () => {
     });
     const blockingIssue = () => ({
         id: "issue",
+        actorId: "contributor",
         agendaId: "a",
         description: "block",
         riskLevel: "low" as const,

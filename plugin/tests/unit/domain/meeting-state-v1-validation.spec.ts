@@ -115,6 +115,22 @@ describe("MeetingState structure", () => {
         invalidAt({ ...base(), continuation: null }, "$.continuation");
     });
 
+    it.each([
+        ["required output", "requiredOutputs", "violated"],
+        ["acceptance criterion", "acceptanceCriteria", "violated"],
+        ["hard constraint", "hardConstraints", "unsatisfied"]
+    ] as const)("rejects invalid %s status", (_name, field, status) => {
+        const state = base();
+        const invalid = {
+            ...state,
+            objective: {
+                ...state.objective,
+                [field]: [{ ...state.objective[field][0], status }]
+            }
+        };
+        invalidAt(invalid, `$.objective.${field}[0].status`);
+    });
+
     it("requires target participation arrays and the narrowed review contracts", () => {
         for (const field of ["opportunityRequests", "pendingHandRaises", "formatApprovals"]) {
             const missing = base() as unknown as Record<string, unknown>;
@@ -225,6 +241,7 @@ describe("MeetingState structure", () => {
     it("checks required Issue references and Termination ID", () => {
         const issue = {
             id: "issue-1",
+            actorId: "manager-1",
             agendaId: "agenda-1",
             description: "x",
             riskLevel: "low",
@@ -240,6 +257,7 @@ describe("MeetingState structure", () => {
         const issueState = { ...base(), issues: [issue] };
         expect(validateMeetingStateV1(issueState)).toMatchObject({ kind: "valid" });
         for (const field of [
+            "actorId",
             "affectedOutputIds",
             "affectedCriterionIds",
             "affectedConstraintIds",
@@ -280,6 +298,7 @@ describe("MeetingState cross-object rules", () => {
     it("validates candidate, question, issue, and manager plan references", () => {
         const issue = {
             id: "issue-1",
+            actorId: "manager-1",
             agendaId: "agenda-1",
             description: "x",
             riskLevel: "low",
@@ -334,6 +353,7 @@ describe("MeetingState cross-object rules", () => {
             { ...state, questions: [{ ...question, actorId: "agenda-1" }] },
             "$.questions[0].actorId"
         );
+        invalidAt({ ...state, issues: [{ ...issue, actorId: "agenda-1" }] }, "$.issues[0].actorId");
         invalidAt(
             { ...state, issues: [{ ...issue, affectedOutputIds: ["criterion-1"] }] },
             "$.issues[0].affectedOutputIds[0]"
@@ -463,6 +483,7 @@ describe("MeetingState cross-object rules", () => {
     it("enforces issue blocking and accepted risk combinations", () => {
         const common = {
             id: "issue-1",
+            actorId: "manager-1",
             agendaId: "agenda-1",
             description: "x",
             riskLevel: "low",
@@ -782,6 +803,52 @@ function evidenceState() {
     };
 }
 describe("Evidence and decision chain", () => {
+    it("rejects a Review submitted by its Evidence author", () => {
+        const { state, review } = evidenceState();
+        invalidAt(
+            {
+                ...state,
+                identities: state.identities.map((identity) =>
+                    identity.id === "manager-1"
+                        ? {
+                              ...identity,
+                              roles: ["manager", "evidence_reviewer"],
+                              reviewResponsibilityIds: ["agenda-1"]
+                          }
+                        : identity.id === "reviewer-1"
+                          ? { ...identity, reviewResponsibilityIds: [] }
+                          : identity
+                ),
+                agenda: [{ ...state.agenda[0], requiredReviewerIds: ["manager-1"] }],
+                reviews: [{ ...review, reviewerId: "manager-1" }]
+            },
+            "$.reviews[0].reviewerId"
+        );
+    });
+
+    it("requires EvidenceVersion ordinals to start at one and remain contiguous", () => {
+        const { state, pkg, version } = evidenceState();
+        invalidAt(
+            {
+                ...state,
+                evidencePackages: [{ ...pkg, versions: [{ ...version, ordinal: 2 }] }]
+            },
+            "$.evidencePackages[0].versions[0].ordinal"
+        );
+        invalidAt(
+            {
+                ...state,
+                evidencePackages: [
+                    {
+                        ...pkg,
+                        versions: [version, { ...version, id: "version-2", ordinal: 3 }]
+                    }
+                ]
+            },
+            "$.evidencePackages[0].versions[1].ordinal"
+        );
+    });
+
     it("accepts the ordered evidence and publication chain", () => {
         const {
             round,
@@ -983,6 +1050,24 @@ describe("Evidence and decision chain", () => {
             {
                 ...state,
                 evidencePackages: [
+                    {
+                        ...pkg,
+                        versions: [
+                            {
+                                ...version,
+                                materials: [material],
+                                claims: [{ ...claim, materialIds: [] }]
+                            }
+                        ]
+                    }
+                ]
+            },
+            "$.evidencePackages[0].versions[0].claims[0].materialIds"
+        );
+        invalidAt(
+            {
+                ...state,
+                evidencePackages: [
                     { ...pkg, versions: [{ ...version, materials: [material], claims: [claim] }] }
                 ]
             },
@@ -1033,6 +1118,7 @@ describe("outcome history invariants", () => {
             state.issues = [
                 {
                     id: "issue-1",
+                    actorId: "manager-1",
                     agendaId: "agenda-1",
                     description: "risk",
                     riskLevel: "high",
@@ -1066,6 +1152,7 @@ describe("outcome history invariants", () => {
         state.issues = [
             {
                 id: "issue-1",
+                actorId: "manager-1",
                 agendaId: "agenda-1",
                 description: "risk",
                 riskLevel: "high",
@@ -1815,6 +1902,7 @@ function remainingEntityState() {
     const f = evidenceState();
     const issue = {
         id: "issue-1",
+        actorId: "manager-1",
         agendaId: "agenda-1",
         description: "x",
         riskLevel: "low",
@@ -2324,6 +2412,26 @@ it.each([
     ["archived", "$.termination"]
 ] as const)("requires %s termination", (status, path) => {
     invalidAt({ ...base(), lifecycle: { ...base().lifecycle, status } }, path);
+});
+
+it("rejects termination before terminal lifecycle", () => {
+    invalidAt(
+        {
+            ...base(),
+            termination: {
+                id: "termination-1",
+                outcome: "cancelled",
+                reason: "x",
+                endedAt: 0,
+                decisionIds: [],
+                completionFactIds: [],
+                unresolvedQuestionIds: [],
+                unresolvedIssueIds: [],
+                unclosedContributionIds: []
+            }
+        },
+        "$.termination"
+    );
 });
 
 it("rejects archive before terminal lifecycle", () => {
