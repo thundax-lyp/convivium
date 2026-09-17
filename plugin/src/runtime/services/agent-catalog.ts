@@ -81,7 +81,6 @@ export async function captureManagerCatalogBinding(
         }
         if (!hasExactKeys(result, ["ok", "snapshot"])) return { kind: "none" };
         const snapshot = MeetingAgentCatalogSnapshotSchema(result.snapshot);
-        if (snapshot.teamId !== request.teamId) return { kind: "none" };
         if (encodeCanonicalJson(snapshot).byteLength > 16 * 1024) return { kind: "none" };
 
         const candidateIds = new Set<string>();

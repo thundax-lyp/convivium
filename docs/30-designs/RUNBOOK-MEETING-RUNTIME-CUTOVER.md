@@ -185,26 +185,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 8 个。不得借测试调整扩展 production 范围。
 
-### T10e：迁移 repository runtime callers
-
-前置状态：T10d PASS。
-
-允许修改：`plugin/src/runtime/meeting-runtime.ts`、`plugin/src/runtime/application-service/create-meeting.ts`、`plugin/src/runtime/application-service/index.ts`、`plugin/src/runtime/services/meeting-recovery-service.ts`、`plugin/src/runtime/services/agent-catalog.ts`、`plugin/tests/recovery/meeting-recovery.spec.ts`。
-
-禁止修改：repository、DSH label/ownership、protocol、fixture。
-
-执行：所有 open/list/recovery 调用只向 repository identity API 传递 meetingId；legacy create input/LegacyMeetingState 中仍存在的 teamId 只作为 T10d registry/core bridge payload 编译，不得参与 catalog key/domain/cache、recovery dedupe 或 target Catalog producer。`meeting-recovery-service` 的 discovery、mode、dedupe、open 与 mismatch 检查只比较 meetingId；`RecoverableMeeting.teamId` 可暂留到 T10f 供旧 runtime object 编译，但不得传给 repository 或用于匹配。`agent-catalog` 只验证 meetingId。`application-service/index.ts` 中尚受 T10f legacy service 签名约束的 callback 可以接收旧 teamId 参数但必须立即丢弃，调用 repository 时只传 meetingId；不得用固定 teamId 替代。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/recovery/meeting-recovery.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：活动 repository callers 零 teamId 参数；恢复只按 meetingId 定位且没有跨 Meeting 合并；legacy team payload 不参与 identity。
-
-STOP：调用者仍依赖 team 分区、需要 fixture migration 或 target path 读取 legacy create teamId。
-
 ### T10f：迁移 legacy-only snapshot consumers
 
 前置状态：T10e PASS。

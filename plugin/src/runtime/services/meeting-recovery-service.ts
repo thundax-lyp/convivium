@@ -57,16 +57,13 @@ export function createMeetingRehydrationService(
     async function recoverLocal(
         snapshots: Map<string, MeetingSnapshot>,
         meetingId: string,
-        teamId: string,
         existing?: RecoverableMeeting
     ): Promise<void> {
         if (options.isCreating?.(meetingId)) return;
         let repository = existing?.repository;
         try {
             if (repository === undefined) {
-                repository = await (await options.registry).openMeeting({ teamId, meetingId });
-            } else if (existing?.teamId !== teamId) {
-                throw new Error("Recovered Meeting team ownership does not match catalog.");
+                repository = await (await options.registry).openMeeting({ meetingId });
             }
             const recovered = await repository.recover();
             if (
@@ -85,7 +82,7 @@ export function createMeetingRehydrationService(
             const current = await repository.read();
             if (existing === undefined) {
                 options.meetings.set(meetingId, {
-                    teamId,
+                    teamId: recovered.snapshot.teamId,
                     captainSessionId: parentSessionId,
                     parent,
                     repository
@@ -105,7 +102,7 @@ export function createMeetingRehydrationService(
                 if (mode.kind === "local_meeting") {
                     const existing = options.meetings.get(mode.meetingId);
                     if (existing !== undefined) {
-                        await recoverLocal(snapshots, mode.meetingId, existing.teamId, existing);
+                        await recoverLocal(snapshots, mode.meetingId, existing);
                         return snapshots;
                     }
                 }
@@ -117,7 +114,6 @@ export function createMeetingRehydrationService(
                         await recoverLocal(
                             snapshots,
                             record.meetingId,
-                            record.teamId,
                             options.meetings.get(record.meetingId)
                         );
                         if (mode.kind === "local_meeting") return snapshots;
@@ -137,10 +133,7 @@ export function createMeetingRehydrationService(
                 try {
                     const repository = await (
                         await options.registry
-                    ).openMeeting({
-                        teamId: record.teamId,
-                        meetingId: record.meetingId
-                    });
+                    ).openMeeting({ meetingId: record.meetingId });
                     const recovered = await repository.recover();
                     const parentSessionId = recovered.sessionOwnership[0]?.parentSessionId;
                     if (
@@ -152,7 +145,7 @@ export function createMeetingRehydrationService(
                         continue;
                     const parent = await options.reconcile?.(repository);
                     options.meetings.set(record.meetingId, {
-                        teamId: record.teamId,
+                        teamId: recovered.snapshot.teamId,
                         captainSessionId: parentSessionId,
                         parent,
                         repository

@@ -32,7 +32,6 @@ import type { JsonValue } from "@/repository/domain/canonical-json.js";
 
 export interface MeetingRepositoryOpenInput {
     readonly registry: Promise<DomainRepositoryRegistry>;
-    readonly teamId: string;
     readonly meetingId: string;
     readonly create?: CreateMeetingInput;
 }
@@ -44,7 +43,6 @@ export async function openMeetingRepository(
     input: MeetingRepositoryOpenInput
 ): Promise<DomainMeetingRepository> {
     return (await input.registry).openMeeting({
-        teamId: input.teamId,
         meetingId: input.meetingId,
         ...(input.create === undefined ? {} : { create: input.create })
     });
