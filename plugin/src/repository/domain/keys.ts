@@ -6,16 +6,16 @@ export type SeqKey = string;
 export type CatalogKey = string;
 export type ReceiptKey = string;
 
-export function catalogKey(teamId: string, meetingId: string): CatalogKey {
-    return sha256Hex(encodeCanonicalJson([teamId, meetingId]));
+export function catalogKey(meetingId: string): CatalogKey {
+    return sha256Hex(encodeCanonicalJson(meetingId));
 }
 
-export function meetingIdFor(teamId: string, requestId: string): string {
-    return `meeting-${sha256Hex(encoder.encode(`${teamId}\0${requestId}`)).slice(0, 32)}`;
+export function meetingIdFor(requestId: string): string {
+    return `meeting-${sha256Hex(encoder.encode(requestId)).slice(0, 32)}`;
 }
 
-export function meetingDomainName(teamId: string, meetingId: string): string {
-    return `convivium_m_${sha256Hex(encoder.encode(`${teamId}\0${meetingId}`)).slice(0, 32)}`;
+export function meetingDomainName(meetingId: string): string {
+    return `convivium_m_${sha256Hex(encoder.encode(meetingId)).slice(0, 32)}`;
 }
 
 export function seqKey(seq: number): SeqKey {

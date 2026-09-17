@@ -31,7 +31,7 @@ export interface DomainRepositoryRegistryOptions {
 }
 
 export interface OpenDomainMeetingInput {
-    readonly teamId: string;
+    readonly teamId?: string;
     readonly meetingId: string;
     readonly create?: CreateMeetingInput;
 }
@@ -43,14 +43,12 @@ function corrupt(meetingId: string, message: string): RepositoryError {
 function validateCatalogIdentity(
     key: string,
     record: CatalogMeetingRecordV1,
-    teamId: string,
     meetingId: string
 ): void {
     if (
-        key !== catalogKey(record.teamId, record.meetingId) ||
-        record.teamId !== teamId ||
+        key !== catalogKey(record.meetingId) ||
         record.meetingId !== meetingId ||
-        record.domainName !== meetingDomainName(teamId, meetingId)
+        record.domainName !== meetingDomainName(meetingId)
     )
         throw corrupt(meetingId, "Catalog identity is invalid");
 }
@@ -60,7 +58,6 @@ function validateCreationIdentity(
     catalog: CatalogMeetingRecordV1
 ): void {
     if (
-        creation.teamId !== catalog.teamId ||
         creation.meetingId !== catalog.meetingId ||
         creation.requestId !== catalog.createRequestId ||
         creation.requestHash !== catalog.requestHash
@@ -95,24 +92,19 @@ export class DomainRepositoryRegistry {
         );
     }
 
-    listMeetings(teamId?: string): CatalogMeetingRecordV1[] {
+    listMeetings(_teamId?: string): CatalogMeetingRecordV1[] {
         this.ensureOpen();
         const records: CatalogMeetingRecordV1[] = [];
         for (const [key, record] of this.catalog.table("meetings").entries()) {
-            validateCatalogIdentity(key, record, record.teamId, record.meetingId);
-            if (teamId === undefined || record.teamId === teamId)
-                records.push(structuredClone(record));
+            validateCatalogIdentity(key, record, record.meetingId);
+            records.push(structuredClone(record));
         }
-        return records.sort(
-            (left, right) =>
-                left.teamId.localeCompare(right.teamId) ||
-                left.meetingId.localeCompare(right.meetingId)
-        );
+        return records.sort((left, right) => left.meetingId.localeCompare(right.meetingId));
     }
 
     async openMeeting(input: OpenDomainMeetingInput): Promise<DomainMeetingRepository> {
         this.ensureOpen();
-        const key = catalogKey(input.teamId, input.meetingId);
+        const key = catalogKey(input.meetingId);
         let pending = this.repositories.get(key);
         if (!pending) {
             pending = this.openMeetingOnce(key, input);
@@ -124,8 +116,8 @@ export class DomainRepositoryRegistry {
         const repository = await pending;
         const catalog = this.catalog.table("meetings").get(key);
         if (!catalog) throw corrupt(input.meetingId, "Cached catalog record is missing");
-        validateCatalogIdentity(key, catalog, input.teamId, input.meetingId);
-        if (repository.teamId !== input.teamId || repository.meetingId !== input.meetingId)
+        validateCatalogIdentity(key, catalog, input.meetingId);
+        if (repository.meetingId !== input.meetingId)
             throw corrupt(input.meetingId, "Cached repository identity is invalid");
         if (input.create) await repository.create(input.create);
         return repository;
@@ -144,7 +136,7 @@ export class DomainRepositoryRegistry {
                 "Meeting is not registered"
             );
         if (catalog) {
-            validateCatalogIdentity(key, catalog, input.teamId, input.meetingId);
+            validateCatalogIdentity(key, catalog, input.meetingId);
             if (
                 input.create &&
                 (catalog.createRequestId !== input.create.requestId ||
@@ -157,14 +149,23 @@ export class DomainRepositoryRegistry {
                     "Request conflicts with catalog bootstrap"
                 );
         }
-        const domainName = catalog?.domainName ?? meetingDomainName(input.teamId, input.meetingId);
+        const domainName = catalog?.domainName ?? meetingDomainName(input.meetingId);
+        const initialTeamId = input.create?.initialState.teamId;
+        const teamId = catalog?.teamId ?? input.teamId ?? initialTeamId;
+        if (typeof teamId !== "string" || teamId.trim().length === 0)
+            throw new RepositoryError(
+                "INVALID_INPUT",
+                false,
+                input.meetingId,
+                "Legacy repository payload requires teamId during source cutover"
+            );
         const domain = await this.storageDomain.open(createMeetingDomainSpec(domainName));
         try {
             if (catalog) await this.reconcile(domain, key, catalog);
             const repository = await DomainMeetingRepository.open({
                 catalogDomain: this.catalog,
                 meetingDomain: domain,
-                teamId: input.teamId,
+                teamId: teamId.trim(),
                 meetingId: input.meetingId,
                 authorizationValidator: this.authorizationValidator,
                 now: this.now,
@@ -247,7 +248,6 @@ export class DomainRepositoryRegistry {
             first.previousDigest !== null ||
             first.operation !== "create.complete" ||
             !projection.snapshot ||
-            projection.snapshot.teamId !== catalog.teamId ||
             projection.snapshot.meetingId !== catalog.meetingId ||
             projection.bootstrap.status !== "ready"
         )

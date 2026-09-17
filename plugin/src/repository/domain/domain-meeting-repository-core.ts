@@ -429,9 +429,7 @@ export abstract class DomainMeetingRepositoryCore {
                 updatedAt: now,
                 failureCode: null
             });
-            await this.catalogDomain
-                .table("meetings")
-                .put(catalogKey(this.teamId, this.meetingId), catalog);
+            await this.catalogDomain.table("meetings").put(catalogKey(this.meetingId), catalog);
             await table.put("current", creation);
             return {
                 status: creation.status,
@@ -571,7 +569,7 @@ export abstract class DomainMeetingRepositoryCore {
             });
             await this.catalogDomain
                 .table("meetings")
-                .update(catalogKey(this.teamId, this.meetingId), (catalog) => ({
+                .update(catalogKey(this.meetingId), (catalog) => ({
                     ...catalog,
                     status: "ready",
                     updatedAt: now
@@ -668,7 +666,7 @@ export abstract class DomainMeetingRepositoryCore {
                     });
                 await this.catalogDomain
                     .table("meetings")
-                    .update(catalogKey(this.teamId, this.meetingId), (catalog) => ({
+                    .update(catalogKey(this.meetingId), (catalog) => ({
                         ...catalog,
                         status: "ready",
                         updatedAt,
@@ -693,7 +691,7 @@ export abstract class DomainMeetingRepositoryCore {
             await this.meetingDomain.table("creation").put("current", next);
             await this.catalogDomain
                 .table("meetings")
-                .update(catalogKey(this.teamId, this.meetingId), (catalog) => ({
+                .update(catalogKey(this.meetingId), (catalog) => ({
                     ...catalog,
                     status: "creation_failed",
                     failureCode: input.failureCode ?? null,
