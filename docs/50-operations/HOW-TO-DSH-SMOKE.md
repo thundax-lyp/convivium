@@ -162,7 +162,11 @@ pnpm --silent smoke:profile --json                      # 完整逐场景 JSON�
 
 no_consensus、进展重置和另一种预算的规则差异由 `turn-advancement.spec.ts` 覆盖，不再提供 `convergence-no-consensus`、`convergence-reset`、`convergence-message-budget-completion` selector。历史 selector 的运行记录不构成当前接口与设计的验收；当前覆盖边界见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
-### 九角色部署场景
+<a id="九角色部署场景"></a>
+
+### 九角色部署场景（旧实现诊断）
+
+本场景仍按现有资源验证包含 Scribe 的九角色包，只用于定位迁移前实现问题；当前正式目标已经删除 `meeting_scribe`，本场景通过不能作为八角色契约的发布验收。
 
 ```sh
 env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm smoke:profile

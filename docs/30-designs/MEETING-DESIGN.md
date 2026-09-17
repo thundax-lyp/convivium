@@ -50,13 +50,15 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 | `create_meeting` | Convener | objective、初始身份、限制完整；DSH 预检已完成 | version 1、initial pending agenda、ownership/session creation effect | 任一必填目标、身份或能力缺失即拒绝；不产生半个 Meeting |
 | `activate_agenda` | Captain | Meeting running；目标 Agenda pending；恰有一个旧 active Agenda 且其上没有 open Round | 原 Agenda 按明示 disposition 收口，新 Agenda active，open Round 不会留在已收口 Agenda 上 | 非 Captain、非 running、旧议题仍有 open Round、缺失/非 pending Agenda 拒绝 |
 | `raise_agenda_candidate` | 任意已授权 identity | Meeting 非终态；title/reason 完整 | pending candidate | 相同 request replay receipt；不能隐式加入 Agenda |
-| `dispose_agenda_candidate` | Captain | candidate pending；promoted Agenda 的每个必需 reviewer identity 存在、具有 evidence_reviewer role、责任引用可原子更新 | 仅一次 promoted/parked/rejected 事实；promoted 同次将 candidate 标 promoted、append 完整 pending Agenda，并向每个必需 reviewer identity.reviewResponsibilityIds append 新 Agenda.id，三项不可部分提交；不授新 role、不切换 active | 再处置、非 Captain、候选/审核者不存在、reviewer 无 role、重复责任或任一引用非法时整条拒绝，state/facts/version 均不变 |
-| `record_question` / `record_issue` | 任一已授权 Meeting identity | 关联 Agenda 和受影响的必要产出、验收条件、硬约束引用存在；Issue 的必需审核者 ID 必须属于该 Agenda；blocking 仅在这些受影响目标尚未满足、明确关联必需审核者或 high 风险尚未接受时成立 | 不可变记录；未接受 high 风险必须 blocking；Issue 的 `accepted_risk` 只能经 `dispose_risk` accept 形成 | local controller、未知 identity、自由文本伪造引用、无资格却请求 blocking、直接创建 `accepted_risk` 或默认风险等级拒绝 |
+| `dispose_agenda_candidate` | Captain | candidate pending；promoted Agenda 的 output/owner 引用可解析 | 仅一次 promoted/parked/rejected 事实；promoted 同次将 candidate 标 promoted 并 append 完整 pending Agenda；不改变全局 evidenceReviewerId、不授新 role、不切换 active | 再处置、非 Captain、候选/owner 不存在或任一引用非法时整条拒绝，state/facts/version 均不变 |
+| `record_question` / `record_issue` | 任一已授权 Meeting identity | 关联 Agenda 和受影响的必要产出、验收条件、硬约束引用存在；Issue 显式给出 `requiresEvidenceReview`；blocking 仅在这些受影响目标尚未满足、需要证据审核或 high 风险尚未接受时成立 | 不可变记录；审核需要指向全局 `evidenceReviewerId`，不复制 reviewer ID；未接受 high 风险必须 blocking；Issue 的 `accepted_risk` 只能经 `dispose_risk` accept 形成 | local controller、未知 identity、自由文本伪造引用、无资格却请求 blocking、直接创建 `accepted_risk` 或默认风险等级拒绝 |
 | `resolve_question` / `dispose_issue` | Captain identity | 目标 Question/Issue 存在且 status 为 `open|deferred`；rationale/evidence 引用有效；`dispose_issue` 另要求 Meeting running | Question answered/withdrawn、Issue resolved/out_of_scope 清除 blocking；deferred 保留旧 blocking；旧/新 status/blocking、理由和证据进入单一不可变 committed fact payload；清除最后 blocking Issue 时同步重算并可进入 converging | local controller、非 Captain、`dispose_issue` 时非 running、已终结的再次处置、缺理由/证据或通过 deferred 消除未接受 high 风险的尝试拒绝 |
 
 ### Evidence round
 
 `open_round` 只由 Manager 在 active Agenda 上执行。它在同一瞬间固定现有全部 Publication ID 为 baseline，创建 `open` Round，并把该 Agenda 已排队的 opportunity requests 原子转换为本轮 pending hand raises；仍须逐条由 Manager 处置，不自动授予 Contribution。同轮不按投稿顺序公开，任何新公开内容只能进入下一轮 baseline。
+
+每场 Meeting 只有一个专职 evidence reviewer identity。其 coordinator Session 读取所有当前待审 version，可选择任意非空子集并用 DSH 原生 worker sessions 并发分析；worker 只得到一份 version 与其固定 baseline，不是 MeetingIdentity，也不能提交 command。V1 不建立 ReviewBatch/claim/lease 持久状态；恢复时重新派生尚无最终 Review 的当前 version。
 
 | 转换 | 允许 actor | 前提 | 成功事实/效果 | 拒绝或无操作 |
 | --- | --- | --- | --- | --- |
@@ -64,15 +66,14 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 | `dispose_evidence_opportunity` | Manager | requestId 指向仍 pending 的申请 | rejected/deferred 均移除申请并把理由通知本人，不创建 Round/Contribution | 不以申请者 Session 后续失活或出现其它任务阻止处置；未知/已处置 request 拒绝 |
 | `raise_hand` | Contributor | open Round；该身份可参与且本轮未已有 Contribution 或 pending 举手 | 原子创建一个可恢复的 pending hand raise，不创建 Contribution | 重复举手或已有未结束任务拒绝；不预先给发言权 |
 | `dispose_hand_raise` | Manager | 对应 `(roundId, contributorId)` pending hand raise 未处置 | 原子移除 pending；accepted 创建一个 `preparing` Contribution；rejected/deferred 只通知申请者理由且不保留 Meeting 举手/Contribution | accept 不替换 contributor；同 contributor/round 不能第二个 Contribution |
-| `review_evidence_draft` | Manager | 目标为同一非终态 Contribution 的作者私有草稿；首份已接纳举手，后续有获接纳 supplement hand；只检格式/可访问性 | accepted 只存一个待消费 FormatApproval hash；rejected/deferred 反馈缺失要素并进入格式补正，不存草稿内容、EvidenceVersion 或 Registration | Manager 写观点评分/真实性判断拒绝；原草稿仍由贡献者自行保存 |
-| `submit_evidence` | Contribution 作者 | own Contribution；payload hash 与未消费 FormatApproval 相同；首次或有获接纳 supplement hand；当前已登记版本不在审核中 | 原子消费批准/hand，初版创建唯一 EvidencePackage + Version ordinal 1 + complete Registration，后续同包新 Version + complete Registration 并计实质补充一次 | 不匹配、未经批准、旧版本被覆盖、第三次实质补充均拒绝；格式驳回不计次数 |
-| `submit_review` | 唯一指定 reviewer | 当前已 complete version；reviewer 非作者；baseline 从 Round 自动复制，每维只引用该 baseline 中公开最终版本 | 一个四维独立 Review 和 delivery effect | 自审、旧版本、错误上一轮引用、重复 version 审核拒绝 |
+| `submit_evidence` | Contribution 作者 | own Contribution；准备公开的 payload 通过结构/必填/引用/权限/期限校验；首次或有获接纳 supplement hand；当前已登记版本不在审核中 | 初版创建唯一 EvidencePackage + Version ordinal 1 + complete Registration，后续消费 hand、同包追加新 Version + complete Registration 并计实质补充一次 | 非法输入不写 Meeting；旧版本被覆盖、未经补充接纳、第三次实质补充均拒绝；未登记修正不计次数 |
+| `submit_review_batch` | 唯一专职 evidence reviewer coordinator | 非空且 versionId 唯一；每项是当前 complete version；baseline 从所属 Round 自动复制，每维只引用该 baseline 中公开最终版本 | 原子追加多个彼此独立的四维 Review 及各自 delivery effect | 任一旧版本、错误上一轮引用或重复 version 使整批拒绝；未完成 worker 项不放入请求并保持待审 |
 | `record_review_delivery` | effect dispatcher（可信系统 actor） | 对应 Review 已提交且未 delivered | sent 时写 sentAt 并开始 60 秒 response deadline；failed 写 failedAt 与非空 failureReason | delivery failure 不使作者放弃，不创建 publication |
-| `raise_supplement_hand` / `dispose_supplement_hand` | 作者 / Manager | 原 Contribution 未终态；非空补证 purpose；无第二个 hand；已送达审核的申请须早于 sentAt+60000，并早于准备/持久 Round/适用 Task 期限 | 初次及再次申请走同一 Manager 处置；每次成功举手均记录 response=purpose；只有计数低于二、当前版不在审核中才可接纳并进入私有草稿格式审核 | 计数低于二且正在审核时只能暂缓；其它普通 rejected 以 supplement_rejected 收口，普通 deferred 只移除 hand、不退出；第三次申请仍送 Manager 但不得接纳，rejected/deferred 均以 supplement_rejected 收口并说明次数已尽；格式草稿驳回后重新申请不计次数 |
-| `close_contribution` | 作者；或可信 deadline handler | 目标仍非终态；作者只可 withdrawn，handler 只可在可信期限到达后 submission_missing/timed_out | 设置确定 exit reason/status；格式驳回不自动退出 | 未送达审核不能据沉默 timed_out；未审版本不能正常公开 |
+| `raise_supplement_hand` / `dispose_supplement_hand` | 作者 / Manager | 原 Contribution 未终态；非空补证 purpose；无第二个 hand；已送达审核的申请须早于 sentAt+60000，并早于准备/持久 Round/适用 Task 期限 | 初次及再次申请走同一 Manager 处置；每次成功举手均记录 response=purpose；只有计数低于二、当前版不在审核中才可接纳并允许直接提交准备公开的新版本 | 计数低于二且正在审核时只能暂缓；其它普通 rejected 以 supplement_rejected 收口，普通 deferred 只移除 hand、不退出；第三次申请仍送 Manager 但不得接纳，rejected/deferred 均以 supplement_rejected 收口并说明次数已尽 |
+| `close_contribution` | 作者；或可信 deadline handler | 目标仍非终态；作者只可 withdrawn，handler 只可在可信期限到达后 submission_missing/timed_out | 设置确定 exit reason/status；输入校验失败不自动退出 | 未送达审核不能据沉默 timed_out；未审版本不能正常公开 |
 | `publish_round` | Manager | `isRoundClosable` 为真；每个接纳 Contribution 已有合法终态；每个登记 current version 有最终 Review 及 sent delivery | 单一 Publication、FormalMessage 批次、Round published、refresh/Markdown effect | 任一未满足即 `ROUND_NOT_CLOSABLE`；没有局部发布 |
 
-Round 的 `aborted` 只由 Captain 在不能继续时设置，必须给出原因并将所有未终态 Contribution 以确定 exit reason 关闭；它不产生 Publication。
+Round 的 `aborted` 由 Captain 或 loopback local controller 在不能继续时设置，必须给出原因并原子关闭所有未终态 Contribution、移除 pending hands 与派生消息预留；它不产生 Publication。已登记 Evidence/Review/ReviewDelivery 作为非公开审计事实保留。Meeting 仍为 running 且预算允许时可重新规划开轮；预算耗尽时只能暂停或结束。
 
 ### Proposal, decision, risk and completion
 
@@ -107,7 +108,9 @@ PrivateMail 的五个 Domain transition 固定如下；application 只注入已�
 
 Manager 把 pending hand 接纳为 Contribution 前必须检查该 contributor 不是 processing mail 的 recipient；失败保持 hand、Round、Contribution 与 effects 全部不变。`send_private_mail` 产生一个只含 `mailId`、`recipientId` 和发送上下文上界的 `session_mail` effect request，另四个 mail transition 不产生 effect。未来 Runtime delivery、receipt、outbox 与 Session 调度必须消费同一提交结果，不能把 delivery 状态写回私信正文或正式 transcript。
 
-plan_next_step 只由 Manager 在没有 open Round 时提交，替代同 Agenda 的 active plan；其五种 planKind 仅描述下一步，不直接改变领域控制状态。reassign_task 只由 local controller 执行，原子 revoke 旧 authorization 并创建 replacement task；旧授权的迟到结果在进入 projection 前拒绝。start_private_mail、complete_private_mail、cancel_private_mail 和 mail deadline 只改变 PrivateMail，且 serial gate 保证一个 identity 不同时处理 mail 与正式 Contribution。start_archive 只由 local controller 从 terminal 触发，先提交完整 ArchivePackage 并切换 archiving；受控 Session owner 针对每个 ownership 写入 close success/failure，全部 success 后才切换 archived。
+Manager 接纳 hand 前还以 `messages.length + 非终态 Contribution 数 + 1` 派生 FormalMessage 预留；不新增 reservation entity。名额不足拒绝接纳。publish_round 必须一次提交完整批次且发布后不超过 maxFormalMessages，不合并不同作者记录、不以摘要替代原文、不部分发布；UI/Markdown 分组不影响领域计数。发布后先以新公开事实重算完成条件：恰好达到上限且已满足时进入 converging；恰好达到上限但未满足时原子进入 paused 并记录 message budget exhausted，不能留在可继续开轮的 running 状态。
+
+plan_next_step 只由 Manager 在没有 open Round 时提交，替代同 Agenda 的 active plan；其五种 planKind 仅描述下一步，不直接改变领域控制状态。reassign_task 只由 local controller 执行，原子 revoke 旧 authorization 并创建 replacement task；旧授权的迟到结果在进入 projection 前拒绝。start_private_mail、complete_private_mail、cancel_private_mail 和 mail deadline 只改变 PrivateMail，且 serial gate 保证一个 identity 不同时处理 mail 与正式 Contribution。start_archive 只由 local controller 从 terminal 触发，先按 Meeting Interface 白名单按值物化完整 ArchivePackage 并切换 archiving；不能只保存对象 ID，也不复制非白名单状态。受控 Session owner 针对每个 ownership 写入 close success/failure，全部 success 后才切换 archived。
 
 ## Time, Concurrency And Recovery
 

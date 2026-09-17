@@ -39,7 +39,7 @@
 
 1. Convivium 必须作为 DSH 插件安装、加载和运行。
 2. 用户不得被要求同时启动一个独立的 Convivium 应用才能使用会议功能。
-3. Convivium 支持的最低 DSH 版本必须为 `0.1.2-rc.1`；低于该版本时插件必须拒绝加载并说明版本要求，不得以缺失生命周期能力的降级模式运行会议。
+3. 首发只支持精确 DSH 版本 `0.1.2-rc.1`；版本不同或缺失必需生命周期能力时插件必须拒绝加载并说明支持版本，不得以降级模式运行会议。更高版本须在独立验证并更新正式兼容口径后才能支持。
 
 ### MO-FR-2：会议与身份隔离
 
@@ -48,7 +48,7 @@
 3. 不同会议、不同身份或不同授权范围不得共享同一个 Session 状态。
 4. 主持身份不得伪装成普通参与者，也不得以参与者名义形成正式发言或立场。
 5. 同一个底层 Agent 承担多个会议身份时，各身份必须保持可区分、可审计。
-6. 创建会议时，调用方必须能够定义参与者及其审核责任、风险权限、议题责任和必需参与关系；无效或相互矛盾的配置不得产生部分可用的会议。
+6. 创建会议时，调用方必须为每个初始身份提供会议内唯一 `identityKey`，并能够定义参与者、风险权限、议题责任和必需参与关系；Meeting Runtime 完整验证引用后才原子分配正式 identity ID，不得从 displayName、Definition ID 或数组位置推断。每场会议还必须通过一个 `identityKey` 指定唯一专职 `evidence_reviewer`；该身份不能兼任 Captain、Manager 或 Contributor。无效或相互矛盾的配置不得产生部分可用的会议。
 7. 新建会议的目标、议题、提案和验收条件必须从明确的未完成初始状态开始，不得在创建时被预先标记为已接受、已满足或已解决。
 8. 每场会议必须具有稳定且唯一的身份，其数据和会议专用 Session 不得与其他会议混淆。
 
@@ -59,7 +59,7 @@
 3. 每个 Participant 同时最多处理一项发言任务，待审及退回修改仍属于该任务；其他 Participant 的任务可以独立推进。
 4. 会议的公开内容必须具有稳定、可追溯的版本与发布顺序，后续贡献者能取得已公开的相关内容；固定审核基线、同轮隔离和更新重审仅由 [ER-FR-1](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-1轮次计划公开基线与角色) 与 [ER-FR-6](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-6审核意见两次补充与响应) 定义。
 5. 参与者必须能够回应、质疑、补证、修正、支持或总结已公开内容。待审内容不作为其他参会者的公共讨论依据，授权核验访问遵循专项需求。
-6. 正式公共论证须遵守本文的正文边界，不得绕过边界确认或改写已审确切版本；轮内登记、独立证据审核和轮末统一公开仅由 [ER-FR-4](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-4要素确认登记与轮内可见性)、[ER-FR-5](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-5独立审核与四维评分) 与 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 定义。正文边界审核不能代替证据内容审核。
+6. 正式公共论证须遵守本文的公开内容结构；Runtime 只作确定性结构、引用、身份、授权和期限校验，Manager 不读取或审批正文。轮内登记、唯一 reviewer 对确切公开版本的独立审核和轮末统一公开仅由 [ER-FR-4](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-4要素确认登记与轮内可见性)、[ER-FR-5](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-5独立审核与四维评分) 与 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 定义；不得用 Manager 批准、自然语言摘要或旧 Review 替代。
 7. 任务授权被撤销、超时或重新分配后，旧请求及其迟到审核结果不得发布内容；一人的失效不得使其他人的有效授权失效。
 
 2026-09-15 确认同轮并行准备、轮末统一公开的业务轮次，取代 2026-09-14 的无轮次门槛表述；既有串行 Turn、直接提交和立即公开路径不能作为新要求的覆盖证据。
@@ -71,7 +71,7 @@
 3. 主持机制可以在规则足以决定时使用确定性规则，在需要语义判断时请求独立主持 Agent 建议。
 4. 主持 Agent 的安排必须受到参与者资格、权限、议题、贡献任务与审核时限及会议预算约束；不得以预定发言顺序替代按问题安排。业务轮次的固定基线、收口与公开由 [ER-FR-1](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-1轮次计划公开基线与角色) 和 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 定义。
 5. 主持 Agent 不得自行代表参与者接受决策、接受风险或宣布会议业务目标已经完成。
-6. 主持 Agent 不可用或安排无效时，会议必须明确报告原因并采取有界的失败处理；既有确定性选择不能代替边界审核，不得自动发布未审内容。
+6. 主持 Agent 不可用或安排无效时，会议必须明确报告原因并采取有界的失败处理；既有确定性选择不能代替必需的公开版本审核，不得自动发布未审内容。
 7. 某项工作所必需的 Participant 不可调度时，停止依赖该身份的安排并向用户报告具体身份和原因，不得自动替换或豁免；无依赖的已授权工作可继续，必需贡献或审核未满足时不得宣布相应目标完成。
 8. 相同会议状态没有发生变化时，不得自动重复调度同一个不可用的必需 Participant。
 
@@ -123,7 +123,7 @@
 5. 会议完成状态必须由经过验证的完成事实和确定性业务规则得出，不得仅根据自然语言总结宣布完成。
 6. 达到业务完成条件时，即使仍有非阻塞后续事项、待讨论事项、已接受风险或少数意见，会议也可以正常完成。
 7. 会议不能完成时，必须区分部分完成、无共识、取消和内部失败，并说明原因及未解决事项。
-8. 最大正式消息数、最大会议时长、任务与审核时限限制继续工作；不得以固定轮次数或每轮发言人数代替证据轮次的状态收口条件。最后一次合法且已公开事实更新同时满足完成条件与预算边界时，按正常完成处理；预算在轮内耗尽时停止新增工作、保留待收口项并报告异常结束或人工处置，不得绕过审核继续发布。
+8. 最大正式消息数、最大会议时长、任务与审核时限限制继续工作；不得以固定轮次数或每轮发言人数代替证据轮次的状态收口条件。`maxFormalMessages` 只统计 `FormalMessage`，不统计 Publication、私信、举手或系统通知；Manager 接纳 Contribution 时为其预留一个消息名额，名额不足必须拒绝接纳。轮次发布必须整体适配剩余预算，不得通过合并不同作者的领域记录、摘要替代原文或部分发布来绕过上限；UI 和 Markdown 可以折叠或分组但不改变计数。最后一批恰好达到上限且同时满足完成条件时按正常完成处理，否则停止新增工作并报告异常结束或人工处置。
 9. Captain 或 loopback 本地用户的结构化风险处置必须明确一个 `status=open` 的 Issue、动作、理由和证据，并受当前目标的 `acceptableRiskLevel`、该 Issue 的 `affectedConstraintIds` 所引用 hard constraints 和 Meeting lifecycle 限制；`resolved|deferred|out_of_scope` Issue 不可执行风险处置，`riskLevel` 缺失不得推断默认值，处置一个风险不得顺带接受其他风险或正式决策。合法 accept 要求这些 hard constraints 当前均为 `satisfied`，并使 Issue 成为 `accepted_risk` 且 `blocking=false`；合法 reject 使 Issue 保持 `open` 且 `classification=blocking`、`blocking=true`，不受风险等级上限限制。每次不同 request 的合法重新处置都必须保留旧 risk acceptance fact 并创建新的 active fact；相同 request 必须幂等重放或报告冲突。处置后执行确定性完成重算；满足完成条件时进入 `converging` 并停止新贡献安排、清除不再适用的等待状态，本操作不自动结束或归档会议。
 10. 会改变完成判定的 `dispose_issue` 只能在 `running` 执行；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。因此不存在 paused 期间清除最后阻塞、resume 后却遗留在 running 的状态；满足条件的该处置在同一次 running transition 中进入 `converging`。
 11. `dispose_risk`、`submit_completion_declaration`、`record_completion_fact` 和 CompletionFact 的 `supersede|revoke` 只在 `running` Meeting 接受；`paused|preparing|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`。达到完成条件并进入 `converging` 后，V1 不撤销或替代 CompletionFact，也不隐式回到 `running`。
@@ -133,12 +133,13 @@
 1. 会议必须支持暂停和恢复，并保留已经正式提交的会议事实。
 2. 用户必须能够通过自然语言指令暂停或恢复会议；插件会议面板必须同时提供与当前状态对应的“暂停”或“继续”按钮。
 3. 自然语言指令和按钮必须执行相同的会议控制规则，不得产生两套不同的暂停或恢复语义。
-4. 插件重启后，未结束会议必须能够恢复到一致状态，或者明确说明不能恢复的原因。
-5. 重复提交不得产生重复发言、重复决策或重复状态变化。
-6. 已撤销、已替换或过期的发言请求不得修改当前会议。
-7. 会议创建失败或插件异常终止后，不得遗留无法确定所属会议的会议专用 Session。
-8. 恢复或关闭会议专用 Session 时，不得操作属于其他会议、其他团队或无法确认归属的 Session。
-9. 单个 Agent 的内部工具失败不得自动判定整场会议失败。
+4. 因正式消息预算耗尽且目标未满足而进入的暂停不可恢复，只能保持暂停或由本地用户按明确 outcome 结束；普通人工暂停仍可恢复。
+5. 插件重启后，未结束会议必须能够恢复到一致状态，或者明确说明不能恢复的原因。
+6. 重复提交不得产生重复发言、重复决策或重复状态变化。
+7. 已撤销、已替换或过期的发言请求不得修改当前会议。
+8. 会议创建失败或插件异常终止后，不得遗留无法确定所属会议的会议专用 Session。
+9. 恢复或关闭会议专用 Session 时，不得操作属于其他会议、其他团队或无法确认归属的 Session。
+10. 单个 Agent 的内部工具失败不得自动判定整场会议失败。
 
 ### MO-FR-10：会议记录、隐私与归档
 
@@ -148,16 +149,15 @@
 4. Agent 实际处理 meeting-scoped mail 前，必须在权限范围内补充快照之后新增的正式 transcript，并固化本次处理使用的上下文上界。
 5. 私聊处理结果不得直接修改正式 transcript、决策或完成状态；需要公开讨论时必须申请发言，长时间工作必须转为异步任务。
 6. 用户必须能够区分当前准备与待审任务、主持建议、异步任务、等待原因和正式决策。
-7. 会议结束后必须形成内容完备、不可运行的归档包，至少包含最终成果、完成依据、正式记录、未解决事项和来源信息。
-8. 归档包只保留 Participant 的会议身份、角色和必要模板版本等溯源信息，不得包含完整运行配置、私有 Session 历史或权限 capability。已关闭 Session 数据可以按 workspace/DSH retention policy 保留，但不得通过归档包、UI 或续会暴露。
+7. 会议结束后必须形成按值固化、内容完备且不可运行的归档包，不能依赖终态 MeetingState 的外部对象引用才能解释。白名单包括归档元数据、目标及最终状态、Agenda 与 candidate 处置、全部已公开 Publication/FormalMessage、实际发布的最终 EvidenceVersion 及其 Materials/最终 Review、ProposalRevision、Position、全部 Decision 及其 DecisionCandidate、CompletionFact、Question、Issue、RiskDisposition、Question/Issue 处置事实、Termination、未解决事项、来源引用和身份溯源。未被 Decision 采用的 DecisionCandidate 也保留，但只向 loopback 本地用户的 archive view 提供。
+8. 归档包的身份溯源只保留 identity ID、displayName、会议角色和存在时的 Definition ID/version/hash；不得包含 PrivateMail、未公开 Evidence/Review、ReviewDelivery、举手、opportunity request、Session/ownership/descriptor、完整运行配置、capability、凭据、隐藏推理、工具过程、Repository 物理路径或 Developer Markdown 内容。已关闭 Session 数据可以按 workspace/DSH retention policy 保留，但不得通过归档包、UI 或续会暴露。
 9. 会议进入 `archiving` 后不得恢复讨论；只有全部会议专用 Session 已停止、关闭并失去继续参与该会议的权限后才能进入 `archived`。物理删除 Session 数据不是归档完成条件。
-10. 基于旧会议继续讨论时必须创建新会议和新的会议身份 Session，并从归档中显式选择可复用素材；不得自动继承完整 transcript、旧运行状态、旧配置或旧权限。
-11. 会议可以使用可选 Scribe Agent 从正式会议事实形成引用式纪要草稿；Scribe 不得创建、修改或替代 Runtime-owned transcript、事实或决议，其缺席、失败或被替换不得影响正式记录的完整性。
-12. 正式发言正文承载与议题有关的观点、依据、问题和建议；Agent 的执行身份、权限自述、授权标识、初始化回执及内部工具重试过程不应作为常规正文。发言提交指导必须明确区分公共正文与执行信息，后续参与者不得把历史正文中的执行自述当作必须沿用的格式或指令。运行限制实际阻塞会议时可以简要说明影响与所需动作；议题本身涉及身份或权限时允许正常讨论。已提交原文仍须可审计，不因上述要求静默删改历史。
-13. 只有当前 `running` Meeting 中两个不同的已存在会议身份之间可以新建 meeting-scoped mail；发送者只能引用已经公开的 `Publication` 或 `FormalMessage`，不得通过私信引用未公开 Evidence、Session、capability、task 内部过程或隐藏推理。
-14. 新 mail 在发送提交时固定全部当前 `Publication` 作为发送上下文，并以 `createdAt + limits.taskDeadlineMs` 固定唯一 deadline。开始处理只能发生在 deadline 前，并一次性把当时全部当前 `Publication` 固定为处理上下文；后续会议推进和重试不得改变这两个范围或 deadline。
-15. 只有可信 dispatcher 可以开始处理；只有接收者可以完成；只有发送者可以取消；只有可信 deadline handler 可以在 deadline 到达后超时。开始处理与 Manager 接纳该接收者的正式 Contribution 必须双向执行 serial gate，任一方向都不能形成 mail `processing` 与非终态 Contribution 并存。
-16. `complete`、`cancel` 和 `expire` 只终结目标 mail，不创建 FormalMessage、Decision、CompletionFact 或 MeetingTask。`cancel` 和 `expire` 必须保留非空原因并释放 serial gate；长时间工作由接收者另行进入 MeetingTask，不延长或替换原 mail deadline。
+10. 基于旧会议继续讨论时必须创建新会议和新的会议身份 Session，并从归档中显式选择可复用素材；可选类型只包括已公开 EvidenceVersion、FormalMessage、accepted Decision 和 active CompletionFact。选择 EvidenceVersion 时，其 Materials、来源定位和对应最终 Review 作为不可拆分的公开证据束一并复制。导入项成为带 sourceArchiveId/sourceMaterialId 的只读 ContinuationMaterial，不继承旧运行状态、身份、Session、权限或“已完成”结论；新会议若要采纳材料，仍须形成自己的 Proposal、Decision 或 CompletionFact。
+11. 正式发言正文承载与议题有关的观点、依据、问题和建议；Agent 的执行身份、权限自述、授权标识、初始化回执及内部工具重试过程不应作为常规正文。发言提交指导必须明确区分公共正文与执行信息，后续参与者不得把历史正文中的执行自述当作必须沿用的格式或指令。运行限制实际阻塞会议时可以简要说明影响与所需动作；议题本身涉及身份或权限时允许正常讨论。已提交原文仍须可审计，不因上述要求静默删改历史。
+12. 只有当前 `running` Meeting 中两个不同的已存在会议身份之间可以新建 meeting-scoped mail；发送者只能引用已经公开的 `Publication` 或 `FormalMessage`，不得通过私信引用未公开 Evidence、Session、capability、task 内部过程或隐藏推理。
+13. 新 mail 在发送提交时固定全部当前 `Publication` 作为发送上下文，并以 `createdAt + limits.taskDeadlineMs` 固定唯一 deadline。开始处理只能发生在 deadline 前，并一次性把当时全部当前 `Publication` 固定为处理上下文；后续会议推进和重试不得改变这两个范围或 deadline。
+14. 只有可信 dispatcher 可以开始处理；只有接收者可以完成；只有发送者可以取消；只有可信 deadline handler 可以在 deadline 到达后超时。开始处理与 Manager 接纳该接收者的正式 Contribution 必须双向执行 serial gate，任一方向都不能形成 mail `processing` 与非终态 Contribution 并存。
+15. `complete`、`cancel` 和 `expire` 只终结目标 mail，不创建 FormalMessage、Decision、CompletionFact 或 MeetingTask。`cancel` 和 `expire` 必须保留非空原因并释放 serial gate；长时间工作由接收者另行进入 MeetingTask，不延长或替换原 mail deadline。
 
 <a id="fr-11可观察性与用户控制"></a>
 
@@ -191,12 +191,12 @@
 1. DSH Host 可以向 Meeting Runtime 提供经过当前 Captain 授权范围过滤的版本化 Agent 角色目录；目录必须区分角色定义、可用 Agent candidate 和当前 Meeting Participant。
 2. Manager 必须能够获得与当前会议目标、议题和证据缺口有关的最小安全目录 projection，但不得获得模型凭据、完整 Prompt、私有工具配置、Session 历史或其他敏感运行配置。
 3. Manager 只能对当前安全目录 snapshot 中的可用 Agent candidate 通过一次结构化会议操作明确作出 `admit` 或 `reject` 决定，并说明相关议题、预期贡献、证据缺口和理由；自然语言同意、仅有推荐、Manager plan 或 research result 均不得替代该操作。`reject` 不创建 Participant 或 DSH Session；`admit` 先形成不可调度的 provisioning 意图，不立即授予发言权或正式立场。
-4. Manager 不得接纳自己、决定目录之外或不可用的 Agent，也不得通过决定授予 required-review、risk acceptance、Captain、Manager 或额外 DSH 权限。
+4. Manager 不得接纳自己、决定目录之外或不可用的 Agent，也不得通过决定授予 evidence reviewer、risk acceptance、Captain、Manager 或额外 DSH 权限。
 5. Manager 的合法 `admit` 决定无需 Captain 二次处置；决定只允许在 `running` Meeting。Meeting Runtime 必须验证当前 Meeting 身份、version、snapshot、candidate 和 Definition，再为该身份创建独立 meeting-owned continuable Session；Session provisioning 与 durable ownership 完成前，该身份不得进入发言候选集或调用 Participant 操作。会议在 provisioning 期间暂停时不得调度新身份；若在结束前仍有 provisioning，受控结束必须先将该意图标记失败、取消其后续创建并清理已创建但未激活的 Session，不把部分身份带入终态。
-6. 新接纳的 Agent 默认是普通可选 Participant；决定不得自动修改 objective contract、required reviewer、risk authority、议题 required Participant 或已有 Participant 的权限。
+6. 新接纳的 Agent 默认是普通可选 Participant；决定不得自动修改 objective contract、全局 evidence reviewer、risk authority、议题 required Participant 或已有 Participant 的权限。
 7. Manager 决定、provisioning 意图、Participant admission、失败原因及 Session ownership 必须可审计、幂等、可恢复，并受 Meeting version、终态拒写和跨 Meeting 隔离约束。相同请求不得重复创建 Session 或身份；重启只能继续固化的精确 Definition/descriptor，不以当前目录或定义替代。
 8. candidate 的 Meeting Agent Definition 不存在、其引用的 DSH Preset/Skill 无法验证，或 Session provisioning 失败时，不得产生部分可用 Participant；会议必须显示失败原因，并允许 Manager 在新状态上决定其他 candidate。合法 `reject` 与失败均不改变其他身份和权限。
-9. GitHub、arXiv 和 Web research 角色必须按证据来源和分析责任区分；Manager 应先参考已有 evidence 索引，不能仅因搜索工具可用而重复推荐多个 Agent 处理相同来源范围。
+9. GitHub、arXiv 和 Web research 角色必须按证据来源和分析责任区分；Manager 在推荐前应读取已有公开 evidence，不应仅因搜索工具可用而重复推荐相同研究工作。V1 Runtime 不自动判断 evidence freshness 或跨角色来源范围，只阻止同一 `candidateId + agendaId` 的重复 provisioning/active 准入；自动研究去重是必要的后续能力，须先形成 freshness、来源范围比较和独立交叉验证例外的正式契约，不能把 V1 的 candidate 去重称为已经覆盖。
 
 MO-FR-13 Phase 1 只覆盖旧 Manager planning attempt 的单一 Host/profile-owned Catalog consumer boundary 与安全 projection；旧 recommendation claim、pending status 和 Captain reject-only 代码不构成上述新决定与准入能力的实现证据。本次目标使用 `recommend_identity` 结构化 Meeting command 完成 Manager 决定与后续 provisioning，不将 legacy `submit_manager_plan` 作为目标实现入口。Host Catalog producer、research dedup、UI/HTTP、stress 和 metrics 不属于本次准入切片。
 
@@ -210,15 +210,15 @@ MO-FR-13 Phase 1 只覆盖旧 Manager planning attempt 的单一 Host/profile-ow
 
 1. Convivium 提供版本化 Meeting Agent Definition，只保存稳定定义 ID、版本、会议角色、显示摘要、`roleDescription`、专长、研究来源范围、DSH Preset/Skill 引用及 optional DSH ToolRestriction。Definition 不包含通用 persona 正文、模型配置或 capability 安装内容。
 2. Convivium 拥有会议角色、选择、批准、动态发言资格和 Session ownership；DSH 拥有模型默认值、Agent Preset、Skills、Tools、MCP、Sandbox、Approval、组合与执行。
-3. 发行包必须附带一个共享 `convivium` Preset、九个原生 DSH Skills 和九个可组合 Definition。Host 使用 DSH 原生 Loader、Skill provider 和 profile patch 部署；Convivium Runtime 不建立 capability registry/installer，也不复制或展开 Skill 正文。
+3. 发行包必须附带一个共享 `convivium` Preset、八个原生 DSH Skills 和八个可组合 Definition；产品不提供 `meeting_scribe` 角色或专用纪要能力。Host 使用 DSH 原生 Loader、Skill provider 和 profile patch 部署；Convivium Runtime 不建立 capability registry/installer，也不复制或展开 Skill 正文。
 4. `toolFilter` 使用 DSH 原生 ToolRestriction，只能收窄从 global 与祖先 scope（包括共享 Preset）继承的工具；当前 child 自己注册的工具不受此 filter 屏蔽，不能据此授予工具或扩大 DSH/用户权限；文件、网络和执行权限仍由 Host policy 管理。
 5. `roleDescription` 只表达会议职责、会议输出和会议边界；通用方法放在 DSH Skills。创建时将角色说明及原生 Skill 加载指令转换为 DSH persona。Skill 名称、描述或已加载正文均不授予 Meeting authority；仓库 AGENTS.md 也不是隐式 capability。
-6. 初始 Manager 与八类 Participant 在同一 Captain parent Preset 下，各自使用独立 meeting-owned continuable AgentSession；只有 provisioning 成功后 Participant 才可被调度。动态推荐与接纳仍遵循 MO-FR-13，不是本项新增能力。
+6. 初始 Manager 与七类非 Manager 角色身份在同一 Captain parent Preset 下，各自使用独立 meeting-owned continuable AgentSession；其中唯一 Evidence Reviewer 是专职身份，不属于 contributor Participant。只有 provisioning 成功后相应身份才可被调度。动态推荐与接纳仍遵循 MO-FR-13，不是本项新增能力。
 7. 所有选定角色在第一个 child 分配前完成 Definition、共享父 Preset 和 required Skill 预检。缺失能力时 fail closed，不允许 persona-only、假 Skill、隐藏 Schema 或自建 installer 降级。
 8. 模型默认值直接使用 DSH 配置。Host 可通过独立 `agentModelOverrides` 按 Definition ID 提供必要的 provider/model/reasoningEffort 原生覆盖；Definition 本身不保存这些值。Captain/Manager/HTTP 不可提交任意模型配置。模型覆盖不改变 Definition 内容指纹，实际有效值由 DSH descriptor 持有。
 9. Captain 创建请求只选择 Manager/Participant 的 Definition ID；未选择的身份仍允许按已有无 Definition 路径创建。未知定义、角色不匹配、不同父 Preset、Skill 不可用或非法 Host 绑定不得静默回退。
 10. 会议只持久化 Definition ID、版本和内容指纹；DSH 持久化派生 persona/toolFilter/有效模型。既有会议重放、冷恢复不重新解析当前 Definition 或 Host override，不因配置变化重配已有身份；缺失 descriptor 不以新定义补建。公开 status/archive 不泄露模型覆盖、角色私有正文或 Skill 正文。
-11. 首发包必须在独立 DSH profile 通过真实 Loader 验证：同一会议的一位 Manager 和八位 Participant 均创建成功；九个 Session 经原生 skill 工具加载各自正文；GitHub/arXiv/Web 研究角色的真实搜索与抓取可用；会议越权写入被拒绝；模型差异、隔离和冷恢复保持。
+11. 首发包必须在独立 DSH profile 通过真实 Loader 验证：同一会议的一位 Manager 和七个非 Manager 角色身份均创建成功；八个 Session 经原生 skill 工具加载各自正文；GitHub/arXiv/Web 研究角色的真实搜索与抓取可用；Evidence Reviewer 的专用 Definition 能使用 Host-approved 读取材料、代码核验、Web/GitHub/arXiv 查询与运行验证能力，并能通过原生 workers 并发审核；会议越权写入被拒绝；模型差异、隔离和冷恢复保持。具体工具清单由版本化 Definition 与 Host 配置拥有，不以工具数量作为验收。
 12. 初次发布直接采用新契约，不读取或迁移未发布的旧 Definition/schema 样本。独立 per-child Preset、独占 Skill、差异化插件安装、热切换、完整 Agent 配置平台和日常 profile 改写不属于首发范围。首发模型与上述部署验收全部通过后，MO-FR-14 才可标为已实现。
 
 ### MO-FR-15：Developer Markdown Projection
@@ -238,7 +238,7 @@ MO-FR-13 Phase 1 只覆盖旧 Manager planning attempt 的单一 Host/profile-ow
 
 贡献者围绕路径提出可整合的观点、证据、推导及修订建议，不因每次公共内容变化自动发言。证据审核员指出证据适用范围、支持的选择与缺口，不以反驳数量衡量成果。公共成果应体现路径、证据、分析和方案的形成，保留按人排列的原文、来源、阶段归纳及分歧，不以逐人复述代替成果组织。一致性方案须与目标一致、各部分相容、关键选择有证据支持、执行路径明确，剩余假设与风险已显式处理；不要求全体成员口头赞同，不能通过隐藏异议制造共识。
 
-## Public Argument And Boundary Review
+## Public Argument Format And Review Boundary
 
 公开论证采用相同的五项结构，便于比较与整合；举手、调度通知、审核状态与权限错误不必伪装成论证正文：
 
@@ -250,9 +250,9 @@ MO-FR-13 Phase 1 只覆盖旧 Manager planning attempt 的单一 Host/profile-ow
 | 反证条件 | 说明什么可观察结果会改变判断。 |
 | 不确定性 | 标明未验证部分、适用限制与待补验证。 |
 
-五项明确交代，但不得为填齐格式编造事实。证据质疑也可依此格式说明质疑依据、推导缺口和什么核验会消除质疑，不强迫提出替代方案。身份、授权和 Agent 执行自述用于追溯与授权，不替代论证正文。Transcript 是会议公共内容，观点不因发言者身份而变为正确；正式发言保留核心观点与关键证据，待审稿不得先进入其他贡献者的公共上下文或成为完成、决策依据。
+五项明确交代，但不得为填齐格式编造事实。证据质疑也可依此格式说明质疑依据、推导缺口和什么核验会消除质疑，不强迫提出替代方案。身份、授权和 Agent 执行自述用于追溯与授权，不替代论证正文。Transcript 是会议公共内容，观点不因发言者身份而变为正确；准备公开但仍在轮内待审的内容不得先进入其他贡献者的公共上下文或成为完成、决策依据。
 
-Manager 对正式公共论证只核对议题范围和正文边界，不能因反对方案、质疑前提、指出风险、解释必要背景或不同意 Manager 而拒绝；不得借正文边界审核评价已登记证据的真实性、可信度或观点支撑度。越界时向作者指出具体段落、边界与修改方向，作者修订后重新审核确切版本；旧批准不发布新版本，不代写、暗改或提前发布。审核不可用、超时或重提无法有界收敛时，向召集人报告而不自动放行。正文边界通过、证据内容审核、观点接受和目标完成是不同事实。
+贡献者从自己的私有工作材料整理出准备公开的确切版本并直接提交 Runtime；Manager 只安排议题、处置举手和观察提交／审核状态，不接收私有草稿，也不读取或审批正文。Runtime 的确定性校验不评价议题观点或证据质量；唯一 evidence reviewer 对已登记公开版本评价来源、可信度、完整性和观点支撑度。内容偏题、依据薄弱或存在反证时，通过 Review 明确记录，不删除登记事实、不由 Manager 改写，也不提前向其他贡献者公开。结构校验、内容审核、观点接受和目标完成是不同事实。
 
 ## Business Rules
 
@@ -266,7 +266,7 @@ Manager 对正式公共论证只核对议题范围和正文边界，不能因反
 
 ### BR-3：完成判断边界
 
-每次影响完成条件的合法公共事实更新后重新判断业务完成，包括已按 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 公开的证据及审核意见、正式发布、授权任务结果和 Captain/local 处置。未公开的轮内证据、待审稿及尚未生效的附带声明不参与公共完成判断；轮次收口本身不等于目标完成。
+每次影响完成条件的合法公共事实更新后重新判断业务完成，包括已按 [ER-FR-7](./MEETING-EVIDENCE-ROUND-REQUIREMENTS.md#er-fr-7轮次收口公开和后续计划) 公开的证据及审核意见、正式发布、授权任务结果和 Captain/local 处置。未公开的轮内证据、待审公开内容及尚未生效的附带声明不参与公共完成判断；轮次收口本身不等于目标完成。
 
 预算边界检查不等待任何任务结束；先根据已生效公共事实判断完成，再决定是否允许继续工作。正常轮次公开仍须满足已接纳举手和最终审核的收口条件；预算提前耗尽或召集人强制结束时，记录未完成项及原因，不把异常终止当作正常收口。满足目标后不得因无关且不属于已接纳本轮的准备任务继续等待，也不得因有未审稿就视为完成。结束、暂停及撤销后，相关提交和审核须遵守生命周期与授权检查；终态后不能通过迟到结果追加正式事实。预算的具体字段与计数方式在后续协议中落实，不把旧 Turn 数直接解释为任务数。
 
@@ -298,7 +298,7 @@ Meeting-scoped mail 是私有异步消息，不是正式会议事实。发送时
 
 ### BR-10：参会推荐与接纳边界
 
-Manager 的 `recommend_identity` 结构化 `admit|reject` 是当前 candidate 的唯一准入决定。`reject` 只留下拒绝事实；`admit` 的 provisioning 意图不是 Participant、发言权、审核身份或权限事实。只有独立 Session provisioning、durable ownership 与身份事实同时完成后，该 Agent 才成为可调度普通可选 Participant；决定不能改变 objective contract 中已经固化的 required-review、risk authority 或必需参与关系。
+Manager 的 `recommend_identity` 结构化 `admit|reject` 是当前 candidate 的唯一准入决定。`reject` 只留下拒绝事实；`admit` 的 provisioning 意图不是 Participant、发言权、审核身份或权限事实。只有独立 Session provisioning、durable ownership 与身份事实同时完成后，该 Agent 才成为可调度普通可选 Participant；决定不能改变已经固化的 objective contract、全局 evidence reviewer、risk authority 或必需参与关系。
 
 ### BR-11：Meeting Agent Definition 与能力所有权
 
@@ -337,24 +337,23 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 29. V1 面板先读取本地 Meeting 列表；选择一个摘要后只读取被选择 Meeting 的完整状态，列表本身不暴露 transcript、Session ID、capability、backend 物理路径或私有运行数据。任一已发现 Meeting 无法恢复时，列表报告暂不可用且不返回部分结果。
 30. Manager 收到的 Agent Catalog projection 不包含敏感 DSH 配置，并且只能引用当前 snapshot 中可用的 candidate 作出结构化参会决定。
 31. Manager 作出结构化 `admit` 后，该 Agent 在 Session provisioning 和 durable ownership 成功前不会进入 speaker candidates，也不能提交会议事实；`reject` 不创建 Session。
-32. Manager 的合法 `admit` 只接纳普通可选 Participant，不会自动授予 required-review、risk acceptance、Captain、Manager 或超出 DSH Agent Preset 和 policy 的权限。
+32. Manager 的合法 `admit` 只接纳普通可选 Participant，不会自动授予 evidence reviewer、risk acceptance、Captain、Manager 或超出 DSH Agent Preset 和 policy 的权限。
 33. 被决定 `admit` 的 Agent provisioning 失败时，会议中不存在部分可用 Participant；失败可恢复、可审计，且不影响其他 Meeting 或 Participant Session。
-34. 已有证据满足当前 freshness 和来源范围时，Manager 不会仅因 GitHub、arXiv 或 Web 搜索能力可用而重复推荐相同研究工作；明确的独立交叉验证除外。
+34. V1 对同一 `candidateId + agendaId` 已有 provisioning 或 active 准入时拒绝重复准入；不把该检查宣称为 evidence freshness 或跨来源研究去重。Manager 在推荐前能读取已有公开 evidence；自动 freshness、来源范围比较和独立交叉验证例外属于明确记录但尚未实现的后续能力。
 35. 每个 Agent Definition 都有稳定 `agentDefinitionId` 和 `definitionVersion`，并明确引用一个 `dshPresetId` 与 required DSH Skill 名称；Definition 不复制 DSH capability 内容。
 36. `toolFilter` 只能收窄继承的 global/祖先 scope 工具，不屏蔽 child 自己注册的工具，也不是操作系统资源隔离机制；Definition、roleDescription、persona 或 Skill 名称不能授予 Tool、MCP、Sandbox、Approval 或模型权限。
 37. Manager 只看到 Agent Definition 的安全摘要；自然语言推荐不创建 Session，结构化 `admit` 意图也必须等待独立 Session provisioning 和 durable ownership 成功后才能形成可调度 Participant。
-38. 已选择的 Definition、共享父 Preset 或 required Skill 无法解析和验证时，在第一个 child 创建前拒绝；DSH 创建失败则沿既有 creation_failed、revoke 和 drain 路径清理，不发布 ready Meeting。不得将缺少 Skill 降级为 persona-only，也不得使用 Convivium installer workaround。
-39. 发布包内九个角色在同一共享父 Preset 的会议中形成九个独立 child，分别通过原生 skill 工具加载正文；三类研究角色的真实搜索与抓取可用。继承工具的限制同时影响可见性和真实执行，会议越权写入被拒绝。至少两个角色的模型差异与 persona/toolFilter 经 Host 冷重启保持，父 Session 不受影响；目录或样本存在不能替代这些验收。
+38. DSH 版本不是精确 `0.1.2-rc.1`，或已选择的 Definition、共享父 Preset、required Skill、必需 lifecycle capability 无法解析和验证时，在第一个 child 创建前拒绝；DSH 创建失败则沿既有 creation_failed、revoke 和 drain 路径清理，不发布 ready Meeting。不得将版本或能力缺口降级为 persona-only，也不得使用 Convivium installer workaround。
+39. 发布包内八个角色在同一共享父 Preset 的会议中形成八个独立 child，分别通过原生 skill 工具加载正文；三类研究角色的真实搜索与抓取可用，唯一专职 Evidence Reviewer 能取得待审集合并通过 DSH 原生 workers 并发审核。继承工具的限制同时影响可见性和真实执行，会议越权写入被拒绝。至少两个角色的模型差异与 persona/toolFilter 经 Host 冷重启保持，父 Session 不受影响；目录或样本存在不能替代这些验收。
 40. delegated meeting-owned Agent 不会等待无人处理的交互式 Approval，也不能从自身 Session 内扩大启动时固化的权限。
-41. Scribe 生成的纪要草稿标明覆盖范围并引用正式 message、Fact、Decision、Issue 或 task result ID；缺少引用或覆盖不连续时不会被当作权威 transcript、正式事实或决议。
-42. 未配置 `developerMarkdownWorkspaceId` 时不产生 Developer Markdown；配置不存在的 workspace 时插件启动失败，且不选择其他目录作为 fallback。
-43. 新 Meeting commit 后，`current.md` 的 `sourceMeetingVersion` 等于该 committed `MeetingSnapshot.version`，并且只包含 Developer Markdown interface 白名单字段。
-44. 同一 Meeting 连续提交时，低版本 pending 或已 stale 的 render 不会覆盖高版本文件；不同 Meeting 的路径和 pending task 相互隔离。
-45. temp write、close、rename 或 cleanup 失败保留上一个完整目标文件，并且不改变 Meeting snapshot、version、event、receipt 或 outbox。
-46. `archive.md` 只从已提交 `ImmutableArchivePackage` 生成；其缺失、损坏或生成失败不影响 capability revoke、Session interrupt/drain 和 `archived`。
-47. Developer Markdown 删除或人工修改不触发 repository 修复；后续新 commit 可以完整覆盖 `current.md`，但 Runtime 不保证文件必然存在。
-48. Developer Markdown 没有 HTTP、Tool、Client 或 Agent 读取入口；Runtime dispose 后没有 pending render、重试 timer、未处理 rejection 或本次任务遗留的 temp file。
-49. 本地用户的五种操作产生独立 local 审计事实，满足与 Captain 相同的领域校验；Session tool 不因本地入口而扩大权限。风险完成重算满足条件时进入 converging，不自动 end/archive。
+41. 未配置 `developerMarkdownWorkspaceId` 时不产生 Developer Markdown；配置不存在的 workspace 时插件启动失败，且不选择其他目录作为 fallback。
+42. 新 Meeting commit 后，`current.md` 的 `sourceMeetingVersion` 等于该 committed `MeetingSnapshot.version`，并且只包含 Developer Markdown interface 白名单字段。
+43. 同一 Meeting 连续提交时，低版本 pending 或已 stale 的 render 不会覆盖高版本文件；不同 Meeting 的路径和 pending task 相互隔离。
+44. temp write、close、rename 或 cleanup 失败保留上一个完整目标文件，并且不改变 Meeting snapshot、version、event、receipt 或 outbox。
+45. `archive.md` 只从已提交 `ImmutableArchivePackage` 生成；其缺失、损坏或生成失败不影响 capability revoke、Session interrupt/drain 和 `archived`。
+46. Developer Markdown 删除或人工修改不触发 repository 修复；后续新 commit 可以完整覆盖 `current.md`，但 Runtime 不保证文件必然存在。
+47. Developer Markdown 没有 HTTP、Tool、Client 或 Agent 读取入口；Runtime dispose 后没有 pending render、重试 timer、未处理 rejection 或本次任务遗留的 temp file。
+48. 本地用户的五种操作产生独立 local 审计事实，满足与 Captain 相同的领域校验；Session tool 不因本地入口而扩大权限。风险完成重算满足条件时进入 converging，不自动 end/archive。
 
 ## Related Documents
 

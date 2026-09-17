@@ -2,7 +2,7 @@
 
 ## Purpose And Status
 
-本文规定初次发布的一位 Manager、八位 Participant、共享 convivium Preset 和九个原生 Skills 的部署流程。历史运行记录不构成当前角色契约的验收；当前仅保证编译通过，具体覆盖与未验证范围见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
+本文只记录现有旧实现的一位 Manager、八位 Participant（含 Scribe）、共享 convivium Preset 和九个原生 Skills 的诊断部署流程。当前正式目标已经删除 `meeting_scribe`，要求一位 Manager、七个非 Manager 角色身份和八个 Skills；因此本流程不得作为当前角色契约的发布验收。迁移缺口见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)，资源结构见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 
@@ -74,9 +74,9 @@
 
 模型默认值在 DSH 配置/Settings 中管理。必要角色差异通过额外 Host 控制 patch 的 convivium.config.agentModelOverrides 提供，key 为 Definition ID，value 只含 provider/model/reasoningEffort；该控制 patch 在角色部署 patch 后加载。Cordis 整体替换 config，必须同时保留 provider: spawn、maxParticipants: 8 和部署 patch 中的完整 agentDefinitions 读取表达式，再加入 agentModelOverrides，不能只写模型 map。这里的值必须来自宿主已配置、支持的真实模型路由，不提供猜测的模型 ID，不编辑 Definition/Skill 或 credentials 来实现覆盖。
 
-## Assert
+## Assert Legacy Resources
 
-首发运行验收须同时观察：
+仅诊断现有旧资源时须同时观察：
 
 - Loader 挂载 convivium，启用的原生工具、Skill provider 和 compaction row 没有缺失依赖；九个 required Skill 都可被准确父 scope 读取。
 - 同一会议创建一位 Manager、八位 Participant，九个独立 continuable Session；不是九条静态目录记录。
@@ -94,7 +94,7 @@ env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm smoke:profile
 
 前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。自动探针的装配、超时、回调、权限断言与抓取开关统一见 [Smoke Operations 九角色部署场景](./HOW-TO-DSH-SMOKE.md#九角色部署场景)，本节不重复维护实现流程。
 
-当前实现覆盖与未验证边界见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)；任何历史授权不自动适用于新的验收。
+当前实现覆盖与未验证边界见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)；九角色通过也不能证明八角色目标已实现，任何历史授权不自动适用于新的验收。
 
 ## Restore And Failure Handling
 
