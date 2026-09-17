@@ -4,7 +4,7 @@
 
 本文件按已确认的功能点记录当前 checkout 的真实实现状态。状态中的“已有”只表示源码中存在对应的旧能力；除非同时标为“已对齐”，否则不能作为当前 Interface 与 Design 的实现完成证据。
 
-本轮以当前 requirements/interfaces/designs 为依据记录已验证范围。2026-09-17 已确认删除 Manager 私有草稿/FormatApproval、改为唯一专职 reviewer 的 worker 并发与批量提交、使用 identityKey 创建映射、按值归档白名单、确定性消息预算预留、精确 DSH 版本、受限续会素材并删除 Scribe。现有源码与历史验证均早于该口径，除未受影响的纯 Domain 行为和既有身份准入事实外，不得继续标为当前需求已对齐。
+本轮以当前 requirements/interfaces/designs 为依据记录已验证范围。2026-09-17 已确认删除 Manager 私有草稿/FormatApproval、改为唯一专职 reviewer 的 worker 并发与批量提交、使用 identityKey 创建映射、按值归档白名单、确定性消息预算预留、精确 DSH 版本、受限续会素材并删除 Scribe；同一 candidate 跨 Agenda 复用一个 active identity/Session，每个 `(candidateId, agendaId)` 保留独立 Manager 决定，provisioning 阶段仍全局互斥。现有源码与历史验证均早于该口径，除未受影响的纯 Domain 行为和既有身份准入事实外，不得继续标为当前需求已对齐。
 
 | 状态               | 含义                                                                               |
 | ------------------ | ---------------------------------------------------------------------------------- |

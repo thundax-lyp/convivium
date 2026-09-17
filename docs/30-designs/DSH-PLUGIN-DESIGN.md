@@ -53,7 +53,7 @@ Meeting Agent Catalog 是 Host 提供的只读安全投影；Convivium 只在 Ma
 
 Runtime 从既有 outbox 投递 `identity_provision`，仅解析意图中记录的精确 Definition identity、执行 preflight 并以 recommendationId 作为 admissionId 幂等地创建 Session/ownership；在 ownership 可证实后，使用受控系统 action 原子激活普通可选 MeetingIdentity。缺 Definition/required capability、descriptor 过期或 provisioning 失败时，同一系统 action 将意图置为 `failed` 并显示安全错误码，不暴露部分可用身份。进程重启只重放未完成的同一 outbox/admissionId；历史 MeetingIdentity 的 descriptor 缺失时明确拒绝恢复，不能套用当前 Definition 重建。
 
-V1 只阻止同一 `candidateId + agendaId` 已有 provisioning/active 意图时重复准入，不实现 evidence freshness 或跨研究角色来源范围去重。自动研究去重仍是必要后续能力；在形成 freshness、source-scope 比较和独立交叉验证例外的正式需求与接口前，不新增 evidence index、策略配置、cache 或通用去重框架，也不把 candidate 去重称为该能力。
+V1 只阻止同一 `candidateId + agendaId` 已有 provisioning/active 意图时重复准入，不实现 evidence freshness 或跨研究角色来源范围去重。同一 candidate 的 provisioning 意图在 Meeting 内全局互斥，避免并发创建多个 Session；已有 active identity 后，另一 Agenda 的合法准入直接复用既有 identity/Session/Definition provenance，只新增独立 active recommendation，不投递 `identity_provision`，也不扩大角色、权限或 capability。自动研究去重仍是必要后续能力；在形成 freshness、source-scope 比较和独立交叉验证例外的正式需求与接口前，不新增 evidence index、策略配置、cache 或通用去重框架，也不把 candidate 去重称为该能力。
 
 ## Plugin Lifecycle And Entry Points
 

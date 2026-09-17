@@ -196,7 +196,7 @@
 6. 新接纳的 Agent 默认是普通可选 Participant；决定不得自动修改 objective contract、全局 evidence reviewer、risk authority、议题 required Participant 或已有 Participant 的权限。
 7. Manager 决定、provisioning 意图、Participant admission、失败原因及 Session ownership 必须可审计、幂等、可恢复，并受 Meeting version、终态拒写和跨 Meeting 隔离约束。相同请求不得重复创建 Session 或身份；重启只能继续固化的精确 Definition/descriptor，不以当前目录或定义替代。
 8. candidate 的 Meeting Agent Definition 不存在、其引用的 DSH Preset/Skill 无法验证，或 Session provisioning 失败时，不得产生部分可用 Participant；会议必须显示失败原因，并允许 Manager 在新状态上决定其他 candidate。合法 `reject` 与失败均不改变其他身份和权限。
-9. GitHub、arXiv 和 Web research 角色必须按证据来源和分析责任区分；Manager 在推荐前应读取已有公开 evidence，不应仅因搜索工具可用而重复推荐相同研究工作。V1 Runtime 不自动判断 evidence freshness 或跨角色来源范围，只阻止同一 `candidateId + agendaId` 的重复 provisioning/active 准入；自动研究去重是必要的后续能力，须先形成 freshness、来源范围比较和独立交叉验证例外的正式契约，不能把 V1 的 candidate 去重称为已经覆盖。
+9. GitHub、arXiv 和 Web research 角色必须按证据来源和分析责任区分；Manager 在推荐前应读取已有公开 evidence，不应仅因搜索工具可用而重复推荐相同研究工作。V1 Runtime 不自动判断 evidence freshness 或跨角色来源范围，只阻止同一 `candidateId + agendaId` 的重复 provisioning/active 准入。同一 candidate 在本 Meeting 尚有 provisioning 意图时，其他 Agenda 不得并发准入；已有 active 身份时，另一 Agenda 的合法 `admit` 必须复用该 identity、meeting-owned Session、Definition provenance 和既有普通可选 Participant 权限，只新增该 Agenda 的独立 active Manager 决定，不执行 `identity_provision`，也不扩大角色、授权或 DSH capability。自动研究去重是必要的后续能力，须先形成 freshness、来源范围比较和独立交叉验证例外的正式契约，不能把 V1 的 candidate 去重称为已经覆盖。
 
 MO-FR-13 Phase 1 只覆盖旧 Manager planning attempt 的单一 Host/profile-owned Catalog consumer boundary 与安全 projection；旧 recommendation claim、pending status 和 Captain reject-only 代码不构成上述新决定与准入能力的实现证据。本次目标使用 `recommend_identity` 结构化 Meeting command 完成 Manager 决定与后续 provisioning，不将 legacy `submit_manager_plan` 作为目标实现入口。Host Catalog producer、research dedup、UI/HTTP、stress 和 metrics 不属于本次准入切片。
 
@@ -339,7 +339,7 @@ Meeting Agent Definition 描述 Convivium 会议角色并引用 DSH capability�
 31. Manager 作出结构化 `admit` 后，该 Agent 在 Session provisioning 和 durable ownership 成功前不会进入 speaker candidates，也不能提交会议事实；`reject` 不创建 Session。
 32. Manager 的合法 `admit` 只接纳普通可选 Participant，不会自动授予 evidence reviewer、risk acceptance、Captain、Manager 或超出 DSH Agent Preset 和 policy 的权限。
 33. 被决定 `admit` 的 Agent provisioning 失败时，会议中不存在部分可用 Participant；失败可恢复、可审计，且不影响其他 Meeting 或 Participant Session。
-34. V1 对同一 `candidateId + agendaId` 已有 provisioning 或 active 准入时拒绝重复准入；不把该检查宣称为 evidence freshness 或跨来源研究去重。Manager 在推荐前能读取已有公开 evidence；自动 freshness、来源范围比较和独立交叉验证例外属于明确记录但尚未实现的后续能力。
+34. V1 对同一 `candidateId + agendaId` 已有 provisioning 或 active 准入时拒绝重复准入；同一 candidate 的 provisioning 意图阻止其他 Agenda 并发准入，已有 active 身份则允许另一 Agenda 复用同一 identity/Session 并新增独立 active 决定，且不产生 provisioning effect 或扩大权限。不把该检查宣称为 evidence freshness 或跨来源研究去重。Manager 在推荐前能读取已有公开 evidence；自动 freshness、来源范围比较和独立交叉验证例外属于明确记录但尚未实现的后续能力。
 35. 每个 Agent Definition 都有稳定 `agentDefinitionId` 和 `definitionVersion`，并明确引用一个 `dshPresetId` 与 required DSH Skill 名称；Definition 不复制 DSH capability 内容。
 36. `toolFilter` 只能收窄继承的 global/祖先 scope 工具，不屏蔽 child 自己注册的工具，也不是操作系统资源隔离机制；Definition、roleDescription、persona 或 Skill 名称不能授予 Tool、MCP、Sandbox、Approval 或模型权限。
 37. Manager 只看到 Agent Definition 的安全摘要；自然语言推荐不创建 Session，结构化 `admit` 意图也必须等待独立 Session provisioning 和 durable ownership 成功后才能形成可调度 Participant。
