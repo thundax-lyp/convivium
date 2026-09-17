@@ -104,6 +104,22 @@ export interface CreateMeetingResult {
         participantKey: string;
         participantId: string;
     }[];
+    kind?: "accepted";
+    committedVersion?: number;
+    receiptId?: string;
+    factIds?: readonly string[];
+    effects?: readonly {
+        id: string;
+        kind:
+            | "refresh"
+            | "session_mail"
+            | "agent_notice"
+            | "review_delivery"
+            | "markdown_projection"
+            | "archive"
+            | "identity_provision";
+        status: "queued";
+    }[];
 }
 
 export interface UpdateCreateResultInput {

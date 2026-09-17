@@ -5,14 +5,19 @@ import { validateSharedRoleCapabilities } from "@/role-composition/dsh-capabilit
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import {
+    createMeetingV1,
     createMeetingState,
     createContributionState,
     type CanonicalIdAllocator,
     type CreateContinuationSpec,
-    type MeetingLimits
+    type MeetingLimits,
+    type MeetingState
 } from "@/domain/index.js";
 import {
+    encodeMeetingIdentitySessionLabelV1,
+    interruptAndDrainOwnedSessions,
     encodeMeetingSessionLabel,
+    startMeetingIdentitySessionV1,
     startManagerSession,
     startParticipantSession
 } from "@/dsh/index.js";
@@ -28,7 +33,12 @@ import type {
 import type { MeetingRepositoryPort as MeetingRepositoryType } from "@/repository/meeting-repository-port.js";
 import type { RepositoryAuthorizationValidator } from "@/repository/types.js";
 import type { CreateMeetingInputV1 } from "@/protocol/index.js";
+import type { MeetingCommandResultV1 } from "@/protocol/index.js";
 import type { JsonValue } from "@/repository/domain/canonical-json.js";
+import type {
+    CreateMeetingCommandV1,
+    MeetingCreationCoordinatorV1
+} from "@/runtime/application-service/meeting-command-v1.js";
 
 export interface MeetingRepositoryOpenInput {
     readonly registry: Promise<DomainRepositoryRegistry>;
@@ -384,4 +394,360 @@ export async function createMeetingRuntime(
         if (dependencies.cleanup) await dependencies.cleanup(ownerships);
         throw error;
     }
+}
+
+export interface TargetMeetingCreationDependenciesV1 {
+    readonly registry: DomainRepositoryRegistry<MeetingState>;
+    readonly definitions: readonly MeetingAgentDefinitionV1[];
+    readonly agentModelOverrides?: MeetingAgentModelOverrides;
+    readonly continuable: Pick<
+        SubagentRuntime,
+        "startContinuable" | "interrupt" | "drainContinuableChildren"
+    >;
+    readonly provider: string;
+    readonly ids: { nextId(kind: string): string };
+}
+
+function targetCreateState(
+    command: CreateMeetingCommandV1,
+    meetingId: string,
+    now: number,
+    identities: readonly {
+        id: string;
+        ownershipId: string;
+        definitionHash: string;
+        source: CreateMeetingCommandV1["action"]["identities"][number];
+    }[]
+): MeetingState {
+    const byKey = new Map(
+        identities.map((identity) => [identity.source.identityKey, identity] as const)
+    );
+    const action = command.action;
+    const manager = byKey.get(action.managerIdentityKey)!;
+    const reviewer = byKey.get(action.evidenceReviewerIdentityKey)!;
+    return {
+        id: meetingId,
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+        ...(action.continuation === undefined
+            ? {}
+            : {
+                  continuation: {
+                      ...action.continuation,
+                      importedAt: now,
+                      importedBy: manager.id
+                  }
+              }),
+        objective: {
+            statement: action.objective.statement,
+            requiredOutputs: action.objective.requiredOutputs.map((item) => ({
+                ...item,
+                status: "pending" as const
+            })),
+            acceptanceCriteria: action.objective.acceptanceCriteria.map((item) => ({
+                ...item,
+                status: "pending" as const
+            })),
+            hardConstraints: action.objective.hardConstraints.map((item) => ({
+                ...item,
+                status: "pending" as const
+            })),
+            acceptableRiskLevel: action.objective.acceptableRiskLevel
+        },
+        lifecycle: { status: "running", changedAt: now, changedBy: manager.id },
+        identities: identities.map(({ id, ownershipId, definitionHash, source }) => ({
+            id,
+            displayName: source.displayName,
+            roles: source.roles,
+            agendaResponsibilityIds: source.agendaResponsibilityIds,
+            riskAuthority: source.riskAuthority,
+            required: source.required,
+            definitionId: source.definitionId!,
+            definitionVersion: source.definitionVersion!,
+            definitionHash,
+            sessionOwnershipId: ownershipId
+        })),
+        identityRecommendations: [],
+        agenda: action.initialAgenda.map((agenda) => ({
+            id: agenda.id,
+            title: agenda.title,
+            question: agenda.question,
+            status: agenda.id === action.initialActiveAgendaId ? "active" : "pending",
+            requiredOutputIds: agenda.requiredOutputIds,
+            ...(agenda.ownerIdentityKey === undefined
+                ? {}
+                : { ownerId: byKey.get(agenda.ownerIdentityKey)!.id })
+        })),
+        agendaCandidates: [],
+        rounds: [],
+        opportunityRequests: [],
+        pendingHandRaises: [],
+        contributions: [],
+        evidenceReviewerId: reviewer.id,
+        completionDeclarations: [],
+        evidencePackages: [],
+        registrations: [],
+        reviews: [],
+        reviewDeliveries: [],
+        publications: [],
+        messages: [],
+        proposals: [],
+        positions: [],
+        decisionCandidates: [],
+        decisions: [],
+        questions: [],
+        issues: [],
+        riskDispositions: [],
+        tasks: [],
+        managerPlans: [],
+        privateMails: [],
+        completionFacts: [],
+        limits: { ...action.limits, responseDeadlineMs: 60000 }
+    };
+}
+
+function assertInitialTargetIdentities(
+    command: CreateMeetingCommandV1,
+    definitions: readonly MeetingAgentDefinitionV1[]
+): void {
+    const { action } = command;
+    if (action.identities.length !== 8) throw new RoleCompositionError();
+    const keys = new Set(action.identities.map((identity) => identity.identityKey));
+    if (keys.size !== 8 || action.managerIdentityKey === action.evidenceReviewerIdentityKey)
+        throw new RoleCompositionError();
+    const agendas = new Set(action.initialAgenda.map((agenda) => agenda.id));
+    if (
+        agendas.size !== action.initialAgenda.length ||
+        !agendas.has(action.initialActiveAgendaId) ||
+        action.initialAgenda.length === 0
+    )
+        throw new RoleCompositionError();
+    let managers = 0;
+    let reviewers = 0;
+    let contributors = 0;
+    for (const identity of action.identities) {
+        if (!identity.definitionId || !identity.definitionVersion) throw new RoleCompositionError();
+        if (identity.agendaResponsibilityIds.some((id) => !agendas.has(id)))
+            throw new RoleCompositionError();
+        const definition = definitions.find(
+            (item) =>
+                item.agentDefinitionId === identity.definitionId &&
+                item.definitionVersion === identity.definitionVersion
+        );
+        if (!definition) throw new RoleCompositionError();
+        if (identity.roles.length !== 1) throw new RoleCompositionError();
+        if (identity.roles[0] === "manager") {
+            managers += 1;
+            if (
+                identity.identityKey !== action.managerIdentityKey ||
+                definition.roleDefinitionId !== "meeting_manager"
+            )
+                throw new RoleCompositionError();
+        } else if (identity.roles[0] === "evidence_reviewer") {
+            reviewers += 1;
+            if (
+                identity.identityKey !== action.evidenceReviewerIdentityKey ||
+                definition.roleDefinitionId !== "verification_reviewer"
+            )
+                throw new RoleCompositionError();
+        } else if (identity.roles[0] === "contributor") {
+            contributors += 1;
+            if (
+                definition.roleDefinitionId === "meeting_manager" ||
+                definition.roleDefinitionId === "verification_reviewer"
+            )
+                throw new RoleCompositionError();
+        } else throw new RoleCompositionError();
+    }
+    if (managers !== 1 || reviewers !== 1 || contributors !== 6) throw new RoleCompositionError();
+    for (const agenda of action.initialAgenda)
+        if (agenda.ownerIdentityKey !== undefined && !keys.has(agenda.ownerIdentityKey))
+            throw new RoleCompositionError();
+}
+
+export function createMeetingCreationCoordinatorV1(
+    dependencies: TargetMeetingCreationDependenciesV1
+): MeetingCreationCoordinatorV1 {
+    return {
+        async create(command, context, meetingId, now, signal) {
+            const parent = context.captainParent;
+            if (!parent || context.caller.principalId !== String(parent.id))
+                return {
+                    kind: "rejected",
+                    error: { code: "UNAUTHORIZED", message: "Trusted Captain parent is required" }
+                };
+            try {
+                assertInitialTargetIdentities(command, dependencies.definitions);
+                const roles = await resolveMeetingRoles(
+                    {
+                        definitions: dependencies.definitions,
+                        agentModelOverrides: dependencies.agentModelOverrides,
+                        managerAgentDefinitionId: command.action.identities.find((identity) =>
+                            identity.roles.includes("manager")
+                        )!.definitionId,
+                        participants: command.action.identities
+                            .filter((identity) => !identity.roles.includes("manager"))
+                            .map((identity) => ({
+                                participantKey: identity.identityKey,
+                                agentDefinitionId: identity.definitionId
+                            }))
+                    },
+                    (selected) => validateSharedRoleCapabilities(parent, selected, signal)
+                );
+                const identities = command.action.identities.map((source) => {
+                    const composition = source.roles.includes("manager")
+                        ? roles.manager!
+                        : roles.participants[source.identityKey]!;
+                    return {
+                        source,
+                        composition,
+                        id: dependencies.ids.nextId("meeting_identity"),
+                        ownershipId: dependencies.ids.nextId("session_ownership"),
+                        childId: dependencies.ids.nextId("child_session") as SessionId,
+                        definitionHash: composition.agentDefinition.definitionHash
+                    };
+                });
+                const state = targetCreateState(command, meetingId, now, identities);
+                const transition = createMeetingV1(state);
+                if (transition.kind !== "accepted") throw new RoleCompositionError();
+                const receiptId = dependencies.ids.nextId("receipt");
+                const effects = transition.effectRequests.map((effect) => {
+                    if (effect.kind !== "agent_notice") throw new RoleCompositionError();
+                    return {
+                        id: dependencies.ids.nextId("outbox"),
+                        kind: "agent_notice" as const,
+                        status: "queued" as const
+                    };
+                });
+                const result = {
+                    kind: "accepted" as const,
+                    meetingId,
+                    meetingVersion: 1,
+                    committedVersion: 1,
+                    receiptId,
+                    factIds: [],
+                    effects
+                };
+                const createInput: CreateMeetingInput<MeetingState> = {
+                    requestId: command.requestId,
+                    authorization: {
+                        callerBinding: `dsh_tool:${context.caller.principalId}`,
+                        capabilityId: context.caller.principalId
+                    },
+                    requestHash: JSON.stringify(command.action),
+                    initialState: state,
+                    createResult: result,
+                    outbox: transition.effectRequests.map((effect, index) => ({
+                        id: effects[index]!.id,
+                        deliveryId: effects[index]!.id,
+                        kind: "dispatch",
+                        payload: effect as JsonObject,
+                        availableAt: now
+                    })),
+                    createdAt: now
+                };
+                const repository = await dependencies.registry.openMeeting({
+                    meetingId,
+                    create: createInput
+                });
+                const recovered = await repository.recover();
+                if (recovered.bootstrap.status === "ready")
+                    return recovered.bootstrap.createResult as unknown as MeetingCommandResultV1;
+                const owned = [] as Awaited<ReturnType<typeof repository.recordSessionOwnership>>[];
+                try {
+                    for (const identity of identities) {
+                        const role: "manager" | "evidence_reviewer" | "participant" =
+                            identity.source.roles[0] === "contributor"
+                                ? "participant"
+                                : (identity.source.roles[0] as "manager" | "evidence_reviewer");
+                        const sessionLabel = encodeMeetingIdentitySessionLabelV1({
+                            role,
+                            meetingId,
+                            identityId: identity.id
+                        });
+                        const base = {
+                            id: identity.ownershipId,
+                            meetingId,
+                            identityId: identity.id,
+                            agentDefinition: identity.composition.agentDefinition,
+                            sessionId: String(identity.childId),
+                            parentSessionId: String(parent.id),
+                            sessionLabel,
+                            provider: dependencies.provider,
+                            role
+                        };
+                        owned.push(
+                            await repository.recordSessionOwnership(
+                                {
+                                    ...base,
+                                    lifecycleStatus: "provisioning",
+                                    capabilityStatus: "active"
+                                },
+                                now
+                            )
+                        );
+                        const started = await startMeetingIdentitySessionV1({
+                            composition: identity.composition,
+                            runtime: dependencies.continuable,
+                            provider: dependencies.provider,
+                            parent,
+                            childId: identity.childId,
+                            role,
+                            meetingId,
+                            identityId: identity.id,
+                            signal
+                        });
+                        owned[owned.length - 1] = await repository.recordSessionOwnership(
+                            {
+                                ...base,
+                                initialMessageId: String(started.messageId),
+                                lifecycleStatus: "active",
+                                capabilityStatus: "active"
+                            },
+                            now
+                        );
+                    }
+                    const committed = await repository.completeCreate(createInput);
+                    return committed.result as unknown as MeetingCommandResultV1;
+                } catch (error) {
+                    await repository.updateBootstrap({
+                        status: "creation_failed",
+                        failureCode:
+                            error instanceof Error ? error.name : "SESSION_CREATION_FAILED",
+                        now
+                    });
+                    const revoked = [];
+                    for (const ownership of owned) {
+                        revoked.push(
+                            await repository.recordSessionOwnership(
+                                {
+                                    ...ownership,
+                                    lifecycleStatus: "closed",
+                                    capabilityStatus: "revoked"
+                                },
+                                now
+                            )
+                        );
+                    }
+                    await interruptAndDrainOwnedSessions({
+                        runtime: dependencies.continuable,
+                        parent,
+                        ownerships: revoked
+                    });
+                    throw error;
+                }
+            } catch (error) {
+                if (error instanceof RoleCompositionError)
+                    return {
+                        kind: "rejected",
+                        error: {
+                            code: "PRECONDITION_FAILED",
+                            message: "Initial Meeting role composition is unavailable"
+                        }
+                    };
+                throw error;
+            }
+        }
+    };
 }

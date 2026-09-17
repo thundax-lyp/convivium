@@ -144,6 +144,30 @@ const createResult = z
         participants: z
             .array(z.object({ participantKey: z.string(), participantId: z.string() }).strict())
             .readonly()
+            .optional(),
+        kind: z.literal("accepted").optional(),
+        committedVersion: z.number().int().nonnegative().optional(),
+        receiptId: z.string().optional(),
+        factIds: z.array(z.string()).readonly().optional(),
+        effects: z
+            .array(
+                z
+                    .object({
+                        id: z.string(),
+                        kind: z.enum([
+                            "refresh",
+                            "session_mail",
+                            "agent_notice",
+                            "review_delivery",
+                            "markdown_projection",
+                            "archive",
+                            "identity_provision"
+                        ]),
+                        status: z.literal("queued")
+                    })
+                    .strict()
+            )
+            .readonly()
             .optional()
     })
     .strict() satisfies z.ZodType<CreateMeetingResult>;

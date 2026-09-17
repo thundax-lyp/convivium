@@ -54,13 +54,30 @@ function canonicalStateObject(value: unknown): JsonObject {
     return JsonObjectSchema.parse(normalized);
 }
 
-function parseSessionLabel(
-    label: string
-): { meetingId: string; participantId?: string } | undefined {
+function parseSessionLabel(label: string):
+    | {
+          meetingId: string;
+          role?: SessionOwnership["role"];
+          identityId?: string;
+          participantId?: string;
+      }
+    | undefined {
     const parts = label.split(":");
     if (parts[0] !== "convivium") return undefined;
     if (parts[1] === "meeting-manager" && parts.length === 4 && parts[2] && parts[3])
         return { meetingId: parts[3] };
+    if (
+        parts[1] === "meeting-identity" &&
+        parts.length === 5 &&
+        ["manager", "evidence_reviewer", "participant"].includes(parts[2] ?? "") &&
+        parts[3] &&
+        parts[4]
+    )
+        return {
+            role: parts[2] as SessionOwnership["role"],
+            meetingId: parts[3],
+            identityId: parts[4]
+        };
     if (
         parts[1] === "meeting-participant" &&
         parts.length === 5 &&
@@ -517,6 +534,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 input.authorization.callerBinding
             );
             const result = input.createResult ?? { meetingId: this.meetingId, meetingVersion: 0 };
+            const initialVersion = result.meetingVersion;
             const existingReceipt = this.projection?.receipts[createReceiptKey];
             if (existingReceipt) {
                 const replayResult = this.projection?.bootstrap.createResult;
@@ -546,7 +564,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             const next = createProjection({
                 snapshot: {
                     meetingId: this.meetingId,
-                    version: 0,
+                    version: initialVersion,
                     state: creation.initialState,
                     createdAt: now,
                     updatedAt: now
@@ -564,7 +582,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             next.events[seqKey(1)] = PersistedEventV1Schema.parse({
                 formatVersion: 1,
                 eventSeq: 1,
-                meetingVersion: 0,
+                meetingVersion: initialVersion,
                 type: "meeting.created",
                 payload: { meetingId: this.meetingId },
                 turnId: null,
@@ -577,7 +595,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 commandKind: "create_meeting",
                 callerBinding: input.authorization.callerBinding,
                 requestHash: input.requestHash,
-                meetingVersion: 0,
+                meetingVersion: initialVersion,
                 result,
                 eventSeqs: [1],
                 createdAt: now
@@ -631,7 +649,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
             return {
                 requestId: input.requestId,
                 meetingId: this.meetingId,
-                meetingVersion: 0,
+                meetingVersion: initialVersion,
                 result,
                 eventSeqs: [1]
             };
@@ -822,9 +840,14 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 );
             if (
                 !existing &&
-                ((input.role === "manager" &&
-                    (parsed.participantId !== undefined || input.participantId !== undefined)) ||
-                    (input.role === "participant" &&
+                ((parsed.identityId !== undefined &&
+                    (input.identityId !== parsed.identityId || input.role !== parsed.role)) ||
+                    (parsed.identityId === undefined &&
+                        input.role === "manager" &&
+                        (parsed.participantId !== undefined ||
+                            input.participantId !== undefined)) ||
+                    (parsed.identityId === undefined &&
+                        input.role === "participant" &&
                         (parsed.participantId === undefined ||
                             parsed.participantId !== input.participantId)))
             )

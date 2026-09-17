@@ -9,10 +9,7 @@ import {
 import { projectMeetingViewV1 } from "@/projection/meeting-view-v1.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { meetingIdFor } from "@/repository/domain/keys.js";
-import {
-    LOCAL_CONTROLLER_PRINCIPAL_ID,
-    createMeetingCommandApplicationV1
-} from "@/runtime/application-service/meeting-command-v1.js";
+import { createMeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command-v1.js";
 
 describe("target Meeting command core", () => {
     it("round-trips a complete target state without loss", () => {
@@ -117,9 +114,10 @@ describe("target Meeting command core", () => {
         };
         const context = {
             caller: {
-                channel: "loopback_remote" as const,
-                principalId: LOCAL_CONTROLLER_PRINCIPAL_ID
-            }
+                channel: "dsh_tool" as const,
+                principalId: "captain-1"
+            },
+            captainParent: { id: "captain-1" } as never
         };
 
         const result = await app.execute(command, context, signal);

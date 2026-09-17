@@ -18,8 +18,8 @@ const objective = z.object({
 });
 const initialIdentity = z.object({
     identityKey: id,
-    definitionId: id.optional(),
-    definitionVersion: text.optional(),
+    definitionId: id,
+    definitionVersion: text,
     displayName: text,
     roles: z.array(z.enum(["captain", "manager", "contributor", "evidence_reviewer"])),
     agendaResponsibilityIds: z.array(id),

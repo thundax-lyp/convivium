@@ -17,7 +17,6 @@ import type {
 } from "@/repository/types.js";
 import {
     CommittedFactRecordV1Schema,
-    JsonObjectSchema,
     PersistedEventV1Schema,
     PersistedOutboxV1Schema,
     PersistedReceiptV1Schema,

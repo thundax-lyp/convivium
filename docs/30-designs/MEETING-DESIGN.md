@@ -29,7 +29,7 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 所有 Agent、local panel、Remote control、恢复任务和自动期限检查都严格执行同一序列：
 
 1. 解码 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 的版本化 envelope，执行结构和值域校验。
-2. 从可信调用通道取得 caller binding、当前时间和 requestId；忽略输入中的 actor、Session ownership、baseline、权限或派生完成状态。
+2. 从可信调用通道取得 caller binding、当前时间和 requestId；创建命令只由 Captain DSH tool adapter 从 `exec.agent` 注入可信 Captain parent，其他命令按已登记 ownership 解析 caller；忽略输入中的 actor、parent、Session ownership、baseline、权限或派生完成状态。
 3. 加载 Meeting 与该 caller 的持久 identity ownership；未知、损坏、撤权或无法证明归属时 fail closed。
 4. 先检查 caller 是否可读取/控制目标 Meeting，再查找该 caller 的历史 receipt：同键不同 payload 返回 `IDEMPOTENCY_CONFLICT`，同键同 payload 直接返回原结果；无历史 receipt 时依次检查 terminal/archive、expected version、目标对象存在性、action state/precondition 与 Domain invariant/limit。
 5. 由 application 构造无环境依赖的 Domain command，调用纯转换。转换成功时生成新 snapshot、已提交事实和提交后 effect plan；拒绝时不产生任何事实。
@@ -47,7 +47,7 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 
 | 转换 | 允许 actor | 前提 | 成功事实/效果 | 拒绝或无操作 |
 | --- | --- | --- | --- | --- |
-| `create_meeting` | Convener | objective、初始身份、限制完整；DSH 预检已完成 | version 1、initial pending agenda、ownership/session creation effect | 任一必填目标、身份或能力缺失即拒绝；不产生半个 Meeting |
+| `create_meeting` | Captain DSH tool | objective、初始身份、限制完整；`exec.agent` 是八个 child 的同一可信 parent；DSH 预检已完成 | version 1、initial pending agenda、八个独立 ownership/session | 非 Captain tool、loopback create、任一必填目标、身份或能力缺失均拒绝；不产生半个 Meeting |
 | `activate_agenda` | Captain | Meeting running；目标 Agenda pending；恰有一个旧 active Agenda 且其上没有 open Round | 原 Agenda 按明示 disposition 收口，新 Agenda active，open Round 不会留在已收口 Agenda 上 | 非 Captain、非 running、旧议题仍有 open Round、缺失/非 pending Agenda 拒绝 |
 | `raise_agenda_candidate` | 任意已授权 identity | Meeting 非终态；title/reason 完整 | pending candidate | 相同 request replay receipt；不能隐式加入 Agenda |
 | `dispose_agenda_candidate` | Captain | candidate pending；promoted Agenda 的 output/owner 引用可解析 | 仅一次 promoted/parked/rejected 事实；promoted 同次将 candidate 标 promoted 并 append 完整 pending Agenda；不改变全局 evidenceReviewerId、不授新 role、不切换 active | 再处置、非 Captain、候选/owner 不存在或任一引用非法时整条拒绝，state/facts/version 均不变 |

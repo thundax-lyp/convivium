@@ -64,12 +64,12 @@ local ReadArchive
 | 正式声明 | 当前代码事实 | 本 RUNBOOK 的处理 |
 | --- | --- | --- |
 | `MeetingState` 是新业务链唯一聚合 | `plugin/src/runtime/meeting-runtime.ts`、repository projection 和外围入口仍使用 `LegacyMeetingState` | T10d-T21 将活动调用链直接切换；T23-T29 删除旧 application orchestration/read-side |
-| 创建使用 `identityKey`，每场会议唯一 Manager 和 reviewer | canonical identity 已完成，外围创建仍按 participantKey/旧 role 建模，尚未创建八个 target child Session | T14b-T14c |
+| 创建使用 `identityKey`，每场会议唯一 Manager 和 reviewer | target 创建已按 identityKey 建模并创建八个独立 child Session | 已完成 |
 | reviewer 单一、按 EvidenceVersion 独立审核、批量提交 | 纯 Domain batch 已完成，DSH reviewer coordinator 与独立 worker 尚未接入 | T16 |
 | 归档是按值白名单，Session 全部关闭后才 archived | canonical ArchivePackage 与 Domain lifecycle 已完成，runtime cleanup/outbox/recovery 尚未接入 | T17 |
 | 同一 candidate 跨 Agenda 复用一个 active identity/Session | 纯 Domain active reuse 已完成，identity effect handler、recovery 与 meeting-owned notice 尚未统一到 target command path | T15a-T15c |
 | Scribe 已删除，发布包为 8 个角色 | `plugin/meeting-roles/` 和验证脚本仍含 `meeting_scribe` | T14a |
-| `meetingId` 是 V1 唯一 Meeting namespace | 正式接口已固定无 `teamId`，当前 repository key/registry、legacy runtime 与 Session label 仍携带 `teamId` | T10d-T14c 从目标 repository、runtime、label、ownership 与 recovery 消除；不得用固定或忽略的 compatibility `teamId` |
+| `meetingId` 是 V1 唯一 Meeting namespace | target repository、runtime、label 与 ownership 已只使用 `meetingId`；不可达 legacy 文件待删除 | T23-T29 删除旧实现；不得用固定或忽略的 compatibility `teamId` |
 | target repository/application/projection 必须可真实运行 | repository core、command application 和 projection 尚未接通 target atomic commit | T10d-T21 |
 
 代码事实以 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为当前覆盖依据；不得把存在的旧源码或历史测试算作目标实现证据。
@@ -185,31 +185,9 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T14c：接入创建与 plugin lifecycle
-
-前置状态：T14b2 PASS。
-
-允许修改：`plugin/src/runtime/meeting-runtime.ts`、`plugin/src/index.ts`、`plugin/tests/unit/host-plugin-lifecycle.spec.ts`。
-
-禁止修改：identity recommendation、review workers、Remote/UI、role resources、Session adapter。
-
-执行：`meeting-runtime.ts` 实现 T13 `MeetingCreationCoordinatorV1`。其 `create` 只消费 T13 已 normalized 的 create command、真实 meetingId、单次 now、caller 与 signal；按 identityKey 校验并分配 canonical identity ID，通过 T12 `registry.openMeeting({meetingId,create})` 建立唯一 repository，再通过 T14b2 创建恰好八个 child：一个 Manager、一个 Evidence Reviewer、六个 Contributor。每个成功 child 立即记录带 `id/meetingId/identityId` 的 ownership，role 分别为 `manager/evidence_reviewer/participant`，且不写 legacy participantId；Captain parent 不进入 ownership。创建事实、receipt、outbox 与 running state 只提交一次，coordinator 不形成第二 command dispatcher。任一 preflight/session/ownership/commit 失败，按 creation_failed → revoke 已登记 capability → interrupt/drain 已证明 child 的顺序清理，不能发布半可用 Meeting。
-
-`plugin/src/index.ts` 的 lifecycle 只在 DSH version 精确为 `0.1.2-rc.1`、Storage/continuable provider、名为 `spawn` 且声明 `outputSchema` 能力的 one-shot Subagent provider 和八个 Definition resource 可解析后，以 `encodeMeetingStateV1/decodeMeetingStateV1` 显式构造唯一 `DomainRepositoryRegistry<MeetingState>`，再用该 registry 与 coordinator 构造唯一 T13 application 并登记其 teardown；不得使用 T11/T12 的 JsonObject default。每次 create 仍由 coordinator 对本次选择的八个 Definition 做精确 preflight。任一 load-time validation 失败进入 rejected。T15-T17 尚未实现 effect route，T19/T20 尚未实现 target tools/Remote，因此本步禁止构造或注册这些后续组件，也不把 target write 暴露到外部；测试只通过 lifecycle-owned application 调用 `execute(create_meeting)`，不得直接调用 coordinator。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/host-plugin-lifecycle.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：唯一 application 的 create 委托生成八个 child，创建原子性、target ownership、清理和精确版本 lifecycle 门禁通过；plugin 尚未引用 T15-T20 的未实现 symbol，也未提前注册 target write。
-
-STOP：需要 persona-only、放宽 DSH 版本、写 legacy participantId 或发布半可用 Meeting。
-
 ### T15a：接入 identity provisioning effect
 
-前置状态：T14c PASS。
+前置状态：目标创建与 plugin lifecycle 的 focused validation 已通过。
 
 允许修改：`plugin/src/runtime/application-service/meeting-identity-v1.ts`、`plugin/src/runtime/services/meeting-identity-provision-v1.ts`、`plugin/src/dsh/meeting-identity-admission-v1.ts`、`plugin/tests/contract/meeting-identity-command-v1.spec.ts`、`plugin/tests/contract/meeting-identity-provision-v1.spec.ts`、`plugin/tests/integration/dsh/meeting-identity-admission-v1.spec.ts`。
 
@@ -294,7 +272,7 @@ function createEvidenceReviewDispatcherV1(dependencies: EvidenceReviewDispatcher
 };
 ```
 
-`ReviewerPendingEvidenceV1` required 为 `{version:EvidenceVersionV1; baseline:readonly {publicationId:OpaqueId; evidence:readonly {version:EvidenceVersionV1; review:EvidenceReviewV1}[]}[]}`；baseline 按所属 Round 的 `baselinePublicationIds` 顺序，每个 publication 内按 `finalVersionIds/finalReviewIds` 同序按值组装，不能只给 ID 或当前 state 引用。dependencies required 为 `subagents:Pick<SubagentRuntime,"start">`、`application:MeetingCommandApplicationV1`、`repository:Pick<MeetingRepositoryPort<MeetingState>,"read">`；provider 不配置，精确使用 T14c 已预检的 `"spawn"`。处理 `payload.kind="agent_notice",noticeKind="review_request"` 时重读 target snapshot，验证 coordinatorOwnership 的 meetingId/identityId/session/active capability 与 `state.evidenceReviewerId` 精确匹配，再从 state 中选择 current + complete Registration + 无最终 Review 的 version，按 EvidencePackage/state 顺序构造 pending set；不得依赖尚未实施的 T18b projection。空集合直接把 outbox item 视为 delivered。非空集合为每个 version 建立一个 async task：先 `run = await subagents.start("spawn",{parent:coordinator,prompt,signal,outputSchema})`，再在 `try` 中 `await run.result`，并在 `finally` 中 `await run.dispose()`；对这些 task 使用一次 `Promise.allSettled`。这样 `start` 自身失败只拒绝该 task，已成功创建的每个 run 都必定 dispose。request 不覆盖 `agentOptions/persona/toolFilter`，worker 使用 reviewer coordinator 的 Host-approved route/能力；Meeting tools 仍因 worker 无 target ownership 被 T14b2 resolver 拒绝。prompt 只含该 immutable version、上述 immutable baseline 和固定 Review outputSchema `{scope:string;dimensions:{source:ReviewDimensionInput;credibility:ReviewDimensionInput;completeness:ReviewDimensionInput;support:ReviewDimensionInput}}`；每个 dimension 精确为 `{score:0|1|2|3|"unable_to_assess";scope:string;reason:string;baselineEvidenceIds:OpaqueId[]}`，baselineEvidenceIds 只能来自该 worker baseline 的 version ID。worker 不是 continuable Meeting child，不写 `SessionOwnership`，不获得 Meeting command authority。
+`ReviewerPendingEvidenceV1` required 为 `{version:EvidenceVersionV1; baseline:readonly {publicationId:OpaqueId; evidence:readonly {version:EvidenceVersionV1; review:EvidenceReviewV1}[]}[]}`；baseline 按所属 Round 的 `baselinePublicationIds` 顺序，每个 publication 内按 `finalVersionIds/finalReviewIds` 同序按值组装，不能只给 ID 或当前 state 引用。dependencies required 为 `subagents:Pick<SubagentRuntime,"start">`、`application:MeetingCommandApplicationV1`、`repository:Pick<MeetingRepositoryPort<MeetingState>,"read">`；provider 不配置，精确使用 lifecycle 已预检的 `"spawn"`。处理 `payload.kind="agent_notice",noticeKind="review_request"` 时重读 target snapshot，验证 coordinatorOwnership 的 meetingId/identityId/session/active capability 与 `state.evidenceReviewerId` 精确匹配，再从 state 中选择 current + complete Registration + 无最终 Review 的 version，按 EvidencePackage/state 顺序构造 pending set；不得依赖尚未实施的 T18b projection。空集合直接把 outbox item 视为 delivered。非空集合为每个 version 建立一个 async task：先 `run = await subagents.start("spawn",{parent:coordinator,prompt,signal,outputSchema})`，再在 `try` 中 `await run.result`，并在 `finally` 中 `await run.dispose()`；对这些 task 使用一次 `Promise.allSettled`。这样 `start` 自身失败只拒绝该 task，已成功创建的每个 run 都必定 dispose。request 不覆盖 `agentOptions/persona/toolFilter`，worker 使用 reviewer coordinator 的 Host-approved route/能力；Meeting tools 仍因 worker 无 target ownership 被 T14b2 resolver 拒绝。prompt 只含该 immutable version、上述 immutable baseline 和固定 Review outputSchema `{scope:string;dimensions:{source:ReviewDimensionInput;credibility:ReviewDimensionInput;completeness:ReviewDimensionInput;support:ReviewDimensionInput}}`；每个 dimension 精确为 `{score:0|1|2|3|"unable_to_assess";scope:string;reason:string;baselineEvidenceIds:OpaqueId[]}`，baselineEvidenceIds 只能来自该 worker baseline 的 version ID。worker 不是 continuable Meeting child，不写 `SessionOwnership`，不获得 Meeting command authority。
 
 只收集 `stopReason="completed"` 且 structured output 通过 Review item Schema 的结果；失败/取消/非法输出项省略并继续 pending。成功集合非空时只调用一次 `application.execute`，action 为一个 `submit_review_batch`，requestId 固定为 `review-batch:${outboxItem.id}`，caller 固定为 coordinator 的 reviewer binding；成功集合为空时令该 outbox item retry。`outbox-worker.ts` 只把 `agent_notice/review_request` 路由到该 dispatcher，不自行启动 worker 或提交 command。
 
@@ -426,7 +404,7 @@ STOP：target tool 仍需深路径或旧 implementation，或必须用转发 fac
 
 禁止修改：Remote、Client、旧 application 文件。
 
-执行：从 `meeting-command-v1.ts` 逐个导出这七个 action 的既有 Zod Schema，不复制 shape；只登记七个 agent tools：`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`（Manager），`convivium_raise_hand`、`convivium_submit_evidence`（Contributor），`convivium_submit_review_batch`（唯一 reviewer coordinator），`convivium_recommend_identity`（Manager）。每个 `defineTool` 的 DSH parameter 固定为唯一 `{input:{type:"json",required:true}}`；`execute` 先用 `MeetingCommandV1Schema` strip/parse `input`，再要求 action kind 精确等于该 tool，因而 envelope 只有 `protocolVersion/meetingId/expectedMeetingVersion/requestId`，action shape 只来自对应既有 Zod Schema。tool 不接受 actor/session/generated ID，从 `exec.agent` 经 T14b2 resolver 得到 caller，把 `exec.signal` 原样传给 T13 `MeetingCommandApplicationV1.execute`。output 固定 `{schema:{type:"json"},render:(_args,value)=>[{type:"text",text:JSON.stringify(value)}]}`，domain rejection 作为 schema-valid `MeetingCommandResultV1` 返回，只有 infrastructure failure throw。使用 `ctx.tools.register` 的 fiber-owned registration，不再手工保存 disposer 或重复包 `ctx.effect`。删除其它 legacy tool registration，不把 local-only create/end 或 runtime-only start/result action 注册成 tool。
+执行：从 `meeting-command-v1.ts` 逐个导出这八个 action 的既有 Zod Schema，不复制 shape；只登记八个 agent tools：`convivium_create_meeting`（Captain），`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`（Manager），`convivium_raise_hand`、`convivium_submit_evidence`（Contributor），`convivium_submit_review_batch`（唯一 reviewer coordinator），`convivium_recommend_identity`（Manager）。create tool 从 `exec.agent` 注入可信 Captain parent 和 `caller={channel:"dsh_tool",principalId:String(exec.agent.id)}`，不设置 `sessionBindingId`；其余 tool 从 `exec.agent` 经 T14b2 resolver 得到 caller。每个 `defineTool` 的 DSH parameter 固定为唯一 `{input:{type:"json",required:true}}`；`execute` 先用 `MeetingCommandV1Schema` strip/parse `input`，再要求 action kind 精确等于该 tool，因而 envelope 只有 `protocolVersion/meetingId/expectedMeetingVersion/requestId`，action shape 只来自对应既有 Zod Schema。tool 不接受 actor/session/generated ID，把 `exec.signal` 原样传给 T13 `MeetingCommandApplicationV1.execute`。output 固定 `{schema:{type:"json"},render:(_args,value)=>[{type:"text",text:JSON.stringify(value)}]}`，domain rejection 作为 schema-valid `MeetingCommandResultV1` 返回，只有 infrastructure failure throw。使用 `ctx.tools.register` 的 fiber-owned registration，不再手工保存 disposer 或重复包 `ctx.effect`。删除其它 legacy tool registration，不把 local-only end 或 runtime-only start/result action 注册成 tool。
 
 验证：
 ```bash
@@ -434,7 +412,7 @@ pnpm --dir=plugin vitest run tests/contract/tool-registration.spec.ts
 pnpm --dir=plugin typecheck:host
 ```
 
-PASS：七个 tool 的 input/action mismatch、authority、canonical output/render、cancellation、fiber disposal、公开导入和唯一 dispatcher 通过。
+PASS：八个 tool 的 input/action mismatch、authority、Captain parent 注入、canonical output/render、cancellation、fiber disposal、公开导入和唯一 dispatcher 通过。
 
 STOP：tool 需要深路径、直接调用旧 application、复制 action Schema 或提交 actor。
 
@@ -446,9 +424,9 @@ STOP：tool 需要深路径、直接调用旧 application、复制 action Schema
 
 禁止修改：Client、Domain、repository。
 
-执行：`ConviviumRemoteService` 继续继承 `TypertRemoteService`，精确只保留下列 concrete public methods：`@Remote("list") list(signal:AbortSignal):Promise<MeetingListResultV1>`、`@Remote("read") read(request:ReadMeetingRequestV1,signal:AbortSignal):Promise<MeetingReadResultV1>`、`@Remote("control") control(command:MeetingCommandV1,signal:AbortSignal):Promise<MeetingCommandResultV1>`、`@Remote({mode:"stream"}) subscribeRefresh(signal:AbortSignal):AsyncIterable<RefreshNoticeV1>`；不得手写 Typert artifact，不暴露 action-specific Remote method，不转发 agent tool action。四者只在 lifecycle 注入的 `webServer.host === "127.0.0.1"` 时注册；其它 host 使整组 target activation rejected，不注册 Remote、tools 或 worker。注册成功后调用 T13 时构造 `caller={channel:"loopback_remote",principalId:LOCAL_CONTROLLER_PRINCIPAL_ID}`，不接受 wire actor/authority/session 字段。`list` 调 T18b summary mapper；`read` 调 T18b caller=`local` mapper并由同一结果读取 archive；`control` 只允许 `create_meeting|end_meeting`，`start_archive` 由 durable archive effect 自动执行，其它 action 返回 `UNAUTHORIZED`，允许的 write 只调用 T13 `MeetingCommandApplicationV1.execute`；所有方法向 owned operation 传递 signal。`subscribeRefresh` 只发 `{kind:"refresh",meetingId,committedVersion}`，允许丢失/重复、不携带事实，stream cancel/dispose 后必须静默。`types.ts` 只定义 JSON-safe Remote payload 与 `RemoteErrorDetailsMap` declaration merge；`ClientRemote` augmentation 只由现有 Typert generator 产生，不手写。Remote `index.ts` 只注册该 service；`runtime/index.ts` 删除 T19a 暂留的 legacy type并只导出这四方法所需的正式 `LocalMeetingWebRuntime` type。`remote-generation.spec.ts` 必须生成并断言精确四方法及 stream metadata；module boundary test 证明 compile bridge 已清除。
+执行：`ConviviumRemoteService` 继续继承 `TypertRemoteService`，精确只保留下列 concrete public methods：`@Remote("list") list(signal:AbortSignal):Promise<MeetingListResultV1>`、`@Remote("read") read(request:ReadMeetingRequestV1,signal:AbortSignal):Promise<MeetingReadResultV1>`、`@Remote("control") control(command:MeetingCommandV1,signal:AbortSignal):Promise<MeetingCommandResultV1>`、`@Remote({mode:"stream"}) subscribeRefresh(signal:AbortSignal):AsyncIterable<RefreshNoticeV1>`；不得手写 Typert artifact，不暴露 action-specific Remote method，不转发 agent tool action。四者只在 lifecycle 注入的 `webServer.host === "127.0.0.1"` 时注册；其它 host 使整组 target activation rejected，不注册 Remote、tools 或 worker。注册成功后调用 T13 时构造 `caller={channel:"loopback_remote",principalId:LOCAL_CONTROLLER_PRINCIPAL_ID}`，不接受 wire actor/authority/session 字段。`list` 调 T18b summary mapper；`read` 调 T18b caller=`local` mapper并由同一结果读取 archive；`control` 只允许 `end_meeting`，`create_meeting` 只由 T19b Captain tool 发起，`start_archive` 由 durable archive effect 自动执行，其它 action 返回 `UNAUTHORIZED`，允许的 write 只调用 T13 `MeetingCommandApplicationV1.execute`；所有方法向 owned operation 传递 signal。`subscribeRefresh` 只发 `{kind:"refresh",meetingId,committedVersion}`，允许丢失/重复、不携带事实，stream cancel/dispose 后必须静默。`types.ts` 只定义 JSON-safe Remote payload 与 `RemoteErrorDetailsMap` declaration merge；`ClientRemote` augmentation 只由现有 Typert generator 产生，不手写。Remote `index.ts` 只注册该 service；`runtime/index.ts` 删除 T19a 暂留的 legacy type并只导出这四方法所需的正式 `LocalMeetingWebRuntime` type。`remote-generation.spec.ts` 必须生成并断言精确四方法及 stream metadata；module boundary test 证明 compile bridge 已清除。
 
-在 T14c 的 lifecycle-owned runtime factory 中同时装配唯一 T13 application、同一个 outbox worker 及 T15-T17 的 `identity_provision|agent_notice|review_delivery|archive` 四类 payload route、T19 七个 tools 和本步 loopback Remote。只有精确 DSH version、Storage/continuable provider、`spawn` one-shot provider 的 `outputSchema` 能力、八个 Definition 与 loopback binding 全部预检成功后才注册 target write/read；local 与 runtime caller adapter 必须产生 T13 固定的 scope，删除 legacy tool/Remote/runtime factory 的活动注册。`ctx.tools.register` 直接绑定当前 plugin fiber，不重复包 effect；Remote 由其 child plugin fiber 拥有；outbox polling/subscription/runtime disposer 由一个 `ctx.effect` 拥有并在 disposer resolve 前停止领取、取消等待、await 已开始 dispatch 静默。启动恢复只 recover pending outbox 并 wake 同一个 worker，不复制 handler；stopping 先拒绝新 command，等待已开始 commit，停止领取新 effect，再释放已证明归属的 activation。预检或装配任一步 throw 时由同一 activation fiber 反序释放已注册资源并进入 rejected，不得留下部分 tool、Remote 或 worker registration。
+在 lifecycle-owned runtime factory 中同时装配唯一 T13 application、同一个 outbox worker 及 T15-T17 的 `identity_provision|agent_notice|review_delivery|archive` 四类 payload route、T19 八个 tools 和本步 loopback Remote。只有精确 DSH version、Storage/continuable provider、`spawn` one-shot provider 的 `outputSchema` 能力、八个 Definition 与 loopback binding 全部预检成功后才注册 target write/read；local 与 runtime caller adapter 必须产生 T13 固定的 scope，删除 legacy tool/Remote/runtime factory 的活动注册。`ctx.tools.register` 直接绑定当前 plugin fiber，不重复包 effect；Remote 由其 child plugin fiber 拥有；outbox polling/subscription/runtime disposer 由一个 `ctx.effect` 拥有并在 disposer resolve 前停止领取、取消等待、await 已开始 dispatch 静默。启动恢复只 recover pending outbox 并 wake 同一个 worker，不复制 handler；stopping 先拒绝新 command，等待已开始 commit，停止领取新 effect，再释放已证明归属的 activation。预检或装配任一步 throw 时由同一 activation fiber 反序释放已注册资源并进入 rejected，不得留下部分 tool、Remote 或 worker registration。
 
 验证：
 ```bash
@@ -456,7 +434,7 @@ pnpm --dir=plugin vitest run tests/contract/remote-boundary.spec.ts tests/contra
 pnpm --dir=plugin typecheck:host
 ```
 
-PASS：loopback authority、伪造 actor、read/write DTO 和 error mapping 通过；T19a 的 legacy `LocalMeetingWebRuntime` compile bridge 已删除；一个 application、一个 outbox worker、七个 tools、一个四方法 Remote 同成同败，legacy registration 为零且 teardown 顺序通过。
+PASS：loopback authority、伪造 actor、read/write DTO 和 error mapping 通过；T19a 的 legacy `LocalMeetingWebRuntime` compile bridge 已删除；一个 application、一个 outbox worker、八个 tools、一个四方法 Remote 同成同败，legacy registration 为零且 teardown 顺序通过。
 
 STOP：需要 Web user/Team authority、Remote 复制 Domain 规则、第二 worker/application、部分注册、调用未公开深路径或改变任一组件业务语义。
 
@@ -509,7 +487,7 @@ STOP：需要读取 legacy DTO、修改旧 fixture 或视觉重设计。
 
 禁止修改：layout/sections/view、fixture、Remote、business semantics。
 
-执行：只接 `end_meeting` local control；create 由 T20 loopback Remote 和 T22 smoke 覆盖，本轮不新增复杂创建表单，start_archive 由 durable archive effect 自动执行且不显示按钮。按钮是否显示只检查 projection `controls`，点击时用当前 `view.version` 构造 command、生成新的 requestId、调用 T21a `control`，无论 accepted/rejected 都重读同一 meeting；pending 时禁用重复提交。删除 pause/resume、archive、decision/risk/contribution legacy controls，不在 Client 复算结束或归档前提。
+执行：只接 `end_meeting` local control；create 由 T19b Captain tool 和 T22 smoke 覆盖，本轮不新增复杂创建表单，start_archive 由 durable archive effect 自动执行且不显示按钮。按钮是否显示只检查 projection `controls`，点击时用当前 `view.version` 构造 command、生成新的 requestId、调用 T21a `control`，无论 accepted/rejected 都重读同一 meeting；pending 时禁用重复提交。删除 pause/resume、archive、decision/risk/contribution legacy controls，不在 Client 复算结束或归档前提。
 
 验证：
 ```bash
@@ -790,7 +768,7 @@ Not Applicable：数据库 schema migration 和旧 snapshot compatibility 明确
 ## 失败恢复
 
 - T11-T12 repository 测试必须使用临时 Storage domain；失败不得手工改持久数据。
-- T14b2、T14c、T15a、T15b、T15c、T16、T17 与 T22 创建、恢复、发送或关闭的 Session 必须由测试/smoke 的 `finally` 和原生 teardown 关闭；若 teardown 无法证明完成，保留临时 profile 路径和 Session ID 作为 STOP 证据，不删除不明归属 Session。
+- lifecycle 创建链、T15a、T15b、T15c、T16、T17 与 T22 创建、恢复、发送或关闭的 Session 必须由测试/smoke 的 `finally` 和原生 teardown 关闭；若 teardown 无法证明完成，保留临时 profile 路径和 Session ID 作为 STOP 证据，不删除不明归属 Session。
 - archive cleanup 失败是业务可恢复状态：保留 `archiving`、ArchivePackage、outbox 和 ownership，不回滚 terminal/archive materialization，不创建替代 Session。
 - 任一步失败都禁止 `git reset --hard`、覆盖用户改动、跳过测试或继续执行 deletion。
 

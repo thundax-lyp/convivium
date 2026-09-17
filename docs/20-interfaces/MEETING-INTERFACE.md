@@ -27,7 +27,7 @@ interface CallerBinding {
 }
 ```
 
-`CallerBinding` 只由 adapter 传给 Runtime。V1 只有唯一 local Convener namespace；`create_meeting` 在协议结构和 identityKey 引用校验通过后、需要 MeetingId 的 Definition/session preflight 前，以 `meetingIdFor(requestId)` 的 canonical hash 生成真实 `meetingId`，不混入 caller、Session、随机值或 `teamId`，因此相同 create requestId 必须定位同一 Meeting。receipt 键为 `(meetingId, principalId, requestId)`；同键必须拥有相同 action kind 和规范化 payload。相同请求返回原结果，不同 payload 返回 `IDEMPOTENCY_CONFLICT`。授权检查先于 receipt 查找。
+`CallerBinding` 只由 adapter 传给 Runtime。`create_meeting` 只接受 Captain-only DSH tool；adapter 从可信 `exec.agent` 注入 Captain parent，并令 `principalId=String(exec.agent.id)`，不设置 `sessionBindingId`，wire payload 不承载 parent/actor/authority。loopback Remote 不得创建 Meeting。创建命令在协议结构和 identityKey 引用校验通过后、需要 MeetingId 的 Definition/session preflight 前，以 `meetingIdFor(requestId)` 的 canonical hash 生成真实 `meetingId`，不混入 caller、Session、随机值或 `teamId`，因此相同 create requestId 必须定位同一 Meeting。receipt 键为 `(meetingId, principalId, requestId)`；同键必须拥有相同 action kind 和规范化 payload。相同请求返回原结果，不同 payload 返回 `IDEMPOTENCY_CONFLICT`。授权检查先于 receipt 查找。
 
 ## Command Action Union
 
@@ -207,7 +207,7 @@ PlanNextStep is Manager-only and is rejected while a Round is open; a new plan s
 ```ts
 interface ObjectiveInput { statement: string; requiredOutputs: TargetInput[]; acceptanceCriteria: TargetInput[]; hardConstraints: TargetInput[]; acceptableRiskLevel: "low" | "medium" | "high" }
 interface TargetInput { id: OpaqueId; text: string }
-interface InitialIdentityInput { identityKey: OpaqueId; definitionId?: OpaqueId; definitionVersion?: string; displayName: string; roles: Array<"captain" | "manager" | "contributor" | "evidence_reviewer">; agendaResponsibilityIds: OpaqueId[]; riskAuthority: boolean; required: boolean }
+interface InitialIdentityInput { identityKey: OpaqueId; definitionId: OpaqueId; definitionVersion: string; displayName: string; roles: Array<"captain" | "manager" | "contributor" | "evidence_reviewer">; agendaResponsibilityIds: OpaqueId[]; riskAuthority: boolean; required: boolean }
 interface InitialAgendaInput { id: OpaqueId; title: string; question: string; requiredOutputIds: OpaqueId[]; ownerIdentityKey?: OpaqueId }
 interface AgendaInput { id: OpaqueId; title: string; question: string; requiredOutputIds: OpaqueId[]; ownerId?: OpaqueId }
 interface MeetingLimitsInput { maxFormalMessages: number; maxDurationMs: number; taskDeadlineMs: number; reviewDeadlineMs: number }
@@ -216,7 +216,7 @@ interface ContinuationInput { sourceArchiveId: OpaqueId; selectedMaterialIds: Op
 
 IDs and identityKey values supplied during creation must be locally unique and all references validate before Runtime allocates Meeting ID or identity IDs. Runtime fixes `responseDeadlineMs` to 60000; clients cannot configure it.
 
-`InitialIdentityInput.agendaResponsibilityIds` 的元素是本 Meeting 的 `AgendaItem.id`；`InitialAgendaInput.ownerIdentityKey`、`CreateMeeting.managerIdentityKey` 和 `CreateMeeting.evidenceReviewerIdentityKey` 引用同一请求中的 `InitialIdentityInput.identityKey`。Runtime 完整验证后在同一创建事务中分配正式 identity ID 并重写这些引用，不得从 displayName、Definition ID、自然语言或数组位置推断。managerIdentityKey 必须精确命中唯一 roles=`["manager"]` 的专职身份，evidenceReviewerIdentityKey 必须精确命中唯一 roles=`["evidence_reviewer"]` 的专职身份，其他身份不得包含这两个 role；两 key 缺失、相同、未命中、重复角色或角色不匹配均返回 `INVALID_ARGUMENT` 且不创建 Meeting。身份选择了 Definition 时，Manager 只接受 `meeting_manager`，reviewer 只接受 `verification_reviewer`；Definition role 不匹配或 preflight 失败返回 `PRECONDITION_FAILED`，不分配 Meeting/identity ID，不创建 Session 或持久事实。
+`InitialIdentityInput.agendaResponsibilityIds` 的元素是本 Meeting 的 `AgendaItem.id`；`InitialAgendaInput.ownerIdentityKey`、`CreateMeeting.managerIdentityKey` 和 `CreateMeeting.evidenceReviewerIdentityKey` 引用同一请求中的 `InitialIdentityInput.identityKey`。Runtime 完整验证后在同一创建事务中分配正式 identity ID 并重写这些引用，不得从 displayName、Definition ID、自然语言或数组位置推断。managerIdentityKey 必须精确命中唯一 roles=`["manager"]` 的专职身份，evidenceReviewerIdentityKey 必须精确命中唯一 roles=`["evidence_reviewer"]` 的专职身份，其他身份不得包含这两个 role；两 key 缺失、相同、未命中、重复角色或角色不匹配均返回 `INVALID_ARGUMENT` 且不创建 Meeting。八个初始身份都必须提交精确 Definition ID/version；Manager 只接受 `meeting_manager`，reviewer 只接受 `verification_reviewer`，六个 Contributor 分别接受其已发布角色 Definition。Definition 缺失、版本或 role 不匹配、preflight 失败均返回 `PRECONDITION_FAILED`，不分配 Meeting/identity ID，不创建 Session 或持久事实。
 
 `dispose_agenda_candidate` 的 promoted 分支须在同一转换中将 pending candidate 标 promoted 并 append 完整 pending Agenda；`AgendaInput.ownerId` 若存在必须直接引用已存在 Meeting identity。任一引用失败须整条拒绝，不提交半个 Agenda 或 candidate 状态；不授予新 role、不改变全局 evidenceReviewerId 或当前 active Agenda。park/reject 不改变身份责任。
 
