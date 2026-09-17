@@ -178,27 +178,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T10c：删除 target repository adapter
-
-前置状态：T10b PASS，production 已无 `MeetingCommandRepositoryPortV1` 或 `adaptMeetingRepositoryV1` 调用方。
-
-允许修改：删除 `plugin/src/repository/meeting-command-repository-v1.ts`；修改 `plugin/tests/contract/meeting-identity-command-v1.spec.ts`。
-
-禁止修改：其它 repository、runtime、Domain 或测试文件。
-
-执行：把 identity command contract test 的 repository double 精确类型化为 `MeetingRepositoryPort<MeetingState>`，不增加 cast helper或兼容 alias；删除无 production caller 的 `meeting-command-repository-v1.ts`，不得保留转发文件。使用 `rg` 确认源码、测试和 RUNBOOK 不再引用 `MeetingCommandRepositoryPortV1`、`adaptMeetingRepositoryV1` 或删除路径。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/contract/meeting-identity-command-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-test -z "$(rg -l 'MeetingCommandRepositoryPortV1|adaptMeetingRepositoryV1|meeting-command-repository-v1' plugin/src plugin/tests docs/30-designs/RUNBOOK-MEETING-RUNTIME-CUTOVER.md)"
-```
-
-PASS：identity command contract 通过，Host typecheck 通过，旧 interface、adapter 和路径零引用且文件已删除。
-
-STOP：仍有 production caller，或删除要求兼容 alias、转发文件或修改其它文件。
-
 ### T11：实现 repository atomic command commit
 
 前置状态：T10c PASS。

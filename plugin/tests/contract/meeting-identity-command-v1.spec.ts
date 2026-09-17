@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { MeetingState } from "@/domain/index.js";
+import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import { createMeetingIdentityApplicationV1 } from "@/runtime/application-service/meeting-identity-v1.js";
-import type { MeetingCommandRepositoryPortV1 } from "@/repository/meeting-command-repository-v1.js";
 describe("meeting identity command", () => {
     it("rejects an untrusted caller before repository execution", async () => {
         let executed = false;
@@ -11,7 +12,7 @@ describe("meeting identity command", () => {
                 executed = true;
                 throw new Error("must not execute");
             }
-        } as unknown as MeetingCommandRepositoryPortV1;
+        } as MeetingRepositoryPort<MeetingState>;
         const app = createMeetingIdentityApplicationV1({
             repository,
             definitions: [],
