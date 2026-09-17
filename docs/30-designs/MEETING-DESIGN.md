@@ -73,7 +73,7 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 | `close_contribution` | 作者；或可信 deadline handler | 目标仍非终态；作者只可 withdrawn，handler 只可在可信期限到达后 submission_missing/timed_out | 设置确定 exit reason/status；输入校验失败不自动退出 | 未送达审核不能据沉默 timed_out；未审版本不能正常公开 |
 | `publish_round` | Manager | `isRoundClosable` 为真；每个接纳 Contribution 已有合法终态；每个登记 current version 有最终 Review 及 sent delivery | 单一 Publication、FormalMessage 批次、Round published、refresh/Markdown effect | 任一未满足即 `ROUND_NOT_CLOSABLE`；没有局部发布 |
 
-Round 的 `aborted` 由 Captain 或 loopback local controller 在不能继续时设置，必须给出原因并原子关闭所有未终态 Contribution、移除 pending hands 与派生消息预留；它不产生 Publication。已登记 Evidence/Review/ReviewDelivery 作为非公开审计事实保留。Meeting 仍为 running 且预算允许时可重新规划开轮；预算耗尽时只能暂停或结束。
+Round 的 `aborted` 只由 Captain 或 loopback local controller 在 running lifecycle 且不能继续时设置，必须给出原因并原子关闭所有未终态 Contribution、移除 pending hands 与派生消息预留；它不产生 Publication，也不改变 lifecycle。paused、preparing、converging 或 ending 时拒绝且不得隐式恢复。已登记 Evidence/Review/ReviewDelivery 作为非公开审计事实保留。Meeting 保持 running 且预算允许时可重新规划开轮；预算耗尽时只能暂停或结束。
 
 ### Proposal, decision, risk and completion
 

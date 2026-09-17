@@ -53,7 +53,7 @@ type MeetingActionV1 =
 ### Lifecycle, agenda and planning
 
 ```ts
-interface CreateMeeting { kind: "create_meeting"; objective: ObjectiveInput; identities: InitialIdentityInput[]; evidenceReviewerIdentityKey: OpaqueId; initialAgenda: InitialAgendaInput[]; initialActiveAgendaId: OpaqueId; limits: MeetingLimitsInput; continuation?: ContinuationInput }
+interface CreateMeeting { kind: "create_meeting"; objective: ObjectiveInput; identities: InitialIdentityInput[]; managerIdentityKey: OpaqueId; evidenceReviewerIdentityKey: OpaqueId; initialAgenda: InitialAgendaInput[]; initialActiveAgendaId: OpaqueId; limits: MeetingLimitsInput; continuation?: ContinuationInput }
 interface PauseMeeting { kind: "pause_meeting"; reason: string }
 interface ResumeMeeting { kind: "resume_meeting"; reason: string }
 interface EndMeeting {
@@ -138,7 +138,7 @@ Meeting 的 `evidenceReviewerId` 指向唯一专职 evidence_reviewer identity�
 
 已接纳但还没有登记证据的 Contribution 的准备期限为 acceptedAt + limits.taskDeadlineMs，并与存在的 Round.deadlineAt、该作者同 Agenda 未结束 MeetingTask.deadlineAt 取最早值；期限到达后可信 deadline handler 才能记录 submission_missing，绝不造空包。当前版审核或 ReviewDelivery 尚未成功时，不能据作者沉默记录 timed_out 或正常 PublishRound；reviewDeadlineMs 到达须报告未审/未送达包并交由后续异常轮次处置，不把该包视为最终已审。
 
-`AbortRound` 只允许 Captain identity 或 loopback local controller 对 open Round 执行并提供非空 reason。它原子把全部未终态 Contribution 关闭为 aborted exit、移除该 Round 的 pending hand raises 和消息预算预留、把 Round 置 `aborted`，不创建 Publication/FormalMessage；已登记 EvidenceVersion、Review、ReviewDelivery 保留为非公开审计事实。Meeting 仍为 running 且预算允许时可再开 Round；预算已耗尽时 `OpenRound` 拒绝，只能 pause 或按明确 outcome end。
+`AbortRound` 只允许 Captain identity 或 loopback local controller 在 `running` Meeting 对 open Round 执行并提供非空 reason；`preparing|paused|converging|ending` 返回 `INVALID_STATE`，`terminal|archiving|archived` 返回 `MEETING_TERMINAL`，不得隐式 resume 或改变原 lifecycle。成功时原子把全部未终态 Contribution 关闭为 aborted exit、移除该 Round 的 pending hand raises 和消息预算预留、把 Round 置 `aborted`，不创建 Publication/FormalMessage；已登记 EvidenceVersion、Review、ReviewDelivery 保留为非公开审计事实。Meeting 保持 running 且预算允许时可再开 Round；预算已耗尽时 `OpenRound` 拒绝，只能 pause 或按明确 outcome end。
 
 `MaterialInput.originator`、`originalSource`、`sourcePublishedAt`、`acquiredAt`、`version`、`locator`、`location`、`verificationConditions`、`limitations` 均须非空；sourcePublishedAt/acquiredAt 不适用或无法获知时填写“未知”或“不适用”并给出非空 reason，不得删字段或代填时间。原始作者/机构不明时 originator=“未知”且给出 reason。Runtime 只做上述确定性校验；来源真实性、可访问性、完整性和观点支撑由 evidence reviewer 评价。
 
@@ -216,7 +216,7 @@ interface ContinuationInput { sourceArchiveId: OpaqueId; selectedMaterialIds: Op
 
 IDs and identityKey values supplied during creation must be locally unique and all references validate before Runtime allocates Meeting ID or identity IDs. Runtime fixes `responseDeadlineMs` to 60000; clients cannot configure it.
 
-`InitialIdentityInput.agendaResponsibilityIds` 的元素是本 Meeting 的 `AgendaItem.id`；`InitialAgendaInput.ownerIdentityKey` 和 `CreateMeeting.evidenceReviewerIdentityKey` 引用同一请求中的 `InitialIdentityInput.identityKey`。Runtime 完整验证后在同一创建事务中分配正式 identity ID 并重写这些引用，不得从 displayName、Definition ID、自然语言或数组位置推断。evidenceReviewerIdentityKey 必须精确命中一个 roles=`["evidence_reviewer"]` 的专职身份；其他身份不得包含该 role。
+`InitialIdentityInput.agendaResponsibilityIds` 的元素是本 Meeting 的 `AgendaItem.id`；`InitialAgendaInput.ownerIdentityKey`、`CreateMeeting.managerIdentityKey` 和 `CreateMeeting.evidenceReviewerIdentityKey` 引用同一请求中的 `InitialIdentityInput.identityKey`。Runtime 完整验证后在同一创建事务中分配正式 identity ID 并重写这些引用，不得从 displayName、Definition ID、自然语言或数组位置推断。managerIdentityKey 必须精确命中唯一 roles=`["manager"]` 的专职身份，evidenceReviewerIdentityKey 必须精确命中唯一 roles=`["evidence_reviewer"]` 的专职身份，其他身份不得包含这两个 role；两 key 缺失、相同、未命中、重复角色或角色不匹配均返回 `INVALID_ARGUMENT` 且不创建 Meeting。身份选择了 Definition 时，Manager 只接受 `meeting_manager`，reviewer 只接受 `verification_reviewer`；Definition role 不匹配或 preflight 失败返回 `PRECONDITION_FAILED`，不分配 Meeting/identity ID，不创建 Session 或持久事实。
 
 `dispose_agenda_candidate` 的 promoted 分支须在同一转换中将 pending candidate 标 promoted 并 append 完整 pending Agenda；`AgendaInput.ownerId` 若存在必须直接引用已存在 Meeting identity。任一引用失败须整条拒绝，不提交半个 Agenda 或 candidate 状态；不授予新 role、不改变全局 evidenceReviewerId 或当前 active Agenda。park/reject 不改变身份责任。
 

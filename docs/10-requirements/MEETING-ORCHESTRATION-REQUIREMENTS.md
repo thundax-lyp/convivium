@@ -48,7 +48,7 @@
 3. 不同会议、不同身份或不同授权范围不得共享同一个 Session 状态。
 4. 主持身份不得伪装成普通参与者，也不得以参与者名义形成正式发言或立场。
 5. 同一个底层 Agent 承担多个会议身份时，各身份必须保持可区分、可审计。
-6. 创建会议时，调用方必须为每个初始身份提供会议内唯一 `identityKey`，并能够定义参与者、风险权限、议题责任和必需参与关系；Meeting Runtime 完整验证引用后才原子分配正式 identity ID，不得从 displayName、Definition ID 或数组位置推断。每场会议还必须通过一个 `identityKey` 指定唯一专职 `evidence_reviewer`；该身份不能兼任 Captain、Manager 或 Contributor。无效或相互矛盾的配置不得产生部分可用的会议。
+6. 创建会议时，调用方必须为每个初始身份提供会议内唯一 `identityKey`，并能够定义参与者、风险权限、议题责任和必需参与关系；Meeting Runtime 完整验证引用后才原子分配正式 identity ID，不得从 displayName、Definition ID 或数组位置推断。每场会议还必须分别通过一个 `identityKey` 指定唯一专职 `manager` 和唯一专职 `evidence_reviewer`；两者均不能兼任 Captain 或 Contributor，且不能互相兼任。选择 Definition 时，Manager 必须绑定 `meeting_manager`，reviewer 必须绑定 `verification_reviewer`。无效或相互矛盾的配置不得产生部分可用的会议。
 7. 新建会议的目标、议题、提案和验收条件必须从明确的未完成初始状态开始，不得在创建时被预先标记为已接受、已满足或已解决。
 8. 每场会议必须具有稳定且唯一的身份，其数据和会议专用 Session 不得与其他会议混淆。
 
