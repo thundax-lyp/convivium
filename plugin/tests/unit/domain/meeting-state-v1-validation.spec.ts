@@ -803,6 +803,52 @@ function evidenceState() {
     };
 }
 describe("Evidence and decision chain", () => {
+    it("rejects a Review submitted by its Evidence author", () => {
+        const { state, review } = evidenceState();
+        invalidAt(
+            {
+                ...state,
+                identities: state.identities.map((identity) =>
+                    identity.id === "manager-1"
+                        ? {
+                              ...identity,
+                              roles: ["manager", "evidence_reviewer"],
+                              reviewResponsibilityIds: ["agenda-1"]
+                          }
+                        : identity.id === "reviewer-1"
+                          ? { ...identity, reviewResponsibilityIds: [] }
+                          : identity
+                ),
+                agenda: [{ ...state.agenda[0], requiredReviewerIds: ["manager-1"] }],
+                reviews: [{ ...review, reviewerId: "manager-1" }]
+            },
+            "$.reviews[0].reviewerId"
+        );
+    });
+
+    it("requires EvidenceVersion ordinals to start at one and remain contiguous", () => {
+        const { state, pkg, version } = evidenceState();
+        invalidAt(
+            {
+                ...state,
+                evidencePackages: [{ ...pkg, versions: [{ ...version, ordinal: 2 }] }]
+            },
+            "$.evidencePackages[0].versions[0].ordinal"
+        );
+        invalidAt(
+            {
+                ...state,
+                evidencePackages: [
+                    {
+                        ...pkg,
+                        versions: [version, { ...version, id: "version-2", ordinal: 3 }]
+                    }
+                ]
+            },
+            "$.evidencePackages[0].versions[1].ordinal"
+        );
+    });
+
     it("accepts the ordered evidence and publication chain", () => {
         const {
             round,
@@ -1000,6 +1046,24 @@ describe("Evidence and decision chain", () => {
             materialIds: ["material-2"],
             qualification: "x"
         };
+        invalidAt(
+            {
+                ...state,
+                evidencePackages: [
+                    {
+                        ...pkg,
+                        versions: [
+                            {
+                                ...version,
+                                materials: [material],
+                                claims: [{ ...claim, materialIds: [] }]
+                            }
+                        ]
+                    }
+                ]
+            },
+            "$.evidencePackages[0].versions[0].claims[0].materialIds"
+        );
         invalidAt(
             {
                 ...state,

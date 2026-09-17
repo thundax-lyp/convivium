@@ -314,7 +314,7 @@ const contributionSchema = z
 const claimSchema = z.object({
     id: opaqueIdSchema,
     statement: textSchema,
-    materialIds: uniqueIdArraySchema,
+    materialIds: uniqueIdArraySchema.min(1),
     qualification: textSchema
 });
 const materialSchema = z
@@ -866,6 +866,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             const v = r.versions[j];
             const vp = `${path}.versions[${j}]`;
             const vr = v;
+            if (vr.ordinal !== j + 1) return fail(`${vp}.ordinal`);
             const materialIds = new Set<string>();
             for (const material of vr.materials) {
                 materialIds.add(material.id);
@@ -928,6 +929,8 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const reviewer = identityById.get(r.reviewerId as string);
         if (!reviewer || !reviewer.roles.includes("evidence_reviewer"))
             return fail(`${path}.reviewerId`);
+        const owner = versionOwnerById.get(r.versionId);
+        if (owner?.authorId === r.reviewerId) return fail(`${path}.reviewerId`);
     }
     for (let i = 0; i < contributions.length; i++) {
         const hand = (contributions[i] as RecordValue).supplementHand as RecordValue | undefined;
