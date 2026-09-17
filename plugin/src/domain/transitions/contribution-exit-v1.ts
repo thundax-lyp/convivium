@@ -51,9 +51,6 @@ export function closeContributionV1(state: MeetingState, input: Input): MeetingT
                       supplementHand: undefined
                   }
                 : candidate
-        ),
-        formatApprovals: state.formatApprovals.filter(
-            (approval) => approval.contributionId !== contribution.id
         )
     };
     return { kind: "accepted", state: next, relatedIds: [contribution.id], effectRequests: [] };

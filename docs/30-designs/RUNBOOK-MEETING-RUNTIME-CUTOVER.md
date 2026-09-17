@@ -184,27 +184,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T7b：移除 Contribution exit 的 FormatApproval 依赖
-
-前置状态：T7a PASS。
-
-允许修改：`plugin/src/domain/transitions/contribution-exit-v1.ts`、`plugin/tests/unit/domain/contribution-exit-v1.spec.ts`。
-
-禁止修改：canonical state/type、其他 transition、protocol、runtime、fixture。
-
-执行：Contribution exit 只收口 Contribution/Evidence 当前业务状态，不再筛选、删除或生成 `formatApprovals`。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/domain/contribution-exit-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-test -z "$(rg -n 'formatApprovals|FormatApprovalV1' plugin/src/domain/transitions/contribution-exit-v1.ts || true)"
-```
-
-PASS：各 exit 分支仍保持原子性；production transition 无 FormatApproval 依赖。
-
-STOP：退出语义仍要求 Manager 审批草稿。
-
 ### T7c：统一纯 Domain action 与公开入口
 
 前置状态：T7b PASS。
