@@ -174,6 +174,10 @@ export interface MeetingBootstrap {
 }
 
 export interface SessionOwnership {
+    id?: string;
+    meetingId?: string;
+    identityId?: string;
+    lastClosureFailureCode?: string;
     agentDefinition?: AgentDefinitionBindingV1;
     sessionId: string;
     parentSessionId: string;
@@ -181,7 +185,7 @@ export interface SessionOwnership {
     provider: string;
     initialMessageId?: string;
     supersededBySessionId?: string;
-    role: "manager" | "participant";
+    role: "manager" | "evidence_reviewer" | "participant";
     participantId?: string;
     lifecycleStatus: "provisioning" | "active" | "closed";
     capabilityStatus: "active" | "revoked";
@@ -190,6 +194,9 @@ export interface SessionOwnership {
 }
 
 export interface SessionOwnershipInput {
+    id?: string;
+    meetingId?: string;
+    identityId?: string;
     agentDefinition?: AgentDefinitionBindingV1;
     sessionId: string;
     parentSessionId: string;
@@ -197,7 +204,7 @@ export interface SessionOwnershipInput {
     provider: string;
     initialMessageId?: string;
     supersededBySessionId?: string;
-    role: "manager" | "participant";
+    role: "manager" | "evidence_reviewer" | "participant";
     participantId?: string;
     lifecycleStatus: SessionOwnership["lifecycleStatus"];
     capabilityStatus: SessionOwnership["capabilityStatus"];

@@ -2,6 +2,7 @@ import { CaptainAttendanceDispositionResultSchema } from "@/protocol/index.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { describe, expect, it, vi } from "vitest";
+import { resolveMeetingCaller, type MeetingOwnershipRecord } from "@/dsh/index.js";
 import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "@/tools/index.js";
 
 const unauthorizedCommands: Record<string, unknown> = {
@@ -675,6 +676,82 @@ describe("meeting create and status tool registration", () => {
 });
 
 describe("meeting tool caller binding", () => {
+    const reviewerOwnership = (
+        overrides: Partial<MeetingOwnershipRecord> = {}
+    ): MeetingOwnershipRecord => ({
+        id: "ownership-1",
+        meetingId: "meeting-1",
+        identityId: "reviewer-1",
+        sessionId: "reviewer-session",
+        parentSessionId: "captain-session",
+        sessionLabel: "target-ownership-does-not-use-a-legacy-label",
+        provider: "spawn",
+        role: "evidence_reviewer",
+        lifecycleStatus: "active",
+        capabilityStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+        ...overrides
+    });
+
+    const resolveReviewer = (ownership: MeetingOwnershipRecord) =>
+        resolveMeetingCaller(
+            { id: "reviewer-session" } as Agent,
+            {
+                findBySessionId: async () => ({
+                    teamId: "team-1",
+                    meetingId: "meeting-1",
+                    ownership
+                })
+            },
+            new AbortController().signal
+        );
+
+    it.each(["id", "meetingId", "identityId"] as const)(
+        "rejects target reviewer ownership without %s",
+        async (field) => {
+            const ownership = reviewerOwnership();
+            Reflect.deleteProperty(ownership, field);
+
+            await expect(resolveReviewer(ownership)).resolves.toMatchObject({
+                ok: false,
+                code: "UNAUTHORIZED_CALLER"
+            });
+        }
+    );
+
+    it("resolves a target reviewer but keeps it out of legacy meeting tools", async () => {
+        const definitions: ToolDefinition[] = [];
+        const getStatus = vi.fn(() => {
+            throw new Error("legacy runtime must not receive a reviewer caller");
+        });
+        const resolved = await resolveReviewer(reviewerOwnership());
+        expect(resolved).toMatchObject({
+            kind: "evidence_reviewer",
+            meetingId: "meeting-1",
+            identityId: "reviewer-1"
+        });
+
+        registerCreateAndStatusTools({
+            registry: { register: (definition) => (definitions.push(definition), () => undefined) },
+            callers: { resolve: async () => resolved },
+            runtime: { getStatus } as never
+        });
+        const status = definitions.find(
+            (definition) => definition.name === "convivium_meeting_status"
+        );
+        const outcome = await status?.execute(
+            { input: { protocolVersion: 1, meetingId: "meeting-1" } },
+            {
+                agent: { id: "reviewer-session" } as Agent,
+                signal: new AbortController().signal
+            } as ToolRunContext
+        );
+
+        expect(outcome).toMatchObject({ ok: false, code: "UNAUTHORIZED_CALLER" });
+        expect(getStatus).not.toHaveBeenCalled();
+    });
+
     it("rejects calls without an Agent before invoking the runtime", async () => {
         const definitions: ToolDefinition[] = [];
         let runtimeCalls = 0;

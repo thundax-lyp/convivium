@@ -178,28 +178,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T10a：扩展 target Session ownership seam
-
-前置状态：T9 PASS。
-
-允许修改：`plugin/src/repository/types.ts`、`plugin/src/repository/domain/schemas.ts`、`plugin/src/dsh/caller-resolver.ts`、`plugin/src/dsh/session-ownership.ts`、`plugin/tests/unit/dsh/caller-resolver.spec.ts`、`plugin/tests/unit/runtime/archive-ownership.spec.ts`。
-
-禁止修改：repository port/core/projection/recovery、runtime、Session label/adapter。
-
-执行：在现有唯一 `SessionOwnership` 增加 optional `id:string`、`meetingId:string`、`identityId:string`、`lastClosureFailureCode:string`，并把 role 扩为 `manager|evidence_reviewer|participant`；现有 `participantId` 暂时保留为 legacy-only optional 字段，T14b 之后的 target writer 不写、T13/T17 target path 不读，readiness 将其登记为随保留 legacy runtime 后续删除。四个新增字段在此步 optional 仅为使 T23-T29 尚未删除的旧 application 编译；T11 对 target archive command、T13 对 target caller、T14c 对新 ownership 分别强制其 required，不得把缺字段旧记录当成 target ownership。
-
-`SessionOwnershipInput` 同步接受三个 optional target identity 字段但不接受 `lastClosureFailureCode`。caller resolver 的 target 成功结果新增 `identityId` 和 `kind:"manager"|"evidence_reviewer"|"participant"`；只有三个 target identity 字段都存在、meetingId 与 repository scope 相同、ownership active 且 capability active 才返回 target caller，旧 participantId 分支仅供尚未删除的 legacy consumer。`session-ownership.ts` 的结构类型与检查接受 reviewer role，但本步不发明 reviewer label；T14b 负责唯一 label/adapter 改动。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/dsh/caller-resolver.spec.ts tests/unit/runtime/archive-ownership.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：target ownership identity 缺一即 fail closed；reviewer role 可类型化；既有 legacy consumer 仍编译且 target path 不读取 participantId。
-
-STOP：必须建立第二 ownership record、把旧 participantId 当 target identity，或需要修改本步之外文件。
-
 ### T10b：将 repository snapshot/port 类型化
 
 前置状态：T10a PASS。

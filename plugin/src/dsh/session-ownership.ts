@@ -131,7 +131,7 @@ export interface OwnedSessionObservation {
     readonly sessionLabel: string;
     readonly provider: string;
     readonly initialMessageId?: string;
-    readonly role: "manager" | "participant";
+    readonly role: MeetingOwnershipRecord["role"];
     readonly participantId?: string;
     readonly lifecycleStatus: MeetingOwnershipRecord["lifecycleStatus"];
     readonly capabilityStatus: MeetingOwnershipRecord["capabilityStatus"];

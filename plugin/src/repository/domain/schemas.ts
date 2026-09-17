@@ -65,6 +65,10 @@ export const AgentDefinitionBindingSchema = z.strictObject({
 
 const sessionOwnership = z
     .object({
+        id: z.string().optional(),
+        meetingId: z.string().optional(),
+        identityId: z.string().optional(),
+        lastClosureFailureCode: z.string().optional(),
         agentDefinition: AgentDefinitionBindingSchema.optional(),
         sessionId: z.string(),
         parentSessionId: z.string(),
@@ -72,7 +76,7 @@ const sessionOwnership = z
         provider: z.string(),
         initialMessageId: z.string().optional(),
         supersededBySessionId: z.string().min(1).optional(),
-        role: z.enum(["manager", "participant"]),
+        role: z.enum(["manager", "evidence_reviewer", "participant"]),
         participantId: z.string().optional(),
         lifecycleStatus: z.enum(["provisioning", "active", "closed"]),
         capabilityStatus: z.enum(["active", "revoked"]),
@@ -93,6 +97,10 @@ const sessionOwnershipMap = safeRecord(sessionOwnership).superRefine((ownerships
             ownership.lifecycleStatus !== "closed" ||
             ownership.capabilityStatus !== "revoked" ||
             successor.sessionId !== successorId ||
+            successor.id !== ownership.id ||
+            successor.meetingId !== ownership.meetingId ||
+            successor.identityId !== ownership.identityId ||
+            successor.lastClosureFailureCode !== ownership.lastClosureFailureCode ||
             successor.parentSessionId !== ownership.parentSessionId ||
             successor.sessionLabel !== ownership.sessionLabel ||
             successor.provider !== ownership.provider ||
