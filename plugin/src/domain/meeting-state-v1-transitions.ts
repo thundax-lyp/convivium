@@ -595,6 +595,7 @@ export function transitionMeetingStateV1(
             ...state.issues,
             {
                 id: candidateId,
+                actorId: actor.id,
                 agendaId: action.agendaId,
                 description: action.description,
                 riskLevel: action.riskLevel,

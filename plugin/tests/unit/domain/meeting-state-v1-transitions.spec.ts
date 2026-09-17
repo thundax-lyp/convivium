@@ -337,6 +337,7 @@ function issueState(
     current.issues = [
         {
             id: "issue-1",
+            actorId: "manager-1",
             agendaId: "agenda-1",
             description: "risk",
             riskLevel: "high",
@@ -1224,6 +1225,7 @@ describe("meeting lifecycle transitions", () => {
         if (result.kind !== "accepted") return;
         expect(result.state.issues[0]).toEqual({
             id: `issue-${actor.id}`,
+            actorId: actor.id,
             agendaId: "agenda-1",
             description: "risk",
             riskLevel: "high",

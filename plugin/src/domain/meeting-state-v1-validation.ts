@@ -198,6 +198,7 @@ const questionSchema = z.object({
 });
 const issueSchema = z.object({
     id: opaqueIdSchema,
+    actorId: opaqueIdSchema,
     agendaId: opaqueIdSchema,
     description: textSchema,
     riskLevel: riskLevelSchema,
@@ -1178,6 +1179,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const item = issues[i];
         const path = `$.issues[${i}]`;
         issueIds.add(item.id);
+        if (!ref(item.actorId, identityIds)) return fail(`${path}.actorId`);
         if (!agendaIds.has(item.agendaId as string)) return fail(`${path}.agendaId`);
         const agenda = agendaById.get(item.agendaId)!;
         for (const key of [

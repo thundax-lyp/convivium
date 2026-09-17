@@ -127,6 +127,7 @@ export interface QuestionV1 {
 
 export interface IssueV1 {
     id: OpaqueId;
+    actorId: OpaqueId;
     agendaId: OpaqueId;
     description: string;
     riskLevel: RiskLevel;

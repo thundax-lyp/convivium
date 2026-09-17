@@ -241,6 +241,7 @@ describe("MeetingState structure", () => {
     it("checks required Issue references and Termination ID", () => {
         const issue = {
             id: "issue-1",
+            actorId: "manager-1",
             agendaId: "agenda-1",
             description: "x",
             riskLevel: "low",
@@ -256,6 +257,7 @@ describe("MeetingState structure", () => {
         const issueState = { ...base(), issues: [issue] };
         expect(validateMeetingStateV1(issueState)).toMatchObject({ kind: "valid" });
         for (const field of [
+            "actorId",
             "affectedOutputIds",
             "affectedCriterionIds",
             "affectedConstraintIds",
@@ -296,6 +298,7 @@ describe("MeetingState cross-object rules", () => {
     it("validates candidate, question, issue, and manager plan references", () => {
         const issue = {
             id: "issue-1",
+            actorId: "manager-1",
             agendaId: "agenda-1",
             description: "x",
             riskLevel: "low",
@@ -350,6 +353,7 @@ describe("MeetingState cross-object rules", () => {
             { ...state, questions: [{ ...question, actorId: "agenda-1" }] },
             "$.questions[0].actorId"
         );
+        invalidAt({ ...state, issues: [{ ...issue, actorId: "agenda-1" }] }, "$.issues[0].actorId");
         invalidAt(
             { ...state, issues: [{ ...issue, affectedOutputIds: ["criterion-1"] }] },
             "$.issues[0].affectedOutputIds[0]"
@@ -479,6 +483,7 @@ describe("MeetingState cross-object rules", () => {
     it("enforces issue blocking and accepted risk combinations", () => {
         const common = {
             id: "issue-1",
+            actorId: "manager-1",
             agendaId: "agenda-1",
             description: "x",
             riskLevel: "low",
@@ -1049,6 +1054,7 @@ describe("outcome history invariants", () => {
             state.issues = [
                 {
                     id: "issue-1",
+                    actorId: "manager-1",
                     agendaId: "agenda-1",
                     description: "risk",
                     riskLevel: "high",
@@ -1082,6 +1088,7 @@ describe("outcome history invariants", () => {
         state.issues = [
             {
                 id: "issue-1",
+                actorId: "manager-1",
                 agendaId: "agenda-1",
                 description: "risk",
                 riskLevel: "high",
@@ -1831,6 +1838,7 @@ function remainingEntityState() {
     const f = evidenceState();
     const issue = {
         id: "issue-1",
+        actorId: "manager-1",
         agendaId: "agenda-1",
         description: "x",
         riskLevel: "low",
