@@ -134,6 +134,32 @@ describe("hand raise transitions", () => {
         ]);
     });
 
+    it("rejects an accepted hand when all formal message slots are reserved", () => {
+        const raised = raiseHandV1(
+            { ...openState(), limits: { ...openState().limits, maxFormalMessages: 0 } },
+            {
+                roundId: "round-v1",
+                contributorId: "contributor-v1",
+                purpose: "提交证据",
+                now: 2
+            }
+        );
+        expect(raised.kind).toBe("accepted");
+        if (raised.kind !== "accepted") return;
+        const result = disposeHandRaiseV1(raised.state, {
+            roundId: "round-v1",
+            contributorId: "contributor-v1",
+            managerId: "manager-v1",
+            disposition: "accepted",
+            reason: "接纳",
+            contributionId: "contribution-v1",
+            now: 3
+        });
+        expect(result.kind).toBe("rejected");
+        if (result.kind === "rejected") expect(result.error.code).toBe("LIMIT_EXCEEDED");
+        expect(result.state).toBe(raised.state);
+    });
+
     it("rejects one hand while another contributor remains independently eligible", () => {
         const state = openState();
         const first = raiseHandV1(state, {

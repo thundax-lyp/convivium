@@ -1,5 +1,6 @@
 import type { FormalMessageV1, MeetingState, OpaqueId, PublicationV1 } from "@/domain/index.js";
 import { isRoundClosableV1 } from "./round-v1.js";
+import { isObjectiveSatisfiedV1 } from "./outcome-v1.js";
 import { rejectedTransitionV1 as reject, type MeetingTransitionResultV1 } from "./result-v1.js";
 type Input = {
     roundId: OpaqueId;
@@ -94,6 +95,9 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
         input.messageIds.some((id) => state.messages.some((message) => message.id === id))
     )
         return reject(state, "INVALID_ARGUMENT", "message id already exists");
+    const nextFormalMessageCount = state.messages.length + messages.length;
+    if (nextFormalMessageCount > state.limits.maxFormalMessages)
+        return reject(state, "PRECONDITION_FAILED", "publication exceeds message budget");
     const publication: PublicationV1 = {
         id: input.publicationId,
         roundId: round.id,
@@ -116,20 +120,39 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
                     (task.status === "open" || task.status === "claimed")
             )
     );
+    const nextState: MeetingState = {
+        ...state,
+        version: state.version + 1,
+        updatedAt: input.now,
+        rounds: state.rounds.map((candidate) =>
+            candidate.id === round.id
+                ? { ...candidate, status: "published", publicationId: publication.id }
+                : candidate
+        ),
+        publications: [...state.publications, publication],
+        messages: [...state.messages, ...messages]
+    };
+    const exhaustedState: MeetingState =
+        nextFormalMessageCount === state.limits.maxFormalMessages
+            ? {
+                  ...nextState,
+                  lifecycle: isObjectiveSatisfiedV1(nextState)
+                      ? {
+                            status: "converging",
+                            changedAt: input.now,
+                            changedBy: input.managerId
+                        }
+                      : {
+                            status: "paused",
+                            changedAt: input.now,
+                            changedBy: input.managerId,
+                            reason: "message budget exhausted"
+                        }
+              }
+            : nextState;
     return {
         kind: "accepted",
-        state: {
-            ...state,
-            version: state.version + 1,
-            updatedAt: input.now,
-            rounds: state.rounds.map((candidate) =>
-                candidate.id === round.id
-                    ? { ...candidate, status: "published", publicationId: publication.id }
-                    : candidate
-            ),
-            publications: [...state.publications, publication],
-            messages: [...state.messages, ...messages]
-        },
+        state: exhaustedState,
         relatedIds: [publication.id, ...input.messageIds],
         effectRequests: messages.flatMap((message) =>
             idleContributors.map((identity) => ({

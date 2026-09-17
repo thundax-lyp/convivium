@@ -164,26 +164,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T3：完成 Round、举手与消息预留
-
-前置状态：T2 PASS。
-
-允许修改：`plugin/src/domain/transitions/round-v1.ts`、`plugin/src/domain/transitions/hand-raise-v1.ts`、`plugin/src/domain/transitions/round-publication-v1.ts`、`plugin/tests/unit/domain/round-v1.spec.ts`、`plugin/tests/unit/domain/hand-raise-v1.spec.ts`、`plugin/tests/unit/domain/round-publication-v1.spec.ts`。
-
-禁止修改：Evidence/Review、identity、runtime。
-
-执行：完成 open、raise/dispose、预算预留、publish 后重算、budget exhausted pause 和 abort。
-
-验证：
-```bash
-pnpm --dir plugin vitest run tests/unit/domain/round-v1.spec.ts tests/unit/domain/hand-raise-v1.spec.ts tests/unit/domain/round-publication-v1.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：正常发布、abort、超限拒绝和恰好耗尽两个分支通过；无压缩或合并。
-
-STOP：需要摘要正文或提前释放 reservation。
-
 ### T4：停用 FormatApproval 并直接登记 Evidence
 
 前置状态：T3 PASS。

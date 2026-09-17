@@ -36,4 +36,102 @@ describe("round publication", () => {
         expect(duplicate.kind).toBe("rejected");
         expect(duplicate.kind === "rejected" && duplicate.error.code).toBe("ROUND_NOT_CLOSABLE");
     });
+
+    it("pauses when publication exactly exhausts the budget before completion", () => {
+        const state = makeRunningMeetingStateV1();
+        const opened = openRoundV1(
+            { ...state, limits: { ...state.limits, maxFormalMessages: 1 } },
+            {
+                roundId: "round-v1",
+                agendaId: "agenda-v1",
+                managerId: "manager-v1",
+                now: 1
+            }
+        );
+        expect(opened.kind).toBe("accepted");
+        if (opened.kind !== "accepted") return;
+        const result = publishRoundV1(
+            {
+                ...opened.state,
+                messages: [
+                    {
+                        id: "message-existing",
+                        seq: 1,
+                        actorId: "manager-v1",
+                        agendaId: "agenda-v1",
+                        kind: "manager_summary",
+                        body: "existing",
+                        publicationId: "publication-existing",
+                        relatedIds: [],
+                        createdAt: 1
+                    }
+                ]
+            },
+            {
+                roundId: "round-v1",
+                managerId: "manager-v1",
+                publicationId: "publication-v1",
+                messageIds: [],
+                now: 2
+            }
+        );
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.lifecycle).toMatchObject({
+            status: "paused",
+            reason: "message budget exhausted"
+        });
+    });
+
+    it("converges when publication exactly exhausts the budget after completion", () => {
+        const state = makeRunningMeetingStateV1();
+        const opened = openRoundV1(
+            {
+                ...state,
+                objective: {
+                    ...state.objective,
+                    requiredOutputs: [],
+                    acceptanceCriteria: [],
+                    hardConstraints: []
+                },
+                limits: { ...state.limits, maxFormalMessages: 1 }
+            },
+            {
+                roundId: "round-v1",
+                agendaId: "agenda-v1",
+                managerId: "manager-v1",
+                now: 1
+            }
+        );
+        expect(opened.kind).toBe("accepted");
+        if (opened.kind !== "accepted") return;
+        const result = publishRoundV1(
+            {
+                ...opened.state,
+                messages: [
+                    {
+                        id: "message-existing",
+                        seq: 1,
+                        actorId: "manager-v1",
+                        agendaId: "agenda-v1",
+                        kind: "manager_summary",
+                        body: "existing",
+                        publicationId: "publication-existing",
+                        relatedIds: [],
+                        createdAt: 1
+                    }
+                ]
+            },
+            {
+                roundId: "round-v1",
+                managerId: "manager-v1",
+                publicationId: "publication-v1",
+                messageIds: [],
+                now: 2
+            }
+        );
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.lifecycle.status).toBe("converging");
+    });
 });
