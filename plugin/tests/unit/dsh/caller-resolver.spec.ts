@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import {
     resolveMeetingCaller,
+    resolveMeetingCallerV1,
     type MeetingOwnershipLookup,
+    type MeetingOwnershipLookupV1,
     type MeetingOwnershipRecord
 } from "@/dsh/caller-resolver.js";
 
@@ -115,5 +117,66 @@ describe("meeting caller resolver", () => {
             new AbortController().signal
         );
         expect(result).toMatchObject({ code: "UNAUTHORIZED_CALLER", retryable: false });
+    });
+});
+
+function targetLookup(
+    value: Awaited<ReturnType<MeetingOwnershipLookupV1["findBySessionId"]>>
+): MeetingOwnershipLookupV1 {
+    return {
+        findBySessionId: async (sessionId) =>
+            value?.ownership.sessionId === sessionId ? value : undefined
+    };
+}
+
+describe("target Meeting caller resolver", () => {
+    const target = ownership({
+        id: "ownership-1",
+        meetingId: "meeting-1",
+        identityId: "identity-1",
+        sessionLabel: "convivium:meeting-identity:participant:meeting-1:identity-1"
+    });
+
+    it("binds the tool caller only from an active target ownership", async () => {
+        const result = await resolveMeetingCallerV1(
+            agent("participant-session"),
+            targetLookup({ meetingId: "meeting-1", ownership: target }),
+            new AbortController().signal
+        );
+        expect(result).toEqual({
+            caller: {
+                channel: "dsh_tool",
+                principalId: "identity-1",
+                sessionBindingId: "ownership-1"
+            },
+            meetingId: "meeting-1",
+            identityId: "identity-1",
+            role: "participant",
+            ownership: target
+        });
+        expect(result).not.toHaveProperty("teamId");
+        expect(result).not.toHaveProperty("participantId");
+    });
+
+    it.each([
+        ["cross Meeting", { meetingId: "meeting-2" }],
+        ["cross identity", { identityId: "identity-2" }],
+        ["closed", { lifecycleStatus: "closed" as const }],
+        ["revoked", { capabilityStatus: "revoked" as const }],
+        [
+            "label mismatch",
+            { sessionLabel: "convivium:meeting-identity:manager:meeting-1:identity-1" }
+        ],
+        ["child mismatch", { sessionId: "other-session" }]
+    ])("fails closed for %s ownership", async (_name, overrides) => {
+        const changed = { ...target, ...overrides };
+        const result = await resolveMeetingCallerV1(
+            agent("participant-session"),
+            {
+                findBySessionId: async () => ({ meetingId: "meeting-1", ownership: changed })
+            },
+            new AbortController().signal
+        );
+        expect(result).toBeUndefined();
     });
 });

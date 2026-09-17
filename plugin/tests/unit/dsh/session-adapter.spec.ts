@@ -6,9 +6,71 @@ import {
     inspectOwnedSessions,
     interruptAndDrainOwnedSessions,
     proveArchiveOwnedChildren,
+    startMeetingIdentitySessionV1,
     startManagerSession,
     startParticipantSession
 } from "@/dsh/session-adapter.js";
+
+describe("target Meeting identity Session provisioning", () => {
+    it.each(["manager", "evidence_reviewer", "participant"] as const)(
+        "starts the %s child with only target identity fields",
+        async (role) => {
+            let received: unknown;
+            const result = await startMeetingIdentitySessionV1({
+                runtime: {
+                    startContinuable: async (spec) => {
+                        received = spec;
+                        return { childId: spec.childId!, messageId: "message-v1" as never };
+                    }
+                },
+                provider: "spawn",
+                parent: { id: "captain-1" } as never,
+                childId: `${role}-child` as never,
+                role,
+                meetingId: "meeting-1",
+                identityId: `${role}-identity`,
+                signal: new AbortController().signal
+            });
+
+            expect(result.childId).toBe(`${role}-child`);
+            expect(received).toMatchObject({
+                provider: "spawn",
+                childId: `${role}-child`,
+                label: `convivium:meeting-identity:${role}:meeting-1:${role}-identity`
+            });
+            const spec = received as { request: { prompt: Array<{ text: string }> } };
+            const envelope = JSON.parse(spec.request.prompt[0]!.text);
+            expect(envelope).toMatchObject({
+                kind: "convivium.meeting-identity.provisioning",
+                role,
+                meetingId: "meeting-1",
+                identityId: `${role}-identity`
+            });
+            expect(envelope).not.toHaveProperty("teamId");
+            expect(envelope).not.toHaveProperty("participantId");
+        }
+    );
+
+    it("rejects a child identity that differs from the reservation", async () => {
+        await expect(
+            startMeetingIdentitySessionV1({
+                runtime: {
+                    startContinuable: async () => ({
+                        childId: "other" as never,
+                        messageId: "message-v1" as never
+                    })
+                },
+                provider: "spawn",
+                parent: { id: "captain-1" } as never,
+                childId: "participant-child" as never,
+                role: "participant",
+                meetingId: "meeting-1",
+                identityId: "participant-identity",
+                signal: new AbortController().signal
+            })
+        ).rejects.toThrow(/different from ownership/);
+    });
+});
 
 const participantOwnership = (overrides = {}) => ({
     sessionId: "participant-session",

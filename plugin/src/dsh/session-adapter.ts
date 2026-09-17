@@ -8,9 +8,15 @@ import type {
 } from "@deepseek-ai/dsh-subagent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { MeetingOwnershipRecord } from "./caller-resolver.js";
-import { encodeMeetingSessionLabel } from "./labels.js";
 import {
+    encodeMeetingIdentitySessionLabelV1,
+    encodeMeetingSessionLabel,
+    type MeetingIdentitySessionLabelV1
+} from "./labels.js";
+import {
+    createMeetingIdentityProvisioningEnvelopeV1,
     createSessionProvisioningEnvelope,
+    serializeMeetingIdentityProvisioningEnvelopeV1,
     serializeSessionProvisioningEnvelope
 } from "./provisioning.js";
 
@@ -37,6 +43,66 @@ export function requireContinuableProvider(
         );
     }
     return provider;
+}
+
+export interface StartMeetingIdentitySessionInputV1 {
+    readonly composition?: {
+        readonly persona: string;
+        readonly toolFilter?: ToolRestriction;
+        readonly agentOptions?: Pick<AgentOptions, "provider" | "model" | "reasoningEffort">;
+    };
+    readonly runtime: Pick<SubagentRuntime, "startContinuable">;
+    readonly provider: string;
+    readonly parent: Agent;
+    readonly childId: SessionId;
+    readonly role: MeetingIdentitySessionLabelV1["role"];
+    readonly meetingId: string;
+    readonly identityId: string;
+    readonly signal: AbortSignal;
+}
+
+export async function startMeetingIdentitySessionV1(
+    input: StartMeetingIdentitySessionInputV1
+): Promise<ContinuableStart> {
+    const identity = {
+        role: input.role,
+        meetingId: input.meetingId,
+        identityId: input.identityId
+    };
+    const prompt: ContinuableStartSpec["request"]["prompt"] = [
+        {
+            type: "text",
+            text: serializeMeetingIdentityProvisioningEnvelopeV1(
+                createMeetingIdentityProvisioningEnvelopeV1(identity)
+            )
+        }
+    ];
+    const started = await input.runtime.startContinuable({
+        provider: input.provider,
+        label: encodeMeetingIdentitySessionLabelV1(identity),
+        childId: input.childId,
+        request: {
+            parent: input.parent,
+            prompt,
+            ...(input.composition === undefined
+                ? {}
+                : {
+                      persona: input.composition.persona,
+                      ...(input.composition.toolFilter === undefined
+                          ? {}
+                          : { toolFilter: structuredClone(input.composition.toolFilter) }),
+                      ...(input.composition.agentOptions === undefined
+                          ? {}
+                          : { agentOptions: structuredClone(input.composition.agentOptions) })
+                  })
+        },
+        signal: input.signal
+    });
+    if (started.childId !== input.childId)
+        throw new Error(
+            "Continuable provider returned a Meeting identity childId different from ownership."
+        );
+    return started;
 }
 
 export interface StartManagerSessionInput {

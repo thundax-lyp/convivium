@@ -3,6 +3,7 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 
 import type { ProtocolErrorV1 } from "@/protocol/index.js";
 import { decodeMeetingSessionLabel } from "./labels.js";
+import { isActiveMeetingIdentityOwnershipV1 } from "./session-ownership.js";
 
 export interface ResolvedMeetingCaller {
     readonly kind: "manager" | "evidence_reviewer" | "participant";
@@ -51,6 +52,62 @@ export interface MeetingOwnershipLookup {
           }
         | undefined
     >;
+}
+
+export interface MeetingOwnershipLookupV1 {
+    findBySessionId(
+        sessionId: string,
+        signal: AbortSignal
+    ): Promise<
+        | {
+              readonly meetingId: string;
+              readonly ownership: MeetingOwnershipRecord;
+          }
+        | undefined
+    >;
+}
+
+export interface ResolvedMeetingCallerV1 {
+    readonly caller: {
+        readonly channel: "dsh_tool";
+        readonly principalId: string;
+        readonly sessionBindingId: string;
+    };
+    readonly meetingId: string;
+    readonly identityId: string;
+    readonly role: MeetingOwnershipRecord["role"];
+    readonly ownership: MeetingOwnershipRecord;
+}
+
+export async function resolveMeetingCallerV1(
+    agent: Agent,
+    lookup: MeetingOwnershipLookupV1,
+    signal: AbortSignal
+): Promise<ResolvedMeetingCallerV1 | undefined> {
+    const sessionId = sessionIdOf(agent);
+    const found = await lookup.findBySessionId(sessionId, signal);
+    if (
+        !found ||
+        !isActiveMeetingIdentityOwnershipV1({
+            ownership: found.ownership,
+            meetingId: found.meetingId,
+            sessionId
+        })
+    )
+        return undefined;
+    const ownershipId = found.ownership.id!;
+    const identityId = found.ownership.identityId!;
+    return {
+        caller: {
+            channel: "dsh_tool",
+            principalId: identityId,
+            sessionBindingId: ownershipId
+        },
+        meetingId: found.meetingId,
+        identityId,
+        role: found.ownership.role,
+        ownership: found.ownership
+    };
 }
 
 function unauthorized(message: string): ProtocolErrorV1 {

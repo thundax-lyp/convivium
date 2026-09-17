@@ -185,26 +185,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T14b2：建立 target caller 与 child Session adapter
-
-前置状态：T14b PASS。
-
-允许修改：`plugin/src/dsh/session-adapter.ts`、`plugin/src/dsh/caller-resolver.ts`、`plugin/src/dsh/session-ownership.ts`、`plugin/src/dsh/index.ts`、`plugin/tests/unit/dsh/session-adapter.spec.ts`、`plugin/tests/unit/dsh/caller-resolver.spec.ts`。
-
-禁止修改：label/provisioning codec、runtime/plugin lifecycle、identity recommendation、review workers、Remote/UI、role resources。
-
-执行：新增唯一 target `startMeetingIdentitySessionV1(input)`，input 在现有 runtime/provider/parent/child/meeting/signal/composition 外 required `role` 与 `identityId`；只调用 T14b target label/envelope，returned childId 必须与 input 精确匹配。`resolveMeetingCallerV1` 实现 T13 resolver 的 `dsh_tool` 分支：只接受 target label 与带 required `id/meetingId/identityId` 的 active ownership，返回 `{caller:{channel:"dsh_tool",principalId:identityId,sessionBindingId:ownership.id},meetingId,identityId,role,ownership}`；不返回或读取 teamId/participantId。`session-ownership.ts` 的 target 校验只比较 meetingId/identityId/role/sessionId/label/active capability。为使明确保留的 legacy tests 编译，旧 adapter/resolver export 可暂留但 target public entrypoint 与 T19 tools 只能引用 `*V1`；不得让 target 函数调用旧函数。one-shot reviewer workers 不使用此 adapter。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/dsh/session-adapter.spec.ts tests/unit/dsh/caller-resolver.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：三种 target child 共用无 teamId 的 adapter；caller binding 只来自可证 ownership，跨 Meeting/identity、closed/revoked、label/childId mismatch 全部 fail closed。
-
-STOP：需要共享 child Session、legacy participant caller、team namespace 或修改 DSH provider 语义。
-
 ### T14c：接入创建与 plugin lifecycle
 
 前置状态：T14b2 PASS。

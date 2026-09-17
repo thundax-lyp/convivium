@@ -2,7 +2,28 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { MeetingOwnershipRecord } from "./caller-resolver.js";
-import { decodeMeetingSessionLabel } from "./labels.js";
+import { decodeMeetingIdentitySessionLabelV1, decodeMeetingSessionLabel } from "./labels.js";
+
+export function isActiveMeetingIdentityOwnershipV1(input: {
+    readonly ownership: MeetingOwnershipRecord;
+    readonly meetingId: string;
+    readonly sessionId: string;
+}): boolean {
+    const { ownership } = input;
+    const label = decodeMeetingIdentitySessionLabelV1(ownership.sessionLabel);
+    return (
+        label !== undefined &&
+        ownership.id !== undefined &&
+        ownership.meetingId === input.meetingId &&
+        ownership.identityId !== undefined &&
+        ownership.sessionId === input.sessionId &&
+        ownership.role === label.role &&
+        ownership.meetingId === label.meetingId &&
+        ownership.identityId === label.identityId &&
+        ownership.lifecycleStatus === "active" &&
+        ownership.capabilityStatus === "active"
+    );
+}
 
 export interface InterruptAndDrainOwnedSessionsInput {
     readonly runtime: Pick<SubagentRuntime, "interrupt" | "drainContinuableChildren">;
