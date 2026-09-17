@@ -25,6 +25,15 @@ function state(status: MeetingState["lifecycle"]["status"] = "running"): Meeting
                 reviewResponsibilityIds: [],
                 riskAuthority: false,
                 required: false
+            },
+            {
+                id: "reviewer-1",
+                displayName: "Reviewer",
+                roles: ["evidence_reviewer"],
+                agendaResponsibilityIds: [],
+                reviewResponsibilityIds: [],
+                riskAuthority: false,
+                required: false
             }
         ],
         identityRecommendations: [],
@@ -43,6 +52,7 @@ function state(status: MeetingState["lifecycle"]["status"] = "running"): Meeting
         opportunityRequests: [],
         pendingHandRaises: [],
         contributions: [],
+        evidenceReviewerId: "reviewer-1",
         formatApprovals: [],
         completionDeclarations: [],
         evidencePackages: [],
@@ -162,33 +172,39 @@ function terminalState(status: "terminal" | "archiving" | "archived"): MeetingSt
     if (status !== "terminal")
         current.archive = {
             id: "archive-1",
+            status: "complete",
             createdAt: 3,
-            createdBy: "identity-1",
-            terminationId: "termination-1",
             publicSnapshotVersion: 3,
-            includedPublicationIds: [],
-            includedDecisionIds: [],
-            includedCompletionFactIds: [],
+            terminationId: "termination-1",
+            objective: current.objective,
+            agenda: current.agenda,
+            agendaCandidates: [],
+            publications: [],
+            messages: [],
+            evidenceBundles: [],
+            proposalRevisions: [],
+            positions: [],
+            decisionCandidates: [],
+            decisions: [],
+            completionFacts: [],
+            questions: [],
+            issues: [],
+            riskDispositions: [],
+            questionIssueDispositionFacts: [],
+            termination: current.termination,
+            unresolvedQuestionIds: [],
+            unresolvedIssueIds: [],
+            unresolvedItemIds: [],
+            unclosedContributions: [],
             identityProvenance: [],
-            status: status === "archived" ? "complete" : "pending"
+            exportMaterials: []
         };
     return current;
 }
 
 function candidateState(): MeetingState {
     const current = state();
-    current.identities = [
-        ...current.identities,
-        {
-            id: "reviewer-1",
-            displayName: "Reviewer",
-            roles: ["evidence_reviewer"],
-            agendaResponsibilityIds: [],
-            reviewResponsibilityIds: [],
-            riskAuthority: false,
-            required: false
-        }
-    ];
+    current.identities = [...current.identities];
     current.agendaCandidates = [{ id: "candidate-1", title: "x", reason: "x", status: "pending" }];
     return current;
 }
@@ -201,15 +217,6 @@ function publishedQuestionState(blocking: boolean): MeetingState {
             id: "manager-1",
             displayName: "Manager",
             roles: ["manager"],
-            agendaResponsibilityIds: [],
-            reviewResponsibilityIds: [],
-            riskAuthority: false,
-            required: false
-        },
-        {
-            id: "reviewer-1",
-            displayName: "Reviewer",
-            roles: ["evidence_reviewer"],
             agendaResponsibilityIds: [],
             reviewResponsibilityIds: [],
             riskAuthority: false,
@@ -309,7 +316,7 @@ const recordIssue = (overrides: Record<string, unknown> = {}) => ({
     affectedOutputIds: ["output-1"],
     affectedCriterionIds: [],
     affectedConstraintIds: [],
-    requiredReviewerIds: [],
+    requiresEvidenceReview: false,
     blocking: true,
     rationale: "because",
     ...overrides
@@ -345,7 +352,7 @@ function issueState(
             affectedOutputIds: ["output-1"],
             affectedCriterionIds: [],
             affectedConstraintIds: [],
-            requiredReviewerIds: [],
+            requiresEvidenceReview: true,
             blocking,
             status,
             rationale: "because"
@@ -381,7 +388,7 @@ describe("meeting lifecycle transitions", () => {
             affectedOutputIds: ["output-1"],
             affectedCriterionIds: ["criterion-1"],
             affectedConstraintIds: ["constraint-1"],
-            requiredReviewerIds: []
+            requiresEvidenceReview: false
         });
     });
 
@@ -400,17 +407,13 @@ describe("meeting lifecycle transitions", () => {
 
     it("accepts medium blocking when an agenda reviewer qualifies it", () => {
         const current = publishedQuestionState(false);
-        current.agenda[0].requiredReviewerIds = ["reviewer-1"];
-        current.identities.find((item) => item.id === "reviewer-1")!.reviewResponsibilityIds = [
-            "agenda-1"
-        ];
         const result = transitionMeetingStateV1(
             current,
             recordIssue({
                 riskLevel: "medium",
                 classification: "blocking",
-                requiredReviewerIds: ["reviewer-1"],
-                affectedOutputIds: []
+                requiresEvidenceReview: true,
+                affectedOutputIds: ["output-1"]
             }),
             manager,
             10,
@@ -423,8 +426,7 @@ describe("meeting lifecycle transitions", () => {
     it.each([
         ["output", { affectedOutputIds: ["missing"] }],
         ["criterion", { affectedCriterionIds: ["missing"] }],
-        ["constraint", { affectedConstraintIds: ["missing"] }],
-        ["reviewer", { requiredReviewerIds: ["missing"] }]
+        ["constraint", { affectedConstraintIds: ["missing"] }]
     ] as const)("rejects a missing issue %s reference", (_name, overrides) => {
         const current = publishedQuestionState(false);
         const result = transitionMeetingStateV1(
@@ -491,11 +493,7 @@ describe("meeting lifecycle transitions", () => {
         expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
     });
 
-    it.each([
-        ["duplicate reviewer", ["reviewer-1", "reviewer-1"], "INVALID_ARGUMENT"],
-        ["reviewer without role", ["identity-1"], "PRECONDITION_FAILED"],
-        ["used agenda id", ["reviewer-1"], "PRECONDITION_FAILED"]
-    ] as const)("rejects promotion: %s", (_name, reviewerIds, code) => {
+    it("rejects promotion with a used agenda id", () => {
         const current = candidateState();
         const result = transitionMeetingStateV1(
             current,
@@ -505,18 +503,22 @@ describe("meeting lifecycle transitions", () => {
                 disposition: "promoted",
                 reason: "approve",
                 promotedAgenda: {
-                    id: _name === "used agenda id" ? "agenda-1" : "agenda-2",
+                    id: "agenda-1",
                     title: "next",
                     question: "next question",
-                    requiredOutputIds: ["output-1"],
-                    requiredReviewerIds: reviewerIds
+                    requiredOutputIds: ["output-1"]
                 }
             },
             captain,
             10,
             "fact-3"
         );
-        expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
+        expect(result).toEqual({
+            kind: "rejected",
+            state: current,
+            code: "PRECONDITION_FAILED",
+            facts: []
+        });
         expect(result.state).toBe(current);
         expect(result.state.version).toBe(3);
     });
@@ -944,31 +946,36 @@ describe("meeting lifecycle transitions", () => {
         expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
     });
 
-    it.each([
-        ["missing reviewer", ["missing-reviewer"], "NOT_FOUND"],
-        ["bad promoted structure", ["reviewer-1"], "INVALID_ARGUMENT"]
-    ] as const)("rejects promotion input: %s", (_name, reviewerIds, code) => {
-        const current = candidateState();
-        const action = {
-            kind: "dispose_agenda_candidate" as const,
-            candidateId: "candidate-1",
-            disposition: "promoted" as const,
-            reason: "approve",
-            promotedAgenda:
-                _name === "bad promoted structure"
-                    ? null
-                    : {
-                          id: "agenda-2",
-                          title: "next",
-                          question: "next question",
-                          requiredOutputIds: ["output-1"],
-                          requiredReviewerIds: reviewerIds
-                      }
-        };
-        const result = transitionMeetingStateV1(current, action as never, captain, 10, "fact-3");
-        expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
-        expect(result.state).toBe(current);
-    });
+    it.each([["bad promoted structure", [], "INVALID_ARGUMENT"]] as const)(
+        "rejects promotion input: %s",
+        (_name, reviewerIds, code) => {
+            const current = candidateState();
+            const action = {
+                kind: "dispose_agenda_candidate" as const,
+                candidateId: "candidate-1",
+                disposition: "promoted" as const,
+                reason: "approve",
+                promotedAgenda:
+                    _name === "bad promoted structure"
+                        ? null
+                        : {
+                              id: "agenda-2",
+                              title: "next",
+                              question: "next question",
+                              requiredOutputIds: ["output-1"]
+                          }
+            };
+            const result = transitionMeetingStateV1(
+                current,
+                action as never,
+                captain,
+                10,
+                "fact-3"
+            );
+            expect(result).toEqual({ kind: "rejected", state: current, code, facts: [] });
+            expect(result.state).toBe(current);
+        }
+    );
 
     it("promotes a candidate atomically with a pending agenda and reviewer responsibility", () => {
         const current = candidateState();
@@ -983,8 +990,7 @@ describe("meeting lifecycle transitions", () => {
                     id: "agenda-2",
                     title: "next",
                     question: "next question",
-                    requiredOutputIds: ["output-1"],
-                    requiredReviewerIds: ["reviewer-1"]
+                    requiredOutputIds: ["output-1"]
                 }
             },
             captain,
@@ -1002,21 +1008,20 @@ describe("meeting lifecycle transitions", () => {
             title: "next",
             question: "next question",
             requiredOutputIds: ["output-1"],
-            requiredReviewerIds: ["reviewer-1"],
+            requiredReviewerIds: [],
             status: "pending"
         });
         expect(result.state.agendaCandidates[0].status).toBe("promoted");
-        expect(result.state.identities.at(-1)?.reviewResponsibilityIds).toEqual(["agenda-2"]);
         expect(result.state.identities.at(-1)?.roles).toEqual(current.identities.at(-1)?.roles);
         expect(result.facts[0]).toEqual({
             id: "fact-3",
             kind: "dispose_agenda_candidate",
             actorId: "identity-1",
             occurredAt: 10,
-            relatedIds: ["meeting-1", "candidate-1", "agenda-2", "reviewer-1"],
+            relatedIds: ["meeting-1", "candidate-1", "agenda-2"],
             payload: {
                 kind: "references",
-                relatedIds: ["meeting-1", "candidate-1", "agenda-2", "reviewer-1"]
+                relatedIds: ["meeting-1", "candidate-1", "agenda-2"]
             }
         });
     });
@@ -1234,6 +1239,7 @@ describe("meeting lifecycle transitions", () => {
             affectedCriterionIds: [],
             affectedConstraintIds: [],
             requiredReviewerIds: [],
+            requiresEvidenceReview: false,
             blocking: true,
             status: "open",
             rationale: "because"

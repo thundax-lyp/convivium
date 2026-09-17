@@ -184,26 +184,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T7c：统一纯 Domain action 与公开入口
-
-前置状态：T7b PASS。
-
-允许修改：`plugin/src/domain/meeting-state-v1-transitions.ts`、`plugin/src/domain/transitions/index.ts`、`plugin/src/domain/index.ts`、`plugin/tests/unit/domain/meeting-state-v1-transitions.spec.ts`。
-
-禁止修改：canonical state/type、legacy Domain 文件、protocol、runtime、fixture。
-
-执行：generic dispatcher 的 action 不再接受 `requiredReviewerIds`，Issue action 使用 `requiresEvidenceReview`，reviewer 固定为 `state.evidenceReviewerId`；只导出 T3a-T7b 的目标 types/transitions，不复制 transition。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/domain/meeting-state-v1-transitions.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：闭环 action 从公开入口可用；无 FormatApproval/draft approval export；generic action 不含 reviewer 数组。
-
-STOP：需要删除 legacy Domain、创建 facade 或保留 reviewer 选择 action。
-
 ### T7d：删除 canonical state compatibility 字段
 
 前置状态：T7c PASS；所有 production consumer 已在 T4-T7c 迁移。
