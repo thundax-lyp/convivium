@@ -164,26 +164,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 6 个。不得借测试调整扩展 production 范围。
 
-### T2：完成创建、结束与归档纯转换
-
-前置状态：T1 PASS。
-
-允许修改：`plugin/src/domain/transitions/meeting-create-v1.ts`、`plugin/src/domain/transitions/meeting-end-v1.ts`、`plugin/src/domain/transitions/meeting-archive-v1.ts`、`plugin/src/domain/transitions/result-v1.ts`、`plugin/tests/unit/domain/meeting-lifecycle-v1.spec.ts`（新增）。
-
-禁止修改：Round、Evidence、identity、repository、runtime。
-
-执行：完成 create、partial/completed end、archive materialization 与 archive session result；拒绝返回原 state 且无 effect。
-
-验证：
-```bash
-pnpm --dir plugin vitest run tests/unit/domain/meeting-lifecycle-v1.spec.ts
-pnpm --dir plugin typecheck:host
-```
-
-PASS：create→terminal→archiving→archived 合法；未关闭 ownership 不得 archived；非法 completed 拒绝。
-
-STOP：需要把 Session proof 放入 MeetingState 或新增 lifecycle 边。
-
 ### T3：完成 Round、举手与消息预留
 
 前置状态：T2 PASS。
