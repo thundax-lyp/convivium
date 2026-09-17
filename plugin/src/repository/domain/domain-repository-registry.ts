@@ -4,6 +4,8 @@ import { RepositoryError } from "@/repository/errors.js";
 import { UnsupportedMeetingStateFormatError } from "./projection.js";
 import type {
     CreateMeetingInput,
+    JsonObject,
+    MeetingStateCodec,
     MeetingSnapshot,
     RepositoryAuthorizationValidator
 } from "@/repository/types.js";
@@ -22,17 +24,18 @@ export interface DomainFacilityPort {
     open<S extends DomainSpec>(spec: S): Promise<Domain<S>>;
 }
 
-export interface DomainRepositoryRegistryOptions {
+export interface DomainRepositoryRegistryOptions<TState = JsonObject> {
     readonly storageDomain: Pick<DomainFacility, "open"> | DomainFacilityPort;
-    readonly authorizationValidator: RepositoryAuthorizationValidator;
+    readonly authorizationValidator: RepositoryAuthorizationValidator<TState>;
+    readonly codec?: MeetingStateCodec<TState>;
     readonly now?: () => number;
     readonly onDiagnostic?: DiagnosticSink;
-    readonly onProjectionCommitted?: (snapshot: MeetingSnapshot) => void;
+    readonly onProjectionCommitted?: (snapshot: MeetingSnapshot<TState>) => void;
 }
 
-export interface OpenDomainMeetingInput {
+export interface OpenDomainMeetingInput<TState = JsonObject> {
     readonly meetingId: string;
-    readonly create?: CreateMeetingInput;
+    readonly create?: CreateMeetingInput<TState>;
 }
 
 function corrupt(meetingId: string, message: string): RepositoryError {
@@ -64,27 +67,32 @@ function validateCreationIdentity(
         throw corrupt(catalog.meetingId, "Creation identity is invalid");
 }
 
-export class DomainRepositoryRegistry {
-    private readonly repositories = new Map<string, Promise<DomainMeetingRepository>>();
-    private readonly opened = new Map<string, DomainMeetingRepository>();
+export class DomainRepositoryRegistry<TState = JsonObject> {
+    private readonly repositories = new Map<string, Promise<DomainMeetingRepository<TState>>>();
+    private readonly opened = new Map<string, DomainMeetingRepository<TState>>();
     private closePromise: Promise<void> | undefined;
     private closed = false;
 
     private constructor(
         private readonly storageDomain: DomainFacilityPort,
         private readonly catalog: CatalogDomain,
-        private readonly authorizationValidator: RepositoryAuthorizationValidator,
+        private readonly authorizationValidator: RepositoryAuthorizationValidator<TState>,
+        private readonly codec: MeetingStateCodec<TState> | undefined,
         private readonly now: () => number,
         private readonly onDiagnostic: DiagnosticSink | undefined,
-        private readonly onProjectionCommitted: ((snapshot: MeetingSnapshot) => void) | undefined
+        private readonly onProjectionCommitted:
+            ((snapshot: MeetingSnapshot<TState>) => void) | undefined
     ) {}
 
-    static async open(options: DomainRepositoryRegistryOptions): Promise<DomainRepositoryRegistry> {
+    static async open<TState = JsonObject>(
+        options: DomainRepositoryRegistryOptions<TState>
+    ): Promise<DomainRepositoryRegistry<TState>> {
         const catalog = await options.storageDomain.open(catalogDomainSpec);
         return new DomainRepositoryRegistry(
             options.storageDomain,
             catalog,
             options.authorizationValidator,
+            options.codec,
             options.now ?? Date.now,
             options.onDiagnostic,
             options.onProjectionCommitted
@@ -101,7 +109,9 @@ export class DomainRepositoryRegistry {
         return records.sort((left, right) => left.meetingId.localeCompare(right.meetingId));
     }
 
-    async openMeeting(input: OpenDomainMeetingInput): Promise<DomainMeetingRepository> {
+    async openMeeting(
+        input: OpenDomainMeetingInput<TState>
+    ): Promise<DomainMeetingRepository<TState>> {
         this.ensureOpen();
         const key = catalogKey(input.meetingId);
         let pending = this.repositories.get(key);
@@ -124,8 +134,8 @@ export class DomainRepositoryRegistry {
 
     private async openMeetingOnce(
         key: string,
-        input: OpenDomainMeetingInput
-    ): Promise<DomainMeetingRepository> {
+        input: OpenDomainMeetingInput<TState>
+    ): Promise<DomainMeetingRepository<TState>> {
         const catalog = this.catalog.table("meetings").get(key);
         if (!catalog && !input.create)
             throw new RepositoryError(
@@ -152,11 +162,12 @@ export class DomainRepositoryRegistry {
         const domain = await this.storageDomain.open(createMeetingDomainSpec(domainName));
         try {
             if (catalog) await this.reconcile(domain, key, catalog);
-            const repository = await DomainMeetingRepository.open({
+            const repository = await DomainMeetingRepository.open<TState>({
                 catalogDomain: this.catalog,
                 meetingDomain: domain,
                 meetingId: input.meetingId,
                 authorizationValidator: this.authorizationValidator,
+                codec: this.codec,
                 now: this.now,
                 onDiagnostic: this.onDiagnostic,
                 onProjectionCommitted: this.onProjectionCommitted
@@ -188,8 +199,10 @@ export class DomainRepositoryRegistry {
             if (!creation || creation.status !== "ready" || (!first && !checkpoint))
                 throw corrupt(catalog.meetingId, "Ready meeting is missing seq one");
             try {
-                loadProjection({ domain });
+                const projection = loadProjection({ domain });
+                this.validateTargetOwnership(projection.sessionOwnership, catalog.meetingId);
             } catch (error) {
+                if (error instanceof RepositoryError) throw error;
                 if (error instanceof UnsupportedMeetingStateFormatError) {
                     throw new RepositoryError(
                         "SCHEMA_VERSION_UNSUPPORTED",
@@ -221,6 +234,7 @@ export class DomainRepositoryRegistry {
         try {
             projection = loadProjection({ domain });
         } catch (error) {
+            if (error instanceof RepositoryError) throw error;
             if (error instanceof UnsupportedMeetingStateFormatError) {
                 throw new RepositoryError(
                     "SCHEMA_VERSION_UNSUPPORTED",
@@ -241,6 +255,7 @@ export class DomainRepositoryRegistry {
             projection.bootstrap.status !== "ready"
         )
             throw corrupt(catalog.meetingId, "Seq one does not publish a ready meeting");
+        this.validateTargetOwnership(projection.sessionOwnership, catalog.meetingId);
         await domain.table("creation").put("current", {
             ...creation,
             status: "ready",
@@ -254,6 +269,23 @@ export class DomainRepositoryRegistry {
             updatedAt: projection.bootstrap.updatedAt,
             failureCode: null
         });
+    }
+
+    private validateTargetOwnership(
+        ownerships: Readonly<
+            Record<string, { id?: string; meetingId?: string; identityId?: string }>
+        >,
+        meetingId: string
+    ): void {
+        if (this.codec === undefined) return;
+        for (const ownership of Object.values(ownerships))
+            if (!ownership.id || ownership.meetingId !== meetingId || !ownership.identityId)
+                throw new RepositoryError(
+                    "RECOVERY_UNAVAILABLE",
+                    false,
+                    meetingId,
+                    "Target Session ownership is incomplete"
+                );
     }
 
     async close(): Promise<void> {

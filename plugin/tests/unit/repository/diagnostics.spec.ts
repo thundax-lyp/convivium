@@ -16,7 +16,6 @@ function projection() {
     };
     return createProjection({
         snapshot: {
-            teamId: state.teamId,
             meetingId: state.id,
             state: JSON.parse(JSON.stringify(state)),
             version: state.version,
@@ -115,7 +114,6 @@ describe("meeting commit diagnostics", () => {
     it("restores active and waiting gauges on cold open without recounting historical events", async () => {
         const records: MeetingDiagnostic[] = [];
         const options = {
-            teamId: "team-1",
             meetingId: "meeting-1",
             catalogDomain: createFakeCatalogDomain(),
             meetingDomain: createFakeMeetingDomain(),
@@ -191,7 +189,6 @@ describe("meeting commit diagnostics", () => {
     it("keeps logger failure outside durability and reports rejected stale commands without a domain event", async () => {
         const records: MeetingDiagnostic[] = [];
         const repository = await DomainMeetingRepository.open({
-            teamId: "team-1",
             meetingId: "meeting-1",
             catalogDomain: createFakeCatalogDomain(),
             meetingDomain: createFakeMeetingDomain(),

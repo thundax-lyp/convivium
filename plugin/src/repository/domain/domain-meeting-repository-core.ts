@@ -172,6 +172,7 @@ export abstract class DomainMeetingRepositoryCore<TState = JsonObject> {
                 this.headDigest =
                     last?.digest ?? (pointer ? projectionDigest(this.projection) : null);
             } catch (error) {
+                if (error instanceof RepositoryError) throw error;
                 if (error instanceof UnsupportedMeetingStateFormatError) {
                     throw new RepositoryError(
                         "SCHEMA_VERSION_UNSUPPORTED",

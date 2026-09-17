@@ -185,28 +185,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T12：实现 repository recovery 与 ownership closure
-
-前置状态：T11 PASS。
-
-允许修改：`plugin/src/repository/domain/domain-repository-registry.ts`、`plugin/src/repository/diagnostics.ts`、`plugin/src/repository/domain/projection.ts`、`plugin/tests/fixtures/domain-storage.ts`、`plugin/tests/contract/domain-meeting-repository-facts.spec.ts`、`plugin/tests/recovery/domain-recovery.spec.ts`、`plugin/tests/recovery/sqlite-meeting-recovery.spec.ts`。
-
-禁止修改：Runtime、legacy storage migration。
-
-执行：把 `DomainRepositoryRegistryOptions<TState=JsonObject>`、`DomainRepositoryRegistry<TState=JsonObject>`、`OpenDomainMeetingInput<TState>` 的 `create?:CreateMeetingInput<TState>` 与 `openMeeting` 的返回值接入 T11 generic path；options 可接收实例级 `codec?:MeetingStateCodec<TState>` 并原样传给每个 `DomainMeetingRepository<TState>`，同一 registry 不得按 Meeting 或调用切换 codec。省略 codec 只允许 generic default `JsonObject` 的 legacy construction；target recovery tests 必须显式传 `encodeMeetingStateV1/decodeMeetingStateV1`，T14c 的 lifecycle 也必须显式传入。target-configured registry reopen 只解 target snapshot；旧 snapshot（包括带 team namespace 的旧 record）以 `SCHEMA_VERSION_UNSUPPORTED` fail closed；target snapshot 的任一 meeting-owned ownership 缺 `id/meetingId/identityId` 或 meetingId 不匹配时返回 repository recovery failure，T13 映射公开 `RECOVERY_UNAVAILABLE`。恢复 T11 已原子保存的 Session closure proof，返回每个 ownership 的 failure code 和是否仍未关闭；不得在 registry/projection 中再次写 ownership或直接改变 Meeting lifecycle。最后一个 closed result 进入 archived 只由 T13 dispatcher 在 T11 的同一 command transaction 内调用 Domain transition 完成。
-
-`diagnostics.ts` 删除对 `LegacyMeetingState` 的无条件 cast：用窄化后的 `state.lifecycle.status` 读取 target lifecycle、用 `state.status` 读取 legacy lifecycle，二者都只产生 allowlisted lifecycle/outbox/failure metrics；target facts 不按 legacy event 解释，legacy event-specific metrics 只在 legacy shape guard 成功时执行。未知 shape 只发不读取业务字段的 `meeting.observed`，诊断失败仍不得改变 commit。`projection.ts` 的 recover/decode 校验使用已配置 codec，并由两个 recovery suite 固定 target snapshot、legacy snapshot、ownership 缺字段和 closure retry。`domain-meeting-repository-facts.spec.ts` 从 legacy event/archive assertions 收敛为 target facts contract，固定 `readCommittedFacts` 的 meetingVersion/factId 顺序、idempotent replay、request conflict、injected commit rollback，以及 command state/facts/receipt/outbox 与 ownership closure 同成同败；不修改共享 fixture 的业务值。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/contract/domain-meeting-repository-facts.spec.ts tests/recovery/domain-recovery.spec.ts tests/recovery/sqlite-meeting-recovery.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：repository/catalog/domain/recovery 仅以 meetingId 定位；target registry 的 codec 实例级固定且显式注入；reopen、closure retry、含 team namespace 的旧 snapshot 拒绝通过；恢复结果能机械判断是否仍有未关闭 ownership，且不产生第二次写入。
-
-STOP：需要迁移旧 snapshot 或操作不明归属 Session。
-
 ### T13：建立唯一 application command dispatcher
 
 前置状态：T12 PASS。
