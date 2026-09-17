@@ -10,7 +10,6 @@ export const OUTBOX_KINDS = ["dispatch"] as const;
 export type OutboxKind = (typeof OUTBOX_KINDS)[number];
 
 export interface MeetingSnapshot<TState = JsonObject> {
-    teamId: string;
     meetingId: string;
     version: number;
     state: TState;
@@ -58,11 +57,7 @@ export interface CommandAuthorization {
 }
 
 export interface RepositoryAuthorizationValidator {
-    validateCreate(input: {
-        teamId: string;
-        meetingId: string;
-        authorization: CommandAuthorization;
-    }): void;
+    validateCreate(input: { meetingId: string; authorization: CommandAuthorization }): void;
     validateCommand(input: {
         snapshot: MeetingSnapshot;
         command: Pick<RepositoryCommand<unknown>, "commandKind" | "authorization">;

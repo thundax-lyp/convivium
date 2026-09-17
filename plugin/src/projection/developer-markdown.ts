@@ -11,7 +11,6 @@ export interface DeveloperMeetingDocument {
     projectionKind: "current";
     authoritative: false;
     meetingId: string;
-    teamId: string;
     sourceMeetingVersion: number;
     generatedAt: number;
     status: LegacyMeetingState["status"];
@@ -155,7 +154,6 @@ export function mapDeveloperMeetingDocument(
         projectionKind: "current",
         authoritative: false,
         meetingId: snapshot.meetingId,
-        teamId: snapshot.teamId,
         sourceMeetingVersion: snapshot.version,
         generatedAt,
         status: state.status,

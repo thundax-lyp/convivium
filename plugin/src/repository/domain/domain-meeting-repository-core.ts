@@ -352,7 +352,6 @@ export abstract class DomainMeetingRepositoryCore {
         this.ensureOpen();
         return this.enqueueMutation(async () => {
             this.authorizationValidator.validateCreate({
-                teamId: this.teamId,
                 meetingId: this.meetingId,
                 authorization: input.authorization
             });
@@ -445,7 +444,6 @@ export abstract class DomainMeetingRepositoryCore {
     async completeCreate(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>> {
         return this.enqueueMutation(async () => {
             this.authorizationValidator.validateCreate({
-                teamId: this.teamId,
                 meetingId: this.meetingId,
                 authorization: input.authorization
             });
@@ -501,7 +499,7 @@ export abstract class DomainMeetingRepositoryCore {
                     state: creation.initialState,
                     createdAt: now,
                     updatedAt: now
-                },
+                } as MeetingSnapshot & { teamId: string },
                 bootstrap: {
                     status: "ready",
                     createRequestId: creation.requestId,

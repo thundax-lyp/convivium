@@ -25,7 +25,6 @@ import type {
 } from "./types.js";
 
 export interface MeetingRepositoryPort<TState = JsonObject> {
-    readonly teamId: string;
     readonly meetingId: string;
     create(input: CreateMeetingInput): Promise<MeetingBootstrap>;
     completeCreate(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>>;

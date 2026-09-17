@@ -82,7 +82,7 @@ export function createMeetingRehydrationService(
             const current = await repository.read();
             if (existing === undefined) {
                 options.meetings.set(meetingId, {
-                    teamId: recovered.snapshot.teamId,
+                    teamId: (recovered.snapshot.state as { readonly teamId: string }).teamId,
                     captainSessionId: parentSessionId,
                     parent,
                     repository
@@ -145,7 +145,7 @@ export function createMeetingRehydrationService(
                         continue;
                     const parent = await options.reconcile?.(repository);
                     options.meetings.set(record.meetingId, {
-                        teamId: recovered.snapshot.teamId,
+                        teamId: (recovered.snapshot.state as { readonly teamId: string }).teamId,
                         captainSessionId: parentSessionId,
                         parent,
                         repository

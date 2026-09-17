@@ -70,20 +70,23 @@ export function reconcileMeetingSessions(input: SessionRecoveryInput): Promise<v
 async function reconcileOnce(input: SessionRecoveryInput): Promise<void> {
     const { repository, runtime, parent, signal, now } = input;
     const recovered = await repository.recover();
+    const recoveredState = recovered.snapshot?.state as unknown as LegacyMeetingState | undefined;
+    const legacyTeamId = recoveredState?.teamId;
     if (recovered.sessionOwnership.some((item) => item.parentSessionId !== String(parent.id))) {
         throw new Error("RECOVERY_PARENT_MISMATCH");
     }
     for (const ownership of recovered.sessionOwnership) {
+        if (legacyTeamId === undefined) throw new Error("RECOVERY_MEETING_IDENTITY_MISMATCH");
         const label =
             ownership.role === "manager"
                 ? encodeMeetingSessionLabel({
                       role: "manager",
-                      teamId: repository.teamId,
+                      teamId: legacyTeamId,
                       meetingId: repository.meetingId
                   })
                 : encodeMeetingSessionLabel({
                       role: "participant",
-                      teamId: repository.teamId,
+                      teamId: legacyTeamId,
                       meetingId: repository.meetingId,
                       participantId: ownership.participantId!
                   });
@@ -150,8 +153,8 @@ async function reconcileOnce(input: SessionRecoveryInput): Promise<void> {
         });
         return;
     }
-    const state = recovered.snapshot?.state as unknown as LegacyMeetingState;
-    if (!state || state.id !== repository.meetingId || state.teamId !== repository.teamId) {
+    const state = recoveredState;
+    if (!state || state.id !== repository.meetingId) {
         throw new Error("RECOVERY_MEETING_IDENTITY_MISMATCH");
     }
     requireExpectedArchiveOwnerships(state, recovered.sessionOwnership, String(parent.id));
@@ -258,7 +261,7 @@ async function reconcileOnce(input: SessionRecoveryInput): Promise<void> {
             parent,
             provider: replacement.provider,
             childId: replacement.sessionId as never,
-            teamId: repository.teamId,
+            teamId: state.teamId,
             meetingId: repository.meetingId,
             signal
         };

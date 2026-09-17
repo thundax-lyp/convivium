@@ -110,7 +110,7 @@ export function createMeetingQueryApplication(options: MeetingQueryApplicationOp
                                 const state = snapshot.state as unknown as LegacyMeetingState;
                                 return {
                                     meetingId: snapshot.meetingId,
-                                    teamId: snapshot.teamId,
+                                    teamId: state.teamId,
                                     topic: state.topic,
                                     status: state.status,
                                     meetingVersion: snapshot.version,

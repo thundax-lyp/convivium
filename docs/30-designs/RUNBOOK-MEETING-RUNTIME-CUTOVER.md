@@ -183,27 +183,7 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 ## 机械执行步骤
 
-以下步骤按单一语义边界拆分；每步允许修改或删除的 production、test、fixture 和 script 文件合计不超过 8 个。不得借测试调整扩展 production 范围。
-
-### T10f：迁移 legacy-only snapshot consumers
-
-前置状态：T10e PASS。
-
-允许修改：`plugin/src/runtime/services/meeting-session-recovery.ts`、`plugin/src/runtime/services/developer-markdown-service.ts`、`plugin/src/projection/developer-markdown.ts`、`plugin/src/runtime/application-service/meeting-query.ts`、`plugin/src/repository/types.ts`、`plugin/src/repository/meeting-repository-port.ts`、`plugin/src/repository/domain/domain-meeting-repository-core.ts`。
-
-禁止修改：repository registry/schema、fixtures/tests、target protocol。
-
-执行：从 `MeetingSnapshot<TState>`、`MeetingRepositoryPort<TState>` 和 authorization create input 删除 teamId；core 的 `validateCreate` 调用不再提交 teamId，但在 T10g 前可继续把内部 bridge team 写入尚未迁移的 persistent Schema 和解析 legacy Session label。四个待删除 legacy consumer 改为只使用 meetingId，且不得新增常量、fallback 或新的 scope 字段。Developer Markdown 路径只以 escaped meetingId 分区；这些修改只维持 T23-T27 前的编译，不把 legacy service 接回活动入口。
-
-验证：
-```bash
-test -z "$(rg -n 'snapshot\.teamId|repository\.teamId|validateCreate\(\{[[:space:][:print:]]*teamId' plugin/src/runtime/services/meeting-session-recovery.ts plugin/src/runtime/services/developer-markdown-service.ts plugin/src/projection/developer-markdown.ts plugin/src/runtime/application-service/meeting-query.ts plugin/src/repository/types.ts plugin/src/repository/meeting-repository-port.ts plugin/src/repository/domain/domain-meeting-repository-core.ts || true)"
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：public repository snapshot/port 与四个直接 consumer 均无 teamId；host typecheck 退出 0。
-
-STOP：必须修改 fixture、恢复 team scope 或扩大到业务行为。
+以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
 ### T10g：删除 repository 持久 team bridge
 
