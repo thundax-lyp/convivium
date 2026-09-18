@@ -188,34 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T26：删除旧辅助 application services
-
-前置状态：T25 PASS；T19a 与 T20 已移除活动入口和 module-boundary 引用。
-
-允许删除：
-- `plugin/src/runtime/services/developer-markdown-service.ts`
-- `plugin/src/projection/developer-markdown.ts`
-- `plugin/src/runtime/services/meeting-session-recovery.ts`
-- `plugin/src/runtime/services/public-submission-service.ts`
-- `plugin/src/runtime/services/meeting-session-service.ts`
-
-允许修改：`plugin/src/runtime/application-service/types.ts`。
-
-禁止修改：其他全部文件。
-
-执行：删除上述 5 个文件，并从 `application-service/types.ts` 删除只被 T23-T26 已删文件消费的 Developer Markdown 与 legacy application option/type；保留 target dependency/context/result type。不得删除 legacy Domain/protocol/repository/fixture。
-
-验证：
-```bash
-test "$(git diff --diff-filter=D --name-only | wc -l | tr -d ' ')" -eq 5
-test "$(git diff --name-only | wc -l | tr -d ' ')" -eq 6
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：当前步骤恰好删除列出的 5 个文件并只修改 1 个 types 文件；legacy-only application type 零引用，host typecheck 退出 0。
-
-STOP：仍有 production 引用、需要修改其他文件或当前删除不等于 5。
-
 ### T27：删除旧辅助 application tests
 
 前置状态：T26 PASS。
