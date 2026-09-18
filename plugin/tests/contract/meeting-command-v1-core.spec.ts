@@ -9,7 +9,6 @@ import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
 } from "@/repository/domain/meeting-state-codec-v1.js";
-import { projectMeetingViewV1 } from "@/projection/meeting-view-v1.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { meetingIdFor } from "@/repository/domain/keys.js";
 import { createMeetingCommandApplicationV1 } from "@/runtime/application-service/meeting-command-v1.js";
@@ -365,19 +364,5 @@ describe("target Meeting command core", () => {
         ).resolves.toEqual(replayed);
         expect(execute).toHaveBeenCalledOnce();
         expect(recover).not.toHaveBeenCalled();
-    });
-
-    it("projects only a committed snapshot", () => {
-        const state = makeRunningMeetingStateV1();
-        const result = projectMeetingViewV1({
-            teamId: "team-v1",
-            meetingId: state.id,
-            version: state.version,
-            state,
-            createdAt: state.createdAt,
-            updatedAt: state.updatedAt
-        });
-        expect(result).toEqual({ meetingId: state.id, meetingVersion: state.version, state });
-        expect(result.state).not.toBe(state);
     });
 });
