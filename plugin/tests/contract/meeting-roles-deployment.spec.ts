@@ -37,13 +37,14 @@ it("publishes only the current contribution tools for Manager", () => {
         ({ roleDefinitionId }) => roleDefinitionId === "meeting_manager"
     );
     expect(manager).toMatchObject({
-        definitionVersion: "1.1.0",
+        definitionVersion: "1.2.0",
         toolFilter: {
             allow: [
                 "skill",
-                "convivium_meeting_status",
-                "convivium_contribution",
-                "convivium_read_contribution"
+                "convivium_open_round",
+                "convivium_dispose_hand_raise",
+                "convivium_publish_round",
+                "convivium_recommend_identity"
             ]
         }
     });

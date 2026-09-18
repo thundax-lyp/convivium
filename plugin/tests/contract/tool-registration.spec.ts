@@ -3,7 +3,11 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { describe, expect, it, vi } from "vitest";
 import { resolveMeetingCaller, type MeetingOwnershipRecord } from "@/dsh/index.js";
-import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "@/tools/index.js";
+import {
+    registerCreateAndStatusTools,
+    registerMeetingToolsV1,
+    registerSubmitAndControlTools
+} from "@/tools/index.js";
 
 const unauthorizedCommands: Record<string, unknown> = {
     convivium_contribution: {
@@ -226,6 +230,103 @@ const unauthorizedCommands: Record<string, unknown> = {
         action: "park"
     }
 };
+
+describe("target Meeting tool registration", () => {
+    it("registers exactly the eight target tools through the command application", async () => {
+        const definitions: ToolDefinition[] = [];
+        const execute = vi.fn(async () => ({
+            kind: "rejected" as const,
+            error: { code: "UNAUTHORIZED" as const, message: "denied" }
+        }));
+        registerMeetingToolsV1({
+            registry: {
+                register: (definition) => {
+                    definitions.push(definition);
+                    return () => undefined;
+                }
+            },
+            application: { execute },
+            callers: {
+                resolve: vi.fn(async () => ({
+                    caller: {
+                        channel: "dsh_tool" as const,
+                        principalId: "identity-1",
+                        sessionBindingId: "ownership-1"
+                    },
+                    meetingId: "meeting-1",
+                    identityId: "identity-1",
+                    role: "manager" as const,
+                    ownership: {
+                        id: "ownership-1",
+                        meetingId: "meeting-1",
+                        identityId: "identity-1",
+                        sessionId: "agent-1",
+                        parentSessionId: "captain-1",
+                        sessionLabel: "meeting-v1",
+                        provider: "continuable",
+                        role: "manager" as const,
+                        lifecycleStatus: "active" as const,
+                        capabilityStatus: "active" as const,
+                        createdAt: 1,
+                        updatedAt: 1
+                    }
+                }))
+            }
+        });
+
+        expect(definitions.map(({ name }) => name)).toEqual([
+            "convivium_create_meeting",
+            "convivium_open_round",
+            "convivium_dispose_hand_raise",
+            "convivium_publish_round",
+            "convivium_raise_hand",
+            "convivium_submit_evidence",
+            "convivium_submit_review_batch",
+            "convivium_recommend_identity"
+        ]);
+        for (const definition of definitions)
+            expect(definition.parameters).toMatchObject({
+                type: "object",
+                required: ["input"],
+                properties: { input: {} }
+            });
+
+        const openRound = definitions.find(({ name }) => name === "convivium_open_round")!;
+        const result = await openRound.execute(
+            {
+                input: {
+                    protocolVersion: 1,
+                    meetingId: "meeting-1",
+                    expectedMeetingVersion: 1,
+                    requestId: "request-1",
+                    action: { kind: "open_round", agendaId: "agenda-1" }
+                }
+            },
+            {
+                agent: { id: "agent-1" } as Agent,
+                signal: new AbortController().signal
+            } as ToolRunContext
+        );
+        expect(result).toEqual({
+            kind: "rejected",
+            error: { code: "UNAUTHORIZED", message: "denied" }
+        });
+        expect(execute).toHaveBeenCalledWith(
+            expect.objectContaining({
+                meetingId: "meeting-1",
+                action: { kind: "open_round", agendaId: "agenda-1" }
+            }),
+            expect.objectContaining({
+                caller: {
+                    channel: "dsh_tool",
+                    principalId: "identity-1",
+                    sessionBindingId: "ownership-1"
+                }
+            }),
+            expect.any(AbortSignal)
+        );
+    });
+});
 
 describe("meeting tool registration", () => {
     it("passes task-linked submit_turn through the registration boundary as a canonical value", async () => {

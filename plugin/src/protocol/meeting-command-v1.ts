@@ -39,7 +39,7 @@ const limits = z.object({
     reviewDeadlineMs: z.number().int().nonnegative()
 });
 const continuation = z.object({ sourceArchiveId: id, selectedMaterialIds: z.array(id) });
-const createMeeting = z.object({
+export const CreateMeetingActionV1Schema = z.object({
     kind: z.literal("create_meeting"),
     objective,
     identities: z.array(initialIdentity),
@@ -108,38 +108,59 @@ const reviewDimensions = z.object({
     completeness: reviewDimension,
     support: reviewDimension
 });
+export const OpenRoundActionV1Schema = z.object({
+    kind: z.literal("open_round"),
+    agendaId: id,
+    deadlineAt: epoch.optional()
+});
+export const RaiseHandActionV1Schema = z.object({
+    kind: z.literal("raise_hand"),
+    roundId: id,
+    purpose: text
+});
+export const DisposeHandRaiseActionV1Schema = z.object({
+    kind: z.literal("dispose_hand_raise"),
+    roundId: id,
+    contributorId: id,
+    disposition: z.enum(["accepted", "rejected", "deferred"]),
+    reason: text
+});
+export const SubmitEvidenceActionV1Schema = z.object({
+    kind: z.literal("submit_evidence"),
+    contributionId: id,
+    evidence
+});
+export const SubmitReviewBatchActionV1Schema = z
+    .object({
+        kind: z.literal("submit_review_batch"),
+        reviews: z
+            .array(z.object({ versionId: id, dimensions: reviewDimensions, scope: text }))
+            .min(1)
+    })
+    .superRefine((value, ctx) => {
+        const ids = value.reviews.map((review) => review.versionId);
+        if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", path: ["reviews"] });
+    });
+export const PublishRoundActionV1Schema = z.object({
+    kind: z.literal("publish_round"),
+    roundId: id
+});
+
 const actions = [
-    createMeeting,
+    CreateMeetingActionV1Schema,
     RecommendIdentityActionV1Schema,
     RecordIdentityAdmissionResultActionV1Schema,
-    z.object({ kind: z.literal("open_round"), agendaId: id, deadlineAt: epoch.optional() }),
-    z.object({ kind: z.literal("raise_hand"), roundId: id, purpose: text }),
-    z.object({
-        kind: z.literal("dispose_hand_raise"),
-        roundId: id,
-        contributorId: id,
-        disposition: z.enum(["accepted", "rejected", "deferred"]),
-        reason: text
-    }),
-    z.object({ kind: z.literal("submit_evidence"), contributionId: id, evidence }),
+    OpenRoundActionV1Schema,
+    RaiseHandActionV1Schema,
+    DisposeHandRaiseActionV1Schema,
+    SubmitEvidenceActionV1Schema,
     z.object({
         kind: z.literal("close_contribution"),
         contributionId: id,
         exit: z.enum(["withdrawn", "submission_missing", "timed_out"]),
         reason: text
     }),
-    z
-        .object({
-            kind: z.literal("submit_review_batch"),
-            reviews: z
-                .array(z.object({ versionId: id, dimensions: reviewDimensions, scope: text }))
-                .min(1)
-        })
-        .superRefine((value, ctx) => {
-            const ids = value.reviews.map((review) => review.versionId);
-            if (new Set(ids).size !== ids.length)
-                ctx.addIssue({ code: "custom", path: ["reviews"] });
-        }),
+    SubmitReviewBatchActionV1Schema,
     z
         .object({
             kind: z.literal("record_review_delivery"),
@@ -153,7 +174,7 @@ const actions = [
             if (value.status === "failed" && value.failureReason === undefined)
                 ctx.addIssue({ code: "custom", path: ["failureReason"] });
         }),
-    z.object({ kind: z.literal("publish_round"), roundId: id }),
+    PublishRoundActionV1Schema,
     z.object({
         kind: z.literal("end_meeting"),
         outcome: z.enum(["completed", "partial", "no_consensus", "cancelled", "failed"]),

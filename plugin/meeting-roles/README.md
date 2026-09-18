@@ -4,9 +4,9 @@
 
 从同一 tarball 安装插件并解包角色资源，将 `CONVIVIUM_MEETING_ROLES_ROOT` 设为解包后 meeting-roles 的绝对目录，在独立 DSH web profile 使用解包后的 `meeting-roles/cordis.patch.yml`，新建 Captain 时显式选择 `convivium` Preset；用户安装和启动见仓库 [安装并运行 Convivium](../../docs/50-operations/HOW-TO-INSTALL-AND-RUN.md)，角色专项验收见 [Meeting Roles Deployment](../../docs/50-operations/HOW-TO-MEETING-ROLES.md)。包外阅读时请在源码仓库打开这些文档。
 
-选择 `convivium.meeting_manager` 及其余七个 Definition ID，即可组合完整的八角色 Meeting。模型默认值使用 DSH 配置；角色差异通过额外 Host 控制 patch 的 `agentModelOverrides` 提供，仅支持 provider/model/reasoningEffort，控制 patch 在部署 patch 后加载，并完整保留 provider、maxParticipants 和同源 agentDefinitions 表达式；Cordis 不会自动合并 config。
+选择 `convivium.meeting_manager` 及其余七个 Definition ID，即可组合完整的八角色 Meeting。`meeting_manager` 使用 `1.2.0`，只允许 `skill`、`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round` 与 `convivium_recommend_identity`。模型默认值使用 DSH 配置；角色差异通过额外 Host 控制 patch 的 `agentModelOverrides` 提供，仅支持 provider/model/reasoningEffort，控制 patch 在部署 patch 后加载，并完整保留 provider、maxParticipants 和同源 agentDefinitions 表达式；Cordis 不会自动合并 config。
 
-Skill 只提供方法；实际贡献资格由 Meeting Runtime 判断，资源权限由 DSH Sandbox/Approval 管理。Manager 仅保留 skill、会议状态及当前贡献读写工具，继承的 shell/fs/web 被收窄；其余角色仍服从 Host 权限。不会安装独立 child Preset 或创建能力安装器。
+Skill 只提供方法；实际 Meeting 资格由 Meeting Runtime 判断，资源权限由 DSH Sandbox/Approval 管理。Manager 仅保留 skill 与四个 target Meeting command，继承的 shell/fs/web 被收窄；其余角色仍服从 Host 权限。不会安装独立 child Preset 或创建能力安装器。
 
 Evidence Reviewer `1.1.0` 收到 Runtime 提供的 immutable pending set 后，由 coordinator 为每个版本创建独立的 DSH 原生 one-shot worker；worker 不具备 Meeting command authority。Coordinator 省略失败、取消或非法结果，只通过一次 `convivium_submit_review_batch` 原子提交有效 reviews。
 

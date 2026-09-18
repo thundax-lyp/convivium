@@ -188,30 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T19b：接入 DSH tools
-
-前置状态：T19a PASS。
-
-允许修改：`plugin/src/protocol/meeting-command-v1.ts`、`plugin/src/protocol/index.ts`、`plugin/src/tools/register-tools.ts`、`plugin/src/tools/index.ts`、`plugin/meeting-roles/definitions.json`、`plugin/meeting-roles/README.md`、`plugin/tests/contract/tool-registration.spec.ts`、`plugin/tests/contract/meeting-roles-deployment.spec.ts`。
-
-禁止修改：Remote、Client、旧 application 文件。
-
-切换边界：本步新增并导出 `registerMeetingToolsV1`，只让它登记下述八个 target tools。现有 `registerCreateAndStatusTools/registerSubmitAndControlTools` 及根入口对它们的调用保留到 T20 原子切换；它们不得进入新 registrar 的 import graph。因此下文“只登记八个”和“删除其它 legacy tool registration”的作用域只是 `registerMeetingToolsV1`；不得在本步删除根入口尚在调用的 legacy registrar。
-
-执行：从 `meeting-command-v1.ts` 逐个导出这八个 action 的既有 Zod Schema，不复制 shape；只登记八个 agent tools：`convivium_create_meeting`（Captain），`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`（Manager），`convivium_raise_hand`、`convivium_submit_evidence`（Contributor），`convivium_submit_review_batch`（唯一 reviewer coordinator），`convivium_recommend_identity`（Manager）。create tool 从 `exec.agent` 注入可信 Captain parent 和 `caller={channel:"dsh_tool",principalId:String(exec.agent.id)}`，不设置 `sessionBindingId`；其余 tool 从 `exec.agent` 经 T14b2 resolver 得到 caller。每个 `defineTool` 的 DSH parameter 固定为唯一 `{input:{type:"json",required:true}}`；`execute` 先用 `MeetingCommandV1Schema` strip/parse `input`，再要求 action kind 精确等于该 tool，因而 envelope 只有 `protocolVersion/meetingId/expectedMeetingVersion/requestId`，action shape 只来自对应既有 Zod Schema。tool 不接受 actor/session/generated ID，把 `exec.signal` 原样传给 T13 `MeetingCommandApplicationV1.execute`。output 固定 `{schema:{type:"json"},render:(_args,value)=>[{type:"text",text:JSON.stringify(value)}]}`，domain rejection 作为 schema-valid `MeetingCommandResultV1` 返回，只有 infrastructure failure throw。使用 `ctx.tools.register` 的 fiber-owned registration，不再手工保存 disposer 或重复包 `ctx.effect`。删除其它 legacy tool registration，不把 local-only end、`close_contribution` 或 runtime-only start/result action 注册成 tool。
-
-同步把 `meeting_manager` Definition 从 `1.1.0` 升为 `1.2.0`，并把它的 `toolFilter.allow` 精确改为 `skill`、`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`、`convivium_recommend_identity`；不得保留 legacy contribution/status tool，也不得给 Manager 暴露 Contributor、reviewer、local 或 runtime-only action。README 与 deployment contract test 同步该精确版本和 allow-list。T16 已将 reviewer Definition 升为 `1.1.0`；其余六个 Definition 的 version、职责与 toolFilter 不变。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/contract/tool-registration.spec.ts tests/contract/meeting-roles-deployment.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：八个 tool 的 input/action mismatch、authority、Captain parent 注入、canonical output/render、cancellation、fiber disposal、公开导入和唯一 dispatcher 通过；Manager Definition `1.2.0` 只能看到四个 Manager tool 与 `skill`。
-
-STOP：tool 需要深路径、直接调用旧 application、复制 action Schema 或提交 actor。
-
 ### T20：接入 loopback Remote 并完成 plugin target assembly
 
 前置状态：T19b PASS。
