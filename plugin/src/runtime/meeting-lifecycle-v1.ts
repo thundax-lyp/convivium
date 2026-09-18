@@ -14,6 +14,8 @@ import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-
 import { parseAgentDefinitions } from "@/role-composition/model.js";
 import {
     createMeetingCommandApplicationV1,
+    DEADLINE_HANDLER_PRINCIPAL_ID,
+    RUNTIME_RECOVERY_PRINCIPAL_ID,
     type MeetingCommandApplicationV1
 } from "./application-service/meeting-command-v1.js";
 import { createMeetingCreationCoordinatorV1 } from "./meeting-runtime.js";
@@ -115,6 +117,17 @@ export async function activateTargetMeetingApplicationV1(
                 caller: input.caller,
                 meetingId: input.meetingId,
                 role: "local" as const
+            };
+        if (
+            (input.caller.channel === "runtime_recovery" &&
+                input.caller.principalId === RUNTIME_RECOVERY_PRINCIPAL_ID) ||
+            (input.caller.channel === "deadline_handler" &&
+                input.caller.principalId === DEADLINE_HANDLER_PRINCIPAL_ID)
+        )
+            return {
+                caller: input.caller,
+                meetingId: input.meetingId,
+                role: "runtime" as const
             };
         if (input.caller.channel !== "dsh_tool" || input.caller.sessionBindingId === undefined)
             return undefined;

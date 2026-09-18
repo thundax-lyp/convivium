@@ -46,7 +46,7 @@ export const SMOKE_SCENARIOS = [
     "identity-admission",
     "meeting-business-loop"
 ];
-export const CORE_SCENARIOS = ["parallel-contribution", "identity-admission", "meeting-business-loop"];
+export const CORE_SCENARIOS = ["identity-admission", "meeting-business-loop"];
 
 export function selectScenarios(args, scenario, browserMode) {
     if (args.some((arg) => !["--all", "--json"].includes(arg)))
@@ -210,7 +210,9 @@ export async function writeSmokePatch(path, scenario) {
             ? undefined
             : Object.fromEntries(
                   targetDefinitions
-                      .filter(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
+                      .filter(
+                          ({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer"
+                      )
                       .map(({ agentDefinitionId }) => [
                           agentDefinitionId,
                           { provider: "deepseek-official", model: "deepseek-v4-flash" }
@@ -233,21 +235,21 @@ export async function writeSmokePatch(path, scenario) {
         "- id: convivium",
         "  config:",
         `    provider: ${PROVIDER}`,
-            ...(targetDefinitions !== undefined
-                ? [
-                      `    agentDefinitions: ${JSON.stringify(targetDefinitions)}`,
-                      `    agentModelOverrides: ${JSON.stringify(targetModelOverrides)}`
-                  ]
-                : scenario === "parallel-contribution-model" || scenario === "identity-admission"
+        ...(targetDefinitions !== undefined
             ? [
-                  `    agentDefinitions: ${JSON.stringify(parallelDiscussionDefinitions)}`,
-                  ...(scenario === "parallel-contribution-model"
-                      ? [
-                            `    agentModelOverrides: ${JSON.stringify(parallelDiscussionModelOverrides)}`
-                        ]
-                      : [])
+                  `    agentDefinitions: ${JSON.stringify(targetDefinitions)}`,
+                  `    agentModelOverrides: ${JSON.stringify(targetModelOverrides)}`
               ]
-            : []),
+            : scenario === "parallel-contribution-model" || scenario === "identity-admission"
+              ? [
+                    `    agentDefinitions: ${JSON.stringify(parallelDiscussionDefinitions)}`,
+                    ...(scenario === "parallel-contribution-model"
+                        ? [
+                              `    agentModelOverrides: ${JSON.stringify(parallelDiscussionModelOverrides)}`
+                          ]
+                        : [])
+                ]
+              : []),
         "    maxParticipants: 3",
         `    speakerTimeoutMs: ${BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
         "    outboxPollMs: 1000",
@@ -507,7 +509,11 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
     await writeProbePackage(probeDir);
 
     let roleAssetRoot;
-    if (scenario === "parallel-contribution-model" || scenario === "identity-admission" || scenario === "meeting-business-loop") {
+    if (
+        scenario === "parallel-contribution-model" ||
+        scenario === "identity-admission" ||
+        scenario === "meeting-business-loop"
+    ) {
         const unpackRoot = join(tempRoot, "role-package");
         await mkdir(unpackRoot, { recursive: true });
         await runCommand("tar", ["-xzf", artifact, "-C", unpackRoot], {

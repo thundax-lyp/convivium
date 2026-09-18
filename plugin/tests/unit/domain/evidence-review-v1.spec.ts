@@ -9,6 +9,7 @@ import {
 } from "@/domain/transitions/evidence-review-v1.js";
 import { isRoundClosableV1 } from "@/domain/transitions/round-v1.js";
 import { publishRoundV1 } from "@/domain/transitions/round-publication-v1.js";
+import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
 
 function evidenceState() {
     let state = makeRunningMeetingStateV1();
@@ -256,5 +257,14 @@ describe("evidence review and delivery", () => {
         expect(published.kind === "accepted" && published.state.contributions[0]?.status).toBe(
             "closed"
         );
+        expect(published.kind === "accepted" && published.state.contributions[0]?.exitReason).toBe(
+            "published"
+        );
+        expect(
+            published.kind === "accepted" && published.state.publications[0]?.exitReasons
+        ).toEqual(["published"]);
+        expect(
+            published.kind === "accepted" && validateMeetingStateV1(published.state)
+        ).toMatchObject({ kind: "valid" });
     });
 });

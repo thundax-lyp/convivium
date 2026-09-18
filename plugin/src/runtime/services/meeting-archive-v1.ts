@@ -1,6 +1,5 @@
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { MeetingIdentityV1, MeetingState } from "@/domain/index.js";
 import { decodeMeetingIdentitySessionLabelV1 } from "@/dsh/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
@@ -33,10 +32,7 @@ function stringField(payload: Record<string, unknown>, key: string): string {
     return value;
 }
 
-type ArchiveSessionsV1 = Pick<
-    SubagentRuntime,
-    "listChildren" | "interrupt" | "drainContinuableChildren"
->;
+type ArchiveSessionsV1 = Pick<SubagentRuntime, "listChildren" | "drainContinuableDescendants">;
 
 interface DispatchArchiveCleanupInputV1 {
     readonly outboxItem: OutboxItem;
@@ -260,27 +256,19 @@ export function createMeetingArchiveDispatcherV1(
                 input.signal,
                 ownerships
             );
-            for (const ownership of ownerships) {
-                const latest = await dependencies.repository.recover();
-                const current = latest.sessionOwnership.find(
-                    (candidate) => candidate.id === ownership.id
-                );
-                if (!current) unavailable();
-                if (current.lifecycleStatus === "closed") continue;
+            const pending = ownerships.filter(
+                (ownership) => ownership.lifecycleStatus !== "closed"
+            );
+            if (pending.length > 0) {
                 try {
-                    dependencies.sessions.interrupt(current.sessionId as SessionId, {
-                        kind: "ancestor",
-                        agent: input.parent
-                    });
-                    await dependencies.sessions.drainContinuableChildren(input.parent, [
-                        current.sessionId as SessionId
-                    ]);
+                    await dependencies.sessions.drainContinuableDescendants([input.parent]);
                 } catch {
-                    await recordResult(input, archiveId, current, "failed");
+                    await recordResult(input, archiveId, pending[0]!, "failed");
                     retry("SESSION_CLOSE_FAILED");
                 }
-                await recordResult(input, archiveId, current, "closed");
             }
+            for (const ownership of pending)
+                await recordResult(input, archiveId, ownership, "closed");
             const completed = await dependencies.repository.recover();
             if (
                 completed.snapshot?.state.lifecycle.status !== "archived" ||

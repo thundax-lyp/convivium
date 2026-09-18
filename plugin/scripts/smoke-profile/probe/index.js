@@ -28,8 +28,7 @@ const {
     writeResult,
     observedMessages,
     messageTexts
-} =
-    createProbeSupport(outputPath);
+} = createProbeSupport(outputPath);
 let captain;
 let nextCall = 1000;
 const observedAgents = new Map();
@@ -192,9 +191,7 @@ async function run(ctx) {
             "parallel-contribution-model",
             "identity-admission",
             "meeting-business-loop"
-        ].includes(
-            scenario
-        )
+        ].includes(scenario)
     ) {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
@@ -227,7 +224,9 @@ async function run(ctx) {
             ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
             : undefined;
         captain =
-            scenario === "parallel-contribution-model" || scenario === "identity-admission" || scenario === "meeting-business-loop"
+            scenario === "parallel-contribution-model" ||
+            scenario === "identity-admission" ||
+            scenario === "meeting-business-loop"
                 ? await ctx.agents.create({
                       sessionId:
                           scenario === "identity-admission"

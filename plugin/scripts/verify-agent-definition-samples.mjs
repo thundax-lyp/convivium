@@ -98,14 +98,17 @@ export async function verifyMeetingAgentDefinitions(root) {
                 doc.definitions.forEach((d, i) => {
                     const [role, skill] = roles[i];
                     const allow =
-                        i === 0
+                        role === "meeting_manager"
                             ? [
                                   "skill",
-                                  "convivium_meeting_status",
-                                  "convivium_contribution",
-                                  "convivium_read_contribution"
+                                  "convivium_open_round",
+                                  "convivium_dispose_hand_raise",
+                                  "convivium_publish_round",
+                                  "convivium_recommend_identity"
                               ]
-                            : undefined;
+                            : role === "verification_reviewer"
+                              ? ["skill", "subagent", "convivium_submit_review_batch"]
+                              : undefined;
                     const expectedFields = [...fields, ...(allow ? ["toolFilter"] : [])].sort();
                     if (
                         !d ||
@@ -114,7 +117,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                         d.roleDefinitionId !== role ||
                         d.definitionVersion !==
                             (["meeting_manager", "verification_reviewer"].includes(role)
-                                ? "1.1.0"
+                                ? "1.2.0"
                                 : "1.0.0") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||

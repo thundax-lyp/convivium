@@ -3,6 +3,7 @@ import {
     completeMeetingBusinessLoopResult,
     validateScenarioResult
 } from "../../scripts/smoke-profile/result.mjs";
+import { selectScenarios } from "../../scripts/smoke-profile/index.mjs";
 
 const hotResult = {
     ok: true,
@@ -33,6 +34,13 @@ const hotResult = {
 };
 
 describe("Meeting business-loop smoke result", () => {
+    it("runs only target runtime scenarios by default", () => {
+        expect(selectScenarios([], undefined, false)).toEqual([
+            "identity-admission",
+            "meeting-business-loop"
+        ]);
+    });
+
     it("accepts the result only after the archived Meeting survives a cold reopen", () => {
         const completed = completeMeetingBusinessLoopResult(hotResult, {
             ok: true,

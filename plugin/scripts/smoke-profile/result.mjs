@@ -41,11 +41,24 @@ function validateMeetingBusinessLoopResult(value) {
             "archived",
             "cold-reopen"
         ]) ||
-        !exact(value.observed, ["status", "evidenceVersionIds", "startedNoticeCounts", "workerSessionIds", "coldReopen"]) ||
+        !exact(value.observed, [
+            "status",
+            "evidenceVersionIds",
+            "startedNoticeCounts",
+            "workerSessionIds",
+            "coldReopen"
+        ]) ||
         value.observed.status !== "archived" ||
         value.observed.coldReopen !== true ||
         value.observed.evidenceVersionIds.length !== 2 ||
-        !exact(value.observed.startedNoticeCounts, ["contributor-a", "contributor-b", "contributor-c", "contributor-d", "contributor-e", "contributor-f"]) ||
+        !exact(value.observed.startedNoticeCounts, [
+            "contributor-a",
+            "contributor-b",
+            "contributor-c",
+            "contributor-d",
+            "contributor-e",
+            "contributor-f"
+        ]) ||
         Object.values(value.observed.startedNoticeCounts).some((count) => count !== 1) ||
         value.observed.workerSessionIds.length !== 2 ||
         new Set(value.observed.workerSessionIds).size !== 2
@@ -68,10 +81,22 @@ export function validateMeetingBusinessLoopHotResult(value) {
             "published",
             "archived"
         ]) ||
-        !exact(value.observed, ["status", "evidenceVersionIds", "startedNoticeCounts", "workerSessionIds"]) ||
+        !exact(value.observed, [
+            "status",
+            "evidenceVersionIds",
+            "startedNoticeCounts",
+            "workerSessionIds"
+        ]) ||
         value.observed.status !== "archived" ||
         value.observed.evidenceVersionIds.length !== 2 ||
-        !exact(value.observed.startedNoticeCounts, ["contributor-a", "contributor-b", "contributor-c", "contributor-d", "contributor-e", "contributor-f"]) ||
+        !exact(value.observed.startedNoticeCounts, [
+            "contributor-a",
+            "contributor-b",
+            "contributor-c",
+            "contributor-d",
+            "contributor-e",
+            "contributor-f"
+        ]) ||
         Object.values(value.observed.startedNoticeCounts).some((count) => count !== 1) ||
         value.observed.workerSessionIds.length !== 2 ||
         new Set(value.observed.workerSessionIds).size !== 2

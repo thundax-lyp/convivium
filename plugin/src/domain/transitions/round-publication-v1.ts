@@ -112,6 +112,10 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
     const nextFormalMessageCount = state.messages.length + messages.length;
     if (nextFormalMessageCount > state.limits.maxFormalMessages)
         return reject(state, "PRECONDITION_FAILED", "publication exceeds message budget");
+    const publicationExitReasons = round.contributionIds.map(
+        (id) =>
+            state.contributions.find((candidate) => candidate.id === id)?.exitReason ?? "published"
+    );
     const publication: PublicationV1 = {
         id: input.publicationId,
         roundId: round.id,
@@ -119,9 +123,7 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
         finalVersionIds,
         finalReviewIds,
         publishedAt: input.now,
-        exitReasons: round.contributionIds.map(
-            (id) => state.contributions.find((candidate) => candidate.id === id)?.exitReason ?? ""
-        )
+        exitReasons: publicationExitReasons
     };
     const idleContributors = state.identities.filter(
         (identity) =>
@@ -146,7 +148,7 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
         contributions: state.contributions.map((contribution) =>
             round.contributionIds.includes(contribution.id) &&
             contribution.status === "awaiting_response"
-                ? { ...contribution, status: "closed" as const }
+                ? { ...contribution, status: "closed" as const, exitReason: "published" }
                 : contribution
         ),
         publications: [...state.publications, publication],

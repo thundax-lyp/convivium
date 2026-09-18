@@ -89,7 +89,7 @@ function children(current: ReturnType<typeof ownerships>) {
 }
 
 describe("meeting archive dispatcher v1", () => {
-    it("materializes through the command application then closes owned Sessions sequentially", async () => {
+    it("materializes through the command application then drains the exact owned Session set", async () => {
         let state = terminalState();
         let current = ownerships(state);
         const calls: string[] = [];
@@ -150,8 +150,8 @@ describe("meeting archive dispatcher v1", () => {
             sessions: {
                 listChildren: async () => children(current) as never,
                 interrupt: (sessionId) => calls.push(`interrupt:${String(sessionId)}`),
-                drainContinuableChildren: async (_parent, sessionIds) =>
-                    calls.push(`drain:${sessionIds.map(String).join(",")}`)
+                drainContinuableDescendants: async (parents) =>
+                    calls.push(`drain:${parents.map((parent) => String(parent.id)).join(",")}`)
             },
             application: { execute } as never
         });
@@ -163,13 +163,10 @@ describe("meeting archive dispatcher v1", () => {
         });
 
         expect(state.lifecycle.status).toBe("archived");
-        expect(calls).toEqual(
-            current.flatMap((ownership) => [
-                `interrupt:${ownership.sessionId}`,
-                `drain:${ownership.sessionId}`,
-                `commit:${ownership.sessionId}:closed`
-            ])
-        );
+        expect(calls).toEqual([
+            "drain:captain-1",
+            ...current.map((ownership) => `commit:${ownership.sessionId}:closed`)
+        ]);
         expect(execute).toHaveBeenCalledTimes(4);
         expect(execute.mock.calls[0]?.[1]).toMatchObject({
             archiveEffect: { effectId: "effect-archive-1", archiveId: "archive-1" }
@@ -200,7 +197,7 @@ describe("meeting archive dispatcher v1", () => {
                         }
                     ] as never,
                 interrupt,
-                drainContinuableChildren: vi.fn()
+                drainContinuableDescendants: vi.fn()
             },
             application: { execute } as never
         });
@@ -266,7 +263,7 @@ describe("meeting archive dispatcher v1", () => {
             sessions: {
                 listChildren: async () => children(current) as never,
                 interrupt: vi.fn(),
-                drainContinuableChildren: async () => {
+                drainContinuableDescendants: async () => {
                     if (failDrain) {
                         failDrain = false;
                         throw new Error("private session transport detail");

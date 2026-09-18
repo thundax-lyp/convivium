@@ -190,6 +190,51 @@ describe("target Meeting lifecycle", () => {
         expect(result).toMatchObject({ kind: "accepted", committedVersion: 1 });
         expect(replay).toEqual(result);
         expect(starts).toHaveLength(8);
+        await expect(
+            application.execute(
+                {
+                    protocolVersion: 1,
+                    meetingId: result.meetingId,
+                    expectedMeetingVersion: 1,
+                    requestId: "runtime-review-delivery-1",
+                    action: {
+                        kind: "record_review_delivery",
+                        reviewId: "missing-review",
+                        status: "sent"
+                    }
+                },
+                {
+                    caller: {
+                        channel: "runtime_recovery",
+                        principalId: "runtime-recovery"
+                    }
+                },
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({ kind: "rejected", error: { code: "NOT_FOUND" } });
+        await expect(
+            application.execute(
+                {
+                    protocolVersion: 1,
+                    meetingId: result.meetingId,
+                    expectedMeetingVersion: 1,
+                    requestId: "deadline-close-1",
+                    action: {
+                        kind: "close_contribution",
+                        contributionId: "missing-contribution",
+                        exit: "timed_out",
+                        reason: "deadline elapsed"
+                    }
+                },
+                {
+                    caller: {
+                        channel: "deadline_handler",
+                        principalId: "deadline-handler"
+                    }
+                },
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({ kind: "rejected", error: { code: "NOT_FOUND" } });
         await dispose();
     });
 });

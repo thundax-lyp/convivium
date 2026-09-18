@@ -129,6 +129,39 @@ interface EvidenceReviewDispatcherDependenciesV1 {
     readonly repository: Pick<MeetingRepositoryPort<MeetingState>, "recover">;
 }
 
+const reviewDimensionOutputSchema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["score", "scope", "reason", "baselineEvidenceIds"],
+    properties: {
+        score: { enum: [0, 1, 2, 3, "unable_to_assess"] },
+        scope: { type: "string", minLength: 1 },
+        reason: { type: "string", minLength: 1 },
+        baselineEvidenceIds: { type: "array", items: { type: "string", minLength: 1 } }
+    }
+} as const;
+
+const workerReviewOutputSchema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["versionId", "scope", "dimensions"],
+    properties: {
+        versionId: { type: "string", minLength: 1 },
+        scope: { type: "string", minLength: 1 },
+        dimensions: {
+            type: "object",
+            additionalProperties: false,
+            required: ["source", "credibility", "completeness", "support"],
+            properties: {
+                source: reviewDimensionOutputSchema,
+                credibility: reviewDimensionOutputSchema,
+                completeness: reviewDimensionOutputSchema,
+                support: reviewDimensionOutputSchema
+            }
+        }
+    }
+} as const;
+
 export function createEvidenceReviewDispatcherV1(
     dependencies: EvidenceReviewDispatcherDependenciesV1
 ): { dispatch(input: DispatchEvidenceReviewBatchInputV1): Promise<void> } {
@@ -203,6 +236,24 @@ export function createEvidenceReviewDispatcherV1(
                                     "support"
                                 ],
                                 allowedScores: [0, 1, 2, 3, "unable_to_assess"],
+                                scoringRubric: {
+                                    0: "No usable support, or the available evidence directly contradicts the criterion.",
+                                    1: "Weak support with material gaps, ambiguity, or unverified assumptions.",
+                                    2: "Adequate support for the scoped claim, with bounded limitations that do not overturn it.",
+                                    3: "Strong, direct, independently checkable support with no material unresolved gap.",
+                                    unable_to_assess:
+                                        "The supplied immutable version and allowed baselines do not contain enough information to judge this criterion."
+                                },
+                                dimensionCriteria: {
+                                    source: "Assess source identity, provenance, retrievability, and chain of custody.",
+                                    credibility:
+                                        "Assess trustworthiness, method quality, corroboration, and disclosed uncertainty.",
+                                    completeness:
+                                        "Assess whether the material includes the information needed to evaluate the scoped claim and its limitations.",
+                                    support:
+                                        "Assess whether the cited material directly supports the claim and qualification without an unstated inference."
+                                },
+                                workerOutputSchema: workerReviewOutputSchema,
                                 itemTemplate: {
                                     versionId: "copy-pending-version-id",
                                     scope: "non-empty-review-scope",
@@ -235,7 +286,7 @@ export function createEvidenceReviewDispatcherV1(
                                 }
                             },
                             instructions:
-                                "This is an executable review request, not an informational notice. In one assistant turn, call subagent once for every pending item so the native one-shot workers run independently. Ask each worker to return only one review item with versionId, scope, and source/credibility/completeness/support dimensions; every dimension requires score, scope, reason, and baselineEvidenceIds. Build each submitted item by copying reviewItemRules.itemTemplate and replacing its placeholder values. The dimensions value must be an object with exactly the four literal property names source, credibility, completeness, and support. Never use an array or numeric keys such as 0, 1, 2, and 3 for dimensions. Before submission, replace every dimension's baselineEvidenceIds with its intersection with reviewConstraints.allowedBaselineEvidenceIds for that version; an empty allowed list requires []. Current version and material IDs are never baseline IDs. Every score must exactly equal one reviewItemRules.allowedScores value; replace fractions, decimals, percentages, or any other score with unable_to_assess. After all calls return, omit failed or invalid outputs and call convivium_submit_review_batch exactly once with one argument named input: copy submit.input exactly and replace only submit.input.action.reviews with the valid completed review items. Do not answer in prose before attempting these tools."
+                                "This is an executable review request, not an informational notice. In one assistant turn, call subagent once for every pending item so the native one-shot workers run independently. Include reviewItemRules.workerOutputSchema, scoringRubric, dimensionCriteria, and the item's allowed baselines verbatim in each worker prompt; require the worker to return only one JSON review item matching that schema, with no Markdown or prose wrapper. If a worker fails or returns an invalid item, immediately call a replacement one-shot worker for that same pending version; do not submit while a pending version lacks one valid completed worker item. Build each submitted item by copying reviewItemRules.itemTemplate and replacing its placeholder values. The dimensions value must be an object with exactly the four literal property names source, credibility, completeness, and support. Never use an array or numeric keys such as 0, 1, 2, and 3 for dimensions. Before submission, replace every dimension's baselineEvidenceIds with its intersection with reviewConstraints.allowedBaselineEvidenceIds for that version; an empty allowed list requires []. Current version and material IDs are never baseline IDs. Every score must exactly equal one reviewItemRules.allowedScores value; replace fractions, decimals, percentages, or any other score with unable_to_assess. After every pending version has one valid worker item, call convivium_submit_review_batch exactly once with one argument named input: copy submit.input exactly and replace only submit.input.action.reviews with all valid completed review items. Do not answer in prose before attempting these tools."
                         })
                     }
                 ],
@@ -323,15 +374,15 @@ export function createReviewDeliveryDispatcherV1(
                     candidate.versions.some((version) => version.id === review?.versionId)
             );
             if (!review || !evidencePackage) fail("REVIEW_VISIBILITY_INVALID");
-            const identity = findIdentity(state, authorId, "contributor");
-            const ownership = findOwnership(
-                recovered.sessionOwnership,
-                identity,
-                recovered.snapshot.meetingId,
-                "participant",
-                parent
-            );
             try {
+                const identity = findIdentity(state, authorId, "contributor");
+                const ownership = findOwnership(
+                    recovered.sessionOwnership,
+                    identity,
+                    recovered.snapshot.meetingId,
+                    "participant",
+                    parent
+                );
                 await followupMeetingIdentitySessionV1({
                     runtime: dependencies.sessions,
                     parent,
@@ -350,9 +401,14 @@ export function createReviewDeliveryDispatcherV1(
                     ],
                     signal
                 });
-            } catch {
-                await record(input, "failed", reviewId, "REVIEW_DELIVERY_FAILED");
-                retry("REVIEW_DELIVERY_FAILED");
+            } catch (error) {
+                const errorCode =
+                    error instanceof EvidenceReviewDispatchError
+                        ? error.code
+                        : "REVIEW_DELIVERY_FAILED";
+                await record(input, "failed", reviewId, errorCode);
+                if (error instanceof EvidenceReviewDispatchError && !error.retryable) throw error;
+                retry(errorCode);
             }
             await record(input, "sent", reviewId);
         }

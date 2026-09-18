@@ -233,7 +233,7 @@ describe("evidence review request dispatcher v1", () => {
                 allowedBaselineEvidenceIds: ["version-baseline"]
             }
         ]);
-        expect(envelope.reviewItemRules).toEqual({
+        expect(envelope.reviewItemRules).toMatchObject({
             requiredDimensions: ["source", "credibility", "completeness", "support"],
             allowedScores: [0, 1, 2, 3, "unable_to_assess"],
             itemTemplate: {
@@ -265,9 +265,29 @@ describe("evidence review request dispatcher v1", () => {
                         baselineEvidenceIds: []
                     }
                 }
+            },
+            scoringRubric: {
+                0: expect.any(String),
+                1: expect.any(String),
+                2: expect.any(String),
+                3: expect.any(String),
+                unable_to_assess: expect.any(String)
+            },
+            dimensionCriteria: {
+                source: expect.any(String),
+                credibility: expect.any(String),
+                completeness: expect.any(String),
+                support: expect.any(String)
+            },
+            workerOutputSchema: {
+                type: "object",
+                required: ["versionId", "scope", "dimensions"],
+                additionalProperties: false
             }
         });
         expect(envelope.instructions).toContain("Never use an array or numeric keys");
+        expect(envelope.instructions).toContain("workerOutputSchema");
+        expect(envelope.instructions).toContain("replacement one-shot worker");
         expect(envelope.submit).toEqual({
             tool: "convivium_submit_review_batch",
             input: {
