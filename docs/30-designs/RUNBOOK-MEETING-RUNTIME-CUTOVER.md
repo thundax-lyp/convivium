@@ -188,27 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T21b：接入 Client 只读视图
-
-前置状态：T21a PASS。
-
-允许修改：`plugin/src/client/meeting-panel-layout.tsx`、`plugin/src/client/meeting-panel-sections.tsx`、`plugin/src/client/meeting-panel-view.tsx`、`plugin/tests/client/meeting-panel-v1-fixtures.ts`（新增）、`plugin/tests/client/meeting-panel.client.spec.ts`、`plugin/tests/client/meeting-panel-visibility.client.spec.ts`。
-
-禁止修改：interactive panel、legacy fixture、CSS/视觉系统、Remote。
-
-执行：layout/sections/view 只消费 T18a 定义、T18b 产生的 `MeetingSummaryV1/MeetingViewV1/ArchiveView`，展示 Meeting list、选中 detail、Round/Contribution 状态、已获准可见的 Evidence/Review、FormalMessage、Termination 与 Archive；删除 legacy proposal/risk/contribution-control DTO 分支和 Client 侧事实拼装。所有显示字段直接来自 projection，缺席字段显示为空态而不推断。新测试只使用新增 `meeting-panel-v1-fixtures.ts`，既有 `meeting-panel-fixtures.ts` 不修改、不删除。
-
-验证：
-```bash
-test -f plugin/tests/client/meeting-panel-v1-fixtures.ts
-pnpm --dir=plugin vitest run tests/client/meeting-panel.client.spec.ts tests/client/meeting-panel-visibility.client.spec.ts
-pnpm --dir=plugin typecheck:client
-```
-
-PASS：只读布局、archive 和 visibility 通过；没有 Client 派生业务事实。
-
-STOP：需要读取 legacy DTO、修改旧 fixture 或视觉重设计。
-
 ### T21c：接入 Client local controls
 
 前置状态：T21b PASS。
