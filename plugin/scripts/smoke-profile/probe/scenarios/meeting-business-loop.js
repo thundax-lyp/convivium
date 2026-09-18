@@ -136,7 +136,12 @@ export async function runMeetingBusinessLoopScenario(runtime) {
     }
     assert(reviewDelivered?.reviewDeliveries?.every((delivery) => delivery.status === "sent"), "evidence reviews were not delivered");
     const liveManager = await runtime.waitForAgent(ctx, manager.id);
-    const published = await callTargetTool(ctx, liveManager, "convivium_publish_round", { protocolVersion: 1, meetingId, expectedMeetingVersion: reviewDelivered.version, requestId: "loop-publish", action: { kind: "publish_round", roundId } }, nextCall());
+    let published;
+    try {
+        published = await callTargetTool(ctx, liveManager, "convivium_publish_round", { protocolVersion: 1, meetingId, expectedMeetingVersion: reviewDelivered.version, requestId: "loop-publish", action: { kind: "publish_round", roundId } }, nextCall());
+    } catch (error) {
+        throw new Error(`publish failed: ${error.message}; state=${JSON.stringify({ version: reviewDelivered.version, round: reviewDelivered.rounds.find((round) => round.id === roundId), contributions: reviewDelivered.contributions, reviews: reviewDelivered.reviews, reviewDeliveries: reviewDelivered.reviewDeliveries })}`);
+    }
     const ended = await runtimeApi.control({ protocolVersion: 1, meetingId, expectedMeetingVersion: published.committedVersion, requestId: "loop-end", action: { kind: "end_meeting", outcome: "partial", reason: "smoke complete", decisionIds: [], completionFactIds: [], unresolvedQuestionIds: [], unresolvedIssueIds: [] } }, new AbortController().signal);
     assert(ended.kind === "accepted", "local end_meeting was rejected");
     let archived;
