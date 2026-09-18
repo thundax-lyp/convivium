@@ -2,8 +2,20 @@ import type { MeetingState } from "@/domain/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { RecoveryResult } from "@/repository/types.js";
 
+export interface MeetingCommandRecoveryDependenciesV1 {
+    readonly repository: MeetingRepositoryPort<MeetingState>;
+    readonly wakeOutbox?: () => void;
+}
+
 export async function recoverMeetingCommandsV1(
-    repository: MeetingRepositoryPort<MeetingState>
+    repositoryOrDependencies:
+        MeetingRepositoryPort<MeetingState> | MeetingCommandRecoveryDependenciesV1
 ): Promise<RecoveryResult<MeetingState>> {
-    return repository.recover();
+    const dependencies =
+        "repository" in repositoryOrDependencies
+            ? repositoryOrDependencies
+            : { repository: repositoryOrDependencies };
+    const recovered = await dependencies.repository.recover();
+    if (recovered.pendingOutbox > 0) dependencies.wakeOutbox?.();
+    return recovered;
 }

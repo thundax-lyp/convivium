@@ -188,26 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T15b：接入 identity recovery
-
-前置状态：T15a PASS。
-
-允许修改：`plugin/src/runtime/services/meeting-command-recovery-v1.ts`、`plugin/src/runtime/outbox-worker.ts`、`plugin/tests/recovery/meeting-identity-v1.spec.ts`。
-
-禁止修改：identity application/provisioner、review/archive services、Remote。
-
-执行：recovery 只扫描仍为 provisioning 且有 pending `identity_provision` effect 的 intent，重新唤醒 T15a 使用的同一个 outbox worker；worker 重新 claim 后调用同一 effect handler。recovery 不直接调用 handler、不开旁路，也不直接 repository commit；只继续固化 admissionId/Definition/descriptor，uncertain ownership fail closed，不创建替代 child。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/recovery/meeting-identity-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：provisioning replay、成功/失败 recovery 和 active identity 恢复通过。
-
-STOP：recovery 使用当前 Definition 替代固化 provenance。
-
 ### T15c：接入 meeting-owned Session notice
 
 前置状态：T15b PASS。
