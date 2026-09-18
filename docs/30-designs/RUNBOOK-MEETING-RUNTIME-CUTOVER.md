@@ -188,31 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T24：删除旧准备与决策 application-service
-
-前置状态：T23 PASS。
-
-允许删除：
-- `plugin/src/runtime/application-service/continuation-selection.ts`
-- `plugin/src/runtime/application-service/initialize-meeting-turn.ts`
-- `plugin/src/runtime/application-service/meeting-contribution.ts`
-- `plugin/src/runtime/application-service/meeting-decision.ts`
-
-禁止修改：其他全部文件。
-
-执行：只删除上述 4 个文件；不得修改旧 fixture 或 `contribution-runtime.spec.ts`。
-
-验证：
-```bash
-test "$(git diff --diff-filter=D --name-only | rg '^plugin/src/runtime/application-service/' | wc -l | tr -d ' ')" -eq 4
-test "$(git diff --name-only | wc -l | tr -d ' ')" -eq 4
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：当前步骤恰好删除列出的 4 个 application-service 文件且无其他改动；typecheck 退出 0。
-
-STOP：仍有 production 引用、需要修改其他文件或当前删除不等于 4。
-
 ### T25：删除剩余旧 application-service 及直接测试
 
 前置状态：T24 PASS。
