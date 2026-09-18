@@ -20,7 +20,6 @@ export function makeRunningMeetingStateV1(): MeetingState {
                 displayName: "manager-v1",
                 roles: ["manager"],
                 agendaResponsibilityIds: ["agenda-v1"],
-                reviewResponsibilityIds: [],
                 riskAuthority: false,
                 required: true
             },
@@ -29,7 +28,6 @@ export function makeRunningMeetingStateV1(): MeetingState {
                 displayName: "contributor-v1",
                 roles: ["contributor"],
                 agendaResponsibilityIds: ["agenda-v1"],
-                reviewResponsibilityIds: [],
                 riskAuthority: false,
                 required: true
             },
@@ -38,7 +36,6 @@ export function makeRunningMeetingStateV1(): MeetingState {
                 displayName: "reviewer-v1",
                 roles: ["evidence_reviewer"],
                 agendaResponsibilityIds: ["agenda-v1"],
-                reviewResponsibilityIds: ["agenda-v1"],
                 riskAuthority: false,
                 required: true
             }
@@ -50,8 +47,7 @@ export function makeRunningMeetingStateV1(): MeetingState {
                 title: "议题 A",
                 question: "证据是什么",
                 status: "active",
-                requiredOutputIds: ["output-v1"],
-                requiredReviewerIds: ["reviewer-v1"]
+                requiredOutputIds: ["output-v1"]
             }
         ],
         agendaCandidates: [],
@@ -59,7 +55,7 @@ export function makeRunningMeetingStateV1(): MeetingState {
         opportunityRequests: [],
         pendingHandRaises: [],
         contributions: [],
-        formatApprovals: [],
+        evidenceReviewerId: "reviewer-v1",
         completionDeclarations: [],
         evidencePackages: [],
         registrations: [],

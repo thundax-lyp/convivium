@@ -65,6 +65,10 @@ export const AgentDefinitionBindingSchema = z.strictObject({
 
 const sessionOwnership = z
     .object({
+        id: z.string().optional(),
+        meetingId: z.string().optional(),
+        identityId: z.string().optional(),
+        lastClosureFailureCode: z.string().optional(),
         agentDefinition: AgentDefinitionBindingSchema.optional(),
         sessionId: z.string(),
         parentSessionId: z.string(),
@@ -72,7 +76,7 @@ const sessionOwnership = z
         provider: z.string(),
         initialMessageId: z.string().optional(),
         supersededBySessionId: z.string().min(1).optional(),
-        role: z.enum(["manager", "participant"]),
+        role: z.enum(["manager", "evidence_reviewer", "participant"]),
         participantId: z.string().optional(),
         lifecycleStatus: z.enum(["provisioning", "active", "closed"]),
         capabilityStatus: z.enum(["active", "revoked"]),
@@ -93,6 +97,10 @@ const sessionOwnershipMap = safeRecord(sessionOwnership).superRefine((ownerships
             ownership.lifecycleStatus !== "closed" ||
             ownership.capabilityStatus !== "revoked" ||
             successor.sessionId !== successorId ||
+            successor.id !== ownership.id ||
+            successor.meetingId !== ownership.meetingId ||
+            successor.identityId !== ownership.identityId ||
+            successor.lastClosureFailureCode !== ownership.lastClosureFailureCode ||
             successor.parentSessionId !== ownership.parentSessionId ||
             successor.sessionLabel !== ownership.sessionLabel ||
             successor.provider !== ownership.provider ||
@@ -136,6 +144,30 @@ const createResult = z
         participants: z
             .array(z.object({ participantKey: z.string(), participantId: z.string() }).strict())
             .readonly()
+            .optional(),
+        kind: z.literal("accepted").optional(),
+        committedVersion: z.number().int().nonnegative().optional(),
+        receiptId: z.string().optional(),
+        factIds: z.array(z.string()).readonly().optional(),
+        effects: z
+            .array(
+                z
+                    .object({
+                        id: z.string(),
+                        kind: z.enum([
+                            "refresh",
+                            "session_mail",
+                            "agent_notice",
+                            "review_delivery",
+                            "markdown_projection",
+                            "archive",
+                            "identity_provision"
+                        ]),
+                        status: z.literal("queued")
+                    })
+                    .strict()
+            )
+            .readonly()
             .optional()
     })
     .strict() satisfies z.ZodType<CreateMeetingResult>;
@@ -154,7 +186,6 @@ const outboxSeed = z
     .strict();
 const meetingSnapshot = z
     .object({
-        teamId: z.string(),
         meetingId: z.string(),
         version: z.number().int(),
         state: meetingStateTransport,
@@ -201,10 +232,22 @@ const privateMail = z
     })
     .strict() satisfies z.ZodType<PrivateMeetingMail>;
 
+export const CommittedFactRecordV1Schema = z
+    .object({
+        factId: z.string().min(1),
+        kind: z.string().min(1),
+        actorId: z.string().min(1),
+        occurredAt: z.number().int(),
+        meetingVersion: z.number().int().positive(),
+        relatedIds: z.array(z.string().min(1)).readonly(),
+        payload: JsonObjectSchema,
+        resultingState: JsonObjectSchema
+    })
+    .strict();
+
 export const CatalogMeetingRecordV1Schema = z
     .object({
         formatVersion: z.literal(1),
-        teamId: z.string(),
         meetingId: z.string(),
         domainName: z.string(),
         status: z.enum(["creating", "ready", "creation_failed"]),
@@ -218,7 +261,6 @@ export const CatalogMeetingRecordV1Schema = z
 export const CreationRecordV1Schema = z
     .object({
         formatVersion: z.literal(1),
-        teamId: z.string(),
         meetingId: z.string(),
         status: z.enum(["creating", "ready", "creation_failed"]),
         requestId: z.string(),
@@ -284,6 +326,7 @@ export const PersistenceProjectionV1Schema = z
         snapshot: meetingSnapshot.nullable(),
         bootstrap: meetingBootstrap,
         receipts: safeRecord(PersistedReceiptV1Schema),
+        facts: safeRecord(CommittedFactRecordV1Schema),
         events: safeRecord(PersistedEventV1Schema),
         outbox: safeRecord(PersistedOutboxV1Schema),
         sessionOwnership: sessionOwnershipMap,

@@ -27,9 +27,21 @@ describe("identity admission recovery", () => {
                 }
             ]
         };
-        const terminal = endMeetingV1(state, 2, "local");
-        expect(terminal.lifecycle.status).toBe("terminal");
-        expect(terminal.identityRecommendations[0]).toMatchObject({
+        const terminal = endMeetingV1(state, {
+            terminationId: "termination-1",
+            outcome: "partial",
+            reason: "结束会议",
+            decisionIds: [],
+            completionFactIds: [],
+            unresolvedQuestionIds: [],
+            unresolvedIssueIds: [],
+            actorId: "local",
+            now: 2
+        });
+        expect(terminal.kind).toBe("accepted");
+        if (terminal.kind !== "accepted") return;
+        expect(terminal.state.lifecycle.status).toBe("terminal");
+        expect(terminal.state.identityRecommendations[0]).toMatchObject({
             status: "failed",
             failureCode: "ADMISSION_CONFLICT"
         });

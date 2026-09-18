@@ -1,5 +1,6 @@
 import type {
     ClaimOutboxInput,
+    CommittedFactRecordV1,
     CommittedResult,
     CompleteOutboxInput,
     CreateMeetingInput,
@@ -11,6 +12,7 @@ import type {
     StartPrivateMeetingMailInput,
     FinishPrivateMeetingMailInput,
     CancelPrivateMeetingMailInput,
+    JsonObject,
     OutboxCompletionResult,
     OutboxItem,
     RecoverInput,
@@ -23,11 +25,12 @@ import type {
     UpdateCreateResultInput
 } from "./types.js";
 
-export interface MeetingRepositoryPort {
-    readonly teamId: string;
+export interface MeetingRepositoryPort<TState = JsonObject> {
     readonly meetingId: string;
-    create(input: CreateMeetingInput): Promise<MeetingBootstrap>;
-    completeCreate(input: CreateMeetingInput): Promise<CommittedResult<CreateMeetingResult>>;
+    create(input: CreateMeetingInput<TState>): Promise<MeetingBootstrap>;
+    completeCreate(
+        input: CreateMeetingInput<TState>
+    ): Promise<CommittedResult<CreateMeetingResult>>;
     updateCreateResult(input: UpdateCreateResultInput): Promise<CreateMeetingResult>;
     updateBootstrap(input: UpdateBootstrapInput): Promise<MeetingBootstrap>;
     recordSessionOwnership(input: SessionOwnershipInput, now?: number): Promise<SessionOwnership>;
@@ -36,17 +39,24 @@ export interface MeetingRepositoryPort {
         replacementSessionId: string,
         now?: number
     ): Promise<SessionOwnership>;
-    read(): Promise<MeetingSnapshot>;
+    read(): Promise<MeetingSnapshot<TState>>;
+    readCommittedFacts(): Promise<readonly CommittedFactRecordV1<TState>[]>;
     readPrivateMeetingMail(mailId: string): Promise<PrivateMeetingMail | undefined>;
     listOverduePrivateMeetingMail(now: number): Promise<PrivateMeetingMail[]>;
     hasUnfinishedPrivateMeetingMail(): Promise<boolean>;
+    replayReceipt(
+        input: Pick<
+            RepositoryCommand<unknown, TState>,
+            "requestId" | "commandKind" | "authorization" | "requestHash"
+        >
+    ): Promise<CommittedResult<unknown> | undefined>;
     sendPrivateMeetingMail(
         input: SendPrivateMeetingMailInput
     ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;
     startPrivateMeetingMail(input: StartPrivateMeetingMailInput): Promise<PrivateMeetingMail>;
     finishPrivateMeetingMail(input: FinishPrivateMeetingMailInput): Promise<PrivateMeetingMail>;
     cancelUnfinishedPrivateMeetingMail(input: CancelPrivateMeetingMailInput): Promise<number>;
-    execute<T>(command: RepositoryCommand<T>): Promise<CommittedResult<T>>;
+    execute<T>(command: RepositoryCommand<T, TState>): Promise<CommittedResult<T>>;
     claimOutbox(input: ClaimOutboxInput): Promise<OutboxItem[]>;
     completeOutbox(input: CompleteOutboxInput): Promise<OutboxCompletionResult>;
     requeueAcceptedOutbox(input: {
@@ -55,6 +65,6 @@ export interface MeetingRepositoryPort {
         now?: number;
     }): Promise<number>;
     renewOutboxLease(input: RenewOutboxLeaseInput): Promise<number>;
-    recover(input?: RecoverInput): Promise<RecoveryResult>;
+    recover(input?: RecoverInput): Promise<RecoveryResult<TState>>;
     close(): Promise<void>;
 }

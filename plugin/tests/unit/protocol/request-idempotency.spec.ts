@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { serializeValidatedRequestV1 } from "@/protocol/request-idempotency.js";
 
 describe("request identity canonical serialization", () => {
-    it("preserves object and array order while omitting undefined properties", () => {
+    it("sorts object keys while preserving array order and omitting undefined properties", () => {
         expect(
             serializeValidatedRequestV1({
                 attemptId: "attempt-1",
@@ -12,13 +12,13 @@ describe("request identity canonical serialization", () => {
                 ids: ["first", "second"]
             })
         ).toBe(
-            '{"attemptId":"attempt-1","reasonCode":"timeout","observedMeetingVersion":4,"ids":["first","second"]}'
+            '{"attemptId":"attempt-1","ids":["first","second"],"observedMeetingVersion":4,"reasonCode":"timeout"}'
         );
     });
 
     it("does not trim strings or reorder arrays", () => {
         expect(serializeValidatedRequestV1({ value: "  retained  ", ids: ["b", "a"] })).toBe(
-            '{"value":"  retained  ","ids":["b","a"]}'
+            '{"ids":["b","a"],"value":"  retained  "}'
         );
     });
 });

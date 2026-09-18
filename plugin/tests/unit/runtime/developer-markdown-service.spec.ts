@@ -19,7 +19,6 @@ function snapshot(version: number): MeetingSnapshot {
     state.version = version;
     state.meetingTasks = [];
     return {
-        teamId: state.teamId,
         meetingId: state.id,
         version,
         state,
@@ -30,7 +29,6 @@ function snapshot(version: number): MeetingSnapshot {
 
 function repository(current: MeetingSnapshot): MeetingRepositoryPort {
     return {
-        teamId: current.teamId,
         meetingId: current.meetingId,
         read: async () => current
     } as MeetingRepositoryPort;
@@ -72,7 +70,7 @@ describe("Developer Markdown service", () => {
             warn: (value) => warnings.push(value)
         });
 
-        const directory = join(root, ".convivium", "meetings", "dGVhbS0x", "bWVldGluZy0x");
+        const directory = join(root, ".convivium", "meetings", "bWVldGluZy0x");
         try {
             // Keep the first task in flight so all later versions compete for one pending slot.
             service.schedule(snapshot(1));

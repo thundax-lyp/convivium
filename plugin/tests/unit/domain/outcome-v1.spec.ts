@@ -35,7 +35,6 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 displayName: "Captain",
                 roles: ["captain", "contributor"],
                 agendaResponsibilityIds: ["a"],
-                reviewResponsibilityIds: [],
                 riskAuthority: true,
                 required: true
             },
@@ -44,7 +43,6 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 displayName: "Contributor",
                 roles: ["contributor"],
                 agendaResponsibilityIds: ["a"],
-                reviewResponsibilityIds: [],
                 riskAuthority: false,
                 required: false
             },
@@ -53,7 +51,6 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 displayName: "Reviewer",
                 roles: ["evidence_reviewer"],
                 agendaResponsibilityIds: [],
-                reviewResponsibilityIds: ["a"],
                 riskAuthority: false,
                 required: false
             },
@@ -62,7 +59,6 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 displayName: "Manager",
                 roles: ["manager"],
                 agendaResponsibilityIds: [],
-                reviewResponsibilityIds: [],
                 riskAuthority: false,
                 required: false
             }
@@ -74,8 +70,7 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 title: "Agenda",
                 question: "q",
                 status: "active",
-                requiredOutputIds: ["o"],
-                requiredReviewerIds: ["reviewer"]
+                requiredOutputIds: ["o"]
             }
         ],
         agendaCandidates: [],
@@ -103,7 +98,7 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
                 packageId: "p"
             }
         ],
-        formatApprovals: [],
+        evidenceReviewerId: "reviewer",
         completionDeclarations: [],
         evidencePackages: [
             {
@@ -134,9 +129,7 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
             {
                 id: "reg",
                 versionId: "v",
-                managerId: "manager",
                 status: "complete",
-                missingFields: [],
                 createdAt: 0
             }
         ],
@@ -212,15 +205,32 @@ function validState(status: MeetingState["lifecycle"]["status"] = "running"): Me
     if (status === "archiving" || status === "archived") {
         state.archive = {
             id: "archive",
+            status: status === "archived" ? "complete" : "complete",
             createdAt: 0,
-            createdBy: "captain",
-            terminationId: "termination",
             publicSnapshotVersion: 1,
-            includedPublicationIds: [],
-            includedDecisionIds: [],
-            includedCompletionFactIds: [],
-            status: status === "archived" ? "complete" : "pending",
-            identityProvenance: []
+            terminationId: "termination",
+            objective: state.objective,
+            agenda: state.agenda,
+            agendaCandidates: [],
+            publications: [],
+            messages: [],
+            evidenceBundles: [],
+            proposalRevisions: [],
+            positions: [],
+            decisionCandidates: [],
+            decisions: [],
+            completionFacts: [],
+            questions: [],
+            issues: [],
+            riskDispositions: [],
+            questionIssueDispositionFacts: [],
+            termination: state.termination,
+            unresolvedQuestionIds: [],
+            unresolvedIssueIds: [],
+            unresolvedItemIds: [],
+            unclosedContributions: [],
+            identityProvenance: [],
+            exportMaterials: []
         };
     }
     return state;
@@ -452,7 +462,7 @@ describe("outcome proposal revisions", () => {
                     affectedOutputIds: ["o"],
                     affectedCriterionIds: [],
                     affectedConstraintIds: [],
-                    requiredReviewerIds: [],
+                    requiresEvidenceReview: true,
                     blocking: true,
                     status: "open",
                     rationale: "x"
@@ -467,7 +477,7 @@ describe("outcome proposal revisions", () => {
                     affectedOutputIds: ["o"],
                     affectedCriterionIds: [],
                     affectedConstraintIds: [],
-                    requiredReviewerIds: [],
+                    requiresEvidenceReview: false,
                     blocking: true,
                     status: "open",
                     rationale: "x"
@@ -1186,7 +1196,7 @@ describe("outcome proposal revisions", () => {
                 affectedOutputIds: ["o"],
                 affectedCriterionIds: [],
                 affectedConstraintIds: [],
-                requiredReviewerIds: ["reviewer"],
+                requiresEvidenceReview: true,
                 blocking: true,
                 status: "open",
                 rationale: "x"
@@ -2434,12 +2444,6 @@ describe("position candidate and pending gates", () => {
 describe("CompletionFact", () => {
     const reviewBreaks = [
         [
-            "missing required reviewer",
-            (s: MeetingState) => {
-                s.agenda[0].requiredReviewerIds = [];
-            }
-        ],
-        [
             "missing evidence review",
             (s: MeetingState) => {
                 s.reviews = [];
@@ -3020,12 +3024,12 @@ describe("Recompute/Convergence", () => {
         actorId: "contributor",
         agendaId: "a",
         description: "block",
-        riskLevel: "low" as const,
+        riskLevel: "high" as const,
         classification: "blocking" as const,
         affectedOutputIds: ["o"],
         affectedCriterionIds: [],
         affectedConstraintIds: [],
-        requiredReviewerIds: ["reviewer"],
+        requiresEvidenceReview: true,
         blocking: true,
         status: "open" as const,
         rationale: "block"

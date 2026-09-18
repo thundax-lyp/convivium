@@ -160,7 +160,6 @@ describe("meeting recovery and Captain ownership", () => {
                 authorizationValidator: validator
             });
             const first = await firstRegistry.openMeeting({
-                teamId: "team-1",
                 meetingId: "meeting-1",
                 create
             });
@@ -196,7 +195,6 @@ describe("meeting recovery and Captain ownership", () => {
                 authorizationValidator: validator
             });
             const reopened = await reopenedRegistry.openMeeting({
-                teamId: "team-1",
                 meetingId: "meeting-1"
             });
             const recovered = await reopened.recover({ now: 40 });

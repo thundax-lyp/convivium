@@ -1,4 +1,3 @@
-import { parseAgentDefinitions } from "./role-composition/model.js";
 import type { Context } from "@deepseek-ai/cordis";
 // Load the Cordis augmentation for ctx.webServer without a runtime import.
 import type {} from "@deepseek-ai/dsh-host-webserver";
@@ -6,8 +5,13 @@ import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import type { WorkspaceId } from "@deepseek-ai/dsh-workspace";
 import { Config, type Config as ConfigType } from "./config.js";
 import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
+import { parseAgentDefinitions } from "./role-composition/model.js";
 import { ConviviumRemoteService } from "./remote/index.js";
-import { createCreateStatusRuntime, AGENT_CATALOG_SERVICE_KEY } from "./runtime/index.js";
+import {
+    activateTargetMeetingApplicationV1,
+    createCreateStatusRuntime,
+    AGENT_CATALOG_SERVICE_KEY
+} from "./runtime/index.js";
 import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "./tools/index.js";
 
 export { Config };
@@ -30,18 +34,22 @@ export function assertContinuableProvider(
 const meetingConsumerPlugin = {
     name: "convivium-meeting-consumer",
     inject: [...meetingServices, "storageDomain"] as const,
-    apply(ctx: Context, config: ConfigType): void {
+    async apply(ctx: Context, config: ConfigType): Promise<void> {
         if (ctx.subagents.getProvider(config.provider) !== undefined) {
-            activate();
+            await activate();
             return;
         }
         const stopListening = ctx.on("subagent/provider-added", (provider) => {
             if (provider.name !== config.provider) return;
             stopListening();
-            activate();
+            void activate().catch((error: unknown) => {
+                ctx.logger("convivium:meeting").error("Meeting activation failed %o", error);
+            });
         });
-        function activate(): void {
+        async function activate(): Promise<void> {
             assertContinuableProvider(ctx, config.provider);
+            const disposeTarget = await activateTargetMeetingApplicationV1(ctx, config);
+            ctx.effect(() => disposeTarget, "convivium:target-runtime");
             const agentCatalog = ctx.get(AGENT_CATALOG_SERVICE_KEY);
             let workspace: { path: string } | undefined;
             if (config.developerMarkdownWorkspaceId !== undefined) {

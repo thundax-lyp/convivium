@@ -29,11 +29,11 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 所有 Agent、local panel、Remote control、恢复任务和自动期限检查都严格执行同一序列：
 
 1. 解码 [Meeting Interface](../20-interfaces/MEETING-INTERFACE.md) 的版本化 envelope，执行结构和值域校验。
-2. 从可信调用通道取得 caller binding、当前时间和 requestId；忽略输入中的 actor、Session ownership、baseline、权限或派生完成状态。
+2. 从可信调用通道取得 caller binding、当前时间和 requestId；创建命令只由 Captain DSH tool adapter 从 `exec.agent` 注入可信 Captain parent，其他命令按已登记 ownership 解析 caller；忽略输入中的 actor、parent、Session ownership、baseline、权限或派生完成状态。
 3. 加载 Meeting 与该 caller 的持久 identity ownership；未知、损坏、撤权或无法证明归属时 fail closed。
 4. 先检查 caller 是否可读取/控制目标 Meeting，再查找该 caller 的历史 receipt：同键不同 payload 返回 `IDEMPOTENCY_CONFLICT`，同键同 payload 直接返回原结果；无历史 receipt 时依次检查 terminal/archive、expected version、目标对象存在性、action state/precondition 与 Domain invariant/limit。
 5. 由 application 构造无环境依赖的 Domain command，调用纯转换。转换成功时生成新 snapshot、已提交事实和提交后 effect plan；拒绝时不产生任何事实。
-6. 以 `meetingId + expectedVersion` 比较并交换，原子写入 snapshot、事件/审计事实、idempotency receipt 和 effect outbox。冲突返回当前版本，不执行效果。
+6. 以当前 Host/profile Storage Domain 内全局唯一的 `meetingId + expectedVersion` 比较并交换，原子写入 snapshot、事件/审计事实、idempotency receipt 和 effect outbox。catalog、repository 与 recovery 只按 `meetingId` 定位，不建立 `teamId` namespace；冲突返回当前版本，不执行效果。
 7. commit 后按 outbox 投递 Session mail、agent notice、review delivery、refresh、Markdown projection、身份 provisioning 或归档动作。投递至少一次，但 receipt 和领域事实绝不因重复投递而重复创建。
 8. 返回该 caller 可见的 committed result；任何 refresh 只提示重新读取，不把未提交状态作为结果发送。
 
@@ -47,7 +47,7 @@ Domain 转换返回 `accepted(state, facts, effects)` 或 `rejected(domainError)
 
 | 转换 | 允许 actor | 前提 | 成功事实/效果 | 拒绝或无操作 |
 | --- | --- | --- | --- | --- |
-| `create_meeting` | Convener | objective、初始身份、限制完整；DSH 预检已完成 | version 1、initial pending agenda、ownership/session creation effect | 任一必填目标、身份或能力缺失即拒绝；不产生半个 Meeting |
+| `create_meeting` | Captain DSH tool | objective、初始身份、限制完整；`exec.agent` 是八个 child 的同一可信 parent；DSH 预检已完成 | version 1、initial pending agenda、八个独立 ownership/session | 非 Captain tool、loopback create、任一必填目标、身份或能力缺失均拒绝；不产生半个 Meeting |
 | `activate_agenda` | Captain | Meeting running；目标 Agenda pending；恰有一个旧 active Agenda 且其上没有 open Round | 原 Agenda 按明示 disposition 收口，新 Agenda active，open Round 不会留在已收口 Agenda 上 | 非 Captain、非 running、旧议题仍有 open Round、缺失/非 pending Agenda 拒绝 |
 | `raise_agenda_candidate` | 任意已授权 identity | Meeting 非终态；title/reason 完整 | pending candidate | 相同 request replay receipt；不能隐式加入 Agenda |
 | `dispose_agenda_candidate` | Captain | candidate pending；promoted Agenda 的 output/owner 引用可解析 | 仅一次 promoted/parked/rejected 事实；promoted 同次将 candidate 标 promoted 并 append 完整 pending Agenda；不改变全局 evidenceReviewerId、不授新 role、不切换 active | 再处置、非 Captain、候选/owner 不存在或任一引用非法时整条拒绝，state/facts/version 均不变 |
@@ -92,7 +92,7 @@ Decision candidate 和 Captain/local 私有投影由 projection 根据 actor 过
 
 ### Planning, tasks and mail
 
-`recommend_identity` 由当前 Manager 单独提交结构化 `admit|reject`。application 重读同一 Host 的安全 Catalog，验证 snapshot/candidate/Definition/Agenda、Meeting version 和真实 caller；`reject` 只原子提交拒绝事实，`admit` 原子提交不可调度的 provisioning 意图及 `identity_provision` outbox，不立即创建 MeetingIdentity、Contribution 或 Decision。effect dispatcher 依据该 intent 的精确 Definition identity 和稳定 admissionId 执行 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 的 resolution/preflight/admission；Runtime 确认独立 Session ownership 后，`record_identity_admission_result` 原子激活普通可选身份，或原子记录失败码而保持无身份。效果重试和冷恢复只使用同一意图及 admissionId；缺必需 identity 时仍通过 blocking Issue 报告，不自动让另一个 agent 补位。`recommend_work`、`recommend_review` 仍仅为规划事实。
+`recommend_identity` 由当前 Manager 单独提交结构化 `admit|reject`。application 重读同一 Host 的安全 Catalog，验证 snapshot/candidate/Definition/Agenda、Meeting version 和真实 caller；`reject` 只原子提交拒绝事实。candidate 没有 active identity 时，`admit` 原子提交不可调度的 provisioning 意图及 `identity_provision` outbox，不立即创建 MeetingIdentity、Contribution 或 Decision；effect dispatcher 依据该 intent 的精确 Definition identity 和稳定 admissionId 执行 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md) 的 resolution/preflight/admission；Runtime 确认独立 Session ownership 后，`record_identity_admission_result` 原子激活普通可选身份，或原子记录失败码而保持无身份。同一 candidate 仍在 provisioning 时，其他 Agenda 的准入拒绝；已有 active identity 时，另一 Agenda 的合法 `admit` 直接提交复用既有 identity/Session/Definition provenance 的独立 active recommendation，不写 `identity_provision` outbox，不追加 identity，也不改变权限。效果重试和冷恢复只使用同一意图及 admissionId；缺必需 identity 时仍通过 blocking Issue 报告，不自动让另一个 agent 补位。`recommend_work`、`recommend_review` 仍仅为规划事实。
 
 `create_task`、`claim_task`、`complete_task`、`cancel_task` 只改变 `MeetingTask`。任务必须绑定 Meeting、发起/执行身份、上下文范围和 deadline；任务完成绝不直接完成 Agenda、Round 或 Meeting。`send_private_mail` 在 commit 中固定双方可见的公开上下文上界，投递前由 effect dispatcher 加上该上界之后新增的公开内容；私信、Agent tool 过程和隐藏推理不回写 FormalMessage。
 

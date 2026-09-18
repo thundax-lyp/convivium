@@ -17,7 +17,6 @@ export type DeveloperMarkdownOperation =
 
 export interface DeveloperMarkdownWarning {
     operation: DeveloperMarkdownOperation;
-    teamId: string;
     meetingId: string;
     sourceMeetingVersion: number;
     projectionKind: "current" | "archive";
@@ -38,7 +37,7 @@ function segment(value: string): string {
 }
 
 function taskKey(snapshot: MeetingSnapshot): string {
-    return `${segment(snapshot.teamId)}/${segment(snapshot.meetingId)}`;
+    return segment(snapshot.meetingId);
 }
 
 function safeWarn(
@@ -60,7 +59,6 @@ function warning(
 ): void {
     safeWarn(warn, {
         operation,
-        teamId: task.snapshot.teamId,
         meetingId: task.snapshot.meetingId,
         sourceMeetingVersion: task.snapshot.version,
         projectionKind
@@ -71,12 +69,7 @@ async function resolveDirectory(root: string, task: PendingTask): Promise<string
     const { lstat, mkdir, realpath } = await import("node:fs/promises");
     const { isAbsolute, join, relative } = await import("node:path");
     const rootPath = await realpath(root);
-    const parts = [
-        ".convivium",
-        "meetings",
-        segment(task.snapshot.teamId),
-        segment(task.snapshot.meetingId)
-    ];
+    const parts = [".convivium", "meetings", segment(task.snapshot.meetingId)];
     let current = rootPath;
     let firstMissing: string | undefined;
     for (const part of parts) {
@@ -151,7 +144,7 @@ async function replaceAtomically(
 
 export function createDeveloperMarkdownService(options: {
     workspaceRoot: string;
-    openRepository(teamId: string, meetingId: string): Promise<MeetingRepositoryPort>;
+    openRepository(meetingId: string): Promise<MeetingRepositoryPort>;
     now?: () => number;
     warn(warning: DeveloperMarkdownWarning): void;
 }): DeveloperMarkdownService {
@@ -163,13 +156,9 @@ export function createDeveloperMarkdownService(options: {
 
     const processTask = async (task: PendingTask): Promise<void> => {
         try {
-            const repository = await options.openRepository(
-                task.snapshot.teamId,
-                task.snapshot.meetingId
-            );
+            const repository = await options.openRepository(task.snapshot.meetingId);
             const current = await repository.read();
             if (
-                current.teamId !== task.snapshot.teamId ||
                 current.meetingId !== task.snapshot.meetingId ||
                 current.version < task.snapshot.version
             ) {

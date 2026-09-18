@@ -132,8 +132,8 @@ export function createCreateStatusRuntime(
     if (options.developerMarkdown !== undefined) {
         developerMarkdownService = createDeveloperMarkdownService({
             workspaceRoot: options.developerMarkdown.workspaceRoot,
-            openRepository: (teamId, meetingId) =>
-                openMeetingRepository({ registry: repositoryRegistry, teamId, meetingId }),
+            openRepository: (meetingId) =>
+                openMeetingRepository({ registry: repositoryRegistry, meetingId }),
             now: options.now,
             warn: options.developerMarkdown.warn
         });

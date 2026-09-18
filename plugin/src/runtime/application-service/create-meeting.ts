@@ -1,5 +1,4 @@
 import { RoleCompositionError } from "@/role-composition/resolve.js";
-import { createHash } from "node:crypto";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { interruptAndDrainOwnedSessions } from "@/dsh/index.js";
 import { isMeetingStateV2, type LegacyMeetingState } from "@/domain/index.js";
@@ -21,12 +20,10 @@ import type { CreateStatusRuntimeOptions, MeetingToolCaller } from "./index.js";
 import type { StoredMeeting } from "./types.js";
 import { resolveContinuationSelection } from "./continuation-selection.js";
 import { contributionOutbox } from "@/runtime/services/contribution-runtime-service.js";
+import { meetingIdFor } from "@/repository/domain/keys.js";
 
 function stableMeetingId(input: CreateMeetingInputV1): string {
-    return `meeting-${createHash("sha256")
-        .update(`${input.teamId}\0${input.requestId}`)
-        .digest("hex")
-        .slice(0, 32)}`;
+    return meetingIdFor(input.requestId);
 }
 
 function requestHash(input: CreateMeetingInputV1): string {
@@ -205,7 +202,6 @@ export function createMeetingApplication(options: CreateMeetingApplicationOption
             try {
                 repository = await openMeetingRepository({
                     registry: options.runtime.repositoryRegistry,
-                    teamId: input.teamId,
                     meetingId,
                     create: prepared.createInput
                 });

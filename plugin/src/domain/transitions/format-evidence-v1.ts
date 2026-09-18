@@ -35,28 +35,13 @@ export interface EvidenceInputV1 {
         reason?: string;
     }[];
 }
-type DraftInput = {
-    contributionId: OpaqueId;
-    managerId: OpaqueId;
-    evidenceHash: string;
-    disposition: "accepted" | "rejected" | "deferred";
-    missingFields: readonly import("./result-v1.js").EvidenceFieldNameV1[];
-    rationale: string;
-    approvalId: OpaqueId;
-    now: number;
-};
-type SubmitInput = {
+export interface SubmitEvidenceInputV1 {
     contributionId: OpaqueId;
     authorId: OpaqueId;
     evidence: EvidenceInputV1;
-    verifiedEvidenceHash: string;
-    packageId?: OpaqueId;
+    packageId: OpaqueId;
     versionId: OpaqueId;
-    registrationId: OpaqueId;
     now: number;
-};
-function validHash(hash: string) {
-    return /^[0-9a-f]{64}$/.test(hash);
 }
 function validText(value: string) {
     return value.trim().length > 0;
@@ -122,97 +107,15 @@ function validInput(evidence: EvidenceInputV1) {
     );
 }
 
-export function reviewEvidenceDraftV1(
-    state: MeetingState,
-    input: DraftInput
-): MeetingTransitionResultV1 {
-    if (
-        input.contributionId.trim() === "" ||
-        input.managerId.trim() === "" ||
-        input.approvalId.trim() === "" ||
-        !validHash(input.evidenceHash) ||
-        !validText(input.rationale) ||
-        !Number.isSafeInteger(input.now) ||
-        input.now < 0
-    )
-        return reject(state, "INVALID_ARGUMENT", "invalid format disposition");
-    const contribution = state.contributions.find(
-        (candidate) => candidate.id === input.contributionId
-    );
-    if (!contribution) return reject(state, "NOT_FOUND", "contribution not found");
-    const round = state.rounds.find((candidate) => candidate.id === contribution.roundId);
-    if (!round) return reject(state, "NOT_FOUND", "round not found");
-    const managerIdentity = state.identities.find((candidate) => candidate.id === input.managerId);
-    if (!managerIdentity || !managerIdentity.roles.includes("manager"))
-        return reject(state, "UNAUTHORIZED", "identity is not a manager");
-    if (contribution.status === "under_review")
-        return reject(state, "INVALID_STATE", "current version is under review");
-    if (contribution.status !== "preparing" && contribution.supplementHand?.status !== "accepted")
-        return reject(state, "INVALID_STATE", "contribution is not ready for format review");
-    if (input.disposition === "accepted" && input.missingFields.length > 0)
-        return reject(state, "INVALID_ARGUMENT", "accepted disposition cannot have missing fields");
-    if (input.disposition === "rejected" && input.missingFields.length === 0)
-        return reject(state, "INVALID_ARGUMENT", "rejected disposition requires missing fields");
-    const approval = {
-        id: input.approvalId,
-        contributionId: contribution.id,
-        managerId: input.managerId,
-        evidenceHash: input.evidenceHash,
-        approvedAt: input.now
-    };
-    const nextContribution =
-        input.disposition === "accepted"
-            ? contribution
-            : { ...contribution, status: "format_correction" as const, supplementHand: undefined };
-    const next = {
-        ...state,
-        version: state.version + 1,
-        updatedAt: input.now,
-        contributions: state.contributions.map((candidate) =>
-            candidate.id === contribution.id ? nextContribution : candidate
-        ),
-        formatApprovals:
-            input.disposition === "accepted"
-                ? [
-                      ...state.formatApprovals.filter(
-                          (candidate) => candidate.contributionId !== contribution.id
-                      ),
-                      approval
-                  ]
-                : state.formatApprovals.filter(
-                      (candidate) => candidate.contributionId !== contribution.id
-                  )
-    };
-    return {
-        kind: "accepted",
-        state: next,
-        relatedIds: [contribution.id, ...(input.disposition === "accepted" ? [approval.id] : [])],
-        effectRequests: [
-            {
-                kind: "agent_notice",
-                noticeKind: "format_disposition",
-                recipientId: contribution.contributorId,
-                agendaId: round.agendaId,
-                contributionId: contribution.id,
-                evidenceHash: input.evidenceHash,
-                disposition: input.disposition,
-                reason: input.rationale,
-                missingFields: input.missingFields
-            }
-        ]
-    };
-}
-
 export function submitEvidenceV1(
     state: MeetingState,
-    input: SubmitInput
+    input: SubmitEvidenceInputV1
 ): MeetingTransitionResultV1 {
     if (
         input.contributionId.trim() === "" ||
         input.authorId.trim() === "" ||
         input.versionId.trim() === "" ||
-        input.registrationId.trim() === "" ||
-        !validHash(input.verifiedEvidenceHash) ||
+        input.packageId.trim() === "" ||
         !Number.isSafeInteger(input.now) ||
         input.now < 0 ||
         !validInput(input.evidence)
@@ -226,34 +129,85 @@ export function submitEvidenceV1(
         return reject(state, "UNAUTHORIZED", "identity is not contribution author");
     const round = state.rounds.find((candidate) => candidate.id === contribution.roundId);
     if (!round) return reject(state, "NOT_FOUND", "round not found");
-    const approval = state.formatApprovals.find(
-        (candidate) => candidate.contributionId === contribution.id
-    );
-    if (!approval || approval.evidenceHash !== input.verifiedEvidenceHash)
-        return reject(state, "INVALID_ARGUMENT", "evidence hash does not match approval");
-    const existing =
+    const existingPackage =
         contribution.packageId === undefined
             ? undefined
             : state.evidencePackages.find((candidate) => candidate.id === contribution.packageId);
-    if (existing === undefined && input.packageId === undefined)
-        return reject(state, "INVALID_ARGUMENT", "first submission requires package id");
-    if (existing !== undefined && input.packageId !== undefined)
-        return reject(state, "INVALID_ARGUMENT", "supplement cannot allocate package id");
-    if (existing !== undefined && contribution.supplementHand?.status !== "accepted")
-        return reject(state, "PRECONDITION_FAILED", "supplement hand is not accepted");
-    if (existing !== undefined && contribution.substantiveSupplementCount >= 2)
-        return reject(state, "LIMIT_EXCEEDED", "supplement limit reached");
-    const ordinal = existing === undefined ? 1 : existing.versions.length + 1;
+    const supplement = existingPackage !== undefined;
+    if (
+        (!supplement && contribution.status !== "preparing") ||
+        (supplement &&
+            (contribution.status === "under_review" ||
+                contribution.supplementHand?.status !== "accepted" ||
+                contribution.substantiveSupplementCount >= 2))
+    )
+        return reject(state, "INVALID_STATE", "contribution cannot register evidence");
+    if (contribution.packageId !== undefined && existingPackage === undefined)
+        return reject(state, "INVALID_STATE", "evidence package is missing");
+    const currentVersion =
+        existingPackage === undefined
+            ? undefined
+            : existingPackage.versions.find(
+                  (candidate) => candidate.id === existingPackage.currentVersionId
+              );
+    if (existingPackage !== undefined && currentVersion === undefined)
+        return reject(state, "INVALID_STATE", "current evidence version is missing");
+    if (currentVersion === undefined) {
+        const deadlines = [contribution.acceptedAt + state.limits.taskDeadlineMs];
+        if (round.deadlineAt !== undefined) deadlines.push(round.deadlineAt);
+        deadlines.push(
+            ...state.tasks
+                .filter(
+                    (task) =>
+                        task.assigneeId === input.authorId &&
+                        task.agendaId === round.agendaId &&
+                        (task.status === "open" || task.status === "claimed") &&
+                        task.deadlineAt !== undefined
+                )
+                .map((task) => task.deadlineAt!)
+        );
+        if (deadlines.some((deadline) => !Number.isSafeInteger(deadline) || input.now >= deadline))
+            return reject(state, "PRECONDITION_FAILED", "evidence deadline has passed");
+    }
+    if (currentVersion !== undefined) {
+        const deadlines = [currentVersion.submittedAt + state.limits.taskDeadlineMs];
+        if (round.deadlineAt !== undefined) deadlines.push(round.deadlineAt);
+        const currentReview = state.reviews.find(
+            (review) => review.versionId === currentVersion.id
+        );
+        const sent =
+            currentReview === undefined
+                ? undefined
+                : state.reviewDeliveries.find(
+                      (delivery) =>
+                          delivery.reviewId === currentReview.id && delivery.status === "sent"
+                  );
+        if (sent?.sentAt !== undefined)
+            deadlines.push(sent.sentAt + state.limits.responseDeadlineMs);
+        deadlines.push(
+            ...state.tasks
+                .filter(
+                    (task) =>
+                        task.assigneeId === input.authorId &&
+                        task.agendaId === round.agendaId &&
+                        (task.status === "open" || task.status === "claimed") &&
+                        task.deadlineAt !== undefined
+                )
+                .map((task) => task.deadlineAt!)
+        );
+        if (deadlines.some((deadline) => input.now >= deadline))
+            return reject(state, "PRECONDITION_FAILED", "supplement deadline has passed");
+    }
     const version: EvidenceVersionV1 = {
         ...input.evidence,
         id: input.versionId,
-        ordinal,
+        ordinal: (currentVersion?.ordinal ?? 0) + 1,
         submittedAt: input.now
     };
     const packageValue =
-        existing === undefined
+        existingPackage === undefined
             ? {
-                  id: input.packageId!,
+                  id: input.packageId,
                   roundId: round.id,
                   contributionId: contribution.id,
                   authorId: contribution.contributorId,
@@ -262,30 +216,18 @@ export function submitEvidenceV1(
                   versions: [version]
               }
             : {
-                  ...existing,
+                  ...existingPackage,
                   currentVersionId: version.id,
-                  versions: [...existing.versions, version]
+                  versions: [...existingPackage.versions, version]
               };
     const nextContribution = {
         ...contribution,
         packageId: packageValue.id,
         status: "under_review" as const,
-        substantiveSupplementCount:
-            existing === undefined ? 0 : contribution.substantiveSupplementCount + 1,
-        supplementHand: undefined,
-        response: undefined
+        substantiveSupplementCount: supplement ? contribution.substantiveSupplementCount + 1 : 0,
+        response: undefined,
+        supplementHand: undefined
     };
-    const agenda = state.agenda.find((candidate) => candidate.id === round.agendaId)!;
-    const reviewer = agenda.requiredReviewerIds
-        .map((id) => state.identities.find((candidate) => candidate.id === id))
-        .find(
-            (candidate) =>
-                candidate !== undefined &&
-                candidate.id !== contribution.contributorId &&
-                candidate.roles.includes("evidence_reviewer") &&
-                candidate.reviewResponsibilityIds.includes(round.agendaId)
-        );
-    if (!reviewer) return reject(state, "PRECONDITION_FAILED", "no eligible reviewer");
     const next = {
         ...state,
         version: state.version + 1,
@@ -293,34 +235,30 @@ export function submitEvidenceV1(
         contributions: state.contributions.map((candidate) =>
             candidate.id === contribution.id ? nextContribution : candidate
         ),
-        evidencePackages:
-            existing === undefined
-                ? [...state.evidencePackages, packageValue]
-                : state.evidencePackages.map((candidate) =>
-                      candidate.id === existing.id ? packageValue : candidate
-                  ),
+        evidencePackages: supplement
+            ? state.evidencePackages.map((candidate) =>
+                  candidate.id === packageValue.id ? packageValue : candidate
+              )
+            : [...state.evidencePackages, packageValue],
         registrations: [
             ...state.registrations,
             {
-                id: input.registrationId,
+                id: `registration-${input.versionId}`,
                 versionId: version.id,
-                managerId: approval.managerId,
                 status: "complete" as const,
-                missingFields: [],
                 createdAt: input.now
             }
-        ],
-        formatApprovals: state.formatApprovals.filter((candidate) => candidate.id !== approval.id)
+        ]
     };
     return {
         kind: "accepted",
         state: next,
-        relatedIds: [packageValue.id, version.id, input.registrationId],
+        relatedIds: [packageValue.id, version.id, `registration-${input.versionId}`],
         effectRequests: [
             {
                 kind: "agent_notice",
                 noticeKind: "review_request",
-                recipientId: reviewer.id,
+                recipientId: state.evidenceReviewerId,
                 agendaId: round.agendaId,
                 versionId: version.id
             }

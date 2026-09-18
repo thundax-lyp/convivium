@@ -6,14 +6,29 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue
 export type JsonObject = { [key: string]: JsonValue };
 export type MeetingEventType = DomainEventType;
 
+export interface MeetingStateCodec<TState> {
+    encode(state: TState): Uint8Array;
+    decode(bytes: Uint8Array): TState;
+}
+
+export interface CommittedFactRecordV1<TState = JsonObject> {
+    factId: string;
+    kind: string;
+    actorId: string;
+    occurredAt: number;
+    meetingVersion: number;
+    relatedIds: readonly string[];
+    payload: JsonObject;
+    resultingState: TState;
+}
+
 export const OUTBOX_KINDS = ["dispatch"] as const;
 export type OutboxKind = (typeof OUTBOX_KINDS)[number];
 
-export interface MeetingSnapshot {
-    teamId: string;
+export interface MeetingSnapshot<TState = JsonObject> {
     meetingId: string;
     version: number;
-    state: JsonObject;
+    state: TState;
     createdAt: number;
     updatedAt: number;
 }
@@ -34,21 +49,34 @@ export interface OutboxInput {
     availableAt?: number;
 }
 
-export interface TransitionResult<T> {
-    state: JsonObject;
+export interface TransitionResult<T, TState = JsonObject> {
+    state: TState;
     result: T;
     events: DomainEventInput[];
     outbox: OutboxInput[];
 }
 
-export interface RepositoryCommand<T> {
+export interface RepositoryTransitionContext {
+    allSessionOwnershipClosedAfterResult?: boolean;
+}
+
+export interface RepositoryCommand<T, TState = JsonObject> {
     requestId: string;
     commandKind: string;
     authorization: CommandAuthorization;
     requestHash: string;
     expectedMeetingVersion: number;
     allowNoop?: boolean;
-    transition: (snapshot: MeetingSnapshot) => TransitionResult<T>;
+    facts?: readonly CommittedFactRecordV1<TState>[];
+    archiveSessionResult?: {
+        sessionOwnershipId: string;
+        status: "closed" | "failed";
+        failureCode?: string;
+    };
+    transition: (
+        snapshot: MeetingSnapshot<TState>,
+        context?: RepositoryTransitionContext
+    ) => TransitionResult<T, TState>;
 }
 
 export interface CommandAuthorization {
@@ -57,23 +85,19 @@ export interface CommandAuthorization {
     attemptId?: string;
 }
 
-export interface RepositoryAuthorizationValidator {
-    validateCreate(input: {
-        teamId: string;
-        meetingId: string;
-        authorization: CommandAuthorization;
-    }): void;
+export interface RepositoryAuthorizationValidator<TState = JsonObject> {
+    validateCreate(input: { meetingId: string; authorization: CommandAuthorization }): void;
     validateCommand(input: {
-        snapshot: MeetingSnapshot;
-        command: Pick<RepositoryCommand<unknown>, "commandKind" | "authorization">;
+        snapshot: MeetingSnapshot<TState>;
+        command: Pick<RepositoryCommand<unknown, TState>, "commandKind" | "authorization">;
     }): void;
 }
 
-export interface CreateMeetingInput {
+export interface CreateMeetingInput<TState = JsonObject> {
     requestId: string;
     authorization: CommandAuthorization;
     requestHash: string;
-    initialState: JsonObject;
+    initialState: TState;
     createResult?: CreateMeetingResult;
     outbox?: OutboxInput[];
     createdAt?: number;
@@ -86,6 +110,22 @@ export interface CreateMeetingResult {
     participants?: readonly {
         participantKey: string;
         participantId: string;
+    }[];
+    kind?: "accepted";
+    committedVersion?: number;
+    receiptId?: string;
+    factIds?: readonly string[];
+    effects?: readonly {
+        id: string;
+        kind:
+            | "refresh"
+            | "session_mail"
+            | "agent_notice"
+            | "review_delivery"
+            | "markdown_projection"
+            | "archive"
+            | "identity_provision";
+        status: "queued";
     }[];
 }
 
@@ -155,8 +195,8 @@ export interface RecoverInput {
     now?: number;
 }
 
-export interface RecoveryResult {
-    snapshot?: MeetingSnapshot;
+export interface RecoveryResult<TState = JsonObject> {
+    snapshot?: MeetingSnapshot<TState>;
     bootstrap: MeetingBootstrap;
     sessionOwnership: SessionOwnership[];
     reclaimedOutbox: number;
@@ -174,6 +214,10 @@ export interface MeetingBootstrap {
 }
 
 export interface SessionOwnership {
+    id?: string;
+    meetingId?: string;
+    identityId?: string;
+    lastClosureFailureCode?: string;
     agentDefinition?: AgentDefinitionBindingV1;
     sessionId: string;
     parentSessionId: string;
@@ -181,7 +225,7 @@ export interface SessionOwnership {
     provider: string;
     initialMessageId?: string;
     supersededBySessionId?: string;
-    role: "manager" | "participant";
+    role: "manager" | "evidence_reviewer" | "participant";
     participantId?: string;
     lifecycleStatus: "provisioning" | "active" | "closed";
     capabilityStatus: "active" | "revoked";
@@ -190,6 +234,9 @@ export interface SessionOwnership {
 }
 
 export interface SessionOwnershipInput {
+    id?: string;
+    meetingId?: string;
+    identityId?: string;
     agentDefinition?: AgentDefinitionBindingV1;
     sessionId: string;
     parentSessionId: string;
@@ -197,7 +244,7 @@ export interface SessionOwnershipInput {
     provider: string;
     initialMessageId?: string;
     supersededBySessionId?: string;
-    role: "manager" | "participant";
+    role: "manager" | "evidence_reviewer" | "participant";
     participantId?: string;
     lifecycleStatus: SessionOwnership["lifecycleStatus"];
     capabilityStatus: SessionOwnership["capabilityStatus"];

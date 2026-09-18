@@ -16,8 +16,15 @@ const terminal = new Set([
     "submission_missing",
     "timed_out",
     "supplement_rejected",
+    "aborted",
     "closed"
 ]);
+
+function reservedFormalMessages(state: MeetingState): number {
+    return state.rounds
+        .filter((round) => round.status === "open")
+        .reduce((total, round) => total + round.contributionIds.length, 0);
+}
 
 function managerFor(state: MeetingState, agendaId: OpaqueId) {
     return state.identities.find(
@@ -148,6 +155,11 @@ export function disposeHandRaiseV1(
             return reject(state, "INVALID_ARGUMENT", "accepted hand requires contribution id");
         if (state.contributions.some((candidate) => candidate.id === input.contributionId))
             return reject(state, "INVALID_ARGUMENT", "contribution id already exists");
+        if (
+            state.messages.length + reservedFormalMessages(state) + 1 >
+            state.limits.maxFormalMessages
+        )
+            return reject(state, "LIMIT_EXCEEDED", "formal message budget is exhausted");
         if (
             state.privateMails.some(
                 (mail) => mail.recipientId === input.contributorId && mail.status === "processing"

@@ -35,16 +35,15 @@ const identityFields = {
     expectedContribution: text,
     evidenceGap: text
 };
-export const RecommendIdentityActionV1Schema = z
-    .object({
-        kind: z.literal("recommend_identity"),
-        ...identityFields,
-        decision: z.enum(["admit", "reject"])
-    })
-    .passthrough();
-export const RecordIdentityAdmissionResultActionV1Schema = z
-    .object({ kind: z.literal("record_identity_admission_result"), recommendationId: id })
-    .passthrough();
+export const RecommendIdentityActionV1Schema = z.object({
+    kind: z.literal("recommend_identity"),
+    ...identityFields,
+    decision: z.enum(["admit", "reject"])
+});
+export const RecordIdentityAdmissionResultActionV1Schema = z.object({
+    kind: z.literal("record_identity_admission_result"),
+    recommendationId: id
+});
 
 export const ManagerCatalogViewV1Schema = z.object({
     catalogId: id,
@@ -85,7 +84,6 @@ export const IdentityViewV1Schema = z.object({
     displayName: text,
     roles: z.array(role),
     agendaResponsibilityIds: z.array(id),
-    reviewResponsibilityIds: z.array(id),
     riskAuthority: z.boolean(),
     required: z.boolean(),
     definitionId: id.optional(),

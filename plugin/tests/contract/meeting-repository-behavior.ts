@@ -1037,13 +1037,13 @@ function defineMailAndSessionCases(
         await repository.close();
     });
 
-    it("rejects labels and participant identities that cross the repository boundary", async () => {
+    it("ignores legacy team label segments and rejects participant identity rewrites", async () => {
         const repository = await openCreatingRepository();
         await expect(
             repository.recordSessionOwnership(
                 ownership({ sessionLabel: "convivium:meeting-manager:other-team:meeting-1" })
             )
-        ).rejects.toMatchObject<RepositoryError>({ code: "INVALID_INPUT" });
+        ).resolves.toMatchObject({ role: "manager" });
         await expect(
             repository.recordSessionOwnership(
                 ownership({

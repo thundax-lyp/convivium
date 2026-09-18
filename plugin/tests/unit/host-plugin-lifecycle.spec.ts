@@ -6,13 +6,27 @@ import Tools from "@deepseek-ai/dsh-tools";
 
 import { apply, assertContinuableProvider, inject } from "@/index.js";
 import { requireContinuableProvider } from "@/dsh/index.js";
+import {
+    activateTargetMeetingApplicationV1,
+    getMeetingCommandApplicationV1
+} from "@/runtime/index.js";
 import { createFakeDomainFacility } from "../fixtures/domain-storage.js";
+import roleResources from "../../meeting-roles/definitions.json" with { type: "json" };
 
 const config = {
     provider: "spawn",
     maxParticipants: 3,
     speakerTimeoutMs: 60_000,
-    outboxPollMs: 1_000
+    outboxPollMs: 1_000,
+    agentDefinitions: roleResources.definitions
+};
+
+const providerCapabilities = {
+    agentOptions: true,
+    outputSchema: true,
+    depthLimit: true,
+    toolFilter: true,
+    persona: true
 };
 
 describe("Convivium host inject", () => {
@@ -74,6 +88,112 @@ describe("Convivium continuable provider gate", () => {
     });
 });
 
+describe("target Meeting lifecycle", () => {
+    it("creates one running Meeting and exactly eight owned child Sessions", async () => {
+        const starts: unknown[] = [];
+        const subagents = {
+            getProvider: () => ({
+                name: "spawn",
+                capabilities: providerCapabilities,
+                inheritsParentContext: false,
+                prepareContinuable: async () => ({ inheritParentContext: false })
+            }),
+            startContinuable: async (spec: { childId: string }) => {
+                starts.push(spec);
+                return { childId: spec.childId, messageId: `message-${starts.length}` };
+            },
+            interrupt: vi.fn(),
+            drainContinuableChildren: vi.fn()
+        };
+        const owner = {
+            storageDomain: createFakeDomainFacility(),
+            subagents
+        };
+        const dispose = await activateTargetMeetingApplicationV1(owner as never, config);
+        const application = getMeetingCommandApplicationV1(owner);
+        const captain = {
+            id: "captain-1",
+            session: { header: { cwd: "/fixture" } },
+            ctx: {
+                get: (key: string) =>
+                    key === "agentPresets"
+                        ? { composedPreset: () => "convivium" }
+                        : key === "skills"
+                          ? {
+                                get: async () => ({
+                                    content: "fixture",
+                                    invocation: { modelInvocable: true }
+                                })
+                            }
+                          : undefined
+            }
+        };
+        const identities = roleResources.definitions.map((definition, index) => ({
+            identityKey: `identity-${index + 1}`,
+            definitionId: definition.agentDefinitionId,
+            definitionVersion: definition.definitionVersion,
+            displayName: definition.displayName,
+            roles:
+                definition.roleDefinitionId === "meeting_manager"
+                    ? (["manager"] as const)
+                    : definition.roleDefinitionId === "verification_reviewer"
+                      ? (["evidence_reviewer"] as const)
+                      : (["contributor"] as const),
+            agendaResponsibilityIds: ["agenda-1"],
+            riskAuthority: false,
+            required: true
+        }));
+        const command = {
+            protocolVersion: 1,
+            meetingId: "new",
+            expectedMeetingVersion: 0,
+            requestId: "create-target-1",
+            action: {
+                kind: "create_meeting",
+                objective: {
+                    statement: "Produce verified evidence",
+                    requiredOutputs: [{ id: "output-1", text: "Evidence" }],
+                    acceptanceCriteria: [{ id: "criterion-1", text: "Reviewed" }],
+                    hardConstraints: [],
+                    acceptableRiskLevel: "low"
+                },
+                identities,
+                managerIdentityKey: "identity-1",
+                evidenceReviewerIdentityKey: "identity-5",
+                initialAgenda: [
+                    {
+                        id: "agenda-1",
+                        title: "Evidence",
+                        question: "What evidence is sufficient?",
+                        requiredOutputIds: ["output-1"],
+                        ownerIdentityKey: "identity-1"
+                    }
+                ],
+                initialActiveAgendaId: "agenda-1",
+                limits: {
+                    maxFormalMessages: 20,
+                    maxDurationMs: 60000,
+                    taskDeadlineMs: 30000,
+                    reviewDeadlineMs: 30000
+                }
+            }
+        } as const;
+        const context = {
+            caller: { channel: "dsh_tool" as const, principalId: "captain-1" },
+            captainParent: captain as never
+        };
+        const [result, replay] = await Promise.all([
+            application.execute(command, context, new AbortController().signal),
+            application.execute(command, context, new AbortController().signal)
+        ]);
+
+        expect(result).toMatchObject({ kind: "accepted", committedVersion: 1 });
+        expect(replay).toEqual(result);
+        expect(starts).toHaveLength(8);
+        await dispose();
+    });
+});
+
 describe("Convivium local Meeting route lifecycle", () => {
     async function host(
         host: "127.0.0.1" | "0.0.0.0" | undefined,
@@ -99,7 +219,11 @@ describe("Convivium local Meeting route lifecycle", () => {
             agents: { get: () => undefined },
             logger: vi.fn(() => ({ warn: vi.fn() })),
             subagents: {
-                getProvider: () => ({ name: "spawn", prepareContinuable: async () => ({}) }),
+                getProvider: () => ({
+                    name: "spawn",
+                    capabilities: providerCapabilities,
+                    prepareContinuable: async () => ({})
+                }),
                 startContinuable: async () => {
                     throw new Error("not used");
                 },
@@ -168,7 +292,7 @@ describe("Convivium local Meeting route lifecycle", () => {
             "ConviviumRemoteService"
         ]);
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.effects).toHaveLength(23);
+        expect(fixture.effects).toHaveLength(24);
         await fixture.dispose();
         expect(fixture.routeDispose).not.toHaveBeenCalled();
         expect(fixture.toolDisposers).toHaveLength(22);
@@ -185,27 +309,17 @@ describe("Convivium local Meeting route lifecycle", () => {
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
-    it("validates role configuration without requiring capability services at activation", async () => {
-        const fixture = await host("127.0.0.1", {
-            ...config,
-            agentDefinitions: [
-                {
-                    agentDefinitionId: "role",
-                    definitionVersion: "1",
-                    roleDefinitionId: "meeting_manager",
-                    displayName: "Role",
-                    summary: "Role",
-                    roleDescription: "Role",
-                    dshPresetId: "minimal",
-                    requiredSkillNames: ["fixture"],
-                    expertiseTags: ["fixture"],
-                    evidenceScopes: []
-                }
-            ]
-        });
+    it("requires the exact eight role definitions without resolving their capabilities", async () => {
+        const fixture = await host("127.0.0.1");
         expect(fixture.get).not.toHaveBeenCalledWith("agentPresets");
         expect(fixture.get).not.toHaveBeenCalledWith("skills");
         await fixture.dispose();
+        await expect(
+            host("127.0.0.1", {
+                ...config,
+                agentDefinitions: roleResources.definitions.slice(0, 7)
+            })
+        ).rejects.toThrow("exact eight Meeting role definitions");
         await expect(host("127.0.0.1", { ...config, agentDefinitions: [{}] })).rejects.toThrow(
             "Invalid meeting agent definitions."
         );
@@ -214,7 +328,7 @@ describe("Convivium local Meeting route lifecycle", () => {
     it("does not register Meeting routes on all interfaces", async () => {
         const fixture = await host("0.0.0.0");
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.effects).toHaveLength(23);
+        expect(fixture.effects).toHaveLength(24);
         await fixture.dispose();
         expect(fixture.toolDisposers).toHaveLength(22);
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
@@ -249,7 +363,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 root.provide("sessions", {});
                 const spawnProvider: SubagentProvider = {
                     name: "spawn",
-                    capabilities: {},
+                    capabilities: providerCapabilities,
                     inheritsParentContext: false,
                     async start() {
                         throw new Error("Unexpected start");

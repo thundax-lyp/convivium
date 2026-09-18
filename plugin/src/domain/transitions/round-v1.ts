@@ -14,8 +14,15 @@ const terminalContributionStatuses = new Set([
     "submission_missing",
     "timed_out",
     "supplement_rejected",
+    "aborted",
     "closed"
 ]);
+
+function reservedFormalMessages(state: MeetingState): number {
+    return state.rounds
+        .filter((round) => round.status === "open")
+        .reduce((total, round) => total + round.contributionIds.length, 0);
+}
 
 export function openRoundV1(state: MeetingState, input: OpenRoundInput): MeetingTransitionResultV1 {
     if (
@@ -33,6 +40,8 @@ export function openRoundV1(state: MeetingState, input: OpenRoundInput): Meeting
         return rejected(state, "PRECONDITION_FAILED", "round deadline must be after now");
     if (state.lifecycle.status !== "running")
         return rejected(state, "MEETING_TERMINAL", "meeting is not running");
+    if (state.messages.length + reservedFormalMessages(state) >= state.limits.maxFormalMessages)
+        return rejected(state, "LIMIT_EXCEEDED", "formal message budget is exhausted");
     const agenda = state.agenda.find((item) => item.id === input.agendaId);
     if (!agenda) return rejected(state, "NOT_FOUND", "agenda not found", input.agendaId);
     if (agenda.status !== "active") return rejected(state, "INVALID_STATE", "agenda is not active");
@@ -82,6 +91,74 @@ export function openRoundV1(state: MeetingState, input: OpenRoundInput): Meeting
     return { kind: "accepted", state: next, relatedIds: [input.roundId], effectRequests: [] };
 }
 
+type AbortRoundInput = {
+    roundId: OpaqueId;
+    actor: { kind: "local_controller" | "identity"; id: OpaqueId };
+    reason: string;
+    now: number;
+};
+
+export function abortRoundV1(
+    state: MeetingState,
+    input: AbortRoundInput
+): MeetingTransitionResultV1 {
+    if (
+        input.roundId.trim() === "" ||
+        input.actor.id.trim() === "" ||
+        input.reason.trim() === "" ||
+        !Number.isSafeInteger(input.now) ||
+        input.now < 0
+    )
+        return rejected(state, "INVALID_ARGUMENT", "invalid round abort input");
+    if (["terminal", "archiving", "archived"].includes(state.lifecycle.status))
+        return rejected(state, "MEETING_TERMINAL", "meeting is terminal");
+    if (state.lifecycle.status !== "running")
+        return rejected(state, "INVALID_STATE", "meeting is not running");
+    const round = state.rounds.find((candidate) => candidate.id === input.roundId);
+    if (!round) return rejected(state, "NOT_FOUND", "round not found", input.roundId);
+    if (round.status !== "open")
+        return rejected(state, "INVALID_STATE", "round is not open", input.roundId);
+    if (input.actor.kind === "identity") {
+        const captain = state.identities.find((identity) => identity.id === input.actor.id);
+        if (!captain?.roles.includes("captain"))
+            return rejected(state, "UNAUTHORIZED", "identity is not a captain", input.actor.id);
+    }
+    const abortedContributionIds = round.contributionIds.filter((id) => {
+        const contribution = state.contributions.find((candidate) => candidate.id === id);
+        return contribution !== undefined && !terminalContributionStatuses.has(contribution.status);
+    });
+    return {
+        kind: "accepted",
+        state: {
+            ...state,
+            version: state.version + 1,
+            updatedAt: input.now,
+            rounds: state.rounds.map((candidate) =>
+                candidate.id === round.id
+                    ? {
+                          ...candidate,
+                          status: "aborted" as const,
+                          abortReason: input.reason,
+                          abortedAt: input.now
+                      }
+                    : candidate
+            ),
+            pendingHandRaises: state.pendingHandRaises.filter((hand) => hand.roundId !== round.id),
+            contributions: state.contributions.map((contribution) =>
+                abortedContributionIds.includes(contribution.id)
+                    ? {
+                          ...contribution,
+                          status: "aborted" as const,
+                          exitReason: input.reason
+                      }
+                    : contribution
+            )
+        },
+        relatedIds: [round.id, ...abortedContributionIds],
+        effectRequests: []
+    };
+}
+
 export function isRoundClosableV1(state: MeetingState, roundId: OpaqueId): boolean {
     const round = state.rounds.find((candidate) => candidate.id === roundId);
     if (!round || round.status !== "open") return false;
@@ -102,9 +179,9 @@ export function isRoundClosableV1(state: MeetingState, roundId: OpaqueId): boole
         );
         if (!registration) return false;
         const reviews = state.reviews.filter((review) => review.versionId === pkg.currentVersionId);
-        const reviewerIds =
-            state.agenda.find((agenda) => agenda.id === round.agendaId)?.requiredReviewerIds ?? [];
-        const finalReview = reviews.find((review) => reviewerIds.includes(review.reviewerId));
+        const finalReview = reviews.find(
+            (review) => review.reviewerId === state.evidenceReviewerId
+        );
         if (!finalReview || reviews.filter((review) => review.id === finalReview.id).length !== 1)
             return false;
         if (

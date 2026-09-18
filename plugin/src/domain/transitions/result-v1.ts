@@ -17,17 +17,8 @@ export interface AgentNoticeEffectBaseV1 {
     agendaId: OpaqueId;
 }
 
-export type EvidenceFieldNameV1 =
-    | "observation"
-    | "interpretation"
-    | "method"
-    | "falsifiers"
-    | "uncertainties"
-    | "limitations"
-    | "claims"
-    | "materials";
-
 export type AgentNoticeEffectRequestV1 =
+    | (AgentNoticeEffectBaseV1 & { noticeKind: "meeting_started" })
     | (AgentNoticeEffectBaseV1 & { noticeKind: "opportunity_request"; requestId: OpaqueId })
     | (AgentNoticeEffectBaseV1 & {
           noticeKind: "opportunity_disposition";
@@ -70,14 +61,6 @@ export type AgentNoticeEffectRequestV1 =
           disposition: "accepted" | "rejected" | "deferred";
           reason: string;
       })
-    | (AgentNoticeEffectBaseV1 & {
-          noticeKind: "format_disposition";
-          contributionId: OpaqueId;
-          evidenceHash: string;
-          disposition: "accepted" | "rejected" | "deferred";
-          reason: string;
-          missingFields: readonly EvidenceFieldNameV1[];
-      })
     | (AgentNoticeEffectBaseV1 & { noticeKind: "review_request"; versionId: OpaqueId })
     | (AgentNoticeEffectBaseV1 & {
           noticeKind: "transcript_update";
@@ -87,6 +70,7 @@ export type AgentNoticeEffectRequestV1 =
 export type MeetingDomainEffectRequestV1 =
     | AgentNoticeEffectRequestV1
     | { kind: "review_delivery"; reviewId: OpaqueId; authorId: OpaqueId }
+    | { kind: "materialize_archive"; terminationId: OpaqueId }
     | {
           kind: "session_mail";
           mailId: OpaqueId;

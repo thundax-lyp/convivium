@@ -1,4 +1,12 @@
-export { createMeetingRuntime, openMeetingRepository } from "./meeting-runtime.js";
+export {
+    createMeetingCreationCoordinatorV1,
+    createMeetingRuntime,
+    openMeetingRepository
+} from "./meeting-runtime.js";
+export {
+    activateTargetMeetingApplicationV1,
+    getMeetingCommandApplicationV1
+} from "./meeting-lifecycle-v1.js";
 export type {
     DomainEventInput,
     JsonObject,
@@ -41,7 +49,10 @@ export type {
 } from "./application-service/index.js";
 export type { CaptainRebindDependencies } from "./services/meeting-recovery-service.js";
 export { AGENT_CATALOG_SERVICE_KEY } from "./services/agent-catalog.js";
-export { createMeetingCommandApplicationV1 } from "./application-service/meeting-command-v1.js";
+export {
+    createMeetingCommandApplicationV1,
+    type MeetingCommandApplicationV1
+} from "./application-service/meeting-command-v1.js";
 export { recoverMeetingCommandsV1 } from "./services/meeting-command-recovery-v1.js";
 export {
     managerPlanAllowedIntents,

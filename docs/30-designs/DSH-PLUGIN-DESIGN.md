@@ -35,7 +35,7 @@ Host adapter 必须把 DSH 的具体 API 收敛在 role-catalog、preflight 和 
 
 DSH Host/profile 拥有插件加载、模型、Preset、Skills、MCP、Sandbox、Approval、Session 生命周期和存储 provider。Convivium 只拥有会议身份与 Session ownership 的对应关系、领域操作的受控入口、Meeting 事实投影和角色资源溯源。首发只支持精确 DSH 版本 `0.1.2-rc.1`；版本不同或缺少必需 lifecycle capability 时，加载必须拒绝并说明支持版本，不提供降级会议模式。
 
-每个 MeetingIdentity 使用独立、可持续的会议专用 Session；不同 Meeting、身份或授权范围不得共享。任何创建、继续、interrupt、恢复、停止或撤权都必须先验证持久 ownership，不能凭显示名、前缀或 UI 输入猜测。
+每个 MeetingIdentity 使用独立、可持续的会议专用 Session；不同 Meeting、身份或授权范围不得共享。Meeting Session label、provisioning envelope 与 durable ownership 只使用全局唯一 `meetingId` 和 Meeting 内唯一 `identityId` 定位，不包含 `teamId`；任何创建、继续、interrupt、恢复、停止或撤权都必须先验证持久 ownership，不能凭显示名、前缀或 UI 输入猜测。
 
 Meeting 进入 running 时，以及每条新 FormalMessage 随 Round Publication 提交后，Runtime 只向与当前 active Agenda 相关、具有 contributor 角色、无未结束 Contribution/MeetingTask 且已证明自己的会议 Session active 的身份排入一次 `agent_notice` 申请机会。相关身份是 `agendaResponsibilityIds` 包含 active Agenda ID 或该数组为空的 contributor；身份可以不申请或不发言。通知只携带 Meeting/Agenda/已公开 message ID，Agent 再由受控读入口取得 caller-visible Transcript。投递前 dispatcher 重新验证 Session ownership、active 和闲置资格；重复投递复用 effect ID，不能从 DSH 消息接收推断业务举手或材料已登记。初次举手或无轮次机会申请经已提交 command 通知 Manager，Manager 处置理由只通知作者本人。
 
@@ -53,7 +53,7 @@ Meeting Agent Catalog 是 Host 提供的只读安全投影；Convivium 只在 Ma
 
 Runtime 从既有 outbox 投递 `identity_provision`，仅解析意图中记录的精确 Definition identity、执行 preflight 并以 recommendationId 作为 admissionId 幂等地创建 Session/ownership；在 ownership 可证实后，使用受控系统 action 原子激活普通可选 MeetingIdentity。缺 Definition/required capability、descriptor 过期或 provisioning 失败时，同一系统 action 将意图置为 `failed` 并显示安全错误码，不暴露部分可用身份。进程重启只重放未完成的同一 outbox/admissionId；历史 MeetingIdentity 的 descriptor 缺失时明确拒绝恢复，不能套用当前 Definition 重建。
 
-V1 只阻止同一 `candidateId + agendaId` 已有 provisioning/active 意图时重复准入，不实现 evidence freshness 或跨研究角色来源范围去重。自动研究去重仍是必要后续能力；在形成 freshness、source-scope 比较和独立交叉验证例外的正式需求与接口前，不新增 evidence index、策略配置、cache 或通用去重框架，也不把 candidate 去重称为该能力。
+V1 只阻止同一 `candidateId + agendaId` 已有 provisioning/active 意图时重复准入，不实现 evidence freshness 或跨研究角色来源范围去重。同一 candidate 的 provisioning 意图在 Meeting 内全局互斥，避免并发创建多个 Session；已有 active identity 后，另一 Agenda 的合法准入直接复用既有 identity/Session/Definition provenance，只新增独立 active recommendation，不投递 `identity_provision`，也不扩大角色、权限或 capability。自动研究去重仍是必要后续能力；在形成 freshness、source-scope 比较和独立交叉验证例外的正式需求与接口前，不新增 evidence index、策略配置、cache 或通用去重框架，也不把 candidate 去重称为该能力。
 
 ## Plugin Lifecycle And Entry Points
 
@@ -69,7 +69,7 @@ Identity admission 的 durable ownership 先处于 provisioning 且不授予 Mee
 
 面板先读取本地 Host 的全部可恢复 Meeting 摘要，选定后才读取完整状态。摘要不含 transcript、Session ID、capability、物理存储路径或私有运行数据。任一已发现 Meeting 无法恢复时，列表返回暂不可用原因而不得伪装为完整可用列表。完整状态由类型化后端接口输出；Client 只展示，不计算领域状态、不写缓存事实。
 
-V1 的 Web/Remote 入口仅在 loopback Host 可用时挂载，不建立 Web 用户、Team authority、远程监听或跨 Host 推送。提交成功或协议拒绝后，Client 重新读取完整状态；刷新通知只提示重新读取，断线时禁写，补读成功后才恢复写入。
+V1 的 Web/Remote 入口仅在 loopback Host 可用时挂载，不建立 Web 用户、Team authority、远程监听或跨 Host 推送。Meeting 创建只由 Captain-only DSH tool 发起，八个初始 child 的可信 parent 直接取自该次 tool 的 `exec.agent`；Remote 不提供 create，只保留经 local binding 授权的控制操作。提交成功或协议拒绝后，Client 重新读取完整状态；刷新通知只提示重新读取，断线时禁写，补读成功后才恢复写入。
 
 面板和自然语言入口调用同一暂停、恢复、结束、贡献撤销/重新分配、决策和风险控制规则。活动会议显示暂停，暂停会议显示继续，并展示原因和 actor；强制结束、审核豁免、风险接受和部分完成也必须显示原因。Captain/local 专属决策和风险处置投影只能给相应调用者；普通 Participant 不能由 UI 字段或 Remote 输入绕过该边界。
 

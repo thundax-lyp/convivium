@@ -105,7 +105,6 @@ const identitySchema = z
         displayName: textSchema,
         roles: uniqueRoleArraySchema,
         agendaResponsibilityIds: uniqueIdArraySchema,
-        reviewResponsibilityIds: uniqueIdArraySchema,
         riskAuthority: z.boolean(),
         required: z.boolean(),
         definitionId: opaqueIdSchema.optional(),
@@ -175,7 +174,6 @@ const agendaSchema = z.object({
     question: textSchema,
     status: agendaStatusSchema,
     requiredOutputIds: uniqueIdArraySchema,
-    requiredReviewerIds: uniqueIdArraySchema,
     ownerId: opaqueIdSchema.optional()
 });
 const candidateSchema = z.object({
@@ -206,7 +204,7 @@ const issueSchema = z.object({
     affectedOutputIds: uniqueIdArraySchema,
     affectedCriterionIds: uniqueIdArraySchema,
     affectedConstraintIds: uniqueIdArraySchema,
-    requiredReviewerIds: uniqueIdArraySchema,
+    requiresEvidenceReview: z.boolean(),
     blocking: z.boolean(),
     status: issueStatusSchema,
     rationale: textSchema
@@ -254,13 +252,6 @@ const pendingHandRaiseSchema = z.object({
     purpose: textSchema,
     raisedAt: epochSchema
 });
-const formatApprovalSchema = z.object({
-    id: opaqueIdSchema,
-    contributionId: opaqueIdSchema,
-    managerId: opaqueIdSchema,
-    evidenceHash: z.string().regex(/^[0-9a-f]{64}$/),
-    approvedAt: epochSchema
-});
 const roundSchema = z
     .object({
         id: opaqueIdSchema,
@@ -270,12 +261,19 @@ const roundSchema = z
         status: z.enum(["open", "published", "aborted"]),
         contributionIds: uniqueIdArraySchema,
         deadlineAt: epochSchema.optional(),
-        publicationId: opaqueIdSchema.optional()
+        publicationId: opaqueIdSchema.optional(),
+        abortReason: textSchema.optional(),
+        abortedAt: epochSchema.optional()
     })
     .refine((value) => isAbsentOrDefined(value, "publicationId"), { path: ["publicationId"] })
     .refine((value) => (value.status === "published") === own(value, "publicationId"), {
         path: ["publicationId"]
-    });
+    })
+    .refine(
+        (value) =>
+            (value.status === "aborted") === (own(value, "abortReason") && own(value, "abortedAt")),
+        { path: ["abortReason"] }
+    );
 const contributionSchema = z
     .object({
         id: opaqueIdSchema,
@@ -285,7 +283,6 @@ const contributionSchema = z
         acceptedAt: epochSchema,
         status: z.enum([
             "preparing",
-            "format_correction",
             "registered",
             "under_review",
             "awaiting_response",
@@ -370,18 +367,12 @@ const evidencePackageSchema = z.object({
     currentVersionId: opaqueIdSchema,
     versions: z.array(evidenceVersionSchema)
 });
-const registrationSchema = z
-    .object({
-        id: opaqueIdSchema,
-        versionId: opaqueIdSchema,
-        managerId: opaqueIdSchema,
-        status: z.literal("complete"),
-        missingFields: z.array(textSchema),
-        createdAt: epochSchema
-    })
-    .refine((value) => value.status !== "complete" || value.missingFields.length === 0, {
-        path: ["missingFields"]
-    });
+const registrationSchema = z.object({
+    id: opaqueIdSchema,
+    versionId: opaqueIdSchema,
+    status: z.literal("complete"),
+    createdAt: epochSchema
+});
 const reviewDimensionSchema = z.object({
     score: z.union([
         z.literal(0),
@@ -583,28 +574,128 @@ const terminationSchema = z.object({
     unresolvedIssueIds: uniqueIdArraySchema,
     unclosedContributionIds: uniqueIdArraySchema
 });
-const archiveSchema = z.object({
-    id: opaqueIdSchema,
-    createdAt: epochSchema,
-    createdBy: opaqueIdSchema,
-    terminationId: opaqueIdSchema,
-    publicSnapshotVersion: positiveIntegerSchema,
-    includedPublicationIds: uniqueIdArraySchema,
-    includedDecisionIds: uniqueIdArraySchema,
-    includedCompletionFactIds: uniqueIdArraySchema,
-    status: z.enum(["pending", "complete", "failed"]),
-    identityProvenance: z.array(
-        z.object({
-            id: opaqueIdSchema.optional(),
+const archiveQuestionDispositionPayloadSchema = z.object({
+    kind: z.literal("question_disposition"),
+    questionId: opaqueIdSchema,
+    oldStatus: z.enum(["open", "deferred"]),
+    newStatus: z.enum(["answered", "withdrawn", "deferred"]),
+    oldBlocking: z.boolean(),
+    newBlocking: z.boolean(),
+    rationale: textSchema,
+    evidenceIds: uniqueIdArraySchema
+});
+const archiveIssueDispositionPayloadSchema = z.object({
+    kind: z.literal("issue_disposition"),
+    issueId: opaqueIdSchema,
+    oldStatus: z.enum(["open", "deferred"]),
+    newStatus: z.enum(["resolved", "deferred", "out_of_scope"]),
+    oldBlocking: z.boolean(),
+    newBlocking: z.boolean(),
+    rationale: textSchema,
+    evidenceIds: uniqueIdArraySchema
+});
+const archiveDispositionFactSchema = z.union([
+    z.object({
+        factId: opaqueIdSchema,
+        kind: z.literal("resolve_question"),
+        actorId: opaqueIdSchema,
+        occurredAt: epochSchema,
+        relatedIds: uniqueIdArraySchema,
+        payload: archiveQuestionDispositionPayloadSchema
+    }),
+    z.object({
+        factId: opaqueIdSchema,
+        kind: z.literal("dispose_issue"),
+        actorId: opaqueIdSchema,
+        occurredAt: epochSchema,
+        relatedIds: uniqueIdArraySchema,
+        payload: archiveIssueDispositionPayloadSchema
+    })
+]);
+const archiveEvidenceBundleSchema = z.object({
+    packageId: opaqueIdSchema,
+    authorIdentityId: opaqueIdSchema,
+    agendaId: opaqueIdSchema,
+    version: evidenceVersionSchema,
+    review: evidenceReviewSchema
+});
+const archiveUnclosedContributionSchema = withDefinedOptionals(
+    z.object({
+        contributionId: opaqueIdSchema,
+        contributorIdentityId: opaqueIdSchema,
+        agendaId: opaqueIdSchema,
+        status: contributionSchema.shape.status,
+        exitReason: textSchema.optional()
+    }),
+    ["exitReason"]
+);
+const archiveIdentityProvenanceSchema = withDefinedOptionals(
+    z
+        .object({
             identityId: opaqueIdSchema,
             displayName: textSchema,
             roles: uniqueRoleArraySchema,
-            definitionId: opaqueIdSchema,
-            definitionVersion: textSchema,
-            definitionHash: z.string().regex(/^[a-f0-9]{64}$/)
+            definitionId: opaqueIdSchema.optional(),
+            definitionVersion: textSchema.optional(),
+            definitionHash: z
+                .string()
+                .regex(/^[a-f0-9]{64}$/)
+                .optional()
         })
-    )
+        .refine(
+            (value) =>
+                (value.definitionId !== undefined &&
+                    value.definitionVersion !== undefined &&
+                    value.definitionHash !== undefined) ||
+                (value.definitionId === undefined &&
+                    value.definitionVersion === undefined &&
+                    value.definitionHash === undefined),
+            { path: ["definitionId"] }
+        ),
+    ["definitionId", "definitionVersion", "definitionHash"]
+);
+const archiveMaterialSchema = z.object({
+    id: opaqueIdSchema,
+    kind: z.enum([
+        "published_evidence",
+        "formal_message",
+        "accepted_decision",
+        "active_completion_fact"
+    ]),
+    title: textSchema,
+    sourceObjectIds: uniqueIdArraySchema
 });
+const archiveSchema = z.lazy(() =>
+    z.object({
+        id: opaqueIdSchema,
+        status: z.enum(["pending", "complete", "failed"]),
+        createdAt: epochSchema,
+        publicSnapshotVersion: positiveIntegerSchema,
+        terminationId: opaqueIdSchema,
+        objective: objectiveSchema,
+        agenda: z.array(agendaSchema),
+        agendaCandidates: z.array(candidateSchema),
+        publications: z.array(publicationSchema),
+        messages: z.array(formalMessageSchema),
+        evidenceBundles: z.array(archiveEvidenceBundleSchema),
+        proposalRevisions: z.array(proposalRevisionSchema),
+        positions: z.array(positionSchema),
+        decisionCandidates: z.array(decisionCandidateSchema),
+        decisions: z.array(decisionSchema),
+        completionFacts: z.array(completionFactSchema),
+        questions: z.array(questionSchema),
+        issues: z.array(issueSchema),
+        riskDispositions: z.array(riskDispositionSchema),
+        questionIssueDispositionFacts: z.array(archiveDispositionFactSchema),
+        termination: terminationSchema,
+        unresolvedQuestionIds: uniqueIdArraySchema,
+        unresolvedIssueIds: uniqueIdArraySchema,
+        unresolvedItemIds: uniqueIdArraySchema,
+        unclosedContributions: z.array(archiveUnclosedContributionSchema),
+        identityProvenance: z.array(archiveIdentityProvenanceSchema),
+        exportMaterials: uniqueEntityArray(archiveMaterialSchema)
+    })
+);
 const continuationSchema = z.object({
     sourceArchiveId: opaqueIdSchema,
     selectedMaterialIds: uniqueIdArraySchema,
@@ -650,6 +741,7 @@ const meetingStateSchema = withDefinedOptionals(
         updatedAt: epochSchema,
         objective: objectiveSchema,
         lifecycle: lifecycleSchema,
+        evidenceReviewerId: opaqueIdSchema,
         identities: uniqueEntityArray(identitySchema),
         identityRecommendations: uniqueEntityArray(identityRecommendationSchema),
         agenda: uniqueEntityArray(agendaSchema),
@@ -658,7 +750,6 @@ const meetingStateSchema = withDefinedOptionals(
         opportunityRequests: uniqueEntityArray(opportunityRequestSchema),
         pendingHandRaises: z.array(pendingHandRaiseSchema),
         contributions: uniqueEntityArray(contributionSchema),
-        formatApprovals: uniqueEntityArray(formatApprovalSchema),
         evidencePackages: uniqueEntityArray(evidencePackageSchema),
         registrations: uniqueEntityArray(registrationSchema),
         reviews: uniqueEntityArray(evidenceReviewSchema),
@@ -706,8 +797,42 @@ function indexById<T extends { id: string }>(items: readonly T[]) {
 function ownUndefined(value: RecordValue, key: string, path: string): string | undefined {
     return own(value, key) && value[key] === undefined ? path : undefined;
 }
+function legacyCompatibilityFieldPath(value: unknown, path = "$"): string | undefined {
+    if (Array.isArray(value)) {
+        for (let i = 0; i < value.length; i++) {
+            const result = legacyCompatibilityFieldPath(value[i], path + "[" + i + "]");
+            if (result) return result;
+        }
+        return undefined;
+    }
+    if (!record(value)) return undefined;
+    for (const key of ["reviewResponsibilityIds", "requiredReviewerIds", "formatApprovals"]) {
+        if (own(value, key)) return path + "." + key;
+    }
+    for (const [key, child] of Object.entries(value)) {
+        const result = legacyCompatibilityFieldPath(child, path + "." + key);
+        if (result) return result;
+    }
+    return undefined;
+}
 export function validateMeetingStateV1(value: unknown): MeetingStateValidationResultV1 {
     if (!record(value)) return fail("$");
+    const legacyPath = legacyCompatibilityFieldPath(value);
+    if (legacyPath) return fail(legacyPath);
+    if (Array.isArray(value.rounds)) {
+        for (let i = 0; i < value.rounds.length; i++) {
+            const round = value.rounds[i];
+            if (
+                record(round) &&
+                round.status === "aborted" &&
+                (!own(round, "abortReason") ||
+                    !own(round, "abortedAt") ||
+                    round.abortReason === undefined ||
+                    round.abortedAt === undefined)
+            )
+                return fail(`$.rounds[${i}].abortReason`);
+        }
+    }
     const parsed = meetingStateSchema.safeParse(value);
     if (!parsed.success) {
         const issue = parsed.error.issues[0];
@@ -730,6 +855,11 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     if (ownUndefined(lifecycle, "reason", "$.lifecycle.reason")) return fail("$.lifecycle.reason");
     const identityById = indexById(parsedState.identities);
     const identityIds = new Set(identityById.keys());
+    const reviewerIds = parsedState.identities.filter((identity) =>
+        identity.roles.includes("evidence_reviewer")
+    );
+    if (reviewerIds.length !== 1) return fail("$.identities");
+    if (parsedState.evidenceReviewerId !== reviewerIds[0].id) return fail("$.evidenceReviewerId");
     const agendaById = indexById(parsedState.agenda);
     const agendaIds = new Set(agendaById.keys());
     const ids = (targets: readonly { id: string }[]) => new Set(targets.map(({ id }) => id));
@@ -744,10 +874,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     for (let i = 0; i < parsedState.agenda.length; i++) {
         const item = parsedState.agenda[i];
         const path = `$.agenda[${i}]`;
-        for (const [key, ids] of [
-            ["requiredOutputIds", outputIds],
-            ["requiredReviewerIds", identityIds]
-        ] as const) {
+        for (const [key, ids] of [["requiredOutputIds", outputIds]] as const) {
             const p = checkRefs(item[key], ids, `${path}.${key}`);
             if (p) return fail(p);
         }
@@ -766,24 +893,9 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         return fail("$.agenda");
     for (let i = 0; i < parsedState.identities.length; i++) {
         const item = parsedState.identities[i];
-        for (const key of ["agendaResponsibilityIds", "reviewResponsibilityIds"] as const) {
+        for (const key of ["agendaResponsibilityIds"] as const) {
             const p = checkRefs(item[key], agendaIds, `$.identities[${i}].${key}`);
             if (p) return fail(p);
-        }
-        if (item.reviewResponsibilityIds.length > 0 && !item.roles.includes("evidence_reviewer"))
-            return fail(`$.identities[${i}].reviewResponsibilityIds[0]`);
-    }
-    for (let i = 0; i < parsedState.agenda.length; i++) {
-        const item = parsedState.agenda[i];
-        const reviewers = item.requiredReviewerIds;
-        for (let j = 0; j < reviewers.length; j++) {
-            const identity = identityById.get(reviewers[j]);
-            if (
-                !identity ||
-                !identity.roles.includes("evidence_reviewer") ||
-                !identity.reviewResponsibilityIds.includes(item.id)
-            )
-                return fail(`$.agenda[${i}].requiredReviewerIds[${j}]`);
         }
     }
     const rounds = parsedState.rounds;
@@ -833,14 +945,6 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (!ref(r.roundId, roundIds)) return fail(`${path}.roundId`);
         if (!ref(r.contributorId, identityIds)) return fail(`${path}.contributorId`);
         if (ownUndefined(r, "packageId", `${path}.packageId`)) return fail(`${path}.packageId`);
-    }
-    for (let i = 0; i < parsedState.formatApprovals.length; i++) {
-        const approval = parsedState.formatApprovals[i];
-        const path = `$.formatApprovals[${i}]`;
-        if (!ref(approval.contributionId, contributionIds)) return fail(`${path}.contributionId`);
-        if (!ref(approval.managerId, identityIds)) return fail(`${path}.managerId`);
-        const manager = identityById.get(approval.managerId);
-        if (!manager || !manager.roles.includes("manager")) return fail(`${path}.managerId`);
     }
     const packages = parsedState.evidencePackages;
     const versionOwnerById = new Map<string, (typeof packages)[number]>();
@@ -913,9 +1017,6 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         const r = registrations[i];
         const path = `$.registrations[${i}]`;
         if (!ref(r.versionId, versionIds)) return fail(`${path}.versionId`);
-        if (!ref(r.managerId, identityIds)) return fail(`${path}.managerId`);
-        const manager = identityById.get(r.managerId as string);
-        if (!manager || !manager.roles.includes("manager")) return fail(`${path}.managerId`);
     }
     const reviews = parsedState.reviews;
     const reviewById = indexById(reviews);
@@ -1184,21 +1285,17 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         issueIds.add(item.id);
         if (!ref(item.actorId, identityIds)) return fail(`${path}.actorId`);
         if (!agendaIds.has(item.agendaId as string)) return fail(`${path}.agendaId`);
-        const agenda = agendaById.get(item.agendaId)!;
         for (const key of [
             "affectedOutputIds",
             "affectedCriterionIds",
-            "affectedConstraintIds",
-            "requiredReviewerIds"
+            "affectedConstraintIds"
         ] as const) {
             const targets =
                 key === "affectedOutputIds"
                     ? outputIds
                     : key === "affectedCriterionIds"
                       ? criterionIds
-                      : key === "affectedConstraintIds"
-                        ? constraintIds
-                        : new Set(agenda.requiredReviewerIds);
+                      : constraintIds;
             const p = checkRefs(item[key], targets, `${path}.${key}`);
             if (p) return fail(p);
         }
@@ -1224,9 +1321,6 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
         if (["resolved", "out_of_scope"].includes(item.status as string) && item.blocking)
             return fail(`${path}.blocking`);
         if (item.blocking && item.riskLevel !== "high") {
-            const reviewerQualified = item.requiredReviewerIds.some((id) =>
-                agenda.requiredReviewerIds.includes(id)
-            );
             const outputQualified = item.affectedOutputIds.some((id) =>
                 unsatisfiedOutputIds.has(id)
             );
@@ -1236,12 +1330,7 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             const constraintQualified = item.affectedConstraintIds.some((id) =>
                 unsatisfiedConstraintIds.has(id)
             );
-            if (
-                !reviewerQualified &&
-                !outputQualified &&
-                !criterionQualified &&
-                !constraintQualified
-            )
+            if (!outputQualified && !criterionQualified && !constraintQualified)
                 return fail(`${path}.blocking`);
         }
         const lastDisposition = [...riskDispositions]
@@ -1363,23 +1452,12 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
                 packageValue.versions.some((v) => v.id === versionId)
             );
             if (!owner) return false;
-            const agenda = agendaById.get(owner[1].agendaId as string);
-            if (!agenda) return false;
-            const reviewer = agenda.requiredReviewerIds
-                .map((id) => identityById.get(id as string))
-                .find(
-                    (candidate) =>
-                        candidate &&
-                        candidate.id !== owner[1].authorId &&
-                        candidate.roles.includes("evidence_reviewer") &&
-                        candidate.reviewResponsibilityIds.includes(agenda.id)
-                );
-            const matchingReviews = reviewer
-                ? reviews.filter(
-                      (candidate) =>
-                          candidate.versionId === versionId && candidate.reviewerId === reviewer.id
-                  )
-                : [];
+            const reviewer = identityById.get(parsedState.evidenceReviewerId as string);
+            if (!reviewer || reviewer.id === owner[1].authorId) return false;
+            const matchingReviews = reviews.filter(
+                (candidate) =>
+                    candidate.versionId === versionId && candidate.reviewerId === reviewer.id
+            );
             return (
                 matchingReviews.length === 1 &&
                 publications.some(
@@ -1584,17 +1662,63 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
     }
     if (own(value, "archive")) {
         const archive = parsedState.archive!;
+        if (archive.termination.id !== archive.terminationId)
+            return fail("$.archive.terminationId");
+        if (JSON.stringify(archive.termination) !== JSON.stringify(parsedState.termination))
+            return fail("$.archive.termination");
         for (const [values, refs, path] of [
-            [archive.includedPublicationIds, publicationIds, "$.archive.includedPublicationIds"],
-            [archive.includedDecisionIds, decisionIds, "$.archive.includedDecisionIds"],
+            [archive.publications.map((item) => item.id), publicationIds, "$.archive.publications"],
+            [archive.decisions.map((item) => item.id), decisionIds, "$.archive.decisions"],
             [
-                archive.includedCompletionFactIds,
+                archive.completionFacts.map((item) => item.id),
                 completionFactIds,
-                "$.archive.includedCompletionFactIds"
-            ]
+                "$.archive.completionFacts"
+            ],
+            [archive.questions.map((item) => item.id), questionIds, "$.archive.questions"],
+            [archive.issues.map((item) => item.id), issueIds, "$.archive.issues"]
         ] as const) {
             const p = checkRefs(values, refs, path);
             if (p) return fail(p);
+        }
+        if (
+            JSON.stringify(archive.unresolvedItemIds) !==
+            JSON.stringify([
+                ...archive.termination.unresolvedQuestionIds,
+                ...archive.termination.unresolvedIssueIds
+            ])
+        )
+            return fail("$.archive.unresolvedItemIds");
+        if (
+            archive.unclosedContributions.length !==
+            archive.termination.unclosedContributionIds.length
+        )
+            return fail("$.archive.unclosedContributions");
+        for (let i = 0; i < archive.unclosedContributions.length; i++) {
+            const contribution = archive.unclosedContributions[i];
+            if (contribution.contributionId !== archive.termination.unclosedContributionIds[i])
+                return fail(`$.archive.unclosedContributions[${i}].contributionId`);
+            const source = contributionById.get(contribution.contributionId);
+            if (
+                source === undefined ||
+                source.contributorId !== contribution.contributorIdentityId ||
+                source.roundId !==
+                    rounds.find((round) => round.contributionIds.includes(source.id))?.id ||
+                roundById.get(source.roundId)?.agendaId !== contribution.agendaId
+            )
+                return fail(`$.archive.unclosedContributions[${i}]`);
+        }
+        for (let i = 0; i < archive.evidenceBundles.length; i++) {
+            const bundle = archive.evidenceBundles[i];
+            const owner = versionOwnerById.get(bundle.version.id);
+            if (
+                owner === undefined ||
+                owner.id !== bundle.packageId ||
+                owner.authorId !== bundle.authorIdentityId ||
+                owner.agendaId !== bundle.agendaId ||
+                bundle.review.versionId !== bundle.version.id ||
+                !reviewIds.has(bundle.review.id)
+            )
+                return fail(`$.archive.evidenceBundles[${i}]`);
         }
     }
     const terminal = ["terminal", "archiving", "archived"].includes(lifecycle.status as string);
@@ -1612,7 +1736,10 @@ export function validateMeetingStateV1(value: unknown): MeetingStateValidationRe
             return fail("$.archive");
     }
     if (!terminal && own(value, "termination")) return fail("$.termination");
-    if (lifecycle.status === "archived" && (value.archive as RecordValue).status !== "complete")
+    if (
+        ["archiving", "archived"].includes(lifecycle.status as string) &&
+        (value.archive as RecordValue).status !== "complete"
+    )
         return fail("$.archive.status");
     return { kind: "valid", state: value as unknown as MeetingState };
 }

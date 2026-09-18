@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
 import { openRoundV1 } from "@/domain/transitions/round-v1.js";
 import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise-v1.js";
+import { submitEvidenceV1 } from "@/domain/transitions/format-evidence-v1.js";
 import {
-    reviewEvidenceDraftV1,
-    submitEvidenceV1
-} from "@/domain/transitions/format-evidence-v1.js";
-import { recordReviewDeliveryV1, submitReviewV1 } from "@/domain/transitions/evidence-review-v1.js";
+    recordReviewDeliveryV1,
+    submitReviewBatchV1
+} from "@/domain/transitions/evidence-review-v1.js";
 
 function evidenceState() {
     let state = makeRunningMeetingStateV1();
@@ -37,25 +37,11 @@ function evidenceState() {
     });
     if (accept.kind !== "accepted") throw new Error("accept");
     state = accept.state;
-    const format = reviewEvidenceDraftV1(state, {
-        contributionId: "contribution-v1",
-        managerId: "manager-v1",
-        evidenceHash: "a".repeat(64),
-        disposition: "accepted",
-        missingFields: [],
-        rationale: "完整",
-        approvalId: "approval-v1",
-        now: 4
-    });
-    if (format.kind !== "accepted") throw new Error("format");
-    state = format.state;
     const submit = submitEvidenceV1(state, {
         contributionId: "contribution-v1",
         authorId: "contributor-v1",
-        verifiedEvidenceHash: "a".repeat(64),
         packageId: "package-v1",
         versionId: "version-v1",
-        registrationId: "registration-v1",
         now: 5,
         evidence: {
             observation: "观察",
@@ -105,14 +91,89 @@ const dimensions = {
     }
 };
 
+function twoEvidenceState() {
+    const state = evidenceState();
+    const version = {
+        ...state.evidencePackages[0].versions[0],
+        id: "version-v2"
+    };
+    return {
+        ...state,
+        evidencePackages: [
+            ...state.evidencePackages,
+            {
+                ...state.evidencePackages[0],
+                id: "package-v2",
+                currentVersionId: "version-v2",
+                versions: [version]
+            }
+        ],
+        registrations: [
+            ...state.registrations,
+            {
+                id: "registration-version-v2",
+                versionId: "version-v2",
+                status: "complete" as const,
+                createdAt: 5
+            }
+        ]
+    };
+}
+
 describe("evidence review and delivery", () => {
-    it("submits one review for the current version and requests delivery", () => {
-        const result = submitReviewV1(evidenceState(), {
-            versionId: "version-v1",
+    it("submits multiple reviews atomically with one state version increment", () => {
+        const state = twoEvidenceState();
+        const result = submitReviewBatchV1(state, {
             reviewerId: "reviewer-v1",
-            reviewId: "review-v1",
-            dimensions,
-            scope: "本轮",
+            reviews: [
+                { reviewId: "review-v1", versionId: "version-v1", dimensions, scope: "本轮" },
+                { reviewId: "review-v2", versionId: "version-v2", dimensions, scope: "本轮" }
+            ],
+            now: 6
+        });
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.version).toBe(state.version + 1);
+        expect(result.state.reviews.map((review) => review.id)).toEqual(["review-v1", "review-v2"]);
+        expect(result.effectRequests).toHaveLength(2);
+    });
+
+    it("rejects a partially invalid batch without writing any review", () => {
+        const state = twoEvidenceState();
+        const result = submitReviewBatchV1(state, {
+            reviewerId: "reviewer-v1",
+            reviews: [
+                { reviewId: "review-v1", versionId: "version-v1", dimensions, scope: "本轮" },
+                { reviewId: "review-v2", versionId: "missing", dimensions, scope: "本轮" }
+            ],
+            now: 6
+        });
+        expect(result).toMatchObject({ kind: "rejected", error: { code: "INVALID_ARGUMENT" } });
+        expect(result.state).toBe(state);
+    });
+
+    it("rejects a non-unique reviewer identity", () => {
+        const result = submitReviewBatchV1(evidenceState(), {
+            reviewerId: "manager-v1",
+            reviews: [
+                { reviewId: "review-v1", versionId: "version-v1", dimensions, scope: "本轮" }
+            ],
+            now: 6
+        });
+        expect(result).toMatchObject({ kind: "rejected", error: { code: "REVIEWER_CONFLICT" } });
+    });
+
+    it("submits one review for the current version and requests delivery", () => {
+        const result = submitReviewBatchV1(evidenceState(), {
+            reviewerId: "reviewer-v1",
+            reviews: [
+                {
+                    versionId: "version-v1",
+                    reviewId: "review-v1",
+                    dimensions,
+                    scope: "本轮"
+                }
+            ],
             now: 6
         });
         expect(result.kind).toBe("accepted");
@@ -123,12 +184,16 @@ describe("evidence review and delivery", () => {
         ]);
     });
     it("requires a reason for failed delivery and permits one sent delivery", () => {
-        const reviewed = submitReviewV1(evidenceState(), {
-            versionId: "version-v1",
+        const reviewed = submitReviewBatchV1(evidenceState(), {
             reviewerId: "reviewer-v1",
-            reviewId: "review-v1",
-            dimensions,
-            scope: "本轮",
+            reviews: [
+                {
+                    versionId: "version-v1",
+                    reviewId: "review-v1",
+                    dimensions,
+                    scope: "本轮"
+                }
+            ],
             now: 6
         });
         if (reviewed.kind !== "accepted") throw new Error("review");
@@ -148,5 +213,8 @@ describe("evidence review and delivery", () => {
             now: 8
         });
         expect(sent.kind).toBe("accepted");
+        expect(sent.kind === "accepted" && sent.state.contributions[0]?.status).toBe(
+            "awaiting_response"
+        );
     });
 });

@@ -3,8 +3,10 @@ import type {
     ManagerPlanV1,
     MeetingState,
     OpaqueId,
-    RiskLevel
+    RiskLevel,
+    TargetDomainFactPayloadV1
 } from "./meeting-state-v1.js";
+export type { TargetDomainFactPayloadV1 } from "./meeting-state-v1.js";
 import { validateMeetingStateV1 } from "./meeting-state-v1-validation.js";
 import { z } from "zod";
 import { recalculateMeetingCompletionV1 } from "@/domain/transitions/outcome-v1.js";
@@ -17,7 +19,6 @@ export type TargetAgendaInputV1 = {
     title: string;
     question: string;
     requiredOutputIds: readonly OpaqueId[];
-    requiredReviewerIds: readonly OpaqueId[];
     ownerId?: OpaqueId;
 };
 
@@ -67,7 +68,7 @@ export type TargetMeetingActionV1 =
           affectedOutputIds: readonly OpaqueId[];
           affectedCriterionIds: readonly OpaqueId[];
           affectedConstraintIds: readonly OpaqueId[];
-          requiredReviewerIds: readonly OpaqueId[];
+          requiresEvidenceReview: boolean;
           blocking: boolean;
           rationale: string;
       }
@@ -84,29 +85,6 @@ export type TargetMeetingActionV1 =
           planKind: ManagerPlanV1["kind"];
           rationale: string;
           blockingReason?: string;
-      };
-
-export type TargetDomainFactPayloadV1 =
-    | { kind: "references"; relatedIds: readonly OpaqueId[] }
-    | {
-          kind: "question_disposition";
-          questionId: OpaqueId;
-          oldStatus: "open" | "deferred";
-          newStatus: "answered" | "withdrawn" | "deferred";
-          oldBlocking: boolean;
-          newBlocking: boolean;
-          rationale: string;
-          evidenceIds: readonly OpaqueId[];
-      }
-    | {
-          kind: "issue_disposition";
-          issueId: OpaqueId;
-          oldStatus: "open" | "deferred";
-          newStatus: "resolved" | "deferred" | "out_of_scope";
-          oldBlocking: boolean;
-          newBlocking: boolean;
-          rationale: string;
-          evidenceIds: readonly OpaqueId[];
       };
 
 export type TargetDomainFactV1 = {
@@ -169,7 +147,6 @@ const promotedAgendaSchema = z
         title: z.string().refine((value) => value.trim().length > 0),
         question: z.string().refine((value) => value.trim().length > 0),
         requiredOutputIds: nonEmptyIdArraySchema,
-        requiredReviewerIds: nonEmptyIdArraySchema,
         ownerId: z
             .string()
             .refine((value) => value.trim().length > 0)
@@ -235,7 +212,7 @@ const recordIssueSchema = z.object({
     affectedOutputIds: uniqueActionIds,
     affectedCriterionIds: uniqueActionIds,
     affectedConstraintIds: uniqueActionIds,
-    requiredReviewerIds: uniqueActionIds,
+    requiresEvidenceReview: z.boolean(),
     blocking: z.boolean(),
     rationale: z.string().refine((value) => value.trim().length > 0)
 });
@@ -378,7 +355,7 @@ export function transitionMeetingStateV1(
     let relatedIds: readonly OpaqueId[] = [];
     let nextAgenda = state.agenda;
     let nextCandidates = state.agendaCandidates;
-    let nextIdentities = state.identities;
+    const nextIdentities = state.identities;
     let nextQuestions = state.questions;
     let nextIssues = state.issues;
     let nextPlans = state.managerPlans;
@@ -449,32 +426,8 @@ export function transitionMeetingStateV1(
                 !state.identities.some((identity) => identity.id === promoted.ownerId)
             )
                 return invalid(state, "NOT_FOUND");
-            for (const reviewerId of promoted.requiredReviewerIds) {
-                const reviewer = state.identities.find((identity) => identity.id === reviewerId);
-                if (!reviewer) return invalid(state, "NOT_FOUND");
-                if (!reviewer.roles.includes("evidence_reviewer"))
-                    return invalid(state, "PRECONDITION_FAILED");
-                if (reviewer.reviewResponsibilityIds.includes(promoted.id))
-                    return invalid(state, "PRECONDITION_FAILED");
-            }
             nextAgenda = [...state.agenda, { ...promoted, status: "pending" as const }];
-            nextIdentities = state.identities.map((identity) =>
-                promoted.requiredReviewerIds.includes(identity.id)
-                    ? {
-                          ...identity,
-                          reviewResponsibilityIds: [
-                              ...identity.reviewResponsibilityIds,
-                              promoted.id
-                          ]
-                      }
-                    : identity
-            );
-            relatedIds = [
-                state.id,
-                action.candidateId,
-                promoted.id,
-                ...promoted.requiredReviewerIds
-            ];
+            relatedIds = [state.id, action.candidateId, promoted.id];
         } else relatedIds = [state.id, action.candidateId];
         nextCandidates = state.agendaCandidates.map((item) =>
             item.id === action.candidateId ? { ...item, status: action.disposition } : item
@@ -566,8 +519,7 @@ export function transitionMeetingStateV1(
         if (
             action.affectedOutputIds.some((id) => !outputIds.has(id)) ||
             action.affectedCriterionIds.some((id) => !criterionIds.has(id)) ||
-            action.affectedConstraintIds.some((id) => !constraintIds.has(id)) ||
-            action.requiredReviewerIds.some((id) => !agenda.requiredReviewerIds.includes(id))
+            action.affectedConstraintIds.some((id) => !constraintIds.has(id))
         )
             return invalid(state, "NOT_FOUND");
         const affected = [
@@ -584,7 +536,7 @@ export function transitionMeetingStateV1(
                     ...state.objective.hardConstraints
                 ].some((target) => target.id === id && target.status !== "satisfied")
             ) ||
-            action.requiredReviewerIds.length > 0;
+            action.requiresEvidenceReview;
         if (
             (action.classification === "blocking") !== action.blocking ||
             (action.riskLevel === "high" && !action.blocking) ||
@@ -603,7 +555,7 @@ export function transitionMeetingStateV1(
                 affectedOutputIds: action.affectedOutputIds,
                 affectedCriterionIds: action.affectedCriterionIds,
                 affectedConstraintIds: action.affectedConstraintIds,
-                requiredReviewerIds: action.requiredReviewerIds,
+                requiresEvidenceReview: action.requiresEvidenceReview,
                 blocking: action.blocking,
                 status: "open" as const,
                 rationale: action.rationale

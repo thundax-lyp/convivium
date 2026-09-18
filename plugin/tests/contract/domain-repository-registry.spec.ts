@@ -4,7 +4,7 @@ import {
     DomainRepositoryRegistry,
     type DomainFacilityPort
 } from "@/repository/domain/domain-repository-registry.js";
-import { catalogKey, meetingDomainName } from "@/repository/domain/keys.js";
+import { catalogKey, meetingDomainName, meetingIdFor } from "@/repository/domain/keys.js";
 import { RepositoryError } from "@/repository/errors.js";
 import {
     createFakeCatalogDomain,
@@ -14,12 +14,11 @@ import {
 
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
 
-function catalogRecord(teamId: string, meetingId: string) {
+function catalogRecord(meetingId: string) {
     return {
         formatVersion: 1 as const,
-        teamId,
         meetingId,
-        domainName: meetingDomainName(teamId, meetingId),
+        domainName: meetingDomainName(meetingId),
         status: "creating" as const,
         createRequestId: `create-${meetingId}`,
         requestHash: `hash-${meetingId}`,
@@ -29,10 +28,9 @@ function catalogRecord(teamId: string, meetingId: string) {
     };
 }
 
-function creationRecord(teamId: string, meetingId: string) {
+function creationRecord(meetingId: string) {
     return {
         formatVersion: 1 as const,
-        teamId,
         meetingId,
         status: "creating" as const,
         requestId: `create-${meetingId}`,
@@ -97,9 +95,7 @@ class Facility implements DomainFacilityPort {
 
 function fixture(records: ReturnType<typeof catalogRecord>[] = []) {
     const catalog = createFakeCatalogDomain({
-        meetings: new Map(
-            records.map((record) => [catalogKey(record.teamId, record.meetingId), record])
-        )
+        meetings: new Map(records.map((record) => [catalogKey(record.meetingId), record]))
     });
     const facility = new Facility(catalog);
     for (const record of records)
@@ -107,9 +103,7 @@ function fixture(records: ReturnType<typeof catalogRecord>[] = []) {
             createFakeMeetingDomain({
                 name: record.domainName,
                 initial: {
-                    creation: new Map([
-                        ["current", creationRecord(record.teamId, record.meetingId)]
-                    ])
+                    creation: new Map([["current", creationRecord(record.meetingId)]])
                 }
             })
         );
@@ -117,31 +111,30 @@ function fixture(records: ReturnType<typeof catalogRecord>[] = []) {
 }
 
 describe("DomainRepositoryRegistry contract", () => {
+    it("derives repository identity from meetingId and create requestId only", () => {
+        expect(catalogKey("meeting-1")).toBe(
+            "f95fc417838d20816d75e96d1faef1db9e131b29625e9cbb0aaefe6c894589ae"
+        );
+        expect(meetingDomainName("meeting-1")).toBe("convivium_m_4fe1c071bc5c3a334a142da5de7ce6e3");
+        expect(meetingIdFor("request-1")).toBe("meeting-19f1064b619d49d35392eac7261cd726");
+    });
+
     it("opens the catalog once and returns a deterministic sorted list", async () => {
-        const records = [
-            catalogRecord("team-b", "meeting-2"),
-            catalogRecord("team-a", "meeting-2"),
-            catalogRecord("team-a", "meeting-1")
-        ];
+        const records = [catalogRecord("meeting-2"), catalogRecord("meeting-1")];
         const { facility } = fixture(records);
         const registry = await DomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow
         });
 
-        expect(registry.listMeetings().map(({ teamId, meetingId }) => [teamId, meetingId])).toEqual(
-            [
-                ["team-a", "meeting-1"],
-                ["team-a", "meeting-2"],
-                ["team-b", "meeting-2"]
-            ]
-        );
+        const listed = registry.listMeetings();
+        expect(listed.map(({ meetingId }) => meetingId)).toEqual(["meeting-1", "meeting-2"]);
         expect(facility.calls.filter((name) => name === "convivium_catalog")).toHaveLength(1);
         await registry.close();
     });
 
     it("shares one in-flight open for the same CatalogKey", async () => {
-        const record = catalogRecord("team-1", "meeting-1");
+        const record = catalogRecord("meeting-1");
         const { facility } = fixture([record]);
         let release = () => undefined;
         const pending = new Promise<void>((resolve) => {
@@ -153,8 +146,8 @@ describe("DomainRepositoryRegistry contract", () => {
             authorizationValidator: allow
         });
 
-        const first = registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" });
-        const second = registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" });
+        const first = registry.openMeeting({ meetingId: "meeting-1" });
+        const second = registry.openMeeting({ meetingId: "meeting-1" });
         release();
         expect(await first).toBe(await second);
         expect(facility.calls.filter((name) => name === record.domainName)).toHaveLength(1);
@@ -162,15 +155,15 @@ describe("DomainRepositoryRegistry contract", () => {
     });
 
     it("publishes a durable creation failure left behind a creating catalog", async () => {
-        const record = catalogRecord("team-1", "meeting-1");
+        const record = catalogRecord("meeting-1");
         const failedCreation = {
-            ...creationRecord("team-1", "meeting-1"),
+            ...creationRecord("meeting-1"),
             status: "creation_failed" as const,
             updatedAt: 2,
             failureCode: "SESSION_FAILED"
         };
         const catalog = createFakeCatalogDomain({
-            meetings: new Map([[catalogKey("team-1", "meeting-1"), record]])
+            meetings: new Map([[catalogKey("meeting-1"), record]])
         });
         const facility = new Facility(catalog);
         facility.register(
@@ -184,10 +177,8 @@ describe("DomainRepositoryRegistry contract", () => {
             authorizationValidator: allow
         });
 
-        await expect(
-            registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" })
-        ).resolves.toBeTruthy();
-        expect(catalog.table("meetings").get(catalogKey("team-1", "meeting-1"))).toMatchObject({
+        await expect(registry.openMeeting({ meetingId: "meeting-1" })).resolves.toBeTruthy();
+        expect(catalog.table("meetings").get(catalogKey("meeting-1"))).toMatchObject({
             status: "creation_failed",
             updatedAt: 2,
             failureCode: "SESSION_FAILED"
@@ -196,7 +187,7 @@ describe("DomainRepositoryRegistry contract", () => {
     });
 
     it("removes a rejected in-flight open before retry", async () => {
-        const record = catalogRecord("team-1", "meeting-1");
+        const record = catalogRecord("meeting-1");
         const { facility } = fixture([record]);
         facility.failOnce(record.domainName);
         const registry = await DomainRepositoryRegistry.open({
@@ -204,18 +195,18 @@ describe("DomainRepositoryRegistry contract", () => {
             authorizationValidator: allow
         });
 
-        await expect(
-            registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" })
-        ).rejects.toThrow("scripted open failure");
-        await expect(
-            registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" })
-        ).resolves.toMatchObject({ teamId: "team-1", meetingId: "meeting-1" });
+        await expect(registry.openMeeting({ meetingId: "meeting-1" })).rejects.toThrow(
+            "scripted open failure"
+        );
+        await expect(registry.openMeeting({ meetingId: "meeting-1" })).resolves.toMatchObject({
+            meetingId: "meeting-1"
+        });
         expect(facility.calls.filter((name) => name === record.domainName)).toHaveLength(2);
         await registry.close();
     });
 
     it("passes the projection callback to a meeting repository", async () => {
-        const { facility } = fixture([catalogRecord("team-1", "meeting-1")]);
+        const { facility } = fixture([catalogRecord("meeting-1")]);
         const snapshots: unknown[] = [];
         const registry = await DomainRepositoryRegistry.open({
             storageDomain: facility,
@@ -223,7 +214,6 @@ describe("DomainRepositoryRegistry contract", () => {
             onProjectionCommitted: (snapshot) => snapshots.push(snapshot)
         });
         const repository = await registry.openMeeting({
-            teamId: "team-1",
             meetingId: "meeting-1",
             create: {
                 requestId: "create-meeting-1",
@@ -241,41 +231,38 @@ describe("DomainRepositoryRegistry contract", () => {
             createdAt: 1
         });
         expect(snapshots).toHaveLength(1);
-        expect(snapshots[0]).toMatchObject({ teamId: "team-1", meetingId: "meeting-1" });
+        expect(snapshots[0]).toMatchObject({ meetingId: "meeting-1" });
         await registry.close();
     });
 
     it("rejects cached identity or domainName mismatch", async () => {
-        const record = catalogRecord("team-1", "meeting-1");
+        const record = catalogRecord("meeting-1");
         const { catalog, facility } = fixture([record]);
         const registry = await DomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow
         });
-        await registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" });
-        await catalog.table("meetings").put(catalogKey("team-1", "meeting-1"), {
+        await registry.openMeeting({ meetingId: "meeting-1" });
+        await catalog.table("meetings").put(catalogKey("meeting-1"), {
             ...record,
             domainName: "convivium_m_wrong"
         });
 
         await expect(
-            registry.openMeeting({ teamId: "team-1", meetingId: "meeting-1" })
+            registry.openMeeting({ meetingId: "meeting-1" })
         ).rejects.toMatchObject<RepositoryError>({ code: "CORRUPT_DATABASE" });
         await registry.close();
     });
 
     it("closes Meeting domains in domainName order before catalog exactly once", async () => {
-        const records = [
-            catalogRecord("team-1", "meeting-b"),
-            catalogRecord("team-1", "meeting-a")
-        ];
+        const records = [catalogRecord("meeting-b"), catalogRecord("meeting-a")];
         const { facility } = fixture(records);
         const registry = await DomainRepositoryRegistry.open({
             storageDomain: facility,
             authorizationValidator: allow
         });
-        await registry.openMeeting({ teamId: "team-1", meetingId: "meeting-b" });
-        await registry.openMeeting({ teamId: "team-1", meetingId: "meeting-a" });
+        await registry.openMeeting({ meetingId: "meeting-b" });
+        await registry.openMeeting({ meetingId: "meeting-a" });
 
         await Promise.all([registry.close(), registry.close()]);
 

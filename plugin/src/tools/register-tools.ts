@@ -2,6 +2,7 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import { defineTool, type ToolRunContext } from "@deepseek-ai/dsh-tools";
 import type { JsonValue } from "@deepseek-ai/dsh-util-values";
 import type { ToolRuntime } from "@deepseek-ai/dsh-tools";
+import type { ResolvedMeetingCaller } from "@/dsh/index.js";
 import type {
     CreateMeetingInputV1,
     EndMeetingInputV1,
@@ -59,7 +60,10 @@ import {
 } from "@/protocol/index.js";
 
 export interface MeetingToolCallerResolver {
-    resolve(agent: Agent, signal: AbortSignal): Promise<MeetingToolCaller | ProtocolErrorV1>;
+    resolve(
+        agent: Agent,
+        signal: AbortSignal
+    ): Promise<MeetingToolCaller | ResolvedMeetingCaller | ProtocolErrorV1>;
 }
 
 export interface CreateAndStatusToolDependencies {
@@ -130,7 +134,22 @@ async function resolveCaller(
     if (exec.agent === undefined) {
         return error("UNAUTHORIZED_CALLER", "A meeting tool requires an Agent caller.", false);
     }
-    return callers.resolve(exec.agent, exec.signal);
+    const caller = await callers.resolve(exec.agent, exec.signal);
+    if ("ok" in caller) return caller;
+    if (caller.kind === "evidence_reviewer") {
+        return error(
+            "UNAUTHORIZED_CALLER",
+            "The evidence reviewer cannot use legacy meeting tools.",
+            false
+        );
+    }
+    return {
+        sessionId: caller.sessionId,
+        kind: caller.kind,
+        ...("agent" in caller && caller.agent !== undefined ? { agent: caller.agent } : {}),
+        ...(caller.meetingId === undefined ? {} : { meetingId: caller.meetingId }),
+        ...(caller.participantId === undefined ? {} : { participantId: caller.participantId })
+    };
 }
 
 async function execute<TInput, TResult>(

@@ -4,7 +4,7 @@
 
 本文是 Meeting 的唯一跨边界类型契约。它定义写命令、读投影、提交记录、Remote 刷新和 Markdown 输入；领域字段与不变量以 [Domain Design](../30-designs/DOMAIN-DESIGN.md) 为准，转换顺序以 [Meeting Design](../30-designs/MEETING-DESIGN.md) 为准。
 
-DSH/Remote transport 提供可信 caller binding；Meeting Runtime 是唯一业务写入者；Repository 原子保存 Runtime 交付的提交包；projection 只读已提交状态。请求体不得包含 actorId、roles、Session ID、ownership、baseline、authority、当前时间或任何可由 Runtime 推导的字段。
+DSH/Remote transport 提供可信 caller binding；Meeting Runtime 是唯一业务写入者；Repository 原子保存 Runtime 交付的提交包；projection 只读已提交状态。请求体不得包含 actorId、roles、Session ID、ownership、baseline、authority、当前时间或任何可由 Runtime 推导的字段。V1 的 `meetingId` 在当前 Convivium Host/profile Storage Domain 内全局唯一，是 Meeting、catalog、receipt、outbox、Session ownership 与恢复的唯一 Meeting namespace；协议和持久化 port 均不存在 `teamId`。未来多 Team 不是 V1 的兼容扩展，必须以新契约定义 authority、隔离与迁移。
 
 ## Wire Conventions
 
@@ -27,7 +27,7 @@ interface CallerBinding {
 }
 ```
 
-`CallerBinding` 只由 adapter 传给 Runtime。receipt 键为 `(meetingId, principalId, requestId)`；同键必须拥有相同 action kind 和规范化 payload。相同请求返回原结果，不同 payload 返回 `IDEMPOTENCY_CONFLICT`。授权检查先于 receipt 查找。
+`CallerBinding` 只由 adapter 传给 Runtime。`create_meeting` 只接受 Captain-only DSH tool；adapter 从可信 `exec.agent` 注入 Captain parent，并令 `principalId=String(exec.agent.id)`，不设置 `sessionBindingId`，wire payload 不承载 parent/actor/authority。loopback Remote 不得创建 Meeting。创建命令在协议结构和 identityKey 引用校验通过后、需要 MeetingId 的 Definition/session preflight 前，以 `meetingIdFor(requestId)` 的 canonical hash 生成真实 `meetingId`，不混入 caller、Session、随机值或 `teamId`，因此相同 create requestId 必须定位同一 Meeting。receipt 键为 `(meetingId, principalId, requestId)`；同键必须拥有相同 action kind 和规范化 payload。相同请求返回原结果，不同 payload 返回 `IDEMPOTENCY_CONFLICT`。授权检查先于 receipt 查找。
 
 ## Command Action Union
 
@@ -81,11 +81,11 @@ interface RecordIdentityAdmissionResult {
 }
 ```
 
-`create_meeting` 仅允许可信 local Convener，且 Runtime 已完成 role definition/session preflight。`recommend_identity` 仅当前 `running` Meeting Manager 可用；Runtime 在同一 Host Catalog producer 重读 snapshot，要求 catalog/candidate/Definition 引用一致、candidate `available`、Agenda 属于本 Meeting 且 Manager 不能接纳自己。`reject` 原子提交 rejected 事实，不创建 Session；`admit` 原子提交不可调度的 provisioning 意图和一次 `identity_provision` effect。`record_identity_admission_result` 仅由 Runtime outbox/recovery 在验证该意图和 Session owner 结果后使用，不能由 Agent 或 loopback caller 提交。该结果只有在 Definition/preflight、Session 和 durable ownership 都成功时才能原子激活普通可选 identity；失败原子记载安全 failureCode 且无 identity。两个动作均使用原 Meeting version/idempotency/终态拒写边界；同一 candidate 的未解决意图或 active identity 不能再次准入。`end_meeting` 在自身终态提交中把尚在 provisioning 的意图标为 `failed/ADMISSION_CONFLICT`，effect dispatcher 在创建前后重验 lifecycle 并清理已创建但未激活的 Session；不得在终态激活身份。
+`create_meeting` 仅允许可信 local Convener，且 Runtime 已完成 role definition/session preflight。`recommend_identity` 仅当前 `running` Meeting Manager 可用；Runtime 在同一 Host Catalog producer 重读 snapshot，要求 catalog/candidate/Definition 引用一致、candidate `available`、Agenda 属于本 Meeting 且 Manager 不能接纳自己。`reject` 原子提交 rejected 事实，不创建 Session。candidate 在本 Meeting 没有 active identity 时，`admit` 原子提交不可调度的 provisioning 意图和一次 `identity_provision` effect；`record_identity_admission_result` 仅由 Runtime outbox/recovery 在验证该意图和 Session owner 结果后使用，不能由 Agent 或 loopback caller 提交。该结果只有在 Definition/preflight、Session 和 durable ownership 都成功时才能原子激活普通可选 identity；失败原子记载安全 failureCode 且无 identity。candidate 已有 active identity 时，另一 Agenda 的合法 `admit` 原子新增独立 active recommendation，复用原 recommendation 的 identityId、childSessionId、definitionId、definitionVersion 和 definitionHash，并以本次决定的 Runtime now 写入 createdAt/resolvedAt；不产生 `identity_provision` effect，不新增 identity，也不改变角色、授权或 capability。复用请求的 Definition provenance 必须与既有 active recommendation 精确一致，否则返回 `PRECONDITION_FAILED`。两个动作均使用原 Meeting version/idempotency/终态拒写边界；同一 `candidateId + agendaId` 已有 provisioning 或 active recommendation 时不能再次准入，同一 candidate 尚有 provisioning recommendation 时其他 Agenda 也不能准入。`end_meeting` 在自身终态提交中把尚在 provisioning 的意图标为 `failed/ADMISSION_CONFLICT`，effect dispatcher 在创建前后重验 lifecycle 并清理已创建但未激活的 Session；不得在终态激活身份。
 
 `ResumeMeeting` 只允许可信 local controller 恢复普通 paused Meeting。若 pause reason 是不可恢复的 message budget exhausted，返回 `LIMIT_EXCEEDED` 且不写 state、receipt、effect 或 version；此时只允许保持暂停或 `EndMeeting`。
 
-`recommend_identity` 缺 Catalog producer、Meeting/snapshot/version 不匹配、candidate 非 available 或目录外时映射 `PRECONDITION_FAILED`；自荐或同 candidate 的未解决/active 准入映射 `INVALID_STATE`，不提交 state/fact/receipt/outbox/version；caller 非 Manager 映射 `UNAUTHORIZED`，expected version 不符映射 `VERSION_CONFLICT`，终态映射 `MEETING_TERMINAL`。成功 `reject` 的 `identityDecision.status` 为 `rejected`，成功 `admit` 为 `provisioning`，两者均有唯一 recommendationId。Session/Definition/preflight 的可判定失败不回滚已提交意图：`record_identity_admission_result` 原子写 `failed` 与 [RoleError](./DSH-ROLE-INTERFACE.md#role-errors-and-authorization) code，返回已提交 `identityDecision.status=failed`；成功时写 `active`、identityId 与 ownership 引用。`identity_provision` 只有该结果 commit 完成后才能标记 delivered；结果 commit 因 Storage 不可用或 version 冲突未完成时保留可重试 effect，重试同一 admissionId，不创建第二 Session/identity。若已创建 child 的 descriptor/ownership 无法证明或持久记录损坏，返回 `RECOVERY_UNAVAILABLE` 并停止该 Meeting 写入，保留 provisioning/outbox；不得把该不确定性提交为普通 `failed` 或创建替代 child。
+`recommend_identity` 缺 Catalog producer、Meeting/snapshot/version 不匹配、candidate 非 available 或目录外时映射 `PRECONDITION_FAILED`；自荐、同一 `candidateId + agendaId` 已有 provisioning/active recommendation，或同 candidate 尚有 provisioning recommendation 时映射 `INVALID_STATE`，不提交 state/fact/receipt/outbox/version；已有 active identity 但 Definition provenance 不一致映射 `PRECONDITION_FAILED`。caller 非 Manager 映射 `UNAUTHORIZED`，expected version 不符映射 `VERSION_CONFLICT`，终态映射 `MEETING_TERMINAL`。成功 `reject` 的 `identityDecision.status` 为 `rejected`；首次成功 `admit` 为 `provisioning`，跨 Agenda 复用 active identity 的成功 `admit` 直接为 `active`，每个决定均有唯一 recommendationId。Session/Definition/preflight 的可判定失败不回滚已提交意图：`record_identity_admission_result` 原子写 `failed` 与 [RoleError](./DSH-ROLE-INTERFACE.md#role-errors-and-authorization) code，返回已提交 `identityDecision.status=failed`；成功时写 `active`、identityId 与 ownership 引用。`identity_provision` 只有该结果 commit 完成后才能标记 delivered；结果 commit 因 Storage 不可用或 version 冲突未完成时保留可重试 effect，重试同一 admissionId，不创建第二 Session/identity。若已创建 child 的 descriptor/ownership 无法证明或持久记录损坏，返回 `RECOVERY_UNAVAILABLE` 并停止该 Meeting 写入，保留 provisioning/outbox；不得把该不确定性提交为普通 `failed` 或创建替代 child。
 
 ### Round, evidence and review
 
@@ -207,7 +207,7 @@ PlanNextStep is Manager-only and is rejected while a Round is open; a new plan s
 ```ts
 interface ObjectiveInput { statement: string; requiredOutputs: TargetInput[]; acceptanceCriteria: TargetInput[]; hardConstraints: TargetInput[]; acceptableRiskLevel: "low" | "medium" | "high" }
 interface TargetInput { id: OpaqueId; text: string }
-interface InitialIdentityInput { identityKey: OpaqueId; definitionId?: OpaqueId; definitionVersion?: string; displayName: string; roles: Array<"captain" | "manager" | "contributor" | "evidence_reviewer">; agendaResponsibilityIds: OpaqueId[]; riskAuthority: boolean; required: boolean }
+interface InitialIdentityInput { identityKey: OpaqueId; definitionId: OpaqueId; definitionVersion: string; displayName: string; roles: Array<"captain" | "manager" | "contributor" | "evidence_reviewer">; agendaResponsibilityIds: OpaqueId[]; riskAuthority: boolean; required: boolean }
 interface InitialAgendaInput { id: OpaqueId; title: string; question: string; requiredOutputIds: OpaqueId[]; ownerIdentityKey?: OpaqueId }
 interface AgendaInput { id: OpaqueId; title: string; question: string; requiredOutputIds: OpaqueId[]; ownerId?: OpaqueId }
 interface MeetingLimitsInput { maxFormalMessages: number; maxDurationMs: number; taskDeadlineMs: number; reviewDeadlineMs: number }
@@ -216,7 +216,7 @@ interface ContinuationInput { sourceArchiveId: OpaqueId; selectedMaterialIds: Op
 
 IDs and identityKey values supplied during creation must be locally unique and all references validate before Runtime allocates Meeting ID or identity IDs. Runtime fixes `responseDeadlineMs` to 60000; clients cannot configure it.
 
-`InitialIdentityInput.agendaResponsibilityIds` 的元素是本 Meeting 的 `AgendaItem.id`；`InitialAgendaInput.ownerIdentityKey`、`CreateMeeting.managerIdentityKey` 和 `CreateMeeting.evidenceReviewerIdentityKey` 引用同一请求中的 `InitialIdentityInput.identityKey`。Runtime 完整验证后在同一创建事务中分配正式 identity ID 并重写这些引用，不得从 displayName、Definition ID、自然语言或数组位置推断。managerIdentityKey 必须精确命中唯一 roles=`["manager"]` 的专职身份，evidenceReviewerIdentityKey 必须精确命中唯一 roles=`["evidence_reviewer"]` 的专职身份，其他身份不得包含这两个 role；两 key 缺失、相同、未命中、重复角色或角色不匹配均返回 `INVALID_ARGUMENT` 且不创建 Meeting。身份选择了 Definition 时，Manager 只接受 `meeting_manager`，reviewer 只接受 `verification_reviewer`；Definition role 不匹配或 preflight 失败返回 `PRECONDITION_FAILED`，不分配 Meeting/identity ID，不创建 Session 或持久事实。
+`InitialIdentityInput.agendaResponsibilityIds` 的元素是本 Meeting 的 `AgendaItem.id`；`InitialAgendaInput.ownerIdentityKey`、`CreateMeeting.managerIdentityKey` 和 `CreateMeeting.evidenceReviewerIdentityKey` 引用同一请求中的 `InitialIdentityInput.identityKey`。Runtime 完整验证后在同一创建事务中分配正式 identity ID 并重写这些引用，不得从 displayName、Definition ID、自然语言或数组位置推断。managerIdentityKey 必须精确命中唯一 roles=`["manager"]` 的专职身份，evidenceReviewerIdentityKey 必须精确命中唯一 roles=`["evidence_reviewer"]` 的专职身份，其他身份不得包含这两个 role；两 key 缺失、相同、未命中、重复角色或角色不匹配均返回 `INVALID_ARGUMENT` 且不创建 Meeting。八个初始身份都必须提交精确 Definition ID/version；Manager 只接受 `meeting_manager`，reviewer 只接受 `verification_reviewer`，六个 Contributor 分别接受其已发布角色 Definition。Definition 缺失、版本或 role 不匹配、preflight 失败均返回 `PRECONDITION_FAILED`，不分配 Meeting/identity ID，不创建 Session 或持久事实。
 
 `dispose_agenda_candidate` 的 promoted 分支须在同一转换中将 pending candidate 标 promoted 并 append 完整 pending Agenda；`AgendaInput.ownerId` 若存在必须直接引用已存在 Meeting identity。任一引用失败须整条拒绝，不提交半个 Agenda 或 candidate 状态；不授予新 role、不改变全局 evidenceReviewerId 或当前 active Agenda。park/reject 不改变身份责任。
 
@@ -414,7 +414,7 @@ type AgentNoticePayloadV1 =
   | (AgentNoticeBaseV1 & { noticeKind: "review_request"; versionId: OpaqueId });
 ```
 
-`MeetingStateRecordV1` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecordV1` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。outbox payload 只能包含最小效果输入，不含 secrets 或隐藏推理。initial hand accepted 必须给出新 `contributionId`，supplement hand 始终用既有 `contributionId` 定位。dispatcher 投递前重新验证 recipient 的会议 Session ownership、active 状态及该 notice 的当前可见性，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。`ArchivePackageV1` 必须按本节 ArchiveView 白名单按值固化；它不是对当前 MeetingState 的无类型 clone，也不能只保存对象 ID。
+`MeetingStateRecordV1` 是 Domain `MeetingState` 的无损序列化；`CommittedFactRecordV1` 是带 `factId, kind, actorId, occurredAt, meetingVersion, relatedIds, payload, resultingState` 的追加事实。Repository catalog key、Meeting domain name、open/read/list、receipt、outbox 与 recovery 均只以 `meetingId` 定位，不得保留固定、caller 提交或从 Session 推断的 `teamId` compatibility namespace。`resolve_question` 必须使用 `question_disposition` payload，`dispose_issue` 必须使用 `issue_disposition` payload；其它 action 使用最小 `references` payload，不得复制私信正文、Session、凭据或隐藏推理。Repository 的 `commit` 必须原子保存 state、receipt、facts 和 outbox，结果只能是 accepted、version_conflict 或 unavailable；不得部分确认。outbox payload 只能包含最小效果输入，不含 secrets 或隐藏推理。initial hand accepted 必须给出新 `contributionId`，supplement hand 始终用既有 `contributionId` 定位。dispatcher 投递前重新验证 recipient 的会议 Session ownership、active 状态及该 notice 的当前可见性，重复效果使用同一个 effect ID，投递成功不推断 Agent 已申请或提交。`ArchivePackageV1` 必须按本节 ArchiveView 白名单按值固化；它不是对当前 MeetingState 的无类型 clone，也不能只保存对象 ID。
 
 ## Compatibility And Acceptance
 

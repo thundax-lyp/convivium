@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { makeRunningMeetingStateV1 } from "../../fixtures/meeting-state-v1.js";
 import { openRoundV1 } from "@/domain/transitions/round-v1.js";
 import { disposeHandRaiseV1, raiseHandV1 } from "@/domain/transitions/hand-raise-v1.js";
+import { submitEvidenceV1 } from "@/domain/transitions/format-evidence-v1.js";
 import {
-    reviewEvidenceDraftV1,
-    submitEvidenceV1
-} from "@/domain/transitions/format-evidence-v1.js";
+    disposeSupplementHandV1,
+    raiseSupplementHandV1
+} from "@/domain/transitions/supplement-hand-v1.js";
 
 function stateWithContribution() {
     const opened = openRoundV1(makeRunningMeetingStateV1(), {
@@ -63,54 +64,26 @@ const evidence = {
 };
 
 describe("format and evidence transitions", () => {
-    it("rejects a draft without creating evidence facts", () => {
+    it("directly registers one complete version for the contributor", () => {
         const state = stateWithContribution();
-        const result = reviewEvidenceDraftV1(state, {
-            contributionId: "contribution-v1",
-            managerId: "manager-v1",
-            evidenceHash: "a".repeat(64),
-            disposition: "rejected",
-            missingFields: ["materials"],
-            rationale: "materials 中缺少定位",
-            approvalId: "approval-v1",
-            now: 4
-        });
-        expect(result.kind).toBe("accepted");
-        if (result.kind !== "accepted") return;
-        expect(result.state.evidencePackages).toEqual([]);
-        expect(result.state.registrations).toEqual([]);
-        expect(result.state.formatApprovals).toEqual([]);
-        expect(result.state.contributions[0].status).toBe("format_correction");
-    });
-    it("stores only an accepted hash and submits one complete version", () => {
-        const state = stateWithContribution();
-        const hash = "b".repeat(64);
-        const approved = reviewEvidenceDraftV1(state, {
-            contributionId: "contribution-v1",
-            managerId: "manager-v1",
-            evidenceHash: hash,
-            disposition: "accepted",
-            missingFields: [],
-            rationale: "格式齐全",
-            approvalId: "approval-v1",
-            now: 4
-        });
-        if (approved.kind !== "accepted") throw new Error("approval");
-        const result = submitEvidenceV1(approved.state, {
+        const result = submitEvidenceV1(state, {
             contributionId: "contribution-v1",
             authorId: "contributor-v1",
             evidence,
-            verifiedEvidenceHash: hash,
             packageId: "package-v1",
             versionId: "version-v1",
-            registrationId: "registration-v1",
-            now: 5
+            now: 4
         });
         expect(result.kind).toBe("accepted");
         if (result.kind !== "accepted") return;
         expect(result.state.evidencePackages[0].versions).toHaveLength(1);
         expect(result.state.registrations[0].status).toBe("complete");
-        expect(result.state.formatApprovals).toEqual([]);
+        expect(result.state.registrations[0]).toEqual({
+            id: "registration-version-v1",
+            versionId: "version-v1",
+            status: "complete",
+            createdAt: 4
+        });
         expect(result.effectRequests).toEqual([
             {
                 kind: "agent_notice",
@@ -121,31 +94,103 @@ describe("format and evidence transitions", () => {
             }
         ]);
     });
-    it("rejects a hash mismatch atomically", () => {
+    it("rejects an incorrect author atomically", () => {
         const state = stateWithContribution();
-        const approved = reviewEvidenceDraftV1(state, {
+        const result = submitEvidenceV1(state, {
             contributionId: "contribution-v1",
-            managerId: "manager-v1",
-            evidenceHash: "c".repeat(64),
-            disposition: "accepted",
-            missingFields: [],
-            rationale: "完整",
-            approvalId: "approval-v1",
+            authorId: "manager-v1",
+            evidence,
+            packageId: "package-v1",
+            versionId: "version-v1",
             now: 4
         });
-        if (approved.kind !== "accepted") throw new Error("approval");
-        const result = submitEvidenceV1(approved.state, {
+        expect(result.kind).toBe("rejected");
+        expect(result.kind === "rejected" && result.state).toBe(state);
+        expect(result.kind === "rejected" && result.error.code).toBe("UNAUTHORIZED");
+    });
+    it("rejects initial evidence at the earliest persisted deadline", () => {
+        const state = stateWithContribution();
+        const deadlineState = {
+            ...state,
+            rounds: state.rounds.map((round) => ({ ...round, deadlineAt: 4 }))
+        };
+        const result = submitEvidenceV1(deadlineState, {
             contributionId: "contribution-v1",
             authorId: "contributor-v1",
             evidence,
-            verifiedEvidenceHash: "d".repeat(64),
             packageId: "package-v1",
             versionId: "version-v1",
-            registrationId: "registration-v1",
+            now: 4
+        });
+        expect(result).toMatchObject({
+            kind: "rejected",
+            error: { code: "PRECONDITION_FAILED" },
+            state: deadlineState
+        });
+    });
+    it("appends an accepted supplement to the existing evidence package", () => {
+        const first = submitEvidenceV1(stateWithContribution(), {
+            contributionId: "contribution-v1",
+            authorId: "contributor-v1",
+            evidence,
+            packageId: "package-v1",
+            versionId: "version-v1",
+            now: 4
+        });
+        if (first.kind !== "accepted") throw new Error("initial evidence did not register");
+        const awaitingResponse = {
+            ...first.state,
+            contributions: first.state.contributions.map((contribution) => ({
+                ...contribution,
+                status: "awaiting_response" as const
+            }))
+        };
+        const raised = raiseSupplementHandV1(awaitingResponse, {
+            contributionId: "contribution-v1",
+            authorId: "contributor-v1",
+            purpose: "补充反证",
             now: 5
         });
-        expect(result.kind).toBe("rejected");
-        expect(result.kind === "rejected" && result.state).toBe(approved.state);
-        expect(result.kind === "rejected" && result.error.code).toBe("INVALID_ARGUMENT");
+        if (raised.kind !== "accepted") throw new Error("supplement hand did not raise");
+        const accepted = disposeSupplementHandV1(raised.state, {
+            contributionId: "contribution-v1",
+            managerId: "manager-v1",
+            disposition: "accepted",
+            reason: "允许补充",
+            now: 6
+        });
+        if (accepted.kind !== "accepted") throw new Error("supplement hand was not accepted");
+
+        const result = submitEvidenceV1(accepted.state, {
+            contributionId: "contribution-v1",
+            authorId: "contributor-v1",
+            evidence: { ...evidence, observation: "补充观察" },
+            packageId: "unused-new-package-id",
+            versionId: "version-v2",
+            now: 7
+        });
+
+        expect(result.kind).toBe("accepted");
+        if (result.kind !== "accepted") return;
+        expect(result.state.evidencePackages).toHaveLength(1);
+        expect(result.state.evidencePackages[0]).toMatchObject({
+            id: "package-v1",
+            currentVersionId: "version-v2",
+            versions: [
+                { id: "version-v1", ordinal: 1 },
+                { id: "version-v2", ordinal: 2, observation: "补充观察" }
+            ]
+        });
+        expect(result.state.contributions[0]).toMatchObject({
+            packageId: "package-v1",
+            status: "under_review",
+            substantiveSupplementCount: 1
+        });
+        expect(result.state.contributions[0].supplementHand).toBeUndefined();
+        expect(result.state.contributions[0].response).toBeUndefined();
+        expect(result.state.registrations.at(-1)).toMatchObject({
+            versionId: "version-v2",
+            status: "complete"
+        });
     });
 });

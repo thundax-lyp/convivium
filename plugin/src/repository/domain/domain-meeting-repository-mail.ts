@@ -7,7 +7,8 @@ import type {
     SendPrivateMeetingMailInput,
     StartPrivateMeetingMailInput,
     FinishPrivateMeetingMailInput,
-    CancelPrivateMeetingMailInput
+    CancelPrivateMeetingMailInput,
+    JsonObject
 } from "@/repository/types.js";
 import {
     validatePrivateMailSend,
@@ -15,7 +16,9 @@ import {
     validatePrivateMailFinish
 } from "./private-mail-validation.js";
 
-export abstract class DomainMeetingRepositoryMail extends DomainMeetingRepositoryCore {
+export abstract class DomainMeetingRepositoryMail<
+    TState = JsonObject
+> extends DomainMeetingRepositoryCore<TState> {
     async readPrivateMeetingMail(_mailId: string): Promise<PrivateMeetingMail | undefined> {
         this.ensureOpen();
         const mail = this.projection?.privateMail[_mailId];
@@ -59,7 +62,7 @@ export abstract class DomainMeetingRepositoryMail extends DomainMeetingRepositor
                 );
             const snapshot = structuredClone(this.projection.snapshot);
             this.authorizationValidator.validateCommand({
-                snapshot,
+                snapshot: this.decodeSnapshot(snapshot),
                 command: { commandKind: "send_meeting_message", authorization: input.authorization }
             });
             const key = receiptKey(
@@ -198,7 +201,7 @@ export abstract class DomainMeetingRepositoryMail extends DomainMeetingRepositor
                     "Meeting does not exist"
                 );
             this.authorizationValidator.validateCommand({
-                snapshot,
+                snapshot: this.decodeSnapshot(snapshot),
                 command: {
                     commandKind: "start_meeting_message",
                     authorization: input.authorization
@@ -290,7 +293,7 @@ export abstract class DomainMeetingRepositoryMail extends DomainMeetingRepositor
             const commandKind =
                 input.status === "timed_out" ? "timeout_meeting_message" : "finish_meeting_message";
             this.authorizationValidator.validateCommand({
-                snapshot,
+                snapshot: this.decodeSnapshot(snapshot),
                 command: { commandKind, authorization: input.authorization }
             });
             const key = receiptKey(input.requestId, commandKind, input.authorization.callerBinding);
@@ -365,7 +368,7 @@ export abstract class DomainMeetingRepositoryMail extends DomainMeetingRepositor
                 );
             const commandKind = "cancel_unfinished_meeting_message";
             this.authorizationValidator.validateCommand({
-                snapshot,
+                snapshot: this.decodeSnapshot(snapshot),
                 command: { commandKind, authorization: input.authorization }
             });
             const key = receiptKey(input.requestId, commandKind, input.authorization.callerBinding);

@@ -87,9 +87,17 @@ describe("Manager Catalog binding capture", () => {
         }
     });
 
-    it("rejects invalid ownership, exact keys, uniqueness, and role joins", async () => {
+    it("does not use the legacy team payload as Catalog identity", async () => {
+        await expect(
+            captureManagerCatalogBinding(
+                port({ ok: true, snapshot: { ...snapshot(), teamId: "team-2" } }),
+                request
+            )
+        ).resolves.toMatchObject({ kind: "verified" });
+    });
+
+    it("rejects invalid exact keys, uniqueness, and role joins", async () => {
         const cases: unknown[] = [
-            { ...snapshot(), teamId: "team-2" },
             { ...snapshot(), extra: true },
             { ...snapshot(), candidates: [...snapshot().candidates, snapshot().candidates[0]!] },
             { ...snapshot(), roles: [...snapshot().roles, snapshot().roles[0]!] },

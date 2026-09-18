@@ -35,6 +35,21 @@ type DiagnosticBase = Pick<
 type DurableEvent = PersistenceProjectionV1["events"][string];
 type DurableOutboxItem = PersistenceProjectionV1["outbox"][string];
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isLegacyState(value: unknown): value is LegacyMeetingState {
+    return (
+        isRecord(value) && typeof value.status === "string" && typeof value.eventSeq === "number"
+    );
+}
+
+function targetLifecycle(value: unknown): string | undefined {
+    if (!isRecord(value) || !isRecord(value.lifecycle)) return undefined;
+    return typeof value.lifecycle.status === "string" ? value.lifecycle.status : undefined;
+}
+
 function observedMetrics(
     after: PersistenceProjectionV1,
     state: LegacyMeetingState,
@@ -182,24 +197,40 @@ export function observeCommit(
     commandKind?: string
 ): void {
     if (sink === undefined || after.snapshot === null) return;
-    const state = after.snapshot.state as unknown as LegacyMeetingState;
-    const previous = before?.snapshot?.state as unknown as LegacyMeetingState | undefined;
+    const rawState: unknown = after.snapshot.state;
+    const rawPrevious: unknown = before?.snapshot?.state;
+    const state = isLegacyState(rawState) ? rawState : undefined;
+    const previous = isLegacyState(rawPrevious) ? rawPrevious : undefined;
+    const lifecycle = targetLifecycle(rawState);
     const base = {
         meetingId,
         meetingVersion: after.snapshot.version,
-        eventSeq: state.eventSeq ?? 0,
+        eventSeq: state?.eventSeq ?? 0,
         timestamp: now,
         ...(commandKind === undefined ? {} : { commandKind })
     };
     emitDiagnostic(sink, {
         ...base,
         eventType: "meeting.observed",
-        metrics: observedMetrics(after, state, previous, now)
+        metrics:
+            state === undefined
+                ? {
+                      activeMeeting: Number(
+                          lifecycle !== undefined &&
+                              !["archived", "cancelled", "failed"].includes(lifecycle)
+                      ),
+                      waitingMeeting: 0,
+                      outboxBacklog: Object.values(after.outbox).filter(
+                          (item) => item.status === "pending" || item.status === "leased"
+                      ).length
+                  }
+                : observedMetrics(after, state, previous, now)
     });
-    for (const [key, event] of Object.entries(after.events)) {
-        if (before?.events[key] !== undefined) continue;
-        emitDiagnostic(sink, eventDiagnostic(base, event, state, previous, now));
-    }
+    if (state !== undefined)
+        for (const [key, event] of Object.entries(after.events)) {
+            if (before?.events[key] !== undefined) continue;
+            emitDiagnostic(sink, eventDiagnostic(base, event, state, previous, now));
+        }
     for (const [id, item] of Object.entries(after.outbox)) {
         emitOutboxDiagnostics(sink, base, item, before?.outbox[id], now);
     }
