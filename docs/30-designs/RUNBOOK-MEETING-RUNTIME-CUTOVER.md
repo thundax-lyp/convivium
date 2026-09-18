@@ -3,17 +3,18 @@
 ## 状态
 
 - 审计结论：`Executable`
-- 建立日期：2026-09-17
-- 执行分支：`codex/runbook-meeting-runtime-cutover`
+- 建立日期：2026-09-17；基于合并后代码复审日期：2026-09-18
+- 执行分支：`codex/runbook-meeting-runtime-cutover-2`
 - 工作目录：仓库根目录 `/Volumes/storage/workspace/convivium`
-- 起始提交：`f170deb`
+- 固定累计变更基线：`f170deb`
+- 本轮恢复执行基线：`10ef672`
 - 目标：用目标 `MeetingState` 完成一条可创建、公开证据、批量审核、发布、结束、归档和读取的真实业务链，并只删除被该链替代的 legacy application orchestration/read-side 实现。
 
 ## 执行者契约
 
 执行者必须从本文仍存在的第一个步骤开始按顺序执行；已从本文删除的步骤视为已有提交证据，不得重复执行。每个步骤只有在该步骤 PASS 后才能进入下一步。允许修改的业务文件只限各步骤明确列出的路径；每一步都额外隐含允许修改本 RUNBOOK，但唯一允许的改动是该步 PASS 后删除当前完整 step section，且该文件不计入“每步不超过 8 个文件”。步骤中的“禁止修改其他全部文件”不禁止这项强制 step 删除。除 T10d-T10g 为保持分步依赖闭包而明示且必须按序删除的 compile bridge 外，不得保留双写、target compatibility read、旧 snapshot migration、legacy facade、转发文件、第二套 repository、第二套 command dispatcher 或未被当前范围要求的通用抽象；为使明确保留的 legacy 文件在删除前编译而保留的旧字段/exports，必须被逐项标为 legacy-only、不得进入 target activity graph，并迁移到 readiness 未覆盖项。
 
-T10d-T21c 中除 T14a 资源步骤外的实现步骤必须对该步列出的 production symbol 形成真实代码 diff；T14a 必须形成发布资源与验证脚本 diff；T22 是 smoke/entrypoint 验证步骤，T23-T29 是删除步骤，T30 是 readiness/关闭步骤，三者不要求 production diff。所有行为实现步骤都先写或修改该步列出的测试，使新增行为出现可解释的失败，再修改 production code 使 focused validation 通过；T10f 是只删除 repository identity 字段的机械 type cleanup，以 `rg` 和 `typecheck:host` 作为红绿边界，不另改 fixture test。已有测试为绿、只增加测试、只删除 RUNBOOK 步骤或只改文档都不能证明实现步骤完成。若 Author/Audit 时发现某步行为已经完整存在，应由 Author 删除该步并记录既有证据，不得留给 executor 产生 RUNBOOK-only commit。删除步骤不改写旧 fixture；从固定起始提交累计删除文件总数固定为 30 个：已删除的 1 个冗余 command repository facade，加上后续 20 个 legacy application orchestration/read-side production 文件及其 9 个直接测试，不超过用户允许的 30 文件上限。DSH Storage Domain adapter、`DomainRepositoryRegistry`、`DomainMeetingRepository` 与唯一 `MeetingRepositoryPort` 均保留。用户已有且不属于本 RUNBOOK 的改动不得覆盖或回滚。
+T10d-T21c 中除 T14a 资源步骤外的实现步骤必须对该步列出的 production symbol 形成真实代码 diff；T14a 必须形成发布资源与验证脚本 diff；T22 是 smoke/entrypoint 验证步骤，T23-T29 是删除步骤，T30 是 readiness/关闭步骤，三者不要求 production diff。所有行为实现步骤都先写或修改该步列出的测试，使新增行为出现可解释的失败，再修改 production code 使 focused validation 通过；T10f 是只删除 repository identity 字段的机械 type cleanup，以 `rg` 和 `typecheck:host` 作为红绿边界，不另改 fixture test。已有测试为绿、只增加测试、只删除 RUNBOOK 步骤或只改文档都不能证明实现步骤完成。若 Author/Audit 时发现某步行为已经完整存在，应由 Author 删除该步并记录既有证据，不得留给 executor 产生 RUNBOOK-only commit。删除步骤不改写旧 fixture；从固定累计变更基线 `f170deb` 统计的删除总数固定为 31 个 plugin 文件：T14a 已删除的 1 个 Scribe-only skill 资源、已删除的 1 个冗余 command repository facade、20 个 legacy application orchestration/read-side production 文件和 9 个直接测试。恢复执行基线 `10ef672` 已包含 Scribe skill、repository facade 与 `session-recovery.spec.ts` 三项删除；后续步骤不得重建或重复删除。DSH Storage Domain adapter、`DomainRepositoryRegistry`、`DomainMeetingRepository` 与唯一 `MeetingRepositoryPort` 均保留。用户已有且不属于本 RUNBOOK 的改动不得覆盖或回滚。
 
 每步的提交节奏固定为：完成 production/test 改动并通过该步验证 → 删除本文中该完整步骤 → 将代码、测试和该步骤删除放进同一个提交。禁止单独提交 RUNBOOK 步骤删除，禁止用空改动或既有绿色测试代替实现。除非用户另行明确要求，不得 push、force-push、rebase、amend 或改写已 push 的提交。删除步骤的计数在提交前只检查当前 working-tree 删除；全程累计删除只在 T30 对固定起始提交 `f170deb` 检查。
 
@@ -24,7 +25,7 @@ T10d-T21c 中除 T14a 资源步骤外的实现步骤必须对该步列出的 pro
 执行前只在仓库根目录运行一次：
 
 ```bash
-test "$(git branch --show-current)" = "codex/runbook-meeting-runtime-cutover"
+test "$(git branch --show-current)" = "codex/runbook-meeting-runtime-cutover-2"
 test -z "$(git status --porcelain)"
 node -e 'const p=require("./plugin/package.json");const bad=Object.entries(p.peerDependencies).filter(([name,version])=>name.startsWith("@deepseek-ai/dsh-")&&version!=="0.1.2-rc.1");if(bad.length){console.error(bad);process.exit(1)}'
 test "$(node -p "require('./plugin/node_modules/@deepseek-ai/dsh-subagent/package.json').version")" = "0.1.2-rc.1"
@@ -68,9 +69,10 @@ local ReadArchive
 | reviewer 单一、按 EvidenceVersion 独立审核、批量提交 | 纯 Domain batch 已完成，DSH reviewer coordinator 与独立 worker 尚未接入 | T16 |
 | 归档是按值白名单，Session 全部关闭后才 archived | canonical ArchivePackage 与 Domain lifecycle 已完成，runtime cleanup/outbox/recovery 尚未接入 | T17 |
 | 同一 candidate 跨 Agenda 复用一个 active identity/Session | 纯 Domain active reuse 已完成，identity effect handler、recovery 与 meeting-owned notice 尚未统一到 target command path | T15a-T15c |
-| Scribe 已删除，发布包为 8 个角色 | `plugin/meeting-roles/` 和验证脚本仍含 `meeting_scribe` | T14a |
+| Scribe 已删除，发布包为 8 个角色 | definitions、README、验证脚本与发布检查均为八角色，Scribe-only skill 已删除 | 已完成；T19b 只更新 Manager target toolFilter 与 Definition version |
 | `meetingId` 是 V1 唯一 Meeting namespace | target repository、runtime、label 与 ownership 已只使用 `meetingId`；不可达 legacy 文件待删除 | T23-T29 删除旧实现；不得用固定或忽略的 compatibility `teamId` |
-| target repository/application/projection 必须可真实运行 | repository core、command application 和 projection 尚未接通 target atomic commit | T10d-T21 |
+| target repository/application/projection 必须可真实运行 | repository core、target command application 与创建生命周期已完成；identity/review/archive effect、projection、tools、Remote 和 Client 尚未形成同一活动链 | T15a-T21 |
+| `close_contribution` 已进入正式 Interface 与 target command core | author/deadline authority、期限校验和 repository 原子提交已有 focused test；本最小业务链不经过提前退出，尚未接 Agent tool 或 target deadline scanner | 保留已实现 command core；外设接线明确列为本轮 Non-goal，并迁移到 readiness 未覆盖项 |
 
 代码事实以 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md) 为当前覆盖依据；不得把存在的旧源码或历史测试算作目标实现证据。
 
@@ -92,6 +94,7 @@ local ReadArchive
 - 不把 Pause/Resume、Agenda candidate、Proposal、Position、Decision、RiskDisposition、CompletionFact、Question/Issue、PrivateMail、MeetingTask、补充证据或机会申请接到外围入口；现有 target pure Domain 文件保留，并在 readiness 中继续标为外围未覆盖。
 - 不重设计 Browser UI。现有面板只缩减为 Meeting list/detail/archive 和本链 local controls；不增加视觉系统。
 - 不实现自动 evidence freshness、source-scope 去重、跨 Host、Web 用户/Team authority、remote listen、metrics、stress、数据库迁移、旧 team-key catalog/domain discovery 或旧数据读取；旧 recovery 不重建、不推导 namespace、不回写。
+- 不把 `close_contribution` 接成 Agent tool 或 target deadline scanner；本轮只保留已由正式 Interface 授权并已有 focused test 的 command core。作者主动退出与 deadline recovery 的外设入口必须在 readiness 保持未覆盖，不能由 legacy `contribution-runtime-service` 继续提供。
 - 新业务链不提供 legacy API/Schema/snapshot 兼容；旧 snapshot 进入目标 codec 固定返回 `INCOMPATIBLE_VERSION`。除 T23-T29 的精确清单外，本轮不删除 legacy Domain、transitions、protocol、projection、runtime services、tests 或 fixtures；保留文件不得被目标入口继续引用，并在 readiness 登记为后续删除范围。
 - 不自动合并 PR，不在执行过程中修改本 RUNBOOK 的产品语义。
 
@@ -129,7 +132,7 @@ local ReadArchive
 
 ### Action、actor 与生成字段
 
-目标 `MeetingCommandV1Schema` 精确识别：`create_meeting`、`open_round`、`raise_hand`、`dispose_hand_raise`、`submit_evidence`、`submit_review_batch`、`record_review_delivery`、`publish_round`、`end_meeting`、`start_archive`、`record_archive_session_result`，并保留 `recommend_identity`、`record_identity_admission_result`。除当前代码尚缺且由 T13 补齐的 `record_review_delivery` 外，其余均已实现。`ListMeetingsRequestV1Schema` 与 `ReadMeetingRequestV1Schema` 是不产生 receipt/version 的独立 read request Schema，不进入 write action union；Archive 只经 `ReadMeeting` 的 `archive` 字段读取，不建立 `read_archive` action。create command 固定 `meetingId="new"`、`expectedMeetingVersion=0`；其他 write command 使用真实 meetingId 和正整数 expected version。按 Meeting Interface 的 wire convention，object Schema 忽略并 strip 未知字段；caller 即使提交 actorId、生成 ID、now、baselinePublicationIds、terminationId、archiveId、deliveryId、reviewerId、Session/ownership、`teamId` 或 effect 字段，它们也不得进入 normalized action、request hash、Domain 或持久化结果。
+目标 `MeetingCommandV1Schema` 精确识别：`create_meeting`、`open_round`、`raise_hand`、`dispose_hand_raise`、`submit_evidence`、`close_contribution`、`submit_review_batch`、`record_review_delivery`、`publish_round`、`end_meeting`、`start_archive`、`record_archive_session_result`，并保留 `recommend_identity`、`record_identity_admission_result`。这些 command core 均已实现；本 RUNBOOK 只接通 Scope 所列最小业务链，`close_contribution` 的外设入口按 Non-goals 留待后续。`ListMeetingsRequestV1Schema` 与 `ReadMeetingRequestV1Schema` 是不产生 receipt/version 的独立 read request Schema，不进入 write action union；Archive 只经 `ReadMeeting` 的 `archive` 字段读取，不建立 `read_archive` action。create command 固定 `meetingId="new"`、`expectedMeetingVersion=0`；其他 write command 使用真实 meetingId 和正整数 expected version。按 Meeting Interface 的 wire convention，object Schema 忽略并 strip 未知字段；caller 即使提交 actorId、生成 ID、now、baselinePublicationIds、terminationId、archiveId、deliveryId、reviewerId、Session/ownership、`teamId` 或 effect 字段，它们也不得进入 normalized action、request hash、Domain 或持久化结果。
 
 Runtime 生成来源固定如下：
 
@@ -145,7 +148,7 @@ Runtime 生成来源固定如下：
 | Evidence baseline | 复制所属 Round 固定 baseline |
 | reviewer | `state.evidenceReviewerId`，不能由 Agenda、Issue 或请求选择 |
 
-actor 固定为：create/end/list/read 是可信 loopback local；start archive 与 record admission/review delivery/archive session result 是 runtime recovery/effect dispatcher；open/dispose/publish 是当前 Manager Session；raise/submit evidence 是目标 Contribution 的 Contributor Session；submit review batch 是唯一 reviewer coordinator Session。
+actor 固定为：create/end/list/read 是可信 loopback local；start archive 与 record admission/review delivery/archive session result 是 runtime recovery/effect dispatcher；open/dispose/publish 是当前 Manager Session；raise/submit evidence 是目标 Contribution 的 Contributor Session；close contribution 的 `withdrawn` 是目标 Contribution 作者 Session，`submission_missing|timed_out` 是 `deadline_handler` channel 的固定 principal；submit review batch 是唯一 reviewer coordinator Session。本轮不接 close contribution 的两个外设入口。
 
 ### 原子 commit 与错误优先级
 
@@ -400,19 +403,21 @@ STOP：target tool 仍需深路径或旧 implementation，或必须用转发 fac
 
 前置状态：T19a PASS。
 
-允许修改：`plugin/src/protocol/meeting-command-v1.ts`、`plugin/src/protocol/index.ts`、`plugin/src/tools/register-tools.ts`、`plugin/src/tools/index.ts`、`plugin/tests/contract/tool-registration.spec.ts`。
+允许修改：`plugin/src/protocol/meeting-command-v1.ts`、`plugin/src/protocol/index.ts`、`plugin/src/tools/register-tools.ts`、`plugin/src/tools/index.ts`、`plugin/meeting-roles/definitions.json`、`plugin/meeting-roles/README.md`、`plugin/tests/contract/tool-registration.spec.ts`、`plugin/tests/contract/meeting-roles-deployment.spec.ts`。
 
 禁止修改：Remote、Client、旧 application 文件。
 
-执行：从 `meeting-command-v1.ts` 逐个导出这八个 action 的既有 Zod Schema，不复制 shape；只登记八个 agent tools：`convivium_create_meeting`（Captain），`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`（Manager），`convivium_raise_hand`、`convivium_submit_evidence`（Contributor），`convivium_submit_review_batch`（唯一 reviewer coordinator），`convivium_recommend_identity`（Manager）。create tool 从 `exec.agent` 注入可信 Captain parent 和 `caller={channel:"dsh_tool",principalId:String(exec.agent.id)}`，不设置 `sessionBindingId`；其余 tool 从 `exec.agent` 经 T14b2 resolver 得到 caller。每个 `defineTool` 的 DSH parameter 固定为唯一 `{input:{type:"json",required:true}}`；`execute` 先用 `MeetingCommandV1Schema` strip/parse `input`，再要求 action kind 精确等于该 tool，因而 envelope 只有 `protocolVersion/meetingId/expectedMeetingVersion/requestId`，action shape 只来自对应既有 Zod Schema。tool 不接受 actor/session/generated ID，把 `exec.signal` 原样传给 T13 `MeetingCommandApplicationV1.execute`。output 固定 `{schema:{type:"json"},render:(_args,value)=>[{type:"text",text:JSON.stringify(value)}]}`，domain rejection 作为 schema-valid `MeetingCommandResultV1` 返回，只有 infrastructure failure throw。使用 `ctx.tools.register` 的 fiber-owned registration，不再手工保存 disposer 或重复包 `ctx.effect`。删除其它 legacy tool registration，不把 local-only end 或 runtime-only start/result action 注册成 tool。
+执行：从 `meeting-command-v1.ts` 逐个导出这八个 action 的既有 Zod Schema，不复制 shape；只登记八个 agent tools：`convivium_create_meeting`（Captain），`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`（Manager），`convivium_raise_hand`、`convivium_submit_evidence`（Contributor），`convivium_submit_review_batch`（唯一 reviewer coordinator），`convivium_recommend_identity`（Manager）。create tool 从 `exec.agent` 注入可信 Captain parent 和 `caller={channel:"dsh_tool",principalId:String(exec.agent.id)}`，不设置 `sessionBindingId`；其余 tool 从 `exec.agent` 经 T14b2 resolver 得到 caller。每个 `defineTool` 的 DSH parameter 固定为唯一 `{input:{type:"json",required:true}}`；`execute` 先用 `MeetingCommandV1Schema` strip/parse `input`，再要求 action kind 精确等于该 tool，因而 envelope 只有 `protocolVersion/meetingId/expectedMeetingVersion/requestId`，action shape 只来自对应既有 Zod Schema。tool 不接受 actor/session/generated ID，把 `exec.signal` 原样传给 T13 `MeetingCommandApplicationV1.execute`。output 固定 `{schema:{type:"json"},render:(_args,value)=>[{type:"text",text:JSON.stringify(value)}]}`，domain rejection 作为 schema-valid `MeetingCommandResultV1` 返回，只有 infrastructure failure throw。使用 `ctx.tools.register` 的 fiber-owned registration，不再手工保存 disposer 或重复包 `ctx.effect`。删除其它 legacy tool registration，不把 local-only end、`close_contribution` 或 runtime-only start/result action 注册成 tool。
+
+同步把 `meeting_manager` Definition 从 `1.1.0` 升为 `1.2.0`，并把它的 `toolFilter.allow` 精确改为 `skill`、`convivium_open_round`、`convivium_dispose_hand_raise`、`convivium_publish_round`、`convivium_recommend_identity`；不得保留 legacy contribution/status tool，也不得给 Manager 暴露 Contributor、reviewer、local 或 runtime-only action。README 与 deployment contract test 同步该精确版本和 allow-list。其他七个 Definition 的 version、职责与 toolFilter 不变。
 
 验证：
 ```bash
-pnpm --dir=plugin vitest run tests/contract/tool-registration.spec.ts
+pnpm --dir=plugin vitest run tests/contract/tool-registration.spec.ts tests/contract/meeting-roles-deployment.spec.ts
 pnpm --dir=plugin typecheck:host
 ```
 
-PASS：八个 tool 的 input/action mismatch、authority、Captain parent 注入、canonical output/render、cancellation、fiber disposal、公开导入和唯一 dispatcher 通过。
+PASS：八个 tool 的 input/action mismatch、authority、Captain parent 注入、canonical output/render、cancellation、fiber disposal、公开导入和唯一 dispatcher 通过；Manager Definition `1.2.0` 只能看到四个 Manager tool 与 `skill`。
 
 STOP：tool 需要深路径、直接调用旧 application、复制 action Schema 或提交 actor。
 
@@ -637,20 +642,19 @@ STOP：仍有 production 引用、需要修改其他文件或当前删除不等�
 允许删除：
 - `plugin/tests/unit/runtime/developer-markdown-service.spec.ts`
 - `plugin/tests/unit/projection/developer-markdown.spec.ts`
-- `plugin/tests/recovery/session-recovery.spec.ts`
 
 禁止修改：其他全部文件，尤其是 fixture。
 
-执行：只删除上述 3 个直接测试。
+执行：只删除上述 2 个直接测试。`plugin/tests/recovery/session-recovery.spec.ts` 已在恢复执行基线 `10ef672` 前删除，不能重建或重复计数。
 
 验证：
 ```bash
-test "$(git diff --diff-filter=D --name-only | wc -l | tr -d ' ')" -eq 3
-test "$(git diff --name-only | wc -l | tr -d ' ')" -eq 3
+test "$(git diff --diff-filter=D --name-only | wc -l | tr -d ' ')" -eq 2
+test "$(git diff --name-only | wc -l | tr -d ' ')" -eq 2
 pnpm --dir=plugin typecheck
 ```
 
-PASS：当前步骤恰好删除列出的 3 个直接测试且无其他改动；typecheck 退出 0。
+PASS：当前步骤恰好删除列出的 2 个直接测试且无其他改动；typecheck 退出 0。
 
 STOP：需要修改测试或 fixture 才能通过。
 
@@ -701,9 +705,9 @@ pnpm --dir=plugin typecheck
 pnpm --dir=plugin test
 ```
 
-PASS：当前步骤恰好删除列出的 4 个直接测试且无其他改动；lint/typecheck/test 退出 0；T17 target recovery test 保留；fixture 零删除、零修改。累计 30 个文件的分类由已提交后的 T30 验证。
+PASS：当前步骤恰好删除列出的 4 个直接测试且无其他改动；lint/typecheck/test 退出 0；T17 target recovery test 保留；fixture 零删除、零修改。累计 31 个 plugin 文件及其分类由已提交后的 T30 验证。
 
-STOP：总删除超过 30、分类不符、需要扩大到 retained projection pair、Domain/protocol/repository/fixture。
+STOP：总删除超过 31、分类不符、需要扩大到 retained projection pair、Domain/protocol/repository/fixture。
 
 ### T30：收口验证与 readiness
 
@@ -713,11 +717,12 @@ STOP：总删除超过 30、分类不符、需要扩大到 retained projection p
 
 禁止修改：production、test、requirements/interfaces/designs。
 
-执行：先在 readiness 记录真实闭环、已删除的 1 个冗余 command repository facade、20 个 application-side production 文件与 9 个直接测试的删除和验证；明确 DSH Storage Domain adapter 与 repository core 保留，legacy Domain/protocol、`projection/status.ts` + `projection/contribution.ts` pair、未列出的 runtime services/tests 和全部 fixtures 仍未删除。然后运行下列累计删除、完整产品和 smoke 门禁；全部成功后按“完成定义与 RUNBOOK 删除”执行 Close 检查，删除本 RUNBOOK，并再次运行文档链接与 diff 检查。readiness 更新与 RUNBOOK 删除必须进入同一个 T30 收口提交，不产生“只删除已完成 T30”或“只删除 RUNBOOK”的独立提交。
+执行：先在 readiness 记录真实闭环、已删除的 1 个 Scribe-only skill 资源、1 个冗余 command repository facade、20 个 application-side production 文件与 9 个直接测试的删除和验证；明确 DSH Storage Domain adapter 与 repository core 保留，legacy Domain/protocol、`projection/status.ts` + `projection/contribution.ts` pair、未列出的 runtime services/tests 和全部 fixtures 仍未删除。readiness 还必须把 `close_contribution` 的 Agent tool 与 target deadline scanner 标为 `Not Covered`，不得把已有 command core 测试写成外设已接通。然后运行下列累计删除、完整产品和 smoke 门禁；全部成功后按“完成定义与 RUNBOOK 删除”执行 Close 检查，删除本 RUNBOOK，并再次运行文档链接与 diff 检查。readiness 更新与 RUNBOOK 删除必须进入同一个 T30 收口提交，不产生“只删除已完成 T30”或“只删除 RUNBOOK”的独立提交。
 
 验证：
 ```bash
-test "$(git diff --diff-filter=D --name-only f170deb..HEAD | rg '^plugin/' | wc -l | tr -d ' ')" -eq 30
+test "$(git diff --diff-filter=D --name-only f170deb..HEAD | rg '^plugin/' | wc -l | tr -d ' ')" -eq 31
+test "$(git diff --diff-filter=D --name-only f170deb..HEAD | rg '^plugin/meeting-roles/presets/convivium/skills/referenced-minutes/SKILL\.md$' | wc -l | tr -d ' ')" -eq 1
 test "$(git diff --diff-filter=D --name-only f170deb..HEAD | rg '^plugin/src/repository/meeting-command-repository-v1\.ts$' | wc -l | tr -d ' ')" -eq 1
 test "$(git diff --diff-filter=D --name-only f170deb..HEAD | rg '^plugin/src/runtime/application-service/' | wc -l | tr -d ' ')" -eq 13
 test "$(git diff --diff-filter=D --name-only f170deb..HEAD | rg '^plugin/src/runtime/services/' | wc -l | tr -d ' ')" -eq 6
@@ -740,7 +745,7 @@ git diff --check
 git status --short
 ```
 
-PASS：累计 plugin 删除总数精确为 30，分类精确为 1 个 repository facade + 13+6+1 个 application-side production + 9 个 tests，且 fixture 零删除；RUNBOOK 的最终文档删除不计入该业务代码清单；其余命令全部退出 0；引用检查无输出；默认 smoke 包含 identity-admission 和 meeting-business-loop；readiness 明确 DSH Storage Domain/repository core、retained projection pair 与其它 legacy 未删除；working tree 只包含 readiness 修改和本 RUNBOOK 删除，二者进入同一提交。
+PASS：累计 plugin 删除总数精确为 31，分类精确为 1 个 Scribe-only skill 资源 + 1 个 repository facade + 13+6+1 个 application-side production + 9 个 tests，且 fixture 零删除；RUNBOOK 的最终文档删除不计入该业务代码清单；其余命令全部退出 0；引用检查无输出；默认 smoke 包含 identity-admission 和 meeting-business-loop；readiness 明确 DSH Storage Domain/repository core、retained projection pair、`close_contribution` 外设入口与其它 legacy 未删除/未覆盖边界；working tree 只包含 readiness 修改和本 RUNBOOK 删除，二者进入同一提交。
 
 STOP：任一门禁失败或 readiness 夸大覆盖。
 
@@ -759,11 +764,12 @@ STOP：任一门禁失败或 readiness 夸大覆盖。
 | restart/recovery | SQLite reopen、identity admission、archive close failure/retry |
 | projection/privacy | Manager 无 Evidence 正文；Contributor 无未发布他人内容；archive 无禁入字段 |
 | message limit | accept 时预留；超限拒绝；不得压缩；恰好耗尽的 converging/paused 分支 |
+| contribution exit core | `close_contribution` contract/unit tests 覆盖 author/deadline authority、早到拒绝、未送达 review 不得 timed_out 与原子退出；Agent tool 和 target deadline scanner 为 `Not Covered` |
 | candidate reuse | pair duplicate、global provisioning conflict、cross-Agenda active reuse、provenance mismatch |
 | external runtime | exact DSH Loader/Storage/Session/tools/workers/close/reopen smoke |
 | full product gate | `pnpm --dir=plugin verify` + default `pnpm --dir=plugin smoke:profile` |
 
-Not Applicable：数据库 schema migration 和旧 snapshot compatibility 明确不做；外部网络 research 不是本闭环输入；Continuation、stress、metrics 和跨 Host 不作为完成门禁。
+Not Applicable：数据库 schema migration 和旧 snapshot compatibility 明确不做；外部网络 research 不是本闭环输入；Continuation、stress、metrics 和跨 Host 不作为完成门禁。`close_contribution` 外设接线不是不适用，而是本 RUNBOOK 明确排除且必须迁移到 readiness 的 `Not Covered`。
 
 ## 失败恢复
 
@@ -777,7 +783,7 @@ Not Applicable：数据库 schema migration 和旧 snapshot compatibility 明确
 仅在本文全部步骤都已 PASS、随对应代码提交从本文删除，且 T30 收口完成后，实施任务才完成。完成时必须同时成立：
 
 1. real DSH 从 CreateMeeting 到 ReadArchive 闭环通过并可冷重启读取。
-2. 1 个冗余 command repository facade、13 个 legacy application-service、6 个 legacy runtime application services、1 个 legacy read projection 和 9 个直接测试已删除，总删除数精确为 30；DSH Storage Domain adapter/repository core 保留，retained projection pair 与其余 legacy 文件不在目标入口的活动 import graph 中，并已登记后续清理范围。
+2. 1 个 Scribe-only skill 资源、1 个冗余 command repository facade、13 个 legacy application-service、6 个 legacy runtime application services、1 个 legacy read projection 和 9 个直接测试已删除，总删除数精确为 31；DSH Storage Domain adapter/repository core 保留，retained projection pair 与其余 legacy 文件不在目标入口的活动 import graph 中，并已登记后续清理范围。
 3. target state、repository、runtime、tools/Remote/view/archive 使用同一数据和 command path。
 4. readiness 已记录真实覆盖及 Non-goals。
 5. 完整门禁与文档检查通过。
@@ -791,7 +797,9 @@ Not Applicable：数据库 schema migration 和旧 snapshot compatibility 明确
 - 已固定 DSH 持久化边界：保留 Storage Domain、`DomainRepositoryRegistry`、`DomainMeetingRepository` 和唯一 `MeetingRepositoryPort`；已删除的是冗余 command repository facade，不是 Storage Domain adapter。
 - 已固定 ArchivePackage、Session closure、review worker 与 recovery：Archive 字段/顺序、one-shot `start → result → finally dispose`、同一 outbox worker recovery 和未知 ownership fail closed 均有唯一动作。
 - 已固定 effect route 闭包：T13b 产生初始 `meeting_started`，`identity_provision` 由 T15a-T15b 处理，普通 `agent_notice` 由 T15c 处理，`review_request` 与 `review_delivery` 由 T16 处理，`archive` 由 T17 处理；T20 只装配这四类 payload route，不留给执行者选择 dispatcher。
+- 已核对合并后新增的 `close_contribution`：正式 Interface、Domain、protocol、application 与 focused test 已存在；本 RUNBOOK 的最小成功链不经过提前退出，故不把它扩张为第九个 Agent tool 或 target deadline scanner，T30 必须将这两个外设入口记录为 `Not Covered`。
+- 已修正 T19b 的 DSH capability 闭包：Manager 新 tool 与 `meeting_manager` Definition `1.2.0`、README 和 deployment contract test 在同一步原子更新，避免旧 `toolFilter` 令已注册 tool 对 Manager 不可见。
 - 已按 8 文件上限收敛步骤：T11 在同一 repository transaction 边界完成 generic codec 与 facts/ownership closure；T20 在同一外部暴露边界完成 Remote 与 plugin target assembly；read DTO Schema 与 projection 保持分为 T18a/T18b，label/provisioning 与 caller/session adapter 保持分为 T14b/T14b2，因为各自合并都会超过 8 个文件。T15a 覆盖三个直接 identity suite，T26 同步清理 legacy-only application types。每步文件数不超过 8。
 - 已固定执行提交规则：每个步骤必须产生其要求的 production/test 行为 diff，代码、测试与该步骤删除同一提交；禁止 RUNBOOK-only commit，禁止把既有绿色测试当作完成证据，禁止未经另行授权 push 或改写历史。
-- 已固定删除边界：累计 30 个 plugin 文件，精确为 1 个冗余 repository facade、20 个 application-side production 文件和 9 个直接测试；不拆 retained projection pair，不删除 DSH Storage Domain adapter、repository core 或 fixture。
-- 本轮只修改正式文档与 RUNBOOK，没有执行任何未完成代码步骤、`pnpm verify` 或 smoke；这些验证只能由对应步骤和 T30 形成完成证据。Author 文档门禁为 `node .github/scripts/check-doc-links.mjs` 与 `git diff --check`。
+- 已按合并后代码重算删除边界：累计 31 个 plugin 文件，精确为 1 个 Scribe-only skill 资源、1 个冗余 repository facade、20 个 application-side production 文件和 9 个直接测试；`session-recovery.spec.ts` 已在恢复执行基线前删除，T27 只再删除 2 个测试；不拆 retained projection pair，不删除 DSH Storage Domain adapter、repository core 或 fixture。
+- 本轮恢复审计只修改 RUNBOOK，没有执行任何未完成代码步骤、`pnpm verify` 或 smoke；这些验证只能由对应步骤和 T30 形成完成证据。Author 文档门禁为 `node .github/scripts/check-doc-links.mjs` 与 `git diff --check`。
