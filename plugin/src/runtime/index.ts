@@ -53,7 +53,16 @@ export {
     createMeetingCommandApplicationV1,
     type MeetingCommandApplicationV1
 } from "./application-service/meeting-command-v1.js";
+export { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity-v1.js";
+export { provisionMeetingIdentityV1 } from "./services/meeting-identity-provision-v1.js";
+export { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispatch-v1.js";
+export {
+    createEvidenceReviewDispatcherV1,
+    createReviewDeliveryDispatcherV1
+} from "./services/evidence-review-dispatch-v1.js";
+export { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive-v1.js";
 export { recoverMeetingCommandsV1 } from "./services/meeting-command-recovery-v1.js";
+export type { MeetingOutboxWakeupV1 } from "./outbox-worker.js";
 export {
     managerPlanAllowedIntents,
     managerPlanAllowedStepReasons

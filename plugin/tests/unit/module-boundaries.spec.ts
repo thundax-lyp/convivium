@@ -1,6 +1,18 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, extname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+    createEvidenceReviewDispatcherV1,
+    createMeetingArchiveDispatcherV1,
+    createMeetingCommandApplicationV1,
+    createMeetingIdentityEffectHandlerV1,
+    createMeetingNoticeDispatcherV1,
+    createReviewDeliveryDispatcherV1,
+    openMeetingRepository,
+    provisionMeetingIdentityV1,
+    recoverMeetingCommandsV1
+} from "@/runtime/index.js";
+import type { MeetingOutboxWakeupV1 } from "@/runtime/index.js";
 
 type ModuleName =
     | "protocol"
@@ -165,6 +177,25 @@ function violations(module: ModuleName, specifiers: readonly string[]): string[]
 }
 
 describe("plugin module boundaries", () => {
+    it("exposes the target runtime graph through the public entrypoint", () => {
+        const targetExports = [
+            createMeetingCommandApplicationV1,
+            createMeetingIdentityEffectHandlerV1,
+            provisionMeetingIdentityV1,
+            createMeetingNoticeDispatcherV1,
+            createEvidenceReviewDispatcherV1,
+            createReviewDeliveryDispatcherV1,
+            createMeetingArchiveDispatcherV1,
+            recoverMeetingCommandsV1,
+            openMeetingRepository
+        ];
+        expect(targetExports).toHaveLength(9);
+        expect(targetExports.every((value) => typeof value === "function")).toBe(true);
+
+        const wakeup: MeetingOutboxWakeupV1 | undefined = undefined;
+        expect(wakeup).toBeUndefined();
+    });
+
     it("accepts the current source import graph", () => {
         const errors = sourceFiles(sourceRoot).flatMap((file) => {
             const module = moduleForFile(file);

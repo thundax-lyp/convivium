@@ -4,7 +4,7 @@
 
 - 审计结论：`Executable`
 - 建立日期：2026-09-17；基于合并后代码复审日期：2026-09-18；T15c 恢复审计日期：2026-09-18
-- 执行分支：`codex/runbook-meeting-runtime-cutover-2`
+- 执行分支：`codex/runbook-meeting-runtime-cutover-3`
 - 工作目录：仓库根目录 `/Volumes/storage/workspace/convivium`
 - 固定累计变更基线：`f170deb`
 - 本轮恢复执行基线：`10ef672`
@@ -25,7 +25,7 @@ T10d-T21c 中除 T14a 资源步骤外的实现步骤必须对该步列出的 pro
 执行前只在仓库根目录运行一次：
 
 ```bash
-test "$(git branch --show-current)" = "codex/runbook-meeting-runtime-cutover-2"
+test "$(git branch --show-current)" = "codex/runbook-meeting-runtime-cutover-3"
 test -z "$(git status --porcelain)"
 node -e 'const p=require("./plugin/package.json");const bad=Object.entries(p.peerDependencies).filter(([name,version])=>name.startsWith("@deepseek-ai/dsh-")&&version!=="0.1.2-rc.1");if(bad.length){console.error(bad);process.exit(1)}'
 test "$(node -p "require('./plugin/node_modules/@deepseek-ai/dsh-subagent/package.json').version")" = "0.1.2-rc.1"
@@ -187,26 +187,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 ## 机械执行步骤
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
-
-### T19a：收敛 target application/runtime entrypoint
-
-前置状态：T18b PASS。
-
-允许修改：`plugin/src/runtime/index.ts`、`plugin/tests/unit/module-boundaries.spec.ts`。
-
-禁止修改：tools、Remote、Client、旧 application 文件。
-
-执行：只在 `runtime/index.ts` 新增 T13 application、T15-T17 target services、`MeetingOutboxWakeupV1` 与 target `openMeetingRepository` 的公开导出，module boundary test 固定 T19b/T20 只能从该公开入口导入 target symbol。本步不改写 `application-service/index.ts`、不删除 legacy export：当前根 `src/index.ts`、Remote、tools 与 fixtures 仍在编译期依赖它们，提前移除会使 `typecheck:host` 失败。这些 legacy export 标记为 T20 原子切换前的暂时活动路径，不得被新 target registrar/router 引用；T20 将根入口、tools、Remote 和 runtime barrel 同步切换后再清除。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/unit/module-boundaries.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：T19b/T20 可只从 target public entrypoint 导入 application/handler/wakeup；新 target consumer 不导入 legacy implementation，现有根入口仍可编译。
-
-STOP：target consumer 仍需深路径或旧 implementation，或必须用转发 facade 维持 target 行为。
 
 ### T19b：接入 DSH tools
 
