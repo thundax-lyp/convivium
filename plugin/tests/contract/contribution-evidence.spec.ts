@@ -5,7 +5,12 @@ import {
     type EvidenceVersion,
     type LegacyMeetingState
 } from "@/domain/index.js";
-import * as projection from "@/projection/index.js";
+import * as contributionProjection from "@/projection/contribution.js";
+import {
+    mapDeveloperMeetingDocument,
+    renderCurrentMarkdown
+} from "@/projection/developer-markdown.js";
+import { projectMeetingStatus } from "@/projection/status.js";
 import { MeetingStatusResultSchema, ReadContributionResultSchema } from "@/protocol/index.js";
 import { contributionMeeting, contributionNow as now } from "../fixtures/contribution.js";
 import { archivePackage } from "../unit/domain/transitions/fixtures.js";
@@ -145,7 +150,7 @@ describe("contribution evidence projection", () => {
             id: "task-returned",
             phase: "returned"
         };
-        const work = projection.projectContributionContext(
+        const work = contributionProjection.projectContributionContext(
             meeting,
             { kind: "manager", sessionId: "manager-1" },
             { role: "contribution_manager", noticeSeq: 1, contextThroughSeq: meeting.messageSeq },
@@ -175,7 +180,7 @@ describe("contribution evidence projection", () => {
         ];
         expect(isMeetingStateV2(meeting)).toBe(true);
         expect(() =>
-            projection.projectContributionRead(meeting, participant("participant-1"), {
+            contributionProjection.projectContributionRead(meeting, participant("participant-1"), {
                 ...input(),
                 evidenceKey: "private:1"
             })
@@ -191,7 +196,7 @@ describe("contribution evidence projection", () => {
     it("publishes only whitelisted summaries, without private text in status or Markdown", () => {
         const meeting = state();
         expect(isMeetingStateV2(meeting)).toBe(true);
-        const status = projection.projectMeetingStatus(meeting, captain);
+        const status = projectMeetingStatus(meeting, captain);
         expect(status.contributions).toEqual({
             reviewerId: "participant-2",
             tasks: [
@@ -211,7 +216,7 @@ describe("contribution evidence projection", () => {
         });
         expect(MeetingStatusResultSchema(status).contributions).toEqual(status.contributions);
         expect(JSON.stringify(status)).not.toContain("private");
-        const document = projection.mapDeveloperMeetingDocument(
+        const document = mapDeveloperMeetingDocument(
             {
                 meetingId: meeting.id,
                 teamId: meeting.teamId,
@@ -222,28 +227,35 @@ describe("contribution evidence projection", () => {
             },
             now
         );
-        expect(projection.renderCurrentMarkdown(document)).not.toContain("private");
-        expect(projection.projectContributionSummaries(meeting, participant("outsider"))).toEqual(
-            []
-        );
+        expect(renderCurrentMarkdown(document)).not.toContain("private");
         expect(
-            projection.projectContributionSummaries(meeting, participant("participant-1"))
+            contributionProjection.projectContributionSummaries(meeting, participant("outsider"))
+        ).toEqual([]);
+        expect(
+            contributionProjection.projectContributionSummaries(
+                meeting,
+                participant("participant-1")
+            )
         ).toHaveLength(1);
     });
 
     it("keeps boundary-review drafts private from the fixed reviewer and permits published pending evidence", () => {
         const meeting = state();
-        const old = projection.projectContributionRead(meeting, participant("participant-1"), {
-            ...input(),
-            draftRevision: 1,
-            evidenceKey: "source:1"
-        });
+        const old = contributionProjection.projectContributionRead(
+            meeting,
+            participant("participant-1"),
+            {
+                ...input(),
+                draftRevision: 1,
+                evidenceKey: "source:1"
+            }
+        );
         expect(ReadContributionResultSchema(old)).toEqual(old);
         expect(old.drafts.map((draft) => draft.message.content)).toEqual(["private draft 1"]);
         expect(old.evidence?.material).toEqual({ kind: "text", text: "original amber-47" });
         expect(old.boundaryReviews).toHaveLength(1);
         expect(() =>
-            projection.projectContributionRead(meeting, participant("participant-2"), {
+            contributionProjection.projectContributionRead(meeting, participant("participant-2"), {
                 ...input(),
                 evidenceKey: "source:2"
             })
@@ -254,19 +266,30 @@ describe("contribution evidence projection", () => {
             input("missing")
         ]) {
             expect(() =>
-                projection.projectContributionRead(meeting, participant("participant-2"), request)
+                contributionProjection.projectContributionRead(
+                    meeting,
+                    participant("participant-2"),
+                    request
+                )
             ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
         }
         expect(() =>
-            projection.projectContributionRead(meeting, participant("outsider"), input())
+            contributionProjection.projectContributionRead(
+                meeting,
+                participant("outsider"),
+                input()
+            )
         ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
         expect(() =>
-            projection.projectContributionRead(meeting, captain, { ...input(), meetingId: "other" })
+            contributionProjection.projectContributionRead(meeting, captain, {
+                ...input(),
+                meetingId: "other"
+            })
         ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
         const task = meeting.contributions!.tasks["task-a"]!;
         task.phase = "published";
         task.messageId = "message-2";
-        const published = projection.projectContributionRead(
+        const published = contributionProjection.projectContributionRead(
             meeting,
             participant("participant-2"),
             {
@@ -318,7 +341,7 @@ describe("contribution evidence archive and persistence", () => {
         };
         const publicViewer = participant("participant-2");
         expect(
-            projection.projectContributionRead(meeting, publicViewer, {
+            contributionProjection.projectContributionRead(meeting, publicViewer, {
                 ...input(),
                 evidenceKey: "source:1"
             }).evidence?.material
@@ -327,33 +350,37 @@ describe("contribution evidence archive and persistence", () => {
         const archive = archivePackage();
         archive.contributionRefs = { taskIds: ["task-a"], evidenceKeys: ["source:1", "source:2"] };
         meeting.archive = { package: archive, archivedAt: now };
-        const result = projection.projectContributionRead(meeting, publicViewer, {
+        const result = contributionProjection.projectContributionRead(meeting, publicViewer, {
             ...input(),
             evidenceKey: "source:1"
         });
         expect(result.boundaryReviews).toEqual([]);
         expect(result.drafts.map((draft) => draft.revision)).toEqual([2]);
         expect(() =>
-            projection.projectContributionRead(meeting, publicViewer, {
+            contributionProjection.projectContributionRead(meeting, publicViewer, {
                 ...input(),
                 draftRevision: 1
             })
         ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
         archive.contributionRefs = { taskIds: ["task-a"], evidenceKeys: ["source:2"] };
         expect(() =>
-            projection.projectContributionRead(meeting, publicViewer, {
+            contributionProjection.projectContributionRead(meeting, publicViewer, {
                 ...input(),
                 evidenceKey: "source:1"
             })
         ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
         archive.contributionRefs = { taskIds: [], evidenceKeys: [] };
-        expect(projection.projectContributionSummaries(meeting, publicViewer)).toEqual([]);
-        expect(() => projection.projectContributionRead(meeting, publicViewer, input())).toThrow(
-            expect.objectContaining({ code: "UNAUTHORIZED_CALLER" })
+        expect(contributionProjection.projectContributionSummaries(meeting, publicViewer)).toEqual(
+            []
         );
+        expect(() =>
+            contributionProjection.projectContributionRead(meeting, publicViewer, input())
+        ).toThrow(expect.objectContaining({ code: "UNAUTHORIZED_CALLER" }));
         expect(
-            projection.projectContributionRead(meeting, captain, { ...input(), draftRevision: 1 })
-                .boundaryReviews
+            contributionProjection.projectContributionRead(meeting, captain, {
+                ...input(),
+                draftRevision: 1
+            }).boundaryReviews
         ).toHaveLength(1);
     });
 
@@ -459,14 +486,14 @@ describe("contribution evidence archive and persistence", () => {
             expect(loadProjection({ domain: meetingDomain })).toEqual(after);
             const recovered = (await repository.read()).state;
             if (!isMeetingStateV2(recovered)) throw new Error("Invalid recovered snapshot");
-            const read = projection.projectContributionRead(recovered, captain, {
+            const read = contributionProjection.projectContributionRead(recovered, captain, {
                 ...input(),
                 draftRevision: 1,
                 evidenceKey: "source:1"
             });
             expect(read.evidence?.material).toEqual({ kind: "text", text: "original amber-47" });
             expect(
-                projection.projectContributionRead(recovered, captain, {
+                contributionProjection.projectContributionRead(recovered, captain, {
                     ...input(),
                     evidenceKey: "source:2"
                 }).evidence?.material

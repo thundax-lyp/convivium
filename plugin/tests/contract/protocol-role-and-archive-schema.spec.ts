@@ -1,5 +1,5 @@
 import { meeting, archivePackage } from "../unit/domain/transitions/fixtures.js";
-import { projectMeetingStatus } from "@/projection/index.js";
+import { projectMeetingStatus } from "@/projection/status.js";
 import { describe, expect, it } from "vitest";
 import { validArchivePackage, validArchivedProjection } from "../fixtures/protocol-archive.js";
 import {

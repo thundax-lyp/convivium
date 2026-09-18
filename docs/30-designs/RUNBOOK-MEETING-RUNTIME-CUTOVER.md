@@ -188,37 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T18b：实现 caller-filtered projection
-
-前置状态：T18a PASS。
-
-允许修改：`plugin/src/projection/meeting-view-v1.ts`、`plugin/src/projection/index.ts`、`plugin/tests/contract/meeting-identity-view-v1.spec.ts`。
-
-禁止修改：protocol、legacy projection、tools/Remote/Client。
-
-执行：删除当前把完整 state 放进 view 的 `{meetingId,meetingVersion,state}` shape，新增唯一 caller context 和三个 mapper：
-
-```ts
-type MeetingProjectionCallerV1 =
-    | { kind:"local" }
-    | { kind:"identity"; identityId:OpaqueId; roles:readonly MeetingRole[] };
-function projectMeetingSummaryV1(snapshot:MeetingSnapshot<MeetingState>): MeetingSummaryV1;
-function projectMeetingViewV1(snapshot:MeetingSnapshot<MeetingState>, caller:MeetingProjectionCallerV1, managerCatalog?:MeetingAgentCatalogV1): MeetingViewV1;
-function projectArchiveViewV1(archive:ArchivePackageV1, caller:MeetingProjectionCallerV1): ArchiveView;
-```
-
-三个返回结构逐字段等于 Meeting Interface 的 `MeetingSummaryV1`、`MeetingViewV1`、`ArchiveView`；不得返回 `state`。`projectMeetingViewV1` 的固定过滤为：local 可读全部公开聚合字段；Manager 只读 Contribution/ReviewDelivery 状态且 `evidencePackages/evidenceReviews` 不含本轮正文、materials 或评分；唯一 reviewer 读全部当前待审 version、对应 baseline/review/delivery；Contributor 只读已发布内容以及自己的当前 version/已送达 review，完全省略他人未发布记录。`identityRecommendations/managerCatalog` 只给 local 或 Manager，privateMail 只给 local 或 sender/recipient。`projectArchiveViewV1` 只复制 ArchivePackage 白名单；非 local 的 `decisionCandidates` 只保留被 Decision 引用者，local 保留全部。`controls` 只列本 RUNBOOK 已接线且 caller/lifecycle 初步允许的 action，Runtime 仍重新授权。`projection/index.ts` 只登记这三个 target mapper，不再导出旧 contribution/developer-markdown projection；`status.ts` 与它直接依赖的 `contribution.ts` 成对保留但不接入目标入口。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/contract/meeting-identity-view-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：轮内隔离、Manager 无正文、reviewer pending set、local archive 和敏感字段排除通过。
-
-STOP：需要向 caller 暴露 Session/capability/private data。
-
 ### T19a：收敛 target application/runtime entrypoint
 
 前置状态：T18b PASS。
