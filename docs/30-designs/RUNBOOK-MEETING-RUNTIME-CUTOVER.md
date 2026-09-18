@@ -188,34 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T29：删除旧 contribution/dispatch 直接测试
-
-前置状态：T28 PASS。
-
-允许删除：
-- `plugin/tests/unit/runtime/contribution-dispatch.spec.ts`
-- `plugin/tests/unit/runtime/meeting-mail-dispatch.spec.ts`
-- `plugin/tests/unit/runtime/meeting-manager-dispatch.spec.ts`
-- `plugin/tests/unit/runtime/meeting-speaker-dispatch.spec.ts`
-
-禁止修改：其他全部文件，尤其是 fixture 和 legacy Domain tests。
-
-执行：只删除上述 4 个直接测试；T17 后已删除 `contribution-recovery.spec.ts` 中唯一直接依赖 legacy archive service 的 case，剩余 cold contribution recovery cases 必须保留；target archive/recovery 证据由 `meeting-archive-v1.spec.ts`、`meeting-lifecycle-v1.spec.ts` 与 `sqlite-meeting-recovery.spec.ts` 承担。不得增加 replacement legacy tests。
-
-验证：
-```bash
-test "$(git diff --diff-filter=D --name-only | wc -l | tr -d ' ')" -eq 4
-test "$(git diff --diff-filter=D --name-only | rg '^plugin/tests/' | wc -l | tr -d ' ')" -eq 4
-test "$(git diff --name-only | wc -l | tr -d ' ')" -eq 4
-pnpm --dir=plugin lint
-pnpm --dir=plugin typecheck
-pnpm --dir=plugin test
-```
-
-PASS：当前步骤恰好删除列出的 4 个直接测试且无其他改动；lint/typecheck/test 退出 0；target archive/recovery tests 与剩余 cold contribution recovery cases 保留；fixture 零删除、零修改。累计 35 个 plugin 文件及其分类由已提交后的 T30 验证。
-
-STOP：总删除超过 35、分类不符、需要扩大到 retained projection pair、Domain/protocol/repository/fixture。
-
 ### T30：收口验证与 readiness
 
 前置状态：T29 PASS。

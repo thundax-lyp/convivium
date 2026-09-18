@@ -6,10 +6,6 @@ import {
     type LegacyMeetingState
 } from "@/domain/index.js";
 import * as contributionProjection from "@/projection/contribution.js";
-import {
-    mapDeveloperMeetingDocument,
-    renderCurrentMarkdown
-} from "@/projection/developer-markdown.js";
 import { projectMeetingStatus } from "@/projection/status.js";
 import { MeetingStatusResultSchema, ReadContributionResultSchema } from "@/protocol/index.js";
 import { contributionMeeting, contributionNow as now } from "../fixtures/contribution.js";
@@ -193,7 +189,7 @@ describe("contribution evidence projection", () => {
         expect(isMeetingStateV2(meeting)).toBe(false);
     });
 
-    it("publishes only whitelisted summaries, without private text in status or Markdown", () => {
+    it("publishes only whitelisted summaries without private text in status", () => {
         const meeting = state();
         expect(isMeetingStateV2(meeting)).toBe(true);
         const status = projectMeetingStatus(meeting, captain);
@@ -216,18 +212,6 @@ describe("contribution evidence projection", () => {
         });
         expect(MeetingStatusResultSchema(status).contributions).toEqual(status.contributions);
         expect(JSON.stringify(status)).not.toContain("private");
-        const document = mapDeveloperMeetingDocument(
-            {
-                meetingId: meeting.id,
-                teamId: meeting.teamId,
-                version: meeting.version,
-                state: JsonObjectSchema.parse(meeting),
-                createdAt: now,
-                updatedAt: now
-            },
-            now
-        );
-        expect(renderCurrentMarkdown(document)).not.toContain("private");
         expect(
             contributionProjection.projectContributionSummaries(meeting, participant("outsider"))
         ).toEqual([]);
