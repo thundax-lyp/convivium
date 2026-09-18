@@ -16,6 +16,25 @@ export function createProbeSupport(outputPath) {
         return result.value;
     }
 
+    async function callTargetTool(ctx, agent, name, input, index) {
+        let result;
+        for (let attempt = 0; attempt < 120; attempt += 1) {
+            result = await ctx.tools.execute({
+                callId: "convivium-target-smoke-" + index,
+                name,
+                arguments: { input },
+                agent,
+                signal: new AbortController().signal
+            });
+            if (!result.isError || !String(result.error?.message).includes("unknown tool")) break;
+            await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        if (result.isError) throw new Error(name + "#" + index + ": " + result.error.message);
+        if (result.value?.kind === "rejected")
+            throw new Error(name + " rejected: " + JSON.stringify(result.value));
+        return result.value;
+    }
+
     function createInput() {
         return {
             protocolVersion: 1,
@@ -79,6 +98,7 @@ export function createProbeSupport(outputPath) {
     return {
         assert,
         callTool,
+        callTargetTool,
         createInput,
         writeResult,
         observedMessages,

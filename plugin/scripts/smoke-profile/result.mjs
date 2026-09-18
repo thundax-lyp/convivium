@@ -17,10 +17,34 @@ export function validateScenarioResult(value, expectedScenario) {
         validateParallelContributionModelResult(value);
     } else if (expectedScenario === "identity-admission") {
         validateIdentityAdmissionResult(value);
+    } else if (expectedScenario === "meeting-business-loop") {
+        validateMeetingBusinessLoopResult(value);
     } else {
         throw new Error("Unsupported smoke result scenario: " + expectedScenario);
     }
     return value;
+}
+
+function validateMeetingBusinessLoopResult(value) {
+    if (
+        !exact(value, ["ok", "scenario", "meetingId", "assertions", "observed"]) ||
+        value.ok !== true ||
+        value.scenario !== "meeting-business-loop" ||
+        typeof value.meetingId !== "string" ||
+        !isDeepStrictEqual(value.assertions, [
+            "target-create",
+            "meeting-started",
+            "two-evidence",
+            "review-batch",
+            "published",
+            "archived"
+        ]) ||
+        !exact(value.observed, ["status", "evidenceVersionIds", "startedNotices"]) ||
+        value.observed.status !== "archived" ||
+        value.observed.evidenceVersionIds.length !== 2 ||
+        value.observed.startedNotices < 2
+    )
+        throw new Error("Meeting business loop smoke result is invalid.");
 }
 
 function validateIdentityAdmissionResult(value) {

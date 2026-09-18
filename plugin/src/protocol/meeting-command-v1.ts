@@ -275,6 +275,7 @@ export const MeetingCommandResultV1Schema = z.discriminatedUnion("kind", [
         committedVersion: z.number().int().nonnegative(),
         receiptId: id,
         factIds: z.array(id),
+        relatedIds: z.array(id).optional(),
         effects: z.array(effect),
         identityDecision: z
             .object({

@@ -26,7 +26,8 @@ export {
 export {
     activateTargetMeetingApplicationV1,
     getMeetingCommandApplicationV1,
-    getLocalMeetingWebRuntimeV1
+    getLocalMeetingWebRuntimeV1,
+    ensureTargetMeetingDeliveryV1
 } from "./meeting-lifecycle-v1.js";
 export type {
     DomainEventInput,

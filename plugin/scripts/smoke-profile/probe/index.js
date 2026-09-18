@@ -2,6 +2,7 @@ import { createProbeSupport } from "./support.js";
 import { runParallelContributionScenario } from "./scenarios/parallel-contribution.js";
 import { runParallelContributionModelScenario } from "./scenarios/parallel-contribution-model.js";
 import { runIdentityAdmissionScenario } from "./scenarios/identity-admission.js";
+import { runMeetingBusinessLoopScenario } from "./scenarios/meeting-business-loop.js";
 
 export const name = "convivium-smoke-profile-probe";
 export const inject = [
@@ -18,7 +19,15 @@ export const inject = [
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
 const browserMode = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 const scenario = process.env.CONVIVIUM_SMOKE_SCENARIO || "parallel-contribution";
-const { assert, callTool, createInput, writeResult, observedMessages, messageTexts } =
+const {
+    assert,
+    callTool,
+    callTargetTool,
+    createInput,
+    writeResult,
+    observedMessages,
+    messageTexts
+} =
     createProbeSupport(outputPath);
 let captain;
 let nextCall = 1000;
@@ -177,7 +186,12 @@ function createSmokeAgent(ctx, sessionId) {
 async function run(ctx) {
     if (!outputPath) return;
     if (
-        !["parallel-contribution", "parallel-contribution-model", "identity-admission"].includes(
+        ![
+            "parallel-contribution",
+            "parallel-contribution-model",
+            "identity-admission",
+            "meeting-business-loop"
+        ].includes(
             scenario
         )
     ) {
@@ -189,7 +203,7 @@ async function run(ctx) {
             ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
             : undefined;
         captain =
-            scenario === "parallel-contribution-model" || scenario === "identity-admission"
+            scenario === "parallel-contribution-model" || scenario === "identity-admission" || scenario === "meeting-business-loop"
                 ? await ctx.agents.create({
                       sessionId:
                           scenario === "identity-admission"
@@ -221,6 +235,7 @@ async function run(ctx) {
             },
             assert,
             callTool,
+            callTargetTool,
             createInput,
             writeResult,
             waitForAgent,
@@ -228,14 +243,18 @@ async function run(ctx) {
             waitForInbox,
             waitForContributionContext,
             messageTexts,
+            observedMessages: (agent) => observedMessages(agent, observedInboxMessages),
+            observedAgents: () => [...observedAgents.values()],
             resumeParticipantForProbe
         };
         if (scenario === "parallel-contribution") {
             await runParallelContributionScenario(runtime);
         } else if (scenario === "parallel-contribution-model") {
             await runParallelContributionModelScenario(runtime);
-        } else {
+        } else if (scenario === "identity-admission") {
             await runIdentityAdmissionScenario(runtime);
+        } else {
+            await runMeetingBusinessLoopScenario(runtime);
         }
     } catch (error) {
         await writeResult({

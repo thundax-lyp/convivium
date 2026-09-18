@@ -20,9 +20,28 @@ import { createMeetingCreationCoordinatorV1 } from "./meeting-runtime.js";
 import { requireContinuableProvider } from "@/dsh/index.js";
 import type { MeetingOwnershipLookupV1 } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
+import { createMeetingDeliveryWorkerService } from "./services/meeting-dispatch-service.js";
+import { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispatch-v1.js";
+import { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive-v1.js";
+import {
+    createEvidenceReviewDispatcherV1,
+    createReviewDeliveryDispatcherV1
+} from "./services/evidence-review-dispatch-v1.js";
 
 const applications = new WeakMap<object, MeetingCommandApplicationV1>();
 const runtimes = new WeakMap<object, LocalMeetingWebRuntime & MeetingOwnershipLookupV1>();
+const deliveryEnsurers = new WeakMap<
+    object,
+    (meetingId: string, parent: import("@deepseek-ai/dsh-agent").Agent) => void
+>();
+
+export function ensureTargetMeetingDeliveryV1(
+    owner: object,
+    meetingId: string,
+    parent: import("@deepseek-ai/dsh-agent").Agent
+): void {
+    deliveryEnsurers.get(owner)?.(meetingId, parent);
+}
 
 function assertTargetLifecycle(config: Config, ctx: Pick<Context, "subagents">): void {
     if (dshAgentPackage.version !== "0.1.2-rc.1")
@@ -131,6 +150,47 @@ export async function activateTargetMeetingApplicationV1(
             ids
         })
     });
+    const deliveryWorkers = createMeetingDeliveryWorkerService({ pollMs: 1000 });
+    const ensureDelivery = (meetingId: string, parent: import("@deepseek-ai/dsh-agent").Agent) => {
+        void registry.openMeeting({ meetingId }).then((repository) => {
+            const notice = createMeetingNoticeDispatcherV1({
+                sessions: ctx.subagents,
+                repository
+            });
+            const archive = createMeetingArchiveDispatcherV1({
+                sessions: ctx.subagents,
+                repository,
+                application
+            });
+            const review = createEvidenceReviewDispatcherV1({
+                sessions: ctx.subagents,
+                repository
+            });
+            const reviewDelivery = createReviewDeliveryDispatcherV1({
+                sessions: ctx.subagents,
+                repository,
+                application
+            });
+            deliveryWorkers.ensure({
+                meetingId,
+                repository,
+                parent,
+                dispatch: (item, signal) => {
+                    const payload = item.payload as { kind?: string; noticeKind?: string };
+                    if (payload.kind === "agent_notice")
+                        return notice.dispatch({ outboxItem: item, parent, signal });
+                    if (payload.kind === "archive")
+                        return archive.dispatch({ outboxItem: item, parent, signal });
+                    if (payload.kind === "review_delivery")
+                        return reviewDelivery.dispatch({ outboxItem: item, parent, signal });
+                    if (payload.kind === "agent_notice" && payload.noticeKind === "review_request")
+                        return review.dispatch({ outboxItem: item, parent, signal });
+                    throw new Error("OUTBOX_ROUTE_UNAVAILABLE");
+                }
+            });
+        });
+    };
+    deliveryEnsurers.set(ctx, ensureDelivery);
     const runtime = {
         async list(signal: AbortSignal) {
             signal.throwIfAborted();
@@ -200,6 +260,8 @@ export async function activateTargetMeetingApplicationV1(
     applications.set(ctx, application);
     runtimes.set(ctx, runtime);
     return async () => {
+        await deliveryWorkers.dispose();
+        deliveryEnsurers.delete(ctx);
         runtimes.delete(ctx);
         applications.delete(ctx);
         refreshListeners.clear();

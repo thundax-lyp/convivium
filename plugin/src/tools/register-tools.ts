@@ -728,6 +728,7 @@ export interface MeetingCommandToolDependencies {
     readonly registry: Pick<ToolRuntime, "register">;
     readonly application: MeetingCommandApplicationV1;
     readonly callers: TargetMeetingToolCallerResolver;
+    readonly onMeetingCreated?: (meetingId: string, parent: Agent) => void;
 }
 
 const targetToolParameters = {
@@ -804,20 +805,22 @@ function registerTargetTool(
                     return asTargetJson(
                         unauthorizedTargetToolCall("A Meeting tool requires an Agent caller.")
                     );
-                if (definition.kind === "create_meeting")
-                    return asTargetJson(
-                        await dependencies.application.execute(
-                            command,
-                            {
-                                caller: {
-                                    channel: "dsh_tool",
-                                    principalId: String(exec.agent.id)
-                                },
-                                captainParent: exec.agent
+                if (definition.kind === "create_meeting") {
+                    const result = await dependencies.application.execute(
+                        command,
+                        {
+                            caller: {
+                                channel: "dsh_tool",
+                                principalId: String(exec.agent.id)
                             },
-                            exec.signal
-                        )
+                            captainParent: exec.agent
+                        },
+                        exec.signal
                     );
+                    if (result.kind === "accepted")
+                        dependencies.onMeetingCreated?.(result.meetingId, exec.agent);
+                    return asTargetJson(result);
+                }
                 const resolved = await dependencies.callers.resolve(exec.agent, exec.signal);
                 if ("ok" in resolved)
                     return asTargetJson(unauthorizedTargetToolCall(resolved.message));
