@@ -732,7 +732,12 @@ export interface MeetingCommandToolDependencies {
 }
 
 const targetToolParameters = {
-    input: { type: "json", required: true }
+    input: {
+        type: "json",
+        required: true,
+        description:
+            "Complete MeetingCommandV1 object. The tool-call arguments must have exactly one top-level field named input; put protocolVersion, meetingId, expectedMeetingVersion, requestId, and the full action object inside input."
+    }
 } as const;
 
 type TargetActionSchema = {

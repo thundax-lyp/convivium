@@ -132,6 +132,7 @@ interface EvidenceReviewDispatcherDependenciesV1 {
 export function createEvidenceReviewDispatcherV1(
     dependencies: EvidenceReviewDispatcherDependenciesV1
 ): { dispatch(input: DispatchEvidenceReviewBatchInputV1): Promise<void> } {
+    const notifiedVersionIds = new Set<string>();
     return {
         async dispatch({ outboxItem, parent, signal }) {
             const payload = outboxItem.payload as Record<string, unknown>;
@@ -144,12 +145,23 @@ export function createEvidenceReviewDispatcherV1(
             const recipientId = stringField(payload, "recipientId");
             const agendaId = stringField(payload, "agendaId");
             const requestedVersionId = stringField(payload, "versionId");
+            if (notifiedVersionIds.has(requestedVersionId)) return;
             const recovered = await dependencies.repository.recover();
             if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
             const { state } = recovered.snapshot;
             if (recipientId !== state.evidenceReviewerId) fail("REVIEW_VISIBILITY_INVALID");
             const pending = pendingReviews(state);
             if (pending.length === 0) return;
+            const reviewConstraints = pending.map((item) => ({
+                versionId: item.version.id,
+                allowedBaselineEvidenceIds: [
+                    ...new Set(
+                        item.baseline.flatMap((publication) =>
+                            publication.evidence.map(({ version }) => version.id)
+                        )
+                    )
+                ]
+            }));
             if (
                 !state.evidencePackages.some(
                     (evidencePackage) =>
@@ -180,14 +192,56 @@ export function createEvidenceReviewDispatcherV1(
                         text: JSON.stringify({
                             effectId: outboxItem.id,
                             meetingId: recovered.snapshot.meetingId,
+                            expectedMeetingVersion: recovered.snapshot.version,
                             pending,
+                            reviewConstraints,
+                            reviewItemRules: {
+                                requiredDimensions: [
+                                    "source",
+                                    "credibility",
+                                    "completeness",
+                                    "support"
+                                ],
+                                allowedScores: [0, 1, 2, 3, "unable_to_assess"],
+                                itemTemplate: {
+                                    versionId: "copy-pending-version-id",
+                                    scope: "non-empty-review-scope",
+                                    dimensions: Object.fromEntries(
+                                        ["source", "credibility", "completeness", "support"].map(
+                                            (dimension) => [
+                                                dimension,
+                                                {
+                                                    score: "unable_to_assess",
+                                                    scope: "non-empty-dimension-scope",
+                                                    reason: "non-empty-reason",
+                                                    baselineEvidenceIds: []
+                                                }
+                                            ]
+                                        )
+                                    )
+                                }
+                            },
+                            submit: {
+                                tool: "convivium_submit_review_batch",
+                                input: {
+                                    protocolVersion: 1,
+                                    meetingId: recovered.snapshot.meetingId,
+                                    expectedMeetingVersion: recovered.snapshot.version,
+                                    requestId: `review-batch:${outboxItem.id}`,
+                                    action: {
+                                        kind: "submit_review_batch",
+                                        reviews: "replace-with-valid-completed-review-items"
+                                    }
+                                }
+                            },
                             instructions:
-                                "Create one native one-shot worker per pending version, then submit all completed reviews atomically with convivium_submit_review_batch."
+                                "This is an executable review request, not an informational notice. In one assistant turn, call subagent once for every pending item so the native one-shot workers run independently. Ask each worker to return only one review item with versionId, scope, and source/credibility/completeness/support dimensions; every dimension requires score, scope, reason, and baselineEvidenceIds. Build each submitted item by copying reviewItemRules.itemTemplate and replacing its placeholder values. The dimensions value must be an object with exactly the four literal property names source, credibility, completeness, and support. Never use an array or numeric keys such as 0, 1, 2, and 3 for dimensions. Before submission, replace every dimension's baselineEvidenceIds with its intersection with reviewConstraints.allowedBaselineEvidenceIds for that version; an empty allowed list requires []. Current version and material IDs are never baseline IDs. Every score must exactly equal one reviewItemRules.allowedScores value; replace fractions, decimals, percentages, or any other score with unable_to_assess. After all calls return, omit failed or invalid outputs and call convivium_submit_review_batch exactly once with one argument named input: copy submit.input exactly and replace only submit.input.action.reviews with the valid completed review items. Do not answer in prose before attempting these tools."
                         })
                     }
                 ],
                 signal
             });
+            for (const item of pending) notifiedVersionIds.add(item.version.id);
         }
     };
 }
@@ -211,42 +265,43 @@ export function createReviewDeliveryDispatcherV1(
         reviewId: string,
         failureReason?: string
     ): Promise<void> {
-        const recovered = await dependencies.repository.recover();
-        if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
-        if (alreadySent(recovered.snapshot.state, reviewId)) return;
-        let result;
-        try {
-            result = await dependencies.application.execute(
-                {
-                    protocolVersion: 1,
-                    meetingId: recovered.snapshot.meetingId,
-                    expectedMeetingVersion: recovered.snapshot.version,
-                    requestId: `review-delivery:${input.outboxItem.id}:${input.outboxItem.attempts}:${status}`,
-                    action: {
-                        kind: "record_review_delivery",
-                        reviewId,
-                        status,
-                        ...(failureReason === undefined ? {} : { failureReason })
-                    }
-                },
-                {
-                    caller: {
-                        channel: "runtime_recovery",
-                        principalId: RUNTIME_RECOVERY_PRINCIPAL_ID
-                    }
-                },
-                input.signal
-            );
-        } catch {
-            const latest = await dependencies.repository.recover();
-            if (latest.snapshot && alreadySent(latest.snapshot.state, reviewId)) return;
-            retry("REVIEW_DELIVERY_COMMIT_FAILED");
+        const requestId = `review-delivery:${input.outboxItem.id}:${input.outboxItem.attempts}:${status}`;
+        for (let recordAttempt = 0; recordAttempt < 5; recordAttempt += 1) {
+            const recovered = await dependencies.repository.recover();
+            if (!recovered.snapshot) retry("REVIEW_STATE_UNAVAILABLE");
+            if (alreadySent(recovered.snapshot.state, reviewId)) return;
+            try {
+                const result = await dependencies.application.execute(
+                    {
+                        protocolVersion: 1,
+                        meetingId: recovered.snapshot.meetingId,
+                        expectedMeetingVersion: recovered.snapshot.version,
+                        requestId:
+                            recordAttempt === 0 ? requestId : `${requestId}:retry-${recordAttempt}`,
+                        action: {
+                            kind: "record_review_delivery",
+                            reviewId,
+                            status,
+                            ...(failureReason === undefined ? {} : { failureReason })
+                        }
+                    },
+                    {
+                        caller: {
+                            channel: "runtime_recovery",
+                            principalId: RUNTIME_RECOVERY_PRINCIPAL_ID
+                        }
+                    },
+                    input.signal
+                );
+                if (result.kind === "accepted") return;
+                if (result.error.code !== "VERSION_CONFLICT") break;
+            } catch {
+                if (recordAttempt === 4) break;
+            }
         }
-        if (result.kind === "rejected") {
-            const latest = await dependencies.repository.recover();
-            if (latest.snapshot && alreadySent(latest.snapshot.state, reviewId)) return;
-            retry("REVIEW_DELIVERY_COMMIT_FAILED");
-        }
+        const latest = await dependencies.repository.recover();
+        if (latest.snapshot && alreadySent(latest.snapshot.state, reviewId)) return;
+        retry("REVIEW_DELIVERY_COMMIT_FAILED");
     }
 
     return {

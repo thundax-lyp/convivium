@@ -23,6 +23,7 @@ const {
     assert,
     callTool,
     callTargetTool,
+    callTargetToolResult,
     createInput,
     writeResult,
     observedMessages,
@@ -199,6 +200,29 @@ async function run(ctx) {
         return;
     }
     try {
+        if (
+            scenario === "meeting-business-loop" &&
+            process.env.CONVIVIUM_SMOKE_PHASE === "cold-reopen"
+        ) {
+            const meetingId = process.env.CONVIVIUM_SMOKE_MEETING_ID;
+            assert(meetingId, "cold reopen requires the original meeting id");
+            const runtimeApi = ctx.get("conviviumMeetingRuntime");
+            assert(runtimeApi, "cold reopen Meeting runtime is unavailable");
+            const reopened = await runtimeApi.read(
+                { protocolVersion: 1, meetingId },
+                new AbortController().signal
+            );
+            assert(reopened.lifecycle.status === "archived", "cold reopen lost archived state");
+            assert(reopened.archive?.status === "complete", "cold reopen lost archive package");
+            await writeResult({
+                ok: true,
+                scenario: "meeting-business-loop-cold-reopen",
+                meetingId,
+                status: reopened.lifecycle.status,
+                archiveStatus: reopened.archive.status
+            });
+            return;
+        }
         const workspace = browserMode
             ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
             : undefined;
@@ -236,6 +260,7 @@ async function run(ctx) {
             assert,
             callTool,
             callTargetTool,
+            callTargetToolResult,
             createInput,
             writeResult,
             waitForAgent,

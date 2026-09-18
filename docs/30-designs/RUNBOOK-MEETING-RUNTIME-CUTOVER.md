@@ -188,27 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T22：增加真实 DSH 业务闭环 smoke
-
-前置状态：T21c PASS。
-
-允许修改：`plugin/scripts/smoke-profile/index.mjs`、`plugin/scripts/smoke-profile/result.mjs`、`plugin/scripts/smoke-profile/probe/index.js`、`plugin/scripts/smoke-profile/probe/support.js`、`plugin/scripts/smoke-profile/probe/scenarios/meeting-business-loop.js`（新增）、`plugin/tests/contract/installation-entrypoints.spec.ts`。
-
-禁止修改：production business code、existing identity-admission scenario。
-
-执行：新增 core scenario，真实完成目标链并验证八 roles、每个合格 Contributor 恰收一次初始 `meeting_started`、reviewer coordinator 一次取得至少两份 pending EvidenceVersion、为它们启动至少两个不同 one-shot worker Session并发分析、worker 无 Meeting command authority、coordinator 通过 `convivium_submit_review_batch` 一次原子提交成功子集，然后验证 review delivery、publish、partial、archive、close、cold reopen。任一 worker 失败项不得进入 batch，仍保持 pending。
-
-验证：
-```bash
-test -f plugin/scripts/smoke-profile/probe/scenarios/meeting-business-loop.js
-CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop pnpm --dir=plugin smoke:profile
-pnpm --dir=plugin vitest run tests/contract/installation-entrypoints.spec.ts
-```
-
-PASS：真实 scenario 观测到初始 notice、批量审核与 review delivery 后完成归档冷读；entrypoint test 退出 0。
-
-STOP：只能用 mock 替代真实 Loader/Storage/Session/Tool。
-
 ### T23：删除旧调度 application-service
 
 前置状态：T22 PASS；T19a 与 T20 已移除活动入口引用并完成 target assembly。

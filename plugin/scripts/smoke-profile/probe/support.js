@@ -17,8 +17,17 @@ export function createProbeSupport(outputPath) {
     }
 
     async function callTargetTool(ctx, agent, name, input, index) {
+        const result = await callTargetToolResult(ctx, agent, name, input, index);
+        if (result.isError) throw new Error(name + "#" + index + ": " + result.error.message);
+        if (result.value?.kind === "rejected")
+            throw new Error(name + " rejected: " + JSON.stringify(result.value));
+        return result.value;
+    }
+
+    async function callTargetToolResult(ctx, agent, name, input, index, options = {}) {
         let result;
-        for (let attempt = 0; attempt < 120; attempt += 1) {
+        const attempts = options.retryUnknown === false ? 1 : 120;
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
             result = await ctx.tools.execute({
                 callId: "convivium-target-smoke-" + index,
                 name,
@@ -29,10 +38,7 @@ export function createProbeSupport(outputPath) {
             if (!result.isError || !String(result.error?.message).includes("unknown tool")) break;
             await new Promise((resolve) => setTimeout(resolve, 250));
         }
-        if (result.isError) throw new Error(name + "#" + index + ": " + result.error.message);
-        if (result.value?.kind === "rejected")
-            throw new Error(name + " rejected: " + JSON.stringify(result.value));
-        return result.value;
+        return result;
     }
 
     function createInput() {
@@ -99,6 +105,7 @@ export function createProbeSupport(outputPath) {
         assert,
         callTool,
         callTargetTool,
+        callTargetToolResult,
         createInput,
         writeResult,
         observedMessages,

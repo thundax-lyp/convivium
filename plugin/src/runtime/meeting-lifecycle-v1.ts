@@ -177,14 +177,14 @@ export async function activateTargetMeetingApplicationV1(
                 parent,
                 dispatch: (item, signal) => {
                     const payload = item.payload as { kind?: string; noticeKind?: string };
+                    if (payload.kind === "agent_notice" && payload.noticeKind === "review_request")
+                        return review.dispatch({ outboxItem: item, parent, signal });
                     if (payload.kind === "agent_notice")
                         return notice.dispatch({ outboxItem: item, parent, signal });
                     if (payload.kind === "archive")
                         return archive.dispatch({ outboxItem: item, parent, signal });
                     if (payload.kind === "review_delivery")
                         return reviewDelivery.dispatch({ outboxItem: item, parent, signal });
-                    if (payload.kind === "agent_notice" && payload.noticeKind === "review_request")
-                        return review.dispatch({ outboxItem: item, parent, signal });
                     throw new Error("OUTBOX_ROUTE_UNAVAILABLE");
                 }
             });

@@ -143,6 +143,12 @@ export function publishRoundV1(state: MeetingState, input: Input): MeetingTransi
                 ? { ...candidate, status: "published", publicationId: publication.id }
                 : candidate
         ),
+        contributions: state.contributions.map((contribution) =>
+            round.contributionIds.includes(contribution.id) &&
+            contribution.status === "awaiting_response"
+                ? { ...contribution, status: "closed" as const }
+                : contribution
+        ),
         publications: [...state.publications, publication],
         messages: [...state.messages, ...messages]
     };

@@ -8,6 +8,6 @@
 
 Skill 只提供方法；实际 Meeting 资格由 Meeting Runtime 判断，资源权限由 DSH Sandbox/Approval 管理。Manager 仅保留 skill 与四个 target Meeting command，继承的 shell/fs/web 被收窄；其余角色仍服从 Host 权限。不会安装独立 child Preset 或创建能力安装器。
 
-Evidence Reviewer `1.1.0` 收到 Runtime 提供的 immutable pending set 后，由 coordinator 为每个版本创建独立的 DSH 原生 one-shot worker；worker 不具备 Meeting command authority。Coordinator 省略失败、取消或非法结果，只通过一次 `convivium_submit_review_batch` 原子提交有效 reviews。
+Evidence Reviewer `1.2.0` 收到 Runtime 提供的 immutable pending set 后，由 coordinator 为每个版本创建独立的 DSH 原生 one-shot worker；worker 不具备 Meeting command authority。Coordinator 只继承 `skill`、`subagent` 与 `convivium_submit_review_batch`，省略失败、取消或非法结果，并只通过一次 batch command 原子提交有效 reviews。
 
 当前自动入口和可选场景以仓库 [DSH Smoke](../../docs/50-operations/HOW-TO-DSH-SMOKE.md) 为准。`meeting-roles` 和 `role-composition` 是历史验收场景，已不在当前 `smoke:profile` selector 中；历史 Skill、搜索、权限和双 Host 冷恢复结果不能当作本次自动验收通过。

@@ -12,6 +12,10 @@ const deployed = JSON.parse(
 );
 
 const roleSkills = new URL("../../meeting-roles/presets/convivium/skills/", import.meta.url);
+const roleAgentComposition = new URL(
+    "../../meeting-roles/presets/convivium/agent.cordis.yml",
+    import.meta.url
+);
 
 it("publishes one Manager, one Evidence Reviewer and six Contributor definitions", () => {
     const definitions = parseAgentDefinitions(deployed.definitions);
@@ -50,8 +54,12 @@ it("publishes only the current contribution tools for Manager", () => {
     });
     expect(
         definitions.find(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
-            ?.definitionVersion
-    ).toBe("1.1.0");
+    ).toMatchObject({
+        definitionVersion: "1.2.0",
+        toolFilter: {
+            allow: ["skill", "subagent", "convivium_submit_review_batch"]
+        }
+    });
     expect(
         definitions
             .filter(
@@ -71,6 +79,15 @@ it("publishes only the current contribution tools for Manager", () => {
     expect(currentGuidance[1]).toContain("convivium_submit_review_batch");
     expect(currentGuidance[1]).not.toMatch(/convivium_read_contribution|convivium_contribution/);
     expect(currentGuidance[1]).toContain("不得执行提交代码");
+});
+
+it("exposes the native foreground one-shot worker tool to Meeting roles", () => {
+    const composition = readFileSync(roleAgentComposition, "utf8");
+    expect(composition).toContain('name: "@deepseek-ai/dsh-tool-subagent"');
+    expect(composition).toContain("provider: spawn");
+    expect(composition).toContain("backgroundMode: one-shot");
+    expect(composition).toContain("enableRunInBackground: false");
+    expect(composition).toMatch(/toolFilter:\n\s+allow: \[\]/);
 });
 
 describe("native deployment patch composition", () => {

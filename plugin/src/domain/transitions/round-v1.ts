@@ -15,6 +15,7 @@ const terminalContributionStatuses = new Set([
     "timed_out",
     "supplement_rejected",
     "aborted",
+    "awaiting_response",
     "closed"
 ]);
 

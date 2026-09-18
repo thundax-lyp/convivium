@@ -7,6 +7,8 @@ import {
     recordReviewDeliveryV1,
     submitReviewBatchV1
 } from "@/domain/transitions/evidence-review-v1.js";
+import { isRoundClosableV1 } from "@/domain/transitions/round-v1.js";
+import { publishRoundV1 } from "@/domain/transitions/round-publication-v1.js";
 
 function evidenceState() {
     let state = makeRunningMeetingStateV1();
@@ -215,6 +217,44 @@ describe("evidence review and delivery", () => {
         expect(sent.kind).toBe("accepted");
         expect(sent.kind === "accepted" && sent.state.contributions[0]?.status).toBe(
             "awaiting_response"
+        );
+    });
+
+    it("publishes reviewed evidence after its review is delivered", () => {
+        const reviewed = submitReviewBatchV1(evidenceState(), {
+            reviewerId: "reviewer-v1",
+            reviews: [
+                {
+                    versionId: "version-v1",
+                    reviewId: "review-v1",
+                    dimensions,
+                    scope: "本轮"
+                }
+            ],
+            now: 6
+        });
+        if (reviewed.kind !== "accepted") throw new Error("review");
+        const delivered = recordReviewDeliveryV1(reviewed.state, {
+            reviewId: "review-v1",
+            dispatcherId: "dispatcher-v1",
+            deliveryId: "delivery-v1",
+            status: "sent",
+            now: 7
+        });
+        if (delivered.kind !== "accepted") throw new Error("delivery");
+
+        expect(isRoundClosableV1(delivered.state, "round-v1")).toBe(true);
+        const published = publishRoundV1(delivered.state, {
+            roundId: "round-v1",
+            managerId: "manager-v1",
+            publicationId: "publication-v1",
+            messageIds: ["message-v1"],
+            now: 8
+        });
+
+        expect(published.kind).toBe("accepted");
+        expect(published.kind === "accepted" && published.state.contributions[0]?.status).toBe(
+            "closed"
         );
     });
 });

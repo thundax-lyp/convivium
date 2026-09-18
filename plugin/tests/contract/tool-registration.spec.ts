@@ -290,6 +290,10 @@ describe("target Meeting tool registration", () => {
                 required: ["input"],
                 properties: { input: {} }
             });
+        expect(
+            definitions.find(({ name }) => name === "convivium_submit_review_batch")?.parameters
+                .properties.input.description
+        ).toContain("exactly one top-level field named input");
 
         const openRound = definitions.find(({ name }) => name === "convivium_open_round")!;
         const result = await openRound.execute(

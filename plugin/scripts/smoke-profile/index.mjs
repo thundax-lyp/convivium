@@ -18,7 +18,11 @@ import {
     parallelDiscussionDefinitions,
     parallelDiscussionModelOverrides
 } from "./probe/scenarios/parallel-contribution-model.js";
-import { validateScenarioResult } from "./result.mjs";
+import {
+    completeMeetingBusinessLoopResult,
+    validateMeetingBusinessLoopHotResult,
+    validateScenarioResult
+} from "./result.mjs";
 
 export { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
 export { validateScenarioResult } from "./result.mjs";
@@ -32,7 +36,7 @@ const PROBE_PACKAGE = "@convivium/smoke-profile-probe";
 const HOST = "127.0.0.1";
 const pluginRoot = resolve(process.cwd());
 const probeSourceDir = fileURLToPath(new URL("./probe", import.meta.url));
-const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "120000");
+const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "600000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 const BROWSER_SPEAKER_TIMEOUT_MS = 5 * 60 * 1000;
@@ -201,6 +205,17 @@ export async function writeSmokePatch(path, scenario) {
                   await readFile(join(pluginRoot, "meeting-roles", "definitions.json"), "utf8")
               ).definitions
             : undefined;
+    const targetModelOverrides =
+        targetDefinitions === undefined
+            ? undefined
+            : Object.fromEntries(
+                  targetDefinitions
+                      .filter(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
+                      .map(({ agentDefinitionId }) => [
+                          agentDefinitionId,
+                          { provider: "deepseek-official", model: "deepseek-v4-flash" }
+                      ])
+              );
     const patch = [
         "- insert:",
         "    - id: convivium-smoke-storage-sqlite",
@@ -219,7 +234,10 @@ export async function writeSmokePatch(path, scenario) {
         "  config:",
         `    provider: ${PROVIDER}`,
             ...(targetDefinitions !== undefined
-                ? [`    agentDefinitions: ${JSON.stringify(targetDefinitions)}`]
+                ? [
+                      `    agentDefinitions: ${JSON.stringify(targetDefinitions)}`,
+                      `    agentModelOverrides: ${JSON.stringify(targetModelOverrides)}`
+                  ]
                 : scenario === "parallel-contribution-model" || scenario === "identity-admission"
             ? [
                   `    agentDefinitions: ${JSON.stringify(parallelDiscussionDefinitions)}`,
@@ -516,6 +534,8 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
     const dumpPath = await dumpConfig(env, patchPath, logsDir, roleAssetRoot);
     const hostEnv = createSmokeEnvironment(env, {}, deepSeekApiKey);
     const bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
+    let finalPort = port;
+    let finalBootLogs = bootLogs;
     let probeResult = await waitForJson(
         resultPath,
         scenario === "parallel-contribution-model" ? 2100000 : BOOT_TIMEOUT_MS
@@ -529,13 +549,48 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
                 `stderr tail:\n${stderrTail}`
         );
     }
-    probeResult = validateScenarioResult(probeResult, scenario);
+    if (scenario === "meeting-business-loop") {
+        probeResult = validateMeetingBusinessLoopHotResult(probeResult);
+        await stopHost();
+        await assertPortReleased(port);
+        activePort = undefined;
+        await rm(resultPath, { force: true });
+        const coldLogsDir = join(tempRoot, "logs-cold-reopen");
+        await mkdir(coldLogsDir, { recursive: true });
+        finalPort = await allocatePort();
+        activePort = finalPort;
+        const coldEnv = createSmokeEnvironment(hostEnv, {
+            CONVIVIUM_SMOKE_PHASE: "cold-reopen",
+            CONVIVIUM_SMOKE_MEETING_ID: probeResult.meetingId
+        });
+        finalBootLogs = await bootHost(
+            coldEnv,
+            patchPath,
+            workspaceDir,
+            coldLogsDir,
+            finalPort,
+            roleAssetRoot
+        );
+        const coldResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
+        if (!coldResult.ok) {
+            const stdoutTail = (await readFile(finalBootLogs.stdoutPath, "utf8")).slice(-8000);
+            const stderrTail = (await readFile(finalBootLogs.stderrPath, "utf8")).slice(-8000);
+            throw new Error(
+                `cold reopen probe failed: ${coldResult.error ?? "unknown error"}\n` +
+                    `stdout tail:\n${stdoutTail}\n` +
+                    `stderr tail:\n${stderrTail}`
+            );
+        }
+        probeResult = completeMeetingBusinessLoopResult(probeResult, coldResult);
+    } else {
+        probeResult = validateScenarioResult(probeResult, scenario);
+    }
 
     await stat(dumpPath);
     let browserLaunchUrl;
     if (BROWSER_MODE) {
-        const origin = `http://${HOST}:${port}`;
-        browserLaunchUrl = await waitForBrowserLaunchUrl(bootLogs.stdoutPath, origin);
+        const origin = `http://${HOST}:${finalPort}`;
+        browserLaunchUrl = await waitForBrowserLaunchUrl(finalBootLogs.stdoutPath, origin);
         const authenticatedFetch = await createAuthenticatedBrowserFetch(
             browserLaunchUrl,
             origin,
@@ -549,11 +604,14 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
         scenario,
         profile: PROFILE,
         provider: PROVIDER,
-        port,
+        port: finalPort,
         artifact: basename(artifact),
         probe: probeResult,
         dumpConfig: dumpPath,
-        bootLogs
+        bootLogs:
+            scenario === "meeting-business-loop"
+                ? { initial: bootLogs, coldReopen: finalBootLogs }
+                : finalBootLogs
     };
     if (scenario === "parallel-contribution-model") {
         const evidence = JSON.parse(await readFile(modelEvidencePath, "utf8"));
