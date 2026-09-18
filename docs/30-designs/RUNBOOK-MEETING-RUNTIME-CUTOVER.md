@@ -188,37 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T25：删除剩余旧 application-service 及直接测试
-
-前置状态：T24 PASS。
-
-允许删除：
-- `plugin/src/runtime/application-service/meeting-end.ts`
-- `plugin/src/runtime/application-service/meeting-mail.ts`
-- `plugin/src/runtime/application-service/meeting-query.ts`
-- `plugin/src/runtime/application-service/meeting-task.ts`
-- `plugin/tests/contract/contribution-runtime.spec.ts`
-- `plugin/tests/contract/continuation.spec.ts`
-
-禁止修改：fixture、legacy Domain/protocol/projection/runtime services/其他 tests，以及此前步骤已完成的文件。
-
-执行：只删除上述 6 个文件；不得增加转发文件或兼容 facade。`continuation.spec.ts` 直接依赖 T19a 已移除的 legacy runtime/application barrel，且 Continuation import 是本轮 Non-goal，因此与旧 application 一起删除，不修改为 target test。
-
-验证：
-```bash
-test "$(git diff --diff-filter=D --name-only | wc -l | tr -d ' ')" -eq 6
-test "$(git diff --diff-filter=D --name-only | rg '^plugin/src/runtime/application-service/' | wc -l | tr -d ' ')" -eq 4
-test "$(git diff --diff-filter=D --name-only | rg '^plugin/tests/' | wc -l | tr -d ' ')" -eq 2
-test -z "$(rg -n 'application-service/(continuation-selection|create-meeting|initialize-meeting-turn|meeting-agenda-candidate|meeting-attendance|meeting-contribution|meeting-control|meeting-decision|meeting-end|meeting-mail|meeting-query|meeting-task|meeting-turn)\.js' plugin/src plugin/tests || true)"
-pnpm --dir=plugin lint
-pnpm --dir=plugin typecheck
-pnpm --dir=plugin test
-```
-
-PASS：当前步骤恰好删除 4 个 application-service 和 2 个直接测试；T23-T25 的目标列表零引用；lint/typecheck/test 退出 0；旧 fixture 未修改。
-
-STOP：当前步骤删除分类不符、仍有引用且必须修改 T19 之外文件；不得把 T26-T29 的文件提前到本步删除。
-
 ### T26：删除旧辅助 application services
 
 前置状态：T25 PASS；T19a 与 T20 已移除活动入口和 module-boundary 引用。

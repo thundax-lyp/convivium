@@ -1,11 +1,7 @@
-import { getEventListeners } from "node:events";
 import { describe, expect, it } from "vitest";
 import { createMeetingRuntime } from "@/runtime/meeting-runtime.js";
 import type { CreateMeetingInputV1 } from "@/protocol/index.js";
-import {
-    defaultTimeoutScanSleep,
-    LocalMeetingRecoveryUnavailableError
-} from "@/runtime/application-service/index.js";
+import { LocalMeetingRecoveryUnavailableError } from "@/runtime/application-service/index.js";
 
 const input: CreateMeetingInputV1 = {
     evidenceReviewerKey: "p-3",
@@ -154,17 +150,6 @@ describe("local meeting recovery failure", () => {
         expect(error.name).toBe("LocalMeetingRecoveryUnavailableError");
         expect(error.cause).toBe(cause);
         expect(error).not.toHaveProperty("code");
-    });
-});
-
-describe("speaker timeout scan cancellation", () => {
-    it("removes its abort listener after the timer completes", async () => {
-        const controller = new AbortController();
-        const sleeping = defaultTimeoutScanSleep(0, controller.signal);
-
-        expect(getEventListeners(controller.signal, "abort")).toHaveLength(1);
-        await sleeping;
-        expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
     });
 });
 

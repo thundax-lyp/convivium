@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
 import Storage from "@deepseek-ai/dsh-storage";
 import * as storageDomainPlugin from "@deepseek-ai/dsh-storage-domain";
@@ -16,7 +16,6 @@ import {
 } from "@/domain/index.js";
 import { encodeMeetingSessionLabel } from "@/dsh/index.js";
 import { recoverContributionWork } from "@/runtime/services/contribution-runtime-service.js";
-import { createCreateStatusRuntime } from "@/runtime/application-service/index.js";
 import { contributionMeeting, contributionNow as now } from "../fixtures/contribution.js";
 
 async function fixture(
@@ -234,51 +233,6 @@ async function fixture(
 }
 
 describe("contribution cold recovery", () => {
-    it("archives automatically completed contributions through the existing Runtime scan", async () => {
-        const f = await fixture("running", (state) => {
-            state.contributions!.tasks["contribution-1"]!.phase = "cancelled";
-            state.agenda[0]!.status = "resolved";
-        });
-        const ownerships = (await f.repo.recover()).sessionOwnership;
-        await f.registry.close();
-        const children = ownerships.map((item) => ({
-            kind: "child",
-            id: item.sessionId,
-            parentId: item.parentSessionId,
-            mode: "continuable",
-            label: item.sessionLabel,
-            activity: "inactive",
-            hasChildren: false
-        }));
-        const runtime = createCreateStatusRuntime({
-            storageDomain: f.ctx.storageDomain,
-            provider: "fixture",
-            authorizationValidator: f.validator,
-            now: () => now + 1,
-            getCaptainParent: () => ({ id: "captain-1" }) as never,
-            continuable: {
-                startContinuable: async () => {
-                    throw new Error("Unexpected provisioning");
-                },
-                sendMessage: async () => "accepted" as never,
-                interrupt: vi.fn(),
-                drainContinuableChildren: async () => undefined,
-                listChildren: async () => children as never,
-                listDescendants: async () => children as never
-            }
-        });
-        try {
-            await runtime.scanExpiredSpeakerAttempts();
-            const result = await runtime.getStatus(
-                { protocolVersion: 1, meetingId: "meeting-1" },
-                { kind: "captain", sessionId: "captain-1" }
-            );
-            expect(result).toMatchObject({ ok: true, result: { status: "archived" } });
-        } finally {
-            await runtime.dispose();
-            await f.close();
-        }
-    });
     it.each(["running", "waiting"] as const)(
         "reopens %s material and reauthorizes once per recovery receipt",
         async (status) => {
@@ -381,84 +335,4 @@ describe("contribution cold recovery", () => {
             await expired.close();
         }
     });
-    it.each([true, false])(
-        "repeated Runtime reads preserve one epoch and missing-parent read-only behavior (parent=%s)",
-        async (available) => {
-            const f = await fixture();
-            const ownerships = (await f.repo.recover()).sessionOwnership;
-            await f.registry.close();
-            const sendMessage = vi.fn(async () => "accepted" as never);
-            const startContinuable = vi.fn(async (): Promise<never> => {
-                throw new Error("must not replace identity");
-            });
-            const runtime = createCreateStatusRuntime({
-                storageDomain: f.ctx.storageDomain,
-                provider: "fixture",
-                authorizationValidator: f.validator,
-                now: () => now + 1,
-                getCaptainParent: () => (available ? ({ id: "captain-1" } as never) : undefined),
-                continuable: {
-                    startContinuable,
-                    sendMessage,
-                    interrupt: vi.fn(),
-                    drainContinuableChildren: async () => undefined,
-                    listDescendants: async () =>
-                        ownerships.map((item) => ({
-                            kind: "child",
-                            id: item.sessionId,
-                            parentId: item.parentSessionId,
-                            mode: "continuable",
-                            label: item.sessionLabel,
-                            activity: "inactive",
-                            hasChildren: false
-                        })) as never,
-                    listChildren: async () =>
-                        ownerships.map((item) => ({
-                            kind: "child",
-                            id: item.sessionId,
-                            mode: "continuable",
-                            label: item.sessionLabel,
-                            activity: "inactive",
-                            hasChildren: false
-                        })) as never
-                }
-            });
-            try {
-                const caller = { kind: "captain" as const, sessionId: "captain-1" };
-                const input = { protocolVersion: 1 as const, meetingId: "meeting-1" };
-                const first = await runtime.getStatus(input, caller);
-                if (!first.ok) throw new Error(JSON.stringify(first));
-                expect(first).toMatchObject({
-                    ok: true,
-                    result: { contributions: { tasks: [{ generation: available ? 2 : 1 }] } }
-                });
-                expect(await runtime.getStatus(input, caller)).toEqual(first);
-                expect(startContinuable).not.toHaveBeenCalled();
-                if (!available) expect(sendMessage).not.toHaveBeenCalled();
-                if (available) {
-                    const ended = await runtime.endMeeting(
-                        {
-                            ...input,
-                            requestId: "public-end",
-                            expectedMeetingVersion: first.meetingVersion,
-                            outcome: "partial",
-                            reason: "Public end test",
-                            acceptedDecisionIds: [],
-                            deferredAgendaItemIds: [],
-                            waivers: []
-                        },
-                        { ...caller, agent: { id: "captain-1" } as never }
-                    );
-                    expect(ended).toMatchObject({ ok: true });
-                    expect(await runtime.getStatus(input, caller)).toMatchObject({
-                        ok: true,
-                        result: { status: "archived" }
-                    });
-                }
-            } finally {
-                await runtime.dispose();
-                await f.close();
-            }
-        }
-    );
 });

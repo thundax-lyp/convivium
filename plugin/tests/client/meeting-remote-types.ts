@@ -1,49 +1,43 @@
 import type { ClientRemote } from "@deepseek-ai/dsh-api-gateway/client";
 import type { MeetingClient } from "@/client/meeting-client.js";
 import type {
-    ContributionResultV1,
-    MeetingRefreshNoticeV1,
-    MeetingStatusResultV1,
-    ProtocolErrorV1,
-    ProtocolSuccessV1,
-    ReadContributionResultV1
+    MeetingCommandResultV1,
+    MeetingListResultV1,
+    MeetingReadResultV1,
+    RefreshNoticeV1
 } from "@/protocol/index.js";
-import { createControlledMeetingStream } from "../fixtures/remote-stream.js";
 import type { loadRemoteClientModule } from "../fixtures/remote-client.js";
 import type { RemoteStream } from "@deepseek-ai/dsh-api-gateway/client";
 import type { RemoteResult } from "@deepseek-ai/dsh-typert-protocol";
 
 declare const remote: ClientRemote;
 const input = { protocolVersion: 1 as const, meetingId: "meeting-1" };
-const statusCall: Promise<
-    RemoteResult<ProtocolSuccessV1<MeetingStatusResultV1> | ProtocolErrorV1>
-> = remote.conviviumMeetings.getStatus(input);
-void statusCall;
-const readCall: Promise<
-    RemoteResult<ProtocolSuccessV1<ReadContributionResultV1> | ProtocolErrorV1>
-> = remote.conviviumMeetings.readContribution({
-    protocolVersion: 1,
-    meetingId: "meeting-1",
-    contributionId: "contribution-1"
-});
-const controlCall: Promise<
-    RemoteResult<ProtocolSuccessV1<ContributionResultV1> | ProtocolErrorV1>
-> = remote.conviviumMeetings.controlContribution({
-    protocolVersion: 1,
-    meetingId: "meeting-1",
-    requestId: "retry-1",
-    expectedMeetingVersion: 2,
-    action: "retry",
-    contributionId: "contribution-1",
-    generation: 1,
-    reason: "retry"
-});
+const listCall: Promise<RemoteResult<MeetingListResultV1>> = remote.conviviumMeetings.list();
+const readCall: Promise<RemoteResult<MeetingReadResultV1>> = remote.conviviumMeetings.read(input);
+const controlCall: Promise<RemoteResult<MeetingCommandResultV1>> = remote.conviviumMeetings.control(
+    {
+        protocolVersion: 1,
+        meetingId: "meeting-1",
+        requestId: "end-1",
+        expectedMeetingVersion: 2,
+        action: {
+            kind: "end_meeting",
+            outcome: "partial",
+            reason: "done",
+            decisionIds: [],
+            completionFactIds: [],
+            unresolvedQuestionIds: [],
+            unresolvedIssueIds: []
+        }
+    }
+);
+void listCall;
 void readCall;
 void controlCall;
-const stream: RemoteStream<MeetingRefreshNoticeV1> = createControlledMeetingStream().stream;
-const adapterStream: ReturnType<MeetingClient["openUpdates"]> = stream;
+declare const stream: RemoteStream<RefreshNoticeV1>;
+const adapterStream: ReturnType<MeetingClient["subscribeRefresh"]> = stream;
 void adapterStream;
 void ({} as typeof loadRemoteClientModule);
 
 // @ts-expect-error protocolVersion must be the literal 1
-remote.conviviumMeetings.getStatus({ protocolVersion: 2, meetingId: "meeting-1" });
+remote.conviviumMeetings.read({ protocolVersion: 2, meetingId: "meeting-1" });

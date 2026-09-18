@@ -2,7 +2,6 @@ import type { Context } from "@deepseek-ai/cordis";
 // Load the Cordis augmentation for ctx.webServer without a runtime import.
 import type {} from "@deepseek-ai/dsh-host-webserver";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
-import type { WorkspaceId } from "@deepseek-ai/dsh-workspace";
 import { Config, type Config as ConfigType } from "./config.js";
 import { requireContinuableProvider, resolveMeetingCallerV1 } from "./dsh/index.js";
 import { ConviviumRemoteService } from "./remote/index.js";

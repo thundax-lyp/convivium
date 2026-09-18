@@ -8,10 +8,7 @@ import {
     MeetingCommandV1Schema,
     ReadMeetingRequestV1Schema,
     RefreshNoticeV1Schema,
-    type MeetingCommandV1,
-    type MeetingListResultV1,
-    type MeetingReadResultV1,
-    type RefreshNoticeV1
+    type MeetingCommandV1
 } from "@/protocol/index.js";
 import type { LocalMeetingWebRuntime } from "@/runtime/index.js";
 import type {

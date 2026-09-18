@@ -14,6 +14,7 @@ describe("Meeting panel local controls", () => {
         const stream = {
             async *[Symbol.asyncIterator]() {
                 await new Promise<void>(() => {});
+                yield undefined as never;
             },
             dispose: vi.fn(async () => {})
         };
