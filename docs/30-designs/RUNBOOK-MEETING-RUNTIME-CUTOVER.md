@@ -188,31 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T15c：接入 meeting-owned Session notice
-
-前置状态：T15b PASS。
-
-允许修改：`plugin/src/runtime/services/meeting-notice-dispatch-v1.ts`（新增）、`plugin/src/dsh/session-adapter.ts`、`plugin/tests/unit/runtime/meeting-notice-dispatch-v1.spec.ts`（新增）、`plugin/tests/integration/dsh/meeting-notice-dispatch-v1.spec.ts`（新增）。
-
-禁止修改：review worker/delivery、archive、projection、Remote/UI、legacy dispatch service。
-
-执行：新增并只导出 `createMeetingNoticeDispatcherV1(dependencies).dispatch({outboxItem,parent,signal}):Promise<void>`，dependencies required 为 `sessions:Pick<SubagentRuntime,"sendMessage">` 与 `repository:Pick<MeetingRepositoryPort<MeetingState>,"read">`。它只接受 outer `dispatch` 且 `payload.kind="agent_notice"`、`noticeKind` 为 `meeting_started|opportunity_request|opportunity_disposition|hand_request|hand_disposition|transcript_update` 的 target effect；`review_request` 明确留给 T16，未知 kind fail closed。每次发送前通过 target repository 重读 state/ownership，要求 recipient identity 存在、ownership 的 `id/meetingId/identityId/parentSessionId/sessionId/sessionLabel` 匹配、lifecycle/capability active，并按已实现 transition 产生该 effect 时的可见性条件重验 Agenda、Round、Contribution 或 publicMessageId；`meeting_started` 还必须重验 Meeting 仍为 running、recipient 仍为与 active Agenda 相关或责任范围为空的 Contributor；不从 payload 接受 Session ID。prompt 只包含 `{effectId:outboxItem.id,meetingId,noticeKind,agendaId}` 和该 notice kind 已提交的公开 ID/disposition/reason，不含他人未公开 Evidence/Review、Session、capability 或完整 state。
-
-在 `session-adapter.ts` 新增唯一 `followupMeetingIdentitySessionV1`，验证 T14b2 target ownership 后调用 `subagents.sendMessage(parent,ownership.sessionId,prompt,{signal})`；`parent` 必须是 ownership 记录的 exact live direct parent。inbox acceptance 只表示 notice delivered，不生成 Meeting command、Contribution、hand 或 evidence。发送失败令调用者对同一 outbox effect retry，重试沿用同一 `outboxItem.id`，不创建替代 Session。本步不修改通用 `outbox-worker.ts`，不接触 legacy `meeting-dispatch-service.ts`，不注入活动 route；T20 将在 `meeting-lifecycle-v1.ts` 创建的 target worker 中一次性注入纯 target router。
-
-验证：
-```bash
-test -f plugin/src/runtime/services/meeting-notice-dispatch-v1.ts
-test -f plugin/tests/unit/runtime/meeting-notice-dispatch-v1.spec.ts
-test -f plugin/tests/integration/dsh/meeting-notice-dispatch-v1.spec.ts
-pnpm --dir=plugin vitest run tests/unit/runtime/meeting-notice-dispatch-v1.spec.ts tests/integration/dsh/meeting-notice-dispatch-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：六类 notice（含 `meeting_started`）只到达匹配的 active owned child；跨 Meeting/identity、closed/revoked、不可见引用与未知 kind 拒绝；相同 effect retry 保持同一 effectId，inbox acceptance 不产生业务事实。
-
-STOP：需要 sibling sender、内部 queue API、第二 outbox worker、未验证 ownership、向 prompt 暴露非公开内容，或必须修改 legacy `meeting-dispatch-service.ts` 才能完成本 handler。
-
 ### T16：接入 reviewer workers
 
 前置状态：T15c PASS。
