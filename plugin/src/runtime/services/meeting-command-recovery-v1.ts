@@ -1,10 +1,11 @@
 import type { MeetingState } from "@/domain/index.js";
 import type { MeetingRepositoryPort } from "@/repository/meeting-repository-port.js";
 import type { RecoveryResult } from "@/repository/types.js";
+import type { MeetingOutboxWakeupV1 } from "@/runtime/outbox-worker.js";
 
 export interface MeetingCommandRecoveryDependenciesV1 {
     readonly repository: MeetingRepositoryPort<MeetingState>;
-    readonly wakeOutbox?: () => void;
+    readonly wakeOutbox?: MeetingOutboxWakeupV1["wake"];
 }
 
 export async function recoverMeetingCommandsV1(

@@ -188,39 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T17：接入 archive cleanup 与恢复
-
-前置状态：T16 PASS。
-
-允许修改：`plugin/src/runtime/services/meeting-archive-v1.ts`（新增）、`plugin/src/runtime/services/meeting-command-recovery-v1.ts`、`plugin/tests/unit/runtime/meeting-archive-v1.spec.ts`（新增）、`plugin/tests/recovery/contribution-recovery.spec.ts`。
-
-禁止修改：review dispatcher、Remote/UI、旧 archive service。
-
-执行：本步消费 T13 `end_meeting` 产生的 archive outbox；只通过 T13 `start_archive` command 物化 package，不在 service 内复制 materialization。新增并只导出以下入口：
-
-```ts
-interface DispatchArchiveCleanupInputV1 { outboxItem: OutboxItem; parent: Agent; signal: AbortSignal }
-function createMeetingArchiveDispatcherV1(dependencies: MeetingArchiveDispatcherDependenciesV1): {
-    dispatch(input: DispatchArchiveCleanupInputV1): Promise<void>;
-};
-```
-
-dependencies required 为 `{repository; sessions:Pick<SubagentRuntime,"listChildren"|"interrupt"|"drainContinuableChildren">; application:MeetingCommandApplicationV1}`。`dispatch` 先 recover committed snapshot：若 lifecycle=terminal，提交一次 `start_archive`，requestId 固定为 `archive-start:${outboxItem.id}`，context 使用 `caller={channel:"runtime_recovery",principalId:RUNTIME_RECOVERY_PRINCIPAL_ID}` 和 `{effectId:outboxItem.id,archiveId:outboxItem.payload.archiveId}`；accepted/replay 后重读。若已 archiving，要求 `archive.id===outboxItem.payload.archiveId` 且 archive.status=complete；若已 archived 且 ID 相同，直接 delivered；其它状态或 ID mismatch 返回 `RECOVERY_UNAVAILABLE`。随后以 repository 中 `meetingId` 匹配且未 supersede 的 ownership 为唯一 cleanup 目标；目标必须恰好一个 manager、一个 evidence_reviewer，并包含创建时六个 participant 及 T15 后续已激活的 participant。每个 identityId 都存在于 archived identity provenance，每个 active identity 恰有一个 ownership，parentSessionId 全部等于 `String(parent.id)`；调用 `sessions.listChildren(parent.id,signal)` 得到的 durable direct-child id/label 必须分别与 ownership 的 `sessionId/sessionLabel` 一致。缺失、额外、重复或不明归属立即返回 `RECOVERY_UNAVAILABLE`，不得操作任何 Session。
-
-对每个未 closed ownership，先同步调用 `sessions.interrupt(ownership.sessionId,{kind:"ancestor",agent:parent})`，再 `await sessions.drainContinuableChildren(parent,[ownership.sessionId])` 并等待静默；不得把 fire-and-return interrupt 当作关闭完成。每次提交 result 前重读 snapshot，用当时 version 作为 expectedMeetingVersion，成功后再处理下一 ownership，不并发 closure command。成功后调用一次 `application.execute` 提交 `record_archive_session_result(status="closed")`，失败则提交一次 `status="failed",failureReason="SESSION_CLOSE_FAILED"`，不得保存原始异常文本。requestId 固定为 `archive:${archive.id}:${ownership.id}:${outboxItem.attempts}:${status}`；command commit 不确定时先 recover，已 closed 则跳过，已记录同一 failure 则进入下一 outbox attempt，不产生重复 fact。任一 failed 令 outbox retry且 Meeting 保持 archiving；全部 ownership closed 后最后一个 command 在同一 repository transaction 进入 archived。本步不修改通用 worker 或注入活动 route；recovery service 只调用 repository recovery 并通过已有 `MeetingOutboxWakeupV1` wake 同一 target worker，不复制关闭算法。T20 将 archive effect 接入统一 target router。
-
-验证：
-```bash
-test -f plugin/src/runtime/services/meeting-archive-v1.ts
-test -f plugin/tests/unit/runtime/meeting-archive-v1.spec.ts
-pnpm --dir=plugin vitest run tests/unit/runtime/meeting-archive-v1.spec.ts tests/recovery/contribution-recovery.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：close failure/restart/retry 后 archived；无重复或不明归属 Session。
-
-STOP：需要回滚 archive package 或创建替代 Session。
-
 ### T18a：固化 read DTO Schema
 
 前置状态：T17 PASS。
