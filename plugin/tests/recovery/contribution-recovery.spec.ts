@@ -11,18 +11,12 @@ import { JsonObjectSchema } from "@/repository/domain/schemas.js";
 import {
     applyContributionCommand,
     endMeeting,
-    isMeetingStateV2,
-    assertContributionCapacity,
-    transitionMeeting,
     createContributionState,
     type LegacyMeetingState
 } from "@/domain/index.js";
 import { encodeMeetingSessionLabel } from "@/dsh/index.js";
 import { recoverContributionWork } from "@/runtime/services/contribution-runtime-service.js";
 import { createCreateStatusRuntime } from "@/runtime/application-service/index.js";
-import { recoverArchive } from "@/runtime/services/meeting-archive-service.js";
-import { encodeCanonicalJson } from "@/repository/domain/canonical-json.js";
-import type { MeetingDomain } from "@/repository/domain/specs.js";
 import { contributionMeeting, contributionNow as now } from "../fixtures/contribution.js";
 
 async function fixture(
@@ -32,7 +26,6 @@ async function fixture(
     const root = await mkdtemp(join(tmpdir(), "convivium-contribution-recovery-"));
     const contexts: Context[] = [];
     const registries: DomainRepositoryRegistry[] = [];
-    const commitBytes: number[] = [];
     const validator = { validateCreate() {}, validateCommand() {} };
     async function open() {
         const ctx = new Context();
@@ -47,19 +40,11 @@ async function fixture(
             },
             { backend: "sqlite" }
         );
-        let meetingDomain: MeetingDomain | undefined;
         const registry = await DomainRepositoryRegistry.open({
             storageDomain: {
                 async open(spec) {
-                    const domain = await ctx.storageDomain.open(spec);
-                    if (spec.name.startsWith("convivium_m_"))
-                        meetingDomain = domain as MeetingDomain;
-                    return domain;
+                    return await ctx.storageDomain.open(spec);
                 }
-            },
-            onProjectionCommitted() {
-                for (const [, record] of meetingDomain?.table("commits").entries() ?? [])
-                    commitBytes.push(encodeCanonicalJson(record).byteLength);
             },
             authorizationValidator: validator
         });
@@ -241,234 +226,12 @@ async function fixture(
             teamId: "team-1",
             meetingId: "meeting-1"
         });
-        return { ...reopened, repo, original, validator, close, open, commitBytes };
+        return { ...reopened, repo, original, validator, close, open };
     } catch (error) {
         await close();
         throw error;
     }
 }
-
-function maximumContributions(state: LegacyMeetingState): void {
-    const contribution = state.contributions!;
-    const template = contribution.tasks["contribution-1"]!;
-    const material = contribution.evidence["evidence-1:1"]!;
-    contribution.evidence = Object.fromEntries(
-        Array.from({ length: 128 }, (_, index) => {
-            const evidenceId = `source-${index}`;
-            return [
-                `${evidenceId}:1`,
-                {
-                    ...material,
-                    evidenceId,
-                    key: `${evidenceId}:1`,
-                    material: { kind: "text", text: `材料-${index}:` + "amber-47 ".repeat(650) }
-                }
-            ];
-        })
-    );
-    contribution.evidence["source-0:1"]!.kind = "code";
-    contribution.evidence["source-0:1"]!.code = {
-        repository: "fixture",
-        revision: "fixed",
-        pathsAndSymbols: "fixture",
-        patchEvidenceKeys: ["source-1:1"],
-        validation: "static_only",
-        reproduction: "fixture",
-        expected: "fixture",
-        observed: "fixture",
-        notCovered: "execution"
-    };
-    contribution.tasks = Object.fromEntries(
-        Array.from({ length: 64 }, (_, index) => {
-            const id = `task-${index}`;
-            return [
-                id,
-                {
-                    ...template,
-                    id,
-                    phase: index === 0 ? "published" : "cancelled",
-                    currentDraftRevision: 2,
-                    drafts: Object.fromEntries(
-                        [1, 2].map((revision) => [
-                            String(revision),
-                            {
-                                revision,
-                                basedOnSeq: 0,
-                                submittedAt: now,
-                                message: {
-                                    id: `${id}-${revision}`,
-                                    content: index === 0 ? "Public observation" : "Private draft",
-                                    kind: "statement",
-                                    mentions: [],
-                                    taskIds: [],
-                                    agendaRelation: "on_topic",
-                                    createdAt: now
-                                },
-                                claims: {
-                                    questions: [],
-                                    issues: [],
-                                    proposals: [],
-                                    positions: [],
-                                    agendaCandidates: [],
-                                    decisionCandidates: []
-                                },
-                                citations: [
-                                    {
-                                        evidenceKey: `source-${index * 2}:1`,
-                                        claim: "Observation",
-                                        locator: "fixture",
-                                        inference: "none"
-                                    }
-                                ]
-                            }
-                        ])
-                    ),
-                    boundaryReviews:
-                        index === 0
-                            ? [
-                                  {
-                                      draftRevision: 2,
-                                      decision: "approve",
-                                      reason: "In scope",
-                                      checkedThroughSeq: 0,
-                                      actor: "manager",
-                                      reviewedAt: now
-                                  }
-                              ]
-                            : [],
-                    ...(index === 0 ? { messageId: "task-0-2" } : {})
-                }
-            ];
-        })
-    );
-    state.transcript = [
-        {
-            ...contribution.tasks["task-0"]!.drafts["2"]!.message,
-            seq: 1,
-            speaker: "participant-1",
-            agendaItemId: "agenda-1",
-            contributionId: "task-0",
-            contributionRevision: 2
-        }
-    ];
-    state.messageSeq = 1;
-    expect(isMeetingStateV2(state)).toBe(true);
-    expect(() => assertContributionCapacity(state)).not.toThrow();
-}
-
-describe("contribution archive recovery", () => {
-    it("archives capacity-sized private state by reference, then retries failed cleanup without copying materials", async () => {
-        const f = await fixture("running", maximumContributions);
-        try {
-            const original = (await f.repo.read()).state;
-            await f.repo.execute({
-                requestId: "end-archive",
-                commandKind: "end_meeting",
-                requestHash: "end-archive",
-                authorization: {
-                    callerBinding: "session:captain-1",
-                    capabilityId: "captain:captain-1"
-                },
-                expectedMeetingVersion: (await f.repo.read()).version,
-                transition(snapshot) {
-                    const ended = endMeeting(snapshot.state as unknown as LegacyMeetingState, {
-                        meetingId: "meeting-1",
-                        captainBinding: "captain-1",
-                        outcome: "partial",
-                        reason: "Archive test",
-                        acceptedDecisionIds: [],
-                        deferredAgendaItemIds: [],
-                        waivers: [],
-                        now: now + 1,
-                        factId: (index) => `archive-${index}`
-                    });
-                    return {
-                        state: JsonObjectSchema.parse(JSON.parse(JSON.stringify(ended.state))),
-                        result: {},
-                        events: ended.effect.events.map((event) => ({
-                            type: event.type,
-                            payload: JsonObjectSchema.parse(
-                                JSON.parse(JSON.stringify(event.payload))
-                            )
-                        })),
-                        outbox: []
-                    };
-                }
-            });
-            const ownerships = (await f.repo.recover()).sessionOwnership;
-            const drain = vi
-                .fn()
-                .mockRejectedValueOnce(new Error("cleanup unavailable"))
-                .mockResolvedValue(undefined);
-            const runtime = {
-                interrupt: vi.fn(),
-                drainContinuableChildren: drain,
-                listChildren: async () =>
-                    ownerships.map((item) => ({
-                        kind: "child",
-                        id: item.sessionId,
-                        mode: "continuable",
-                        label: item.sessionLabel
-                    })) as never
-            };
-            const input = {
-                repository: f.repo,
-                parent: { id: "captain-1" } as never,
-                runtime,
-                signal: new AbortController().signal,
-                now: now + 2
-            };
-            await expect(recoverArchive(input)).rejects.toThrow("cleanup unavailable");
-            const pending = (await f.repo.read()).state as unknown as LegacyMeetingState;
-            expect(pending.status).toBe("archiving");
-            expect(pending.archive!.package.contributionRefs).toEqual({
-                taskIds: ["task-0"],
-                evidenceKeys: ["source-0:1", "source-1:1"]
-            });
-            for (const evidenceKeys of [
-                ["source-0:1"],
-                ["source-1:1", "source-0:1"],
-                ["source-0:1", "source-1:1", "source-2:1"]
-            ]) {
-                const terminal = { ...pending, status: "partial" as const };
-                const archive = structuredClone(pending.archive!.package);
-                archive.contributionRefs = { taskIds: ["task-0"], evidenceKeys };
-                expect(() =>
-                    transitionMeeting(terminal, "archiving", {
-                        now: now + 2,
-                        archive: { package: archive }
-                    })
-                ).toThrowError(expect.objectContaining({ code: "INVALID_ENTITY_STATE" }));
-            }
-            expect(JSON.stringify(pending.archive!.package)).not.toContain("Private draft");
-            expect(JSON.stringify(pending.archive!.package)).not.toContain("amber-47");
-            await recoverArchive(input);
-            const archived = await f.repo.read();
-            expect(archived.state.status).toBe("archived");
-            expect(archived.state.contributions).toEqual(original.contributions);
-            expect(
-                (await f.repo.recover()).sessionOwnership.every(
-                    (item) =>
-                        item.capabilityStatus === "revoked" && item.lifecycleStatus === "closed"
-                )
-            ).toBe(true);
-            await recoverArchive(input);
-            expect(await f.repo.read()).toEqual(archived);
-            expect(drain).toHaveBeenCalledTimes(2);
-            expect(f.commitBytes.length).toBeGreaterThan(30);
-            expect(Math.max(...f.commitBytes)).toBeLessThanOrEqual(65536);
-            await f.registry.close();
-            const reopened = await f.open();
-            const repo = await reopened.registry.openMeeting({
-                teamId: "team-1",
-                meetingId: "meeting-1"
-            });
-            expect(await repo.read()).toEqual(archived);
-        } finally {
-            await f.close();
-        }
-    }, 15000);
-});
 
 describe("contribution cold recovery", () => {
     it("archives automatically completed contributions through the existing Runtime scan", async () => {

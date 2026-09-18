@@ -2,7 +2,7 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
 import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
 import { resolveDynamicMeetingDefinitionV1 } from "@/role-composition/resolve.js";
-import { startMeetingIdentitySessionV1 } from "@/dsh/session-adapter.js";
+import { startMeetingIdentitySessionV1 } from "@/dsh/index.js";
 import type { SessionOwnership } from "@/repository/types.js";
 
 export type IdentityProvisionResultV1 =
