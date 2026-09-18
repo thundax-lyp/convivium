@@ -188,26 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T15a：接入 identity provisioning effect
-
-前置状态：目标创建与 plugin lifecycle 的 focused validation 已通过。
-
-允许修改：`plugin/src/runtime/application-service/meeting-identity-v1.ts`、`plugin/src/runtime/services/meeting-identity-provision-v1.ts`、`plugin/src/dsh/meeting-identity-admission-v1.ts`、`plugin/tests/contract/meeting-identity-command-v1.spec.ts`、`plugin/tests/contract/meeting-identity-provision-v1.spec.ts`、`plugin/tests/integration/dsh/meeting-identity-admission-v1.spec.ts`。
-
-禁止修改：command recovery、ownership、Catalog producer、review/archive services、Remote。
-
-执行：T13 已处理 `recommend_identity` command 和 active reuse；本步不得再建立 action dispatcher。把 `meeting-identity-v1.ts` 收敛为只导出 `createMeetingIdentityEffectHandlerV1(dependencies).dispatch(outboxItem,signal)`：只接受 `identity_provision` effect，从已提交 recommendation 读取固定 `recommendationId=admissionId`、definition id/version/hash、预留 identityId/childSessionId；依次调用既有且已验证的 Definition resolver/preflight 和 `meeting-identity-provision-v1.ts`。provisioner 只调用 T14b2 `startMeetingIdentitySessionV1(role="participant",identityId=预留 identityId)`，该函数内部使用 T14b label/envelope；成功 ownership 必须写 `id/meetingId/identityId` 且不写 participantId。成功或安全失败都只通过 T13 `execute` 提交一个 `record_identity_admission_result`，caller channel=`runtime_recovery`，requestId 固定 `identity-admission:${outboxItem.id}`；不得直接 repository commit。`meeting-identity-admission-v1.ts` 只负责 DSH admit/ownership，等 payload replay 返回同 ownership；失败前新建 child 必须 revoke/drain。active reuse 没有 `identity_provision` effect，本 handler 不会收到它。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/contract/meeting-identity-command-v1.spec.ts tests/contract/meeting-identity-provision-v1.spec.ts tests/integration/dsh/meeting-identity-admission-v1.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：首次 provisioning、effect/request replay 和成功/失败 admission 通过；跨 Agenda reuse 零 effect，所有 Meeting 写入都经过 T13。
-
-STOP：reuse 创建第二 Session 或 application 绕过唯一 dispatcher。
-
 ### T15b：接入 identity recovery
 
 前置状态：T15a PASS。

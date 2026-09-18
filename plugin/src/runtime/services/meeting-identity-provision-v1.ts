@@ -1,92 +1,132 @@
-import type { OutboxItem } from "@/repository/types.js";
-import type { MeetingIdentityApplicationDepsV1 } from "@/runtime/application-service/meeting-identity-v1.js";
+import type { Agent } from "@deepseek-ai/dsh-agent";
+import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
+import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
 import { resolveDynamicMeetingDefinitionV1 } from "@/role-composition/resolve.js";
-import { admitMeetingIdentityV1, type IdentityAdmissionPortV1 } from "@/dsh/index.js";
-export interface IdentityProvisionDependencies extends MeetingIdentityApplicationDepsV1 {
-    owner: IdentityAdmissionPortV1;
-    parent: unknown;
-    teamId: string;
-    recordIdentityAdmissionResult?: (recommendationId: string, result: unknown) => Promise<void>;
-    markDelivered?: (effect: OutboxItem) => Promise<void>;
+import { startMeetingIdentitySessionV1 } from "@/dsh/session-adapter.js";
+import type { SessionOwnership } from "@/repository/types.js";
+
+export type IdentityProvisionResultV1 =
+    | {
+          kind: "admitted";
+          result: {
+              kind: "admitted";
+              admissionId: string;
+              meetingId: string;
+              identityId: string;
+              childSessionId: string;
+              ownershipId: string;
+              descriptorId: string;
+              displayName: string;
+              definitionId: string;
+              definitionVersion: string;
+              definitionHash: string;
+          };
+      }
+    | { kind: "rejected"; failureCode: string };
+
+export interface MeetingIdentityProvisionDependenciesV1 {
+    readonly definitions: readonly MeetingAgentDefinitionV1[];
+    readonly parent: Agent;
+    readonly runtime: Pick<SubagentRuntime, "startContinuable">;
+    readonly provider: string;
+    readonly owner: {
+        readOwnership(admissionId: string): Promise<SessionOwnership | undefined>;
+        putProvisioning(
+            owner: SessionOwnership
+        ): Promise<{ kind: "created" | "same"; owner: SessionOwnership } | { kind: "conflict" }>;
+        inspectOwnedChild(owner: SessionOwnership): Promise<"present" | "absent" | "unavailable">;
+        markActive(owner: SessionOwnership): Promise<SessionOwnership>;
+        revokeAndDrainOwned(owner: SessionOwnership): Promise<void>;
+    };
+    readonly now: () => number;
 }
-export async function deliverIdentityProvisionV1(
-    effect: OutboxItem,
-    deps: IdentityProvisionDependencies
-): Promise<void> {
-    const payload = effect.payload as { recommendationId?: string };
-    if (effect.kind !== "dispatch" || typeof payload.recommendationId !== "string")
-        throw new Error("INVALID_ARGUMENT");
-    const snapshot = await deps.repository.read();
-    const state = snapshot.state as {
-        identityRecommendations?: readonly {
+
+export async function provisionMeetingIdentityV1(
+    input: {
+        recommendation: {
             id: string;
-            decision: "admit" | "reject";
-            status: string;
             definitionId: string;
             definitionVersion: string;
             definitionHash?: string;
             identityId?: string;
             childSessionId?: string;
-        }[];
-    };
-    const intent = state.identityRecommendations?.find(
-        (item) => item.id === payload.recommendationId
-    );
+        };
+        meetingId: string;
+        signal: AbortSignal;
+    },
+    dependencies: MeetingIdentityProvisionDependenciesV1
+): Promise<IdentityProvisionResultV1> {
+    const recommendation = input.recommendation;
     if (
-        !intent ||
-        intent.decision !== "admit" ||
-        intent.status !== "provisioning" ||
-        !intent.definitionHash ||
-        !intent.identityId ||
-        !intent.childSessionId
+        !recommendation.definitionHash ||
+        !recommendation.identityId ||
+        !recommendation.childSessionId
     )
-        throw new Error("INVALID_STATE");
+        return { kind: "rejected", failureCode: "INVALID_STATE" };
     const resolved = resolveDynamicMeetingDefinitionV1(
-        deps.definitions,
-        { id: intent.definitionId, version: intent.definitionVersion },
-        intent.definitionHash
+        dependencies.definitions,
+        { id: recommendation.definitionId, version: recommendation.definitionVersion },
+        recommendation.definitionHash
     );
-    if (resolved.kind !== "resolved") {
-        if (deps.recordIdentityAdmissionResult)
-            await deps.recordIdentityAdmissionResult(intent.id, {
-                kind: "rejected",
-                failureCode: resolved.code
+    if (resolved.kind !== "resolved") return { kind: "rejected", failureCode: resolved.code };
+    const existing = await dependencies.owner.readOwnership(recommendation.id);
+    const owner: SessionOwnership = existing ?? {
+        id: `session-ownership:${recommendation.id}`,
+        meetingId: input.meetingId,
+        identityId: recommendation.identityId,
+        sessionId: recommendation.childSessionId,
+        parentSessionId: String(dependencies.parent.id),
+        sessionLabel: `convivium:meeting-identity:participant:${input.meetingId}:${recommendation.identityId}`,
+        provider: dependencies.provider,
+        role: "participant",
+        lifecycleStatus: "provisioning",
+        capabilityStatus: "active",
+        createdAt: dependencies.now(),
+        updatedAt: dependencies.now()
+    };
+    const stored = existing
+        ? { kind: "same" as const, owner: existing }
+        : await dependencies.owner.putProvisioning(owner);
+    if (stored.kind === "conflict") return { kind: "rejected", failureCode: "OWNERSHIP_CONFLICT" };
+    const child = await dependencies.owner.inspectOwnedChild(stored.owner);
+    if (child === "unavailable") return { kind: "rejected", failureCode: "RECOVERY_UNAVAILABLE" };
+    try {
+        if (child === "absent") {
+            const started = await startMeetingIdentitySessionV1({
+                runtime: dependencies.runtime,
+                provider: dependencies.provider,
+                parent: dependencies.parent,
+                childId: recommendation.childSessionId as never,
+                role: "participant",
+                meetingId: input.meetingId,
+                identityId: recommendation.identityId,
+                signal: input.signal
             });
-        return;
+            if (started.childId !== recommendation.childSessionId)
+                throw new Error("OWNERSHIP_CONFLICT");
+        }
+        const active = await dependencies.owner.markActive(stored.owner);
+        return {
+            kind: "admitted",
+            result: {
+                kind: "admitted",
+                admissionId: recommendation.id,
+                meetingId: input.meetingId,
+                identityId: recommendation.identityId,
+                childSessionId: recommendation.childSessionId,
+                ownershipId: active.id!,
+                descriptorId: `descriptor:${recommendation.id}`,
+                displayName: resolved.definition.displayName,
+                definitionId: recommendation.definitionId,
+                definitionVersion: recommendation.definitionVersion,
+                definitionHash: recommendation.definitionHash
+            }
+        };
+    } catch (error) {
+        if (!existing) await dependencies.owner.revokeAndDrainOwned(stored.owner);
+        return {
+            kind: "rejected",
+            failureCode: error instanceof Error ? error.message : "ADMISSION_FAILED"
+        };
     }
-    if (deps.parent === undefined) throw new Error("CAPABILITY_MISSING");
-    const admitted = await admitMeetingIdentityV1(
-        intent as never,
-        {
-            descriptorId: `descriptor:${intent.id}`,
-            meetingId: snapshot.meetingId,
-            parentSessionId: "",
-            definition: { id: intent.definitionId, version: intent.definitionVersion },
-            definitionHash: intent.definitionHash,
-            expiresAt: Date.now() + 300_000
-        },
-        deps.parent as never,
-        resolved.definition,
-        deps.owner
-    );
-    if (deps.recordIdentityAdmissionResult)
-        await deps.recordIdentityAdmissionResult(
-            intent.id,
-            admitted.kind === "admitted"
-                ? {
-                      kind: "admitted",
-                      admissionId: intent.id,
-                      meetingId: snapshot.meetingId,
-                      identityId: admitted.identityId,
-                      childSessionId: intent.childSessionId,
-                      ownershipId: admitted.ownership.id,
-                      descriptorId: admitted.ownership.descriptorId,
-                      displayName: resolved.definition.displayName,
-                      definitionId: intent.definitionId,
-                      definitionVersion: intent.definitionVersion,
-                      definitionHash: intent.definitionHash
-                  }
-                : { kind: "rejected", failureCode: admitted.error.code }
-        );
-    if (deps.markDelivered) await deps.markDelivered(effect);
 }
