@@ -102,6 +102,12 @@ it("uses one target codec for create, transition, facts, read and recover", asyn
     await repository.create(create);
     await repository.completeCreate(create);
     const resultingState = { ...state, version: 1, updatedAt: 2 };
+    const transition = vi.fn(() => ({
+        state: resultingState,
+        result: { accepted: true },
+        events: [],
+        outbox: []
+    }));
     const command = {
         requestId: "command-target",
         commandKind: "open_round",
@@ -120,12 +126,7 @@ it("uses one target codec for create, transition, facts, read and recover", asyn
                 resultingState
             }
         ],
-        transition: () => ({
-            state: resultingState,
-            result: { accepted: true },
-            events: [],
-            outbox: []
-        })
+        transition
     } as const;
     const committed = await repository.execute(command);
     expect(committed.meetingVersion).toBe(1);
@@ -197,6 +198,12 @@ it("commits facts and archive Session closure atomically", async () => {
         initialMessageId: "message-1"
     });
     const resultingState = { status: "archived", version: 1 };
+    const transition = vi.fn(() => ({
+        state: resultingState,
+        result: { accepted: true },
+        events: [],
+        outbox: []
+    }));
     const command = {
         requestId: "close-session",
         commandKind: "record_archive_session_result",
@@ -216,12 +223,7 @@ it("commits facts and archive Session closure atomically", async () => {
             }
         ],
         archiveSessionResult: { sessionOwnershipId: "session-1", status: "closed" },
-        transition: () => ({
-            state: resultingState,
-            result: { accepted: true },
-            events: [],
-            outbox: []
-        })
+        transition
     } as const;
     meeting.failPutsInTable("commits");
     await expect(repository.execute(command)).rejects.toThrow();
@@ -232,6 +234,9 @@ it("commits facts and archive Session closure atomically", async () => {
         capabilityStatus: "active"
     });
     await repository.execute(command);
+    expect(transition).toHaveBeenLastCalledWith(expect.anything(), {
+        allSessionOwnershipClosedAfterResult: true
+    });
     expect((await repository.recover()).sessionOwnership[0]).toMatchObject({
         lifecycleStatus: "closed",
         capabilityStatus: "revoked"

@@ -152,6 +152,23 @@ export function submitEvidenceV1(
               );
     if (existingPackage !== undefined && currentVersion === undefined)
         return reject(state, "INVALID_STATE", "current evidence version is missing");
+    if (currentVersion === undefined) {
+        const deadlines = [contribution.acceptedAt + state.limits.taskDeadlineMs];
+        if (round.deadlineAt !== undefined) deadlines.push(round.deadlineAt);
+        deadlines.push(
+            ...state.tasks
+                .filter(
+                    (task) =>
+                        task.assigneeId === input.authorId &&
+                        task.agendaId === round.agendaId &&
+                        (task.status === "open" || task.status === "claimed") &&
+                        task.deadlineAt !== undefined
+                )
+                .map((task) => task.deadlineAt!)
+        );
+        if (deadlines.some((deadline) => !Number.isSafeInteger(deadline) || input.now >= deadline))
+            return reject(state, "PRECONDITION_FAILED", "evidence deadline has passed");
+    }
     if (currentVersion !== undefined) {
         const deadlines = [currentVersion.submittedAt + state.limits.taskDeadlineMs];
         if (round.deadlineAt !== undefined) deadlines.push(round.deadlineAt);

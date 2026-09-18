@@ -146,8 +146,50 @@ export class DomainMeetingRepository<TState = JsonObject>
                     this.meetingId,
                     "Meeting version is stale"
                 );
+            const closure = command.archiveSessionResult;
+            let allSessionOwnershipClosedAfterResult: boolean | undefined;
+            if (closure !== undefined) {
+                const failureCode = closure.failureCode?.trim();
+                if (
+                    command.commandKind !== "record_archive_session_result" ||
+                    (closure.status === "closed" && closure.failureCode !== undefined) ||
+                    (closure.status === "failed" && !failureCode)
+                )
+                    throw new RepositoryError(
+                        "INVALID_INPUT",
+                        false,
+                        this.meetingId,
+                        "Archive Session result is invalid"
+                    );
+                const ownership = this.projection.sessionOwnership[closure.sessionOwnershipId];
+                if (
+                    !ownership?.id ||
+                    ownership.id !== closure.sessionOwnershipId ||
+                    ownership.meetingId !== this.meetingId ||
+                    !ownership.identityId ||
+                    ownership.lifecycleStatus === "closed"
+                )
+                    throw new RepositoryError(
+                        "RECOVERY_UNAVAILABLE",
+                        false,
+                        this.meetingId,
+                        "Archive Session ownership is unavailable"
+                    );
+                allSessionOwnershipClosedAfterResult =
+                    closure.status === "closed" &&
+                    Object.values(this.projection.sessionOwnership).every(
+                        (candidate) =>
+                            candidate.meetingId !== this.meetingId ||
+                            candidate.id === closure.sessionOwnershipId ||
+                            candidate.lifecycleStatus === "closed"
+                    );
+            }
             const now = this.now();
-            const transition = command.transition(snapshot);
+            const transition = command.transition(snapshot, {
+                ...(allSessionOwnershipClosedAfterResult === undefined
+                    ? {}
+                    : { allSessionOwnershipClosedAfterResult })
+            });
             let transitionState: JsonObject;
             let transitionResult: JsonValue;
             try {
@@ -276,34 +318,10 @@ export class DomainMeetingRepository<TState = JsonObject>
                     );
                 next.facts[fact.factId] = persisted.data;
             }
-            const closure = command.archiveSessionResult;
             if (closure !== undefined) {
                 const failureCode = closure.failureCode?.trim();
-                if (
-                    command.commandKind !== "record_archive_session_result" ||
-                    (closure.status === "closed" && closure.failureCode !== undefined) ||
-                    (closure.status === "failed" && !failureCode)
-                )
-                    throw new RepositoryError(
-                        "INVALID_INPUT",
-                        false,
-                        this.meetingId,
-                        "Archive Session result is invalid"
-                    );
                 const ownership = next.sessionOwnership[closure.sessionOwnershipId];
-                if (
-                    !ownership?.id ||
-                    ownership.id !== closure.sessionOwnershipId ||
-                    ownership.meetingId !== this.meetingId ||
-                    !ownership.identityId ||
-                    ownership.lifecycleStatus === "closed"
-                )
-                    throw new RepositoryError(
-                        "RECOVERY_UNAVAILABLE",
-                        false,
-                        this.meetingId,
-                        "Archive Session ownership is unavailable"
-                    );
+                if (!ownership) throw new Error("validated ownership is missing");
                 if (closure.status === "closed") {
                     const { lastClosureFailureCode: _discarded, ...identity } = ownership;
                     next.sessionOwnership[closure.sessionOwnershipId] = {

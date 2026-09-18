@@ -213,5 +213,8 @@ describe("evidence review and delivery", () => {
             now: 8
         });
         expect(sent.kind).toBe("accepted");
+        expect(sent.kind === "accepted" && sent.state.contributions[0]?.status).toBe(
+            "awaiting_response"
+        );
     });
 });

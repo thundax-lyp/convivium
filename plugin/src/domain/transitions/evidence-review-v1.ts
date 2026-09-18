@@ -192,6 +192,14 @@ export function recordReviewDeliveryV1(
             ...state,
             version: state.version + 1,
             updatedAt: input.now,
+            contributions:
+                input.status === "sent"
+                    ? state.contributions.map((contribution) =>
+                          contribution.packageId === packageValue.id
+                              ? { ...contribution, status: "awaiting_response" as const }
+                              : contribution
+                      )
+                    : state.contributions,
             reviewDeliveries: [...state.reviewDeliveries, delivery]
         },
         relatedIds: [delivery.id, delivery.reviewId],

@@ -1,4 +1,5 @@
 import {
+    closeContributionV1,
     completeMeetingArchiveV1,
     disposeHandRaiseV1,
     endMeetingV1,
@@ -144,6 +145,8 @@ function authorizedRole(action: MeetingActionV1["kind"], scope: ResolvedCallerSc
     )
         return scope.role === "manager";
     if (action === "submit_review_batch") return scope.role === "evidence_reviewer";
+    if (action === "close_contribution")
+        return scope.role === "participant" || scope.role === "runtime";
     return scope.role === "participant";
 }
 
@@ -293,6 +296,14 @@ export function createMeetingCommandApplicationV1(
                     context.caller.principalId !== RUNTIME_RECOVERY_PRINCIPAL_ID)
             )
                 return rejected("UNAUTHORIZED", "Action requires the recovery runtime");
+            if (
+                command.action.kind === "close_contribution" &&
+                ((command.action.exit === "withdrawn" && context.caller.channel !== "dsh_tool") ||
+                    (command.action.exit !== "withdrawn" &&
+                        (context.caller.channel !== "deadline_handler" ||
+                            context.caller.principalId !== DEADLINE_HANDLER_PRINCIPAL_ID)))
+            )
+                return rejected("UNAUTHORIZED", "Contribution closure caller is not authorized");
             if (command.action.kind === "start_archive" && context.archiveEffect === undefined)
                 return rejected(
                     "UNAUTHORIZED",
@@ -341,25 +352,6 @@ export function createMeetingCommandApplicationV1(
                     command.action.kind === "start_archive"
                         ? await repository.readCommittedFacts()
                         : [];
-                const recovered =
-                    command.action.kind === "record_archive_session_result"
-                        ? await repository.recover()
-                        : undefined;
-                if (command.action.kind === "record_archive_session_result") {
-                    const sessionOwnershipId = command.action.sessionOwnershipId;
-                    const ownership = recovered?.sessionOwnership.find(
-                        (candidate) => candidate.id === sessionOwnershipId
-                    );
-                    if (
-                        !ownership ||
-                        ownership.meetingId !== command.meetingId ||
-                        ownership.lifecycleStatus === "closed"
-                    )
-                        return rejected(
-                            "RECOVERY_UNAVAILABLE",
-                            "Archive Session ownership is unavailable"
-                        );
-                }
                 const factId = deps.ids.nextId("fact");
                 const receiptId = deps.ids.nextId("receipt");
                 const generated = (kind: string) => deps.ids.nextId(kind);
@@ -380,7 +372,12 @@ export function createMeetingCommandApplicationV1(
                               }
                           }
                         : {}),
-                    transition: (snapshot: { state: MeetingState; version: number }) => {
+                    transition: (
+                        snapshot: { state: MeetingState; version: number },
+                        repositoryContext: {
+                            allSessionOwnershipClosedAfterResult?: boolean;
+                        } = {}
+                    ) => {
                         let transition:
                             | MeetingTransitionResultV1
                             | {
@@ -435,6 +432,19 @@ export function createMeetingCommandApplicationV1(
                                     evidence: action.evidence,
                                     packageId: generated("evidence_package"),
                                     versionId: generated("evidence_version"),
+                                    now
+                                });
+                                break;
+                            case "close_contribution":
+                                transition = closeContributionV1(snapshot.state, {
+                                    contributionId: action.contributionId,
+                                    actorId,
+                                    actorKind:
+                                        scope.caller.channel === "deadline_handler"
+                                            ? "deadline_handler"
+                                            : "author",
+                                    exit: action.exit,
+                                    reason: action.reason,
                                     now
                                 });
                                 break;
@@ -519,13 +529,9 @@ export function createMeetingCommandApplicationV1(
                                 });
                                 break;
                             case "record_archive_session_result": {
-                                const openOwnerships = (recovered?.sessionOwnership ?? []).filter(
-                                    (ownership) =>
-                                        ownership.lifecycleStatus !== "closed" &&
-                                        ownership.id !== action.sessionOwnershipId
-                                );
                                 transition =
-                                    action.status === "closed" && openOwnerships.length === 0
+                                    action.status === "closed" &&
+                                    repositoryContext.allSessionOwnershipClosedAfterResult === true
                                         ? completeMeetingArchiveV1(snapshot.state, {
                                               actorId,
                                               now,

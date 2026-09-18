@@ -308,6 +308,65 @@ describe("target Meeting command core", () => {
         expect(MeetingCommandResultV1Schema.safeParse(result).success).toBe(true);
     });
 
+    it("lets the repository replay an archive result before checking mutable ownership", async () => {
+        const state = { ...makeRunningMeetingStateV1(), lifecycle: "archiving" as const };
+        const replayed: MeetingCommandResultV1 = {
+            kind: "accepted",
+            meetingId: state.id,
+            committedVersion: 2,
+            receiptId: "receipt-archive",
+            factIds: ["fact-archive"],
+            effects: []
+        };
+        const execute = vi.fn(async () => ({
+            requestId: "archive-result-1",
+            meetingId: state.id,
+            meetingVersion: 2,
+            result: replayed,
+            eventSeqs: []
+        }));
+        const recover = vi.fn(async () => {
+            throw new Error("mutable ownership must not be read before receipt replay");
+        });
+        const caller = {
+            channel: "runtime_recovery" as const,
+            principalId: "runtime-recovery"
+        };
+        const app = createMeetingCommandApplicationV1({
+            creation: { create: vi.fn() },
+            registry: {
+                openMeeting: vi.fn(async () => ({ execute, recover }))
+            } as unknown as DomainRepositoryRegistry<MeetingState>,
+            ids: { nextId: (kind) => `${kind}-1` },
+            clock: { now: () => 10 },
+            resolveCallerScope: async () => ({
+                caller,
+                meetingId: state.id,
+                role: "runtime"
+            })
+        });
+
+        await expect(
+            app.execute(
+                {
+                    protocolVersion: 1,
+                    meetingId: state.id,
+                    expectedMeetingVersion: 2,
+                    requestId: "archive-result-1",
+                    action: {
+                        kind: "record_archive_session_result",
+                        sessionOwnershipId: "ownership-1",
+                        status: "closed"
+                    }
+                },
+                { caller },
+                new AbortController().signal
+            )
+        ).resolves.toEqual(replayed);
+        expect(execute).toHaveBeenCalledOnce();
+        expect(recover).not.toHaveBeenCalled();
+    });
+
     it("projects only a committed snapshot", () => {
         const state = makeRunningMeetingStateV1();
         const result = projectMeetingViewV1({

@@ -98,6 +98,12 @@ describe("target Meeting business-loop protocol", () => {
             },
             { kind: "submit_evidence", contributionId: "contribution-1", evidence },
             {
+                kind: "close_contribution",
+                contributionId: "contribution-1",
+                exit: "withdrawn",
+                reason: "withdraw"
+            },
+            {
                 kind: "submit_review_batch",
                 reviews: [
                     {
@@ -134,7 +140,7 @@ describe("target Meeting business-loop protocol", () => {
                 status: "closed"
             }
         ];
-        expect(actions).toHaveLength(13);
+        expect(actions).toHaveLength(14);
         for (const value of actions) {
             const parsed = MeetingActionV1Schema.parse({ ...value, forgedRuntimeField: "strip" });
             expect(PublicMeetingActionV1Schema.parse(value)).toEqual(parsed);

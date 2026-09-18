@@ -122,6 +122,12 @@ const actions = [
         reason: text
     }),
     z.object({ kind: z.literal("submit_evidence"), contributionId: id, evidence }),
+    z.object({
+        kind: z.literal("close_contribution"),
+        contributionId: id,
+        exit: z.enum(["withdrawn", "submission_missing", "timed_out"]),
+        reason: text
+    }),
     z
         .object({
             kind: z.literal("submit_review_batch"),

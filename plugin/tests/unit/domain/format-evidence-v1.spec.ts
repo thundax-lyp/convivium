@@ -108,6 +108,26 @@ describe("format and evidence transitions", () => {
         expect(result.kind === "rejected" && result.state).toBe(state);
         expect(result.kind === "rejected" && result.error.code).toBe("UNAUTHORIZED");
     });
+    it("rejects initial evidence at the earliest persisted deadline", () => {
+        const state = stateWithContribution();
+        const deadlineState = {
+            ...state,
+            rounds: state.rounds.map((round) => ({ ...round, deadlineAt: 4 }))
+        };
+        const result = submitEvidenceV1(deadlineState, {
+            contributionId: "contribution-v1",
+            authorId: "contributor-v1",
+            evidence,
+            packageId: "package-v1",
+            versionId: "version-v1",
+            now: 4
+        });
+        expect(result).toMatchObject({
+            kind: "rejected",
+            error: { code: "PRECONDITION_FAILED" },
+            state: deadlineState
+        });
+    });
     it("appends an accepted supplement to the existing evidence package", () => {
         const first = submitEvidenceV1(stateWithContribution(), {
             contributionId: "contribution-v1",

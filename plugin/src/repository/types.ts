@@ -56,6 +56,10 @@ export interface TransitionResult<T, TState = JsonObject> {
     outbox: OutboxInput[];
 }
 
+export interface RepositoryTransitionContext {
+    allSessionOwnershipClosedAfterResult?: boolean;
+}
+
 export interface RepositoryCommand<T, TState = JsonObject> {
     requestId: string;
     commandKind: string;
@@ -69,7 +73,10 @@ export interface RepositoryCommand<T, TState = JsonObject> {
         status: "closed" | "failed";
         failureCode?: string;
     };
-    transition: (snapshot: MeetingSnapshot<TState>) => TransitionResult<T, TState>;
+    transition: (
+        snapshot: MeetingSnapshot<TState>,
+        context?: RepositoryTransitionContext
+    ) => TransitionResult<T, TState>;
 }
 
 export interface CommandAuthorization {
