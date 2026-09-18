@@ -2,7 +2,7 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import { defineTool, type ToolRunContext } from "@deepseek-ai/dsh-tools";
 import type { JsonValue } from "@deepseek-ai/dsh-util-values";
 import type { ToolRuntime } from "@deepseek-ai/dsh-tools";
-import type { ResolvedMeetingCaller } from "@/dsh/index.js";
+import type { ResolvedMeetingCaller, ResolvedMeetingCallerV1 } from "@/dsh/index.js";
 import type {
     CreateMeetingInputV1,
     EndMeetingInputV1,
@@ -721,7 +721,7 @@ export function assertProtocolError(value: ProtocolErrorV1): ProtocolErrorV1 {
 }
 
 export interface TargetMeetingToolCallerResolver {
-    resolve(agent: Agent, signal: AbortSignal): Promise<ResolvedMeetingCaller | ProtocolErrorV1>;
+    resolve(agent: Agent, signal: AbortSignal): Promise<ResolvedMeetingCallerV1 | ProtocolErrorV1>;
 }
 
 export interface MeetingCommandToolDependencies {
@@ -756,14 +756,14 @@ function asTargetJson(value: unknown): JsonValue {
     return value as JsonValue;
 }
 
-function targetCaller(resolved: ResolvedMeetingCaller): {
+function targetCaller(resolved: ResolvedMeetingCallerV1): {
     channel: "dsh_tool";
     principalId: string;
     sessionBindingId?: string;
 } {
     return {
         channel: "dsh_tool",
-        principalId: resolved.identityId ?? resolved.ownership.identityId ?? resolved.sessionId,
+        principalId: resolved.identityId,
         ...(resolved.ownership.id === undefined ? {} : { sessionBindingId: resolved.ownership.id })
     };
 }

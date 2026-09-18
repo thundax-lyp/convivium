@@ -14,7 +14,8 @@ export {
     type MeetingOwnershipLookupV1,
     type MeetingOwnershipLookup,
     type MeetingOwnershipRecord,
-    type ResolvedMeetingCaller
+    type ResolvedMeetingCaller,
+    type ResolvedMeetingCallerV1
 } from "./caller-resolver.js";
 export {
     createMeetingIdentityProvisioningEnvelopeV1,

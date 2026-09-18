@@ -188,26 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T21a：接入 Client transport
-
-前置状态：T20 PASS。
-
-允许修改：`plugin/src/client/meeting-client.ts`、`plugin/tests/client/meeting-client.client.spec.ts`。
-
-禁止修改：panel、CSS/视觉系统、business semantics、Remote。
-
-执行：用 T20 四方法替换现有 action-specific client。`MeetingClient` 精确暴露 `list(signal?:AbortSignal):Promise<MeetingListResultV1>`、`read(request:ReadMeetingRequestV1,signal?:AbortSignal):Promise<MeetingReadResultV1>`、`control(command:MeetingCommandV1,signal?:AbortSignal):Promise<MeetingCommandResultV1>`、`subscribeRefresh(onUnavailable:()=>void):RemoteStream<RefreshNoticeV1>`。`list/read/control` 分别用 T18a 的 list/read Schema 与既有 `MeetingCommandResultV1Schema` 验证 Remote value；Typert carrier failure 按 error code 映射为 Meeting Interface error，action 的 `kind="rejected"` 保持普通返回值，不转换成 throw。`subscribeRefresh` 只用现有 `remote.$stream` 打开 T20 stream，carrier failure 调 `onUnavailable`，不增加 replay cursor、自动 command retry 或 polling。`control` 不自动 retry；accepted 或 rejected 后调用方均可显式 `read`，Client 自身不缓存、不计算 Domain state。archive 不设第二 endpoint，只从 `read(...).archive` 取得。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/client/meeting-client.client.spec.ts
-pnpm --dir=plugin typecheck:client
-```
-
-PASS：transport DTO、error mapping 和 refresh contract 通过。
-
-STOP：需要 Client 重算领域事实或修改 Remote。
-
 ### T21b：接入 Client 只读视图
 
 前置状态：T21a PASS。
