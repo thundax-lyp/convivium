@@ -3,10 +3,12 @@ import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
 import {
     MeetingActionV1Schema,
     ListMeetingsRequestV1Schema,
-    ReadMeetingRequestV1Schema,
+    ReadMeetingRequestV1Schema
+} from "@/protocol/meeting-command-v1.js";
+import {
     decodeMeetingStateV1,
     encodeMeetingStateV1
-} from "@/protocol/meeting-command-v1.js";
+} from "@/repository/domain/meeting-state-codec-v1.js";
 import {
     MeetingActionV1Schema as PublicMeetingActionV1Schema,
     MeetingCommandResultV1Schema as PublicMeetingCommandResultV1Schema,

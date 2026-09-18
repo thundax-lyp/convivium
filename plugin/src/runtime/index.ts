@@ -3,6 +3,10 @@ export {
     createMeetingRuntime,
     openMeetingRepository
 } from "./meeting-runtime.js";
+export {
+    activateTargetMeetingApplicationV1,
+    getMeetingCommandApplicationV1
+} from "./meeting-lifecycle-v1.js";
 export type {
     DomainEventInput,
     JsonObject,

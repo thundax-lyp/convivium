@@ -78,8 +78,6 @@ export {
     ListMeetingsRequestV1Schema,
     ReadMeetingRequestV1Schema,
     MeetingCommandResultV1Schema,
-    encodeMeetingStateV1,
-    decodeMeetingStateV1,
     type MeetingActionV1,
     type MeetingCommandV1,
     type ListMeetingsRequestV1,

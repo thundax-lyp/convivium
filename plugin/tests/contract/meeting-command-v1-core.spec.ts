@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
 import type { MeetingState } from "@/domain/index.js";
+import { MeetingCommandV1Schema } from "@/protocol/meeting-command-v1.js";
 import {
-    MeetingCommandV1Schema,
     decodeMeetingStateV1,
     encodeMeetingStateV1
-} from "@/protocol/meeting-command-v1.js";
+} from "@/repository/domain/meeting-state-codec-v1.js";
 import { projectMeetingViewV1 } from "@/projection/meeting-view-v1.js";
 import type { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
 import { meetingIdFor } from "@/repository/domain/keys.js";

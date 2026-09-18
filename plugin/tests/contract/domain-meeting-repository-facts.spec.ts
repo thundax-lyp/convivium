@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { DomainMeetingRepository } from "@/repository/domain/domain-meeting-repository.js";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
-import { decodeMeetingStateV1, encodeMeetingStateV1 } from "@/protocol/meeting-command-v1.js";
+import {
+    decodeMeetingStateV1,
+    encodeMeetingStateV1
+} from "@/repository/domain/meeting-state-codec-v1.js";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
 import type { MeetingState } from "@/domain/meeting-state-v1.js";
 

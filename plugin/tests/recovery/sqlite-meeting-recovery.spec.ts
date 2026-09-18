@@ -7,7 +7,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DomainRepositoryRegistry } from "@/repository/domain/domain-repository-registry.js";
-import { decodeMeetingStateV1, encodeMeetingStateV1 } from "@/protocol/meeting-command-v1.js";
+import {
+    decodeMeetingStateV1,
+    encodeMeetingStateV1
+} from "@/repository/domain/meeting-state-codec-v1.js";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
 
 const authorization = { callerBinding: "local", capabilityId: "local" };

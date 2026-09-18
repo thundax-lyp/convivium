@@ -11,7 +11,10 @@ import { catalogKey, receiptKey, seqKey } from "@/repository/domain/keys.js";
 import { CommitRecordV1Schema } from "@/repository/domain/schemas.js";
 import { expect, it, vi } from "vitest";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
-import { decodeMeetingStateV1, encodeMeetingStateV1 } from "@/protocol/meeting-command-v1.js";
+import {
+    decodeMeetingStateV1,
+    encodeMeetingStateV1
+} from "@/repository/domain/meeting-state-codec-v1.js";
 
 defineMeetingRepositoryBehaviorContract("DomainMeetingRepository behavior contract", {
     open: async (authorizationValidator = allow) =>

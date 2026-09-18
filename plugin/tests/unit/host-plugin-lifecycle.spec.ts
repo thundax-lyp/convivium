@@ -4,14 +4,12 @@ import SystemPrompt from "@deepseek-ai/dsh-system-prompt";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
 import Tools from "@deepseek-ai/dsh-tools";
 
+import { apply, assertContinuableProvider, inject } from "@/index.js";
+import { requireContinuableProvider } from "@/dsh/index.js";
 import {
     activateTargetMeetingApplicationV1,
-    apply,
-    assertContinuableProvider,
-    getMeetingCommandApplicationV1,
-    inject
-} from "@/index.js";
-import { requireContinuableProvider } from "@/dsh/index.js";
+    getMeetingCommandApplicationV1
+} from "@/runtime/index.js";
 import { createFakeDomainFacility } from "../fixtures/domain-storage.js";
 import roleResources from "../../meeting-roles/definitions.json" with { type: "json" };
 

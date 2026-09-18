@@ -6,14 +6,10 @@ import {
     encodeProjection,
     foldCommitTail,
     projectionDigest,
-    UnsupportedMeetingStateFormatError,
     MAX_COMMIT_VALUE_BYTES,
     MAX_APPLICATION_CHECKPOINT_BYTES
 } from "@/repository/domain/projection.js";
 import { CommitRecordV1Schema } from "@/repository/domain/schemas.js";
-import { encodeCanonicalJson } from "@/repository/domain/canonical-json.js";
-import { meeting } from "../../domain/transitions/fixtures.js";
-const persistedMeeting = () => JSON.parse(JSON.stringify(meeting())) as Record<string, unknown>;
 describe("domain projection", () => {
     const bootstrap = {
         status: "ready" as const,
@@ -31,39 +27,6 @@ describe("domain projection", () => {
     it("encodes and decodes a deterministic null-prototype projection", () => {
         const p = createProjection({ snapshot: null, bootstrap, sessionOwnership: {} });
         expect(decodeProjection(encodeProjection(p))).toEqual(p);
-    });
-    it("keeps legacy and valid V2 state while classifying unsupported and malformed formats", () => {
-        const withState = (state: Record<string, unknown>) => {
-            const base = createProjection({
-                snapshot: {
-                    teamId: "team-1",
-                    meetingId: "meeting-1",
-                    version: 0,
-                    state: { count: 0 },
-                    createdAt: 1,
-                    updatedAt: 1
-                },
-                bootstrap,
-                sessionOwnership: {}
-            });
-            return { ...base, snapshot: { ...base.snapshot!, state } };
-        };
-        expect(
-            decodeProjection(encodeCanonicalJson(withState({ count: 0 }))).snapshot?.state
-        ).toEqual({ count: 0 });
-        expect(
-            decodeProjection(encodeCanonicalJson(withState(persistedMeeting()))).snapshot?.state
-        ).toMatchObject({ formatVersion: 2 });
-        expect(() =>
-            decodeProjection(encodeCanonicalJson(withState({ formatVersion: 3 })))
-        ).toThrow(UnsupportedMeetingStateFormatError);
-        expect(() =>
-            decodeProjection(
-                encodeCanonicalJson(
-                    withState({ formatVersion: 2, manager: {}, attendanceRecommendations: null })
-                )
-            )
-        ).toThrow(/LegacyMeetingState format 2 is malformed/);
     });
     it("creates and verifies a bounded deterministic commit", () => {
         const c = createCommitRecord({
@@ -249,92 +212,5 @@ describe("domain projection", () => {
                 commits: [["00000000000000000002", firstPostCheckpoint]]
             })
         ).toThrow();
-    });
-});
-
-describe("attendance rejection persistence projection", () => {
-    const recommendation = {
-        id: "recommendation-1",
-        candidateId: "candidate-1",
-        roleDefinitionId: "domain_architect",
-        roleDefinitionVersion: "1",
-        displayName: "Architect",
-        agentDefinitionId: "definition-private",
-        agendaItemId: "agenda-1",
-        rationale: "Review",
-        expectedContribution: "Review",
-        evidenceGapIds: [],
-        urgency: "current_agenda",
-        recommendedByManagerSessionId: "manager-private",
-        catalogId: "catalog-1",
-        catalogVersion: "1",
-        planningAttemptId: "planning-1",
-        status: "pending",
-        createdAt: 1
-    };
-    const rejection = {
-        requestId: "reject-1",
-        actorBinding: "captain:captain-1",
-        reason: "Not needed",
-        rejectedAt: 100
-    };
-    function bytes(state: Record<string, unknown>) {
-        const base = createProjection({
-            snapshot: {
-                teamId: "team-1",
-                meetingId: "meeting-1",
-                version: 1,
-                state: {},
-                createdAt: 1,
-                updatedAt: 1
-            },
-            bootstrap: {
-                status: "ready",
-                createRequestId: "create",
-                requestHash: "hash",
-                createdAt: 1,
-                updatedAt: 1
-            },
-            sessionOwnership: {}
-        });
-        return encodeCanonicalJson({ ...base, snapshot: { ...base.snapshot!, state } });
-    }
-    it("reads pending, rejected and legacy values without adding defaults", () => {
-        for (const state of [
-            { legacy: true },
-            { ...persistedMeeting(), attendanceRecommendations: [recommendation] },
-            {
-                ...persistedMeeting(),
-                attendanceRecommendations: [{ ...recommendation, status: "rejected", rejection }]
-            }
-        ]) {
-            expect(decodeProjection(bytes(state)).snapshot?.state).toEqual(state);
-        }
-    });
-    it.each([
-        { status: "rejected" },
-        { status: "rejected", rejection: null },
-        { rejection },
-        { status: "rejected", rejection: { ...rejection, extra: true } },
-        { status: "rejected", rejection: { ...rejection, actorBinding: "manager:x" } },
-        { status: "rejected", rejection: { ...rejection, reason: " " } },
-        { status: "rejected", rejection: { ...rejection, reason: " padded " } },
-        { status: "rejected", rejection: { ...rejection, rejectedAt: -1 } },
-        { status: "rejected", rejection: { reason: "Missing fields" } }
-    ])("rejects malformed recommendation %j at the Schema boundary", (change) => {
-        expect(() =>
-            decodeProjection(
-                bytes({
-                    formatVersion: 2,
-                    manager: {},
-                    attendanceRecommendations: [{ ...recommendation, ...change }]
-                })
-            )
-        ).toThrow(/LegacyMeetingState format 2 is malformed/);
-    });
-    it("keeps the unsupported-format exception at this layer", () => {
-        expect(() => decodeProjection(bytes({ formatVersion: 3 }))).toThrow(
-            UnsupportedMeetingStateFormatError
-        );
     });
 });

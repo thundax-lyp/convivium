@@ -5,7 +5,10 @@ import {
     type DomainFacilityPort
 } from "@/repository/domain/domain-repository-registry.js";
 import { createFakeCatalogDomain, createFakeMeetingDomain } from "../fixtures/domain-storage.js";
-import { decodeMeetingStateV1, encodeMeetingStateV1 } from "@/protocol/meeting-command-v1.js";
+import {
+    decodeMeetingStateV1,
+    encodeMeetingStateV1
+} from "@/repository/domain/meeting-state-codec-v1.js";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
 
 const allow = { validateCreate: () => undefined, validateCommand: () => undefined };
