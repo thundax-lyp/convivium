@@ -8,6 +8,7 @@ import type {
 } from "@deepseek-ai/dsh-subagent";
 import type { SessionId } from "@deepseek-ai/dsh-session";
 import type { MeetingOwnershipRecord } from "./caller-resolver.js";
+import type { SessionOwnership } from "@/repository/types.js";
 import {
     encodeMeetingIdentitySessionLabelV1,
     encodeMeetingSessionLabel,
@@ -435,6 +436,45 @@ export async function followupManagerSession(
         signal: input.signal
     };
     return sendAuthorizedMeetingMessage(input, () => input.authorize(authorization));
+}
+
+export interface FollowupMeetingIdentitySessionInputV1 {
+    readonly runtime: Pick<SubagentRuntime, "sendMessage">;
+    readonly parent: Agent;
+    readonly ownership: SessionOwnership;
+    readonly meetingId: string;
+    readonly identityId: string;
+    readonly prompt: ContinuableStartSpec["request"]["prompt"];
+    readonly signal: AbortSignal;
+}
+
+/** Deliver to one persisted target identity; inbox acceptance is not a Meeting fact. */
+export async function followupMeetingIdentitySessionV1(
+    input: FollowupMeetingIdentitySessionInputV1
+): Promise<ContinuableStart["messageId"]> {
+    const expectedLabel = encodeMeetingIdentitySessionLabelV1({
+        role: input.ownership.role,
+        meetingId: input.meetingId,
+        identityId: input.identityId
+    });
+    if (
+        String(input.parent.id) !== input.ownership.parentSessionId ||
+        input.ownership.id === undefined ||
+        input.ownership.meetingId !== input.meetingId ||
+        input.ownership.identityId !== input.identityId ||
+        input.ownership.sessionLabel !== expectedLabel ||
+        input.ownership.lifecycleStatus !== "active" ||
+        input.ownership.capabilityStatus !== "active"
+    )
+        throw new Error(
+            "Notice followup requires the exact active owned Meeting identity Session."
+        );
+    return await input.runtime.sendMessage(
+        input.parent,
+        input.ownership.sessionId as SessionId,
+        input.prompt,
+        { signal: input.signal }
+    );
 }
 
 export {

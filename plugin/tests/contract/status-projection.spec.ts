@@ -9,7 +9,7 @@ import {
     projectManagerMeetingContext,
     projectMeetingStatus,
     projectSpeakerMeetingContext
-} from "@/projection/index.js";
+} from "@/projection/status.js";
 import { MeetingStatusResultSchema } from "@/protocol/index.js";
 import { describe, expect, it } from "vitest";
 

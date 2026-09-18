@@ -96,6 +96,7 @@ export {
     type RoleErrorCodeV1
 } from "./meeting-identity-v1.js";
 export { serializeValidatedRequestV1 } from "./request-idempotency.js";
+export * from "./meeting-view-v1.js";
 export type {
     ContributionDelivery,
     ContributionContextV1,

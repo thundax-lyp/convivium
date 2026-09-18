@@ -1,7 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { endMeetingV1 } from "@/domain/transitions/meeting-end-v1.js";
+import { recoverMeetingCommandsV1 } from "@/runtime/services/meeting-command-recovery-v1.js";
 import { makeRunningMeetingStateV1 } from "../fixtures/meeting-state-v1.js";
 describe("identity admission recovery", () => {
+    it("wakes the existing outbox worker after recovery finds pending effects", async () => {
+        let woken = 0;
+        const recovered = {
+            bootstrap: {
+                status: "ready",
+                createRequestId: "create-1",
+                requestHash: "hash",
+                createdAt: 1,
+                updatedAt: 1
+            },
+            sessionOwnership: [],
+            reclaimedOutbox: 1,
+            pendingOutbox: 1
+        };
+        const result = await recoverMeetingCommandsV1({
+            repository: { recover: async () => recovered } as never,
+            wakeOutbox: () => {
+                woken += 1;
+            }
+        });
+        expect(result.pendingOutbox).toBe(1);
+        expect(woken).toBe(1);
+    });
+
     it("does not leave a provisioning intent schedulable at terminal", () => {
         const state = {
             ...makeRunningMeetingStateV1(),

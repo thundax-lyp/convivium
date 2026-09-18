@@ -34,7 +34,6 @@ export interface IdentityAdmissionPortV1 {
     startOwnedChild(
         owner: SessionOwnershipV1,
         parent: Agent,
-        teamId: string,
         definition: MeetingAgentDefinitionV1,
         signal: AbortSignal
     ): Promise<{ kind: "ready"; sessionId: string } | { kind: "rejected"; error: RoleErrorV1 }>;
@@ -101,13 +100,18 @@ export async function admitMeetingIdentityV1(
         const started = await ownerPort.startOwnedChild(
             stored.owner,
             parent,
-            descriptor.meetingId,
             definition,
             new AbortController().signal
         );
-        if (started.kind !== "ready") return { kind: "rejected", error: started.error };
+        if (started.kind !== "ready") {
+            await ownerPort.revokeAndDrainOwned(stored.owner);
+            return { kind: "rejected", error: started.error };
+        }
     }
     const active = await ownerPort.markActive(stored.owner);
-    if ("code" in active) return { kind: "rejected", error: active };
+    if ("code" in active) {
+        await ownerPort.revokeAndDrainOwned(stored.owner);
+        return { kind: "rejected", error: active };
+    }
     return { kind: "admitted", identityId: active.identityId, ownership: active };
 }

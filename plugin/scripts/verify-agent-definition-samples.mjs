@@ -112,7 +112,10 @@ export async function verifyMeetingAgentDefinitions(root) {
                         !same(Object.keys(d).sort(), expectedFields) ||
                         d.agentDefinitionId !== `convivium.${role}` ||
                         d.roleDefinitionId !== role ||
-                        d.definitionVersion !== (i === 0 ? "1.1.0" : "1.0.0") ||
+                        d.definitionVersion !==
+                            (["meeting_manager", "verification_reviewer"].includes(role)
+                                ? "1.1.0"
+                                : "1.0.0") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||
                         ![d.displayName, d.summary, d.roleDescription].every(nonempty) ||

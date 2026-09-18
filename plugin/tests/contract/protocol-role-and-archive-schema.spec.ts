@@ -1,5 +1,5 @@
 import { meeting, archivePackage } from "../unit/domain/transitions/fixtures.js";
-import { projectMeetingStatus } from "@/projection/index.js";
+import { projectMeetingStatus } from "@/projection/status.js";
 import { describe, expect, it } from "vitest";
 import { validArchivePackage, validArchivedProjection } from "../fixtures/protocol-archive.js";
 import {
@@ -10,11 +10,152 @@ import {
     MeetingAgentCatalogProjectionSchema,
     MeetingAgentCatalogSnapshotSchema,
     ManagerPlanSubmissionSchema,
+    MeetingListResultV1Schema,
+    MeetingReadResultV1Schema,
+    RefreshNoticeV1Schema,
     MeetingStatusResultSchema,
     PublicAttendanceRecommendationSchema,
     isKnownMeetingProtocolErrorCode,
     TurnSubmissionSchema
 } from "@/protocol/index.js";
+
+const targetTermination = {
+    id: "termination-1",
+    outcome: "partial" as const,
+    reason: "done",
+    endedAt: 3,
+    decisionIds: [],
+    completionFactIds: [],
+    unresolvedQuestionIds: [],
+    unresolvedIssueIds: [],
+    unclosedContributionIds: []
+};
+
+const targetArchive = {
+    id: "archive-1",
+    status: "complete" as const,
+    createdAt: 4,
+    publicSnapshotVersion: 3,
+    terminationId: "termination-1",
+    objective: {
+        statement: "objective",
+        requiredOutputs: [],
+        acceptanceCriteria: [],
+        hardConstraints: [],
+        acceptableRiskLevel: "low" as const
+    },
+    agenda: [],
+    agendaCandidates: [],
+    publications: [],
+    messages: [],
+    evidenceBundles: [],
+    proposalRevisions: [],
+    positions: [],
+    decisionCandidates: [],
+    decisions: [],
+    completionFacts: [],
+    questions: [],
+    issues: [],
+    riskDispositions: [],
+    questionIssueDispositionFacts: [],
+    termination: targetTermination,
+    unresolvedItemIds: [],
+    unclosedContributions: [],
+    identityProvenance: [],
+    exportMaterials: []
+};
+
+const targetView = {
+    meetingId: "meeting-1",
+    version: 3,
+    objective: targetArchive.objective,
+    lifecycle: { status: "archived" as const, changedAt: 4 },
+    identities: [],
+    agenda: [],
+    opportunityRequests: [],
+    rounds: [],
+    publications: [],
+    evidencePackages: [],
+    evidenceReviews: [],
+    reviewDeliveries: [],
+    messages: [],
+    questions: [],
+    issues: [],
+    outcomes: { decisions: [], completionFacts: [], riskDispositions: [] },
+    archive: targetArchive,
+    managerPlans: [],
+    tasks: [],
+    privateMail: [],
+    controls: []
+};
+
+describe("target Meeting read protocol", () => {
+    it("accepts the complete read envelopes and strips fields outside the read DTO", () => {
+        expect(
+            MeetingListResultV1Schema.parse({
+                meetings: [
+                    {
+                        meetingId: "meeting-1",
+                        version: 3,
+                        objective: "objective",
+                        lifecycle: "archived",
+                        activeAgenda: { id: "agenda-1", title: "Agenda" },
+                        updatedAt: 4,
+                        unavailableReason: "offline",
+                        teamId: "forbidden"
+                    }
+                ]
+            })
+        ).not.toHaveProperty("meetings.0.teamId");
+        expect(
+            MeetingReadResultV1Schema.parse({
+                ...targetView,
+                teamId: "forbidden",
+                state: { secret: true },
+                identities: [
+                    {
+                        id: "manager-1",
+                        displayName: "Manager",
+                        roles: ["manager"],
+                        sessionId: "forbidden",
+                        capability: "forbidden"
+                    }
+                ]
+            })
+        ).toEqual({
+            ...targetView,
+            identities: [{ id: "manager-1", displayName: "Manager", roles: ["manager"] }]
+        });
+        expect(
+            RefreshNoticeV1Schema.parse({
+                kind: "refresh",
+                meetingId: "meeting-1",
+                committedVersion: 4
+            })
+        ).toEqual({ kind: "refresh", meetingId: "meeting-1", committedVersion: 4 });
+    });
+
+    it("rejects incomplete archive and invalid read values", () => {
+        expect(() =>
+            MeetingReadResultV1Schema.parse({
+                ...targetView,
+                archive: { ...targetArchive, terminationId: undefined }
+            })
+        ).toThrow();
+        expect(() =>
+            MeetingListResultV1Schema.parse({
+                meetings: [{ meetingId: "", version: -1, objective: "", lifecycle: "running" }]
+            })
+        ).toThrow();
+        expect(() =>
+            RefreshNoticeV1Schema.parse({
+                kind: "refresh",
+                meetingId: "meeting-1",
+                committedVersion: -1
+            })
+        ).toThrow();
+    });
+});
 
 describe("Agent role catalog protocol", () => {
     const role = {
