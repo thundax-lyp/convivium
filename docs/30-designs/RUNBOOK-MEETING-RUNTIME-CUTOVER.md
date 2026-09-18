@@ -188,26 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T21c：接入 Client local controls
-
-前置状态：T21b PASS。
-
-允许修改：`plugin/src/client/meeting-panel.tsx`、`plugin/tests/client/meeting-panel-lifecycle.client.spec.ts`、`plugin/tests/client/meeting-panel-local-controls.client.spec.ts`。
-
-禁止修改：layout/sections/view、fixture、Remote、business semantics。
-
-执行：只接 `end_meeting` local control；create 由 T19b Captain tool 和 T22 smoke 覆盖，本轮不新增复杂创建表单，start_archive 由 durable archive effect 自动执行且不显示按钮。按钮是否显示只检查 projection `controls`，点击时用当前 `view.version` 构造 command、生成新的 requestId、调用 T21a `control`，无论 accepted/rejected 都重读同一 meeting；pending 时禁用重复提交。删除 pause/resume、archive、decision/risk/contribution legacy controls，不在 Client 复算结束或归档前提。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/client/meeting-panel-lifecycle.client.spec.ts tests/client/meeting-panel-local-controls.client.spec.ts
-pnpm --dir=plugin typecheck:client
-```
-
-PASS：control authority、pending/disabled 状态和 refresh 通过。
-
-STOP：需要 pause/resume、Client 侧领域判断或修改旧 fixture。
-
 ### T22：增加真实 DSH 业务闭环 smoke
 
 前置状态：T21c PASS。

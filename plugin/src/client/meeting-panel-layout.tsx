@@ -11,8 +11,10 @@ export interface MeetingPanelLayoutProps {
     detailCached: boolean;
     listError?: string;
     detailError?: string;
+    writePending: boolean;
     requestRefresh(): void;
     selectMeeting(meetingId: string): void;
+    endMeeting(): Promise<void>;
 }
 
 export function renderMeetingPanelLayout(ctx: MeetingPanelLayoutProps): ReactElement {
@@ -26,6 +28,19 @@ export function renderMeetingPanelLayout(ctx: MeetingPanelLayoutProps): ReactEle
             { type: "button", variant: "outline", size: "sm", onClick: ctx.requestRefresh },
             "Refresh"
         ),
+        ctx.detail?.controls.includes("end_meeting")
+            ? createElement(
+                  Button,
+                  {
+                      type: "button",
+                      variant: "primary",
+                      size: "sm",
+                      disabled: ctx.writePending || ctx.detailCached,
+                      onClick: () => void ctx.endMeeting()
+                  },
+                  "End meeting"
+              )
+            : null,
         ctx.listError === undefined ? null : createElement("p", { role: "alert" }, ctx.listError),
         createElement(
             "ul",
