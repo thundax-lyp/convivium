@@ -188,27 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T18a：固化 read DTO Schema
-
-前置状态：T17 PASS。
-
-允许修改：`plugin/src/protocol/meeting-view-v1.ts`（新增）、`plugin/src/protocol/index.ts`、`plugin/tests/contract/protocol-role-and-archive-schema.spec.ts`。
-
-禁止修改：projection、tools/Remote/Client。
-
-执行：在 protocol 层逐字段实现 Meeting Interface 的 `MeetingSummaryV1`、`MeetingViewV1`、`ArchiveView` 及其全部 nested DTO Schema/type；这是唯一公开 read DTO 定义。同时固定 Remote read envelope：复用既有 `ReadMeetingRequestV1={protocolVersion:1;meetingId:OpaqueId}`，新增 `MeetingListResultV1={meetings:MeetingSummaryV1[]}`、`MeetingReadResultV1=MeetingViewV1`、`RefreshNoticeV1={kind:"refresh";meetingId:OpaqueId;committedVersion:number}` 及对应 Schema。Schema 不得包含 `teamId`、完整 state、Session/ownership/capability、未审私有内容或额外可写字段；从 protocol public entrypoint 导出。
-
-验证：
-```bash
-test -f plugin/src/protocol/meeting-view-v1.ts
-pnpm --dir=plugin vitest run tests/contract/protocol-role-and-archive-schema.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：summary/detail/archive 的合法最小值、完整值与禁入字段均由 Schema 机械验证。
-
-STOP：Meeting Interface 缺少 mapper 所需字段或必须发明公开 DTO。
-
 ### T18b：实现 caller-filtered projection
 
 前置状态：T18a PASS。
