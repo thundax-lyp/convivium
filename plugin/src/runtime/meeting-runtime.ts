@@ -34,7 +34,11 @@ import type { MeetingRepositoryPort as MeetingRepositoryType } from "@/repositor
 import type { RepositoryAuthorizationValidator } from "@/repository/types.js";
 import type { CreateMeetingInputV1 } from "@/protocol/index.js";
 import type { MeetingCommandResultV1 } from "@/protocol/index.js";
-import type { JsonValue } from "@/repository/domain/canonical-json.js";
+import {
+    encodeCanonicalJson,
+    sha256Hex,
+    type JsonValue
+} from "@/repository/domain/canonical-json.js";
 import type {
     CreateMeetingCommandV1,
     MeetingCreationCoordinatorV1
@@ -569,13 +573,19 @@ function assertInitialTargetIdentities(
 export function createMeetingCreationCoordinatorV1(
     dependencies: TargetMeetingCreationDependenciesV1
 ): MeetingCreationCoordinatorV1 {
-    return {
+    const inFlight = new Map<string, Promise<MeetingCommandResultV1>>();
+    const stableId = (kind: string, meetingId: string, key: string) =>
+        `${kind}-${sha256Hex(encodeCanonicalJson([meetingId, kind, key])).slice(0, 32)}`;
+    const coordinator: MeetingCreationCoordinatorV1 = {
         async create(command, context, meetingId, now, signal) {
             const parent = context.captainParent;
             if (!parent || context.caller.principalId !== String(parent.id))
                 return {
                     kind: "rejected",
-                    error: { code: "UNAUTHORIZED", message: "Trusted Captain parent is required" }
+                    error: {
+                        code: "UNAUTHORIZED",
+                        message: "Trusted Captain parent is required"
+                    }
                 };
             try {
                 assertInitialTargetIdentities(command, dependencies.definitions);
@@ -602,20 +612,24 @@ export function createMeetingCreationCoordinatorV1(
                     return {
                         source,
                         composition,
-                        id: dependencies.ids.nextId("meeting_identity"),
-                        ownershipId: dependencies.ids.nextId("session_ownership"),
-                        childId: dependencies.ids.nextId("child_session") as SessionId,
+                        id: stableId("meeting_identity", meetingId, source.identityKey),
+                        ownershipId: stableId("session_ownership", meetingId, source.identityKey),
+                        childId: stableId(
+                            "child_session",
+                            meetingId,
+                            source.identityKey
+                        ) as SessionId,
                         definitionHash: composition.agentDefinition.definitionHash
                     };
                 });
                 const state = targetCreateState(command, meetingId, now, identities);
                 const transition = createMeetingV1(state);
                 if (transition.kind !== "accepted") throw new RoleCompositionError();
-                const receiptId = dependencies.ids.nextId("receipt");
-                const effects = transition.effectRequests.map((effect) => {
+                const receiptId = stableId("receipt", meetingId, command.requestId);
+                const effects = transition.effectRequests.map((effect, index) => {
                     if (effect.kind !== "agent_notice") throw new RoleCompositionError();
                     return {
-                        id: dependencies.ids.nextId("outbox"),
+                        id: stableId("outbox", meetingId, `${effect.recipientId}:${index}`),
                         kind: "agent_notice" as const,
                         status: "queued" as const
                     };
@@ -677,15 +691,35 @@ export function createMeetingCreationCoordinatorV1(
                             provider: dependencies.provider,
                             role
                         };
+                        const existing = recovered.sessionOwnership.find(
+                            (candidate) => candidate.sessionId === base.sessionId
+                        );
+                        if (
+                            existing &&
+                            (existing.id !== base.id ||
+                                existing.meetingId !== base.meetingId ||
+                                existing.identityId !== base.identityId ||
+                                existing.parentSessionId !== base.parentSessionId ||
+                                existing.sessionLabel !== base.sessionLabel ||
+                                existing.provider !== base.provider ||
+                                existing.role !== base.role ||
+                                existing.capabilityStatus !== "active")
+                        )
+                            throw new Error("Persisted Meeting creation ownership is incompatible");
+                        if (existing?.lifecycleStatus === "active") {
+                            owned.push(existing);
+                            continue;
+                        }
                         owned.push(
-                            await repository.recordSessionOwnership(
-                                {
-                                    ...base,
-                                    lifecycleStatus: "provisioning",
-                                    capabilityStatus: "active"
-                                },
-                                now
-                            )
+                            existing ??
+                                (await repository.recordSessionOwnership(
+                                    {
+                                        ...base,
+                                        lifecycleStatus: "provisioning",
+                                        capabilityStatus: "active"
+                                    },
+                                    now
+                                ))
                         );
                         const started = await startMeetingIdentitySessionV1({
                             composition: identity.composition,
@@ -748,6 +782,19 @@ export function createMeetingCreationCoordinatorV1(
                     };
                 throw error;
             }
+        }
+    };
+    return {
+        create(command, context, meetingId, now, signal) {
+            const running = inFlight.get(meetingId);
+            if (running) return running;
+            const attempt = coordinator.create(command, context, meetingId, now, signal);
+            inFlight.set(meetingId, attempt);
+            const release = () => {
+                if (inFlight.get(meetingId) === attempt) inFlight.delete(meetingId);
+            };
+            void attempt.then(release, release);
+            return attempt;
         }
     };
 }

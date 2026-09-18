@@ -175,13 +175,24 @@ const actions = [
 export const MeetingActionV1Schema = z.discriminatedUnion("kind", actions);
 const nonEmpty = z.string().trim().min(1);
 const action = MeetingActionV1Schema;
-export const MeetingCommandV1Schema = z.object({
-    protocolVersion: z.literal(1),
-    meetingId: nonEmpty,
-    expectedMeetingVersion: z.number().int().nonnegative(),
-    requestId: nonEmpty,
-    action
-});
+export const MeetingCommandV1Schema = z
+    .object({
+        protocolVersion: z.literal(1),
+        meetingId: nonEmpty,
+        expectedMeetingVersion: z.number().int().nonnegative(),
+        requestId: nonEmpty,
+        action
+    })
+    .superRefine((value, ctx) => {
+        if (
+            value.action.kind === "create_meeting" &&
+            (value.meetingId !== "new" || value.expectedMeetingVersion !== 0)
+        )
+            ctx.addIssue({
+                code: "custom",
+                path: [value.meetingId !== "new" ? "meetingId" : "expectedMeetingVersion"]
+            });
+    });
 export type MeetingCommandV1 = z.infer<typeof MeetingCommandV1Schema>;
 export type MeetingActionV1 = z.infer<typeof MeetingActionV1Schema>;
 

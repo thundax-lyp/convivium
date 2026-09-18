@@ -129,31 +129,87 @@ export function submitEvidenceV1(
         return reject(state, "UNAUTHORIZED", "identity is not contribution author");
     const round = state.rounds.find((candidate) => candidate.id === contribution.roundId);
     if (!round) return reject(state, "NOT_FOUND", "round not found");
-    if (contribution.status !== "preparing")
-        return reject(state, "INVALID_STATE", "contribution is not preparing");
-    if (contribution.packageId !== undefined)
-        return reject(state, "INVALID_STATE", "contribution already has evidence");
+    const existingPackage =
+        contribution.packageId === undefined
+            ? undefined
+            : state.evidencePackages.find((candidate) => candidate.id === contribution.packageId);
+    const supplement = existingPackage !== undefined;
+    if (
+        (!supplement && contribution.status !== "preparing") ||
+        (supplement &&
+            (contribution.status === "under_review" ||
+                contribution.supplementHand?.status !== "accepted" ||
+                contribution.substantiveSupplementCount >= 2))
+    )
+        return reject(state, "INVALID_STATE", "contribution cannot register evidence");
+    if (contribution.packageId !== undefined && existingPackage === undefined)
+        return reject(state, "INVALID_STATE", "evidence package is missing");
+    const currentVersion =
+        existingPackage === undefined
+            ? undefined
+            : existingPackage.versions.find(
+                  (candidate) => candidate.id === existingPackage.currentVersionId
+              );
+    if (existingPackage !== undefined && currentVersion === undefined)
+        return reject(state, "INVALID_STATE", "current evidence version is missing");
+    if (currentVersion !== undefined) {
+        const deadlines = [currentVersion.submittedAt + state.limits.taskDeadlineMs];
+        if (round.deadlineAt !== undefined) deadlines.push(round.deadlineAt);
+        const currentReview = state.reviews.find(
+            (review) => review.versionId === currentVersion.id
+        );
+        const sent =
+            currentReview === undefined
+                ? undefined
+                : state.reviewDeliveries.find(
+                      (delivery) =>
+                          delivery.reviewId === currentReview.id && delivery.status === "sent"
+                  );
+        if (sent?.sentAt !== undefined)
+            deadlines.push(sent.sentAt + state.limits.responseDeadlineMs);
+        deadlines.push(
+            ...state.tasks
+                .filter(
+                    (task) =>
+                        task.assigneeId === input.authorId &&
+                        task.agendaId === round.agendaId &&
+                        (task.status === "open" || task.status === "claimed") &&
+                        task.deadlineAt !== undefined
+                )
+                .map((task) => task.deadlineAt!)
+        );
+        if (deadlines.some((deadline) => input.now >= deadline))
+            return reject(state, "PRECONDITION_FAILED", "supplement deadline has passed");
+    }
     const version: EvidenceVersionV1 = {
         ...input.evidence,
         id: input.versionId,
-        ordinal: 1,
+        ordinal: (currentVersion?.ordinal ?? 0) + 1,
         submittedAt: input.now
     };
-    const packageValue = {
-        id: input.packageId,
-        roundId: round.id,
-        contributionId: contribution.id,
-        authorId: contribution.contributorId,
-        agendaId: round.agendaId,
-        currentVersionId: version.id,
-        versions: [version]
-    };
+    const packageValue =
+        existingPackage === undefined
+            ? {
+                  id: input.packageId,
+                  roundId: round.id,
+                  contributionId: contribution.id,
+                  authorId: contribution.contributorId,
+                  agendaId: round.agendaId,
+                  currentVersionId: version.id,
+                  versions: [version]
+              }
+            : {
+                  ...existingPackage,
+                  currentVersionId: version.id,
+                  versions: [...existingPackage.versions, version]
+              };
     const nextContribution = {
         ...contribution,
         packageId: packageValue.id,
         status: "under_review" as const,
-        substantiveSupplementCount: 0,
-        response: undefined
+        substantiveSupplementCount: supplement ? contribution.substantiveSupplementCount + 1 : 0,
+        response: undefined,
+        supplementHand: undefined
     };
     const next = {
         ...state,
@@ -162,7 +218,11 @@ export function submitEvidenceV1(
         contributions: state.contributions.map((candidate) =>
             candidate.id === contribution.id ? nextContribution : candidate
         ),
-        evidencePackages: [...state.evidencePackages, packageValue],
+        evidencePackages: supplement
+            ? state.evidencePackages.map((candidate) =>
+                  candidate.id === packageValue.id ? packageValue : candidate
+              )
+            : [...state.evidencePackages, packageValue],
         registrations: [
             ...state.registrations,
             {

@@ -44,6 +44,12 @@ export interface MeetingRepositoryPort<TState = JsonObject> {
     readPrivateMeetingMail(mailId: string): Promise<PrivateMeetingMail | undefined>;
     listOverduePrivateMeetingMail(now: number): Promise<PrivateMeetingMail[]>;
     hasUnfinishedPrivateMeetingMail(): Promise<boolean>;
+    replayReceipt(
+        input: Pick<
+            RepositoryCommand<unknown, TState>,
+            "requestId" | "commandKind" | "authorization" | "requestHash"
+        >
+    ): Promise<CommittedResult<unknown> | undefined>;
     sendPrivateMeetingMail(
         input: SendPrivateMeetingMailInput
     ): Promise<CommittedResult<{ mailId: string; handlingAttemptId: string }>>;

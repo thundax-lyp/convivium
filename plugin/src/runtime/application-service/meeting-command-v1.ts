@@ -264,13 +264,17 @@ export function createMeetingCommandApplicationV1(
                         "Only a trusted Captain tool caller may create a Meeting"
                     );
                 const meetingId = meetingIdFor(command.requestId);
-                return deps.creation.create(
-                    command as CreateMeetingCommandV1,
-                    context,
-                    meetingId,
-                    now,
-                    signal
-                );
+                try {
+                    return await deps.creation.create(
+                        command as CreateMeetingCommandV1,
+                        context,
+                        meetingId,
+                        now,
+                        signal
+                    );
+                } catch (error) {
+                    return mapRepositoryError(error);
+                }
             }
             const scope = await deps.resolveCallerScope({
                 meetingId: command.meetingId,
@@ -294,36 +298,45 @@ export function createMeetingCommandApplicationV1(
                     "UNAUTHORIZED",
                     "Archive materialization requires its runtime effect"
                 );
-            if (command.action.kind === "recommend_identity") {
-                const identityAction = command.action;
-                if (!deps.catalog || !scope.ownership)
-                    return rejected("PRECONDITION_FAILED", "Meeting role catalog is unavailable");
-                const catalog = await readMeetingRoleCatalogV1(
-                    deps.catalog,
-                    command.meetingId,
-                    scope.ownership.parentSessionId,
-                    scope.ownership.sessionId
-                );
-                if (catalog.kind !== "available")
-                    return rejected("PRECONDITION_FAILED", catalog.error.message);
-                const candidate = catalog.snapshot.candidates.find(
-                    (item) => item.candidateId === identityAction.candidateId
-                );
-                if (
-                    !candidate ||
-                    candidate.availability !== "available" ||
-                    candidate.definition.id !== identityAction.definitionId ||
-                    candidate.definition.version !== identityAction.definitionVersion ||
-                    catalog.snapshot.catalogId !== identityAction.catalogId ||
-                    catalog.snapshot.catalogVersion !== identityAction.catalogVersion
-                )
-                    return rejected("PRECONDITION_FAILED", "Catalog candidate does not match");
-            }
-
             try {
                 const repository = await deps.registry.openMeeting({
                     meetingId: command.meetingId
                 });
+                if (command.action.kind === "recommend_identity") {
+                    const replay = await repository.replayReceipt({
+                        requestId: command.requestId,
+                        commandKind: command.action.kind,
+                        authorization: authorization(scope),
+                        requestHash: JSON.stringify(command.action)
+                    });
+                    if (replay) return replay.result as MeetingCommandResultV1;
+                    const identityAction = command.action;
+                    if (!deps.catalog || !scope.ownership)
+                        return rejected(
+                            "PRECONDITION_FAILED",
+                            "Meeting role catalog is unavailable"
+                        );
+                    const catalog = await readMeetingRoleCatalogV1(
+                        deps.catalog,
+                        command.meetingId,
+                        scope.ownership.parentSessionId,
+                        scope.ownership.sessionId
+                    );
+                    if (catalog.kind !== "available")
+                        return rejected("PRECONDITION_FAILED", catalog.error.message);
+                    const candidate = catalog.snapshot.candidates.find(
+                        (item) => item.candidateId === identityAction.candidateId
+                    );
+                    if (
+                        !candidate ||
+                        candidate.availability !== "available" ||
+                        candidate.definition.id !== identityAction.definitionId ||
+                        candidate.definition.version !== identityAction.definitionVersion ||
+                        catalog.snapshot.catalogId !== identityAction.catalogId ||
+                        catalog.snapshot.catalogVersion !== identityAction.catalogVersion
+                    )
+                        return rejected("PRECONDITION_FAILED", "Catalog candidate does not match");
+                }
                 const committedFacts =
                     command.action.kind === "start_archive"
                         ? await repository.readCommittedFacts()
@@ -598,7 +611,10 @@ export function createMeetingCommandApplicationV1(
                                 transition.error.targetKind,
                                 transition.error.targetId
                             );
-                        const effects = outbox(transition.effectRequests, deps, now);
+                        const effects =
+                            action.kind === "end_meeting"
+                                ? []
+                                : outbox(transition.effectRequests, deps, now);
                         if (action.kind === "end_meeting") {
                             const archiveId = generated("archive");
                             effects.push({

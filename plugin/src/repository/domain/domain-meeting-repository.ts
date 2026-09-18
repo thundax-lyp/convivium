@@ -61,6 +61,48 @@ export class DomainMeetingRepository<TState = JsonObject>
         await repository.initialize();
         return repository;
     }
+    async replayReceipt(
+        command: Pick<
+            RepositoryCommand<unknown, TState>,
+            "requestId" | "commandKind" | "authorization" | "requestHash"
+        >
+    ): Promise<CommittedResult<unknown> | undefined> {
+        this.ensureOpen();
+        return this.enqueueMutation(async () => {
+            if (!this.projection?.snapshot)
+                throw new RepositoryError(
+                    "INVALID_STATE",
+                    false,
+                    this.meetingId,
+                    "Meeting is not ready"
+                );
+            const snapshot = this.decodeSnapshot(structuredClone(this.projection.snapshot));
+            this.authorizationValidator.validateCommand({ snapshot, command });
+            const existing =
+                this.projection.receipts[
+                    receiptKey(
+                        command.requestId,
+                        command.commandKind,
+                        command.authorization.callerBinding
+                    )
+                ];
+            if (!existing) return undefined;
+            if (existing.requestHash !== command.requestHash)
+                throw new RepositoryError(
+                    "IDEMPOTENCY_CONFLICT",
+                    false,
+                    this.meetingId,
+                    "Request hash conflicts with receipt"
+                );
+            return {
+                requestId: command.requestId,
+                meetingId: this.meetingId,
+                meetingVersion: existing.meetingVersion,
+                result: existing.result,
+                eventSeqs: [...existing.eventSeqs]
+            };
+        });
+    }
     async execute<T>(_command: RepositoryCommand<T, TState>): Promise<CommittedResult<T>> {
         const command = _command;
         this.ensureOpen();

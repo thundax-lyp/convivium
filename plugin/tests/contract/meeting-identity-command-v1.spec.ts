@@ -99,7 +99,10 @@ describe("meeting identity command", () => {
                 eventSeqs: []
             };
         });
-        const repository = { execute } as unknown as MeetingRepositoryPort<MeetingState>;
+        const repository = {
+            execute,
+            replayReceipt: async () => undefined
+        } as unknown as MeetingRepositoryPort<MeetingState>;
         const app = createMeetingCommandApplicationV1({
             creation: { create: vi.fn() },
             registry: {
@@ -172,5 +175,76 @@ describe("meeting identity command", () => {
         });
         expect(execute).toHaveBeenCalledOnce();
         expect(legacyIdentityApplication).not.toHaveProperty("createMeetingIdentityApplicationV1");
+    });
+
+    it("replays a recommendation receipt before consulting the mutable Catalog", async () => {
+        const replayed = {
+            kind: "accepted" as const,
+            meetingId: "meeting-v1",
+            committedVersion: 2,
+            receiptId: "receipt-1",
+            factIds: ["fact-1"],
+            effects: [],
+            identityDecision: {
+                recommendationId: "recommendation-1",
+                decision: "reject" as const,
+                status: "rejected" as const
+            }
+        };
+        const replayReceipt = vi.fn(async () => ({
+            requestId: "request-1",
+            meetingId: "meeting-v1",
+            meetingVersion: 2,
+            result: replayed,
+            eventSeqs: []
+        }));
+        const execute = vi.fn();
+        const repository = {
+            replayReceipt,
+            execute
+        } as unknown as MeetingRepositoryPort<MeetingState>;
+        const readSnapshot = vi.fn(async () => ({
+            kind: "unavailable" as const,
+            error: { code: "CATALOG_NOT_FOUND" as const, message: "Catalog unavailable" }
+        }));
+        const app = createMeetingCommandApplicationV1({
+            creation: { create: vi.fn() },
+            registry: {
+                openMeeting: vi.fn(async () => repository)
+            } as unknown as DomainRepositoryRegistry<MeetingState>,
+            ids: { nextId: (kind) => `${kind}-1` },
+            clock: { now: () => 1 },
+            resolveCallerScope: async () => managerScope(),
+            catalog: { readSnapshot }
+        });
+
+        const result = await app.execute(
+            {
+                protocolVersion: 1,
+                meetingId: "meeting-v1",
+                expectedMeetingVersion: 1,
+                requestId: "request-1",
+                action: {
+                    kind: "recommend_identity",
+                    candidateId: "candidate-1",
+                    definitionId: "domain_architect",
+                    definitionVersion: "1",
+                    catalogId: "catalog-1",
+                    catalogVersion: "1",
+                    agendaId: "agenda-v1",
+                    decision: "reject",
+                    rationale: "理由",
+                    expectedContribution: "贡献",
+                    evidenceGap: "缺口"
+                }
+            },
+            { caller: managerCaller },
+            new AbortController().signal
+        );
+
+        expect(result).toEqual(replayed);
+        expect(replayReceipt).toHaveBeenCalledOnce();
+        expect(readSnapshot).not.toHaveBeenCalled();
+        expect(execute).not.toHaveBeenCalled();
     });
 });

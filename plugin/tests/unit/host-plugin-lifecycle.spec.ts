@@ -143,50 +143,52 @@ describe("target Meeting lifecycle", () => {
             riskAuthority: false,
             required: true
         }));
-        const result = await application.execute(
-            {
-                protocolVersion: 1,
-                meetingId: "new",
-                expectedMeetingVersion: 0,
-                requestId: "create-target-1",
-                action: {
-                    kind: "create_meeting",
-                    objective: {
-                        statement: "Produce verified evidence",
-                        requiredOutputs: [{ id: "output-1", text: "Evidence" }],
-                        acceptanceCriteria: [{ id: "criterion-1", text: "Reviewed" }],
-                        hardConstraints: [],
-                        acceptableRiskLevel: "low"
-                    },
-                    identities,
-                    managerIdentityKey: "identity-1",
-                    evidenceReviewerIdentityKey: "identity-5",
-                    initialAgenda: [
-                        {
-                            id: "agenda-1",
-                            title: "Evidence",
-                            question: "What evidence is sufficient?",
-                            requiredOutputIds: ["output-1"],
-                            ownerIdentityKey: "identity-1"
-                        }
-                    ],
-                    initialActiveAgendaId: "agenda-1",
-                    limits: {
-                        maxFormalMessages: 20,
-                        maxDurationMs: 60000,
-                        taskDeadlineMs: 30000,
-                        reviewDeadlineMs: 30000
+        const command = {
+            protocolVersion: 1,
+            meetingId: "new",
+            expectedMeetingVersion: 0,
+            requestId: "create-target-1",
+            action: {
+                kind: "create_meeting",
+                objective: {
+                    statement: "Produce verified evidence",
+                    requiredOutputs: [{ id: "output-1", text: "Evidence" }],
+                    acceptanceCriteria: [{ id: "criterion-1", text: "Reviewed" }],
+                    hardConstraints: [],
+                    acceptableRiskLevel: "low"
+                },
+                identities,
+                managerIdentityKey: "identity-1",
+                evidenceReviewerIdentityKey: "identity-5",
+                initialAgenda: [
+                    {
+                        id: "agenda-1",
+                        title: "Evidence",
+                        question: "What evidence is sufficient?",
+                        requiredOutputIds: ["output-1"],
+                        ownerIdentityKey: "identity-1"
                     }
+                ],
+                initialActiveAgendaId: "agenda-1",
+                limits: {
+                    maxFormalMessages: 20,
+                    maxDurationMs: 60000,
+                    taskDeadlineMs: 30000,
+                    reviewDeadlineMs: 30000
                 }
-            },
-            {
-                caller: { channel: "dsh_tool", principalId: "captain-1" },
-                captainParent: captain as never
-            },
-            new AbortController().signal
-        );
+            }
+        } as const;
+        const context = {
+            caller: { channel: "dsh_tool" as const, principalId: "captain-1" },
+            captainParent: captain as never
+        };
+        const [result, replay] = await Promise.all([
+            application.execute(command, context, new AbortController().signal),
+            application.execute(command, context, new AbortController().signal)
+        ]);
 
         expect(result).toMatchObject({ kind: "accepted", committedVersion: 1 });
+        expect(replay).toEqual(result);
         expect(starts).toHaveLength(8);
         await dispose();
     });
