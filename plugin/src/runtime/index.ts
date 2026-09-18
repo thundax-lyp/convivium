@@ -74,7 +74,3 @@ export {
 export { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive-v1.js";
 export { recoverMeetingCommandsV1 } from "./services/meeting-command-recovery-v1.js";
 export type { MeetingOutboxWakeupV1 } from "./outbox-worker.js";
-export {
-    managerPlanAllowedIntents,
-    managerPlanAllowedStepReasons
-} from "./services/meeting-dispatch-service.js";

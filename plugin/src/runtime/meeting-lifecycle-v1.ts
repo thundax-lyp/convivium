@@ -20,7 +20,7 @@ import { createMeetingCreationCoordinatorV1 } from "./meeting-runtime.js";
 import { requireContinuableProvider } from "@/dsh/index.js";
 import type { MeetingOwnershipLookupV1 } from "@/dsh/index.js";
 import type { LocalMeetingWebRuntime } from "./index.js";
-import { createMeetingDeliveryWorkerService } from "./services/meeting-dispatch-service.js";
+import { createOutboxWorker } from "./outbox-worker.js";
 import { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispatch-v1.js";
 import { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive-v1.js";
 import {
@@ -150,9 +150,14 @@ export async function activateTargetMeetingApplicationV1(
             ids
         })
     });
-    const deliveryWorkers = createMeetingDeliveryWorkerService({ pollMs: 1000 });
+    const deliveryWorkers = new Map<string, ReturnType<typeof createOutboxWorker>>();
     const ensureDelivery = (meetingId: string, parent: import("@deepseek-ai/dsh-agent").Agent) => {
         void registry.openMeeting({ meetingId }).then((repository) => {
+            const existing = deliveryWorkers.get(meetingId);
+            if (existing) {
+                existing.wake();
+                return;
+            }
             const notice = createMeetingNoticeDispatcherV1({
                 sessions: ctx.subagents,
                 repository
@@ -171,10 +176,12 @@ export async function activateTargetMeetingApplicationV1(
                 repository,
                 application
             });
-            deliveryWorkers.ensure({
-                meetingId,
+            const worker = createOutboxWorker({
                 repository,
-                parent,
+                owner: `target-worker:${meetingId}`,
+                ttlMs: 60_000,
+                batchSize: 1,
+                pollMs: 1_000,
                 dispatch: (item, signal) => {
                     const payload = item.payload as { kind?: string; noticeKind?: string };
                     if (payload.kind === "agent_notice" && payload.noticeKind === "review_request")
@@ -188,6 +195,8 @@ export async function activateTargetMeetingApplicationV1(
                     throw new Error("OUTBOX_ROUTE_UNAVAILABLE");
                 }
             });
+            deliveryWorkers.set(meetingId, worker);
+            void worker.start().catch(() => undefined);
         });
     };
     deliveryEnsurers.set(ctx, ensureDelivery);
@@ -260,7 +269,9 @@ export async function activateTargetMeetingApplicationV1(
     applications.set(ctx, application);
     runtimes.set(ctx, runtime);
     return async () => {
-        await deliveryWorkers.dispose();
+        for (const worker of deliveryWorkers.values()) worker.stop();
+        await Promise.all([...deliveryWorkers.values()].map((worker) => worker.wait()));
+        deliveryWorkers.clear();
         deliveryEnsurers.delete(ctx);
         runtimes.delete(ctx);
         applications.delete(ctx);

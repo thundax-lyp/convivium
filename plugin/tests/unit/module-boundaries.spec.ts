@@ -245,4 +245,9 @@ describe("plugin module boundaries", () => {
         );
         expect(reexportsOf(applicationFacade)).not.toContain("./meeting-control.js");
     });
+
+    it("keeps the target lifecycle independent from the legacy dispatch service", () => {
+        const lifecycle = readFileSync(join(sourceRoot, "runtime/meeting-lifecycle-v1.ts"), "utf8");
+        expect(importsOf(lifecycle)).not.toContain("./services/meeting-dispatch-service.js");
+    });
 });

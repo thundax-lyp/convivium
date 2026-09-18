@@ -188,29 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T28：删除旧 contribution/dispatch application services
-
-前置状态：T27 PASS。
-
-允许删除：
-- `plugin/src/runtime/services/contribution-runtime-service.ts`
-- `plugin/src/runtime/services/meeting-dispatch-service.ts`
-
-禁止修改：其他全部文件。
-
-执行：只删除上述 2 个 production 文件；旧 Domain transition、`plugin/src/projection/status.ts` 及其直接依赖 `plugin/src/projection/contribution.ts` 成对保留但保持不从 T18b target entrypoint 导出。
-
-验证：
-```bash
-test "$(git diff --diff-filter=D --name-only | wc -l | tr -d ' ')" -eq 2
-test "$(git diff --name-only | wc -l | tr -d ' ')" -eq 2
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：当前步骤恰好删除列出的 2 个 production 文件且无其他改动；retained projection pair 不在 target barrel；host typecheck 退出 0。
-
-STOP：需要拆散 retained projection pair、删除旧 Domain/protocol 或其他文件。
-
 ### T29：删除旧 contribution/dispatch 直接测试
 
 前置状态：T28 PASS。

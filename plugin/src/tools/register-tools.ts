@@ -30,12 +30,35 @@ import type {
     MeetingCommandV1
 } from "@/protocol/index.js";
 import {
-    managerPlanAllowedIntents,
-    managerPlanAllowedStepReasons,
     type MeetingToolCaller,
     type MeetingToolRuntime,
     type MeetingCommandApplicationV1
 } from "@/runtime/index.js";
+
+const managerPlanAllowedIntents = [
+    "explore",
+    "clarify",
+    "challenge",
+    "review",
+    "resolve_objection",
+    "synthesize",
+    "decide",
+    "report_task_result",
+    "refocus"
+] as const;
+const managerPlanAllowedStepReasons = [
+    "explicit_mention",
+    "direct_question",
+    "required_reviewer",
+    "agenda_owner",
+    "task_result_owner",
+    "blocking_objection_owner",
+    "hand_raise",
+    "rule_score",
+    "manager_selected",
+    "round_robin_fallback",
+    "captain_summary"
+] as const;
 import {
     ContributionCommandSchema,
     ReadContributionInputSchema,
