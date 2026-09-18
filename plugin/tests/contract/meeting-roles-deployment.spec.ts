@@ -48,8 +48,16 @@ it("publishes only the current contribution tools for Manager", () => {
         }
     });
     expect(
+        definitions.find(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
+            ?.definitionVersion
+    ).toBe("1.1.0");
+    expect(
         definitions
-            .filter(({ roleDefinitionId }) => roleDefinitionId !== "meeting_manager")
+            .filter(
+                ({ roleDefinitionId }) =>
+                    roleDefinitionId !== "meeting_manager" &&
+                    roleDefinitionId !== "verification_reviewer"
+            )
             .every(({ definitionVersion }) => definitionVersion === "1.0.0")
     ).toBe(true);
 
@@ -58,7 +66,9 @@ it("publishes only the current contribution tools for Manager", () => {
     );
     expect(currentGuidance.join("\n")).not.toMatch(/convivium_submit_turn|submitManagerPlan/);
     expect(currentGuidance[0]).toContain("convivium_contribution");
-    expect(currentGuidance[1]).toMatch(/逐.*版本.*主张/);
+    expect(currentGuidance[1]).toContain("DSH 原生 one-shot worker");
+    expect(currentGuidance[1]).toContain("convivium_submit_review_batch");
+    expect(currentGuidance[1]).not.toMatch(/convivium_read_contribution|convivium_contribution/);
     expect(currentGuidance[1]).toContain("不得执行提交代码");
 });
 

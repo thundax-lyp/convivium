@@ -188,46 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T16：接入 reviewer workers
-
-前置状态：T15c PASS。
-
-允许修改：`plugin/src/runtime/services/evidence-review-dispatch-v1.ts`（新增）、`plugin/meeting-roles/presets/convivium/skills/verification-review/SKILL.md`、`plugin/meeting-roles/definitions.json`、`plugin/meeting-roles/README.md`、`plugin/tests/unit/runtime/evidence-review-dispatch-v1.spec.ts`（新增）、`plugin/tests/integration/dsh/evidence-review-dispatch-v1.spec.ts`（新增）、`plugin/tests/contract/meeting-roles-deployment.spec.ts`。
-
-禁止修改：archive、projection、Remote/UI。
-
-执行：新增并只导出以下入口；不得增加 queue、claim、lease 或持久 batch 类型：
-
-```ts
-interface DispatchEvidenceReviewBatchInputV1 {
-    outboxItem: OutboxItem;
-    parent: Agent;
-    signal: AbortSignal;
-}
-function createEvidenceReviewDispatcherV1(dependencies: EvidenceReviewDispatcherDependenciesV1): {
-    dispatch(input: DispatchEvidenceReviewBatchInputV1): Promise<void>;
-};
-```
-
-`ReviewerPendingEvidenceV1` required 为 `{version:EvidenceVersionV1; baseline:readonly {publicationId:OpaqueId; evidence:readonly {version:EvidenceVersionV1; review:EvidenceReviewV1}[]}[]}`；baseline 按所属 Round 的 `baselinePublicationIds` 顺序，每个 publication 内按 `finalVersionIds/finalReviewIds` 同序按值组装，不能只给 ID 或当前 state 引用。dependencies required 为 `sessions:Pick<SubagentRuntime,"sendMessage">` 与 `repository:Pick<MeetingRepositoryPort<MeetingState>,"read">`。处理 `payload.kind="agent_notice",noticeKind="review_request"` 时重读 target snapshot，从 `state.evidenceReviewerId` 解析唯一 active evidence_reviewer ownership，验证其 `meetingId/identityId/parentSessionId/sessionId/sessionLabel` 及 capability，再从 state 中选择 current + complete Registration + 无最终 Review 的 version，按 EvidencePackage/state 顺序构造 pending set；不得依赖尚未实施的 T18b projection。空集合直接返回；非空集合通过 T15c `followupMeetingIdentitySessionV1` 一次投递给 reviewer coordinator。
-
-review request prompt 只含 `{effectId,meetingId,pending}` 与固定执行指令：coordinator 对每个 pending item 使用 DSH 原生 one-shot worker，每个 worker 只取该 immutable version 和 baseline；只收集 completed 且符合正式 Review item shape 的结果，省略失败/取消/非法项，然后由 coordinator 调用一次 `convivium_submit_review_batch`。dispatcher 不持有 coordinator `Agent`、不调用 `subagents.start`、不代替 coordinator 提交 command；这是 DSH Plugin Design “coordinator Session 使用原生 workers”的唯一活动路径。worker 不是 MeetingIdentity、不写 `SessionOwnership`、不获得 Meeting command authority。同步更新 `verification-review` Skill，将 reviewer Definition 升为 `1.1.0`，README 与 deployment contract 固定该流程；不改其 Host-owned 工具能力。
-
-同一 `evidence-review-dispatch-v1.ts` 另导出 `createReviewDeliveryDispatcherV1(dependencies).dispatch({outboxItem,parent,signal}):Promise<void>`，dependencies required 为 `sessions:Pick<SubagentRuntime,"sendMessage">`、`application:MeetingCommandApplicationV1`、`repository:Pick<MeetingRepositoryPort<MeetingState>,"read"|"recover">`；只消费 outer `dispatch` 且 `payload.kind="review_delivery"`。它重读 target snapshot 与 ownership，验证 payload reviewId/authorId 对应同一已提交 Review/EvidencePackage、作者 identity active、唯一 target ownership 的 `id/meetingId/identityId/parentSessionId/sessionId/sessionLabel` 匹配且 capability active；已存在该 review 的 sent delivery 时直接 delivered。否则通过 T15c `followupMeetingIdentitySessionV1` 向作者 direct child 发送 `{effectId:outboxItem.id,meetingId,review}`，不向 Manager 或其他 Contributor 发送。inbox acceptance 后重读 version，并只调用一次 T13 `execute(record_review_delivery status="sent")`，requestId 固定 `review-delivery:${outboxItem.id}:${outboxItem.attempts}:sent`，context 使用 `RUNTIME_RECOVERY_PRINCIPAL_ID`。发送失败时以同样方式提交 `status="failed",failureReason="REVIEW_DELIVERY_FAILED"` 和 requestId suffix `:failed`，不得持久化原始异常，然后令 outbox retry；command commit 不确定时先按 requestId/sent delivery recover，不能凭 send acceptance 推断 Meeting commit。本步不修改通用 worker 或注入活动 route；T20 统一装配。
-
-验证：
-```bash
-test -f plugin/src/runtime/services/evidence-review-dispatch-v1.ts
-test -f plugin/tests/unit/runtime/evidence-review-dispatch-v1.spec.ts
-test -f plugin/tests/integration/dsh/evidence-review-dispatch-v1.spec.ts
-pnpm --dir=plugin vitest run tests/unit/runtime/evidence-review-dispatch-v1.spec.ts tests/integration/dsh/evidence-review-dispatch-v1.spec.ts tests/contract/meeting-roles-deployment.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：reviewer coordinator 只收到 caller-filtered immutable pending set，Skill/Definition 要求每版本独立 worker 与一次 batch，dispatcher 不代理 coordinator；review 只送达对应作者，sent/failed attempt 经 T13 提交，失败重试与不确定 commit 不产生重复 sent fact。“至少两个不同 worker Session 并发、worker 无 Meeting authority、coordinator 一次 batch”由 T22 真实 DSH smoke 验收，不用 fake dispatcher 代替。
-
-STOP：需要 runtime dispatcher 伪装 coordinator 调用 `subagents.start`、共享 worker Session、持久 batch/lease 或 worker 直接写 Meeting。
-
 ### T17：接入 archive cleanup 与恢复
 
 前置状态：T16 PASS。
