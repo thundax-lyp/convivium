@@ -188,29 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T27：删除旧辅助 application tests
-
-前置状态：T26 PASS。
-
-允许删除：
-- `plugin/tests/unit/runtime/developer-markdown-service.spec.ts`
-- `plugin/tests/unit/projection/developer-markdown.spec.ts`
-
-禁止修改：其他全部文件，尤其是 fixture。
-
-执行：只删除上述 2 个直接测试。`plugin/tests/recovery/session-recovery.spec.ts` 已在恢复执行基线 `10ef672` 前删除，不能重建或重复计数。
-
-验证：
-```bash
-test "$(git diff --diff-filter=D --name-only | wc -l | tr -d ' ')" -eq 2
-test "$(git diff --name-only | wc -l | tr -d ' ')" -eq 2
-pnpm --dir=plugin typecheck
-```
-
-PASS：当前步骤恰好删除列出的 2 个直接测试且无其他改动；typecheck 退出 0。
-
-STOP：需要修改测试或 fixture 才能通过。
-
 ### T28：删除旧 contribution/dispatch application services
 
 前置状态：T27 PASS。
