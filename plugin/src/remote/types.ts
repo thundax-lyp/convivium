@@ -1,14 +1,9 @@
 import type {
-    CaptainDecisionAcceptanceInputV1,
-    CaptainDecisionDispositionInputV1,
-    CaptainRiskDispositionInputV1,
-    ContributionCommandV1,
-    EndMeetingInputV1,
-    MeetingStatusInputV1,
-    PauseMeetingInputV1,
-    ReadContributionInputV1,
-    ReassignTurnInputV1,
-    ResumeMeetingInputV1
+    MeetingCommandV1,
+    MeetingCommandResultV1,
+    MeetingListResultV1,
+    MeetingReadResultV1,
+    RefreshNoticeV1
 } from "@/protocol/index.js";
 
 export type RemoteJsonValue =
@@ -19,20 +14,15 @@ export type RemoteJsonValue =
     | readonly RemoteJsonValue[]
     | { readonly [key: string]: RemoteJsonValue };
 
-type RemoteInput<T> = T & Record<string, RemoteJsonValue>;
-
-export type RemoteStatusInput = RemoteInput<MeetingStatusInputV1>;
-export type RemotePauseInput = RemoteInput<PauseMeetingInputV1>;
-export type RemoteResumeInput = RemoteInput<ResumeMeetingInputV1>;
-export type RemoteReassignInput = RemoteInput<ReassignTurnInputV1>;
-export type RemoteEndInput = RemoteInput<EndMeetingInputV1>;
-export type RemoteAcceptDecisionInput = RemoteInput<CaptainDecisionAcceptanceInputV1>;
-export type RemoteDisposeDecisionInput = RemoteInput<CaptainDecisionDispositionInputV1>;
-export type RemoteDisposeRiskInput = RemoteInput<CaptainRiskDispositionInputV1>;
-export type RemoteReadContributionInput = RemoteInput<ReadContributionInputV1>;
-export type RemoteContributionControlInput = RemoteInput<
-    Extract<ContributionCommandV1, { action: "retry" | "cancel" | "notify_manager" }>
->;
+export type RemoteMeetingListResult = MeetingListResultV1 & Record<string, RemoteJsonValue>;
+export type RemoteMeetingReadResult = MeetingReadResultV1 & Record<string, RemoteJsonValue>;
+export type RemoteMeetingCommand = MeetingCommandV1 & Record<string, RemoteJsonValue>;
+export type RemoteMeetingCommandResult = MeetingCommandResultV1 & Record<string, RemoteJsonValue>;
+export type RemoteReadMeetingRequest = {
+    readonly protocolVersion: 1;
+    readonly meetingId: string;
+} & Record<string, RemoteJsonValue>;
+export type RemoteRefreshNotice = RefreshNoticeV1 & Record<string, RemoteJsonValue>;
 
 declare module "@deepseek-ai/dsh-typert-protocol" {
     interface RemoteErrorDetailsMap {

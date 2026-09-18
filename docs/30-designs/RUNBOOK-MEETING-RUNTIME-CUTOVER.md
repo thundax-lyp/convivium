@@ -188,32 +188,6 @@ Session closure proof 由 repository 的 `SessionOwnership` 拥有，不复制�
 
 以下步骤按单一语义边界拆分；Author/Audit 规划时每步列出的 production、test、fixture 和 script 文件以 8 个为拆分目标，执行中为满足已确认步骤的直接编译闭包可增加必要文件，但不得借此扩展业务范围或顺带调整测试。
 
-### T20：接入 loopback Remote 并完成 plugin target assembly
-
-前置状态：T19b PASS。
-
-允许修改：`plugin/src/remote/types.ts`、`plugin/src/remote/index.ts`、`plugin/src/runtime/meeting-lifecycle-v1.ts`、`plugin/src/runtime/index.ts`、`plugin/src/index.ts`、`plugin/tests/contract/remote-boundary.spec.ts`、`plugin/tests/contract/remote-generation.spec.ts`、`plugin/tests/unit/module-boundaries.spec.ts`、`plugin/tests/unit/host-plugin-lifecycle.spec.ts`。本步为原子活动图切换，`meeting-lifecycle-v1.ts` 是 dry-run 发现的直接编译闭包，故明示超出 8 文件规划目标 1 个；不得借此扩展业务范围。
-
-禁止修改：Client、Domain、repository。
-
-执行：`ConviviumRemoteService` 继续继承 `TypertRemoteService`，精确只保留下列 concrete public methods：`@Remote("list") list(signal:AbortSignal):Promise<MeetingListResultV1>`、`@Remote("read") read(request:ReadMeetingRequestV1,signal:AbortSignal):Promise<MeetingReadResultV1>`、`@Remote("control") control(command:MeetingCommandV1,signal:AbortSignal):Promise<MeetingCommandResultV1>`、`@Remote({mode:"stream"}) subscribeRefresh(signal:AbortSignal):AsyncIterable<RefreshNoticeV1>`；不得手写 Typert artifact，不暴露 action-specific Remote method，不转发 agent tool action。四者只在 lifecycle 注入的 `webServer.host === "127.0.0.1"` 时注册；其它 host 使整组 target activation rejected，不注册 Remote、tools 或 worker。注册成功后调用 T13 时构造 `caller={channel:"loopback_remote",principalId:LOCAL_CONTROLLER_PRINCIPAL_ID}`，不接受 wire actor/authority/session 字段。`list` 调 T18b summary mapper；`read` 调 T18b caller=`local` mapper并由同一结果读取 archive；`control` 只允许 `end_meeting`，`create_meeting` 只由 T19b Captain tool 发起，`start_archive` 由 durable archive effect 自动执行，其它 action 返回 `UNAUTHORIZED`，允许的 write 只调用 T13 `MeetingCommandApplicationV1.execute`；所有方法向 owned operation 传递 signal。`subscribeRefresh` 只发 `{kind:"refresh",meetingId,committedVersion}`，允许丢失/重复、不携带事实，stream cancel/dispose 后必须静默。`types.ts` 只定义 JSON-safe Remote payload 与 `RemoteErrorDetailsMap` declaration merge；`ClientRemote` augmentation 只由现有 Typert generator 产生，不手写。Remote `index.ts` 只注册该 service；`runtime/index.ts` 删除 T19a 暂留的 legacy type并只导出这四方法所需的正式 `LocalMeetingWebRuntime` type。`remote-generation.spec.ts` 必须生成并断言精确四方法及 stream metadata；module boundary test 证明 compile bridge 已清除。
-
-在 `meeting-lifecycle-v1.ts` 的 lifecycle-owned runtime factory 中同时装配唯一 T13 application 和唯一 registry；对每个 ready Meeting 恰好建立一个既有 `createOutboxWorker` 实例，不建立全局第二 worker 或每个 handler 独立 worker。该 target lifecycle 直接向 worker 的 `dispatch` 选项注入唯一纯 router：`identity_provision` 到 T15a、普通 `agent_notice` 到 T15c、`agent_notice/review_request` 与 `review_delivery` 到 T16、`archive` 到 T17，未知 payload 以 non-retryable `OUTBOX_ROUTE_UNAVAILABLE` fail closed。通用 `outbox-worker.ts` 仍只负责 claim/dispatch/complete，不引入业务 route；legacy `meeting-dispatch-service.ts` 不修改、不注入 target route。
-
-每个 Meeting 启动 worker 前先从 repository ownership 取唯一 `parentSessionId`，并要求 `ctx.agents.get(parentSessionId)` 返回 exact live top-level Captain parent；无 live parent 时不 claim outbox，将该 Meeting 标为暂不可用，不消耗 retry attempts。lifecycle 监听公开 `agent/created`，当匹配 parent 出现时重新 `recoverMeetingCommandsV1` 并 ensure/wake 该 Meeting 的同一 worker；不自行 resume Captain 或 child。新建 Meeting 在 creation commit 后以当次可信 `captainParent` ensure worker；冷启动按 `DomainRepositoryRegistry.listMeetings()` 的稳定顺序 open/recover，不从 legacy map 发现 Meeting。
-
-只有精确 DSH version、Storage/continuable provider、`spawn` one-shot provider 的 `outputSchema` 能力、八个 Definition 与 `webServer.host === "127.0.0.1"` 全部预检成功后，根 `src/index.ts` 才切换为注册 T19 `registerMeetingToolsV1`、四方法 Remote 和 target lifecycle，并停止调用 legacy runtime/tool/Remote factory。local 与 runtime caller adapter 必须产生 T13 固定 scope。`ctx.tools.register` 直接绑定当前 plugin fiber，Remote 由其 child plugin fiber 拥有；所有 per-Meeting worker、agent listener、registry 与 runtime disposer 由一个 activation 拥有。stopping 先拒绝新 command，等待已开始 commit，停止所有 worker 领取并 await 已开始 dispatch，再释放已证明归属的 activation。预检或装配任一步 throw 时反序释放并进入 rejected，不得留下部分 tool、Remote 或 worker registration。
-
-验证：
-```bash
-pnpm --dir=plugin vitest run tests/contract/remote-boundary.spec.ts tests/contract/remote-generation.spec.ts tests/unit/module-boundaries.spec.ts tests/unit/host-plugin-lifecycle.spec.ts
-pnpm --dir=plugin typecheck:host
-```
-
-PASS：loopback authority、伪造 actor、read/write DTO 和 error mapping 通过；legacy `LocalMeetingWebRuntime` 不再从 target public entrypoint 导出；一个 application、一个 registry、每个 ready Meeting 恰好一个 target outbox worker、八个 tools、一个四方法 Remote 同成同败，legacy 活动 registration 为零且 teardown 顺序通过。
-
-STOP：需要 Web user/Team authority、Remote 复制 Domain 规则、第二 worker/application、部分注册、调用未公开深路径或改变任一组件业务语义。
-
 ### T21a：接入 Client transport
 
 前置状态：T20 PASS。

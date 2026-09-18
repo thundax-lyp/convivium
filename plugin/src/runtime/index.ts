@@ -1,3 +1,23 @@
+import type {
+    MeetingCommandResultV1,
+    MeetingCommandV1,
+    MeetingListResultV1,
+    MeetingReadResultV1,
+    RefreshNoticeV1
+} from "@/protocol/index.js";
+
+export interface LocalMeetingWebRuntime {
+    list(signal: AbortSignal): Promise<MeetingListResultV1>;
+    read(
+        request: { readonly protocolVersion: 1; readonly meetingId: string },
+        signal: AbortSignal
+    ): Promise<MeetingReadResultV1>;
+    control(command: MeetingCommandV1, signal: AbortSignal): Promise<MeetingCommandResultV1>;
+    subscribeRefresh(signal: AbortSignal): AsyncIterable<RefreshNoticeV1>;
+}
+
+export type { MeetingToolCaller, MeetingToolRuntime } from "./application-service/index.js";
+
 export {
     createMeetingCreationCoordinatorV1,
     createMeetingRuntime,
@@ -5,7 +25,8 @@ export {
 } from "./meeting-runtime.js";
 export {
     activateTargetMeetingApplicationV1,
-    getMeetingCommandApplicationV1
+    getMeetingCommandApplicationV1,
+    getLocalMeetingWebRuntimeV1
 } from "./meeting-lifecycle-v1.js";
 export type {
     DomainEventInput,
@@ -36,17 +57,6 @@ export type {
 } from "./services/meeting-archive-service.js";
 export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
 export { rebindCaptainParent } from "./services/meeting-recovery-service.js";
-export {
-    createCreateStatusRuntime,
-    LocalMeetingRecoveryUnavailableError
-} from "./application-service/index.js";
-export type {
-    CreateStatusRuntimeOptions,
-    LocalMeetingWebRuntime,
-    MeetingRuntimeWithCallerLookup,
-    MeetingToolCaller,
-    MeetingToolRuntime
-} from "./application-service/index.js";
 export type { CaptainRebindDependencies } from "./services/meeting-recovery-service.js";
 export { AGENT_CATALOG_SERVICE_KEY } from "./services/agent-catalog.js";
 export {

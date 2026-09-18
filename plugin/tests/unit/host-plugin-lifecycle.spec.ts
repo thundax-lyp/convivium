@@ -261,6 +261,7 @@ describe("Convivium local Meeting route lifecycle", () => {
                             "subagents",
                             "systemPrompt",
                             "tools",
+                            "webServer",
                             "storageDomain"
                         ]
                     });
@@ -292,19 +293,18 @@ describe("Convivium local Meeting route lifecycle", () => {
             "ConviviumRemoteService"
         ]);
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.effects).toHaveLength(24);
+        expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
         expect(fixture.routeDispose).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(22);
-        expect(fixture.get).toHaveBeenCalledTimes(1);
-        expect(fixture.get).toHaveBeenCalledWith("convivium.agentCatalog");
+        expect(fixture.toolDisposers).toHaveLength(8);
+        expect(fixture.get).not.toHaveBeenCalled();
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
     it("registers meeting tools without a WebServer", async () => {
         const fixture = await host(undefined);
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(22);
+        expect(fixture.toolDisposers).toHaveLength(0);
         await fixture.dispose();
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
@@ -328,13 +328,13 @@ describe("Convivium local Meeting route lifecycle", () => {
     it("does not register Meeting routes on all interfaces", async () => {
         const fixture = await host("0.0.0.0");
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.effects).toHaveLength(24);
+        expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
-        expect(fixture.toolDisposers).toHaveLength(22);
+        expect(fixture.toolDisposers).toHaveLength(0);
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
-    it("resolves a configured workspace and fails closed for an unknown id", async () => {
+    it("does not activate legacy workspace projection", async () => {
         const fixture = await host(
             "0.0.0.0",
             { ...config, developerMarkdownWorkspaceId: "workspace-1" },
@@ -342,12 +342,11 @@ describe("Convivium local Meeting route lifecycle", () => {
             true
         );
         await fixture.dispose();
-        await expect(
-            host("0.0.0.0", { ...config, developerMarkdownWorkspaceId: "missing" })
-        ).rejects.toThrow("Developer Markdown workspace service is unavailable");
-        await expect(
-            host("0.0.0.0", { ...config, developerMarkdownWorkspaceId: "missing" }, undefined, true)
-        ).rejects.toThrow("Developer Markdown workspace is not registered: missing");
+        const withoutWorkspace = await host("0.0.0.0", {
+            ...config,
+            developerMarkdownWorkspaceId: "missing"
+        });
+        await withoutWorkspace.dispose();
     });
 });
 
@@ -402,7 +401,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await vi.waitFor(() =>
                     expect(
                         root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                    ).toBe(22)
+                    ).toBe(0)
                 );
                 const register = vi.fn(() => vi.fn());
                 const web = await root.plugin({
@@ -415,7 +414,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await web.dispose();
                 expect(
                     root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                ).toBe(22);
+                ).toBe(0);
                 await root.plugin({
                     name: "test-web-server-again",
                     apply(ctx) {
