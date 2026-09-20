@@ -12,12 +12,8 @@ export function createSmokeEnvironment(baseEnvironment, overrides = {}, deepSeek
 
 export async function loadSmokeApiKey(devEnvPath) {
     const values = parseEnv(await readFile(devEnvPath, "utf8"));
-    const keys = Object.keys(values);
-    if (keys.length !== 1 || keys[0] !== DEEPSEEK_API_KEY) {
-        throw new Error("dev.env must define only DEEPSEEK_API_KEY.");
-    }
     const apiKey = values[DEEPSEEK_API_KEY];
-    if (apiKey.trim() === "") {
+    if (typeof apiKey !== "string" || apiKey.trim() === "") {
         throw new Error("dev.env DEEPSEEK_API_KEY must not be empty.");
     }
     return apiKey;

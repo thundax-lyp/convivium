@@ -1,4 +1,3 @@
-import type { LegacyMeetingState } from "@/domain/index.js";
 import type { PersistenceProjectionV1 } from "./domain/schemas.js";
 
 export interface MeetingDiagnostic {
@@ -32,124 +31,13 @@ type DiagnosticBase = Pick<
     MeetingDiagnostic,
     "meetingId" | "meetingVersion" | "eventSeq" | "timestamp" | "commandKind"
 >;
-type DurableEvent = PersistenceProjectionV1["events"][string];
 type DurableOutboxItem = PersistenceProjectionV1["outbox"][string];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isLegacyState(value: unknown): value is LegacyMeetingState {
-    return (
-        isRecord(value) && typeof value.status === "string" && typeof value.eventSeq === "number"
-    );
-}
-
 function targetLifecycle(value: unknown): string | undefined {
+    const isRecord = (item: unknown): item is Record<string, unknown> =>
+        typeof item === "object" && item !== null && !Array.isArray(item);
     if (!isRecord(value) || !isRecord(value.lifecycle)) return undefined;
     return typeof value.lifecycle.status === "string" ? value.lifecycle.status : undefined;
-}
-
-function observedMetrics(
-    after: PersistenceProjectionV1,
-    state: LegacyMeetingState,
-    previous: LegacyMeetingState | undefined,
-    now: number
-): Record<string, number> {
-    const active = ["created", "running", "waiting", "paused", "converging"].includes(state.status);
-    const metrics: Record<string, number> = {
-        activeMeeting: Number(active),
-        waitingMeeting: Number(state.status === "waiting"),
-        outboxBacklog: Object.values(after.outbox).filter(
-            (item) => item.status === "pending" || item.status === "leased"
-        ).length
-    };
-    if (typeof state.stallCount === "number") metrics.stallCount = state.stallCount;
-    if (typeof state.replanCount === "number") metrics.replanCount = state.replanCount;
-    if (
-        previous?.status === "waiting" &&
-        state.status !== "waiting" &&
-        previous.waitState !== undefined
-    ) {
-        metrics.waitingDurationMs = Math.max(0, now - previous.waitState.waitingSince);
-    }
-    return metrics;
-}
-
-function eventDiagnostic(
-    base: DiagnosticBase,
-    event: DurableEvent,
-    state: LegacyMeetingState,
-    previous: LegacyMeetingState | undefined,
-    now: number
-): MeetingDiagnostic {
-    const values: Record<string, number> = {};
-    const attemptId =
-        event.attemptId ??
-        (typeof event.payload.attemptId === "string"
-            ? event.payload.attemptId
-            : typeof event.payload.planningAttemptId === "string"
-              ? event.payload.planningAttemptId
-              : undefined);
-    const turns = [previous?.currentTurn, state.currentTurn];
-    const matchingTurn =
-        attemptId === undefined
-            ? undefined
-            : turns.find((candidate) =>
-                  candidate?.steps.some((step) => step.attempt?.attemptId === attemptId)
-              );
-    const step = matchingTurn?.steps.find(
-        (candidate) => candidate.attempt?.attemptId === attemptId
-    );
-    const attempt = step?.attempt;
-    const turn = previous?.currentTurn;
-    if (event.type === "turn.completed" && turn)
-        values.turnDurationMs = Math.max(0, now - turn.createdAt);
-    if (
-        ["speaker_attempt.submitted", "speaker_attempt.failed", "speaker_attempt.revoked"].includes(
-            event.type
-        ) &&
-        attempt?.startedAt !== undefined
-    ) {
-        values.attemptDurationMs = Math.max(0, now - attempt.startedAt);
-    }
-    if (event.type === "manager_plan.failed" || event.type === "manager_plan.submitted") {
-        const planning = previous?.manager.currentPlanningAttempt;
-        if (planning !== undefined)
-            values.attemptDurationMs = Math.max(0, now - planning.createdAt);
-    }
-    if (event.type === "meeting.ended") values.terminations = 1;
-    if (event.type === "manager_plan.failed") values.managerFallbacks = 1;
-    if (event.type === "meeting.replanned") values.replans = 1;
-    return {
-        ...base,
-        eventSeq: event.eventSeq,
-        meetingVersion: event.meetingVersion,
-        timestamp: event.createdAt,
-        eventType: event.type,
-        ...(event.turnId !== null
-            ? { turnId: event.turnId }
-            : typeof event.payload.turnId === "string"
-              ? { turnId: event.payload.turnId }
-              : matchingTurn === undefined
-                ? {}
-                : { turnId: matchingTurn.id }),
-        ...(attemptId === undefined ? {} : { attemptId }),
-        ...(typeof event.payload.stepId === "string"
-            ? { stepId: event.payload.stepId }
-            : step === undefined
-              ? {}
-              : { stepId: step.id }),
-        ...(typeof event.payload.deliveryId === "string"
-            ? { deliveryId: event.payload.deliveryId }
-            : attempt === undefined
-              ? {}
-              : { deliveryId: attempt.deliveryId }),
-        ...(event.type === "meeting.ended" && state.termination
-            ? { terminationCode: state.termination.code }
-            : {}),
-        metrics: values
-    };
 }
 
 function emitOutboxDiagnostics(
@@ -198,39 +86,27 @@ export function observeCommit(
 ): void {
     if (sink === undefined || after.snapshot === null) return;
     const rawState: unknown = after.snapshot.state;
-    const rawPrevious: unknown = before?.snapshot?.state;
-    const state = isLegacyState(rawState) ? rawState : undefined;
-    const previous = isLegacyState(rawPrevious) ? rawPrevious : undefined;
     const lifecycle = targetLifecycle(rawState);
     const base = {
         meetingId,
         meetingVersion: after.snapshot.version,
-        eventSeq: state?.eventSeq ?? 0,
+        eventSeq: 0,
         timestamp: now,
         ...(commandKind === undefined ? {} : { commandKind })
     };
     emitDiagnostic(sink, {
         ...base,
         eventType: "meeting.observed",
-        metrics:
-            state === undefined
-                ? {
-                      activeMeeting: Number(
-                          lifecycle !== undefined &&
-                              !["archived", "cancelled", "failed"].includes(lifecycle)
-                      ),
-                      waitingMeeting: 0,
-                      outboxBacklog: Object.values(after.outbox).filter(
-                          (item) => item.status === "pending" || item.status === "leased"
-                      ).length
-                  }
-                : observedMetrics(after, state, previous, now)
-    });
-    if (state !== undefined)
-        for (const [key, event] of Object.entries(after.events)) {
-            if (before?.events[key] !== undefined) continue;
-            emitDiagnostic(sink, eventDiagnostic(base, event, state, previous, now));
+        metrics: {
+            activeMeeting: Number(
+                lifecycle !== undefined && !["archived", "cancelled", "failed"].includes(lifecycle)
+            ),
+            waitingMeeting: 0,
+            outboxBacklog: Object.values(after.outbox).filter(
+                (item) => item.status === "pending" || item.status === "leased"
+            ).length
         }
+    });
     for (const [id, item] of Object.entries(after.outbox)) {
         emitOutboxDiagnostics(sink, base, item, before?.outbox[id], now);
     }

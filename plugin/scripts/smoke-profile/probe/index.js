@@ -1,6 +1,4 @@
 import { collectAgentPromptEvidence, createProbeSupport } from "./support.js";
-import { runParallelContributionScenario } from "./scenarios/parallel-contribution.js";
-import { runParallelContributionModelScenario } from "./scenarios/parallel-contribution-model.js";
 import { runIdentityAdmissionScenario } from "./scenarios/identity-admission.js";
 import { runMeetingBusinessLoopScenario } from "./scenarios/meeting-business-loop.js";
 
@@ -18,8 +16,7 @@ export const inject = [
 
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
 const agentPromptsPath = process.env.CONVIVIUM_SMOKE_AGENT_PROMPTS_PATH;
-const browserMode = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
-const scenario = process.env.CONVIVIUM_SMOKE_SCENARIO || "parallel-contribution";
+const scenario = process.env.CONVIVIUM_SMOKE_SCENARIO || "identity-admission";
 const {
     assert,
     callTool,
@@ -154,46 +151,9 @@ async function resumeParticipantForProbe(ctx, parent, childId, marker) {
     return (await delivery).agent;
 }
 
-function createSmokeAgent(ctx, sessionId) {
-    const session = ctx.sessions.create(sessionId, {
-        meta: { cwd: process.cwd() }
-    });
-    const agent = {
-        id: session.id,
-        options: {},
-        session,
-        inbox: { nextTurn: [], nextStep: [] },
-        status: "idle",
-        ctx,
-        cancel() {},
-        async whenIdle() {},
-        async runMaintenance(task) {
-            return task(new AbortController().signal);
-        },
-        send() {},
-        followup() {},
-        steer() {},
-        inject() {}
-    };
-    const unregister = ctx.agents.register(agent);
-    return {
-        agent,
-        async dispose() {
-            unregister();
-        }
-    };
-}
-
 async function run(ctx) {
     if (!outputPath) return;
-    if (
-        ![
-            "parallel-contribution",
-            "parallel-contribution-model",
-            "identity-admission",
-            "meeting-business-loop"
-        ].includes(scenario)
-    ) {
+    if (!["identity-admission", "meeting-business-loop"].includes(scenario)) {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
@@ -221,36 +181,23 @@ async function run(ctx) {
             });
             return;
         }
-        const workspace = browserMode
-            ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
-            : undefined;
-        captain =
-            scenario === "parallel-contribution-model" ||
-            scenario === "identity-admission" ||
-            scenario === "meeting-business-loop"
-                ? await ctx.agents.create({
-                      sessionId:
-                          scenario === "identity-admission"
-                              ? "convivium-identity-manager"
-                              : "convivium-smoke-captain",
-                      agentOptions: {
-                          provider:
-                              scenario === "identity-admission" ? "spawn" : "deepseek-official",
-                          ...(scenario === "identity-admission"
-                              ? {}
-                              : { model: "deepseek-v4-flash" })
-                      },
-                      meta: { cwd: process.cwd(), agentPreset: "convivium" },
-                      setup: async (agentCtx) => {
-                          await ctx.get("agentPresets").mount(agentCtx, "convivium");
-                      }
-                  })
-                : createSmokeAgent(ctx, "convivium-smoke-captain");
+        captain = await ctx.agents.create({
+            sessionId:
+                scenario === "identity-admission"
+                    ? "convivium-identity-manager"
+                    : "convivium-smoke-captain",
+            agentOptions: {
+                provider: scenario === "identity-admission" ? "spawn" : "deepseek-official",
+                ...(scenario === "identity-admission" ? {} : { model: "deepseek-v4-flash" })
+            },
+            meta: { cwd: process.cwd(), agentPreset: "convivium" },
+            setup: async (agentCtx) => {
+                await ctx.get("agentPresets").mount(agentCtx, "convivium");
+            }
+        });
         const runtime = {
             ctx,
             scenario,
-            browserMode,
-            workspace,
             get captain() {
                 return captain;
             },
@@ -272,11 +219,7 @@ async function run(ctx) {
             observedAgents: () => [...observedAgents.values()],
             resumeParticipantForProbe
         };
-        if (scenario === "parallel-contribution") {
-            await runParallelContributionScenario(runtime);
-        } else if (scenario === "parallel-contribution-model") {
-            await runParallelContributionModelScenario(runtime);
-        } else if (scenario === "identity-admission") {
+        if (scenario === "identity-admission") {
             await runIdentityAdmissionScenario(runtime);
         } else {
             await runMeetingBusinessLoopScenario(runtime);
@@ -300,7 +243,7 @@ async function run(ctx) {
             );
             await fs.rename(agentPromptsPath + ".tmp", agentPromptsPath);
         }
-        if (!browserMode) await captain?.dispose();
+        await captain?.dispose();
     }
 }
 

@@ -23,21 +23,6 @@ export {
     validateReassignTurnInput
 } from "./commands.js";
 export {
-    ContributionCommandSchema,
-    ContributionResultSchema,
-    ReadContributionResultSchema,
-    ContributionSummarySchema,
-    ReadContributionInputSchema
-} from "./contribution.js";
-export {
-    LocalMeetingListItemSchema,
-    LocalMeetingListResponseConsumerSchema,
-    LocalMeetingListResponseSchema,
-    LocalMeetingListResultSchema,
-    MeetingArchivePackageSchema,
-    MeetingStatusResultSchema
-} from "./status.js";
-export {
     CaptainAttendanceDispositionResultSchema,
     CaptainRiskDispositionResultSchema,
     CaptainDecisionDispositionResultSchema,
@@ -90,7 +75,7 @@ export {
     type ListMeetingsRequestV1,
     type ReadMeetingRequestV1,
     type MeetingCommandResultV1
-} from "./meeting-command-v1.js";
+} from "./meeting-command.js";
 export {
     MeetingRoleV1Schema,
     RoleErrorCodeV1Schema,
@@ -98,11 +83,6 @@ export {
     RecordIdentityAdmissionResultActionV1Schema,
     type MeetingRoleV1,
     type RoleErrorCodeV1
-} from "./meeting-identity-v1.js";
+} from "./meeting-identity.js";
 export { serializeValidatedRequestV1 } from "./request-idempotency.js";
-export * from "./meeting-view-v1.js";
-export type {
-    ContributionDelivery,
-    ContributionContextV1,
-    ContributionPublicContextV1
-} from "./contribution.js";
+export * from "./meeting-view.js";

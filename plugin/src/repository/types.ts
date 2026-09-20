@@ -1,10 +1,9 @@
 import type { AgentDefinitionBindingV1 } from "@/role-composition/model.js";
-import type { DomainEventType } from "@/domain/index.js";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
-export type MeetingEventType = DomainEventType;
+export type MeetingEventType = string;
 
 export interface MeetingStateCodec<TState> {
     encode(state: TState): Uint8Array;

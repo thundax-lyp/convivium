@@ -3,13 +3,13 @@ import { collectAgentPromptEvidence } from "../../scripts/smoke-profile/probe/su
 import { MEETING_BUSINESS_LOOP_TOPIC } from "../../scripts/smoke-profile/probe/scenarios/meeting-business-loop.js";
 
 describe("Meeting business-loop smoke prompt evidence", () => {
-    it("uses the agreed independent JEV discussion topic", () => {
+    it("uses the agreed vLLM KV Cache quantization research topic", () => {
         expect(MEETING_BUSINESS_LOOP_TOPIC).toEqual({
             objective:
-                "评估 JEV 大模型的公开能力主张是否有充分、可验证的证据支持，并以 mono-jev 为具体案例分析是否存在过度包装。",
-            title: "JEV 大模型能力主张与过度包装",
+                "评估在 vLLM 推理链路中引入 FP8／INT8 KV Cache 量化，是否能在不显著损害长上下文生成质量的前提下，降低显存占用并提高可服务并发；应优先采用哪种量化粒度与校准策略。",
+            title: "vLLM KV Cache 量化的收益与实现路径",
             question:
-                "JEV 大模型（以 mono-jev 为例）的公开能力主张是否有充分、可验证的证据支持，是否存在过度包装？"
+                "在 vLLM 的推理链路中，引入 KV Cache 量化（FP8／INT8）是否能在不显著损害长上下文生成质量的前提下，降低显存占用并提高可服务并发？应优先采用哪种量化粒度与校准策略？"
         });
     });
 

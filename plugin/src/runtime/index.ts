@@ -18,59 +18,28 @@ export interface LocalMeetingWebRuntime {
 
 export type { MeetingToolCaller, MeetingToolRuntime } from "./application-service/index.js";
 
-export {
-    createMeetingCreationCoordinatorV1,
-    createMeetingRuntime,
-    openMeetingRepository
-} from "./meeting-runtime.js";
+export { createMeetingCreationCoordinatorV1 } from "./meeting-runtime.js";
 export {
     activateTargetMeetingApplicationV1,
     getMeetingCommandApplicationV1,
     getLocalMeetingWebRuntimeV1,
     ensureTargetMeetingDeliveryV1
-} from "./meeting-lifecycle-v1.js";
-export type {
-    DomainEventInput,
-    JsonObject,
-    MeetingCreationRuntimeDependencies,
-    MeetingRepositoryOpenInput,
-    MeetingRepositoryRuntime,
-    RepositoryAuthorizationValidator
-} from "./meeting-runtime.js";
+} from "./meeting-lifecycle.js";
 export { createOutboxWorker } from "./outbox-worker.js";
-export {
-    archiveBeginCommandKind,
-    archiveFinalizeCommandKind,
-    beginArchiveFromTermination,
-    cleanupOwnedSessions,
-    finalizeArchive,
-    materializeArchivePackage,
-    recoverArchive,
-    requireExpectedArchiveOwnerships,
-    terminationIdentity
-} from "./services/meeting-archive-service.js";
-export type {
-    BeginArchiveFromTerminationInput,
-    CleanupOwnedSessionsInput,
-    FinalizeArchiveInput,
-    RecoverArchiveInput,
-    ArchiveRecoveryResult
-} from "./services/meeting-archive-service.js";
 export type { OutboxPollResult, OutboxWorkerOptions } from "./outbox-worker.js";
 export { rebindCaptainParent } from "./services/meeting-recovery-service.js";
 export type { CaptainRebindDependencies } from "./services/meeting-recovery-service.js";
-export { AGENT_CATALOG_SERVICE_KEY } from "./services/agent-catalog.js";
 export {
     createMeetingCommandApplicationV1,
     type MeetingCommandApplicationV1
-} from "./application-service/meeting-command-v1.js";
-export { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity-v1.js";
-export { provisionMeetingIdentityV1 } from "./services/meeting-identity-provision-v1.js";
-export { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispatch-v1.js";
+} from "./application-service/meeting-command.js";
+export { createMeetingIdentityEffectHandlerV1 } from "./application-service/meeting-identity.js";
+export { provisionMeetingIdentityV1 } from "./services/meeting-identity-provision.js";
+export { createMeetingNoticeDispatcherV1 } from "./services/meeting-notice-dispatch.js";
 export {
     createEvidenceReviewDispatcherV1,
     createReviewDeliveryDispatcherV1
-} from "./services/evidence-review-dispatch-v1.js";
-export { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive-v1.js";
-export { recoverMeetingCommandsV1 } from "./services/meeting-command-recovery-v1.js";
+} from "./services/evidence-review-dispatch.js";
+export { createMeetingArchiveDispatcherV1 } from "./services/meeting-archive.js";
+export { recoverMeetingCommandsV1 } from "./services/meeting-command-recovery.js";
 export type { MeetingOutboxWakeupV1 } from "./outbox-worker.js";

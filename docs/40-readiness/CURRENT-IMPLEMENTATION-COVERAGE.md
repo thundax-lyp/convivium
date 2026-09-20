@@ -40,12 +40,17 @@
 - 创建、状态变更、read projection、identity provisioning/recovery、review delivery、round publication 与 archive 均从同一已提交状态派生。
 - command 边界覆盖协议校验、caller ownership、权限、expected version、request idempotency、原子 commit、终态拒写与 storage recovery。
 - `RECOVERY_UNAVAILABLE` identity effect 保持 pending retry；进入终态的并发路径不会激活新身份，并清理已创建但未激活的 Session。
-- target runtime 不依赖已删除的 legacy application facade；Storage Domain adapter、repository core 与必要 projection helper 仍是当前实现的一部分。
+- target runtime 不依赖 legacy Domain、protocol 或 runtime surface；Storage Domain adapter、repository core 与必要 projection helper 仍是当前实现的一部分。
 
 ## Executed Validation
 
 | 日期 | 版本/环境 | 方法 | 结果 |
 | --- | --- | --- | --- |
+| 2026-09-20 | `471aa48` 后的本地 plugin workspace，vLLM KV Cache 量化议题 | `pnpm --dir plugin smoke:profile --json` | PASS：`identity-admission`（8.9s）与 `meeting-business-loop`（68.0s）均通过并 Restore；后者完成两份 fixture Evidence、Reviewer batch、publish、archive 与 SQLite cold reopen。该运行不构成 KV Cache 量化的研究结论。 |
+| 2026-09-20 | `471aa48` 后的本地 plugin workspace，DSH `0.1.2-rc.1` | `CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop pnpm --dir plugin smoke:profile --json` | PASS（78.5s）：Reviewer 以 object 直接调用 `convivium_submit_review_batch`，两个 one-shot worker 的 Review 原子提交；目标工具链完成两份 Evidence、publish、archive、SQLite cold reopen 与 wrapper Restore。 |
+| 2026-09-20 | `afa860b` 后的本地 plugin workspace，重设计后的 smoke wrapper | `CONVIVIUM_SMOKE_SCENARIO=identity-admission pnpm --dir plugin smoke:profile --json` | PASS（约 9s）：真实 DSH Host 加载 target Role catalog 与 `verification-review` 原生 Skill，创建并清理独立 child Session，wrapper Restore PASS。 |
+| 2026-09-20 | 同上 | `CONVIVIUM_SMOKE_SCENARIO=meeting-business-loop pnpm --dir plugin smoke:profile --json` | FAIL：Reviewer 的 `convivium_submit_review_batch` 调用把顶层 `input` 传为 string，Host 返回 `INVALID_ARGUMENT`，因此未提交 worker review batch；wrapper 已清理临时 profile。未取得当前 business-loop 的 publish/archive/cold-reopen 证据。 |
+| 2026-09-20 | `afa860b` 后的本地 plugin workspace | `CONVIVIUM_SMOKE_SCENARIO=parallel-contribution pnpm --dir plugin smoke:profile --json` | FAIL：放宽 `dev.env` 后真实 DSH Host 已启动，但 probe 仍调用已移除的 `convivium_create_meeting`，返回 `unknown tool`；wrapper 已清理临时 profile。未取得当前目标命令面上的 DSH/SQLite/Restore smoke 证据，需重写该场景的 command 输入与断言。 |
 | 2026-09-20 | PR #90 working tree，本地 plugin workspace | `pnpm --dir plugin verify` | PASS：format、lint（0 errors、20 existing warnings）、typecheck、106 files / 1252 tests、build、environment、contract、7-role Definition 与 package。 |
 | 2026-09-20 | PR #90 working tree，DSH `0.1.2-rc.1` | Reviewer `1.2.2` focused `meeting-business-loop` | PASS（68.4s）：短三步中文提示词以 `submit.toolArguments` 固定原生参数层级；创建七角色会议、提交两份 Evidence、Reviewer 各派发一个 one-shot worker 并一次 batch 提交、publish、archive、Restore 与 cold reopen 全部通过。 |
 | 2026-09-20 | PR #89，本地 plugin workspace | `pnpm --dir=plugin verify` | PASS：format、lint（0 errors、20 existing warnings）、typecheck、build、environment、contract、7-role Definition、package；106 files、1251 tests。 |
@@ -59,7 +64,6 @@
 - Browser 人工交互、性能与并发压力、长期运行及跨 Host；
 - 发布流程、生产外部网络、远端文件系统；
 - 旧 snapshot migration、跨版本 compatibility；
-- 未进入 target activity graph 的 legacy Domain/protocol/runtime surface 的清理完成度。
 
 ## Closure
 

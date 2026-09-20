@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 
 export const MEETING_BUSINESS_LOOP_TOPIC = {
     objective:
-        "评估 JEV 大模型的公开能力主张是否有充分、可验证的证据支持，并以 mono-jev 为具体案例分析是否存在过度包装。",
-    title: "JEV 大模型能力主张与过度包装",
+        "评估在 vLLM 推理链路中引入 FP8／INT8 KV Cache 量化，是否能在不显著损害长上下文生成质量的前提下，降低显存占用并提高可服务并发；应优先采用哪种量化粒度与校准策略。",
+    title: "vLLM KV Cache 量化的收益与实现路径",
     question:
-        "JEV 大模型（以 mono-jev 为例）的公开能力主张是否有充分、可验证的证据支持，是否存在过度包装？"
+        "在 vLLM 的推理链路中，引入 KV Cache 量化（FP8／INT8）是否能在不显著损害长上下文生成质量的前提下，降低显存占用并提高可服务并发？应优先采用哪种量化粒度与校准策略？"
 };
 
 function canonical(value) {
@@ -61,11 +61,25 @@ function reviewerToolSummary(agent) {
             ...(call.name === "convivium_submit_review_batch"
                 ? {
                       input: {
+                          inputType: Array.isArray(call.args?.input)
+                              ? "array"
+                              : typeof call.args?.input,
                           shape: {
                               root: Object.keys(call.args ?? {}),
-                              input: Object.keys(call.args?.input ?? {}),
-                              nestedInput: Object.keys(call.args?.input?.input ?? {}),
-                              action: Object.keys(call.args?.input?.action ?? {})
+                              input:
+                                  call.args?.input && typeof call.args.input === "object"
+                                      ? Object.keys(call.args.input)
+                                      : [],
+                              nestedInput:
+                                  call.args?.input?.input &&
+                                  typeof call.args.input.input === "object"
+                                      ? Object.keys(call.args.input.input)
+                                      : [],
+                              action:
+                                  call.args?.input?.action &&
+                                  typeof call.args.input.action === "object"
+                                      ? Object.keys(call.args.input.action)
+                                      : []
                           },
                           expectedMeetingVersion: call.args?.input?.expectedMeetingVersion,
                           reviews: call.args?.input?.action?.reviews?.map((review) => ({

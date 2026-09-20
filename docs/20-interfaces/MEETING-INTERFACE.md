@@ -420,7 +420,7 @@ type AgentNoticePayloadV1 =
 
 ## Compatibility And Acceptance
 
-V1 不适配 legacy Turn、Attempt、私有草稿/FormatApproval、贡献 DTO、tool 名、URL 或持久格式。本轮 `MeetingActionV1`、`MeetingViewV1` 和目标存储尚未对外发布，因此删除旧草案的格式审批、收敛 reviewer batch 和 archive schema 不需要 legacy 兼容或双写。V1 首次发布后，可增加 optional read field；改变 required field、enum 语义、授权、幂等键、效果语义或 fact 意义必须引入新版本并明确迁移读写策略；未知 action 必须 fail closed。
+V1 不适配 legacy Turn、Attempt、私有草稿/FormatApproval、贡献 DTO、tool 名、URL 或持久格式。持久化记录保留 `formatVersion`，但读取只接受当前 schema；不存在旧格式识别、转换、双写或回写。本轮 `MeetingActionV1`、`MeetingViewV1` 和目标存储尚未对外发布，因此删除旧草案的格式审批、收敛 reviewer batch 和 archive schema 不需要 legacy 兼容或双写。V1 首次发布后，可增加 optional read field；改变 required field、enum 语义、授权、幂等键、效果语义或 fact 意义必须引入新版本并明确迁移读写策略；未知 action 必须 fail closed。
 
 1. TypeScript 实现可从本文声明每个 command、result、error 和 port，而无需 untyped 业务 payload。
 2. 每个 action 具有唯一 discriminant、确定字段、角色边界、原子成功结果和拒绝条件。

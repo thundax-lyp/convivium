@@ -1,14 +1,8 @@
 import type {
-    ContributionCommandV1,
-    ContributionResultV1,
-    ReadContributionInputV1,
-    ReadContributionResultV1,
     CaptainAttendanceDispositionInputV1,
     CaptainAttendanceDispositionResultV1,
     CreateMeetingInputV1,
     CreateMeetingResultV1,
-    MeetingStatusInputV1,
-    MeetingStatusResultV1,
     EndMeetingInputV1,
     EndMeetingResultV1,
     MeetingTaskRequestV1,
@@ -55,16 +49,6 @@ export interface MeetingToolCaller {
 }
 
 export interface MeetingToolRuntime {
-    applyContribution(
-        input: ContributionCommandV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<ContributionResultV1> | ProtocolErrorV1>;
-    readContribution(
-        input: ReadContributionInputV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<ReadContributionResultV1> | ProtocolErrorV1>;
     disposeAttendanceRecommendation(
         input: CaptainAttendanceDispositionInputV1,
         caller: MeetingToolCaller,
@@ -100,11 +84,6 @@ export interface MeetingToolRuntime {
         caller: MeetingToolCaller,
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<CreateMeetingResultV1> | ProtocolErrorV1>;
-    getStatus(
-        input: MeetingStatusInputV1,
-        caller: MeetingToolCaller,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingStatusResultV1> | ProtocolErrorV1>;
     createMeetingTask(
         input: MeetingTaskRequestV1,
         caller: MeetingToolCaller,

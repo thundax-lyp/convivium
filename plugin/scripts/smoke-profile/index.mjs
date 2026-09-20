@@ -7,17 +7,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import process from "node:process";
-import {
-    assertBrowserClientPreflight,
-    createAuthenticatedBrowserFetch,
-    parseBrowserLaunchUrl,
-    redactBrowserCredentials
-} from "./browser-client-preflight.mjs";
 import { createSmokeEnvironment, loadSmokeApiKey } from "./environment.mjs";
-import {
-    parallelDiscussionDefinitions,
-    parallelDiscussionModelOverrides
-} from "./probe/scenarios/parallel-contribution-model.js";
 import {
     completeMeetingBusinessLoopResult,
     validateMeetingBusinessLoopHotResult,
@@ -39,31 +29,22 @@ const probeSourceDir = fileURLToPath(new URL("./probe", import.meta.url));
 const BOOT_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_BOOT_TIMEOUT_MS ?? "600000");
 const COMMAND_TIMEOUT_MS = Number(process.env.CONVIVIUM_SMOKE_COMMAND_TIMEOUT_MS ?? "120000");
 const BROWSER_MODE = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
-const BROWSER_SPEAKER_TIMEOUT_MS = 5 * 60 * 1000;
-export const SMOKE_SCENARIOS = [
-    "parallel-contribution",
-    "parallel-contribution-model",
-    "identity-admission",
-    "meeting-business-loop"
-];
+export const SMOKE_SCENARIOS = ["identity-admission", "meeting-business-loop"];
 export const CORE_SCENARIOS = ["identity-admission", "meeting-business-loop"];
 
 export function selectScenarios(args, scenario, browserMode) {
     if (args.some((arg) => !["--all", "--json"].includes(arg)))
         throw new Error("Usage: smoke:profile [--all] [--json]");
-    if (args.includes("--all") && (scenario || browserMode))
-        throw new Error("--all cannot be combined with a scenario or Browser mode.");
+    if (args.includes("--all") && scenario)
+        throw new Error("--all cannot be combined with a scenario.");
     if (scenario && !SMOKE_SCENARIOS.includes(scenario))
         throw new Error("Unsupported CONVIVIUM_SMOKE_SCENARIO: " + scenario);
-    if (browserMode && scenario === "parallel-contribution-model")
-        throw new Error("Model discussion smoke does not support Browser mode.");
+    if (browserMode) throw new Error("Browser smoke is not implemented for the target runtime.");
     return scenario
         ? [scenario]
-        : browserMode
-          ? ["parallel-contribution"]
-          : args.includes("--all")
-            ? [...SMOKE_SCENARIOS]
-            : [...CORE_SCENARIOS];
+        : args.includes("--all")
+          ? [...SMOKE_SCENARIOS]
+          : [...CORE_SCENARIOS];
 }
 
 const tempPrefix = join(tmpdir(), "convivium-dsh-smoke-");
@@ -198,26 +179,18 @@ async function packArtifact(artifactDir) {
     return artifact;
 }
 
-export async function writeSmokePatch(path, scenario) {
-    const targetDefinitions =
-        scenario === "meeting-business-loop"
-            ? JSON.parse(
-                  await readFile(join(pluginRoot, "meeting-roles", "definitions.json"), "utf8")
-              ).definitions
-            : undefined;
-    const targetModelOverrides =
-        targetDefinitions === undefined
-            ? undefined
-            : Object.fromEntries(
-                  targetDefinitions
-                      .filter(
-                          ({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer"
-                      )
-                      .map(({ agentDefinitionId }) => [
-                          agentDefinitionId,
-                          { provider: "deepseek-official", model: "deepseek-v4-flash" }
-                      ])
-              );
+export async function writeSmokePatch(path, _scenario) {
+    const targetDefinitions = JSON.parse(
+        await readFile(join(pluginRoot, "meeting-roles", "definitions.json"), "utf8")
+    ).definitions;
+    const targetModelOverrides = Object.fromEntries(
+        targetDefinitions
+            .filter(({ roleDefinitionId }) => roleDefinitionId === "verification_reviewer")
+            .map(({ agentDefinitionId }) => [
+                agentDefinitionId,
+                { provider: "deepseek-official", model: "deepseek-v4-flash" }
+            ])
+    );
     const patch = [
         "- insert:",
         "    - id: convivium-smoke-storage-sqlite",
@@ -235,23 +208,10 @@ export async function writeSmokePatch(path, scenario) {
         "- id: convivium",
         "  config:",
         `    provider: ${PROVIDER}`,
-        ...(targetDefinitions !== undefined
-            ? [
-                  `    agentDefinitions: ${JSON.stringify(targetDefinitions)}`,
-                  `    agentModelOverrides: ${JSON.stringify(targetModelOverrides)}`
-              ]
-            : scenario === "parallel-contribution-model" || scenario === "identity-admission"
-              ? [
-                    `    agentDefinitions: ${JSON.stringify(parallelDiscussionDefinitions)}`,
-                    ...(scenario === "parallel-contribution-model"
-                        ? [
-                              `    agentModelOverrides: ${JSON.stringify(parallelDiscussionModelOverrides)}`
-                          ]
-                        : [])
-                ]
-              : []),
+        `    agentDefinitions: ${JSON.stringify(targetDefinitions)}`,
+        `    agentModelOverrides: ${JSON.stringify(targetModelOverrides)}`,
         "    maxParticipants: 3",
-        `    speakerTimeoutMs: ${BROWSER_MODE ? BROWSER_SPEAKER_TIMEOUT_MS : 60000}`,
+        "    speakerTimeoutMs: 60000",
         "    outboxPollMs: 1000",
         ""
     ].join("\n");
@@ -414,24 +374,6 @@ async function waitForJson(path, timeoutMs) {
     throw new Error(`Timed out waiting for smoke result at ${path}.`);
 }
 
-async function waitForBrowserLaunchUrl(stdoutPath, origin) {
-    const deadline = Date.now() + BOOT_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-        try {
-            const stdout = await readFile(stdoutPath, "utf8");
-            const lineEnd = stdout.lastIndexOf("\n");
-            if (lineEnd >= 0) {
-                const launchUrl = parseBrowserLaunchUrl(stdout.slice(0, lineEnd + 1), origin);
-                if (launchUrl !== undefined) return launchUrl;
-            }
-        } catch (error) {
-            if (error?.code !== "ENOENT") throw error;
-        }
-        await new Promise((resolveWait) => setTimeout(resolveWait, 250));
-    }
-    throw new Error("browser authentication: launch URL timeout");
-}
-
 async function stopHost() {
     if (bootProcess === undefined) return;
     const child = bootProcess;
@@ -484,15 +426,6 @@ async function restore(root = tempRoot) {
     }
 }
 
-export function waitForBrowserStop() {
-    return new Promise((resolveStop) => {
-        // pnpm and the terminal can both forward a stop signal. Keep the CLI
-        // handlers until process exit so a second signal cannot interrupt finally.
-        process.on("SIGINT", resolveStop);
-        process.on("SIGTERM", resolveStop);
-    });
-}
-
 async function runScenario(scenario, artifact, deepSeekApiKey) {
     tempRoot = await mkdtemp(tempPrefix);
     const dshHome = join(tempRoot, "dsh-home");
@@ -501,7 +434,6 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
     const probeDir = join(tempRoot, "probe");
     const patchPath = join(tempRoot, "convivium-smoke.patch.yml");
     const resultPath = join(tempRoot, "smoke-result.json");
-    const modelEvidencePath = join(tempRoot, "model-discussion-evidence.json");
     await mkdir(dshHome, { recursive: true });
     await mkdir(workspaceDir, { recursive: true });
     await mkdir(logsDir, { recursive: true });
@@ -509,11 +441,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
     await writeProbePackage(probeDir);
 
     let roleAssetRoot;
-    if (
-        scenario === "parallel-contribution-model" ||
-        scenario === "identity-admission" ||
-        scenario === "meeting-business-loop"
-    ) {
+    {
         const unpackRoot = join(tempRoot, "role-package");
         await mkdir(unpackRoot, { recursive: true });
         await runCommand("tar", ["-xzf", artifact, "-C", unpackRoot], {
@@ -528,9 +456,6 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
         DSH_TELEMETRY_DISABLED: "1",
         DSH_PERMISSION_MODE: "workspace-write",
         CONVIVIUM_SMOKE_RESULT: resultPath,
-        ...(scenario === "parallel-contribution-model"
-            ? { CONVIVIUM_SMOKE_MODEL_EVIDENCE: modelEvidencePath }
-            : {}),
         CONVIVIUM_SMOKE_SCENARIO: scenario
     });
     const port = await allocatePort();
@@ -542,10 +467,7 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
     const bootLogs = await bootHost(hostEnv, patchPath, workspaceDir, logsDir, port, roleAssetRoot);
     let finalPort = port;
     let finalBootLogs = bootLogs;
-    let probeResult = await waitForJson(
-        resultPath,
-        scenario === "parallel-contribution-model" ? 2100000 : BOOT_TIMEOUT_MS
-    );
+    let probeResult = await waitForJson(resultPath, BOOT_TIMEOUT_MS);
     if (!probeResult.ok) {
         const stdoutTail = (await readFile(bootLogs.stdoutPath, "utf8")).slice(-8000);
         const stderrTail = (await readFile(bootLogs.stderrPath, "utf8")).slice(-8000);
@@ -593,18 +515,6 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
     }
 
     await stat(dumpPath);
-    let browserLaunchUrl;
-    if (BROWSER_MODE) {
-        const origin = `http://${HOST}:${finalPort}`;
-        browserLaunchUrl = await waitForBrowserLaunchUrl(finalBootLogs.stdoutPath, origin);
-        const authenticatedFetch = await createAuthenticatedBrowserFetch(
-            browserLaunchUrl,
-            origin,
-            globalThis.fetch,
-            BOOT_TIMEOUT_MS
-        );
-        await assertBrowserClientPreflight(origin, authenticatedFetch, BOOT_TIMEOUT_MS);
-    }
     const result = {
         ok: true,
         scenario,
@@ -619,27 +529,6 @@ async function runScenario(scenario, artifact, deepSeekApiKey) {
                 ? { initial: bootLogs, coldReopen: finalBootLogs }
                 : finalBootLogs
     };
-    if (scenario === "parallel-contribution-model") {
-        const evidence = JSON.parse(await readFile(modelEvidencePath, "utf8"));
-        if (
-            !Array.isArray(evidence) ||
-            evidence.length !== probeResult.observed.messageIds.length ||
-            evidence.some(
-                (message, index) =>
-                    message.id !== probeResult.observed.messageIds[index] ||
-                    !["summary", "proposal"].includes(message.kind) ||
-                    typeof message.content !== "string"
-            )
-        )
-            throw new Error("Model discussion original evidence does not match the probe result.");
-        result.modelDiscussion = evidence;
-    }
-    if (BROWSER_MODE) {
-        console.log(JSON.stringify(result));
-        console.log(`CONVIVIUM_SMOKE_BROWSER_URL=${browserLaunchUrl}`);
-        console.log(`CONVIVIUM_SMOKE_TEMP_ROOT=${tempRoot}`);
-        await waitForBrowserStop();
-    }
     return result;
 }
 
@@ -693,7 +582,6 @@ async function main() {
     } finally {
         await restore(buildRoot);
     }
-    if (BROWSER_MODE) console.log("CONVIVIUM_SMOKE_BROWSER_CLEANUP=ok");
     if (!args.includes("--json"))
         console.log(`PASS ${scenarios.length} scenarios ${Date.now() - started}ms (one build)`);
 }
@@ -704,7 +592,7 @@ if (isMain) {
     try {
         await main();
     } catch (error) {
-        console.error(redactBrowserCredentials(error.message));
+        console.error(error.message);
         process.exitCode = 1;
     }
 }
