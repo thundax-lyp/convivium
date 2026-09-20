@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { createMeetingRuntime } from "@/runtime/meeting-runtime.js";
+import { describe, expect, it, vi } from "vitest";
+import {
+    createMeetingCreationCoordinatorV1,
+    createMeetingRuntime
+} from "@/runtime/meeting-runtime.js";
 import type { CreateMeetingInputV1 } from "@/protocol/index.js";
+import { MeetingCommandV1Schema } from "@/protocol/meeting-command-v1.js";
 import { LocalMeetingRecoveryUnavailableError } from "@/runtime/application-service/index.js";
+import { RepositoryError } from "@/repository/errors.js";
 
 const input: CreateMeetingInputV1 = {
     evidenceReviewerKey: "p-3",
@@ -277,5 +282,234 @@ describe("creation role preflight", () => {
         ]);
         expect(f.deps.calls).not.toContain("complete");
         expect(f.deps.calls.at(-1)).toBe("failed");
+    });
+});
+
+describe("target Meeting creation idempotency", () => {
+    const definitions = [
+        {
+            agentDefinitionId: "manager-definition",
+            definitionVersion: "1",
+            roleDefinitionId: "meeting_manager" as const,
+            displayName: "Manager",
+            summary: "Manager",
+            roleDescription: "Manager",
+            dshPresetId: "minimal",
+            requiredSkillNames: [],
+            expertiseTags: ["meeting"],
+            evidenceScopes: []
+        },
+        {
+            agentDefinitionId: "reviewer-definition",
+            definitionVersion: "1",
+            roleDefinitionId: "verification_reviewer" as const,
+            displayName: "Reviewer",
+            summary: "Reviewer",
+            roleDescription: "Reviewer",
+            dshPresetId: "minimal",
+            requiredSkillNames: [],
+            expertiseTags: ["review"],
+            evidenceScopes: []
+        },
+        {
+            agentDefinitionId: "contributor-definition",
+            definitionVersion: "1",
+            roleDefinitionId: "domain_architect" as const,
+            displayName: "Contributor",
+            summary: "Contributor",
+            roleDescription: "Contributor",
+            dshPresetId: "minimal",
+            requiredSkillNames: [],
+            expertiseTags: ["domain"],
+            evidenceScopes: []
+        }
+    ];
+    const identities = [
+        {
+            identityKey: "manager",
+            displayName: "Manager",
+            roles: ["manager" as const],
+            agendaResponsibilityIds: ["agenda-1"],
+            riskAuthority: true,
+            required: true,
+            definitionId: "manager-definition",
+            definitionVersion: "1"
+        },
+        {
+            identityKey: "reviewer",
+            displayName: "Reviewer",
+            roles: ["evidence_reviewer" as const],
+            agendaResponsibilityIds: ["agenda-1"],
+            riskAuthority: false,
+            required: true,
+            definitionId: "reviewer-definition",
+            definitionVersion: "1"
+        },
+        ...Array.from({ length: 5 }, (_, index) => ({
+            identityKey: `contributor-${index + 1}`,
+            displayName: `Contributor ${index + 1}`,
+            roles: ["contributor" as const],
+            agendaResponsibilityIds: ["agenda-1"],
+            riskAuthority: false,
+            required: true,
+            definitionId: "contributor-definition",
+            definitionVersion: "1"
+        }))
+    ];
+    function command(statement = "objective") {
+        return MeetingCommandV1Schema.parse({
+            protocolVersion: 1,
+            meetingId: "new",
+            expectedMeetingVersion: 0,
+            requestId: "create-request-1",
+            action: {
+                kind: "create_meeting",
+                objective: {
+                    statement,
+                    requiredOutputs: [],
+                    acceptanceCriteria: [],
+                    hardConstraints: [],
+                    acceptableRiskLevel: "low"
+                },
+                identities,
+                managerIdentityKey: "manager",
+                evidenceReviewerIdentityKey: "reviewer",
+                initialAgenda: [
+                    {
+                        id: "agenda-1",
+                        title: "Agenda",
+                        question: "Question",
+                        requiredOutputIds: []
+                    }
+                ],
+                initialActiveAgendaId: "agenda-1",
+                limits: {
+                    maxFormalMessages: 8,
+                    maxDurationMs: 60_000,
+                    taskDeadlineMs: 1_000,
+                    reviewDeadlineMs: 1_000
+                }
+            }
+        });
+    }
+    const accepted = {
+        kind: "accepted" as const,
+        meetingId: "meeting-1",
+        meetingVersion: 1,
+        committedVersion: 1,
+        receiptId: "receipt-1",
+        factIds: [],
+        effects: []
+    };
+    const context = (parent: object) => ({
+        caller: { channel: "dsh_tool" as const, principalId: "captain-1" },
+        captainParent: parent as never
+    });
+    const normalParent = {
+        id: "captain-1",
+        ctx: { get: () => ({ composedPreset: () => "minimal" }) }
+    };
+
+    it("does not coalesce concurrent creates with different normalized payloads", async () => {
+        let releaseRecovery!: () => void;
+        const recoveryGate = new Promise<void>((resolve) => {
+            releaseRecovery = resolve;
+        });
+        let createOpens = 0;
+        const repository = {
+            recover: async () => {
+                await recoveryGate;
+                return {
+                    bootstrap: {
+                        status: "ready",
+                        createRequestId: "create-request-1",
+                        requestHash: JSON.stringify(command().action),
+                        createResult: accepted,
+                        createdAt: 1,
+                        updatedAt: 1
+                    },
+                    sessionOwnership: []
+                };
+            }
+        };
+        const openMeeting = vi.fn(async (input: { create?: unknown }) => {
+            if (input.create === undefined)
+                throw new RepositoryError(
+                    "MEETING_NOT_FOUND",
+                    false,
+                    "meeting-1",
+                    "Meeting is not registered"
+                );
+            createOpens += 1;
+            if (createOpens > 1)
+                throw new RepositoryError(
+                    "IDEMPOTENCY_CONFLICT",
+                    false,
+                    "meeting-1",
+                    "Request hash conflicts with bootstrap"
+                );
+            return repository;
+        });
+        const coordinator = createMeetingCreationCoordinatorV1({
+            registry: { openMeeting } as never,
+            definitions,
+            continuable: {} as never,
+            provider: "fixture",
+            ids: { nextId: (kind) => `${kind}-1` }
+        });
+
+        const first = coordinator.create(
+            command(),
+            context(normalParent),
+            "meeting-1",
+            1,
+            new AbortController().signal
+        );
+        await vi.waitFor(() => expect(createOpens).toBe(1));
+        const second = coordinator.create(
+            command("different objective"),
+            context(normalParent),
+            "meeting-1",
+            1,
+            new AbortController().signal
+        );
+        releaseRecovery();
+
+        await expect(first).resolves.toEqual(accepted);
+        await expect(second).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    });
+
+    it("replays a committed create receipt before capability preflight", async () => {
+        const replayReceipt = vi.fn(async () => ({
+            requestId: "create-request-1",
+            meetingId: "meeting-1",
+            meetingVersion: 1,
+            result: accepted,
+            eventSeqs: []
+        }));
+        const coordinator = createMeetingCreationCoordinatorV1({
+            registry: {
+                openMeeting: vi.fn(async () => ({ replayReceipt }))
+            } as never,
+            definitions,
+            continuable: {} as never,
+            provider: "fixture",
+            ids: { nextId: (kind) => `${kind}-1` }
+        });
+        const changedParent = {
+            id: "captain-1",
+            ctx: { get: () => undefined }
+        };
+
+        await expect(
+            coordinator.create(
+                command(),
+                context(changedParent),
+                "meeting-1",
+                2,
+                new AbortController().signal
+            )
+        ).resolves.toEqual(accepted);
+        expect(replayReceipt).toHaveBeenCalledOnce();
     });
 });
