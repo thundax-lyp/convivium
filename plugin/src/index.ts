@@ -2,17 +2,16 @@ import type { Context } from "@deepseek-ai/cordis";
 // Load the Cordis augmentation for ctx.webServer without a runtime import.
 import type {} from "@deepseek-ai/dsh-host-webserver";
 import type { SubagentProvider } from "@deepseek-ai/dsh-subagent";
-import type { WorkspaceId } from "@deepseek-ai/dsh-workspace";
 import { Config, type Config as ConfigType } from "./config.js";
-import { requireContinuableProvider, resolveMeetingCaller } from "./dsh/index.js";
-import { parseAgentDefinitions } from "./role-composition/model.js";
+import { requireContinuableProvider, resolveMeetingCallerV1 } from "./dsh/index.js";
 import { ConviviumRemoteService } from "./remote/index.js";
 import {
     activateTargetMeetingApplicationV1,
-    createCreateStatusRuntime,
-    AGENT_CATALOG_SERVICE_KEY
+    getLocalMeetingWebRuntimeV1,
+    getMeetingCommandApplicationV1,
+    ensureTargetMeetingDeliveryV1
 } from "./runtime/index.js";
-import { registerCreateAndStatusTools, registerSubmitAndControlTools } from "./tools/index.js";
+import { registerMeetingToolsV1 } from "./tools/index.js";
 
 export { Config };
 export { ConviviumRemoteService };
@@ -20,7 +19,14 @@ export type { Config as ConfigType } from "./config.js";
 
 export const name = "convivium";
 
-const meetingServices = ["agents", "sessions", "subagents", "systemPrompt", "tools"] as const;
+const meetingServices = [
+    "agents",
+    "sessions",
+    "subagents",
+    "systemPrompt",
+    "tools",
+    "webServer"
+] as const;
 
 export const inject = [] as const;
 
@@ -50,94 +56,34 @@ const meetingConsumerPlugin = {
             assertContinuableProvider(ctx, config.provider);
             const disposeTarget = await activateTargetMeetingApplicationV1(ctx, config);
             ctx.effect(() => disposeTarget, "convivium:target-runtime");
-            const agentCatalog = ctx.get(AGENT_CATALOG_SERVICE_KEY);
-            let workspace: { path: string } | undefined;
-            if (config.developerMarkdownWorkspaceId !== undefined) {
-                const workspaceRegistry = ctx.get("workspaceRegistry");
-                if (workspaceRegistry === undefined)
-                    throw new Error("Developer Markdown workspace service is unavailable");
-                workspace = workspaceRegistry.get(
-                    config.developerMarkdownWorkspaceId as WorkspaceId
-                );
-                if (workspace === undefined)
-                    throw new Error(
-                        `Developer Markdown workspace is not registered: ${config.developerMarkdownWorkspaceId}`
-                    );
-            }
-            const activeMeetings = new Map<string, number>();
-            const waitingMeetings = new Set<string>();
-            const runtime = createCreateStatusRuntime({
-                agentDefinitions: parseAgentDefinitions(config.agentDefinitions),
-                agentModelOverrides: config.agentModelOverrides,
-                storageDomain: ctx.storageDomain,
-                provider: config.provider,
-                onDiagnostic: (record) => {
-                    if (record.metrics.activeMeeting === 0) activeMeetings.delete(record.meetingId);
-                    else if (record.metrics.activeMeeting !== undefined)
-                        activeMeetings.set(record.meetingId, record.metrics.activeMeeting);
-                    if (record.metrics.waitingMeeting === 0)
-                        waitingMeetings.delete(record.meetingId);
-                    else if (record.metrics.waitingMeeting === 1)
-                        waitingMeetings.add(record.meetingId);
-                    ctx.logger("convivium:meeting").info("Meeting diagnostic %o", {
-                        ...record,
-                        metrics: {
-                            ...record.metrics,
-                            waitingMeetings: waitingMeetings.size,
-                            activeMeetings: [...activeMeetings.values()].reduce(
-                                (sum, value) => sum + value,
-                                0
-                            )
-                        }
-                    });
-                },
-                continuable: ctx.subagents,
-                getCaptainParent: (sessionId) => ctx.agents.get(sessionId as never),
-                authorizationValidator: {
-                    validateCreate: () => undefined,
-                    validateCommand: () => undefined
-                },
-                maxParticipants: config.maxParticipants,
-                outboxPollMs: config.outboxPollMs,
-                speakerAttemptTimeoutMs: config.speakerTimeoutMs,
-                agentCatalog,
-                ...(workspace === undefined
-                    ? {}
-                    : {
-                          developerMarkdown: {
-                              workspaceRoot: workspace.path,
-                              warn: (warning) =>
-                                  ctx
-                                      .logger("convivium:developer-markdown")
-                                      .warn("Developer Markdown projection failed %o", warning)
-                          }
-                      })
-            });
-            ctx.effect(() => () => runtime.dispose(), "convivium:runtime");
-            ctx.inject(["webServer", "typertGateway", "typert"], (webContext) => {
-                if (webContext.webServer.host !== "127.0.0.1") return;
-                webContext.plugin(ConviviumRemoteService, runtime);
-            });
-            const callers = {
-                async resolve(
-                    agent: Parameters<typeof resolveMeetingCaller>[0],
-                    signal: AbortSignal
-                ) {
-                    const meetingCaller = await resolveMeetingCaller(agent, runtime, signal);
-                    if (!("ok" in meetingCaller)) return { ...meetingCaller, agent };
-                    // DSH's Agent registry is the host-verified boundary for a top-level
-                    // caller. An ownership lookup failure must never grant Captain access.
-                    if (
-                        ctx.agents.get(String(agent.id) as never) === agent &&
-                        agent.session.header.parentSession === undefined
-                    ) {
-                        return { kind: "captain" as const, sessionId: String(agent.id), agent };
+            const runtime = getLocalMeetingWebRuntimeV1(ctx);
+            const application = getMeetingCommandApplicationV1(ctx);
+            (ctx as Context & { provide?: (name: string, value: unknown) => void }).provide?.(
+                "conviviumMeetingRuntime",
+                runtime
+            );
+            if (!new Set(["127.0.0.1", "localhost"]).has(ctx.webServer?.host ?? "")) return;
+            registerMeetingToolsV1({
+                registry: ctx.tools,
+                application,
+                callers: {
+                    async resolve(agent, signal) {
+                        const resolved = await resolveMeetingCallerV1(agent, runtime, signal);
+                        if (resolved) return resolved;
+                        return {
+                            protocolVersion: 1,
+                            ok: false,
+                            code: "UNAUTHORIZED_CALLER",
+                            message: "The caller is not an active meeting identity.",
+                            retryable: false
+                        };
                     }
-                    return meetingCaller;
+                },
+                onMeetingCreated(meetingId, parent) {
+                    ensureTargetMeetingDeliveryV1(ctx, meetingId, parent);
                 }
-            };
-            registerCreateAndStatusTools({ registry: ctx.tools, runtime, callers });
-            registerSubmitAndControlTools({ registry: ctx.tools, runtime, callers });
+            });
+            ctx.plugin(ConviviumRemoteService, runtime);
         }
     }
 };

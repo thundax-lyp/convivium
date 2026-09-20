@@ -1,111 +1,30 @@
 import { Remote, RemoteError, TypertRemoteService } from "@deepseek-ai/dsh-typert-protocol";
 import type { Context } from "@deepseek-ai/cordis";
-import type Schema from "@deepseek-ai/schemastery";
 import {
-    CaptainDecisionAcceptanceInputSchema,
-    CaptainDecisionAcceptanceResultSchema,
-    CaptainDecisionDispositionInputSchema,
-    CaptainDecisionDispositionResultSchema,
-    CaptainRiskDispositionInputSchema,
-    CaptainRiskDispositionResultSchema,
-    ContributionCommandSchema,
-    ContributionResultSchema,
-    EndMeetingInputSchema,
-    EndMeetingResultSchema,
-    LocalMeetingListResponseSchema,
-    MeetingControlResultSchema,
-    MeetingStatusInputSchema,
-    MeetingStatusResultSchema,
-    PauseMeetingInputSchema,
-    ReadContributionInputSchema,
-    ReadContributionResultSchema,
-    ReassignTurnResultSchema,
-    ResumeMeetingInputSchema,
-    validateReassignTurnInput,
-    validateProtocolError,
-    validateProtocolSuccessEnvelope,
-    type CaptainDecisionAcceptanceResultV1,
-    type CaptainDecisionDispositionResultV1,
-    type CaptainRiskDispositionResultV1,
-    type ContributionCommandV1,
-    type ContributionResultV1,
-    type EndMeetingResultV1,
-    type LocalMeetingListResponseV1,
-    type MeetingControlResultV1,
-    type MeetingStatusResultV1,
-    type ReassignTurnResultV1,
-    type ProtocolErrorV1,
-    type ProtocolSuccessV1,
-    type MeetingRefreshNoticeV1,
-    type ReadContributionInputV1,
-    type ReadContributionResultV1
+    ListMeetingsRequestV1Schema,
+    MeetingCommandResultV1Schema,
+    MeetingListResultV1Schema,
+    MeetingReadResultV1Schema,
+    MeetingCommandV1Schema,
+    ReadMeetingRequestV1Schema,
+    RefreshNoticeV1Schema,
+    type MeetingCommandV1
 } from "@/protocol/index.js";
-import {
-    LocalMeetingRecoveryUnavailableError,
-    type LocalMeetingWebRuntime
-} from "@/runtime/index.js";
+import type { LocalMeetingWebRuntime } from "@/runtime/index.js";
 import type {
-    RemoteAcceptDecisionInput,
-    RemoteDisposeDecisionInput,
-    RemoteDisposeRiskInput,
-    RemoteEndInput,
-    RemoteContributionControlInput,
-    RemotePauseInput,
-    RemoteReassignInput,
-    RemoteResumeInput,
-    RemoteStatusInput,
-    RemoteReadContributionInput
+    RemoteMeetingCommand,
+    RemoteMeetingCommandResult,
+    RemoteMeetingListResult,
+    RemoteMeetingReadResult,
+    RemoteReadMeetingRequest,
+    RemoteRefreshNotice
 } from "./types.js";
-
-const maxInputBytes = 16_384;
-type InputValidator<T> = Schema | ((value: unknown) => T);
-
-function assertExactInputKeys(
-    input: unknown,
-    expected: readonly string[]
-): asserts input is object {
-    if (input === null || typeof input !== "object" || Array.isArray(input)) {
-        throw new TypeError("Meeting input must be an object.");
-    }
-    const actual = Object.keys(input).sort();
-    const keys = [...expected].sort();
-    if (actual.length !== keys.length || actual.some((key, index) => key !== keys[index])) {
-        throw new TypeError("Meeting input has unexpected fields.");
-    }
-}
-
-function validateInput<T>(
-    input: unknown,
-    expected: readonly string[],
-    schema: InputValidator<T>
-): T {
-    const bytes = Buffer.byteLength(JSON.stringify(input), "utf8");
-    if (bytes > maxInputBytes) throw new TypeError("Meeting input is too large.");
-    assertExactInputKeys(input, expected);
-    if (!("meetingId" in input) || typeof input.meetingId !== "string" || !input.meetingId.trim()) {
-        throw new TypeError("Meeting ID must not be empty.");
-    }
-    return (schema as (value: unknown) => T)(input);
-}
 
 function invalidRequest(cause: unknown): RemoteError<"convivium/invalid-request"> {
     return new RemoteError(
         "convivium/invalid-request",
         "Invalid meeting request.",
-        {
-            retryable: false
-        },
-        { cause }
-    );
-}
-
-function recoveryUnavailable(cause: unknown): RemoteError<"convivium/recovery-unavailable"> {
-    return new RemoteError(
-        "convivium/recovery-unavailable",
-        "Meeting data is unavailable.",
-        {
-            retryable: true
-        },
+        { retryable: false },
         { cause }
     );
 }
@@ -114,32 +33,14 @@ function internalFailure(cause: unknown): RemoteError<"convivium/internal"> {
     return new RemoteError(
         "convivium/internal",
         "Meeting data is unavailable.",
-        {
-            retryable: false
-        },
+        { retryable: false },
         { cause }
     );
 }
 
-function validateResult<T>(schema: Schema, value: unknown): ProtocolSuccessV1<T> | ProtocolErrorV1 {
-    if (typeof value !== "object" || value === null || !Object.hasOwn(value, "ok")) {
-        throw new TypeError("Meeting result envelope is invalid.");
-    }
-    if ((value as { ok?: unknown }).ok === false) return validateProtocolError(value);
-    return validateProtocolSuccessEnvelope(schema, value);
-}
-
-type LocalContributionControlInput = Extract<
-    ContributionCommandV1,
-    { action: "retry" | "cancel" | "notify_manager" }
->;
-
-function validateLocalContributionControl(input: unknown): LocalContributionControlInput {
-    const parsed = ContributionCommandSchema(input);
-    if (!["retry", "cancel", "notify_manager"].includes(parsed.action)) {
-        throw new TypeError("Local contribution control action is not permitted.");
-    }
-    return parsed as LocalContributionControlInput;
+function mapFailure(signal: AbortSignal, cause: unknown): never {
+    if (signal.aborted) throw signal.reason;
+    throw internalFailure(cause);
 }
 
 export class ConviviumRemoteService extends TypertRemoteService {
@@ -157,280 +58,70 @@ export class ConviviumRemoteService extends TypertRemoteService {
     }
 
     @Remote("list")
-    async list(signal: AbortSignal): Promise<LocalMeetingListResponseV1> {
+    async list(signal: AbortSignal): Promise<RemoteMeetingListResult> {
         signal.throwIfAborted();
-        let value: LocalMeetingListResponseV1;
         try {
-            value = await this.runtime.listLocalMeetings();
+            const request = ListMeetingsRequestV1Schema.parse({ protocolVersion: 1 });
+            void request;
+            return MeetingListResultV1Schema.parse(await this.runtime.list(signal));
         } catch (cause) {
-            throw mapFailure(signal, cause);
-        }
-        try {
-            return LocalMeetingListResponseSchema(value);
-        } catch (cause) {
-            throw internalFailure(cause);
+            mapFailure(signal, cause);
         }
     }
 
-    @Remote("getStatus")
-    getStatus(
-        input: RemoteStatusInput,
+    @Remote("read")
+    async read(
+        request: RemoteReadMeetingRequest,
         signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingStatusResultV1> | ProtocolErrorV1> {
-        return this.unary(
-            input,
-            signal,
-            ["protocolVersion", "meetingId"],
-            MeetingStatusInputSchema,
-            MeetingStatusResultSchema,
-            (value) => this.runtime.getLocalMeetingStatus(value)
-        );
-    }
-
-    @Remote("pause")
-    pause(
-        input: RemotePauseInput,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1> {
-        return this.unary(
-            input,
-            signal,
-            ["protocolVersion", "meetingId", "expectedMeetingVersion", "requestId", "reason"],
-            PauseMeetingInputSchema,
-            MeetingControlResultSchema,
-            (value) => this.runtime.pauseLocalMeeting(value)
-        );
-    }
-
-    @Remote("resume")
-    resume(
-        input: RemoteResumeInput,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1> {
-        return this.unary(
-            input,
-            signal,
-            ["protocolVersion", "meetingId", "expectedMeetingVersion", "requestId"],
-            ResumeMeetingInputSchema,
-            MeetingControlResultSchema,
-            (value) => this.runtime.resumeLocalMeeting(value)
-        );
-    }
-
-    @Remote("reassign")
-    reassign(
-        input: RemoteReassignInput,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<ReassignTurnResultV1> | ProtocolErrorV1> {
-        return this.unary(
-            input,
-            signal,
-            [
-                "protocolVersion",
-                "meetingId",
-                "expectedMeetingVersion",
-                "currentAttemptId",
-                "action",
-                ...(input?.action === "reassign" ? ["replacementParticipantId"] : []),
-                "reason",
-                "requestId"
-            ],
-            validateReassignTurnInput,
-            ReassignTurnResultSchema,
-            (value) => this.runtime.reassignLocalTurn(value)
-        );
-    }
-
-    @Remote("end")
-    end(
-        input: RemoteEndInput,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<EndMeetingResultV1> | ProtocolErrorV1> {
-        return this.unary(
-            input,
-            signal,
-            [
-                "protocolVersion",
-                "meetingId",
-                "expectedMeetingVersion",
-                "outcome",
-                "reason",
-                "acceptedDecisionIds",
-                "deferredAgendaItemIds",
-                "waivers",
-                "requestId"
-            ],
-            EndMeetingInputSchema,
-            EndMeetingResultSchema,
-            (value) => this.runtime.endLocalMeeting(value)
-        );
-    }
-
-    @Remote("acceptDecision")
-    acceptDecision(
-        input: RemoteAcceptDecisionInput,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<CaptainDecisionAcceptanceResultV1> | ProtocolErrorV1> {
-        return this.unary(
-            input,
-            signal,
-            [
-                "protocolVersion",
-                "meetingId",
-                "expectedMeetingVersion",
-                "requestId",
-                "decisionCandidateId",
-                "reason",
-                "evidenceMessageIds"
-            ],
-            CaptainDecisionAcceptanceInputSchema,
-            CaptainDecisionAcceptanceResultSchema,
-            (value) => this.runtime.acceptLocalDecision(value)
-        );
-    }
-
-    @Remote("disposeDecision")
-    disposeDecision(
-        input: RemoteDisposeDecisionInput,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<CaptainDecisionDispositionResultV1> | ProtocolErrorV1> {
-        return this.unary(
-            input,
-            signal,
-            [
-                "protocolVersion",
-                "meetingId",
-                "expectedMeetingVersion",
-                "requestId",
-                "decisionId",
-                "action",
-                ...(input?.action === "supersede" ? ["replacementCandidateId"] : []),
-                "reason",
-                "evidenceMessageIds"
-            ],
-            CaptainDecisionDispositionInputSchema,
-            CaptainDecisionDispositionResultSchema,
-            (value) => this.runtime.disposeLocalDecision(value)
-        );
-    }
-
-    @Remote("disposeRisk")
-    disposeRisk(
-        input: RemoteDisposeRiskInput,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<CaptainRiskDispositionResultV1> | ProtocolErrorV1> {
-        return this.unary(
-            input,
-            signal,
-            [
-                "protocolVersion",
-                "meetingId",
-                "expectedMeetingVersion",
-                "requestId",
-                "issueId",
-                "decision",
-                "reason",
-                "evidenceMessageIds"
-            ],
-            CaptainRiskDispositionInputSchema,
-            CaptainRiskDispositionResultSchema,
-            (value) => this.runtime.disposeLocalRisk(value)
-        );
-    }
-
-    @Remote("readContribution")
-    readContribution(
-        input: RemoteReadContributionInput,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<ReadContributionResultV1> | ProtocolErrorV1> {
-        return this.unary(
-            input,
-            signal,
-            [
-                "protocolVersion",
-                "meetingId",
-                "contributionId",
-                ...(input?.evidenceKey === undefined ? [] : ["evidenceKey"]),
-                ...(input?.draftRevision === undefined ? [] : ["draftRevision"])
-            ],
-            ReadContributionInputSchema,
-            ReadContributionResultSchema,
-            (value: ReadContributionInputV1) => this.runtime.readLocalContribution(value, signal)
-        );
-    }
-
-    @Remote("controlContribution")
-    controlContribution(
-        input: RemoteContributionControlInput,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<ContributionResultV1> | ProtocolErrorV1> {
-        return this.unary(
-            input,
-            signal,
-            input?.action === "notify_manager"
-                ? [
-                      "protocolVersion",
-                      "meetingId",
-                      "requestId",
-                      "expectedMeetingVersion",
-                      "action",
-                      "reason"
-                  ]
-                : [
-                      "protocolVersion",
-                      "meetingId",
-                      "requestId",
-                      "expectedMeetingVersion",
-                      "action",
-                      "contributionId",
-                      "generation",
-                      "reason"
-                  ],
-            validateLocalContributionControl,
-            ContributionResultSchema,
-            (value) => this.runtime.controlLocalContribution(value, signal)
-        );
-    }
-
-    @Remote({ mode: "stream" })
-    watchUpdates(signal: AbortSignal): AsyncIterable<MeetingRefreshNoticeV1> {
-        return this.runtime.watchLocalMeetingUpdates(
-            AbortSignal.any([signal, this.lifetime.signal])
-        );
-    }
-
-    private async unary<Input, Parsed, Result>(
-        input: Input,
-        signal: AbortSignal,
-        expected: readonly string[],
-        inputSchema: InputValidator<Parsed>,
-        resultSchema: Schema,
-        invoke: (value: Parsed) => Promise<unknown>
-    ): Promise<ProtocolSuccessV1<Result> | ProtocolErrorV1> {
+    ): Promise<RemoteMeetingReadResult> {
         signal.throwIfAborted();
-        let parsed: Parsed;
+        let parsed: { readonly protocolVersion: 1; readonly meetingId: string };
         try {
-            parsed = validateInput(input, expected, inputSchema);
+            parsed = ReadMeetingRequestV1Schema.parse(request);
         } catch (cause) {
             throw invalidRequest(cause);
         }
-        signal.throwIfAborted();
-        let value: unknown;
         try {
-            value = await invoke(parsed);
+            return MeetingReadResultV1Schema.parse(await this.runtime.read(parsed, signal));
         } catch (cause) {
-            throw mapFailure(signal, cause);
+            mapFailure(signal, cause);
+        }
+    }
+
+    @Remote("control")
+    async control(
+        command: RemoteMeetingCommand,
+        signal: AbortSignal
+    ): Promise<RemoteMeetingCommandResult> {
+        signal.throwIfAborted();
+        let parsed: MeetingCommandV1;
+        try {
+            parsed = MeetingCommandV1Schema.parse(command);
+        } catch (cause) {
+            throw invalidRequest(cause);
         }
         try {
-            return validateResult(resultSchema, value);
+            return MeetingCommandResultV1Schema.parse(await this.runtime.control(parsed, signal));
         } catch (cause) {
+            mapFailure(signal, cause);
+        }
+    }
+
+    @Remote({ mode: "stream" })
+    subscribeRefresh(signal: AbortSignal): AsyncIterable<RemoteRefreshNotice> {
+        const ownedSignal = AbortSignal.any([signal, this.lifetime.signal]);
+        return this.refreshStream(ownedSignal);
+    }
+
+    private async *refreshStream(signal: AbortSignal): AsyncIterable<RemoteRefreshNotice> {
+        try {
+            for await (const notice of this.runtime.subscribeRefresh(signal)) {
+                signal.throwIfAborted();
+                yield RefreshNoticeV1Schema.parse(notice);
+            }
+        } catch (cause) {
+            if (signal.aborted) return;
             throw internalFailure(cause);
         }
     }
-}
-
-function mapFailure(signal: AbortSignal, cause: unknown): RemoteError | never {
-    if (signal.aborted) throw signal.reason;
-    if (cause instanceof LocalMeetingRecoveryUnavailableError) throw recoveryUnavailable(cause);
-    throw internalFailure(cause);
 }

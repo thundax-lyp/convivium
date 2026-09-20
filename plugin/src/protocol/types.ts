@@ -607,7 +607,6 @@ export type AgentRoleDefinitionIdV1 =
     | "verification_reviewer"
     | "github_research_analyst"
     | "arxiv_research_analyst"
-    | "web_research_analyst"
     | "meeting_scribe";
 
 export type AgentEvidenceScopeV1 = "repository" | "github" | "arxiv" | "web";

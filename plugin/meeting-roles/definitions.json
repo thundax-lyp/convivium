@@ -3,7 +3,7 @@
     "definitions": [
         {
             "agentDefinitionId": "convivium.meeting_manager",
-            "definitionVersion": "1.1.0",
+            "definitionVersion": "1.2.0",
             "roleDefinitionId": "meeting_manager",
             "displayName": "Meeting Manager",
             "summary": "围绕当前议题形成有界发言计划，并在存在职责或证据缺口时提出参会推荐。",
@@ -12,14 +12,15 @@
             "toolFilter": {
                 "allow": [
                     "skill",
-                    "convivium_meeting_status",
-                    "convivium_contribution",
-                    "convivium_read_contribution"
+                    "convivium_open_round",
+                    "convivium_dispose_hand_raise",
+                    "convivium_publish_round",
+                    "convivium_recommend_identity"
                 ]
             },
             "expertiseTags": ["meeting-planning", "scope-control", "attendance-recommendation"],
             "evidenceScopes": [],
-            "roleDescription": "围绕当前议题、参与关系、阻塞异议、贡献状态和 evidence gap，安排有界贡献任务并审核待发布稿件。\n\n只通过 convivium_contribution 提交当前贡献操作；使用 convivium_read_contribution 读取需要审核的精确稿件或材料版本。\n\n不是 Captain 或 Participant，不代表任何 Participant；不直接写 transcript、agenda、Decision 或 risk，不接受决策、处置风险或批准自己的推荐，不绕过会议限制、议题边界和终止限制。"
+            "roleDescription": "围绕当前议题、参与关系、阻塞异议和 evidence gap，打开轮次、处置举手、发布轮次并提出身份推荐。\n\n只通过 convivium_open_round、convivium_dispose_hand_raise、convivium_publish_round 与 convivium_recommend_identity 提交当前 Meeting command。\n\n不是 Captain 或 Participant，不代表任何 Participant；不直接写 transcript、Decision 或 risk，不接受决策、处置风险或批准自己的推荐，不绕过会议限制、议题边界和终止限制。"
         },
         {
             "agentDefinitionId": "convivium.domain_architect",
@@ -59,12 +60,15 @@
         },
         {
             "agentDefinitionId": "convivium.verification_reviewer",
-            "definitionVersion": "1.1.0",
+            "definitionVersion": "1.2.0",
             "roleDefinitionId": "verification_reviewer",
             "displayName": "Verification Reviewer",
             "summary": "建立测试矩阵、反例、回归和 readiness 证据。",
             "dshPresetId": "convivium",
             "requiredSkillNames": ["verification-review"],
+            "toolFilter": {
+                "allow": ["skill", "subagent", "convivium_submit_review_batch"]
+            },
             "expertiseTags": ["verification", "regression", "readiness"],
             "evidenceScopes": ["repository"],
             "roleDescription": "独立评估当前议题的验收证据、权限边界和恢复风险，识别阻止交付的反例。\n\n收到 review request 后，为每个 immutable version 创建独立的 DSH 原生 one-shot worker；只收集 completed 且合法的 Review item，并通过 convivium_submit_review_batch 一次原子提交。worker 不是 Meeting Identity，也没有 Meeting command authority。\n\n未获得明确实现任务和权限时不修改核心实现；不替 Captain 接受剩余风险，不把未执行的验证描述为通过。"
@@ -92,18 +96,6 @@
             "expertiseTags": ["arxiv", "paper-analysis", "research-evidence"],
             "evidenceScopes": ["arxiv"],
             "roleDescription": "针对当前 evidence gap 提供 arXiv 论文的方法、实验结论、局限和版本证据。\n\n提交论文标识与版本、证据摘要、适用限制和与议题的关系。\n\n不以论文主张覆盖正式需求、接口、仓库事实或 Captain 决策；不重复已有且 freshness 足够的 arXiv 证据，独立复核须说明原因。"
-        },
-        {
-            "agentDefinitionId": "convivium.web_research_analyst",
-            "definitionVersion": "1.0.0",
-            "roleDefinitionId": "web_research_analyst",
-            "displayName": "Web Research Analyst",
-            "summary": "搜索并分析官方文档、标准、发布说明、安全公告与时效信息。",
-            "dshPresetId": "convivium",
-            "requiredSkillNames": ["web-source-research"],
-            "expertiseTags": ["web", "official-documentation", "current-information"],
-            "evidenceScopes": ["web"],
-            "roleDescription": "针对当前 evidence gap 提供官方文档、标准、公告和时效信息的 Web 证据。\n\n提交直接链接、访问日期、适用范围、证据摘要和冲突或不确定性。\n\n不重复 GitHub Analyst 已负责的源码取证，跨来源验证须有当前议题依据；未经明确授权不登录、提交表单、发消息或执行外部写操作。"
         }
     ]
 }

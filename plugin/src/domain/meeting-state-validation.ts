@@ -15,7 +15,6 @@ const roleDefinitionIds: readonly AgentRoleDefinitionId[] = [
     "verification_reviewer",
     "github_research_analyst",
     "arxiv_research_analyst",
-    "web_research_analyst",
     "meeting_scribe"
 ];
 const evidenceScopes: readonly AgentEvidenceScope[] = ["repository", "github", "arxiv", "web"];

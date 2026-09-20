@@ -11,8 +11,7 @@ const roles = [
     ["protocol_ui_engineer", "protocol-ui-engineering"],
     ["verification_reviewer", "verification-review"],
     ["github_research_analyst", "github-source-research"],
-    ["arxiv_research_analyst", "arxiv-paper-analysis"],
-    ["web_research_analyst", "web-source-research"]
+    ["arxiv_research_analyst", "arxiv-paper-analysis"]
 ];
 const preset = "presets/convivium";
 const files = [
@@ -91,21 +90,24 @@ export async function verifyMeetingAgentDefinitions(root) {
                 !same(Object.keys(doc).sort(), ["definitions", "schemaVersion"]) ||
                 doc.schemaVersion !== 1 ||
                 !Array.isArray(doc.definitions) ||
-                doc.definitions.length !== 8
+                doc.definitions.length !== 7
             )
                 add("DEFINITION_INVALID", "definitions.json");
             else
                 doc.definitions.forEach((d, i) => {
                     const [role, skill] = roles[i];
                     const allow =
-                        i === 0
+                        role === "meeting_manager"
                             ? [
                                   "skill",
-                                  "convivium_meeting_status",
-                                  "convivium_contribution",
-                                  "convivium_read_contribution"
+                                  "convivium_open_round",
+                                  "convivium_dispose_hand_raise",
+                                  "convivium_publish_round",
+                                  "convivium_recommend_identity"
                               ]
-                            : undefined;
+                            : role === "verification_reviewer"
+                              ? ["skill", "subagent", "convivium_submit_review_batch"]
+                              : undefined;
                     const expectedFields = [...fields, ...(allow ? ["toolFilter"] : [])].sort();
                     if (
                         !d ||
@@ -114,7 +116,7 @@ export async function verifyMeetingAgentDefinitions(root) {
                         d.roleDefinitionId !== role ||
                         d.definitionVersion !==
                             (["meeting_manager", "verification_reviewer"].includes(role)
-                                ? "1.1.0"
+                                ? "1.2.0"
                                 : "1.0.0") ||
                         d.dshPresetId !== "convivium" ||
                         !same(d.requiredSkillNames, [skill]) ||
@@ -173,5 +175,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (errors.length) {
         for (const error of errors) console.error(`FAIL ${error.code} ${error.location}`);
         process.exitCode = 1;
-    } else console.log("PASS 8 Meeting Agent Definition deployment roles");
+    } else console.log("PASS 7 enabled Meeting Agent Definition deployment roles");
 }

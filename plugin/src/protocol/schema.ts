@@ -58,7 +58,6 @@ export const agentRoleDefinitionIdSchema = Schema.union([
     "verification_reviewer",
     "github_research_analyst",
     "arxiv_research_analyst",
-    "web_research_analyst",
     "meeting_scribe"
 ] as const).required();
 const agentEvidenceScopeSchema = Schema.union([

@@ -1,7 +1,8 @@
-import { createProbeSupport } from "./support.js";
+import { collectAgentPromptEvidence, createProbeSupport } from "./support.js";
 import { runParallelContributionScenario } from "./scenarios/parallel-contribution.js";
 import { runParallelContributionModelScenario } from "./scenarios/parallel-contribution-model.js";
 import { runIdentityAdmissionScenario } from "./scenarios/identity-admission.js";
+import { runMeetingBusinessLoopScenario } from "./scenarios/meeting-business-loop.js";
 
 export const name = "convivium-smoke-profile-probe";
 export const inject = [
@@ -16,10 +17,19 @@ export const inject = [
 ];
 
 const outputPath = process.env.CONVIVIUM_SMOKE_RESULT;
+const agentPromptsPath = process.env.CONVIVIUM_SMOKE_AGENT_PROMPTS_PATH;
 const browserMode = process.env.CONVIVIUM_SMOKE_BROWSER_MODE === "1";
 const scenario = process.env.CONVIVIUM_SMOKE_SCENARIO || "parallel-contribution";
-const { assert, callTool, createInput, writeResult, observedMessages, messageTexts } =
-    createProbeSupport(outputPath);
+const {
+    assert,
+    callTool,
+    callTargetTool,
+    callTargetToolResult,
+    createInput,
+    writeResult,
+    observedMessages,
+    messageTexts
+} = createProbeSupport(outputPath);
 let captain;
 let nextCall = 1000;
 const observedAgents = new Map();
@@ -177,19 +187,47 @@ function createSmokeAgent(ctx, sessionId) {
 async function run(ctx) {
     if (!outputPath) return;
     if (
-        !["parallel-contribution", "parallel-contribution-model", "identity-admission"].includes(
-            scenario
-        )
+        ![
+            "parallel-contribution",
+            "parallel-contribution-model",
+            "identity-admission",
+            "meeting-business-loop"
+        ].includes(scenario)
     ) {
         await writeResult({ ok: false, scenario, error: "SCENARIO_NOT_IMPLEMENTED:" + scenario });
         return;
     }
     try {
+        if (
+            scenario === "meeting-business-loop" &&
+            process.env.CONVIVIUM_SMOKE_PHASE === "cold-reopen"
+        ) {
+            const meetingId = process.env.CONVIVIUM_SMOKE_MEETING_ID;
+            assert(meetingId, "cold reopen requires the original meeting id");
+            const runtimeApi = ctx.get("conviviumMeetingRuntime");
+            assert(runtimeApi, "cold reopen Meeting runtime is unavailable");
+            const reopened = await runtimeApi.read(
+                { protocolVersion: 1, meetingId },
+                new AbortController().signal
+            );
+            assert(reopened.lifecycle.status === "archived", "cold reopen lost archived state");
+            assert(reopened.archive?.status === "complete", "cold reopen lost archive package");
+            await writeResult({
+                ok: true,
+                scenario: "meeting-business-loop-cold-reopen",
+                meetingId,
+                status: reopened.lifecycle.status,
+                archiveStatus: reopened.archive.status
+            });
+            return;
+        }
         const workspace = browserMode
             ? await ctx.workspaceRegistry.create(process.cwd(), "Convivium smoke")
             : undefined;
         captain =
-            scenario === "parallel-contribution-model" || scenario === "identity-admission"
+            scenario === "parallel-contribution-model" ||
+            scenario === "identity-admission" ||
+            scenario === "meeting-business-loop"
                 ? await ctx.agents.create({
                       sessionId:
                           scenario === "identity-admission"
@@ -221,6 +259,8 @@ async function run(ctx) {
             },
             assert,
             callTool,
+            callTargetTool,
+            callTargetToolResult,
             createInput,
             writeResult,
             waitForAgent,
@@ -228,14 +268,18 @@ async function run(ctx) {
             waitForInbox,
             waitForContributionContext,
             messageTexts,
+            observedMessages: (agent) => observedMessages(agent, observedInboxMessages),
+            observedAgents: () => [...observedAgents.values()],
             resumeParticipantForProbe
         };
         if (scenario === "parallel-contribution") {
             await runParallelContributionScenario(runtime);
         } else if (scenario === "parallel-contribution-model") {
             await runParallelContributionModelScenario(runtime);
-        } else {
+        } else if (scenario === "identity-admission") {
             await runIdentityAdmissionScenario(runtime);
+        } else {
+            await runMeetingBusinessLoopScenario(runtime);
         }
     } catch (error) {
         await writeResult({
@@ -243,6 +287,19 @@ async function run(ctx) {
             error: error instanceof Error ? (error.stack ?? error.message) : String(error)
         });
     } finally {
+        if (agentPromptsPath && process.env.CONVIVIUM_SMOKE_PHASE !== "cold-reopen") {
+            const fs = await import("node:fs/promises");
+            const promptEvidence = collectAgentPromptEvidence(
+                observedAgents,
+                observedInboxMessages
+            );
+            await fs.writeFile(
+                agentPromptsPath + ".tmp",
+                JSON.stringify(promptEvidence, null, 2),
+                "utf8"
+            );
+            await fs.rename(agentPromptsPath + ".tmp", agentPromptsPath);
+        }
         if (!browserMode) await captain?.dispose();
     }
 }

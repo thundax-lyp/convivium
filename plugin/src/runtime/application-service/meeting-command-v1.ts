@@ -641,6 +641,7 @@ export function createMeetingCommandApplicationV1(
                             committedVersion: snapshot.version + 1,
                             receiptId,
                             factIds: [factId],
+                            relatedIds: [...transition.relatedIds],
                             effects: effects.map((effect) => ({
                                 id: effect.id!,
                                 kind: effect.payload.kind as never,

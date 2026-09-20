@@ -74,6 +74,13 @@ export {
 export * from "./types.js";
 export {
     MeetingActionV1Schema,
+    CreateMeetingActionV1Schema,
+    OpenRoundActionV1Schema,
+    RaiseHandActionV1Schema,
+    DisposeHandRaiseActionV1Schema,
+    SubmitEvidenceActionV1Schema,
+    SubmitReviewBatchActionV1Schema,
+    PublishRoundActionV1Schema,
     MeetingCommandV1Schema,
     ListMeetingsRequestV1Schema,
     ReadMeetingRequestV1Schema,

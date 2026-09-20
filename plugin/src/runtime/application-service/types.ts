@@ -1,13 +1,3 @@
-import type { MeetingAgentModelOverrides } from "@/role-composition/model-options.js";
-import type { DiagnosticSink } from "@/repository/diagnostics.js";
-import type { MeetingAgentDefinitionV1 } from "@/role-composition/model.js";
-import type { DomainFacility } from "@deepseek-ai/dsh-storage-domain";
-import type { SubagentRuntime } from "@deepseek-ai/dsh-subagent";
-import type { DomainFacilityPort } from "@/repository/domain/domain-repository-registry.js";
-import type { RepositoryAuthorizationValidator } from "@/runtime/meeting-runtime.js";
-import type { AgentCatalogPort } from "@/runtime/services/agent-catalog.js";
-import type { DeveloperMarkdownWarning } from "@/runtime/services/developer-markdown-service.js";
-import type { MeetingOwnershipLookup } from "@/dsh/index.js";
 import type {
     ContributionCommandV1,
     ContributionResultV1,
@@ -37,7 +27,6 @@ import type {
     TurnSubmissionResultV1,
     ProtocolErrorV1,
     ProtocolSuccessV1,
-    LocalMeetingListResponseV1,
     PauseMeetingInputV1,
     ResumeMeetingInputV1,
     ReassignTurnInputV1,
@@ -55,19 +44,7 @@ import type {
     CaptainAgendaCandidateDispositionInputV1,
     CaptainAgendaCandidateDispositionResultV1
 } from "@/protocol/index.js";
-import type { MeetingRefreshNoticeV1 } from "@/protocol/index.js";
 import type { Agent } from "@deepseek-ai/dsh-agent";
-import type { MeetingRepositoryRuntime } from "@/runtime/meeting-runtime.js";
-
-export interface StoredMeeting {
-    readonly teamId: string;
-    readonly captainSessionId: string;
-    readonly repository: MeetingRepositoryRuntime;
-    parent?: Agent;
-}
-
-export type MeetingControlSource =
-    { readonly kind: "captain"; readonly sessionId: string } | { readonly kind: "local_host" };
 
 export interface MeetingToolCaller {
     readonly sessionId: string;
@@ -189,71 +166,3 @@ export interface MeetingToolRuntime {
         signal: AbortSignal
     ): Promise<ProtocolSuccessV1<EndMeetingResultV1> | ProtocolErrorV1>;
 }
-
-export interface CreateStatusRuntimeOptions {
-    readonly onDiagnostic?: DiagnosticSink;
-    readonly getCaptainParent?: (sessionId: string) => Agent | undefined;
-    readonly agentModelOverrides?: MeetingAgentModelOverrides;
-    readonly agentDefinitions?: readonly MeetingAgentDefinitionV1[];
-    readonly storageDomain: Pick<DomainFacility, "open"> | DomainFacilityPort;
-    readonly provider: string;
-    readonly continuable: Pick<
-        SubagentRuntime,
-        "startContinuable" | "sendMessage" | "listDescendants"
-    > &
-        Partial<Pick<SubagentRuntime, "listChildren" | "interrupt" | "drainContinuableChildren">>;
-    readonly authorizationValidator: RepositoryAuthorizationValidator;
-    readonly maxParticipants?: number;
-    readonly outboxPollMs?: number;
-    readonly speakerAttemptTimeoutMs?: number;
-    readonly signal?: AbortSignal;
-    readonly now?: () => number;
-    readonly timeoutScanSleep?: (delayMs: number, signal: AbortSignal) => Promise<void>;
-    readonly agentCatalog?: AgentCatalogPort;
-    readonly developerMarkdown?: {
-        readonly workspaceRoot: string;
-        readonly warn: (warning: DeveloperMarkdownWarning) => void;
-    };
-}
-
-export interface LocalMeetingWebRuntime {
-    controlLocalContribution(
-        input: Extract<ContributionCommandV1, { action: "retry" | "cancel" | "notify_manager" }>,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<ContributionResultV1> | ProtocolErrorV1>;
-    readLocalContribution(
-        input: ReadContributionInputV1,
-        signal: AbortSignal
-    ): Promise<ProtocolSuccessV1<ReadContributionResultV1> | ProtocolErrorV1>;
-    watchLocalMeetingUpdates(signal: AbortSignal): AsyncIterable<MeetingRefreshNoticeV1>;
-    acceptLocalDecision(
-        input: CaptainDecisionAcceptanceInputV1
-    ): Promise<ProtocolSuccessV1<CaptainDecisionAcceptanceResultV1> | ProtocolErrorV1>;
-    disposeLocalDecision(
-        input: CaptainDecisionDispositionInputV1
-    ): Promise<ProtocolSuccessV1<CaptainDecisionDispositionResultV1> | ProtocolErrorV1>;
-    disposeLocalRisk(
-        input: CaptainRiskDispositionInputV1
-    ): Promise<ProtocolSuccessV1<CaptainRiskDispositionResultV1> | ProtocolErrorV1>;
-    listLocalMeetings(): Promise<LocalMeetingListResponseV1>;
-    getLocalMeetingStatus(
-        input: MeetingStatusInputV1
-    ): Promise<ProtocolSuccessV1<MeetingStatusResultV1> | ProtocolErrorV1>;
-    pauseLocalMeeting(
-        input: PauseMeetingInputV1
-    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
-    resumeLocalMeeting(
-        input: ResumeMeetingInputV1
-    ): Promise<ProtocolSuccessV1<MeetingControlResultV1> | ProtocolErrorV1>;
-    reassignLocalTurn(
-        input: ReassignTurnInputV1
-    ): Promise<ProtocolSuccessV1<ReassignTurnResultV1> | ProtocolErrorV1>;
-    endLocalMeeting(
-        input: EndMeetingInputV1
-    ): Promise<ProtocolSuccessV1<EndMeetingResultV1> | ProtocolErrorV1>;
-}
-
-export type MeetingRuntimeWithCallerLookup = MeetingToolRuntime &
-    MeetingOwnershipLookup & {
-        scanExpiredSpeakerAttempts(): Promise<void>;
-    } & LocalMeetingWebRuntime & { dispose(): Promise<void> };

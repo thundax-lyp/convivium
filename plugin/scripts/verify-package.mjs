@@ -53,8 +53,7 @@ const requiredArtifacts = [
     "meeting-roles/presets/convivium/skills/protocol-ui-engineering/SKILL.md",
     "meeting-roles/presets/convivium/skills/verification-review/SKILL.md",
     "meeting-roles/presets/convivium/skills/github-source-research/SKILL.md",
-    "meeting-roles/presets/convivium/skills/arxiv-paper-analysis/SKILL.md",
-    "meeting-roles/presets/convivium/skills/web-source-research/SKILL.md"
+    "meeting-roles/presets/convivium/skills/arxiv-paper-analysis/SKILL.md"
 ];
 const expectedExports = {
     ".": { types: "./lib/types/index.d.ts", default: "./lib/index.js" },

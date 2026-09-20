@@ -2,7 +2,7 @@ import type { Agent } from "@deepseek-ai/dsh-agent";
 import { defineTool, type ToolRunContext } from "@deepseek-ai/dsh-tools";
 import type { JsonValue } from "@deepseek-ai/dsh-util-values";
 import type { ToolRuntime } from "@deepseek-ai/dsh-tools";
-import type { ResolvedMeetingCaller } from "@/dsh/index.js";
+import type { ResolvedMeetingCaller, ResolvedMeetingCallerV1 } from "@/dsh/index.js";
 import type {
     CreateMeetingInputV1,
     EndMeetingInputV1,
@@ -25,14 +25,40 @@ import type {
     CaptainAgendaCandidateDispositionInputV1,
     FinishMeetingMailInputV1,
     SendMeetingMessageInputV1,
-    TurnSubmissionV1
+    TurnSubmissionV1,
+    MeetingCommandResultV1,
+    MeetingCommandV1
 } from "@/protocol/index.js";
 import {
-    managerPlanAllowedIntents,
-    managerPlanAllowedStepReasons,
     type MeetingToolCaller,
-    type MeetingToolRuntime
+    type MeetingToolRuntime,
+    type MeetingCommandApplicationV1
 } from "@/runtime/index.js";
+
+const managerPlanAllowedIntents = [
+    "explore",
+    "clarify",
+    "challenge",
+    "review",
+    "resolve_objection",
+    "synthesize",
+    "decide",
+    "report_task_result",
+    "refocus"
+] as const;
+const managerPlanAllowedStepReasons = [
+    "explicit_mention",
+    "direct_question",
+    "required_reviewer",
+    "agenda_owner",
+    "task_result_owner",
+    "blocking_objection_owner",
+    "hand_raise",
+    "rule_score",
+    "manager_selected",
+    "round_robin_fallback",
+    "captain_summary"
+] as const;
 import {
     ContributionCommandSchema,
     ReadContributionInputSchema,
@@ -56,7 +82,16 @@ import {
     CaptainAgendaCandidateDispositionInputSchema,
     FinishMeetingMailInputSchema,
     SendMeetingMessageInputSchema,
-    validateProtocolError
+    validateProtocolError,
+    CreateMeetingActionV1Schema,
+    OpenRoundActionV1Schema,
+    DisposeHandRaiseActionV1Schema,
+    PublishRoundActionV1Schema,
+    RaiseHandActionV1Schema,
+    SubmitEvidenceActionV1Schema,
+    SubmitReviewBatchActionV1Schema,
+    RecommendIdentityActionV1Schema,
+    MeetingCommandV1Schema
 } from "@/protocol/index.js";
 
 export interface MeetingToolCallerResolver {
@@ -706,4 +741,173 @@ function registerTurnAndControlTools(
 
 export function assertProtocolError(value: ProtocolErrorV1): ProtocolErrorV1 {
     return validateProtocolError(value);
+}
+
+export interface TargetMeetingToolCallerResolver {
+    resolve(agent: Agent, signal: AbortSignal): Promise<ResolvedMeetingCallerV1 | ProtocolErrorV1>;
+}
+
+export interface MeetingCommandToolDependencies {
+    readonly registry: Pick<ToolRuntime, "register">;
+    readonly application: MeetingCommandApplicationV1;
+    readonly callers: TargetMeetingToolCallerResolver;
+    readonly onMeetingCreated?: (meetingId: string, parent: Agent) => void;
+}
+
+const targetToolParameters = {
+    input: {
+        type: "json",
+        required: true,
+        description:
+            "Complete MeetingCommandV1 object. The tool-call arguments must have exactly one top-level field named input; put protocolVersion, meetingId, expectedMeetingVersion, requestId, and the full action object inside input."
+    }
+} as const;
+
+type TargetActionSchema = {
+    safeParse(value: unknown): { success: boolean; data?: unknown };
+};
+
+interface TargetToolDefinition {
+    readonly name: string;
+    readonly kind: string;
+    readonly schema: TargetActionSchema;
+}
+
+function rejectedTargetToolCall(message: string): MeetingCommandResultV1 {
+    return { kind: "rejected", error: { code: "INVALID_ARGUMENT", message } };
+}
+
+function unauthorizedTargetToolCall(message: string): MeetingCommandResultV1 {
+    return { kind: "rejected", error: { code: "UNAUTHORIZED", message } };
+}
+
+function asTargetJson(value: unknown): JsonValue {
+    return value as JsonValue;
+}
+
+function targetCaller(resolved: ResolvedMeetingCallerV1): {
+    channel: "dsh_tool";
+    principalId: string;
+    sessionBindingId?: string;
+} {
+    return {
+        channel: "dsh_tool",
+        principalId: resolved.identityId,
+        ...(resolved.ownership.id === undefined ? {} : { sessionBindingId: resolved.ownership.id })
+    };
+}
+
+function targetCommand(
+    input: unknown,
+    definition: TargetToolDefinition
+): MeetingCommandV1 | MeetingCommandResultV1 {
+    const parsed = MeetingCommandV1Schema.safeParse(input);
+    if (!parsed.success || parsed.data.action.kind !== definition.kind)
+        return rejectedTargetToolCall(`Expected ${definition.kind} command input.`);
+    const action = definition.schema.safeParse(parsed.data.action);
+    if (!action.success)
+        return rejectedTargetToolCall(`Expected valid ${definition.kind} command input.`);
+    return {
+        ...parsed.data,
+        action: action.data
+    } as MeetingCommandV1;
+}
+
+function registerTargetTool(
+    dependencies: MeetingCommandToolDependencies,
+    definition: TargetToolDefinition
+): () => void {
+    return dependencies.registry.register(
+        defineTool({
+            name: definition.name,
+            description: `Execute the ${definition.kind} Meeting command.`,
+            parameters: targetToolParameters,
+            output: {
+                schema: { type: "json" },
+                render: (_args, value) => [{ type: "text" as const, text: JSON.stringify(value) }]
+            },
+            async execute(args, exec) {
+                const command = targetCommand(args.input, definition);
+                if ("kind" in command) return asTargetJson(command);
+                if (exec.agent === undefined)
+                    return asTargetJson(
+                        unauthorizedTargetToolCall("A Meeting tool requires an Agent caller.")
+                    );
+                if (definition.kind === "create_meeting") {
+                    const result = await dependencies.application.execute(
+                        command,
+                        {
+                            caller: {
+                                channel: "dsh_tool",
+                                principalId: String(exec.agent.id)
+                            },
+                            captainParent: exec.agent
+                        },
+                        exec.signal
+                    );
+                    if (result.kind === "accepted")
+                        dependencies.onMeetingCreated?.(result.meetingId, exec.agent);
+                    return asTargetJson(result);
+                }
+                const resolved = await dependencies.callers.resolve(exec.agent, exec.signal);
+                if ("ok" in resolved)
+                    return asTargetJson(unauthorizedTargetToolCall(resolved.message));
+                return asTargetJson(
+                    await dependencies.application.execute(
+                        command,
+                        { caller: targetCaller(resolved) },
+                        exec.signal
+                    )
+                );
+            }
+        })
+    );
+}
+
+export function registerMeetingToolsV1(
+    dependencies: MeetingCommandToolDependencies
+): readonly (() => void)[] {
+    const definitions: readonly TargetToolDefinition[] = [
+        {
+            name: "convivium_create_meeting",
+            kind: "create_meeting",
+            schema: CreateMeetingActionV1Schema
+        },
+        {
+            name: "convivium_open_round",
+            kind: "open_round",
+            schema: OpenRoundActionV1Schema
+        },
+        {
+            name: "convivium_dispose_hand_raise",
+            kind: "dispose_hand_raise",
+            schema: DisposeHandRaiseActionV1Schema
+        },
+        {
+            name: "convivium_publish_round",
+            kind: "publish_round",
+            schema: PublishRoundActionV1Schema
+        },
+        {
+            name: "convivium_raise_hand",
+            kind: "raise_hand",
+            schema: RaiseHandActionV1Schema
+        },
+        {
+            name: "convivium_submit_evidence",
+            kind: "submit_evidence",
+            schema: SubmitEvidenceActionV1Schema
+        },
+        {
+            name: "convivium_submit_review_batch",
+            kind: "submit_review_batch",
+            schema: SubmitReviewBatchActionV1Schema
+        },
+        {
+            name: "convivium_recommend_identity",
+            kind: "recommend_identity",
+            schema: RecommendIdentityActionV1Schema
+        }
+    ];
+    return definitions.map((definition) => registerTargetTool(dependencies, definition));
 }

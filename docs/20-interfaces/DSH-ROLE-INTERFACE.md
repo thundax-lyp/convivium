@@ -24,8 +24,7 @@ Definition 与 Catalog 不得携带完整 Agent 配置、prompt、凭据、MCP �
     type AgentRoleDefinitionIdV1 =
       | "meeting_manager" | "domain_architect" | "runtime_engineer"
       | "protocol_ui_engineer" | "verification_reviewer"
-      | "github_research_analyst" | "arxiv_research_analyst"
-      | "web_research_analyst";
+      | "github_research_analyst" | "arxiv_research_analyst";
     type AgentEvidenceScopeV1 = "repository" | "github" | "arxiv" | "web";
     interface ToolRestrictionV1 { allow?: string[]; deny?: string[] }
     interface MeetingAgentDefinitionV1 {
@@ -39,7 +38,7 @@ Definition 与 Catalog 不得携带完整 Agent 配置、prompt、凭据、MCP �
       agentDefinitionId: DefinitionId; definitionVersion: string; definitionHash: string;
     }
 
-Definition 采用 [MO-FR-14](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#mo-fr-14共享-preset-下的-meeting-agent-definition) 的当前发布字段：`agentDefinitionId/definitionVersion` 固定同一语义，`roleDescription` 只写会议职责，通用方法由原生 DSH Skill 承担。`meeting_manager` 与 `verification_reviewer` 只能在创建时分别绑定唯一 Manager 与唯一专职 evidence reviewer，不能作为动态普通 Participant 准入；其他 roleDefinitionId 经 Runtime 固定映射为 `roles:["contributor"]`、空 agenda responsibility、`riskAuthority:false`、`required:false`，Definition 不授予 Meeting 控制权。Reviewer Definition 可以引用 Host-approved 的材料读取、代码核验、Web/GitHub/arXiv 查询与运行验证能力，具体工具仍由 Host policy 决定。`dshPresetId` 与 `requiredSkillNames` 是精确 Host 引用；共享 Captain parent Preset 或任一 required Skill 缺失时 fail closed。`toolFilter` 只收窄继承工具，模型覆盖仅由 Host 独立配置提供，不在 Definition 或 Manager 输入中保存。`AgentDefinitionBindingV1` 的内容指纹由 Runtime 对已验证 Definition 规范化计算并与 Session descriptor 固化；不从 displayName 或当前默认定义推断。
+Definition 采用 [MO-FR-14](../10-requirements/MEETING-ORCHESTRATION-REQUIREMENTS.md#mo-fr-14共享-preset-下的-meeting-agent-definition) 的当前发布字段：`agentDefinitionId/definitionVersion` 固定同一语义，`roleDescription` 只写会议职责，通用方法由原生 DSH Skill 承担。`meeting_manager` 与 `verification_reviewer` 只能在创建时分别绑定唯一 Manager 与唯一专职 evidence reviewer，不能作为动态普通 Participant 准入；其他 roleDefinitionId 经 Runtime 固定映射为 `roles:["contributor"]`、空 agenda responsibility、`riskAuthority:false`、`required:false`，Definition 不授予 Meeting 控制权。`web_research_analyst` 当前不属于有效 `AgentRoleDefinitionIdV1`，Host producer 和 Runtime 均不得发布或接纳该 Definition。Reviewer Definition 可以引用 Host-approved 的材料读取、代码核验、Web/GitHub/arXiv 查询与运行验证能力，具体工具仍由 Host policy 决定。`dshPresetId` 与 `requiredSkillNames` 是精确 Host 引用；共享 Captain parent Preset 或任一 required Skill 缺失时 fail closed。`toolFilter` 只收窄继承工具，模型覆盖仅由 Host 独立配置提供，不在 Definition 或 Manager 输入中保存。`AgentDefinitionBindingV1` 的内容指纹由 Runtime 对已验证 Definition 规范化计算并与 Session descriptor 固化；不从 displayName 或当前默认定义推断。
 
 ## Catalog Snapshot And Recommendation Input
 

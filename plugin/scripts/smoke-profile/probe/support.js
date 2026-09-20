@@ -1,3 +1,22 @@
+export function collectAgentPromptEvidence(observedAgents, observedInboxMessages) {
+    return [...observedAgents.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([sessionId]) => ({
+            sessionId,
+            prompts: (observedInboxMessages.get(sessionId) ?? []).map((message, index) => ({
+                index,
+                texts: Array.isArray(message.content)
+                    ? message.content
+                          .filter((part) => part?.type === "text" && typeof part.text === "string")
+                          .map((part) => part.text)
+                    : typeof message.content === "string"
+                      ? [message.content]
+                      : [],
+                source: message.source ?? null
+            }))
+        }));
+}
+
 export function createProbeSupport(outputPath) {
     function assert(condition, message) {
         if (!condition) throw new Error(message);
@@ -14,6 +33,31 @@ export function createProbeSupport(outputPath) {
         if (result.isError) throw new Error(name + "#" + index + ": " + result.error.message);
         if (!result.value?.ok) throw new Error(name + " failed: " + JSON.stringify(result.value));
         return result.value;
+    }
+
+    async function callTargetTool(ctx, agent, name, input, index) {
+        const result = await callTargetToolResult(ctx, agent, name, input, index);
+        if (result.isError) throw new Error(name + "#" + index + ": " + result.error.message);
+        if (result.value?.kind === "rejected")
+            throw new Error(name + " rejected: " + JSON.stringify(result.value));
+        return result.value;
+    }
+
+    async function callTargetToolResult(ctx, agent, name, input, index, options = {}) {
+        let result;
+        const attempts = options.retryUnknown === false ? 1 : 120;
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+            result = await ctx.tools.execute({
+                callId: "convivium-target-smoke-" + index,
+                name,
+                arguments: { input },
+                agent,
+                signal: new AbortController().signal
+            });
+            if (!result.isError || !String(result.error?.message).includes("unknown tool")) break;
+            await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+        return result;
     }
 
     function createInput() {
@@ -79,6 +123,8 @@ export function createProbeSupport(outputPath) {
     return {
         assert,
         callTool,
+        callTargetTool,
+        callTargetToolResult,
         createInput,
         writeResult,
         observedMessages,

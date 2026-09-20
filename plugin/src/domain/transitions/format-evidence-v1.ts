@@ -220,13 +220,16 @@ export function submitEvidenceV1(
                   currentVersionId: version.id,
                   versions: [...existingPackage.versions, version]
               };
+    const {
+        response: _response,
+        supplementHand: _supplementHand,
+        ...contributionWithoutOptional
+    } = contribution;
     const nextContribution = {
-        ...contribution,
+        ...contributionWithoutOptional,
         packageId: packageValue.id,
         status: "under_review" as const,
-        substantiveSupplementCount: supplement ? contribution.substantiveSupplementCount + 1 : 0,
-        response: undefined,
-        supplementHand: undefined
+        substantiveSupplementCount: supplement ? contribution.substantiveSupplementCount + 1 : 0
     };
     const next = {
         ...state,

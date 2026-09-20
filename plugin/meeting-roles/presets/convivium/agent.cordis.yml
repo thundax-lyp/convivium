@@ -32,6 +32,15 @@
       search: true
       fetch: true
       searchTimeoutMs: 60000
+- id: tool-subagent
+  name: "@deepseek-ai/dsh-tool-subagent"
+  config:
+      provider: spawn
+      toolName: subagent
+      backgroundMode: one-shot
+      enableRunInBackground: false
+      toolFilter:
+          allow: []
 - id: compaction
   name: cordis:group
   group: true

@@ -193,6 +193,17 @@ describe("evidence review request dispatcher v1", () => {
             parent: { id: "captain-1" } as never,
             signal: new AbortController().signal
         });
+        await dispatcher.dispatch({
+            outboxItem: outboxItem({
+                kind: "agent_notice",
+                noticeKind: "review_request",
+                recipientId: "reviewer-v1",
+                agendaId: "agenda-v1",
+                versionId: "version-pending"
+            }),
+            parent: { id: "captain-1" } as never,
+            signal: new AbortController().signal
+        });
 
         expect(sendMessage).toHaveBeenCalledOnce();
         const prompt = sendMessage.mock.calls[0]?.[2] as Array<{ text: string }>;
@@ -200,6 +211,7 @@ describe("evidence review request dispatcher v1", () => {
         expect(envelope).toMatchObject({
             effectId: "effect-review-1",
             meetingId: "meeting-v1",
+            expectedMeetingVersion: 6,
             pending: [
                 {
                     version: pendingVersion,
@@ -213,7 +225,82 @@ describe("evidence review request dispatcher v1", () => {
             ]
         });
         expect(envelope.instructions).toContain("convivium_submit_review_batch");
-        expect(envelope.instructions).toContain("one-shot worker");
+        expect(envelope.instructions).toContain("call subagent once for every pending item");
+        expect(envelope.instructions).toContain("intersection with reviewConstraints");
+        expect(envelope.reviewConstraints).toEqual([
+            {
+                versionId: "version-pending",
+                allowedBaselineEvidenceIds: ["version-baseline"]
+            }
+        ]);
+        expect(envelope.reviewItemRules).toMatchObject({
+            requiredDimensions: ["source", "credibility", "completeness", "support"],
+            allowedScores: [0, 1, 2, 3, "unable_to_assess"],
+            itemTemplate: {
+                versionId: "copy-pending-version-id",
+                scope: "non-empty-review-scope",
+                dimensions: {
+                    source: {
+                        score: "unable_to_assess",
+                        scope: "non-empty-dimension-scope",
+                        reason: "non-empty-reason",
+                        baselineEvidenceIds: []
+                    },
+                    credibility: {
+                        score: "unable_to_assess",
+                        scope: "non-empty-dimension-scope",
+                        reason: "non-empty-reason",
+                        baselineEvidenceIds: []
+                    },
+                    completeness: {
+                        score: "unable_to_assess",
+                        scope: "non-empty-dimension-scope",
+                        reason: "non-empty-reason",
+                        baselineEvidenceIds: []
+                    },
+                    support: {
+                        score: "unable_to_assess",
+                        scope: "non-empty-dimension-scope",
+                        reason: "non-empty-reason",
+                        baselineEvidenceIds: []
+                    }
+                }
+            },
+            scoringRubric: {
+                0: expect.any(String),
+                1: expect.any(String),
+                2: expect.any(String),
+                3: expect.any(String),
+                unable_to_assess: expect.any(String)
+            },
+            dimensionCriteria: {
+                source: expect.any(String),
+                credibility: expect.any(String),
+                completeness: expect.any(String),
+                support: expect.any(String)
+            },
+            workerOutputSchema: {
+                type: "object",
+                required: ["versionId", "scope", "dimensions"],
+                additionalProperties: false
+            }
+        });
+        expect(envelope.instructions).toContain("Never use an array or numeric keys");
+        expect(envelope.instructions).toContain("workerOutputSchema");
+        expect(envelope.instructions).toContain("replacement one-shot worker");
+        expect(envelope.submit).toEqual({
+            tool: "convivium_submit_review_batch",
+            input: {
+                protocolVersion: 1,
+                meetingId: "meeting-v1",
+                expectedMeetingVersion: 6,
+                requestId: "review-batch:effect-review-1",
+                action: {
+                    kind: "submit_review_batch",
+                    reviews: "replace-with-valid-completed-review-items"
+                }
+            }
+        });
         expect(envelope).not.toHaveProperty("sessionId");
     });
 

@@ -90,12 +90,15 @@ export function closeContributionV1(state: MeetingState, input: Input): MeetingT
         updatedAt: input.now,
         contributions: state.contributions.map((candidate) =>
             candidate.id === contribution.id
-                ? {
-                      ...candidate,
-                      status: input.exit,
-                      exitReason: input.reason,
-                      supplementHand: undefined
-                  }
+                ? (() => {
+                      const { supplementHand: _supplementHand, ...candidateWithoutHand } =
+                          candidate;
+                      return {
+                          ...candidateWithoutHand,
+                          status: input.exit,
+                          exitReason: input.reason
+                      };
+                  })()
                 : candidate
         )
     };

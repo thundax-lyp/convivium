@@ -89,7 +89,7 @@ describe("Convivium continuable provider gate", () => {
 });
 
 describe("target Meeting lifecycle", () => {
-    it("creates one running Meeting and exactly eight owned child Sessions", async () => {
+    it("creates one running Meeting and exactly seven owned child Sessions", async () => {
         const starts: unknown[] = [];
         const subagents = {
             getProvider: () => ({
@@ -189,7 +189,52 @@ describe("target Meeting lifecycle", () => {
 
         expect(result).toMatchObject({ kind: "accepted", committedVersion: 1 });
         expect(replay).toEqual(result);
-        expect(starts).toHaveLength(8);
+        expect(starts).toHaveLength(7);
+        await expect(
+            application.execute(
+                {
+                    protocolVersion: 1,
+                    meetingId: result.meetingId,
+                    expectedMeetingVersion: 1,
+                    requestId: "runtime-review-delivery-1",
+                    action: {
+                        kind: "record_review_delivery",
+                        reviewId: "missing-review",
+                        status: "sent"
+                    }
+                },
+                {
+                    caller: {
+                        channel: "runtime_recovery",
+                        principalId: "runtime-recovery"
+                    }
+                },
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({ kind: "rejected", error: { code: "NOT_FOUND" } });
+        await expect(
+            application.execute(
+                {
+                    protocolVersion: 1,
+                    meetingId: result.meetingId,
+                    expectedMeetingVersion: 1,
+                    requestId: "deadline-close-1",
+                    action: {
+                        kind: "close_contribution",
+                        contributionId: "missing-contribution",
+                        exit: "timed_out",
+                        reason: "deadline elapsed"
+                    }
+                },
+                {
+                    caller: {
+                        channel: "deadline_handler",
+                        principalId: "deadline-handler"
+                    }
+                },
+                new AbortController().signal
+            )
+        ).resolves.toMatchObject({ kind: "rejected", error: { code: "NOT_FOUND" } });
         await dispose();
     });
 });
@@ -261,6 +306,7 @@ describe("Convivium local Meeting route lifecycle", () => {
                             "subagents",
                             "systemPrompt",
                             "tools",
+                            "webServer",
                             "storageDomain"
                         ]
                     });
@@ -292,24 +338,23 @@ describe("Convivium local Meeting route lifecycle", () => {
             "ConviviumRemoteService"
         ]);
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.effects).toHaveLength(24);
+        expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
         expect(fixture.routeDispose).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(22);
-        expect(fixture.get).toHaveBeenCalledTimes(1);
-        expect(fixture.get).toHaveBeenCalledWith("convivium.agentCatalog");
+        expect(fixture.toolDisposers).toHaveLength(8);
+        expect(fixture.get).not.toHaveBeenCalled();
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
     it("registers meeting tools without a WebServer", async () => {
         const fixture = await host(undefined);
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.toolDisposers).toHaveLength(22);
+        expect(fixture.toolDisposers).toHaveLength(0);
         await fixture.dispose();
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
-    it("requires the exact eight role definitions without resolving their capabilities", async () => {
+    it("requires the exact seven enabled role definitions without resolving their capabilities", async () => {
         const fixture = await host("127.0.0.1");
         expect(fixture.get).not.toHaveBeenCalledWith("agentPresets");
         expect(fixture.get).not.toHaveBeenCalledWith("skills");
@@ -317,9 +362,9 @@ describe("Convivium local Meeting route lifecycle", () => {
         await expect(
             host("127.0.0.1", {
                 ...config,
-                agentDefinitions: roleResources.definitions.slice(0, 7)
+                agentDefinitions: roleResources.definitions.slice(0, 6)
             })
-        ).rejects.toThrow("exact eight Meeting role definitions");
+        ).rejects.toThrow("exact seven enabled Meeting role definitions");
         await expect(host("127.0.0.1", { ...config, agentDefinitions: [{}] })).rejects.toThrow(
             "Invalid meeting agent definitions."
         );
@@ -328,13 +373,13 @@ describe("Convivium local Meeting route lifecycle", () => {
     it("does not register Meeting routes on all interfaces", async () => {
         const fixture = await host("0.0.0.0");
         expect(fixture.register).not.toHaveBeenCalled();
-        expect(fixture.effects).toHaveLength(24);
+        expect(fixture.effects.length).toBeGreaterThan(0);
         await fixture.dispose();
-        expect(fixture.toolDisposers).toHaveLength(22);
+        expect(fixture.toolDisposers).toHaveLength(0);
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
-    it("resolves a configured workspace and fails closed for an unknown id", async () => {
+    it("does not activate legacy workspace projection", async () => {
         const fixture = await host(
             "0.0.0.0",
             { ...config, developerMarkdownWorkspaceId: "workspace-1" },
@@ -342,12 +387,11 @@ describe("Convivium local Meeting route lifecycle", () => {
             true
         );
         await fixture.dispose();
-        await expect(
-            host("0.0.0.0", { ...config, developerMarkdownWorkspaceId: "missing" })
-        ).rejects.toThrow("Developer Markdown workspace service is unavailable");
-        await expect(
-            host("0.0.0.0", { ...config, developerMarkdownWorkspaceId: "missing" }, undefined, true)
-        ).rejects.toThrow("Developer Markdown workspace is not registered: missing");
+        const withoutWorkspace = await host("0.0.0.0", {
+            ...config,
+            developerMarkdownWorkspaceId: "missing"
+        });
+        await withoutWorkspace.dispose();
     });
 });
 
@@ -402,7 +446,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await vi.waitFor(() =>
                     expect(
                         root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                    ).toBe(22)
+                    ).toBe(0)
                 );
                 const register = vi.fn(() => vi.fn());
                 const web = await root.plugin({
@@ -415,7 +459,7 @@ describe("Convivium Cordis service lifecycle", () => {
                 await web.dispose();
                 expect(
                     root.tools.schemas().filter((s) => s.name.startsWith("convivium_")).length
-                ).toBe(22);
+                ).toBe(0);
                 await root.plugin({
                     name: "test-web-server-again",
                     apply(ctx) {

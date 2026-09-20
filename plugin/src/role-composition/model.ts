@@ -17,7 +17,6 @@ const definition = z.strictObject({
         "verification_reviewer",
         "github_research_analyst",
         "arxiv_research_analyst",
-        "web_research_analyst",
         "meeting_scribe"
     ]),
     displayName: text,

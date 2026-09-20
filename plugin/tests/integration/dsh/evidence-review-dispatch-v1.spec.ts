@@ -129,6 +129,47 @@ describe("review delivery dispatcher v1", () => {
         );
     });
 
+    it("re-reads and retries a sent record after a concurrent Meeting version change", async () => {
+        const { state, ownership } = reviewedState();
+        const recover = vi
+            .fn()
+            .mockResolvedValueOnce({
+                snapshot: { meetingId: state.id, version: 8, state, createdAt: 0, updatedAt: 2 },
+                sessionOwnership: ownership
+            })
+            .mockResolvedValueOnce({
+                snapshot: { meetingId: state.id, version: 8, state, createdAt: 0, updatedAt: 2 },
+                sessionOwnership: ownership
+            })
+            .mockResolvedValue({
+                snapshot: { meetingId: state.id, version: 9, state, createdAt: 0, updatedAt: 3 },
+                sessionOwnership: ownership
+            });
+        const execute = vi
+            .fn()
+            .mockResolvedValueOnce({
+                kind: "rejected",
+                error: { code: "VERSION_CONFLICT", message: "retry" }
+            })
+            .mockResolvedValueOnce({ kind: "accepted" });
+        const dispatcher = createReviewDeliveryDispatcherV1({
+            sessions: { sendMessage: vi.fn().mockResolvedValue("message-1") },
+            application: { execute } as never,
+            repository: { recover } as never
+        });
+
+        await dispatcher.dispatch({
+            outboxItem: item,
+            parent: { id: "captain-1" } as never,
+            signal: new AbortController().signal
+        });
+
+        expect(execute).toHaveBeenCalledTimes(2);
+        expect(execute.mock.calls.map(([command]) => command.expectedMeetingVersion)).toEqual([
+            8, 9
+        ]);
+    });
+
     it("records a safe failed attempt and retries when inbox delivery fails", async () => {
         const { state, ownership } = reviewedState();
         const execute = vi.fn().mockResolvedValue({ kind: "accepted" });
