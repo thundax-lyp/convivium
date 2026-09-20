@@ -622,6 +622,16 @@ describe("private mail transitions", () => {
             });
         const malformed = expirePrivateMailV1(processing, undefined as never);
         rejected(malformed, "INVALID_ARGUMENT");
+        for (const reason of [undefined, 1]) {
+            const invalidReason = expirePrivateMailV1(processing, {
+                mailId: "mail-1",
+                actorKind: "deadline_handler",
+                reason,
+                now: 110
+            } as never);
+            rejected(invalidReason, "INVALID_ARGUMENT");
+            expect(invalidReason.state).toBe(processing);
+        }
     });
 
     it("releases the recipient gate after cancellation so the next mail can start", () => {

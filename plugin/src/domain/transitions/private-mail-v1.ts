@@ -256,7 +256,14 @@ export function cancelPrivateMailV1(s: MeetingState, i: CancelPrivateMailInputV1
 export function expirePrivateMailV1(s: MeetingState, i: ExpirePrivateMailInputV1) {
     const bad = stateCheck(s);
     if (bad) return bad;
-    if (!i || typeof i.mailId !== "string" || !i.mailId.trim() || !i.reason.trim() || !valid(i.now))
+    if (
+        !i ||
+        typeof i.mailId !== "string" ||
+        !i.mailId.trim() ||
+        typeof i.reason !== "string" ||
+        !i.reason.trim() ||
+        !valid(i.now)
+    )
         return reject(s, "INVALID_ARGUMENT", "invalid terminal input");
     if (i.actorKind !== "deadline_handler")
         return reject(s, "UNAUTHORIZED", "invalid actor", i.mailId);
