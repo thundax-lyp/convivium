@@ -9,6 +9,7 @@ import {
 } from "@/domain/transitions/evidence-review-v1.js";
 import { isRoundClosableV1 } from "@/domain/transitions/round-v1.js";
 import { publishRoundV1 } from "@/domain/transitions/round-publication-v1.js";
+import { closeContributionV1 } from "@/domain/transitions/contribution-exit-v1.js";
 import { validateMeetingStateV1 } from "@/domain/meeting-state-v1-validation.js";
 
 function evidenceState() {
@@ -218,6 +219,44 @@ describe("evidence review and delivery", () => {
         expect(sent.kind).toBe("accepted");
         expect(sent.kind === "accepted" && sent.state.contributions[0]?.status).toBe(
             "awaiting_response"
+        );
+    });
+
+    it("preserves a withdrawn Contribution when a pending review delivery is sent", () => {
+        const reviewed = submitReviewBatchV1(evidenceState(), {
+            reviewerId: "reviewer-v1",
+            reviews: [
+                {
+                    versionId: "version-v1",
+                    reviewId: "review-v1",
+                    dimensions,
+                    scope: "本轮"
+                }
+            ],
+            now: 6
+        });
+        if (reviewed.kind !== "accepted") throw new Error("review");
+        const withdrawn = closeContributionV1(reviewed.state, {
+            contributionId: "contribution-v1",
+            actorId: "contributor-v1",
+            actorKind: "author",
+            exit: "withdrawn",
+            reason: "withdraw",
+            now: 7
+        });
+        if (withdrawn.kind !== "accepted") throw new Error("withdraw");
+
+        const delivered = recordReviewDeliveryV1(withdrawn.state, {
+            reviewId: "review-v1",
+            dispatcherId: "dispatcher-v1",
+            deliveryId: "delivery-v1",
+            status: "sent",
+            now: 8
+        });
+
+        expect(delivered.kind).toBe("accepted");
+        expect(delivered.kind === "accepted" && delivered.state.contributions[0]?.status).toBe(
+            "withdrawn"
         );
     });
 
