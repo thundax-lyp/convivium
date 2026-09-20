@@ -9,7 +9,7 @@
 截至 2026-09-18，Meeting target activity graph 已切换到同一条 V1 数据与命令路径：
 
 - `MeetingState`、target codec、`DomainMeetingRepository`、command application、DSH tools、loopback Remote、caller-filtered view、outbox dispatch 与 archive lifecycle 使用同一 `meetingId` namespace。
-- 创建链 provision 八个固定 Meeting identities；Contributor 接收 `meeting_started`；唯一 evidence reviewer coordinator 使用受限 one-shot workers 评审，并通过 `submit_review_batch` 原子提交合法结果。
+- 创建链 provision 七个固定 Meeting identities；Web Research Analyst 已从 Definition、Skill、协议角色枚举和初始阵容完全禁用；其余 Contributor 接收 `meeting_started`；唯一 evidence reviewer coordinator 使用受限 one-shot workers 评审，并通过 `submit_review_batch` 原子提交合法结果。
 - review request、review delivery、round publication、partial termination、archive materialization、Session closure 与同 SQLite storage 冷重启读取均已接入 target lifecycle。
 - DSH Storage Domain adapter、`DomainRepositoryRegistry`、`DomainMeetingRepository` 与唯一 `MeetingRepositoryPort` 保留；它们是 target 持久化核心，不属于已删除的 legacy facade。
 - `projection/status.ts` 与直接依赖的 `projection/contribution.ts` 成对保留，但不从 target projection public entrypoint 导出。
@@ -37,7 +37,7 @@
 | repository and recovery | repository contract、failure injection、SQLite reopen 与 target command recovery tests |
 | runtime and DSH integration | identity provisioning/notice、review request/delivery、archive dispatcher、lifecycle 与 Host plugin tests |
 | tools and transport | 八个 Meeting target tools、loopback Remote、caller resolution、read projection 与 Client tests |
-| real business loop | `meeting-business-loop` scenario 覆盖八 roles、初始 notice、两份 Evidence、不同 one-shot workers、worker 无 command authority、review batch/delivery、publish、partial、archive、close 与 cold reopen |
+| real business loop | `meeting-business-loop` scenario 覆盖七个启用 roles、初始 notice、两份 Evidence、不同 one-shot workers、worker 无 command authority、review batch/delivery、publish、partial、archive、close 与 cold reopen |
 
 ## Explicitly Not Covered
 
@@ -56,6 +56,7 @@
 | 2026-09-18 | T30 runtime fixes focused checks | PASS：6 files、31 tests，覆盖 runtime caller scope、review delivery、round publication 与 archive dispatcher。 |
 | 2026-09-18 | T30 documentation close checks | PASS：434 个 Markdown local links、`git diff --check` 与 RUNBOOK 文件删除检查。 |
 | 2026-09-18 | T30 final smoke | 未完成：用户要求停止；停止前的运行已通过结构化 review、delivery、publish 与 archive materialization，但停在 Session teardown，未取得 `archived`/cold-reopen PASS。 |
+| 2026-09-20 | Web Research Analyst disablement | PASS：完整 `pnpm verify`，105 files、1224 tests；format、lint（0 errors、19 existing warnings）、typecheck、build、environment、contract、7-role Definition 与 package gates 全部通过。真实 `meeting-business-loop` smoke 未在本次重跑。 |
 
 `pnpm --dir=plugin verify` 曾在后续 runtime 修复前通过；修复后的完整 verify 未重跑。不得把 focused checks 或已停止的 smoke 描述为完整门禁通过。
 

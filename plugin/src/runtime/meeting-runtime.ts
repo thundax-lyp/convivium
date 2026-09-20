@@ -516,9 +516,9 @@ function assertInitialTargetIdentities(
     definitions: readonly MeetingAgentDefinitionV1[]
 ): void {
     const { action } = command;
-    if (action.identities.length !== 8) throw new RoleCompositionError();
+    if (action.identities.length !== 7) throw new RoleCompositionError();
     const keys = new Set(action.identities.map((identity) => identity.identityKey));
-    if (keys.size !== 8 || action.managerIdentityKey === action.evidenceReviewerIdentityKey)
+    if (keys.size !== 7 || action.managerIdentityKey === action.evidenceReviewerIdentityKey)
         throw new RoleCompositionError();
     const agendas = new Set(action.initialAgenda.map((agenda) => agenda.id));
     if (
@@ -564,7 +564,7 @@ function assertInitialTargetIdentities(
                 throw new RoleCompositionError();
         } else throw new RoleCompositionError();
     }
-    if (managers !== 1 || reviewers !== 1 || contributors !== 6) throw new RoleCompositionError();
+    if (managers !== 1 || reviewers !== 1 || contributors !== 5) throw new RoleCompositionError();
     for (const agenda of action.initialAgenda)
         if (agenda.ownerIdentityKey !== undefined && !keys.has(agenda.ownerIdentityKey))
             throw new RoleCompositionError();

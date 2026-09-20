@@ -166,7 +166,7 @@ no_consensus、进展重置和另一种预算的规则差异由 `turn-advancemen
 
 ### 九角色部署场景（旧实现诊断）
 
-本场景仍按现有资源验证包含 Scribe 的九角色包，只用于定位迁移前实现问题；当前正式目标已经删除 `meeting_scribe`，本场景通过不能作为八角色契约的发布验收。
+本场景仍按现有资源验证包含 Scribe 的九角色包，只用于定位迁移前实现问题；当前正式目标已经删除 `meeting_scribe` 并完全禁用 `web_research_analyst`，本场景通过不能作为七个启用角色契约的发布验收。
 
 ```sh
 env CONVIVIUM_SMOKE_SCENARIO=meeting-roles pnpm smoke:profile

@@ -17,7 +17,7 @@ const roleAgentComposition = new URL(
     import.meta.url
 );
 
-it("publishes one Manager, one Evidence Reviewer and six Contributor definitions", () => {
+it("publishes one Manager, one Evidence Reviewer and five Contributor definitions", () => {
     const definitions = parseAgentDefinitions(deployed.definitions);
     expect(definitions.map(({ roleDefinitionId }) => roleDefinitionId)).toEqual([
         "meeting_manager",
@@ -26,10 +26,9 @@ it("publishes one Manager, one Evidence Reviewer and six Contributor definitions
         "protocol_ui_engineer",
         "verification_reviewer",
         "github_research_analyst",
-        "arxiv_research_analyst",
-        "web_research_analyst"
+        "arxiv_research_analyst"
     ]);
-    expect(definitions).toHaveLength(8);
+    expect(definitions).toHaveLength(7);
     expect(definitions.some(({ roleDefinitionId }) => roleDefinitionId === "meeting_scribe")).toBe(
         false
     );

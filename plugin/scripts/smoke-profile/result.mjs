@@ -56,8 +56,7 @@ function validateMeetingBusinessLoopResult(value) {
             "contributor-b",
             "contributor-c",
             "contributor-d",
-            "contributor-e",
-            "contributor-f"
+            "contributor-e"
         ]) ||
         Object.values(value.observed.startedNoticeCounts).some((count) => count !== 1) ||
         value.observed.workerSessionIds.length !== 2 ||
@@ -94,8 +93,7 @@ export function validateMeetingBusinessLoopHotResult(value) {
             "contributor-b",
             "contributor-c",
             "contributor-d",
-            "contributor-e",
-            "contributor-f"
+            "contributor-e"
         ]) ||
         Object.values(value.observed.startedNoticeCounts).some((count) => count !== 1) ||
         value.observed.workerSessionIds.length !== 2 ||

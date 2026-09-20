@@ -59,7 +59,7 @@ function attendanceRecommendations(
             claim.rationale.trim() === "" ||
             claim.expectedContribution.trim() === "" ||
             claim.evidenceGapIds.length !== 0 ||
-            ["github_research_analyst", "arxiv_research_analyst", "web_research_analyst"].includes(
+            ["github_research_analyst", "arxiv_research_analyst"].includes(
                 candidate.roleDefinitionId
             )
         )

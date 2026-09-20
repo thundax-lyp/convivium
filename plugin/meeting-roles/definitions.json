@@ -96,18 +96,6 @@
             "expertiseTags": ["arxiv", "paper-analysis", "research-evidence"],
             "evidenceScopes": ["arxiv"],
             "roleDescription": "针对当前 evidence gap 提供 arXiv 论文的方法、实验结论、局限和版本证据。\n\n提交论文标识与版本、证据摘要、适用限制和与议题的关系。\n\n不以论文主张覆盖正式需求、接口、仓库事实或 Captain 决策；不重复已有且 freshness 足够的 arXiv 证据，独立复核须说明原因。"
-        },
-        {
-            "agentDefinitionId": "convivium.web_research_analyst",
-            "definitionVersion": "1.0.0",
-            "roleDefinitionId": "web_research_analyst",
-            "displayName": "Web Research Analyst",
-            "summary": "搜索并分析官方文档、标准、发布说明、安全公告与时效信息。",
-            "dshPresetId": "convivium",
-            "requiredSkillNames": ["web-source-research"],
-            "expertiseTags": ["web", "official-documentation", "current-information"],
-            "evidenceScopes": ["web"],
-            "roleDescription": "针对当前 evidence gap 提供官方文档、标准、公告和时效信息的 Web 证据。\n\n提交直接链接、访问日期、适用范围、证据摘要和冲突或不确定性。\n\n不重复 GitHub Analyst 已负责的源码取证，跨来源验证须有当前议题依据；未经明确授权不登录、提交表单、发消息或执行外部写操作。"
         }
     ]
 }

@@ -2,7 +2,7 @@
 
 ## Purpose And Status
 
-本文只记录现有旧实现的一位 Manager、八位 Participant（含 Scribe）、共享 convivium Preset 和九个原生 Skills 的诊断部署流程。当前正式目标已经删除 `meeting_scribe`，要求一位 Manager、七个非 Manager 角色身份和八个 Skills；因此本流程不得作为当前角色契约的发布验收。迁移缺口见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
+本文只记录现有旧实现的一位 Manager、八位 Participant（含 Scribe）、共享 convivium Preset 和九个原生 Skills 的诊断部署流程。当前正式目标已经删除 `meeting_scribe` 并完全禁用 `web_research_analyst`，要求一位 Manager、六个非 Manager 角色身份和七个 Skills；因此本流程不得作为当前角色契约的发布验收。迁移缺口见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)。
 
 本流程只使用独立本地 DSH web profile，不修改日常 profile。角色和模型契约见 [DSH Role Interface](../20-interfaces/DSH-ROLE-INTERFACE.md)，资源结构见 [DSH Plugin Design](../30-designs/DSH-PLUGIN-DESIGN.md)。
 
@@ -94,7 +94,7 @@ env CONVIVIUM_SMOKE_SCENARIO=role-composition pnpm smoke:profile
 
 前者证明发布资源、九角色与原生能力；后者证明模型/persona/filter 差异和两个 Host 的冷恢复。两者不能互相替代，均要求 Restore PASS。自动探针的装配、超时、回调、权限断言与抓取开关统一见 [Smoke Operations 九角色部署场景](./HOW-TO-DSH-SMOKE.md#九角色部署场景)，本节不重复维护实现流程。
 
-当前实现覆盖与未验证边界见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)；九角色通过也不能证明八角色目标已实现，任何历史授权不自动适用于新的验收。
+当前实现覆盖与未验证边界见 [Current Implementation Coverage](../40-readiness/CURRENT-IMPLEMENTATION-COVERAGE.md)；九角色通过也不能证明七个启用角色目标已实现，任何历史授权不自动适用于新的验收。
 
 ## Restore And Failure Handling
 

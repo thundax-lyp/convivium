@@ -149,8 +149,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         "contributor-b",
         "contributor-c",
         "contributor-d",
-        "contributor-e",
-        "contributor-f"
+        "contributor-e"
     ];
     const definitions = [
         ["manager", "convivium.meeting_manager", "1.2.0", "manager"],
@@ -159,8 +158,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         ["contributor-b", "convivium.runtime_engineer", "1.0.0", "contributor"],
         ["contributor-c", "convivium.protocol_ui_engineer", "1.0.0", "contributor"],
         ["contributor-d", "convivium.github_research_analyst", "1.0.0", "contributor"],
-        ["contributor-e", "convivium.arxiv_research_analyst", "1.0.0", "contributor"],
-        ["contributor-f", "convivium.web_research_analyst", "1.0.0", "contributor"]
+        ["contributor-e", "convivium.arxiv_research_analyst", "1.0.0", "contributor"]
     ];
     const input = {
         protocolVersion: 1,
@@ -238,8 +236,7 @@ export async function runMeetingBusinessLoopScenario(runtime) {
         "contributor-b",
         "contributor-c",
         "contributor-d",
-        "contributor-e",
-        "contributor-f"
+        "contributor-e"
     ];
     const interruptedTurnCount = new Map();
     for (let attempt = 0; attempt < 240; attempt += 1) {

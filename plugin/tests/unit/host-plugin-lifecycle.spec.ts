@@ -89,7 +89,7 @@ describe("Convivium continuable provider gate", () => {
 });
 
 describe("target Meeting lifecycle", () => {
-    it("creates one running Meeting and exactly eight owned child Sessions", async () => {
+    it("creates one running Meeting and exactly seven owned child Sessions", async () => {
         const starts: unknown[] = [];
         const subagents = {
             getProvider: () => ({
@@ -189,7 +189,7 @@ describe("target Meeting lifecycle", () => {
 
         expect(result).toMatchObject({ kind: "accepted", committedVersion: 1 });
         expect(replay).toEqual(result);
-        expect(starts).toHaveLength(8);
+        expect(starts).toHaveLength(7);
         await expect(
             application.execute(
                 {
@@ -354,7 +354,7 @@ describe("Convivium local Meeting route lifecycle", () => {
         for (const disposer of fixture.toolDisposers) expect(disposer).toHaveBeenCalledTimes(1);
     });
 
-    it("requires the exact eight role definitions without resolving their capabilities", async () => {
+    it("requires the exact seven enabled role definitions without resolving their capabilities", async () => {
         const fixture = await host("127.0.0.1");
         expect(fixture.get).not.toHaveBeenCalledWith("agentPresets");
         expect(fixture.get).not.toHaveBeenCalledWith("skills");
@@ -362,9 +362,9 @@ describe("Convivium local Meeting route lifecycle", () => {
         await expect(
             host("127.0.0.1", {
                 ...config,
-                agentDefinitions: roleResources.definitions.slice(0, 7)
+                agentDefinitions: roleResources.definitions.slice(0, 6)
             })
-        ).rejects.toThrow("exact eight Meeting role definitions");
+        ).rejects.toThrow("exact seven enabled Meeting role definitions");
         await expect(host("127.0.0.1", { ...config, agentDefinitions: [{}] })).rejects.toThrow(
             "Invalid meeting agent definitions."
         );

@@ -69,7 +69,7 @@ Identity admission 的 durable ownership 先处于 provisioning 且不授予 Mee
 
 面板先读取本地 Host 的全部可恢复 Meeting 摘要，选定后才读取完整状态。摘要不含 transcript、Session ID、capability、物理存储路径或私有运行数据。任一已发现 Meeting 无法恢复时，列表返回暂不可用原因而不得伪装为完整可用列表。完整状态由类型化后端接口输出；Client 只展示，不计算领域状态、不写缓存事实。
 
-V1 的 Web/Remote 入口仅在 loopback Host 可用时挂载，不建立 Web 用户、Team authority、远程监听或跨 Host 推送。Meeting 创建只由 Captain-only DSH tool 发起，八个初始 child 的可信 parent 直接取自该次 tool 的 `exec.agent`；Remote 不提供 create，只保留经 local binding 授权的控制操作。提交成功或协议拒绝后，Client 重新读取完整状态；刷新通知只提示重新读取，断线时禁写，补读成功后才恢复写入。
+V1 的 Web/Remote 入口仅在 loopback Host 可用时挂载，不建立 Web 用户、Team authority、远程监听或跨 Host 推送。Meeting 创建只由 Captain-only DSH tool 发起，七个初始 child 的可信 parent 直接取自该次 tool 的 `exec.agent`；Remote 不提供 create，只保留经 local binding 授权的控制操作。提交成功或协议拒绝后，Client 重新读取完整状态；刷新通知只提示重新读取，断线时禁写，补读成功后才恢复写入。
 
 面板和自然语言入口调用同一暂停、恢复、结束、贡献撤销/重新分配、决策和风险控制规则。活动会议显示暂停，暂停会议显示继续，并展示原因和 actor；强制结束、审核豁免、风险接受和部分完成也必须显示原因。Captain/local 专属决策和风险处置投影只能给相应调用者；普通 Participant 不能由 UI 字段或 Remote 输入绕过该边界。
 

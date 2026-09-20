@@ -26,8 +26,7 @@ const hotResult = {
             "contributor-b": 1,
             "contributor-c": 1,
             "contributor-d": 1,
-            "contributor-e": 1,
-            "contributor-f": 1
+            "contributor-e": 1
         },
         workerSessionIds: ["worker-1", "worker-2"]
     }
